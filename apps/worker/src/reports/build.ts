@@ -1,6 +1,8 @@
 import { prisma } from "@linkaffipro/db";
 import { dayKey } from "../stats/aggregate";
 import { EMPTY_METRICS, type NamedMetrics, type ReportData, type ReportMetrics } from "./format";
+import { describeBackup, type BackupStatus } from "../backups/plan";
+import { BACKUP_SETTING_KEY } from "../backups/run";
 
 /** Date UTC minuit correspondant à une clé AAAA-MM-JJ (format de stockage de `DailyStat.date`). */
 export function utcDateOf(key: string): Date {
@@ -59,15 +61,17 @@ async function topNamed(fromKey: string, toKey: string, prefix: "campaign:" | "c
   return entries.map(([dim, m]) => ({ ...m, name: names.get(dim.slice(prefix.length)) ?? dim }));
 }
 
-async function statusBlock(now: Date): Promise<Pick<ReportData, "openAlerts" | "sync" | "upcomingPosts">> {
-  const [alerts, states, posts] = await Promise.all([
+async function statusBlock(now: Date): Promise<Pick<ReportData, "openAlerts" | "sync" | "upcomingPosts" | "backup">> {
+  const [alerts, states, posts, backupSetting] = await Promise.all([
     prisma.alert.findMany({ where: { resolvedAt: null }, orderBy: { createdAt: "desc" }, take: 5, select: { kind: true, message: true } }),
     prisma.syncState.findMany({ select: { source: true, lastSuccessAt: true, lastError: true } }),
     prisma.post.findMany({ where: { status: "SCHEDULED", scheduledAt: { gte: now, lte: new Date(now.getTime() + 86_400_000) } }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, channel: { select: { title: true } } } }),
+    prisma.setting.findUnique({ where: { key: BACKUP_SETTING_KEY } }),
   ]);
+  const backup = describeBackup(backupSetting && backupSetting.value && typeof backupSetting.value === "object" ? (backupSetting.value as BackupStatus) : null);
   const lastSuccessAt = states.reduce<Date | null>((acc, s) => (s.lastSuccessAt && (!acc || s.lastSuccessAt > acc) ? s.lastSuccessAt : acc), null);
   const errors = states.filter((s) => s.lastError).map((s) => `${s.source} : ${s.lastError}`).slice(0, 3);
-  return { openAlerts: alerts, sync: { lastSuccessAt, errors }, upcomingPosts: posts.map((p) => ({ channel: p.channel.title, scheduledAt: p.scheduledAt ?? now })) };
+  return { openAlerts: alerts, sync: { lastSuccessAt, errors }, backup, upcomingPosts: posts.map((p) => ({ channel: p.channel.title, scheduledAt: p.scheduledAt ?? now })) };
 }
 
 const dayLabel = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });

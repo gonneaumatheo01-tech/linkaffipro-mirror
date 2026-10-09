@@ -19,7 +19,7 @@ CLAUDE.local.md
 *.log
 
 # Sauvegardes locales de la base (jamais dans git)
-backups/
+/backups/
 
 # Généré par next dev
 apps/web/AGENTS.md

@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 // Le worker est empaqueté en un seul fichier ESM ; les paquets internes (@linkaffipro/*) sont inclus,
 // les dépendances externes (Prisma, BullMQ, grammY…) restent dans node_modules.
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/backup-now.ts"],
   format: ["esm"],
   platform: "node",
   target: "node22",

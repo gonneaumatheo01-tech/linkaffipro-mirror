@@ -30,6 +30,8 @@ export type ReportData = {
   openAlerts: Array<{ kind: string; message: string }>;
   /** Dernier succès de la synchro Link Affi (null si jamais) et éventuelle erreur en cours. */
   sync: { lastSuccessAt: Date | null; errors: string[] };
+  /** Résumé de la dernière sauvegarde automatique (phrase en français), absent dans les tests anciens. */
+  backup?: string | null;
   upcomingPosts: Array<{ channel: string; scheduledAt: Date }>;
 };
 
@@ -108,6 +110,7 @@ function formatStatus(d: ReportData): string[] {
   if (d.sync.lastSuccessAt) out.push(`🔄 Synchro Link Affi : dernier succès ${dateTimeFmt.format(d.sync.lastSuccessAt)}`);
   else out.push("🔄 Synchro Link Affi : jamais réussie");
   for (const e of d.sync.errors) out.push(`⚠️ Synchro : ${escapeHtml(e)}`);
+  if (d.backup) out.push(`${/échec|aucune/.test(d.backup) ? "⚠️" : "💾"} Sauvegarde : ${escapeHtml(d.backup)}`);
   if (d.upcomingPosts.length > 0) {
     out.push(`🗓 ${d.upcomingPosts.length} message${d.upcomingPosts.length > 1 ? "s" : ""} programmé${d.upcomingPosts.length > 1 ? "s" : ""} dans les 24 h :`);
     for (const p of d.upcomingPosts.slice(0, 8)) out.push(`• ${timeFmt.format(p.scheduledAt)} — ${escapeHtml(p.channel)}`);

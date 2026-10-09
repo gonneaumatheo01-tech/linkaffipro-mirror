@@ -25,6 +25,8 @@
     "tg:send": "node scripts/tg-remote.mjs send",
     "tg:inbox": "node scripts/tg-remote.mjs inbox",
     "sequences:backfill": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/backfill-sequences.ts",
+    "db:restore": "node scripts/db-restore.mjs",
+    "db:backup:now": "railway ssh --service worker -- node apps/worker/dist/backup-now.js",
     "db:dump": "node scripts/db-dump.mjs",
     "test:integration": "node scripts/test-integration.mjs"
   },
