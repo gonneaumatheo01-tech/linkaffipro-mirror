@@ -42,7 +42,7 @@ Ce que cela change :
 - Décision du 9 octobre : **option 1**, on demande l'évolution à Link Affi (texte ci-dessus) et, en attendant, la phase 1 attribue par campagne.
 
 ## Actions humaines en attente
-1. Transmettre la demande d'évolution ci-dessus au développeur de Link Affi, puis me dire quand c'est en place.
+1. Demande d'évolution transmise au développeur de Link Affi le 9 octobre (confirmé par Telegram) ; me dire quand c'est en place.
 2. Valider la phase 0 : faites le test de 5 minutes ci-dessus puis répondez « phase 0 OK » (par Telegram, voir ci-dessous).
 
 Fait : DNS, bascule en Europe (confirmée par vous ; Postgres vérifié à Amsterdam), volumes orphelins supprimés par la ligne de commande (Railway les efface définitivement le 11 octobre).
