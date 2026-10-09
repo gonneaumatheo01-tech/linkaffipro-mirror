@@ -22,10 +22,16 @@ export function getQueue<Q extends QueueName>(name: Q): Queue<JobOf<Q>> {
   return q;
 }
 
+/** BullMQ interdit « : » dans un identifiant de tâche personnalisé : on le remplace par « - ». */
+export function safeJobId(id: string | undefined): string | undefined {
+  return id === undefined ? undefined : id.replace(/:/g, "-");
+}
+
 /** Ajoute une tâche. `jobId` rend l'ajout idempotent (une même tâche n'est pas enfilée deux fois). */
 export async function enqueue<Q extends QueueName>(name: Q, data: JobOf<Q>, opts: JobsOptions & { jobId?: string } = {}) {
   const q = getQueue(name) as unknown as Queue;
-  return q.add(`${name}:${(data as { type: string }).type}`, data, { ...opts });
+  const { jobId, ...rest } = opts;
+  return q.add(`${name}:${(data as { type: string }).type}`, data, { ...rest, ...(jobId ? { jobId: safeJobId(jobId) } : {}) });
 }
 
 export async function closeQueues(): Promise<void> {
