@@ -23,7 +23,8 @@
     "linkaffi:check": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/check.ts",
     "linkaffi:inspect": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/inspect.ts",
     "tg:send": "node scripts/tg-remote.mjs send",
-    "tg:inbox": "node scripts/tg-remote.mjs inbox"
+    "tg:inbox": "node scripts/tg-remote.mjs inbox",
+    "sequences:backfill": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/backfill-sequences.ts"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

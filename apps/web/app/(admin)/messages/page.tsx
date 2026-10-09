@@ -57,6 +57,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
   return (
     <>
       <PageHeader title="Messages" description="Messages programmés dans les canaux, avec boutons traqués et offres personnalisées.">
+        <Button variant="outline" size="sm" render={<Link href="/messages/categories" />}>Comparer par catégorie</Button>
         <Button render={<Link href="/messages/new" />}>Nouveau message</Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />

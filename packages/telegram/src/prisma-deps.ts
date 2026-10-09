@@ -1,6 +1,7 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import type { Chat, User } from "grammy/types";
 import type { AdminRights, BotIdentity, TelegramDeps } from "./ports";
+import { ensureDefaultSequences } from "./sequences/ensure";
 
 function memberData(from: User) {
   return {
@@ -77,12 +78,21 @@ export const prismaTelegramDeps: TelegramDeps = {
   async upsertChannel(chat) {
     const type = chat.type === "channel" ? "CHANNEL" : "GROUP";
     const username = "username" in chat ? (chat.username ?? null) : null;
+    const known = await prisma.channel.findUnique({ where: { telegramChatId: BigInt(chat.id) }, select: { id: true } });
     const channel = await prisma.channel.upsert({
       where: { telegramChatId: BigInt(chat.id) },
       create: { telegramChatId: BigInt(chat.id), title: chatTitle(chat), username, type },
       update: { title: chatTitle(chat), username, type },
       select: { id: true },
     });
+    if (!known) {
+      // Canal nouvellement détecté : séquences de messages privés par défaut (jamais bloquant).
+      try {
+        await ensureDefaultSequences(channel.id);
+      } catch (err) {
+        console.warn("[telegram] séquences par défaut impossibles pour", channel.id, (err as Error).message);
+      }
+    }
     return { channelId: channel.id };
   },
 

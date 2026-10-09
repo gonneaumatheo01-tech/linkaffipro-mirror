@@ -15,6 +15,7 @@ import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { requireUser } from "@/lib/session";
 import { approveMembershipAction, declineMembershipAction, saveRuleAction } from "./actions";
+import { SequencesTab } from "./sequences/sequences-tab";
 
 export const metadata: Metadata = { title: "Canal" };
 
@@ -22,6 +23,7 @@ const TABS = [
   { key: "rules", label: "Règles d'adhésion" },
   { key: "requests", label: "Demandes" },
   { key: "members", label: "Membres" },
+  { key: "sequences", label: "Messages du bot" },
 ] as const;
 
 const STATUS_LABELS: Record<MembershipStatus, string> = {
@@ -68,7 +70,7 @@ function sourceLabel(source: unknown): string {
 }
 
 export default async function ChannelPage({ params, searchParams }: PageProps<"/channels/[id]">) {
-  await requireUser();
+  const me = await requireUser();
   const { id } = await params;
   const sp = await searchParams;
   const tab = (typeof sp.tab === "string" && TABS.some((t) => t.key === sp.tab) ? sp.tab : "rules") as (typeof TABS)[number]["key"];
@@ -99,6 +101,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
       {tab === "rules" ? <RulesTab channelId={channel.id} selectCls={selectCls} /> : null}
       {tab === "requests" ? <RequestsTab channelId={channel.id} now={now} /> : null}
       {tab === "members" ? <MembersTab channelId={channel.id} /> : null}
+      {tab === "sequences" ? <SequencesTab channelId={channel.id} channelTitle={channel.title} open={typeof sp.open === "string" ? sp.open : undefined} telegramLinked={Boolean(me.telegramUserId)} /> : null}
     </>
   );
 }
