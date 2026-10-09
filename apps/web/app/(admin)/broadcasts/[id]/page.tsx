@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { describeSegment, parseSegment } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
@@ -46,6 +47,14 @@ export default async function BroadcastPage({ params, searchParams }: PageProps<
         <Badge>{BROADCAST_STATUS_LABELS[b.status] ?? b.status}</Badge>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
+      {b.abGroupId ? (
+        <div className="mb-4 rounded-md border bg-muted/30 p-3 text-sm">
+          Cet envoi fait partie d&apos;un test A/B ({b.abVariant === "REST" ? "envoi au reste" : `version ${b.abVariant}, ${b.abSplit ?? "—"} % des destinataires`}).{" "}
+          <Link href={`/broadcasts/ab/${b.abGroupId}`} className="underline underline-offset-2">
+            Voir la comparaison A/B
+          </Link>
+        </div>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>

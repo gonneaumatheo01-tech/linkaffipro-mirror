@@ -8,6 +8,8 @@ const db = vi.hoisted(() => {
     outbound: [] as Row[],
     posts: [] as Row[],
     enqueued: [] as Array<{ queue: string; data: Row; opts: Row }>,
+    /** Identifiants des envois appartenant au groupe A/B simulé. */
+    groupBroadcastIds: new Set<string>(),
   };
   let seq = 0;
   const prisma = {
@@ -25,7 +27,11 @@ const db = vi.hoisted(() => {
     setting: { findUnique: vi.fn(async () => null) },
     post: { findFirst: vi.fn(async () => state.posts[0] ?? null) },
     outboundMessage: {
-      findMany: vi.fn(async ({ where }: { where: Row }) => state.outbound.filter((o) => o.broadcastId === where.broadcastId)),
+      findMany: vi.fn(async ({ where }: { where: Row }) => {
+        const bc = where.broadcast as { abGroupId?: string; id?: { not?: string } } | undefined;
+        if (bc) return state.outbound.filter((o) => state.groupBroadcastIds.has(String(o.broadcastId)) && o.broadcastId !== bc.id?.not);
+        return state.outbound.filter((o) => o.broadcastId === where.broadcastId);
+      }),
       create: vi.fn(async ({ data }: { data: Row }) => {
         const row = { id: `om${++seq}`, status: "QUEUED", ...data };
         state.outbound.push(row);
@@ -68,6 +74,7 @@ function reset(n: number) {
   db.state.outbound = [];
   db.state.posts = [];
   db.state.enqueued = [];
+  db.state.groupBroadcastIds = new Set();
   vi.clearAllMocks();
 }
 
@@ -120,6 +127,36 @@ describe("développement d'un envoi groupé", () => {
     const r = await expandBroadcast("b1");
     expect(r.created).toBe(0);
     expect(db.state.outbound).toHaveLength(0);
+  });
+});
+
+describe("test A/B", () => {
+  beforeEach(() => reset(1000));
+
+  it("répartit les destinataires selon la part, de façon disjointe et complète", async () => {
+    db.state.broadcast = { ...db.state.broadcast, id: "bA", abGroupId: "grp1", abVariant: "A", abSplit: 30 };
+    const a = await expandBroadcast("bA");
+    const idsA = new Set(db.state.outbound.map((o) => o.memberId as string));
+    expect(Math.abs(a.targeted - 300)).toBeLessThanOrEqual(50);
+
+    db.state.outbound = [];
+    db.state.broadcast = { ...db.state.broadcast, id: "bB", abGroupId: "grp1", abVariant: "B", abSplit: 70, targeted: 0 };
+    const b = await expandBroadcast("bB");
+    const idsB = new Set(db.state.outbound.map((o) => o.memberId as string));
+    expect(a.targeted + b.targeted).toBe(1000);
+    for (const id of idsB) expect(idsA.has(id)).toBe(false);
+  });
+
+  it("l'envoi au reste exclut les membres déjà servis par le test", async () => {
+    db.state.broadcast = { ...db.state.broadcast, id: "bA", abGroupId: "grp1", abVariant: "A", abSplit: 50 };
+    await expandBroadcast("bA");
+    const servedA = db.state.outbound.length;
+    db.state.groupBroadcastIds = new Set(["bA"]);
+    db.state.broadcast = { ...db.state.broadcast, id: "bRest", abGroupId: "grp1", abVariant: "REST", abSplit: null, targeted: 0 };
+    const rest = await expandBroadcast("bRest");
+    expect(rest.targeted).toBe(1000 - servedA);
+    const servedIds = new Set(db.state.outbound.filter((o) => o.broadcastId === "bA").map((o) => o.memberId));
+    for (const o of db.state.outbound.filter((o) => o.broadcastId === "bRest")) expect(servedIds.has(o.memberId)).toBe(false);
   });
 });
 

@@ -6,9 +6,14 @@ import type { Update } from "grammy/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+/** Une update Telegram ne dépasse jamais quelques dizaines de Ko : au-delà de 1 Mo, c'est un abus. */
+const MAX_BODY_BYTES = 1_000_000;
+
 /** Webhook Telegram : un bot par URL, vérifié par le secret transmis dans l'en-tête. */
 export async function POST(req: Request, ctx: RouteContext<"/api/telegram/[botId]">) {
   const { botId } = await ctx.params;
+  const length = Number(req.headers.get("content-length") ?? 0);
+  if (length > MAX_BODY_BYTES) return new Response("payload too large", { status: 413 });
   const rec = await prisma.bot.findUnique({ where: { id: botId } });
   if (!rec || !rec.isActive) return new Response("unknown bot", { status: 404 });
 

@@ -3,15 +3,17 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { describeSegment, shortId, validateTelegramHtml, type Segment } from "@linkaffipro/core";
-import { prisma, audit, toJsonValue } from "@linkaffipro/db";
+import { describeSegment, parseSegment, shortId, validateTelegramHtml, type Segment } from "@linkaffipro/core";
+import { prisma, audit, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { enqueue, enqueueDm } from "@linkaffipro/queue";
 import { offerDeepLink } from "@linkaffipro/telegram";
 import { env } from "@/lib/env";
 import { fromParisLocal } from "@/lib/posts/time";
 import type { PostButtonRow } from "@/lib/posts/buttons";
 import { parseBroadcastForm } from "@/lib/broadcasts/schema";
-import { requireUser } from "@/lib/session";
+import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
+import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
+import { requireAdmin, requireUser } from "@/lib/session";
 
 function back(path: string, params: Record<string, string>): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}`);
@@ -96,6 +98,14 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
   const d = parsed.data;
   const v = validateTelegramHtml(d.text);
   if (!v.ok) back("/broadcasts/new", { error: `Texte invalide : ${v.error}` });
+  const ab = parseAbForm(formData);
+  let htmlB = "";
+  if (ab.enabled) {
+    if (!ab.textB) back("/broadcasts/new", { error: "Test A/B : le texte de la variante B est vide." });
+    const vb = validateTelegramHtml(ab.textB);
+    if (!vb.ok) back("/broadcasts/new", { error: `Texte de la variante B invalide : ${vb.error}` });
+    htmlB = vb.html;
+  }
   let scheduledAt: Date | null = null;
   if (d.intent === "schedule") {
     scheduledAt = d.scheduledAt ? fromParisLocal(d.scheduledAt) : null;
@@ -103,25 +113,84 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
   }
   const bot = await prisma.bot.findUnique({ where: { id: d.botId } });
   if (!bot || !bot.isActive) back("/broadcasts/new", { error: "Bot introuvable ou inactif." });
-  let id = "";
+  const status = d.intent === "now" ? "SENDING" : d.intent === "schedule" ? "SCHEDULED" : "DRAFT";
+  const abGroupId = ab.enabled ? shortId(10) : null;
+  const created: string[] = [];
   try {
-    const b = await prisma.broadcast.create({
-      data: { name: d.name, botId: d.botId, segment: toJsonValue(d.segment), text: v.html, mediaAssetId: d.mediaAssetId ?? null, status: "DRAFT", createdById: user.id },
-      select: { id: true },
-    });
-    id = b.id;
-    const buttons = await materializeButtons(d.buttons as PostButtonRow[], { id: b.id, botId: d.botId, text: v.html, segment: d.segment }, user.id);
-    const status = d.intent === "now" ? "SENDING" : d.intent === "schedule" ? "SCHEDULED" : "DRAFT";
-    await prisma.broadcast.update({ where: { id: b.id }, data: { buttons: toJsonValue(buttons), status, scheduledAt, startedAt: d.intent === "now" ? new Date() : null } });
-    if (d.intent === "now") await enqueue("scheduler", { type: "broadcast", broadcastId: b.id }, { jobId: `broadcast-${b.id}`, attempts: 3, backoff: { type: "exponential", delay: 5000 } });
-    await audit({ userId: user.id, action: "broadcast.created", entityType: "Broadcast", entityId: b.id, metadata: { name: d.name, intent: d.intent, segment: describeSegment(d.segment) } });
+    // Chaque variante d'un test A/B est un envoi à part entière (même segment, même groupe, part propre).
+    const variants: Array<{ suffix: string; text: string; buttons: PostButtonRow[]; mediaAssetId: string | null; variant: string | null; split: number | null }> = ab.enabled
+      ? [
+          { suffix: " — A", text: v.html, buttons: d.buttons as PostButtonRow[], mediaAssetId: d.mediaAssetId ?? null, variant: "A", split: ab.split },
+          { suffix: " — B", text: htmlB, buttons: (Array.isArray(ab.buttonsB) ? ab.buttonsB : []) as PostButtonRow[], mediaAssetId: ab.mediaAssetIdB ?? null, variant: "B", split: 100 - ab.split },
+        ]
+      : [{ suffix: "", text: v.html, buttons: d.buttons as PostButtonRow[], mediaAssetId: d.mediaAssetId ?? null, variant: null, split: null }];
+    for (const variant of variants) {
+      const b = await prisma.broadcast.create({
+        data: { name: `${d.name}${variant.suffix}`, botId: d.botId, segment: toJsonValue(d.segment), text: variant.text, mediaAssetId: variant.mediaAssetId, status: "DRAFT", createdById: user.id, abGroupId, abVariant: variant.variant, abSplit: variant.split },
+        select: { id: true },
+      });
+      created.push(b.id);
+      const buttons = await materializeButtons(variant.buttons, { id: b.id, botId: d.botId, text: variant.text, segment: d.segment }, user.id);
+      await prisma.broadcast.update({ where: { id: b.id }, data: { buttons: toJsonValue(buttons), status, scheduledAt, startedAt: d.intent === "now" ? new Date() : null } });
+      if (d.intent === "now") await enqueue("scheduler", { type: "broadcast", broadcastId: b.id }, { jobId: `broadcast-${b.id}`, attempts: 3, backoff: { type: "exponential", delay: 5000 } });
+      await audit({ userId: user.id, action: "broadcast.created", entityType: "Broadcast", entityId: b.id, metadata: { name: d.name, intent: d.intent, segment: describeSegment(d.segment), abGroupId, abVariant: variant.variant, abSplit: variant.split } });
+    }
   } catch (err) {
     if (isRedirect(err)) throw err;
-    if (id) await prisma.broadcast.delete({ where: { id } }).catch(() => undefined);
+    if (created.length) await prisma.broadcast.deleteMany({ where: { id: { in: created } } }).catch(() => undefined);
     back("/broadcasts/new", { error: err instanceof Error ? err.message : "Création impossible." });
   }
   revalidatePath("/broadcasts");
-  back(`/broadcasts/${id}`, { ok: d.intent === "now" ? "Envoi lancé." : d.intent === "schedule" ? "Envoi programmé." : "Brouillon enregistré." });
+  const okMsg = d.intent === "now" ? "Envoi lancé." : d.intent === "schedule" ? "Envoi programmé." : "Brouillon enregistré.";
+  if (abGroupId) back(`/broadcasts/ab/${abGroupId}`, { ok: `Test A/B créé (${ab.enabled ? ab.split : 50} % / ${ab.enabled ? 100 - ab.split : 50} %). ${okMsg}` });
+  back(`/broadcasts/${created[0]}`, { ok: okMsg });
+}
+
+/**
+ * Envoie la variante gagnante d'un test A/B aux membres du segment pas encore servis :
+ * nouvel envoi du même groupe avec `abVariant = REST`, que le worker développe en excluant
+ * tous les destinataires déjà touchés par le test.
+ */
+export async function sendWinnerToRestAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const groupId = z.string().min(1).parse(formData.get("groupId"));
+  const cmp = await loadAbComparison(groupId);
+  if (!cmp) back("/broadcasts", { error: "Test A/B introuvable." });
+  if (cmp.rest) back(`/broadcasts/ab/${groupId}`, { error: "L'envoi au reste a déjà été créé." });
+  const winner = pickWinner(cmp.variants);
+  if (winner.status !== "winner") back(`/broadcasts/ab/${groupId}`, { error: "Pas encore de gagnant significatif : attendez au moins 30 envois par variante et un écart de taux de clic." });
+  const src = cmp.variants.find((x) => x.variant === winner.variant)!;
+  const b = await prisma.broadcast.findUniqueOrThrow({ where: { id: src.id } });
+  const rest = await prisma.broadcast.create({
+    data: {
+      name: b.name.replace(/ — [AB]$/, "") + ` — reste (gagnante ${winner.variant})`,
+      botId: b.botId,
+      segment: b.segment as Prisma.InputJsonValue,
+      text: b.text,
+      buttons: b.buttons as Prisma.InputJsonValue,
+      mediaAssetId: b.mediaAssetId,
+      status: "DRAFT",
+      createdById: user.id,
+      abGroupId: groupId,
+      abVariant: "REST",
+      abSplit: null,
+    },
+    select: { id: true },
+  });
+  try {
+    // Nouveaux liens traqués et nouveau message conteneur pour l'envoi au reste : les clics de la gagnante restent comptés à part.
+    const fresh = (Array.isArray(b.buttons) ? (b.buttons as PostButtonRow[]) : []).map((row) => row.map(({ trackingLinkId: _t, slug: _s, ...x }) => x));
+    const buttons = await materializeButtons(fresh, { id: rest.id, botId: b.botId, text: b.text, segment: parseSegment(b.segment) }, user.id);
+    await prisma.broadcast.update({ where: { id: rest.id }, data: { buttons: toJsonValue(buttons), status: "SENDING", startedAt: new Date() } });
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    await prisma.broadcast.delete({ where: { id: rest.id } }).catch(() => undefined);
+    back(`/broadcasts/ab/${groupId}`, { error: err instanceof Error ? err.message : "Envoi au reste impossible." });
+  }
+  await enqueue("scheduler", { type: "broadcast", broadcastId: rest.id }, { jobId: `broadcast-${rest.id}`, attempts: 3, backoff: { type: "exponential", delay: 5000 } });
+  await audit({ userId: user.id, action: "broadcast.ab_winner_sent", entityType: "Broadcast", entityId: rest.id, metadata: { groupId, winner: winner.variant, ctr: winner.ctr } });
+  revalidatePath("/broadcasts");
+  back(`/broadcasts/ab/${groupId}`, { ok: `Variante ${winner.variant} envoyée au reste du segment.` });
 }
 
 export async function sendNowAction(formData: FormData): Promise<void> {
@@ -174,7 +243,7 @@ export async function testToMeAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteDraftAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const id = z.string().min(1).parse(formData.get("broadcastId"));
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id } });
   if (b.status !== "DRAFT" && b.status !== "CANCELLED") back(`/broadcasts/${id}`, { error: "Seuls les brouillons et les envois annulés peuvent être retirés." });

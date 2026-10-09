@@ -6,7 +6,7 @@ import { z } from "zod";
 import { TELEGRAM_CAPTION_MAX, shortId, validateTelegramHtml } from "@linkaffipro/core";
 import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
-import { requireUser } from "@/lib/session";
+import { requireAdmin, requireUser } from "@/lib/session";
 import { parsePostForm, type PostFormInput } from "@/lib/posts/schema";
 import { publishingBotFor } from "@/lib/posts/queries";
 import { fromParisLocal } from "@/lib/posts/time";
@@ -204,7 +204,7 @@ export async function shiftPostAction(formData: FormData): Promise<void> {
 
 /** Supprime le message sur Telegram (via la file) et le marque supprimé. */
 export async function deleteOnTelegramAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const postId = z.string().min(1).parse(formData.get("postId"));
   const post = await prisma.post.findUniqueOrThrow({ where: { id: postId } });
   if (post.status !== "SENT") back(`/messages/${postId}`, { error: "Seul un message envoyé peut être supprimé sur Telegram." });
@@ -215,7 +215,7 @@ export async function deleteOnTelegramAction(formData: FormData): Promise<void> 
 
 /** Supprime un brouillon / modèle / message annulé de la plateforme (ADMIN et MANAGER : ce n'est pas une suppression de données tierces). */
 export async function discardPostAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const postId = z.string().min(1).parse(formData.get("postId"));
   const post = await prisma.post.findUniqueOrThrow({ where: { id: postId } });
   if (!["DRAFT", "CANCELLED", "FAILED"].includes(post.status)) back(`/messages/${postId}`, { error: "Seul un brouillon, un modèle ou un message annulé peut être retiré." });

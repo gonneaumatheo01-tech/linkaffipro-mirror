@@ -5,6 +5,9 @@ import { handlePostback } from "@/lib/postback/apply";
 
 export const dynamic = "force-dynamic";
 
+/** Un postback tient en quelques centaines d'octets : au-delà de 1 Mo, refus. */
+const MAX_BODY_BYTES = 1_000_000;
+
 /** Limite de débit en mémoire : 60 requêtes par minute et par jeton. */
 const WINDOW_MS = 60_000;
 const LIMIT = 60;
@@ -50,6 +53,7 @@ async function readParams(req: Request): Promise<Record<string, string | string[
 }
 
 async function handle(req: Request, ctx: RouteContext<"/api/postback/[token]">) {
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return Response.json({ ok: false, error: "payload_too_large" }, { status: 413 });
   const { token } = await ctx.params;
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(token)) return Response.json({ ok: false, error: "unknown" }, { status: 404 });
   const endpoint = await prisma.postbackEndpoint.findUnique({ where: { token } });

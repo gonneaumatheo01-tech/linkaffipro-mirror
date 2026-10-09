@@ -3,6 +3,7 @@ import { aggregatePlayers, computeSpendLevel, matchesSpendLevels, parseSegment, 
 import { enqueue } from "@linkaffipro/queue";
 import { logger } from "../logger";
 import { resolveBroadcastButtons } from "./buttons";
+import { abAllows, splitAOf, type AbContext } from "./ab";
 
 export const BATCH_SIZE = 500;
 
@@ -25,6 +26,7 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
   const postCode = b.buttons && Array.isArray(b.buttons) && (b.buttons as unknown[]).length > 0 ? await containerPostCode(b.id) : "";
   const buttons = resolveBroadcastButtons(b.buttons, { trackingBaseUrl: process.env.TRACKING_BASE_URL ?? "https://go.goolink.eu", botUsername: b.bot.username, postCode });
 
+  const ab = await abContext(b);
   const already = new Set((await prisma.outboundMessage.findMany({ where: { broadcastId: b.id }, select: { memberId: true } })).map((m) => m.memberId));
   let cursor: string | undefined;
   let targeted = already.size;
@@ -41,6 +43,7 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
     cursor = members[members.length - 1]!.id;
     for (const m of members) {
       if (already.has(m.id)) continue;
+      if (!abAllows(ab, m.id)) continue;
       if (needLevel) {
         const players = (m.players ?? []).map((p) => ({ registeredAt: p.registeredAt, depositCount: p.depositCount, depositTotal: Number(p.depositTotal) }));
         if (!matchesSpendLevels(computeSpendLevel(aggregatePlayers(players), thresholds), segment)) continue;
@@ -62,6 +65,20 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
   await recordEvent({ type: "broadcast.expanded", botId: b.botId, payload: toJsonValue({ broadcastId: b.id, targeted, created }) });
   logger.info({ broadcastId: b.id, targeted, created }, "envoi groupé développé");
   return { targeted, created };
+}
+
+/**
+ * Contexte A/B d'un envoi : variante A ou B (répartition déterministe par hachage du membre et du groupe),
+ * ou envoi « au reste » (`abVariant = REST`) qui exclut tous les membres déjà servis par le test.
+ */
+async function abContext(b: { id: string; abGroupId: string | null; abVariant: string | null; abSplit: number | null }): Promise<AbContext> {
+  if (!b.abGroupId) return null;
+  if (b.abVariant === "REST") {
+    const served = await prisma.outboundMessage.findMany({ where: { broadcast: { abGroupId: b.abGroupId, id: { not: b.id } } }, select: { memberId: true } });
+    return { mode: "rest", excluded: new Set(served.map((m) => m.memberId)) };
+  }
+  const letter = b.abVariant === "B" ? "B" : "A";
+  return { mode: "variant", groupId: b.abGroupId, letter, splitA: splitAOf(letter, b.abSplit) };
 }
 
 /** Code du message « conteneur » (Post SENT) qui porte les boutons Offre d'un envoi groupé ; vide s'il n'existe pas. */

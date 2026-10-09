@@ -57,6 +57,14 @@ export function BroadcastForm({ options, defaultScheduledAt }: { options: Broadc
   const [counting, setCounting] = useState(false);
   const [ta, setTa] = useState<HTMLTextAreaElement | null>(null);
   const previewButtons = useMemo(() => rows.map((r) => r.map((b) => ({ text: b.text }))), [rows]);
+  const [ab, setAb] = useState(false);
+  const [textB, setTextB] = useState("");
+  const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
+  const [split, setSplit] = useState(50);
+  const [taB, setTaB] = useState<HTMLTextAreaElement | null>(null);
+  const previewButtonsB = useMemo(() => rowsB.map((r) => r.map((b) => ({ text: b.text }))), [rowsB]);
+  const updateButtonB = (ri: number, bi: number, patch: Partial<PostButton>) =>
+    setRowsB((prev) => prev.map((r, i) => (i === ri ? r.map((b, j) => (j === bi ? { ...b, ...patch } : b)) : r)));
 
   const updateButton = (ri: number, bi: number, patch: Partial<PostButton>) =>
     setRows((prev) => prev.map((r, i) => (i === ri ? r.map((b, j) => (j === bi ? { ...b, ...patch } : b)) : r)));
@@ -228,6 +236,91 @@ export function BroadcastForm({ options, defaultScheduledAt }: { options: Broadc
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Test A/B (optionnel)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="abEnabled" value="1" checked={ab} onChange={(e) => setAb(e.target.checked)} /> Comparer deux versions du message : les destinataires sont répartis au hasard (répartition stable), puis la page du test compare les clics et désigne la gagnante.
+            </label>
+            {ab ? (
+              <div className="space-y-4 rounded-md border p-3">
+                <div className="space-y-2 sm:max-w-sm">
+                  <Label htmlFor="abSplit">Part des destinataires pour la version A : {split} % (B : {100 - split} %)</Label>
+                  <input id="abSplit" name="abSplit" type="range" min={10} max={90} step={5} value={split} onChange={(e) => setSplit(Number(e.target.value))} className="w-full" />
+                </div>
+                <div className="text-sm font-medium">Message de la version B</div>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    ["B", "<b>", "</b>"],
+                    ["I", "<i>", "</i>"],
+                    ["S", "<u>", "</u>"],
+                    ["Barré", "<s>", "</s>"],
+                    ["Lien", '<a href="https://">', "</a>"],
+                    ["Spoiler", "<tg-spoiler>", "</tg-spoiler>"],
+                  ].map(([l, o, c]) => (
+                    <Button key={l} type="button" size="sm" variant="outline" onClick={() => wrap(taB, o!, c!, setTextB)}>
+                      {l}
+                    </Button>
+                  ))}
+                </div>
+                <textarea ref={setTaB} name="textB" value={textB} onChange={(e) => setTextB(e.target.value)} rows={6} required={ab} className="w-full rounded-md border bg-background p-3 font-mono text-sm" placeholder="Texte de la version B" />
+                <div className="space-y-2">
+                  <Label htmlFor="mediaAssetIdB">Média de la version B (optionnel)</Label>
+                  <select id="mediaAssetIdB" name="mediaAssetIdB" className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="">— aucun —</option>
+                    {options.media.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.filename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Boutons de la version B</div>
+                  {rowsB.map((row, ri) => (
+                    <div key={ri} className="space-y-2 rounded-md border p-2">
+                      {row.map((b, bi) => (
+                        <div key={bi} className="grid gap-2 sm:grid-cols-[1fr_170px_1fr_auto]">
+                          <Input value={b.text} maxLength={64} placeholder="Libellé" onChange={(e) => updateButtonB(ri, bi, { text: e.target.value })} />
+                          <select value={b.type} onChange={(e) => updateButtonB(ri, bi, { type: e.target.value as PostButton["type"] })} className="h-9 rounded-md border bg-background px-2 text-sm">
+                            <option value="URL">Lien direct</option>
+                            <option value="BUTTON">Lien traqué</option>
+                            <option value="OFFER">Offre (sub-ID)</option>
+                          </select>
+                          {b.type === "OFFER" ? (
+                            <select value={b.affiliateCampaignId ?? ""} onChange={(e) => updateButtonB(ri, bi, { affiliateCampaignId: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+                              <option value="">— campagne Link Affi —</option>
+                              {options.affiliateCampaigns.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.programName} · {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <Input value={b.url ?? ""} placeholder="https://…" onChange={(e) => updateButtonB(ri, bi, { url: e.target.value })} />
+                          )}
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setRowsB((p) => p.map((r, i) => (i === ri ? r.filter((_, j) => j !== bi) : r)).filter((r) => r.length > 0))}>
+                            Retirer
+                          </Button>
+                        </div>
+                      ))}
+                      <Button type="button" variant="outline" size="sm" onClick={() => setRowsB((p) => p.map((r, i) => (i === ri ? [...r, { text: "", type: "URL" as const }] : r)))}>
+                        + bouton sur cette ligne
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRowsB((p) => [...p, [{ text: "", type: "URL" as const }]])}>
+                    + ligne de boutons
+                  </Button>
+                  <input type="hidden" name="buttonsB" value={JSON.stringify(rowsB.map((r) => r.filter((b) => b.text.trim())).filter((r) => r.length))} />
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Quand</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -249,9 +342,17 @@ export function BroadcastForm({ options, defaultScheduledAt }: { options: Broadc
           </CardContent>
         </Card>
       </div>
-      <div className="space-y-2">
-        <div className="text-sm font-medium">Aperçu</div>
-        <TelegramPreview html={text} buttons={previewButtons} mediaCount={0} />
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <div className="text-sm font-medium">{ab ? "Aperçu — version A" : "Aperçu"}</div>
+          <TelegramPreview html={text} buttons={previewButtons} mediaCount={0} />
+        </div>
+        {ab ? (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Aperçu — version B</div>
+            <TelegramPreview html={textB} buttons={previewButtonsB} mediaCount={0} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

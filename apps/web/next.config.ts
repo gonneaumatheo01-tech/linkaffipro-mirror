@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   // Dépendances natives ou volumineuses laissées à Node (non empaquetées).
   serverExternalPackages: ["@prisma/client", "bcryptjs", "grammy", "ioredis", "bullmq"],
   poweredByHeader: false,
+  // En-têtes de sécurité : posés par proxy.ts (CSP exclue des redirections de tracking et des API), voir docs/SECURITE.md.
   turbopack: {
     rules: {
       "*.css": {

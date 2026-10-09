@@ -18,7 +18,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
   const rows = await listBroadcasts();
   return (
     <>
-      <PageHeader title="Envois" description="Messages privés groupés, envoyés à un segment de membres dans les limites Telegram.">
+      <PageHeader title="Envois" description="Messages privés groupés, envoyés à un segment de membres dans les limites Telegram. Les versions d'un test A/B sont regroupées sous le même libellé ; cliquez dessus pour la comparaison.">
         <Button render={<Link href="/broadcasts/new" />}>Nouvel envoi</Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
@@ -51,6 +51,13 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
                           {b.name}
                         </Link>
                         <div className="text-xs text-muted-foreground">par {b.createdBy?.name ?? "—"} · {fmtDate(b.createdAt)}</div>
+                        {b.abGroupId ? (
+                          <Link href={`/broadcasts/ab/${b.abGroupId}`} className="mt-1 inline-block">
+                            <Badge variant="secondary">
+                              Test A/B · {b.abVariant === "REST" ? "envoi au reste" : `version ${b.abVariant}${b.abSplit !== null ? ` (${b.abSplit} %)` : ""}`}
+                            </Badge>
+                          </Link>
+                        ) : null}
                       </TableCell>
                       <TableCell>@{b.bot.username}</TableCell>
                       <TableCell>
