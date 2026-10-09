@@ -4,7 +4,7 @@
  */
 export const QUEUE_PREFIX = "lap";
 
-export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats"] as const;
+export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance"] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 /** Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit). */
@@ -18,14 +18,17 @@ export type TelegramSendJob =
 /** Tâches de la file `approvals` (balayages périodiques). */
 export type ApprovalsJob = { type: "tick" } | { type: "reminders" } | { type: "expirations" };
 
-/** Tâches de la file `scheduler` (balayage des messages échus). */
-export type SchedulerJob = { type: "tick" };
+/** Tâches de la file `scheduler` (balayage des messages échus, expansion des envois groupés). */
+export type SchedulerJob = { type: "tick" } | { type: "broadcast"; broadcastId: string };
 
 /** Tâches de la file `sync-linkaffi`. */
 export type SyncLinkAffiJob = { type: "tick"; full?: boolean; tables?: string[] };
 
 /** Tâches de la file `stats` (recalculs). */
-export type StatsJob = { type: "post-stats"; postId: string } | { type: "tick" };
+export type StatsJob = { type: "post-stats"; postId: string } | { type: "tick" } | { type: "daily"; days?: number; full?: boolean };
+
+/** Tâches de la file `maintenance` (purge 24 mois, alertes, sauvegardes). */
+export type MaintenanceJob = { type: "purge" } | { type: "alerts" } | { type: "tick" };
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
@@ -35,4 +38,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
       ? SchedulerJob
       : Q extends "sync-linkaffi"
         ? SyncLinkAffiJob
-        : StatsJob;
+        : Q extends "maintenance"
+          ? MaintenanceJob
+          : StatsJob;

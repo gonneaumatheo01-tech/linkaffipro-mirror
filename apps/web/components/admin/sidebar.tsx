@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, Link2, MessageSquare, Radio, ScrollText, Settings, Users } from "lucide-react";
+import { BarChart3, Bot, Link2, Megaphone, MessageSquare, Radio, ScrollText, Send, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; adminOnly?: boolean; soon?: boolean };
 
-const ICONS = { BarChart3, Bot, Link2, MessageSquare, Radio, ScrollText, Settings, Users };
+const ICONS = { BarChart3, Bot, Link2, Megaphone, MessageSquare, Radio, ScrollText, Send, Settings, Users };
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Tableau de bord", icon: "BarChart3" },
@@ -16,6 +16,8 @@ export const NAV: NavItem[] = [
   { href: "/members", label: "Membres", icon: "Users" },
   { href: "/messages", label: "Messages", icon: "MessageSquare" },
   { href: "/links", label: "Liens", icon: "Link2" },
+  { href: "/campaigns", label: "Pubs", icon: "Megaphone" },
+  { href: "/broadcasts", label: "Envois", icon: "Send" },
   { href: "/journal", label: "Journal", icon: "ScrollText" },
   { href: "/settings", label: "Réglages", icon: "Settings", adminOnly: true },
 ];

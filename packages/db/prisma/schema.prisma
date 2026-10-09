@@ -156,6 +156,44 @@ enum CampaignStatus {
   ENDED
 }
 
+/// Origine d'une ligne de coût publicitaire.
+enum CostSource {
+  CSV
+  MANUAL
+  API
+}
+
+/// Nature d'un import de fichier.
+enum ImportKind {
+  TIKTOK_CSV
+  META_CSV
+  COSTS_MANUAL
+  PLAYERS_CSV
+}
+
+/// Statut d'un postback reçu.
+enum PostbackStatus {
+  ACCEPTED
+  IGNORED
+  ERROR
+}
+
+/// Statut d'un envoi groupé.
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+/// Gravité d'une alerte.
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
 // ============================================================
 // Phase 0 : utilisateurs, bots, canaux, membres, événements
 // ============================================================
@@ -184,6 +222,8 @@ model User {
   postsCreated    Post[]        @relation("PostCreatedBy")
   postsUpdated    Post[]        @relation("PostUpdatedBy")
   memberNotes     MemberNote[]
+  importBatches   ImportBatch[]
+  broadcasts      Broadcast[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -244,6 +284,7 @@ model Bot {
   sequences           Sequence[]
   outboundMessages    OutboundMessage[]
   mediaTelegramFiles  MediaAssetTelegramFile[]
+  broadcasts          Broadcast[]
 }
 
 /// Canal (ou groupe) Telegram détecté automatiquement.
@@ -272,6 +313,7 @@ model Channel {
   trackingLinks TrackingLink[]
   posts         Post[]
   sequences     Sequence[]
+  dailyStats    DailyStat[]
 }
 
 /// Droits d'administrateur d'un bot sur un canal.
@@ -301,6 +343,8 @@ model Member {
   lastSeenAt     DateTime @default(now())
   /// Anonymisé (suppression sur demande) : identité effacée, événements conservés sans données personnelles.
   anonymizedAt   DateTime?
+  /// Étiquettes libres (JSON : string[]).
+  tags           Json      @default("[]")
 
   botStates        MemberBotState[]
   events           Event[]
@@ -463,6 +507,7 @@ model InviteLink {
   memberships   Membership[]
   trackingLinks TrackingLink[]
   rule          ApprovalRule?  @relation("RuleForLink")
+  ad            Ad?
 
   @@index([channelId, kind])
 }
@@ -499,6 +544,7 @@ model TrackingLink {
   updatedAt           DateTime           @updatedAt
 
   clickRecords Click[]
+  ad           Ad?
 
   @@index([kind, isActive])
   @@index([postId])
@@ -572,6 +618,7 @@ model MediaAsset {
 
   telegramFiles MediaAssetTelegramFile[]
   sequenceSteps SequenceStep[]
+  broadcasts    Broadcast[]
 }
 
 /// Identifiant Telegram d'un média une fois envoyé par un bot (réutilisable sans ré-upload).
@@ -709,6 +756,8 @@ model OutboundMessage {
   sequenceStep      SequenceStep?  @relation(fields: [sequenceStepId], references: [id])
   postId            String?
   post              Post?          @relation(fields: [postId], references: [id])
+  broadcastId       String?
+  broadcast         Broadcast?     @relation(fields: [broadcastId], references: [id])
   /// Identifiant du chat privé si différent du telegramUserId (user_chat_id).
   chatId            BigInt?
   text              String
@@ -721,6 +770,7 @@ model OutboundMessage {
 
   @@index([memberId, queuedAt])
   @@index([status, queuedAt])
+  @@index([broadcastId, status])
 }
 
 // ============================================================
@@ -739,7 +789,8 @@ model AffiliateProgram {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
-  campaigns AffiliateCampaign[]
+  campaigns         AffiliateCampaign[]
+  postbackEndpoints PostbackEndpoint[]
 
   @@unique([source, externalId])
 }
@@ -846,6 +897,10 @@ model Campaign {
   affiliateCampaignIds Json           @default("[]")
   adPlatform           AdPlatform?
   adExternalIds        Json?
+  externalCampaignId   String?
+  budgetDaily          Decimal?       @db.Decimal(14, 2)
+  currency             String         @default("EUR")
+  tags                 Json           @default("[]")
   startAt              DateTime?
   endAt                DateTime?
   status               CampaignStatus @default(DRAFT)
@@ -855,6 +910,195 @@ model Campaign {
 
   inviteLinks   InviteLink[]
   trackingLinks TrackingLink[]
+  adSets        AdSet[]
+  costs         AdCost[]
+  dailyStats    DailyStat[]
+}
+
+/// Groupe de pubs (adset / ad group) d'une campagne.
+model AdSet {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  externalId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ads   Ad[]
+  costs AdCost[]
+
+  @@unique([campaignId, name])
+}
+
+/// Pub précise (une pub = un lien d'entrée).
+model Ad {
+  id             String        @id @default(cuid())
+  adSetId        String
+  adSet          AdSet         @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  name           String
+  externalId     String?
+  inviteLinkId   String?       @unique
+  inviteLink     InviteLink?   @relation(fields: [inviteLinkId], references: [id])
+  trackingLinkId String?       @unique
+  trackingLink   TrackingLink? @relation(fields: [trackingLinkId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  costs      AdCost[]
+  dailyStats DailyStat[]
+
+  @@unique([adSetId, name])
+}
+
+/// Coût publicitaire par jour, à un niveau (pub, groupe ou campagne) et pour une source.
+model AdCost {
+  id            String       @id @default(cuid())
+  campaignId    String?
+  campaign      Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSetId       String?
+  adSet         AdSet?       @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  adId          String?
+  ad            Ad?          @relation(fields: [adId], references: [id], onDelete: Cascade)
+  /// Niveau concaténé pour l'unicité : "ad:<id>" | "adset:<id>" | "campaign:<id>".
+  levelKey      String
+  date          DateTime     @db.Date
+  spend         Decimal      @default(0) @db.Decimal(14, 2)
+  impressions   Int          @default(0)
+  clicks        Int          @default(0)
+  currency      String       @default("EUR")
+  source        CostSource   @default(MANUAL)
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([levelKey, date, source])
+  @@index([date])
+}
+
+/// Import de fichier (coûts, joueurs).
+model ImportBatch {
+  id          String     @id @default(cuid())
+  kind        ImportKind
+  filename    String
+  rows        Int        @default(0)
+  imported    Int        @default(0)
+  errors      Json       @default("[]")
+  createdById String?
+  createdBy   User?      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+
+  costs AdCost[]
+}
+
+/// Point d'entrée des postbacks directs d'un programme.
+model PostbackEndpoint {
+  id             String           @id @default(cuid())
+  programId      String
+  program        AffiliateProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  name           String
+  token          String           @unique
+  /// Correspondance des paramètres reçus : { sub_id: "subid", player_id: "pid", event: "event", amount: "amount", currency: "currency", eventMap: { reg: "REGISTRATION", ... } }.
+  mapping        Json             @default("{}")
+  isActive       Boolean          @default(true)
+  lastReceivedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  logs PostbackLog[]
+}
+
+/// Journal des postbacks reçus (append-only).
+model PostbackLog {
+  id            String           @id @default(cuid())
+  endpointId    String
+  endpoint      PostbackEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  receivedAt    DateTime         @default(now())
+  ipHash        String?
+  raw           Json             @default("{}")
+  status        PostbackStatus   @default(ACCEPTED)
+  message       String?
+  playerEventId String?
+
+  @@index([endpointId, receivedAt])
+}
+
+/// Envoi groupé ciblé (segment de membres).
+model Broadcast {
+  id           String          @id @default(cuid())
+  name         String
+  botId        String
+  bot          Bot             @relation(fields: [botId], references: [id])
+  /// Filtres du segment (JSON) : channelIds, spendLevels, inviteLinkIds, campaignIds, languages, inactiveDays, clickedCategoryIds…
+  segment      Json            @default("{}")
+  text         String
+  buttons      Json            @default("[]")
+  mediaAssetId String?
+  mediaAsset   MediaAsset?     @relation(fields: [mediaAssetId], references: [id])
+  status       BroadcastStatus @default(DRAFT)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  targeted     Int             @default(0)
+  sent         Int             @default(0)
+  failed       Int             @default(0)
+  blocked      Int             @default(0)
+  lastError    String?
+  createdById  String?
+  createdBy    User?           @relation(fields: [createdById], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  outboundMessages OutboundMessage[]
+
+  @@index([status, scheduledAt])
+}
+
+/// Alerte système (bot en erreur, synchro en échec, file engorgée…).
+model Alert {
+  id         String        @id @default(cuid())
+  kind       String
+  severity   AlertSeverity @default(WARNING)
+  message    String
+  payload    Json          @default("{}")
+  createdAt  DateTime      @default(now())
+  notifiedAt DateTime?
+  resolvedAt DateTime?
+
+  @@index([kind, createdAt])
+  @@index([resolvedAt])
+}
+
+/// Statistiques journalières pré-calculées (par canal, pub, campagne ou univers ; une ligne par combinaison).
+model DailyStat {
+  id            String    @id @default(cuid())
+  date          DateTime  @db.Date
+  /// Clé de dimension : "all" | "channel:<id>" | "campaign:<id>" | "ad:<id>" | "vertical:<V>".
+  dimension     String
+  channelId     String?
+  channel       Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  campaignId    String?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adId          String?
+  ad            Ad?       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  vertical      Vertical?
+  requests      Int       @default(0)
+  approved      Int       @default(0)
+  joined        Int       @default(0)
+  left          Int       @default(0)
+  entryClicks   Int       @default(0)
+  offerClicks   Int       @default(0)
+  registrations Int       @default(0)
+  ftds          Int       @default(0)
+  deposits      Int       @default(0)
+  depositAmount Decimal   @default(0) @db.Decimal(14, 2)
+  ngr           Decimal   @default(0) @db.Decimal(14, 2)
+  spend         Decimal   @default(0) @db.Decimal(14, 2)
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([date, dimension])
+  @@index([dimension, date])
 }
 
 /// Note interne sur un membre.
