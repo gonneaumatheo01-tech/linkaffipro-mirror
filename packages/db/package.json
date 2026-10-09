@@ -1,0 +1,31 @@
+{
+  "name": "@linkaffipro/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@linkaffipro/core": "workspace:*",
+    "@prisma/client": "~6.19.3",
+    "bcryptjs": "^3.0.3"
+  },
+  "devDependencies": {
+    "@linkaffipro/config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.12.0",
+    "prisma": "~6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}

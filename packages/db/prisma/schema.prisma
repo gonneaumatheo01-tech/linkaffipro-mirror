@@ -1,0 +1,198 @@
+// Schéma de données LinkAffi Pro — phase 0.
+// Noms en anglais, commentaires en français. Les tables de la phase 1 sont listées dans docs/DATA-MODEL.md.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Rôle d'un utilisateur interne.
+enum Role {
+  ADMIN
+  MANAGER
+}
+
+/// Univers d'affiliation.
+enum Vertical {
+  CASINO
+  SPORTS
+  DATING
+}
+
+/// Type de conversation Telegram.
+enum ChatType {
+  CHANNEL
+  GROUP
+}
+
+/// Utilisateur interne (admin ou manager). Pas d'inscription publique.
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  role              Role      @default(MANAGER)
+  isActive          Boolean   @default(true)
+  /// Identifiant Telegram lié via « Mon compte » (optionnel).
+  telegramUserId    BigInt?   @unique
+  /// Jeton temporaire pour lier le compte Telegram (t.me/<bot>?start=admin_<token>).
+  telegramLinkToken String?   @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+
+  invitationsSent Invitation[] @relation("InvitedBy")
+  auditLogs       AuditLog[]
+}
+
+/// Invitation à rejoindre l'équipe, créée par un ADMIN.
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        Role      @default(MANAGER)
+  token       String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String
+  invitedBy   User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+}
+
+/// Journal des actions des utilisateurs (append-only).
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+/// Bot Telegram piloté par la plateforme. Le jeton est chiffré (AES-256-GCM).
+model Bot {
+  id            String    @id @default(cuid())
+  name          String
+  username      String    @unique
+  telegramBotId BigInt    @unique
+  tokenEncrypted String
+  vertical      Vertical
+  isActive      Boolean   @default(true)
+  /// Secret attendu dans l'en-tête X-Telegram-Bot-Api-Secret-Token.
+  webhookSecret String
+  lastWebhookAt DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  channelAdmins   ChannelBotAdmin[]
+  memberStates    MemberBotState[]
+  primaryChannels Channel[]         @relation("PrimaryBot")
+  events          Event[]
+}
+
+/// Canal (ou groupe) Telegram détecté automatiquement.
+model Channel {
+  id             String    @id @default(cuid())
+  telegramChatId BigInt    @unique
+  title          String
+  username       String?
+  type           ChatType  @default(CHANNEL)
+  vertical       Vertical?
+  language       String    @default("fr")
+  primaryBotId   String?
+  primaryBot     Bot?      @relation("PrimaryBot", fields: [primaryBotId], references: [id])
+  isActive       Boolean   @default(true)
+  isTest         Boolean   @default(false)
+  isMediaLibrary Boolean   @default(false)
+  settings       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  botAdmins ChannelBotAdmin[]
+  events    Event[]
+}
+
+/// Droits d'administrateur d'un bot sur un canal.
+model ChannelBotAdmin {
+  id         String    @id @default(cuid())
+  channelId  String
+  channel    Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  botId      String
+  bot        Bot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  rights     Json      @default("{}")
+  detectedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@unique([channelId, botId])
+}
+
+/// Membre Telegram vu par au moins un bot.
+model Member {
+  id             String   @id @default(cuid())
+  telegramUserId BigInt   @unique
+  firstName      String?
+  lastName       String?
+  username       String?
+  languageCode   String?
+  isPremium      Boolean  @default(false)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  botStates MemberBotState[]
+  events    Event[]
+}
+
+/// État de la relation entre un membre et un bot (peut-on lui écrire en privé ?).
+model MemberBotState {
+  id        String    @id @default(cuid())
+  memberId  String
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  botId     String
+  bot       Bot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  canDm     Boolean   @default(false)
+  startedAt DateTime?
+  blockedAt DateTime?
+  lastDmAt  DateTime?
+
+  @@unique([memberId, botId])
+}
+
+/// Journal d'événements (append-only : jamais de mise à jour ni de suppression dans le code).
+model Event {
+  id         String   @id @default(cuid())
+  type       String
+  occurredAt DateTime @default(now())
+  memberId   String?
+  member     Member?  @relation(fields: [memberId], references: [id])
+  channelId  String?
+  channel    Channel? @relation(fields: [channelId], references: [id])
+  botId      String?
+  bot        Bot?     @relation(fields: [botId], references: [id])
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([type, occurredAt])
+  @@index([memberId, occurredAt])
+  @@index([channelId, occurredAt])
+  @@index([botId, occurredAt])
+}
+
+/// Réglage global (clé → valeur JSON).
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

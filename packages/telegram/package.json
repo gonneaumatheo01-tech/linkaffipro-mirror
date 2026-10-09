@@ -1,0 +1,27 @@
+{
+  "name": "@linkaffipro/telegram",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@linkaffipro/core": "workspace:*",
+    "@linkaffipro/db": "workspace:*",
+    "grammy": "^1.46.0"
+  },
+  "devDependencies": {
+    "@linkaffipro/config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.12.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
