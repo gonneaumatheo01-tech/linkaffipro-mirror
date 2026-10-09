@@ -22,9 +22,9 @@ Non technique. Il ne lit pas le code et ne veut pas agir, seulement approuver. P
 
 ## Stack (décidée ; ne change pas sans raison écrite dans DECISIONS-TECH.md)
 - Monorepo pnpm + Turborepo, Node 22, TypeScript strict partout, ESLint + Prettier.
-- `apps/web` : Next.js (App Router), Tailwind, shadcn/ui, Auth.js (credentials + invitations), routes API (webhooks Telegram, redirections goolink.eu, API interne).
+- `apps/web` : Next.js 16 (App Router, `proxy.ts`), Tailwind 4, shadcn/ui, Auth.js v5 (credentials + invitations), routes API (webhooks Telegram, redirections goolink.eu, API interne).
 - `apps/worker` : Node + BullMQ : scheduler des posts, approbations différées, envois DM, synchro Link Affi, calculs de stats, rappels.
-- `packages/db` : Prisma + PostgreSQL (Railway), migrations versionnées. `packages/telegram` : logique bots (grammY), multi-bots, limites de débit. `packages/core` : règles métier pures (attribution, métriques, chiffrement, ids courts). `packages/config` : configs partagées.
+- `packages/db` : Prisma + PostgreSQL (Railway), migrations versionnées. `packages/telegram` : logique bots (grammY), multi-bots, limites de débit. `packages/core` : règles métier pures (attribution, métriques, chiffrement, ids courts). `packages/linkaffi` : client de l'API Link Affi. `packages/config` : configs partagées. Les paquets internes sont consommés en TypeScript source (imports sans extension `.js`).
 - Redis (Railway) pour BullMQ. Chiffrement AES-256-GCM des jetons de bots (clé `APP_ENCRYPTION_KEY`).
 - Railway : services `web`, `worker`, `postgres`, `redis`. Domaines : `linkaffipro.com` (site) et `goolink.eu` (redirections, même service web, routage par hostname).
 - Interface en français ; textes du bot multilingues (fr par défaut, autres langues par traduction). Affichage Europe/Paris, stockage UTC.
@@ -37,11 +37,14 @@ Non technique. Il ne lit pas le code et ne veut pas agir, seulement approuver. P
 - Attribution : chaque pub → son lien goolink + son lien d'invitation Telegram (avec demande d'adhésion) ; chaque clic « offre » depuis le bot → un sub-ID unique par membre et par message → transmis à Link Affi ; les événements joueurs remontent par sub-ID vers le membre, le message, le canal et la pub.
 - Données personnelles : conservation 24 mois ; suppression d'un membre sur demande (fonction prévue).
 
-## Commandes et outils (à compléter en phase 0, à tenir à jour)
-- Racine : `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`, `pnpm db:migrate`, `pnpm db:studio`.
-- GitHub : `gh` authentifié par la variable `GH_TOKEN` (`gh auth setup-git` pour les push). Dépôt : À COMPLÉTER.
-- Railway : CLI authentifiée par `RAILWAY_API_TOKEN`. Projet : À COMPLÉTER. Déployer : `railway up --service web --detach` puis `railway up --service worker --detach` depuis la racine. Logs : `railway logs --service web`. Variables : `railway variables --service web`.
-- Link Affi : API en lecture seule (`LINKAFFI_API_URL`, `LINKAFFI_API_KEY`, `LINKAFFI_ANON_KEY`), client typé dans le code, `pnpm linkaffi:check` pour vérifier l'accès. Aucun serveur MCP n'est nécessaire.
+## Commandes et outils (tenus à jour)
+- Racine : `pnpm install`, `pnpm dev` (web + worker), `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm db:generate`, `pnpm db:migrate` (deploy, prod), `pnpm db:migrate:dev` (crée une migration en local), `pnpm db:studio`, `pnpm db:seed` (premier ADMIN), `pnpm bots:register` (enregistre les bots depuis `TELEGRAM_BOT_TOKEN_<UNIVERS>`), `pnpm telegram:webhooks` (repose tous les webhooks depuis `APP_BASE_URL`), `pnpm linkaffi:check` (accès API Link Affi).
+- Les scripts lisent `.env.local` à la racine automatiquement (`node --env-file-if-exists`).
+- Base locale de dev : conteneurs Docker `lap-pg` (port 54329) et `lap-redis` (port 63799) ; recréer avec `docker run -d --name lap-pg -e POSTGRES_PASSWORD=lap -e POSTGRES_DB=linkaffipro -p 54329:5432 postgres:17-alpine` et `docker run -d --name lap-redis -p 63799:6379 redis:7-alpine`.
+- GitHub : `gh` authentifié (jeton `GH_TOKEN` ou session keyring). Dépôt : https://github.com/gonneaumatheo01-tech/linkaffipro-platform (privé, branche `main`).
+- Railway : CLI authentifiée (`RAILWAY_API_TOKEN` ou `railway login`). Projet `linkaffipro` (id `d0a46384-0c18-4cde-9ed8-2ce381fd3ed1`), environnement `production`, services `web`, `worker`, `Postgres`, `Redis`. Le dossier est lié au projet (`railway status`). Déployer : `railway up --service web --detach` puis `railway up --service worker --detach` depuis la racine. Logs : `railway logs --service web` (`--build` pour le build). Variables : `railway variables --service web`. Exécuter un script en production : `railway ssh --service web -- pnpm telegram:webhooks`.
+- Adresse provisoire du site : https://web-production-361c4c.up.railway.app (domaines `linkaffipro.com` et `goolink.eu` posés sur le service web, en attente des DNS).
+- Link Affi : API en lecture seule (`LINKAFFI_API_URL`, `LINKAFFI_API_KEY`, `LINKAFFI_ANON_KEY`), client typé dans `packages/linkaffi`, `pnpm linkaffi:check` pour vérifier l'accès. Aucun serveur MCP n'est nécessaire.
 - Réglages Claude Code : le modèle de `.claude/settings.json` est dans `docs/setup/claude-settings.json` ; s'il manque à la racine, copie-le en place.
 - Si une commande interactive est inévitable (connexion par navigateur), explique à l'utilisateur quoi taper dans un second Terminal.
 
