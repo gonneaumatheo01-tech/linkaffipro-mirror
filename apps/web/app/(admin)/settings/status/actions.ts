@@ -16,8 +16,11 @@ function back(params: Record<string, string>): never {
 /** Remet en attente une tâche échouée (bouton « Relancer »). */
 export async function retryJobAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  const parsed = z.object({ queue: z.enum(QUEUE_NAMES), jobId: z.string().min(1).max(200) }).safeParse({ queue: formData.get("queue"), jobId: formData.get("jobId") });
-  if (!parsed.success) back({ error: "Tâche invalide." });
+  const parsed = z
+    .object({ queue: z.enum(QUEUE_NAMES), jobId: z.string().min(1).max(200) })
+    .safeParse({ queue: formData.get("queue"), jobId: formData.get("jobId") });
+  if (!parsed.success)
+    back({ error: "Cette tâche n'est pas reconnue : rechargez la page et réessayez." });
   const { queue, jobId } = parsed.data;
   let result: Awaited<ReturnType<typeof retryFailedJob>>;
   try {
@@ -25,9 +28,15 @@ export async function retryJobAction(formData: FormData): Promise<void> {
   } catch (err) {
     result = { ok: false, error: err instanceof Error ? err.message : "erreur" };
   }
-  await audit({ userId: admin.id, action: "system.job_retried", entityType: "Job", entityId: jobId, metadata: { queue, ok: result.ok, ...(result.ok ? {} : { error: result.error }) } });
+  await audit({
+    userId: admin.id,
+    action: "system.job_retried",
+    entityType: "Job",
+    entityId: jobId,
+    metadata: { queue, ok: result.ok, ...(result.ok ? {} : { error: result.error }) },
+  });
   revalidatePath("/settings/status");
-  if (!result.ok) back({ error: `Relance impossible : ${result.error}` });
+  if (!result.ok) back({ error: `Relance impossible pour le moment : ${result.error}` });
   back({ ok: `Tâche ${jobId} relancée dans la file ${queue}.` });
 }
 
@@ -45,8 +54,20 @@ export async function cleanFailedJobsAction(): Promise<void> {
     }
   }
   const total = Object.values(removed).reduce((a, b) => a + b, 0);
-  await audit({ userId: admin.id, action: "system.failed_jobs_cleaned", metadata: { removed, total, ...(error ? { error } : {}) } });
+  await audit({
+    userId: admin.id,
+    action: "system.failed_jobs_cleaned",
+    metadata: { removed, total, ...(error ? { error } : {}) },
+  });
   revalidatePath("/settings/status");
-  if (error) back({ error: `Purge partielle (${total} supprimée(s)) : ${error}` });
-  back({ ok: total === 0 ? "Aucune tâche échouée de plus de 7 jours." : `${total} tâche(s) échouée(s) de plus de 7 jours supprimée(s).` });
+  if (error)
+    back({
+      error: `Effacement partiel (${total} tâche${total > 1 ? "s" : ""} supprimée${total > 1 ? "s" : ""}) : ${error}`,
+    });
+  back({
+    ok:
+      total === 0
+        ? "Aucune tâche échouée de plus de 7 jours."
+        : `${total} tâche${total > 1 ? "s" : ""} échouée${total > 1 ? "s" : ""} de plus de 7 jours supprimée${total > 1 ? "s" : ""}.`,
+  });
 }

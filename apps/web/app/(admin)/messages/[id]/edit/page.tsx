@@ -11,13 +11,19 @@ import { loadFormOptions } from "../../new/page";
 
 export const metadata: Metadata = { title: "Modifier le message" };
 
-export default async function EditMessagePage({ params, searchParams }: PageProps<"/messages/[id]/edit">) {
+export default async function EditMessagePage({
+  params,
+  searchParams,
+}: PageProps<"/messages/[id]/edit">) {
   const { id } = await params;
   const sp = await searchParams;
   const post = await prisma.post.findUnique({ where: { id } });
   if (!post) notFound();
   const ids = (post.mediaAssetIds as string[]) ?? [];
-  const media = await prisma.mediaAsset.findMany({ where: { id: { in: ids } }, select: { id: true, filename: true, mimeType: true, size: true } });
+  const media = await prisma.mediaAsset.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, filename: true, mimeType: true, size: true },
+  });
   const { channels, categories, campaigns } = await loadFormOptions();
   const initial: PostFormValues = {
     postId: post.id,
@@ -40,9 +46,37 @@ export default async function EditMessagePage({ params, searchParams }: PageProp
   const editable = ["DRAFT", "SCHEDULED", "FAILED", "CANCELLED"].includes(post.status);
   return (
     <>
-      <PageHeader title={post.isTemplate ? `Modèle « ${post.templateName} »` : "Modifier le message"} />
-      <Flash ok={sp.ok} error={editable ? sp.error : "Ce message a déjà été envoyé : il ne peut plus être modifié."} />
-      {editable ? <PostForm action={updatePostAction} channels={channels} categories={categories} campaigns={campaigns} initial={initial} singleChannel /> : null}
+      <PageHeader
+        title={post.isTemplate ? `Modèle « ${post.templateName} »` : "Modifier le message"}
+        description={
+          post.isTemplate
+            ? "Modifiez le modèle : les messages créés ensuite à partir de lui reprendront ces changements."
+            : "Modifiez le texte, les boutons ou la date, puis enregistrez."
+        }
+        help={
+          editable
+            ? "Un message programmé reste programmé si vous cliquez « Programmer » ; « Enregistrer en brouillon » le retire du calendrier."
+            : undefined
+        }
+      />
+      <Flash
+        ok={sp.ok}
+        error={
+          editable
+            ? sp.error
+            : "Ce message a déjà été envoyé : il ne peut plus être modifié. Vous pouvez le dupliquer pour en créer un nouveau."
+        }
+      />
+      {editable ? (
+        <PostForm
+          action={updatePostAction}
+          channels={channels}
+          categories={categories}
+          campaigns={campaigns}
+          initial={initial}
+          singleChannel
+        />
+      ) : null}
     </>
   );
 }

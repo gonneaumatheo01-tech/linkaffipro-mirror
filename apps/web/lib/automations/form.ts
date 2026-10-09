@@ -1,8 +1,17 @@
-import { MAX_ACTIONS, parseActions, parseConditions, type AutomationAction, type AutomationConditions } from "@linkaffipro/core";
+import {
+  MAX_ACTIONS,
+  parseActions,
+  parseConditions,
+  type AutomationAction,
+  type AutomationConditions,
+} from "@linkaffipro/core";
 
 /** Lit les conditions depuis un formulaire (cases à cocher et champs). */
 export function conditionsFromForm(fd: FormData): AutomationConditions {
-  const langs = String(fd.get("languages") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const langs = String(fd.get("languages") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return parseConditions({
     channelIds: fd.getAll("channelIds").map(String),
     campaignIds: fd.getAll("campaignIds").map(String),
@@ -41,6 +50,6 @@ export function actionsFromForm(fd: FormData): AutomationAction[] {
       channelId: String(fd.get(`a${i}_channelId`) ?? ""),
     });
   }
-  if (raw.length === 0) throw new Error("Ajoutez au moins une action.");
+  if (raw.length === 0) throw new Error("Ajoutez au moins une action dans « Alors… ».");
   return parseActions(raw);
 }

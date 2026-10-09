@@ -18,13 +18,25 @@ function isRedirect(err: unknown): boolean {
 /** Enregistre l'activation et l'heure d'envoi des rapports (Setting `reports.config`). */
 export async function saveReportsConfigAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  const parsed = z.object({ hour: z.coerce.number().int().min(0).max(23) }).safeParse({ hour: formData.get("hour") });
+  const parsed = z
+    .object({ hour: z.coerce.number().int().min(0).max(23) })
+    .safeParse({ hour: formData.get("hour") });
   if (!parsed.success) back({ error: "L'heure doit être un nombre entre 0 et 23." });
-  const config = { daily: formData.get("daily") === "on", weekly: formData.get("weekly") === "on", hour: parsed.data.hour };
-  await prisma.setting.upsert({ where: { key: "reports.config" }, create: { key: "reports.config", value: config }, update: { value: config } });
+  const config = {
+    daily: formData.get("daily") === "on",
+    weekly: formData.get("weekly") === "on",
+    hour: parsed.data.hour,
+  };
+  await prisma.setting.upsert({
+    where: { key: "reports.config" },
+    create: { key: "reports.config", value: config },
+    update: { value: config },
+  });
   await audit({ userId: admin.id, action: "settings.reports_changed", metadata: config });
   revalidatePath("/settings/reports");
-  back({ ok: `Rapports enregistrés : brief ${config.daily ? "activé" : "désactivé"}, hebdo ${config.weekly ? "activé" : "désactivé"}, à ${config.hour} h.` });
+  back({
+    ok: `Rapports enregistrés : résumé quotidien ${config.daily ? "activé" : "désactivé"}, rapport hebdomadaire ${config.weekly ? "activé" : "désactivé"}, envoi à ${config.hour} h.`,
+  });
 }
 
 /** Envoie immédiatement le brief ou le rapport (tâche du worker). */
@@ -32,12 +44,20 @@ export async function sendReportNowAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const kind = formData.get("kind") === "weekly" ? "weekly" : "daily";
   try {
-    await enqueue("stats", { type: "reports", force: kind }, { jobId: `stats-reports-manual-${kind}-${Date.now()}` });
+    await enqueue(
+      "stats",
+      { type: "reports", force: kind },
+      { jobId: `stats-reports-manual-${kind}-${Date.now()}` },
+    );
     await audit({ userId: admin.id, action: "reports.send_requested", metadata: { kind } });
   } catch (err) {
     if (isRedirect(err)) throw err;
-    back({ error: `Impossible de lancer l'envoi : ${err instanceof Error ? err.message : "erreur"}` });
+    back({
+      error: `Impossible de lancer l'envoi pour le moment (${err instanceof Error ? err.message : "erreur"}). Réessayez dans une minute.`,
+    });
   }
   revalidatePath("/settings/reports");
-  back({ ok: `${kind === "weekly" ? "Rapport hebdomadaire" : "Brief"} en cours d'envoi sur Telegram (quelques secondes). Rechargez la page pour voir le texte envoyé.` });
+  back({
+    ok: `${kind === "weekly" ? "Rapport hebdomadaire" : "Résumé quotidien"} en cours d'envoi sur Telegram (quelques secondes). Rechargez la page pour voir le texte envoyé.`,
+  });
 }

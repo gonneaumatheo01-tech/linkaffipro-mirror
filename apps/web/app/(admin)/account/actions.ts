@@ -14,20 +14,47 @@ function back(params: Record<string, string>): never {
 }
 
 const pwSchema = z
-  .object({ current: z.string().min(1), password: z.string().min(10).max(200), confirm: z.string() })
-  .refine((d) => d.password === d.confirm, { message: "Les deux nouveaux mots de passe ne correspondent pas." });
+  .object({
+    current: z.string().min(1, "Saisissez votre mot de passe actuel."),
+    password: z
+      .string()
+      .min(10, "Le nouveau mot de passe doit faire au moins 10 caractères.")
+      .max(200, "Le nouveau mot de passe est trop long (200 caractères maximum)."),
+    confirm: z.string(),
+  })
+  .refine((d) => d.password === d.confirm, {
+    message: "Les deux nouveaux mots de passe ne correspondent pas.",
+  });
 
 export async function changePasswordAction(formData: FormData): Promise<void> {
   const me = await requireUser();
   const parsed = pwSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) back({ error: parsed.error.issues[0]?.message ?? "Le nouveau mot de passe doit faire au moins 10 caractères." });
+  if (!parsed.success)
+    back({
+      error:
+        parsed.error.issues[0]?.message ??
+        "Le nouveau mot de passe doit faire au moins 10 caractères.",
+    });
   const user = await prisma.user.findUniqueOrThrow({ where: { id: me.id } });
   const ok = await bcrypt.compare(parsed.data.current, user.passwordHash);
-  if (!ok) back({ error: "Mot de passe actuel incorrect." });
+  if (!ok) back({ error: "Le mot de passe actuel est incorrect." });
   // Nouvelle version de session : tous les autres appareils sont déconnectés ; celui-ci reçoit un jeton à jour.
-  const updated = await prisma.user.update({ where: { id: me.id }, data: { passwordHash: await bcrypt.hash(parsed.data.password, 12), sessionVersion: { increment: 1 } }, select: { sessionVersion: true } });
+  const updated = await prisma.user.update({
+    where: { id: me.id },
+    data: {
+      passwordHash: await bcrypt.hash(parsed.data.password, 12),
+      sessionVersion: { increment: 1 },
+    },
+    select: { sessionVersion: true },
+  });
   forgetSessionVersion(me.id);
-  await audit({ userId: me.id, action: "user.password_changed", entityType: "User", entityId: me.id, metadata: { sessionVersion: updated.sessionVersion } });
+  await audit({
+    userId: me.id,
+    action: "user.password_changed",
+    entityType: "User",
+    entityId: me.id,
+    metadata: { sessionVersion: updated.sessionVersion },
+  });
   await unstable_update({ user: { sessionVersion: updated.sessionVersion } });
   back({ ok: "Mot de passe modifié. Les autres appareils connectés ont été déconnectés." });
 }
@@ -35,15 +62,28 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
 export async function generateTelegramLinkAction(): Promise<void> {
   const me = await requireUser();
   await prisma.user.update({ where: { id: me.id }, data: { telegramLinkToken: randomToken(16) } });
-  await audit({ userId: me.id, action: "user.telegram_link_requested", entityType: "User", entityId: me.id });
+  await audit({
+    userId: me.id,
+    action: "user.telegram_link_requested",
+    entityType: "User",
+    entityId: me.id,
+  });
   revalidatePath("/account");
-  back({ ok: "Lien généré. Ouvrez-le dans Telegram puis appuyez sur Démarrer." });
+  back({ ok: "Lien généré. Ouvrez-le dans Telegram, puis appuyez sur Démarrer." });
 }
 
 export async function unlinkTelegramAction(): Promise<void> {
   const me = await requireUser();
-  await prisma.user.update({ where: { id: me.id }, data: { telegramUserId: null, telegramLinkToken: null } });
-  await audit({ userId: me.id, action: "user.telegram_unlinked", entityType: "User", entityId: me.id });
+  await prisma.user.update({
+    where: { id: me.id },
+    data: { telegramUserId: null, telegramLinkToken: null },
+  });
+  await audit({
+    userId: me.id,
+    action: "user.telegram_unlinked",
+    entityType: "User",
+    entityId: me.id,
+  });
   revalidatePath("/account");
   back({ ok: "Compte Telegram délié." });
 }

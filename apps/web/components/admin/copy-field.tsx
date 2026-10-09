@@ -9,7 +9,13 @@ export function CopyField({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
-      <Input readOnly value={value} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+      <Input
+        readOnly
+        value={value}
+        aria-label="Adresse à copier"
+        className="font-mono text-xs"
+        onFocus={(e) => e.currentTarget.select()}
+      />
       <Button
         type="button"
         size="sm"

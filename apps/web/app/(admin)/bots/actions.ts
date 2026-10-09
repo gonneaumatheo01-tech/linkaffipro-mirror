@@ -17,11 +17,14 @@ export async function addBotAction(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const token = String(formData.get("token") ?? "").trim();
   const vertical = String(formData.get("vertical") ?? "");
-  if (!isVertical(vertical)) back({ error: "Choisissez un univers." });
+  if (!isVertical(vertical))
+    back({ error: "Choisissez un univers (casino, paris sportifs ou rencontres)." });
   try {
     const r = await registerBotFromToken(token, vertical, { userId: user.id });
     revalidatePath("/bots");
-    back({ ok: `Bot @${r.username} ${r.created ? "ajouté" : "mis à jour"} et webhook posé.` });
+    back({
+      ok: `Bot @${r.username} ${r.created ? "ajouté" : "mis à jour"} : connexion Telegram posée.`,
+    });
   } catch (err) {
     if (err instanceof Error && err.message === "NEXT_REDIRECT") throw err;
     if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
@@ -29,18 +32,29 @@ export async function addBotAction(formData: FormData): Promise<void> {
   }
 }
 
-/** Re-synchroniser le webhook (ADMIN et MANAGER). */
+/** Reposer la connexion Telegram (webhook) du bot (ADMIN et MANAGER). */
 export async function resyncWebhookAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const botId = z.string().min(1).parse(formData.get("botId"));
   try {
     const info = await setWebhookForBot(botId);
-    await audit({ userId: user.id, action: "bot.webhook_resync", entityType: "Bot", entityId: botId, metadata: { url: info.url } });
+    await audit({
+      userId: user.id,
+      action: "bot.webhook_resync",
+      entityType: "Bot",
+      entityId: botId,
+      metadata: { url: info.url },
+    });
     revalidatePath("/bots");
-    back({ ok: "Webhook re-synchronisé." });
+    back({ ok: "Connexion Telegram reposée : le bot reçoit à nouveau les messages." });
   } catch (err) {
     if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    back({ error: err instanceof Error ? err.message : "Échec de la synchronisation." });
+    back({
+      error:
+        err instanceof Error
+          ? err.message
+          : "Impossible de reposer la connexion Telegram. Réessayez dans un instant.",
+    });
   }
 }
 
@@ -51,7 +65,16 @@ export async function toggleBotAction(formData: FormData): Promise<void> {
   const bot = await prisma.bot.findUniqueOrThrow({ where: { id: botId } });
   await prisma.bot.update({ where: { id: botId }, data: { isActive: !bot.isActive } });
   evictBot(botId);
-  await audit({ userId: user.id, action: bot.isActive ? "bot.deactivated" : "bot.activated", entityType: "Bot", entityId: botId });
+  await audit({
+    userId: user.id,
+    action: bot.isActive ? "bot.deactivated" : "bot.activated",
+    entityType: "Bot",
+    entityId: botId,
+  });
   revalidatePath("/bots");
-  back({ ok: bot.isActive ? `@${bot.username} désactivé.` : `@${bot.username} activé.` });
+  back({
+    ok: bot.isActive
+      ? `@${bot.username} désactivé : il ne répond plus aux membres.`
+      : `@${bot.username} activé.`,
+  });
 }

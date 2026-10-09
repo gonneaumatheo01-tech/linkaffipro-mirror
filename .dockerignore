@@ -7,6 +7,8 @@
 .env
 .env.*
 .claude
-docs
+docs/prompts
+docs/setup
+backups
 *.log
 .DS_Store

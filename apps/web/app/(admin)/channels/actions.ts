@@ -27,7 +27,10 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
     isMediaLibrary: formData.get("isMediaLibrary") === "on",
     isActive: formData.get("isActive") === "on",
   });
-  if (!parsed.success) redirect(`/channels?error=${encodeURIComponent("Formulaire invalide.")}`);
+  if (!parsed.success)
+    redirect(
+      `/channels?error=${encodeURIComponent("Vérifiez les réglages du canal : la langue doit être un code de 2 à 5 lettres (fr, en, pt-br…).")}`,
+    );
   const d = parsed.data;
   await prisma.channel.update({
     where: { id: d.channelId },
@@ -40,7 +43,20 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
       isActive: d.isActive,
     },
   });
-  await audit({ userId: user.id, action: "channel.updated", entityType: "Channel", entityId: d.channelId, metadata: { vertical: d.vertical, language: d.language, primaryBotId: d.primaryBotId, isTest: d.isTest, isMediaLibrary: d.isMediaLibrary, isActive: d.isActive } });
+  await audit({
+    userId: user.id,
+    action: "channel.updated",
+    entityType: "Channel",
+    entityId: d.channelId,
+    metadata: {
+      vertical: d.vertical,
+      language: d.language,
+      primaryBotId: d.primaryBotId,
+      isTest: d.isTest,
+      isMediaLibrary: d.isMediaLibrary,
+      isActive: d.isActive,
+    },
+  });
   revalidatePath("/channels");
-  redirect(`/channels?ok=${encodeURIComponent("Canal enregistré.")}`);
+  redirect(`/channels?ok=${encodeURIComponent("Réglages du canal enregistrés.")}`);
 }

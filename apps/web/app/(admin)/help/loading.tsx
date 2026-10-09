@@ -1,0 +1,17 @@
+import { PageHeader } from "@/components/admin/page-header";
+
+export default function HelpLoading() {
+  return (
+    <>
+      <PageHeader title="Aide" description="Le guide d'utilisation complet, aussi dans docs/GUIDE-UTILISATEUR.md" />
+      <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]" aria-busy="true">
+        <div className="space-y-2">
+          {Array.from({ length: 10 }, (_, i) => <div key={i} className="h-5 animate-pulse rounded bg-muted" style={{ width: `${60 + (i % 4) * 10}%` }} />)}
+        </div>
+        <div className="space-y-3 rounded-xl border p-6">
+          {Array.from({ length: 14 }, (_, i) => <div key={i} className="h-4 animate-pulse rounded bg-muted" style={{ width: `${i % 5 === 0 ? 40 : 85 + (i % 3) * 5}%` }} />)}
+        </div>
+      </div>
+    </>
+  );
+}

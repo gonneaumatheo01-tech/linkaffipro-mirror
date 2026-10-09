@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export const buttonSchema = z.object({
-  text: z.string().trim().min(1, "Libellé de bouton vide.").max(64),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Un bouton n'a pas de libellé : écrivez le texte du bouton ou supprimez-le.")
+    .max(64, "Le libellé d'un bouton ne peut pas dépasser 64 caractères."),
   type: z.enum(["URL", "BUTTON", "OFFER"]),
   url: z.string().trim().optional(),
   trackingLinkId: z.string().optional(),
@@ -13,18 +17,32 @@ export const postFormSchema = z.object({
   channelIds: z.array(z.string().min(1)).min(1, "Choisissez au moins un canal."),
   scheduledAt: z.string().optional(),
   categoryId: z.string().optional(),
-  language: z.string().trim().min(2).max(5).default("fr"),
+  language: z
+    .string()
+    .trim()
+    .min(2, "La langue doit être un code de 2 à 5 lettres (ex. fr).")
+    .max(5, "La langue doit être un code de 2 à 5 lettres (ex. fr).")
+    .default("fr"),
   text: z.string().default(""),
   mediaAssetIds: z.array(z.string()).default([]),
   buttons: z.array(z.array(buttonSchema)).default([]),
   pinAfterSend: z.boolean().default(false),
   unpinPrevious: z.boolean().default(false),
-  deleteAfterMinutes: z.number().int().positive().nullable().default(null),
+  deleteAfterMinutes: z
+    .number()
+    .int("« Supprimer après » doit être un nombre entier de minutes.")
+    .positive("« Supprimer après » doit être un nombre de minutes supérieur à 0.")
+    .nullable()
+    .default(null),
   disableNotification: z.boolean().default(false),
   protectContent: z.boolean().default(false),
   disableLinkPreview: z.boolean().default(true),
   intent: z.enum(["draft", "schedule", "template"]),
-  templateName: z.string().trim().max(80).optional(),
+  templateName: z
+    .string()
+    .trim()
+    .max(80, "Le nom du modèle ne peut pas dépasser 80 caractères.")
+    .optional(),
   duplicatedFromId: z.string().optional(),
 });
 

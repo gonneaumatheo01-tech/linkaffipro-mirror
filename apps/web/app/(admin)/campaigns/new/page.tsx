@@ -12,14 +12,27 @@ export const metadata: Metadata = { title: "Nouvelle pub" };
 export default async function NewCampaignPage({ searchParams }: PageProps<"/campaigns/new">) {
   await requireUser();
   const sp = await searchParams;
-  const channels = await prisma.channel.findMany({ where: { isActive: true }, orderBy: { title: "asc" }, select: { id: true, title: true } });
+  const channels = await prisma.channel.findMany({
+    where: { isActive: true },
+    orderBy: { title: "asc" },
+    select: { id: true, title: true },
+  });
   return (
     <>
-      <PageHeader title="Nouvelle pub" description="Une pub regroupe des groupes et des pubs précises ; chaque pub précise se rattache à un lien d'entrée." />
+      <PageHeader
+        title="Nouvelle pub"
+        description="Une pub correspond à une campagne TikTok ou Meta. Elle se découpe ensuite en groupes et en pubs précises, chacune rattachée à un lien d'entrée."
+        help="Donnez-lui le même nom que dans TikTok ou Meta : l'import CSV des coûts retrouvera la pub automatiquement."
+      />
       <Flash ok={sp.ok} error={sp.error} />
       <Card className="max-w-3xl">
         <CardContent className="pt-6">
-          <CampaignForm action={createCampaignAction} values={{}} channels={channels} submitLabel="Créer la pub" />
+          <CampaignForm
+            action={createCampaignAction}
+            values={{}}
+            channels={channels}
+            submitLabel="Créer la pub"
+          />
         </CardContent>
       </Card>
     </>
