@@ -1,4 +1,4 @@
-# État du projet — phase 2 déployée (9 octobre 2026, 15h40)
+# État du projet — phase 3 en cours (9 octobre 2026, 19h10)
 
 Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-connecteurs-et-stats.md`, rédigé par Claude et validé « Ok ») déployée et testée de bout en bout par Claude.
 
@@ -7,7 +7,10 @@ Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-con
 - Votre compte : gonneaumatheo.business@gmail.com (mot de passe choisi le 9 octobre). Compte interne de vérification : verification@linkaffipro.internal (ADMIN, utilisé par Claude pour ses contrôles).
 - Dialogue par Telegram via @casinogamblingoobot.
 
-## Ce qui est en ligne (phases 1 et 2)
+## Ce qui est en ligne (phases 1 à 3)
+- **Rapports automatiques par Telegram** : brief quotidien à 9h et rapport hebdomadaire le lundi (chiffres de la veille / de la semaine, comparaison, alertes, synchro, messages à venir) ; Réglages → Rapports pour activer, changer l'heure ou envoyer maintenant.
+- **Médias dans les messages privés** : photo, vidéo, gif ou document joint aux messages d'accueil, rappels, réponses d'offre et envois groupés (choix dans l'onglet « Messages du bot »).
+- **Intégration continue** : chaque envoi sur GitHub est vérifié automatiquement (lint, typage, tests, build).
 - **Adhésions** avec délai et canaux à rejoindre, accueil par le bot, demandes à valider, textes d'accueil par univers (onglet « Messages du bot » de chaque canal).
 - **Liens** par pub (URL à coller dans TikTok / Meta), redirections go.goolink.eu, boutons traqués, offres avec sub-ID.
 - **Messages** programmés (calendrier, éditeur, médias, boutons, modèles), réactions, catégories et comparaison par catégorie.
@@ -32,5 +35,8 @@ Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-con
 3. **Comptes publicitaires** : dès qu'un compte TikTok Ads ou Meta Ads existe, dites-le : les connecteurs API remplaceront l'import CSV.
 4. **Vues par message** (nombre de vues Telegram) : nécessite une connexion avec votre numéro de téléphone (code SMS), à faire ensemble en 5 minutes quand vous voudrez.
 
-## Prochaines étapes possibles (phase 3)
-Connecteurs API Meta / TikTok, vues par message (MTProto), automatisations « si… alors… » (éditeur par blocs), tests A/B de messages, rapports hebdomadaires automatiques par Telegram.
+## En cours (phase 3)
+Automatisations « si… alors… » (page Automatisations : déclencheur, conditions, actions, journal, test à soi-même).
+
+## Plus tard (quand les comptes existeront)
+Connecteurs API Meta / TikTok, vues par message (MTProto, connexion téléphone), tests A/B.
