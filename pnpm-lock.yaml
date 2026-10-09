@@ -193,6 +193,9 @@ importers:
       '@linkaffipro/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@linkaffipro/linkaffi':
+        specifier: workspace:*
+        version: link:../../packages/linkaffi
       '@linkaffipro/queue':
         specifier: workspace:*
         version: link:../../packages/queue
@@ -461,6 +464,9 @@ importers:
       '@linkaffipro/db':
         specifier: workspace:*
         version: link:../db
+      '@linkaffipro/queue':
+        specifier: workspace:*
+        version: link:../queue
       grammy:
         specifier: ^1.46.0
         version: 1.46.0

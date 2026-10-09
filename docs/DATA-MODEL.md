@@ -29,27 +29,53 @@ Enums : `Role = ADMIN | MANAGER`, `Vertical = CASINO | SPORTS | DATING`, `ChatTy
 | `channel.bot_admin_detected` / `channel.bot_admin_revoked` | Le bot gagne / perd les droits d'administrateur | canal, bot |
 | `tracking.redirect` | Redirection go.goolink.eu. Payload : `slug`, `target`, `known`, `host`, `userAgent`, `isBot`, `ipHash` (SHA-256 salé), `referer`, `clickIds` (`ttclid`, `fbclid`, `gclid`, `msclkid`), `utm` | — (lien en phase 1) |
 
-## Phase 1 (prévue, noms réservés)
+## Phase 1 (réalisée le 9 octobre 2026)
 
-| Table | Rôle prévu |
-| --- | --- |
-| `Membership` | Appartenance d'un membre à un canal : demande d'adhésion (`requestedAt`), approbation (`approvedAt`, `approvedBy` bot/humain), départ, lien d'invitation d'origine (`inviteLinkId`), pub d'origine. |
-| `ApprovalRule` | Règle d'approbation par canal : immédiate / après délai / après « gate » (canaux à rejoindre), délai en minutes, activation. |
-| `InviteLink` | Lien d'invitation Telegram créé par la plateforme (avec demande d'adhésion), rattaché à un canal et à une campagne/pub ; compteurs. |
-| `TrackingLink` | Lien court go.goolink.eu (`slug` base62 8 caractères) → cible (lien d'invitation, bot, offre), campagne, pub, paramètres conservés. |
-| `Click` | Clic sur un lien go.goolink.eu ou un bouton de message : `trackingLinkId`, `postButtonId`, `memberId`, `subId` (unique par membre et par message, transmis à Link Affi), `ipHash`, `userAgent`, `isBot`, `clickIds`, `utm`. |
-| `Post` | Message programmé pour un canal : contenu multilingue, média, date/heure, statut, `telegramMessageId` après envoi. |
-| `PostButton` | Bouton d'un message : libellé, type (URL / deep link bot / offre), cible, compteur. |
-| `PostStats` | Agrégats par message : vues (MTProto, plus tard), clics, membres, inscriptions, FTD, dépôts, NGR. |
-| `MessageCategory` | Catégorie de modèles de messages (accueil, offre, rappel…). |
-| `MediaAsset` | Média réutilisable (photo, vidéo) stocké via un canal « médiathèque » Telegram (`file_id`). |
-| `Sequence` / `SequenceStep` | Séquence automatique de messages privés (accueil, relances) : étapes, délais, conditions. |
-| `OutboundMessage` | Tout message privé envoyé par un bot : destinataire, contenu, statut (envoyé, échoué, bloqué), erreur Telegram, `retry_after`. |
-| `AffiliateProgram` | Programme d'affiliation (Link Affi `casinos`) : nom, univers, devise, connecteur. |
-| `AffiliateCampaign` | Campagne / lien de suivi Link Affi (`campaigns`) : clé (`47eb8mwc`), URL de base, programme, affilié. |
-| `Player` | Joueur rattaché par sub-ID : identifiant externe, inscription, FTD, dépôts cumulés, NGR, membre, message, canal, pub d'origine. |
-| `PlayerEvent` | Événement joueur brut (inscription, FTD, dépôt, redépôt, invalidation) avec montant, devise, horodatage, `raw` JSON. |
-| `SyncState` | Curseur de synchronisation par table Link Affi : dernière réussite, lignes importées, dernière erreur. |
-| `Campaign` | Pub (TikTok / Meta / autre) : plateforme, identifiants externes, coûts importés ; parent de `TrackingLink` et `InviteLink`. |
+Migrations : `20261009120919_phase1_kit_lancement`, `20261009121130_player_sub_id_source`.
 
-Règles : conservation 24 mois (purge à prévoir en phase 2), suppression d'un membre sur demande (fonction prévue : anonymisation de `Member` et des `Event` liés).
+### Adhésions
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Membership` | Une demande d'adhésion = un enregistrement (un membre qui revient en crée un nouveau). | `code` unique (lien profond `/start g<code>`), `status` (REQUESTED, PENDING_GATE, SCHEDULED, APPROVED, DECLINED, LEFT, KICKED, EXPIRED, FAILED), `inviteLinkId`, `approvalRuleId`, `userChatId` (chat privé donné par Telegram), `requestedAt`, `gateSatisfiedAt`, `approveAt`, `approvedAt`, `declinedAt`, `joinedAt`, `leftAt`, `expiresAt`, `approvedByBotId`, `source` JSON (instantané lien / pub / campagne), `remindersSent`, `lastReminderAt`, `attempts`, `lastError` ; unique `(memberId, channelId, requestedAt)` |
+| `ApprovalRule` | Règle d'approbation d'un canal (ou d'un lien précis via `inviteLinkId`). | `mode` (IMMEDIATE, DELAY, MANUAL), `delaySeconds`, `gateChannelIds` JSON, `gateMode` (NONE, REQUIRED, SOFT), `reminderAfterMinutes` JSON, `maxReminders`, `expireAfterHours`, `expireAction` (DECLINE, APPROVE, KEEP), `sendAcceptedMessage`, `isDefault`, `isActive` |
+| `InviteLink` | Lien d'invitation Telegram créé par la plateforme. | `telegramInviteLink` unique, `kind` (AD_ENTRY, GATE, MANUAL), `createsJoinRequest`, `campaignId`, `adPlatform`, `adCampaignName`, `adSetName`, `adName`, `adExternalIds`, `sourceChannelId` (pour un GATE : canal d'origine), `language`, compteurs `requests`, `approved`, `joined`, `left` |
+
+### Liens traqués et clics
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `TrackingLink` | Lien court go.goolink.eu. | `slug` unique (base62, 6 à 10), `kind` (AD_ENTRY, OFFER, BUTTON, GENERIC), `destinationTemplate` (placeholders `{subid}`, `{click_id}`, `{member_id}`, `{post_id}`), `inviteLinkId`, `channelId`, `campaignId`, `affiliateCampaignId`, `postId`, compteurs `clicks`, `uniqueClicks` (humains) |
+| `Click` | Clic sur un lien ou un bouton. | `subId` unique (12 caractères base62, sans point, clics OFFER seulement), `memberId`, `postId`, `botId`, `ipHash`, `userAgent`, `isBot`, `referer`, `ttclid`, `fbclid`, `gclid`, `utm` JSON, `destination` |
+
+### Messages
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `MessageCategory` | Catégorie (Bonus, Preuve de gains, Teasing, Rappel, Information, Événement, Sondage). | `slug` unique, `color`, `vertical`, `sortOrder` |
+| `MediaAsset` | Média stocké en base (≤ 50 Mo). | `sha256` unique, `bytes`, `mimeType`, `width`, `height`, `duration` |
+| `MediaAssetTelegramFile` | `file_id` Telegram d'un média par bot (réutilisation sans ré-upload). | unique `(assetId, botId)` |
+| `Post` | Message programmé. | `code` unique (lien profond d'offre), `status` (DRAFT, SCHEDULED, SENDING, SENT, FAILED, DELETED, CANCELLED), `scheduledAt`, `sentAt`, `telegramMessageIds` JSON, `categoryId`, `language`, `text` (HTML Telegram), `mediaAssetIds` JSON, `buttons` JSON (lignes de `{ text, type: URL | BUTTON | OFFER, url?, trackingLinkId?, affiliateCampaignId? }`), options d'envoi, `isTemplate`, `templateName`, `duplicatedFromId` |
+| `PostStats` | Chiffres d'un message. | `views`, `forwards` (phase 2), `reactions` JSON, `reactionsTotal`, `clicks`, `uniqueClickers`, `offerClicks`, `registrations`, `ftds`, `deposits`, `depositAmount` |
+
+### Séquences et messages privés
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Sequence` | Séquence de messages privés par déclencheur (JOIN_REQUEST, GATE_REMINDER, GATE_SATISFIED, APPROVED, START, OFFER_REPLY), par canal et/ou bot. | `trigger`, `isActive` |
+| `SequenceStep` | Étape : textes par langue (JSON), boutons, média, délai. | `order`, `delaySeconds`, `texts` JSON, `buttons` JSON, `mediaAssetId` |
+| `OutboundMessage` | Tout message privé sortant (file + historique). | `kind` (WELCOME, GATE_REMINDER, ACCEPTED, OFFER_REPLY, BROADCAST, AUTOMATION, TEST), `status` (QUEUED, SENT, FAILED, BLOCKED), `chatId`, `text`, `buttons`, `telegramMessageId`, `error` |
+
+### Affiliation et joueurs
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `AffiliateProgram` | Programme (Link Affi `casinos`). | `source` (LINKAFFI, CSV, API), `externalId`, `vertical`, `raw` ; unique `(source, externalId)` |
+| `AffiliateCampaign` | Campagne Link Affi (`campaigns`). | `externalId`, `campaignKey` (8 caractères), `trackingUrlTemplate` (`https://linkaffi.me/go/<key>?sub_id={subid}`), `raw` ; unique `(programId, externalId)` |
+| `Player` | Joueur rattaché par sub-ID. | `externalPlayerId`, `subId`, `subIdSource` (`postback` sûr, `time_match` secours), `clickId`, `memberId`, `registeredAt`, `ftdAt`, `ftdAmount`, `depositCount`, `redepositCount`, `depositTotal`, `ngr`, `currency`, `status`, `raw` ; unique `(affiliateCampaignId, externalPlayerId)` |
+| `PlayerEvent` | Événement joueur brut. | `type` (CLICK, REGISTRATION, FTD, DEPOSIT, REDEPOSIT, NGR, OTHER), `amount`, `currency`, `occurredAt`, `externalId` (unique par joueur), `raw` |
+| `SyncState` | Curseur par table Link Affi. | `source` (PK), `cursor` JSON, `lastRunAt`, `lastSuccessAt`, `lastError`, `rowsImported`, `isRunning` |
+
+### Pubs et divers
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Campaign` | Pub TikTok / Meta / autre. | `channelIds` JSON, `affiliateCampaignIds` JSON, `adPlatform`, `adExternalIds`, `startAt`, `endAt`, `status` (DRAFT, ACTIVE, PAUSED, ENDED), `notes` |
+| `MemberNote` | Note interne sur un membre. | `authorId`, `text` |
+| `Member.anonymizedAt` | Suppression sur demande : identité effacée, événements conservés. | — |
+
+Règles : conservation 24 mois (purge à prévoir en phase 2) ; les montants sont stockés en EUR (`Decimal(14,2)`).

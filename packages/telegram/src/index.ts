@@ -8,3 +8,7 @@ export { MESSAGES, pickLang, t } from "./i18n";
 export type { Lang } from "./i18n";
 export { registerBotFromToken, setWebhookForBot, getWebhookInfoForBot, setAllWebhooks, webhookUrlFor } from "./service";
 export { splitMessage, chooseAdminTelegramId, inboxMessageFromPayload, formatInboxLine } from "./admin-chat";
+export * from "./join-flow/rules";
+export * from "./join-flow/texts";
+export * from "./join-flow/service";
+export { offerDeepLink, buildOfferPayload, parseOfferPayload } from "./offers/logic";

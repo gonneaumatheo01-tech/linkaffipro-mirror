@@ -1,11 +1,14 @@
 import type { Job } from "bullmq";
 import { logger } from "../logger";
+import { claimDuePosts } from "../sending/claim";
 
-/** Processeur de la file `scheduler`. À implémenter par le chantier concerné (voir README.md de ce dossier). */
+/** File `scheduler` : toutes les 30 s, réclame les messages programmés échus et les enfile dans `telegram-send`. */
 export async function processScheduler(job: Job): Promise<unknown> {
-  logger.info({ queue: "scheduler", name: job.name, id: job.id }, "tâche reçue (traitement à venir)");
-  return { ok: true };
+  const ids = await claimDuePosts();
+  if (ids.length > 0) logger.info({ queue: "scheduler", id: job.id, posts: ids }, "messages réclamés");
+  return { claimed: ids.length };
 }
 
-/** Tâches répétitives à planifier au démarrage (laisser vide si aucune). */
-export const repeatableScheduler: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [];
+export const repeatableScheduler: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [
+  { data: { type: "tick" }, everyMs: 30_000, jobId: "scheduler-tick" },
+];

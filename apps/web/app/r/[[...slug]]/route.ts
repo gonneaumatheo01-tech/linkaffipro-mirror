@@ -1,21 +1,21 @@
 import { after } from "next/server";
-import { recordEvent } from "@linkaffipro/db";
-import { buildRedirectEvent, redirectResponse, resolveTarget } from "@/lib/tracking";
+import { buildRedirectEvent, logRedirect, redirectResponse, resolveTarget } from "@/lib/tracking";
 
 export const dynamic = "force-dynamic";
 
-/** Redirection go.goolink.eu : 302 immédiat, journalisation après la réponse. */
+/** Redirection go.goolink.eu : une requête en base, 302 immédiat, journalisation après la réponse. */
 export async function GET(req: Request, ctx: RouteContext<"/r/[[...slug]]">) {
   const { slug } = await ctx.params;
-  const resolved = resolveTarget(slug ?? []);
+  const resolved = await resolveTarget(slug ?? []);
   const payload = buildRedirectEvent(req, resolved);
   after(async () => {
-    await recordEvent({ type: "tracking.redirect", payload });
+    await logRedirect(payload);
   });
   return redirectResponse(resolved.target);
 }
 
 export async function HEAD(req: Request, ctx: RouteContext<"/r/[[...slug]]">) {
   const { slug } = await ctx.params;
-  return redirectResponse(resolveTarget(slug ?? []).target);
+  const resolved = await resolveTarget(slug ?? []);
+  return redirectResponse(resolved.target);
 }

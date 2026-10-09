@@ -51,3 +51,36 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 - Textes en français, police système (pas de police Google : évite un appel réseau au build).
 - Formulaires rendus côté serveur avec actions serveur (`<form action>`), messages de retour passés par `?ok=` / `?error=` ; composants client réduits au minimum (connexion, invitation, bouton « copier », menu mobile).
 - Pages de la phase 1 (Membres, Messages, Liens) présentes avec le détail de ce qui arrive, plutôt qu'absentes.
+
+## Phase 1 — 9 octobre 2026
+
+### Organisation
+- Section 1 (modèle) faite seule, puis cinq chantiers en parallèle (sous-agents) sur des fichiers disjoints : A adhésions, B liens et offres, C messages, D synchro Link Affi, E membres et tableau de bord. Squelettes préparés à l'avance : `apps/worker/src/processors/<file>.ts` (un fichier par file BullMQ, branchés dans `processors/index.ts`), `packages/telegram/src/handlers/{core,join-flow,offers,reactions}.ts` (les handlers spécialisés passent avant le `/start` générique, qui ignore les payloads `g…` et `o…`), fichiers réservés dans `packages/core`.
+- Nouveau paquet `@linkaffipro/queue` : définitions des files et des tâches, `enqueue` idempotent par `jobId`, `enqueueDm` (crée l'`OutboundMessage` puis enfile `telegram-send`). Tout message privé passe par là ; exception : les approbations/refus d'adhésion appellent l'API Telegram directement (worker `approvals` et actions de l'interface) car ce ne sont pas des envois de messages.
+- Tâches périodiques : `upsertJobScheduler` BullMQ (approvals 20 s / 5 min, scheduler 30 s, sync-linkaffi 2 min, stats 10 min).
+
+### Adhésions (A)
+- Tous les bots administrateurs reçoivent `chat_join_request` ; seul le bot « agissant » (principal s'il est admin, sinon premier admin, avertissement journalisé) traite.
+- `Membership.source` contient un instantané complet (lien, pub, règle, gates, URL `/start g…`, bot) pour que le worker reconstruise rappels et boutons sans relire.
+- Gate SOFT = SCHEDULED dès la demande (canaux seulement proposés) ; gate sans canal = pas de gate ; MANUAL + gate : `/start g…` note `gateSatisfiedAt` sans planifier. Expiration : KEEP → EXPIRED, APPROVE → SCHEDULED immédiat, DECLINE → `declineChatJoinRequest`.
+- Entrée effective sans demande connue (`chat_member`) → Membership APPROVED marqué `joinedDirectly` ; les liens GATE sont comptés via `invite_link`.
+- Textes par défaut fr/en intégrés (`join-flow/texts.ts`) tant qu'aucune séquence n'est définie ; langue : membre > canal > fr.
+
+### Liens et offres (B)
+- Macros publicitaires (sources officielles TikTok Ads / Meta) dans `packages/core/src/ad-macros.ts` : TikTok `__CAMPAIGN_NAME__`, `__CID_NAME__`, `__AID_NAME__`, identifiants, `ttclid=__CLICKID__` conservé (TikTok l'ajoute aussi automatiquement) ; Meta `{{campaign.name}}`, `{{adset.name}}`, `{{ad.name}}` et identifiants, fbclid ajouté par Meta.
+- Sub-ID = 12 caractères base62 sans point (contrat `docs/LINKAFFI-SUBID.md`) ; URL d'offre = `AffiliateCampaign.trackingUrlTemplate` (`https://linkaffi.me/go/<key>?sub_id={subid}`) remplie ; reclic = nouveau clic et nouveau sub-ID ; `uniqueClicks` au premier clic du membre.
+- Redirection : une requête (`slug` unique), 302 sans corps, journalisation après la réponse, dédoublonnage 10 s par (ipHash, userAgent, lien), robots enregistrés `isBot` sans compter. Les paramètres d'origine ne sont pas propagés vers un lien t.me.
+- Lien d'entrée : `createChatInviteLink` (`creates_join_request`) par le bot agissant ; `InviteLink` + `TrackingLink` AD_ENTRY en transaction ; règle optionnelle copiée et liée au lien ; création en lot (50 max).
+
+### Synchronisation Link Affi (D)
+- Identifiant Link Affi d'un joueur conservé dans `Player.raw.id` ; cache en mémoire par passage pour relier `player_events` / `player_financials` ; événements d'un joueur pas encore importé ignorés jusqu'au passage suivant (chevauchement 15 min).
+- Campagne ou casino inconnu → enregistrements `unknown` inactifs (aucun joueur perdu).
+- Sub-ID : postback > time_match > plus récent ; null n'écrase jamais. Cumuls jamais décroissants. Événements émis seulement sur changement réel. Montant d'un dépôt `any_dep` = `details.redeposit_delta`.
+- `PostStats` d'affiliation recalculées depuis les joueurs rattachés à chaque passage (idempotent). Verrou `SyncState.isRunning` périmé après 30 min. Santé du sub-ID calculée depuis nos tables sur 7 jours.
+- Montants en EUR via `currency_rates` ; CPA conservé brut dans `Player.raw.financials`.
+
+### Membres et tableau de bord (E)
+- Anonymisation : identité → null, `anonymizedAt`, `telegramUserId` remplacé par un entier négatif aléatoire (jamais attribué par Telegram) pour garder l'unicité, notes supprimées, `canDm = false`, événements et clics conservés ; confirmation par saisie de « SUPPRIMER ».
+- Niveau de dépense : VIP si cumul ≥ seuil (défaut 500 €), RÉGULIER si dépôts ≥ 3, DÉPOSANT dès un dépôt, INSCRIT, AUCUN ; seuils dans `Setting` `spend.thresholds`.
+- Indicateurs d'affiliation par canal via `Player.click → Post.channelId` ; NGR par jour = somme des NGR mis à jour ce jour (approximation, phase 2). Export CSV `;` avec BOM UTF-8.
+- Worker `stats` : recalcul idempotent des compteurs (`PostStats`, `TrackingLink`, `InviteLink`) toutes les 10 min.

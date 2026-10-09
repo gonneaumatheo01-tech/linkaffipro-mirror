@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { VERTICALS, VERTICAL_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -48,7 +49,7 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
                 {channels.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>
-                      <div className="font-medium">{c.title}</div>
+                      <div className="font-medium"><Link href={`/channels/${c.id}`} className="hover:underline">{c.title}</Link> <Link href={`/channels/${c.id}?tab=requests`} className="ml-1 text-xs text-muted-foreground hover:underline">Ouvrir</Link></div>
                       <div className="text-xs text-muted-foreground">{c.username ? `@${c.username} · ` : ""}{c.type === "CHANNEL" ? "canal" : "groupe"} · id {c.telegramChatId.toString()}</div>
                     </TableCell>
                     <TableCell>

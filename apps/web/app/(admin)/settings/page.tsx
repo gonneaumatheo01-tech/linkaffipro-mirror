@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ROLES, ROLE_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
+import Link from "next/link";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { CopyField } from "@/components/admin/copy-field";
@@ -27,7 +28,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const selectCls = "h-8 rounded-md border bg-background px-2 text-sm";
   return (
     <>
-      <PageHeader title="Réglages" description="Utilisateurs et invitations. Réservé aux administrateurs." />
+      <PageHeader title="Réglages" description="Utilisateurs et invitations. Réservé aux administrateurs.">
+        <Button variant="outline" size="sm" render={<Link href="/settings/connectors" />}>Connecteurs (Link Affi)</Button>
+      </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
 
       <Card>

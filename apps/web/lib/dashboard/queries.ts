@@ -1,0 +1,62 @@
+import { prisma, type Vertical } from "@linkaffipro/db";
+import { aggregateByDay, dayKeys, rangeDays, rangeStart, type DaySeries, type Range } from "./aggregate";
+
+export type DashboardFilters = { range: Range; vertical: Vertical | ""; channelId: string };
+
+export type Metric = { key: string; label: string; series: DaySeries; money?: boolean };
+
+export type ChannelRow = { channelId: string; title: string; requests: number; approved: number; joined: number; left: number; offerClicks: number; registrations: number; ftds: number; depositAmount: number };
+
+/** Indicateurs du tableau de bord sur la fenêtre choisie (requêtes agrégées, bornées par la fenêtre). */
+export async function loadDashboard(f: DashboardFilters, now = new Date()): Promise<{ metrics: Metric[]; channels: ChannelRow[]; keys: string[] }> {
+  const start = rangeStart(f.range, now);
+  const keys = dayKeys(rangeDays(f.range), now);
+  const channelWhere = { ...(f.channelId ? { id: f.channelId } : {}), ...(f.vertical ? { vertical: f.vertical } : {}) };
+  const channels = await prisma.channel.findMany({ where: { isActive: true, ...channelWhere }, select: { id: true, title: true }, orderBy: { title: "asc" } });
+  const channelIds = channels.map((c) => c.id);
+  const byChannel = f.channelId || f.vertical ? { channelId: { in: channelIds } } : {};
+
+  const [requested, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, ngrPlayers] = await Promise.all([
+    prisma.membership.findMany({ where: { requestedAt: { gte: start }, ...byChannel }, select: { requestedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { approvedAt: { gte: start }, ...byChannel }, select: { approvedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { joinedAt: { gte: start }, ...byChannel }, select: { joinedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { leftAt: { gte: start }, ...byChannel }, select: { leftAt: true, channelId: true } }),
+    prisma.click.findMany({ where: { createdAt: { gte: start }, isBot: false, trackingLink: { kind: "AD_ENTRY", ...(channelIds.length && (f.channelId || f.vertical) ? { channelId: { in: channelIds } } : {}) } }, select: { createdAt: true } }),
+    prisma.click.findMany({ where: { createdAt: { gte: start }, isBot: false, subId: { not: null }, ...(f.channelId || f.vertical ? { post: { channelId: { in: channelIds } } } : {}) }, select: { createdAt: true, post: { select: { channelId: true } } } }),
+    prisma.playerEvent.findMany({ where: { type: "REGISTRATION", occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: "FTD", occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.player.findMany({ where: { lastEventAt: { gte: start }, ...(f.channelId || f.vertical ? { click: { post: { channelId: { in: channelIds } } } } : {}) }, select: { ngr: true, updatedAt: true } }),
+  ]);
+
+  const metrics: Metric[] = [
+    { key: "requests", label: "Demandes", series: aggregateByDay(requested.map((m) => m.requestedAt), keys) },
+    { key: "approved", label: "Acceptés", series: aggregateByDay(approved.map((m) => m.approvedAt!), keys) },
+    { key: "joined", label: "Entrées", series: aggregateByDay(joined.map((m) => m.joinedAt!), keys) },
+    { key: "left", label: "Départs", series: aggregateByDay(left.map((m) => m.leftAt!), keys) },
+    { key: "entryClicks", label: "Clics entrée", series: aggregateByDay(entryClicks.map((c) => c.createdAt), keys) },
+    { key: "offerClicks", label: "Clics offres", series: aggregateByDay(offerClicks.map((c) => c.createdAt), keys) },
+    { key: "registrations", label: "Inscriptions", series: aggregateByDay(registrations.map((e) => e.occurredAt), keys) },
+    { key: "ftds", label: "FTD", series: aggregateByDay(ftds.map((e) => e.occurredAt), keys) },
+    { key: "deposits", label: "Dépôts (nombre)", series: aggregateByDay(deposits.map((e) => e.occurredAt), keys) },
+    { key: "depositAmount", label: "Dépôts (€)", money: true, series: aggregateByDay(deposits.map((e) => ({ at: e.occurredAt, value: Number(e.amount ?? 0) })), keys) },
+    { key: "ngr", label: "NGR (€)", money: true, series: aggregateByDay(ngrPlayers.map((p) => ({ at: p.updatedAt, value: Number(p.ngr) })), keys) },
+  ];
+
+  const rows = new Map<string, ChannelRow>(channels.map((c) => [c.id, { channelId: c.id, title: c.title, requests: 0, approved: 0, joined: 0, left: 0, offerClicks: 0, registrations: 0, ftds: 0, depositAmount: 0 }]));
+  const bump = (id: string | null | undefined, k: keyof Omit<ChannelRow, "channelId" | "title">, v = 1) => {
+    if (!id) return;
+    const r = rows.get(id);
+    if (r) r[k] += v;
+  };
+  for (const m of requested) bump(m.channelId, "requests");
+  for (const m of approved) bump(m.channelId, "approved");
+  for (const m of joined) bump(m.channelId, "joined");
+  for (const m of left) bump(m.channelId, "left");
+  for (const c of offerClicks) bump(c.post?.channelId, "offerClicks");
+  for (const e of registrations) bump(e.player.click?.post?.channelId, "registrations");
+  for (const e of ftds) bump(e.player.click?.post?.channelId, "ftds");
+  for (const e of deposits) bump(e.player.click?.post?.channelId, "depositAmount", Number(e.amount ?? 0));
+
+  return { metrics, channels: [...rows.values()].filter((r) => r.requests || r.approved || r.joined || r.offerClicks || r.registrations || r.ftds || r.depositAmount || f.channelId), keys };
+}

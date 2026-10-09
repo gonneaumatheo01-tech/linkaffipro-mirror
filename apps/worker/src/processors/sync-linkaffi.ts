@@ -1,11 +1,16 @@
 import type { Job } from "bullmq";
+import type { SyncLinkAffiJob } from "@linkaffipro/queue";
 import { logger } from "../logger";
+import { runSync } from "../sync/linkaffi-sync";
 
-/** Processeur de la file `sync-linkaffi`. À implémenter par le chantier concerné (voir README.md de ce dossier). */
-export async function processSyncLinkaffi(job: Job): Promise<unknown> {
-  logger.info({ queue: "sync-linkaffi", name: job.name, id: job.id }, "tâche reçue (traitement à venir)");
-  return { ok: true };
+/** File `sync-linkaffi` : un passage incrémental toutes les 2 minutes ; `full: true` force une resynchro complète. */
+export async function processSyncLinkaffi(job: Job<SyncLinkAffiJob>): Promise<unknown> {
+  const data = job.data ?? { type: "tick" };
+  logger.info({ id: job.id, full: data.full === true, tables: data.tables }, "synchro Link Affi : début");
+  const results = await runSync({ full: data.full === true, tables: data.tables });
+  return { results };
 }
 
-/** Tâches répétitives à planifier au démarrage (laisser vide si aucune). */
-export const repeatableSyncLinkaffi: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [];
+export const repeatableSyncLinkaffi: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [
+  { data: { type: "tick" }, everyMs: 2 * 60 * 1000, jobId: "sync-linkaffi:tick" },
+];
