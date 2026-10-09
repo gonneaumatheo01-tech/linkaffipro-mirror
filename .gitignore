@@ -1,0 +1,19 @@
+# Dépendances et builds
+node_modules/
+.next/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Secrets : jamais dans git
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Système
+.DS_Store
+*.log
