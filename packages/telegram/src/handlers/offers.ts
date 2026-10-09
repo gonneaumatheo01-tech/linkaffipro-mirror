@@ -34,12 +34,27 @@ export function registerOfferHandlers(bot: Bot, identity: BotIdentity, deps?: Of
     const destination = fillUrlTemplate(offer.destinationTemplate, { subid: subId, member_id: memberId, post_id: offer.postId ?? "" });
     await d.recordOfferClick({ trackingLinkId: offer.trackingLinkId, postId: offer.postId, memberId, botId: identity.id, subId, destination });
     const textLang = lang in DEFAULT_OFFER_REPLY ? lang : (offer.channelLanguage ?? "fr");
-    const custom = await d.offerReplyTexts(offer.channelId, lang);
+    const custom = await d.offerReplyTexts(offer.channelId, lang, identity.id);
     const texts = custom ?? DEFAULT_OFFER_REPLY[textLang] ?? DEFAULT_OFFER_REPLY.fr!;
     const text = fillPlaceholders(texts.text, { prenom: from.first_name, bot: identity.name });
+    const keyboard = new InlineKeyboard().url(texts.button, destination);
+    const media = custom?.media ?? null;
+    // Média avec légende (≤ 1024 caractères) si Telegram connaît déjà le fichier pour ce bot ; sinon texte seul.
+    if (media && text.length <= 1024) {
+      try {
+        const opts = { caption: text, parse_mode: "HTML" as const, reply_markup: keyboard };
+        if (media.kind === "photo") await ctx.replyWithPhoto(media.fileId, opts);
+        else if (media.kind === "video") await ctx.replyWithVideo(media.fileId, opts);
+        else if (media.kind === "animation") await ctx.replyWithAnimation(media.fileId, opts);
+        else await ctx.replyWithDocument(media.fileId, opts);
+        return;
+      } catch (err) {
+        console.warn("[offers] média non envoyé, repli texte", (err as Error).message);
+      }
+    }
     await ctx.reply(text, {
       parse_mode: "HTML",
-      reply_markup: new InlineKeyboard().url(texts.button, destination),
+      reply_markup: keyboard,
       link_preview_options: { is_disabled: true },
     });
   });

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { addSequenceLangAction, removeSequenceLangAction, saveSequenceTextAction, sendSequenceTestAction, toggleSequenceAction  } from "./actions";
+import { addSequenceLangAction, removeSequenceLangAction, saveSequenceTextAction, sendSequenceTestAction, setSequenceMediaAction, toggleSequenceAction } from "./actions";
 import { SEQUENCE_LANGS } from "./langs";
 
 const LANG_LABELS: Record<string, string> = { fr: "Français", en: "Anglais", es: "Espagnol", pt: "Portugais", de: "Allemand", it: "Italien", ar: "Arabe", tr: "Turc", nl: "Néerlandais", pl: "Polonais", ro: "Roumain", ru: "Russe" };
@@ -17,8 +17,9 @@ function previewHtml(text: string): string {
 
 export async function SequencesTab({ channelId, channelTitle, open, telegramLinked }: { channelId: string; channelTitle: string; open: string | undefined; telegramLinked: boolean }) {
   await ensureDefaultSequences(channelId);
-  const sequences = await prisma.sequence.findMany({ where: { channelId }, include: { steps: { orderBy: { order: "asc" }, take: 1 } } });
+  const sequences = await prisma.sequence.findMany({ where: { channelId }, include: { steps: { orderBy: { order: "asc" }, take: 1, include: { mediaAsset: { select: { id: true, filename: true, mimeType: true } } } } } });
   const byTrigger = new Map(sequences.map((s) => [s.trigger as string, s]));
+  const mediaOptions = await prisma.mediaAsset.findMany({ orderBy: { createdAt: "desc" }, take: 100, select: { id: true, filename: true, mimeType: true } });
   const openKey = open ?? "JOIN_REQUEST";
 
   return (
@@ -86,6 +87,36 @@ export async function SequencesTab({ channelId, channelTitle, open, telegramLink
                     </div>
                   </div>
                 ))}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <form action={setSequenceMediaAction} className="flex items-end gap-2">
+                    <input type="hidden" name="channelId" value={channelId} />
+                    <input type="hidden" name="trigger" value={trigger} />
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor={`${trigger}-media`}>Média joint (photo, vidéo, gif ou document)</Label>
+                      <select id={`${trigger}-media`} name="mediaAssetId" defaultValue={step?.mediaAsset?.id ?? ""} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+                        <option value="">— aucun —</option>
+                        {mediaOptions.map((m) => (
+                          <option key={m.id} value={m.id}>{m.filename}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">Envoyé avec le texte en légende (texte de plus de 1024 caractères : média puis texte). Les médias se téléversent depuis Messages → Nouveau message.</p>
+                    </div>
+                    <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+                  </form>
+                  {step?.mediaAsset ? (
+                    <div className="space-y-1">
+                      <Label>Aperçu du média</Label>
+                      {step.mediaAsset.mimeType.startsWith("image/") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/api/media/${step.mediaAsset.id}`} alt={step.mediaAsset.filename} className="max-h-40 rounded-md border object-contain" />
+                      ) : step.mediaAsset.mimeType.startsWith("video/") ? (
+                        <video src={`/api/media/${step.mediaAsset.id}`} controls className="max-h-40 rounded-md border" />
+                      ) : (
+                        <a href={`/api/media/${step.mediaAsset.id}`} className="text-sm underline">{step.mediaAsset.filename}</a>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
                 {missing.length > 0 ? (
                   <form action={addSequenceLangAction} className="flex items-end gap-2">
                     <input type="hidden" name="channelId" value={channelId} />

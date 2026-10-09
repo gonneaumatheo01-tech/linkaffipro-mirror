@@ -25,7 +25,11 @@ export type SchedulerJob = { type: "tick" } | { type: "broadcast"; broadcastId: 
 export type SyncLinkAffiJob = { type: "tick"; full?: boolean; tables?: string[] };
 
 /** Tâches de la file `stats` (recalculs). */
-export type StatsJob = { type: "post-stats"; postId: string } | { type: "tick" } | { type: "daily"; days?: number; full?: boolean };
+export type StatsJob =
+  | { type: "post-stats"; postId: string }
+  | { type: "tick" }
+  | { type: "daily"; days?: number; full?: boolean }
+  | { type: "reports"; force?: "daily" | "weekly" };
 
 /** Tâches de la file `maintenance` (purge 24 mois, alertes, sauvegardes). */
 export type MaintenanceJob = { type: "purge" } | { type: "alerts" } | { type: "tick" };

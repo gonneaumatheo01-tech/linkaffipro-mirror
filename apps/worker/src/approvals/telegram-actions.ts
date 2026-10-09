@@ -45,7 +45,7 @@ async function sendAcceptedMessage(m: { id: string; memberId: string; channelId:
   const lang = baseLang(member.languageCode ?? channel.language);
   const template = pickText(texts, member.languageCode, channel.language) ?? defaultText("approved", lang);
   const text = renderText(template, { prenom: member.firstName ?? "", canal: channel.title });
-  await enqueueDm({ botId: bot.id, memberId: m.memberId, chatId: m.userChatId, kind: "ACCEPTED", text, buttons: [] });
+  await enqueueDm({ botId: bot.id, memberId: m.memberId, chatId: m.userChatId, kind: "ACCEPTED", text, buttons: [], mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null });
 }
 
 /** Approuve une demande. Met à jour le Membership et journalise. */

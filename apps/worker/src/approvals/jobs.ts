@@ -61,7 +61,7 @@ export async function runReminders(now = new Date()): Promise<number> {
     const text = renderText(template, { prenom: m.member.firstName ?? "", canal: m.channel.title, liste_canaux: gates.map((g) => g.title).join(", ") });
     const buttons = gates.map((g) => [{ text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url }]);
     if (source.startUrl) buttons.push([{ text: defaultText("joinedLabel", lang), url: source.startUrl }]);
-    await enqueueDm({ botId, memberId: m.memberId, chatId: m.userChatId, kind: "GATE_REMINDER", text, buttons });
+    await enqueueDm({ botId, memberId: m.memberId, chatId: m.userChatId, kind: "GATE_REMINDER", text, buttons, mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null });
     await prisma.membership.update({ where: { id: m.id }, data: { remindersSent: { increment: 1 }, lastReminderAt: now } });
     await recordEvent({ type: "membership.reminder_sent", memberId: m.memberId, channelId: m.channelId, botId, payload: { membershipId: m.id, index: idx } as Prisma.InputJsonValue });
     sent++;

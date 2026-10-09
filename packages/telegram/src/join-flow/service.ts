@@ -70,7 +70,7 @@ async function sendSequenceOrDefault(
   const lang = baseLang(opts.memberLang ?? opts.channel.language);
   const template = pickText(seq?.texts, opts.memberLang, opts.channel.language) ?? defaultText(opts.fallbackKey, lang);
   const text = renderText(template, varsLang(opts.vars, opts.rule, lang));
-  await deps.enqueueDm({ botId: opts.botId, memberId: opts.memberId, chatId: opts.chatId, kind: opts.kind, text, buttons: opts.buttons });
+  await deps.enqueueDm({ botId: opts.botId, memberId: opts.memberId, chatId: opts.chatId, kind: opts.kind, text, buttons: opts.buttons, mediaAssetId: seq?.mediaAssetId ?? null });
 }
 
 /** Traite une demande d'adhésion reçue par le bot `identity`. */

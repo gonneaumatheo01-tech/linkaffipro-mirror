@@ -152,7 +152,7 @@ export default async function BroadcastPage({ params, searchParams }: PageProps<
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">{b.text}</div>
-            {b.mediaAsset ? <div className="text-xs text-muted-foreground">Média : {b.mediaAsset.filename} (mémorisé ; non envoyé en privé pour l&apos;instant)</div> : null}
+            {b.mediaAsset ? <div className="text-xs text-muted-foreground">Média joint : {b.mediaAsset.filename}</div> : null}
             {buttons.length > 0 ? (
               <div className="space-y-1">
                 {buttons.map((row, i) => (

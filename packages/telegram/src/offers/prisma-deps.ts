@@ -1,6 +1,13 @@
 import { prisma, recordEvent } from "@linkaffipro/db";
 import type { OfferDeps } from "./deps";
 
+function mediaKindOf(mimeType: string): "photo" | "video" | "animation" | "document" {
+  if (mimeType === "image/gif") return "animation";
+  if (mimeType.startsWith("image/")) return "photo";
+  if (mimeType.startsWith("video/")) return "video";
+  return "document";
+}
+
 export const prismaOfferDeps: OfferDeps = {
   async memberStarted(botId, from) {
     const data = {
@@ -81,11 +88,11 @@ export const prismaOfferDeps: OfferDeps = {
     return { clickId: click.id };
   },
 
-  async offerReplyTexts(channelId, lang) {
+  async offerReplyTexts(channelId, lang, botId) {
     if (!channelId) return null;
     const seq = await prisma.sequence.findFirst({
       where: { channelId, trigger: "OFFER_REPLY", isActive: true },
-      include: { steps: { orderBy: { order: "asc" }, take: 1 } },
+      include: { steps: { orderBy: { order: "asc" }, take: 1, include: { mediaAsset: { select: { mimeType: true, telegramFiles: botId ? { where: { botId }, select: { telegramFileId: true } } : false } } } } },
     });
     const step = seq?.steps[0];
     if (!step) return null;
@@ -94,6 +101,11 @@ export const prismaOfferDeps: OfferDeps = {
     if (!text) return null;
     const buttons = (step.buttons ?? []) as Array<Array<{ text?: string }>>;
     const button = buttons[0]?.[0]?.text ?? (lang === "en" ? "Open the offer" : "Ouvrir l'offre");
-    return { text, button };
+    // Média : seulement si Telegram le connaît déjà pour ce bot (pas d'upload depuis le webhook, trop lent) ;
+    // le file_id est mémorisé dès le premier envoi par le worker (message programmé, envoi groupé, test).
+    const asset = step.mediaAsset;
+    const fileId = asset && Array.isArray(asset.telegramFiles) ? asset.telegramFiles[0]?.telegramFileId : undefined;
+    const media = asset && fileId ? { fileId, kind: mediaKindOf(asset.mimeType) } : null;
+    return { text, button, media };
   },
 };

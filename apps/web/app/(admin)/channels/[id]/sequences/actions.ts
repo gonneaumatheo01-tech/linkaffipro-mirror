@@ -88,6 +88,25 @@ export async function toggleSequenceAction(formData: FormData): Promise<void> {
   back(channelId, { ok: seq.isActive ? "Séquence désactivée : le bot utilisera son texte intégré." : "Séquence activée.", open: trigger });
 }
 
+/** Choisit (ou retire) le média joint aux messages d'un déclencheur. */
+export async function setSequenceMediaAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const parsed = z.object({ channelId: z.string().min(1), trigger: z.enum(TRIGGERS), mediaAssetId: z.string().max(64).optional().default("") }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/channels");
+  const { channelId, trigger, mediaAssetId } = parsed.data;
+  const { seq, step } = await stepFor(channelId, trigger);
+  let id: string | null = null;
+  if (mediaAssetId) {
+    const asset = await prisma.mediaAsset.findUnique({ where: { id: mediaAssetId }, select: { id: true } });
+    if (!asset) back(channelId, { error: "Média introuvable.", open: trigger });
+    id = asset.id;
+  }
+  await prisma.sequenceStep.update({ where: { id: step.id }, data: { mediaAssetId: id } });
+  await audit({ userId: user.id, action: id ? "sequence.media_set" : "sequence.media_removed", entityType: "Sequence", entityId: seq.id, metadata: { trigger, mediaAssetId: id } });
+  revalidatePath(`/channels/${channelId}`);
+  back(channelId, { ok: id ? "Média joint enregistré." : "Média retiré.", open: trigger });
+}
+
 /** Envoie le texte à l'utilisateur connecté (Telegram lié) via la file, avec des exemples pour les placeholders. */
 export async function sendSequenceTestAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -102,11 +121,11 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
   const member = await prisma.member.findUnique({ where: { telegramUserId: user.telegramUserId }, select: { id: true, botStates: { where: { botId }, select: { canDm: true } } } });
   if (!member) back(channelId, { error: "Envoyez d'abord /start au bot de ce canal depuis votre Telegram.", open: trigger });
   if (member.botStates[0] && !member.botStates[0].canDm) back(channelId, { error: "Le bot ne peut pas vous écrire : envoyez-lui /start.", open: trigger });
-  const { texts } = await stepFor(channelId, trigger);
+  const { step, texts } = await stepFor(channelId, trigger);
   const template = texts[lang] ?? texts.fr;
   if (!template) back(channelId, { error: "Aucun texte à envoyer.", open: trigger });
   const text = previewText(template, { canal: channel.title, prenom: user.name });
-  await enqueueDm({ botId, memberId: member.id, kind: "TEST", text: `🧪 Test (${trigger}, ${lang.toUpperCase()})\n\n${text}` });
+  await enqueueDm({ botId, memberId: member.id, kind: "TEST", text: `🧪 Test (${trigger}, ${lang.toUpperCase()})\n\n${text}`, mediaAssetId: step.mediaAssetId ?? null });
   await audit({ userId: user.id, action: "sequence.test_sent", entityType: "Channel", entityId: channelId, metadata: { trigger, lang } });
   back(channelId, { ok: "Message de test envoyé sur votre Telegram (quelques secondes).", open: trigger });
 }

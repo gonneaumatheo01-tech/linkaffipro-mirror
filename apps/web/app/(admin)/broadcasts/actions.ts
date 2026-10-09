@@ -168,7 +168,7 @@ export async function testToMeAction(formData: FormData): Promise<void> {
   const member = await prisma.member.findUnique({ where: { telegramUserId: user.telegramUserId }, include: { botStates: { where: { botId: b.botId } } } });
   if (!member || !member.botStates[0]?.canDm) back(`/broadcasts/${id}`, { error: `Envoyez d'abord /start à @${b.bot.username} depuis votre Telegram.` });
   const buttons = await resolveForDm((b.buttons as PostButtonRow[]) ?? [], b.bot.username, b.id);
-  await enqueueDm({ botId: b.botId, memberId: member.id, kind: "TEST", text: b.text, buttons });
+  await enqueueDm({ botId: b.botId, memberId: member.id, kind: "TEST", text: b.text, buttons, mediaAssetId: b.mediaAssetId ?? null });
   await audit({ userId: user.id, action: "broadcast.test_sent", entityType: "Broadcast", entityId: id });
   back(`/broadcasts/${id}`, { ok: "Message de test envoyé sur votre Telegram." });
 }

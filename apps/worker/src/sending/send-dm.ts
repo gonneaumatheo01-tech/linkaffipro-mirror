@@ -1,13 +1,30 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { getRedis } from "@linkaffipro/queue";
+import { TELEGRAM_CAPTION_MAX, textLength } from "@linkaffipro/core";
+import type { Api } from "grammy";
+import type { InlineKeyboardMarkup, Message } from "grammy/types";
 import { logger } from "../logger";
 import { apiForBot } from "./api";
 import { describeTelegramError, withTelegramRetry } from "./errors";
 import { buildDmKeyboard } from "./keyboard";
+import { loadMedia, rememberTelegramFile, type LoadedMedia } from "./media";
 import { RateLimiter } from "./rate-limit";
 import { recordBroadcastOutcome } from "../broadcasts/progress";
 
-/** Envoie un message privé en file d'attente (`OutboundMessage` QUEUED). */
+/** Envoie un média en privé (photo, vidéo, gif, document) avec légende et clavier éventuels. */
+function sendMedia(api: Api, chatId: number, m: LoadedMedia, caption: string | undefined, keyboard: InlineKeyboardMarkup | undefined): Promise<Message> {
+  const opts = { caption, parse_mode: "HTML" as const, reply_markup: keyboard };
+  if (m.kind === "photo") return api.sendPhoto(chatId, m.media, opts);
+  if (m.kind === "video") return api.sendVideo(chatId, m.media, opts);
+  if (m.kind === "animation") return api.sendAnimation(chatId, m.media, opts);
+  return api.sendDocument(chatId, m.media, opts);
+}
+
+/**
+ * Envoie un message privé en file d'attente (`OutboundMessage` QUEUED).
+ * Avec un média : média + texte en légende (≤ 1024 caractères) + boutons ; texte plus long : média seul puis
+ * texte + boutons en second message. Si le média échoue, le texte part seul (SENT, erreur mémorisée).
+ */
 export async function sendDm(outboundMessageId: string): Promise<void> {
   const om = await prisma.outboundMessage.findUnique({ where: { id: outboundMessageId }, include: { member: true } });
   if (!om || om.status !== "QUEUED") return;
@@ -17,17 +34,42 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
     const { api } = await apiForBot(om.botId);
     await rl.forBot(om.botId);
     await rl.forPrivateChat(chatId);
-    const msg = await withTelegramRetry(() =>
-      api.sendMessage(Number(chatId), om.text, { parse_mode: "HTML", reply_markup: buildDmKeyboard(om.buttons), link_preview_options: { is_disabled: true } }),
-    );
+    const keyboard = buildDmKeyboard(om.buttons);
+    const chat = Number(chatId);
+    let mediaError: string | null = null;
+    let textSent = false;
+    let last: Message | null = null;
+
+    const media = om.mediaAssetId ? await loadMedia(om.mediaAssetId, om.botId).catch(() => null) : null;
+    if (media) {
+      const captionFits = textLength(om.text) <= TELEGRAM_CAPTION_MAX;
+      try {
+        const sent = await withTelegramRetry(() => sendMedia(api, chat, media, captionFits ? om.text : undefined, captionFits ? keyboard : undefined));
+        await rememberTelegramFile(media.assetId, om.botId, sent);
+        last = sent;
+        textSent = captionFits;
+      } catch (err) {
+        const d = describeTelegramError(err);
+        if (d.blocked) throw err;
+        mediaError = `Média non envoyé : ${d.message}`;
+        logger.warn({ outboundMessageId: om.id, err: d.message }, "média du message privé non envoyé, repli texte");
+      }
+    }
+    if (!textSent) {
+      if (media && !mediaError) await rl.forPrivateChat(chatId);
+      last = await withTelegramRetry(() =>
+        api.sendMessage(chat, om.text, { parse_mode: "HTML", reply_markup: keyboard, link_preview_options: { is_disabled: true } }),
+      );
+    }
+
     const now = new Date();
-    await prisma.outboundMessage.update({ where: { id: om.id }, data: { status: "SENT", sentAt: now, telegramMessageId: msg.message_id, error: null } });
+    await prisma.outboundMessage.update({ where: { id: om.id }, data: { status: "SENT", sentAt: now, telegramMessageId: last?.message_id ?? null, error: mediaError } });
     await prisma.memberBotState.upsert({
       where: { memberId_botId: { memberId: om.memberId, botId: om.botId } },
       create: { memberId: om.memberId, botId: om.botId, canDm: true, lastDmAt: now },
       update: { lastDmAt: now },
     });
-    await recordEvent({ type: "dm.sent", memberId: om.memberId, botId: om.botId, payload: toJsonValue({ outboundMessageId: om.id, kind: om.kind }) });
+    await recordEvent({ type: "dm.sent", memberId: om.memberId, botId: om.botId, payload: toJsonValue({ outboundMessageId: om.id, kind: om.kind, media: !!media, mediaError }) });
     await recordBroadcastOutcome(om.broadcastId, "SENT");
   } catch (err) {
     const d = describeTelegramError(err);

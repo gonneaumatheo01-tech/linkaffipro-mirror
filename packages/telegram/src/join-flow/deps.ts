@@ -22,7 +22,7 @@ export type MembershipInfo = {
   remindersSent: number;
 };
 export type GateButton = { channelId: string; title: string; url: string };
-export type SequenceText = { texts: Record<string, string>; buttons: unknown[] } | null;
+export type SequenceText = { texts: Record<string, string>; buttons: unknown[]; mediaAssetId?: string | null } | null;
 
 export interface JoinFlowDeps {
   upsertMember(from: User): Promise<{ memberId: string; languageCode: string | null; firstName: string | null }>;
@@ -54,7 +54,7 @@ export interface JoinFlowDeps {
   /** Lien GATE (canal source → canal requis) existant, ou création via `create` (createChatInviteLink). */
   findOrCreateGateLink(sourceChannelId: string, gate: ChannelInfo, botId: string, create: () => Promise<string | null>): Promise<string | null>;
   getSequenceText(channelId: string, botId: string, trigger: "JOIN_REQUEST" | "GATE_SATISFIED" | "APPROVED" | "GATE_REMINDER"): Promise<SequenceText>;
-  enqueueDm(input: { botId: string; memberId: string; chatId: bigint | null; kind: "WELCOME" | "GATE_REMINDER" | "ACCEPTED"; text: string; buttons: Array<Array<{ text: string; url: string }>> }): Promise<void>;
+  enqueueDm(input: { botId: string; memberId: string; chatId: bigint | null; kind: "WELCOME" | "GATE_REMINDER" | "ACCEPTED"; text: string; buttons: Array<Array<{ text: string; url: string }>>; mediaAssetId?: string | null }): Promise<void>;
   setCanDm(memberId: string, botId: string, canDm: boolean): Promise<void>;
   recordEvent(input: { type: string; memberId?: string | null; channelId?: string | null; botId?: string | null; payload?: Prisma.InputJsonValue }): Promise<void>;
   /** Le membre est-il dans le chat ? (getChatMember est appelé par le handler ; ici on isole pour les tests.) */

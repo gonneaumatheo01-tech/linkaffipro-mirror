@@ -15,6 +15,8 @@ export type EnqueueDmInput = {
   buttons?: DmButton[][];
   sequenceStepId?: string | null;
   postId?: string | null;
+  /** Média joint (MediaAsset) envoyé avec le texte en légende. */
+  mediaAssetId?: string | null;
   /** Délai avant envoi (ms). */
   delayMs?: number;
 };
@@ -34,6 +36,7 @@ export async function enqueueDm(input: EnqueueDmInput): Promise<{ outboundMessag
       buttons: (input.buttons ?? []) as unknown as Prisma.InputJsonValue,
       sequenceStepId: input.sequenceStepId ?? null,
       postId: input.postId ?? null,
+      mediaAssetId: input.mediaAssetId ?? null,
     },
     select: { id: true },
   });

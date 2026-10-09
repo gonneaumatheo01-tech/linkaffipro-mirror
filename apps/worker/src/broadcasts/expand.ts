@@ -46,7 +46,7 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
         if (!matchesSpendLevels(computeSpendLevel(aggregatePlayers(players), thresholds), segment)) continue;
       }
       const om = await prisma.outboundMessage.create({
-        data: { botId: b.botId, memberId: m.id, kind: "BROADCAST", broadcastId: b.id, text: b.text, buttons: toJsonValue(buttons) },
+        data: { botId: b.botId, memberId: m.id, kind: "BROADCAST", broadcastId: b.id, text: b.text, buttons: toJsonValue(buttons), mediaAssetId: b.mediaAssetId ?? null },
         select: { id: true },
       });
       await enqueue("telegram-send", { type: "dm", outboundMessageId: om.id }, { jobId: `dm-${om.id}`, attempts: 3, backoff: { type: "exponential", delay: 2000 } });

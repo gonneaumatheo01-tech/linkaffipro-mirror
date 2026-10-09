@@ -177,7 +177,7 @@ export function BroadcastForm({ options, defaultScheduledAt }: { options: Broadc
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground">Le média est mémorisé avec l&apos;envoi ; les messages privés partent aujourd&apos;hui en texte + boutons (envoi du média en privé prévu).</p>
+              <p className="text-xs text-muted-foreground">Le média est envoyé avec le texte en légende (texte de plus de 1024 caractères : média puis texte séparé).</p>
             </div>
           </CardContent>
         </Card>

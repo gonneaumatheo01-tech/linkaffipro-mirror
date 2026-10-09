@@ -101,10 +101,10 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
     if (!step) return null;
     const texts = step.texts && typeof step.texts === "object" ? (step.texts as Record<string, string>) : {};
     const buttons = Array.isArray(step.buttons) ? (step.buttons as unknown[]) : [];
-    return { texts, buttons };
+    return { texts, buttons, mediaAssetId: step.mediaAssetId ?? null };
   },
   async enqueueDm(input) {
-    await enqueueDm({ ...input, buttons: input.buttons });
+    await enqueueDm({ ...input, buttons: input.buttons, mediaAssetId: input.mediaAssetId ?? null });
   },
   async setCanDm(memberId, botId, canDm) {
     await prisma.memberBotState.upsert({

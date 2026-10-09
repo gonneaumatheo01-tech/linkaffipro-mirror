@@ -85,6 +85,14 @@ describe("développement d'un envoi groupé", () => {
     expect(db.state.broadcast.targeted).toBe(1203);
   });
 
+  it("recopie le média de l'envoi sur chaque message privé", async () => {
+    db.state.broadcast.mediaAssetId = "asset1";
+    db.state.members = [{ id: "m1" }, { id: "m2" }];
+    const r = await expandBroadcast("b1");
+    expect(r.created).toBe(2);
+    expect(db.state.outbound.every((o) => o.mediaAssetId === "asset1")).toBe(true);
+  });
+
   it("est idempotent : un second développement ne recrée rien", async () => {
     await expandBroadcast("b1");
     const r = await expandBroadcast("b1");
