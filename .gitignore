@@ -20,3 +20,10 @@ CLAUDE.local.md
 
 # Sauvegardes locales de la base (jamais dans git)
 backups/
+
+# Généré par next dev
+apps/web/AGENTS.md
+
+# Journaux de la boucle run-phase
+logs/
+docs/PHASE-DONE
