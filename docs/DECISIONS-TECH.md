@@ -99,3 +99,6 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 
 ### Catégories (G)
 - Agrégation « par catégorie » en TypeScript sur les `Post` envoyés de la période (volume faible) plutôt que par `groupBy` Prisma (pas de traversée de relation 1:1). Suppression d'une catégorie refusée si des messages l'utilisent ; slug sans accents, unique par suffixe numérique.
+
+### File d'attente — correction du 9 octobre (après le test utilisateur)
+- BullMQ 6 refuse les identifiants de tâche personnalisés contenant « : » ; les `jobId` (`dm:<id>`, `post:<id>`…) faisaient échouer silencieusement l'enfilage des messages privés. Correction centrale : `enqueue` remplace « : » par « - » (`safeJobId`). Leçon : tester un vrai enfilage de bout en bout (producteur web → Redis → worker) avant de livrer, pas seulement les processeurs avec des mocks.
