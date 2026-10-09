@@ -1,4 +1,4 @@
-# État du projet — phase 3 en cours (9 octobre 2026, 19h10)
+# État du projet — phase 3 terminée (9 octobre 2026, 19h45)
 
 Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-connecteurs-et-stats.md`, rédigé par Claude et validé « Ok ») déployée et testée de bout en bout par Claude.
 
@@ -37,8 +37,20 @@ Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-con
 
 - **Automatisations « si… alors… »** (page Automatisations) : déclencheurs (a rejoint, a cliqué une offre, s'est inscrit, a déposé, inactif depuis N jours, a quitté, niveau de dépense atteint), conditions (canal, pub, langue, niveau), actions enchaînées (message, séquence du canal, attendre, étiqueter, proposer un canal, prévenir l'équipe), modèles proposés, journal par règle, « Tester sur moi ». Les règles sont créées inactives : activez-les quand le texte vous convient.
 
-## En cours (phase 3)
-Sécurité du site (limitation des tentatives de connexion, en-têtes de sécurité) et tests A/B des envois groupés.
+- **Tests A/B des envois groupés** : dans « Nouvel envoi », cochez « Test A/B », écrivez la version B (texte, média, boutons) et choisissez la part (10 à 90 %). Les destinataires sont répartis au hasard mais de façon stable ; la page du test compare envoyés, clics, cliqueurs uniques, inscriptions, FTD et désigne la gagnante (au moins 30 envois par version). Bouton « Envoyer la version gagnante au reste du segment » pour les membres pas encore servis.
+- **Sécurité du site** (`docs/SECURITE.md`) : 10 échecs de connexion en 15 minutes (par e-mail ou par adresse) bloquent la connexion 15 minutes ; en-têtes de sécurité (HSTS, anti-cadre, CSP) ; webhooks et postbacks limités à 1 Mo ; suppressions réservées aux ADMIN.
+
+## Tests réalisés par Claude en production (9 octobre, 19h35 à 19h45)
+- Déploiement web + worker vérifié (health check ok, base et Redis ok, migrations à jour).
+- En-têtes de sécurité présents sur les pages, absents (CSP) sur l'API et les redirections go.goolink.eu ✅.
+- Test A/B créé par le formulaire réel (50/50, envoi immédiat à tous les membres joignables) : version A envoyée à 1 membre (vous : message « Version A : test A/B de la plateforme »), version B 0 ; page de comparaison correcte ✅.
+- Limitation des connexions : 10 mauvais mots de passe puis le bon → refusé, aucune session ouverte, journal `auth.login_throttled` ✅.
+- 333 tests unitaires verts, lint, typage et build verts, CI GitHub.
+
+## Test de 5 minutes (quand vous voulez)
+1. Ouvrez https://app.linkaffipro.com/automations : choisissez un modèle (ex. « Relance après clic sans inscription »), relisez le texte, cliquez « Tester sur moi » : vous recevez le message sur Telegram. Activez la règle si le texte vous convient.
+2. Ouvrez https://app.linkaffipro.com/broadcasts : cliquez sur « Test A/B (vérification Claude) » pour voir la page de comparaison. Dans « Nouvel envoi », cochez « Test A/B » pour voir le formulaire à deux versions.
+3. Demain à 9h : vous recevez le brief quotidien sur Telegram (Réglages → Rapports pour changer l'heure ou l'envoyer maintenant).
 
 ## Plus tard (quand les comptes existeront)
-Connecteurs API Meta / TikTok, vues par message (MTProto, connexion téléphone), tests A/B.
+Connecteurs API Meta / TikTok, vues par message (MTProto, connexion téléphone).
