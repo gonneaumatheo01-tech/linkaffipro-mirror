@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { LinkAffiClient, LinkAffiError } from "./client.js";
+import { LinkAffiClient, LinkAffiError } from "./client";
 
 type Handler = (url: string) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
 

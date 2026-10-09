@@ -2,7 +2,7 @@
 // Même code que la page Bots de l'interface. N'affiche jamais les jetons.
 import { VERTICALS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
-import { registerBotFromToken } from "../src/service.js";
+import { registerBotFromToken } from "../src/service";
 
 async function main() {
   let count = 0;

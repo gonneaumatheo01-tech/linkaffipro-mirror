@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { Bot } from "grammy";
 import type { Update } from "grammy/types";
-import { registerHandlers, updateTypeOf } from "./handlers.js";
-import { botInfoFromRecord } from "./factory.js";
-import type { BotIdentity, TelegramDeps } from "./ports.js";
+import { registerHandlers, updateTypeOf } from "./handlers";
+import { botInfoFromRecord } from "./factory";
+import type { BotIdentity, TelegramDeps } from "./ports";
 
 
 const adminBase = {

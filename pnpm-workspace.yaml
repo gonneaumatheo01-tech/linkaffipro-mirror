@@ -1,15 +1,14 @@
 packages:
   - "apps/*"
   - "packages/*"
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - bullmq@6.3.12
 
 # Paquets autorisés à exécuter leurs scripts d'installation (Prisma, esbuild…)
-onlyBuiltDependencies:
-  - "@prisma/client"
-  - "@prisma/engines"
-  - prisma
-  - esbuild
-  - msgpackr-extract
-  - sharp
-  - unrs-resolver

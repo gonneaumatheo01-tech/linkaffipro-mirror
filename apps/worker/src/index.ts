@@ -1,7 +1,7 @@
 import { prisma } from "@linkaffipro/db";
-import { logger } from "./logger.js";
-import { startHealthServer } from "./health.js";
-import { startQueues, stopQueues, type Runtime } from "./queues.js";
+import { logger } from "./logger";
+import { startHealthServer } from "./health";
+import { startQueues, stopQueues, type Runtime } from "./queues";
 
 let runtime: Runtime | null = null;
 const server = startHealthServer(() => runtime);

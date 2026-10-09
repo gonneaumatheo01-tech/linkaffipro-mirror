@@ -1,6 +1,6 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import type { Chat, User } from "grammy/types";
-import type { AdminRights, BotIdentity, TelegramDeps } from "./ports.js";
+import type { AdminRights, BotIdentity, TelegramDeps } from "./ports";
 
 function memberData(from: User) {
   return {

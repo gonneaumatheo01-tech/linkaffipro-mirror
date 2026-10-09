@@ -1,5 +1,5 @@
 // Vérifie l'accès à l'API Link Affi : liste des tables et nombre de lignes des tables utiles. Sans secrets.
-import { LINKAFFI_ALLOWED_TABLES, LinkAffiClient, LinkAffiError } from "../src/index.js";
+import { LINKAFFI_ALLOWED_TABLES, LinkAffiClient, LinkAffiError } from "../src/index";
 
 async function main() {
   const client = new LinkAffiClient();

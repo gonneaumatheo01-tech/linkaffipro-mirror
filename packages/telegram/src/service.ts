@@ -1,7 +1,7 @@
 import { Api, GrammyError } from "grammy";
 import { TELEGRAM_ALLOWED_UPDATES, encrypt, randomToken, type Vertical } from "@linkaffipro/core";
 import { prisma, audit } from "@linkaffipro/db";
-import { evictBot } from "./factory.js";
+import { evictBot } from "./factory";
 
 export function webhookUrlFor(botId: string, baseUrl = process.env.APP_BASE_URL): string {
   if (!baseUrl) throw new Error("APP_BASE_URL manquante");

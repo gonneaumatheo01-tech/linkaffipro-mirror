@@ -1,7 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { Chat, ChatMember, Update } from "grammy/types";
-import { pickLang, t } from "./i18n.js";
-import { extractAdminRights, type BotIdentity, type TelegramDeps } from "./ports.js";
+import { pickLang, t } from "./i18n";
+import { extractAdminRights, type BotIdentity, type TelegramDeps } from "./ports";
 
 const UPDATE_TYPES = [
   "message",

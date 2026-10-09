@@ -16,7 +16,10 @@
     "@linkaffipro/db": "workspace:*",
     "@linkaffipro/linkaffi": "workspace:*",
     "@linkaffipro/telegram": "workspace:*",
+    "@prisma/client": "~6.19.3",
+    "bcryptjs": "^3.0.3",
     "bullmq": "^6.3.12",
+    "grammy": "^1.46.0",
     "ioredis": "^6.0.0",
     "pino": "^10.4.0"
   },

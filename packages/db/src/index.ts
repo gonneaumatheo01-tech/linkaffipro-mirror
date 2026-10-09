@@ -1,5 +1,5 @@
-export { prisma } from "./client.js";
-export { recordEvent, audit } from "./events.js";
-export type { EventInput, AuditInput } from "./events.js";
-export { toJson, toJsonValue } from "./json.js";
+export { prisma } from "./client";
+export { recordEvent, audit } from "./events";
+export type { EventInput, AuditInput } from "./events";
+export { toJson, toJsonValue } from "./json";
 export * from "@prisma/client";

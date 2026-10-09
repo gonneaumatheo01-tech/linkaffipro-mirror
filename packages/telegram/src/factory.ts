@@ -1,8 +1,8 @@
 import { Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
 import { decrypt } from "@linkaffipro/core";
-import type { BotIdentity, TelegramDeps } from "./ports.js";
-import { registerHandlers } from "./handlers.js";
+import type { BotIdentity, TelegramDeps } from "./ports";
+import { registerHandlers } from "./handlers";
 
 export type BotRecordLike = BotIdentity & { tokenEncrypted: string };
 

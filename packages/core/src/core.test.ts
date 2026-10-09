@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, hashIp, safeEqual } from "./crypto.js";
-import { isShortId, shortId } from "./short-id.js";
-import { isBotUserAgent } from "./bots.js";
-import { extractTrackingParams, isTrackingHost } from "./tracking.js";
-import { isRole, isVertical } from "./constants.js";
+import { decrypt, encrypt, hashIp, safeEqual } from "./crypto";
+import { isShortId, shortId } from "./short-id";
+import { isBotUserAgent } from "./bots";
+import { extractTrackingParams, isTrackingHost } from "./tracking";
+import { isRole, isVertical } from "./constants";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
 

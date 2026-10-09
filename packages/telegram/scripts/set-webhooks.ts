@@ -1,6 +1,6 @@
 // (Re)pose les webhooks de tous les bots actifs à partir de APP_BASE_URL.
 import { prisma } from "@linkaffipro/db";
-import { setAllWebhooks } from "../src/service.js";
+import { setAllWebhooks } from "../src/service";
 
 async function main() {
   console.log(`APP_BASE_URL = ${process.env.APP_BASE_URL}`);

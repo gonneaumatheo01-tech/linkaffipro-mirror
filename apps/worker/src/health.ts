@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { prisma } from "@linkaffipro/db";
-import type { Runtime } from "./queues.js";
-import { logger } from "./logger.js";
+import type { Runtime } from "./queues";
+import { logger } from "./logger";
 
 export const VERSION = process.env.npm_package_version ?? "0.0.1";
 

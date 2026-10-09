@@ -1,6 +1,6 @@
 import { Queue, Worker, type Job, type Processor } from "bullmq";
 import { Redis } from "ioredis";
-import { logger } from "./logger.js";
+import { logger } from "./logger";
 
 /** Noms des files de travail. Les traitements réels arrivent en phase 1. */
 export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats"] as const;
