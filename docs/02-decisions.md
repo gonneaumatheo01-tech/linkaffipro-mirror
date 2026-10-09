@@ -8,13 +8,13 @@ prime sur l'analyse en cas de contradiction.
 | Sujet | Décision | Conséquence pour la construction |
 | --- | --- | --- |
 | Hébergement | Railway pour tout : site, worker, bots, PostgreSQL, Redis. Aucun compte Supabase nécessaire (Link Affi se lit par son API). | Une seule plateforme à administrer, un seul jeton d'hébergement. |
-| Domaines | `linkaffipro.com` = site interne ; `goolink.me` = liens traqués (redirections). Déjà achetés. | Deux domaines personnalisés sur le service web, routage par hostname. |
+| Domaines | `linkaffipro.com` = site interne ; `goolink.eu` = liens traqués (redirections). Déjà achetés. | Deux domaines personnalisés sur le service web, routage par hostname. |
 | Link Affi | Hébergé sur Lovable Cloud : aucun compte Supabase, aucun jeton `sbp_`. Une API en lecture seule (GET, deux clés) a été créée pour cette plateforme : voir `docs/LINKAFFI-API.md`. Données disponibles par joueur : clic, inscription, FTD, montant du dépôt, NGR joueur, redépôts, identifiant joueur. Les liens acceptent un sub-ID. | Connecteur Link Affi = client HTTP de cette API, synchro toutes les 2 minutes. Attribution par membre possible ; classement fin par dépense (FTD, montants, NGR, redépôts). |
 | Programmes | 1 programme casino aujourd'hui ; d'autres viendront, avec des données pas forcément identiques. | Modèle de données tolérant aux champs manquants ; un connecteur par programme. |
 | Bots | 3 bots : casino, paris sportifs, dating. | Parc de bots dès la phase 0 ; identité par univers. |
 | Canaux | Aucun créé encore. Tous privés, les membres demandent à rejoindre. Canaux seulement (pas de groupes). Approbation jamais automatique par défaut : réglée canal par canal. | Liens d'invitation créés par la plateforme avec demande d'adhésion ; règle d'approbation par canal (immédiat / délai / gate). |
 | Langues | Français principal ; multi-langue obligatoire pour les messages. | Textes du bot traduisibles par langue ; interface en français. |
-| Publicité | Aucun compte TikTok / Meta créé. Comptes parfois dans un Business Manager contrôlé, parfois non. Rien d'existant. Redirection intermédiaire invisible (aucune page affichée). | Connecteurs API quand le compte est contrôlé, import CSV sinon. Redirection 302 pure sur goolink.me. Meta/TikTok reportés à la phase 2. |
+| Publicité | Aucun compte TikTok / Meta créé. Comptes parfois dans un Business Manager contrôlé, parfois non. Rien d'existant. Redirection intermédiaire invisible (aucune page affichée). | Connecteurs API quand le compte est contrôlé, import CSV sinon. Redirection 302 pure sur goolink.eu. Meta/TikTok reportés à la phase 2. |
 | Historique pub | Aucun à importer. | Rien à reprendre. |
 | Équipe | 2 admins + 1 manager. Pas de double authentification. | Auth e-mail + mot de passe, rôles ADMIN / MANAGER, invitations. |
 | IA manager | Mise de côté pour l'instant (« oublie l'IA, pas besoin »). | Aucune clé Anthropic ; module prévu plus tard, ne pas le construire. |
@@ -26,7 +26,7 @@ prime sur l'analyse en cas de contradiction.
 
 ## Réponses brutes (pour référence)
 
-Q1 oui · Q2 oui · Q3 site linkaffipro.com, tracking goolink.me · Q4 clic, inscrit, FTD, montant du dépôt,
+Q1 oui · Q2 oui · Q3 site linkaffipro.com, tracking goolink.eu · Q4 clic, inscrit, FTD, montant du dépôt,
 NGR joueur, redépôt, id du joueur · Q5 oui · Q6 un programme, d'autres à venir avec des infos différentes ·
 Q7 aucun canal créé, tous privés sur demande · Q8 3 bots (paris sportifs, dating, casino) · Q9 approbation
 non automatique, à configurer · Q10 canaux seulement · Q11 français principal, multi-langue requis ·

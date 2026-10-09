@@ -2,7 +2,7 @@
 
 Tu es l'ingénieur principal du projet décrit dans `CLAUDE.md`. Lis `CLAUDE.md` et `docs/02-decisions.md`, survole `docs/01-cadrage-analyse.md`. Puis exécute ce qui suit, dans l'ordre, sans demander de confirmation pour les choix techniques. Crée une liste de tâches dès le début et coche au fur et à mesure.
 
-**Objectif de la phase.** À la fin : le projet est sur GitHub, déployé sur Railway avec sa base de données ; la page de connexion fonctionne ; les 3 bots Telegram sont en ligne et répondent à `/start` ; les canaux où ils sont administrateurs sont détectés automatiquement ; la redirection goolink.me répond ; l'accès en lecture seule à Link Affi est établi et son schéma documenté. `docs/STATUS.md` dit à l'utilisateur quoi tester et quelles lignes DNS ajouter.
+**Objectif de la phase.** À la fin : le projet est sur GitHub, déployé sur Railway avec sa base de données ; la page de connexion fonctionne ; les 3 bots Telegram sont en ligne et répondent à `/start` ; les canaux où ils sont administrateurs sont détectés automatiquement ; la redirection goolink.eu répond ; l'accès en lecture seule à Link Affi est établi et son schéma documenté. `docs/STATUS.md` dit à l'utilisateur quoi tester et quelles lignes DNS ajouter.
 
 **Rappel sur l'utilisateur.** Non technique, veut seulement approuver. Quand tu lui demandes quelque chose, une seule demande à la fois, en français simple, avec les clics exacts.
 
@@ -62,9 +62,9 @@ Pour que les variables soient disponibles dans tes commandes shell de cette sess
 - Crée le projet Railway `linkaffipro` (environnement `production`), région Europe (Amsterdam, ou Paris si proposée).
 - Ajoute PostgreSQL et Redis (`railway add`). Crée les services `web` et `worker`.
 - Un Dockerfile par app (`apps/web/Dockerfile`, `apps/worker/Dockerfile`), build pnpm en monorepo (`pnpm deploy` ou `turbo prune`), image Node 22 alpine, utilisateur non root. Variable `RAILWAY_DOCKERFILE_PATH` sur chaque service si nécessaire. Le service `web` lance `prisma migrate deploy` puis `next start` ; le `worker` lance son process.
-- Variables (via `railway variables --set`) : `DATABASE_URL` et `REDIS_URL` (références aux services Railway), `APP_ENCRYPTION_KEY` (32 octets aléatoires en base64), `AUTH_SECRET`, `AUTH_URL` / `NEXTAUTH_URL`, `APP_BASE_URL`, `TRACKING_HOST=goolink.me`, `TRACKING_BASE_URL=https://goolink.me`, `TELEGRAM_WEBHOOK_SECRET` (aléatoire), `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_INITIAL_PASSWORD` (généré, 16 caractères ; à écrire une seule fois dans STATUS.md pour l'utilisateur), `TZ=Europe/Paris`.
+- Variables (via `railway variables --set`) : `DATABASE_URL` et `REDIS_URL` (références aux services Railway), `APP_ENCRYPTION_KEY` (32 octets aléatoires en base64), `AUTH_SECRET`, `AUTH_URL` / `NEXTAUTH_URL`, `APP_BASE_URL`, `TRACKING_HOST=goolink.eu`, `TRACKING_BASE_URL=https://goolink.eu`, `TELEGRAM_WEBHOOK_SECRET` (aléatoire), `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_INITIAL_PASSWORD` (généré, 16 caractères ; à écrire une seule fois dans STATUS.md pour l'utilisateur), `TZ=Europe/Paris`.
 - Déploie (`railway up --service web --detach`, puis `worker`). Attends la fin du build, vérifie `GET /api/health` sur web (retourne version, état base et Redis) et `/health` sur worker. Lis les logs en cas d'échec et corrige.
-- Domaines : génère d'abord le domaine `*.up.railway.app` du service web (adresse provisoire, à noter dans STATUS.md). Ajoute ensuite `linkaffipro.com`, `www.linkaffipro.com` et `goolink.me` comme domaines personnalisés du service web (`railway domain`). Récupère les enregistrements DNS attendus (type, nom, cible) et écris-les tels quels dans STATUS.md. Si une étape exige le tableau de bord Railway, fais tout ce qui est possible en CLI et décris le reste en clics exacts dans STATUS.md.
+- Domaines : génère d'abord le domaine `*.up.railway.app` du service web (adresse provisoire, à noter dans STATUS.md). Ajoute ensuite `linkaffipro.com`, `www.linkaffipro.com` et `goolink.eu` comme domaines personnalisés du service web (`railway domain`). Récupère les enregistrements DNS attendus (type, nom, cible) et écris-les tels quels dans STATUS.md. Si une étape exige le tableau de bord Railway, fais tout ce qui est possible en CLI et décris le reste en clics exacts dans STATUS.md.
 - Les webhooks Telegram pointent sur l'adresse provisoire tant que linkaffipro.com n'est pas actif ; prévois un script `pnpm telegram:webhooks` qui (re)pose tous les webhooks à partir de `APP_BASE_URL`.
 
 ## 5. Base de données (schéma initial)
@@ -86,10 +86,10 @@ Prévois sans les implémenter (noms réservés, documentés) les tables de la p
 - Pages : Tableau de bord (compteurs : bots actifs, canaux, membres vus, événements 24 h), Bots (liste ; ajouter un bot en collant son jeton : `getMe`, chiffrement, `setWebhook` avec `allowed_updates` = message, edited_message, channel_post, edited_channel_post, callback_query, chat_member, my_chat_member, chat_join_request, message_reaction, message_reaction_count, et `secret_token` ; statut ; bouton « re-synchroniser le webhook » ; `getWebhookInfo` affiché), Canaux (liste auto-détectée : titre, univers à choisir, langue, bot principal, bots administrateurs détectés, cases TEST et Médiathèque), Réglages (utilisateurs, invitations), Journal (AuditLog).
 - Enregistre les 3 bots fournis par l'utilisateur via le même code que l'interface (script `pnpm bots:register` ou via la page), puis vérifie chaque webhook avec `getWebhookInfo` (aucune erreur, URL correcte).
 
-## 7. Redirections goolink.me (squelette)
+## 7. Redirections goolink.eu (squelette)
 
 - Dans `apps/web`, un middleware route tout le trafic dont l'hôte est `TRACKING_HOST` vers `app/r/[[...slug]]`. Phase 0 : `GET /test` répond 302 vers `https://t.me/telegram` ; tout slug inconnu répond 302 vers `APP_BASE_URL` ; jamais de HTML, en-têtes `Cache-Control: no-store`. Journalise un `Event` `tracking.redirect` avec slug, user agent, IP hachée (SHA-256 avec sel `IP_HASH_SALT`), referer, et les paramètres `ttclid`, `fbclid`, `gclid`, `utm_*` s'ils existent. Les user agents de robots connus (facebookexternalhit, Facebot, TikTok, Bytespider, Twitterbot, Googlebot, bingbot, Slackbot, TelegramBot, WhatsApp, LinkedInBot, curl…) sont redirigés mais marqués `isBot = true`.
-- Teste en local avec l'en-tête `Host: goolink.me`.
+- Teste en local avec l'en-tête `Host: goolink.eu`.
 
 ## 8. Link Affi : API en lecture seule et schéma
 
@@ -108,5 +108,5 @@ Link Affi tourne sur Lovable Cloud : pas de compte Supabase, pas de SQL, pas de 
 - Commits par étape, push.
 - Déploiement vérifié ; webhooks vérifiés ; `/start` testé sur les 3 bots si l'utilisateur est disponible, sinon indique-lui de le faire dans le test de 5 minutes.
 - Mets à jour `CLAUDE.md` (dépôt, projet Railway, commandes réelles) et écris `docs/DECISIONS-TECH.md` (versions, bibliothèques, structure, choix faits et pourquoi).
-- Écris `docs/STATUS.md` en français simple : ce qui est fait ; l'adresse provisoire du site ; l'e-mail et le mot de passe temporaire de l'ADMIN ; les lignes DNS à ajouter ; le test de 5 minutes (connexion, changer le mot de passe, `/start` sur les 3 bots, publier un message dans le canal TEST et le voir dans Canaux, ouvrir goolink.me/test) ; ce qui reste pour la phase 1 ; les actions humaines en attente, s'il y en a.
+- Écris `docs/STATUS.md` en français simple : ce qui est fait ; l'adresse provisoire du site ; l'e-mail et le mot de passe temporaire de l'ADMIN ; les lignes DNS à ajouter ; le test de 5 minutes (connexion, changer le mot de passe, `/start` sur les 3 bots, publier un message dans le canal TEST et le voir dans Canaux, ouvrir goolink.eu/test) ; ce qui reste pour la phase 1 ; les actions humaines en attente, s'il y en a.
 - Termine par un message à l'utilisateur de 10 lignes maximum : « Phase 0 terminée. Voici votre test de 5 minutes… », avec les éléments de STATUS.md, sans jamais afficher de jeton.

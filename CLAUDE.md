@@ -22,18 +22,18 @@ Non technique. Il ne lit pas le code et ne veut pas agir, seulement approuver. P
 
 ## Stack (décidée ; ne change pas sans raison écrite dans DECISIONS-TECH.md)
 - Monorepo pnpm + Turborepo, Node 22, TypeScript strict partout, ESLint + Prettier.
-- `apps/web` : Next.js (App Router), Tailwind, shadcn/ui, Auth.js (credentials + invitations), routes API (webhooks Telegram, redirections goolink.me, API interne).
+- `apps/web` : Next.js (App Router), Tailwind, shadcn/ui, Auth.js (credentials + invitations), routes API (webhooks Telegram, redirections goolink.eu, API interne).
 - `apps/worker` : Node + BullMQ : scheduler des posts, approbations différées, envois DM, synchro Link Affi, calculs de stats, rappels.
 - `packages/db` : Prisma + PostgreSQL (Railway), migrations versionnées. `packages/telegram` : logique bots (grammY), multi-bots, limites de débit. `packages/core` : règles métier pures (attribution, métriques, chiffrement, ids courts). `packages/config` : configs partagées.
 - Redis (Railway) pour BullMQ. Chiffrement AES-256-GCM des jetons de bots (clé `APP_ENCRYPTION_KEY`).
-- Railway : services `web`, `worker`, `postgres`, `redis`. Domaines : `linkaffipro.com` (site) et `goolink.me` (redirections, même service web, routage par hostname).
+- Railway : services `web`, `worker`, `postgres`, `redis`. Domaines : `linkaffipro.com` (site) et `goolink.eu` (redirections, même service web, routage par hostname).
 - Interface en français ; textes du bot multilingues (fr par défaut, autres langues par traduction). Affichage Europe/Paris, stockage UTC.
 
 ## Règles produit non négociables
 - Accès interne : rôles ADMIN (tout) et MANAGER (tout sauf réglages, utilisateurs, jetons, suppressions). Pas de 2FA. Pas d'inscription publique.
 - Tout événement est journalisé en base (`Event`, append-only). Toute action d'un utilisateur est dans `AuditLog`.
 - Telegram : ≤ 25 messages/s par bot, 1 message/s par chat en privé, gestion de 429 `retry_after`, respect des blocages par les membres, jamais de spam.
-- goolink.me : réponse 302 immédiate, aucune page visible, robots connus non comptés.
+- goolink.eu : réponse 302 immédiate, aucune page visible, robots connus non comptés.
 - Attribution : chaque pub → son lien goolink + son lien d'invitation Telegram (avec demande d'adhésion) ; chaque clic « offre » depuis le bot → un sub-ID unique par membre et par message → transmis à Link Affi ; les événements joueurs remontent par sub-ID vers le membre, le message, le canal et la pub.
 - Données personnelles : conservation 24 mois ; suppression d'un membre sur demande (fonction prévue).
 
