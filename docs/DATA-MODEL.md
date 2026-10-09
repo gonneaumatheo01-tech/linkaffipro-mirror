@@ -79,3 +79,28 @@ Migrations : `20261009120919_phase1_kit_lancement`, `20261009121130_player_sub_i
 | `Member.anonymizedAt` | Suppression sur demande : identité effacée, événements conservés. | — |
 
 Règles : conservation 24 mois (purge à prévoir en phase 2) ; les montants sont stockés en EUR (`Decimal(14,2)`).
+
+## Phase 2 (9 octobre 2026) — migration `20261009130901_phase2_pubs_postbacks_envois`
+
+### Pubs et coûts
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Campaign` (complétée) | Pub TikTok / Meta / autre. | + `externalCampaignId`, `budgetDaily`, `currency`, `tags` JSON |
+| `AdSet` | Groupe de pubs d'une campagne. | `campaignId`, `name`, `externalId` ; unique `(campaignId, name)` |
+| `Ad` | Pub précise = un lien d'entrée. | `adSetId`, `name`, `externalId`, `inviteLinkId` unique, `trackingLinkId` unique |
+| `AdCost` | Coût par jour à un niveau (pub, groupe ou campagne). | `levelKey` (`ad:<id>` / `adset:<id>` / `campaign:<id>`), `date`, `spend`, `impressions`, `clicks`, `currency`, `source` (CSV, MANUAL, API), `importBatchId` ; unique `(levelKey, date, source)` |
+| `ImportBatch` | Import de fichier. | `kind` (TIKTOK_CSV, META_CSV, COSTS_MANUAL, PLAYERS_CSV), `filename`, `rows`, `imported`, `errors` JSON |
+
+### Postbacks directs
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `PostbackEndpoint` | Point d'entrée d'un programme. | `programId`, `token` unique, `mapping` JSON (noms des paramètres + `eventMap`), `isActive`, `lastReceivedAt` |
+| `PostbackLog` | Journal des postbacks reçus (append-only). | `endpointId`, `receivedAt`, `ipHash`, `raw` JSON, `status` (ACCEPTED, IGNORED, ERROR), `message`, `playerEventId` |
+
+### Envois groupés, alertes, statistiques
+| Table | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Broadcast` | Envoi groupé ciblé. | `botId`, `segment` JSON, `text`, `buttons`, `mediaAssetId`, `status` (DRAFT, SCHEDULED, SENDING, SENT, CANCELLED), `scheduledAt`, `startedAt`, `finishedAt`, `targeted`, `sent`, `failed`, `blocked` ; `OutboundMessage.broadcastId` |
+| `Alert` | Alerte système. | `kind`, `severity` (INFO, WARNING, CRITICAL), `message`, `payload`, `notifiedAt`, `resolvedAt` |
+| `DailyStat` | Statistiques journalières pré-calculées. | `date`, `dimension` (`all`, `channel:<id>`, `campaign:<id>`, `ad:<id>`, `vertical:<V>`), métriques (requests, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, depositAmount, ngr, spend) ; unique `(date, dimension)` |
+| `Member.tags` | Étiquettes libres (JSON). | — |

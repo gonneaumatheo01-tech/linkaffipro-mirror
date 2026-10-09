@@ -22,5 +22,6 @@ describe("routage par hôte", () => {
     expect(isPublicPath("/loginx")).toBe(false);
     expect(isPublicPath("/api/healthcheck")).toBe(false);
     expect(isPublicPath("/rx")).toBe(false);
+    expect(isPublicPath("/api/postbackx")).toBe(false);
   });
 });

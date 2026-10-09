@@ -331,7 +331,11 @@ async function syncTable(ctx: SyncContext, client: LinkAffiClient, table: SyncTa
     return { table, ok: true, rows: imported };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await ctx.db.syncState.update({ where: { source: table }, data: { isRunning: false, lastError: message } }).catch(() => undefined);
+    // Compteur d'échecs consécutifs (lu par l'alerte `sync_failed`) ; remis à zéro au prochain succès.
+    const errorStreak = (typeof (cursor as { errorStreak?: unknown }).errorStreak === "number" ? (cursor as { errorStreak: number }).errorStreak : 0) + 1;
+    await ctx.db.syncState
+      .update({ where: { source: table }, data: { isRunning: false, lastError: message, cursor: toJsonValue({ ...cursor, errorStreak }) } })
+      .catch(() => undefined);
     logger.error({ table, err: message }, "synchro Link Affi : table en erreur");
     return { table, ok: false, rows: imported, error: message };
   }

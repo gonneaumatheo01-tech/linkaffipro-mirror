@@ -17,3 +17,6 @@ CLAUDE.local.md
 # Système
 .DS_Store
 *.log
+
+# Sauvegardes locales de la base (jamais dans git)
+backups/

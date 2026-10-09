@@ -1,15 +1,15 @@
 /** Agrégation par jour (Europe/Paris) de listes d'horodatages — fonction pure, testée. */
 
-export type Range = "today" | "7d" | "30d";
+export type Range = "today" | "7d" | "30d" | "90d";
 
-export const RANGE_LABELS: Record<Range, string> = { today: "Aujourd'hui", "7d": "7 jours", "30d": "30 jours" };
+export const RANGE_LABELS: Record<Range, string> = { today: "Aujourd'hui", "7d": "7 jours", "30d": "30 jours", "90d": "90 jours" };
 
 export function parseRange(value: unknown): Range {
-  return value === "today" || value === "7d" || value === "30d" ? value : "7d";
+  return value === "today" || value === "7d" || value === "30d" || value === "90d" ? value : "7d";
 }
 
 export function rangeDays(range: Range): number {
-  return range === "today" ? 1 : range === "7d" ? 7 : 30;
+  return range === "today" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : 90;
 }
 
 const dayFmt = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" });

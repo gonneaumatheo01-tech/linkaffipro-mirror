@@ -1,14 +1,20 @@
 import type { Job } from "bullmq";
 import { prisma } from "@linkaffipro/db";
 import { logger } from "../logger";
+import { recomputeDailyStats } from "../stats/daily";
 
 /**
  * File `stats` : recalculs idempotents des compteurs dénormalisés à partir des tables de détail.
  * - `{type:"tick"}` toutes les 10 minutes : tous les posts récents, liens traqués, liens d'invitation ;
- * - `{type:"post-stats", postId}` : un seul post.
+ * - `{type:"post-stats", postId}` : un seul post ;
+ * - `{type:"daily", days?, full?}` toutes les heures : lignes `DailyStat` des N derniers jours (ou tout si `full`).
  */
 export async function processStats(job: Job): Promise<unknown> {
-  const data = job.data as { type?: string; postId?: string };
+  const data = job.data as { type?: string; postId?: string; days?: number; full?: boolean };
+  if (data.type === "daily") {
+    const r = await recomputeDailyStats({ days: data.days, full: data.full });
+    return { ok: true, ...r };
+  }
   if (data.type === "post-stats" && data.postId) {
     await recomputePostStats([data.postId]);
     return { ok: true, posts: 1 };
@@ -20,7 +26,10 @@ export async function processStats(job: Job): Promise<unknown> {
   return { ok: true, posts: p, trackingLinks: t, inviteLinks: i };
 }
 
-export const repeatableStats: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [{ data: { type: "tick" }, everyMs: 10 * 60_000, jobId: "stats-tick" }];
+export const repeatableStats: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [
+  { data: { type: "tick" }, everyMs: 10 * 60_000, jobId: "stats-tick" },
+  { data: { type: "daily", days: 3 }, everyMs: 3_600_000, jobId: "stats-daily" },
+];
 
 /** Clics, cliqueurs uniques et clics offres par post, depuis `Click` (robots exclus). */
 export async function recomputePostStats(postIds: string[]): Promise<number> {

@@ -102,3 +102,27 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 
 ### File d'attente — correction du 9 octobre (après le test utilisateur)
 - BullMQ 6 refuse les identifiants de tâche personnalisés contenant « : » ; les `jobId` (`dm:<id>`, `post:<id>`…) faisaient échouer silencieusement l'enfilage des messages privés. Correction centrale : `enqueue` remplace « : » par « - » (`safeJobId`). Leçon : tester un vrai enfilage de bout en bout (producteur web → Redis → worker) avant de livrer, pas seulement les processeurs avec des mocks.
+
+## Phase 2 — 9 octobre 2026 (prompt rédigé par Claude, validé « Ok » par l'utilisateur par Telegram)
+
+### Organisation
+- Même méthode qu'en phase 1 : modèle d'abord, puis cinq chantiers parallèles (A pubs et coûts, B postbacks, C statistiques journalières et tableaux de bord, D envois groupés, E solidité). Nouvelle file `maintenance` (purge nocturne, alertes toutes les 5 min).
+- Hors périmètre volontaire : API Meta/TikTok (pas de compte pub), vues MTProto (connexion téléphone), IA, A/B, automatisations visuelles.
+
+### Pubs et coûts (A)
+- Import CSV en deux étapes sans stockage temporaire (fichier renvoyé en base64 dans un champ caché, ≤ 2 Mo) ; détection souple des colonnes TikTok/Meta FR/EN ; `AdCost` dédoublonné par `levelKey + date + source` (dernier import gagnant) ; les sources CSV et MANUAL s'additionnent.
+- Une pub = un lien d'entrée : rattacher un `InviteLink` à un `Ad` copie aussi son `TrackingLink`. Membres d'une pub = adhésions passées par APPROVED ; revenu = somme des `Player.ngr` rattachés.
+
+### Postbacks (B)
+- Route publique `/api/postback/<token>` (GET/POST, JSON, formulaire, URL), 404/403/429, réponse 200 immédiate puis traitement dans `after()` (évite les ré-envois en rafale) ; `PostbackLog` toujours écrit. Idempotence par `txid` sinon `type:joueur:montant:jour`. Sub-ID inconnu → campagne directe `postback:<endpointId>` sous le programme. NGR traité comme delta ; premier dépôt sans FTD = FTD. L'import CSV de joueurs réutilise exactement ce pipeline.
+
+### Statistiques (C)
+- `DailyStat` recalculée chaque heure sur 3 jours (complet à la demande), jours en Europe/Paris ; un membre est rattaché à la pub de sa dernière demande d'adhésion ; les dépenses remontent au niveau pub/campagne, jamais au canal. Cohortes et meilleurs horaires lisent les tables sources.
+
+### Envois groupés (D)
+- Segment pur dans `packages/core/src/segment.ts` (where Prisma) partagé web/worker ; expansion par lots de 500 en `OutboundMessage` + jobs `dm-<id>` idempotents ; progression dans `send-dm`. Les boutons Offre/traqués d'un envoi s'appuient sur un `Post` « conteneur » (SENT, `templateName = broadcast:<id>`) qui porte le code du lien profond et les stats. Les médias ne sont pas encore envoyés en privé (texte + boutons seulement).
+
+### Solidité (E)
+- Purge nocturne : anonymisation des membres inactifs depuis `retention.months` (défaut 24, minimum 6) avec la même règle que la suppression manuelle ; suppression des `Event` anciens sauf `player.*`. Alertes dédoublonnées (1 h), résolution automatique, une notification Telegram par alerte via `notifyAdmin` (même mécanisme que `tg:send`). `SyncState.cursor.errorStreak` compte les échecs consécutifs.
+- Sauvegardes : `pnpm db:dump` exécute `pg_dump` dans le conteneur Postgres (l'image web n'a pas de client 18) ; Railway : sauvegardes de volume planifiées à activer par l'utilisateur (voir `docs/SAUVEGARDES.md`).
+- Tests d'intégration (`pnpm test:integration`) sur Docker local : webhook, redirection, postback ; `after()` remplacé par une exécution immédiate, API Telegram interceptée sur l'instance grammY.

@@ -14,3 +14,4 @@ export * from "./join-flow/service";
 export { offerDeepLink, buildOfferPayload, parseOfferPayload } from "./offers/logic";
 export { SEQUENCE_TRIGGERS, TRIGGER_LABELS, TRIGGER_HELP, PLACEHOLDERS, defaultSequenceText, defaultSequenceName, previewText, ensureDefaultSequences, backfillDefaultSequences } from "./sequences/index";
 export type { SequenceTriggerKey } from "./sequences/index";
+export { notifyAdmin } from "./admin-notify";

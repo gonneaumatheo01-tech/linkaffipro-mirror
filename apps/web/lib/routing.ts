@@ -1,7 +1,7 @@
 import { isTrackingHost } from "@linkaffipro/core";
 
 /** Chemins accessibles sans session. */
-const PUBLIC_PREFIXES = ["/login", "/invite/", "/api/health", "/api/telegram/", "/api/auth/", "/r/", "/r"];
+const PUBLIC_PREFIXES = ["/login", "/invite/", "/api/health", "/api/telegram/", "/api/auth/", "/api/postback/", "/r/", "/r"];
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => (p.endsWith("/") ? pathname.startsWith(p) : pathname === p || pathname.startsWith(`${p}/`)));

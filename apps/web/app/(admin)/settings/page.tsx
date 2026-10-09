@@ -31,6 +31,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <PageHeader title="Réglages" description="Utilisateurs et invitations. Réservé aux administrateurs.">
         <Button variant="outline" size="sm" render={<Link href="/settings/connectors" />}>Connecteurs (Link Affi)</Button>
         <Button variant="outline" size="sm" render={<Link href="/settings/categories" />}>Catégories</Button>
+        <Button variant="outline" size="sm" render={<Link href="/settings/alerts" />}>Alertes</Button>
+        <Button variant="outline" size="sm" render={<Link href="/settings/postbacks" />}>Postbacks</Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
 

@@ -5,6 +5,7 @@ import { apiForBot } from "./api";
 import { describeTelegramError, withTelegramRetry } from "./errors";
 import { buildDmKeyboard } from "./keyboard";
 import { RateLimiter } from "./rate-limit";
+import { recordBroadcastOutcome } from "../broadcasts/progress";
 
 /** Envoie un message privé en file d'attente (`OutboundMessage` QUEUED). */
 export async function sendDm(outboundMessageId: string): Promise<void> {
@@ -27,6 +28,7 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
       update: { lastDmAt: now },
     });
     await recordEvent({ type: "dm.sent", memberId: om.memberId, botId: om.botId, payload: toJsonValue({ outboundMessageId: om.id, kind: om.kind }) });
+    await recordBroadcastOutcome(om.broadcastId, "SENT");
   } catch (err) {
     const d = describeTelegramError(err);
     const status = d.blocked ? "BLOCKED" : "FAILED";
@@ -40,5 +42,6 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
     }
     await recordEvent({ type: d.blocked ? "dm.blocked" : "dm.failed", memberId: om.memberId, botId: om.botId, payload: toJsonValue({ outboundMessageId: om.id, error: d.message }) });
     logger.warn({ outboundMessageId: om.id, err: d.message }, "message privé non envoyé");
+    await recordBroadcastOutcome(om.broadcastId, status);
   }
 }
