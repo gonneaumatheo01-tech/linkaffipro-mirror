@@ -39,12 +39,16 @@ Ce que cela change :
 - Possible dès la phase 1 sans toucher à Link Affi : statistiques par **pub, canal et message**, à condition de créer dans Link Affi **une campagne par usage** (par exemple une campagne par message publié) et de la coller dans la plateforme. Le rapprochement « quel membre a cliqué » restera approximatif (horodatage + campagne).
 - Pour les statistiques **par membre** (qui s'est inscrit, qui a déposé), il faut une petite évolution de Link Affi, à demander à la personne qui l'a construite. Texte à lui transmettre :
   > « Peux-tu ajouter un paramètre `sub_id` (texte, jusqu'à 64 caractères) à la fonction `track-click` : le stocker dans une colonne `clicks.sub_id`, le transmettre au casino dans le lien d'affiliation (paramètre libre que le casino renvoie dans son postback, souvent `click_id` ou `sub1`), le recopier dans `players.sub_id` à l'inscription et dans `postback_logs.sub_id`, et exposer ces colonnes dans `stats-api` ? »
-- Dites-moi ce que vous choisissez : je construis la phase 1 avec l'attribution par campagne dans tous les cas, et j'ajoute le sub-ID dès que Link Affi le gère.
+- Décision du 9 octobre : **option 1**, on demande l'évolution à Link Affi (texte ci-dessus) et, en attendant, la phase 1 attribue par campagne.
 
 ## Actions humaines en attente
-1. **Région Europe (suite)** : la base Postgres est bien passée à Amsterdam (vérifié). Redis semble encore aux États-Unis : refaites l'opération pour « Redis » (railway.com → projet linkaffipro → Redis → Settings → Regions → EU West (Amsterdam) → Deploy), puis « web » et « worker » si ce n'est pas déjà fait. Je ne peux pas lire la région de web et worker par l'outil : dites-moi simplement ce que vous avez fait.
-2. **Volumes orphelins** : dans le projet Railway, supprimez les 4 volumes qui ne sont reliés à aucun service (redis-volume, redis-volume-sUnY, postgres-volume, postgres-volume-NXsx) : clic sur le volume → Settings → Delete.
-3. **Réponse sur le sub-ID** (voir ci-dessus).
+1. Transmettre la demande d'évolution ci-dessus au développeur de Link Affi, puis me dire quand c'est en place.
+2. Valider la phase 0 : faites le test de 5 minutes ci-dessus puis répondez « phase 0 OK » (par Telegram, voir ci-dessous).
+
+Fait : DNS, bascule en Europe (confirmée par vous ; Postgres vérifié à Amsterdam), volumes orphelins supprimés par la ligne de commande (Railway les efface définitivement le 11 octobre).
+
+## Dialogue par Telegram
+Depuis le 9 octobre, les questions, demandes de test et annonces vous sont envoyées en message privé par le bot casino (@casinogamblingoobot) ; répondez-lui directement dans Telegram. Commandes : `pnpm tg:send`, `pnpm tg:inbox` (voir CLAUDE.md).
 
 ## Ce qui reste pour la phase 1
 Demandes d'adhésion avec délai réglable, flux « rejoins ces canaux », liens go.goolink.eu par pub avec liens d'invitation, boutons avec sub-ID par membre et par message, calendrier de messages, synchronisation Link Affi, fiches membres, statistiques détaillées.

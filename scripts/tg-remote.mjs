@@ -13,7 +13,8 @@ const confirmIdx = rest.indexOf("--confirm");
 const confirm = confirmIdx >= 0 ? rest[confirmIdx + 1] : undefined;
 const sinceIdx = rest.indexOf("--since");
 const since = sinceIdx >= 0 ? rest[sinceIdx + 1] : undefined;
-const message = rest.filter((a, i) => i !== confirmIdx && i !== confirmIdx + 1 && i !== sinceIdx && i !== sinceIdx + 1).join(" ");
+const skip = new Set([confirmIdx, sinceIdx].filter((i) => i >= 0).flatMap((i) => [i, i + 1]));
+const message = rest.filter((_a, i) => !skip.has(i)).join(" ");
 
 const safe = (v) => /^[A-Za-z0-9:.+_-]*$/.test(v ?? "");
 if (!safe(confirm) || !safe(since)) {
