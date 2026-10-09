@@ -18,6 +18,7 @@
     "db:migrate:dev": "pnpm --filter @linkaffipro/db db:migrate:dev",
     "db:studio": "pnpm --filter @linkaffipro/db db:studio",
     "db:seed": "pnpm --filter @linkaffipro/db db:seed",
+    "seed:templates": "pnpm --filter @linkaffipro/db seed:templates",
     "bots:register": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/register-bots.ts",
     "telegram:webhooks": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/set-webhooks.ts",
     "linkaffi:check": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/check.ts",

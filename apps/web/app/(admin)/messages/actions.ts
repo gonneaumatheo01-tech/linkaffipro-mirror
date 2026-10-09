@@ -10,6 +10,7 @@ import { requireAdmin, requireUser } from "@/lib/session";
 import { parsePostForm, type PostFormInput } from "@/lib/posts/schema";
 import { publishingBotFor } from "@/lib/posts/queries";
 import { fromParisLocal } from "@/lib/posts/time";
+import { planVariants, variantScheduledAt } from "@/lib/posts/ab";
 import type { PostButtonRow } from "@/lib/posts/buttons";
 
 function back(path: string, params: Record<string, string>): never {
@@ -115,14 +116,17 @@ async function materializeButtons(
   return out;
 }
 
-function validateText(input: PostFormInput): string {
+function validateText(
+  input: Pick<PostFormInput, "text" | "mediaAssetIds" | "buttons">,
+  label = "Le message",
+): string {
   const hasMedia = input.mediaAssetIds.length > 0;
   const r = validateTelegramHtml(input.text, {
     max: hasMedia && input.mediaAssetIds.length === 1 ? undefined : undefined,
   });
   if (!r.ok) throw new Error(r.error);
   if (!hasMedia && r.textLength === 0)
-    throw new Error("Le message est vide : ajoutez un texte ou un média.");
+    throw new Error(`${label} est vide : ajoutez un texte ou un média.`);
   if (hasMedia && r.textLength > TELEGRAM_CAPTION_MAX && input.buttons.length > 0) {
     // Autorisé : le worker envoie le média puis un message texte avec les boutons.
   }
@@ -145,7 +149,11 @@ function resolveSchedule(input: PostFormInput): {
   return { status: "SCHEDULED", scheduledAt: at };
 }
 
-/** Création : un Post par canal (liés par duplicatedFromId), brouillon, programmé ou modèle. */
+/**
+ * Création : un Post par canal (liés par duplicatedFromId), brouillon, programmé ou modèle.
+ * Test A/B (pas pour un modèle) : pour chaque canal coché, deux Post (A puis B) avec le même `abGroupId` ;
+ * B part 30 minutes après A dans le même canal, ou à la même heure dans l'autre canal choisi.
+ */
 export async function createPostAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const parsed = parsePostForm(formData);
@@ -156,73 +164,116 @@ export async function createPostAction(formData: FormData): Promise<void> {
   const input = parsed.data;
   try {
     const html = validateText(input);
-    const schedule =
-      input.intent === "template"
-        ? { status: "DRAFT" as const, scheduledAt: null }
-        : resolveSchedule(input);
+    const isTemplate = input.intent === "template";
+    const abEnabled = input.abEnabled && !isTemplate;
+    const htmlB = abEnabled
+      ? validateText(
+          { text: input.textB, mediaAssetIds: input.mediaAssetIdsB, buttons: input.buttonsB },
+          "La version B",
+        )
+      : "";
+    const schedule = isTemplate
+      ? { status: "DRAFT" as const, scheduledAt: null }
+      : resolveSchedule(input);
     let firstId: string | null = null;
     const created: string[] = [];
+    const groups: string[] = [];
     for (const channelId of input.channelIds) {
-      const bot = await publishingBotFor(channelId);
-      if (!bot)
-        throw new Error(
-          "Un des canaux choisis n'a aucun bot administrateur actif : ajoutez un bot dans Telegram (page Canaux).",
-        );
-      const dupFrom: string | null = firstId ?? input.duplicatedFromId ?? null;
-      const post: { id: string } = await prisma.post.create({
-        select: { id: true },
-        data: {
-          code: shortId(8),
-          channelId,
-          botId: bot.id,
-          status: schedule.status,
-          scheduledAt: schedule.scheduledAt,
-          categoryId: input.categoryId ?? null,
-          language: input.language,
-          text: html,
-          mediaAssetIds: input.mediaAssetIds,
-          buttons: [],
-          pinAfterSend: input.pinAfterSend,
-          unpinPrevious: input.unpinPrevious,
-          deleteAfterMinutes: input.deleteAfterMinutes,
-          disableNotification: input.disableNotification,
-          protectContent: input.protectContent,
-          disableLinkPreview: input.disableLinkPreview,
-          isTemplate: input.intent === "template",
-          templateName:
-            input.intent === "template" ? input.templateName || "Modèle sans nom" : null,
-          createdById: user.id,
-          updatedById: user.id,
-          duplicatedFromId: dupFrom,
+      const variants = planVariants(
+        { channelId, text: html, mediaAssetIds: input.mediaAssetIds, buttons: input.buttons },
+        {
+          abEnabled,
+          abMode: input.abMode,
+          abChannelId: input.abChannelId,
+          abDelayMinutes: input.abDelayMinutes,
+          textB: htmlB,
+          mediaAssetIdsB: input.mediaAssetIdsB,
+          buttonsB: input.buttonsB,
         },
-      });
-      const buttons = await materializeButtons(input.buttons, { id: post.id, channelId }, user.id);
-      await prisma.post.update({
-        where: { id: post.id },
-        data: { buttons: buttons as unknown as Prisma.InputJsonValue },
-      });
-      firstId ??= post.id;
-      created.push(post.id);
-      await audit({
-        userId: user.id,
-        action:
-          input.intent === "template"
+      );
+      const abGroupId = variants.length > 1 ? shortId(10) : null;
+      if (abGroupId) groups.push(abGroupId);
+      for (const v of variants) {
+        const bot = await publishingBotFor(v.channelId);
+        if (!bot)
+          throw new Error(
+            "Un des canaux choisis n'a aucun bot administrateur actif : ajoutez un bot dans Telegram (page Canaux).",
+          );
+        const channel = isTemplate
+          ? await prisma.channel.findUnique({
+              where: { id: v.channelId },
+              select: { vertical: true },
+            })
+          : null;
+        const dupFrom: string | null = firstId ?? input.duplicatedFromId ?? null;
+        const post: { id: string } = await prisma.post.create({
+          select: { id: true },
+          data: {
+            code: shortId(8),
+            channelId: v.channelId,
+            botId: bot.id,
+            status: schedule.status,
+            scheduledAt: variantScheduledAt(schedule.scheduledAt, v.offsetMinutes),
+            categoryId: input.categoryId ?? null,
+            language: input.language,
+            text: v.text,
+            mediaAssetIds: v.mediaAssetIds,
+            buttons: [],
+            pinAfterSend: input.pinAfterSend,
+            unpinPrevious: input.unpinPrevious,
+            deleteAfterMinutes: input.deleteAfterMinutes,
+            disableNotification: input.disableNotification,
+            protectContent: input.protectContent,
+            disableLinkPreview: input.disableLinkPreview,
+            isTemplate,
+            templateName: isTemplate ? input.templateName || "Modèle sans nom" : null,
+            vertical: channel?.vertical ?? null,
+            abGroupId,
+            abVariant: abGroupId ? v.variant : null,
+            createdById: user.id,
+            updatedById: user.id,
+            duplicatedFromId: dupFrom,
+          },
+        });
+        const buttons = await materializeButtons(
+          v.buttons,
+          { id: post.id, channelId: v.channelId },
+          user.id,
+        );
+        await prisma.post.update({
+          where: { id: post.id },
+          data: { buttons: buttons as unknown as Prisma.InputJsonValue },
+        });
+        firstId ??= post.id;
+        created.push(post.id);
+        await audit({
+          userId: user.id,
+          action: isTemplate
             ? "post.template_created"
             : schedule.status === "SCHEDULED"
               ? "post.scheduled"
               : "post.drafted",
-        entityType: "Post",
-        entityId: post.id,
-        metadata: { channelId, scheduledAt: schedule.scheduledAt?.toISOString() ?? null },
-      });
+          entityType: "Post",
+          entityId: post.id,
+          metadata: {
+            channelId: v.channelId,
+            scheduledAt:
+              variantScheduledAt(schedule.scheduledAt, v.offsetMinutes)?.toISOString() ?? null,
+            abGroupId,
+            abVariant: abGroupId ? v.variant : null,
+          },
+        });
+      }
     }
     revalidatePath("/messages");
-    const msg =
-      input.intent === "template"
-        ? "Modèle enregistré."
+    const msg = isTemplate
+      ? "Modèle enregistré."
+      : abEnabled
+        ? `Test A/B enregistré : ${created.length} messages (${groups.length} test${groups.length > 1 ? "s" : ""}).`
         : schedule.status === "SCHEDULED"
           ? `${created.length} message(s) programmé(s).`
           : `${created.length} brouillon(s) enregistré(s).`;
+    if (groups.length === 1) back(`/messages/ab/${groups[0]}`, { ok: msg });
     back(created.length === 1 ? `/messages/${created[0]}` : "/messages", { ok: msg });
   } catch (err) {
     if (isRedirect(err)) throw err;

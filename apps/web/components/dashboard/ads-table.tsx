@@ -80,16 +80,22 @@ export function AdsTable({
   rows,
   total,
   totalDerived,
+  totalDeltas,
   sort,
   dir,
   hrefFor,
+  showDeltas = false,
 }: {
   rows: AdsRow[];
   total: StatTotals;
   totalDerived: Derived;
+  /** Variations du total (affichées avec `showDeltas`). */
+  totalDeltas?: AdsRow["deltas"];
   sort: AdsSortKey;
   dir: "asc" | "desc";
   hrefFor: (sort: AdsSortKey) => string;
+  /** Affiche sous chaque valeur la variation par rapport à la période précédente. */
+  showDeltas?: boolean;
 }) {
   const sorted = sortAdsRows(rows, sort, dir);
   const arrow = (k: AdsSortKey) => (sort === k ? (dir === "asc" ? " ▲" : " ▼") : "");
@@ -152,8 +158,8 @@ export function AdsTable({
                 className={`${c.secondary ? "hidden md:table-cell " : ""}text-right tabular-nums`}
               >
                 <div>{fmtCell(cell(r, c.key), c.money, c.key)}</div>
-                {!c.derived ? (
-                  <Delta value={r.deltas[c.key as keyof StatTotals]} invert={c.invert} />
+                {showDeltas ? (
+                  <Delta value={r.deltas[c.key as keyof AdsRow["deltas"]]} invert={c.invert} />
                 ) : null}
               </TableCell>
             ))}
@@ -166,7 +172,12 @@ export function AdsTable({
               key={c.key}
               className={`${c.secondary ? "hidden md:table-cell " : ""}text-right tabular-nums`}
             >
-              {fmtCell(cell({ totals: total, derived: totalDerived }, c.key), c.money, c.key)}
+              <div>
+                {fmtCell(cell({ totals: total, derived: totalDerived }, c.key), c.money, c.key)}
+              </div>
+              {showDeltas && totalDeltas ? (
+                <Delta value={totalDeltas[c.key as keyof AdsRow["deltas"]]} invert={c.invert} />
+              ) : null}
             </TableCell>
           ))}
         </TableRow>

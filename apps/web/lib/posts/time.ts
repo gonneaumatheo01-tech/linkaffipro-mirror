@@ -45,3 +45,22 @@ export function parisDayKey(d: Date): string {
 export function parisHour(d: Date): number {
   return Number(toParisLocalInput(d).slice(11, 13));
 }
+
+/**
+ * Prochaine occurrence d'un créneau (jour 1 = lundi … 7 = dimanche, heure 0–23, heure de Paris) strictement
+ * après `from` (au moins 5 minutes plus tard pour laisser le temps d'enregistrer). Minute = 0.
+ */
+export function nextOccurrence(day: number, hour: number, from: Date = new Date()): Date {
+  const d = Math.min(7, Math.max(1, Math.round(day)));
+  const h = Math.min(23, Math.max(0, Math.round(hour)));
+  const today = toParisLocalInput(from).slice(0, 10);
+  const [y, m, dd] = today.split("-").map(Number) as [number, number, number];
+  const dow = ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1; // 1 = lundi
+  const minAt = from.getTime() + 5 * 60_000;
+  for (let add = (d - dow + 7) % 7; add <= 14; add += 7) {
+    const target = new Date(Date.UTC(y, m - 1, dd + add)).toISOString().slice(0, 10);
+    const at = fromParisLocal(`${target}T${String(h).padStart(2, "0")}:00`);
+    if (at && at.getTime() >= minAt) return at;
+  }
+  return fromParisLocal(`${today}T${String(h).padStart(2, "0")}:00`) ?? from;
+}

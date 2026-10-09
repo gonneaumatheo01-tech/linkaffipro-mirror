@@ -17,9 +17,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PeriodSelect } from "@/components/admin/period-select";
+import { Delta } from "@/components/dashboard/delta";
 import { fmtMoney, fmtNum } from "@/lib/format";
 import { fmtRatio } from "@/lib/campaigns/metrics";
-import { listCampaigns, rangeKeyOf, RANGES } from "@/lib/campaigns/queries";
+import { listCampaigns, type CampaignDeltas } from "@/lib/campaigns/queries";
+import {
+  parseCompare,
+  periodLabel,
+  periodParams,
+  previousPeriod,
+  resolvePeriod,
+  variationOf,
+} from "@/lib/periods";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 
@@ -51,18 +61,43 @@ function Head({ label, tip, className }: { label: string; tip?: string; classNam
 export default async function CampaignsPage({ searchParams }: PageProps<"/campaigns">) {
   await requireUser();
   const sp = await searchParams;
-  const range = rangeKeyOf(sp.range);
-  const rows = await listCampaigns(range);
-  const totals = rows.reduce(
-    (t, r) => ({
-      spend: t.spend + r.metrics.spend,
-      members: t.members + r.metrics.members,
-      registrations: t.registrations + r.metrics.registrations,
-      ftds: t.ftds + r.metrics.ftds,
-      revenue: t.revenue + r.metrics.revenue,
-    }),
-    { spend: 0, members: 0, registrations: 0, ftds: 0, revenue: 0 },
-  );
+  const period = resolvePeriod(sp);
+  const compare = parseCompare(sp.compare);
+  const pp = periodParams(period, compare);
+  const rows = await listCampaigns(period, compare);
+  const sum = (
+    pick: (
+      r: (typeof rows)[number],
+    ) => {
+      spend: number;
+      members: number;
+      registrations: number;
+      ftds: number;
+      revenue: number;
+    } | null,
+  ) =>
+    rows.reduce(
+      (t, r) => {
+        const m = pick(r);
+        if (!m) return t;
+        return {
+          spend: t.spend + m.spend,
+          members: t.members + m.members,
+          registrations: t.registrations + m.registrations,
+          ftds: t.ftds + m.ftds,
+          revenue: t.revenue + m.revenue,
+        };
+      },
+      { spend: 0, members: 0, registrations: 0, ftds: 0, revenue: 0 },
+    );
+  const totals = sum((r) => r.metrics);
+  const prevTotals = compare ? sum((r) => r.previous) : null;
+  const totalRoas = totals.spend > 0 ? totals.revenue / totals.spend : null;
+  const prevTotalRoas =
+    prevTotals && prevTotals.spend > 0 ? prevTotals.revenue / prevTotals.spend : null;
+  /** Variation d'une colonne d'une ligne (rien si la comparaison est désactivée). */
+  const delta = (d: CampaignDeltas | null, key: keyof CampaignDeltas, invert = false) =>
+    compare ? <Delta value={d?.[key]} invert={invert} /> : null;
 
   return (
     <>
@@ -74,9 +109,9 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
         <Button
           variant="outline"
           className="max-md:h-10"
-          render={<a href={`/campaigns/export?range=${range}`} />}
+          render={<a href={`/campaigns/export?${new URLSearchParams(pp).toString()}`} />}
         >
-          Exporter CSV
+          Exporter CSV{compare ? " (avec comparaison)" : ""}
         </Button>
         <Button
           variant="outline"
@@ -97,22 +132,18 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Période :</span>
-        {(Object.keys(RANGES) as Array<keyof typeof RANGES>).map((k) => (
-          <Link
-            key={k}
-            href={`/campaigns?range=${k}`}
-            aria-current={k === range ? "page" : undefined}
-            className={`inline-flex min-h-10 items-center rounded-md border px-3 md:min-h-8 md:px-2 ${k === range ? "bg-accent font-medium" : "text-muted-foreground"}`}
-          >
-            {k} jours
-          </Link>
-        ))}
+      <div className="mb-2 flex flex-wrap items-end gap-2 text-sm">
+        <PeriodSelect period={period} compare={compare} action="/campaigns" />
         <Suspense fallback={null}>
           <RememberFilters storageKey="campaigns" className="max-md:h-10" />
         </Suspense>
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Période : {periodLabel(period)}
+        {compare
+          ? ` · comparée à la précédente (${periodLabel(previousPeriod(period))}). Vert = favorable, rouge = défavorable (pour les coûts, une baisse est favorable).`
+          : ". Cochez « Comparer » pour afficher la variation par rapport à la période précédente."}
+      </p>
       <Card>
         <CardContent className="pt-6">
           {rows.length === 0 ? (
@@ -180,34 +211,44 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                       {r.channels.join(", ") || "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {fmtMoney(r.metrics.spend)}
+                      <div>{fmtMoney(r.metrics.spend)}</div>
+                      {delta(r.deltas, "spend", true)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      {fmtNum(r.metrics.entryClicks ?? 0)}
+                      <div>{fmtNum(r.metrics.entryClicks ?? 0)}</div>
+                      {delta(r.deltas, "entryClicks")}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {fmtNum(r.metrics.members)}
+                      <div>{fmtNum(r.metrics.members)}</div>
+                      {delta(r.deltas, "members")}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      {fmtNum(r.metrics.registrations)}
+                      <div>{fmtNum(r.metrics.registrations)}</div>
+                      {delta(r.deltas, "registrations")}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {fmtNum(r.metrics.ftds)}
+                      <div>{fmtNum(r.metrics.ftds)}</div>
+                      {delta(r.deltas, "ftds")}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      {fmtMoney(r.metrics.cpl)}
+                      <div>{fmtMoney(r.metrics.cpl)}</div>
+                      {delta(r.deltas, "cpl", true)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      {fmtMoney(r.metrics.cpa)}
+                      <div>{fmtMoney(r.metrics.cpa)}</div>
+                      {delta(r.deltas, "cpa", true)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      {fmtMoney(r.metrics.costPerFtd)}
+                      <div>{fmtMoney(r.metrics.costPerFtd)}</div>
+                      {delta(r.deltas, "costPerFtd", true)}
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      {fmtMoney(r.metrics.revenue)}
+                      <div>{fmtMoney(r.metrics.revenue)}</div>
+                      {delta(r.deltas, "revenue")}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {fmtRatio(r.metrics.roas)}
+                      <div>{fmtRatio(r.metrics.roas)}</div>
+                      {delta(r.deltas, "roas")}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -216,24 +257,42 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                   <TableCell className="hidden md:table-cell" />
                   <TableCell className="hidden lg:table-cell" />
                   <TableCell className="text-right tabular-nums">
-                    {fmtMoney(totals.spend)}
+                    <div>{fmtMoney(totals.spend)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.spend, prevTotals.spend)} invert />
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell" />
                   <TableCell className="text-right tabular-nums">
-                    {fmtNum(totals.members)}
+                    <div>{fmtNum(totals.members)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.members, prevTotals.members)} />
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    {fmtNum(totals.registrations)}
+                    <div>{fmtNum(totals.registrations)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.registrations, prevTotals.registrations)} />
+                    ) : null}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtNum(totals.ftds)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <div>{fmtNum(totals.ftds)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.ftds, prevTotals.ftds)} />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell" />
                   <TableCell className="hidden lg:table-cell" />
                   <TableCell className="hidden lg:table-cell" />
                   <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    {fmtMoney(totals.revenue)}
+                    <div>{fmtMoney(totals.revenue)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.revenue, prevTotals.revenue)} />
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {fmtRatio(totals.spend > 0 ? totals.revenue / totals.spend : null)}
+                    <div>{fmtRatio(totalRoas)}</div>
+                    {prevTotals ? <Delta value={variationOf(totalRoas, prevTotalRoas)} /> : null}
                   </TableCell>
                 </TableRow>
               </TableBody>

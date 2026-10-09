@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { PostForm, type PostFormValues } from "@/components/messages/post-form";
 import { parseButtons } from "@/lib/posts/buttons";
-import { toParisLocalInput } from "@/lib/posts/time";
+import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
+import { loadBestSlots } from "@/lib/besthours/queries";
 import { createPostAction } from "../actions";
 
 export const metadata: Metadata = { title: "Nouveau message" };
@@ -50,11 +51,24 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
       })
     : [];
   const { channels, categories, campaigns } = await loadFormOptions();
+  const bestSlots = await loadBestSlots(channels.map((c) => c.id));
   const defaultAt = defaultScheduleTime();
+  const presetChannel = typeof sp.channel === "string" ? sp.channel : "";
+  const presetCategory = typeof sp.category === "string" ? sp.category : "";
+  const presetAt = (() => {
+    // Créneau recommandé pour ce canal et cette catégorie (lien « Programmer à ce créneau » de la fiche canal).
+    const byCat = presetChannel ? bestSlots[presetChannel] : undefined;
+    const slot = byCat ? (presetCategory && byCat[presetCategory]) || byCat.all : undefined;
+    return slot ? nextOccurrence(slot.day, slot.hour) : null;
+  })();
   const initial: PostFormValues = {
-    channelIds: source ? [source.channelId] : [],
-    scheduledAt: toParisLocalInput(defaultAt),
-    categoryId: source?.categoryId ?? "",
+    channelIds: source
+      ? [source.channelId]
+      : presetChannel && channels.some((c) => c.id === presetChannel)
+        ? [presetChannel]
+        : [],
+    scheduledAt: toParisLocalInput(presetAt ?? defaultAt),
+    categoryId: source?.categoryId ?? presetCategory,
     language: source?.language ?? "fr",
     text: source?.text ?? "",
     media: media.sort(
@@ -88,7 +102,7 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
             : "Nouveau message"
         }
         description="Un message publié par le bot dans un ou plusieurs canaux, à la date et à l'heure que vous choisissez."
-        help="Cochez les canaux, écrivez le texte, ajoutez médias et boutons, puis cliquez « Programmer ». L'aperçu à droite montre le rendu dans Telegram."
+        help="Cochez les canaux, écrivez le texte, ajoutez médias et boutons, puis cliquez « Programmer ». L'aperçu à droite montre le rendu dans Telegram. « Test A/B » publie deux versions et les compare."
       />
       <Flash ok={sp.ok} error={sp.error} />
       <PostForm
@@ -97,6 +111,8 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         categories={categories}
         campaigns={campaigns}
         initial={initial}
+        bestSlots={bestSlots}
+        abAllowed
       />
     </>
   );

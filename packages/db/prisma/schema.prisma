@@ -711,6 +711,11 @@ model Post {
   disableLinkPreview Boolean          @default(true)
   isTemplate         Boolean          @default(false)
   templateName       String?
+  /// Univers du modèle (classement de la bibliothèque de modèles ; renseigné aussi sur les messages créés depuis un canal typé).
+  vertical           Vertical?
+  /// Test A/B : identifiant commun aux deux variantes d'un même test et lettre de la variante (A ou B).
+  abGroupId          String?
+  abVariant          String?
   lastError          String?
   attempts           Int              @default(0)
   createdById        String?
@@ -732,6 +737,8 @@ model Post {
   @@index([status, scheduledAt])
   @@index([isTemplate, scheduledAt])
   @@index([categoryId])
+  @@index([abGroupId])
+  @@index([isTemplate, vertical])
 }
 
 /// Statistiques dénormalisées d'un message.

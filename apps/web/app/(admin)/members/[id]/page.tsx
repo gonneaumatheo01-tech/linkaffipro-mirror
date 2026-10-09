@@ -25,8 +25,15 @@ import {
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import { displayName, getSpendThresholds } from "@/lib/members/query";
+import { colorOf, getTagRegistry, memberTags, tagColorClass } from "@/lib/members/tags";
 import { buildTimeline, paginateTimeline } from "@/lib/members/timeline";
-import { addNoteAction, anonymizeMemberAction, deleteNoteAction } from "./actions";
+import {
+  addNoteAction,
+  anonymizeMemberAction,
+  deleteNoteAction,
+  editNoteAction,
+  setMemberTagsAction,
+} from "./actions";
 
 export const metadata: Metadata = { title: "Fiche membre" };
 
@@ -49,7 +56,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
   const me = await requireUser();
   const { id } = await params;
   const sp = await searchParams;
-  const [member, thresholds] = await Promise.all([
+  const [member, thresholds, tagRegistry] = await Promise.all([
     prisma.member.findUnique({
       where: { id },
       include: {
@@ -95,8 +102,10 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
       },
     }),
     getSpendThresholds(),
+    getTagRegistry(),
   ]);
   if (!member) notFound();
+  const tags = memberTags(member.tags);
 
   const agg = aggregatePlayers(
     member.players.map((p) => ({
@@ -163,6 +172,11 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
         help="Tout le parcours de ce membre : d'où il vient, ce qu'il a reçu, sur quoi il a cliqué et ce qu'il a déposé. Les notes internes ne sont visibles que par l'équipe."
       >
         <Badge variant={level === "VIP" ? "default" : "outline"}>{SPEND_LEVEL_LABELS[level]}</Badge>
+        {tags.map((t) => (
+          <Badge key={t} variant="outline" className={tagColorClass(colorOf(t, tagRegistry))}>
+            {t}
+          </Badge>
+        ))}
         <Button
           variant="outline"
           size="sm"
@@ -398,12 +412,69 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-base">Étiquettes</CardTitle>
+              <CardDescription>
+                Pour retrouver ce membre dans Membres et le cibler dans les envois groupés. Les
+                étiquettes se créent dans Réglages → Étiquettes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {member.anonymizedAt ? (
+                <p className="text-sm text-muted-foreground">Membre anonymisé : pas d&apos;étiquette.</p>
+              ) : tagRegistry.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucune étiquette définie.{" "}
+                  {me.role === "ADMIN" ? (
+                    <Link href="/settings/tags" className="underline">
+                      En créer une
+                    </Link>
+                  ) : (
+                    "Demandez à un administrateur d'en créer dans Réglages → Étiquettes."
+                  )}
+                </p>
+              ) : (
+                <form action={setMemberTagsAction} className="space-y-3">
+                  <input type="hidden" name="memberId" value={member.id} />
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                    {tagRegistry.map((t) => (
+                      <label key={t.name} className="flex min-h-10 items-center gap-2 md:min-h-0">
+                        <input
+                          type="checkbox"
+                          name="tags"
+                          value={t.name}
+                          defaultChecked={tags.includes(t.name)}
+                          className="size-4"
+                        />
+                        <Badge variant="outline" className={tagColorClass(t.color)}>
+                          {t.name}
+                        </Badge>
+                      </label>
+                    ))}
+                  </div>
+                  {tags.some((t) => !tagRegistry.some((r) => r.name === t)) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Posées par une automatisation (hors registre, conservées) :{" "}
+                      {tags.filter((t) => !tagRegistry.some((r) => r.name === t)).join(", ")}
+                    </p>
+                  ) : null}
+                  <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                    Enregistrer les étiquettes
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base">Notes internes</CardTitle>
               <CardDescription>Visibles uniquement par l&apos;équipe.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {member.notes.length === 0 && member.anonymizedAt ? (
-                <p className="text-sm text-muted-foreground">Aucune note.</p>
+              {member.notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {member.anonymizedAt ? "Aucune note." : "Aucune note pour l'instant."}
+                </p>
               ) : null}
               {member.notes.map((n) => (
                 <div key={n.id} className="rounded-md border p-2 text-sm">
@@ -426,6 +497,30 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                     ) : null}
                   </div>
                   <p className="whitespace-pre-wrap">{n.text}</p>
+                  {me.role === "ADMIN" || n.author?.id === me.id ? (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-muted-foreground hover:underline">
+                        modifier
+                      </summary>
+                      <form action={editNoteAction} className="mt-2 space-y-2">
+                        <input type="hidden" name="noteId" value={n.id} />
+                        <Label htmlFor={`note-edit-${n.id}`} className="sr-only">
+                          Modifier la note
+                        </Label>
+                        <Textarea
+                          id={`note-edit-${n.id}`}
+                          name="text"
+                          defaultValue={n.text}
+                          required
+                          maxLength={2000}
+                          rows={3}
+                        />
+                        <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                          Enregistrer
+                        </Button>
+                      </form>
+                    </details>
+                  ) : null}
                 </div>
               ))}
               {member.anonymizedAt ? null : (

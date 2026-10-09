@@ -1,4 +1,5 @@
 /** Logique pure du flux « offre personnalisée » (`/start o<slug>_<code post>`). */
+import { LANGS, t, type Lang } from "../i18n";
 
 const SLUG_RE = /^[0-9A-Za-z]{6,10}$/;
 const CODE_RE = /^[0-9A-Za-z]{8}$/;
@@ -27,15 +28,12 @@ export function offerDeepLink(botUsername: string, slug: string, postCode?: stri
   return `https://t.me/${botUsername}?start=${buildOfferPayload(slug, postCode)}`;
 }
 
-export const DEFAULT_OFFER_REPLY: Record<string, { text: string; button: string }> = {
-  fr: { text: "Voici ton lien personnel, {prenom} 👇", button: "Ouvrir l'offre" },
-  en: { text: "Here is your personal link, {prenom} 👇", button: "Open the offer" },
-};
+/** Réponse d'offre par défaut (texte + libellé du bouton) dans les six langues du bot. */
+export const DEFAULT_OFFER_REPLY: Record<Lang, { text: string; button: string }> = Object.fromEntries(
+  LANGS.map((l) => [l, { text: t(l, "offerReply"), button: t(l, "offerButton") }]),
+) as Record<Lang, { text: string; button: string }>;
 
-export const INVALID_OFFER_REPLY: Record<string, string> = {
-  fr: "Ce lien n'est plus valable.",
-  en: "This link is no longer valid.",
-};
+export const INVALID_OFFER_REPLY: Record<Lang, string> = Object.fromEntries(LANGS.map((l) => [l, t(l, "offerInvalid")])) as Record<Lang, string>;
 
 /** Remplace les placeholders d'un texte de séquence. */
 export function fillPlaceholders(text: string, vars: Record<string, string | undefined>): string {

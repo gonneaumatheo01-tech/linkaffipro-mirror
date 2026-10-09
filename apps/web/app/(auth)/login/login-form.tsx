@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; initialError: string | null }) {
+export function LoginForm({ callbackUrl, initialError, notice = null }: { callbackUrl: string; initialError: string | null; notice?: string | null }) {
   const [state, action, pending] = useActionState(loginAction, { error: initialError });
   return (
     <Card>
@@ -22,6 +22,7 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
             <Label htmlFor="password">Mot de passe</Label>
             <Input id="password" name="password" type="password" autoComplete="current-password" required />
           </div>
+          {notice && !state?.error ? <p className="text-sm text-emerald-700">{notice}</p> : null}
           {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Connexion…" : "Se connecter"}

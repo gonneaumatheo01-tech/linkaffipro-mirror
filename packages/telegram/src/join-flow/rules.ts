@@ -2,6 +2,7 @@
  * Règles d'approbation : fonctions pures (résolution, calcul des échéances, rappels, expiration).
  */
 import type { ApprovalMode, ExpireAction, GateMode, MembershipStatus } from "@linkaffipro/db";
+import { t, type Lang, type MessageKey } from "../i18n";
 
 export type RuleData = {
   id: string | null;
@@ -126,20 +127,19 @@ export function expirationOutcome(rule: RuleData): ExpirationOutcome {
 export const OPEN_STATUSES: MembershipStatus[] = ["REQUESTED", "PENDING_GATE", "SCHEDULED"];
 
 /** Texte lisible d'un délai. */
-export function formatDelay(seconds: number, lang: "fr" | "en" = "fr"): string {
-  if (seconds <= 0) return lang === "fr" ? "immédiatement" : "immediately";
-  const units: Array<[number, string, string, string, string]> = [
-    [86400, "jour", "jours", "day", "days"],
-    [3600, "heure", "heures", "hour", "hours"],
-    [60, "minute", "minutes", "minute", "minutes"],
-    [1, "seconde", "secondes", "second", "seconds"],
+export function formatDelay(seconds: number, lang: Lang = "fr"): string {
+  if (seconds <= 0) return t(lang, "delayNow");
+  const units: Array<[number, MessageKey, MessageKey]> = [
+    [86400, "unitDay", "unitDays"],
+    [3600, "unitHour", "unitHours"],
+    [60, "unitMinute", "unitMinutes"],
+    [1, "unitSecond", "unitSeconds"],
   ];
-  for (const [size, frS, frP, enS, enP] of units) {
+  for (const [size, singular, plural] of units) {
     if (seconds >= size) {
       const n = Math.round(seconds / size);
-      const word = lang === "fr" ? (n > 1 ? frP : frS) : n > 1 ? enP : enS;
-      return lang === "fr" ? `dans ${n} ${word}` : `in ${n} ${word}`;
+      return t(lang, "delayIn", { n: String(n), unit: t(lang, n > 1 ? plural : singular) });
     }
   }
-  return lang === "fr" ? "immédiatement" : "immediately";
+  return t(lang, "delayNow");
 }

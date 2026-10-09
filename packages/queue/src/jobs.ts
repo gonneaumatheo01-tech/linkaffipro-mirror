@@ -29,7 +29,8 @@ export type StatsJob =
   | { type: "post-stats"; postId: string }
   | { type: "tick" }
   | { type: "daily"; days?: number; full?: boolean }
-  | { type: "reports"; force?: "daily" | "weekly" };
+  | { type: "reports"; force?: "daily" | "weekly" }
+  | { type: "best-hours" };
 
 /** Tâches de la file `automations` : événement métier à évaluer, ou reprise des étapes différées. */
 export type AutomationsJob =

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupFileDate, detectBackupFailed, detectBotWebhook, detectDmBlocked, detectJobFailures, detectQueueBacklog, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, shouldCreate } from "./alert-rules";
+import { backupFileDate, DEFAULT_THRESHOLDS, detectBackupFailed, detectBotWebhook, detectChannelLeak, detectDmBlocked, detectJobFailures, detectOfferLinkInactive, detectPostFailed, detectQueueBacklog, detectRegistrationsDrop, detectSpendNoConversion, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, parseThresholds, shouldCreate } from "./alert-rules";
 
 const now = new Date("2026-10-09T12:00:00Z");
 const ago = (min: number) => new Date(now.getTime() - min * 60_000);
@@ -81,5 +81,59 @@ describe("règles de solidité", () => {
     expect(d?.message).toContain("stats (10)");
     expect(d?.message).not.toContain("telegram-send");
     expect(d?.payload.queues).toEqual({ stats: 10 });
+  });
+});
+
+describe("règles métier à seuils (phase 6)", () => {
+  it("lit les seuils avec valeurs par défaut et bornes", () => {
+    expect(parseThresholds(null)).toEqual(DEFAULT_THRESHOLDS);
+    expect(parseThresholds({ registrationsDropPct: 30, spendNoConversionEur: 120, channelLeakPct: 5 })).toEqual({ registrationsDropPct: 30, spendNoConversionEur: 120, channelLeakPct: 5 });
+    expect(parseThresholds({ registrationsDropPct: 0, spendNoConversionEur: "x", channelLeakPct: 200 })).toEqual(DEFAULT_THRESHOLDS);
+  });
+  it("chute des inscriptions : seulement sous 50 % de la moyenne et avec au moins 10 par jour", () => {
+    expect(detectRegistrationsDrop({ last24h: 2, previous7dTotal: 35 })).toBeNull(); // moyenne 5/j : trop peu
+    expect(detectRegistrationsDrop({ last24h: 10, previous7dTotal: 140 })).toBeNull(); // 10 = 50 % de 20 : pas sous le seuil
+    const d = detectRegistrationsDrop({ last24h: 4, previous7dTotal: 140 });
+    expect(d?.kind).toBe("registrations_drop");
+    expect(d?.payload).toMatchObject({ last24h: 4, dailyAverage: 20, dropPct: 80 });
+    expect(d?.message).toContain("−80 %");
+    // Seuil réglé à 30 % : 15 inscriptions pour une moyenne de 20 déclenchent (sous 14 ? non) → 13 oui.
+    const t = { ...DEFAULT_THRESHOLDS, registrationsDropPct: 30 };
+    expect(detectRegistrationsDrop({ last24h: 15, previous7dTotal: 140 }, t)).toBeNull();
+    expect(detectRegistrationsDrop({ last24h: 13, previous7dTotal: 140 }, t)?.kind).toBe("registrations_drop");
+  });
+  it("dépense sans conversion : au-dessus du seuil et zéro inscription", () => {
+    expect(detectSpendNoConversion([{ name: "A", spend: 50, registrations: 0 }])).toBeNull();
+    expect(detectSpendNoConversion([{ name: "A", spend: 80, registrations: 1 }])).toBeNull();
+    const d = detectSpendNoConversion([{ name: "A", spend: 80.5, registrations: 0 }, { name: "B", spend: 20, registrations: 0 }]);
+    expect(d?.kind).toBe("spend_no_conversion");
+    expect(d?.message).toContain("A (80.50 €)");
+    expect(d?.message).not.toContain("B (");
+    expect(detectSpendNoConversion([{ name: "B", spend: 20, registrations: 0 }], { ...DEFAULT_THRESHOLDS, spendNoConversionEur: 10 })?.kind).toBe("spend_no_conversion");
+  });
+  it("canal qui fuit : plus de 10 % de départs, 20 membres minimum", () => {
+    expect(detectChannelLeak([{ title: "Petit", activeMembers: 15, left24h: 10 }])).toBeNull();
+    expect(detectChannelLeak([{ title: "Stable", activeMembers: 100, left24h: 10 }])).toBeNull();
+    const d = detectChannelLeak([{ title: "Fuite", activeMembers: 100, left24h: 11 }]);
+    expect(d?.kind).toBe("channel_leak");
+    expect(d?.message).toContain("Fuite (11 départs sur 100 membres, 11 %)");
+    expect(detectChannelLeak([{ title: "Stable", activeMembers: 100, left24h: 6 }], { ...DEFAULT_THRESHOLDS, channelLeakPct: 5 })?.kind).toBe("channel_leak");
+  });
+  it("message programmé en échec", () => {
+    expect(detectPostFailed([])).toBeNull();
+    const d = detectPostFailed([{ code: "p1", channelTitle: "Casino FR", lastError: "chat not found" }]);
+    expect(d?.kind).toBe("post_failed");
+    expect(d?.message).toContain("1 message programmé en échec");
+    expect(d?.message).toContain("Casino FR / p1 (chat not found)");
+    const many = detectPostFailed(Array.from({ length: 7 }, (_, i) => ({ code: `p${i}`, channelTitle: "C", lastError: null })));
+    expect(many?.message).toContain("7 messages programmés");
+    expect(many?.message).toContain("et 2 autre(s)");
+  });
+  it("lien désactivé encore cliqué", () => {
+    expect(detectOfferLinkInactive([])).toBeNull();
+    expect(detectOfferLinkInactive([{ slug: "abc", label: "Bonus", clicks: 0 }])).toBeNull();
+    const d = detectOfferLinkInactive([{ slug: "abc", label: "Bonus", clicks: 3 }]);
+    expect(d?.kind).toBe("offer_link_inactive");
+    expect(d?.message).toContain("Bonus (/abc, 3 clics)");
   });
 });

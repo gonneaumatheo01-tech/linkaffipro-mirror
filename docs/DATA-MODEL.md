@@ -137,3 +137,10 @@ Les autres index (43 avant cette phase) sont inchangés ; les colonnes `@unique`
 | Table / colonne | Rôle |
 | --- | --- |
 | `User.sessionVersion` (`Int`, défaut 0) | Version de session. Le jeton de connexion (JWT) porte la version émise (`sv`) ; elle est incrémentée au changement de mot de passe, de rôle et à la désactivation du compte, ce qui invalide toutes les sessions existantes (déconnexion de tous les appareils). Vérification : à chaque page via `requireUser` (comparaison immédiate) et dans le rappel `jwt` d'Auth.js (lecture en base au plus une fois par 5 minutes et par utilisateur). |
+
+## Phase 6 (9 octobre 2026) — migration `20261009185245_phase6_post_ab`
+| Table / colonne | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `Post.abGroupId` / `abVariant` | Test A/B de message de canal : identifiant commun aux deux variantes (A et B) d'un même test, lettre de la variante. B part 30 min après A dans le même canal (délai réglable 5 min – 24 h), ou à la même heure dans un autre canal. Comparaison : `/messages/ab/<abGroupId>` (gagnante provisoire par `pickPostWinner` de `packages/core/src/ab.ts`). | index `(abGroupId)` |
+| `Post.vertical` (`Vertical?`) | Univers du modèle (bibliothèque « Modèles » filtrable par univers et catégorie). Renseigné à la création d'un modèle depuis le canal, et par `pnpm seed:templates` (63 modèles : 3 univers × 7 catégories × 3 ; clé technique `Post.code` = `modele:<univers>:<categorie>:<n>`, titre lisible dans `templateName`). | index `(isTemplate, vertical)` |
+| `Setting` `besthours.<channelId>` / `besthours.updatedAt` | Meilleurs horaires de publication (JSON) : par canal et par catégorie (`all` + chaque catégorie), carte jour (1 = lundi … 7) × heure (0–23, Paris) sur 8 semaines de messages envoyés : messages, vues, clics, cliqueurs uniques, réactions, taux de clic (si vues), clics et réactions par message, recommandation (≥ 3 messages). Calcul : tâche `stats` `{type:"best-hours"}` toutes les 24 h et à la demande (fiche canal → Meilleurs horaires → Recalculer). | — |

@@ -18,17 +18,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PeriodSelect } from "@/components/admin/period-select";
+import { Delta } from "@/components/dashboard/delta";
 import { fmtMoney, fmtNum } from "@/lib/format";
-import { computeMetrics, fmtRatio } from "@/lib/campaigns/metrics";
+import { computeMetrics, fmtRatio, type CampaignMetrics } from "@/lib/campaigns/metrics";
+import { campaignDeltas, campaignTotals, unattachedEntryLinks } from "@/lib/campaigns/queries";
 import {
-  campaignTotals,
-  rangeKeyOf,
-  sinceFor,
-  unattachedEntryLinks,
-} from "@/lib/campaigns/queries";
+  parseCompare,
+  periodDates,
+  periodLabel,
+  periodParams,
+  previousPeriod,
+  resolvePeriod,
+} from "@/lib/periods";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { CampaignForm, PLATFORM_LABELS } from "../campaign-form";
+import { LinkSuggestion } from "../link-suggestion";
 import {
   addAdAction,
   addAdSetAction,
@@ -45,8 +51,10 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
   await requireUser();
   const { id } = await params;
   const sp = await searchParams;
-  const range = rangeKeyOf(sp.range);
-  const since = sinceFor(range);
+  const period = resolvePeriod(sp);
+  const compare = parseCompare(sp.compare);
+  const pp = periodParams(period, compare);
+  const { dateFrom, dateTo } = periodDates(period);
   const campaign = await prisma.campaign.findUnique({
     where: { id },
     include: {
@@ -85,7 +93,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
     unattachedEntryLinks(),
     prisma.adCost.findMany({
       where: {
-        date: { gte: since },
+        date: { gte: dateFrom, lte: dateTo },
         OR: [
           { campaignId: id },
           { adSet: { campaignId: id } },
@@ -103,57 +111,103 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
       if (a.inviteLink) inviteLinkIds.add(a.inviteLink.id);
       if (a.trackingLinkId) trackingLinkIds.add(a.trackingLinkId);
     }
-  const metrics = computeMetrics(
-    await campaignTotals(id, [...inviteLinkIds], [...trackingLinkIds], since),
-  );
+  const [metrics, previous] = await Promise.all([
+    campaignTotals(id, [...inviteLinkIds], [...trackingLinkIds], period).then(computeMetrics),
+    compare
+      ? campaignTotals(id, [...inviteLinkIds], [...trackingLinkIds], previousPeriod(period)).then(
+          computeMetrics,
+        )
+      : Promise.resolve(null),
+  ]);
+  const deltas = previous ? campaignDeltas(metrics, previous) : null;
   const channelIds = Array.isArray(campaign.channelIds) ? (campaign.channelIds as string[]) : [];
   const selectCls = "h-10 rounded-md border bg-background px-3 text-sm md:h-9";
   const today = new Date().toISOString().slice(0, 10);
-  const tiles: Array<[string, string, string?]> = [
-    ["Dépense", fmtMoney(metrics.spend)],
-    [
-      "Clics d'entrée",
-      fmtNum(metrics.entryClicks ?? 0),
-      "Clics sur le lien goolink de la pub, hors robots.",
-    ],
-    [
-      "Membres",
-      fmtNum(metrics.members),
-      "Demandes d'adhésion acceptées via les liens d'entrée de la pub.",
-    ],
-    [
-      "Inscrits",
-      fmtNum(metrics.registrations),
-      "Joueurs inscrits chez un partenaire, rattachés à la pub par l'identifiant de suivi (sub-ID).",
-    ],
-    [
-      "FTD",
-      fmtNum(metrics.ftds),
-      "Premier dépôt (FTD) : joueurs rattachés qui ont déposé au moins une fois.",
-    ],
-    ["CPL", fmtMoney(metrics.cpl), "Coût par membre arrivé (CPL) = dépense / membres entrés."],
-    ["CPA", fmtMoney(metrics.cpa), "Coût par inscrit : dépense / inscrits."],
-    ["Coût / FTD", fmtMoney(metrics.costPerFtd), "Dépense / premiers dépôts."],
-    [
-      "Revenu",
-      fmtMoney(metrics.revenue),
-      "Revenu net (NGR) des joueurs rattachés, remonté par Link Affi.",
-    ],
-    ["ROAS", fmtRatio(metrics.roas), "Retour sur dépense : revenu / dépense. 1,00× = remboursé."],
+  type TileKey = keyof CampaignMetrics;
+  /** Tuiles : clé, libellé, formatage, aide, et `invert` pour les coûts (une baisse est favorable). */
+  const tiles: Array<{
+    key: TileKey;
+    label: string;
+    fmt: (m: CampaignMetrics) => string;
+    tip?: string;
+    invert?: boolean;
+  }> = [
+    { key: "spend", label: "Dépense", fmt: (m) => fmtMoney(m.spend), invert: true },
+    {
+      key: "entryClicks",
+      label: "Clics d'entrée",
+      fmt: (m) => fmtNum(m.entryClicks ?? 0),
+      tip: "Clics sur le lien goolink de la pub, hors robots.",
+    },
+    {
+      key: "members",
+      label: "Membres",
+      fmt: (m) => fmtNum(m.members),
+      tip: "Demandes d'adhésion acceptées via les liens d'entrée de la pub.",
+    },
+    {
+      key: "registrations",
+      label: "Inscrits",
+      fmt: (m) => fmtNum(m.registrations),
+      tip: "Joueurs inscrits chez un partenaire, rattachés à la pub par l'identifiant de suivi (sub-ID).",
+    },
+    {
+      key: "ftds",
+      label: "FTD",
+      fmt: (m) => fmtNum(m.ftds),
+      tip: "Premier dépôt (FTD) : joueurs rattachés qui ont déposé au moins une fois.",
+    },
+    {
+      key: "cpl",
+      label: "CPL",
+      fmt: (m) => fmtMoney(m.cpl),
+      tip: "Coût par membre arrivé (CPL) = dépense / membres entrés.",
+      invert: true,
+    },
+    {
+      key: "cpa",
+      label: "CPA",
+      fmt: (m) => fmtMoney(m.cpa),
+      tip: "Coût par inscrit : dépense / inscrits.",
+      invert: true,
+    },
+    {
+      key: "costPerFtd",
+      label: "Coût / FTD",
+      fmt: (m) => fmtMoney(m.costPerFtd),
+      tip: "Dépense / premiers dépôts.",
+      invert: true,
+    },
+    {
+      key: "revenue",
+      label: "Revenu",
+      fmt: (m) => fmtMoney(m.revenue),
+      tip: "Revenu net (NGR) des joueurs rattachés, remonté par Link Affi.",
+    },
+    {
+      key: "roas",
+      label: "ROAS",
+      fmt: (m) => fmtRatio(m.roas),
+      tip: "Retour sur dépense : revenu / dépense. 1,00× = remboursé.",
+    },
   ];
 
   return (
     <>
       <PageHeader
         title={campaign.name}
-        description={`${campaign.adPlatform ? PLATFORM_LABELS[campaign.adPlatform] : "Plateforme non précisée"} · ${statusLabel("campaign", campaign.status)} · période : ${range} jours`}
+        description={`${campaign.adPlatform ? PLATFORM_LABELS[campaign.adPlatform] : "Plateforme non précisée"} · ${statusLabel("campaign", campaign.status)} · période : ${periodLabel(period).toLowerCase()}${compare ? ` (comparée à : ${periodLabel(previousPeriod(period)).toLowerCase()})` : ""}`}
         help="Rattachez chaque pub précise à son lien d'entrée, puis importez ou saisissez les coûts : les indicateurs se calculent seuls."
       >
         <StatusBadge kind="campaign" value={campaign.status} />
         <Button
           variant="outline"
           className="max-md:h-10"
-          render={<a href={`/campaigns/export?kind=costs&campaignId=${id}&range=${range}`} />}
+          render={
+            <a
+              href={`/campaigns/export?${new URLSearchParams({ kind: "costs", campaignId: id, ...pp }).toString()}`}
+            />
+          }
         >
           Exporter les coûts (CSV)
         </Button>
@@ -162,16 +216,28 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
+      <LinkSuggestion campaignId={campaign.id} name={campaign.name} linkedIds={campaign.affiliateCampaignIds} />
 
+      <div className="mb-3">
+        <PeriodSelect period={period} compare={compare} action={`/campaigns/${id}`} />
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {tiles.map(([label, value, tip]) => (
-          <Card key={label}>
+        {tiles.map((t) => (
+          <Card key={t.key}>
             <CardContent className="pt-4">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                {label}
-                {tip ? <HelpTip>{tip}</HelpTip> : null}
+                {t.label}
+                {t.tip ? <HelpTip>{t.tip}</HelpTip> : null}
               </div>
-              <div className="text-xl font-semibold tabular-nums">{value}</div>
+              <div className="text-xl font-semibold tabular-nums">{t.fmt(metrics)}</div>
+              {previous && deltas ? (
+                <div className="text-xs">
+                  <Delta value={deltas[t.key]} invert={t.invert} />{" "}
+                  <span className="text-[10px] text-muted-foreground">
+                    (avant : {t.fmt(previous)})
+                  </span>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ))}

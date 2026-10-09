@@ -12,6 +12,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed.ts",
+    "seed:templates": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed-templates.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

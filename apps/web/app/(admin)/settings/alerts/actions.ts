@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma, audit } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin } from "@/lib/session";
+import { ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
 
 function back(params: Record<string, string>): never {
   redirect(`/settings/alerts?${new URLSearchParams(params).toString()}`);
@@ -43,6 +44,38 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
   });
   revalidatePath("/settings/alerts");
   back({ ok: `Durée de conservation enregistrée : ${parsed.data} mois.` });
+}
+
+const thresholdsSchema = z.object({
+  registrationsDropPct: z.coerce.number().int().min(1).max(100),
+  spendNoConversionEur: z.coerce.number().min(0).max(1_000_000),
+  channelLeakPct: z.coerce.number().int().min(1).max(100),
+});
+
+/** Enregistre les seuils des alertes métier (chute des inscriptions, dépense sans conversion, canal qui fuit). */
+export async function saveAlertThresholdsAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const parsed = thresholdsSchema.safeParse({
+    registrationsDropPct: formData.get("registrationsDropPct"),
+    spendNoConversionEur: String(formData.get("spendNoConversionEur") ?? "").replace(",", "."),
+    channelLeakPct: formData.get("channelLeakPct"),
+  });
+  if (!parsed.success)
+    back({
+      error:
+        "Seuils invalides : les pourcentages vont de 1 à 100 et la dépense est un montant positif en euros.",
+    });
+  const value = parseThresholds(parsed.data);
+  await prisma.setting.upsert({
+    where: { key: ALERT_THRESHOLDS_KEY },
+    create: { key: ALERT_THRESHOLDS_KEY, value },
+    update: { value },
+  });
+  await audit({ userId: admin.id, action: "settings.alert_thresholds_updated", metadata: value });
+  revalidatePath("/settings/alerts");
+  back({
+    ok: `Seuils enregistrés : chute des inscriptions ${value.registrationsDropPct} %, dépense sans inscription ${value.spendNoConversionEur} €, départs ${value.channelLeakPct} %. Ils s'appliquent au prochain passage (5 minutes).`,
+  });
 }
 
 /** Lance la purge de rétention maintenant (tâche du worker). */

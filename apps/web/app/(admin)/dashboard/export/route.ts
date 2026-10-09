@@ -1,23 +1,74 @@
 import { isVertical } from "@linkaffipro/core";
 import { requireUser } from "@/lib/session";
 import { toCsv } from "@/lib/members/csv";
-import { parseRange } from "@/lib/dashboard/aggregate";
-import { loadAdsTable } from "@/lib/dashboard/daily";
+import { loadAdsTable, type AdsRow } from "@/lib/dashboard/daily";
+import type { Derived, StatTotals } from "@/lib/dashboard/metrics";
+import { parseCompare, periodLabel, previousPeriod, resolvePeriod } from "@/lib/periods";
 
 export const dynamic = "force-dynamic";
 
-/** Export CSV (compatible Excel) du tableau par pub. */
+const COLUMNS: Array<{ key: keyof StatTotals | keyof Derived; label: string; money?: boolean }> = [
+  { key: "spend", label: "Dépense (EUR)", money: true },
+  { key: "entryClicks", label: "Clics pub" },
+  { key: "requests", label: "Demandes" },
+  { key: "approved", label: "Acceptés" },
+  { key: "joined", label: "Entrés" },
+  { key: "offerClicks", label: "Clics offres" },
+  { key: "registrations", label: "Inscriptions" },
+  { key: "ftds", label: "FTD" },
+  { key: "deposits", label: "Dépôts (nb)" },
+  { key: "depositAmount", label: "Dépôts (EUR)", money: true },
+  { key: "ngr", label: "NGR (EUR)", money: true },
+  { key: "cpl", label: "CPL" },
+  { key: "cpa", label: "CPA" },
+  { key: "costPerFtd", label: "Coût par FTD" },
+  { key: "roas", label: "ROAS" },
+  { key: "profit", label: "Bénéfice (EUR)", money: true },
+];
+
+function value(t: StatTotals, d: Derived, key: keyof StatTotals | keyof Derived): number | null {
+  return key in t ? t[key as keyof StatTotals] : d[key as keyof Derived];
+}
+
+function cell(v: number | null, money?: boolean): string | number {
+  if (v === null) return "";
+  return money ? v.toFixed(2) : v;
+}
+
+/**
+ * Export CSV (compatible Excel) du tableau par pub sur la période (`range`, `from`, `to`).
+ * Avec `compare=1`, chaque colonne est suivie de sa valeur sur la période précédente et de la variation en %.
+ */
 export async function GET(req: Request) {
   await requireUser();
   const sp = new URL(req.url).searchParams;
-  const range = parseRange(sp.get("range"));
+  const params = Object.fromEntries(sp.entries());
+  const period = resolvePeriod(params);
+  const compare = parseCompare(sp.get("compare"));
   const v = sp.get("vertical") ?? "";
-  const { rows, total, totalDerived } = await loadAdsTable(range, { vertical: isVertical(v) ? v : "" });
-  const line = (name: string, t: typeof total, d: typeof totalDerived) => [name, t.spend.toFixed(2), t.entryClicks, t.requests, t.approved, t.joined, t.offerClicks, t.registrations, t.ftds, t.deposits, t.depositAmount.toFixed(2), t.ngr.toFixed(2), d.cpl ?? "", d.cpa ?? "", d.costPerFtd ?? "", d.roas ?? "", d.profit.toFixed(2)];
-  const csv = toCsv(
-    ["Pub", "Dépense (EUR)", "Clics pub", "Demandes", "Acceptés", "Entrés", "Clics offres", "Inscriptions", "FTD", "Dépôts (nb)", "Dépôts (EUR)", "NGR (EUR)", "CPL", "CPA", "Coût par FTD", "ROAS", "Bénéfice (EUR)"],
-    [...rows.map((r) => line(r.name, r.totals, r.derived)), line("TOTAL", total, totalDerived)],
-  );
-  const date = new Date().toISOString().slice(0, 10);
-  return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="pubs-${range}-${date}.csv"`, "Cache-Control": "no-store" } });
+  const { rows, total, totalDerived, previousTotal, previousTotalDerived, totalDeltas } = await loadAdsTable(period, { vertical: isVertical(v) ? v : "" });
+
+  const headers = ["Pub", "Période"];
+  for (const c of COLUMNS) {
+    headers.push(c.label);
+    if (compare) headers.push(`${c.label} – période précédente`, `${c.label} – variation (%)`);
+  }
+  const line = (name: string, t: StatTotals, d: Derived, pt: StatTotals, pd: Derived, deltas: AdsRow["deltas"]) => {
+    const out: Array<string | number> = [name, periodLabel(period)];
+    for (const c of COLUMNS) {
+      out.push(cell(value(t, d, c.key), c.money));
+      if (compare) {
+        out.push(cell(value(pt, pd, c.key), c.money));
+        const delta = deltas[c.key];
+        out.push(delta === null || delta === undefined ? "" : delta);
+      }
+    }
+    return out;
+  };
+  const csv = toCsv(headers, [
+    ...rows.map((r) => line(r.name, r.totals, r.derived, r.previous, r.previousDerived, r.deltas)),
+    line("TOTAL", total, totalDerived, previousTotal, previousTotalDerived, totalDeltas),
+  ]);
+  const suffix = compare ? `-vs-${previousPeriod(period).from}` : "";
+  return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="pubs-${period.from}-${period.to}${suffix}.csv"`, "Cache-Control": "no-store" } });
 }

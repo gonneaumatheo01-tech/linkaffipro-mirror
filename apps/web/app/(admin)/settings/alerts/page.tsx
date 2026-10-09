@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { HelpTip } from "@/components/admin/help-tip";
 import { fmtDate } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
@@ -25,8 +26,10 @@ import {
   checkAlertsNowAction,
   purgeNowAction,
   resolveAlertAction,
+  saveAlertThresholdsAction,
   saveRetentionAction,
 } from "./actions";
+import { ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
 
 export const metadata: Metadata = { title: "Alertes et rétention" };
 
@@ -39,12 +42,17 @@ const KIND_LABELS: Record<string, string> = {
   worker_down: "Worker arrêté",
   job_failures: "Erreurs répétées dans une file",
   backup_failed: "Sauvegarde en échec",
+  registrations_drop: "Chute des inscriptions",
+  spend_no_conversion: "Dépense sans inscription",
+  channel_leak: "Canal qui perd ses membres",
+  post_failed: "Message programmé en échec",
+  offer_link_inactive: "Lien désactivé encore cliqué",
 };
 
 export default async function AlertsPage({ searchParams }: PageProps<"/settings/alerts">) {
   await requireAdminPage();
   const sp = await searchParams;
-  const [alerts, retention, lastPurge] = await Promise.all([
+  const [alerts, retention, lastPurge, thresholdsRow] = await Promise.all([
     prisma.alert.findMany({
       orderBy: [{ resolvedAt: { sort: "asc", nulls: "first" } }, { createdAt: "desc" }],
       take: 200,
@@ -54,7 +62,9 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
       where: { action: "maintenance.purge" },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.setting.findUnique({ where: { key: ALERT_THRESHOLDS_KEY } }),
   ]);
+  const thresholds = parseThresholds(thresholdsRow?.value);
   const months =
     typeof retention?.value === "number" ? retention.value : Number(retention?.value ?? 24) || 24;
   const openCount = alerts.filter((a) => !a.resolvedAt).length;
@@ -162,6 +172,88 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base">Seuils des alertes métier</CardTitle>
+          <CardDescription>
+            Trois alertes se règlent ici. Les autres (message programmé en échec, lien désactivé
+            encore cliqué, bot, synchro, sauvegarde…) n&apos;ont pas de seuil.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={saveAlertThresholdsAction} className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="registrationsDropPct" className="flex items-center gap-1">
+                Chute des inscriptions (%)
+                <HelpTip>
+                  Alerte si les inscriptions des dernières 24 h sont inférieures de ce pourcentage à
+                  la moyenne quotidienne des 7 jours précédents (seulement à partir de 10
+                  inscriptions par jour en moyenne).
+                </HelpTip>
+              </Label>
+              <Input
+                id="registrationsDropPct"
+                name="registrationsDropPct"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={thresholds.registrationsDropPct}
+                className="h-10 md:h-9"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exemple : 50 = alerte si on passe de 20 par jour à moins de 10.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="spendNoConversionEur" className="flex items-center gap-1">
+                Dépense sans inscription (€)
+                <HelpTip>
+                  Alerte si une pub a coûté plus que ce montant sur les derniers jours couvrant 24 h
+                  sans aucune inscription rattachée (par son lien d&apos;entrée ou ses liens
+                  traqués).
+                </HelpTip>
+              </Label>
+              <Input
+                id="spendNoConversionEur"
+                name="spendNoConversionEur"
+                inputMode="decimal"
+                defaultValue={thresholds.spendNoConversionEur}
+                className="h-10 md:h-9"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exemple : 50 = une pub à 60 € sans inscrit déclenche l&apos;alerte.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="channelLeakPct" className="flex items-center gap-1">
+                Départs d&apos;un canal (%)
+                <HelpTip>
+                  Alerte si, sur 24 h, un canal perd plus que ce pourcentage de ses membres actifs
+                  (canaux d&apos;au moins 20 membres).
+                </HelpTip>
+              </Label>
+              <Input
+                id="channelLeakPct"
+                name="channelLeakPct"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={thresholds.channelLeakPct}
+                className="h-10 md:h-9"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exemple : 10 = alerte si 11 membres sur 100 partent dans la journée.
+              </p>
+            </div>
+            <div className="sm:col-span-3">
+              <Button type="submit" className="max-md:h-10">
+                Enregistrer les seuils
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 

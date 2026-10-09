@@ -4,22 +4,133 @@ import { HEARTBEAT_LAST_KEY, QUEUE_NAMES, countRecentFailures, getQueue, getRedi
 import type { Redis } from "ioredis";
 import { notifyAdmin } from "@linkaffipro/telegram";
 import { logger } from "../logger";
+import { dayKey, parisMidnightUtc } from "../stats/aggregate";
 import {
   detectBackupFailed,
   detectBotWebhook,
+  detectChannelLeak,
   detectDmBlocked,
   detectJobFailures,
+  detectOfferLinkInactive,
+  detectPostFailed,
   detectQueueBacklog,
+  detectRegistrationsDrop,
+  detectSpendNoConversion,
   detectSubIdHealth,
   detectSyncFailed,
   detectWorkerDown,
   DEDUP_WINDOW_MS,
   formatAlert,
+  parseThresholds,
   shouldCreate,
   type AlertKind,
+  type AlertThresholds,
   type BackupSnapshot,
   type Detected,
+  type SpendSnapshot,
 } from "./alert-rules";
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** Seuils réglables (Réglages → Alertes), `Setting` `alerts.thresholds`. */
+export async function loadThresholds(): Promise<AlertThresholds> {
+  const row = await prisma.setting.findUnique({ where: { key: "alerts.thresholds" } });
+  return parseThresholds(row?.value);
+}
+
+/** Inscriptions des dernières 24 h et total des 7 jours précédents (`Player.registeredAt`). */
+async function registrationsSnapshot(now: Date) {
+  const h24 = new Date(now.getTime() - DAY_MS);
+  const d8 = new Date(now.getTime() - 8 * DAY_MS);
+  const [last24h, previous7dTotal] = await Promise.all([
+    prisma.player.count({ where: { registeredAt: { gte: h24, lte: now } } }),
+    prisma.player.count({ where: { registeredAt: { gte: d8, lt: h24 } } }),
+  ]);
+  return { last24h, previous7dTotal };
+}
+
+/**
+ * Dépense par pub (campagne) sur les jours couvrant les dernières 24 h, et inscriptions rattachées sur la même fenêtre.
+ * Rattachement identique à la page Pubs : joueur dont le clic vient d'un lien traqué de la pub, ou membre entré par un
+ * lien d'invitation d'une pub précise.
+ */
+async function spendSnapshot(now: Date, t: AlertThresholds): Promise<SpendSnapshot[]> {
+  const windowStart = parisMidnightUtc(dayKey(new Date(now.getTime() - DAY_MS)));
+  const costs = await prisma.adCost.findMany({
+    where: { date: { gte: new Date(`${dayKey(windowStart)}T00:00:00Z`) } },
+    select: { spend: true, campaignId: true, adSet: { select: { campaignId: true } }, ad: { select: { adSet: { select: { campaignId: true } } } } },
+  });
+  const spendByCampaign = new Map<string, number>();
+  for (const c of costs) {
+    const id = c.campaignId ?? c.adSet?.campaignId ?? c.ad?.adSet.campaignId;
+    if (!id) continue;
+    spendByCampaign.set(id, (spendByCampaign.get(id) ?? 0) + Number(c.spend));
+  }
+  const candidates = [...spendByCampaign.entries()].filter(([, spend]) => spend > t.spendNoConversionEur).map(([id]) => id);
+  if (candidates.length === 0) return [];
+  const campaigns = await prisma.campaign.findMany({
+    where: { id: { in: candidates } },
+    select: { id: true, name: true, inviteLinks: { select: { id: true } }, trackingLinks: { select: { id: true } }, adSets: { select: { ads: { select: { inviteLinkId: true, trackingLinkId: true } } } } },
+  });
+  const out: SpendSnapshot[] = [];
+  for (const c of campaigns) {
+    const inviteIds = new Set(c.inviteLinks.map((l) => l.id));
+    const trackingIds = new Set(c.trackingLinks.map((l) => l.id));
+    for (const s of c.adSets)
+      for (const a of s.ads) {
+        if (a.inviteLinkId) inviteIds.add(a.inviteLinkId);
+        if (a.trackingLinkId) trackingIds.add(a.trackingLinkId);
+      }
+    const registrations = await prisma.player.count({
+      where: {
+        registeredAt: { gte: windowStart },
+        OR: [
+          ...(trackingIds.size ? [{ click: { trackingLinkId: { in: [...trackingIds] } } }] : []),
+          ...(inviteIds.size ? [{ member: { memberships: { some: { inviteLinkId: { in: [...inviteIds] } } } } }] : []),
+        ],
+      },
+    });
+    out.push({ name: c.name, spend: Math.round((spendByCampaign.get(c.id) ?? 0) * 100) / 100, registrations });
+  }
+  return out;
+}
+
+/** Membres actifs (adhésion APPROVED) et départs des dernières 24 h par canal actif. */
+async function channelLeakSnapshot(now: Date) {
+  const channels = await prisma.channel.findMany({ where: { isActive: true }, select: { id: true, title: true } });
+  if (channels.length === 0) return [];
+  const [active, left] = await Promise.all([
+    prisma.membership.groupBy({ by: ["channelId"], where: { status: "APPROVED" }, _count: { _all: true } }),
+    prisma.membership.groupBy({ by: ["channelId"], where: { leftAt: { gte: new Date(now.getTime() - DAY_MS) } }, _count: { _all: true } }),
+  ]);
+  const activeBy = new Map(active.map((r) => [r.channelId, r._count._all]));
+  const leftBy = new Map(left.map((r) => [r.channelId, r._count._all]));
+  return channels.map((c) => ({ title: c.title, activeMembers: activeBy.get(c.id) ?? 0, left24h: leftBy.get(c.id) ?? 0 }));
+}
+
+/** Messages programmés passés en échec dans les dernières 24 h. */
+async function failedPostsSnapshot(now: Date) {
+  const posts = await prisma.post.findMany({
+    where: { status: "FAILED", updatedAt: { gte: new Date(now.getTime() - DAY_MS) } },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: { code: true, lastError: true, channel: { select: { title: true } } },
+  });
+  return posts.map((p) => ({ code: p.code, channelTitle: p.channel.title, lastError: p.lastError }));
+}
+
+/** Clics humains des dernières 24 h sur des liens traqués désactivés. */
+async function inactiveLinkClicksSnapshot(now: Date) {
+  const groups = await prisma.click.groupBy({
+    by: ["trackingLinkId"],
+    where: { createdAt: { gte: new Date(now.getTime() - DAY_MS) }, isBot: false, trackingLink: { isActive: false } },
+    _count: { _all: true },
+  });
+  if (groups.length === 0) return [];
+  const links = await prisma.trackingLink.findMany({ where: { id: { in: groups.map((g) => g.trackingLinkId) } }, select: { id: true, slug: true, label: true } });
+  const byId = new Map(links.map((l) => [l.id, l]));
+  return groups.map((g) => ({ slug: byId.get(g.trackingLinkId)?.slug ?? g.trackingLinkId, label: byId.get(g.trackingLinkId)?.label ?? "lien", clicks: g._count._all }));
+}
 
 /** Santé du sub-ID sur 7 jours (mêmes requêtes que Réglages → Connecteurs). */
 async function subIdHealth(now: Date) {
@@ -86,6 +197,24 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   const backup = await prisma.setting.findUnique({ where: { key: "backup.last" } });
   const d7 = detectBackupFailed(parseBackupSnapshot(backup?.value), now);
   if (d7) detected.push(d7);
+
+  // Règles métier (seuils réglables) : chaque lecture est isolée pour qu'une erreur n'empêche pas les autres règles.
+  const thresholds = await loadThresholds();
+  const business: Array<[string, () => Promise<Detected | null>]> = [
+    ["registrations_drop", async () => detectRegistrationsDrop(await registrationsSnapshot(now), thresholds)],
+    ["spend_no_conversion", async () => detectSpendNoConversion(await spendSnapshot(now, thresholds), thresholds)],
+    ["channel_leak", async () => detectChannelLeak(await channelLeakSnapshot(now), thresholds)],
+    ["post_failed", async () => detectPostFailed(await failedPostsSnapshot(now))],
+    ["offer_link_inactive", async () => detectOfferLinkInactive(await inactiveLinkClicksSnapshot(now))],
+  ];
+  for (const [kind, run] of business) {
+    try {
+      const d = await run();
+      if (d) detected.push(d);
+    } catch (err) {
+      logger.warn({ kind, err: (err as Error).message }, "règle d'alerte impossible à évaluer");
+    }
+  }
 
   // `worker_down` n'est jamais « détectée » ici (le worker qui évalue est vivant) : une alerte ouverte de ce type,
   // créée par le site pendant l'absence, est donc résolue automatiquement au passage suivant.

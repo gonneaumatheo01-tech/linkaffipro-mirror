@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { statusLabels } from "@/lib/status-badges";
+import { NAMING_EXAMPLE, NAMING_HELP } from "@/lib/campaigns/match";
+import { NameGenerator } from "./new/name-generator";
 
 export const PLATFORM_LABELS: Record<string, string> = statusLabels("adPlatform");
 export const STATUS_LABELS: Record<string, string> = statusLabels("campaign");
@@ -43,9 +45,11 @@ export function CampaignForm({
           required
           maxLength={120}
           defaultValue={values.name ?? ""}
-          placeholder="ex. TikTok casino FR octobre"
+          placeholder={`ex. ${NAMING_EXAMPLE}`}
           className="h-10 md:h-9"
         />
+        <p className="text-xs text-muted-foreground">{NAMING_HELP}</p>
+        <NameGenerator channels={channels} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="adPlatform">Plateforme</Label>

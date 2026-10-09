@@ -2,7 +2,7 @@ import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { fillUrlTemplate, newSubId } from "@linkaffipro/core";
 import type { BotIdentity } from "../ports";
-import { pickLang } from "../i18n";
+import { isLang, pickLang } from "../i18n";
 import type { OfferDeps } from "../offers/deps";
 import { DEFAULT_OFFER_REPLY, INVALID_OFFER_REPLY, fillPlaceholders, parseOfferPayload } from "../offers/logic";
 
@@ -27,15 +27,17 @@ export function registerOfferHandlers(bot: Bot, identity: BotIdentity, deps?: Of
     const { memberId } = await d.memberStarted(identity.id, from);
     const offer = parsed ? await d.resolveOffer(parsed.slug, parsed.postCode) : null;
     if (!offer) {
-      await ctx.reply(INVALID_OFFER_REPLY[lang] ?? INVALID_OFFER_REPLY.fr!);
+      await ctx.reply(INVALID_OFFER_REPLY[lang]);
       return;
     }
     const subId = newSubId();
     const destination = fillUrlTemplate(offer.destinationTemplate, { subid: subId, member_id: memberId, post_id: offer.postId ?? "" });
     await d.recordOfferClick({ trackingLinkId: offer.trackingLinkId, postId: offer.postId, memberId, botId: identity.id, subId, destination });
-    const textLang = lang in DEFAULT_OFFER_REPLY ? lang : (offer.channelLanguage ?? "fr");
+    // Langue du membre si le bot la connaît, sinon celle du canal, sinon fr.
+    const channelLang = pickLang(offer.channelLanguage);
+    const textLang = isLang(from.language_code?.toLowerCase().split(/[-_]/)[0]) ? lang : channelLang;
     const custom = await d.offerReplyTexts(offer.channelId, lang, identity.id);
-    const texts = custom ?? DEFAULT_OFFER_REPLY[textLang] ?? DEFAULT_OFFER_REPLY.fr!;
+    const texts = custom ?? DEFAULT_OFFER_REPLY[textLang];
     const text = fillPlaceholders(texts.text, { prenom: from.first_name, bot: identity.name });
     const keyboard = new InlineKeyboard().url(texts.button, destination);
     const media = custom?.media ?? null;

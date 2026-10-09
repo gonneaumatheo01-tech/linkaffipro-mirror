@@ -10,6 +10,8 @@ export type MemberFilters = {
   inviteLinkId: string;
   level: SpendLevel | "";
   language: string;
+  /** Étiquette (nom exact du registre ou posée par une automatisation). */
+  tag: string;
   since: string;
   until: string;
   sort: "lastSeen" | "firstSeen" | "name";
@@ -29,6 +31,7 @@ export function parseMemberFilters(sp: SP): MemberFilters {
     inviteLinkId: one(sp.inviteLinkId),
     level: (SPEND_LEVELS as readonly string[]).includes(level) ? (level as SpendLevel) : "",
     language: one(sp.language).trim().toLowerCase(),
+    tag: one(sp.tag).trim(),
     since: one(sp.since),
     until: one(sp.until),
     sort: sort === "firstSeen" || sort === "name" ? sort : "lastSeen",
@@ -73,6 +76,7 @@ function buildWhere(f: MemberFilters): Prisma.MemberWhereInput {
     });
   }
   if (f.language) and.push({ languageCode: { startsWith: f.language } });
+  if (f.tag) and.push({ tags: { array_contains: [f.tag] } });
   if (f.since) and.push({ firstSeenAt: { gte: new Date(f.since) } });
   if (f.until) and.push({ firstSeenAt: { lte: new Date(`${f.until}T23:59:59.999+02:00`) } });
   if (and.length) where.AND = and;
@@ -91,6 +95,7 @@ export type MemberRow = {
   username: string | null;
   languageCode: string | null;
   anonymized: boolean;
+  tags: string[];
   channels: string[];
   source: string | null;
   firstSeenAt: Date;
@@ -131,6 +136,7 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
     username: m.anonymizedAt ? null : m.username,
     languageCode: m.languageCode,
     anonymized: !!m.anonymizedAt,
+    tags: Array.isArray(m.tags) ? m.tags.filter((t): t is string => typeof t === "string") : [],
     channels: [...new Set(m.memberships.map((x) => x.channel.title))],
     source: src,
     firstSeenAt: m.firstSeenAt,

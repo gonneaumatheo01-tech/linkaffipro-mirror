@@ -18,7 +18,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
-import { RANGE_LABELS, parseRange, type Range } from "@/lib/dashboard/aggregate";
+import {
+  parseCompare,
+  periodLabel,
+  periodParams,
+  previousPeriod,
+  resolvePeriod,
+} from "@/lib/periods";
+import { PeriodSelect } from "@/components/admin/period-select";
+import { Delta } from "@/components/dashboard/delta";
+import { deltaPct } from "@/lib/dashboard/metrics";
 import { loadDashboard } from "@/lib/dashboard/queries";
 import {
   loadAdsTable,
@@ -87,7 +96,9 @@ function Head({
 
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
-  const range = parseRange(one(sp.range));
+  const period = resolvePeriod(sp);
+  const compare = parseCompare(sp.compare);
+  const prevPeriod = previousPeriod(period);
   const verticalRaw = one(sp.vertical);
   const vertical = isVertical(verticalRaw) ? verticalRaw : "";
   const channelId = one(sp.channelId);
@@ -115,18 +126,24 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       orderBy: { title: "asc" },
       select: { id: true, title: true },
     }),
-    tab === "overview" ? loadDashboard({ range, vertical, channelId }) : Promise.resolve(null),
+    tab === "overview" ? loadDashboard({ period, vertical, channelId }) : Promise.resolve(null),
   ]);
-  const [ads, funnelData, cohortRows, growth, best, campaignList] = await Promise.all([
-    tab === "ads" ? loadAdsTable(range, { vertical }) : Promise.resolve(null),
-    tab === "funnel" ? loadFunnel(funnelDim, range) : Promise.resolve(null),
+  const [ads, funnelData, cohortRows, growth, best, campaignList, prevDash] = await Promise.all([
+    tab === "ads" ? loadAdsTable(period, { vertical }) : Promise.resolve(null),
+    tab === "funnel" ? loadFunnel(funnelDim, period, compare) : Promise.resolve(null),
     tab === "cohorts" ? loadCohorts(12) : Promise.resolve(null),
-    tab === "channels" ? loadChannelGrowth(range, channelId) : Promise.resolve(null),
-    tab === "channels" ? loadBestTimes(range, channelId) : Promise.resolve(null),
+    tab === "channels" ? loadChannelGrowth(period, channelId, compare) : Promise.resolve(null),
+    tab === "channels" ? loadBestTimes(period, channelId) : Promise.resolve(null),
     tab === "funnel"
       ? prisma.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
       : Promise.resolve([]),
+    tab === "overview" && compare
+      ? loadDashboard({ period: prevPeriod, vertical, channelId })
+      : Promise.resolve(null),
   ]);
+  const prevMetric = (key: string) =>
+    prevDash?.metrics.find((m) => m.key === key)?.series.total ?? 0;
+  const prevChannel = (id: string) => prevDash?.channels.find((c) => c.channelId === id) ?? null;
   const tiles = [
     { label: "Bots actifs", value: bots, help: "Bots Telegram en service (page Bots)." },
     {
@@ -146,23 +163,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     },
   ];
   const base = { ...(vertical ? { vertical } : {}), ...(channelId ? { channelId } : {}) };
-  const q = (r: Range, t: Tab = tab) =>
-    `/?${new URLSearchParams({ tab: t, range: r, ...base, ...(t === "funnel" ? { dim: funnelDim } : {}) }).toString()}`;
+  const pp = periodParams(period, compare);
+  const q = (t: Tab = tab) =>
+    `/?${new URLSearchParams({ tab: t, ...pp, ...base, ...(t === "funnel" ? { dim: funnelDim } : {}) }).toString()}`;
   const sortHref = (k: AdsSortKey) =>
-    `/?${new URLSearchParams({ tab: "ads", range, ...base, sort: k, dir: sort === k && dir === "desc" ? "asc" : "desc" }).toString()}`;
+    `/?${new URLSearchParams({ tab: "ads", ...pp, ...base, sort: k, dir: sort === k && dir === "desc" ? "asc" : "desc" }).toString()}`;
+  const label = periodLabel(period);
   const rangeBar = (
-    <nav aria-label="Période" className="flex rounded-md border text-sm">
-      {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
-        <Link
-          key={r}
-          href={q(r)}
-          aria-current={r === range ? "page" : undefined}
-          className={`flex items-center px-3 py-2 md:py-1 ${r === range ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/50"}`}
-        >
-          {RANGE_LABELS[r]}
-        </Link>
-      ))}
-    </nav>
+    <PeriodSelect
+      period={period}
+      compare={compare}
+      action="/"
+      extra={{
+        tab,
+        ...base,
+        ...(tab === "funnel" ? { dim: funnelDim } : {}),
+        ...(tab === "ads" ? { sort, dir } : {}),
+      }}
+    />
+  );
+  const compareNote = compare ? (
+    <p className="mb-3 text-xs text-muted-foreground">
+      Période : {label} · comparée à la précédente ({periodLabel(prevPeriod)}). Les variations en
+      vert sont favorables, en rouge défavorables (pour les coûts, une baisse est favorable).
+    </p>
+  ) : (
+    <p className="mb-3 text-xs text-muted-foreground">
+      Période : {label}. Cochez « Comparer » pour afficher la variation par rapport à la période
+      précédente.
+    </p>
   );
   const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-8";
   const fmtVal = (m: { money?: boolean }, v: number) =>
@@ -177,7 +206,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         help={TAB_HELP[tab]}
       >
         <form method="get" className="flex flex-wrap items-center gap-2">
-          <input type="hidden" name="range" value={range} />
+          {Object.entries(pp).map(([k, v]) => (
+            <input key={k} type="hidden" name={k} value={v} />
+          ))}
           <input type="hidden" name="tab" value={tab} />
           <select
             name="vertical"
@@ -222,7 +253,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         {TABS.map((t) => (
           <Link
             key={t.key}
-            href={q(range, t.key)}
+            href={q(t.key)}
             aria-current={t.key === tab ? "page" : undefined}
             className={`-mb-px border-b-2 px-3 py-2 text-sm ${t.key === tab ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
@@ -238,8 +269,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>
                 Chiffres calculés{" "}
-                {ads.lastComputedAt ? `le ${fmtDate(ads.lastComputedAt)}` : "jamais"} · comparés à
-                la période précédente
+                {ads.lastComputedAt ? `le ${fmtDate(ads.lastComputedAt)}` : "jamais"}
               </span>
               <Button
                 variant="outline"
@@ -247,11 +277,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 className="max-md:h-10"
                 render={
                   <a
-                    href={`/dashboard/export?${new URLSearchParams({ range, ...(vertical ? { vertical } : {}) }).toString()}`}
+                    href={`/dashboard/export?${new URLSearchParams({ ...pp, ...(vertical ? { vertical } : {}) }).toString()}`}
                   />
                 }
               >
-                Exporter CSV
+                Exporter CSV{compare ? " (avec comparaison)" : ""}
               </Button>
               <form action={recomputeStatsAction}>
                 <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
@@ -260,6 +290,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
               </form>
             </div>
           </div>
+          {compareNote}
           <Card>
             <CardContent className="pt-6">
               {ads.rows.length === 0 ? (
@@ -273,9 +304,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                   rows={ads.rows}
                   total={ads.total}
                   totalDerived={ads.totalDerived}
+                  totalDeltas={ads.totalDeltas}
                   sort={sort}
                   dir={dir}
                   hrefFor={sortHref}
+                  showDeltas={compare}
                 />
               )}
             </CardContent>
@@ -295,7 +328,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             {rangeBar}
             <form method="get" className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="tab" value="funnel" />
-              <input type="hidden" name="range" value={range} />
+              {Object.entries(pp).map(([k, v]) => (
+                <input key={k} type="hidden" name={k} value={v} />
+              ))}
               <select
                 name="dim"
                 aria-label="Afficher l'entonnoir pour"
@@ -330,11 +365,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
               </Button>
             </form>
           </div>
+          {compareNote}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                Entonnoir ({RANGE_LABELS[range].toLowerCase()}){" "}
-                <HelpTip>{METRIC_HELP.funnel}</HelpTip>
+                Entonnoir ({label.toLowerCase()}) <HelpTip>{METRIC_HELP.funnel}</HelpTip>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -345,7 +380,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                   action={{ href: "/links", label: "Créer un lien de pub", variant: "outline" }}
                 />
               ) : (
-                <Funnel steps={funnelData.steps} />
+                <Funnel steps={funnelData.steps} previous={funnelData.previous?.steps ?? null} />
               )}
             </CardContent>
           </Card>
@@ -437,6 +472,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       {tab === "channels" && growth && best ? (
         <>
           <div className="mb-3">{rangeBar}</div>
+          {compareNote}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -487,17 +523,38 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                           />
                         </TableCell>
                         <TableCell className="hidden text-right tabular-nums md:table-cell">
-                          {fmtNum(g.requests)}
+                          <div>{fmtNum(g.requests)}</div>
+                          {g.previous ? (
+                            <Delta value={deltaPct(g.requests, g.previous.requests)} />
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {fmtNum(g.joined)}
+                          <div>{fmtNum(g.joined)}</div>
+                          {g.previous ? (
+                            <Delta value={deltaPct(g.joined, g.previous.joined)} />
+                          ) : null}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(g.left)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          <div>{fmtNum(g.left)}</div>
+                          {g.previous ? (
+                            <Delta value={deltaPct(g.left, g.previous.left)} invert />
+                          ) : null}
+                        </TableCell>
                         <TableCell
                           className={`text-right font-medium tabular-nums ${g.joined - g.left < 0 ? "text-red-600" : ""}`}
                         >
-                          {g.joined - g.left > 0 ? "+" : ""}
-                          {fmtNum(g.joined - g.left)}
+                          <div>
+                            {g.joined - g.left > 0 ? "+" : ""}
+                            {fmtNum(g.joined - g.left)}
+                          </div>
+                          {g.previous ? (
+                            <Delta
+                              value={deltaPct(
+                                g.joined - g.left,
+                                g.previous.joined - g.previous.left,
+                              )}
+                            />
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -619,6 +676,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             <h2 className="text-lg font-semibold">Activité</h2>
             <div className="ml-2">{rangeBar}</div>
           </div>
+          {compareNote}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {dash.metrics.map((m) => (
               <Card key={m.key}>
@@ -631,8 +689,23 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex items-end justify-between gap-2">
-                  <p className="text-2xl font-semibold tabular-nums">{fmtVal(m, m.series.total)}</p>
-                  {range === "today" ? null : (
+                  <div>
+                    <p className="text-2xl font-semibold tabular-nums">
+                      {fmtVal(m, m.series.total)}
+                    </p>
+                    {compare ? (
+                      <p>
+                        <Delta
+                          value={deltaPct(m.series.total, prevMetric(m.key))}
+                          invert={m.key === "left"}
+                        />{" "}
+                        <span className="text-[10px] text-muted-foreground">
+                          (avant : {fmtVal(m, prevMetric(m.key))})
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
+                  {period.days === 1 ? null : (
                     <Sparkline values={m.series.values} className="text-primary" />
                   )}
                 </CardContent>
@@ -640,7 +713,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             ))}
           </div>
 
-          {range !== "today" ? (
+          {period.days > 1 ? (
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -659,9 +732,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle className="text-base">
-                Par canal ({RANGE_LABELS[range].toLowerCase()})
-              </CardTitle>
+              <CardTitle className="text-base">Par canal ({label.toLowerCase()})</CardTitle>
             </CardHeader>
             <CardContent>
               {dash.channels.length === 0 ? (
@@ -702,31 +773,48 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dash.channels.map((r) => (
-                      <TableRow key={r.channelId}>
-                        <TableCell>
-                          <Link href={`/channels/${r.channelId}`} className="hover:underline">
-                            {r.title}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{r.requests}</TableCell>
-                        <TableCell className="hidden text-right tabular-nums md:table-cell">
-                          {r.approved}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{r.joined}</TableCell>
-                        <TableCell className="hidden text-right tabular-nums md:table-cell">
-                          {r.left}
-                        </TableCell>
-                        <TableCell className="hidden text-right tabular-nums md:table-cell">
-                          {r.offerClicks}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{r.registrations}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.ftds}</TableCell>
-                        <TableCell className="hidden text-right tabular-nums md:table-cell">
-                          {fmtMoney(r.depositAmount, "EUR", { digits: 0 })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {dash.channels.map((r) => {
+                      const pc = compare ? prevChannel(r.channelId) : null;
+                      const d = (k: "requests" | "joined" | "registrations" | "ftds") =>
+                        compare ? <Delta value={deltaPct(r[k], pc?.[k] ?? 0)} /> : null;
+                      return (
+                        <TableRow key={r.channelId}>
+                          <TableCell>
+                            <Link href={`/channels/${r.channelId}`} className="hover:underline">
+                              {r.title}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <div>{r.requests}</div>
+                            {d("requests")}
+                          </TableCell>
+                          <TableCell className="hidden text-right tabular-nums md:table-cell">
+                            {r.approved}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <div>{r.joined}</div>
+                            {d("joined")}
+                          </TableCell>
+                          <TableCell className="hidden text-right tabular-nums md:table-cell">
+                            {r.left}
+                          </TableCell>
+                          <TableCell className="hidden text-right tabular-nums md:table-cell">
+                            {r.offerClicks}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <div>{r.registrations}</div>
+                            {d("registrations")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <div>{r.ftds}</div>
+                            {d("ftds")}
+                          </TableCell>
+                          <TableCell className="hidden text-right tabular-nums md:table-cell">
+                            {fmtMoney(r.depositAmount, "EUR", { digits: 0 })}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

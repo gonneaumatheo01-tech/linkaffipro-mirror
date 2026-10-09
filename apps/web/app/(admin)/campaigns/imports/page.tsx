@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -28,6 +28,17 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
     take: 100,
     include: { createdBy: { select: { name: true } } },
   });
+  const reportId = Array.isArray(sp.batch) ? sp.batch[0] : sp.batch;
+  const report = reportId ? (batches.find((b) => b.id === reportId) ?? null) : null;
+  const reportLines = report && Array.isArray(report.errors) ? (report.errors as string[]) : [];
+  // Regroupe les lignes ignorées par raison (« Ligne 12 : date illisible « n/a » » → « date illisible »).
+  const reasons = new Map<string, number>();
+  for (const line of reportLines) {
+    const m = /^Ligne \d+ : ([^«]+?)(?: «.*)?$/.exec(line);
+    const reason = m ? m[1]!.trim() : "erreur à l'enregistrement";
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+  }
+  const ignored = report ? Math.max(0, report.rows - report.imported) : 0;
   return (
     <>
       <PageHeader
@@ -43,6 +54,55 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
+      {report ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">Rapport d&apos;import · {report.filename}</CardTitle>
+            <CardDescription>
+              {fmtNum(report.rows)} ligne{report.rows > 1 ? "s" : ""} lue
+              {report.rows > 1 ? "s" : ""} · {fmtNum(report.imported)} importée
+              {report.imported > 1 ? "s" : ""} · {fmtNum(ignored)} ignorée{ignored > 1 ? "s" : ""}
+              {report.createdBy?.name ? ` · par ${report.createdBy.name}` : ""} ·{" "}
+              {fmtDate(report.createdAt)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {reasons.size === 0 ? (
+              <p className="text-muted-foreground">
+                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Pubs et
+                dans le tableau de bord (onglet Pubs) dans la minute.
+              </p>
+            ) : (
+              <>
+                <ul className="list-disc pl-5">
+                  {[...reasons.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([reason, count]) => (
+                      <li key={reason}>
+                        <strong>{fmtNum(count)}</strong> ligne{count > 1 ? "s" : ""} : {reason}
+                      </li>
+                    ))}
+                </ul>
+                <details className="text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">
+                    Voir le détail ({reportLines.length} ligne{reportLines.length > 1 ? "s" : ""})
+                  </summary>
+                  <ul className="list-disc pl-4">
+                    {reportLines.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </details>
+                <p className="text-xs text-muted-foreground">
+                  Pour récupérer les lignes ignorées : corrigez-les dans le fichier (date, montant,
+                  nom de pub) et réimportez-le ; les jours déjà importés seront simplement
+                  remplacés.
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardContent className="pt-6">
           {batches.length === 0 ? (

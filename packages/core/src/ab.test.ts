@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AB_DEFAULT_SPLIT, clampSplit, hashBucket, splitAOf, variantFor } from "./ab";
+import { AB_DEFAULT_SPLIT, clampSplit, hashBucket, pickPostWinner, splitAOf, variantFor } from "./ab";
 
 describe("A/B : répartition déterministe", () => {
   it("donne toujours le même seau et la même variante pour un couple (groupe, membre)", () => {
@@ -42,5 +42,30 @@ describe("A/B : répartition déterministe", () => {
     expect(clampSplit(95)).toBe(90);
     expect(clampSplit(42.4)).toBe(42);
     expect(clampSplit(Number.NaN)).toBe(AB_DEFAULT_SPLIT);
+  });
+});
+
+describe("A/B des messages de canal : gagnante provisoire", () => {
+  const base = { sent: true, views: 0, clicks: 0, uniqueClickers: 0, reactionsTotal: 0 };
+  it("attend que les deux variantes soient envoyées", () => {
+    expect(pickPostWinner([{ ...base, variant: "A", clicks: 5 }, { ...base, variant: "B", sent: false }])).toEqual({ status: "pending", reason: "not_sent" });
+    expect(pickPostWinner([{ ...base, variant: "A" }])).toEqual({ status: "pending", reason: "not_sent" });
+  });
+  it("attend des données (aucun clic ni réaction)", () => {
+    expect(pickPostWinner([{ ...base, variant: "A" }, { ...base, variant: "B" }])).toEqual({ status: "pending", reason: "no_data" });
+  });
+  it("compare par taux de clic quand les deux ont des vues", () => {
+    const r = pickPostWinner([
+      { ...base, variant: "A", views: 1000, uniqueClickers: 20 },
+      { ...base, variant: "B", views: 500, uniqueClickers: 15 },
+    ]);
+    expect(r).toEqual({ status: "winner", variant: "B", metric: "ctr", value: 0.03 });
+  });
+  it("compare par cliqueurs uniques sans vues, puis par clics", () => {
+    expect(pickPostWinner([{ ...base, variant: "A", uniqueClickers: 3, clicks: 9 }, { ...base, variant: "B", uniqueClickers: 4, clicks: 4 }])).toMatchObject({ status: "winner", variant: "B", metric: "uniqueClickers" });
+    expect(pickPostWinner([{ ...base, variant: "A", clicks: 2 }, { ...base, variant: "B", clicks: 7 }])).toMatchObject({ status: "winner", variant: "B", metric: "clicks" });
+  });
+  it("signale une égalité", () => {
+    expect(pickPostWinner([{ ...base, variant: "A", clicks: 3 }, { ...base, variant: "B", clicks: 3 }])).toEqual({ status: "tie", metric: "clicks" });
   });
 });

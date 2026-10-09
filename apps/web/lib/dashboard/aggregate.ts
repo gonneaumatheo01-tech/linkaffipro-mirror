@@ -4,8 +4,11 @@ export type Range = "today" | "7d" | "30d" | "90d";
 
 export const RANGE_LABELS: Record<Range, string> = { today: "Aujourd'hui", "7d": "7 jours", "30d": "30 jours", "90d": "90 jours" };
 
+/** Ancienne clé de période (accueil) ; accepte aussi `7` / `30` / `90`. Les pages utilisent désormais `@/lib/periods`. */
 export function parseRange(value: unknown): Range {
-  return value === "today" || value === "7d" || value === "30d" || value === "90d" ? value : "7d";
+  const v = Array.isArray(value) ? value[0] : value;
+  if (v === "7" || v === "30" || v === "90") return `${v}d` as Range;
+  return v === "today" || v === "7d" || v === "30d" || v === "90d" ? v : "7d";
 }
 
 export function rangeDays(range: Range): number {

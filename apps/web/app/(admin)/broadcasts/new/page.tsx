@@ -6,6 +6,7 @@ import { loadBroadcastOptions } from "@/lib/broadcasts/queries";
 import { toParisLocalInput } from "@/lib/posts/time";
 import { BroadcastForm } from "../broadcast-form";
 import { createBroadcastAction } from "../actions";
+import { getTagRegistry } from "@/lib/members/tags";
 
 export const metadata: Metadata = { title: "Nouvel envoi" };
 
@@ -32,8 +33,7 @@ export default async function NewBroadcastPage({ searchParams }: PageProps<"/bro
         />
       ) : (
         <form action={createBroadcastAction}>
-          <BroadcastForm
-            options={options}
+          <BroadcastForm options={{ ...options, tags: await getTagRegistry() }}
             defaultScheduledAt={toParisLocalInput(defaultScheduleTime())}
           />
         </form>

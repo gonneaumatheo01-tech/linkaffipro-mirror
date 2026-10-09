@@ -1,23 +1,17 @@
 import { prisma, type Vertical } from "@linkaffipro/db";
-import { dayKeys, rangeDays, type Range } from "./aggregate";
+import { periodDates, periodDayKeys, periodEnd, periodStart, previousPeriod, type Period } from "@/lib/periods";
 import { EMPTY_TOTALS, addTotals, bestHours, cohorts, derive, deltaPct, funnel, type CohortRow, type Derived, type FunnelStep, type HourRow, type StatTotals } from "./metrics";
 
-function dateOf(key: string): Date {
-  return new Date(`${key}T00:00:00Z`);
+/** Clés de jour de la période courante et de la précédente (même longueur, collée). */
+export function periodKeys(period: Period): { current: string[]; previous: string[] } {
+  return { current: periodDayKeys(period), previous: periodDayKeys(previousPeriod(period)) };
 }
 
-/** Bornes (jours civils) de la période courante et de la précédente, de même longueur. */
-export function periodKeys(range: Range, now = new Date()): { current: string[]; previous: string[] } {
-  const n = rangeDays(range);
-  const current = dayKeys(n, now);
-  const previous = dayKeys(n, new Date(now.getTime() - n * 86_400_000));
-  return { current, previous };
-}
-
-async function sumDimension(dimensions: string[], keys: string[]): Promise<Map<string, StatTotals>> {
-  if (dimensions.length === 0 || keys.length === 0) return new Map();
+async function sumDimension(dimensions: string[], period: Period): Promise<Map<string, StatTotals>> {
+  if (dimensions.length === 0) return new Map();
+  const { dateFrom, dateTo } = periodDates(period);
   const rows = await prisma.dailyStat.findMany({
-    where: { dimension: { in: dimensions }, date: { gte: dateOf(keys[0]!), lte: dateOf(keys[keys.length - 1]!) } },
+    where: { dimension: { in: dimensions }, date: { gte: dateFrom, lte: dateTo } },
     select: { dimension: true, requests: true, approved: true, joined: true, left: true, entryClicks: true, offerClicks: true, registrations: true, ftds: true, deposits: true, depositAmount: true, ngr: true, spend: true },
   });
   const out = new Map<string, StatTotals>();
@@ -28,49 +22,72 @@ async function sumDimension(dimensions: string[], keys: string[]): Promise<Map<s
   return out;
 }
 
-export type AdsRow = { campaignId: string; name: string; platform: string | null; vertical: Vertical | null; status: string; totals: StatTotals; derived: Derived; previous: StatTotals; deltas: Partial<Record<keyof StatTotals, number | null>> };
+export type AdsRow = { campaignId: string; name: string; platform: string | null; vertical: Vertical | null; status: string; totals: StatTotals; derived: Derived; previous: StatTotals; previousDerived: Derived; deltas: Partial<Record<keyof StatTotals | keyof Derived, number | null>> };
 
-/** Tableau par pub (campagne) sur la période, avec la période précédente et les deltas. */
-export async function loadAdsTable(range: Range, filters: { vertical?: Vertical | "" } = {}, now = new Date()): Promise<{ rows: AdsRow[]; total: StatTotals; totalDerived: Derived; lastComputedAt: Date | null }> {
-  const { current, previous } = periodKeys(range, now);
+/** Tableau par pub (campagne) sur la période, avec la période précédente et les deltas (totaux et indicateurs dérivés). */
+export async function loadAdsTable(period: Period, filters: { vertical?: Vertical | "" } = {}): Promise<{ rows: AdsRow[]; total: StatTotals; totalDerived: Derived; previousTotal: StatTotals; previousTotalDerived: Derived; totalDeltas: AdsRow["deltas"]; lastComputedAt: Date | null }> {
+  const previous = previousPeriod(period);
   const campaigns = await prisma.campaign.findMany({ where: filters.vertical ? { vertical: filters.vertical } : {}, orderBy: { name: "asc" }, select: { id: true, name: true, adPlatform: true, vertical: true, status: true } });
   const dims = campaigns.map((c) => `campaign:${c.id}`);
-  const [cur, prev, last] = await Promise.all([sumDimension(dims, current), sumDimension(dims, previous), prisma.dailyStat.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } })]);
+  const [cur, prev, last] = await Promise.all([sumDimension(dims, period), sumDimension(dims, previous), prisma.dailyStat.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } })]);
   const rows: AdsRow[] = campaigns.map((c) => {
     const totals = cur.get(`campaign:${c.id}`) ?? EMPTY_TOTALS;
     const previousTotals = prev.get(`campaign:${c.id}`) ?? EMPTY_TOTALS;
-    const deltas: AdsRow["deltas"] = {};
-    for (const k of Object.keys(EMPTY_TOTALS) as (keyof StatTotals)[]) deltas[k] = deltaPct(totals[k], previousTotals[k]);
-    return { campaignId: c.id, name: c.name, platform: c.adPlatform, vertical: c.vertical, status: c.status, totals, derived: derive(totals), previous: previousTotals, deltas };
+    const derived = derive(totals);
+    const previousDerived = derive(previousTotals);
+    return { campaignId: c.id, name: c.name, platform: c.adPlatform, vertical: c.vertical, status: c.status, totals, derived, previous: previousTotals, previousDerived, deltas: computeDeltas(totals, derived, previousTotals, previousDerived) };
   });
   const total = rows.reduce((acc, r) => addTotals(acc, r.totals), EMPTY_TOTALS);
-  return { rows, total, totalDerived: derive(total), lastComputedAt: last?.updatedAt ?? null };
+  const previousTotal = rows.reduce((acc, r) => addTotals(acc, r.previous), EMPTY_TOTALS);
+  const totalDerived = derive(total);
+  const previousTotalDerived = derive(previousTotal);
+  return { rows, total, totalDerived, previousTotal, previousTotalDerived, totalDeltas: computeDeltas(total, totalDerived, previousTotal, previousTotalDerived), lastComputedAt: last?.updatedAt ?? null };
+}
+
+/** Variations en % de chaque total et de chaque indicateur dérivé (null si non calculable). */
+export function computeDeltas(totals: StatTotals, derived: Derived, prevTotals: StatTotals, prevDerived: Derived): AdsRow["deltas"] {
+  const deltas: AdsRow["deltas"] = {};
+  for (const k of Object.keys(EMPTY_TOTALS) as (keyof StatTotals)[]) deltas[k] = deltaPct(totals[k], prevTotals[k]);
+  for (const k of Object.keys(derived) as (keyof Derived)[]) {
+    const a = derived[k];
+    const b = prevDerived[k];
+    deltas[k] = a === null || b === null ? null : deltaPct(a, b);
+  }
+  return deltas;
 }
 
 /** Totaux d'une dimension sur la période (pour l'entonnoir). */
-export async function loadTotals(dimension: string, range: Range, now = new Date()): Promise<StatTotals> {
-  const { current } = periodKeys(range, now);
-  return (await sumDimension([dimension], current)).get(dimension) ?? EMPTY_TOTALS;
+export async function loadTotals(dimension: string, period: Period): Promise<StatTotals> {
+  return (await sumDimension([dimension], period)).get(dimension) ?? EMPTY_TOTALS;
 }
 
-export async function loadFunnel(dimension: string, range: Range, now = new Date()): Promise<{ totals: StatTotals; steps: FunnelStep[] }> {
-  const totals = await loadTotals(dimension, range, now);
-  return { totals, steps: funnel(totals) };
+export type FunnelData = { totals: StatTotals; steps: FunnelStep[]; previous: { totals: StatTotals; steps: FunnelStep[] } | null };
+
+/** Entonnoir d'une dimension ; avec `compare`, celui de la période précédente. */
+export async function loadFunnel(dimension: string, period: Period, compare = false): Promise<FunnelData> {
+  const [totals, prevTotals] = await Promise.all([loadTotals(dimension, period), compare ? loadTotals(dimension, previousPeriod(period)) : Promise.resolve(null)]);
+  return { totals, steps: funnel(totals), previous: prevTotals ? { totals: prevTotals, steps: funnel(prevTotals) } : null };
 }
 
-export type ChannelDaily = { channelId: string; title: string; keys: string[]; net: number[]; joined: number; left: number; requests: number };
+export type ChannelDaily = { channelId: string; title: string; keys: string[]; net: number[]; joined: number; left: number; requests: number; previous: { joined: number; left: number; requests: number } | null };
 
-/** Croissance nette par jour et par canal (joined − left), depuis `DailyStat`. */
-export async function loadChannelGrowth(range: Range, channelId: string | "", now = new Date()): Promise<ChannelDaily[]> {
-  const { current } = periodKeys(range, now);
+/** Croissance nette par jour et par canal (joined − left), depuis `DailyStat` ; avec `compare`, les totaux de la période précédente. */
+export async function loadChannelGrowth(period: Period, channelId: string | "", compare = false): Promise<ChannelDaily[]> {
+  const current = periodDayKeys(period);
   const channels = await prisma.channel.findMany({ where: { isActive: true, ...(channelId ? { id: channelId } : {}) }, orderBy: { title: "asc" }, select: { id: true, title: true } });
   if (channels.length === 0) return [];
-  const rows = await prisma.dailyStat.findMany({ where: { dimension: { in: channels.map((c) => `channel:${c.id}`) }, date: { gte: dateOf(current[0]!), lte: dateOf(current[current.length - 1]!) } }, select: { dimension: true, date: true, joined: true, left: true, requests: true } });
+  const dims = channels.map((c) => `channel:${c.id}`);
+  const { dateFrom, dateTo } = periodDates(period);
+  const [rows, prev] = await Promise.all([
+    prisma.dailyStat.findMany({ where: { dimension: { in: dims }, date: { gte: dateFrom, lte: dateTo } }, select: { dimension: true, date: true, joined: true, left: true, requests: true } }),
+    compare ? sumDimension(dims, previousPeriod(period)) : Promise.resolve(null),
+  ]);
   return channels.map((c) => {
     const mine = rows.filter((r) => r.dimension === `channel:${c.id}`);
     const byDay = new Map(mine.map((r) => [r.date.toISOString().slice(0, 10), r]));
     const net = current.map((k) => { const r = byDay.get(k); return r ? r.joined - r.left : 0; });
-    return { channelId: c.id, title: c.title, keys: current, net, joined: mine.reduce((a, r) => a + r.joined, 0), left: mine.reduce((a, r) => a + r.left, 0), requests: mine.reduce((a, r) => a + r.requests, 0) };
+    const p = prev?.get(`channel:${c.id}`) ?? (prev ? EMPTY_TOTALS : null);
+    return { channelId: c.id, title: c.title, keys: current, net, joined: mine.reduce((a, r) => a + r.joined, 0), left: mine.reduce((a, r) => a + r.left, 0), requests: mine.reduce((a, r) => a + r.requests, 0), previous: p ? { joined: p.joined, left: p.left, requests: p.requests } : null };
   });
 }
 
@@ -100,9 +117,8 @@ export async function loadCohorts(weeks = 12, now = new Date()): Promise<CohortR
 export type CategoryRow = { categoryId: string | null; name: string; color: string; posts: number; clicks: number; clicksPerPost: number };
 
 /** Meilleurs horaires et meilleures catégories sur les messages envoyés de la période. */
-export async function loadBestTimes(range: Range, channelId: string | "", now = new Date()): Promise<{ hours: HourRow[]; categories: CategoryRow[] }> {
-  const since = new Date(now.getTime() - rangeDays(range) * 86_400_000);
-  const posts = await prisma.post.findMany({ where: { status: "SENT", sentAt: { gte: since }, ...(channelId ? { channelId } : {}) }, select: { sentAt: true, categoryId: true, category: { select: { name: true, color: true } }, stats: { select: { clicks: true } } } });
+export async function loadBestTimes(period: Period, channelId: string | ""): Promise<{ hours: HourRow[]; categories: CategoryRow[] }> {
+  const posts = await prisma.post.findMany({ where: { status: "SENT", sentAt: { gte: periodStart(period), lt: periodEnd(period) }, ...(channelId ? { channelId } : {}) }, select: { sentAt: true, categoryId: true, category: { select: { name: true, color: true } }, stats: { select: { clicks: true } } } });
   const hours = bestHours(posts.filter((p) => p.sentAt).map((p) => ({ sentAt: p.sentAt!, clicks: p.stats?.clicks ?? 0 })));
   const cats = new Map<string | null, CategoryRow>();
   for (const p of posts) {

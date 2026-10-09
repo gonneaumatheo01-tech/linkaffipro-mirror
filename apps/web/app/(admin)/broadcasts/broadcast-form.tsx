@@ -19,6 +19,8 @@ export type BroadcastOptions = {
   categories: Array<{ id: string; name: string }>;
   media: Array<{ id: string; filename: string; mimeType: string }>;
   affiliateCampaigns: Array<{ id: string; name: string; programName: string }>;
+  /** Étiquettes du registre (Réglages → Étiquettes) : si fourni, menu à cocher au lieu d'un champ libre. */
+  tags?: Array<{ name: string; color: string }>;
 };
 
 const STATUSES = [
@@ -93,6 +95,7 @@ export function BroadcastForm({
   const [botId, setBotId] = useState(options.bots[0]?.id ?? "");
   const [count, setCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
+  const [pickedTags, setPickedTags] = useState<string[]>([]);
   const [ta, setTa] = useState<HTMLTextAreaElement | null>(null);
   const previewButtons = useMemo(() => rows.map((r) => r.map((b) => ({ text: b.text }))), [rows]);
   const [ab, setAb] = useState(false);
@@ -242,10 +245,37 @@ export function BroadcastForm({
                   placeholder="ex. 7"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tags">Étiquettes (posées par les automatisations)</Label>
-                <Input id="tags" name="tags" placeholder="vip, test" />
-              </div>
+              {options.tags && options.tags.length > 0 ? (
+                <fieldset className="space-y-1">
+                  <legend className="text-sm font-medium">Étiquettes (au moins une)</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                    {options.tags.map((t) => (
+                      <label key={t.name} className="flex min-h-10 items-center gap-2 md:min-h-0">
+                        <input
+                          type="checkbox"
+                          value={t.name}
+                          checked={pickedTags.includes(t.name)}
+                          onChange={(e) =>
+                            setPickedTags((prev) =>
+                              e.target.checked
+                                ? [...prev, t.name]
+                                : prev.filter((x) => x !== t.name),
+                            )
+                          }
+                          className="size-4"
+                        />{" "}
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                  <input type="hidden" name="tags" value={pickedTags.join(",")} />
+                </fieldset>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="tags">Étiquettes (posées par les automatisations)</Label>
+                  <Input id="tags" name="tags" placeholder="vip, test" />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <Button

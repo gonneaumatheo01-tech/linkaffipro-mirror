@@ -1,10 +1,21 @@
 import { HelpTip } from "@/components/admin/help-tip";
-import type { FunnelStep } from "@/lib/dashboard/metrics";
+import { deltaPct, type FunnelStep } from "@/lib/dashboard/metrics";
+import { Delta } from "./delta";
 import { METRIC_HELP } from "./metric-help";
 
-/** Entonnoir en barres SVG inline : valeur, taux de passage et perte à chaque étape. */
-export function Funnel({ steps }: { steps: FunnelStep[] }) {
+/**
+ * Entonnoir en barres SVG inline : valeur, taux de passage et perte à chaque étape.
+ * `previous` : étapes de la période précédente → variation en % sous chaque valeur.
+ */
+export function Funnel({
+  steps,
+  previous,
+}: {
+  steps: FunnelStep[];
+  previous?: FunnelStep[] | null;
+}) {
   const max = Math.max(...steps.map((s) => s.value), 1);
+  const prevByKey = new Map((previous ?? []).map((s) => [s.key, s.value]));
   return (
     <div className="space-y-2">
       {steps.map((s) => (
@@ -42,6 +53,14 @@ export function Funnel({ steps }: { steps: FunnelStep[] }) {
               <span className="ml-2 text-xs text-muted-foreground">
                 {s.rate} %{s.loss !== null && s.loss > 0 ? ` · −${s.loss} %` : ""}
               </span>
+            ) : null}
+            {previous ? (
+              <div>
+                <Delta value={deltaPct(s.value, prevByKey.get(s.key) ?? 0)} />
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  (avant : {(prevByKey.get(s.key) ?? 0).toLocaleString("fr-FR")})
+                </span>
+              </div>
             ) : null}
           </div>
         </div>

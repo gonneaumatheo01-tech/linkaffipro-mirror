@@ -29,6 +29,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens traqués : http
   - [Sauvegardes](#sauvegardes)
 - [Aide](#aide)
 - [Mon compte](#mon-compte)
+- [Compléments : équipe, étiquettes, horaires, tests A/B, modèles, alertes, périodes](#complements-equipe-etiquettes-horaires-tests-a-b-modeles-alertes-periodes)
 - [Que faire si…](#que-faire-si)
 - [Règles à respecter](#regles-a-respecter)
 - [Petit lexique](#petit-lexique)
@@ -473,6 +474,47 @@ La page **Aide** affiche ce guide, avec sa table des matières à gauche. Le mê
 
 - Sans Telegram lié, tous les boutons de test sont grisés et un administrateur ne reçoit ni alertes ni rapports.
 - Le lien de liaison est personnel : ne le transmettez pas.
+
+## Compléments : équipe, étiquettes, horaires, tests A/B, modèles, alertes, périodes
+
+### Meilleurs horaires de publication
+**À quoi ça sert.** Savoir à quel jour et à quelle heure vos messages marchent le mieux, canal par canal et catégorie par catégorie.
+**Comment faire.** Fiche d'un canal → onglet **Meilleurs horaires**. La carte montre, jour par jour et heure par heure, combien de messages ont été envoyés et lesquels ont le mieux marché (plus la case est bleue, mieux c'est ; le cadre orange est le créneau conseillé). Filtrez par catégorie, cliquez **Programmer à ce créneau** ou **Recalculer maintenant**. Dans **Nouveau message**, l'encart « Meilleur créneau pour ce canal et cette catégorie » apparaît dès qu'il y a assez de données (3 messages dans le même créneau) : **Utiliser** remplit la date avec la prochaine occurrence.
+**Pièges.** Le calcul se refait chaque nuit ; tant que Telegram ne transmet pas les vues, il se base sur les clics et les réactions.
+
+### Test A/B d'un message de canal
+Dans **Nouveau message**, cochez **Test A/B**, écrivez la version B (texte, médias, boutons), choisissez « même canal, B 30 minutes après A » ou « autre canal à la même heure », puis **Programmer le test A/B**. La page de comparaison (bouton **Voir la comparaison A/B**, badge A/B dans la liste) désigne la gagnante provisoire d'après les clics, les cliqueurs uniques et les réactions.
+
+### Modèles de messages prêts à l'emploi
+Messages → **Modèles** : filtrez par univers (casino, paris, dating) et par catégorie, puis **Utiliser ce modèle** : le message est pré-rempli ; remplacez `{prenom}`, `{canal}`, `{offre}` et ajoutez votre bouton **Offre**. Les modèles casino et paris gardent la mention « Jouer comporte des risques… » en fin de message : ne la retirez pas. 63 modèles sont fournis (3 par univers et par catégorie).
+
+### Période et comparaison
+En haut du tableau de bord, de la liste des pubs et d'une fiche pub, choisissez la période (aujourd'hui, hier, 7 / 30 / 90 jours, mois en cours ou deux dates) et cochez **Comparer à la période précédente** : chaque chiffre affiche sa variation en vert (favorable) ou rouge (défavorable ; pour une dépense ou un coût, une baisse est en vert). L'export CSV reprend la même période et, si la comparaison est cochée, ajoute les colonnes « période précédente » et « variation ».
+
+### Import des coûts publicitaires
+Pubs → **Importer des coûts** : laissez « Détection automatique », choisissez le fichier exporté de TikTok Ads Manager ou Meta Ads Manager, puis vérifiez le tableau des colonnes (chaque colonne du fichier → Date, Campagne, Dépense…) et les formats de nombres et de dates devinés ; corrigez au besoin et cliquez **Relire**. Vos choix sont mémorisés pour le prochain import de la même plateforme. À la fin, l'historique affiche les lignes lues, importées et ignorées avec la raison (date illisible, montant vide, ligne de total). Corrigez le fichier et réimportez : les jours déjà importés sont simplement remplacés.
+
+### Nouvelles alertes et seuils
+Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, canal qui perd ses membres, message programmé en échec, lien désactivé encore cliqué. Elles arrivent une fois et se ferment seules quand la cause disparaît. Réglages → **Alertes** → « Seuils des alertes métier » pour régler le pourcentage de chute (50 % par défaut), la dépense sans inscription (50 €) et le pourcentage de départs (10 %) ; effet au prochain passage (5 minutes).
+
+### Réglages → Équipe
+**À quoi ça sert.** Gérer les comptes de l'équipe (administrateurs et managers) sans e-mail automatique : vous copiez le lien et vous l'envoyez vous-même.
+**Comment faire.**
+1. Ouvrez Réglages → **Équipe**.
+2. Pour inviter : saisissez l'e-mail, choisissez le rôle, cliquez **Inviter**, puis copiez le lien affiché et envoyez-le à la personne (il reste valable 7 jours).
+3. Pour un mot de passe oublié : cliquez **Réinitialiser le mot de passe** sur la ligne de la personne, copiez le lien (valable 48 h) et envoyez-le-lui.
+4. **Changer le rôle**, **Désactiver** ou **Réactiver** se font sur chaque ligne.
+**Pièges.** Il reste toujours au moins un administrateur actif : le site refuse de désactiver le dernier. Vous ne pouvez pas vous désactiver vous-même.
+
+### Réglages → Étiquettes de membres
+**À quoi ça sert.** Marquer des membres (VIP, test, à relancer…) pour les retrouver et les cibler.
+**Comment faire.** Créez une étiquette avec une couleur ; sur une fiche membre, cochez les étiquettes dans le bloc **Étiquettes** ; dans Membres, filtrez par étiquette ; dans un Envoi, cochez les étiquettes à cibler. Renommer ou supprimer une étiquette met à jour tous les membres concernés.
+
+### Notes sur un membre
+Sur la fiche membre, bloc **Notes** : ajoutez une note interne (visible seulement par l'équipe), modifiez-la avec **modifier** (vos notes, ou toutes pour un administrateur), supprimez-la après confirmation.
+
+### Nommer ses pubs et les relier à Link Affi
+Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, programme, langue, canal, mois) ou cliquez **Générer un nom** dans le formulaire. Sur la fiche d'une pub, l'encart **Liaison suggérée** propose la campagne Link Affi au nom le plus proche : cliquez **Lier** si c'est la bonne.
 
 ## Que faire si…
 

@@ -13,8 +13,8 @@ export default async function ImportPage({ searchParams }: PageProps<"/campaigns
     <>
       <PageHeader
         title="Importer des coûts (CSV)"
-        description="Exportez un rapport par jour depuis TikTok Ads Manager ou Meta Ads Manager : les colonnes sont reconnues, les pubs créées ou retrouvées par leur nom, les coûts enregistrés jour par jour."
-        help="Étape 1 : choisissez le fichier. Étape 2 : vérifiez l'aperçu. Étape 3 : confirmez l'import. Un nouvel import du même jour remplace les coûts précédents."
+        description="Exportez un rapport par jour depuis TikTok Ads Manager ou Meta Ads Manager : la plateforme et les colonnes sont reconnues, les pubs créées ou retrouvées par leur nom, les coûts enregistrés jour par jour."
+        help="Étape 1 : choisissez le fichier et vérifiez les colonnes (mémorisées pour la prochaine fois). Étape 2 : contrôlez l'aperçu et les lignes ignorées. Étape 3 : confirmez. Un nouvel import du même jour remplace les coûts précédents ; un rapport s'affiche à la fin."
       />
       <Flash ok={sp.ok} error={sp.error} />
       <ImportWizard />

@@ -6,6 +6,7 @@ import { Flash } from "@/components/admin/flash";
 import { PostForm, type PostFormValues } from "@/components/messages/post-form";
 import { parseButtons } from "@/lib/posts/buttons";
 import { toParisLocalInput } from "@/lib/posts/time";
+import { loadBestSlots } from "@/lib/besthours/queries";
 import { updatePostAction } from "../../actions";
 import { loadFormOptions } from "../../new/page";
 
@@ -25,6 +26,7 @@ export default async function EditMessagePage({
     select: { id: true, filename: true, mimeType: true, size: true },
   });
   const { channels, categories, campaigns } = await loadFormOptions();
+  const bestSlots = post.isTemplate ? {} : await loadBestSlots(channels.map((c) => c.id));
   const initial: PostFormValues = {
     postId: post.id,
     channelIds: [post.channelId],
@@ -75,6 +77,7 @@ export default async function EditMessagePage({
           campaigns={campaigns}
           initial={initial}
           singleChannel
+          bestSlots={bestSlots}
         />
       ) : null}
     </>

@@ -2,6 +2,7 @@ import type { Job } from "bullmq";
 import { prisma } from "@linkaffipro/db";
 import { logger } from "../logger";
 import { recomputeDailyStats } from "../stats/daily";
+import { recomputeBestHours } from "../stats/best-hours";
 import { runReports } from "../reports/send";
 
 /**
@@ -9,10 +10,15 @@ import { runReports } from "../reports/send";
  * - `{type:"tick"}` toutes les 10 minutes : tous les posts récents, liens traqués, liens d'invitation ;
  * - `{type:"post-stats", postId}` : un seul post ;
  * - `{type:"daily", days?, full?}` toutes les heures : lignes `DailyStat` des N derniers jours (ou tout si `full`) ;
- * - `{type:"reports", force?}` toutes les 10 minutes : brief quotidien et rapport hebdomadaire Telegram s'ils sont dus.
+ * - `{type:"reports", force?}` toutes les 10 minutes : brief quotidien et rapport hebdomadaire Telegram s'ils sont dus ;
+ * - `{type:"best-hours"}` toutes les 24 h (ou à la demande depuis la fiche canal) : meilleurs horaires par canal et catégorie.
  */
 export async function processStats(job: Job): Promise<unknown> {
   const data = job.data as { type?: string; postId?: string; days?: number; full?: boolean; force?: "daily" | "weekly" };
+  if (data.type === "best-hours") {
+    const r = await recomputeBestHours();
+    return { ok: true, ...r };
+  }
   if (data.type === "reports") {
     const r = await runReports(data.force);
     return { ok: true, ...r };
@@ -36,6 +42,7 @@ export const repeatableStats: Array<{ data: Record<string, unknown>; everyMs: nu
   { data: { type: "tick" }, everyMs: 10 * 60_000, jobId: "stats-tick" },
   { data: { type: "daily", days: 3 }, everyMs: 3_600_000, jobId: "stats-daily" },
   { data: { type: "reports" }, everyMs: 10 * 60_000, jobId: "stats-reports" },
+  { data: { type: "best-hours" }, everyMs: 24 * 3_600_000, jobId: "stats-best-hours" },
 ];
 
 /** Clics, cliqueurs uniques et clics offres par post, depuis `Click` (robots exclus). */

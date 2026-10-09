@@ -1,4 +1,4 @@
-import { prisma, type Prisma, type PostStatus } from "@linkaffipro/db";
+import { prisma, type Prisma, type PostStatus, type Vertical } from "@linkaffipro/db";
 import { addDays, fromParisLocal } from "./time";
 import { statusLabels, statusVariant, type BadgeVariant } from "@/lib/status-badges";
 
@@ -10,7 +10,22 @@ export type PostListFilters = {
   categoryId: string;
   from: string;
   to: string;
+  /** Vue « Modèles » seulement : univers (CASINO, SPORTS, DATING). */
+  vertical?: string;
 };
+
+const VERTICALS: readonly string[] = ["CASINO", "SPORTS", "DATING"];
+
+/** Clause Prisma de la vue « Modèles » : filtres par univers et par catégorie (fonction pure). */
+export function templateListWhere(
+  f: Pick<PostListFilters, "vertical" | "categoryId">,
+): Prisma.PostWhereInput {
+  return {
+    isTemplate: true,
+    ...(f.vertical && VERTICALS.includes(f.vertical) ? { vertical: f.vertical as Vertical } : {}),
+    ...(f.categoryId ? { categoryId: f.categoryId } : {}),
+  };
+}
 
 /** Clause Prisma de la liste des messages (vue « Liste ») à partir des filtres de l'URL (fonction pure). */
 export function postListWhere(f: PostListFilters): Prisma.PostWhereInput {
@@ -46,10 +61,10 @@ export async function listPosts(opts: {
   page: number;
 }): Promise<{ rows: PostListRow[]; total: number; pages: number }> {
   const where: Prisma.PostWhereInput =
-    opts.view === "templates" ? { isTemplate: true } : postListWhere(opts.filters);
+    opts.view === "templates" ? templateListWhere(opts.filters) : postListWhere(opts.filters);
   const orderBy: Prisma.PostOrderByWithRelationInput[] =
     opts.view === "templates"
-      ? [{ updatedAt: "desc" }]
+      ? [{ vertical: "asc" }, { category: { sortOrder: "asc" } }, { templateName: "asc" }]
       : [{ scheduledAt: "desc" }, { updatedAt: "desc" }];
   const page = Math.max(1, opts.page);
   const [total, rows] = await Promise.all([

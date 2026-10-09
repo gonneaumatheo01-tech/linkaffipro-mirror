@@ -1,8 +1,9 @@
 import { prisma, type Vertical } from "@linkaffipro/db";
-import { aggregateByDay, dayKeys, rangeDays, rangeStart, type DaySeries, type Range } from "./aggregate";
+import { periodDayKeys, periodEnd, periodStart, type Period } from "@/lib/periods";
+import { aggregateByDay, type DaySeries } from "./aggregate";
 import { cachedDashboard } from "./cache";
 
-export type DashboardFilters = { range: Range; vertical: Vertical | ""; channelId: string };
+export type DashboardFilters = { period: Period; vertical: Vertical | ""; channelId: string };
 
 export type Metric = { key: string; label: string; series: DaySeries; money?: boolean };
 
@@ -13,26 +14,28 @@ export type DashboardData = { metrics: Metric[]; channels: ChannelRow[]; keys: s
 /** Indicateurs du tableau de bord, mis en cache 60 s par période et filtres (voir ./cache.ts). */
 export const loadDashboard: (f: DashboardFilters) => Promise<DashboardData> = cachedDashboard("overview", (f: DashboardFilters) => loadDashboardUncached(f));
 
-/** Indicateurs du tableau de bord sur la fenêtre choisie (requêtes agrégées, bornées par la fenêtre), sans cache. */
-export async function loadDashboardUncached(f: DashboardFilters, now = new Date()): Promise<DashboardData> {
-  const start = rangeStart(f.range, now);
-  const keys = dayKeys(rangeDays(f.range), now);
+/** Indicateurs du tableau de bord sur la période choisie (requêtes agrégées, bornées par la période), sans cache. */
+export async function loadDashboardUncached(f: DashboardFilters): Promise<DashboardData> {
+  const start = periodStart(f.period);
+  const end = periodEnd(f.period);
+  const keys = periodDayKeys(f.period);
+  const within = { gte: start, lt: end };
   const channelWhere = { ...(f.channelId ? { id: f.channelId } : {}), ...(f.vertical ? { vertical: f.vertical } : {}) };
   const channels = await prisma.channel.findMany({ where: { isActive: true, ...channelWhere }, select: { id: true, title: true }, orderBy: { title: "asc" } });
   const channelIds = channels.map((c) => c.id);
   const byChannel = f.channelId || f.vertical ? { channelId: { in: channelIds } } : {};
 
   const [requested, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, ngrPlayers] = await Promise.all([
-    prisma.membership.findMany({ where: { requestedAt: { gte: start }, ...byChannel }, select: { requestedAt: true, channelId: true } }),
-    prisma.membership.findMany({ where: { approvedAt: { gte: start }, ...byChannel }, select: { approvedAt: true, channelId: true } }),
-    prisma.membership.findMany({ where: { joinedAt: { gte: start }, ...byChannel }, select: { joinedAt: true, channelId: true } }),
-    prisma.membership.findMany({ where: { leftAt: { gte: start }, ...byChannel }, select: { leftAt: true, channelId: true } }),
-    prisma.click.findMany({ where: { createdAt: { gte: start }, isBot: false, trackingLink: { kind: "AD_ENTRY", ...(channelIds.length && (f.channelId || f.vertical) ? { channelId: { in: channelIds } } : {}) } }, select: { createdAt: true } }),
-    prisma.click.findMany({ where: { createdAt: { gte: start }, isBot: false, subId: { not: null }, ...(f.channelId || f.vertical ? { post: { channelId: { in: channelIds } } } : {}) }, select: { createdAt: true, post: { select: { channelId: true } } } }),
-    prisma.playerEvent.findMany({ where: { type: "REGISTRATION", occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.playerEvent.findMany({ where: { type: "FTD", occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.playerEvent.findMany({ where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: { gte: start }, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.player.findMany({ where: { lastEventAt: { gte: start }, ...(f.channelId || f.vertical ? { click: { post: { channelId: { in: channelIds } } } } : {}) }, select: { ngr: true, updatedAt: true } }),
+    prisma.membership.findMany({ where: { requestedAt: within, ...byChannel }, select: { requestedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { approvedAt: within, ...byChannel }, select: { approvedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { joinedAt: within, ...byChannel }, select: { joinedAt: true, channelId: true } }),
+    prisma.membership.findMany({ where: { leftAt: within, ...byChannel }, select: { leftAt: true, channelId: true } }),
+    prisma.click.findMany({ where: { createdAt: within, isBot: false, trackingLink: { kind: "AD_ENTRY", ...(channelIds.length && (f.channelId || f.vertical) ? { channelId: { in: channelIds } } : {}) } }, select: { createdAt: true } }),
+    prisma.click.findMany({ where: { createdAt: within, isBot: false, subId: { not: null }, ...(f.channelId || f.vertical ? { post: { channelId: { in: channelIds } } } : {}) }, select: { createdAt: true, post: { select: { channelId: true } } } }),
+    prisma.playerEvent.findMany({ where: { type: "REGISTRATION", occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: "FTD", occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.player.findMany({ where: { lastEventAt: within, ...(f.channelId || f.vertical ? { click: { post: { channelId: { in: channelIds } } } } : {}) }, select: { ngr: true, updatedAt: true } }),
   ]);
 
   const metrics: Metric[] = [

@@ -25,6 +25,7 @@ import {
 import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
 import { statusLabels } from "@/lib/status-badges";
 import { filtersToQuery, listMembers, parseMemberFilters } from "@/lib/members/query";
+import { colorOf, getTagRegistry, tagColorClass } from "@/lib/members/tags";
 
 export const metadata: Metadata = { title: "Membres" };
 
@@ -40,7 +41,7 @@ export function LevelBadge({ level }: { level: keyof typeof SPEND_LEVEL_LABELS }
 export default async function MembersPage({ searchParams }: PageProps<"/members">) {
   const sp = await searchParams;
   const f = parseMemberFilters(sp);
-  const [{ rows, total, pages }, channels, links] = await Promise.all([
+  const [{ rows, total, pages }, channels, links, tagRegistry] = await Promise.all([
     listMembers(f),
     prisma.channel.findMany({
       where: { isActive: true },
@@ -53,9 +54,18 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
       take: 200,
       select: { id: true, name: true },
     }),
+    getTagRegistry(),
   ]);
   const hasFilters = Boolean(
-    f.q || f.channelId || f.status || f.inviteLinkId || f.level || f.language || f.since || f.until,
+    f.q ||
+      f.channelId ||
+      f.status ||
+      f.inviteLinkId ||
+      f.level ||
+      f.language ||
+      f.tag ||
+      f.since ||
+      f.until,
   );
   const selectCls = "h-10 w-full rounded-md border bg-background px-2 text-sm md:h-9";
   const sortLink = (s: "lastSeen" | "firstSeen" | "name", label: string) => (
@@ -88,7 +98,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
       <Flash ok={sp.ok} error={sp.error} />
       <Card className="mb-4">
         <CardContent className="pt-6">
-          <form method="get" className="grid gap-3 md:grid-cols-4 lg:grid-cols-8">
+          <form method="get" className="grid gap-3 md:grid-cols-4 lg:grid-cols-9">
             <div className="lg:col-span-2">
               <Label htmlFor="members-q" className="sr-only">
                 Recherche
@@ -180,6 +190,22 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                 className="h-10 w-full md:h-9"
               />
             </div>
+            <div>
+              <Label htmlFor="members-tag" className="sr-only">
+                Étiquette
+              </Label>
+              <select id="members-tag" name="tag" defaultValue={f.tag} className={selectCls}>
+                <option value="">Toute étiquette</option>
+                {tagRegistry.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+                {f.tag && !tagRegistry.some((t) => t.name === f.tag) ? (
+                  <option value={f.tag}>{f.tag}</option>
+                ) : null}
+              </select>
+            </div>
             <div className="flex gap-1">
               <div className="w-full">
                 <Label htmlFor="members-since" className="sr-only">
@@ -208,7 +234,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                 />
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 lg:col-span-8">
+            <div className="flex flex-wrap items-center gap-2 lg:col-span-9">
               <Button type="submit" size="sm" className="max-md:h-10">
                 Filtrer
               </Button>
@@ -274,6 +300,19 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                         {r.username ? `@${r.username} · ` : ""}
                         {r.languageCode ?? "—"}
                       </div>
+                      {r.tags.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {r.tags.map((t) => (
+                            <Badge
+                              key={t}
+                              variant="outline"
+                              className={`px-1.5 py-0 text-[10px] ${tagColorClass(colorOf(t, tagRegistry))}`}
+                            >
+                              {t}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell
                       className="hidden max-w-48 truncate text-xs md:table-cell"

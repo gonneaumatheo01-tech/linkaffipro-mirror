@@ -5,30 +5,63 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
+import { invalidateDashboards } from "@/lib/dashboard/cache";
 import {
+  applySavedMapping,
+  columnSamples,
   detectColumns,
+  detectDateFormat,
+  detectNumberFormat,
+  detectPlatform,
+  importReportText,
+  mappingToSaved,
   parseCsv,
+  skippedSummary,
+  skippedToReportLines,
   toCostRows,
   type ColumnMap,
   type CostField,
   type CostRow,
+  type DateFormat,
+  type NumberFormat,
+  type Platform,
+  type PlatformDetection,
+  type SavedMapping,
+  type SkippedRow,
 } from "@/lib/campaigns/csv";
 import { levelKey, matchRow, type CampaignTree, type RowMatch } from "@/lib/campaigns/match";
 import { campaignTree } from "@/lib/campaigns/queries";
 
-export type Platform = "TIKTOK" | "META" | "OTHER";
+export type { Platform };
+/** Choix de plateforme dans le formulaire : automatique (détection par les en-têtes) ou imposée. */
+export type PlatformChoice = "AUTO" | Platform;
 
 export type PreviewState = {
   error: string | null;
   preview: null | {
+    /** Choix de l'utilisateur (AUTO = détection). */
+    platformChoice: PlatformChoice;
+    /** Plateforme retenue pour la lecture. */
     platform: Platform;
+    detected: PlatformDetection;
     filename: string;
     csvB64: string;
     headers: string[];
+    /** Cinq premières lignes brutes, pour l'aperçu colonne → champ. */
+    rawSample: string[][];
     map: ColumnMap;
+    /** D'où vient la correspondance proposée : mémoire d'un import précédent, détection, ou choix manuel. */
+    mappingSource: "saved" | "detected" | "manual";
+    numberFormat: NumberFormat;
+    dateFormat: DateFormat;
+    /** Formats devinés (avant éventuel choix manuel). */
+    detectedNumberFormat: NumberFormat;
+    detectedDateFormat: DateFormat;
     totalRows: number;
     sample: CostRow[];
     errors: string[];
+    skipped: SkippedRow[];
+    skippedSummary: ReturnType<typeof skippedSummary>;
     matches: Array<{ key: string; count: number; spend: number; match: RowMatch }>;
   };
 };
@@ -44,19 +77,81 @@ const FIELDS: CostField[] = [
   "clicks",
   "currency",
 ];
+const PLATFORM_CHOICES: PlatformChoice[] = ["AUTO", "TIKTOK", "META", "OTHER"];
 
-function readMapOverrides(formData: FormData, headers: string[], base: ColumnMap): ColumnMap {
-  const map: ColumnMap = { ...base };
-  for (const f of FIELDS) {
-    const v = formData.get(`col_${f}`);
-    if (typeof v !== "string") continue;
-    if (v === "") delete map[f];
-    else {
-      const idx = Number(v);
-      if (Number.isInteger(idx) && idx >= 0 && idx < headers.length) map[f] = idx;
-    }
-  }
-  return map;
+const mappingKey = (platform: Platform) => `import.costs.mapping.${platform}`;
+
+function platformChoiceOf(v: unknown): PlatformChoice {
+  return PLATFORM_CHOICES.includes(String(v) as PlatformChoice)
+    ? (String(v) as PlatformChoice)
+    : "AUTO";
+}
+
+function numberFormatOf(v: unknown): NumberFormat | null {
+  return v === "fr" || v === "en" || v === "auto" ? v : null;
+}
+
+function dateFormatOf(v: unknown): DateFormat | null {
+  return v === "dmy" || v === "mdy" || v === "ymd" || v === "auto" ? v : null;
+}
+
+/**
+ * Correspondance saisie à la main : un champ `map_<indice de colonne>` par colonne, valeur = champ ou vide.
+ * Renvoie null si aucun champ n'a été envoyé (premier passage).
+ */
+function readManualMapping(formData: FormData, headers: string[]): ColumnMap | null {
+  const map: ColumnMap = {};
+  let any = false;
+  headers.forEach((_, i) => {
+    const v = formData.get(`map_${i}`);
+    if (typeof v !== "string") return;
+    any = true;
+    if (v !== "" && FIELDS.includes(v as CostField) && !(v in map)) map[v as CostField] = i;
+  });
+  return any ? map : null;
+}
+
+async function loadSavedMapping(platform: Platform): Promise<SavedMapping | null> {
+  const row = await prisma.setting.findUnique({ where: { key: mappingKey(platform) } });
+  return row && row.value && typeof row.value === "object" && !Array.isArray(row.value)
+    ? (row.value as SavedMapping)
+    : null;
+}
+
+/** Lecture complète d'un fichier : plateforme, correspondance (manuelle > mémorisée > détectée), formats, lignes. */
+async function readCsv(formData: FormData, csvB64: string) {
+  const text = Buffer.from(csvB64, "base64").toString("utf8");
+  const table = parseCsv(text);
+  if (table.headers.length === 0) return null;
+  const platformChoice = platformChoiceOf(formData.get("platform"));
+  const detected = detectPlatform(table.headers);
+  const platform: Platform = platformChoice === "AUTO" ? detected.platform : platformChoice;
+  const manual = readManualMapping(formData, table.headers);
+  const saved = manual ? null : applySavedMapping(table.headers, await loadSavedMapping(platform));
+  const map = manual ?? saved ?? detectColumns(table.headers);
+  const mappingSource: "saved" | "detected" | "manual" = manual
+    ? "manual"
+    : saved
+      ? "saved"
+      : "detected";
+  const detectedNumberFormat = detectNumberFormat(columnSamples(table, map.spend));
+  const detectedDateFormat = detectDateFormat(columnSamples(table, map.date), platform);
+  const numberFormat = numberFormatOf(formData.get("numberFormat")) ?? detectedNumberFormat;
+  const dateFormat = dateFormatOf(formData.get("dateFormat")) ?? detectedDateFormat;
+  const parsed = toCostRows(table, map, platform, { numberFormat, dateFormat });
+  return {
+    table,
+    platformChoice,
+    platform,
+    detected,
+    map,
+    mappingSource,
+    numberFormat,
+    dateFormat,
+    detectedNumberFormat,
+    detectedDateFormat,
+    ...parsed,
+  };
 }
 
 function summarize(rows: CostRow[], tree: CampaignTree) {
@@ -71,17 +166,12 @@ function summarize(rows: CostRow[], tree: CampaignTree) {
   return [...groups.values()].sort((a, b) => b.spend - a.spend);
 }
 
-/** Étape 1 : lecture du fichier, détection des colonnes et aperçu des correspondances. */
+/** Étape 1 : lecture du fichier, détection de la plateforme et des colonnes, aperçu et correspondances. */
 export async function previewImportAction(
   _prev: PreviewState,
   formData: FormData,
 ): Promise<PreviewState> {
   const user = await requireUser();
-  const platform = (
-    ["TIKTOK", "META", "OTHER"].includes(String(formData.get("platform")))
-      ? String(formData.get("platform"))
-      : "OTHER"
-  ) as Platform;
   let csvB64 = String(formData.get("csvB64") ?? "");
   let filename = String(formData.get("filename") ?? "");
   const file = formData.get("file");
@@ -92,65 +182,77 @@ export async function previewImportAction(
     filename = file.name;
   }
   if (!csvB64) return { error: "Choisissez d'abord un fichier CSV.", preview: null };
-  const text = Buffer.from(csvB64, "base64").toString("utf8");
-  const table = parseCsv(text);
-  if (table.headers.length === 0)
+  const read = await readCsv(formData, csvB64);
+  if (!read)
     return {
       error: "Le fichier est vide ou illisible : exportez-le de nouveau au format CSV.",
       preview: null,
     };
-  const map = readMapOverrides(formData, table.headers, detectColumns(table.headers));
-  const { rows, errors } = toCostRows(table, map, platform);
   const tree = await campaignTree();
   await audit({
     userId: user.id,
     action: "import.costs_previewed",
-    metadata: { platform, filename, rows: rows.length, errors: errors.length },
+    metadata: {
+      platform: read.platform,
+      detectedPlatform: read.detected.platform,
+      confidence: read.detected.confidence,
+      filename,
+      rows: read.rows.length,
+      skipped: read.skipped.length,
+    },
   });
   return {
     error: null,
     preview: {
-      platform,
+      platformChoice: read.platformChoice,
+      platform: read.platform,
+      detected: read.detected,
       filename,
       csvB64,
-      headers: table.headers,
-      map,
-      totalRows: rows.length,
-      sample: rows.slice(0, 20),
-      errors: errors.slice(0, 20),
-      matches: summarize(rows, tree).slice(0, 200),
+      headers: read.table.headers,
+      rawSample: read.table.rows.slice(0, 5),
+      map: read.map,
+      mappingSource: read.mappingSource,
+      numberFormat: read.numberFormat,
+      dateFormat: read.dateFormat,
+      detectedNumberFormat: read.detectedNumberFormat,
+      detectedDateFormat: read.detectedDateFormat,
+      totalRows: read.rows.length,
+      sample: read.rows.slice(0, 20),
+      errors: read.errors.slice(0, 20),
+      skipped: read.skipped.slice(0, 200),
+      skippedSummary: skippedSummary(read.skipped),
+      matches: summarize(read.rows, tree).slice(0, 200),
     },
   };
 }
 
-/** Étape 2 : import confirmé (création des pubs manquantes, coûts par jour, historique). */
+/** Étape 2 : import confirmé (création des pubs manquantes, coûts par jour, mémorisation des colonnes, rapport). */
 export async function confirmImportAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const platform = z.enum(["TIKTOK", "META", "OTHER"]).parse(formData.get("platform"));
   const csvB64 = z.string().min(1).parse(formData.get("csvB64"));
   const filename = String(formData.get("filename") ?? "import.csv");
-  const text = Buffer.from(csvB64, "base64").toString("utf8");
-  const table = parseCsv(text);
-  const map = readMapOverrides(formData, table.headers, detectColumns(table.headers));
-  const { rows, errors } = toCostRows(table, map, platform);
-  if (rows.length === 0)
+  const read = await readCsv(formData, csvB64);
+  if (!read || read.rows.length === 0)
     redirect(
       `/campaigns/import?${new URLSearchParams({ error: "Aucune ligne importable : vérifiez les colonnes date et dépense." })}`,
     );
+  const { platform, rows, skipped, map, table } = read;
 
   const batch = await prisma.importBatch.create({
     data: {
       kind:
         platform === "META" ? "META_CSV" : platform === "TIKTOK" ? "TIKTOK_CSV" : "COSTS_MANUAL",
       filename,
-      rows: rows.length,
+      rows: table.rows.length,
       createdById: user.id,
     },
   });
   let tree = await campaignTree();
   const resolved = new Map<string, { campaignId: string; adSetId?: string; adId?: string }>();
   let imported = 0;
-  const importErrors: string[] = [...errors];
+  let failed = 0;
+  const importErrors: string[] = [];
 
   for (const r of rows) {
     const key = `${r.campaign}|${r.adset}|${r.ad}`;
@@ -219,23 +321,43 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
       });
       imported++;
     } catch (err) {
+      failed++;
       importErrors.push(`${r.date} ${key} : ${err instanceof Error ? err.message : "erreur"}`);
     }
   }
+  const report = [...skippedToReportLines(skipped), ...importErrors];
   await prisma.importBatch.update({
     where: { id: batch.id },
-    data: { imported, errors: importErrors.slice(0, 100) as unknown as Prisma.InputJsonValue },
+    data: { imported, errors: report.slice(0, 200) as unknown as Prisma.InputJsonValue },
   });
+  // Mémorise la correspondance colonne → champ pour la prochaine fois (par plateforme).
+  const saved = mappingToSaved(table.headers, map);
+  await prisma.setting.upsert({
+    where: { key: mappingKey(platform) },
+    create: { key: mappingKey(platform), value: saved },
+    update: { value: saved },
+  });
+  const summary = importReportText(imported, skipped, failed);
   await audit({
     userId: user.id,
     action: "import.costs",
     entityType: "ImportBatch",
     entityId: batch.id,
-    metadata: { platform, filename, rows: rows.length, imported },
+    metadata: {
+      platform,
+      filename,
+      rows: table.rows.length,
+      imported,
+      skipped: skipped.length,
+      failed,
+      numberFormat: read.numberFormat,
+      dateFormat: read.dateFormat,
+    },
   });
   tree = [];
+  invalidateDashboards();
   revalidatePath("/campaigns");
   redirect(
-    `/campaigns/imports?${new URLSearchParams({ ok: `${imported} ligne${imported > 1 ? "s" : ""} de coût importée${imported > 1 ? "s" : ""} depuis ${filename}${importErrors.length ? ` (${importErrors.length} erreur${importErrors.length > 1 ? "s" : ""})` : ""}.` })}`,
+    `/campaigns/imports?${new URLSearchParams({ batch: batch.id, ok: `Import de ${filename} terminé : ${summary}.` })}`,
   );
 }

@@ -44,6 +44,14 @@ export const postFormSchema = z.object({
     .max(80, "Le nom du modèle ne peut pas dépasser 80 caractères.")
     .optional(),
   duplicatedFromId: z.string().optional(),
+  // Test A/B (création seulement) : version B publiée 30 min après A dans le même canal, ou dans un autre canal.
+  abEnabled: z.boolean().default(false),
+  abMode: z.enum(["same-channel", "other-channel"]).default("same-channel"),
+  abChannelId: z.string().optional(),
+  abDelayMinutes: z.number().default(30),
+  textB: z.string().default(""),
+  mediaAssetIdsB: z.array(z.string()).default([]),
+  buttonsB: z.array(z.array(buttonSchema)).default([]),
 });
 
 export type PostFormInput = z.infer<typeof postFormSchema>;
@@ -77,5 +85,12 @@ export function parsePostForm(fd: FormData) {
     intent: String(fd.get("intent") ?? "draft"),
     templateName: String(fd.get("templateName") ?? "") || undefined,
     duplicatedFromId: String(fd.get("duplicatedFromId") ?? "") || undefined,
+    abEnabled: fd.get("abEnabled") === "1",
+    abMode: String(fd.get("abMode") ?? "same-channel"),
+    abChannelId: String(fd.get("abChannelId") ?? "") || undefined,
+    abDelayMinutes: Number(String(fd.get("abDelayMinutes") ?? "30").trim() || 30),
+    textB: String(fd.get("textB") ?? ""),
+    mediaAssetIdsB: json("mediaAssetIdsB", []),
+    buttonsB: json("buttonsB", []),
   });
 }

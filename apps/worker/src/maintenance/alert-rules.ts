@@ -1,6 +1,19 @@
 /** Règles pures de détection des alertes (testées sans base). */
 
-export type AlertKind = "bot_webhook" | "sync_failed" | "queue_backlog" | "dm_blocked" | "subid_health" | "worker_down" | "job_failures" | "backup_failed";
+export type AlertKind =
+  | "bot_webhook"
+  | "sync_failed"
+  | "queue_backlog"
+  | "dm_blocked"
+  | "subid_health"
+  | "worker_down"
+  | "job_failures"
+  | "backup_failed"
+  | "registrations_drop"
+  | "spend_no_conversion"
+  | "channel_leak"
+  | "post_failed"
+  | "offer_link_inactive";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = { kind: AlertKind; severity: AlertSeverityKey; message: string; payload: Record<string, unknown> };
 
@@ -94,6 +107,110 @@ export function detectBackupFailed(status: BackupSnapshot | null, now: Date): De
   if (lastSuccess && now.getTime() - lastSuccess.getTime() < BACKUP_MAX_AGE_MS) return null;
   const error = (status.error ?? "erreur inconnue").slice(0, 160);
   return { kind: "backup_failed", severity: "CRITICAL", message: `La sauvegarde automatique de la base a échoué : ${error}`, payload: { at: status.at, lastSuccessAt: lastSuccess?.toISOString() ?? null, error } };
+}
+
+// ------------------------------------------------------------------
+// Règles métier (phase 6) : seuils réglables dans Réglages → Alertes (`Setting` `alerts.thresholds`).
+// ------------------------------------------------------------------
+
+/** Seuils réglables. `registrationsDropPct` : chute en % sous la moyenne ; `spendNoConversionEur` : dépense sans inscription ; `channelLeakPct` : départs en % des membres actifs. */
+export type AlertThresholds = { registrationsDropPct: number; spendNoConversionEur: number; channelLeakPct: number };
+export const DEFAULT_THRESHOLDS: AlertThresholds = { registrationsDropPct: 50, spendNoConversionEur: 50, channelLeakPct: 10 };
+/** Chute des inscriptions : la règle ne s'applique qu'avec une moyenne d'au moins 10 inscriptions par jour. */
+export const REGISTRATIONS_MIN_DAILY_AVG = 10;
+/** Canal qui fuit : la règle ne s'applique qu'aux canaux d'au moins 20 membres actifs. */
+export const CHANNEL_LEAK_MIN_MEMBERS = 20;
+
+/** Lit les seuils depuis la valeur JSON du réglage ; chaque champ absent ou invalide prend sa valeur par défaut. */
+export function parseThresholds(value: unknown): AlertThresholds {
+  const v = (value && typeof value === "object" ? value : {}) as Partial<Record<keyof AlertThresholds, unknown>>;
+  const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === "number" && Number.isFinite(x) && x >= min && x <= max ? x : fallback);
+  return {
+    registrationsDropPct: num(v.registrationsDropPct, DEFAULT_THRESHOLDS.registrationsDropPct, 1, 100),
+    spendNoConversionEur: num(v.spendNoConversionEur, DEFAULT_THRESHOLDS.spendNoConversionEur, 0, 1_000_000),
+    channelLeakPct: num(v.channelLeakPct, DEFAULT_THRESHOLDS.channelLeakPct, 1, 100),
+  };
+}
+
+export type RegistrationsSnapshot = { last24h: number; previous7dTotal: number };
+
+/**
+ * Chute des inscriptions : les inscriptions des dernières 24 h sont sous (100 − seuil) % de la moyenne quotidienne
+ * des 7 jours précédents, et cette moyenne vaut au moins 10 par jour (sinon trop peu de données pour conclure).
+ */
+export function detectRegistrationsDrop(s: RegistrationsSnapshot, t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
+  const avg = s.previous7dTotal / 7;
+  if (avg < REGISTRATIONS_MIN_DAILY_AVG) return null;
+  const limit = avg * (1 - t.registrationsDropPct / 100);
+  if (s.last24h >= limit) return null;
+  const dropPct = Math.round((1 - s.last24h / avg) * 100);
+  return {
+    kind: "registrations_drop",
+    severity: "WARNING",
+    message: `Chute des inscriptions : ${s.last24h} sur les dernières 24 h contre ${Math.round(avg)} par jour en moyenne sur les 7 jours précédents (−${dropPct} %).`,
+    payload: { last24h: s.last24h, dailyAverage: Math.round(avg * 10) / 10, dropPct, thresholdPct: t.registrationsDropPct },
+  };
+}
+
+export type SpendSnapshot = { name: string; spend: number; registrations: number };
+
+/** Dépense sans conversion : une pub a coûté plus que le seuil sur 24 h sans aucune inscription rattachée. */
+export function detectSpendNoConversion(items: SpendSnapshot[], t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
+  const hot = items.filter((i) => i.spend > t.spendNoConversionEur && i.registrations === 0);
+  if (hot.length === 0) return null;
+  const list = hot.map((i) => `${i.name} (${i.spend.toFixed(2)} €)`).join(", ");
+  return {
+    kind: "spend_no_conversion",
+    severity: "WARNING",
+    message: `Dépense sans inscription sur 24 h : ${list}. Vérifiez le lien d'entrée de la pub et les offres envoyées.`,
+    payload: { campaigns: hot.map((i) => ({ name: i.name, spend: i.spend })), thresholdEur: t.spendNoConversionEur },
+  };
+}
+
+export type ChannelLeakSnapshot = { title: string; activeMembers: number; left24h: number };
+
+/** Canal qui fuit : les départs sur 24 h dépassent le seuil (en % des membres actifs), pour un canal d'au moins 20 membres. */
+export function detectChannelLeak(channels: ChannelLeakSnapshot[], t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
+  const leaking = channels.filter((c) => c.activeMembers >= CHANNEL_LEAK_MIN_MEMBERS && c.left24h > (c.activeMembers * t.channelLeakPct) / 100);
+  if (leaking.length === 0) return null;
+  const list = leaking.map((c) => `${c.title} (${c.left24h} départs sur ${c.activeMembers} membres, ${Math.round((c.left24h / c.activeMembers) * 100)} %)`).join(", ");
+  return {
+    kind: "channel_leak",
+    severity: "WARNING",
+    message: `Canal qui perd ses membres : ${list}.`,
+    payload: { channels: leaking.map((c) => ({ title: c.title, activeMembers: c.activeMembers, left24h: c.left24h })), thresholdPct: t.channelLeakPct },
+  };
+}
+
+export type FailedPostSnapshot = { code: string; channelTitle: string; lastError: string | null };
+
+/** Message programmé en échec dans les dernières 24 h. */
+export function detectPostFailed(posts: FailedPostSnapshot[]): Detected | null {
+  if (posts.length === 0) return null;
+  const list = posts.slice(0, 5).map((p) => `${p.channelTitle} / ${p.code}${p.lastError ? ` (${p.lastError.slice(0, 60)})` : ""}`).join(", ");
+  const more = posts.length > 5 ? ` et ${posts.length - 5} autre(s)` : "";
+  return {
+    kind: "post_failed",
+    severity: "WARNING",
+    message: `${posts.length} message${posts.length > 1 ? "s" : ""} programmé${posts.length > 1 ? "s" : ""} en échec sur 24 h : ${list}${more}. Voir la page Messages.`,
+    payload: { posts: posts.map((p) => p.code) },
+  };
+}
+
+export type InactiveLinkClickSnapshot = { slug: string; label: string; clicks: number };
+
+/** Lien d'offre désactivé mais encore cliqué dans les dernières 24 h (un message ou un bouton pointe toujours dessus). */
+export function detectOfferLinkInactive(links: InactiveLinkClickSnapshot[]): Detected | null {
+  const hit = links.filter((l) => l.clicks > 0);
+  if (hit.length === 0) return null;
+  const list = hit.slice(0, 5).map((l) => `${l.label} (/${l.slug}, ${l.clicks} clic${l.clicks > 1 ? "s" : ""})`).join(", ");
+  const more = hit.length > 5 ? ` et ${hit.length - 5} autre(s)` : "";
+  return {
+    kind: "offer_link_inactive",
+    severity: "WARNING",
+    message: `Lien désactivé encore cliqué sur 24 h : ${list}${more}. Réactivez-le ou remplacez-le dans les messages.`,
+    payload: { links: hit.map((l) => ({ slug: l.slug, clicks: l.clicks })) },
+  };
 }
 
 function formatTime(d: Date): string {

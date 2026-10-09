@@ -6,7 +6,7 @@ import type { ChatJoinRequest, ChatMemberUpdated, User } from "grammy/types";
 import type { BotIdentity } from "../ports";
 import type { ChannelInfo, GateButton, JoinFlowDeps, MembershipInfo } from "./deps";
 import { approveAtAfterGate, computeInitialState, formatDelay, hasGate, type RuleData } from "./rules";
-import { baseLang, defaultText, pickText, renderText, type TextVars } from "./texts";
+import { baseLang, defaultText, pickText, renderText, type Lang, type TextVars } from "./texts";
 
 /** Sous-ensemble de l'API Telegram utilisé par le flux (facile à simuler). */
 export interface JoinFlowApi {
@@ -28,12 +28,12 @@ function vars(member: { firstName: string | null }, channel: ChannelInfo, rule: 
   };
 }
 
-function varsLang(v: TextVars, rule: RuleData, lang: "fr" | "en"): TextVars {
+function varsLang(v: TextVars, rule: RuleData, lang: Lang): TextVars {
   return { ...v, delai: formatDelay(rule.mode === "IMMEDIATE" ? 0 : rule.delaySeconds, lang) };
 }
 
 /** Boutons d'accueil : un bouton par canal à rejoindre + « J'ai rejoint ». */
-export function buildGateButtons(gates: GateButton[], startUrl: string, lang: "fr" | "en"): Array<Array<{ text: string; url: string }>> {
+export function buildGateButtons(gates: GateButton[], startUrl: string, lang: Lang): Array<Array<{ text: string; url: string }>> {
   const rows = gates.map((g) => [{ text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url }]);
   rows.push([{ text: defaultText("joinedLabel", lang), url: startUrl }]);
   return rows;

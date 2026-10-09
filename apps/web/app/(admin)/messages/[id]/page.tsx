@@ -120,6 +120,16 @@ export default async function MessageDetailPage({
         help={help}
       >
         <StatusBadge kind="post" value={post.status} />
+        {post.abGroupId ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="max-md:h-10"
+            render={<Link href={`/messages/ab/${post.abGroupId}`} />}
+          >
+            Voir la comparaison A/B{post.abVariant ? ` (version ${post.abVariant})` : ""}
+          </Button>
+        ) : null}
         {editable ? (
           <Button
             size="sm"

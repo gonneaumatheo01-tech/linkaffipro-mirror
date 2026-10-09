@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, audit } from "@linkaffipro/db";
+import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
 import { approveNow, declineNow } from "@/lib/approval/telegram";
 
@@ -171,4 +172,32 @@ export async function declineMembershipAction(formData: FormData): Promise<void>
     "requests",
     r.ok ? { ok: "Demande refusée : le membre devra redemander l'accès." } : { error: r.error },
   );
+}
+
+/** Enfile un recalcul immédiat des meilleurs horaires (tous canaux ; tâche `stats` du worker). */
+export async function recomputeBestHoursAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const channelId = z.string().min(1).parse(formData.get("channelId"));
+  try {
+    await enqueue(
+      "stats",
+      { type: "best-hours" },
+      { jobId: `best-hours:${Math.floor(Date.now() / 60_000)}` },
+    );
+  } catch {
+    back(channelId, "besthours", {
+      error:
+        "Recalcul impossible pour l'instant (file d'attente indisponible). Réessayez dans une minute.",
+    });
+  }
+  await audit({
+    userId: user.id,
+    action: "stats.best_hours_requested",
+    entityType: "Channel",
+    entityId: channelId,
+  });
+  revalidatePath(`/channels/${channelId}`);
+  back(channelId, "besthours", {
+    ok: "Recalcul lancé : rechargez cette page dans une minute pour voir la carte à jour.",
+  });
 }

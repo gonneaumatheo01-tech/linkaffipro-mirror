@@ -26,6 +26,7 @@ import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { approveMembershipAction, declineMembershipAction, saveRuleAction } from "./actions";
 import { SequencesTab } from "./sequences/sequences-tab";
+import { BestHoursTab } from "./best-hours-tab";
 
 export const metadata: Metadata = { title: "Canal" };
 
@@ -34,6 +35,7 @@ const TABS = [
   { key: "requests", label: "Demandes" },
   { key: "members", label: "Membres" },
   { key: "sequences", label: "Messages du bot" },
+  { key: "besthours", label: "Meilleurs horaires" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -46,6 +48,8 @@ const TAB_HELP: Record<TabKey, string> = {
     "Les membres acceptés dans ce canal, avec leur origine (la pub ou le lien qui les a amenés).",
   sequences:
     "Les messages privés que le bot envoie aux membres (accueil, rappel, accepté…). Modifiez le texte, ajoutez une langue, envoyez-vous un test.",
+  besthours:
+    "Les jours et heures où vos messages marchent le mieux dans ce canal (clics, réactions), par catégorie. Le créneau recommandé est proposé dans le formulaire de message.",
 };
 
 const PRESETS: Array<{ key: string; label: string; seconds: number | null }> = [
@@ -152,6 +156,12 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
       {tab === "rules" ? <RulesTab channelId={channel.id} selectCls={selectCls} /> : null}
       {tab === "requests" ? <RequestsTab channelId={channel.id} now={now} /> : null}
       {tab === "members" ? <MembersTab channelId={channel.id} /> : null}
+      {tab === "besthours" ? (
+        <BestHoursTab
+          channelId={channel.id}
+          categoryParam={typeof sp.cat === "string" ? sp.cat : undefined}
+        />
+      ) : null}
       {tab === "sequences" ? (
         <SequencesTab
           channelId={channel.id}

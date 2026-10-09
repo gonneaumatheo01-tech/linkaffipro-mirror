@@ -42,6 +42,11 @@ const ALERT_LABELS: Record<string, string> = {
   worker_down: "Worker arrêté",
   job_failures: "Erreurs répétées",
   backup_failed: "Sauvegarde en échec",
+  registrations_drop: "Chute des inscriptions",
+  spend_no_conversion: "Dépense sans inscription",
+  channel_leak: "Canal qui perd ses membres",
+  post_failed: "Message programmé en échec",
+  offer_link_inactive: "Lien désactivé encore cliqué",
 };
 
 function okBadge(ok: boolean, okText = "ok", koText = "erreur") {

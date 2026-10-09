@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { prisma, type PostStatus } from "@linkaffipro/db";
-import { stripHtml } from "@linkaffipro/core";
+import { stripHtml, VERTICAL_LABELS, VERTICALS } from "@linkaffipro/core";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
 import { WeekCalendar } from "@/components/messages/week-calendar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -33,7 +34,7 @@ const VIEW_HELP = {
     "Le calendrier de la semaine, heure par heure. Cliquez un message pour l'ouvrir ; « Nouveau message » pour en programmer un.",
   list: "Tous les messages, avec filtres par canal, statut, catégorie et dates. « Exporter CSV » télécharge la liste filtrée avec les statistiques.",
   templates:
-    "Vos modèles : des messages prêts à réutiliser. Depuis un modèle, cliquez « Nouveau depuis ce modèle ».",
+    "Vos modèles : des messages prêts à réutiliser, classés par univers et catégorie. Cliquez « Utiliser ce modèle » pour créer un message pré-rempli.",
 } as const;
 
 export default async function MessagesPage({ searchParams }: PageProps<"/messages">) {
@@ -61,8 +62,11 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
     categoryId: typeof sp.category === "string" ? sp.category : "",
     from: typeof sp.from === "string" ? sp.from : "",
     to: typeof sp.to === "string" ? sp.to : "",
+    vertical: typeof sp.vertical === "string" ? sp.vertical : "",
   };
-  const hasFilters = Boolean(f.channelId || f.status || f.categoryId || f.from || f.to);
+  const hasFilters = Boolean(
+    f.channelId || f.status || f.categoryId || f.from || f.to || f.vertical,
+  );
   const exportHref = `/messages/export?${new URLSearchParams({ ...(f.channelId ? { channel: f.channelId } : {}), ...(f.status ? { status: f.status } : {}), ...(f.categoryId ? { category: f.categoryId } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}) }).toString()}`;
 
   const page = pageOf(sp);
@@ -252,17 +256,66 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                 </div>
               </form>
             ) : null}
+            {view === "templates" ? (
+              <form
+                method="get"
+                className="mb-4 grid gap-2 text-sm sm:grid-cols-2 md:flex md:flex-wrap md:items-end"
+              >
+                <input type="hidden" name="view" value="templates" />
+                <select
+                  name="vertical"
+                  aria-label="Univers"
+                  defaultValue={f.vertical}
+                  className={selectCls}
+                >
+                  <option value="">Tous les univers</option>
+                  {VERTICALS.map((v) => (
+                    <option key={v} value={v}>
+                      {VERTICAL_LABELS[v]}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="category"
+                  aria-label="Catégorie"
+                  defaultValue={f.categoryId}
+                  className={selectCls}
+                >
+                  <option value="">Toutes les catégories</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                  Filtrer
+                </Button>
+              </form>
+            ) : null}
             {posts.length === 0 ? (
               view === "templates" ? (
-                <EmptyState
-                  title="Aucun modèle"
-                  description="Ouvrez un message et cliquez « Enregistrer comme modèle » : vous pourrez le réutiliser en un clic."
-                  action={{
-                    href: "/messages?view=list",
-                    label: "Voir les messages",
-                    variant: "outline",
-                  }}
-                />
+                hasFilters ? (
+                  <EmptyState
+                    title="Aucun modèle pour ces filtres"
+                    description="Changez d'univers ou de catégorie, ou retirez les filtres."
+                    action={{
+                      href: "/messages?view=templates",
+                      label: "Tous les modèles",
+                      variant: "outline",
+                    }}
+                  />
+                ) : (
+                  <EmptyState
+                    title="Aucun modèle"
+                    description="Ouvrez un message et cliquez « Enregistrer comme modèle » : vous pourrez le réutiliser en un clic. Des modèles prêts à l'emploi par univers peuvent aussi être installés (pnpm seed:templates)."
+                    action={{
+                      href: "/messages?view=list",
+                      label: "Voir les messages",
+                      variant: "outline",
+                    }}
+                  />
+                )
               ) : hasFilters ? (
                 <EmptyState
                   title="Aucun message ne correspond à ces filtres"
@@ -285,7 +338,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                 <TableHeader>
                   <TableRow>
                     <TableHead>{view === "templates" ? "Modèle" : "Date"}</TableHead>
-                    <TableHead>Canal</TableHead>
+                    <TableHead>{view === "templates" ? "Univers" : "Canal"}</TableHead>
                     <TableHead className="hidden md:table-cell">Catégorie</TableHead>
                     <TableHead className="hidden md:table-cell">Texte</TableHead>
                     {view === "templates" ? null : <TableHead>Statut</TableHead>}
@@ -299,8 +352,25 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                     <TableRow key={p.id}>
                       <TableCell className="whitespace-nowrap">
                         {view === "templates" ? p.templateName : fmtDate(p.scheduledAt)}
+                        {p.abGroupId ? (
+                          <Link
+                            href={`/messages/ab/${p.abGroupId}`}
+                            className="ml-2 inline-flex"
+                            title="Voir la comparaison A/B"
+                          >
+                            <Badge variant="outline">
+                              A/B{p.abVariant ? ` · ${p.abVariant}` : ""}
+                            </Badge>
+                          </Link>
+                        ) : null}
                       </TableCell>
-                      <TableCell>{p.channel.title}</TableCell>
+                      <TableCell>
+                        {view === "templates"
+                          ? p.vertical
+                            ? VERTICAL_LABELS[p.vertical]
+                            : "—"
+                          : p.channel.title}
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {p.category ? (
                           <span className="inline-flex items-center gap-1">
@@ -331,7 +401,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                             className="max-md:h-10"
                             render={<Link href={`/messages/new?from=${p.id}`} />}
                           >
-                            Nouveau depuis ce modèle
+                            Utiliser ce modèle
                           </Button>
                         ) : (
                           <Button

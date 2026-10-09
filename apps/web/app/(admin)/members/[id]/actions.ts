@@ -4,8 +4,9 @@ import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma, audit, recordEvent } from "@linkaffipro/db";
+import { prisma, audit, recordEvent, type Prisma } from "@linkaffipro/db";
 import { requireAdmin, requireUser } from "@/lib/session";
+import { getTagRegistry, memberTags } from "@/lib/members/tags";
 
 export async function addNoteAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -24,6 +25,67 @@ export async function addNoteAction(formData: FormData): Promise<void> {
   });
   revalidatePath(`/members/${memberId}`);
   redirect(`/members/${memberId}?ok=${encodeURIComponent("Note ajoutée.")}`);
+}
+
+/** Modifier une note : son auteur, ou un administrateur. */
+export async function editNoteAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const noteId = z.string().min(1).parse(formData.get("noteId"));
+  const note = await prisma.memberNote.findUnique({ where: { id: noteId } });
+  if (!note) redirect("/members");
+  if (user.role !== "ADMIN" && note.authorId !== user.id)
+    redirect(
+      `/members/${note.memberId}?error=${encodeURIComponent("Vous ne pouvez modifier que vos propres notes.")}`,
+    );
+  const text = z.string().trim().min(1).max(2000).safeParse(formData.get("text"));
+  if (!text.success)
+    redirect(
+      `/members/${note.memberId}?error=${encodeURIComponent("La note est vide ou dépasse 2 000 caractères.")}`,
+    );
+  await prisma.memberNote.update({ where: { id: noteId }, data: { text: text.data } });
+  await audit({
+    userId: user.id,
+    action: "member.note_edited",
+    entityType: "Member",
+    entityId: note.memberId,
+    metadata: { noteId },
+  });
+  revalidatePath(`/members/${note.memberId}`);
+  redirect(`/members/${note.memberId}?ok=${encodeURIComponent("Note modifiée.")}`);
+}
+
+/**
+ * Étiquettes d'un membre : les cases cochées parmi le registre (Réglages → Étiquettes) remplacent
+ * celles du registre ; les étiquettes hors registre (posées par une automatisation) sont conservées.
+ */
+export async function setMemberTagsAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const memberId = z.string().min(1).parse(formData.get("memberId"));
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { tags: true, anonymizedAt: true } });
+  if (!member) redirect("/members");
+  if (member.anonymizedAt)
+    redirect(`/members/${memberId}?error=${encodeURIComponent("Un membre anonymisé ne porte pas d'étiquette.")}`);
+  const registry = await getTagRegistry();
+  const known = new Set(registry.map((t) => t.name));
+  const wanted = formData
+    .getAll("tags")
+    .map(String)
+    .filter((t) => known.has(t));
+  const before = memberTags(member.tags);
+  const kept = before.filter((t) => !known.has(t));
+  const next = [...new Set([...kept, ...wanted])];
+  await prisma.member.update({ where: { id: memberId }, data: { tags: next as Prisma.InputJsonValue } });
+  await recordEvent({ type: "member.tags_changed", memberId, payload: { from: before, to: next, by: user.id } });
+  await audit({
+    userId: user.id,
+    action: "member.tags_changed",
+    entityType: "Member",
+    entityId: memberId,
+    metadata: { from: before, to: next },
+  });
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/members");
+  redirect(`/members/${memberId}?ok=${encodeURIComponent("Étiquettes enregistrées.")}`);
 }
 
 export async function deleteNoteAction(formData: FormData): Promise<void> {
