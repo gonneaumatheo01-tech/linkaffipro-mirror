@@ -1,6 +1,6 @@
-# État du projet — phase 1 terminée (9 octobre 2026, 14h50)
+# État du projet — phase 1 terminée et validée (9 octobre 2026, 15h05)
 
-Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Phase 1 (sections 1 à 9) déployée et vérifiée ; en attente de votre test de 5 minutes.
+Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Phase 1 (sections 1 à 9) déployée ; « phase 1 OK » reçu à 14h52. Test de bout en bout réalisé par Claude à 15h00 : message privé via la file ✅, message programmé avec bouton Offre parti à l'heure ✅, clic Offre → lien personnalisé avec sub-ID et clic enregistré ✅. Un bug trouvé pendant le test de l'utilisateur (messages privés bloqués par un identifiant de tâche refusé par BullMQ) a été corrigé et redéployé.
 
 ## Adresses et accès
 - Site : https://app.linkaffipro.com — liens traqués : https://go.goolink.eu
@@ -32,12 +32,12 @@ Vos canaux « Test » et « Mediatheque » existent avec @casinogamblingoobot ad
 6. Membres → votre fiche : la chronologie montre demande, accueil, gate, acceptation, entrée et le clic offre avec son sub-ID.
 7. Réglages → Connecteurs : la synchro Link Affi est verte (la première synchronisation complète prend quelques dizaines de minutes).
 
-Répondez « phase 1 OK » par Telegram quand c'est fait, ou décrivez ce qui ne va pas.
+Validé par vous (« phase 1 OK ») et par le test automatique ci-dessus. Pour vérifier le dernier maillon (Link Affi reçoit bien le sub-ID), ouvrez une seule fois le lien d'offre que le bot vous a envoyé le 9 octobre à 15h04 : la table `clicks` de Link Affi doit contenir `sub_id = 9jjjff9u4U9F`.
 
 ## Ce qui reste (phase 2)
 Vues par message (couche MTProto), connecteurs Meta et TikTok, tableaux de bord complets par pub, purge 24 mois, automatisations « si… alors… ».
 
 ## Actions humaines en attente
-1. Faire le test de 5 minutes ci-dessus et répondre « phase 1 OK ».
+1. Choisir la suite (réponse 1 ou 2 par Telegram) : ajouter le prompt de phase 2 dans `docs/prompts/`, ou laisser Claude préparer la phase 2 d'après le cadrage.
 2. Passer le service « worker » en Europe (railway.com → projet linkaffipro → worker → Settings → Regions → EU West (Amsterdam) → Deploy) : il est encore aux États-Unis, ce qui ralentit la synchro (0,15 s par requête). Postgres, Redis et web sont déjà en Europe.
 3. Surveiller Réglages → Connecteurs → « Santé du sub-ID » après les premiers vrais joueurs : des joueurs en `postback` = chaîne complète validée ; seulement `time_match` = demander à Lovable l'encodage sans point.
