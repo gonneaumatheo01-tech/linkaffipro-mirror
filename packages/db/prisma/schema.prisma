@@ -616,9 +616,10 @@ model MediaAsset {
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
-  telegramFiles MediaAssetTelegramFile[]
-  sequenceSteps SequenceStep[]
-  broadcasts    Broadcast[]
+  telegramFiles    MediaAssetTelegramFile[]
+  sequenceSteps    SequenceStep[]
+  broadcasts       Broadcast[]
+  outboundMessages OutboundMessage[]
 }
 
 /// Identifiant Telegram d'un média une fois envoyé par un bot (réutilisable sans ré-upload).
@@ -758,6 +759,9 @@ model OutboundMessage {
   post              Post?          @relation(fields: [postId], references: [id])
   broadcastId       String?
   broadcast         Broadcast?     @relation(fields: [broadcastId], references: [id])
+  /// Média joint (photo, vidéo, gif, document) envoyé avec le texte en légende.
+  mediaAssetId      String?
+  mediaAsset        MediaAsset?    @relation(fields: [mediaAssetId], references: [id])
   /// Identifiant du chat privé si différent du telegramUserId (user_chat_id).
   chatId            BigInt?
   text              String
