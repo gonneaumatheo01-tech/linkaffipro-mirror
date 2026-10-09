@@ -39,7 +39,8 @@ describe("autres règles", () => {
   });
   it("dédoublonne sur une heure", () => {
     expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(30) }], now)).toBe(false);
-    expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(90) }], now)).toBe(true);
+    expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(23 * 60) }], now)).toBe(false);
+    expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(25 * 60) }], now)).toBe(true);
     expect(shouldCreate("bot_webhook", [{ kind: "sync_failed", createdAt: ago(1) }], now)).toBe(true);
   });
   it("formate en HTML échappé", () => {

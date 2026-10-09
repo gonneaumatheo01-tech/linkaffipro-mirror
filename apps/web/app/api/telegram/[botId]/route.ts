@@ -25,6 +25,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/telegram/[botId
   const bot = getOrCreateBot(rec, prismaTelegramDeps);
   try {
     await bot.handleUpdate(update);
+    // Une update traitée sans erreur efface la dernière erreur mémorisée (sinon l'alerte « bot en difficulté » persiste).
+    if (rec.lastError) await prisma.bot.update({ where: { id: rec.id }, data: { lastError: null } }).catch(() => undefined);
   } catch (err) {
     console.error("[telegram] erreur de traitement", rec.username, err);
     await prisma.bot.update({ where: { id: rec.id }, data: { lastError: (err as Error).message } }).catch(() => undefined);

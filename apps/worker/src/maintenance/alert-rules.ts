@@ -8,8 +8,8 @@ export const WEBHOOK_SILENCE_MS = 10 * 60 * 1000;
 export const QUEUE_BACKLOG_THRESHOLD = 500;
 export const DM_BLOCKED_THRESHOLD = 50;
 export const SYNC_ERROR_STREAK = 3;
-/** Une alerte du même type non résolue datant de moins d'une heure n'est pas recréée. */
-export const DEDUP_WINDOW_MS = 60 * 60 * 1000;
+/** Une alerte du même type non résolue datant de moins de 24 h n'est pas recréée (une notification par jour au plus). */
+export const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type BotSnapshot = { username: string; isActive: boolean; lastWebhookAt: Date | null; lastError: string | null };
 
