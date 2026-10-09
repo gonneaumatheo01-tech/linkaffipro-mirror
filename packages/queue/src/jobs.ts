@@ -4,7 +4,7 @@
  */
 export const QUEUE_PREFIX = "lap";
 
-export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance"] as const;
+export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance", "automations"] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 /** Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit). */
@@ -31,6 +31,11 @@ export type StatsJob =
   | { type: "daily"; days?: number; full?: boolean }
   | { type: "reports"; force?: "daily" | "weekly" };
 
+/** Tâches de la file `automations` : événement métier à évaluer, ou reprise des étapes différées. */
+export type AutomationsJob =
+  | { type: "event"; trigger: "JOINED" | "OFFER_CLICKED" | "REGISTERED" | "DEPOSITED" | "LEFT" | "SPEND_LEVEL_REACHED"; memberId: string; context?: Record<string, unknown> }
+  | { type: "tick" };
+
 /** Tâches de la file `maintenance` (purge 24 mois, alertes, sauvegardes). */
 export type MaintenanceJob = { type: "purge" } | { type: "alerts" } | { type: "tick" };
 
@@ -44,4 +49,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
         ? SyncLinkAffiJob
         : Q extends "maintenance"
           ? MaintenanceJob
-          : StatsJob;
+          : Q extends "automations"
+            ? AutomationsJob
+            : StatsJob;

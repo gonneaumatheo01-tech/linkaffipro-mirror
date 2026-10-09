@@ -6,6 +6,7 @@ import { processTelegramSend, repeatableTelegramSend } from "./telegram-send";
 import { processSyncLinkaffi, repeatableSyncLinkaffi } from "./sync-linkaffi";
 import { processStats, repeatableStats } from "./stats";
 import { processMaintenance, repeatableMaintenance } from "./maintenance";
+import { processAutomations, repeatableAutomations } from "./automations";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -16,4 +17,5 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   "sync-linkaffi": { process: (job: Job) => processSyncLinkaffi(job), repeatable: repeatableSyncLinkaffi, concurrency: 1 },
   stats: { process: (job: Job) => processStats(job), repeatable: repeatableStats, concurrency: 1 },
   maintenance: { process: (job: Job) => processMaintenance(job), repeatable: repeatableMaintenance, concurrency: 1 },
+  automations: { process: (job: Job) => processAutomations(job), repeatable: repeatableAutomations, concurrency: 2 },
 };
