@@ -1,54 +1,42 @@
-# État du projet — phase 0 validée le 9 octobre 2026 (« phase 0 OK » reçu par Telegram à 14h05) ; phase 1 en cours
+# État du projet — phase 1 : kit minimal prêt (9 octobre 2026, 14h40)
 
-## Ce qui est fait
-- Le code est sur GitHub (dépôt privé `linkaffipro-platform`), avec tests, lint et build verts.
-- Le site et le robot de tâches (worker) sont déployés sur Railway avec leur base PostgreSQL et Redis. Les migrations se lancent toutes seules à chaque déploiement.
-- Page de connexion (e-mail + mot de passe), rôles ADMIN / MANAGER, invitations par lien, page « Mon compte » (changer le mot de passe, lier son Telegram).
-- Pages : Tableau de bord, Bots, Canaux, Journal, Réglages ; Membres / Messages / Liens annoncées « bientôt » (phase 1).
-- Les 3 bots Telegram (casino, paris sportifs, dating) sont enregistrés, leurs jetons chiffrés, leurs webhooks posés et vérifiés. Ils répondent à /start.
-- Détection automatique des canaux où un bot est administrateur.
-- Redirections go.goolink.eu : /test envoie vers t.me/telegram, le reste vers le site ; chaque passage est journalisé (robots marqués).
-- Client de l'API Link Affi prêt (en attente des deux clés, voir plus bas).
+Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Sections 1 à 6 de la phase 1 déployées et vérifiées ; sections 7 à 9 en cours.
 
-## Adresses
-- Site : https://app.linkaffipro.com (DNS posés, certificat valide). L'adresse provisoire https://web-production-361c4c.up.railway.app reste utilisable.
-- Liens traqués : https://go.goolink.eu (ex. https://go.goolink.eu/test).
+## Adresses et accès
+- Site : https://app.linkaffipro.com — liens traqués : https://go.goolink.eu
+- Votre compte : gonneaumatheo.business@gmail.com (mot de passe choisi le 9 octobre).
+- Un compte interne « Vérification (Claude) » (verification@linkaffipro.internal, ADMIN) sert à mes contrôles automatiques des pages ; vous pouvez le désactiver dans Réglages si vous préférez (je le recréerai au besoin).
+- Dialogue : par Telegram via @casinogamblingoobot (`pnpm tg:send` / `pnpm tg:inbox`).
 
-## Votre compte administrateur
-- E-mail : gonneaumatheo.business@gmail.com
-- Mot de passe : celui que vous avez choisi le 9 octobre à 11h20 (le mot de passe temporaire n'est plus valable).
+## Ce qui est fait (kit minimal, sections 1 à 6)
+- **Modèle de données complet** (19 tables de plus, voir `docs/DATA-MODEL.md`), migrations appliquées en production.
+- **Adhésions** : demandes `chat_join_request` accueillies en privé par le bon bot, flux « rejoins ces canaux » (boutons + « ✅ J'ai rejoint »), approbation immédiate / après délai / manuelle, rappels, expiration ; réglables canal par canal (Canaux → ouvrir un canal → Règles d'adhésion) ; file « Demandes » avec Accepter / Refuser ; entrées et départs suivis.
+- **Liens** : page Liens → « Nouveau lien d'entrée (pub) » crée le lien d'invitation Telegram + le lien go.goolink.eu avec l'URL à coller dans TikTok ou Meta (macros officielles) ; liens génériques ; tableaux Entrées / Offres / Boutons avec clics, demandes, acceptés, inscriptions, FTD.
+- **Offres personnalisées** : un bouton « Offre » dans un message ouvre le bot, qui répond avec un lien Link Affi portant un **sub-ID unique** (12 caractères) par membre et par message.
+- **Messages** : calendrier semaine + liste, éditeur HTML Telegram avec aperçu, médias, boutons (URL / traqué / Offre), options (épingler, supprimer après, silencieux, protégé), brouillons, modèles, duplication, décalage, annulation, suppression sur Telegram ; envoi à l'heure par le worker avec limites de débit Telegram et gestion des erreurs ; réactions comptées.
+- **Synchro Link Affi** : toutes les 2 minutes, via l'API en lecture seule ; programmes, campagnes, joueurs, événements, NGR, dépôts ; rattachement joueur → clic → membre → message par sub-ID (`postback` sûr, `time_match` secours) ; Réglages → Connecteurs : état par table, « Synchroniser maintenant », santé du sub-ID, seuils du niveau de dépense. Première synchronisation lancée à 14h35 (109 campagnes et 11 programmes importés ; joueurs en cours).
+- **Membres** : liste avec recherche, filtres, tri, export CSV ; fiche membre avec origine, chronologie complète, joueurs rattachés, notes, suppression (anonymisation).
+- **Tableau de bord** : aujourd'hui / 7 jours / 30 jours, filtres univers et canal, 11 indicateurs avec tendances, tableau par canal.
+- Qualité : 187 tests unitaires, lint et build verts, déploiement vérifié (santé, pages, webhooks des 3 bots).
 
-## DNS (fait)
-Les 4 enregistrements IONOS (CNAME `app` et `go`, TXT `_railway-verify.app` et `_railway-verify.go`) sont en place et vérifiés par Railway. Les domaines nus linkaffipro.com et goolink.eu restent libres (IONOS refuse les CNAME sur domaine nu) ; une redirection IONOS vers app.linkaffipro.com est possible plus tard.
+## Test de 5 minutes (kit minimal)
+Pré-requis : votre canal « Test » existe déjà avec @casinogamblingoobot administrateur. Créez un second canal privé « Médiathèque » et ajoutez-y aussi @casinogamblingoobot comme administrateur (il apparaîtra dans Canaux ; cochez « Médiathèque »).
 
-## Test de 5 minutes
-1. Ouvrez https://app.linkaffipro.com et connectez-vous.
-2. Menu en haut à droite → Mon compte → changez votre mot de passe.
-3. Dans Telegram, ouvrez @casinogamblingoobot, @sportbettingoobot et @womendatingoobot : appuyez sur Démarrer (ou tapez /start). Chaque bot doit répondre « Bonjour, je suis …, le bot … ».
-4. Créez un canal privé de test dans Telegram (Nouveau canal → nom « TEST » → privé). Ajoutez un bot comme administrateur : canal → Administrateurs → Ajouter un administrateur → cherchez @casinogamblingoobot → validez. Publiez un message dans le canal.
-5. Sur le site, page Canaux : le canal « TEST » apparaît avec le bot en administrateur. Cochez la case TEST, choisissez l'univers Casino, cliquez Enregistrer.
-6. Sur le site, page Tableau de bord : les compteurs et les derniers événements (/start, canal détecté) sont visibles.
-7. Ouvrez https://go.goolink.eu/test : vous devez arriver sur t.me/telegram.
+1. Sur le site, Canaux → « Test » → Ouvrir → onglet Règles d'adhésion : mode « Après un délai », délai « 1 minute », canaux à rejoindre : « Médiathèque », mode du gate « Obligatoire », Enregistrer.
+2. Liens → « Nouveau lien d'entrée (pub) » : canal « Test », nom « TEST-pub-1 », plateforme « Autre », Créer. Copiez l'URL go.goolink.eu affichée.
+3. Depuis votre téléphone, ouvrez cette URL : Telegram s'ouvre sur « Test » avec un bouton « Demander à rejoindre ». Demandez.
+4. Le bot vous écrit en privé : rejoignez « Médiathèque » via le bouton, puis appuyez sur « ✅ J'ai rejoint ». Le bot confirme ; vous êtes accepté dans « Test » environ une minute plus tard.
+5. Messages → Nouveau message : canal « Test », dans 2 minutes, un texte, un bouton de type « Offre » avec une campagne Link Affi (par exemple celle de Celsius), Programmer. Le message part à l'heure ; appuyez sur le bouton : le bot répond avec votre lien personnalisé (il contient `sub_id=`).
+6. Membres → votre fiche : la chronologie montre la demande, l'accueil, le gate, l'acceptation, l'entrée et le clic offre avec son sub-ID.
+7. Réglages → Connecteurs : la synchro Link Affi est verte.
 
-## Link Affi : accès établi, mais pas de sub-ID
-L'API répond (32 tables ; 18 810 clics, 1 757 joueurs, 109 campagnes, 11 programmes). Le schéma complet est dans `docs/LINKAFFI-SCHEMA.md`.
+Répondez « kit OK » par Telegram quand c'est fait, ou décrivez ce qui ne va pas.
 
-Point bloquant pour l'attribution par membre : **Link Affi n'enregistre aucun sub-ID**. Le lien `linkaffi.me/go/<clé>` transmet bien les paramètres ajoutés, mais ils ne sont conservés nulle part (ni dans `clicks`, ni dans `players`, ni dans les postbacks). Aujourd'hui, Link Affi rattache un joueur à une **campagne** (clé de 8 caractères comme `47eb8mwc`), rien de plus fin.
-
-Ce que cela change :
-- Possible dès la phase 1 sans toucher à Link Affi : statistiques par **pub, canal et message**, à condition de créer dans Link Affi **une campagne par usage** (par exemple une campagne par message publié) et de la coller dans la plateforme. Le rapprochement « quel membre a cliqué » restera approximatif (horodatage + campagne).
-- Pour les statistiques **par membre** (qui s'est inscrit, qui a déposé), il faut une petite évolution de Link Affi, à demander à la personne qui l'a construite. Texte à lui transmettre :
-  > « Peux-tu ajouter un paramètre `sub_id` (texte, jusqu'à 64 caractères) à la fonction `track-click` : le stocker dans une colonne `clicks.sub_id`, le transmettre au casino dans le lien d'affiliation (paramètre libre que le casino renvoie dans son postback, souvent `click_id` ou `sub1`), le recopier dans `players.sub_id` à l'inscription et dans `postback_logs.sub_id`, et exposer ces colonnes dans `stats-api` ? »
-- Décision du 9 octobre : **option 1**, on demande l'évolution à Link Affi (texte ci-dessus) et, en attendant, la phase 1 attribue par campagne.
+## Ce qui reste (phase 1, sections 7 à 9, en cours)
+- Séquences d'accueil par défaut multilingues pour chaque canal et onglet « Messages du bot » (édition par langue, envoi d'un test).
+- Réglages → Catégories (CRUD) et comparaison des messages par catégorie.
+- Mise à jour finale des docs et test de 5 minutes complet de la phase 1.
 
 ## Actions humaines en attente
-1. Demande d'évolution transmise au développeur de Link Affi le 9 octobre (confirmé par Telegram) ; me dire quand c'est en place.
-2. Valider la phase 0 : faites le test de 5 minutes ci-dessus puis répondez « phase 0 OK » (par Telegram, voir ci-dessous).
-
-Fait : DNS, bascule en Europe (confirmée par vous ; Postgres vérifié à Amsterdam), volumes orphelins supprimés par la ligne de commande (Railway les efface définitivement le 11 octobre).
-
-## Dialogue par Telegram
-Depuis le 9 octobre, les questions, demandes de test et annonces vous sont envoyées en message privé par le bot casino (@casinogamblingoobot) ; répondez-lui directement dans Telegram. Commandes : `pnpm tg:send`, `pnpm tg:inbox` (voir CLAUDE.md).
-
-## Ce qui reste pour la phase 1
-Demandes d'adhésion avec délai réglable, flux « rejoins ces canaux », liens go.goolink.eu par pub avec liens d'invitation, boutons avec sub-ID par membre et par message, calendrier de messages, synchronisation Link Affi, fiches membres, statistiques détaillées.
+1. Faire le test de 5 minutes ci-dessus et répondre « kit OK ».
+2. Dire quand le développeur Link Affi aura confirmé un premier joueur avec `sub_id_source = postback` (Réglages → Connecteurs l'affichera aussi).
