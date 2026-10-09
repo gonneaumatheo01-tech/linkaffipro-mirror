@@ -13,4 +13,4 @@ RUN pnpm install --frozen-lockfile --prod=false \
   && pnpm store prune
 EXPOSE 3000
 # Au démarrage : migrations Prisma, puis Next.
-CMD ["sh", "-c", "pnpm --filter @linkaffipro/db db:migrate && pnpm --filter web exec next start -p ${PORT:-3000}"]
+CMD ["sh", "-c", "pnpm --filter @linkaffipro/db db:migrate && pnpm --filter @linkaffipro/db db:seed && pnpm --filter web exec next start -p ${PORT:-3000}"]
