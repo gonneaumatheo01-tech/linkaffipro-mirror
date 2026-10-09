@@ -4,7 +4,7 @@ import { buildRedirectEvent, redirectResponse, resolveTarget } from "@/lib/track
 
 export const dynamic = "force-dynamic";
 
-/** Redirection goolink.eu : 302 immédiat, journalisation après la réponse. */
+/** Redirection go.goolink.eu : 302 immédiat, journalisation après la réponse. */
 export async function GET(req: Request, ctx: RouteContext<"/r/[[...slug]]">) {
   const { slug } = await ctx.params;
   const resolved = resolveTarget(slug ?? []);

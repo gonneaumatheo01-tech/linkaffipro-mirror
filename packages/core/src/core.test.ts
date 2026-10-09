@@ -84,12 +84,12 @@ describe("tracking", () => {
     expect(p.utm).toEqual({ utm_source: "tiktok", utm_campaign: "c1" });
   });
   it("reconnaît l'hôte de tracking", () => {
-    expect(isTrackingHost("goolink.eu", "goolink.eu")).toBe(true);
-    expect(isTrackingHost("www.goolink.eu:443", "goolink.eu")).toBe(true);
-    expect(isTrackingHost("GOOLINK.EU", "goolink.eu")).toBe(true);
-    expect(isTrackingHost("linkaffipro.com", "goolink.eu")).toBe(false);
-    expect(isTrackingHost(null, "goolink.eu")).toBe(false);
-    expect(isTrackingHost("goolink.eu", undefined)).toBe(false);
+    expect(isTrackingHost("go.goolink.eu", "go.goolink.eu")).toBe(true);
+    expect(isTrackingHost("www.go.goolink.eu:443", "go.goolink.eu")).toBe(true);
+    expect(isTrackingHost("GO.GOOLINK.EU", "go.goolink.eu")).toBe(true);
+    expect(isTrackingHost("app.linkaffipro.com", "go.goolink.eu")).toBe(false);
+    expect(isTrackingHost(null, "go.goolink.eu")).toBe(false);
+    expect(isTrackingHost("go.goolink.eu", undefined)).toBe(false);
   });
 });
 

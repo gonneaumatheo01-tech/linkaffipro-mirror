@@ -27,7 +27,7 @@ Enums : `Role = ADMIN | MANAGER`, `Vertical = CASINO | SPORTS | DATING`, `ChatTy
 | `member.start` | `/start` reçu en privé | membre, bot |
 | `member.blocked` / `member.unblocked` | Le membre bloque / débloque le bot | membre, bot |
 | `channel.bot_admin_detected` / `channel.bot_admin_revoked` | Le bot gagne / perd les droits d'administrateur | canal, bot |
-| `tracking.redirect` | Redirection goolink.eu. Payload : `slug`, `target`, `known`, `host`, `userAgent`, `isBot`, `ipHash` (SHA-256 salé), `referer`, `clickIds` (`ttclid`, `fbclid`, `gclid`, `msclkid`), `utm` | — (lien en phase 1) |
+| `tracking.redirect` | Redirection go.goolink.eu. Payload : `slug`, `target`, `known`, `host`, `userAgent`, `isBot`, `ipHash` (SHA-256 salé), `referer`, `clickIds` (`ttclid`, `fbclid`, `gclid`, `msclkid`), `utm` | — (lien en phase 1) |
 
 ## Phase 1 (prévue, noms réservés)
 
@@ -36,8 +36,8 @@ Enums : `Role = ADMIN | MANAGER`, `Vertical = CASINO | SPORTS | DATING`, `ChatTy
 | `Membership` | Appartenance d'un membre à un canal : demande d'adhésion (`requestedAt`), approbation (`approvedAt`, `approvedBy` bot/humain), départ, lien d'invitation d'origine (`inviteLinkId`), pub d'origine. |
 | `ApprovalRule` | Règle d'approbation par canal : immédiate / après délai / après « gate » (canaux à rejoindre), délai en minutes, activation. |
 | `InviteLink` | Lien d'invitation Telegram créé par la plateforme (avec demande d'adhésion), rattaché à un canal et à une campagne/pub ; compteurs. |
-| `TrackingLink` | Lien court goolink.eu (`slug` base62 8 caractères) → cible (lien d'invitation, bot, offre), campagne, pub, paramètres conservés. |
-| `Click` | Clic sur un lien goolink.eu ou un bouton de message : `trackingLinkId`, `postButtonId`, `memberId`, `subId` (unique par membre et par message, transmis à Link Affi), `ipHash`, `userAgent`, `isBot`, `clickIds`, `utm`. |
+| `TrackingLink` | Lien court go.goolink.eu (`slug` base62 8 caractères) → cible (lien d'invitation, bot, offre), campagne, pub, paramètres conservés. |
+| `Click` | Clic sur un lien go.goolink.eu ou un bouton de message : `trackingLinkId`, `postButtonId`, `memberId`, `subId` (unique par membre et par message, transmis à Link Affi), `ipHash`, `userAgent`, `isBot`, `clickIds`, `utm`. |
 | `Post` | Message programmé pour un canal : contenu multilingue, média, date/heure, statut, `telegramMessageId` après envoi. |
 | `PostButton` | Bouton d'un message : libellé, type (URL / deep link bot / offre), cible, compteur. |
 | `PostStats` | Agrégats par message : vues (MTProto, plus tard), clics, membres, inscriptions, FTD, dépôts, NGR. |

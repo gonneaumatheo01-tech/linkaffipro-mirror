@@ -30,10 +30,10 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 - Les handlers sont écrits contre une interface `TelegramDeps` (accès base abstrait) pour être testés avec des updates simulées sans base.
 - `botInfo` est fourni à grammY à partir de l'enregistrement en base pour éviter un appel `getMe` à chaque instance.
 
-### Redirections goolink.eu
+### Redirections go.goolink.eu
 - Routage par hôte dans `proxy.ts` : si l'hôte est `TRACKING_HOST`, réécriture vers `/r/<chemin>` sans authentification ; réponse 302 sans corps, `Cache-Control: no-store`, `X-Robots-Tag: noindex`.
 - La journalisation (`Event` `tracking.redirect`) se fait **après** la réponse (`after()` de Next) pour ne jamais ralentir la redirection.
-- Le domaine de tracking est **goolink.eu** (correction de l'utilisateur, l'analyse initiale disait goolink.me).
+- Le domaine de tracking est **go.goolink.eu** (corrections de l'utilisateur : goolink.me → goolink.eu, puis sous-domaine `go.` à cause d'IONOS).
 
 ### Link Affi
 - Link Affi tourne sur Lovable Cloud : aucun accès SQL ni MCP, seulement l'API GET `stats-api` (voir `docs/LINKAFFI-API.md`). Client typé dans `packages/linkaffi` : file d'attente 1 requête/s, pagination par `offset`, reprises avec attente croissante (429 / 5xx / réseau), aucune reprise sur 401/403/404.
@@ -45,7 +45,7 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 - Une image par service, construite depuis la racine du monorepo (variable `RAILWAY_DOCKERFILE_PATH`). Choix volontaire d'une image « espace de travail complet » (sans `pnpm deploy` ni sortie standalone) : plus lourde mais sans surprise avec Prisma et pnpm ; à optimiser plus tard si le temps de build gêne.
 - Le service `web` lance `prisma migrate deploy` puis `next start` à chaque démarrage. Le premier ADMIN est créé par `pnpm db:seed` (idempotent).
 - Région : les bases Postgres et Redis ont été créées par Railway dans la région par défaut du compte (US West, `us-west2`). Une tentative de les recréer en Europe par l'API a échoué (le champ `region` est ignoré à la création des volumes, et la suppression des services a été bloquée). Un service dont la région diffère de celle de son volume ne démarre pas : **tous les services sont donc alignés sur `us-west2`** pour la phase 0. Le passage en Europe (Amsterdam) se fait depuis le tableau de bord Railway, service par service (voir STATUS.md) ; il faudra ensuite reposer les webhooks (`pnpm telegram:webhooks`, rien d'autre ne change). Les volumes orphelins créés pendant la tentative sont à supprimer dans le tableau de bord.
-- Le plan Railway actuel limite à **2 domaines personnalisés par service** : `linkaffipro.com` et `goolink.eu` sont posés ; `www.linkaffipro.com` sera ajouté après passage au plan supérieur (ou par une redirection chez le registrar).
+- Domaines : IONOS (registrar du client) refuse les CNAME sur domaine nu, donc le site est sur `app.linkaffipro.com` et le tracking sur `go.goolink.eu` (CNAME vers Railway + TXT de vérification). Le plan Railway actuel limite à 2 domaines personnalisés par service : ces deux-là sont posés ; les domaines nus restent libres (redirection IONOS possible plus tard).
 
 ### Interface
 - Textes en français, police système (pas de police Google : évite un appel réseau au build).

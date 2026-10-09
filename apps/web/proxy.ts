@@ -7,7 +7,7 @@ const { auth } = NextAuth(authConfig);
 
 /**
  * Proxy (ex-middleware) :
- * 1. le trafic du domaine de tracking (goolink.eu) est réécrit vers /r/… sans authentification ;
+ * 1. le trafic du domaine de tracking (go.goolink.eu) est réécrit vers /r/… sans authentification ;
  * 2. les chemins publics passent ;
  * 3. tout le reste exige une session, sinon redirection vers /login.
  */
