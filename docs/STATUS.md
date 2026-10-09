@@ -1,6 +1,6 @@
-# État du projet — phase 3 terminée (9 octobre 2026, 19h45)
+# État du projet — phase 4 (solidité) terminée (9 octobre 2026, 20h40) ; phases 5 et 6 enchaînées en mode autonome
 
-Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-connecteurs-et-stats.md`, rédigé par Claude et validé « Ok ») déployée et testée de bout en bout par Claude.
+Phases 0 et 1 validées (Telegram). Phases 2, 3 et 4 déployées et testées par Claude (tests automatiques et simulés). Mode autonome depuis le 9 octobre au soir : phases 4, 5 et 6 enchaînées sans intervention humaine (`docs/prompts/05-phases-suivantes-autonome.md`).
 
 ## Adresses et accès
 - Site : https://app.linkaffipro.com — liens traqués : https://go.goolink.eu
@@ -39,6 +39,14 @@ Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-con
 
 - **Tests A/B des envois groupés** : dans « Nouvel envoi », cochez « Test A/B », écrivez la version B (texte, média, boutons) et choisissez la part (10 à 90 %). Les destinataires sont répartis au hasard mais de façon stable ; la page du test compare envoyés, clics, cliqueurs uniques, inscriptions, FTD et désigne la gagnante (au moins 30 envois par version). Bouton « Envoyer la version gagnante au reste du segment » pour les membres pas encore servis.
 - **Sécurité du site** (`docs/SECURITE.md`) : 10 échecs de connexion en 15 minutes (par e-mail ou par adresse) bloquent la connexion 15 minutes ; en-têtes de sécurité (HSTS, anti-cadre, CSP) ; webhooks et postbacks limités à 1 Mo ; suppressions réservées aux ADMIN.
+
+## Phase 4 — solidité (9 octobre, 20h40)
+- **Tests automatiques** : 359 tests unitaires + 22 tests d'intégration sur base réelle (adhésion, offre avec sub-ID, message programmé, synchro Link Affi simulée, postback, redirection), exécutés aussi par GitHub Actions à chaque envoi.
+- **Surveillance** : Réglages → **État du système** (santé du site et du worker, files d'attente, tâches échouées à relancer en un clic, bots, synchro, alertes, dernière sauvegarde). Nouvelles alertes Telegram : worker arrêté, erreurs répétées, sauvegarde en échec.
+- **Sauvegardes automatiques** : chaque nuit à 4 h, copie complète de la base dans un espace de stockage Railway dédié (14 jours conservés), visible dans l'État du système et dans le brief quotidien. Restauration testée (`docs/SAUVEGARDES.md`).
+- **Reprise sur erreur** : les envois Telegram, la synchro et les statistiques réessaient 3 fois ; les tâches bloquées sont reprises ; les échecs anciens sont purgés.
+- **Performance** : 28 index de base, pagination de toutes les longues listes, tableaux de bord mis en cache 60 s.
+- **Sécurité** : changer son mot de passe ou perdre ses droits déconnecte les autres appareils ; journal filtrable (utilisateur, action, période) ; toutes les actions journalisées.
 
 ## Tests réalisés par Claude en production (9 octobre, 19h35 à 19h45)
 - Déploiement web + worker vérifié (health check ok, base et Redis ok, migrations à jour).
