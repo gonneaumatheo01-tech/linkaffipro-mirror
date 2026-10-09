@@ -1,4 +1,4 @@
-# État du projet — phase 0 (9 octobre 2026)
+# État du projet — phase 0 validée le 9 octobre 2026 (« phase 0 OK » reçu par Telegram à 14h05) ; phase 1 en cours
 
 ## Ce qui est fait
 - Le code est sur GitHub (dépôt privé `linkaffipro-platform`), avec tests, lint et build verts.
