@@ -33,7 +33,8 @@ export type StatsJob =
 
 /** Tâches de la file `automations` : événement métier à évaluer, ou reprise des étapes différées. */
 export type AutomationsJob =
-  | { type: "event"; trigger: "JOINED" | "OFFER_CLICKED" | "REGISTERED" | "DEPOSITED" | "LEFT" | "SPEND_LEVEL_REACHED"; memberId: string; context?: Record<string, unknown> }
+  | { type: "event"; trigger: "JOINED" | "OFFER_CLICKED" | "REGISTERED" | "DEPOSITED" | "LEFT" | "SPEND_LEVEL_REACHED" | "INACTIVE"; memberId: string; context?: Record<string, unknown> }
+  | { type: "test"; ruleId: string; memberId: string }
   | { type: "tick" };
 
 /** Tâches de la file `maintenance` (purge 24 mois, alertes, sauvegardes). */

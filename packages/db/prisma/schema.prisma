@@ -1071,6 +1071,10 @@ model Broadcast {
   failed       Int             @default(0)
   blocked      Int             @default(0)
   lastError    String?
+  /// Test A/B : identifiant commun aux variantes d'un même test et part (en %) des destinataires pour cette variante.
+  abGroupId    String?
+  abVariant    String?
+  abSplit      Int?
   createdById  String?
   createdBy    User?           @relation(fields: [createdById], references: [id])
   createdAt    DateTime        @default(now())
@@ -1079,6 +1083,7 @@ model Broadcast {
   outboundMessages OutboundMessage[]
 
   @@index([status, scheduledAt])
+  @@index([abGroupId])
 }
 
 /// Règle d'automatisation « si… alors… ».

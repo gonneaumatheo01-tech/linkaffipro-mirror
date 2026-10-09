@@ -8,3 +8,4 @@ export * from "./spend-level";
 export * from "./telegram-html";
 export * from "./ad-macros";
 export * from "./segment";
+export * from "./automation";

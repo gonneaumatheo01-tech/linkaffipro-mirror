@@ -1,4 +1,5 @@
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { emitAutomationEvent } from "@linkaffipro/queue";
 import { chooseSubId, type SubIdSource } from "@linkaffipro/linkaffi";
 import { normalizeMapping, parsePostback, postbackExternalId, type ParsedPostback, type PostbackMapping } from "./parse";
 
@@ -106,6 +107,9 @@ export async function applyParsedPostback(endpoint: EndpointLike, parsed: Parsed
   });
   for (const e of events) {
     await recordEvent({ type: e.type, occurredAt: parsed.occurredAt, memberId: player.memberId ?? null, payload: { playerId: player.id, externalPlayerId: parsed.externalPlayerId, amount: e.amount ?? null, subId: player.subId, postId: click?.postId ?? null, via: "postback" } });
+    if (player.memberId && (e.type === "player.registered" || e.type === "player.ftd" || e.type === "player.deposit")) {
+      await emitAutomationEvent(e.type === "player.registered" ? "REGISTERED" : "DEPOSITED", player.memberId, { playerId: player.id, amount: e.amount ?? null, eventType: e.type, via: "postback" });
+    }
   }
   return { status: "ACCEPTED", message: `${parsed.eventType} enregistré${player.memberId ? " (membre rattaché)" : parsed.subId ? " (sub-ID inconnu, joueur sans membre)" : ""}.`, playerEventId: pe.id };
 }

@@ -1,5 +1,5 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
-import { enqueueDm } from "@linkaffipro/queue";
+import { emitAutomationEvent, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { ChannelInfo, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
 import { resolveRule, ruleFromRow, type RuleData } from "./rules";
@@ -115,5 +115,8 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
   },
   async recordEvent(input) {
     await recordEvent(input);
+  },
+  async emitAutomation(trigger, memberId, context) {
+    await emitAutomationEvent(trigger, memberId, context);
   },
 };

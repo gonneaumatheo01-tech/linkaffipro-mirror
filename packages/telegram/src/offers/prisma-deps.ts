@@ -1,4 +1,5 @@
 import { prisma, recordEvent } from "@linkaffipro/db";
+import { emitAutomationEvent } from "@linkaffipro/queue";
 import type { OfferDeps } from "./deps";
 
 function mediaKindOf(mimeType: string): "photo" | "video" | "animation" | "document" {
@@ -85,6 +86,9 @@ export const prismaOfferDeps: OfferDeps = {
       botId: input.botId,
       payload: { clickId: click.id, subId: input.subId, trackingLinkId: input.trackingLinkId, postId: input.postId },
     });
+    const post = input.postId ? await prisma.post.findUnique({ where: { id: input.postId }, select: { channelId: true, categoryId: true } }).catch(() => null) : null;
+    const tl = await prisma.trackingLink.findUnique({ where: { id: input.trackingLinkId }, select: { affiliateCampaignId: true } }).catch(() => null);
+    await emitAutomationEvent("OFFER_CLICKED", input.memberId, { postId: input.postId, channelId: post?.channelId ?? null, categoryId: post?.categoryId ?? null, affiliateCampaignId: tl?.affiliateCampaignId ?? null, clickId: click.id, botId: input.botId });
     return { clickId: click.id };
   },
 

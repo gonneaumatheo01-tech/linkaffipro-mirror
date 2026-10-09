@@ -3,6 +3,7 @@
  * Voir docs/LINKAFFI-SYNC.md pour la correspondance, l'ordre et les curseurs.
  */
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { emitAutomationEvent } from "@linkaffipro/queue";
 import {
   LinkAffiClient,
   PAGE_LIMIT,
@@ -204,6 +205,7 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
     }
     for (const ev of change.events) {
       await recordEvent({ type: ev.type, memberId, payload: { playerId: player.id, externalPlayerId: m.externalPlayerId, campaignId, amount: ev.amount ?? null, subId: change.data.subId, subIdSource: change.data.subIdSource } });
+      if (memberId) await emitAutomationEvent(ev.type === "player.registered" ? "REGISTERED" : "DEPOSITED", memberId, { playerId: player.id, amount: ev.amount ?? null, eventType: ev.type, via: "linkaffi" });
     }
   }
 }

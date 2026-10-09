@@ -57,5 +57,7 @@ export interface JoinFlowDeps {
   enqueueDm(input: { botId: string; memberId: string; chatId: bigint | null; kind: "WELCOME" | "GATE_REMINDER" | "ACCEPTED"; text: string; buttons: Array<Array<{ text: string; url: string }>>; mediaAssetId?: string | null }): Promise<void>;
   setCanDm(memberId: string, botId: string, canDm: boolean): Promise<void>;
   recordEvent(input: { type: string; memberId?: string | null; channelId?: string | null; botId?: string | null; payload?: Prisma.InputJsonValue }): Promise<void>;
+  /** Émet un événement vers les automatisations (optionnel, jamais bloquant). */
+  emitAutomation?(trigger: "JOINED" | "LEFT", memberId: string, context: Record<string, unknown>): Promise<void>;
   /** Le membre est-il dans le chat ? (getChatMember est appelé par le handler ; ici on isole pour les tests.) */
 }

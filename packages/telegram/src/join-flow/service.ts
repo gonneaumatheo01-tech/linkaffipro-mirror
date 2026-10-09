@@ -199,6 +199,7 @@ export async function handleChatMember(identity: BotIdentity, deps: JoinFlowDeps
       await deps.createMembership({ code: shortId(), memberId: member.memberId, channelId: channel.id, status: "APPROVED", inviteLinkId: link?.id ?? null, approvalRuleId: null, userChatId: null, requestedAt: now, approveAt: null, expiresAt: null, source: { joinedDirectly: true, telegramInviteLink: viaLink, gateFromChannelId: link?.sourceChannelId ?? null } });
     }
     await deps.recordEvent({ type: "membership.joined", memberId: member.memberId, channelId: channel.id, botId: identity.id, payload: { inviteLink: viaLink, inviteLinkId: link?.id ?? null, gateFromChannelId: link?.sourceChannelId ?? null } });
+    await deps.emitAutomation?.("JOINED", member.memberId, { channelId: channel.id, inviteLinkId: link?.id ?? latest?.inviteLinkId ?? null, botId: identity.id });
     return { handled: true };
   }
   if (oldOk && !newOk) {
@@ -206,6 +207,7 @@ export async function handleChatMember(identity: BotIdentity, deps: JoinFlowDeps
     if (latest && latest.status !== "LEFT" && latest.status !== "KICKED") await deps.updateMembership(latest.id, { status: kicked ? "KICKED" : "LEFT", leftAt: now });
     if (latest?.inviteLinkId) await deps.incrementInviteLink(latest.inviteLinkId, "left");
     await deps.recordEvent({ type: kicked ? "membership.kicked" : "membership.left", memberId: member.memberId, channelId: channel.id, botId: identity.id, payload: { membershipId: latest?.id ?? null } });
+    if (!kicked) await deps.emitAutomation?.("LEFT", member.memberId, { channelId: channel.id, inviteLinkId: latest?.inviteLinkId ?? null, botId: identity.id });
     return { handled: true };
   }
   return { handled: false };
