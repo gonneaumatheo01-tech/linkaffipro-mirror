@@ -2,6 +2,7 @@
 FROM node:22-alpine
 RUN apk add --no-cache libc6-compat openssl && npm install -g pnpm@12.9.1
 ENV NODE_ENV=production PNPM_HOME=/home/node/.pnpm
+RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
 COPY --chown=node:node . .
 USER node
