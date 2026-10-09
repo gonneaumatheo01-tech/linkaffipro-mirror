@@ -104,3 +104,11 @@ Règles : conservation 24 mois (purge à prévoir en phase 2) ; les montants son
 | `Alert` | Alerte système. | `kind`, `severity` (INFO, WARNING, CRITICAL), `message`, `payload`, `notifiedAt`, `resolvedAt` |
 | `DailyStat` | Statistiques journalières pré-calculées. | `date`, `dimension` (`all`, `channel:<id>`, `campaign:<id>`, `ad:<id>`, `vertical:<V>`), métriques (requests, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, depositAmount, ngr, spend) ; unique `(date, dimension)` |
 | `Member.tags` | Étiquettes libres (JSON). | — |
+
+## Phase 3 (9 octobre 2026) — migrations `outbound_media`, `automations`, `broadcast_ab`
+| Table / colonne | Rôle | Colonnes clés |
+| --- | --- | --- |
+| `OutboundMessage.mediaAssetId` | Média joint à un message privé (légende = texte). | relation `MediaAsset` |
+| `AutomationRule` | Règle « si… alors… ». | `trigger` (JOINED, OFFER_CLICKED, REGISTERED, DEPOSITED, INACTIVE, LEFT, SPEND_LEVEL_REACHED), `conditions` JSON (canaux, pubs, langues, niveaux, inactivité, catégories), `actions` JSON ordonnées (send_message, send_sequence, wait, tag, suggest_channel, notify_team), `isActive`, `oncePerMember`, `runs`, `lastRunAt` |
+| `AutomationRun` | Exécution d'une règle pour un membre (journal + reprise des « attendre »). | `status` (PENDING, RUNNING, DONE, FAILED, SKIPPED, CANCELLED), `step`, `resumeAt`, `context`, `log`, `error` |
+| `Broadcast.abGroupId` / `abVariant` / `abSplit` | Test A/B : variantes d'un même test et part des destinataires. | — |

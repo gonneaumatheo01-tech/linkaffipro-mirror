@@ -35,8 +35,10 @@ Phases 0 et 1 validées (Telegram). Phase 2 (prompt `docs/prompts/03-phase-2-con
 3. **Comptes publicitaires** : dès qu'un compte TikTok Ads ou Meta Ads existe, dites-le : les connecteurs API remplaceront l'import CSV.
 4. **Vues par message** (nombre de vues Telegram) : nécessite une connexion avec votre numéro de téléphone (code SMS), à faire ensemble en 5 minutes quand vous voudrez.
 
+- **Automatisations « si… alors… »** (page Automatisations) : déclencheurs (a rejoint, a cliqué une offre, s'est inscrit, a déposé, inactif depuis N jours, a quitté, niveau de dépense atteint), conditions (canal, pub, langue, niveau), actions enchaînées (message, séquence du canal, attendre, étiqueter, proposer un canal, prévenir l'équipe), modèles proposés, journal par règle, « Tester sur moi ». Les règles sont créées inactives : activez-les quand le texte vous convient.
+
 ## En cours (phase 3)
-Automatisations « si… alors… » (page Automatisations : déclencheur, conditions, actions, journal, test à soi-même).
+Sécurité du site (limitation des tentatives de connexion, en-têtes de sécurité) et tests A/B des envois groupés.
 
 ## Plus tard (quand les comptes existeront)
 Connecteurs API Meta / TikTok, vues par message (MTProto, connexion téléphone), tests A/B.
