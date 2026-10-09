@@ -12,6 +12,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const sp = await searchParams;
   const callbackUrl = typeof sp.callbackUrl === "string" ? sp.callbackUrl : "/";
   const inactive = sp.error === "inactive";
+  const expired = sp.error === "expired";
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
@@ -19,7 +20,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <h1 className="text-2xl font-semibold tracking-tight">LinkAffi Pro</h1>
           <p className="text-sm text-muted-foreground">Accès réservé à l&apos;équipe.</p>
         </div>
-        <LoginForm callbackUrl={callbackUrl} initialError={inactive ? "Votre compte est désactivé." : null} />
+        <LoginForm callbackUrl={callbackUrl} initialError={inactive ? "Votre compte est désactivé." : expired ? "Votre session a expiré (mot de passe ou droits modifiés) : reconnectez-vous." : null} />
       </div>
     </main>
   );

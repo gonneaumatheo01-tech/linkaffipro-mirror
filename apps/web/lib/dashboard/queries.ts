@@ -1,5 +1,6 @@
 import { prisma, type Vertical } from "@linkaffipro/db";
 import { aggregateByDay, dayKeys, rangeDays, rangeStart, type DaySeries, type Range } from "./aggregate";
+import { cachedDashboard } from "./cache";
 
 export type DashboardFilters = { range: Range; vertical: Vertical | ""; channelId: string };
 
@@ -7,8 +8,13 @@ export type Metric = { key: string; label: string; series: DaySeries; money?: bo
 
 export type ChannelRow = { channelId: string; title: string; requests: number; approved: number; joined: number; left: number; offerClicks: number; registrations: number; ftds: number; depositAmount: number };
 
-/** Indicateurs du tableau de bord sur la fenêtre choisie (requêtes agrégées, bornées par la fenêtre). */
-export async function loadDashboard(f: DashboardFilters, now = new Date()): Promise<{ metrics: Metric[]; channels: ChannelRow[]; keys: string[] }> {
+export type DashboardData = { metrics: Metric[]; channels: ChannelRow[]; keys: string[] };
+
+/** Indicateurs du tableau de bord, mis en cache 60 s par période et filtres (voir ./cache.ts). */
+export const loadDashboard: (f: DashboardFilters) => Promise<DashboardData> = cachedDashboard("overview", (f: DashboardFilters) => loadDashboardUncached(f));
+
+/** Indicateurs du tableau de bord sur la fenêtre choisie (requêtes agrégées, bornées par la fenêtre), sans cache. */
+export async function loadDashboardUncached(f: DashboardFilters, now = new Date()): Promise<DashboardData> {
   const start = rangeStart(f.range, now);
   const keys = dayKeys(rangeDays(f.range), now);
   const channelWhere = { ...(f.channelId ? { id: f.channelId } : {}), ...(f.vertical ? { vertical: f.vertical } : {}) };

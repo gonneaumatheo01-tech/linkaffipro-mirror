@@ -184,7 +184,13 @@ export function PostForm({ action, channels, categories, campaigns, initial, sin
               <ul className="space-y-2">
                 {media.map((m, i) => (
                   <li key={m.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
-                    {isImage(m) ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/media/${m.id}`} alt="" className="size-12 rounded object-cover" /> : <div className="flex size-12 items-center justify-center rounded bg-muted text-[10px] uppercase">{m.mimeType.split("/")[0]}</div>}
+                    {isImage(m) ? (
+                      // Aperçu servi par notre propre route (session requise) : pas d'optimisation next/image nécessaire.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/media/${m.id}`} alt="" className="size-12 rounded object-cover" />
+                    ) : (
+                      <div className="flex size-12 items-center justify-center rounded bg-muted text-[10px] uppercase">{m.mimeType.split("/")[0]}</div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate">{m.filename}</div>
                       <div className="text-xs text-muted-foreground">{(m.size / 1024 / 1024).toFixed(1)} Mo{m.warning ? ` · ${m.warning}` : ""}</div>

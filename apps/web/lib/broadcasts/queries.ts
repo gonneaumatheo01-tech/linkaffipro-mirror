@@ -43,8 +43,16 @@ export async function loadBroadcastOptions() {
 
 export type BroadcastRow = Prisma.BroadcastGetPayload<{ include: { bot: { select: { username: true; name: true } }; createdBy: { select: { name: true } } } }>;
 
-export async function listBroadcasts(): Promise<BroadcastRow[]> {
-  return prisma.broadcast.findMany({ orderBy: { createdAt: "desc" }, take: 200, include: { bot: { select: { username: true, name: true } }, createdBy: { select: { name: true } } } });
+export const BROADCASTS_PAGE_SIZE = 50;
+
+/** Envois groupés du plus récent au plus ancien, paginés par 50. */
+export async function listBroadcasts(page = 1): Promise<{ rows: BroadcastRow[]; total: number; pages: number; page: number }> {
+  const current = Math.max(1, page);
+  const [total, rows] = await Promise.all([
+    prisma.broadcast.count(),
+    prisma.broadcast.findMany({ orderBy: { createdAt: "desc" }, skip: (current - 1) * BROADCASTS_PAGE_SIZE, take: BROADCASTS_PAGE_SIZE, include: { bot: { select: { username: true, name: true } }, createdBy: { select: { name: true } } } }),
+  ]);
+  return { rows, total, pages: Math.max(1, Math.ceil(total / BROADCASTS_PAGE_SIZE)), page: current };
 }
 
 export function progressOf(b: { targeted: number; sent: number; failed: number; blocked: number }): { done: number; pct: number } {

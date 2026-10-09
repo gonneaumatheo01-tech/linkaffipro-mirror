@@ -3,8 +3,13 @@ import type { MaintenanceJob } from "@linkaffipro/queue";
 import { logger } from "../logger";
 import { runPurge } from "../maintenance/purge";
 import { runAlerts } from "../maintenance/alerts";
+import { cleanOldFailedJobs } from "../maintenance/clean-failed";
+import { runBackupIfDue } from "../backups/run";
 
-/** Processeur de la file `maintenance` : purge de rétention (nocturne) et alertes (toutes les 5 minutes). */
+/**
+ * Processeur de la file `maintenance` : purge de rétention (nocturne), alertes (toutes les 5 minutes)
+ * purge des tâches échouées de plus de 7 jours (toutes les 24 h) et sauvegarde quotidienne (vérifiée toutes les 10 min, faite à 4 h Paris).
+ */
 export async function processMaintenance(job: Job<MaintenanceJob>): Promise<unknown> {
   const data = job.data;
   switch (data.type) {
@@ -12,6 +17,10 @@ export async function processMaintenance(job: Job<MaintenanceJob>): Promise<unkn
       return runPurge();
     case "alerts":
       return runAlerts();
+    case "clean-failed":
+      return cleanOldFailedJobs();
+    case "backup":
+      return runBackupIfDue();
     case "tick":
     default:
       logger.info({ queue: "maintenance", id: job.id }, "tick");
@@ -22,4 +31,6 @@ export async function processMaintenance(job: Job<MaintenanceJob>): Promise<unkn
 export const repeatableMaintenance: Array<{ data: Record<string, unknown>; everyMs: number; jobId: string }> = [
   { data: { type: "purge" }, everyMs: 24 * 60 * 60 * 1000, jobId: "maintenance-purge" },
   { data: { type: "alerts" }, everyMs: 5 * 60 * 1000, jobId: "maintenance-alerts" },
+  { data: { type: "clean-failed" }, everyMs: 24 * 60 * 60 * 1000, jobId: "maintenance-clean-failed" },
+  { data: { type: "backup" }, everyMs: 10 * 60 * 1000, jobId: "maintenance-backup" },
 ];

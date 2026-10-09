@@ -5,6 +5,7 @@ import { aggregatePlayers, computeSpendLevel, SPEND_LEVEL_LABELS } from "@linkaf
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { PAGE_SIZE, Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtDate, fmtNum } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import { displayName, getSpendThresholds } from "@/lib/members/query";
-import { buildTimeline } from "@/lib/members/timeline";
+import { buildTimeline, paginateTimeline } from "@/lib/members/timeline";
 import { addNoteAction, anonymizeMemberAction, deleteNoteAction } from "./actions";
 
 export const metadata: Metadata = { title: "Fiche membre" };
@@ -45,13 +46,14 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
   const agg = aggregatePlayers(member.players.map((p) => ({ registeredAt: p.registeredAt, depositCount: p.depositCount, depositTotal: Number(p.depositTotal) })));
   const level = computeSpendLevel(agg, thresholds);
   const ngr = member.players.reduce((s, p) => s + Number(p.ngr), 0);
-  const timeline = buildTimeline({
+  const fullTimeline = buildTimeline({
     memberships: member.memberships.map((m) => ({ id: m.id, channelTitle: m.channel.title, status: m.status, requestedAt: m.requestedAt, gateSatisfiedAt: m.gateSatisfiedAt, approveAt: m.approveAt, approvedAt: m.approvedAt, declinedAt: m.declinedAt, joinedAt: m.joinedAt, leftAt: m.leftAt, sourceName: m.inviteLink?.adName || m.inviteLink?.name })),
     outbound: member.outboundMessages.map((o) => ({ kind: o.kind, status: o.status, queuedAt: o.queuedAt, sentAt: o.sentAt, botUsername: o.bot.username })),
     clicks: member.clicks.map((c) => ({ createdAt: c.createdAt, subId: c.subId, kind: c.trackingLink.kind, label: c.trackingLink.label, postId: c.postId, isBot: c.isBot })),
     playerEvents: member.players.flatMap((p) => p.events.map((e) => ({ type: e.type, occurredAt: e.occurredAt, amount: e.amount === null ? null : Number(e.amount), currency: e.currency, campaignName: p.affiliateCampaign.name }))),
     events: member.events,
   });
+  const timeline = paginateTimeline(fullTimeline, pageOf(sp), PAGE_SIZE);
   const origin = member.memberships[member.memberships.length - 1];
   const name = displayName(member);
 
@@ -98,11 +100,11 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-base">Chronologie</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Chronologie</CardTitle><CardDescription>Les 200 derniers éléments de chaque source (adhésions, messages, clics, joueurs), du plus récent au plus ancien.</CardDescription></CardHeader>
           <CardContent>
-            {timeline.length === 0 ? <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p> : (
+            {timeline.total === 0 ? <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p> : (
               <ol className="space-y-2">
-                {timeline.map((e, i) => (
+                {timeline.entries.map((e, i) => (
                   <li key={i} className="flex gap-3 text-sm">
                     <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_COLORS[e.kind] ?? "bg-slate-300"}`} />
                     <span className="w-32 shrink-0 whitespace-nowrap text-muted-foreground">{fmtDate(e.at)}</span>
@@ -114,6 +116,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                 ))}
               </ol>
             )}
+            <Pagination page={timeline.page} pages={timeline.pages} total={timeline.total} noun="élément" hrefFor={(p) => pageHref(`/members/${member.id}`, { ...sp, ok: undefined, error: undefined }, p)} />
           </CardContent>
         </Card>
 

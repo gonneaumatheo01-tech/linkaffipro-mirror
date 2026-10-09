@@ -1,4 +1,5 @@
 import { prisma } from "@linkaffipro/db";
+import { cachedDashboard } from "@/lib/dashboard/cache";
 import { computeMetrics, type CampaignMetrics } from "./metrics";
 
 export const RANGES = { "7": 7, "30": 30, "90": 90 } as const;
@@ -25,8 +26,11 @@ export type CampaignRow = {
   metrics: CampaignMetrics;
 };
 
-/** Liste des pubs avec leurs indicateurs sur la période. */
-export async function listCampaigns(range: RangeKey): Promise<CampaignRow[]> {
+/** Liste des pubs avec leurs indicateurs sur la période, mise en cache 60 s (une requête par pub : lourd). */
+export const listCampaigns: (range: RangeKey) => Promise<CampaignRow[]> = cachedDashboard("campaigns", (range: RangeKey) => listCampaignsUncached(range));
+
+/** Liste des pubs avec leurs indicateurs sur la période, sans cache. */
+export async function listCampaignsUncached(range: RangeKey): Promise<CampaignRow[]> {
   const since = sinceFor(range);
   const [campaigns, channels] = await Promise.all([
     prisma.campaign.findMany({

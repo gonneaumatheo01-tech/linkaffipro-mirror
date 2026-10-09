@@ -1,42 +1,12 @@
 /**
- * Tests A/B des envois groupés : répartition déterministe des membres entre variantes,
- * lecture du formulaire, désignation du gagnant. Fonctions pures (testées).
- * La fonction de répartition est dupliquée à l'identique dans `apps/worker/src/broadcasts/ab.ts`
- * (le worker ne peut pas importer `apps/web`) : toute modification doit être faite aux deux endroits.
+ * Tests A/B des envois groupés : lecture du formulaire, statistiques par variante, désignation du gagnant.
+ * La répartition déterministe (hashBucket, variantFor, splitAOf, clampSplit) vit dans `@linkaffipro/core`
+ * (`packages/core/src/ab.ts`), partagée avec le worker : plus de duplication.
  */
 
-export const AB_MIN_SPLIT = 10;
-export const AB_MAX_SPLIT = 90;
-export const AB_DEFAULT_SPLIT = 50;
-/** Nombre minimal d'envois par variante avant de désigner un gagnant. */
-export const AB_MIN_SENT = 30;
+import { AB_DEFAULT_SPLIT, AB_MIN_SENT, clampSplit } from "@linkaffipro/core";
 
-/** Hachage FNV-1a 32 bits → entier 0..99, stable pour un couple (groupe, membre). */
-export function hashBucket(groupId: string, memberId: string): number {
-  const s = `${groupId}:${memberId}`;
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h % 100;
-}
-
-/** Variante d'un membre : « A » si son seau est sous la part de A, sinon « B ». */
-export function variantFor(memberId: string, groupId: string, splitA: number): "A" | "B" {
-  return hashBucket(groupId, memberId) < splitA ? "A" : "B";
-}
-
-/** Part de A (en %) à partir de la variante et de la part stockée sur un envoi. */
-export function splitAOf(variant: string | null | undefined, abSplit: number | null | undefined): number {
-  const s = clampSplit(abSplit ?? AB_DEFAULT_SPLIT);
-  return variant === "B" ? 100 - s : s;
-}
-
-export function clampSplit(value: number): number {
-  if (!Number.isFinite(value)) return AB_DEFAULT_SPLIT;
-  return Math.min(AB_MAX_SPLIT, Math.max(AB_MIN_SPLIT, Math.round(value)));
-}
+export { AB_DEFAULT_SPLIT, AB_MAX_SPLIT, AB_MIN_SENT, AB_MIN_SPLIT, clampSplit, hashBucket, splitAOf, variantFor } from "@linkaffipro/core";
 
 export type AbFormInput = { enabled: false } | { enabled: true; textB: string; buttonsB: unknown; mediaAssetIdB?: string; split: number };
 

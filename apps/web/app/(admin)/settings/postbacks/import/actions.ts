@@ -17,7 +17,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 /** Étape 1 : analyse du fichier et aperçu (aucune écriture). */
 export async function previewPlayersImportAction(_prev: PreviewState, formData: FormData): Promise<PreviewState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const programId = z.string().min(1).safeParse(formData.get("programId"));
   const file = formData.get("file");
   if (!programId.success) return { step: "upload", error: "Choisissez un programme." };
@@ -37,6 +37,7 @@ export async function previewPlayersImportAction(_prev: PreviewState, formData: 
         invalid++;
       }
     }
+    await audit({ userId: admin.id, action: "postback.players_previewed", metadata: { programId: programId.data, filename: file.name, rows: params.length, invalid } });
     return {
       step: "preview",
       error: null,

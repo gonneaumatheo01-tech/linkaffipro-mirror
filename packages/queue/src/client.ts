@@ -1,6 +1,6 @@
 import { Queue, type JobsOptions } from "bullmq";
 import { Redis } from "ioredis";
-import { QUEUE_PREFIX, type JobOf, type QueueName } from "./jobs";
+import { JOB_RETRY_OPTIONS, QUEUE_PREFIX, type JobOf, type QueueName } from "./jobs";
 
 let connection: Redis | null = null;
 const queues = new Map<QueueName, Queue>();
@@ -17,7 +17,8 @@ export function getRedis(): Redis {
 export function getQueue<Q extends QueueName>(name: Q): Queue<JobOf<Q>> {
   const hit = queues.get(name);
   if (hit) return hit as Queue<JobOf<Q>>;
-  const q = new Queue<JobOf<Q>>(name, { connection: getRedis(), prefix: QUEUE_PREFIX, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000, attempts: 1 } });
+  // Tentatives et attente par file : voir `JOB_RETRY_OPTIONS` (une tâche peut toujours les surcharger à l'ajout).
+  const q = new Queue<JobOf<Q>>(name, { connection: getRedis(), prefix: QUEUE_PREFIX, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 5000, ...JOB_RETRY_OPTIONS[name] } });
   queues.set(name, q as Queue);
   return q;
 }

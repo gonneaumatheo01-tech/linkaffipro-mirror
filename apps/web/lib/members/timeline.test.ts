@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTimeline } from "./timeline";
+import { buildTimeline, paginateTimeline, type TimelineEntry } from "./timeline";
 
 describe("chronologie d'un membre", () => {
   it("fusionne les sources et trie du plus récent au plus ancien", () => {
@@ -30,5 +30,26 @@ describe("chronologie d'un membre", () => {
   it("ignore les clics de robots et accepte des entrées vides", () => {
     expect(buildTimeline({})).toEqual([]);
     expect(buildTimeline({ clicks: [{ createdAt: new Date(), isBot: true }] })).toEqual([]);
+  });
+});
+
+describe("paginateTimeline", () => {
+  const entries: TimelineEntry[] = Array.from({ length: 120 }, (_, i) => ({ at: new Date(2026, 0, 1, 0, 0, 120 - i), kind: "event", title: `e${i}` }));
+
+  it("découpe par page de taille fixe et compte les pages", () => {
+    const p1 = paginateTimeline(entries, 1, 50);
+    expect(p1.entries).toHaveLength(50);
+    expect(p1.total).toBe(120);
+    expect(p1.pages).toBe(3);
+    expect(p1.entries[0]!.title).toBe("e0");
+    const p3 = paginateTimeline(entries, 3, 50);
+    expect(p3.entries).toHaveLength(20);
+    expect(p3.entries[0]!.title).toBe("e100");
+  });
+
+  it("ramène une page hors bornes à la première ou à la dernière", () => {
+    expect(paginateTimeline(entries, 0, 50).page).toBe(1);
+    expect(paginateTimeline(entries, 99, 50).page).toBe(3);
+    expect(paginateTimeline([], 5, 50)).toEqual({ entries: [], total: 0, pages: 1, page: 1 });
   });
 });

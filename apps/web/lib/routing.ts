@@ -1,6 +1,17 @@
 import { isTrackingHost } from "@linkaffipro/core";
 
-/** Chemins accessibles sans session. */
+/**
+ * Chemins accessibles sans session (volontairement publics) :
+ * - `/login` : page de connexion ;
+ * - `/invite/<token>` : acceptation d'une invitation (jeton unique, expire après 7 jours) ;
+ * - `/api/health` : contrôle de santé Railway ;
+ * - `/api/telegram/<botId>` : webhooks Telegram (secret par bot vérifié dans la route) ;
+ * - `/api/auth/*` : Auth.js (connexion, déconnexion, session) ;
+ * - `/api/postback/<token>` : postbacks directs (jeton par point d'entrée) ;
+ * - `/r` et `/r/<slug>` : redirections goolink (aussi atteintes par réécriture depuis go.goolink.eu).
+ * Tout le reste (pages du site, `/api/media`, exports CSV…) exige une session : le proxy redirige vers /login,
+ * et les routes API renvoient 401 par elles-mêmes (double barrière).
+ */
 const PUBLIC_PREFIXES = ["/login", "/invite/", "/api/health", "/api/telegram/", "/api/auth/", "/api/postback/", "/r/", "/r"];
 
 export function isPublicPath(pathname: string): boolean {

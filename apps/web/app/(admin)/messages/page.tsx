@@ -4,13 +4,14 @@ import { prisma, type PostStatus } from "@linkaffipro/db";
 import { stripHtml } from "@linkaffipro/core";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { WeekCalendar } from "@/components/messages/week-calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDate } from "@/lib/format";
-import { POST_STATUS_LABELS, POST_STATUS_VARIANT } from "@/lib/posts/queries";
+import { listPosts, POST_STATUS_LABELS, POST_STATUS_VARIANT } from "@/lib/posts/queries";
 import { addDays, fromParisLocal, startOfParisWeek, toParisLocalInput } from "@/lib/posts/time";
 
 export const metadata: Metadata = { title: "Messages" };
@@ -30,23 +31,12 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
 
   const f = { channelId: typeof sp.channel === "string" ? sp.channel : "", status: typeof sp.status === "string" ? sp.status : "", categoryId: typeof sp.category === "string" ? sp.category : "", from: typeof sp.from === "string" ? sp.from : "", to: typeof sp.to === "string" ? sp.to : "" };
 
+  const page = pageOf(sp);
+  const listed = view === "calendar" ? null : await listPosts({ view, filters: f, page });
   const posts =
     view === "calendar"
       ? await prisma.post.findMany({ where: { isTemplate: false, scheduledAt: { gte: weekStart, lt: weekEnd } }, orderBy: { scheduledAt: "asc" }, include: { channel: { select: { title: true } }, category: { select: { name: true, color: true } } } })
-      : view === "templates"
-        ? await prisma.post.findMany({ where: { isTemplate: true }, orderBy: { updatedAt: "desc" }, include: { channel: { select: { title: true } }, category: { select: { name: true, color: true } } } })
-        : await prisma.post.findMany({
-            where: {
-              isTemplate: false,
-              ...(f.channelId ? { channelId: f.channelId } : {}),
-              ...(f.status && STATUSES.includes(f.status as PostStatus) ? { status: f.status as PostStatus } : {}),
-              ...(f.categoryId ? { categoryId: f.categoryId } : {}),
-              ...(f.from || f.to ? { scheduledAt: { ...(f.from ? { gte: fromParisLocal(`${f.from}T00:00`) ?? undefined } : {}), ...(f.to ? { lt: addDays(fromParisLocal(`${f.to}T00:00`) ?? new Date(), 1) } : {}) } } : {}),
-            },
-            orderBy: [{ scheduledAt: "desc" }, { updatedAt: "desc" }],
-            take: 200,
-            include: { channel: { select: { title: true } }, category: { select: { name: true, color: true } } },
-          });
+      : listed!.rows;
 
   const weekKey = toParisLocalInput(weekStart).slice(0, 10);
   const prevWeek = toParisLocalInput(addDays(weekStart, -7)).slice(0, 10);
@@ -84,6 +74,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
             {view === "list" ? (
               <form method="get" className="mb-4 flex flex-wrap items-end gap-2 text-sm">
                 <input type="hidden" name="view" value="list" />
+                {/* Changer un filtre ramène à la page 1 (pas de champ « page » dans ce formulaire). */}
                 <select name="channel" defaultValue={f.channelId} className={selectCls}><option value="">Tous les canaux</option>{channels.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
                 <select name="status" defaultValue={f.status} className={selectCls}><option value="">Tous les statuts</option>{STATUSES.map((s) => <option key={s} value={s}>{POST_STATUS_LABELS[s]}</option>)}</select>
                 <select name="category" defaultValue={f.categoryId} className={selectCls}><option value="">Toutes les catégories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -126,6 +117,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                 </TableBody>
               </Table>
             )}
+            {listed ? <Pagination page={page} pages={listed.pages} total={listed.total} noun={view === "templates" ? "modèle" : "message"} hrefFor={(p) => pageHref("/messages", { ...sp, view, ok: undefined, error: undefined }, p)} /> : null}
           </CardContent>
         </Card>
       )}

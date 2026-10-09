@@ -34,6 +34,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         <Button variant="outline" size="sm" render={<Link href="/settings/alerts" />}>Alertes</Button>
         <Button variant="outline" size="sm" render={<Link href="/settings/postbacks" />}>Postbacks</Button>
         <Button variant="outline" size="sm" render={<Link href="/settings/reports" />}>Rapports</Button>
+        <Button variant="outline" size="sm" render={<Link href="/settings/status" />}>État du système</Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
 

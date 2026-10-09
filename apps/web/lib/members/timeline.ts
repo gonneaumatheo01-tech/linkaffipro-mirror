@@ -124,3 +124,11 @@ export function buildTimeline(input: {
 
   return out.sort((a, b) => b.at.getTime() - a.at.getTime());
 }
+
+/** Page d'une chronologie déjà triée (taille fixe) : entrées de la page, total et nombre de pages. */
+export function paginateTimeline(entries: TimelineEntry[], page: number, size = 50): { entries: TimelineEntry[]; total: number; pages: number; page: number } {
+  const total = entries.length;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const current = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  return { entries: entries.slice((current - 1) * size, current * size), total, pages, page: current };
+}

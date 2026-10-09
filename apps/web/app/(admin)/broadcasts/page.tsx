@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +16,7 @@ const VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive
 
 export default async function BroadcastsPage({ searchParams }: PageProps<"/broadcasts">) {
   const sp = await searchParams;
-  const rows = await listBroadcasts();
+  const { rows, total, pages, page } = await listBroadcasts(pageOf(sp));
   return (
     <>
       <PageHeader title="Envois" description="Messages privés groupés, envoyés à un segment de membres dans les limites Telegram. Les versions d'un test A/B sont regroupées sous le même libellé ; cliquez dessus pour la comparaison.">
@@ -24,7 +25,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
       <Flash ok={sp.ok} error={sp.error} />
       <Card>
         <CardContent className="pt-6">
-          {rows.length === 0 ? (
+          {total === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun envoi pour l&apos;instant.</p>
           ) : (
             <Table>
@@ -80,6 +81,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
               </TableBody>
             </Table>
           )}
+          <Pagination page={page} pages={pages} total={total} noun="envoi" hrefFor={(p) => pageHref("/broadcasts", { ...sp, ok: undefined, error: undefined }, p)} />
         </CardContent>
       </Card>
     </>

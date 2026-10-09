@@ -231,6 +231,9 @@ model User {
   telegramUserId    BigInt?   @unique
   /// Jeton temporaire pour lier le compte Telegram (t.me/<bot>?start=admin_<token>).
   telegramLinkToken String?   @unique
+  /// Version de session : incrémentée au changement de mot de passe, de rôle ou à la désactivation.
+  /// Le JWT porte la version émise (`sv`) ; si elle diffère, la session est refusée (déconnexion de tous les appareils).
+  sessionVersion    Int       @default(0)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   lastLoginAt       DateTime?
@@ -276,6 +279,7 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([action, createdAt])
 }
 
 /// Bot Telegram piloté par la plateforme. Le jeton est chiffré (AES-256-GCM).
@@ -375,6 +379,10 @@ model Member {
   outboundMessages OutboundMessage[]
   notes            MemberNote[]
   automationRuns   AutomationRun[]
+
+  @@index([lastSeenAt])
+  @@index([firstSeenAt])
+  @@index([anonymizedAt, lastSeenAt])
 }
 
 /// État de la relation entre un membre et un bot (peut-on lui écrire en privé ?).
@@ -390,6 +398,7 @@ model MemberBotState {
   lastDmAt  DateTime?
 
   @@unique([memberId, botId])
+  @@index([botId, canDm])
 }
 
 /// Journal d'événements (append-only : jamais de mise à jour ni de suppression dans le code).
@@ -410,6 +419,7 @@ model Event {
   @@index([memberId, occurredAt])
   @@index([channelId, occurredAt])
   @@index([botId, occurredAt])
+  @@index([occurredAt])
 }
 
 /// Réglage global (clé → valeur JSON).
@@ -462,6 +472,12 @@ model Membership {
   @@index([status, approveAt])
   @@index([status, expiresAt])
   @@index([memberId, channelId])
+  @@index([channelId, requestedAt])
+  @@index([inviteLinkId, requestedAt])
+  @@index([requestedAt])
+  @@index([approvedAt])
+  @@index([joinedAt])
+  @@index([leftAt])
 }
 
 /// Règle d'approbation d'un canal (ou d'un lien précis).
@@ -532,6 +548,8 @@ model InviteLink {
   ad            Ad?
 
   @@index([channelId, kind])
+  @@index([kind, createdAt])
+  @@index([campaignId])
 }
 
 // ============================================================
@@ -570,6 +588,10 @@ model TrackingLink {
 
   @@index([kind, isActive])
   @@index([postId])
+  @@index([kind, createdAt])
+  @@index([inviteLinkId])
+  @@index([channelId])
+  @@index([affiliateCampaignId])
 }
 
 /// Clic sur un lien traqué ou un bouton. `subId` unique pour les clics OFFER (12 caractères base62, sans point).
@@ -603,6 +625,7 @@ model Click {
   @@index([trackingLinkId, createdAt])
   @@index([postId, createdAt])
   @@index([ipHash, userAgent, trackingLinkId, createdAt])
+  @@index([isBot, createdAt])
 }
 
 // ============================================================
@@ -707,6 +730,8 @@ model Post {
 
   @@index([channelId, scheduledAt])
   @@index([status, scheduledAt])
+  @@index([isTemplate, scheduledAt])
+  @@index([categoryId])
 }
 
 /// Statistiques dénormalisées d'un message.
@@ -797,6 +822,7 @@ model OutboundMessage {
   @@index([memberId, queuedAt])
   @@index([status, queuedAt])
   @@index([broadcastId, status])
+  @@index([memberId, status, sentAt])
 }
 
 // ============================================================
@@ -877,6 +903,11 @@ model Player {
   @@unique([affiliateCampaignId, externalPlayerId])
   @@index([subId])
   @@index([memberId])
+  @@index([clickId])
+  @@index([registeredAt])
+  @@index([ftdAt])
+  @@index([lastEventAt])
+  @@index([createdAt])
 }
 
 /// Événement joueur brut (inscription, FTD, dépôt, redépôt, NGR…).
@@ -1084,6 +1115,7 @@ model Broadcast {
 
   @@index([status, scheduledAt])
   @@index([abGroupId])
+  @@index([createdAt])
 }
 
 /// Règle d'automatisation « si… alors… ».

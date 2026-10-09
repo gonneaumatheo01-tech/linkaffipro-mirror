@@ -4,6 +4,7 @@ import { SPEND_LEVELS, SPEND_LEVEL_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { Pagination } from "@/components/admin/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,7 +87,6 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
       </Card>
       <Card>
         <CardContent className="pt-6">
-          <p className="mb-3 text-sm text-muted-foreground">{fmtNum(total)} membre{total > 1 ? "s" : ""} · page {f.page} / {pages}</p>
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun membre ne correspond.</p>
           ) : (
@@ -126,12 +126,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
               </TableBody>
             </Table>
           )}
-          {pages > 1 ? (
-            <div className="mt-4 flex items-center justify-between text-sm">
-              {f.page > 1 ? <Link className="underline" href={`/members${filtersToQuery(f, { page: f.page - 1 })}`}>← Précédent</Link> : <span />}
-              {f.page < pages ? <Link className="underline" href={`/members${filtersToQuery(f, { page: f.page + 1 })}`}>Suivant →</Link> : <span />}
-            </div>
-          ) : null}
+          <Pagination page={f.page} pages={pages} total={total} noun="membre" hrefFor={(p) => `/members${filtersToQuery(f, { page: p })}`} />
         </CardContent>
       </Card>
     </>

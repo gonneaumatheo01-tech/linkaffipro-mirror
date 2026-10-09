@@ -1,26 +1,10 @@
 /**
- * Répartition déterministe des membres d'un test A/B. Copie exacte de la fonction de
- * `apps/web/lib/broadcasts/ab.ts` (le worker ne peut pas importer `apps/web`) : modifier les deux ensemble.
+ * Test A/B côté worker : la répartition déterministe vient de `@linkaffipro/core` (`packages/core/src/ab.ts`),
+ * partagée avec le site. Ici : le contexte d'un envoi et le filtre des destinataires.
  */
-export function hashBucket(groupId: string, memberId: string): number {
-  const s = `${groupId}:${memberId}`;
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h % 100;
-}
+import { variantFor } from "@linkaffipro/core";
 
-export function variantFor(memberId: string, groupId: string, splitA: number): "A" | "B" {
-  return hashBucket(groupId, memberId) < splitA ? "A" : "B";
-}
-
-/** Part de A (en %) à partir de la variante et de la part stockée sur un envoi. */
-export function splitAOf(variant: string | null | undefined, abSplit: number | null | undefined): number {
-  const s = Math.min(90, Math.max(10, Math.round(abSplit ?? 50)));
-  return variant === "B" ? 100 - s : s;
-}
+export { hashBucket, splitAOf, variantFor } from "@linkaffipro/core";
 
 export type AbContext = { mode: "variant"; groupId: string; letter: "A" | "B"; splitA: number } | { mode: "rest"; excluded: Set<string> } | null;
 

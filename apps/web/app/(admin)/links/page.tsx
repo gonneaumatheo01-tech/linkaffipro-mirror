@@ -4,6 +4,7 @@ import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { CopyField } from "@/components/admin/copy-field";
+import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,39 +14,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { env } from "@/lib/env";
 import { fmtDate, fmtNum } from "@/lib/format";
+import { listLinksPage } from "@/lib/links/queries";
 import { requireUser } from "@/lib/session";
 import { createEntryLinksAction, createGenericLinkAction, toggleLinkAction } from "./actions";
 
 export const metadata: Metadata = { title: "Liens" };
 
-type Agg = { registrations: number; ftds: number };
+/** Paramètres d'URL de pagination, un par tableau (entrées, offres, boutons). */
+const PAGE_KEYS = { entries: "pe", offers: "po", buttons: "pb" } as const;
 
 export default async function LinksPage({ searchParams }: PageProps<"/links">) {
   await requireUser();
   const sp = await searchParams;
   const highlight = new Set(typeof sp.highlight === "string" ? sp.highlight.split(",") : []);
-  const [links, channels, players] = await Promise.all([
-    prisma.trackingLink.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { inviteLink: { select: { name: true, requests: true, approved: true, joined: true, adPlatform: true, telegramInviteLink: true } }, channel: { select: { title: true } }, post: { select: { id: true, code: true, scheduledAt: true } }, affiliateCampaign: { select: { name: true } } },
-    }),
+  const [entries, offers, buttons, channels] = await Promise.all([
+    listLinksPage(["AD_ENTRY"], pageOf(sp, PAGE_KEYS.entries)),
+    listLinksPage(["OFFER"], pageOf(sp, PAGE_KEYS.offers)),
+    listLinksPage(["BUTTON", "GENERIC"], pageOf(sp, PAGE_KEYS.buttons)),
     prisma.channel.findMany({ where: { isActive: true }, orderBy: { title: "asc" }, include: { approvalRules: { where: { isActive: true }, select: { id: true, name: true, isDefault: true } } } }),
-    prisma.player.findMany({ where: { click: { isNot: null } }, select: { registeredAt: true, ftdAt: true, click: { select: { trackingLinkId: true } } } }),
   ]);
-  const agg = new Map<string, Agg>();
-  for (const p of players) {
-    const id = p.click?.trackingLinkId;
-    if (!id) continue;
-    const a = agg.get(id) ?? { registrations: 0, ftds: 0 };
-    if (p.registeredAt) a.registrations++;
-    if (p.ftdAt) a.ftds++;
-    agg.set(id, a);
-  }
   const base = env.trackingBaseUrl;
-  const entries = links.filter((l) => l.kind === "AD_ENTRY");
-  const offers = links.filter((l) => l.kind === "OFFER");
-  const buttons = links.filter((l) => l.kind === "BUTTON" || l.kind === "GENERIC");
   const selectCls = "h-9 w-full rounded-md border bg-background px-3 text-sm";
+  const pageLinks = { ...sp, ok: undefined, error: undefined };
+  const paginationFor = (key: (typeof PAGE_KEYS)[keyof typeof PAGE_KEYS], page: { page: number; pages: number; total: number }, noun: string) => (
+    <Pagination page={page.page} pages={page.pages} total={page.total} noun={noun} hrefFor={(p) => pageHref("/links", pageLinks, p, key)} />
+  );
 
   return (
     <>
@@ -58,7 +51,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
           <CardDescription>Chaque pub a son lien goolink et son lien d&apos;invitation Telegram (avec demande d&apos;adhésion).</CardDescription>
         </CardHeader>
         <CardContent>
-          {entries.length === 0 ? (
+          {entries.total === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun lien d&apos;entrée. Créez-en un ci-dessous.</p>
           ) : (
             <Table>
@@ -78,8 +71,8 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.map((l) => {
-                  const a = agg.get(l.id) ?? { registrations: 0, ftds: 0 };
+                {entries.rows.map((l) => {
+                  const a = entries.agg.get(l.id) ?? { registrations: 0, ftds: 0 };
                   const platform = l.inviteLink?.adPlatform ?? "OTHER";
                   return (
                     <TableRow key={l.id} className={highlight.has(l.slug) ? "bg-accent/40" : undefined}>
@@ -109,6 +102,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
               </TableBody>
             </Table>
           )}
+          {paginationFor(PAGE_KEYS.entries, entries, "lien d'entrée")}
         </CardContent>
       </Card>
 
@@ -181,7 +175,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
           <CardDescription>Boutons « Offre » des messages : chaque clic crée un sub-ID transmis à Link Affi.</CardDescription>
         </CardHeader>
         <CardContent>
-          {offers.length === 0 ? (
+          {offers.total === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune offre : ajoutez un bouton de type Offre dans un message (page Messages).</p>
           ) : (
             <Table>
@@ -198,8 +192,8 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {offers.map((l) => {
-                  const a = agg.get(l.id) ?? { registrations: 0, ftds: 0 };
+                {offers.rows.map((l) => {
+                  const a = offers.agg.get(l.id) ?? { registrations: 0, ftds: 0 };
                   return (
                     <TableRow key={l.id}>
                       <TableCell><div className="font-medium">{l.label}</div><div className="text-xs text-muted-foreground">{l.slug}{!l.isActive ? " · désactivé" : ""}</div></TableCell>
@@ -218,6 +212,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
               </TableBody>
             </Table>
           )}
+          {paginationFor(PAGE_KEYS.offers, offers, "offre")}
         </CardContent>
       </Card>
 
@@ -227,7 +222,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
           <CardDescription>URL traquées anonymes (boutons de messages et liens libres).</CardDescription>
         </CardHeader>
         <CardContent>
-          {buttons.length === 0 ? (
+          {buttons.total === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun lien.</p>
           ) : (
             <Table>
@@ -243,7 +238,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {buttons.map((l) => (
+                {buttons.rows.map((l) => (
                   <TableRow key={l.id} className={highlight.has(l.slug) ? "bg-accent/40" : undefined}>
                     <TableCell><div className="font-medium">{l.label}</div>{!l.isActive ? <Badge variant="secondary">désactivé</Badge> : null}</TableCell>
                     <TableCell>{l.kind === "BUTTON" ? "Bouton" : "Générique"}</TableCell>
@@ -259,6 +254,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
               </TableBody>
             </Table>
           )}
+          {paginationFor(PAGE_KEYS.buttons, buttons, "lien")}
         </CardContent>
       </Card>
     </>

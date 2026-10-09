@@ -112,3 +112,28 @@ Règles : conservation 24 mois (purge à prévoir en phase 2) ; les montants son
 | `AutomationRule` | Règle « si… alors… ». | `trigger` (JOINED, OFFER_CLICKED, REGISTERED, DEPOSITED, INACTIVE, LEFT, SPEND_LEVEL_REACHED), `conditions` JSON (canaux, pubs, langues, niveaux, inactivité, catégories), `actions` JSON ordonnées (send_message, send_sequence, wait, tag, suggest_channel, notify_team), `isActive`, `oncePerMember`, `runs`, `lastRunAt` |
 | `AutomationRun` | Exécution d'une règle pour un membre (journal + reprise des « attendre »). | `status` (PENDING, RUNNING, DONE, FAILED, SKIPPED, CANCELLED), `step`, `resumeAt`, `context`, `log`, `error` |
 | `Broadcast.abGroupId` / `abVariant` / `abSplit` | Test A/B : variantes d'un même test et part des destinataires. | — |
+
+## Phase 4 (9 octobre 2026) — migrations `phase4_index`, `phase4_session`
+
+### `20261009175800_phase4_index` : index seulement (aucune donnée modifiée)
+| Table | Index ajoutés | Pour quoi |
+| --- | --- | --- |
+| `AuditLog` | `(action, createdAt)` | Journal filtré par préfixe d'action et période |
+| `Member` | `(lastSeenAt)`, `(firstSeenAt)`, `(anonymizedAt, lastSeenAt)` | Tri de la liste des membres ; purge des inactifs |
+| `MemberBotState` | `(botId, canDm)` | Ciblage des envois groupés (membres joignables par un bot) |
+| `Event` | `(occurredAt)` | Purge par date, compteur « 24 h » de l'accueil |
+| `Membership` | `(channelId, requestedAt)`, `(inviteLinkId, requestedAt)`, `(requestedAt)`, `(approvedAt)`, `(joinedAt)`, `(leftAt)` | Tableaux de bord et statistiques journalières (demandes, acceptés, entrées, départs par période) ; rentabilité des pubs |
+| `InviteLink` | `(kind, createdAt)`, `(campaignId)` | Listes des liens d'entrée ; pubs |
+| `TrackingLink` | `(kind, createdAt)`, `(inviteLinkId)`, `(channelId)`, `(affiliateCampaignId)` | Page Liens paginée par type ; jointures |
+| `Click` | `(isBot, createdAt)` | Clics humains par période (tableaux de bord) |
+| `Post` | `(isTemplate, scheduledAt)`, `(categoryId)` | Calendrier, liste et modèles ; filtre par catégorie |
+| `OutboundMessage` | `(memberId, status, sentAt)` | Dernier message envoyé à un membre (automatisations) |
+| `Player` | `(clickId)`, `(registeredAt)`, `(ftdAt)`, `(lastEventAt)`, `(createdAt)` | Attribution par clic ; inscriptions / FTD par période |
+| `Broadcast` | `(createdAt)` | Liste des envois paginée |
+
+Les autres index (43 avant cette phase) sont inchangés ; les colonnes `@unique` servent déjà d'index.
+
+### `20261009175816_phase4_session`
+| Table / colonne | Rôle |
+| --- | --- |
+| `User.sessionVersion` (`Int`, défaut 0) | Version de session. Le jeton de connexion (JWT) porte la version émise (`sv`) ; elle est incrémentée au changement de mot de passe, de rôle et à la désactivation du compte, ce qui invalide toutes les sessions existantes (déconnexion de tous les appareils). Vérification : à chaque page via `requireUser` (comparaison immédiate) et dans le rappel `jwt` d'Auth.js (lecture en base au plus une fois par 5 minutes et par utilisateur). |

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isRole, randomToken } from "@linkaffipro/core";
 import { prisma, audit } from "@linkaffipro/db";
+import { forgetSessionVersion } from "@/auth";
 import { requireAdmin } from "@/lib/session";
 
 function back(params: Record<string, string>): never {
@@ -43,7 +44,9 @@ export async function toggleUserAction(formData: FormData): Promise<void> {
   const id = z.string().min(1).parse(formData.get("userId"));
   if (id === admin.id) back({ error: "Vous ne pouvez pas désactiver votre propre compte." });
   const user = await prisma.user.findUniqueOrThrow({ where: { id } });
-  await prisma.user.update({ where: { id }, data: { isActive: !user.isActive } });
+  // Désactivation : la version de session change pour déconnecter l'utilisateur de tous ses appareils.
+  await prisma.user.update({ where: { id }, data: { isActive: !user.isActive, ...(user.isActive ? { sessionVersion: { increment: 1 } } : {}) } });
+  forgetSessionVersion(id);
   await audit({ userId: admin.id, action: user.isActive ? "user.deactivated" : "user.activated", entityType: "User", entityId: id });
   revalidatePath("/settings");
   back({ ok: `${user.name} ${user.isActive ? "désactivé" : "activé"}.` });
@@ -55,8 +58,12 @@ export async function setRoleAction(formData: FormData): Promise<void> {
   const role = String(formData.get("role") ?? "");
   if (!isRole(role)) back({ error: "Rôle invalide." });
   if (id === admin.id && role !== "ADMIN") back({ error: "Vous ne pouvez pas retirer votre propre rôle d'administrateur." });
-  await prisma.user.update({ where: { id }, data: { role } });
-  await audit({ userId: admin.id, action: "user.role_changed", entityType: "User", entityId: id, metadata: { role } });
+  const before = await prisma.user.findUniqueOrThrow({ where: { id }, select: { role: true } });
+  if (before.role === role) back({ ok: "Rôle inchangé." });
+  // Le rôle est porté par le jeton : nouvelle version de session pour forcer une reconnexion avec le bon rôle.
+  await prisma.user.update({ where: { id }, data: { role, sessionVersion: { increment: 1 } } });
+  forgetSessionVersion(id);
+  await audit({ userId: admin.id, action: "user.role_changed", entityType: "User", entityId: id, metadata: { role, from: before.role } });
   revalidatePath("/settings");
   back({ ok: "Rôle mis à jour." });
 }

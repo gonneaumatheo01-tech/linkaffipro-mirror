@@ -21,6 +21,9 @@ const KIND_LABELS: Record<string, string> = {
   queue_backlog: "File d'envoi engorgée",
   dm_blocked: "Messages privés bloqués en masse",
   subid_health: "Santé du sub-ID",
+  worker_down: "Worker arrêté",
+  job_failures: "Erreurs répétées dans une file",
+  backup_failed: "Sauvegarde en échec",
 };
 
 function severityBadge(s: string) {

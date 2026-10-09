@@ -1,6 +1,6 @@
 /** Règles pures de détection des alertes (testées sans base). */
 
-export type AlertKind = "bot_webhook" | "sync_failed" | "queue_backlog" | "dm_blocked" | "subid_health";
+export type AlertKind = "bot_webhook" | "sync_failed" | "queue_backlog" | "dm_blocked" | "subid_health" | "worker_down" | "job_failures" | "backup_failed";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = { kind: AlertKind; severity: AlertSeverityKey; message: string; payload: Record<string, unknown> };
 
@@ -8,6 +8,11 @@ export const WEBHOOK_SILENCE_MS = 10 * 60 * 1000;
 export const QUEUE_BACKLOG_THRESHOLD = 500;
 export const DM_BLOCKED_THRESHOLD = 50;
 export const SYNC_ERROR_STREAK = 3;
+/** Worker considéré arrêté sans battement depuis 3 min ; « erreurs répétées » à partir de 10 échecs en 15 min sur une file. */
+export const WORKER_DOWN_MS = 3 * 60 * 1000;
+export const JOB_FAILURES_THRESHOLD = 10;
+/** Sauvegarde : alerte si le dernier essai a échoué et qu'aucune sauvegarde n'a réussi depuis 36 h. */
+export const BACKUP_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 /** Une alerte du même type non résolue datant de moins de 24 h n'est pas recréée (une notification par jour au plus). */
 export const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -45,6 +50,54 @@ export function detectDmBlocked(blockedLastHour: number): Detected | null {
 export function detectSubIdHealth(status: string, message: string): Detected | null {
   if (status !== "alert") return null;
   return { kind: "subid_health", severity: "CRITICAL", message: `Santé du sub-ID : ${message}`, payload: { status } };
+}
+
+/**
+ * Worker absent : le dernier battement connu date de plus de 3 minutes.
+ * Évaluée (1) par le site dans `/api/health` pendant l'absence et (2) par le worker à son redémarrage,
+ * pour signaler la durée de l'absence (`lastHeartbeatAt` = copie persistante du battement).
+ */
+export function detectWorkerDown(lastHeartbeatAt: Date | null, now: Date): Detected | null {
+  if (!lastHeartbeatAt) return null;
+  const downMs = now.getTime() - lastHeartbeatAt.getTime();
+  if (downMs < WORKER_DOWN_MS) return null;
+  const minutes = Math.round(downMs / 60_000);
+  return { kind: "worker_down", severity: "CRITICAL", message: `Worker arrêté : aucun signe de vie depuis ${minutes} min (dernier battement ${formatTime(lastHeartbeatAt)})`, payload: { lastHeartbeatAt: lastHeartbeatAt.toISOString(), downMinutes: minutes } };
+}
+
+/** Erreurs répétées : au moins 10 tâches échouées en 15 minutes sur une même file. */
+export function detectJobFailures(failuresByQueue: Record<string, number>): Detected | null {
+  const hot = Object.entries(failuresByQueue).filter(([, n]) => n >= JOB_FAILURES_THRESHOLD);
+  if (hot.length === 0) return null;
+  const list = hot.map(([q, n]) => `${q} (${n})`).join(", ");
+  return { kind: "job_failures", severity: "WARNING", message: `Erreurs répétées sur les tâches du worker en 15 min : ${list}. Voir Réglages → État du système.`, payload: { queues: Object.fromEntries(hot) } };
+}
+
+/** Dernier état de sauvegarde (`Setting` `backup.last`, écrit par `backups/run.ts`) ; un échec garde le `file` du dernier succès. */
+export type BackupSnapshot = { at: string; file: string | null; ok: boolean; error?: string };
+
+/** Date encodée dans le nom d'un fichier de sauvegarde (`linkaffipro-2026-10-09T04-00-00.sql.gz`), sinon null. */
+export function backupFileDate(file: string | null | undefined): Date | null {
+  const m = file?.match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Sauvegarde en échec : le dernier essai a échoué et le dernier succès (date du fichier conservé) est absent ou
+ * plus vieux que 36 h. Rien tant qu'aucune sauvegarde n'a été tentée.
+ */
+export function detectBackupFailed(status: BackupSnapshot | null, now: Date): Detected | null {
+  if (!status || status.ok) return null;
+  const lastSuccess = backupFileDate(status.file);
+  if (lastSuccess && now.getTime() - lastSuccess.getTime() < BACKUP_MAX_AGE_MS) return null;
+  const error = (status.error ?? "erreur inconnue").slice(0, 160);
+  return { kind: "backup_failed", severity: "CRITICAL", message: `La sauvegarde automatique de la base a échoué : ${error}`, payload: { at: status.at, lastSuccessAt: lastSuccess?.toISOString() ?? null, error } };
+}
+
+function formatTime(d: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }).format(d);
 }
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */

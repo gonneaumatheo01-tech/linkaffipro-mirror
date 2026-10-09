@@ -57,7 +57,7 @@ function summarize(rows: CostRow[], tree: CampaignTree) {
 
 /** Étape 1 : lecture du fichier, détection des colonnes et aperçu des correspondances. */
 export async function previewImportAction(_prev: PreviewState, formData: FormData): Promise<PreviewState> {
-  await requireUser();
+  const user = await requireUser();
   const platform = (["TIKTOK", "META", "OTHER"].includes(String(formData.get("platform"))) ? String(formData.get("platform")) : "OTHER") as Platform;
   let csvB64 = String(formData.get("csvB64") ?? "");
   let filename = String(formData.get("filename") ?? "");
@@ -74,6 +74,7 @@ export async function previewImportAction(_prev: PreviewState, formData: FormDat
   const map = readMapOverrides(formData, table.headers, detectColumns(table.headers));
   const { rows, errors } = toCostRows(table, map, platform);
   const tree = await campaignTree();
+  await audit({ userId: user.id, action: "import.costs_previewed", metadata: { platform, filename, rows: rows.length, errors: errors.length } });
   return {
     error: null,
     preview: { platform, filename, csvB64, headers: table.headers, map, totalRows: rows.length, sample: rows.slice(0, 20), errors: errors.slice(0, 20), matches: summarize(rows, tree).slice(0, 200) },
