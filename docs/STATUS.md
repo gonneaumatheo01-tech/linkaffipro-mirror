@@ -1,6 +1,6 @@
-# État du projet — phase 1 : kit minimal prêt (9 octobre 2026, 14h40)
+# État du projet — phase 1 terminée (9 octobre 2026, 14h50)
 
-Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Sections 1 à 6 de la phase 1 déployées et vérifiées ; sections 7 à 9 en cours.
+Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Phase 1 (sections 1 à 9) déployée et vérifiée ; en attente de votre test de 5 minutes.
 
 ## Adresses et accès
 - Site : https://app.linkaffipro.com — liens traqués : https://go.goolink.eu
@@ -8,7 +8,7 @@ Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Sections 1 à 6 d
 - Un compte interne « Vérification (Claude) » (verification@linkaffipro.internal, ADMIN) sert à mes contrôles automatiques des pages ; vous pouvez le désactiver dans Réglages si vous préférez (je le recréerai au besoin).
 - Dialogue : par Telegram via @casinogamblingoobot (`pnpm tg:send` / `pnpm tg:inbox`).
 
-## Ce qui est fait (kit minimal, sections 1 à 6)
+## Ce qui est fait (phase 1 complète)
 - **Modèle de données complet** (19 tables de plus, voir `docs/DATA-MODEL.md`), migrations appliquées en production.
 - **Adhésions** : demandes `chat_join_request` accueillies en privé par le bon bot, flux « rejoins ces canaux » (boutons + « ✅ J'ai rejoint »), approbation immédiate / après délai / manuelle, rappels, expiration ; réglables canal par canal (Canaux → ouvrir un canal → Règles d'adhésion) ; file « Demandes » avec Accepter / Refuser ; entrées et départs suivis.
 - **Liens** : page Liens → « Nouveau lien d'entrée (pub) » crée le lien d'invitation Telegram + le lien go.goolink.eu avec l'URL à coller dans TikTok ou Meta (macros officielles) ; liens génériques ; tableaux Entrées / Offres / Boutons avec clics, demandes, acceptés, inscriptions, FTD.
@@ -17,26 +17,27 @@ Phase 0 validée le 9 octobre (« phase 0 OK » par Telegram). Sections 1 à 6 d
 - **Synchro Link Affi** : toutes les 2 minutes, via l'API en lecture seule ; programmes, campagnes, joueurs, événements, NGR, dépôts ; rattachement joueur → clic → membre → message par sub-ID (`postback` sûr, `time_match` secours) ; Réglages → Connecteurs : état par table, « Synchroniser maintenant », santé du sub-ID, seuils du niveau de dépense. Première synchronisation lancée à 14h35 (109 campagnes et 11 programmes importés ; joueurs en cours).
 - **Membres** : liste avec recherche, filtres, tri, export CSV ; fiche membre avec origine, chronologie complète, joueurs rattachés, notes, suppression (anonymisation).
 - **Tableau de bord** : aujourd'hui / 7 jours / 30 jours, filtres univers et canal, 11 indicateurs avec tendances, tableau par canal.
-- Qualité : 187 tests unitaires, lint et build verts, déploiement vérifié (santé, pages, webhooks des 3 bots).
+- **Séquences d'accueil** : textes par défaut par univers (casino, paris, dating) pour accueil, rappel, gate satisfait, accepté, réponse d'offre ; créés automatiquement pour chaque canal détecté ; Canaux → canal → onglet « Messages du bot » pour les modifier par langue (ajout de langue en un clic, aperçu, envoi d'un test à vous-même si votre Telegram est lié dans Mon compte).
+- **Catégories** : Réglages → Catégories (7 par défaut, couleurs, ordre) ; Messages → « Comparer par catégorie » (messages envoyés, clics, offres, réactions, inscriptions, FTD, dépôts, moyennes par message, sur 7 / 30 / 90 jours).
+- Qualité : 199 tests unitaires, lint et build verts, déploiement vérifié (santé, pages, webhooks des 3 bots).
 
-## Test de 5 minutes (kit minimal)
-Pré-requis : votre canal « Test » existe déjà avec @casinogamblingoobot administrateur. Créez un second canal privé « Médiathèque » et ajoutez-y aussi @casinogamblingoobot comme administrateur (il apparaîtra dans Canaux ; cochez « Médiathèque »).
+## Test de 5 minutes (phase 1)
+Vos canaux « Test » et « Mediatheque » existent avec @casinogamblingoobot administrateur.
 
-1. Sur le site, Canaux → « Test » → Ouvrir → onglet Règles d'adhésion : mode « Après un délai », délai « 1 minute », canaux à rejoindre : « Médiathèque », mode du gate « Obligatoire », Enregistrer.
+1. Canaux → « Test » → Ouvrir → Règles d'adhésion : mode « Après un délai », délai « 1 minute », canal à rejoindre « Mediatheque », gate « Obligatoire », Enregistrer. Onglet « Messages du bot » : les textes par défaut sont là ; modifiez-en un si vous voulez.
 2. Liens → « Nouveau lien d'entrée (pub) » : canal « Test », nom « TEST-pub-1 », plateforme « Autre », Créer. Copiez l'URL go.goolink.eu affichée.
-3. Depuis votre téléphone, ouvrez cette URL : Telegram s'ouvre sur « Test » avec un bouton « Demander à rejoindre ». Demandez.
-4. Le bot vous écrit en privé : rejoignez « Médiathèque » via le bouton, puis appuyez sur « ✅ J'ai rejoint ». Le bot confirme ; vous êtes accepté dans « Test » environ une minute plus tard.
-5. Messages → Nouveau message : canal « Test », dans 2 minutes, un texte, un bouton de type « Offre » avec une campagne Link Affi (par exemple celle de Celsius), Programmer. Le message part à l'heure ; appuyez sur le bouton : le bot répond avec votre lien personnalisé (il contient `sub_id=`).
-6. Membres → votre fiche : la chronologie montre la demande, l'accueil, le gate, l'acceptation, l'entrée et le clic offre avec son sub-ID.
-7. Réglages → Connecteurs : la synchro Link Affi est verte.
+3. Depuis votre téléphone, ouvrez cette URL : Telegram s'ouvre sur « Test » ; demandez à rejoindre.
+4. Le bot vous écrit : rejoignez « Mediatheque » via le bouton, puis « ✅ J'ai rejoint ». Le bot confirme ; vous êtes accepté dans « Test » une minute plus tard.
+5. Messages → Nouveau message : canal « Test », dans 2 minutes, un texte, un bouton « Offre » avec une campagne Link Affi (Celsius), Programmer. Le message part à l'heure ; appuyez sur le bouton : le bot répond avec votre lien personnalisé (il contient `sub_id=`).
+6. Membres → votre fiche : la chronologie montre demande, accueil, gate, acceptation, entrée et le clic offre avec son sub-ID.
+7. Réglages → Connecteurs : la synchro Link Affi est verte (la première synchronisation complète prend quelques dizaines de minutes).
 
-Répondez « kit OK » par Telegram quand c'est fait, ou décrivez ce qui ne va pas.
+Répondez « phase 1 OK » par Telegram quand c'est fait, ou décrivez ce qui ne va pas.
 
-## Ce qui reste (phase 1, sections 7 à 9, en cours)
-- Séquences d'accueil par défaut multilingues pour chaque canal et onglet « Messages du bot » (édition par langue, envoi d'un test).
-- Réglages → Catégories (CRUD) et comparaison des messages par catégorie.
-- Mise à jour finale des docs et test de 5 minutes complet de la phase 1.
+## Ce qui reste (phase 2)
+Vues par message (couche MTProto), connecteurs Meta et TikTok, tableaux de bord complets par pub, purge 24 mois, automatisations « si… alors… ».
 
 ## Actions humaines en attente
-1. Faire le test de 5 minutes ci-dessus et répondre « kit OK ».
-2. Dire quand le développeur Link Affi aura confirmé un premier joueur avec `sub_id_source = postback` (Réglages → Connecteurs l'affichera aussi).
+1. Faire le test de 5 minutes ci-dessus et répondre « phase 1 OK ».
+2. Passer le service « worker » en Europe (railway.com → projet linkaffipro → worker → Settings → Regions → EU West (Amsterdam) → Deploy) : il est encore aux États-Unis, ce qui ralentit la synchro (0,15 s par requête). Postgres, Redis et web sont déjà en Europe.
+3. Surveiller Réglages → Connecteurs → « Santé du sub-ID » après les premiers vrais joueurs : des joueurs en `postback` = chaîne complète validée ; seulement `time_match` = demander à Lovable l'encodage sans point.

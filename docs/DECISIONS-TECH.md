@@ -84,3 +84,18 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 - Niveau de dépense : VIP si cumul ≥ seuil (défaut 500 €), RÉGULIER si dépôts ≥ 3, DÉPOSANT dès un dépôt, INSCRIT, AUCUN ; seuils dans `Setting` `spend.thresholds`.
 - Indicateurs d'affiliation par canal via `Player.click → Post.channelId` ; NGR par jour = somme des NGR mis à jour ce jour (approximation, phase 2). Export CSV `;` avec BOM UTF-8.
 - Worker `stats` : recalcul idempotent des compteurs (`PostStats`, `TrackingLink`, `InviteLink`) toutes les 10 min.
+
+### Messages programmés (C)
+- Réclamation du scheduler en une requête SQL atomique (`UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING id`) ; idempotence par `jobId = post:<id>`.
+- Album : `sendMediaGroup` (légende sur le premier média si ≤ 1024) puis message texte avec les boutons si nécessaire ; média seul avec texte > 1024 : média sans légende puis texte + boutons. `file_id` Telegram mémorisé par bot après le premier envoi.
+- Limiteur de débit en fenêtre fixe sur Redis : 25/s par bot, 1/s par chat privé, 20/min par canal. 429 → attente `retry_after` (5 fois max) ; réseau/5xx → 3 tentatives ; 400 → FAILED avec message en français (`describeTelegramError`) ; 403 → `BLOCKED` + `canDm = false`.
+- Boutons `Post.buttons` = lignes de `{ text, type: URL | BUTTON | OFFER, url?, trackingLinkId?, slug?, affiliateCampaignId? }` ; les `TrackingLink` BUTTON/OFFER sont créés à l'enregistrement du message.
+- Pas d'éditeur riche : textarea + boutons insérant les balises HTML Telegram, aperçu client depuis le HTML validé (`validateTelegramHtml`). Un message annulé reste modifiable ; « Retirer » ne supprime en base que brouillons, annulés et échecs.
+
+### Séquences d'accueil (F)
+- Textes par défaut par univers (casino, paris, dating, neutre) pour les 5 déclencheurs, créés à la détection d'un canal (`ensureDefaultSequences` dans `upsertChannel`, jamais bloquant) et à l'ouverture de l'onglet « Messages du bot » ; `pnpm sequences:backfill` pour les canaux existants.
+- Une séquence désactivée fait retomber le bot sur ses textes intégrés fr/en. « Ajouter une langue » copie le français ; le français ne peut pas être retiré. « Envoyer un test » passe par `enqueueDm` (kind TEST) et exige un Telegram lié et un `/start` préalable.
+- Les constantes partagées entre une action serveur et un composant vivent dans un fichier séparé (un fichier `"use server"` ne peut exporter que des fonctions async).
+
+### Catégories (G)
+- Agrégation « par catégorie » en TypeScript sur les `Post` envoyés de la période (volume faible) plutôt que par `groupBy` Prisma (pas de traversée de relation 1:1). Suppression d'une catégorie refusée si des messages l'utilisent ; slug sans accents, unique par suffixe numérique.
