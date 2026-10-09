@@ -1,26 +1,17 @@
-import { Queue, Worker, type Job, type Processor } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
+import { QUEUE_NAMES, QUEUE_PREFIX, type QueueName } from "@linkaffipro/queue";
 import { logger } from "./logger";
+import { PROCESSORS } from "./processors/index";
 
-/** Noms des files de travail. Les traitements réels arrivent en phase 1. */
-export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats"] as const;
-export type QueueName = (typeof QUEUE_NAMES)[number];
+export { QUEUE_NAMES };
+export type { QueueName };
 
 export function createRedisConnection(): Redis {
   const url = process.env.REDIS_URL;
   if (!url) throw new Error("REDIS_URL manquante");
-  return new Redis(url, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-    family: 0,
-    lazyConnect: false,
-  });
+  return new Redis(url, { maxRetriesPerRequest: null, enableReadyCheck: false, family: 0, lazyConnect: false });
 }
-
-const noopProcessor: Processor = async (job: Job) => {
-  logger.info({ queue: job.queueName, name: job.name, id: job.id }, "tâche reçue (traitement à venir)");
-  return { ok: true };
-};
 
 export type Runtime = {
   connection: Redis;
@@ -33,16 +24,24 @@ export function startQueues(): Runtime {
   const queues = new Map<QueueName, Queue>();
   const workers = new Map<QueueName, Worker>();
   for (const name of QUEUE_NAMES) {
-    queues.set(name, new Queue(name, { connection, prefix: "lap" }));
-    const worker = new Worker(name, noopProcessor, {
+    const def = PROCESSORS[name];
+    const queue = new Queue(name, { connection, prefix: QUEUE_PREFIX });
+    queues.set(name, queue);
+    const worker = new Worker(name, def.process, {
       connection,
-      prefix: "lap",
-      concurrency: name === "telegram-send" ? 5 : 1,
-      limiter: name === "telegram-send" ? { max: 20, duration: 1000 } : undefined,
+      prefix: QUEUE_PREFIX,
+      concurrency: def.concurrency,
+      // Limite globale de sécurité pour la file Telegram ; le débit fin par bot/chat est géré dans le processeur.
+      limiter: name === "telegram-send" ? { max: 25, duration: 1000 } : undefined,
     });
     worker.on("failed", (job, err) => logger.error({ queue: name, id: job?.id, err: err.message }, "tâche échouée"));
     worker.on("error", (err) => logger.error({ queue: name, err: err.message }, "erreur worker"));
     workers.set(name, worker);
+    for (const r of def.repeatable) {
+      void queue
+        .upsertJobScheduler(r.jobId, { every: r.everyMs }, { name: `${name}:${String(r.data.type ?? "tick")}`, data: r.data, opts: { removeOnComplete: 100, removeOnFail: 100 } })
+        .catch((err: Error) => logger.error({ queue: name, jobId: r.jobId, err: err.message }, "planification impossible"));
+    }
   }
   logger.info({ queues: QUEUE_NAMES }, "files démarrées");
   return { connection, queues, workers };

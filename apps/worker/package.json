@@ -15,6 +15,7 @@
     "@linkaffipro/core": "workspace:*",
     "@linkaffipro/db": "workspace:*",
     "@linkaffipro/linkaffi": "workspace:*",
+    "@linkaffipro/queue": "workspace:*",
     "@linkaffipro/telegram": "workspace:*",
     "@prisma/client": "~6.19.3",
     "bcryptjs": "^3.0.3",

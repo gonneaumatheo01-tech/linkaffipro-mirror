@@ -13,9 +13,9 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Tableau de bord", icon: "BarChart3" },
   { href: "/channels", label: "Canaux", icon: "Radio" },
   { href: "/bots", label: "Bots", icon: "Bot" },
-  { href: "/members", label: "Membres", icon: "Users", soon: true },
-  { href: "/messages", label: "Messages", icon: "MessageSquare", soon: true },
-  { href: "/links", label: "Liens", icon: "Link2", soon: true },
+  { href: "/members", label: "Membres", icon: "Users" },
+  { href: "/messages", label: "Messages", icon: "MessageSquare" },
+  { href: "/links", label: "Liens", icon: "Link2" },
   { href: "/journal", label: "Journal", icon: "ScrollText" },
   { href: "/settings", label: "Réglages", icon: "Settings", adminOnly: true },
 ];

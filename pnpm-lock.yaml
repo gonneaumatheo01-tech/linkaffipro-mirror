@@ -193,12 +193,18 @@ importers:
       '@linkaffipro/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@linkaffipro/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@linkaffipro/telegram':
         specifier: workspace:*
         version: link:../../packages/telegram
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      bullmq:
+        specifier: ^6.3.12
+        version: 6.3.12(ioredis@6.0.0)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -284,6 +290,9 @@ importers:
       '@linkaffipro/linkaffi':
         specifier: workspace:*
         version: link:../../packages/linkaffi
+      '@linkaffipro/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@linkaffipro/telegram':
         specifier: workspace:*
         version: link:../../packages/telegram
@@ -409,6 +418,34 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@22.20.5)(vite@8.3.3(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/queue:
+    dependencies:
+      '@linkaffipro/db':
+        specifier: workspace:*
+        version: link:../db
+      bullmq:
+        specifier: ^6.3.12
+        version: 6.3.12(ioredis@6.0.0)
+      ioredis:
+        specifier: ^6.0.0
+        version: 6.0.0
+    devDependencies:
+      '@linkaffipro/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      eslint:
+        specifier: ^10.12.0
+        version: 10.12.0(jiti@2.7.0)
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
