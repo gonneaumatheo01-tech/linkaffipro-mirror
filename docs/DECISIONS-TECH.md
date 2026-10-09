@@ -38,7 +38,7 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 ### Link Affi
 - Link Affi tourne sur Lovable Cloud : aucun accès SQL ni MCP, seulement l'API GET `stats-api` (voir `docs/LINKAFFI-API.md`). Client typé dans `packages/linkaffi` : file d'attente 1 requête/s, pagination par `offset`, reprises avec attente croissante (429 / 5xx / réseau), aucune reprise sur 401/403/404.
 - Les clés `LINKAFFI_API_KEY` / `LINKAFFI_ANON_KEY` ne sont posées que sur le service `worker`.
-- Le lien de campagne `https://linkaffi.me/go/<clé>` est une page qui redirige côté navigateur vers `…/functions/v1/track-click?campaign_key=<clé>&<tous les paramètres de l'URL d'origine>` : les paramètres sont transmis tels quels. Le nom exact du paramètre de sub-ID sera confirmé dans la table `clicks` dès que les clés API seront fournies.
+- Le lien de campagne `https://linkaffi.me/go/<clé>` est une page qui redirige côté navigateur vers `…/functions/v1/track-click?campaign_key=<clé>&<tous les paramètres de l'URL d'origine>`. Vérifié avec les clés : **aucun sub-ID n'est conservé** (`clicks`, `players`, `postback_logs` n'ont pas de colonne de sub-ID ; `sub_profile_id` est un concept interne, vide). L'attribution Link Affi se fait par campagne. Décision : en phase 1, attribution par campagne (une campagne Link Affi par pub / canal / message, saisie dans la plateforme) et rapprochement approximatif des clics par horodatage ; le sub-ID par membre sera branché dès que Link Affi aura l'évolution demandée dans STATUS.md. Le modèle (`Click.subId`, `Player.subId`) reste prévu.
 
 ### Railway et Docker
 - Projet `linkaffipro`, environnement `production`, services `web`, `worker`, `Postgres`, `Redis`.

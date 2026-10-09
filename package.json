@@ -2,7 +2,9 @@
   "name": "linkaffipro-platform",
   "private": true,
   "packageManager": "pnpm@12.9.1",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -18,7 +20,8 @@
     "db:seed": "pnpm --filter @linkaffipro/db db:seed",
     "bots:register": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/register-bots.ts",
     "telegram:webhooks": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/set-webhooks.ts",
-    "linkaffi:check": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/check.ts"
+    "linkaffi:check": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/check.ts",
+    "linkaffi:inspect": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/inspect.ts"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",
