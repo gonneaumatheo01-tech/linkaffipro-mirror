@@ -21,7 +21,7 @@ import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import { parseBroadcastForm } from "@/lib/broadcasts/schema";
 import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
-import { requireAdmin, requireUser } from "@/lib/session";
+import { requireAdmin, requireUser, type CurrentUser } from "@/lib/session";
 
 function back(path: string, params: Record<string, string>): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}`);
@@ -182,8 +182,22 @@ async function resolveForDm(
     .filter((r) => r.length > 0);
 }
 
-export async function createBroadcastAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+type CreatedBroadcasts = {
+  /** Envois créés : un seul, ou les versions A puis B d'un test A/B. */
+  ids: string[];
+  abGroupId: string | null;
+  /** Part de la version A (test A/B seulement). */
+  split: number | null;
+  okMsg: string;
+};
+
+/**
+ * Crée l'envoi (ou les deux versions d'un test A/B) depuis le formulaire : toutes les vérifications (texte, date,
+ * bot, boutons) se font ici, et une erreur renvoie au formulaire avec son message.
+ * Partagé par « Enregistrer / Programmer / Envoyer » (`createBroadcastAction`) et « Envoyer un test à moi »
+ * (`createAndTestAction`).
+ */
+async function createFromForm(formData: FormData, user: CurrentUser): Promise<CreatedBroadcasts> {
   const parsed = parseBroadcastForm(formData);
   if (!parsed.success)
     back("/members/broadcasts/new", {
@@ -328,15 +342,51 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
       : d.intent === "schedule"
         ? "Envoi programmé."
         : "Brouillon enregistré.";
-  if (abGroupId)
-    back(`/members/broadcasts/ab/${abGroupId}`, {
-      ok: `Test A/B créé (${ab.enabled ? ab.split : 50} % / ${ab.enabled ? 100 - ab.split : 50} %). ${okMsg}`,
+  return { ids: created, abGroupId, split: ab.enabled ? ab.split : null, okMsg };
+}
+
+export async function createBroadcastAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const r = await createFromForm(formData, user);
+  if (r.abGroupId)
+    back(`/members/broadcasts/ab/${r.abGroupId}`, {
+      ok: `Test A/B créé (${r.split ?? 50} % / ${100 - (r.split ?? 50)} %). ${r.okMsg}`,
     });
-  back(`/members/broadcasts/${created[0]}`, { ok: okMsg });
+  back(`/members/broadcasts/${r.ids[0]}`, { ok: r.okMsg });
 }
 
 /**
- * Envoie la variante gagnante d'un test A/B aux membres du segment pas encore servis :
+ * « Envoyer un test à moi » depuis l'assistant : enregistre d'abord l'envoi en brouillon (mêmes vérifications que
+ * `createBroadcastAction`), puis l'envoie en test sur le Telegram de l'utilisateur (les deux versions d'un test A/B).
+ * Rien ne part vers les membres. Si le test ne peut pas partir, le brouillon reste enregistré et la raison s'affiche.
+ */
+export async function createAndTestAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  formData.set("intent", "draft");
+  const r = await createFromForm(formData, user);
+  const target = r.abGroupId
+    ? `/members/broadcasts/ab/${r.abGroupId}`
+    : `/members/broadcasts/${r.ids[0]}`;
+  let error: string | null = null;
+  for (const id of r.ids) {
+    error = await sendTestToUser(user, id);
+    if (error) break;
+  }
+  if (error)
+    back(target, {
+      ok: "Brouillon enregistré.",
+      error: `Le test n'est pas parti. ${error}`,
+    });
+  back(target, {
+    ok:
+      r.ids.length > 1
+        ? "Brouillon enregistré. Les deux versions vous ont été envoyées en test sur Telegram (quelques secondes)."
+        : "Brouillon enregistré. Message de test envoyé sur votre Telegram (quelques secondes).",
+  });
+}
+
+/**
+ * Envoie la variante gagnante d'un test A/B aux membres du groupe pas encore servis :
  * nouvel envoi du même groupe avec `abVariant = REST`, que le worker développe en excluant
  * tous les destinataires déjà touchés par le test.
  */
@@ -407,7 +457,7 @@ export async function sendWinnerToRestAction(formData: FormData): Promise<void> 
   });
   revalidatePath("/members/broadcasts");
   back(`/members/broadcasts/ab/${groupId}`, {
-    ok: `Version ${winner.variant} envoyée au reste du segment.`,
+    ok: `Version ${winner.variant} envoyée au reste du groupe.`,
   });
 }
 
@@ -487,22 +537,20 @@ export async function cancelBroadcastAction(formData: FormData): Promise<void> {
   back(`/members/broadcasts/${id}`, { ok: `Envoi annulé (${r.count} message(s) non envoyé(s)).` });
 }
 
-export async function testToMeAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
-  const id = z.string().min(1).parse(formData.get("broadcastId"));
+/**
+ * Envoie un envoi en message de test (kind TEST) au compte Telegram lié de l'utilisateur, rien qu'à lui.
+ * Renvoie la raison à afficher si le test ne peut pas partir, sinon null.
+ */
+async function sendTestToUser(user: CurrentUser, id: string): Promise<string | null> {
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id }, include: { bot: true } });
   if (!user.telegramUserId)
-    back(`/members/broadcasts/${id}`, {
-      error: "Liez d'abord votre compte Telegram dans « Mon compte » (menu en haut à droite).",
-    });
+    return "Liez d'abord votre compte Telegram dans « Mon compte » (menu en haut à droite).";
   const member = await prisma.member.findUnique({
     where: { telegramUserId: user.telegramUserId },
     include: { botStates: { where: { botId: b.botId } } },
   });
   if (!member || !member.botStates[0]?.canDm)
-    back(`/members/broadcasts/${id}`, {
-      error: `Envoyez d'abord /start à @${b.bot.username} depuis votre Telegram.`,
-    });
+    return `Envoyez d'abord /start à @${b.bot.username} depuis votre Telegram.`;
   const buttons = await resolveForDm((b.buttons as PostButtonRow[]) ?? [], b.bot.username, b.id);
   await enqueueDm({
     botId: b.botId,
@@ -518,6 +566,14 @@ export async function testToMeAction(formData: FormData): Promise<void> {
     entityType: "Broadcast",
     entityId: id,
   });
+  return null;
+}
+
+export async function testToMeAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = z.string().min(1).parse(formData.get("broadcastId"));
+  const error = await sendTestToUser(user, id);
+  if (error) back(`/members/broadcasts/${id}`, { error });
   back(`/members/broadcasts/${id}`, {
     ok: "Message de test envoyé sur votre Telegram (quelques secondes).",
   });

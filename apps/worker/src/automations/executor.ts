@@ -1,4 +1,4 @@
-import { renderActionText, type AutomationAction } from "@linkaffipro/core";
+import { GRAPH_SEQUENCE_LABELS, renderActionText, type AutomationAction } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { enqueueDm, type DmButton } from "@linkaffipro/queue";
 import { notifyAdmin, pickText, renderText } from "@linkaffipro/telegram";
@@ -40,14 +40,14 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
         include: { steps: { orderBy: { order: "asc" }, take: 1 } },
       });
       const step = seq?.steps[0];
-      if (!step) throw new Error(`Aucune séquence ${a.trigger} active pour ce canal.`);
+      if (!step) throw new Error(`Aucun message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » actif pour ce canal.`);
       const texts = (step.texts ?? {}) as Record<string, string>;
       const raw = pickText(texts, snapshot.languageCode, null);
-      if (!raw) throw new Error("Séquence sans texte.");
+      if (!raw) throw new Error(`Message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » sans texte.`);
       const text = renderText(raw, { prenom: snapshot.firstName ?? "", canal: snapshot.channelTitle ?? "", bot: bot.name });
       const buttons = Array.isArray(step.buttons) ? (step.buttons as DmButton[][]) : [];
       await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons, sequenceStepId: step.id, mediaAssetId: step.mediaAssetId ?? null });
-      return `séquence ${a.trigger} via @${bot.username}`;
+      return `message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » via @${bot.username}`;
     },
     async tag(a) {
       const m = await prisma.member.findUnique({ where: { id: snapshot.memberId }, select: { tags: true } });
@@ -79,7 +79,7 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
     },
     async notifyTeam(a) {
       const who = snapshot.firstName ? `${snapshot.firstName} (${snapshot.memberId})` : snapshot.memberId;
-      const text = `🤖 <b>Automatisation « ${opts.ruleName}»</b>\n${renderActionText(a.text, vars)}\nMembre : ${who}`;
+      const text = `🤖 <b>Relance automatique « ${opts.ruleName} »</b>\n${renderActionText(a.text, vars)}\nMembre : ${who}`;
       if (opts.test) return "notification (test, non envoyée)";
       const ok = await notifyAdmin(text);
       if (!ok) throw new Error("Notification Telegram impossible (admin non configuré).");

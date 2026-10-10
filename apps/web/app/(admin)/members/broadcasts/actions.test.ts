@@ -53,13 +53,16 @@ const db = vi.hoisted(() => ({
       update: vi.fn(),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
+    member: { findUnique: vi.fn(async () => null) },
   },
   audit: vi.fn(async () => undefined),
   toJsonValue: (v: unknown) => v,
 }));
 vi.mock("@linkaffipro/db", () => db);
 
-import { createBroadcastAction, sendWinnerToRestAction } from "./actions";
+import { enqueue, enqueueDm } from "@linkaffipro/queue";
+import { requireUser } from "@/lib/session";
+import { createAndTestAction, createBroadcastAction, sendWinnerToRestAction } from "./actions";
 
 const offer = {
   id: "aff1",
@@ -207,5 +210,66 @@ describe("envoyer la gagnante au reste", () => {
         data: expect.objectContaining({ affiliateCampaignId: "aff2", campaignId: "camp1" }),
       }),
     );
+  });
+});
+
+describe("« Envoyer un test à moi » depuis l'assistant", () => {
+  const fields = { name: "Promo", botId: "bot1", text: "Bonjour", scheduledAt: "" };
+  const container = { id: "b1", botId: "bot1", text: "Bonjour", buttons: [], mediaAssetId: null };
+
+  beforeEach(() => {
+    db.prisma.broadcast.create.mockResolvedValue({ id: "b1" });
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
+      ...container,
+      bot: { username: "casino_bot" },
+    });
+  });
+
+  it("enregistre un brouillon puis envoie le test sur le Telegram de l'utilisateur, rien d'autre", async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: "u1",
+      email: "a@b.c",
+      name: "Admin",
+      role: "MANAGER",
+      telegramUserId: BigInt(42),
+    });
+    db.prisma.member.findUnique.mockResolvedValueOnce({
+      id: "m1",
+      botStates: [{ canDm: true }],
+    } as never);
+    // Même si le bouton venait d'un formulaire « Envoyer », l'intention est forcée à « brouillon ».
+    const url = await run(createAndTestAction(form({ ...fields, intent: "now" })));
+    expect(url.split("?")[0]).toBe("/members/broadcasts/b1");
+    expect(param(url, "ok")).toBe(
+      "Brouillon enregistré. Message de test envoyé sur votre Telegram (quelques secondes).",
+    );
+    expect(db.prisma.broadcast.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "DRAFT" }) }),
+    );
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(enqueueDm).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "TEST", memberId: "m1", botId: "bot1" }),
+    );
+  });
+
+  it("compte Telegram non lié : le brouillon reste, la raison s'affiche", async () => {
+    const url = await run(createAndTestAction(form(fields)));
+    expect(url.split("?")[0]).toBe("/members/broadcasts/b1");
+    expect(param(url, "ok")).toBe("Brouillon enregistré.");
+    expect(param(url, "error")).toMatch(
+      /^Le test n'est pas parti\. Liez d'abord votre compte Telegram/,
+    );
+    expect(enqueueDm).not.toHaveBeenCalled();
+  });
+
+  it("« Envoyer » depuis l'assistant : inchangé (envoi lancé, aucun test)", async () => {
+    const url = await run(createBroadcastAction(form({ ...fields, intent: "now" })));
+    expect(param(url, "ok")).toBe("Envoi lancé.");
+    expect(enqueue).toHaveBeenCalledWith(
+      "scheduler",
+      { type: "broadcast", broadcastId: "b1" },
+      expect.objectContaining({ jobId: "broadcast-b1" }),
+    );
+    expect(enqueueDm).not.toHaveBeenCalled();
   });
 });

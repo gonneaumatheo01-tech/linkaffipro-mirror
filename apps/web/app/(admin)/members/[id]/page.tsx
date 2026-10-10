@@ -1,32 +1,34 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExternalLink, ShieldOff } from "lucide-react";
 import { aggregatePlayers, computeSpendLevel, SPEND_LEVEL_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
-import { PageHeader } from "@/components/admin/page-header";
-import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
-import { HelpTip } from "@/components/admin/help-tip";
+import { Flash } from "@/components/admin/flash";
+import { AdvancedSection } from "@/components/admin/form-section";
+import { Term } from "@/components/admin/help-tip";
+import { PageHeader } from "@/components/admin/page-header";
 import { PAGE_SIZE, Pagination, pageHref, pageOf } from "@/components/admin/pagination";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/admin/status-pill";
+import { UniverseDot } from "@/components/admin/universe-dot";
+import { MemberTags } from "@/components/members/member-cells";
+import { MemberTimeline } from "@/components/members/member-timeline";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { fmtDate, fmtMoney } from "@/lib/format";
-import { requireUser } from "@/lib/session";
+import { withMinusSign } from "@/lib/campaigns/cards";
+import { fmtDate, fmtDateShort, fmtMoney, fmtNum, fmtRelative } from "@/lib/format";
+import { adLabel, memberProfile, memberSubline, plural } from "@/lib/members/profile";
 import { displayName, getSpendThresholds } from "@/lib/members/query";
-import { colorOf, getTagRegistry, memberTags, tagColorClass } from "@/lib/members/tags";
+import { getTagRegistry, memberTags, tagColorClass } from "@/lib/members/tags";
 import { buildTimeline, paginateTimeline } from "@/lib/members/timeline";
+import { requireUser } from "@/lib/session";
 import {
   addNoteAction,
   anonymizeMemberAction,
@@ -37,20 +39,73 @@ import {
 
 export const metadata: Metadata = { title: "Fiche membre" };
 
-const KIND_COLORS: Record<string, string> = {
-  membership: "bg-blue-500",
-  message: "bg-slate-400",
-  click: "bg-amber-500",
-  player: "bg-emerald-500",
-  event: "bg-violet-500",
+/** Origine du rattachement d'un compte joueur, en mots simples. */
+const SUB_ID_SOURCE: Record<string, string> = {
+  postback: "reçu par le retour du casino",
+  time_match: "rapproché par l'heure du clic",
+  linkaffi: "clic Link Affi",
 };
-const KIND_LABELS: Record<string, string> = {
-  membership: "adhésion",
-  message: "message",
-  click: "clic",
-  player: "joueur",
-  event: "événement",
-};
+
+/** Bloc de la fiche : carte avec un titre de section (`<h2>`), une ligne d'aide et une action discrète. */
+function Block({
+  title,
+  description,
+  action,
+  className,
+  id,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className={cn("min-w-0", className)} id={id}>
+      <CardHeader className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-body font-semibold text-foreground">{title}</h2>
+          {description ? (
+            <p className="mt-0.5 text-note text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {action}
+      </CardHeader>
+      <CardContent className="min-w-0">{children}</CardContent>
+    </Card>
+  );
+}
+
+/** Ligne « libellé : valeur » des blocs de l'essentiel. */
+function Fact({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-note text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+/** Chiffre de l'essentiel : grand nombre, libellé, précision. */
+function Figure({
+  label,
+  value,
+  hint,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  hint?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-note text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-title tabular-nums">{value}</dd>
+      {hint ? <dd className="text-note text-muted-foreground">{hint}</dd> : null}
+    </div>
+  );
+}
 
 export default async function MemberPage({ params, searchParams }: PageProps<"/members/[id]">) {
   const me = await requireUser();
@@ -64,10 +119,10 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
         memberships: {
           orderBy: { requestedAt: "desc" },
           include: {
-            channel: { select: { title: true, id: true } },
+            channel: { select: { title: true, id: true, vertical: true } },
             inviteLink: {
               include: {
-                campaign: { select: { name: true, adPlatform: true } },
+                campaign: { select: { id: true, name: true, vertical: true, adPlatform: true } },
                 trackingLinks: { select: { affiliateCampaign: { select: { name: true } } } },
               },
             },
@@ -99,23 +154,69 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
           orderBy: { createdAt: "desc" },
           include: { author: { select: { name: true, id: true } } },
         },
+        _count: {
+          select: { clicks: { where: { isBot: false, trackingLink: { kind: "OFFER" } } } },
+        },
       },
     }),
     getSpendThresholds(),
     getTagRegistry(),
   ]);
   if (!member) notFound();
+  const now = new Date();
   const tags = memberTags(member.tags);
+  const anonymized = Boolean(member.anonymizedAt);
+  const name = displayName(member);
 
-  const agg = aggregatePlayers(
-    member.players.map((p) => ({
-      registeredAt: p.registeredAt,
+  const level = computeSpendLevel(
+    aggregatePlayers(
+      member.players.map((p) => ({
+        registeredAt: p.registeredAt,
+        depositCount: p.depositCount,
+        depositTotal: Number(p.depositTotal),
+      })),
+    ),
+    thresholds,
+  );
+  const lastPlayerEventAt =
+    member.players
+      .map((p) => p.lastEventAt)
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const profile = memberProfile({
+    memberships: member.memberships.map((m) => ({
+      status: m.status,
+      requestedAt: m.requestedAt,
+      approvedAt: m.approvedAt,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt,
+      channel: m.channel,
+      inviteLink: m.inviteLink
+        ? {
+            name: m.inviteLink.name,
+            adName: m.inviteLink.adName,
+            adPlatform: m.inviteLink.adPlatform ?? m.inviteLink.campaign?.adPlatform ?? null,
+            campaign: m.inviteLink.campaign,
+            offerName:
+              m.inviteLink.trackingLinks.find((t) => t.affiliateCampaign)?.affiliateCampaign
+                ?.name ?? null,
+          }
+        : null,
+    })),
+    players: member.players.map((p) => ({
+      ftdAt: p.ftdAt,
+      ftdAmount: p.ftdAmount === null ? null : Number(p.ftdAmount),
       depositCount: p.depositCount,
       depositTotal: Number(p.depositTotal),
+      ngr: Number(p.ngr),
+      offerName: p.affiliateCampaign.name,
     })),
-  );
-  const level = computeSpendLevel(agg, thresholds);
-  const ngr = member.players.reduce((s, p) => s + Number(p.ngr), 0);
+    offerClicks: member._count.clicks,
+    botStates: member.botStates,
+    lastSeenAt: member.lastSeenAt,
+    lastPlayerEventAt,
+  });
+
   const fullTimeline = buildTimeline({
     memberships: member.memberships.map((m) => ({
       id: m.id,
@@ -157,350 +258,313 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
     events: member.events,
   });
   const timeline = paginateTimeline(fullTimeline, pageOf(sp), PAGE_SIZE);
-  const origin = member.memberships[member.memberships.length - 1];
-  const name = displayName(member);
+
+  const { origin, activity, money, reach } = profile;
+  const subline = anonymized
+    ? `Anonymisé le ${fmtDate(member.anonymizedAt)}`
+    : [memberSubline(member), member.isPremium ? "Telegram Premium" : null]
+        .filter(Boolean)
+        .join(" · ");
+  const ad = origin ? adLabel(origin) : null;
+  const unknownTags = tags.filter((t) => !tagRegistry.some((r) => r.name === t));
+  const canEditNote = (authorId: string | undefined) => me.role === "ADMIN" || authorId === me.id;
 
   return (
     <>
       <PageHeader
         title={name}
-        description={
-          member.anonymizedAt
-            ? `Anonymisé le ${fmtDate(member.anonymizedAt)}`
-            : `Identifiant Telegram ${member.telegramUserId.toString()}${member.username ? ` · @${member.username}` : ""}${member.languageCode ? ` · langue ${member.languageCode}` : ""}${member.isPremium ? " · Telegram Premium" : ""}`
+        backHref="/members"
+        backLabel="Tous les membres"
+        description={subline || undefined}
+        meta={
+          <>
+            {level === "AUCUN" ? null : (
+              <StatusPill tone={level === "VIP" ? "brand" : "neutral"} title="Niveau de dépense">
+                {SPEND_LEVEL_LABELS[level]}
+              </StatusPill>
+            )}
+            {anonymized ? null : <StatusPill tone={reach.tone}>{reach.label}</StatusPill>}
+          </>
         }
-        help="Tout le parcours de ce membre : d'où il vient, ce qu'il a reçu, sur quoi il a cliqué et ce qu'il a déposé. Les notes internes ne sont visibles que par l'équipe."
-      >
-        <Badge variant={level === "VIP" ? "default" : "outline"}>{SPEND_LEVEL_LABELS[level]}</Badge>
-        {tags.map((t) => (
-          <Badge key={t} variant="outline" className={tagColorClass(colorOf(t, tagRegistry))}>
-            {t}
-          </Badge>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/members" />}
-        >
-          ← Membres
-        </Button>
-      </PageHeader>
+        secondaryActions={
+          !anonymized && member.username ? (
+            <a
+              href={`https://t.me/${encodeURIComponent(member.username)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+            >
+              <ExternalLink aria-hidden />
+              Ouvrir dans Telegram
+              <span className="sr-only"> (nouvel onglet)</span>
+            </a>
+          ) : null
+        }
+      />
       <Flash ok={sp.ok} error={sp.error} />
+      {anonymized ? (
+        <Alert variant="info" role="status" className="mb-6">
+          <ShieldOff aria-hidden />
+          <AlertDescription>
+            Ce membre a été supprimé à sa demande : son identité est effacée, son historique est
+            conservé sans donnée personnelle.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Origine</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <div>
-              Première demande :{" "}
-              <span className="text-muted-foreground">
-                {origin ? `${origin.channel.title}, ${fmtDate(origin.requestedAt)}` : "—"}
-              </span>
-            </div>
-            <div>
-              Lien d&apos;entrée :{" "}
-              <span className="text-muted-foreground">{origin?.inviteLink?.name ?? "—"}</span>
-            </div>
-            <div>
-              Pub :{" "}
-              <span className="text-muted-foreground">
-                {origin?.inviteLink?.adName ?? origin?.inviteLink?.campaign?.name ?? "—"}
-                {origin?.inviteLink?.adPlatform ? ` (${origin.inviteLink.adPlatform})` : ""}
-              </span>
-            </div>
-            <div>
-              Campagne d&apos;affiliation :{" "}
-              <span className="text-muted-foreground">
-                {origin?.inviteLink?.trackingLinks.find((t) => t.affiliateCampaign)
-                  ?.affiliateCampaign?.name ??
-                  member.players[0]?.affiliateCampaign.name ??
-                  "—"}
-              </span>
-            </div>
-            <div>
-              Vu la première fois :{" "}
-              <span className="text-muted-foreground">{fmtDate(member.firstSeenAt)}</span> ·
-              dernière fois :{" "}
-              <span className="text-muted-foreground">{fmtDate(member.lastSeenAt)}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Messages privés</CardTitle>
-            <CardDescription>Bots qui peuvent lui écrire en privé.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            {member.botStates.length === 0 ? (
-              <p className="text-muted-foreground">
-                Aucun bot n&apos;a encore été contacté par ce membre.
-              </p>
-            ) : (
-              member.botStates.map((s) => (
-                <div key={s.id} className="flex items-center justify-between">
-                  <span>@{s.bot.username}</span>
-                  {s.canDm ? (
-                    <Badge variant="outline">joignable</Badge>
-                  ) : (
-                    <Badge variant="secondary">
-                      {s.blockedAt ? "a bloqué le bot" : "non joignable"}
-                    </Badge>
-                  )}
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Dépenses</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <div>
-              Joueurs rattachés :{" "}
-              <span className="text-muted-foreground">{member.players.length}</span>
-            </div>
-            <div>
-              Dépôts :{" "}
-              <span className="text-muted-foreground">
-                {agg.depositCount} · {fmtMoney(Math.round(agg.depositTotal), "EUR", { digits: 0 })}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              Revenu net (NGR){" "}
-              <HelpTip>
-                NGR : ce que le casino ou le site a réellement gagné sur ce joueur (mises moins
-                gains et bonus). C&apos;est la base de notre commission.
-              </HelpTip>{" "}
-              : <span className="text-muted-foreground">{fmtMoney(ngr)}</span>
-            </div>
-            <div>
-              Clics (hors robots) :{" "}
-              <span className="text-muted-foreground">
-                {member.clicks.filter((c) => !c.isBot).length}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* L'essentiel d'abord : d'où il vient, ce qu'il a fait, ce qu'il a déposé. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Block title="D'où il vient">
+          {origin ? (
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Fact label="Campagne">
+                {origin.campaign ? (
+                  <Link
+                    href={`/campaigns/${origin.campaign.id}`}
+                    className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                  >
+                    <UniverseDot universe={origin.universe} />
+                    {origin.campaign.name}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">Aucune</span>
+                )}
+              </Fact>
+              <Fact label="Pub">
+                {ad ?? <span className="text-muted-foreground">Aucune (lien direct)</span>}
+              </Fact>
+              <Fact label="Canal">
+                <Link
+                  href={`/channels/${origin.channelId}`}
+                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                >
+                  {origin.campaign ? null : <UniverseDot universe={origin.universe} />}
+                  {origin.channelTitle}
+                </Link>
+              </Fact>
+              <Fact label="Arrivé le">{fmtDate(origin.at)}</Fact>
+              {origin.offerName ? <Fact label="Offre">{origin.offerName}</Fact> : null}
+            </dl>
+          ) : (
+            <p className="text-muted-foreground">
+              Pas encore de demande pour rejoindre un canal. Vu pour la première fois le{" "}
+              {fmtDate(member.firstSeenAt)}.
+            </p>
+          )}
+        </Block>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Chronologie</CardTitle>
-            <CardDescription>
-              Les 200 derniers éléments de chaque type (adhésions, messages, clics, joueurs), du
-              plus récent au plus ancien.
-              <span className="ml-2 inline-flex flex-wrap gap-2">
-                {Object.entries(KIND_LABELS).map(([k, l]) => (
-                  <span key={k} className="inline-flex items-center gap-1 text-xs">
-                    <span className={`size-2 rounded-full ${KIND_COLORS[k]}`} aria-hidden="true" />
-                    {l}
-                  </span>
-                ))}
-              </span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {timeline.total === 0 ? (
-              <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
-            ) : (
-              <ol className="space-y-2">
-                {timeline.entries.map((e, i) => (
-                  <li key={i} className="flex gap-3 text-sm">
-                    <span
-                      className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_COLORS[e.kind] ?? "bg-slate-300"}`}
-                      role="img"
-                      aria-label={KIND_LABELS[e.kind] ?? e.kind}
-                    />
-                    <span className="w-32 shrink-0 whitespace-nowrap text-muted-foreground">
-                      {fmtDate(e.at)}
-                    </span>
-                    <span className="min-w-0">
-                      {e.href ? (
-                        <Link href={e.href} className="hover:underline">
-                          {e.title}
-                        </Link>
-                      ) : (
-                        e.title
-                      )}
-                      {e.detail ? (
-                        <span className="ml-2 text-xs text-muted-foreground">{e.detail}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <Pagination
-              page={timeline.page}
-              pages={timeline.pages}
-              total={timeline.total}
-              noun="élément"
-              hrefFor={(p) =>
-                pageHref(`/members/${member.id}`, { ...sp, ok: undefined, error: undefined }, p)
+        <Block title="Ce qu'il a fait">
+          <dl className="grid grid-cols-2 gap-4">
+            <Figure
+              label="Demandes pour rejoindre"
+              value={fmtNum(activity.requests)}
+              hint={
+                activity.requests === 0
+                  ? undefined
+                  : activity.entries === 0
+                    ? "aucune acceptée"
+                    : plural(activity.entries, "acceptée")
               }
             />
-          </CardContent>
-        </Card>
+            <Figure
+              label="Canaux où il est"
+              value={fmtNum(activity.currentChannels)}
+              hint="en ce moment"
+            />
+            <Figure label="Clics sur une offre" value={fmtNum(activity.offerClicks)} />
+            <Figure
+              label="Dernière activité"
+              value={
+                <time
+                  dateTime={activity.lastActivityAt.toISOString()}
+                  title={fmtDate(activity.lastActivityAt)}
+                  className="text-body"
+                >
+                  {fmtRelative(activity.lastActivityAt, now)}
+                </time>
+              }
+            />
+          </dl>
+        </Block>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Joueurs rattachés</CardTitle>
-              <CardDescription>
-                Comptes joueurs reliés à ce membre grâce à l&apos;identifiant de suivi (sub-ID)
-                transmis lors d&apos;un clic sur une offre.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {member.players.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucun joueur rattaché : ce membre ne s&apos;est pas encore inscrit après un clic
-                  sur une offre.
+        <Block title="Ce qu'il a déposé" className="md:col-span-2 xl:col-span-1">
+          {money.players === 0 ? (
+            <p className="text-muted-foreground">
+              Pas encore inscrit chez un partenaire après un clic sur une offre.
+            </p>
+          ) : (
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-2">
+              <Figure
+                label={<Term term="FTD">Premiers dépôts</Term>}
+                value={fmtNum(money.ftdCount)}
+                hint={
+                  money.firstFtdAt
+                    ? `le ${fmtDateShort(money.firstFtdAt, now)}${money.firstFtdAmount ? ` · ${fmtMoney(money.firstFtdAmount)}` : ""}`
+                    : "pas encore"
+                }
+              />
+              <Figure
+                label="Dépôts"
+                value={fmtMoney(money.depositTotal, "EUR", { digits: 0 })}
+                hint={plural(money.depositCount, "dépôt")}
+              />
+              <Figure
+                label={<Term term="NGR">Revenu net</Term>}
+                value={withMinusSign(fmtMoney(money.ngr))}
+                hint={plural(money.players, "compte joueur", "comptes joueurs")}
+              />
+            </dl>
+          )}
+        </Block>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Block
+          title="Étiquettes"
+          description="Pour le retrouver dans la liste et l'inclure dans un groupe de membres."
+          action={
+            me.role === "ADMIN" && !anonymized ? (
+              <Link
+                href="/settings/tags"
+                className="text-note font-medium text-brand-ink underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-10 max-md:items-center"
+              >
+                Gérer les étiquettes
+              </Link>
+            ) : null
+          }
+        >
+          {anonymized ? (
+            <p className="text-muted-foreground">Membre anonymisé : pas d&apos;étiquette.</p>
+          ) : tagRegistry.length === 0 ? (
+            <div className="space-y-2">
+              {tags.length > 0 ? <MemberTags tags={tags} registry={tagRegistry} /> : null}
+              <p className="text-muted-foreground">
+                {me.role === "ADMIN"
+                  ? "Aucune étiquette n'est encore créée : « Gérer les étiquettes » pour en ajouter."
+                  : "Aucune étiquette n'est encore créée : demandez à un administrateur (Réglages → Étiquettes)."}
+              </p>
+            </div>
+          ) : (
+            <form action={setMemberTagsAction} className="space-y-3">
+              <input type="hidden" name="memberId" value={member.id} />
+              <fieldset>
+                <legend className="sr-only">Étiquettes de {name}</legend>
+                <div className="flex flex-wrap gap-x-5 gap-y-1">
+                  {tagRegistry.map((t) => (
+                    <label key={t.name} className="flex min-h-10 items-center gap-2">
+                      <Checkbox name="tags" value={t.name} defaultChecked={tags.includes(t.name)} />
+                      <span
+                        className={cn(
+                          "inline-flex h-6 items-center rounded-full border px-2.5 text-note font-medium",
+                          tagColorClass(t.color),
+                        )}
+                      >
+                        {t.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              {unknownTags.length > 0 ? (
+                <p className="text-note text-muted-foreground">
+                  Posées par une relance automatique (conservées) : {unknownTags.join(", ")}
                 </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Programme</TableHead>
-                      <TableHead>Sub-ID</TableHead>
-                      <TableHead>FTD</TableHead>
-                      <TableHead className="text-right">Dépôts</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.players.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          <div>{p.affiliateCampaign.program.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {p.affiliateCampaign.name} · joueur {p.externalPlayerId}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {p.subId ?? "—"}
-                          {p.subIdSource ? (
-                            <div className="text-[10px] text-muted-foreground">
-                              {p.subIdSource === "postback"
-                                ? "reçu par postback"
-                                : p.subIdSource === "time_match"
-                                  ? "rapprochement horaire"
-                                  : p.subIdSource}
-                            </div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {p.ftdAt
-                            ? `${fmtDate(p.ftdAt)}${p.ftdAmount ? ` · ${fmtMoney(Number(p.ftdAmount))}` : ""}`
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {p.depositCount} ·{" "}
-                          {fmtMoney(Math.round(Number(p.depositTotal)), "EUR", { digits: 0 })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+              ) : null}
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                Enregistrer les étiquettes
+              </Button>
+            </form>
+          )}
+        </Block>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Étiquettes</CardTitle>
-              <CardDescription>
-                Pour retrouver ce membre dans Membres et le cibler dans les envois groupés. Les
-                étiquettes se créent dans Réglages → Étiquettes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {member.anonymizedAt ? (
-                <p className="text-sm text-muted-foreground">Membre anonymisé : pas d&apos;étiquette.</p>
-              ) : tagRegistry.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucune étiquette définie.{" "}
-                  {me.role === "ADMIN" ? (
-                    <Link href="/settings/tags" className="underline">
-                      En créer une
-                    </Link>
+        <Block
+          title="Joignable par le bot"
+          description="Les bots qui peuvent lui écrire en privé : accueil, relances, messages à un groupe."
+        >
+          {member.botStates.length === 0 ? (
+            <p className="text-muted-foreground">
+              Il n&apos;a encore jamais écrit à un de nos bots : il ne peut pas recevoir de message
+              privé.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {member.botStates.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex min-h-10 flex-wrap items-center justify-between gap-2 py-1.5"
+                >
+                  <span className="min-w-0 break-all">@{s.bot.username}</span>
+                  {s.canDm ? (
+                    <StatusPill tone="success">Joignable</StatusPill>
+                  ) : s.blockedAt ? (
+                    <StatusPill tone="danger" title={`Depuis le ${fmtDate(s.blockedAt)}`}>
+                      A bloqué le bot
+                    </StatusPill>
                   ) : (
-                    "Demandez à un administrateur d'en créer dans Réglages → Étiquettes."
+                    <StatusPill tone="muted">Pas joignable</StatusPill>
                   )}
-                </p>
-              ) : (
-                <form action={setMemberTagsAction} className="space-y-3">
-                  <input type="hidden" name="memberId" value={member.id} />
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                    {tagRegistry.map((t) => (
-                      <label key={t.name} className="flex min-h-10 items-center gap-2 md:min-h-0">
-                        <input
-                          type="checkbox"
-                          name="tags"
-                          value={t.name}
-                          defaultChecked={tags.includes(t.name)}
-                          className="size-4"
-                        />
-                        <Badge variant="outline" className={tagColorClass(t.color)}>
-                          {t.name}
-                        </Badge>
-                      </label>
-                    ))}
-                  </div>
-                  {tags.some((t) => !tagRegistry.some((r) => r.name === t)) ? (
-                    <p className="text-xs text-muted-foreground">
-                      Posées par une automatisation (hors registre, conservées) :{" "}
-                      {tags.filter((t) => !tagRegistry.some((r) => r.name === t)).join(", ")}
-                    </p>
-                  ) : null}
-                  <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
-                    Enregistrer les étiquettes
-                  </Button>
-                </form>
-              )}
-            </CardContent>
-          </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Block>
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Notes internes</CardTitle>
-              <CardDescription>Visibles uniquement par l&apos;équipe.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Block
+          id="chronologie"
+          title="Chronologie"
+          description="Tout son parcours, du plus récent au plus ancien (les 200 derniers éléments de chaque sorte)."
+          className="lg:col-span-2 lg:self-start"
+        >
+          <MemberTimeline entries={timeline.entries} />
+          <Pagination
+            page={timeline.page}
+            pages={timeline.pages}
+            total={timeline.total}
+            noun="élément"
+            hrefFor={(p) =>
+              `${pageHref(`/members/${member.id}`, { ...sp, ok: undefined, error: undefined }, p)}#chronologie`
+            }
+          />
+        </Block>
+
+        <div className="min-w-0 space-y-6">
+          <Block title="Notes internes" description="Visibles uniquement par l'équipe.">
+            <div className="space-y-3">
               {member.notes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {member.anonymizedAt ? "Aucune note." : "Aucune note pour l'instant."}
+                <p className="text-muted-foreground">
+                  {anonymized ? "Aucune note." : "Aucune note pour l'instant."}
                 </p>
               ) : null}
               {member.notes.map((n) => (
-                <div key={n.id} className="rounded-md border p-2 text-sm">
-                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                <article key={n.id} className="rounded-lg border border-border p-3">
+                  <header className="mb-1 flex flex-wrap items-center justify-between gap-x-2 text-note text-muted-foreground">
                     <span>
                       {n.author?.name ?? "—"} · {fmtDate(n.createdAt)}
                     </span>
-                    {me.role === "ADMIN" || n.author?.id === me.id ? (
+                    {canEditNote(n.author?.id) ? (
                       <form action={deleteNoteAction}>
                         <input type="hidden" name="noteId" value={n.id} />
                         <ConfirmSubmit
                           variant="ghost"
                           size="sm"
-                          className="h-8 text-destructive"
-                          message="Cette note sera supprimée définitivement. Continuer ?"
+                          className="text-danger"
+                          confirmTitle="Supprimer cette note ?"
+                          message="Elle sera supprimée définitivement."
+                          confirmLabel="Supprimer"
+                          destructive
                         >
-                          supprimer
+                          Supprimer
                         </ConfirmSubmit>
                       </form>
                     ) : null}
-                  </div>
-                  <p className="whitespace-pre-wrap">{n.text}</p>
-                  {me.role === "ADMIN" || n.author?.id === me.id ? (
+                  </header>
+                  <p className="break-words whitespace-pre-wrap">{n.text}</p>
+                  {canEditNote(n.author?.id) ? (
                     <details className="mt-1">
-                      <summary className="cursor-pointer text-xs text-muted-foreground hover:underline">
-                        modifier
+                      <summary className="inline-flex min-h-8 cursor-pointer items-center text-note text-muted-foreground hover:text-foreground max-md:min-h-10">
+                        Modifier
                       </summary>
                       <form action={editNoteAction} className="mt-2 space-y-2">
                         <input type="hidden" name="noteId" value={n.id} />
@@ -515,75 +579,132 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                           maxLength={2000}
                           rows={3}
                         />
-                        <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                        <Button type="submit" size="sm" variant="outline">
                           Enregistrer
                         </Button>
                       </form>
                     </details>
                   ) : null}
-                </div>
+                </article>
               ))}
-              {member.anonymizedAt ? null : (
+              {anonymized ? null : (
                 <form action={addNoteAction} className="space-y-2">
                   <input type="hidden" name="memberId" value={member.id} />
-                  <Label htmlFor="note-text" className="sr-only">
-                    Nouvelle note
-                  </Label>
+                  <Label htmlFor="note-text">Nouvelle note</Label>
                   <Textarea
                     id="note-text"
                     name="text"
-                    placeholder="Ajouter une note (2 000 caractères maximum)…"
+                    placeholder="2 000 caractères au plus"
                     required
                     maxLength={2000}
                     rows={3}
                   />
-                  <Button type="submit" size="sm" className="max-md:h-10">
+                  <Button type="submit" variant="outline" className="max-md:h-10">
                     Ajouter la note
                   </Button>
                 </form>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </Block>
 
-          {me.role === "ADMIN" && !member.anonymizedAt ? (
-            <Card className="border-destructive/40">
-              <CardHeader>
-                <CardTitle className="text-base">Supprimer ce membre</CardTitle>
-                <CardDescription>
-                  À utiliser quand la personne demande l&apos;effacement de ses données : son nom,
-                  son pseudo et son identifiant sont effacés, ses notes supprimées ;
-                  l&apos;historique est conservé sans donnée personnelle. Cette action est
-                  irréversible.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  action={anonymizeMemberAction}
-                  className="flex flex-col gap-2 sm:flex-row sm:items-center"
-                >
-                  <input type="hidden" name="memberId" value={member.id} />
-                  <Label htmlFor="confirm-delete" className="sr-only">
-                    Tapez SUPPRIMER pour confirmer
-                  </Label>
+          <Block
+            title="Comptes joueurs"
+            description={
+              <>
+                Ses inscriptions chez nos partenaires, reliées à son clic par un{" "}
+                <Term term="sub-ID">identifiant de suivi</Term>.
+              </>
+            }
+          >
+            {member.players.length === 0 ? (
+              <p className="text-muted-foreground">
+                Aucun compte joueur : il ne s&apos;est pas encore inscrit après un clic sur une
+                offre.
+              </p>
+            ) : (
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-1">
+                {member.players.map((p) => (
+                  <li key={p.id} className="rounded-lg border border-border p-3">
+                    <p className="font-medium break-words">{p.affiliateCampaign.program.name}</p>
+                    <p className="text-note text-muted-foreground break-words">
+                      {p.affiliateCampaign.name} · joueur {p.externalPlayerId}
+                    </p>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                      <Fact label={<Term term="FTD">Premier dépôt</Term>}>
+                        {p.ftdAt ? (
+                          <>
+                            {fmtDateShort(p.ftdAt, now)}
+                            {p.ftdAmount ? (
+                              <span className="block text-note text-muted-foreground tabular-nums">
+                                {fmtMoney(Number(p.ftdAmount))}
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">Pas encore</span>
+                        )}
+                      </Fact>
+                      <Fact label="Dépôts">
+                        <span className="tabular-nums">
+                          {fmtMoney(Math.round(Number(p.depositTotal)), "EUR", { digits: 0 })}
+                        </span>
+                        <span className="block text-note text-muted-foreground">
+                          {plural(p.depositCount, "dépôt")}
+                        </span>
+                      </Fact>
+                      <div className="col-span-2 min-w-0">
+                        <dt className="text-note text-muted-foreground">
+                          <Term term="sub-ID">Identifiant de suivi</Term>
+                        </dt>
+                        <dd className="mt-0.5 font-mono text-note break-all">
+                          {p.subId ?? "—"}
+                          {p.subIdSource ? (
+                            <span className="block font-sans text-muted-foreground">
+                              {SUB_ID_SOURCE[p.subIdSource] ?? p.subIdSource}
+                            </span>
+                          ) : null}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Block>
+
+          {me.role === "ADMIN" && !anonymized ? (
+            <AdvancedSection
+              title="Supprimer ce membre"
+              description="Quand la personne demande l'effacement de ses données."
+            >
+              <form action={anonymizeMemberAction} className="space-y-3">
+                <input type="hidden" name="memberId" value={member.id} />
+                <p className="text-muted-foreground">
+                  Son nom, son pseudo et son identifiant sont effacés, ses notes supprimées ;
+                  l&apos;historique est conservé sans donnée personnelle. C&apos;est définitif.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirm-delete">Pour confirmer, tapez SUPPRIMER</Label>
                   <Input
                     id="confirm-delete"
                     name="confirm"
-                    placeholder="Tapez SUPPRIMER"
                     required
-                    className="h-10 sm:max-w-48 md:h-9"
                     autoComplete="off"
+                    className="sm:max-w-56"
                   />
-                  <ConfirmSubmit
-                    variant="destructive"
-                    size="sm"
-                    className="max-md:h-10"
-                    message={`Le membre « ${name} » sera anonymisé : nom, pseudo et identifiant effacés, notes supprimées. Cette action est irréversible. Continuer ?`}
-                  >
-                    Supprimer
-                  </ConfirmSubmit>
-                </form>
-              </CardContent>
-            </Card>
+                </div>
+                <ConfirmSubmit
+                  variant="destructive"
+                  className="max-md:h-10"
+                  confirmTitle={`Supprimer ${name} ?`}
+                  message={`Le membre « ${name} » sera anonymisé : nom, pseudo et identifiant effacés, notes supprimées. C'est définitif.`}
+                  confirmLabel="Supprimer définitivement"
+                  destructive
+                >
+                  Supprimer ce membre
+                </ConfirmSubmit>
+              </form>
+            </AdvancedSection>
           ) : null}
         </div>
       </div>

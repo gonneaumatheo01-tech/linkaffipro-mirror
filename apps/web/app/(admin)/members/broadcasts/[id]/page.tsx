@@ -1,16 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { describeSegment, parseSegment } from "@linkaffipro/core";
+import {
+  CircleCheck,
+  MousePointerClick,
+  Send,
+  Smartphone,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
+import { parseSegment } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
-import { PageHeader } from "@/components/admin/page-header";
-import { Flash } from "@/components/admin/flash";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
-import { Badge } from "@/components/ui/badge";
+import { Flash } from "@/components/admin/flash";
+import { AdvancedSection } from "@/components/admin/form-section";
+import { PageHeader } from "@/components/admin/page-header";
+import { StatCard } from "@/components/admin/stat-card";
+import { StatusPill } from "@/components/admin/status-pill";
+import { BroadcastProgress } from "@/components/broadcasts/broadcast-progress";
+import { ReadOnlyPreview } from "@/components/broadcasts/read-only-preview";
+import { ScheduleDialog } from "@/components/broadcasts/schedule-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -19,12 +32,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  abLabel,
+  broadcastActions,
+  broadcastDateInfo,
+  clickRate,
+  notLaunched,
+  sendLabel,
+} from "@/lib/broadcasts/display";
+import { countSentence, describeGroup, reachableSentence } from "@/lib/broadcasts/group";
+import { countTargets } from "@/lib/broadcasts/queries";
+import { loadBroadcastResults, loadGroupNames } from "@/lib/broadcasts/results";
+import { confirmSendMessage } from "@/lib/broadcasts/wizard";
 import { fmtDate, fmtNum } from "@/lib/format";
-import { StatusBadge, statusLabel } from "@/lib/status-badges";
-import { progressOf } from "@/lib/broadcasts/queries";
-import { parseButtons } from "@/lib/posts/buttons";
+import { BUTTON_TYPE_LABELS, parseButtons } from "@/lib/posts/buttons";
 import { toParisLocalInput } from "@/lib/posts/time";
 import { requireUser } from "@/lib/session";
+import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import {
   cancelBroadcastAction,
   deleteDraftAction,
@@ -33,13 +57,7 @@ import {
   testToMeAction,
 } from "../actions";
 
-export const metadata: Metadata = { title: "Envoi" };
-
-const BUTTON_TYPE: Record<string, string> = {
-  URL: "lien direct",
-  BUTTON: "lien traqué",
-  OFFER: "offre",
-};
+export const metadata: Metadata = { title: "Envoi à un groupe" };
 
 function inOneHour(): Date {
   return new Date(Date.now() + 3_600_000);
@@ -57,271 +75,331 @@ export default async function BroadcastPage({
     include: {
       bot: { select: { username: true, name: true } },
       mediaAsset: { select: { filename: true } },
+      createdBy: { select: { name: true } },
     },
   });
   if (!b) notFound();
-  const [errors, channels, inviteLinks, campaigns, categories, links] = await Promise.all([
-    prisma.outboundMessage.groupBy({
-      by: ["error"],
-      where: { broadcastId: id, status: { in: ["FAILED", "BLOCKED"] } },
-      _count: { _all: true },
-      orderBy: { _count: { error: "desc" } },
-    }),
-    prisma.channel.findMany({ select: { id: true, title: true } }),
-    prisma.inviteLink.findMany({ select: { id: true, name: true } }),
-    prisma.campaign.findMany({ select: { id: true, name: true } }),
-    prisma.messageCategory.findMany({ select: { id: true, name: true } }),
-    prisma.trackingLink.findMany({
-      where: { post: { templateName: `broadcast:${id}` } },
-      select: { label: true, kind: true, clicks: true, uniqueClicks: true, slug: true },
-    }),
-  ]);
-  const toMap = (xs: Array<{ id: string; title?: string; name?: string }>) =>
-    Object.fromEntries(xs.map((x) => [x.id, x.title ?? x.name ?? x.id]));
   const segment = parseSegment(b.segment);
-  const p = progressOf(b);
+  const pending = notLaunched(b.status);
+  const [errors, results, names, estimate] = await Promise.all([
+    pending
+      ? Promise.resolve([])
+      : prisma.outboundMessage.groupBy({
+          by: ["error"],
+          where: { broadcastId: id, status: { in: ["FAILED", "BLOCKED"] } },
+          _count: { _all: true },
+          orderBy: { _count: { error: "desc" } },
+        }),
+    loadBroadcastResults(id),
+    loadGroupNames([segment]),
+    // Avant le départ : nombre de membres joignables aujourd'hui (même calcul que l'assistant).
+    pending ? countTargets(segment, b.botId).catch(() => null) : Promise.resolve(null),
+  ]);
+  const actions = broadcastActions(b.status, user.role);
+  const ab = abLabel(b);
+  const group = describeGroup(segment, names);
   const buttons = parseButtons(b.buttons);
-  const canLaunch = b.status === "DRAFT" || b.status === "SCHEDULED";
-  const canCancel = b.status === "SCHEDULED" || b.status === "SENDING";
-  const targetsText =
-    b.targeted > 0
-      ? `${fmtNum(b.targeted)} membre${b.targeted > 1 ? "s" : ""}`
-      : "tous les membres du segment";
+  const when = broadcastDateInfo(b);
+  const targets = pending ? estimate : b.targeted;
+
+  const sendForm = actions.send ? (
+    <form action={sendNowAction} className="contents">
+      <input type="hidden" name="broadcastId" value={b.id} />
+      <ConfirmSubmit
+        className="max-md:h-10"
+        confirmTitle="Envoyer maintenant ?"
+        confirmLabel="Envoyer"
+        message={confirmSendMessage(targets, { enabled: false, split: 50 })}
+      >
+        <Send aria-hidden />
+        {sendLabel(b.status)}
+      </ConfirmSubmit>
+    </form>
+  ) : null;
+
   return (
     <>
       <PageHeader
+        backHref="/members/broadcasts"
+        backLabel="Écrire à un groupe"
         title={b.name}
-        description={`Envoyé par @${b.bot.username} · créé le ${fmtDate(b.createdAt)}`}
-        help={
-          canLaunch
-            ? "Envoyez d'abord un test sur votre Telegram, puis « Envoyer maintenant » ou « Programmer »."
-            : "Suivez ici la progression et les erreurs éventuelles."
+        meta={
+          <>
+            <StatusBadge kind="broadcast" value={b.status} />
+            {ab ? <StatusPill tone="info">{ab}</StatusPill> : null}
+          </>
         }
-      >
-        <StatusBadge kind="broadcast" value={b.status} />
-        <Button
-          variant="outline"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/members/broadcasts" />}
-        >
-          ← Écrire à un groupe
-        </Button>
-      </PageHeader>
-      <Flash ok={sp.ok} error={sp.error} />
-      {b.abGroupId ? (
-        <div className="mb-4 rounded-md border bg-muted/30 p-3 text-sm">
-          Cet envoi fait partie d&apos;un test A/B (
-          {b.abVariant === "REST"
-            ? "envoi au reste"
-            : `version ${b.abVariant}, ${b.abSplit ?? "—"} % des destinataires`}
-          ).{" "}
-          <Link
-            href={`/members/broadcasts/ab/${b.abGroupId}`}
-            className="underline underline-offset-2"
-          >
-            Voir la comparaison A/B
-          </Link>
-        </div>
-      ) : null}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Progression</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-              {[
-                ["Ciblés", b.targeted],
-                ["Envoyés", b.sent],
-                ["Échoués", b.failed],
-                ["Bloqués", b.blocked],
-              ].map(([l, v]) => (
-                <div key={String(l)} className="rounded-md border p-2">
-                  <div className="text-xs text-muted-foreground">{l}</div>
-                  <div className="text-xl font-semibold tabular-nums">{fmtNum(Number(v))}</div>
-                </div>
-              ))}
-            </div>
-            <div
-              className="h-2 w-full rounded bg-muted"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={p.pct}
-              aria-label={`Progression ${p.pct} %`}
-            >
-              <div className="h-2 rounded bg-primary" style={{ width: `${p.pct}%` }} />
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {p.pct} % · programmé : {fmtDate(b.scheduledAt)} · démarré : {fmtDate(b.startedAt)} ·
-              terminé : {fmtDate(b.finishedAt)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              « Bloqué » = le membre a bloqué le bot ou supprimé son compte : il ne sera plus
-              sollicité.
-            </p>
-            {errors.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Erreur</TableHead>
-                    <TableHead className="text-right">Messages</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {errors.map((e) => (
-                    <TableRow key={e.error ?? "—"}>
-                      <TableCell className="whitespace-normal">{e.error ?? "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{e._count._all}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        description={`Envoyé par @${b.bot.username} · créé le ${fmtDate(b.createdAt)}${b.createdBy?.name ? ` par ${b.createdBy.name}` : ""}`}
+        help={
+          pending
+            ? "Envoyez-vous d'abord un test sur Telegram, puis envoyez ou programmez."
+            : b.status === "SENDING"
+              ? "Les messages partent par vagues, au rythme permis par Telegram."
+              : undefined
+        }
+        primaryAction={sendForm}
+        secondaryActions={
+          <>
+            <form action={testToMeAction} className="contents">
+              <input type="hidden" name="broadcastId" value={b.id} />
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                <Smartphone aria-hidden />
+                Envoyer un test à moi
+              </Button>
+            </form>
+            {actions.schedule ? (
+              <ScheduleDialog
+                action={scheduleAction}
+                broadcastId={b.id}
+                defaultValue={toParisLocalInput(b.scheduledAt ?? inOneHour())}
+                label={actions.schedule}
+              />
             ) : null}
-          </CardContent>
-        </Card>
+            {actions.cancel ? (
+              <form action={cancelBroadcastAction} className="contents">
+                <input type="hidden" name="broadcastId" value={b.id} />
+                <ConfirmDialog
+                  title="Annuler l'envoi ?"
+                  description="L'envoi s'arrête : les messages déjà partis restent envoyés, les autres ne partiront pas."
+                  confirmLabel="Oui, annuler l'envoi"
+                  cancelLabel="Ne rien changer"
+                  destructive
+                  trigger={
+                    <Button type="submit" variant="destructive" className="max-md:h-10">
+                      Annuler l&apos;envoi
+                    </Button>
+                  }
+                />
+              </form>
+            ) : null}
+          </>
+        }
+      />
+      <Flash ok={sp.ok} error={sp.error} />
 
-        <Card>
+      {b.abGroupId ? (
+        <Alert variant="info" role="status" className="mb-6">
+          <Users aria-hidden />
+          <AlertDescription>
+            Cet envoi fait partie d&apos;un test A/B (
+            {b.abVariant === "REST"
+              ? "envoi de la gagnante au reste du groupe"
+              : `version ${b.abVariant}, ${b.abSplit ?? "—"} % du groupe`}
+            ).{" "}
+            <Link
+              href={`/members/broadcasts/ab/${b.abGroupId}`}
+              className="font-medium underline underline-offset-2"
+            >
+              Comparer les versions
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {pending ? (
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          <StatCard
+            label="Recevront ce message"
+            icon={<Users aria-hidden />}
+            value={estimate === null ? "—" : fmtNum(estimate)}
+            hint={
+              estimate === null
+                ? "Le nombre sera calculé au moment de l'envoi."
+                : `${countSentence(estimate)} Nombre d'aujourd'hui, recalculé au départ.`
+            }
+          />
+          <StatCard
+            label="Départ"
+            icon={<Send aria-hidden />}
+            value={
+              <span className="text-title">
+                {b.status === "SCHEDULED" && b.scheduledAt
+                  ? fmtDate(b.scheduledAt)
+                  : "Pas encore programmé"}
+              </span>
+            }
+            hint={
+              b.status === "SCHEDULED"
+                ? "Heure de Paris. Il partira tout seul."
+                : "Brouillon : rien ne part tant que vous n'envoyez pas ou ne programmez pas."
+            }
+          />
+        </div>
+      ) : (
+        <section aria-labelledby="results-title" className="mb-6 space-y-4">
+          <h2 id="results-title" className="text-title text-foreground">
+            Résultats
+          </h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <StatCard
+              label="Ciblés"
+              value={fmtNum(b.targeted)}
+              hint="Membres du groupe joignables."
+            />
+            <StatCard label="Envoyés" icon={<CircleCheck aria-hidden />} value={fmtNum(b.sent)} />
+            <StatCard
+              label="Échoués"
+              icon={<TriangleAlert aria-hidden />}
+              value={fmtNum(b.failed)}
+              hint="Erreur ou envoi annulé."
+            />
+            <StatCard
+              label="Bloqués"
+              value={fmtNum(b.blocked)}
+              hint="Ont bloqué le bot : plus sollicités."
+            />
+            <StatCard
+              label="Ont cliqué"
+              icon={<MousePointerClick aria-hidden />}
+              value={fmtNum(results.uniqueClicks)}
+              hint={`${clickRate(b.sent, results.uniqueClicks)} des envoyés · ${fmtNum(results.clicks)} clic${results.clicks > 1 ? "s" : ""}`}
+            />
+            <StatCard
+              label="Premiers dépôts"
+              term="FTD"
+              value={fmtNum(results.ftds)}
+              hint={`${fmtNum(results.registrations)} inscription${results.registrations > 1 ? "s" : ""} rattachée${results.registrations > 1 ? "s" : ""}`}
+            />
+          </div>
+          <Card>
+            <CardContent className="space-y-2">
+              <BroadcastProgress b={b} />
+              <p className="text-note text-muted-foreground">
+                {b.scheduledAt ? `Programmé le ${fmtDate(b.scheduledAt)} · ` : ""}
+                {b.startedAt ? `démarré le ${fmtDate(b.startedAt)}` : "pas encore démarré"}
+                {b.finishedAt ? ` · ${when.label.toLowerCase()} ${fmtDate(b.finishedAt)}` : ""}
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {errors.length > 0 ? (
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base">Actions</CardTitle>
+            <CardTitle>Messages non partis</CardTitle>
             <CardDescription>
-              Le test part uniquement sur votre Telegram (compte lié dans Mon compte).
+              « Bloqué » : le membre a bloqué le bot ou supprimé son compte. Il ne sera plus
+              sollicité.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {canLaunch ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-                <form action={sendNowAction}>
-                  <input type="hidden" name="broadcastId" value={b.id} />
-                  <ConfirmSubmit
-                    className="max-md:h-10"
-                    message={`Le message va partir maintenant à ${targetsText}, sans possibilité de le rappeler une fois envoyé. Continuer ?`}
-                  >
-                    Envoyer maintenant
-                  </ConfirmSubmit>
-                </form>
-                <form
-                  action={scheduleAction}
-                  className="flex flex-col gap-2 sm:flex-row sm:items-end"
-                >
-                  <input type="hidden" name="broadcastId" value={b.id} />
-                  <div>
-                    <Label htmlFor="scheduledAt" className="sr-only">
-                      Date et heure d&apos;envoi (heure de Paris)
-                    </Label>
-                    <Input
-                      id="scheduledAt"
-                      name="scheduledAt"
-                      type="datetime-local"
-                      defaultValue={toParisLocalInput(b.scheduledAt ?? inOneHour())}
-                      className="h-10 w-full sm:w-56 md:h-9"
-                    />
-                  </div>
-                  <Button type="submit" variant="secondary" className="max-md:h-10">
-                    Programmer
-                  </Button>
-                </form>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <form action={testToMeAction}>
+          <CardContent>
+            <Table label="Messages non partis, par raison">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Raison (réponse de Telegram)</TableHead>
+                  <TableHead numeric>Messages</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {errors.map((e) => (
+                  <TableRow key={e.error ?? "—"}>
+                    <TableCell className="whitespace-normal break-words">
+                      {e.error ?? "—"}
+                    </TableCell>
+                    <TableCell numeric>{fmtNum(e._count._all)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Le groupe de membres</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-body">
+              <p>{group}.</p>
+              <p className="text-note text-muted-foreground">{reachableSentence(b.bot.username)}</p>
+            </CardContent>
+          </Card>
+
+          {results.links.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Clics par bouton</CardTitle>
+                <CardDescription>
+                  Clics comptés sur les boutons traqués et les offres.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table label="Clics par bouton">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bouton</TableHead>
+                      <TableHead className="max-md:hidden">Type</TableHead>
+                      <TableHead numeric>Clics</TableHead>
+                      <TableHead numeric>Personnes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {results.links.map((l) => (
+                      <TableRow key={l.slug}>
+                        <TableCell className="whitespace-normal break-words">
+                          {l.label.replace(/ \(envoi groupé\)$/, "")}
+                        </TableCell>
+                        <TableCell className="max-md:hidden">
+                          {statusLabel("trackingLinkKind", l.kind)}
+                        </TableCell>
+                        <TableCell numeric>{fmtNum(l.clicks)}</TableCell>
+                        <TableCell numeric>{fmtNum(l.uniqueClicks)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {actions.remove ? (
+            <AdvancedSection
+              title="Supprimer cet envoi"
+              description="Le retire de la liste. Les messages déjà partis restent sur Telegram."
+            >
+              <form action={deleteDraftAction}>
                 <input type="hidden" name="broadcastId" value={b.id} />
-                <Button type="submit" variant="outline" className="max-md:h-10">
-                  Envoyer un test sur mon Telegram
-                </Button>
+                <ConfirmSubmit
+                  variant="destructive"
+                  className="max-md:h-10"
+                  confirmTitle="Supprimer cet envoi ?"
+                  confirmLabel="Supprimer définitivement"
+                  message={`L'envoi « ${b.name} » sera retiré de la liste. Cette action est irréversible.`}
+                >
+                  Supprimer
+                </ConfirmSubmit>
               </form>
-              {canCancel ? (
-                <form action={cancelBroadcastAction}>
-                  <input type="hidden" name="broadcastId" value={b.id} />
-                  <ConfirmSubmit
-                    variant="destructive"
-                    className="max-md:h-10"
-                    message="L'envoi sera arrêté : les messages déjà partis restent envoyés, les autres ne partiront pas. Continuer ?"
-                  >
-                    Annuler l&apos;envoi
-                  </ConfirmSubmit>
-                </form>
-              ) : null}
-              {(b.status === "DRAFT" || b.status === "CANCELLED") && user.role === "ADMIN" ? (
-                <form action={deleteDraftAction}>
-                  <input type="hidden" name="broadcastId" value={b.id} />
-                  <ConfirmSubmit
-                    variant="ghost"
-                    className="text-destructive max-md:h-10"
-                    message={`L'envoi « ${b.name} » sera supprimé de la liste. Cette action est irréversible. Continuer ?`}
-                  >
-                    Supprimer
-                  </ConfirmSubmit>
-                </form>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+            </AdvancedSection>
+          ) : null}
+        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Destinataires</CardTitle>
+            <CardTitle>Le message</CardTitle>
+            <CardDescription>Tel que les membres le voient.</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm">
-            {describeSegment(segment, {
-              channels: toMap(channels),
-              inviteLinks: toMap(inviteLinks),
-              campaigns: toMap(campaigns),
-              categories: toMap(categories),
-            })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Message</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">
-              {b.text}
-            </div>
+          <CardContent className="space-y-3">
+            <ReadOnlyPreview
+              html={b.text}
+              buttons={buttons.map((r) => r.map((x) => ({ text: x.text })))}
+              mediaCount={b.mediaAssetId ? 1 : 0}
+            />
             {b.mediaAsset ? (
-              <div className="text-xs text-muted-foreground">
+              <p className="text-note text-muted-foreground">
                 Média joint : {b.mediaAsset.filename}
-              </div>
+              </p>
             ) : null}
             {buttons.length > 0 ? (
-              <div className="space-y-1">
-                {buttons.map((row, i) => (
-                  <div key={i} className="flex flex-wrap gap-1">
-                    {row.map((x, j) => (
-                      <Badge key={j} variant="outline">
-                        {x.text} · {BUTTON_TYPE[x.type] ?? x.type}
-                      </Badge>
-                    ))}
-                  </div>
+              <ul className="space-y-1 text-note text-muted-foreground">
+                {buttons.flat().map((x, i) => (
+                  <li key={i}>
+                    {x.text} · {BUTTON_TYPE_LABELS[x.type]?.toLowerCase() ?? x.type}
+                  </li>
                 ))}
-              </div>
-            ) : null}
-            {links.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bouton traqué</TableHead>
-                    <TableHead className="hidden md:table-cell">Type</TableHead>
-                    <TableHead className="text-right">Clics</TableHead>
-                    <TableHead className="text-right">Personnes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {links.map((l) => (
-                    <TableRow key={l.slug}>
-                      <TableCell>{l.label}</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {statusLabel("trackingLinkKind", l.kind)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{l.clicks}</TableCell>
-                      <TableCell className="text-right tabular-nums">{l.uniqueClicks}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              </ul>
             ) : null}
           </CardContent>
         </Card>

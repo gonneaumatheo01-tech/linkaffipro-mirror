@@ -2,11 +2,12 @@
  * Moteur pur des automatisations : sélection des règles et exécution d'un plan d'actions
  * avec un exécuteur injecté (testable sans base ni Telegram).
  */
-import { matchesConditions, parseActions, parseConditions, type AutomationAction, type AutomationContext } from "@linkaffipro/core";
+import { matchesConditions, parseActions, parseConditions, type AutomationAction, type AutomationContext, type AutomationLogEntry } from "@linkaffipro/core";
 
 export type RuleRow = { id: string; name: string; trigger: string; conditions: unknown; actions: unknown; isActive: boolean; oncePerMember: boolean };
 
-export type LogEntry = { step: number; type: string; at: string; ok: boolean; detail?: string };
+/** Entrée du journal `AutomationRun.log` (graphe : avec `nodeId` et `branch`, voir `AutomationLogEntry`). */
+export type LogEntry = AutomationLogEntry;
 
 /** Règles actives du déclencheur dont les conditions correspondent au contexte. */
 export function selectRules(rules: RuleRow[], trigger: string, ctx: AutomationContext): RuleRow[] {

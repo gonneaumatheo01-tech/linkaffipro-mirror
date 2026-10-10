@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Export CSV des envois : filtres statut et campagne, comme la liste (base et session simulées).
+// Export CSV des envois à un groupe : filtres statut et campagne, comme la liste ; groupe de membres en une phrase
+// (base et session simulées).
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(async (_args: unknown) => [] as unknown[]),
   campaignScope: vi.fn(async (_id: string) => ({
@@ -15,6 +16,10 @@ vi.mock("@linkaffipro/db", () => ({
   prisma: {
     broadcast: { findMany: mocks.findMany },
     trackingLink: { findMany: vi.fn(async () => []) },
+    channel: { findMany: vi.fn(async () => [{ id: "ch1", title: "Casino VIP" }]) },
+    campaign: { findMany: vi.fn(async () => []) },
+    inviteLink: { findMany: vi.fn(async () => []) },
+    messageCategory: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock("@/lib/session", () => ({
@@ -56,8 +61,42 @@ describe("export CSV des envois", () => {
     await GET(new Request("http://localhost/members/broadcasts/export?status=SENT&campaignId=c1"));
     expect(whereOf()).toEqual({ status: "SENT", OR: CAMPAIGN_OR });
   });
-  it("statut inconnu ignoré ; ancien nom « campaign » accepté", async () => {
+  it("statut inconnu ignoré ; ancien nom «\u00a0campaign\u00a0» accepté", async () => {
     await GET(new Request("http://localhost/members/broadcasts/export?status=PIRATE&campaign=c1"));
     expect(whereOf()).toEqual({ OR: CAMPAIGN_OR });
+  });
+});
+
+describe("contenu de l'export", () => {
+  it("en-têtes dans les mots du client et groupe de membres en une phrase", async () => {
+    mocks.findMany.mockResolvedValueOnce([
+      {
+        id: "b1",
+        name: "Bonus",
+        bot: { username: "casino_bot" },
+        createdBy: { name: "Léa" },
+        segment: { channelIds: ["ch1"], inactiveDays: 7 },
+        status: "SENT",
+        abGroupId: null,
+        abVariant: null,
+        abSplit: null,
+        createdAt: new Date("2026-10-01T10:00:00Z"),
+        scheduledAt: null,
+        startedAt: null,
+        finishedAt: null,
+        targeted: 10,
+        sent: 9,
+        failed: 1,
+        blocked: 0,
+      },
+    ]);
+    const res = await GET(new Request("http://localhost/members/broadcasts/export"));
+    const csv = await res.text();
+    expect(csv).toContain("Groupe de membres");
+    expect(csv).toContain("Personnes qui ont cliqué");
+    expect(csv).not.toMatch(/segment/i);
+    expect(csv).toContain(
+      "Membres du canal «\u00a0Casino VIP\u00a0» et qui n'ont rien fait depuis 7 jours",
+    );
   });
 });

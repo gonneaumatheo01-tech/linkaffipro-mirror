@@ -2,7 +2,7 @@
 
 import { ErrorPage } from "@/components/admin/error-page";
 
-/** Erreur dans la section Envois : phrase simple et bouton « Réessayer », sans trace technique. */
+/** Erreur dans « Écrire à un groupe » : phrase simple et bouton « Réessayer », sans trace technique. */
 export default function Error({
   error,
   reset,
@@ -10,5 +10,11 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <ErrorPage error={error} reset={reset} title="La page Envois n'a pas pu s'afficher." />;
+  return (
+    <ErrorPage
+      error={error}
+      reset={reset}
+      title="La page « Écrire à un groupe » n'a pas pu s'afficher."
+    />
+  );
 }

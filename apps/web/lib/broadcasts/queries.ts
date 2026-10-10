@@ -11,6 +11,7 @@ import {
 import { campaignBroadcastWhere } from "@/lib/campaigns/attribution";
 import { listCampaignOptions, type CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { campaignScope } from "@/lib/dashboard/campaign-scope";
+import { groupLanguages } from "@/lib/members/query";
 
 /** Nombre de membres joignables (canDm sur ce bot) correspondant au segment. */
 export async function countTargets(segment: Segment, botId: string): Promise<number> {
@@ -49,19 +50,25 @@ export async function countTargets(segment: Segment, botId: string): Promise<num
   return n;
 }
 
-/** Options des formulaires (bots, canaux, liens, campagnes et leurs offres, catégories, médias, campagnes Link Affi). */
+/**
+ * Options du formulaire « Écrire à un groupe » (bots, canaux et campagnes avec leur univers, pubs, campagnes et leurs
+ * offres, catégories, médias, campagnes Link Affi, langues des membres). Lecture seule.
+ */
 export async function loadBroadcastOptions(): Promise<{
   bots: Array<{ id: string; name: string; username: string; vertical: string | null }>;
-  channels: Array<{ id: string; title: string }>;
-  inviteLinks: Array<{ id: string; name: string }>;
-  campaigns: Array<{ id: string; name: string }>;
+  channels: Array<{ id: string; title: string; vertical: string | null }>;
+  /** Pubs (liens d'entrée) : nom de la pub s'il existe, sinon nom du lien ; campagne de la pub. */
+  inviteLinks: Array<{ id: string; name: string; label: string; campaignName: string | null }>;
+  campaigns: Array<{ id: string; name: string; vertical: string | null }>;
   /** Nos campagnes avec leurs offres (bouton « Offre » : on choisit la campagne, qui détermine le lien Link Affi). */
   ourCampaigns: CampaignOptionWithOffers[];
   categories: Array<{ id: string; name: string }>;
   media: Array<{ id: string; filename: string; mimeType: string }>;
   affiliateCampaigns: Array<{ id: string; name: string; programName: string }>;
+  /** Langues des membres (code de base), de la plus fréquente à la moins fréquente. */
+  languages: Array<{ code: string; count: number }>;
 }> {
-  const [bots, channels, inviteLinks, campaigns, categories, media, affiliateCampaigns, ourCampaigns] =
+  const [bots, channels, inviteLinks, campaigns, categories, media, affiliateCampaigns, ourCampaigns, langs] =
     await Promise.all([
       prisma.bot.findMany({
         where: { isActive: true },
@@ -71,15 +78,18 @@ export async function loadBroadcastOptions(): Promise<{
       prisma.channel.findMany({
         where: { isActive: true },
         orderBy: { title: "asc" },
-        select: { id: true, title: true },
+        select: { id: true, title: true, vertical: true },
       }),
       prisma.inviteLink.findMany({
         where: { kind: "AD_ENTRY", isActive: true },
         orderBy: { createdAt: "desc" },
         take: 200,
-        select: { id: true, name: true },
+        select: { id: true, name: true, adName: true, campaign: { select: { name: true } } },
       }),
-      prisma.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      prisma.campaign.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, vertical: true },
+      }),
       prisma.messageCategory.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -96,11 +106,21 @@ export async function loadBroadcastOptions(): Promise<{
         select: { id: true, name: true, program: { select: { name: true } } },
       }),
       listCampaignOptions(),
+      prisma.member.groupBy({
+        by: ["languageCode"],
+        where: { anonymizedAt: null, languageCode: { not: null } },
+        _count: { _all: true },
+      }),
     ]);
   return {
     bots,
     channels,
-    inviteLinks,
+    inviteLinks: inviteLinks.map((l) => ({
+      id: l.id,
+      name: l.name,
+      label: l.adName || l.name,
+      campaignName: l.campaign?.name ?? null,
+    })),
     campaigns,
     ourCampaigns,
     categories,
@@ -110,6 +130,9 @@ export async function loadBroadcastOptions(): Promise<{
       name: c.name,
       programName: c.program.name,
     })),
+    languages: groupLanguages(
+      langs.map((l) => ({ code: l.languageCode ?? "", count: l._count._all })),
+    ),
   };
 }
 

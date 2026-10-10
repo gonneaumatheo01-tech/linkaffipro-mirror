@@ -1,9 +1,10 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import type { AutomationsJob } from "@linkaffipro/queue";
 import { logger } from "../logger";
-import { buildMemberContext } from "./context";
-import { executePlan, selectRules, type LogEntry } from "./engine";
+import { buildMemberContext, graphConditionEvaluator } from "./context";
+import { executePlan, selectRules, type ActionExecutor, type LogEntry } from "./engine";
 import { prismaExecutor } from "./executor";
+import { executeGraph } from "./graph-engine";
 
 type EventJob = Extract<AutomationsJob, { type: "event" }>;
 
@@ -20,7 +21,7 @@ export async function handleEvent(job: EventJob, now = new Date()): Promise<{ st
       if (already) continue;
     }
     const run = await prisma.automationRun.create({ data: { ruleId: rule.id, memberId: job.memberId, status: "RUNNING", context: toJsonValue({ ...(job.context ?? {}), ...snapshot.ctx, trigger: job.trigger }) } });
-    await executeRun(run.id, rule, snapshot, 0, [], now);
+    await executeRun(run, rule, snapshot, 0, [], now);
     started++;
   }
   // Niveau de dépense atteint : évalué après une inscription ou un dépôt.
@@ -32,16 +33,25 @@ export async function handleEvent(job: EventJob, now = new Date()): Promise<{ st
         if (already) continue;
       }
       const run = await prisma.automationRun.create({ data: { ruleId: rule.id, memberId: job.memberId, status: "RUNNING", context: toJsonValue({ ...snapshot.ctx, trigger: "SPEND_LEVEL_REACHED" }) } });
-      await executeRun(run.id, rule, snapshot, 0, [], now);
+      await executeRun(run, rule, snapshot, 0, [], now);
       started++;
     }
   }
   return { started };
 }
 
-type RuleLike = { id: string; name: string; actions: unknown };
+type RuleLike = { id: string; name: string; actions: unknown; graph?: unknown };
+type RunLike = { id: string; createdAt: Date; nodeId?: string | null; context?: unknown };
+type Snapshot = Awaited<ReturnType<typeof buildMemberContext>> & object;
 
-async function executeRun(runId: string, rule: RuleLike, snapshot: Awaited<ReturnType<typeof buildMemberContext>> & object, step: number, previousLog: LogEntry[], now: Date, test = false): Promise<void> {
+/** Vrai si la règle a un parcours à branches (`graph`) ; sinon c'est une liste d'actions, exécutée comme avant. */
+export function isGraphRule(rule: { graph?: unknown }): boolean {
+  return rule.graph !== null && rule.graph !== undefined;
+}
+
+async function executeRun(run: RunLike, rule: RuleLike, snapshot: Snapshot, step: number, previousLog: LogEntry[], now: Date, test = false): Promise<void> {
+  if (isGraphRule(rule)) return executeGraphRun(run, rule, snapshot, step, previousLog, now, test);
+  const runId = run.id;
   const result = await executePlan(rule.actions, step, prismaExecutor(snapshot, { ruleName: rule.name, test }), now, { skipTags: test });
   const log = [...previousLog, ...result.log];
   const status = result.error ? "FAILED" : result.done ? "DONE" : "PENDING";
@@ -49,6 +59,35 @@ async function executeRun(runId: string, rule: RuleLike, snapshot: Awaited<Retur
   if (step === 0) await prisma.automationRule.update({ where: { id: rule.id }, data: { runs: { increment: 1 }, lastRunAt: now } }).catch(() => undefined);
   await recordEvent({ type: "automation.run", memberId: snapshot.memberId, payload: { ruleId: rule.id, runId, status, step: result.nextStep, test } });
   if (result.error) logger.warn({ runId, rule: rule.id, err: result.error }, "automatisation en erreur");
+}
+
+/**
+ * Passage d'une exécution de graphe : depuis `run.nodeId` (null = départ). `step` = blocs déjà parcourus ; le journal
+ * reçoit une entrée par bloc (avec `nodeId`) ; `nodeId` garde le bloc courant (reprise, erreur ou dernier bloc).
+ * Mode test : sans étiquette, messages en kind TEST, attentes passées tout de suite.
+ */
+async function executeGraphRun(run: RunLike, rule: RuleLike, snapshot: Snapshot, step: number, previousLog: LogEntry[], now: Date, test: boolean): Promise<void> {
+  const ctx = (run.context && typeof run.context === "object" ? run.context : {}) as Record<string, unknown>;
+  // « A cliqué une offre depuis le début » : clics postérieurs à la création de l'exécution, hors clic déclencheur.
+  const facts = graphConditionEvaluator(snapshot.memberId, { since: run.createdAt, excludeClickId: typeof ctx.clickId === "string" ? ctx.clickId : null }, now);
+  const base = prismaExecutor(snapshot, { ruleName: rule.name, test });
+  // Une étiquette posée par la relance compte pour les conditions suivantes du même passage.
+  const exec: ActionExecutor = {
+    ...base,
+    async tag(a) {
+      const detail = await base.tag(a);
+      facts.invalidate();
+      return detail;
+    },
+  };
+  const result = await executeGraph(rule.graph, run.nodeId ?? null, exec, facts.evaluate, now, { skipTags: test, skipWaits: test, stepOffset: step });
+  const log = [...previousLog, ...result.log];
+  const status = result.error ? "FAILED" : result.done ? "DONE" : "PENDING";
+  const nextStep = step + result.log.length;
+  await prisma.automationRun.update({ where: { id: run.id }, data: { status, step: nextStep, nodeId: result.nodeId, resumeAt: result.resumeAt, log: toJsonValue(log), error: result.error } });
+  if (step === 0) await prisma.automationRule.update({ where: { id: rule.id }, data: { runs: { increment: 1 }, lastRunAt: now } }).catch(() => undefined);
+  await recordEvent({ type: "automation.run", memberId: snapshot.memberId, payload: { ruleId: rule.id, runId: run.id, status, step: nextStep, nodeId: result.nodeId, test } });
+  if (result.error) logger.warn({ runId: run.id, rule: rule.id, nodeId: result.nodeId, err: result.error }, "automatisation en erreur");
 }
 
 /** Reprend les exécutions en attente dont l'heure est venue (après une action « attendre »). */
@@ -62,12 +101,20 @@ export async function resumePending(now = new Date(), limit = 100): Promise<numb
       await prisma.automationRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: "Règle désactivée" } });
       continue;
     }
+    // Règle passée de liste à graphe (ou l'inverse) pendant l'attente : la position enregistrée ne veut plus rien dire.
+    // Une exécution linéaire n'a jamais de `nodeId`, une exécution de graphe en attente en a toujours un.
+    if (isGraphRule(run.rule) !== (run.nodeId !== null)) {
+      await prisma.automationRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: "Relance modifiée pendant l'attente : exécution arrêtée." } });
+      continue;
+    }
     const snapshot = await buildMemberContext(run.memberId, (run.context as Record<string, unknown>) ?? {}, now);
     if (!snapshot) {
       await prisma.automationRun.update({ where: { id: run.id }, data: { status: "SKIPPED", error: "Membre introuvable ou anonymisé" } });
       continue;
     }
-    await executeRun(run.id, run.rule, snapshot, run.step, Array.isArray(run.log) ? (run.log as LogEntry[]) : [], now);
+    // Graphe : une exécution « Tester sur moi » reste en mode test (les règles linéaires reprennent comme avant).
+    const test = isGraphRule(run.rule) && (run.context as Record<string, unknown> | null)?.test === true;
+    await executeRun(run, run.rule, snapshot, run.step, Array.isArray(run.log) ? (run.log as LogEntry[]) : [], now, test);
     resumed++;
   }
   return resumed;
@@ -79,7 +126,7 @@ export async function runRuleForMember(ruleId: string, memberId: string, now = n
   const snapshot = await buildMemberContext(memberId, {}, now);
   if (!snapshot) throw new Error("Membre introuvable.");
   const run = await prisma.automationRun.create({ data: { ruleId: rule.id, memberId, status: "RUNNING", context: toJsonValue({ ...snapshot.ctx, trigger: rule.trigger, test: true }) } });
-  await executeRun(run.id, rule, snapshot, 0, [], now, true);
+  await executeRun(run, rule, snapshot, 0, [], now, true);
   const after = await prisma.automationRun.findUniqueOrThrow({ where: { id: run.id }, select: { status: true, error: true } });
   return { runId: run.id, status: after.status, error: after.error };
 }

@@ -15,17 +15,50 @@ describe("chronologie d'un membre", () => {
     });
     expect(t.map((e) => e.title)).toEqual([
       "Premier dépôt (Celsius)",
-      "Clic offre — Bonus",
+      "Clic sur une offre — Bonus",
       "Entré dans Casino FR",
       "Accepté dans Casino FR",
       "Message d'accueil (@casinobot)",
-      "Demande d'adhésion à Casino FR",
+      "Demande pour rejoindre Casino FR",
       "A démarré le bot (/start)",
     ]);
-    expect(t[0]?.detail).toBe("20,00 EUR");
-    expect(t[1]?.detail).toBe("sub-ID AbCdEfGhIjKl");
+    expect(t[0]?.detail).toBe("20,00 €");
+    expect(t[1]?.detail).toBe("identifiant de suivi AbCdEfGhIjKl");
     expect(t[1]?.href).toBe("/messages/p1");
     expect(t[5]?.detail).toBe("Accepté · via TT-video-1");
+  });
+  it("écrit les montants comme les cartes de la fiche (« 26,34 € », vrai signe moins « −12,96 € »)", () => {
+    const t = buildTimeline({
+      playerEvents: [
+        { type: "DEPOSIT", occurredAt: new Date("2026-10-03T10:00:00Z"), amount: 26.34, currency: "EUR" },
+        { type: "NGR", occurredAt: new Date("2026-10-02T10:00:00Z"), amount: -12.96, currency: null },
+        { type: "DEPOSIT", occurredAt: new Date("2026-10-01T10:00:00Z"), amount: 1234.5, currency: "USD" },
+        { type: "REGISTRATION", occurredAt: new Date("2026-09-30T10:00:00Z"), amount: null },
+        { type: "DEPOSIT", occurredAt: new Date("2026-09-29T10:00:00Z"), amount: 5, currency: "pas une devise" },
+      ],
+    });
+    expect(t.map((e) => e.detail)).toEqual(["26,34 €", "−12,96 €", "1 234,50 $US", undefined, "5,00 pas une devise"]);
+  });
+  it("ne répète pas « Offre » quand le bouton s'appelle « Offre — … » ou « Offre »", () => {
+    const at = new Date("2026-10-02T09:00:00Z");
+    const titles = buildTimeline({
+      clicks: [
+        { createdAt: at, kind: "OFFER", label: "Offre — Casino Bienvenue TikTok" },
+        { createdAt: at, kind: "OFFER", label: "offre : Bonus 200 %" },
+        { createdAt: at, kind: "OFFER", label: "Offre" },
+        { createdAt: at, kind: "OFFER", label: "Offres spéciales" },
+        { createdAt: at, kind: "OFFER", label: null },
+        { createdAt: at, kind: "LINK", label: "Offre — Site" },
+      ],
+    }).map((e) => e.title);
+    expect(titles).toEqual([
+      "Clic sur une offre — Casino Bienvenue TikTok",
+      "Clic sur une offre — Bonus 200 %",
+      "Clic sur une offre",
+      "Clic sur une offre — Offres spéciales",
+      "Clic sur une offre",
+      "Clic — Offre — Site",
+    ]);
   });
   it("ignore les clics de robots et accepte des entrées vides", () => {
     expect(buildTimeline({})).toEqual([]);

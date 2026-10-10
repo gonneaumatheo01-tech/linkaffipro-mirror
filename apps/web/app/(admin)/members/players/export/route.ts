@@ -9,16 +9,17 @@ import { periodEnd, periodLabel, periodStart, resolvePeriod } from "@/lib/period
 export const dynamic = "force-dynamic";
 
 const SOURCE: Record<string, string> = {
-  postback: "postback (identifiant de suivi reçu)",
+  postback: "retour du casino (identifiant de suivi reçu)",
   time_match: "rapprochement horaire",
   linkaffi: "clic Link Affi",
 };
 
 /**
- * Export CSV des joueurs : identifiant, inscription, FTD, dépôts, NGR, membre rattaché, source du rattachement.
+ * Export CSV des joueurs : identifiant, inscription, premier dépôt (FTD), dépôts, revenu net (NGR), membre rattaché,
+ * source du rattachement. En-têtes avec les mots de l'interface (premier dépôt, revenu net, identifiant de suivi).
  * - Par défaut : « nos » joueurs seulement (clic à nous, ou offre Link Affi liée à une de nos campagnes).
  * - `campaignId` : joueurs de cette campagne (même règle que la fiche campagne).
- * - `range` / `from` / `to` : ajoute la colonne « NGR de la période (€) » (somme des variations datées dans la période).
+ * - `range` / `from` / `to` : ajoute la colonne « Revenu net (NGR de la période, €) » (somme des variations datées).
  * - `scope=all` (ADMIN, depuis Réglages → Connecteurs) : export brut de TOUS les joueurs Link Affi, pour diagnostic.
  */
 export async function GET(req: Request) {
@@ -80,14 +81,15 @@ export async function GET(req: Request) {
     "Programme",
     "Campagne Link Affi",
     "Inscription (Paris)",
-    "FTD (Paris)",
-    "Montant FTD (€)",
+    "Premier dépôt (FTD, Paris)",
+    "Montant du premier dépôt (€)",
     "Nombre de dépôts",
     "Redépôts",
     "Dépôts (€)",
-    "NGR total (€)",
+    "Revenu net total (NGR, €)",
   ];
-  if (period) headers.push(`NGR de la période (€) — ${periodLabel(period)}`);
+  // « NGR de la période » reste dans l'en-tête (terme technique entre parenthèses, relu par les tests d'export).
+  if (period) headers.push(`Revenu net (NGR de la période, €) — ${periodLabel(period)}`);
   headers.push(
     "Devise",
     "Statut",

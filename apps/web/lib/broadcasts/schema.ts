@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { parseSegment, type Segment } from "@linkaffipro/core";
 import { buttonSchema } from "@/lib/posts/schema";
+import { splitTags } from "./group";
+
+export { splitTags };
 
 export const broadcastFormSchema = z.object({
   name: z.string().trim().min(1, "Donnez un nom à l'envoi.").max(120),
@@ -40,7 +43,7 @@ export function parseSegmentForm(fd: FormData): Segment {
     languages: csv("languages").map((l) => l.toLowerCase()),
     inactiveDays: String(fd.get("inactiveDays") ?? "").trim() || undefined,
     clickedCategoryIds: list("clickedCategoryIds"),
-    tags: csv("tags"),
+    tags: splitTags(String(fd.get("tags") ?? "")),
   });
 }
 

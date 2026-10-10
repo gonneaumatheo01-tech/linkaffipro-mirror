@@ -9,6 +9,7 @@ export * from "./telegram-html";
 export * from "./ad-macros";
 export * from "./segment";
 export * from "./automation";
+export * from "./automation-graph";
 export * from "./ab";
 export * from "./attribution-scope";
 export * from "./campaign-attribution";

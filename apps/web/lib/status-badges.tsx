@@ -121,7 +121,7 @@ export const STATUS_DICT = {
     REGISTERED: plain("Inscription"),
     DEPOSITED: plain("Dépôt"),
     INACTIVE: plain("Inactivité"),
-    LEFT: plain("Départ"),
+    LEFT: plain("A quitté un canal"),
     SPEND_LEVEL_REACHED: plain("Niveau de dépense atteint"),
   } satisfies Record<AutomationTrigger, StatusEntry>,
   importKind: {

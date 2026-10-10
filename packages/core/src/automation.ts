@@ -53,9 +53,22 @@ export type AutomationAction =
   | { type: "suggest_channel"; channelId: string; text?: string }
   | { type: "notify_team"; text: string };
 
+/** Messages du bot (séquences) qu'une action « Envoyer un message du bot » peut envoyer, en langage courant. */
+export const AUTOMATION_SEQUENCE_LABELS: Record<
+  Extract<AutomationAction, { type: "send_sequence" }>["trigger"],
+  string
+> = {
+  JOIN_REQUEST: "Accueil à la demande",
+  GATE_REMINDER: "Rappel",
+  GATE_SATISFIED: "Canaux rejoints",
+  APPROVED: "Accepté",
+  START: "Réponse à /start",
+  OFFER_REPLY: "Réponse à un clic sur une offre",
+};
+
 export const AUTOMATION_ACTION_LABELS: Record<AutomationAction["type"], string> = {
   send_message: "Envoyer un message",
-  send_sequence: "Envoyer la séquence du canal",
+  send_sequence: "Envoyer un message du bot",
   wait: "Attendre",
   tag: "Étiqueter le membre",
   suggest_channel: "Proposer un canal",
@@ -240,7 +253,7 @@ export function summarizeActions(actions: AutomationAction[]): string {
         case "send_message":
           return "Message";
         case "send_sequence":
-          return `Séquence ${a.trigger}`;
+          return `Message du bot « ${AUTOMATION_SEQUENCE_LABELS[a.trigger]} »`;
         case "wait":
           return `Attendre ${a.hours} h`;
         case "tag":

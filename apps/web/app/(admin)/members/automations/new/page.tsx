@@ -1,81 +1,82 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { PageHeader } from "@/components/admin/page-header";
+import {
+  AUTOMATION_TEMPLATE_DEFS,
+  isAutomationTemplateKey,
+  linearToGraph,
+  templateGraph,
+} from "@linkaffipro/core";
 import { Flash } from "@/components/admin/flash";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AUTOMATION_TEMPLATES, findTemplate } from "@/lib/automations/templates";
+import { PageHeader } from "@/components/admin/page-header";
+import { RuleEditor } from "@/components/automations/editor/rule-editor";
+import { CARD_DEFS } from "@/lib/automations/cards";
+import { graphToDraft } from "@/lib/automations/flow";
+import { loadEditorOptions, loadNames } from "@/lib/automations/queries";
 import { requireUser } from "@/lib/session";
-import { createRuleAction } from "../actions";
-import { RuleForm } from "../rule-form";
+import { saveRuleAction, testRuleOnMeAction } from "../actions";
 
-export const metadata: Metadata = { title: "Nouvelle automatisation" };
+export const metadata: Metadata = { title: "Nouvelle relance sur mesure" };
 
+/**
+ * Création d'une relance sur mesure dans l'éditeur à branches. `?template=<carte>` : part du parcours d'une carte prête
+ * à l'emploi (pour l'enrichir) ; sinon, départ → un message à écrire.
+ */
 export default async function NewAutomationPage({
   searchParams,
 }: PageProps<"/members/automations/new">) {
   await requireUser();
   const sp = await searchParams;
-  const tpl = findTemplate(typeof sp.template === "string" ? sp.template : undefined);
+  const key = isAutomationTemplateKey(sp.template) ? sp.template : null;
+  const [options, names] = await Promise.all([loadEditorOptions(), loadNames()]);
+  const initial = key
+    ? {
+        name: CARD_DEFS[key].ruleName,
+        trigger: AUTOMATION_TEMPLATE_DEFS[key].trigger,
+        conditions: { ...AUTOMATION_TEMPLATE_DEFS[key].conditions },
+        oncePerMember: true,
+        draft: graphToDraft(
+          templateGraph(key, {
+            message: CARD_DEFS[key].defaults.message,
+            hours: CARD_DEFS[key].defaults.hours,
+          }),
+        ),
+        templateKey: key,
+      }
+    : {
+        name: "",
+        trigger: "JOINED",
+        conditions: {},
+        oncePerMember: true,
+        draft: graphToDraft(linearToGraph([{ type: "send_message", text: "" }])),
+        templateKey: null,
+      };
   return (
     <>
       <PageHeader
-        title="Nouvelle automatisation"
+        backHref="/members/automations"
+        backLabel="Relances automatiques"
+        title="Nouvelle relance sur mesure"
         description={
-          tpl
-            ? `Modèle : ${tpl.name}. Adaptez les textes, puis créez la règle.`
-            : "Partez d'un modèle prêt à l'emploi, ou remplissez la règle vide ci-dessous."
+          <>
+            <span className="max-md:hidden">
+              Glissez des blocs depuis la bibliothèque, reliez-les, puis réglez chacun dans le
+              panneau de droite.
+            </span>
+            <span className="md:hidden">
+              Sur téléphone, le parcours se lit seulement : créez-le depuis un ordinateur.
+            </span>
+          </>
         }
-        help="La règle est créée inactive : rien ne part vers les membres tant que vous ne l'activez pas."
-      >
-        <Button
-          variant="outline"
-          className="max-md:h-10"
-          render={<Link href="/members/automations" />}
-        >
-          ← Relances automatiques
-        </Button>
-      </PageHeader>
+        help="La relance est créée désactivée : rien ne part vers les membres tant que vous ne l'activez pas."
+      />
       <Flash ok={sp.ok} error={sp.error} />
-      {!tpl ? (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-base">Modèles</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2">
-            {AUTOMATION_TEMPLATES.map((t) => (
-              <div
-                key={t.key}
-                className="flex items-start justify-between gap-3 rounded-md border p-3"
-              >
-                <div>
-                  <div className="font-medium">{t.name}</div>
-                  <div className="text-sm text-muted-foreground">{t.description}</div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="max-md:h-10"
-                  render={<Link href={`/members/automations/new?template=${t.key}`} />}
-                  aria-label={`Utiliser le modèle ${t.name}`}
-                >
-                  Utiliser
-                </Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-      <RuleForm
-        values={{
-          name: tpl?.name ?? "",
-          trigger: tpl?.trigger ?? "JOINED",
-          conditions: tpl?.conditions ?? {},
-          actions: tpl?.actions ?? [],
-          oncePerMember: true,
-        }}
-        action={createRuleAction}
-        submitLabel="Créer la règle (inactive)"
+      <RuleEditor
+        ruleId={null}
+        initial={initial}
+        options={options}
+        names={names}
+        pendingLinear={0}
+        saveAction={saveRuleAction}
+        testAction={testRuleOnMeAction}
       />
     </>
   );

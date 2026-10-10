@@ -1,5 +1,7 @@
 /** Construction de la chronologie d'un membre : fusion de sources hétérogènes, triée par date (fonction pure). */
 
+import { withMinusSign } from "@/lib/campaigns/cards";
+import { fmtMoney } from "@/lib/format";
 import { eventLabel } from "@/lib/journal/event-labels";
 
 export type TimelineKind = "membership" | "message" | "click" | "player" | "event";
@@ -9,7 +11,7 @@ export type TimelineEntry = {
   kind: TimelineKind;
   /** Titre court en français. */
   title: string;
-  /** Détail optionnel (canal, montant, sub-ID…). */
+  /** Détail optionnel (canal, montant, identifiant de suivi…). */
   detail?: string;
   /** Lien interne optionnel. */
   href?: string;
@@ -69,9 +71,9 @@ const OUTBOUND_KIND_LABEL: Record<string, string> = {
   WELCOME: "Message d'accueil",
   GATE_REMINDER: "Rappel « rejoins les canaux »",
   ACCEPTED: "Message « accepté »",
-  OFFER_REPLY: "Réponse à un clic offre",
-  BROADCAST: "Envoi groupé",
-  AUTOMATION: "Message automatique",
+  OFFER_REPLY: "Réponse à un clic sur une offre",
+  BROADCAST: "Message à un groupe",
+  AUTOMATION: "Relance automatique",
   TEST: "Message de test",
 };
 
@@ -81,16 +83,39 @@ const PLAYER_EVENT_LABEL: Record<string, string> = {
   FTD: "Premier dépôt",
   DEPOSIT: "Dépôt",
   REDEPOSIT: "Redépôt",
-  NGR: "Variation du NGR",
+  NGR: "Variation du revenu net",
   OTHER: "Événement joueur",
 };
 
+/**
+ * Montant d'un événement joueur, écrit comme les cartes de la fiche (« 26,34 € », vrai signe moins « −12,96 € ») ;
+ * une devise inconnue d'Intl garde son code (« 5,00 XYZ »).
+ */
 function money(
   amount: number | null | undefined,
   currency: string | null | undefined,
 ): string | undefined {
-  if (amount === null || amount === undefined) return undefined;
-  return `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency ?? "EUR"}`;
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return undefined;
+  const code = currency?.trim() || "EUR";
+  try {
+    return withMinusSign(fmtMoney(amount, code.toUpperCase()));
+  } catch {
+    const n = amount.toLocaleString("fr-FR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${withMinusSign(n)} ${code}`;
+  }
+}
+
+/**
+ * Nom du bouton après « Clic sur une offre » : sans le mot « Offre » répété (« Offre — Casino Bienvenue » →
+ * « Casino Bienvenue » ; « Offre » seul → rien).
+ */
+function offerLabel(label: string | null | undefined): string {
+  const l = (label ?? "").trim();
+  if (!l || /^offres?$/i.test(l)) return "";
+  return l.replace(/^offres?\s*[—–:·|-]\s*/i, "").trim();
 }
 
 export function buildTimeline(input: {
@@ -107,7 +132,7 @@ export function buildTimeline(input: {
     out.push({
       at: m.requestedAt,
       kind: "membership",
-      title: `Demande d'adhésion à ${m.channelTitle}`,
+      title: `Demande pour rejoindre ${m.channelTitle}`,
       detail: `${MEMBERSHIP_STATUS_LABEL[m.status] ?? m.status}${src}`,
     });
     if (m.gateSatisfiedAt)
@@ -150,12 +175,14 @@ export function buildTimeline(input: {
 
   for (const c of input.clicks ?? []) {
     if (c.isBot) continue;
-    const label = c.label ? ` — ${c.label}` : "";
+    const offer = c.kind === "OFFER";
+    const name = offer ? offerLabel(c.label) : (c.label ?? "").trim();
+    const label = name ? ` — ${name}` : "";
     out.push({
       at: c.createdAt,
       kind: "click",
-      title: c.kind === "OFFER" ? `Clic offre${label}` : `Clic${label}`,
-      detail: c.subId ? `sub-ID ${c.subId}` : undefined,
+      title: offer ? `Clic sur une offre${label}` : `Clic${label}`,
+      detail: c.subId ? `identifiant de suivi ${c.subId}` : undefined,
       href: c.postId ? `/messages/${c.postId}` : undefined,
     });
   }

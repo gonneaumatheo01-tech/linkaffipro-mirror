@@ -1155,6 +1155,12 @@ model AutomationRule {
   conditions    Json              @default("{}")
   /// Actions ordonnées (JSON) : [{ type: "send_message", text, buttons?, mediaAssetId?, botId? } | { type: "send_sequence", trigger } | { type: "wait", hours } | { type: "tag", tag } | { type: "suggest_channel", channelId } | { type: "notify_team", text }].
   actions       Json              @default("[]")
+  /// Parcours à branches (JSON, `AutomationGraph` de packages/core/src/automation-graph.ts : { version: 1, nodes, edges }).
+  /// Vide = règle linéaire (`actions`, exécutée comme avant) ; renseigné, il prime sur `actions`.
+  graph         Json?
+  /// Carte « prête à l'emploi » que la règle implémente (welcome, offer_no_signup, signup_no_deposit, inactive_7d,
+  /// first_deposit_thanks, vip) ; vide = relance sur mesure.
+  templateKey   String?
   isActive      Boolean           @default(false)
   /// Une seule exécution par membre et par règle (sauf si false).
   oncePerMember Boolean           @default(true)
@@ -1177,8 +1183,11 @@ model AutomationRun {
   memberId  String
   member    Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
   status    AutomationRunStatus @default(PENDING)
-  /// Index de la prochaine action à exécuter.
+  /// Règle linéaire : index de la prochaine action à exécuter. Graphe : nombre de blocs déjà parcourus.
   step      Int                 @default(0)
+  /// Graphe : bloc courant (prochain bloc après une attente, bloc en erreur, dernier bloc parcouru une fois terminée).
+  /// Vide pour une règle linéaire.
+  nodeId    String?
   /// Reprise des étapes « attendre ».
   resumeAt  DateTime?
   context   Json                @default("{}")

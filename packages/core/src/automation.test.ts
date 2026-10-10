@@ -65,7 +65,7 @@ describe("actions", () => {
     expect(actions).toHaveLength(6);
     expect(actions[2]).toEqual({ type: "tag", tag: "vip" });
     expect(summarizeActions(actions)).toBe(
-      "Message → Attendre 24 h → Étiquette « vip » → Séquence APPROVED → Proposer un canal → Prévenir l'équipe",
+      "Message → Attendre 24 h → Étiquette « vip » → Message du bot « Accepté » → Proposer un canal → Prévenir l'équipe",
     );
   });
   it("refuse les actions invalides avec un message en français", () => {

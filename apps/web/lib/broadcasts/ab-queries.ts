@@ -1,12 +1,13 @@
 import { prisma } from "@linkaffipro/db";
 import type { VariantStats } from "./ab";
+import { loadBroadcastResults } from "./results";
 
 export type AbComparison = {
   groupId: string;
   name: string;
   botUsername: string;
   segment: unknown;
-  variants: Array<VariantStats & { name: string; status: string; text: string; abSplit: number | null; createdAt: Date; finishedAt: Date | null }>;
+  variants: Array<VariantStats & { name: string; status: string; text: string; buttons: unknown; mediaAssetId: string | null; abSplit: number | null; createdAt: Date; finishedAt: Date | null }>;
   rest: (VariantStats & { name: string; status: string }) | null;
 };
 
@@ -16,16 +17,15 @@ export async function loadAbComparison(groupId: string): Promise<AbComparison | 
   if (rows.length === 0) return null;
   const stats = await Promise.all(
     rows.map(async (b) => {
-      const [links, registrations, ftds] = await Promise.all([
-        prisma.trackingLink.findMany({ where: { post: { templateName: `broadcast:${b.id}` } }, select: { kind: true, clicks: true, uniqueClicks: true } }),
-        prisma.player.count({ where: { click: { trackingLink: { post: { templateName: `broadcast:${b.id}` } } } } }),
-        prisma.player.count({ where: { ftdAt: { not: null }, click: { trackingLink: { post: { templateName: `broadcast:${b.id}` } } } } }),
-      ]);
+      // Clics, inscriptions et premiers dépôts : même lecture que la fiche d'un envoi (lib/broadcasts/results.ts).
+      const r = await loadBroadcastResults(b.id);
       return {
         id: b.id,
         name: b.name,
         status: b.status,
         text: b.text,
+        buttons: b.buttons,
+        mediaAssetId: b.mediaAssetId,
         variant: b.abVariant ?? "?",
         abSplit: b.abSplit,
         createdAt: b.createdAt,
@@ -34,11 +34,11 @@ export async function loadAbComparison(groupId: string): Promise<AbComparison | 
         sent: b.sent,
         failed: b.failed,
         blocked: b.blocked,
-        clicks: links.reduce((n, l) => n + l.clicks, 0),
-        uniqueClicks: links.reduce((n, l) => n + l.uniqueClicks, 0),
-        offerClicks: links.filter((l) => l.kind === "OFFER").reduce((n, l) => n + l.clicks, 0),
-        registrations,
-        ftds,
+        clicks: r.clicks,
+        uniqueClicks: r.uniqueClicks,
+        offerClicks: r.offerClicks,
+        registrations: r.registrations,
+        ftds: r.ftds,
       };
     }),
   );

@@ -1,0 +1,131 @@
+/*
+ * Habillage du canevas @xyflow/react aux couleurs du socle (jetons de globals.css uniquement, aucune couleur en dur).
+ * La feuille de base de xyflow (@xyflow/react/dist/base.css) est importée avant celle-ci par le composant ; le thème
+ * par défaut de xyflow (style.css) n'est pas utilisé.
+ */
+.lap-flow {
+  --xy-edge-stroke-default: var(--muted-foreground);
+  --xy-edge-stroke-width-default: 1.5;
+  --xy-edge-stroke-selected-default: var(--brand-ink);
+  --xy-connectionline-stroke-default: var(--brand-ink);
+  --xy-connectionline-stroke-width-default: 2;
+  --xy-attribution-background-color-default: transparent;
+  --xy-minimap-background-color-default: var(--surface);
+  --xy-minimap-mask-background-color-default: color-mix(in oklab, var(--muted) 75%, transparent);
+  --xy-minimap-mask-stroke-color-default: var(--border);
+  --xy-minimap-node-background-color-default: var(--border);
+  --xy-background-color-default: var(--background);
+  --xy-background-pattern-dots-color-default: color-mix(
+    in oklab,
+    var(--muted-foreground) 35%,
+    transparent
+  );
+  --xy-handle-background-color-default: var(--surface);
+  --xy-selection-background-color-default: color-mix(in oklab, var(--brand) 10%, transparent);
+  --xy-selection-border-default: 1px dashed var(--brand-ink);
+  font-family: inherit;
+  color: var(--foreground);
+}
+
+/* Blocs : le dessin est dans le composant ; le cadre de focus clavier suit l'arrondi de la carte. */
+.lap-flow .react-flow__node {
+  border-radius: 0.75rem;
+}
+.lap-flow .react-flow__node:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* Points de connexion : rond blanc bordé, plus grand au survol (cible facile à attraper). */
+.lap-flow .react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid var(--muted-foreground);
+  background: var(--surface);
+  transition: transform 120ms ease;
+}
+.lap-flow .react-flow__handle:hover,
+.lap-flow .react-flow__handle.connectingfrom {
+  transform: translate(-50%, 50%) scale(1.35);
+}
+.lap-flow .react-flow__handle-top:hover {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+.lap-flow .react-flow__handle.is-next {
+  border-color: var(--brand-ink);
+}
+.lap-flow .react-flow__handle.is-yes {
+  border-color: var(--success);
+}
+.lap-flow .react-flow__handle.is-no {
+  border-color: var(--muted-foreground);
+}
+.lap-flow .react-flow__handle.connectionindicator.valid {
+  background: var(--brand);
+}
+
+/* Lecture seule (fiche d'une relance) : pas de point de connexion. */
+.lap-flow.is-readonly .react-flow__handle {
+  visibility: hidden;
+}
+
+/* Liens : « oui » en vert, « non » neutre, lien en erreur en rouge pointillé, lien choisi en orange foncé. */
+.lap-flow .react-flow__edge.is-yes .react-flow__edge-path {
+  stroke: var(--success);
+}
+.lap-flow .react-flow__edge.is-invalid .react-flow__edge-path {
+  stroke: var(--danger);
+  stroke-dasharray: 6 4;
+}
+.lap-flow .react-flow__edge.selected .react-flow__edge-path,
+.lap-flow .react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--brand-ink);
+  stroke-width: 2.5;
+}
+.lap-flow .react-flow__edge:focus-visible {
+  outline: none;
+}
+.lap-flow .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+.lap-flow .react-flow__edge-text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--muted-foreground);
+}
+.lap-flow .react-flow__edge.is-yes .react-flow__edge-text {
+  fill: var(--success);
+}
+
+/* Mini-carte : couleur du type de bloc. */
+.lap-flow .react-flow__minimap {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.lap-flow .react-flow__minimap-node.is-trigger {
+  fill: var(--brand);
+}
+.lap-flow .react-flow__minimap-node.is-condition {
+  fill: var(--info);
+}
+.lap-flow .react-flow__minimap-node.is-action {
+  fill: var(--muted-foreground);
+}
+.lap-flow .react-flow__minimap-node.is-wait {
+  fill: var(--warning);
+}
+.lap-flow .react-flow__minimap-node.is-stop {
+  fill: var(--foreground);
+}
+.lap-flow .react-flow__minimap-node.is-invalid {
+  fill: var(--danger);
+}
+
+.lap-flow .react-flow__attribution {
+  font-size: 10px;
+}
+.lap-flow .react-flow__attribution a {
+  color: var(--muted-foreground);
+}

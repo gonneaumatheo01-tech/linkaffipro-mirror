@@ -1,14 +1,18 @@
+import { parseSegment } from "@linkaffipro/core";
 import { prisma, type BroadcastStatus, type Prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
 import { csvDate, csvNumber, toCsv } from "@/lib/members/csv";
 import { BROADCAST_STATUS_LABELS, progressOf } from "@/lib/broadcasts/queries";
+import { describeGroup } from "@/lib/broadcasts/group";
+import { loadGroupNames } from "@/lib/broadcasts/results";
 import { campaignBroadcastWhere } from "@/lib/campaigns/attribution";
 import { campaignScope } from "@/lib/dashboard/campaign-scope";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Export CSV des envois groupés : ciblés, envoyés, échoués, bloqués, clics des boutons traqués.
+ * Export CSV des envois à un groupe : groupe de membres en une phrase, ciblés, envoyés, échoués, bloqués, clics des
+ * boutons traqués.
  * Mêmes filtres que la liste (`listBroadcasts`) : statut et campagne (`campaignId`, ancien nom `campaign` accepté :
  * segment visant la campagne ou un de ses canaux).
  */
@@ -38,6 +42,8 @@ export async function GET(req: Request) {
       select: { clicks: true, uniqueClicks: true, post: { select: { templateName: true } } },
     }),
   ]);
+  const segments = new Map(broadcasts.map((b) => [b.id, parseSegment(b.segment)]));
+  const names = await loadGroupNames([...segments.values()]);
   const clicksBy = new Map<string, { clicks: number; unique: number }>();
   for (const l of links) {
     const id = l.post?.templateName?.slice("broadcast:".length);
@@ -51,6 +57,7 @@ export async function GET(req: Request) {
     [
       "Nom",
       "Bot",
+      "Groupe de membres",
       "Statut",
       "Test A/B",
       "Créé le (Paris)",
@@ -64,7 +71,7 @@ export async function GET(req: Request) {
       "Bloqués",
       "Progression (%)",
       "Clics",
-      "Cliqueurs uniques",
+      "Personnes qui ont cliqué",
       "Taux de clic",
     ],
     broadcasts.map((b) => {
@@ -72,6 +79,7 @@ export async function GET(req: Request) {
       return [
         b.name,
         `@${b.bot.username}`,
+        describeGroup(segments.get(b.id) ?? {}, names),
         BROADCAST_STATUS_LABELS[b.status] ?? b.status,
         b.abGroupId
           ? b.abVariant === "REST"

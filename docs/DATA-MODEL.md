@@ -109,8 +109,8 @@ Règles : conservation 24 mois (purge à prévoir en phase 2) ; les montants son
 | Table / colonne | Rôle | Colonnes clés |
 | --- | --- | --- |
 | `OutboundMessage.mediaAssetId` | Média joint à un message privé (légende = texte). | relation `MediaAsset` |
-| `AutomationRule` | Règle « si… alors… ». | `trigger` (JOINED, OFFER_CLICKED, REGISTERED, DEPOSITED, INACTIVE, LEFT, SPEND_LEVEL_REACHED), `conditions` JSON (canaux, pubs, langues, niveaux, inactivité, catégories), `actions` JSON ordonnées (send_message, send_sequence, wait, tag, suggest_channel, notify_team), `isActive`, `oncePerMember`, `runs`, `lastRunAt` |
-| `AutomationRun` | Exécution d'une règle pour un membre (journal + reprise des « attendre »). | `status` (PENDING, RUNNING, DONE, FAILED, SKIPPED, CANCELLED), `step`, `resumeAt`, `context`, `log`, `error` |
+| `AutomationRule` | Règle « si… alors… ». | `trigger` (JOINED, OFFER_CLICKED, REGISTERED, DEPOSITED, INACTIVE, LEFT, SPEND_LEVEL_REACHED), `conditions` JSON (canaux, pubs, langues, niveaux, inactivité, catégories), `actions` JSON ordonnées (send_message, send_sequence, wait, tag, suggest_channel, notify_team), `isActive`, `oncePerMember`, `runs`, `lastRunAt` ; phase 9 : `graph` JSON facultatif (relance à branches : nœuds déclencheur, condition oui/non, action, attente, arrêt ; null = liste d'actions linéaire), `templateKey` (carte prête à l'emploi : welcome, offer_no_signup, signup_no_deposit, inactive_7d, first_deposit_thanks, vip) |
+| `AutomationRun` | Exécution d'une règle pour un membre (journal + reprise des « attendre »). | `status` (PENDING, RUNNING, DONE, FAILED, SKIPPED, CANCELLED), `step`, `resumeAt`, `context`, `log` (entrées avec `nodeId` et `branch` pour un graphe), `error` ; phase 9 : `nodeId` (bloc courant d'une relance à branches) |
 | `Broadcast.abGroupId` / `abVariant` / `abSplit` | Test A/B : variantes d'un même test et part des destinataires. | — |
 
 ## Phase 4 (9 octobre 2026) — migrations `phase4_index`, `phase4_session`

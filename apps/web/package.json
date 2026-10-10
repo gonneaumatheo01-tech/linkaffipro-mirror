@@ -20,6 +20,7 @@
     "@linkaffipro/mtproto": "workspace:*",
     "@linkaffipro/queue": "workspace:*",
     "@linkaffipro/telegram": "workspace:*",
+    "@xyflow/react": "^12.12.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^6.3.12",
     "class-variance-authority": "^0.7.1",

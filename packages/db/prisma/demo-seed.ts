@@ -1897,7 +1897,8 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
         failed: vi,
         abGroupId: broadcastAbId,
         abVariant: variant,
-        abSplit: 20,
+        // Même taille pour A et B : moitié du groupe chacune (l'action réelle enregistre split et 100 − split).
+        abSplit: 50,
         createdById: users.admin,
         createdAt: new Date(dayStart(3).getTime()),
       })),
