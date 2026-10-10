@@ -10,6 +10,8 @@ import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { statusLabels } from "@/lib/status-badges";
 import { TelegramPreview } from "@/components/messages/telegram-preview";
 import type { PostButton, PostButtonRow } from "@/lib/posts/buttons";
+import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
+import { OfferPicker } from "@/components/campaigns/offer-picker";
 
 export type BroadcastOptions = {
   bots: Array<{ id: string; name: string; username: string }>;
@@ -19,6 +21,8 @@ export type BroadcastOptions = {
   categories: Array<{ id: string; name: string }>;
   media: Array<{ id: string; filename: string; mimeType: string }>;
   affiliateCampaigns: Array<{ id: string; name: string; programName: string }>;
+  /** Nos campagnes avec leurs offres (bouton Offre) ; si absent, chargées depuis `/campaigns/options`. */
+  ourCampaigns?: CampaignOptionWithOffers[];
   /** Étiquettes du registre (Réglages → Étiquettes) : si fourni, menu à cocher au lieu d'un champ libre. */
   tags?: Array<{ name: string; color: string }>;
 };
@@ -397,24 +401,16 @@ export function BroadcastForm({
                     >
                       <option value="URL">Lien direct</option>
                       <option value="BUTTON">Lien traqué</option>
-                      <option value="OFFER">Offre (identifiant de suivi)</option>
+                      <option value="OFFER">Offre (campagne)</option>
                     </select>
                     {b.type === "OFFER" ? (
-                      <select
-                        value={b.affiliateCampaignId ?? ""}
-                        aria-label={`Campagne Link Affi du bouton ${bi + 1}, ligne ${ri + 1}`}
-                        onChange={(e) =>
-                          updateButton(ri, bi, { affiliateCampaignId: e.target.value })
-                        }
-                        className="h-10 rounded-md border bg-background px-2 text-sm md:h-9"
-                      >
-                        <option value="">— campagne Link Affi —</option>
-                        {options.affiliateCampaigns.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.programName} · {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      <OfferPicker
+                        value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                        onChange={(patch) => updateButton(ri, bi, patch)}
+                        campaigns={options.ourCampaigns}
+                        affiliateCampaigns={options.affiliateCampaigns}
+                        label={`Campagne du bouton ${bi + 1}, ligne ${ri + 1}`}
+                      />
                     ) : (
                       <Input
                         value={b.url ?? ""}
@@ -587,24 +583,16 @@ export function BroadcastForm({
                           >
                             <option value="URL">Lien direct</option>
                             <option value="BUTTON">Lien traqué</option>
-                            <option value="OFFER">Offre (identifiant de suivi)</option>
+                            <option value="OFFER">Offre (campagne)</option>
                           </select>
                           {b.type === "OFFER" ? (
-                            <select
-                              value={b.affiliateCampaignId ?? ""}
-                              aria-label={`Version B : campagne Link Affi du bouton ${bi + 1}, ligne ${ri + 1}`}
-                              onChange={(e) =>
-                                updateButtonB(ri, bi, { affiliateCampaignId: e.target.value })
-                              }
-                              className="h-10 rounded-md border bg-background px-2 text-sm md:h-9"
-                            >
-                              <option value="">— campagne Link Affi —</option>
-                              {options.affiliateCampaigns.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.programName} · {c.name}
-                                </option>
-                              ))}
-                            </select>
+                            <OfferPicker
+                              value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                              onChange={(patch) => updateButtonB(ri, bi, patch)}
+                              campaigns={options.ourCampaigns}
+                              affiliateCampaigns={options.affiliateCampaigns}
+                              label={`Version B : campagne du bouton ${bi + 1}, ligne ${ri + 1}`}
+                            />
                           ) : (
                             <Input
                               value={b.url ?? ""}

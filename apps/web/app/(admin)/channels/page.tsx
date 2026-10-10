@@ -18,14 +18,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fmtDate } from "@/lib/format";
+import { isAccountSessionActive } from "@/lib/channels/account-import";
 import { ActiveBadge, statusLabel } from "@/lib/status-badges";
-import { updateChannelAction } from "./actions";
+import { recheckAllRightsAction, updateChannelAction } from "./actions";
+import { AddChannelDialog } from "./add-channel-dialog";
 
 export const metadata: Metadata = { title: "Canaux" };
 
 export default async function ChannelsPage({ searchParams }: PageProps<"/channels">) {
   const sp = await searchParams;
-  const [channels, bots] = await Promise.all([
+  const [channels, bots, accountActive] = await Promise.all([
     prisma.channel.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -35,18 +37,38 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
     prisma.bot.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, username: true, vertical: true },
+      select: { id: true, username: true, name: true, vertical: true },
     }),
+    isAccountSessionActive().catch(() => false),
   ]);
+  const latestId = channels[0]?.id ?? null;
   const selectCls = "h-10 w-full rounded-md border bg-background px-2 text-sm md:h-8";
   const exampleBot = bots[0]?.username ?? "votre bot";
   return (
     <>
       <PageHeader
         title="Canaux"
-        description="Vos canaux et groupes Telegram. Ils sont détectés automatiquement dès qu'un de nos bots y est ajouté comme administrateur."
+        description="Vos canaux et groupes Telegram. Ils sont détectés automatiquement dès qu'un de nos bots y est ajouté comme administrateur ; un canal où le bot l'était déjà s'ajoute avec « Ajouter un canal existant »."
         help="Pour chaque canal : choisissez l'univers et le bot principal, puis ouvrez-le pour régler l'accueil des membres (délai, canaux à rejoindre, messages du bot)."
-      />
+      >
+        <AddChannelDialog
+          bots={bots.map((b) => ({ username: b.username, name: b.name }))}
+          latestId={latestId}
+          canImportFromAccount={accountActive}
+        />
+        {accountActive ? (
+          <Button variant="outline" className="max-md:h-10" render={<Link href="/channels/import" />}>
+            Importer tous mes canaux
+          </Button>
+        ) : null}
+        {channels.length > 0 ? (
+          <form action={recheckAllRightsAction}>
+            <Button type="submit" variant="outline" className="max-md:h-10" title="Relit les administrateurs de chaque canal avec chacun de nos bots et met la liste à jour">
+              Re-vérifier les droits des bots
+            </Button>
+          </form>
+        ) : null}
+      </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
       <Card>
         <CardContent className="pt-6">
@@ -56,7 +78,8 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
               description={
                 <>
                   Dans Telegram, ouvrez le canal → Administrateurs → Ajouter un administrateur →
-                  choisissez @{exampleBot} → validez. Le canal apparaît ici en quelques secondes.
+                  choisissez @{exampleBot} → validez. Le canal apparaît ici en quelques secondes. Le bot
+                  était déjà administrateur ? Cliquez « Ajouter un canal existant » en haut de la page.
                 </>
               }
               action={{ href: "/bots", label: "Voir les bots", variant: "outline" }}

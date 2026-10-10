@@ -7,7 +7,9 @@ import { Flash } from "@/components/admin/flash";
 import { EmptyState } from "@/components/admin/empty-state";
 import { HelpTip } from "@/components/admin/help-tip";
 import { RememberFilters } from "@/components/admin/remember-filters";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NewCampaignButton } from "@/components/campaigns/new-campaign-button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -33,17 +35,17 @@ import {
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 
-export const metadata: Metadata = { title: "Pubs" };
+export const metadata: Metadata = { title: "Campagnes" };
 
 const TIPS = {
-  members: "Membres : demandes d'adhésion acceptées via les liens d'entrée de cette pub.",
+  members: "Membres : demandes d'adhésion acceptées via les liens d'entrée de cette campagne.",
   registrations:
-    "Inscrits : joueurs qui se sont inscrits chez un partenaire après un clic sur une offre, rattachés à cette pub grâce à l'identifiant de suivi (sub-ID).",
-  ftd: "Premier dépôt (FTD) : joueurs rattachés à la pub qui ont déposé de l'argent au moins une fois.",
+    "Inscrits : joueurs inscrits chez un partenaire, rattachés à la campagne par l'identifiant de suivi (sub-ID) ou parce qu'ils appartiennent à une de ses offres Link Affi.",
+  ftd: "Premier dépôt (FTD) : joueurs rattachés à la campagne qui ont déposé de l'argent au moins une fois.",
   cpl: "Coût par membre arrivé (CPL) = dépense / membres entrés.",
   cpa: "CPA (coût par inscrit) : dépense divisée par le nombre d'inscrits.",
   costPerFtd: "Coût par FTD : dépense divisée par le nombre de premiers dépôts.",
-  revenue: "Revenu : NGR (revenu net) des joueurs rattachés à la pub, remonté par Link Affi.",
+  revenue: "Revenu : NGR (revenu net) des joueurs rattachés à la campagne, remonté par Link Affi.",
   roas: "ROAS (retour sur dépense) : revenu divisé par dépense. 1,00× = remboursé, au-dessus = rentable.",
 };
 
@@ -102,9 +104,9 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   return (
     <>
       <PageHeader
-        title="Pubs"
-        description="Ce que coûte et ce que rapporte chaque pub : dépense, membres entrés, inscrits, premiers dépôts (FTD), coût par membre arrivé (CPL), coût par inscrit (CPA) et retour sur dépense (ROAS)."
-        help="Créez une pub, rattachez-lui un lien d'entrée (page Liens), puis importez les coûts TikTok ou Meta en CSV. La période choisie est mémorisée."
+        title="Campagnes"
+        description="Une campagne = ce que vous promouvez (offres Link Affi), où (canaux Telegram) et avec quelles pubs (TikTok, Meta…). Ici : ce que coûte et rapporte chacune."
+        help="Cliquez « Nouvelle campagne » : l'assistant crée en 4 étapes la campagne, ses offres, ses canaux et un lien d'entrée par pub. La période choisie est mémorisée."
       >
         <Button
           variant="outline"
@@ -127,9 +129,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
         >
           Historique des imports
         </Button>
-        <Button className="max-md:h-10" render={<Link href="/campaigns/new" />}>
-          Nouvelle pub
-        </Button>
+        <NewCampaignButton />
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
       <div className="mb-2 flex flex-wrap items-end gap-2 text-sm">
@@ -148,9 +148,9 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
         <CardContent className="pt-6">
           {rows.length === 0 ? (
             <EmptyState
-              title="Aucune pub pour l'instant."
-              description="Créez une pub à la main, ou importez un CSV TikTok / Meta : les pubs seront créées automatiquement à partir des noms de campagne."
-              action={{ href: "/campaigns/new", label: "Créer une pub" }}
+              title="Aucune campagne pour l'instant."
+              description="Créez votre première campagne avec l'assistant (offres, canaux, pubs et liens d'entrée en 4 étapes), ou importez un CSV TikTok / Meta : les campagnes pub seront créées à partir des noms."
+              action={{ href: "/campaigns/new", label: "Nouvelle campagne" }}
             >
               <Button
                 variant="outline"
@@ -164,7 +164,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Pub</TableHead>
+                  <TableHead>Campagne</TableHead>
                   <TableHead className="hidden md:table-cell">Plateforme</TableHead>
                   <TableHead className="hidden lg:table-cell">Canaux</TableHead>
                   <TableHead className="text-right">Dépense</TableHead>
@@ -201,8 +201,14 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                       <div className="text-xs text-muted-foreground">
                         {statusLabel("campaign", r.status)}
                         {r.vertical ? ` · ${VERTICAL_LABELS[r.vertical as Vertical]}` : ""} ·{" "}
-                        {r.links} lien{r.links > 1 ? "s" : ""} d&apos;entrée
+                        {r.links} lien{r.links > 1 ? "s" : ""} d&apos;entrée · {r.offers} offre
+                        {r.offers > 1 ? "s" : ""}
                       </div>
+                      {r.importedFrom ? (
+                        <Badge variant="secondary" className="mt-1 font-normal">
+                          importée de {r.importedFrom === "META" ? "Meta" : r.importedFrom === "TIKTOK" ? "TikTok" : "la plateforme"}
+                        </Badge>
+                      ) : null}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {r.adPlatform ? <StatusBadge kind="adPlatform" value={r.adPlatform} /> : "—"}
@@ -306,10 +312,11 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
         </CardContent>
       </Card>
       <p className="mt-3 text-xs text-muted-foreground">
-        Membres = demandes acceptées via les liens d&apos;entrée de la pub. Inscrits / FTD / revenu
-        = joueurs rattachés à la pub par l&apos;identifiant de suivi (sub-ID). Coût par membre
-        arrivé (CPL) = dépense / membres entrés ; CPA = dépense / inscrits ; ROAS = revenu /
-        dépense. Sur téléphone, tournez l&apos;écran ou exportez en CSV pour voir toutes les
+        Membres = demandes acceptées via les liens d&apos;entrée de la campagne. Inscrits / FTD /
+        revenu = joueurs rattachés à la campagne (identifiant de suivi sub-ID, ou offre Link Affi
+        de la campagne). CPL = dépense / membres entrés ; CPA = dépense / inscrits ; ROAS = revenu /
+        dépense. Les campagnes « importées » viennent d&apos;un compte pub connecté (Réglages →
+        Connecteurs). Sur téléphone, tournez l&apos;écran ou exportez en CSV pour voir toutes les
         colonnes.
       </p>
     </>

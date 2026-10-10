@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { buildCampaignName } from "@/lib/campaigns/match";
 
 /**
- * Bouton « Générer un nom » du formulaire de pub : lit la plateforme, l'univers et le premier canal coché
+ * Bouton « Générer un nom » du formulaire de campagne : lit la plateforme, l'univers et le premier canal coché
  * dans le formulaire parent, puis écrit « TT-casinoX-FR-canalA-2026-10 » dans le champ Nom.
  * Composant client autonome : le formulaire reste un composant serveur.
  */

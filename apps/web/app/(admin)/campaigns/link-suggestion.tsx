@@ -6,9 +6,9 @@ import { suggestAffiliateCampaign } from "@/lib/campaigns/match";
 import { requireUser } from "@/lib/session";
 
 /**
- * Encart « Liaison suggérée » d'une fiche pub : propose la campagne Link Affi dont le nom ressemble le plus
- * au nom de la pub, avec un bouton « Lier » qui ajoute son identifiant dans `Campaign.affiliateCampaignIds`.
- * Rien n'est affiché si la pub est déjà liée ou si aucun nom ne ressemble.
+ * Encart « Liaison suggérée » d'une fiche campagne : propose la campagne Link Affi dont le nom ressemble le plus
+ * au nom de la campagne, avec un bouton « Lier » qui ajoute son identifiant dans `Campaign.affiliateCampaignIds`.
+ * Rien n'est affiché si la campagne est déjà liée ou si aucun nom ne ressemble.
  * Usage dans `campaigns/[id]/page.tsx` : `<LinkSuggestion campaignId={campaign.id} name={campaign.name} linkedIds={campaign.affiliateCampaignIds} />`
  */
 export async function LinkSuggestion({
@@ -63,7 +63,7 @@ export async function LinkSuggestion({
     }
     revalidatePath(`/campaigns/${campaignId}`);
     redirect(
-      `/campaigns/${campaignId}?ok=${encodeURIComponent(`Pub liée à la campagne Link Affi « ${candidate.name} ».`)}`,
+      `/campaigns/${campaignId}?ok=${encodeURIComponent(`Campagne liée à l'offre Link Affi « ${candidate.name} ».`)}`,
     );
   }
 

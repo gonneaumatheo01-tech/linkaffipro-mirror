@@ -15,9 +15,9 @@ export function registerHandlers(bot: Bot, identity: BotIdentity, deps: Telegram
   registerCoreHandlers(bot, identity, deps, {
     beforeStart: (b) => {
       if (opts.extended === false) return;
-      registerJoinFlowHandlers(b, identity);
+      registerJoinFlowHandlers(b, identity, undefined, deps);
       registerOfferHandlers(b, identity);
-      registerReactionHandlers(b, identity);
+      registerReactionHandlers(b, identity, deps);
     },
   });
 }

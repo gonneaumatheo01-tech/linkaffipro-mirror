@@ -8,6 +8,9 @@ import {
   withReachableBy,
   type Segment,
 } from "@linkaffipro/core";
+import { campaignBroadcastWhere } from "@/lib/campaigns/attribution";
+import { listCampaignOptions, type CampaignOptionWithOffers } from "@/lib/campaigns/queries";
+import { campaignScope } from "@/lib/dashboard/campaign-scope";
 
 /** Nombre de membres joignables (canDm sur ce bot) correspondant au segment. */
 export async function countTargets(segment: Segment, botId: string): Promise<number> {
@@ -46,9 +49,19 @@ export async function countTargets(segment: Segment, botId: string): Promise<num
   return n;
 }
 
-/** Options des formulaires (bots, canaux, liens, pubs, catégories, médias, campagnes d'affiliation). */
-export async function loadBroadcastOptions() {
-  const [bots, channels, inviteLinks, campaigns, categories, media, affiliateCampaigns] =
+/** Options des formulaires (bots, canaux, liens, campagnes et leurs offres, catégories, médias, campagnes Link Affi). */
+export async function loadBroadcastOptions(): Promise<{
+  bots: Array<{ id: string; name: string; username: string; vertical: string | null }>;
+  channels: Array<{ id: string; title: string }>;
+  inviteLinks: Array<{ id: string; name: string }>;
+  campaigns: Array<{ id: string; name: string }>;
+  /** Nos campagnes avec leurs offres (bouton « Offre » : on choisit la campagne, qui détermine le lien Link Affi). */
+  ourCampaigns: CampaignOptionWithOffers[];
+  categories: Array<{ id: string; name: string }>;
+  media: Array<{ id: string; filename: string; mimeType: string }>;
+  affiliateCampaigns: Array<{ id: string; name: string; programName: string }>;
+}> {
+  const [bots, channels, inviteLinks, campaigns, categories, media, affiliateCampaigns, ourCampaigns] =
     await Promise.all([
       prisma.bot.findMany({
         where: { isActive: true },
@@ -82,12 +95,14 @@ export async function loadBroadcastOptions() {
         orderBy: { name: "asc" },
         select: { id: true, name: true, program: { select: { name: true } } },
       }),
+      listCampaignOptions(),
     ]);
   return {
     bots,
     channels,
     inviteLinks,
     campaigns,
+    ourCampaigns,
     categories,
     media,
     affiliateCampaigns: affiliateCampaigns.map((c) => ({
@@ -107,16 +122,22 @@ export type BroadcastRow = Prisma.BroadcastGetPayload<{
 
 export const BROADCASTS_PAGE_SIZE = 50;
 
-/** Envois groupés du plus récent au plus ancien, paginés par 50, filtrables par statut. */
+/**
+ * Envois groupés du plus récent au plus ancien, paginés par 50, filtrables par statut et par campagne
+ * (segment visant la campagne ou un de ses canaux).
+ */
 export async function listBroadcasts(
   page = 1,
   status?: string,
+  campaignId?: string,
 ): Promise<{ rows: BroadcastRow[]; total: number; pages: number; page: number }> {
   const current = Math.max(1, page);
-  const where: Prisma.BroadcastWhereInput =
-    status && status in BROADCAST_STATUS_LABELS
+  const where: Prisma.BroadcastWhereInput = {
+    ...(status && status in BROADCAST_STATUS_LABELS
       ? { status: status as Prisma.EnumBroadcastStatusFilter["equals"] }
-      : {};
+      : {}),
+    ...(campaignId ? (campaignBroadcastWhere(campaignId, await campaignScope(campaignId)) as Prisma.BroadcastWhereInput) : {}),
+  };
   const [total, rows] = await Promise.all([
     prisma.broadcast.count({ where }),
     prisma.broadcast.findMany({

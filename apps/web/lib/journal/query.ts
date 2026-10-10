@@ -43,6 +43,7 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^automation\./, "Automatisation"],
   [/^postback\./, "Postback"],
   [/^category\./, "Catégorie"],
+  [/^ai\./, "Assistant IA"],
   [/^settings\./, "Réglage"],
   [/^alert\./, "Alerte"],
   [/^maintenance\./, "Maintenance"],

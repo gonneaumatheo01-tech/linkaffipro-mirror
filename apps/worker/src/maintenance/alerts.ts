@@ -1,4 +1,4 @@
-import { prisma, toJsonValue } from "@linkaffipro/db";
+import { prisma, toJsonValue, ourPlayers } from "@linkaffipro/db";
 import { HEALTH_WINDOW_DAYS, evaluateSubIdHealth } from "@linkaffipro/linkaffi";
 import { HEARTBEAT_LAST_KEY, QUEUE_NAMES, countRecentFailures, getQueue, getRedis, parseHeartbeat } from "@linkaffipro/queue";
 import type { Redis } from "ioredis";
@@ -43,9 +43,10 @@ export async function loadThresholds(): Promise<AlertThresholds> {
 async function registrationsSnapshot(now: Date) {
   const h24 = new Date(now.getTime() - DAY_MS);
   const d8 = new Date(now.getTime() - 8 * DAY_MS);
+  const ours = await ourPlayers();
   const [last24h, previous7dTotal] = await Promise.all([
-    prisma.player.count({ where: { registeredAt: { gte: h24, lte: now } } }),
-    prisma.player.count({ where: { registeredAt: { gte: d8, lt: h24 } } }),
+    prisma.player.count({ where: { AND: [ours, { registeredAt: { gte: h24, lte: now } }] } }),
+    prisma.player.count({ where: { AND: [ours, { registeredAt: { gte: d8, lt: h24 } }] } }),
   ]);
   return { last24h, previous7dTotal };
 }

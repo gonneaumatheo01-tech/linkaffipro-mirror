@@ -8,6 +8,7 @@ import { Flash } from "@/components/admin/flash";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
+import { listCampaignOptions } from "@/lib/campaigns/queries";
 import { WeekCalendar } from "@/components/messages/week-calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
   const weekParam = typeof sp.week === "string" ? fromParisLocal(`${sp.week}T00:00`) : null;
   const weekStart = startOfParisWeek(weekParam ?? new Date());
   const weekEnd = addDays(weekStart, 7);
-  const [channels, categories] = await Promise.all([
+  const [channels, categories, campaigns] = await Promise.all([
     prisma.channel.findMany({
       where: { isActive: true },
       orderBy: { title: "asc" },
@@ -54,10 +55,12 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, color: true },
     }),
+    listCampaignOptions(),
   ]);
 
   const f = {
     channelId: typeof sp.channel === "string" ? sp.channel : "",
+    campaignId: typeof sp.campaign === "string" ? sp.campaign : "",
     status: typeof sp.status === "string" ? sp.status : "",
     categoryId: typeof sp.category === "string" ? sp.category : "",
     from: typeof sp.from === "string" ? sp.from : "",
@@ -65,9 +68,9 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
     vertical: typeof sp.vertical === "string" ? sp.vertical : "",
   };
   const hasFilters = Boolean(
-    f.channelId || f.status || f.categoryId || f.from || f.to || f.vertical,
+    f.channelId || f.campaignId || f.status || f.categoryId || f.from || f.to || f.vertical,
   );
-  const exportHref = `/messages/export?${new URLSearchParams({ ...(f.channelId ? { channel: f.channelId } : {}), ...(f.status ? { status: f.status } : {}), ...(f.categoryId ? { category: f.categoryId } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}) }).toString()}`;
+  const exportHref = `/messages/export?${new URLSearchParams({ ...(f.channelId ? { channel: f.channelId } : {}), ...(f.campaignId ? { campaign: f.campaignId } : {}), ...(f.status ? { status: f.status } : {}), ...(f.categoryId ? { category: f.categoryId } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}) }).toString()}`;
 
   const page = pageOf(sp);
   const listed = view === "calendar" ? null : await listPosts({ view, filters: f, page });
@@ -195,6 +198,20 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                   {channels.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="campaign"
+                  aria-label="Campagne"
+                  title="Messages des canaux de la campagne ou portant un bouton Offre vers une de ses offres"
+                  defaultValue={f.campaignId}
+                  className={selectCls}
+                >
+                  <option value="">Toutes les campagnes</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>

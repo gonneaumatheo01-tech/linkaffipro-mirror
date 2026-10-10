@@ -85,12 +85,18 @@ export async function updateCategoryAction(formData: FormData): Promise<void> {
 export async function deleteCategoryAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = z.string().min(1).parse(formData.get("id"));
+  const replacement = String(formData.get("replacementId") ?? "") || null;
+  if (replacement === id) back({ error: "La catégorie de remplacement doit être différente." });
   const used = await prisma.post.count({ where: { categoryId: id } });
-  if (used > 0)
-    back({
-      error: `Impossible de supprimer : ${used} message${used > 1 ? "s utilisent" : " utilise"} cette catégorie. Désactivez-la plutôt.`,
-    });
+  if (used > 0 && replacement) {
+    const target = await prisma.messageCategory.findUnique({ where: { id: replacement } });
+    if (!target) back({ error: "Catégorie de remplacement introuvable." });
+  }
+  // Fusion : les messages passent dans la catégorie de remplacement (ou sans catégorie), puis la catégorie disparaît.
+  const moved = await prisma.post.updateMany({ where: { categoryId: id }, data: { categoryId: replacement } });
   const cat = await prisma.messageCategory.delete({ where: { id } });
+  if (moved.count > 0)
+    await audit({ userId: admin.id, action: "category.merged", entityType: "MessageCategory", entityId: id, metadata: { name: cat.name, into: replacement, posts: moved.count } });
   await audit({
     userId: admin.id,
     action: "category.deleted",

@@ -66,9 +66,6 @@ const TAB_HELP: Record<Tab, string> = {
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
-function since24h(): Date {
-  return new Date(Date.now() - 24 * 3600 * 1000);
-}
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
@@ -106,12 +103,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const sort = (one(sp.sort) || "spend") as AdsSortKey;
   const dir = one(sp.dir) === "asc" ? "asc" : "desc";
   const funnelDim = one(sp.dim) || (channelId ? `channel:${channelId}` : "all");
-  const since = since24h();
-  const [bots, channels, members, events24h, lastEvents, channelList, dash] = await Promise.all([
+  const [bots, channels, members, campaignCount, lastEvents, channelList, dash] = await Promise.all([
     prisma.bot.count({ where: { isActive: true } }),
     prisma.channel.count({ where: { isActive: true } }),
     prisma.member.count(),
-    prisma.event.count({ where: { occurredAt: { gte: since } } }),
+    prisma.campaign.count(),
     prisma.event.findMany({
       orderBy: { occurredAt: "desc" },
       take: 12,
@@ -155,11 +151,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       label: "Membres vus",
       value: members,
       help: "Personnes vues au moins une fois par un de nos bots (demande d'adhésion, /start, clic).",
-    },
-    {
-      label: "Événements (24 h)",
-      value: events24h,
-      help: "Tout ce qui s'est passé ces dernières 24 heures : demandes, entrées, clics, inscriptions… (page Journal).",
     },
   ];
   const base = { ...(vertical ? { vertical } : {}), ...(channelId ? { channelId } : {}) };
@@ -677,8 +668,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             <div className="ml-2">{rangeBar}</div>
           </div>
           {compareNote}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {dash.metrics.map((m) => (
+          {campaignCount === 0 ? (
+            <EmptyState
+              title="Pas encore de chiffres : créez votre première campagne"
+              description="Une campagne relie une offre Link Affi, vos canaux Telegram et vos pubs. Dès qu'elle existe, les clics, inscriptions, dépôts et le NGR de vos joueurs apparaissent ici, jour par jour."
+              action={{ href: "/campaigns/new", label: "Nouvelle campagne" }}
+            />
+          ) : null}
+          {(["telegram", "argent"] as const).map((group) => (
+          <div key={group} className="mb-4">
+            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+              {group === "telegram" ? "Telegram : demandes → acceptés → entrées → départs" : "Argent : clics pub → clics offre → inscriptions → premiers dépôts → dépôts → NGR"}
+            </h3>
+          <div className={group === "telegram" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"}>
+            {dash.metrics.filter((m) => m.group === group).map((m) => (
               <Card key={m.key}>
                 <CardHeader className="pb-1">
                   <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
@@ -712,6 +715,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
               </Card>
             ))}
           </div>
+          </div>
+          ))}
 
           {period.days > 1 ? (
             <Card className="mt-6">

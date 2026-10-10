@@ -2,40 +2,53 @@ import type { Metadata } from "next";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
-import { Card, CardContent } from "@/components/ui/card";
+import { env } from "@/lib/env";
 import { requireUser } from "@/lib/session";
-import { NAMING_EXAMPLE } from "@/lib/campaigns/match";
-import { CampaignForm } from "../campaign-form";
-import { createCampaignAction } from "../actions";
+import { listActiveConnections, listOfferCandidates } from "@/lib/campaigns/queries";
+import { stepIndex, type WizardPayload } from "@/lib/campaigns/wizard";
+import { CampaignWizard } from "./wizard";
+import { createCampaignWizardAction } from "./actions";
 
-export const metadata: Metadata = { title: "Nouvelle pub" };
+export const metadata: Metadata = { title: "Nouvelle campagne" };
 
 export default async function NewCampaignPage({ searchParams }: PageProps<"/campaigns/new">) {
   await requireUser();
   const sp = await searchParams;
-  const channels = await prisma.channel.findMany({
-    where: { isActive: true },
-    orderBy: { title: "asc" },
-    select: { id: true, title: true },
-  });
+  const [channels, offers, connections] = await Promise.all([
+    prisma.channel.findMany({
+      where: { isActive: true },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, vertical: true, language: true },
+    }),
+    listOfferCandidates(),
+    listActiveConnections(),
+  ]);
+  let draft: Partial<WizardPayload> | null = null;
+  if (typeof sp.draft === "string") {
+    try {
+      const v = JSON.parse(sp.draft);
+      if (v && typeof v === "object") draft = v as Partial<WizardPayload>;
+    } catch {
+      draft = null;
+    }
+  }
   return (
     <>
       <PageHeader
-        title="Nouvelle pub"
-        description="Une pub correspond à une campagne TikTok ou Meta. Elle se découpe ensuite en groupes et en pubs précises, chacune rattachée à un lien d'entrée."
-        help={`Nommez-la « ${NAMING_EXAMPLE} » (plateforme-programme-langue-canal-mois) et donnez le même nom dans TikTok ou Meta : l'import des coûts et la liaison Link Affi se font alors tout seuls. Le bouton « Générer un nom » le fait pour vous.`}
+        title="Nouvelle campagne"
+        description="Quatre étapes : nom et univers, offres Link Affi, canaux Telegram, pubs. À la fin, un lien d'entrée (go.goolink.eu + invitation Telegram) est créé pour chaque pub."
+        help="Rien n'est définitif : offres, canaux, pubs et liens se modifient ensuite depuis la fiche de la campagne."
       />
       <Flash ok={sp.ok} error={sp.error} />
-      <Card className="max-w-3xl">
-        <CardContent className="pt-6">
-          <CampaignForm
-            action={createCampaignAction}
-            values={{}}
-            channels={channels}
-            submitLabel="Créer la pub"
-          />
-        </CardContent>
-      </Card>
+      <CampaignWizard
+        action={createCampaignWizardAction}
+        channels={channels}
+        offers={offers}
+        connections={connections}
+        trackingHost={env.trackingBaseUrl.replace(/^https?:\/\//, "")}
+        initialStep={stepIndex(typeof sp.step === "string" ? sp.step : null)}
+        draft={draft}
+      />
     </>
   );
 }

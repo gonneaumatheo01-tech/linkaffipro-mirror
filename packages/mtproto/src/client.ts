@@ -15,6 +15,18 @@ export type SignInResult = { status: "ok"; session: string; user: MtprotoUser } 
 
 export type MessageViews = { id: number; views: number; forwards: number };
 
+/** Canal (ou supergroupe) dont le compte connecté est administrateur ou créateur. `telegramChatId` au format Bot API (`-100…`), en chaîne. */
+export type AdminChannel = {
+  telegramChatId: string;
+  title: string;
+  username: string | null;
+  isCreator: boolean;
+  isAdmin: boolean;
+  /** true : canal de diffusion ; false : supergroupe (megagroup). */
+  isBroadcast: boolean;
+  memberCount: number | null;
+};
+
 const CLIENT_PARAMS = {
   connectionRetries: 3,
   requestRetries: 2,
@@ -188,6 +200,43 @@ export async function getViews(
       });
     }
     return out;
+  });
+}
+
+/** Convertit une entité GramJS `Channel` en `AdminChannel` ; null si le compte n'y est ni administrateur ni créateur. */
+export function adminChannelFromEntity(entity: unknown): AdminChannel | null {
+  if (!(entity instanceof Api.Channel)) return null;
+  const isCreator = entity.creator === true;
+  const isAdmin = isCreator || !!entity.adminRights;
+  if (!isAdmin) return null;
+  const username = entity.username ?? entity.usernames?.find((u) => u.active)?.username ?? null;
+  return {
+    telegramChatId: `-100${entity.id.toString()}`,
+    title: entity.title,
+    username,
+    isCreator,
+    isAdmin,
+    isBroadcast: entity.broadcast === true || entity.megagroup !== true,
+    memberCount: typeof entity.participantsCount === "number" ? entity.participantsCount : null,
+  };
+}
+
+/**
+ * Canaux et supergroupes dont le compte connecté est administrateur ou créateur (parmi ses 500 derniers dialogues),
+ * sans doublon, triés par titre. Aucune modification côté Telegram.
+ */
+export async function listAdminChannels(session: string, creds: MtprotoCredentials): Promise<AdminChannel[]> {
+  return withClient(session, creds, async (client) => {
+    const dialogs = await client.getDialogs({ limit: 500 });
+    const seen = new Set<string>();
+    const out: AdminChannel[] = [];
+    for (const d of dialogs) {
+      const c = adminChannelFromEntity(d.entity);
+      if (!c || seen.has(c.telegramChatId)) continue;
+      seen.add(c.telegramChatId);
+      out.push(c);
+    }
+    return out.sort((a, b) => a.title.localeCompare(b.title, "fr"));
   });
 }
 

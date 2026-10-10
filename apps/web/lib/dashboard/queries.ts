@@ -1,11 +1,13 @@
-import { prisma, type Vertical } from "@linkaffipro/db";
+import { prisma, ourPlayers, type Vertical } from "@linkaffipro/db";
 import { periodDayKeys, periodEnd, periodStart, type Period } from "@/lib/periods";
 import { aggregateByDay, type DaySeries } from "./aggregate";
 import { cachedDashboard } from "./cache";
 
-export type DashboardFilters = { period: Period; vertical: Vertical | ""; channelId: string };
+export type DashboardFilters = { period: Period; vertical: Vertical | ""; channelId: string; /** Campagne (la nôtre) : périmètre via `campaignScope` (lib/dashboard/campaign-scope.ts). */ campaignId?: string };
 
-export type Metric = { key: string; label: string; series: DaySeries; money?: boolean };
+/** Groupe d'affichage : parcours Telegram (demandes → départs) ou argent (clics pub → NGR). */
+export type MetricGroup = "telegram" | "argent";
+export type Metric = { key: string; label: string; series: DaySeries; money?: boolean; group: MetricGroup };
 
 export type ChannelRow = { channelId: string; title: string; requests: number; approved: number; joined: number; left: number; offerClicks: number; registrations: number; ftds: number; depositAmount: number };
 
@@ -25,31 +27,35 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
   const channelIds = channels.map((c) => c.id);
   const byChannel = f.channelId || f.vertical ? { channelId: { in: channelIds } } : {};
 
-  const [requested, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, ngrPlayers] = await Promise.all([
+  // « Nos » joueurs seulement (phase 8) : rattachés à un de nos clics, ou à une campagne Link Affi d'une de nos campagnes.
+  const ours = await ourPlayers();
+  const playerScope = { player: { AND: [ours, ...(f.channelId || f.vertical ? [{ click: { post: { channelId: { in: channelIds } } } }] : [])] } };
+  const [requested, approved, joined, left, entryClicks, offerClicks, registrations, ftds, deposits, ngrEvents] = await Promise.all([
     prisma.membership.findMany({ where: { requestedAt: within, ...byChannel }, select: { requestedAt: true, channelId: true } }),
     prisma.membership.findMany({ where: { approvedAt: within, ...byChannel }, select: { approvedAt: true, channelId: true } }),
     prisma.membership.findMany({ where: { joinedAt: within, ...byChannel }, select: { joinedAt: true, channelId: true } }),
     prisma.membership.findMany({ where: { leftAt: within, ...byChannel }, select: { leftAt: true, channelId: true } }),
     prisma.click.findMany({ where: { createdAt: within, isBot: false, trackingLink: { kind: "AD_ENTRY", ...(channelIds.length && (f.channelId || f.vertical) ? { channelId: { in: channelIds } } : {}) } }, select: { createdAt: true } }),
     prisma.click.findMany({ where: { createdAt: within, isBot: false, subId: { not: null }, ...(f.channelId || f.vertical ? { post: { channelId: { in: channelIds } } } : {}) }, select: { createdAt: true, post: { select: { channelId: true } } } }),
-    prisma.playerEvent.findMany({ where: { type: "REGISTRATION", occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.playerEvent.findMany({ where: { type: "FTD", occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.playerEvent.findMany({ where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: within, ...(f.channelId || f.vertical ? { player: { click: { post: { channelId: { in: channelIds } } } } } : {}) }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
-    prisma.player.findMany({ where: { lastEventAt: within, ...(f.channelId || f.vertical ? { click: { post: { channelId: { in: channelIds } } } } : {}) }, select: { ngr: true, updatedAt: true } }),
+    prisma.playerEvent.findMany({ where: { type: "REGISTRATION", occurredAt: within, ...playerScope }, select: { occurredAt: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: "FTD", occurredAt: within, ...playerScope }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    prisma.playerEvent.findMany({ where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: within, ...playerScope }, select: { occurredAt: true, amount: true, player: { select: { click: { select: { post: { select: { channelId: true } } } } } } } }),
+    // NGR daté : somme des variations (`PlayerEvent` NGR) dans la période, jamais le cumul du joueur.
+    prisma.playerEvent.findMany({ where: { type: "NGR", occurredAt: within, ...playerScope }, select: { occurredAt: true, amount: true } }),
   ]);
 
+  // Deux lignes, dans l'ordre du parcours : Telegram (demandes → départs) puis argent (clics pub → NGR).
   const metrics: Metric[] = [
-    { key: "requests", label: "Demandes", series: aggregateByDay(requested.map((m) => m.requestedAt), keys) },
-    { key: "approved", label: "Acceptés", series: aggregateByDay(approved.map((m) => m.approvedAt!), keys) },
-    { key: "joined", label: "Entrées", series: aggregateByDay(joined.map((m) => m.joinedAt!), keys) },
-    { key: "left", label: "Départs", series: aggregateByDay(left.map((m) => m.leftAt!), keys) },
-    { key: "entryClicks", label: "Clics entrée", series: aggregateByDay(entryClicks.map((c) => c.createdAt), keys) },
-    { key: "offerClicks", label: "Clics offres", series: aggregateByDay(offerClicks.map((c) => c.createdAt), keys) },
-    { key: "registrations", label: "Inscriptions", series: aggregateByDay(registrations.map((e) => e.occurredAt), keys) },
-    { key: "ftds", label: "FTD", series: aggregateByDay(ftds.map((e) => e.occurredAt), keys) },
-    { key: "deposits", label: "Dépôts (nombre)", series: aggregateByDay(deposits.map((e) => e.occurredAt), keys) },
-    { key: "depositAmount", label: "Dépôts (€)", money: true, series: aggregateByDay(deposits.map((e) => ({ at: e.occurredAt, value: Number(e.amount ?? 0) })), keys) },
-    { key: "ngr", label: "NGR (€)", money: true, series: aggregateByDay(ngrPlayers.map((p) => ({ at: p.updatedAt, value: Number(p.ngr) })), keys) },
+    { key: "requests", label: "Demandes", group: "telegram", series: aggregateByDay(requested.map((m) => m.requestedAt), keys) },
+    { key: "approved", label: "Acceptés", group: "telegram", series: aggregateByDay(approved.map((m) => m.approvedAt!), keys) },
+    { key: "joined", label: "Entrées", group: "telegram", series: aggregateByDay(joined.map((m) => m.joinedAt!), keys) },
+    { key: "left", label: "Départs", group: "telegram", series: aggregateByDay(left.map((m) => m.leftAt!), keys) },
+    { key: "entryClicks", label: "Clics pub", group: "argent", series: aggregateByDay(entryClicks.map((c) => c.createdAt), keys) },
+    { key: "offerClicks", label: "Clics offre", group: "argent", series: aggregateByDay(offerClicks.map((c) => c.createdAt), keys) },
+    { key: "registrations", label: "Inscriptions", group: "argent", series: aggregateByDay(registrations.map((e) => e.occurredAt), keys) },
+    { key: "ftds", label: "Premiers dépôts (FTD)", group: "argent", series: aggregateByDay(ftds.map((e) => e.occurredAt), keys) },
+    { key: "depositAmount", label: "Dépôts (€)", group: "argent", money: true, series: aggregateByDay(deposits.map((e) => ({ at: e.occurredAt, value: Number(e.amount ?? 0) })), keys) },
+    { key: "ngr", label: "NGR (€)", group: "argent", money: true, series: aggregateByDay(ngrEvents.map((e) => ({ at: e.occurredAt, value: Number(e.amount ?? 0) })), keys) },
   ];
 
   const rows = new Map<string, ChannelRow>(channels.map((c) => [c.id, { channelId: c.id, title: c.title, requests: 0, approved: 0, joined: 0, left: 0, offerClicks: 0, registrations: 0, ftds: 0, depositAmount: 0 }]));

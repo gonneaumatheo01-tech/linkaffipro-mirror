@@ -1,6 +1,8 @@
 import { prisma, type Prisma, type PostStatus, type Vertical } from "@linkaffipro/db";
 import { addDays, fromParisLocal } from "./time";
 import { statusLabels, statusVariant, type BadgeVariant } from "@/lib/status-badges";
+import { campaignPostWhere, type CampaignScope } from "@/lib/campaigns/attribution";
+import { campaignScope } from "@/lib/dashboard/campaign-scope";
 
 export const POSTS_PAGE_SIZE = 50;
 
@@ -12,6 +14,8 @@ export type PostListFilters = {
   to: string;
   /** Vue « Modèles » seulement : univers (CASINO, SPORTS, DATING). */
   vertical?: string;
+  /** Campagne (la nôtre) : messages de ses canaux ou portant un bouton vers une de ses offres. */
+  campaignId?: string;
 };
 
 const VERTICALS: readonly string[] = ["CASINO", "SPORTS", "DATING"];
@@ -27,11 +31,17 @@ export function templateListWhere(
   };
 }
 
-/** Clause Prisma de la liste des messages (vue « Liste ») à partir des filtres de l'URL (fonction pure). */
-export function postListWhere(f: PostListFilters): Prisma.PostWhereInput {
+/**
+ * Clause Prisma de la liste des messages (vue « Liste ») à partir des filtres de l'URL (fonction pure).
+ * `scope` = périmètre de la campagne filtrée (canaux, offres), fourni par `campaignScope` quand `f.campaignId` est posé.
+ */
+export function postListWhere(f: PostListFilters, scope?: CampaignScope | null): Prisma.PostWhereInput {
   const statuses = Object.keys(POST_STATUS_LABELS) as PostStatus[];
   return {
     isTemplate: false,
+    ...(f.campaignId
+      ? { AND: [campaignPostWhere(f.campaignId, scope ?? { channelIds: [], affiliateCampaignIds: [] }) as Prisma.PostWhereInput] }
+      : {}),
     ...(f.channelId ? { channelId: f.channelId } : {}),
     ...(f.status && statuses.includes(f.status as PostStatus)
       ? { status: f.status as PostStatus }
@@ -60,8 +70,9 @@ export async function listPosts(opts: {
   filters: PostListFilters;
   page: number;
 }): Promise<{ rows: PostListRow[]; total: number; pages: number }> {
+  const scope = opts.view === "list" && opts.filters.campaignId ? await campaignScope(opts.filters.campaignId) : null;
   const where: Prisma.PostWhereInput =
-    opts.view === "templates" ? templateListWhere(opts.filters) : postListWhere(opts.filters);
+    opts.view === "templates" ? templateListWhere(opts.filters) : postListWhere(opts.filters, scope);
   const orderBy: Prisma.PostOrderByWithRelationInput[] =
     opts.view === "templates"
       ? [{ vertical: "asc" }, { category: { sortOrder: "asc" } }, { templateName: "asc" }]

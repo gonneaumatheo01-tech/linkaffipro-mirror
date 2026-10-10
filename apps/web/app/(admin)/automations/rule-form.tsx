@@ -9,6 +9,7 @@ import {
   type AutomationConditions,
 } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
+import { AiTextarea } from "@/components/ai/ai-textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -249,12 +250,13 @@ export async function RuleForm({
                     Texte (pour « envoyer un message », « proposer un canal » ou « prévenir
                     l&apos;équipe »)
                   </Label>
-                  <textarea
+                  <AiTextarea
                     id={`a${i}_text`}
                     name={`a${i}_text`}
                     defaultValue={text(a)}
                     rows={2}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    context={{ surface: "automation" }}
                   />
                 </div>
                 <div className="space-y-1">

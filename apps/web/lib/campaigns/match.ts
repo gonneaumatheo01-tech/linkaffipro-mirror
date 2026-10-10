@@ -1,4 +1,4 @@
-/** Correspondance de noms de pubs (fonctions pures). */
+/** Correspondance de noms de campagnes pub (fonctions pures). */
 
 export function normalizeName(name: string): string {
   return name

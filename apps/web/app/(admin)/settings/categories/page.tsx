@@ -153,19 +153,27 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/setti
                   Enregistrer
                 </Button>
               </form>
-              {c._count.posts === 0 ? (
-                <form action={deleteCategoryAction} className="mt-2">
-                  <input type="hidden" name="id" value={c.id} />
-                  <ConfirmSubmit
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive max-md:h-10"
-                    message={`La catégorie « ${c.name} » sera supprimée définitivement. Continuer ?`}
-                  >
-                    Supprimer
-                  </ConfirmSubmit>
-                </form>
-              ) : null}
+              <form action={deleteCategoryAction} className="mt-2 flex flex-wrap items-center gap-2">
+                <input type="hidden" name="id" value={c.id} />
+                {c._count.posts > 0 ? (
+                  <select name="replacementId" aria-label={`Catégorie de remplacement pour ${c.name}`} className="h-9 rounded-md border bg-background px-2 text-sm max-md:h-10">
+                    <option value="">— sans catégorie —</option>
+                    {categories.filter((o) => o.id !== c.id).map((o) => (
+                      <option key={o.id} value={o.id}>
+                        fusionner dans « {o.name} »
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <ConfirmSubmit
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive max-md:h-10"
+                  message={c._count.posts > 0 ? `La catégorie « ${c.name} » sera supprimée et ses ${c._count.posts} message(s) passeront dans la catégorie choisie (ou sans catégorie). Continuer ?` : `La catégorie « ${c.name} » sera supprimée définitivement. Continuer ?`}
+                >
+                  {c._count.posts > 0 ? "Fusionner et supprimer" : "Supprimer"}
+                </ConfirmSubmit>
+              </form>
             </div>
           ))}
         </CardContent>

@@ -43,12 +43,12 @@ const ICONS = {
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Tableau de bord", icon: "BarChart3" },
+  { href: "/campaigns", label: "Campagnes", icon: "Megaphone" },
   { href: "/channels", label: "Canaux", icon: "Radio" },
   { href: "/bots", label: "Bots", icon: "Bot" },
   { href: "/members", label: "Membres", icon: "Users" },
   { href: "/messages", label: "Messages", icon: "MessageSquare" },
   { href: "/links", label: "Liens", icon: "Link2" },
-  { href: "/campaigns", label: "Pubs", icon: "Megaphone" },
   { href: "/broadcasts", label: "Envois", icon: "Send" },
   { href: "/automations", label: "Automatisations", icon: "Zap" },
   { href: "/journal", label: "Journal", icon: "ScrollText" },

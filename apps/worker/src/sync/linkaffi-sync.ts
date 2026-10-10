@@ -2,6 +2,7 @@
  * Synchronisation Link Affi → notre base (lecture seule côté Link Affi).
  * Voir docs/LINKAFFI-SYNC.md pour la correspondance, l'ordre et les curseurs.
  */
+import { ngrDeltaEvent } from "@linkaffipro/core";
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { emitAutomationEvent } from "@linkaffipro/queue";
 import {
@@ -245,6 +246,9 @@ async function handleRevshareSnapshots(ctx: SyncContext, rows: LaSnapshot[]) {
     if (!player) continue;
     if (Number(player.ngr) === m.ngr) continue;
     await ctx.db.player.update({ where: { id: player.id }, data: { ngr: m.ngr, lastEventAt: m.at ?? undefined } });
+    // NGR daté (phase 8) : chaque variation devient un événement à la date réelle de l'instantané, jamais un cumul.
+    const delta = ngrDeltaEvent(Number(player.ngr), m.ngr, m.at, new Date());
+    if (delta) await ctx.db.playerEvent.create({ data: { playerId: player.id, type: "NGR", amount: delta.amount, currency: "EUR", occurredAt: delta.occurredAt, raw: { source: "revshare_snapshots", previous: Number(player.ngr), ngr: m.ngr } } }).catch(() => undefined);
     await recordEvent({ type: "player.ngr_updated", memberId: player.memberId, payload: { playerId: player.id, ngr: m.ngr, previous: Number(player.ngr) } });
   }
 }

@@ -48,7 +48,7 @@ const db = vi.hoisted(() => {
     },
   };
 });
-vi.mock("@linkaffipro/db", () => ({ prisma: db.prisma, toJsonValue: (v: unknown) => v }));
+vi.mock("@linkaffipro/db", () => ({ prisma: db.prisma, toJsonValue: (v: unknown) => v, ourPlayers: async () => ({ OR: [{ clickId: { not: null } }] }) }));
 const failures = vi.hoisted(() => ({ counts: {} as Record<string, number> }));
 vi.mock("@linkaffipro/queue", () => ({
   getQueue: () => ({ getWaitingCount: async () => 0 }),
@@ -170,7 +170,12 @@ describe("règles métier (phase 6) dans le passage d'alertes", () => {
 
   it("chute des inscriptions : lit Player.registeredAt sur 24 h et 7 jours, seuil depuis Setting", async () => {
     // Inscriptions : 11 sur les dernières 24 h (fenêtre gte/lte), 140 sur les 7 jours précédents (fenêtre gte/lt) ; 0 ailleurs (santé du sub-ID).
-    const counts = ({ where }: { where: { registeredAt?: { gte?: Date; lt?: Date; lte?: Date } } }) => (where.registeredAt?.lt ? 140 : where.registeredAt?.lte ? 11 : 0);
+    // Depuis la phase 8, la condition est `{ AND: [nos joueurs, { registeredAt }] }`.
+    type W = { registeredAt?: { gte?: Date; lt?: Date; lte?: Date }; AND?: Array<{ registeredAt?: { gte?: Date; lt?: Date; lte?: Date } }> };
+    const counts = ({ where }: { where: W }) => {
+      const r = where.registeredAt ?? where.AND?.find((x) => x.registeredAt)?.registeredAt;
+      return r?.lt ? 140 : r?.lte ? 11 : 0;
+    };
     db.prisma.player.count.mockImplementation((async (args: Parameters<typeof counts>[0]) => counts(args)) as unknown as () => Promise<number>);
     const r1 = await runAlerts(new Date("2026-10-09T12:00:00Z"));
     expect(r1.created).toBe(0); // 11 ≥ 50 % de 20 : pas de chute

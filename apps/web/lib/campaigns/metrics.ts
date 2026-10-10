@@ -1,12 +1,19 @@
-/** Indicateurs de rentabilité d'une pub (fonctions pures). */
+/** Indicateurs de rentabilité d'une campagne (fonctions pures). */
 
 export type CampaignTotals = {
   spend: number;
   members: number;
   registrations: number;
   ftds: number;
+  /** Revenu net (NGR) des joueurs rattachés. */
   revenue: number;
+  /** Clics sur les liens goolink d'entrée (pubs), hors robots. */
   entryClicks?: number;
+  /** Clics « offre » depuis le bot (avec sub-ID). */
+  offerClicks?: number;
+  /** Dépôts (nombre) et montant déposé (€) sur la période. */
+  deposits?: number;
+  depositAmount?: number;
 };
 
 export type CampaignMetrics = CampaignTotals & {

@@ -1,4 +1,4 @@
-import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import type { Chat, User } from "grammy/types";
 import type { AdminRights, BotIdentity, TelegramDeps } from "./ports";
 import { ensureDefaultSequences } from "./sequences/ensure";
@@ -93,7 +93,7 @@ export const prismaTelegramDeps: TelegramDeps = {
         console.warn("[telegram] séquences par défaut impossibles pour", channel.id, (err as Error).message);
       }
     }
-    return { channelId: channel.id };
+    return { channelId: channel.id, created: !known };
   },
 
   async setChannelAdmin(channelId, botTelegramId, rights: AdminRights) {
@@ -110,11 +110,12 @@ export const prismaTelegramDeps: TelegramDeps = {
   async revokeChannelAdmin(channelId, botTelegramId) {
     const bot = await prisma.bot.findUnique({ where: { telegramBotId: botTelegramId }, select: { id: true } });
     if (!bot) return;
-    await prisma.channelBotAdmin.updateMany({
+    const { count } = await prisma.channelBotAdmin.updateMany({
       where: { channelId, botId: bot.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    await recordEvent({ type: "channel.bot_admin_revoked", channelId, botId: bot.id });
+    // Rien à retirer (le bot n'était pas administrateur) : pas d'événement.
+    if (count > 0) await recordEvent({ type: "channel.bot_admin_revoked", channelId, botId: bot.id });
   },
 
   async listOurBotTelegramIds() {
@@ -133,6 +134,30 @@ export const prismaTelegramDeps: TelegramDeps = {
       data: { userId: user.id, action: "user.telegram_linked", entityType: "User", entityId: user.id },
     });
     return { name: user.name };
+  },
+
+  async isPlatformUser(telegramUserId) {
+    const user = await prisma.user.findFirst({ where: { telegramUserId, isActive: true }, select: { id: true } });
+    if (user) return true;
+    const setting = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
+    return !!setting && typeof setting.value === "string" && setting.value === telegramUserId.toString();
+  },
+
+  async auditChannel({ action, channelId, telegramUserId, metadata }) {
+    const user = await prisma.user.findFirst({ where: { telegramUserId }, select: { id: true } });
+    await audit({
+      userId: user?.id ?? null,
+      action,
+      entityType: "Channel",
+      entityId: channelId,
+      metadata: { ...(metadata ?? {}), telegramUserId: telegramUserId.toString() },
+    });
+  },
+
+  async recheckChannelRights(channelId) {
+    const { recheckChannelRights } = await import("./service");
+    const r = await recheckChannelRights(channelId, { audit: false });
+    return r.admins.map((a) => ({ telegramBotId: a.telegramBotId, username: a.username }));
   },
 };
 

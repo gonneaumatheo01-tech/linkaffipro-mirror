@@ -26,6 +26,7 @@ import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
 import { statusLabels } from "@/lib/status-badges";
 import { filtersToQuery, listMembers, parseMemberFilters } from "@/lib/members/query";
 import { colorOf, getTagRegistry, tagColorClass } from "@/lib/members/tags";
+import { listCampaignOptions } from "@/lib/campaigns/queries";
 
 export const metadata: Metadata = { title: "Membres" };
 
@@ -41,7 +42,7 @@ export function LevelBadge({ level }: { level: keyof typeof SPEND_LEVEL_LABELS }
 export default async function MembersPage({ searchParams }: PageProps<"/members">) {
   const sp = await searchParams;
   const f = parseMemberFilters(sp);
-  const [{ rows, total, pages }, channels, links, tagRegistry] = await Promise.all([
+  const [{ rows, total, pages }, channels, links, tagRegistry, campaigns] = await Promise.all([
     listMembers(f),
     prisma.channel.findMany({
       where: { isActive: true },
@@ -55,12 +56,14 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
       select: { id: true, name: true },
     }),
     getTagRegistry(),
+    listCampaignOptions(),
   ]);
   const hasFilters = Boolean(
     f.q ||
       f.channelId ||
       f.status ||
       f.inviteLinkId ||
+      f.campaignId ||
       f.level ||
       f.language ||
       f.tag ||
@@ -148,6 +151,25 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
               </select>
             </div>
             <div>
+              <Label htmlFor="members-campaign" className="sr-only">
+                Campagne
+              </Label>
+              <select
+                id="members-campaign"
+                name="campaignId"
+                defaultValue={f.campaignId}
+                className={selectCls}
+                title="Membres arrivés par un lien d'entrée de la campagne"
+              >
+                <option value="">Toute campagne</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <Label htmlFor="members-source" className="sr-only">
                 Pub d&apos;origine
               </Label>
@@ -157,7 +179,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
                 defaultValue={f.inviteLinkId}
                 className={selectCls}
               >
-                <option value="">Toute pub d&apos;origine</option>
+                <option value="">Tout lien d&apos;entrée</option>
                 {links.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}

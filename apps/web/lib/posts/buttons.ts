@@ -6,14 +6,17 @@ export type PostButton = {
   url?: string;
   trackingLinkId?: string;
   slug?: string;
+  /** Lien Link Affi (campagne d'affiliation) utilisé par le bouton Offre. */
   affiliateCampaignId?: string;
+  /** Notre campagne (page Campagnes) choisie pour ce bouton Offre ; absent sur les boutons créés avant la phase 8. */
+  campaignId?: string;
 };
 export type PostButtonRow = PostButton[];
 
 export const BUTTON_TYPE_LABELS: Record<PostButtonType, string> = {
   URL: "Lien direct",
   BUTTON: "Lien traqué",
-  OFFER: "Offre (sub-ID)",
+  OFFER: "Offre (campagne)",
 };
 
 export function parseButtons(value: unknown): PostButtonRow[] {

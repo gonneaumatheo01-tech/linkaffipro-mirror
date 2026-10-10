@@ -300,7 +300,7 @@ export function ImportWizard() {
             <CardHeader>
               <CardTitle className="text-base">3. Correspondances et import</CardTitle>
               <CardDescription>
-                Les noms du fichier sont comparés aux pubs existantes (majuscules ignorées). Ce qui
+                Les noms du fichier sont comparés aux campagnes pub existantes (majuscules ignorées). Ce qui
                 n&apos;existe pas encore sera créé. Les colonnes choisies seront mémorisées pour le
                 prochain import {PLATFORM_NAMES[p.platform]}.
               </CardDescription>

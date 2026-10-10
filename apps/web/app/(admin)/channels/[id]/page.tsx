@@ -24,7 +24,7 @@ import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
-import { approveMembershipAction, declineMembershipAction, saveRuleAction } from "./actions";
+import { approveMembershipAction, declineMembershipAction, recheckRightsAction, saveRuleAction } from "./actions";
 import { SequencesTab } from "./sequences/sequences-tab";
 import { BestHoursTab } from "./best-hours-tab";
 
@@ -116,6 +116,19 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
         description={`${statusLabel("chatType", channel.type)}${channel.vertical ? ` · ${VERTICAL_LABELS[channel.vertical]}` : ""} · langue ${channel.language}${channel.isTest ? " · canal de test" : ""} · bot principal ${channel.primaryBot ? `@${channel.primaryBot.username}` : "aucun"} · bots administrateurs : ${channel.botAdmins.length ? channel.botAdmins.map((a) => `@${a.bot.username}`).join(", ") : "aucun"}`}
         help={TAB_HELP[tab]}
       >
+        <form action={recheckRightsAction}>
+          <input type="hidden" name="channelId" value={channel.id} />
+          <input type="hidden" name="tab" value={tab} />
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            className="max-md:h-10"
+            title="Relit les administrateurs du canal avec chacun de nos bots et met la liste à jour"
+          >
+            Re-vérifier les droits des bots
+          </Button>
+        </form>
         <Button
           variant="outline"
           size="sm"
@@ -148,7 +161,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
           <CardContent className="pt-6 text-sm">
             Aucun de nos bots n&apos;est administrateur de ce canal : les demandes d&apos;adhésion
             ne peuvent pas être traitées. Dans Telegram, ajoutez un bot comme administrateur avec le
-            droit « Ajouter des membres ».
+            droit « Ajouter des membres », puis cliquez « Re-vérifier les droits des bots ».
           </CardContent>
         </Card>
       ) : null}

@@ -11,6 +11,11 @@ export const SETTINGS_PAGES: Array<{ href: string; label: string; description: s
     description: "Link Affi, comptes publicitaires Meta et TikTok, compte Telegram pour les vues.",
   },
   {
+    href: "/settings/ai",
+    label: "IA",
+    description: "Assistant d'écriture des messages : clé Anthropic, modèles, plafond.",
+  },
+  {
     href: "/settings/categories",
     label: "Catégories de messages",
     description: "Bonus, preuve de gains, teasing… pour comparer les messages.",

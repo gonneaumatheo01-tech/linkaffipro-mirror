@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpTip } from "@/components/admin/help-tip";
+import { OfferPicker } from "@/components/campaigns/offer-picker";
 import { TelegramPreview } from "./telegram-preview";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
 import {
@@ -363,19 +364,12 @@ function ButtonsEditor({
                 ))}
               </select>
               {b.type === "OFFER" ? (
-                <select
-                  className={inputCls}
-                  aria-label={`${prefix}Campagne Link Affi`}
-                  value={b.affiliateCampaignId ?? ""}
-                  onChange={(e) => setButton(r, c, { affiliateCampaignId: e.target.value })}
-                >
-                  <option value="">— campagne Link Affi —</option>
-                  {campaigns.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.programName} · {k.name}
-                    </option>
-                  ))}
-                </select>
+                <OfferPicker
+                  value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                  onChange={(patch) => setButton(r, c, patch)}
+                  affiliateCampaigns={campaigns}
+                  label={`${prefix}Campagne du bouton Offre`}
+                />
               ) : (
                 <Input
                   value={b.url ?? ""}

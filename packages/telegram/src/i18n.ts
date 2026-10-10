@@ -13,6 +13,7 @@ export const MESSAGES = {
     welcome: "Bonjour, je suis {botName}, le bot {vertical}.",
     adminLinked: "Votre compte Telegram est maintenant lié à LinkAffi Pro, {name}.",
     adminLinkInvalid: "Ce lien de connexion est invalide ou a expiré.",
+    forwardUnknownUser: "Je ne reconnais pas votre compte.",
     // Flux d'adhésion
     joinRequestGate:
       "Salut {prenom} ! Pour rejoindre <b>{canal}</b>, rejoins d'abord nos canaux partenaires ci-dessous, puis appuie sur ✅ J'ai rejoint. Ton accès est validé {delai}.",
@@ -51,6 +52,7 @@ export const MESSAGES = {
     welcome: "Hello, I am {botName}, the {vertical} bot.",
     adminLinked: "Your Telegram account is now linked to LinkAffi Pro, {name}.",
     adminLinkInvalid: "This login link is invalid or has expired.",
+    forwardUnknownUser: "I don't recognize your account.",
     joinRequestGate:
       "Hi {prenom}! To join <b>{canal}</b>, first join our partner channels below, then tap ✅ I joined. Your access is confirmed {delai}.",
     joinRequestSoft:
@@ -84,6 +86,7 @@ export const MESSAGES = {
     welcome: "Hola, soy {botName}, el bot de {vertical}.",
     adminLinked: "Tu cuenta de Telegram ya está vinculada a LinkAffi Pro, {name}.",
     adminLinkInvalid: "Este enlace de conexión no es válido o ha caducado.",
+    forwardUnknownUser: "No reconozco tu cuenta.",
     joinRequestGate:
       "¡Hola {prenom}! Para unirte a <b>{canal}</b>, únete primero a nuestros canales asociados aquí abajo y luego pulsa ✅ Ya me uní. Tu acceso se confirma {delai}.",
     joinRequestSoft:
@@ -118,6 +121,7 @@ export const MESSAGES = {
     welcome: "Olá, eu sou {botName}, o bot de {vertical}.",
     adminLinked: "A tua conta Telegram está agora ligada ao LinkAffi Pro, {name}.",
     adminLinkInvalid: "Este link de ligação é inválido ou expirou.",
+    forwardUnknownUser: "Não reconheço a sua conta.",
     joinRequestGate:
       "Olá {prenom}! Para entrar em <b>{canal}</b>, entra primeiro nos nossos canais parceiros abaixo e depois toca em ✅ Já entrei. O teu acesso é confirmado {delai}.",
     joinRequestSoft:
@@ -152,6 +156,7 @@ export const MESSAGES = {
     welcome: "Hallo, ich bin {botName}, der {vertical}-Bot.",
     adminLinked: "Dein Telegram-Konto ist jetzt mit LinkAffi Pro verknüpft, {name}.",
     adminLinkInvalid: "Dieser Anmeldelink ist ungültig oder abgelaufen.",
+    forwardUnknownUser: "Ich erkenne dein Konto nicht.",
     joinRequestGate:
       "Hallo {prenom}! Um <b>{canal}</b> beizutreten, tritt zuerst unseren Partnerkanälen unten bei und tippe dann auf ✅ Beigetreten. Dein Zugang wird {delai} bestätigt.",
     joinRequestSoft:
@@ -187,6 +192,7 @@ export const MESSAGES = {
     welcome: "Ciao, sono {botName}, il bot {vertical}.",
     adminLinked: "Il tuo account Telegram è ora collegato a LinkAffi Pro, {name}.",
     adminLinkInvalid: "Questo link di accesso non è valido o è scaduto.",
+    forwardUnknownUser: "Non riconosco il tuo account.",
     joinRequestGate:
       "Ciao {prenom}! Per entrare in <b>{canal}</b>, unisciti prima ai nostri canali partner qui sotto, poi tocca ✅ Mi sono unito. Il tuo accesso è confermato {delai}.",
     joinRequestSoft:

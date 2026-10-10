@@ -1,4 +1,4 @@
-import { prisma, type Prisma } from "@linkaffipro/db";
+import { prisma, ourPlayers, type Prisma } from "@linkaffipro/db";
 import { logger } from "../logger";
 import { aggregateDaily, dayKey, dayKeysBetween, parisMidnightUtc, type StatEvent } from "./aggregate";
 
@@ -125,8 +125,10 @@ async function loadEvents(start: Date): Promise<StatEvent[]> {
   }
 
   // Joueurs : inscriptions, FTD, dépôts, NGR (rattachés au membre → pub / canal du clic).
+  // « Nos » joueurs seulement (phase 8) : un clic à nous, ou une campagne Link Affi rattachée à une de nos campagnes.
+  const ours = await ourPlayers();
   const players = await prisma.player.findMany({
-    where: { OR: [{ registeredAt: { gte: start } }, { ftdAt: { gte: start } }, { events: { some: { occurredAt: { gte: start } } } }] },
+    where: { AND: [ours, { OR: [{ registeredAt: { gte: start } }, { ftdAt: { gte: start } }, { events: { some: { occurredAt: { gte: start } } } }] }] },
     select: { id: true, memberId: true, registeredAt: true, ftdAt: true, click: { select: { post: { select: { channelId: true } } } }, events: { where: { occurredAt: { gte: start } }, select: { type: true, amount: true, occurredAt: true } } },
   });
   for (const p of players) {

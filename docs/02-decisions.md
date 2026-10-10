@@ -37,6 +37,7 @@ ordinateur et associé à venir · Q24 lancement dans 3-4 jours, pas de budget m
 
 ## Décisions du 10 octobre (retours après première utilisation)
 
+- IA manager écartée ; assistant IA d'écriture des messages ajouté le 10 octobre 2026 à la demande du client (clé Anthropic saisie par l'ADMIN dans Réglages → IA ; modèle rapide Claude Haiku 5.5 par défaut, Claude Sonnet 5.5 en « qualité supérieure » ; plafond mensuel 20 € et 50 suggestions par personne et par jour par défaut).
 - IA : l'IA « manager » complète reste écartée ; **un assistant IA d'écriture des messages est demandé** (améliorer un brouillon selon l'univers casino, paris sportifs ou dating ; clé API saisie par l'admin dans Réglages → IA). Voir `docs/prompts/10-phase-8-corrections-et-ia-messages.md`.
 - Catégories de messages : créées par le client lui-même ; aucune catégorie créée d'office.
 - Statistiques : seules nos données comptent (joueurs rattachés à nos clics par sub-ID, ou campagnes Link Affi rattachées à nos campagnes), aux dates réelles des événements. Les totaux Link Affi globaux n'apparaissent jamais dans les statistiques.

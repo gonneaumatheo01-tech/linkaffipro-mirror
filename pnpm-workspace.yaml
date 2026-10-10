@@ -16,3 +16,4 @@ minimumReleaseAgeExclude:
   - bullmq@6.3.12
 
 # Paquets autorisés à exécuter leurs scripts d'installation (Prisma, esbuild…)
+  - '@anthropic-ai/sdk@0.133.0'

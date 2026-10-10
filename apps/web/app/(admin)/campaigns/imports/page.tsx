@@ -47,7 +47,7 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
         help="Si un import a des erreurs, dépliez-les pour voir les lignes en cause, corrigez le fichier et réimportez-le."
       >
         <Button variant="outline" className="max-md:h-10" render={<Link href="/campaigns" />}>
-          ← Pubs
+          ← Campagnes
         </Button>
         <Button className="max-md:h-10" render={<Link href="/campaigns/import" />}>
           Importer un CSV
@@ -69,7 +69,7 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
           <CardContent className="space-y-3 text-sm">
             {reasons.size === 0 ? (
               <p className="text-muted-foreground">
-                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Pubs et
+                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Campagnes et
                 dans le tableau de bord (onglet Pubs) dans la minute.
               </p>
             ) : (
@@ -108,7 +108,7 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
           {batches.length === 0 ? (
             <EmptyState
               title="Aucun import pour l'instant."
-              description="Importez un rapport de coûts TikTok ou Meta pour calculer la rentabilité de vos pubs."
+              description="Importez un rapport de coûts TikTok ou Meta pour calculer la rentabilité de vos campagnes."
               action={{ href: "/campaigns/import", label: "Importer un CSV" }}
             />
           ) : (

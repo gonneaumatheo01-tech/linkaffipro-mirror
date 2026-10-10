@@ -64,5 +64,6 @@
       "Bash(rm -rf ~*)",
       "Bash(rm -rf $HOME*)"
     ]
-  }
+  },
+  "model": "claude-opus-5-5"
 }

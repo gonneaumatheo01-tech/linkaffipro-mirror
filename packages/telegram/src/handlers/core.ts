@@ -1,7 +1,9 @@
 import type { Bot, Context } from "grammy";
-import type { Chat, ChatMember, Update } from "grammy/types";
+import type { Update } from "grammy/types";
 import { pickLang, t } from "../i18n";
 import { extractAdminRights, type BotIdentity, type TelegramDeps } from "../ports";
+import { ensureChannelKnown, isAdminStatus, isGroupLike, knownChannelFor, rememberKnownChannel } from "./channels";
+import { registerForwardHandlers } from "./forward";
 
 const UPDATE_TYPES = [
   "message",
@@ -17,18 +19,20 @@ const UPDATE_TYPES = [
   "inline_query",
 ] as const;
 
+/**
+ * Faut-il relever les droits de nos bots même sur un canal déjà connu ? Oui sur une publication du canal,
+ * et quand le bot lui-même vient d'être nommé administrateur (inutile quand il vient d'être retiré : l'appel échouerait).
+ */
+function shouldRefreshRights(type: string, update: Update): boolean {
+  if (type === "channel_post" || type === "edited_channel_post") return true;
+  if (type === "my_chat_member" && update.my_chat_member) return isAdminStatus(update.my_chat_member.new_chat_member);
+  return false;
+}
+
 export function updateTypeOf(update: Update): string {
   for (const k of UPDATE_TYPES) if (k in update) return k;
   const other = Object.keys(update).find((k) => k !== "update_id");
   return other ?? "unknown";
-}
-
-function isGroupLike(chat: Chat): boolean {
-  return chat.type === "channel" || chat.type === "supergroup" || chat.type === "group";
-}
-
-function isAdminStatus(m: ChatMember): m is Extract<ChatMember, { status: "administrator" | "creator" }> {
-  return m.status === "administrator" || m.status === "creator";
 }
 
 /**
@@ -41,15 +45,18 @@ export function registerCoreHandlers(
   deps: TelegramDeps,
   hooks: { beforeStart?: (bot: Bot) => void } = {},
 ): void {
-  // Journalisation de toute update reçue (append-only).
+  // Journalisation de toute update reçue (append-only) et connaissance du canal :
+  // toute mise à jour venant d'un canal inconnu (channel_post, chat_join_request, chat_member, réactions, my_chat_member…)
+  // crée le canal et relève les droits de nos bots.
   bot.use(async (ctx, next) => {
     const type = updateTypeOf(ctx.update);
     const refs: { memberId?: string; channelId?: string } = {};
     try {
       const chat = ctx.chat;
       if (chat && isGroupLike(chat)) {
-        const { channelId } = await deps.upsertChannel(chat);
-        refs.channelId = channelId;
+        const known = await ensureChannelKnown(ctx, deps, chat, { refreshRights: shouldRefreshRights(type, ctx.update) });
+        rememberKnownChannel(ctx.update, known);
+        refs.channelId = known.channelId;
       }
       if (ctx.from && !ctx.from.is_bot) {
         const { memberId } = await deps.memberSeen(identity, ctx.from);
@@ -61,6 +68,9 @@ export function registerCoreHandlers(
     await deps.recordUpdate(identity, type, ctx.update, refs);
     await next();
   });
+
+  // Transfert d'un message de canal au bot (ajout d'un canal existant) : avant tout `/start`.
+  registerForwardHandlers(bot, identity, deps);
 
   // Handlers spécialisés (adhésion, offres, réactions) : ils doivent passer avant le /start générique.
   hooks.beforeStart?.(bot);
@@ -97,31 +107,14 @@ export function registerCoreHandlers(
     }
     if (!isGroupLike(chat)) return;
 
-    const { channelId } = await deps.upsertChannel(chat);
+    // Le middleware a déjà créé le canal et tenté le relevé complet des droits ; ici on applique le statut du bot lui-même,
+    // qui fait foi (le relevé échoue justement quand le bot vient d'être retiré ou n'est pas administrateur).
+    const known = knownChannelFor(ctx.update);
+    const channelId = known?.channelId ?? (await deps.upsertChannel(chat)).channelId;
     if (isAdminStatus(newMember)) {
-      await deps.setChannelAdmin(channelId, identity.telegramBotId, extractAdminRights(newMember));
+      if (!known?.rights?.ok) await deps.setChannelAdmin(channelId, identity.telegramBotId, extractAdminRights(newMember));
     } else {
       await deps.revokeChannelAdmin(channelId, identity.telegramBotId);
-    }
-  });
-
-  // Un message est publié dans un canal : on s'assure de connaître le canal et ses administrateurs.
-  bot.on(["channel_post", "edited_channel_post"], async (ctx) => {
-    const chat = ctx.chat;
-    if (!chat || !isGroupLike(chat)) return;
-    const { channelId } = await deps.upsertChannel(chat);
-    try {
-      const admins = await ctx.api.getChatAdministrators(chat.id);
-      const ours = new Set((await deps.listOurBotTelegramIds()).map(String));
-      for (const admin of admins) {
-        if (!admin.user.is_bot || !ours.has(String(admin.user.id))) continue;
-        if (isAdminStatus(admin)) {
-          await deps.setChannelAdmin(channelId, BigInt(admin.user.id), extractAdminRights(admin));
-        }
-      }
-    } catch (err) {
-      // Sans droit d'administrateur, getChatAdministrators échoue : ce n'est pas une erreur bloquante.
-      console.warn("[telegram] getChatAdministrators impossible pour", chat.id, (err as Error).message);
     }
   });
 

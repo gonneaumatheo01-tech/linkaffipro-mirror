@@ -14,10 +14,13 @@ const SOURCE: Record<string, string> = { CSV: "CSV", API: "API", MANUAL: "manuel
 
 const METRICS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
   { key: "spend", label: "Dépense (€)", money: true },
-  { key: "entryClicks", label: "Clics d'entrée" },
+  { key: "entryClicks", label: "Clics pub" },
   { key: "members", label: "Membres" },
+  { key: "offerClicks", label: "Clics offre" },
   { key: "registrations", label: "Inscrits" },
   { key: "ftds", label: "FTD" },
+  { key: "deposits", label: "Dépôts (nombre)" },
+  { key: "depositAmount", label: "Dépôts (€)", money: true },
   { key: "cpl", label: "CPL (€)", money: true },
   { key: "cpa", label: "CPA (€)", money: true },
   { key: "costPerFtd", label: "Coût par FTD (€)", money: true },
@@ -27,10 +30,10 @@ const METRICS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
 ];
 
 /**
- * Export CSV des pubs sur la période (`range`, `from`, `to`).
- * - par défaut : une ligne par pub avec dépense, clics, membres, inscrits, FTD, CPL, CPA, coût par FTD, revenu, ROAS ;
+ * Export CSV des campagnes sur la période (`range`, `from`, `to`).
+ * - par défaut : une ligne par campagne avec dépense, clics, membres, clics offre, inscrits, FTD, dépôts, CPL, CPA, coût par FTD, NGR, ROAS, bénéfice ;
  *   avec `compare=1`, chaque indicateur est suivi de la période précédente et de la variation en % ;
- * - `kind=costs` : coûts par jour (toutes les pubs, ou `campaignId=…`).
+ * - `kind=costs` : coûts par jour (toutes les campagnes, ou `campaignId=…`).
  */
 export async function GET(req: Request) {
   await requireUser();
@@ -50,7 +53,7 @@ export async function GET(req: Request) {
       include: { campaign: { select: { name: true } }, adSet: { select: { name: true, campaign: { select: { name: true } } } }, ad: { select: { name: true, adSet: { select: { name: true, campaign: { select: { name: true } } } } } } },
     });
     const csv = toCsv(
-      ["Jour", "Pub (campagne)", "Groupe", "Pub précise", "Dépense", "Devise", "Impressions", "Clics (plateforme)", "Source"],
+      ["Jour", "Campagne", "Groupe", "Pub précise", "Dépense", "Devise", "Impressions", "Clics (plateforme)", "Source"],
       costs.map((c) => [
         csvDay(c.date),
         c.ad?.adSet.campaign.name ?? c.adSet?.campaign.name ?? c.campaign?.name ?? "",
@@ -67,7 +70,7 @@ export async function GET(req: Request) {
   }
 
   const rows = await listCampaignsUncached(period, compare);
-  const head = ["Pub", "Plateforme", "Statut", "Univers", "Canaux", "Liens d'entrée", "Période"];
+  const head = ["Campagne", "Plateforme", "Statut", "Univers", "Canaux", "Liens d'entrée", "Offres", "Importée", "Période"];
   for (const m of METRICS) {
     head.push(m.label);
     if (compare) head.push(`${m.label} – période précédente`, `${m.label} – variation (%)`);
@@ -83,6 +86,8 @@ export async function GET(req: Request) {
         r.vertical ? VERTICAL_LABELS[r.vertical as Vertical] : "",
         r.channels.join(", "),
         r.links,
+        r.offers,
+        r.importedFrom ? (PLATFORM[r.importedFrom] ?? r.importedFrom) : "",
         compare ? `${periodLabel(period)} vs ${prevLabel}` : periodLabel(period),
       ];
       for (const m of METRICS) {
@@ -98,5 +103,5 @@ export async function GET(req: Request) {
       return out;
     }),
   );
-  return new Response(csv, { headers: headers(compare ? "pubs-comparaison" : "pubs") });
+  return new Response(csv, { headers: headers(compare ? "campagnes-comparaison" : "campagnes") });
 }

@@ -6,7 +6,9 @@ import { z } from "zod";
 import { prisma, audit } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
+import { recheckChannelRights } from "@linkaffipro/telegram";
 import { approveNow, declineNow } from "@/lib/approval/telegram";
+import { rightsMessage } from "@/lib/channels/rights-message";
 
 function back(channelId: string, tab: string, params: Record<string, string>): never {
   redirect(`/channels/${channelId}?${new URLSearchParams({ tab, ...params }).toString()}`);
@@ -200,4 +202,22 @@ export async function recomputeBestHoursAction(formData: FormData): Promise<void
   back(channelId, "besthours", {
     ok: "Recalcul lancé : rechargez cette page dans une minute pour voir la carte à jour.",
   });
+}
+
+/** Re-vérifie les droits de nos bots sur ce canal (bouton de la fiche). Audit `channel.rights_rechecked`. */
+export async function recheckRightsAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const channelId = String(formData.get("channelId") ?? "");
+  const tab = String(formData.get("tab") ?? "rules");
+  if (!channelId) redirect("/channels");
+  let message = "";
+  try {
+    message = rightsMessage(await recheckChannelRights(channelId, { userId: user.id }));
+  } catch (err) {
+    if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+    back(channelId, tab, { error: `Vérification impossible : ${err instanceof Error ? err.message : "erreur inconnue"}` });
+  }
+  revalidatePath(`/channels/${channelId}`);
+  revalidatePath("/channels");
+  back(channelId, tab, { ok: message });
 }

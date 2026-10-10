@@ -49,6 +49,7 @@ function makeDeps(): TelegramDeps & { calls: Record<string, unknown[][]> } {
     revokeChannelAdmin: rec("revokeChannelAdmin", undefined),
     listOurBotTelegramIds: rec("listOurBotTelegramIds", [111n, 222n]),
     linkAdminAccount: vi.fn(async (token: string) => (token === "good" ? { name: "Mathéo" } : null)),
+    isPlatformUser: rec("isPlatformUser", false),
   };
 }
 

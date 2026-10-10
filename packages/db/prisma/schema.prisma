@@ -256,6 +256,7 @@ model User {
   importBatches        ImportBatch[]
   broadcasts           Broadcast[]
   adAccountConnections AdAccountConnection[]
+  aiSuggestions        AiSuggestion[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -1342,4 +1343,32 @@ model PostViewSample {
   forwards Int      @default(0)
 
   @@index([postId, at])
+}
+
+// ============================================================
+// Phase 8 : assistant IA d'écriture des messages
+// ============================================================
+
+/// Suggestion produite par l'assistant IA d'écriture (phase 8) : brouillon d'entrée, 3 versions proposées, jetons et coût estimé.
+/// `kind` : improve | idea | shorter | punchier | angle | translate | ab_variant. `context` : univers, catégorie, langue,
+/// objectif, ton, longueur, média, surface (post | bot_text | broadcast | template | automation). `usedIndex` : version retenue.
+model AiSuggestion {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  kind         String
+  context      Json     @default("{}")
+  input        String
+  /// Versions proposées (JSON : `{ text, why }[]`, ou pour `translate` une entrée par langue).
+  outputs      Json     @default("[]")
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  cachedTokens Int      @default(0)
+  costEur      Decimal  @default(0) @db.Decimal(10, 4)
+  usedIndex    Int?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

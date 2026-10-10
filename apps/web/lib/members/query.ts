@@ -1,5 +1,7 @@
 import { prisma, type Prisma } from "@linkaffipro/db";
 import { aggregatePlayers, computeSpendLevel, parseSpendThresholds, SPEND_LEVELS, type SpendLevel, type SpendThresholds } from "@linkaffipro/core";
+import { campaignMemberWhere, type CampaignScope } from "@/lib/campaigns/attribution";
+import { campaignScope } from "@/lib/dashboard/campaign-scope";
 
 export const PAGE_SIZE = 50;
 
@@ -8,6 +10,8 @@ export type MemberFilters = {
   channelId: string;
   status: string;
   inviteLinkId: string;
+  /** Campagne (la nôtre) : membres arrivés par un de ses liens d'entrée. */
+  campaignId: string;
   level: SpendLevel | "";
   language: string;
   /** Étiquette (nom exact du registre ou posée par une automatisation). */
@@ -29,6 +33,7 @@ export function parseMemberFilters(sp: SP): MemberFilters {
     channelId: one(sp.channelId),
     status: one(sp.status),
     inviteLinkId: one(sp.inviteLinkId),
+    campaignId: one(sp.campaignId),
     level: (SPEND_LEVELS as readonly string[]).includes(level) ? (level as SpendLevel) : "",
     language: one(sp.language).trim().toLowerCase(),
     tag: one(sp.tag).trim(),
@@ -50,9 +55,11 @@ export function filtersToQuery(f: MemberFilters, overrides: Partial<MemberFilter
   return s ? `?${s}` : "";
 }
 
-function buildWhere(f: MemberFilters): Prisma.MemberWhereInput {
+/** Clause Prisma des filtres (fonction pure) ; `scope` = périmètre de la campagne filtrée, s'il y en a une. */
+export function buildWhere(f: MemberFilters, scope?: CampaignScope | null): Prisma.MemberWhereInput {
   const where: Prisma.MemberWhereInput = {};
   const and: Prisma.MemberWhereInput[] = [];
+  if (f.campaignId) and.push(campaignMemberWhere(scope ?? { inviteLinkIds: [] }) as Prisma.MemberWhereInput);
   if (f.q) {
     const asId = /^\d{5,}$/.test(f.q) ? BigInt(f.q) : null;
     and.push({
@@ -152,8 +159,8 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
 
 /** Liste paginée. Le filtre « niveau » est appliqué après calcul (dérivé), sur la page courante élargie. */
 export async function listMembers(f: MemberFilters, opts: { all?: boolean } = {}): Promise<{ rows: MemberRow[]; total: number; pages: number }> {
-  const thresholds = await getSpendThresholds();
-  const where = buildWhere(f);
+  const [thresholds, scope] = await Promise.all([getSpendThresholds(), f.campaignId ? campaignScope(f.campaignId) : null]);
+  const where = buildWhere(f, scope);
   const orderBy: Prisma.MemberOrderByWithRelationInput =
     f.sort === "name" ? { firstName: "asc" } : f.sort === "firstSeen" ? { firstSeenAt: "desc" } : { lastSeenAt: "desc" };
   const total = await prisma.member.count({ where });

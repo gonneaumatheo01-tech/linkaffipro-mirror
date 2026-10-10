@@ -5,7 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
@@ -14,7 +16,8 @@
     "db:seed": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed.ts",
     "seed:templates": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed-templates.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:phase8": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase8-data.ts"
   },
   "dependencies": {
     "@linkaffipro/core": "workspace:*",

@@ -21,6 +21,7 @@ import {
 import { fmtDate, fmtNum } from "@/lib/format";
 import { StatusBadge, statusLabels } from "@/lib/status-badges";
 import { listBroadcasts, progressOf } from "@/lib/broadcasts/queries";
+import { listCampaignOptions } from "@/lib/campaigns/queries";
 
 export const metadata: Metadata = { title: "Envois" };
 
@@ -29,7 +30,11 @@ const STATUS_OPTIONS = statusLabels("broadcast");
 export default async function BroadcastsPage({ searchParams }: PageProps<"/broadcasts">) {
   const sp = await searchParams;
   const status = typeof sp.status === "string" && sp.status in STATUS_OPTIONS ? sp.status : "";
-  const { rows, total, pages, page } = await listBroadcasts(pageOf(sp), status || undefined);
+  const campaignId = typeof sp.campaignId === "string" ? sp.campaignId : "";
+  const [{ rows, total, pages, page }, campaigns] = await Promise.all([
+    listBroadcasts(pageOf(sp), status || undefined, campaignId || undefined),
+    listCampaignOptions(),
+  ]);
   return (
     <>
       <PageHeader
@@ -40,7 +45,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
         <Button
           variant="outline"
           className="max-md:h-10"
-          render={<a href={`/broadcasts/export${status ? `?status=${status}` : ""}`} />}
+          render={<a href={`/broadcasts/export${status ? `?status=${status}` : ""}${campaignId ? `${status ? "&" : "?"}campaignId=${campaignId}` : ""}`} />}
         >
           Exporter CSV
         </Button>
@@ -70,6 +75,25 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
                 ))}
               </select>
             </div>
+            <div>
+              <Label htmlFor="broadcasts-campaign" className="sr-only">
+                Campagne
+              </Label>
+              <select
+                id="broadcasts-campaign"
+                name="campaignId"
+                defaultValue={campaignId}
+                title="Envois dont le segment vise la campagne ou un de ses canaux"
+                className="h-10 rounded-md border bg-background px-2 text-sm md:h-9"
+              >
+                <option value="">Toutes les campagnes</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button type="submit" size="sm" className="max-md:h-10">
               Filtrer
             </Button>
@@ -82,9 +106,9 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
       <Card>
         <CardContent className="pt-6">
           {total === 0 ? (
-            status ? (
+            status || campaignId ? (
               <EmptyState
-                title="Aucun envoi avec ce statut."
+                title={campaignId ? "Aucun envoi lié à cette campagne." : "Aucun envoi avec ce statut."}
                 action={{ href: "/broadcasts", label: "Voir tous les envois", variant: "outline" }}
               />
             ) : (

@@ -17,6 +17,9 @@ export type CampaignFormValues = {
   vertical?: string | null;
   status?: string;
   budgetDaily?: number | null;
+  /** Dates au format AAAA-MM-JJ (facultatives). */
+  startAt?: string;
+  endAt?: string;
   notes?: string | null;
   channelIds?: string[];
 };
@@ -38,7 +41,7 @@ export function CampaignForm({
     <form action={action} className="grid gap-4 md:grid-cols-2">
       {values.id ? <input type="hidden" name="campaignId" value={values.id} /> : null}
       <div className="space-y-2 md:col-span-2">
-        <Label htmlFor="name">Nom de la pub</Label>
+        <Label htmlFor="name">Nom de la campagne</Label>
         <Input
           id="name"
           name="name"
@@ -52,7 +55,7 @@ export function CampaignForm({
         <NameGenerator channels={channels} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="adPlatform">Plateforme</Label>
+        <Label htmlFor="adPlatform">Plateforme des pubs</Label>
         <select
           id="adPlatform"
           name="adPlatform"
@@ -109,8 +112,16 @@ export function CampaignForm({
           className="h-10 md:h-9"
         />
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="startAt">Début (facultatif)</Label>
+        <Input id="startAt" name="startAt" type="date" defaultValue={values.startAt ?? ""} className="h-10 md:h-9" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="endAt">Fin (facultatif)</Label>
+        <Input id="endAt" name="endAt" type="date" defaultValue={values.endAt ?? ""} className="h-10 md:h-9" />
+      </div>
       <fieldset className="space-y-2 md:col-span-2">
-        <legend className="text-sm font-medium">Canaux alimentés par cette pub</legend>
+        <legend className="text-sm font-medium">Canaux alimentés par cette campagne</legend>
         <div className="flex flex-wrap gap-3 text-sm">
           {channels.length === 0 ? (
             <span className="text-muted-foreground">Aucun canal actif pour l&apos;instant.</span>

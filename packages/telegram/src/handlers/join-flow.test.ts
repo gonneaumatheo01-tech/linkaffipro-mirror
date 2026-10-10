@@ -69,8 +69,15 @@ function makeBot(deps: JoinFlowDeps, members: Record<string, string> = {}) {
     }
     return { ok: true, result: { message_id: 1, date: 0, chat: { id: 42, type: "private", first_name: "x" }, text: "ok" } } as never;
   });
-  registerJoinFlowHandlers(bot, identity, deps);
-  return { bot, apiCalls };
+  // Canal inconnu : création simulée (sans base) ; le handler réessaie ensuite avec les mêmes deps.
+  const channelDeps = {
+    upsertChannel: vi.fn(async () => ({ channelId: "c_new", created: true })),
+    setChannelAdmin: vi.fn(async () => undefined),
+    revokeChannelAdmin: vi.fn(async () => undefined),
+    listOurBotTelegramIds: vi.fn(async () => [111n]),
+  };
+  registerJoinFlowHandlers(bot, identity, deps, channelDeps);
+  return { bot, apiCalls, channelDeps };
 }
 
 const joinRequest = (chatId: number, inviteLink?: string): Update => ({
@@ -139,9 +146,12 @@ describe("chat_join_request", () => {
 
   it("ignore la demande si un autre bot agit pour le canal ou si le canal est inconnu", async () => {
     const { deps, st } = makeDeps({ actingBotId: "bot_2" });
-    const { bot } = makeBot(deps);
+    const { bot, channelDeps } = makeBot(deps);
     await bot.handleUpdate(joinRequest(-100100));
+    expect(channelDeps.upsertChannel).not.toHaveBeenCalled();
     await bot.handleUpdate(joinRequest(-100999));
+    // Canal inconnu : il est créé (droits relevés) avant un second essai.
+    expect(channelDeps.upsertChannel).toHaveBeenCalledWith({ id: -100999, type: "channel", title: "Canal A" });
     expect(st.memberships).toHaveLength(0);
     expect(st.dms).toHaveLength(0);
   });

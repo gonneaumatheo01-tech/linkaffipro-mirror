@@ -10,3 +10,4 @@ export * from "./ad-macros";
 export * from "./segment";
 export * from "./automation";
 export * from "./ab";
+export * from "./attribution-scope";

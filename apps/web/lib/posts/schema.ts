@@ -11,6 +11,7 @@ export const buttonSchema = z.object({
   trackingLinkId: z.string().optional(),
   slug: z.string().optional(),
   affiliateCampaignId: z.string().optional(),
+  campaignId: z.string().optional(),
 });
 
 export const postFormSchema = z.object({

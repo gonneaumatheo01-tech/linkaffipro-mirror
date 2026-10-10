@@ -22,6 +22,7 @@ function coreDeps(): TelegramDeps {
     revokeChannelAdmin: vi.fn(async () => undefined),
     listOurBotTelegramIds: vi.fn(async () => [111n]),
     linkAdminAccount: vi.fn(async () => null),
+    isPlatformUser: vi.fn(async () => false),
   };
 }
 

@@ -523,6 +523,20 @@ Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, 
 4. Les vues apparaissent dans la fiche de chaque message (tuiles « Vues » et « Transferts », courbe dans le temps) et servent au taux de clic par vue, aux meilleurs horaires et aux tests A/B.
 **Pièges.** Badge « À reconnecter » = Telegram a fermé la session (depuis l'application ou expirée) : cliquez **Effacer la session** puis refaites l'étape 2. **Déconnecter** révoque la session ; **Relever maintenant** force un passage. « Canal introuvable » = le compte n'est pas membre ou administrateur du canal.
 
+### Ce que compte le tableau de bord (depuis le 10 octobre)
+Seuls **vos** joueurs comptent : ceux arrivés par un de vos liens (identifiant de suivi) ou appartenant à une offre Link Affi rattachée à une de vos campagnes. Les autres joueurs de Link Affi restent visibles uniquement dans Réglages → Connecteurs (diagnostic). Toutes les dates sont celles des événements chez Link Affi (inscription, dépôt, NGR), jamais la date d'import : 7, 30 et 90 jours donnent des chiffres différents. Le bloc **Activité** se lit en deux lignes : **Telegram** (demandes → acceptés → entrées → départs) puis **Argent** (clics pub → clics offre → inscriptions → premiers dépôts → dépôts € → NGR €). Tant qu'aucune campagne n'existe, le tableau de bord vous propose d'en créer une.
+
+### Catégories de messages : les vôtres
+Aucune catégorie n'est créée d'office. Dans **Nouveau message**, le champ Catégorie propose **+ Nouvelle catégorie** (nom ; couleur automatique, modifiable ensuite). Réglages → **Catégories de messages** : renommer, changer la couleur et l'ordre, **Fusionner et supprimer** (les messages passent dans la catégorie choisie, ou sans catégorie). La comparaison par catégorie et les meilleurs horaires utilisent vos catégories.
+
+### Assistant IA pour écrire les messages
+**À quoi ça sert.** Améliorer ou écrire un message (canal, bot, envoi groupé, modèle, automatisation) en respectant d'office les règles : pas de promesse de gains, mention des risques et 18+ pour casino et paris, aucun détail d'offre inventé (repère « [à compléter] »), repères `{prenom}` et liens conservés.
+**Comment faire.**
+1. Une seule fois, un administrateur colle la clé Anthropic dans Réglages → **IA** (guide sur la page, 5 minutes), puis **Enregistrer** et **Vérifier**.
+2. Sur chaque écran de rédaction, cliquez **✨ Améliorer avec l'IA** : choisissez l'univers, l'objectif, le ton, la longueur, la langue, puis **Générer 3 versions**. Chaque version explique ce qui change ; **Utiliser** la place dans le champ.
+3. Ensuite : **Plus court**, **Plus percutant**, **Autre angle**, **Traduire dans les langues du bot**, **Créer la version B** (test A/B). **Écrire à partir d'une idée** : une phrase suffit pour obtenir 3 propositions.
+**Pièges.** Réglages → IA affiche le coût estimé du mois, le plafond (20 € par défaut), la limite par personne et par jour, et l'historique. Sans clé, le bouton explique où l'ajouter. Relisez toujours avant d'envoyer : l'IA propose, vous décidez.
+
 ### Réglages → Équipe
 **À quoi ça sert.** Gérer les comptes de l'équipe (administrateurs et managers) sans e-mail automatique : vous copiez le lien et vous l'envoyez vous-même.
 **Comment faire.**
