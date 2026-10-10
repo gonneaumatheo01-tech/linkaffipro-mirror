@@ -16,7 +16,12 @@ export type AlertKind =
   | "offer_link_inactive"
   | "connector_reconnect";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
-export type Detected = { kind: AlertKind; severity: AlertSeverityKey; message: string; payload: Record<string, unknown> };
+export type Detected = {
+  kind: AlertKind;
+  severity: AlertSeverityKey;
+  message: string;
+  payload: Record<string, unknown>;
+};
 
 export const WEBHOOK_SILENCE_MS = 10 * 60 * 1000;
 export const QUEUE_BACKLOG_THRESHOLD = 500;
@@ -30,16 +35,35 @@ export const BACKUP_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 /** Une alerte du même type non résolue datant de moins de 24 h n'est pas recréée (une notification par jour au plus). */
 export const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export type BotSnapshot = { username: string; isActive: boolean; lastWebhookAt: Date | null; lastError: string | null };
+export type BotSnapshot = {
+  username: string;
+  isActive: boolean;
+  lastWebhookAt: Date | null;
+  lastError: string | null;
+};
 
 /** Bots en erreur, ou silencieux depuis 10 min alors qu'un autre bot reçoit des updates. */
 export function detectBotWebhook(bots: BotSnapshot[], now: Date): Detected | null {
   const active = bots.filter((b) => b.isActive);
-  const recent = active.some((b) => b.lastWebhookAt && now.getTime() - b.lastWebhookAt.getTime() < WEBHOOK_SILENCE_MS);
-  const faulty = active.filter((b) => b.lastError || (recent && (!b.lastWebhookAt || now.getTime() - b.lastWebhookAt.getTime() >= WEBHOOK_SILENCE_MS)));
+  const recent = active.some(
+    (b) => b.lastWebhookAt && now.getTime() - b.lastWebhookAt.getTime() < WEBHOOK_SILENCE_MS,
+  );
+  const faulty = active.filter(
+    (b) =>
+      b.lastError ||
+      (recent &&
+        (!b.lastWebhookAt || now.getTime() - b.lastWebhookAt.getTime() >= WEBHOOK_SILENCE_MS)),
+  );
   if (faulty.length === 0) return null;
-  const names = faulty.map((b) => `@${b.username}${b.lastError ? ` (${b.lastError.slice(0, 80)})` : " (silencieux)"}`).join(", ");
-  return { kind: "bot_webhook", severity: "CRITICAL", message: `Bot en difficulté : ${names}`, payload: { bots: faulty.map((b) => b.username) } };
+  const names = faulty
+    .map((b) => `@${b.username}${b.lastError ? ` (${b.lastError.slice(0, 80)})` : " (silencieux)"}`)
+    .join(", ");
+  return {
+    kind: "bot_webhook",
+    severity: "CRITICAL",
+    message: `Bot en difficulté : ${names}`,
+    payload: { bots: faulty.map((b) => b.username) },
+  };
 }
 
 export type SyncSnapshot = { source: string; lastError: string | null; errorStreak: number };
@@ -48,22 +72,42 @@ export type SyncSnapshot = { source: string; lastError: string | null; errorStre
 export function detectSyncFailed(states: SyncSnapshot[]): Detected | null {
   const failing = states.filter((s) => s.lastError && s.errorStreak >= SYNC_ERROR_STREAK);
   if (failing.length === 0) return null;
-  return { kind: "sync_failed", severity: "WARNING", message: `Synchro Link Affi en échec répété : ${failing.map((s) => `${s.source} (${(s.lastError ?? "").slice(0, 60)})`).join(", ")}`, payload: { sources: failing.map((s) => s.source) } };
+  return {
+    kind: "sync_failed",
+    severity: "WARNING",
+    message: `Synchro Link Affi en échec répété : ${failing.map((s) => `${s.source} (${(s.lastError ?? "").slice(0, 60)})`).join(", ")}`,
+    payload: { sources: failing.map((s) => s.source) },
+  };
 }
 
 export function detectQueueBacklog(waiting: number): Detected | null {
   if (waiting <= QUEUE_BACKLOG_THRESHOLD) return null;
-  return { kind: "queue_backlog", severity: "WARNING", message: `File d'envoi Telegram engorgée : ${waiting} messages en attente`, payload: { waiting } };
+  return {
+    kind: "queue_backlog",
+    severity: "WARNING",
+    message: `File d'envoi Telegram engorgée : ${waiting} messages en attente`,
+    payload: { waiting },
+  };
 }
 
 export function detectDmBlocked(blockedLastHour: number): Detected | null {
   if (blockedLastHour <= DM_BLOCKED_THRESHOLD) return null;
-  return { kind: "dm_blocked", severity: "WARNING", message: `${blockedLastHour} messages privés bloqués dans l'heure (membres ayant bloqué le bot ou fenêtres expirées)`, payload: { blockedLastHour } };
+  return {
+    kind: "dm_blocked",
+    severity: "WARNING",
+    message: `${blockedLastHour} messages privés bloqués dans l'heure (membres ayant bloqué le bot ou fenêtres expirées)`,
+    payload: { blockedLastHour },
+  };
 }
 
 export function detectSubIdHealth(status: string, message: string): Detected | null {
   if (status !== "alert") return null;
-  return { kind: "subid_health", severity: "CRITICAL", message: `Santé du sub-ID : ${message}`, payload: { status } };
+  return {
+    kind: "subid_health",
+    severity: "CRITICAL",
+    message: `Santé du sub-ID : ${message}`,
+    payload: { status },
+  };
 }
 
 /**
@@ -76,7 +120,12 @@ export function detectWorkerDown(lastHeartbeatAt: Date | null, now: Date): Detec
   const downMs = now.getTime() - lastHeartbeatAt.getTime();
   if (downMs < WORKER_DOWN_MS) return null;
   const minutes = Math.round(downMs / 60_000);
-  return { kind: "worker_down", severity: "CRITICAL", message: `Worker arrêté : aucun signe de vie depuis ${minutes} min (dernier battement ${formatTime(lastHeartbeatAt)})`, payload: { lastHeartbeatAt: lastHeartbeatAt.toISOString(), downMinutes: minutes } };
+  return {
+    kind: "worker_down",
+    severity: "CRITICAL",
+    message: `Worker arrêté : aucun signe de vie depuis ${minutes} min (dernier battement ${formatTime(lastHeartbeatAt)})`,
+    payload: { lastHeartbeatAt: lastHeartbeatAt.toISOString(), downMinutes: minutes },
+  };
 }
 
 /** Erreurs répétées : au moins 10 tâches échouées en 15 minutes sur une même file. */
@@ -84,7 +133,12 @@ export function detectJobFailures(failuresByQueue: Record<string, number>): Dete
   const hot = Object.entries(failuresByQueue).filter(([, n]) => n >= JOB_FAILURES_THRESHOLD);
   if (hot.length === 0) return null;
   const list = hot.map(([q, n]) => `${q} (${n})`).join(", ");
-  return { kind: "job_failures", severity: "WARNING", message: `Erreurs répétées sur les tâches du worker en 15 min : ${list}. Voir Réglages → État du système.`, payload: { queues: Object.fromEntries(hot) } };
+  return {
+    kind: "job_failures",
+    severity: "WARNING",
+    message: `Erreurs répétées sur les tâches du worker en 15 min : ${list}. Voir Réglages → État du système.`,
+    payload: { queues: Object.fromEntries(hot) },
+  };
 }
 
 /** Dernier état de sauvegarde (`Setting` `backup.last`, écrit par `backups/run.ts`) ; un échec garde le `file` du dernier succès. */
@@ -107,7 +161,12 @@ export function detectBackupFailed(status: BackupSnapshot | null, now: Date): De
   const lastSuccess = backupFileDate(status.file);
   if (lastSuccess && now.getTime() - lastSuccess.getTime() < BACKUP_MAX_AGE_MS) return null;
   const error = (status.error ?? "erreur inconnue").slice(0, 160);
-  return { kind: "backup_failed", severity: "CRITICAL", message: `La sauvegarde automatique de la base a échoué : ${error}`, payload: { at: status.at, lastSuccessAt: lastSuccess?.toISOString() ?? null, error } };
+  return {
+    kind: "backup_failed",
+    severity: "CRITICAL",
+    message: `La sauvegarde automatique de la base a échoué : ${error}`,
+    payload: { at: status.at, lastSuccessAt: lastSuccess?.toISOString() ?? null, error },
+  };
 }
 
 // ------------------------------------------------------------------
@@ -115,8 +174,16 @@ export function detectBackupFailed(status: BackupSnapshot | null, now: Date): De
 // ------------------------------------------------------------------
 
 /** Seuils réglables. `registrationsDropPct` : chute en % sous la moyenne ; `spendNoConversionEur` : dépense sans inscription ; `channelLeakPct` : départs en % des membres actifs. */
-export type AlertThresholds = { registrationsDropPct: number; spendNoConversionEur: number; channelLeakPct: number };
-export const DEFAULT_THRESHOLDS: AlertThresholds = { registrationsDropPct: 50, spendNoConversionEur: 50, channelLeakPct: 10 };
+export type AlertThresholds = {
+  registrationsDropPct: number;
+  spendNoConversionEur: number;
+  channelLeakPct: number;
+};
+export const DEFAULT_THRESHOLDS: AlertThresholds = {
+  registrationsDropPct: 50,
+  spendNoConversionEur: 50,
+  channelLeakPct: 10,
+};
 /** Chute des inscriptions : la règle ne s'applique qu'avec une moyenne d'au moins 10 inscriptions par jour. */
 export const REGISTRATIONS_MIN_DAILY_AVG = 10;
 /** Canal qui fuit : la règle ne s'applique qu'aux canaux d'au moins 20 membres actifs. */
@@ -124,11 +191,24 @@ export const CHANNEL_LEAK_MIN_MEMBERS = 20;
 
 /** Lit les seuils depuis la valeur JSON du réglage ; chaque champ absent ou invalide prend sa valeur par défaut. */
 export function parseThresholds(value: unknown): AlertThresholds {
-  const v = (value && typeof value === "object" ? value : {}) as Partial<Record<keyof AlertThresholds, unknown>>;
-  const num = (x: unknown, fallback: number, min: number, max: number) => (typeof x === "number" && Number.isFinite(x) && x >= min && x <= max ? x : fallback);
+  const v = (value && typeof value === "object" ? value : {}) as Partial<
+    Record<keyof AlertThresholds, unknown>
+  >;
+  const num = (x: unknown, fallback: number, min: number, max: number) =>
+    typeof x === "number" && Number.isFinite(x) && x >= min && x <= max ? x : fallback;
   return {
-    registrationsDropPct: num(v.registrationsDropPct, DEFAULT_THRESHOLDS.registrationsDropPct, 1, 100),
-    spendNoConversionEur: num(v.spendNoConversionEur, DEFAULT_THRESHOLDS.spendNoConversionEur, 0, 1_000_000),
+    registrationsDropPct: num(
+      v.registrationsDropPct,
+      DEFAULT_THRESHOLDS.registrationsDropPct,
+      1,
+      100,
+    ),
+    spendNoConversionEur: num(
+      v.spendNoConversionEur,
+      DEFAULT_THRESHOLDS.spendNoConversionEur,
+      0,
+      1_000_000,
+    ),
     channelLeakPct: num(v.channelLeakPct, DEFAULT_THRESHOLDS.channelLeakPct, 1, 100),
   };
 }
@@ -139,7 +219,10 @@ export type RegistrationsSnapshot = { last24h: number; previous7dTotal: number }
  * Chute des inscriptions : les inscriptions des dernières 24 h sont sous (100 − seuil) % de la moyenne quotidienne
  * des 7 jours précédents, et cette moyenne vaut au moins 10 par jour (sinon trop peu de données pour conclure).
  */
-export function detectRegistrationsDrop(s: RegistrationsSnapshot, t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
+export function detectRegistrationsDrop(
+  s: RegistrationsSnapshot,
+  t: AlertThresholds = DEFAULT_THRESHOLDS,
+): Detected | null {
   const avg = s.previous7dTotal / 7;
   if (avg < REGISTRATIONS_MIN_DAILY_AVG) return null;
   const limit = avg * (1 - t.registrationsDropPct / 100);
@@ -149,37 +232,67 @@ export function detectRegistrationsDrop(s: RegistrationsSnapshot, t: AlertThresh
     kind: "registrations_drop",
     severity: "WARNING",
     message: `Chute des inscriptions : ${s.last24h} sur les dernières 24 h contre ${Math.round(avg)} par jour en moyenne sur les 7 jours précédents (−${dropPct} %).`,
-    payload: { last24h: s.last24h, dailyAverage: Math.round(avg * 10) / 10, dropPct, thresholdPct: t.registrationsDropPct },
+    payload: {
+      last24h: s.last24h,
+      dailyAverage: Math.round(avg * 10) / 10,
+      dropPct,
+      thresholdPct: t.registrationsDropPct,
+    },
   };
 }
 
 export type SpendSnapshot = { name: string; spend: number; registrations: number };
 
-/** Dépense sans conversion : une pub a coûté plus que le seuil sur 24 h sans aucune inscription rattachée. */
-export function detectSpendNoConversion(items: SpendSnapshot[], t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
+/** Dépense sans conversion : une campagne a coûté plus que le seuil sur 24 h sans aucune inscription rattachée. */
+export function detectSpendNoConversion(
+  items: SpendSnapshot[],
+  t: AlertThresholds = DEFAULT_THRESHOLDS,
+): Detected | null {
   const hot = items.filter((i) => i.spend > t.spendNoConversionEur && i.registrations === 0);
   if (hot.length === 0) return null;
   const list = hot.map((i) => `${i.name} (${i.spend.toFixed(2)} €)`).join(", ");
   return {
     kind: "spend_no_conversion",
     severity: "WARNING",
-    message: `Dépense sans inscription sur 24 h : ${list}. Vérifiez le lien d'entrée de la pub et les offres envoyées.`,
-    payload: { campaigns: hot.map((i) => ({ name: i.name, spend: i.spend })), thresholdEur: t.spendNoConversionEur },
+    message: `Dépense sans inscription sur 24 h : ${list}. Vérifiez les liens d'entrée de la campagne et ses offres Link Affi.`,
+    payload: {
+      campaigns: hot.map((i) => ({ name: i.name, spend: i.spend })),
+      thresholdEur: t.spendNoConversionEur,
+    },
   };
 }
 
 export type ChannelLeakSnapshot = { title: string; activeMembers: number; left24h: number };
 
 /** Canal qui fuit : les départs sur 24 h dépassent le seuil (en % des membres actifs), pour un canal d'au moins 20 membres. */
-export function detectChannelLeak(channels: ChannelLeakSnapshot[], t: AlertThresholds = DEFAULT_THRESHOLDS): Detected | null {
-  const leaking = channels.filter((c) => c.activeMembers >= CHANNEL_LEAK_MIN_MEMBERS && c.left24h > (c.activeMembers * t.channelLeakPct) / 100);
+export function detectChannelLeak(
+  channels: ChannelLeakSnapshot[],
+  t: AlertThresholds = DEFAULT_THRESHOLDS,
+): Detected | null {
+  const leaking = channels.filter(
+    (c) =>
+      c.activeMembers >= CHANNEL_LEAK_MIN_MEMBERS &&
+      c.left24h > (c.activeMembers * t.channelLeakPct) / 100,
+  );
   if (leaking.length === 0) return null;
-  const list = leaking.map((c) => `${c.title} (${c.left24h} départs sur ${c.activeMembers} membres, ${Math.round((c.left24h / c.activeMembers) * 100)} %)`).join(", ");
+  const list = leaking
+    .map(
+      (c) =>
+        `${c.title} (${c.left24h} départs sur ${c.activeMembers} membres, ${Math.round((c.left24h / c.activeMembers) * 100)} %)`,
+    )
+    .join(", ");
   return {
     kind: "channel_leak",
     severity: "WARNING",
     message: `Canal qui perd ses membres : ${list}.`,
-    payload: { channels: leaking.map((c) => ({ title: c.title, activeMembers: c.activeMembers, left24h: c.left24h })), thresholdPct: t.channelLeakPct },
+    payload: {
+      channels: leaking.map((c) => ({
+        title: c.title,
+        activeMembers: c.activeMembers,
+        left24h: c.left24h,
+      })),
+      thresholdPct: t.channelLeakPct,
+    },
   };
 }
 
@@ -188,7 +301,12 @@ export type FailedPostSnapshot = { code: string; channelTitle: string; lastError
 /** Message programmé en échec dans les dernières 24 h. */
 export function detectPostFailed(posts: FailedPostSnapshot[]): Detected | null {
   if (posts.length === 0) return null;
-  const list = posts.slice(0, 5).map((p) => `${p.channelTitle} / ${p.code}${p.lastError ? ` (${p.lastError.slice(0, 60)})` : ""}`).join(", ");
+  const list = posts
+    .slice(0, 5)
+    .map(
+      (p) => `${p.channelTitle} / ${p.code}${p.lastError ? ` (${p.lastError.slice(0, 60)})` : ""}`,
+    )
+    .join(", ");
   const more = posts.length > 5 ? ` et ${posts.length - 5} autre(s)` : "";
   return {
     kind: "post_failed",
@@ -204,7 +322,10 @@ export type InactiveLinkClickSnapshot = { slug: string; label: string; clicks: n
 export function detectOfferLinkInactive(links: InactiveLinkClickSnapshot[]): Detected | null {
   const hit = links.filter((l) => l.clicks > 0);
   if (hit.length === 0) return null;
-  const list = hit.slice(0, 5).map((l) => `${l.label} (/${l.slug}, ${l.clicks} clic${l.clicks > 1 ? "s" : ""})`).join(", ");
+  const list = hit
+    .slice(0, 5)
+    .map((l) => `${l.label} (/${l.slug}, ${l.clicks} clic${l.clicks > 1 ? "s" : ""})`)
+    .join(", ");
   const more = hit.length > 5 ? ` et ${hit.length - 5} autre(s)` : "";
   return {
     kind: "offer_link_inactive",
@@ -215,12 +336,22 @@ export function detectOfferLinkInactive(links: InactiveLinkClickSnapshot[]): Det
 }
 
 function formatTime(d: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }).format(d);
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Europe/Paris",
+  }).format(d);
 }
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */
-export function shouldCreate(kind: AlertKind, open: Array<{ kind: string; createdAt: Date }>, now: Date): boolean {
-  return !open.some((a) => a.kind === kind && now.getTime() - a.createdAt.getTime() < DEDUP_WINDOW_MS);
+export function shouldCreate(
+  kind: AlertKind,
+  open: Array<{ kind: string; createdAt: Date }>,
+  now: Date,
+): boolean {
+  return !open.some(
+    (a) => a.kind === kind && now.getTime() - a.createdAt.getTime() < DEDUP_WINDOW_MS,
+  );
 }
 
 /** Formate l'alerte pour Telegram (HTML). */
@@ -236,14 +367,29 @@ function escapeHtml(s: string): string {
 /** Jeton d'un compte publicitaire à renouveler dans moins de 7 jours. */
 export const CONNECTOR_EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type ConnectionSnapshot = { platform: string; name: string; status: string; tokenExpiresAt: Date | null; lastError: string | null };
+export type ConnectionSnapshot = {
+  platform: string;
+  name: string;
+  status: string;
+  tokenExpiresAt: Date | null;
+  lastError: string | null;
+};
 
 /** Comptes publicitaires à reconnecter : jeton refusé par la plateforme, ou expirant dans moins de 7 jours (phase 7). */
-export function detectConnectorReconnect(connections: ConnectionSnapshot[], now: Date): Detected | null {
+export function detectConnectorReconnect(
+  connections: ConnectionSnapshot[],
+  now: Date,
+): Detected | null {
   const needs = connections.filter((c) => c.status === "NEEDS_RECONNECT");
-  const soon = connections.filter((c) => c.status === "ACTIVE" && c.tokenExpiresAt && c.tokenExpiresAt.getTime() - now.getTime() < CONNECTOR_EXPIRY_SOON_MS);
+  const soon = connections.filter(
+    (c) =>
+      c.status === "ACTIVE" &&
+      c.tokenExpiresAt &&
+      c.tokenExpiresAt.getTime() - now.getTime() < CONNECTOR_EXPIRY_SOON_MS,
+  );
   if (needs.length === 0 && soon.length === 0) return null;
-  const label = (c: ConnectionSnapshot) => `${c.platform === "META" ? "Meta" : c.platform === "TIKTOK" ? "TikTok" : c.platform} « ${c.name} »`;
+  const label = (c: ConnectionSnapshot) =>
+    `${c.platform === "META" ? "Meta" : c.platform === "TIKTOK" ? "TikTok" : c.platform} « ${c.name} »`;
   const parts: string[] = [];
   if (needs.length) parts.push(`à reconnecter : ${needs.map(label).join(", ")}`);
   if (soon.length) parts.push(`jeton expirant sous 7 jours : ${soon.map(label).join(", ")}`);

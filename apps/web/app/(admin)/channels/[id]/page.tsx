@@ -24,7 +24,12 @@ import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
-import { approveMembershipAction, declineMembershipAction, recheckRightsAction, saveRuleAction } from "./actions";
+import {
+  approveMembershipAction,
+  declineMembershipAction,
+  recheckRightsAction,
+  saveRuleAction,
+} from "./actions";
 import { SequencesTab } from "./sequences/sequences-tab";
 import { BestHoursTab } from "./best-hours-tab";
 
@@ -101,7 +106,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
   const channel = await prisma.channel.findUnique({
     where: { id },
     include: {
-      primaryBot: { select: { username: true } },
+      primaryBot: { select: { username: true, vertical: true } },
       botAdmins: { where: { revokedAt: null }, include: { bot: { select: { username: true } } } },
     },
   });
@@ -179,6 +184,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
         <SequencesTab
           channelId={channel.id}
           channelTitle={channel.title}
+          channelVertical={channel.vertical ?? channel.primaryBot?.vertical ?? null}
           open={typeof sp.open === "string" ? sp.open : undefined}
           telegramLinked={Boolean(me.telegramUserId)}
         />
@@ -210,7 +216,7 @@ async function RulesTab({ channelId, selectCls }: { channelId: string; selectCls
         <CardDescription>
           {rule
             ? "Appliquée à toute demande d'adhésion sans règle propre au lien d'entrée."
-            : "Aucune règle enregistrée : pour l'instant, les demandes sont acceptées immédiatement, sans canaux à rejoindre."}
+            : "Aucune règle enregistrée : les demandes attendent votre validation (onglet Demandes, bouton Accepter maintenant) et le bot n'écrit pas aux membres de lui-même. Enregistrez une règle pour automatiser l'accueil."}
         </CardDescription>
       </CardHeader>
       <CardContent>

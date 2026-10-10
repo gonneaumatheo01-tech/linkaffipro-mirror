@@ -1,6 +1,8 @@
+import { jsonIds } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { emitAutomationEvent } from "@linkaffipro/queue";
 import type { OfferDeps } from "./deps";
+import { pickCampaignOffer } from "./logic";
 
 function mediaKindOf(mimeType: string): "photo" | "video" | "animation" | "document" {
   if (mimeType === "image/gif") return "animation";
@@ -37,23 +39,61 @@ export const prismaOfferDeps: OfferDeps = {
   async resolveOffer(slug, postCode) {
     const link = await prisma.trackingLink.findUnique({
       where: { slug },
-      include: { affiliateCampaign: { select: { trackingUrlTemplate: true, isActive: true } }, channel: { select: { id: true, language: true } } },
+      include: {
+        affiliateCampaign: { select: { trackingUrlTemplate: true, isActive: true } },
+        channel: { select: { id: true, language: true } },
+        campaign: { select: { id: true, affiliateCampaignIds: true } },
+      },
     });
     if (!link || !link.isActive || link.kind !== "OFFER") return null;
-    const template = link.affiliateCampaign?.trackingUrlTemplate ?? link.destinationTemplate;
+    let template = link.affiliateCampaign?.trackingUrlTemplate ?? link.destinationTemplate;
+    // Bouton rattaché à une de nos campagnes : le lien Link Affi suit la campagne. Si l'offre du bouton en a été
+    // retirée (ou est désactivée), on prend la première offre active de la campagne, et on le journalise.
+    if (link.campaign) {
+      const ids = jsonIds(link.campaign.affiliateCampaignIds);
+      const offers = ids.length
+        ? await prisma.affiliateCampaign.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, trackingUrlTemplate: true, isActive: true },
+          })
+        : [];
+      const picked = pickCampaignOffer(link.affiliateCampaignId, ids, offers);
+      if (picked?.replaced) {
+        template = picked.template;
+        await recordEvent({
+          type: "offer.campaign_fallback",
+          channelId: link.channelId,
+          payload: {
+            trackingLinkId: link.id,
+            campaignId: link.campaign.id,
+            fromAffiliateCampaignId: link.affiliateCampaignId,
+            toAffiliateCampaignId: picked.offerId,
+          },
+        });
+      }
+    }
     if (!template) return null;
     let postId: string | null = link.postId;
     let channelId: string | null = link.channelId;
     let channelLanguage: string | null = link.channel?.language ?? null;
     if (postCode) {
-      const post = await prisma.post.findUnique({ where: { code: postCode }, select: { id: true, channelId: true, channel: { select: { language: true } } } });
+      const post = await prisma.post.findUnique({
+        where: { code: postCode },
+        select: { id: true, channelId: true, channel: { select: { language: true } } },
+      });
       if (post) {
         postId = post.id;
         channelId = post.channelId;
         channelLanguage = post.channel.language;
       }
     }
-    return { trackingLinkId: link.id, destinationTemplate: template, postId, channelId, channelLanguage };
+    return {
+      trackingLinkId: link.id,
+      destinationTemplate: template,
+      postId,
+      channelId,
+      channelLanguage,
+    };
   },
 
   async recordOfferClick(input) {
@@ -68,27 +108,61 @@ export const prismaOfferDeps: OfferDeps = {
       },
       select: { id: true },
     });
-    const previous = await prisma.click.count({ where: { trackingLinkId: input.trackingLinkId, memberId: input.memberId, id: { not: click.id } } });
+    const previous = await prisma.click.count({
+      where: {
+        trackingLinkId: input.trackingLinkId,
+        memberId: input.memberId,
+        id: { not: click.id },
+      },
+    });
     await prisma.trackingLink.update({
       where: { id: input.trackingLinkId },
-      data: { clicks: { increment: 1 }, uniqueClicks: previous === 0 ? { increment: 1 } : undefined },
+      data: {
+        clicks: { increment: 1 },
+        uniqueClicks: previous === 0 ? { increment: 1 } : undefined,
+      },
     });
     if (input.postId) {
       await prisma.postStats.upsert({
         where: { postId: input.postId },
         create: { postId: input.postId, offerClicks: 1, clicks: 1, uniqueClickers: 1 },
-        update: { offerClicks: { increment: 1 }, clicks: { increment: 1 }, uniqueClickers: previous === 0 ? { increment: 1 } : undefined },
+        update: {
+          offerClicks: { increment: 1 },
+          clicks: { increment: 1 },
+          uniqueClickers: previous === 0 ? { increment: 1 } : undefined,
+        },
       });
     }
     await recordEvent({
       type: "click.offer",
       memberId: input.memberId,
       botId: input.botId,
-      payload: { clickId: click.id, subId: input.subId, trackingLinkId: input.trackingLinkId, postId: input.postId },
+      payload: {
+        clickId: click.id,
+        subId: input.subId,
+        trackingLinkId: input.trackingLinkId,
+        postId: input.postId,
+      },
     });
-    const post = input.postId ? await prisma.post.findUnique({ where: { id: input.postId }, select: { channelId: true, categoryId: true } }).catch(() => null) : null;
-    const tl = await prisma.trackingLink.findUnique({ where: { id: input.trackingLinkId }, select: { affiliateCampaignId: true } }).catch(() => null);
-    await emitAutomationEvent("OFFER_CLICKED", input.memberId, { postId: input.postId, channelId: post?.channelId ?? null, categoryId: post?.categoryId ?? null, affiliateCampaignId: tl?.affiliateCampaignId ?? null, clickId: click.id, botId: input.botId });
+    const post = input.postId
+      ? await prisma.post
+          .findUnique({
+            where: { id: input.postId },
+            select: { channelId: true, categoryId: true },
+          })
+          .catch(() => null)
+      : null;
+    const tl = await prisma.trackingLink
+      .findUnique({ where: { id: input.trackingLinkId }, select: { affiliateCampaignId: true } })
+      .catch(() => null);
+    await emitAutomationEvent("OFFER_CLICKED", input.memberId, {
+      postId: input.postId,
+      channelId: post?.channelId ?? null,
+      categoryId: post?.categoryId ?? null,
+      affiliateCampaignId: tl?.affiliateCampaignId ?? null,
+      clickId: click.id,
+      botId: input.botId,
+    });
     return { clickId: click.id };
   },
 
@@ -96,7 +170,22 @@ export const prismaOfferDeps: OfferDeps = {
     if (!channelId) return null;
     const seq = await prisma.sequence.findFirst({
       where: { channelId, trigger: "OFFER_REPLY", isActive: true },
-      include: { steps: { orderBy: { order: "asc" }, take: 1, include: { mediaAsset: { select: { mimeType: true, telegramFiles: botId ? { where: { botId }, select: { telegramFileId: true } } : false } } } } },
+      include: {
+        steps: {
+          orderBy: { order: "asc" },
+          take: 1,
+          include: {
+            mediaAsset: {
+              select: {
+                mimeType: true,
+                telegramFiles: botId
+                  ? { where: { botId }, select: { telegramFileId: true } }
+                  : false,
+              },
+            },
+          },
+        },
+      },
     });
     const step = seq?.steps[0];
     if (!step) return null;
@@ -108,7 +197,10 @@ export const prismaOfferDeps: OfferDeps = {
     // Média : seulement si Telegram le connaît déjà pour ce bot (pas d'upload depuis le webhook, trop lent) ;
     // le file_id est mémorisé dès le premier envoi par le worker (message programmé, envoi groupé, test).
     const asset = step.mediaAsset;
-    const fileId = asset && Array.isArray(asset.telegramFiles) ? asset.telegramFiles[0]?.telegramFileId : undefined;
+    const fileId =
+      asset && Array.isArray(asset.telegramFiles)
+        ? asset.telegramFiles[0]?.telegramFileId
+        : undefined;
     const media = asset && fileId ? { fileId, kind: mediaKindOf(asset.mimeType) } : null;
     return { text, button, media };
   },

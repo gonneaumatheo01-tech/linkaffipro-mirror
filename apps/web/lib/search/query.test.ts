@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSearchQuery, snippet } from "./query";
+import { parseSearchQuery, SEARCH_GROUP_LABELS, snippet } from "./query";
 
 describe("parseSearchQuery", () => {
   it("nettoie les espaces et met en minuscules", () => {
@@ -36,12 +36,22 @@ describe("parseSearchQuery", () => {
 
 describe("snippet", () => {
   it("retire le HTML et centre sur le premier mot trouvé", () => {
-    const s = snippet("<b>Bienvenue</b> à tous. Le bonus du week-end est arrivé, profitez-en vite.", ["bonus"], 30);
+    const s = snippet(
+      "<b>Bienvenue</b> à tous. Le bonus du week-end est arrivé, profitez-en vite.",
+      ["bonus"],
+      30,
+    );
     expect(s).not.toContain("<b>");
     expect(s).toContain("bonus");
   });
   it("tronque au début quand rien n'est trouvé", () => {
     expect(snippet("un texte court", ["zzz"])).toBe("un texte court");
     expect(snippet("x".repeat(100), ["zzz"], 10)).toBe("xxxxxxxxxx…");
+  });
+});
+
+describe("groupes de résultats", () => {
+  it("nos campagnes s'appellent « Campagnes » (plus « Pubs »)", () => {
+    expect(SEARCH_GROUP_LABELS.campaigns).toBe("Campagnes");
   });
 });

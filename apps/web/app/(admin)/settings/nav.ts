@@ -18,7 +18,8 @@ export const SETTINGS_PAGES: Array<{ href: string; label: string; description: s
   {
     href: "/settings/categories",
     label: "Catégories de messages",
-    description: "Bonus, preuve de gains, teasing… pour comparer les messages.",
+    description:
+      "Vos propres catégories de messages (à créer vous-même), pour comparer ce qui marche.",
   },
   {
     href: "/settings/tags",

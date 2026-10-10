@@ -5,24 +5,76 @@
  */
 
 /** Ce que l'utilisateur demande. */
-export type AiKind = "improve" | "idea" | "shorter" | "punchier" | "angle" | "translate" | "ab_variant";
-export const AI_KINDS: readonly AiKind[] = ["improve", "idea", "shorter", "punchier", "angle", "translate", "ab_variant"];
+export type AiKind =
+  "improve" | "idea" | "shorter" | "punchier" | "angle" | "translate" | "ab_variant";
+export const AI_KINDS: readonly AiKind[] = [
+  "improve",
+  "idea",
+  "shorter",
+  "punchier",
+  "angle",
+  "translate",
+  "ab_variant",
+];
 
 export type AiVertical = "CASINO" | "SPORTS" | "DATING";
 export type AiSurface = "post" | "bot_text" | "broadcast" | "template" | "automation";
-export const AI_SURFACES: readonly AiSurface[] = ["post", "bot_text", "broadcast", "template", "automation"];
+export const AI_SURFACES: readonly AiSurface[] = [
+  "post",
+  "bot_text",
+  "broadcast",
+  "template",
+  "automation",
+];
 export type AiObjective = "offer_click" | "signup" | "engagement" | "reactivation";
-export const AI_OBJECTIVES: readonly AiObjective[] = ["offer_click", "signup", "engagement", "reactivation"];
+export const AI_OBJECTIVES: readonly AiObjective[] = [
+  "offer_click",
+  "signup",
+  "engagement",
+  "reactivation",
+];
 export type AiTone = "friendly" | "professional" | "energetic" | "sober" | "playful";
-export const AI_TONES: readonly AiTone[] = ["friendly", "professional", "energetic", "sober", "playful"];
+export const AI_TONES: readonly AiTone[] = [
+  "friendly",
+  "professional",
+  "energetic",
+  "sober",
+  "playful",
+];
 export type AiLength = "short" | "medium" | "long";
 export const AI_LENGTHS: readonly AiLength[] = ["short", "medium", "long"];
-/** Langues des textes du bot (packages/telegram/src/i18n.ts). */
-export type AiLanguage = "fr" | "en" | "es" | "pt" | "de" | "it";
-export const AI_LANGUAGES: readonly AiLanguage[] = ["fr", "en", "es", "pt", "de", "it"];
+/**
+ * Langues dans lesquelles l'assistant écrit : toutes celles des textes du bot
+ * (apps/web/app/(admin)/channels/[id]/sequences/langs.ts), pour que l'IA réponde dans la langue du champ.
+ */
+export type AiLanguage =
+  "fr" | "en" | "es" | "pt" | "de" | "it" | "ar" | "tr" | "nl" | "pl" | "ro" | "ru";
+export const AI_LANGUAGES: readonly AiLanguage[] = [
+  "fr",
+  "en",
+  "es",
+  "pt",
+  "de",
+  "it",
+  "ar",
+  "tr",
+  "nl",
+  "pl",
+  "ro",
+  "ru",
+];
+/**
+ * Langues cibles de « Traduire dans les langues du bot » : les 6 langues de l'interface du bot
+ * (packages/telegram/src/i18n.ts). Les 6 autres restent possibles en écriture et comme langue de départ ;
+ * les traduire toutes à la fois dépasserait le plafond de sortie pour un texte long.
+ */
+export const AI_TRANSLATION_LANGUAGES: readonly AiLanguage[] = ["fr", "en", "es", "pt", "de", "it"];
 
 export const AI_LABELS = {
-  vertical: { CASINO: "Casino", SPORTS: "Paris sportifs", DATING: "Dating" } satisfies Record<AiVertical, string>,
+  vertical: { CASINO: "Casino", SPORTS: "Paris sportifs", DATING: "Dating" } satisfies Record<
+    AiVertical,
+    string
+  >,
   objective: {
     offer_click: "Clic sur l'offre",
     signup: "Inscription",
@@ -36,8 +88,25 @@ export const AI_LABELS = {
     sober: "Sobre",
     playful: "Léger, avec humour",
   } satisfies Record<AiTone, string>,
-  length: { short: "Court (2-3 lignes)", medium: "Moyen (4-6 lignes)", long: "Long (8-12 lignes)" } satisfies Record<AiLength, string>,
-  language: { fr: "Français", en: "Anglais", es: "Espagnol", pt: "Portugais", de: "Allemand", it: "Italien" } satisfies Record<AiLanguage, string>,
+  length: {
+    short: "Court (2-3 lignes)",
+    medium: "Moyen (4-6 lignes)",
+    long: "Long (8-12 lignes)",
+  } satisfies Record<AiLength, string>,
+  language: {
+    fr: "Français",
+    en: "Anglais",
+    es: "Espagnol",
+    pt: "Portugais",
+    de: "Allemand",
+    it: "Italien",
+    ar: "Arabe",
+    tr: "Turc",
+    nl: "Néerlandais",
+    pl: "Polonais",
+    ro: "Roumain",
+    ru: "Russe",
+  } satisfies Record<AiLanguage, string>,
   surface: {
     post: "Message de canal",
     bot_text: "Texte du bot",
@@ -81,7 +150,12 @@ export const DEFAULT_RISK_NOTICE: AiRiskNotice = {
 /** Une version proposée : le texte (HTML Telegram) et la phrase « ce qui change ». `lang` pour les traductions. */
 export type AiVersion = { text: string; why: string; lang?: AiLanguage };
 
-export type AiUsage = { inputTokens: number; outputTokens: number; cachedTokens: number; cacheWriteTokens: number };
+export type AiUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  cacheWriteTokens: number;
+};
 
 export type AiRequest = {
   kind: AiKind;
@@ -105,9 +179,12 @@ export type AiResult = {
 /** Requête minimale envoyée au client (forme proche de `messages.create`, sans dépendre du SDK dans les tests). */
 export type AiMessageRequest = {
   model: string;
+  /** Plafond de jetons de sortie, réflexion du modèle comprise. */
   maxTokens: number;
   system: Array<{ text: string; cache: boolean }>;
   user: string;
+  /** Effort de réflexion (`output_config.effort`) ; « low » par défaut : textes courts, réponse rapide. */
+  effort?: "low" | "medium" | "high";
 };
 export type AiMessageResponse = { text: string; usage: AiUsage; stopReason: string | null };
 /** Client injectable : le vrai appelle l'API Anthropic, le simulé renvoie des réponses préparées. */

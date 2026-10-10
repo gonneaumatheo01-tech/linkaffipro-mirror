@@ -19,6 +19,8 @@ export type TabProps = {
   period: Period;
   compare: boolean;
   sp: Record<string, string | string[] | undefined>;
+  /** Rôle ADMIN : boutons de suppression affichés (les MANAGER ne suppriment pas). */
+  isAdmin: boolean;
 };
 
 export const selectCls = "h-10 rounded-md border bg-background px-3 text-sm md:h-9";

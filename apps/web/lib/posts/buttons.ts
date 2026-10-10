@@ -19,6 +19,14 @@ export const BUTTON_TYPE_LABELS: Record<PostButtonType, string> = {
   OFFER: "Offre (campagne)",
 };
 
+/** Adresse d'un bouton « Lien direct » ou « Lien traqué » : message d'erreur si elle ne commence pas par http(s)://. */
+export function buttonUrlError(b: Pick<PostButton, "text" | "type" | "url">): string | null {
+  if (b.type === "OFFER") return null;
+  if (!b.url || !/^https?:\/\//i.test(b.url))
+    return `Bouton « ${b.text} » : l'adresse doit commencer par https://.`;
+  return null;
+}
+
 export function parseButtons(value: unknown): PostButtonRow[] {
   if (!Array.isArray(value)) return [];
   return value

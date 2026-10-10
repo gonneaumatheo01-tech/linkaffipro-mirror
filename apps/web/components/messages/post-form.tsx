@@ -20,7 +20,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpTip } from "@/components/admin/help-tip";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
+import { ImproveButton, type ImproveContext } from "@/components/ai/improve-button";
+import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { TelegramPreview } from "./telegram-preview";
+import { CategoryPicker } from "./category-picker";
+import { resolvePostVertical } from "./ai-context";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
 import {
   AB_DEFAULT_DELAY_MINUTES,
@@ -30,7 +34,12 @@ import {
 import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
 import type { BestSlot } from "@/lib/besthours/types";
 
-export type ChannelOption = { id: string; title: string; language: string };
+export type ChannelOption = {
+  id: string;
+  title: string;
+  language: string;
+  vertical?: string | null;
+};
 export type CategoryOption = { id: string; name: string; color: string };
 export type CampaignOption = { id: string; name: string; programName: string };
 export type MediaItem = {
@@ -58,6 +67,8 @@ export type PostFormValues = {
   disableLinkPreview: boolean;
   isTemplate: boolean;
   templateName: string;
+  /** Univers du modèle (modèles seulement) : transmis à l'assistant IA. */
+  vertical?: string | null;
   duplicatedFromId?: string;
 };
 
@@ -66,6 +77,8 @@ type Props = {
   channels: ChannelOption[];
   categories: CategoryOption[];
   campaigns: CampaignOption[];
+  /** Nos campagnes avec leurs offres (bouton « Offre »), chargées par la page : liste toujours à jour. */
+  campaignOptions?: CampaignOptionWithOffers[];
   initial: PostFormValues;
   /** Édition : un seul canal. */
   singleChannel?: boolean;
@@ -319,11 +332,13 @@ function ButtonsEditor({
   rows,
   setRows,
   campaigns,
+  campaignOptions,
   prefix = "",
 }: {
   rows: PostButtonRow[];
   setRows: Dispatch<SetStateAction<PostButtonRow[]>>;
   campaigns: CampaignOption[];
+  campaignOptions?: CampaignOptionWithOffers[];
   prefix?: string;
 }) {
   function setButton(r: number, c: number, patch: Partial<PostButton>) {
@@ -367,6 +382,7 @@ function ButtonsEditor({
                 <OfferPicker
                   value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
                   onChange={(patch) => setButton(r, c, patch)}
+                  campaigns={campaignOptions}
                   affiliateCampaigns={campaigns}
                   label={`${prefix}Campagne du bouton Offre`}
                 />
@@ -428,6 +444,7 @@ export function PostForm({
   channels,
   categories,
   campaigns,
+  campaignOptions,
   initial,
   singleChannel,
   bestSlots = {},
@@ -439,6 +456,10 @@ export function PostForm({
   const [channelIds, setChannelIds] = useState<string[]>(initial.channelIds);
   const [scheduledAt, setScheduledAt] = useState(initial.scheduledAt);
   const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [categoryName, setCategoryName] = useState<string | null>(
+    categories.find((c) => c.id === initial.categoryId)?.name ?? null,
+  );
+  const [language, setLanguage] = useState(initial.language);
   const [intent, setIntent] = useState<"draft" | "schedule" | "template">(
     initial.isTemplate ? "template" : "draft",
   );
@@ -451,6 +472,23 @@ export function PostForm({
   const [mediaB, setMediaB] = useState<MediaItem[]>([]);
   const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
   const abActive = abAllowed && ab && intent !== "template";
+
+  // Contexte de l'assistant IA : univers (campagne du bouton Offre, modèle, puis canal), catégorie, langue, média.
+  const aiContext: ImproveContext = {
+    surface: initial.isTemplate || intent === "template" ? "template" : "post",
+    vertical: resolvePostVertical({
+      rows,
+      campaigns: campaignOptions ?? [],
+      channels,
+      channelIds,
+      templateVertical: initial.vertical,
+    }),
+    categoryId: categoryId || null,
+    categoryName,
+    language,
+    hasMedia: media.length > 0,
+  };
+  const canCreateVariantB = abAllowed && !initial.isTemplate && intent !== "template";
 
   // Meilleur créneau : premier canal coché qui a une recommandation pour la catégorie choisie (sinon toutes catégories).
   const slotInfo = (() => {
@@ -554,8 +592,21 @@ export function PostForm({
               maximum, 1 024 avec un média.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <TextEditor text={text} setText={setText} label="Texte du message" />
+            <ImproveButton
+              getText={() => text}
+              setText={setText}
+              context={aiContext}
+              onCreateVariantB={
+                canCreateVariantB
+                  ? (t) => {
+                      setAb(true);
+                      setTextB(t);
+                    }
+                  : undefined
+              }
+            />
           </CardContent>
         </Card>
 
@@ -586,7 +637,12 @@ export function PostForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ButtonsEditor rows={rows} setRows={setRows} campaigns={campaigns} />
+            <ButtonsEditor
+              rows={rows}
+              setRows={setRows}
+              campaigns={campaigns}
+              campaignOptions={campaignOptions}
+            />
           </CardContent>
         </Card>
 
@@ -666,6 +722,13 @@ export function PostForm({
                       label="Texte de la version B"
                       rows={6}
                     />
+                    <ImproveButton
+                      getText={() => textB}
+                      setText={setTextB}
+                      context={{ ...aiContext, hasMedia: mediaB.length > 0 }}
+                      label="✨ Améliorer la version B avec l'IA"
+                      size="xs"
+                    />
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Médias — version B</p>
@@ -681,6 +744,7 @@ export function PostForm({
                       rows={rowsB}
                       setRows={setRowsB}
                       campaigns={campaigns}
+                      campaignOptions={campaignOptions}
                       prefix="Version B : "
                     />
                   </div>
@@ -756,29 +820,21 @@ export function PostForm({
                 />
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="categoryId">Catégorie</Label>
-              <select
-                id="categoryId"
-                name="categoryId"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">— aucune —</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <CategoryPicker
+              categories={categories}
+              value={categoryId}
+              onChange={(id, c) => {
+                setCategoryId(id);
+                setCategoryName(c?.name ?? null);
+              }}
+            />
             <div className="space-y-2">
               <Label htmlFor="language">Langue (code à deux lettres)</Label>
               <Input
                 id="language"
                 name="language"
-                defaultValue={initial.language}
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
                 maxLength={5}
                 className="w-24 max-md:h-10"
               />

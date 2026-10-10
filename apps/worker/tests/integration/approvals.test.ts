@@ -167,4 +167,24 @@ describe("adhésion de bout en bout : demande → file → approbation par le wo
     expect(membership.status).toBe("APPROVED");
     expect(workerCalls.filter((c) => c.method === "approveChatJoinRequest").at(-1)?.payload).toEqual({ chat_id: Number(CHAT_A), user_id: 5002 });
   });
+
+  it("canal désactivé : une demande déjà planifiée n'est ni acceptée ni relancée", async () => {
+    await bot.handleUpdate(joinRequest(CHAT_A, 5003, LINK_A));
+    const member = await prisma.member.findUniqueOrThrow({ where: { telegramUserId: 5003n } });
+    let membership = await prisma.membership.findFirstOrThrow({ where: { memberId: member.id, channelId: channelAId } });
+    expect(membership.status).toBe("SCHEDULED");
+    const approvalsBefore = workerCalls.filter((c) => c.method === "approveChatJoinRequest").length;
+
+    await prisma.channel.update({ where: { id: channelAId }, data: { isActive: false } });
+    try {
+      expect(await processApprovals(fakeJob({ type: "tick" as const }))).toEqual({ claimed: 0, approved: 0 });
+      membership = await prisma.membership.findUniqueOrThrow({ where: { id: membership.id } });
+      expect(membership.status).toBe("SCHEDULED");
+      expect(workerCalls.filter((c) => c.method === "approveChatJoinRequest").length).toBe(approvalsBefore);
+    } finally {
+      await prisma.channel.update({ where: { id: channelAId }, data: { isActive: true } });
+    }
+    // Canal réactivé : la demande est traitée au balayage suivant.
+    expect(await processApprovals(fakeJob({ type: "tick" as const }))).toEqual({ claimed: 1, approved: 1 });
+  });
 });

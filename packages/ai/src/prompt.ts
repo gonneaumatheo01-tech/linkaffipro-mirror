@@ -1,5 +1,14 @@
 import { TELEGRAM_CAPTION_MAX, TELEGRAM_TEXT_MAX } from "@linkaffipro/core";
-import { AI_LABELS, AI_LANGUAGES, DEFAULT_RISK_NOTICE, type AiContext, type AiExample, type AiKind, type AiRequest, type AiRiskNotice } from "./types";
+import {
+  AI_LABELS,
+  AI_TRANSLATION_LANGUAGES,
+  DEFAULT_RISK_NOTICE,
+  type AiContext,
+  type AiExample,
+  type AiKind,
+  type AiRequest,
+  type AiRiskNotice,
+} from "./types";
 
 /** Repères que le modèle doit laisser intacts. */
 export const PLACEHOLDER_RE = /\{[a-z_]+\}/g;
@@ -34,7 +43,7 @@ export function buildRulesBlock(notice: AiRiskNotice): string {
     "7. Pas de propos haineux, discriminatoire ou harcelant.",
     "",
     "FORMAT TELEGRAM",
-    "- HTML Telegram uniquement : <b>, <i>, <u>, <s>, <a href=\"https://…\">, <code>, <tg-spoiler>. Aucune autre balise, pas de Markdown, pas de titres #.",
+    '- HTML Telegram uniquement : <b>, <i>, <u>, <s>, <a href="https://…">, <code>, <tg-spoiler>. Aucune autre balise, pas de Markdown, pas de titres #.',
     "- Échappe les caractères « < », « > » et « & » qui ne font pas partie d'une balise (&lt; &gt; &amp;).",
     `- Longueur du texte visible : au plus ${TELEGRAM_CAPTION_MAX} caractères si le message accompagne un média, ${TELEGRAM_TEXT_MAX} sinon (la limite exacte est rappelée dans la demande).`,
     "- Les repères entre accolades comme {prenom}, {canal}, {offre}, {bot}, {delai} sont remplacés automatiquement à l'envoi : recopie-les exactement, sans les traduire ni les modifier, et n'en invente pas de nouveaux.",
@@ -64,13 +73,19 @@ export function buildExamplesBlock(examples: AiExample[] | undefined): string | 
 }
 
 const KIND_INSTRUCTIONS: Record<AiKind, string> = {
-  improve: "Améliore ce brouillon : plus clair, plus engageant, mieux structuré, en gardant son intention. Propose exactement 3 versions avec des angles différents.",
+  improve:
+    "Améliore ce brouillon : plus clair, plus engageant, mieux structuré, en gardant son intention. Propose exactement 3 versions avec des angles différents.",
   idea: "À partir de cette idée (une phrase), rédige exactement 3 propositions de message complètes, avec des angles différents.",
-  shorter: "Raccourcis ce message : moitié moins long au maximum, sans perdre l'appel à l'action ni la mention des risques. Propose exactement 3 versions courtes.",
-  punchier: "Rends ce message plus percutant : accroche forte dès la première ligne, phrases courtes, un seul appel à l'action. Propose exactement 3 versions.",
-  angle: "Réécris ce message sous 3 angles vraiment différents de l'original (par exemple : question au lecteur, bénéfice concret, curiosité, témoignage honnête sans chiffres inventés, rappel pratique). Propose exactement 3 versions.",
-  translate: "Traduis ce message dans chacune des langues demandées, en adaptant naturellement les expressions (pas de mot à mot). Garde les repères entre accolades, les liens et la mise en forme HTML. Traduis aussi la mention des risques.",
-  ab_variant: "Ce message est la version A d'un test A/B. Écris la version B : même objectif, même offre, même longueur environ, mais un angle d'accroche différent pour comparer. Propose exactement 3 candidates pour la version B.",
+  shorter:
+    "Raccourcis ce message : moitié moins long au maximum, sans perdre l'appel à l'action ni la mention des risques. Propose exactement 3 versions courtes.",
+  punchier:
+    "Rends ce message plus percutant : accroche forte dès la première ligne, phrases courtes, un seul appel à l'action. Propose exactement 3 versions.",
+  angle:
+    "Réécris ce message sous 3 angles vraiment différents de l'original (par exemple : question au lecteur, bénéfice concret, curiosité, témoignage honnête sans chiffres inventés, rappel pratique). Propose exactement 3 versions.",
+  translate:
+    "Traduis ce message dans chacune des langues demandées, en adaptant naturellement les expressions (pas de mot à mot). Garde les repères entre accolades, les liens et la mise en forme HTML. Traduis aussi la mention des risques.",
+  ab_variant:
+    "Ce message est la version A d'un test A/B. Écris la version B : même objectif, même offre, même longueur environ, mais un angle d'accroche différent pour comparer. Propose exactement 3 candidates pour la version B.",
 };
 
 function describeContext(ctx: AiContext, max: number): string[] {
@@ -82,7 +97,9 @@ function describeContext(ctx: AiContext, max: number): string[] {
   if (ctx.objective) lines.push(`Objectif : ${AI_LABELS.objective[ctx.objective]}.`);
   if (ctx.tone) lines.push(`Ton : ${AI_LABELS.tone[ctx.tone]}.`);
   if (ctx.length) lines.push(`Longueur souhaitée : ${AI_LABELS.length[ctx.length]}.`);
-  lines.push(`Média joint : ${ctx.hasMedia ? "oui (légende)" : "non"}. Longueur maximale du texte visible : ${max} caractères.`);
+  lines.push(
+    `Média joint : ${ctx.hasMedia ? "oui (légende)" : "non"}. Longueur maximale du texte visible : ${max} caractères.`,
+  );
   return lines;
 }
 
@@ -90,10 +107,21 @@ function describeContext(ctx: AiContext, max: number): string[] {
 export function buildUserMessage(req: AiRequest): string {
   const max = maxLengthFor(req.context);
   const draftLabel = req.kind === "idea" ? "IDÉE" : "BROUILLON";
-  const parts = [KIND_INSTRUCTIONS[req.kind], "", "CONTEXTE", ...describeContext(req.context, max), "", `${draftLabel} (entre les lignes de tirets) :`, "-----", req.text.trim(), "-----", ""];
+  const parts = [
+    KIND_INSTRUCTIONS[req.kind],
+    "",
+    "CONTEXTE",
+    ...describeContext(req.context, max),
+    "",
+    `${draftLabel} (entre les lignes de tirets) :`,
+    "-----",
+    req.text.trim(),
+    "-----",
+    "",
+  ];
   if (req.kind === "translate") {
     const source = req.context.language ?? "fr";
-    const targets = AI_LANGUAGES.filter((l) => l !== source);
+    const targets = AI_TRANSLATION_LANGUAGES.filter((l) => l !== source);
     parts.push(
       `Langues cibles : ${targets.map((l) => `${l} (${AI_LABELS.language[l]})`).join(", ")}.`,
       "",

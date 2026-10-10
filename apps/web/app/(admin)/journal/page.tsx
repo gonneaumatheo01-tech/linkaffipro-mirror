@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -25,11 +26,22 @@ import {
 } from "@/components/ui/table";
 import { fmtDate } from "@/lib/format";
 import { actionLabel, journalWhere, parseJournalFilters } from "@/lib/journal/query";
+import { ViewTabs } from "./view-tabs";
 
 export const metadata: Metadata = { title: "Journal" };
 
 export default async function JournalPage({ searchParams }: PageProps<"/journal">) {
   const sp = await searchParams;
+  // Ancienne adresse de la vue « Événements » (`/journal?view=events`) : renvoi vers sa propre page, filtres gardés.
+  if (sp.view === "events") {
+    const rest = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) {
+      if (k === "view" || v === undefined) continue;
+      for (const item of Array.isArray(v) ? v : [v]) rest.append(k, item);
+    }
+    const q = rest.toString();
+    redirect(q ? `/journal/events?${q}` : "/journal/events");
+  }
   const f = parseJournalFilters(sp);
   const where = journalWhere(f);
   const [total, logs, users] = await Promise.all([
@@ -55,7 +67,7 @@ export default async function JournalPage({ searchParams }: PageProps<"/journal"
     <>
       <PageHeader
         title="Journal"
-        description="Toutes les actions faites sur le site par l'équipe (et par le système), dans l'ordre, sans possibilité de les modifier."
+        description="Toutes les actions faites sur le site par l'équipe (et par le système), dans l'ordre, sans possibilité de les modifier. L'onglet « Événements » montre l'activité des bots et des membres."
         help="Filtrez par personne, par type d'action (ex. « broadcast. » pour les envois) ou par période. Les filtres sont mémorisés sur cet appareil."
       >
         <Button
@@ -66,6 +78,7 @@ export default async function JournalPage({ searchParams }: PageProps<"/journal"
           Exporter CSV
         </Button>
       </PageHeader>
+      <ViewTabs view="actions" />
       <Card className="mb-4">
         <CardContent className="pt-6">
           <form method="get" className="grid gap-2 text-sm sm:flex sm:flex-wrap sm:items-end">

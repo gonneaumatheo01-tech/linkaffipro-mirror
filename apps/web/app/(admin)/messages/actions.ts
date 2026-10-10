@@ -11,7 +11,9 @@ import { parsePostForm, type PostFormInput } from "@/lib/posts/schema";
 import { publishingBotFor } from "@/lib/posts/queries";
 import { fromParisLocal } from "@/lib/posts/time";
 import { planVariants, variantScheduledAt } from "@/lib/posts/ab";
-import type { PostButtonRow } from "@/lib/posts/buttons";
+import { buttonUrlError, type PostButtonRow } from "@/lib/posts/buttons";
+import { assertButtonRows, materializeOfferButton } from "@/lib/campaigns/offer-button";
+import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 
 function back(path: string, params: Record<string, string>): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}`);
@@ -23,25 +25,27 @@ function isRedirect(err: unknown): boolean {
   );
 }
 
-/** Crée ou met à jour les liens traqués des boutons (BUTTON / OFFER) et renvoie les boutons à stocker. */
+/**
+ * Crée ou met à jour les liens traqués des boutons (BUTTON / OFFER) et renvoie les boutons à stocker.
+ * `relinked` : un lien Offre déjà enregistré a changé de campagne ou d'offre (recalcul des statistiques à demander).
+ */
 async function materializeButtons(
   rows: PostFormInput["buttons"],
   post: { id: string; channelId: string },
   userId: string,
-): Promise<PostButtonRow[]> {
+): Promise<{ buttons: PostButtonRow[]; relinked: boolean }> {
   const out: PostButtonRow[] = [];
+  let relinked = false;
   for (const row of rows) {
     const line: PostButtonRow = [];
     for (const b of row) {
+      const urlError = buttonUrlError(b);
+      if (urlError) throw new Error(urlError);
       if (b.type === "URL") {
-        if (!b.url || !/^https?:\/\//i.test(b.url))
-          throw new Error(`Bouton « ${b.text} » : l'adresse doit commencer par https://.`);
         line.push({ text: b.text, type: "URL", url: b.url });
         continue;
       }
       if (b.type === "BUTTON") {
-        if (!b.url || !/^https?:\/\//i.test(b.url))
-          throw new Error(`Bouton « ${b.text} » : l'adresse doit commencer par https://.`);
         const existing = b.trackingLinkId
           ? await prisma.trackingLink.findUnique({ where: { id: b.trackingLinkId } })
           : null;
@@ -54,7 +58,8 @@ async function materializeButtons(
               data: {
                 slug: shortId(8),
                 kind: "BUTTON",
-                destinationTemplate: b.url,
+                // Adresse vérifiée plus haut (buttonUrlError).
+                destinationTemplate: b.url!,
                 label: b.text,
                 channelId: post.channelId,
                 postId: post.id,
@@ -70,50 +75,18 @@ async function materializeButtons(
         });
         continue;
       }
-      // OFFER
-      if (!b.affiliateCampaignId)
-        throw new Error(`Bouton « ${b.text} » : choisissez une campagne Link Affi.`);
-      const campaign = await prisma.affiliateCampaign.findUnique({
-        where: { id: b.affiliateCampaignId },
+      // OFFER : la campagne choisie détermine le lien Link Affi (voir lib/campaigns/offer-button.ts).
+      const offer = await materializeOfferButton(b, {
+        channelId: post.channelId,
+        postId: post.id,
+        userId,
       });
-      if (!campaign || !campaign.isActive)
-        throw new Error(`Bouton « ${b.text} » : campagne Link Affi introuvable ou inactive.`);
-      const existing = b.trackingLinkId
-        ? await prisma.trackingLink.findUnique({ where: { id: b.trackingLinkId } })
-        : null;
-      const link = existing
-        ? await prisma.trackingLink.update({
-            where: { id: existing.id },
-            data: {
-              destinationTemplate: campaign.trackingUrlTemplate,
-              affiliateCampaignId: campaign.id,
-              label: b.text,
-              isActive: true,
-            },
-          })
-        : await prisma.trackingLink.create({
-            data: {
-              slug: shortId(8),
-              kind: "OFFER",
-              destinationTemplate: campaign.trackingUrlTemplate,
-              label: b.text,
-              channelId: post.channelId,
-              postId: post.id,
-              affiliateCampaignId: campaign.id,
-              createdById: userId,
-            },
-          });
-      line.push({
-        text: b.text,
-        type: "OFFER",
-        trackingLinkId: link.id,
-        slug: link.slug,
-        affiliateCampaignId: campaign.id,
-      });
+      relinked ||= offer.relinked;
+      line.push(offer.button);
     }
     if (line.length > 0) out.push(line);
   }
-  return out;
+  return { buttons: out, relinked };
 }
 
 function validateText(
@@ -162,6 +135,8 @@ export async function createPostAction(formData: FormData): Promise<void> {
       error: parsed.error.issues[0]?.message ?? "Vérifiez le formulaire : une valeur est invalide.",
     });
   const input = parsed.data;
+  // Messages déjà créés par cette action : retirés si l'enregistrement échoue en cours de route.
+  const created: string[] = [];
   try {
     const html = validateText(input);
     const isTemplate = input.intent === "template";
@@ -175,9 +150,14 @@ export async function createPostAction(formData: FormData): Promise<void> {
     const schedule = isTemplate
       ? { status: "DRAFT" as const, scheduledAt: null }
       : resolveSchedule(input);
+    // Tous les boutons (A et B) sont vérifiés AVANT de créer le moindre message : un bouton refusé ne laisse jamais
+    // un message programmé en base, qui partirait sans ses boutons.
+    await assertButtonRows(input.buttons);
+    if (abEnabled) await assertButtonRows(input.buttonsB);
     let firstId: string | null = null;
-    const created: string[] = [];
+    let relinked = false;
     const groups: string[] = [];
+    const journal: Array<{ postId: string; metadata: Record<string, string | null> }> = [];
     for (const channelId of input.channelIds) {
       const variants = planVariants(
         { channelId, text: html, mediaAssetIds: input.mediaAssetIds, buttons: input.buttons },
@@ -206,13 +186,14 @@ export async function createPostAction(formData: FormData): Promise<void> {
             })
           : null;
         const dupFrom: string | null = firstId ?? input.duplicatedFromId ?? null;
+        // Créé en brouillon : il ne devient « programmé » qu'une fois ses boutons enregistrés (voir plus bas).
         const post: { id: string } = await prisma.post.create({
           select: { id: true },
           data: {
             code: shortId(8),
             channelId: v.channelId,
             botId: bot.id,
-            status: schedule.status,
+            status: "DRAFT",
             scheduledAt: variantScheduledAt(schedule.scheduledAt, v.offsetMinutes),
             categoryId: input.categoryId ?? null,
             language: input.language,
@@ -235,26 +216,20 @@ export async function createPostAction(formData: FormData): Promise<void> {
             duplicatedFromId: dupFrom,
           },
         });
-        const buttons = await materializeButtons(
+        created.push(post.id);
+        const m = await materializeButtons(
           v.buttons,
           { id: post.id, channelId: v.channelId },
           user.id,
         );
+        relinked ||= m.relinked;
         await prisma.post.update({
           where: { id: post.id },
-          data: { buttons: buttons as unknown as Prisma.InputJsonValue },
+          data: { buttons: m.buttons as unknown as Prisma.InputJsonValue },
         });
         firstId ??= post.id;
-        created.push(post.id);
-        await audit({
-          userId: user.id,
-          action: isTemplate
-            ? "post.template_created"
-            : schedule.status === "SCHEDULED"
-              ? "post.scheduled"
-              : "post.drafted",
-          entityType: "Post",
-          entityId: post.id,
+        journal.push({
+          postId: post.id,
           metadata: {
             channelId: v.channelId,
             scheduledAt:
@@ -265,6 +240,25 @@ export async function createPostAction(formData: FormData): Promise<void> {
         });
       }
     }
+    // Tous les messages et leurs boutons sont enregistrés : ils peuvent maintenant être programmés.
+    if (schedule.status === "SCHEDULED")
+      await prisma.post.updateMany({
+        where: { id: { in: created } },
+        data: { status: "SCHEDULED" },
+      });
+    for (const j of journal)
+      await audit({
+        userId: user.id,
+        action: isTemplate
+          ? "post.template_created"
+          : schedule.status === "SCHEDULED"
+            ? "post.scheduled"
+            : "post.drafted",
+        entityType: "Post",
+        entityId: j.postId,
+        metadata: j.metadata,
+      });
+    if (relinked) await refreshCampaignStats();
     revalidatePath("/messages");
     const msg = isTemplate
       ? "Modèle enregistré."
@@ -277,9 +271,22 @@ export async function createPostAction(formData: FormData): Promise<void> {
     back(created.length === 1 ? `/messages/${created[0]}` : "/messages", { ok: msg });
   } catch (err) {
     if (isRedirect(err)) throw err;
+    if (created.length) await discardCreated(created);
+    // Copie d'un message ou d'un modèle : on revient sur la copie (contenu rechargé) plutôt qu'un formulaire vide.
     back("/messages/new", {
+      ...(input.duplicatedFromId ? { from: input.duplicatedFromId } : {}),
       error: err instanceof Error ? err.message : "Enregistrement impossible.",
     });
+  }
+}
+
+/** Retire les messages (et leurs liens traqués tout neufs) créés par une création qui a échoué. */
+async function discardCreated(postIds: string[]): Promise<void> {
+  try {
+    await prisma.trackingLink.deleteMany({ where: { postId: { in: postIds } } });
+    await prisma.post.deleteMany({ where: { id: { in: postIds } } });
+  } catch (err) {
+    console.error("messages créés non retirés après un échec", err);
   }
 }
 
@@ -303,7 +310,12 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       : resolveSchedule(input);
     const channelId = input.channelIds[0] ?? post.channelId;
     const bot = channelId !== post.channelId ? await publishingBotFor(channelId) : null;
-    const buttons = await materializeButtons(input.buttons, { id: post.id, channelId }, user.id);
+    await assertButtonRows(input.buttons);
+    const { buttons, relinked } = await materializeButtons(
+      input.buttons,
+      { id: post.id, channelId },
+      user.id,
+    );
     await prisma.post.update({
       where: { id: postId },
       data: {
@@ -334,6 +346,9 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       entityId: postId,
       metadata: { status: schedule.status },
     });
+    // Ancien bouton Offre rattaché à une campagne (ou passé d'une campagne à une autre) : ses clics passés changent
+    // de campagne, les statistiques journalières sont recalculées depuis le début.
+    if (relinked) await refreshCampaignStats();
     revalidatePath("/messages");
     back(`/messages/${postId}`, {
       ok: schedule.status === "SCHEDULED" ? "Message programmé." : "Message enregistré.",

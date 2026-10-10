@@ -16,7 +16,7 @@ import {
   TELEGRAM_SESSION_ID,
   TELEGRAM_USER_API_SETTING,
 } from "@linkaffipro/mtproto";
-import { enqueue } from "@linkaffipro/queue";
+import { enqueue, getRedis, withMtprotoLock } from "@linkaffipro/queue";
 import { requireAdmin } from "@/lib/session";
 import { getTelegramSessionSecret, getTelegramUserApi } from "@/lib/views/session";
 
@@ -246,7 +246,11 @@ export async function disconnectAction(): Promise<void> {
   let note: string | null = null;
   if (creds && secret && secret.session) {
     try {
-      revoked = await logOut(secret.session, creds);
+      // Même session que le relevé des vues du worker : une seule connexion à la fois (verrou partagé).
+      revoked = await withMtprotoLock(getRedis(), () => logOut(secret.session, creds), {
+        waitMs: 15_000,
+        owner: "web:disconnect",
+      });
     } catch (err) {
       note = describe(err);
     }

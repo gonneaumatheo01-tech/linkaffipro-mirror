@@ -9,18 +9,19 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens traqués : http
 - [Les 10 premières minutes](#les-10-premieres-minutes)
 - [Comment ça marche](#comment-ca-marche)
 - [Tableau de bord](#tableau-de-bord)
+- [Campagnes](#campagnes)
 - [Canaux](#canaux)
 - [Bots](#bots)
 - [Membres](#membres)
 - [Messages](#messages)
 - [Liens](#liens)
-- [Pubs](#pubs)
 - [Envois](#envois)
 - [Automatisations](#automatisations)
 - [Journal](#journal)
 - [Réglages](#reglages)
   - [Utilisateurs et invitations](#utilisateurs-et-invitations)
   - [Connecteurs (Link Affi)](#connecteurs-link-affi)
+  - [IA](#ia)
   - [Postbacks](#postbacks)
   - [Alertes et rétention](#alertes-et-retention)
   - [Rapports automatiques](#rapports-automatiques)
@@ -57,23 +58,22 @@ Le webhook est le « fil » qui relie Telegram au site : sans lui, le bot ne voi
 Un canal n'est pas créé depuis le site : il est détecté dès qu'un de nos bots en devient administrateur.
 
 1. Dans Telegram, ouvrez votre canal → Administrateurs → Ajouter un administrateur → choisissez le bot de l'univers (par exemple @casinogamblingoobot) → cochez au minimum le droit « Ajouter des membres » (indispensable pour traiter les demandes d'adhésion) → validez.
-2. Menu **Canaux** : le canal apparaît en quelques secondes. Sur sa ligne, choisissez l'**Univers**, la **Langue**, le **Bot principal**, cochez **Actif** (et **TEST** s'il s'agit d'un canal d'essai), puis cliquez sur **Enregistrer**.
+2. Menu **Canaux** : le canal apparaît en quelques secondes (si le bot était déjà administrateur avant, utilisez **Ajouter un canal existant** : voir [Canaux](#canaux)). Sur sa ligne, choisissez l'**Univers**, la **Langue**, le **Bot principal**, cochez **Actif** (et **TEST** s'il s'agit d'un canal d'essai), puis cliquez sur **Enregistrer**.
 3. Cliquez sur le nom du canal. Onglet **Règles d'adhésion** : choisissez le **Mode** (Immédiat, Après un délai ou Validation manuelle), le **Délai avant acceptation**, cochez éventuellement les **Canaux à rejoindre d'abord**, puis **Enregistrer la règle**.
 4. Onglet **Messages du bot** : relisez le texte « Accueil (à la demande d'adhésion) ». Cliquez sur **Modifier**, adaptez le texte, **Enregistrer**, puis **Envoyer un test** pour le recevoir sur votre propre Telegram (il faut d'abord lier votre Telegram dans **Mon compte**).
 
-### 4. Créer un lien de pub
+### 4. Créer votre première campagne (et ses liens de pub)
 
-1. Menu **Liens**, bloc **Nouveau lien d'entrée (pub)**.
-2. Choisissez le **Canal**, écrivez un **Nom(s) de lien** par ligne (par exemple `TT-casino-FR-video3`), la **Plateforme** (TikTok, Meta ou Autre) et la **Langue**. Les champs **Campagne**, **Groupe** et **Pub** sont facultatifs mais utiles pour retrouver la pub plus tard.
-3. Cliquez sur **Créer le(s) lien(s)**.
-4. Dans le tableau **Entrées par pub**, copiez la colonne **URL à coller dans la pub** et collez-la comme lien de destination dans TikTok Ads Manager ou Meta Ads Manager.
+1. Menu **Campagnes** → **Nouvelle campagne**.
+2. Suivez les 4 étapes : **Nom et univers**, **Offres** (cochez votre offre Link Affi), **Canaux** (cochez le canal), **Pubs** (plateforme, nombre de pubs, **Canal d'entrée des pubs**), puis **Créer la campagne**.
+3. Fiche de la campagne → onglet **Liens** : copiez la colonne **Adresse à coller dans la pub** et collez-la comme lien de destination dans TikTok Ads Manager ou Meta Ads Manager (une adresse par pub).
 
-Derrière ce lien goolink, le site a créé automatiquement un lien d'invitation Telegram « avec demande d'adhésion » propre à cette pub : c'est lui qui permet de savoir de quelle pub vient chaque membre.
+Derrière chaque lien goolink, le site a créé automatiquement un lien d'invitation Telegram « avec demande d'adhésion » propre à cette pub : c'est lui qui permet de savoir de quelle pub vient chaque membre. Le menu **Liens** permet aussi de créer des liens hors campagne (bloc **Nouveau lien d'entrée (pub)**).
 
 ### 5. Programmer un premier message
 
 1. Menu **Messages** → **Nouveau message**.
-2. Cochez le ou les canaux, écrivez le texte, ajoutez si besoin un média et un bouton (type **Offre personnalisée (sub-ID)** pour un lien casino traqué par membre).
+2. Cochez le ou les canaux, écrivez le texte, ajoutez si besoin un média et un bouton **Offre (campagne)** (choisissez votre campagne : chaque membre reçoit son lien casino personnel, traqué par sub-ID).
 3. Dans **Programmation**, choisissez **Date et heure (Paris)** et une **Catégorie**, puis cliquez sur **Programmer**.
 4. Le message apparaît dans le **Calendrier**. Il partira tout seul à l'heure dite.
 
@@ -90,30 +90,69 @@ Voici le fil complet d'un membre, de la pub jusqu'aux statistiques.
 7. **Le bouton « Offre ».** Quand un membre appuie sur un bouton de type Offre, le bot lui répond en privé avec un lien personnel : le lien Link Affi de la campagne, complété d'un identifiant de suivi (sub-ID) unique pour ce membre et ce message.
 8. **Chez le casino.** Le membre s'inscrit, puis fait un premier dépôt (FTD, « first time deposit »). Link Affi transmet l'identifiant de suivi au casino, qui le renvoie dans ses postbacks (les messages automatiques « inscription », « dépôt » envoyés par le casino).
 9. **La remontée.** Toutes les 2 minutes, le site lit l'API de Link Affi (en lecture seule) et récupère clics, joueurs et dépôts avec leur sub-ID. Pour un programme hors Link Affi, le casino peut appeler directement une adresse de postback du site (**Réglages → Postbacks**).
-10. **Les statistiques.** Grâce au sub-ID, chaque inscription et chaque dépôt est rattaché au membre, au message, au canal et à la pub d'origine. C'est ce qui alimente le **Tableau de bord**, la page **Pubs**, la fiche de chaque message et la fiche de chaque membre.
+10. **Les statistiques.** Grâce au sub-ID, chaque inscription et chaque dépôt est rattaché au membre, au message, au canal et à la pub d'origine. C'est ce qui alimente le **Tableau de bord**, la page **Campagnes**, la fiche de chaque message et la fiche de chaque membre.
 
 Deux limites à connaître : les liens courts et les pages d'atterrissage (landing pages) de Link Affi ne portent pas de sub-ID, il ne faut donc jamais les utiliser dans un bouton Offre ; et le nombre de vues d'un message n'est pas encore remonté.
 
 ## Tableau de bord
 
-**À quoi ça sert.** Voir en un coup d'œil l'activité : bots actifs, canaux, membres vus, événements des 24 dernières heures, puis les chiffres par période (demandes, acceptés, clics d'offres, inscriptions, FTD, dépôts). Cinq onglets : **Vue d'ensemble**, **Pubs**, **Entonnoir**, **Cohortes**, **Canaux**.
+**À quoi ça sert.** Voir en un coup d'œil l'activité et l'argent rapporté par **vos** joueurs. En haut : bots actifs, canaux actifs, membres vus et nombre de campagnes. Puis les chiffres de la période en deux lignes :
+- **Telegram** : demandes → acceptés → entrées → départs ;
+- **Argent** : clics pub → clics offre → inscriptions → premiers dépôts (FTD) → dépôts (€) → NGR (€).
+
+Cinq onglets : **Vue d'ensemble**, **Campagnes**, **Entonnoir**, **Cohortes**, **Canaux**.
+
+**Ce qui est compté.** Seuls vos joueurs comptent : ceux venus d'un de vos clics (identifiant de suivi, sub-ID) ou d'une offre Link Affi rattachée à une de vos campagnes. Les autres joueurs de Link Affi n'apparaissent que dans Réglages → Connecteurs (carte « Diagnostic Link Affi »). Toutes les dates sont celles de Link Affi (inscription, premier dépôt, dépôt, variation du NGR), jamais la date d'import : 7, 30 et 90 jours donnent donc des chiffres différents. Tant qu'aucune campagne n'existe, la page affiche « Pas encore de chiffres : créez votre première campagne » avec le bouton **Nouvelle campagne**.
 
 **Comment faire.**
 
-1. En haut à droite, filtrez par univers (**Tous les univers**) et par canal (**Tous les canaux**), puis cliquez sur **OK**.
-2. Choisissez la période : **Aujourd'hui**, **7 jours**, **30 jours** ou **90 jours**.
-3. Onglet **Pubs** : dépense, membres, inscriptions, FTD, CPL, CPA, ROAS par pub, avec comparaison à la période précédente. Cliquez sur un en-tête de colonne pour trier, sur **Export CSV** pour télécharger, sur **Recalculer les statistiques** si les chiffres semblent en retard.
-4. Onglet **Entonnoir** : chaque étape (clics → demandes → acceptés → clics d'offres → inscriptions → FTD → dépôts) avec la perte à chaque marche. Le menu déroulant permet de regarder une seule pub, un seul canal ou un seul univers.
-5. Onglet **Cohortes** : les membres regroupés par semaine d'arrivée, avec leurs inscriptions, FTD, dépôts à 7 et 30 jours et la LTV (valeur moyenne d'un membre).
+1. En haut à droite, choisissez **Tous les univers**, **Tous les canaux** et **Toutes les campagnes** (le menu Campagne recharge la page aussitôt), puis cliquez sur **Appliquer**. Les filtres restent quand vous changez d'onglet, de période ou que vous exportez. Avec le filtre Campagne, demandes, acceptés, entrées et départs ne comptent que les personnes arrivées par les liens d'entrée de la campagne (ses pubs), comme sur sa fiche. Avec le filtre canal, l'argent est celui des joueurs qui ont cliqué une offre dans un message de ce canal, ou dont le membre y est arrivé par une pub ; un joueur sans clic n'est rattaché à aucun canal (il reste compté dans le total, l'univers et sa campagne).
+2. Choisissez la période (aujourd'hui, hier, 7 jours, 30 jours, 90 jours, mois en cours ou personnalisée) et, si vous voulez, **comparer à la période précédente**.
+3. Onglet **Campagnes** : une ligne par campagne (dépense, membres, inscriptions, FTD, CPL, CPA, ROAS), avec la ligne Total. Cliquez sur un en-tête pour trier, sur **Exporter CSV** pour télécharger, sur **Recalculer les statistiques** si les chiffres semblent en retard.
+4. Onglet **Entonnoir** : chaque étape (clics → demandes → acceptés → clics d'offres → inscriptions → FTD) avec la perte à chaque marche ; il s'ouvre sur le filtre posé en haut, et le menu **Afficher l'entonnoir pour** permet de regarder une seule campagne, un seul canal ou un seul univers.
+5. Onglet **Cohortes** : les membres regroupés par semaine d'arrivée sur la période choisie, avec leurs inscriptions, FTD et la LTV (somme des variations de NGR datées).
 6. Onglet **Canaux** : croissance nette par jour (entrées moins départs), meilleurs horaires d'envoi et meilleures catégories de messages.
+7. En bas de la Vue d'ensemble, **Derniers événements** (en français) ; le lien **Journal (onglet « Événements »)** ouvre la liste complète.
 
 **Pièges et questions fréquentes.**
 
-- Les chiffres des onglets Pubs, Entonnoir et Cohortes sont recalculés une fois par heure. Un message envoyé il y a 5 minutes n'y figure pas encore : attendez ou cliquez sur **Recalculer les statistiques**.
+- Les onglets Campagnes, Entonnoir et Cohortes sont recalculés une fois par heure. Un message envoyé il y a 5 minutes n'y figure pas encore : attendez ou cliquez sur **Recalculer les statistiques**.
 - La Vue d'ensemble est mise en cache une minute : rechargez après 60 secondes pour voir un changement.
-- Les dépôts peuvent dépasser les FTD : un joueur peut déposer plusieurs fois.
-- « Membres vus » compte toutes les personnes que les bots ont croisées, pas seulement les membres acceptés.
-- Les dépenses (CPL, CPA, ROAS) viennent des coûts importés ou saisis dans la page **Pubs** : sans coûts, ces colonnes restent vides.
+- La ligne Total de l'onglet Campagnes compte chaque joueur une seule fois, même quand deux campagnes partagent la même offre Link Affi (le joueur apparaît alors dans les deux lignes). « Chiffres calculés le … » donne l'heure du dernier calcul, même si aucun chiffre n'a changé.
+- Les joueurs inscrits depuis un ancien bouton **Offre** (créé avant les campagnes) comptent dans chaque campagne qui porte cette offre, comme leurs clics.
+- Le nombre d'événements des 24 dernières heures n'est plus sur le tableau de bord : il est dans Réglages → **État du système** (carte « Activité des bots (24 h) ») et dans le **Journal** (vue « Événements »).
+- Les dépenses (CPL, CPA, ROAS) viennent des coûts importés, saisis ou synchronisés dans **Campagnes** (onglet Pubs) : sans coûts, ces colonnes restent vides.
+
+## Campagnes
+
+**À quoi ça sert.** Une **campagne** réunit ce que vous promouvez (une ou plusieurs offres Link Affi), où (vos canaux Telegram) et avec quelles pubs (TikTok, Meta, autre). La liste montre ce que coûte et rapporte chacune : dépense, membres, inscriptions, FTD, revenu (NGR de la période), CPL, CPA, coût par FTD et ROAS. Vocabulaire : « campagne » = la vôtre sur la plateforme ; « campagne pub » = la campagne côté TikTok ou Meta.
+
+**Comment faire.**
+
+1. Menu **Campagnes** → **Nouvelle campagne** : un assistant en 4 étapes.
+   - **Nom et univers** : **Nom de la campagne**, **Univers**, **Budget par jour (€, facultatif)**, **Début** / **Fin** (facultatifs), **Notes**.
+   - **Offres** : cochez vos offres Link Affi (mention « à vous »), ou **Coller un lien d'offre Link Affi** (la clé doit être entière, par exemple `47eb8mwc`). La case **Afficher les offres des autres affiliés** montre les autres. Tant qu'aucun clic n'a eu lieu, toutes les offres sont affichées avec un avertissement : vérifiez l'affilié avant de cocher.
+   - **Canaux** : cochez les canaux de la campagne.
+   - **Pubs** : **Plateforme des pubs** (ou « — aucune pub pour l'instant — »), **Nombre de pubs (0 à 20)**, **Compte pub connecté**, **Campagne pub déjà importée de ce compte** (reprend ses groupes, pubs et dépenses), **Canal d'entrée des pubs**. Dans le **Récapitulatif**, vous pouvez modifier le nom ou cliquer **Proposer un nom conventionnel**. Terminez par **Créer la campagne** (un seul clic suffit, le bouton affiche « Création en cours… »).
+2. La fiche de la campagne s'ouvre, avec ses onglets :
+   - **Vue d'ensemble** : les chiffres de la période, **Modifier la campagne** (y compris le **Compte pub connecté**), et pour les administrateurs **Supprimer la campagne**.
+   - **Pubs** : groupes et pubs précises, saisie d'une dépense (date du jour à l'heure de Paris), carte **Rattacher une campagne pub importée** ; administrateurs : **Supprimer** sur chaque groupe et chaque pub. Dans la colonne **Rattacher**, « — détacher — » retire le lien d'une pub de la campagne.
+   - **Liens** : un lien d'entrée par pub, colonne **Adresse à coller dans la pub** (c'est l'adresse go.goolink.eu à mettre dans TikTok ou Meta), clics, demandes, acceptés ; **Ajouter un lien d'entrée** (canal à rejoindre, plateforme, nom de la pub précise, groupe).
+   - **Canaux**, **Messages**, **Membres** : ce qui appartient à la campagne.
+   - **Offres** : les offres Link Affi de la campagne, colonne **Affilié**.
+3. Coûts : ils arrivent seuls si le compte pub est connecté (Réglages → Connecteurs → Meta / TikTok). Sinon, **Importer un CSV** (TikTok Ads Manager ou Meta Ads Manager, colonnes détectées, aperçu, correspondances, **Importer N ligne(s)**) ou saisie dans l'onglet Pubs. **Historique des imports** liste les fichiers importés.
+4. Dans **Messages** et **Envois**, le bouton **Offre (campagne)** se règle en choisissant une campagne (groupe « Nos campagnes »), puis l'offre si la campagne en a plusieurs : chaque clic est alors rattaché à la campagne.
+
+**Pièges et questions fréquentes.**
+
+- La ligne **Total** compte chaque joueur une seule fois, même quand deux campagnes partagent la même offre : elle n'est donc pas la somme des lignes. L'export CSV contient aussi la ligne « Total (joueurs distincts) ».
+- Après une modification d'offres, de canaux, de liens ou de pubs, les statistiques se recalculent seules (environ une minute).
+- Une campagne pub reçue d'un compte Meta ou TikTok sans campagne correspondante porte le badge « importée de TikTok/Meta » : rattachez-la depuis l'onglet **Pubs** d'une de vos campagnes. Si votre campagne a le même nom et le même compte connecté, la synchro la reprend toute seule. Le nom de vos campagnes n'est jamais remplacé par celui de la plateforme.
+- Changer le **Compte pub connecté** détache la campagne pub suivie (l'historique des coûts reste).
+- Supprimer une campagne supprime ses groupes, pubs et coûts ; les liens et boutons restent actifs (page Liens), les membres et joueurs sont conservés.
+- Si une offre est retirée d'une campagne, les boutons déjà publiés envoient vers une autre offre active de la campagne. Un ancien bouton sans campagne affiche « Ancien bouton sans campagne : choisissez la campagne pour le rattacher. »
+- Le « Revenu » est le NGR remonté par Link Affi : il arrive avec un décalage, le ROAS des derniers jours est donc toujours sous-estimé.
+- Une saisie manuelle pour un jour et un niveau remplace la précédente (pas d'addition) ; un import CSV se refait sans doublon pour les mêmes jours. Si la campagne reçoit déjà ses coûts par l'API, les lignes du CSV sont ignorées.
 
 ## Canaux
 
@@ -121,7 +160,14 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 
 **Comment faire.**
 
-1. Ajoutez le bot comme administrateur du canal dans Telegram (voir [Les 10 premières minutes](#3-creer-un-canal-et-le-relier-a-un-bot)). Le canal apparaît seul dans la liste.
+1. Ajoutez le bot comme administrateur du canal dans Telegram (voir [Les 10 premières minutes](#3-creer-un-canal-et-le-relier-a-un-bot)). Le canal apparaît seul dans la liste dès que le bot reçoit quelque chose du canal (une publication, une demande d'adhésion, une réaction).
+   - **Le bot était déjà administrateur mais le canal n'apparaît pas ?** Cliquez sur **Ajouter un canal existant**. Trois méthodes, de la plus simple à la plus manuelle :
+     1. **Transférer un message du canal à l'un des bots** (marche aussi pour les canaux privés) : dans Telegram, appui long sur un message du canal → **Transférer** → choisissez le bot. Le bot répond « Canal « … » ajouté ✅ (bots administrateurs : …) ». Seuls les comptes liés dans **Mon compte → Lier mon Telegram** sont acceptés. Si vous transférez plusieurs messages d'un coup, le bot ne répond qu'une fois.
+     2. **Coller le lien public du canal** : champ **Lien ou @nom** (`t.me/mon_canal`, `t.me/s/mon_canal` ou `@mon_canal`), bouton **Ajouter** (affiche « Vérification… »). Le résultat s'affiche dans la fenêtre. Un lien `t.me/c/…` ou `t.me/+…` est un lien privé : utilisez la méthode 1. Vous pouvez aussi envoyer au bot, dans Telegram, un message qui contient seulement le lien public (ou le @nom) : un lien glissé dans une phrase n'ajoute rien.
+     3. **Publier un message dans le canal** (par exemple « . »), puis le supprimer. Le bot doit déjà être administrateur du canal, sinon Telegram ne lui montre pas les publications.
+     Tant que la fenêtre est ouverte, la liste se rafraîchit seule pendant 2 minutes et annonce « Canal « … » détecté ✅ ».
+   - **Importer tous mes canaux** (bouton visible quand le compte Telegram est connecté dans Réglages → Connecteurs → Telegram) : la page liste les canaux dont votre compte est administrateur ; cochez-les puis **Importer les canaux cochés**. Résultat du type « 12 canaux importés, 3 sans bot » (et la liste des canaux non importés, s'il y en a). « N non vérifiables pour le moment » : ces canaux sont importés, seuls les droits restent à confirmer avec **Re-vérifier les droits des bots** une minute plus tard. « Service momentanément indisponible, réessayez dans une minute. » : réessayez un peu plus tard, rien n'est perdu.
+   - **Re-vérifier les droits des bots** : relit les administrateurs de chaque canal avec chacun de nos bots et met à jour la colonne **Bots administrateurs**. Un bot n'est retiré que si Telegram confirme qu'il n'est plus administrateur ; si Telegram ne répond pas, la ligne indique « non vérifiable pour le moment (droits conservés, réessayez dans une minute) ».
 2. Sur la ligne du canal : **Univers**, **Langue**, **Bot principal**, cases **TEST** / **Médiathèque** / **Actif**, puis **Enregistrer**. Cochez **Médiathèque** pour un canal privé qui sert seulement à stocker des médias. Cochez **TEST** pour un canal d'essai : les envois de vérification y sont limités.
 3. Cliquez sur le nom du canal pour ouvrir ses quatre onglets.
 4. Onglet **Règles d'adhésion** :
@@ -149,6 +195,11 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 - Un membre reste « canaux à rejoindre » tant qu'il n'a pas appuyé sur « ✅ J'ai rejoint » et qu'il manque un canal. Si vous cochez un canal à rejoindre dont aucun bot n'est administrateur, la vérification est impossible.
 - Un lien de pub peut avoir sa propre règle (voir [Liens](#liens)) : elle remplace la règle par défaut du canal pour les membres venus de ce lien.
 - **Envoyer un test** est grisé tant que votre Telegram n'est pas lié dans **Mon compte**.
+- **Canal sans règle d'adhésion** (par exemple un canal détecté automatiquement) : les demandes attendent votre validation (onglet **Demandes** → **Accepter maintenant**) et le bot n'écrit à personne de lui-même (quand vous acceptez une demande, le membre reçoit le message « accepté »). Enregistrez une règle pour automatiser l'accueil. Le bot principal est choisi automatiquement à la détection (bot du même univers en priorité) ; vous pouvez le changer sur la ligne du canal.
+- Case **Actif** décochée : le bot n'accepte plus les demandes (même celles déjà planifiées), n'envoie plus ni accueil ni rappel et ne suit plus les entrées et départs de ce canal.
+- Le bot répond « Vérification impossible pour le moment, réessayez dans une minute. » : le canal est bien enregistré ; cliquez plus tard sur **Re-vérifier les droits des bots** (ou transférez de nouveau un message). S'il dit qu'aucun bot n'est administrateur : ajoutez-le (Canal → Administrateurs → Ajouter un administrateur → @bot), puis transférez de nouveau un message (quelques secondes plus tard suffisent).
+- Si le canal interdit le transfert (contenu protégé) : méthode 3 (publier puis supprimer un message) ou méthode 2 (lien public).
+- « Le compte Telegram connecté est déjà utilisé (relevé des vues ou import en cours) : réessayez dans une minute. » : l'import et le relevé des vues ne peuvent pas utiliser le compte en même temps.
 
 ## Bots
 
@@ -174,8 +225,9 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 
 **Comment faire.**
 
-1. Filtres en haut : **Prénom, @pseudo ou identifiant**, canal, statut, source (lien de pub), niveau (Aucun, Inscrit, Déposant, Régulier, VIP), **Langue**, dates d'arrivée. Cliquez sur **Filtrer** ; **Réinitialiser** efface tout. Tri par dernier événement, arrivée ou nom.
+1. Filtres en haut : **Prénom, @pseudo ou identifiant**, canal, statut, source (lien de pub), campagne, niveau (Aucun, Inscrit, Déposant, Régulier, VIP), **Langue**, dates d'arrivée. Cliquez sur **Filtrer** ; **Réinitialiser** efface tout. Tri par dernier événement, arrivée ou nom.
 2. **Exporter en CSV** télécharge la liste filtrée (pour un tableur).
+   **Exporter les joueurs (CSV)** télécharge vos joueurs (seulement les vôtres, filtrés par campagne si le filtre est posé), avec les colonnes « NGR total (€) » et « NGR de la période (€) » (30 derniers jours).
 3. Cliquez sur un nom pour ouvrir la fiche :
    - **Origine** : première demande, lien d'entrée, pub, campagne d'affiliation.
    - **Messages privés** : pour chaque bot, « joignable », « bloqué » ou « non joignable ».
@@ -199,17 +251,17 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 
 **Comment faire.**
 
-1. Trois vues : **Calendrier** (semaine par semaine, boutons **← Semaine précédente**, **Semaine suivante →**, **Aujourd'hui**), **Liste** (filtres par canal, statut, catégorie, dates) et **Modèles**.
+1. Trois vues : **Calendrier** (semaine par semaine, boutons **← Semaine précédente**, **Semaine suivante →**, **Aujourd'hui**, et à droite la liste **Toutes les campagnes** + **Filtrer** pour ne voir que les messages d'une campagne), **Liste** (filtres par canal, statut, catégorie, campagne, dates ; **Exporter CSV** respecte les filtres) et **Modèles**. Le filtre Campagne reste actif quand vous changez de semaine ou de vue.
 2. **Nouveau message** :
    - Cochez les canaux destinataires (un message par canal sera créé).
    - **Texte** : écrivez, utilisez les boutons Gras, Italique, Souligné, Barré, Spoiler. Limite : 4096 caractères, 1024 avec un média.
    - **Médias** : **choisissez des fichiers** (image, vidéo, gif ou document, 50 Mo maximum). Plusieurs fichiers forment un album.
-   - **Boutons** : pour chaque bouton, un **Libellé** et un type : **Lien direct** (une URL simple, clics non comptés), **Lien traqué** (clics comptés, anonymes) ou **Offre personnalisée (sub-ID)** (choisissez la campagne Link Affi : chaque membre qui appuie reçoit en privé son lien personnel). Vous pouvez mettre plusieurs boutons par ligne et plusieurs lignes.
-   - **Programmation** : **Date et heure (Paris)**, **Catégorie**, **Langue**, puis les options **Épingler après envoi**, **Désépingler le précédent**, **Silencieux (sans notification)**, **Contenu protégé (pas de transfert)**, **Sans aperçu de lien**, **Supprimer après … minutes**.
+   - **Boutons** : pour chaque bouton, un **Libellé** et un type : **Lien direct** (une URL simple, clics non comptés), **Lien traqué** (clics comptés, anonymes) ou **Offre (campagne)** (choisissez une de vos campagnes, puis l'offre si elle en a plusieurs : chaque membre qui appuie reçoit en privé son lien personnel avec identifiant de suivi, et le clic est rattaché à la campagne). Vous pouvez mettre plusieurs boutons par ligne et plusieurs lignes.
+   - **Programmation** : **Date et heure (Paris)**, **Catégorie** (vos catégories ; **+ Nouvelle catégorie** pour en créer une sans quitter la page), **Langue**, puis les options **Épingler après envoi**, **Désépingler le précédent**, **Silencieux (sans notification)**, **Contenu protégé (pas de transfert)**, **Sans aperçu de lien**, **Supprimer après … minutes**.
    - Terminez par **Programmer**, **Enregistrer en brouillon** ou **Enregistrer comme modèle** (donnez un **Nom du modèle**).
 3. Ouvrir un message (bouton **Ouvrir** dans la liste, ou clic dans le calendrier) : bloc **Chiffres** (Clics, Clics uniques, Clics offres, Réactions, Inscriptions, FTD, Dépôts, Montant déposé), tableau **Boutons** avec les clics par bouton, bloc **Actions** : **Décaler (min)**, **Annuler l'envoi** (message programmé), **Supprimer sur Telegram** (message envoyé), **Enregistrer comme modèle**, **Retirer le brouillon**. En haut : **Modifier** (tant qu'il n'est pas parti) et **Dupliquer**.
-4. Vue **Modèles** : **Nouveau depuis ce modèle** pré-remplit un nouveau message.
-5. **Comparer par catégorie** (en haut de la page) : totaux et moyennes par message pour chaque catégorie sur 7, 30 ou 90 jours.
+4. Vue **Modèles** : filtres **Tous les univers** et **Tous les thèmes** (Bonus, Preuve de gains, Teasing, Rappel, Information, Événement, Sondage), puis **Filtrer** ; **Utiliser ce modèle** pré-remplit un nouveau message. Les thèmes des modèles fournis ne sont pas des catégories : ils ne comptent pas dans « Comparer par catégorie ».
+5. **Comparer par catégorie** (en haut de la page) : totaux et moyennes par message pour chaque catégorie sur 7, 30 ou 90 jours. Sans catégorie, la page propose « Créez votre première catégorie (par exemple Bonus ou Rappel) pour comparer vos messages » ; les messages envoyés sans catégorie sont comptés dans la ligne « Sans catégorie ».
 
 **Pièges et questions fréquentes.**
 
@@ -217,7 +269,7 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 - Un message **Envoyé** ne se modifie plus : dupliquez-le, ou supprimez-le sur Telegram et programmez-en un nouveau.
 - Les heures sont toujours en heure de Paris.
 - Les boutons d'un album partent dans un second message juste après (limite Telegram).
-- Pour un bouton **Offre personnalisée (sub-ID)**, choisissez toujours une campagne Link Affi dans la liste : ne collez jamais un lien court ou une landing page Link Affi en **Lien direct**, le sub-ID serait perdu.
+- Pour un bouton **Offre (campagne)**, choisissez toujours une campagne dans la liste : ne collez jamais un lien court ou une landing page Link Affi en **Lien direct**, le sub-ID serait perdu.
 - Les inscriptions, FTD et dépôts d'un message n'apparaissent qu'après la remontée Link Affi (2 minutes) et peuvent évoluer pendant des semaines.
 
 ## Liens
@@ -240,29 +292,6 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 - Le compteur « Clics » exclut les robots connus ; « Uniques » compte les appareils distincts.
 - Un lien désactivé renvoie les visiteurs vers l'écran de connexion du site : désactivez-le seulement quand la pub est arrêtée.
 
-## Pubs
-
-**À quoi ça sert.** Rapprocher ce que coûte chaque pub de ce qu'elle rapporte : dépense (importée ou saisie), membres arrivés, inscriptions, FTD, revenu, CPL (coût par membre), CPA (coût par inscription), coût par FTD et ROAS (revenu divisé par dépense). Une pub est reliée à un ou plusieurs liens d'entrée.
-
-**Comment faire.**
-
-1. **Nouvelle pub** : **Nom de la pub**, **Plateforme** (TikTok, Meta, Autre), **Univers**, **Statut** (Brouillon, Active, En pause, Terminée), **Budget par jour (€, indicatif)**, **Canaux alimentés par cette pub**, **Notes**, puis **Créer la pub**.
-2. Ouvrez la pub : bloc **Groupes et pubs**. **Ajouter un groupe** (**Nom du groupe**, par exemple `FR-18-34`), puis **Ajouter une pub** (**Nom de la pub** et **Lien d'entrée (optionnel)**). La colonne **Rattacher** relie une pub précise à un lien d'entrée créé dans **Liens** : c'est ce rattachement qui compte les clics, membres et inscriptions.
-3. Coûts : soit **Saisir une dépense** (**Niveau** : toute la pub, un groupe ou une pub ; **Jour** ; **Dépense (€)** ; **Impressions** ; **Clics (plateforme)** ; **Enregistrer la dépense**), soit **Importer un CSV** :
-   - Étape **1. Fichier** : dans TikTok Ads Manager ou Meta Ads Manager, exportez un rapport par jour avec les colonnes campagne / groupe / pub / dépense. Choisissez la **Plateforme**, le **Fichier CSV**, puis **Lire le fichier**.
-   - Étape **2. Aperçu** : vérifiez les colonnes détectées ; si une colonne manque, corrigez la correspondance et cliquez sur **Relire avec ces colonnes**.
-   - Étape **3. Correspondances et import** : les noms sont rapprochés des pubs existantes ; ce qui n'existe pas sera créé. Cliquez sur **Importer N ligne(s)**.
-4. **Historique des imports** liste les fichiers importés, les lignes lues et les erreurs.
-5. Le tableau de la page **Pubs** et l'onglet **Pubs** du tableau de bord donnent les résultats par période.
-
-**Pièges et questions fréquentes.**
-
-- Sans rattachement à un lien d'entrée, une pub a des coûts mais aucun membre : CPL et CPA restent vides.
-- Une saisie manuelle pour un jour et un niveau remplace la précédente (pas d'addition). Un import CSV se refait sans doublon pour les mêmes jours.
-- Les noms dans le CSV doivent correspondre aux noms de pub du site (la casse n'a pas d'importance) : utilisez les mêmes noms dans TikTok / Meta et dans **Liens** (champs Campagne / Groupe / Pub).
-- Fichier refusé : vérifiez qu'il fait moins de 2 Mo et qu'il contient bien une colonne de date.
-- Le « Revenu » est le NGR remonté par Link Affi : il arrive avec un décalage, le ROAS des derniers jours est donc toujours sous-estimé.
-
 ## Envois
 
 **À quoi ça sert.** Envoyer un même message privé à un groupe de membres choisi (segment) par un bot : relance, bonus, annonce. Avec test à soi-même, programmation, suivi de la progression, et test A/B (deux versions comparées).
@@ -270,12 +299,13 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 **Comment faire.**
 
 1. **Nouvel envoi**. Bloc **Envoi** : **Nom interne** et **Bot expéditeur**.
-2. Bloc **Destinataires (segment)** : sans filtre, tous les membres qui peuvent recevoir un message privé de ce bot. Les filtres se cumulent : **Canaux**, **Statut d'adhésion**, **Niveau de dépense**, **Lien d'entrée (pub)**, **Pub**, **A cliqué un message de la catégorie**, **Langues (fr, en…)**, **Inactifs depuis (jours)**, **Étiquettes**. Cliquez sur **Compter les destinataires** pour connaître la taille du segment avant d'envoyer.
-3. Bloc **Message** : texte, **Média (optionnel)**, **Boutons** (Lien direct, Lien traqué, Offre (sub-ID) avec campagne Link Affi).
+2. Bloc **Destinataires (segment)** : sans filtre, tous les membres qui peuvent recevoir un message privé de ce bot. Les filtres se cumulent : **Canaux**, **Statut d'adhésion**, **Niveau de dépense**, **Lien d'entrée (pub)**, **Campagne**, **A cliqué un message de la catégorie**, **Langues (fr, en…)**, **Inactifs depuis (jours)**, **Étiquettes**. Cliquez sur **Compter les destinataires** pour connaître la taille du segment avant d'envoyer.
+3. Bloc **Message** : texte, **Média (optionnel)**, **Boutons** (Lien direct, Lien traqué, **Offre (campagne)**).
 4. Bloc **Test A/B (optionnel)** : cochez la case, écrivez la version B (texte, média, boutons) et réglez **Part des destinataires pour la version A**.
 5. Bloc **Quand** : **Date et heure (Europe/Paris), pour « Programmer »**. Puis **Enregistrer en brouillon**, **Programmer** ou **Envoyer maintenant**.
 6. Sur la page de l'envoi : **Envoyer un test à moi** (le message arrive sur votre Telegram lié), **Envoyer maintenant**, **Programmer**, **Annuler l'envoi**, **Retirer** (brouillon). Le bloc **Progression** compte ciblés, envoyés, échoués et bloqués ; le tableau **Message** donne les clics par bouton.
-7. Test A/B : ouvrez la page du test depuis la liste. Elle compare envoyés, clics, cliqueurs uniques, inscriptions et FTD, désigne la gagnante dès 30 envois par version, et propose **Envoyer la version gagnante au reste du segment**.
+7. Liste des envois : filtres **Tous les statuts** et **Toutes les campagnes** ; **Exporter CSV** respecte ces filtres.
+8. Test A/B : ouvrez la page du test depuis la liste. Elle compare envoyés, clics, cliqueurs uniques, inscriptions et FTD, désigne la gagnante dès 30 envois par version, et propose **Envoyer la version gagnante au reste du segment**.
 
 **Pièges et questions fréquentes.**
 
@@ -306,12 +336,12 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage (landi
 
 ## Journal
 
-**À quoi ça sert.** Retrouver qui a fait quoi dans le site (toutes les actions des utilisateurs sont enregistrées, ainsi que les actions automatiques du système) : utile en cas de doute ou d'erreur.
+**À quoi ça sert.** Retrouver qui a fait quoi dans le site (toutes les actions des utilisateurs sont enregistrées, ainsi que les actions automatiques du système) et tout ce que les bots ont vu passer : utile en cas de doute ou d'erreur. Deux onglets : **Actions de l'équipe** et **Événements**.
 
 **Comment faire.**
 
-1. Filtres : utilisateur (**Tout le monde**, **Système (sans utilisateur)** ou une personne), **Action** (par exemple `user.` ou `bot.created`), dates **Du** / **Au**, puis **Filtrer**. **Réinitialiser** efface les filtres.
-2. Colonnes : **Quand**, **Qui**, **Action**, **Objet**, **Détails**.
+1. Onglet **Actions de l'équipe** : filtres utilisateur (**Tout le monde**, **Système (sans utilisateur)** ou une personne), **Action** (par exemple `user.` ou `bot.created`), dates **Du** / **Au**, puis **Filtrer**. **Réinitialiser** efface les filtres. Colonnes : **Quand**, **Qui**, **Action**, **Objet**, **Détails**. Les actions sur vos campagnes s'appellent « Campagne », celles sur la structure TikTok / Meta « Campagne pub ».
+2. Onglet **Événements** (lisible aussi par les managers, page à part : les filtres sont mémorisés sur cet appareil et **Réinitialiser** reste sur cet onglet) : le compteur « événements sur les dernières 24 heures », puis la liste en français (demandes d'adhésion, entrées, clics, messages envoyés, mises à jour Telegram…). Filtres **Tous les types**, **Tous les canaux**, **Tous les bots**, **Du** / **Au**, bouton **Filtrer** ; **Exporter CSV** télécharge la liste filtrée.
 
 **Pièges et questions fréquentes.**
 
@@ -348,6 +378,7 @@ Le menu **Réglages** est réservé aux administrateurs. Sa page d'accueil gère
 1. Bloc **Link Affi — état par table** : statut, dernière exécution, dernier succès, lignes importées et erreur pour chaque table lue. **Synchroniser maintenant** lance un passage ; **Resynchroniser tout** relit tout depuis le début (plus long).
 2. Bloc **Santé du sub-ID (7 derniers jours)** : **Joueurs rattachés par postback** (le cas normal), **Joueurs rattachés par rapprochement horaire** (secours, moins précis), **Joueurs sans sub-ID malgré des clics** (à surveiller), **Clics d'offre avec sub-ID envoyés**.
 3. Bloc **Niveaux de dépense** : **Seuil VIP (dépôts cumulés, en €)** et **Nombre de dépôts pour « Régulier »**, puis **Enregistrer**.
+4. Carte **Diagnostic Link Affi** : **Programmes**, **Offres Link Affi**, **Offres liées** (à une de vos campagnes), **Joueurs (tous)**, **Vos joueurs**, **Non rattachés**. Le tableau **Offres Link Affi non liées qui ont des joueurs** propose **Créer une campagne avec cette offre** (l'assistant s'ouvre pré-rempli). **Exporter tous les joueurs Link Affi (CSV)** (administrateurs) télécharge la liste brute, y compris les joueurs des autres affiliés.
 
 **Pièges et questions fréquentes.**
 
@@ -355,6 +386,8 @@ Le menu **Réglages** est réservé aux administrateurs. Sa page d'accueil gère
 - Des joueurs uniquement « par rapprochement horaire » et aucun « par postback » : le casino tronque probablement l'identifiant de suivi. Une alerte Telegram « Santé du sub-ID » vous prévient ; il faut alors en parler à Link Affi.
 - Une table en erreur ponctuelle n'est pas grave (réessai automatique) ; une erreur répétée déclenche l'alerte « Synchro Link Affi en échec répété ».
 - Les niveaux de dépense sont recalculés à la prochaine synchronisation, pas immédiatement.
+- La santé du sub-ID se calcule sur la date d'inscription chez Link Affi : une resynchronisation complète ne la fausse plus.
+- Un joueur « non rattaché » n'est compté nulle part dans les statistiques : liez son offre à une campagne (bouton ci-dessus) s'il vient bien de chez vous.
 
 ### Postbacks
 
@@ -410,17 +443,38 @@ Le menu **Réglages** est réservé aux administrateurs. Sa page d'accueil gère
 
 ### Catégories de messages
 
-**À quoi ça sert.** Classer les messages (Bonus, Preuve de gains, Teasing…) pour comparer ce qui marche le mieux dans **Messages → Comparer par catégorie** et dans l'onglet **Canaux** du tableau de bord.
+**À quoi ça sert.** Classer vos messages selon vos propres catégories (par exemple Bonus, Rappel…) pour comparer ce qui marche le mieux dans **Messages → Comparer par catégorie** et dans l'onglet **Canaux** du tableau de bord. Aucune catégorie n'est créée d'office : vous créez les vôtres.
 
 **Comment faire.**
 
-1. Bloc **Nouvelle catégorie** : **Nom**, **Couleur**, **Univers** (Tous ou un univers), puis **Créer**.
-2. Sur une catégorie existante : **Nom**, **Couleur**, **Univers**, **Ordre**, puis **Enregistrer**. **Supprimer** n'est possible que si aucun message ne l'utilise ; sinon désactivez-la.
+1. Le plus simple, en écrivant un message : **Messages → Nouveau message**, champ **Catégorie** → **+ Nouvelle catégorie** (dans le menu, ou le bouton à côté) → nom, couleur → **Créer la catégorie**. Elle est choisie aussitôt.
+2. Dans Réglages → **Catégories de messages** (administrateur), carte **Nouvelle catégorie** : **Nom**, **Couleur**, **Univers**, puis **Créer la catégorie**.
+3. Sur une catégorie existante : **Nom**, **Couleur**, **Univers**, **Ordre**, **Active**, puis **Enregistrer**.
+4. Sous chaque catégorie s'affiche « N messages · N automatisations · N envois pas encore partis ». Dès qu'elle est citée quelque part : **Fusionner et supprimer**, avec le choix « fusionner dans « X » » ou « — sans catégorie — ». Les messages, les automatisations et les envois pas encore partis qui la citent passent dans la catégorie choisie. Sinon, seul **Supprimer** est proposé.
 
 **Pièges et questions fréquentes.**
 
 - Une catégorie par type de contenu, pas par canal : c'est ce qui rend la comparaison utile.
+- Sans remplacement, une automatisation qui ne visait que cette catégorie est mise à l'arrêt et un envoi programmé qui ne visait qu'elle repasse en brouillon (le message de confirmation les cite) : c'est voulu, pour ne jamais élargir un envoi à tout le monde. Un brouillon ou une automatisation déjà en pause perd simplement son filtre ; le message « Filtre de catégorie retiré, vérifiez la cible avant d'envoyer » (ou « … avant de réactiver l'automatisation ») les nomme.
+- Une catégorie désactivée ne peut être réactivée que par un administrateur (Réglages → Catégories) ; un manager qui tape son nom dans **+ Nouvelle catégorie** reçoit un message qui l'explique.
 - L'**Ordre** règle l'affichage dans les listes déroulantes.
+- Les 7 catégories créées d'office auparavant ont été retirées le 10 octobre (les messages déjà envoyés aux membres ont gardé la leur).
+
+### IA
+
+**À quoi ça sert.** Brancher l'assistant d'écriture (bouton **✨ Améliorer avec l'IA**) et surveiller son coût.
+
+**Comment faire.**
+
+1. Créez la clé (5 minutes, une seule fois) : https://platform.claude.com → se connecter → Settings → Billing (ajouter des crédits, 5 $ suffisent) → **API keys** → **Create key** → nom « LinkAffi Pro » → **Create** → **Copy** (la clé ne s'affiche qu'une fois).
+2. Collez-la dans **Clé API Anthropic**, puis **Enregistrer** et **Vérifier**. La clé est enregistrée chiffrée et ne s'affiche plus jamais en entier.
+3. Réglez **Modèle par défaut** (rapide et économique), **Modèle « qualité supérieure »** (proposé dans le panneau par la case « Qualité supérieure »), **Plafond mensuel (€)** (20 € par défaut) et **Suggestions par personne et par jour**.
+4. La page affiche le coût estimé du mois et l'**Historique** des demandes (colonne **Utilisée** : « Oui (version N) », « Non » ou « Échec : réponse coupée »). **Retirer la clé** désactive l'assistant.
+
+**Pièges et questions fréquentes.**
+
+- Plafond atteint : l'assistant s'arrête jusqu'au mois suivant (ou augmentez le plafond).
+- Une réponse coupée compte dans le plafond : elle a été facturée par Anthropic.
 
 ### État du système
 
@@ -434,6 +488,7 @@ Le menu **Réglages** est réservé aux administrateurs. Sa page d'accueil gère
 4. Bloc **Files de tâches** : **En attente**, **En cours**, **Retardées**, **Échouées**, **Terminées (gardées)** pour chaque file. « En attente » qui grimpe sans redescendre = worker arrêté ou trop lent.
 5. Bloc **Dernières tâches échouées** : **Relancer** remet une tâche en attente ; **Purger les échecs > 7 jours** nettoie.
 6. Blocs **Bots**, **Synchro Link Affi**, **Alertes ouvertes** : état détaillé. **Actualiser** recharge la page.
+7. Carte **Activité des bots (24 h)** : nombre d'événements reçus ou produits par les bots sur les dernières 24 heures, avec le détail par type ; **Voir le détail dans le Journal** ouvre la vue « Événements ».
 
 **Pièges et questions fréquentes.**
 
@@ -486,19 +541,19 @@ La page **Aide** affiche ce guide, avec sa table des matières à gauche. Le mê
 Dans **Nouveau message**, cochez **Test A/B**, écrivez la version B (texte, médias, boutons), choisissez « même canal, B 30 minutes après A » ou « autre canal à la même heure », puis **Programmer le test A/B**. La page de comparaison (bouton **Voir la comparaison A/B**, badge A/B dans la liste) désigne la gagnante provisoire d'après les clics, les cliqueurs uniques et les réactions.
 
 ### Modèles de messages prêts à l'emploi
-Messages → **Modèles** : filtrez par univers (casino, paris, dating) et par catégorie, puis **Utiliser ce modèle** : le message est pré-rempli ; remplacez `{prenom}`, `{canal}`, `{offre}` et ajoutez votre bouton **Offre**. Les modèles casino et paris gardent la mention « Jouer comporte des risques… » en fin de message : ne la retirez pas. 63 modèles sont fournis (3 par univers et par catégorie).
+Messages → **Modèles** : filtrez par univers (casino, paris, dating) et par thème, puis **Utiliser ce modèle** : le message est pré-rempli ; remplacez `{prenom}`, `{canal}`, `{offre}` et ajoutez votre bouton **Offre**. Les modèles casino et paris gardent la mention « Jouer comporte des risques… » en fin de message : ne la retirez pas. 63 modèles sont fournis (3 par univers et par thème).
 
 ### Période et comparaison
-En haut du tableau de bord, de la liste des pubs et d'une fiche pub, choisissez la période (aujourd'hui, hier, 7 / 30 / 90 jours, mois en cours ou deux dates) et cochez **Comparer à la période précédente** : chaque chiffre affiche sa variation en vert (favorable) ou rouge (défavorable ; pour une dépense ou un coût, une baisse est en vert). L'export CSV reprend la même période et, si la comparaison est cochée, ajoute les colonnes « période précédente » et « variation ».
+En haut du tableau de bord, de la liste des campagnes et d'une fiche campagne, choisissez la période (aujourd'hui, hier, 7 / 30 / 90 jours, mois en cours ou deux dates) et cochez **Comparer à la période précédente** : chaque chiffre affiche sa variation en vert (favorable) ou rouge (défavorable ; pour une dépense ou un coût, une baisse est en vert). L'export CSV reprend la même période et, si la comparaison est cochée, ajoute les colonnes « période précédente » et « variation ».
 
 ### Import des coûts publicitaires
-Pubs → **Importer des coûts** : laissez « Détection automatique », choisissez le fichier exporté de TikTok Ads Manager ou Meta Ads Manager, puis vérifiez le tableau des colonnes (chaque colonne du fichier → Date, Campagne, Dépense…) et les formats de nombres et de dates devinés ; corrigez au besoin et cliquez **Relire**. Vos choix sont mémorisés pour le prochain import de la même plateforme. À la fin, l'historique affiche les lignes lues, importées et ignorées avec la raison (date illisible, montant vide, ligne de total). Corrigez le fichier et réimportez : les jours déjà importés sont simplement remplacés.
+Campagnes → **Importer un CSV** : laissez « Détection automatique », choisissez le fichier exporté de TikTok Ads Manager ou Meta Ads Manager, puis vérifiez le tableau des colonnes (chaque colonne du fichier → Date, Campagne, Dépense…) et les formats de nombres et de dates devinés ; corrigez au besoin et cliquez **Relire**. Vos choix sont mémorisés pour le prochain import de la même plateforme. À la fin, l'historique affiche les lignes lues, importées et ignorées avec la raison (date illisible, montant vide, ligne de total). Corrigez le fichier et réimportez : les jours déjà importés sont simplement remplacés.
 
 ### Nouvelles alertes et seuils
 Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, canal qui perd ses membres, message programmé en échec, lien désactivé encore cliqué. Elles arrivent une fois et se ferment seules quand la cause disparaît. Réglages → **Alertes** → « Seuils des alertes métier » pour régler le pourcentage de chute (50 % par défaut), la dépense sans inscription (50 €) et le pourcentage de départs (10 %) ; effet au prochain passage (5 minutes).
 
 ### Comptes publicitaires et compte Telegram (Réglages → Connecteurs)
-**À quoi ça sert.** Brancher vous-même vos comptes Meta Ads et TikTok Ads : les dépenses arrivent toutes seules dans Pubs (chaque heure, historique de 90 jours au branchement), et le tableau de bord calcule CPL, CPA, coût par premier dépôt et ROAS sans import de fichier. Même principe pour le nombre de vues de vos messages Telegram.
+**À quoi ça sert.** Brancher vous-même vos comptes Meta Ads et TikTok Ads : les dépenses arrivent toutes seules dans Campagnes (onglet Pubs) (chaque heure, historique de 90 jours au branchement), et le tableau de bord calcule CPL, CPA, coût par premier dépôt et ROAS sans import de fichier. Même principe pour le nombre de vues de vos messages Telegram.
 
 **Meta (Facebook / Instagram) — une fois, 10 minutes.**
 1. Sur developers.facebook.com → **Mes apps** → **Créer une app** (cas d'usage « Autre », type **Entreprise**), ajoutez le produit **Facebook Login for Business** (ou Facebook Login).
@@ -513,7 +568,7 @@ Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, 
 2. Copiez l'App ID et le Secret (**My Apps → Basic Information**) dans la page, puis **Enregistrer** et **Vérifier**.
 3. TikTok valide l'app en 1 à 2 semaines (e-mail). Avant, la connexion d'un vrai compte est refusée.
 4. En attendant, cochez **Mode bac à sable**, créez un compte de test dans le portail (**Tools → Sandbox → Generate Access Token**) et collez le jeton et l'identifiant dans le formulaire dédié ; décochez le mode et déconnectez le compte de test après validation.
-5. Après validation : **Connecter un compte TikTok**, acceptez chez TikTok, cochez les comptes : les dépenses arrivent seules dans Pubs (3 derniers jours chaque heure, 28 jours chaque nuit, 90 jours à la connexion).
+5. Après validation : **Connecter un compte TikTok**, acceptez chez TikTok, cochez les comptes : les dépenses arrivent seules dans Campagnes, onglet Pubs (3 derniers jours chaque heure, 28 jours chaque nuit, 90 jours à la connexion).
 **Pièges.** Un compte dans une autre devise que l'euro a besoin d'un taux de change : Link Affi en fournit, et vous pouvez en saisir dans Réglages → Connecteurs (ils ont priorité). Une pub alimentée par l'API refuse les lignes d'un fichier CSV (l'API a priorité).
 
 **Telegram (vues et transferts des messages) — une fois, 5 minutes.**
@@ -523,19 +578,23 @@ Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, 
 4. Les vues apparaissent dans la fiche de chaque message (tuiles « Vues » et « Transferts », courbe dans le temps) et servent au taux de clic par vue, aux meilleurs horaires et aux tests A/B.
 **Pièges.** Badge « À reconnecter » = Telegram a fermé la session (depuis l'application ou expirée) : cliquez **Effacer la session** puis refaites l'étape 2. **Déconnecter** révoque la session ; **Relever maintenant** force un passage. « Canal introuvable » = le compte n'est pas membre ou administrateur du canal.
 
-### Ce que compte le tableau de bord (depuis le 10 octobre)
-Seuls **vos** joueurs comptent : ceux arrivés par un de vos liens (identifiant de suivi) ou appartenant à une offre Link Affi rattachée à une de vos campagnes. Les autres joueurs de Link Affi restent visibles uniquement dans Réglages → Connecteurs (diagnostic). Toutes les dates sont celles des événements chez Link Affi (inscription, dépôt, NGR), jamais la date d'import : 7, 30 et 90 jours donnent des chiffres différents. Le bloc **Activité** se lit en deux lignes : **Telegram** (demandes → acceptés → entrées → départs) puis **Argent** (clics pub → clics offre → inscriptions → premiers dépôts → dépôts € → NGR €). Tant qu'aucune campagne n'existe, le tableau de bord vous propose d'en créer une.
-
-### Catégories de messages : les vôtres
-Aucune catégorie n'est créée d'office. Dans **Nouveau message**, le champ Catégorie propose **+ Nouvelle catégorie** (nom ; couleur automatique, modifiable ensuite). Réglages → **Catégories de messages** : renommer, changer la couleur et l'ordre, **Fusionner et supprimer** (les messages passent dans la catégorie choisie, ou sans catégorie). La comparaison par catégorie et les meilleurs horaires utilisent vos catégories.
-
 ### Assistant IA pour écrire les messages
-**À quoi ça sert.** Améliorer ou écrire un message (canal, bot, envoi groupé, modèle, automatisation) en respectant d'office les règles : pas de promesse de gains, mention des risques et 18+ pour casino et paris, aucun détail d'offre inventé (repère « [à compléter] »), repères `{prenom}` et liens conservés.
+**À quoi ça sert.** Améliorer ou écrire un message en respectant d'office les règles : pas de promesse de gains, mention des risques et 18+ pour casino et paris, aucun détail d'offre inventé (repère « [à compléter] »), repères `{prenom}` et liens conservés, limite de longueur Telegram (1 024 caractères avec média, 4 096 sans).
+
+**Où se trouve le bouton ✨ Améliorer avec l'IA.** Messages → **Nouveau message** et les modèles (sous le texte ; sous la version B d'un test A/B : **✨ Améliorer la version B avec l'IA**), Envois → **Nouvel envoi** (sous le texte et sous la version B), Canaux → fiche du canal → **Messages du bot** (sous chaque langue), **Automatisations** (texte de l'action « Envoyer un message »).
+
 **Comment faire.**
-1. Une seule fois, un administrateur colle la clé Anthropic dans Réglages → **IA** (guide sur la page, 5 minutes), puis **Enregistrer** et **Vérifier**.
-2. Sur chaque écran de rédaction, cliquez **✨ Améliorer avec l'IA** : choisissez l'univers, l'objectif, le ton, la longueur, la langue, puis **Générer 3 versions**. Chaque version explique ce qui change ; **Utiliser** la place dans le champ.
-3. Ensuite : **Plus court**, **Plus percutant**, **Autre angle**, **Traduire dans les langues du bot**, **Créer la version B** (test A/B). **Écrire à partir d'une idée** : une phrase suffit pour obtenir 3 propositions.
-**Pièges.** Réglages → IA affiche le coût estimé du mois, le plafond (20 € par défaut), la limite par personne et par jour, et l'historique. Sans clé, le bouton explique où l'ajouter. Relisez toujours avant d'envoyer : l'IA propose, vous décidez.
+1. Une seule fois, un administrateur colle la clé dans Réglages → **IA** (voir [IA](#ia)).
+2. Cliquez **✨ Améliorer avec l'IA**. Onglet **Améliorer mon brouillon** ou **Écrire à partir d'une idée** (champ « Votre idée, en une phrase »). Réglez **Univers**, **Objectif**, **Ton**, **Longueur**, **Langue** (et la case **Qualité supérieure (plus lent, plus cher)** si elle est proposée), puis **Générer 3 versions** ou **Proposer 3 messages**.
+3. Sur chaque version : **Utiliser** (place la version dans le champ), **Comme version B** (messages et envois : active le test A/B), puis **Plus court**, **Plus percutant**, **Autre angle**, qui retravaillent cette version.
+4. Rangée du bas, sur le texte actuellement dans le champ : **Plus court**, **Plus percutant**, **Autre angle**, **Traduire dans les langues du bot**, **Créer la version B d'un test A/B**.
+5. Traductions : dans les messages du bot, **Utiliser** enregistre la traduction dans sa langue et **Enregistrer toutes les traductions** les enregistre toutes ; ailleurs, **Copier** (le texte du champ n'est jamais remplacé).
+
+**Ce qui marche chez vous.** L'assistant s'inspire de vos messages de canal déjà envoyés qui ont le mieux marché (au moins 5 clics, ou 100 vues et 1 clic) dans le même univers, la même catégorie d'abord.
+
+**Langues.** Dans les textes du bot, l'assistant écrit dans la langue du champ (y compris arabe, turc, néerlandais, polonais, roumain, russe) ; **Traduire dans les langues du bot** remplit le français, l'anglais, l'espagnol, le portugais, l'allemand et l'italien.
+
+**Pièges.** « La réponse de l'IA a été coupée : texte trop long » : réessayez en Longueur « Court » ou avec un brouillon plus court. Sans clé, le bouton explique où l'ajouter. Relisez toujours avant d'envoyer : l'IA propose, vous décidez.
 
 ### Réglages → Équipe
 **À quoi ça sert.** Gérer les comptes de l'équipe (administrateurs et managers) sans e-mail automatique : vous copiez le lien et vous l'envoyez vous-même.
@@ -553,8 +612,8 @@ Aucune catégorie n'est créée d'office. Dans **Nouveau message**, le champ Cat
 ### Notes sur un membre
 Sur la fiche membre, bloc **Notes** : ajoutez une note interne (visible seulement par l'équipe), modifiez-la avec **modifier** (vos notes, ou toutes pour un administrateur), supprimez-la après confirmation.
 
-### Nommer ses pubs et les relier à Link Affi
-Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, programme, langue, canal, mois) ou cliquez **Générer un nom** dans le formulaire. Sur la fiche d'une pub, l'encart **Liaison suggérée** propose la campagne Link Affi au nom le plus proche : cliquez **Lier** si c'est la bonne.
+### Nommer ses campagnes et les relier à Link Affi
+Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, programme, langue, canal, mois) ou cliquez **Proposer un nom conventionnel** à l'étape 4 de l'assistant. Sur la fiche d'une campagne, l'encart **Liaison suggérée** propose l'offre Link Affi au nom le plus proche : cliquez **Lier** si c'est la bonne. Utilisez le même nom dans TikTok ou Meta : la synchro rattache alors seule la campagne pub à votre campagne.
 
 ## Que faire si…
 
@@ -575,8 +634,8 @@ Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, 
 
 1. **Liens** : le lien d'entrée a-t-il des **Clics** ? Non : l'URL collée dans la plateforme n'est pas la bonne (recopiez **URL à coller dans la pub**) ou le lien est **désactivé**.
 2. Des clics mais pas de **Demandes** : les visiteurs n'ont pas Telegram ou abandonnent sur l'écran d'invitation ; vérifiez que le canal est **Actif** et que le bot est toujours administrateur.
-3. **Pubs** : la pub est-elle rattachée au bon lien d'entrée (colonne **Rattacher**) ? Les coûts sont-ils importés pour la période ?
-4. Tableau de bord → onglet **Pubs** : cliquez **Recalculer les statistiques** si les chiffres datent de plus d'une heure.
+3. **Campagnes** → fiche de la campagne → onglet **Pubs** : la pub est-elle rattachée au bon lien d'entrée (colonne **Rattacher**) ? Les coûts sont-ils importés pour la période ? L'offre Link Affi est-elle dans l'onglet **Offres** ?
+4. Tableau de bord → onglet **Campagnes** : cliquez **Recalculer les statistiques** si les chiffres datent de plus d'une heure.
 
 ### La synchro Link Affi est en échec
 
@@ -635,6 +694,8 @@ Si vous êtes le seul administrateur : la personne technique peut créer une inv
 ## Petit lexique
 
 - **Univers** : le thème d'un bot et de ses canaux : Casino, Paris sportifs ou Dating.
+- **Campagne** : sur la plateforme, l'ensemble offre(s) Link Affi + canaux + pubs que vous suivez ensemble. **Campagne pub** : la campagne côté TikTok ou Meta.
+- **Vos joueurs** : les joueurs Link Affi venus d'un de vos clics ou d'une offre rattachée à une de vos campagnes ; eux seuls comptent dans les statistiques.
 - **Webhook** : l'adresse à laquelle Telegram envoie au site tout ce qui se passe (messages, demandes, clics). Sans webhook valide, le bot est sourd.
 - **Worker** : le programme qui tourne en arrière-plan : il accepte les demandes, envoie les messages à l'heure, synchronise Link Affi, calcule les statistiques, fait les sauvegardes.
 - **Lien goolink** : un lien `go.goolink.eu/…` qui compte le clic puis redirige, sans page visible.
@@ -644,9 +705,9 @@ Si vous êtes le seul administrateur : la personne technique peut créer une inv
 - **Identifiant de suivi (sub-ID)** : code unique de 12 caractères ajouté au lien casino de chaque membre pour chaque message. Il revient avec l'inscription et les dépôts, et permet de dire « ce dépôt vient de ce membre, de ce message, de ce canal, de cette pub ».
 - **Postback** : message automatique envoyé par le casino ou le programme (« inscription », « dépôt de 20 € ») vers Link Affi ou directement vers le site.
 - **FTD** : premier dépôt d'un joueur (« first time deposit »).
-- **NGR** : revenu net généré par un joueur, tel que remonté par Link Affi.
+- **NGR** : revenu net généré par un joueur, tel que remonté par Link Affi. Le site enregistre chaque variation à sa date : le NGR d'une période est la somme des variations de cette période.
 - **CPL, CPA, ROAS** : coût par membre arrivé, coût par inscription, revenu divisé par dépense.
-- **LTV** : valeur moyenne d'un membre (NGR cumulé des joueurs divisé par le nombre de membres d'une cohorte).
+- **LTV** : valeur moyenne d'un membre (somme des variations de NGR des joueurs divisée par le nombre de membres d'une cohorte).
 - **Segment** : le groupe de membres visés par un envoi, défini par des filtres.
 - **Test A/B** : deux versions d'un même envoi, réparties au hasard, pour voir laquelle fait le plus cliquer.
 - **Anonymisation** : effacement de l'identité d'un membre en gardant ses chiffres sans nom.

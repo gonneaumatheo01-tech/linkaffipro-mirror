@@ -284,7 +284,7 @@ export default async function LinksPage({ searchParams }: PageProps<"/links">) {
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="adCampaignName">Campagne</Label>
+                  <Label htmlFor="adCampaignName">Campagne pub</Label>
                   <Input
                     id="adCampaignName"
                     name="adCampaignName"

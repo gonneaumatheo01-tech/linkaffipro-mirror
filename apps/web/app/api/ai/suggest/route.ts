@@ -1,7 +1,19 @@
 import { z } from "zod";
 import { prisma, audit, toJsonValue } from "@linkaffipro/db";
-import { AI_KINDS, AI_LANGUAGES, AI_LENGTHS, AI_OBJECTIVES, AI_SURFACES, AI_TONES, AiError, createAnthropicClient, suggest, type AiRequest } from "@linkaffipro/ai";
+import {
+  AI_KINDS,
+  AI_LANGUAGES,
+  AI_LENGTHS,
+  AI_OBJECTIVES,
+  AI_SURFACES,
+  AI_TONES,
+  AiError,
+  suggest,
+  type AiErrorCode,
+  type AiRequest,
+} from "@linkaffipro/ai";
 import { apiUser } from "@/lib/ai/api-user";
+import { aiClientFor } from "@/lib/ai/client";
 import { loadAiApiKey, loadAiConfig, saveAiConfig } from "@/lib/ai/config";
 import { loadBestExamples } from "@/lib/ai/examples";
 import { monthCostEur, userDailyCount } from "@/lib/ai/usage";
@@ -27,7 +39,16 @@ const bodySchema = z.object({
     .default({}),
 });
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Statut HTTP par type d'erreur de l'assistant (502 par défaut : réponse IA inexploitable). */
+const STATUS_BY_CODE: Partial<Record<AiErrorCode, number>> = {
+  rate_limit: 429,
+  network: 503,
+  unsupported: 400,
+  too_long: 422,
+};
+
+const fmt = (n: number) =>
+  n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** État de l'assistant pour le bouton (clé présente ? plafond ?). Jamais la clé. */
 export async function GET() {
@@ -36,13 +57,20 @@ export async function GET() {
   const config = await loadAiConfig();
   if (!config.apiKeyEncrypted) return Response.json({ ready: false, reason: "no_key" });
   const spent = await monthCostEur();
-  if (spent >= config.monthlyCapEur) return Response.json({ ready: false, reason: "cap", message: `Plafond mensuel atteint (${fmt(spent)} € sur ${fmt(config.monthlyCapEur)} €).` });
+  if (spent >= config.monthlyCapEur)
+    return Response.json({
+      ready: false,
+      reason: "cap",
+      message: `Plafond mensuel atteint (${fmt(spent)} € sur ${fmt(config.monthlyCapEur)} €).`,
+    });
   return Response.json({ ready: true, hasQuality: config.qualityModel !== config.defaultModel });
 }
 
 /**
  * POST /api/ai/suggest : { kind, text, context, quality? } → { id, versions, model, costEur }.
- * 401 non connecté · 400 corps invalide · 428 clé absente · 402 plafond mensuel · 429 limite par utilisateur ou débit Anthropic · 502 réponse IA inexploitable.
+ * 401 non connecté · 400 corps invalide · 428 clé absente · 402 plafond mensuel · 429 limite par utilisateur ou débit Anthropic ·
+ * 422 réponse coupée (texte trop long) · 502 réponse IA inexploitable · 503 réseau.
+ * Un échec déjà facturé par Anthropic (réponse coupée ou inexploitable) est enregistré sans version, pour que le plafond reste juste.
  */
 export async function POST(req: Request) {
   const user = await apiUser();
@@ -53,20 +81,47 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "Demande invalide." }, { status: 400 });
   }
-  if (!body.text.trim()) return Response.json({ error: "Écrivez d'abord un brouillon (ou une idée)." }, { status: 400 });
+  if (!body.text.trim())
+    return Response.json({ error: "Écrivez d'abord un brouillon (ou une idée)." }, { status: 400 });
 
   const config = await loadAiConfig();
   const apiKey = await loadAiApiKey(config);
-  if (!apiKey) return Response.json({ error: "Clé absente : un administrateur doit coller la clé Anthropic dans Réglages → IA.", code: "no_key" }, { status: 428 });
+  if (!apiKey)
+    return Response.json(
+      {
+        error: "Clé absente : un administrateur doit coller la clé Anthropic dans Réglages → IA.",
+        code: "no_key",
+      },
+      { status: 428 },
+    );
 
   const [spent, todayCount] = await Promise.all([monthCostEur(), userDailyCount(user.id)]);
   if (spent >= config.monthlyCapEur)
-    return Response.json({ error: `Plafond mensuel atteint (${fmt(spent)} € sur ${fmt(config.monthlyCapEur)} €). Un administrateur peut le relever dans Réglages → IA.`, code: "cap" }, { status: 402 });
+    return Response.json(
+      {
+        error: `Plafond mensuel atteint (${fmt(spent)} € sur ${fmt(config.monthlyCapEur)} €). Un administrateur peut le relever dans Réglages → IA.`,
+        code: "cap",
+      },
+      { status: 402 },
+    );
   if (todayCount >= config.perUserDailyLimit)
-    return Response.json({ error: `Limite atteinte : ${config.perUserDailyLimit} suggestions par jour et par personne. Réessayez demain ou demandez à un administrateur de relever la limite.`, code: "limit" }, { status: 429 });
+    return Response.json(
+      {
+        error: `Limite atteinte : ${config.perUserDailyLimit} suggestions par jour et par personne. Réessayez demain ou demandez à un administrateur de relever la limite.`,
+        code: "limit",
+      },
+      { status: 429 },
+    );
 
   const ctx = body.context;
-  const examples = body.kind === "translate" ? [] : await loadBestExamples({ vertical: ctx.vertical ?? null, categoryId: ctx.categoryId ?? null, excludeText: body.text });
+  const examples =
+    body.kind === "translate"
+      ? []
+      : await loadBestExamples({
+          vertical: ctx.vertical ?? null,
+          categoryId: ctx.categoryId ?? null,
+          excludeText: body.text,
+        });
   const model = body.quality ? config.qualityModel : config.defaultModel;
   const request: AiRequest = {
     kind: body.kind as AiRequest["kind"],
@@ -87,12 +142,17 @@ export async function POST(req: Request) {
   };
 
   try {
-    const result = await suggest(request, createAnthropicClient(apiKey));
+    const result = await suggest(request, aiClientFor(apiKey));
     const row = await prisma.aiSuggestion.create({
       data: {
         userId: user.id,
         kind: body.kind,
-        context: toJsonValue({ ...request.context, categoryId: ctx.categoryId ?? null, examplesCount: examples.length, quality: Boolean(body.quality) }),
+        context: toJsonValue({
+          ...request.context,
+          categoryId: ctx.categoryId ?? null,
+          examplesCount: examples.length,
+          quality: Boolean(body.quality),
+        }),
         input: body.text,
         outputs: toJsonValue(result.versions),
         model: result.model,
@@ -103,13 +163,66 @@ export async function POST(req: Request) {
       },
       select: { id: true },
     });
-    await audit({ userId: user.id, action: "ai.suggestion_created", entityType: "AiSuggestion", entityId: row.id, metadata: { kind: body.kind, model: result.model, costEur: result.costEur, surface: ctx.surface ?? null, vertical: ctx.vertical ?? null, rejected: result.rejected.length } });
-    return Response.json({ id: row.id, versions: result.versions, model: result.model, costEur: result.costEur });
+    await audit({
+      userId: user.id,
+      action: "ai.suggestion_created",
+      entityType: "AiSuggestion",
+      entityId: row.id,
+      metadata: {
+        kind: body.kind,
+        model: result.model,
+        costEur: result.costEur,
+        surface: ctx.surface ?? null,
+        vertical: ctx.vertical ?? null,
+        rejected: result.rejected.length,
+      },
+    });
+    return Response.json({
+      id: row.id,
+      versions: result.versions,
+      model: result.model,
+      costEur: result.costEur,
+    });
   } catch (err) {
-    const e = err instanceof AiError ? err : new AiError("api", "Erreur inattendue de l'assistant.");
+    const e =
+      err instanceof AiError ? err : new AiError("api", "Erreur inattendue de l'assistant.");
     if (e.code === "auth") await saveAiConfig({ lastError: e.message }).catch(() => undefined);
-    await audit({ userId: user.id, action: "ai.suggestion_failed", metadata: { kind: body.kind, model, code: e.code } });
-    const status = e.code === "rate_limit" ? 429 : e.code === "network" ? 503 : e.code === "unsupported" ? 400 : 502;
-    return Response.json({ error: e.message, code: e.code }, { status });
+    const billed = e.usage && e.usage.inputTokens + e.usage.outputTokens > 0 ? e.usage : null;
+    const failedRow = billed
+      ? await prisma.aiSuggestion
+          .create({
+            data: {
+              userId: user.id,
+              kind: body.kind,
+              context: toJsonValue({
+                ...request.context,
+                categoryId: ctx.categoryId ?? null,
+                examplesCount: examples.length,
+                quality: Boolean(body.quality),
+                failed: e.code,
+              }),
+              input: body.text,
+              outputs: toJsonValue([]),
+              model,
+              inputTokens: billed.inputTokens,
+              outputTokens: billed.outputTokens,
+              cachedTokens: billed.cachedTokens,
+              costEur: e.costEur ?? 0,
+            },
+            select: { id: true },
+          })
+          .catch(() => null)
+      : null;
+    await audit({
+      userId: user.id,
+      action: "ai.suggestion_failed",
+      entityType: failedRow ? "AiSuggestion" : undefined,
+      entityId: failedRow?.id,
+      metadata: { kind: body.kind, model, code: e.code, costEur: e.costEur ?? 0 },
+    });
+    return Response.json(
+      { error: e.message, code: e.code },
+      { status: STATUS_BY_CODE[e.code] ?? 502 },
+    );
   }
 }

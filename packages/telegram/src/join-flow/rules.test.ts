@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { approveAtAfterGate, computeInitialState, dueReminderIndex, expirationOutcome, formatDelay, hasGate, IMPLICIT_RULE, resolveRule, ruleFromRow } from "./rules";
+import {
+  approveAtAfterGate,
+  computeInitialState,
+  dueReminderIndex,
+  expirationOutcome,
+  formatDelay,
+  hasGate,
+  IMPLICIT_RULE,
+  isNoRule,
+  NO_RULE,
+  resolveRule,
+  ruleFromRow,
+} from "./rules";
 import { pickText, renderText } from "./texts";
 
 const row = (over: Partial<Parameters<typeof ruleFromRow>[0]> = {}) => ({
@@ -19,9 +31,20 @@ const row = (over: Partial<Parameters<typeof ruleFromRow>[0]> = {}) => ({
 });
 
 describe("résolution de règle", () => {
-  it("règle implicite sans lien ni défaut", () => {
-    expect(resolveRule(null, null)).toBe(IMPLICIT_RULE);
-    expect(resolveRule(null, null).delaySeconds).toBe(0);
+  it("sans lien ni défaut : validation manuelle, jamais d'acceptation automatique (décision « approbation jamais automatique par défaut »)", () => {
+    const r = resolveRule(null, null);
+    expect(r).toBe(NO_RULE);
+    expect(r.mode).toBe("MANUAL");
+    expect(isNoRule(r)).toBe(true);
+    expect(computeInitialState(r, new Date(0))).toEqual({
+      status: "REQUESTED",
+      approveAt: null,
+      expiresAt: null,
+    });
+  });
+  it("une vraie règle n'est jamais prise pour l'absence de règle", () => {
+    expect(isNoRule(ruleFromRow(row({ mode: "MANUAL" })))).toBe(false);
+    expect(isNoRule(IMPLICIT_RULE)).toBe(false);
   });
   it("règle par défaut du canal", () => {
     expect(resolveRule(null, row()).id).toBe("r1");
@@ -31,10 +54,15 @@ describe("résolution de règle", () => {
   });
   it("ignore une règle inactive", () => {
     expect(resolveRule(row({ id: "lien", isActive: false }), row({ id: "def" })).id).toBe("def");
-    expect(resolveRule(null, row({ isActive: false }))).toBe(IMPLICIT_RULE);
+    expect(resolveRule(null, row({ isActive: false }))).toBe(NO_RULE);
   });
   it("nettoie les listes JSON", () => {
-    const r = ruleFromRow(row({ gateChannelIds: ["a", 3, null] as unknown as string[], reminderAfterMinutes: ["5", -1, "x"] as unknown as number[] }));
+    const r = ruleFromRow(
+      row({
+        gateChannelIds: ["a", 3, null] as unknown as string[],
+        reminderAfterMinutes: ["5", -1, "x"] as unknown as number[],
+      }),
+    );
     expect(r.gateChannelIds).toEqual(["a"]);
     expect(r.reminderAfterMinutes).toEqual([5]);
   });
@@ -43,7 +71,10 @@ describe("résolution de règle", () => {
 describe("état initial", () => {
   const t0 = new Date("2026-10-09T10:00:00Z");
   it("immédiat sans gate → SCHEDULED maintenant", () => {
-    const s = computeInitialState(ruleFromRow(row({ mode: "IMMEDIATE", gateMode: "NONE", expireAfterHours: null })), t0);
+    const s = computeInitialState(
+      ruleFromRow(row({ mode: "IMMEDIATE", gateMode: "NONE", expireAfterHours: null })),
+      t0,
+    );
     expect(s).toEqual({ status: "SCHEDULED", approveAt: t0, expiresAt: null });
   });
   it("délai sans gate → SCHEDULED après le délai", () => {
@@ -53,7 +84,10 @@ describe("état initial", () => {
     expect(s.expiresAt?.getTime()).toBe(t0.getTime() + 48 * 3600_000);
   });
   it("gate requis → PENDING_GATE sans échéance", () => {
-    expect(computeInitialState(ruleFromRow(row()), t0)).toMatchObject({ status: "PENDING_GATE", approveAt: null });
+    expect(computeInitialState(ruleFromRow(row()), t0)).toMatchObject({
+      status: "PENDING_GATE",
+      approveAt: null,
+    });
   });
   it("gate SOFT → SCHEDULED avec délai", () => {
     const s = computeInitialState(ruleFromRow(row({ gateMode: "SOFT" })), t0);
@@ -70,7 +104,9 @@ describe("état initial", () => {
   });
   it("après le gate, approbation au délai", () => {
     expect(approveAtAfterGate(ruleFromRow(row()), t0).getTime()).toBe(t0.getTime() + 600_000);
-    expect(approveAtAfterGate(ruleFromRow(row({ mode: "IMMEDIATE" })), t0).getTime()).toBe(t0.getTime());
+    expect(approveAtAfterGate(ruleFromRow(row({ mode: "IMMEDIATE" })), t0).getTime()).toBe(
+      t0.getTime(),
+    );
   });
 });
 
@@ -78,21 +114,49 @@ describe("rappels et expiration", () => {
   const r = ruleFromRow(row());
   const requestedAt = new Date("2026-10-09T10:00:00Z");
   it("premier rappel après 60 minutes", () => {
-    expect(dueReminderIndex(r, { requestedAt, remindersSent: 0 }, new Date("2026-10-09T10:59:00Z"))).toBeNull();
-    expect(dueReminderIndex(r, { requestedAt, remindersSent: 0 }, new Date("2026-10-09T11:00:00Z"))).toBe(0);
+    expect(
+      dueReminderIndex(r, { requestedAt, remindersSent: 0 }, new Date("2026-10-09T10:59:00Z")),
+    ).toBeNull();
+    expect(
+      dueReminderIndex(r, { requestedAt, remindersSent: 0 }, new Date("2026-10-09T11:00:00Z")),
+    ).toBe(0);
   });
   it("second rappel après 24 h, puis plus rien", () => {
-    expect(dueReminderIndex(r, { requestedAt, remindersSent: 1 }, new Date("2026-10-10T09:00:00Z"))).toBeNull();
-    expect(dueReminderIndex(r, { requestedAt, remindersSent: 1 }, new Date("2026-10-10T10:00:00Z"))).toBe(1);
-    expect(dueReminderIndex(r, { requestedAt, remindersSent: 2 }, new Date("2026-10-20T10:00:00Z"))).toBeNull();
+    expect(
+      dueReminderIndex(r, { requestedAt, remindersSent: 1 }, new Date("2026-10-10T09:00:00Z")),
+    ).toBeNull();
+    expect(
+      dueReminderIndex(r, { requestedAt, remindersSent: 1 }, new Date("2026-10-10T10:00:00Z")),
+    ).toBe(1);
+    expect(
+      dueReminderIndex(r, { requestedAt, remindersSent: 2 }, new Date("2026-10-20T10:00:00Z")),
+    ).toBeNull();
   });
   it("respecte maxReminders", () => {
-    expect(dueReminderIndex(ruleFromRow(row({ maxReminders: 1 })), { requestedAt, remindersSent: 1 }, new Date("2026-10-20T10:00:00Z"))).toBeNull();
+    expect(
+      dueReminderIndex(
+        ruleFromRow(row({ maxReminders: 1 })),
+        { requestedAt, remindersSent: 1 },
+        new Date("2026-10-20T10:00:00Z"),
+      ),
+    ).toBeNull();
   });
   it("expiration : DECLINE, APPROVE, KEEP", () => {
-    expect(expirationOutcome(ruleFromRow(row({ expireAction: "DECLINE" })))).toEqual({ status: "DECLINED", approveNow: false, declineNow: true });
-    expect(expirationOutcome(ruleFromRow(row({ expireAction: "APPROVE" })))).toEqual({ status: "SCHEDULED", approveNow: true, declineNow: false });
-    expect(expirationOutcome(ruleFromRow(row({ expireAction: "KEEP" })))).toEqual({ status: "EXPIRED", approveNow: false, declineNow: false });
+    expect(expirationOutcome(ruleFromRow(row({ expireAction: "DECLINE" })))).toEqual({
+      status: "DECLINED",
+      approveNow: false,
+      declineNow: true,
+    });
+    expect(expirationOutcome(ruleFromRow(row({ expireAction: "APPROVE" })))).toEqual({
+      status: "SCHEDULED",
+      approveNow: true,
+      declineNow: false,
+    });
+    expect(expirationOutcome(ruleFromRow(row({ expireAction: "KEEP" })))).toEqual({
+      status: "EXPIRED",
+      approveNow: false,
+      declineNow: false,
+    });
   });
 });
 
@@ -106,7 +170,14 @@ describe("textes", () => {
     expect(formatDelay(3600, "en")).toBe("in 1 hour");
   });
   it("remplace les placeholders", () => {
-    expect(renderText("Salut {prenom}, canal {canal} {delai} {bot}", { prenom: "Jean", canal: "VIP", delai: "dans 1 minute", bot: "@b" })).toBe("Salut Jean, canal VIP dans 1 minute @b");
+    expect(
+      renderText("Salut {prenom}, canal {canal} {delai} {bot}", {
+        prenom: "Jean",
+        canal: "VIP",
+        delai: "dans 1 minute",
+        bot: "@b",
+      }),
+    ).toBe("Salut Jean, canal VIP dans 1 minute @b");
     expect(renderText("{inconnu} {prenom}", {})).toBe("{inconnu} ");
   });
   it("choisit la langue du membre, sinon du canal, sinon fr", () => {

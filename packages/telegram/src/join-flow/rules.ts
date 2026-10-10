@@ -18,7 +18,10 @@ export type RuleData = {
   sendAcceptedMessage: boolean;
 };
 
-/** Règle implicite quand ni le lien ni le canal n'en définissent : approbation immédiate, sans gate. */
+/**
+ * Ancienne règle implicite (approbation immédiate, sans gate). Le flux d'adhésion ne l'applique plus à une nouvelle demande
+ * (voir `NO_RULE`) ; elle reste le repli du worker pour les rappels et expirations d'anciennes demandes sans règle.
+ */
 export const IMPLICIT_RULE: RuleData = {
   id: null,
   name: "Règle implicite (immédiat)",
@@ -32,6 +35,29 @@ export const IMPLICIT_RULE: RuleData = {
   expireAction: "KEEP",
   sendAcceptedMessage: true,
 };
+
+/**
+ * Canal sans règle d'adhésion active (cas d'un canal détecté automatiquement) : « approbation jamais automatique par défaut ».
+ * La demande est enregistrée à valider à la main (mode MANUAL), sans message privé, tant que l'équipe n'a pas réglé le canal.
+ */
+export const NO_RULE: RuleData = {
+  id: null,
+  name: "Aucune règle : validation manuelle",
+  mode: "MANUAL",
+  delaySeconds: 0,
+  gateChannelIds: [],
+  gateMode: "NONE",
+  reminderAfterMinutes: [],
+  maxReminders: 0,
+  expireAfterHours: null,
+  expireAction: "KEEP",
+  sendAcceptedMessage: false,
+};
+
+/** La règle appliquée est-elle l'absence de règle (canal pas encore réglé) ? */
+export function isNoRule(rule: RuleData): boolean {
+  return rule === NO_RULE || (rule.id === null && rule.mode === "MANUAL");
+}
 
 type RuleRow = {
   id: string;
@@ -71,11 +97,17 @@ export function ruleFromRow(row: RuleRow): RuleData {
   };
 }
 
-/** Priorité : règle du lien, sinon règle par défaut du canal, sinon règle implicite. Les règles inactives sont ignorées. */
-export function resolveRule(linkRule: RuleRow | null | undefined, channelDefaultRule: RuleRow | null | undefined): RuleData {
+/**
+ * Priorité : règle du lien, sinon règle par défaut du canal, sinon `NO_RULE` (validation manuelle, aucun message privé).
+ * Les règles inactives sont ignorées.
+ */
+export function resolveRule(
+  linkRule: RuleRow | null | undefined,
+  channelDefaultRule: RuleRow | null | undefined,
+): RuleData {
   if (linkRule && linkRule.isActive) return ruleFromRow(linkRule);
   if (channelDefaultRule && channelDefaultRule.isActive) return ruleFromRow(channelDefaultRule);
-  return IMPLICIT_RULE;
+  return NO_RULE;
 }
 
 /** Un gate est actif seulement s'il y a des canaux à rejoindre. */
@@ -83,14 +115,21 @@ export function hasGate(rule: RuleData): boolean {
   return rule.gateMode !== "NONE" && rule.gateChannelIds.length > 0;
 }
 
-export type InitialState = { status: MembershipStatus; approveAt: Date | null; expiresAt: Date | null };
+export type InitialState = {
+  status: MembershipStatus;
+  approveAt: Date | null;
+  expiresAt: Date | null;
+};
 
 /** État initial d'une demande selon la règle. */
 export function computeInitialState(rule: RuleData, requestedAt: Date): InitialState {
-  const expiresAt = rule.expireAfterHours ? new Date(requestedAt.getTime() + rule.expireAfterHours * 3600_000) : null;
+  const expiresAt = rule.expireAfterHours
+    ? new Date(requestedAt.getTime() + rule.expireAfterHours * 3600_000)
+    : null;
   if (rule.mode === "MANUAL") return { status: "REQUESTED", approveAt: null, expiresAt };
   const delayMs = rule.mode === "IMMEDIATE" ? 0 : rule.delaySeconds * 1000;
-  if (hasGate(rule) && rule.gateMode === "REQUIRED") return { status: "PENDING_GATE", approveAt: null, expiresAt };
+  if (hasGate(rule) && rule.gateMode === "REQUIRED")
+    return { status: "PENDING_GATE", approveAt: null, expiresAt };
   // NONE ou SOFT : on planifie dès la demande ; SOFT propose seulement les canaux.
   return { status: "SCHEDULED", approveAt: new Date(requestedAt.getTime() + delayMs), expiresAt };
 }
@@ -102,14 +141,22 @@ export function approveAtAfterGate(rule: RuleData, now: Date): Date {
 }
 
 /** Un rappel est-il dû ? Retourne l'index du rappel à envoyer, ou null. */
-export function dueReminderIndex(rule: RuleData, m: { requestedAt: Date; remindersSent: number }, now: Date): number | null {
+export function dueReminderIndex(
+  rule: RuleData,
+  m: { requestedAt: Date; remindersSent: number },
+  now: Date,
+): number | null {
   if (m.remindersSent >= rule.maxReminders) return null;
   const minutes = rule.reminderAfterMinutes[m.remindersSent];
   if (minutes === undefined) return null;
   return now.getTime() >= m.requestedAt.getTime() + minutes * 60_000 ? m.remindersSent : null;
 }
 
-export type ExpirationOutcome = { status: MembershipStatus; approveNow: boolean; declineNow: boolean };
+export type ExpirationOutcome = {
+  status: MembershipStatus;
+  approveNow: boolean;
+  declineNow: boolean;
+};
 
 /** Que faire à l'expiration d'une demande non aboutie. */
 export function expirationOutcome(rule: RuleData): ExpirationOutcome {

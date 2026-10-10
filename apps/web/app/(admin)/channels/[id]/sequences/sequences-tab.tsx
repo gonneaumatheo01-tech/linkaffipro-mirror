@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import type { AiVertical } from "@linkaffipro/ai/types";
 import {
   addSequenceLangAction,
   removeSequenceLangAction,
@@ -22,6 +22,7 @@ import {
   toggleSequenceAction,
 } from "./actions";
 import { SEQUENCE_LANGS } from "./langs";
+import { SequenceTextField } from "./sequence-text-field";
 
 const LANG_LABELS: Record<string, string> = {
   fr: "Français",
@@ -38,6 +39,13 @@ const LANG_LABELS: Record<string, string> = {
   ru: "Russe",
 };
 
+/** Clé courte d'un texte : le champ est recréé quand son texte enregistré change (ex. traductions de l'IA). */
+function textKey(text: string): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+  return `${text.length}-${h}`;
+}
+
 /** Rendu simplifié du HTML Telegram pour l'aperçu (balises déjà validées à l'enregistrement). */
 function previewHtml(text: string): string {
   return text.replace(/\n/g, "<br/>");
@@ -46,11 +54,14 @@ function previewHtml(text: string): string {
 export async function SequencesTab({
   channelId,
   channelTitle,
+  channelVertical,
   open,
   telegramLinked,
 }: {
   channelId: string;
   channelTitle: string;
+  /** Univers du canal (ou de son bot principal), transmis à l'assistant IA. */
+  channelVertical: AiVertical | null;
   open: string | undefined;
   telegramLinked: boolean;
 }) {
@@ -93,6 +104,11 @@ export async function SequencesTab({
             — remplacés automatiquement (prénom, nom du canal, canaux à rejoindre, délai, bot). Mise
             en forme : &lt;b&gt;gras&lt;/b&gt;, &lt;i&gt;italique&lt;/i&gt;, &lt;a
             href=&quot;…&quot;&gt;lien&lt;/a&gt;.
+          </p>
+          <p className="mt-2">
+            « ✨ Améliorer avec l&apos;IA » sous chaque texte propose 3 versions, écrites dans la
+            langue de ce champ ; « Traduire dans les langues du bot » remplit et enregistre ce
+            message en français, anglais, espagnol, portugais, allemand et italien.
           </p>
           {!telegramLinked ? (
             <p className="mt-2 text-amber-700">
@@ -196,13 +212,15 @@ export async function SequencesTab({
                           </ConfirmSubmit>
                         ) : null}
                       </div>
-                      <Textarea
+                      <SequenceTextField
+                        key={textKey(texts[lang] ?? "")}
                         id={`${trigger}-${lang}`}
-                        name="text"
+                        channelId={channelId}
+                        trigger={trigger}
+                        lang={lang}
                         defaultValue={texts[lang] ?? ""}
-                        rows={6}
-                        className="font-mono text-xs"
-                        required={lang === "fr"}
+                        vertical={channelVertical}
+                        hasMedia={Boolean(step?.mediaAsset)}
                       />
                       <div className="flex flex-wrap gap-2">
                         <Button type="submit" size="sm" className="max-md:h-10">

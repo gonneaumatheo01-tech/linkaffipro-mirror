@@ -11,3 +11,4 @@ export * from "./segment";
 export * from "./automation";
 export * from "./ab";
 export * from "./attribution-scope";
+export * from "./campaign-attribution";

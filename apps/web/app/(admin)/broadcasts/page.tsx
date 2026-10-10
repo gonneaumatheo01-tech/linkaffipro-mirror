@@ -30,7 +30,17 @@ const STATUS_OPTIONS = statusLabels("broadcast");
 export default async function BroadcastsPage({ searchParams }: PageProps<"/broadcasts">) {
   const sp = await searchParams;
   const status = typeof sp.status === "string" && sp.status in STATUS_OPTIONS ? sp.status : "";
-  const campaignId = typeof sp.campaignId === "string" ? sp.campaignId : "";
+  // Filtre campagne : `campaignId` (comme Messages, Membres et le tableau de bord ; ancien nom `campaign` accepté).
+  const campaignId =
+    typeof sp.campaignId === "string" && sp.campaignId
+      ? sp.campaignId
+      : typeof sp.campaign === "string"
+        ? sp.campaign
+        : "";
+  const exportQs = new URLSearchParams({
+    ...(status ? { status } : {}),
+    ...(campaignId ? { campaignId } : {}),
+  }).toString();
   const [{ rows, total, pages, page }, campaigns] = await Promise.all([
     listBroadcasts(pageOf(sp), status || undefined, campaignId || undefined),
     listCampaignOptions(),
@@ -45,7 +55,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
         <Button
           variant="outline"
           className="max-md:h-10"
-          render={<a href={`/broadcasts/export${status ? `?status=${status}` : ""}${campaignId ? `${status ? "&" : "?"}campaignId=${campaignId}` : ""}`} />}
+          render={<a href={`/broadcasts/export${exportQs ? `?${exportQs}` : ""}`} />}
         >
           Exporter CSV
         </Button>
@@ -108,7 +118,9 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/broad
           {total === 0 ? (
             status || campaignId ? (
               <EmptyState
-                title={campaignId ? "Aucun envoi lié à cette campagne." : "Aucun envoi avec ce statut."}
+                title={
+                  campaignId ? "Aucun envoi lié à cette campagne." : "Aucun envoi avec ce statut."
+                }
                 action={{ href: "/broadcasts", label: "Voir tous les envois", variant: "outline" }}
               />
             ) : (

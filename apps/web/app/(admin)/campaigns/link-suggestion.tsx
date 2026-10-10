@@ -3,11 +3,14 @@ import { revalidatePath } from "next/cache";
 import { prisma, audit } from "@linkaffipro/db";
 import { Button } from "@/components/ui/button";
 import { suggestAffiliateCampaign } from "@/lib/campaigns/match";
+import { listOfferCandidates } from "@/lib/campaigns/queries";
+import { visibleOffers } from "@/lib/campaigns/wizard";
+import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import { requireUser } from "@/lib/session";
 
 /**
- * Encart « Liaison suggérée » d'une fiche campagne : propose la campagne Link Affi dont le nom ressemble le plus
- * au nom de la campagne, avec un bouton « Lier » qui ajoute son identifiant dans `Campaign.affiliateCampaignIds`.
+ * Encart « Liaison suggérée » d'une fiche campagne : propose la campagne Link Affi (parmi nos offres) dont le nom
+ * ressemble le plus au nom de la campagne, avec un bouton « Lier » qui ajoute son identifiant dans `Campaign.affiliateCampaignIds`.
  * Rien n'est affiché si la campagne est déjà liée ou si aucun nom ne ressemble.
  * Usage dans `campaigns/[id]/page.tsx` : `<LinkSuggestion campaignId={campaign.id} name={campaign.name} linkedIds={campaign.affiliateCampaignIds} />`
  */
@@ -24,10 +27,8 @@ export async function LinkSuggestion({
     ? linkedIds.filter((x): x is string => typeof x === "string")
     : [];
   if (linked.length > 0) return null;
-  const candidates = await prisma.affiliateCampaign.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true, program: { select: { name: true } } },
-  });
+  // Seulement nos offres (même affilié que celles qui portent nos clics), quand on sait déjà les reconnaître.
+  const candidates = visibleOffers(await listOfferCandidates(), false);
   const suggestion = suggestAffiliateCampaign(name, candidates);
   if (!suggestion) return null;
   const { candidate, score } = suggestion;
@@ -61,6 +62,8 @@ export async function LinkSuggestion({
         },
       });
     }
+    // Les joueurs de l'offre entrent dans la campagne : listes à jour et statistiques recalculées depuis le début.
+    await refreshCampaignStats();
     revalidatePath(`/campaigns/${campaignId}`);
     redirect(
       `/campaigns/${campaignId}?ok=${encodeURIComponent(`Campagne liée à l'offre Link Affi « ${candidate.name} ».`)}`,
@@ -76,7 +79,7 @@ export async function LinkSuggestion({
         Liaison suggérée : <span className="font-medium">{candidate.name}</span>
         <span className="text-muted-foreground">
           {" "}
-          ({candidate.program.name}, ressemblance {Math.round(score * 100)} %)
+          ({candidate.programName}, ressemblance {Math.round(score * 100)} %)
         </span>
       </span>
       <Button type="submit" size="sm" variant="outline" className="max-md:h-10">

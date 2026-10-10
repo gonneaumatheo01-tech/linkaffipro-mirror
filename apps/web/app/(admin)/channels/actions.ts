@@ -65,8 +65,15 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
 // Canaux existants : ajout par lien public, import depuis le compte, re-vérification des droits
 // ============================================================
 
-import { importChannelByChatId, importChannelByUsername, importedChannelMessage, recheckAllChannelRights } from "@linkaffipro/telegram";
-import { canaux, rightsSummary } from "@/lib/channels/rights-message";
+import {
+  importChannelByChatId,
+  importChannelByUsername,
+  importedChannelMessage,
+  listActiveBots,
+  mapWithLimit,
+  recheckAllChannelRights,
+} from "@linkaffipro/telegram";
+import { importOutcomeOf, importSummary, rightsSummary } from "@/lib/channels/rights-message";
 
 function isRedirect(err: unknown): boolean {
   return Boolean((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT"));
@@ -79,20 +86,40 @@ function backToChannels(params: { ok?: string; error?: string }): never {
   redirect(`/channels?${qs.toString()}`);
 }
 
-/** Méthode 2 : coller le lien public (`t.me/<nom>`, `https://t.me/<nom>`, `@nom` ou `nom`). */
-export async function addChannelByLinkAction(formData: FormData): Promise<void> {
+/**
+ * Résultat affiché dans la fenêtre « Ajouter un canal existant » (méthode 2), sans quitter la fenêtre.
+ * `channelId` : canal ajouté (la surveillance de la fenêtre ne l'annonce pas une seconde fois).
+ */
+export type AddChannelByLinkState = {
+  ok?: string;
+  error?: string;
+  at?: number;
+  channelId?: string;
+};
+
+/**
+ * Méthode 2 : coller le lien public (`t.me/<nom>`, `t.me/s/<nom>`, `@nom` ou `nom`). Utilisée avec `useActionState` :
+ * le résultat revient dans la fenêtre (pas de redirection), la liste est revalidée.
+ */
+export async function addChannelByLinkAction(
+  _prev: AddChannelByLinkState,
+  formData: FormData,
+): Promise<AddChannelByLinkState> {
   const user = await requireUser();
-  const input = String(formData.get("link") ?? "");
-  let message = "";
+  const input = String(formData.get("link") ?? "").trim();
+  if (!input)
+    return {
+      error: "Collez le lien public du canal (t.me/mon_canal) ou son @nom.",
+      at: Date.now(),
+    };
   try {
     const r = await importChannelByUsername(input, { userId: user.id });
-    message = importedChannelMessage(r);
+    revalidatePath("/channels");
+    return { ok: importedChannelMessage(r), at: Date.now(), channelId: r.channelId };
   } catch (err) {
     if (isRedirect(err)) throw err;
-    backToChannels({ error: err instanceof Error ? err.message : "Ajout impossible." });
+    return { error: err instanceof Error ? err.message : "Ajout impossible.", at: Date.now() };
   }
-  revalidatePath("/channels");
-  backToChannels({ ok: message });
 }
 
 /** Re-vérifie les droits de nos bots sur tous les canaux actifs (page Canaux). */
@@ -103,7 +130,9 @@ export async function recheckAllRightsAction(): Promise<void> {
     message = rightsSummary(await recheckAllChannelRights({ userId: user.id }));
   } catch (err) {
     if (isRedirect(err)) throw err;
-    backToChannels({ error: `Vérification impossible : ${err instanceof Error ? err.message : "erreur inconnue"}` });
+    backToChannels({
+      error: `Vérification impossible : ${err instanceof Error ? err.message : "erreur inconnue"}`,
+    });
   }
   revalidatePath("/channels");
   backToChannels({ ok: message });
@@ -116,35 +145,41 @@ const accountRowSchema = z.object({
   isBroadcast: z.boolean(),
 });
 
-/** « Importer tous mes canaux » : canaux cochés (identifiants Telegram) → création + droits, un audit par canal. */
+/**
+ * « Importer tous mes canaux » : canaux cochés (identifiants Telegram) → création + droits, un audit par canal,
+ * 5 canaux à la fois. Retour résumé (« 12 canaux importés, 3 sans bot ») pour garder une adresse courte.
+ */
 export async function importChannelsFromAccountAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const ids = formData.getAll("ids").map(String);
-  if (ids.length === 0) redirect(`/channels/import?error=${encodeURIComponent("Cochez au moins un canal à importer.")}`);
-  const results: string[] = [];
-  const errors: string[] = [];
-  for (const id of ids) {
+  const ids = [...new Set(formData.getAll("ids").map(String))];
+  if (ids.length === 0)
+    redirect(
+      `/channels/import?error=${encodeURIComponent("Cochez au moins un canal à importer.")}`,
+    );
+  const bots = await listActiveBots();
+  const outcomes = await mapWithLimit(ids, 5, async (id) => {
     const parsed = accountRowSchema.safeParse({
       telegramChatId: id,
       title: formData.get(`title_${id}`) ?? "",
       username: (formData.get(`username_${id}`) as string | null) || null,
       isBroadcast: formData.get(`broadcast_${id}`) !== "0",
     });
-    if (!parsed.success) {
-      errors.push(`canal ${id} : informations incomplètes`);
-      continue;
-    }
+    if (!parsed.success) return { title: `canal ${id}`, error: "informations incomplètes" };
     try {
-      const r = await importChannelByChatId({ ...parsed.data, telegramChatId: BigInt(parsed.data.telegramChatId) }, { userId: user.id });
-      results.push(importedChannelMessage(r));
+      const r = await importChannelByChatId(
+        { ...parsed.data, telegramChatId: BigInt(parsed.data.telegramChatId) },
+        { userId: user.id, bots },
+      );
+      return importOutcomeOf(r);
     } catch (err) {
       if (isRedirect(err)) throw err;
-      errors.push(`« ${parsed.data.title} » : ${err instanceof Error ? err.message : "erreur inconnue"}`);
+      return {
+        title: parsed.data.title,
+        error: err instanceof Error ? err.message : "erreur inconnue",
+      };
     }
-  }
+  });
   revalidatePath("/channels");
-  const qs = new URLSearchParams();
-  if (results.length > 0) qs.set("ok", `${canaux(results.length)} importé${results.length > 1 ? "s" : ""} : ${results.join(" · ")}`);
-  if (errors.length > 0) qs.set("error", `Non importé : ${errors.join(" · ")}`);
-  redirect(`/channels?${qs.toString()}`);
+  const { ok, error } = importSummary(outcomes);
+  backToChannels({ ok, error });
 }

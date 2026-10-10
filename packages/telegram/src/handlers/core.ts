@@ -2,7 +2,14 @@ import type { Bot, Context } from "grammy";
 import type { Update } from "grammy/types";
 import { pickLang, t } from "../i18n";
 import { extractAdminRights, type BotIdentity, type TelegramDeps } from "../ports";
-import { ensureChannelKnown, isAdminStatus, isGroupLike, knownChannelFor, rememberKnownChannel } from "./channels";
+import {
+  ensureChannelKnown,
+  isAdminStatus,
+  isGroupLike,
+  knownChannelFor,
+  mayCreateChannelFrom,
+  rememberKnownChannel,
+} from "./channels";
 import { registerForwardHandlers } from "./forward";
 
 const UPDATE_TYPES = [
@@ -25,7 +32,8 @@ const UPDATE_TYPES = [
  */
 function shouldRefreshRights(type: string, update: Update): boolean {
   if (type === "channel_post" || type === "edited_channel_post") return true;
-  if (type === "my_chat_member" && update.my_chat_member) return isAdminStatus(update.my_chat_member.new_chat_member);
+  if (type === "my_chat_member" && update.my_chat_member)
+    return isAdminStatus(update.my_chat_member.new_chat_member);
   return false;
 }
 
@@ -47,16 +55,27 @@ export function registerCoreHandlers(
 ): void {
   // Journalisation de toute update reçue (append-only) et connaissance du canal :
   // toute mise à jour venant d'un canal inconnu (channel_post, chat_join_request, chat_member, réactions, my_chat_member…)
-  // crée le canal et relève les droits de nos bots.
+  // crée le canal et relève les droits de nos bots. Jamais de canal fantôme : un bot retiré d'un chat inconnu, ou un groupe
+  // où le bot n'est pas administrateur, ne crée rien (on retrouve seulement le canal s'il est déjà connu).
   bot.use(async (ctx, next) => {
     const type = updateTypeOf(ctx.update);
     const refs: { memberId?: string; channelId?: string } = {};
     try {
       const chat = ctx.chat;
       if (chat && isGroupLike(chat)) {
-        const known = await ensureChannelKnown(ctx, deps, chat, { refreshRights: shouldRefreshRights(type, ctx.update) });
-        rememberKnownChannel(ctx.update, known);
-        refs.channelId = known.channelId;
+        if (mayCreateChannelFrom(type, ctx.update, chat)) {
+          const known = await ensureChannelKnown(ctx, deps, chat, {
+            refreshRights: shouldRefreshRights(type, ctx.update),
+          });
+          rememberKnownChannel(ctx.update, known);
+          refs.channelId = known.channelId;
+        } else {
+          const channelId = await deps.findChannelId(chat.id);
+          if (channelId) {
+            rememberKnownChannel(ctx.update, { channelId, created: false, rights: null });
+            refs.channelId = channelId;
+          }
+        }
       }
       if (ctx.from && !ctx.from.is_bot) {
         const { memberId } = await deps.memberSeen(identity, ctx.from);
@@ -86,7 +105,9 @@ export function registerCoreHandlers(
     if (payload?.startsWith("admin_")) {
       const linked = await deps.linkAdminAccount(payload.slice("admin_".length), BigInt(from.id));
       await deps.memberStarted(identity, from, payload);
-      await ctx.reply(linked ? t(lang, "adminLinked", { name: linked.name }) : t(lang, "adminLinkInvalid"));
+      await ctx.reply(
+        linked ? t(lang, "adminLinked", { name: linked.name }) : t(lang, "adminLinkInvalid"),
+      );
       return;
     }
 
@@ -107,14 +128,21 @@ export function registerCoreHandlers(
     }
     if (!isGroupLike(chat)) return;
 
-    // Le middleware a déjà créé le canal et tenté le relevé complet des droits ; ici on applique le statut du bot lui-même,
-    // qui fait foi (le relevé échoue justement quand le bot vient d'être retiré ou n'est pas administrateur).
+    // Le middleware a déjà créé le canal (si permis) et tenté le relevé complet des droits ; ici on applique le statut du bot
+    // lui-même, qui fait foi (le relevé échoue justement quand le bot vient d'être retiré ou n'est pas administrateur).
     const known = knownChannelFor(ctx.update);
-    const channelId = known?.channelId ?? (await deps.upsertChannel(chat)).channelId;
     if (isAdminStatus(newMember)) {
-      if (!known?.rights?.ok) await deps.setChannelAdmin(channelId, identity.telegramBotId, extractAdminRights(newMember));
+      const channelId = known?.channelId ?? (await deps.upsertChannel(chat)).channelId;
+      if (!known?.rights?.ok)
+        await deps.setChannelAdmin(
+          channelId,
+          identity.telegramBotId,
+          extractAdminRights(newMember),
+        );
     } else {
-      await deps.revokeChannelAdmin(channelId, identity.telegramBotId);
+      // Retiré (ou rétrogradé) : seulement sur un canal déjà connu ; un chat inconnu n'est jamais créé pour ça.
+      const channelId = known?.channelId ?? (await deps.findChannelId(chat.id));
+      if (channelId) await deps.revokeChannelAdmin(channelId, identity.telegramBotId);
     }
   });
 

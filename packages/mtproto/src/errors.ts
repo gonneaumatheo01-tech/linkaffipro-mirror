@@ -22,6 +22,8 @@ export const AUTH_ERROR_CODES = [
   "SESSION_EXPIRED",
   "USER_DEACTIVATED",
   "USER_DEACTIVATED_BAN",
+  // La même clé utilisée en même temps depuis deux connexions (site et worker) : Telegram l'invalide.
+  "AUTH_KEY_DUPLICATED",
 ] as const;
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[number];
 
@@ -64,9 +66,12 @@ const RPC_MESSAGES: Record<string, string> = {
   PHONE_PASSWORD_FLOOD: "Trop d'essais de mot de passe : réessayez plus tard.",
   PASSWORD_HASH_INVALID: "Mot de passe incorrect.",
   SESSION_PASSWORD_NEEDED: "Mot de passe de validation en deux étapes nécessaire.",
-  API_ID_INVALID: "Identifiants d'application (api_id / api_hash) invalides : vérifiez-les sur my.telegram.org.",
-  API_ID_PUBLISHED_FLOOD: "Cette application Telegram est trop utilisée : créez-en une nouvelle sur my.telegram.org.",
-  CHANNEL_PRIVATE: "Le compte connecté n'a pas accès à ce canal (il doit en être membre ou administrateur).",
+  API_ID_INVALID:
+    "Identifiants d'application (api_id / api_hash) invalides : vérifiez-les sur my.telegram.org.",
+  API_ID_PUBLISHED_FLOOD:
+    "Cette application Telegram est trop utilisée : créez-en une nouvelle sur my.telegram.org.",
+  CHANNEL_PRIVATE:
+    "Le compte connecté n'a pas accès à ce canal (il doit en être membre ou administrateur).",
   CHANNEL_INVALID: "Canal introuvable pour le compte connecté.",
   PEER_ID_INVALID: "Canal introuvable pour le compte connecté (il doit en être membre).",
   CHAT_ADMIN_REQUIRED: "Le compte connecté doit être administrateur du canal.",
@@ -99,8 +104,16 @@ export function floodWaitSecondsOf(err: unknown): number | null {
   if (!err || typeof err !== "object") return null;
   const e = err as RpcLike;
   const code = rpcCodeOf(err) ?? "";
-  if (typeof e.seconds === "number" && Number.isFinite(e.seconds) && e.seconds >= 0 && /FLOOD/.test(code)) return Math.ceil(e.seconds);
-  const m = /FLOOD_WAIT_(\d+)/.exec(code) ?? /A wait of (\d+) seconds is required/.exec(String(e.message ?? ""));
+  if (
+    typeof e.seconds === "number" &&
+    Number.isFinite(e.seconds) &&
+    e.seconds >= 0 &&
+    /FLOOD/.test(code)
+  )
+    return Math.ceil(e.seconds);
+  const m =
+    /FLOOD_WAIT_(\d+)/.exec(code) ??
+    /A wait of (\d+) seconds is required/.exec(String(e.message ?? ""));
   if (m?.[1]) return Number(m[1]);
   return null;
 }
@@ -125,7 +138,8 @@ export function classifyError(err: unknown): Error {
   if (seconds !== null) return new MtprotoFloodWait(seconds);
   const code = rpcCodeOf(err);
   if (code) {
-    if ((AUTH_ERROR_CODES as readonly string[]).includes(code)) return new MtprotoAuthError(code as AuthErrorCode);
+    if ((AUTH_ERROR_CODES as readonly string[]).includes(code))
+      return new MtprotoAuthError(code as AuthErrorCode);
     if (code === "SESSION_PASSWORD_NEEDED") return new MtprotoPasswordNeeded();
     if (/^[A-Z][A-Z0-9_]+$/.test(code)) return new MtprotoRpcError(code);
   }

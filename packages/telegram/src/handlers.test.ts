@@ -5,7 +5,6 @@ import { registerHandlers, updateTypeOf } from "./handlers";
 import { botInfoFromRecord } from "./factory";
 import type { BotIdentity, TelegramDeps } from "./ports";
 
-
 const adminBase = {
   status: "administrator" as const,
   can_be_edited: false,
@@ -45,10 +44,13 @@ function makeDeps(): TelegramDeps & { calls: Record<string, unknown[][]> } {
     memberSeen: rec("memberSeen", { memberId: "m1" }),
     memberDmStatus: rec("memberDmStatus", undefined),
     upsertChannel: rec("upsertChannel", { channelId: "c1" }),
+    findChannelId: rec("findChannelId", "c1"),
     setChannelAdmin: rec("setChannelAdmin", undefined),
     revokeChannelAdmin: rec("revokeChannelAdmin", undefined),
     listOurBotTelegramIds: rec("listOurBotTelegramIds", [111n, 222n]),
-    linkAdminAccount: vi.fn(async (token: string) => (token === "good" ? { name: "Mathéo" } : null)),
+    linkAdminAccount: vi.fn(async (token: string) =>
+      token === "good" ? { name: "Mathéo" } : null,
+    ),
     isPlatformUser: rec("isPlatformUser", false),
   };
 }
@@ -62,13 +64,33 @@ function makeBot(deps: TelegramDeps) {
       return {
         ok: true,
         result: [
-          { ...adminBase, user: { id: 111, is_bot: true, first_name: "CasinoBot" }, can_post_messages: true },
-          { status: "creator", user: { id: 999, is_bot: false, first_name: "Owner" }, is_anonymous: false },
-          { ...adminBase, user: { id: 333, is_bot: true, first_name: "AutreBot" }, can_post_messages: true },
+          {
+            ...adminBase,
+            user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+            can_post_messages: true,
+          },
+          {
+            status: "creator",
+            user: { id: 999, is_bot: false, first_name: "Owner" },
+            is_anonymous: false,
+          },
+          {
+            ...adminBase,
+            user: { id: 333, is_bot: true, first_name: "AutreBot" },
+            can_post_messages: true,
+          },
         ],
       } as never;
     }
-    return { ok: true, result: { message_id: 1, date: 0, chat: { id: 42, type: "private", first_name: "x" }, text: "ok" } } as never;
+    return {
+      ok: true,
+      result: {
+        message_id: 1,
+        date: 0,
+        chat: { id: 42, type: "private", first_name: "x" },
+        text: "ok",
+      },
+    } as never;
   });
   registerHandlers(bot, identity, deps);
   return { bot, apiCalls };
@@ -81,36 +103,84 @@ describe("/start", () => {
   it("enregistre le membre et répond en français", async () => {
     const deps = makeDeps();
     const { bot, apiCalls } = makeBot(deps);
-    const update: Update = { update_id: 1, message: { message_id: 1, date: 1, chat: privateChat, from, text: "/start", entities: [{ type: "bot_command", offset: 0, length: 6 }] } };
+    const update: Update = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: 1,
+        chat: privateChat,
+        from,
+        text: "/start",
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    };
     await bot.handleUpdate(update);
     expect(deps.memberStarted).toHaveBeenCalledTimes(1);
     expect(deps.calls.memberStarted?.[0]?.[2]).toBeUndefined();
     const reply = apiCalls.find((c) => c.method === "sendMessage");
     expect(reply).toBeDefined();
-    expect((reply?.payload as { text: string }).text).toBe("Bonjour, je suis CasinoBot, le bot casino.");
+    expect((reply?.payload as { text: string }).text).toBe(
+      "Bonjour, je suis CasinoBot, le bot casino.",
+    );
     expect(deps.recordUpdate).toHaveBeenCalledWith(identity, "message", update, { memberId: "m1" });
   });
 
   it("répond en anglais selon la langue du membre", async () => {
     const deps = makeDeps();
     const { bot, apiCalls } = makeBot(deps);
-    await bot.handleUpdate({ update_id: 2, message: { message_id: 2, date: 1, chat: privateChat, from: { ...from, language_code: "en-US" }, text: "/start", entities: [{ type: "bot_command", offset: 0, length: 6 }] } });
-    expect((apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text).toBe("Hello, I am CasinoBot, the casino bot.");
+    await bot.handleUpdate({
+      update_id: 2,
+      message: {
+        message_id: 2,
+        date: 1,
+        chat: privateChat,
+        from: { ...from, language_code: "en-US" },
+        text: "/start",
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    });
+    expect(
+      (apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text,
+    ).toBe("Hello, I am CasinoBot, the casino bot.");
   });
 
   it("lie un compte admin avec /start admin_<token>", async () => {
     const deps = makeDeps();
     const { bot, apiCalls } = makeBot(deps);
-    await bot.handleUpdate({ update_id: 3, message: { message_id: 3, date: 1, chat: privateChat, from, text: "/start admin_good", entities: [{ type: "bot_command", offset: 0, length: 6 }] } });
+    await bot.handleUpdate({
+      update_id: 3,
+      message: {
+        message_id: 3,
+        date: 1,
+        chat: privateChat,
+        from,
+        text: "/start admin_good",
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    });
     expect(deps.linkAdminAccount).toHaveBeenCalledWith("good", 42n);
-    expect((apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text).toContain("Mathéo");
+    expect(
+      (apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text,
+    ).toContain("Mathéo");
   });
 
   it("signale un jeton admin invalide", async () => {
     const deps = makeDeps();
     const { bot, apiCalls } = makeBot(deps);
-    await bot.handleUpdate({ update_id: 4, message: { message_id: 4, date: 1, chat: privateChat, from, text: "/start admin_bad", entities: [{ type: "bot_command", offset: 0, length: 6 }] } });
-    expect((apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text).toMatch(/invalide/);
+    await bot.handleUpdate({
+      update_id: 4,
+      message: {
+        message_id: 4,
+        date: 1,
+        chat: privateChat,
+        from,
+        text: "/start admin_bad",
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    });
+    expect(
+      (apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text,
+    ).toMatch(/invalide/);
   });
 });
 
@@ -126,18 +196,37 @@ describe("my_chat_member", () => {
         chat: channel,
         from: { id: 999, is_bot: false, first_name: "Owner" },
         date: 1,
-        old_chat_member: { status: "left", user: { id: 111, is_bot: true, first_name: "CasinoBot" } },
-        new_chat_member: { ...adminBase, user: { id: 111, is_bot: true, first_name: "CasinoBot" }, can_post_messages: true, can_edit_messages: true },
+        old_chat_member: {
+          status: "left",
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+        },
+        new_chat_member: {
+          ...adminBase,
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+          can_post_messages: true,
+          can_edit_messages: true,
+        },
       },
     };
     await bot.handleUpdate(update);
     expect(deps.upsertChannel).toHaveBeenCalledWith(channel);
     expect(deps.setChannelAdmin).toHaveBeenCalledTimes(1);
-    const [channelId, botTgId, rights] = deps.calls.setChannelAdmin?.[0] as [string, bigint, Record<string, unknown>];
+    const [channelId, botTgId, rights] = deps.calls.setChannelAdmin?.[0] as [
+      string,
+      bigint,
+      Record<string, unknown>,
+    ];
     expect(channelId).toBe("c1");
     expect(botTgId).toBe(111n);
-    expect(rights).toMatchObject({ status: "administrator", can_post_messages: true, can_invite_users: true });
-    expect(deps.recordUpdate).toHaveBeenCalledWith(identity, "my_chat_member", update, { channelId: "c1", memberId: "m1" });
+    expect(rights).toMatchObject({
+      status: "administrator",
+      can_post_messages: true,
+      can_invite_users: true,
+    });
+    expect(deps.recordUpdate).toHaveBeenCalledWith(identity, "my_chat_member", update, {
+      channelId: "c1",
+      memberId: "m1",
+    });
   });
 
   it("révoque quand le bot est retiré", async () => {
@@ -149,12 +238,21 @@ describe("my_chat_member", () => {
         chat: channel,
         from: { id: 999, is_bot: false, first_name: "Owner" },
         date: 1,
-        old_chat_member: { ...adminBase, user: { id: 111, is_bot: true, first_name: "CasinoBot" }, can_post_messages: true },
-        new_chat_member: { status: "left", user: { id: 111, is_bot: true, first_name: "CasinoBot" } },
+        old_chat_member: {
+          ...adminBase,
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+          can_post_messages: true,
+        },
+        new_chat_member: {
+          status: "left",
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+        },
       },
     });
     expect(deps.revokeChannelAdmin).toHaveBeenCalledWith("c1", 111n);
     expect(deps.setChannelAdmin).not.toHaveBeenCalled();
+    // Canal connu : retrouvé sans être recréé.
+    expect(deps.upsertChannel).not.toHaveBeenCalled();
   });
 
   it("marque un membre qui bloque le bot en privé", async () => {
@@ -166,8 +264,15 @@ describe("my_chat_member", () => {
         chat: privateChat,
         from,
         date: 1,
-        old_chat_member: { status: "member", user: { id: 111, is_bot: true, first_name: "CasinoBot" } },
-        new_chat_member: { status: "kicked", user: { id: 111, is_bot: true, first_name: "CasinoBot" }, until_date: 0 },
+        old_chat_member: {
+          status: "member",
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+        },
+        new_chat_member: {
+          status: "kicked",
+          user: { id: 111, is_bot: true, first_name: "CasinoBot" },
+          until_date: 0,
+        },
       },
     });
     expect(deps.memberDmStatus).toHaveBeenCalledWith(identity, from, false);
@@ -179,7 +284,16 @@ describe("channel_post", () => {
     const deps = makeDeps();
     const { bot, apiCalls } = makeBot(deps);
     const channel = { id: -1005555, type: "channel" as const, title: "Nouveau canal" };
-    await bot.handleUpdate({ update_id: 20, channel_post: { message_id: 5, date: 1, chat: channel, text: "Bonjour", sender_chat: channel } });
+    await bot.handleUpdate({
+      update_id: 20,
+      channel_post: {
+        message_id: 5,
+        date: 1,
+        chat: channel,
+        text: "Bonjour",
+        sender_chat: channel,
+      },
+    });
     expect(deps.upsertChannel).toHaveBeenCalledWith(channel);
     expect(apiCalls.some((c) => c.method === "getChatAdministrators")).toBe(true);
     // Seul notre bot (111) est enregistré ; 333 n'est pas à nous, 999 est un humain.
@@ -191,6 +305,8 @@ describe("channel_post", () => {
 describe("updateTypeOf", () => {
   it("retrouve le type d'une update", () => {
     expect(updateTypeOf({ update_id: 1, message: {} as never })).toBe("message");
-    expect(updateTypeOf({ update_id: 1, chat_join_request: {} as never })).toBe("chat_join_request");
+    expect(updateTypeOf({ update_id: 1, chat_join_request: {} as never })).toBe(
+      "chat_join_request",
+    );
   });
 });

@@ -790,7 +790,10 @@ model Sequence {
 
   steps SequenceStep[]
 
-  @@index([channelId, trigger])
+  /// Une seule séquence par canal et par déclencheur (phase 8 : plusieurs bots créaient les séquences par défaut en même temps).
+  /// PostgreSQL traite les NULL comme distincts : les séquences globales (channelId vide) ne sont pas concernées,
+  /// ce qui équivaut à un index unique partiel « WHERE channelId IS NOT NULL ».
+  @@unique([channelId, trigger])
 }
 
 /// Étape d'une séquence : textes par langue, boutons, média, délai.

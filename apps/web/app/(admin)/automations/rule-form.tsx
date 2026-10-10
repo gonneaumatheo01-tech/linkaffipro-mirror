@@ -60,7 +60,7 @@ export async function RuleForm({
     prisma.bot.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, username: true },
+      select: { id: true, username: true, vertical: true },
     }),
     prisma.mediaAsset.findMany({
       orderBy: { createdAt: "desc" },
@@ -72,6 +72,20 @@ export async function RuleForm({
   const sel = "h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9";
   const rows = Array.from({ length: MAX_ACTIONS }, (_, i) => values.actions[i] ?? null);
   const text = (a: AutomationAction | null) => (a && "text" in a ? (a.text ?? "") : "");
+  // Contexte de l'assistant IA : univers du bot de l'action déjà enregistrée (sinon celui de l'unique univers des bots),
+  // média seulement s'il est connu (sinon le panneau propose la case « Message avec média »).
+  const botVerticals = [...new Set(bots.map((b) => b.vertical))];
+  const aiContext = (a: AutomationAction | null) => {
+    const sendMessage = a?.type === "send_message" ? a : null;
+    const vertical =
+      bots.find((b) => b.id === sendMessage?.botId)?.vertical ??
+      (botVerticals.length === 1 ? botVerticals[0] : null);
+    return {
+      surface: "automation" as const,
+      vertical: vertical ?? null,
+      ...(sendMessage?.mediaAssetId ? { hasMedia: true } : {}),
+    };
+  };
   return (
     <form action={action} className="space-y-6">
       {values.ruleId ? <input type="hidden" name="ruleId" value={values.ruleId} /> : null}
@@ -128,7 +142,7 @@ export async function RuleForm({
               ) : null}
             </fieldset>
             <fieldset className="space-y-1 text-sm">
-              <legend className="mb-1 font-medium">Pubs</legend>
+              <legend className="mb-1 font-medium">Campagnes</legend>
               {campaigns.map((p) => (
                 <label key={p.id} className="flex min-h-8 items-center gap-2">
                   <input
@@ -142,7 +156,7 @@ export async function RuleForm({
                 </label>
               ))}
               {campaigns.length === 0 ? (
-                <span className="text-muted-foreground">aucune pub</span>
+                <span className="text-muted-foreground">aucune campagne</span>
               ) : null}
             </fieldset>
             <fieldset className="space-y-1 text-sm">
@@ -256,7 +270,7 @@ export async function RuleForm({
                     defaultValue={text(a)}
                     rows={2}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    context={{ surface: "automation" }}
+                    context={aiContext(a)}
                   />
                 </div>
                 <div className="space-y-1">

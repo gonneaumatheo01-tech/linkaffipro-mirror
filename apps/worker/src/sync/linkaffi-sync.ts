@@ -41,8 +41,20 @@ import { applyPlayerRow, type ExistingPlayer } from "./player-apply";
 
 type Db = typeof prisma;
 
-export type SyncOptions = { full?: boolean; tables?: string[]; now?: () => Date; client?: LinkAffiClient; db?: Db };
-export type TableResult = { table: string; ok: boolean; rows: number; error?: string; skipped?: boolean };
+export type SyncOptions = {
+  full?: boolean;
+  tables?: string[];
+  now?: () => Date;
+  client?: LinkAffiClient;
+  db?: Db;
+};
+export type TableResult = {
+  table: string;
+  ok: boolean;
+  rows: number;
+  error?: string;
+  skipped?: boolean;
+};
 
 const STALE_LOCK_MS = 30 * 60 * 1000;
 const UNKNOWN_PROGRAM = "unknown";
@@ -61,9 +73,14 @@ class SyncContext {
   ) {}
 
   async loadCaches() {
-    const programs = await this.db.affiliateProgram.findMany({ where: { source: "LINKAFFI" }, select: { id: true, externalId: true } });
+    const programs = await this.db.affiliateProgram.findMany({
+      where: { source: "LINKAFFI" },
+      select: { id: true, externalId: true },
+    });
     for (const p of programs) if (p.externalId) this.programIdByExternal.set(p.externalId, p.id);
-    const campaigns = await this.db.affiliateCampaign.findMany({ select: { id: true, externalId: true, programId: true } });
+    const campaigns = await this.db.affiliateCampaign.findMany({
+      select: { id: true, externalId: true, programId: true },
+    });
     for (const c of campaigns) {
       this.campaignIdByExternal.set(c.externalId, c.id);
       this.campaignProgramByCampaignId.set(c.id, c.programId);
@@ -85,7 +102,12 @@ class SyncContext {
     if (hit) return hit;
     const p = await this.db.affiliateProgram.upsert({
       where: { source_externalId: { source: "LINKAFFI", externalId: key } },
-      create: { source: "LINKAFFI", externalId: key, name: externalId ? `(programme ${externalId.slice(0, 8)})` : "(programme inconnu)", isActive: externalId !== null },
+      create: {
+        source: "LINKAFFI",
+        externalId: key,
+        name: externalId ? `(programme ${externalId.slice(0, 8)})` : "(programme inconnu)",
+        isActive: externalId !== null,
+      },
       update: {},
       select: { id: true },
     });
@@ -93,14 +115,23 @@ class SyncContext {
     return p.id;
   }
 
-  async ensureCampaign(externalId: string | null, programExternalId: string | null): Promise<string> {
+  async ensureCampaign(
+    externalId: string | null,
+    programExternalId: string | null,
+  ): Promise<string> {
     const key = externalId ?? `unknown:${programExternalId ?? UNKNOWN_PROGRAM}`;
     const hit = this.campaignIdByExternal.get(key);
     if (hit) return hit;
     const programId = await this.ensureProgram(programExternalId);
     const c = await this.db.affiliateCampaign.upsert({
       where: { programId_externalId: { programId, externalId: key } },
-      create: { programId, externalId: key, name: externalId ? `(campagne ${externalId.slice(0, 8)})` : "(campagne inconnue)", trackingUrlTemplate: "", isActive: false },
+      create: {
+        programId,
+        externalId: key,
+        name: externalId ? `(campagne ${externalId.slice(0, 8)})` : "(campagne inconnue)",
+        trackingUrlTemplate: "",
+        isActive: false,
+      },
       update: {},
       select: { id: true },
     });
@@ -113,7 +144,17 @@ class SyncContext {
   async findPlayerByExternal(programExternalId: string, externalPlayerId: string) {
     const programId = this.programIdByExternal.get(programExternalId);
     if (!programId) return null;
-    return this.db.player.findFirst({ where: { externalPlayerId, affiliateCampaign: { programId } }, select: { id: true, memberId: true, ngr: true, depositTotal: true, ftdAt: true, clickId: true } });
+    return this.db.player.findFirst({
+      where: { externalPlayerId, affiliateCampaign: { programId } },
+      select: {
+        id: true,
+        memberId: true,
+        ngr: true,
+        depositTotal: true,
+        ftdAt: true,
+        clickId: true,
+      },
+    });
   }
 }
 
@@ -125,7 +166,13 @@ async function handleCasinos(ctx: SyncContext, rows: LaCasino[]) {
     if (!m) continue;
     const p = await ctx.db.affiliateProgram.upsert({
       where: { source_externalId: { source: "LINKAFFI", externalId: m.externalId } },
-      create: { source: "LINKAFFI", externalId: m.externalId, name: m.name, isActive: m.isActive, raw: toJsonValue(m.raw) },
+      create: {
+        source: "LINKAFFI",
+        externalId: m.externalId,
+        name: m.name,
+        isActive: m.isActive,
+        raw: toJsonValue(m.raw),
+      },
       update: { name: m.name, isActive: m.isActive, raw: toJsonValue(m.raw) },
       select: { id: true },
     });
@@ -140,8 +187,21 @@ async function handleCampaigns(ctx: SyncContext, rows: LaCampaign[]) {
     const programId = await ctx.ensureProgram(m.programExternalId);
     const c = await ctx.db.affiliateCampaign.upsert({
       where: { programId_externalId: { programId, externalId: m.externalId } },
-      create: { programId, externalId: m.externalId, campaignKey: m.campaignKey, name: m.name, trackingUrlTemplate: m.trackingUrlTemplate, isActive: m.isActive, raw: toJsonValue(m.raw) },
-      update: { campaignKey: m.campaignKey, name: m.name, trackingUrlTemplate: m.trackingUrlTemplate, raw: toJsonValue(m.raw) },
+      create: {
+        programId,
+        externalId: m.externalId,
+        campaignKey: m.campaignKey,
+        name: m.name,
+        trackingUrlTemplate: m.trackingUrlTemplate,
+        isActive: m.isActive,
+        raw: toJsonValue(m.raw),
+      },
+      update: {
+        campaignKey: m.campaignKey,
+        name: m.name,
+        trackingUrlTemplate: m.trackingUrlTemplate,
+        raw: toJsonValue(m.raw),
+      },
       select: { id: true },
     });
     ctx.campaignIdByExternal.set(m.externalId, c.id);
@@ -154,11 +214,21 @@ async function handleCurrencyRates(ctx: SyncContext, rows: LaCurrencyRate[]) {
 }
 
 /** Rattache un joueur à notre clic (sub-ID) : clickId, memberId ; retourne le postId touché. */
-async function attachBySubId(ctx: SyncContext, playerId: string, subId: string | null): Promise<{ memberId: string | null; postId: string | null }> {
+async function attachBySubId(
+  ctx: SyncContext,
+  playerId: string,
+  subId: string | null,
+): Promise<{ memberId: string | null; postId: string | null }> {
   if (!subId) return { memberId: null, postId: null };
-  const click = await ctx.db.click.findUnique({ where: { subId }, select: { id: true, memberId: true, postId: true } });
+  const click = await ctx.db.click.findUnique({
+    where: { subId },
+    select: { id: true, memberId: true, postId: true },
+  });
   if (!click) return { memberId: null, postId: null };
-  await ctx.db.player.update({ where: { id: playerId }, data: { clickId: click.id, memberId: click.memberId } });
+  await ctx.db.player.update({
+    where: { id: playerId },
+    data: { clickId: click.id, memberId: click.memberId },
+  });
   if (click.postId) ctx.touchedPostIds.add(click.postId);
   return { memberId: click.memberId, postId: click.postId };
 }
@@ -170,15 +240,35 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
     if (!m) continue;
     const campaignId = await ctx.ensureCampaign(m.campaignExternalId, m.programExternalId);
     const existingRow = await ctx.db.player.findUnique({
-      where: { affiliateCampaignId_externalPlayerId: { affiliateCampaignId: campaignId, externalPlayerId: m.externalPlayerId } },
-      select: { id: true, subId: true, subIdSource: true, updatedAt: true, registeredAt: true, ftdAt: true, depositCount: true, depositTotal: true, ngr: true, memberId: true, clickId: true, raw: true },
+      where: {
+        affiliateCampaignId_externalPlayerId: {
+          affiliateCampaignId: campaignId,
+          externalPlayerId: m.externalPlayerId,
+        },
+      },
+      select: {
+        id: true,
+        subId: true,
+        subIdSource: true,
+        updatedAt: true,
+        registeredAt: true,
+        ftdAt: true,
+        depositCount: true,
+        depositTotal: true,
+        ngr: true,
+        memberId: true,
+        clickId: true,
+        raw: true,
+      },
     });
     const existing: ExistingPlayer | null = existingRow
       ? {
           id: existingRow.id,
           subId: existingRow.subId,
           subIdSource: existingRow.subIdSource as SubIdSource,
-          updatedAt: ((existingRow.raw as { updated_at?: string } | null)?.updated_at ? new Date((existingRow.raw as { updated_at: string }).updated_at) : null),
+          updatedAt: (existingRow.raw as { updated_at?: string } | null)?.updated_at
+            ? new Date((existingRow.raw as { updated_at: string }).updated_at)
+            : null,
           registeredAt: existingRow.registeredAt,
           ftdAt: existingRow.ftdAt,
           depositCount: existingRow.depositCount,
@@ -190,8 +280,18 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
       : null;
     const change = applyPlayerRow(existing, m);
     const player = await ctx.db.player.upsert({
-      where: { affiliateCampaignId_externalPlayerId: { affiliateCampaignId: campaignId, externalPlayerId: m.externalPlayerId } },
-      create: { affiliateCampaignId: campaignId, externalPlayerId: m.externalPlayerId, ...change.data, raw: toJsonValue(change.data.raw) },
+      where: {
+        affiliateCampaignId_externalPlayerId: {
+          affiliateCampaignId: campaignId,
+          externalPlayerId: m.externalPlayerId,
+        },
+      },
+      create: {
+        affiliateCampaignId: campaignId,
+        externalPlayerId: m.externalPlayerId,
+        ...change.data,
+        raw: toJsonValue(change.data.raw),
+      },
       update: { ...change.data, raw: toJsonValue(change.data.raw) },
       select: { id: true, memberId: true, clickId: true },
     });
@@ -201,12 +301,39 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
       const att = await attachBySubId(ctx, player.id, change.data.subId);
       memberId = att.memberId ?? memberId;
     } else if (player.clickId) {
-      const click = await ctx.db.click.findUnique({ where: { id: player.clickId }, select: { postId: true } });
+      const click = await ctx.db.click.findUnique({
+        where: { id: player.clickId },
+        select: { postId: true },
+      });
       if (click?.postId && change.events.length > 0) ctx.touchedPostIds.add(click.postId);
     }
     for (const ev of change.events) {
-      await recordEvent({ type: ev.type, memberId, payload: { playerId: player.id, externalPlayerId: m.externalPlayerId, campaignId, amount: ev.amount ?? null, subId: change.data.subId, subIdSource: change.data.subIdSource } });
-      if (memberId) await emitAutomationEvent(ev.type === "player.registered" ? "REGISTERED" : "DEPOSITED", memberId, { playerId: player.id, amount: ev.amount ?? null, eventType: ev.type, via: "linkaffi" });
+      // Date réelle Link Affi de l'événement (inscription, premier dépôt, dernière activité), jamais la date d'import.
+      const occurredAt =
+        (ev.type === "player.registered"
+          ? change.data.registeredAt
+          : ev.type === "player.ftd"
+            ? change.data.ftdAt
+            : change.data.lastEventAt) ?? undefined;
+      await recordEvent({
+        type: ev.type,
+        occurredAt,
+        memberId,
+        payload: {
+          playerId: player.id,
+          externalPlayerId: m.externalPlayerId,
+          campaignId,
+          amount: ev.amount ?? null,
+          subId: change.data.subId,
+          subIdSource: change.data.subIdSource,
+        },
+      });
+      if (memberId)
+        await emitAutomationEvent(
+          ev.type === "player.registered" ? "REGISTERED" : "DEPOSITED",
+          memberId,
+          { playerId: player.id, amount: ev.amount ?? null, eventType: ev.type, via: "linkaffi" },
+        );
     }
   }
 }
@@ -220,8 +347,22 @@ async function handlePlayerEvents(ctx: SyncContext, rows: LaPlayerEvent[]) {
     if (!playerId) continue; // joueur pas encore importé : sera repris au prochain passage (chevauchement)
     await ctx.db.playerEvent.upsert({
       where: { playerId_externalId: { playerId, externalId: m.externalId } },
-      create: { playerId, type: m.type, amount: m.amount, currency: m.currency, occurredAt: m.occurredAt, externalId: m.externalId, raw: toJsonValue(m.raw) },
-      update: { type: m.type, amount: m.amount, currency: m.currency, occurredAt: m.occurredAt, raw: toJsonValue(m.raw) },
+      create: {
+        playerId,
+        type: m.type,
+        amount: m.amount,
+        currency: m.currency,
+        occurredAt: m.occurredAt,
+        externalId: m.externalId,
+        raw: toJsonValue(m.raw),
+      },
+      update: {
+        type: m.type,
+        amount: m.amount,
+        currency: m.currency,
+        occurredAt: m.occurredAt,
+        raw: toJsonValue(m.raw),
+      },
     });
   }
 }
@@ -232,9 +373,15 @@ async function handlePlayerFinancials(ctx: SyncContext, rows: LaPlayerFinancials
     const laId = typeof row.player_id === "string" ? row.player_id : null;
     const playerId = laId ? ctx.playerIdByLaId.get(laId) : undefined;
     if (!playerId) continue;
-    const existing = await ctx.db.player.findUnique({ where: { id: playerId }, select: { raw: true } });
-    const raw = ((existing?.raw as Record<string, unknown> | null) ?? {});
-    await ctx.db.player.update({ where: { id: playerId }, data: { raw: toJsonValue({ ...raw, financials: row }) } });
+    const existing = await ctx.db.player.findUnique({
+      where: { id: playerId },
+      select: { raw: true },
+    });
+    const raw = (existing?.raw as Record<string, unknown> | null) ?? {};
+    await ctx.db.player.update({
+      where: { id: playerId },
+      data: { raw: toJsonValue({ ...raw, financials: row }) },
+    });
   }
 }
 
@@ -244,12 +391,34 @@ async function handleRevshareSnapshots(ctx: SyncContext, rows: LaSnapshot[]) {
     if (!m) continue;
     const player = await ctx.findPlayerByExternal(m.programExternalId, m.externalPlayerId);
     if (!player) continue;
-    if (Number(player.ngr) === m.ngr) continue;
-    await ctx.db.player.update({ where: { id: player.id }, data: { ngr: m.ngr, lastEventAt: m.at ?? undefined } });
+    const previous = Number(player.ngr ?? 0);
     // NGR daté (phase 8) : chaque variation devient un événement à la date réelle de l'instantané, jamais un cumul.
-    const delta = ngrDeltaEvent(Number(player.ngr), m.ngr, m.at, new Date());
-    if (delta) await ctx.db.playerEvent.create({ data: { playerId: player.id, type: "NGR", amount: delta.amount, currency: "EUR", occurredAt: delta.occurredAt, raw: { source: "revshare_snapshots", previous: Number(player.ngr), ngr: m.ngr } } }).catch(() => undefined);
-    await recordEvent({ type: "player.ngr_updated", memberId: player.memberId, payload: { playerId: player.id, ngr: m.ngr, previous: Number(player.ngr) } });
+    const delta = ngrDeltaEvent(previous, m.ngr, m.at, ctx.now());
+    if (!delta) continue;
+    // Événement et cumul écrits ensemble : si l'un échoue, rien n'est écrit, l'erreur remonte (table en erreur) et la
+    // variation est reprise au passage suivant — jamais d'écart entre `Player.ngr` et la somme des événements NGR.
+    await ctx.db.$transaction(async (tx) => {
+      await tx.playerEvent.create({
+        data: {
+          playerId: player.id,
+          type: "NGR",
+          amount: delta.amount,
+          currency: "EUR",
+          occurredAt: delta.occurredAt,
+          raw: { source: "revshare_snapshots", previous, ngr: m.ngr },
+        },
+      });
+      await tx.player.update({
+        where: { id: player.id },
+        data: { ngr: m.ngr, lastEventAt: m.at ?? undefined },
+      });
+    });
+    await recordEvent({
+      type: "player.ngr_updated",
+      occurredAt: delta.occurredAt,
+      memberId: player.memberId,
+      payload: { playerId: player.id, ngr: m.ngr, previous, amount: delta.amount },
+    });
   }
 }
 
@@ -259,8 +428,20 @@ async function handleDepositSnapshots(ctx: SyncContext, rows: LaSnapshot[]) {
     if (!m) continue;
     const player = await ctx.findPlayerByExternal(m.programExternalId, m.externalPlayerId);
     if (!player || Number(player.depositTotal) >= m.depositTotal) continue;
-    await ctx.db.player.update({ where: { id: player.id }, data: { depositTotal: m.depositTotal } });
-    await recordEvent({ type: "player.deposit", memberId: player.memberId, payload: { playerId: player.id, amount: m.depositTotal - Number(player.depositTotal), source: "deposit_snapshots" } });
+    await ctx.db.player.update({
+      where: { id: player.id },
+      data: { depositTotal: m.depositTotal },
+    });
+    await recordEvent({
+      type: "player.deposit",
+      occurredAt: m.at ?? undefined,
+      memberId: player.memberId,
+      payload: {
+        playerId: player.id,
+        amount: m.depositTotal - Number(player.depositTotal),
+        source: "deposit_snapshots",
+      },
+    });
   }
 }
 
@@ -270,12 +451,31 @@ async function handleFtdInvalidations(ctx: SyncContext, rows: LaFtdInvalidation[
     if (!m) continue;
     const player = await ctx.findPlayerByExternal(m.programExternalId, m.externalPlayerId);
     if (!player) continue;
-    const already = await ctx.db.playerEvent.findUnique({ where: { playerId_externalId: { playerId: player.id, externalId: m.externalId } }, select: { id: true } });
+    const already = await ctx.db.playerEvent.findUnique({
+      where: { playerId_externalId: { playerId: player.id, externalId: m.externalId } },
+      select: { id: true },
+    });
     if (already) continue;
-    await ctx.db.playerEvent.create({ data: { playerId: player.id, type: "OTHER", occurredAt: m.at, externalId: m.externalId, raw: toJsonValue(row) } });
+    await ctx.db.playerEvent.create({
+      data: {
+        playerId: player.id,
+        type: "OTHER",
+        occurredAt: m.at,
+        externalId: m.externalId,
+        raw: toJsonValue(row),
+      },
+    });
     if (player.ftdAt) {
-      await ctx.db.player.update({ where: { id: player.id }, data: { ftdAt: null, ftdAmount: null } });
-      await recordEvent({ type: "player.ftd_invalidated", memberId: player.memberId, payload: { playerId: player.id, reason: m.reason } });
+      await ctx.db.player.update({
+        where: { id: player.id },
+        data: { ftdAt: null, ftdAmount: null },
+      });
+      await recordEvent({
+        type: "player.ftd_invalidated",
+        occurredAt: m.at,
+        memberId: player.memberId,
+        payload: { playerId: player.id, reason: m.reason },
+      });
     }
   }
 }
@@ -287,11 +487,15 @@ async function handleClicks(ctx: SyncContext, rows: LaClick[]) {
   for (const row of rows) {
     const m = mapClick(row);
     if (!m) continue;
-    const click = await ctx.db.click.findUnique({ where: { subId: m.subId }, select: { id: true } });
+    const click = await ctx.db.click.findUnique({
+      where: { subId: m.subId },
+      select: { id: true },
+    });
     if (click) matched++;
     else unmatched++;
   }
-  if (matched + unmatched > 0) logger.info({ matched, unmatched }, "clics Link Affi avec sub_id rapprochés");
+  if (matched + unmatched > 0)
+    logger.info({ matched, unmatched }, "clics Link Affi avec sub_id rapprochés");
 }
 
 const HANDLERS: Record<SyncTable, (ctx: SyncContext, rows: never[]) => Promise<void>> = {
@@ -309,15 +513,37 @@ const HANDLERS: Record<SyncTable, (ctx: SyncContext, rows: never[]) => Promise<v
 
 // ---------- Boucle par table avec SyncState ----------
 
-async function syncTable(ctx: SyncContext, client: LinkAffiClient, table: SyncTable, dateCol: string | null, full: boolean): Promise<TableResult> {
+async function syncTable(
+  ctx: SyncContext,
+  client: LinkAffiClient,
+  table: SyncTable,
+  dateCol: string | null,
+  full: boolean,
+): Promise<TableResult> {
   const now = ctx.now();
-  const state = await ctx.db.syncState.upsert({ where: { source: table }, create: { source: table }, update: {} });
-  if (state.isRunning && state.lastRunAt && now.getTime() - state.lastRunAt.getTime() < STALE_LOCK_MS) {
+  const state = await ctx.db.syncState.upsert({
+    where: { source: table },
+    create: { source: table },
+    update: {},
+  });
+  if (
+    state.isRunning &&
+    state.lastRunAt &&
+    now.getTime() - state.lastRunAt.getTime() < STALE_LOCK_MS
+  ) {
     return { table, ok: true, rows: 0, skipped: true };
   }
   const cursor: SyncCursor = full ? {} : ((state.cursor as SyncCursor | null) ?? {});
   const w = computeWindow(dateCol, cursor, now, full);
-  await ctx.db.syncState.update({ where: { source: table }, data: { isRunning: true, lastRunAt: now, lastError: null, cursor: toJsonValue(full ? {} : cursor) } });
+  await ctx.db.syncState.update({
+    where: { source: table },
+    data: {
+      isRunning: true,
+      lastRunAt: now,
+      lastError: null,
+      cursor: toJsonValue(full ? {} : cursor),
+    },
+  });
   let offset = w.offset;
   let imported = 0;
   try {
@@ -329,18 +555,34 @@ async function syncTable(ctx: SyncContext, client: LinkAffiClient, table: SyncTa
       const done = page.rows.length === 0 || page.rows.length < PAGE_LIMIT || offset >= page.total;
       await ctx.db.syncState.update({
         where: { source: table },
-        data: { rowsImported: { increment: page.rows.length }, cursor: toJsonValue(done ? cursorAfterSuccess(w) : cursorAfterPage(cursor, w, offset)) },
+        data: {
+          rowsImported: { increment: page.rows.length },
+          cursor: toJsonValue(done ? cursorAfterSuccess(w) : cursorAfterPage(cursor, w, offset)),
+        },
       });
       if (done) break;
     }
-    await ctx.db.syncState.update({ where: { source: table }, data: { isRunning: false, lastSuccessAt: ctx.now(), lastError: null } });
+    await ctx.db.syncState.update({
+      where: { source: table },
+      data: { isRunning: false, lastSuccessAt: ctx.now(), lastError: null },
+    });
     return { table, ok: true, rows: imported };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Compteur d'échecs consécutifs (lu par l'alerte `sync_failed`) ; remis à zéro au prochain succès.
-    const errorStreak = (typeof (cursor as { errorStreak?: unknown }).errorStreak === "number" ? (cursor as { errorStreak: number }).errorStreak : 0) + 1;
+    const errorStreak =
+      (typeof (cursor as { errorStreak?: unknown }).errorStreak === "number"
+        ? (cursor as { errorStreak: number }).errorStreak
+        : 0) + 1;
     await ctx.db.syncState
-      .update({ where: { source: table }, data: { isRunning: false, lastError: message, cursor: toJsonValue({ ...cursor, errorStreak }) } })
+      .update({
+        where: { source: table },
+        data: {
+          isRunning: false,
+          lastError: message,
+          cursor: toJsonValue({ ...cursor, errorStreak }),
+        },
+      })
       .catch(() => undefined);
     logger.error({ table, err: message }, "synchro Link Affi : table en erreur");
     return { table, ok: false, rows: imported, error: message };
@@ -350,7 +592,10 @@ async function syncTable(ctx: SyncContext, client: LinkAffiClient, table: SyncTa
 /** Recalcule les statistiques des messages touchés (idempotent, depuis les joueurs rattachés). */
 export async function recomputePostStats(db: Db, postIds: Iterable<string>) {
   for (const postId of postIds) {
-    const players = await db.player.findMany({ where: { click: { postId } }, select: { ftdAt: true, depositCount: true, depositTotal: true, registeredAt: true } });
+    const players = await db.player.findMany({
+      where: { click: { postId } },
+      select: { ftdAt: true, depositCount: true, depositTotal: true, registeredAt: true },
+    });
     const registrations = players.filter((p) => p.registeredAt).length;
     const ftds = players.filter((p) => p.ftdAt).length;
     const deposits = players.reduce((s, p) => s + p.depositCount, 0);
@@ -380,9 +625,15 @@ export async function runSync(opts: SyncOptions = {}): Promise<TableResult[]> {
     if (wanted && !wanted.has(t.table)) continue;
     results.push(await syncTable(ctx, client, t.table, t.dateCol, opts.full === true));
   }
-  if (ctx.touchedPostIds.size > 0) await recomputePostStats(db, ctx.touchedPostIds).catch((err: Error) => logger.error({ err: err.message }, "recalcul PostStats"));
+  if (ctx.touchedPostIds.size > 0)
+    await recomputePostStats(db, ctx.touchedPostIds).catch((err: Error) =>
+      logger.error({ err: err.message }, "recalcul PostStats"),
+    );
   const total = results.reduce((s, r) => s + r.rows, 0);
-  logger.info({ total, errors: results.filter((r) => !r.ok).map((r) => r.table) }, "synchro Link Affi terminée");
+  logger.info(
+    { total, errors: results.filter((r) => !r.ok).map((r) => r.table) },
+    "synchro Link Affi terminée",
+  );
   return results;
 }
 

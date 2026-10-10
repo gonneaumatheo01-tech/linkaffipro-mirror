@@ -47,7 +47,11 @@ export function buildRateTable(rows: LaCurrencyRate[]): RateTable {
 }
 
 /** Convertit un montant en EUR (arrondi au centime). Devise inconnue : montant inchangé. */
-export function toEur(amount: number | null, currency: string | null | undefined, rates: RateTable): number | null {
+export function toEur(
+  amount: number | null,
+  currency: string | null | undefined,
+  rates: RateTable,
+): number | null {
   if (amount === null) return null;
   const cur = (currency ?? "EUR").toUpperCase();
   const rate = rates[cur];
@@ -59,13 +63,22 @@ export function toEur(amount: number | null, currency: string | null | undefined
 export function mapCasino(row: LaCasino): ProgramInput | null {
   const id = str(row.id);
   if (!id) return null;
-  return { source: "LINKAFFI", externalId: id, name: str(row.name) ?? id, isActive: row.is_active !== false, raw: row as Record<string, unknown> };
+  return {
+    source: "LINKAFFI",
+    externalId: id,
+    name: str(row.name) ?? id,
+    isActive: row.is_active !== false,
+    raw: row as Record<string, unknown>,
+  };
 }
 
 export const SUB_ID_PLACEHOLDER = "{subid}";
 
 /** URL d'offre avec le placeholder du sub-ID (contrat docs/LINKAFFI-SUBID.md). */
-export function trackingUrlTemplateFor(domain: string | null | undefined, campaignKey: string): string {
+export function trackingUrlTemplateFor(
+  domain: string | null | undefined,
+  campaignKey: string,
+): string {
   const host = (domain ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "") || "linkaffi.me";
   return `https://${host}/go/${encodeURIComponent(campaignKey)}?sub_id=${SUB_ID_PLACEHOLDER}`;
 }
@@ -130,13 +143,25 @@ export function chooseSubId(
   if (!incoming.subId) return { subId: current.subId, subIdSource: current.subIdSource };
   if (!current.subId) return { subId: incoming.subId, subIdSource: incoming.subIdSource };
   const rank = (s: SubIdSource) => (s === "postback" ? 2 : s === "time_match" ? 1 : 0);
-  if (rank(incoming.subIdSource) > rank(current.subIdSource)) return { subId: incoming.subId, subIdSource: incoming.subIdSource };
-  if (rank(incoming.subIdSource) < rank(current.subIdSource)) return { subId: current.subId, subIdSource: current.subIdSource };
+  if (rank(incoming.subIdSource) > rank(current.subIdSource))
+    return { subId: incoming.subId, subIdSource: incoming.subIdSource };
+  if (rank(incoming.subIdSource) < rank(current.subIdSource))
+    return { subId: current.subId, subIdSource: current.subIdSource };
   const newer = (incoming.updatedAt?.getTime() ?? 0) >= (current.updatedAt?.getTime() ?? 0);
-  return newer ? { subId: incoming.subId, subIdSource: incoming.subIdSource } : { subId: current.subId, subIdSource: current.subIdSource };
+  return newer
+    ? { subId: incoming.subId, subIdSource: incoming.subIdSource }
+    : { subId: current.subId, subIdSource: current.subIdSource };
 }
 
-export function mapEventType(event: string | null | undefined, details: Record<string, unknown> | null | undefined): PlayerEventType {
+/**
+ * Type d'un événement `player_events`. Une seule source de NGR daté (phase 8) : les variations des instantanés
+ * `revshare_snapshots` (voir la synchro du worker). Un « revenue » / « ngr » de player_events est donc gardé comme
+ * événement brut (OTHER), pour ne jamais compter deux fois le même revenu.
+ */
+export function mapEventType(
+  event: string | null | undefined,
+  details: Record<string, unknown> | null | undefined,
+): PlayerEventType {
   switch ((event ?? "").toLowerCase()) {
     case "registration":
     case "signup":
@@ -149,9 +174,6 @@ export function mapEventType(event: string | null | undefined, details: Record<s
     case "lifecycle_redeposit":
     case "redeposit":
       return "REDEPOSIT";
-    case "revenue":
-    case "ngr":
-      return "NGR";
     case "click":
       return "CLICK";
     default:
@@ -163,11 +185,17 @@ export function mapEventType(event: string | null | undefined, details: Record<s
  * `player_events` → PlayerEvent. Pour un dépôt, Link Affi envoie le cumul dans `amount` et le delta dans
  * `details.redeposit_delta` : on garde le montant du dépôt lui-même.
  */
-export function mapPlayerEvent(row: LaPlayerEvent, rates: RateTable = { EUR: 1 }): PlayerEventInput | null {
+export function mapPlayerEvent(
+  row: LaPlayerEvent,
+  rates: RateTable = { EUR: 1 },
+): PlayerEventInput | null {
   const playerId = str(row.player_id);
   const id = str(row.id);
   if (!playerId || !id) return null;
-  const details = (row.details && typeof row.details === "object" ? row.details : null) as Record<string, unknown> | null;
+  const details = (row.details && typeof row.details === "object" ? row.details : null) as Record<
+    string,
+    unknown
+  > | null;
   const type = mapEventType(row.event, details);
   let amount = toNumber(row.amount);
   if ((type === "DEPOSIT" || type === "REDEPOSIT") && details) {
@@ -189,34 +217,71 @@ export function mapPlayerEvent(row: LaPlayerEvent, rates: RateTable = { EUR: 1 }
 }
 
 /** `revshare_snapshots` → NGR par (casino, identifiant externe du joueur). */
-export function mapRevshareSnapshot(row: LaSnapshot, rates: RateTable = { EUR: 1 }): { programExternalId: string; externalPlayerId: string; ngr: number; at: Date | null } | null {
+export function mapRevshareSnapshot(
+  row: LaSnapshot,
+  rates: RateTable = { EUR: 1 },
+): { programExternalId: string; externalPlayerId: string; ngr: number; at: Date | null } | null {
   const p = str(row.casino_id);
   const ext = str(row.player_id);
   const ngr = toEur(toNumber(row.last_ngr), "EUR", rates);
   if (!p || !ext || ngr === null) return null;
-  return { programExternalId: p, externalPlayerId: ext, ngr, at: toDate(row.last_seen_at) ?? toDate(row.updated_at) };
+  return {
+    programExternalId: p,
+    externalPlayerId: ext,
+    ngr,
+    at: toDate(row.last_seen_at) ?? toDate(row.updated_at),
+  };
 }
 
-/** `deposit_snapshots` → dépôts cumulés par (casino, identifiant externe). */
-export function mapDepositSnapshot(row: LaSnapshot, rates: RateTable = { EUR: 1 }): { programExternalId: string; externalPlayerId: string; depositTotal: number } | null {
+/** `deposit_snapshots` → dépôts cumulés par (casino, identifiant externe), avec la date réelle de l'instantané. */
+export function mapDepositSnapshot(
+  row: LaSnapshot,
+  rates: RateTable = { EUR: 1 },
+): {
+  programExternalId: string;
+  externalPlayerId: string;
+  depositTotal: number;
+  at: Date | null;
+} | null {
   const p = str(row.casino_id);
   const ext = str(row.player_id);
   const total = toEur(toNumber(row.last_total), "EUR", rates);
   if (!p || !ext || total === null) return null;
-  return { programExternalId: p, externalPlayerId: ext, depositTotal: total };
+  return {
+    programExternalId: p,
+    externalPlayerId: ext,
+    depositTotal: total,
+    at: toDate(row.last_seen_at) ?? toDate(row.updated_at),
+  };
 }
 
 /** `ftd_invalidations` → annulation du FTD (clé = identifiant externe + casino). */
-export function mapFtdInvalidation(row: LaFtdInvalidation): { programExternalId: string; externalPlayerId: string; reason: string | null; at: Date; externalId: string } | null {
+export function mapFtdInvalidation(
+  row: LaFtdInvalidation,
+): {
+  programExternalId: string;
+  externalPlayerId: string;
+  reason: string | null;
+  at: Date;
+  externalId: string;
+} | null {
   const p = str(row.casino_id);
   const ext = str(row.player_id);
   const id = str(row.id);
   if (!p || !ext || !id) return null;
-  return { programExternalId: p, externalPlayerId: ext, reason: str(row.reason), at: toDate(row.created_at) ?? new Date(0), externalId: `ftd_invalidation:${id}` };
+  return {
+    programExternalId: p,
+    externalPlayerId: ext,
+    reason: str(row.reason),
+    at: toDate(row.created_at) ?? new Date(0),
+    externalId: `ftd_invalidation:${id}`,
+  };
 }
 
 /** `clicks` → sub-ID à rattacher (seulement les lignes qui en portent un). */
-export function mapClick(row: LaClick): { subId: string; campaignExternalId: string | null; at: Date | null } | null {
+export function mapClick(
+  row: LaClick,
+): { subId: string; campaignExternalId: string | null; at: Date | null } | null {
   const subId = str(row.sub_id);
   if (!subId) return null;
   return { subId, campaignExternalId: str(row.campaign_id), at: toDate(row.created_at) };

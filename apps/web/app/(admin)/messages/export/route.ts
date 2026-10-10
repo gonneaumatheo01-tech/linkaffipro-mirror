@@ -3,7 +3,7 @@ import { stripHtml } from "@linkaffipro/core";
 import { requireUser } from "@/lib/session";
 import { toCsv } from "@/lib/members/csv";
 import { fmtDate } from "@/lib/format";
-import { postListWhere } from "@/lib/posts/queries";
+import { parsePostListFilters, postListWhere, scopeForFilters } from "@/lib/posts/queries";
 import { statusLabel } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
@@ -11,19 +11,43 @@ export const dynamic = "force-dynamic";
 /** Nombre maximal de lignes exportées (garde-fou). */
 const MAX_ROWS = 5000;
 
-/** Export CSV (Excel français : « ; », BOM, dates Europe/Paris) des messages avec leurs statistiques, mêmes filtres que la liste. */
+/** Export CSV (Excel français : « ; », BOM, dates Europe/Paris) des messages avec leurs statistiques, mêmes filtres que la liste (campagne comprise). */
 export async function GET(req: Request) {
   await requireUser();
-  const sp = new URL(req.url).searchParams;
-  const f = { channelId: sp.get("channel") ?? "", status: sp.get("status") ?? "", categoryId: sp.get("category") ?? "", from: sp.get("from") ?? "", to: sp.get("to") ?? "" };
+  // Mêmes filtres que la liste, dont la campagne (`campaignId`, ancien nom `campaign` accepté).
+  const f = parsePostListFilters(new URL(req.url).searchParams);
   const posts = await prisma.post.findMany({
-    where: postListWhere(f),
+    where: postListWhere(f, await scopeForFilters(f)),
     orderBy: [{ scheduledAt: "desc" }, { updatedAt: "desc" }],
     take: MAX_ROWS,
-    include: { channel: { select: { title: true } }, category: { select: { name: true } }, stats: true, bot: { select: { username: true } } },
+    include: {
+      channel: { select: { title: true } },
+      category: { select: { name: true } },
+      stats: true,
+      bot: { select: { username: true } },
+    },
   });
   const csv = toCsv(
-    ["Code", "Canal", "Catégorie", "Statut", "Programmé le", "Envoyé le", "Bot", "Vues", "Transferts", "Réactions", "Clics", "Clics uniques", "Clics offres", "Inscriptions", "FTD", "Dépôts (nb)", "Dépôts (EUR)", "Début du texte"],
+    [
+      "Code",
+      "Canal",
+      "Catégorie",
+      "Statut",
+      "Programmé le",
+      "Envoyé le",
+      "Bot",
+      "Vues",
+      "Transferts",
+      "Réactions",
+      "Clics",
+      "Clics uniques",
+      "Clics offres",
+      "Inscriptions",
+      "FTD",
+      "Dépôts (nb)",
+      "Dépôts (EUR)",
+      "Début du texte",
+    ],
     posts.map((p) => [
       p.code,
       p.channel.title,
@@ -47,6 +71,10 @@ export async function GET(req: Request) {
   );
   const date = new Date().toISOString().slice(0, 10);
   return new Response(csv, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="messages-${date}.csv"`, "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="messages-${date}.csv"`,
+      "Cache-Control": "no-store",
+    },
   });
 }

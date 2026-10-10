@@ -36,7 +36,8 @@ function cell(v: number | null, money?: boolean): string | number {
 }
 
 /**
- * Export CSV (compatible Excel) du tableau par pub sur la période (`range`, `from`, `to`).
+ * Export CSV (compatible Excel) du tableau par campagne sur la période (`range`, `from`, `to`), filtrable par univers
+ * (`vertical`) et par campagne (`campaignId`). La ligne TOTAL compte chaque joueur une seule fois.
  * Avec `compare=1`, chaque colonne est suivie de sa valeur sur la période précédente et de la variation en %.
  */
 export async function GET(req: Request) {
@@ -46,14 +47,26 @@ export async function GET(req: Request) {
   const period = resolvePeriod(params);
   const compare = parseCompare(sp.get("compare"));
   const v = sp.get("vertical") ?? "";
-  const { rows, total, totalDerived, previousTotal, previousTotalDerived, totalDeltas } = await loadAdsTable(period, { vertical: isVertical(v) ? v : "" });
+  const campaignId = sp.get("campaignId") ?? "";
+  const { rows, total, totalDerived, previousTotal, previousTotalDerived, totalDeltas } =
+    await loadAdsTable(period, {
+      vertical: isVertical(v) ? v : "",
+      ...(campaignId ? { campaignId } : {}),
+    });
 
-  const headers = ["Pub", "Période"];
+  const headers = ["Campagne", "Période"];
   for (const c of COLUMNS) {
     headers.push(c.label);
     if (compare) headers.push(`${c.label} – période précédente`, `${c.label} – variation (%)`);
   }
-  const line = (name: string, t: StatTotals, d: Derived, pt: StatTotals, pd: Derived, deltas: AdsRow["deltas"]) => {
+  const line = (
+    name: string,
+    t: StatTotals,
+    d: Derived,
+    pt: StatTotals,
+    pd: Derived,
+    deltas: AdsRow["deltas"],
+  ) => {
     const out: Array<string | number> = [name, periodLabel(period)];
     for (const c of COLUMNS) {
       out.push(cell(value(t, d, c.key), c.money));
@@ -70,5 +83,11 @@ export async function GET(req: Request) {
     line("TOTAL", total, totalDerived, previousTotal, previousTotalDerived, totalDeltas),
   ]);
   const suffix = compare ? `-vs-${previousPeriod(period).from}` : "";
-  return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="pubs-${period.from}-${period.to}${suffix}.csv"`, "Cache-Control": "no-store" } });
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="campagnes-${period.from}-${period.to}${suffix}.csv"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }

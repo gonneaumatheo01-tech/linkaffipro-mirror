@@ -88,6 +88,61 @@ export async function saveSequenceTextAction(formData: FormData): Promise<void> 
   back(channelId, { ok: `Texte ${lang.toUpperCase()} enregistré.`, open: trigger });
 }
 
+const translationsSchema = z.object({
+  channelId: z.string().min(1),
+  trigger: z.enum(TRIGGERS),
+  texts: z.partialRecord(z.enum(SEQUENCE_LANGS), z.string().max(5000)),
+});
+
+/**
+ * Enregistre les traductions proposées par l'assistant IA (« Traduire dans les langues du bot ») dans les autres
+ * langues d'un déclencheur : ajoute la langue si elle manque, remplace son texte sinon. Tout ou rien : un texte
+ * invalide (HTML Telegram) bloque l'enregistrement. Appelée depuis le navigateur : renvoie un résultat, pas de redirection.
+ */
+export async function saveSequenceTranslationsAction(input: {
+  channelId: string;
+  trigger: SequenceTriggerKey;
+  texts: Partial<Record<string, string>>;
+}): Promise<{ ok: true; saved: string[] } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const parsed = translationsSchema.safeParse(input);
+  if (!parsed.success)
+    return { ok: false, error: "Traductions refusées : langue ou message inconnu." };
+  const { channelId, trigger } = parsed.data;
+  const entries = Object.entries(parsed.data.texts).filter(
+    (e): e is [string, string] => typeof e[1] === "string",
+  );
+  if (entries.length === 0) return { ok: false, error: "Aucune traduction à enregistrer." };
+  const clean: Record<string, string> = {};
+  for (const [lang, text] of entries) {
+    if (lang === "fr" && !text.trim())
+      return { ok: false, error: "Le texte en français ne peut pas être vide." };
+    const v = validateTelegramHtml(text.trim());
+    if (!v.ok) return { ok: false, error: `Traduction ${lang.toUpperCase()} refusée : ${v.error}` };
+    clean[lang] = v.html;
+  }
+  try {
+    const { seq, step, texts } = await stepFor(channelId, trigger);
+    const next = { ...texts, ...clean };
+    await prisma.sequenceStep.update({
+      where: { id: step.id },
+      data: { texts: next as unknown as Prisma.InputJsonValue },
+    });
+    const saved = Object.keys(clean);
+    await audit({
+      userId: user.id,
+      action: "sequence.translations_saved",
+      entityType: "Sequence",
+      entityId: seq.id,
+      metadata: { trigger, langs: saved, source: "ai" },
+    });
+    revalidatePath(`/channels/${channelId}`);
+    return { ok: true, saved };
+  } catch {
+    return { ok: false, error: "Message introuvable : rechargez la page et réessayez." };
+  }
+}
+
 /** Ajoute une langue (copie du français comme point de départ). */
 export async function addSequenceLangAction(formData: FormData): Promise<void> {
   const user = await requireUser();

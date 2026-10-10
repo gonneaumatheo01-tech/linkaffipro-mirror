@@ -12,9 +12,12 @@ import { TelegramPreview } from "@/components/messages/telegram-preview";
 import type { PostButton, PostButtonRow } from "@/lib/posts/buttons";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
+import { ImproveButton, type ImproveContext } from "@/components/ai/improve-button";
+import { toAiVertical } from "@/components/ai/improve-logic";
 
 export type BroadcastOptions = {
-  bots: Array<{ id: string; name: string; username: string }>;
+  /** `vertical` : univers du bot, transmis à l'assistant IA. */
+  bots: Array<{ id: string; name: string; username: string; vertical?: string | null }>;
   channels: Array<{ id: string; title: string }>;
   inviteLinks: Array<{ id: string; name: string }>;
   campaigns: Array<{ id: string; name: string }>;
@@ -107,6 +110,17 @@ export function BroadcastForm({
   const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
   const [split, setSplit] = useState(50);
   const [taB, setTaB] = useState<HTMLTextAreaElement | null>(null);
+  const [mediaAssetId, setMediaAssetId] = useState("");
+  const [mediaAssetIdB, setMediaAssetIdB] = useState("");
+  const [segmentLanguages, setSegmentLanguages] = useState("");
+  // Contexte de l'assistant IA : univers du bot expéditeur, média joint, langue du segment s'il n'en vise qu'une.
+  const segLangs = segmentLanguages.split(/[,\s]+/).filter(Boolean);
+  const aiContext: ImproveContext = {
+    surface: "broadcast",
+    vertical: toAiVertical(options.bots.find((b) => b.id === botId)?.vertical),
+    language: segLangs.length === 1 ? segLangs[0]!.toLowerCase() : null,
+    hasMedia: Boolean(mediaAssetId),
+  };
   const previewButtonsB = useMemo(
     () => rowsB.map((r) => r.map((b) => ({ text: b.text }))),
     [rowsB],
@@ -226,7 +240,7 @@ export function BroadcastForm({
             />
             <CheckList
               name="campaignIds"
-              label="Pub"
+              label="Campagne"
               items={options.campaigns.map((c) => ({ id: c.id, label: c.name }))}
             />
             <CheckList
@@ -237,7 +251,13 @@ export function BroadcastForm({
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="languages">Langues (fr, en…)</Label>
-                <Input id="languages" name="languages" placeholder="fr, en" />
+                <Input
+                  id="languages"
+                  name="languages"
+                  placeholder="fr, en"
+                  value={segmentLanguages}
+                  onChange={(e) => setSegmentLanguages(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="inactiveDays">Sans activité depuis (jours)</Label>
@@ -348,11 +368,22 @@ export function BroadcastForm({
               className="w-full rounded-md border bg-background p-3 font-mono text-sm"
               placeholder="Texte du message (mise en forme Telegram : b, i, u, s, a, code, tg-spoiler)"
             />
+            <ImproveButton
+              getText={() => text}
+              setText={setText}
+              context={aiContext}
+              onCreateVariantB={(t) => {
+                setAb(true);
+                setTextB(t);
+              }}
+            />
             <div className="space-y-2">
               <Label htmlFor="mediaAssetId">Média (optionnel)</Label>
               <select
                 id="mediaAssetId"
                 name="mediaAssetId"
+                value={mediaAssetId}
+                onChange={(e) => setMediaAssetId(e.target.value)}
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9"
               >
                 <option value="">— aucun —</option>
@@ -405,7 +436,10 @@ export function BroadcastForm({
                     </select>
                     {b.type === "OFFER" ? (
                       <OfferPicker
-                        value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                        value={{
+                          campaignId: b.campaignId,
+                          affiliateCampaignId: b.affiliateCampaignId,
+                        }}
                         onChange={(patch) => updateButton(ri, bi, patch)}
                         campaigns={options.ourCampaigns}
                         affiliateCampaigns={options.affiliateCampaigns}
@@ -545,11 +579,20 @@ export function BroadcastForm({
                   className="w-full rounded-md border bg-background p-3 font-mono text-sm"
                   placeholder="Texte de la version B"
                 />
+                <ImproveButton
+                  getText={() => textB}
+                  setText={setTextB}
+                  context={{ ...aiContext, hasMedia: Boolean(mediaAssetIdB) }}
+                  label="✨ Améliorer la version B avec l'IA"
+                  size="xs"
+                />
                 <div className="space-y-2">
                   <Label htmlFor="mediaAssetIdB">Média de la version B (optionnel)</Label>
                   <select
                     id="mediaAssetIdB"
                     name="mediaAssetIdB"
+                    value={mediaAssetIdB}
+                    onChange={(e) => setMediaAssetIdB(e.target.value)}
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9"
                   >
                     <option value="">— aucun —</option>
@@ -587,7 +630,10 @@ export function BroadcastForm({
                           </select>
                           {b.type === "OFFER" ? (
                             <OfferPicker
-                              value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                              value={{
+                                campaignId: b.campaignId,
+                                affiliateCampaignId: b.affiliateCampaignId,
+                              }}
                               onChange={(patch) => updateButtonB(ri, bi, patch)}
                               campaigns={options.ourCampaigns}
                               affiliateCampaigns={options.affiliateCampaigns}
@@ -710,12 +756,16 @@ export function BroadcastForm({
       <div className="space-y-4">
         <div className="space-y-2">
           <div className="text-sm font-medium">{ab ? "Aperçu — version A" : "Aperçu"}</div>
-          <TelegramPreview html={text} buttons={previewButtons} mediaCount={0} />
+          <TelegramPreview html={text} buttons={previewButtons} mediaCount={mediaAssetId ? 1 : 0} />
         </div>
         {ab ? (
           <div className="space-y-2">
             <div className="text-sm font-medium">Aperçu — version B</div>
-            <TelegramPreview html={textB} buttons={previewButtonsB} mediaCount={0} />
+            <TelegramPreview
+              html={textB}
+              buttons={previewButtonsB}
+              mediaCount={mediaAssetIdB ? 1 : 0}
+            />
           </div>
         ) : null}
       </div>

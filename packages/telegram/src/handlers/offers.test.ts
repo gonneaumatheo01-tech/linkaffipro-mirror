@@ -9,7 +9,13 @@ import type { TelegramDeps } from "../ports";
 import { buildOfferPayload, offerDeepLink, parseOfferPayload } from "../offers/logic";
 import { registerOfferHandlers } from "./offers";
 
-const identity: BotIdentity = { id: "bot_1", name: "CasinoBot", username: "casinobot", telegramBotId: 111n, vertical: "CASINO" };
+const identity: BotIdentity = {
+  id: "bot_1",
+  name: "CasinoBot",
+  username: "casinobot",
+  telegramBotId: 111n,
+  vertical: "CASINO",
+};
 
 function coreDeps(): TelegramDeps {
   return {
@@ -18,6 +24,7 @@ function coreDeps(): TelegramDeps {
     memberSeen: vi.fn(async () => ({ memberId: "m1" })),
     memberDmStatus: vi.fn(async () => undefined),
     upsertChannel: vi.fn(async () => ({ channelId: "c1" })),
+    findChannelId: vi.fn(async () => "c1"),
     setChannelAdmin: vi.fn(async () => undefined),
     revokeChannelAdmin: vi.fn(async () => undefined),
     listOurBotTelegramIds: vi.fn(async () => [111n]),
@@ -26,14 +33,22 @@ function coreDeps(): TelegramDeps {
   };
 }
 
-function offerDeps(overrides: Partial<OfferDeps> = {}): OfferDeps & { clicks: Array<Parameters<OfferDeps["recordOfferClick"]>[0]> } {
+function offerDeps(
+  overrides: Partial<OfferDeps> = {},
+): OfferDeps & { clicks: Array<Parameters<OfferDeps["recordOfferClick"]>[0]> } {
   const clicks: Array<Parameters<OfferDeps["recordOfferClick"]>[0]> = [];
   return {
     clicks,
     memberStarted: vi.fn(async () => ({ memberId: "m1" })),
     resolveOffer: vi.fn(async (slug: string, postCode: string | null) =>
       slug === "abc12345"
-        ? { trackingLinkId: "tl1", destinationTemplate: "https://linkaffi.me/go/47eb8mwc?sub_id={subid}", postId: postCode ? "p1" : null, channelId: "c1", channelLanguage: "fr" }
+        ? {
+            trackingLinkId: "tl1",
+            destinationTemplate: "https://linkaffi.me/go/47eb8mwc?sub_id={subid}",
+            postId: postCode ? "p1" : null,
+            channelId: "c1",
+            channelLanguage: "fr",
+          }
         : null,
     ),
     recordOfferClick: vi.fn(async (input) => {
@@ -50,7 +65,15 @@ function makeBot(deps: OfferDeps) {
   const apiCalls: Array<{ method: string; payload: Record<string, unknown> }> = [];
   bot.api.config.use(async (_prev, method, payload) => {
     apiCalls.push({ method, payload: payload as Record<string, unknown> });
-    return { ok: true, result: { message_id: 1, date: 0, chat: { id: 42, type: "private", first_name: "x" }, text: "ok" } } as never;
+    return {
+      ok: true,
+      result: {
+        message_id: 1,
+        date: 0,
+        chat: { id: 42, type: "private", first_name: "x" },
+        text: "ok",
+      },
+    } as never;
   });
   // En production, registerHandlers branche les offres AVANT le /start générique (hook beforeStart) ; ici on fait
   // pareil à la main pour injecter des deps simulées.
@@ -60,12 +83,25 @@ function makeBot(deps: OfferDeps) {
 }
 
 function startUpdate(text: string): Update {
-  return { update_id: 1, message: { message_id: 1, date: 1, chat: { id: 42, type: "private", first_name: "Jean" }, from: { id: 42, is_bot: false, first_name: "Jean", language_code: "fr" }, text, entities: [{ type: "bot_command", offset: 0, length: 6 }] } };
+  return {
+    update_id: 1,
+    message: {
+      message_id: 1,
+      date: 1,
+      chat: { id: 42, type: "private", first_name: "Jean" },
+      from: { id: 42, is_bot: false, first_name: "Jean", language_code: "fr" },
+      text,
+      entities: [{ type: "bot_command", offset: 0, length: 6 }],
+    },
+  };
 }
 
 describe("charge utile d'offre", () => {
   it("analyse o<slug>_<code>", () => {
-    expect(parseOfferPayload("oabc12345_AbCdEfGh")).toEqual({ slug: "abc12345", postCode: "AbCdEfGh" });
+    expect(parseOfferPayload("oabc12345_AbCdEfGh")).toEqual({
+      slug: "abc12345",
+      postCode: "AbCdEfGh",
+    });
     expect(parseOfferPayload("oabc12345")).toEqual({ slug: "abc12345", postCode: null });
     expect(parseOfferPayload("gabc")).toBeNull();
     expect(parseOfferPayload("oab")).toBeNull();
@@ -76,7 +112,9 @@ describe("charge utile d'offre", () => {
     const p = buildOfferPayload("abc12345", "AbCdEfGh");
     expect(p).toBe("oabc12345_AbCdEfGh");
     expect(p.length).toBeLessThanOrEqual(64);
-    expect(offerDeepLink("casinobot", "abc12345", "AbCdEfGh")).toBe("https://t.me/casinobot?start=oabc12345_AbCdEfGh");
+    expect(offerDeepLink("casinobot", "abc12345", "AbCdEfGh")).toBe(
+      "https://t.me/casinobot?start=oabc12345_AbCdEfGh",
+    );
   });
 });
 
@@ -99,7 +137,9 @@ describe("/start o… (offre personnalisée)", () => {
     expect(click.destination).toBe(`https://linkaffi.me/go/47eb8mwc?sub_id=${click.subId}`);
     const reply = apiCalls.find((c) => c.method === "sendMessage")!;
     expect(reply.payload.text).toContain("Jean");
-    const kb = reply.payload.reply_markup as { inline_keyboard: Array<Array<{ text: string; url: string }>> };
+    const kb = reply.payload.reply_markup as {
+      inline_keyboard: Array<Array<{ text: string; url: string }>>;
+    };
     expect(kb.inline_keyboard[0]![0]!.url).toBe(click.destination);
     expect(kb.inline_keyboard[0]![0]!.text).toBe("Ouvrir l'offre");
   });
@@ -113,11 +153,16 @@ describe("/start o… (offre personnalisée)", () => {
   });
 
   it("utilise la séquence OFFER_REPLY du canal quand elle existe", async () => {
-    const deps = offerDeps({ offerReplyTexts: vi.fn(async () => ({ text: "Salut {prenom}, ton bonus :", button: "Go" })) });
+    const deps = offerDeps({
+      offerReplyTexts: vi.fn(async () => ({ text: "Salut {prenom}, ton bonus :", button: "Go" })),
+    });
     const { apiCalls } = await run("/start oabc12345", deps);
     const reply = apiCalls.find((c) => c.method === "sendMessage")!;
     expect(reply.payload.text).toBe("Salut Jean, ton bonus :");
-    expect((reply.payload.reply_markup as { inline_keyboard: Array<Array<{ text: string }>> }).inline_keyboard[0]![0]!.text).toBe("Go");
+    expect(
+      (reply.payload.reply_markup as { inline_keyboard: Array<Array<{ text: string }>> })
+        .inline_keyboard[0]![0]!.text,
+    ).toBe("Go");
   });
 
   it("répond « lien invalide » pour un slug inconnu, sans créer de clic", async () => {

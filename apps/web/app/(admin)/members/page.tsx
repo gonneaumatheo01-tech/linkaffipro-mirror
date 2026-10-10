@@ -60,15 +60,15 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
   ]);
   const hasFilters = Boolean(
     f.q ||
-      f.channelId ||
-      f.status ||
-      f.inviteLinkId ||
-      f.campaignId ||
-      f.level ||
-      f.language ||
-      f.tag ||
-      f.since ||
-      f.until,
+    f.channelId ||
+    f.status ||
+    f.inviteLinkId ||
+    f.campaignId ||
+    f.level ||
+    f.language ||
+    f.tag ||
+    f.since ||
+    f.until,
   );
   const selectCls = "h-10 w-full rounded-md border bg-background px-2 text-sm md:h-9";
   const sortLink = (s: "lastSeen" | "firstSeen" | "name", label: string) => (
@@ -94,7 +94,16 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
         >
           Exporter CSV
         </Button>
-        <Button variant="outline" className="max-md:h-10" render={<a href={PLAYERS_EXPORT} />}>
+        <Button
+          variant="outline"
+          className="max-md:h-10"
+          render={
+            <a
+              href={`${PLAYERS_EXPORT}?${new URLSearchParams({ range: "30d", ...(f.campaignId ? { campaignId: f.campaignId } : {}) }).toString()}`}
+              title="Vos joueurs, avec leur NGR total et leur NGR des 30 derniers jours"
+            />
+          }
+        >
           Exporter les joueurs (CSV)
         </Button>
       </PageHeader>

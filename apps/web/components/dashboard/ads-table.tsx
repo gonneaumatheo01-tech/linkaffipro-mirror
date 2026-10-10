@@ -18,7 +18,7 @@ import { METRIC_HELP } from "./metric-help";
 
 export type AdsSortKey = keyof StatTotals | keyof Derived | "name";
 
-/** Colonnes du tableau par pub. `secondary` : masquée sur téléphone (visible dès `md`). */
+/** Colonnes du tableau par campagne. `secondary` : masquée sur téléphone (visible dès `md`). */
 export const ADS_COLUMNS: Array<{
   key: AdsSortKey;
   label: string;
@@ -113,7 +113,7 @@ export function AdsTable({
               aria-label={sortLabel("name", "nom")}
               className="hover:underline"
             >
-              Pub{arrow("name")}
+              Campagne{arrow("name")}
             </Link>
           </TableHead>
           {ADS_COLUMNS.map((c) => (

@@ -4,7 +4,15 @@ import { requireUser } from "@/lib/session";
 import { statusLabels } from "@/lib/status-badges";
 import { csvDay, csvNumber, toCsv } from "@/lib/members/csv";
 import { listCampaignsUncached, type MetricKey } from "@/lib/campaigns/queries";
-import { parseCompare, periodDates, periodLabel, previousPeriod, resolvePeriod } from "@/lib/periods";
+import type { CampaignMetrics } from "@/lib/campaigns/metrics";
+import {
+  parseCompare,
+  periodDates,
+  periodLabel,
+  previousPeriod,
+  resolvePeriod,
+  variationOf,
+} from "@/lib/periods";
 
 export const dynamic = "force-dynamic";
 
@@ -41,19 +49,44 @@ export async function GET(req: Request) {
   const period = resolvePeriod(Object.fromEntries(url.searchParams.entries()));
   const compare = parseCompare(url.searchParams.get("compare"));
   const { dateFrom, dateTo } = periodDates(period);
-  const headers = (name: string) => ({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}-${period.from}-${period.to}.csv"`, "Cache-Control": "no-store" });
+  const headers = (name: string) => ({
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${name}-${period.from}-${period.to}.csv"`,
+    "Cache-Control": "no-store",
+  });
 
   if (url.searchParams.get("kind") === "costs") {
     const campaignId = url.searchParams.get("campaignId") || null;
-    const scope = campaignId ? { OR: [{ campaignId }, { adSet: { campaignId } }, { ad: { adSet: { campaignId } } }] } : {};
+    const scope = campaignId
+      ? { OR: [{ campaignId }, { adSet: { campaignId } }, { ad: { adSet: { campaignId } } }] }
+      : {};
     const costs = await prisma.adCost.findMany({
       where: { date: { gte: dateFrom, lte: dateTo }, ...scope },
       orderBy: [{ date: "desc" }],
       take: 20_000,
-      include: { campaign: { select: { name: true } }, adSet: { select: { name: true, campaign: { select: { name: true } } } }, ad: { select: { name: true, adSet: { select: { name: true, campaign: { select: { name: true } } } } } } },
+      include: {
+        campaign: { select: { name: true } },
+        adSet: { select: { name: true, campaign: { select: { name: true } } } },
+        ad: {
+          select: {
+            name: true,
+            adSet: { select: { name: true, campaign: { select: { name: true } } } },
+          },
+        },
+      },
     });
     const csv = toCsv(
-      ["Jour", "Campagne", "Groupe", "Pub précise", "Dépense", "Devise", "Impressions", "Clics (plateforme)", "Source"],
+      [
+        "Jour",
+        "Campagne",
+        "Groupe",
+        "Pub précise",
+        "Dépense",
+        "Devise",
+        "Impressions",
+        "Clics (plateforme)",
+        "Source",
+      ],
       costs.map((c) => [
         csvDay(c.date),
         c.ad?.adSet.campaign.name ?? c.adSet?.campaign.name ?? c.campaign?.name ?? "",
@@ -69,39 +102,68 @@ export async function GET(req: Request) {
     return new Response(csv, { headers: headers("couts-par-jour") });
   }
 
-  const rows = await listCampaignsUncached(period, compare);
-  const head = ["Campagne", "Plateforme", "Statut", "Univers", "Canaux", "Liens d'entrée", "Offres", "Importée", "Période"];
+  const { rows, total, previousTotal } = await listCampaignsUncached(period, compare);
+  const head = [
+    "Campagne",
+    "Plateforme",
+    "Statut",
+    "Univers",
+    "Canaux",
+    "Liens d'entrée",
+    "Offres",
+    "Importée",
+    "Période",
+  ];
   for (const m of METRICS) {
     head.push(m.label);
     if (compare) head.push(`${m.label} – période précédente`, `${m.label} – variation (%)`);
   }
   const prevLabel = periodLabel(previousPeriod(period));
-  const csv = toCsv(
-    head,
-    rows.map((r) => {
-      const out: Array<string | number> = [
-        r.name,
-        r.adPlatform ? (PLATFORM[r.adPlatform] ?? r.adPlatform) : "",
-        STATUS[r.status] ?? r.status,
-        r.vertical ? VERTICAL_LABELS[r.vertical as Vertical] : "",
-        r.channels.join(", "),
-        r.links,
-        r.offers,
-        r.importedFrom ? (PLATFORM[r.importedFrom] ?? r.importedFrom) : "",
-        compare ? `${periodLabel(period)} vs ${prevLabel}` : periodLabel(period),
-      ];
-      for (const m of METRICS) {
-        const v = r.metrics[m.key];
-        out.push(m.money ? csvNumber(v) : (v ?? 0));
-        if (compare) {
-          const pv = r.previous?.[m.key] ?? null;
-          out.push(m.money ? csvNumber(pv) : (pv ?? 0));
-          const d = r.deltas?.[m.key];
-          out.push(d === null || d === undefined ? "" : csvNumber(d, 1));
-        }
+  const metricCells = (current: CampaignMetrics, previous: CampaignMetrics | null) => {
+    const out: Array<string | number> = [];
+    for (const m of METRICS) {
+      const v = current[m.key];
+      out.push(m.money ? csvNumber(v) : (v ?? 0));
+      if (compare) {
+        const pv = previous?.[m.key] ?? null;
+        out.push(m.money ? csvNumber(pv) : (pv ?? 0));
+        const d = variationOf(v, pv);
+        out.push(d === null || d === undefined ? "" : csvNumber(d, 1));
       }
-      return out;
-    }),
-  );
+    }
+    return out;
+  };
+  const periodText = compare ? `${periodLabel(period)} vs ${prevLabel}` : periodLabel(period);
+  const csv = toCsv(head, [
+    ...rows.map((r) => [
+      r.name,
+      r.adPlatform ? (PLATFORM[r.adPlatform] ?? r.adPlatform) : "",
+      STATUS[r.status] ?? r.status,
+      r.vertical ? VERTICAL_LABELS[r.vertical as Vertical] : "",
+      r.channels.join(", "),
+      r.links,
+      r.offers,
+      r.importedFrom ? (PLATFORM[r.importedFrom] ?? r.importedFrom) : "",
+      periodText,
+      ...metricCells(r.metrics, r.previous),
+    ]),
+    // Total sur les joueurs, clics et membres distincts (même calcul que la ligne Total de la page).
+    ...(rows.length
+      ? [
+          [
+            "Total (joueurs distincts)",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            periodText,
+            ...metricCells(total, previousTotal),
+          ],
+        ]
+      : []),
+  ]);
   return new Response(csv, { headers: headers(compare ? "campagnes-comparaison" : "campagnes") });
 }

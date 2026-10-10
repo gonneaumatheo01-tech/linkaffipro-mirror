@@ -13,7 +13,7 @@ export type Segment = {
   spendLevels?: SpendLevel[];
   /** Arrivés par ces liens d'entrée. */
   inviteLinkIds?: string[];
-  /** Arrivés par les liens de ces pubs. */
+  /** Arrivés par les liens d'entrée de ces campagnes (les nôtres, page Campagnes). */
   campaignIds?: string[];
   /** Codes de langue (préfixes : fr, en…). */
   languages?: string[];
@@ -25,11 +25,23 @@ export type Segment = {
   tags?: string[];
 };
 
-const SEGMENT_KEYS: Array<keyof Segment> = ["channelIds", "membershipStatuses", "spendLevels", "inviteLinkIds", "campaignIds", "languages", "inactiveDays", "clickedCategoryIds", "tags"];
+const SEGMENT_KEYS: Array<keyof Segment> = [
+  "channelIds",
+  "membershipStatuses",
+  "spendLevels",
+  "inviteLinkIds",
+  "campaignIds",
+  "languages",
+  "inactiveDays",
+  "clickedCategoryIds",
+  "tags",
+];
 
 function cleanList(v: unknown): string[] | undefined {
   if (!Array.isArray(v)) return undefined;
-  const out = v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim());
+  const out = v
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .map((x) => x.trim());
   return out.length > 0 ? out : undefined;
 }
 
@@ -59,9 +71,17 @@ export function isEmptySegment(s: Segment): boolean {
  * Le niveau de dépense n'est pas inclus : voir `matchesSpendLevels`.
  * Exclut toujours les membres anonymisés.
  */
-export function buildMemberWhere(segment: Segment, now: Date = new Date()): Record<string, unknown> {
+export function buildMemberWhere(
+  segment: Segment,
+  now: Date = new Date(),
+): Record<string, unknown> {
   const and: Record<string, unknown>[] = [{ anonymizedAt: null }];
-  if (segment.channelIds || segment.membershipStatuses || segment.inviteLinkIds || segment.campaignIds) {
+  if (
+    segment.channelIds ||
+    segment.membershipStatuses ||
+    segment.inviteLinkIds ||
+    segment.campaignIds
+  ) {
     const some: Record<string, unknown> = {};
     if (segment.channelIds) some.channelId = { in: segment.channelIds };
     if (segment.membershipStatuses) some.status = { in: segment.membershipStatuses };
@@ -70,7 +90,9 @@ export function buildMemberWhere(segment: Segment, now: Date = new Date()): Reco
     and.push({ memberships: { some } });
   }
   if (segment.languages) {
-    and.push({ OR: segment.languages.map((l) => ({ languageCode: { startsWith: l.toLowerCase() } })) });
+    and.push({
+      OR: segment.languages.map((l) => ({ languageCode: { startsWith: l.toLowerCase() } })),
+    });
   }
   if (segment.inactiveDays) {
     and.push({ lastSeenAt: { lt: new Date(now.getTime() - segment.inactiveDays * 86_400_000) } });
@@ -85,7 +107,10 @@ export function buildMemberWhere(segment: Segment, now: Date = new Date()): Reco
 }
 
 /** Ajoute la condition « joignable en privé par ce bot ». */
-export function withReachableBy(where: Record<string, unknown>, botId: string): Record<string, unknown> {
+export function withReachableBy(
+  where: Record<string, unknown>,
+  botId: string,
+): Record<string, unknown> {
   return { AND: [where, { botStates: { some: { botId, canDm: true } } }] };
 }
 
@@ -95,17 +120,27 @@ export function matchesSpendLevels(level: SpendLevel, segment: Segment): boolean
 }
 
 /** Résumé lisible d'un segment (français). */
-export function describeSegment(s: Segment, labels: { channels?: Record<string, string>; inviteLinks?: Record<string, string>; campaigns?: Record<string, string>; categories?: Record<string, string> } = {}): string {
+export function describeSegment(
+  s: Segment,
+  labels: {
+    channels?: Record<string, string>;
+    inviteLinks?: Record<string, string>;
+    campaigns?: Record<string, string>;
+    categories?: Record<string, string>;
+  } = {},
+): string {
   const parts: string[] = [];
-  const names = (ids: string[], map?: Record<string, string>) => ids.map((id) => map?.[id] ?? id).join(", ");
+  const names = (ids: string[], map?: Record<string, string>) =>
+    ids.map((id) => map?.[id] ?? id).join(", ");
   if (s.channelIds) parts.push(`canaux : ${names(s.channelIds, labels.channels)}`);
   if (s.membershipStatuses) parts.push(`statuts : ${s.membershipStatuses.join(", ")}`);
   if (s.spendLevels) parts.push(`niveaux : ${s.spendLevels.join(", ")}`);
   if (s.inviteLinkIds) parts.push(`liens : ${names(s.inviteLinkIds, labels.inviteLinks)}`);
-  if (s.campaignIds) parts.push(`pubs : ${names(s.campaignIds, labels.campaigns)}`);
+  if (s.campaignIds) parts.push(`campagnes : ${names(s.campaignIds, labels.campaigns)}`);
   if (s.languages) parts.push(`langues : ${s.languages.join(", ")}`);
   if (s.inactiveDays) parts.push(`inactifs depuis ${s.inactiveDays} j`);
-  if (s.clickedCategoryIds) parts.push(`a cliqué : ${names(s.clickedCategoryIds, labels.categories)}`);
+  if (s.clickedCategoryIds)
+    parts.push(`a cliqué : ${names(s.clickedCategoryIds, labels.categories)}`);
   if (s.tags) parts.push(`étiquettes : ${s.tags.join(", ")}`);
   return parts.length ? parts.join(" · ") : "tous les membres joignables";
 }

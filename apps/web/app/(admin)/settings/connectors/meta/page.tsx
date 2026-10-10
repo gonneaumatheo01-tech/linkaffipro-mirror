@@ -68,7 +68,7 @@ export default async function MetaConnectorPage({
     <>
       <PageHeader
         title="Connecteurs · Meta Ads"
-        description="Connectez vos comptes publicitaires Facebook / Instagram : les dépenses, impressions, clics et résultats de chaque pub arrivent automatiquement dans Pubs, chaque heure."
+        description="Connectez vos comptes publicitaires Facebook / Instagram : les dépenses, impressions, clics et résultats de chaque pub arrivent automatiquement dans Campagnes (onglet Pubs), chaque heure."
         help={
           isAdmin
             ? "Première fois : créez l'application Meta (guide en bas de page, 10 minutes), enregistrez son App ID et son App Secret, puis cliquez sur « Connecter un compte Meta »."

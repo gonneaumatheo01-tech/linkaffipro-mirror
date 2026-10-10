@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
-import { invalidateDashboards } from "@/lib/dashboard/cache";
+import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import {
   applySavedMapping,
   columnSamples,
@@ -30,7 +30,7 @@ import {
   type SkippedRow,
 } from "@/lib/campaigns/csv";
 import { levelKey, matchRow, type CampaignTree, type RowMatch } from "@/lib/campaigns/match";
-import { campaignTree } from "@/lib/campaigns/queries";
+import { apiFedCampaignIds, campaignTree } from "@/lib/campaigns/queries";
 
 export type { Platform };
 /** Choix de plateforme dans le formulaire : automatique (détection par les en-têtes) ou imposée. */
@@ -249,8 +249,10 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
     },
   });
   let tree = await campaignTree();
-  // Pubs alimentées par un compte connecté (Meta / TikTok) : l'API a priorité, le fichier est ignoré pour elles.
-  const apiFed = new Set((await prisma.campaign.findMany({ where: { connectionId: { not: null } }, select: { id: true } })).map((c) => c.id));
+  // Campagnes alimentées par l'API d'un compte connecté (Meta / TikTok) : rattachées à une campagne pub de ce compte,
+  // ou ayant déjà reçu des coûts API. L'API a priorité, le fichier est ignoré pour elles. Un compte choisi sans
+  // campagne pub (aucun coût API encore) n'empêche pas l'import.
+  const apiFed = await apiFedCampaignIds();
   const resolved = new Map<string, { campaignId: string; adSetId?: string; adId?: string }>();
   let imported = 0;
   let failed = 0;
@@ -294,7 +296,9 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
     }
     if (apiFed.has(level.campaignId)) {
       failed++;
-      importErrors.push(`${r.date} ${key} : pub alimentée par l'API (Meta / TikTok) : ligne ignorée, l'API a priorité`);
+      importErrors.push(
+        `${r.date} ${key} : campagne alimentée par l'API (Meta / TikTok) : ligne ignorée, l'API a priorité`,
+      );
       continue;
     }
     const lvl = level.adId
@@ -362,7 +366,8 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
     },
   });
   tree = [];
-  invalidateDashboards();
+  // Coûts de jours anciens (hors fenêtre du recalcul horaire) : recalcul complet des statistiques journalières.
+  await refreshCampaignStats();
   revalidatePath("/campaigns");
   redirect(
     `/campaigns/imports?${new URLSearchParams({ batch: batch.id, ok: `Import de ${filename} terminé : ${summary}.` })}`,

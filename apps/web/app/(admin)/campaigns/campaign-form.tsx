@@ -22,17 +22,34 @@ export type CampaignFormValues = {
   endAt?: string;
   notes?: string | null;
   channelIds?: string[];
+  /** Compte publicitaire connecté (phase 7) qui alimente la campagne. */
+  connectionId?: string | null;
+  /** La campagne suit déjà une campagne pub de ce compte (changer de compte la détache). */
+  followsAdCampaign?: boolean;
+};
+
+export type CampaignFormConnection = {
+  id: string;
+  platform: string;
+  name: string;
+  externalId: string;
 };
 
 export function CampaignForm({
   action,
   values,
   channels,
+  connections = [],
+  inactiveChannels = [],
   submitLabel,
 }: {
   action: (formData: FormData) => Promise<void>;
   values: CampaignFormValues;
   channels: Array<{ id: string; title: string }>;
+  /** Comptes publicitaires connectés et actifs (Réglages → Connecteurs). */
+  connections?: CampaignFormConnection[];
+  /** Canaux désactivés rattachés à la campagne : conservés à l'enregistrement (affichés pour information). */
+  inactiveChannels?: Array<{ id: string; title: string }>;
   submitLabel: string;
 }) {
   const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9";
@@ -102,6 +119,31 @@ export function CampaignForm({
         </select>
       </div>
       <div className="space-y-2">
+        <Label htmlFor="connectionId">Compte pub connecté</Label>
+        <select
+          id="connectionId"
+          name="connectionId"
+          defaultValue={values.connectionId ?? ""}
+          className={selectCls}
+        >
+          <option value="">— sans compte —</option>
+          {connections.map((c) => (
+            <option key={c.id} value={c.id}>
+              {PLATFORM_LABELS[c.platform] ?? c.platform} · {c.name} ({c.externalId})
+            </option>
+          ))}
+          {values.connectionId && !connections.some((c) => c.id === values.connectionId) ? (
+            <option value={values.connectionId}>Compte actuel (déconnecté ou en erreur)</option>
+          ) : null}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Ses dépenses arrivent toutes seules (Réglages → Connecteurs).
+          {values.followsAdCampaign
+            ? " Changer de compte détache la campagne pub suivie actuellement."
+            : " Si la campagne pub du même nom est déjà importée de ce compte, elle est reprise à l'enregistrement."}
+        </p>
+      </div>
+      <div className="space-y-2">
         <Label htmlFor="budgetDaily">Budget par jour (€, à titre indicatif)</Label>
         <Input
           id="budgetDaily"
@@ -114,11 +156,23 @@ export function CampaignForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="startAt">Début (facultatif)</Label>
-        <Input id="startAt" name="startAt" type="date" defaultValue={values.startAt ?? ""} className="h-10 md:h-9" />
+        <Input
+          id="startAt"
+          name="startAt"
+          type="date"
+          defaultValue={values.startAt ?? ""}
+          className="h-10 md:h-9"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="endAt">Fin (facultatif)</Label>
-        <Input id="endAt" name="endAt" type="date" defaultValue={values.endAt ?? ""} className="h-10 md:h-9" />
+        <Input
+          id="endAt"
+          name="endAt"
+          type="date"
+          defaultValue={values.endAt ?? ""}
+          className="h-10 md:h-9"
+        />
       </div>
       <fieldset className="space-y-2 md:col-span-2">
         <legend className="text-sm font-medium">Canaux alimentés par cette campagne</legend>
@@ -139,6 +193,12 @@ export function CampaignForm({
             </label>
           ))}
         </div>
+        {inactiveChannels.length ? (
+          <p className="text-xs text-muted-foreground">
+            Canaux désactivés conservés dans la campagne :{" "}
+            {inactiveChannels.map((c) => c.title).join(", ")}.
+          </p>
+        ) : null}
       </fieldset>
       <div className="space-y-2 md:col-span-2">
         <Label htmlFor="notes">Notes (facultatif)</Label>

@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fmtNum } from "@/lib/format";
+import { requireUser } from "@/lib/session";
 import { RANGE_DAYS, groupByCategory, sinceFor, withAverages } from "@/lib/posts/category-stats";
 
 export const metadata: Metadata = { title: "Comparer par catégorie" };
@@ -31,7 +32,8 @@ export default async function CategoryComparisonPage({
   const range = typeof sp.range === "string" && sp.range in RANGE_DAYS ? sp.range : "30d";
   const channelId = typeof sp.channel === "string" ? sp.channel : "";
   const since = sinceFor(range);
-  const [channels, categories, posts] = await Promise.all([
+  const [user, channels, categories, posts] = await Promise.all([
+    requireUser(),
     prisma.channel.findMany({
       where: { isActive: true },
       orderBy: { title: "asc" },
@@ -66,6 +68,10 @@ export default async function CategoryComparisonPage({
     }),
   ]);
   const rows = withAverages(groupByCategory(posts, categories));
+  // Messages envoyés sans catégorie (ou avec une catégorie supprimée) : regroupés dans « Sans catégorie ».
+  const uncategorized = rows.find((r) => r.categoryId === null)?.posts ?? 0;
+  // Réglages → Catégories est réservé aux administrateurs ; un manager crée sa catégorie depuis le formulaire de message.
+  const isAdmin = user.role === "ADMIN";
   const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-8";
   const metrics: Array<[string, keyof (typeof rows)[number]["avg"], string]> = [
     ["Clics", "clicks", "clicks"],
@@ -82,7 +88,7 @@ export default async function CategoryComparisonPage({
     <>
       <PageHeader
         title="Comparer par catégorie"
-        description="Quelles catégories de messages (bonus, pronostic, rappel…) font le plus cliquer, s'inscrire et déposer."
+        description="Quelles catégories de messages (celles que vous créez : bonus, pronostic, rappel…) font le plus cliquer, s'inscrire et déposer."
         help="Choisissez une période et éventuellement un canal, puis cliquez « Appliquer ». Chaque colonne donne le total et la moyenne par message."
       >
         <Button
@@ -124,60 +130,90 @@ export default async function CategoryComparisonPage({
           </form>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 || posts.length === 0 ? (
+          {categories.length === 0 ? (
+            <EmptyState
+              title="Créez votre première catégorie (par exemple Bonus ou Rappel) pour comparer vos messages"
+              description={
+                isAdmin
+                  ? "Une catégorie regroupe les messages du même genre. Créez-la dans Réglages → Catégories, puis choisissez-la dans le champ Catégorie de chaque nouveau message : cette page comparera ensuite les clics, inscriptions et dépôts de chaque catégorie."
+                  : "Une catégorie regroupe les messages du même genre. Dans « Nouveau message », le champ Catégorie propose « + Nouvelle catégorie » : cette page comparera ensuite les clics, inscriptions et dépôts de chaque catégorie."
+              }
+              action={
+                isAdmin
+                  ? { href: "/settings/categories", label: "Créer une catégorie" }
+                  : { href: "/messages/new", label: "Nouveau message" }
+              }
+            />
+          ) : rows.length === 0 || posts.length === 0 ? (
             <EmptyState
               title="Aucun message envoyé sur la période"
               description="Donnez une catégorie à vos messages lors de leur création : vous pourrez ensuite comparer ce qui marche le mieux."
               action={{ href: "/messages/new", label: "Nouveau message", variant: "outline" }}
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Catégorie</TableHead>
-                  <TableHead className="text-right">Messages</TableHead>
-                  {metrics.map(([label, , helpKey]) => (
-                    <TableHead key={label} className="text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">
-                        {label}
-                        {METRIC_HELP[helpKey] ? (
-                          <HelpTip label={`Définition : ${label}`}>{METRIC_HELP[helpKey]}</HelpTip>
-                        ) : null}
-                      </span>
-                      <div className="text-[10px] font-normal text-muted-foreground">
-                        total · par message
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow
-                    key={r.categoryId ?? "none"}
-                    className={r.posts === 0 ? "text-muted-foreground" : ""}
-                  >
-                    <TableCell className="whitespace-nowrap">
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="inline-block size-2.5 rounded-full"
-                          style={{ background: r.color }}
-                          aria-hidden="true"
-                        />
-                        {r.name}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtNum(r.posts)}</TableCell>
-                    {metrics.map(([label, key]) => (
-                      <TableCell key={label} className="text-right tabular-nums whitespace-nowrap">
-                        {n(r[key])}{" "}
-                        <span className="text-xs text-muted-foreground">· {n(r.avg[key])}</span>
-                      </TableCell>
+            <>
+              {uncategorized > 0 ? (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {uncategorized === 1
+                    ? "1 message envoyé sur la période n'a pas de catégorie : il est compté dans « Sans catégorie »."
+                    : `${fmtNum(uncategorized)} messages envoyés sur la période n'ont pas de catégorie : ils sont comptés dans « Sans catégorie ».`}{" "}
+                  Choisissez une catégorie dans le formulaire de vos prochains messages pour les
+                  comparer.
+                </p>
+              ) : null}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Catégorie</TableHead>
+                    <TableHead className="text-right">Messages</TableHead>
+                    {metrics.map(([label, , helpKey]) => (
+                      <TableHead key={label} className="text-right whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          {METRIC_HELP[helpKey] ? (
+                            <HelpTip label={`Définition : ${label}`}>
+                              {METRIC_HELP[helpKey]}
+                            </HelpTip>
+                          ) : null}
+                        </span>
+                        <div className="text-[10px] font-normal text-muted-foreground">
+                          total · par message
+                        </div>
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow
+                      key={r.categoryId ?? "none"}
+                      className={r.posts === 0 ? "text-muted-foreground" : ""}
+                    >
+                      <TableCell className="whitespace-nowrap">
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="inline-block size-2.5 rounded-full"
+                            style={{ background: r.color }}
+                            aria-hidden="true"
+                          />
+                          {r.name}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{fmtNum(r.posts)}</TableCell>
+                      {metrics.map(([label, key]) => (
+                        <TableCell
+                          key={label}
+                          className="text-right tabular-nums whitespace-nowrap"
+                        >
+                          {n(r[key])}{" "}
+                          <span className="text-xs text-muted-foreground">· {n(r.avg[key])}</span>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>

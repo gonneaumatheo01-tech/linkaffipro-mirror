@@ -7,15 +7,16 @@ import { approveMembership, declineMembership } from "./telegram-actions";
 
 const BATCH = 50;
 
-/** Réclame les demandes planifiées échues (verrou SKIP LOCKED) et les approuve. */
+/** Réclame les demandes planifiées échues (verrou SKIP LOCKED) et les approuve. Canal désactivé : rien n'est fait (phase 8). */
 export async function runApprovalsTick(): Promise<{ claimed: number; approved: number }> {
   const ids = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM "Membership"
-      WHERE status = 'SCHEDULED' AND "approveAt" IS NOT NULL AND "approveAt" <= NOW()
-      ORDER BY "approveAt" ASC
+      SELECT m.id FROM "Membership" m
+      JOIN "Channel" c ON c.id = m."channelId" AND c."isActive"
+      WHERE m.status = 'SCHEDULED' AND m."approveAt" IS NOT NULL AND m."approveAt" <= NOW()
+      ORDER BY m."approveAt" ASC
       LIMIT ${BATCH}
-      FOR UPDATE SKIP LOCKED`;
+      FOR UPDATE OF m SKIP LOCKED`;
     return rows.map((r) => r.id);
   });
   let approved = 0;
@@ -39,7 +40,7 @@ async function ruleOf(m: { approvalRuleId: string | null; channelId: string; inv
 /** Rappels des demandes en attente de gate (uniquement si le bot peut écrire au membre). */
 export async function runReminders(now = new Date()): Promise<number> {
   const pending = await prisma.membership.findMany({
-    where: { status: "PENDING_GATE" },
+    where: { status: "PENDING_GATE", channel: { isActive: true } },
     include: { member: { select: { firstName: true, languageCode: true, botStates: { select: { botId: true, canDm: true } } } }, channel: { select: { title: true, language: true } } },
     take: 500,
   });
@@ -71,7 +72,7 @@ export async function runReminders(now = new Date()): Promise<number> {
 
 /** Expiration des demandes non abouties selon la règle (DECLINE / APPROVE / KEEP). */
 export async function runExpirations(now = new Date()): Promise<number> {
-  const expired = await prisma.membership.findMany({ where: { status: { in: ["REQUESTED", "PENDING_GATE", "SCHEDULED"] }, expiresAt: { not: null, lte: now } }, take: 200 });
+  const expired = await prisma.membership.findMany({ where: { status: { in: ["REQUESTED", "PENDING_GATE", "SCHEDULED"] }, expiresAt: { not: null, lte: now }, channel: { isActive: true } }, take: 200 });
   let n = 0;
   for (const m of expired) {
     const rule = await ruleOf(m);

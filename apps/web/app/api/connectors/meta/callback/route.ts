@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { audit } from "@linkaffipro/db";
 import { describeConnectorError, metaProvider } from "@linkaffipro/connectors";
-import { auth } from "@/auth";
+import { apiUser } from "@/lib/ai/api-user";
 import {
   loadAppCredentials,
   redirectUriFor,
@@ -28,17 +28,17 @@ function backWithError(req: Request, message: string): NextResponse {
  * Le jeton ne passe jamais dans une URL, un journal ni un message.
  */
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id)
+  const user = await apiUser();
+  if (!user)
     return NextResponse.redirect(
       new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, env.appBaseUrl),
     );
-  if (session.user.role !== "ADMIN")
+  if (user.role !== "ADMIN")
     return NextResponse.json({ error: "Action réservée aux administrateurs." }, { status: 403 });
 
   const params = new URL(req.url).searchParams;
   const state = verifyOAuthState(params.get("state"));
-  if (!state || state.platform !== "META" || state.userId !== session.user.id) {
+  if (!state || state.platform !== "META" || state.userId !== user.id) {
     return backWithError(
       req,
       "Connexion Meta interrompue (lien expiré ou invalide). Cliquez de nouveau sur « Connecter un compte Meta ».",
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
   if (error) {
     const reason = params.get("error_reason") ?? params.get("error_description") ?? error;
     await audit({
-      userId: session.user.id,
+      userId: user.id,
       action: "connector.oauth_denied",
       entityType: "ConnectorApp",
       entityId: "META",
@@ -76,9 +76,9 @@ export async function GET(req: Request) {
   try {
     const tokens = await metaProvider.exchangeCode(app, code, redirectUriFor("META"));
     const accounts = await metaProvider.listAccounts(app, tokens);
-    await savePending("META", session.user.id, { tokens, accounts });
+    await savePending("META", user.id, { tokens, accounts });
     await audit({
-      userId: session.user.id,
+      userId: user.id,
       action: "connector.oauth_completed",
       entityType: "ConnectorApp",
       entityId: "META",
@@ -94,7 +94,7 @@ export async function GET(req: Request) {
   } catch (err) {
     const message = describeConnectorError(err);
     await audit({
-      userId: session.user.id,
+      userId: user.id,
       action: "connector.oauth_failed",
       entityType: "ConnectorApp",
       entityId: "META",

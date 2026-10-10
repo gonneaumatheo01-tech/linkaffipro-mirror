@@ -29,13 +29,38 @@ export function offerDeepLink(botUsername: string, slug: string, postCode?: stri
 }
 
 /** Réponse d'offre par défaut (texte + libellé du bouton) dans les six langues du bot. */
-export const DEFAULT_OFFER_REPLY: Record<Lang, { text: string; button: string }> = Object.fromEntries(
-  LANGS.map((l) => [l, { text: t(l, "offerReply"), button: t(l, "offerButton") }]),
-) as Record<Lang, { text: string; button: string }>;
+export const DEFAULT_OFFER_REPLY: Record<Lang, { text: string; button: string }> =
+  Object.fromEntries(
+    LANGS.map((l) => [l, { text: t(l, "offerReply"), button: t(l, "offerButton") }]),
+  ) as Record<Lang, { text: string; button: string }>;
 
-export const INVALID_OFFER_REPLY: Record<Lang, string> = Object.fromEntries(LANGS.map((l) => [l, t(l, "offerInvalid")])) as Record<Lang, string>;
+export const INVALID_OFFER_REPLY: Record<Lang, string> = Object.fromEntries(
+  LANGS.map((l) => [l, t(l, "offerInvalid")]),
+) as Record<Lang, string>;
 
 /** Remplace les placeholders d'un texte de séquence. */
 export function fillPlaceholders(text: string, vars: Record<string, string | undefined>): string {
   return text.replace(/\{(\w+)\}/g, (_m, k: string) => vars[k] ?? "");
+}
+
+/**
+ * Offre à utiliser pour un bouton rattaché à une campagne (la nôtre) : celle du bouton si elle fait toujours partie
+ * de la campagne et reste active ; sinon la première offre active de la campagne (dans l'ordre de la campagne).
+ * Retourne null si la campagne n'a aucune offre active : on garde alors le lien d'origine du bouton.
+ */
+export function pickCampaignOffer(
+  linkOfferId: string | null,
+  campaignOfferIds: readonly string[],
+  offers: ReadonlyArray<{ id: string; trackingUrlTemplate: string; isActive: boolean }>,
+): { offerId: string; template: string; replaced: boolean } | null {
+  const byId = new Map(offers.map((o) => [o.id, o]));
+  const current = linkOfferId ? byId.get(linkOfferId) : undefined;
+  if (current && current.isActive && campaignOfferIds.includes(current.id))
+    return { offerId: current.id, template: current.trackingUrlTemplate, replaced: false };
+  for (const id of campaignOfferIds) {
+    const o = byId.get(id);
+    if (o && o.isActive && o.trackingUrlTemplate)
+      return { offerId: o.id, template: o.trackingUrlTemplate, replaced: true };
+  }
+  return null;
 }

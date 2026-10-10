@@ -1,25 +1,105 @@
-import { prisma } from "@linkaffipro/db";
+import { prisma, audit, ourPlayers, type Prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
 import { csvDate, csvNumber, toCsv } from "@/lib/members/csv";
 import { displayName } from "@/lib/members/query";
+import { campaignPlayerWhere } from "@/lib/campaigns/attribution";
+import { campaignScope } from "@/lib/dashboard/campaign-scope";
+import { periodEnd, periodLabel, periodStart, resolvePeriod } from "@/lib/periods";
 
 export const dynamic = "force-dynamic";
 
-const SOURCE: Record<string, string> = { postback: "postback (identifiant de suivi reçu)", time_match: "rapprochement horaire", linkaffi: "clic Link Affi" };
+const SOURCE: Record<string, string> = {
+  postback: "postback (identifiant de suivi reçu)",
+  time_match: "rapprochement horaire",
+  linkaffi: "clic Link Affi",
+};
 
-/** Export CSV des joueurs : identifiant, inscription, FTD, dépôts, NGR, membre rattaché, source du rattachement. */
-export async function GET() {
-  await requireUser();
+/**
+ * Export CSV des joueurs : identifiant, inscription, FTD, dépôts, NGR, membre rattaché, source du rattachement.
+ * - Par défaut : « nos » joueurs seulement (clic à nous, ou offre Link Affi liée à une de nos campagnes).
+ * - `campaignId` : joueurs de cette campagne (même règle que la fiche campagne).
+ * - `range` / `from` / `to` : ajoute la colonne « NGR de la période (€) » (somme des variations datées dans la période).
+ * - `scope=all` (ADMIN, depuis Réglages → Connecteurs) : export brut de TOUS les joueurs Link Affi, pour diagnostic.
+ */
+export async function GET(req: Request) {
+  const user = await requireUser();
+  const sp = new URL(req.url).searchParams;
+  const raw = sp.get("scope") === "all";
+  if (raw && user.role !== "ADMIN")
+    return new Response("Export réservé aux administrateurs.", { status: 403 });
+  const campaignId = sp.get("campaignId") ?? "";
+  const withPeriod = sp.has("range") || sp.has("from");
+  const period = withPeriod ? resolvePeriod(Object.fromEntries(sp.entries())) : null;
+
+  const and: Prisma.PlayerWhereInput[] = [];
+  if (!raw) and.push(await ourPlayers());
+  if (campaignId)
+    and.push(campaignPlayerWhere(await campaignScope(campaignId)) as Prisma.PlayerWhereInput);
+  const where: Prisma.PlayerWhereInput = and.length ? { AND: and } : {};
+
   const players = await prisma.player.findMany({
+    where,
     orderBy: [{ registeredAt: "desc" }, { createdAt: "desc" }],
     take: 50_000,
     include: {
       affiliateCampaign: { select: { name: true, program: { select: { name: true } } } },
-      member: { select: { id: true, firstName: true, lastName: true, username: true, telegramUserId: true, anonymizedAt: true } },
+      member: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          telegramUserId: true,
+          anonymizedAt: true,
+        },
+      },
     },
   });
+  const ngrInPeriod = new Map<string, number>();
+  if (period) {
+    const sums = await prisma.playerEvent.groupBy({
+      by: ["playerId"],
+      where: {
+        type: "NGR",
+        occurredAt: { gte: periodStart(period), lt: periodEnd(period) },
+        player: where,
+      },
+      _sum: { amount: true },
+    });
+    for (const s of sums) ngrInPeriod.set(s.playerId, Number(s._sum.amount ?? 0));
+  }
+  if (raw)
+    await audit({
+      userId: user.id,
+      action: "linkaffi.players_raw_export",
+      metadata: { rows: players.length },
+    });
+
+  const headers = [
+    "Identifiant joueur",
+    "Programme",
+    "Campagne Link Affi",
+    "Inscription (Paris)",
+    "FTD (Paris)",
+    "Montant FTD (€)",
+    "Nombre de dépôts",
+    "Redépôts",
+    "Dépôts (€)",
+    "NGR total (€)",
+  ];
+  if (period) headers.push(`NGR de la période (€) — ${periodLabel(period)}`);
+  headers.push(
+    "Devise",
+    "Statut",
+    "Dernier événement (Paris)",
+    "Identifiant de suivi (sub-ID)",
+    "Source du rattachement",
+    "Membre rattaché",
+    "Pseudo",
+    "Identifiant Telegram",
+  );
   const csv = toCsv(
-    ["Identifiant joueur", "Programme", "Campagne", "Inscription (Paris)", "FTD (Paris)", "Montant FTD (€)", "Nombre de dépôts", "Redépôts", "Dépôts (€)", "NGR (€)", "Devise", "Statut", "Dernier événement (Paris)", "Identifiant de suivi (sub-ID)", "Source du rattachement", "Membre rattaché", "Pseudo", "Identifiant Telegram"],
+    headers,
     players.map((p) => [
       p.externalPlayerId,
       p.affiliateCampaign.program.name,
@@ -31,6 +111,7 @@ export async function GET() {
       p.redepositCount,
       csvNumber(Number(p.depositTotal)),
       csvNumber(Number(p.ngr)),
+      ...(period ? [csvNumber(ngrInPeriod.get(p.id) ?? 0)] : []),
       p.currency,
       p.status ?? "",
       csvDate(p.lastEventAt),
@@ -42,7 +123,12 @@ export async function GET() {
     ]),
   );
   const date = new Date().toISOString().slice(0, 10);
+  const name = raw ? `joueurs-linkaffi-tous-${date}.csv` : `joueurs-${date}.csv`;
   return new Response(csv, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="joueurs-${date}.csv"`, "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${name}"`,
+      "Cache-Control": "no-store",
+    },
   });
 }

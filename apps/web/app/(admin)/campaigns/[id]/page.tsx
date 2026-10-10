@@ -6,8 +6,15 @@ import { VERTICAL_LABELS, type Vertical } from "@linkaffipro/core";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { Button } from "@/components/ui/button";
+import { isImportedShell, readAdLink } from "@/lib/campaigns/ad-link";
 import { scopeFromCampaign } from "@/lib/campaigns/attribution";
-import { periodLabel, periodParams, parseCompare, previousPeriod, resolvePeriod } from "@/lib/periods";
+import {
+  periodLabel,
+  periodParams,
+  parseCompare,
+  previousPeriod,
+  resolvePeriod,
+} from "@/lib/periods";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { PLATFORM_LABELS } from "../campaign-form";
@@ -28,7 +35,7 @@ export const metadata: Metadata = { title: "Campagne" };
  * liens d'entrée, canaux, messages, membres, offres Link Affi.
  */
 export default async function CampaignPage({ params, searchParams }: PageProps<"/campaigns/[id]">) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
   const sp = await searchParams;
   const tab = parseTab(sp.tab);
@@ -41,7 +48,9 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
   });
   if (!campaign) notFound();
   const scope = scopeFromCampaign(campaign);
-  const base = { id, campaign, scope, period, compare, sp };
+  const base = { id, campaign, scope, period, compare, sp, isAdmin: user.role === "ADMIN" };
+  const adLink = readAdLink(campaign.adExternalIds);
+  const imported = isImportedShell(campaign);
   const platform = campaign.adPlatform ? PLATFORM_LABELS[campaign.adPlatform] : null;
 
   return (
@@ -51,7 +60,11 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         description={[
           campaign.vertical ? VERTICAL_LABELS[campaign.vertical as Vertical] : null,
           platform ? `pubs ${platform}` : "sans pub pour l'instant",
-          campaign.externalCampaignId ? `importée de ${platform ?? "la plateforme"}` : null,
+          imported
+            ? `campagne pub importée de ${platform ?? "la plateforme"}`
+            : campaign.externalCampaignId
+              ? `suit la campagne pub « ${adLink?.platformName ?? campaign.externalCampaignId} »`
+              : null,
           campaign.connection ? `compte ${campaign.connection.name}` : null,
           statusLabel("campaign", campaign.status),
           `${scope.affiliateCampaignIds.length} offre${scope.affiliateCampaignIds.length > 1 ? "s" : ""}`,
@@ -66,7 +79,11 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         <Button
           variant="outline"
           className="max-md:h-10"
-          render={<a href={`/campaigns/export?${new URLSearchParams({ kind: "costs", campaignId: id, ...pp }).toString()}`} />}
+          render={
+            <a
+              href={`/campaigns/export?${new URLSearchParams({ kind: "costs", campaignId: id, ...pp }).toString()}`}
+            />
+          }
         >
           Exporter les coûts (CSV)
         </Button>
@@ -86,8 +103,10 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
       {tab === "overview" ? (
         <p className="mt-3 text-xs text-muted-foreground">
           Période : {periodLabel(period)}
-          {compare ? ` · comparée à la précédente (${periodLabel(previousPeriod(period))})` : ""}. Membres = demandes acceptées via les liens d&apos;entrée ; inscrits, FTD, dépôts et NGR = joueurs rattachés
-          par l&apos;identifiant de suivi (sub-ID) ou appartenant à une offre de la campagne.
+          {compare ? ` · comparée à la précédente (${periodLabel(previousPeriod(period))})` : ""}.
+          Membres = demandes acceptées via les liens d&apos;entrée ; inscrits, FTD, dépôts et NGR =
+          joueurs rattachés par l&apos;identifiant de suivi (sub-ID) ou appartenant à une offre de
+          la campagne.
         </p>
       ) : null}
     </>

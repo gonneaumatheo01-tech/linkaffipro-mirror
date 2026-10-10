@@ -91,7 +91,8 @@ export function TikTokAppGuide({ redirectUri }: { redirectUri: string }) {
           <li className={step}>
             Après l&apos;e-mail de validation : cliquez sur{" "}
             <strong>Connecter un compte TikTok</strong> ci-dessous, acceptez sur la page TikTok,
-            cochez les comptes à suivre. Les dépenses arrivent ensuite toutes seules dans Pubs.
+            cochez les comptes à suivre. Les dépenses arrivent ensuite toutes seules dans Campagnes
+            (onglet Pubs).
           </li>
         </ol>
         <div className="rounded-md border border-dashed p-3">

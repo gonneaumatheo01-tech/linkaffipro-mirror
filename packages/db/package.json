@@ -17,7 +17,8 @@
     "seed:templates": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed-templates.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:phase8": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase8-data.ts"
+    "db:phase8": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase8-data.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@linkaffipro/core": "workspace:*",
@@ -30,6 +31,7 @@
     "eslint": "^10.12.0",
     "prisma": "~6.19.3",
     "tsx": "^4.23.15",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
   }
 }

@@ -5,10 +5,19 @@ import { buildSystemBlocks, buildUserMessage, maxLengthFor, resolveRiskNotice } 
 import type { AiClient, AiRequest, AiResult, AiUsage, AiVersion } from "./types";
 import { validateVersion } from "./validate";
 
-const MAX_TOKENS = 4096;
+/**
+ * Plafond de jetons de sortie, réflexion comprise : 3 versions d'un texte de 4 096 caractères ou 6 traductions
+ * tiennent largement. Sans streaming, 16 000 reste sous le délai maximal du SDK.
+ */
+export const MAX_TOKENS = 16_000;
 
 function addUsage(a: AiUsage, b: AiUsage): AiUsage {
-  return { inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens, cachedTokens: a.cachedTokens + b.cachedTokens, cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens };
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cachedTokens: a.cachedTokens + b.cachedTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+  };
 }
 
 /**
@@ -16,7 +25,8 @@ function addUsage(a: AiUsage, b: AiUsage): AiUsage {
  * Sortie invalide ou aucune version valable : un seul nouvel essai (avec rappel du format), puis erreur lisible.
  */
 export async function suggest(req: AiRequest, client: AiClient): Promise<AiResult> {
-  if (!req.text.trim()) throw new AiError("unsupported", "Écrivez d'abord un brouillon (ou une idée).");
+  if (!req.text.trim())
+    throw new AiError("unsupported", "Écrivez d'abord un brouillon (ou une idée).");
   const notice = resolveRiskNotice(req.riskNotice);
   const max = maxLengthFor(req.context);
   const system = buildSystemBlocks(req);
@@ -26,24 +36,63 @@ export async function suggest(req: AiRequest, client: AiClient): Promise<AiResul
   const rejected: AiResult["rejected"] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const user = attempt === 0 ? baseUser : `${baseUser}\n\nRAPPEL : ta réponse précédente n'était pas exploitable (${lastError?.message ?? "format invalide"}). Réponds uniquement avec le JSON demandé, en conservant tous les repères {…} et tous les liens du brouillon.`;
-    const res = await client.createMessage({ model: req.model, maxTokens: MAX_TOKENS, system, user });
+    const user =
+      attempt === 0
+        ? baseUser
+        : `${baseUser}\n\nRAPPEL : ta réponse précédente n'était pas exploitable (${lastError?.message ?? "format invalide"}). Réponds uniquement avec le JSON demandé, en conservant tous les repères {…} et tous les liens du brouillon.`;
+    const res = await client.createMessage({
+      model: req.model,
+      maxTokens: MAX_TOKENS,
+      system,
+      user,
+      effort: "low",
+    });
     usage = addUsage(usage, res.usage);
+    // Réponse coupée : le JSON est incomplet. Pas de nouvel essai (il serait coupé de la même façon et facturé deux fois).
+    if (res.stopReason === "max_tokens")
+      throw new AiError(
+        "too_long",
+        "La réponse de l'IA a été coupée : texte trop long. Réessayez en mode « Court » (Longueur) ou avec un brouillon plus court.",
+        usage,
+        estimateCostEur(req.model, usage),
+      );
     let candidates: AiVersion[];
     try {
       candidates = req.kind === "translate" ? parseTranslations(res.text) : parseVersions(res.text);
     } catch (err) {
-      lastError = err instanceof AiError ? err : new AiError("invalid_output", "Réponse inexploitable.");
+      lastError =
+        err instanceof AiError ? err : new AiError("invalid_output", "Réponse inexploitable.");
       continue;
     }
     const kept: AiVersion[] = [];
     for (const v of candidates) {
-      const out = validateVersion(v, { source: req.text, context: req.context, notice, max, checkSource: req.kind !== "idea" });
+      const out = validateVersion(v, {
+        source: req.text,
+        context: req.context,
+        notice,
+        max,
+        checkSource: req.kind !== "idea",
+      });
       if (out.ok) kept.push(out.version);
       else rejected.push({ text: v.text, reason: out.reason });
     }
-    if (kept.length > 0) return { versions: kept, usage, costEur: estimateCostEur(req.model, usage), model: req.model, rejected };
-    lastError = new AiError("no_valid_version", rejected.at(-1)?.reason ?? "aucune version valable");
+    if (kept.length > 0)
+      return {
+        versions: kept,
+        usage,
+        costEur: estimateCostEur(req.model, usage),
+        model: req.model,
+        rejected,
+      };
+    lastError = new AiError(
+      "no_valid_version",
+      rejected.at(-1)?.reason ?? "aucune version valable",
+    );
   }
-  throw new AiError(lastError?.code === "invalid_output" ? "invalid_output" : "no_valid_version", `L'IA n'a pas donné de version utilisable (${lastError?.message ?? "format invalide"}). Réessayez ou modifiez le brouillon.`);
+  throw new AiError(
+    lastError?.code === "invalid_output" ? "invalid_output" : "no_valid_version",
+    `L'IA n'a pas donné de version utilisable (${lastError?.message ?? "format invalide"}). Réessayez ou modifiez le brouillon.`,
+    usage,
+    estimateCostEur(req.model, usage),
+  );
 }

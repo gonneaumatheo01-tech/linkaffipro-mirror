@@ -513,6 +513,61 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
       </div>
 
       <Card className="mt-6">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">
+              Activité des bots (24 h){" "}
+              <Badge variant="outline" className="ml-2 tabular-nums">
+                {fmtNum(s.botActivity.total)}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Événements reçus ou produits par les bots sur les dernières 24 heures : mises à jour
+              Telegram, demandes d&apos;adhésion, entrées, clics, messages privés, publications.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-md:h-10"
+            render={<Link href="/journal/events" />}
+          >
+            Voir le détail dans le Journal
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {s.botActivity.error ? (
+            <p className="text-sm text-destructive">Lecture impossible : {s.botActivity.error}</p>
+          ) : s.botActivity.byType.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun événement sur les dernières 24 heures : si vos bots devraient être actifs,
+              vérifiez leur connexion Telegram ci-dessus.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Nombre</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {s.botActivity.byType.map((r) => (
+                  <TableRow key={r.type}>
+                    <TableCell>
+                      <div className="text-sm">{r.label}</div>
+                      <div className="font-mono text-[11px] text-muted-foreground">{r.type}</div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtNum(r.count)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-base">
             Alertes ouvertes{" "}

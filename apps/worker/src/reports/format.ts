@@ -35,7 +35,20 @@ export type ReportData = {
   upcomingPosts: Array<{ channel: string; scheduledAt: Date }>;
 };
 
-export const EMPTY_METRICS: ReportMetrics = { requests: 0, approved: 0, joined: 0, left: 0, entryClicks: 0, offerClicks: 0, registrations: 0, ftds: 0, deposits: 0, depositAmount: 0, ngr: 0, spend: 0 };
+export const EMPTY_METRICS: ReportMetrics = {
+  requests: 0,
+  approved: 0,
+  joined: 0,
+  left: 0,
+  entryClicks: 0,
+  offerClicks: 0,
+  registrations: 0,
+  ftds: 0,
+  deposits: 0,
+  depositAmount: 0,
+  ngr: 0,
+  spend: 0,
+};
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -54,15 +67,29 @@ export function pct(cur: number, prev: number): string {
   return `${v > 0 ? "+" : "−"}${Math.abs(v)} %`;
 }
 
-const timeFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
-const dateTimeFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" });
+const timeFmt = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Paris",
+});
+const dateTimeFmt = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Europe/Paris",
+});
 
 function ratio(spend: number, n: number): string | null {
   if (spend <= 0 || n <= 0) return null;
   return eur(spend / n);
 }
 
-function line(label: string, cur: number, prev: number, fmt: (n: number) => string = (n) => String(n)): string {
+function line(
+  label: string,
+  cur: number,
+  prev: number,
+  fmt: (n: number) => string = (n) => String(n),
+): string {
   return `${label} : <b>${fmt(cur)}</b> (${pct(cur, prev)})`;
 }
 
@@ -85,7 +112,12 @@ export function formatMetricsBlock(cur: ReportMetrics, prev: ReportMetrics): str
     const cpa = ratio(cur.spend, cur.registrations);
     const cftd = ratio(cur.spend, cur.ftds);
     const roas = cur.spend > 0 ? `${(cur.ngr / cur.spend).toFixed(2)}` : null;
-    const parts = [cpl && `CPL ${cpl}`, cpa && `CPA ${cpa}`, cftd && `coût/FTD ${cftd}`, roas && `ROAS ${roas}`].filter(Boolean);
+    const parts = [
+      cpl && `CPL ${cpl}`,
+      cpa && `CPA ${cpa}`,
+      cftd && `coût/FTD ${cftd}`,
+      roas && `ROAS ${roas}`,
+    ].filter(Boolean);
     if (parts.length) out.push(`🧮 ${parts.join(" · ")}`);
   }
   return out;
@@ -105,23 +137,34 @@ function formatTop(title: string, rows: NamedMetrics[]): string[] {
 
 function formatStatus(d: ReportData): string[] {
   const out: string[] = [];
-  if (d.openAlerts.length === 0 && d.sync.errors.length === 0) out.push("🟢 Rien à signaler : aucune alerte ouverte.");
+  if (d.openAlerts.length === 0 && d.sync.errors.length === 0)
+    out.push("🟢 Rien à signaler : aucune alerte ouverte.");
   for (const a of d.openAlerts) out.push(`🔴 Alerte : ${escapeHtml(a.message)}`);
-  if (d.sync.lastSuccessAt) out.push(`🔄 Synchro Link Affi : dernier succès ${dateTimeFmt.format(d.sync.lastSuccessAt)}`);
+  if (d.sync.lastSuccessAt)
+    out.push(`🔄 Synchro Link Affi : dernier succès ${dateTimeFmt.format(d.sync.lastSuccessAt)}`);
   else out.push("🔄 Synchro Link Affi : jamais réussie");
   for (const e of d.sync.errors) out.push(`⚠️ Synchro : ${escapeHtml(e)}`);
-  if (d.backup) out.push(`${/échec|aucune/.test(d.backup) ? "⚠️" : "💾"} Sauvegarde : ${escapeHtml(d.backup)}`);
+  if (d.backup)
+    out.push(`${/échec|aucune/.test(d.backup) ? "⚠️" : "💾"} Sauvegarde : ${escapeHtml(d.backup)}`);
   if (d.upcomingPosts.length > 0) {
-    out.push(`🗓 ${d.upcomingPosts.length} message${d.upcomingPosts.length > 1 ? "s" : ""} programmé${d.upcomingPosts.length > 1 ? "s" : ""} dans les 24 h :`);
-    for (const p of d.upcomingPosts.slice(0, 8)) out.push(`• ${timeFmt.format(p.scheduledAt)} — ${escapeHtml(p.channel)}`);
+    out.push(
+      `🗓 ${d.upcomingPosts.length} message${d.upcomingPosts.length > 1 ? "s" : ""} programmé${d.upcomingPosts.length > 1 ? "s" : ""} dans les 24 h :`,
+    );
+    for (const p of d.upcomingPosts.slice(0, 8))
+      out.push(`• ${timeFmt.format(p.scheduledAt)} — ${escapeHtml(p.channel)}`);
   } else out.push("🗓 Aucun message programmé dans les 24 h.");
   return out;
 }
 
 /** Brief quotidien (hier vs avant-hier). */
 export function formatDailyBrief(d: ReportData): string {
-  const lines = [`<b>☀️ Brief du jour — ${escapeHtml(d.periodLabel)}</b>`, "", ...formatMetricsBlock(d.current, d.previous), ""];
-  lines.push(...formatTop("Top pubs", d.topCampaigns));
+  const lines = [
+    `<b>☀️ Brief du jour — ${escapeHtml(d.periodLabel)}</b>`,
+    "",
+    ...formatMetricsBlock(d.current, d.previous),
+    "",
+  ];
+  lines.push(...formatTop("Top campagnes", d.topCampaigns));
   if (d.topCampaigns.length) lines.push("");
   lines.push(...formatTop("Top canaux", d.topChannels));
   if (d.topChannels.length) lines.push("");
@@ -131,8 +174,14 @@ export function formatDailyBrief(d: ReportData): string {
 
 /** Rapport hebdomadaire (7 derniers jours vs 7 précédents). */
 export function formatWeeklyReport(d: ReportData): string {
-  const lines = [`<b>📊 Rapport hebdomadaire — ${escapeHtml(d.periodLabel)}</b>`, "<i>Comparé à la semaine précédente</i>", "", ...formatMetricsBlock(d.current, d.previous), ""];
-  lines.push(...formatTop("Top pubs de la semaine", d.topCampaigns));
+  const lines = [
+    `<b>📊 Rapport hebdomadaire — ${escapeHtml(d.periodLabel)}</b>`,
+    "<i>Comparé à la semaine précédente</i>",
+    "",
+    ...formatMetricsBlock(d.current, d.previous),
+    "",
+  ];
+  lines.push(...formatTop("Top campagnes de la semaine", d.topCampaigns));
   if (d.topCampaigns.length) lines.push("");
   lines.push(...formatTop("Top canaux de la semaine", d.topChannels));
   if (d.topChannels.length) lines.push("");

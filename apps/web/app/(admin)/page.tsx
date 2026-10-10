@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { VERTICALS, VERTICAL_LABELS, isVertical } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -35,15 +36,18 @@ import {
   loadChannelGrowth,
   loadCohorts,
   loadFunnel,
+  type CohortFilters,
 } from "@/lib/dashboard/daily";
 import { AdsTable, type AdsSortKey } from "@/components/dashboard/ads-table";
 import { Funnel } from "@/components/dashboard/funnel";
+import { CampaignFilter } from "@/components/dashboard/campaign-filter";
+import { loadLastEvents } from "@/lib/dashboard/events";
 import { Button } from "@/components/ui/button";
 import { recomputeStatsAction } from "./dashboard/actions";
 
 const TABS = [
   { key: "overview", label: "Vue d'ensemble" },
-  { key: "ads", label: "Pubs" },
+  { key: "ads", label: "Campagnes" },
   { key: "funnel", label: "Entonnoir" },
   { key: "cohorts", label: "Cohortes" },
   { key: "channels", label: "Canaux" },
@@ -55,17 +59,16 @@ function parseTab(v: string): Tab {
 
 const TAB_HELP: Record<Tab, string> = {
   overview:
-    "Les chiffres clés de la période choisie. Changez la période ou filtrez par univers et par canal en haut à droite.",
-  ads: "Une ligne par pub : ce qu'elle a coûté et ce qu'elle a rapporté. Cliquez un en-tête de colonne pour trier.",
+    "Les chiffres clés de la période choisie, pour vos joueurs seulement. Changez la période ou filtrez par univers, canal ou campagne en haut à droite.",
+  ads: "Une ligne par campagne : ce qu'elle a coûté et ce qu'elle a rapporté. Cliquez un en-tête de colonne pour trier.",
   funnel:
     "Le parcours complet, du clic sur la pub jusqu'au dépôt : à chaque étape, la part conservée et la perte.",
   cohorts:
-    "Les membres regroupés par semaine d'arrivée : combien se sont inscrits, ont déposé, et ce qu'ils rapportent.",
+    "Les membres arrivés pendant la période, regroupés par semaine : combien se sont inscrits, ont déposé, et ce qu'ils rapportent.",
   channels: "Croissance de chaque canal, meilleurs horaires et meilleures catégories de messages.",
 };
 
 export const metadata: Metadata = { title: "Tableau de bord" };
-
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
@@ -99,42 +102,43 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const verticalRaw = one(sp.vertical);
   const vertical = isVertical(verticalRaw) ? verticalRaw : "";
   const channelId = one(sp.channelId);
+  const campaignId = one(sp.campaignId);
   const tab = parseTab(one(sp.tab));
   const sort = (one(sp.sort) || "spend") as AdsSortKey;
   const dir = one(sp.dir) === "asc" ? "asc" : "desc";
-  const funnelDim = one(sp.dim) || (channelId ? `channel:${channelId}` : "all");
-  const [bots, channels, members, campaignCount, lastEvents, channelList, dash] = await Promise.all([
+  // Entonnoir : par défaut, la dimension du filtre posé (même périmètre que la vue d'ensemble).
+  const funnelDim =
+    one(sp.dim) ||
+    (campaignId
+      ? `campaign:${campaignId}`
+      : channelId
+        ? `channel:${channelId}`
+        : vertical
+          ? `vertical:${vertical}`
+          : "all");
+  const filters: CohortFilters = { vertical, channelId, ...(campaignId ? { campaignId } : {}) };
+  const [bots, channels, members, campaignList, lastEvents, channelList, dash] = await Promise.all([
     prisma.bot.count({ where: { isActive: true } }),
     prisma.channel.count({ where: { isActive: true } }),
     prisma.member.count(),
-    prisma.campaign.count(),
-    prisma.event.findMany({
-      orderBy: { occurredAt: "desc" },
-      take: 12,
-      include: {
-        bot: { select: { username: true } },
-        channel: { select: { title: true } },
-        member: { select: { id: true, firstName: true, username: true } },
-      },
-    }),
+    prisma.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    tab === "overview" ? loadLastEvents(12) : Promise.resolve([]),
     prisma.channel.findMany({
       where: { isActive: true },
       orderBy: { title: "asc" },
       select: { id: true, title: true },
     }),
-    tab === "overview" ? loadDashboard({ period, vertical, channelId }) : Promise.resolve(null),
+    tab === "overview" ? loadDashboard({ period, ...filters }) : Promise.resolve(null),
   ]);
-  const [ads, funnelData, cohortRows, growth, best, campaignList, prevDash] = await Promise.all([
-    tab === "ads" ? loadAdsTable(period, { vertical }) : Promise.resolve(null),
+  const campaignCount = campaignList.length;
+  const [ads, funnelData, cohortRows, growth, best, prevDash] = await Promise.all([
+    tab === "ads" ? loadAdsTable(period, { vertical, campaignId }) : Promise.resolve(null),
     tab === "funnel" ? loadFunnel(funnelDim, period, compare) : Promise.resolve(null),
-    tab === "cohorts" ? loadCohorts(12) : Promise.resolve(null),
+    tab === "cohorts" ? loadCohorts(period, filters) : Promise.resolve(null),
     tab === "channels" ? loadChannelGrowth(period, channelId, compare) : Promise.resolve(null),
     tab === "channels" ? loadBestTimes(period, channelId) : Promise.resolve(null),
-    tab === "funnel"
-      ? prisma.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
-      : Promise.resolve([]),
     tab === "overview" && compare
-      ? loadDashboard({ period: prevPeriod, vertical, channelId })
+      ? loadDashboard({ period: prevPeriod, ...filters })
       : Promise.resolve(null),
   ]);
   const prevMetric = (key: string) =>
@@ -153,7 +157,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       help: "Personnes vues au moins une fois par un de nos bots (demande d'adhésion, /start, clic).",
     },
   ];
-  const base = { ...(vertical ? { vertical } : {}), ...(channelId ? { channelId } : {}) };
+  const base = {
+    ...(vertical ? { vertical } : {}),
+    ...(channelId ? { channelId } : {}),
+    ...(campaignId ? { campaignId } : {}),
+  };
   const pp = periodParams(period, compare);
   const q = (t: Tab = tab) =>
     `/?${new URLSearchParams({ tab: t, ...pp, ...base, ...(t === "funnel" ? { dim: funnelDim } : {}) }).toString()}`;
@@ -193,7 +201,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     <>
       <PageHeader
         title="Tableau de bord"
-        description="Ce que vos pubs, vos canaux et vos messages rapportent, en un coup d'œil."
+        description="Ce que vos campagnes, vos canaux et vos messages rapportent, en un coup d'œil."
         help={TAB_HELP[tab]}
       >
         <form method="get" className="flex flex-wrap items-center gap-2">
@@ -227,6 +235,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
               </option>
             ))}
           </select>
+          <Suspense fallback={null}>
+            <CampaignFilter campaigns={campaignList} value={campaignId} />
+          </Suspense>
           <Button type="submit" variant="outline" className="max-md:h-10">
             Appliquer
           </Button>
@@ -268,7 +279,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 className="max-md:h-10"
                 render={
                   <a
-                    href={`/dashboard/export?${new URLSearchParams({ ...pp, ...(vertical ? { vertical } : {}) }).toString()}`}
+                    href={`/dashboard/export?${new URLSearchParams({ ...pp, ...(vertical ? { vertical } : {}), ...(campaignId ? { campaignId } : {}) }).toString()}`}
                   />
                 }
               >
@@ -286,9 +297,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             <CardContent className="pt-6">
               {ads.rows.length === 0 ? (
                 <EmptyState
-                  title="Aucune pub sur cette période"
-                  description="Créez une pub dans la page Pubs et rattachez-lui son lien d'entrée : ses coûts et ses résultats apparaîtront ici."
-                  action={{ href: "/campaigns/new", label: "Créer une pub" }}
+                  title="Aucune campagne sur cette période"
+                  description="Créez une campagne (offre Link Affi, canaux et pubs) : ses coûts et ses résultats apparaîtront ici, jour par jour."
+                  action={{ href: "/campaigns/new", label: "Nouvelle campagne" }}
                 />
               ) : (
                 <AdsTable
@@ -307,8 +318,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           <p className="mt-2 text-xs text-muted-foreground">
             Coût par membre arrivé (CPL) = dépense ÷ membres entrés · coût par inscription (CPA) =
             dépense ÷ inscriptions · ROAS = revenu net (NGR) ÷ dépense · bénéfice = NGR − dépense.
-            Les dépenses viennent des imports et saisies de la page Pubs. Survolez un « ? » pour la
-            définition de chaque colonne.
+            Les dépenses viennent des comptes publicitaires connectés, des imports et des saisies de
+            la page Campagnes (onglet Pubs). La ligne Total compte chaque joueur une seule fois,
+            même quand deux campagnes partagent la même offre. Survolez un « ? » pour la définition
+            de chaque colonne.
           </p>
         </>
       ) : null}
@@ -319,7 +332,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             {rangeBar}
             <form method="get" className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="tab" value="funnel" />
-              {Object.entries(pp).map(([k, v]) => (
+              {Object.entries({ ...pp, ...base }).map(([k, v]) => (
                 <input key={k} type="hidden" name={k} value={v} />
               ))}
               <select
@@ -329,7 +342,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 className={selectCls}
               >
                 <option value="all">Tout</option>
-                <optgroup label="Pubs">
+                <optgroup label="Campagnes">
                   {campaignList.map((c) => (
                     <option key={c.id} value={`campaign:${c.id}`}>
                       {c.name}
@@ -384,80 +397,86 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       ) : null}
 
       {tab === "cohorts" && cohortRows ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              Cohortes par semaine d&apos;arrivée (12 dernières semaines){" "}
-              <HelpTip>{METRIC_HELP.cohort}</HelpTip>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {cohortRows.length === 0 ? (
-              <EmptyState
-                title="Aucun membre arrivé sur les 12 dernières semaines"
-                description="Les cohortes apparaissent dès que des membres demandent à rejoindre un canal."
-                action={{ href: "/channels", label: "Voir les canaux", variant: "outline" }}
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Semaine du</TableHead>
-                    <Head k="members" className="text-right">
-                      Membres
-                    </Head>
-                    <Head k="registered" className="text-right">
-                      Inscrits
-                    </Head>
-                    <Head k="ftds" className="text-right">
-                      FTD
-                    </Head>
-                    <Head k="deposits7" className="hidden text-right md:table-cell">
-                      Dépôts J+7
-                    </Head>
-                    <Head k="deposits30" className="hidden text-right md:table-cell">
-                      Dépôts J+30
-                    </Head>
-                    <Head k="ltv" className="text-right">
-                      LTV moyenne
-                    </Head>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cohortRows.map((r) => (
-                    <TableRow key={r.week}>
-                      <TableCell className="whitespace-nowrap">{r.week}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtNum(r.members)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtNum(r.registered)}{" "}
-                        <span className="text-xs text-muted-foreground">
-                          ({pct(r.registered, r.members)} %)
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtNum(r.ftd)}{" "}
-                        <span className="text-xs text-muted-foreground">
-                          ({pct(r.ftd, r.members)} %)
-                        </span>
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {fmtMoney(r.deposits7)}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {fmtMoney(r.deposits30)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtMoney(r.ltv)}</TableCell>
+        <>
+          <div className="mb-3">{rangeBar}</div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                Cohortes par semaine d&apos;arrivée ({label.toLowerCase()}){" "}
+                <HelpTip>{METRIC_HELP.cohort}</HelpTip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {cohortRows.length === 0 ? (
+                <EmptyState
+                  title="Aucun membre arrivé sur cette période"
+                  description="Les cohortes apparaissent dès que des membres demandent à rejoindre un canal."
+                  action={{ href: "/channels", label: "Voir les canaux", variant: "outline" }}
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Semaine du</TableHead>
+                      <Head k="members" className="text-right">
+                        Membres
+                      </Head>
+                      <Head k="registered" className="text-right">
+                        Inscrits
+                      </Head>
+                      <Head k="ftds" className="text-right">
+                        FTD
+                      </Head>
+                      <Head k="deposits7" className="hidden text-right md:table-cell">
+                        Dépôts J+7
+                      </Head>
+                      <Head k="deposits30" className="hidden text-right md:table-cell">
+                        Dépôts J+30
+                      </Head>
+                      <Head k="ltv" className="text-right">
+                        LTV moyenne
+                      </Head>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            <p className="mt-2 text-xs text-muted-foreground">
-              Arrivée = première demande d&apos;adhésion. LTV (valeur par membre) = revenu net (NGR)
-              cumulé des joueurs rattachés ÷ membres de la cohorte.
-            </p>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {cohortRows.map((r) => (
+                      <TableRow key={r.week}>
+                        <TableCell className="whitespace-nowrap">{r.week}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtNum(r.members)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtNum(r.registered)}{" "}
+                          <span className="text-xs text-muted-foreground">
+                            ({pct(r.registered, r.members)} %)
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtNum(r.ftd)}{" "}
+                          <span className="text-xs text-muted-foreground">
+                            ({pct(r.ftd, r.members)} %)
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden text-right tabular-nums md:table-cell">
+                          {fmtMoney(r.deposits7)}
+                        </TableCell>
+                        <TableCell className="hidden text-right tabular-nums md:table-cell">
+                          {fmtMoney(r.deposits30)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtMoney(r.ltv)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Arrivée = première demande d&apos;adhésion sur la période. LTV (valeur par membre) =
+                revenu net (NGR) de vos joueurs rattachés (somme des variations datées) ÷ membres de
+                la cohorte.
+              </p>
+            </CardContent>
+          </Card>
+        </>
       ) : null}
 
       {tab === "channels" && growth && best ? (
@@ -676,46 +695,58 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             />
           ) : null}
           {(["telegram", "argent"] as const).map((group) => (
-          <div key={group} className="mb-4">
-            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              {group === "telegram" ? "Telegram : demandes → acceptés → entrées → départs" : "Argent : clics pub → clics offre → inscriptions → premiers dépôts → dépôts → NGR"}
-            </h3>
-          <div className={group === "telegram" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"}>
-            {dash.metrics.filter((m) => m.group === group).map((m) => (
-              <Card key={m.key}>
-                <CardHeader className="pb-1">
-                  <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                    {m.label}{" "}
-                    {METRIC_HELP[m.key] ? (
-                      <HelpTip label={`Définition : ${m.label}`}>{METRIC_HELP[m.key]}</HelpTip>
-                    ) : null}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-end justify-between gap-2">
-                  <div>
-                    <p className="text-2xl font-semibold tabular-nums">
-                      {fmtVal(m, m.series.total)}
-                    </p>
-                    {compare ? (
-                      <p>
-                        <Delta
-                          value={deltaPct(m.series.total, prevMetric(m.key))}
-                          invert={m.key === "left"}
-                        />{" "}
-                        <span className="text-[10px] text-muted-foreground">
-                          (avant : {fmtVal(m, prevMetric(m.key))})
-                        </span>
-                      </p>
-                    ) : null}
-                  </div>
-                  {period.days === 1 ? null : (
-                    <Sparkline values={m.series.values} className="text-primary" />
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          </div>
+            <div key={group} className="mb-4">
+              <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                {group === "telegram"
+                  ? "Telegram : demandes → acceptés → entrées → départs"
+                  : "Argent : clics pub → clics offre → inscriptions → premiers dépôts → dépôts → NGR"}
+              </h3>
+              <div
+                className={
+                  group === "telegram"
+                    ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                    : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+                }
+              >
+                {dash.metrics
+                  .filter((m) => m.group === group)
+                  .map((m) => (
+                    <Card key={m.key}>
+                      <CardHeader className="pb-1">
+                        <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                          {m.label}{" "}
+                          {METRIC_HELP[m.key] ? (
+                            <HelpTip label={`Définition : ${m.label}`}>
+                              {METRIC_HELP[m.key]}
+                            </HelpTip>
+                          ) : null}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex items-end justify-between gap-2">
+                        <div>
+                          <p className="text-2xl font-semibold tabular-nums">
+                            {fmtVal(m, m.series.total)}
+                          </p>
+                          {compare ? (
+                            <p>
+                              <Delta
+                                value={deltaPct(m.series.total, prevMetric(m.key))}
+                                invert={m.key === "left"}
+                              />{" "}
+                              <span className="text-[10px] text-muted-foreground">
+                                (avant : {fmtVal(m, prevMetric(m.key))})
+                              </span>
+                            </p>
+                          ) : null}
+                        </div>
+                        {period.days === 1 ? null : (
+                          <Sparkline values={m.series.values} className="text-primary" />
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            </div>
           ))}
 
           {period.days > 1 ? (
@@ -854,7 +885,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                         <TableCell className="whitespace-nowrap text-muted-foreground">
                           {fmtDate(e.occurredAt)}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{e.type}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{e.label}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">
+                            {e.type}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden md:table-cell">
                           {e.bot ? `@${e.bot.username}` : "—"}
                         </TableCell>
@@ -876,7 +912,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 </Table>
               )}
               <p className="mt-2 text-xs text-muted-foreground">
-                La liste complète, avec filtres, est dans la page Journal.
+                La liste complète, avec filtres et export, est dans le{" "}
+                <Link href="/journal/events" className="underline underline-offset-2">
+                  Journal (vue « Événements »)
+                </Link>
+                .
               </p>
             </CardContent>
           </Card>

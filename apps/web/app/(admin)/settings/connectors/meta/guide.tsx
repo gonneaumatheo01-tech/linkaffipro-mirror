@@ -111,7 +111,7 @@ export function MetaAppGuide({
           <li>
             Revenez ici et cliquez sur <strong>Connecter un compte Meta</strong> : Facebook
             s&apos;ouvre, vous acceptez l&apos;accès, vous cochez les comptes à suivre, et les
-            dépenses des 90 derniers jours arrivent toutes seules dans Pubs.
+            dépenses des 90 derniers jours arrivent toutes seules dans Campagnes (onglet Pubs).
           </li>
         </ol>
 

@@ -1,17 +1,33 @@
-// Bibliothèque de modèles de messages prêts à l'emploi, par univers et par catégorie. Idempotent.
-// Clé technique : `Post.code` = `modele:<univers>:<categorie>:<n>` (colonne unique) ; `templateName` = titre lisible.
+// Bibliothèque de modèles de messages prêts à l'emploi, par univers et par thème. Idempotent.
+// Clé technique : `Post.code` = `modele:<univers>:<thème>:<n>` (colonne unique) ; `templateName` = « <Univers> · <Thème> · <titre> ».
+// Les modèles ne dépendent d'aucune catégorie (phase 8 : ce sont les clients qui créent les leurs) : `categoryId` reste
+// vide et le thème vit dans le code (filtre « Thème » de la vue Modèles, `apps/web/lib/posts/queries.ts`).
 // Exécution : `pnpm seed:templates` (lit `.env.local` à la racine). Ne touche jamais aux modèles créés par l'équipe.
+import { pathToFileURL } from "node:url";
 import { PrismaClient, type Vertical } from "@prisma/client";
-
-const prisma = new PrismaClient();
 
 /** Mention obligatoire (casino et paris sportifs), en italique, en fin de message. */
 const RISK = "<i>Jouer comporte des risques : endettement, isolement, dépendance.</i>";
 
 type Template = { title: string; text: string };
-type Library = Record<Vertical, Record<string, Template[]>>;
+type Theme = keyof typeof THEME_LABELS;
+type Library = Record<Vertical, Record<Theme, Template[]>>;
 
-const CASINO: Record<string, Template[]> = {
+/**
+ * Thèmes de la bibliothèque et leur libellé. Même table que `TEMPLATE_THEMES` côté site
+ * (`apps/web/lib/posts/queries.ts`) : tout ajout se fait des deux côtés, `queries.test.ts` le vérifie.
+ */
+export const THEME_LABELS = {
+  bonus: "Bonus",
+  "preuve-de-gains": "Preuve de gains",
+  teasing: "Teasing",
+  rappel: "Rappel",
+  information: "Information",
+  evenement: "Événement",
+  sondage: "Sondage",
+} as const;
+
+const CASINO: Record<Theme, Template[]> = {
   bonus: [
     {
       title: "Bonus de bienvenue",
@@ -112,7 +128,7 @@ const CASINO: Record<string, Template[]> = {
   ],
 };
 
-const SPORTS: Record<string, Template[]> = {
+const SPORTS: Record<Theme, Template[]> = {
   bonus: [
     {
       title: "Pari de bienvenue",
@@ -213,7 +229,7 @@ const SPORTS: Record<string, Template[]> = {
   ],
 };
 
-const DATING: Record<string, Template[]> = {
+const DATING: Record<Theme, Template[]> = {
   bonus: [
     {
       title: "Essai gratuit",
@@ -314,91 +330,130 @@ const DATING: Record<string, Template[]> = {
   ],
 };
 
-const LIBRARY: Library = { CASINO, SPORTS, DATING };
-const VERTICAL_LABELS: Record<Vertical, string> = { CASINO: "Casino", SPORTS: "Paris sportifs", DATING: "Rencontres" };
+export const LIBRARY: Library = { CASINO, SPORTS, DATING };
+export const VERTICAL_LABELS: Record<Vertical, string> = {
+  CASINO: "Casino",
+  SPORTS: "Paris sportifs",
+  DATING: "Rencontres",
+};
 
 function withRisk(vertical: Vertical, text: string): string {
   return vertical === "DATING" ? text : `${text}\n\n${RISK}`;
 }
 
+/** Ligne d'un modèle de la bibliothèque, sans canal ni bot (ajoutés à l'insertion). */
+export type TemplateRow = {
+  code: string;
+  templateName: string;
+  vertical: Vertical;
+  categoryId: null;
+  text: string;
+};
+
+/** Les 63 modèles (fonction pure) : code `modele:<univers>:<thème>:<n>`, nom « <Univers> · <Thème> · <titre> », sans catégorie. */
+export function buildTemplateRows(vertical?: Vertical): TemplateRow[] {
+  const verticals = vertical ? [vertical] : (Object.keys(LIBRARY) as Vertical[]);
+  return verticals.flatMap((v) =>
+    (Object.entries(LIBRARY[v]) as Array<[Theme, Template[]]>).flatMap(([theme, list]) =>
+      list.map((t, i) => ({
+        code: `modele:${v.toLowerCase()}:${theme}:${i + 1}`,
+        templateName: `${VERTICAL_LABELS[v]} · ${THEME_LABELS[theme]} · ${t.title}`,
+        vertical: v,
+        categoryId: null,
+        text: withRisk(v, t.text),
+      })),
+    ),
+  );
+}
+
+/** Accès base utilisé par le script (un PrismaClient ; une base simulée dans les tests). */
+export type TemplateDb = Pick<PrismaClient, "channel" | "bot" | "post">;
+
 /** Canal porteur des modèles d'un univers : premier canal actif de l'univers, sinon premier canal actif. */
-async function carrierChannel(vertical: Vertical) {
-  const byVertical = await prisma.channel.findFirst({
+async function carrierChannel(db: TemplateDb, vertical: Vertical) {
+  const include = {
+    primaryBot: true,
+    botAdmins: { where: { revokedAt: null }, include: { bot: true } },
+  } as const;
+  const byVertical = await db.channel.findFirst({
     where: { isActive: true, vertical },
     orderBy: { createdAt: "asc" },
-    include: { primaryBot: true, botAdmins: { where: { revokedAt: null }, include: { bot: true } } },
+    include,
   });
   const channel =
     byVertical ??
-    (await prisma.channel.findFirst({
+    (await db.channel.findFirst({
       where: { isActive: true },
       orderBy: { createdAt: "asc" },
-      include: { primaryBot: true, botAdmins: { where: { revokedAt: null }, include: { bot: true } } },
+      include,
     }));
   if (!channel) return null;
   const bot =
     (channel.primaryBot?.isActive ? channel.primaryBot : null) ??
     channel.botAdmins.find((a) => a.bot.isActive)?.bot ??
-    (await prisma.bot.findFirst({ where: { isActive: true, vertical }, orderBy: { createdAt: "asc" } })) ??
-    (await prisma.bot.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } }));
+    (await db.bot.findFirst({
+      where: { isActive: true, vertical },
+      orderBy: { createdAt: "asc" },
+    })) ??
+    (await db.bot.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } }));
   if (!bot) return null;
   return { channelId: channel.id, channelTitle: channel.title, botId: bot.id };
 }
 
-async function main() {
-  const categories = await prisma.messageCategory.findMany({ select: { id: true, slug: true, name: true } });
-  const catBySlug = new Map(categories.map((c) => [c.slug, c]));
+/** Insère les modèles absents (clé : `Post.code`), univers par univers. Idempotent : un modèle déjà présent n'est jamais modifié. */
+export async function seedTemplates(
+  db: TemplateDb,
+  log: (message: string) => void = console.log,
+): Promise<{ created: number; skipped: number }> {
   let created = 0;
   let skipped = 0;
-  let missingCats = 0;
   for (const vertical of Object.keys(LIBRARY) as Vertical[]) {
-    const carrier = await carrierChannel(vertical);
+    const carrier = await carrierChannel(db, vertical);
     if (!carrier) {
-      console.log(`[seed:templates] ${VERTICAL_LABELS[vertical]} : aucun canal actif avec un bot actif, modèles non insérés (ajoutez un canal puis relancez).`);
+      log(
+        `[seed:templates] ${VERTICAL_LABELS[vertical]} : aucun canal actif avec un bot actif, modèles non insérés (ajoutez un canal puis relancez).`,
+      );
       continue;
     }
-    for (const [slug, list] of Object.entries(LIBRARY[vertical])) {
-      const cat = catBySlug.get(slug);
-      if (!cat) {
-        missingCats++;
-        console.log(`[seed:templates] catégorie « ${slug} » absente : lancez d'abord pnpm db:seed.`);
+    for (const row of buildTemplateRows(vertical)) {
+      const existing = await db.post.findUnique({
+        where: { code: row.code },
+        select: { id: true },
+      });
+      if (existing) {
+        skipped++;
         continue;
       }
-      for (const [i, t] of list.entries()) {
-        const code = `modele:${vertical.toLowerCase()}:${slug}:${i + 1}`;
-        const existing = await prisma.post.findUnique({ where: { code }, select: { id: true } });
-        if (existing) {
-          skipped++;
-          continue;
-        }
-        await prisma.post.create({
-          data: {
-            code,
-            channelId: carrier.channelId,
-            botId: carrier.botId,
-            status: "DRAFT",
-            isTemplate: true,
-            templateName: `${VERTICAL_LABELS[vertical]} · ${cat.name} · ${t.title}`,
-            vertical,
-            categoryId: cat.id,
-            language: "fr",
-            text: withRisk(vertical, t.text),
-            mediaAssetIds: [],
-            buttons: [],
-            disableLinkPreview: true,
-          },
-        });
-        created++;
-      }
+      await db.post.create({
+        data: {
+          ...row,
+          channelId: carrier.channelId,
+          botId: carrier.botId,
+          status: "DRAFT",
+          isTemplate: true,
+          language: "fr",
+          mediaAssetIds: [],
+          buttons: [],
+          disableLinkPreview: true,
+        },
+      });
+      created++;
     }
-    console.log(`[seed:templates] ${VERTICAL_LABELS[vertical]} : canal porteur « ${carrier.channelTitle} ».`);
+    log(
+      `[seed:templates] ${VERTICAL_LABELS[vertical]} : canal porteur « ${carrier.channelTitle} ».`,
+    );
   }
-  console.log(`[seed:templates] ${created} modèle(s) créé(s), ${skipped} déjà présent(s)${missingCats ? `, ${missingCats} catégorie(s) manquante(s)` : ""}.`);
+  log(`[seed:templates] ${created} modèle(s) créé(s), ${skipped} déjà présent(s).`);
+  return { created, skipped };
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+// Exécuté seulement en script (`pnpm seed:templates`), pas à l'import (tests).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const prisma = new PrismaClient();
+  seedTemplates(prisma)
+    .catch((e) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}

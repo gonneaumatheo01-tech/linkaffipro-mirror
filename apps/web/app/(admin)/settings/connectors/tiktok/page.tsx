@@ -63,7 +63,7 @@ export default async function TikTokConnectorPage({
     <>
       <PageHeader
         title="Connecteur TikTok Ads"
-        description="Vos comptes publicitaires TikTok, connectés une fois : les dépenses, impressions et clics de chaque pub arrivent ensuite toutes seules dans le module Pubs, par jour, en devise du compte et en euros."
+        description="Vos comptes publicitaires TikTok, connectés une fois : les dépenses, impressions et clics de chaque pub arrivent ensuite toutes seules dans Campagnes (onglet Pubs), par jour, en devise du compte et en euros."
         help={
           appReady
             ? "L'application est enregistrée : cliquez sur « Connecter un compte TikTok » et cochez les comptes à suivre."

@@ -22,7 +22,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fmtDate } from "@/lib/format";
-import { listPosts, POST_STATUS_LABELS } from "@/lib/posts/queries";
+import {
+  listCalendarPosts,
+  listPosts,
+  parsePostListFilters,
+  POST_STATUS_LABELS,
+  postListQuery,
+  TEMPLATE_THEMES,
+  templateThemeOf,
+} from "@/lib/posts/queries";
 import { addDays, fromParisLocal, startOfParisWeek, toParisLocalInput } from "@/lib/posts/time";
 import { StatusBadge } from "@/lib/status-badges";
 
@@ -32,10 +40,10 @@ const STATUSES = Object.keys(POST_STATUS_LABELS) as PostStatus[];
 
 const VIEW_HELP = {
   calendar:
-    "Le calendrier de la semaine, heure par heure. Cliquez un message pour l'ouvrir ; « Nouveau message » pour en programmer un.",
-  list: "Tous les messages, avec filtres par canal, statut, catégorie et dates. « Exporter CSV » télécharge la liste filtrée avec les statistiques.",
+    "Le calendrier de la semaine, heure par heure. Choisissez une campagne pour ne voir que ses messages. Cliquez un message pour l'ouvrir ; « Nouveau message » pour en programmer un.",
+  list: "Tous les messages, avec filtres par canal, campagne, statut, catégorie et dates. « Exporter CSV » télécharge la liste filtrée avec les statistiques.",
   templates:
-    "Vos modèles : des messages prêts à réutiliser, classés par univers et catégorie. Cliquez « Utiliser ce modèle » pour créer un message pré-rempli.",
+    "Vos modèles : des messages prêts à réutiliser, classés par univers et par thème (bonus, rappel, sondage…). Cliquez « Utiliser ce modèle » pour créer un message pré-rempli.",
 } as const;
 
 export default async function MessagesPage({ searchParams }: PageProps<"/messages">) {
@@ -58,32 +66,21 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
     listCampaignOptions(),
   ]);
 
-  const f = {
-    channelId: typeof sp.channel === "string" ? sp.channel : "",
-    campaignId: typeof sp.campaign === "string" ? sp.campaign : "",
-    status: typeof sp.status === "string" ? sp.status : "",
-    categoryId: typeof sp.category === "string" ? sp.category : "",
-    from: typeof sp.from === "string" ? sp.from : "",
-    to: typeof sp.to === "string" ? sp.to : "",
-    vertical: typeof sp.vertical === "string" ? sp.vertical : "",
-  };
-  const hasFilters = Boolean(
-    f.channelId || f.campaignId || f.status || f.categoryId || f.from || f.to || f.vertical,
-  );
-  const exportHref = `/messages/export?${new URLSearchParams({ ...(f.channelId ? { channel: f.channelId } : {}), ...(f.campaignId ? { campaign: f.campaignId } : {}), ...(f.status ? { status: f.status } : {}), ...(f.categoryId ? { category: f.categoryId } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}) }).toString()}`;
+  // Filtre campagne : `campaignId` (l'ancien nom `campaign` reste accepté), commun au calendrier, à la liste et à l'export.
+  const f = parsePostListFilters(sp);
+  const hasFilters =
+    view === "templates"
+      ? Boolean(f.vertical || f.theme)
+      : Boolean(f.channelId || f.campaignId || f.status || f.categoryId || f.from || f.to);
+  const exportHref = `/messages/export?${postListQuery(f)}`;
+  const campaignQs = f.campaignId ? `&campaignId=${encodeURIComponent(f.campaignId)}` : "";
+  const campaignName = campaigns.find((c) => c.id === f.campaignId)?.name;
 
   const page = pageOf(sp);
   const listed = view === "calendar" ? null : await listPosts({ view, filters: f, page });
   const posts =
     view === "calendar"
-      ? await prisma.post.findMany({
-          where: { isTemplate: false, scheduledAt: { gte: weekStart, lt: weekEnd } },
-          orderBy: { scheduledAt: "asc" },
-          include: {
-            channel: { select: { title: true } },
-            category: { select: { name: true, color: true } },
-          },
-        })
+      ? await listCalendarPosts({ weekStart, weekEnd, campaignId: f.campaignId })
       : listed!.rows;
 
   const weekKey = toParisLocalInput(weekStart).slice(0, 10);
@@ -115,14 +112,14 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
       <Flash ok={sp.ok} error={sp.error} />
       <nav aria-label="Vue" className="mb-4 flex flex-wrap items-center gap-2">
         <Link
-          href="/messages?view=calendar"
+          href={`/messages?view=calendar${campaignQs}`}
           aria-current={view === "calendar" ? "page" : undefined}
           className={tabCls("calendar")}
         >
           Calendrier
         </Link>
         <Link
-          href="/messages?view=list"
+          href={`/messages?view=list${campaignQs}`}
           aria-current={view === "list" ? "page" : undefined}
           className={tabCls("list")}
         >
@@ -144,7 +141,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
               size="sm"
               variant="outline"
               className="max-md:h-10"
-              render={<Link href={`/messages?view=calendar&week=${prevWeek}`} />}
+              render={<Link href={`/messages?view=calendar&week=${prevWeek}${campaignQs}`} />}
             >
               ← Semaine précédente
             </Button>
@@ -153,7 +150,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
               size="sm"
               variant="outline"
               className="max-md:h-10"
-              render={<Link href={`/messages?view=calendar&week=${nextWeek}`} />}
+              render={<Link href={`/messages?view=calendar&week=${nextWeek}${campaignQs}`} />}
             >
               Semaine suivante →
             </Button>
@@ -161,20 +158,53 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
               size="sm"
               variant="ghost"
               className="max-md:h-10"
-              render={<Link href="/messages?view=calendar" />}
+              render={<Link href={`/messages?view=calendar${campaignQs}`} />}
             >
               Aujourd&apos;hui
             </Button>
             <span className="text-muted-foreground">
               ({posts.length} message{posts.length > 1 ? "s" : ""}, semaine {weekKey})
             </span>
+            <form method="get" className="flex flex-wrap items-center gap-2 md:ml-auto">
+              <input type="hidden" name="view" value="calendar" />
+              <input type="hidden" name="week" value={weekKey} />
+              <select
+                name="campaignId"
+                aria-label="Campagne"
+                title="Messages des canaux de la campagne ou portant un bouton Offre vers une de ses offres"
+                defaultValue={f.campaignId}
+                className={selectCls}
+              >
+                <option value="">Toutes les campagnes</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                Filtrer
+              </Button>
+            </form>
           </div>
           {posts.length === 0 ? (
-            <EmptyState
-              title="Aucun message cette semaine"
-              description="Programmez un message : choisissez les canaux, écrivez le texte, ajoutez des boutons, puis une date et une heure."
-              action={{ href: "/messages/new", label: "Nouveau message" }}
-            />
+            f.campaignId ? (
+              <EmptyState
+                title={`Aucun message de la campagne « ${campaignName ?? "inconnue"} » cette semaine`}
+                description="Changez de semaine, ou affichez toutes les campagnes."
+                action={{
+                  href: `/messages?view=calendar&week=${weekKey}`,
+                  label: "Toutes les campagnes",
+                  variant: "outline",
+                }}
+              />
+            ) : (
+              <EmptyState
+                title="Aucun message cette semaine"
+                description="Programmez un message : choisissez les canaux, écrivez le texte, ajoutez des boutons, puis une date et une heure."
+                action={{ href: "/messages/new", label: "Nouveau message" }}
+              />
+            )
           ) : null}
           <WeekCalendar weekStart={weekStart} posts={posts} />
         </div>
@@ -202,7 +232,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                   ))}
                 </select>
                 <select
-                  name="campaign"
+                  name="campaignId"
                   aria-label="Campagne"
                   title="Messages des canaux de la campagne ou portant un bouton Offre vers une de ses offres"
                   defaultValue={f.campaignId}
@@ -293,15 +323,15 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                   ))}
                 </select>
                 <select
-                  name="category"
-                  aria-label="Catégorie"
-                  defaultValue={f.categoryId}
+                  name="theme"
+                  aria-label="Thème"
+                  defaultValue={f.theme}
                   className={selectCls}
                 >
-                  <option value="">Toutes les catégories</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
+                  <option value="">Tous les thèmes</option>
+                  {TEMPLATE_THEMES.map((t) => (
+                    <option key={t.slug} value={t.slug}>
+                      {t.label}
                     </option>
                   ))}
                 </select>
@@ -315,7 +345,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                 hasFilters ? (
                   <EmptyState
                     title="Aucun modèle pour ces filtres"
-                    description="Changez d'univers ou de catégorie, ou retirez les filtres."
+                    description="Changez d'univers ou de thème, ou retirez les filtres."
                     action={{
                       href: "/messages?view=templates",
                       label: "Tous les modèles",
@@ -325,7 +355,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                 ) : (
                   <EmptyState
                     title="Aucun modèle"
-                    description="Ouvrez un message et cliquez « Enregistrer comme modèle » : vous pourrez le réutiliser en un clic. Des modèles prêts à l'emploi par univers peuvent aussi être installés (pnpm seed:templates)."
+                    description="Ouvrez un message et cliquez « Enregistrer comme modèle » : vous pourrez le réutiliser en un clic."
                     action={{
                       href: "/messages?view=list",
                       label: "Voir les messages",
@@ -356,7 +386,9 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                   <TableRow>
                     <TableHead>{view === "templates" ? "Modèle" : "Date"}</TableHead>
                     <TableHead>{view === "templates" ? "Univers" : "Canal"}</TableHead>
-                    <TableHead className="hidden md:table-cell">Catégorie</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      {view === "templates" ? "Thème" : "Catégorie"}
+                    </TableHead>
                     <TableHead className="hidden md:table-cell">Texte</TableHead>
                     {view === "templates" ? null : <TableHead>Statut</TableHead>}
                     <TableHead className="text-right">
@@ -389,18 +421,20 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
                           : p.channel.title}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {p.category ? (
-                          <span className="inline-flex items-center gap-1">
-                            <span
-                              className="inline-block size-2 rounded-full"
-                              style={{ background: p.category.color }}
-                              aria-hidden="true"
-                            />
-                            {p.category.name}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
+                        {/* Modèles : thème de la bibliothèque (lu dans le code), sinon la catégorie du modèle. */}
+                        {(view === "templates" ? templateThemeOf(p.code)?.label : null) ??
+                          (p.category ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span
+                                className="inline-block size-2 rounded-full"
+                                style={{ background: p.category.color }}
+                                aria-hidden="true"
+                              />
+                              {p.category.name}
+                            </span>
+                          ) : (
+                            "—"
+                          ))}
                       </TableCell>
                       <TableCell className="hidden max-w-md truncate text-muted-foreground md:table-cell">
                         {stripHtml(p.text).slice(0, 80) || "(média)"}

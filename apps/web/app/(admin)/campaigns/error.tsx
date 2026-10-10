@@ -2,7 +2,7 @@
 
 import { ErrorPage } from "@/components/admin/error-page";
 
-/** Erreur dans la section Pubs : phrase simple et bouton « Réessayer », sans trace technique. */
+/** Erreur dans la section Campagnes : phrase simple et bouton « Réessayer », sans trace technique. */
 export default function Error({
   error,
   reset,
@@ -10,5 +10,5 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <ErrorPage error={error} reset={reset} title="La page Pubs n'a pas pu s'afficher." />;
+  return <ErrorPage error={error} reset={reset} title="La page Campagnes n'a pas pu s'afficher." />;
 }

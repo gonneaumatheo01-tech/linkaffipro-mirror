@@ -25,7 +25,7 @@ export default async function EditMessagePage({
     where: { id: { in: ids } },
     select: { id: true, filename: true, mimeType: true, size: true },
   });
-  const { channels, categories, campaigns } = await loadFormOptions();
+  const { channels, categories, campaigns, campaignOptions } = await loadFormOptions();
   const bestSlots = post.isTemplate ? {} : await loadBestSlots(channels.map((c) => c.id));
   const initial: PostFormValues = {
     postId: post.id,
@@ -44,6 +44,7 @@ export default async function EditMessagePage({
     disableLinkPreview: post.disableLinkPreview,
     isTemplate: post.isTemplate,
     templateName: post.templateName ?? "",
+    vertical: post.vertical,
   };
   const editable = ["DRAFT", "SCHEDULED", "FAILED", "CANCELLED"].includes(post.status);
   return (
@@ -75,6 +76,7 @@ export default async function EditMessagePage({
           channels={channels}
           categories={categories}
           campaigns={campaigns}
+          campaignOptions={campaignOptions}
           initial={initial}
           singleChannel
           bestSlots={bestSlots}

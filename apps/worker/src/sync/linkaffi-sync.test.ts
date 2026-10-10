@@ -1,13 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => {
-// ---- Fausse base Prisma en mémoire (seules les méthodes utilisées par la synchro) ----
+  // ---- Fausse base Prisma en mémoire (seules les méthodes utilisées par la synchro) ----
   type Row = Record<string, unknown>;
-  const store = { programs: [] as Row[], campaigns: [] as Row[], players: [] as Row[], events: [] as Row[], syncStates: new Map<string, Row>(), clicks: [] as Row[], postStats: new Map<string, Row>(), recorded: [] as Row[] };
+  const store = {
+    programs: [] as Row[],
+    campaigns: [] as Row[],
+    players: [] as Row[],
+    events: [] as Row[],
+    syncStates: new Map<string, Row>(),
+    clicks: [] as Row[],
+    postStats: new Map<string, Row>(),
+    recorded: [] as Row[],
+  };
   let seq = 0;
   const id = () => `id${++seq}`;
-  const resetSeq = () => { seq = 0; };
-  
+  const resetSeq = () => {
+    seq = 0;
+  };
+
   function matchWhere(row: Row, where: Row): boolean {
     return Object.entries(where).every(([k, v]) => {
       if (v && typeof v === "object" && !(v instanceof Date)) {
@@ -20,17 +31,24 @@ const h = vi.hoisted(() => {
           const click = store.clicks.find((c) => c.id === row.clickId);
           return click?.postId === o.postId;
         }
-        return Object.values(o).every((vv) => Object.values(row).includes(vv)) || Object.entries(o).every(([kk, vv]) => row[kk] === vv);
+        return (
+          Object.values(o).every((vv) => Object.values(row).includes(vv)) ||
+          Object.entries(o).every(([kk, vv]) => row[kk] === vv)
+        );
       }
       return row[k] === v;
     });
   }
-  
+
   function table(rows: Row[], uniq: (where: Row) => (r: Row) => boolean) {
     return {
-      findMany: vi.fn(async (args?: { where?: Row }) => rows.filter((r) => !args?.where || matchWhere(r, args.where))),
+      findMany: vi.fn(async (args?: { where?: Row }) =>
+        rows.filter((r) => !args?.where || matchWhere(r, args.where)),
+      ),
       findUnique: vi.fn(async (args: { where: Row }) => rows.find(uniq(args.where)) ?? null),
-      findFirst: vi.fn(async (args: { where: Row }) => rows.find((r) => matchWhere(r, args.where)) ?? null),
+      findFirst: vi.fn(
+        async (args: { where: Row }) => rows.find((r) => matchWhere(r, args.where)) ?? null,
+      ),
       upsert: vi.fn(async (args: { where: Row; create: Row; update: Row }) => {
         const hit = rows.find(uniq(args.where));
         if (hit) {
@@ -45,7 +63,8 @@ const h = vi.hoisted(() => {
         const hit = rows.find((r) => r.id === args.where.id || uniq(args.where)(r));
         if (!hit) throw new Error("introuvable");
         for (const [k, v] of Object.entries(args.data)) {
-          if (v && typeof v === "object" && "increment" in (v as Row)) hit[k] = ((hit[k] as number) ?? 0) + ((v as Row).increment as number);
+          if (v && typeof v === "object" && "increment" in (v as Row))
+            hit[k] = ((hit[k] as number) ?? 0) + ((v as Row).increment as number);
           else hit[k] = v;
         }
         return hit;
@@ -57,25 +76,60 @@ const h = vi.hoisted(() => {
       }),
     };
   }
-  
-  const fakePrisma = {
-    affiliateProgram: table(store.programs, (w) => (r) => { const u = w.source_externalId as Row | undefined; return u ? r.source === u.source && r.externalId === u.externalId : r.id === w.id; }),
-    affiliateCampaign: table(store.campaigns, (w) => (r) => { const u = w.programId_externalId as Row | undefined; return u ? r.programId === u.programId && r.externalId === u.externalId : r.id === w.id; }),
-    player: table(store.players, (w) => (r) => { const u = w.affiliateCampaignId_externalPlayerId as Row | undefined; return u ? r.affiliateCampaignId === u.affiliateCampaignId && r.externalPlayerId === u.externalPlayerId : r.id === w.id; }),
-    playerEvent: table(store.events, (w) => (r) => { const u = w.playerId_externalId as Row | undefined; return u ? r.playerId === u.playerId && r.externalId === u.externalId : r.id === w.id; }),
+
+  const fakePrisma: Record<string, unknown> = {
+    // Transaction interactive : en cas d'erreur, joueurs et événements reviennent à leur état d'avant (comme Postgres).
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const players = store.players.map((r) => ({ ...r }));
+      const events = store.events.map((r) => ({ ...r }));
+      try {
+        return await fn(fakePrisma);
+      } catch (err) {
+        store.players.splice(0, store.players.length, ...players);
+        store.events.splice(0, store.events.length, ...events);
+        throw err;
+      }
+    }),
+    affiliateProgram: table(store.programs, (w) => (r) => {
+      const u = w.source_externalId as Row | undefined;
+      return u ? r.source === u.source && r.externalId === u.externalId : r.id === w.id;
+    }),
+    affiliateCampaign: table(store.campaigns, (w) => (r) => {
+      const u = w.programId_externalId as Row | undefined;
+      return u ? r.programId === u.programId && r.externalId === u.externalId : r.id === w.id;
+    }),
+    player: table(store.players, (w) => (r) => {
+      const u = w.affiliateCampaignId_externalPlayerId as Row | undefined;
+      return u
+        ? r.affiliateCampaignId === u.affiliateCampaignId &&
+            r.externalPlayerId === u.externalPlayerId
+        : r.id === w.id;
+    }),
+    playerEvent: table(store.events, (w) => (r) => {
+      const u = w.playerId_externalId as Row | undefined;
+      return u ? r.playerId === u.playerId && r.externalId === u.externalId : r.id === w.id;
+    }),
     click: table(store.clicks, (w) => (r) => (w.subId ? r.subId === w.subId : r.id === w.id)),
     syncState: {
       upsert: vi.fn(async (args: { where: { source: string }; create: Row }) => {
         const hit = store.syncStates.get(args.where.source);
         if (hit) return hit;
-        const created = { source: args.where.source, cursor: {}, isRunning: false, lastRunAt: null, rowsImported: 0, ...args.create };
+        const created = {
+          source: args.where.source,
+          cursor: {},
+          isRunning: false,
+          lastRunAt: null,
+          rowsImported: 0,
+          ...args.create,
+        };
         store.syncStates.set(args.where.source, created);
         return created;
       }),
       update: vi.fn(async (args: { where: { source: string }; data: Row }) => {
         const hit = store.syncStates.get(args.where.source)!;
         for (const [k, v] of Object.entries(args.data)) {
-          if (v && typeof v === "object" && "increment" in (v as Row)) hit[k] = ((hit[k] as number) ?? 0) + ((v as Row).increment as number);
+          if (v && typeof v === "object" && "increment" in (v as Row))
+            hit[k] = ((hit[k] as number) ?? 0) + ((v as Row).increment as number);
           else hit[k] = v;
         }
         return hit;
@@ -90,8 +144,7 @@ const h = vi.hoisted(() => {
       }),
     },
   };
-  
-  
+
   return { store, fakePrisma, id, resetSeq };
 });
 const { store, resetSeq } = h;
@@ -110,12 +163,34 @@ type Row = Record<string, unknown>;
 // ---- Faux client API ----
 const data: Record<string, Row[]> = {
   casinos: [{ id: "cas1", name: "Celsius", is_active: true }],
-  campaigns: [{ id: "camp1", campaign_key: "47eb8mwc", name: "TT", casino_id: "cas1", domain: "linkaffi.me" }],
+  campaigns: [
+    { id: "camp1", campaign_key: "47eb8mwc", name: "TT", casino_id: "cas1", domain: "linkaffi.me" },
+  ],
   currency_rates: [{ currency: "EUR", rate: 1 }],
   players: [
-    { id: "la1", casino_id: "cas1", campaign_id: "camp1", external_player_id: 241253, sub_id: "AbC123def456", sub_id_source: "time_match", status: "registered", all_deposits_count: 0, total_deposited_amount: 0, created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-01T10:00:00Z" },
+    {
+      id: "la1",
+      casino_id: "cas1",
+      campaign_id: "camp1",
+      external_player_id: 241253,
+      sub_id: "AbC123def456",
+      sub_id_source: "time_match",
+      status: "registered",
+      all_deposits_count: 0,
+      total_deposited_amount: 0,
+      created_at: "2026-10-01T10:00:00Z",
+      updated_at: "2026-10-01T10:00:00Z",
+    },
   ],
-  player_events: [{ id: "ev1", player_id: "la1", event: "registration", idempotency_key: "registration:241253", created_at: "2026-10-01T10:00:00Z" }],
+  player_events: [
+    {
+      id: "ev1",
+      player_id: "la1",
+      event: "registration",
+      idempotency_key: "registration:241253",
+      created_at: "2026-10-01T10:00:00Z",
+    },
+  ],
   player_financials: [],
   revshare_snapshots: [],
   deposit_snapshots: [],
@@ -151,9 +226,17 @@ describe("runSync", () => {
     const r1 = await runSync({ client: fakeClient, now });
     expect(r1.every((r) => r.ok)).toBe(true);
     expect(store.programs).toHaveLength(1);
-    expect(store.campaigns[0]).toMatchObject({ campaignKey: "47eb8mwc", trackingUrlTemplate: "https://linkaffi.me/go/47eb8mwc?sub_id={subid}" });
+    expect(store.campaigns[0]).toMatchObject({
+      campaignKey: "47eb8mwc",
+      trackingUrlTemplate: "https://linkaffi.me/go/47eb8mwc?sub_id={subid}",
+    });
     expect(store.players).toHaveLength(1);
-    expect(store.players[0]).toMatchObject({ subId: "AbC123def456", subIdSource: "time_match", clickId: "clk1", memberId: "mem1" });
+    expect(store.players[0]).toMatchObject({
+      subId: "AbC123def456",
+      subIdSource: "time_match",
+      clickId: "clk1",
+      memberId: "mem1",
+    });
     expect(store.events).toHaveLength(1);
     expect(store.recorded.map((e) => e.type)).toEqual(["player.registered"]);
     expect(store.recorded[0]).toMatchObject({ memberId: "mem1" });
@@ -164,7 +247,11 @@ describe("runSync", () => {
     expect(store.players).toHaveLength(1);
     expect(store.events).toHaveLength(1);
     expect(store.recorded).toHaveLength(1);
-    expect(store.syncStates.get("players")).toMatchObject({ isRunning: false, lastError: null, rowsImported: 2 });
+    expect(store.syncStates.get("players")).toMatchObject({
+      isRunning: false,
+      lastError: null,
+      rowsImported: 2,
+    });
   });
 
   it("lit une fenêtre incrémentale avec chevauchement au second passage", async () => {
@@ -179,14 +266,101 @@ describe("runSync", () => {
 
   it("un postback remplace ensuite le time_match et la table en erreur ne bloque pas les autres", async () => {
     await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
-    data.players![0] = { ...data.players![0]!, sub_id: "NEW999new000", sub_id_source: "postback", updated_at: "2026-10-09T12:05:00Z" };
+    data.players![0] = {
+      ...data.players![0]!,
+      sub_id: "NEW999new000",
+      sub_id_source: "postback",
+      updated_at: "2026-10-09T12:05:00Z",
+    };
     store.clicks.push({ id: "clk2", subId: "NEW999new000", memberId: "mem2", postId: "post2" });
-    const failing = { getPage: vi.fn(async (t: string, q: Row) => { if (t === "revshare_snapshots") throw new Error("503"); return (fakeClient as unknown as { getPage: (t: string, q: Row) => Promise<unknown> }).getPage(t, q); }) } as unknown as LinkAffiClient;
+    const failing = {
+      getPage: vi.fn(async (t: string, q: Row) => {
+        if (t === "revshare_snapshots") throw new Error("503");
+        return (
+          fakeClient as unknown as { getPage: (t: string, q: Row) => Promise<unknown> }
+        ).getPage(t, q);
+      }),
+    } as unknown as LinkAffiClient;
     const r = await runSync({ client: failing, now: () => new Date("2026-10-09T12:10:00Z") });
-    expect(r.find((x) => x.table === "revshare_snapshots")).toMatchObject({ ok: false, error: "503" });
+    expect(r.find((x) => x.table === "revshare_snapshots")).toMatchObject({
+      ok: false,
+      error: "503",
+    });
     expect(r.find((x) => x.table === "clicks")).toMatchObject({ ok: true });
-    expect(store.players[0]).toMatchObject({ subId: "NEW999new000", subIdSource: "postback", clickId: "clk2", memberId: "mem2" });
-    expect(store.syncStates.get("revshare_snapshots")).toMatchObject({ isRunning: false, lastError: "503" });
-    data.players![0] = { ...data.players![0]!, sub_id: "AbC123def456", sub_id_source: "time_match", updated_at: "2026-10-01T10:00:00Z" };
+    expect(store.players[0]).toMatchObject({
+      subId: "NEW999new000",
+      subIdSource: "postback",
+      clickId: "clk2",
+      memberId: "mem2",
+    });
+    expect(store.syncStates.get("revshare_snapshots")).toMatchObject({
+      isRunning: false,
+      lastError: "503",
+    });
+    data.players![0] = {
+      ...data.players![0]!,
+      sub_id: "AbC123def456",
+      sub_id_source: "time_match",
+      updated_at: "2026-10-01T10:00:00Z",
+    };
+  });
+});
+
+describe("NGR daté depuis les instantanés revshare (phase 8)", () => {
+  const snap = (ngr: number, at: string) => [
+    {
+      id: "s1",
+      player_id: 241253,
+      casino_id: "cas1",
+      last_ngr: ngr,
+      last_seen_at: at,
+      updated_at: at,
+    },
+  ];
+  const ngrEvents = () =>
+    store.events
+      .filter((e) => e.type === "NGR")
+      .map((e) => ({ amount: e.amount, occurredAt: (e.occurredAt as Date).toISOString() }));
+
+  it("instantané 10 puis 25 : deux événements +10 et +15 à la date réelle, rien si le NGR ne bouge pas", async () => {
+    data.revshare_snapshots = snap(10, "2026-10-05T08:00:00.000Z");
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+    data.revshare_snapshots = snap(25, "2026-10-08T09:30:00.000Z");
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:10:00Z") });
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:20:00Z") });
+    expect(ngrEvents()).toEqual([
+      { amount: 10, occurredAt: "2026-10-05T08:00:00.000Z" },
+      { amount: 15, occurredAt: "2026-10-08T09:30:00.000Z" },
+    ]);
+    expect(Number(store.players[0]!.ngr)).toBe(25);
+    // Journal des événements : dates réelles Link Affi, pas la date d'import.
+    const at = (type: string) =>
+      store.recorded
+        .filter((e) => e.type === type)
+        .map((e) => (e.occurredAt as Date | undefined)?.toISOString());
+    expect(at("player.registered")).toEqual(["2026-10-01T10:00:00.000Z"]);
+    expect(at("player.ngr_updated")).toEqual([
+      "2026-10-05T08:00:00.000Z",
+      "2026-10-08T09:30:00.000Z",
+    ]);
+    data.revshare_snapshots = [];
+  });
+
+  it("si l'événement NGR ne peut pas être écrit, le joueur n'est pas modifié et la table passe en erreur (repris au passage suivant)", async () => {
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+    data.revshare_snapshots = snap(12, "2026-10-06T08:00:00.000Z");
+    const create = h.fakePrisma.playerEvent as { create: ReturnType<typeof vi.fn> };
+    create.create.mockRejectedValueOnce(new Error("base saturée"));
+    const r = await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:10:00Z") });
+    expect(r.find((x) => x.table === "revshare_snapshots")).toMatchObject({
+      ok: false,
+      error: "base saturée",
+    });
+    expect(Number(store.players[0]!.ngr ?? 0)).toBe(0);
+    expect(ngrEvents()).toEqual([]);
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:20:00Z") });
+    expect(ngrEvents()).toEqual([{ amount: 12, occurredAt: "2026-10-06T08:00:00.000Z" }]);
+    expect(Number(store.players[0]!.ngr)).toBe(12);
+    data.revshare_snapshots = [];
   });
 });

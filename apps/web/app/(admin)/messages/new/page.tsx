@@ -6,16 +6,21 @@ import { PostForm, type PostFormValues } from "@/components/messages/post-form";
 import { parseButtons } from "@/lib/posts/buttons";
 import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
 import { loadBestSlots } from "@/lib/besthours/queries";
+import { listCampaignOptions } from "@/lib/campaigns/queries";
 import { createPostAction } from "../actions";
 
 export const metadata: Metadata = { title: "Nouveau message" };
 
+/**
+ * Options du formulaire de message : canaux (avec univers, pour l'assistant IA), catégories, campagnes Link Affi
+ * (boutons anciens) et nos campagnes avec leurs offres (bouton « Offre », chargées à chaque affichage).
+ */
 export async function loadFormOptions() {
-  const [channels, categories, campaigns] = await Promise.all([
+  const [channels, categories, campaigns, campaignOptions] = await Promise.all([
     prisma.channel.findMany({
       where: { isActive: true },
       orderBy: { title: "asc" },
-      select: { id: true, title: true, language: true },
+      select: { id: true, title: true, language: true, vertical: true },
     }),
     prisma.messageCategory.findMany({
       where: { isActive: true },
@@ -27,11 +32,13 @@ export async function loadFormOptions() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, program: { select: { name: true } } },
     }),
+    listCampaignOptions(),
   ]);
   return {
     channels,
     categories,
     campaigns: campaigns.map((c) => ({ id: c.id, name: c.name, programName: c.program.name })),
+    campaignOptions,
   };
 }
 
@@ -50,7 +57,7 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         select: { id: true, filename: true, mimeType: true, size: true },
       })
     : [];
-  const { channels, categories, campaigns } = await loadFormOptions();
+  const { channels, categories, campaigns, campaignOptions } = await loadFormOptions();
   const bestSlots = await loadBestSlots(channels.map((c) => c.id));
   const defaultAt = defaultScheduleTime();
   const presetChannel = typeof sp.channel === "string" ? sp.channel : "";
@@ -89,6 +96,8 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
     disableLinkPreview: source?.disableLinkPreview ?? true,
     isTemplate: false,
     templateName: "",
+    // Message créé depuis un modèle : l'univers du modèle guide l'assistant IA.
+    vertical: source?.vertical ?? null,
     duplicatedFromId: source?.id,
   };
   return (
@@ -110,6 +119,7 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         channels={channels}
         categories={categories}
         campaigns={campaigns}
+        campaignOptions={campaignOptions}
         initial={initial}
         bestSlots={bestSlots}
         abAllowed

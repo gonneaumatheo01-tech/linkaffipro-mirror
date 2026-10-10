@@ -5,16 +5,39 @@ import type { AiClient, AiMessageRequest, AiMessageResponse, AiUsage } from "./t
 /** Convertit une erreur du SDK en erreur lisible, sans jamais exposer la clé. */
 export function toAiError(err: unknown): AiError {
   if (err instanceof AiError) return err;
-  if (err instanceof Anthropic.AuthenticationError) return new AiError("auth", "Clé API refusée par Anthropic : vérifiez-la dans Réglages → IA.");
-  if (err instanceof Anthropic.PermissionDeniedError) return new AiError("auth", "Cette clé n'a pas le droit d'utiliser ce modèle (vérifiez les crédits et l'espace de travail dans la console Anthropic).");
-  if (err instanceof Anthropic.RateLimitError) return new AiError("rate_limit", "Anthropic limite le débit pour le moment : réessayez dans une minute.");
-  if (err instanceof Anthropic.BadRequestError) return new AiError("api", `Demande refusée par Anthropic (${err.message.slice(0, 160)}).`);
-  if (err instanceof Anthropic.APIConnectionError) return new AiError("network", "Impossible de joindre l'API Anthropic : vérifiez la connexion et réessayez.");
-  if (err instanceof Anthropic.APIError) return new AiError("api", `Erreur Anthropic ${err.status ?? ""} : ${err.message.slice(0, 160)}`);
+  if (err instanceof Anthropic.AuthenticationError)
+    return new AiError("auth", "Clé API refusée par Anthropic : vérifiez-la dans Réglages → IA.");
+  if (err instanceof Anthropic.PermissionDeniedError)
+    return new AiError(
+      "auth",
+      "Cette clé n'a pas le droit d'utiliser ce modèle (vérifiez les crédits et l'espace de travail dans la console Anthropic).",
+    );
+  if (err instanceof Anthropic.RateLimitError)
+    return new AiError(
+      "rate_limit",
+      "Anthropic limite le débit pour le moment : réessayez dans une minute.",
+    );
+  if (err instanceof Anthropic.BadRequestError)
+    return new AiError("api", `Demande refusée par Anthropic (${err.message.slice(0, 160)}).`);
+  if (err instanceof Anthropic.APIConnectionError)
+    return new AiError(
+      "network",
+      "Impossible de joindre l'API Anthropic : vérifiez la connexion et réessayez.",
+    );
+  if (err instanceof Anthropic.APIError)
+    return new AiError(
+      "api",
+      `Erreur Anthropic ${err.status ?? ""} : ${err.message.slice(0, 160)}`,
+    );
   return new AiError("api", err instanceof Error ? err.message.slice(0, 200) : "Erreur inconnue.");
 }
 
-export function usageOf(u: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }): AiUsage {
+export function usageOf(u: {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+}): AiUsage {
   return {
     inputTokens: u.input_tokens,
     outputTokens: u.output_tokens,
@@ -23,19 +46,44 @@ export function usageOf(u: { input_tokens: number; output_tokens: number; cache_
   };
 }
 
-/** Client réel : SDK officiel, un seul appel non streamé par demande (sorties courtes). */
-export function createAnthropicClient(apiKey: string, opts: { timeoutMs?: number } = {}): AiClient {
-  const client = new Anthropic({ apiKey, timeout: opts.timeoutMs ?? 60_000, maxRetries: 1 });
+/**
+ * Client réel : SDK officiel, un seul appel non streamé par demande (sorties courtes).
+ * Effort « low » par défaut (Haiku 5.5 et Sonnet 5.5 réfléchissent d'office ; la réflexion compte dans max_tokens).
+ * `fetch` : injectable pour les tests (aucun appel réseau).
+ */
+export function createAnthropicClient(
+  apiKey: string,
+  opts: { timeoutMs?: number; fetch?: typeof fetch } = {},
+): AiClient {
+  const client = new Anthropic({
+    apiKey,
+    timeout: opts.timeoutMs ?? 90_000,
+    maxRetries: 1,
+    ...(opts.fetch ? { fetch: opts.fetch } : {}),
+  });
   return {
     async createMessage(req: AiMessageRequest): Promise<AiMessageResponse> {
       try {
         const res = await client.messages.create({
           model: req.model,
           max_tokens: req.maxTokens,
-          system: req.system.map((b) => (b.cache ? { type: "text" as const, text: b.text, cache_control: { type: "ephemeral" as const } } : { type: "text" as const, text: b.text })),
+          output_config: { effort: req.effort ?? "low" },
+          system: req.system.map((b) =>
+            b.cache
+              ? {
+                  type: "text" as const,
+                  text: b.text,
+                  cache_control: { type: "ephemeral" as const },
+                }
+              : { type: "text" as const, text: b.text },
+          ),
           messages: [{ role: "user", content: req.user }],
         });
-        if (res.stop_reason === "refusal") throw new AiError("api", "L'IA a refusé cette demande (contenu non autorisé). Reformulez le brouillon.");
+        if (res.stop_reason === "refusal")
+          throw new AiError(
+            "api",
+            "L'IA a refusé cette demande (contenu non autorisé). Reformulez le brouillon.",
+          );
         const text = res.content
           .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
           .map((b) => b.text)
@@ -48,10 +96,22 @@ export function createAnthropicClient(apiKey: string, opts: { timeoutMs?: number
   };
 }
 
-/** Vérification minimale d'une clé (bouton « Vérifier ») : un appel de 5 jetons au modèle demandé. */
-export async function verifyApiKey(apiKey: string, model: string, client: AiClient = createAnthropicClient(apiKey, { timeoutMs: 20_000 })): Promise<{ ok: true; usage: AiUsage } | { ok: false; error: string }> {
+/**
+ * Vérification minimale d'une clé (bouton « Vérifier ») : un appel de 16 jetons au modèle demandé.
+ * Une réponse coupée (stop_reason max_tokens) suffit : seule compte l'acceptation de la clé.
+ */
+export async function verifyApiKey(
+  apiKey: string,
+  model: string,
+  client: AiClient = createAnthropicClient(apiKey, { timeoutMs: 20_000 }),
+): Promise<{ ok: true; usage: AiUsage } | { ok: false; error: string }> {
   try {
-    const res = await client.createMessage({ model, maxTokens: 5, system: [], user: "Réponds simplement : ok" });
+    const res = await client.createMessage({
+      model,
+      maxTokens: 16,
+      system: [],
+      user: "Réponds simplement : ok",
+    });
     return { ok: true, usage: res.usage };
   } catch (err) {
     return { ok: false, error: toAiError(err).message };

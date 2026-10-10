@@ -15,7 +15,9 @@ import { enqueue, enqueueDm } from "@linkaffipro/queue";
 import { offerDeepLink } from "@linkaffipro/telegram";
 import { env } from "@/lib/env";
 import { fromParisLocal } from "@/lib/posts/time";
-import type { PostButtonRow } from "@/lib/posts/buttons";
+import { buttonUrlError, type PostButtonRow } from "@/lib/posts/buttons";
+import { assertButtonRows, materializeOfferButton } from "@/lib/campaigns/offer-button";
+import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import { parseBroadcastForm } from "@/lib/broadcasts/schema";
 import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
@@ -33,12 +35,16 @@ function isRedirect(err: unknown): boolean {
  * Les boutons Offre exigent un message « conteneur » (Post SENT, templateName `broadcast:<id>`) qui porte le
  * `code` du lien profond `/start o<slug>_<code>` et reçoit les statistiques de clics : un envoi groupé n'a pas
  * de Post propre, et le handler d'offres exige un code.
+ * `copy` : copie faite par le serveur (envoi au reste d'un test A/B) : de nouveaux liens sont toujours créés, les
+ * liens d'origine restent intacts, et un bouton Offre est repris tel quel (voir lib/campaigns/offer-button.ts).
+ * `relinked` : un lien Offre déjà enregistré a changé de campagne ou d'offre (recalcul des statistiques à demander).
  */
 async function materializeButtons(
   rows: PostButtonRow[],
   b: { id: string; botId: string; text: string; segment: Segment },
   userId: string,
-): Promise<PostButtonRow[]> {
+  opts: { copy?: boolean } = {},
+): Promise<{ buttons: PostButtonRow[]; relinked: boolean }> {
   const hasOffer = rows.some((r) => r.some((x) => x.type === "OFFER"));
   const hasTracked = rows.some((r) => r.some((x) => x.type !== "URL"));
   let container: { id: string; channelId: string } | null = null;
@@ -75,34 +81,35 @@ async function materializeButtons(
     }
   }
   const out: PostButtonRow[] = [];
+  let relinked = false;
   for (const row of rows) {
     const line: PostButtonRow = [];
     for (const x of row) {
+      const urlError = buttonUrlError(x);
+      if (urlError) throw new Error(urlError);
       if (x.type === "URL") {
-        if (!x.url || !/^https?:\/\//i.test(x.url))
-          throw new Error(`Bouton « ${x.text} » : l'URL doit commencer par https://.`);
         line.push({ text: x.text, type: "URL", url: x.url });
         continue;
       }
       if (x.type === "BUTTON") {
-        if (!x.url || !/^https?:\/\//i.test(x.url))
-          throw new Error(`Bouton « ${x.text} » : l'URL doit commencer par https://.`);
-        const link = x.trackingLinkId
-          ? await prisma.trackingLink.update({
-              where: { id: x.trackingLinkId },
-              data: { destinationTemplate: x.url, label: x.text, isActive: true },
-            })
-          : await prisma.trackingLink.create({
-              data: {
-                slug: shortId(8),
-                kind: "BUTTON",
-                destinationTemplate: x.url,
-                label: `${x.text} (envoi groupé)`,
-                channelId: container!.channelId,
-                postId: container!.id,
-                createdById: userId,
-              },
-            });
+        const link =
+          x.trackingLinkId && !opts.copy
+            ? await prisma.trackingLink.update({
+                where: { id: x.trackingLinkId },
+                data: { destinationTemplate: x.url, label: x.text, isActive: true },
+              })
+            : await prisma.trackingLink.create({
+                data: {
+                  slug: shortId(8),
+                  kind: "BUTTON",
+                  // Adresse vérifiée plus haut (buttonUrlError).
+                  destinationTemplate: x.url!,
+                  label: `${x.text} (envoi groupé)`,
+                  channelId: container!.channelId,
+                  postId: container!.id,
+                  createdById: userId,
+                },
+              });
         line.push({
           text: x.text,
           type: "BUTTON",
@@ -112,48 +119,40 @@ async function materializeButtons(
         });
         continue;
       }
-      if (!x.affiliateCampaignId)
-        throw new Error(`Bouton « ${x.text} » : choisissez une campagne Link Affi.`);
-      const campaign = await prisma.affiliateCampaign.findUnique({
-        where: { id: x.affiliateCampaignId },
+      // OFFER : la campagne choisie détermine le lien Link Affi (voir lib/campaigns/offer-button.ts).
+      const offer = await materializeOfferButton(x, {
+        channelId: container!.channelId,
+        postId: container!.id,
+        userId,
+        labelSuffix: " (envoi groupé)",
+        copy: opts.copy,
       });
-      if (!campaign || !campaign.isActive)
-        throw new Error(`Bouton « ${x.text} » : campagne Link Affi introuvable ou inactive.`);
-      const link = x.trackingLinkId
-        ? await prisma.trackingLink.update({
-            where: { id: x.trackingLinkId },
-            data: {
-              destinationTemplate: campaign.trackingUrlTemplate,
-              affiliateCampaignId: campaign.id,
-              label: x.text,
-              isActive: true,
-            },
-          })
-        : await prisma.trackingLink.create({
-            data: {
-              slug: shortId(8),
-              kind: "OFFER",
-              destinationTemplate: campaign.trackingUrlTemplate,
-              label: `${x.text} (envoi groupé)`,
-              channelId: container!.channelId,
-              postId: container!.id,
-              affiliateCampaignId: campaign.id,
-              createdById: userId,
-            },
-          });
-      line.push({
-        text: x.text,
-        type: "OFFER",
-        trackingLinkId: link.id,
-        slug: link.slug,
-        affiliateCampaignId: campaign.id,
-      });
+      relinked ||= offer.relinked;
+      line.push(offer.button);
     }
     if (line.length > 0) out.push(line);
   }
   if (hasOffer && container)
     await prisma.post.update({ where: { id: container.id }, data: { buttons: toJsonValue(out) } });
-  return out;
+  return { buttons: out, relinked };
+}
+
+/** Retire les envois (et leurs messages conteneurs, avec leurs liens tout neufs) d'une création qui a échoué. */
+async function discardBroadcasts(ids: string[]): Promise<void> {
+  try {
+    const containers = await prisma.post.findMany({
+      where: { templateName: { in: ids.map((id) => `broadcast:${id}`) } },
+      select: { id: true },
+    });
+    const postIds = containers.map((c) => c.id);
+    if (postIds.length) {
+      await prisma.trackingLink.deleteMany({ where: { postId: { in: postIds } } });
+      await prisma.post.deleteMany({ where: { id: { in: postIds } } });
+    }
+    await prisma.broadcast.deleteMany({ where: { id: { in: ids } } });
+  } catch (err) {
+    console.error("envois créés non retirés après un échec", err);
+  }
 }
 
 /** Lignes `{ text, url }` pour un message de test (même résolution que le worker). */
@@ -212,6 +211,7 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
   const status = d.intent === "now" ? "SENDING" : d.intent === "schedule" ? "SCHEDULED" : "DRAFT";
   const abGroupId = ab.enabled ? shortId(10) : null;
   const created: string[] = [];
+  let relinked = false;
   try {
     // Chaque variante d'un test A/B est un envoi à part entière (même segment, même groupe, part propre).
     const variants: Array<{
@@ -250,6 +250,8 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
             split: null,
           },
         ];
+    // Tous les boutons sont vérifiés avant de créer le moindre envoi (aucun envoi programmé sans ses boutons).
+    for (const variant of variants) await assertButtonRows(variant.buttons);
     for (const variant of variants) {
       const b = await prisma.broadcast.create({
         data: {
@@ -267,11 +269,13 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
         select: { id: true },
       });
       created.push(b.id);
-      const buttons = await materializeButtons(
+      const m = await materializeButtons(
         variant.buttons,
         { id: b.id, botId: d.botId, text: variant.text, segment: d.segment },
         user.id,
       );
+      relinked ||= m.relinked;
+      const buttons = m.buttons;
       await prisma.broadcast.update({
         where: { id: b.id },
         data: {
@@ -308,10 +312,10 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
     }
   } catch (err) {
     if (isRedirect(err)) throw err;
-    if (created.length)
-      await prisma.broadcast.deleteMany({ where: { id: { in: created } } }).catch(() => undefined);
+    if (created.length) await discardBroadcasts(created);
     back("/broadcasts/new", { error: err instanceof Error ? err.message : "Création impossible." });
   }
+  if (relinked) await refreshCampaignStats();
   revalidatePath("/broadcasts");
   const okMsg =
     d.intent === "now"
@@ -362,14 +366,15 @@ export async function sendWinnerToRestAction(formData: FormData): Promise<void> 
     select: { id: true },
   });
   try {
-    // Nouveaux liens traqués et nouveau message conteneur pour l'envoi au reste : les clics de la gagnante restent comptés à part.
-    const fresh = (Array.isArray(b.buttons) ? (b.buttons as PostButtonRow[]) : []).map((row) =>
-      row.map(({ trackingLinkId: _t, slug: _s, ...x }) => x),
-    );
-    const buttons = await materializeButtons(
-      fresh,
+    // Nouveaux liens traqués et nouveau message conteneur pour l'envoi au reste : les clics de la gagnante restent
+    // comptés à part. Copie faite par le serveur : les boutons de la gagnante sont repris tels quels (un ancien bouton
+    // Offre sans campagne reste valable, une offre retirée de la campagne est remplacée comme le fait le bot).
+    const source = Array.isArray(b.buttons) ? (b.buttons as PostButtonRow[]) : [];
+    const { buttons } = await materializeButtons(
+      source,
       { id: rest.id, botId: b.botId, text: b.text, segment: parseSegment(b.segment) },
       user.id,
+      { copy: true },
     );
     await prisma.broadcast.update({
       where: { id: rest.id },
@@ -377,7 +382,7 @@ export async function sendWinnerToRestAction(formData: FormData): Promise<void> 
     });
   } catch (err) {
     if (isRedirect(err)) throw err;
-    await prisma.broadcast.delete({ where: { id: rest.id } }).catch(() => undefined);
+    await discardBroadcasts([rest.id]);
     back(`/broadcasts/ab/${groupId}`, {
       error: err instanceof Error ? err.message : "Envoi au reste impossible.",
     });

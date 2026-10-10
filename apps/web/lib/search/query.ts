@@ -47,16 +47,22 @@ export const SEARCH_GROUP_LABELS: Record<SearchGroup, string> = {
   members: "Membres",
   posts: "Messages",
   channels: "Canaux",
-  campaigns: "Pubs",
+  campaigns: "Campagnes",
   automations: "Automatisations",
 };
 
 export type SearchHit = { id: string; title: string; subtitle?: string; href: string };
-export type SearchResponse = { q: string; groups: Array<{ key: SearchGroup; label: string; hits: SearchHit[] }> };
+export type SearchResponse = {
+  q: string;
+  groups: Array<{ key: SearchGroup; label: string; hits: SearchHit[] }>;
+};
 
 /** Extrait court autour du premier mot trouvé (pour les messages). */
 export function snippet(text: string, terms: string[], width = 70): string {
-  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const plain = text
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const lower = plain.toLowerCase();
   let at = -1;
   for (const t of terms) {

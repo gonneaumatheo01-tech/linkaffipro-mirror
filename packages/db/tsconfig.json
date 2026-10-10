@@ -1,5 +1,5 @@
 {
   "extends": "@linkaffipro/config/tsconfig.node.json",
   "compilerOptions": { "noEmit": true, "rootDir": "." },
-  "include": ["src/**/*.ts", "prisma/seed.ts"]
+  "include": ["src/**/*.ts", "prisma/seed.ts", "prisma/phase8-data.ts", "prisma/seed-templates.ts"]
 }

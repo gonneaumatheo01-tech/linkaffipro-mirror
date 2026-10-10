@@ -13,7 +13,13 @@ export const MESSAGES = {
     welcome: "Bonjour, je suis {botName}, le bot {vertical}.",
     adminLinked: "Votre compte Telegram est maintenant lié à LinkAffi Pro, {name}.",
     adminLinkInvalid: "Ce lien de connexion est invalide ou a expiré.",
-    forwardUnknownUser: "Je ne reconnais pas votre compte.",
+    forwardHelp:
+      "Pour ajouter un canal : transférez-moi un message de ce canal. Si Telegram bloque le transfert (contenu protégé), ajoutez-moi comme administrateur du canal, puis publiez-y un message (je le détecte) et supprimez-le, ou collez son lien public dans la page « Canaux » du site.",
+    forwardPrivateLink:
+      "Ce lien est celui d'un canal privé : il ne me permet pas de retrouver le canal. Transférez-moi plutôt un message du canal ; si le transfert est bloqué, ajoutez-moi comme administrateur du canal, puis publiez-y un message (je le détecte) et supprimez-le.",
+    forwardLinkNotFound:
+      "Je ne trouve pas ce canal : il est privé ou le nom est faux. Transférez-moi plutôt un message du canal.",
+    forwardCheckUnavailable: "Vérification impossible pour le moment, réessayez dans une minute.",
     // Flux d'adhésion
     joinRequestGate:
       "Salut {prenom} ! Pour rejoindre <b>{canal}</b>, rejoins d'abord nos canaux partenaires ci-dessous, puis appuie sur ✅ J'ai rejoint. Ton accès est validé {delai}.",
@@ -52,7 +58,13 @@ export const MESSAGES = {
     welcome: "Hello, I am {botName}, the {vertical} bot.",
     adminLinked: "Your Telegram account is now linked to LinkAffi Pro, {name}.",
     adminLinkInvalid: "This login link is invalid or has expired.",
-    forwardUnknownUser: "I don't recognize your account.",
+    forwardHelp:
+      "To add a channel: forward me a message from that channel. If Telegram blocks forwarding (protected content), add me as an administrator of the channel, then post a message in it (I'll detect it) and delete it, or paste its public link on the « Canaux » page of the site.",
+    forwardPrivateLink:
+      "This is a private channel link: I can't find the channel with it. Forward me a message from the channel instead; if forwarding is blocked, add me as an administrator of the channel, then post a message in it (I'll detect it) and delete it.",
+    forwardLinkNotFound:
+      "I can't find this channel: it's private or the name is wrong. Forward me a message from the channel instead.",
+    forwardCheckUnavailable: "Unable to check right now, please try again in a minute.",
     joinRequestGate:
       "Hi {prenom}! To join <b>{canal}</b>, first join our partner channels below, then tap ✅ I joined. Your access is confirmed {delai}.",
     joinRequestSoft:
@@ -86,7 +98,13 @@ export const MESSAGES = {
     welcome: "Hola, soy {botName}, el bot de {vertical}.",
     adminLinked: "Tu cuenta de Telegram ya está vinculada a LinkAffi Pro, {name}.",
     adminLinkInvalid: "Este enlace de conexión no es válido o ha caducado.",
-    forwardUnknownUser: "No reconozco tu cuenta.",
+    forwardHelp:
+      "Para añadir un canal: reenvíame un mensaje de ese canal. Si Telegram bloquea el reenvío (contenido protegido), añádeme como administrador del canal, luego publica un mensaje en él (lo detecto) y bórralo, o pega su enlace público en la página « Canaux » del sitio.",
+    forwardPrivateLink:
+      "Este es el enlace de un canal privado: no me permite encontrar el canal. Mejor reenvíame un mensaje del canal; si el reenvío está bloqueado, añádeme como administrador del canal, luego publica un mensaje en él (lo detecto) y bórralo.",
+    forwardLinkNotFound:
+      "No encuentro este canal: es privado o el nombre es incorrecto. Mejor reenvíame un mensaje del canal.",
+    forwardCheckUnavailable: "No se puede verificar por ahora, inténtalo de nuevo en un minuto.",
     joinRequestGate:
       "¡Hola {prenom}! Para unirte a <b>{canal}</b>, únete primero a nuestros canales asociados aquí abajo y luego pulsa ✅ Ya me uní. Tu acceso se confirma {delai}.",
     joinRequestSoft:
@@ -121,7 +139,14 @@ export const MESSAGES = {
     welcome: "Olá, eu sou {botName}, o bot de {vertical}.",
     adminLinked: "A tua conta Telegram está agora ligada ao LinkAffi Pro, {name}.",
     adminLinkInvalid: "Este link de ligação é inválido ou expirou.",
-    forwardUnknownUser: "Não reconheço a sua conta.",
+    forwardHelp:
+      "Para adicionar um canal: reencaminhe-me uma mensagem desse canal. Se o Telegram bloquear o reencaminhamento (conteúdo protegido), adicione-me como administrador do canal, depois publique lá uma mensagem (eu deteto-a) e apague-a, ou cole o link público na página « Canaux » do site.",
+    forwardPrivateLink:
+      "Este é o link de um canal privado: não me permite encontrar o canal. Reencaminhe-me antes uma mensagem do canal; se o reencaminhamento estiver bloqueado, adicione-me como administrador do canal, depois publique lá uma mensagem (eu deteto-a) e apague-a.",
+    forwardLinkNotFound:
+      "Não encontro este canal: é privado ou o nome está errado. Reencaminhe-me antes uma mensagem do canal.",
+    forwardCheckUnavailable:
+      "Não é possível verificar de momento, tente novamente dentro de um minuto.",
     joinRequestGate:
       "Olá {prenom}! Para entrar em <b>{canal}</b>, entra primeiro nos nossos canais parceiros abaixo e depois toca em ✅ Já entrei. O teu acesso é confirmado {delai}.",
     joinRequestSoft:
@@ -156,7 +181,14 @@ export const MESSAGES = {
     welcome: "Hallo, ich bin {botName}, der {vertical}-Bot.",
     adminLinked: "Dein Telegram-Konto ist jetzt mit LinkAffi Pro verknüpft, {name}.",
     adminLinkInvalid: "Dieser Anmeldelink ist ungültig oder abgelaufen.",
-    forwardUnknownUser: "Ich erkenne dein Konto nicht.",
+    forwardHelp:
+      "So fügst du einen Kanal hinzu: Leite mir eine Nachricht aus diesem Kanal weiter. Wenn Telegram das Weiterleiten blockiert (geschützte Inhalte), füge mich als Administrator des Kanals hinzu, veröffentliche dann eine Nachricht im Kanal (ich erkenne sie) und lösche sie danach, oder füge den öffentlichen Link auf der Seite « Canaux » der Website ein.",
+    forwardPrivateLink:
+      "Das ist der Link eines privaten Kanals: Damit kann ich den Kanal nicht finden. Leite mir lieber eine Nachricht aus dem Kanal weiter; ist das Weiterleiten blockiert, füge mich als Administrator des Kanals hinzu, veröffentliche dann eine Nachricht im Kanal (ich erkenne sie) und lösche sie danach.",
+    forwardLinkNotFound:
+      "Ich finde diesen Kanal nicht: Er ist privat oder der Name ist falsch. Leite mir lieber eine Nachricht aus dem Kanal weiter.",
+    forwardCheckUnavailable:
+      "Überprüfung im Moment nicht möglich, bitte versuche es in einer Minute erneut.",
     joinRequestGate:
       "Hallo {prenom}! Um <b>{canal}</b> beizutreten, tritt zuerst unseren Partnerkanälen unten bei und tippe dann auf ✅ Beigetreten. Dein Zugang wird {delai} bestätigt.",
     joinRequestSoft:
@@ -192,7 +224,13 @@ export const MESSAGES = {
     welcome: "Ciao, sono {botName}, il bot {vertical}.",
     adminLinked: "Il tuo account Telegram è ora collegato a LinkAffi Pro, {name}.",
     adminLinkInvalid: "Questo link di accesso non è valido o è scaduto.",
-    forwardUnknownUser: "Non riconosco il tuo account.",
+    forwardHelp:
+      "Per aggiungere un canale: inoltrami un messaggio di quel canale. Se Telegram blocca l'inoltro (contenuto protetto), aggiungimi come amministratore del canale, poi pubblica un messaggio nel canale (lo rilevo) ed eliminalo, oppure incolla il suo link pubblico nella pagina « Canaux » del sito.",
+    forwardPrivateLink:
+      "Questo è il link di un canale privato: non mi permette di trovare il canale. Inoltrami piuttosto un messaggio del canale; se l'inoltro è bloccato, aggiungimi come amministratore del canale, poi pubblica un messaggio nel canale (lo rilevo) ed eliminalo.",
+    forwardLinkNotFound:
+      "Non trovo questo canale: è privato o il nome è sbagliato. Inoltrami piuttosto un messaggio del canale.",
+    forwardCheckUnavailable: "Verifica impossibile al momento, riprova tra un minuto.",
     joinRequestGate:
       "Ciao {prenom}! Per entrare in <b>{canal}</b>, unisciti prima ai nostri canali partner qui sotto, poi tocca ✅ Mi sono unito. Il tuo accesso è confermato {delai}.",
     joinRequestSoft:

@@ -69,8 +69,8 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
           <CardContent className="space-y-3 text-sm">
             {reasons.size === 0 ? (
               <p className="text-muted-foreground">
-                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Campagnes et
-                dans le tableau de bord (onglet Pubs) dans la minute.
+                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Campagnes
+                et dans le tableau de bord (onglet Campagnes) dans la minute.
               </p>
             ) : (
               <>

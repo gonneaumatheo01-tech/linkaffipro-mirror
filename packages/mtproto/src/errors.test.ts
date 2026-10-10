@@ -39,6 +39,14 @@ describe("classifyError", () => {
       expect((e as MtprotoAuthError).code).toBe(code);
     }
   });
+  it("AUTH_KEY_DUPLICATED (session utilisée en même temps à deux endroits) → MtprotoAuthError, compte à reconnecter", () => {
+    const e = classifyError(rpc("AUTH_KEY_DUPLICATED", { code: 406 }));
+    expect(e).toBeInstanceOf(MtprotoAuthError);
+    expect((e as MtprotoAuthError).code).toBe("AUTH_KEY_DUPLICATED");
+    expect(
+      classifyError(new Error("406: AUTH_KEY_DUPLICATED (caused by messages.GetHistory)")),
+    ).toBeInstanceOf(MtprotoAuthError);
+  });
   it("SESSION_PASSWORD_NEEDED → MtprotoPasswordNeeded", () => {
     expect(classifyError(rpc("SESSION_PASSWORD_NEEDED"))).toBeInstanceOf(MtprotoPasswordNeeded);
   });
@@ -66,7 +74,9 @@ describe("classifyError", () => {
 describe("rpcCodeOf / floodWaitSecondsOf", () => {
   it("lit errorMessage en priorité, sinon le message", () => {
     expect(rpcCodeOf(rpc("PEER_ID_INVALID"))).toBe("PEER_ID_INVALID");
-    expect(rpcCodeOf(new Error("401: AUTH_KEY_UNREGISTERED (caused by x)"))).toBe("AUTH_KEY_UNREGISTERED");
+    expect(rpcCodeOf(new Error("401: AUTH_KEY_UNREGISTERED (caused by x)"))).toBe(
+      "AUTH_KEY_UNREGISTERED",
+    );
     expect(rpcCodeOf(new Error("rien"))).toBeNull();
     expect(rpcCodeOf(null)).toBeNull();
   });

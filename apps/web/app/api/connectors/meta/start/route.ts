@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { audit } from "@linkaffipro/db";
 import { metaProvider } from "@linkaffipro/connectors";
-import { auth } from "@/auth";
+import { apiUser } from "@/lib/ai/api-user";
 import { createOAuthState, loadAppCredentials, redirectUriFor } from "@/lib/connectors/common";
 import { env } from "@/lib/env";
 
@@ -14,12 +14,12 @@ const SETTINGS_URL = "/settings/connectors/meta";
  * ADMIN seulement (403 sinon). Crée l'état signé anti-CSRF (10 min) puis redirige vers le dialogue Facebook Login.
  */
 export async function GET(_req: Request) {
-  const session = await auth();
-  if (!session?.user?.id)
+  const user = await apiUser();
+  if (!user)
     return NextResponse.redirect(
       new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, env.appBaseUrl),
     );
-  if (session.user.role !== "ADMIN")
+  if (user.role !== "ADMIN")
     return NextResponse.json({ error: "Action réservée aux administrateurs." }, { status: 403 });
 
   const app = await loadAppCredentials("META");
@@ -32,10 +32,10 @@ export async function GET(_req: Request) {
     return NextResponse.redirect(back);
   }
 
-  const state = createOAuthState("META", session.user.id);
+  const state = createOAuthState("META", user.id);
   const url = metaProvider.authorizeUrl(app, redirectUriFor("META"), state);
   await audit({
-    userId: session.user.id,
+    userId: user.id,
     action: "connector.oauth_started",
     entityType: "ConnectorApp",
     entityId: "META",

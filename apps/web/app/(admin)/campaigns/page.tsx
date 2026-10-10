@@ -45,7 +45,8 @@ const TIPS = {
   cpl: "Coût par membre arrivé (CPL) = dépense / membres entrés.",
   cpa: "CPA (coût par inscrit) : dépense divisée par le nombre d'inscrits.",
   costPerFtd: "Coût par FTD : dépense divisée par le nombre de premiers dépôts.",
-  revenue: "Revenu : NGR (revenu net) des joueurs rattachés à la campagne, remonté par Link Affi.",
+  revenue:
+    "Revenu : NGR (revenu net) des joueurs rattachés à la campagne, daté par Link Affi : somme des NGR de la période.",
   roas: "ROAS (retour sur dépense) : revenu divisé par dépense. 1,00× = remboursé, au-dessus = rentable.",
 };
 
@@ -66,37 +67,11 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const period = resolvePeriod(sp);
   const compare = parseCompare(sp.compare);
   const pp = periodParams(period, compare);
-  const rows = await listCampaigns(period, compare);
-  const sum = (
-    pick: (
-      r: (typeof rows)[number],
-    ) => {
-      spend: number;
-      members: number;
-      registrations: number;
-      ftds: number;
-      revenue: number;
-    } | null,
-  ) =>
-    rows.reduce(
-      (t, r) => {
-        const m = pick(r);
-        if (!m) return t;
-        return {
-          spend: t.spend + m.spend,
-          members: t.members + m.members,
-          registrations: t.registrations + m.registrations,
-          ftds: t.ftds + m.ftds,
-          revenue: t.revenue + m.revenue,
-        };
-      },
-      { spend: 0, members: 0, registrations: 0, ftds: 0, revenue: 0 },
-    );
-  const totals = sum((r) => r.metrics);
-  const prevTotals = compare ? sum((r) => r.previous) : null;
-  const totalRoas = totals.spend > 0 ? totals.revenue / totals.spend : null;
-  const prevTotalRoas =
-    prevTotals && prevTotals.spend > 0 ? prevTotals.revenue / prevTotals.spend : null;
+  const { rows, total: totals, previousTotal: prevTotals } = await listCampaigns(period, compare);
+  // Ligne Total : calculée sur les joueurs, clics et adhésions distincts de toutes les campagnes (une offre ou un lien
+  // partagé par deux campagnes n'est pas compté deux fois), pas en additionnant les lignes.
+  const totalRoas = totals.roas;
+  const prevTotalRoas = prevTotals ? prevTotals.roas : null;
   /** Variation d'une colonne d'une ligne (rien si la comparaison est désactivée). */
   const delta = (d: CampaignDeltas | null, key: keyof CampaignDeltas, invert = false) =>
     compare ? <Delta value={d?.[key]} invert={invert} /> : null;
@@ -206,14 +181,28 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                       </div>
                       {r.importedFrom ? (
                         <Badge variant="secondary" className="mt-1 font-normal">
-                          importée de {r.importedFrom === "META" ? "Meta" : r.importedFrom === "TIKTOK" ? "TikTok" : "la plateforme"}
+                          importée de{" "}
+                          {r.importedFrom === "META"
+                            ? "Meta"
+                            : r.importedFrom === "TIKTOK"
+                              ? "TikTok"
+                              : "la plateforme"}
                         </Badge>
                       ) : null}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {r.adPlatform ? <StatusBadge kind="adPlatform" value={r.adPlatform} /> : "—"}
                       {r.source ? (
-                        <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground" title={r.source === "api" ? "Coûts reçus automatiquement du compte connecté" : r.source === "file" ? "Coûts importés par fichier CSV" : "Coûts saisis à la main"}>
+                        <span
+                          className="ml-1 rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground"
+                          title={
+                            r.source === "api"
+                              ? "Coûts reçus automatiquement du compte connecté"
+                              : r.source === "file"
+                                ? "Coûts importés par fichier CSV"
+                                : "Coûts saisis à la main"
+                          }
+                        >
                           {r.source === "api" ? "API" : r.source === "file" ? "Fichier" : "Saisie"}
                         </span>
                       ) : null}
@@ -264,7 +253,13 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                   </TableRow>
                 ))}
                 <TableRow className="font-medium">
-                  <TableCell>Total</TableCell>
+                  <TableCell>
+                    Total
+                    <HelpTip>
+                      Joueurs, clics et membres distincts de toutes les campagnes : un joueur
+                      partagé par deux campagnes (même offre) n&apos;est compté qu&apos;une fois.
+                    </HelpTip>
+                  </TableCell>
                   <TableCell className="hidden md:table-cell" />
                   <TableCell className="hidden lg:table-cell" />
                   <TableCell className="text-right tabular-nums">
@@ -273,7 +268,14 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                       <Delta value={variationOf(totals.spend, prevTotals.spend)} invert />
                     ) : null}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell" />
+                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
+                    <div>{fmtNum(totals.entryClicks ?? 0)}</div>
+                    {prevTotals ? (
+                      <Delta
+                        value={variationOf(totals.entryClicks ?? 0, prevTotals.entryClicks ?? 0)}
+                      />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     <div>{fmtNum(totals.members)}</div>
                     {prevTotals ? (
@@ -292,9 +294,24 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                       <Delta value={variationOf(totals.ftds, prevTotals.ftds)} />
                     ) : null}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell" />
-                  <TableCell className="hidden lg:table-cell" />
-                  <TableCell className="hidden lg:table-cell" />
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
+                    <div>{fmtMoney(totals.cpl)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.cpl, prevTotals.cpl)} invert />
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
+                    <div>{fmtMoney(totals.cpa)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.cpa, prevTotals.cpa)} invert />
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
+                    <div>{fmtMoney(totals.costPerFtd)}</div>
+                    {prevTotals ? (
+                      <Delta value={variationOf(totals.costPerFtd, prevTotals.costPerFtd)} invert />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="hidden text-right tabular-nums md:table-cell">
                     <div>{fmtMoney(totals.revenue)}</div>
                     {prevTotals ? (
@@ -313,11 +330,12 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
       </Card>
       <p className="mt-3 text-xs text-muted-foreground">
         Membres = demandes acceptées via les liens d&apos;entrée de la campagne. Inscrits / FTD /
-        revenu = joueurs rattachés à la campagne (identifiant de suivi sub-ID, ou offre Link Affi
-        de la campagne). CPL = dépense / membres entrés ; CPA = dépense / inscrits ; ROAS = revenu /
-        dépense. Les campagnes « importées » viennent d&apos;un compte pub connecté (Réglages →
-        Connecteurs). Sur téléphone, tournez l&apos;écran ou exportez en CSV pour voir toutes les
-        colonnes.
+        revenu = joueurs rattachés à la campagne (identifiant de suivi sub-ID, ou offre Link Affi de
+        la campagne), aux dates Link Affi ; le revenu est la somme des NGR de la période. CPL =
+        dépense / membres entrés ; CPA = dépense / inscrits ; ROAS = revenu / dépense. Les campagnes
+        « importées » sont des campagnes pub reçues d&apos;un compte connecté (Réglages →
+        Connecteurs) : rattachez-les à une de vos campagnes depuis son onglet Pubs. Sur téléphone,
+        tournez l&apos;écran ou exportez en CSV pour voir toutes les colonnes.
       </p>
     </>
   );

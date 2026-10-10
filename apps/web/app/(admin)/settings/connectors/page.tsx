@@ -25,9 +25,13 @@ import { fmtDate, fmtNum } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
 import { computeSubIdHealth } from "./health";
+import { loadLinkAffiDiagnostic, newCampaignHrefFor } from "@/lib/linkaffi/diagnostic";
 import { saveRatesAction, saveSpendThresholdsAction, syncNowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Connecteurs" };
+
+/** Export brut de tous les joueurs Link Affi (ADMIN, diagnostic) : route de téléchargement, pas une page. */
+const RAW_PLAYERS_EXPORT = "/members/players/export?scope=all";
 
 const TABLE_LABELS: Record<string, string> = {
   casinos: "Programmes (casinos)",
@@ -45,23 +49,44 @@ const TABLE_LABELS: Record<string, string> = {
 export default async function ConnectorsPage({ searchParams }: PageProps<"/settings/connectors">) {
   await requireAdminPage();
   const sp = await searchParams;
-  const [states, health, thresholdSetting, counts, connections, ratesImported, ratesManual, telegramSession] = await Promise.all([
+  const [
+    states,
+    health,
+    thresholdSetting,
+    diag,
+    connections,
+    ratesImported,
+    ratesManual,
+    telegramSession,
+  ] = await Promise.all([
     prisma.syncState.findMany(),
     computeSubIdHealth(),
     prisma.setting.findUnique({ where: { key: "spend.thresholds" } }),
-    Promise.all([
-      prisma.affiliateProgram.count(),
-      prisma.affiliateCampaign.count(),
-      prisma.player.count(),
-      prisma.playerEvent.count(),
-    ]),
-    prisma.adAccountConnection.findMany({ orderBy: [{ platform: "asc" }, { name: "asc" }], select: { id: true, platform: true, name: true, status: true, currency: true, lastSyncAt: true, lastSyncRows: true, lastError: true } }),
+    loadLinkAffiDiagnostic(),
+    prisma.adAccountConnection.findMany({
+      orderBy: [{ platform: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        platform: true,
+        name: true,
+        status: true,
+        currency: true,
+        lastSyncAt: true,
+        lastSyncRows: true,
+        lastError: true,
+      },
+    }),
     prisma.setting.findUnique({ where: { key: "currency.rates.imported" } }),
     prisma.setting.findUnique({ where: { key: "currency.rates.manual" } }),
-    prisma.telegramUserSession.findUnique({ where: { id: "main" }, select: { status: true, phone: true, lastUsedAt: true, lastError: true } }),
+    prisma.telegramUserSession.findUnique({
+      where: { id: "main" },
+      select: { status: true, phone: true, lastUsedAt: true, lastError: true },
+    }),
   ]);
   const manualRates = Object.entries(parseRates(ratesManual?.value));
-  const importedRates = Object.entries(parseRates(ratesImported?.value)).filter(([k]) => k !== "EUR");
+  const importedRates = Object.entries(parseRates(ratesImported?.value)).filter(
+    ([k]) => k !== "EUR",
+  );
   const byTable = new Map(states.map((s) => [s.source, s]));
   const thresholds = {
     vip: 500,
@@ -93,19 +118,41 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
         <CardHeader>
           <CardTitle className="text-base">Comptes publicitaires et compte Telegram</CardTitle>
           <CardDescription>
-            Branchez vous-même vos comptes Meta Ads et TikTok Ads (les dépenses arrivent toutes seules dans Pubs) et votre compte Telegram (nombre de vues par message). La création des applications développeur est expliquée pas à pas sur chaque page.
+            Branchez vous-même vos comptes Meta Ads et TikTok Ads : les dépenses arrivent toutes
+            seules dans Campagnes (onglet Pubs). Branchez aussi votre compte Telegram (nombre de
+            vues par message). La création des applications développeur est expliquée pas à pas sur
+            chaque page.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { href: "/settings/connectors/meta", label: "Meta (Facebook / Instagram)", count: connections.filter((c) => c.platform === "META").length },
-              { href: "/settings/connectors/tiktok", label: "TikTok Ads", count: connections.filter((c) => c.platform === "TIKTOK").length },
-              { href: "/settings/connectors/telegram", label: "Telegram (vues des messages)", count: telegramSession?.status === "ACTIVE" ? 1 : 0 },
+              {
+                href: "/settings/connectors/meta",
+                label: "Meta (Facebook / Instagram)",
+                count: connections.filter((c) => c.platform === "META").length,
+              },
+              {
+                href: "/settings/connectors/tiktok",
+                label: "TikTok Ads",
+                count: connections.filter((c) => c.platform === "TIKTOK").length,
+              },
+              {
+                href: "/settings/connectors/telegram",
+                label: "Telegram (vues des messages)",
+                count: telegramSession?.status === "ACTIVE" ? 1 : 0,
+              },
             ].map((x) => (
-              <Button key={x.href} variant="outline" className="h-auto justify-between py-3 max-md:h-12" render={<Link href={x.href} />}>
+              <Button
+                key={x.href}
+                variant="outline"
+                className="h-auto justify-between py-3 max-md:h-12"
+                render={<Link href={x.href} />}
+              >
                 <span>{x.label}</span>
-                <span className="text-xs text-muted-foreground">{x.count} connecté{x.count > 1 ? "s" : ""}</span>
+                <span className="text-xs text-muted-foreground">
+                  {x.count} connecté{x.count > 1 ? "s" : ""}
+                </span>
               </Button>
             ))}
           </div>
@@ -124,31 +171,68 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
                 {connections.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>
-                      <Link href={`/settings/connectors/${c.platform.toLowerCase()}`} className="underline-offset-2 hover:underline">
+                      <Link
+                        href={`/settings/connectors/${c.platform.toLowerCase()}`}
+                        className="underline-offset-2 hover:underline"
+                      >
                         {c.name}
                       </Link>{" "}
                       <span className="text-xs text-muted-foreground">({c.currency})</span>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{c.platform === "META" ? "Meta" : c.platform === "TIKTOK" ? "TikTok" : c.platform}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {c.platform === "META"
+                        ? "Meta"
+                        : c.platform === "TIKTOK"
+                          ? "TikTok"
+                          : c.platform}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={c.status === "ACTIVE" ? "default" : c.status === "NEEDS_RECONNECT" ? "destructive" : "secondary"}>
-                        {c.status === "ACTIVE" ? "Connecté" : c.status === "NEEDS_RECONNECT" ? "À reconnecter" : "Déconnecté"}
+                      <Badge
+                        variant={
+                          c.status === "ACTIVE"
+                            ? "default"
+                            : c.status === "NEEDS_RECONNECT"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                      >
+                        {c.status === "ACTIVE"
+                          ? "Connecté"
+                          : c.status === "NEEDS_RECONNECT"
+                            ? "À reconnecter"
+                            : "Déconnecté"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{c.lastSyncAt ? `${fmtDate(c.lastSyncAt)} · ${fmtNum(c.lastSyncRows)} lignes` : "jamais"}</TableCell>
-                    <TableCell className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell" title={c.lastError ?? ""}>{c.lastError ?? "—"}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {c.lastSyncAt
+                        ? `${fmtDate(c.lastSyncAt)} · ${fmtNum(c.lastSyncRows)} lignes`
+                        : "jamais"}
+                    </TableCell>
+                    <TableCell
+                      className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell"
+                      title={c.lastError ?? ""}
+                    >
+                      {c.lastError ?? "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
-            <p className="text-sm text-muted-foreground">Aucun compte publicitaire connecté pour l&apos;instant.</p>
+            <p className="text-sm text-muted-foreground">
+              Aucun compte publicitaire connecté pour l&apos;instant.
+            </p>
           )}
           <form action={saveRatesAction} className="space-y-2 rounded-md border p-3">
-            <div className="text-sm font-medium">Taux de change (pour les comptes qui ne sont pas en euros)</div>
+            <div className="text-sm font-medium">
+              Taux de change (pour les comptes qui ne sont pas en euros)
+            </div>
             <p className="text-xs text-muted-foreground">
-              Taux « combien d&apos;unités pour 1 € » (ex. USD 1,08). Les taux de Link Affi sont lus automatiquement toutes les 6 heures ; ceux que vous saisissez ici ont priorité.
-              {importedRates.length ? ` Taux Link Affi : ${importedRates.map(([k, v]) => `${k} ${v}`).join(", ")}.` : " Aucun taux Link Affi reçu pour l'instant."}
+              Taux « combien d&apos;unités pour 1 € » (ex. USD 1,08). Les taux de Link Affi sont lus
+              automatiquement toutes les 6 heures ; ceux que vous saisissez ici ont priorité.
+              {importedRates.length
+                ? ` Taux Link Affi : ${importedRates.map(([k, v]) => `${k} ${v}`).join(", ")}.`
+                : " Aucun taux Link Affi reçu pour l'instant."}
             </p>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <input
@@ -166,23 +250,130 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
         </CardContent>
       </Card>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Programmes", value: counts[0] },
-          { label: "Campagnes", value: counts[1] },
-          { label: "Joueurs", value: counts[2] },
-          { label: "Événements joueurs", value: counts[3] },
-        ].map((t) => (
-          <Card key={t.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{t.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold tabular-nums">{fmtNum(t.value)}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Diagnostic Link Affi</CardTitle>
+            <CardDescription>
+              Seuls vos joueurs entrent dans les statistiques : ceux venus d&apos;un de vos clics
+              (identifiant de suivi) ou d&apos;une offre Link Affi liée à une de vos campagnes. Les
+              autres joueurs synchronisés (autres affiliés, offres non liées) ne sont visibles
+              qu&apos;ici.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-md:h-10"
+            render={<a href={RAW_PLAYERS_EXPORT} />}
+          >
+            Exporter tous les joueurs Link Affi (CSV)
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              {
+                label: "Programmes",
+                value: diag.programs,
+                help: "Casinos et opérateurs connus de Link Affi.",
+              },
+              {
+                label: "Offres Link Affi",
+                value: diag.offers,
+                help: "Campagnes Link Affi synchronisées (toutes, liées ou non).",
+              },
+              {
+                label: "Offres liées",
+                value: diag.linkedOffers,
+                help: "Offres Link Affi rattachées à une de vos campagnes.",
+              },
+              {
+                label: "Joueurs (tous)",
+                value: diag.players.total,
+                help: "Tous les joueurs synchronisés depuis Link Affi.",
+              },
+              {
+                label: "Vos joueurs",
+                value: diag.players.ours,
+                help: "Joueurs rattachés à un de vos clics ou à une offre liée : ce sont les seuls comptés dans les statistiques.",
+              },
+              {
+                label: "Non rattachés",
+                value: diag.players.notOurs,
+                help: "Joueurs d'autres affiliés ou d'offres non liées : jamais comptés.",
+              },
+            ].map((t) => (
+              <div key={t.label} className="rounded-md border p-3">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {t.label} <HelpTip label={`Définition : ${t.label}`}>{t.help}</HelpTip>
+                </div>
+                <div className="text-2xl font-semibold tabular-nums">{fmtNum(t.value)}</div>
+              </div>
+            ))}
+          </div>
+          {diag.unlinked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun joueur non rattaché : toutes les offres qui ont des joueurs sont liées à une de
+              vos campagnes.
+            </p>
+          ) : (
+            <>
+              <div className="text-sm font-medium">
+                Offres Link Affi non liées qui ont des joueurs
+                {diag.unlinkedOffersTotal > diag.unlinked.length
+                  ? ` (les ${diag.unlinked.length} plus grosses sur ${diag.unlinkedOffersTotal})`
+                  : ""}
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Offre Link Affi</TableHead>
+                    <TableHead className="hidden md:table-cell">Programme</TableHead>
+                    <TableHead className="text-right">Joueurs</TableHead>
+                    <TableHead className="hidden md:table-cell">Dernière inscription</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {diag.unlinked.map((o) => (
+                    <TableRow key={o.affiliateCampaignId}>
+                      <TableCell>
+                        <div className="font-medium">{o.name}</div>
+                        {o.campaignKey ? (
+                          <div className="font-mono text-[11px] text-muted-foreground">
+                            {o.campaignKey}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">{o.programName}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmtNum(o.players)}</TableCell>
+                      <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                        {fmtDate(o.lastRegisteredAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="max-md:h-10"
+                          render={<Link href={newCampaignHrefFor(o)} />}
+                        >
+                          Créer une campagne avec cette offre
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p className="text-xs text-muted-foreground">
+                Si une de ces offres est bien la vôtre, liez-la à une campagne (bouton « Créer une
+                campagne avec cette offre », ou depuis la fiche d&apos;une campagne existante) : ses
+                joueurs entreront dans vos statistiques après le prochain recalcul.
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
