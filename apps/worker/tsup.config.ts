@@ -10,5 +10,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   noExternal: [/^@linkaffipro\//],
-  external: ["@prisma/client", "bullmq", "ioredis", "pino", "grammy", "bcryptjs"],
+  external: ["@prisma/client", "bullmq", "ioredis", "pino", "grammy", "bcryptjs", "telegram"],
 });

@@ -35,3 +35,15 @@ while true; do
   echo "$(date '+%H:%M') Tour $TOUR terminé ; nouvelle relance dans 30 secondes." | tee -a logs/run-phase.log
   sleep 30
 done
+
+# --- File d'attente des phases (ajouté le 10 octobre) ---
+# Quand une phase est terminée, lance automatiquement le prompt suivant listé dans docs/prompts/QUEUE.
+QUEUE_FILE="docs/prompts/QUEUE"
+if [ -s "$QUEUE_FILE" ]; then
+  NEXT_PROMPT="$(head -n 1 "$QUEUE_FILE")"
+  tail -n +2 "$QUEUE_FILE" > "$QUEUE_FILE.tmp" && mv "$QUEUE_FILE.tmp" "$QUEUE_FILE"
+  if [ -n "$NEXT_PROMPT" ] && [ -f "$NEXT_PROMPT" ]; then
+    echo "$(date '+%H:%M') File d'attente : phase suivante → $NEXT_PROMPT" | tee -a logs/run-phase.log
+    exec "$0" "$NEXT_PROMPT"
+  fi
+fi

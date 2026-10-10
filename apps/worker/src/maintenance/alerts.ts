@@ -8,6 +8,7 @@ import { dayKey, parisMidnightUtc } from "../stats/aggregate";
 import {
   detectBackupFailed,
   detectBotWebhook,
+  detectConnectorReconnect,
   detectChannelLeak,
   detectDmBlocked,
   detectJobFailures,
@@ -206,6 +207,14 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     ["channel_leak", async () => detectChannelLeak(await channelLeakSnapshot(now), thresholds)],
     ["post_failed", async () => detectPostFailed(await failedPostsSnapshot(now))],
     ["offer_link_inactive", async () => detectOfferLinkInactive(await inactiveLinkClicksSnapshot(now))],
+    [
+      "connector_reconnect",
+      async () =>
+        detectConnectorReconnect(
+          await prisma.adAccountConnection.findMany({ where: { status: { in: ["ACTIVE", "NEEDS_RECONNECT"] } }, select: { platform: true, name: true, status: true, tokenExpiresAt: true, lastError: true } }),
+          now,
+        ),
+    ],
   ];
   for (const [kind, run] of business) {
     try {

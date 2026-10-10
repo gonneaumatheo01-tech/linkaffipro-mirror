@@ -8,6 +8,10 @@ allowBuilds:
   msgpackr-extract: true
   prisma: true
   unrs-resolver: true
+  # Dépendances optionnelles de GramJS (ws) : modules natifs inutiles, scripts ignorés volontairement.
+  bufferutil: false
+  es5-ext: false
+  utf-8-validate: false
 minimumReleaseAgeExclude:
   - bullmq@6.3.12
 

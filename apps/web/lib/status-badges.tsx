@@ -8,6 +8,7 @@ import type {
   BroadcastStatus,
   CampaignStatus,
   ChatType,
+  ConnectionStatus,
   CostSource,
   ExpireAction,
   GateMode,
@@ -52,6 +53,9 @@ export type SyncStatus = "ok" | "error" | "running" | "never";
 export type WebhookStatus = "ok" | "check" | "off";
 /** Actif / inactif (bots, liens, utilisateurs, catégories, règles). */
 export type ActiveStatus = "active" | "inactive";
+/** Statut du compte Telegram connecté pour les vues (TelegramUserSession.status, chaîne libre en base). */
+export type TelegramSessionStatus =
+  "PENDING_CODE" | "PENDING_PASSWORD" | "ACTIVE" | "ERROR" | "DISCONNECTED";
 
 export const STATUS_DICT = {
   membership: {
@@ -217,10 +221,22 @@ export const STATUS_DICT = {
     check: bad("À vérifier"),
     off: muted("Inactif"),
   } satisfies Record<WebhookStatus, StatusEntry>,
+  connection: {
+    ACTIVE: ok("Connecté"),
+    NEEDS_RECONNECT: bad("À reconnecter"),
+    DISABLED: muted("Déconnecté"),
+  } satisfies Record<ConnectionStatus, StatusEntry>,
   active: {
     active: ok("Actif"),
     inactive: muted("Inactif"),
   } satisfies Record<ActiveStatus, StatusEntry>,
+  telegramSession: {
+    PENDING_CODE: warn("Code attendu"),
+    PENDING_PASSWORD: warn("Mot de passe attendu"),
+    ACTIVE: ok("Connecté"),
+    ERROR: bad("À reconnecter"),
+    DISCONNECTED: muted("Déconnecté"),
+  } satisfies Record<TelegramSessionStatus, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

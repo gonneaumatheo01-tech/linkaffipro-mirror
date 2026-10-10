@@ -4,7 +4,7 @@
  */
 export const QUEUE_PREFIX = "lap";
 
-export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance", "automations"] as const;
+export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance", "automations", "sync-ads", "sync-views"] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 /** Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit). */
@@ -59,7 +59,19 @@ export const JOB_RETRY_OPTIONS: Record<QueueName, { attempts: number; backoff?: 
   approvals: { attempts: 1 },
   maintenance: { attempts: 1 },
   automations: { attempts: 1 },
+  // Synchros externes : reprise avec attente longue (quotas Meta / TikTok, FLOOD_WAIT Telegram).
+  "sync-ads": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
+  "sync-views": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
 };
+
+/** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
+export type SyncAdsJob =
+  | { type: "tick" }
+  | { type: "connection"; connectionId: string; mode: "recent" | "full" | "backfill" }
+  | { type: "rates" };
+
+/** File `sync-views` (phase 7) : vues et transferts des messages de canal via le compte Telegram connecté. */
+export type SyncViewsJob = { type: "tick" } | { type: "post"; postId: string };
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
@@ -73,4 +85,8 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
           ? MaintenanceJob
           : Q extends "automations"
             ? AutomationsJob
-            : StatsJob;
+            : Q extends "sync-ads"
+              ? SyncAdsJob
+              : Q extends "sync-views"
+                ? SyncViewsJob
+                : StatsJob;

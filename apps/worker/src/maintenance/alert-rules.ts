@@ -13,7 +13,8 @@ export type AlertKind =
   | "spend_no_conversion"
   | "channel_leak"
   | "post_failed"
-  | "offer_link_inactive";
+  | "offer_link_inactive"
+  | "connector_reconnect";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = { kind: AlertKind; severity: AlertSeverityKey; message: string; payload: Record<string, unknown> };
 
@@ -230,4 +231,26 @@ export function formatAlert(d: Detected): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Jeton d'un compte publicitaire à renouveler dans moins de 7 jours. */
+export const CONNECTOR_EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type ConnectionSnapshot = { platform: string; name: string; status: string; tokenExpiresAt: Date | null; lastError: string | null };
+
+/** Comptes publicitaires à reconnecter : jeton refusé par la plateforme, ou expirant dans moins de 7 jours (phase 7). */
+export function detectConnectorReconnect(connections: ConnectionSnapshot[], now: Date): Detected | null {
+  const needs = connections.filter((c) => c.status === "NEEDS_RECONNECT");
+  const soon = connections.filter((c) => c.status === "ACTIVE" && c.tokenExpiresAt && c.tokenExpiresAt.getTime() - now.getTime() < CONNECTOR_EXPIRY_SOON_MS);
+  if (needs.length === 0 && soon.length === 0) return null;
+  const label = (c: ConnectionSnapshot) => `${c.platform === "META" ? "Meta" : c.platform === "TIKTOK" ? "TikTok" : c.platform} « ${c.name} »`;
+  const parts: string[] = [];
+  if (needs.length) parts.push(`à reconnecter : ${needs.map(label).join(", ")}`);
+  if (soon.length) parts.push(`jeton expirant sous 7 jours : ${soon.map(label).join(", ")}`);
+  return {
+    kind: "connector_reconnect",
+    severity: needs.length ? "CRITICAL" : "WARNING",
+    message: `Compte publicitaire ${parts.join(" ; ")}. Réglages → Connecteurs → Reconnecter.`,
+    payload: { needsReconnect: needs.map((c) => c.name), expiringSoon: soon.map((c) => c.name) },
+  };
 }

@@ -7,8 +7,10 @@ import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { HelpTip } from "@/components/admin/help-tip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseRates } from "@linkaffipro/connectors";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,9 +25,9 @@ import { fmtDate, fmtNum } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
 import { computeSubIdHealth } from "./health";
-import { saveSpendThresholdsAction, syncNowAction } from "./actions";
+import { saveRatesAction, saveSpendThresholdsAction, syncNowAction } from "./actions";
 
-export const metadata: Metadata = { title: "Connecteurs (Link Affi)" };
+export const metadata: Metadata = { title: "Connecteurs" };
 
 const TABLE_LABELS: Record<string, string> = {
   casinos: "Programmes (casinos)",
@@ -43,7 +45,7 @@ const TABLE_LABELS: Record<string, string> = {
 export default async function ConnectorsPage({ searchParams }: PageProps<"/settings/connectors">) {
   await requireAdminPage();
   const sp = await searchParams;
-  const [states, health, thresholdSetting, counts] = await Promise.all([
+  const [states, health, thresholdSetting, counts, connections, ratesImported, ratesManual, telegramSession] = await Promise.all([
     prisma.syncState.findMany(),
     computeSubIdHealth(),
     prisma.setting.findUnique({ where: { key: "spend.thresholds" } }),
@@ -53,7 +55,13 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
       prisma.player.count(),
       prisma.playerEvent.count(),
     ]),
+    prisma.adAccountConnection.findMany({ orderBy: [{ platform: "asc" }, { name: "asc" }], select: { id: true, platform: true, name: true, status: true, currency: true, lastSyncAt: true, lastSyncRows: true, lastError: true } }),
+    prisma.setting.findUnique({ where: { key: "currency.rates.imported" } }),
+    prisma.setting.findUnique({ where: { key: "currency.rates.manual" } }),
+    prisma.telegramUserSession.findUnique({ where: { id: "main" }, select: { status: true, phone: true, lastUsedAt: true, lastError: true } }),
   ]);
+  const manualRates = Object.entries(parseRates(ratesManual?.value));
+  const importedRates = Object.entries(parseRates(ratesImported?.value)).filter(([k]) => k !== "EUR");
   const byTable = new Map(states.map((s) => [s.source, s]));
   const thresholds = {
     vip: 500,
@@ -66,8 +74,8 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
   return (
     <>
       <PageHeader
-        title="Connecteurs (Link Affi)"
-        description="Lecture automatique des données Link Affi (joueurs, dépôts, revenus) toutes les 2 minutes, en lecture seule, et santé de l'identifiant de suivi (sub-ID) qui relie chaque joueur à un membre."
+        title="Connecteurs"
+        description="Tout ce qui alimente la plateforme automatiquement : Link Affi (joueurs, dépôts, revenus, toutes les 2 minutes), vos comptes publicitaires Meta et TikTok (dépenses, chaque heure) et votre compte Telegram (vues des messages)."
         help="Rien à faire au quotidien. Si une table est en erreur, cliquez sur « Synchroniser maintenant » ; si l'erreur persiste, prévenez l'administrateur technique."
       >
         <Button
@@ -80,6 +88,83 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Comptes publicitaires et compte Telegram</CardTitle>
+          <CardDescription>
+            Branchez vous-même vos comptes Meta Ads et TikTok Ads (les dépenses arrivent toutes seules dans Pubs) et votre compte Telegram (nombre de vues par message). La création des applications développeur est expliquée pas à pas sur chaque page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { href: "/settings/connectors/meta", label: "Meta (Facebook / Instagram)", count: connections.filter((c) => c.platform === "META").length },
+              { href: "/settings/connectors/tiktok", label: "TikTok Ads", count: connections.filter((c) => c.platform === "TIKTOK").length },
+              { href: "/settings/connectors/telegram", label: "Telegram (vues des messages)", count: telegramSession?.status === "ACTIVE" ? 1 : 0 },
+            ].map((x) => (
+              <Button key={x.href} variant="outline" className="h-auto justify-between py-3 max-md:h-12" render={<Link href={x.href} />}>
+                <span>{x.label}</span>
+                <span className="text-xs text-muted-foreground">{x.count} connecté{x.count > 1 ? "s" : ""}</span>
+              </Button>
+            ))}
+          </div>
+          {connections.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Compte</TableHead>
+                  <TableHead className="hidden md:table-cell">Plateforme</TableHead>
+                  <TableHead>État</TableHead>
+                  <TableHead className="hidden md:table-cell">Dernière synchro</TableHead>
+                  <TableHead className="hidden lg:table-cell">Dernière erreur</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {connections.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <Link href={`/settings/connectors/${c.platform.toLowerCase()}`} className="underline-offset-2 hover:underline">
+                        {c.name}
+                      </Link>{" "}
+                      <span className="text-xs text-muted-foreground">({c.currency})</span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{c.platform === "META" ? "Meta" : c.platform === "TIKTOK" ? "TikTok" : c.platform}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.status === "ACTIVE" ? "default" : c.status === "NEEDS_RECONNECT" ? "destructive" : "secondary"}>
+                        {c.status === "ACTIVE" ? "Connecté" : c.status === "NEEDS_RECONNECT" ? "À reconnecter" : "Déconnecté"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{c.lastSyncAt ? `${fmtDate(c.lastSyncAt)} · ${fmtNum(c.lastSyncRows)} lignes` : "jamais"}</TableCell>
+                    <TableCell className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell" title={c.lastError ?? ""}>{c.lastError ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">Aucun compte publicitaire connecté pour l&apos;instant.</p>
+          )}
+          <form action={saveRatesAction} className="space-y-2 rounded-md border p-3">
+            <div className="text-sm font-medium">Taux de change (pour les comptes qui ne sont pas en euros)</div>
+            <p className="text-xs text-muted-foreground">
+              Taux « combien d&apos;unités pour 1 € » (ex. USD 1,08). Les taux de Link Affi sont lus automatiquement toutes les 6 heures ; ceux que vous saisissez ici ont priorité.
+              {importedRates.length ? ` Taux Link Affi : ${importedRates.map(([k, v]) => `${k} ${v}`).join(", ")}.` : " Aucun taux Link Affi reçu pour l'instant."}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input
+                name="rates"
+                defaultValue={manualRates.map(([k, v]) => `${k}=${v}`).join(", ")}
+                placeholder="USD=1.08, GBP=0.85"
+                aria-label="Taux de change saisis"
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              />
+              <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
+                Enregistrer les taux
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[

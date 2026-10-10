@@ -7,8 +7,8 @@ export const SETTINGS_PAGES: Array<{ href: string; label: string; description: s
   },
   {
     href: "/settings/connectors",
-    label: "Connecteurs (Link Affi)",
-    description: "Accès à l'API Link Affi et seuils de dépense.",
+    label: "Connecteurs",
+    description: "Link Affi, comptes publicitaires Meta et TikTok, compte Telegram pour les vues.",
   },
   {
     href: "/settings/categories",

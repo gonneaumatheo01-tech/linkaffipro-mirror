@@ -65,3 +65,21 @@ export async function saveSpendThresholdsAction(formData: FormData): Promise<voi
   revalidatePath("/settings/connectors");
   back({ ok: "Seuils enregistrés." });
 }
+
+/** Taux de change saisis (« USD=1.08, GBP=0.85 » : unités pour 1 €), prioritaires sur ceux de Link Affi. */
+export async function saveRatesAction(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const raw = String(formData.get("rates") ?? "");
+  const rates: Record<string, number> = {};
+  for (const part of raw.split(/[,;\n]+/)) {
+    const [k, v] = part.split("=").map((x) => x?.trim());
+    if (!k) continue;
+    const rate = Number((v ?? "").replace(",", "."));
+    if (!/^[A-Za-z]{3}$/.test(k) || !Number.isFinite(rate) || rate <= 0) back({ error: `Taux illisible : « ${part.trim()} » (attendu : USD=1.08).` });
+    rates[k.toUpperCase()] = rate;
+  }
+  await prisma.setting.upsert({ where: { key: "currency.rates.manual" }, create: { key: "currency.rates.manual", value: rates }, update: { value: rates } });
+  await audit({ userId: user.id, action: "settings.currency_rates_updated", metadata: { rates } });
+  revalidatePath("/settings/connectors");
+  back({ ok: Object.keys(rates).length ? `Taux enregistrés : ${Object.entries(rates).map(([k, v]) => `${k} ${v}`).join(", ")}.` : "Taux saisis effacés : les taux Link Affi s'appliquent." });
+}

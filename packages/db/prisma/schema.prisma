@@ -82,6 +82,13 @@ enum AdPlatform {
   OTHER
 }
 
+/// État d'une connexion à un compte publicitaire (phase 7).
+enum ConnectionStatus {
+  ACTIVE
+  NEEDS_RECONNECT
+  DISABLED
+}
+
 /// Nature d'un lien traqué goolink.
 enum TrackingLinkKind {
   AD_ENTRY
@@ -238,16 +245,17 @@ model User {
   updatedAt         DateTime  @updatedAt
   lastLoginAt       DateTime?
 
-  invitationsSent Invitation[]  @relation("InvitedBy")
-  auditLogs       AuditLog[]
-  inviteLinks     InviteLink[]
-  trackingLinks   TrackingLink[]
-  mediaAssets     MediaAsset[]
-  postsCreated    Post[]        @relation("PostCreatedBy")
-  postsUpdated    Post[]        @relation("PostUpdatedBy")
-  memberNotes     MemberNote[]
-  importBatches   ImportBatch[]
-  broadcasts      Broadcast[]
+  invitationsSent      Invitation[]          @relation("InvitedBy")
+  auditLogs            AuditLog[]
+  inviteLinks          InviteLink[]
+  trackingLinks        TrackingLink[]
+  mediaAssets          MediaAsset[]
+  postsCreated         Post[]                @relation("PostCreatedBy")
+  postsUpdated         Post[]                @relation("PostUpdatedBy")
+  memberNotes          MemberNote[]
+  importBatches        ImportBatch[]
+  broadcasts           Broadcast[]
+  adAccountConnections AdAccountConnection[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -298,18 +306,18 @@ model Bot {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  channelAdmins       ChannelBotAdmin[]
-  memberStates        MemberBotState[]
-  primaryChannels     Channel[]                 @relation("PrimaryBot")
-  events              Event[]
-  inviteLinks         InviteLink[]
-  memberships         Membership[]              @relation("ApprovedByBot")
-  clicks              Click[]
-  posts               Post[]
-  sequences           Sequence[]
-  outboundMessages    OutboundMessage[]
-  mediaTelegramFiles  MediaAssetTelegramFile[]
-  broadcasts          Broadcast[]
+  channelAdmins      ChannelBotAdmin[]
+  memberStates       MemberBotState[]
+  primaryChannels    Channel[]                @relation("PrimaryBot")
+  events             Event[]
+  inviteLinks        InviteLink[]
+  memberships        Membership[]             @relation("ApprovedByBot")
+  clicks             Click[]
+  posts              Post[]
+  sequences          Sequence[]
+  outboundMessages   OutboundMessage[]
+  mediaTelegramFiles MediaAssetTelegramFile[]
+  broadcasts         Broadcast[]
 }
 
 /// Canal (ou groupe) Telegram détecté automatiquement.
@@ -357,15 +365,15 @@ model ChannelBotAdmin {
 
 /// Membre Telegram vu par au moins un bot.
 model Member {
-  id             String   @id @default(cuid())
-  telegramUserId BigInt   @unique
+  id             String    @id @default(cuid())
+  telegramUserId BigInt    @unique
   firstName      String?
   lastName       String?
   username       String?
   languageCode   String?
-  isPremium      Boolean  @default(false)
-  firstSeenAt    DateTime @default(now())
-  lastSeenAt     DateTime @default(now())
+  isPremium      Boolean   @default(false)
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
   /// Anonymisé (suppression sur demande) : identité effacée, événements conservés sans données personnelles.
   anonymizedAt   DateTime?
   /// Étiquettes libres (JSON : string[]).
@@ -436,36 +444,36 @@ model Setting {
 /// Demande d'adhésion d'un membre à un canal. Un enregistrement par demande (un membre qui revient en crée un nouveau).
 /// Code court pour les liens profonds `/start g<code>`.
 model Membership {
-  id               String           @id @default(cuid())
-  code             String           @unique
-  memberId         String
-  member           Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  channelId        String
-  channel          Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  status           MembershipStatus @default(REQUESTED)
-  inviteLinkId     String?
-  inviteLink       InviteLink?      @relation(fields: [inviteLinkId], references: [id])
-  approvalRuleId   String?
-  approvalRule     ApprovalRule?    @relation(fields: [approvalRuleId], references: [id])
+  id              String           @id @default(cuid())
+  code            String           @unique
+  memberId        String
+  member          Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  channelId       String
+  channel         Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  status          MembershipStatus @default(REQUESTED)
+  inviteLinkId    String?
+  inviteLink      InviteLink?      @relation(fields: [inviteLinkId], references: [id])
+  approvalRuleId  String?
+  approvalRule    ApprovalRule?    @relation(fields: [approvalRuleId], references: [id])
   /// Identifiant du chat privé fourni par Telegram dans chat_join_request (user_chat_id).
-  userChatId       BigInt?
-  requestedAt      DateTime         @default(now())
-  gateSatisfiedAt  DateTime?
-  approveAt        DateTime?
-  approvedAt       DateTime?
-  declinedAt       DateTime?
-  joinedAt         DateTime?
-  leftAt           DateTime?
-  expiresAt        DateTime?
-  approvedByBotId  String?
-  approvedByBot    Bot?             @relation("ApprovedByBot", fields: [approvedByBotId], references: [id])
+  userChatId      BigInt?
+  requestedAt     DateTime         @default(now())
+  gateSatisfiedAt DateTime?
+  approveAt       DateTime?
+  approvedAt      DateTime?
+  declinedAt      DateTime?
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  expiresAt       DateTime?
+  approvedByBotId String?
+  approvedByBot   Bot?             @relation("ApprovedByBot", fields: [approvedByBotId], references: [id])
   /// Instantané de la source : lien, pub, campagne (JSON).
-  source           Json             @default("{}")
-  remindersSent    Int              @default(0)
-  lastReminderAt   DateTime?
-  attempts         Int              @default(0)
-  lastError        String?
-  updatedAt        DateTime         @updatedAt
+  source          Json             @default("{}")
+  remindersSent   Int              @default(0)
+  lastReminderAt  DateTime?
+  attempts        Int              @default(0)
+  lastError       String?
+  updatedAt       DateTime         @updatedAt
 
   @@unique([memberId, channelId, requestedAt])
   @@index([channelId, status])
@@ -683,55 +691,58 @@ model MediaAssetTelegramFile {
 
 /// Message programmé pour un canal. `code` court pour les liens profonds d'offre.
 model Post {
-  id                 String           @id @default(cuid())
-  code               String           @unique
-  channelId          String
-  channel            Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  botId              String
-  bot                Bot              @relation(fields: [botId], references: [id])
-  status             PostStatus       @default(DRAFT)
-  scheduledAt        DateTime?
-  sentAt             DateTime?
+  id                  String           @id @default(cuid())
+  code                String           @unique
+  channelId           String
+  channel             Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  botId               String
+  bot                 Bot              @relation(fields: [botId], references: [id])
+  status              PostStatus       @default(DRAFT)
+  scheduledAt         DateTime?
+  sentAt              DateTime?
   /// Identifiants Telegram des messages envoyés (JSON : number[] ; plusieurs pour un album).
-  telegramMessageIds Json             @default("[]")
-  categoryId         String?
-  category           MessageCategory? @relation(fields: [categoryId], references: [id])
-  language           String           @default("fr")
+  telegramMessageIds  Json             @default("[]")
+  categoryId          String?
+  category            MessageCategory? @relation(fields: [categoryId], references: [id])
+  language            String           @default("fr")
   /// Texte en HTML Telegram (b, i, u, s, a, code, pre, tg-spoiler, blockquote).
-  text               String           @default("")
+  text                String           @default("")
   /// Médias dans l'ordre (JSON : string[] d'identifiants MediaAsset).
-  mediaAssetIds      Json             @default("[]")
+  mediaAssetIds       Json             @default("[]")
   /// Lignes de boutons (JSON, voir docs/DATA-MODEL.md).
-  buttons            Json             @default("[]")
-  pinAfterSend       Boolean          @default(false)
-  unpinPrevious      Boolean          @default(false)
-  deleteAfterMinutes Int?
-  disableNotification Boolean         @default(false)
-  protectContent     Boolean          @default(false)
-  disableLinkPreview Boolean          @default(true)
-  isTemplate         Boolean          @default(false)
-  templateName       String?
+  buttons             Json             @default("[]")
+  pinAfterSend        Boolean          @default(false)
+  unpinPrevious       Boolean          @default(false)
+  deleteAfterMinutes  Int?
+  disableNotification Boolean          @default(false)
+  protectContent      Boolean          @default(false)
+  disableLinkPreview  Boolean          @default(true)
+  isTemplate          Boolean          @default(false)
+  templateName        String?
   /// Univers du modèle (classement de la bibliothèque de modèles ; renseigné aussi sur les messages créés depuis un canal typé).
-  vertical           Vertical?
+  vertical            Vertical?
   /// Test A/B : identifiant commun aux deux variantes d'un même test et lettre de la variante (A ou B).
-  abGroupId          String?
-  abVariant          String?
-  lastError          String?
-  attempts           Int              @default(0)
-  createdById        String?
-  createdBy          User?            @relation("PostCreatedBy", fields: [createdById], references: [id])
-  updatedById        String?
-  updatedBy          User?            @relation("PostUpdatedBy", fields: [updatedById], references: [id])
-  duplicatedFromId   String?
-  duplicatedFrom     Post?            @relation("PostDuplicates", fields: [duplicatedFromId], references: [id])
-  duplicates         Post[]           @relation("PostDuplicates")
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  abGroupId           String?
+  abVariant           String?
+  lastError           String?
+  attempts            Int              @default(0)
+  createdById         String?
+  createdBy           User?            @relation("PostCreatedBy", fields: [createdById], references: [id])
+  updatedById         String?
+  updatedBy           User?            @relation("PostUpdatedBy", fields: [updatedById], references: [id])
+  duplicatedFromId    String?
+  duplicatedFrom      Post?            @relation("PostDuplicates", fields: [duplicatedFromId], references: [id])
+  duplicates          Post[]           @relation("PostDuplicates")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   stats            PostStats?
   trackingLinks    TrackingLink[]
   clicks           Click[]
   outboundMessages OutboundMessage[]
+  viewSamples      PostViewSample[]
+  /// Prochain relevé des vues par le compte Telegram connecté (phase 7) ; null = plus de relevé.
+  viewsNextAt      DateTime?
 
   @@index([channelId, scheduledAt])
   @@index([status, scheduledAt])
@@ -954,23 +965,26 @@ model SyncState {
 
 /// Pub (TikTok, Meta, autre) : regroupe liens d'entrée, canaux et campagnes d'affiliation.
 model Campaign {
-  id                   String         @id @default(cuid())
+  id                   String               @id @default(cuid())
   name                 String
   vertical             Vertical?
-  channelIds           Json           @default("[]")
-  affiliateCampaignIds Json           @default("[]")
+  channelIds           Json                 @default("[]")
+  affiliateCampaignIds Json                 @default("[]")
   adPlatform           AdPlatform?
   adExternalIds        Json?
   externalCampaignId   String?
-  budgetDaily          Decimal?       @db.Decimal(14, 2)
-  currency             String         @default("EUR")
-  tags                 Json           @default("[]")
+  /// Compte publicitaire connecté par API qui alimente cette campagne (phase 7).
+  connectionId         String?
+  connection           AdAccountConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  budgetDaily          Decimal?             @db.Decimal(14, 2)
+  currency             String               @default("EUR")
+  tags                 Json                 @default("[]")
   startAt              DateTime?
   endAt                DateTime?
-  status               CampaignStatus @default(DRAFT)
+  status               CampaignStatus       @default(DRAFT)
   notes                String?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
   inviteLinks   InviteLink[]
   trackingLinks TrackingLink[]
@@ -1027,7 +1041,10 @@ model AdCost {
   /// Niveau concaténé pour l'unicité : "ad:<id>" | "adset:<id>" | "campaign:<id>".
   levelKey      String
   date          DateTime     @db.Date
+  /// Dépense convertie en EUR (toutes les statistiques lisent cette colonne).
   spend         Decimal      @default(0) @db.Decimal(14, 2)
+  /// Dépense dans la devise du compte (phase 7, API) ; null = saisie ou importée en EUR.
+  spendOriginal Decimal?     @db.Decimal(14, 2)
   impressions   Int          @default(0)
   clicks        Int          @default(0)
   currency      String       @default("EUR")
@@ -1127,21 +1144,21 @@ model Broadcast {
 
 /// Règle d'automatisation « si… alors… ».
 model AutomationRule {
-  id          String            @id @default(cuid())
-  name        String
-  trigger     AutomationTrigger
+  id            String            @id @default(cuid())
+  name          String
+  trigger       AutomationTrigger
   /// Conditions (JSON) : channelIds, campaignIds, languages, spendLevels, inactiveDays, categoryIds…
-  conditions  Json              @default("{}")
+  conditions    Json              @default("{}")
   /// Actions ordonnées (JSON) : [{ type: "send_message", text, buttons?, mediaAssetId?, botId? } | { type: "send_sequence", trigger } | { type: "wait", hours } | { type: "tag", tag } | { type: "suggest_channel", channelId } | { type: "notify_team", text }].
-  actions     Json              @default("[]")
-  isActive    Boolean           @default(false)
+  actions       Json              @default("[]")
+  isActive      Boolean           @default(false)
   /// Une seule exécution par membre et par règle (sauf si false).
-  oncePerMember Boolean         @default(true)
-  runs        Int               @default(0)
-  lastRunAt   DateTime?
-  createdById String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  oncePerMember Boolean           @default(true)
+  runs          Int               @default(0)
+  lastRunAt     DateTime?
+  createdById   String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   executions AutomationRun[]
 
@@ -1150,21 +1167,21 @@ model AutomationRule {
 
 /// Exécution d'une règle pour un membre (journal + file des étapes différées).
 model AutomationRun {
-  id          String              @id @default(cuid())
-  ruleId      String
-  rule        AutomationRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  memberId    String
-  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  status      AutomationRunStatus @default(PENDING)
+  id        String              @id @default(cuid())
+  ruleId    String
+  rule      AutomationRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status    AutomationRunStatus @default(PENDING)
   /// Index de la prochaine action à exécuter.
-  step        Int                 @default(0)
+  step      Int                 @default(0)
   /// Reprise des étapes « attendre ».
-  resumeAt    DateTime?
-  context     Json                @default("{}")
-  log         Json                @default("[]")
-  error       String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  resumeAt  DateTime?
+  context   Json                @default("{}")
+  log       Json                @default("[]")
+  error     String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   @@unique([ruleId, memberId, createdAt])
   @@index([status, resumeAt])
@@ -1228,4 +1245,101 @@ model MemberNote {
   createdAt DateTime @default(now())
 
   @@index([memberId, createdAt])
+}
+
+// ============================================================
+// Phase 7 : connecteurs directs (Meta, TikTok) et vues Telegram
+// ============================================================
+
+/// Identifiants d'application développeur par plateforme (une ligne par plateforme ; secret chiffré AES-256-GCM).
+model ConnectorApp {
+  platform        AdPlatform @id
+  clientId        String
+  secretEncrypted String
+  /// Options par plateforme (JSON) : Meta `configId`, TikTok `sandbox`, Telegram `apiId`…
+  extra           Json       @default("{}")
+  verifiedAt      DateTime?
+  lastError       String?
+  updatedById     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+/// Compte publicitaire connecté par OAuth (plusieurs par plateforme, par utilisateur).
+model AdAccountConnection {
+  id                    String           @id @default(cuid())
+  platform              AdPlatform
+  /// Identifiant chez la plateforme : Meta `act_<id>`, TikTok `advertiser_id`.
+  externalId            String
+  name                  String
+  currency              String           @default("EUR")
+  timezone              String?
+  businessName          String?
+  status                ConnectionStatus @default(ACTIVE)
+  tokenEncrypted        String
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime?
+  scopes                String?
+  connectedById         String?
+  connectedBy           User?            @relation(fields: [connectedById], references: [id], onDelete: SetNull)
+  lastSyncAt            DateTime?
+  lastSyncRows          Int              @default(0)
+  lastError             String?
+  /// Prochaine resynchronisation longue (28 jours), une fois par nuit.
+  nextFullSyncAt        DateTime?
+  /// Historique initial (90 jours) déjà chargé.
+  backfilledAt          DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  campaigns Campaign[]
+  runs      ConnectorSyncRun[]
+
+  @@unique([platform, externalId])
+  @@index([status])
+}
+
+/// Journal d'une synchronisation de dépenses (visible dans Réglages → Connecteurs).
+model ConnectorSyncRun {
+  id           String              @id @default(cuid())
+  connectionId String
+  connection   AdAccountConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  startedAt    DateTime            @default(now())
+  finishedAt   DateTime?
+  dateFrom     DateTime            @db.Date
+  dateTo       DateTime            @db.Date
+  rows         Int                 @default(0)
+  /// running | ok | error
+  status       String              @default("running")
+  error        String?
+
+  @@index([connectionId, startedAt])
+}
+
+/// Session utilisateur Telegram (MTProto) pour lire les vues des messages : une seule ligne (`main`).
+model TelegramUserSession {
+  id               String    @id @default("main")
+  phone            String
+  /// Session GramJS (StringSession) chiffrée.
+  sessionEncrypted String
+  /// PENDING_CODE | PENDING_PASSWORD | ACTIVE | ERROR | DISCONNECTED
+  status           String    @default("PENDING_CODE")
+  phoneCodeHash    String?
+  connectedById    String?
+  lastUsedAt       DateTime?
+  lastError        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+/// Relevé des vues et transferts d'un message de canal (pour les courbes).
+model PostViewSample {
+  id       String   @id @default(cuid())
+  postId   String
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  at       DateTime @default(now())
+  views    Int      @default(0)
+  forwards Int      @default(0)
+
+  @@index([postId, at])
 }

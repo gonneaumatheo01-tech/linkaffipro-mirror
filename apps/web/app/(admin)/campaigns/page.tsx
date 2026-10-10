@@ -206,6 +206,11 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {r.adPlatform ? <StatusBadge kind="adPlatform" value={r.adPlatform} /> : "—"}
+                      {r.source ? (
+                        <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground" title={r.source === "api" ? "Coûts reçus automatiquement du compte connecté" : r.source === "file" ? "Coûts importés par fichier CSV" : "Coûts saisis à la main"}>
+                          {r.source === "api" ? "API" : r.source === "file" ? "Fichier" : "Saisie"}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="hidden text-xs lg:table-cell">
                       {r.channels.join(", ") || "—"}

@@ -88,7 +88,7 @@ export async function sendPost(postId: string): Promise<void> {
     if (post.unpinPrevious) await api.unpinAllChatMessages(chatId).catch((e) => logger.warn({ postId, err: String(e) }, "désépinglage impossible"));
     if (post.pinAfterSend && ids[0]) await api.pinChatMessage(chatId, ids[0], { disable_notification: true }).catch((e) => logger.warn({ postId, err: String(e) }, "épinglage impossible"));
 
-    await prisma.post.update({ where: { id: postId }, data: { status: "SENT", sentAt: now, telegramMessageIds: ids, lastError: null } });
+    await prisma.post.update({ where: { id: postId }, data: { status: "SENT", sentAt: now, telegramMessageIds: ids, lastError: null, viewsNextAt: new Date(now.getTime() + 15 * 60_000) } });
     await prisma.postStats.upsert({ where: { postId }, create: { postId }, update: {} });
     await recordEvent({ type: "post.sent", channelId: post.channelId, botId: post.botId, payload: toJsonValue({ postId, messageIds: ids }) });
     if (post.deleteAfterMinutes && post.deleteAfterMinutes > 0) {

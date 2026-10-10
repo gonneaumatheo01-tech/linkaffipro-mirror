@@ -28,6 +28,8 @@ const QUEUE_LABELS: Record<string, string> = {
   "telegram-send": "Envois Telegram",
   approvals: "Adhésions",
   "sync-linkaffi": "Synchro Link Affi",
+  "sync-ads": "Synchro des pubs (Meta, TikTok)",
+  "sync-views": "Vues Telegram",
   stats: "Statistiques",
   maintenance: "Maintenance",
   automations: "Automatisations",

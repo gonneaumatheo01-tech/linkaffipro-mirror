@@ -22,6 +22,8 @@ export type CampaignRow = {
   status: string;
   channels: string[];
   links: number;
+  /** D'où viennent les coûts : compte connecté (api), fichier CSV (file), saisie (manual), ou aucun. */
+  source: "api" | "file" | "manual" | null;
   metrics: CampaignMetrics;
   /** Période précédente (seulement si demandée). */
   previous: CampaignMetrics | null;
@@ -46,6 +48,9 @@ export async function listCampaignsUncached(period: Period, compare = false): Pr
     prisma.channel.findMany({ select: { id: true, title: true } }),
   ]);
   const channelTitle = new Map(channels.map((c) => [c.id, c.title]));
+  const costSources = await prisma.adCost.groupBy({ by: ["campaignId", "source"], where: { campaignId: { not: null } } });
+  const sourcesByCampaign = new Map<string, Set<string>>();
+  for (const row of costSources) if (row.campaignId) (sourcesByCampaign.get(row.campaignId) ?? sourcesByCampaign.set(row.campaignId, new Set()).get(row.campaignId)!).add(row.source);
   const out: CampaignRow[] = [];
   for (const c of campaigns) {
     const inviteLinkIds = new Set<string>(c.inviteLinks.map((l) => l.id));
@@ -69,6 +74,7 @@ export async function listCampaignsUncached(period: Period, compare = false): Pr
       status: c.status,
       channels: channelIds.map((id) => channelTitle.get(id) ?? "?"),
       links: inviteLinkIds.size,
+      source: c.connectionId || sourcesByCampaign.get(c.id)?.has("API") ? "api" : sourcesByCampaign.get(c.id)?.has("CSV") ? "file" : sourcesByCampaign.get(c.id)?.has("MANUAL") ? "manual" : null,
       metrics,
       previous,
       deltas: previous ? campaignDeltas(metrics, previous) : null,

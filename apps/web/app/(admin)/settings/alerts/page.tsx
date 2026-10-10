@@ -47,6 +47,7 @@ const KIND_LABELS: Record<string, string> = {
   channel_leak: "Canal qui perd ses membres",
   post_failed: "Message programmé en échec",
   offer_link_inactive: "Lien désactivé encore cliqué",
+  connector_reconnect: "Compte publicitaire à reconnecter",
 };
 
 export default async function AlertsPage({ searchParams }: PageProps<"/settings/alerts">) {

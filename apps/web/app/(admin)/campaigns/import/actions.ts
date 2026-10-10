@@ -249,6 +249,8 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
     },
   });
   let tree = await campaignTree();
+  // Pubs alimentées par un compte connecté (Meta / TikTok) : l'API a priorité, le fichier est ignoré pour elles.
+  const apiFed = new Set((await prisma.campaign.findMany({ where: { connectionId: { not: null } }, select: { id: true } })).map((c) => c.id));
   const resolved = new Map<string, { campaignId: string; adSetId?: string; adId?: string }>();
   let imported = 0;
   let failed = 0;
@@ -289,6 +291,11 @@ export async function confirmImportAction(formData: FormData): Promise<void> {
       }
       level = { campaignId, adSetId, adId };
       resolved.set(key, level);
+    }
+    if (apiFed.has(level.campaignId)) {
+      failed++;
+      importErrors.push(`${r.date} ${key} : pub alimentée par l'API (Meta / TikTok) : ligne ignorée, l'API a priorité`);
+      continue;
     }
     const lvl = level.adId
       ? { adId: level.adId }

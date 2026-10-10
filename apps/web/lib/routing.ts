@@ -8,20 +8,33 @@ import { isTrackingHost } from "@linkaffipro/core";
  * - `/api/telegram/<botId>` : webhooks Telegram (secret par bot vérifié dans la route) ;
  * - `/api/auth/*` : Auth.js (connexion, déconnexion, session) ;
  * - `/api/postback/<token>` : postbacks directs (jeton par point d'entrée) ;
- * - `/r` et `/r/<slug>` : redirections goolink (aussi atteintes par réécriture depuis go.goolink.eu).
+ * - `/r` et `/r/<slug>` : redirections goolink (aussi atteintes par réécriture depuis go.goolink.eu) ;
+ * - `/privacy` et `/terms` : politique de confidentialité et conditions d'utilisation (exigées par Meta / TikTok
+ *   pour les apps développeur ; pages en lecture seule, aucune donnée).
  * Tout le reste (pages du site, `/api/media`, exports CSV…) exige une session : le proxy redirige vers /login,
  * et les routes API renvoient 401 par elles-mêmes (double barrière).
  */
-const PUBLIC_PREFIXES = ["/login", "/invite/", "/api/health", "/api/telegram/", "/api/auth/", "/api/postback/", "/r/", "/r"];
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/invite/",
+  "/api/health",
+  "/api/telegram/",
+  "/api/auth/",
+  "/api/postback/",
+  "/r/",
+  "/r",
+  "/privacy",
+  "/terms",
+];
 
 export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((p) => (p.endsWith("/") ? pathname.startsWith(p) : pathname === p || pathname.startsWith(`${p}/`)));
+  return PUBLIC_PREFIXES.some((p) =>
+    p.endsWith("/") ? pathname.startsWith(p) : pathname === p || pathname.startsWith(`${p}/`),
+  );
 }
 
 export type RouteDecision =
-  | { kind: "tracking"; rewriteTo: string }
-  | { kind: "public" }
-  | { kind: "protected" };
+  { kind: "tracking"; rewriteTo: string } | { kind: "public" } | { kind: "protected" };
 
 /**
  * Décide comment traiter une requête selon l'hôte et le chemin (fonction pure, testée).
@@ -29,10 +42,15 @@ export type RouteDecision =
  * - chemin public → laissé passer ;
  * - sinon → session requise.
  */
-export function decideRoute(hostHeader: string | null, pathname: string, trackingHost: string | undefined): RouteDecision {
+export function decideRoute(
+  hostHeader: string | null,
+  pathname: string,
+  trackingHost: string | undefined,
+): RouteDecision {
   if (isTrackingHost(hostHeader, trackingHost)) {
     const clean = pathname.replace(/^\/+/, "");
-    if (clean === "r" || clean.startsWith("r/")) return { kind: "tracking", rewriteTo: `/${clean}` };
+    if (clean === "r" || clean.startsWith("r/"))
+      return { kind: "tracking", rewriteTo: `/${clean}` };
     return { kind: "tracking", rewriteTo: `/r/${clean}` };
   }
   if (isPublicPath(pathname)) return { kind: "public" };

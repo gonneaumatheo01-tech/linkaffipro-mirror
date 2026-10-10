@@ -23,6 +23,7 @@ import { env } from "@/lib/env";
 import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
 import { BUTTON_TYPE_LABELS, parseButtons, previewButtonUrl } from "@/lib/posts/buttons";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
+import { ViewsChart } from "./views-chart";
 import {
   cancelPostAction,
   deleteOnTelegramAction,
@@ -47,9 +48,16 @@ export default async function MessageDetailPage({
       category: true,
       stats: true,
       trackingLinks: { include: { _count: { select: { clickRecords: true } } } },
+      viewSamples: { orderBy: { at: "asc" }, select: { at: true, views: true, forwards: true } },
     },
   });
   if (!post) notFound();
+  const viewsSession = await prisma.telegramUserSession.findUnique({
+    where: { id: "main" },
+    select: { status: true },
+  });
+  const viewsConnected = viewsSession?.status === "ACTIVE";
+  const lastSample = post.viewSamples[post.viewSamples.length - 1] ?? null;
   const buttons = parseButtons(post.buttons);
   const mediaCount = ((post.mediaAssetIds as string[]) ?? []).length;
   const linkById = new Map(post.trackingLinks.map((l) => [l.id, l]));
@@ -91,6 +99,11 @@ export default async function MessageDetailPage({
     : `Message pour ${post.channel.title}`;
   const tiles: Array<{ label: string; value: string; key: string }> = [
     { label: "Vues", value: stats.views ? fmtNum(stats.views) : "—", key: "views" },
+    {
+      label: "Transferts",
+      value: post.stats?.forwards ? fmtNum(post.stats.forwards) : "—",
+      key: "forwards",
+    },
     { label: "Clics", value: fmtNum(stats.clicks), key: "clicks" },
     { label: "Clics uniques", value: fmtNum(stats.uniqueClickers), key: "uniqueClickers" },
     { label: "Clics offres", value: fmtNum(stats.offerClicks), key: "offerClicks" },
@@ -186,12 +199,28 @@ export default async function MessageDetailPage({
                 </p>
               ) : null}
               <p className="mt-3 text-xs text-muted-foreground">
-                Le nombre de vues nécessite la connexion téléphone (à venir) ; réactions et clics
-                sont comptés. Les inscriptions et dépôts sont ceux des joueurs rattachés à ce
-                message par leur identifiant de suivi (sub-ID).
+                {viewsConnected
+                  ? `Vues et transferts sont relevés par le compte Telegram connecté (toutes les 15 min pendant 48 h, puis chaque jour pendant 30 jours)${lastSample ? ` ; dernier relevé le ${fmtDate(lastSample.at)}` : ""}.`
+                  : "Le nombre de vues nécessite un compte Telegram connecté (Réglages → Connecteurs → Telegram) ; réactions et clics sont comptés."}{" "}
+                Les inscriptions et dépôts sont ceux des joueurs rattachés à ce message par leur
+                identifiant de suivi (sub-ID).
               </p>
             </CardContent>
           </Card>
+          {post.viewSamples.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Vues dans le temps</CardTitle>
+                <CardDescription>
+                  Un point par relevé. Survolez un point pour lire la valeur ; le tableau en dessous
+                  liste les derniers relevés.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ViewsChart samples={post.viewSamples} />
+              </CardContent>
+            </Card>
+          ) : null}
           {buttons.length > 0 ? (
             <Card>
               <CardHeader>

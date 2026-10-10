@@ -13,9 +13,11 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@linkaffipro/connectors": "workspace:*",
     "@linkaffipro/core": "workspace:*",
     "@linkaffipro/db": "workspace:*",
     "@linkaffipro/linkaffi": "workspace:*",
+    "@linkaffipro/mtproto": "workspace:*",
     "@linkaffipro/queue": "workspace:*",
     "@linkaffipro/telegram": "workspace:*",
     "@prisma/client": "~6.19.3",
@@ -23,7 +25,8 @@
     "bullmq": "^6.3.12",
     "grammy": "^1.46.0",
     "ioredis": "^6.0.0",
-    "pino": "^10.4.0"
+    "pino": "^10.4.0",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

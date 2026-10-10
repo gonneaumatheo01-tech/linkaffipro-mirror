@@ -7,6 +7,8 @@ import { processSyncLinkaffi, repeatableSyncLinkaffi } from "./sync-linkaffi";
 import { processStats, repeatableStats } from "./stats";
 import { processMaintenance, repeatableMaintenance } from "./maintenance";
 import { processAutomations, repeatableAutomations } from "./automations";
+import { processSyncAds, repeatableSyncAds } from "./sync-ads";
+import { processSyncViews, repeatableSyncViews } from "./sync-views";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -18,4 +20,7 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   stats: { process: (job: Job) => processStats(job), repeatable: repeatableStats, concurrency: 1 },
   maintenance: { process: (job: Job) => processMaintenance(job), repeatable: repeatableMaintenance, concurrency: 1 },
   automations: { process: (job: Job) => processAutomations(job), repeatable: repeatableAutomations, concurrency: 2 },
+  // Un seul appel externe à la fois : quotas des plateformes et un seul client MTProto.
+  "sync-ads": { process: (job: Job) => processSyncAds(job), repeatable: repeatableSyncAds, concurrency: 1 },
+  "sync-views": { process: (job: Job) => processSyncViews(job), repeatable: repeatableSyncViews, concurrency: 1 },
 };

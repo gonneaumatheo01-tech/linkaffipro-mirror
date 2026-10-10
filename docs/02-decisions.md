@@ -34,3 +34,12 @@ Q12 aucun compte pub, Business Manager parfois contrôlé parfois non · Q13 rie
 redirection invisible · Q14 pas d'historique · Q15 2 admins, 1 manager · Q16 pas de 2FA · Q17 pas d'IA pour
 l'instant · Q19 ok · Q20 ok · Q21 ok · Q22 rien d'existant, à créer · Q23 le client sur son Mac, second
 ordinateur et associé à venir · Q24 lancement dans 3-4 jours, pas de budget max.
+
+## Décisions du 10 octobre (retours après première utilisation)
+
+- IA : l'IA « manager » complète reste écartée ; **un assistant IA d'écriture des messages est demandé** (améliorer un brouillon selon l'univers casino, paris sportifs ou dating ; clé API saisie par l'admin dans Réglages → IA). Voir `docs/prompts/10-phase-8-corrections-et-ia-messages.md`.
+- Catégories de messages : créées par le client lui-même ; aucune catégorie créée d'office.
+- Statistiques : seules nos données comptent (joueurs rattachés à nos clics par sub-ID, ou campagnes Link Affi rattachées à nos campagnes), aux dates réelles des événements. Les totaux Link Affi globaux n'apparaissent jamais dans les statistiques.
+- Tableau de bord : tuile « Événements (24 h) » retirée.
+- « Campagne » = notre campagne (offre Link Affi + canaux + pubs + liens), entrée principale du menu ; « campagne pub » = structure TikTok / Meta à l'intérieur.
+- Comptes publicitaires : comptes d'agence partagés avec le Business Manager / Business Center du client, connectés depuis la plateforme (phase 7).

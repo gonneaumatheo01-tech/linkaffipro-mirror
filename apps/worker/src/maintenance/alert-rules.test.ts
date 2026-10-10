@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupFileDate, DEFAULT_THRESHOLDS, detectBackupFailed, detectBotWebhook, detectChannelLeak, detectDmBlocked, detectJobFailures, detectOfferLinkInactive, detectPostFailed, detectQueueBacklog, detectRegistrationsDrop, detectSpendNoConversion, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, parseThresholds, shouldCreate } from "./alert-rules";
+import { backupFileDate, detectConnectorReconnect, DEFAULT_THRESHOLDS, detectBackupFailed, detectBotWebhook, detectChannelLeak, detectDmBlocked, detectJobFailures, detectOfferLinkInactive, detectPostFailed, detectQueueBacklog, detectRegistrationsDrop, detectSpendNoConversion, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, parseThresholds, shouldCreate } from "./alert-rules";
 
 const now = new Date("2026-10-09T12:00:00Z");
 const ago = (min: number) => new Date(now.getTime() - min * 60_000);
@@ -135,5 +135,20 @@ describe("règles métier à seuils (phase 6)", () => {
     const d = detectOfferLinkInactive([{ slug: "abc", label: "Bonus", clicks: 3 }]);
     expect(d?.kind).toBe("offer_link_inactive");
     expect(d?.message).toContain("Bonus (/abc, 3 clics)");
+  });
+});
+
+describe("comptes publicitaires à reconnecter", () => {
+  const now = new Date("2026-10-10T00:00:00Z");
+  it("rien si tout est connecté avec un jeton lointain ou sans expiration", () => {
+    expect(detectConnectorReconnect([{ platform: "META", name: "A", status: "ACTIVE", tokenExpiresAt: new Date("2026-12-01T00:00:00Z"), lastError: null }, { platform: "TIKTOK", name: "B", status: "ACTIVE", tokenExpiresAt: null, lastError: null }], now)).toBeNull();
+  });
+  it("critique si un compte est à reconnecter, attention si un jeton expire sous 7 jours", () => {
+    const d = detectConnectorReconnect([{ platform: "META", name: "A", status: "NEEDS_RECONNECT", tokenExpiresAt: null, lastError: "190" }], now);
+    expect(d?.severity).toBe("CRITICAL");
+    expect(d?.message).toContain("Meta « A »");
+    const w = detectConnectorReconnect([{ platform: "META", name: "A", status: "ACTIVE", tokenExpiresAt: new Date("2026-10-13T00:00:00Z"), lastError: null }], now);
+    expect(w?.severity).toBe("WARNING");
+    expect(w?.payload.expiringSoon).toEqual(["A"]);
   });
 });

@@ -497,6 +497,32 @@ Pubs → **Importer des coûts** : laissez « Détection automatique », choisis
 ### Nouvelles alertes et seuils
 Nouvelles alertes Telegram : chute des inscriptions, dépense sans inscription, canal qui perd ses membres, message programmé en échec, lien désactivé encore cliqué. Elles arrivent une fois et se ferment seules quand la cause disparaît. Réglages → **Alertes** → « Seuils des alertes métier » pour régler le pourcentage de chute (50 % par défaut), la dépense sans inscription (50 €) et le pourcentage de départs (10 %) ; effet au prochain passage (5 minutes).
 
+### Comptes publicitaires et compte Telegram (Réglages → Connecteurs)
+**À quoi ça sert.** Brancher vous-même vos comptes Meta Ads et TikTok Ads : les dépenses arrivent toutes seules dans Pubs (chaque heure, historique de 90 jours au branchement), et le tableau de bord calcule CPL, CPA, coût par premier dépôt et ROAS sans import de fichier. Même principe pour le nombre de vues de vos messages Telegram.
+
+**Meta (Facebook / Instagram) — une fois, 10 minutes.**
+1. Sur developers.facebook.com → **Mes apps** → **Créer une app** (cas d'usage « Autre », type **Entreprise**), ajoutez le produit **Facebook Login for Business** (ou Facebook Login).
+2. Dans ses **Paramètres**, collez l'adresse de retour affichée sur la page Réglages → Connecteurs → Meta (`https://app.linkaffipro.com/api/connectors/meta/callback`) dans « URI de redirection OAuth valides ».
+3. **Paramètres de l'app → Général** : copiez l'App ID et la Clé secrète (Afficher) dans Réglages → Connecteurs → **Meta**, puis **Enregistrer** et **Vérifier**. Renseignez aussi le domaine `app.linkaffipro.com`, l'URL de confidentialité `https://app.linkaffipro.com/privacy` et les conditions `https://app.linkaffipro.com/terms`.
+4. **Rôles de l'app** : ajoutez chaque membre de l'équipe (Administrateur, Développeur ou Testeur). En mode Développement, cela suffit pour tous les comptes publicitaires que leur profil Facebook voit.
+5. Cliquez **Connecter un compte Meta**, acceptez chez Facebook, cochez les comptes : l'historique de 90 jours se charge seul.
+**Pièges.** Le passage en mode Live, la vérification d'entreprise et l'App Review ne servent que pour laisser des personnes hors de l'app connecter leurs comptes : plus tard, seulement si besoin. Un jeton Meta dure 60 jours et se renouvelle seul ; s'il est révoqué, le compte passe « À reconnecter » (alerte Telegram) : cliquez **Reconnecter**.
+
+**TikTok Ads — une fois, 10 minutes + validation par TikTok.**
+1. Sur business-api.tiktok.com/portal, connectez-vous avec votre compte TikTok for Business, cliquez **Become a Developer** puis **My Apps → Create an App** : nom « LinkAffi Pro », adresse de retour = celle affichée dans Réglages → Connecteurs → TikTok (bouton Copier), permissions **Ad Account Management → Read** et **Reporting** seulement.
+2. Copiez l'App ID et le Secret (**My Apps → Basic Information**) dans la page, puis **Enregistrer** et **Vérifier**.
+3. TikTok valide l'app en 1 à 2 semaines (e-mail). Avant, la connexion d'un vrai compte est refusée.
+4. En attendant, cochez **Mode bac à sable**, créez un compte de test dans le portail (**Tools → Sandbox → Generate Access Token**) et collez le jeton et l'identifiant dans le formulaire dédié ; décochez le mode et déconnectez le compte de test après validation.
+5. Après validation : **Connecter un compte TikTok**, acceptez chez TikTok, cochez les comptes : les dépenses arrivent seules dans Pubs (3 derniers jours chaque heure, 28 jours chaque nuit, 90 jours à la connexion).
+**Pièges.** Un compte dans une autre devise que l'euro a besoin d'un taux de change : Link Affi en fournit, et vous pouvez en saisir dans Réglages → Connecteurs (ils ont priorité). Une pub alimentée par l'API refuse les lignes d'un fichier CSV (l'API a priorité).
+
+**Telegram (vues et transferts des messages) — une fois, 5 minutes.**
+1. Réglages → Connecteurs → **Telegram (vues et transferts)** : créez une « application » sur https://my.telegram.org (connexion avec votre numéro, **API development tools**, nom « LinkAffi Pro », plateforme Web, URL https://app.linkaffipro.com) et collez `App api_id` et `App api_hash` dans la page.
+2. Connectez le compte propriétaire des canaux : numéro international → code reçu dans l'application Telegram → mot de passe de validation en deux étapes si vous en avez un. Ce compte doit être administrateur des canaux ; il sert uniquement à lire les vues.
+3. Ensuite tout est automatique : vues et transferts relevés toutes les 15 minutes pendant 48 h après l'envoi, puis une fois par jour pendant 30 jours ; les messages des 30 derniers jours sont repris à la connexion.
+4. Les vues apparaissent dans la fiche de chaque message (tuiles « Vues » et « Transferts », courbe dans le temps) et servent au taux de clic par vue, aux meilleurs horaires et aux tests A/B.
+**Pièges.** Badge « À reconnecter » = Telegram a fermé la session (depuis l'application ou expirée) : cliquez **Effacer la session** puis refaites l'étape 2. **Déconnecter** révoque la session ; **Relever maintenant** force un passage. « Canal introuvable » = le compte n'est pas membre ou administrateur du canal.
+
 ### Réglages → Équipe
 **À quoi ça sert.** Gérer les comptes de l'équipe (administrateurs et managers) sans e-mail automatique : vous copiez le lien et vous l'envoyez vous-même.
 **Comment faire.**
