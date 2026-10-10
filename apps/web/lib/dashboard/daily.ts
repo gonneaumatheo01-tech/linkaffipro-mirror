@@ -8,7 +8,7 @@ import {
   type Period,
 } from "@/lib/periods";
 import { campaignScope } from "./campaign-scope";
-import { sumDays, unionTotal } from "./union-total";
+import { dimensionDaily, sumDays, unionDaily, unionTotal } from "./union-total";
 import {
   EMPTY_TOTALS,
   addTotals,
@@ -164,6 +164,12 @@ export async function loadAdsTable(
   previousTotal: StatTotals;
   previousTotalDerived: Derived;
   totalDeltas: AdsRow["deltas"];
+  /** Totaux jour par jour de la période (graphique), même règle que la ligne Total ; dans l'ordre de `keys`. */
+  daily: StatTotals[];
+  /** Même chose pour la période précédente (comparaison). */
+  previousDaily: StatTotals[];
+  /** Jours de la période et de la précédente (`AAAA-MM-JJ`). */
+  keys: { current: string[]; previous: string[] };
   lastComputedAt: Date | null;
 }> {
   const previous = previousPeriod(period);
@@ -211,6 +217,16 @@ export async function loadAdsTable(
   const previousTotal = filters.campaignId ? (rows[0]?.previous ?? EMPTY_TOTALS) : totalOf(prev);
   const totalDerived = derive(total);
   const previousTotalDerived = derive(previousTotal);
+  // Série jour par jour (graphique de la page Pubs) : mêmes lignes, même règle que le Total.
+  const keys = periodKeys(period);
+  const dailyOf = (byDim: Map<string, Map<string, StatTotals>>, k: string[]) =>
+    filters.campaignId
+      ? dimensionDaily(k, byDim.get(dims[0] ?? ""))
+      : unionDaily(
+          k,
+          byDim.get(union),
+          dims.map((d) => byDim.get(d) ?? new Map<string, StatTotals>()),
+        );
   return {
     rows,
     total,
@@ -218,6 +234,9 @@ export async function loadAdsTable(
     previousTotal,
     previousTotalDerived,
     totalDeltas: computeDeltas(total, totalDerived, previousTotal, previousTotalDerived),
+    daily: dailyOf(cur, keys.current),
+    previousDaily: dailyOf(prev, keys.previous),
+    keys,
     lastComputedAt,
   };
 }

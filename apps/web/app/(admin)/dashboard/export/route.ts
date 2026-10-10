@@ -7,22 +7,26 @@ import { parseCompare, periodLabel, previousPeriod, resolvePeriod } from "@/lib/
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Colonnes du fichier, dans le vocabulaire de l'interface (docs/REFONTE-UX.md) ; le terme technique reste entre
+ * parenthèses pour qui le cherche dans Excel. Mêmes chiffres et même ordre qu'avant.
+ */
 const COLUMNS: Array<{ key: keyof StatTotals | keyof Derived; label: string; money?: boolean }> = [
-  { key: "spend", label: "Dépense (EUR)", money: true },
-  { key: "entryClicks", label: "Clics pub" },
-  { key: "requests", label: "Demandes" },
+  { key: "spend", label: "Dépense pub (EUR)", money: true },
+  { key: "entryClicks", label: "Clics sur les pubs" },
+  { key: "requests", label: "Demandes d'adhésion" },
   { key: "approved", label: "Acceptés" },
-  { key: "joined", label: "Entrés" },
-  { key: "offerClicks", label: "Clics offres" },
+  { key: "joined", label: "Membres entrés" },
+  { key: "offerClicks", label: "Clics sur les offres" },
   { key: "registrations", label: "Inscriptions" },
-  { key: "ftds", label: "FTD" },
-  { key: "deposits", label: "Dépôts (nb)" },
-  { key: "depositAmount", label: "Dépôts (EUR)", money: true },
-  { key: "ngr", label: "NGR (EUR)", money: true },
-  { key: "cpl", label: "CPL" },
-  { key: "cpa", label: "CPA" },
-  { key: "costPerFtd", label: "Coût par FTD" },
-  { key: "roas", label: "ROAS" },
+  { key: "ftds", label: "Premiers dépôts (FTD)" },
+  { key: "deposits", label: "Dépôts (nombre)" },
+  { key: "depositAmount", label: "Montant déposé (EUR)", money: true },
+  { key: "ngr", label: "Revenu net (NGR, EUR)", money: true },
+  { key: "cpl", label: "Coût par membre (CPL, EUR)" },
+  { key: "cpa", label: "Coût par inscription (CPA, EUR)" },
+  { key: "costPerFtd", label: "Coût par premier dépôt (EUR)" },
+  { key: "roas", label: "Retour sur dépense pub (ROAS)" },
   { key: "profit", label: "Bénéfice (EUR)", money: true },
 ];
 

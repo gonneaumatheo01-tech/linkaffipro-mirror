@@ -1,37 +1,59 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Send } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { EmptyState } from "@/components/admin/empty-state";
+import { FormSection } from "@/components/admin/form-section";
+import { Term } from "@/components/admin/help-tip";
+import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { requireAdminPage } from "@/lib/session";
+import { SettingsGroupNav } from "../categories/group-nav";
 import { saveReportsConfigAction, sendReportNowAction } from "./actions";
+import {
+  HOUR_OPTIONS,
+  lastSentLabel,
+  readReportsConfig,
+  reportsSummary,
+  telegramToText,
+} from "./report-view";
 
 export const metadata: Metadata = { title: "Rapports automatiques" };
 
-type Config = { daily: boolean; weekly: boolean; hour: number };
-
-function readConfig(value: unknown): Config {
-  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-  return {
-    daily: typeof v.daily === "boolean" ? v.daily : true,
-    weekly: typeof v.weekly === "boolean" ? v.weekly : true,
-    hour: typeof v.hour === "number" && v.hour >= 0 && v.hour <= 23 ? Math.floor(v.hour) : 9,
-  };
+/** Dernier texte envoyé, tel qu'il est arrivé sur Telegram (sans la mise en forme). */
+function ReportPreview({
+  title,
+  text,
+  emptyTitle,
+  emptyHint,
+}: {
+  title: string;
+  text: string | null;
+  emptyTitle: string;
+  emptyHint: string;
+}) {
+  return (
+    <section aria-label={title} className="space-y-2">
+      <h3 className="text-body font-semibold text-foreground">{title}</h3>
+      {text ? (
+        <pre className="max-h-96 overflow-auto rounded-xl border border-border bg-muted/40 p-4 font-sans text-note whitespace-pre-wrap text-foreground">
+          {telegramToText(text)}
+        </pre>
+      ) : (
+        <EmptyState icon={<Send />} title={emptyTitle} description={emptyHint} className="py-8" />
+      )}
+    </section>
+  );
 }
 
-/** Rendu très simple du HTML Telegram (b, i, code) pour l'aperçu ; le reste est affiché tel quel. */
-function telegramToText(html: string): string {
-  return html
-    .replace(/<\/?(b|i|code)>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-}
-
+/**
+ * Réglages → Alertes et rapports → Rapports automatiques : quand recevoir le résumé quotidien et le rapport du lundi
+ * (mêmes champs qu'avant : `daily`, `weekly`, `hour`), un envoi d'essai, puis l'aperçu des derniers textes envoyés.
+ */
 export default async function ReportsPage({ searchParams }: PageProps<"/settings/reports">) {
   await requireAdminPage();
   const sp = await searchParams;
@@ -43,138 +65,122 @@ export default async function ReportsPage({ searchParams }: PageProps<"/settings
     "reports.lastWeeklyText",
   ];
   const settings = await prisma.setting.findMany({ where: { key: { in: keys } } });
-  const get = (k: string) => settings.find((s) => s.key === k)?.value;
-  const config = readConfig(get("reports.config"));
-  const lastDaily =
-    typeof get("reports.lastDaily") === "string" ? (get("reports.lastDaily") as string) : null;
-  const lastWeekly =
-    typeof get("reports.lastWeekly") === "string" ? (get("reports.lastWeekly") as string) : null;
-  const lastDailyText =
-    typeof get("reports.lastDailyText") === "string"
-      ? (get("reports.lastDailyText") as string)
-      : null;
-  const lastWeeklyText =
-    typeof get("reports.lastWeeklyText") === "string"
-      ? (get("reports.lastWeeklyText") as string)
-      : null;
+  const str = (k: string) => {
+    const v = settings.find((s) => s.key === k)?.value;
+    return typeof v === "string" ? v : null;
+  };
+  const config = readReportsConfig(settings.find((s) => s.key === "reports.config")?.value);
+  const anyOn = config.daily || config.weekly;
 
   return (
     <>
       <PageHeader
+        backHref="/settings"
+        backLabel="Réglages"
         title="Rapports automatiques"
-        description="Résumé quotidien et rapport hebdomadaire envoyés sur le Telegram de l'administrateur : demandes, acceptés, clics, inscriptions, premiers dépôts (FTD), dépôts, revenu net (NGR), dépense, alertes."
-        help="Choisissez l'heure d'envoi, puis cliquez sur « Envoyer le résumé maintenant » pour vérifier que vous le recevez bien."
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/settings" />}
-        >
-          ← Réglages
-        </Button>
-      </PageHeader>
+        meta={
+          <StatusPill tone={anyOn ? "success" : "muted"}>
+            {anyOn ? "Activés" : "Désactivés"}
+          </StatusPill>
+        }
+        description={
+          <>
+            Un résumé sur votre Telegram : demandes, acceptés, clics, inscriptions,{" "}
+            <Term term="FTD">premiers dépôts</Term>, dépôts, <Term term="NGR">revenu net</Term>,
+            dépense pub et alertes.
+          </>
+        }
+        help="Choisissez l'heure, puis « Envoyer maintenant » pour vérifier que vous le recevez bien."
+      />
+      <SettingsGroupNav group="alerts" current="reports" />
       <Flash ok={sp.ok} error={sp.error} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Réglages</CardTitle>
-            <CardDescription>
-              Le résumé quotidien couvre la veille ; le rapport hebdomadaire part le lundi et couvre
-              les 7 derniers jours. Heure de Paris.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={saveReportsConfigAction} className="space-y-4">
-              <label className="flex min-h-10 items-center gap-2 text-sm md:min-h-0">
-                <input
-                  type="checkbox"
-                  name="daily"
-                  defaultChecked={config.daily}
-                  className="size-4"
-                />{" "}
+
+      <div className="space-y-10">
+        <FormSection
+          title="Quand les recevoir"
+          description="Le résumé quotidien couvre la veille ; le rapport du lundi couvre les 7 derniers jours. Heure de Paris."
+        >
+          <form
+            action={saveReportsConfigAction}
+            className="max-w-xl space-y-5 rounded-xl border border-border bg-card p-4 md:p-6"
+          >
+            <p className="text-body text-muted-foreground">{reportsSummary(config)}</p>
+            <div className="space-y-1">
+              <label className="flex min-h-10 items-center gap-3 text-body">
+                <Checkbox name="daily" value="on" defaultChecked={config.daily} />
                 Résumé quotidien
               </label>
-              <label className="flex min-h-10 items-center gap-2 text-sm md:min-h-0">
-                <input
-                  type="checkbox"
-                  name="weekly"
-                  defaultChecked={config.weekly}
-                  className="size-4"
-                />{" "}
+              <label className="flex min-h-10 items-center gap-3 text-body">
+                <Checkbox name="weekly" value="on" defaultChecked={config.weekly} />
                 Rapport hebdomadaire (le lundi)
               </label>
-              <div className="space-y-2">
-                <Label htmlFor="hour">Heure d&apos;envoi (0 à 23)</Label>
-                <Input
-                  id="hour"
-                  name="hour"
-                  type="number"
-                  min={0}
-                  max={23}
-                  defaultValue={config.hour}
-                  className="h-10 w-24 md:h-9"
-                />
-              </div>
-              <Button type="submit" className="max-md:h-10">
-                Enregistrer
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hour">Heure d&apos;envoi</Label>
+              <NativeSelect
+                id="hour"
+                name="hour"
+                defaultValue={String(config.hour)}
+                className="w-32"
+              >
+                {HOUR_OPTIONS.map((h) => (
+                  <option key={h.value} value={h.value}>
+                    {h.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <Button type="submit" className="max-md:h-10">
+              Enregistrer
+            </Button>
+          </form>
+        </FormSection>
+
+        <FormSection
+          title="Essayer maintenant"
+          description="Envoie tout de suite le résumé ou le rapport sur le Telegram de l'administrateur, sans attendre l'heure prévue."
+        >
+          <div className="flex flex-wrap gap-2">
+            <form action={sendReportNowAction}>
+              <input type="hidden" name="kind" value="daily" />
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                <Send aria-hidden />
+                Envoyer le résumé maintenant
               </Button>
             </form>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <form action={sendReportNowAction}>
-                <input type="hidden" name="kind" value="daily" />
-                <Button type="submit" variant="outline" className="max-md:h-10">
-                  Envoyer le résumé maintenant
-                </Button>
-              </form>
-              <form action={sendReportNowAction}>
-                <input type="hidden" name="kind" value="weekly" />
-                <Button type="submit" variant="outline" className="max-md:h-10">
-                  Envoyer le rapport maintenant
-                </Button>
-              </form>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Dernier résumé automatique : {lastDaily ?? "jamais"} · dernier rapport hebdomadaire
-              automatique : {lastWeekly ?? "jamais"}.
-            </p>
-          </CardContent>
-        </Card>
+            <form action={sendReportNowAction}>
+              <input type="hidden" name="kind" value="weekly" />
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                <Send aria-hidden />
+                Envoyer le rapport maintenant
+              </Button>
+            </form>
+          </div>
+          <p className="text-note text-muted-foreground">
+            Dernier résumé automatique : {lastSentLabel(str("reports.lastDaily"))} · dernier rapport
+            du lundi : {lastSentLabel(str("reports.lastWeekly"))}.
+          </p>
+        </FormSection>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dernier résumé envoyé</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {lastDailyText ? (
-                <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
-                  {telegramToText(lastDailyText)}
-                </pre>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Aucun résumé envoyé pour l&apos;instant.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dernier rapport hebdomadaire envoyé</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {lastWeeklyText ? (
-                <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs">
-                  {telegramToText(lastWeeklyText)}
-                </pre>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Aucun rapport envoyé pour l&apos;instant.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <FormSection
+          title="Derniers textes envoyés"
+          description="Ce que vous avez reçu sur Telegram, sans la mise en forme."
+        >
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ReportPreview
+              title="Résumé quotidien"
+              text={str("reports.lastDailyText")}
+              emptyTitle="Aucun résumé envoyé pour l'instant"
+              emptyHint="« Envoyer le résumé maintenant » ci-dessus : il s'affichera ici."
+            />
+            <ReportPreview
+              title="Rapport hebdomadaire"
+              text={str("reports.lastWeeklyText")}
+              emptyTitle="Aucun rapport envoyé pour l'instant"
+              emptyHint="« Envoyer le rapport maintenant » ci-dessus : il s'affichera ici."
+            />
+          </div>
+        </FormSection>
       </div>
     </>
   );

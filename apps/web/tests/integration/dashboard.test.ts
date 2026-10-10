@@ -695,6 +695,85 @@ describe("onglet Campagnes : ligne Total et date du dernier calcul", () => {
   });
 });
 
+describe("Pubs : jour par jour (graphique et mini-courbes)", () => {
+  const period = resolvePeriod({ range: "7d" });
+  const keys = periodDayKeys(period);
+  const first = keys[0]!;
+  const last = keys[keys.length - 1]!;
+  const middle = keys[3]!;
+  const before = shiftDay(first, -1); // dernier jour de la période précédente
+  const day = (k: string) => new Date(`${k}T00:00:00Z`); // même date que le worker (apps/worker/src/stats/daily.ts)
+  let c: { id: string };
+  let d: { id: string };
+  const sum = (rows: Array<{ registrations: number; spend: number }>) => ({
+    registrations: rows.reduce((a, r) => a + r.registrations, 0),
+    spend: Math.round(rows.reduce((a, r) => a + r.spend, 0) * 100) / 100,
+  });
+  beforeAll(async () => {
+    await prisma.dailyStat.deleteMany();
+    await prisma.campaign.deleteMany();
+    await resetDb();
+    c = await prisma.campaign.create({ data: { name: "C" } });
+    d = await prisma.campaign.create({ data: { name: "D" } });
+    const dimC = `campaign:${c.id}`;
+    const dimD = `campaign:${d.id}`;
+    await prisma.dailyStat.createMany({
+      data: [
+        // Premier et dernier jour de la période : les bornes tombent sur le bon point.
+        { date: day(first), dimension: dimC, campaignId: c.id, registrations: 2, spend: 10.5 },
+        { date: day(last), dimension: dimC, campaignId: c.id, registrations: 1, spend: 4 },
+        { date: day(last), dimension: dimD, campaignId: d.id, registrations: 3, spend: 6 },
+        // Jour du milieu : un joueur partagé par les deux campagnes ; la ligne sans doublon en compte 1.
+        { date: day(middle), dimension: dimC, campaignId: c.id, registrations: 1 },
+        { date: day(middle), dimension: dimD, campaignId: d.id, registrations: 1 },
+        { date: day(middle), dimension: "campaigns", registrations: 1 },
+        // Veille de la période : dans la période précédente seulement.
+        { date: day(before), dimension: dimC, campaignId: c.id, registrations: 7, spend: 20 },
+      ],
+    });
+  });
+  afterAll(async () => {
+    await prisma.dailyStat.deleteMany();
+    await prisma.campaign.deleteMany();
+  });
+
+  it("toutes les campagnes : un point par jour, aux bons jours, et la somme des jours fait le total", async () => {
+    const t = await loadAdsTable(period);
+    expect(t.keys.current).toEqual(keys);
+    expect(t.daily).toHaveLength(keys.length);
+    expect(t.previousDaily).toHaveLength(t.keys.previous.length);
+    expect(t.daily[0]).toMatchObject({ registrations: 2, spend: 10.5 });
+    expect(t.daily[3]).toMatchObject({ registrations: 1 }); // sans doublon, pas 1 + 1
+    expect(t.daily[keys.length - 1]).toMatchObject({ registrations: 4, spend: 10 });
+    expect(sum(t.daily)).toEqual({
+      registrations: t.total.registrations,
+      spend: t.total.spend,
+    });
+    expect(t.total.registrations).toBe(7);
+    // La veille compte dans la période précédente, à son dernier jour.
+    expect(t.previousDaily[t.previousDaily.length - 1]).toMatchObject({ registrations: 7 });
+    expect(sum(t.previousDaily)).toEqual({
+      registrations: t.previousTotal.registrations,
+      spend: t.previousTotal.spend,
+    });
+  });
+
+  it("une seule campagne : sa série jour par jour fait sa ligne", async () => {
+    const one = await loadAdsTable(period, { campaignId: c.id });
+    expect(one.daily).toHaveLength(keys.length);
+    expect(one.daily[0]).toMatchObject({ registrations: 2, spend: 10.5 });
+    expect(one.daily[3]).toMatchObject({ registrations: 1 });
+    expect(one.daily[keys.length - 1]).toMatchObject({ registrations: 1, spend: 4 });
+    expect(sum(one.daily)).toEqual({
+      registrations: one.total.registrations,
+      spend: one.total.spend,
+    });
+    expect(one.total.registrations).toBe(4);
+    expect(sum(one.previousDaily).registrations).toBe(one.previousTotal.registrations);
+    expect(one.previousTotal.registrations).toBe(7);
+  });
+});
+
 describe("Link Affi : diagnostic et export des joueurs", () => {
   beforeAll(async () => {
     await seedFilters();

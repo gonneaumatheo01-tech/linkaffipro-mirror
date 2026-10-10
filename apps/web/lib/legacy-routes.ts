@@ -32,13 +32,16 @@ const DASHBOARD_PARAMS = [
   "dir",
 ] as const;
 
-/** Onglets de l'ancien tableau de bord et leur place dans Statistiques (`tab: null` = onglet par défaut). */
+/**
+ * Onglets de l'ancien tableau de bord et leur page dans Statistiques (étape 7 : une page par onglet, `tab: null`).
+ * Sert aux deux anciennes formes : `/?tab=ads` (tableau de bord sur l'accueil) et `/stats?tab=ads` (étapes 2 à 6).
+ */
 const STATS_TABS: Record<string, { path: string; tab: string | null }> = {
   overview: { path: "/stats", tab: null },
-  ads: { path: "/stats", tab: "ads" },
-  funnel: { path: "/stats", tab: "funnel" },
-  cohorts: { path: "/stats", tab: "cohorts" },
-  channels: { path: "/stats", tab: "channels" },
+  ads: { path: "/stats/ads", tab: null },
+  funnel: { path: "/stats/funnel", tab: null },
+  cohorts: { path: "/stats/cohorts", tab: null },
+  channels: { path: "/stats/channels", tab: null },
 };
 
 /**
@@ -54,6 +57,14 @@ export function statsTarget(tab: string | null): { path: string; tab: string | n
     (tab !== null && Object.hasOwn(STATS_TABS, tab) ? STATS_TABS[tab] : undefined) ??
     STATS_TABS.overview!
   );
+}
+
+/** Page des statistiques d'un ancien onglet (`tab`), avec les autres paramètres dans l'ordre. */
+function toStatsPage(params: URLSearchParams): string {
+  const target = statsTarget(params.get("tab"));
+  if (target.tab === null) params.delete("tab");
+  else params.set("tab", target.tab);
+  return withQuery(target.path, params);
 }
 
 function withQuery(path: string, params: URLSearchParams): string {
@@ -87,8 +98,9 @@ function safeDecode(segment: string): string {
 /**
  * Nouvelle adresse (chemin et paramètres) pour une ancienne adresse, ou `null` si l'adresse est à jour.
  * - `/broadcasts…`, `/automations…`, `/bots…`, `/journal…`, `/links…` → sous Membres, Réglages ou Campagnes ;
- * - `/` avec des paramètres de l'ancien tableau de bord (`?tab=ads`, `?range=30d`…) → `/stats` (onglet gardé,
- *   « Vue d'ensemble » = onglet par défaut) ;
+ * - `/` avec des paramètres de l'ancien tableau de bord (`?tab=ads`, `?range=30d`…) → la page des statistiques de
+ *   l'onglet (`/stats/ads`…, « Vue d'ensemble » = `/stats`), autres paramètres gardés ;
+ * - `/stats?tab=ads|funnel|cohorts|channels` → `/stats/ads`… (`overview` ou inconnu : `/stats`) ;
  * - `/channels/<id>?tab=besthours` → `/messages?channelId=<id>` (meilleurs créneaux dans le calendrier), seulement
  *   quand `bestHoursInCalendar` (par défaut `BEST_HOURS_IN_CALENDAR`).
  */
@@ -108,10 +120,14 @@ export function legacyRedirect(
   if (pathname === "/") {
     const params = toParams(searchParams);
     if (!DASHBOARD_PARAMS.some((k) => params.has(k))) return null;
-    const target = statsTarget(params.get("tab"));
-    if (target.tab === null) params.delete("tab");
-    else params.set("tab", target.tab);
-    return withQuery(target.path, params);
+    return toStatsPage(params);
+  }
+
+  // Statistiques à onglets (étapes 2 à 6) : `/stats?tab=ads` → `/stats/ads`, autres paramètres gardés.
+  if (pathname === "/stats" || pathname === "/stats/") {
+    const params = toParams(searchParams);
+    if (!params.has("tab")) return null;
+    return toStatsPage(params);
   }
 
   const { bestHoursInCalendar = BEST_HOURS_IN_CALENDAR } = options;

@@ -1,6 +1,6 @@
 /**
  * Aucune ancienne adresse dans le code du site (phase 9) : les pages déplacées (Envois, Automatisations, Bots,
- * Journal, Liens, ancien tableau de bord) ne sont plus citées dans un lien, une redirection, un `revalidatePath`
+ * Journal, Liens, ancien tableau de bord, onglets des statistiques) ne sont plus citées dans un lien, une redirection, un `revalidatePath`
  * ou un `fetch`. Elles ne vivent que dans `lib/legacy-routes.ts`, qui les redirige (308).
  * Contrôle statique des sources (comme tests/a11y) : il tourne à chaque `pnpm test`.
  * Hors périmètre : `scripts/` (outillage de captures, qui doit connaître les anciennes adresses).
@@ -29,8 +29,10 @@ const files = [...ROOTS.flatMap(sourceFiles), join(WEB, "proxy.ts")]
 
 /** Une adresse commence juste après un guillemet, une apostrophe ou un accent grave (ou après l'hôte). */
 const OLD_SECTION = /(?:["'`]|localhost)\/(broadcasts|automations|bots|journal|links)(?![\w-])/;
-/** Ancien tableau de bord : `/?tab=…` (désormais `/stats?tab=…`). */
+/** Ancien tableau de bord : `/?tab=…` (désormais une page par rubrique : `/stats/ads`…). */
 const OLD_DASHBOARD_TAB = /["'`]\/\?(?:[^"'`]*&)?tab=/;
+/** Anciens onglets des statistiques : `/stats?tab=…` (désormais `/stats/ads`, `/stats/funnel`…). */
+const OLD_STATS_TAB = /["'`]\/stats\/?\?(?:[^"'`]*&)?tab=/;
 
 function offenders(re: RegExp): string[] {
   const out: string[] = [];
@@ -55,6 +57,10 @@ describe("anciennes adresses absentes du code", () => {
     expect(offenders(OLD_DASHBOARD_TAB)).toEqual([]);
   });
 
+  it("aucun onglet des statistiques en paramètre « tab » (une page par rubrique)", () => {
+    expect(offenders(OLD_STATS_TAB)).toEqual([]);
+  });
+
   it("le contrôle reconnaît bien une ancienne adresse", () => {
     expect(OLD_SECTION.test('href="/broadcasts/new"')).toBe(true);
     expect(OLD_SECTION.test("redirect(`/links?${q}`)")).toBe(true);
@@ -66,5 +72,11 @@ describe("anciennes adresses absentes du code", () => {
     expect(OLD_DASHBOARD_TAB.test('"/?range=7d&tab=funnel"')).toBe(true);
     expect(OLD_DASHBOARD_TAB.test("`/stats?tab=ads`")).toBe(false);
     expect(OLD_DASHBOARD_TAB.test('redirect("/?forbidden=1")')).toBe(false);
+    expect(OLD_STATS_TAB.test("`/stats?tab=ads`")).toBe(true);
+    expect(OLD_STATS_TAB.test('href="/stats?range=30d&tab=funnel"')).toBe(true);
+    expect(OLD_STATS_TAB.test('redirect("/stats/?tab=cohorts")')).toBe(true);
+    expect(OLD_STATS_TAB.test('href="/stats/ads?range=30d"')).toBe(false);
+    expect(OLD_STATS_TAB.test('href="/stats?range=30d&compare=1"')).toBe(false);
+    expect(OLD_STATS_TAB.test('href="/campaigns/x?tab=ads"')).toBe(false);
   });
 });

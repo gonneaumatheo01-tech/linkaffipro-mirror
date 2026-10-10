@@ -35,3 +35,33 @@ export function sumDays(byDay: ReadonlyMap<string, StatTotals> | undefined): Sta
   for (const t of byDay?.values() ?? []) total = addTotals(total, t);
   return total;
 }
+
+/**
+ * Le même total, jour par jour, sur les jours `keys` de la période (graphique de la page Pubs) : chaque jour suit la
+ * règle de `unionTotal` (ligne sans doublon si elle existe ce jour-là, sinon somme des campagnes), de sorte que la
+ * somme des jours est exactement le total affiché. Jour sans ligne : zéro.
+ */
+export function unionDaily(
+  keys: readonly string[],
+  unionByDay: ReadonlyMap<string, StatTotals> | undefined,
+  rowsByDay: ReadonlyArray<ReadonlyMap<string, StatTotals>>,
+): StatTotals[] {
+  return keys.map((d) => {
+    const u = unionByDay?.get(d);
+    if (u) return addTotals(EMPTY_TOTALS, u);
+    let total = EMPTY_TOTALS;
+    for (const m of rowsByDay) {
+      const r = m.get(d);
+      if (r) total = addTotals(total, r);
+    }
+    return total;
+  });
+}
+
+/** Série jour par jour d'une seule dimension (une campagne) sur les jours `keys`. */
+export function dimensionDaily(
+  keys: readonly string[],
+  byDay: ReadonlyMap<string, StatTotals> | undefined,
+): StatTotals[] {
+  return keys.map((d) => addTotals(EMPTY_TOTALS, byDay?.get(d) ?? {}));
+}

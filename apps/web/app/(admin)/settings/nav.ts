@@ -1,85 +1,162 @@
 import type { Role } from "@linkaffipro/core";
+import type { SettingsStateKey } from "@/lib/status/settings-cards";
 
 /**
- * Sous-pages des réglages : même nom dans les cartes de la page Réglages et dans le titre de chaque page
- * (le préfixe « Avancé : » range les pages techniques, où le terme exact reste affiché).
- * `managers` : la page s'ouvre aussi pour un MANAGER (sinon, réservée aux administrateurs : la carte est cachée).
+ * Cartes de la page Réglages (docs/REFONTE-UX.md) : les 15 sous-pages rangées en 9 cartes, dans l'ordre de la
+ * spécification. Une carte = une icône (choisie par `key` dans components/settings/settings-card-grid.tsx), un titre,
+ * une phrase, une pastille d'état facultative (`state`, calculée dans lib/status/settings-cards.ts) et, pour les
+ * cartes qui regroupent plusieurs pages, la liste de leurs liens (`links`, chacun avec sa pastille).
+ * `managers` : la carte s'affiche aussi pour un MANAGER (sinon, réservée aux administrateurs).
  * Chaque sous-page garde ses propres contrôles d'accès (`requireAdminPage`, `requireAdmin` dans les actions) :
  * cacher une carte n'ouvre ni ne ferme rien.
  */
-export type SettingsPage = {
+export type SettingsCardKey =
+  "connections" | "bots" | "team" | "alerts" | "ai" | "content" | "journal" | "status" | "advanced";
+
+export type SettingsLink = {
   href: string;
   label: string;
+  /** Terme technique au survol (seulement dans la carte « Avancé »). */
+  term?: string;
+  state?: SettingsStateKey;
+};
+
+export type SettingsCard = {
+  key: SettingsCardKey;
+  title: string;
+  /** Une phrase, en français simple. */
   description: string;
+  /** Phrase pour un MANAGER quand la phrase par défaut promet une action réservée aux administrateurs. */
+  managerDescription?: string;
+  /** Page ouverte par un clic sur la carte. */
+  href: string;
+  state?: SettingsStateKey;
+  links?: SettingsLink[];
   managers?: boolean;
 };
 
-export const SETTINGS_PAGES: SettingsPage[] = [
+export const SETTINGS_CARDS: SettingsCard[] = [
   {
-    href: "/settings/team",
-    label: "Équipe",
-    description: "Comptes, invitations, rôles, réinitialisation de mot de passe.",
-  },
-  {
+    key: "connections",
+    title: "Connexions",
+    description: "Ce qui remplit la plateforme tout seul : Link Affi, vos comptes pub et Telegram.",
     href: "/settings/connectors",
-    label: "Connexions",
-    description: "Link Affi, comptes publicitaires Meta et TikTok, compte Telegram pour les vues.",
+    links: [
+      { href: "/settings/connectors", label: "Link Affi", state: "linkaffi" },
+      { href: "/settings/connectors/meta", label: "Meta", state: "meta" },
+      { href: "/settings/connectors/tiktok", label: "TikTok", state: "tiktok" },
+      {
+        href: "/settings/connectors/telegram",
+        label: "Telegram (vues)",
+        state: "telegram",
+      },
+    ],
   },
   {
+    key: "bots",
+    title: "Bots",
+    description: "Vos bots Telegram, un par univers : leur état et l'ajout d'un bot.",
+    managerDescription: "Vos bots Telegram, un par univers : leur état et leur connexion Telegram.",
     href: "/settings/bots",
-    label: "Bots",
-    description: "Les bots Telegram de chaque univers : état, connexion, ajout d'un bot.",
+    state: "bots",
     managers: true,
   },
   {
-    href: "/settings/ai",
-    label: "IA",
-    description: "Assistant d'écriture des messages : clé, modèles, plafond.",
-    managers: true,
+    key: "team",
+    title: "Équipe",
+    description: "Les comptes de l'équipe, les invitations et les mots de passe.",
+    href: "/settings/team",
+    state: "team",
   },
   {
-    href: "/settings/categories",
-    label: "Catégories de messages",
-    description:
-      "Vos propres catégories de messages (à créer vous-même), pour comparer ce qui marche.",
-  },
-  {
-    href: "/settings/tags",
-    label: "Étiquettes de membres",
-    description: "Étiquettes colorées à poser sur les membres (VIP, test…).",
-  },
-  {
+    key: "alerts",
+    title: "Alertes et rapports",
+    description: "Quand être prévenu, combien de temps garder les données, et les rapports reçus.",
     href: "/settings/alerts",
-    label: "Alertes et rétention",
-    description: "Seuils d'alerte et durée de conservation des données.",
+    links: [
+      { href: "/settings/alerts", label: "Alertes", state: "alerts" },
+      { href: "/settings/reports", label: "Rapports automatiques" },
+    ],
   },
   {
-    href: "/settings/reports",
-    label: "Rapports automatiques",
-    description: "Rapports envoyés par Telegram chaque jour ou chaque semaine.",
-  },
-  {
-    href: "/settings/journal",
-    label: "Journal",
-    description: "Ce que l'équipe a fait sur le site, et tout ce que les bots ont vu et fait.",
+    key: "ai",
+    title: "IA",
+    description: "L'assistant qui aide à écrire les messages : clé, modèles et plafond.",
+    href: "/settings/ai",
+    state: "ai",
     managers: true,
   },
   {
-    href: "/settings/status",
-    label: "État du système",
-    description: "Santé du site, des envois, de la synchro et des sauvegardes.",
+    key: "content",
+    title: "Catégories et étiquettes",
+    description: "Pour ranger vos messages et repérer vos membres (VIP, test…).",
+    href: "/settings/categories",
+    links: [
+      { href: "/settings/categories", label: "Catégories de messages", state: "categories" },
+      { href: "/settings/tags", label: "Étiquettes de membres", state: "tags" },
+    ],
   },
   {
+    key: "journal",
+    title: "Journal",
+    description: "Ce que l'équipe a fait sur le site, et ce que les bots ont vu et fait.",
+    href: "/settings/journal",
+    links: [
+      { href: "/settings/journal", label: "Actions de l'équipe" },
+      { href: "/settings/journal/events", label: "Activité des bots et des membres" },
+    ],
+    managers: true,
+  },
+  {
+    key: "status",
+    title: "État du système",
+    description: "La santé du site, des envois, de la synchro et des sauvegardes.",
+    href: "/settings/status",
+    state: "status",
+  },
+  {
+    key: "advanced",
+    title: "Avancé",
+    description: "Les réglages techniques, rarement utiles.",
     href: "/settings/postbacks",
-    label: "Avancé : retour du casino (postbacks)",
-    description: "Adresses que les programmes partenaires appellent à chaque inscription ou dépôt.",
+    links: [
+      {
+        href: "/settings/postbacks",
+        label: "Retours du casino",
+        term: "postbacks",
+        state: "postbacks",
+      },
+    ],
   },
 ];
 
-/** Cartes que ce rôle peut ouvrir (ADMIN : toutes ; MANAGER : celles marquées `managers`), dans l'ordre. */
-export function settingsPagesFor(
+/**
+ * Cartes que ce rôle peut ouvrir (ADMIN : toutes ; MANAGER : celles marquées `managers`, avec leur phrase
+ * `managerDescription` quand elle existe), dans l'ordre.
+ */
+export function settingsCardsFor(
   role: Role,
-  pages: readonly SettingsPage[] = SETTINGS_PAGES,
-): SettingsPage[] {
-  return role === "ADMIN" ? [...pages] : pages.filter((p) => p.managers);
+  cards: readonly SettingsCard[] = SETTINGS_CARDS,
+): SettingsCard[] {
+  if (role === "ADMIN") return [...cards];
+  return cards
+    .filter((c) => c.managers)
+    .map(({ managerDescription, ...c }) =>
+      managerDescription ? { ...c, description: managerDescription } : c,
+    );
+}
+
+/** Pastilles à calculer pour ces cartes (celles de la carte et de ses liens), sans doublon. */
+export function stateKeysOf(cards: readonly SettingsCard[]): Set<SettingsStateKey> {
+  const keys = new Set<SettingsStateKey>();
+  for (const c of cards) {
+    if (c.state) keys.add(c.state);
+    for (const l of c.links ?? []) if (l.state) keys.add(l.state);
+  }
+  return keys;
+}
+
+/** Toutes les adresses ouvertes depuis les cartes (carte puis liens), sans doublon. */
+export function settingsHrefs(cards: readonly SettingsCard[] = SETTINGS_CARDS): string[] {
+  return [...new Set(cards.flatMap((c) => [c.href, ...(c.links ?? []).map((l) => l.href)]))];
 }

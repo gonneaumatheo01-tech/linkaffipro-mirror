@@ -184,13 +184,13 @@ export async function deleteCategoryAction(formData: FormData): Promise<void> {
   const names = (list: string[]) => list.map((n) => `« ${n} »`).join(", ");
   const notes = [
     result.rulesDeactivated.length
-      ? `Automatisation désactivée (elle ne visait que cette catégorie) : ${names(result.rulesDeactivated)}.`
+      ? `Relance automatique désactivée (elle ne visait que cette catégorie) : ${names(result.rulesDeactivated)}.`
       : "",
     result.broadcastsToDraft.length
-      ? `Envoi repassé en brouillon (il ne visait que cette catégorie) : ${names(result.broadcastsToDraft)}.`
+      ? `Message à un groupe repassé en brouillon (il ne visait que cette catégorie) : ${names(result.broadcastsToDraft)}.`
       : "",
     result.rulesFilterRemoved.length
-      ? `Filtre de catégorie retiré, vérifiez la cible avant de réactiver l'automatisation : ${names(result.rulesFilterRemoved)}.`
+      ? `Filtre de catégorie retiré, vérifiez la cible avant de réactiver la relance automatique : ${names(result.rulesFilterRemoved)}.`
       : "",
     result.broadcastsFilterRemoved.length
       ? `Filtre de catégorie retiré, vérifiez la cible avant d'envoyer : ${names(result.broadcastsFilterRemoved)}.`

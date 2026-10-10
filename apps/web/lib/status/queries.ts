@@ -116,7 +116,27 @@ async function workerHealth(now: Date): Promise<WorkerHealth> {
   }
 }
 
-async function botStatuses(): Promise<BotStatus[]> {
+/**
+ * Connexion Telegram (webhook) d'un bot, lue chez Telegram (5 s au plus) : même lecture pour la carte Bots de
+ * Réglages, la page Bots et État du système (règle `botCheck` de health.ts).
+ */
+export async function liveWebhook(botId: string): Promise<NonNullable<BotStatus["webhook"]>> {
+  try {
+    const info = await withTimeout(getWebhookInfoForBot(botId), 5000, "Telegram");
+    return {
+      ok: info.url === webhookUrlFor(botId) && !info.last_error_message,
+      url: info.url,
+      pending: info.pending_update_count,
+      lastError: info.last_error_message,
+      lastErrorAt: info.last_error_date ? new Date(info.last_error_date * 1000) : undefined,
+    };
+  } catch (err) {
+    return { ok: false, fetchError: (err as Error).message };
+  }
+}
+
+/** Bots avec leur connexion Telegram vérifiée (rien n'est demandé à Telegram pour un bot inactif). */
+export async function botStatuses(): Promise<BotStatus[]> {
   const bots = await prisma.bot.findMany({
     orderBy: { createdAt: "asc" },
     select: {
@@ -129,24 +149,7 @@ async function botStatuses(): Promise<BotStatus[]> {
     },
   });
   return Promise.all(
-    bots.map(async (b) => {
-      if (!b.isActive) return { ...b, webhook: null };
-      try {
-        const info = await withTimeout(getWebhookInfoForBot(b.id), 5000, "Telegram");
-        return {
-          ...b,
-          webhook: {
-            ok: info.url === webhookUrlFor(b.id) && !info.last_error_message,
-            url: info.url,
-            pending: info.pending_update_count,
-            lastError: info.last_error_message,
-            lastErrorAt: info.last_error_date ? new Date(info.last_error_date * 1000) : undefined,
-          },
-        };
-      } catch (err) {
-        return { ...b, webhook: { ok: false, fetchError: (err as Error).message } };
-      }
-    }),
+    bots.map(async (b) => ({ ...b, webhook: b.isActive ? await liveWebhook(b.id) : null })),
   );
 }
 
@@ -191,60 +194,69 @@ export async function botActivity24h(now = new Date()): Promise<BotActivity> {
   return { total: byType.reduce((a, r) => a + r.count, 0), byType };
 }
 
-export async function getSystemStatus(now = new Date()): Promise<SystemStatus> {
-  const [web, worker, queues, failedJobs, bots, syncStates, openAlerts, backupSetting, activity] =
-    await Promise.all([
-      webHealth(),
-      workerHealth(now),
-      withTimeout(queueCounts(), 5000, "Files")
-        .then((counts) => ({ counts }))
-        .catch((e: Error) => ({
-          counts: QUEUE_NAMES.map((name) => ({
-            name,
-            waiting: 0,
-            active: 0,
-            delayed: 0,
-            failed: 0,
-            completed: 0,
-            paused: 0,
-          })),
-          error: e.message,
-        })),
-      withTimeout(recentFailedJobs(20), 5000, "Files").catch(() => [] as FailedJobSummary[]),
-      botStatuses().catch(() => [] as BotStatus[]),
-      prisma.syncState.findMany({
-        orderBy: { source: "asc" },
-        select: {
-          source: true,
-          lastRunAt: true,
-          lastSuccessAt: true,
-          lastError: true,
-          rowsImported: true,
-          isRunning: true,
-        },
-      }),
-      prisma.alert.findMany({
-        where: { resolvedAt: null },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        select: { id: true, kind: true, severity: true, message: true, createdAt: true },
-      }),
-      prisma.setting.findUnique({ where: { key: "backup.last" } }),
-      botActivity24h(now).catch((e: Error): BotActivity => ({
-        total: 0,
-        byType: [],
-        error: e.message,
-      })),
-    ]);
+/** Données des six tuiles d'État du système (aussi lues par la page Réglages pour sa carte « État du système »). */
+export type HealthInput = Pick<
+  SystemStatus,
+  "web" | "worker" | "backup" | "bots" | "syncStates" | "openAlerts"
+>;
+
+export async function getHealthInput(now = new Date()): Promise<HealthInput> {
+  const [web, worker, bots, syncStates, openAlerts, backupSetting] = await Promise.all([
+    webHealth(),
+    workerHealth(now),
+    botStatuses().catch(() => [] as BotStatus[]),
+    prisma.syncState.findMany({
+      orderBy: { source: "asc" },
+      select: {
+        source: true,
+        lastRunAt: true,
+        lastSuccessAt: true,
+        lastError: true,
+        rowsImported: true,
+        isRunning: true,
+      },
+    }),
+    prisma.alert.findMany({
+      where: { resolvedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, kind: true, severity: true, message: true, createdAt: true },
+    }),
+    prisma.setting.findUnique({ where: { key: "backup.last" } }),
+  ]);
   return {
     web,
     worker,
-    queues,
-    failedJobs,
     bots,
     syncStates,
     openAlerts,
     backup: parseBackup(backupSetting?.value),
-    botActivity: activity,
   };
+}
+
+export async function getSystemStatus(now = new Date()): Promise<SystemStatus> {
+  const [health, queues, failedJobs, activity] = await Promise.all([
+    getHealthInput(now),
+    withTimeout(queueCounts(), 5000, "Files")
+      .then((counts) => ({ counts }))
+      .catch((e: Error) => ({
+        counts: QUEUE_NAMES.map((name) => ({
+          name,
+          waiting: 0,
+          active: 0,
+          delayed: 0,
+          failed: 0,
+          completed: 0,
+          paused: 0,
+        })),
+        error: e.message,
+      })),
+    withTimeout(recentFailedJobs(20), 5000, "Files").catch(() => [] as FailedJobSummary[]),
+    botActivity24h(now).catch((e: Error): BotActivity => ({
+      total: 0,
+      byType: [],
+      error: e.message,
+    })),
+  ]);
+  return { ...health, queues, failedJobs, botActivity: activity };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  categoryUsageLabel,
   countCategoryReferences,
   deleteConfirmMessage,
   remapBroadcastSegment,
@@ -100,23 +101,36 @@ describe("Réglages → Catégories : références des automatisations et des en
       "La catégorie « Bonus » sera supprimée définitivement. Continuer ?",
     );
   });
-  it("confirmation : catégorie sans message mais citée par une automatisation qui ne vise qu'elle", () => {
+  it("confirmation : catégorie sans message mais citée par une relance automatique qui ne vise qu'elle", () => {
     const msg = deleteConfirmMessage("Bonus", 0, {
       rules: 1,
       broadcasts: 2,
       rulesOnly: 1,
       broadcastsOnly: 1,
     });
-    expect(msg).toContain("1 automatisation");
-    expect(msg).toContain("2 envois pas encore partis");
+    expect(msg).toContain("1 relance automatique");
+    expect(msg).toContain("2 messages à un groupe pas encore partis");
     expect(msg).toContain("catégorie choisie");
     expect(msg).toContain("désactivée");
     expect(msg).toContain("brouillon");
-    expect(msg).not.toMatch(/\d+ messages?/);
+    // Aucun compte de messages de canal (posts = 0) : seuls les messages à un groupe sont cités.
+    expect(msg).not.toMatch(/\d+ messages?\b(?! à un groupe)/);
+    // Vocabulaire du client (docs/REFONTE-UX.md) : plus d'« automatisation » ni d'« envoi » en surface.
+    expect(msg).not.toMatch(/automatisation|envoi/i);
   });
   it("confirmation : messages seulement, pas d'avertissement de désactivation", () => {
     const msg = deleteConfirmMessage("Bonus", 3, undefined);
     expect(msg).toContain("3 messages");
     expect(msg).not.toContain("désactivée");
+  });
+  it("ligne « Utilisée par » de la liste, en mots simples", () => {
+    expect(categoryUsageLabel(0, undefined)).toBe("Pas encore utilisée");
+    expect(categoryUsageLabel(1, undefined)).toBe("1 message");
+    expect(
+      categoryUsageLabel(3, { rules: 2, broadcasts: 1, rulesOnly: 0, broadcastsOnly: 0 }),
+    ).toBe("3 messages · 2 relances automatiques · 1 message à un groupe pas encore parti");
+    expect(
+      categoryUsageLabel(0, { rules: 0, broadcasts: 0, rulesOnly: 0, broadcastsOnly: 0 }),
+    ).toBe("Pas encore utilisée");
   });
 });

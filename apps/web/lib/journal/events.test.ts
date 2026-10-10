@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@linkaffipro/db", () => ({ prisma: {} }));
 
 import { eventsQuery, eventsWhere, parseEventFilters, VISIBLE_EVENT_WHERE } from "./events";
-import { eventLabel } from "./event-labels";
-import { actionLabel, journalWhere } from "./query";
+import { EVENT_FAMILIES, EVENT_TYPE_LABELS, eventLabel } from "./event-labels";
+import { actionLabel, entityLabel, journalWhere } from "./query";
 
 describe("Journal → vue « Événements »", () => {
   it("lit les filtres et les garde dans les liens (pagination, export)", () => {
@@ -63,6 +63,17 @@ describe("Journal → vue « Événements »", () => {
     expect(eventLabel("membership.approved")).toBe("Demande acceptée");
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
+
+  it("vocabulaire de la refonte : pas de jargon dans les libellés ni dans les familles du filtre", () => {
+    const jargon = /\b(ngr|ftd|sub-id|postback|webhook|automatisation|envoi groupé|goolink)\b/i;
+    for (const label of [
+      ...Object.values(EVENT_TYPE_LABELS),
+      ...EVENT_FAMILIES.map((f) => f.label),
+    ])
+      expect(label).not.toMatch(jargon);
+    expect(eventLabel("player.ngr_updated")).toBe("Revenu net mis à jour");
+    expect(eventLabel("automation.run")).toBe("Relance automatique exécutée");
+  });
 });
 
 describe("Journal → actions de l'équipe", () => {
@@ -72,6 +83,19 @@ describe("Journal → actions de l'équipe", () => {
     expect(actionLabel("ad.created")).toBe("Campagne pub");
     expect(actionLabel("adcost.saved")).toBe("Campagne pub");
     expect(actionLabel("import.costs")).toBe("Campagne pub");
+  });
+
+  it("vocabulaire : écrire à un groupe, relance automatique, retour du casino ; objets en français", () => {
+    expect(actionLabel("broadcast.sent")).toBe("Écrire à un groupe");
+    expect(actionLabel("automation.created")).toBe("Relance automatique");
+    expect(actionLabel("postback.created")).toBe("Retour du casino");
+    expect(actionLabel("auth.login_failed")).toBe("Connexion au site refusée");
+    expect(actionLabel("tag.created")).toBe("Étiquette");
+    expect(actionLabel("inconnu.x")).toBe("Autre");
+    expect(entityLabel("Post")).toBe("Message");
+    expect(entityLabel("PostbackEndpoint")).toBe("Retour du casino");
+    expect(entityLabel(null)).toBe("—");
+    expect(entityLabel("Nouveau")).toBe("Autre");
   });
 
   it("dates du filtre en heure de Paris, y compris en hiver", () => {

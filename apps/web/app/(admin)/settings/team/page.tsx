@@ -1,26 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { CopyField } from "@/components/admin/copy-field";
+import { DataTable } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
-import { HelpTip } from "@/components/admin/help-tip";
-import { Badge } from "@/components/ui/badge";
+import { FormSection } from "@/components/admin/form-section";
+import { SidePanel } from "@/components/admin/side-panel";
+import { StatusPill } from "@/components/admin/status-pill";
+import { DetailList, DetailRow } from "@/components/settings/detail-list";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { NativeSelect } from "@/components/ui/native-select";
 import { env } from "@/lib/env";
 import { fmtDate } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
@@ -32,9 +28,43 @@ import {
   setRoleAction,
   toggleUserAction,
 } from "./actions";
+import {
+  accountLock,
+  accountLockSentence,
+  emailBreakParts,
+  INVITATION_KIND_LABELS,
+  invitationKind,
+  teamSummary,
+} from "./team-view";
 
 export const metadata: Metadata = { title: "Équipe" };
 
+function RoleOptions() {
+  return ROLES.map((r) => (
+    <option key={r} value={r}>
+      {ROLE_LABELS[r]}
+    </option>
+  ));
+}
+
+/** E-mail qui passe à la ligne avant « @ » sur téléphone, jamais au milieu du nom de domaine. */
+function EmailText({ email }: { email: string }) {
+  const [local, domain] = emailBreakParts(email);
+  if (domain === undefined) return local;
+  return (
+    <>
+      {local}
+      <wbr />
+      {domain}
+    </>
+  );
+}
+
+/**
+ * Réglages → Équipe : tableau de 5 colonnes (personne, rôle, état, Telegram, dernière connexion), détail au clic avec
+ * le changement de rôle, la réinitialisation du mot de passe et la désactivation (toutes confirmées). « Inviter un
+ * équipier » ouvre un volet ; les liens d'invitation à copier sont en dessous. Mêmes actions serveur qu'avant.
+ */
 export default async function TeamPage({ searchParams }: PageProps<"/settings/team">) {
   const admin = await requireAdminPage();
   const sp = await searchParams;
@@ -48,254 +78,272 @@ export default async function TeamPage({ searchParams }: PageProps<"/settings/te
   ]);
   const knownEmails = new Set(users.map((u) => u.email));
   const activeAdmins = users.filter((u) => u.role === "ADMIN" && u.isActive).length;
-  const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-8";
+  // Après une action, le tableau (et son volet) repart de zéro : le message de retour reste visible.
+  const flashKey = JSON.stringify([sp.ok ?? null, sp.error ?? null]);
+
+  const invitePanel = (
+    <SidePanel
+      key={`invite-${flashKey}`}
+      title="Inviter un équipier"
+      description="Un lien valable 7 jours est créé. Envoyez-le vous-même : aucun e-mail n'est envoyé."
+      trigger={
+        <Button className="max-md:h-10">
+          <UserPlus aria-hidden />
+          Inviter un équipier
+        </Button>
+      }
+    >
+      <form action={inviteAction} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="email">E-mail</Label>
+          <Input id="email" name="email" type="email" required autoComplete="off" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="role">Rôle</Label>
+          <NativeSelect
+            id="role"
+            name="role"
+            defaultValue="MANAGER"
+            wrapperClassName="w-full"
+            aria-describedby="role-aide"
+          >
+            <RoleOptions />
+          </NativeSelect>
+          <p id="role-aide" className="text-note text-muted-foreground">
+            Manager : tout sauf les réglages, les comptes, les jetons et les suppressions.
+            Administrateur : tout.
+          </p>
+        </div>
+        <Button type="submit" className="max-md:h-10">
+          Créer l&apos;invitation
+        </Button>
+      </form>
+    </SidePanel>
+  );
+
   return (
     <>
       <PageHeader
+        backHref="/settings"
+        backLabel="Réglages"
         title="Équipe"
-        description="Les comptes qui accèdent au site : rôle, activité, dernière connexion. Invitations et réinitialisations de mot de passe par lien à copier."
-        help="Pour ajouter un équipier : créez une invitation, copiez le lien et envoyez-le-lui vous-même (aucun e-mail automatique). Il choisira son mot de passe."
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/settings" />}
-        >
-          ← Réglages
-        </Button>
-      </PageHeader>
+        description="Les comptes qui accèdent au site : rôle, état, dernière connexion."
+        help="Pour ajouter un équipier : « Inviter un équipier », puis copiez le lien et envoyez-le-lui. Il choisira son mot de passe."
+        primaryAction={invitePanel}
+      />
       <Flash ok={sp.ok} error={sp.error} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Utilisateurs</CardTitle>
-          <CardDescription>
-            Administrateur : tout. Manager : tout sauf réglages, utilisateurs, jetons et
-            suppressions. Il reste toujours au moins un administrateur actif.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead className="hidden md:table-cell">E-mail</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="hidden md:table-cell">Telegram</TableHead>
-                <TableHead className="hidden lg:table-cell">Dernière connexion</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((u) => {
-                const isMe = u.id === admin.id;
-                const lastAdmin = u.role === "ADMIN" && u.isActive && activeAdmins <= 1;
-                return (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {u.name}
-                      {isMe ? (
-                        <span className="ml-1 text-xs text-muted-foreground">(vous)</span>
-                      ) : null}
-                      <div className="text-xs text-muted-foreground md:hidden">{u.email}</div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{u.email}</TableCell>
-                    <TableCell>
-                      <form action={setRoleAction} className="flex items-center gap-2">
-                        <input type="hidden" name="userId" value={u.id} />
-                        <Label htmlFor={`role-${u.id}`} className="sr-only">
-                          Rôle de {u.name}
-                        </Label>
-                        <select
+      <div className="space-y-10">
+        <FormSection
+          title="Comptes"
+          description={`${teamSummary(users)}. Cliquez sur une personne pour changer son rôle, son mot de passe ou la désactiver.`}
+        >
+          <DataTable
+            key={`users-${flashKey}`}
+            label="Comptes de l'équipe"
+            columns={[
+              { key: "person", header: "Personne", className: "min-w-44 whitespace-normal" },
+              { key: "role", header: "Rôle" },
+              { key: "state", header: "État", hideOnMobile: true },
+              { key: "telegram", header: "Telegram", hideOnMobile: true },
+              { key: "lastLogin", header: "Dernière connexion", hideOnMobile: true },
+            ]}
+            rows={users.map((u) => {
+              const isMe = u.id === admin.id;
+              const lock = accountLock(u, admin.id, activeAdmins);
+              const lockSentence = accountLockSentence(lock);
+              return {
+                id: u.id,
+                cells: {
+                  person: (
+                    <span className="flex flex-col items-start">
+                      <span>
+                        {u.name}
+                        {isMe ? (
+                          <span className="ml-1 font-normal text-muted-foreground">(vous)</span>
+                        ) : null}
+                      </span>
+                      <span className="text-note font-normal text-muted-foreground">
+                        <EmailText email={u.email} />
+                      </span>
+                    </span>
+                  ),
+                  role: ROLE_LABELS[u.role],
+                  state: <ActiveBadge active={u.isActive} />,
+                  telegram: u.telegramUserId ? (
+                    <StatusPill tone="success">Lié</StatusPill>
+                  ) : (
+                    <StatusPill tone="muted">Non lié</StatusPill>
+                  ),
+                  lastLogin: fmtDate(u.lastLoginAt),
+                },
+                sortValues: {
+                  person: u.name,
+                  state: u.isActive ? 1 : 0,
+                  telegram: u.telegramUserId ? 1 : 0,
+                  lastLogin: u.lastLoginAt,
+                },
+                detailTitle: isMe ? `${u.name} (vous)` : u.name,
+                detailDescription: `${u.email} · ${ROLE_LABELS[u.role]}`,
+                detail: (
+                  <div className="space-y-8">
+                    <DetailList>
+                      <DetailRow label="État">
+                        <ActiveBadge active={u.isActive} />
+                      </DetailRow>
+                      <DetailRow label="Telegram">
+                        {u.telegramUserId ? "Lié (reçoit les alertes et les tests)" : "Non lié"}
+                      </DetailRow>
+                      <DetailRow label="Dernière connexion">{fmtDate(u.lastLoginAt)}</DetailRow>
+                      <DetailRow label="Compte créé le">{fmtDate(u.createdAt)}</DetailRow>
+                    </DetailList>
+
+                    <form action={setRoleAction} className="space-y-3 border-t border-border pt-6">
+                      <input type="hidden" name="userId" value={u.id} />
+                      <div className="space-y-2">
+                        <Label htmlFor={`role-${u.id}`}>Rôle</Label>
+                        <NativeSelect
                           id={`role-${u.id}`}
                           name="role"
                           defaultValue={u.role}
-                          className={selectCls}
-                          disabled={isMe || lastAdmin}
-                          title={
-                            lastAdmin && !isMe
-                              ? "Dernier administrateur actif : le rôle ne peut pas être retiré."
-                              : undefined
-                          }
+                          disabled={lock !== null}
+                          wrapperClassName="w-full"
+                          aria-describedby={lockSentence ? `role-${u.id}-aide` : undefined}
                         >
-                          {ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {ROLE_LABELS[r]}
-                            </option>
-                          ))}
-                        </select>
-                        {!isMe && !lastAdmin ? (
-                          <ConfirmSubmit
-                            size="sm"
-                            variant="ghost"
-                            className="max-md:h-10"
-                            aria-label={`Enregistrer le rôle de ${u.name}`}
-                            message={`Le rôle de ${u.name} sera modifié et cette personne devra se reconnecter. Continuer ?`}
-                          >
-                            OK
-                          </ConfirmSubmit>
-                        ) : null}
-                      </form>
-                    </TableCell>
-                    <TableCell>
-                      <ActiveBadge active={u.isActive} />
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {u.telegramUserId ? (
-                        <Badge variant="outline">lié</Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">non lié</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">
-                      {fmtDate(u.lastLoginAt)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        <form action={resetPasswordAction}>
-                          <input type="hidden" name="userId" value={u.id} />
-                          <ConfirmSubmit
-                            size="sm"
-                            variant="ghost"
-                            className="max-md:h-10"
-                            message={`Un lien de réinitialisation sera créé pour ${u.name}. Son mot de passe actuel reste valable jusqu'à ce qu'elle utilise le lien. Continuer ?`}
-                          >
-                            Réinitialiser le mot de passe
-                          </ConfirmSubmit>
-                        </form>
-                        {!isMe ? (
-                          <form action={toggleUserAction}>
-                            <input type="hidden" name="userId" value={u.id} />
-                            {u.isActive ? (
-                              <ConfirmSubmit
-                                size="sm"
-                                variant="outline"
-                                className="max-md:h-10"
-                                disabled={lastAdmin}
-                                title={
-                                  lastAdmin
-                                    ? "Dernier administrateur actif : impossible de le désactiver."
-                                    : undefined
-                                }
-                                message={`${u.name} sera désactivé : déconnecté immédiatement de tous ses appareils et sans accès au site jusqu'à réactivation. Continuer ?`}
-                              >
-                                Désactiver
-                              </ConfirmSubmit>
-                            ) : (
-                              <Button
-                                type="submit"
-                                size="sm"
-                                variant="outline"
-                                className="max-md:h-10"
-                              >
-                                Activer
-                              </Button>
-                            )}
-                          </form>
+                          <RoleOptions />
+                        </NativeSelect>
+                        {lockSentence ? (
+                          <p id={`role-${u.id}-aide`} className="text-note text-muted-foreground">
+                            {lockSentence}
+                          </p>
                         ) : null}
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      {lock === null ? (
+                        <ConfirmSubmit
+                          variant="outline"
+                          className="max-md:h-10"
+                          confirmTitle={`Changer le rôle de ${u.name}\u00a0?`}
+                          confirmLabel="Changer le rôle"
+                          message={`Le rôle de ${u.name} sera modifié et cette personne devra se reconnecter.`}
+                        >
+                          Enregistrer le rôle
+                        </ConfirmSubmit>
+                      ) : null}
+                    </form>
+
+                    <div className="space-y-3 border-t border-border pt-6">
+                      <h3 className="text-body font-semibold text-foreground">Mot de passe</h3>
+                      <p className="text-note text-muted-foreground">
+                        Un lien à copier est créé (valable 48 h) ; l&apos;ancien mot de passe reste
+                        valable jusqu&apos;à ce qu&apos;il soit utilisé.
+                      </p>
+                      <form action={resetPasswordAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <ConfirmSubmit
+                          variant="outline"
+                          className="max-md:h-10"
+                          confirmTitle={`Réinitialiser le mot de passe de ${u.name}\u00a0?`}
+                          confirmLabel="Créer le lien"
+                          message={`Un lien de réinitialisation sera créé pour ${u.name}. Son mot de passe actuel reste valable jusqu'à ce que le lien soit utilisé.`}
+                        >
+                          Réinitialiser le mot de passe
+                        </ConfirmSubmit>
+                      </form>
+                    </div>
+
+                    {!isMe ? (
+                      <form
+                        action={toggleUserAction}
+                        className="space-y-3 border-t border-border pt-6"
+                      >
+                        <input type="hidden" name="userId" value={u.id} />
+                        <h3 className="text-body font-semibold text-foreground">Accès au site</h3>
+                        {u.isActive ? (
+                          <ConfirmSubmit
+                            variant="destructive"
+                            className="max-md:h-10"
+                            disabled={lock === "lastAdmin"}
+                            confirmTitle={`Désactiver ${u.name}\u00a0?`}
+                            confirmLabel="Désactiver"
+                            message={`${u.name} sera déconnecté immédiatement de tous ses appareils et n'aura plus accès au site jusqu'à sa réactivation.`}
+                          >
+                            Désactiver le compte
+                          </ConfirmSubmit>
+                        ) : (
+                          <Button type="submit" variant="outline" className="max-md:h-10">
+                            Réactiver le compte
+                          </Button>
+                        )}
+                      </form>
+                    ) : null}
+                  </div>
+                ),
+              };
+            })}
+          />
+        </FormSection>
+
+        <FormSection
+          title="Invitations en attente"
+          description="Nouveaux comptes et nouveaux mots de passe. Copiez le lien et envoyez-le à la personne."
+        >
+          {invitations.length === 0 ? (
+            <EmptyState
+              title="Aucune invitation en attente"
+              description={
+                "Cliquez sur «\u00a0Inviter un équipier\u00a0», ou ouvrez une personne puis «\u00a0Réinitialiser le mot de passe\u00a0»."
+              }
+            />
+          ) : (
+            <ul className="space-y-3">
+              {invitations.map((inv) => {
+                const kind = invitationKind(inv.email, knownEmails);
+                return (
+                  <li
+                    key={inv.id}
+                    className="space-y-3 rounded-xl border border-border bg-card p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium wrap-anywhere text-foreground">
+                            <EmailText email={inv.email} />
+                          </span>
+                          <StatusPill tone={kind === "reset" ? "warning" : "info"}>
+                            {INVITATION_KIND_LABELS[kind]}
+                          </StatusPill>
+                        </div>
+                        <p className="text-note text-muted-foreground">
+                          {ROLE_LABELS[inv.role]} · créée par {inv.invitedBy.name} · expire le{" "}
+                          {fmtDate(inv.expiresAt)}
+                        </p>
+                      </div>
+                      <form action={revokeInvitationAction}>
+                        <input type="hidden" name="invitationId" value={inv.id} />
+                        <ConfirmDialog
+                          title={`Annuler l'invitation de ${inv.email}\u00a0?`}
+                          description="Son lien ne fonctionnera plus. Vous pourrez en créer un autre."
+                          confirmLabel="Annuler l'invitation"
+                          cancelLabel="Garder l'invitation"
+                          destructive
+                          trigger={
+                            <Button type="submit" size="sm" variant="ghost" className="max-md:h-10">
+                              Annuler l&apos;invitation
+                            </Button>
+                          }
+                        />
+                      </form>
+                    </div>
+                    <CopyField
+                      value={`${env.appBaseUrl}/invite/${inv.token}`}
+                      label={`Lien d'invitation pour ${inv.email}`}
+                    />
+                  </li>
                 );
               })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Inviter un équipier</CardTitle>
-            <CardDescription>
-              Un lien d&apos;invitation valable 7 jours est créé. Envoyez-le vous-même (pas
-              d&apos;e-mail automatique).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={inviteAction} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" name="email" type="email" required className="h-10 md:h-9" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role" className="inline-flex items-center gap-1">
-                  Rôle{" "}
-                  <HelpTip>
-                    Manager : peut tout faire sauf les réglages, les comptes, les jetons et les
-                    suppressions. Administrateur : tout.
-                  </HelpTip>
-                </Label>
-                <select
-                  id="role"
-                  name="role"
-                  defaultValue="MANAGER"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button type="submit" className="max-md:h-10">
-                Créer l&apos;invitation
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Invitations en attente</CardTitle>
-            <CardDescription>
-              Nouveaux comptes et réinitialisations de mot de passe. Copiez le lien et envoyez-le.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {invitations.length === 0 ? (
-              <EmptyState
-                title="Aucune invitation en attente."
-                description="Créez-en une à gauche, ou cliquez « Réinitialiser le mot de passe » sur la ligne d'un utilisateur."
-              />
-            ) : null}
-            {invitations.map((inv) => {
-              const reset = knownEmails.has(inv.email);
-              return (
-                <div key={inv.id} className="space-y-2 rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-2 text-sm">
-                    <div>
-                      <span className="font-medium">{inv.email}</span> · {ROLE_LABELS[inv.role]}{" "}
-                      {reset ? (
-                        <Badge variant="secondary">réinitialisation</Badge>
-                      ) : (
-                        <Badge variant="outline">nouveau compte</Badge>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        par {inv.invitedBy.name}, expire le {fmtDate(inv.expiresAt)}
-                      </div>
-                    </div>
-                    <form action={revokeInvitationAction}>
-                      <input type="hidden" name="invitationId" value={inv.id} />
-                      <ConfirmSubmit
-                        size="sm"
-                        variant="ghost"
-                        className="max-md:h-10"
-                        message={`L'invitation de ${inv.email} sera annulée : son lien ne fonctionnera plus. Continuer ?`}
-                      >
-                        Annuler
-                      </ConfirmSubmit>
-                    </form>
-                  </div>
-                  <CopyField value={`${env.appBaseUrl}/invite/${inv.token}`} />
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+            </ul>
+          )}
+        </FormSection>
       </div>
     </>
   );

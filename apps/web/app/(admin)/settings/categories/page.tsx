@@ -1,22 +1,65 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { VERTICALS, VERTICAL_LABELS } from "@linkaffipro/core";
+import { BarChart3, Plus } from "lucide-react";
+import { VERTICALS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
-import { EmptyState } from "@/components/admin/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/admin/data-table";
+import { AdvancedSection } from "@/components/admin/form-section";
+import { SidePanel } from "@/components/admin/side-panel";
+import { StatusPill } from "@/components/admin/status-pill";
+import { UniverseDot } from "@/components/admin/universe-dot";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { fieldBorderClass, NativeSelect } from "@/components/ui/native-select";
 import { requireAdminPage } from "@/lib/session";
-import { ActiveBadge } from "@/lib/status-badges";
+import { universeLabel } from "@/lib/universe";
 import { createCategoryAction, deleteCategoryAction, updateCategoryAction } from "./actions";
-import { countCategoryReferences, deleteConfirmMessage } from "./remap";
+import { SettingsGroupNav } from "./group-nav";
+import { categoryUsageLabel, countCategoryReferences, deleteConfirmMessage } from "./remap";
 
 export const metadata: Metadata = { title: "Catégories de messages" };
 
+/** Sélecteur de couleur natif, à la bordure des champs (la couleur est une donnée choisie par l'équipe). */
+const colorInputClass = cn(
+  "h-10 w-16 cursor-pointer rounded-lg border bg-surface p-1 md:h-9",
+  fieldBorderClass,
+);
+
+function UniverseOptions() {
+  return (
+    <>
+      <option value="">Tous les univers</option>
+      {VERTICALS.map((v) => (
+        <option key={v} value={v}>
+          {universeLabel(v)}
+        </option>
+      ))}
+    </>
+  );
+}
+
+/** Point de la couleur de la catégorie, devant son nom. */
+function ColorDot({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className="size-2.5 shrink-0 rounded-full ring-1 ring-foreground/10"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
+
+/**
+ * Réglages → Catégories et étiquettes → Catégories de messages : tableau de 4 colonnes (catégorie, univers,
+ * utilisation, état), détail au clic avec la modification et la suppression (fusion dans une autre catégorie).
+ * « Nouvelle catégorie » ouvre un volet. Mêmes champs et mêmes actions serveur qu'avant.
+ */
 export default async function CategoriesPage({ searchParams }: PageProps<"/settings/categories">) {
   await requireAdminPage();
   const sp = await searchParams;
@@ -33,239 +76,265 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/setti
     }),
   ]);
   const refsById = countCategoryReferences(rules, broadcasts);
-  const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-8";
+  // Après une action, le tableau (et son volet) repart de zéro : le message de retour reste visible.
+  const flashKey = JSON.stringify([sp.ok ?? null, sp.error ?? null]);
+
+  const createPanel = (
+    <SidePanel
+      key={`create-${flashKey}`}
+      title="Nouvelle catégorie"
+      description="Pour ranger vos messages et comparer ce qui marche le mieux."
+      trigger={
+        <Button className="max-md:h-10">
+          <Plus aria-hidden />
+          Nouvelle catégorie
+        </Button>
+      }
+    >
+      <form action={createCategoryAction} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="new-name">Nom</Label>
+          <Input
+            id="new-name"
+            name="name"
+            required
+            minLength={2}
+            maxLength={40}
+            placeholder="Ex. Jackpot"
+            aria-describedby="new-name-aide"
+          />
+          <p id="new-name-aide" className="text-note text-muted-foreground">
+            De 2 à 40 caractères. Vous pourrez le changer ensuite.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="new-color">Couleur</Label>
+            <input
+              id="new-color"
+              name="color"
+              type="color"
+              defaultValue="#64748b"
+              className={colorInputClass}
+            />
+          </div>
+          <div className="min-w-48 flex-1 space-y-2">
+            <Label htmlFor="new-vertical">Univers</Label>
+            <NativeSelect
+              id="new-vertical"
+              name="vertical"
+              defaultValue=""
+              wrapperClassName="w-full"
+            >
+              <UniverseOptions />
+            </NativeSelect>
+          </div>
+        </div>
+        <Button type="submit" className="max-md:h-10">
+          Créer la catégorie
+        </Button>
+      </form>
+    </SidePanel>
+  );
+
   return (
     <>
       <PageHeader
+        backHref="/settings"
+        backLabel="Réglages"
         title="Catégories de messages"
-        description="Classez vos messages avec vos propres catégories (à créer vous-même) pour comparer ce qui marche le mieux."
-        help="Créez une catégorie ci-dessous, ou directement en écrivant un message (champ Catégorie → « + Nouvelle catégorie »). La comparaison se fait dans Messages → Catégories."
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/messages/categories" />}
-        >
-          Comparer par catégorie
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/settings" />}
-        >
-          ← Réglages
-        </Button>
-      </PageHeader>
+        description="Vos propres catégories (bonus, jackpot, match du jour…) pour ranger les messages et comparer ce qui marche le mieux."
+        help="Créez une catégorie ici, ou directement en écrivant un message (champ Catégorie → « + Nouvelle catégorie »)."
+        primaryAction={createPanel}
+        secondaryActions={
+          <Link
+            href="/messages/categories"
+            className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+          >
+            <BarChart3 aria-hidden />
+            Comparer par catégorie
+          </Link>
+        }
+      />
+      <SettingsGroupNav group="content" current="categories" />
       <Flash ok={sp.ok} error={sp.error} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Catégories</CardTitle>
-          <CardDescription>
-            Changez le nom, la couleur ou l&apos;ordre, puis cliquez « Enregistrer ». « Fusionner et
-            supprimer » déplace les messages, les automatisations et les envois pas encore partis
-            vers la catégorie choisie (ou sans catégorie), puis supprime la catégorie. Sans
-            remplacement, une automatisation ou un envoi programmé qui ne visait que cette catégorie
-            est mis en pause (désactivé ou remis en brouillon).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {categories.length === 0 ? (
-            <EmptyState
-              title="Aucune catégorie pour l'instant."
-              description="Les catégories sont à créer vous-même, selon vos types de messages : créez la première ci-dessous, ou depuis Messages → Nouveau message."
-            />
-          ) : null}
-          {categories.map((c) => {
-            const refs = refsById.get(c.id);
-            const referenced =
-              c._count.posts > 0 || (refs?.rules ?? 0) > 0 || (refs?.broadcasts ?? 0) > 0;
-            return (
-              <div key={c.id} className="rounded-md border p-3">
-                <form
-                  action={updateCategoryAction}
-                  className="grid gap-2 sm:flex sm:flex-wrap sm:items-end"
-                >
+      <DataTable
+        key={`table-${flashKey}`}
+        label="Catégories de messages"
+        columns={[
+          { key: "name", header: "Catégorie", className: "min-w-40 whitespace-normal" },
+          { key: "universe", header: "Univers", hideOnMobile: true },
+          {
+            key: "usage",
+            header: "Utilisée par",
+            hideOnMobile: true,
+            className: "whitespace-normal",
+          },
+          { key: "state", header: "État" },
+        ]}
+        rows={categories.map((c) => {
+          const refs = refsById.get(c.id);
+          const referenced =
+            c._count.posts > 0 || (refs?.rules ?? 0) > 0 || (refs?.broadcasts ?? 0) > 0;
+          const usage = categoryUsageLabel(c._count.posts, refs);
+          const others = categories.filter((o) => o.id !== c.id);
+          return {
+            id: c.id,
+            cells: {
+              name: (
+                <span className="inline-flex items-center gap-2">
+                  <ColorDot color={c.color} />
+                  {c.name}
+                </span>
+              ),
+              universe: c.vertical ? (
+                <UniverseDot universe={c.vertical} withLabel />
+              ) : (
+                <span className="text-muted-foreground">Tous</span>
+              ),
+              usage: <span className="text-muted-foreground">{usage}</span>,
+              state: c.isActive ? (
+                <StatusPill tone="success">Active</StatusPill>
+              ) : (
+                <StatusPill tone="muted">Inactive</StatusPill>
+              ),
+            },
+            sortValues: {
+              name: c.name,
+              universe: c.vertical ? universeLabel(c.vertical) : "",
+              usage: c._count.posts + (refs?.rules ?? 0) + (refs?.broadcasts ?? 0),
+              state: c.isActive ? 1 : 0,
+            },
+            detailTitle: c.name,
+            detailDescription: usage,
+            detail: (
+              <div className="space-y-8">
+                <form action={updateCategoryAction} className="space-y-5">
                   <input type="hidden" name="id" value={c.id} />
-                  <div className="space-y-1">
-                    <Label htmlFor={`name-${c.id}`} className="text-xs">
-                      Nom
-                    </Label>
+                  <div className="space-y-2">
+                    <Label htmlFor={`name-${c.id}`}>Nom</Label>
                     <Input
                       id={`name-${c.id}`}
                       name="name"
                       defaultValue={c.name}
-                      className="h-10 w-full sm:w-44 md:h-8"
                       required
                       minLength={2}
                       maxLength={40}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`color-${c.id}`} className="text-xs">
-                      Couleur
-                    </Label>
-                    <input
-                      id={`color-${c.id}`}
-                      name="color"
-                      type="color"
-                      defaultValue={c.color}
-                      className="h-10 w-12 cursor-pointer rounded border bg-background md:h-8"
-                    />
+                  <div className="flex flex-wrap gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`color-${c.id}`}>Couleur</Label>
+                      <input
+                        id={`color-${c.id}`}
+                        name="color"
+                        type="color"
+                        defaultValue={c.color}
+                        className={colorInputClass}
+                      />
+                    </div>
+                    <div className="min-w-48 flex-1 space-y-2">
+                      <Label htmlFor={`vertical-${c.id}`}>Univers</Label>
+                      <NativeSelect
+                        id={`vertical-${c.id}`}
+                        name="vertical"
+                        defaultValue={c.vertical ?? ""}
+                        wrapperClassName="w-full"
+                      >
+                        <UniverseOptions />
+                      </NativeSelect>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`vertical-${c.id}`} className="text-xs">
-                      Univers
-                    </Label>
-                    <select
-                      id={`vertical-${c.id}`}
-                      name="vertical"
-                      defaultValue={c.vertical ?? ""}
-                      className={selectCls}
-                    >
-                      <option value="">Tous</option>
-                      {VERTICALS.map((v) => (
-                        <option key={v} value={v}>
-                          {VERTICAL_LABELS[v]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`order-${c.id}`} className="text-xs">
-                      Ordre
-                    </Label>
-                    <Input
-                      id={`order-${c.id}`}
-                      name="sortOrder"
-                      type="number"
-                      min={0}
-                      max={999}
-                      defaultValue={c.sortOrder}
-                      className="h-10 w-20 md:h-8"
-                    />
-                  </div>
-                  <label className="flex h-10 items-center gap-2 text-sm md:h-8">
-                    <input
-                      type="checkbox"
-                      name="isActive"
-                      defaultChecked={c.isActive}
-                      className="size-4"
-                    />{" "}
-                    Active
+                  <label className="flex min-h-10 items-center gap-3 text-body">
+                    <Checkbox name="isActive" value="on" defaultChecked={c.isActive} />
+                    Active (proposée quand on écrit un message)
                   </label>
-                  <span className="text-xs text-muted-foreground">
-                    {c._count.posts} message{c._count.posts > 1 ? "s" : ""}
-                    {refs?.rules
-                      ? ` · ${refs.rules} automatisation${refs.rules > 1 ? "s" : ""}`
-                      : ""}
-                    {refs?.broadcasts
-                      ? ` · ${refs.broadcasts} envoi${refs.broadcasts > 1 ? "s" : ""} pas encore parti${refs.broadcasts > 1 ? "s" : ""}`
-                      : ""}
-                  </span>
-                  {!c.isActive ? <ActiveBadge active={false} /> : null}
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="outline"
-                    className="max-md:h-10"
-                    aria-label={`Enregistrer la catégorie ${c.name}`}
-                  >
+                  <AdvancedSection description="Ordre d'affichage dans les listes.">
+                    <div className="space-y-2">
+                      <Label htmlFor={`order-${c.id}`}>Ordre (0 en premier)</Label>
+                      <Input
+                        id={`order-${c.id}`}
+                        name="sortOrder"
+                        type="number"
+                        min={0}
+                        max={999}
+                        defaultValue={c.sortOrder}
+                        className="w-28"
+                      />
+                    </div>
+                  </AdvancedSection>
+                  <Button type="submit" className="max-md:h-10">
                     Enregistrer
                   </Button>
                 </form>
+
                 <form
                   action={deleteCategoryAction}
-                  className="mt-2 flex flex-wrap items-center gap-2"
+                  className="space-y-3 border-t border-border pt-6"
                 >
                   <input type="hidden" name="id" value={c.id} />
+                  <h3 className="text-body font-semibold text-foreground">
+                    {referenced ? "Fusionner et supprimer" : "Supprimer la catégorie"}
+                  </h3>
                   {referenced ? (
-                    <select
-                      name="replacementId"
-                      aria-label={`Catégorie de remplacement pour ${c.name}`}
-                      className="h-9 rounded-md border bg-background px-2 text-sm max-md:h-10"
-                    >
-                      <option value="">— sans catégorie —</option>
-                      {categories
-                        .filter((o) => o.id !== c.id)
-                        .map((o) => (
-                          <option key={o.id} value={o.id}>
-                            fusionner dans « {o.name} »
-                          </option>
-                        ))}
-                    </select>
-                  ) : null}
+                    <>
+                      <p className="text-note text-muted-foreground">
+                        Les messages, relances automatiques et messages à un groupe pas encore
+                        partis passent dans la catégorie choisie (ou sans catégorie), puis celle-ci
+                        est supprimée.
+                      </p>
+                      <div className="space-y-2">
+                        <Label htmlFor={`replacement-${c.id}`}>Déplacer vers</Label>
+                        <NativeSelect
+                          id={`replacement-${c.id}`}
+                          name="replacementId"
+                          defaultValue=""
+                          wrapperClassName="w-full"
+                        >
+                          <option value="">Sans catégorie</option>
+                          {others.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-note text-muted-foreground">
+                      Aucun message ne l&apos;utilise : elle sera simplement supprimée.
+                    </p>
+                  )}
                   <ConfirmSubmit
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive max-md:h-10"
+                    variant="destructive"
+                    className="max-md:h-10"
+                    confirmTitle={
+                      referenced
+                        ? `Fusionner et supprimer « ${c.name} »\u00a0?`
+                        : `Supprimer « ${c.name} »\u00a0?`
+                    }
                     message={deleteConfirmMessage(c.name, c._count.posts, refs)}
                   >
                     {referenced ? "Fusionner et supprimer" : "Supprimer"}
                   </ConfirmSubmit>
                 </form>
               </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card className="mt-6 max-w-xl">
-        <CardHeader>
-          <CardTitle className="text-base">Nouvelle catégorie</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            action={createCategoryAction}
-            className="grid gap-2 sm:flex sm:flex-wrap sm:items-end"
-          >
-            <div className="space-y-1">
-              <Label htmlFor="new-name" className="text-xs">
-                Nom
-              </Label>
-              <Input
-                id="new-name"
-                name="name"
-                required
-                minLength={2}
-                maxLength={40}
-                className="h-10 w-full sm:w-44 md:h-8"
-                placeholder="Ex. Jackpot"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-color" className="text-xs">
-                Couleur
-              </Label>
-              <input
-                id="new-color"
-                name="color"
-                type="color"
-                defaultValue="#64748b"
-                className="h-10 w-12 cursor-pointer rounded border bg-background md:h-8"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-vertical" className="text-xs">
-                Univers
-              </Label>
-              <select id="new-vertical" name="vertical" defaultValue="" className={selectCls}>
-                <option value="">Tous</option>
-                {VERTICALS.map((v) => (
-                  <option key={v} value={v}>
-                    {VERTICAL_LABELS[v]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit" size="sm" className="max-md:h-10">
-              Créer la catégorie
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            ),
+          };
+        })}
+        empty={{
+          title: "Aucune catégorie pour l'instant",
+          description:
+            "Les catégories sont à créer vous-même, selon vos types de messages : cliquez sur « Nouvelle catégorie », ou créez-la en écrivant un message.",
+        }}
+      />
+      {categories.length > 0 ? (
+        <p className="mt-3 text-note text-muted-foreground">
+          Cliquez sur une catégorie pour changer son nom, sa couleur ou son univers, ou pour la
+          supprimer. Une catégorie supprimée peut être fusionnée dans une autre.
+        </p>
+      ) : null}
     </>
   );
 }

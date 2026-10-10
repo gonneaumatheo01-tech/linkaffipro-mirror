@@ -1,33 +1,38 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ChevronRight, Compass } from "lucide-react";
+import { Compass } from "lucide-react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { SettingsCardGrid } from "@/components/settings/settings-card-grid";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { restartTourAction } from "@/lib/onboarding/actions";
 import { requireUser } from "@/lib/session";
-import { settingsPagesFor } from "./nav";
+import { NO_STATE_INPUT, settingsStates } from "@/lib/status/settings-cards";
+import { loadSettingsStateInput } from "@/lib/status/settings-cards-queries";
+import { settingsCardsFor, stateKeysOf } from "./nav";
 
 export const metadata: Metadata = { title: "Réglages" };
+export const dynamic = "force-dynamic";
 
 /**
- * Réglages : un écran en cartes, ouvert à tous les rôles. Chacun ne voit que les cartes qu'il peut ouvrir
- * (`settingsPagesFor`) ; chaque sous-page garde ses propres contrôles d'accès.
+ * Réglages : un écran en cartes regroupées (docs/REFONTE-UX.md), ouvert à tous les rôles. Chacun ne voit que les
+ * cartes qu'il peut ouvrir (`settingsCardsFor`) ; chaque sous-page garde ses propres contrôles d'accès. Les pastilles
+ * d'état (« Link Affi synchronisé il y a 2 min », « Clé IA absente ») ne lisent que les données des cartes visibles.
  */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
-  const user = await requireUser();
+  const [user, sp] = await Promise.all([requireUser(), searchParams]);
   const isAdmin = user.role === "ADMIN";
-  const sp = await searchParams;
-  const pages = settingsPagesFor(user.role);
+  const now = new Date();
+  const cards = settingsCardsFor(user.role);
+  const input = await loadSettingsStateInput(stateKeysOf(cards), now).catch(() => NO_STATE_INPUT);
+  const states = settingsStates(input, now);
   return (
     <>
       <PageHeader
         title="Réglages"
         description={
           isAdmin
-            ? "Tout ce qui se règle une fois pour toute l'équipe : comptes, connexions, bots, catégories, alertes, rapports."
-            : "Les réglages que vous pouvez consulter. Les autres sont réservés aux administrateurs."
+            ? "Ce qui se règle une fois pour toute l'équipe : connexions, bots, comptes, alertes."
+            : "Les réglages que vous pouvez ouvrir. Les autres sont réservés aux administrateurs."
         }
         help={
           isAdmin
@@ -44,29 +49,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         }
       />
       <Flash ok={sp.ok} error={sp.error} />
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {pages.map((p) => (
-          <li key={p.href}>
-            <Link
-              href={p.href}
-              className="group block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              <Card className="h-full transition-colors group-hover:border-brand/50 group-hover:bg-brand-soft/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between gap-2">
-                    {p.label}
-                    <ChevronRight
-                      aria-hidden
-                      className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                    />
-                  </CardTitle>
-                  <CardDescription>{p.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <SettingsCardGrid cards={cards} states={states} />
     </>
   );
 }

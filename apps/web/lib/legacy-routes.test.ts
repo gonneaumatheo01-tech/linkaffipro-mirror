@@ -69,11 +69,11 @@ describe("anciennes rubriques déplacées (préfixes)", () => {
 });
 
 describe("ancien tableau de bord (« / » avec ses paramètres) → Statistiques", () => {
-  it("chaque onglet renvoie vers son onglet des statistiques", () => {
-    expect(legacyRedirect("/", "tab=ads")).toBe("/stats?tab=ads");
-    expect(legacyRedirect("/", "tab=funnel")).toBe("/stats?tab=funnel");
-    expect(legacyRedirect("/", "tab=cohorts")).toBe("/stats?tab=cohorts");
-    expect(legacyRedirect("/", "tab=channels")).toBe("/stats?tab=channels");
+  it("chaque onglet renvoie vers sa page des statistiques, en une seule redirection", () => {
+    expect(legacyRedirect("/", "tab=ads")).toBe("/stats/ads");
+    expect(legacyRedirect("/", "tab=funnel")).toBe("/stats/funnel");
+    expect(legacyRedirect("/", "tab=cohorts")).toBe("/stats/cohorts");
+    expect(legacyRedirect("/", "tab=channels")).toBe("/stats/channels");
   });
 
   it("« Vue d'ensemble » est l'onglet par défaut des statistiques (paramètre retiré)", () => {
@@ -87,13 +87,11 @@ describe("ancien tableau de bord (« / » avec ses paramètres) → Statistiques
         "/",
         "tab=ads&range=custom&from=2026-09-01&to=2026-09-30&compare=1&sort=roas&dir=asc",
       ),
-    ).toBe("/stats?tab=ads&range=custom&from=2026-09-01&to=2026-09-30&compare=1&sort=roas&dir=asc");
+    ).toBe("/stats/ads?range=custom&from=2026-09-01&to=2026-09-30&compare=1&sort=roas&dir=asc");
     expect(legacyRedirect("/", "tab=funnel&dim=campaign%3Ac1&vertical=CASINO")).toBe(
-      "/stats?tab=funnel&dim=campaign%3Ac1&vertical=CASINO",
+      "/stats/funnel?dim=campaign%3Ac1&vertical=CASINO",
     );
-    expect(legacyRedirect("/", "campaignId=c1&tab=cohorts")).toBe(
-      "/stats?campaignId=c1&tab=cohorts",
-    );
+    expect(legacyRedirect("/", "campaignId=c1&tab=cohorts")).toBe("/stats/cohorts?campaignId=c1");
   });
 
   it("une adresse de l'ancien tableau de bord sans onglet (vue d'ensemble filtrée) va aussi aux statistiques", () => {
@@ -111,7 +109,7 @@ describe("ancien tableau de bord (« / » avec ses paramètres) → Statistiques
 
   it("garde les messages de retour d'une action (ok, error) avec le reste", () => {
     expect(legacyRedirect("/", "tab=ads&ok=Recalcul+lanc%C3%A9")).toBe(
-      "/stats?tab=ads&ok=Recalcul+lanc%C3%A9",
+      "/stats/ads?ok=Recalcul+lanc%C3%A9",
     );
   });
 
@@ -124,14 +122,54 @@ describe("ancien tableau de bord (« / » avec ses paramètres) → Statistiques
     expect(legacyRedirect("/", "_rsc=abc")).toBeNull();
   });
 
-  it("statsTarget : la cible de chaque onglet en un seul endroit (l'étape 7 y mettra /stats/ads…)", () => {
+  it("statsTarget : la cible de chaque onglet en un seul endroit (une page par onglet depuis l'étape 7)", () => {
     expect(statsTarget("overview")).toEqual({ path: "/stats", tab: null });
-    expect(statsTarget("ads")).toEqual({ path: "/stats", tab: "ads" });
-    expect(statsTarget("funnel")).toEqual({ path: "/stats", tab: "funnel" });
-    expect(statsTarget("cohorts")).toEqual({ path: "/stats", tab: "cohorts" });
-    expect(statsTarget("channels")).toEqual({ path: "/stats", tab: "channels" });
+    expect(statsTarget("ads")).toEqual({ path: "/stats/ads", tab: null });
+    expect(statsTarget("funnel")).toEqual({ path: "/stats/funnel", tab: null });
+    expect(statsTarget("cohorts")).toEqual({ path: "/stats/cohorts", tab: null });
+    expect(statsTarget("channels")).toEqual({ path: "/stats/channels", tab: null });
     expect(statsTarget("inconnu")).toEqual({ path: "/stats", tab: null });
     expect(statsTarget(null)).toEqual({ path: "/stats", tab: null });
+  });
+});
+
+describe("statistiques à onglets (« /stats?tab=… ») → une page par onglet", () => {
+  it("chaque onglet renvoie vers sa page", () => {
+    expect(legacyRedirect("/stats", "tab=ads")).toBe("/stats/ads");
+    expect(legacyRedirect("/stats", "tab=funnel")).toBe("/stats/funnel");
+    expect(legacyRedirect("/stats", "tab=cohorts")).toBe("/stats/cohorts");
+    expect(legacyRedirect("/stats", "tab=channels")).toBe("/stats/channels");
+  });
+
+  it("« Vue d'ensemble » ou un onglet inconnu : la vue d'ensemble, sans le paramètre", () => {
+    expect(legacyRedirect("/stats", "tab=overview&range=30d")).toBe("/stats?range=30d");
+    expect(legacyRedirect("/stats", "tab=pirate")).toBe("/stats");
+    expect(legacyRedirect("/stats", "tab=")).toBe("/stats");
+  });
+
+  it("garde la période, la comparaison, les filtres, le tri, la dimension et les messages de retour", () => {
+    expect(
+      legacyRedirect(
+        "/stats",
+        "tab=ads&range=custom&from=2026-09-01&to=2026-09-30&compare=1&vertical=CASINO&campaignId=c1&sort=roas&dir=asc",
+      ),
+    ).toBe(
+      "/stats/ads?range=custom&from=2026-09-01&to=2026-09-30&compare=1&vertical=CASINO&campaignId=c1&sort=roas&dir=asc",
+    );
+    expect(legacyRedirect("/stats", "tab=funnel&dim=channel%3Ach1")).toBe(
+      "/stats/funnel?dim=channel%3Ach1",
+    );
+    expect(legacyRedirect("/stats", "channelId=ch1&tab=channels")).toBe(
+      "/stats/channels?channelId=ch1",
+    );
+    expect(legacyRedirect("/stats", "tab=ads&ok=Recalcul+lanc%C3%A9")).toBe(
+      "/stats/ads?ok=Recalcul+lanc%C3%A9",
+    );
+  });
+
+  it("les nouvelles pages ne sont jamais redirigées, même avec un paramètre « tab »", () => {
+    expect(legacyRedirect("/stats/ads", "tab=funnel")).toBeNull();
+    expect(legacyRedirect("/stats/cohorts", "range=90d")).toBeNull();
   });
 });
 
@@ -183,7 +221,10 @@ describe("adresses jamais redirigées", () => {
       "/channels",
       "/channels/ch_1",
       "/messages",
-      "/stats",
+      "/stats/ads",
+      "/stats/funnel",
+      "/stats/channels",
+      "/stats/cohorts",
       "/help",
       "/account",
       "/styleguide",
@@ -193,7 +234,9 @@ describe("adresses jamais redirigées", () => {
       expect(legacyRedirect(p), p).toBeNull();
       expect(legacyRedirect(p, "tab=ads&range=7d"), `${p}?tab=ads`).toBeNull();
     }
-    expect(legacyRedirect("/stats", "tab=ads")).toBeNull();
+    // Les statistiques elles-mêmes : seulement sans l'ancien paramètre d'onglet (voir plus haut).
+    expect(legacyRedirect("/stats")).toBeNull();
+    expect(legacyRedirect("/stats", "range=30d&compare=1")).toBeNull();
   });
 
   it("rien pour les API, les redirections de liens traqués et les fichiers de Next", () => {

@@ -1,27 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
-import { EmptyState } from "@/components/admin/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/admin/data-table";
+import { AdvancedSection, FormSection } from "@/components/admin/form-section";
+import { StatusPill } from "@/components/admin/status-pill";
+import { DetailList, DetailRow } from "@/components/settings/detail-list";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { HelpTip } from "@/components/admin/help-tip";
 import { fmtDate } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
-import { StatusBadge } from "@/lib/status-badges";
+import { alertKindLabel } from "@/lib/status/labels";
+import { StatusBadge, statusLabel } from "@/lib/status-badges";
+import { SettingsGroupNav } from "../categories/group-nav";
 import {
   checkAlertsNowAction,
   purgeNowAction,
@@ -29,27 +23,19 @@ import {
   saveAlertThresholdsAction,
   saveRetentionAction,
 } from "./actions";
+import { openAlertsPill, purgeSummary, retentionMonths } from "./alert-view";
 import { ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
 
-export const metadata: Metadata = { title: "Alertes et rétention" };
+export const metadata: Metadata = { title: "Alertes" };
 
-const KIND_LABELS: Record<string, string> = {
-  bot_webhook: "Bot en difficulté",
-  sync_failed: "Synchro Link Affi en échec",
-  queue_backlog: "File d'envoi engorgée",
-  dm_blocked: "Messages privés bloqués en masse",
-  subid_health: "Santé de l'identifiant de suivi (sub-ID)",
-  worker_down: "Worker arrêté",
-  job_failures: "Erreurs répétées dans une file",
-  backup_failed: "Sauvegarde en échec",
-  registrations_drop: "Chute des inscriptions",
-  spend_no_conversion: "Dépense sans inscription",
-  channel_leak: "Canal qui perd ses membres",
-  post_failed: "Message programmé en échec",
-  offer_link_inactive: "Lien désactivé encore cliqué",
-  connector_reconnect: "Compte publicitaire à reconnecter",
-};
+/** Ordre de tri des gravités (la plus grave d'abord au premier clic). */
+const SEVERITY_RANK: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1 };
 
+/**
+ * Réglages → Alertes et rapports → Alertes : les alertes du système en tableau de 4 colonnes (alerte, gravité, date,
+ * état) avec le détail et « Marquer résolue » au clic ; les trois seuils réglables ; la durée de conservation des
+ * données, la purge manuelle étant rangée dans « Avancé ». Mêmes champs et mêmes actions serveur qu'avant.
+ */
 export default async function AlertsPage({ searchParams }: PageProps<"/settings/alerts">) {
   await requireAdminPage();
   const sp = await searchParams;
@@ -66,135 +52,121 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
     prisma.setting.findUnique({ where: { key: ALERT_THRESHOLDS_KEY } }),
   ]);
   const thresholds = parseThresholds(thresholdsRow?.value);
-  const months =
-    typeof retention?.value === "number" ? retention.value : Number(retention?.value ?? 24) || 24;
-  const openCount = alerts.filter((a) => !a.resolvedAt).length;
-  const purgeMeta = (lastPurge?.metadata ?? null) as {
-    membersAnonymized?: number;
-    eventsDeleted?: number;
-  } | null;
+  const months = retentionMonths(retention?.value);
+  const pill = openAlertsPill(alerts.filter((a) => !a.resolvedAt).length);
+  // Après une action, le tableau (et son volet) repart de zéro : le message de retour reste visible.
+  const flashKey = JSON.stringify([sp.ok ?? null, sp.error ?? null]);
 
   return (
     <>
       <PageHeader
-        title="Alertes et rétention"
-        description="Surveillance automatique du système (toutes les 5 minutes) et effacement des données personnelles au-delà de la durée de conservation."
-        help="Une alerte ouverte vous est envoyée une fois sur Telegram ; elle se ferme seule quand le problème disparaît. « Vérifier maintenant » force un passage."
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          className="max-md:h-10"
-          render={<Link href="/settings" />}
-        >
-          ← Réglages
-        </Button>
-        <form action={checkAlertsNowAction}>
-          <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
-            Vérifier maintenant
-          </Button>
-        </form>
-      </PageHeader>
+        backHref="/settings"
+        backLabel="Réglages"
+        title="Alertes"
+        meta={<StatusPill tone={pill.tone}>{pill.label}</StatusPill>}
+        description="Le site surveille les bots, la synchro, les envois et vos chiffres toutes les 5 minutes, et vous prévient sur Telegram."
+        help="Une alerte vous est envoyée une fois et se ferme seule quand le problème disparaît. « Vérifier maintenant » force un passage."
+        secondaryActions={
+          <form action={checkAlertsNowAction}>
+            <Button type="submit" variant="outline" className="max-md:h-10">
+              <RefreshCw aria-hidden />
+              Vérifier maintenant
+            </Button>
+          </form>
+        }
+      />
+      <SettingsGroupNav group="alerts" current="alerts" />
       <Flash ok={sp.ok} error={sp.error} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Alertes{" "}
-            {openCount > 0 ? (
-              <Badge variant="destructive" className="ml-2">
-                {openCount} ouverte{openCount > 1 ? "s" : ""}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="ml-2">
-                aucune ouverte
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Chaque alerte est envoyée une fois par Telegram à l&apos;administrateur, puis se résout
-            seule quand la cause disparaît.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {alerts.length === 0 ? (
-            <EmptyState
-              title="Aucune alerte enregistrée."
-              description="Tout fonctionne. Les alertes apparaîtront ici (bot injoignable, synchronisation en échec, sauvegarde ratée…)."
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quand</TableHead>
-                  <TableHead>Gravité</TableHead>
-                  <TableHead className="hidden md:table-cell">Type</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="hidden lg:table-cell">Notifiée</TableHead>
-                  <TableHead className="hidden md:table-cell">Résolue</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Action</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {alerts.map((a) => (
-                  <TableRow key={a.id} className={a.resolvedAt ? "text-muted-foreground" : ""}>
-                    <TableCell className="whitespace-nowrap">{fmtDate(a.createdAt)}</TableCell>
-                    <TableCell>
+      <div className="space-y-10">
+        <FormSection
+          title="Alertes récentes"
+          description="Les alertes ouvertes d'abord. Cliquez sur une alerte pour son détail."
+        >
+          <DataTable
+            key={`alerts-${flashKey}`}
+            label="Alertes récentes"
+            columns={[
+              { key: "alert", header: "Alerte", className: "min-w-56 whitespace-normal" },
+              { key: "severity", header: "Gravité", hideOnMobile: true },
+              { key: "when", header: "Quand", hideOnMobile: true },
+              { key: "state", header: "État" },
+            ]}
+            rows={alerts.map((a) => ({
+              id: a.id,
+              cells: {
+                alert: (
+                  <span className="flex flex-col items-start gap-0.5">
+                    <span>{alertKindLabel(a.kind)}</span>
+                    <span className="line-clamp-2 text-note font-normal text-muted-foreground">
+                      {a.message}
+                    </span>
+                  </span>
+                ),
+                severity: <StatusBadge kind="alert" value={a.severity} />,
+                when: fmtDate(a.createdAt),
+                state: a.resolvedAt ? (
+                  <StatusPill tone="muted">Résolue</StatusPill>
+                ) : (
+                  <StatusPill tone="danger">Ouverte</StatusPill>
+                ),
+              },
+              sortValues: {
+                alert: alertKindLabel(a.kind),
+                severity: SEVERITY_RANK[a.severity] ?? 0,
+                when: a.createdAt,
+                state: a.resolvedAt ? 0 : 1,
+              },
+              detailTitle: alertKindLabel(a.kind),
+              detailDescription: `${statusLabel("alert", a.severity)} · ${fmtDate(a.createdAt)}`,
+              detail: (
+                <div className="space-y-6">
+                  <p className="text-body text-foreground">{a.message}</p>
+                  <DetailList>
+                    <DetailRow label="Gravité">
                       <StatusBadge kind="alert" value={a.severity} />
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {KIND_LABELS[a.kind] ?? a.kind}
-                    </TableCell>
-                    <TableCell className="max-w-md whitespace-normal">{a.message}</TableCell>
-                    <TableCell className="hidden whitespace-nowrap lg:table-cell">
-                      {a.notifiedAt ? fmtDate(a.notifiedAt) : "—"}
-                    </TableCell>
-                    <TableCell className="hidden whitespace-nowrap md:table-cell">
-                      {a.resolvedAt ? (
-                        fmtDate(a.resolvedAt)
-                      ) : (
-                        <Badge variant="outline">ouverte</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!a.resolvedAt ? (
-                        <form action={resolveAlertAction}>
-                          <input type="hidden" name="alertId" value={a.id} />
-                          <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
-                            Marquer résolue
-                          </Button>
-                        </form>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                    </DetailRow>
+                    <DetailRow label="Apparue le">{fmtDate(a.createdAt)}</DetailRow>
+                    <DetailRow label="Envoyée sur Telegram">
+                      {a.notifiedAt ? `le ${fmtDate(a.notifiedAt)}` : "Pas encore"}
+                    </DetailRow>
+                    <DetailRow label="État">
+                      {a.resolvedAt ? `Résolue le ${fmtDate(a.resolvedAt)}` : "Ouverte"}
+                    </DetailRow>
+                  </DetailList>
+                  {!a.resolvedAt ? (
+                    <form action={resolveAlertAction} className="border-t border-border pt-6">
+                      <input type="hidden" name="alertId" value={a.id} />
+                      <p className="mb-3 text-note text-muted-foreground">
+                        Le problème est réglé ? Fermez l&apos;alerte sans attendre le prochain
+                        passage.
+                      </p>
+                      <Button type="submit" variant="outline" className="max-md:h-10">
+                        Marquer résolue
+                      </Button>
+                    </form>
+                  ) : null}
+                </div>
+              ),
+            }))}
+            empty={{
+              title: "Aucune alerte",
+              description:
+                "Tout fonctionne. Une alerte apparaîtra ici si un bot ne répond plus, si la synchro échoue, si une sauvegarde rate…",
+            }}
+          />
+        </FormSection>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base">Seuils des alertes métier</CardTitle>
-          <CardDescription>
-            Trois alertes se règlent ici. Les autres (message programmé en échec, lien désactivé
-            encore cliqué, bot, synchro, sauvegarde…) n&apos;ont pas de seuil.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={saveAlertThresholdsAction} className="grid gap-4 sm:grid-cols-3">
+        <FormSection
+          title="Seuils"
+          description="Trois alertes se règlent ici. Les autres (bot, synchro, sauvegarde, message en échec…) n'ont pas de seuil."
+        >
+          <form
+            action={saveAlertThresholdsAction}
+            className="grid gap-x-6 gap-y-5 rounded-xl border border-border bg-card p-4 md:grid-cols-3 md:p-6"
+          >
             <div className="space-y-2">
-              <Label htmlFor="registrationsDropPct" className="flex items-center gap-1">
-                Chute des inscriptions (%)
-                <HelpTip>
-                  Alerte si les inscriptions des dernières 24 h sont inférieures de ce pourcentage à
-                  la moyenne quotidienne des 7 jours précédents (seulement à partir de 10
-                  inscriptions par jour en moyenne).
-                </HelpTip>
-              </Label>
+              <Label htmlFor="registrationsDropPct">Chute des inscriptions (%)</Label>
               <Input
                 id="registrationsDropPct"
                 name="registrationsDropPct"
@@ -202,40 +174,29 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 min={1}
                 max={100}
                 defaultValue={thresholds.registrationsDropPct}
-                className="h-10 md:h-9"
+                aria-describedby="registrationsDropPct-aide"
               />
-              <p className="text-xs text-muted-foreground">
-                Exemple : 50 = alerte si on passe de 20 par jour à moins de 10.
+              <p id="registrationsDropPct-aide" className="text-note text-muted-foreground">
+                Les 24 dernières heures comparées à la moyenne des 7 jours d&apos;avant (dès 10
+                inscriptions par jour). 50 = alerte si on passe de 20 à moins de 10 par jour.
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="spendNoConversionEur" className="flex items-center gap-1">
-                Dépense sans inscription (€)
-                <HelpTip>
-                  Alerte si une pub a coûté plus que ce montant sur les derniers jours couvrant 24 h
-                  sans aucune inscription rattachée (par son lien d&apos;entrée ou ses liens
-                  traqués).
-                </HelpTip>
-              </Label>
+              <Label htmlFor="spendNoConversionEur">Dépense sans inscription (€)</Label>
               <Input
                 id="spendNoConversionEur"
                 name="spendNoConversionEur"
                 inputMode="decimal"
                 defaultValue={thresholds.spendNoConversionEur}
-                className="h-10 md:h-9"
+                aria-describedby="spendNoConversionEur-aide"
               />
-              <p className="text-xs text-muted-foreground">
-                Exemple : 50 = une pub à 60 € sans inscrit déclenche l&apos;alerte.
+              <p id="spendNoConversionEur-aide" className="text-note text-muted-foreground">
+                Une pub qui a coûté plus que ce montant en 24 h sans aucune inscription. 50 = une
+                pub à 60 € sans inscrit déclenche l&apos;alerte.
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="channelLeakPct" className="flex items-center gap-1">
-                Départs d&apos;un canal (%)
-                <HelpTip>
-                  Alerte si, sur 24 h, un canal perd plus que ce pourcentage de ses membres actifs
-                  (canaux d&apos;au moins 20 membres).
-                </HelpTip>
-              </Label>
+              <Label htmlFor="channelLeakPct">Départs d&apos;un canal (%)</Label>
               <Input
                 id="channelLeakPct"
                 name="channelLeakPct"
@@ -243,75 +204,69 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 min={1}
                 max={100}
                 defaultValue={thresholds.channelLeakPct}
-                className="h-10 md:h-9"
+                aria-describedby="channelLeakPct-aide"
               />
-              <p className="text-xs text-muted-foreground">
-                Exemple : 10 = alerte si 11 membres sur 100 partent dans la journée.
+              <p id="channelLeakPct-aide" className="text-note text-muted-foreground">
+                Part des membres d&apos;un canal (20 au moins) partis en 24 h. 10 = alerte si 11
+                membres sur 100 partent dans la journée.
               </p>
             </div>
-            <div className="sm:col-span-3">
+            <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
                 Enregistrer les seuils
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </FormSection>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Durée de conservation</CardTitle>
-            <CardDescription>
-              Au-delà de cette durée, les membres inactifs sont anonymisés et leurs événements
-              supprimés (sauf les événements joueurs). Règle de l&apos;équipe : 24 mois.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              action={saveRetentionAction}
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="months">Durée en mois (de 6 à 120)</Label>
-                <Input
-                  id="months"
-                  name="months"
-                  type="number"
-                  min={6}
-                  max={120}
-                  defaultValue={months}
-                  className="h-10 w-32 md:h-9"
-                />
-              </div>
-              <Button type="submit" className="max-md:h-10">
-                Enregistrer
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Purge</CardTitle>
-            <CardDescription>
-              Exécutée automatiquement chaque nuit.{" "}
-              {lastPurge
-                ? `Dernière purge : ${fmtDate(lastPurge.createdAt)} (${purgeMeta?.membersAnonymized ?? 0} membre(s) anonymisé(s), ${purgeMeta?.eventsDeleted ?? 0} événement(s) supprimé(s)).`
-                : "Aucune purge exécutée pour l'instant."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={purgeNowAction}>
+        <FormSection
+          title="Conservation des données"
+          description="Au-delà de cette durée, les membres inactifs sont anonymisés et leurs événements supprimés (sauf les événements joueurs). Règle de l'équipe : 24 mois."
+        >
+          <form
+            action={saveRetentionAction}
+            className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-end md:p-6"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="months">Durée en mois (de 6 à 120)</Label>
+              <Input
+                id="months"
+                name="months"
+                type="number"
+                min={6}
+                max={120}
+                defaultValue={months}
+                className="w-32"
+              />
+            </div>
+            <Button type="submit" variant="outline" className="self-start max-md:h-10 sm:self-auto">
+              Enregistrer la durée
+            </Button>
+          </form>
+          <p className="text-note text-muted-foreground">
+            La purge passe toute seule chaque nuit. {purgeSummary(lastPurge)}
+          </p>
+          <AdvancedSection
+            title="Avancé : purge manuelle"
+            description="Rarement utile : seulement pour effacer tout de suite après avoir réduit la durée."
+          >
+            <form action={purgeNowAction} className="space-y-3">
+              <p className="text-body text-muted-foreground">
+                Anonymise maintenant tous les membres inactifs depuis plus de {months} mois et
+                supprime leurs événements. Irréversible.
+              </p>
               <ConfirmSubmit
-                variant="outline"
+                variant="destructive"
                 className="max-md:h-10"
-                message={`La purge va anonymiser tous les membres inactifs depuis plus de ${months} mois et supprimer leurs événements. Cette action est irréversible. Continuer ?`}
+                confirmTitle={"Lancer la purge maintenant\u00a0?"}
+                confirmLabel="Lancer la purge"
+                message={`Tous les membres inactifs depuis plus de ${months} mois seront anonymisés et leurs événements supprimés. Cette action est irréversible.`}
               >
                 Lancer la purge maintenant
               </ConfirmSubmit>
             </form>
-          </CardContent>
-        </Card>
+          </AdvancedSection>
+        </FormSection>
       </div>
     </>
   );

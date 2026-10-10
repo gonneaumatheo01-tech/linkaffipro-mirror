@@ -101,6 +101,32 @@ export function countCategoryReferences(
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
+/** Ce qui utilise une catégorie, en mots simples (morceaux à joindre) : messages, relances, messages à un groupe. */
+function usageItems(posts: number, refs: CategoryRefs | undefined): string[] {
+  const rules = refs?.rules ?? 0;
+  const broadcasts = refs?.broadcasts ?? 0;
+  return [
+    posts > 0 ? plural(posts, "message", "messages") : "",
+    rules > 0 ? plural(rules, "relance automatique", "relances automatiques") : "",
+    broadcasts > 0
+      ? plural(
+          broadcasts,
+          "message à un groupe pas encore parti",
+          "messages à un groupe pas encore partis",
+        )
+      : "",
+  ].filter(Boolean);
+}
+
+/**
+ * Ligne « Utilisée par » de la liste des catégories : « 3 messages · 1 relance automatique », ou « Pas encore
+ * utilisée ».
+ */
+export function categoryUsageLabel(posts: number, refs: CategoryRefs | undefined): string {
+  const items = usageItems(posts, refs);
+  return items.length ? items.join(" · ") : "Pas encore utilisée";
+}
+
 /** Message de confirmation du bouton « Supprimer » / « Fusionner et supprimer » de Réglages → Catégories. */
 export function deleteConfirmMessage(
   name: string,
@@ -111,18 +137,14 @@ export function deleteConfirmMessage(
   const broadcasts = refs?.broadcasts ?? 0;
   if (posts === 0 && rules === 0 && broadcasts === 0)
     return `La catégorie « ${name} » sera supprimée définitivement. Continuer ?`;
-  const items = [
-    posts > 0 ? plural(posts, "message", "messages") : "",
-    rules > 0 ? plural(rules, "automatisation", "automatisations") : "",
-    broadcasts > 0 ? plural(broadcasts, "envoi pas encore parti", "envois pas encore partis") : "",
-  ].filter(Boolean);
+  const items = usageItems(posts, refs);
   const list = items.length > 1 ? `${items.slice(0, -1).join(", ")} et ${items.at(-1)}` : items[0]!;
   const parts = [
     `La catégorie « ${name} » sera supprimée : ${list} passer${items.length > 1 || posts + rules + broadcasts > 1 ? "ont" : "a"} dans la catégorie choisie (ou sans catégorie).`,
   ];
   if ((refs?.rulesOnly ?? 0) > 0 || (refs?.broadcastsOnly ?? 0) > 0)
     parts.push(
-      "Sans remplacement (« — sans catégorie — »), une automatisation qui ne visait que cette catégorie sera désactivée, un envoi programmé qui ne visait qu'elle repassera en brouillon, et un brouillon ou une automatisation déjà en pause perdra son filtre de catégorie : vérifiez leur cible ensuite.",
+      "Sans remplacement (« Sans catégorie »), une relance automatique qui ne visait que cette catégorie sera désactivée, un message à un groupe programmé qui ne visait qu'elle repassera en brouillon, et un brouillon ou une relance déjà en pause perdra son filtre de catégorie : vérifiez leur cible ensuite.",
     );
   parts.push("Continuer ?");
   return parts.join(" ");

@@ -106,7 +106,13 @@ export function DataTable<T = unknown>({
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<SortState>(defaultSort);
-  const [selected, setSelected] = useState<DataTableRow<T> | null>(null);
+  // On garde l'identifiant de la ligne ouverte, pas la ligne : après une action (rafraîchissement de la page), le volet
+  // montre la version à jour de cette ligne, ou se ferme si elle a disparu.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = useMemo(
+    () => (selectedId === null ? null : (rows.find((r) => r.id === selectedId) ?? null)),
+    [rows, selectedId],
+  );
   const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
@@ -154,7 +160,7 @@ export function DataTable<T = unknown>({
   const hasDetail = (r: DataTableRow<T>) => Boolean(renderDetail || r.detail !== undefined);
   const hrefOf = (r: DataTableRow<T>) => r.href ?? rowHref?.(r);
   const open = (r: DataTableRow<T>) => {
-    setSelected(r);
+    setSelectedId(r.id);
     setPanelOpen(true);
   };
   const firstKey = columns[0]?.key;
@@ -278,7 +284,7 @@ export function DataTable<T = unknown>({
       </Table>
       {sorted.some((r) => !hrefOf(r) && hasDetail(r)) ? (
         <SidePanel
-          open={panelOpen}
+          open={panelOpen && selected !== null}
           onOpenChange={setPanelOpen}
           title={selected ? titleOf(selected) : "Détail"}
           description={selected?.detailDescription}

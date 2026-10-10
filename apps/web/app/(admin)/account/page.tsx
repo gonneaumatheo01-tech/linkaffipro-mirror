@@ -6,17 +6,26 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { CopyField } from "@/components/admin/copy-field";
-import { Badge } from "@/components/ui/badge";
+import { FormSection } from "@/components/admin/form-section";
+import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { restartTourAction } from "@/lib/onboarding/actions";
 import { requireUser } from "@/lib/session";
 import { changePasswordAction, generateTelegramLinkAction, unlinkTelegramAction } from "./actions";
+import { accountPrimaryAction } from "./account-view";
 
 export const metadata: Metadata = { title: "Mon compte" };
 
+/** Surface blanche des blocs de la page (formulaires). */
+const BOX = "rounded-xl border border-border bg-card p-4 md:p-6";
+
+/**
+ * Mon compte : mot de passe, lien avec Telegram (alertes, rapports, « Tester sur moi ») et « Revoir la visite ».
+ * Un seul bouton orange : « Générer un lien » tant que Telegram n'est pas lié (c'est la chose à faire), sinon
+ * « Modifier le mot de passe ». Mêmes champs et mêmes actions serveur qu'avant.
+ */
 export default async function AccountPage({ searchParams }: PageProps<"/account">) {
   const me = await requireUser();
   const sp = await searchParams;
@@ -31,154 +40,157 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
       select: { username: true, name: true },
     }),
   ]);
+  const linked = Boolean(user.telegramUserId);
+  const telegramFirst =
+    accountPrimaryAction({
+      linked,
+      activeBots: bots.length,
+      hasLinkToken: Boolean(user.telegramLinkToken),
+    }) === "telegram";
+
   return (
     <>
       <PageHeader
         title="Mon compte"
-        description={`${me.name} · ${me.email} · ${ROLE_LABELS[me.role]}`}
-        help="Changez votre mot de passe et liez votre compte Telegram : il sert aux tests (« Envoyer un test sur mon Telegram », « Tester sur moi ») et aux alertes."
+        meta={<StatusPill tone="neutral">{ROLE_LABELS[me.role]}</StatusPill>}
+        description={`${me.name} · ${me.email}`}
+        help="Liez votre Telegram : il sert aux alertes, aux rapports et aux tests (« Envoyer un test sur mon Telegram », « Tester sur moi »)."
       />
       <Flash ok={sp.ok} error={sp.error} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Changer le mot de passe</CardTitle>
-            <CardDescription>
-              10 caractères minimum. Vos autres appareils seront déconnectés.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={changePasswordAction} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="current">Mot de passe actuel</Label>
-                <Input
-                  id="current"
-                  name="current"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Nouveau mot de passe</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  minLength={10}
-                  autoComplete="new-password"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm">Confirmer le nouveau mot de passe</Label>
-                <Input
-                  id="confirm"
-                  name="confirm"
-                  type="password"
-                  required
-                  minLength={10}
-                  autoComplete="new-password"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <Button type="submit" className="max-md:h-10">
-                Modifier le mot de passe
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Lier mon Telegram</CardTitle>
-            <CardDescription>
-              Permet au bot de vous reconnaître comme membre de l&apos;équipe (vous recevez les
-              alertes et les rapports).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {user.telegramUserId ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm">
-                  <Badge>lié</Badge>{" "}
-                  <span className="ml-2 text-muted-foreground">
-                    identifiant Telegram {user.telegramUserId.toString()}
-                  </span>
-                </div>
+      <div className="grid gap-x-6 gap-y-10 lg:grid-cols-2">
+        <FormSection
+          title="Telegram"
+          description="Le bot vous reconnaît comme membre de l'équipe : vous recevez les alertes, les rapports et les tests."
+          actions={
+            linked ? (
+              <StatusPill tone="success">Lié</StatusPill>
+            ) : (
+              <StatusPill tone="muted">Non lié</StatusPill>
+            )
+          }
+        >
+          <div className={`space-y-4 ${BOX}`}>
+            {linked ? (
+              <>
+                <p className="text-body text-muted-foreground">
+                  Compte Telegram lié (identifiant {user.telegramUserId!.toString()}).
+                </p>
                 <form action={unlinkTelegramAction}>
                   <ConfirmSubmit
-                    size="sm"
                     variant="outline"
                     className="max-md:h-10"
-                    message="Votre compte Telegram sera délié : vous ne recevrez plus les alertes ni les tests. Vous pourrez le relier ensuite. Continuer ?"
+                    confirmTitle={"Délier votre Telegram\u00a0?"}
+                    confirmLabel="Délier"
+                    destructive
+                    message="Vous ne recevrez plus les alertes, les rapports ni les tests. Vous pourrez le relier ensuite."
                   >
                     Délier
                   </ConfirmSubmit>
                 </form>
-              </div>
+              </>
+            ) : bots.length === 0 ? (
+              <p className="text-body text-muted-foreground">
+                Aucun bot actif : un administrateur doit d&apos;abord ajouter un bot (Réglages →
+                Bots).
+              </p>
             ) : (
               <>
-                {user.telegramLinkToken && bots.length > 0 ? (
+                {user.telegramLinkToken ? (
                   <div className="space-y-3">
-                    <p className="text-sm">
+                    <p className="text-body">
                       Ouvrez un de ces liens dans Telegram, puis appuyez sur{" "}
-                      <strong>Démarrer</strong> :
+                      <strong className="font-semibold">Démarrer</strong>.
                     </p>
                     {bots.map((b) => (
-                      <div key={b.username} className="space-y-1">
-                        <div className="text-xs text-muted-foreground">
+                      <div key={b.username} className="space-y-1.5">
+                        <p className="text-note text-muted-foreground">
                           {b.name} (@{b.username})
-                        </div>
+                        </p>
                         <CopyField
                           value={`https://t.me/${b.username}?start=admin_${user.telegramLinkToken}`}
+                          label={`Lien pour lier votre Telegram avec @${b.username}`}
                         />
                       </div>
                     ))}
                   </div>
-                ) : bots.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Aucun bot actif : ajoutez d&apos;abord un bot dans Réglages → Bots.
-                  </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Compte Telegram non lié. Générez un lien, ouvrez-le dans Telegram et appuyez sur
-                    Démarrer.
+                  <p className="text-body text-muted-foreground">
+                    Générez un lien, ouvrez-le dans Telegram et appuyez sur Démarrer.
                   </p>
                 )}
                 <form action={generateTelegramLinkAction}>
                   <Button
                     type="submit"
                     className="max-md:h-10"
-                    variant={user.telegramLinkToken ? "outline" : "default"}
+                    variant={telegramFirst ? "default" : "outline"}
                   >
-                    {user.telegramLinkToken ? "Régénérer le lien" : "Générer un lien"}
+                    {user.telegramLinkToken ? "Générer un nouveau lien" : "Générer un lien"}
                   </Button>
                 </form>
               </>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </FormSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Visite guidée</CardTitle>
-            <CardDescription>
-              Deux minutes pour retrouver chaque rubrique du menu. Elle repart de l&apos;accueil, et
-              la liste « À faire pour démarrer » réapparaît si elle n&apos;est pas finie.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={restartTourAction}>
-              <Button type="submit" variant="outline" className="max-md:h-10">
-                <Compass aria-hidden />
-                Revoir la visite
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <FormSection
+          title="Mot de passe"
+          description="10 caractères au moins. Vos autres appareils seront déconnectés."
+        >
+          <form action={changePasswordAction} className={`space-y-4 ${BOX}`}>
+            <div className="space-y-2">
+              <Label htmlFor="current">Mot de passe actuel</Label>
+              <Input
+                id="current"
+                name="current"
+                type="password"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Nouveau mot de passe</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={10}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm">Confirmer le nouveau mot de passe</Label>
+              <Input
+                id="confirm"
+                name="confirm"
+                type="password"
+                required
+                minLength={10}
+                autoComplete="new-password"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="max-md:h-10"
+              variant={telegramFirst ? "outline" : "default"}
+            >
+              Modifier le mot de passe
+            </Button>
+          </form>
+        </FormSection>
+
+        <FormSection
+          title="Visite guidée"
+          description="Deux minutes pour retrouver chaque rubrique du menu. Elle repart de l'accueil, et la liste « À faire pour démarrer » réapparaît si elle n'est pas finie."
+        >
+          <form action={restartTourAction}>
+            <Button type="submit" variant="outline" className="max-md:h-10">
+              <Compass aria-hidden />
+              Revoir la visite
+            </Button>
+          </form>
+        </FormSection>
       </div>
     </>
   );
