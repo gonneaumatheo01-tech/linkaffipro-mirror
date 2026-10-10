@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-10-10T11:16:21.752Z",
+  "base": "http://localhost:3103",
+  "width": 1440,
+  "tags": [
+    "wcag2a",
+    "wcag2aa"
+  ],
+  "failOn": "critical",
+  "totals": {
+    "critical": 0,
+    "serious": 0,
+    "moderate": 0,
+    "minor": 0
+  },
+  "pages": [
+    {
+      "route": "/",
+      "path": "/",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    }
+  ]
+}

@@ -54,8 +54,12 @@ export function AcceptInviteForm({
           autoComplete="new-password"
         />
       </div>
-      {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
-      <Button type="submit" className="w-full" disabled={pending}>
+      {state?.error ? (
+        <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-body text-danger">
+          {state.error}
+        </p>
+      ) : null}
+      <Button type="submit" size="lg" className="w-full" disabled={pending}>
         {pending
           ? "Enregistrement…"
           : mode === "reset"

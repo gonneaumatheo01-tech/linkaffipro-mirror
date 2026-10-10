@@ -20,6 +20,7 @@
     "db:seed": "pnpm --filter @linkaffipro/db db:seed",
     "db:phase8": "pnpm --filter @linkaffipro/db db:phase8",
     "seed:templates": "pnpm --filter @linkaffipro/db seed:templates",
+    "db:demo": "pnpm --filter @linkaffipro/db db:demo",
     "bots:register": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/register-bots.ts",
     "telegram:webhooks": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/set-webhooks.ts",
     "linkaffi:check": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/check.ts",
@@ -30,7 +31,9 @@
     "db:restore": "node scripts/db-restore.mjs",
     "db:backup:now": "railway ssh --service worker -- su-exec node node apps/worker/dist/backup-now.js",
     "db:dump": "node scripts/db-dump.mjs",
-    "test:integration": "node scripts/test-integration.mjs"
+    "test:integration": "node scripts/test-integration.mjs",
+    "captures": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/captures.ts",
+    "a11y": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/a11y.ts"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

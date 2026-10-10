@@ -1,8 +1,9 @@
 "use client"
 
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
-import { cn } from "cn"
+import { cn } from "@/components/ui/cn"
 
+/** Trait de séparation, 1 px gris clair. */
 function Separator({
   className,
   orientation = "horizontal",

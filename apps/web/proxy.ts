@@ -15,7 +15,8 @@ const BASE_HEADERS: Array<[string, string]> = [
 /** CSP des pages du site (Next 16 injecte des scripts inline : 'unsafe-inline' sans nonce). */
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // eval() seulement en développement (outils de React/Next) ; jamais en production.
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob:",

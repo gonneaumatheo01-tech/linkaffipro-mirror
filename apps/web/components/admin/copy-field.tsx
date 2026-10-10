@@ -5,21 +5,29 @@ import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function CopyField({ value }: { value: string }) {
+/** Champ en lecture seule avec un bouton « Copier » (lien, adresse, identifiant de suivi). */
+export function CopyField({
+  value,
+  label = "Adresse à copier",
+}: {
+  value: string;
+  label?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
       <Input
         readOnly
         value={value}
-        aria-label="Adresse à copier"
-        className="font-mono text-xs"
+        aria-label={label}
+        className="font-mono md:text-note"
         onFocus={(e) => e.currentTarget.select()}
       />
       <Button
         type="button"
         size="sm"
         variant="outline"
+        className="max-md:h-10"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(value);
@@ -30,8 +38,12 @@ export function CopyField({ value }: { value: string }) {
           }
         }}
       >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        {copied ? "Copié" : "Copier"}
+        {copied ? (
+          <Check aria-hidden className="size-4 text-success" />
+        ) : (
+          <Copy aria-hidden className="size-4" />
+        )}
+        <span aria-live="polite">{copied ? "Copié" : "Copier"}</span>
       </Button>
     </div>
   );

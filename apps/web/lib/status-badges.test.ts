@@ -26,9 +26,12 @@ import {
   TrackingLinkKind,
   Vertical,
 } from "@linkaffipro/db";
+import { PILL_TONES, pillShowsDot, pillToneClasses } from "@/components/admin/status-pill";
 import {
   STATUS_DICT,
+  entryTone,
   statusEntry,
+  statusTone,
   statusLabel,
   statusLabels,
   statusVariant,
@@ -94,5 +97,52 @@ describe("badges de statut", () => {
     expect(statusLabel("sync", "error")).toBe("Erreur");
     expect(statusLabel("webhook", "check")).toBe("À vérifier");
     expect(statusLabel("active", "inactive")).toBe("Inactif");
+  });
+});
+
+describe("pastilles d'état (StatusPill)", () => {
+  it("donne une nuance de pastille à chaque statut du dictionnaire", () => {
+    for (const kind of Object.keys(STATUS_DICT) as StatusKind[]) {
+      for (const value of Object.keys(STATUS_DICT[kind])) {
+        expect(PILL_TONES, `${kind}.${value}`).toContain(statusTone(kind, value));
+      }
+    }
+  });
+
+  it("garde le sens des couleurs : réussi en vert, à surveiller en ambre, échec en rouge", () => {
+    expect(statusTone("post", "SENT")).toBe("success");
+    expect(statusTone("membership", "REQUESTED")).toBe("warning");
+    expect(statusTone("post", "FAILED")).toBe("danger");
+    expect(statusTone("post", "SCHEDULED")).toBe("info");
+    expect(statusTone("post", "CANCELLED")).toBe("muted");
+    expect(statusTone("post", "DRAFT")).toBe("neutral");
+    // Valeur inconnue : neutre, jamais une couleur d'alerte.
+    expect(statusTone("post", "WHAT_EVER")).toBe("neutral");
+  });
+
+  it("dérive la nuance de l'entrée (variante + nuance)", () => {
+    expect(entryTone({ label: "x", variant: "outline", tone: "success" })).toBe("success");
+    expect(entryTone({ label: "x", variant: "outline", tone: "warning" })).toBe("warning");
+    expect(entryTone({ label: "x", variant: "destructive" })).toBe("danger");
+    expect(entryTone({ label: "x", variant: "default" })).toBe("info");
+    expect(entryTone({ label: "x", variant: "secondary" })).toBe("muted");
+    expect(entryTone({ label: "x", variant: "outline" })).toBe("neutral");
+  });
+
+  it("a des classes de fond doux, de texte et de point pour chaque nuance", () => {
+    for (const tone of PILL_TONES) {
+      const c = pillToneClasses(tone);
+      expect(c.pill, tone).toMatch(/\bbg-/);
+      expect(c.pill, tone).toMatch(/\btext-/);
+      expect(c.dot, tone).toMatch(/\bbg-/);
+      // Jamais de couleur en dur : uniquement les jetons du thème.
+      expect(`${c.pill} ${c.dot}`, tone).not.toMatch(/#|emerald|amber|red-|green-|slate-|gray-/);
+    }
+  });
+
+  it("n'affiche le point que pour les états (pas pour les simples catégories)", () => {
+    expect(pillShowsDot("success")).toBe(true);
+    expect(pillShowsDot("danger")).toBe(true);
+    expect(pillShowsDot("neutral")).toBe(false);
   });
 });

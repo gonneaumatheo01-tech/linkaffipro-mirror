@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { prisma } from "@linkaffipro/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BRAND_THEME_COLOR, BrandScreen } from "@/app/(auth)/brand-screen";
 import { AcceptInviteForm } from "./accept-form";
 
 export const metadata: Metadata = { title: "Invitation" };
+export const viewport: Viewport = { themeColor: BRAND_THEME_COLOR };
 export const dynamic = "force-dynamic";
 
 export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
@@ -22,28 +24,28 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
   const mode = existing ? "reset" : "create";
   const roleLabel = invitation?.role === "ADMIN" ? "administrateur" : "manager";
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <Card>
-          <CardHeader>
-            <CardTitle>
+    <BrandScreen width="md">
+      <Card className="[--card-spacing:--spacing(6)]">
+        <CardHeader>
+          <CardTitle>
+            <h1 className="text-title">
               {mode === "reset" ? "Nouveau mot de passe" : "Rejoindre LinkAffi Pro"}
-            </CardTitle>
-            <CardDescription>
-              {!valid
-                ? "Cette invitation est invalide, expirée ou déjà utilisée. Demandez une nouvelle invitation à un administrateur."
-                : mode === "reset"
-                  ? `${invitation.invitedBy.name} vous a envoyé ce lien pour choisir un nouveau mot de passe, ${existing?.name}. Vos autres appareils seront déconnectés.`
-                  : `${invitation.invitedBy.name} vous invite en tant que ${roleLabel}. Choisissez votre nom et votre mot de passe.`}
-            </CardDescription>
-          </CardHeader>
-          {valid ? (
-            <CardContent>
-              <AcceptInviteForm token={token} email={invitation.email} mode={mode} />
-            </CardContent>
-          ) : null}
-        </Card>
-      </div>
-    </main>
+            </h1>
+          </CardTitle>
+          <CardDescription>
+            {!valid
+              ? "Cette invitation est invalide, expirée ou déjà utilisée. Demandez une nouvelle invitation à un administrateur."
+              : mode === "reset"
+                ? `${invitation.invitedBy.name} vous a envoyé ce lien pour choisir un nouveau mot de passe, ${existing?.name}. Vos autres appareils seront déconnectés.`
+                : `${invitation.invitedBy.name} vous invite en tant que ${roleLabel}. Choisissez votre nom et votre mot de passe.`}
+          </CardDescription>
+        </CardHeader>
+        {valid ? (
+          <CardContent>
+            <AcceptInviteForm token={token} email={invitation.email} mode={mode} />
+          </CardContent>
+        ) : null}
+      </Card>
+    </BrandScreen>
   );
 }

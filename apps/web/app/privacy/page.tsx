@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BrandLogo } from "@/components/admin/brand-logo";
 
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
@@ -12,18 +13,19 @@ export const metadata: Metadata = {
  */
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
-      <article className="space-y-6 text-sm leading-relaxed">
+    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 md:px-6 md:py-12">
+      <article className="space-y-6 rounded-xl border border-border bg-card p-6 text-body leading-relaxed text-foreground md:p-10">
         <header className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="flex items-center gap-2 text-body font-semibold text-foreground">
+            <BrandLogo size={28} />
             LinkAffi Pro
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Politique de confidentialité</h1>
+          <h1 className="pt-2 text-title text-foreground">Politique de confidentialité</h1>
           <p className="text-muted-foreground">Dernière mise à jour : 10 octobre 2026.</p>
         </header>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">1. Qui sommes-nous</h2>
+          <h2 className="text-body font-semibold text-foreground">1. Qui sommes-nous</h2>
           <p>
             LinkAffi Pro est un outil interne de gestion et de statistiques utilisé par une équipe
             d&apos;affiliation. Il n&apos;est pas ouvert au public : seuls les membres de
@@ -33,7 +35,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">2. Données traitées</h2>
+          <h2 className="text-body font-semibold text-foreground">2. Données traitées</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>Données publicitaires (Meta, TikTok)</strong> : quand un membre de
@@ -62,7 +64,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">3. Pourquoi</h2>
+          <h2 className="text-body font-semibold text-foreground">3. Pourquoi</h2>
           <p>
             Pour piloter nos propres campagnes publicitaires, calculer leur coût et leur rendement,
             animer nos canaux Telegram et répondre à nos obligations contractuelles envers nos
@@ -73,7 +75,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">4. Conservation</h2>
+          <h2 className="text-body font-semibold text-foreground">4. Conservation</h2>
           <p>
             Les données personnelles des membres Telegram sont conservées <strong>24 mois</strong>{" "}
             après leur dernière activité, puis supprimées automatiquement. Les données publicitaires
@@ -84,7 +86,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">5. Sécurité</h2>
+          <h2 className="text-body font-semibold text-foreground">5. Sécurité</h2>
           <p>
             Accès par mot de passe réservé à l&apos;équipe, connexions chiffrées (HTTPS), jetons et
             secrets chiffrés en base (AES-256-GCM), hébergement en Europe, journal d&apos;audit de
@@ -93,7 +95,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">6. Vos droits et contact</h2>
+          <h2 className="text-body font-semibold text-foreground">6. Vos droits et contact</h2>
           <p>
             Vous pouvez demander l&apos;accès, la rectification ou la suppression des données qui
             vous concernent, ou retirer l&apos;accès accordé à un compte publicitaire (depuis votre
@@ -103,12 +105,12 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <footer className="border-t pt-4 text-xs text-muted-foreground">
-          <Link href="/terms" className="underline underline-offset-4">
+        <footer className="border-t border-border pt-4 text-note text-muted-foreground">
+          <Link href="/terms" className="font-medium text-brand-ink underline underline-offset-4">
             Conditions d&apos;utilisation
           </Link>
           {" · "}
-          <Link href="/login" className="underline underline-offset-4">
+          <Link href="/login" className="font-medium text-brand-ink underline underline-offset-4">
             Connexion
           </Link>
         </footer>

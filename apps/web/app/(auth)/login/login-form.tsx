@@ -10,8 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 export function LoginForm({ callbackUrl, initialError, notice = null }: { callbackUrl: string; initialError: string | null; notice?: string | null }) {
   const [state, action, pending] = useActionState(loginAction, { error: initialError });
   return (
-    <Card>
-      <CardContent className="pt-6">
+    <Card className="[--card-spacing:--spacing(6)]">
+      <CardContent>
         <form action={action} className="space-y-4">
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
           <div className="space-y-2">
@@ -22,9 +22,9 @@ export function LoginForm({ callbackUrl, initialError, notice = null }: { callba
             <Label htmlFor="password">Mot de passe</Label>
             <Input id="password" name="password" type="password" autoComplete="current-password" required />
           </div>
-          {notice && !state?.error ? <p className="text-sm text-emerald-700">{notice}</p> : null}
-          {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
-          <Button type="submit" className="w-full" disabled={pending}>
+          {notice && !state?.error ? <p role="status" className="rounded-lg bg-success-soft px-3 py-2 text-body text-success">{notice}</p> : null}
+          {state?.error ? <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-body text-danger">{state.error}</p> : null}
+          <Button type="submit" size="lg" className="w-full" disabled={pending}>
             {pending ? "Connexion…" : "Se connecter"}
           </Button>
         </form>

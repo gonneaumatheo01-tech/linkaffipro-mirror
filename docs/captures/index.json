@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-10T11:16:09.957Z",
+  "entries": [
+    {
+      "route": "/",
+      "path": "/",
+      "title": "Tableau de bord",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "accueil-390.webp",
+        "1440": "accueil-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-10T11:15:49.506Z"
+    },
+    {
+      "route": "/campaigns",
+      "path": "/campaigns",
+      "title": "Campagnes",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-390.webp",
+        "1440": "campaigns-1440.webp"
+      },
+      "jsErrors": 2,
+      "capturedAt": "2026-10-10T11:15:57.920Z",
+      "errorSamples": [
+        "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and acce"
+      ]
+    },
+    {
+      "route": "/members",
+      "path": "/members",
+      "title": "Membres",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-390.webp",
+        "1440": "members-1440.webp"
+      },
+      "jsErrors": 2,
+      "capturedAt": "2026-10-10T11:16:03.184Z",
+      "errorSamples": [
+        "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and acce"
+      ]
+    }
+  ]
+}

@@ -2,14 +2,62 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Les classes dark: ne s'appliquent que sous une classe .dark, qui n'existe pas : le mode sombre du système n'a aucun effet. */
 @custom-variant dark (&:is(.dark *));
+
+/*
+ * Thème LinkAffi Pro (phase 9, docs/REFONTE-UX.md « Identité visuelle », règles dans docs/DESIGN-SYSTEM.md).
+ * Thème clair uniquement : le mode sombre viendra plus tard (aucune classe .dark n'est définie).
+ * Contrastes vérifiés (WCAG AA) : texte orange = brand-ink #9A5B00 (5,2:1 sur le fond) ; le bouton principal est
+ * orange #FCA314 avec texte nuit #020713 (10:1) ; jamais de texte blanc sur orange (2:1).
+ */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-heading: var(--font-sans);
+
+  /* Trois tailles de texte + gros chiffre (classes text-title, text-body, text-note, text-figure). */
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-note: 0.75rem;
+  --text-note--line-height: 1rem;
+  --text-figure: 1.75rem;
+  --text-figure--line-height: 2.25rem;
+  --text-figure--font-weight: 600;
+
+  /* Marque et couleurs d'état (classes bg-brand, text-brand-ink, bg-night, text-success, bg-warning-soft…). */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-night: var(--night);
+  --color-night-foreground: var(--night-foreground);
+  --color-night-muted: var(--night-muted);
+  --color-night-hover: var(--night-hover);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-surface: var(--surface);
+
+  /* Univers : toujours en pastille, bordure fine ou étiquette, jamais en fond plein. *-ink = version texte (AA). */
+  --color-casino: var(--universe-casino);
+  --color-casino-ink: var(--universe-casino-ink);
+  --color-sports: var(--universe-sports);
+  --color-sports-ink: var(--universe-sports-ink);
+  --color-dating: var(--universe-dating);
+  --color-dating-ink: var(--universe-dating-ink);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,82 +87,84 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Grille de 8 ; cartes au rayon 12 (rounded-xl = --radius). */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: var(--radius);
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* Marque (logo) */
+  --brand: #fca314;
+  --brand-foreground: #020713;
+  --brand-ink: #9a5b00;
+  --brand-soft: #fff4e0;
+  --night: #020713;
+  --night-foreground: #ffffff;
+  --night-muted: #c7cdd8;
+  --night-hover: #111a2e;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Fond, surfaces, texte */
+  --background: #fafaf7;
+  --surface: #ffffff;
+  --foreground: #1a1f2b;
+  --card: #ffffff;
+  --card-foreground: #1a1f2b;
+  --popover: #ffffff;
+  --popover-foreground: #1a1f2b;
+  --primary: #fca314;
+  --primary-foreground: #020713;
+  --secondary: #f1f2f4;
+  --secondary-foreground: #1a1f2b;
+  --muted: #f1f2f4;
+  --muted-foreground: #5b6474;
+  --accent: #f4f5f7;
+  --accent-foreground: #1a1f2b;
+  --destructive: #b91c1c;
+  --border: #e4e6eb;
+  --input: #d5d9e0;
+  --ring: #9a5b00;
+  --radius: 0.75rem;
+
+  /* États : succès vert, attention jaune-brun (distinct de l'orange de marque), erreur rouge, information bleu nuit */
+  --success: #15803d;
+  --success-soft: #ecfdf3;
+  --warning: #854d0e;
+  --warning-soft: #fef9c3;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #1d4ed8;
+  --info-soft: #eff6ff;
+
+  /* Univers */
+  --universe-casino: #7c3aed;
+  --universe-casino-ink: #6d28d9;
+  --universe-sports: #059669;
+  --universe-sports-ink: #047857;
+  --universe-dating: #db2777;
+  --universe-dating-ink: #be185d;
+
+  /* Graphiques : marque puis univers */
+  --chart-1: #fca314;
+  --chart-2: #7c3aed;
+  --chart-3: #059669;
+  --chart-4: #db2777;
+  --chart-5: #5b6474;
+
+  /* Barre de menu : fond nuit du logo */
+  --sidebar: #020713;
+  --sidebar-foreground: #c7cdd8;
+  --sidebar-primary: #fca314;
+  --sidebar-primary-foreground: #020713;
+  --sidebar-accent: #111a2e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1c2538;
+  --sidebar-ring: #fca314;
 }
 
 @layer base {
@@ -122,12 +172,27 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-body;
   }
   button:not(:disabled), [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   html {
     @apply font-sans;
+  }
+  /* Chiffres alignés dans les tableaux, cartes et compteurs. */
+  .tabular-nums, [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Focus toujours visible (clavier) : anneau orange foncé, contraste AA sur fond clair. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* Téléphone : un champ qui reçoit le focus ou une ancre ne passent jamais sous la barre du bas (56 px + zone sûre iOS). */
+  @media (width < 48rem) {
+    html {
+      scroll-padding-bottom: calc(3.5rem + env(safe-area-inset-bottom) + 0.5rem);
+    }
   }
 }

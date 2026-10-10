@@ -52,6 +52,11 @@ describe("routage par hôte", () => {
       decideRoute("app.linkaffipro.com", "/api/connectors/meta/start", "go.goolink.eu"),
     ).toEqual({ kind: "protected" });
   });
+  it("laisse les icônes du site lisibles sans session (onglet de connexion, écran d'accueil iPhone)", () => {
+    expect(isPublicPath("/icon.png")).toBe(true);
+    expect(isPublicPath("/apple-icon.png")).toBe(true);
+  });
+
   it("ne confond pas les préfixes", () => {
     expect(isPublicPath("/loginx")).toBe(false);
     expect(isPublicPath("/api/healthcheck")).toBe(false);
@@ -59,5 +64,6 @@ describe("routage par hôte", () => {
     expect(isPublicPath("/api/postbackx")).toBe(false);
     expect(isPublicPath("/privacyx")).toBe(false);
     expect(isPublicPath("/termsx")).toBe(false);
+    expect(isPublicPath("/icon.pngx")).toBe(false);
   });
 });

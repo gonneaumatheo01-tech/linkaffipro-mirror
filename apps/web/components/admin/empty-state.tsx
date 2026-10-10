@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Inbox } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 
 /**
- * État vide d'une liste : icône facultative, titre, phrase, bouton d'action facultatif.
- * `action` : lien (`href`) ou contenu libre (`children`, ex. un formulaire).
+ * État vide d'une liste : icône dans un rond orange pâle, titre, une phrase, un bouton principal.
+ * - `icon` : icône lucide (par défaut une boîte de réception) ;
+ * - `action` : lien (`href`, `label`, `variant` facultative, orange par défaut) ;
+ * - `children` : contenu libre sous la phrase (ex. un formulaire) à la place ou en plus du bouton.
  */
 export function EmptyState({
   icon,
@@ -23,22 +26,32 @@ export function EmptyState({
 }) {
   return (
     <div
+      data-slot="empty-state"
       className={cn(
-        "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center",
+        "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-10 text-center",
         className,
       )}
     >
-      {icon ? <div className="mb-1 text-muted-foreground [&>svg]:size-8">{icon}</div> : null}
-      <p className="text-sm font-medium">{title}</p>
-      {description ? <p className="max-w-md text-sm text-muted-foreground">{description}</p> : null}
+      <div
+        aria-hidden
+        className="mb-1 flex size-12 items-center justify-center rounded-full bg-brand-soft text-brand-ink [&>svg]:size-6"
+      >
+        {icon ?? <Inbox />}
+      </div>
+      <p className="text-body font-semibold text-foreground">{title}</p>
+      {description ? (
+        <p className="max-w-md text-body text-muted-foreground">{description}</p>
+      ) : null}
       {action ? (
-        <Button
-          className="mt-2 max-md:h-10"
-          variant={action.variant ?? "default"}
-          render={<Link href={action.href} />}
+        <Link
+          href={action.href}
+          className={cn(
+            buttonVariants({ variant: action.variant ?? "default" }),
+            "mt-2 max-md:h-10",
+          )}
         >
           {action.label}
-        </Button>
+        </Link>
       ) : null}
       {children ? <div className="mt-2">{children}</div> : null}
     </div>

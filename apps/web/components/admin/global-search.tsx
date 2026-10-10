@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import type { SearchHit, SearchResponse } from "@/lib/search/query";
 
 /** Événement global pour ouvrir la recherche (raccourcis, autres composants). */
@@ -130,24 +131,26 @@ export function GlobalSearch() {
 
   return (
     <>
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 gap-2 px-3"
+        className={cn(
+          "flex size-10 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted md:min-w-0 md:shrink",
+          "md:h-9 md:w-full md:max-w-xs md:justify-start md:gap-2 md:border md:border-input md:bg-background md:px-3 md:text-muted-foreground md:hover:bg-surface md:hover:text-foreground lg:max-w-sm",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        )}
         aria-label="Rechercher (raccourci ⌘K ou /)"
         aria-keyshortcuts="Meta+K Control+K /"
         onClick={() => setOpen(true)}
       >
-        <Search className="size-4" />
-        <span className="hidden sm:inline">Rechercher</span>
-        <kbd className="hidden rounded border bg-muted px-1 font-mono text-[10px] text-muted-foreground md:inline">
+        <Search aria-hidden className="size-5 md:size-4" />
+        <span className="hidden flex-1 text-left text-body md:inline">Rechercher</span>
+        <kbd className="hidden rounded border border-border bg-surface px-1.5 font-sans text-note text-muted-foreground md:inline">
           ⌘K
         </kbd>
-      </Button>
+      </button>
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 p-3 pt-[10vh] sm:p-6 sm:pt-[12vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-night/40 p-3 pt-[10vh] sm:p-6 sm:pt-[12vh]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
@@ -156,12 +159,12 @@ export function GlobalSearch() {
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="w-full max-w-xl overflow-hidden rounded-xl border bg-background shadow-lg"
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-surface text-foreground shadow-lg"
           >
             <h2 id={titleId} className="sr-only">
               Recherche globale
             </h2>
-            <div className="flex items-center gap-2 border-b px-3">
+            <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <input
                 ref={inputRef}
@@ -177,12 +180,12 @@ export function GlobalSearch() {
                 role="combobox"
                 aria-expanded={flat.length > 0}
                 autoComplete="off"
-                className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="h-12 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-body [&::-webkit-search-cancel-button]:appearance-none"
               />
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 aria-label="Fermer la recherche"
                 onClick={close}
               >
@@ -190,20 +193,24 @@ export function GlobalSearch() {
               </Button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
-              {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+              {error ? (
+                <p role="alert" className="px-4 py-3 text-body text-danger">
+                  {error}
+                </p>
+              ) : null}
               {!error && shortQuery ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">
+                <p className="px-4 py-3 text-body text-muted-foreground">
                   Tapez au moins deux caractères. Flèches pour choisir, Entrée pour ouvrir, Échap
                   pour fermer.
                 </p>
               ) : null}
               {!error && !shortQuery && !loading && results && results.groups.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">
+                <p className="px-4 py-3 text-body text-muted-foreground">
                   Aucun résultat pour « {results.q} ».
                 </p>
               ) : null}
               {!shortQuery && loading && !results ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">Recherche…</p>
+                <p className="px-4 py-3 text-body text-muted-foreground">Recherche…</p>
               ) : null}
               {results && results.groups.length > 0 ? (
                 <ul id={listId} role="listbox" aria-label="Résultats de recherche" className="py-1">
@@ -211,7 +218,7 @@ export function GlobalSearch() {
                     const offset = flat.findIndex((h) => h.group === g.key);
                     return (
                       <li key={g.key} role="presentation">
-                        <div className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <div className="px-4 pt-3 pb-1 text-note font-semibold text-muted-foreground">
                           {g.label}
                         </div>
                         <ul role="group" aria-label={g.label}>
@@ -224,14 +231,17 @@ export function GlobalSearch() {
                                 id={`${listId}-${idx}`}
                                 role="option"
                                 aria-selected={selected}
-                                className={`flex cursor-pointer flex-col px-4 py-2 text-sm ${selected ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+                                className={cn(
+                                  "flex min-h-10 cursor-pointer flex-col justify-center px-4 py-2 text-body",
+                                  selected ? "bg-brand-soft text-foreground" : "hover:bg-muted",
+                                )}
                                 onMouseEnter={() => setActive(idx)}
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => go(h)}
                               >
                                 <span className="truncate font-medium">{h.title}</span>
                                 {h.subtitle ? (
-                                  <span className="truncate text-xs text-muted-foreground">
+                                  <span className="truncate text-note text-muted-foreground">
                                     {h.subtitle}
                                   </span>
                                 ) : null}

@@ -257,7 +257,7 @@ function MediaEditor({
         }}
       >
         Glissez-déposez ici ou{" "}
-        <label className="cursor-pointer text-primary underline">
+        <label className="cursor-pointer text-brand-ink underline">
           choisissez des fichiers
           <input
             type="file"

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { PERIOD_KEYS, PERIOD_LABELS, type Period, type PeriodKey } from "@/lib/periods";
 
 /**
@@ -27,7 +28,6 @@ export function PeriodSelect({
 }) {
   const [key, setKey] = useState<PeriodKey>(period.key);
   const custom = key === "custom";
-  const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-8";
   return (
     <form
       method="get"
@@ -42,24 +42,24 @@ export function PeriodSelect({
         <Label htmlFor="period-range" className="sr-only">
           Période
         </Label>
-        <select
+        <NativeSelect
           id="period-range"
           name="range"
           value={key}
           onChange={(e) => setKey(e.target.value as PeriodKey)}
-          className={selectCls}
+          className="w-auto"
         >
           {PERIOD_KEYS.map((k) => (
             <option key={k} value={k}>
               {PERIOD_LABELS[k]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       {custom ? (
         <>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="period-from" className="text-xs text-muted-foreground">
+            <Label htmlFor="period-from" className="text-note font-normal text-muted-foreground">
               Du
             </Label>
             <Input
@@ -68,11 +68,11 @@ export function PeriodSelect({
               type="date"
               required
               defaultValue={period.from}
-              className="h-10 w-40 md:h-8"
+              className="h-10 w-40 md:h-9"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="period-to" className="text-xs text-muted-foreground">
+            <Label htmlFor="period-to" className="text-note font-normal text-muted-foreground">
               au
             </Label>
             <Input
@@ -81,22 +81,22 @@ export function PeriodSelect({
               type="date"
               required
               defaultValue={period.to}
-              className="h-10 w-40 md:h-8"
+              className="h-10 w-40 md:h-9"
             />
           </div>
         </>
       ) : null}
-      <label className="flex h-10 items-center gap-1.5 text-sm md:h-8">
+      <label className="flex h-10 cursor-pointer items-center gap-2 text-body md:h-9">
         <input
           type="checkbox"
           name="compare"
           value="1"
           defaultChecked={compare}
-          className="size-4"
+          className="size-4 accent-brand"
         />
         Comparer à la période précédente
       </label>
-      <Button type="submit" variant="outline" size="sm" className="max-md:h-10">
+      <Button type="submit" variant="outline" className="max-md:h-10">
         Appliquer
       </Button>
     </form>

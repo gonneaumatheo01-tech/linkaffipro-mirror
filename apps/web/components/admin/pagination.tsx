@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fmtNum } from "@/lib/format";
 
 /** Taille de page commune à toutes les listes longues. */
@@ -49,27 +50,86 @@ export function pageWindow(page: number, pages: number): number[] {
 /**
  * Pagination simple (serveur) : « Précédent », quelques numéros, « Suivant ».
  * `hrefFor` construit le lien d'une page en conservant les filtres courants (voir `pageHref`).
+ * Page en cours en orange (`aria-current="page"`) ; cibles de 32 px, 40 px sur téléphone.
+ * Sur téléphone, une seule ligne : flèches (leur texte reste lu par les lecteurs d'écran) et « Page 2 sur 8 ».
  */
-export function Pagination({ page, pages, total, hrefFor, noun = "élément" }: { page: number; pages: number; total?: number; hrefFor: (page: number) => string; noun?: string }) {
-  const totalText = total !== undefined ? `${fmtNum(total)} ${noun}${total > 1 ? "s" : ""} · ` : "";
-  if (pages <= 1) return total !== undefined ? <p className="mt-3 text-xs text-muted-foreground">{totalText}page 1 / 1</p> : null;
+export function Pagination({
+  page,
+  pages,
+  total,
+  hrefFor,
+  noun = "élément",
+}: {
+  page: number;
+  pages: number;
+  total?: number;
+  hrefFor: (page: number) => string;
+  noun?: string;
+}) {
+  const totalLabel = total !== undefined ? `${fmtNum(total)} ${noun}${total > 1 ? "s" : ""}` : null;
+  if (pages <= 1)
+    return totalLabel ? (
+      <p className="mt-3 text-note text-muted-foreground">{totalLabel} · page 1 / 1</p>
+    ) : null;
   const numbers = pageWindow(page, pages);
-  const linkCls = "rounded-md border px-2 py-1 hover:bg-muted";
-  const disabledCls = "rounded-md border px-2 py-1 text-muted-foreground/50";
+  const base =
+    "inline-flex h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-md border px-2.5 text-body tabular-nums max-md:size-10 max-md:px-0";
+  const linkCls = `${base} border-border bg-surface text-foreground hover:bg-muted`;
+  const currentCls = `${base} border-brand bg-brand font-semibold text-brand-foreground`;
+  const disabledCls = `${base} border-border text-muted-foreground opacity-60`;
   return (
-    <nav aria-label="Pagination" className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
-      <span className="text-xs text-muted-foreground">
-        {totalText}page {page} / {pages}
+    <nav aria-label="Pagination" className="mt-4 flex flex-wrap items-center justify-between gap-2">
+      <span className="text-note text-muted-foreground">
+        {totalLabel}
+        <span className="max-md:hidden">
+          {totalLabel ? " · " : ""}page {page} / {pages}
+        </span>
       </span>
-      <div className="flex flex-wrap items-center gap-1">
-        {page > 1 ? <Link href={hrefFor(page - 1)} className={linkCls}>← Précédent</Link> : <span className={disabledCls}>← Précédent</span>}
+      <div className="flex flex-nowrap items-center gap-1">
+        {page > 1 ? (
+          <Link href={hrefFor(page - 1)} className={linkCls} rel="prev">
+            <ChevronLeft aria-hidden className="size-4" />
+            <span className="max-md:sr-only">Précédent</span>
+          </Link>
+        ) : (
+          <span className={disabledCls} aria-disabled="true">
+            <ChevronLeft aria-hidden className="size-4" />
+            <span className="max-md:sr-only">Précédent</span>
+          </span>
+        )}
         {numbers.map((n, i) => (
-          <span key={n} className="flex items-center gap-1">
-            {i > 0 && numbers[i - 1]! < n - 1 ? <span className="px-1 text-muted-foreground">…</span> : null}
-            {n === page ? <span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">{n}</span> : <Link href={hrefFor(n)} className={linkCls}>{n}</Link>}
+          <span key={n} className="flex items-center gap-1 max-md:hidden">
+            {i > 0 && numbers[i - 1]! < n - 1 ? (
+              <span aria-hidden className="px-1 text-muted-foreground">
+                …
+              </span>
+            ) : null}
+            {n === page ? (
+              <span className={currentCls} aria-current="page">
+                <span className="sr-only">Page </span>
+                {n}
+              </span>
+            ) : (
+              <Link href={hrefFor(n)} className={linkCls} aria-label={`Page ${n}`}>
+                {n}
+              </Link>
+            )}
           </span>
         ))}
-        {page < pages ? <Link href={hrefFor(page + 1)} className={linkCls}>Suivant →</Link> : <span className={disabledCls}>Suivant →</span>}
+        <span aria-current="page" className="px-2 text-body whitespace-nowrap tabular-nums md:hidden">
+          Page {page} sur {pages}
+        </span>
+        {page < pages ? (
+          <Link href={hrefFor(page + 1)} className={linkCls} rel="next">
+            <span className="max-md:sr-only">Suivant</span>
+            <ChevronRight aria-hidden className="size-4" />
+          </Link>
+        ) : (
+          <span className={disabledCls} aria-disabled="true">
+            <span className="max-md:sr-only">Suivant</span>
+            <ChevronRight aria-hidden className="size-4" />
+          </span>
+        )}
       </div>
     </nav>
   );

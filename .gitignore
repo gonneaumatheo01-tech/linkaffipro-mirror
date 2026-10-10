@@ -27,3 +27,8 @@ apps/web/AGENTS.md
 # Journaux de la boucle run-phase
 logs/
 docs/PHASE-DONE
+
+# Captures d'écran (pnpm captures) : PNG bruts temporaires ignorés ;
+# les webp, index.json, a11y-report.json et docs/REFONTE-CAPTURES.md sont commités.
+docs/captures/raw/
+docs/captures/**/*.png

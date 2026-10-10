@@ -25,14 +25,16 @@ import type {
   TrackingLinkKind,
   Vertical,
 } from "@linkaffipro/db";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { StatusPill, type PillTone } from "@/components/admin/status-pill";
+import { UniverseDot } from "@/components/admin/universe-dot";
 
 /**
  * Dictionnaire unique des libellés français et des couleurs de TOUS les statuts affichés dans l'interface.
  * Une notion = un libellé = une couleur, partout. Usage :
  *   statusLabel("post", "SENT")            → "Envoyé"
  *   <StatusBadge kind="post" value="SENT" />
+ * Rendu : pastille `StatusPill` (fond doux, point coloré) ; les univers (`kind="vertical"`) sont rendus
+ * avec leur couleur d'univers (`UniverseDot`, étiquette à bordure fine).
  */
 
 export type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -272,12 +274,29 @@ export function statusLabels<K extends StatusKind>(kind: K): Record<StatusValue<
   return out;
 }
 
-const TONE_CLASS: Record<Tone, string> = {
-  success:
-    "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
-  warning:
-    "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
-};
+/** Nuance de pastille d'une entrée : réussi → vert, à surveiller → ambre, échec → rouge, en cours → bleu. */
+export function entryTone(e: StatusEntry): PillTone {
+  if (e.tone === "success") return "success";
+  if (e.tone === "warning") return "warning";
+  switch (e.variant) {
+    case "destructive":
+      return "danger";
+    case "default":
+      return "info";
+    case "secondary":
+      return "muted";
+    default:
+      return "neutral";
+  }
+}
+
+/** Nuance de pastille d'un statut ; neutre si la valeur est inconnue. */
+export function statusTone<K extends StatusKind>(
+  kind: K,
+  value: StatusValue<K> | string,
+): PillTone {
+  return entryTone(statusEntry(kind, value));
+}
 
 /** Badge de statut : même libellé et même couleur partout dans l'interface. */
 export function StatusBadge<K extends StatusKind>({
@@ -292,14 +311,22 @@ export function StatusBadge<K extends StatusKind>({
   title?: string;
 }) {
   const e = statusEntry(kind, value);
+  if (kind === "vertical") {
+    return (
+      <span title={title} className="inline-flex">
+        <UniverseDot
+          universe={String(value)}
+          variant="pill"
+          label={e.label}
+          className={className}
+        />
+      </span>
+    );
+  }
   return (
-    <Badge
-      variant={e.variant}
-      className={cn(e.tone ? TONE_CLASS[e.tone] : null, className)}
-      title={title}
-    >
+    <StatusPill tone={entryTone(e)} className={className} title={title}>
       {e.label}
-    </Badge>
+    </StatusPill>
   );
 }
 

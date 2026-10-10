@@ -6,9 +6,9 @@ export function SoonPage({ title, description, items }: { title: string; descrip
     <>
       <PageHeader title={title} description={description} />
       <Card>
-        <CardContent className="pt-6">
-          <p className="mb-3 text-sm font-medium">Prévu pour la phase 1 :</p>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+        <CardContent>
+          <p className="mb-3 text-body font-semibold">Bientôt disponible :</p>
+          <ul className="list-disc space-y-1 pl-5 text-body text-muted-foreground">
             {items.map((i) => (
               <li key={i}>{i}</li>
             ))}

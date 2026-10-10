@@ -15,6 +15,7 @@
     "db:studio": "prisma studio",
     "db:seed": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed.ts",
     "seed:templates": "node --env-file-if-exists=../../.env.local --import tsx prisma/seed-templates.ts",
+    "db:demo": "node --env-file-if-exists=../../.env.local --import tsx prisma/demo-seed.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:phase8": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase8-data.ts",

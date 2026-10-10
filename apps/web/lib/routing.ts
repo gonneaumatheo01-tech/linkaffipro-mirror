@@ -25,6 +25,9 @@ const PUBLIC_PREFIXES = [
   "/r",
   "/privacy",
   "/terms",
+  // Icônes du site (onglet de la page de connexion, écran d'accueil iPhone) : lisibles sans session.
+  "/icon.png",
+  "/apple-icon.png",
 ];
 
 export function isPublicPath(pathname: string): boolean {

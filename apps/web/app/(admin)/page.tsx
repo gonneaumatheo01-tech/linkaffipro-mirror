@@ -740,7 +740,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                           ) : null}
                         </div>
                         {period.days === 1 ? null : (
-                          <Sparkline values={m.series.values} className="text-primary" />
+                          <Sparkline values={m.series.values} className="text-brand-ink" />
                         )}
                       </CardContent>
                     </Card>

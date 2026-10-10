@@ -12,3 +12,5 @@ docs/setup
 backups
 *.log
 .DS_Store
+docs/captures
+**/.next-*

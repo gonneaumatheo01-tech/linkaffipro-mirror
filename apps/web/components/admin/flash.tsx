@@ -1,3 +1,4 @@
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 /**
@@ -11,12 +12,14 @@ export function Flash({ ok, error }: { ok?: string | string[]; error?: string | 
   return (
     <div className="mb-4 space-y-2">
       {okMsg ? (
-        <Alert variant="default" role="status">
+        <Alert variant="success" role="status">
+          <CircleCheck aria-hidden />
           <AlertDescription>{okMsg}</AlertDescription>
         </Alert>
       ) : null}
       {errMsg ? (
         <Alert variant="destructive">
+          <CircleAlert aria-hidden />
           <AlertDescription>{errMsg}</AlertDescription>
         </Alert>
       ) : null}

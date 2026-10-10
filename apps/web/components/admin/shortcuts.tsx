@@ -50,7 +50,7 @@ export function Shortcuts() {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-night/40 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) setOpen(false);
       }}
@@ -59,10 +59,10 @@ export function Shortcuts() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="lap-shortcuts-title"
-        className="w-full max-w-md rounded-xl border bg-background p-5 shadow-lg"
+        className="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-foreground shadow-lg"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 id="lap-shortcuts-title" className="text-base font-semibold">
+          <h2 id="lap-shortcuts-title" className="text-title">
             Raccourcis clavier
           </h2>
           <Button
@@ -75,11 +75,11 @@ export function Shortcuts() {
             Fermer
           </Button>
         </div>
-        <dl className="space-y-2 text-sm">
+        <dl className="space-y-2 text-body">
           {SHORTCUTS.map(([keys, label]) => (
             <div key={keys} className="flex items-center justify-between gap-3">
               <dt>
-                <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">
+                <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-note">
                   {keys}
                 </kbd>
               </dt>
