@@ -44,7 +44,8 @@ export function fmtEur(n: number | null | undefined): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
 }
 
+/** Ratio en français, deux décimales (« 2,50× ») ; « — » si absent. */
 export function fmtRatio(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
-  return `${n.toFixed(2)}×`;
+  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
 }

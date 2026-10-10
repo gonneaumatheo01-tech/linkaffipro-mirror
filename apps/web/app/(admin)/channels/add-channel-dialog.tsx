@@ -198,7 +198,7 @@ export function AddChannelDialog({
           </p>
           {bots.length === 0 ? (
             <p className="text-sm text-destructive">
-              Aucun bot actif : ajoutez d&apos;abord un bot (page Bots).
+              Aucun bot actif : ajoutez d&apos;abord un bot (Réglages → Bots).
             </p>
           ) : (
             <ul className="flex flex-wrap gap-2">

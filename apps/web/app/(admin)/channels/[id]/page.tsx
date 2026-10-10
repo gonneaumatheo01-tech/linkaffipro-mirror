@@ -407,7 +407,7 @@ async function RequestsTab({ channelId, now }: { channelId: string; now: Date })
           <EmptyState
             title="Aucune demande en attente"
             description="Les personnes qui demandent à rejoindre ce canal apparaîtront ici. Partagez un lien d'entrée pour en recevoir."
-            action={{ href: "/links", label: "Voir les liens", variant: "outline" }}
+            action={{ href: "/campaigns/links", label: "Voir les liens", variant: "outline" }}
           />
         ) : (
           <Table>

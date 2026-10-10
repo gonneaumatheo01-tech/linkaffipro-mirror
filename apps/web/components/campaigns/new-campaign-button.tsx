@@ -1,16 +1,26 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 
 /**
- * Bouton « Nouvelle campagne » (assistant en 4 étapes). Utilisé en haut de la page Campagnes et sur le tableau de bord
- * vide. `variant="outline"` pour une version discrète.
+ * Lien-bouton « Nouvelle campagne » (assistant en 4 étapes), pour un écran qui n'a pas d'autre bouton principal.
+ * `variant="outline"` pour une version discrète. La page Campagnes passe par `PageHeader` (`primaryAction`).
  */
-export function NewCampaignButton({ variant = "default", className }: { variant?: "default" | "outline"; className?: string }) {
+export function NewCampaignButton({
+  variant = "default",
+  className,
+}: {
+  variant?: "default" | "outline";
+  className?: string;
+}) {
   return (
-    <Button variant={variant} className={`max-md:h-10 ${className ?? ""}`} render={<Link href="/campaigns/new" />}>
-      <Plus className="size-4" />
+    <Link
+      href="/campaigns/new"
+      className={cn(buttonVariants({ variant }), "max-md:h-10", className)}
+    >
+      <Plus aria-hidden />
       Nouvelle campagne
-    </Button>
+    </Link>
   );
 }

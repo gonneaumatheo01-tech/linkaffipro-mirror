@@ -57,7 +57,7 @@ export default async function TelegramConnectorPage({
           className="max-md:h-10"
           render={<Link href="/settings/connectors" />}
         >
-          ← Connecteurs
+          ← Connexions
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />

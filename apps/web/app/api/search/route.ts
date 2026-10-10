@@ -168,7 +168,7 @@ export async function GET(req: Request) {
       id: r.id,
       title: r.name,
       subtitle: r.isActive ? "règle active" : "règle inactive",
-      href: `/automations/${r.id}`,
+      href: `/members/automations/${r.id}`,
     })),
   );
   return Response.json({ q: q.raw, groups } satisfies SearchResponse, {

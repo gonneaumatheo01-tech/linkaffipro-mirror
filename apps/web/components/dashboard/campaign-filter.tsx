@@ -30,7 +30,7 @@ export function CampaignFilter({ campaigns, value, className }: { campaigns: Arr
         name="campaignId"
         value={value}
         onChange={(e) => change(e.target.value)}
-        title="Limiter le tableau de bord aux canaux et liens d'une campagne"
+        title="Limiter les statistiques aux canaux et liens d'une campagne"
         className="h-10 rounded-md border bg-background px-2 text-sm md:h-8"
       >
         <option value="">Toutes les campagnes</option>

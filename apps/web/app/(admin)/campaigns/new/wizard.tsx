@@ -2,13 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { VERTICALS, VERTICAL_LABELS, type Vertical } from "@linkaffipro/core";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import type { Vertical } from "@linkaffipro/core";
+import { AdvancedSection, FormSection } from "@/components/admin/form-section";
+import { Term } from "@/components/admin/help-tip";
+import { Stepper } from "@/components/admin/stepper";
+import { StatusPill } from "@/components/admin/status-pill";
+import { UniverseDot } from "@/components/admin/universe-dot";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { HelpTip } from "@/components/admin/help-tip";
 import { buildCampaignName, NAMING_EXAMPLE } from "@/lib/campaigns/match";
 import { pickShellByName } from "@/lib/campaigns/ad-link";
 import type {
@@ -32,6 +39,13 @@ import {
   type WizardPayload,
   type WizardStepKey,
 } from "@/lib/campaigns/wizard";
+import {
+  adsAdvancedCount,
+  generalAdvancedCount,
+  offersUniverseFirst,
+  UNIVERSE_CHOICES,
+} from "@/lib/campaigns/wizard-display";
+import { universeLabel } from "@/lib/universe";
 
 export type WizardChannel = {
   id: string;
@@ -45,14 +59,10 @@ const PLATFORM_LABELS: Record<WizardAdPlatform, string> = {
   META: "Meta (Facebook / Instagram)",
   OTHER: "Autre",
 };
-const PLATFORM_SHORT: Record<WizardAdPlatform, string> = {
-  TIKTOK: "TT",
-  META: "FB",
-  OTHER: "AUTRE",
-};
 
-const inputCls = "h-10 md:h-9";
-const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9";
+/** Carte à cocher (case ou bouton radio natifs) : bordure orange et fond orange pâle quand elle est choisie. */
+const choiceCls =
+  "flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 text-body transition-colors hover:bg-muted/50 has-[:checked]:border-brand has-[:checked]:bg-brand-soft has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring";
 
 /** Bouton « Créer la campagne » : désactivé pendant l'envoi (la création des liens Telegram prend quelques secondes). */
 function CreateButton({ onCheck }: { onCheck: () => string | null }) {
@@ -72,12 +82,25 @@ function CreateButton({ onCheck }: { onCheck: () => string | null }) {
   );
 }
 
+/** Une ligne du récapitulatif. */
+function Recap({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-foreground">{children}</dd>
+    </>
+  );
+}
+
 /**
- * Assistant « Nouvelle campagne » en 4 étapes (tout en mémoire côté navigateur, un seul envoi à la fin) :
- * 1. nom, univers, dates, budget — 2. offres Link Affi (les nôtres par défaut) — 3. canaux — 4. pubs (plateforme,
- * compte, campagne pub déjà importée, canal d'entrée, nombre) + récapitulatif avec le générateur de nom conventionnel.
- * Le serveur revérifie tout (`parseWizardPayload`) et crée la campagne, le groupe « Groupe 1 », les pubs et leurs
- * liens d'entrée ; `requestId` (jeton créé par la page) empêche un double envoi de créer deux campagnes.
+ * Assistant « Nouvelle campagne » en 4 étapes (`Stepper`), tout en mémoire côté navigateur, un seul envoi à la fin :
+ * 1. nom et univers (budget, dates, notes dans « Avancé ») — 2. offres Link Affi (les nôtres par défaut) —
+ * 3. canaux — 4. pubs : plateforme, nombre, canal d'entrée (compte connecté et campagne pub déjà importée dans
+ * « Avancé »), puis le récapitulatif (nom conventionnel replié).
+ * Un seul bouton principal par étape : « Continuer », puis « Créer la campagne ». Le serveur revérifie tout
+ * (`parseWizardPayload`) et crée la campagne, le groupe « Groupe 1 », les pubs et leurs liens d'entrée ; `requestId`
+ * (jeton créé par la page) empêche un double envoi de créer deux campagnes ; après une erreur serveur, la saisie
+ * revient par `draft` et l'étape fautive par `initialStep`.
  */
 export function CampaignWizard({
   action,
@@ -105,8 +128,10 @@ export function CampaignWizard({
 }) {
   const [step, setStep] = useState(Math.min(Math.max(0, initialStep), WIZARD_STEPS.length - 1));
   const [name, setName] = useState(draft?.name ?? "");
-  const [vertical, setVertical] = useState<Vertical | "">(
-    (draft?.vertical as Vertical | null) ?? "",
+  // Rien n'est coché d'office (null) : l'univers donne la couleur de la campagne partout, il se choisit. Après une
+  // erreur serveur, la saisie revient : un univers vide y vaut « Sans univers ».
+  const [vertical, setVertical] = useState<Vertical | "" | null>(
+    draft ? ((draft.vertical as Vertical | null) ?? "") : null,
   );
   const [startAt, setStartAt] = useState(draft?.startAt ?? "");
   const [endAt, setEndAt] = useState(draft?.endAt ?? "");
@@ -156,16 +181,19 @@ export function CampaignWizard({
   };
 
   const current = WIZARD_STEPS[step]!;
+  const last = step === WIZARD_STEPS.length - 1;
   const selectedOffers = offerIds
     .map((id) => offers.find((o) => o.id === id))
     .filter((o): o is OfferCandidateRow => !!o);
   const oursKnown = offers.some((o) => o.ours);
+  // Les offres de l'univers choisi d'abord (affichage seulement).
   const filteredOffers = useMemo(
     () =>
-      searchOffers(offerQuery, offers)
-        .filter((o) => showOthers || !oursKnown || o.ours)
-        .slice(0, 50),
-    [offerQuery, offers, showOthers, oursKnown],
+      offersUniverseFirst(
+        searchOffers(offerQuery, offers).filter((o) => showOthers || !oursKnown || o.ours),
+        vertical,
+      ).slice(0, 50),
+    [offerQuery, offers, showOthers, oursKnown, vertical],
   );
   const hiddenOthers = oursKnown && !showOthers ? offers.filter((o) => !o.ours).length : 0;
   const platformConnections = connections.filter((c) => c.platform === adPlatform);
@@ -176,6 +204,8 @@ export function CampaignWizard({
     ? (accountCampaigns.find((c) => c.id === importedCampaignId) ?? null)
     : sameNameShell;
   const plan = planAds(name || "Campagne", count);
+  const generalModified = generalAdvancedCount({ budgetDaily, startAt, endAt, notes });
+  const adsModified = adsAdvancedCount({ connectionId, importedCampaignId });
 
   /** Vérifie l'étape courante avant d'avancer (mêmes règles que le serveur, limitées à l'étape). */
   function validateStep(key: WizardStepKey): string | null {
@@ -224,7 +254,7 @@ export function CampaignWizard({
     setName(
       buildCampaignName({
         platform: adPlatform || "",
-        program: program || selectedOffers[0]?.programName || vertical,
+        program: program || selectedOffers[0]?.programName || vertical || "",
         language,
         channel: entryChannel?.title ?? checkedChannels[0]?.title ?? "",
         date: new Date(),
@@ -236,47 +266,29 @@ export function CampaignWizard({
     set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <ol className="flex flex-wrap gap-2 text-sm" aria-label="Étapes">
-        {WIZARD_STEPS.map((s, i) => (
-          <li key={s.key}>
-            <button
-              type="button"
-              onClick={() => {
-                if (i < step) {
-                  setLocalError(null);
-                  setStep(i);
-                }
-              }}
-              aria-current={i === step ? "step" : undefined}
-              className={`rounded-full border px-3 py-1 ${i === step ? "border-primary bg-primary text-primary-foreground" : i < step ? "bg-muted hover:bg-muted/70" : "text-muted-foreground"}`}
-            >
-              {i + 1}. {s.title}
-            </button>
-          </li>
-        ))}
-      </ol>
+    <div className="max-w-3xl space-y-6">
+      <Stepper
+        steps={WIZARD_STEPS}
+        current={step}
+        label="Étapes de la création"
+        onStepClick={(i) => {
+          setLocalError(null);
+          setStep(i);
+        }}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Étape {step + 1} sur {WIZARD_STEPS.length} : {current.title}
-          </CardTitle>
-          <CardDescription>{current.help}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {localError ? (
-            <p
-              role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {localError}
-            </p>
-          ) : null}
+      <div className="space-y-6 rounded-xl border border-border bg-card p-4 md:p-6">
+        {localError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{localError}</AlertDescription>
+          </Alert>
+        ) : null}
 
-          {current.key === "general" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
+        {current.key === "general" ? (
+          <>
+            {/* Pas de titre de bloc : l'étape s'appelle déjà « Nom et univers » juste au-dessus. */}
+            <div className="space-y-4">
+              <div className="space-y-2">
                 <Label htmlFor="wz-name">Nom de la campagne</Label>
                 <Input
                   id="wz-name"
@@ -284,63 +296,73 @@ export function CampaignWizard({
                   onChange={(e) => setName(e.target.value)}
                   maxLength={120}
                   required
-                  placeholder={`ex. ${NAMING_EXAMPLE}`}
-                  className={inputCls}
+                  placeholder="ex. Casino Bienvenue TikTok"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Un nom conventionnel (plateforme-programme-langue-canal-mois) peut être proposé à
-                  l&apos;étape 4, une fois les offres, les canaux et la plateforme choisis.
+                <p className="text-note text-muted-foreground">
+                  Un nom au format conventionnel peut vous être proposé à la dernière étape.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="wz-vertical">Univers</Label>
-                <select
-                  id="wz-vertical"
-                  value={vertical}
-                  onChange={(e) => setVertical(e.target.value as Vertical | "")}
-                  className={selectCls}
-                >
-                  <option value="">— non précisé —</option>
-                  {VERTICALS.map((v) => (
-                    <option key={v} value={v}>
-                      {VERTICAL_LABELS[v]}
-                    </option>
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-body font-medium text-foreground">Univers</legend>
+                <p className="text-note text-muted-foreground">
+                  Sa couleur repère la campagne partout dans le site.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {UNIVERSE_CHOICES.map((u) => (
+                    <label key={u.value || "none"} className={choiceCls}>
+                      <input
+                        type="radio"
+                        name="wz-vertical"
+                        value={u.value}
+                        checked={vertical === u.value}
+                        onChange={() => setVertical(u.value as Vertical | "")}
+                        className="size-4 shrink-0 accent-brand"
+                      />
+                      {/* Le libellé de la carte est celui de la pastille (point décoratif) : lu une seule fois. */}
+                      <UniverseDot universe={u.value || null} withLabel label={u.label} />
+                    </label>
                   ))}
-                </select>
-              </div>
+                </div>
+              </fieldset>
+            </div>
+            <AdvancedSection
+              title="Budget, dates et notes"
+              description="Facultatif, à titre indicatif."
+              modifiedCount={generalModified}
+              defaultOpen={generalModified > 0}
+            >
               <div className="space-y-2">
-                <Label htmlFor="wz-budget">Budget par jour (€, facultatif)</Label>
+                <Label htmlFor="wz-budget">Budget par jour (€)</Label>
                 <Input
                   id="wz-budget"
                   inputMode="decimal"
                   value={budgetDaily}
                   onChange={(e) => setBudgetDaily(e.target.value)}
                   placeholder="ex. 50"
-                  className={inputCls}
                 />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="wz-start">Début</Label>
+                  <Input
+                    id="wz-start"
+                    type="date"
+                    value={startAt}
+                    onChange={(e) => setStartAt(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wz-end">Fin</Label>
+                  <Input
+                    id="wz-end"
+                    type="date"
+                    value={endAt}
+                    onChange={(e) => setEndAt(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="wz-start">Début (facultatif)</Label>
-                <Input
-                  id="wz-start"
-                  type="date"
-                  value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wz-end">Fin (facultatif)</Label>
-                <Input
-                  id="wz-end"
-                  type="date"
-                  value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="wz-notes">Notes (facultatif)</Label>
+                <Label htmlFor="wz-notes">Notes</Label>
                 <Textarea
                   id="wz-notes"
                   rows={2}
@@ -349,188 +371,184 @@ export function CampaignWizard({
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-            </div>
-          ) : null}
+            </AdvancedSection>
+          </>
+        ) : null}
 
-          {current.key === "offers" ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="wz-paste">Coller un lien d&apos;offre Link Affi</Label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    id="wz-paste"
-                    value={pasted}
-                    onChange={(e) => setPasted(e.target.value)}
-                    placeholder="https://linkaffi.me/go/47eb8mwc"
-                    className={inputCls}
+        {current.key === "offers" ? (
+          <FormSection
+            title="Offres Link Affi"
+            description="Facultatif : vous pourrez en ajouter depuis la fiche de la campagne."
+          >
+            <div className="space-y-2">
+              <Label htmlFor="wz-offer-search">Chercher une offre (nom, clé, casino)</Label>
+              <Input
+                id="wz-offer-search"
+                type="search"
+                value={offerQuery}
+                onChange={(e) => setOfferQuery(e.target.value)}
+                placeholder="ex. casino, 47eb8mwc"
+              />
+              {oursKnown ? (
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-body md:min-h-0">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-brand"
+                    checked={showOthers}
+                    onChange={(e) => setShowOthers(e.target.checked)}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="max-md:h-10"
-                    onClick={addPasted}
-                  >
-                    Ajouter
-                  </Button>
-                </div>
-                {pasteError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {pasteError}
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wz-offer-search">
-                  Ou chercher dans les offres synchronisées (nom, clé, casino)
-                </Label>
-                <Input
-                  id="wz-offer-search"
-                  value={offerQuery}
-                  onChange={(e) => setOfferQuery(e.target.value)}
-                  placeholder="ex. casino, 47eb8mwc"
-                  className={inputCls}
-                />
-                {oursKnown ? (
-                  <label className="flex min-h-10 items-center gap-2 text-sm md:min-h-0">
-                    <input
-                      type="checkbox"
-                      className="size-4"
-                      checked={showOthers}
-                      onChange={(e) => setShowOthers(e.target.checked)}
-                    />
-                    Afficher les offres des autres affiliés
-                    {hiddenOthers ? (
-                      <span className="text-xs text-muted-foreground">
-                        ({hiddenOthers} masquées)
-                      </span>
-                    ) : null}
-                  </label>
-                ) : offers.length ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Vos offres ne sont pas encore reconnues (aucun clic avec identifiant de suivi
-                    pour l&apos;instant) : toutes les offres Link Affi sont affichées. Vérifiez
-                    l&apos;affilié avant de cocher.
-                  </p>
-                ) : null}
-                {offers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Aucune offre synchronisée pour l&apos;instant : la synchronisation Link Affi
-                    tourne toutes les 2 minutes (Réglages → Connecteurs).
-                  </p>
-                ) : (
-                  <ul className="max-h-72 divide-y overflow-auto rounded-md border text-sm">
-                    {filteredOffers.map((o) => {
-                      const checked = offerIds.includes(o.id);
-                      return (
-                        <li key={o.id}>
-                          <label className="flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/50">
-                            <input
-                              type="checkbox"
-                              className="size-4"
-                              checked={checked}
-                              onChange={() => toggle(offerIds, o.id, setOfferIds)}
-                            />
-                            <span className="flex-1">
-                              <span className="font-medium">{o.name}</span>
-                              <span className="text-muted-foreground">
-                                {" "}
-                                · {o.programName}
-                                {o.campaignKey ? ` · clé ${o.campaignKey}` : ""}
-                                {o.vertical
-                                  ? ` · ${VERTICAL_LABELS[o.vertical as Vertical] ?? o.vertical}`
-                                  : ""}
-                              </span>
+                  Afficher les offres des autres affiliés
+                  {hiddenOthers ? (
+                    <span className="text-note text-muted-foreground">
+                      ({hiddenOthers} masquées)
+                    </span>
+                  ) : null}
+                </label>
+              ) : offers.length ? (
+                <p className="text-note text-warning">
+                  Vos offres ne sont pas encore reconnues (aucun clic avec{" "}
+                  <Term term="sub-ID">identifiant de suivi</Term> pour l&apos;instant) : toutes les
+                  offres Link Affi sont affichées. Vérifiez l&apos;affilié avant de cocher.
+                </p>
+              ) : null}
+              {offers.length === 0 ? (
+                <p className="text-body text-muted-foreground">
+                  Aucune offre synchronisée pour l&apos;instant : Link Affi est relu toutes les 2
+                  minutes (Réglages → Connexions).
+                </p>
+              ) : (
+                <ul
+                  className="max-h-80 divide-y divide-border overflow-auto rounded-xl border border-border"
+                  aria-label="Offres Link Affi"
+                >
+                  {filteredOffers.map((o) => {
+                    const checked = offerIds.includes(o.id);
+                    return (
+                      <li key={o.id}>
+                        <label className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-body hover:bg-muted/50 has-[:checked]:bg-brand-soft">
+                          <input
+                            type="checkbox"
+                            className="size-4 shrink-0 accent-brand"
+                            checked={checked}
+                            onChange={() => toggle(offerIds, o.id, setOfferIds)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium">{o.name}</span>
+                            <span className="block text-note text-muted-foreground">
+                              {o.programName}
+                              {o.campaignKey ? ` · clé ${o.campaignKey}` : ""}
+                              {o.vertical ? ` · ${universeLabel(o.vertical)}` : ""}
                             </span>
-                            <span
-                              className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${o.ours ? "border-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}
-                            >
-                              {offerAffiliateLabel(o)}
-                            </span>
-                          </label>
-                        </li>
-                      );
-                    })}
-                    {filteredOffers.length === 0 ? (
-                      <li className="px-3 py-2 text-muted-foreground">
-                        Aucune offre ne correspond.
+                          </span>
+                          <StatusPill
+                            tone={o.ours ? "success" : oursKnown ? "warning" : "muted"}
+                            className="max-sm:hidden"
+                          >
+                            {offerAffiliateLabel(o)}
+                          </StatusPill>
+                        </label>
                       </li>
-                    ) : null}
-                  </ul>
-                )}
+                    );
+                  })}
+                  {filteredOffers.length === 0 ? (
+                    <li className="px-3 py-3 text-body text-muted-foreground">
+                      Aucune offre ne correspond.
+                    </li>
+                  ) : null}
+                </ul>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wz-paste">Ou collez un lien d&apos;offre Link Affi</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="wz-paste"
+                  value={pasted}
+                  onChange={(e) => setPasted(e.target.value)}
+                  placeholder="https://linkaffi.me/go/47eb8mwc"
+                />
+                <Button type="button" variant="outline" className="max-md:h-10" onClick={addPasted}>
+                  Ajouter
+                </Button>
               </div>
-              <p className="text-sm">
-                Offres choisies :{" "}
-                {selectedOffers.length === 0 ? (
-                  <span className="text-muted-foreground">
-                    aucune pour l&apos;instant (vous pourrez en ajouter depuis la fiche).
-                  </span>
-                ) : (
-                  selectedOffers.map((o) => (
-                    <span
+              {pasteError ? (
+                <p role="alert" className="text-note text-danger">
+                  {pasteError}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <p className="text-body font-medium text-foreground">
+                Offres choisies ({selectedOffers.length})
+              </p>
+              {selectedOffers.length === 0 ? (
+                <p className="text-note text-muted-foreground">Aucune pour l&apos;instant.</p>
+              ) : (
+                <ul className="flex flex-wrap gap-2">
+                  {selectedOffers.map((o) => (
+                    <li
                       key={o.id}
-                      className={`mr-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${oursKnown && !o.ours ? "border-amber-500/60" : ""}`}
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1 rounded-full border bg-surface pr-1 pl-3 text-note font-medium max-md:h-10",
+                        oursKnown && !o.ours ? "border-warning/50" : "border-border",
+                      )}
                     >
                       {o.programName} · {o.name}
                       {oursKnown && !o.ours ? " (autre affilié)" : ""}
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-xs"
                         aria-label={`Retirer ${o.name}`}
-                        className="text-muted-foreground hover:text-foreground"
                         onClick={() => toggle(offerIds, o.id, setOfferIds)}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))
-                )}
-              </p>
+                        <X aria-hidden />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          ) : null}
+          </FormSection>
+        ) : null}
 
-          {current.key === "channels" ? (
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">
-                Canaux Telegram alimentés par cette campagne
-              </legend>
-              {channels.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucun canal actif : ajoutez d&apos;abord un canal (menu Canaux).
-                </p>
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
+        {current.key === "channels" ? (
+          <FormSection
+            title="Canaux Telegram"
+            description="Le canal que les liens des pubs font rejoindre se choisit à l'étape suivante, parmi ceux-ci."
+          >
+            {channels.length === 0 ? (
+              <p className="text-body text-muted-foreground">
+                Aucun canal actif : ajoutez d&apos;abord un canal (menu Canaux). Vous pouvez aussi
+                continuer sans canal ni pub.
+              </p>
+            ) : (
+              <fieldset className="grid gap-2 sm:grid-cols-2">
+                <legend className="sr-only">Canaux alimentés par la campagne</legend>
                 {channels.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-                  >
+                  <label key={c.id} className={choiceCls}>
                     <input
                       type="checkbox"
-                      className="size-4"
+                      className="size-4 shrink-0 accent-brand"
                       checked={channelIds.includes(c.id)}
                       onChange={() => toggle(channelIds, c.id, setChannelIds)}
                     />
-                    <span className="flex-1">{c.title}</span>
-                    {c.vertical ? (
-                      <span className="text-xs text-muted-foreground">
-                        {VERTICAL_LABELS[c.vertical as Vertical] ?? c.vertical}
-                      </span>
-                    ) : null}
+                    <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                    <UniverseDot universe={c.vertical} />
                   </label>
                 ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Le canal que les liens des pubs font rejoindre (demande d&apos;adhésion) se choisit
-                à l&apos;étape 4, parmi ces canaux.
-              </p>
-            </fieldset>
-          ) : null}
+              </fieldset>
+            )}
+          </FormSection>
+        ) : null}
 
-          {current.key === "ads" ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+        {current.key === "ads" ? (
+          <>
+            <FormSection title="Pubs">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="wz-platform">Plateforme des pubs</Label>
-                  <select
+                  <NativeSelect
                     id="wz-platform"
                     value={adPlatform}
                     onChange={(e) => {
@@ -541,15 +559,15 @@ export function CampaignWizard({
                       // « Aucune pub pour l'instant » : aucune pub à créer ; une plateforme : au moins une.
                       setAdCount((n) => (v ? Math.max(1, n) : 0));
                     }}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                   >
-                    <option value="">— aucune pub pour l&apos;instant —</option>
+                    <option value="">Aucune pub pour l&apos;instant</option>
                     {AD_PLATFORMS.map((p) => (
                       <option key={p} value={p}>
                         {PLATFORM_LABELS[p]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="wz-count">Nombre de pubs (0 à {MAX_ADS})</Label>
@@ -562,220 +580,231 @@ export function CampaignWizard({
                     onChange={(e) =>
                       setAdCount(Math.max(0, Math.min(MAX_ADS, Number(e.target.value) || 0)))
                     }
-                    className={inputCls}
                     disabled={!adPlatform}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wz-connection" className="inline-flex items-center gap-1">
-                    Compte pub connecté
-                    <HelpTip>
-                      Si vous avez connecté un compte Meta ou TikTok (Réglages → Connecteurs), ses
-                      dépenses arrivent toutes seules dans la campagne : choisissez la campagne pub
-                      déjà importée ci-dessous, ou donnez à la campagne le même nom que dans TikTok
-                      ou Meta.
-                    </HelpTip>
-                  </Label>
-                  <select
-                    id="wz-connection"
-                    value={connectionId}
-                    onChange={(e) => {
-                      setConnectionId(e.target.value);
-                      setImportedCampaignId("");
-                    }}
-                    className={selectCls}
-                    disabled={!adPlatform || platformConnections.length === 0}
-                  >
-                    <option value="">
-                      {!adPlatform
-                        ? "—"
-                        : platformConnections.length === 0
-                          ? "Aucun compte connecté pour cette plateforme"
-                          : "— sans compte —"}
-                    </option>
-                    {platformConnections.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.externalId})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wz-imported">Campagne pub déjà importée de ce compte</Label>
-                  <select
-                    id="wz-imported"
-                    value={importedCampaignId}
-                    onChange={(e) => setImportedCampaignId(e.target.value)}
-                    className={selectCls}
-                    disabled={!connectionId || accountCampaigns.length === 0}
-                  >
-                    <option value="">
-                      {!connectionId
-                        ? "—"
-                        : accountCampaigns.length === 0
-                          ? "Aucune campagne pub importée libre"
-                          : "— aucune (reprise automatique si même nom) —"}
-                    </option>
-                    {accountCampaigns.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.externalCampaignId})
-                      </option>
-                    ))}
-                  </select>
-                  {sameNameShell ? (
-                    <p className="text-xs text-muted-foreground">
-                      « {sameNameShell.name} » porte le même nom que la campagne : elle sera reprise
-                      à la création (groupes, pubs et dépenses).
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="wz-entry-channel">Canal d&apos;entrée des pubs</Label>
-                  <select
-                    id="wz-entry-channel"
-                    value={entryChannel?.id ?? ""}
-                    onChange={(e) => setEntryChannelId(e.target.value)}
-                    className={selectCls}
-                    disabled={count === 0 || checkedChannels.length === 0}
-                  >
-                    {checkedChannels.length === 0 ? (
-                      <option value="">Cochez d&apos;abord un canal à l&apos;étape 3</option>
-                    ) : null}
-                    {checkedChannels.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Chaque lien d&apos;entrée ouvre une demande d&apos;adhésion à ce canal.
-                  </p>
-                </div>
               </div>
-
-              <div className="space-y-3 rounded-md border bg-muted/30 p-3 text-sm">
-                <p className="font-medium">Récapitulatif</p>
-                <div className="space-y-2">
-                  <Label htmlFor="wz-name-final">Nom de la campagne</Label>
-                  <Input
-                    id="wz-name-final"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    maxLength={120}
-                    className={inputCls}
-                  />
-                  <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed bg-background p-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="wz-program" className="text-xs">
-                        Programme (ex. casinoX)
-                      </Label>
-                      <Input
-                        id="wz-program"
-                        value={program}
-                        onChange={(e) => setProgram(e.target.value)}
-                        placeholder="offre ou univers si vide"
-                        className="h-9 w-44 md:h-8"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="wz-language" className="text-xs">
-                        Langue
-                      </Label>
-                      <Input
-                        id="wz-language"
-                        value={language}
-                        onChange={(e) => setLanguage(e.target.value)}
-                        maxLength={5}
-                        className="h-9 w-16 uppercase md:h-8"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="max-md:h-10"
-                      onClick={generateName}
-                    >
-                      Proposer un nom conventionnel
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      Plateforme-programme-langue-canal-mois : le même nom dans TikTok ou Meta
-                      permet l&apos;import automatique des coûts.
-                    </span>
-                  </div>
-                </div>
-                <ul className="list-inside list-disc space-y-1">
-                  <li>
-                    Campagne « {name || "—"} »{vertical ? ` · ${VERTICAL_LABELS[vertical]}` : ""}
-                    {budgetDaily ? ` · ${budgetDaily} € / jour` : ""}
-                    {startAt || endAt ? ` · du ${startAt || "?"} au ${endAt || "?"}` : ""}
-                  </li>
-                  <li>
-                    {selectedOffers.length} offre{selectedOffers.length > 1 ? "s" : ""} Link Affi
-                    {selectedOffers.length
-                      ? ` : ${selectedOffers.map((o) => o.name).join(", ")}`
-                      : ""}
-                  </li>
-                  <li>
-                    {channelIds.length} canal{channelIds.length > 1 ? "aux" : ""}
-                    {checkedChannels.length
-                      ? ` : ${checkedChannels.map((c) => c.title).join(", ")}`
-                      : ""}
-                  </li>
-                  <li>
-                    {adPlatform && count > 0
-                      ? `${count} pub${count > 1 ? "s" : ""} ${PLATFORM_SHORT[adPlatform]} dans « Groupe 1 »${connectionId ? " (compte connecté)" : ""} → ${count} lien${count > 1 ? "s" : ""} d'entrée ${trackingHost}/… + invitation Telegram${entryChannel ? ` vers « ${entryChannel.title} »` : ""}`
-                      : "Aucune pub pour l'instant (ajoutables ensuite depuis l'onglet Pubs ou Liens)."}
-                  </li>
-                  {reprisedShell ? (
-                    <li>
-                      Campagne pub reprise : {reprisedShell.name}
-                      {sameNameShell ? " (même nom)" : ""} (ses groupes, pubs et dépenses rejoignent
-                      la campagne)
-                    </li>
+              <div className="space-y-2">
+                <Label htmlFor="wz-entry-channel">Canal où entrent les membres</Label>
+                <NativeSelect
+                  id="wz-entry-channel"
+                  value={entryChannel?.id ?? ""}
+                  onChange={(e) => setEntryChannelId(e.target.value)}
+                  disabled={count === 0 || checkedChannels.length === 0}
+                  wrapperClassName="w-full"
+                >
+                  {checkedChannels.length === 0 ? (
+                    <option value="">Cochez d&apos;abord un canal à l&apos;étape 3</option>
                   ) : null}
-                </ul>
-                {adPlatform && count > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Liens créés : {plan.map((p) => p.linkName).join(" ; ")}. Les adresses à coller
-                    dans {PLATFORM_LABELS[adPlatform]} s&apos;affichent juste après la création
-                    (onglet Liens).
+                  {checkedChannels.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="text-note text-muted-foreground">
+                  Chaque lien d&apos;entrée ouvre une demande d&apos;adhésion à ce canal.
+                </p>
+              </div>
+            </FormSection>
+
+            <AdvancedSection
+              title="Compte pub connecté"
+              description="Pour recevoir les dépenses Meta ou TikTok toutes seules."
+              modifiedCount={adsModified}
+              defaultOpen={adsModified > 0}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="wz-connection">Compte</Label>
+                <NativeSelect
+                  id="wz-connection"
+                  value={connectionId}
+                  onChange={(e) => {
+                    setConnectionId(e.target.value);
+                    setImportedCampaignId("");
+                  }}
+                  disabled={!adPlatform || platformConnections.length === 0}
+                  wrapperClassName="w-full"
+                >
+                  <option value="">
+                    {!adPlatform
+                      ? "Choisissez d'abord une plateforme"
+                      : platformConnections.length === 0
+                        ? "Aucun compte connecté pour cette plateforme"
+                        : "Sans compte"}
+                  </option>
+                  {platformConnections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.externalId})
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="text-note text-muted-foreground">
+                  Les comptes se connectent dans Réglages → Connexions.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wz-imported">Campagne pub déjà importée de ce compte</Label>
+                <NativeSelect
+                  id="wz-imported"
+                  value={importedCampaignId}
+                  onChange={(e) => setImportedCampaignId(e.target.value)}
+                  disabled={!connectionId || accountCampaigns.length === 0}
+                  wrapperClassName="w-full"
+                >
+                  <option value="">
+                    {!connectionId
+                      ? "Choisissez d'abord un compte"
+                      : accountCampaigns.length === 0
+                        ? "Aucune campagne pub importée libre"
+                        : "Aucune (reprise automatique si même nom)"}
+                  </option>
+                  {accountCampaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.externalCampaignId})
+                    </option>
+                  ))}
+                </NativeSelect>
+                {sameNameShell ? (
+                  <p className="text-note text-muted-foreground">
+                    « {sameNameShell.name} » porte le même nom que la campagne : elle sera reprise à
+                    la création (groupes, pubs et dépenses).
                   </p>
                 ) : null}
               </div>
-            </div>
-          ) : null}
+            </AdvancedSection>
 
-          <form action={action} className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <input type="hidden" name="payload" value={JSON.stringify(payload)} />
-            <Button
-              type="button"
-              variant="outline"
-              className="max-md:h-10"
-              onClick={back}
-              disabled={step === 0}
+            <FormSection
+              title="Récapitulatif"
+              description="Tout reste modifiable ensuite depuis la fiche de la campagne."
             >
-              ← Précédent
+              <div className="space-y-2">
+                <Label htmlFor="wz-name-final">Nom de la campagne</Label>
+                <Input
+                  id="wz-name-final"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                />
+              </div>
+              <AdvancedSection
+                title="Proposer un nom conventionnel"
+                description="Le même nom dans TikTok ou Meta relie les dépenses tout seul."
+              >
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="wz-program">Programme</Label>
+                    <Input
+                      id="wz-program"
+                      value={program}
+                      onChange={(e) => setProgram(e.target.value)}
+                      placeholder="offre ou univers si vide"
+                      className="w-56"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="wz-language">Langue</Label>
+                    <Input
+                      id="wz-language"
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                      maxLength={5}
+                      className="w-20 uppercase"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="max-md:h-10"
+                    onClick={generateName}
+                  >
+                    Proposer un nom
+                  </Button>
+                </div>
+                <p className="text-note text-muted-foreground">
+                  Format plateforme-programme-langue-canal-mois, ex. {NAMING_EXAMPLE}.
+                </p>
+              </AdvancedSection>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-xl bg-muted/40 p-4 text-body">
+                <Recap label="Campagne">
+                  {name || "—"}
+                  {vertical ? (
+                    <UniverseDot universe={vertical} withLabel className="ml-2 text-note" />
+                  ) : null}
+                </Recap>
+                {budgetDaily || startAt || endAt ? (
+                  <Recap label="Budget et dates">
+                    {[
+                      budgetDaily ? `${budgetDaily} € / jour` : null,
+                      startAt || endAt ? `du ${startAt || "?"} au ${endAt || "?"}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Recap>
+                ) : null}
+                <Recap label="Offres">
+                  {selectedOffers.length
+                    ? selectedOffers.map((o) => o.name).join(", ")
+                    : "Aucune pour l'instant"}
+                </Recap>
+                <Recap label="Canaux">
+                  {checkedChannels.length
+                    ? checkedChannels.map((c) => c.title).join(", ")
+                    : "Aucun pour l'instant"}
+                </Recap>
+                <Recap label="Pubs">
+                  {adPlatform && count > 0
+                    ? `${count} pub${count > 1 ? "s" : ""} ${PLATFORM_LABELS[adPlatform]} dans « Groupe 1 »${connectionId ? " (compte connecté)" : ""}, ${count > 1 ? "chacune avec son" : "avec son"} lien d'entrée ${trackingHost}/…${entryChannel ? ` vers « ${entryChannel.title} »` : ""}`
+                    : "Aucune pour l'instant (ajoutables ensuite, onglet Pubs)"}
+                </Recap>
+                {reprisedShell ? (
+                  <Recap label="Campagne pub reprise">
+                    {reprisedShell.name}
+                    {sameNameShell ? " (même nom)" : ""} : ses groupes, pubs et dépenses rejoignent
+                    la campagne
+                  </Recap>
+                ) : null}
+              </dl>
+              {adPlatform && count > 0 ? (
+                <p className="text-note text-muted-foreground">
+                  Liens créés : {plan.map((p) => p.linkName).join(" ; ")}. Les adresses à coller
+                  dans {PLATFORM_LABELS[adPlatform]} s&apos;affichent juste après la création
+                  (onglet Liens).
+                </p>
+              ) : null}
+            </FormSection>
+          </>
+        ) : null}
+
+        <form
+          action={action}
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+        >
+          <input type="hidden" name="payload" value={JSON.stringify(payload)} />
+          {step > 0 ? (
+            <Button type="button" variant="outline" className="max-md:h-10" onClick={back}>
+              <ArrowLeft aria-hidden />
+              Retour
             </Button>
-            {step < WIZARD_STEPS.length - 1 ? (
-              <Button type="button" className="max-md:h-10" onClick={next}>
-                Suivant →
-              </Button>
-            ) : (
-              <CreateButton
-                onCheck={() => {
-                  const err = validateStep("ads");
-                  setLocalError(err);
-                  return err;
-                }}
-              />
-            )}
-            <span className="text-xs text-muted-foreground">
-              Tout reste modifiable ensuite depuis la fiche de la campagne.
-            </span>
-          </form>
-        </CardContent>
-      </Card>
+          ) : (
+            <span aria-hidden />
+          )}
+          {last ? (
+            <CreateButton
+              onCheck={() => {
+                const err = validateStep("ads");
+                setLocalError(err);
+                return err;
+              }}
+            />
+          ) : (
+            <Button type="button" className="max-md:h-10" onClick={next}>
+              Continuer
+              <ArrowRight aria-hidden />
+            </Button>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

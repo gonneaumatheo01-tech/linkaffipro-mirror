@@ -10,7 +10,7 @@ import { loadPending } from "@/lib/connectors/common";
 import { requireAdminPage } from "@/lib/session";
 import { cancelPendingAction, connectChosenAccountsAction } from "../actions";
 
-export const metadata: Metadata = { title: "Connecteurs — TikTok — choix des comptes" };
+export const metadata: Metadata = { title: "Connexions — TikTok — choix des comptes" };
 
 /** Après le retour de TikTok : l'administrateur coche les comptes publicitaires à suivre. */
 export default async function TikTokChoosePage({

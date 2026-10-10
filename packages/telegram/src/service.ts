@@ -24,7 +24,7 @@ export type RegisterResult = {
 
 /**
  * Enregistre un bot à partir de son jeton : getMe, chiffrement, enregistrement en base, pose du webhook.
- * Code commun à l'interface (page Bots) et au script `pnpm bots:register`.
+ * Code commun à l'interface (Réglages → Bots) et au script `pnpm bots:register`.
  */
 export async function registerBotFromToken(
   token: string,
@@ -440,7 +440,10 @@ export async function importChannelByUsername(
     );
   const bots = await listActiveBots();
   if (bots.length === 0)
-    throw new ChannelImportError("no_bot", "Aucun bot actif : ajoutez d'abord un bot (page Bots).");
+    throw new ChannelImportError(
+      "no_bot",
+      "Aucun bot actif : ajoutez d'abord un bot (Réglages → Bots).",
+    );
   let chat: Chat | null = null;
   let lastError: unknown = null;
   for (const bot of bots) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/components/ui/cn";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { useCampaignOptions } from "./use-campaign-options";
 import {
@@ -10,8 +12,6 @@ import {
 } from "./offer-picker-state";
 
 export type { AffiliateOption, OfferPickerValue };
-
-const selectCls = "h-10 rounded-md border bg-background px-2 text-sm md:h-9";
 
 /**
  * Choix d'un bouton « Offre » : on choisit notre campagne (page Campagnes), qui détermine le lien Link Affi ;
@@ -51,16 +51,14 @@ export function OfferPicker({
     !!selected && selected.offers.some((o) => o.id === value.affiliateCampaignId);
 
   return (
-    <div className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <select
-        className={selectCls}
+    <div className={cn("flex flex-col gap-1", className)}>
+      <NativeSelect
+        wrapperClassName="w-full"
         aria-label={label}
         value={state.current}
         onChange={(e) => pick(e.target.value)}
       >
-        <option value="">
-          {loading ? "Chargement des campagnes…" : "— choisir une campagne —"}
-        </option>
+        <option value="">{loading ? "Chargement des campagnes…" : "Choisir une campagne"}</option>
         {state.missingCampaign ? (
           <option value={state.current}>Campagne supprimée ou sans offre</option>
         ) : null}
@@ -81,32 +79,32 @@ export function OfferPicker({
             </option>
           </optgroup>
         ) : null}
-      </select>
+      </NativeSelect>
       {state.showOfferSelect && selected ? (
-        <select
-          className={selectCls}
+        <NativeSelect
+          wrapperClassName="w-full"
           aria-label={`${label} : offre`}
           value={offerStillThere ? (value.affiliateCampaignId ?? "") : ""}
           onChange={(e) =>
             onChange({ campaignId: selected.id, affiliateCampaignId: e.target.value || undefined })
           }
         >
-          <option value="">— choisir l&apos;offre —</option>
+          <option value="">Choisir l&apos;offre</option>
           {selected.offers.map((o) => (
             <option key={o.id} value={o.id}>
               {o.programName} · {o.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       ) : null}
       {state.warning ? (
-        <span role="status" className="text-xs text-amber-700 dark:text-amber-400">
+        <span role="status" className="text-note text-warning">
           {state.warning}
         </span>
       ) : null}
       {!loading && withOffers.length === 0 ? (
-        <span className="text-xs text-muted-foreground">
-          Aucune campagne avec offre : créez-en une (menu Campagnes → Nouvelle campagne).
+        <span className="text-note text-muted-foreground">
+          Aucune campagne avec offre : créez-en une (Campagnes → Nouvelle campagne).
         </span>
       ) : null}
     </div>

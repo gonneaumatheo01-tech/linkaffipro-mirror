@@ -36,7 +36,7 @@ export function FormSection({
             <p className="mt-0.5 text-note text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
       <div className="space-y-4">{children}</div>
     </section>

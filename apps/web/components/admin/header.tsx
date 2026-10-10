@@ -12,14 +12,15 @@ import {
 import { ROLE_LABELS } from "@linkaffipro/core";
 import type { CurrentUser } from "@/lib/session";
 import { GlobalSearch } from "./global-search";
-import { HelpButton } from "./help-button";
+import { HelpPanel } from "./help-panel";
 import { BrandLogo } from "./brand-logo";
 import { initials } from "./nav-logic";
 
 /**
  * En-tête de toutes les pages : fond blanc, bordure basse fine.
  * - téléphone : logo et nom à gauche (la navigation est dans la barre du bas, `BottomNav`) ;
- * - à droite : recherche globale (⌘K), bouton « ? » (aide), menu utilisateur (Mon compte, Déconnexion).
+ * - à droite : recherche globale (⌘K), bouton « ? » (aide de la page courante, `HelpPanel`), menu utilisateur
+ *   (Mon compte, Déconnexion).
  * Les marges suivent les zones sûres iOS (encoche d'un iPhone en paysage, `viewportFit: "cover"`).
  */
 export function Header({ user }: { user: CurrentUser }) {
@@ -37,28 +38,10 @@ export function Header({ user }: { user: CurrentUser }) {
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:justify-between">
         <GlobalSearch />
         <div className="flex shrink-0 items-center gap-1 md:gap-2">
-          {/* Aide générale ; l'aide propre à chaque page arrive à l'étape 2 (sections du guide). */}
-          <HelpButton
-            title="Aide"
-            description="Où trouver une explication, à tout moment."
-            className="max-md:size-10"
-          >
-            <h3>Sur chaque page</h3>
-            <p>
-              La ligne grise sous le titre dit à quoi sert la page. Le bouton orange est
-              l&apos;action principale.
-            </p>
-            <h3>Le guide complet</h3>
-            <p>
-              Il décrit chaque menu en français simple, avec les gestes courants pas à pas.
-              Ouvrez-le avec le bouton en bas de ce volet.
-            </p>
-            <h3>Raccourcis clavier</h3>
-            <ul>
-              <li>⌘K ou Ctrl+K : rechercher un membre, un message, un canal…</li>
-              <li>? : afficher tous les raccourcis.</li>
-            </ul>
-          </HelpButton>
+          {/* Aide de la page courante (sections du guide) ; repère de la visite guidée : data-tour="help". */}
+          <span data-tour="help" className="inline-flex rounded-full">
+            <HelpPanel className="max-md:size-10" />
+          </span>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={

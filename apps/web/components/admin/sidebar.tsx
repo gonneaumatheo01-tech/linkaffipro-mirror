@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui/cn";
 import { BrandLogo } from "./brand-logo";
 import { NAV_ICONS } from "./nav-icons";
-import { NAV, activeHref, navSections, type NavItem } from "./nav-logic";
+import { NAV, activeHref, navSections, navTourId, type NavItem } from "./nav-logic";
 
 // Compatibilité : ces éléments vivaient ici avant d'avoir leur propre fichier.
 export { BrandLogo } from "./brand-logo";
@@ -37,6 +37,7 @@ function SidebarLink({ item, active, rail }: { item: NavItem; active: boolean; r
   return (
     <Link
       href={item.href}
+      data-tour={navTourId(item)}
       aria-current={active ? "page" : undefined}
       aria-label={name}
       title={rail ? name : undefined}
@@ -65,7 +66,9 @@ function SidebarLink({ item, active, rail }: { item: NavItem; active: boolean; r
 }
 
 /**
- * Barre de menu : fond nuit, logo en haut, entrées principales, puis Réglages et Aide en bas, séparés.
+ * Barre de menu : fond nuit, logo en haut, 6 entrées principales, puis Réglages en bas, séparé (visible pour tous
+ * les rôles). Le guide et « Mon compte » sont dans l'en-tête (bouton « ? », menu du compte). Chaque entrée porte son
+ * repère de visite guidée `data-tour="nav-<clé>"`.
  * Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Reste visible pendant le défilement
  * (collée en haut, hauteur de l'écran).
  * - ordinateur (à partir de 1024 px) : barre complète de 240 px, icône et libellé ;

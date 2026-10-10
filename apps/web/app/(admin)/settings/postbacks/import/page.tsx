@@ -47,7 +47,7 @@ export default async function PlayersImportPage() {
           className="max-md:h-10"
           render={<Link href="/settings/postbacks" />}
         >
-          ← Postbacks directs
+          ← Retour du casino
         </Button>
       </PageHeader>
       <ImportForm programs={programs} />

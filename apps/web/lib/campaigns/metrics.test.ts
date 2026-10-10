@@ -21,4 +21,9 @@ describe("métriques de pub", () => {
   it("formate en euros", () => {
     expect(fmtEur(12.5)).toMatch(/12,50/);
   });
+  it("formate un ratio à la française", () => {
+    expect(fmtRatio(2.5)).toBe("2,50×");
+    expect(fmtRatio(0)).toBe("0,00×");
+    expect(fmtRatio(Number.NaN)).toBe("—");
+  });
 });

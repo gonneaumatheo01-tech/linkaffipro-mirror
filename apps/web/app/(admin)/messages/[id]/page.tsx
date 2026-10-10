@@ -201,7 +201,7 @@ export default async function MessageDetailPage({
               <p className="mt-3 text-xs text-muted-foreground">
                 {viewsConnected
                   ? `Vues et transferts sont relevés par le compte Telegram connecté (toutes les 15 min pendant 48 h, puis chaque jour pendant 30 jours)${lastSample ? ` ; dernier relevé le ${fmtDate(lastSample.at)}` : ""}.`
-                  : "Le nombre de vues nécessite un compte Telegram connecté (Réglages → Connecteurs → Telegram) ; réactions et clics sont comptés."}{" "}
+                  : "Le nombre de vues nécessite un compte Telegram connecté (Réglages → Connexions → Telegram) ; réactions et clics sont comptés."}{" "}
                 Les inscriptions et dépôts sont ceux des joueurs rattachés à ce message par leur
                 identifiant de suivi (sub-ID).
               </p>

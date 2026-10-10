@@ -1,20 +1,27 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { CopyField } from "@/components/admin/copy-field";
+import { DataTable } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
+import { AdvancedSection, FormSection } from "@/components/admin/form-section";
+import { SidePanel } from "@/components/admin/side-panel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { NativeSelect } from "@/components/ui/native-select";
+import { entryLinkTitle, shortLinkAddress } from "@/lib/campaigns/display";
 import { env } from "@/lib/env";
 import { fmtNum } from "@/lib/format";
-import { StatusBadge } from "@/lib/status-badges";
+import { ActiveBadge } from "@/lib/status-badges";
 import { PLATFORM_LABELS } from "../../campaign-form";
 import { addEntryLinkAction } from "../../actions";
-import { selectCls, type TabProps } from "./shared";
+import type { TabProps } from "./shared";
 
-/** Onglet Liens : les liens d'entrée de la campagne (adresse à coller dans chaque pub) et le bouton « Ajouter un lien d'entrée ». */
+/**
+ * Onglet Liens : les liens d'entrée de la campagne (l'adresse à coller dans chaque pub, détail et copie au clic sur
+ * la ligne) et « Ajouter un lien d'entrée » dans un volet (une pub et son lien : goolink + invitation Telegram).
+ */
 export async function LinksTab({ id, campaign, scope }: TabProps) {
   const [links, channels] = await Promise.all([
     scope.inviteLinkIds.length
@@ -34,132 +41,234 @@ export async function LinksTab({ id, campaign, scope }: TabProps) {
             telegramInviteLink: true,
             channel: { select: { title: true } },
             ad: { select: { name: true, adSet: { select: { name: true } } } },
-            trackingLinks: { where: { kind: "AD_ENTRY" }, select: { slug: true, clicks: true, uniqueClicks: true }, take: 1 },
+            trackingLinks: {
+              where: { kind: "AD_ENTRY" },
+              select: { slug: true, clicks: true, uniqueClicks: true },
+              take: 1,
+            },
           },
         })
       : [],
-    prisma.channel.findMany({ where: { isActive: true }, orderBy: { title: "asc" }, select: { id: true, title: true } }),
+    prisma.channel.findMany({
+      where: { isActive: true },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true },
+    }),
   ]);
   const base = env.trackingBaseUrl.replace(/\/$/, "");
+  const host = base.replace(/^https?:\/\//, "");
   const campaignChannels = channels.filter((c) => scope.channelIds.includes(c.id));
   const channelOptions = campaignChannels.length ? campaignChannels : channels;
   const nextNumber = links.length + 1;
 
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Liens d&apos;entrée ({links.length})</CardTitle>
-          <CardDescription>
-            Un lien par pub. Collez l&apos;adresse {base.replace(/^https?:\/\//, "")}/… dans la pub : chaque clic est compté, puis le visiteur reçoit l&apos;invitation Telegram du canal (avec demande
-            d&apos;adhésion). Les membres arrivés par ces liens sont rattachés à la campagne.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {links.length === 0 ? (
-            <EmptyState title="Aucun lien d'entrée pour l'instant." description="Ajoutez-en un ci-dessous : une pub précise est créée dans « Groupe 1 » avec son lien goolink et son invitation Telegram." />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pub précise</TableHead>
-                  <TableHead>Adresse à coller dans la pub</TableHead>
-                  <TableHead className="hidden md:table-cell">Canal</TableHead>
-                  <TableHead className="hidden text-right lg:table-cell">Clics</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">Demandes</TableHead>
-                  <TableHead className="text-right">Acceptés</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {links.map((l) => {
-                  const tl = l.trackingLinks[0];
-                  return (
-                    <TableRow key={l.id}>
-                      <TableCell>
-                        <div className="font-medium">{l.ad ? `${l.ad.adSet.name} › ${l.ad.name}` : l.adName || l.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {l.name}
-                          {l.adPlatform ? ` · ${PLATFORM_LABELS[l.adPlatform] ?? l.adPlatform}` : ""}
-                          {!l.isActive ? " · désactivé" : ""}
-                        </div>
-                      </TableCell>
-                      <TableCell className="min-w-64">
-                        {tl ? <CopyField value={`${base}/${tl.slug}`} /> : <span className="text-xs text-muted-foreground">Lien goolink manquant : invitation directe {l.telegramInviteLink}</span>}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">{l.channel.title}</TableCell>
-                      <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                        {fmtNum(tl?.clicks ?? 0)}
-                        {tl ? <span className="text-xs text-muted-foreground"> ({fmtNum(tl.uniqueClicks)} uniques)</span> : null}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">{fmtNum(l.requests)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtNum(l.approved)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-          <p className="mt-3 text-xs text-muted-foreground">
-            Pour un lien créé ailleurs (page{" "}
-            <Link href="/links" className="underline">
-              Liens
-            </Link>
-            ), rattachez-le à une pub précise dans l&apos;onglet Pubs : il rejoint alors la campagne.
-          </p>
-        </CardContent>
-      </Card>
+  const addPanel = (
+    <SidePanel
+      title="Ajouter un lien d'entrée"
+      description="Crée une pub et son lien : adresse traquée + invitation Telegram avec demande d'adhésion."
+      trigger={
+        <Button className="max-md:h-10">
+          <Plus aria-hidden />
+          Ajouter un lien d&apos;entrée
+        </Button>
+      }
+    >
+      {channelOptions.length === 0 ? (
+        <EmptyState
+          title="Aucun canal actif"
+          description="Ajoutez d'abord un canal Telegram : le lien d'entrée y fait entrer les membres."
+          action={{ href: "/channels", label: "Aller aux canaux", variant: "outline" }}
+        />
+      ) : (
+        <form action={addEntryLinkAction} className="space-y-5">
+          <input type="hidden" name="campaignId" value={id} />
+          <div className="space-y-2">
+            <Label htmlFor="link-channel">Canal à rejoindre</Label>
+            <NativeSelect
+              id="link-channel"
+              name="channelId"
+              defaultValue={channelOptions[0]?.id ?? ""}
+              required
+              wrapperClassName="w-full"
+            >
+              {channelOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="link-platform">Plateforme</Label>
+              <NativeSelect
+                id="link-platform"
+                name="platform"
+                defaultValue={campaign.adPlatform ?? "OTHER"}
+                wrapperClassName="w-full"
+              >
+                {Object.entries(PLATFORM_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="link-adname">Nom de la pub</Label>
+              <Input
+                id="link-adname"
+                name="adName"
+                placeholder={`ex. Pub ${nextNumber}`}
+                maxLength={80}
+              />
+            </div>
+          </div>
+          <AdvancedSection title="Groupe de pubs" description="« Groupe 1 » par défaut.">
+            <div className="space-y-2">
+              <Label htmlFor="link-adset">Nom du groupe</Label>
+              <Input id="link-adset" name="adSetName" placeholder="Groupe 1" maxLength={80} />
+            </div>
+          </AdvancedSection>
+          <Button type="submit" className="max-md:h-10">
+            Créer le lien
+          </Button>
+        </form>
+      )}
+    </SidePanel>
+  );
 
-      <Card className="mt-6 max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-base">Ajouter un lien d&apos;entrée</CardTitle>
-          <CardDescription>Crée une pub précise (dans le groupe indiqué, « Groupe 1 » par défaut) et son lien : goolink + invitation Telegram avec demande d&apos;adhésion sur le canal choisi.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {channelOptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun canal actif : ajoutez d&apos;abord un canal (menu Canaux).</p>
-          ) : (
-            <form action={addEntryLinkAction} className="grid gap-3 sm:grid-cols-2">
-              <input type="hidden" name="campaignId" value={id} />
-              <div className="space-y-1">
-                <Label htmlFor="link-channel">Canal à rejoindre</Label>
-                <select id="link-channel" name="channelId" className={`${selectCls} w-full`} defaultValue={channelOptions[0]?.id ?? ""} required>
-                  {channelOptions.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="link-platform">Plateforme</Label>
-                <select id="link-platform" name="platform" className={`${selectCls} w-full`} defaultValue={campaign.adPlatform ?? "OTHER"}>
-                  {Object.entries(PLATFORM_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="link-adname">Nom de la pub précise</Label>
-                <Input id="link-adname" name="adName" placeholder={`ex. Pub ${nextNumber}`} maxLength={80} className="h-10 md:h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="link-adset">Groupe (facultatif)</Label>
-                <Input id="link-adset" name="adSetName" placeholder="Groupe 1" maxLength={80} className="h-10 md:h-9" />
-              </div>
-              <div className="sm:col-span-2">
-                <Button type="submit" className="max-md:h-10">
-                  Ajouter un lien d&apos;entrée
-                </Button>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  Statut de la campagne : <StatusBadge kind="campaign" value={campaign.status} />
-                </span>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </>
+  return (
+    <FormSection
+      title={`Liens d'entrée (${links.length})`}
+      description={`Un lien par pub : collez son adresse ${host}/… dans la pub. Les membres arrivés par ces liens comptent dans la campagne. Clics et membres acceptés depuis la création du lien (pas seulement sur la période).`}
+      actions={links.length ? addPanel : null}
+    >
+      {links.length === 0 ? (
+        <EmptyState
+          title="Aucun lien d'entrée pour l'instant"
+          description="Créez-en un par pub : vous obtiendrez l'adresse à coller dans TikTok ou Meta."
+        >
+          {addPanel}
+        </EmptyState>
+      ) : (
+        <DataTable
+          // Téléphone : 3 colonnes à largeur fixe et en-têtes sur deux lignes, pour que « Acceptés (total) » et ses
+          // chiffres restent dans l'écran (sans défilement horizontal du tableau).
+          className="max-md:[&_table]:table-fixed"
+          label="Liens d'entrée de la campagne"
+          columns={[
+            {
+              key: "name",
+              header: "Pub",
+              className: "whitespace-normal break-words max-md:w-[38%] md:min-w-32",
+            },
+            { key: "address", header: "Adresse", hideOnMobile: true },
+            { key: "channel", header: "Canal", hideOnMobile: true },
+            {
+              key: "clicks",
+              header: "Clics (total)",
+              align: "right",
+              className: "max-md:w-[28%] max-md:whitespace-normal",
+            },
+            {
+              key: "approved",
+              header: "Acceptés (total)",
+              align: "right",
+              className: "max-md:w-[34%] max-md:whitespace-normal",
+            },
+          ]}
+          rows={links.map((l) => {
+            const tl = l.trackingLinks[0];
+            const title = entryLinkTitle(l);
+            const platform = l.adPlatform ? (PLATFORM_LABELS[l.adPlatform] ?? l.adPlatform) : null;
+            return {
+              id: l.id,
+              cells: {
+                name: (
+                  <span className="flex flex-col items-start gap-1">
+                    <span>{title}</span>
+                    {!l.isActive ? <ActiveBadge active={false} /> : null}
+                  </span>
+                ),
+                address: tl ? (
+                  <span className="font-mono text-note">{shortLinkAddress(base, tl.slug)}</span>
+                ) : (
+                  <span className="text-muted-foreground">Invitation directe</span>
+                ),
+                channel: l.channel.title,
+                clicks: fmtNum(tl?.clicks ?? 0),
+                approved: fmtNum(l.approved),
+              },
+              sortValues: { name: title, address: tl?.slug ?? "" },
+              detailTitle: title,
+              detailDescription: l.name,
+              detail: (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <p className="text-body font-medium">Adresse à coller dans la pub</p>
+                    {tl ? (
+                      <CopyField
+                        value={`${base}/${tl.slug}`}
+                        label={`Adresse de la pub ${title}`}
+                      />
+                    ) : (
+                      <>
+                        <p className="text-note text-muted-foreground">
+                          Ce lien n&apos;a pas d&apos;adresse traquée : invitation Telegram directe.
+                        </p>
+                        <CopyField
+                          value={l.telegramInviteLink}
+                          label={`Invitation Telegram de ${title}`}
+                        />
+                      </>
+                    )}
+                  </div>
+                  <p className="text-note text-muted-foreground">
+                    Chiffres depuis la création du lien, quelle que soit la période choisie.
+                  </p>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">
+                    <dt className="text-muted-foreground">Canal</dt>
+                    <dd>{l.channel.title}</dd>
+                    {platform ? (
+                      <>
+                        <dt className="text-muted-foreground">Plateforme</dt>
+                        <dd>{platform}</dd>
+                      </>
+                    ) : null}
+                    <dt className="text-muted-foreground">Clics (total)</dt>
+                    <dd className="tabular-nums">
+                      {fmtNum(tl?.clicks ?? 0)}
+                      {tl ? ` (${fmtNum(tl.uniqueClicks)} personnes)` : ""}
+                    </dd>
+                    <dt className="text-muted-foreground">Demandes (total)</dt>
+                    <dd className="tabular-nums">{fmtNum(l.requests)}</dd>
+                    <dt className="text-muted-foreground">Acceptés (total)</dt>
+                    <dd className="tabular-nums">{fmtNum(l.approved)}</dd>
+                    <dt className="text-muted-foreground">État</dt>
+                    <dd>
+                      <ActiveBadge active={l.isActive} />
+                    </dd>
+                  </dl>
+                  <p className="text-note text-muted-foreground">
+                    Désactiver ou réactiver ce lien : Campagnes →{" "}
+                    <Link href="/campaigns/links" className="font-medium text-brand-ink underline">
+                      Tous les liens
+                    </Link>
+                    .
+                  </p>
+                </div>
+              ),
+            };
+          })}
+        />
+      )}
+      <p className="text-note text-muted-foreground">
+        Un lien créé dans{" "}
+        <Link href="/campaigns/links" className="font-medium text-brand-ink underline">
+          Tous les liens
+        </Link>{" "}
+        rejoint la campagne quand vous le rattachez à une pub (onglet Pubs).
+      </p>
+    </FormSection>
   );
 }

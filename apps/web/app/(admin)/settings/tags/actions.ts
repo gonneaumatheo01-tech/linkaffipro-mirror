@@ -23,7 +23,7 @@ const NAME_ERROR = `Le nom doit faire entre 1 et ${TAG_NAME_MAX} caractères (le
 function revalidate(): void {
   revalidatePath("/settings/tags");
   revalidatePath("/members");
-  revalidatePath("/broadcasts/new");
+  revalidatePath("/members/broadcasts/new");
 }
 
 export async function createTagAction(formData: FormData): Promise<void> {

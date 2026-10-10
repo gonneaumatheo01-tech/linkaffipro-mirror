@@ -21,7 +21,7 @@ describe("routage par hôte", () => {
   });
   it("protège le site principal sauf les chemins publics", () => {
     expect(decideRoute("app.linkaffipro.com", "/", "go.goolink.eu")).toEqual({ kind: "protected" });
-    expect(decideRoute("app.linkaffipro.com", "/bots", "go.goolink.eu")).toEqual({
+    expect(decideRoute("app.linkaffipro.com", "/settings/bots", "go.goolink.eu")).toEqual({
       kind: "protected",
     });
     expect(decideRoute("app.linkaffipro.com", "/login", "go.goolink.eu")).toEqual({

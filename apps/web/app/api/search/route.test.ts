@@ -48,4 +48,18 @@ describe("GET /api/search", () => {
     expect(campaigns?.label).toBe("Campagnes");
     expect(campaigns?.hits[0]?.subtitle).toBe("TikTok · active");
   });
+
+  it("chaque résultat mène à sa page à sa nouvelle adresse (relances sous Membres)", async () => {
+    user.current = { id: "u1", role: "ADMIN" };
+    db.automationRule.findMany.mockImplementationOnce(
+      async () =>
+        [{ id: "r1", name: "Relance casino", isActive: true, trigger: "MEMBER_JOINED" }] as never,
+    );
+    const res = await GET(new Request("https://app.test/api/search?q=casino"));
+    const body = (await res.json()) as {
+      groups: Array<{ key: string; hits: Array<{ href: string }> }>;
+    };
+    const hrefs = body.groups.flatMap((g) => g.hits.map((h) => h.href));
+    expect(hrefs).toEqual(["/campaigns/k1", "/members/automations/r1"]);
+  });
 });

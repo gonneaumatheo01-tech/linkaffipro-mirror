@@ -120,7 +120,7 @@ export async function updateCampaignAction(formData: FormData): Promise<void> {
     if (!conn)
       go(`/campaigns/${id}`, {
         error:
-          "Ce compte publicitaire n'est plus connecté : choisissez-en un autre (Réglages → Connecteurs) ou « sans compte ».",
+          "Ce compte publicitaire n'est plus connecté : choisissez-en un autre (Réglages → Connexions) ou « sans compte ».",
       });
     if (adPlatform && adPlatform !== conn.platform)
       go(`/campaigns/${id}`, {
@@ -247,7 +247,7 @@ export async function addAdAction(formData: FormData): Promise<void> {
   go(`/campaigns/${campaignId}`, { tab: "ads", ok: `Pub précise « ${name} » ajoutée.` });
 }
 
-/** Retire un lien d'entrée (et son lien goolink) de la campagne : il redevient un lien libre (page Liens). */
+/** Retire un lien d'entrée (et son lien goolink) de la campagne : il redevient un lien libre (Campagnes → Tous les liens). */
 function releaseLinkOps(link: { inviteLinkId: string | null; trackingLinkId: string | null }) {
   return [
     ...(link.inviteLinkId
@@ -722,7 +722,7 @@ export async function deleteAdSetAction(formData: FormData): Promise<void> {
 
 /**
  * Vue d'ensemble : supprime la campagne (ADMIN). Groupes, pubs, coûts et statistiques de la campagne sont supprimés ;
- * ses liens d'entrée et liens traqués restent (page Liens) mais ne sont plus rattachés à une campagne ; les membres,
+ * ses liens d'entrée et liens traqués restent (Campagnes → Tous les liens) mais ne sont plus rattachés à une campagne ; les membres,
  * clics et joueurs sont conservés.
  */
 export async function deleteCampaignAction(formData: FormData): Promise<void> {

@@ -41,9 +41,10 @@ export default async function NewCampaignPage({ searchParams }: PageProps<"/camp
   return (
     <>
       <PageHeader
+        backHref="/campaigns"
+        backLabel="Campagnes"
         title="Nouvelle campagne"
-        description="Quatre étapes : nom et univers, offres Link Affi, canaux Telegram, pubs. À la fin, un lien d'entrée (go.goolink.eu + invitation Telegram) est créé pour chaque pub."
-        help="Rien n'est définitif : offres, canaux, pubs et liens se modifient ensuite depuis la fiche de la campagne."
+        description="Quatre étapes ; à la fin, chaque pub reçoit son lien d'entrée. Tout reste modifiable ensuite."
       />
       <Flash ok={sp.ok} error={sp.error} />
       <CampaignWizard

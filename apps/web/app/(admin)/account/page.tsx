@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Compass } from "lucide-react";
 import { ROLE_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { restartTourAction } from "@/lib/onboarding/actions";
 import { requireUser } from "@/lib/session";
 import { changePasswordAction, generateTelegramLinkAction, unlinkTelegramAction } from "./actions";
 
@@ -138,7 +140,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                   </div>
                 ) : bots.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Aucun bot actif : ajoutez d&apos;abord un bot dans le menu Bots.
+                    Aucun bot actif : ajoutez d&apos;abord un bot dans Réglages → Bots.
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -157,6 +159,24 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                 </form>
               </>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Visite guidée</CardTitle>
+            <CardDescription>
+              Deux minutes pour retrouver chaque rubrique du menu. Elle repart de l&apos;accueil, et
+              la liste « À faire pour démarrer » réapparaît si elle n&apos;est pas finie.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={restartTourAction}>
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                <Compass aria-hidden />
+                Revoir la visite
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>

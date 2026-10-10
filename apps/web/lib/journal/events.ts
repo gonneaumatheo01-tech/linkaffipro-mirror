@@ -18,7 +18,7 @@ export const VISIBLE_EVENT_WHERE = {
   NOT: { type: { startsWith: "player." }, memberId: null },
 } satisfies Prisma.EventWhereInput;
 
-/** Filtres de la vue « Événements » du Journal (`/journal/events`). */
+/** Filtres de la vue « Événements » du Journal (`/settings/journal/events`). */
 export type EventFilters = {
   type: string;
   channelId: string;
@@ -39,7 +39,7 @@ export function parseEventFilters(sp: SP): EventFilters {
   };
 }
 
-/** Paramètres d'adresse de l'export CSV (`/journal/export?view=events&…`), sans la page. */
+/** Paramètres d'adresse de l'export CSV (`/settings/journal/export?view=events&…`), sans la page. */
 export function eventsQuery(f: Omit<EventFilters, "page">): string {
   return new URLSearchParams(
     Object.entries({

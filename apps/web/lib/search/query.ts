@@ -48,7 +48,7 @@ export const SEARCH_GROUP_LABELS: Record<SearchGroup, string> = {
   posts: "Messages",
   channels: "Canaux",
   campaigns: "Campagnes",
-  automations: "Automatisations",
+  automations: "Relances automatiques",
 };
 
 export type SearchHit = { id: string; title: string; subtitle?: string; href: string };

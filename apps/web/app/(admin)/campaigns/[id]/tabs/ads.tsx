@@ -1,27 +1,23 @@
-import Link from "next/link";
+import { Download, Info, Plus } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
-import { PeriodSelect } from "@/components/admin/period-select";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
+import { DataTable } from "@/components/admin/data-table";
+import { EmptyState } from "@/components/admin/empty-state";
+import { AdvancedSection, FormSection } from "@/components/admin/form-section";
+import { SidePanel } from "@/components/admin/side-panel";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { fmtMoney, fmtNum } from "@/lib/format";
+import { NativeSelect } from "@/components/ui/native-select";
 import { isImportedShell, readAdLink } from "@/lib/campaigns/ad-link";
+import { adCampaignLine, costLevelLabel, groupCostsByDay } from "@/lib/campaigns/display";
 import { listImportedShells, unattachedEntryLinks } from "@/lib/campaigns/queries";
-import { periodDates } from "@/lib/periods";
+import { fmtMoney, fmtNum } from "@/lib/format";
+import { periodDates, periodParams } from "@/lib/periods";
 import { parisDayKey } from "@/lib/posts/time";
-import { ConfirmSubmit } from "@/components/admin/confirm-submit";
-import { StatusBadge } from "@/lib/status-badges";
-import { PLATFORM_LABELS } from "../../campaign-form";
+import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import {
   addAdAction,
   addAdSetAction,
@@ -31,13 +27,25 @@ import {
   deleteAdAction,
   deleteAdSetAction,
 } from "../../actions";
-import { selectCls, type TabProps } from "./shared";
+import type { TabProps } from "./shared";
 
 const dayFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeZone: "UTC" });
 
+/** Une ligne « libellé : valeur » d'un volet de détail. */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words">{children}</dd>
+    </>
+  );
+}
+
 /**
- * Onglet Pubs : la campagne pub (structure TikTok / Meta : groupes → pubs précises → lien d'entrée) et ses coûts ;
- * « Rattacher une campagne pub importée » (compte connecté) ; suppression d'une pub ou d'un groupe (ADMIN).
+ * Onglet Pubs : la campagne pub (structure TikTok / Meta : groupes → pubs → lien d'entrée) et ses dépenses.
+ * Formulaires rares dans des volets (ajouter un groupe, une pub, saisir une dépense) ou repliés (rattacher une
+ * campagne pub importée) ; le détail d'une pub (lien d'entrée, suppression) s'ouvre au clic sur sa ligne.
+ * Suppressions réservées aux ADMIN, avec confirmation.
  */
 export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProps) {
   const { dateFrom, dateTo } = periodDates(period);
@@ -86,415 +94,514 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
   ]);
   // Jour proposé pour une saisie de dépense : aujourd'hui à l'heure de Paris (pas en UTC : entre 0 h et 2 h, la veille).
   const today = parisDayKey(new Date());
-  const platform = campaign.adPlatform ? PLATFORM_LABELS[campaign.adPlatform] : null;
+  const exportHref = `/campaigns/export?${new URLSearchParams({ kind: "costs", campaignId: id, ...periodParams(period, compare) }).toString()}`;
+  const days = groupCostsByDay(
+    costs.map((c) => ({
+      id: c.id,
+      date: c.date,
+      spend: Number(c.spend),
+      impressions: c.impressions,
+      clicks: c.clicks,
+      source: c.source,
+      ad: c.ad,
+      adSet: c.adSet,
+    })),
+  );
+  const shownDays = days.slice(0, 120);
+  const spendTotal = days.reduce((sum, d) => sum + d.spend, 0);
+
+  const addAdSetPanel = (
+    <SidePanel
+      title="Ajouter un groupe"
+      description="Un groupe rassemble des pubs (ex. par pays ou par âge)."
+      trigger={
+        <Button variant="outline" className="max-md:h-10">
+          <Plus aria-hidden />
+          Ajouter un groupe
+        </Button>
+      }
+    >
+      <form action={addAdSetAction} className="space-y-5">
+        <input type="hidden" name="campaignId" value={id} />
+        <div className="space-y-2">
+          <Label htmlFor="new-adset">Nom du groupe</Label>
+          <Input id="new-adset" name="name" placeholder="ex. FR 18-34" required />
+        </div>
+        <Button type="submit" className="max-md:h-10">
+          Ajouter le groupe
+        </Button>
+      </form>
+    </SidePanel>
+  );
+
+  const linkOptions = (current: { id: string; name: string } | null) => (
+    <>
+      <option value="">Aucun (détacher)</option>
+      {current ? <option value={current.id}>{current.name}</option> : null}
+      {unattached.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.name} ({l.channel.title})
+        </option>
+      ))}
+    </>
+  );
 
   return (
-    <>
-      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-        <PeriodSelect
-          period={period}
-          compare={compare}
-          action={`/campaigns/${id}`}
-          extra={{ tab: "ads" }}
-        />
-        <span className="text-muted-foreground">
-          Campagne pub : {platform ?? "plateforme non précisée"}
-          {campaign.externalCampaignId
-            ? shell
-              ? ` · importée (identifiant ${campaign.externalCampaignId})`
-              : ` · « ${adLink?.platformName ?? campaign.externalCampaignId} » (identifiant ${campaign.externalCampaignId})`
-            : ""}
-          {campaign.connection ? ` · compte connecté « ${campaign.connection.name} »` : ""}
-        </span>
-      </div>
+    <div className="space-y-8">
+      <p className="text-body text-muted-foreground">
+        {adCampaignLine({
+          platform: campaign.adPlatform,
+          externalCampaignId: campaign.externalCampaignId,
+          platformName: adLink?.platformName ?? null,
+          imported: shell,
+          connectionName: campaign.connection?.name ?? null,
+        })}
+      </p>
+
       {shell ? (
-        <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-          Cette campagne pub a été importée d&apos;un compte connecté. Pour lui donner des offres,
-          des canaux et des liens, ouvrez une de vos campagnes, onglet Pubs, et utilisez « Rattacher
-          une campagne pub importée » : tout ce qu&apos;elle contient (groupes, pubs, dépenses) y
-          sera déplacé.
-        </p>
+        <Alert variant="info" role="status">
+          <Info aria-hidden />
+          <AlertTitle>Campagne pub importée d&apos;un compte connecté</AlertTitle>
+          <AlertDescription>
+            Pour lui donner des offres, des canaux et des liens, ouvrez une de vos campagnes, onglet
+            Pubs, puis « Rattacher une campagne pub importée » : ses groupes, pubs et dépenses y
+            seront déplacés.
+          </AlertDescription>
+        </Alert>
       ) : null}
+
       {importable.length ? (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-base">Rattacher une campagne pub importée</CardTitle>
-            <CardDescription>
-              Campagnes pub reçues d&apos;un compte Meta ou TikTok connecté, pas encore rattachées.
-              Rattachée, sa structure (groupes, pubs) et ses dépenses rejoignent cette campagne, et
-              les prochaines dépenses arrivent ici toutes seules.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              action={attachImportedCampaignAction}
-              className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
-            >
-              <input type="hidden" name="campaignId" value={id} />
-              <Label htmlFor="imported-campaign" className="sr-only">
-                Campagne pub importée
-              </Label>
-              <select
+        <AdvancedSection
+          title="Rattacher une campagne pub importée"
+          description={`${importable.length} campagne${importable.length > 1 ? "s" : ""} pub reçue${importable.length > 1 ? "s" : ""} de Meta ou TikTok attend${importable.length > 1 ? "ent" : ""} d'être rattachée${importable.length > 1 ? "s" : ""}.`}
+        >
+          <p className="text-body text-muted-foreground">
+            Rattachée, sa structure (groupes, pubs) et ses dépenses rejoignent cette campagne, et
+            les prochaines dépenses arrivent ici toutes seules.
+          </p>
+          <form
+            action={attachImportedCampaignAction}
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          >
+            <input type="hidden" name="campaignId" value={id} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Label htmlFor="imported-campaign">Campagne pub importée</Label>
+              <NativeSelect
                 id="imported-campaign"
                 name="importedCampaignId"
                 defaultValue=""
                 required
-                className={`${selectCls} sm:max-w-md`}
+                wrapperClassName="w-full"
               >
-                <option value="">— choisir une campagne pub importée —</option>
+                <option value="">Choisir une campagne pub</option>
                 {importable.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} ({c.adPlatform ? (PLATFORM_LABELS[c.adPlatform] ?? c.adPlatform) : "?"}
+                    {c.name} ({c.adPlatform ? statusLabel("adPlatform", c.adPlatform) : "?"}
                     {c.connectionName ? ` · ${c.connectionName}` : ""})
                   </option>
                 ))}
-              </select>
-              <ConfirmSubmit
-                size="sm"
-                className="max-md:h-10"
-                message="Rattacher cette campagne pub ? Ses groupes, pubs et dépenses seront déplacés dans cette campagne, et la campagne pub importée disparaîtra de la liste des campagnes."
-              >
-                Rattacher
-              </ConfirmSubmit>
-            </form>
-          </CardContent>
-        </Card>
+              </NativeSelect>
+            </div>
+            <ConfirmSubmit
+              variant="outline"
+              className="max-md:h-10"
+              destructive={false}
+              confirmTitle="Rattacher cette campagne pub ?"
+              confirmLabel="Rattacher"
+              message="Ses groupes, pubs et dépenses seront déplacés dans cette campagne, et la campagne pub importée disparaîtra de la liste des campagnes."
+            >
+              Rattacher
+            </ConfirmSubmit>
+          </form>
+        </AdvancedSection>
       ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Groupes et pubs précises</CardTitle>
-          <CardDescription>
-            La campagne pub se découpe en groupes (ex. par pays ou par âge), eux-mêmes en pubs
-            précises (ex. vidéo 1, vidéo 2). Chaque pub précise se rattache à un lien d&apos;entrée
-            : ses clics, membres et inscriptions sont comptés à partir de ce lien. L&apos;onglet
-            Liens crée une pub précise et son lien en un clic.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {adSets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Aucun groupe pour l&apos;instant : ajoutez-en un ci-dessous, ou passez par
-              l&apos;onglet Liens (le groupe « Groupe 1 » sera créé tout seul).
-            </p>
-          ) : null}
-          {adSets.map((s) => (
-            <div key={s.id} className="rounded-md border">
-              <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2 text-sm font-medium">
-                <span>Groupe « {s.name} »</span>
-                {isAdmin ? (
-                  <form action={deleteAdSetAction}>
-                    <input type="hidden" name="campaignId" value={id} />
-                    <input type="hidden" name="adSetId" value={s.id} />
-                    <ConfirmSubmit
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive max-md:h-10"
-                      aria-label={`Supprimer le groupe ${s.name}`}
-                      message={`Supprimer le groupe « ${s.name} », ses ${s.ads.length} pub${s.ads.length > 1 ? "s" : ""} précise${s.ads.length > 1 ? "s" : ""} et leurs coûts ? Les liens d'entrée restent dans la campagne.`}
-                    >
-                      Supprimer
-                    </ConfirmSubmit>
-                  </form>
-                ) : null}
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Pub précise</TableHead>
-                    <TableHead>Lien d&apos;entrée</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">Clics</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">Demandes</TableHead>
-                    <TableHead className="text-right">Acceptés</TableHead>
-                    <TableHead>Rattacher</TableHead>
-                    {isAdmin ? <TableHead className="sr-only">Supprimer</TableHead> : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {s.ads.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium">{a.name}</TableCell>
-                      <TableCell>
-                        {a.inviteLink ? (
-                          <span>
-                            {a.inviteLink.name}{" "}
-                            <span className="text-xs text-muted-foreground">
-                              ({a.inviteLink.channel.title}
-                              {a.trackingLink ? ` · /${a.trackingLink.slug}` : ""})
-                            </span>
-                          </span>
-                        ) : (
-                          <Badge variant="secondary">aucun</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {a.trackingLink?.clicks ?? 0}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {a.inviteLink?.requests ?? 0}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {a.inviteLink?.approved ?? 0}
-                      </TableCell>
-                      <TableCell>
-                        <form action={attachLinkAction} className="flex items-center gap-2">
-                          <input type="hidden" name="campaignId" value={id} />
-                          <input type="hidden" name="adId" value={a.id} />
-                          <Label htmlFor={`link-${a.id}`} className="sr-only">
-                            Lien d&apos;entrée de la pub {a.name}
-                          </Label>
-                          <select
-                            id={`link-${a.id}`}
-                            name="inviteLinkId"
-                            defaultValue={a.inviteLink?.id ?? ""}
-                            className={`${selectCls} max-w-56`}
-                          >
-                            <option value="">— détacher —</option>
-                            {a.inviteLink ? (
-                              <option value={a.inviteLink.id}>{a.inviteLink.name}</option>
-                            ) : null}
-                            {unattached.map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {l.name} ({l.channel.title})
-                              </option>
-                            ))}
-                          </select>
-                          <Button
-                            type="submit"
-                            size="sm"
-                            variant="outline"
-                            className="max-md:h-10"
-                            aria-label={`Enregistrer le lien de la pub ${a.name}`}
-                          >
-                            OK
-                          </Button>
-                        </form>
-                      </TableCell>
-                      {isAdmin ? (
-                        <TableCell className="text-right">
-                          <form action={deleteAdAction}>
-                            <input type="hidden" name="campaignId" value={id} />
-                            <input type="hidden" name="adId" value={a.id} />
-                            <ConfirmSubmit
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive max-md:h-10"
-                              aria-label={`Supprimer la pub ${a.name}`}
-                              message={`Supprimer la pub précise « ${a.name} » et ses coûts ? Son lien d'entrée reste dans la campagne (onglet Liens).`}
-                            >
-                              Supprimer
-                            </ConfirmSubmit>
-                          </form>
-                        </TableCell>
-                      ) : null}
-                    </TableRow>
-                  ))}
-                  <TableRow>
-                    <TableCell colSpan={isAdmin ? 7 : 6}>
-                      <form
-                        action={addAdAction}
-                        className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
-                      >
-                        <input type="hidden" name="campaignId" value={id} />
-                        <input type="hidden" name="adSetId" value={s.id} />
-                        <Label htmlFor={`new-ad-${s.id}`} className="sr-only">
-                          Nom de la nouvelle pub précise
-                        </Label>
+
+      <FormSection
+        title="Groupes et pubs"
+        description="La campagne pub se découpe en groupes, puis en pubs ; chaque pub a son lien d'entrée. Clics et membres comptés depuis la création du lien (pas seulement sur la période)."
+        actions={adSets.length ? addAdSetPanel : null}
+      >
+        {adSets.length === 0 ? (
+          <EmptyState
+            title="Aucun groupe pour l'instant"
+            description="Ajoutez un groupe, ou créez directement un lien d'entrée dans l'onglet Liens : « Groupe 1 » est créé tout seul."
+          >
+            {addAdSetPanel}
+          </EmptyState>
+        ) : (
+          adSets.map((s) => (
+            <div key={s.id} className="rounded-xl border border-border bg-card">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <h3 className="text-body font-semibold text-foreground">
+                  Groupe « {s.name} »{" "}
+                  <span className="font-normal text-muted-foreground">
+                    · {s.ads.length} pub{s.ads.length > 1 ? "s" : ""}
+                  </span>
+                </h3>
+                <div className="flex flex-wrap items-center gap-1">
+                  <SidePanel
+                    title="Ajouter une pub"
+                    description={`Dans le groupe « ${s.name} ».`}
+                    trigger={
+                      <Button variant="ghost" size="sm" className="max-md:h-10">
+                        <Plus aria-hidden />
+                        Ajouter une pub
+                      </Button>
+                    }
+                  >
+                    <form action={addAdAction} className="space-y-5">
+                      <input type="hidden" name="campaignId" value={id} />
+                      <input type="hidden" name="adSetId" value={s.id} />
+                      <div className="space-y-2">
+                        <Label htmlFor={`new-ad-${s.id}`}>Nom de la pub</Label>
                         <Input
                           id={`new-ad-${s.id}`}
                           name="name"
-                          placeholder="Nom de la pub précise (ex. video-3)"
+                          placeholder="ex. video-3"
                           required
-                          className="h-10 sm:max-w-56 md:h-9"
                         />
-                        <Label htmlFor={`new-ad-link-${s.id}`} className="sr-only">
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`new-ad-link-${s.id}`}>
                           Lien d&apos;entrée (facultatif)
                         </Label>
-                        <select
+                        <NativeSelect
                           id={`new-ad-link-${s.id}`}
                           name="inviteLinkId"
                           defaultValue=""
-                          className={`${selectCls} sm:max-w-56`}
+                          wrapperClassName="w-full"
                         >
-                          <option value="">Lien d&apos;entrée (facultatif)</option>
+                          <option value="">Aucun pour l&apos;instant</option>
                           {unattached.map((l) => (
                             <option key={l.id} value={l.id}>
                               {l.name} ({l.channel.title})
                             </option>
                           ))}
-                        </select>
-                        <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
-                          Ajouter une pub précise
-                        </Button>
-                      </form>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                        </NativeSelect>
+                        <p className="text-note text-muted-foreground">
+                          Pour créer la pub et son lien d&apos;un coup, passez par l&apos;onglet
+                          Liens.
+                        </p>
+                      </div>
+                      <Button type="submit" className="max-md:h-10">
+                        Ajouter la pub
+                      </Button>
+                    </form>
+                  </SidePanel>
+                  {isAdmin ? (
+                    <form action={deleteAdSetAction}>
+                      <input type="hidden" name="campaignId" value={id} />
+                      <input type="hidden" name="adSetId" value={s.id} />
+                      <ConfirmSubmit
+                        size="sm"
+                        variant="ghost"
+                        className="text-danger max-md:h-10"
+                        aria-label={`Supprimer le groupe ${s.name}`}
+                        confirmTitle="Supprimer ce groupe ?"
+                        confirmLabel="Supprimer"
+                        message={`Le groupe « ${s.name} », ses ${s.ads.length} pub${s.ads.length > 1 ? "s" : ""} et leurs dépenses seront supprimés. Les liens d'entrée restent dans la campagne.`}
+                      >
+                        Supprimer
+                      </ConfirmSubmit>
+                    </form>
+                  ) : null}
+                </div>
+              </div>
+              {s.ads.length === 0 ? (
+                <p className="px-4 py-3 text-body text-muted-foreground">
+                  Aucune pub dans ce groupe.
+                </p>
+              ) : (
+                <DataTable
+                  // Largeurs fixes, identiques dans chaque groupe : les colonnes des tableaux empilés restent
+                  // alignées d'un groupe à l'autre. Téléphone : 3 colonnes (pub, clics, acceptés), en-têtes sur deux
+                  // lignes, pour que « Acceptés (total) » et ses chiffres restent dans l'écran.
+                  className="px-2 pb-1 [&_table]:table-fixed"
+                  label={`Pubs du groupe ${s.name}`}
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Pub",
+                      className: "whitespace-normal break-words max-md:w-[38%] md:w-[26%]",
+                    },
+                    {
+                      key: "link",
+                      header: "Lien d'entrée",
+                      hideOnMobile: true,
+                      className: "whitespace-normal md:w-[29%]",
+                    },
+                    {
+                      key: "clicks",
+                      header: "Clics (total)",
+                      align: "right",
+                      className: "max-md:w-[28%] max-md:whitespace-normal md:w-[15%]",
+                    },
+                    {
+                      key: "requests",
+                      header: "Demandes (total)",
+                      align: "right",
+                      hideOnMobile: true,
+                      className: "md:w-[15%]",
+                    },
+                    {
+                      key: "approved",
+                      header: "Acceptés (total)",
+                      align: "right",
+                      className: "max-md:w-[34%] max-md:whitespace-normal md:w-[15%]",
+                    },
+                  ]}
+                  rows={s.ads.map((a) => ({
+                    id: a.id,
+                    cells: {
+                      name: a.name,
+                      link: a.inviteLink ? (
+                        <span className="flex flex-col">
+                          <span>{a.inviteLink.name}</span>
+                          <span className="text-note text-muted-foreground">
+                            {a.inviteLink.channel.title}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Aucun</span>
+                      ),
+                      clicks: fmtNum(a.trackingLink?.clicks ?? 0),
+                      requests: fmtNum(a.inviteLink?.requests ?? 0),
+                      approved: fmtNum(a.inviteLink?.approved ?? 0),
+                    },
+                    sortValues: { link: a.inviteLink?.name ?? "" },
+                    detailDescription: `Groupe « ${s.name} »`,
+                    detail: (
+                      <div className="space-y-6">
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">
+                          <Row label="Lien d'entrée">{a.inviteLink?.name ?? "Aucun"}</Row>
+                          {a.inviteLink ? (
+                            <Row label="Canal">{a.inviteLink.channel.title}</Row>
+                          ) : null}
+                          {a.trackingLink ? (
+                            <Row label="Adresse">
+                              <span className="font-mono text-note">/{a.trackingLink.slug}</span>
+                            </Row>
+                          ) : null}
+                          <Row label="Clics (total)">{fmtNum(a.trackingLink?.clicks ?? 0)}</Row>
+                          <Row label="Demandes (total)">{fmtNum(a.inviteLink?.requests ?? 0)}</Row>
+                          <Row label="Acceptés (total)">{fmtNum(a.inviteLink?.approved ?? 0)}</Row>
+                        </dl>
+                        <p className="text-note text-muted-foreground">
+                          Chiffres depuis la création du lien, quelle que soit la période choisie.
+                        </p>
+                        <form action={attachLinkAction} className="space-y-3">
+                          <input type="hidden" name="campaignId" value={id} />
+                          <input type="hidden" name="adId" value={a.id} />
+                          <div className="space-y-2">
+                            <Label htmlFor={`link-${a.id}`}>Lien d&apos;entrée de cette pub</Label>
+                            <NativeSelect
+                              id={`link-${a.id}`}
+                              name="inviteLinkId"
+                              defaultValue={a.inviteLink?.id ?? ""}
+                              wrapperClassName="w-full"
+                            >
+                              {linkOptions(a.inviteLink)}
+                            </NativeSelect>
+                            <p className="text-note text-muted-foreground">
+                              Ses clics, membres et inscriptions sont comptés à partir de ce lien.
+                            </p>
+                          </div>
+                          <Button type="submit" variant="outline" className="max-md:h-10">
+                            Enregistrer le lien
+                          </Button>
+                        </form>
+                        {isAdmin ? (
+                          <form action={deleteAdAction} className="border-t border-border pt-4">
+                            <input type="hidden" name="campaignId" value={id} />
+                            <input type="hidden" name="adId" value={a.id} />
+                            <ConfirmSubmit
+                              variant="destructive"
+                              className="max-md:h-10"
+                              confirmTitle="Supprimer cette pub ?"
+                              confirmLabel="Supprimer"
+                              message={`La pub « ${a.name} » et ses dépenses seront supprimées. Son lien d'entrée reste dans la campagne (onglet Liens).`}
+                            >
+                              Supprimer la pub
+                            </ConfirmSubmit>
+                          </form>
+                        ) : null}
+                      </div>
+                    ),
+                  }))}
+                />
+              )}
             </div>
-          ))}
-          <form
-            action={addAdSetAction}
-            className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
-          >
-            <input type="hidden" name="campaignId" value={id} />
-            <Label htmlFor="new-adset" className="sr-only">
-              Nom du nouveau groupe
-            </Label>
-            <Input
-              id="new-adset"
-              name="name"
-              placeholder="Nom du groupe (ex. FR 18-34)"
-              required
-              className="h-10 sm:max-w-64 md:h-9"
-            />
-            <Button type="submit" size="sm" className="max-md:h-10">
-              Ajouter un groupe
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          ))
+        )}
+      </FormSection>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Coûts par jour</CardTitle>
-            <CardDescription>
-              Sur la période. Source : compte connecté (API), import CSV ou saisie à la main.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {costs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun coût enregistré sur la période.{" "}
-                <Link href="/campaigns/import" className="underline">
-                  Importer un CSV
-                </Link>{" "}
-                ou saisir une dépense ci-contre.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Jour</TableHead>
-                    <TableHead className="hidden md:table-cell">Niveau</TableHead>
-                    <TableHead className="text-right">Dépense</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">Impressions</TableHead>
-                    <TableHead className="hidden text-right md:table-cell">Clics</TableHead>
-                    <TableHead>Source</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {costs.slice(0, 120).map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell>{dayFmt.format(c.date)}</TableCell>
-                      <TableCell className="hidden text-xs md:table-cell">
-                        {c.ad
-                          ? `pub ${c.ad.name}`
-                          : c.adSet
-                            ? `groupe ${c.adSet.name}`
-                            : "toute la campagne pub"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtMoney(Number(c.spend))}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {fmtNum(c.impressions)}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {fmtNum(c.clicks)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge kind="costSource" value={c.source} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Saisir une dépense</CardTitle>
-            <CardDescription>
-              Pour un jour et un niveau. Une nouvelle saisie du même jour remplace la précédente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={addManualCostAction} className="grid gap-3 sm:grid-cols-2">
-              <input type="hidden" name="campaignId" value={id} />
-              <div className="space-y-1 sm:col-span-2">
-                <Label htmlFor="level">Niveau</Label>
-                <select
-                  id="level"
-                  name="level"
-                  className={`${selectCls} w-full`}
-                  defaultValue={`campaign:${id}`}
+      <FormSection
+        title="Dépenses par jour"
+        description={
+          costs.length
+            ? `${fmtMoney(spendTotal)} sur la période : reçues du compte connecté, importées (CSV) ou saisies.`
+            : "Reçues du compte connecté, importées (CSV) ou saisies à la main."
+        }
+        actions={
+          <>
+            {costs.length ? (
+              <a
+                href={exportHref}
+                className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
+              >
+                <Download aria-hidden />
+                Exporter (CSV)
+              </a>
+            ) : null}
+            <SidePanel
+              title="Saisir une dépense"
+              description="Pour un jour : une nouvelle saisie du même jour remplace la précédente."
+              trigger={
+                <Button variant="outline" className="max-md:h-10">
+                  <Plus aria-hidden />
+                  Saisir une dépense
+                </Button>
+              }
+            >
+              <form action={addManualCostAction} className="space-y-5">
+                <input type="hidden" name="campaignId" value={id} />
+                <div className="space-y-2">
+                  <Label htmlFor="level">Pour</Label>
+                  <NativeSelect
+                    id="level"
+                    name="level"
+                    defaultValue={`campaign:${id}`}
+                    wrapperClassName="w-full"
+                  >
+                    <option value={`campaign:${id}`}>Toute la campagne pub</option>
+                    {adSets.map((s) => [
+                      <option key={s.id} value={`adset:${s.id}`}>
+                        Groupe {s.name}
+                      </option>,
+                      ...s.ads.map((a) => (
+                        <option key={a.id} value={`ad:${a.id}`}>
+                          — Pub {a.name}
+                        </option>
+                      )),
+                    ])}
+                  </NativeSelect>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Jour</Label>
+                    <Input id="date" name="date" type="date" required defaultValue={today} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="spend">Dépense (€)</Label>
+                    <Input
+                      id="spend"
+                      name="spend"
+                      inputMode="decimal"
+                      required
+                      placeholder="ex. 42,50"
+                    />
+                  </div>
+                </div>
+                <AdvancedSection
+                  title="Impressions et clics"
+                  description="Facultatif : chiffres affichés par la plateforme."
                 >
-                  <option value={`campaign:${id}`}>Toute la campagne pub</option>
-                  {adSets.map((s) => [
-                    <option key={s.id} value={`adset:${s.id}`}>
-                      Groupe {s.name}
-                    </option>,
-                    ...s.ads.map((a) => (
-                      <option key={a.id} value={`ad:${a.id}`}>
-                        — Pub {a.name}
-                      </option>
-                    )),
-                  ])}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="date">Jour</Label>
-                <Input
-                  id="date"
-                  name="date"
-                  type="date"
-                  required
-                  defaultValue={today}
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="spend">Dépense (€)</Label>
-                <Input
-                  id="spend"
-                  name="spend"
-                  inputMode="decimal"
-                  required
-                  placeholder="ex. 42,50"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="impressions">Impressions (facultatif)</Label>
-                <Input
-                  id="impressions"
-                  name="impressions"
-                  inputMode="numeric"
-                  defaultValue="0"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="clicks">Clics plateforme (facultatif)</Label>
-                <Input
-                  id="clicks"
-                  name="clicks"
-                  inputMode="numeric"
-                  defaultValue="0"
-                  className="h-10 md:h-9"
-                />
-              </div>
-              <div className="sm:col-span-2">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="impressions">Impressions</Label>
+                      <Input
+                        id="impressions"
+                        name="impressions"
+                        inputMode="numeric"
+                        defaultValue="0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="clicks">Clics sur la plateforme</Label>
+                      <Input id="clicks" name="clicks" inputMode="numeric" defaultValue="0" />
+                    </div>
+                  </div>
+                </AdvancedSection>
                 <Button type="submit" className="max-md:h-10">
                   Enregistrer la dépense
                 </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+              </form>
+            </SidePanel>
+          </>
+        }
+      >
+        {costs.length === 0 ? (
+          <EmptyState
+            title="Aucune dépense sur la période"
+            description="Elles arrivent toutes seules d'un compte connecté, ou importez le rapport CSV de TikTok ou Meta."
+            action={{
+              href: "/campaigns/import",
+              label: "Importer des dépenses",
+              variant: "outline",
+            }}
+          />
+        ) : (
+          <>
+            <DataTable
+              label="Dépenses par jour"
+              columns={[
+                { key: "day", header: "Jour" },
+                { key: "spend", header: "Dépense", align: "right" },
+                { key: "lines", header: "Détail", hideOnMobile: true },
+                { key: "source", header: "Source" },
+              ]}
+              rows={shownDays.map((d) => ({
+                id: d.day,
+                cells: {
+                  day: dayFmt.format(d.date),
+                  spend: fmtMoney(d.spend),
+                  lines:
+                    d.lines.length > 1 ? `${d.lines.length} lignes` : costLevelLabel(d.lines[0]!),
+                  source: (
+                    <span className="flex flex-wrap gap-1">
+                      {d.sources.map((src) => (
+                        <StatusBadge key={src} kind="costSource" value={src} />
+                      ))}
+                    </span>
+                  ),
+                },
+                sortValues: {
+                  day: d.date,
+                  lines: d.lines.length,
+                  source: d.sources.map((src) => statusLabel("costSource", src)).join(", "),
+                },
+                detailTitle: `Dépense du ${dayFmt.format(d.date)}`,
+                detailDescription: `${fmtMoney(d.spend)} · ${fmtNum(d.impressions)} impressions · ${fmtNum(d.clicks)} clics sur la plateforme`,
+                detail: (
+                  <ul className="divide-y divide-border">
+                    {d.lines.map((c) => (
+                      <li key={c.id} className="flex items-start justify-between gap-4 py-3">
+                        <span className="min-w-0">
+                          <span className="block font-medium">{costLevelLabel(c)}</span>
+                          <span className="block text-note text-muted-foreground">
+                            {fmtNum(c.impressions)} impressions · {fmtNum(c.clicks)} clics ·{" "}
+                            {statusLabel("costSource", c.source)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 tabular-nums">{fmtMoney(c.spend)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ),
+              }))}
+            />
+            {days.length > shownDays.length ? (
+              <p className="text-note text-muted-foreground">
+                {shownDays.length} jours affichés sur {days.length} :{" "}
+                <a href={exportHref} className="font-medium text-brand-ink underline">
+                  exportez le CSV
+                </a>{" "}
+                pour tout voir.
+              </p>
+            ) : null}
+          </>
+        )}
+      </FormSection>
+    </div>
   );
 }

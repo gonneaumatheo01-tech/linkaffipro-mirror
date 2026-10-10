@@ -3,77 +3,90 @@
  * répartition entre la barre de menu (ordinateur) et la barre du bas (téléphone).
  * Les icônes (lucide) sont associées par leur nom dans `nav-icons.tsx` (`NAV_ICONS`).
  *
- * Structure prévue pour le menu cible de docs/REFONTE-UX.md (« 6 entrées + Réglages en bas ») :
- * `section: "main"` pour les entrées principales, `section: "bottom"` pour Réglages et Aide, en bas et séparées.
+ * Menu cible de docs/REFONTE-UX.md : 6 entrées principales (`section: "main"`), puis Réglages en bas et séparé
+ * (`section: "bottom"`), visible pour tous les rôles (l'écran Réglages ne montre à chacun que ce qu'il peut ouvrir).
+ * Le guide d'utilisation et « Mon compte » ne sont que dans le volet « Plus » du téléphone (`mobileOnly`) : sur
+ * ordinateur, ils sont dans l'en-tête (bouton « ? » et menu du compte).
+ * Les rubriques rangées sous une entrée l'allument : /members/broadcasts et /members/automations → Membres,
+ * /campaigns/links → Campagnes, /settings/bots et /settings/journal → Réglages (voir `activeHref`).
  */
 
 export type NavIcon =
   | "BarChart3"
-  | "Bot"
-  | "CircleHelp"
+  | "BookOpen"
   | "House"
-  | "Link2"
   | "Megaphone"
   | "MessageSquare"
   | "Radio"
-  | "ScrollText"
-  | "Send"
   | "Settings"
-  | "Users"
-  | "Zap";
+  | "UserRound"
+  | "Users";
 
 export type NavSection = "main" | "bottom";
 
 export type NavItem = {
+  /** Clé stable (minuscules) : repère de la visite guidée `data-tour="nav-<clé>"` (voir `navTourId`). */
+  key: string;
   href: string;
   label: string;
   icon: NavIcon;
-  /** `main` : entrées principales ; `bottom` : en bas de la barre, séparées (Réglages, Aide). */
+  /** `main` : entrées principales ; `bottom` : en bas de la barre, séparées (Réglages). */
   section: NavSection;
   adminOnly?: boolean;
+  /** Seulement dans le volet « Plus » du téléphone (sur ordinateur, l'en-tête y donne accès). */
+  mobileOnly?: boolean;
   soon?: boolean;
-  /** Libellé court dans la barre du bas du téléphone (ex. « Accueil »). */
+  /** Libellé court dans la barre du bas du téléphone, si différent. */
   mobileLabel?: string;
   /** Icône dans la barre du bas du téléphone, si différente. */
   mobileIcon?: NavIcon;
 };
 
 export const NAV: NavItem[] = [
+  { key: "home", href: "/", label: "Accueil", icon: "House", section: "main" },
+  { key: "campaigns", href: "/campaigns", label: "Campagnes", icon: "Megaphone", section: "main" },
+  { key: "channels", href: "/channels", label: "Canaux", icon: "Radio", section: "main" },
+  { key: "messages", href: "/messages", label: "Messages", icon: "MessageSquare", section: "main" },
+  { key: "members", href: "/members", label: "Membres", icon: "Users", section: "main" },
+  { key: "stats", href: "/stats", label: "Statistiques", icon: "BarChart3", section: "main" },
+  { key: "settings", href: "/settings", label: "Réglages", icon: "Settings", section: "bottom" },
   {
-    href: "/",
-    label: "Tableau de bord",
-    icon: "BarChart3",
-    section: "main",
-    mobileLabel: "Accueil",
-    mobileIcon: "House",
+    key: "help",
+    href: "/help",
+    label: "Guide d'utilisation",
+    icon: "BookOpen",
+    section: "bottom",
+    mobileOnly: true,
   },
-  { href: "/campaigns", label: "Campagnes", icon: "Megaphone", section: "main" },
-  { href: "/channels", label: "Canaux", icon: "Radio", section: "main" },
-  { href: "/bots", label: "Bots", icon: "Bot", section: "main" },
-  { href: "/members", label: "Membres", icon: "Users", section: "main" },
-  { href: "/messages", label: "Messages", icon: "MessageSquare", section: "main" },
-  { href: "/links", label: "Liens", icon: "Link2", section: "main" },
-  { href: "/broadcasts", label: "Envois", icon: "Send", section: "main" },
-  { href: "/automations", label: "Automatisations", icon: "Zap", section: "main" },
-  { href: "/journal", label: "Journal", icon: "ScrollText", section: "main" },
-  { href: "/settings", label: "Réglages", icon: "Settings", section: "bottom", adminOnly: true },
-  { href: "/help", label: "Aide", icon: "CircleHelp", section: "bottom" },
+  {
+    key: "account",
+    href: "/account",
+    label: "Mon compte",
+    icon: "UserRound",
+    section: "bottom",
+    mobileOnly: true,
+  },
 ];
 
 /** Barre du bas du téléphone (docs/REFONTE-UX.md) : Accueil, Messages, Membres, Campagnes, puis « Plus ». */
 export const MOBILE_PRIMARY_HREFS = ["/", "/messages", "/members", "/campaigns"] as const;
 
-/** Entrées visibles pour l'utilisateur (Réglages réservé aux administrateurs tant que l'étape 2 ne l'ouvre pas). */
+/** Repère de la visite guidée posé sur l'entrée (`data-tour`) : « nav-members »… ; « nav-more » pour « Plus ». */
+export function navTourId(item: Pick<NavItem, "key">): string {
+  return `nav-${item.key}`;
+}
+
+/** Entrées visibles pour l'utilisateur (`adminOnly` : administrateurs seulement ; aucune dans le menu actuel). */
 export function visibleNav(nav: readonly NavItem[], isAdmin: boolean): NavItem[] {
   return nav.filter((i) => !i.adminOnly || isAdmin);
 }
 
-/** Entrées principales et entrées du bas (Réglages, Aide), dans l'ordre de la liste. */
+/** Barre de menu de l'ordinateur : entrées principales et entrées du bas, sans celles propres au téléphone. */
 export function navSections(
   nav: readonly NavItem[],
   isAdmin: boolean,
 ): { main: NavItem[]; bottom: NavItem[] } {
-  const items = visibleNav(nav, isAdmin);
+  const items = visibleNav(nav, isAdmin).filter((i) => !i.mobileOnly);
   return {
     main: items.filter((i) => i.section === "main"),
     bottom: items.filter((i) => i.section === "bottom"),
@@ -98,15 +111,19 @@ export function activeHref(pathname: string, items: readonly NavItem[]): string 
 
 /**
  * Barre du bas du téléphone : `primary` (les entrées de `primaryHrefs`, dans cet ordre, si elles existent)
- * et `more` (tout le reste, dans l'ordre du menu : entrées principales puis Réglages et Aide), affiché par « Plus ».
+ * et `more` (tout le reste, dans l'ordre du menu : entrées principales, puis Réglages, le guide et le compte),
+ * affiché par « Plus ».
  */
 export function mobileNav(
   nav: readonly NavItem[],
   isAdmin: boolean,
   primaryHrefs: readonly string[] = MOBILE_PRIMARY_HREFS,
 ): { primary: NavItem[]; more: NavItem[] } {
-  const { main, bottom } = navSections(nav, isAdmin);
-  const items = [...main, ...bottom];
+  const visible = visibleNav(nav, isAdmin);
+  const items = [
+    ...visible.filter((i) => i.section === "main"),
+    ...visible.filter((i) => i.section === "bottom"),
+  ];
   const primary = primaryHrefs.flatMap((href) => items.filter((i) => i.href === href));
   const taken = new Set(primary.map((i) => i.href));
   return { primary, more: items.filter((i) => !taken.has(i.href)) };

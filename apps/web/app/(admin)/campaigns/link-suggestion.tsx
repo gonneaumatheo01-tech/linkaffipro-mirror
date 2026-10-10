@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, audit } from "@linkaffipro/db";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { suggestAffiliateCampaign } from "@/lib/campaigns/match";
 import { listOfferCandidates } from "@/lib/campaigns/queries";
@@ -73,17 +74,18 @@ export async function LinkSuggestion({
   return (
     <form
       action={linkAction}
-      className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 text-body"
     >
-      <span>
-        Liaison suggérée : <span className="font-medium">{candidate.name}</span>
+      <Sparkles aria-hidden className="size-4 shrink-0 text-brand-ink" />
+      <p className="min-w-0 flex-1">
+        <span className="font-medium text-foreground">Offre suggérée : {candidate.name}</span>
         <span className="text-muted-foreground">
           {" "}
-          ({candidate.programName}, ressemblance {Math.round(score * 100)} %)
+          · {candidate.programName}, nom proche à {Math.round(score * 100)} %
         </span>
-      </span>
-      <Button type="submit" size="sm" variant="outline" className="max-md:h-10">
-        Lier
+      </p>
+      <Button type="submit" variant="outline" className="max-md:h-10">
+        Rattacher cette offre
       </Button>
     </form>
   );

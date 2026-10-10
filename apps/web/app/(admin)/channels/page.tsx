@@ -82,7 +82,7 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
                   était déjà administrateur ? Cliquez « Ajouter un canal existant » en haut de la page.
                 </>
               }
-              action={{ href: "/bots", label: "Voir les bots", variant: "outline" }}
+              action={{ href: "/settings/bots", label: "Voir les bots", variant: "outline" }}
             />
           ) : (
             <Table>

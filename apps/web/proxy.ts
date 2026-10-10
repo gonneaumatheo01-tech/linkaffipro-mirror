@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authConfig } from "./auth.config";
 import { decideRoute } from "./lib/routing";
+import { legacyRedirect } from "./lib/legacy-routes";
 
 /** En-têtes de sécurité communs (voir docs/SECURITE.md). */
 const BASE_HEADERS: Array<[string, string]> = [
@@ -44,8 +45,10 @@ const { auth } = NextAuth(authConfig);
 /**
  * Proxy (ex-middleware) :
  * 1. le trafic du domaine de tracking (go.goolink.eu) est réécrit vers /r/… sans authentification ;
- * 2. les chemins publics passent ;
- * 3. tout le reste exige une session, sinon redirection vers /login.
+ * 2. une ancienne adresse du site (/broadcasts, /bots, /?tab=ads…) renvoie (308) vers sa nouvelle place
+ *    (lib/legacy-routes.ts) ;
+ * 3. les chemins publics passent ;
+ * 4. tout le reste exige une session, sinon redirection vers /login.
  */
 export default async function proxy(request: NextRequest) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
@@ -58,6 +61,13 @@ export default async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = decision.rewriteTo;
     return finalize(NextResponse.rewrite(url), request, { csp: false });
+  }
+  // Anciennes adresses (refonte de la phase 9) : 308 vers la nouvelle place, paramètres gardés, avant la connexion.
+  const moved = legacyRedirect(path, request.nextUrl.searchParams);
+  if (moved) {
+    return finalize(NextResponse.redirect(new URL(moved, request.nextUrl.origin), 308), request, {
+      csp: true,
+    });
   }
   if (decision.kind === "public") return finalize(NextResponse.next(), request, { csp });
 

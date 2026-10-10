@@ -33,7 +33,7 @@ import {
   verifyTikTokAppAction,
 } from "./actions";
 
-export const metadata: Metadata = { title: "Connecteurs — TikTok" };
+export const metadata: Metadata = { title: "Connexions — TikTok" };
 
 const RUN_LABEL: Record<string, string> = { ok: "ok", error: "error", running: "running" };
 
@@ -62,7 +62,7 @@ export default async function TikTokConnectorPage({
   return (
     <>
       <PageHeader
-        title="Connecteur TikTok Ads"
+        title="Connexions · TikTok Ads"
         description="Vos comptes publicitaires TikTok, connectés une fois : les dépenses, impressions et clics de chaque pub arrivent ensuite toutes seules dans Campagnes (onglet Pubs), par jour, en devise du compte et en euros."
         help={
           appReady
@@ -76,7 +76,7 @@ export default async function TikTokConnectorPage({
           className="max-md:h-10"
           render={<Link href="/settings/connectors" />}
         >
-          ← Connecteurs
+          ← Connexions
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />

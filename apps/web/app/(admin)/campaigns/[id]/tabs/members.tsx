@@ -1,79 +1,105 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/admin/empty-state";
-import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Download } from "lucide-react";
 import { SPEND_LEVEL_LABELS } from "@linkaffipro/core";
-import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
+import { DataTable } from "@/components/admin/data-table";
+import { FormSection } from "@/components/admin/form-section";
+import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
+import { StatusPill } from "@/components/admin/status-pill";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
+import { fmtDateShort, fmtMoney, fmtNum } from "@/lib/format";
 import { listMembers, parseMemberFilters } from "@/lib/members/query";
 import type { TabProps } from "./shared";
 
-/** Onglet Membres : membres arrivés par les liens d'entrée de la campagne (même liste que Membres filtrée par campagne). */
+/**
+ * Onglet Membres : membres arrivés par les liens d'entrée de la campagne (la liste Membres filtrée par campagne),
+ * les plus récemment arrivés d'abord (tri existant `firstSeen`), dans l'ordre de la colonne « Arrivé le ».
+ */
 export async function MembersTab({ id, sp }: TabProps) {
-  const filters = { ...parseMemberFilters({}), campaignId: id, page: pageOf(sp) };
+  const filters = {
+    ...parseMemberFilters({ sort: "firstSeen" }),
+    campaignId: id,
+    page: pageOf(sp),
+  };
   const { rows, total, pages } = await listMembers(filters);
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
-        <div>
-          <CardTitle className="text-base">Membres ({fmtNum(total)})</CardTitle>
-          <CardDescription>Personnes dont une demande d&apos;adhésion est passée par un lien d&apos;entrée de la campagne, avec leur niveau de dépense.</CardDescription>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="max-md:h-10" render={<Link href={`/members?campaignId=${id}`} />}>
+    <FormSection
+      title={`Membres (${fmtNum(total)})`}
+      description="Toutes les personnes arrivées par un lien d'entrée de la campagne, depuis le début (pas seulement sur la période)."
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/members?campaignId=${encodeURIComponent(id)}&sort=firstSeen`}
+            className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+          >
             Voir dans Membres
-          </Button>
-          <Button variant="outline" size="sm" className="max-md:h-10" render={<a href={`/members/export?campaignId=${id}`} />}>
-            Exporter CSV
-          </Button>
+          </Link>
+          <a
+            href={`/members/export?campaignId=${encodeURIComponent(id)}`}
+            className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
+          >
+            <Download aria-hidden />
+            Exporter (CSV)
+          </a>
         </div>
-      </CardHeader>
-      <CardContent>
-        {rows.length === 0 ? (
-          <EmptyState title="Aucun membre arrivé par cette campagne pour l'instant." description="Les membres apparaissent dès qu'une personne clique un lien d'entrée de la campagne et demande à rejoindre le canal." />
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Membre</TableHead>
-                  <TableHead className="hidden md:table-cell">Canaux</TableHead>
-                  <TableHead className="hidden lg:table-cell">Pub d&apos;origine</TableHead>
-                  <TableHead>Arrivé</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">Clics</TableHead>
-                  <TableHead>Niveau</TableHead>
-                  <TableHead className="hidden text-right lg:table-cell">Dépôts</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <Link href={`/members/${m.id}`} className="font-medium hover:underline">
-                        {m.displayName}
-                      </Link>
-                      {m.username ? <div className="text-xs text-muted-foreground">@{m.username}</div> : null}
-                    </TableCell>
-                    <TableCell className="hidden text-xs md:table-cell">{m.channels.join(", ") || "—"}</TableCell>
-                    <TableCell className="hidden text-xs lg:table-cell">{m.source ?? "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs">{fmtDate(m.firstSeenAt)}</TableCell>
-                    <TableCell className="hidden text-right tabular-nums md:table-cell">{fmtNum(m.clicks)}</TableCell>
-                    <TableCell>
-                      <Badge variant={m.level === "VIP" ? "default" : m.level === "AUCUN" ? "secondary" : "outline"}>{SPEND_LEVEL_LABELS[m.level]}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      {m.depositCount > 0 ? `${fmtNum(m.depositCount)} · ${fmtMoney(m.depositTotal)}` : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Pagination page={filters.page} pages={pages} total={total} noun="membre" hrefFor={(n) => pageHref(`/campaigns/${id}`, { ...sp, ok: undefined, error: undefined }, n)} />
-          </>
-        )}
-      </CardContent>
-    </Card>
+      }
+    >
+      <DataTable
+        label="Membres de la campagne"
+        columns={[
+          { key: "name", header: "Membre", className: "min-w-32 whitespace-normal" },
+          { key: "source", header: "Pub d'origine", hideOnMobile: true },
+          { key: "since", header: "Arrivé le" },
+          { key: "level", header: "Niveau", hideOnMobile: true },
+          { key: "deposits", header: "Déposé", align: "right" },
+        ]}
+        rows={rows.map((m) => ({
+          id: m.id,
+          href: `/members/${m.id}`,
+          cells: {
+            name: (
+              <span className="flex flex-col">
+                <span>{m.displayName}</span>
+                {m.username ? (
+                  <span className="text-note font-normal text-muted-foreground">@{m.username}</span>
+                ) : null}
+              </span>
+            ),
+            source: m.source ?? "—",
+            since: fmtDateShort(m.firstSeenAt),
+            level: (
+              <StatusPill
+                tone={m.level === "VIP" ? "brand" : m.level === "AUCUN" ? "muted" : "neutral"}
+              >
+                {SPEND_LEVEL_LABELS[m.level]}
+              </StatusPill>
+            ),
+            deposits: m.depositCount > 0 ? fmtMoney(m.depositTotal) : "—",
+          },
+          sortValues: {
+            name: m.displayName,
+            since: m.firstSeenAt,
+            level: SPEND_LEVEL_LABELS[m.level],
+            deposits: m.depositTotal,
+          },
+        }))}
+        empty={{
+          title: "Aucun membre arrivé par cette campagne pour l'instant",
+          description:
+            "Ils apparaissent dès qu'une personne clique un lien d'entrée de la campagne et demande à rejoindre le canal.",
+        }}
+      />
+      {total > 0 ? (
+        <Pagination
+          page={filters.page}
+          pages={pages}
+          total={total}
+          noun="membre"
+          hrefFor={(n) =>
+            pageHref(`/campaigns/${id}`, { ...sp, ok: undefined, error: undefined }, n)
+          }
+        />
+      ) : null}
+    </FormSection>
   );
 }

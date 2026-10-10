@@ -43,7 +43,7 @@ export default async function ImportChannelsPage({ searchParams }: PageProps<"/c
       {!active ? (
         <EmptyState
           title="Compte Telegram non connecté"
-          description="Cette fonction lit la liste de vos canaux avec votre compte Telegram (le propriétaire des canaux). Connectez-le d'abord dans Réglages → Connecteurs → Telegram, puis revenez ici."
+          description="Cette fonction lit la liste de vos canaux avec votre compte Telegram (le propriétaire des canaux). Connectez-le d'abord dans Réglages → Connexions → Telegram, puis revenez ici."
           action={{ href: "/settings/connectors/telegram", label: "Connecter mon compte Telegram", variant: "outline" }}
         />
       ) : listing && !listing.ok ? (

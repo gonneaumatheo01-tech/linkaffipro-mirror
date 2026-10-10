@@ -8,22 +8,22 @@ export const WIZARD_STEPS = [
   {
     key: "general",
     title: "Nom et univers",
-    help: "Donnez un nom clair à la campagne et choisissez l'univers ; dates et budget sont facultatifs.",
+    help: "Donnez un nom clair et choisissez l'univers. Budget et dates sont facultatifs.",
   },
   {
     key: "offers",
     title: "Offres",
-    help: "Choisissez la ou les campagnes Link Affi à promouvoir (les vôtres par défaut), ou collez un lien linkaffi.me/go/… .",
+    help: "Choisissez les offres Link Affi à promouvoir, ou collez un lien linkaffi.me/go/….",
   },
   {
     key: "channels",
     title: "Canaux",
-    help: "Cochez les canaux Telegram alimentés par cette campagne ; le canal qui reçoit les liens des pubs se choisit à l'étape suivante.",
+    help: "Cochez les canaux Telegram où arriveront les membres de cette campagne.",
   },
   {
     key: "ads",
     title: "Pubs",
-    help: "Plateforme, compte, canal d'entrée et nombre de pubs (un lien d'entrée par pub), ou aucune pub pour l'instant ; puis vérifiez le récapitulatif.",
+    help: "Choisissez la plateforme et le nombre de pubs : chaque pub reçoit son lien d'entrée.",
   },
 ] as const;
 

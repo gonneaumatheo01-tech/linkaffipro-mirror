@@ -1,50 +1,49 @@
 import Link from "next/link";
+import { ScrollToCurrent } from "@/components/campaigns/scroll-to-current";
+import { cn } from "@/components/ui/cn";
+import { CAMPAIGN_TABS, campaignTabHref, type CampaignTabKey } from "@/lib/campaigns/display";
 
-export const TABS = [
-  { key: "overview", label: "Vue d'ensemble" },
-  { key: "ads", label: "Pubs" },
-  { key: "links", label: "Liens" },
-  { key: "channels", label: "Canaux" },
-  { key: "messages", label: "Messages" },
-  { key: "members", label: "Membres" },
-  { key: "offers", label: "Offres" },
-] as const;
-
-export type TabKey = (typeof TABS)[number]["key"];
-
-export const TAB_HELP: Record<TabKey, string> = {
-  overview: "Ce que la campagne coûte et rapporte sur la période : changez la période ou cochez « Comparer ».",
-  ads: "La campagne pub (structure TikTok / Meta : groupes et pubs précises) et ses coûts, importés, reçus par API ou saisis.",
-  links: "Un lien d'entrée par pub : copiez l'adresse go.goolink.eu dans la pub ; chaque clic ouvre l'invitation Telegram du canal.",
-  channels: "Les canaux Telegram alimentés par cette campagne : ils servent aux filtres et aux messages de la campagne.",
-  messages: "Les messages publiés dans les canaux de la campagne, ou portant un bouton Offre vers une de ses offres.",
-  members: "Les membres arrivés par les liens d'entrée de la campagne.",
-  offers: "Les campagnes Link Affi promues : le bouton Offre des messages utilise ces liens (avec sub-ID).",
-};
-
-export function parseTab(v: unknown): TabKey {
-  const s = Array.isArray(v) ? v[0] : v;
-  return (TABS.find((t) => t.key === s)?.key ?? "overview") as TabKey;
-}
-
-/** Barre d'onglets de la fiche campagne (liens `?tab=`, période conservée). */
-export function CampaignTabs({ id, current, extra }: { id: string; current: TabKey; extra: Record<string, string> }) {
+/**
+ * Barre d'onglets de la fiche campagne (liens, période conservée) : onglet actif souligné d'orange ; chaque onglet
+ * commence par un titre et sa ligne d'aide. Sur téléphone, la barre défile horizontalement (onglets de 40 px) et
+ * l'onglet ouvert y est ramené au centre : il reste toujours visible.
+ */
+export function CampaignTabs({
+  id,
+  current,
+  keep,
+}: {
+  id: string;
+  current: CampaignTabKey;
+  /** Paramètres à conserver (période, comparaison). */
+  keep: Record<string, string | undefined>;
+}) {
   return (
-    <nav aria-label="Onglets de la campagne" className="mb-4 flex flex-wrap gap-1 border-b">
-      {TABS.map((t) => {
-        const q = new URLSearchParams({ ...extra, tab: t.key }).toString();
-        const active = t.key === current;
-        return (
-          <Link
-            key={t.key}
-            href={`/campaigns/${id}?${q}`}
-            aria-current={active ? "page" : undefined}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm ${active ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="mb-6">
+      <nav aria-label="Onglets de la campagne" className="border-b border-border">
+        <ScrollToCurrent currentKey={current} className="-mb-px flex gap-1 overflow-x-auto">
+          {CAMPAIGN_TABS.map((t) => {
+            const active = t.key === current;
+            return (
+              <li key={t.key} className="shrink-0">
+                <Link
+                  href={campaignTabHref(id, t.key, keep)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-10 items-center border-b-2 px-3 text-body whitespace-nowrap transition-colors",
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                    active
+                      ? "border-brand font-semibold text-foreground"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+                  )}
+                >
+                  {t.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ScrollToCurrent>
+      </nav>
+    </div>
   );
 }

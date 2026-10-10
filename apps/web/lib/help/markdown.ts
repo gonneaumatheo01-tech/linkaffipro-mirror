@@ -8,6 +8,14 @@
 
 export type Heading = { level: number; text: string; id: string };
 
+/**
+ * Options de rendu (volet d'aide de la page courante : un extrait du guide affiché dans une autre page) :
+ * - `idPrefix` : préfixe des identifiants d'ancre (pas de doublon avec la page /help ouverte derrière le volet) ;
+ * - `headingOffset` : décalage des niveaux de titre (1 : `##` devient `<h3>`), plafonné à `<h6>` ;
+ * - `anchorBase` : adresse des liens internes `#ancre` (« /help » : ils ouvrent le guide complet au bon endroit).
+ */
+export type RenderOptions = { idPrefix?: string; headingOffset?: number; anchorBase?: string };
+
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -24,20 +32,21 @@ export function slugify(text: string): string {
 
 const SAFE_HREF = /^(https?:\/\/|mailto:|#|\/)/i;
 
-function safeHref(url: string): string {
+function safeHref(url: string, anchorBase = ""): string {
   const trimmed = url.trim();
-  return SAFE_HREF.test(trimmed) ? escapeHtml(trimmed) : "#";
+  if (!SAFE_HREF.test(trimmed)) return "#";
+  return escapeHtml(trimmed.startsWith("#") && anchorBase ? `${anchorBase}${trimmed}` : trimmed);
 }
 
 /** Mise en forme en ligne : code, liens, gras, italique. Le texte est échappé avant toute transformation. */
-export function renderInline(text: string): string {
+export function renderInline(text: string, opts: RenderOptions = {}): string {
   const parts = text.split(/(`[^`]+`)/g);
   return parts
     .map((part) => {
       if (part.startsWith("`") && part.endsWith("`") && part.length > 2) return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
       let out = escapeHtml(part);
       out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, href: string) => {
-        const h = safeHref(href.replace(/&amp;/g, "&"));
+        const h = safeHref(href.replace(/&amp;/g, "&"), opts.anchorBase);
         const external = /^https?:\/\//i.test(h) ? ' target="_blank" rel="noopener noreferrer"' : "";
         return `<a href="${h}"${external}>${label}</a>`;
       });
@@ -70,7 +79,7 @@ function uniqueId(text: string, seen: Map<string, number>): string {
 
 type ListItem = { indent: number; ordered: boolean; text: string };
 
-function renderList(items: ListItem[]): string {
+function renderList(items: ListItem[], opts: RenderOptions): string {
   // Imbrication par indentation : chaque niveau plus profond ouvre une sous-liste dans le dernier <li>.
   let html = "";
   const stack: Array<{ indent: number; ordered: boolean }> = [];
@@ -85,30 +94,30 @@ function renderList(items: ListItem[]): string {
   for (const it of items) {
     if (stack.length === 0) {
       open(it);
-      html += `<li>${renderInline(it.text)}`;
+      html += `<li>${renderInline(it.text, opts)}`;
       continue;
     }
     const top = stack[stack.length - 1]!;
     if (it.indent > top.indent) {
       open(it);
-      html += `<li>${renderInline(it.text)}`;
+      html += `<li>${renderInline(it.text, opts)}`;
     } else {
       while (stack.length > 1 && it.indent < stack[stack.length - 1]!.indent) close();
-      html += `</li><li>${renderInline(it.text)}`;
+      html += `</li><li>${renderInline(it.text, opts)}`;
     }
   }
   while (stack.length > 0) close();
   return html;
 }
 
-function renderTable(lines: string[]): string {
+function renderTable(lines: string[], opts: RenderOptions): string {
   const cells = (l: string) =>
     l
       .trim()
       .replace(/^\|/, "")
       .replace(/\|$/, "")
       .split("|")
-      .map((c) => renderInline(c.trim()));
+      .map((c) => renderInline(c.trim(), opts));
   const head = cells(lines[0]!);
   const body = lines.slice(2).map(cells);
   const th = head.map((c) => `<th>${c}</th>`).join("");
@@ -120,8 +129,10 @@ const LIST_RE = /^(\s*)(?:[-*]|\d+[.)])\s+(.*)$/;
 const ORDERED_RE = /^\s*\d+[.)]\s/;
 const TABLE_SEP_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
-/** Rend le Markdown en HTML. Les identifiants des titres sont ceux de `extractHeadings`. */
-export function renderMarkdown(markdown: string): string {
+/** Rend le Markdown en HTML. Les identifiants des titres sont ceux de `extractHeadings` (avec `idPrefix`). */
+export function renderMarkdown(markdown: string, opts: RenderOptions = {}): string {
+  const prefix = opts.idPrefix ?? "";
+  const offset = Math.max(0, Math.round(opts.headingOffset ?? 0));
   const lines = markdown.split(/\r?\n/);
   const seen = new Map<string, number>();
   const out: string[] = [];
@@ -134,9 +145,9 @@ export function renderMarkdown(markdown: string): string {
     }
     const h = /^(#{1,4})\s+(.+?)\s*#*\s*$/.exec(line);
     if (h) {
-      const level = h[1]!.length;
-      const id = uniqueId(h[2]!, seen);
-      out.push(`<h${level} id="${id}">${renderInline(h[2]!)}</h${level}>`);
+      const level = Math.min(6, h[1]!.length + offset);
+      const id = `${prefix}${uniqueId(h[2]!, seen)}`;
+      out.push(`<h${level} id="${id}">${renderInline(h[2]!, opts)}</h${level}>`);
       i++;
       continue;
     }
@@ -162,7 +173,7 @@ export function renderMarkdown(markdown: string): string {
         buf.push(lines[i]!);
         i++;
       }
-      out.push(renderTable(buf));
+      out.push(renderTable(buf, opts));
       continue;
     }
     if (LIST_RE.test(line)) {
@@ -177,7 +188,7 @@ export function renderMarkdown(markdown: string): string {
           i++;
         }
       }
-      out.push(renderList(items));
+      out.push(renderList(items, opts));
       continue;
     }
     if (line.startsWith(">")) {
@@ -186,7 +197,7 @@ export function renderMarkdown(markdown: string): string {
         buf.push(lines[i]!.replace(/^>\s?/, ""));
         i++;
       }
-      out.push(`<blockquote><p>${renderInline(buf.join(" "))}</p></blockquote>`);
+      out.push(`<blockquote><p>${renderInline(buf.join(" "), opts)}</p></blockquote>`);
       continue;
     }
     const buf: string[] = [];
@@ -194,7 +205,7 @@ export function renderMarkdown(markdown: string): string {
       buf.push(lines[i]!.trim());
       i++;
     }
-    out.push(`<p>${renderInline(buf.join(" "))}</p>`);
+    out.push(`<p>${renderInline(buf.join(" "), opts)}</p>`);
   }
   return out.join("\n");
 }

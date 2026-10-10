@@ -530,7 +530,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
             variant="outline"
             size="sm"
             className="max-md:h-10"
-            render={<Link href="/journal/events" />}
+            render={<Link href="/settings/journal/events" />}
           >
             Voir le détail dans le Journal
           </Button>

@@ -1,7 +1,7 @@
 import { prisma } from "@linkaffipro/db";
-import { VERTICAL_LABELS, type Vertical } from "@linkaffipro/core";
 import { requireUser } from "@/lib/session";
 import { statusLabels } from "@/lib/status-badges";
+import { universeLabel } from "@/lib/universe";
 import { csvDay, csvNumber, toCsv } from "@/lib/members/csv";
 import { listCampaignsUncached, type MetricKey } from "@/lib/campaigns/queries";
 import type { CampaignMetrics } from "@/lib/campaigns/metrics";
@@ -22,24 +22,26 @@ const SOURCE: Record<string, string> = { CSV: "CSV", API: "API", MANUAL: "manuel
 
 const METRICS: Array<{ key: MetricKey; label: string; money?: boolean }> = [
   { key: "spend", label: "Dépense (€)", money: true },
-  { key: "entryClicks", label: "Clics pub" },
+  { key: "entryClicks", label: "Clics sur les pubs" },
   { key: "members", label: "Membres" },
-  { key: "offerClicks", label: "Clics offre" },
-  { key: "registrations", label: "Inscrits" },
-  { key: "ftds", label: "FTD" },
+  { key: "offerClicks", label: "Clics sur les offres" },
+  { key: "registrations", label: "Inscriptions" },
+  { key: "ftds", label: "Premiers dépôts (FTD)" },
   { key: "deposits", label: "Dépôts (nombre)" },
   { key: "depositAmount", label: "Dépôts (€)", money: true },
-  { key: "cpl", label: "CPL (€)", money: true },
-  { key: "cpa", label: "CPA (€)", money: true },
-  { key: "costPerFtd", label: "Coût par FTD (€)", money: true },
-  { key: "revenue", label: "Revenu (€)", money: true },
-  { key: "roas", label: "ROAS", money: true },
-  { key: "profit", label: "Résultat (€)", money: true },
+  { key: "cpl", label: "Coût par membre (CPL, €)", money: true },
+  { key: "cpa", label: "Coût par inscription (CPA, €)", money: true },
+  { key: "costPerFtd", label: "Coût par premier dépôt (€)", money: true },
+  { key: "revenue", label: "Revenu net (NGR, €)", money: true },
+  { key: "roas", label: "Retour sur dépense pub (ROAS)", money: true },
+  { key: "profit", label: "Bénéfice (€)", money: true },
 ];
 
 /**
  * Export CSV des campagnes sur la période (`range`, `from`, `to`).
- * - par défaut : une ligne par campagne avec dépense, clics, membres, clics offre, inscrits, FTD, dépôts, CPL, CPA, coût par FTD, NGR, ROAS, bénéfice ;
+ * - par défaut : une ligne par campagne avec dépense, clics, membres, clics sur les offres, inscriptions, premiers
+ *   dépôts, dépôts, coût par membre, coût par inscription, coût par premier dépôt, revenu net, retour sur dépense pub,
+ *   bénéfice (le terme technique entre parenthèses dans l'en-tête : un fichier n'a pas de survol) ;
  *   avec `compare=1`, chaque indicateur est suivi de la période précédente et de la variation en % ;
  * - `kind=costs` : coûts par jour (toutes les campagnes, ou `campaignId=…`).
  */
@@ -80,7 +82,7 @@ export async function GET(req: Request) {
         "Jour",
         "Campagne",
         "Groupe",
-        "Pub précise",
+        "Pub",
         "Dépense",
         "Devise",
         "Impressions",
@@ -111,7 +113,7 @@ export async function GET(req: Request) {
     "Canaux",
     "Liens d'entrée",
     "Offres",
-    "Importée",
+    "Campagne pub à rattacher",
     "Période",
   ];
   for (const m of METRICS) {
@@ -139,7 +141,7 @@ export async function GET(req: Request) {
       r.name,
       r.adPlatform ? (PLATFORM[r.adPlatform] ?? r.adPlatform) : "",
       STATUS[r.status] ?? r.status,
-      r.vertical ? VERTICAL_LABELS[r.vertical as Vertical] : "",
+      r.vertical ? universeLabel(r.vertical) : "",
       r.channels.join(", "),
       r.links,
       r.offers,
@@ -151,7 +153,7 @@ export async function GET(req: Request) {
     ...(rows.length
       ? [
           [
-            "Total (joueurs distincts)",
+            "Total (chaque joueur compté une fois)",
             "",
             "",
             "",

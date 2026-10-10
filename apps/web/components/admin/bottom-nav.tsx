@@ -7,7 +7,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Ellipsis, XIcon } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { NAV_ICONS } from "./nav-icons";
-import { NAV, activeHref, mobileNav, type NavItem } from "./nav-logic";
+import { NAV, activeHref, mobileNav, navTourId, type NavItem } from "./nav-logic";
 
 /** Trait orange de l'onglet actif (en haut de l'onglet). */
 const ACTIVE_TAB =
@@ -30,6 +30,7 @@ function MoreLink({
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-tour={navTourId(item)}
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-body transition-colors",
@@ -47,7 +48,9 @@ function MoreLink({
 
 /**
  * Barre du bas sur téléphone (< 768 px) : Accueil, Messages, Membres, Campagnes, puis « Plus » qui ouvre un volet
- * avec toutes les autres rubriques (Réglages et Aide en dernier). Fond nuit comme la barre de menu de l'ordinateur,
+ * avec les autres rubriques (Canaux, Statistiques), puis Réglages, Guide d'utilisation et Mon compte, séparés.
+ * Repères de visite guidée : `data-tour="nav-<clé>"` sur chaque entrée, `data-tour="nav-more"` sur « Plus ».
+ * Fond nuit comme la barre de menu de l'ordinateur,
  * onglet actif en blanc avec un trait orange. Respecte les zones sûres iOS (barre d'accueil en bas, encoche sur les côtés).
  * Le contenu de la page réserve la place de la barre (padding bas dans app/(admin)/layout.tsx).
  */
@@ -85,6 +88,7 @@ export function BottomNav({ isAdmin }: { isAdmin: boolean }) {
             <li key={item.href} className="min-w-0 flex-1">
               <Link
                 href={item.href}
+                data-tour={navTourId(item)}
                 aria-current={active ? "page" : undefined}
                 className={cn(TAB, active ? ACTIVE_TAB : "text-night-muted")}
               >
@@ -100,6 +104,7 @@ export function BottomNav({ isAdmin }: { isAdmin: boolean }) {
           <li className="min-w-0 flex-1">
             <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
               <DialogPrimitive.Trigger
+                data-tour="nav-more"
                 className={cn(TAB, moreActive || open ? ACTIVE_TAB : "text-night-muted")}
                 aria-label="Plus de rubriques"
               >

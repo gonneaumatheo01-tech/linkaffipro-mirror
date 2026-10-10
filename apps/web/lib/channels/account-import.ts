@@ -50,7 +50,7 @@ export function describeAccountError(err: unknown): string {
   if (err instanceof MtprotoFloodWait)
     return `Telegram demande d'attendre ${err.seconds} seconde${err.seconds > 1 ? "s" : ""} avant de réessayer.`;
   if (err instanceof MtprotoAuthError)
-    return "La session Telegram n'est plus valable : reconnectez le compte dans Réglages → Connecteurs → Telegram.";
+    return "La session Telegram n'est plus valable : reconnectez le compte dans Réglages → Connexions → Telegram.";
   if (err instanceof MtprotoLockBusy) return err.message;
   // Redis lent ou absent : message simple, le détail technique reste dans les journaux.
   if (err instanceof MtprotoLockUnavailable) {
@@ -93,13 +93,13 @@ export async function listAccountChannels(): Promise<
   if (!secret || secret.status !== "ACTIVE")
     return {
       ok: false,
-      error: "Le compte Telegram n'est pas connecté (Réglages → Connecteurs → Telegram).",
+      error: "Le compte Telegram n'est pas connecté (Réglages → Connexions → Telegram).",
     };
   if (!creds)
     return {
       ok: false,
       error:
-        "L'application Telegram (api_id / api_hash) n'est pas configurée (Réglages → Connecteurs → Telegram).",
+        "L'application Telegram (api_id / api_hash) n'est pas configurée (Réglages → Connexions → Telegram).",
     };
   let channels: AdminChannel[];
   try {

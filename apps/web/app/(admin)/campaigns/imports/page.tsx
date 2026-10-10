@@ -1,25 +1,51 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { FileUp } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
-import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/admin/data-table";
 import { Flash } from "@/components/admin/flash";
-import { EmptyState } from "@/components/admin/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { PageHeader } from "@/components/admin/page-header";
+import { StatusPill } from "@/components/admin/status-pill";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { groupImportErrors, ignoredRows, importErrorLines } from "@/lib/campaigns/import-report";
 import { fmtDate, fmtNum } from "@/lib/format";
 import { requireUser } from "@/lib/session";
-import { StatusBadge } from "@/lib/status-badges";
+import { StatusBadge, statusLabel } from "@/lib/status-badges";
 
 export const metadata: Metadata = { title: "Historique des imports" };
 
+/** Raisons des lignes ignorées d'un import, puis le détail ligne par ligne replié. */
+function Reasons({ lines }: { lines: string[] }) {
+  const reasons = groupImportErrors(lines);
+  if (reasons.length === 0)
+    return <p className="text-body text-muted-foreground">Toutes les lignes ont été importées.</p>;
+  return (
+    <div className="space-y-3">
+      <ul className="list-disc space-y-1 pl-5 text-body">
+        {reasons.map((r) => (
+          <li key={r.reason}>
+            <span className="font-medium tabular-nums">{fmtNum(r.count)}</span> ligne
+            {r.count > 1 ? "s" : ""} : {r.reason}
+          </li>
+        ))}
+      </ul>
+      <details className="text-note text-muted-foreground">
+        <summary className="inline-flex min-h-10 cursor-pointer items-center font-medium text-foreground md:min-h-8">
+          Voir les lignes en cause ({lines.length})
+        </summary>
+        <ul className="list-disc space-y-0.5 pl-4">
+          {lines.slice(0, 200).map((e, i) => (
+            <li key={i}>{e}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+/**
+ * Historique des imports (coûts et joueurs) : un tableau de 5 colonnes au plus, le détail d'un import (raisons des
+ * lignes ignorées) dans un volet ; le rapport de l'import qui vient d'être fait (`?batch=`) en haut de page.
+ */
 export default async function ImportsPage({ searchParams }: PageProps<"/campaigns/imports">) {
   await requireUser();
   const sp = await searchParams;
@@ -30,145 +56,120 @@ export default async function ImportsPage({ searchParams }: PageProps<"/campaign
   });
   const reportId = Array.isArray(sp.batch) ? sp.batch[0] : sp.batch;
   const report = reportId ? (batches.find((b) => b.id === reportId) ?? null) : null;
-  const reportLines = report && Array.isArray(report.errors) ? (report.errors as string[]) : [];
-  // Regroupe les lignes ignorées par raison (« Ligne 12 : date illisible « n/a » » → « date illisible »).
-  const reasons = new Map<string, number>();
-  for (const line of reportLines) {
-    const m = /^Ligne \d+ : ([^«]+?)(?: «.*)?$/.exec(line);
-    const reason = m ? m[1]!.trim() : "erreur à l'enregistrement";
-    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
-  }
-  const ignored = report ? Math.max(0, report.rows - report.imported) : 0;
+  const reportLines = report ? importErrorLines(report.errors) : [];
+  const ignored = report ? ignoredRows(report) : 0;
   return (
     <>
       <PageHeader
+        backHref="/campaigns"
+        backLabel="Campagnes"
         title="Historique des imports"
-        description="Fichiers importés (coûts et joueurs) : lignes lues, lignes importées, erreurs."
-        help="Si un import a des erreurs, dépliez-les pour voir les lignes en cause, corrigez le fichier et réimportez-le."
-      >
-        <Button variant="outline" className="max-md:h-10" render={<Link href="/campaigns" />}>
-          ← Campagnes
-        </Button>
-        <Button className="max-md:h-10" render={<Link href="/campaigns/import" />}>
-          Importer un CSV
-        </Button>
-      </PageHeader>
+        description="Les fichiers importés (dépenses et joueurs) : lignes lues, importées, ignorées."
+        primaryAction={{
+          label: "Importer des dépenses",
+          href: "/campaigns/import",
+          icon: <FileUp aria-hidden />,
+        }}
+      />
       <Flash ok={sp.ok} error={sp.error} />
       {report ? (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-base">Rapport d&apos;import · {report.filename}</CardTitle>
-            <CardDescription>
+        <Alert variant={ignored ? "warning" : "success"} role="status" className="mb-6">
+          <FileUp aria-hidden />
+          <AlertTitle>Import terminé · {report.filename}</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
               {fmtNum(report.rows)} ligne{report.rows > 1 ? "s" : ""} lue
               {report.rows > 1 ? "s" : ""} · {fmtNum(report.imported)} importée
               {report.imported > 1 ? "s" : ""} · {fmtNum(ignored)} ignorée{ignored > 1 ? "s" : ""}
               {report.createdBy?.name ? ` · par ${report.createdBy.name}` : ""} ·{" "}
               {fmtDate(report.createdAt)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {reasons.size === 0 ? (
-              <p className="text-muted-foreground">
-                Toutes les lignes ont été importées. Les coûts apparaissent dans la page Campagnes
-                et dans le tableau de bord (onglet Campagnes) dans la minute.
-              </p>
-            ) : (
+            </p>
+            {reportLines.length ? (
               <>
-                <ul className="list-disc pl-5">
-                  {[...reasons.entries()]
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([reason, count]) => (
-                      <li key={reason}>
-                        <strong>{fmtNum(count)}</strong> ligne{count > 1 ? "s" : ""} : {reason}
-                      </li>
-                    ))}
-                </ul>
-                <details className="text-xs text-muted-foreground">
-                  <summary className="cursor-pointer">
-                    Voir le détail ({reportLines.length} ligne{reportLines.length > 1 ? "s" : ""})
-                  </summary>
-                  <ul className="list-disc pl-4">
-                    {reportLines.map((e, i) => (
-                      <li key={i}>{e}</li>
-                    ))}
-                  </ul>
-                </details>
-                <p className="text-xs text-muted-foreground">
+                <Reasons lines={reportLines} />
+                <p>
                   Pour récupérer les lignes ignorées : corrigez-les dans le fichier (date, montant,
-                  nom de pub) et réimportez-le ; les jours déjà importés seront simplement
-                  remplacés.
+                  nom de pub) et réimportez-le ; les jours déjà importés sont simplement remplacés.
                 </p>
               </>
+            ) : (
+              <p>Les dépenses apparaissent dans Campagnes et dans Statistiques dans la minute.</p>
             )}
-          </CardContent>
-        </Card>
+          </AlertDescription>
+        </Alert>
       ) : null}
-      <Card>
-        <CardContent className="pt-6">
-          {batches.length === 0 ? (
-            <EmptyState
-              title="Aucun import pour l'instant."
-              description="Importez un rapport de coûts TikTok ou Meta pour calculer la rentabilité de vos campagnes."
-              action={{ href: "/campaigns/import", label: "Importer un CSV" }}
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quand</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="hidden md:table-cell">Fichier</TableHead>
-                  <TableHead className="text-right">Lignes</TableHead>
-                  <TableHead className="text-right">Importées</TableHead>
-                  <TableHead>Erreurs</TableHead>
-                  <TableHead className="hidden md:table-cell">Par</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {batches.map((b) => {
-                  const errors = Array.isArray(b.errors) ? (b.errors as string[]) : [];
-                  return (
-                    <TableRow key={b.id}>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {fmtDate(b.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge kind="importKind" value={b.kind} />
-                      </TableCell>
-                      <TableCell className="hidden font-mono text-xs md:table-cell">
-                        {b.filename}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtNum(b.rows)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtNum(b.imported)}
-                      </TableCell>
-                      <TableCell className="max-w-md whitespace-normal text-xs text-destructive">
-                        {errors.length === 0 ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
-                          <details>
-                            <summary className="cursor-pointer">
-                              {errors.length} erreur{errors.length > 1 ? "s" : ""}
-                            </summary>
-                            <ul className="list-disc pl-4">
-                              {errors.slice(0, 20).map((e, i) => (
-                                <li key={i}>{e}</li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {b.createdBy?.name ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <DataTable
+        label="Imports"
+        columns={[
+          { key: "when", header: "Quand" },
+          // Téléphone : le type passe sous la date (3 colonnes, aucune cachée hors de l'écran).
+          { key: "kind", header: "Type", hideOnMobile: true },
+          { key: "file", header: "Fichier", hideOnMobile: true },
+          { key: "imported", header: "Importées", align: "right" },
+          {
+            key: "errors",
+            header: "Lignes ignorées",
+            align: "right",
+            className: "max-md:whitespace-normal",
+          },
+        ]}
+        rows={batches.map((b) => {
+          const lines = importErrorLines(b.errors);
+          const skipped = ignoredRows(b);
+          return {
+            id: b.id,
+            cells: {
+              when: (
+                <span className="flex flex-col items-start gap-1">
+                  <span>{fmtDate(b.createdAt)}</span>
+                  <span className="md:hidden">
+                    <StatusBadge kind="importKind" value={b.kind} />
+                  </span>
+                </span>
+              ),
+              kind: <StatusBadge kind="importKind" value={b.kind} />,
+              file: <span className="font-mono text-note">{b.filename}</span>,
+              imported: `${fmtNum(b.imported)} / ${fmtNum(b.rows)}`,
+              errors: skipped ? (
+                <StatusPill tone="warning">{fmtNum(skipped)}</StatusPill>
+              ) : (
+                <span className="text-muted-foreground">0</span>
+              ),
+            },
+            sortValues: {
+              when: b.createdAt,
+              kind: statusLabel("importKind", b.kind),
+              file: b.filename,
+              imported: b.imported,
+              errors: skipped,
+            },
+            detailTitle: b.filename,
+            detailDescription: `${statusLabel("importKind", b.kind)} · ${fmtDate(b.createdAt)}`,
+            detail: (
+              <div className="space-y-6">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">
+                  <dt className="text-muted-foreground">Lignes lues</dt>
+                  <dd className="tabular-nums">{fmtNum(b.rows)}</dd>
+                  <dt className="text-muted-foreground">Importées</dt>
+                  <dd className="tabular-nums">{fmtNum(b.imported)}</dd>
+                  <dt className="text-muted-foreground">Ignorées</dt>
+                  <dd className="tabular-nums">{fmtNum(skipped)}</dd>
+                  <dt className="text-muted-foreground">Par</dt>
+                  <dd>{b.createdBy?.name ?? "—"}</dd>
+                </dl>
+                {lines.length ? <Reasons lines={lines} /> : null}
+              </div>
+            ),
+          };
+        })}
+        empty={{
+          icon: <FileUp />,
+          title: "Aucun import pour l'instant",
+          description:
+            "Importez un rapport de dépenses TikTok ou Meta pour calculer ce que rapportent vos campagnes.",
+          action: { href: "/campaigns/import", label: "Importer des dépenses", variant: "outline" },
+        }}
+      />
     </>
   );
 }

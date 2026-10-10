@@ -36,7 +36,7 @@ import {
   updateEndpointAction,
 } from "./actions";
 
-export const metadata: Metadata = { title: "Postbacks directs" };
+export const metadata: Metadata = { title: "Retour du casino (postbacks)" };
 
 /** Route d'export (fichier CSV, pas une page : lien classique). */
 const PLAYERS_EXPORT = "/members/players/export";
@@ -74,7 +74,7 @@ export default async function PostbacksPage({ searchParams }: PageProps<"/settin
   return (
     <>
       <PageHeader
-        title="Postbacks directs"
+        title="Retour du casino (postbacks)"
         description="Un postback est un appel automatique qu'un partenaire envoie à notre site à chaque inscription, dépôt ou revenu. Une adresse par programme ; l'identifiant de suivi (sub-ID) relie le joueur au membre et au message."
         help="Créez une adresse pour le programme, copiez l'URL et donnez-la au partenaire. Les programmes Link Affi n'en ont pas besoin : ils sont lus automatiquement."
       >

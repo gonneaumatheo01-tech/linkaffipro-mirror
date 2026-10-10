@@ -10,7 +10,8 @@ import { HelpTip } from "@/components/admin/help-tip";
 import { Pagination } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,6 +107,18 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
         >
           Exporter les joueurs (CSV)
         </Button>
+        <Link
+          href="/members/automations"
+          className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+        >
+          Relances automatiques
+        </Link>
+        <Link
+          href="/members/broadcasts"
+          className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+        >
+          Écrire à un groupe
+        </Link>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />
       <Card className="mb-4">
@@ -293,7 +306,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
               <EmptyState
                 title="Aucun membre pour l'instant."
                 description="Les membres apparaissent ici dès qu'une personne demande à rejoindre un canal par un lien d'invitation géré par un bot."
-                action={{ href: "/links", label: "Créer un lien d'invitation" }}
+                action={{ href: "/campaigns/links", label: "Créer un lien d'invitation" }}
               />
             )
           ) : (
@@ -392,7 +405,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
       </Card>
       <p className="mt-3 text-xs text-muted-foreground">
         {fmtNum(total)} membre{total > 1 ? "s" : ""} au total. Niveau de dépense : calculé à partir
-        des dépôts des joueurs rattachés (seuils dans Réglages → Connecteurs).
+        des dépôts des joueurs rattachés (seuils dans Réglages → Connexions).
       </p>
     </>
   );

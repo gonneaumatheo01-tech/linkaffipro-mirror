@@ -69,7 +69,8 @@ export const listCampaigns: (period: Period, compare: boolean) => Promise<Campai
     listCampaignsUncached(period, compare),
   );
 
-const campaignScopeInclude = {
+/** Relations qui forment le périmètre d'une campagne (liens d'entrée, liens traqués, pubs) : voir `scopeFromCampaign`. */
+export const campaignScopeInclude = {
   inviteLinks: { select: { id: true } },
   trackingLinks: { select: { id: true } },
   adSets: { select: { ads: { select: { inviteLinkId: true, trackingLinkId: true } } } },

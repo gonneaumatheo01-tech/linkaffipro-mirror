@@ -1,342 +1,363 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { VERTICAL_LABELS, type Vertical } from "@linkaffipro/core";
-import { PageHeader } from "@/components/admin/page-header";
-import { Flash } from "@/components/admin/flash";
+import {
+  ChevronDown,
+  Download,
+  FileClock,
+  FileUp,
+  Link2,
+  Megaphone,
+  Plus,
+  SearchX,
+} from "lucide-react";
+import { AdvancedSection } from "@/components/admin/form-section";
+import { DataTable } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
-import { HelpTip } from "@/components/admin/help-tip";
-import { RememberFilters } from "@/components/admin/remember-filters";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { NewCampaignButton } from "@/components/campaigns/new-campaign-button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Flash } from "@/components/admin/flash";
+import { Term } from "@/components/admin/help-tip";
+import { PageHeader } from "@/components/admin/page-header";
 import { PeriodSelect } from "@/components/admin/period-select";
-import { Delta } from "@/components/dashboard/delta";
-import { fmtMoney, fmtNum } from "@/lib/format";
-import { fmtRatio } from "@/lib/campaigns/metrics";
-import { listCampaigns, type CampaignDeltas } from "@/lib/campaigns/queries";
+import { RememberFilters } from "@/components/admin/remember-filters";
+import { CampaignCard } from "@/components/campaigns/campaign-card";
+import { FigureDelta } from "@/components/campaigns/campaign-figure";
+import { FilterChips } from "@/components/campaigns/filter-chips";
+import { buttonVariants, Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import {
-  parseCompare,
-  periodLabel,
-  periodParams,
-  previousPeriod,
-  resolvePeriod,
-  variationOf,
-} from "@/lib/periods";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { loadCampaignTrends, totalForCampaigns } from "@/lib/campaigns/card-queries";
+import {
+  campaignsHref,
+  compactMoney,
+  exactMoney,
+  filterCampaigns,
+  filterCounts,
+  flatParams,
+  groupMoney,
+  groupMoneyDigits,
+  hasCampaignFilters,
+  noMatchTitle,
+  parseCampaignFilters,
+  platformShortLabel,
+  profitTone,
+  sortByStatus,
+  splitImportedShells,
+  STATUS_FILTER_OPTIONS,
+  sumSpend,
+  UNIVERSE_FILTER_OPTIONS,
+} from "@/lib/campaigns/cards";
+import type { CampaignMetrics } from "@/lib/campaigns/metrics";
+import { listCampaigns } from "@/lib/campaigns/queries";
+import { fmtNum } from "@/lib/format";
+import { displayVariation } from "@/lib/campaigns/display";
+import { parseCompare, periodLabelWithDates, periodParams, resolvePeriod } from "@/lib/periods";
 import { requireUser } from "@/lib/session";
-import { StatusBadge, statusLabel } from "@/lib/status-badges";
+import { statusLabel } from "@/lib/status-badges";
+import { universeClasses } from "@/lib/universe";
 
 export const metadata: Metadata = { title: "Campagnes" };
 
-const TIPS = {
-  members: "Membres : demandes d'adhésion acceptées via les liens d'entrée de cette campagne.",
-  registrations:
-    "Inscrits : joueurs inscrits chez un partenaire, rattachés à la campagne par l'identifiant de suivi (sub-ID) ou parce qu'ils appartiennent à une de ses offres Link Affi.",
-  ftd: "Premier dépôt (FTD) : joueurs rattachés à la campagne qui ont déposé de l'argent au moins une fois.",
-  cpl: "Coût par membre arrivé (CPL) = dépense / membres entrés.",
-  cpa: "CPA (coût par inscrit) : dépense divisée par le nombre d'inscrits.",
-  costPerFtd: "Coût par FTD : dépense divisée par le nombre de premiers dépôts.",
-  revenue:
-    "Revenu : NGR (revenu net) des joueurs rattachés à la campagne, daté par Link Affi : somme des NGR de la période.",
-  roas: "ROAS (retour sur dépense) : revenu divisé par dépense. 1,00× = remboursé, au-dessus = rentable.",
-};
-
-function Head({ label, tip, className }: { label: string; tip?: string; className?: string }) {
+/**
+ * Ligne de total discrète : chaque joueur, clic et membre n'est compté qu'une fois. Ses montants ont la précision des
+ * cartes (`digits`), le montant exact au survol.
+ */
+function TotalLine({
+  label,
+  periodText,
+  total,
+  previous,
+  digits,
+}: {
+  label: string;
+  periodText: string;
+  total: CampaignMetrics;
+  previous: CampaignMetrics | null;
+  digits: 0 | 2;
+}) {
+  const d = (k: keyof CampaignMetrics, favorable: "up" | "down" = "up") =>
+    previous ? (
+      <FigureDelta delta={displayVariation(total[k], previous[k])} favorable={favorable} />
+    ) : null;
+  const tone = profitTone(total.profit);
   return (
-    <TableHead className={className}>
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {tip ? <HelpTip>{tip}</HelpTip> : null}
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-note text-muted-foreground">
+      <span>
+        <span className="font-medium text-foreground">{label}</span> · {periodText}
       </span>
-    </TableHead>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-medium text-foreground tabular-nums" title={exactMoney(total.spend)}>
+          {groupMoney(total.spend, digits)}
+        </span>
+        dépensés {d("spend", "down")}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-medium text-foreground tabular-nums">{fmtNum(total.members)}</span>
+        membres {d("members")}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-medium text-foreground tabular-nums">{fmtNum(total.ftds)}</span>
+        <Term term="FTD">premiers dépôts</Term> {d("ftds")}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        bénéfice
+        <span
+          title={exactMoney(total.profit)}
+          className={cn(
+            "font-medium tabular-nums",
+            tone === "positive" && "text-success",
+            tone === "negative" && "text-danger",
+            tone === "neutral" && "text-foreground",
+          )}
+        >
+          {groupMoney(total.profit, digits)}
+        </span>
+        {d("profit")}
+      </span>
+      <span>Chaque membre et chaque joueur n&apos;y est compté qu&apos;une fois.</span>
+    </p>
   );
 }
 
+/**
+ * Campagnes : une carte par campagne (univers, statut, dépensé, membres, premiers dépôts, bénéfice, mini-courbe),
+ * filtres par univers et par statut, période commune, ligne de total sans double compte, et en bas, repliées, les
+ * campagnes pub importées d'un compte connecté qui attendent d'être rattachées.
+ */
 export default async function CampaignsPage({ searchParams }: PageProps<"/campaigns">) {
   await requireUser();
   const sp = await searchParams;
   const period = resolvePeriod(sp);
   const compare = parseCompare(sp.compare);
   const pp = periodParams(period, compare);
-  const { rows, total: totals, previousTotal: prevTotals } = await listCampaigns(period, compare);
-  // Ligne Total : calculée sur les joueurs, clics et adhésions distincts de toutes les campagnes (une offre ou un lien
-  // partagé par deux campagnes n'est pas compté deux fois), pas en additionnant les lignes.
-  const totalRoas = totals.roas;
-  const prevTotalRoas = prevTotals ? prevTotals.roas : null;
-  /** Variation d'une colonne d'une ligne (rien si la comparaison est désactivée). */
-  const delta = (d: CampaignDeltas | null, key: keyof CampaignDeltas, invert = false) =>
-    compare ? <Delta value={d?.[key]} invert={invert} /> : null;
+  const filters = parseCampaignFilters(sp);
+  const filtered = hasCampaignFilters(filters);
+  const keep = { ...flatParams(sp), ...pp };
+
+  const list = await listCampaigns(period, compare);
+  const { campaigns, shells } = splitImportedShells(list.rows);
+  const shown = sortByStatus(filterCampaigns(campaigns, filters));
+  const counts = filterCounts(campaigns, filters);
+  // Total des cartes affichées : celui de la liste quand elles y sont toutes, sinon recalculé sur elles seules.
+  const sameAsList = !filtered && shells.length === 0;
+  const [trends, subset] = await Promise.all([
+    loadCampaignTrends(
+      shown.map((c) => c.id),
+      period,
+    ),
+    shown.length && !sameAsList
+      ? totalForCampaigns(
+          shown.map((c) => c.id),
+          period,
+          compare,
+        )
+      : Promise.resolve(null),
+  ]);
+  const total = subset ? subset.total : list.total;
+  const previousTotal = subset ? subset.previousTotal : list.previousTotal;
+  const shellDigits = groupMoneyDigits(shells.map((s) => s.metrics.spend));
+  // Une seule précision pour tous les montants de la grille et de sa ligne de total.
+  const moneyDigits = groupMoneyDigits([
+    ...shown.flatMap((c) => [c.metrics.spend, c.metrics.profit]),
+    total.spend,
+    total.profit,
+  ]);
+
+  const periodQs = new URLSearchParams(pp).toString();
+  const exportHref = `/campaigns/export?${periodQs}`;
+  const filterParams = {
+    vertical: filters.vertical || undefined,
+    status: filters.status || undefined,
+  };
+  const universeChips = UNIVERSE_FILTER_OPTIONS.map((o) => ({
+    key: o.value || "all",
+    label: o.label,
+    href: campaignsHref(keep, { vertical: o.value }),
+    count: counts.vertical[o.value],
+    selected: filters.vertical === o.value,
+    // Point décoratif seulement : le libellé visible de la pastille nomme déjà l'univers.
+    icon:
+      o.value && o.value !== "none" ? (
+        <span
+          aria-hidden
+          className={cn("size-2 shrink-0 rounded-full", universeClasses(o.value).dot)}
+        />
+      ) : undefined,
+  }));
+  const statusChips = STATUS_FILTER_OPTIONS.map((o) => ({
+    key: o.value || "all",
+    label: o.label,
+    href: campaignsHref(keep, { status: o.value }),
+    count: counts.status[o.value],
+    selected: filters.status === o.value,
+  }));
 
   return (
     <>
       <PageHeader
         title="Campagnes"
-        description="Une campagne = ce que vous promouvez (offres Link Affi), où (canaux Telegram) et avec quelles pubs (TikTok, Meta…). Ici : ce que coûte et rapporte chacune."
-        help="Cliquez « Nouvelle campagne » : l'assistant crée en 4 étapes la campagne, ses offres, ses canaux et un lien d'entrée par pub. La période choisie est mémorisée."
-      >
-        <Button
-          variant="outline"
-          className="max-md:h-10"
-          render={<a href={`/campaigns/export?${new URLSearchParams(pp).toString()}`} />}
-        >
-          Exporter CSV{compare ? " (avec comparaison)" : ""}
-        </Button>
-        <Button
-          variant="outline"
-          className="max-md:h-10"
-          render={<Link href="/campaigns/import" />}
-        >
-          Importer un CSV
-        </Button>
-        <Button
-          variant="outline"
-          className="max-md:h-10"
-          render={<Link href="/campaigns/imports" />}
-        >
-          Historique des imports
-        </Button>
-        <NewCampaignButton />
-      </PageHeader>
-      <Flash ok={sp.ok} error={sp.error} />
-      <div className="mb-2 flex flex-wrap items-end gap-2 text-sm">
-        <PeriodSelect period={period} compare={compare} action="/campaigns" />
-        <Suspense fallback={null}>
-          <RememberFilters storageKey="campaigns" className="max-md:h-10" />
-        </Suspense>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">
-        Période : {periodLabel(period)}
-        {compare
-          ? ` · comparée à la précédente (${periodLabel(previousPeriod(period))}). Vert = favorable, rouge = défavorable (pour les coûts, une baisse est favorable).`
-          : ". Cochez « Comparer » pour afficher la variation par rapport à la période précédente."}
-      </p>
-      <Card>
-        <CardContent className="pt-6">
-          {rows.length === 0 ? (
-            <EmptyState
-              title="Aucune campagne pour l'instant."
-              description="Créez votre première campagne avec l'assistant (offres, canaux, pubs et liens d'entrée en 4 étapes), ou importez un CSV TikTok / Meta : les campagnes pub seront créées à partir des noms."
-              action={{ href: "/campaigns/new", label: "Nouvelle campagne" }}
+        description="Ce que vous promouvez, où, et ce que ça rapporte."
+        primaryAction={{
+          label: "Nouvelle campagne",
+          href: "/campaigns/new",
+          icon: <Plus aria-hidden />,
+        }}
+        secondaryActions={
+          <>
+            {/* Téléphone : « Tous les liens » passe dans « Plus », pour que « Plus » et le bouton orange tiennent
+                sur une ligne. */}
+            <Link
+              href="/campaigns/links"
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:hidden")}
             >
-              <Button
-                variant="outline"
-                className="max-md:h-10"
-                render={<Link href="/campaigns/import" />}
-              >
-                Importer un CSV de coûts
-              </Button>
-            </EmptyState>
+              <Link2 aria-hidden />
+              Tous les liens
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" className="max-md:h-10">
+                    Plus
+                    <ChevronDown aria-hidden />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="md:hidden" render={<Link href="/campaigns/links" />}>
+                  <Link2 aria-hidden />
+                  Tous les liens
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="md:hidden" />
+                <DropdownMenuItem render={<Link href="/campaigns/import" />}>
+                  <FileUp aria-hidden />
+                  Importer des dépenses (CSV)
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/campaigns/imports" />}>
+                  <FileClock aria-hidden />
+                  Historique des imports
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem render={<a href={exportHref} />}>
+                  <Download aria-hidden />
+                  Exporter en CSV{compare ? " (avec comparaison)" : ""}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
+      <Flash ok={sp.ok} error={sp.error} />
+
+      {campaigns.length === 0 ? (
+        <EmptyState
+          icon={<Megaphone />}
+          title="Créez votre première campagne"
+          description="L'assistant vous guide en 4 étapes : nom et univers, offres, canaux, pubs. Chaque pub reçoit son lien d'entrée."
+          action={{ href: "/campaigns/new", label: "Nouvelle campagne" }}
+        >
+          <Link
+            href="/campaigns/import"
+            className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+          >
+            Importer des dépenses (CSV)
+          </Link>
+        </EmptyState>
+      ) : (
+        <>
+          <div className="mb-5 space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <PeriodSelect
+                period={period}
+                compare={compare}
+                action="/campaigns"
+                extra={filterParams}
+              />
+              <Suspense fallback={null}>
+                <RememberFilters storageKey="campaigns" className="max-md:h-10" />
+              </Suspense>
+            </div>
+            <div className="space-y-2">
+              <FilterChips label="Univers" chips={universeChips} />
+              <FilterChips label="Statut" chips={statusChips} />
+            </div>
+          </div>
+
+          {shown.length === 0 ? (
+            <EmptyState
+              icon={<SearchX />}
+              title={noMatchTitle(filters)}
+              description="Choisissez un autre filtre, ou affichez toutes vos campagnes."
+              action={{
+                href: campaignsHref(keep, { vertical: "", status: "" }),
+                label: "Voir toutes les campagnes",
+                variant: "outline",
+              }}
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Campagne</TableHead>
-                  <TableHead className="hidden md:table-cell">Plateforme</TableHead>
-                  <TableHead className="hidden lg:table-cell">Canaux</TableHead>
-                  <TableHead className="text-right">Dépense</TableHead>
-                  <TableHead className="hidden text-right lg:table-cell">Clics</TableHead>
-                  <Head label="Membres" tip={TIPS.members} className="text-right" />
-                  <Head
-                    label="Inscrits"
-                    tip={TIPS.registrations}
-                    className="hidden text-right md:table-cell"
+            <section aria-label="Vos campagnes" className="space-y-3">
+              <TotalLine
+                label={
+                  shown.length > 1 ? `Total des ${shown.length} campagnes` : "Total de la campagne"
+                }
+                periodText={periodLabelWithDates(period)}
+                total={total}
+                previous={compare ? previousTotal : null}
+                digits={moneyDigits}
+              />
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {shown.map((r) => (
+                  <CampaignCard
+                    key={r.id}
+                    row={r}
+                    href={`/campaigns/${r.id}${periodQs ? `?${periodQs}` : ""}`}
+                    platformLabel={platformShortLabel(r.adPlatform)}
+                    compare={compare}
+                    membersTrend={trends[r.id]?.members}
+                    moneyDigits={moneyDigits}
                   />
-                  <Head label="FTD" tip={TIPS.ftd} className="text-right" />
-                  <Head label="CPL" tip={TIPS.cpl} className="hidden text-right md:table-cell" />
-                  <Head label="CPA" tip={TIPS.cpa} className="hidden text-right lg:table-cell" />
-                  <Head
-                    label="Coût/FTD"
-                    tip={TIPS.costPerFtd}
-                    className="hidden text-right lg:table-cell"
-                  />
-                  <Head
-                    label="Revenu"
-                    tip={TIPS.revenue}
-                    className="hidden text-right md:table-cell"
-                  />
-                  <Head label="ROAS" tip={TIPS.roas} className="text-right" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <Link href={`/campaigns/${r.id}`} className="font-medium hover:underline">
-                        {r.name}
-                      </Link>
-                      <div className="text-xs text-muted-foreground">
-                        {statusLabel("campaign", r.status)}
-                        {r.vertical ? ` · ${VERTICAL_LABELS[r.vertical as Vertical]}` : ""} ·{" "}
-                        {r.links} lien{r.links > 1 ? "s" : ""} d&apos;entrée · {r.offers} offre
-                        {r.offers > 1 ? "s" : ""}
-                      </div>
-                      {r.importedFrom ? (
-                        <Badge variant="secondary" className="mt-1 font-normal">
-                          importée de{" "}
-                          {r.importedFrom === "META"
-                            ? "Meta"
-                            : r.importedFrom === "TIKTOK"
-                              ? "TikTok"
-                              : "la plateforme"}
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {r.adPlatform ? <StatusBadge kind="adPlatform" value={r.adPlatform} /> : "—"}
-                      {r.source ? (
-                        <span
-                          className="ml-1 rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground"
-                          title={
-                            r.source === "api"
-                              ? "Coûts reçus automatiquement du compte connecté"
-                              : r.source === "file"
-                                ? "Coûts importés par fichier CSV"
-                                : "Coûts saisis à la main"
-                          }
-                        >
-                          {r.source === "api" ? "API" : r.source === "file" ? "Fichier" : "Saisie"}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="hidden text-xs lg:table-cell">
-                      {r.channels.join(", ") || "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div>{fmtMoney(r.metrics.spend)}</div>
-                      {delta(r.deltas, "spend", true)}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      <div>{fmtNum(r.metrics.entryClicks ?? 0)}</div>
-                      {delta(r.deltas, "entryClicks")}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div>{fmtNum(r.metrics.members)}</div>
-                      {delta(r.deltas, "members")}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      <div>{fmtNum(r.metrics.registrations)}</div>
-                      {delta(r.deltas, "registrations")}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div>{fmtNum(r.metrics.ftds)}</div>
-                      {delta(r.deltas, "ftds")}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      <div>{fmtMoney(r.metrics.cpl)}</div>
-                      {delta(r.deltas, "cpl", true)}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      <div>{fmtMoney(r.metrics.cpa)}</div>
-                      {delta(r.deltas, "cpa", true)}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                      <div>{fmtMoney(r.metrics.costPerFtd)}</div>
-                      {delta(r.deltas, "costPerFtd", true)}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums md:table-cell">
-                      <div>{fmtMoney(r.metrics.revenue)}</div>
-                      {delta(r.deltas, "revenue")}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div>{fmtRatio(r.metrics.roas)}</div>
-                      {delta(r.deltas, "roas")}
-                    </TableCell>
-                  </TableRow>
                 ))}
-                <TableRow className="font-medium">
-                  <TableCell>
-                    Total
-                    <HelpTip>
-                      Joueurs, clics et membres distincts de toutes les campagnes : un joueur
-                      partagé par deux campagnes (même offre) n&apos;est compté qu&apos;une fois.
-                    </HelpTip>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell" />
-                  <TableCell className="hidden lg:table-cell" />
-                  <TableCell className="text-right tabular-nums">
-                    <div>{fmtMoney(totals.spend)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.spend, prevTotals.spend)} invert />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                    <div>{fmtNum(totals.entryClicks ?? 0)}</div>
-                    {prevTotals ? (
-                      <Delta
-                        value={variationOf(totals.entryClicks ?? 0, prevTotals.entryClicks ?? 0)}
-                      />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <div>{fmtNum(totals.members)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.members, prevTotals.members)} />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    <div>{fmtNum(totals.registrations)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.registrations, prevTotals.registrations)} />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <div>{fmtNum(totals.ftds)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.ftds, prevTotals.ftds)} />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    <div>{fmtMoney(totals.cpl)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.cpl, prevTotals.cpl)} invert />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                    <div>{fmtMoney(totals.cpa)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.cpa, prevTotals.cpa)} invert />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                    <div>{fmtMoney(totals.costPerFtd)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.costPerFtd, prevTotals.costPerFtd)} invert />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    <div>{fmtMoney(totals.revenue)}</div>
-                    {prevTotals ? (
-                      <Delta value={variationOf(totals.revenue, prevTotals.revenue)} />
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <div>{fmtRatio(totalRoas)}</div>
-                    {prevTotals ? <Delta value={variationOf(totalRoas, prevTotalRoas)} /> : null}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+              </div>
+            </section>
           )}
-        </CardContent>
-      </Card>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Membres = demandes acceptées via les liens d&apos;entrée de la campagne. Inscrits / FTD /
-        revenu = joueurs rattachés à la campagne (identifiant de suivi sub-ID, ou offre Link Affi de
-        la campagne), aux dates Link Affi ; le revenu est la somme des NGR de la période. CPL =
-        dépense / membres entrés ; CPA = dépense / inscrits ; ROAS = revenu / dépense. Les campagnes
-        « importées » sont des campagnes pub reçues d&apos;un compte connecté (Réglages →
-        Connecteurs) : rattachez-les à une de vos campagnes depuis son onglet Pubs. Sur téléphone,
-        tournez l&apos;écran ou exportez en CSV pour voir toutes les colonnes.
-      </p>
+        </>
+      )}
+
+      {shells.length ? (
+        <AdvancedSection
+          className="mt-8"
+          title={`Campagnes pub à rattacher (${shells.length})`}
+          description={`Reçues d'un compte Meta ou TikTok connecté · ${compactMoney(sumSpend(shells))} dépensés sur la période, hors du total ci-dessus.`}
+        >
+          <p className="text-body text-muted-foreground">
+            Ouvrez une de vos campagnes, onglet Pubs, puis « Rattacher une campagne pub importée » :
+            ses groupes, ses pubs et ses dépenses la rejoignent, et les prochaines dépenses y
+            arrivent toutes seules.
+          </p>
+          <DataTable
+            label="Campagnes pub à rattacher"
+            columns={[
+              { key: "name", header: "Campagne pub", className: "min-w-40 whitespace-normal" },
+              { key: "platform", header: "Plateforme", hideOnMobile: true },
+              { key: "spend", header: "Dépensé", align: "right" },
+            ]}
+            rows={shells.map((s) => ({
+              id: s.id,
+              href: `/campaigns/${s.id}?${new URLSearchParams({ ...pp, tab: "ads" }).toString()}`,
+              cells: {
+                name: s.name,
+                platform: s.importedFrom ? statusLabel("adPlatform", s.importedFrom) : "—",
+                spend: groupMoney(s.metrics.spend, shellDigits),
+              },
+              sortValues: { spend: s.metrics.spend },
+            }))}
+          />
+        </AdvancedSection>
+      ) : null}
     </>
   );
 }

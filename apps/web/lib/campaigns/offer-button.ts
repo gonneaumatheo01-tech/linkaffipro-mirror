@@ -107,7 +107,7 @@ export function copiedOfferChoice(
     );
     if (picked) return { offerId: picked, campaignId: ctx.campaign.id };
     return {
-      error: `Bouton « ${b.text} » : la campagne « ${ctx.campaign.name} » n'a plus d'offre active ; ajoutez-lui une offre (onglet Offres de la campagne) puis réessayez.`,
+      error: `Bouton « ${b.text} » : la campagne « ${ctx.campaign.name} » n'a plus d'offre active ; ajoutez-lui une offre (fiche de la campagne, Vue d'ensemble, « Offres Link Affi ») puis réessayez.`,
     };
   }
   if (original) return { offerId: original, campaignId: null };

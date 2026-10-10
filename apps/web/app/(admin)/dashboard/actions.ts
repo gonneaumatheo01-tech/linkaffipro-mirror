@@ -14,7 +14,7 @@ export async function recomputeStatsAction(): Promise<void> {
     await audit({ userId: admin.id, action: "stats.recompute_requested" });
     invalidateDashboards();
   } catch (err) {
-    redirect(`/?tab=ads&error=${encodeURIComponent(`Impossible de lancer le recalcul : ${err instanceof Error ? err.message : "erreur"}`)}`);
+    redirect(`/stats?tab=ads&error=${encodeURIComponent(`Impossible de lancer le recalcul : ${err instanceof Error ? err.message : "erreur"}`)}`);
   }
-  redirect(`/?tab=ads&ok=${encodeURIComponent("Recalcul lancé : les chiffres se mettent à jour dans une minute.")}`);
+  redirect(`/stats?tab=ads&ok=${encodeURIComponent("Recalcul lancé : les chiffres se mettent à jour dans une minute.")}`);
 }

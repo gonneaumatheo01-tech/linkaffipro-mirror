@@ -32,7 +32,7 @@ import {
 } from "./actions";
 import { MetaAppGuide } from "./guide";
 
-export const metadata: Metadata = { title: "Connecteurs · Meta Ads" };
+export const metadata: Metadata = { title: "Connexions · Meta Ads" };
 export const dynamic = "force-dynamic";
 
 const START_URL = "/api/connectors/meta/start";
@@ -67,7 +67,7 @@ export default async function MetaConnectorPage({
   return (
     <>
       <PageHeader
-        title="Connecteurs · Meta Ads"
+        title="Connexions · Meta Ads"
         description="Connectez vos comptes publicitaires Facebook / Instagram : les dépenses, impressions, clics et résultats de chaque pub arrivent automatiquement dans Campagnes (onglet Pubs), chaque heure."
         help={
           isAdmin
@@ -81,7 +81,7 @@ export default async function MetaConnectorPage({
           className="max-md:h-10"
           render={<Link href="/settings/connectors" />}
         >
-          ← Connecteurs
+          ← Connexions
         </Button>
       </PageHeader>
       <Flash ok={sp.ok} error={sp.error} />

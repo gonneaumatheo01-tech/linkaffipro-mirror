@@ -1,5 +1,5 @@
 // Enregistre les bots dont les jetons sont dans TELEGRAM_BOT_TOKEN_<UNIVERS> (CASINO, SPORTS, DATING).
-// Même code que la page Bots de l'interface. N'affiche jamais les jetons.
+// Même code que la page Réglages → Bots de l'interface. N'affiche jamais les jetons.
 import { VERTICALS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { registerBotFromToken } from "../src/service";

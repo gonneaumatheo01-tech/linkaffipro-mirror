@@ -3,6 +3,9 @@ import { Sidebar } from "@/components/admin/sidebar";
 import { Header } from "@/components/admin/header";
 import { BottomNav } from "@/components/admin/bottom-nav";
 import { Shortcuts } from "@/components/admin/shortcuts";
+import { GuidedTour } from "@/components/admin/tour/guided-tour";
+import { shouldStartTour } from "@/lib/onboarding/state";
+import { loadOnboarding } from "@/lib/onboarding/store";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +13,15 @@ export const dynamic = "force-dynamic";
  * Coque de l'espace connecté : barre de menu nuit à gauche (rail d'icônes sur tablette, barre complète sur
  * ordinateur), en-tête blanc, contenu clair, barre du bas sur téléphone (le contenu lui laisse la place : 56 px +
  * zone sûre iOS). Les marges latérales suivent les zones sûres (encoche d'un iPhone en paysage).
+ * Visite guidée : démarre seule tant que l'utilisateur ne l'a ni terminée ni passée (`onboarding.<userId>`) ; si
+ * l'état ne peut pas être lu, elle ne démarre pas (la page s'affiche quand même).
  */
 export default async function AdminLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
+  const startTour = await loadOnboarding(user.id)
+    .then(shouldStartTour)
+    .catch(() => false);
   return (
     <div className="flex min-h-dvh">
       <a
@@ -35,6 +43,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/">) {
         <Shortcuts />
       </div>
       <BottomNav isAdmin={isAdmin} />
+      <GuidedTour autoStart={startTour} />
     </div>
   );
 }

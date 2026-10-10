@@ -28,7 +28,7 @@ import { computeSubIdHealth } from "./health";
 import { loadLinkAffiDiagnostic, newCampaignHrefFor } from "@/lib/linkaffi/diagnostic";
 import { saveRatesAction, saveSpendThresholdsAction, syncNowAction } from "./actions";
 
-export const metadata: Metadata = { title: "Connecteurs" };
+export const metadata: Metadata = { title: "Connexions" };
 
 /** Export brut de tous les joueurs Link Affi (ADMIN, diagnostic) : route de téléchargement, pas une page. */
 const RAW_PLAYERS_EXPORT = "/members/players/export?scope=all";
@@ -99,7 +99,7 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
   return (
     <>
       <PageHeader
-        title="Connecteurs"
+        title="Connexions"
         description="Tout ce qui alimente la plateforme automatiquement : Link Affi (joueurs, dépôts, revenus, toutes les 2 minutes), vos comptes publicitaires Meta et TikTok (dépenses, chaque heure) et votre compte Telegram (vues des messages)."
         help="Rien à faire au quotidien. Si une table est en erreur, cliquez sur « Synchroniser maintenant » ; si l'erreur persiste, prévenez l'administrateur technique."
       >

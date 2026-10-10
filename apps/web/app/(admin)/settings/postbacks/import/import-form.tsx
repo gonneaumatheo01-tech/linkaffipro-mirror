@@ -81,7 +81,7 @@ function ImportFlow({
               className="max-md:h-10"
               render={<Link href="/settings/postbacks" />}
             >
-              ← Postbacks directs
+              ← Retour du casino
             </Button>
           </div>
         </CardContent>

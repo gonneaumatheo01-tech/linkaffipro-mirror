@@ -1,17 +1,13 @@
 import {
   BarChart3,
-  Bot,
-  CircleHelp,
+  BookOpen,
   House,
-  Link2,
   Megaphone,
   MessageSquare,
   Radio,
-  ScrollText,
-  Send,
   Settings,
+  UserRound,
   Users,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { NavIcon } from "./nav-logic";
@@ -22,16 +18,12 @@ import type { NavIcon } from "./nav-logic";
  */
 export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   BarChart3,
-  Bot,
-  CircleHelp,
+  BookOpen,
   House,
-  Link2,
   Megaphone,
   MessageSquare,
   Radio,
-  ScrollText,
-  Send,
   Settings,
+  UserRound,
   Users,
-  Zap,
 };
