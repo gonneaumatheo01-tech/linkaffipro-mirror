@@ -8,6 +8,7 @@ import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
 import { recheckChannelRights } from "@linkaffipro/telegram";
 import { approveNow, declineNow } from "@/lib/approval/telegram";
+import { calendarReturnParams } from "@/lib/channels/return-to";
 import { rightsMessage } from "@/lib/channels/rights-message";
 
 function back(channelId: string, tab: string, params: Record<string, string>): never {
@@ -85,7 +86,7 @@ export async function saveRuleAction(formData: FormData): Promise<void> {
     const field = String(parsed.error.issues[0]?.path[0] ?? "");
     back(channelId, "rules", {
       error: RULE_FIELD_LABELS[field]
-        ? `Vérifiez le champ « ${RULE_FIELD_LABELS[field]} » : ${RULE_FIELD_HINTS[field] ?? "valeur invalide"}.`
+        ? `Vérifiez le champ « ${RULE_FIELD_LABELS[field]} » : ${RULE_FIELD_HINTS[field] ?? "valeur invalide"}.`
         : "Vérifiez les champs de la règle : une valeur est invalide.",
     });
   }
@@ -176,7 +177,24 @@ export async function declineMembershipAction(formData: FormData): Promise<void>
   );
 }
 
-/** Enfile un recalcul immédiat des meilleurs horaires (tous canaux ; tâche `stats` du worker). */
+/**
+ * Retour vers le calendrier des messages du canal, où sont montrés les meilleurs créneaux, avec la semaine et les
+ * filtres que l'utilisateur regardait (champs cachés `week`, `day`, `vertical`, `campaignId`, `category`).
+ */
+function backToCalendar(
+  channelId: string,
+  formData: FormData,
+  params: Record<string, string>,
+): never {
+  const keep = calendarReturnParams((name) => formData.get(name));
+  redirect(`/messages?${new URLSearchParams({ channelId, ...keep, ...params }).toString()}`);
+}
+
+/**
+ * Enfile un recalcul immédiat des meilleurs horaires (tous canaux ; tâche `stats` du worker). Les meilleurs créneaux
+ * sont montrés dans le calendrier des messages (l'onglet « Meilleurs horaires » de la fiche canal est retiré) : le
+ * message de confirmation revient sur `/messages?channelId=<id>`.
+ */
 export async function recomputeBestHoursAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const channelId = z.string().min(1).parse(formData.get("channelId"));
@@ -187,7 +205,7 @@ export async function recomputeBestHoursAction(formData: FormData): Promise<void
       { jobId: `best-hours:${Math.floor(Date.now() / 60_000)}` },
     );
   } catch {
-    back(channelId, "besthours", {
+    backToCalendar(channelId, formData, {
       error:
         "Recalcul impossible pour l'instant (file d'attente indisponible). Réessayez dans une minute.",
     });
@@ -199,8 +217,9 @@ export async function recomputeBestHoursAction(formData: FormData): Promise<void
     entityId: channelId,
   });
   revalidatePath(`/channels/${channelId}`);
-  back(channelId, "besthours", {
-    ok: "Recalcul lancé : rechargez cette page dans une minute pour voir la carte à jour.",
+  revalidatePath("/messages");
+  backToCalendar(channelId, formData, {
+    ok: "Recalcul des meilleurs créneaux lancé : rechargez cette page dans une minute pour les voir à jour.",
   });
 }
 
@@ -215,7 +234,9 @@ export async function recheckRightsAction(formData: FormData): Promise<void> {
     message = rightsMessage(await recheckChannelRights(channelId, { userId: user.id }));
   } catch (err) {
     if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    back(channelId, tab, { error: `Vérification impossible : ${err instanceof Error ? err.message : "erreur inconnue"}` });
+    back(channelId, tab, {
+      error: `Vérification impossible : ${err instanceof Error ? err.message : "erreur inconnue"}`,
+    });
   }
   revalidatePath(`/channels/${channelId}`);
   revalidatePath("/channels");

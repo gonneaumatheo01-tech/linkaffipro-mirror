@@ -4,12 +4,14 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { PostForm, type PostFormValues } from "@/components/messages/post-form";
 import { parseButtons } from "@/lib/posts/buttons";
-import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
+import { fromParisLocal, nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
+import { presetScheduleLocal } from "@/lib/posts/calendar";
 import { loadBestSlots } from "@/lib/besthours/queries";
 import { listCampaignOptions } from "@/lib/campaigns/queries";
+import { templateCardTitle as templateTitle } from "@/lib/posts/templates";
 import { createPostAction } from "../actions";
 
-export const metadata: Metadata = { title: "Nouveau message" };
+export const metadata: Metadata = { title: "Programmer un message" };
 
 /**
  * Options du formulaire de message : canaux (avec univers, pour l'assistant IA), catégories, campagnes Link Affi
@@ -63,7 +65,11 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
   const presetChannel = typeof sp.channel === "string" ? sp.channel : "";
   const presetCategory = typeof sp.category === "string" ? sp.category : "";
   const presetAt = (() => {
-    // Créneau recommandé pour ce canal et cette catégorie (lien « Programmer à ce créneau » de la fiche canal).
+    // Créneau choisi dans le calendrier (« Programmer un message à ce créneau » : `at`, heure de Paris), s'il est à
+    // venir ; case de l'heure en cours : maintenant arrondi aux 5 minutes (pas le meilleur créneau d'un autre jour).
+    const at = presetScheduleLocal(sp.at);
+    if (at) return fromParisLocal(at);
+    // Sinon, créneau recommandé pour ce canal et cette catégorie.
     const byCat = presetChannel ? bestSlots[presetChannel] : undefined;
     const slot = byCat ? (presetCategory && byCat[presetCategory]) || byCat.all : undefined;
     return slot ? nextOccurrence(slot.day, slot.hour) : null;
@@ -106,12 +112,13 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         title={
           source
             ? source.isTemplate
-              ? `Nouveau message depuis « ${source.templateName} »`
+              ? `Nouveau message depuis « ${templateTitle(source.templateName ?? "")} »`
               : "Dupliquer le message"
-            : "Nouveau message"
+            : "Programmer un message"
         }
-        description="Un message publié par le bot dans un ou plusieurs canaux, à la date et à l'heure que vous choisissez."
-        help="Cochez les canaux, écrivez le texte, ajoutez médias et boutons, puis cliquez « Programmer ». L'aperçu à droite montre le rendu dans Telegram. « Test A/B » publie deux versions et les compare."
+        description="Choisissez les canaux, écrivez le texte, puis la date et l'heure."
+        backHref="/messages"
+        backLabel="Messages"
       />
       <Flash ok={sp.ok} error={sp.error} />
       <PostForm

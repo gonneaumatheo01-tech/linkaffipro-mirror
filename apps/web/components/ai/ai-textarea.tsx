@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ImproveButton, type ImproveButtonProps, type ImproveContext } from "./improve-button";
 
 /**
- * Zone de texte « classique » (formulaire serveur, envoi par `name`) accompagnée du bouton « ✨ Améliorer avec l'IA ».
+ * Zone de texte « classique » (formulaire serveur, envoi par `name`) accompagnée du bouton « Améliorer avec l'IA ».
  * Remplace un `<Textarea name="…" defaultValue="…" />` à l'identique : le champ reste soumis par son `name`.
  * Pour les formulaires déjà contrôlés (post-form, broadcast-form), utilisez directement `ImproveButton`.
  * `onTranslations` : l'hôte enregistre les traductions dans ses autres langues (textes du bot).

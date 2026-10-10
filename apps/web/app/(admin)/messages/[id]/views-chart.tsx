@@ -13,10 +13,10 @@ function MetricChart({ samples, metric }: { samples: ViewSample[]; metric: ViewM
   const x1 = s.width - s.padding.right;
   return (
     <figure className="min-w-0">
-      <figcaption className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+      <figcaption className="mb-1 flex items-baseline justify-between gap-2 text-body">
         <span className="font-medium">{label}</span>
         <span className="tabular-nums text-muted-foreground">
-          {fmtNum(s.last.value)} <span className="text-xs">au dernier relevé</span>
+          {fmtNum(s.last.value)} <span className="text-note">au dernier relevé</span>
         </span>
       </figcaption>
       <svg
@@ -40,7 +40,7 @@ function MetricChart({ samples, metric }: { samples: ViewSample[]; metric: ViewM
               x={x0 - 6}
               y={tick.y + 4}
               textAnchor="end"
-              className="fill-muted-foreground text-[11px]"
+              className="fill-muted-foreground text-note"
             >
               {fmtNum(tick.value)}
             </text>
@@ -52,7 +52,7 @@ function MetricChart({ samples, metric }: { samples: ViewSample[]; metric: ViewM
             x={tick.x}
             y={s.height - 6}
             textAnchor={i === 0 ? "start" : i === s.xTicks.length - 1 ? "end" : "middle"}
-            className="fill-muted-foreground text-[11px]"
+            className="fill-muted-foreground text-note"
           >
             {tick.label}
           </text>
@@ -61,7 +61,7 @@ function MetricChart({ samples, metric }: { samples: ViewSample[]; metric: ViewM
           <polyline
             points={s.polyline}
             fill="none"
-            className="stroke-primary"
+            className="stroke-brand-ink"
             strokeWidth={2}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -73,10 +73,10 @@ function MetricChart({ samples, metric }: { samples: ViewSample[]; metric: ViewM
               cx={p.x}
               cy={p.y}
               r={3}
-              className="fill-primary stroke-background"
+              className="fill-brand-ink stroke-surface"
               strokeWidth={2}
             />
-            <circle cx={p.x} cy={p.y} r={9} fill="transparent" className="hover:fill-primary/15">
+            <circle cx={p.x} cy={p.y} r={9} fill="transparent" className="hover:fill-brand/15">
               <title>{`${fmtDate(p.at)} : ${fmtNum(p.value)} ${label.toLowerCase()}`}</title>
             </circle>
           </g>
@@ -95,13 +95,13 @@ export function ViewsChart({ samples }: { samples: ViewSample[] }) {
     <div className="space-y-4">
       <MetricChart samples={samples} metric="views" />
       {hasForwards ? <MetricChart samples={samples} metric="forwards" /> : null}
-      <details className="text-sm">
+      <details className="text-body">
         <summary className="cursor-pointer text-muted-foreground">
           Voir les relevés ({sorted.length})
         </summary>
-        <table className="mt-2 w-full text-sm">
+        <table className="mt-2 w-full text-body">
           <thead>
-            <tr className="text-left text-xs text-muted-foreground">
+            <tr className="text-left text-note text-muted-foreground">
               <th className="py-1 font-medium">Relevé</th>
               <th className="py-1 text-right font-medium">Vues</th>
               <th className="py-1 text-right font-medium">Transferts</th>

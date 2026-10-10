@@ -124,7 +124,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
               <Alert>
                 <AlertTitle>Aucune clé enregistrée</AlertTitle>
                 <AlertDescription>
-                  L&apos;assistant est désactivé : le bouton « ✨ Améliorer avec l&apos;IA »
+                  L&apos;assistant est désactivé : le bouton « Améliorer avec l&apos;IA »
                   explique où coller la clé. Suivez le guide en bas de page.
                 </AlertDescription>
               </Alert>
@@ -374,7 +374,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
             {history.length === 0 ? (
               <EmptyState
                 title="Aucune suggestion pour l'instant"
-                description="Dès qu'un membre de l'équipe cliquera sur « ✨ Améliorer avec l'IA », les demandes apparaîtront ici."
+                description="Dès qu'un membre de l'équipe cliquera sur « Améliorer avec l'IA », les demandes apparaîtront ici."
               />
             ) : (
               <Table>

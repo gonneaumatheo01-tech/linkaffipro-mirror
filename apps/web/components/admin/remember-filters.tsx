@@ -18,15 +18,18 @@ function cleanParams(sp: URLSearchParams): string {
  * Mémorise les filtres d'une liste dans `localStorage` (clé par page) :
  * - URL sans filtre mais mémoire présente → redirection vers l'URL mémorisée ;
  * - sinon, les filtres courants sont mémorisés.
- * Le bouton « Réinitialiser » vide la mémoire et revient à l'URL nue.
+ * Le bouton « Réinitialiser » vide la mémoire et revient à l'URL sans filtre, en gardant la vue choisie
+ * (`keepParams`, par défaut `view` et `tab` : Liste / Calendrier / Modèles, onglet d'une fiche).
  * À monter dans la page de liste, avec `storageKey` unique (ex. "members").
  */
 export function RememberFilters({
   storageKey,
   className,
+  keepParams = ["view", "tab"],
 }: {
   storageKey: string;
   className?: string;
+  keepParams?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -61,7 +64,13 @@ export function RememberFilters({
     } catch {
       /* ignoré */
     }
-    router.push(pathname);
+    const kept = new URLSearchParams();
+    for (const name of keepParams) {
+      const v = searchParams.get(name);
+      if (v) kept.set(name, v);
+    }
+    const q = kept.toString();
+    router.push(q ? `${pathname}?${q}` : pathname);
   };
 
   return (

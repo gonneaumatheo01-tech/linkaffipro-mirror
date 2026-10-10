@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import {
+  BOT_MOMENTS,
+  BOT_MOMENT_TEXT,
+  PLACEHOLDER_CHIPS,
+  channelLanguageOptions,
+  fillExamples,
+  langLabel,
+  messageLangs,
+  momentNote,
+  previewButtons,
+  textKey,
+  wrapSelection,
+} from "./bot-messages";
+import type { EntryRule } from "./entry-rule";
+
+const rule: EntryRule = {
+  mode: "DELAY",
+  delaySeconds: 600,
+  gateMode: "NONE",
+  gateChannelIds: [],
+  reminderAfterMinutes: [60, 1440],
+  maxReminders: 2,
+  expireAfterHours: null,
+  expireAction: "KEEP",
+  sendAcceptedMessage: true,
+  isActive: true,
+};
+const gate: EntryRule = { ...rule, gateMode: "REQUIRED", gateChannelIds: ["a", "b"] };
+const labels = { join: "Rejoindre", joined: "✅ J'ai rejoint", offer: "Ouvrir l'offre" };
+
+describe("ce que dit le bot", () => {
+  it("cinq moments, chacun avec un titre et une phrase", () => {
+    expect(BOT_MOMENTS).toEqual([
+      "JOIN_REQUEST",
+      "GATE_REMINDER",
+      "GATE_SATISFIED",
+      "APPROVED",
+      "OFFER_REPLY",
+    ]);
+    for (const m of BOT_MOMENTS) {
+      expect(BOT_MOMENT_TEXT[m].title).not.toBe("");
+      expect(BOT_MOMENT_TEXT[m].when).toMatch(/\.$/);
+    }
+  });
+
+  it("langues : le français d'abord", () => {
+    expect(messageLangs({ en: "Hi", fr: "Salut", de: "Hallo" })).toEqual(["fr", "de", "en"]);
+    expect(messageLangs({})).toEqual(["fr"]);
+    expect(langLabel("pt")).toBe("Portugais");
+    expect(langLabel("xx")).toBe("XX");
+  });
+
+  it("signale un message que personne ne recevra avec la règle actuelle", () => {
+    expect(momentNote("JOIN_REQUEST", null)).toMatch(/pas de règle/);
+    expect(momentNote("JOIN_REQUEST", rule)).toBeNull();
+    expect(momentNote("GATE_REMINDER", rule)).toMatch(/obligatoires/);
+    expect(momentNote("GATE_REMINDER", { ...gate, gateMode: "SOFT" })).toMatch(/obligatoires/);
+    expect(momentNote("GATE_REMINDER", gate)).toBeNull();
+    expect(momentNote("GATE_REMINDER", { ...gate, maxReminders: 0 })).toMatch(/Aucun rappel/);
+    expect(momentNote("GATE_SATISFIED", rule)).toMatch(/Après avoir rejoint/);
+    expect(momentNote("GATE_SATISFIED", gate)).toBeNull();
+    expect(momentNote("APPROVED", { ...rule, sendAcceptedMessage: false })).toMatch(/Pas envoyé/);
+    expect(momentNote("APPROVED", null)).toBeNull();
+    expect(momentNote("OFFER_REPLY", null)).toBeNull();
+  });
+
+  it("validation à la main : aucun rappel (le worker ne relance que les demandes qui attendent les canaux)", () => {
+    expect(momentNote("GATE_REMINDER", { ...gate, mode: "MANUAL" })).toMatch(/validez vous-même/);
+    // Le texte « Canaux rejoints » reste utilisé : le bot vérifie les canaux puis répond avec ce texte.
+    expect(momentNote("GATE_SATISFIED", { ...gate, mode: "MANUAL" })).toBeNull();
+    expect(momentNote("GATE_SATISFIED", { ...gate, mode: "MANUAL", gateMode: "SOFT" })).toBeNull();
+  });
+
+  it("canaux proposés (hors validation à la main) : le bot répond avec son texte intégré", () => {
+    expect(momentNote("GATE_SATISFIED", { ...gate, gateMode: "SOFT" })).toMatch(
+      /canaux proposés.*texte intégré/,
+    );
+    expect(momentNote("GATE_SATISFIED", { ...gate, gateMode: "SOFT", mode: "IMMEDIATE" })).toMatch(
+      /texte intégré/,
+    );
+  });
+
+  it("langue du canal en toutes lettres, sans perdre une langue inconnue", () => {
+    const opts = channelLanguageOptions("fr");
+    expect(opts[0]).toEqual({ value: "fr", label: "Français" });
+    expect(opts.map((o) => o.value)).toContain("en");
+    expect(opts.find((o) => o.value === "de")?.label).toBe("Allemand");
+    expect(opts.some((o) => o.value === "fr" && o.label === "fr")).toBe(false);
+    const unknown = channelLanguageOptions("xx");
+    expect(unknown.at(-1)).toEqual({ value: "xx", label: "XX" });
+    expect(channelLanguageOptions("EN").filter((o) => o.value === "en")).toHaveLength(1);
+  });
+
+  it("boutons ajoutés par le bot dans l'aperçu", () => {
+    expect(previewButtons("OFFER_REPLY", null, [], labels)).toEqual([[{ text: "Ouvrir l'offre" }]]);
+    expect(previewButtons("JOIN_REQUEST", rule, [], labels)).toEqual([]);
+    expect(previewButtons("JOIN_REQUEST", gate, ["VIP", "Live"], labels)).toEqual([
+      [{ text: "Rejoindre VIP" }],
+      [{ text: "Rejoindre Live" }],
+      [{ text: "✅ J'ai rejoint" }],
+    ]);
+    expect(previewButtons("GATE_REMINDER", gate, ["VIP"], labels)).toHaveLength(2);
+    expect(previewButtons("APPROVED", gate, ["VIP"], labels)).toEqual([]);
+    expect(previewButtons("JOIN_REQUEST", { ...gate, isActive: false }, ["VIP"], labels)).toEqual(
+      [],
+    );
+  });
+
+  it("clé de texte stable", () => {
+    expect(textKey("abc")).toBe(textKey("abc"));
+    expect(textKey("abc")).not.toBe(textKey("abd"));
+  });
+});
+
+describe("aperçu des mots magiques", () => {
+  it("remplace les mots connus par les exemples", async () => {
+    const { fillExamples } = await import("./bot-messages");
+    expect(
+      fillExamples("Salut {prenom}, bienvenue dans {canal} {delai} {inconnu} {bot}", {
+        prenom: "Léa",
+        canal: "VIP",
+        delai: "dans 10 minutes",
+      }),
+    ).toBe("Salut Léa, bienvenue dans VIP dans 10 minutes {inconnu} {bot}");
+  });
+
+  it("mise en forme : entoure la sélection, ou « texte » sans sélection", () => {
+    expect(wrapSelection("Salut Léa", 6, 9, "<b>", "</b>")).toEqual({
+      text: "Salut <b>Léa</b>",
+      selectionStart: 9,
+      selectionEnd: 12,
+    });
+    expect(wrapSelection("Salut ", 6, 6, "<i>", "</i>")).toEqual({
+      text: "Salut <i>texte</i>",
+      selectionStart: 9,
+      selectionEnd: 14,
+    });
+  });
+
+  it("insère un émoji ou un mot à remplacer au curseur (et remplace la sélection)", () => {
+    expect(wrapSelection("Salut !", 6, 6, "{prenom}")).toEqual({
+      text: "Salut {prenom}!",
+      selectionStart: 14,
+      selectionEnd: 14,
+    });
+    expect(wrapSelection("Salut X", 6, 7, "🔥").text).toBe("Salut 🔥");
+    // Curseur hors du texte : ramené dans le texte.
+    expect(wrapSelection("abc", 10, 12, "!").text).toBe("abc!");
+  });
+
+  it("les mots à insérer sont ceux que le bot remplace", () => {
+    const filled = fillExamples(PLACEHOLDER_CHIPS.map((c) => `{${c.key}}`).join(" "), {
+      prenom: "Léa",
+      canal: "VIP",
+      liste_canaux: "A, B",
+      delai: "10 min",
+      bot: "@b",
+    });
+    expect(filled).toBe("Léa VIP A, B 10 min @b");
+  });
+});

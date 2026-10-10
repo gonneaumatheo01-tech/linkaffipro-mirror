@@ -61,7 +61,7 @@ export function describeAccountError(err: unknown): string {
   return "Erreur inconnue.";
 }
 
-/** Ligne « Nos bots administrateurs » d'un canal du compte, à partir de la lecture des administrateurs. Pure (testée). */
+/** Ligne « Nos bots administrateurs » d'un canal du compte, à partir de la lecture des administrateurs. Pure (testée). */
 export function accountRow(
   c: AdminChannel,
   read: ReadAdminsResult,
@@ -109,7 +109,7 @@ export async function listAccountChannels(): Promise<
     });
   } catch (err) {
     if (err instanceof MtprotoAuthError) {
-      // Même règle que le worker : la session est marquée « à reconnecter ».
+      // Même règle que le worker : la session est marquée « à reconnecter ».
       await prisma.telegramUserSession
         .updateMany({
           where: { id: TELEGRAM_SESSION_ID },

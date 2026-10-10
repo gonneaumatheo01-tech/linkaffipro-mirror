@@ -29,6 +29,17 @@ function back(channelId: string, params: Record<string, string>): never {
   );
 }
 
+/**
+ * Paramètres de retour vers la carte du message : `open` (carte en modification) sauf si l'action vient de l'aperçu
+ * (`mode=view`), et `lang` (onglet de langue à rouvrir).
+ */
+function where(formData: FormData, trigger: string, lang?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (formData.get("mode") !== "view") out.open = trigger;
+  if (lang && lang !== "fr") out.lang = lang;
+  return out;
+}
+
 async function stepFor(channelId: string, trigger: SequenceTriggerKey) {
   await ensureDefaultSequences(channelId);
   const seq = await prisma.sequence.findFirst({
@@ -67,10 +78,10 @@ export async function saveSequenceTextAction(formData: FormData): Promise<void> 
     back(channelId, {
       error:
         "Le texte en français est obligatoire : c'est celui que reçoivent les membres dont la langue n'est pas traduite.",
-      open: trigger,
+      ...where(formData, trigger, lang),
     });
   const v = validateTelegramHtml(text.trim());
-  if (!v.ok) back(channelId, { error: v.error, open: trigger });
+  if (!v.ok) back(channelId, { error: v.error, ...where(formData, trigger, lang) });
   const { seq, step, texts } = await stepFor(channelId, trigger);
   texts[lang] = v.html;
   await prisma.sequenceStep.update({
@@ -85,7 +96,10 @@ export async function saveSequenceTextAction(formData: FormData): Promise<void> 
     metadata: { trigger, lang },
   });
   revalidatePath(`/channels/${channelId}`);
-  back(channelId, { ok: `Texte ${lang.toUpperCase()} enregistré.`, open: trigger });
+  back(channelId, {
+    ok: `Texte ${lang.toUpperCase()} enregistré.`,
+    ...where(formData, trigger, lang),
+  });
 }
 
 const translationsSchema = z.object({
@@ -95,7 +109,7 @@ const translationsSchema = z.object({
 });
 
 /**
- * Enregistre les traductions proposées par l'assistant IA (« Traduire dans les langues du bot ») dans les autres
+ * Enregistre les traductions proposées par l'assistant IA (« Traduire dans les langues du bot ») dans les autres
  * langues d'un déclencheur : ajoute la langue si elle manque, remplace son texte sinon. Tout ou rien : un texte
  * invalide (HTML Telegram) bloque l'enregistrement. Appelée depuis le navigateur : renvoie un résultat, pas de redirection.
  */
@@ -174,6 +188,7 @@ export async function addSequenceLangAction(formData: FormData): Promise<void> {
   back(channelId, {
     ok: `Langue ${lang.toUpperCase()} ajoutée : traduisez le texte puis enregistrez.`,
     open: trigger,
+    ...(lang !== "fr" ? { lang } : {}),
   });
 }
 
@@ -229,7 +244,7 @@ export async function toggleSequenceAction(formData: FormData): Promise<void> {
     ok: seq.isActive
       ? "Message désactivé : le bot utilisera son texte intégré par défaut."
       : "Message activé : le bot utilisera votre texte.",
-    open: trigger,
+    ...where(formData, trigger),
   });
 }
 
@@ -282,7 +297,7 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
   if (!user.telegramUserId)
     back(channelId, {
       error: "Liez votre Telegram dans Mon compte (menu en haut à droite) pour recevoir un test.",
-      open: trigger,
+      ...where(formData, trigger, lang),
     });
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
@@ -293,7 +308,7 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
   if (!botId)
     back(channelId, {
       error: "Aucun de nos bots n'est administrateur de ce canal : ajoutez-en un dans Telegram.",
-      open: trigger,
+      ...where(formData, trigger, lang),
     });
   const member = await prisma.member.findUnique({
     where: { telegramUserId: user.telegramUserId },
@@ -302,16 +317,17 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
   if (!member)
     back(channelId, {
       error: "Envoyez d'abord /start au bot de ce canal depuis votre Telegram.",
-      open: trigger,
+      ...where(formData, trigger, lang),
     });
   if (member.botStates[0] && !member.botStates[0].canDm)
     back(channelId, {
       error: "Le bot ne peut pas vous écrire : envoyez-lui /start.",
-      open: trigger,
+      ...where(formData, trigger, lang),
     });
   const { step, texts } = await stepFor(channelId, trigger);
   const template = texts[lang] ?? texts.fr;
-  if (!template) back(channelId, { error: "Aucun texte à envoyer.", open: trigger });
+  if (!template)
+    back(channelId, { error: "Aucun texte à envoyer.", ...where(formData, trigger, lang) });
   const text = previewText(template, { canal: channel.title, prenom: user.name });
   await enqueueDm({
     botId,
@@ -329,6 +345,6 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
   });
   back(channelId, {
     ok: "Message de test envoyé sur votre Telegram (quelques secondes).",
-    open: trigger,
+    ...where(formData, trigger, lang),
   });
 }

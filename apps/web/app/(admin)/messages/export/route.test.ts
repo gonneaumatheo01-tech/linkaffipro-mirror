@@ -46,6 +46,12 @@ describe("export CSV des messages", () => {
       { trackingLinks: { some: { affiliateCampaignId: { in: ["aff1"] } } } },
     ]);
   });
+  it("en-têtes dans les mots du client (premier dépôt, pas FTD)", async () => {
+    const res = await GET(new Request("http://localhost/messages/export"));
+    const header = (await res.text()).split("\n")[0]!;
+    expect(header).toContain("Premiers dépôts");
+    expect(header).not.toMatch(/(^|;)FTD(;|$)/);
+  });
   it("ancien nom du paramètre (campaign) accepté", async () => {
     await GET(new Request("http://localhost/messages/export?campaign=c1"));
     expect(mocks.campaignScope).toHaveBeenCalledWith("c1");

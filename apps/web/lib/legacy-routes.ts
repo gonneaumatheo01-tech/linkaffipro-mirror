@@ -42,11 +42,11 @@ const STATS_TABS: Record<string, { path: string; tab: string | null }> = {
 };
 
 /**
- * Le calendrier des messages montre-t-il les meilleurs créneaux ? Tant que non (avant l'étape 4 de la refonte),
- * l'onglet « Meilleurs horaires » de la fiche canal reste en place et n'est pas redirigé : rien ne disparaît.
- * L'étape 4 passe ce drapeau à `true` en retirant l'onglet.
+ * Le calendrier des messages montre les meilleurs créneaux (étape 4 de la refonte : surlignés dans la semaine,
+ * « Programmer un message à ce créneau ») : l'ancien onglet « Meilleurs horaires » de la fiche canal redirige vers
+ * le calendrier filtré sur ce canal (`/messages?channelId=…`).
  */
-export const BEST_HOURS_IN_CALENDAR = false;
+export const BEST_HOURS_IN_CALENDAR = true;
 
 /** Cible dans Statistiques d'un onglet de l'ancien tableau de bord (inconnu ou absent : vue d'ensemble). */
 export function statsTarget(tab: string | null): { path: string; tab: string | null } {

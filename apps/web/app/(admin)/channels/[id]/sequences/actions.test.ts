@@ -27,7 +27,10 @@ vi.mock("@linkaffipro/telegram", () => ({
 }));
 vi.mock("@linkaffipro/db", () => ({
   prisma: {
-    sequence: { findFirst: vi.fn(async () => ({ id: "seq1", isActive: true, steps: [db.step] })) },
+    sequence: {
+      findFirst: vi.fn(async () => ({ id: "seq1", isActive: true, steps: [db.step] })),
+      update: vi.fn(async () => ({})),
+    },
     sequenceStep: {
       create: vi.fn(),
       update: vi.fn(async ({ data }: { data: { texts: Record<string, string> } }) => {
@@ -41,7 +44,11 @@ vi.mock("@linkaffipro/db", () => ({
   }),
 }));
 
-import { saveSequenceTranslationsAction } from "./actions";
+import {
+  saveSequenceTextAction,
+  saveSequenceTranslationsAction,
+  toggleSequenceAction,
+} from "./actions";
 
 beforeEach(() => {
   db.step = { id: "st1", texts: { fr: "Bonjour {prenom}" } };
@@ -111,5 +118,56 @@ describe("textes du bot : enregistrer les traductions de l'assistant IA", () => 
       ).ok,
     ).toBe(false);
     expect(db.updates).toBe(0);
+  });
+});
+
+/** Adresse de retour d'une action serveur (le `redirect` simulé lève une erreur portant l'adresse). */
+async function redirectOf(run: () => Promise<unknown>): Promise<URLSearchParams> {
+  try {
+    await run();
+  } catch (err) {
+    const url = (err as { url?: string }).url ?? "";
+    return new URLSearchParams(url.split("?")[1] ?? "");
+  }
+  throw new Error("pas de redirection");
+}
+
+function form(fields: Record<string, string>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) f.append(k, v);
+  return f;
+}
+
+describe("textes du bot : retour vers la bonne carte et la bonne langue", () => {
+  it("après un enregistrement, la carte reste ouverte sur la langue modifiée", async () => {
+    const q = await redirectOf(() =>
+      saveSequenceTextAction(
+        form({ channelId: "ch1", trigger: "APPROVED", lang: "en", text: "Hello {prenom}" }),
+      ),
+    );
+    expect(q.get("tab")).toBe("sequences");
+    expect(q.get("open")).toBe("APPROVED");
+    expect(q.get("lang")).toBe("en");
+    expect(q.get("ok")).toMatch(/EN enregistré/);
+    expect(db.step.texts.en).toBe("Hello {prenom}");
+  });
+
+  it("le français n'ajoute pas de langue à l'adresse", async () => {
+    const q = await redirectOf(() =>
+      saveSequenceTextAction(
+        form({ channelId: "ch1", trigger: "APPROVED", lang: "fr", text: "Salut" }),
+      ),
+    );
+    expect(q.get("open")).toBe("APPROVED");
+    expect(q.has("lang")).toBe(false);
+  });
+
+  it("depuis l'aperçu (mode=view), la carte reste en aperçu", async () => {
+    const q = await redirectOf(() =>
+      toggleSequenceAction(form({ channelId: "ch1", trigger: "APPROVED", mode: "view" })),
+    );
+    expect(q.has("open")).toBe(false);
+    expect(q.get("ok")).toMatch(/désactivé/);
+    expect(db.audits.at(-1)).toMatchObject({ action: "sequence.deactivated" });
   });
 });

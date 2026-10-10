@@ -154,9 +154,12 @@ describe("onglet « Meilleurs horaires » d'un canal → calendrier des messages
     expect(legacyRedirect("/channels/ch_1/sequences", "tab=besthours", on)).toBeNull();
   });
 
-  it("reste inactif tant que le calendrier ne montre pas les meilleurs créneaux (rien ne disparaît)", () => {
-    expect(BEST_HOURS_IN_CALENDAR).toBe(false);
-    expect(legacyRedirect("/channels/ch_1", "tab=besthours")).toBeNull();
+  it("est actif : le calendrier montre les meilleurs créneaux (étape 4)", () => {
+    expect(BEST_HOURS_IN_CALENDAR).toBe(true);
+    expect(legacyRedirect("/channels/ch_1", "tab=besthours")).toBe("/messages?channelId=ch_1");
+  });
+
+  it("l'interrupteur coupé ne redirige pas (rien ne disparaît tant que les créneaux ne sont pas affichés)", () => {
     expect(
       legacyRedirect("/channels/ch_1", "tab=besthours", { bestHoursInCalendar: false }),
     ).toBeNull();

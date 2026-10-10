@@ -62,7 +62,7 @@ export type TelegramSessionStatus =
 export const STATUS_DICT = {
   membership: {
     REQUESTED: warn("Demande en attente"),
-    PENDING_GATE: warn("Attente canaux requis"),
+    PENDING_GATE: warn("Attend les canaux"),
     SCHEDULED: main("Acceptation programmée"),
     APPROVED: ok("Accepté"),
     DECLINED: bad("Refusé"),

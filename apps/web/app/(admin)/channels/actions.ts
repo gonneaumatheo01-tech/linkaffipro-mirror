@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, audit } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
+import { channelsReturnPath, withFlash } from "@/lib/channels/return-to";
 
 const schema = z.object({
   channelId: z.string().min(1),
@@ -16,8 +17,13 @@ const schema = z.object({
   isActive: z.boolean(),
 });
 
+/**
+ * Réglages d'un canal (univers, langue, bot principal, test, médiathèque, actif), depuis le volet de la liste ou de la
+ * fiche. `returnTo` (facultatif) : la liste ou la fiche du canal (`channelsReturnPath`), la liste sinon.
+ */
 export async function updateChannelAction(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const returnTo = channelsReturnPath(formData.get("returnTo"));
   const parsed = schema.safeParse({
     channelId: formData.get("channelId"),
     vertical: formData.get("vertical") ?? "",
@@ -29,7 +35,10 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
   });
   if (!parsed.success)
     redirect(
-      `/channels?error=${encodeURIComponent("Vérifiez les réglages du canal : la langue doit être un code de 2 à 5 lettres (fr, en, pt-br…).")}`,
+      withFlash(returnTo, {
+        error:
+          "Vérifiez les réglages du canal : la langue doit être un code de 2 à 5 lettres (fr, en, pt-br…).",
+      }),
     );
   const d = parsed.data;
   await prisma.channel.update({
@@ -58,7 +67,8 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
     },
   });
   revalidatePath("/channels");
-  redirect(`/channels?ok=${encodeURIComponent("Réglages du canal enregistrés.")}`);
+  revalidatePath(`/channels/${d.channelId}`);
+  redirect(withFlash(returnTo, { ok: "Réglages du canal enregistrés." }));
 }
 
 // ============================================================
@@ -87,7 +97,7 @@ function backToChannels(params: { ok?: string; error?: string }): never {
 }
 
 /**
- * Résultat affiché dans la fenêtre « Ajouter un canal existant » (méthode 2), sans quitter la fenêtre.
+ * Résultat affiché dans la fenêtre « Ajouter un canal existant » (méthode 2), sans quitter la fenêtre.
  * `channelId` : canal ajouté (la surveillance de la fenêtre ne l'annonce pas une seconde fois).
  */
 export type AddChannelByLinkState = {
@@ -146,8 +156,8 @@ const accountRowSchema = z.object({
 });
 
 /**
- * « Importer tous mes canaux » : canaux cochés (identifiants Telegram) → création + droits, un audit par canal,
- * 5 canaux à la fois. Retour résumé (« 12 canaux importés, 3 sans bot ») pour garder une adresse courte.
+ * « Importer tous mes canaux » : canaux cochés (identifiants Telegram) → création + droits, un audit par canal,
+ * 5 canaux à la fois. Retour résumé (« 12 canaux importés, 3 sans bot ») pour garder une adresse courte.
  */
 export async function importChannelsFromAccountAction(formData: FormData): Promise<void> {
   const user = await requireUser();

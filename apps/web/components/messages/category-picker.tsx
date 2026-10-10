@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { createCategoryInlineAction } from "@/app/(admin)/messages/categories/inline-actions";
 
 export type CategoryOption = { id: string; name: string; color: string };
@@ -80,44 +81,46 @@ export function CategoryPicker({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>Catégorie</Label>
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          id={id}
-          name={name}
-          value={value}
-          onChange={(e) => (e.target.value === "__new__" ? openCreate() : select(e.target.value))}
-          className="h-10 min-w-48 rounded-md border bg-background px-2 text-sm md:h-9"
-        >
-          <option value="">— sans catégorie —</option>
-          {list.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-          <option value="__new__">+ Nouvelle catégorie…</option>
-        </select>
-        {value ? (
-          <span
-            className="inline-block size-3 rounded-full"
-            style={{ backgroundColor: list.find((c) => c.id === value)?.color ?? "#94a3b8" }}
-            aria-hidden
-          />
-        ) : null}
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        <Label htmlFor={id}>Catégorie</Label>
         {!creating ? (
           <Button
             type="button"
-            size="sm"
-            variant="outline"
-            className="max-md:h-10"
+            size="xs"
+            variant="ghost"
+            className="-mr-2 text-brand-ink"
             onClick={openCreate}
           >
             + Nouvelle catégorie
           </Button>
         ) : null}
       </div>
+      <div className="flex items-center gap-2">
+        {value ? (
+          <span
+            className="inline-block size-3 shrink-0 rounded-full"
+            style={{ backgroundColor: list.find((c) => c.id === value)?.color ?? "#94a3b8" }}
+            aria-hidden
+          />
+        ) : null}
+        <NativeSelect
+          id={id}
+          name={name}
+          value={value}
+          onChange={(e) => (e.target.value === "__new__" ? openCreate() : select(e.target.value))}
+          wrapperClassName="w-full"
+        >
+          <option value="">Sans catégorie</option>
+          {list.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+          <option value="__new__">+ Nouvelle catégorie…</option>
+        </NativeSelect>
+      </div>
       {creating ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted p-2">
           <Input
             id={`${uid}-name`}
             value={newName}
@@ -125,7 +128,7 @@ export function CategoryPicker({
             placeholder="Nom de la catégorie"
             aria-label="Nom de la nouvelle catégorie"
             maxLength={40}
-            className="max-w-xs max-md:h-10"
+            className="max-w-xs flex-1"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -139,14 +142,14 @@ export function CategoryPicker({
             value={newColor}
             onChange={(e) => setNewColor(e.target.value)}
             aria-label="Couleur de la nouvelle catégorie"
-            className="h-10 w-12 cursor-pointer rounded border bg-background md:h-9"
+            className="h-10 w-12 cursor-pointer rounded-lg border border-muted-foreground/75 bg-surface md:h-9"
           />
           <Button
             type="button"
             size="sm"
+            variant="outline"
             disabled={pending || !newName.trim()}
             onClick={create}
-            className="max-md:h-10"
           >
             {pending ? "Création…" : "Créer la catégorie"}
           </Button>
@@ -158,23 +161,22 @@ export function CategoryPicker({
               setCreating(false);
               setError(null);
             }}
-            className="max-md:h-10"
           >
             Annuler
           </Button>
           {error ? (
-            <p className="w-full text-xs text-destructive" role="alert">
+            <p className="w-full text-note text-danger" role="alert">
               {error}
             </p>
           ) : null}
-          <p className="w-full text-xs text-muted-foreground">
+          <p className="w-full text-note text-muted-foreground">
             Renommer, changer la couleur ou l&apos;ordre, fusionner : Réglages → Catégories de
             messages (administrateur).
           </p>
         </div>
       ) : null}
       {list.length === 0 && !creating ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-note text-muted-foreground">
           Aucune catégorie pour l&apos;instant : créez la première (vos propres types de messages)
           pour comparer vos messages entre eux.
         </p>

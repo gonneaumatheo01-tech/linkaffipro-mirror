@@ -18,7 +18,9 @@ import {
   type AiVersion,
   type AiVertical,
 } from "@linkaffipro/ai/types";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Dialog,
   DialogContent,
@@ -53,9 +55,11 @@ export type ImproveButtonProps = {
    * Sans lui, une traduction dans une autre langue que celle du champ se copie (elle n'écrase jamais le champ).
    */
   onTranslations?: (texts: Partial<Record<AiLanguage, string>>) => void | Promise<void>;
-  /** Libellé du bouton (par défaut « ✨ Améliorer avec l'IA »). */
+  /** Libellé du bouton (par défaut « Améliorer avec l'IA » ; l'icône étoiles est déjà sur le bouton, pas d'émoji). */
   label?: string;
   size?: "default" | "sm" | "xs";
+  /** Style du bouton : « outline » (par défaut) ; « ghost » dans une barre d'outils d'éditeur. */
+  variant?: "outline" | "ghost" | "secondary";
   className?: string;
 };
 
@@ -69,7 +73,6 @@ type Result = {
   fromVersion: number | null;
 };
 
-const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9";
 const VERTICALS: AiVertical[] = ["CASINO", "SPORTS", "DATING"];
 /** Retouches proposées sur chaque version et sur le texte du champ. */
 const REWORKS: Array<{ kind: AiKind; label: string }> = [
@@ -79,7 +82,7 @@ const REWORKS: Array<{ kind: AiKind; label: string }> = [
 ];
 
 /**
- * Bouton « ✨ Améliorer avec l'IA » + panneau : réglages (univers, objectif, ton, longueur, langue, média), 3 versions,
+ * Bouton « Améliorer avec l'IA » (icône étoiles) + panneau : réglages (univers, objectif, ton, longueur, langue, média), 3 versions,
  * retouches par version (plus court, plus percutant, autre angle), traduction dans les langues du bot, version B,
  * mode « Écrire à partir d'une idée ». La rangée du bas retravaille le texte actuellement dans le champ.
  */
@@ -89,8 +92,9 @@ export function ImproveButton({
   context,
   onCreateVariantB,
   onTranslations,
-  label = "✨ Améliorer avec l'IA",
+  label = "Améliorer avec l'IA",
   size = "sm",
+  variant = "outline",
   className,
 }: ImproveButtonProps) {
   const id = useId();
@@ -289,13 +293,14 @@ export function ImproveButton({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant={variant}
         size={size}
         className={className}
         onClick={() => onOpenChange(true)}
       >
         <Sparkles aria-hidden="true" />
-        {label}
+        {/* Un « ✨ » en tête du libellé ferait doublon avec l'icône. */}
+        {label.replace(/^\s*✨\uFE0F?\s*/u, "")}
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -309,7 +314,7 @@ export function ImproveButton({
           </DialogHeader>
 
           {unavailable ? (
-            <div role="status" className="rounded-md border bg-muted/40 p-3 text-sm">
+            <div role="status" className="rounded-md border border-border bg-muted p-3 text-body">
               {status?.reason === "cap" ? (
                 <>
                   <p className="font-medium">{status.message ?? "Plafond mensuel atteint."}</p>
@@ -326,14 +331,12 @@ export function ImproveButton({
                   </p>
                 </>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                render={<Link href="/settings/ai" />}
+              <Link
+                href="/settings/ai"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")}
               >
                 Ouvrir Réglages → IA
-              </Button>
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
@@ -343,7 +346,7 @@ export function ImproveButton({
                   role="tab"
                   aria-selected={mode === "improve"}
                   size="sm"
-                  variant={mode === "improve" ? "default" : "outline"}
+                  variant={mode === "improve" ? "secondary" : "outline"}
                   onClick={() => setMode("improve")}
                 >
                   Améliorer mon brouillon
@@ -353,7 +356,7 @@ export function ImproveButton({
                   role="tab"
                   aria-selected={mode === "idea"}
                   size="sm"
-                  variant={mode === "idea" ? "default" : "outline"}
+                  variant={mode === "idea" ? "secondary" : "outline"}
                   onClick={() => setMode("idea")}
                 >
                   Écrire à partir d&apos;une idée
@@ -362,12 +365,12 @@ export function ImproveButton({
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-vertical`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-vertical`} className="text-note font-medium">
                     Univers
                   </label>
-                  <select
+                  <NativeSelect
                     id={`${id}-vertical`}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                     value={vertical}
                     onChange={(e) => setVertical(e.target.value as AiVertical | "")}
                   >
@@ -377,15 +380,15 @@ export function ImproveButton({
                         {AI_LABELS.vertical[v]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-objective`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-objective`} className="text-note font-medium">
                     Objectif
                   </label>
-                  <select
+                  <NativeSelect
                     id={`${id}-objective`}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                     value={objective}
                     onChange={(e) => setObjective(e.target.value as AiObjective)}
                   >
@@ -394,15 +397,15 @@ export function ImproveButton({
                         {AI_LABELS.objective[o]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-tone`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-tone`} className="text-note font-medium">
                     Ton
                   </label>
-                  <select
+                  <NativeSelect
                     id={`${id}-tone`}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                     value={tone}
                     onChange={(e) => setTone(e.target.value as AiTone)}
                   >
@@ -411,15 +414,15 @@ export function ImproveButton({
                         {AI_LABELS.tone[t]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-length`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-length`} className="text-note font-medium">
                     Longueur
                   </label>
-                  <select
+                  <NativeSelect
                     id={`${id}-length`}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                     value={length}
                     onChange={(e) => setLength(e.target.value as AiLength)}
                   >
@@ -428,15 +431,15 @@ export function ImproveButton({
                         {AI_LABELS.length[l]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-language`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-language`} className="text-note font-medium">
                     Langue
                   </label>
-                  <select
+                  <NativeSelect
                     id={`${id}-language`}
-                    className={selectCls}
+                    wrapperClassName="w-full"
                     value={language}
                     onChange={(e) => setLanguage(e.target.value as AiLanguage)}
                   >
@@ -445,10 +448,10 @@ export function ImproveButton({
                         {AI_LABELS.language[l]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 {status?.hasQuality ? (
-                  <label className="flex items-end gap-2 pb-2 text-xs font-medium">
+                  <label className="flex items-end gap-2 pb-2 text-note font-medium">
                     <input
                       type="checkbox"
                       checked={quality}
@@ -459,7 +462,7 @@ export function ImproveButton({
                   </label>
                 ) : null}
                 {!mediaKnown ? (
-                  <label className="flex items-end gap-2 pb-2 text-xs font-medium">
+                  <label className="flex items-end gap-2 pb-2 text-note font-medium">
                     <input
                       type="checkbox"
                       checked={withMedia}
@@ -470,13 +473,13 @@ export function ImproveButton({
                   </label>
                 ) : null}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-note text-muted-foreground">
                 {contextLine({ categoryName: context.categoryName, hasMedia })}
               </p>
 
               {mode === "idea" ? (
                 <div className="space-y-1">
-                  <label htmlFor={`${id}-idea`} className="text-xs font-medium">
+                  <label htmlFor={`${id}-idea`} className="text-note font-medium">
                     Votre idée, en une phrase
                   </label>
                   <Textarea
@@ -488,7 +491,7 @@ export function ImproveButton({
                   />
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-note text-muted-foreground">
                   Le brouillon est lu dans le champ du formulaire. Pour les repères comme{" "}
                   {"{prenom}"}, rien ne change : ils sont conservés.
                 </p>
@@ -508,7 +511,7 @@ export function ImproveButton({
                   {mode === "idea" ? "Proposer 3 messages" : "Générer 3 versions"}
                 </Button>
                 {busy ? (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-note text-muted-foreground">
                     L&apos;assistant écrit… (quelques secondes)
                   </span>
                 ) : null}
@@ -517,18 +520,18 @@ export function ImproveButton({
               {error ? (
                 <p
                   role="alert"
-                  className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive"
+                  className="rounded-md border border-danger/40 bg-danger-soft p-2 text-body text-danger"
                 >
                   {error}
                 </p>
               ) : null}
 
               <div aria-live="polite" aria-busy={busy || saving} className="space-y-3">
-                {notice ? <p className="text-xs text-muted-foreground">{notice}</p> : null}
+                {notice ? <p className="text-note text-muted-foreground">{notice}</p> : null}
                 {result ? (
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="text-sm font-medium">
+                      <h3 className="text-body font-medium">
                         {result.kind === "translate"
                           ? "Traductions"
                           : result.kind === "ab_variant"
@@ -539,7 +542,7 @@ export function ImproveButton({
                             (à partir de la version {result.fromVersion + 1})
                           </span>
                         ) : null}
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        <span className="ml-2 text-note font-normal text-muted-foreground">
                           ({result.model}, ≈{" "}
                           {result.costEur < 0.01
                             ? "< 0,01"
@@ -571,7 +574,7 @@ export function ImproveButton({
                         return (
                           <li key={`${result.id}-${i}`} className="rounded-md border p-3">
                             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-xs font-medium">
+                              <span className="text-note font-medium">
                                 {name}
                                 <span className="ml-2 font-normal text-muted-foreground">
                                   {v.why}
@@ -631,7 +634,7 @@ export function ImproveButton({
                                 ) : null}
                               </div>
                             </div>
-                            <pre className="whitespace-pre-wrap break-words font-sans text-sm">
+                            <pre className="whitespace-pre-wrap break-words font-sans text-body">
                               {v.text}
                             </pre>
                             {result.kind !== "translate" ? (
@@ -667,7 +670,7 @@ export function ImproveButton({
               </div>
 
               <div className="space-y-1 border-t pt-3">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-note text-muted-foreground">
                   Sur le texte actuellement dans le champ :
                 </p>
                 <div className="flex flex-wrap gap-2">

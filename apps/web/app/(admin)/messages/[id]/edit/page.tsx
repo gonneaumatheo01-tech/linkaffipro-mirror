@@ -53,14 +53,16 @@ export default async function EditMessagePage({
         title={post.isTemplate ? `Modèle « ${post.templateName} »` : "Modifier le message"}
         description={
           post.isTemplate
-            ? "Modifiez le modèle : les messages créés ensuite à partir de lui reprendront ces changements."
-            : "Modifiez le texte, les boutons ou la date, puis enregistrez."
+            ? "Les messages créés ensuite à partir de ce modèle reprendront ces changements."
+            : "Modifiez le texte, les boutons ou la date, puis « Programmer »."
         }
         help={
-          editable
-            ? "Un message programmé reste programmé si vous cliquez « Programmer » ; « Enregistrer en brouillon » le retire du calendrier."
+          editable && !post.isTemplate
+            ? "« Enregistrer en brouillon » retire le message des envois prévus (il reste dans le calendrier, en brouillon)."
             : undefined
         }
+        backHref={post.isTemplate ? "/messages?view=templates" : `/messages/${post.id}`}
+        backLabel={post.isTemplate ? "Modèles" : "Message"}
       />
       <Flash
         ok={sp.ok}

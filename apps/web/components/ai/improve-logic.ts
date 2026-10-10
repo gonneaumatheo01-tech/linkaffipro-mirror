@@ -1,4 +1,4 @@
-/** Règles d'affichage du panneau « ✨ Améliorer avec l'IA » (fonctions pures, testées). */
+/** Règles d'affichage du panneau « Améliorer avec l'IA » (fonctions pures, testées). */
 import { TELEGRAM_CAPTION_MAX, TELEGRAM_TEXT_MAX } from "@linkaffipro/core";
 import { AI_LANGUAGES, type AiLanguage, type AiVertical } from "@linkaffipro/ai/types";
 

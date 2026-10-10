@@ -1,6 +1,6 @@
 /**
- * Surveillance de la fenêtre « Ajouter un canal existant » (Canaux) : pendant 2 minutes, le dernier canal créé est relu
- * toutes les 5 secondes ; un nouveau canal donne un bandeau « Canal « X » détecté ✅ ».
+ * Surveillance de la fenêtre « Ajouter un canal existant » (Canaux) : pendant 2 minutes, le dernier canal créé est relu
+ * toutes les 5 secondes ; un nouveau canal donne un bandeau « Canal « X » détecté ✅ ».
  * Un canal ajouté depuis la fenêtre même (méthode 2, lien public) a déjà son propre bandeau : il n'est pas annoncé deux fois,
  * quel que soit l'ordre d'arrivée (réponse de l'action avant ou après le tour de surveillance).
  * Fonctions pures (testées) ; la fenêtre garde l'état dans une référence et en recopie `detected` pour l'affichage.
@@ -13,7 +13,7 @@ export type WatchState = {
   seen: string | null;
   /** Canaux ajoutés par la méthode 2 depuis l'ouverture : jamais annoncés par la surveillance. */
   acknowledged: string[];
-  /** Bandeaux « détecté » à afficher. */
+  /** Bandeaux « détecté » à afficher. */
   detected: DetectedChannel[];
 };
 
@@ -34,7 +34,7 @@ export function watchPoll(
   return { state: { ...state, seen: latest.id, detected }, changed: true };
 }
 
-/** Canal ajouté par la méthode 2 : son bandeau « ajouté ✅ » suffit, la surveillance ne l'annonce pas (ou plus). */
+/** Canal ajouté par la méthode 2 : son bandeau « ajouté ✅ » suffit, la surveillance ne l'annonce pas (ou plus). */
 export function watchAdded(state: WatchState, channelId: string): WatchState {
   return {
     ...state,

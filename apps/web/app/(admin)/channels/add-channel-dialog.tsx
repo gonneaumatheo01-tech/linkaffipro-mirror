@@ -3,8 +3,10 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CircleAlert, CircleCheck, ExternalLink, Plus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +30,7 @@ type CountResponse = { count: number; latest: { id: string; title: string } | nu
 
 /**
  * Méthode 2 (lien public) : formulaire et résultat. Remonté à chaque ouverture de la fenêtre (`key`), si bien que
- * l'ancien résultat (« ajouté ✅ » ou erreur) ne réapparaît pas à la réouverture.
+ * l'ancien résultat (« ajouté ✅ » ou erreur) ne réapparaît pas à la réouverture.
  */
 function LinkMethodForm({ onAdded }: { onAdded: (channelId: string) => void }) {
   const [linkState, linkAction, linkPending] = useActionState<AddChannelByLinkState, FormData>(
@@ -48,7 +50,7 @@ function LinkMethodForm({ onAdded }: { onAdded: (channelId: string) => void }) {
   return (
     <>
       <form action={linkAction} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1">
+        <div className="flex-1 space-y-2">
           <Label htmlFor="add-channel-link">Lien ou @nom</Label>
           <Input
             id="add-channel-link"
@@ -56,7 +58,6 @@ function LinkMethodForm({ onAdded }: { onAdded: (channelId: string) => void }) {
             placeholder="t.me/mon_canal ou @mon_canal"
             required
             autoComplete="off"
-            className="mt-1"
           />
         </div>
         <Button type="submit" className="max-md:h-10" disabled={linkPending}>
@@ -65,11 +66,13 @@ function LinkMethodForm({ onAdded }: { onAdded: (channelId: string) => void }) {
       </form>
       <div aria-live="polite">
         {linkState.ok ? (
-          <Alert key={`ok-${linkState.at}`} role="status">
+          <Alert key={`ok-${linkState.at}`} variant="success" role="status">
+            <CircleCheck aria-hidden />
             <AlertDescription>{linkState.ok}</AlertDescription>
           </Alert>
         ) : linkState.error ? (
           <Alert key={`err-${linkState.at}`} variant="destructive">
+            <CircleAlert aria-hidden />
             <AlertDescription>{linkState.error}</AlertDescription>
           </Alert>
         ) : null}
@@ -79,10 +82,10 @@ function LinkMethodForm({ onAdded }: { onAdded: (channelId: string) => void }) {
 }
 
 /**
- * Fenêtre « Ajouter un canal existant » : les trois méthodes dans l'ordre, et pendant 2 minutes la liste des canaux
- * se rafraîchit toute seule ; un bandeau « Canal « X » détecté ✅ » apparaît dès qu'un nouveau canal arrive.
+ * Fenêtre « Ajouter un canal existant » : les trois méthodes dans l'ordre, et pendant 2 minutes la liste des canaux
+ * se rafraîchit toute seule ; un bandeau « Canal « X » détecté ✅ » apparaît dès qu'un nouveau canal arrive.
  * La méthode 2 affiche son résultat dans la fenêtre même (et rafraîchit la liste derrière) ; ce canal-là n'a pas de second
- * bandeau « détecté ». À chaque ouverture, bandeaux et résultat de la méthode 2 repartent de zéro.
+ * bandeau « détecté ». À chaque ouverture, bandeaux et résultat de la méthode 2 repartent de zéro.
  */
 export function AddChannelDialog({
   bots,
@@ -168,97 +171,140 @@ export function AddChannelDialog({
       }}
     >
       <DialogTrigger render={<Button className="max-md:h-10" />}>
+        <Plus aria-hidden />
         Ajouter un canal existant
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Ajouter un canal existant</DialogTitle>
           <DialogDescription>
-            Le bot est déjà administrateur d&apos;un canal mais le canal n&apos;apparaît pas ici ?
+            Le bot est déjà administrateur d&apos;un canal qui n&apos;apparaît pas dans la liste ?
             Trois façons de le faire connaître, de la plus simple à la plus manuelle.
           </DialogDescription>
         </DialogHeader>
 
         {detected.map((d) => (
-          <Alert key={d.id} role="status">
+          <Alert key={d.id} variant="success" role="status">
+            <CircleCheck aria-hidden />
             <AlertDescription>
-              Canal « {d.title} » détecté ✅ — il est maintenant dans la liste.
+              Canal « {d.title} » détecté : il est maintenant dans la liste.
             </AlertDescription>
           </Alert>
         ))}
 
-        <section className="space-y-2 rounded-lg border p-3">
-          <h3 className="text-sm font-medium">
-            1. Transférer un message du canal à l&apos;un des bots (marche pour les canaux privés)
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Dans Telegram, ouvrez le canal, appuyez longuement sur n&apos;importe quel message →
-            Transférer → choisissez l&apos;un des bots ci-dessous. Le bot répond « Canal ajouté ✅ »
-            et le canal apparaît ici.
-          </p>
-          {bots.length === 0 ? (
-            <p className="text-sm text-destructive">
-              Aucun bot actif : ajoutez d&apos;abord un bot (Réglages → Bots).
+        <ol className="space-y-3">
+          <MethodStep
+            n={1}
+            title="Transférer un message du canal à l'un des bots"
+            note="Marche aussi pour les canaux privés."
+          >
+            <p className="text-body text-muted-foreground">
+              Dans Telegram, ouvrez le canal, appuyez longuement sur n&apos;importe quel message →
+              Transférer → choisissez l&apos;un des bots ci-dessous. Le bot répond « Canal ajouté »
+              et le canal apparaît ici.
             </p>
-          ) : (
-            <ul className="flex flex-wrap gap-2">
-              {bots.map((b) => (
-                <li key={b.username}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    render={
-                      <a href={`https://t.me/${b.username}`} target="_blank" rel="noreferrer" />
-                    }
-                  >
-                    @{b.username}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Seuls les comptes Telegram liés à la plateforme (Mon compte → Lier mon Telegram) sont
-            acceptés. Si le canal interdit le transfert (contenu protégé), passez à la méthode 3.
-          </p>
-        </section>
+            {bots.length === 0 ? (
+              <p className="text-body text-danger">
+                Aucun bot actif : ajoutez d&apos;abord un bot (Réglages → Bots).
+              </p>
+            ) : (
+              <ul className="flex flex-wrap gap-2" aria-label="Ouvrir un bot dans Telegram">
+                {bots.map((b) => (
+                  <li key={b.username}>
+                    <a
+                      href={`https://t.me/${b.username}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "max-md:h-10",
+                      )}
+                    >
+                      @{b.username}
+                      <ExternalLink aria-hidden />
+                      <span className="sr-only"> (s&apos;ouvre dans Telegram)</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-note text-muted-foreground">
+              Seuls les comptes Telegram liés à la plateforme (Mon compte → Lier mon Telegram) sont
+              acceptés. Si le canal interdit le transfert (contenu protégé), passez à la méthode 3.
+            </p>
+          </MethodStep>
 
-        <section className="space-y-2 rounded-lg border p-3">
-          <h3 className="text-sm font-medium">2. Coller le lien public du canal</h3>
-          <p className="text-sm text-muted-foreground">
-            Pour un canal public seulement : son lien t.me/… ou son @nom.
-          </p>
-          <LinkMethodForm key={openCount} onAdded={onLinkAdded} />
-        </section>
+          <MethodStep
+            n={2}
+            title="Coller le lien public du canal"
+            note="Pour un canal public seulement : son lien t.me/… ou son @nom."
+          >
+            <LinkMethodForm key={openCount} onAdded={onLinkAdded} />
+          </MethodStep>
 
-        <section className="space-y-2 rounded-lg border p-3">
-          <h3 className="text-sm font-medium">3. Publier un message dans le canal</h3>
-          <p className="text-sm text-muted-foreground">
-            Le bot doit déjà être administrateur du canal (sinon Telegram ne lui montre pas les
-            publications). Publiez n&apos;importe quel message dans le canal (un simple « . »
-            suffit) : le bot le voit et enregistre le canal. Vous pouvez ensuite supprimer ce
-            message.
-          </p>
-        </section>
+          <MethodStep n={3} title="Publier un message dans le canal">
+            <p className="text-body text-muted-foreground">
+              Le bot doit déjà être administrateur du canal (sinon Telegram ne lui montre pas les
+              publications). Publiez n&apos;importe quel message dans le canal (un simple « . »
+              suffit) : le bot le voit et enregistre le canal. Vous pouvez ensuite supprimer ce
+              message.
+            </p>
+          </MethodStep>
+        </ol>
 
         {canImportFromAccount ? (
-          <p className="text-sm">
+          <p className="text-body">
             Beaucoup de canaux ?{" "}
-            <Link href="/channels/import" className="underline underline-offset-2">
+            <Link
+              href="/channels/import"
+              className="font-medium text-brand-ink underline underline-offset-4"
+            >
               Importer tous mes canaux
             </Link>{" "}
             depuis votre compte Telegram connecté.
           </p>
         ) : null}
 
-        <p className="text-xs text-muted-foreground" aria-live="polite">
+        <p className="text-note text-muted-foreground" aria-live="polite">
           {watching
             ? "Surveillance en cours : la liste se met à jour toute seule pendant 2 minutes."
             : "Surveillance terminée : fermez et rouvrez cette fenêtre pour relancer, ou rechargez la page."}{" "}
           Dans tous les cas, le bot doit être administrateur du canal pour accueillir les membres :
-          Canal → Administrateurs → Ajouter → @{firstBot}.
+          canal → Administrateurs → Ajouter → @{firstBot}.
         </p>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Une méthode d'ajout : numéro dans un rond orange pâle, titre, une ligne d'aide, puis le contenu. */
+function MethodStep({
+  n,
+  title,
+  note,
+  children,
+}: {
+  n: number;
+  title: string;
+  note?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex gap-3 rounded-xl border border-border p-4">
+      <span
+        aria-hidden
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-soft text-note font-semibold text-brand-ink tabular-nums"
+      >
+        {n}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <h3 className="text-body font-semibold text-foreground">
+          <span className="sr-only">Méthode {n} : </span>
+          {title}
+        </h3>
+        {note ? <p className="-mt-1 text-note text-muted-foreground">{note}</p> : null}
+        {children}
+      </div>
+    </li>
   );
 }

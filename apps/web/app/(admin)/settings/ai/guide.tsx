@@ -48,7 +48,7 @@ export function AnthropicKeyGuide() {
           </li>
           <li>
             Revenez ici, collez la clé dans le champ « Clé API Anthropic », cliquez sur <b>Enregistrer</b> puis sur{" "}
-            <b>Vérifier</b>. Le bouton « ✨ Améliorer avec l&apos;IA » devient actif pour toute l&apos;équipe.
+            <b>Vérifier</b>. Le bouton « Améliorer avec l&apos;IA » devient actif pour toute l&apos;équipe.
           </li>
         </ol>
         <p className="text-xs text-muted-foreground">

@@ -5,20 +5,37 @@ import {
   ArrowDown,
   ArrowUp,
   Bold,
+  CalendarClock,
+  EyeOff,
+  ImagePlus,
   Italic,
   Link2,
+  MousePointerClick,
   Plus,
+  Smile,
+  Split,
   Strikethrough,
   Trash2,
   Underline,
-  EyeOff,
+  X,
 } from "lucide-react";
+import { AdvancedSection, FormSection } from "@/components/admin/form-section";
+import { UniverseDot } from "@/components/admin/universe-dot";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/components/ui/cn";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { HelpTip } from "@/components/admin/help-tip";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
 import { ImproveButton, type ImproveContext } from "@/components/ai/improve-button";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
@@ -31,6 +48,8 @@ import {
   AB_MAX_DELAY_MINUTES,
   AB_MIN_DELAY_MINUTES,
 } from "@/lib/posts/ab";
+import { advancedModifiedCount, initialSections, scheduleSummary } from "@/lib/posts/form-sections";
+import { postLanguageOptions } from "@/lib/posts/display";
 import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
 import type { BestSlot } from "@/lib/besthours/types";
 
@@ -84,14 +103,12 @@ type Props = {
   singleChannel?: boolean;
   /**
    * Créneaux recommandés par canal puis par catégorie (`all` + identifiants de catégorie), calculés chaque nuit
-   * par le worker (fiche canal → Meilleurs horaires).
+   * par le worker (meilleurs créneaux du calendrier des messages).
    */
   bestSlots?: Record<string, Record<string, BestSlot>>;
   /** Création seulement : proposer un test A/B (deux versions publiées, comparées ensuite). */
   abAllowed?: boolean;
 };
-
-const inputCls = "h-10 w-full rounded-md border bg-background px-3 text-sm md:h-9";
 
 async function uploadFiles(
   files: FileList | null,
@@ -122,44 +139,59 @@ const TEXT_TOOLS: Array<{
   close: string;
   link?: boolean;
 }> = [
-  { title: "Gras", icon: <Bold className="size-4" />, open: "<b>", close: "</b>" },
-  { title: "Italique", icon: <Italic className="size-4" />, open: "<i>", close: "</i>" },
-  { title: "Souligné", icon: <Underline className="size-4" />, open: "<u>", close: "</u>" },
-  { title: "Barré", icon: <Strikethrough className="size-4" />, open: "<s>", close: "</s>" },
-  { title: "Insérer un lien", icon: <Link2 className="size-4" />, open: "", close: "", link: true },
+  { title: "Gras", icon: <Bold aria-hidden />, open: "<b>", close: "</b>" },
+  { title: "Italique", icon: <Italic aria-hidden />, open: "<i>", close: "</i>" },
+  { title: "Souligné", icon: <Underline aria-hidden />, open: "<u>", close: "</u>" },
+  { title: "Barré", icon: <Strikethrough aria-hidden />, open: "<s>", close: "</s>" },
+  { title: "Insérer un lien", icon: <Link2 aria-hidden />, open: "", close: "", link: true },
   {
     title: "Texte masqué (spoiler)",
-    icon: <EyeOff className="size-4" />,
+    icon: <EyeOff aria-hidden />,
     open: "<tg-spoiler>",
     close: "</tg-spoiler>",
   },
 ];
 const EMOJIS = ["🔥", "🎁", "💰", "⚡", "✅", "👉", "🎰", "⚽", "❤️"];
 
-/** Barre de mise en forme + zone de texte (version A ou B). */
+/**
+ * Éditeur de texte (version A ou B) : barre d'outils (mise en forme, émojis, et « Améliorer avec l'IA » à droite)
+ * collée à la zone de texte. La sélection est gardée pour insérer un émoji choisi dans le menu.
+ */
 function TextEditor({
+  id,
   text,
   setText,
   label,
   rows = 10,
+  ai,
 }: {
+  id: string;
   text: string;
   setText: (t: string) => void;
   label: string;
   rows?: number;
+  /** Bouton de l'assistant IA, placé dans la barre d'outils. */
+  ai?: React.ReactNode;
 }) {
   const ta = useRef<HTMLTextAreaElement>(null);
-  function wrap(open: string, close: string) {
+  const sel = useRef<{ start: number; end: number }>({ start: text.length, end: text.length });
+  function remember() {
+    const el = ta.current;
+    if (el) sel.current = { start: el.selectionStart, end: el.selectionEnd };
+  }
+  function wrap(open: string, close: string, fromMenu = false) {
     const el = ta.current;
     if (!el) return;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
-    const sel = text.slice(s, e) || "texte";
-    const next = text.slice(0, s) + open + sel + close + text.slice(e);
+    const s = fromMenu ? sel.current.start : el.selectionStart;
+    const e = fromMenu ? sel.current.end : el.selectionEnd;
+    const picked = text.slice(s, e) || (close ? "texte" : "");
+    const next = text.slice(0, s) + open + picked + close + text.slice(e);
     setText(next);
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(s + open.length, s + open.length + sel.length);
+      const at = s + open.length;
+      el.setSelectionRange(at, at + picked.length);
+      sel.current = { start: at, end: at + picked.length };
     });
   }
   function insertLink() {
@@ -168,15 +200,18 @@ function TextEditor({
     wrap(`<a href="${url.replace(/"/g, "%22")}">`, "</a>");
   }
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1" role="toolbar" aria-label={`Mise en forme : ${label}`}>
+    <div className="rounded-lg border border-muted-foreground/75 bg-surface focus-within:border-ring focus-within:ring-3 focus-within:ring-brand/30">
+      <div
+        className="flex flex-wrap items-center gap-0.5 border-b border-border p-1"
+        role="toolbar"
+        aria-label={`Mise en forme : ${label}`}
+      >
         {TEXT_TOOLS.map((t) => (
           <Button
             key={t.title}
             type="button"
-            size="sm"
-            variant="outline"
-            className="max-md:h-10"
+            size="icon-sm"
+            variant="ghost"
             onClick={() => (t.link ? insertLink() : wrap(t.open, t.close))}
             title={t.title}
             aria-label={t.title}
@@ -184,28 +219,52 @@ function TextEditor({
             {t.icon}
           </Button>
         ))}
-        {EMOJIS.map((e) => (
-          <Button
-            key={e}
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="max-md:h-10"
-            aria-label={`Insérer ${e}`}
-            onClick={() => wrap(e, "")}
+        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Insérer un émoji"
+                title="Insérer un émoji"
+              />
+            }
           >
-            {e}
-          </Button>
-        ))}
+            <Smile aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent finalFocus={ta} className="w-auto">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Émojis</DropdownMenuLabel>
+              <div className="grid grid-cols-5 gap-0.5">
+                {EMOJIS.map((e) => (
+                  <DropdownMenuItem
+                    key={e}
+                    aria-label={`Insérer ${e}`}
+                    className="justify-center text-title"
+                    onClick={() => wrap(e, "", true)}
+                  >
+                    {e}
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {ai ? <div className="ml-auto">{ai}</div> : null}
       </div>
       <Textarea
         ref={ta}
+        id={id}
         value={text}
-        aria-label={label}
         onChange={(e) => setText(e.target.value)}
+        onSelect={remember}
+        onKeyUp={remember}
+        onBlur={remember}
         rows={rows}
         placeholder="Votre message…"
-        className="font-mono text-sm"
+        className="min-h-40 rounded-t-none border-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
       />
     </div>
   );
@@ -249,7 +308,7 @@ function MediaEditor({
   return (
     <div className="space-y-3">
       <div
-        className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground"
+        className="rounded-lg border border-dashed border-muted-foreground/75 p-4 text-center text-body text-muted-foreground"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -257,67 +316,68 @@ function MediaEditor({
         }}
       >
         Glissez-déposez ici ou{" "}
-        <label className="cursor-pointer text-brand-ink underline">
+        <label className="cursor-pointer font-medium text-brand-ink underline underline-offset-2">
           choisissez des fichiers
           <input
             type="file"
             multiple
-            className="hidden"
+            className="sr-only"
             aria-label={label}
             onChange={(e) => void onFiles(e.target.files)}
           />
         </label>
-        {uploading ? <div className="mt-1 text-xs">Téléversement…</div> : null}
+        {uploading ? <div className="mt-1 text-note">Téléversement…</div> : null}
       </div>
-      {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
+      {uploadError ? <p className="text-body text-danger">{uploadError}</p> : null}
       {media.length > 0 ? (
         <ul className="space-y-2">
           {media.map((m, i) => (
-            <li key={m.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
+            <li
+              key={m.id}
+              className="flex items-center gap-3 rounded-lg border border-border p-2 text-body"
+            >
               {isImage(m) ? (
                 // Aperçu servi par notre propre route (session requise) : pas d'optimisation next/image nécessaire.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={`/api/media/${m.id}`} alt="" className="size-12 rounded object-cover" />
               ) : (
-                <div className="flex size-12 items-center justify-center rounded bg-muted text-[10px] uppercase">
+                <div className="flex size-12 items-center justify-center rounded bg-muted text-note uppercase">
                   {m.mimeType.split("/")[0]}
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate">{m.filename}</div>
-                <div className="text-xs text-muted-foreground">
-                  {(m.size / 1024 / 1024).toFixed(1)} Mo{m.warning ? ` · ${m.warning}` : ""}
+                <div className="text-note text-muted-foreground">
+                  {(m.size / 1024 / 1024).toFixed(1).replace(".", ",")} Mo
+                  {m.warning ? ` · ${m.warning}` : ""}
                 </div>
               </div>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="ghost"
-                className="max-md:size-10"
                 aria-label={`Monter ${m.filename}`}
                 onClick={() => move(i, -1)}
               >
-                <ArrowUp className="size-4" />
+                <ArrowUp aria-hidden />
               </Button>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="ghost"
-                className="max-md:size-10"
                 aria-label={`Descendre ${m.filename}`}
                 onClick={() => move(i, 1)}
               >
-                <ArrowDown className="size-4" />
+                <ArrowDown aria-hidden />
               </Button>
               <Button
                 type="button"
                 size="icon-sm"
                 variant="ghost"
-                className="max-md:size-10"
                 aria-label={`Retirer ${m.filename}`}
                 onClick={() => setMedia((x) => x.filter((_, j) => j !== i))}
               >
-                <Trash2 className="size-4" />
+                <Trash2 aria-hidden />
               </Button>
             </li>
           ))}
@@ -349,7 +409,7 @@ function ButtonsEditor({
   return (
     <div className="space-y-3">
       {rows.map((row, r) => (
-        <div key={r} className="space-y-2 rounded-md border p-2">
+        <div key={r} className="space-y-2 rounded-lg border border-border p-2">
           {row.map((b, c) => (
             <div key={c} className="grid gap-2 sm:grid-cols-[1fr_180px_1fr_auto]">
               <Input
@@ -357,13 +417,12 @@ function ButtonsEditor({
                 aria-label={`${prefix}Libellé du bouton`}
                 placeholder="Libellé"
                 maxLength={64}
-                className="max-md:h-10"
                 onChange={(e) => setButton(r, c, { text: e.target.value })}
               />
-              <select
-                className={inputCls}
+              <NativeSelect
                 aria-label={`${prefix}Type de bouton`}
                 value={b.type}
+                wrapperClassName="w-full"
                 onChange={(e) =>
                   setButton(r, c, {
                     type: e.target.value as PostButton["type"],
@@ -377,7 +436,7 @@ function ButtonsEditor({
                     {BUTTON_TYPE_LABELS[t]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {b.type === "OFFER" ? (
                 <OfferPicker
                   value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
@@ -391,7 +450,6 @@ function ButtonsEditor({
                   value={b.url ?? ""}
                   aria-label={`${prefix}Adresse du bouton`}
                   placeholder="https://…"
-                  className="max-md:h-10"
                   onChange={(e) => setButton(r, c, { url: e.target.value })}
                 />
               )}
@@ -399,7 +457,6 @@ function ButtonsEditor({
                 type="button"
                 size="icon-sm"
                 variant="ghost"
-                className="max-md:size-10"
                 aria-label={`${prefix}Supprimer ce bouton`}
                 onClick={() =>
                   setRows((rs) =>
@@ -409,7 +466,7 @@ function ButtonsEditor({
                   )
                 }
               >
-                <Trash2 className="size-4" />
+                <Trash2 aria-hidden />
               </Button>
             </div>
           ))}
@@ -417,12 +474,11 @@ function ButtonsEditor({
             type="button"
             size="sm"
             variant="ghost"
-            className="max-md:h-10"
             onClick={() =>
               setRows((rs) => rs.map((x, i) => (i === r ? [...x, { text: "", type: "URL" }] : x)))
             }
           >
-            <Plus className="size-4" /> Bouton sur cette ligne
+            <Plus aria-hidden /> Bouton sur cette ligne
           </Button>
         </div>
       ))}
@@ -430,15 +486,54 @@ function ButtonsEditor({
         type="button"
         size="sm"
         variant="outline"
-        className="max-md:h-10"
         onClick={() => setRows((rs) => [...rs, [{ text: "", type: "URL" }]])}
       >
-        <Plus className="size-4" /> Nouvelle ligne de boutons
+        <Plus aria-hidden /> Nouvelle ligne de boutons
       </Button>
     </div>
   );
 }
 
+/** Case à cocher du bloc « Avancé » : contrôlée, et envoyée sous son nom habituel (« on ») si elle est cochée. */
+function OptionCheckbox({
+  name,
+  checked,
+  onChange,
+  children,
+  hint,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 text-body max-md:min-h-10">
+      <Checkbox
+        checked={checked}
+        onCheckedChange={(v) => onChange(v === true)}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="block">{children}</span>
+        {hint ? <span className="block text-note text-muted-foreground">{hint}</span> : null}
+      </span>
+      {checked ? <input type="hidden" name={name} value="on" /> : null}
+    </label>
+  );
+}
+
+/**
+ * Formulaire d'un message de canal en trois niveaux (docs/REFONTE-UX.md) :
+ * 1. visible : canaux, texte (barre d'outils avec l'assistant IA) et aperçu Telegram, date et heure (Paris) avec le
+ *    meilleur créneau, catégorie (« + Nouvelle catégorie ») ;
+ * 2. un clic : « + Média », « + Boutons » (Offre par campagne), « Test A/B » ;
+ * 3. « Avancé » replié : épingler, désépingler, supprimer après, silencieux, contenu protégé, sans aperçu de lien,
+ *    langue, écart entre les versions A et B.
+ * Un seul bouton principal « Programmer » ; brouillon et modèle en secondaire. Les noms des champs envoyés et les
+ * actions serveur (`createPostAction`, `updatePostAction`) ne changent pas.
+ */
 export function PostForm({
   action,
   channels,
@@ -463,6 +558,21 @@ export function PostForm({
   const [intent, setIntent] = useState<"draft" | "schedule" | "template">(
     initial.isTemplate ? "template" : "draft",
   );
+  const opened = initialSections({
+    mediaCount: initial.media.length,
+    buttonRows: initial.buttons.length,
+  });
+  const [showMedia, setShowMedia] = useState(opened.media);
+  const [showButtons, setShowButtons] = useState(opened.buttons);
+  // Niveau 3 : réglages rares (contrôlés pour compter ceux qui sont modifiés).
+  const [pinAfterSend, setPinAfterSend] = useState(initial.pinAfterSend);
+  const [unpinPrevious, setUnpinPrevious] = useState(initial.unpinPrevious);
+  const [deleteAfter, setDeleteAfter] = useState(initial.deleteAfterMinutes);
+  const [disableNotification, setDisableNotification] = useState(initial.disableNotification);
+  const [protectContent, setProtectContent] = useState(initial.protectContent);
+  const [disableLinkPreview, setDisableLinkPreview] = useState(initial.disableLinkPreview);
+  // « Enregistrer comme modèle » (création) : le nom se saisit sur place.
+  const [namingTemplate, setNamingTemplate] = useState(false);
   // Test A/B (création seulement).
   const [ab, setAb] = useState(false);
   const [abMode, setAbMode] = useState<"same-channel" | "other-channel">("same-channel");
@@ -472,10 +582,11 @@ export function PostForm({
   const [mediaB, setMediaB] = useState<MediaItem[]>([]);
   const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
   const abActive = abAllowed && ab && intent !== "template";
+  const isTemplate = initial.isTemplate;
 
   // Contexte de l'assistant IA : univers (campagne du bouton Offre, modèle, puis canal), catégorie, langue, média.
   const aiContext: ImproveContext = {
-    surface: initial.isTemplate || intent === "template" ? "template" : "post",
+    surface: isTemplate || intent === "template" ? "template" : "post",
     vertical: resolvePostVertical({
       rows,
       campaigns: campaignOptions ?? [],
@@ -488,7 +599,7 @@ export function PostForm({
     language,
     hasMedia: media.length > 0,
   };
-  const canCreateVariantB = abAllowed && !initial.isTemplate && intent !== "template";
+  const canCreateVariantB = abAllowed && !isTemplate && intent !== "template";
 
   // Meilleur créneau : premier canal coché qui a une recommandation pour la catégorie choisie (sinon toutes catégories).
   const slotInfo = (() => {
@@ -510,8 +621,27 @@ export function PostForm({
     setScheduledAt(toParisLocalInput(nextOccurrence(slotInfo.slot.day, slotInfo.slot.hour)));
   }
 
+  const modified = advancedModifiedCount({
+    pinAfterSend,
+    unpinPrevious,
+    deleteAfterMinutes: deleteAfter,
+    disableNotification,
+    protectContent,
+    disableLinkPreview,
+    language,
+    abDelayMinutes: abActive && abMode === "same-channel" ? abDelay : undefined,
+  });
+  const summary = scheduleSummary({
+    scheduledAt,
+    channelCount: channelIds.length,
+    ab: abActive ? { mode: abMode, delayMinutes: abDelay } : null,
+  });
+
+  const preview = <TelegramPreview html={text} buttons={rows} mediaCount={media.length} />;
+  const previewB = <TelegramPreview html={textB} buttons={rowsB} mediaCount={mediaB.length} />;
+
   return (
-    <form action={action} className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <form action={action} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       {initial.postId ? <input type="hidden" name="postId" value={initial.postId} /> : null}
       {initial.duplicatedFromId ? (
         <input type="hidden" name="duplicatedFromId" value={initial.duplicatedFromId} />
@@ -543,281 +673,148 @@ export function PostForm({
         </>
       ) : null}
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{singleChannel ? "Canal" : "Canaux"}</CardTitle>
-            <CardDescription>
-              {singleChannel
-                ? "Le canal de ce message."
-                : "Un message distinct est créé pour chaque canal coché."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            {channels.map((c) => (
-              <label
-                key={c.id}
-                className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
-              >
-                <input
-                  type={singleChannel ? "radio" : "checkbox"}
-                  checked={channelIds.includes(c.id)}
-                  onChange={(e) =>
-                    setChannelIds((ids) =>
-                      singleChannel
-                        ? [c.id]
-                        : e.target.checked
-                          ? [...ids, c.id]
-                          : ids.filter((x) => x !== c.id),
-                    )
-                  }
-                />
-                {c.title}
-              </label>
-            ))}
+      <div className="min-w-0 space-y-6">
+        {/* Niveau 1 : ce qu'il faut pour que ça marche. */}
+        <div className="space-y-6 rounded-xl border border-border bg-card p-4 md:p-6">
+          <FormSection
+            title={singleChannel ? "Canal" : "Canaux"}
+            description={
+              singleChannel
+                ? "Le canal où le bot publie ce message."
+                : "Un message est créé pour chaque canal coché."
+            }
+          >
             {channels.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 Aucun canal actif : ajoutez d&apos;abord un bot comme administrateur d&apos;un canal
                 (page Canaux).
               </p>
-            ) : null}
-          </CardContent>
-        </Card>
+            ) : singleChannel ? (
+              <NativeSelect
+                id="post-channel"
+                aria-label="Canal"
+                value={channelIds[0] ?? ""}
+                onChange={(e) => setChannelIds([e.target.value])}
+                wrapperClassName="w-full sm:w-80"
+              >
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : (
+              <div role="group" aria-label="Canaux" className="flex flex-wrap gap-2">
+                {channels.map((c) => {
+                  const checked = channelIds.includes(c.id);
+                  return (
+                    <label
+                      key={c.id}
+                      className={cn(
+                        "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-body max-md:h-10",
+                        checked
+                          ? "border-brand bg-brand-soft text-foreground"
+                          : "border-border bg-surface hover:bg-muted",
+                      )}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setChannelIds((ids) =>
+                            v === true ? [...ids, c.id] : ids.filter((x) => x !== c.id),
+                          )
+                        }
+                      />
+                      <UniverseDot universe={c.vertical} />
+                      {c.title}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </FormSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{abActive ? "Texte — version A" : "Texte"}</CardTitle>
-            <CardDescription>
-              Mise en forme Telegram : gras, italique, lien… via les boutons. 4 096 caractères
-              maximum, 1 024 avec un média.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <TextEditor text={text} setText={setText} label="Texte du message" />
-            <ImproveButton
-              getText={() => text}
+          <FormSection
+            title={abActive ? "Texte — version A" : "Texte"}
+            description="Mise en forme Telegram par la barre d'outils. 4 096 caractères au plus, 1 024 avec un média."
+          >
+            <Label htmlFor="post-text" className="sr-only">
+              Texte du message
+            </Label>
+            <TextEditor
+              id="post-text"
+              text={text}
               setText={setText}
-              context={aiContext}
-              onCreateVariantB={
-                canCreateVariantB
-                  ? (t) => {
-                      setAb(true);
-                      setTextB(t);
-                    }
-                  : undefined
+              label="Texte du message"
+              ai={
+                <ImproveButton
+                  getText={() => text}
+                  setText={setText}
+                  context={aiContext}
+                  label="Améliorer avec l'IA"
+                  variant="ghost"
+                  size="sm"
+                  className="text-brand-ink"
+                  onCreateVariantB={
+                    canCreateVariantB
+                      ? (t) => {
+                          setAb(true);
+                          setTextB(t);
+                        }
+                      : undefined
+                  }
+                />
               }
             />
-          </CardContent>
-        </Card>
+            {/* Téléphone : l'aperçu juste sous le texte (sur ordinateur, il est à droite). */}
+            <div className="lg:hidden">
+              <p className="mb-2 text-note font-medium text-muted-foreground">
+                Aperçu tel que les membres le verront
+              </p>
+              {preview}
+            </div>
+          </FormSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {abActive ? "Médias — version A" : "Médias"}
-            </CardTitle>
-            <CardDescription>
-              Image, vidéo, gif ou document. Plusieurs médias = album (les boutons suivent dans un
-              second message). 50 Mo maximum.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MediaEditor media={media} setMedia={setMedia} label="Fichiers du message" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {abActive ? "Boutons — version A" : "Boutons"}
-            </CardTitle>
-            <CardDescription>
-              Lien direct, lien traqué (clics comptés) ou offre (lien Link Affi avec un identifiant
-              de suivi (sub-ID) propre à chaque membre : c&apos;est ce qui rattache inscriptions et
-              dépôts au membre).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ButtonsEditor
-              rows={rows}
-              setRows={setRows}
-              campaigns={campaigns}
-              campaignOptions={campaignOptions}
-            />
-          </CardContent>
-        </Card>
-
-        {abAllowed && intent !== "template" ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Test A/B (optionnel)</CardTitle>
-              <CardDescription>
-                Deux versions du message sont publiées ; la page de comparaison montre vues,
-                réactions, clics et inscriptions de chacune et désigne la gagnante provisoire.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={ab}
-                  onChange={(e) => setAb(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />{" "}
-                Comparer deux versions de ce message (A et B).
-              </label>
-              {ab ? (
-                <div className="space-y-4 rounded-md border p-3">
-                  <fieldset className="space-y-2 text-sm">
-                    <legend className="font-medium">Où publier la version B ?</legend>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="abModeChoice"
-                        checked={abMode === "same-channel"}
-                        onChange={() => setAbMode("same-channel")}
-                      />{" "}
-                      Même canal, B publiée{" "}
-                      <Input
-                        type="number"
-                        min={AB_MIN_DELAY_MINUTES}
-                        max={AB_MAX_DELAY_MINUTES}
-                        value={abDelay}
-                        aria-label="Minutes entre la version A et la version B"
-                        onChange={(e) => setAbDelay(e.target.value)}
-                        className="h-8 w-20"
-                      />{" "}
-                      minutes après A
-                    </label>
-                    <label className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="radio"
-                        name="abModeChoice"
-                        checked={abMode === "other-channel"}
-                        onChange={() => setAbMode("other-channel")}
-                      />{" "}
-                      Dans un autre canal, à la même heure :{" "}
-                      <select
-                        aria-label="Canal de la version B"
-                        value={abChannelId}
-                        disabled={abMode !== "other-channel"}
-                        onChange={(e) => setAbChannelId(e.target.value)}
-                        className="h-8 rounded-md border bg-background px-2 text-sm"
-                      >
-                        <option value="">— choisir —</option>
-                        {channels
-                          .filter((c) => !channelIds.includes(c.id))
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.title}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                  </fieldset>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Texte — version B</p>
-                    <TextEditor
-                      text={textB}
-                      setText={setTextB}
-                      label="Texte de la version B"
-                      rows={6}
-                    />
-                    <ImproveButton
-                      getText={() => textB}
-                      setText={setTextB}
-                      context={{ ...aiContext, hasMedia: mediaB.length > 0 }}
-                      label="✨ Améliorer la version B avec l'IA"
-                      size="xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Médias — version B</p>
-                    <MediaEditor
-                      media={mediaB}
-                      setMedia={setMediaB}
-                      label="Fichiers de la version B"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Boutons — version B</p>
-                    <ButtonsEditor
-                      rows={rowsB}
-                      setRows={setRowsB}
-                      campaigns={campaigns}
-                      campaignOptions={campaignOptions}
-                      prefix="Version B : "
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
-
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Programmation</CardTitle>
-            <CardDescription>
-              « Programmer » envoie à la date choisie ; « Enregistrer en brouillon » garde le
-              message sans l&apos;envoyer.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {intent !== "template" ? (
+          <div className="grid gap-6 sm:grid-cols-2">
+            {isTemplate ? (
               <div className="space-y-2">
-                <Label htmlFor="scheduledAt">Date et heure (Europe/Paris)</Label>
+                <div className="flex min-h-7 items-center">
+                  <Label htmlFor="templateName">Nom du modèle</Label>
+                </div>
+                <Input
+                  id="templateName"
+                  name="templateName"
+                  defaultValue={initial.templateName}
+                  maxLength={80}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex min-h-7 items-center">
+                  <Label htmlFor="scheduledAt">Date et heure (heure de Paris)</Label>
+                </div>
                 <Input
                   id="scheduledAt"
                   name="scheduledAt"
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="max-md:h-10"
                 />
                 {slotInfo ? (
-                  <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2 text-xs">
-                    <span>
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand-soft px-3 py-2 text-note">
+                    <span className="min-w-0 flex-1">
                       Meilleur créneau pour {slotInfo.channelTitle}
-                      {slotInfo.categoryName
-                        ? ` et la catégorie ${slotInfo.categoryName}`
-                        : ""} : <strong>{slotInfo.slot.label}</strong>{" "}
-                      <HelpTip label="Aide : meilleur créneau">
-                        Calculé chaque nuit sur les messages envoyés des 8 dernières semaines (taux
-                        de clic, puis réactions). Détail dans la fiche du canal, onglet « Meilleurs
-                        horaires ».
-                      </HelpTip>
+                      {slotInfo.categoryName ? ` (${slotInfo.categoryName})` : ""} :{" "}
+                      <strong className="font-semibold text-brand-ink">
+                        {slotInfo.slot.label}
+                      </strong>
                     </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 max-md:h-10"
-                      onClick={applyBestSlot}
-                    >
+                    <Button type="button" size="xs" variant="outline" onClick={applyBestSlot}>
+                      <CalendarClock aria-hidden />
                       Utiliser
                     </Button>
                   </div>
                 ) : null}
-                {abActive ? (
-                  <p className="text-xs text-muted-foreground">
-                    Version A à cette date ;{" "}
-                    {abMode === "same-channel"
-                      ? `version B ${abDelay || AB_DEFAULT_DELAY_MINUTES} minutes plus tard dans le même canal.`
-                      : "version B à la même heure dans l'autre canal."}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="templateName">Nom du modèle</Label>
-                <Input
-                  id="templateName"
-                  name="templateName"
-                  defaultValue={initial.templateName}
-                  className="max-md:h-10"
-                />
               </div>
             )}
             <CategoryPicker
@@ -828,117 +825,344 @@ export function PostForm({
                 setCategoryName(c?.name ?? null);
               }}
             />
+          </div>
+        </div>
+
+        {/* Niveau 2 : un clic chacun. */}
+        {!showMedia || !showButtons || (abAllowed && !isTemplate && !ab) ? (
+          <div role="group" aria-label="Ajouter au message" className="flex flex-wrap gap-2">
+            {!showMedia ? (
+              <Button type="button" variant="outline" onClick={() => setShowMedia(true)}>
+                <ImagePlus aria-hidden />
+                Média
+              </Button>
+            ) : null}
+            {!showButtons ? (
+              <Button type="button" variant="outline" onClick={() => setShowButtons(true)}>
+                <MousePointerClick aria-hidden />
+                Boutons
+              </Button>
+            ) : null}
+            {abAllowed && !isTemplate && !ab ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={intent === "template"}
+                onClick={() => setAb(true)}
+              >
+                <Split aria-hidden />
+                Test A/B
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showMedia ? (
+          <div className="relative rounded-xl border border-border bg-card p-4 md:p-6">
+            {media.length === 0 ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Masquer les médias"
+                className="absolute top-3 right-3"
+                onClick={() => setShowMedia(false)}
+              >
+                <X aria-hidden />
+              </Button>
+            ) : null}
+            <FormSection
+              title={abActive ? "Médias — version A" : "Médias"}
+              description="Image, vidéo, gif ou document (50 Mo au plus). Plusieurs médias = album ; les boutons suivent dans un second message."
+              className="[&>div:first-child]:pr-10"
+            >
+              <MediaEditor media={media} setMedia={setMedia} label="Fichiers du message" />
+            </FormSection>
+          </div>
+        ) : null}
+
+        {showButtons ? (
+          <div className="relative rounded-xl border border-border bg-card p-4 md:p-6">
+            {rows.length === 0 ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Masquer les boutons"
+                className="absolute top-3 right-3"
+                onClick={() => setShowButtons(false)}
+              >
+                <X aria-hidden />
+              </Button>
+            ) : null}
+            <FormSection
+              title={abActive ? "Boutons — version A" : "Boutons"}
+              description="Lien direct, lien traqué (clics comptés) ou offre d'une campagne (lien Link Affi avec l'identifiant de suivi de chaque membre)."
+              className="[&>div:first-child]:pr-10"
+            >
+              <ButtonsEditor
+                rows={rows}
+                setRows={setRows}
+                campaigns={campaigns}
+                campaignOptions={campaignOptions}
+              />
+            </FormSection>
+          </div>
+        ) : null}
+
+        {abActive ? (
+          <div className="relative rounded-xl border border-border bg-card p-4 md:p-6">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="absolute top-3 right-3"
+              onClick={() => setAb(false)}
+            >
+              <X aria-hidden />
+              Retirer le test
+            </Button>
+            <FormSection
+              title="Test A/B"
+              description="Deux versions sont publiées ; la page de comparaison montre vues, clics et inscriptions de chacune et désigne la gagnante."
+              className="[&>div:first-child]:pr-32"
+            >
+              <fieldset className="space-y-2 text-body">
+                <legend className="mb-1 font-medium">Où publier la version B ?</legend>
+                <label className="flex items-center gap-2 max-md:min-h-10">
+                  <input
+                    type="radio"
+                    name="abModeChoice"
+                    checked={abMode === "same-channel"}
+                    onChange={() => setAbMode("same-channel")}
+                    className="size-4 accent-brand"
+                  />
+                  Dans le même canal, après la version A (écart réglable dans « Avancé »)
+                </label>
+                <label className="flex flex-wrap items-center gap-2 max-md:min-h-10">
+                  <input
+                    type="radio"
+                    name="abModeChoice"
+                    checked={abMode === "other-channel"}
+                    onChange={() => setAbMode("other-channel")}
+                    className="size-4 accent-brand"
+                  />
+                  Dans un autre canal, à la même heure :
+                  <NativeSelect
+                    aria-label="Canal de la version B"
+                    value={abChannelId}
+                    disabled={abMode !== "other-channel"}
+                    onChange={(e) => setAbChannelId(e.target.value)}
+                    wrapperClassName="w-full sm:w-60"
+                  >
+                    <option value="">— choisir —</option>
+                    {channels
+                      .filter((c) => !channelIds.includes(c.id))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title}
+                        </option>
+                      ))}
+                  </NativeSelect>
+                </label>
+              </fieldset>
+              <div className="space-y-2">
+                <Label htmlFor="post-text-b">Texte — version B</Label>
+                <TextEditor
+                  id="post-text-b"
+                  text={textB}
+                  setText={setTextB}
+                  label="Texte de la version B"
+                  rows={6}
+                  ai={
+                    <ImproveButton
+                      getText={() => textB}
+                      setText={setTextB}
+                      context={{ ...aiContext, hasMedia: mediaB.length > 0 }}
+                      label="Améliorer la version B"
+                      variant="ghost"
+                      size="sm"
+                      className="text-brand-ink"
+                    />
+                  }
+                />
+                <div className="lg:hidden">{previewB}</div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-body font-medium">Médias — version B</p>
+                <MediaEditor media={mediaB} setMedia={setMediaB} label="Fichiers de la version B" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-body font-medium">Boutons — version B</p>
+                <ButtonsEditor
+                  rows={rowsB}
+                  setRows={setRowsB}
+                  campaigns={campaigns}
+                  campaignOptions={campaignOptions}
+                  prefix="Version B : "
+                />
+              </div>
+            </FormSection>
+          </div>
+        ) : null}
+
+        {/* Niveau 3 : réglages rares, repliés. */}
+        <AdvancedSection
+          description="Épingler, envoi silencieux, contenu protégé, suppression automatique, langue…"
+          modifiedCount={modified}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <OptionCheckbox name="pinAfterSend" checked={pinAfterSend} onChange={setPinAfterSend}>
+              Épingler après l&apos;envoi
+            </OptionCheckbox>
+            <OptionCheckbox
+              name="unpinPrevious"
+              checked={unpinPrevious}
+              onChange={setUnpinPrevious}
+            >
+              Désépingler le message précédent
+            </OptionCheckbox>
+            <OptionCheckbox
+              name="disableNotification"
+              checked={disableNotification}
+              onChange={setDisableNotification}
+              hint="Les membres le reçoivent sans sonnerie."
+            >
+              Envoi silencieux
+            </OptionCheckbox>
+            <OptionCheckbox
+              name="protectContent"
+              checked={protectContent}
+              onChange={setProtectContent}
+              hint="Pas de transfert ni de capture du message."
+            >
+              Contenu protégé
+            </OptionCheckbox>
+            <OptionCheckbox
+              name="disableLinkPreview"
+              checked={disableLinkPreview}
+              onChange={setDisableLinkPreview}
+            >
+              Sans aperçu des liens
+            </OptionCheckbox>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="language">Langue (code à deux lettres)</Label>
+              <Label htmlFor="deleteAfterMinutes">Supprimer après (minutes)</Label>
               <Input
+                id="deleteAfterMinutes"
+                name="deleteAfterMinutes"
+                type="number"
+                min={1}
+                inputMode="numeric"
+                placeholder="Jamais"
+                value={deleteAfter}
+                onChange={(e) => setDeleteAfter(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="language">Langue du message</Label>
+              <NativeSelect
                 id="language"
                 name="language"
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                maxLength={5}
-                className="w-24 max-md:h-10"
-              />
+                wrapperClassName="w-full"
+              >
+                {postLanguageOptions(language).map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </NativeSelect>
             </div>
-            <div className="space-y-1 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" name="pinAfterSend" defaultChecked={initial.pinAfterSend} />{" "}
-                Épingler après envoi
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="unpinPrevious"
-                  defaultChecked={initial.unpinPrevious}
-                />{" "}
-                Désépingler le précédent
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="disableNotification"
-                  defaultChecked={initial.disableNotification}
-                />{" "}
-                Silencieux (sans notification)
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="protectContent"
-                  defaultChecked={initial.protectContent}
-                />{" "}
-                Contenu protégé (pas de transfert)
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="disableLinkPreview"
-                  defaultChecked={initial.disableLinkPreview}
-                />{" "}
-                Sans aperçu de lien
-              </label>
-              <label className="flex items-center gap-2">
-                Supprimer du canal après{" "}
+            {abActive && abMode === "same-channel" ? (
+              <div className="space-y-2">
+                <Label htmlFor="abDelay">Écart entre A et B (minutes)</Label>
                 <Input
-                  name="deleteAfterMinutes"
-                  aria-label="Supprimer du canal après (minutes)"
+                  id="abDelay"
                   type="number"
-                  min={1}
-                  defaultValue={initial.deleteAfterMinutes}
-                  className="h-10 w-20 md:h-7"
-                />{" "}
-                minutes
-              </label>
+                  min={AB_MIN_DELAY_MINUTES}
+                  max={AB_MAX_DELAY_MINUTES}
+                  value={abDelay}
+                  onChange={(e) => setAbDelay(e.target.value)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </AdvancedSection>
+
+        {/* Un seul bouton principal. */}
+        <div className="space-y-3 border-t border-border pt-4">
+          {namingTemplate ? (
+            <div className="flex flex-wrap items-end gap-2 rounded-lg bg-muted p-3">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Label htmlFor="newTemplateName">Nom du modèle</Label>
+                <Input
+                  id="newTemplateName"
+                  name="templateName"
+                  maxLength={80}
+                  placeholder="Ex. : Bonus du vendredi"
+                  autoFocus
+                />
+              </div>
+              <Button type="submit" variant="outline" onClick={() => setIntent("template")}>
+                Enregistrer le modèle
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setNamingTemplate(false)}>
+                Annuler
+              </Button>
             </div>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {initial.isTemplate ? (
-                <Button type="submit" className="max-md:h-10" onClick={() => setIntent("template")}>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-note text-muted-foreground" aria-live="polite">
+              {isTemplate
+                ? "Un modèle ne part pas : il sert de base à de nouveaux messages."
+                : summary}
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              {isTemplate ? (
+                <Button type="submit" onClick={() => setIntent("template")}>
                   Enregistrer le modèle
                 </Button>
               ) : (
                 <>
-                  <Button
-                    type="submit"
-                    className="max-md:h-10"
-                    onClick={() => setIntent("schedule")}
-                  >
-                    {abActive ? "Programmer le test A/B" : "Programmer"}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="max-md:h-10"
-                    onClick={() => setIntent("draft")}
-                  >
-                    Enregistrer en brouillon
-                  </Button>
-                  {!initial.postId && !ab ? (
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      className="max-md:h-10"
-                      onClick={() => setIntent("template")}
-                    >
+                  {!initial.postId && !ab && !namingTemplate ? (
+                    <Button type="button" variant="ghost" onClick={() => setNamingTemplate(true)}>
                       Enregistrer comme modèle
                     </Button>
                   ) : null}
+                  <Button type="submit" variant="outline" onClick={() => setIntent("draft")}>
+                    Enregistrer en brouillon
+                  </Button>
+                  <Button type="submit" onClick={() => setIntent("schedule")}>
+                    <CalendarClock aria-hidden />
+                    {abActive ? "Programmer le test A/B" : "Programmer"}
+                  </Button>
                 </>
               )}
             </div>
-          </CardContent>
-        </Card>
-        <div>
-          <p className="mb-2 text-sm font-medium">
-            {abActive ? "Aperçu — version A" : "Aperçu tel que les membres le verront"}
-          </p>
-          <TelegramPreview html={text} buttons={rows} mediaCount={media.length} />
-        </div>
-        {abActive ? (
-          <div>
-            <p className="mb-2 text-sm font-medium">Aperçu — version B</p>
-            <TelegramPreview html={textB} buttons={rowsB} mediaCount={mediaB.length} />
           </div>
-        ) : null}
+        </div>
       </div>
+
+      {/* Ordinateur : l'aperçu à droite, toujours visible. */}
+      <aside className="hidden lg:block" aria-label="Aperçu">
+        <div className="sticky top-4 space-y-4">
+          <div>
+            <p className="mb-2 text-note font-medium text-muted-foreground">
+              {abActive ? "Aperçu — version A" : "Aperçu tel que les membres le verront"}
+            </p>
+            {preview}
+          </div>
+          {abActive ? (
+            <div>
+              <p className="mb-2 text-note font-medium text-muted-foreground">Aperçu — version B</p>
+              {previewB}
+            </div>
+          ) : null}
+        </div>
+      </aside>
     </form>
   );
 }

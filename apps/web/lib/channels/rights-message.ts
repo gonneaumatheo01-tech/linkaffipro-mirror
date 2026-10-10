@@ -1,6 +1,6 @@
 import type { ImportedChannel, RecheckResult } from "@linkaffipro/telegram";
 
-/** « 1 canal » / « 3 canaux ». */
+/** « 1 canal » / « 3 canaux ». */
 export function canaux(n: number): string {
   return `${n} ${n > 1 ? "canaux" : "canal"}`;
 }
@@ -10,7 +10,7 @@ function unverifiable(r: Pick<RecheckResult, "status">): boolean {
   return r.status === "unavailable" || r.status === "no_bot";
 }
 
-/** Phrase « Droits vérifiés : … » pour un canal (page Canaux, fiche canal). */
+/** Phrase « Droits vérifiés : … » pour un canal (page Canaux, fiche canal). */
 export function rightsMessage(r: RecheckResult): string {
   const admins =
     r.admins.length > 0
@@ -19,7 +19,7 @@ export function rightsMessage(r: RecheckResult): string {
   const revoked =
     r.revoked.length > 0 ? ` ; droits retirés : ${r.revoked.map((u) => `@${u}`).join(", ")}` : "";
   const warning = r.warning && unverifiable(r) ? ` (${r.warning})` : "";
-  return `Droits vérifiés pour « ${r.title} » : ${admins}${revoked}${warning}`;
+  return `Droits vérifiés pour « ${r.title} » : ${admins}${revoked}${warning}`;
 }
 
 /** Résumé pour tous les canaux : nombre vérifié, canaux sans bot, bots retirés, canaux non vérifiables. */
@@ -27,8 +27,8 @@ export function rightsSummary(results: RecheckResult[]): string {
   if (results.length === 0) return "Droits vérifiés : aucun canal actif.";
   const without = results
     .filter((r) => r.admins.length === 0 && !unverifiable(r))
-    .map((r) => `« ${r.title} »`);
-  const revoked = results.flatMap((r) => r.revoked.map((u) => `@${u} sur « ${r.title} »`));
+    .map((r) => `« ${r.title} »`);
+  const revoked = results.flatMap((r) => r.revoked.map((u) => `@${u} sur « ${r.title} »`));
   const notChecked = results.filter(unverifiable).length;
   const parts = [`Droits vérifiés sur ${canaux(results.length)}`];
   parts.push(
@@ -44,18 +44,18 @@ export function rightsSummary(results: RecheckResult[]): string {
   return `${parts.join(" ; ")}.`;
 }
 
-/** Issue de l'import d'un canal coché (page « Importer mes canaux »). */
+/** Issue de l'import d'un canal coché (page « Importer mes canaux »). */
 export type ImportOutcome = {
   title: string;
   created?: boolean;
   /** Aucun de nos bots n'a accès au canal (vérifié). */
   withoutBot?: boolean;
-  /** Droits non vérifiables pour le moment (429, panne, aucun bot actif) : ni « sans bot », ni « avec bot ». */
+  /** Droits non vérifiables pour le moment (429, panne, aucun bot actif) : ni « sans bot », ni « avec bot ». */
   unverified?: boolean;
   error?: string;
 };
 
-/** Issue d'un canal importé : « sans bot » seulement si la vérification a conclu qu'aucun de nos bots n'y a accès. */
+/** Issue d'un canal importé : « sans bot » seulement si la vérification a conclu qu'aucun de nos bots n'y a accès. */
 export function importOutcomeOf(
   r: Pick<ImportedChannel, "title" | "created" | "admins" | "status">,
 ): ImportOutcome {
@@ -72,7 +72,7 @@ export function importOutcomeOf(
 const MAX_TITLES = 5;
 
 /**
- * Retour résumé de l'import du compte : « 12 canaux importés, 3 sans bot » plutôt qu'une phrase par canal,
+ * Retour résumé de l'import du compte : « 12 canaux importés, 3 sans bot » plutôt qu'une phrase par canal,
  * et la liste courte des canaux non importés avec la première raison.
  */
 export function importSummary(outcomes: ImportOutcome[]): { ok?: string; error?: string } {
@@ -88,14 +88,14 @@ export function importSummary(outcomes: ImportOutcome[]): { ok?: string; error?:
     if (known > 0) msg += ` (dont ${known} déjà connu${known > 1 ? "s" : ""}, mis à jour)`;
     msg +=
       withoutBot > 0
-        ? " : ajoutez un de nos bots comme administrateur dans Telegram, puis cliquez « Re-vérifier les droits des bots »."
+        ? " : ajoutez un de nos bots comme administrateur dans Telegram, puis cliquez « Re-vérifier les droits des bots »."
         : ".";
     if (unverified > 0)
-      msg += ` ${unverified} non vérifiable${unverified > 1 ? "s" : ""} pour le moment : réessayez « Re-vérifier les droits des bots » dans une minute.`;
+      msg += ` ${unverified} non vérifiable${unverified > 1 ? "s" : ""} pour le moment : réessayez « Re-vérifier les droits des bots » dans une minute.`;
     out.ok = msg;
   }
   if (failed.length > 0) {
-    const titles = failed.slice(0, MAX_TITLES).map((o) => `« ${o.title} »`);
+    const titles = failed.slice(0, MAX_TITLES).map((o) => `« ${o.title} »`);
     const more =
       failed.length > MAX_TITLES
         ? ` et ${failed.length - MAX_TITLES} autre${failed.length - MAX_TITLES > 1 ? "s" : ""}`

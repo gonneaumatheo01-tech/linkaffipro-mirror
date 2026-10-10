@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   role: "ADMIN" as "ADMIN" | "MANAGER",
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
 vi.mock("@linkaffipro/db", () => ({
   prisma: {
     channel: { findMany: vi.fn(async () => []) },

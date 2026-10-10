@@ -76,11 +76,13 @@ function param(sp: SearchParamsLike, key: string): string {
 
 /**
  * Filtres de la page Messages et de son export CSV, lus dans l'URL. Le filtre campagne s'appelle `campaignId`
- * (comme sur Envois, Membres et le tableau de bord) ; l'ancien nom `campaign` reste accepté.
+ * (comme sur Envois, Membres et le tableau de bord) ; l'ancien nom `campaign` reste accepté. Le canal s'appelle
+ * `channel` dans la liste et `channelId` dans le calendrier (adresse de l'ancien onglet « Meilleurs horaires »
+ * d'un canal, redirigée vers `/messages?channelId=…`) : les deux sont lus.
  */
 export function parsePostListFilters(sp: SearchParamsLike): PostListFilters {
   return {
-    channelId: param(sp, "channel"),
+    channelId: param(sp, "channel") || param(sp, "channelId"),
     campaignId: param(sp, "campaignId") || param(sp, "campaign"),
     status: param(sp, "status"),
     categoryId: param(sp, "category"),
@@ -148,8 +150,9 @@ export async function scopeForFilters(
 }
 
 const postListInclude = {
-  channel: { select: { title: true } },
+  channel: { select: { title: true, vertical: true } },
   category: { select: { name: true, color: true } },
+  stats: { select: { clicks: true } },
 } satisfies Prisma.PostInclude;
 export type PostListRow = Prisma.PostGetPayload<{ include: typeof postListInclude }>;
 
@@ -160,9 +163,13 @@ export async function listPosts(opts: {
   page: number;
 }): Promise<{ rows: PostListRow[]; total: number; pages: number }> {
   const scope = opts.view === "list" ? await scopeForFilters(opts.filters) : null;
+  // Modèles : univers et thème (bibliothèque), plus la catégorie quand le modèle en a une (galerie).
   const where: Prisma.PostWhereInput =
     opts.view === "templates"
-      ? templateListWhere(opts.filters)
+      ? {
+          ...templateListWhere(opts.filters),
+          ...(opts.filters.categoryId ? { categoryId: opts.filters.categoryId } : {}),
+        }
       : postListWhere(opts.filters, scope);
   const orderBy: Prisma.PostOrderByWithRelationInput[] =
     opts.view === "templates"
@@ -182,28 +189,59 @@ export async function listPosts(opts: {
   return { rows, total, pages: Math.max(1, Math.ceil(total / POSTS_PAGE_SIZE)) };
 }
 
+const calendarInclude = {
+  channel: { select: { id: true, title: true, vertical: true } },
+  category: { select: { id: true, name: true, color: true } },
+} satisfies Prisma.PostInclude;
+export type CalendarPostRow = Prisma.PostGetPayload<{ include: typeof calendarInclude }>;
+
+/** Univers reconnu (CASINO, SPORTS, DATING), sinon null. */
+function knownVertical(v: string | undefined): Vertical | null {
+  return v && VERTICALS.includes(v) ? (v as Vertical) : null;
+}
+
 /**
- * Messages programmés d'une semaine (vue « Calendrier »), avec le même filtre Campagne que la liste
- * (`campaignScope` + `campaignPostWhere`).
+ * Messages d'une semaine (vue « Calendrier »), avec les mêmes filtres que la liste : campagne (`campaignScope` +
+ * `campaignPostWhere`), canal, catégorie, et l'univers du canal.
  */
 export async function listCalendarPosts(opts: {
   weekStart: Date;
   weekEnd: Date;
   campaignId?: string;
-}): Promise<PostListRow[]> {
+  channelId?: string;
+  categoryId?: string;
+  vertical?: string;
+}): Promise<CalendarPostRow[]> {
   const f: PostListFilters = {
-    channelId: "",
+    channelId: opts.channelId ?? "",
     status: "",
-    categoryId: "",
+    categoryId: opts.categoryId ?? "",
     from: "",
     to: "",
     campaignId: opts.campaignId,
   };
+  const vertical = knownVertical(opts.vertical);
   const where: Prisma.PostWhereInput = {
     ...postListWhere(f, await scopeForFilters(f)),
+    ...(vertical ? { channel: { vertical } } : {}),
     scheduledAt: { gte: opts.weekStart, lt: opts.weekEnd },
   };
-  return prisma.post.findMany({ where, orderBy: { scheduledAt: "asc" }, include: postListInclude });
+  return prisma.post.findMany({
+    where,
+    orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
+    include: calendarInclude,
+  });
+}
+
+/** Catégories portées par au moins un modèle (filtre « Catégorie » de la galerie de modèles). */
+export async function listTemplateCategories(): Promise<
+  Array<{ id: string; name: string; color: string }>
+> {
+  return prisma.messageCategory.findMany({
+    where: { posts: { some: { isTemplate: true } } },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, color: true },
+  });
 }
 
 /** Libellés et couleurs des statuts de message : source unique dans `lib/status-badges.tsx`. */

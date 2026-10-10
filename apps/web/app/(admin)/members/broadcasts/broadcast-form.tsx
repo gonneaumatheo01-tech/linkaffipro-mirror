@@ -583,7 +583,7 @@ export function BroadcastForm({
                   getText={() => textB}
                   setText={setTextB}
                   context={{ ...aiContext, hasMedia: Boolean(mediaAssetIdB) }}
-                  label="✨ Améliorer la version B avec l'IA"
+                  label="Améliorer la version B avec l'IA"
                   size="xs"
                 />
                 <div className="space-y-2">
