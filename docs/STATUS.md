@@ -1,6 +1,35 @@
-# État du projet — phase 7 (connecteurs directs) terminée (10 octobre 2026, 7h00)
+# État du projet : phase 8 (corrections du client, canaux existants, campagnes, assistant IA) terminée (10 octobre 2026, 12h05)
 
-Phases 0 et 1 validées (Telegram). Phases 2, 3 et 4 déployées et testées par Claude (tests automatiques et simulés). Mode autonome le 9 octobre au soir : phases 4 (solidité), 5 (finitions) et 6 (compléments) enchaînées sans intervention humaine (`docs/prompts/05-phases-suivantes-autonome.md`). 483 tests unitaires + 22 tests d'intégration, CI GitHub verte, tout déployé.
+Phases 0 à 7 en ligne. Phase 8 = les retours du client du 10 octobre (`docs/prompts/10-phase-8-corrections-et-ia-messages.md`). 993 tests unitaires et 82 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé.
+
+## Phase 8 : ce qui a changé (10 octobre)
+- **Vos canaux existants** : Canaux → **Ajouter un canal existant**. Trois méthodes : transférer un message du canal au bot (canaux privés compris), coller le lien public, ou publier un message. La liste se rafraîchit seule pendant 2 minutes. Deux boutons de plus : **Importer tous mes canaux**, avec le compte Telegram connecté, et **Re-vérifier les droits des bots**. Tout canal qui envoie quelque chose à un bot est créé automatiquement. Un bot n'est plus jamais marqué « retiré » à tort : Telegram doit confirmer son départ.
+- **Statistiques justes** : seuls vos joueurs comptent partout (tableau de bord, campagnes, entonnoir, cohortes, canaux, fiches, rapports Telegram, alertes). Vos joueurs sont ceux venus d'un de vos clics ou d'une offre Link Affi liée à une de vos campagnes. Les dates sont celles de Link Affi, et le NGR est daté variation par variation. Résultat : 7, 30 et 90 jours donnent des chiffres différents. Le tableau de bord se lit en deux lignes, Telegram puis Argent. Sans campagne, il affiche « Pas encore de chiffres : créez votre première campagne ». La tuile « Événements (24 h) » est passée dans Réglages → État du système et dans Journal → Événements.
+- **Campagnes** (2e menu) : assistant en 4 étapes (nom, offres, canaux, pubs) et fiche à onglets (Vue d'ensemble, Pubs, Liens, Canaux, Messages, Membres, Offres). Le bouton **Offre** se règle par campagne. Le filtre Campagne existe sur le tableau de bord, Membres, Messages (liste, calendrier, export) et Envois. La ligne Total compte chaque joueur une seule fois. Les campagnes pub TikTok / Meta sont rattachées à vos campagnes, et les statistiques se recalculent seules après chaque modification.
+- **Catégories** : plus aucune n'est créée d'office. Vous créez les vôtres, avec **+ Nouvelle catégorie** directement dans le formulaire de message. Vous pouvez les renommer, changer leur couleur et leur ordre, les fusionner ou les supprimer en choisissant un remplacement. Les 63 modèles fournis ont des thèmes, pas des catégories.
+- **Assistant IA** : bouton **✨ Améliorer avec l'IA** sur les messages de canal, les modèles, les envois (versions A et B), les textes du bot et les automatisations. Il propose 3 versions, puis « Plus court », « Plus percutant », « Autre angle », traductions et version B. Il peut aussi écrire à partir d'une idée et s'inspire de vos messages qui ont marché. Réglages → IA : clé chiffrée, Vérifier, plafond mensuel (20 € par défaut), limite par personne, historique. Les règles de conformité sont imposées : pas de promesse de gains, mention des risques, 18+.
+
+## À faire par vous (15 minutes, détail dans `docs/A-FAIRE-HUMAIN.md`)
+1. **Créer la clé API Anthropic et la coller dans Réglages → IA (5 minutes)**.
+2. **Ajouter vos canaux existants** : Mon compte → Lier mon Telegram, puis transférer un message de chaque canal au bot. Ensuite, enregistrer une règle d'adhésion par canal. Mediatheque et Test n'en ont pas : leurs demandes attendent désormais le bouton « Accepter ».
+3. **Créer votre première campagne** (Campagnes → Nouvelle campagne).
+4. **Créer vos catégories** (dans le formulaire de message).
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com : le tableau de bord affiche « Pas encore de chiffres : créez votre première campagne », ou deux lignes Telegram / Argent s'il y a une campagne.
+2. Canaux → **Ajouter un canal existant** : la fenêtre montre les 3 méthodes. Transférez un message d'un canal au bot : il répond « Canal « … » ajouté ✅ ».
+3. Campagnes → **Nouvelle campagne** : les 4 étapes s'enchaînent ; à la fin, l'onglet Liens donne l'adresse à coller dans la pub.
+4. Messages → Nouveau message → Catégorie → **+ Nouvelle catégorie** : la catégorie est créée et choisie.
+5. Réglages → IA : collez la clé, **Vérifier** ; puis dans un message, **✨ Améliorer avec l'IA** propose 3 versions.
+
+## Problèmes connus et limites
+- Testé par Claude avec des mises à jour Telegram simulées, sur une vraie base, puis contrôlé en production avec le compte de vérification (32 pages, textes attendus). Pas encore testé par une vraie personne : le transfert d'un message au bot (méthode 1), à faire avec le message Telegram envoyé ce matin.
+- L'assistant IA a été testé avec une API simulée ; il fonctionnera dès que la clé sera collée dans Réglages → IA.
+- Reprise des données faite en production : 89 écarts de NGR datés, les 7 catégories d'office retirées des 63 modèles, puis recalcul complet des statistiques. Sauvegarde faite juste avant (Réglages → État du système → Dernière sauvegarde).
+- Un ancien bouton Offre (créé avant les campagnes) se duplique en choisissant sa campagne ; sinon le message n'est pas enregistré et un message explique quoi faire.
+- Deux cas rares où la vue d'ensemble et l'onglet Entonnoir peuvent différer d'une unité : membre arrivé par deux pubs dans deux canaux différents, ou joueur avec clic sans message ni pub d'origine sous le seul filtre univers.
+- Une campagne pub déjà importée, puis renommée plus tard comme votre campagne, ne se rattache pas toute seule : utilisez « Rattacher une campagne pub importée » (onglet Pubs).
+- Le worker est toujours aux États-Unis (clic à faire, `docs/A-FAIRE-HUMAIN.md`).
 
 ## Adresses et accès
 - Site : https://app.linkaffipro.com — liens traqués : https://go.goolink.eu
