@@ -1,4 +1,4 @@
-# État du projet — phases 4, 5 et 6 terminées (9 octobre 2026, 21h20) ; chaîne autonome achevée
+# État du projet — phase 7 (connecteurs directs) terminée (10 octobre 2026, 7h00)
 
 Phases 0 et 1 validées (Telegram). Phases 2, 3 et 4 déployées et testées par Claude (tests automatiques et simulés). Mode autonome le 9 octobre au soir : phases 4 (solidité), 5 (finitions) et 6 (compléments) enchaînées sans intervention humaine (`docs/prompts/05-phases-suivantes-autonome.md`). 483 tests unitaires + 22 tests d'intégration, CI GitHub verte, tout déployé.
 
@@ -39,6 +39,14 @@ Phases 0 et 1 validées (Telegram). Phases 2, 3 et 4 déployées et testées par
 
 - **Tests A/B des envois groupés** : dans « Nouvel envoi », cochez « Test A/B », écrivez la version B (texte, média, boutons) et choisissez la part (10 à 90 %). Les destinataires sont répartis au hasard mais de façon stable ; la page du test compare envoyés, clics, cliqueurs uniques, inscriptions, FTD et désigne la gagnante (au moins 30 envois par version). Bouton « Envoyer la version gagnante au reste du segment » pour les membres pas encore servis.
 - **Sécurité du site** (`docs/SECURITE.md`) : 10 échecs de connexion en 15 minutes (par e-mail ou par adresse) bloquent la connexion 15 minutes ; en-têtes de sécurité (HSTS, anti-cadre, CSP) ; webhooks et postbacks limités à 1 Mo ; suppressions réservées aux ADMIN.
+
+## Phase 7 — connecteurs directs (10 octobre, 7h00)
+- **Comptes publicitaires Meta et TikTok** branchés depuis le site (Réglages → Connecteurs → Meta / TikTok) : enregistrement des identifiants d'application (chiffrés, bouton Vérifier), guide clic par clic avec les valeurs exactes à copier, bouton « Connecter un compte », connexion chez Meta ou TikTok, liste des comptes à cocher, plusieurs comptes et plusieurs utilisateurs, déconnexion en un clic, reconnexion guidée (statut « À reconnecter » + alerte Telegram).
+- **Dépenses automatiques** : toutes les heures (3 derniers jours), 28 jours chaque nuit, 90 jours à la connexion ; campagnes, groupes et pubs créés dans Pubs et reliés aux liens d'entrée de même nom ; dépenses converties en euros (taux Link Affi toutes les 6 h, ou saisis dans Connecteurs) ; journal par connexion (dernière synchro, lignes, erreur lisible) ; priorité à l'API sur le CSV ; badge de source (API / Fichier / Saisie) dans Pubs.
+- **Vues Telegram par message** : Réglages → Connecteurs → Telegram : api_id / api_hash (my.telegram.org), numéro, code reçu dans Telegram, mot de passe 2FA ; relevés toutes les 15 min pendant 48 h puis quotidiens jusqu'à 30 jours ; tuiles Vues / Transferts et courbe dans la fiche message ; meilleurs horaires et A/B utilisent les vues dès qu'elles existent.
+- Pages publiques `/privacy` et `/terms` (exigées par Meta). 571 tests unitaires + 22 d'intégration, CI verte.
+- **Reste à faire par vous** (10 + 10 + 5 minutes, guidé dans chaque page) : créer l'app Meta, l'app TikTok (puis attendre sa validation, 1 à 2 semaines ; bac à sable en attendant) et l'app Telegram sur my.telegram.org. Voir `docs/A-FAIRE-HUMAIN.md`.
+- Non testable sans ces apps : le vrai dialogue de connexion Meta / TikTok, les en-têtes de quota en production, la lecture réelle des vues ; tout est couvert par des réponses simulées et un bouton « Vérifier » signalera tout écart de la doc TikTok (portail non lisible par script).
 
 ## Phase 6 — compléments (9 octobre, 21h20)
 - **Meilleurs horaires** : fiche canal → onglet « Meilleurs horaires » (carte jour × heure, recommandation, recalcul) ; encart « Meilleur créneau » dans le formulaire de message avec « Utiliser ».

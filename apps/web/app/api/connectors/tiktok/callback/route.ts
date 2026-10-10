@@ -8,6 +8,7 @@ import {
   verifyOAuthState,
 } from "@/lib/connectors/common";
 import { requireUser } from "@/lib/session";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const fail = (error: string) =>
     NextResponse.redirect(
-      new URL(`/settings/connectors/tiktok?${new URLSearchParams({ error })}`, req.url),
+      new URL(`/settings/connectors/tiktok?${new URLSearchParams({ error })}`, env.appBaseUrl),
     );
 
   const state = verifyOAuthState(url.searchParams.get("state"));
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
       entityId: "TIKTOK",
       metadata: { platform: "TIKTOK", accounts: accounts.length },
     });
-    return NextResponse.redirect(new URL("/settings/connectors/tiktok/choose", req.url));
+    return NextResponse.redirect(new URL("/settings/connectors/tiktok/choose", env.appBaseUrl));
   } catch (err) {
     return fail(`Connexion TikTok impossible : ${describeConnectorError(err).slice(0, 300)}`);
   }

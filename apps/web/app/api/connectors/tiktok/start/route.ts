@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { tiktokProvider } from "@linkaffipro/connectors";
 import { createOAuthState, loadAppCredentials, redirectUriFor } from "@/lib/connectors/common";
 import { requireUser } from "@/lib/session";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,11 @@ export const dynamic = "force-dynamic";
  * Départ de la connexion d'un compte TikTok (ADMIN) : état signé anti-CSRF, puis redirection vers le portail
  * d'autorisation TikTok. Aucun jeton ne transite ici.
  */
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   const user = await requireUser();
   const back = (error: string) =>
     NextResponse.redirect(
-      new URL(`/settings/connectors/tiktok?${new URLSearchParams({ error })}`, req.url),
+      new URL(`/settings/connectors/tiktok?${new URLSearchParams({ error })}`, env.appBaseUrl),
     );
   if (user.role !== "ADMIN")
     return back("Seuls les administrateurs peuvent connecter un compte TikTok.");

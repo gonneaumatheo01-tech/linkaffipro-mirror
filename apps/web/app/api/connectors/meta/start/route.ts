@@ -3,6 +3,7 @@ import { audit } from "@linkaffipro/db";
 import { metaProvider } from "@linkaffipro/connectors";
 import { auth } from "@/auth";
 import { createOAuthState, loadAppCredentials, redirectUriFor } from "@/lib/connectors/common";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +13,18 @@ const SETTINGS_URL = "/settings/connectors/meta";
  * GET /api/connectors/meta/start : démarre la connexion d'un compte Meta.
  * ADMIN seulement (403 sinon). Crée l'état signé anti-CSRF (10 min) puis redirige vers le dialogue Facebook Login.
  */
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.redirect(
-      new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, req.url),
+      new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, env.appBaseUrl),
     );
   if (session.user.role !== "ADMIN")
     return NextResponse.json({ error: "Action réservée aux administrateurs." }, { status: 403 });
 
   const app = await loadAppCredentials("META");
   if (!app) {
-    const back = new URL(SETTINGS_URL, req.url);
+    const back = new URL(SETTINGS_URL, env.appBaseUrl);
     back.searchParams.set(
       "error",
       "Enregistrez d'abord l'App ID et l'App Secret de votre application Meta (bloc « Application Meta »).",

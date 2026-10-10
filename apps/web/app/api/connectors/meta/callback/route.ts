@@ -8,6 +8,7 @@ import {
   savePending,
   verifyOAuthState,
 } from "@/lib/connectors/common";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ const SETTINGS_URL = "/settings/connectors/meta";
 const CHOOSE_URL = "/settings/connectors/meta/choose";
 
 function backWithError(req: Request, message: string): NextResponse {
-  const url = new URL(SETTINGS_URL, req.url);
+  const url = new URL(SETTINGS_URL, env.appBaseUrl);
   url.searchParams.set("error", message);
   return NextResponse.redirect(url);
 }
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.redirect(
-      new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, req.url),
+      new URL(`/login?callbackUrl=${encodeURIComponent(SETTINGS_URL)}`, env.appBaseUrl),
     );
   if (session.user.role !== "ADMIN")
     return NextResponse.json({ error: "Action réservée aux administrateurs." }, { status: 403 });
@@ -89,7 +90,7 @@ export async function GET(req: Request) {
         "Connexion réussie, mais ce profil Facebook ne voit aucun compte publicitaire. Vérifiez qu'il a un rôle sur le compte (Business Manager → Personnes) et que la permission ads_read a été acceptée.",
       );
     }
-    return NextResponse.redirect(new URL(CHOOSE_URL, req.url));
+    return NextResponse.redirect(new URL(CHOOSE_URL, env.appBaseUrl));
   } catch (err) {
     const message = describeConnectorError(err);
     await audit({
