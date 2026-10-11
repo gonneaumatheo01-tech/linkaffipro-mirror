@@ -25,7 +25,8 @@ Phases 0 à 9 en ligne. Phase 10 = les retours du client après la refonte (`doc
 
 ## Vérifications faites
 - Diagnostic du bug sur les données de production (lecture seule) ; tests unitaires et d'intégration sur l'adhésion avec les canaux à rejoindre, la création des liens par un autre bot, l'accueil jamais vide, l'alerte et le renvoi.
-- Gains : chiffres comparés aux données réelles Link Affi du 11 octobre (exemple : 5 primes le 4 octobre = 350 € et 2 annulations le 6 octobre = −140 €, que la table de Link Affi range au 4 octobre ; total identique de 630 € par les deux sources) ; reprise faite en production (`pnpm db:phase10:gains`) après une sauvegarde.
+- Gains : chiffres comparés aux données réelles Link Affi du 11 octobre (exemple : 5 primes le 4 octobre = 350 € et 2 annulations le 6 octobre = −140 €, que la table de Link Affi range au 4 octobre ; total identique de 630 € par les deux sources) ; reprise faite en production (`pnpm db:phase10:gains`) après une sauvegarde : 1 767 joueurs relus, 368 avec une commission, 496 événements de commission écrits, puis synchro complète de la table des commissions par jour et recalcul complet. Votre campagne actuelle n'a pas encore de joueur sur ses deux offres : ses gains valent 0 €, c'est normal.
+- Production après déploiement : santé du site et du service d'arrière-plan OK, migration appliquée, 34 pages ouvertes avec le compte de vérification sans erreur (« Gains du jour », « commissions … − pub … », colonnes Commissions et Gains des exports), liens traqués en 302, aucun message d'erreur dans les journaux.
 - Relecture du code par des agents indépendants, puis corrections, avant déploiement.
 - Captures automatiques de la production avec le compte de vérification : refusées par les règles de sécurité de la machine ; pas de contournement. Contrôle fait à la place par lecture du texte des pages et requêtes en lecture seule.
 
