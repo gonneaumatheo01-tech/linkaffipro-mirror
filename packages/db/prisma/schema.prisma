@@ -145,6 +145,9 @@ enum AffiliateSource {
 }
 
 /// Type d'événement joueur.
+/// Phase 10 : CPA = commission CPA créditée (part affilié, montant POSITIF, datée `players.cpa_credited_at`) ;
+/// CPA_REVERSAL = annulation de cette commission (montant NÉGATIF, datée `players.cpa_reversed_at`). La somme des deux
+/// sur une période donne la CPA nette : une CPA annulée se retranche le jour de l'annulation.
 enum PlayerEventType {
   CLICK
   REGISTRATION
@@ -153,6 +156,8 @@ enum PlayerEventType {
   REDEPOSIT
   NGR
   OTHER
+  CPA
+  CPA_REVERSAL
 }
 
 /// Statut d'une pub / campagne publicitaire.
@@ -583,6 +588,10 @@ model TrackingLink {
   affiliateCampaign   AffiliateCampaign? @relation(fields: [affiliateCampaignId], references: [id])
   postId              String?
   post                Post?              @relation(fields: [postId], references: [id])
+  /// Relance automatique qui a envoyé ce bouton (Offre ou lien traqué d'un message de relance), comme `postId` pour un
+  /// message de canal (phase 10). Relance supprimée : le lien reste utilisable, le rattachement est effacé.
+  automationRuleId    String?
+  automationRule      AutomationRule?    @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
   isActive            Boolean            @default(true)
   createdById         String?
   createdBy           User?              @relation(fields: [createdById], references: [id])
@@ -601,6 +610,7 @@ model TrackingLink {
   @@index([inviteLinkId])
   @@index([channelId])
   @@index([affiliateCampaignId])
+  @@index([automationRuleId])
 }
 
 /// Clic sur un lien traqué ou un bouton. `subId` unique pour les clics OFFER (12 caractères base62, sans point).
@@ -816,35 +826,40 @@ model SequenceStep {
 
 /// Message privé sortant (file d'attente et historique).
 model OutboundMessage {
-  id                String         @id @default(cuid())
+  id                String          @id @default(cuid())
   botId             String
-  bot               Bot            @relation(fields: [botId], references: [id])
+  bot               Bot             @relation(fields: [botId], references: [id])
   memberId          String
-  member            Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member            Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
   kind              OutboundKind
   sequenceStepId    String?
-  sequenceStep      SequenceStep?  @relation(fields: [sequenceStepId], references: [id])
+  sequenceStep      SequenceStep?   @relation(fields: [sequenceStepId], references: [id])
   postId            String?
-  post              Post?          @relation(fields: [postId], references: [id])
+  post              Post?           @relation(fields: [postId], references: [id])
   broadcastId       String?
-  broadcast         Broadcast?     @relation(fields: [broadcastId], references: [id])
+  broadcast         Broadcast?      @relation(fields: [broadcastId], references: [id])
+  /// Relance automatique à l'origine du message (kind AUTOMATION), pour compter les « envoyés » par relance (phase 10).
+  /// Relance supprimée : le message reste, le rattachement est effacé.
+  automationRuleId  String?
+  automationRule    AutomationRule? @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
   /// Média joint (photo, vidéo, gif, document) envoyé avec le texte en légende.
   mediaAssetId      String?
-  mediaAsset        MediaAsset?    @relation(fields: [mediaAssetId], references: [id])
+  mediaAsset        MediaAsset?     @relation(fields: [mediaAssetId], references: [id])
   /// Identifiant du chat privé si différent du telegramUserId (user_chat_id).
   chatId            BigInt?
   text              String
-  buttons           Json           @default("[]")
-  status            OutboundStatus @default(QUEUED)
+  buttons           Json            @default("[]")
+  status            OutboundStatus  @default(QUEUED)
   telegramMessageId Int?
   error             String?
-  queuedAt          DateTime       @default(now())
+  queuedAt          DateTime        @default(now())
   sentAt            DateTime?
 
   @@index([memberId, queuedAt])
   @@index([status, queuedAt])
   @@index([broadcastId, status])
   @@index([memberId, status, sentAt])
+  @@index([automationRuleId, status])
 }
 
 // ============================================================
@@ -865,6 +880,7 @@ model AffiliateProgram {
 
   campaigns         AffiliateCampaign[]
   postbackEndpoints PostbackEndpoint[]
+  dailyStats        AffiliateDailyStat[]
 
   @@unique([source, externalId])
 }
@@ -888,6 +904,7 @@ model AffiliateCampaign {
 
   players       Player[]
   trackingLinks TrackingLink[]
+  dailyStats    AffiliateDailyStat[]
 
   @@unique([programId, externalId])
   @@index([campaignKey])
@@ -915,6 +932,17 @@ model Player {
   ngr                 Decimal           @default(0) @db.Decimal(14, 2)
   currency            String            @default("EUR")
   status              String?
+  /// Phase 10 : statut de la commission CPA chez Link Affi (`players.cpa_status` : none | approved | not_eligible |
+  /// reversed), null tant que la synchro ne l'a pas lu.
+  cpaStatus           String?
+  /// Commission CPA côté affilié en EUR (`players.cpa_affiliate_amount`) ; null = aucune ou inconnue. Reste renseignée
+  /// après une annulation (c'est le montant annulé).
+  cpaAmount           Decimal?          @db.Decimal(14, 2)
+  /// Crédit de la CPA (`players.cpa_credited_at`). Peut manquer pour d'anciens joueurs approuvés : repli sur
+  /// `qualified_at` (dans `raw`).
+  cpaCreditedAt       DateTime?
+  /// Annulation de la CPA (`players.cpa_reversed_at`).
+  cpaReversedAt       DateTime?
   lastEventAt         DateTime?
   raw                 Json?
   createdAt           DateTime          @default(now())
@@ -930,6 +958,8 @@ model Player {
   @@index([ftdAt])
   @@index([lastEventAt])
   @@index([createdAt])
+  @@index([cpaCreditedAt])
+  @@index([cpaReversedAt])
 }
 
 /// Événement joueur brut (inscription, FTD, dépôt, redépôt, NGR…).
@@ -961,6 +991,53 @@ model SyncState {
   rowsImported  Int       @default(0)
   isRunning     Boolean   @default(false)
   updatedAt     DateTime  @updatedAt
+}
+
+/// Agrégat journalier Link Affi (table `stats`), phase 10 : source de la part de revshare, qui n'existe qu'en agrégat.
+/// UNE LIGNE PAR LIGNE LINK AFFI (clé `externalId` = `stats.id`), pas une par (jour, offre) : Link Affi ajoute des lignes
+/// de correction (CPA annulée, revshare repris, prime) datées du jour d'origine mais créées plus tard (`sourceCreatedAt`),
+/// et certaines lignes n'ont pas d'offre (`campaign_id` vide). Lire en additionnant par (date, affiliateCampaignId).
+/// La table `stats` couvre tous les affiliés de Link Affi : seules nos offres comptent (règle « nos joueurs »).
+model AffiliateDailyStat {
+  id                  String             @id @default(cuid())
+  /// `stats.id` : clé d'upsert (synchro idempotente).
+  externalId          String             @unique
+  /// Jour de l'agrégat (`stats.date`, jour de Paris côté Link Affi).
+  date                DateTime           @db.Date
+  /// Offre Link Affi (`stats.campaign_id` → AffiliateCampaign.externalId) ; vide si la ligne n'a pas d'offre ou si
+  /// l'offre n'est pas encore synchronisée.
+  affiliateCampaignId String?
+  affiliateCampaign   AffiliateCampaign? @relation(fields: [affiliateCampaignId], references: [id], onDelete: SetNull)
+  /// `stats.campaign_id` brut, gardé même quand l'offre est inconnue chez nous (rattachement ultérieur).
+  campaignExternalId  String?
+  /// Programme (casino) : `stats.casino_id` → AffiliateProgram.externalId.
+  programId           String?
+  program             AffiliateProgram?  @relation(fields: [programId], references: [id], onDelete: SetNull)
+  programExternalId   String?
+  /// `stats.affiliate_id` (affilié Link Affi).
+  affiliateExternalId String?
+  /// Volumes Link Affi (contrôle de cohérence avec nos propres chiffres ; `deposits` peut être négatif sur une correction).
+  clicks              Int                @default(0)
+  signups             Int                @default(0)
+  deposits            Int                @default(0)
+  depositAmount       Decimal            @default(0) @db.Decimal(14, 2)
+  /// Commission totale de l'affilié (`stats.revenue`, arrondie au centime par Link Affi). Contient parfois des primes ou
+  /// corrections manuelles absentes de `cpaRevenue` et `revshareRevenue`.
+  revenue             Decimal            @default(0) @db.Decimal(14, 4)
+  /// Part CPA de l'affilié (`stats.cpa_revenue`).
+  cpaRevenue          Decimal            @default(0) @db.Decimal(14, 4)
+  /// Part de revshare de l'affilié (`stats.revshare_revenue`, souvent fractionnaire, parfois négative).
+  revshareRevenue     Decimal            @default(0) @db.Decimal(14, 4)
+  /// Création de la ligne chez Link Affi (`stats.created_at`) : une correction est créée après le jour qu'elle corrige.
+  sourceCreatedAt     DateTime?
+  /// Ligne Link Affi complète (recalcul sans resynchroniser).
+  raw                 Json?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([date])
+  @@index([affiliateCampaignId, date])
+  @@index([programId, date])
 }
 
 // ============================================================
@@ -1170,7 +1247,9 @@ model AutomationRule {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  executions AutomationRun[]
+  executions       AutomationRun[]
+  trackingLinks    TrackingLink[]
+  outboundMessages OutboundMessage[]
 
   @@index([trigger, isActive])
 }
@@ -1218,30 +1297,37 @@ model Alert {
 
 /// Statistiques journalières pré-calculées (par canal, pub, campagne ou univers ; une ligne par combinaison).
 model DailyStat {
-  id            String    @id @default(cuid())
-  date          DateTime  @db.Date
+  id                  String    @id @default(cuid())
+  date                DateTime  @db.Date
   /// Clé de dimension : "all" | "channel:<id>" | "campaign:<id>" | "ad:<id>" | "vertical:<V>".
-  dimension     String
-  channelId     String?
-  channel       Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  campaignId    String?
-  campaign      Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  adId          String?
-  ad            Ad?       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  vertical      Vertical?
-  requests      Int       @default(0)
-  approved      Int       @default(0)
-  joined        Int       @default(0)
-  left          Int       @default(0)
-  entryClicks   Int       @default(0)
-  offerClicks   Int       @default(0)
-  registrations Int       @default(0)
-  ftds          Int       @default(0)
-  deposits      Int       @default(0)
-  depositAmount Decimal   @default(0) @db.Decimal(14, 2)
-  ngr           Decimal   @default(0) @db.Decimal(14, 2)
-  spend         Decimal   @default(0) @db.Decimal(14, 2)
-  updatedAt     DateTime  @updatedAt
+  dimension           String
+  channelId           String?
+  channel             Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  campaignId          String?
+  campaign            Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adId                String?
+  ad                  Ad?       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  vertical            Vertical?
+  requests            Int       @default(0)
+  approved            Int       @default(0)
+  joined              Int       @default(0)
+  left                Int       @default(0)
+  entryClicks         Int       @default(0)
+  offerClicks         Int       @default(0)
+  registrations       Int       @default(0)
+  ftds                Int       @default(0)
+  deposits            Int       @default(0)
+  depositAmount       Decimal   @default(0) @db.Decimal(14, 2)
+  ngr                 Decimal   @default(0) @db.Decimal(14, 2)
+  spend               Decimal   @default(0) @db.Decimal(14, 2)
+  /// Phase 10 : nos commissions du jour en EUR (CPA nette + part de revshare). Gains = commissions − spend ; jamais
+  /// les dépôts ni le revenu net (argent du casino).
+  commissions         Decimal   @default(0) @db.Decimal(14, 2)
+  /// Détail : CPA créditées − CPA annulées, chacune au jour réel (événements CPA / CPA_REVERSAL).
+  cpaCommissions      Decimal   @default(0) @db.Decimal(14, 2)
+  /// Détail : part de revshare (agrégat Link Affi `AffiliateDailyStat` de nos offres).
+  revshareCommissions Decimal   @default(0) @db.Decimal(14, 2)
+  updatedAt           DateTime  @updatedAt
 
   @@unique([date, dimension])
   @@index([dimension, date])

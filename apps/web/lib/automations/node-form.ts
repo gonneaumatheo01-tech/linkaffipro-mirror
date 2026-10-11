@@ -2,6 +2,7 @@
  * Conversions entre l'affichage (champs de formulaire) et les données des relances : durées, boutons, langues.
  * Fonctions pures, partagées par les cartes et l'éditeur à branches (testées dans node-form.test.ts).
  */
+import { isOfferButton, type AutomationButton } from "@linkaffipro/core";
 
 export type DelayUnit = "hours" | "days";
 
@@ -22,11 +23,14 @@ export function delayToHours(value: string, unit: DelayUnit): number | null {
   return Math.round((unit === "days" ? n * 24 : n) * 100) / 100;
 }
 
-export type ButtonRows = Array<Array<{ text: string; url: string }>>;
+/** Boutons d'un message de relance : liens simples et boutons « Offre (campagne) » (une rangée par bouton). */
+export type ButtonRows = AutomationButton[][];
 
-/** Boutons d'un message → une ligne par bouton (« Libellé | https://… »). */
+/** Boutons d'un message → une ligne par bouton (« Libellé | https://… ») ; ancien champ texte, liens seulement. */
 export function buttonsToLines(rows: ButtonRows | undefined | null): string {
-  return (rows ?? []).flatMap((r) => r.map((b) => `${b.text} | ${b.url}`)).join("\n");
+  return (rows ?? [])
+    .flatMap((r) => r.flatMap((b) => (isOfferButton(b) ? [] : [`${b.text} | ${b.url}`])))
+    .join("\n");
 }
 
 /**
@@ -57,29 +61,117 @@ export function linesToButtons(
   return { ok: true, rows };
 }
 
-/** Un bouton tel que saisi à l'écran (libellé et adresse, éventuellement incomplets). */
-export type ButtonEntry = { text: string; url: string };
+/**
+ * Un bouton tel que saisi à l'écran (éventuellement incomplet) : un lien (libellé et adresse), ou un bouton
+ * « Offre (campagne) » (`kind: "offer"`, libellé, notre campagne et son offre Link Affi ; l'adresse reste vide).
+ */
+export type ButtonEntry = {
+  text: string;
+  url: string;
+  kind?: "link" | "offer";
+  campaignId?: string;
+  affiliateCampaignId?: string;
+};
+
+/** Vrai pour une ligne « Offre (campagne) ». */
+export const isOfferEntry = (e: ButtonEntry): boolean => e.kind === "offer";
+
+/**
+ * Ligne de saisie lue d'un JSON (formulaire, brouillon de l'éditeur) : une ligne `{ kind: "offer" }` ou un bouton
+ * enregistré `{ type: "OFFER" }` devient une ligne Offre ; tout le reste, une ligne de lien.
+ */
+export function toButtonEntry(raw: unknown): ButtonEntry {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const s = (v: unknown) => (typeof v === "string" ? v : "");
+  if (o.kind === "offer" || o.type === "OFFER")
+    return {
+      kind: "offer",
+      text: s(o.text),
+      url: "",
+      campaignId: s(o.campaignId),
+      affiliateCampaignId: s(o.affiliateCampaignId),
+    };
+  return { text: s(o.text), url: s(o.url) };
+}
+
+/**
+ * Boutons d'un bloc de l'éditeur tels que saisis (lignes vides retirées, rien n'est perdu) : un bouton incomplet reste
+ * dans le brouillon, où la validation de l'éditeur le signale (`toButtonEntry` le relit).
+ */
+export function draftButtonRows(
+  entries: readonly ButtonEntry[],
+): Array<Array<Record<string, string>>> {
+  return entries
+    .filter((e) => e.text.trim() || e.url.trim() || (isOfferEntry(e) && e.campaignId))
+    .map((e): Array<Record<string, string>> => [
+      isOfferEntry(e)
+        ? {
+            text: e.text.trim(),
+            type: "OFFER",
+            campaignId: e.campaignId ?? "",
+            affiliateCampaignId: e.affiliateCampaignId ?? "",
+          }
+        : { text: e.text.trim(), url: e.url.trim() },
+    ]);
+}
+
+/** Boutons de l'aperçu Telegram (libellés des lignes commencées, un bouton par rangée). */
+export function previewButtonRows(entries: readonly ButtonEntry[]): Array<Array<{ text: string }>> {
+  return entries
+    .filter((e) => e.text.trim() || e.url.trim() || (isOfferEntry(e) && e.campaignId))
+    .map((e) => [{ text: e.text.trim() }]);
+}
 
 /** 10 boutons au plus sous un message de relance. */
 export const MAX_BUTTONS = 10;
 
-/** Boutons d'un message → lignes de saisie « Libellé » / « Adresse » (un bouton par rangée). */
+/** Boutons d'un message → lignes de saisie (un bouton par rangée). */
 export function buttonsToEntries(rows: ButtonRows | undefined | null): ButtonEntry[] {
-  return (rows ?? []).flatMap((r) => r.map((b) => ({ text: b.text, url: b.url })));
+  return (rows ?? []).flatMap((r) =>
+    r.map((b): ButtonEntry =>
+      isOfferButton(b)
+        ? {
+            kind: "offer",
+            text: b.text,
+            url: "",
+            campaignId: b.campaignId,
+            affiliateCampaignId: b.affiliateCampaignId,
+          }
+        : { text: b.text, url: b.url },
+    ),
+  );
 }
 
 /**
- * Lignes de saisie → rangées d'un bouton chacune (même forme enregistrée qu'avant). Une ligne entièrement vide est
- * ignorée ; un libellé manquant ou une adresse qui ne commence pas par http(s):// donne une erreur en français, avec
- * le rang de la ligne fautive (`index`) pour la signaler à côté du champ.
+ * Lignes de saisie → rangées d'un bouton chacune (même forme enregistrée qu'avant pour un lien ; `{ text, type:
+ * "OFFER", campaignId, affiliateCampaignId }` pour une offre). Une ligne entièrement vide est ignorée ; un libellé
+ * manquant, une adresse qui ne commence pas par http(s):// ou une offre sans campagne donne une erreur en français,
+ * avec le rang de la ligne fautive (`index`) pour la signaler à côté du champ.
  */
 export function entriesToButtons(
   entries: readonly ButtonEntry[],
 ): { ok: true; rows: ButtonRows } | { ok: false; error: string; index: number } {
   const rows: ButtonRows = [];
   for (let i = 0; i < entries.length; i++) {
-    const text = entries[i]!.text.trim();
-    const url = entries[i]!.url.trim();
+    const e = entries[i]!;
+    const text = e.text.trim();
+    if (isOfferEntry(e)) {
+      const campaignId = e.campaignId?.trim() ?? "";
+      const affiliateCampaignId = e.affiliateCampaignId?.trim() ?? "";
+      if (!text && !campaignId) continue;
+      if (!text) return { ok: false, index: i, error: `Bouton ${i + 1} : écrivez son libellé.` };
+      if (!campaignId || !affiliateCampaignId)
+        return {
+          ok: false,
+          index: i,
+          error: `Bouton « ${text} » : choisissez la campagne de l'offre.`,
+        };
+      if (rows.length >= MAX_BUTTONS)
+        return { ok: false, index: i, error: `${MAX_BUTTONS} boutons au plus sous un message.` };
+      rows.push([{ text: text.slice(0, 64), type: "OFFER", campaignId, affiliateCampaignId }]);
+      continue;
+    }
+    const url = e.url.trim();
     if (!text && !url) continue;
     if (!text) return { ok: false, index: i, error: `Bouton ${i + 1} : écrivez son libellé.` };
     if (!/^https?:\/\/\S+$/.test(url))
@@ -148,6 +240,16 @@ export const MESSAGE_EXAMPLES = {
   canal: "Casino VIP",
   bot: "LinkAffi Bot",
 } as const;
+
+/** Repères à insérer dans un message de relance (mêmes mots que l'exécution : prénom, canal, bot). */
+export const MESSAGE_WORDS: ReadonlyArray<{ key: "prenom" | "canal" | "bot"; label: string }> = [
+  { key: "prenom", label: "Prénom" },
+  { key: "canal", label: "Nom du canal" },
+  { key: "bot", label: "Nom du bot" },
+];
+
+/** Aide sous le texte d'un message de relance : les repères avec les mots des pastilles, jamais entre accolades. */
+export const MESSAGE_FIELD_HELP = `Les repères en couleur (${MESSAGE_WORDS.map((w) => w.label).join(", ")}) sont remplacés pour chaque personne.`;
 
 /** Remplace {prenom}, {canal}, {bot} par des exemples (aperçu) ; les autres mots restent tels quels. */
 export function fillMessageExamples(text: string): string {

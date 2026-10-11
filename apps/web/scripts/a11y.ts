@@ -59,11 +59,11 @@ async function main(): Promise<number> {
   });
   for (const n of notes) console.warn(`[a11y] ${n}`);
   console.log(
-    `[a11y] ${targets.length} page(s) à ${opts.width} px sur ${opts.base}, règles ${opts.tags.join(", ")}`,
+    `[a11y] ${targets.length} page(s) à ${opts.width} px sur ${opts.base}${opts.browser === "chromium" ? "" : ` (${opts.browser})`}, règles ${opts.tags.join(", ")}`,
   );
 
   const pages: A11yPageResult[] = [];
-  const browser = await launchBrowser();
+  const browser = await launchBrowser(opts.browser);
   try {
     const admin = await browser.newContext(contextOptions(opts.width));
     await login(admin, opts);

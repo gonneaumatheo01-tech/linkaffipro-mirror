@@ -6,6 +6,7 @@ import { prisma } from "@linkaffipro/db";
 import { groupLanguages } from "@/lib/members/query";
 import { getTagRegistry } from "@/lib/members/tags";
 import { counterSince, weeklyCounters, type RuleCounter } from "./counter";
+import { ruleResults, type RuleResults } from "./results";
 
 export type NameMaps = {
   channels: Record<string, string>;
@@ -55,6 +56,118 @@ export async function loadRuleCounters(
       })
     : [];
   return weeklyCounters(runs, clicks, now);
+}
+
+/**
+ * Résultats de chaque relance (définitions dans `results.ts`) : messages remis rattachés à la relance, clics de ses
+ * boutons Offre par des membres qui l'avaient reçue pour de vrai (les essais « Tester sur moi » utilisent le même lien
+ * et ne comptent pas), joueurs venus de ces clics et leurs commissions. Lecture seule. Les premiers envois ne sont lus
+ * que pour les membres qui ont cliqué (peu nombreux, contrairement aux destinataires).
+ */
+export async function loadRuleResults(
+  ruleIds: readonly string[],
+): Promise<Record<string, RuleResults>> {
+  if (ruleIds.length === 0) return {};
+  const ids = [...ruleIds];
+  const [sent, clicks, players] = await Promise.all([
+    prisma.outboundMessage.groupBy({
+      by: ["automationRuleId"],
+      where: { automationRuleId: { in: ids }, kind: "AUTOMATION", status: "SENT" },
+      _count: { _all: true },
+    }),
+    prisma.click.findMany({
+      where: {
+        isBot: false,
+        memberId: { not: null },
+        trackingLink: { automationRuleId: { in: ids } },
+      },
+      select: {
+        memberId: true,
+        createdAt: true,
+        trackingLink: { select: { automationRuleId: true } },
+      },
+    }),
+    prisma.player.findMany({
+      where: { click: { trackingLink: { automationRuleId: { in: ids } } } },
+      select: {
+        ftdAt: true,
+        click: {
+          select: {
+            memberId: true,
+            createdAt: true,
+            trackingLink: { select: { automationRuleId: true } },
+          },
+        },
+        events: { where: { type: { in: ["CPA", "CPA_REVERSAL"] } }, select: { amount: true } },
+      },
+    }),
+  ]);
+  const clickMembers = [
+    ...new Set(
+      [...clicks.map((c) => c.memberId), ...players.map((p) => p.click?.memberId ?? null)].filter(
+        (id): id is string => !!id,
+      ),
+    ),
+  ];
+  const firstSends = clickMembers.length
+    ? await prisma.outboundMessage.groupBy({
+        by: ["automationRuleId", "memberId"],
+        where: {
+          automationRuleId: { in: ids },
+          memberId: { in: clickMembers },
+          kind: "AUTOMATION",
+          status: "SENT",
+        },
+        _min: { queuedAt: true },
+      })
+    : [];
+  return ruleResults(ids, {
+    sent: sent.flatMap((s) =>
+      s.automationRuleId ? [{ ruleId: s.automationRuleId, count: s._count._all }] : [],
+    ),
+    firstSends: firstSends.flatMap((f) =>
+      f.automationRuleId && f._min.queuedAt
+        ? [{ ruleId: f.automationRuleId, memberId: f.memberId, at: f._min.queuedAt }]
+        : [],
+    ),
+    clicks: clicks.flatMap((c) =>
+      c.trackingLink.automationRuleId
+        ? [{ ruleId: c.trackingLink.automationRuleId, memberId: c.memberId, at: c.createdAt }]
+        : [],
+    ),
+    players: players.flatMap((p) => {
+      const ruleId = p.click?.trackingLink.automationRuleId;
+      if (!p.click || !ruleId) return [];
+      return [
+        {
+          ruleId,
+          clickMemberId: p.click.memberId,
+          clickAt: p.click.createdAt,
+          ftdAt: p.ftdAt,
+          commissionEvents: p.events.map((e) => Number(e.amount ?? 0)),
+        },
+      ];
+    }),
+  });
+}
+
+/** Migration qui rattache les messages à leur relance (phase 10) : sa date est le début des résultats par relance. */
+const RESULTS_MIGRATION = "%\\_phase10\\_gains\\_relances";
+
+/**
+ * Date à partir de laquelle les messages sont rattachés à leur relance (fin de la migration de la phase 10, lue dans
+ * la table des migrations) ; null si inconnue. Voir `resultsSince` (results.ts).
+ */
+export async function loadResultsTrackingStart(): Promise<Date | null> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ finished_at: Date | null }>>`
+      SELECT finished_at FROM "_prisma_migrations"
+      WHERE migration_name LIKE ${RESULTS_MIGRATION} AND finished_at IS NOT NULL AND rolled_back_at IS NULL
+      ORDER BY finished_at ASC LIMIT 1`;
+    return rows[0]?.finished_at ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export type EditorOptions = {

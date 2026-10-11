@@ -34,7 +34,8 @@ export function buttonUrl(b: PostButton, ctx: KeyboardContext): string | null {
     case "BUTTON":
       return b.slug ? `${base}/${b.slug}` : null;
     case "OFFER":
-      return b.slug ? `https://t.me/${ctx.botUsername}?start=o${b.slug}_${ctx.postCode}` : null;
+      // Sans code de message (message à un groupe dont le conteneur manque) : `o<slug>`, jamais `o<slug>_` (refusé).
+      return b.slug ? `https://t.me/${ctx.botUsername}?start=o${b.slug}${ctx.postCode ? `_${ctx.postCode}` : ""}` : null;
     default:
       return null;
   }

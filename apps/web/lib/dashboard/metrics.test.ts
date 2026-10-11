@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_TOTALS, addTotals, bestHours, cohorts, deltaPct, derive, funnel, weekKey } from "./metrics";
 
 describe("indicateurs dérivés", () => {
-  it("calcule CPL, CPA, coût par FTD, ROAS et bénéfice", () => {
-    const d = derive({ ...EMPTY_TOTALS, spend: 100, joined: 40, registrations: 10, ftds: 4, ngr: 250 });
-    expect(d).toEqual({ cpl: 2.5, cpa: 10, costPerFtd: 25, roas: 2.5, profit: 150 });
+  it("calcule CPL, CPA, coût par FTD, retour sur dépense pub (commissions ÷ dépense) et gains (commissions − dépense)", () => {
+    const d = derive({ ...EMPTY_TOTALS, spend: 100, joined: 40, registrations: 10, ftds: 4, ngr: 900, depositAmount: 5000, commissions: 250 });
+    expect(d).toEqual({ cpl: 2.5, cpa: 10, costPerFtd: 25, roas: 2.5, gains: 150 });
+  });
+  it("retour sur dépense pub exact (arrondi à l'affichage) : sa variation est la même que sur la fiche campagne", () => {
+    const cur = derive({ ...EMPTY_TOTALS, spend: 394.59, commissions: 922.07 });
+    const prev = derive({ ...EMPTY_TOTALS, spend: 442.4, commissions: 133.57 });
+    expect(cur.roas).toBeCloseTo(2.3368, 4);
+    // 2,3368 / 0,3019 − 1 = +674 % (et non 2,34 / 0,30 − 1 = +680 %).
+    expect(deltaPct(cur.roas!, prev.roas!)).toBe(674);
   });
   it("renvoie null quand la division est impossible", () => {
-    const d = derive({ ...EMPTY_TOTALS, spend: 0, ngr: 12 });
+    const d = derive({ ...EMPTY_TOTALS, spend: 0, ngr: 500, commissions: 12 });
     expect(d.cpl).toBeNull();
     expect(d.roas).toBeNull();
-    expect(d.profit).toBe(12);
+    expect(d.gains).toBe(12);
   });
   it("additionne des totaux en arrondissant", () => {
     expect(addTotals(EMPTY_TOTALS, { spend: 0.1 }).spend).toBe(0.1);

@@ -72,7 +72,7 @@ Exception technique : les champs de saisie passent à 16 px sur téléphone (sin
 
 - **Vrai signe moins.** Un nombre négatif s'écrit avec U+2212 (« −151,64 € »), jamais avec le trait d'union : en chiffres tabulaires, le trait d'union d'Inter prend la largeur d'un chiffre et se détache (« - 151,64 € »). `withMinusSign()` (`lib/campaigns/cards.ts`) ; `groupMoney`, `compactMoney` et `exactMoney` l'appliquent d'office. Une baisse se lit « −12,96 € » ou « −15,3 % ».
 - **Une précision d'arrondi par groupe.** Les montants affichés ensemble (une grille de cartes et sa ligne de total, l'en-tête d'une fiche, une colonne) ont tous la même précision : à l'euro dès que l'un d'eux atteint 100 € en valeur absolue, au centime sinon (`groupMoneyDigits(values)` puis `groupMoney(n, digits)`). « 1 813 € » ne côtoie jamais « 558,14 € ». Un montant isolé : `compactMoney`. Le montant exact au centime reste au survol (`title`), dans le volet de détail et dans l'export (`exactMoney`).
-- **Montants très petits** : « moins de 0,01 € » plutôt que « 0,00 € ». Un bénéfice de moins d'un centime est neutre (`profitTone`), jamais un « −0,00 € » rouge.
+- **Montants très petits** : « moins de 0,01 € » plutôt que « 0,00 € ». Des gains de moins d'un centime sont neutres (`gainsTone`), jamais un « −0,00 € » rouge.
 - **Valeur absente** : « — » (tiret cadratin), trié avec les vides dans un `DataTable`.
 - **Variation** : flèche + signe + pourcentage, verte si favorable (`favorable="down"` pour un coût : une baisse est verte), et une phrase pour les lecteurs d'écran. Si la valeur d'avant est nulle ou négative, aucun pourcentage : « Pas de comparaison possible » (`delta={null}`), la valeur d'avant reste écrite (« Avant : −1,74 € »).
 - **Formats** : `lib/format.ts` (`fmtNum` « 12 345 », `fmtMoney`, `fmtPct` « 15,3 % », `fmtDate` « 09/10/2026 14:05 » en heure de Paris, `fmtDateShort` « 9 oct. », `fmtRelative` « il y a 3 min »). Toujours l'heure de Paris à l'écran.
@@ -717,7 +717,7 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 
 **Campagnes** (`components/campaigns/`) :
 
-- `CampaignCard` : carte d'une campagne (univers, statut, nom, contexte, dépensé, membres, premiers dépôts, bénéfice, mini-courbe des membres par jour) ; toute la carte mène à la fiche (lien « étiré » sur le nom). Props : `row`, `href`, `platformLabel`, `compare`, `membersTrend`, `moneyDigits` (précision commune de la grille, `groupMoneyDigits`).
+- `CampaignCard` : carte d'une campagne (univers, statut, nom, contexte, dépensé, membres, premiers dépôts, gains, mini-courbe des membres par jour) ; toute la carte mène à la fiche (lien « étiré » sur le nom). Props : `row`, `href`, `platformLabel`, `compare`, `membersTrend`, `moneyDigits` (précision commune de la grille, `groupMoneyDigits`).
 - `CampaignFigure` + `FigureDelta` (`campaign-figure.tsx`) : un chiffre de carte (libellé en note, `term` au survol, valeur 20 px tabulaire, variation sur sa propre ligne, hauteur réservée) ; à placer dans un `<dl>`. Props : `label`, `term`, `value`, `delta`, `favorable`, `valueTone`, `hint`, `className`.
 - `NewCampaignButton`, `OfferPicker` (choix des offres Link Affi, état pur `offer-picker-state.ts`).
 - `CampaignTabs` (`app/(admin)/campaigns/[id]/tabs/nav.tsx`) : onglets de la fiche (`TabNav`, grille de 3 sur téléphone, libellés courts ; période conservée).

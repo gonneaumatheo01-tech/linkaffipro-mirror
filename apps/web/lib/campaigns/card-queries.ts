@@ -23,12 +23,25 @@ export async function loadCampaignTrendsUncached(
   const { dateFrom, dateTo } = periodDates(period);
   const rows = await prisma.dailyStat.findMany({
     where: { dimension: { in: ids.map(campaignDimension) }, date: { gte: dateFrom, lte: dateTo } },
-    select: { dimension: true, date: true, approved: true, ftds: true, spend: true, ngr: true },
+    select: {
+      dimension: true,
+      date: true,
+      approved: true,
+      ftds: true,
+      spend: true,
+      ngr: true,
+      commissions: true,
+    },
   });
   const trends = buildCampaignTrends(
     ids,
     periodDayKeys(period),
-    rows.map((r) => ({ ...r, spend: Number(r.spend), ngr: Number(r.ngr) })),
+    rows.map((r) => ({
+      ...r,
+      spend: Number(r.spend),
+      ngr: Number(r.ngr),
+      commissions: Number(r.commissions),
+    })),
   );
   return Object.fromEntries(trends);
 }
@@ -38,7 +51,8 @@ export const loadCampaignTrends: (
   campaignIds: string[],
   period: Period,
 ) => Promise<Record<string, CampaignTrend>> = (() => {
-  const cached = cachedDashboard("campaign-trends-v1", loadCampaignTrendsUncached);
+  // « v2 » : la série `profit` est devenue `gains` (phase 10) ; une ancienne entrée ne doit jamais resservir.
+  const cached = cachedDashboard("campaign-trends-v2", loadCampaignTrendsUncached);
   return (campaignIds: string[], period: Period) => cached([...campaignIds].sort(), period);
 })();
 
@@ -73,7 +87,7 @@ export const totalForCampaigns: (
   period: Period,
   compare: boolean,
 ) => Promise<SubsetTotal> = (() => {
-  const cached = cachedDashboard("campaigns-subset-total-v1", totalForCampaignsUncached);
+  const cached = cachedDashboard("campaigns-subset-total-v2", totalForCampaignsUncached);
   return (campaignIds: string[], period: Period, compare: boolean) =>
     cached([...campaignIds].sort(), period, compare);
 })();

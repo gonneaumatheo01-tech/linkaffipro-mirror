@@ -17,7 +17,7 @@ Le site est complet mais parle comme un ingénieur : 12 entrées de menu au mêm
 - Style : clair et sobre, couleur par univers.
 - Marque : logo Link Affi fourni (`apps/web/public/brand/logo.png`) : un « L » en maillons de chaîne orange `#FCA314` sur fond nuit `#020713`. Couleur principale = orange du logo ; barre de menu = fond nuit du logo ; contenu clair.
 - Pas de notion affichée de « gestes quotidiens » : c'est une règle de conception, pas un élément d'interface.
-- Trois chiffres de l'accueil : membres arrivés aujourd'hui, premiers dépôts aujourd'hui, bénéfice du jour (dépôts et revenus moins dépense pub).
+- Trois chiffres de l'accueil : membres arrivés aujourd'hui, premiers dépôts aujourd'hui, gains du jour (nos commissions moins la dépense pub ; règle de la phase 10, les dépôts et le revenu net ne s'y ajoutent jamais).
 - Automatisations : relances prêtes à l'emploi en cartes ; le constructeur avancé est conservé derrière « Avancé » et devient un **éditeur visuel à branches**, style Make / Zapier / n8n (nœuds reliés, conditions oui / non, zoom, glisser-déposer).
 - Vocabulaire : la table ci-dessous suffit.
 - Téléphone : accueil, calendrier et demandes à valider pensés d'abord pour le téléphone ; le reste surtout ordinateur.
@@ -65,7 +65,7 @@ Le site est complet mais parle comme un ingénieur : 12 entrées de menu au mêm
 Toutes les anciennes adresses (`/campaigns`, `/links`, `/broadcasts`, `/automations`, `/bots`, `/journal`, `/help`…) redirigent vers leur nouvel emplacement.
 
 ## Accueil (maquette validée)
-De haut en bas : barre d'état verte « Tout va bien · 3 bots en ligne · Link Affi synchronisé il y a 2 min » (orange avec le nombre de points à voir sinon) ; trois cartes (membres arrivés aujourd'hui, premiers dépôts aujourd'hui, bénéfice du jour) avec variation vs hier ; « À faire » (demandes à valider, messages en échec, connexion à refaire, test A/B à conclure, éléments de `docs/A-FAIRE-HUMAIN.md` pertinents) ; « Prochains messages » (3 prochains, lien « Programmer un message ») ; « Campagnes actives » (3 colonnes : dépensé, membres, bénéfice). Pensé d'abord pour le téléphone.
+De haut en bas : barre d'état verte « Tout va bien · 3 bots en ligne · Link Affi synchronisé il y a 2 min » (orange avec le nombre de points à voir sinon) ; trois cartes (membres arrivés aujourd'hui, premiers dépôts aujourd'hui, gains du jour) avec variation vs hier ; « À faire » (demandes à valider, messages en échec, connexion à refaire, test A/B à conclure, éléments de `docs/A-FAIRE-HUMAIN.md` pertinents) ; « Prochains messages » (3 prochains, lien « Programmer un message ») ; « Campagnes actives » (3 colonnes : dépensé, membres, gains). Pensé d'abord pour le téléphone.
 
 ## Formulaires en trois niveaux
 - Niveau 1 (visible) : ce qu'il faut pour que ça marche. Message : canal(aux), texte avec aperçu Telegram à droite, date et heure, catégorie (avec « + Nouvelle catégorie »). Écrire à un groupe : qui (groupe), quoi (texte), quand (maintenant ou date).

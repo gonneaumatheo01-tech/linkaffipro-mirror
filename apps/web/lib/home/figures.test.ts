@@ -7,10 +7,11 @@ import {
   homeFigures,
   homeMoney,
   moneyDigits,
-  previousHint,
-  profitBreakdown,
-  profitOf,
-  profitValue,
+  dayCommissions,
+  dayGains,
+  gainsBreakdown,
+  gainsHint,
+  gainsValue,
   variation,
   yesterdaySoFar,
 } from "./figures";
@@ -74,13 +75,14 @@ describe("dayWindows (heure de Paris)", () => {
   });
 });
 
-describe("hier à la même heure : dépense pub ramenée à la part de journée écoulée", () => {
-  it("la dépense d'hier (journée entière, sans heure) suit la part de journée écoulée", () => {
-    const y = { members: 4, ftds: 1, deposits: 100, ngr: 0, spend: 120 };
-    // À 9 h sur 24 h : 120 × 9/24 = 45 ; les autres chiffres (déjà comptés jusqu'à la même heure) ne bougent pas.
-    expect(yesterdaySoFar(y, 9 / 24)).toEqual({ ...y, spend: 45 });
+describe("hier à la même heure : dépense pub et part de revshare ramenées à la part de journée écoulée", () => {
+  it("la dépense et la part de revshare d'hier (journée entière, sans heure) suivent la part de journée écoulée", () => {
+    const y = { members: 4, ftds: 1, cpaCommissions: 70, revshareCommissions: 12, spend: 120 };
+    // À 9 h sur 24 h : 120 × 9/24 = 45 et 12 × 9/24 = 4,50 ; les autres chiffres (déjà comptés jusqu'à la même
+    // heure, dont les commissions par joueur datées à la minute) ne bougent pas.
+    expect(yesterdaySoFar(y, 9 / 24)).toEqual({ ...y, revshareCommissions: 4.5, spend: 45 });
     expect(yesterdaySoFar(y, 1)).toEqual(y);
-    expect(yesterdaySoFar(y, 0).spend).toBe(0);
+    expect(yesterdaySoFar(y, 0)).toMatchObject({ spend: 0, revshareCommissions: 0 });
     // Arrondi au centime, part bornée entre 0 et 1.
     expect(yesterdaySoFar({ ...y, spend: 10 }, 2 / 3).spend).toBe(6.67);
     expect(yesterdaySoFar(y, 1.5).spend).toBe(120);
@@ -88,43 +90,54 @@ describe("hier à la même heure : dépense pub ramenée à la part de journée 
     expect(yesterdaySoFar(y, Number.NaN).spend).toBe(120);
   });
 
-  it("à 9 h, même activité qu'hier à 9 h et même rythme de dépense : bénéfice stable, pas +400 %", () => {
+  it("à 9 h, même activité qu'hier à 9 h et même rythme de dépense : gains stables, pas +400 %", () => {
     const w = dayWindows(new Date("2026-10-10T07:00:00Z")); // 09:00 Paris
-    const today = { members: 0, ftds: 0, deposits: 100, ngr: 0, spend: 40 };
-    const yesterdayFullSpend = { members: 0, ftds: 0, deposits: 100, ngr: 0, spend: 120 };
+    const today = { members: 0, ftds: 0, cpaCommissions: 100, revshareCommissions: 0, spend: 40 };
+    const yesterdayFullSpend = { ...today, spend: 120 };
     // Sans la correction : 60 vs −20 → +400 %.
-    expect(homeFigures(today, yesterdayFullSpend).profit.delta).toBe(400);
+    expect(homeFigures(today, yesterdayFullSpend).gains.delta).toBe(400);
     // Avec : hier à 9 h = 100 − 120 × 9/24 = 55 → +9,1 %.
     const f = homeFigures(today, yesterdaySoFar(yesterdayFullSpend, w.yesterdayShare));
-    expect(f.profit).toEqual({ value: 60, previous: 55, delta: 9.1 });
+    expect(f.gains).toMatchObject({ value: 60, previous: 55, delta: 9.1 });
+    expect(f.gains.variation).toEqual({ kind: "pct", pct: 9.1 });
   });
 });
 
-describe("bénéfice du jour", () => {
-  it("dépôts + revenu net − dépense pub", () => {
-    expect(profitOf({ deposits: 120, ngr: 30, spend: 50 })).toBe(100);
-    expect(profitOf({ deposits: 0, ngr: -12.5, spend: 40 })).toBe(-52.5);
-    expect(profitOf({ deposits: 0.1, ngr: 0.2, spend: 0 })).toBe(0.3);
+describe("gains du jour", () => {
+  it("commissions (CPA nette + part de revshare) − dépense pub ; jamais les dépôts ni le revenu net", () => {
+    expect(dayCommissions({ cpaCommissions: 140, revshareCommissions: 13.09 })).toBe(153.09);
+    expect(dayGains({ cpaCommissions: 140, revshareCommissions: 13.09, spend: 50 })).toBe(103.09);
+    // Une CPA annulée aujourd'hui se retranche aujourd'hui.
+    expect(dayGains({ cpaCommissions: -70, revshareCommissions: 2.28, spend: 0 })).toBe(-67.72);
+    expect(dayGains({ cpaCommissions: 0, revshareCommissions: 0, spend: 40 })).toBe(-40);
+    // Les totaux du jour n'ont plus de dépôts ni de revenu net : ils ne peuvent pas s'y glisser.
+    expect(Object.keys(EMPTY_DAY).sort()).toEqual([
+      "cpaCommissions",
+      "ftds",
+      "members",
+      "revshareCommissions",
+      "spend",
+    ]);
   });
 
-  it("décomposition affichée sous le chiffre", () => {
-    expect(profitBreakdown({ deposits: 120, ngr: 30, spend: 50 })).toBe(
-      `dépôts ${eur0(120)} + revenu net ${eur0(30)} − pub ${eur0(50)}`,
+  it("décomposition affichée sous le chiffre : « commissions X € − pub Y € »", () => {
+    expect(gainsBreakdown({ commissions: 120, spend: 50 })).toBe(
+      `commissions ${eur0(120)} − pub ${eur0(50)}`,
     );
-    // Revenu net négatif : soustrait, sans double signe.
-    expect(profitBreakdown({ deposits: 100, ngr: -20, spend: 10 })).toBe(
-      `dépôts ${eur0(100)} − revenu net ${eur0(20)} − pub ${eur0(10)}`,
+    // Commissions négatives (annulation) : écrites avec leur signe.
+    expect(gainsBreakdown({ commissions: -70, spend: 10 })).toBe(
+      `commissions ${eur0(-70)} − pub ${eur0(10)}`,
     );
     // Centimes : tous les montants à deux décimales.
-    expect(profitBreakdown({ deposits: 20, ngr: 5.5, spend: 0 })).toBe(
-      `dépôts ${eur2(20)} + revenu net ${eur2(5.5)} − pub ${eur2(0)}`,
+    expect(gainsBreakdown({ commissions: 25.5, spend: 0 })).toBe(
+      `commissions ${eur2(25.5)} − pub ${eur2(0)}`,
     );
   });
 
   it("le gros chiffre a les mêmes décimales que sa décomposition", () => {
-    expect(profitValue({ deposits: 120, ngr: 30, spend: 50 })).toBe(eur0(100));
-    expect(profitValue({ deposits: 20, ngr: 5.5, spend: 0 })).toBe(eur2(25.5));
-    expect(profitValue({ deposits: 0, ngr: 0, spend: 75 })).toBe(eur0(-75));
+    expect(gainsValue({ commissions: 150, spend: 50 })).toBe(eur0(100));
+    expect(gainsValue({ commissions: 25.5, spend: 0 })).toBe(eur2(25.5));
+    expect(gainsValue({ commissions: 0, spend: 75 })).toBe(eur0(-75));
   });
 
   it("moneyDigits et homeMoney", () => {
@@ -139,7 +152,7 @@ describe("bénéfice du jour", () => {
     expect(homeMoney(-96.9)).toMatch(/^\u221296,90\s€$/);
     expect(homeMoney(-151.64, 2)).not.toContain("-");
     expect(homeMoney(-75, 0)).toMatch(/^\u221275\s€$/);
-    expect(profitValue({ deposits: 0, ngr: -12.5, spend: 40 })).toMatch(/^\u221252,50\s€$/);
+    expect(gainsValue({ commissions: -12.5, spend: 40 })).toMatch(/^\u221252,50\s€$/);
     expect(homeMoney(0)).not.toContain("\u2212");
   });
 });
@@ -151,7 +164,7 @@ describe("variation vs hier", () => {
     expect(variation(1, 3)).toBe(-66.7);
   });
 
-  it("calculée sur la valeur absolue d'hier (bénéfice négatif)", () => {
+  it("calculée sur la valeur absolue d'hier (gains négatifs)", () => {
     expect(variation(20, -50)).toBe(140);
     expect(variation(-100, -50)).toBe(-100);
   });
@@ -163,35 +176,48 @@ describe("variation vs hier", () => {
   });
 
   it("homeFigures assemble les trois chiffres et la décomposition d'aujourd'hui", () => {
-    const today = { members: 12, ftds: 3, deposits: 120, ngr: 30, spend: 50 };
-    const yesterday = { members: 10, ftds: 0, deposits: 40, ngr: 10, spend: 0 };
+    const today = { members: 12, ftds: 3, cpaCommissions: 140, revshareCommissions: 10, spend: 50 };
+    const yesterday = {
+      members: 10,
+      ftds: 0,
+      cpaCommissions: 50,
+      revshareCommissions: 0,
+      spend: 0,
+    };
     const f = homeFigures(today, yesterday);
-    expect(f.members).toEqual({ value: 12, previous: 10, delta: 20 });
-    expect(f.ftds).toEqual({ value: 3, previous: 0, delta: null });
-    expect(f.profit).toEqual({ value: 100, previous: 50, delta: 100 });
-    expect(f.breakdown).toEqual({ deposits: 120, ngr: 30, spend: 50 });
-    expect(homeFigures(EMPTY_DAY, EMPTY_DAY).profit.delta).toBe(0);
+    expect(f.members).toMatchObject({ value: 12, previous: 10, delta: 20 });
+    expect(f.ftds).toMatchObject({ value: 3, previous: 0, delta: null });
+    expect(f.gains).toMatchObject({ value: 100, previous: 50, delta: 100 });
+    expect(f.breakdown).toEqual({ commissions: 150, spend: 50 });
+    expect(homeFigures(EMPTY_DAY, EMPTY_DAY).gains.delta).toBe(0);
   });
 });
 
-describe("valeur d'hier quand il n'y a pas de pourcentage", () => {
-  it("hier valait 0 : la valeur d'hier est écrite au lieu de « Pas de comparaison possible »", () => {
-    const f = homeFigures({ ...EMPTY_DAY, members: 25, ftds: 6 }, EMPTY_DAY);
-    expect(f.members.delta).toBeNull();
-    expect(previousHint(f.members, (n) => String(n))).toBe("Hier à la même heure : 0");
-    expect(previousHint(f.ftds, (n) => String(n), false)).toBe("Hier : 0");
+describe("variation affichée (règle commune des cartes)", () => {
+  it("hier valait 0 : « nouveau », jamais « > +999 % » ; les deux à 0 : rien", () => {
+    const f = homeFigures({ ...EMPTY_DAY, members: 25, cpaCommissions: 70 }, EMPTY_DAY);
+    expect(f.members.variation).toEqual({ kind: "new", direction: "up" });
+    expect(f.gains.variation).toEqual({ kind: "new", direction: "up" });
+    expect(f.ftds.variation).toEqual({ kind: "none" });
   });
 
-  it("une variation calculable (ou 0 → 0, stable) n'a pas besoin de cette ligne", () => {
-    const f = homeFigures({ ...EMPTY_DAY, members: 4 }, { ...EMPTY_DAY, members: 2 });
-    expect(previousHint(f.members, String)).toBeNull();
-    expect(previousHint(homeFigures(EMPTY_DAY, EMPTY_DAY).members, String)).toBeNull();
-  });
-
-  it("le bénéfice d'hier garde le format des montants de l'accueil", () => {
-    const f = homeFigures({ ...EMPTY_DAY, deposits: 120 }, EMPTY_DAY);
-    expect(previousHint(f.profit, (n) => homeMoney(n, 0))).toBe(
-      `Hier à la même heure : ${eur0(0)}`,
+  it("même règle que les campagnes et les Statistiques : pas de pourcentage quand hier était en perte", () => {
+    const f = homeFigures(
+      { ...EMPTY_DAY, members: 4, cpaCommissions: 20 },
+      { ...EMPTY_DAY, members: 2, spend: 50 },
     );
+    expect(f.members.variation).toEqual({ kind: "pct", pct: 100 });
+    // Gains passés de −50 € à +20 € : « Pas de comparaison possible », et la valeur d'hier sous le chiffre.
+    expect(f.gains.variation).toEqual({ kind: "unknown" });
+    expect(gainsHint(f)).toBe(`commissions ${eur0(20)} − pub ${eur0(0)} · Avant : ${eur0(-50)}`);
+  });
+
+  it("hier positif : pourcentage, et la ligne ne donne que la décomposition", () => {
+    const f = homeFigures(
+      { ...EMPTY_DAY, cpaCommissions: 120, spend: 50 },
+      { ...EMPTY_DAY, cpaCommissions: 100, spend: 50 },
+    );
+    expect(f.gains.variation).toEqual({ kind: "pct", pct: 40 });
+    expect(gainsHint(f)).toBe(`commissions ${eur0(120)} − pub ${eur0(50)}`);
   });
 });

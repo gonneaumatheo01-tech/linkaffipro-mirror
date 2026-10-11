@@ -44,6 +44,9 @@ const db = vi.hoisted(() => {
       },
       outboundMessage: { count: vi.fn(async () => 0) },
       player: { count: vi.fn(async () => 0) },
+      // Commissions de la fenêtre (phase 10) : primes par joueur et part du revenu des offres.
+      playerEvent: { aggregate: vi.fn(async () => ({ _sum: { amount: 15 } })) },
+      affiliateDailyStat: { aggregate: vi.fn(async () => ({ _sum: { revshareRevenue: 2.5 } })) },
       click: {
         count: vi.fn(async () => 0),
         groupBy: vi.fn(
@@ -432,7 +435,8 @@ describe("règles métier (phase 6) dans le passage d'alertes", () => {
     const r = await runAlerts(new Date("2026-10-09T12:00:00Z"));
     expect(r.created).toBe(1);
     expect(db.alerts[0]).toMatchObject({ kind: "spend_no_conversion" });
-    expect(db.alerts[0]?.message).toContain("Pub A (60.00 €)");
+    // Gains de la fenêtre : commissions 15 (primes par joueur ; pas d'offre, donc pas de part du revenu) − dépense 60.
+    expect(db.alerts[0]?.message).toContain("Pub A (60,00 € dépensés, gains −45,00 €)");
   });
 
   it("liens des canaux à rejoindre impossibles à créer : une alerte, une seule notification, résolue ensuite", async () => {

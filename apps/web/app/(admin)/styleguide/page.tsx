@@ -214,7 +214,7 @@ const TABLE_COLUMNS: DataTableColumn[] = [
   { key: "universe", header: "Univers", hideOnMobile: true },
   { key: "members", header: "Membres", align: "right" },
   { key: "ftd", header: "Premiers dépôts", term: "FTD", align: "right" },
-  { key: "profit", header: "Bénéfice", align: "right" },
+  { key: "gains", header: "Gains", align: "right" },
 ];
 
 const SAMPLE = [
@@ -224,7 +224,7 @@ const SAMPLE = [
     universe: "CASINO",
     members: 1240,
     ftd: 86,
-    profit: 3120.5,
+    gains: 3120.5,
     spend: 950,
   },
   {
@@ -233,7 +233,7 @@ const SAMPLE = [
     universe: "SPORTS",
     members: 860,
     ftd: 41,
-    profit: -180,
+    gains: -180,
     spend: 1200,
   },
   {
@@ -242,7 +242,7 @@ const SAMPLE = [
     universe: "DATING",
     members: 312,
     ftd: 9,
-    profit: 410.2,
+    gains: 410.2,
     spend: 150,
   },
   {
@@ -251,7 +251,7 @@ const SAMPLE = [
     universe: "CASINO",
     members: 97,
     ftd: 3,
-    profit: 12,
+    gains: 12,
     spend: 60,
   },
 ];
@@ -319,9 +319,9 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
       universe: <UniverseDot universe={c.universe} withLabel />,
       members: c.members.toLocaleString("fr-FR"),
       ftd: c.ftd,
-      profit: <span className={c.profit < 0 ? "text-danger" : undefined}>{eur(c.profit)}</span>,
+      gains: <span className={c.gains < 0 ? "text-danger" : undefined}>{eur(c.gains)}</span>,
     },
-    sortValues: { universe: c.universe, members: c.members, profit: c.profit },
+    sortValues: { universe: c.universe, members: c.members, gains: c.gains },
     detailTitle: c.name,
     detailDescription: "Exemple de volet de détail : tout ce qui ne tient pas dans 5 colonnes.",
     detail: (
@@ -342,8 +342,8 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
           <Term term="CPL">Coût par membre</Term>
         </dt>
         <dd className="tabular-nums">{eur(c.spend / Math.max(1, c.members))}</dd>
-        <dt className="text-muted-foreground">Bénéfice</dt>
-        <dd className="tabular-nums">{eur(c.profit)}</dd>
+        <dt className="text-muted-foreground">Gains</dt>
+        <dd className="tabular-nums">{eur(c.gains)}</dd>
       </dl>
     ),
   }));
@@ -622,11 +622,11 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
               trend={[9, 12, 15, 11, 18, 15, 14]}
             />
             <StatCard
-              label="Bénéfice du jour"
-              value={eur(1240.5)}
+              label="Gains du jour"
+              value={eur(70)}
               delta={3.2}
               comparison="vs hier"
-              hint="Dépôts et revenus moins dépense pub."
+              hint="commissions 120,00 € − pub 50,00 €"
             />
             <StatCard
               label="Dépense pub"
@@ -713,7 +713,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
                       <TableCell numeric>{c.members.toLocaleString("fr-FR")}</TableCell>
                       <TableCell numeric>{Math.round(c.members / 7)}</TableCell>
                       <TableCell numeric>{c.ftd}</TableCell>
-                      <TableCell numeric>{eur(c.profit)}</TableCell>
+                      <TableCell numeric>{eur(c.gains)}</TableCell>
                       <TableCell numeric>{eur(c.spend)}</TableCell>
                     </TableRow>
                   ))}

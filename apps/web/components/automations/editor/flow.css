@@ -11,7 +11,11 @@
   --xy-connectionline-stroke-width-default: 2;
   --xy-attribution-background-color-default: transparent;
   --xy-minimap-background-color-default: var(--surface);
-  --xy-minimap-mask-background-color-default: color-mix(in oklab, var(--muted) 75%, transparent);
+  --xy-minimap-mask-background-color-default: color-mix(
+    in oklab,
+    var(--background) 45%,
+    transparent
+  );
   --xy-minimap-mask-stroke-color-default: var(--border);
   --xy-minimap-node-background-color-default: var(--border);
   --xy-background-color-default: var(--background);
@@ -98,29 +102,44 @@
   fill: var(--success);
 }
 
-/* Mini-carte : couleur du type de bloc. */
+/*
+ * Mini-carte (seulement pour un grand parcours, voir fit-minimap.tsx) : chaque bloc garde ses proportions et prend la
+ * couleur de son type en fond franc (mélange à 45 % avec la surface, lisible une fois réduit et sous le voile léger
+ * hors de la vue), bordure de la couleur du type, 1,5 px à l'écran quelle que soit la réduction : Départ orange,
+ * Condition bleu, Action vert, Attendre jaune-brun, Arrêter gris ; rouge seulement pour un bloc à corriger.
+ */
 .lap-flow .react-flow__minimap {
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   overflow: hidden;
 }
+.lap-flow .react-flow__minimap-node {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.5px;
+}
 .lap-flow .react-flow__minimap-node.is-trigger {
-  fill: var(--brand);
+  fill: color-mix(in oklab, var(--brand) 45%, var(--surface));
+  stroke: var(--brand-ink);
 }
 .lap-flow .react-flow__minimap-node.is-condition {
-  fill: var(--info);
+  fill: color-mix(in oklab, var(--info) 45%, var(--surface));
+  stroke: var(--info);
 }
 .lap-flow .react-flow__minimap-node.is-action {
-  fill: var(--muted-foreground);
+  fill: color-mix(in oklab, var(--success) 45%, var(--surface));
+  stroke: var(--success);
 }
 .lap-flow .react-flow__minimap-node.is-wait {
-  fill: var(--warning);
+  fill: color-mix(in oklab, var(--warning) 45%, var(--surface));
+  stroke: var(--warning);
 }
 .lap-flow .react-flow__minimap-node.is-stop {
-  fill: var(--foreground);
+  fill: color-mix(in oklab, var(--muted-foreground) 45%, var(--surface));
+  stroke: var(--muted-foreground);
 }
 .lap-flow .react-flow__minimap-node.is-invalid {
-  fill: var(--danger);
+  fill: color-mix(in oklab, var(--danger) 45%, var(--surface));
+  stroke: var(--danger);
 }
 
 .lap-flow .react-flow__attribution {

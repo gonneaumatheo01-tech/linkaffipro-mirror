@@ -7,8 +7,10 @@ import {
   METRIC_VIEWS,
   activeSummary,
   adsDefaultSort,
+  beforeHint,
   biggestDrop,
   comparableDelta,
+  comparableVariation,
   cohortsChronological,
   costPerMemberNote,
   fmtMetric,
@@ -16,6 +18,7 @@ import {
   fmtPercent,
   fmtPerPost,
   fmtSigned,
+  growthVariation,
   hourBars,
   hourLabel,
   metricGroupFormatter,
@@ -23,11 +26,12 @@ import {
   moneyColumn,
   perPostText,
   postsClicksNote,
-  profitNote,
+  gainsNote,
   shareOf,
   stepNote,
   sumSeries,
   trendOrNone,
+  unknownBefore,
 } from "./display";
 import { EMPTY_TOTALS, FUNNEL_STEPS, deltaPct, derive, funnel } from "./metrics";
 
@@ -37,8 +41,11 @@ describe("vocabulaire des chiffres", () => {
   it("chaque chiffre des statistiques journalières et chaque indicateur dérivé a son mot", () => {
     const keys = [...Object.keys(EMPTY_TOTALS), ...Object.keys(derive(EMPTY_TOTALS))].sort();
     expect(Object.keys(METRIC_VIEWS).sort()).toEqual(keys);
-    // Volet d'une campagne : les 16 colonnes de l'ancien tableau (les départs n'y figuraient pas).
+    // Volet d'une campagne : tous les chiffres sauf les départs ; commissions puis gains en fin de volet.
     expect([...DETAIL_ORDER].sort()).toEqual(keys.filter((k) => k !== "left"));
+    expect(DETAIL_ORDER.slice(-1)).toEqual(["gains"]);
+    expect(DETAIL_ORDER.indexOf("commissions")).toBeGreaterThan(DETAIL_ORDER.indexOf("ngr"));
+    expect(keys).not.toContain("profit");
   });
 
   it("aucun sigle en surface : le terme technique est au survol", () => {
@@ -49,6 +56,18 @@ describe("vocabulaire des chiffres", () => {
     expect(METRIC_VIEWS.cpl).toMatchObject({ label: "Coût par membre", term: "CPL" });
     expect(METRIC_VIEWS.cpa).toMatchObject({ label: "Coût par inscription", term: "CPA" });
     expect(METRIC_VIEWS.roas).toMatchObject({ label: "Retour sur dépense pub", term: "ROAS" });
+    expect(METRIC_VIEWS.gains).toMatchObject({ label: "Gains", favorable: "up", format: "money" });
+    expect(METRIC_VIEWS.commissions).toMatchObject({ label: "Commissions", format: "money" });
+    // Un total (pas « par joueur »), jamais confondu avec le coût par inscription (CPA).
+    expect(METRIC_VIEWS.cpaCommissions).toMatchObject({
+      label: "Primes des joueurs",
+      term: "commission CPA",
+    });
+    expect(METRIC_VIEWS.cpaCommissions.label).not.toMatch(/par joueur/i);
+    expect(METRIC_VIEWS.revshareCommissions).toMatchObject({
+      label: "Part du revenu",
+      term: "revshare",
+    });
   });
 
   it("une baisse est favorable pour une dépense, un coût ou un départ", () => {
@@ -68,8 +87,8 @@ describe("vocabulaire des chiffres", () => {
     expect(fmtMetricExact("cpa", null)).toBe("—");
   });
 
-  it("variation : pas de pourcentage sur une base négative (bénéfice ou revenu net d'avant en perte)", () => {
-    // De −1,74 € de perte à 323 € de bénéfice : deltaPct donne −18 661 %, en rouge, à l'envers.
+  it("variation : pas de pourcentage sur une base négative (gains ou revenu net d'avant en perte)", () => {
+    // De −1,74 € de perte à 323 € de gains : deltaPct donne −18 661 %, en rouge, à l'envers.
     expect(deltaPct(323, -1.74)).toBeLessThan(-1000);
     expect(comparableDelta(deltaPct(323, -1.74), -1.74)).toBeNull();
     expect(comparableDelta(deltaPct(-50, -100), -100)).toBeNull();
@@ -84,12 +103,43 @@ describe("vocabulaire des chiffres", () => {
     expect(comparableDelta(undefined, 3)).toBeNull();
   });
 
+  it("variation affichée (règle commune) : « nouveau » depuis 0, rien si les deux valent 0, pas de % sur une base négative", () => {
+    expect(comparableVariation(120, 100)).toEqual({ kind: "pct", pct: 20 });
+    expect(comparableVariation(12, 0)).toEqual({ kind: "new", direction: "up" });
+    expect(comparableVariation(-40, 0)).toEqual({ kind: "new", direction: "down" });
+    expect(comparableVariation(0, 0)).toEqual({ kind: "none" });
+    expect(comparableVariation(323, -1.74)).toEqual({ kind: "unknown" });
+    expect(comparableVariation(null, 2)).toEqual({ kind: "unknown" });
+    expect(comparableVariation(1.5, null)).toEqual({ kind: "unknown" });
+  });
+
+  it("« Avant : X » : jamais avec « nouveau » (déjà dit) ; sur les chiffres compacts, seulement sans pourcentage", () => {
+    expect(beforeHint(comparableVariation(15, 0), "0")).toBeNull();
+    expect(beforeHint(comparableVariation(120, 100), "100")).toBe("Avant : 100");
+    expect(beforeHint(comparableVariation(540, -676), "−676 €")).toBe("Avant : −676 €");
+    expect(beforeHint(comparableVariation(0, 0), "0")).toBe("Avant : 0");
+    expect(beforeHint(undefined, "3")).toBeNull();
+    expect(unknownBefore(comparableVariation(-18, -62), "−62 €")).toBe("Avant : −62 €");
+    expect(unknownBefore(comparableVariation(120, 100), "100 €")).toBeNull();
+    expect(unknownBefore(comparableVariation(5, 0), "0 €")).toBeNull();
+  });
+
+  it("canaux : même règle (« nouveau » depuis 0, rien si les deux valent 0, pas de % sur une base négative)", () => {
+    expect(growthVariation(4, 0, true)).toEqual({ kind: "new", direction: "up" });
+    expect(growthVariation(0, 0, true)).toEqual({ kind: "none" });
+    expect(growthVariation(3, -2, true)).toEqual({ kind: "unknown" });
+    expect(growthVariation(12, 10, true)).toEqual({ kind: "pct", pct: 20 });
+    expect(growthVariation(12, 10, false)).toBeUndefined();
+    expect(growthVariation(12, null, true)).toBeUndefined();
+  });
+
   it("valeur d'un total ou d'un indicateur dérivé", () => {
-    const t = { ...EMPTY_TOTALS, spend: 100, joined: 50, ngr: 180 };
+    const t = { ...EMPTY_TOTALS, spend: 100, joined: 50, ngr: 900, commissions: 180 };
     const d = derive(t);
     expect(metricValue(t, d, "joined")).toBe(50);
     expect(metricValue(t, d, "cpl")).toBe(2);
     expect(metricValue(t, d, "roas")).toBe(1.8);
+    expect(metricValue(t, d, "gains")).toBe(80);
     expect(metricValue(t, d, "cpa")).toBeNull();
   });
 });
@@ -106,6 +156,13 @@ describe("Pubs : tableau par campagne", () => {
     ]);
   });
 
+  it("sur téléphone : la dépense face au retour sur dépense pub (les gains sont écrits dessous)", () => {
+    const phone = ADS_COLUMNS.filter((c) => !("hideOnMobile" in c && c.hideOnMobile)).map(
+      (c) => c.key,
+    );
+    expect(phone).toEqual(["name", "spend", "roas"]);
+  });
+
   it("tri d'une ancienne adresse appliqué s'il vise une colonne, sinon dépense décroissante", () => {
     expect(adsDefaultSort("roas", "asc")).toEqual({ key: "roas", direction: "asc" });
     expect(adsDefaultSort("ftds", "")).toEqual({ key: "ftds", direction: "desc" });
@@ -113,14 +170,14 @@ describe("Pubs : tableau par campagne", () => {
     expect(adsDefaultSort("", "")).toEqual({ key: "spend", direction: "desc" });
   });
 
-  it("phrases sous les chiffres : coût par membre, bénéfice ou perte", () => {
+  it("phrases sous les chiffres : coût par membre, gains ou perte", () => {
     expect(sp(costPerMemberNote({ cpl: 2.1 })!)).toBe("2,10 € par membre");
     expect(costPerMemberNote({ cpl: null })).toBeNull();
-    expect(sp(profitNote(420)!)).toBe("420 € de bénéfice");
-    expect(sp(profitNote(-120.4)!)).toBe("120 € de perte");
-    expect(sp(profitNote(-96.9)!)).toBe("97 € de perte");
-    expect(profitNote(0)).toBeNull();
-    expect(profitNote(0.3)).toBeNull();
+    expect(sp(gainsNote(420)!)).toBe("420 € de gains");
+    expect(sp(gainsNote(-120.4)!)).toBe("120 € de perte");
+    expect(sp(gainsNote(-96.9)!)).toBe("97 € de perte");
+    expect(gainsNote(0)).toBeNull();
+    expect(gainsNote(0.3)).toBeNull();
   });
 
   it("une colonne de montants garde une seule précision", () => {
@@ -139,13 +196,13 @@ describe("grille de cartes", () => {
     const fmt = metricGroupFormatter([
       { key: "spend", value: 0.26 },
       { key: "ngr", value: 214.1 },
-      { key: "profit", value: 213.84 },
+      { key: "gains", value: 213.84 },
       { key: "joined", value: 1234 },
     ]);
     // « 0,26 € » ne côtoie pas « 214 € » : tout à l'euro (le montant exact reste au survol).
     expect(sp(fmt("spend", 0.26))).toBe("0 €");
     expect(sp(fmt("ngr", 214.1))).toBe("214 €");
-    expect(sp(fmt("profit", -213.84))).toBe("−214 €");
+    expect(sp(fmt("gains", -213.84))).toBe("−214 €");
     // Les chiffres qui ne sont pas des montants ne changent pas.
     expect(sp(fmt("joined", 1234))).toBe("1 234");
     expect(fmt("roas", 1.53)).toBe("1,53×");

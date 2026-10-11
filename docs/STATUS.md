@@ -1,4 +1,42 @@
-# État du projet : phase 9 (refonte UX et design) terminée (11 octobre 2026, 5h00)
+# État du projet : phase 10 (finitions après la refonte) terminée (11 octobre 2026)
+
+Phases 0 à 9 en ligne. Phase 10 = les retours du client après la refonte (`docs/prompts/12-phase-10-finitions-apres-refonte.md`). 2 380 tests unitaires et 182 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
+
+## Phase 10 : ce qui a changé (11 octobre)
+- **Accueil sans les liens des canaux à rejoindre : corrigé** (cause exacte ci-dessous). N'importe lequel de nos bots peut fournir le lien d'un canal à rejoindre ; l'accueil part toujours avec les canaux et « ✅ J'ai rejoint » ; si un lien manque, une alerte Telegram prévient, la demande apparaît dans « À faire » avec **Renvoyer l'accueil avec les liens**, et la fiche du canal dit quel bot ajouter (cadre « Liens des canaux à rejoindre », bouton **Vérifier les liens**). Testé par le client le 11 octobre : ça fonctionne.
+- **Gains = nos commissions − dépense pub**, partout : accueil (« Gains du jour », avec « commissions X € − pub Y € » dessous), campagnes, statistiques, exports, rapports et alertes Telegram. Les commissions = primes des joueurs (CPA) + notre part du revenu (revshare), nos campagnes seulement, aux vraies dates : une prime annulée se retire le jour de l'annulation. Les dépôts et le revenu net restent des indicateurs, jamais ajoutés aux gains. Retour sur dépense pub = commissions ÷ dépense.
+- **Variations** : « nouveau » quand la valeur d'avant était 0, rien quand tout vaut 0, ±999 % au plus seulement sur une base non nulle.
+- **Modèles de messages réécrits** : plus aucun mot entre accolades dans un message de canal ; ceux qui parlent d'une offre ont un bouton « Offre (campagne) » à régler. {prenom} est bien remplacé dans les messages privés (envois à un groupe, relances, « Tester sur moi »). L'assistant IA n'ajoute plus de repère là où il ne serait pas remplacé.
+- **Relances** : bouton « Offre (campagne) » avec un identifiant de suivi par membre ; résultats par relance (envoyés, clics, inscriptions, premiers dépôts, gains), « Depuis le 11 oct. » pour les relances plus anciennes. Mini-carte de l'éditeur réparée (affichée seulement quand le parcours ne tient pas à l'écran).
+- **Éditeur de texte** : vérifié dans Firefox, Chrome et Safari (22 vérifications réelles à 1 440 et 390 px), sauts de ligne et collage depuis Safari corrigés.
+- **Production** : barre d'état vérifiée (aucun bot en erreur, synchros à jour, aucune alerte ouverte) ; le worker est maintenant en Europe (même région que la base).
+
+## Bug du 11 octobre : accueil sans les liens des canaux à rejoindre (cause exacte et correction)
+- **Ce qui s'est passé** : canal « Zone Interdite 🔞 » (bot @womendatingoobot), règle « après avoir rejoint » avec « LA ZONE ROULETTE 🎰 » et « 🎯 TIR CADRÉ ⚡ ». Lors des demandes de 9 h 53 et 9 h 58, l'accueil est parti **sans aucun bouton** (ni les deux canaux, ni « ✅ J'ai rejoint ») ; la demande de 10 h 14 a fonctionné.
+- **Cause** : les liens d'invitation des canaux à rejoindre étaient créés par le seul bot du canal demandé. Or « LA ZONE ROULETTE » n'avait que le bot casino comme administrateur et « TIR CADRÉ » que le bot paris : chaque canal avait bien son bot, mais le bot rencontres n'y était pas. Telegram refusait la création du lien, l'erreur était avalée sans trace, et l'accueil partait vide. Le client a ajouté le bot rencontres aux deux canaux à 10 h 13, d'où la réussite de 10 h 14. Second défaut trouvé au passage : la vérification « ✅ J'ai rejoint » ne passait elle aussi que par le bot du canal demandé.
+- **Correction** : n'importe lequel de nos bots administrateurs (avec le droit d'inviter) crée le lien et vérifie l'adhésion ; l'accueil part toujours avec « ✅ J'ai rejoint » et les liens obtenus ; un canal sans lien déclenche une alerte Telegram (une fois par 24 h) et un point « À faire » sur l'accueil avec « Renvoyer l'accueil avec les liens » ; la fiche du canal vérifie les liens dès l'enregistrement de la règle et dit quel bot ajouter ; les rappels recalculent les liens. Les 2 demandes bloquées de ce matin apparaissent dans « À faire ».
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com : la carte « Gains du jour » avec « commissions … − pub … » dessous.
+2. Campagnes : chaque carte affiche « Gains » ; dans une fiche, « Tous les chiffres de la période » détaille les commissions.
+3. Canaux → un canal avec « après avoir rejoint ces canaux » → onglet « Qui peut entrer et quand » : le cadre « Liens des canaux à rejoindre » est vert.
+4. Messages → Modèles → « Utiliser » sur un modèle d'offre : plus de mots entre accolades, choisissez la campagne du bouton « Offre ».
+5. Membres → Relances automatiques → une relance → Message : « Ajouter un bouton » → « Offre (campagne) » ; « Tester sur moi » (la relance reste désactivée).
+
+## Vérifications faites
+- Diagnostic du bug sur les données de production (lecture seule) ; tests unitaires et d'intégration sur l'adhésion avec les canaux à rejoindre, la création des liens par un autre bot, l'accueil jamais vide, l'alerte et le renvoi.
+- Gains : chiffres comparés aux données réelles Link Affi du 11 octobre (exemple : 5 primes le 4 octobre = 350 € et 2 annulations le 6 octobre = −140 €, que la table de Link Affi range au 4 octobre ; total identique de 630 € par les deux sources) ; reprise faite en production (`pnpm db:phase10:gains`) après une sauvegarde.
+- Relecture du code par des agents indépendants, puis corrections, avant déploiement.
+- Captures automatiques de la production avec le compte de vérification : refusées par les règles de sécurité de la machine ; pas de contournement. Contrôle fait à la place par lecture du texte des pages et requêtes en lecture seule.
+
+## Limites et suites
+- **Part du revenu (revshare)** : Link Affi ne la donne que par offre et par jour : elle compte pour les campagnes et le total, jamais pour un canal, une pub, un message ou une relance (ceux-ci montrent les primes des joueurs).
+- **Relances** : les envois d'avant le 11 octobre ne sont pas rattachés à leur relance (« Depuis le 11 oct. »).
+- **Éditeur** : dans Safari, ⌘Z annule toute la saisie d'un coup.
+- **Deux demandes du 11 octobre** (Zone Interdite) restent dans « À faire » : les accepter ou renvoyer l'accueil.
+- Actions humaines toujours en attente : clé de l'assistant IA, règle d'adhésion de Mediatheque et Test, première campagne, applications Meta / TikTok / Telegram (voir `docs/A-FAIRE-HUMAIN.md`).
+
+## Phase 9 — (refonte UX et design) terminée (11 octobre 2026, 5h00)
 
 Phases 0 à 8 en ligne. Phase 9 = la refonte validée par le client (`docs/REFONTE-UX.md`), livrée en 8 étapes, chacune déployée dès qu'elle était prête. 2 117 tests unitaires et 139 tests d'intégration (base réelle) réussis, lint, typage et build verts, 0 violation d'accessibilité (axe) sur les 56 pages en 1 440 et 390 px ; tout est déployé (site et service d'arrière-plan).
 
@@ -34,7 +72,7 @@ Tableau de bord → Accueil (le jour) et Statistiques (le détail) · Pubs et Li
 ## Limites et suites
 - **Modèles de messages** : 43 des 63 modèles fournis contiennent {offre} et 13 contiennent {prenom}, qui ne sont pas remplacés dans un message de canal. L'éditeur les surligne en jaune et le formulaire prévient « Des mots restent à compléter ». Une réécriture des modèles est prévue.
 - **Relances** : le bouton « Offre (campagne) » avec identifiant de suivi n'existe pas encore dans les messages de relance (liens simples seulement).
-- **Éditeur de texte** : testé dans Chrome et Safari (moteur WebKit), pas encore dans Firefox.
+- **Éditeur de texte** : testé dans Chrome et Safari (moteur WebKit) ; Firefox vérifié en phase 10.
 - **Mode sombre** : prévu plus tard (décision du client).
 - **Fiche introuvable** : une fiche supprimée affiche bien « Cette page n'existe pas », mais le code HTTP reste 200 (affichage progressif de Next) ; sans effet pour l'équipe.
 - **Barre d'état de l'accueil** : résumé rapide sans appel à Telegram ; le détail exact est dans Réglages → État du système.

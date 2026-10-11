@@ -452,6 +452,32 @@ describe("éditeur : validation en direct", () => {
     expect(withButtons([[{ text: "Voir", url: "https://x.y" }]]).ok).toBe(true);
   });
 
+  it("bouton « Offre (campagne) » : valable avec sa campagne, signalé sans campagne", () => {
+    const withButtons = (buttons: unknown) =>
+      validateEditor(
+        updateNodeData(simple(), "n1", {
+          action: { type: "send_message", text: "Salut", buttons },
+        }),
+        rule,
+      );
+    const offer = {
+      text: "Voir l'offre",
+      type: "OFFER",
+      campaignId: "c1",
+      affiliateCampaignId: "a1",
+    };
+    const ok = withButtons([[offer], [{ text: "Aide", url: "https://x.y" }]]);
+    expect(ok.ok).toBe(true);
+    expect(ok.graph?.nodes.find((n) => n.id === "n1")).toMatchObject({
+      action: { buttons: [[offer], [{ text: "Aide", url: "https://x.y" }]] },
+    });
+    const noCampaign = withButtons([[{ ...offer, campaignId: "" }]]);
+    expect(noCampaign.ok).toBe(false);
+    expect(noCampaign.byNode.n1?.map((i) => i.message)).toEqual([
+      "Bouton « Voir l'offre » : choisissez la campagne de l'offre.",
+    ]);
+  });
+
   it("filtres du départ illisibles : signalés sur le départ", () => {
     const v = validateEditor(simple(), { ...rule, conditions: { spendLevels: ["???"] } });
     expect(v.byNode.trigger?.[0]?.message).toMatch(/Niveau de dépense inconnu/);

@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   });
   for (const n of notes) console.warn(`[captures] ${n}`);
   console.log(
-    `[captures] ${targets.length} page(s) × ${opts.widths.join(", ")} px sur ${opts.base} → ${path.relative(REPO_ROOT, outDir) || "."}`,
+    `[captures] ${targets.length} page(s) × ${opts.widths.join(", ")} px sur ${opts.base}${opts.browser === "chromium" ? "" : ` (${opts.browser})`} → ${path.relative(REPO_ROOT, outDir) || "."}`,
   );
 
   const manifestFile = path.join(outDir, "index.json");
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
 
   const entries: CaptureEntry[] = [];
   let totalBytes = 0;
-  const browser = await launchBrowser();
+  const browser = await launchBrowser(opts.browser);
   try {
     const admin = await browser.newContext(contextOptions(opts.widths[0]!));
     await login(admin, opts);

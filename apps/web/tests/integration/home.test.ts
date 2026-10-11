@@ -1,13 +1,14 @@
 /**
  * Accueil (phase 9) sur base réelle : chiffres du jour en heure de Paris (aujourd'hui jusqu'à maintenant, hier à la même
- * heure), nos joueurs seulement (un autre affilié n'entre jamais dans les chiffres), bénéfice = dépôts + revenu net −
- * dépense pub ; état, « À faire », prochains messages, campagnes actives, liste « À faire pour démarrer » et état de la
- * visite guidée (`onboarding.<userId>`).
+ * heure), nos joueurs seulement (un autre affilié n'entre jamais dans les chiffres), gains = commissions (CPA de nos
+ * joueurs + part de revshare de nos offres) − dépense pub, jamais les dépôts ni le revenu net ; état, « À faire »,
+ * prochains messages, campagnes actives, liste « À faire pour démarrer » et état de la visite guidée
+ * (`onboarding.<userId>`).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@linkaffipro/db";
 import { listCampaignsUncached } from "@/lib/campaigns/queries";
-import { homeFigures, profitOf } from "@/lib/home/figures";
+import { dayGains, homeFigures } from "@/lib/home/figures";
 import {
   loadActiveCampaigns,
   loadChecklistInput,
@@ -82,6 +83,7 @@ async function membership(channelId: string, data: Record<string, unknown>) {
 }
 
 async function cleanup() {
+  await prisma.affiliateDailyStat.deleteMany();
   await resetDb();
   await prisma.adCost.deleteMany();
   await prisma.campaign.deleteMany();
@@ -198,7 +200,7 @@ describe("accueil sur base réelle", () => {
     });
     const ev = (
       playerId: string,
-      type: "FTD" | "DEPOSIT" | "REDEPOSIT" | "NGR",
+      type: "FTD" | "DEPOSIT" | "REDEPOSIT" | "NGR" | "CPA" | "CPA_REVERSAL",
       amount: number,
       at: Date,
     ) => ({
@@ -221,6 +223,49 @@ describe("accueil sur base réelle", () => {
         ev(p3.id, "FTD", 10, paris(15, "00:30")),
         ev(p9.id, "FTD", 999, paris(15, "10:00")),
         ev(p9.id, "NGR", 999, paris(15, "10:00")),
+        // Commissions CPA (phase 10) : p1 créditée aujourd'hui ; p3 aujourd'hui 01:00 Paris (encore le 14 en UTC) ;
+        // p2 créditée hier 09:30 puis annulée aujourd'hui 12:00 (retranchée aujourd'hui) ; p1 encore une annulation
+        // après « maintenant » (ignorée) ; l'autre affilié ne compte jamais.
+        ev(p1.id, "CPA", 70, paris(15, "11:30")),
+        ev(p3.id, "CPA", 50, paris(15, "01:00")),
+        ev(p2.id, "CPA", 70, paris(14, "09:30")),
+        ev(p2.id, "CPA_REVERSAL", -70, paris(15, "12:00")),
+        ev(p1.id, "CPA_REVERSAL", -70, paris(15, "18:00")),
+        ev(p9.id, "CPA", 500, paris(15, "10:00")),
+      ],
+    });
+    // Part de revshare (agrégat Link Affi, sans heure) : aujourd'hui 6,50 ; hier 12 (ramenée à la même heure) ;
+    // correction créée aujourd'hui pour le 10 juin (comptée aujourd'hui) ; l'offre d'un autre affilié ne compte pas.
+    await prisma.affiliateDailyStat.createMany({
+      data: [
+        {
+          externalId: "home-st-15",
+          affiliateCampaignId: ours.id,
+          date: new Date("2026-06-15T00:00:00Z"),
+          sourceCreatedAt: new Date("2026-06-14T22:02:00Z"),
+          revshareRevenue: 6.5,
+        },
+        {
+          externalId: "home-st-14",
+          affiliateCampaignId: ours.id,
+          date: new Date("2026-06-14T00:00:00Z"),
+          sourceCreatedAt: new Date("2026-06-13T22:02:00Z"),
+          revshareRevenue: 12,
+        },
+        {
+          externalId: "home-st-fix",
+          affiliateCampaignId: ours.id,
+          date: new Date("2026-06-10T00:00:00Z"),
+          sourceCreatedAt: paris(15, "08:00"),
+          revshareRevenue: -1.5,
+        },
+        {
+          externalId: "home-st-other",
+          affiliateCampaignId: foreign.id,
+          date: new Date("2026-06-15T00:00:00Z"),
+          sourceCreatedAt: new Date("2026-06-14T22:02:00Z"),
+          revshareRevenue: 300,
+        },
       ],
     });
 
@@ -267,16 +312,31 @@ describe("accueil sur base réelle", () => {
     const { windows, today, yesterday } = await loadHomeFigures(NOW);
     expect(windows.todayKey).toBe("2026-06-15");
     expect(windows.today.start.toISOString()).toBe("2026-06-14T22:00:00.000Z");
-    expect(today).toEqual({ members: 2, ftds: 2, deposits: 130, ngr: 25, spend: 75 });
-    // Dépense d'hier (10 €, journée entière, sans heure) ramenée à 16 h sur 24 : 6,67 €.
+    // CPA : 70 + 50 − 70 (annulation d'aujourd'hui) = 50 ; revshare : 6,50 − 1,50 = 5.
+    expect(today).toEqual({
+      members: 2,
+      ftds: 2,
+      cpaCommissions: 50,
+      revshareCommissions: 5,
+      spend: 75,
+    });
+    // Dépense (10 €) et part de revshare (12 €) d'hier, journée entière sans heure, ramenées à 16 h sur 24.
     expect(windows.yesterdayShare).toBeCloseTo(16 / 24, 10);
-    expect(yesterday).toEqual({ members: 1, ftds: 1, deposits: 90, ngr: 7, spend: 6.67 });
-    // Bénéfice du jour = 130 + 25 − 75 = 80 ; hier à la même heure = 90 + 7 − 6,67 = 90,33.
-    expect(profitOf(today)).toBe(80);
+    expect(yesterday).toEqual({
+      members: 1,
+      ftds: 1,
+      cpaCommissions: 70,
+      revshareCommissions: 8,
+      spend: 6.67,
+    });
+    // Gains du jour = 55 − 75 = −20 ; hier à la même heure = 78 − 6,67 = 71,33. Les dépôts (130 €) et le revenu net
+    // (25 €) d'aujourd'hui n'y entrent pas.
+    expect(dayGains(today)).toBe(-20);
     const f = homeFigures(today, yesterday);
     expect(f.members.delta).toBe(100);
     expect(f.ftds.delta).toBe(100);
-    expect(f.profit).toEqual({ value: 80, previous: 90.33, delta: -11.4 });
+    expect(f.gains).toMatchObject({ value: -20, previous: 71.33, delta: -128 });
+    expect(f.breakdown).toEqual({ commissions: 55, spend: 75 });
   });
 
   it("barre d'état : bots, synchro Link Affi, alertes ouvertes", async () => {
@@ -435,18 +495,19 @@ describe("accueil sur base réelle", () => {
     ]);
   });
 
-  it("campagnes actives : 7 derniers jours, bénéfice = revenu net − dépense (définition des campagnes)", async () => {
+  it("campagnes actives : 7 derniers jours, gains = commissions − dépense (même définition que l'accueil)", async () => {
     const { rows, total } = await loadActiveCampaigns(NOW, listCampaignsUncached);
     expect(total).toBe(1);
     expect(rows).toHaveLength(1);
-    // Revenu net sur 7 jours (9 au 15 juin, jusqu'à la fin du 15) : 30 − 5 + 400 + 7 = 432 ; dépense : 50 + 25 + 10 + 1000.
+    // Commissions sur 7 jours (9 au 15 juin, jusqu'à la fin du 15) : CPA 70 + 50 + 70 − 70 − 70 = 50, revshare
+    // 6,50 + 12 − 1,50 = 17 → 67 ; dépense : 50 + 25 + 10 + 1000 = 1085. Le revenu net (432 €) n'y entre pas.
     expect(rows[0]).toMatchObject({
       id: ourCampaignId,
       name: "Casino été",
       vertical: "CASINO",
       spend: 1085,
     });
-    expect(rows[0]!.profit).toBeCloseTo(432 - 1085, 2);
+    expect(rows[0]!.gains).toBeCloseTo(67 - 1085, 2);
   });
 
   it("« À faire pour démarrer » : campagne, message programmé, équipe", async () => {

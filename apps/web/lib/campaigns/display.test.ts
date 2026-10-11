@@ -3,12 +3,12 @@ import { computeMetrics } from "./metrics";
 import {
   adCampaignLine,
   adSetTitle,
+  CAMPAIGNS_TOTAL_NOTE,
   CAMPAIGN_TABS,
   campaignTabHref,
   costLevelLabel,
   DETAIL_METRICS,
-  displayDeltas,
-  displayVariation,
+  campaignVariations,
   entryLinkTitle,
   groupCostsByDay,
   HEADER_METRICS,
@@ -20,6 +20,7 @@ import {
   postExcerpt,
   shortLinkAddress,
 } from "./display";
+import { comparableVariation } from "@/lib/dashboard/display";
 
 describe("onglets de la fiche campagne", () => {
   it("six onglets, dans l'ordre de la spécification", () => {
@@ -71,14 +72,20 @@ describe("chiffres affichés", () => {
     registrations: 10,
     ftds: 4,
     revenue: 250,
+    cpaCommissions: 210,
+    revshareCommissions: 40,
     entryClicks: 300,
     offerClicks: 40,
     deposits: 6,
     depositAmount: 480,
   });
 
-  it("en-tête : dépensé, membres, premiers dépôts, bénéfice (une baisse de dépense est favorable)", () => {
-    expect(HEADER_METRICS.map((x) => x.key)).toEqual(["spend", "members", "ftds", "profit"]);
+  it("en-tête : dépensé, membres, premiers dépôts, gains (une baisse de dépense est favorable)", () => {
+    expect(HEADER_METRICS.map((x) => x.key)).toEqual(["spend", "members", "ftds", "gains"]);
+    expect(HEADER_METRICS.find((x) => x.key === "gains")).toMatchObject({
+      label: "Gains",
+      hint: "Commissions moins dépense pub.",
+    });
     expect(HEADER_METRICS.find((x) => x.key === "spend")!.favorable).toBe("down");
     expect(HEADER_METRICS.find((x) => x.key === "ftds")!.term).toBe("FTD");
     const big = computeMetrics({
@@ -111,15 +118,16 @@ describe("chiffres affichés", () => {
     expect(headerMoney(null)).toBe("—");
   });
 
-  it("en-tête : dépensé et bénéfice partagent la même précision (comme la grille des cartes)", () => {
+  it("en-tête : dépensé et gains partagent la même précision (comme la grille des cartes)", () => {
     const clean = (s: string) => s.replace(/\s/g, " ");
-    // 259,57 € dépensés, 42,13 € de bénéfice : « 260 € » et « 42 € », exacts au survol.
+    // 259,57 € dépensés, 42,13 € de gains : « 260 € » et « 42 € », exacts au survol.
     const mixed = computeMetrics({
       spend: 259.57,
       members: 8,
       registrations: 0,
       ftds: 1,
-      revenue: 301.7,
+      revenue: 0,
+      cpaCommissions: 301.7,
     });
     expect(headerDigits(mixed)).toBe(0);
     expect(HEADER_METRICS.map((x) => clean(x.format(mixed)))).toEqual(["260 €", "8", "1", "42 €"]);
@@ -135,7 +143,8 @@ describe("chiffres affichés", () => {
       members: 2,
       registrations: 0,
       ftds: 0,
-      revenue: 50,
+      revenue: 3000,
+      cpaCommissions: 50,
     });
     expect(headerDigits(small)).toBe(2);
     expect(HEADER_METRICS.map((x) => clean(x.format(small)))).toEqual([
@@ -153,6 +162,18 @@ describe("chiffres affichés", () => {
     }
     const terms = Object.fromEntries(DETAIL_METRICS.map((x) => [x.key, x.term]));
     expect(terms).toMatchObject({ revenue: "NGR", roas: "ROAS", cpl: "CPL", cpa: "CPA" });
+    // Commissions en détail (prime par joueur et part du revenu), avant le revenu net, simple indicateur de volume.
+    const keys = DETAIL_METRICS.map((x) => x.key);
+    expect(keys.indexOf("commissions")).toBeLessThan(keys.indexOf("revenue"));
+    expect(
+      DETAIL_METRICS.find((x) => x.key === "commissions")!
+        .hintOf?.(m)
+        ?.replace(/\s/g, " "),
+    ).toBe("210,00 € de primes des joueurs et 40,00 € de part du revenu.");
+    expect(DETAIL_METRICS.find((x) => x.key === "roas")!.hint).toBe(
+      "Commissions divisées par la dépense : 1,00× = remboursé.",
+    );
+    expect(DETAIL_METRICS.find((x) => x.key === "revenue")!.hint).toMatch(/volume/);
     for (const k of ["cpl", "cpa", "costPerFtd"])
       expect(DETAIL_METRICS.find((x) => x.key === k)!.favorable).toBe("down");
     const fmt = Object.fromEntries(
@@ -160,6 +181,7 @@ describe("chiffres affichés", () => {
     );
     expect(fmt).toMatchObject({
       entryClicks: "300",
+      commissions: "250,00 €",
       roas: "2,50×",
       cpl: "5,00 €",
       cpa: "10,00 €",
@@ -328,31 +350,59 @@ describe("dépenses regroupées par jour", () => {
 });
 
 describe("variations affichées", () => {
-  it("comme variationOf pour un chiffre positif", () => {
-    expect(displayVariation(120, 100)).toBe(20);
-    expect(displayVariation(50, 200)).toBe(-75);
-    expect(displayVariation(0, 0)).toBe(0);
-    expect(displayVariation(5, 0)).toBeNull();
-    expect(displayVariation(null, 3)).toBeNull();
-    expect(displayVariation(3, undefined)).toBeNull();
-    expect(displayVariation(Number.NaN, 3)).toBeNull();
+  const m = (gains: number, spend = 0) =>
+    computeMetrics({
+      spend,
+      members: 0,
+      registrations: 0,
+      ftds: 0,
+      revenue: 0,
+      cpaCommissions: gains + spend,
+    });
+
+  it("même règle que les Statistiques : pas de pourcentage quand la période d'avant était en perte", () => {
+    // « Paris Ligue des champions » : −18 € après −62 € ; la page Pubs écrit « Pas de comparaison possible ».
+    expect(campaignVariations(m(-17.62), m(-61.61)).gains).toEqual({ kind: "unknown" });
+    expect(campaignVariations(m(-275.19), m(-21.03)).gains).toEqual({ kind: "unknown" });
+    expect(campaignVariations(m(30), m(-10)).gains).toEqual({ kind: "unknown" });
+    expect(campaignVariations(m(540), m(-676)).gains).toEqual(comparableVariation(540, -676));
+    // Base positive : le pourcentage, y compris quand la campagne passe en perte.
+    expect(campaignVariations(m(-30), m(10)).gains).toEqual({ kind: "pct", pct: -400 });
   });
 
-  it("une perte qui se creuse est une baisse, une perte qui se réduit une hausse", () => {
-    expect(displayVariation(-275.19, -21.03)).toBeLessThan(0);
-    expect(displayVariation(-10, -20)).toBe(50);
-    expect(displayVariation(30, -10)).toBe(400);
-    expect(displayVariation(-30, 10)).toBe(-400);
+  it("variations affichées par la règle commune : « nouveau » depuis 0, rien si les deux valent 0", () => {
+    const cur = computeMetrics({
+      spend: 100,
+      members: 10,
+      registrations: 0,
+      ftds: 2,
+      revenue: 0,
+      cpaCommissions: 50,
+    });
+    const prev = computeMetrics({
+      spend: 50,
+      members: 0,
+      registrations: 0,
+      ftds: 1,
+      revenue: 0,
+      cpaCommissions: 80,
+    });
+    const v = campaignVariations(cur, prev);
+    expect(v.spend).toEqual({ kind: "pct", pct: 100 });
+    expect(v.members).toEqual({ kind: "new", direction: "up" });
+    expect(v.registrations).toEqual({ kind: "none" });
+    // Gains : 30 € → −50 € : −266,7 % (base positive, calcul sur sa valeur absolue).
+    expect(v.gains).toEqual({ kind: "pct", pct: -266.7 });
+    expect(v.commissions).toEqual({ kind: "pct", pct: -37.5 });
+    // Coût par membre impossible avant (aucun membre) : pas de comparaison.
+    expect(v.cpl).toEqual({ kind: "unknown" });
   });
+});
 
-  it("toutes les variations d'une campagne", () => {
-    const cur = computeMetrics({ spend: 100, members: 10, registrations: 0, ftds: 2, revenue: 50 });
-    const prev = computeMetrics({ spend: 50, members: 0, registrations: 0, ftds: 1, revenue: 80 });
-    const d = displayDeltas(cur, prev);
-    expect(d.spend).toBe(100);
-    expect(d.members).toBeNull();
-    expect(d.registrations).toBe(0);
-    expect(d.profit).toBe(-266.7);
-    expect(d.cpl).toBeNull();
+describe("ligne de total de la page Campagnes", () => {
+  it("dit pourquoi le total peut être plus petit que la somme des cartes (argent compris)", () => {
+    expect(CAMPAIGNS_TOTAL_NOTE).toMatch(/commission/);
+    expect(CAMPAIGNS_TOTAL_NOTE).toMatch(/plus petit que la somme des cartes/);
+    expect(CAMPAIGNS_TOTAL_NOTE).not.toMatch(JARGON);
   });
 });

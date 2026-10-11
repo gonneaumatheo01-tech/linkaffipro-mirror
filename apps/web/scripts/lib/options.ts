@@ -20,6 +20,10 @@ export type Impact = (typeof IMPACTS)[number];
 
 export type Env = Record<string, string | undefined>;
 
+/** Moteurs Playwright : Chromium (Chrome, Edge), Firefox, WebKit (Safari). */
+export const BROWSERS = ["chromium", "firefox", "webkit"] as const;
+export type BrowserName = (typeof BROWSERS)[number];
+
 /** Erreur de saisie : le script l'affiche telle quelle et s'arrête (code 2). */
 export class OptionError extends Error {}
 
@@ -30,6 +34,8 @@ type Common = {
   /** Valeur brute de --pages (liste ou fichier) ; null = liste par défaut (toutes les pages de l'admin). */
   pages: string | null;
   timeoutMs: number;
+  /** Navigateur utilisé (`--browser`, variable CAPTURE_BROWSER) ; Chromium par défaut. */
+  browser: BrowserName;
   help: boolean;
 };
 
@@ -130,6 +136,13 @@ export function parseWidths(raw: string): number[] {
   return out;
 }
 
+function parseBrowser(raw: string | undefined): BrowserName {
+  const b = (raw ?? "chromium").trim().toLowerCase();
+  if (!(BROWSERS as readonly string[]).includes(b))
+    throw new OptionError(`--browser : une valeur parmi ${BROWSERS.join(", ")} (reçu « ${raw} »).`);
+  return b as BrowserName;
+}
+
 function common(flags: Record<string, string | true>, env: Env): Common {
   const base = parseBase(str(flags.base) ?? env.CAPTURE_BASE ?? DEFAULT_BASE);
   // --password-file : le mot de passe est lu dans un fichier (droits 600), jamais écrit sur la ligne de commande.
@@ -148,6 +161,7 @@ function common(flags: Record<string, string | true>, env: Env): Common {
     password: explicitPassword ?? env.DEMO_PASSWORD ?? DEFAULT_PASSWORD,
     pages: str(flags.pages) ?? null,
     timeoutMs: parseTimeout(str(flags.timeout)),
+    browser: parseBrowser(str(flags.browser) ?? env.CAPTURE_BROWSER),
     help: flags.help === true,
   };
 }
@@ -159,6 +173,7 @@ const COMMON_SPEC: FlagSpec = {
   "password-file": "string",
   pages: "string",
   timeout: "string",
+  browser: "string",
   help: "boolean",
 };
 
@@ -271,13 +286,15 @@ export const CAPTURES_HELP = `pnpm captures [options]
   --widths <liste>    largeurs en px (défaut 1440,390)
   --out <dossier>     dossier des images, relatif à la racine du dépôt (défaut docs/captures)
   --timeout <s>       délai maximum par page (défaut ${DEFAULT_TIMEOUT_S})
+  --browser <nom>     ${BROWSERS.join(" | ")} (défaut chromium, variable CAPTURE_BROWSER) ; installer d'abord le
+                      navigateur : pnpm --filter web exec playwright install firefox
   --keep-png          garde aussi les PNG bruts (docs/captures/raw/, ignoré par git)
   --prune             retire de l'index les adresses absentes de cette passe`;
 
 export const A11Y_HELP = `pnpm a11y [options]
   Contrôle axe (règles wcag2a + wcag2aa) de chaque écran à 1440 px ; rapport docs/captures/a11y-report.json.
   Sort en erreur (code 1) s'il reste une violation « critical » (voir --fail-on).
-  --base, --email, --password, --pages, --timeout : comme pnpm captures
+  --base, --email, --password, --pages, --timeout, --browser : comme pnpm captures
   --width <px>        largeur (défaut 1440)
   --tags <liste>      familles de règles axe (défaut ${DEFAULT_A11Y_TAGS.join(",")})
   --fail-on <niveau>  ${IMPACTS.join(" | ")} (défaut critical)

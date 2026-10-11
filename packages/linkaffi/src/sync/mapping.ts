@@ -8,11 +8,13 @@ import type {
   LaPlayer,
   LaPlayerEvent,
   LaSnapshot,
+  LaStat,
   PlayerEventInput,
   PlayerEventType,
   PlayerInput,
   ProgramInput,
   RateTable,
+  StatInput,
   SubIdSource,
 } from "./types";
 
@@ -125,6 +127,12 @@ export function mapPlayer(row: LaPlayer, rates: RateTable = { EUR: 1 }): PlayerI
     redepositCount: toNumber(row.redeposits_count) ?? 0,
     depositTotal: toEur(toNumber(row.total_deposited_amount), currency, rates) ?? 0,
     status: str(row.status),
+    cpaStatus: str(row.cpa_status),
+    cpaAmount: toEur(toNumber(row.cpa_affiliate_amount), currency, rates),
+    cpaCreditedAt: toDate(row.cpa_credited_at),
+    cpaReversedAt: toDate(row.cpa_reversed_at),
+    qualifiedAt: toDate(row.qualified_at),
+    disqualifiedAt: toDate(row.disqualified_at),
     lastEventAt: toDate(row.last_activity_at) ?? toDate(row.updated_at),
     updatedAt: toDate(row.updated_at),
     raw: row as Record<string, unknown>,
@@ -285,4 +293,48 @@ export function mapClick(
   const subId = str(row.sub_id);
   if (!subId) return null;
   return { subId, campaignExternalId: str(row.campaign_id), at: toDate(row.created_at) };
+}
+
+function round4(n: number): number {
+  return Math.round(n * 10_000) / 10_000;
+}
+
+/**
+ * `stats` → `AffiliateDailyStat`. Une ligne sans offre (prime manuelle, correction) est gardée telle quelle : elle ne
+ * compte dans aucune campagne. Montants en EUR (la table n'a pas de devise) ; revshare à 4 décimales (Link Affi en
+ * donne jusqu'à 18, souvent quelques centimes par ligne). Sans identifiant ou sans jour lisible : ignorée.
+ */
+export function mapStat(row: LaStat): StatInput | null {
+  const id = str(row.id);
+  const date = str(row.date)?.slice(0, 10) ?? null;
+  if (!id || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const int = (v: unknown) => Math.trunc(toNumber(v) ?? 0);
+  const money = (v: unknown) => Math.round((toNumber(v) ?? 0) * 100) / 100;
+  return {
+    externalId: id,
+    date,
+    campaignExternalId: str(row.campaign_id),
+    programExternalId: str(row.casino_id),
+    affiliateExternalId: str(row.affiliate_id),
+    clicks: int(row.clicks),
+    signups: int(row.signups),
+    deposits: int(row.deposits),
+    depositAmount: money(row.deposit_amount),
+    revenue: round4(toNumber(row.revenue) ?? 0),
+    cpaRevenue: round4(toNumber(row.cpa_revenue) ?? 0),
+    revshareRevenue: round4(toNumber(row.revshare_revenue) ?? 0),
+    sourceCreatedAt: toDate(row.created_at),
+    raw: row as Record<string, unknown>,
+  };
+}
+
+/** Affiliés Link Affi propriétaires d'offres (`campaigns.affiliate_id`, gardé dans la ligne brute), sans doublon. */
+export function ourAffiliateIds(offers: ReadonlyArray<{ raw: unknown }>): string[] {
+  const out = new Set<string>();
+  for (const o of offers) {
+    const raw = o.raw && typeof o.raw === "object" ? (o.raw as Record<string, unknown>) : null;
+    const id = raw ? str(raw.affiliate_id) : null;
+    if (id) out.add(id);
+  }
+  return [...out];
 }

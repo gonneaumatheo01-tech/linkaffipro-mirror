@@ -73,6 +73,9 @@ async function sumDimensionByDay(
       depositAmount: true,
       ngr: true,
       spend: true,
+      cpaCommissions: true,
+      revshareCommissions: true,
+      commissions: true,
     },
   });
   for (const { dimension, date, ...r } of rows) {
@@ -85,6 +88,9 @@ async function sumDimensionByDay(
         depositAmount: Number(r.depositAmount),
         ngr: Number(r.ngr),
         spend: Number(r.spend),
+        cpaCommissions: Number(r.cpaCommissions),
+        revshareCommissions: Number(r.revshareCommissions),
+        commissions: Number(r.commissions),
       }),
     );
     out.set(dimension, byDay);
@@ -114,6 +120,9 @@ async function sumDimension(
       depositAmount: true,
       ngr: true,
       spend: true,
+      cpaCommissions: true,
+      revshareCommissions: true,
+      commissions: true,
     },
   });
   const out = new Map<string, StatTotals>();
@@ -126,6 +135,9 @@ async function sumDimension(
         depositAmount: Number(r.depositAmount),
         ngr: Number(r.ngr),
         spend: Number(r.spend),
+        cpaCommissions: Number(r.cpaCommissions),
+        revshareCommissions: Number(r.revshareCommissions),
+        commissions: Number(r.commissions),
       }),
     );
   }

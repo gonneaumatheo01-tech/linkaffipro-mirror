@@ -4,7 +4,8 @@
  * (FTD, NGR, CPL, CPA, ROAS, sub-ID) passe au survol (`term`).
  * Les chiffres viennent de `campaignTotals` / `computeMetrics` : rien n'est recalculé ici.
  */
-import type { Favorable } from "@/components/admin/stat-card-logic";
+import type { Favorable, Variation } from "@/components/admin/stat-card-logic";
+import { comparableVariation } from "@/lib/dashboard/display";
 import { fmtNum } from "@/lib/format";
 import { excerpt } from "@/lib/home/lists";
 import { exactMoney, groupMoney, groupMoneyDigits, plural } from "./cards";
@@ -107,7 +108,7 @@ export type MetricView = {
 const money = exactMoney;
 
 /**
- * Montant d'une carte de l'en-tête. Les montants de l'en-tête (dépensé, bénéfice) forment un groupe à une seule
+ * Montant d'une carte de l'en-tête. Les montants de l'en-tête (dépensé, gains) forment un groupe à une seule
  * précision, même règle que la grille des cartes (`groupMoneyDigits`) : sans centimes dès que l'un d'eux atteint
  * 100 € (« 260 € », « 42 € »), avec centimes sinon ; « — » si absent. Le montant exact reste au survol (`exact`).
  * `digits` absent : précision du montant seul.
@@ -117,8 +118,8 @@ export function headerMoney(n: number | null | undefined, digits?: 0 | 2): strin
 }
 
 /** Précision commune des montants de l'en-tête de la fiche. */
-export function headerDigits(m: Pick<CampaignMetrics, "spend" | "profit">): 0 | 2 {
-  return groupMoneyDigits([m.spend, m.profit]);
+export function headerDigits(m: Pick<CampaignMetrics, "spend" | "gains">): 0 | 2 {
+  return groupMoneyDigits([m.spend, m.gains]);
 }
 
 /** Les 4 chiffres de l'en-tête de la fiche (cartes, avec variation vs période précédente). */
@@ -147,12 +148,12 @@ export const HEADER_METRICS: MetricView[] = [
     format: (m) => fmtNum(m.ftds),
   },
   {
-    key: "profit",
-    label: "Bénéfice",
-    hint: "Revenu net moins dépense pub.",
+    key: "gains",
+    label: "Gains",
+    hint: "Commissions moins dépense pub.",
     favorable: "up",
-    format: (m) => headerMoney(m.profit, headerDigits(m)),
-    exact: (m) => money(m.profit),
+    format: (m) => headerMoney(m.gains, headerDigits(m)),
+    exact: (m) => money(m.gains),
   },
 ];
 
@@ -189,10 +190,19 @@ export const DETAIL_METRICS: MetricView[] = [
     format: (m) => money(m.depositAmount ?? 0),
   },
   {
+    key: "commissions",
+    label: "Commissions",
+    hint: "Ce que le partenaire nous verse : primes des joueurs et part du revenu.",
+    hintOf: (m) =>
+      `${money(m.cpaCommissions ?? 0)} de primes des joueurs et ${money(m.revshareCommissions ?? 0)} de part du revenu.`,
+    favorable: "up",
+    format: (m) => money(m.commissions),
+  },
+  {
     key: "revenue",
     label: "Revenu net",
     term: "NGR",
-    hint: "Somme des revenus nets datés de la période chez Link Affi.",
+    hint: "Revenu net du casino sur nos joueurs : un indicateur de volume, il ne s'ajoute pas aux gains.",
     favorable: "up",
     format: (m) => money(m.revenue),
   },
@@ -200,7 +210,7 @@ export const DETAIL_METRICS: MetricView[] = [
     key: "roas",
     label: "Retour sur dépense pub",
     term: "ROAS",
-    hint: "Revenu net divisé par la dépense : 1,00× = remboursé.",
+    hint: "Commissions divisées par la dépense : 1,00× = remboursé.",
     favorable: "up",
     format: (m) => fmtRatio(m.roas),
   },
@@ -362,31 +372,29 @@ export function groupCostsByDay<T extends CostLine>(lines: readonly T[]): CostDa
   return [...byDay.values()].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
 }
 
+// ——— Ligne de total ———
+
+/**
+ * Sous le total de la page Campagnes : pourquoi il peut être plus petit que la somme des cartes (deux campagnes qui
+ * partagent une offre se partagent ses joueurs et leurs commissions), comme sous le tableau de la page Pubs.
+ */
+export const CAMPAIGNS_TOTAL_NOTE =
+  "Chaque membre, chaque joueur et chaque commission n'y est compté qu'une fois (offres partagées) : le total peut être plus petit que la somme des cartes.";
+
 // ——— Variations affichées ———
 
 /**
- * Variation en % pour l'affichage, rapportée à la valeur absolue de la période précédente : identique à
- * `variationOf` (lib/periods.ts) pour un chiffre positif, mais un bénéfice qui passe de −21 € à −275 € donne
- * −1 209 % (une baisse, en rouge) et non +1 209 %. 0 → 0 : 0 ; 0 → autre chose, ou valeur absente : null.
+ * Variations affichées d'une campagne (cartes, en-tête de la fiche, ligne de total), par la règle unique du site
+ * (`comparableVariation`, la même que les Statistiques) : « nouveau » quand la période précédente valait 0, rien quand
+ * les deux valent 0, pas de pourcentage sur une base négative (gains d'avant en perte : la valeur d'avant est écrite à
+ * la place, voir `unknownBefore`), sinon le pourcentage.
  */
-export function displayVariation(
-  current: number | null | undefined,
-  previous: number | null | undefined,
-): number | null {
-  if (current === null || current === undefined || previous === null || previous === undefined)
-    return null;
-  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
-  if (previous === 0) return current === 0 ? 0 : null;
-  return Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10;
-}
-
-/** Variations de chaque chiffre d'une campagne entre deux périodes (règle `displayVariation`). */
-export function displayDeltas(
+export function campaignVariations(
   current: CampaignMetrics,
   previous: CampaignMetrics,
-): Partial<Record<keyof CampaignMetrics, number | null>> {
-  const out: Partial<Record<keyof CampaignMetrics, number | null>> = {};
+): Partial<Record<keyof CampaignMetrics, Variation>> {
+  const out: Partial<Record<keyof CampaignMetrics, Variation>> = {};
   for (const k of Object.keys(current) as (keyof CampaignMetrics)[])
-    out[k] = displayVariation(current[k] ?? null, previous[k] ?? null);
+    out[k] = comparableVariation(current[k] ?? null, previous[k] ?? null);
   return out;
 }

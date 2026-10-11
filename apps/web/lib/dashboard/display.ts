@@ -4,7 +4,11 @@
  * (FTD, NGR, CPL, CPA, ROAS, LTV) passe au survol (`term`). Les chiffres eux-mêmes viennent de
  * `lib/dashboard/queries.ts` et `daily.ts` : rien n'est recalculé ici.
  */
-import type { Favorable } from "@/components/admin/stat-card-logic";
+import {
+  variationBetween,
+  type Favorable,
+  type Variation,
+} from "@/components/admin/stat-card-logic";
 import { fmtTimes, formatValue, type ChartFormat } from "@/components/charts/chart-logic";
 import { exactMoney, groupMoney, groupMoneyDigits } from "@/lib/campaigns/cards";
 import { fmtNum } from "@/lib/format";
@@ -43,6 +47,21 @@ export const METRIC_VIEWS: Record<MetricKey, MetricView> = {
   deposits: { label: "Dépôts", favorable: "up", format: "number", integer: true },
   depositAmount: { label: "Montant déposé", favorable: "up", format: "money" },
   ngr: { label: "Revenu net", term: "NGR", favorable: "up", format: "money" },
+  // Total des primes versées pour nos joueurs (pas une moyenne par joueur) ; « CPA » seul veut déjà dire « coût par
+  // inscription » dans ce produit : le survol dit « commission CPA ».
+  cpaCommissions: {
+    label: "Primes des joueurs",
+    term: "commission CPA",
+    favorable: "up",
+    format: "money",
+  },
+  revshareCommissions: {
+    label: "Part du revenu",
+    term: "revshare",
+    favorable: "up",
+    format: "money",
+  },
+  commissions: { label: "Commissions", favorable: "up", format: "money" },
   cpl: { label: "Coût par membre", term: "CPL", favorable: "down", format: "money" },
   cpa: { label: "Coût par inscription", term: "CPA", favorable: "down", format: "money" },
   costPerFtd: {
@@ -52,10 +71,13 @@ export const METRIC_VIEWS: Record<MetricKey, MetricView> = {
     format: "money",
   },
   roas: { label: "Retour sur dépense pub", term: "ROAS", favorable: "up", format: "ratio" },
-  profit: { label: "Bénéfice", favorable: "up", format: "money" },
+  gains: { label: "Gains", favorable: "up", format: "money" },
 };
 
-/** Ordre du détail d'une campagne (volet) : le parcours, puis l'argent, puis les rapports. */
+/**
+ * Ordre du détail d'une campagne (volet) : le parcours, puis l'argent (volume du casino, puis nos commissions), puis les
+ * rapports, et les gains en dernier.
+ */
 export const DETAIL_ORDER: MetricKey[] = [
   "spend",
   "entryClicks",
@@ -68,11 +90,14 @@ export const DETAIL_ORDER: MetricKey[] = [
   "deposits",
   "depositAmount",
   "ngr",
+  "cpaCommissions",
+  "revshareCommissions",
+  "commissions",
   "cpl",
   "cpa",
   "costPerFtd",
   "roas",
-  "profit",
+  "gains",
 ];
 
 /** Valeur d'un chiffre (totaux ou indicateur dérivé). */
@@ -94,7 +119,7 @@ export function fmtMetricExact(key: MetricKey, v: number | null | undefined): st
 export { fmtTimes };
 
 /**
- * Variation à afficher (cartes, volets, cellules). Un pourcentage calculé sur une base négative (bénéfice ou revenu
+ * Variation à afficher (cartes, volets, cellules). Un pourcentage calculé sur une base négative (gains ou revenu
  * net d'avant en perte) a un sens trompeur : passer de −1,74 € à 323 € donne « −18 661 % », en rouge. Dans ce cas,
  * pas de pourcentage (« Pas de comparaison possible ») : la valeur d'avant reste écrite à côté. Le calcul
  * (`deltaPct`) ne change pas ; seule la présentation l'écarte.
@@ -106,6 +131,54 @@ export function comparableDelta(
   if (delta === null || delta === undefined) return null;
   if (typeof previous === "number" && previous < 0) return null;
   return delta;
+}
+
+/**
+ * Variation affichée d'un chiffre, RÈGLE UNIQUE du site (accueil, campagnes, statistiques ; les rapports Telegram
+ * suivent la même) par la règle commune des cartes (`variationBetween`) : « nouveau » quand la période précédente
+ * valait 0, rien quand les deux valent 0 ; pas de pourcentage sur une base négative (même règle que `comparableDelta`
+ * et docs/DESIGN-SYSTEM.md) ; valeur absente : pas de comparaison.
+ */
+export function comparableVariation(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): Variation {
+  return variationBetween(
+    current,
+    previous,
+    typeof previous === "number" && previous < 0 ? null : undefined,
+  );
+}
+
+/**
+ * Ligne « Avant : X » sous un chiffre comparé (cartes des Statistiques) : avec un pourcentage, rien à comparer ou pas de
+ * comparaison possible ; jamais avec « nouveau », dont la phrase (« rien la période précédente ») le dit déjà. Rien sans
+ * comparaison.
+ */
+export function beforeHint(variation: Variation | undefined, before: string): string | null {
+  if (!variation || variation.kind === "new") return null;
+  return `Avant : ${before}`;
+}
+
+/**
+ * « Avant : X » des chiffres compacts (cartes de campagne, ligne de total, accueil) : seulement quand aucun pourcentage
+ * n'est possible (base négative), pour qu'une perte ne se lise pas comme une hausse.
+ */
+export function unknownBefore(variation: Variation | undefined, before: string): string | null {
+  return variation?.kind === "unknown" ? `Avant : ${before}` : null;
+}
+
+/**
+ * Variation d'un chiffre des canaux (membres entrés, départs, croissance nette) : la règle unique
+ * (`comparableVariation`) ; rien sans comparaison ou sans période précédente.
+ */
+export function growthVariation(
+  current: number,
+  previous: number | null | undefined,
+  compare: boolean,
+): Variation | undefined {
+  if (!compare || previous === null || previous === undefined) return undefined;
+  return comparableVariation(current, previous);
 }
 
 /** Accord simple : « 1 canal », « 7 canaux » (singulier jusqu'à 1, comme en français). */
@@ -161,19 +234,16 @@ export function activeSummary(n: { bots: number; channels: number; members: numb
 
 // ——— Pubs : tableau par campagne (5 colonnes) ———
 
-/** Colonnes du tableau par campagne : le reste des chiffres est dans le volet de détail de la ligne. */
+/**
+ * Colonnes du tableau par campagne : le reste des chiffres est dans le volet de détail de la ligne. Sur téléphone, la
+ * dépense face au retour sur dépense pub (et aux gains, écrits dessous) : ce que la campagne a coûté et rapporté.
+ */
 export const ADS_COLUMNS = [
   { key: "name", header: "Campagne", className: "max-md:whitespace-normal" },
   { key: "spend", header: "Dépense pub", align: "right" },
   { key: "joined", header: "Membres entrés", align: "right", hideOnMobile: true },
-  { key: "ftds", header: "Premiers dépôts", term: "FTD", align: "right" },
-  {
-    key: "roas",
-    header: "Retour sur dépense pub",
-    term: "ROAS",
-    align: "right",
-    hideOnMobile: true,
-  },
+  { key: "ftds", header: "Premiers dépôts", term: "FTD", align: "right", hideOnMobile: true },
+  { key: "roas", header: "Retour sur dépense pub", term: "ROAS", align: "right" },
 ] as const satisfies ReadonlyArray<{
   key: string;
   header: string;
@@ -203,11 +273,11 @@ export function costPerMemberNote(d: Pick<Derived, "cpl">): string | null {
   return d.cpl === null ? null : `${fmtMetric("cpl", d.cpl)} par membre`;
 }
 
-/** Phrase sous le retour sur dépense pub, à l'euro près : « 420 € de bénéfice » / « 97 € de perte ». */
-export function profitNote(profit: number): string | null {
-  if (!Number.isFinite(profit) || Math.round(profit) === 0) return null;
-  const amount = groupMoney(Math.abs(profit), 0);
-  return profit > 0 ? `${amount} de bénéfice` : `${amount} de perte`;
+/** Phrase sous le retour sur dépense pub, à l'euro près : « 420 € de gains » / « 97 € de perte ». */
+export function gainsNote(gains: number): string | null {
+  if (!Number.isFinite(gains) || Math.round(gains) === 0) return null;
+  const amount = groupMoney(Math.abs(gains), 0);
+  return gains > 0 ? `${amount} de gains` : `${amount} de perte`;
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T12:14:52.183Z",
+  "updatedAt": "2026-10-11T15:16:02.663Z",
   "entries": [
     {
       "route": "/",
@@ -15,7 +15,7 @@
         "1440": "accueil-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:17:09.354Z"
+      "capturedAt": "2026-10-11T15:15:27.189Z"
     },
     {
       "route": "/?a-faire=liens-canaux",
@@ -45,7 +45,7 @@
         "1440": "campaigns-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:17:17.687Z"
+      "capturedAt": "2026-10-11T15:15:35.584Z"
     },
     {
       "route": "/campaigns/[id]",
@@ -60,7 +60,7 @@
         "1440": "campaigns-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:17:23.112Z"
+      "capturedAt": "2026-10-11T15:15:39.955Z"
     },
     {
       "route": "/campaigns/import",
@@ -285,7 +285,7 @@
         "1440": "messages-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T12:05:21.567Z"
+      "capturedAt": "2026-10-11T14:15:52.088Z"
     },
     {
       "route": "/messages?view=templates",
@@ -345,7 +345,7 @@
         "1440": "members-automations-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:30.641Z"
+      "capturedAt": "2026-10-11T15:00:36.152Z"
     },
     {
       "route": "/members/automations/[id]",
@@ -360,7 +360,7 @@
         "1440": "members-automations-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:36.880Z"
+      "capturedAt": "2026-10-11T15:00:44.384Z"
     },
     {
       "route": "/members/automations/[id]/edit",
@@ -375,7 +375,7 @@
         "1440": "members-automations-id-edit-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:46.367Z"
+      "capturedAt": "2026-10-11T15:00:48.788Z"
     },
     {
       "route": "/members/automations/new",
@@ -390,7 +390,7 @@
         "1440": "members-automations-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:53.776Z"
+      "capturedAt": "2026-10-11T15:00:55.692Z"
     },
     {
       "route": "/members/broadcasts",
@@ -465,7 +465,7 @@
         "1440": "stats-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:20:26.788Z"
+      "capturedAt": "2026-10-11T15:15:44.736Z"
     },
     {
       "route": "/stats/ads",
@@ -480,7 +480,7 @@
         "1440": "stats-ads-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:20:37.448Z"
+      "capturedAt": "2026-10-11T15:15:50.231Z"
     },
     {
       "route": "/stats/channels",
@@ -495,7 +495,7 @@
         "1440": "stats-channels-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:20:46.936Z"
+      "capturedAt": "2026-10-11T15:15:54.600Z"
     },
     {
       "route": "/stats/cohorts",
@@ -525,7 +525,7 @@
         "1440": "stats-funnel-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:20:57.728Z"
+      "capturedAt": "2026-10-11T15:15:58.875Z"
     },
     {
       "route": "/settings",

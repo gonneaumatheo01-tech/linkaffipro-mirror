@@ -20,7 +20,7 @@ const HELP: Record<MessagesView, string> = {
   calendar: "Cliquez un message pour voir son détail, le modifier ou le déplacer.",
   list: "Cliquez un message pour voir son détail. « Exporter » télécharge la liste filtrée avec ses chiffres.",
   templates:
-    "Choisissez un modèle puis « Utiliser » : le message est pré-rempli. Remplacez les mots entre accolades, puis programmez-le.",
+    "Choisissez un modèle puis « Utiliser » : le message est pré-rempli. Choisissez la campagne du bouton « Offre », relisez, puis programmez-le.",
 };
 
 /**

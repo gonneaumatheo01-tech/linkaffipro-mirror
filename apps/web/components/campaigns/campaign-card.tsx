@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { MiniTrend } from "@/components/admin/stat-card";
 import { UniverseDot } from "@/components/admin/universe-dot";
-import { campaignSummary, groupMoney, groupMoneyDigits, profitTone } from "@/lib/campaigns/cards";
-import { displayDeltas } from "@/lib/campaigns/display";
+import { campaignSummary, gainsTone, groupMoney, groupMoneyDigits } from "@/lib/campaigns/cards";
+import { campaignVariations } from "@/lib/campaigns/display";
 import type { CampaignRow } from "@/lib/campaigns/queries";
 import { hasTrend } from "@/lib/campaigns/trend";
 import { fmtNum } from "@/lib/format";
@@ -12,7 +12,8 @@ import { CampaignFigure } from "./campaign-figure";
 
 /**
  * Carte d'une campagne (page Campagnes) : univers, statut, nom, contexte (plateforme, canaux, liens, offres), puis
- * dépensé, membres, premiers dépôts et bénéfice de la période, et la mini-courbe des membres par jour.
+ * dépensé, membres, premiers dépôts et gains de la période (commissions − dépense pub), et la mini-courbe des membres par
+ * jour.
  * Toute la carte mène à la fiche (lien « étiré » sur le nom : le nom accessible du lien reste court) ; avec la
  * comparaison, chaque chiffre porte sa variation (une hausse de la dépense est défavorable).
  * `moneyDigits` : précision commune des montants de la grille (`groupMoneyDigits` sur toutes les cartes affichées),
@@ -35,10 +36,14 @@ export function CampaignCard({
   moneyDigits?: 0 | 2;
 }) {
   const m = row.metrics;
-  const digits = moneyDigits ?? groupMoneyDigits([m.spend, m.profit]);
-  const d = compare && row.previous ? displayDeltas(m, row.previous) : compare ? {} : null;
-  const delta = (k: keyof CampaignRow["metrics"]) => (d ? (d[k] ?? null) : undefined);
-  const tone = profitTone(m.profit);
+  const digits = moneyDigits ?? groupMoneyDigits([m.spend, m.gains]);
+  // Règle commune des cartes : « nouveau » quand la période précédente valait 0, rien si les deux valent 0.
+  const v = compare && row.previous ? campaignVariations(m, row.previous) : compare ? {} : null;
+  const variation = (k: keyof CampaignRow["metrics"]) =>
+    v ? (v[k] ?? ({ kind: "unknown" } as const)) : undefined;
+  // Période d'avant en perte : pas de pourcentage, la valeur d'avant à la place (même règle que les Statistiques).
+  const before = compare && row.previous ? groupMoney(row.previous.gains, digits) : null;
+  const tone = gainsTone(m.gains);
   return (
     <article
       data-slot="campaign-card"
@@ -80,21 +85,26 @@ export function CampaignCard({
         <CampaignFigure
           label="Dépensé"
           value={groupMoney(m.spend, digits)}
-          delta={delta("spend")}
+          variation={variation("spend")}
           favorable="down"
         />
-        <CampaignFigure label="Membres" value={fmtNum(m.members)} delta={delta("members")} />
+        <CampaignFigure
+          label="Membres"
+          value={fmtNum(m.members)}
+          variation={variation("members")}
+        />
         <CampaignFigure
           label="Premiers dépôts"
           term="FTD"
           value={fmtNum(m.ftds)}
-          delta={delta("ftds")}
+          variation={variation("ftds")}
         />
         <CampaignFigure
-          label="Bénéfice"
-          value={groupMoney(m.profit, digits)}
+          label="Gains"
+          value={groupMoney(m.gains, digits)}
           valueTone={tone}
-          delta={delta("profit")}
+          variation={variation("gains")}
+          before={before}
         />
       </dl>
       {hasTrend(membersTrend) ? (

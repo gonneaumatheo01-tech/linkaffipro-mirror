@@ -14,8 +14,9 @@ export async function handleEvent(job: EventJob, now = new Date()): Promise<{ st
   if (rules.length === 0) return { started: 0 };
   const snapshot = await buildMemberContext(job.memberId, job.context ?? {}, now);
   if (!snapshot) return { started: 0 };
+  const fromRuleId = job.trigger === "OFFER_CLICKED" ? await clickedRuleId(job.context?.clickId) : null;
   let started = 0;
-  for (const rule of selectRules(rules, job.trigger, snapshot.ctx)) {
+  for (const rule of selectRules(rules, job.trigger, snapshot.ctx, { fromRuleId })) {
     if (rule.oncePerMember) {
       const already = await prisma.automationRun.findFirst({ where: { ruleId: rule.id, memberId: job.memberId, status: { not: "CANCELLED" } }, select: { id: true } });
       if (already) continue;
@@ -40,6 +41,13 @@ export async function handleEvent(job: EventJob, now = new Date()): Promise<{ st
   return { started };
 }
 
+/** Relance dont le bouton Offre a reçu ce clic (lien traqué rattaché à une relance), sinon null. */
+async function clickedRuleId(clickId: unknown): Promise<string | null> {
+  if (typeof clickId !== "string" || !clickId) return null;
+  const click = await prisma.click.findUnique({ where: { id: clickId }, select: { trackingLink: { select: { automationRuleId: true } } } }).catch(() => null);
+  return click?.trackingLink.automationRuleId ?? null;
+}
+
 type RuleLike = { id: string; name: string; actions: unknown; graph?: unknown };
 type RunLike = { id: string; createdAt: Date; nodeId?: string | null; context?: unknown };
 type Snapshot = Awaited<ReturnType<typeof buildMemberContext>> & object;
@@ -52,7 +60,7 @@ export function isGraphRule(rule: { graph?: unknown }): boolean {
 async function executeRun(run: RunLike, rule: RuleLike, snapshot: Snapshot, step: number, previousLog: LogEntry[], now: Date, test = false): Promise<void> {
   if (isGraphRule(rule)) return executeGraphRun(run, rule, snapshot, step, previousLog, now, test);
   const runId = run.id;
-  const result = await executePlan(rule.actions, step, prismaExecutor(snapshot, { ruleName: rule.name, test }), now, { skipTags: test });
+  const result = await executePlan(rule.actions, step, prismaExecutor(snapshot, { ruleId: rule.id, ruleName: rule.name, test }), now, { skipTags: test });
   const log = [...previousLog, ...result.log];
   const status = result.error ? "FAILED" : result.done ? "DONE" : "PENDING";
   await prisma.automationRun.update({ where: { id: runId }, data: { status, step: result.nextStep, resumeAt: result.resumeAt, log: toJsonValue(log), error: result.error } });
@@ -70,7 +78,7 @@ async function executeGraphRun(run: RunLike, rule: RuleLike, snapshot: Snapshot,
   const ctx = (run.context && typeof run.context === "object" ? run.context : {}) as Record<string, unknown>;
   // « A cliqué une offre depuis le début » : clics postérieurs à la création de l'exécution, hors clic déclencheur.
   const facts = graphConditionEvaluator(snapshot.memberId, { since: run.createdAt, excludeClickId: typeof ctx.clickId === "string" ? ctx.clickId : null }, now);
-  const base = prismaExecutor(snapshot, { ruleName: rule.name, test });
+  const base = prismaExecutor(snapshot, { ruleId: rule.id, ruleName: rule.name, test });
   // Une étiquette posée par la relance compte pour les conditions suivantes du même passage.
   const exec: ActionExecutor = {
     ...base,

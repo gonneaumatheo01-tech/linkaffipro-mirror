@@ -96,6 +96,26 @@ describe("options de pnpm captures", () => {
   });
 });
 
+describe("navigateur (--browser)", () => {
+  it("Chromium par défaut ; firefox et webkit au choix (option ou CAPTURE_BROWSER)", () => {
+    expect(parseCaptureOptions([], {}).browser).toBe("chromium");
+    expect(parseA11yOptions([], {}).browser).toBe("chromium");
+    expect(parseCaptureOptions(["--browser", "firefox"], {}).browser).toBe("firefox");
+    expect(parseCaptureOptions(["--browser=WebKit"], {}).browser).toBe("webkit");
+    expect(parseA11yOptions([], { CAPTURE_BROWSER: "firefox" }).browser).toBe("firefox");
+    expect(
+      parseCaptureOptions(["--browser", "chromium"], { CAPTURE_BROWSER: "firefox" }).browser,
+    ).toBe("chromium");
+  });
+
+  it("refuse un navigateur inconnu", () => {
+    expect(() => parseCaptureOptions(["--browser", "safari"], {})).toThrow(OptionError);
+    expect(() => parseCaptureOptions(["--browser", "safari"], {})).toThrow(
+      /chromium, firefox, webkit/,
+    );
+  });
+});
+
 describe("largeurs", () => {
   it("liste séparée par des virgules, sans doublon", () => {
     expect(parseWidths("1440, 390,1440")).toEqual([1440, 390]);

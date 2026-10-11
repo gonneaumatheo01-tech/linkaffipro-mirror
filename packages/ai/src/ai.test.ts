@@ -224,6 +224,17 @@ describe("validation côté code", () => {
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining("inconnu") });
   });
+  it("refuse un repère ajouté là où il ne serait pas remplacé (message de canal), l'accepte en message privé", () => {
+    const common = { source: "Bonjour, l'offre est là", notice: NOTICE, max: 4096, checkSource: true };
+    const post = { ...common, context: { vertical: "CASINO" as const, surface: "post" as const, hasMedia: false } };
+    expect(validateVersion({ text: "Bonjour {prenom}, l'offre est là", why: "" }, post)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("{prenom}"),
+    });
+    const dm = { ...common, context: { vertical: "CASINO" as const, surface: "broadcast" as const, hasMedia: false } };
+    expect(validateVersion({ text: "Bonjour {prenom}, l'offre est là", why: "" }, dm)).toMatchObject({ ok: true });
+    expect(validateVersion({ text: "Bonjour, l'offre {offre} est là", why: "" }, dm)).toMatchObject({ ok: false });
+  });
   it("normalise le HTML, remplace les balises refusées par du texte, et contrôle la longueur", () => {
     const input = {
       source: "x",

@@ -35,11 +35,35 @@ export type AutomationConditions = {
   categoryIds?: string[];
 };
 
+/** Bouton « lien » d'un message de relance : ouvre l'adresse (forme d'avant la phase 10, toujours valable). */
+export type AutomationLinkButton = { text: string; url: string };
+
+/**
+ * Bouton « Offre (campagne) » d'un message de relance (phase 10) : une de nos campagnes et l'une de ses offres Link Affi,
+ * comme le bouton Offre d'un message de canal. Rien d'autre n'est enregistré : à l'envoi, le worker le change en lien
+ * du bot propre à la relance (`TrackingLink` OFFER rattaché à la relance, `automationRuleId`) ; au clic, le bot donne
+ * au membre un identifiant de suivi neuf (sub-ID), ce qui attribue à la relance ses inscriptions, premiers dépôts et
+ * commissions (voir `apps/worker/src/automations/offer-links.ts`).
+ */
+export type AutomationOfferButton = {
+  text: string;
+  type: "OFFER";
+  campaignId: string;
+  affiliateCampaignId: string;
+};
+
+export type AutomationButton = AutomationLinkButton | AutomationOfferButton;
+
+/** Vrai pour un bouton « Offre (campagne) ». */
+export function isOfferButton(b: AutomationButton): b is AutomationOfferButton {
+  return (b as { type?: unknown }).type === "OFFER";
+}
+
 export type AutomationAction =
   | {
       type: "send_message";
       text: string;
-      buttons?: Array<Array<{ text: string; url: string }>>;
+      buttons?: AutomationButton[][];
       mediaAssetId?: string | null;
       botId?: string | null;
     }
@@ -116,6 +140,36 @@ export function parseConditions(raw: unknown): AutomationConditions {
   return out;
 }
 
+const nonEmpty = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+
+/** Valide un bouton d'un message de relance : lien http(s), ou « Offre (campagne) » (campagne + offre). */
+function parseButton(b: unknown, n: number): AutomationButton {
+  const bb = (b && typeof b === "object" ? b : {}) as Record<string, unknown>;
+  if (bb.type === "OFFER") {
+    const text = nonEmpty(bb.text);
+    if (!text) throw new Error(`Action ${n} : écrivez le libellé du bouton Offre.`);
+    const campaignId = nonEmpty(bb.campaignId);
+    const affiliateCampaignId = nonEmpty(bb.affiliateCampaignId);
+    if (!campaignId || !affiliateCampaignId)
+      throw new Error(
+        `Action ${n} : bouton « ${text} » : choisissez la campagne (menu Campagnes) et son offre.`,
+      );
+    return { text, type: "OFFER", campaignId, affiliateCampaignId };
+  }
+  if (typeof bb.text !== "string" || typeof bb.url !== "string" || !/^https?:\/\//.test(bb.url))
+    throw new Error(`Action ${n} : chaque bouton a un libellé et une URL http(s).`);
+  return { text: bb.text.trim(), url: bb.url.trim() };
+}
+
+/** Boutons « Offre (campagne) » d'une liste d'actions (vérifiés à l'enregistrement d'une relance). */
+export function automationOfferButtons(
+  actions: readonly AutomationAction[],
+): AutomationOfferButton[] {
+  return actions.flatMap((a) =>
+    a.type === "send_message" ? (a.buttons ?? []).flat().filter(isOfferButton) : [],
+  );
+}
+
 /** Valide une liste d'actions brutes (JSON). */
 export function parseActions(raw: unknown): AutomationAction[] {
   if (raw === undefined || raw === null) return [];
@@ -131,22 +185,13 @@ export function parseActions(raw: unknown): AutomationAction[] {
         if (!text) throw new Error(`Action ${n} : le texte du message est obligatoire.`);
         if (text.length > 4096)
           throw new Error(`Action ${n} : texte trop long (4096 caractères maximum).`);
-        let buttons: Array<Array<{ text: string; url: string }>> | undefined;
+        let buttons: AutomationButton[][] | undefined;
         if (o.buttons !== undefined && o.buttons !== null) {
           if (!Array.isArray(o.buttons)) throw new Error(`Action ${n} : boutons invalides.`);
           buttons = (o.buttons as unknown[])
             .map((row) => {
               if (!Array.isArray(row)) throw new Error(`Action ${n} : ligne de boutons invalide.`);
-              return row.map((b) => {
-                const bb = b as Record<string, unknown>;
-                if (
-                  typeof bb?.text !== "string" ||
-                  typeof bb?.url !== "string" ||
-                  !/^https?:\/\//.test(bb.url)
-                )
-                  throw new Error(`Action ${n} : chaque bouton a un libellé et une URL http(s).`);
-                return { text: bb.text.trim(), url: bb.url.trim() };
-              });
+              return row.map((b) => parseButton(b, n));
             })
             .filter((r) => r.length > 0);
         }

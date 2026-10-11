@@ -19,7 +19,8 @@ import {
   DETAIL_ORDER,
   METRIC_VIEWS,
   adsDefaultSort,
-  comparableDelta,
+  beforeHint,
+  comparableVariation,
   costPerMemberNote,
   dayLabels,
   fmtMetricExact,
@@ -27,10 +28,11 @@ import {
   metricGroupFormatter,
   metricValue,
   moneyColumn,
-  profitNote,
+  gainsNote,
   type MetricKey,
 } from "@/lib/dashboard/display";
-import { round2, type Derived, type StatTotals } from "@/lib/dashboard/metrics";
+import { gainsOf } from "@linkaffipro/core";
+import type { Derived, StatTotals } from "@/lib/dashboard/metrics";
 import { loadStatsOptions } from "@/lib/dashboard/stats-options";
 import { parseStatsFilters, statsHref, statsParams } from "@/lib/dashboard/stats-pages";
 import { fmtDate, fmtNum } from "@/lib/format";
@@ -43,26 +45,31 @@ export const metadata: Metadata = { title: "Statistiques · Pubs" };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
-/** Les six chiffres clés de la page, en cartes (total de toutes les campagnes affichées). */
-const KEY_FIGURES: MetricKey[] = ["spend", "joined", "ftds", "ngr", "roas", "profit"];
+/**
+ * Les six chiffres clés de la page, en cartes (total de toutes les campagnes affichées) : gains = commissions − dépense
+ * pub, retour sur dépense pub = commissions ÷ dépense. Le revenu net (volume du casino) reste dans le graphique et dans
+ * « Détail du total ».
+ */
+const KEY_FIGURES: MetricKey[] = ["spend", "joined", "ftds", "commissions", "roas", "gains"];
 
 /** Chiffres du graphique jour par jour (le retour sur dépense pub d'un seul jour ne veut rien dire : absent). */
 const CHART_FIGURES: Array<{ key: MetricKey; pick: (d: StatTotals) => number }> = [
   { key: "spend", pick: (d) => d.spend },
   { key: "joined", pick: (d) => d.joined },
   { key: "ftds", pick: (d) => d.ftds },
+  { key: "commissions", pick: (d) => d.commissions },
+  { key: "gains", pick: (d) => gainsOf(d.commissions, d.spend) },
   { key: "ngr", pick: (d) => d.ngr },
-  { key: "profit", pick: (d) => round2(d.ngr - d.spend) },
 ];
 
 /**
  * Tous les chiffres d'une ligne (volet de détail), avec la période précédente quand on compare. Pas de pourcentage
- * sur une base négative (bénéfice d'avant en perte) : voir `comparableDelta`.
+ * sur une base négative (gains d'avant en perte), « nouveau » quand la période d'avant valait 0 : voir
+ * `comparableVariation`.
  */
 function figuresOf(
   cur: { totals: StatTotals; derived: Derived },
   prev: { totals: StatTotals; derived: Derived },
-  deltas: Partial<Record<MetricKey, number | null>>,
   compare: boolean,
 ): DetailFigure[] {
   return DETAIL_ORDER.map((k) => {
@@ -74,7 +81,9 @@ function figuresOf(
       term: v.term,
       value: fmtMetricExact(k, metricValue(cur.totals, cur.derived, k)),
       previous: compare ? fmtMetricExact(k, before) : undefined,
-      delta: compare ? comparableDelta(deltas[k], before) : undefined,
+      variation: compare
+        ? comparableVariation(metricValue(cur.totals, cur.derived, k), before)
+        : undefined,
       favorable: v.favorable,
     };
   });
@@ -100,7 +109,7 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
   const total = { totals: ads.total, derived: ads.totalDerived };
   const previousTotal = { totals: ads.previousTotal, derived: ads.previousTotalDerived };
 
-  // Une seule précision pour les montants des cartes (dépense, revenu net, bénéfice, et la période d'avant quand on
+  // Une seule précision pour les montants des cartes (dépense, commissions, gains, et la période d'avant quand on
   // compare) : « 0,26 € » ne côtoie pas « 214 € ». Le montant exact reste au survol et dans « Détail du total ».
   const fmt = metricGroupFormatter(
     KEY_FIGURES.flatMap((k) => [
@@ -115,6 +124,7 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
     const value = metricValue(ads.total, ads.totalDerived, k);
     const before = metricValue(ads.previousTotal, ads.previousTotalDerived, k);
     const chart = CHART_FIGURES.find((c) => c.key === k);
+    const variation = f.compare ? comparableVariation(value, before) : undefined;
     return (
       <StatCard
         key={k}
@@ -129,9 +139,10 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
             fmt(k, value)
           )
         }
-        delta={f.compare ? comparableDelta(ads.totalDeltas[k], before) : undefined}
+        variation={variation}
         favorable={v.favorable}
-        hint={f.compare ? `Avant : ${k === "roas" ? fmtTimes(before) : fmt(k, before)}` : undefined}
+        // « Avant : X » sauf avec « nouveau » (« rien la période précédente » le dit déjà).
+        hint={beforeHint(variation, k === "roas" ? fmtTimes(before) : fmt(k, before)) ?? undefined}
         trend={multiDay && chart ? ads.daily.map(chart.pick) : undefined}
       />
     );
@@ -154,7 +165,10 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
   const rows: DataTableRow[] = ads.rows.map((r) => {
     const d = (k: MetricKey) =>
       f.compare
-        ? comparableDelta(r.deltas[k], metricValue(r.previous, r.previousDerived, k))
+        ? comparableVariation(
+            metricValue(r.totals, r.derived, k),
+            metricValue(r.previous, r.previousDerived, k),
+          )
         : undefined;
     const sub = [
       r.platform ? statusLabel("adPlatform", r.platform) : null,
@@ -178,20 +192,24 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
             </span>
           </span>
         ),
-        spend: <NumCell value={spendMoney(r.totals.spend)} delta={d("spend")} favorable="down" />,
+        spend: (
+          <NumCell value={spendMoney(r.totals.spend)} variation={d("spend")} favorable="down" />
+        ),
         joined: (
           <NumCell
             value={fmtNum(r.totals.joined)}
             note={costPerMemberNote(r.derived)}
-            delta={d("joined")}
+            variation={d("joined")}
           />
         ),
-        ftds: <NumCell value={fmtNum(r.totals.ftds)} delta={d("ftds")} />,
+        ftds: <NumCell value={fmtNum(r.totals.ftds)} variation={d("ftds")} />,
+        // Le rapport, sa variation juste dessous, puis les gains ou la perte (la variation ne se lit pas comme celle
+        // des gains).
         roas: (
           <NumCell
             value={fmtTimes(r.derived.roas)}
-            note={profitNote(r.derived.profit)}
-            delta={d("roas")}
+            note={gainsNote(r.derived.gains)}
+            variation={d("roas")}
           />
         ),
       },
@@ -205,12 +223,7 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
       detail: (
         <div className="space-y-4">
           <MetricDetail
-            figures={figuresOf(
-              r,
-              { totals: r.previous, derived: r.previousDerived },
-              r.deltas,
-              f.compare,
-            )}
+            figures={figuresOf(r, { totals: r.previous, derived: r.previousDerived }, f.compare)}
             compare={f.compare}
           />
           <div className="flex flex-wrap gap-2">
@@ -323,7 +336,7 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
               }
             >
               <MetricDetail
-                figures={figuresOf(total, previousTotal, ads.totalDeltas, f.compare)}
+                figures={figuresOf(total, previousTotal, f.compare)}
                 compare={f.compare}
               />
               <p className="mt-4 text-note text-muted-foreground">
@@ -352,10 +365,13 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
             partagent une offre : le total peut être plus petit que la somme des lignes.
           </p>
           <p className="max-md:hidden">
-            <Term term="CPL">Coût par membre</Term> = dépense pub ÷ membres entrés ;{" "}
-            <Term term="ROAS">retour sur dépense pub</Term> = revenu net ÷ dépense pub (au-dessus de
-            1, les pubs rapportent plus qu&apos;elles ne coûtent). Les dépenses viennent des comptes
-            publicitaires connectés, des imports et des saisies (onglet Pubs d&apos;une campagne).
+            <Term term="CPL">Coût par membre</Term> = dépense pub ÷ membres entrés ; gains =
+            commissions − dépense pub ; <Term term="ROAS">retour sur dépense pub</Term> =
+            commissions ÷ dépense pub (au-dessus de 1, les pubs rapportent plus qu&apos;elles ne
+            coûtent). Les commissions sont les primes des joueurs et la part du revenu que verse le
+            partenaire ; les dépôts et le revenu net sont l&apos;argent du casino, ils ne s&apos;y
+            ajoutent pas. Les dépenses viennent des comptes publicitaires connectés, des imports et
+            des saisies (onglet Pubs d&apos;une campagne).
           </p>
         </div>
       </FormSection>

@@ -37,7 +37,7 @@ Redirections (fonction pure `apps/web/lib/legacy-routes.ts`, appelée par `proxy
 - MANAGER : l'entrée Réglages est visible ; l'écran en cartes ne montre que ce qui lui est permis (Journal…) ; chaque sous-page garde ses propres contrôles d'accès.
 
 ## Accueil (étape 2)
-- Chiffres du jour en heure de Paris : membres arrivés aujourd'hui (entrées dans un canal), premiers dépôts aujourd'hui (nos joueurs, `ftdAt`), bénéfice du jour = dépôts du jour + revenu net du jour (PlayerEvent NGR) − dépense pub du jour (`AdCost`), chacun avec la variation par rapport à hier.
+- Chiffres du jour en heure de Paris : membres arrivés aujourd'hui (entrées dans un canal), premiers dépôts aujourd'hui (nos joueurs, `ftdAt`), gains du jour = commissions du jour (primes CPA nettes `PlayerEvent` CPA / CPA_REVERSAL + part du revenu `AffiliateDailyStat.revshareRevenue`) − dépense pub du jour (`AdCost`) ; règle de la phase 10, qui remplace le « bénéfice » d'origine (dépôts + revenu net − pub), chacun avec la variation par rapport à hier.
 - Visite guidée : état par utilisateur dans `Setting` `onboarding.<userId>` (pas de migration) ; « Revoir la visite » dans Réglages.
 
 ## Relances automatiques à branches (étape 5)

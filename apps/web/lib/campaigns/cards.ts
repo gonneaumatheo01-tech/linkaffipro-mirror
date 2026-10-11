@@ -3,7 +3,7 @@
  * - filtres par univers et par statut (paramètres d'URL `vertical` et `status`) ;
  * - séparation de nos campagnes et des campagnes pub importées pas encore rattachées ;
  * - ordre d'affichage (actives d'abord), compteurs des filtres, adresses des pastilles de filtre ;
- * - formats compacts des montants et sens du bénéfice.
+ * - formats compacts des montants et sens des gains.
  * Les chiffres eux-mêmes viennent de `listCampaigns` (lib/campaigns/queries.ts) : rien n'est recalculé ici.
  */
 import { UNIVERSES, UNIVERSE_LABELS, toUniverse, type Universe } from "@/lib/universe";
@@ -248,8 +248,8 @@ export function platformShortLabel(platform: string | null | undefined): string 
   return platform ? (PLATFORM_SHORT_LABELS[platform] ?? platform) : null;
 }
 
-/** Sens d'un bénéfice : positif (vert), négatif (rouge) ou nul. */
-export function profitTone(n: number | null | undefined): "positive" | "negative" | "neutral" {
+/** Sens des gains (commissions − dépense pub) : positifs (vert), négatifs (rouge) ou nuls. */
+export function gainsTone(n: number | null | undefined): "positive" | "negative" | "neutral" {
   if (n === null || n === undefined || !Number.isFinite(n)) return "neutral";
   // Moins d'un centime : nul (évite un « −0,00 € » rouge).
   if (Math.abs(n) < 0.005) return "neutral";

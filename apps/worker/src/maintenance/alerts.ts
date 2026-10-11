@@ -111,10 +111,35 @@ async function spendSnapshot(now: Date, t: AlertThresholds): Promise<SpendSnapsh
         ],
       },
     });
+    // Commissions de la campagne sur la même fenêtre (phase 10) : primes par joueur datées (CPA versées et annulées)
+    // + part du revenu (revshare) de ses offres Link Affi. Le message d'alerte ajoute alors les gains.
+    const [cpa, revshare] = await Promise.all([
+      prisma.playerEvent.aggregate({
+        _sum: { amount: true },
+        where: {
+          type: { in: ["CPA", "CPA_REVERSAL"] },
+          occurredAt: { gte: windowStart },
+          player: campaignPlayerWhere(scope) as Prisma.PlayerWhereInput,
+        },
+      }),
+      scope.affiliateCampaignIds.length > 0
+        ? prisma.affiliateDailyStat.aggregate({
+            _sum: { revshareRevenue: true },
+            where: {
+              affiliateCampaignId: { in: scope.affiliateCampaignIds },
+              date: { gte: new Date(`${dayKey(windowStart)}T00:00:00Z`) },
+            },
+          })
+        : Promise.resolve({ _sum: { revshareRevenue: null } }),
+    ]);
+    const commissions =
+      Math.round((Number(cpa._sum.amount ?? 0) + Number(revshare._sum?.revshareRevenue ?? 0)) * 100) /
+      100;
     out.push({
       name: c.name,
       spend: Math.round((spendByCampaign.get(c.id) ?? 0) * 100) / 100,
       registrations,
+      commissions,
     });
   }
   return out;

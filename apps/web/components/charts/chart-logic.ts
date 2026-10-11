@@ -226,7 +226,13 @@ export function axisMargin(labels: readonly string[], charPx = 7, gap = 10): num
 /** Rapport au format français : « 1,80× » (jamais « 1.80× ») ; « — » si absent. */
 export function fmtTimes(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
-  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+  // Vrai signe moins (commissions négatives après une annulation) ; jamais « −0,00× ».
+  const s = n.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: "negative",
+  });
+  return `${s.replace(/^-/, "\u2212")}×`;
 }
 
 /** Valeur affichée (bulle, tableau, texte alternatif) : entiers séparés à la française, euros, rapports. */

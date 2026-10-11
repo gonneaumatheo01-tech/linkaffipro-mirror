@@ -32,7 +32,21 @@ import {
   runLogWithNodes,
   runWhereText,
 } from "@/lib/automations/journal";
-import { loadNames, loadRuleCounters } from "@/lib/automations/queries";
+import { storedRuleHasOfferButton } from "@/lib/automations/offer-buttons";
+import {
+  loadNames,
+  loadResultsTrackingStart,
+  loadRuleCounters,
+  loadRuleResults,
+} from "@/lib/automations/queries";
+import {
+  EMPTY_RESULTS,
+  resultsSince,
+  resultsSinceLabel,
+  resultsSinceNote,
+  showsAttribution,
+} from "@/lib/automations/results";
+import { exactMoney, groupMoney, groupMoneyDigits } from "@/lib/campaigns/cards";
 import { fmtDate, fmtNum, fmtRelative } from "@/lib/format";
 import { displayName } from "@/lib/members/query";
 import { requireUser } from "@/lib/session";
@@ -60,7 +74,7 @@ export default async function AutomationDetailPage({
   const rule = await prisma.automationRule.findUnique({ where: { id } });
   if (!rule) notFound();
   const now = new Date();
-  const [runs, names, counters] = await Promise.all([
+  const [runs, names, counters, resultsById, trackingStart] = await Promise.all([
     prisma.automationRun.findMany({
       where: { ruleId: id },
       orderBy: { createdAt: "desc" },
@@ -80,7 +94,16 @@ export default async function AutomationDetailPage({
     }),
     loadNames(),
     loadRuleCounters([id], now),
+    loadRuleResults([id]),
+    loadResultsTrackingStart(),
   ]);
+  const results = resultsById[id] ?? EMPTY_RESULTS;
+  const moneyDigits = groupMoneyDigits([results.gains]);
+  // Clics, inscriptions, premiers dépôts et gains : seulement avec un bouton Offre (sinon toujours zéro).
+  const attribution = showsAttribution(results, storedRuleHasOfferButton(rule));
+  // Messages rattachés à leur relance depuis la phase 10 : une relance plus ancienne est comptée depuis cette date.
+  const since = resultsSince(rule.createdAt, trackingStart);
+  const sinceNote = resultsSinceNote(since, now);
   const graphNames = { channels: names.channels, campaigns: names.campaigns };
   const linear = rule.graph === null;
   const { draft, readError } = ruleToDraft(rule);
@@ -140,23 +163,74 @@ export default async function AutomationDetailPage({
         error={sp.error ?? (readError ? `Parcours à corriger : ${readError}` : undefined)}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Envoyé cette semaine"
-          value={fmtNum(counter?.sent ?? 0)}
-          hint={counterSentence(counter)}
-        />
-        <StatCard
-          label="Ont cliqué après le message"
-          value={fmtNum(counter?.clicked ?? 0)}
-          hint="Clics sur une offre, 7 derniers jours."
-        />
-        <StatCard
-          label="Exécutions depuis le début"
-          value={fmtNum(rule.runs)}
-          hint={rule.lastRunAt ? `Dernière ${fmtRelative(rule.lastRunAt, now)}` : "Jamais lancée"}
-        />
-      </div>
+      <section aria-labelledby="resultats" className="mb-6 space-y-3">
+        <div>
+          <h2 id="resultats" className="text-body font-semibold text-foreground">
+            Résultats {resultsSinceLabel(since, now).toLowerCase()}
+          </h2>
+          <p className="text-note text-muted-foreground">
+            {counterSentence(counter)} {fmtNum(rule.runs)} exécution{rule.runs > 1 ? "s" : ""}
+            {rule.lastRunAt ? `, la dernière ${fmtRelative(rule.lastRunAt, now)}` : ""}.
+            {sinceNote ? ` ${sinceNote}` : ""}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <StatCard
+            label="Envoyés"
+            value={fmtNum(results.sent)}
+            hint="Messages remis aux membres (essais exclus)."
+            // Seule carte (pas de bouton Offre) : toute la largeur sur téléphone.
+            className={attribution ? undefined : "col-span-2 sm:col-span-1"}
+          />
+          {attribution ? (
+            <>
+              <StatCard
+                label="Clics sur l'offre"
+                value={fmtNum(results.clicks)}
+                hint={`${fmtNum(results.clickers)} personne${results.clickers > 1 ? "s" : ""}, boutons Offre de la relance (essais exclus).`}
+              />
+              <StatCard
+                label="Inscriptions"
+                value={fmtNum(results.registrations)}
+                hint="Joueurs venus des boutons Offre de la relance."
+              />
+              <StatCard
+                label="Premiers dépôts"
+                term="FTD"
+                value={fmtNum(results.ftds)}
+                hint="Parmi ces joueurs."
+              />
+              <StatCard
+                label="Gains"
+                value={
+                  <span title={exactMoney(results.gains)}>
+                    {groupMoney(results.gains, moneyDigits)}
+                  </span>
+                }
+                hint="Commissions de ces joueurs (aucune dépense pub)."
+                className="col-span-2 sm:col-span-1"
+              />
+            </>
+          ) : (
+            <div className="col-span-2 flex items-center rounded-xl border border-dashed border-border bg-muted/40 p-4 text-note text-muted-foreground xl:col-span-4">
+              <p>
+                Ajoutez un bouton « Offre (campagne) » au message pour suivre les clics, les
+                inscriptions, les premiers dépôts et les gains de cette relance.{" "}
+                <Link
+                  href={
+                    card
+                      ? `/members/automations#carte-${card}`
+                      : `/members/automations/${rule.id}/edit`
+                  }
+                  className="font-medium whitespace-nowrap text-brand-ink underline-offset-2 hover:underline"
+                >
+                  Modifier la relance
+                </Link>
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section aria-labelledby="parcours" className="mb-8 space-y-3">
         <div>

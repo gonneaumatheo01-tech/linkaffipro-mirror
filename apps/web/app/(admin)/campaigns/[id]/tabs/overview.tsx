@@ -1,6 +1,6 @@
 import { FormSection } from "@/components/admin/form-section";
 import { CampaignFigure } from "@/components/campaigns/campaign-figure";
-import { DETAIL_METRICS, displayDeltas, isLegacyOffersTab } from "@/lib/campaigns/display";
+import { DETAIL_METRICS, campaignVariations, isLegacyOffersTab } from "@/lib/campaigns/display";
 import type { CampaignMetrics } from "@/lib/campaigns/metrics";
 import { LinkSuggestion } from "../../link-suggestion";
 import { OffersSection } from "./offers";
@@ -19,7 +19,7 @@ export async function OverviewTab(
   },
 ) {
   const { id, campaign, compare, metrics, previous, sp } = props;
-  const deltas = compare ? displayDeltas(metrics, previous) : null;
+  const variations = compare ? campaignVariations(metrics, previous) : null;
   const figures = (
     <FormSection
       key="figures"
@@ -37,8 +37,13 @@ export async function OverviewTab(
             label={x.label}
             term={x.term}
             value={x.format(metrics)}
-            delta={deltas ? (deltas[x.key] ?? null) : undefined}
+            variation={variations ? (variations[x.key] ?? { kind: "unknown" }) : undefined}
             favorable={x.favorable}
+            // Période d'avant en perte (revenu net) : la valeur d'avant à la place du pourcentage ; rien quand elle
+            // n'était pas calculable (coût par premier dépôt sans premier dépôt : « — » suffit).
+            before={
+              variations && typeof previous[x.key] === "number" ? x.format(previous) : undefined
+            }
             hint={x.hintOf?.(metrics) ?? x.hint}
           />
         ))}

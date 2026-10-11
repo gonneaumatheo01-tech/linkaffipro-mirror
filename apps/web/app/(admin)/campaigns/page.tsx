@@ -45,7 +45,7 @@ import {
   noMatchTitle,
   parseCampaignFilters,
   platformShortLabel,
-  profitTone,
+  gainsTone,
   sortByStatus,
   splitImportedShells,
   STATUS_FILTER_OPTIONS,
@@ -55,7 +55,7 @@ import {
 import type { CampaignMetrics } from "@/lib/campaigns/metrics";
 import { listCampaigns } from "@/lib/campaigns/queries";
 import { fmtNum } from "@/lib/format";
-import { displayVariation } from "@/lib/campaigns/display";
+import { CAMPAIGNS_TOTAL_NOTE, campaignVariations } from "@/lib/campaigns/display";
 import { parseCompare, periodLabelWithDates, periodParams, resolvePeriod } from "@/lib/periods";
 import { requireUser } from "@/lib/session";
 import { statusLabel } from "@/lib/status-badges";
@@ -80,11 +80,13 @@ function TotalLine({
   previous: CampaignMetrics | null;
   digits: 0 | 2;
 }) {
-  const d = (k: keyof CampaignMetrics, favorable: "up" | "down" = "up") =>
-    previous ? (
-      <FigureDelta delta={displayVariation(total[k], previous[k])} favorable={favorable} />
+  const v = previous ? campaignVariations(total, previous) : null;
+  // Période d'avant en perte : pas de pourcentage, la valeur d'avant à la place (même règle que les Statistiques).
+  const d = (k: keyof CampaignMetrics, favorable: "up" | "down" = "up", before?: string) =>
+    v ? (
+      <FigureDelta variation={v[k] ?? { kind: "unknown" }} favorable={favorable} before={before} />
     ) : null;
-  const tone = profitTone(total.profit);
+  const tone = gainsTone(total.gains);
   return (
     <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-note text-muted-foreground">
       <span>
@@ -105,9 +107,9 @@ function TotalLine({
         <Term term="FTD">premiers dépôts</Term> {d("ftds")}
       </span>
       <span className="inline-flex items-center gap-1.5">
-        bénéfice
+        gains
         <span
-          title={exactMoney(total.profit)}
+          title={`Commissions ${exactMoney(total.commissions)} − dépense pub ${exactMoney(total.spend)}`}
           className={cn(
             "font-medium tabular-nums",
             tone === "positive" && "text-success",
@@ -115,17 +117,17 @@ function TotalLine({
             tone === "neutral" && "text-foreground",
           )}
         >
-          {groupMoney(total.profit, digits)}
+          {groupMoney(total.gains, digits)}
         </span>
-        {d("profit")}
+        {d("gains", "up", previous ? groupMoney(previous.gains, digits) : undefined)}
       </span>
-      <span>Chaque membre et chaque joueur n&apos;y est compté qu&apos;une fois.</span>
+      <span>{CAMPAIGNS_TOTAL_NOTE}</span>
     </p>
   );
 }
 
 /**
- * Campagnes : une carte par campagne (univers, statut, dépensé, membres, premiers dépôts, bénéfice, mini-courbe),
+ * Campagnes : une carte par campagne (univers, statut, dépensé, membres, premiers dépôts, gains, mini-courbe),
  * filtres par univers et par statut, période commune, ligne de total sans double compte, et en bas, repliées, les
  * campagnes pub importées d'un compte connecté qui attendent d'être rattachées.
  */
@@ -163,9 +165,9 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
   const shellDigits = groupMoneyDigits(shells.map((s) => s.metrics.spend));
   // Une seule précision pour tous les montants de la grille et de sa ligne de total.
   const moneyDigits = groupMoneyDigits([
-    ...shown.flatMap((c) => [c.metrics.spend, c.metrics.profit]),
+    ...shown.flatMap((c) => [c.metrics.spend, c.metrics.gains]),
     total.spend,
-    total.profit,
+    total.gains,
   ]);
 
   const periodQs = new URLSearchParams(pp).toString();

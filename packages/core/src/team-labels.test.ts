@@ -26,6 +26,7 @@ describe("libellés montrés à l'équipe", () => {
     expect(alertKindLabel("bot_webhook")).toBe("Bot en difficulté");
     expect(alertKindLabel("nouveau_type")).toBe("Autre alerte");
     expect(linkAffiTableLabel("players")).toBe("Joueurs");
+    expect(linkAffiTableLabel("stats")).toBe("Commissions par jour");
     expect(linkAffiTableLabel("x")).toBe("Autre donnée Link Affi");
     expect(queueLabel("telegram-send")).toBe("Envois Telegram");
     expect(queueLabel("inconnue")).toBe("Autre file");

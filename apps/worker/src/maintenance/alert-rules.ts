@@ -244,22 +244,54 @@ export function detectRegistrationsDrop(
   };
 }
 
-export type SpendSnapshot = { name: string; spend: number; registrations: number };
+export type SpendSnapshot = {
+  name: string;
+  spend: number;
+  registrations: number;
+  /** Commissions de la campagne sur la même fenêtre (phase 10) ; absentes : le message ne parle pas des gains. */
+  commissions?: number;
+};
 
-/** Dépense sans conversion : une campagne a coûté plus que le seuil sur 24 h sans aucune inscription rattachée. */
+/** Montant d'une alerte avec le vrai signe moins (« −60,50 € »), comme sur le site et dans les rapports. */
+function alertEur(n: number): string {
+  const s = new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: "negative",
+  }).format(n);
+  return `${s.replace(/^-/, "\u2212")} €`;
+}
+
+/**
+ * Dépense sans conversion : une campagne a coûté plus que le seuil sur 24 h sans aucune inscription rattachée. Quand
+ * ses commissions sont connues, le message donne ses gains (commissions − dépense pub, la définition unique).
+ */
 export function detectSpendNoConversion(
   items: SpendSnapshot[],
   t: AlertThresholds = DEFAULT_THRESHOLDS,
 ): Detected | null {
   const hot = items.filter((i) => i.spend > t.spendNoConversionEur && i.registrations === 0);
   if (hot.length === 0) return null;
-  const list = hot.map((i) => `${i.name} (${i.spend.toFixed(2)} €)`).join(", ");
+  const gains = (i: SpendSnapshot) =>
+    i.commissions === undefined ? null : Math.round((i.commissions - i.spend) * 100) / 100;
+  const list = hot
+    .map((i) => {
+      const g = gains(i);
+      return g === null
+        ? `${i.name} (${alertEur(i.spend)})`
+        : `${i.name} (${alertEur(i.spend)} dépensés, gains ${alertEur(g)})`;
+    })
+    .join(", ");
   return {
     kind: "spend_no_conversion",
     severity: "WARNING",
     message: `Dépense sans inscription sur 24 h : ${list}. Vérifiez les liens d'entrée de la campagne et ses offres Link Affi.`,
     payload: {
-      campaigns: hot.map((i) => ({ name: i.name, spend: i.spend })),
+      campaigns: hot.map((i) =>
+        i.commissions === undefined
+          ? { name: i.name, spend: i.spend }
+          : { name: i.name, spend: i.spend, commissions: i.commissions, gains: gains(i) },
+      ),
       thresholdEur: t.spendNoConversionEur,
     },
   };

@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 10 : à regarder (5 minutes, rien d'obligatoire)
+1. **Accueil** : la carte « Gains du jour » = vos commissions moins la dépense pub (le détail est écrit dessous). Les dépôts ne comptent plus dans les gains.
+2. **« À faire »** : deux demandes du 11 octobre au matin (Zone Interdite) y sont encore : cliquez « Renvoyer l'accueil avec les liens » ou acceptez-les.
+3. **Canaux à rejoindre** : pour chaque canal réglé sur « après avoir rejoint ces canaux », ouvrez l'onglet « Qui peut entrer et quand » : le cadre « Liens des canaux à rejoindre » doit être vert. Sinon, il dit quel bot ajouter comme administrateur (avec le droit « Inviter via un lien »), puis « Vérifier les liens ».
+4. **Modèles d'offre** : en utilisant un modèle, choisissez la campagne du bouton « Offre » avant de programmer.
+
 ## Phase 9 : découvrir le nouveau site (5 minutes, rien d'obligatoire)
 1. Ouvrez https://app.linkaffipro.com : la **visite guidée** de 2 minutes démarre toute seule à la première connexion (sinon Réglages → « Revoir la visite »). En haut de l'accueil, la liste « À faire pour démarrer » coche toute seule ce qui est fait.
 2. Sur votre téléphone, ouvrez le même site : barre du bas (Accueil, Messages, Membres, Campagnes, Plus), calendrier jour par jour, demandes à valider dans la fiche du canal.

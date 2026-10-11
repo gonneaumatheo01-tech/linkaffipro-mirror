@@ -14,6 +14,8 @@ export type DailyTrendRow = {
   ftds: number;
   spend: number;
   ngr: number;
+  /** Nos commissions du jour (CPA nette + part de revshare). */
+  commissions: number;
 };
 
 /** Séries d'une campagne, un point par jour de la période (0 les jours sans ligne). */
@@ -24,8 +26,8 @@ export type CampaignTrend = {
   ftds: number[];
   /** Dépense pub par jour (€). */
   spend: number[];
-  /** Bénéfice par jour : revenu net − dépense (€), même règle que `computeMetrics` (profit). */
-  profit: number[];
+  /** Gains par jour : commissions − dépense pub (€), même règle que `computeMetrics` (gains). */
+  gains: number[];
 };
 
 /** Dimension des statistiques journalières d'une de nos campagnes. */
@@ -54,7 +56,7 @@ function round2(n: number): number {
 /** Série vide (que des zéros) de la longueur de la période. */
 export function emptyTrend(days: number): CampaignTrend {
   const zeros = () => Array.from({ length: Math.max(0, days) }, () => 0);
-  return { members: zeros(), ftds: zeros(), spend: zeros(), profit: zeros() };
+  return { members: zeros(), ftds: zeros(), spend: zeros(), gains: zeros() };
 }
 
 /**
@@ -79,7 +81,7 @@ export function buildCampaignTrends(
     t.members[i] = t.members[i]! + num(r.approved);
     t.ftds[i] = t.ftds[i]! + num(r.ftds);
     t.spend[i] = round2(t.spend[i]! + spend);
-    t.profit[i] = round2(t.profit[i]! + num(r.ngr) - spend);
+    t.gains[i] = round2(t.gains[i]! + num(r.commissions) - spend);
   }
   return out;
 }

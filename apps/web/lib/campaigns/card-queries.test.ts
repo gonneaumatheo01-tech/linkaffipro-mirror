@@ -48,7 +48,8 @@ describe("mini-tendances lues dans les statistiques journalières", () => {
         approved: 4,
         ftds: 1,
         spend: "12.50",
-        ngr: "20.00",
+        ngr: "900.00",
+        commissions: "20.00",
       },
     ]);
     const t = await loadCampaignTrendsUncached(["c1", "c2", "c1"], period);
@@ -58,7 +59,9 @@ describe("mini-tendances lues dans les statistiques journalières", () => {
     expect(where.date.lte.toISOString()).toBe("2026-10-09T00:00:00.000Z");
     expect(t.c1!.members).toEqual([0, 0, 0, 0, 0, 0, 4]);
     expect(t.c1!.spend.at(-1)).toBe(12.5);
-    expect(t.c1!.profit.at(-1)).toBe(7.5);
+    // Gains = commissions − dépense (jamais le revenu net).
+    expect(t.c1!.gains.at(-1)).toBe(7.5);
+    expect(db.dailyStat.findMany.mock.calls[0]![0].select).toMatchObject({ commissions: true });
     expect(t.c2!.members).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 
@@ -89,7 +92,14 @@ describe("total des campagnes affichées", () => {
         adSets: [],
       },
     ]);
-    totals.totalsForScopes.mockResolvedValue({ ...zero, spend: 100, members: 20, revenue: 250 });
+    totals.totalsForScopes.mockResolvedValue({
+      ...zero,
+      spend: 100,
+      members: 20,
+      revenue: 900,
+      cpaCommissions: 210,
+      revshareCommissions: 40,
+    });
     const r = await totalForCampaignsUncached(["c1", "c1"], period, false);
     expect(db.campaign.findMany.mock.calls[0]![0].where).toEqual({ id: { in: ["c1"] } });
     const [items, p] = totals.totalsForScopes.mock.calls[0]!;
@@ -99,7 +109,8 @@ describe("total des campagnes affichées", () => {
     expect(items[0].scope.inviteLinkIds).toEqual(["il1"]);
     expect(p).toEqual(period);
     expect(r.total.cpl).toBe(5);
-    expect(r.total.profit).toBe(150);
+    expect(r.total.commissions).toBe(250);
+    expect(r.total.gains).toBe(150);
     expect(r.previousTotal).toBeNull();
     expect(totals.totalsForScopes).toHaveBeenCalledTimes(1);
   });

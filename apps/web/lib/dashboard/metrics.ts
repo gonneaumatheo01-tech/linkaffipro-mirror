@@ -1,11 +1,17 @@
 /** Indicateurs dérivés, deltas, entonnoir et cohortes — fonctions pures, testées. */
+import { commissionsRoas, gainsOf } from "@linkaffipro/core";
 
+/**
+ * Totaux des statistiques journalières (`DailyStat`). Phase 10 : nos commissions (CPA nette + part de revshare) ;
+ * les dépôts et le revenu net (`ngr`) restent des indicateurs de volume, jamais additionnés aux gains.
+ */
 export type StatTotals = {
   requests: number; approved: number; joined: number; left: number; entryClicks: number; offerClicks: number;
   registrations: number; ftds: number; deposits: number; depositAmount: number; ngr: number; spend: number;
+  cpaCommissions: number; revshareCommissions: number; commissions: number;
 };
 
-export const EMPTY_TOTALS: StatTotals = { requests: 0, approved: 0, joined: 0, left: 0, entryClicks: 0, offerClicks: 0, registrations: 0, ftds: 0, deposits: 0, depositAmount: 0, ngr: 0, spend: 0 };
+export const EMPTY_TOTALS: StatTotals = { requests: 0, approved: 0, joined: 0, left: 0, entryClicks: 0, offerClicks: 0, registrations: 0, ftds: 0, deposits: 0, depositAmount: 0, ngr: 0, spend: 0, cpaCommissions: 0, revshareCommissions: 0, commissions: 0 };
 
 export function addTotals(a: StatTotals, b: Partial<StatTotals>): StatTotals {
   const out = { ...a };
@@ -17,17 +23,22 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export type Derived = { cpl: number | null; cpa: number | null; costPerFtd: number | null; roas: number | null; profit: number };
+export type Derived = { cpl: number | null; cpa: number | null; costPerFtd: number | null; roas: number | null; gains: number };
 
-/** Coût par membre (CPL = dépense / entrées), par inscription (CPA), par FTD, ROAS = NGR / dépense, bénéfice = NGR − dépense. null si non calculable. */
+/**
+ * Coût par membre (CPL = dépense / entrées), par inscription (CPA), par FTD ; retour sur dépense pub = commissions /
+ * dépense ; gains = commissions − dépense (définition unique, @linkaffipro/core). null si non calculable.
+ * Le retour sur dépense pub n'est PAS arrondi (l'affichage l'arrondit à 2 décimales) : sa variation se calcule sur le
+ * rapport exact, comme sur la fiche campagne (2,3368 / 0,3019 = +674 %, pas 2,34 / 0,30 = +680 %).
+ */
 export function derive(t: StatTotals): Derived {
   const ratio = (num: number, den: number) => (den > 0 ? round2(num / den) : null);
   return {
     cpl: ratio(t.spend, t.joined),
     cpa: ratio(t.spend, t.registrations),
     costPerFtd: ratio(t.spend, t.ftds),
-    roas: ratio(t.ngr, t.spend),
-    profit: round2(t.ngr - t.spend),
+    roas: commissionsRoas(t.commissions, t.spend),
+    gains: gainsOf(t.commissions, t.spend),
   };
 }
 

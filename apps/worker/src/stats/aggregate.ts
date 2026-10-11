@@ -16,6 +16,9 @@ export const METRIC_KEYS = [
   "depositAmount",
   "ngr",
   "spend",
+  "cpaCommissions",
+  "revshareCommissions",
+  "commissions",
 ] as const;
 export type MetricKey = (typeof METRIC_KEYS)[number];
 
@@ -32,12 +35,16 @@ export type StatEventKind =
   | "ftd"
   | "deposit"
   | "ngr"
-  | "spend";
+  | "spend"
+  /** Commission CPA d'un joueur (montant signé : + au crédit, − le jour de l'annulation). */
+  | "cpa"
+  /** Part de revshare d'une offre (agrégat Link Affi, jour retenu `revshareDayKey`). */
+  | "revshare";
 
 export type StatEvent = {
   kind: StatEventKind;
   at: Date;
-  /** Montant (dépôts, NGR, dépense). */
+  /** Montant (dépôts, NGR, dépense, commissions). */
   amount?: number;
   channelId?: string | null;
   /** Campagne principale de l'événement (dimension `campaign:<id>`). */
@@ -97,6 +104,12 @@ export function parisMidnightUtc(key: string): Date {
   return new Date(base);
 }
 
+/** Au centime, sans « −0 ». */
+function round2(n: number): number {
+  const r = Math.round(n * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
 function emptyRow(date: string, dimension: string): DailyRow {
   return {
     date,
@@ -113,6 +126,9 @@ function emptyRow(date: string, dimension: string): DailyRow {
     depositAmount: 0,
     ngr: 0,
     spend: 0,
+    cpaCommissions: 0,
+    revshareCommissions: 0,
+    commissions: 0,
   };
 }
 
@@ -174,6 +190,12 @@ function apply(row: DailyRow, ev: StatEvent): void {
     case "spend":
       row.spend += amt;
       break;
+    case "cpa":
+      row.cpaCommissions += amt;
+      break;
+    case "revshare":
+      row.revshareCommissions += amt;
+      break;
   }
 }
 
@@ -202,6 +224,10 @@ export function aggregateDaily(events: StatEvent[], days: string[]): DailyRow[] 
     r.depositAmount = Math.round(r.depositAmount * 100) / 100;
     r.ngr = Math.round(r.ngr * 100) / 100;
     r.spend = Math.round(r.spend * 100) / 100;
+    r.cpaCommissions = round2(r.cpaCommissions);
+    r.revshareCommissions = round2(r.revshareCommissions);
+    // Commissions = CPA nette + part de revshare, toujours égale à la somme des deux colonnes affichées.
+    r.commissions = round2(r.cpaCommissions + r.revshareCommissions);
   }
   return out.sort((a, b) =>
     a.date === b.date ? a.dimension.localeCompare(b.dimension) : a.date.localeCompare(b.date),

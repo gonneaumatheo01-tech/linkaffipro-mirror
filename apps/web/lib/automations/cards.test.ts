@@ -334,6 +334,57 @@ describe("cartes : formulaire", () => {
     ).toThrow(/illisibles/);
   });
 
+  it("bouton « Offre (campagne) » (buttonsJson) : campagne et offre gardées dans la relance", () => {
+    const offer = {
+      text: "Voir l'offre",
+      type: "OFFER",
+      campaignId: "c1",
+      affiliateCampaignId: "a1",
+    };
+    const s = cardSettingsFromForm(
+      "offer_no_signup",
+      fd([
+        ["delay", "24"],
+        ["text", "Salut {prenom}"],
+        [
+          "buttonsJson",
+          JSON.stringify([
+            {
+              kind: "offer",
+              text: "Voir l'offre",
+              url: "",
+              campaignId: "c1",
+              affiliateCampaignId: "a1",
+            },
+            { text: "Aide", url: "https://x.y" },
+          ]),
+        ],
+      ]),
+    );
+    expect(s.message.buttons).toEqual([[offer], [{ text: "Aide", url: "https://x.y" }]]);
+    // La règle construite garde le bouton tel quel (le worker en fait le lien de la relance à l'envoi).
+    const built = buildCardRule("offer_no_signup", s, null);
+    const message = (
+      built.graph!.nodes.find((n) => n.id === "message") as {
+        action: { buttons?: unknown };
+      }
+    ).action;
+    expect(message.buttons).toEqual([[offer], [{ text: "Aide", url: "https://x.y" }]]);
+    expect(
+      readCardSettings("offer_no_signup", { ...built, templateKey: "offer_no_signup" })?.message
+        .buttons,
+    ).toEqual([[offer], [{ text: "Aide", url: "https://x.y" }]]);
+    expect(() =>
+      cardSettingsFromForm(
+        "welcome",
+        fd([
+          ["text", "Salut"],
+          ["buttonsJson", JSON.stringify([{ kind: "offer", text: "Voir", url: "" }])],
+        ]),
+      ),
+    ).toThrow(/choisissez la campagne de l'offre/);
+  });
+
   it("« tout de suite » pour la bienvenue ; jours sans activité ; seuil", () => {
     expect(
       cardSettingsFromForm(

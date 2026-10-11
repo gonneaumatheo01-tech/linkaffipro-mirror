@@ -181,6 +181,10 @@ describe("tableau de bord : périmètre et dates", () => {
       "ftds",
       "depositAmount",
       "ngr",
+      // Phase 10 : gains = commissions − dépense pub (détail dans tests/integration/stats-gains.test.ts).
+      "spend",
+      "commissions",
+      "gains",
     ]);
   });
 });

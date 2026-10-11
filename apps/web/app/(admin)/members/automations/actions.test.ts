@@ -39,6 +39,25 @@ const db = vi.hoisted(() => ({
       findUnique: vi.fn(async (..._args: unknown[]) => ({ telegramUserId: 42n }) as unknown),
     },
     member: { findUnique: vi.fn(async (..._args: unknown[]) => ({ id: "m1" }) as unknown) },
+    // Bouton « Offre (campagne) » : campagne et offre lues pour la vérification (rien n'est écrit).
+    campaign: {
+      findUnique: vi.fn(
+        async (..._args: unknown[]) =>
+          ({ id: "camp1", name: "Casino octobre", affiliateCampaignIds: ["aff1"] }) as unknown,
+      ),
+    },
+    affiliateCampaign: {
+      findUnique: vi.fn(
+        async (..._args: unknown[]) =>
+          ({
+            id: "aff1",
+            isActive: true,
+            trackingUrlTemplate: "https://l.a/go/K?sub_id={subid}",
+          }) as unknown,
+      ),
+      findMany: vi.fn(async (..._args: unknown[]) => [] as unknown[]),
+    },
+    trackingLink: { findUnique: vi.fn(async (..._args: unknown[]) => null as unknown) },
     automationRun: {
       updateMany: vi.fn(async (..._args: unknown[]) => ({ count: 0 })),
     },
@@ -102,6 +121,72 @@ beforeEach(() => {
   db.prisma.automationRule.findUnique.mockResolvedValue(null);
   db.prisma.automationRule.create.mockResolvedValue({ id: "new1" });
   db.prisma.automationRun.updateMany.mockResolvedValue({ count: 0 });
+});
+
+describe("bouton « Offre (campagne) » d'une relance : vérifié à l'enregistrement", () => {
+  const offer = {
+    text: "Voir l'offre",
+    type: "OFFER",
+    campaignId: "camp1",
+    affiliateCampaignId: "aff1",
+  };
+  const withOffer = (o: Record<string, unknown> = offer) =>
+    templateGraph("offer_no_signup", {
+      message: { ...message, buttons: [[o as typeof offer & { type: "OFFER" }]] },
+    });
+
+  it("carte : bouton Offre d'une campagne qui contient l'offre → relance enregistrée avec le bouton", async () => {
+    const url = await redirected(
+      saveCardAction(
+        form({
+          templateKey: "offer_no_signup",
+          delay: "24",
+          text: "Bonjour",
+          buttonsJson: JSON.stringify([
+            {
+              kind: "offer",
+              text: "Voir l'offre",
+              url: "",
+              campaignId: "camp1",
+              affiliateCampaignId: "aff1",
+            },
+          ]),
+        }),
+      ),
+    );
+    expect(param(url, "ok")).toMatch(/enregistrée/);
+    expect(db.prisma.campaign.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "camp1" } }),
+    );
+    const graph = created()!.data.graph as { nodes: Array<{ id: string; action?: unknown }> };
+    expect(graph.nodes.find((n) => n.id === "message")?.action).toMatchObject({
+      buttons: [[offer]],
+    });
+  });
+
+  it("éditeur : offre qui n'est plus dans la campagne → refusé en français, rien n'est écrit", async () => {
+    db.prisma.campaign.findUnique.mockResolvedValueOnce({
+      id: "camp1",
+      name: "Casino octobre",
+      affiliateCampaignIds: ["autre"],
+    });
+    const r = await saveRuleAction(editorForm(withOffer()));
+    expect(r).toEqual({
+      ok: false,
+      error: expect.stringMatching(
+        /Bouton « Voir l'offre » : cette offre n'est plus dans la campagne/,
+      ),
+    });
+    expect(db.prisma.automationRule.create).not.toHaveBeenCalled();
+    expect(db.prisma.automationRule.update).not.toHaveBeenCalled();
+  });
+
+  it("campagne supprimée → refusé avec la marche à suivre", async () => {
+    db.prisma.campaign.findUnique.mockResolvedValueOnce(null);
+    const r = await saveRuleAction(editorForm(withOffer()));
+    expect(r.error).toMatch(/choisissez une campagne/);
+    expect(db.prisma.automationRule.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("enregistrement depuis l'éditeur à branches", () => {

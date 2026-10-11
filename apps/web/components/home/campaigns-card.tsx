@@ -10,20 +10,19 @@ import type { ActiveCampaign } from "@/lib/home/lists";
 import { HomeSection, sectionLinkClass } from "./home-section";
 
 /**
- * « Campagnes actives » sur les 7 derniers jours : dépensé, membres, bénéfice (revenu net − dépense, comme la page
- * Campagnes ; sans les dépôts, contrairement au « Bénéfice du jour » : la ligne d'aide du bloc le dit en toutes
- * lettres) ; chaque ligne ouvre sa campagne. Aucune campagne active : bouton « Nouvelle campagne » (secondaire, le
- * bouton orange de l'accueil est « Programmer un message »).
+ * « Campagnes actives » sur les 7 derniers jours : dépensé, membres, gains (commissions − dépense pub, la même définition
+ * que « Gains du jour », la page Campagnes et les Statistiques) ; chaque ligne ouvre sa campagne. Aucune campagne
+ * active : bouton « Nouvelle campagne » (secondaire, le bouton orange de l'accueil est « Programmer un message »).
  * Téléphone : une ligne par campagne, nom puis les trois chiffres côte à côte (un tableau à 4 colonnes ne tient pas
  * dans 390 px) ; à partir de 768 px : tableau triable.
  */
 export function CampaignsCard({ rows, total }: { rows: readonly ActiveCampaign[]; total: number }) {
-  const digits = moneyDigits(rows.flatMap((r) => [r.spend, r.profit]));
+  const digits = moneyDigits(rows.flatMap((r) => [r.spend, r.gains]));
   return (
     <HomeSection
       id="campagnes-actives"
       title="Campagnes actives"
-      description="7 derniers jours · bénéfice = revenu net − dépense pub, sans les dépôts"
+      description="7 derniers jours · gains = commissions − dépense pub"
       action={
         <Link href="/campaigns" className={sectionLinkClass}>
           {total > rows.length ? `Toutes les campagnes (${fmtNum(total)})` : "Toutes les campagnes"}
@@ -54,8 +53,8 @@ export function CampaignsCard({ rows, total }: { rows: readonly ActiveCampaign[]
                   <span className="mt-1.5 grid grid-cols-3 gap-2">
                     <Figure label="Dépensé">{homeMoney(c.spend, digits)}</Figure>
                     <Figure label="Membres">{fmtNum(c.members)}</Figure>
-                    <Figure label="Bénéfice">
-                      <Profit value={c.profit} digits={digits} />
+                    <Figure label="Gains">
+                      <Gains value={c.gains} digits={digits} />
                     </Figure>
                   </span>
                 </Link>
@@ -68,7 +67,7 @@ export function CampaignsCard({ rows, total }: { rows: readonly ActiveCampaign[]
               { key: "name", header: "Campagne" },
               { key: "spend", header: "Dépensé", align: "right" },
               { key: "members", header: "Membres", align: "right" },
-              { key: "profit", header: "Bénéfice", align: "right" },
+              { key: "gains", header: "Gains", align: "right" },
             ]}
             rows={rows.map((c) => ({
               id: c.id,
@@ -82,9 +81,9 @@ export function CampaignsCard({ rows, total }: { rows: readonly ActiveCampaign[]
                 ),
                 spend: homeMoney(c.spend, digits),
                 members: fmtNum(c.members),
-                profit: <Profit value={c.profit} digits={digits} />,
+                gains: <Gains value={c.gains} digits={digits} />,
               },
-              sortValues: { name: c.name, profit: c.profit },
+              sortValues: { name: c.name, gains: c.gains },
             }))}
             className="-mx-1 max-md:hidden"
           />
@@ -104,8 +103,8 @@ function Figure({ label, children }: { label: string; children: React.ReactNode 
   );
 }
 
-/** Bénéfice : vert s'il est positif, rouge s'il est négatif. */
-function Profit({ value, digits }: { value: number; digits: 0 | 2 }) {
+/** Gains : verts s'ils sont positifs, rouges s'ils sont négatifs. */
+function Gains({ value, digits }: { value: number; digits: 0 | 2 }) {
   return (
     <span
       className={cn(

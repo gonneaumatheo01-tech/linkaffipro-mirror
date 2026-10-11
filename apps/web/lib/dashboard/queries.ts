@@ -1,7 +1,13 @@
-import { jsonIds } from "@linkaffipro/core";
-import { prisma, ourPlayers, type Prisma, type Vertical } from "@linkaffipro/db";
+import { jsonIds, revshareRowWhere, sumRevshareByDay } from "@linkaffipro/core";
+import {
+  ourAffiliateCampaignIds,
+  prisma,
+  ourPlayers,
+  type Prisma,
+  type Vertical,
+} from "@linkaffipro/db";
 import { campaignOfferClickWhere, campaignPlayerWhere } from "@/lib/campaigns/attribution";
-import { periodDayKeys, periodEnd, periodStart, type Period } from "@/lib/periods";
+import { periodDates, periodDayKeys, periodEnd, periodStart, type Period } from "@/lib/periods";
 import { aggregateByDay, type DaySeries } from "./aggregate";
 import { cachedDashboard } from "./cache";
 import { campaignScope } from "./campaign-scope";
@@ -21,7 +27,59 @@ export type Metric = {
   series: DaySeries;
   money?: boolean;
   group: MetricGroup;
+  /** Précision affichée sous le chiffre (ex. filtre canal : commissions sans la part du revenu). */
+  note?: string;
 };
+
+/** Filtre canal : la part de revshare n'existe que par offre, la dépense que par campagne (rien par canal). */
+export const CHANNEL_COMMISSIONS_NOTE =
+  "Primes des joueurs seulement : la part du revenu et la dépense pub ne se rattachent pas à un canal.";
+
+function round2(n: number): number {
+  const r = Math.round(n * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
+/**
+ * Offres Link Affi dont la part de revshare compte dans la vue filtrée (même règle que les statistiques journalières
+ * du worker) : une campagne → ses offres ; un univers → les offres de ses campagnes ; rien → toutes nos offres ; un canal
+ * → aucune (null). Avec campagne ET univers, les offres de la campagne si elle est de cet univers.
+ */
+async function revshareOffers(
+  f: DashboardFilters,
+  scopeOffers: string[] | null,
+): Promise<string[] | null> {
+  if (f.channelId) return null;
+  if (scopeOffers) {
+    if (!f.vertical) return scopeOffers;
+    const c = await prisma.campaign.findFirst({
+      where: { id: f.campaignId, vertical: f.vertical },
+      select: { id: true },
+    });
+    return c ? scopeOffers : [];
+  }
+  if (f.vertical) {
+    const campaigns = await prisma.campaign.findMany({
+      where: { vertical: f.vertical },
+      select: { affiliateCampaignIds: true },
+    });
+    return [...new Set(campaigns.flatMap((c) => jsonIds(c.affiliateCampaignIds)))];
+  }
+  return ourAffiliateCampaignIds();
+}
+
+/** Dépense pub de la vue filtrée (`AdCost` au niveau campagne, groupe ou pub) ; null avec un filtre canal. */
+function costWhere(f: DashboardFilters): Prisma.AdCostWhereInput | null {
+  if (f.channelId) return null;
+  const campaign: Prisma.CampaignWhereInput = {
+    ...(f.campaignId ? { id: f.campaignId } : {}),
+    ...(f.vertical ? { vertical: f.vertical } : {}),
+  };
+  if (!f.campaignId && !f.vertical) return {};
+  return {
+    OR: [{ campaign }, { adSet: { campaign } }, { ad: { adSet: { campaign } } }],
+  };
+}
 
 export type ChannelRow = {
   channelId: string;
@@ -39,8 +97,9 @@ export type ChannelRow = {
 export type DashboardData = { metrics: Metric[]; channels: ChannelRow[]; keys: string[] };
 
 /** Indicateurs du tableau de bord, mis en cache 60 s par période et filtres (voir ./cache.ts). */
+// « v2 » : commissions, dépense pub et gains ajoutés (phase 10) ; une ancienne entrée ne doit jamais resservir.
 export const loadDashboard: (f: DashboardFilters) => Promise<DashboardData> = cachedDashboard(
-  "overview",
+  "overview-v2",
   (f: DashboardFilters) => loadDashboardUncached(f),
 );
 
@@ -181,6 +240,7 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
     ftds,
     deposits,
     ngrEvents,
+    cpaEvents,
   ] = await Promise.all([
     prisma.membership.findMany({
       where: membershipWhere({ requestedAt: within }),
@@ -222,7 +282,62 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
       where: { type: "NGR", occurredAt: within, ...playerScope },
       select: { occurredAt: true, amount: true },
     }),
+    // Commissions CPA (phase 10) : + le jour du crédit, − le jour de l'annulation ; mêmes joueurs que le reste.
+    prisma.playerEvent.findMany({
+      where: { type: { in: ["CPA", "CPA_REVERSAL"] }, occurredAt: within, ...playerScope },
+      select: { occurredAt: true, amount: true },
+    }),
   ]);
+
+  // Part de revshare de nos offres (agrégat Link Affi par offre et par jour) et dépense pub : rien par canal.
+  const { dateFrom, dateTo } = periodDates(f.period);
+  const offers = await revshareOffers(f, scope ? scope.affiliateCampaignIds : null);
+  const costScope = costWhere(f);
+  const [revshareRows, costs] = await Promise.all([
+    offers && offers.length
+      ? prisma.affiliateDailyStat.findMany({
+          where: revshareRowWhere(
+            { dateFrom, dateTo, since: start, until: end },
+            offers,
+          ) as Prisma.AffiliateDailyStatWhereInput,
+          select: {
+            date: true,
+            sourceCreatedAt: true,
+            affiliateCampaignId: true,
+            revshareRevenue: true,
+          },
+        })
+      : Promise.resolve([]),
+    costScope
+      ? prisma.adCost.findMany({
+          where: { AND: [{ date: { gte: dateFrom, lte: dateTo } }, costScope] },
+          select: { date: true, spend: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const revshareByDay = sumRevshareByDay(revshareRows, new Set(offers ?? []));
+  const cpaSeries = aggregateByDay(
+    cpaEvents.map((e) => ({ at: e.occurredAt, value: Number(e.amount ?? 0) })),
+    keys,
+  );
+  const commissionValues = keys.map((k, i) =>
+    round2((cpaSeries.values[i] ?? 0) + (revshareByDay.get(k) ?? 0)),
+  );
+  const spendByDay = new Map<string, number>();
+  for (const c of costs ?? []) {
+    const k = c.date.toISOString().slice(0, 10);
+    spendByDay.set(k, (spendByDay.get(k) ?? 0) + Number(c.spend));
+  }
+  const spendValues = keys.map((k) => round2(spendByDay.get(k) ?? 0));
+  /** Montant jour par jour (total au centime). */
+  const money = (key: string, label: string, values: number[], note?: string): Metric => ({
+    key,
+    label,
+    group: "argent",
+    money: true,
+    series: { keys, values, total: round2(values.reduce((a, b) => a + b, 0)) },
+    ...(note ? { note } : {}),
+  });
 
   // Deux lignes, dans l'ordre du parcours : Telegram (demandes → départs) puis argent (clics pub → NGR).
   const metrics: Metric[] = [
@@ -318,6 +433,24 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
         keys,
       ),
     },
+    // Gains (phase 10) = commissions − dépense pub ; avec un filtre canal, commissions sans la part du revenu et ni
+    // dépense ni gains (ils ne se rattachent pas à un canal).
+    ...(costs ? [money("spend", "Dépense pub (€)", spendValues)] : []),
+    money(
+      "commissions",
+      "Commissions (€)",
+      commissionValues,
+      f.channelId ? CHANNEL_COMMISSIONS_NOTE : undefined,
+    ),
+    ...(costs
+      ? [
+          money(
+            "gains",
+            "Gains (€)",
+            keys.map((_, i) => round2(commissionValues[i]! - spendValues[i]!)),
+          ),
+        ]
+      : []),
   ];
 
   const rows = new Map<string, ChannelRow>(

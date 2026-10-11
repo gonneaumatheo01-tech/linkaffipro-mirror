@@ -17,7 +17,7 @@ export function shiftKey(key: string, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-type Row = { dimension: string; requests: number; approved: number; joined: number; left: number; entryClicks: number; offerClicks: number; registrations: number; ftds: number; deposits: number; depositAmount: unknown; ngr: unknown; spend: unknown };
+type Row = { dimension: string; requests: number; approved: number; joined: number; left: number; entryClicks: number; offerClicks: number; registrations: number; ftds: number; deposits: number; depositAmount: unknown; ngr: unknown; spend: unknown; commissions: unknown };
 
 function add(acc: ReportMetrics, r: Row): ReportMetrics {
   return {
@@ -33,6 +33,7 @@ function add(acc: ReportMetrics, r: Row): ReportMetrics {
     depositAmount: acc.depositAmount + Number(r.depositAmount ?? 0),
     ngr: acc.ngr + Number(r.ngr ?? 0),
     spend: acc.spend + Number(r.spend ?? 0),
+    commissions: Math.round((acc.commissions + Number(r.commissions ?? 0)) * 100) / 100,
   };
 }
 
@@ -40,7 +41,7 @@ function add(acc: ReportMetrics, r: Row): ReportMetrics {
 async function sumByDimension(fromKey: string, toKey: string, prefix: string): Promise<Map<string, ReportMetrics>> {
   const rows = await prisma.dailyStat.findMany({
     where: { date: { gte: utcDateOf(fromKey), lte: utcDateOf(toKey) }, dimension: prefix === "all" ? "all" : { startsWith: prefix } },
-    select: { dimension: true, requests: true, approved: true, joined: true, left: true, entryClicks: true, offerClicks: true, registrations: true, ftds: true, deposits: true, depositAmount: true, ngr: true, spend: true },
+    select: { dimension: true, requests: true, approved: true, joined: true, left: true, entryClicks: true, offerClicks: true, registrations: true, ftds: true, deposits: true, depositAmount: true, ngr: true, spend: true, commissions: true },
   });
   const out = new Map<string, ReportMetrics>();
   for (const r of rows) out.set(r.dimension, add(out.get(r.dimension) ?? EMPTY_METRICS, r));
@@ -51,9 +52,14 @@ function score(m: ReportMetrics): number {
   return m.ftds * 100 + m.registrations * 10 + m.approved + m.offerClicks * 0.1;
 }
 
+/** Une ligne du top mérite d'être citée : de l'activité, de la dépense ou des commissions. */
+function worthShowing(m: ReportMetrics): boolean {
+  return score(m) > 0 || m.spend > 0 || m.commissions !== 0;
+}
+
 async function topNamed(fromKey: string, toKey: string, prefix: "campaign:" | "channel:", limit = 5): Promise<NamedMetrics[]> {
   const sums = await sumByDimension(fromKey, toKey, prefix);
-  const entries = [...sums.entries()].filter(([, m]) => score(m) > 0 || m.spend > 0).sort((a, b) => score(b[1]) - score(a[1])).slice(0, limit);
+  const entries = [...sums.entries()].filter(([, m]) => worthShowing(m)).sort((a, b) => score(b[1]) - score(a[1])).slice(0, limit);
   if (entries.length === 0) return [];
   const ids = entries.map(([dim]) => dim.slice(prefix.length));
   const names = new Map<string, string>();

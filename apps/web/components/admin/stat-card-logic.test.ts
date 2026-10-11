@@ -2,11 +2,106 @@ import { describe, expect, it } from "vitest";
 import {
   formatVariation,
   hasTrend,
+  nothingBefore,
   sparklinePath,
   trendOrNone,
+  variationArrow,
+  variationBetween,
+  variationLabel,
+  variationSentence,
   variationSummary,
   variationTone,
+  variationToneOf,
 } from "./stat-card-logic";
+
+describe("variation d'après la valeur et sa base (règle unique « nouveau »)", () => {
+  it("base nulle et valeur non nulle : « nouveau », jamais « > +999 % »", () => {
+    const v = variationBetween(12, 0);
+    expect(v).toEqual({ kind: "new", direction: "up" });
+    expect(variationLabel(v)).toBe("nouveau");
+    expect(variationSentence(v, "vs hier")).toBe("Nouveau : rien hier");
+    expect(variationLabel(variationBetween(323, 0))).not.toContain("999");
+    // Une perte qui apparaît (gains négatifs) : « nouveau » aussi, vers le bas.
+    expect(variationBetween(-50, 0)).toEqual({ kind: "new", direction: "down" });
+  });
+
+  it("les deux nuls : rien à afficher (ni « 0 % », ni « Stable »)", () => {
+    const v = variationBetween(0, 0);
+    expect(v).toEqual({ kind: "none" });
+    expect(variationLabel(v)).toBe("");
+    expect(variationSentence(v, "vs hier")).toBe("");
+    expect(variationToneOf(v, "up")).toBe("neutral");
+    expect(variationArrow(v)).toBeNull();
+  });
+
+  it("une base de moins d'un demi-centime compte comme nulle (affichée « 0 € »)", () => {
+    expect(variationBetween(40, 0.003).kind).toBe("new");
+    expect(variationBetween(0.004, 0).kind).toBe("none");
+    expect(variationBetween(-0.001, 0.002).kind).toBe("none");
+  });
+
+  it("base non nulle : pourcentage, plafonné à ±999 % à l'affichage", () => {
+    expect(variationBetween(150, 100)).toEqual({ kind: "pct", pct: 50 });
+    expect(variationLabel(variationBetween(150, 100))).toBe("+50 %");
+    expect(variationLabel(variationBetween(5, 5))).toBe("0 %");
+    expect(variationSentence(variationBetween(5, 5), "vs hier")).toBe("Stable vs hier");
+    // Base petite mais non nulle : le plafond s'applique.
+    expect(variationLabel(variationBetween(323, 0.5))).toBe("> +999 %");
+    expect(variationSentence(variationBetween(323, 0.5), "vs hier")).toBe(
+      "En hausse de plus de 999 % vs hier",
+    );
+    // Base négative : calcul sur la valeur absolue (de −50 € à +20 € = une hausse).
+    expect(variationBetween(20, -50)).toEqual({ kind: "pct", pct: 140 });
+  });
+
+  it("pourcentage déjà calculé par la page : repris tel quel, null = pas de comparaison", () => {
+    expect(variationBetween(323, -1.74, null)).toEqual({ kind: "unknown" });
+    expect(variationBetween(120, 100, 20)).toEqual({ kind: "pct", pct: 20 });
+    // La base nulle prime sur le pourcentage donné (deltaPct renvoie null ou 0 dans ces cas).
+    expect(variationBetween(8, 0, null)).toEqual({ kind: "new", direction: "up" });
+    expect(variationBetween(0, 0, 0)).toEqual({ kind: "none" });
+  });
+
+  it("valeur ou base absente : pas de comparaison possible", () => {
+    for (const v of [
+      variationBetween(null, 3),
+      variationBetween(3, undefined),
+      variationBetween(Number.NaN, 3),
+      variationBetween(3, Number.POSITIVE_INFINITY),
+    ]) {
+      expect(v).toEqual({ kind: "unknown" });
+      expect(variationLabel(v)).toBe("—");
+      expect(variationSentence(v, "vs hier")).toBe("Pas de comparaison possible");
+      expect(variationArrow(v)).toBeNull();
+    }
+  });
+
+  it("couleur et flèche : « nouveau » suit le sens favorable comme un pourcentage", () => {
+    expect(variationToneOf(variationBetween(12, 0), "up")).toBe("positive");
+    expect(variationToneOf(variationBetween(-50, 0), "up")).toBe("negative");
+    // Une dépense qui apparaît est un coût : en rouge.
+    expect(variationToneOf(variationBetween(50, 0), "down")).toBe("negative");
+    expect(variationToneOf(variationBetween(12, 0), "none")).toBe("neutral");
+    expect(variationToneOf(variationBetween(90, 100), "down")).toBe("positive");
+    expect(variationArrow(variationBetween(12, 0))).toBe("up");
+    expect(variationArrow(variationBetween(-50, 0))).toBe("down");
+    expect(variationArrow(variationBetween(90, 100))).toBe("down");
+    expect(variationArrow(variationBetween(5, 5))).toBe("flat");
+  });
+
+  it("« rien … » d'après la fin de phrase de la comparaison", () => {
+    expect(nothingBefore("vs hier")).toBe("rien hier");
+    expect(nothingBefore("vs hier à la même heure")).toBe("rien hier à la même heure");
+    expect(nothingBefore("vs période précédente")).toBe("rien la période précédente");
+    expect(nothingBefore("vs la semaine dernière")).toBe("rien la semaine dernière");
+    expect(nothingBefore("vs les 7 jours précédents")).toBe("rien les 7 jours précédents");
+    expect(nothingBefore("")).toBe("rien avant");
+    expect(variationSentence(variationBetween(3, 0), "vs période précédente")).toBe(
+      "Nouveau : rien la période précédente",
+    );
+    expect(variationSentence(variationBetween(3, 0), "")).toBe("Nouveau : rien avant");
+  });
+});
 
 describe("variation d'une carte de chiffre", () => {
   it("affiche le signe, une décimale au plus et le symbole %", () => {

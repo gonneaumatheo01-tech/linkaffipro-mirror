@@ -7,7 +7,6 @@ import { useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   type Edge,
@@ -16,6 +15,7 @@ import {
 import type { AutomationGraph, GraphNames, NodeRunStats } from "@linkaffipro/core";
 import { graphToDraft } from "@/lib/automations/flow";
 import {
+  MINIMAP_LARGE,
   miniMapClass,
   readOnlyCanvasHeight,
   syncViewNodes,
@@ -23,6 +23,7 @@ import {
   viewEdges,
 } from "@/lib/automations/flow-view";
 import { CanvasControls } from "./editor/canvas-controls";
+import { FitMiniMap } from "./editor/fit-minimap";
 import { FlowContext, type FlowContextValue } from "./editor/editor-context";
 import { NODE_TYPES, type FlowNode } from "./editor/nodes";
 import { FLOW_ARIA_FR } from "./editor/aria";
@@ -114,12 +115,12 @@ export function RuleFlowView({
               aria-label="Parcours de la relance (lecture seule)"
             >
               <Background variant={BackgroundVariant.Dots} gap={16} size={1.25} />
-              <MiniMap<FlowNode>
+              <FitMiniMap<FlowNode>
                 position="top-right"
                 pannable
                 zoomable
                 ariaLabel="Mini-carte du parcours"
-                style={{ width: 140, height: 96 }}
+                maxSize={MINIMAP_LARGE}
                 nodeClassName={(n) => miniMapClass(n.type, false)}
               />
             </ReactFlow>

@@ -1,5 +1,5 @@
 import { escapeHtml, stripHtml, textLength, validateTelegramHtml } from "@linkaffipro/core";
-import { PLACEHOLDER_RE } from "./prompt";
+import { PLACEHOLDER_RE, PLACEHOLDERS_BY_SURFACE } from "./prompt";
 import type { AiContext, AiLanguage, AiRiskNotice, AiVersion } from "./types";
 
 export type ValidationOutcome = { ok: true; version: AiVersion } | { ok: false; reason: string };
@@ -75,9 +75,11 @@ export function validateVersion(
     const missingLinks = linksOf(input.source).filter((l) => !text.includes(l));
     if (missingLinks.length) return { ok: false, reason: `Lien(s) perdu(s) : ${missingLinks.join(", ")}.` };
   }
-  // Pas de repère inventé.
-  const extraPh = placeholdersOf(text).filter((p) => !input.source.includes(p) && !KNOWN_PLACEHOLDERS.has(p));
-  if (extraPh.length) return { ok: false, reason: `Repère(s) inconnu(s) : ${extraPh.join(", ")}.` };
+  // Pas de repère inventé, ni de repère qui ne serait pas remplacé à cet endroit (message de canal : aucun).
+  const surface = input.context.surface;
+  const allowed = surface ? new Set(PLACEHOLDERS_BY_SURFACE[surface] ?? []) : KNOWN_PLACEHOLDERS;
+  const extraPh = placeholdersOf(text).filter((p) => !input.source.includes(p) && !allowed.has(p));
+  if (extraPh.length) return { ok: false, reason: `Repère(s) inconnu(s) ou non remplacé(s) ici : ${extraPh.join(", ")}.` };
   text = ensureRiskNotice(text, input.context.vertical, input.notice, version.lang ?? input.context.language);
   const len = textLength(text);
   if (len > input.max) return { ok: false, reason: `Trop long : ${len} caractères (maximum ${input.max}).` };

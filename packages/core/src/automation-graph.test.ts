@@ -13,6 +13,7 @@ import {
   graphHandlesFor,
   graphNextNodeId,
   graphToLinear,
+  GRAPH_ACTION_HELP,
   GRAPH_CONDITION_HELP,
   GRAPH_CONDITION_KINDS,
   GRAPH_CONDITION_LABELS,
@@ -700,5 +701,14 @@ describe("relances prêtes à l'emploi", () => {
       { type: "wait", hours: 2 },
       { type: "send_message", text: "Bienvenue" },
     ]);
+  });
+});
+
+describe("aide des blocs « action »", () => {
+  it("mêmes mots que les pastilles d'insertion de l'éditeur (Prénom, Nom du canal, Nom du bot), sans accolades", () => {
+    for (const help of Object.values(GRAPH_ACTION_HELP)) expect(help).not.toMatch(/[{}]/);
+    expect(GRAPH_ACTION_HELP.send_message).toBe(
+      "Le bot écrit au membre en privé. Prénom, nom du canal et nom du bot sont remplacés pour chaque membre. Un bouton Offre donne à chaque membre son identifiant de suivi.",
+    );
   });
 });

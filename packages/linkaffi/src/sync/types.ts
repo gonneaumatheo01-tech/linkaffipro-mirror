@@ -37,6 +37,12 @@ export type LaPlayer = {
   sub_id_source?: string | null;
   status?: string | null;
   cpa_status?: string | null;
+  /** Commission CPA de l'affilié (EUR), reste renseignée après une annulation. */
+  cpa_affiliate_amount?: number | string | null;
+  cpa_credited_at?: string | null;
+  cpa_reversed_at?: string | null;
+  qualified_at?: string | null;
+  disqualified_at?: string | null;
   ftd_amount?: number | null;
   ftd_at?: string | null;
   all_deposits_count?: number | null;
@@ -104,6 +110,27 @@ export type LaClick = {
   [k: string]: unknown;
 };
 
+/**
+ * `stats` : agrégat journalier par (affilié, casino, offre, jour) ; une correction peut ajouter une ligne datée du jour
+ * d'origine mais créée plus tard, et la ligne du jour est mise à jour en place (pas de colonne `updated_at`).
+ */
+export type LaStat = {
+  id?: string;
+  affiliate_id?: string | null;
+  casino_id?: string | null;
+  campaign_id?: string | null;
+  date?: string | null;
+  created_at?: string | null;
+  clicks?: number | null;
+  signups?: number | null;
+  deposits?: number | null;
+  deposit_amount?: number | string | null;
+  revenue?: number | string | null;
+  cpa_revenue?: number | string | null;
+  revshare_revenue?: number | string | null;
+  [k: string]: unknown;
+};
+
 export type LaCurrencyRate = { currency?: string | null; rate?: number | null; last_updated?: string | null };
 
 /** Taux : unités de devise pour 1 EUR (EUR = 1). */
@@ -145,12 +172,50 @@ export type PlayerInput = {
   redepositCount: number;
   depositTotal: number;
   status: string | null;
+  /** `cpa_status` (none | approved | not_eligible | reversed), tel quel. */
+  cpaStatus: string | null;
+  /** `cpa_affiliate_amount` en EUR (part de l'affilié). */
+  cpaAmount: number | null;
+  /** `cpa_credited_at` / `cpa_reversed_at` tels quels (les replis sont appliqués par @linkaffipro/core). */
+  cpaCreditedAt: Date | null;
+  cpaReversedAt: Date | null;
+  /** `qualified_at` / `disqualified_at` : replis des dates de crédit et d'annulation. */
+  qualifiedAt: Date | null;
+  disqualifiedAt: Date | null;
   lastEventAt: Date | null;
   updatedAt: Date | null;
   raw: Record<string, unknown>;
 };
 
-export type PlayerEventType = "CLICK" | "REGISTRATION" | "FTD" | "DEPOSIT" | "REDEPOSIT" | "NGR" | "OTHER";
+/** Ligne `stats` → `AffiliateDailyStat` (une ligne Link Affi = une ligne chez nous, clé `externalId`). */
+export type StatInput = {
+  externalId: string;
+  /** Jour de la ligne (`AAAA-MM-JJ`, jour de Paris chez Link Affi). */
+  date: string;
+  campaignExternalId: string | null;
+  programExternalId: string | null;
+  affiliateExternalId: string | null;
+  clicks: number;
+  signups: number;
+  deposits: number;
+  depositAmount: number;
+  revenue: number;
+  cpaRevenue: number;
+  revshareRevenue: number;
+  sourceCreatedAt: Date | null;
+  raw: Record<string, unknown>;
+};
+
+export type PlayerEventType =
+  | "CLICK"
+  | "REGISTRATION"
+  | "FTD"
+  | "DEPOSIT"
+  | "REDEPOSIT"
+  | "NGR"
+  | "OTHER"
+  | "CPA"
+  | "CPA_REVERSAL";
 
 export type PlayerEventInput = {
   /** players.id Link Affi */

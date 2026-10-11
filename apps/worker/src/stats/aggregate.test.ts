@@ -124,3 +124,99 @@ describe("agrégation journalière", () => {
     expect([...dates].sort()).toEqual(dates);
   });
 });
+
+describe("commissions du jour (phase 10)", () => {
+  const at = (iso: string) => new Date(iso);
+  const events: StatEvent[] = [
+    // CPA créditée le 4 (Paris) pour un joueur venu d'un message du canal c1 (campagne p1, pub a1).
+    {
+      kind: "cpa",
+      at: at("2026-10-04T11:36:48Z"),
+      amount: 70,
+      channelId: "c1",
+      campaignId: "p1",
+      adId: "a1",
+      vertical: "SPORTS",
+      campaignVerticals: ["SPORTS"],
+    },
+    {
+      kind: "cpa",
+      at: at("2026-10-04T13:42:27Z"),
+      amount: 70,
+      channelId: "c1",
+      campaignId: "p1",
+      adId: "a1",
+      vertical: "SPORTS",
+      campaignVerticals: ["SPORTS"],
+    },
+    // Annulée le 6 : retranchée le 6, pas le 4.
+    {
+      kind: "cpa",
+      at: at("2026-10-06T06:17:01Z"),
+      amount: -70,
+      channelId: "c1",
+      campaignId: "p1",
+      adId: "a1",
+      vertical: "SPORTS",
+      campaignVerticals: ["SPORTS"],
+    },
+    // Part de revshare : au niveau offre (campagnes de l'offre), jamais dans un canal ni une pub.
+    {
+      kind: "revshare",
+      at: at("2026-10-04T10:00:00Z"),
+      amount: 13.0926,
+      campaignId: "p1",
+      extraCampaignIds: ["p2"],
+      vertical: "SPORTS",
+      campaignVerticals: ["SPORTS"],
+    },
+    {
+      kind: "revshare",
+      at: at("2026-10-06T10:00:00Z"),
+      amount: 2.2795,
+      campaignId: "p1",
+      vertical: "SPORTS",
+      campaignVerticals: ["SPORTS"],
+    },
+    { kind: "spend", at: at("2026-10-04T10:00:00Z"), amount: 50, campaignId: "p1", adId: "a1" },
+  ];
+  const rows = aggregateDaily(events, ["2026-10-04", "2026-10-05", "2026-10-06"]);
+  const row = (date: string, dim: string) =>
+    rows.find((r) => r.date === date && r.dimension === dim);
+
+  it("CPA au jour du crédit, retranchée le jour de l'annulation ; commissions = CPA + revshare", () => {
+    expect(row("2026-10-04", "all")).toMatchObject({
+      cpaCommissions: 140,
+      revshareCommissions: 13.09,
+      commissions: 153.09,
+      spend: 50,
+    });
+    expect(row("2026-10-06", "all")).toMatchObject({
+      cpaCommissions: -70,
+      revshareCommissions: 2.28,
+      commissions: -67.72,
+    });
+    expect(row("2026-10-05", "all")).toBeUndefined();
+  });
+
+  it("campagnes : chaque campagne de l'offre, une seule fois dans « toutes campagnes »", () => {
+    expect(row("2026-10-04", "campaign:p1")).toMatchObject({ commissions: 153.09 });
+    expect(row("2026-10-04", "campaign:p2")).toMatchObject({
+      cpaCommissions: 0,
+      revshareCommissions: 13.09,
+      commissions: 13.09,
+    });
+    expect(row("2026-10-04", "campaigns")).toMatchObject({ commissions: 153.09 });
+    expect(row("2026-10-04", "campaigns:SPORTS")).toMatchObject({ commissions: 153.09 });
+    expect(row("2026-10-04", "vertical:SPORTS")).toMatchObject({ commissions: 153.09 });
+  });
+
+  it("canal et pub : la CPA du joueur seulement (la part de revshare n'existe que par offre)", () => {
+    expect(row("2026-10-04", "channel:c1")).toMatchObject({
+      cpaCommissions: 140,
+      revshareCommissions: 0,
+      commissions: 140,
+    });
+    expect(row("2026-10-04", "ad:a1")).toMatchObject({ commissions: 140, spend: 50 });
+  });
+});

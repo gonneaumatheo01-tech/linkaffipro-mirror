@@ -3,10 +3,15 @@ import {
   buttonsToEntries,
   buttonsToLines,
   delayToHours,
+  draftButtonRows,
   entriesToButtons,
+  previewButtonRows,
+  toButtonEntry,
   languageChoiceCodes,
   parseLanguageCodes,
   fillMessageExamples,
+  MESSAGE_FIELD_HELP,
+  MESSAGE_WORDS,
   hoursToDelay,
   languagesToText,
   linesToButtons,
@@ -88,6 +93,72 @@ describe("conversions affichage ↔ formulaire", () => {
     expect(entriesToButtons(many)).toMatchObject({ ok: false, index: 10 });
   });
 
+  it("bouton « Offre (campagne) » : campagne et offre gardées, aller-retour sans perte, à côté des liens", () => {
+    const rows = [
+      [
+        {
+          text: "Voir l'offre",
+          type: "OFFER" as const,
+          campaignId: "c1",
+          affiliateCampaignId: "a1",
+        },
+      ],
+      [{ text: "Aide", url: "https://x.y" }],
+    ];
+    const entries = buttonsToEntries(rows);
+    expect(entries).toEqual([
+      { kind: "offer", text: "Voir l'offre", url: "", campaignId: "c1", affiliateCampaignId: "a1" },
+      { text: "Aide", url: "https://x.y" },
+    ]);
+    expect(entriesToButtons(entries)).toEqual({ ok: true, rows });
+    // Ligne Offre laissée vide (rien choisi, aucun libellé) : ignorée comme une ligne de lien vide.
+    expect(entriesToButtons([{ kind: "offer", text: "", url: "" }])).toEqual({
+      ok: true,
+      rows: [],
+    });
+  });
+
+  it("brouillon de l'éditeur : boutons gardés tels que saisis, relus à l'identique", () => {
+    const entries = [
+      { kind: "offer" as const, text: "Voir", url: "", campaignId: "c1", affiliateCampaignId: "" },
+      { text: "", url: "" },
+      { text: "Aide", url: "https://x.y " },
+    ];
+    const rows = draftButtonRows(entries);
+    expect(rows).toEqual([
+      [{ text: "Voir", type: "OFFER", campaignId: "c1", affiliateCampaignId: "" }],
+      [{ text: "Aide", url: "https://x.y" }],
+    ]);
+    expect(rows.flat().map(toButtonEntry)).toEqual([
+      { kind: "offer", text: "Voir", url: "", campaignId: "c1", affiliateCampaignId: "" },
+      { text: "Aide", url: "https://x.y" },
+    ]);
+  });
+
+  it("aperçu : un bouton par ligne commencée, Offre comprise", () => {
+    expect(
+      previewButtonRows([
+        { kind: "offer", text: " Voir l'offre ", url: "", campaignId: "c1" },
+        { text: "", url: "" },
+        { text: "Aide", url: "https://x.y" },
+      ]),
+    ).toEqual([[{ text: "Voir l'offre" }], [{ text: "Aide" }]]);
+  });
+
+  it("bouton « Offre (campagne) » : campagne ou libellé manquant signalés sur la ligne", () => {
+    expect(entriesToButtons([{ kind: "offer", text: "Voir l'offre", url: "" }])).toEqual({
+      ok: false,
+      index: 0,
+      error: "Bouton « Voir l'offre » : choisissez la campagne de l'offre.",
+    });
+    expect(
+      entriesToButtons([
+        { text: "Ok", url: "https://a.b" },
+        { kind: "offer", text: " ", url: "", campaignId: "c1", affiliateCampaignId: "a1" },
+      ]),
+    ).toEqual({ ok: false, index: 1, error: "Bouton 2 : écrivez son libellé." });
+  });
+
   it("langues en cases : celles des membres, puis celles déjà choisies ; autre langue contrôlée", () => {
     expect(languageChoiceCodes([{ code: "fr" }, { code: "en" }], ["EN", "de"])).toEqual([
       "fr",
@@ -116,6 +187,16 @@ describe("conversions affichage ↔ formulaire", () => {
   it("aperçu : mots remplacés par des exemples", () => {
     expect(fillMessageExamples("Salut {prenom}, bienvenue sur {canal} ({inconnu})")).toBe(
       "Salut Léa, bienvenue sur Casino VIP ({inconnu})",
+    );
+  });
+});
+
+describe("aide sous le texte d'un message de relance", () => {
+  it("nomme les repères comme les pastilles d'insertion, sans accolades", () => {
+    expect(MESSAGE_WORDS.map((w) => w.label)).toEqual(["Prénom", "Nom du canal", "Nom du bot"]);
+    expect(MESSAGE_FIELD_HELP).not.toMatch(/[{}]/);
+    expect(MESSAGE_FIELD_HELP).toBe(
+      "Les repères en couleur (Prénom, Nom du canal, Nom du bot) sont remplacés pour chaque personne.",
     );
   });
 });

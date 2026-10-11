@@ -2,7 +2,8 @@
  * Page Campagnes en cartes (phase 9) : lectures sur base réelle.
  * - mini-tendances lues dans DailyStat (dimension campaign:<id>), une série complète par jour de la période ;
  * - total des campagnes affichées sans double compte : un joueur d'une offre partagée par deux campagnes n'est compté
- *   qu'une fois (même calcul que la ligne Total historique, `totalsForScopes`).
+ *   qu'une fois (même calcul que la ligne Total historique, `totalsForScopes`) ;
+ * - gains (phase 10) = commissions (CPA du joueur + part de revshare de l'offre) − dépense pub, jamais le revenu net.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@linkaffipro/db";
@@ -24,6 +25,7 @@ async function clean() {
   if (!/linkaffipro_test/.test(process.env.DATABASE_URL ?? ""))
     throw new Error("refuse de tourner hors de la base de test");
   await prisma.dailyStat.deleteMany({ where: { dimension: { startsWith: "campaign:" } } });
+  await prisma.affiliateDailyStat.deleteMany({ where: { externalId: { startsWith: "k-" } } });
   await prisma.playerEvent.deleteMany({
     where: { player: { externalPlayerId: { startsWith: "k-" } } },
   });
@@ -71,7 +73,24 @@ beforeAll(async () => {
     data: [
       { playerId: p.id, type: "FTD", amount: 50, currency: "EUR", occurredAt: daysAgo(2) },
       { playerId: p.id, type: "NGR", amount: 30, currency: "EUR", occurredAt: daysAgo(2) },
+      {
+        playerId: p.id,
+        type: "CPA",
+        amount: 70,
+        currency: "EUR",
+        occurredAt: daysAgo(2),
+        externalId: "cpa:k-p1",
+      },
     ],
+  });
+  // Part de revshare de l'offre partagée : comptée une fois dans le total, dans chaque campagne qui la porte.
+  await prisma.affiliateDailyStat.create({
+    data: {
+      externalId: "k-st-1",
+      affiliateCampaignId: offer.id,
+      date: new Date(`${keys.at(-2)}T00:00:00Z`),
+      revshareRevenue: 12.5,
+    },
   });
   await prisma.adCost.createMany({
     data: [
@@ -109,7 +128,9 @@ beforeAll(async () => {
         approved: 4,
         ftds: 1,
         spend: 2.5,
-        ngr: 10,
+        // Gains du jour = commissions − dépense = 10 − 2,5 ; le revenu net (900 €) n'y entre jamais.
+        ngr: 900,
+        commissions: 10,
       },
       // Hors période : ignoré.
       {
@@ -131,7 +152,7 @@ describe("campagnes en cartes : lectures", () => {
     expect(t[A]!.members[0]).toBe(2);
     expect(t[A]!.members.at(-1)).toBe(4);
     expect(t[A]!.members.reduce((s, v) => s + v, 0)).toBe(6);
-    expect(t[A]!.profit.at(-1)).toBe(7.5);
+    expect(t[A]!.gains.at(-1)).toBe(7.5);
     expect(t[A]!.ftds.at(-1)).toBe(1);
     expect(t[C]!.members).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
@@ -142,12 +163,19 @@ describe("campagnes en cartes : lectures", () => {
     expect(both.total.registrations).toBe(1);
     expect(both.total.spend).toBe(15);
     expect(both.total.revenue).toBe(30);
-    expect(both.total.profit).toBe(15);
+    // CPA 70 + revshare 12,50 (offre partagée, comptée une fois) = 82,50 ; gains = 82,50 − 15.
+    expect(both.total).toMatchObject({
+      cpaCommissions: 70,
+      revshareCommissions: 12.5,
+      commissions: 82.5,
+    });
+    expect(both.total.gains).toBe(67.5);
     expect(both.previousTotal).not.toBeNull();
     expect(both.previousTotal!.spend).toBe(0);
     const onlyA = await totalForCampaignsUncached([A], period, false);
     expect(onlyA.total.spend).toBe(10);
     expect(onlyA.total.ftds).toBe(1);
+    expect(onlyA.total.gains).toBe(72.5);
     expect(onlyA.previousTotal).toBeNull();
   });
 

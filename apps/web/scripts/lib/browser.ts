@@ -5,6 +5,8 @@
 import sharp from "sharp";
 import {
   chromium,
+  firefox,
+  webkit,
   type Browser,
   type BrowserContext,
   type BrowserContextOptions,
@@ -12,6 +14,7 @@ import {
   type Page,
   type Response,
 } from "playwright";
+import type { BrowserName } from "./options";
 
 /** Hauteur de fenêtre par largeur : ordinateur 900 px, tablette 1024 px, téléphone 844 px (iPhone 14). */
 export function viewportHeight(width: number): number {
@@ -31,12 +34,16 @@ export function contextOptions(width: number): BrowserContextOptions {
   };
 }
 
-export async function launchBrowser(): Promise<Browser> {
+const ENGINES = { chromium, firefox, webkit } as const;
+const ENGINE_LABELS = { chromium: "Chromium", firefox: "Firefox", webkit: "WebKit" } as const;
+
+/** Navigateur sans fenêtre : Chromium par défaut, Firefox ou WebKit (`--browser`) pour vérifier les autres moteurs. */
+export async function launchBrowser(name: BrowserName = "chromium"): Promise<Browser> {
   try {
-    return await chromium.launch({ headless: true });
+    return await ENGINES[name].launch({ headless: true });
   } catch (err) {
     throw new Error(
-      `Chromium ne démarre pas : lancez « pnpm --filter web exec playwright install chromium ». Détail : ${
+      `${ENGINE_LABELS[name]} ne démarre pas : lancez « pnpm --filter web exec playwright install ${name} ». Détail : ${
         err instanceof Error ? err.message.split("\n")[0] : String(err)
       }`,
     );

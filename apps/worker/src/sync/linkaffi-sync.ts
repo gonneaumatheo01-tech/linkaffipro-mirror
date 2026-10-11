@@ -2,7 +2,13 @@
  * Synchronisation Link Affi → notre base (lecture seule côté Link Affi).
  * Voir docs/LINKAFFI-SYNC.md pour la correspondance, l'ordre et les curseurs.
  */
-import { ngrDeltaEvent } from "@linkaffipro/core";
+import {
+  CURRENCY_RATES_SETTING_KEY,
+  collectAffiliateCampaignIds,
+  isOurPlayer,
+  ngrDeltaEvent,
+  revshareDayKey,
+} from "@linkaffipro/core";
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { emitAutomationEvent } from "@linkaffipro/queue";
 import {
@@ -21,6 +27,10 @@ import {
   mapPlayer,
   mapPlayerEvent,
   mapRevshareSnapshot,
+  mapStat,
+  ourAffiliateIds,
+  statsDeepDue,
+  statsQueries,
   windowQuery,
   type LaCampaign,
   type LaCasino,
@@ -31,13 +41,16 @@ import {
   type LaPlayerEvent,
   type LaPlayerFinancials,
   type LaSnapshot,
+  type LaStat,
   type RateTable,
   type SubIdSource,
+  type StatsCursor,
   type SyncCursor,
   type SyncTable,
 } from "@linkaffipro/linkaffi";
 import { logger } from "../logger";
-import { applyPlayerRow, type ExistingPlayer } from "./player-apply";
+import { markDailyStatsDirty } from "../stats/daily";
+import { applyPlayerRow, diffCpaEvents, type ExistingPlayer } from "./player-apply";
 
 type Db = typeof prisma;
 
@@ -67,6 +80,10 @@ class SyncContext {
   campaignProgramByCampaignId = new Map<string, string>();
   playerIdByLaId = new Map<string, string>();
   touchedPostIds = new Set<string>();
+  /** Jours de Paris dont les commissions ont changé (CPA, revshare) : statistiques journalières à recalculer. */
+  dirtyDays = new Set<string>();
+  /** Offres Link Affi rattachées à nos campagnes (lu une fois par passage) : « nos » joueurs, voir `isOurPlayer`. */
+  private ourOffers: Set<string> | null = null;
   constructor(
     public db: Db,
     public now: () => Date,
@@ -85,6 +102,14 @@ class SyncContext {
       this.campaignIdByExternal.set(c.externalId, c.id);
       this.campaignProgramByCampaignId.set(c.id, c.programId);
     }
+  }
+
+  async ourOfferIds(): Promise<Set<string>> {
+    if (!this.ourOffers) {
+      const campaigns = await this.db.campaign.findMany({ select: { affiliateCampaignIds: true } });
+      this.ourOffers = new Set(collectAffiliateCampaignIds(campaigns));
+    }
+    return this.ourOffers;
   }
 
   async loadPlayerIds() {
@@ -211,6 +236,13 @@ async function handleCampaigns(ctx: SyncContext, rows: LaCampaign[]) {
 
 async function handleCurrencyRates(ctx: SyncContext, rows: LaCurrencyRate[]) {
   ctx.rates = buildRateTable(rows);
+  // Gardée pour la reprise `db:phase10:gains`, qui convertit les commissions avec la même table (rien n'est relu
+  // chez Link Affi par la reprise).
+  await ctx.db.setting.upsert({
+    where: { key: CURRENCY_RATES_SETTING_KEY },
+    create: { key: CURRENCY_RATES_SETTING_KEY, value: ctx.rates },
+    update: { value: ctx.rates },
+  });
 }
 
 /** Rattache un joueur à notre clic (sub-ID) : clickId, memberId ; retourne le postId touché. */
@@ -218,19 +250,19 @@ async function attachBySubId(
   ctx: SyncContext,
   playerId: string,
   subId: string | null,
-): Promise<{ memberId: string | null; postId: string | null }> {
-  if (!subId) return { memberId: null, postId: null };
+): Promise<{ memberId: string | null; postId: string | null; clickId: string | null }> {
+  if (!subId) return { memberId: null, postId: null, clickId: null };
   const click = await ctx.db.click.findUnique({
     where: { subId },
     select: { id: true, memberId: true, postId: true },
   });
-  if (!click) return { memberId: null, postId: null };
+  if (!click) return { memberId: null, postId: null, clickId: null };
   await ctx.db.player.update({
     where: { id: playerId },
     data: { clickId: click.id, memberId: click.memberId },
   });
   if (click.postId) ctx.touchedPostIds.add(click.postId);
-  return { memberId: click.memberId, postId: click.postId };
+  return { memberId: click.memberId, postId: click.postId, clickId: click.id };
 }
 
 async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
@@ -259,6 +291,10 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
         memberId: true,
         clickId: true,
         raw: true,
+        cpaStatus: true,
+        cpaAmount: true,
+        cpaCreditedAt: true,
+        cpaReversedAt: true,
       },
     });
     const existing: ExistingPlayer | null = existingRow
@@ -279,6 +315,10 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
         }
       : null;
     const change = applyPlayerRow(existing, m);
+    // Champs CPA écrits avec leurs événements, dans la même transaction (`applyCpaEvents`) : des champs à jour
+    // garantissent des événements à jour, et un joueur dont la CPA n'a pas changé ne coûte aucune lecture de plus.
+    const { cpaStatus, cpaAmount, cpaCreditedAt, cpaReversedAt, ...data } = change.data;
+    const cpaFields = { cpaStatus, cpaAmount, cpaCreditedAt, cpaReversedAt };
     const player = await ctx.db.player.upsert({
       where: {
         affiliateCampaignId_externalPlayerId: {
@@ -289,17 +329,19 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
       create: {
         affiliateCampaignId: campaignId,
         externalPlayerId: m.externalPlayerId,
-        ...change.data,
-        raw: toJsonValue(change.data.raw),
+        ...data,
+        raw: toJsonValue(data.raw),
       },
-      update: { ...change.data, raw: toJsonValue(change.data.raw) },
+      update: { ...data, raw: toJsonValue(data.raw) },
       select: { id: true, memberId: true, clickId: true },
     });
     ctx.playerIdByLaId.set(m.externalId, player.id);
     let memberId = player.memberId;
+    let clickId = player.clickId;
     if (change.subIdChanged || (change.data.subId && !player.clickId)) {
       const att = await attachBySubId(ctx, player.id, change.data.subId);
       memberId = att.memberId ?? memberId;
+      clickId = att.clickId ?? clickId;
     } else if (player.clickId) {
       const click = await ctx.db.click.findUnique({
         where: { id: player.clickId },
@@ -307,6 +349,16 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
       });
       if (click?.postId && change.events.length > 0) ctx.touchedPostIds.add(click.postId);
     }
+    await applyCpaEvents(ctx, {
+      playerId: player.id,
+      memberId,
+      externalPlayerId: m.externalPlayerId,
+      existing: existingRow,
+      fields: cpaFields,
+      desired: change.cpaEvents,
+      observedAt: m.updatedAt,
+      ours: isOurPlayer({ clickId, affiliateCampaignId: campaignId }, await ctx.ourOfferIds()),
+    });
     for (const ev of change.events) {
       // Date réelle Link Affi de l'événement (inscription, premier dépôt, dernière activité), jamais la date d'import.
       const occurredAt =
@@ -335,6 +387,110 @@ async function handlePlayers(ctx: SyncContext, rows: LaPlayer[]) {
           { playerId: player.id, amount: ev.amount ?? null, eventType: ev.type, via: "linkaffi" },
         );
     }
+  }
+}
+
+type CpaFields = {
+  cpaStatus: string | null;
+  cpaAmount: number | null;
+  cpaCreditedAt: Date | null;
+  cpaReversedAt: Date | null;
+};
+
+const sameTime = (a: Date | null, b: Date | null) =>
+  (a?.getTime() ?? null) === (b?.getTime() ?? null);
+
+/** Les champs CPA gardés sont-ils déjà ceux de Link Affi (statut, montant, dates retenues) ? */
+export function sameCpaFields(
+  stored: {
+    cpaStatus: string | null;
+    cpaAmount: unknown;
+    cpaCreditedAt: Date | null;
+    cpaReversedAt: Date | null;
+  },
+  next: CpaFields,
+): boolean {
+  return (
+    stored.cpaStatus === next.cpaStatus &&
+    (stored.cpaAmount === null || stored.cpaAmount === undefined
+      ? null
+      : Number(stored.cpaAmount)) === next.cpaAmount &&
+    sameTime(stored.cpaCreditedAt, next.cpaCreditedAt) &&
+    sameTime(stored.cpaReversedAt, next.cpaReversedAt)
+  );
+}
+
+/**
+ * Commission CPA du joueur (phase 10) : champs CPA du joueur et événements `CPA` (+montant, jour du crédit) /
+ * `CPA_REVERSAL` (−montant, jour de l'annulation) alignés sur l'état Link Affi, dans une seule transaction (créés,
+ * réécrits, retirés ; un cycle clos est gardé sous un identifiant numéroté, voir `diffCpaEvents`).
+ * - Champs CPA déjà à jour : rien n'est lu ni écrit (les événements ont été écrits avec eux).
+ * - Chaque nouvelle commission ou annulation de NOS joueurs est journalisée (`Event`) ; celles des joueurs des autres
+ *   affiliés de Link Affi restent dans `PlayerEvent` (filtrées à la lecture), sans entrée de journal.
+ * - Les jours touchés sont marqués à recalculer.
+ */
+async function applyCpaEvents(
+  ctx: SyncContext,
+  a: {
+    playerId: string;
+    memberId: string | null;
+    externalPlayerId: string;
+    existing: {
+      cpaStatus: string | null;
+      cpaAmount: unknown;
+      cpaCreditedAt: Date | null;
+      cpaReversedAt: Date | null;
+    } | null;
+    fields: CpaFields;
+    desired: ReturnType<typeof applyPlayerRow>["cpaEvents"];
+    observedAt: Date | null;
+    ours: boolean;
+  },
+) {
+  if (a.existing && sameCpaFields(a.existing, a.fields)) return;
+  const { playerId } = a;
+  // Joueur nouveau : aucun événement possible avant lui.
+  const stored = a.existing
+    ? await ctx.db.playerEvent.findMany({
+        where: { playerId, type: { in: ["CPA", "CPA_REVERSAL"] } },
+        select: { id: true, externalId: true, type: true, amount: true, occurredAt: true },
+      })
+    : [];
+  const diff = diffCpaEvents(stored, a.desired, { observedAt: a.observedAt });
+  await ctx.db.$transaction([
+    ...diff.renames.map((r) =>
+      ctx.db.playerEvent.update({ where: { id: r.id }, data: { externalId: r.to } }),
+    ),
+    ...diff.upserts.map((e) =>
+      ctx.db.playerEvent.upsert({
+        where: { playerId_externalId: { playerId, externalId: e.externalId } },
+        create: {
+          playerId,
+          type: e.type,
+          amount: e.amount,
+          currency: "EUR",
+          occurredAt: e.occurredAt,
+          externalId: e.externalId,
+          raw: { source: "players.cpa" },
+        },
+        update: { type: e.type, amount: e.amount, currency: "EUR", occurredAt: e.occurredAt },
+      }),
+    ),
+    ...(diff.deletes.length
+      ? [ctx.db.playerEvent.deleteMany({ where: { playerId, externalId: { in: diff.deletes } } })]
+      : []),
+    ctx.db.player.update({ where: { id: playerId }, data: a.fields }),
+  ]);
+  for (const day of diff.days) ctx.dirtyDays.add(day);
+  if (!a.ours) return;
+  for (const e of diff.upserts) {
+    if (!diff.created.includes(e.externalId)) continue;
+    await recordEvent({
+      type: e.type === "CPA" ? "player.cpa_credited" : "player.cpa_reversed",
+      occurredAt: e.occurredAt,
+      memberId: a.memberId,
+      payload: { playerId, externalPlayerId: a.externalPlayerId, amount: e.amount },
+    });
   }
 }
 
@@ -498,6 +654,92 @@ async function handleClicks(ctx: SyncContext, rows: LaClick[]) {
     logger.info({ matched, unmatched }, "clics Link Affi avec sub_id rapprochés");
 }
 
+/**
+ * `stats` → `AffiliateDailyStat`, une ligne Link Affi = une ligne chez nous (upsert par `externalId`, rejouable).
+ * L'offre et le casino sont retrouvés par leur identifiant Link Affi ; une ligne modifiée marque ses jours à recalculer.
+ */
+async function handleStats(ctx: SyncContext, rows: LaStat[]) {
+  for (const row of rows) {
+    const m = mapStat(row);
+    if (!m) continue;
+    const date = new Date(`${m.date}T00:00:00Z`);
+    const data = {
+      date,
+      affiliateCampaignId: m.campaignExternalId
+        ? (ctx.campaignIdByExternal.get(m.campaignExternalId) ?? null)
+        : null,
+      campaignExternalId: m.campaignExternalId,
+      programId: m.programExternalId
+        ? (ctx.programIdByExternal.get(m.programExternalId) ?? null)
+        : null,
+      programExternalId: m.programExternalId,
+      affiliateExternalId: m.affiliateExternalId,
+      clicks: m.clicks,
+      signups: m.signups,
+      deposits: m.deposits,
+      depositAmount: m.depositAmount,
+      revenue: m.revenue,
+      cpaRevenue: m.cpaRevenue,
+      revshareRevenue: m.revshareRevenue,
+      sourceCreatedAt: m.sourceCreatedAt,
+      raw: toJsonValue(m.raw),
+    };
+    const prev = await ctx.db.affiliateDailyStat.findUnique({
+      where: { externalId: m.externalId },
+      select: {
+        date: true,
+        sourceCreatedAt: true,
+        affiliateCampaignId: true,
+        revshareRevenue: true,
+      },
+    });
+    await ctx.db.affiliateDailyStat.upsert({
+      where: { externalId: m.externalId },
+      create: { externalId: m.externalId, ...data },
+      update: data,
+    });
+    const changed =
+      !prev ||
+      prev.date.getTime() !== date.getTime() ||
+      (prev.sourceCreatedAt?.getTime() ?? null) !== (m.sourceCreatedAt?.getTime() ?? null) ||
+      prev.affiliateCampaignId !== data.affiliateCampaignId ||
+      Number(prev.revshareRevenue) !== m.revshareRevenue;
+    if (!changed) continue;
+    ctx.dirtyDays.add(revshareDayKey({ date: m.date, sourceCreatedAt: m.sourceCreatedAt }));
+    if (prev) ctx.dirtyDays.add(revshareDayKey(prev));
+  }
+}
+
+/**
+ * Affiliés Link Affi à nous : propriétaires des offres rattachées à nos campagnes, ou des offres qui portent nos clics
+ * (joueurs retrouvés par sub-ID, boutons Offre cliqués). La table `stats` couvre tous les affiliés de Link Affi : on ne
+ * lit jamais que les lignes de ceux-là.
+ */
+async function ourStatsAffiliates(db: Db): Promise<string[]> {
+  const [campaigns, withPlayers, withClicks] = await Promise.all([
+    db.campaign.findMany({ select: { affiliateCampaignIds: true } }),
+    db.player.groupBy({ by: ["affiliateCampaignId"], where: { clickId: { not: null } } }),
+    db.trackingLink.findMany({
+      where: {
+        kind: "OFFER",
+        affiliateCampaignId: { not: null },
+        clickRecords: { some: { subId: { not: null }, isBot: false } },
+      },
+      select: { affiliateCampaignId: true },
+      distinct: ["affiliateCampaignId"],
+    }),
+  ]);
+  const ids = new Set(collectAffiliateCampaignIds(campaigns));
+  for (const p of withPlayers) ids.add(p.affiliateCampaignId);
+  for (const l of withClicks) if (l.affiliateCampaignId) ids.add(l.affiliateCampaignId);
+  if (ids.size === 0) return [];
+  const offers = await db.affiliateCampaign.findMany({
+    where: { id: { in: [...ids] } },
+    select: { raw: true },
+  });
+  return ourAffiliateIds(offers);
+}
+
 const HANDLERS: Record<SyncTable, (ctx: SyncContext, rows: never[]) => Promise<void>> = {
   casinos: handleCasinos,
   campaigns: handleCampaigns,
@@ -509,6 +751,7 @@ const HANDLERS: Record<SyncTable, (ctx: SyncContext, rows: never[]) => Promise<v
   deposit_snapshots: handleDepositSnapshots,
   ftd_invalidations: handleFtdInvalidations,
   clicks: handleClicks,
+  stats: handleStats,
 };
 
 // ---------- Boucle par table avec SyncState ----------
@@ -589,6 +832,90 @@ async function syncTable(
   }
 }
 
+/**
+ * Table `stats` (part de revshare) : lecture propre, affilié par affilié (jamais les autres affiliés de Link Affi),
+ * fenêtres de `statsQueries` (7 derniers jours mis à jour en place, 35 lors de la relecture de nuit + corrections
+ * créées depuis le dernier succès ; historique complet pour un affilié pas encore lu). Même verrou, même curseur et même compteur d'échecs que les
+ * autres tables (`SyncState` « stats »).
+ */
+async function syncStatsTable(
+  ctx: SyncContext,
+  client: LinkAffiClient,
+  full: boolean,
+): Promise<TableResult> {
+  const table = "stats";
+  const now = ctx.now();
+  const state = await ctx.db.syncState.upsert({
+    where: { source: table },
+    create: { source: table },
+    update: {},
+  });
+  if (
+    state.isRunning &&
+    state.lastRunAt &&
+    now.getTime() - state.lastRunAt.getTime() < STALE_LOCK_MS
+  ) {
+    return { table, ok: true, rows: 0, skipped: true };
+  }
+  const cursor: StatsCursor = full ? {} : ((state.cursor as StatsCursor | null) ?? {});
+  await ctx.db.syncState.update({
+    where: { source: table },
+    data: { isRunning: true, lastRunAt: now, lastError: null, cursor: toJsonValue(cursor) },
+  });
+  let imported = 0;
+  // Relecture de nuit (35 jours par date) : retrouve une réécriture en place d'un jour plus ancien que 7 jours. Un
+  // premier passage ou une resynchro complète lit tout l'historique : il en tient lieu.
+  const deep = full || !cursor.since || statsDeepDue(cursor, now);
+  try {
+    const affiliates = await ourStatsAffiliates(ctx.db);
+    for (const q of statsQueries(affiliates, cursor, now, full, deep)) {
+      let offset = 0;
+      for (;;) {
+        const page = await client.getPage(table, { ...q, limit: PAGE_LIMIT, offset });
+        await handleStats(ctx, page.rows as LaStat[]);
+        imported += page.rows.length;
+        offset += page.rows.length;
+        if (page.rows.length === 0 || page.rows.length < PAGE_LIMIT || offset >= page.total) break;
+      }
+    }
+    const deepAt = deep ? now.toISOString() : cursor.deepAt;
+    const next: StatsCursor = {
+      since: now.toISOString(),
+      affiliates,
+      ...(deepAt ? { deepAt } : {}),
+    };
+    await ctx.db.syncState.update({
+      where: { source: table },
+      data: {
+        rowsImported: { increment: imported },
+        cursor: toJsonValue(next),
+        isRunning: false,
+        lastSuccessAt: ctx.now(),
+        lastError: null,
+      },
+    });
+    return { table, ok: true, rows: imported };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const errorStreak =
+      (typeof (cursor as { errorStreak?: unknown }).errorStreak === "number"
+        ? (cursor as { errorStreak: number }).errorStreak
+        : 0) + 1;
+    await ctx.db.syncState
+      .update({
+        where: { source: table },
+        data: {
+          isRunning: false,
+          lastError: message,
+          cursor: toJsonValue({ ...cursor, errorStreak }),
+        },
+      })
+      .catch(() => undefined);
+    logger.error({ table, err: message }, "synchro Link Affi : table en erreur");
+    return { table, ok: false, rows: imported, error: message };
+  }
+}
+
 /** Recalcule les statistiques des messages touchés (idempotent, depuis les joueurs rattachés). */
 export async function recomputePostStats(db: Db, postIds: Iterable<string>) {
   for (const postId of postIds) {
@@ -623,8 +950,21 @@ export async function runSync(opts: SyncOptions = {}): Promise<TableResult[]> {
   const results: TableResult[] = [];
   for (const t of SYNC_TABLES) {
     if (wanted && !wanted.has(t.table)) continue;
-    results.push(await syncTable(ctx, client, t.table, t.dateCol, opts.full === true));
+    results.push(
+      t.table === "stats"
+        ? await syncStatsTable(ctx, client, opts.full === true)
+        : await syncTable(ctx, client, t.table, t.dateCol, opts.full === true),
+    );
   }
+  // Commissions changées (CPA créditée ou annulée, revshare corrigé) : leurs jours seront repris au prochain recalcul
+  // des statistiques journalières, même s'ils sortent de sa fenêtre habituelle de 3 jours.
+  if (ctx.dirtyDays.size > 0)
+    await markDailyStatsDirty(db, [...ctx.dirtyDays].sort()[0]!).catch((err: Error) =>
+      logger.error(
+        { err: err.message },
+        "statistiques journalières : marquage des jours à recalculer",
+      ),
+    );
   if (ctx.touchedPostIds.size > 0)
     await recomputePostStats(db, ctx.touchedPostIds).catch((err: Error) =>
       logger.error({ err: err.message }, "recalcul PostStats"),

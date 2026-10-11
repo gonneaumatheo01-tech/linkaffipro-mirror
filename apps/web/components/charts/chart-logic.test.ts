@@ -189,6 +189,9 @@ describe("valeurs affichées", () => {
     expect(fmtTimes(1)).toBe("1,00×");
     expect(fmtTimes(1.8)).toBe("1,80×");
     expect(fmtTimes(null)).toBe("—");
+    // Commissions négatives (annulations) : vrai signe moins, jamais « -0,45× » ni « −0,00× ».
+    expect(fmtTimes(-0.45)).toBe("\u22120,45×");
+    expect(fmtTimes(-0.001)).toBe("0,00×");
     expect(formatValue(2.456, "ratio")).toBe("2,46×");
   });
 

@@ -3,12 +3,15 @@ import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus } from "lucide-react"
 import { cn } from "@/components/ui/cn";
 import { Term } from "./help-tip";
 import {
-  formatVariation,
   hasTrend,
+  nothingBefore,
   sparklinePath,
-  variationSummary,
-  variationTone,
+  variationArrow,
+  variationLabel,
+  variationSentence,
+  variationToneOf,
   type Favorable,
+  type Variation,
 } from "./stat-card-logic";
 
 const TONE_TEXT = {
@@ -16,6 +19,65 @@ const TONE_TEXT = {
   negative: "text-danger",
   neutral: "text-muted-foreground",
 } as const;
+
+const ARROWS = { up: ArrowUpRight, down: ArrowDownRight, flat: Minus } as const;
+
+/** Variation d'une carte : « delta » en % déjà calculé (ancienne forme) ou variation complète (`variationBetween`). */
+function toVariation(delta: number | null | undefined): Variation {
+  if (delta === null || delta === undefined || !Number.isFinite(delta)) return { kind: "unknown" };
+  return { kind: "pct", pct: delta };
+}
+
+/**
+ * Variation en ligne (flèche + « +12 % » ou « nouveau », colorée selon le sens favorable) avec sa phrase complète
+ * pour les lecteurs d'écran. `withComparison` : la fin de phrase visible à côté (« vs hier » ; « rien hier » pour
+ * « nouveau »). Rien n'est rendu quand les deux valeurs sont nulles (`kind: "none"`) ; « — » sans comparaison.
+ * Partagée par `StatCard` et les chiffres des cartes de campagne (`FigureDelta`).
+ */
+export function VariationText({
+  variation,
+  favorable = "up",
+  comparison = "vs période précédente",
+  withComparison = false,
+  className,
+}: {
+  variation: Variation;
+  favorable?: Favorable;
+  comparison?: string;
+  withComparison?: boolean;
+  className?: string;
+}) {
+  if (variation.kind === "none") return null;
+  if (variation.kind === "unknown")
+    return (
+      <span className={cn("text-note text-muted-foreground", className)}>
+        <span aria-hidden>—</span>
+        <span className="sr-only">{variationSentence(variation, comparison)}</span>
+      </span>
+    );
+  const direction = variationArrow(variation);
+  const Arrow = direction ? ARROWS[direction] : Minus;
+  const tail = variation.kind === "new" ? nothingBefore(comparison) : comparison;
+  return (
+    <span className={cn("inline-flex flex-wrap items-center gap-x-1.5 text-note", className)}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 font-medium whitespace-nowrap tabular-nums",
+          TONE_TEXT[variationToneOf(variation, favorable)],
+        )}
+      >
+        <Arrow aria-hidden className="size-3.5" />
+        <span aria-hidden>{variationLabel(variation)}</span>
+        <span className="sr-only">{variationSentence(variation, comparison)}</span>
+      </span>
+      {withComparison && tail ? (
+        <span aria-hidden className="text-muted-foreground">
+          {tail}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 const SPARK_W = 96;
 const SPARK_H = 32;
@@ -59,14 +121,17 @@ export function MiniTrend({
 /**
  * Carte de chiffre : libellé (note grise), gros chiffre (28 px, chiffres tabulaires), variation colorée
  * (flèche + %, verte si favorable), mini-courbe facultative, lien facultatif (toute la carte est cliquable).
+ * - `variation` : variation complète d'après la valeur et sa base (`variationBetween(aujourdhui, hier)`) :
+ *   « nouveau » quand la base vaut 0, rien quand les deux valent 0, % plafonné à ±999 % sinon. Prime sur `delta` ;
  * - `delta` : variation en % déjà calculée (ex. `deltaPct(aujourdhui, hier)`), null = pas de comparaison ;
- *   affichage plafonné à « > +999 % » (`formatVariation`) ;
+ *   affichage plafonné à « > +999 % » (`formatVariation`). Préférer `variation`, qui connaît la base ;
  * - `favorable` : « up » (par défaut), « down » pour un coût, « none » pour un chiffre neutre ;
  * - `term` : terme technique affiché au survol du libellé (ex. « FTD »).
  */
 export function StatCard({
   label,
   value,
+  variation,
   delta,
   favorable = "up",
   comparison = "vs période précédente",
@@ -79,6 +144,8 @@ export function StatCard({
 }: {
   label: string;
   value: React.ReactNode;
+  /** Variation d'après la valeur et sa base (`variationBetween`) ; prime sur `delta`. */
+  variation?: Variation;
   delta?: number | null;
   favorable?: Favorable;
   /** Fin de phrase de la variation : « vs hier », « vs les 7 jours précédents »… */
@@ -92,15 +159,7 @@ export function StatCard({
   icon?: React.ReactNode;
   className?: string;
 }) {
-  const showDelta = delta !== undefined;
-  const tone = variationTone(delta, favorable);
-  const rounded = formatVariation(delta);
-  const Arrow =
-    delta === null || delta === undefined || rounded === "0 %"
-      ? Minus
-      : delta > 0
-        ? ArrowUpRight
-        : ArrowDownRight;
+  const shown: Variation | null = variation ?? (delta !== undefined ? toVariation(delta) : null);
 
   const body = (
     <>
@@ -118,24 +177,17 @@ export function StatCard({
         <div className="min-w-0 truncate text-figure text-foreground tabular-nums">{value}</div>
         {hasTrend(trend) ? <MiniTrend values={trend} className="mb-1" /> : null}
       </div>
-      {showDelta && (delta === null || !Number.isFinite(delta)) ? (
+      {shown?.kind === "unknown" ? (
         <p className="text-note text-muted-foreground">Pas de comparaison possible</p>
       ) : null}
-      {showDelta && delta !== null && Number.isFinite(delta) ? (
-        <div className="flex flex-wrap items-center gap-x-1.5 text-note">
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 font-medium whitespace-nowrap tabular-nums",
-              TONE_TEXT[tone],
-            )}
-          >
-            <Arrow aria-hidden className="size-3.5" />
-            <span aria-hidden>{rounded}</span>
-            <span className="sr-only">{variationSummary(delta, comparison)}</span>
-          </span>
-          <span aria-hidden className="text-muted-foreground">
-            {comparison}
-          </span>
+      {shown && (shown.kind === "pct" || shown.kind === "new") ? (
+        <div className="flex">
+          <VariationText
+            variation={shown}
+            favorable={favorable}
+            comparison={comparison}
+            withComparison
+          />
         </div>
       ) : null}
       {hint ? <p className="text-note text-muted-foreground">{hint}</p> : null}

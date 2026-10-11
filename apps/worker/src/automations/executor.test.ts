@@ -8,6 +8,20 @@ import type { MemberSnapshot } from "./context";
 const h = vi.hoisted(() => ({
   enqueueDm: vi.fn(async (_input: Record<string, unknown>) => ({ outboundMessageId: "om1" })),
   notifyAdmin: vi.fn(async (_text: string) => true),
+  outboundUpdate: vi.fn(async (_args: Record<string, unknown>) => ({})),
+  resolveButtons: vi.fn(async (rows: unknown, ctx: Record<string, unknown>) => ({
+    rows: ((rows ?? []) as Array<Array<Record<string, unknown>>>).map((r) =>
+      r.map((b) =>
+        b.type === "OFFER"
+          ? {
+              text: b.text,
+              url: `https://t.me/${String(ctx.botUsername)}?start=oSLUG${String(ctx.ruleId)}`,
+            }
+          : { text: b.text, url: b.url },
+      ),
+    ),
+    dropped: [] as string[],
+  })),
   bot: { id: "bot1", name: "Casino Bot", username: "casinobot", isActive: true },
   step: null as null | {
     id: string;
@@ -21,9 +35,11 @@ vi.mock("@linkaffipro/db", () => ({
   prisma: {
     bot: { findFirst: vi.fn(async () => h.bot) },
     sequence: { findFirst: vi.fn(async () => (h.step ? { steps: [h.step] } : null)) },
+    outboundMessage: { update: h.outboundUpdate },
   },
   recordEvent: vi.fn(async () => undefined),
 }));
+vi.mock("./offer-links", () => ({ resolveAutomationButtons: h.resolveButtons }));
 vi.mock("@linkaffipro/queue", () => ({ enqueueDm: h.enqueueDm }));
 // Vrais `pickText` / `renderText` (messages du bot) ; seule la notification à l'admin est simulée.
 vi.mock("@linkaffipro/telegram", async (importOriginal) => ({
@@ -68,7 +84,7 @@ describe("relance : repères remplacés dans le message privé", () => {
   });
 
   it("message de la relance : {prenom}, {canal} et {bot} remplacés ; mot inconnu laissé tel quel", async () => {
-    await prismaExecutor(snapshot(), { ruleName: "R" }).sendMessage({
+    await prismaExecutor(snapshot(), { ruleId: "rule1", ruleName: "R" }).sendMessage({
       type: "send_message",
       text: "Bonjour <b>{prenom}</b>, bienvenue sur {canal} ({bot}) {inconnu}",
     });
@@ -87,7 +103,7 @@ describe("relance : repères remplacés dans le message privé", () => {
       buttons: [],
       mediaAssetId: null,
     };
-    await prismaExecutor(snapshot(), { ruleName: "R" }).sendSequence({
+    await prismaExecutor(snapshot(), { ruleId: "rule1", ruleName: "R" }).sendSequence({
       type: "send_sequence",
       trigger: "APPROVED",
     });
@@ -97,7 +113,7 @@ describe("relance : repères remplacés dans le message privé", () => {
   it("prénom, canal et bot échappés : « < » et « & » ne cassent pas le HTML Telegram", async () => {
     h.bot = { ...h.bot, name: "Bot & Co" };
     const s = snapshot({ firstName: "Tom <3", channelTitle: "Paris & Cie" });
-    await prismaExecutor(s, { ruleName: "R" }).sendMessage({
+    await prismaExecutor(s, { ruleId: "rule1", ruleName: "R" }).sendMessage({
       type: "send_message",
       text: "Bonjour {prenom} ({canal}, {bot})",
     });
@@ -108,7 +124,7 @@ describe("relance : repères remplacés dans le message privé", () => {
       buttons: [],
       mediaAssetId: null,
     };
-    await prismaExecutor(s, { ruleName: "R" }).sendSequence({
+    await prismaExecutor(s, { ruleId: "rule1", ruleName: "R" }).sendSequence({
       type: "send_sequence",
       trigger: "APPROVED",
     });
@@ -116,7 +132,10 @@ describe("relance : repères remplacés dans le message privé", () => {
   });
 
   it("membre sans prénom : le repère disparaît", async () => {
-    await prismaExecutor(snapshot({ firstName: null }), { ruleName: "R" }).sendMessage({
+    await prismaExecutor(snapshot({ firstName: null }), {
+      ruleId: "rule1",
+      ruleName: "R",
+    }).sendMessage({
       type: "send_message",
       text: "Bonjour {prenom} !",
     });
@@ -124,10 +143,86 @@ describe("relance : repères remplacés dans le message privé", () => {
   });
 
   it("notification à l'équipe : {prenom} et {canal} remplacés, échappés", async () => {
-    await prismaExecutor(snapshot({ firstName: "Tom <3" }), { ruleName: "R" }).notifyTeam({
+    await prismaExecutor(snapshot({ firstName: "Tom <3" }), {
+      ruleId: "rule1",
+      ruleName: "R",
+    }).notifyTeam({
       type: "notify_team",
       text: "{prenom} a cliqué sur {canal}",
     });
     expect(String(h.notifyAdmin.mock.calls[0]![0])).toContain("Tom &lt;3 a cliqué sur Casino VIP");
+  });
+});
+
+describe("relance : messages rattachés à la relance, bouton « Offre (campagne) »", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.bot = { id: "bot1", name: "Casino Bot", username: "casinobot", isActive: true };
+    h.step = { id: "st1", texts: { fr: "Accepté" }, buttons: [], mediaAssetId: null };
+  });
+
+  it("bouton Offre → lien du bot de la relance (identifiant de suivi créé au clic) ; lien simple inchangé", async () => {
+    const detail = await prismaExecutor(snapshot(), { ruleId: "rule1", ruleName: "R" }).sendMessage(
+      {
+        type: "send_message",
+        text: "Bonjour",
+        buttons: [
+          [
+            {
+              text: "Voir l'offre",
+              type: "OFFER",
+              campaignId: "camp1",
+              affiliateCampaignId: "aff1",
+            },
+          ],
+          [{ text: "Site", url: "https://exemple.fr" }],
+        ],
+      },
+    );
+    expect(h.resolveButtons).toHaveBeenCalledWith(expect.any(Array), {
+      ruleId: "rule1",
+      ruleName: "R",
+      botUsername: "casinobot",
+    });
+    expect(h.enqueueDm.mock.calls[0]![0].buttons).toEqual([
+      [{ text: "Voir l'offre", url: "https://t.me/casinobot?start=oSLUGrule1" }],
+      [{ text: "Site", url: "https://exemple.fr" }],
+    ]);
+    expect(detail).toBe("message via @casinobot");
+  });
+
+  it("chaque message privé de la relance est rattaché à la relance (envoyés par relance)", async () => {
+    const exec = prismaExecutor(snapshot(), { ruleId: "rule1", ruleName: "R" });
+    await exec.sendMessage({ type: "send_message", text: "Bonjour" });
+    await exec.sendSequence({ type: "send_sequence", trigger: "APPROVED" });
+    expect(h.outboundUpdate).toHaveBeenCalledTimes(2);
+    expect(h.outboundUpdate.mock.calls[0]![0]).toEqual({
+      where: { id: "om1" },
+      data: { automationRuleId: "rule1" },
+    });
+  });
+
+  it("bouton Offre dont le lien est désactivé : message envoyé sans lui, signalé au journal", async () => {
+    h.resolveButtons.mockResolvedValueOnce({ rows: [], dropped: ["Voir l'offre"] });
+    const detail = await prismaExecutor(snapshot(), { ruleId: "rule1", ruleName: "R" }).sendMessage(
+      {
+        type: "send_message",
+        text: "Bonjour",
+        buttons: [
+          [
+            {
+              text: "Voir l'offre",
+              type: "OFFER",
+              campaignId: "camp1",
+              affiliateCampaignId: "aff1",
+            },
+          ],
+        ],
+      },
+    );
+    expect(h.enqueueDm.mock.calls[0]![0].buttons).toEqual([]);
+    expect(detail).toBe(
+      "message via @casinobot (bouton « Voir l'offre » non envoyé : lien désactivé dans Campagnes → Liens)",
+    );
   });
 });

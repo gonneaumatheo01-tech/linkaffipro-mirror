@@ -16,7 +16,6 @@ import {
   Background,
   BackgroundVariant,
   ConnectionLineType,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   applyEdgeChanges,
@@ -67,6 +66,8 @@ import {
   draftFromView,
   fillHeight,
   measuredSizes,
+  MINIMAP_LARGE,
+  MINIMAP_SMALL,
   miniMapClass,
   syncViewNodes,
   usedExits,
@@ -76,6 +77,7 @@ import type { EditorOptions } from "@/lib/automations/queries";
 import { TestOnMeButton } from "../rule-switch";
 import { FLOW_ARIA_FR } from "./aria";
 import { CanvasControls } from "./canvas-controls";
+import { FitMiniMap } from "./fit-minimap";
 import { FlowContext, type FlowContextValue } from "./editor-context";
 import { NodePanel, type RuleState } from "./node-panel";
 import { NODE_TYPES, type FlowNode } from "./nodes";
@@ -110,8 +112,9 @@ const triggerLabel = (t: string) => AUTOMATION_TRIGGER_LABELS[t as AutomationTri
 const FIT_VIEW: FitViewOptions = { padding: "40px", maxZoom: 1 };
 
 /**
- * Mini-carte : petite (120 × 80) dès 480 px de canevas (cas de l'écran de 1440 px, bibliothèque et panneau ouverts :
- * environ 540 px), grande (140 × 96) dès 720 px ; en dessous, elle cacherait des blocs.
+ * Mini-carte : cadre moyen (au plus 120 × 144, `MINIMAP_SMALL`) dès 480 px de canevas (cas de l'écran de 1440 px,
+ * bibliothèque et panneau ouverts : environ 540 px), grand (au plus 140 × 168) dès 720 px ; à la forme du parcours
+ * (`minimapBox`) ; en dessous de 480 px, elle cacherait des blocs.
  */
 const MINIMAP_MIN_WIDTH = 480;
 const MINIMAP_LARGE_WIDTH = 720;
@@ -540,14 +543,12 @@ function EditorDesktop({
                 <Background variant={BackgroundVariant.Dots} gap={16} size={1.25} />
                 {/* En haut à droite : un parcours s'élargit vers le bas, ce coin reste presque toujours libre. */}
                 {minimap ? (
-                  <MiniMap<FlowNode>
+                  <FitMiniMap<FlowNode>
                     position="top-right"
                     pannable
                     zoomable
                     ariaLabel="Mini-carte du parcours"
-                    style={
-                      minimap === "large" ? { width: 140, height: 96 } : { width: 120, height: 80 }
-                    }
+                    maxSize={minimap === "large" ? MINIMAP_LARGE : MINIMAP_SMALL}
                     nodeClassName={(n) =>
                       miniMapClass(
                         n.type,

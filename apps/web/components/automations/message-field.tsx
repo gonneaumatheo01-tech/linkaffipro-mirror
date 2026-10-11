@@ -5,14 +5,14 @@ import { RichTextEditor, type PlaceholderChip } from "@/components/editor/rich-t
 import { TelegramPreview } from "@/components/messages/telegram-preview";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
-import { fillMessageExamples } from "@/lib/automations/node-form";
+import {
+  fillMessageExamples,
+  MESSAGE_FIELD_HELP,
+  MESSAGE_WORDS,
+} from "@/lib/automations/node-form";
 
 /** Repères remplacés dans un message de relance (mêmes mots que l'exécution : prénom, canal, bot). */
-const WORDS: readonly PlaceholderChip[] = [
-  { key: "prenom", label: "Prénom" },
-  { key: "canal", label: "Nom du canal" },
-  { key: "bot", label: "Nom du bot" },
-];
+const WORDS: readonly PlaceholderChip[] = MESSAGE_WORDS;
 
 /**
  * Texte d'un message de relance : l'éditeur partagé (texte mis en forme sans balise visible, barre d'outils avec
@@ -77,7 +77,7 @@ export function MessageField({
           }
         />
         <p id={`${id}-help`} className="text-note text-muted-foreground">
-          {help ?? "Les repères en couleur, comme {prenom}, sont remplacés pour chaque personne."}
+          {help ?? MESSAGE_FIELD_HELP}
         </p>
       </div>
       <div className="min-w-0 space-y-2">

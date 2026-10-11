@@ -1,10 +1,11 @@
 import { GRAPH_SEQUENCE_LABELS, escapeHtml, renderActionText, type AutomationAction } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
-import { enqueueDm, type DmButton } from "@linkaffipro/queue";
+import { enqueueDm, type DmButton, type EnqueueDmInput } from "@linkaffipro/queue";
 import { notifyAdmin, pickText, renderText } from "@linkaffipro/telegram";
 import { actingBotFor, apiForBot } from "../approvals/telegram-actions";
 import type { ActionExecutor } from "./engine";
 import type { MemberSnapshot } from "./context";
+import { resolveAutomationButtons } from "./offer-links";
 
 /** Bot utilisé pour écrire au membre : bot de l'action, sinon bot agissant du canal, sinon bot casino, sinon premier bot actif. */
 async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
@@ -22,17 +23,28 @@ async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
 /**
  * Exécuteur réel (Prisma, file Telegram, notification admin). Repères {prenom}, {canal}, {bot} remplacés par des valeurs
  * échappées : les textes sont en HTML Telegram, un prénom « Tom <3 » ne doit pas faire refuser le message.
+ * Chaque message privé est rattaché à la relance (`OutboundMessage.automationRuleId`, « envoyés » par relance ; les
+ * essais « Tester sur moi » gardent kind TEST et ne sont pas comptés) ; un bouton « Offre (campagne) » devient le lien du
+ * bot propre à la relance (voir `offer-links.ts`).
  */
-export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: string; test?: boolean }): ActionExecutor {
+export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleId: string; ruleName: string; test?: boolean }): ActionExecutor {
   const vars = { prenom: escapeHtml(snapshot.firstName ?? ""), canal: escapeHtml(snapshot.channelTitle ?? ""), bot: "" };
+  const kind = opts.test ? "TEST" : "AUTOMATION";
+  /** Message privé de la relance : file Telegram (`enqueueDm`), puis rattachement à la relance. */
+  async function dm(input: Omit<EnqueueDmInput, "memberId" | "kind">): Promise<void> {
+    const { outboundMessageId } = await enqueueDm({ ...input, memberId: snapshot.memberId, kind });
+    // Colonne à part : sans effet sur l'envoi, même s'il a déjà eu lieu. Un échec ne bloque pas la relance.
+    await prisma.outboundMessage.update({ where: { id: outboundMessageId }, data: { automationRuleId: opts.ruleId } }).catch(() => undefined);
+  }
   return {
     async sendMessage(a) {
       const bot = await pickBot(snapshot, a.botId);
       if (!bot) throw new Error("Aucun bot actif pour envoyer le message.");
       const text = renderActionText(a.text, { ...vars, bot: escapeHtml(bot.name) });
-      const buttons: DmButton[][] = (a.buttons ?? []).map((row) => row.map((b) => ({ text: b.text, url: b.url })));
-      await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons, mediaAssetId: a.mediaAssetId ?? null });
-      return `message via @${bot.username}`;
+      const { rows: buttons, dropped } = await resolveAutomationButtons(a.buttons, { ruleId: opts.ruleId, ruleName: opts.ruleName, botUsername: bot.username });
+      await dm({ botId: bot.id, text, buttons, mediaAssetId: a.mediaAssetId ?? null });
+      const note = dropped.length ? ` (bouton${dropped.length > 1 ? "s" : ""} ${dropped.map((t) => `« ${t} »`).join(", ")} non envoyé${dropped.length > 1 ? "s" : ""} : lien désactivé dans Campagnes → Liens)` : "";
+      return `message via @${bot.username}${note}`;
     },
     async sendSequence(a) {
       const bot = await pickBot(snapshot);
@@ -49,7 +61,7 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
       if (!raw) throw new Error(`Message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » sans texte.`);
       const text = renderText(raw, { prenom: vars.prenom, canal: vars.canal, bot: escapeHtml(bot.name) });
       const buttons = Array.isArray(step.buttons) ? (step.buttons as DmButton[][]) : [];
-      await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons, sequenceStepId: step.id, mediaAssetId: step.mediaAssetId ?? null });
+      await dm({ botId: bot.id, text, buttons, sequenceStepId: step.id, mediaAssetId: step.mediaAssetId ?? null });
       return `message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » via @${bot.username}`;
     },
     async tag(a) {
@@ -77,7 +89,7 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
         link = await prisma.inviteLink.create({ data: { channelId: channel.id, botId: actor.id, telegramInviteLink: url, name: "automation", kind: "MANUAL", createsJoinRequest: true, language: channel.language }, select: { telegramInviteLink: true } }).catch(() => ({ telegramInviteLink: url! }));
       }
       const text = renderActionText(a.text ?? "On te propose aussi de rejoindre <b>{canal_propose}</b> :", { ...vars, bot: escapeHtml(bot.name), canal_propose: escapeHtml(channel.title) });
-      await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons: [[{ text: `➕ ${channel.title}`, url: link.telegramInviteLink }]] });
+      await dm({ botId: bot.id, text, buttons: [[{ text: `➕ ${channel.title}`, url: link.telegramInviteLink }]] });
       return `canal « ${channel.title} » proposé`;
     },
     async notifyTeam(a) {

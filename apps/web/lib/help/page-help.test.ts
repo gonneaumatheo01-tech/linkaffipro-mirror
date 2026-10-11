@@ -129,7 +129,7 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
   it("accueil : sa propre section « Accueil » ; l'aide et la visite ont la leur", () => {
     const home = guideSections(GUIDE, pageHelpFor("/").help.sections);
     expect(home.map((s) => s.id)).toEqual(["accueil"]);
-    expect(home[0]!.markdown).toContain("Bénéfice du jour");
+    expect(home[0]!.markdown).toContain("Gains du jour");
     const help = guideSections(GUIDE, pageHelpFor("/help").help.sections);
     expect(help.map((s) => s.id)).toEqual(["aide-et-visite-guidee"]);
     expect(help[0]!.markdown).toContain("Revoir la visite guidée");

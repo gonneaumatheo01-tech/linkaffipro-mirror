@@ -40,7 +40,8 @@ describe("HTML Telegram → éditeur", () => {
   it("ajoute un <br> de mise en page quand le texte finit par un saut de ligne", () => {
     expect(telegramToEditorHtml("a\n")).toBe("a<br><br>");
     expect(telegramToEditorHtml("a")).toBe("a");
-    expect(telegramToEditorHtml("<b>a\n</b>")).toBe("<b>a<br></b><br>");
+    // Le saut de ligne final sort du gras (voir « sauts de ligne en bord de mise en forme »).
+    expect(telegramToEditorHtml("<b>a\n</b>")).toBe("<b>a</b><br><br>");
     expect(telegramToEditorHtml("a\n", { fragment: true })).toBe("a<br>");
   });
   it("échappe le texte : aucune balise ne peut passer", () => {
@@ -185,7 +186,6 @@ describe("aller-retour HTML Telegram → éditeur → HTML Telegram", () => {
     "ligne 1\nligne 2\n\n\nligne 5",
     "fin avec saut\n",
     "fin avec deux sauts\n\n",
-    "<b>gras jusqu'au saut\n</b>",
     "1 &lt; 2 &amp; 3 &gt; 0",
     "  espaces  au début et à la fin  ",
     "<code>x = 1</code> et <pre>bloc\nde code\n</pre>",
@@ -200,10 +200,76 @@ describe("aller-retour HTML Telegram → éditeur → HTML Telegram", () => {
       "<b>a</b> <tg-spoiler>b</tg-spoiler>",
     );
     expect(roundTrip("a &quot;b&quot; &#39;c&#39;")).toBe("a \"b\" 'c'");
+    // Saut de ligne en bord de mise en forme : sorti de la balise (même message à l'écran).
+    expect(roundTrip("<b>gras jusqu'au saut\n</b>")).toBe("<b>gras jusqu'au saut</b>\n");
+  });
+});
+
+describe("sauts de ligne en bord de mise en forme (Firefox et Chrome les rangent dans la balise voisine)", () => {
+  it("Entrée juste après un texte en gras : le saut de ligne sort du gras", () => {
+    // Chrome : ⌘B, « tournoi spécial », ⌘B, Entrée, « Inscriptions… ».
+    expect(htmlToTelegram("Ce soir : <b>tournoi spécial<br></b>Inscriptions")).toBe(
+      "Ce soir : <b>tournoi spécial</b>\nInscriptions",
+    );
+    expect(htmlToTelegram("<i>fin\n\n</i>suite")).toBe("<i>fin</i>\n\nsuite");
+  });
+  it("collage de paragraphes : le saut de ligne n'entre pas dans l'italique suivant", () => {
+    // Firefox et Chrome, après collage de « <p><b>Gras</b></p><p><i>italique</i></p> ».
+    expect(htmlToTelegram("<b>Gras collé</b><i><br>italique</i> rouge")).toBe(
+      "<b>Gras collé</b>\n<i>italique</i> rouge",
+    );
+    expect(htmlToTelegram("<p><b>Gras</b></p><p><i>italique</i></p>", "paste")).toBe(
+      "<b>Gras</b>\n<i>italique</i>",
+    );
+  });
+  it("lien, souligné, barré, texte masqué : même règle", () => {
+    expect(htmlToTelegram('<a href="https://exemple.com">site<br></a>après')).toBe(
+      '<a href="https://exemple.com">site</a>\naprès',
+    );
+    expect(htmlToTelegram("<u>a<br></u><s><br>b</s><sub><br>c<br></sub>d")).toBe(
+      "<u>a</u>\n\n<s>b</s>\n<tg-spoiler>c</tg-spoiler>\nd",
+    );
+  });
+  it("saut de ligne au milieu d'une mise en forme, ou entre deux morceaux qui la partagent : gardé dedans", () => {
+    expect(htmlToTelegram("<b>a<br>b</b>")).toBe("<b>a\nb</b>");
+    expect(htmlToTelegram("<b>x<i><br>y</i></b>")).toBe("<b>x\n<i>y</i></b>");
+    expect(htmlToTelegram("<b><i>x<br></i>y</b>")).toBe("<b><i>x</i>\ny</b>");
+  });
+  it("blocs de code, code et citations : sauts de ligne intouchés", () => {
+    expect(htmlToTelegram("<pre>bloc\n</pre>x", "telegram")).toBe("<pre>bloc\n</pre>x");
+    expect(htmlToTelegram("<code>a\n</code>b", "telegram")).toBe("<code>a\n</code>b");
+    expect(htmlToTelegram("<blockquote><b>cit\n</b></blockquote>b", "telegram")).toBe(
+      "<blockquote><b>cit</b>\n</blockquote>b",
+    );
+  });
+  it("sortie toujours valide pour Telegram", () => {
+    for (const html of [
+      "Ce soir : <b>tournoi spécial<br></b>Inscriptions",
+      "<b>Gras collé</b><i><br>italique</i>",
+      "<u>a<br></u><s><br>b</s><sub><br>c<br></sub>d",
+    ])
+      expectValid(htmlToTelegram(html));
   });
 });
 
 describe("collage", () => {
+  it("Safari : espaces insécables « Apple-converted-space » collés comme des espaces ordinaires", () => {
+    // HTML mis au presse-papiers par Safari (WebKit) en copiant « Copié depuis une page » d'une page web.
+    const safari =
+      '<strong style="font-weight: bolder">Copié</strong><span style="font-weight: 400"><span class="Apple-converted-space">\u00a0</span>depuis<span class="Apple-converted-space">\u00a0</span></span><em>une page</em>';
+    expect(htmlToTelegram(safari, "paste")).toBe("<b>Copié</b> depuis <i>une page</i>");
+    expect(htmlToTelegram(safari, "paste")).not.toContain("\u00a0");
+    expect(
+      htmlToTelegram('<b>a</b><span class="Apple-converted-space">&nbsp;</span>b', "paste"),
+    ).toBe("<b>a</b> b");
+    // Plusieurs espaces de suite (Safari alterne insécable et espace) : gardés tels quels ; insécable voulu ailleurs aussi.
+    expect(
+      htmlToTelegram('a<span class="Apple-converted-space">\u00a0 \u00a0</span>b', "paste"),
+    ).toBe("a\u00a0 \u00a0b");
+    expect(htmlToTelegram("Prix\u00a0: 10\u00a0€", "paste")).toBe("Prix\u00a0: 10\u00a0€");
+    // Le texte de l'éditeur n'est pas touché (espace insécable saisi exprès).
+    expect(htmlToTelegram('a<span class="Apple-converted-space">\u00a0</span>b')).toBe("a\u00a0b");
+  });
   it("replie les espaces et sauts de ligne du code source comme un navigateur", () => {
     expect(htmlToTelegram("<p>\n  Bonjour   <b>toi</b>\n</p>\n<p>  Suite </p>", "paste")).toBe(
       "Bonjour <b>toi</b>\nSuite",

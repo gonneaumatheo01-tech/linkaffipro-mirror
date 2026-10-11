@@ -145,7 +145,8 @@ export const GRAPH_ACTION_LABELS: Record<GraphActionType, string> = {
 };
 
 export const GRAPH_ACTION_HELP: Record<GraphActionType, string> = {
-  send_message: "Le bot écrit au membre en privé. {prenom} et {canal} sont remplacés.",
+  send_message:
+    "Le bot écrit au membre en privé. Prénom, nom du canal et nom du bot sont remplacés pour chaque membre. Un bouton Offre donne à chaque membre son identifiant de suivi.",
   send_sequence: "Le bot envoie un de ses messages habituels (accueil, accepté…) du canal.",
   tag: "Ajoute une étiquette sur la fiche du membre.",
   suggest_channel: "Le bot propose au membre de rejoindre un autre canal.",

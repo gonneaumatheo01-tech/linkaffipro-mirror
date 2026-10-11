@@ -1,3 +1,4 @@
+import { revshareRowWhere } from "@linkaffipro/core";
 import { prisma, type AdPlatform, type Prisma } from "@linkaffipro/db";
 import { cachedDashboard } from "@/lib/dashboard/cache";
 import {
@@ -64,8 +65,9 @@ export type CampaignList = {
 
 /** Liste des campagnes avec leurs indicateurs sur la période (et la précédente si `compare`), mise en cache 60 s. */
 export const listCampaigns: (period: Period, compare: boolean) => Promise<CampaignList> =
-  // Clé « v2 » : la forme du résultat a changé (lignes + total), une ancienne entrée ne doit jamais resservir.
-  cachedDashboard("campaigns-v2", (period: Period, compare: boolean) =>
+  // Clé « v3 » : la forme du résultat a changé (phase 10 : commissions et gains), une ancienne entrée ne doit jamais
+  // resservir.
+  cachedDashboard("campaigns-v3", (period: Period, compare: boolean) =>
     listCampaignsUncached(period, compare),
   );
 
@@ -148,10 +150,19 @@ const ZERO_TOTALS: Required<CampaignTotals> = {
   offerClicks: 0,
   deposits: 0,
   depositAmount: 0,
+  cpaCommissions: 0,
+  revshareCommissions: 0,
 };
 
+function round2(n: number): number {
+  const r = Math.round(n * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
 /**
- * Totaux d'une campagne sur la période : dépense, clics d'entrée, membres, clics d'offre, inscriptions, FTD, dépôts, NGR.
+ * Totaux d'une campagne sur la période : dépense, clics d'entrée, membres, clics d'offre, inscriptions, FTD, dépôts, NGR,
+ * et nos commissions (phase 10) : CPA de ses joueurs (événements CPA / CPA_REVERSAL datés : + au crédit, − le jour de
+ * l'annulation) et part de revshare de ses offres Link Affi (agrégat par offre et par jour, `revshareRowWhere`).
  * Membres = demandes d'adhésion passées par ses liens d'entrée. Joueurs = rattachés à un clic de ses liens, à un de
  * ses membres, OU (sans clic) appartenant à une de ses campagnes Link Affi (voir `campaignPlayerWhere`).
  * Toutes les dates sont celles de Link Affi : inscription (`registeredAt`), premier dépôt (`ftdAt`), événements
@@ -185,6 +196,7 @@ export async function totalsForScopes(
   const campaignIds = items.map((i) => i.campaignId);
   const inviteLinkIds = union(items.map((i) => i.scope.inviteLinkIds));
   const trackingLinkIds = union(items.map((i) => i.scope.trackingLinkIds));
+  const offerIds = union(items.map((i) => i.scope.affiliateCampaignIds));
   const single = items.length === 1 ? items[0]! : null;
   const playerWhere = (
     single
@@ -205,6 +217,8 @@ export async function totalsForScopes(
     offerClicks,
     depositEvents,
     ngrEvents,
+    cpaEvents,
+    revshare,
   ] = await Promise.all([
     prisma.adCost.aggregate({
       _sum: { spend: true },
@@ -252,6 +266,19 @@ export async function totalsForScopes(
       _sum: { amount: true },
       where: { type: "NGR", occurredAt: within, player: playerWhere },
     }),
+    prisma.playerEvent.aggregate({
+      _sum: { amount: true },
+      where: { type: { in: ["CPA", "CPA_REVERSAL"] }, occurredAt: within, player: playerWhere },
+    }),
+    offerIds.length
+      ? prisma.affiliateDailyStat.aggregate({
+          _sum: { revshareRevenue: true },
+          where: revshareRowWhere(
+            { dateFrom, dateTo, since, until },
+            offerIds,
+          ) as Prisma.AffiliateDailyStatWhereInput,
+        })
+      : Promise.resolve(null),
   ]);
   return {
     spend: Number(spendAgg._sum.spend ?? 0),
@@ -263,6 +290,8 @@ export async function totalsForScopes(
     offerClicks,
     deposits: depositEvents._count._all,
     depositAmount: Number(depositEvents._sum.amount ?? 0),
+    cpaCommissions: round2(Number(cpaEvents._sum.amount ?? 0)),
+    revshareCommissions: round2(Number(revshare?._sum.revshareRevenue ?? 0)),
   };
 }
 

@@ -129,9 +129,15 @@ describe("règles métier à seuils (phase 6)", () => {
     expect(detectSpendNoConversion([{ name: "A", spend: 80, registrations: 1 }])).toBeNull();
     const d = detectSpendNoConversion([{ name: "A", spend: 80.5, registrations: 0 }, { name: "B", spend: 20, registrations: 0 }]);
     expect(d?.kind).toBe("spend_no_conversion");
-    expect(d?.message).toContain("A (80.50 €)");
+    expect(d?.message).toContain("A (80,50 €)");
     expect(d?.message).not.toContain("B (");
     expect(detectSpendNoConversion([{ name: "B", spend: 20, registrations: 0 }], { ...DEFAULT_THRESHOLDS, spendNoConversionEur: 10 })?.kind).toBe("spend_no_conversion");
+  });
+  it("dépense sans inscription : gains de la campagne (commissions − dépense) quand ils sont connus", () => {
+    const d = detectSpendNoConversion([{ name: "A", spend: 80.5, registrations: 0, commissions: 20 }]);
+    expect(d?.message).toContain("A (80,50 € dépensés, gains −60,50 €)");
+    expect(d?.message).not.toMatch(/bénéfice/i);
+    expect(d?.payload.campaigns).toEqual([{ name: "A", spend: 80.5, commissions: 20, gains: -60.5 }]);
   });
   it("canal qui fuit : plus de 10 % de départs, 20 membres minimum", () => {
     expect(detectChannelLeak([{ title: "Petit", activeMembers: 15, left24h: 10 }])).toBeNull();

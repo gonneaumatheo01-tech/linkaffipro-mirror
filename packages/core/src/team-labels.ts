@@ -40,6 +40,7 @@ export const LINKAFFI_TABLE_LABELS: Record<string, string> = {
   deposit_snapshots: "Dépôts cumulés",
   ftd_invalidations: "Premiers dépôts annulés",
   clicks: "Clics Link Affi",
+  stats: "Commissions par jour",
 };
 
 export function linkAffiTableLabel(table: string): string {

@@ -33,6 +33,6 @@ describe("fenêtre incrémentale", () => {
     expect(cursorAfterSuccess(w)).toEqual({ since: now.toISOString() });
   });
   it("liste les tables dans l'ordre attendu", () => {
-    expect(SYNC_TABLES.map((t) => t.table)).toEqual(["casinos", "campaigns", "currency_rates", "players", "player_events", "player_financials", "revshare_snapshots", "deposit_snapshots", "ftd_invalidations", "clicks"]);
+    expect(SYNC_TABLES.map((t) => t.table)).toEqual(["casinos", "campaigns", "currency_rates", "players", "player_events", "player_financials", "revshare_snapshots", "deposit_snapshots", "ftd_invalidations", "clicks", "stats"]);
   });
 });

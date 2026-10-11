@@ -53,6 +53,8 @@ import {
 } from "@/lib/automations/flow";
 import {
   buttonsToEntries,
+  draftButtonRows,
+  previewButtonRows,
   delayToHours,
   hoursToDelay,
   toggleInList,
@@ -484,7 +486,7 @@ function ActionForm({
   const [buttons, setButtons] = useState<ButtonEntry[]>(() =>
     buttonsToEntries(Array.isArray(a.buttons) ? (a.buttons as ButtonRows) : []),
   );
-  const filled = buttons.filter((b) => b.text.trim() || b.url.trim());
+  const filled = previewButtonRows(buttons);
   const bot = options.bots.find((b) => b.id === a.botId);
   const verticals = [...new Set(options.bots.map((b) => b.vertical))];
   const vertical = toVertical(bot?.vertical ?? (verticals.length === 1 ? verticals[0] : undefined));
@@ -518,7 +520,7 @@ function ActionForm({
             label="Message"
             value={str(a.text)}
             onChange={(text) => set({ text })}
-            buttons={filled.map((b) => [{ text: b.text.trim(), url: b.url.trim() }])}
+            buttons={filled}
             mediaCount={a.mediaAssetId ? 1 : 0}
             context={{ vertical, ...(a.mediaAssetId ? { hasMedia: true } : {}) }}
             layout="stack"
@@ -533,9 +535,7 @@ function ActionForm({
                 setButtons(next);
                 // Tel que saisi (lignes vides retirées) : un bouton incomplet est signalé sur le bloc et bloque
                 // l'enregistrement (validation de l'éditeur), au lieu d'être perdu en silence.
-                const rows = next
-                  .filter((b) => b.text.trim() || b.url.trim())
-                  .map((b) => [{ text: b.text.trim(), url: b.url.trim() }]);
+                const rows = draftButtonRows(next);
                 set({ buttons: rows.length ? rows : undefined });
               }}
             />

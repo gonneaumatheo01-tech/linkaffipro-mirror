@@ -30,7 +30,7 @@ import {
   type GraphConditionKind,
   type SpendLevel,
 } from "@linkaffipro/core";
-import { entriesToButtons, linesToButtons, type ButtonRows } from "./node-form";
+import { entriesToButtons, linesToButtons, toButtonEntry, type ButtonRows } from "./node-form";
 
 export type CardKey = AutomationTemplateKey;
 export type CardMessage = Omit<Extract<AutomationAction, { type: "send_message" }>, "type">;
@@ -521,8 +521,9 @@ export class CardInputError extends Error {
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
 /**
- * Boutons du formulaire : `buttonsJson` (liste de { text, url } saisie champ par champ dans le volet), sinon l'ancien
- * champ `buttons` (une ligne par bouton : « Libellé | https://… »).
+ * Boutons du formulaire : `buttonsJson` (lignes saisies champ par champ dans le volet : liens { text, url } et boutons
+ * « Offre (campagne) » { kind: "offer", text, campaignId, affiliateCampaignId }), sinon l'ancien champ `buttons` (une
+ * ligne par bouton : « Libellé | https://… »).
  */
 function buttonsFromForm(
   fd: FormData,
@@ -535,14 +536,7 @@ function buttonsFromForm(
   } catch {
     return { ok: false, error: "Boutons illisibles : rechargez la page et recommencez." };
   }
-  const entries = (Array.isArray(list) ? list : []).map((e) => {
-    const o = e && typeof e === "object" ? (e as Record<string, unknown>) : {};
-    return {
-      text: typeof o.text === "string" ? o.text : "",
-      url: typeof o.url === "string" ? o.url : "",
-    };
-  });
-  return entriesToButtons(entries);
+  return entriesToButtons((Array.isArray(list) ? list : []).map(toButtonEntry));
 }
 
 /**

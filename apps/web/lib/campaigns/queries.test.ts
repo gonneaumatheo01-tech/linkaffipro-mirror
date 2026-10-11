@@ -38,6 +38,7 @@ function matches(row: Row, where: Where): boolean {
       if ("not" in o && o.not === null && val === null) return false;
       if ("gte" in o && !(val instanceof Date && val >= (o.gte as Date))) return false;
       if ("lt" in o && !(val instanceof Date && val < (o.lt as Date))) return false;
+      if ("lte" in o && !(val instanceof Date && val <= (o.lte as Date))) return false;
       continue;
     }
     if (val !== v) return false;
@@ -50,6 +51,8 @@ const data = vi.hoisted(() => ({
   events: [] as Array<Record<string, unknown>>,
   campaigns: [] as Array<Record<string, unknown>>,
   costSources: [] as Array<{ campaignId: string; source: string }>,
+  /** Lignes `AffiliateDailyStat` (part de revshare par offre et par jour). */
+  revshare: [] as Array<Record<string, unknown>>,
 }));
 
 const db = vi.hoisted(() => ({
@@ -58,6 +61,7 @@ const db = vi.hoisted(() => ({
   click: { count: vi.fn() },
   player: { count: vi.fn(), findMany: vi.fn() },
   playerEvent: { aggregate: vi.fn() },
+  affiliateDailyStat: { aggregate: vi.fn() },
   campaign: { findMany: vi.fn() },
   channel: { findMany: vi.fn() },
 }));
@@ -122,8 +126,60 @@ beforeEach(() => {
       _sum: { amount: rows.reduce((s, e) => s + Number(e.amount), 0) },
     };
   });
+  data.revshare = [];
+  db.affiliateDailyStat.aggregate.mockImplementation(async (args: { where: Where }) => ({
+    _sum: {
+      revshareRevenue: data.revshare
+        .filter((r) => matches(r, args.where))
+        .reduce((s, r) => s + Number(r.revshareRevenue), 0),
+    },
+  }));
   db.campaign.findMany.mockImplementation(async () => data.campaigns);
   db.channel.findMany.mockResolvedValue([]);
+});
+
+describe("commissions d'une campagne (phase 10) : gains = commissions − dépense pub", () => {
+  const utcDay = (n: number) => new Date(`${ago(n).toISOString().slice(0, 10)}T00:00:00Z`);
+
+  it("CPA : créditée au jour du crédit, retranchée le jour de l'annulation ; revshare de ses offres seulement", async () => {
+    const [a] = data.players;
+    data.events.push(
+      { type: "CPA", amount: 70, occurredAt: ago(20), player: a },
+      { type: "CPA_REVERSAL", amount: -70, occurredAt: ago(2), player: a },
+    );
+    data.revshare = [
+      {
+        affiliateCampaignId: "aff1",
+        date: utcDay(1),
+        sourceCreatedAt: null,
+        revshareRevenue: 13.0926,
+      },
+      {
+        affiliateCampaignId: "autre",
+        date: utcDay(1),
+        sourceCreatedAt: null,
+        revshareRevenue: 500,
+      },
+    ];
+    db.adCost.aggregate.mockResolvedValue({ _sum: { spend: 20 } });
+    const s = scope(["aff1"]);
+    // 7 jours : l'annulation (−70) et la part de revshare (13,09) ; la CPA créditée il y a 20 jours n'y est pas.
+    const week = await campaignTotals("c1", s, resolvePeriod({ range: "7d" }));
+    expect(week).toMatchObject({ cpaCommissions: -70, revshareCommissions: 13.09 });
+    // 30 jours : crédit et annulation s'annulent.
+    const month = await campaignTotals("c1", s, resolvePeriod({ range: "30d" }));
+    expect(month).toMatchObject({ cpaCommissions: 0, revshareCommissions: 13.09, revenue: 25 });
+    const cpaCall = db.playerEvent.aggregate.mock.calls.find((c) =>
+      JSON.stringify((c[0] as { where: unknown }).where).includes("CPA_REVERSAL"),
+    );
+    expect(cpaCall).toBeDefined();
+  });
+
+  it("sans offre : aucune lecture de la part de revshare", async () => {
+    const t = await campaignTotals("c1", scope([]), resolvePeriod({ range: "7d" }));
+    expect(t.revshareCommissions).toBe(0);
+    expect(db.affiliateDailyStat.aggregate).not.toHaveBeenCalled();
+  });
 });
 
 describe("totaux d'une campagne : dates réelles Link Affi", () => {

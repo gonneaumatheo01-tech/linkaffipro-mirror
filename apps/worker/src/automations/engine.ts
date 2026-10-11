@@ -9,10 +9,16 @@ export type RuleRow = { id: string; name: string; trigger: string; conditions: u
 /** Entrée du journal `AutomationRun.log` (graphe : avec `nodeId` et `branch`, voir `AutomationLogEntry`). */
 export type LogEntry = AutomationLogEntry;
 
-/** Règles actives du déclencheur dont les conditions correspondent au contexte. */
-export function selectRules(rules: RuleRow[], trigger: string, ctx: AutomationContext): RuleRow[] {
+/**
+ * Règles actives du déclencheur dont les conditions correspondent au contexte.
+ * `fromRuleId` : relance dont le bouton Offre a été cliqué (événement « A cliqué sur une offre » venu d'un lien de
+ * relance). Pas d'envoi en boucle : cette relance n'est jamais relancée par son propre bouton, et les autres ne le
+ * sont que si elles partent « une fois par membre » (sinon deux relances se relanceraient l'une l'autre à chaque clic).
+ */
+export function selectRules(rules: RuleRow[], trigger: string, ctx: AutomationContext, opts: { fromRuleId?: string | null } = {}): RuleRow[] {
   return rules.filter((r) => {
     if (!r.isActive || r.trigger !== trigger) return false;
+    if (opts.fromRuleId && (r.id === opts.fromRuleId || !r.oncePerMember)) return false;
     try {
       return matchesConditions(ctx, parseConditions(r.conditions));
     } catch {

@@ -33,7 +33,7 @@ import {
   type GraphPosition,
 } from "@linkaffipro/core";
 import { actionLabel, nodePhrase } from "./labels";
-import { entriesToButtons } from "./node-form";
+import { entriesToButtons, toButtonEntry } from "./node-form";
 
 // ---------- Types ----------
 
@@ -802,12 +802,10 @@ export function validateEditor(d: Draft, rule: RuleFields): EditorValidation {
     // Boutons saisis champ par champ : la ligne fautive est nommée (« Bouton « Voir » : … ») à la place du message
     // général du core ; un libellé vide est aussi refusé.
     if (a?.type === "send_message" && Array.isArray(a.buttons)) {
+      // Liens et boutons « Offre (campagne) » (campagne et offre exigées).
       const entries = (a.buttons as unknown[])
         .flatMap((row) => (Array.isArray(row) ? row : []))
-        .map((b) => {
-          const o = b && typeof b === "object" ? (b as Record<string, unknown>) : {};
-          return { text: String(o.text ?? ""), url: String(o.url ?? "") };
-        });
+        .map(toButtonEntry);
       const check = entriesToButtons(entries);
       if (!check.ok) {
         issues = issues.filter((i) => !(i.nodeId === n.id && /bouton/i.test(i.message)));

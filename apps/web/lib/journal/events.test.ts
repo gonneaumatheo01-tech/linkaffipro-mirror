@@ -66,6 +66,8 @@ describe("Journal → vue « Événements »", () => {
     );
     expect(eventLabel("membership.welcome_resent")).toBe("Accueil renvoyé avec les liens");
     expect(eventLabel("channel.gate_links_checked")).toBe("Liens des canaux à rejoindre vérifiés");
+    expect(eventLabel("player.cpa_credited")).toBe("Commission créditée");
+    expect(eventLabel("player.cpa_reversed")).toBe("Commission annulée");
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 

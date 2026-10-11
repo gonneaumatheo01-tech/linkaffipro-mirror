@@ -3,10 +3,11 @@ import {
   campaignsOfMember,
   campaignsOfOfferClick,
   campaignsOfPlayer,
+  revshareDayKey,
   scopeFromCampaign,
   type CampaignIndex,
 } from "@linkaffipro/core";
-import { prisma, ourPlayers, type Prisma } from "@linkaffipro/db";
+import { ourAffiliateCampaignIds, ourPlayers, prisma, type Prisma } from "@linkaffipro/db";
 import { logger } from "../logger";
 import {
   METRIC_KEYS,
@@ -20,6 +21,41 @@ import {
 
 /** Setting : heure et nature du dernier recalcul réussi (affiché « Chiffres calculés le … » dans l'onglet Campagnes). */
 export const DAILY_LAST_RUN_KEY = "stats.daily.lastRunAt";
+
+/**
+ * Setting : premier jour (Paris) dont les commissions ont changé depuis le dernier recalcul (`{ day, at }`), écrit par
+ * la synchro Link Affi (CPA annulée, revshare corrigé). Le recalcul horaire commence alors à ce jour au lieu des
+ * 3 derniers jours, puis l'efface (seulement s'il n'a pas changé entre-temps).
+ */
+export const DAILY_DIRTY_KEY = "stats.daily.dirtySince";
+
+type DirtyMark = { day: string; at: string };
+
+function readDirty(value: unknown): DirtyMark | null {
+  const v = value as Partial<DirtyMark> | null;
+  return v &&
+    typeof v.day === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v.day) &&
+    typeof v.at === "string"
+    ? { day: v.day, at: v.at }
+    : null;
+}
+
+/** Marque un jour à recalculer (garde le plus ancien des jours déjà marqués). */
+export async function markDailyStatsDirty(db: typeof prisma, day: string): Promise<void> {
+  const current = readDirty(
+    (await db.setting.findUnique({ where: { key: DAILY_DIRTY_KEY } }))?.value,
+  );
+  const value: DirtyMark = {
+    day: current && current.day < day ? current.day : day,
+    at: new Date().toISOString(),
+  };
+  await db.setting.upsert({
+    where: { key: DAILY_DIRTY_KEY },
+    create: { key: DAILY_DIRTY_KEY, value },
+    update: { value },
+  });
+}
 
 /** Dates antérieures : valeurs de remplacement (date absente chez Link Affi), jamais un vrai premier jour de données. */
 const PLAUSIBLE_SINCE = new Date("2020-01-01T00:00:00Z");
@@ -37,6 +73,9 @@ const ZERO = {
   depositAmount: 0,
   ngr: 0,
   spend: 0,
+  cpaCommissions: 0,
+  revshareCommissions: 0,
+  commissions: 0,
 };
 
 /**
@@ -51,11 +90,16 @@ export async function recomputeDailyStats(
   const now = new Date();
   const todayKey = dayKey(now);
   let fromKey: string;
+  // Jours marqués par la synchro (commissions changées) : repris même hors de la fenêtre habituelle.
+  const dirty = readDirty(
+    (await prisma.setting.findUnique({ where: { key: DAILY_DIRTY_KEY } }))?.value,
+  );
   if (opts.full) {
     fromKey = (await earliestDataDay()) ?? todayKey;
   } else {
     const days = Math.max(1, Math.min(opts.days ?? 3, 400));
     fromKey = dayKey(new Date(now.getTime() - (days - 1) * 86_400_000));
+    if (dirty && dirty.day < fromKey) fromKey = dirty.day;
   }
   const start = parisMidnightUtc(fromKey);
   const dayList = dayKeysBetween(start, now);
@@ -80,6 +124,9 @@ export async function recomputeDailyStats(
       depositAmount: true,
       ngr: true,
       spend: true,
+      cpaCommissions: true,
+      revshareCommissions: true,
+      commissions: true,
     },
   });
   const known = new Map(
@@ -122,6 +169,11 @@ export async function recomputeDailyStats(
     create: { key: DAILY_LAST_RUN_KEY, value: lastRun },
     update: { value: lastRun },
   });
+  // Marque traitée : effacée seulement si la synchro n'en a pas posé une nouvelle pendant le calcul.
+  if (dirty && dirty.day >= fromKey)
+    await prisma.setting.deleteMany({
+      where: { key: DAILY_DIRTY_KEY, value: { equals: dirty } },
+    });
   logger.info({ ...lastRun, to: todayKey }, "statistiques journalières recalculées");
   return { days: dayList.length, rows: rows.length };
 }
@@ -142,6 +194,9 @@ async function writeRow(r: DailyRow): Promise<void> {
     depositAmount: r.depositAmount,
     ngr: r.ngr,
     spend: r.spend,
+    cpaCommissions: r.cpaCommissions,
+    revshareCommissions: r.revshareCommissions,
+    commissions: r.commissions,
   };
   await prisma.dailyStat.upsert({
     where: { date_dimension: { date, dimension: r.dimension } },
@@ -173,7 +228,9 @@ function parseDimension(dim: string): {
  */
 async function earliestDataDay(): Promise<string | null> {
   const ours = await ourPlayers();
-  const [m, c, reg, ftd, ev, a] = await Promise.all([
+  // Offres rattachées à nos campagnes : seules leurs lignes de revshare comptent.
+  const offers = await ourAffiliateCampaignIds();
+  const [m, c, reg, ftd, ev, a, rs] = await Promise.all([
     prisma.membership.findFirst({ orderBy: { requestedAt: "asc" }, select: { requestedAt: true } }),
     prisma.click.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
     prisma.player.findFirst({
@@ -192,6 +249,13 @@ async function earliestDataDay(): Promise<string | null> {
       select: { occurredAt: true },
     }),
     prisma.adCost.findFirst({ orderBy: { date: "asc" }, select: { date: true } }),
+    offers.length
+      ? prisma.affiliateDailyStat.findFirst({
+          where: { affiliateCampaignId: { in: offers } },
+          orderBy: { date: "asc" },
+          select: { date: true },
+        })
+      : Promise.resolve(null),
   ]);
   const dates = [
     m?.requestedAt,
@@ -200,6 +264,7 @@ async function earliestDataDay(): Promise<string | null> {
     ftd?.ftdAt,
     ev?.occurredAt,
     a?.date,
+    rs?.date,
   ].filter((d): d is Date => d instanceof Date);
   if (dates.length === 0) return null;
   return dayKey(new Date(Math.min(...dates.map((d) => d.getTime()))));
@@ -435,6 +500,50 @@ async function loadEvents(start: Date): Promise<StatEvent[]> {
         events.push({ kind: "deposit", at: e.occurredAt, amount: Number(e.amount ?? 0), ...base });
       if (e.type === "NGR")
         events.push({ kind: "ngr", at: e.occurredAt, amount: Number(e.amount ?? 0), ...base });
+      // Commission CPA (phase 10) : + le jour du crédit, − le jour de l'annulation ; mêmes dimensions que le joueur.
+      if (e.type === "CPA" || e.type === "CPA_REVERSAL")
+        events.push({ kind: "cpa", at: e.occurredAt, amount: Number(e.amount ?? 0), ...base });
+    }
+  }
+
+  // Part de revshare (phase 10) : agrégat Link Affi par offre et par jour, nos offres seulement. Rattachée aux campagnes
+  // de l'offre (et à leur univers), jamais à un canal, une pub ou un message : Link Affi ne la donne pas par joueur.
+  // Jour retenu : celui de la ligne, ou le jour d'arrivée d'une correction créée plus tard (`revshareDayKey`).
+  const offerIds = [...index.byOffer.keys()];
+  if (offerIds.length > 0) {
+    const startKey = dayKey(start);
+    const revshare = await prisma.affiliateDailyStat.findMany({
+      where: {
+        affiliateCampaignId: { in: offerIds },
+        OR: [
+          { date: { gte: new Date(`${startKey}T00:00:00Z`) } },
+          { sourceCreatedAt: { gte: start } },
+        ],
+      },
+      select: {
+        date: true,
+        sourceCreatedAt: true,
+        affiliateCampaignId: true,
+        revshareRevenue: true,
+      },
+    });
+    for (const r of revshare) {
+      const amount = Number(r.revshareRevenue);
+      if (!r.affiliateCampaignId || !amount) continue;
+      const key = revshareDayKey(r);
+      if (key < startKey) continue;
+      // Midi de Paris du jour retenu : aucune bascule de jour possible.
+      const at = new Date(parisMidnightUtc(key).getTime() + 12 * 3_600_000);
+      const fields = campaignFields(index, index.byOffer.get(r.affiliateCampaignId) ?? []);
+      events.push({
+        kind: "revshare",
+        at,
+        amount,
+        ...fields,
+        adId: null,
+        channelId: null,
+        vertical: fields.campaignVerticals?.[0] ?? offerVertical.get(r.affiliateCampaignId) ?? null,
+      });
     }
   }
 

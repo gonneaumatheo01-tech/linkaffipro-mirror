@@ -29,6 +29,19 @@ describe("sélection des règles", () => {
   it("ignore une règle aux conditions invalides", () => {
     expect(selectRules(rules, "JOINED", { channelId: "c1", spendLevel: "VIP" }).map((r) => r.id)).toEqual(["r1"]);
   });
+  it("clic sur le bouton Offre d'une relance : jamais cette même relance, les autres seulement « une fois par membre »", () => {
+    const clicked = [
+      { id: "own", name: "Offre", trigger: "OFFER_CLICKED", conditions: {}, actions: [], isActive: true, oncePerMember: false },
+      { id: "free", name: "Libre", trigger: "OFFER_CLICKED", conditions: {}, actions: [], isActive: true, oncePerMember: false },
+      { id: "once", name: "Une fois", trigger: "OFFER_CLICKED", conditions: {}, actions: [], isActive: true, oncePerMember: true },
+    ];
+    // Clic sur un message de canal ou un message à un groupe : toutes les règles, comme avant.
+    expect(selectRules(clicked, "OFFER_CLICKED", {}).map((r) => r.id)).toEqual(["own", "free", "once"]);
+    expect(selectRules(clicked, "OFFER_CLICKED", {}, { fromRuleId: null }).map((r) => r.id)).toEqual(["own", "free", "once"]);
+    // Clic sur le bouton de la relance « own » : ni elle-même (envoi en boucle), ni une relance libre (ping-pong entre deux relances).
+    expect(selectRules(clicked, "OFFER_CLICKED", {}, { fromRuleId: "own" }).map((r) => r.id)).toEqual(["once"]);
+    expect(selectRules(clicked, "OFFER_CLICKED", {}, { fromRuleId: "once" }).map((r) => r.id)).toEqual([]);
+  });
 });
 
 describe("exécution d'un plan", () => {

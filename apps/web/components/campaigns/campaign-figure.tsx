@@ -1,56 +1,50 @@
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Term } from "@/components/admin/help-tip";
-import {
-  formatVariation,
-  variationSummary,
-  variationTone,
-  type Favorable,
-} from "@/components/admin/stat-card-logic";
+import { VariationText } from "@/components/admin/stat-card";
+import type { Favorable, Variation } from "@/components/admin/stat-card-logic";
 import { cn } from "@/components/ui/cn";
 
-const TONE_TEXT = {
-  positive: "text-success",
-  negative: "text-danger",
-  neutral: "text-muted-foreground",
-} as const;
-
 /**
- * Variation d'un chiffre (même rendu que `StatCard`) : flèche, signe et pourcentage colorés (vert si favorable),
- * phrase complète pour les lecteurs d'écran. `delta` null : « — » (pas de comparaison possible).
+ * Variation d'un chiffre, rendu commun avec `StatCard` (`VariationText`) : flèche, « +12 % » ou « nouveau » coloré
+ * (vert si favorable), phrase complète pour les lecteurs d'écran ; rien quand les deux périodes valent 0 ; « — » sans
+ * comparaison possible, ou « Avant : X » quand `before` est donné (période d'avant en perte : une perte à côté d'un
+ * pourcentage se lirait comme une hausse). `variation` (règle unique `comparableVariation`, qui connaît la base) prime
+ * sur `delta` (pourcentage déjà calculé, ancienne forme : null = « — »).
  */
 export function FigureDelta({
   delta,
+  variation,
   favorable = "up",
   comparison = "vs période précédente",
+  before,
   className,
 }: {
-  delta: number | null | undefined;
+  delta?: number | null;
+  variation?: Variation;
   favorable?: Favorable;
   comparison?: string;
+  /** Valeur d'avant déjà formatée, écrite à la place de « — » quand aucun pourcentage n'est possible. */
+  before?: string | null;
   className?: string;
 }) {
-  const rounded = formatVariation(delta);
-  if (rounded === "—")
+  const v: Variation =
+    variation ??
+    (delta === null || delta === undefined || !Number.isFinite(delta)
+      ? { kind: "unknown" }
+      : { kind: "pct", pct: delta });
+  if (v.kind === "unknown" && before)
     return (
-      <span className={cn("text-note text-muted-foreground", className)}>
-        <span aria-hidden>—</span>
-        <span className="sr-only">{variationSummary(null, comparison)}</span>
+      <span className={cn("text-note text-muted-foreground tabular-nums", className)}>
+        Avant : {before}
+        <span className="sr-only"> (pas de comparaison possible)</span>
       </span>
     );
-  const tone = variationTone(delta, favorable);
-  const Arrow = rounded === "0 %" ? Minus : delta! > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 text-note font-medium whitespace-nowrap tabular-nums",
-        TONE_TEXT[tone],
-        className,
-      )}
-    >
-      <Arrow aria-hidden className="size-3.5" />
-      <span aria-hidden>{rounded}</span>
-      <span className="sr-only">{variationSummary(delta, comparison)}</span>
-    </span>
+    <VariationText
+      variation={v}
+      favorable={favorable}
+      comparison={comparison}
+      className={className}
+    />
   );
 }
 
@@ -58,7 +52,7 @@ export function FigureDelta({
  * Un chiffre d'une carte de campagne : libellé en note grise (terme technique au survol), valeur 20 px en chiffres
  * tabulaires, variation facultative TOUJOURS sur sa propre ligne sous la valeur (hauteur réservée : les cases d'une
  * carte gardent la même hauteur, qu'un chiffre soit court ou long), phrase d'explication facultative (`hint`).
- * `valueTone` colore la valeur (bénéfice positif ou négatif). À placer dans un `<dl>` (le bloc est un groupe
+ * `valueTone` colore la valeur (gains positifs ou négatifs). À placer dans un `<dl>` (le bloc est un groupe
  * `dt` / `dd`).
  */
 export function CampaignFigure({
@@ -66,17 +60,23 @@ export function CampaignFigure({
   term,
   value,
   delta,
+  variation,
   favorable = "up",
   valueTone = "neutral",
+  before,
   hint,
   className,
 }: {
   label: string;
   term?: string;
   value: string;
-  /** Absent : pas de ligne de variation ; null : « — ». */
+  /** Absent : pas de ligne de variation ; null : « — ». Préférer `variation`. */
   delta?: number | null;
+  /** Variation d'après la valeur et sa base (`comparableVariation`) : « nouveau » depuis 0 ; prime sur `delta`. */
+  variation?: Variation;
   favorable?: Favorable;
+  /** Valeur d'avant formatée : « Avant : X » à la place de « — » quand aucun pourcentage n'est possible. */
+  before?: string | null;
   valueTone?: "positive" | "negative" | "neutral";
   /** Une phrase sous le chiffre : ce qu'il mesure. */
   hint?: string;
@@ -98,9 +98,9 @@ export function CampaignFigure({
       >
         {value}
       </dd>
-      {delta !== undefined ? (
+      {variation !== undefined || delta !== undefined ? (
         <dd className="flex min-h-4 items-center">
-          <FigureDelta delta={delta} favorable={favorable} />
+          <FigureDelta delta={delta} variation={variation} favorable={favorable} before={before} />
         </dd>
       ) : null}
       {hint ? <dd className="mt-0.5 text-note text-muted-foreground">{hint}</dd> : null}

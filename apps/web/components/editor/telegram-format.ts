@@ -509,6 +509,50 @@ function mergeRuns(runs: Run[]): Run[] {
   return out;
 }
 
+/** Mises en forme « en ligne » d'un saut de ligne gardées seulement si ses deux voisins les ont aussi. */
+function sharedInline(own: Fmt, other: Fmt | null): Fmt {
+  return {
+    ...own,
+    b: own.b && !!other?.b,
+    i: own.i && !!other?.i,
+    u: own.u && !!other?.u,
+    s: own.s && !!other?.s,
+    sp: own.sp && !!other?.sp,
+    href: own.href !== null && other?.href === own.href ? own.href : null,
+  };
+}
+
+/**
+ * Sauts de ligne en bord de mise en forme : Firefox et Chrome rangent souvent le saut de ligne dans la balise voisine
+ * (« <b>tournoi<br></b>suite » après ⌘B, Entrée ; « <b>a</b><i><br>b</i> » après un collage de paragraphes). Le message
+ * est le même à l'écran, mais le HTML enregistré ne correspond plus à ce que l'équipe a mis en forme. Un saut de ligne
+ * au début ou à la fin d'un morceau en gras, italique, souligné, barré, masqué ou lien ne garde que la mise en forme
+ * partagée avec le morceau d'à côté. Au milieu d'un morceau (« <b>a\nb</b> »), rien ne change ; code, bloc de code et
+ * citation non plus (le saut de ligne y fait partie du contenu).
+ */
+function liftEdgeBreaks(runs: Run[]): Run[] {
+  const out: Run[] = [];
+  runs.forEach((run, k) => {
+    const { fmt, text } = run;
+    const m = /^(\n*)([\s\S]*?)(\n*)$/.exec(text)!;
+    const [, lead = "", body = "", trail = ""] = m;
+    if (fmt.code || fmt.pre !== null || (!lead && !trail)) {
+      out.push(run);
+      return;
+    }
+    const prev = runs[k - 1]?.fmt ?? null;
+    const next = runs[k + 1]?.fmt ?? null;
+    if (!body) {
+      out.push({ ...run, fmt: sharedInline(sharedInline(fmt, prev), next) });
+      return;
+    }
+    if (lead) out.push({ ...run, text: lead, fmt: sharedInline(fmt, prev) });
+    out.push({ ...run, text: body });
+    if (trail) out.push({ ...run, text: trail, fmt: sharedInline(fmt, next) });
+  });
+  return out;
+}
+
 export function escapeText(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -601,14 +645,36 @@ function emit(runs: Run[], target: Target, trailingBreak: boolean): string {
   return out;
 }
 
+/**
+ * Safari (WebKit) copie les espaces en bord de balise comme un espace insécable dans
+ * `<span class="Apple-converted-space">` : collé tel quel, le message garderait des espaces insécables (lignes qui ne
+ * se coupent plus au bon endroit). Un espace seul y redevient un espace ordinaire ; une suite d'espaces (insécable et
+ * espace alternés, pour garder plusieurs espaces) reste telle quelle. Collage seulement.
+ */
+function normalizeAppleSpaces(nodes: HtmlNode[], inside = false): void {
+  for (const n of nodes) {
+    if (n.type === "text") {
+      if (inside && n.text === "\u00a0") n.text = " ";
+      continue;
+    }
+    normalizeAppleSpaces(n.children, inside || hasClass(n, "Apple-converted-space"));
+  }
+}
+
 function runsOf(html: string, source: HtmlSource): Run[] {
   idCounter = 0;
+  const nodes = parseHtml(html);
+  if (source === "paste") normalizeAppleSpaces(nodes);
   return mergeRuns(
-    toRuns(
-      parseHtml(html),
-      source === "paste" ? "collapse" : "pre",
-      source !== "telegram",
-      source === "editor",
+    liftEdgeBreaks(
+      mergeRuns(
+        toRuns(
+          nodes,
+          source === "paste" ? "collapse" : "pre",
+          source !== "telegram",
+          source === "editor",
+        ),
+      ),
     ),
   );
 }

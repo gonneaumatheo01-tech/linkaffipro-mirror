@@ -15,6 +15,7 @@ const row = (dimension: string, date: string, v: Partial<Record<string, number>>
   ftds: v.ftds ?? 0,
   spend: v.spend ?? 0,
   ngr: v.ngr ?? 0,
+  commissions: v.commissions ?? 0,
 });
 
 describe("mini-tendances des campagnes", () => {
@@ -29,14 +30,21 @@ describe("mini-tendances des campagnes", () => {
 
   it("donne une série complète par campagne, 0 les jours sans ligne", () => {
     const t = buildCampaignTrends(["c1", "c2"], days, [
-      row("campaign:c1", "2026-10-07", { approved: 3, ftds: 1, spend: 10, ngr: 25 }),
+      // Le revenu net (25 €) n'entre jamais dans les gains : seules les commissions (25 − 10 = 15 €).
+      row("campaign:c1", "2026-10-07", {
+        approved: 3,
+        ftds: 1,
+        spend: 10,
+        ngr: 900,
+        commissions: 25,
+      }),
       row("campaign:c1", "2026-10-09", { approved: 2, spend: 5.5 }),
     ]);
     expect(t.get("c1")).toEqual({
       members: [3, 0, 2],
       ftds: [1, 0, 0],
       spend: [10, 0, 5.5],
-      profit: [15, 0, -5.5],
+      gains: [15, 0, -5.5],
     });
     expect(t.get("c2")).toEqual(emptyTrend(3));
   });
@@ -53,12 +61,12 @@ describe("mini-tendances des campagnes", () => {
 
   it("additionne deux lignes du même jour et arrondit les montants au centime", () => {
     const t = buildCampaignTrends(["c1"], days, [
-      { ...row("campaign:c1", "2026-10-08", { approved: 1, spend: 0.1, ngr: 0.2 }) },
+      { ...row("campaign:c1", "2026-10-08", { approved: 1, spend: 0.1, commissions: 0.2 }) },
       { ...row("campaign:c1", "2026-10-08", { approved: 1, spend: 0.2 }), date: "2026-10-08" },
     ]);
     expect(t.get("c1")!.members).toEqual([0, 2, 0]);
     expect(t.get("c1")!.spend).toEqual([0, 0.3, 0]);
-    expect(t.get("c1")!.profit).toEqual([0, -0.1, 0]);
+    expect(t.get("c1")!.gains).toEqual([0, -0.1, 0]);
   });
 
   it("une valeur illisible compte pour 0", () => {

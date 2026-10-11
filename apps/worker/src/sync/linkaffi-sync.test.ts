@@ -12,6 +12,10 @@ const h = vi.hoisted(() => {
     clicks: [] as Row[],
     postStats: new Map<string, Row>(),
     recorded: [] as Row[],
+    /** Nos campagnes (offres rattachées) et lignes `stats` importées (phase 10). */
+    ourCampaigns: [] as Row[],
+    dailyStats: [] as Row[],
+    settings: new Map<string, Row>(),
   };
   let seq = 0;
   const id = () => `id${++seq}`;
@@ -27,6 +31,7 @@ const h = vi.hoisted(() => {
           const camp = store.campaigns.find((c) => c.id === row.affiliateCampaignId);
           return camp?.programId === o.programId;
         }
+        if (Array.isArray(o.in)) return (o.in as unknown[]).includes(row[k]);
         if ("postId" in o && k === "click") {
           const click = store.clicks.find((c) => c.id === row.clickId);
           return click?.postId === o.postId;
@@ -79,7 +84,9 @@ const h = vi.hoisted(() => {
 
   const fakePrisma: Record<string, unknown> = {
     // Transaction interactive : en cas d'erreur, joueurs et événements reviennent à leur état d'avant (comme Postgres).
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+    // Forme tableau (requêtes déjà lancées) : attend chacune.
+    $transaction: vi.fn(async (fn: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[]) => {
+      if (Array.isArray(fn)) return Promise.all(fn);
       const players = store.players.map((r) => ({ ...r }));
       const events = store.events.map((r) => ({ ...r }));
       try {
@@ -98,17 +105,54 @@ const h = vi.hoisted(() => {
       const u = w.programId_externalId as Row | undefined;
       return u ? r.programId === u.programId && r.externalId === u.externalId : r.id === w.id;
     }),
-    player: table(store.players, (w) => (r) => {
-      const u = w.affiliateCampaignId_externalPlayerId as Row | undefined;
-      return u
-        ? r.affiliateCampaignId === u.affiliateCampaignId &&
-            r.externalPlayerId === u.externalPlayerId
-        : r.id === w.id;
-    }),
-    playerEvent: table(store.events, (w) => (r) => {
-      const u = w.playerId_externalId as Row | undefined;
-      return u ? r.playerId === u.playerId && r.externalId === u.externalId : r.id === w.id;
-    }),
+    player: {
+      ...table(store.players, (w) => (r) => {
+        const u = w.affiliateCampaignId_externalPlayerId as Row | undefined;
+        return u
+          ? r.affiliateCampaignId === u.affiliateCampaignId &&
+              r.externalPlayerId === u.externalPlayerId
+          : r.id === w.id;
+      }),
+      // Offres qui portent nos joueurs rattachés par sub-ID.
+      groupBy: vi.fn(async () =>
+        [...new Set(store.players.filter((p) => p.clickId).map((p) => p.affiliateCampaignId))].map(
+          (affiliateCampaignId) => ({ affiliateCampaignId }),
+        ),
+      ),
+    },
+    playerEvent: {
+      ...table(store.events, (w) => (r) => {
+        const u = w.playerId_externalId as Row | undefined;
+        return u ? r.playerId === u.playerId && r.externalId === u.externalId : r.id === w.id;
+      }),
+      deleteMany: vi.fn(
+        async (args: { where: { playerId: string; externalId: { in: string[] } } }) => {
+          const keep = store.events.filter(
+            (e) =>
+              !(
+                e.playerId === args.where.playerId &&
+                args.where.externalId.in.includes(e.externalId as string)
+              ),
+          );
+          const count = store.events.length - keep.length;
+          store.events.splice(0, store.events.length, ...keep);
+          return { count };
+        },
+      ),
+    },
+    campaign: { findMany: vi.fn(async () => store.ourCampaigns) },
+    trackingLink: { findMany: vi.fn(async () => []) },
+    affiliateDailyStat: table(store.dailyStats, (w) => (r) => r.externalId === w.externalId),
+    setting: {
+      findUnique: vi.fn(
+        async (args: { where: { key: string } }) => store.settings.get(args.where.key) ?? null,
+      ),
+      upsert: vi.fn(async (args: { where: { key: string }; create: Row; update: Row }) => {
+        const row = { ...(store.settings.get(args.where.key) ?? args.create), ...args.update };
+        store.settings.set(args.where.key, row);
+        return row;
+      }),
+    },
     click: table(store.clicks, (w) => (r) => (w.subId ? r.subId === w.subId : r.id === w.id)),
     syncState: {
       upsert: vi.fn(async (args: { where: { source: string }; create: Row }) => {
@@ -196,12 +240,18 @@ const data: Record<string, Row[]> = {
   deposit_snapshots: [],
   ftd_invalidations: [],
   clicks: [],
+  stats: [],
 };
 const calls: string[] = [];
 const fakeClient = {
   getPage: vi.fn(async (t: string, q: Row) => {
-    calls.push(`${t}?${new URLSearchParams(q as Record<string, string>).toString()}`);
-    const rows = data[t] ?? [];
+    const { eq, ...rest } = q as Row & { eq?: Record<string, string> };
+    const qs = new URLSearchParams(rest as Record<string, string>);
+    for (const [k, v] of Object.entries(eq ?? {})) qs.set(`eq.${k}`, v);
+    calls.push(`${t}?${qs.toString()}`);
+    const rows = (data[t] ?? []).filter((r) =>
+      Object.entries(eq ?? {}).every(([k, v]) => r[k] === v),
+    );
     return { table: t, total: rows.length, offset: 0, limit: 5000, count: rows.length, rows };
   }),
 } as unknown as LinkAffiClient;
@@ -216,6 +266,9 @@ beforeEach(() => {
   store.recorded.length = 0;
   store.syncStates.clear();
   store.postStats.clear();
+  store.ourCampaigns.length = 0;
+  store.dailyStats.length = 0;
+  store.settings.clear();
   calls.length = 0;
   store.clicks.push({ id: "clk1", subId: "AbC123def456", memberId: "mem1", postId: "post1" });
 });
@@ -362,5 +415,217 @@ describe("NGR daté depuis les instantanés revshare (phase 8)", () => {
     expect(ngrEvents()).toEqual([{ amount: 12, occurredAt: "2026-10-06T08:00:00.000Z" }]);
     expect(Number(store.players[0]!.ngr)).toBe(12);
     data.revshare_snapshots = [];
+  });
+});
+
+describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre affilié", () => {
+  const cpaEvents = () =>
+    store.events
+      .filter((e) => e.type === "CPA" || e.type === "CPA_REVERSAL")
+      .map((e) => [e.type, e.amount, (e.occurredAt as Date).toISOString(), e.externalId]);
+
+  it("CPA créditée puis annulée : +70 au crédit, −70 à l'annulation, rien de plus au passage suivant", async () => {
+    const original = data.players![0]!;
+    data.players![0] = {
+      ...original,
+      cpa_status: "approved",
+      cpa_affiliate_amount: 70,
+      cpa_credited_at: "2026-10-04T11:36:48Z",
+      updated_at: "2026-10-04T12:00:00Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-04T12:05:00Z") });
+    expect(cpaEvents()).toEqual([["CPA", 70, "2026-10-04T11:36:48.000Z", "cpa:la1"]]);
+    expect(store.players[0]).toMatchObject({ cpaStatus: "approved", cpaAmount: 70 });
+
+    data.players![0] = {
+      ...data.players![0]!,
+      cpa_status: "reversed",
+      cpa_reversed_at: "2026-10-06T06:17:01Z",
+      updated_at: "2026-10-06T06:17:02Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-06T06:20:00Z") });
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-06T06:30:00Z") });
+    expect(cpaEvents()).toEqual([
+      ["CPA", 70, "2026-10-04T11:36:48.000Z", "cpa:la1"],
+      ["CPA_REVERSAL", -70, "2026-10-06T06:17:01.000Z", "cpa_reversal:la1"],
+    ]);
+    expect(
+      store.recorded.filter((e) => String(e.type).startsWith("player.cpa_")).map((e) => e.type),
+    ).toEqual(["player.cpa_credited", "player.cpa_reversed"]);
+    // Jours à recalculer : le plus ancien touché (le crédit du 4).
+    expect(store.settings.get("stats.daily.dirtySince")?.value).toMatchObject({
+      day: "2026-10-04",
+    });
+    data.players![0] = original;
+  });
+
+  it("stats : seules les lignes de notre affilié sont demandées et importées (une ligne Link Affi = une ligne)", async () => {
+    data.campaigns = [
+      { ...data.campaigns![0]!, affiliate_id: "aff-ours" },
+      {
+        id: "camp2",
+        campaign_key: "zz",
+        name: "Autre",
+        casino_id: "cas1",
+        affiliate_id: "aff-other",
+      },
+    ];
+    data.stats = [
+      {
+        id: "st1",
+        affiliate_id: "aff-ours",
+        casino_id: "cas1",
+        campaign_id: "camp1",
+        date: "2026-10-04",
+        created_at: "2026-10-03T22:02:00Z",
+        revenue: 223.09,
+        cpa_revenue: 210,
+        revshare_revenue: 13.0926,
+      },
+      {
+        id: "st2",
+        affiliate_id: "aff-other",
+        casino_id: "cas1",
+        campaign_id: "camp2",
+        date: "2026-10-04",
+        created_at: "2026-10-03T22:02:00Z",
+        revenue: 500,
+        cpa_revenue: 500,
+        revshare_revenue: 0,
+      },
+    ];
+    // Le joueur rattaché par sub-ID fait de camp1 une offre à nous (et de aff-ours notre affilié).
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+    const statsCalls = calls.filter((c) => c.startsWith("stats?"));
+    expect(statsCalls).toEqual(["stats?order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours"]);
+    expect(
+      store.dailyStats.map((r) => [r.externalId, r.revshareRevenue, r.affiliateCampaignId]),
+    ).toEqual([["st1", 13.0926, store.campaigns[0]!.id]]);
+    expect(store.syncStates.get("stats")).toMatchObject({ isRunning: false, lastError: null });
+    expect(store.syncStates.get("stats")!.cursor).toMatchObject({ affiliates: ["aff-ours"] });
+
+    // Passage suivant : incrémental (jours récents + lignes créées depuis), rien de réimporté en double.
+    calls.length = 0;
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:10:00Z") });
+    expect(calls.filter((c) => c.startsWith("stats?"))).toEqual([
+      "stats?date_col=date&from=2026-10-02&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+      "stats?date_col=created_at&from=2026-10-09&order=created_at&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+    ]);
+    expect(store.dailyStats).toHaveLength(1);
+    data.campaigns = data.campaigns.slice(0, 1).map(({ affiliate_id: _a, ...c }) => c);
+    data.stats = [];
+  });
+
+  it("relecture de nuit : les 35 derniers jours par date, une fois par nuit", async () => {
+    data.campaigns = [{ ...data.campaigns![0]!, affiliate_id: "aff-ours" }];
+    // 1er passage (historique complet) à midi, puis 3 h 30 à Paris le lendemain : relecture profonde.
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+    expect(store.syncStates.get("stats")!.cursor).toMatchObject({
+      deepAt: "2026-10-09T12:00:00.000Z",
+    });
+    calls.length = 0;
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-10T01:30:00Z") });
+    expect(calls.filter((c) => c.startsWith("stats?date_col=date"))).toEqual([
+      "stats?date_col=date&from=2026-09-05&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+    ]);
+    // Même nuit, 10 minutes plus tard : retour aux 7 derniers jours.
+    calls.length = 0;
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-10T01:40:00Z") });
+    expect(calls.filter((c) => c.startsWith("stats?date_col=date"))).toEqual([
+      "stats?date_col=date&from=2026-10-03&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+    ]);
+    data.campaigns = data.campaigns.slice(0, 1).map(({ affiliate_id: _a, ...c }) => c);
+  });
+
+  it("CPA inchangée : aucune lecture des événements du joueur au passage suivant", async () => {
+    const original = data.players![0]!;
+    data.players![0] = {
+      ...original,
+      cpa_status: "approved",
+      cpa_affiliate_amount: 70,
+      cpa_credited_at: "2026-10-04T11:36:48Z",
+      updated_at: "2026-10-04T12:00:00Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-04T12:05:00Z") });
+    const findMany = (h.fakePrisma.playerEvent as { findMany: ReturnType<typeof vi.fn> }).findMany;
+    findMany.mockClear();
+    // Resynchro complète des joueurs : la ligne est relue, sa CPA n'a pas changé.
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-04T12:15:00Z"), full: true });
+    const cpaReads = findMany.mock.calls.filter((c) =>
+      JSON.stringify(c[0]?.where ?? {}).includes("CPA_REVERSAL"),
+    );
+    expect(cpaReads).toEqual([]);
+    expect(cpaEvents()).toEqual([["CPA", 70, "2026-10-04T11:36:48.000Z", "cpa:la1"]]);
+    data.players![0] = original;
+  });
+
+  it("crédité, annulé puis crédité de nouveau : +70 / −70 / +70, l'ancien couple est gardé", async () => {
+    const original = data.players![0]!;
+    const credited = {
+      ...original,
+      cpa_status: "approved",
+      cpa_affiliate_amount: 70,
+      cpa_credited_at: "2026-10-01T10:00:00Z",
+      updated_at: "2026-10-01T10:00:00Z",
+    };
+    data.players![0] = credited;
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-01T10:05:00Z") });
+    data.players![0] = {
+      ...credited,
+      cpa_status: "reversed",
+      cpa_reversed_at: "2026-10-05T10:00:00Z",
+      updated_at: "2026-10-05T10:00:00Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-05T10:05:00Z") });
+    data.players![0] = {
+      ...credited,
+      cpa_credited_at: "2026-10-10T10:00:00Z",
+      cpa_reversed_at: null,
+      updated_at: "2026-10-10T10:00:00Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-10T10:05:00Z") });
+    expect(cpaEvents().sort((a, b) => (String(a[3]) < String(b[3]) ? -1 : 1))).toEqual([
+      ["CPA", 70, "2026-10-10T10:00:00.000Z", "cpa:la1"],
+      ["CPA", 70, "2026-10-01T10:00:00.000Z", "cpa:la1:1"],
+      ["CPA_REVERSAL", -70, "2026-10-05T10:00:00.000Z", "cpa_reversal:la1:1"],
+    ]);
+    expect(
+      store.recorded.filter((e) => String(e.type).startsWith("player.cpa_")).map((e) => e.type),
+    ).toEqual(["player.cpa_credited", "player.cpa_reversed", "player.cpa_credited"]);
+    data.players![0] = original;
+  });
+
+  it("joueur d'un autre affilié (ni clic ni offre à nous) : commission gardée, aucune entrée de journal", async () => {
+    const original = data.players![0]!;
+    data.players![0] = {
+      ...original,
+      sub_id: null,
+      cpa_status: "approved",
+      cpa_affiliate_amount: 500,
+      cpa_credited_at: "2026-10-04T11:36:48Z",
+      updated_at: "2026-10-04T12:00:00Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-04T12:05:00Z") });
+    expect(cpaEvents()).toEqual([["CPA", 500, "2026-10-04T11:36:48.000Z", "cpa:la1"]]);
+    expect(store.recorded.filter((e) => String(e.type).startsWith("player.cpa_"))).toEqual([]);
+    // La même offre rattachée à une de nos campagnes : le joueur devient le nôtre, sa prochaine commission est
+    // journalisée.
+    store.ourCampaigns.push({ affiliateCampaignIds: [store.campaigns[0]!.id] });
+    data.players![0] = {
+      ...data.players![0]!,
+      cpa_status: "reversed",
+      cpa_reversed_at: "2026-10-06T06:17:01Z",
+      updated_at: "2026-10-06T06:17:02Z",
+    };
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-06T06:20:00Z") });
+    expect(
+      store.recorded.filter((e) => String(e.type).startsWith("player.cpa_")).map((e) => e.type),
+    ).toEqual(["player.cpa_reversed"]);
+    data.players![0] = original;
+  });
+
+  it("garde la table de taux Link Affi pour la reprise des gains", async () => {
+    await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+    expect(store.settings.get("linkaffi.currencyRates")?.value).toEqual({ EUR: 1 });
   });
 });

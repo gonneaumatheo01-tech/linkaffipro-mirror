@@ -41,7 +41,7 @@ describe("Prochains messages", () => {
 describe("Campagnes actives", () => {
   const row = (
     id: string,
-    profit: number,
+    gains: number,
     extra: Partial<CampaignRowLike> = {},
     spend = 10,
   ): CampaignRowLike => ({
@@ -50,11 +50,11 @@ describe("Campagnes actives", () => {
     vertical: "CASINO",
     status: "ACTIVE",
     importedFrom: null,
-    metrics: { spend, members: 3, profit },
+    metrics: { spend, members: 3, gains },
     ...extra,
   });
 
-  it("seulement les actives, hors campagnes pub importées, les plus rentables d'abord", () => {
+  it("seulement les actives, hors campagnes pub importées, les plus gros gains d'abord", () => {
     const { rows, total } = activeCampaigns([
       row("a", 50),
       row("b", -20),
@@ -71,7 +71,7 @@ describe("Campagnes actives", () => {
       vertical: "CASINO",
       spend: 10,
       members: 3,
-      profit: 300,
+      gains: 300,
     });
   });
 

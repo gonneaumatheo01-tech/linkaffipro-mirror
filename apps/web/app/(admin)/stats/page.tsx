@@ -14,7 +14,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
   activeSummary,
-  comparableDelta,
+  beforeHint,
+  comparableVariation,
   dayLabels,
   fmtMetric,
   fmtMetricExact,
@@ -24,7 +25,6 @@ import {
   type MetricKey,
 } from "@/lib/dashboard/display";
 import { loadLastEvents, type LastEvent } from "@/lib/dashboard/events";
-import { deltaPct } from "@/lib/dashboard/metrics";
 import { loadDashboard, type ChannelRow, type DashboardData } from "@/lib/dashboard/queries";
 import { loadStatsOptions } from "@/lib/dashboard/stats-options";
 import { parseStatsFilters, statsHref } from "@/lib/dashboard/stats-pages";
@@ -90,6 +90,9 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
     return metrics.map((m) => {
       const v = overviewLabel(m.key);
       const key = m.key as MetricKey;
+      const variation = f.compare
+        ? comparableVariation(m.series.total, prevTotal(m.key))
+        : undefined;
       return (
         <StatCard
           key={m.key}
@@ -102,14 +105,15 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
               fmt(key, m.series.total)
             )
           }
-          delta={
-            f.compare
-              ? comparableDelta(deltaPct(m.series.total, prevTotal(m.key)), prevTotal(m.key))
-              : undefined
-          }
+          variation={variation}
           favorable={v.favorable}
           comparison="vs période précédente"
-          hint={f.compare ? `Avant : ${fmt(key, prevTotal(m.key))}` : undefined}
+          // « Avant : X » sauf avec « nouveau » (« rien la période précédente » le dit déjà).
+          hint={
+            [beforeHint(variation, fmt(key, prevTotal(m.key))), m.note ?? null]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
           trend={multiDay ? m.series.values : undefined}
         />
       );
@@ -133,8 +137,8 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
   const channelRows: DataTableRow[] = dash.channels.map((r) => {
     const p = prevChannel(r.channelId);
     const before = (k: (typeof CHANNEL_DETAIL)[number]) => p?.[k] ?? 0;
-    const delta = (k: (typeof CHANNEL_DETAIL)[number]) =>
-      f.compare ? comparableDelta(deltaPct(r[k], before(k)), before(k)) : undefined;
+    const variation = (k: (typeof CHANNEL_DETAIL)[number]) =>
+      f.compare ? comparableVariation(r[k], before(k)) : undefined;
     const figures: DetailFigure[] = CHANNEL_DETAIL.map((k) => {
       const v = overviewLabel(k);
       return {
@@ -143,7 +147,7 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
         term: v.term,
         value: fmtMetric(k, r[k]),
         previous: f.compare ? fmtMetric(k, before(k)) : undefined,
-        delta: f.compare ? (delta(k) ?? null) : undefined,
+        variation: variation(k),
         favorable: v.favorable,
       };
     });
@@ -153,11 +157,13 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
       detailDescription: periodLabel(f.period),
       cells: {
         name: r.title,
-        joined: <NumCell value={fmtNum(r.joined)} delta={delta("joined")} />,
-        registrations: <NumCell value={fmtNum(r.registrations)} delta={delta("registrations")} />,
-        ftds: <NumCell value={fmtNum(r.ftds)} delta={delta("ftds")} />,
+        joined: <NumCell value={fmtNum(r.joined)} variation={variation("joined")} />,
+        registrations: (
+          <NumCell value={fmtNum(r.registrations)} variation={variation("registrations")} />
+        ),
+        ftds: <NumCell value={fmtNum(r.ftds)} variation={variation("ftds")} />,
         depositAmount: (
-          <NumCell value={depositMoney(r.depositAmount)} delta={delta("depositAmount")} />
+          <NumCell value={depositMoney(r.depositAmount)} variation={variation("depositAmount")} />
         ),
       },
       sortValues: {
@@ -262,7 +268,7 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
         id="stats-money"
         className="mb-8"
         title="Argent"
-        description="Des clics sur vos pubs jusqu'au revenu net de vos joueurs."
+        description="Des clics sur vos pubs jusqu'à vos gains : commissions moins dépense pub. Les dépôts et le revenu net sont l'argent du casino, ils ne s'y ajoutent pas."
       >
         <div className={cn("grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3", STAT_GRID_PHONE)}>
           {cards("argent")}

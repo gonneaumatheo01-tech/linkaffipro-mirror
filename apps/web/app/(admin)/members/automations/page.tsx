@@ -19,7 +19,24 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { groupRulesByCard } from "@/lib/automations/cards";
 import { describeConditions } from "@/lib/automations/describe";
-import { loadEditorOptions, loadNames, loadRuleCounters } from "@/lib/automations/queries";
+import {
+  loadEditorOptions,
+  loadNames,
+  loadResultsTrackingStart,
+  loadRuleCounters,
+  loadRuleResults,
+} from "@/lib/automations/queries";
+import { storedRuleHasOfferButton } from "@/lib/automations/offer-buttons";
+import {
+  EMPTY_RESULTS,
+  hasResults,
+  resultsSentence,
+  resultsSince,
+  resultsSinceLabel,
+  showsAttribution,
+  type RuleResults,
+} from "@/lib/automations/results";
+import { compactMoney } from "@/lib/campaigns/cards";
 import { fmtNum, fmtRelative } from "@/lib/format";
 import { saveCardAction, testRuleOnMeAction, toggleRuleAction } from "./actions";
 
@@ -40,14 +57,14 @@ function pathText(
 /** Ce qui lance la relance, avec les mêmes mots que l'éditeur (« A quitté un canal »). */
 const triggerText = (t: string) => AUTOMATION_TRIGGER_LABELS[t as AutomationTriggerKey] ?? t;
 
-/** Activité de la semaine en une ligne (« 12 envois · 3 clics », « Jamais lancée »). */
+/** Activité de la semaine en une ligne (« Cette semaine : 12 envois · 3 clics », « Jamais lancée »). */
 function weekText(
   c: { sent: number; clicked: number } | undefined,
   lastRunAt: Date | null,
   now: Date,
 ): string {
   if (c?.sent)
-    return `${fmtNum(c.sent)} envoi${c.sent > 1 ? "s" : ""} · ${fmtNum(c.clicked)} clic${c.clicked > 1 ? "s" : ""}`;
+    return `Cette semaine : ${fmtNum(c.sent)} envoi${c.sent > 1 ? "s" : ""} · ${fmtNum(c.clicked)} clic${c.clicked > 1 ? "s" : ""}`;
   return lastRunAt ? `Dernière fois ${fmtRelative(lastRunAt, now)}` : "Jamais lancée";
 }
 
@@ -59,10 +76,21 @@ export default async function AutomationsPage({ searchParams }: PageProps<"/memb
     loadNames(),
     loadEditorOptions(),
   ]);
-  const counters = await loadRuleCounters(
-    rules.map((r) => r.id),
-    now,
-  );
+  const ruleIds = rules.map((r) => r.id);
+  const [counters, results, trackingStart] = await Promise.all([
+    loadRuleCounters(ruleIds, now),
+    loadRuleResults(ruleIds),
+    loadResultsTrackingStart(),
+  ]);
+  /** Résultats d'une relance : chiffres, attribution (bouton Offre) et période comptée. */
+  const resultsOf = (r: { id: string; createdAt: Date; actions: unknown; graph: unknown }) => {
+    const values: RuleResults = results[r.id] ?? EMPTY_RESULTS;
+    return {
+      values,
+      attribution: showsAttribution(values, storedRuleHasOfferButton(r)),
+      label: resultsSinceLabel(resultsSince(r.createdAt, trackingStart), now),
+    };
+  };
   const { cards, custom } = groupRulesByCard(rules);
   const summary = (r: { id: string; name: string; isActive: boolean }) => ({
     id: r.id,
@@ -104,19 +132,29 @@ export default async function AutomationsPage({ searchParams }: PageProps<"/memb
           </p>
         </div>
         <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-          {cards.map((c) => (
-            <AutomationCard
-              key={c.key}
-              cardKey={c.key}
-              rule={c.rule ? summary(c.rule) : null}
-              settings={c.settings}
-              others={c.others.map(summary)}
-              counter={c.rule ? counters[c.rule.id] : undefined}
-              channelNames={names.channels}
-              options={{ channels: options.channels, bots: options.bots, media: options.media }}
-              actions={{ save: saveCardAction, toggle: toggleRuleAction, test: testRuleOnMeAction }}
-            />
-          ))}
+          {cards.map((c) => {
+            const res = c.rule ? resultsOf(c.rule) : null;
+            return (
+              <AutomationCard
+                key={c.key}
+                cardKey={c.key}
+                rule={c.rule ? summary(c.rule) : null}
+                settings={c.settings}
+                others={c.others.map(summary)}
+                counter={c.rule ? counters[c.rule.id] : undefined}
+                results={res?.values}
+                attribution={res?.attribution}
+                resultsLabel={res?.label}
+                channelNames={names.channels}
+                options={{ channels: options.channels, bots: options.bots, media: options.media }}
+                actions={{
+                  save: saveCardAction,
+                  toggle: toggleRuleAction,
+                  test: testRuleOnMeAction,
+                }}
+              />
+            );
+          })}
         </div>
       </section>
 
@@ -148,10 +186,14 @@ export default async function AutomationsPage({ searchParams }: PageProps<"/memb
               { key: "when", header: "Quand", hideOnMobile: true },
               { key: "path", header: "Parcours", hideOnMobile: true, sortable: false },
               { key: "status", header: "Statut", sortable: false, hideOnMobile: true },
-              { key: "week", header: "Cette semaine", hideOnMobile: true, sortable: false },
+              { key: "week", header: "Résultats", hideOnMobile: true, sortable: false },
             ]}
             rows={custom.map((r) => {
               const c = counters[r.id];
+              const res = resultsOf(r);
+              const total = hasResults(res.values)
+                ? resultsSentence(res.values, compactMoney, { attribution: res.attribution })
+                : null;
               return {
                 id: r.id,
                 href: `/members/automations/${r.id}`,
@@ -185,7 +227,16 @@ export default async function AutomationsPage({ searchParams }: PageProps<"/memb
                     </span>
                   ),
                   status: <RuleStatusPill active={r.isActive} />,
-                  week: <span className="text-note">{weekText(c, r.lastRunAt, now)}</span>,
+                  week: (
+                    <span className="block min-w-0 whitespace-normal text-note">
+                      {weekText(c, r.lastRunAt, now)}
+                      {total ? (
+                        <span className="block text-muted-foreground">
+                          {res.label} : {total}
+                        </span>
+                      ) : null}
+                    </span>
+                  ),
                 },
                 sortValues: { name: r.name },
               };

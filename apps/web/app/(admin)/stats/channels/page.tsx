@@ -16,16 +16,16 @@ import { cn } from "@/components/ui/cn";
 import { campaignScope } from "@/lib/dashboard/campaign-scope";
 import { loadBestTimes, loadChannelGrowth, type ChannelDaily } from "@/lib/dashboard/daily";
 import {
-  comparableDelta,
+  beforeHint,
   dayLabels,
   fmtSigned,
+  growthVariation,
   hourBars,
   perPostText,
   postsClicksNote,
   sumSeries,
   trendOrNone,
 } from "@/lib/dashboard/display";
-import { deltaPct } from "@/lib/dashboard/metrics";
 import { loadStatsOptions } from "@/lib/dashboard/stats-options";
 import { parseStatsFilters } from "@/lib/dashboard/stats-pages";
 import { fmtNum } from "@/lib/format";
@@ -82,17 +82,16 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
     : "/messages";
 
   const rows: DataTableRow[] = growth.map((g) => {
-    // Croissance nette d'avant négative : pas de pourcentage (son signe serait trompeur), voir comparableDelta.
+    // Règle unique (`growthVariation`) : « nouveau » quand la période d'avant valait 0, rien si les deux valent 0, pas
+    // de pourcentage sur une croissance nette d'avant négative (son signe serait trompeur).
     const d = (k: Figure) =>
-      f.compare && g.previous
-        ? comparableDelta(deltaPct(valueOf(g, k), valueOf(g.previous, k)), valueOf(g.previous, k))
-        : undefined;
+      growthVariation(valueOf(g, k), g.previous ? valueOf(g.previous, k) : null, f.compare);
     const figures: DetailFigure[] = FIGURES.map((x) => ({
       key: x.key,
       label: x.label,
       value: fmtFigure(x.key, valueOf(g, x.key)),
       previous: f.compare && g.previous ? fmtFigure(x.key, valueOf(g.previous, x.key)) : undefined,
-      delta: f.compare ? (d(x.key) ?? null) : undefined,
+      variation: f.compare ? (d(x.key) ?? { kind: "unknown" }) : undefined,
       favorable: x.favorable,
     }));
     return {
@@ -112,11 +111,11 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
           ) : (
             <span className="text-muted-foreground">—</span>
           ),
-        joined: <NumCell value={fmtNum(g.joined)} delta={d("joined")} />,
-        left: <NumCell value={fmtNum(g.left)} delta={d("left")} favorable="down" />,
+        joined: <NumCell value={fmtNum(g.joined)} variation={d("joined")} />,
+        left: <NumCell value={fmtNum(g.left)} variation={d("left")} favorable="down" />,
         net: (
           <span className={cn(valueOf(g, "net") < 0 && "text-danger")}>
-            <NumCell value={fmtSigned(valueOf(g, "net"))} delta={d("net")} />
+            <NumCell value={fmtSigned(valueOf(g, "net"))} variation={d("net")} />
           </span>
         ),
       },
@@ -166,21 +165,21 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
 
       <section aria-label="Chiffres clés des canaux" className="mb-8">
         <div className={cn("grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4", STAT_GRID_PHONE)}>
-          {FIGURES.map((x) => (
-            <StatCard
-              key={x.key}
-              label={x.label}
-              value={fmtFigure(x.key, sum(x.key))}
-              delta={
-                f.compare
-                  ? comparableDelta(deltaPct(sum(x.key), prevSum(x.key)), prevSum(x.key))
-                  : undefined
-              }
-              favorable={x.favorable}
-              hint={f.compare ? `Avant : ${fmtFigure(x.key, prevSum(x.key))}` : undefined}
-              trend={x.key === "net" && multiDay ? net : undefined}
-            />
-          ))}
+          {FIGURES.map((x) => {
+            const variation = growthVariation(sum(x.key), prevSum(x.key), f.compare);
+            return (
+              <StatCard
+                key={x.key}
+                label={x.label}
+                value={fmtFigure(x.key, sum(x.key))}
+                variation={variation}
+                favorable={x.favorable}
+                // « Avant : X » sauf avec « nouveau » (« rien la période précédente » le dit déjà).
+                hint={beforeHint(variation, fmtFigure(x.key, prevSum(x.key))) ?? undefined}
+                trend={x.key === "net" && multiDay ? net : undefined}
+              />
+            );
+          })}
         </div>
       </section>
 

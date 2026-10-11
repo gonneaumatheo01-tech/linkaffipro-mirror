@@ -63,7 +63,7 @@ export type CampaignRowLike = {
   vertical: string | null;
   status: string;
   importedFrom: string | null;
-  metrics: { spend: number; members: number; profit: number };
+  metrics: { spend: number; members: number; gains: number };
 };
 
 export type ActiveCampaign = {
@@ -72,7 +72,8 @@ export type ActiveCampaign = {
   vertical: string | null;
   spend: number;
   members: number;
-  profit: number;
+  /** Gains = commissions − dépense pub (définition unique). */
+  gains: number;
 };
 
 /** Campagnes listées sur l'accueil. */
@@ -80,7 +81,7 @@ export const HOME_CAMPAIGNS = 5;
 
 /**
  * Campagnes actives (statut « Active », hors campagnes pub importées pas encore rattachées), celles qui rapportent le
- * plus d'abord (bénéfice = revenu net − dépense, définition des campagnes), puis par dépense et par nom.
+ * plus d'abord (gains = commissions − dépense pub, la définition unique), puis par dépense et par nom.
  */
 export function activeCampaigns(
   rows: readonly CampaignRowLike[],
@@ -94,8 +95,8 @@ export function activeCampaigns(
       vertical: r.vertical,
       spend: r.metrics.spend,
       members: r.metrics.members,
-      profit: r.metrics.profit,
+      gains: r.metrics.gains,
     }))
-    .sort((a, b) => b.profit - a.profit || b.spend - a.spend || a.name.localeCompare(b.name, "fr"));
+    .sort((a, b) => b.gains - a.gains || b.spend - a.spend || a.name.localeCompare(b.name, "fr"));
   return { rows: sorted.slice(0, limit), total: active.length };
 }

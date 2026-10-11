@@ -15,6 +15,7 @@ import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin, requireUser, type CurrentUser } from "@/lib/session";
 import { buildCardRule, CardInputError, cardSettingsFromForm } from "@/lib/automations/cards";
 import { actionsFromForm, conditionsFromForm } from "@/lib/automations/form";
+import { assertRuleOfferButtons } from "@/lib/automations/offer-buttons";
 import {
   pendingStepRemap,
   readEditorRule,
@@ -153,6 +154,8 @@ async function persistRule(
     };
     form = stored.graph ? "graph" : "list";
     savedActions = stored.actions;
+    // Boutons « Offre (campagne) » : campagne et offre vérifiées avant toute écriture.
+    await assertRuleOfferButtons({ actions: stored.actions, graph: stored.graph ?? r.graph });
   } else {
     const r = readListRule(fd);
     data = {
@@ -166,6 +169,7 @@ async function persistRule(
     };
     form = "list";
     savedActions = r.actions;
+    await assertRuleOfferButtons({ actions: r.actions, graph: null });
   }
 
   if (previous) {
@@ -270,6 +274,8 @@ export async function saveCardAction(formData: FormData): Promise<SaveResult> {
     if (ruleId && !existing)
       return { ok: false, error: "Relance introuvable : elle a peut-être été supprimée." };
     const built = buildCardRule(key, settings, existing);
+    // Bouton « Offre (campagne) » : campagne et offre vérifiées avant toute écriture.
+    await assertRuleOfferButtons(built);
     const data = {
       trigger: built.trigger,
       conditions: toJsonValue(built.conditions),

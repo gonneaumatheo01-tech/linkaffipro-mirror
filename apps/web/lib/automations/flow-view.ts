@@ -139,9 +139,63 @@ export function usedExits(d: Draft): Set<string> {
   return new Set(d.edges.map((e) => `${e.source}:${e.sourceHandle}`));
 }
 
-/** Classe d'un bloc dans la mini-carte (couleur du type, rouge s'il est à corriger). */
+/**
+ * Classe d'un bloc dans la mini-carte : couleurs du thème de son type (fond pâle et bordure de la pastille du bloc,
+ * `flow.css`), rouge seulement s'il est à corriger.
+ */
 export function miniMapClass(type: GraphNodeType, invalid: boolean): string {
   return invalid ? "is-invalid" : `is-${type}`;
+}
+
+/**
+ * Arrondi des blocs de la mini-carte (12 px du canevas, comme les blocs). La bordure, elle, est dans `flow.css` :
+ * 1,5 px à l'écran quelle que soit la réduction (`vector-effect: non-scaling-stroke`).
+ */
+export const MINIMAP_NODE_RADIUS = 12;
+
+export type Rect = { x: number; y: number; width: number; height: number };
+
+export type Box = { width: number; height: number };
+
+/** Cadres maximaux de la mini-carte : grand canevas (dès 720 px) et canevas moyen (dès 480 px). */
+export const MINIMAP_LARGE: Box = { width: 140, height: 168 };
+export const MINIMAP_SMALL: Box = { width: 120, height: 144 };
+/** Cadre minimal : assez large pour une colonne de blocs lisible, assez haut pour un parcours tout en largeur. */
+const MINIMAP_MIN: Box = { width: 96, height: 72 };
+
+/**
+ * Taille de la mini-carte à la forme du parcours (blocs mesurés), dans le cadre `max` : en hauteur pour un parcours
+ * vertical (le cas courant), en largeur pour des branches côte à côte. Un cadre fixe en paysage réduisait une longue
+ * colonne de blocs à des traits de 10 × 3 px. La taille ne dépend que des blocs (pas de la vue) : elle ne bouge pas
+ * quand on fait défiler le canevas. null tant que rien n'est mesuré.
+ */
+export function minimapBox(rects: readonly Rect[], max: Box): Box | null {
+  if (rects.length === 0) return null;
+  const width = Math.max(...rects.map((r) => r.x + r.width)) - Math.min(...rects.map((r) => r.x));
+  const height = Math.max(...rects.map((r) => r.y + r.height)) - Math.min(...rects.map((r) => r.y));
+  if (width <= 0 || height <= 0) return null;
+  const ratio = width / height;
+  const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
+  if (ratio >= max.width / max.height)
+    return { width: max.width, height: clamp(max.width / ratio, MINIMAP_MIN.height, max.height) };
+  return { width: clamp(max.height * ratio, MINIMAP_MIN.width, max.width), height: max.height };
+}
+
+/**
+ * La mini-carte n'aide que si le parcours ne tient pas à l'écran : vrai si ses blocs (marges de `padding` comprises)
+ * dépassent le canevas à l'échelle 1 (l'échelle maximale de « Tout voir »). Faux tant que rien n'est mesuré.
+ */
+export function minimapNeeded(
+  rects: readonly Rect[],
+  canvas: { width: number; height: number },
+  padding = 40,
+): boolean {
+  if (rects.length === 0 || canvas.width <= 0 || canvas.height <= 0) return false;
+  const minX = Math.min(...rects.map((r) => r.x));
+  const minY = Math.min(...rects.map((r) => r.y));
+  const maxX = Math.max(...rects.map((r) => r.x + r.width));
+  const maxY = Math.max(...rects.map((r) => r.y + r.height));
+  return maxX - minX + 2 * padding > canvas.width || maxY - minY + 2 * padding > canvas.height;
 }
 
 /** Tailles mesurées par le canevas, pour poser un bloc neuf sans recouvrir les autres. */

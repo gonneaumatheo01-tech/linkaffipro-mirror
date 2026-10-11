@@ -19,7 +19,8 @@ function valid(pct: number | null | undefined): pct is number {
 
 /**
  * Plafond d'affichage d'une variation : au-delà, « > +999 % » (un « +18 661 % » n'apprend rien de plus et casse la
- * carte). Le calcul ne change pas ; seule la présentation est bornée.
+ * carte). Le calcul ne change pas ; seule la présentation est bornée. Il ne s'applique que sur une base non nulle :
+ * depuis 0, la variation s'écrit « nouveau » (`variationBetween`).
  */
 export const VARIATION_CAP = 999;
 
@@ -62,6 +63,98 @@ export function variationSummary(pct: number | null | undefined, comparison: str
   if (capped(r)) return `${direction} de plus de ${VARIATION_CAP} %${tail}`;
   const abs = Math.abs(r).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
   return `${direction} de ${abs} %${tail}`;
+}
+
+/**
+ * Variation prête à afficher, d'après la valeur ET sa base (hier, période précédente). Règle unique des cartes de
+ * chiffres (accueil, campagnes, statistiques) :
+ * - base non nulle : pourcentage (`pct`), affiché plafonné à ±999 % (`formatVariation`) ;
+ * - base nulle, valeur non nulle : « nouveau » (`new`) : un pourcentage depuis 0 n'a pas de sens (« > +999 % ») ;
+ * - les deux nulles : rien à afficher (`none`) ;
+ * - valeur ou base inconnue, ou pourcentage écarté par la page : « Pas de comparaison possible » (`unknown`).
+ */
+export type Variation =
+  | { kind: "pct"; pct: number }
+  | { kind: "new"; direction: "up" | "down" }
+  | { kind: "none" }
+  | { kind: "unknown" };
+
+/**
+ * En dessous d'un demi-centime, une valeur compte comme nulle : elle s'affiche « 0 € » (ou « 0 ») et un pourcentage
+ * calculé dessus serait énorme. Sans effet sur les nombres entiers (membres, premiers dépôts…).
+ */
+export const ZERO_EPSILON = 0.005;
+
+function isZero(v: number): boolean {
+  return Math.abs(v) < ZERO_EPSILON;
+}
+
+/**
+ * Variation de `previous` à `current`. `pct` : pourcentage déjà calculé par la page (ex. `deltaPct`, ou null quand
+ * la page l'écarte, comme une base négative) ; absent, il est calculé ici sur la valeur absolue de la base (des gains
+ * qui passent de −50 € à +20 € montent : +140 %), à une décimale. La base nulle prime toujours sur `pct`.
+ */
+export function variationBetween(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+  pct?: number | null,
+): Variation {
+  if (!valid(current) || !valid(previous)) return { kind: "unknown" };
+  if (isZero(previous)) {
+    if (isZero(current)) return { kind: "none" };
+    return { kind: "new", direction: current > 0 ? "up" : "down" };
+  }
+  const p =
+    pct === undefined ? Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10 : pct;
+  if (!valid(p)) return { kind: "unknown" };
+  return { kind: "pct", pct: p };
+}
+
+/** Texte visible : « +12,5 % », « > +999 % », « nouveau », « — » (pas de comparaison), « » (rien à afficher). */
+export function variationLabel(v: Variation): string {
+  if (v.kind === "pct") return formatVariation(v.pct);
+  if (v.kind === "new") return "nouveau";
+  if (v.kind === "none") return "";
+  return "—";
+}
+
+/** Couleur : celle du pourcentage ; « nouveau » suit le même sens favorable (une dépense qui apparaît est en rouge). */
+export function variationToneOf(v: Variation, favorable: Favorable): VariationTone {
+  if (v.kind === "pct") return variationTone(v.pct, favorable);
+  if (v.kind !== "new" || favorable === "none") return "neutral";
+  const good = favorable === "up" ? v.direction === "up" : v.direction === "down";
+  return good ? "positive" : "negative";
+}
+
+/** Flèche à dessiner : hausse, baisse, stable (« 0 % »), aucune (rien à afficher, pas de comparaison). */
+export function variationArrow(v: Variation): "up" | "down" | "flat" | null {
+  if (v.kind === "new") return v.direction;
+  if (v.kind !== "pct") return null;
+  const r = rounded(v.pct);
+  return r === 0 ? "flat" : r > 0 ? "up" : "down";
+}
+
+/**
+ * « rien hier », « rien la période précédente »… d'après la fin de phrase de la comparaison (« vs hier »,
+ * « vs période précédente »). Sans comparaison : « rien avant ».
+ */
+export function nothingBefore(comparison: string): string {
+  const rest = comparison.replace(/^\s*vs\.?\s+/i, "").trim();
+  if (!rest) return "rien avant";
+  if (/^(période|semaine|journée|veille)\b/i.test(rest)) return `rien la ${rest}`;
+  if (/^mois\b/i.test(rest)) return `rien le ${rest}`;
+  return `rien ${rest}`;
+}
+
+/**
+ * Phrase des lecteurs d'écran : « En hausse de 12,5 % vs hier », « Nouveau : rien hier », « Pas de comparaison
+ * possible » ; vide quand il n'y a rien à afficher.
+ */
+export function variationSentence(v: Variation, comparison: string): string {
+  if (v.kind === "pct") return variationSummary(v.pct, comparison);
+  if (v.kind === "new") return `Nouveau : ${nothingBefore(comparison)}`;
+  if (v.kind === "none") return "";
+  return "Pas de comparaison possible";
 }
 
 export type SparklinePath = {

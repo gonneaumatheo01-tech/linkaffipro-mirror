@@ -157,6 +157,8 @@ export const STATUS_DICT = {
     DEPOSIT: ok("Dépôt"),
     REDEPOSIT: ok("Nouveau dépôt"),
     NGR: { ...plain("Revenu net"), term: "NGR" },
+    CPA: { ...ok("Commission versée"), term: "commission CPA" },
+    CPA_REVERSAL: { ...warn("Commission annulée"), term: "commission CPA annulée" },
     OTHER: muted("Autre"),
   } satisfies Record<PlayerEventType, StatusEntry>,
   affiliateSource: {

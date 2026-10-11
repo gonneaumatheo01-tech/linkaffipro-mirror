@@ -8,6 +8,7 @@ import {
   type AiKind,
   type AiRequest,
   type AiRiskNotice,
+  type AiSurface,
 } from "./types";
 
 /** Repères que le modèle doit laisser intacts. */
@@ -46,7 +47,7 @@ export function buildRulesBlock(notice: AiRiskNotice): string {
     '- HTML Telegram uniquement : <b>, <i>, <u>, <s>, <a href="https://…">, <code>, <tg-spoiler>. Aucune autre balise, pas de Markdown, pas de titres #.',
     "- Échappe les caractères « < », « > » et « & » qui ne font pas partie d'une balise (&lt; &gt; &amp;).",
     `- Longueur du texte visible : au plus ${TELEGRAM_CAPTION_MAX} caractères si le message accompagne un média, ${TELEGRAM_TEXT_MAX} sinon (la limite exacte est rappelée dans la demande).`,
-    "- Les repères entre accolades comme {prenom}, {canal}, {offre}, {bot}, {delai} sont remplacés automatiquement à l'envoi : recopie-les exactement, sans les traduire ni les modifier, et n'en invente pas de nouveaux.",
+    "- Repères entre accolades ({prenom}, {canal}, {bot}, {delai}, {liste_canaux}) : ils sont remplacés à l'envoi uniquement dans les messages privés envoyés par le bot (textes du bot, relances automatiques, envois groupés), jamais dans un message de canal ni dans un modèle de message de canal, où ils partiraient tels quels. {offre} n'est remplacé nulle part : ne le propose jamais (le bouton de l'offre est déjà sous le message). N'ajoute un repère que si la demande indique qu'il est remplacé à cet endroit ; ceux du brouillon, recopie-les exactement, sans les traduire ni les modifier, et n'en invente pas de nouveaux.",
     "- Les liens (URL et balises <a>) du brouillon doivent tous être conservés tels quels. N'ajoute jamais de lien qui n'est pas dans le brouillon.",
     "- Les émojis sont bienvenus avec modération (0 à 3), jamais en début de chaque ligne.",
     "- Sauts de ligne : retours à la ligne simples, un paragraphe = une idée.",
@@ -72,6 +73,30 @@ export function buildExamplesBlock(examples: AiExample[] | undefined): string | 
   ].join("\n\n");
 }
 
+/**
+ * Repères réellement remplacés à l'envoi, par écran (null : aucun). Seuls les messages privés du bot sont
+ * personnalisés : textes du bot (packages/telegram/src/join-flow/texts.ts), relances automatiques
+ * (apps/worker/src/automations/executor.ts), envois à un groupe (apps/worker/src/broadcasts/personalize.ts). Un
+ * message de canal et ses modèles partent tels quels : un {prenom} y resterait écrit.
+ */
+export const PLACEHOLDERS_BY_SURFACE: Record<AiSurface, readonly string[] | null> = {
+  post: null,
+  template: null,
+  bot_text: ["{prenom}", "{canal}", "{liste_canaux}", "{delai}", "{bot}"],
+  automation: ["{prenom}", "{canal}", "{bot}"],
+  broadcast: ["{prenom}", "{bot}"],
+};
+
+/** Ligne « Repères » de la demande : ce qui est remplacé à cet endroit, ou l'interdiction d'en ajouter. */
+function placeholdersLine(surface: AiSurface | null | undefined): string {
+  if (!surface)
+    return "Repères : on ne sait pas où ce message sera envoyé : n'ajoute aucun repère entre accolades.";
+  const list = PLACEHOLDERS_BY_SURFACE[surface];
+  if (!list)
+    return "Repères : aucun n'est remplacé dans un message de canal ({prenom}, {canal}, {offre}… y partiraient tels quels) : n'ajoute aucun repère entre accolades ; écris les vrais mots.";
+  return `Repères remplacés à l'envoi ici : ${list.join(", ")}. N'en utilise pas d'autre.`;
+}
+
 const KIND_INSTRUCTIONS: Record<AiKind, string> = {
   improve:
     "Améliore ce brouillon : plus clair, plus engageant, mieux structuré, en gardant son intention. Propose exactement 3 versions avec des angles différents.",
@@ -93,6 +118,7 @@ function describeContext(ctx: AiContext, max: number): string[] {
   lines.push(`Univers : ${ctx.vertical ? AI_LABELS.vertical[ctx.vertical] : "non précisé"}.`);
   if (ctx.categoryName) lines.push(`Catégorie du message : ${ctx.categoryName}.`);
   if (ctx.surface) lines.push(`Où il sera utilisé : ${AI_LABELS.surface[ctx.surface]}.`);
+  lines.push(placeholdersLine(ctx.surface));
   lines.push(`Langue : ${AI_LABELS.language[ctx.language ?? "fr"]}.`);
   if (ctx.objective) lines.push(`Objectif : ${AI_LABELS.objective[ctx.objective]}.`);
   if (ctx.tone) lines.push(`Ton : ${AI_LABELS.tone[ctx.tone]}.`);

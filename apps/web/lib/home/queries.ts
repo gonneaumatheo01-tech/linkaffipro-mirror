@@ -1,6 +1,7 @@
 /**
  * Requêtes de lecture de l'accueil. Elles reprennent les règles existantes, sans en créer :
- * - « nos » joueurs seulement (`ourPlayers()`), dates de Link Affi, revenu net = somme des événements NGR datés ;
+ * - « nos » joueurs seulement (`ourPlayerWhere`), dates de Link Affi ; commissions = CPA de nos joueurs (événements
+ *   CPA / CPA_REVERSAL datés) + part de revshare de nos offres (`revshareRowWhere`), gains = commissions − dépense pub ;
  * - entrées dans un canal = adhésions avec `joinedAt` (indicateur « Entrées » des statistiques) ;
  * - dépense pub = `AdCost` du jour (celle d'hier ramenée à la même heure) ; campagnes : `listCampaigns` (mêmes chiffres
  *   que la page Campagnes) ;
@@ -8,14 +9,15 @@
  *   appel à Telegram pour rester rapide).
  * Chaque bloc de la page tolère une panne (voir app/(admin)/page.tsx).
  */
-import { ourPlayers, prisma, type Prisma } from "@linkaffipro/db";
+import { ourPlayerWhere, revshareRowWhere } from "@linkaffipro/core";
+import { ourAffiliateCampaignIds, prisma, type Prisma } from "@linkaffipro/db";
 import { isWorkerDown, readHeartbeat } from "@linkaffipro/queue";
 import { listGateLinksMissing } from "@linkaffipro/telegram";
 import { loadAiConfig } from "@/lib/ai/config";
 import { isImportedShell } from "@/lib/campaigns/ad-link";
 import { listCampaigns, type CampaignList } from "@/lib/campaigns/queries";
 import type { CurrentUser } from "@/lib/session";
-import { resolvePeriod, type Period } from "@/lib/periods";
+import { parisMidnightUtc, resolvePeriod, shiftDay, type Period } from "@/lib/periods";
 import { withRedis } from "@/lib/redis";
 import type { ChecklistInput } from "@/lib/onboarding/checklist";
 import {
@@ -40,53 +42,73 @@ const CHANNEL_POST: Prisma.PostWhereInput = {
 
 // ---------- Chiffres du jour ----------
 
+function round2(n: number): number {
+  const r = Math.round(n * 100) / 100;
+  return r === 0 ? 0 : r;
+}
+
 /**
- * Totaux d'une fenêtre (aujourd'hui jusqu'à maintenant, ou hier à la même heure) ; dépense pub du jour entier (une
- * ligne `AdCost` n'a pas d'heure : `loadHomeFigures` ramène celle d'hier à la même heure).
+ * Totaux d'une fenêtre (aujourd'hui jusqu'à maintenant, ou hier à la même heure) : membres, premiers dépôts, CPA de nos
+ * joueurs datées dans la fenêtre ; dépense pub et part de revshare du jour entier (ni une ligne `AdCost` ni une ligne
+ * Link Affi n'ont d'heure : `loadHomeFigures` ramène celles d'hier à la même heure). `offerIds` : offres Link Affi
+ * rattachées à nos campagnes.
  */
 export async function loadDayTotals(
   window: TimeWindow,
   dayKey: string,
   ours: Prisma.PlayerWhereInput,
+  offerIds: readonly string[] = [],
 ): Promise<DayTotals> {
   const within = { gte: window.start, lt: window.end };
-  const [members, ftds, deposits, ngr, spend] = await Promise.all([
+  const day = new Date(`${dayKey}T00:00:00.000Z`);
+  const [members, ftds, cpa, revshare, spend] = await Promise.all([
     prisma.membership.count({ where: { joinedAt: within } }),
     prisma.player.count({ where: { AND: [ours, { ftdAt: within }] } }),
     prisma.playerEvent.aggregate({
       _sum: { amount: true },
-      where: { type: { in: ["FTD", "DEPOSIT", "REDEPOSIT"] }, occurredAt: within, player: ours },
+      where: { type: { in: ["CPA", "CPA_REVERSAL"] }, occurredAt: within, player: ours },
     }),
-    prisma.playerEvent.aggregate({
-      _sum: { amount: true },
-      where: { type: "NGR", occurredAt: within, player: ours },
-    }),
+    offerIds.length
+      ? prisma.affiliateDailyStat.aggregate({
+          _sum: { revshareRevenue: true },
+          where: revshareRowWhere(
+            {
+              dateFrom: day,
+              dateTo: day,
+              since: parisMidnightUtc(dayKey),
+              until: parisMidnightUtc(shiftDay(dayKey, 1)),
+            },
+            offerIds,
+          ) as Prisma.AffiliateDailyStatWhereInput,
+        })
+      : Promise.resolve(null),
     prisma.adCost.aggregate({
       _sum: { spend: true },
-      where: { date: new Date(`${dayKey}T00:00:00.000Z`) },
+      where: { date: day },
     }),
   ]);
   return {
     members,
     ftds,
-    deposits: Number(deposits._sum.amount ?? 0),
-    ngr: Number(ngr._sum.amount ?? 0),
+    cpaCommissions: round2(Number(cpa._sum.amount ?? 0)),
+    revshareCommissions: round2(Number(revshare?._sum.revshareRevenue ?? 0)),
     spend: Number(spend._sum.spend ?? 0),
   };
 }
 
 /**
  * Chiffres d'aujourd'hui et d'hier (heure de Paris), pour les trois cartes de l'accueil. Hier : jusqu'à la même heure,
- * dépense pub comprise (dépense de la journée entière ramenée à la part écoulée, `yesterdaySoFar`).
+ * dépense pub et part de revshare comprises (journée entière ramenée à la part écoulée, `yesterdaySoFar`).
  */
 export async function loadHomeFigures(
   now = new Date(),
 ): Promise<{ windows: DayWindows; today: DayTotals; yesterday: DayTotals }> {
   const windows = dayWindows(now);
-  const ours = (await ourPlayers()) as Prisma.PlayerWhereInput;
+  const offerIds = await ourAffiliateCampaignIds();
+  const ours = ourPlayerWhere(offerIds) as Prisma.PlayerWhereInput;
   const [today, yesterday] = await Promise.all([
-    loadDayTotals(windows.today, windows.todayKey, ours),
-    loadDayTotals(windows.yesterday, windows.yesterdayKey, ours),
+    loadDayTotals(windows.today, windows.todayKey, ours, offerIds),
+    loadDayTotals(windows.yesterday, windows.yesterdayKey, ours, offerIds),
   ]);
   return { windows, today, yesterday: yesterdaySoFar(yesterday, windows.yesterdayShare) };
 }

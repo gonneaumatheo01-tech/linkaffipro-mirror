@@ -25,6 +25,8 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "membership.welcome_resent": "Accueil renvoyé avec les liens",
   "membership.gate_links_ready": "Liens de canaux prêts",
   "channel.gate_links_checked": "Liens des canaux à rejoindre vérifiés",
+  "player.cpa_credited": "Commission créditée",
+  "player.cpa_reversed": "Commission annulée",
   "click.offer": "Clic sur une offre",
   "tracking.redirect": "Clic sur un lien traqué",
   "link.created": "Lien d'entrée créé",

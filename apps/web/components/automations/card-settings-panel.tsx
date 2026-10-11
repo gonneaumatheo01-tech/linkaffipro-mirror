@@ -21,6 +21,7 @@ import {
 import {
   buttonsToEntries,
   entriesToButtons,
+  previewButtonRows,
   toggleInList,
   type ButtonEntry,
 } from "@/lib/automations/node-form";
@@ -85,9 +86,7 @@ export function CardSettingsPanel({
   const [pending, startTransition] = useTransition();
 
   const parsedButtons = entriesToButtons(buttons);
-  const previewButtons = buttons
-    .filter((b) => b.text.trim() || b.url.trim())
-    .map((b) => [{ text: b.text.trim(), url: b.url.trim() }]);
+  const previewButtons = previewButtonRows(buttons);
   const bot = options.bots.find((b) => b.id === botId);
   const verticals = [...new Set(options.bots.map((b) => b.vertical))];
   const vertical = toVertical(bot?.vertical ?? (verticals.length === 1 ? verticals[0] : undefined));
@@ -235,7 +234,7 @@ export function CardSettingsPanel({
 
         <AdvancedSection
           title="Boutons, bot et média"
-          description="Un bouton sous le message, un autre bot que celui du canal, une image."
+          description="Un bouton Offre (identifiant de suivi de chaque membre) ou un lien, un autre bot que celui du canal, une image."
           modifiedCount={advancedChanged}
         >
           <LinkButtonsField entries={buttons} onChange={setButtons} />

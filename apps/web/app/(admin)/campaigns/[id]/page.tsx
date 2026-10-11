@@ -16,7 +16,8 @@ import { isImportedShell } from "@/lib/campaigns/ad-link";
 import { scopeFromCampaign } from "@/lib/campaigns/attribution";
 import { loadCampaignTrends } from "@/lib/campaigns/card-queries";
 import { campaignSummary, flatParams, platformShortLabel } from "@/lib/campaigns/cards";
-import { displayVariation, HEADER_METRICS, parseCampaignTab } from "@/lib/campaigns/display";
+import { campaignVariations, HEADER_METRICS, parseCampaignTab } from "@/lib/campaigns/display";
+import { unknownBefore } from "@/lib/dashboard/display";
 import { computeMetrics } from "@/lib/campaigns/metrics";
 import { campaignTotals, listActiveConnections } from "@/lib/campaigns/queries";
 import { hasTrend, type CampaignTrend } from "@/lib/campaigns/trend";
@@ -47,7 +48,7 @@ const TREND_OF: Record<string, keyof CampaignTrend> = {
   spend: "spend",
   members: "members",
   ftds: "ftds",
-  profit: "profit",
+  gains: "gains",
 };
 
 /**
@@ -80,6 +81,8 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
     listActiveConnections(),
   ]);
   const trend = trends[id];
+  // Règle commune des cartes : « nouveau » quand la période précédente valait 0, rien si les deux valent 0.
+  const variations = campaignVariations(metrics, previous);
   const base = { id, campaign, scope, period, compare, sp, isAdmin };
   const imported = isImportedShell(campaign);
   const platformLabel = platformShortLabel(campaign.adPlatform);
@@ -202,9 +205,15 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                     )
                   }
                   // Variation seulement avec « Comparer à la période précédente », comme sur la page Campagnes.
-                  delta={compare ? displayVariation(metrics[x.key], previous[x.key]) : undefined}
+                  variation={compare ? (variations[x.key] ?? { kind: "unknown" }) : undefined}
                   favorable={x.favorable}
                   comparison="vs période précédente"
+                  // Période d'avant en perte : pas de pourcentage, la valeur d'avant écrite dessous.
+                  hint={
+                    compare && typeof previous[x.key] === "number"
+                      ? (unknownBefore(variations[x.key], x.format(previous)) ?? undefined)
+                      : undefined
+                  }
                   trend={withTrend && hasTrend(series) ? series : undefined}
                 />
               );

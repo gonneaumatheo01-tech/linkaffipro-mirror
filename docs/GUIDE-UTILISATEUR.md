@@ -214,18 +214,18 @@ Deux limites à connaître : les liens courts et les pages d'atterrissage de Lin
 **Ce que vous voyez, de haut en bas.**
 
 1. **La barre d'état.** Verte : « Tout va bien », le nombre de bots en ligne et l'heure de la dernière synchronisation avec Link Affi. Orange : le nombre de points à voir (envois et synchro à l'arrêt, bot en erreur, synchro Link Affi en échec, alertes ouvertes), chacun écrit en dessous. Un administrateur peut cliquer sur **Voir l'état du système** pour le détail.
-2. **Les trois chiffres du jour** (heure de Paris, depuis minuit) : **Membres arrivés aujourd'hui**, **Premiers dépôts aujourd'hui** et **Bénéfice du jour**. Sous chaque chiffre, la variation par rapport à hier à la même heure : à 9 h, on compare à hier 9 h, pas à toute la journée d'hier. Le bénéfice du jour, c'est les dépôts plus le revenu net, moins la dépense pub ; le détail est écrit sous le chiffre. Cliquez sur une carte pour ouvrir la page qui détaille ce chiffre.
+2. **Les trois chiffres du jour** (heure de Paris, depuis minuit) : **Membres arrivés aujourd'hui**, **Premiers dépôts aujourd'hui** et **Gains du jour**. Sous chaque chiffre, la variation par rapport à hier à la même heure : à 9 h, on compare à hier 9 h, pas à toute la journée d'hier (« nouveau » quand hier valait 0 ; « Pas de comparaison possible » et la valeur d'hier quand hier était en perte). Les gains, ce sont nos commissions (les primes des joueurs et notre part du revenu, versées par le partenaire) moins la dépense pub du jour ; le détail est écrit sous le chiffre : « commissions X € − pub Y € ». Les dépôts et le revenu net sont l'argent du casino : ils ne s'ajoutent jamais aux gains. Cliquez sur une carte pour ouvrir la page qui détaille ce chiffre.
 3. **À faire pour démarrer**, tant que la liste n'est pas finie : relier votre Telegram, créer une campagne, programmer un message et, pour un administrateur, inviter l'équipe. Chaque ligne se coche toute seule quand c'est fait (créer une campagne, programmer un message et inviter l'équipe valent pour toute l'équipe). **Masquer** retire la liste pour vous seul. Pour la faire revenir, cliquez sur **Revoir la visite** dans **Mon compte** ou dans **Réglages** : la visite guidée repart aussi. Sur téléphone, la liste tient sur une ligne (« Pour démarrer : 1 sur 4 ») : touchez-la pour la déplier.
-4. **À faire** : ce qui attend une action de votre part. Demandes d'adhésion à valider à la main, messages qui n'ont pas pu partir (7 derniers jours), compte pub ou compte Telegram à reconnecter, canaux sans règle d'adhésion, test A/B à conclure, clé de l'assistant IA à ajouter. Chaque ligne ouvre le bon écran. Sinon : « Rien à faire pour l'instant ».
+4. **À faire** : ce qui attend une action de votre part. Demandes d'adhésion à valider à la main, demandes qui attendent les liens des canaux à rejoindre (avec le bouton **Renvoyer l'accueil avec les liens**, à cliquer après avoir corrigé les droits du bot), messages qui n'ont pas pu partir (7 derniers jours), compte pub ou compte Telegram à reconnecter, canaux sans règle d'adhésion, test A/B à conclure, clé de l'assistant IA à ajouter. Chaque ligne ouvre le bon écran. Sinon : « Rien à faire pour l'instant ».
 5. **Prochains messages** : les trois prochains messages programmés dans vos canaux, avec leur heure et leur canal (pastille de la couleur de l'univers). **Voir le calendrier** ouvre Messages.
-6. **Campagnes actives** : pour chaque campagne active, sur les 7 derniers jours, ce qu'elle a dépensé, les membres qu'elle a amenés et son bénéfice, les plus rentables d'abord. Cliquez sur une ligne pour ouvrir la campagne, ou sur **Toutes les campagnes**.
+6. **Campagnes actives** : pour chaque campagne active, sur les 7 derniers jours, ce qu'elle a dépensé, les membres qu'elle a amenés et ses gains (commissions − dépense pub, la même définition partout), les plus rentables d'abord. Cliquez sur une ligne pour ouvrir la campagne, ou sur **Toutes les campagnes**.
 
 Le bouton orange **Programmer un message**, en haut, ouvre directement l'écriture d'un message. Le bouton **?**, en haut à droite de chaque page, ouvre l'aide de la page affichée ; il propose aussi **Revoir la visite guidée**.
 
 **Pièges et questions fréquentes.**
 
-- Le bénéfice d'une campagne ne se calcule pas comme le bénéfice du jour : c'est le revenu net moins la dépense pub, sans les dépôts (comme sur la page Campagnes). C'est écrit sous le titre « Campagnes actives ».
-- La dépense pub d'aujourd'hui arrive au fil de la journée : chaque heure si le compte pub est connecté, sinon quand vous importez ou saisissez les dépenses. Le matin, le bénéfice du jour peut donc paraître meilleur qu'il ne le sera le soir. Pour la comparaison avec hier, la dépense d'hier est comptée jusqu'à la même heure (au prorata de la journée).
+- Une prime annulée par le casino se retire le jour de l'annulation, pas le jour où elle avait été versée : ce jour-là, les commissions peuvent être négatives.
+- La dépense pub d'aujourd'hui arrive au fil de la journée : chaque heure si le compte pub est connecté, sinon quand vous importez ou saisissez les dépenses. Le matin, les gains du jour peuvent donc paraître meilleurs qu'ils ne le seront le soir. Pour la comparaison avec hier, la dépense et la part du revenu d'hier, qui n'ont pas d'heure, sont comptées jusqu'à la même heure (au prorata de la journée).
 - Seuls vos joueurs comptent : ceux venus d'un de vos liens d'offre ou d'une offre Link Affi rattachée à une de vos campagnes, comme partout sur le site.
 - Les chiffres détaillés (pubs, parcours, membres dans le temps) sont dans **Statistiques**.
 
@@ -233,7 +233,7 @@ Le bouton orange **Programmer un message**, en haut, ouvre directement l'écritu
 
 **À quoi ça sert.** Une campagne réunit ce que vous promouvez (une ou plusieurs offres Link Affi), où (vos canaux Telegram) et avec quelles pubs (TikTok, Meta ou autre). La page répond à la question : « qu'est-ce que je promeus et combien ça rapporte ? ». Vocabulaire : « campagne » = la vôtre, sur la plateforme ; « campagne pub » = la campagne côté TikTok ou Meta, avec ses groupes et ses pubs.
 
-**Ce que vous voyez.** Une carte par campagne : sa pastille d'univers (violet Casino, vert Paris sportifs, rose Rencontres), son statut, ce qui a été dépensé, les membres arrivés, les premiers dépôts, le bénéfice de la période choisie et une petite courbe des membres arrivés chaque jour. Cliquez sur une carte pour ouvrir la campagne.
+**Ce que vous voyez.** Une carte par campagne : sa pastille d'univers (violet Casino, vert Paris sportifs, rose Rencontres), son statut, ce qui a été dépensé, les membres arrivés, les premiers dépôts, les gains (commissions − dépense pub) de la période choisie et une petite courbe des membres arrivés chaque jour. Cliquez sur une carte pour ouvrir la campagne.
 
 **Comment faire.**
 
@@ -261,7 +261,7 @@ Le **Récapitulatif** reprend tout ; **Proposer un nom conventionnel** y propose
 
 ### Fiche d'une campagne
 
-**En haut**, quatre chiffres de la période : **Dépensé**, **Membres**, **Premiers dépôts**, **Bénéfice**, avec la variation par rapport à la période précédente. **Modifier** ouvre un volet : nom, univers, statut ; plateforme, compte connecté, budget et dates repliés ; **Supprimer la campagne** (administrateurs) en bas du volet.
+**En haut**, quatre chiffres de la période : **Dépensé**, **Membres**, **Premiers dépôts**, **Gains**, avec la variation par rapport à la période précédente. Dans « Tous les chiffres de la période », **Commissions** détaille les primes des joueurs et la part du revenu ; le revenu net y reste comme indicateur de volume du casino. **Modifier** ouvre un volet : nom, univers, statut ; plateforme, compte connecté, budget et dates repliés ; **Supprimer la campagne** (administrateurs) en bas du volet.
 
 **Les onglets.**
 
@@ -369,7 +369,9 @@ Le bloc **Avancé** contient le reste :
 - **Expiration (heures)** (0 = jamais) et **Ensuite** : laisser la demande en attente, l'accepter quand même, ou la refuser.
 - **Envoyer le message « Accepté » au membre** (son texte se modifie dans **Ce que dit le bot**).
 
-Cliquez sur **Enregistrer la règle** : elle s'applique aux prochaines demandes.
+**Liens des canaux à rejoindre** : un cadre montre chaque canal à rejoindre avec « Prêt », « À vérifier » ou « À corriger ». N'importe lequel de nos bots peut fournir le lien d'un canal, s'il en est administrateur avec le droit « Inviter via un lien » (ce n'est plus forcément le bot du canal demandé). En cas de problème, la solution est écrite en toutes lettres (« Ajoutez @bot comme administrateur de « X » avec le droit Inviter via un lien »), puis cliquez **Vérifier les liens**. Le cadre devient vert (« Tout est prêt ») quand tout va bien. Si un lien manque malgré tout, le bot envoie l'accueil avec les liens possibles et « ✅ J'ai rejoint », une alerte Telegram vous prévient une fois, et la demande apparaît dans « À faire » sur l'accueil.
+
+Cliquez sur **Enregistrer la règle** : elle s'applique aux prochaines demandes ; les liens sont créés et vérifiés tout de suite.
 
 - **Canal sans règle** : l'encadré « Aucune règle : les demandes attendent votre validation » le signale ; le bot n'écrit à personne de lui-même. Cliquez sur **Choisir une règle**.
 - Un canal à rejoindre qui a été désactivé ou supprimé reste coché en haut de la liste (« Canal inactif » ou « Canal supprimé ») et le bot continue de le demander : décochez-le, puis **Enregistrer la règle**.
@@ -457,7 +459,7 @@ Actions : **Modifier** (tant qu'il n'est pas parti), **Dupliquer**, **Déplacer*
 
 ### Modèles de messages
 
-Vue **Modèles** : une galerie de cartes avec aperçu, filtrable par **Univers**, **Thème** et **Catégorie**. **Utiliser** crée un message pré-rempli ; **Modifier** change le modèle. 63 modèles sont fournis (3 par univers et par thème : Bonus, Preuve de gains, Teasing, Rappel, Information, Événement, Sondage). Remplacez `{prenom}`, `{canal}`, `{offre}` et ajoutez votre bouton **Offre (campagne)**. Les modèles Casino et Paris sportifs gardent la mention « Jouer comporte des risques… » en fin de message : ne la retirez pas. Les thèmes des modèles fournis ne sont pas des catégories : ils ne comptent pas dans **Comparer par catégorie**.
+Vue **Modèles** : une galerie de cartes avec aperçu, filtrable par **Univers**, **Thème** et **Catégorie**. **Utiliser** crée un message pré-rempli ; **Modifier** change le modèle. 63 modèles sont fournis (3 par univers et par thème : Bonus, Preuve de gains, Teasing, Rappel, Information, Événement, Sondage). Les modèles fournis n'ont plus de mots entre accolades : un message de canal n'est pas personnalisé. Ceux qui parlent d'une offre ont déjà un bouton **Offre (campagne)** : choisissez sa campagne avant de programmer le message (un modèle s'enregistre sans campagne, un message non). Les modèles Casino et Paris sportifs gardent la mention « Jouer comporte des risques… » en fin de message : ne la retirez pas. Les thèmes des modèles fournis ne sont pas des catégories : ils ne comptent pas dans **Comparer par catégorie**.
 
 ### Test A/B d'un message de canal
 
@@ -568,11 +570,11 @@ La page du test dit quelle version est en tête : taux de clic = personnes qui o
 
 **Comment faire.**
 
-1. Cliquez sur **Régler et enregistrer** (ou **Modifier**). Choisissez le délai (ou le nombre de jours, ou le seuil), écrivez le message (l'aperçu Telegram se met à jour ; **Améliorer avec l'IA** propose des versions), cochez les canaux (aucune case = tous les canaux), puis **Enregistrer**. Boutons sous le message, autre bot et image : dans **Boutons, bot et média** (**Ajouter un bouton** : un libellé et une adresse en https://, 10 boutons au plus).
+1. Cliquez sur **Régler et enregistrer** (ou **Modifier**). Choisissez le délai (ou le nombre de jours, ou le seuil), écrivez le message (l'aperçu Telegram se met à jour ; **Améliorer avec l'IA** propose des versions), cochez les canaux (aucune case = tous les canaux), puis **Enregistrer**. Boutons sous le message, autre bot et image : dans **Boutons, bot et média**. Un bouton **Offre (campagne)** (choisissez la campagne puis son offre, comme dans un message de canal) donne à chaque membre qui clique son propre identifiant de suivi : ses inscriptions, premiers dépôts et commissions sont comptés pour cette relance. Un bouton **Lien direct** ouvre simplement une adresse en https://. 10 boutons au plus. Dans un message privé, {prenom} et {bot} sont remplacés à l'envoi.
 2. Chaque relance est créée désactivée. Testez-la : **Tester sur moi** vous envoie le message sur votre Telegram (lié dans **Mon compte**).
 3. Activez-la avec l'interrupteur : une confirmation rappelle qu'elle partira automatiquement vers les membres concernés. Désactiver arrête aussi les membres qui attendaient la suite.
 
-Sous chaque relance : « Envoyé à N personnes cette semaine, M ont cliqué ». N = les membres qui ont reçu un message de cette relance ces 7 derniers jours (vos essais ne comptent pas) ; M = ceux d'entre eux qui ont ensuite cliqué sur une offre.
+**Résultats** (carte et fiche de la relance) : messages envoyés et, si son message a un bouton Offre, clics sur l'offre, inscriptions, premiers dépôts et gains (une relance ne coûte rien en pub : ses gains sont ses commissions). Vos essais « Tester sur moi » ne comptent pas. Une relance créée avant le 11 octobre 2026 est comptée à partir de cette date (« Depuis le 11 oct. »). Si la campagne du bouton est supprimée, la relance s'arrête au prochain envoi et le journal l'explique. Sous chaque relance aussi : « Envoyé à N personnes cette semaine, M ont cliqué ». N = les membres qui ont reçu un message de cette relance ces 7 derniers jours (vos essais ne comptent pas) ; M = ceux d'entre eux qui ont ensuite cliqué sur une offre.
 
 **Sur mesure** liste vos autres relances. **Créer une relance sur mesure (avancé)** ouvre l'éditeur à branches.
 
@@ -591,7 +593,7 @@ Pour un parcours avec des conditions (« a-t-il déposé ? ») et plusieurs éta
 1. Une relance part toujours du bloc **Départ** : ce qui la lance, pour qui (canaux, campagnes, plus de filtres) et « une seule fois par membre ».
 2. À gauche, la bibliothèque : **Condition** (deux sorties, Oui et Non), **Envoyer un message**, **Attendre** (de 1 heure à 90 jours), **Étiqueter**, **Proposer un canal**, **Prévenir l'équipe**, **Message du bot**, **Arrêter**. Glissez un bloc sur le canevas, ou choisissez un bloc puis cliquez dans la bibliothèque pour l'ajouter juste après. Le **+** sous un bloc ajoute la suite. Reliez les blocs en tirant un trait depuis le point du bas.
 3. Cliquez sur un bloc pour le régler à droite. Pour chaque sortie (« Ensuite », « Si oui », « Si non »), choisissez la suite, « Fin de la relance » ou « Ajouter un bloc ici ». **Supprimer ce bloc** recoud le parcours. Tout se fait aussi au clavier, depuis la liste des blocs.
-4. Molette ou boutons pour zoomer ; **Ranger les blocs** remet tout en ordre.
+4. Molette ou boutons pour zoomer ; **Ranger les blocs** remet tout en ordre. La mini-carte, en haut à droite, n'apparaît que pour un parcours trop grand pour l'écran (chaque bloc y a la couleur de son type).
 5. Un bloc à compléter est entouré de rouge, avec la raison en une phrase ; « N points à corriger » en haut mène au premier. **Enregistrer** n'enregistre qu'une relance complète. Puis **Tester sur moi**.
 
 **Conditions disponibles** : inscrit chez un programme, a déjà déposé, nombre de dépôts, niveau de dépense, langue, a une étiquette, est dans un canal (accepté et pas reparti), a cliqué une offre depuis le début de la relance, rien fait depuis N jours (ses propres actions seulement, pas nos messages), venu d'une campagne. Les conditions sont vérifiées au moment où le membre arrive sur le bloc : après « Attendre 1 jour », « A déjà déposé ? » regarde s'il a déposé pendant ce jour-là. « A déjà déposé ? » est oui dès que le membre a au moins un dépôt connu, comme le filtre « Ont déposé » de la liste des membres.
@@ -618,7 +620,7 @@ Ce qui a été envoyé cette semaine, le parcours avec, dans chaque bloc, le nom
 
 En haut de chaque page, un sélecteur unique : **Période** (Aujourd'hui, Hier, 7, 30 ou 90 derniers jours, Mois en cours, ou Personnalisée avec **Du** / **Au**), **Comparer à la période précédente**, **Univers**, **Campagne** ; le canal est dans **Plus de filtres**. Cliquez sur **Appliquer**. Les choix restent quand vous changez de page.
 
-Avec **Comparer**, chaque chiffre affiche sa variation : verte si elle est favorable, rouge sinon (pour une dépense ou un coût, une baisse est verte), et la valeur d'avant. Quand un chiffre était négatif avant (bénéfice en perte, revenu net négatif, croissance négative), aucun pourcentage n'est calculé : la carte dit « Pas de comparaison possible » et garde la valeur d'avant (« Avant : −1,74 € »). Les exports reprennent la même période et, si la comparaison est cochée, la période précédente et la variation.
+Avec **Comparer**, chaque chiffre affiche sa variation : verte si elle est favorable, rouge sinon (pour une dépense ou un coût, une baisse est verte), et la valeur d'avant. Quand un chiffre valait 0 avant, on lit « nouveau » ; quand il vaut 0 avant et maintenant, rien n'est écrit. Quand un chiffre était négatif avant (gains en perte, revenu net négatif, croissance négative), aucun pourcentage n'est calculé : la carte dit « Pas de comparaison possible » et garde la valeur d'avant (« Avant : −1,74 € »). Les exports reprennent la même période et, si la comparaison est cochée, la période précédente et la variation.
 
 Le même sélecteur de période (avec **Comparer à la période précédente**) est en haut de **Campagnes** et de la fiche d'une campagne.
 
@@ -630,9 +632,9 @@ Les chiffres de la période en deux lignes : **Telegram** (demandes d'adhésion,
 
 ### Statistiques → Pubs
 
-Une ligne par campagne : dépense pub, membres entrés (avec le coût par membre), premiers dépôts et retour sur dépense pub (avec le bénéfice ou la perte). Cliquez sur une campagne pour voir ses 16 chiffres, avec la période précédente si vous comparez. **Détail du total** : les mêmes chiffres pour toutes les campagnes, chaque joueur compté une seule fois. **Exporter** (bouton orange) télécharge le fichier de la période. **Recalculer les statistiques** (administrateurs) relance le calcul si les chiffres datent de plus d'une heure ; « Chiffres calculés » donne l'heure du dernier calcul.
+Une ligne par campagne : dépense pub, membres entrés (avec le coût par membre), premiers dépôts et retour sur dépense pub (avec les gains ou la perte de la campagne). Les six chiffres clés en haut : Dépense pub, Membres entrés, Premiers dépôts, Commissions, Retour sur dépense pub et Gains. Cliquez sur une campagne pour voir ses 16 chiffres, avec la période précédente si vous comparez. **Détail du total** : les mêmes chiffres pour toutes les campagnes, chaque joueur compté une seule fois. **Exporter** (bouton orange) télécharge le fichier de la période. **Recalculer les statistiques** (administrateurs) relance le calcul si les chiffres datent de plus d'une heure ; « Chiffres calculés » donne l'heure du dernier calcul.
 
-Le coût par membre, le coût par inscription et le retour sur dépense pub viennent des dépenses reçues du compte connecté, importées ou saisies (onglet **Pubs** de chaque campagne) : sans dépense, ils restent vides. Le retour sur dépense pub, c'est le revenu net divisé par la dépense : 1,00× = la dépense est remboursée.
+Le coût par membre, le coût par inscription et le retour sur dépense pub viennent des dépenses reçues du compte connecté, importées ou saisies (onglet **Pubs** de chaque campagne) : sans dépense, ils restent vides. Le retour sur dépense pub, c'est les commissions divisées par la dépense : 1,00× = la dépense est remboursée. Les exports ont les colonnes « Primes des joueurs », « Part du revenu », « Commissions » et « Gains ».
 
 ### Statistiques → Parcours
 
@@ -898,7 +900,9 @@ Le site emploie des mots simples ; le terme technique s'affiche au survol des mo
 | premier dépôt | FTD (first time deposit) | Le premier dépôt d'argent d'un joueur chez le casino. |
 | revenu net | NGR | Ce que rapporte un joueur, tel que remonté par Link Affi. Chaque variation est enregistrée à sa date : le revenu net d'une période est la somme des variations de cette période. |
 | identifiant de suivi | sub-ID | Code unique de 12 caractères ajouté au lien casino de chaque membre pour chaque message. Il revient avec l'inscription et les dépôts : « ce dépôt vient de ce membre, de ce message, de ce canal, de cette pub ». |
-| retour sur dépense pub | ROAS | Revenu net divisé par la dépense pub ; 1,00× = la dépense est remboursée. |
+| gains | — | Nos commissions moins la dépense pub. Jamais les dépôts ni le revenu net, qui sont l'argent du casino. |
+| commissions | CPA (prime par joueur) + revshare (part du revenu) | Ce que le partenaire nous verse : une prime par joueur qualifié (retirée le jour où le casino l'annule) et une part du revenu du casino. |
+| retour sur dépense pub | ROAS | Commissions divisées par la dépense pub ; 1,00× = la dépense est remboursée. |
 | coût par membre | CPL | Dépense pub divisée par les membres entrés. |
 | coût par inscription | CPA | Dépense pub divisée par les inscriptions. |
 | membres dans le temps | cohorte | Les membres regroupés par semaine d'arrivée, suivis dans le temps. |

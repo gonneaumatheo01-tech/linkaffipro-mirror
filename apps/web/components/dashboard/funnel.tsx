@@ -2,12 +2,13 @@ import { Term } from "@/components/admin/help-tip";
 import { BarList } from "@/components/charts/bar-list";
 import { FigureDelta } from "@/components/campaigns/campaign-figure";
 import { fmtNum } from "@/lib/format";
-import { funnelLabel, stepNote } from "@/lib/dashboard/display";
-import { deltaPct, type FunnelStep } from "@/lib/dashboard/metrics";
+import { comparableVariation, funnelLabel, stepNote } from "@/lib/dashboard/display";
+import type { FunnelStep } from "@/lib/dashboard/metrics";
 
 /**
  * Parcours (ex-entonnoir) en barres horizontales : à chaque étape, le nombre de personnes, la part gardée par
- * rapport à l'étape d'avant et, avec la comparaison, la valeur de la période précédente et la variation.
+ * rapport à l'étape d'avant et, avec la comparaison, la valeur de la période précédente et la variation (règle unique
+ * `comparableVariation` : « nouveau » quand l'étape valait 0 avant, rien quand elle vaut 0 des deux côtés).
  * Tout est écrit en texte : les barres ne sont qu'un repère visuel.
  */
 export function Funnel({
@@ -35,7 +36,7 @@ export function Funnel({
               {previous ? (
                 <span className="flex items-center justify-end gap-2 md:justify-start">
                   <span className="tabular-nums">Avant : {fmtNum(before)}</span>
-                  <FigureDelta delta={deltaPct(s.value, before)} />
+                  <FigureDelta variation={comparableVariation(s.value, before)} />
                 </span>
               ) : null}
             </>

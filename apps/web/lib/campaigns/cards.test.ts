@@ -16,7 +16,7 @@ import {
   parseCampaignFilters,
   platformShortLabel,
   plural,
-  profitTone,
+  gainsTone,
   sortByStatus,
   splitImportedShells,
   statusRank,
@@ -236,11 +236,11 @@ describe("formats des cartes", () => {
     expect(platformShortLabel(null)).toBeNull();
   });
 
-  it("sens du bénéfice", () => {
-    expect(profitTone(12)).toBe("positive");
-    expect(profitTone(-0.5)).toBe("negative");
-    expect(profitTone(0.001)).toBe("neutral");
-    expect(profitTone(null)).toBe("neutral");
+  it("sens des gains", () => {
+    expect(gainsTone(12)).toBe("positive");
+    expect(gainsTone(-0.5)).toBe("negative");
+    expect(gainsTone(0.001)).toBe("neutral");
+    expect(gainsTone(null)).toBe("neutral");
   });
 
   it("pluriels et ligne de contexte", () => {

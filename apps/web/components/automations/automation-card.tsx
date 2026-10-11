@@ -20,8 +20,10 @@ import {
   type CardSettings,
 } from "@/lib/automations/cards";
 import { counterSentence, type RuleCounter } from "@/lib/automations/counter";
+import { EMPTY_RESULTS, type RuleResults } from "@/lib/automations/results";
 import { fillMessageExamples } from "@/lib/automations/node-form";
 import { CardSettingsPanel, type CardPanelOptions } from "./card-settings-panel";
+import { RuleResultsSummary } from "./rule-results-line";
 import { RuleSwitch, TestOnMeButton } from "./rule-switch";
 
 const ICONS: Record<CardKey, React.ReactNode> = {
@@ -37,8 +39,10 @@ export type CardRuleSummary = { id: string; name: string; isActive: boolean };
 
 /**
  * Carte d'une relance prête à l'emploi : titre en français (avec le délai réglé), une phrase, l'interrupteur, l'aperçu
- * du message, le réglage principal et les canaux, le compteur de la semaine, puis « Modifier », « Tester sur moi » et
- * le journal. Les autres relances de la même forme sont listées en lien sous la carte.
+ * du message, le réglage principal et les canaux, le compteur de la semaine et les résultats depuis le début
+ * (envoyés ; clics, inscriptions, premiers dépôts et gains si la relance a un bouton Offre ; « Pas encore de résultat »
+ * tant que rien n'est venu), puis « Modifier », « Tester sur moi » et le journal. Les
+ * autres relances de la même forme sont listées en lien sous la carte.
  */
 export function AutomationCard({
   cardKey,
@@ -46,6 +50,9 @@ export function AutomationCard({
   settings,
   others,
   counter,
+  results,
+  attribution = true,
+  resultsLabel = "Depuis le début",
   channelNames,
   options,
   actions,
@@ -55,6 +62,12 @@ export function AutomationCard({
   settings: CardSettings;
   others: CardRuleSummary[];
   counter: RuleCounter | undefined;
+  /** Résultats depuis le début (relance enregistrée seulement). */
+  results?: RuleResults;
+  /** Faux si la relance n'a pas de bouton Offre (et aucun résultat venu d'un bouton) : les envoyés seulement. */
+  attribution?: boolean;
+  /** « Depuis le début » ou « Depuis le 11 oct. » (`resultsSinceLabel`). */
+  resultsLabel?: string;
   channelNames: Record<string, string>;
   options: CardPanelOptions;
   actions: {
@@ -116,6 +129,14 @@ export function AutomationCard({
           )}
         </p>
       </div>
+
+      {rule ? (
+        <RuleResultsSummary
+          results={results ?? EMPTY_RESULTS}
+          attribution={attribution}
+          label={resultsLabel}
+        />
+      ) : null}
 
       <TelegramPreview
         compact
