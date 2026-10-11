@@ -84,3 +84,26 @@ describe("rpcCodeOf / floodWaitSecondsOf", () => {
     expect(floodWaitSecondsOf(rpc("PEER_ID_INVALID", { seconds: 3 }))).toBeNull();
   });
 });
+
+describe("attentes imposées par Telegram (publication par le compte, phase 12)", () => {
+  it("SLOWMODE_WAIT_X et FLOOD_PREMIUM_WAIT_X → MtprotoFloodWait", () => {
+    const slow = classifyError(rpc("SLOWMODE_WAIT_12"));
+    expect(slow).toBeInstanceOf(MtprotoFloodWait);
+    expect((slow as MtprotoFloodWait).seconds).toBe(12);
+    const premium = classifyError(rpc("FLOOD_PREMIUM_WAIT_7"));
+    expect((premium as MtprotoFloodWait).seconds).toBe(7);
+  });
+  it("droits et Premium : messages en français, sans code", () => {
+    for (const code of [
+      "CHAT_WRITE_FORBIDDEN",
+      "PREMIUM_ACCOUNT_REQUIRED",
+      "USER_NOT_PARTICIPANT",
+      "DOCUMENT_INVALID",
+      "RANDOM_ID_DUPLICATE",
+    ]) {
+      const msg = describeRpcCode(code);
+      expect(msg, code).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+      expect(msg, code).toMatch(/[éèàç]|compte|Telegram/);
+    }
+  });
+});

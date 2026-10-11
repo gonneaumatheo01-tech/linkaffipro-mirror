@@ -24,6 +24,7 @@ import { parseBroadcastForm } from "@/lib/broadcasts/schema";
 import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
 import { requireAdmin, requireUser, type CurrentUser } from "@/lib/session";
+import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 
 function back(path: string, params: Record<string, string>): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}`);
@@ -329,6 +330,8 @@ async function createFromForm(formData: FormData, user: CurrentUser): Promise<Cr
         },
       });
     }
+    // Emojis animés des textes : « Récents de l'équipe » dans le sélecteur (phase 12).
+    await markCustomEmojisUsed(variants.map((v) => v.text));
   } catch (err) {
     if (isRedirect(err)) throw err;
     if (created.length) await discardBroadcasts(created);

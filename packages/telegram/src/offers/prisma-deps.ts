@@ -1,5 +1,5 @@
 import { jsonIds } from "@linkaffipro/core";
-import { prisma, recordEvent } from "@linkaffipro/db";
+import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { emitAutomationEvent } from "@linkaffipro/queue";
 import type { OfferDeps } from "./deps";
 import { pickCampaignOffer } from "./logic";
@@ -12,6 +12,13 @@ function mediaKindOf(mimeType: string): "photo" | "video" | "animation" | "docum
 }
 
 export const prismaOfferDeps: OfferDeps = {
+  async recordEvent(input) {
+    await recordEvent({
+      ...input,
+      payload: input.payload ? toJsonValue(input.payload) : undefined,
+    });
+  },
+
   async memberStarted(botId, from) {
     const data = {
       firstName: from.first_name ?? null,

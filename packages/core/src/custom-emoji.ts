@@ -5,8 +5,10 @@
  * Dans un texte HTML Telegram, un emoji animé s'écrit `<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>` : le
  * contenu de la balise est l'emoji de remplacement (affiché si l'animation n'est pas disponible, et compté dans la
  * longueur du texte). Depuis le Bot API 9.4 (9 février 2026), un bot peut en envoyer en privé, en groupe et en
- * supergroupe si son propriétaire a Telegram Premium ; jamais dans un canal. Un message de canal qui en contient est
- * donc publié par le compte Telegram connecté (MTProto), sans boutons (Telegram réserve les boutons aux bots).
+ * supergroupe si son propriétaire a Telegram Premium ; jamais dans un canal. Un message de CANAL (Channel.type CHANNEL)
+ * qui en contient est donc publié par le compte Telegram connecté (MTProto), sans boutons (Telegram réserve les boutons
+ * aux bots) ; dans un groupe ou un supergroupe, le bot publie lui-même les emojis animés, avec ses boutons (le site
+ * n'appelle `planPostPublisher` que pour un canal : `apps/web/lib/posts/publisher.ts`).
  */
 
 /** Balise d'un emoji animé (attribut `emoji-id` entre guillemets doubles ou simples, contenu sans autre balise). */

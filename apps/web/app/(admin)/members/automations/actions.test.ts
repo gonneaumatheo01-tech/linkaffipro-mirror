@@ -25,6 +25,8 @@ const session = vi.hoisted(() => ({
 vi.mock("@/lib/session", () => session);
 const queue = vi.hoisted(() => ({ enqueue: vi.fn(async (..._args: unknown[]) => ({ id: "j1" })) }));
 vi.mock("@linkaffipro/queue", () => queue);
+const usage = vi.hoisted(() => vi.fn(async (..._texts: unknown[]) => 1));
+vi.mock("@/lib/custom-emoji/usage", () => ({ markCustomEmojisUsed: usage }));
 
 const db = vi.hoisted(() => ({
   prisma: {
@@ -498,5 +500,31 @@ describe("interrupteur, test et suppression", () => {
     expect(await redirected(deleteRuleAction(form({ ruleId: "r1" })))).toMatch(
       /^\/members\/automations\?/,
     );
+  });
+});
+
+describe("emojis animés dans les messages des relances (phase 12)", () => {
+  const EMOJI_TEXT = 'Il reste une étape <tg-emoji emoji-id="5368324170671202286">🎰</tg-emoji>';
+
+  it("carte : texte enregistré avec sa balise, emoji noté comme utilisé", async () => {
+    await redirected(
+      saveCardAction(form({ templateKey: "welcome", delay: "now", text: EMOJI_TEXT })),
+    );
+    expect(created()!.data).toMatchObject({
+      actions: [{ type: "send_message", text: EMOJI_TEXT }],
+    });
+    expect(usage).toHaveBeenCalledWith([EMOJI_TEXT]);
+  });
+
+  it("éditeur à branches : le texte du parcours garde sa balise, emoji noté comme utilisé", async () => {
+    const graph = templateGraph("offer_no_signup", { message: { ...message, text: EMOJI_TEXT } });
+    await redirected(saveRuleAction(editorForm(graph)));
+    expect(JSON.stringify(created()!.data.graph)).toContain('emoji-id=\\"5368324170671202286\\"');
+    expect(usage).toHaveBeenCalledWith([EMOJI_TEXT]);
+  });
+
+  it("aucun emoji animé : rien à noter", async () => {
+    await redirected(saveCardAction(form({ templateKey: "welcome", delay: "now", text: "Salut" })));
+    expect(usage).toHaveBeenCalledWith([]);
   });
 });

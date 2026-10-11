@@ -3,6 +3,7 @@ import type { Chat, User } from "grammy/types";
 import type { AdminRights, BotIdentity, LinkImportOutcome, TelegramDeps } from "./ports";
 import { ensureDefaultSequences } from "./sequences/ensure";
 import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
+import { addCustomEmojisToLibrary } from "./custom-emoji/library";
 
 function memberData(from: User) {
   return {
@@ -322,6 +323,14 @@ export const prismaTelegramDeps: TelegramDeps = {
     };
   },
 
+  async isOurBotAdminOf(telegramChatId, exceptBotTelegramId) {
+    const { listActiveBots, readOurAdminsForChat } = await import("./service");
+    const bots = (await listActiveBots()).filter((b) => b.telegramBotId !== exceptBotTelegramId);
+    if (bots.length === 0) return false;
+    const r = await readOurAdminsForChat(telegramChatId, bots);
+    return r.ok && r.admins.length > 0;
+  },
+
   async importChannelByLink(input, telegramUserId): Promise<LinkImportOutcome> {
     const { ChannelImportError, importChannelByUsername, rightsUnverified } =
       await import("./service");
@@ -353,6 +362,10 @@ export const prismaTelegramDeps: TelegramDeps = {
               : "unavailable";
       return { ok: false, reason };
     }
+  },
+
+  async addCustomEmojis(input) {
+    return addCustomEmojisToLibrary(input);
   },
 };
 

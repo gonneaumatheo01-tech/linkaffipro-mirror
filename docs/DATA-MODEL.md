@@ -238,7 +238,7 @@ Règles pures : `packages/core/src/custom-emoji.ts` (balises, emoji de remplacem
 | Table / colonne | Rôle |
 | --- | --- |
 | `CustomEmoji` | Bibliothèque de l'équipe : `customEmojiId` (unique, identifiant Telegram), `fallback` (emoji standard de remplacement), `setName` / `setTitle` (pack), `format` (tgs / webm / webp), aperçu `previewBytes` + `previewMime` (récupéré par le worker, `previewAt`, `previewError`), `source`, `addedById`, `useCount` / `lastUsedAt` (emojis récents), `hiddenAt` (retiré de la bibliothèque). |
-| `Post.publisher` | BOT (le bot du message, Bot API) ou ACCOUNT (compte Telegram connecté, MTProto) pour un message de canal qui contient des emojis animés : Telegram les interdit aux bots dans les canaux. Un message ACCOUNT n'a pas de boutons et n'est jamais modifié ensuite par le bot ; épingler, désépingler et supprimer passent par le compte. |
+| `Post.publisher` | BOT (le bot du message, Bot API) ou ACCOUNT (compte Telegram connecté, MTProto) pour un message de CANAL (Channel.type CHANNEL) qui contient des emojis animés : Telegram les interdit aux bots dans les canaux ; dans un groupe ou supergroupe, le bot les publie lui-même (BOT). `protectContent` est toujours faux pour un message ACCOUNT. Un message ACCOUNT n'a pas de boutons et n'est jamais modifié ensuite par le bot ; épingler, désépingler et supprimer passent par le compte. |
 
 Texte : un emoji animé s'écrit `<tg-emoji emoji-id="<customEmojiId>"><fallback></tg-emoji>` dans le HTML Telegram de
 tous les textes (messages de canal, messages du bot, relances, envois à un groupe, modèles). Il compte comme son emoji de
@@ -247,3 +247,13 @@ remplacement dans la longueur du texte.
 File BullMQ `custom-emoji` : `fetch-previews` (aperçus par le Bot API), `import-account` (packs installés sur le compte
 connecté), `account-status` (Premium et droits de publication par canal → `Setting` `mtproto.publishStatus`, forme
 `MtprotoPublishStatus`), `tick` (toutes les 10 minutes).
+
+Formes écrites par le worker : `mtproto.publishStatus` = `MtprotoPublishStatus` (canaux indexés par `Channel.id`) ;
+événement `post.sent` d'un message ACCOUNT = `{ publisher: "ACCOUNT", customEmoji: { sent, kept }, protectContentApplied:
+false }` (`kept < sent` : Telegram a retiré des emojis animés, compte sans Premium) ; `custom_emoji.added` (source ACCOUNT)
+= `{ count, ids, already, packs, totalPacks, partial, userId }`. Après un échec, une tâche d'envoi de message porte le
+jobId `post:<id>:<attempts>` (sinon BullMQ ignorerait la reprogrammation).
+Événements de repli : `dm.custom_emoji_fallback` `{ outboundMessageId, botId, error, resent, kind, via? }` et
+`post.custom_emoji_fallback` `{ postId, botId, error, resent }` (comptés par l'alerte `custom_emoji_refused`) ;
+`post.deferred` (publication par le compte reportée : FLOOD_WAIT, session occupée, réseau).
+

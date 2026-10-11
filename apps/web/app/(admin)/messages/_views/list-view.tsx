@@ -5,6 +5,7 @@ import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import { MessagesListTable } from "@/components/messages/messages-list-table";
+import { PublisherBadge } from "@/components/messages/publisher-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -208,6 +209,7 @@ export async function ListView({
                   {/* Téléphone : l'état (pastille), le canal et la date sous l'extrait (autres colonnes masquées). */}
                   <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-note font-normal text-muted-foreground md:hidden">
                     <StatusBadge kind="post" value={p.status} />
+                    <PublisherBadge publisher={p.publisher} compact />
                     <UniverseDot
                       universe={p.channel.vertical}
                       withLabel
@@ -224,7 +226,12 @@ export async function ListView({
                 <UniverseDot universe={p.channel.vertical} withLabel label={p.channel.title} />
               ),
               date: fmtDate(p.scheduledAt),
-              status: <StatusBadge kind="post" value={p.status} />,
+              status: (
+                <span className="flex flex-wrap items-center gap-1">
+                  <StatusBadge kind="post" value={p.status} />
+                  <PublisherBadge publisher={p.publisher} compact />
+                </span>
+              ),
               clicks: fmtNum(p.stats?.clicks ?? 0),
             },
             sortValues: {

@@ -53,6 +53,13 @@ export const postFormSchema = z.object({
   textB: z.string().default(""),
   mediaAssetIdsB: z.array(z.string()).default([]),
   buttonsB: z.array(z.array(buttonSchema)).default([]),
+  // Emojis animés ET boutons dans un message de canal (phase 12) : « emojis » (publié par le compte connecté, sans
+  // boutons) ou « buttons » (publié par le bot, emojis animés remplacés par leurs emojis normaux).
+  emojiButtonsChoice: z
+    .enum(["emojis", "buttons"], {
+      error: "Choisissez « Garder les emojis animés » ou « Garder les boutons ».",
+    })
+    .optional(),
 });
 
 export type PostFormInput = z.infer<typeof postFormSchema>;
@@ -93,5 +100,6 @@ export function parsePostForm(fd: FormData) {
     textB: String(fd.get("textB") ?? ""),
     mediaAssetIdsB: json("mediaAssetIdsB", []),
     buttonsB: json("buttonsB", []),
+    emojiButtonsChoice: String(fd.get("emojiButtonsChoice") ?? "") || undefined,
   });
 }

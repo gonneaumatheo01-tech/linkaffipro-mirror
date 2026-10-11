@@ -6,10 +6,19 @@
  * HTML à partir d'une liste blanche. Rien d'autre ne passe : balises et attributs interdits disparaissent, seuls les
  * liens http(s) restent, le texte est échappé, les sauts de ligne sont gardés.
  *
- * Sortie Telegram : b, i, u, s, a href, tg-spoiler, code, pre, blockquote (https://core.telegram.org/bots/api#html-style),
- * avec les règles d'imbrication de Telegram (rien dans un code ou un bloc de code, pas de lien dans un code).
+ * Sortie Telegram : b, i, u, s, a href, tg-spoiler, code, pre, blockquote, tg-emoji
+ * (https://core.telegram.org/bots/api#html-style), avec les règles d'imbrication de Telegram (rien dans un code ou un
+ * bloc de code, pas de lien dans un code, pas d'emoji animé dans un lien, un code ou un bloc de code).
+ *
+ * Emoji animé (phase 12) : `<tg-emoji emoji-id="ID">👍</tg-emoji>` ↔ puce atomique de l'éditeur (custom-emoji-chip.ts).
+ * C'est un morceau à part (jamais fusionné avec son voisin), dont le texte est l'emoji de remplacement.
  */
-import { validateTelegramHtml } from "@linkaffipro/core";
+import { isValidCustomEmojiId, validateTelegramHtml } from "@linkaffipro/core";
+import {
+  customEmojiChipHtml,
+  CUSTOM_EMOJI_CHIP_CLASS,
+  DEFAULT_FALLBACK,
+} from "./custom-emoji-chip";
 import { parseHtml, type HtmlElement, type HtmlNode, type HtmlText } from "./html-parser";
 
 /** D'où vient le HTML lu : l'éditeur (espaces conservés), un collage (espaces repliés comme un navigateur), Telegram. */
@@ -27,6 +36,8 @@ type Fmt = {
   pre: string | null;
   /** Identifiant de la citation (suffixe « e » : citation repliable). */
   quote: string | null;
+  /** Emoji animé : identifiant Telegram (le texte du morceau est son emoji de remplacement). */
+  ce: string | null;
 };
 type Run = { text: string; fmt: Fmt; collapsible: boolean };
 type WhiteSpace = "pre" | "collapse" | "pre-line";
@@ -41,6 +52,7 @@ const EMPTY_FMT: Fmt = {
   href: null,
   pre: null,
   quote: null,
+  ce: null,
 };
 
 /** Contenu jamais repris (scripts, styles, médias, champs de formulaire…). */
@@ -164,13 +176,58 @@ function weightOf(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
-type Kind = "drop" | "br" | "img" | "block" | "quote" | "pre" | "cell" | "inline";
+type Kind = "drop" | "br" | "img" | "emoji" | "block" | "quote" | "pre" | "cell" | "inline";
+
+/**
+ * Identifiant d'emoji animé porté par un élément : balise Telegram `<tg-emoji emoji-id>`, puce de l'éditeur
+ * (`data-ce-id`), ou emoji animé copié depuis Telegram Web (`data-document-id` sur une image ou un bloc marqué
+ * « custom emoji »). Null sinon (ou identifiant invalide : le texte reste, sans animation).
+ */
+function customEmojiIdOf(el: HtmlElement): string | null {
+  let id: string | undefined;
+  if (el.tag === "tg-emoji") id = el.attrs["emoji-id"];
+  else if (el.attrs["data-ce-id"] !== undefined && hasClass(el, CUSTOM_EMOJI_CHIP_CLASS))
+    id = el.attrs["data-ce-id"];
+  else if (
+    el.attrs["data-document-id"] !== undefined &&
+    (/customemoji/i.test(el.attrs["data-entity-type"] ?? "") ||
+      /(^|\s)custom-?emoji(\s|$)/i.test(el.attrs.class ?? ""))
+  )
+    id = el.attrs["data-document-id"];
+  const v = (id ?? "").trim();
+  return v && isValidCustomEmojiId(v) ? v : null;
+}
+
+/** Texte d'un sous-arbre (émojis servis en image compris), sans mise en forme. */
+function plainTextOf(nodes: HtmlNode[]): string {
+  let out = "";
+  for (const n of nodes) {
+    if (n.type === "text") out += n.text;
+    else if (n.tag === "img") out += n.attrs.alt ?? "";
+    else out += plainTextOf(n.children);
+  }
+  return out;
+}
+
+/** Emoji de remplacement d'un emoji animé : attribut de la puce, texte de la balise, ou texte alternatif. */
+function customEmojiFallbackOf(el: HtmlElement): string {
+  const fromAttr = el.attrs["data-ce-fallback"];
+  const raw =
+    fromAttr !== undefined && fromAttr !== ""
+      ? fromAttr
+      : el.tag === "img"
+        ? (el.attrs.alt ?? "")
+        : plainTextOf(el.children);
+  const fb = raw.replace(/[\n\r\t]+/g, "").trim();
+  return fb || DEFAULT_FALLBACK;
+}
 
 function kindOf(el: HtmlElement): Kind {
   const t = el.tag;
   if (DROP.has(t) || "hidden" in el.attrs) return "drop";
   const st = styleOf(el);
   if (st.display === "none" || st["mso-hide"] === "all") return "drop";
+  if (customEmojiIdOf(el)) return "emoji";
   if (t === "br") return "br";
   if (t === "img") return "img";
   if (t === "blockquote") return "quote";
@@ -273,6 +330,10 @@ function placeholderBreaks(nodes: HtmlNode[], ws: WhiteSpace, editor: boolean): 
       }
       if (kind === "img") {
         if (imgText(n)) leaves.push({ br: null, text: null, container });
+        continue;
+      }
+      if (kind === "emoji") {
+        leaves.push({ br: null, text: null, container });
         continue;
       }
       const childMode = wsOf(n, mode, kind);
@@ -391,6 +452,12 @@ class RunBuilder {
     this.append(t, fmt, ws !== "pre");
   }
 
+  /** Emoji animé : morceau à part, jamais replié ni fusionné. */
+  emoji(fallback: string, fmt: Fmt): void {
+    this.flushPending(fmt);
+    this.append(fallback, fmt, false);
+  }
+
   /** Saut de ligne explicite (`<br>`). */
   br(fmt: Fmt): void {
     this.flushPending(fmt);
@@ -453,6 +520,13 @@ function toRuns(nodes: HtmlNode[], ws: WhiteSpace, rendered: boolean, editor: bo
         if (alt) out.text(alt, fmt, "pre");
         continue;
       }
+      if (kind === "emoji") {
+        // Un morceau à lui seul : l'emoji de remplacement, avec la mise en forme qui l'entoure (et celle posée sur la
+        // puce elle-même par le navigateur : gras, texte masqué…). L'animation éventuelle n'est jamais relue.
+        const f = fmtOf(n, fmt, "inline", editor);
+        out.emoji(customEmojiFallbackOf(n), { ...f, ce: customEmojiIdOf(n) });
+        continue;
+      }
       const f = fmtOf(n, fmt, kind, editor);
       const childMode = wsOf(n, mode, kind);
       if (kind === "cell") {
@@ -495,7 +569,8 @@ function sameFmt(a: Fmt, b: Fmt): boolean {
     a.code === b.code &&
     a.href === b.href &&
     a.pre === b.pre &&
-    a.quote === b.quote
+    a.quote === b.quote &&
+    a.ce === b.ce
   );
 }
 
@@ -503,10 +578,24 @@ function mergeRuns(runs: Run[]): Run[] {
   const out: Run[] = [];
   for (const r of runs) {
     const last = out[out.length - 1];
-    if (last && sameFmt(last.fmt, r.fmt)) last.text += r.text;
+    // Un emoji animé reste un morceau à part (deux emojis identiques collés restent deux emojis).
+    if (last && !last.fmt.ce && !r.fmt.ce && sameFmt(last.fmt, r.fmt)) last.text += r.text;
     else out.push({ ...r });
   }
   return out;
+}
+
+/**
+ * Règles d'imbrication de Telegram pour les emojis animés : jamais dans un code ou un bloc de code (l'emoji de
+ * remplacement y reste, en texte), jamais dans un lien (le lien est coupé autour de l'emoji).
+ */
+function fitCustomEmojis(runs: Run[]): Run[] {
+  return runs.map((r) => {
+    if (!r.fmt.ce) return r;
+    if (r.fmt.code || r.fmt.pre !== null) return { ...r, fmt: { ...r.fmt, ce: null } };
+    if (r.fmt.href) return { ...r, fmt: { ...r.fmt, href: null } };
+    return r;
+  });
 }
 
 /** Mises en forme « en ligne » d'un saut de ligne gardées seulement si ses deux voisins les ont aussi. */
@@ -636,6 +725,14 @@ function emit(runs: Run[], target: Target, trailingBreak: boolean): string {
       out += t.open;
       stack.push(t);
     }
+    if (run.fmt.ce) {
+      out +=
+        target === "editor"
+          ? customEmojiChipHtml(run.fmt.ce, run.text)
+          : `<tg-emoji emoji-id="${run.fmt.ce}">${escapeText(run.text)}</tg-emoji>`;
+      lastNewline = false;
+      continue;
+    }
     const text = escapeText(run.text);
     out += target === "editor" ? text.replace(/\n/g, "<br>") : text;
     lastNewline = run.text.endsWith("\n");
@@ -668,11 +765,13 @@ function runsOf(html: string, source: HtmlSource): Run[] {
   return mergeRuns(
     liftEdgeBreaks(
       mergeRuns(
-        toRuns(
-          nodes,
-          source === "paste" ? "collapse" : "pre",
-          source !== "telegram",
-          source === "editor",
+        fitCustomEmojis(
+          toRuns(
+            nodes,
+            source === "paste" ? "collapse" : "pre",
+            source !== "telegram",
+            source === "editor",
+          ),
         ),
       ),
     ),
@@ -711,7 +810,7 @@ export function plainTextToTelegram(text: string): string {
 export function plainPasteToTelegram(text: string): string {
   const t = text.replace(/\r\n?/g, "\n");
   const hasTag =
-    /<\/?(b|strong|i|em|u|ins|s|strike|del|a|code|pre|tg-spoiler|blockquote|span)(\s[^<>]*)?>/i.test(
+    /<\/?(b|strong|i|em|u|ins|s|strike|del|a|code|pre|tg-spoiler|tg-emoji|blockquote|span)(\s[^<>]*)?>/i.test(
       t,
     );
   if (hasTag && validateTelegramHtml(t, { max: Number.POSITIVE_INFINITY }).ok)

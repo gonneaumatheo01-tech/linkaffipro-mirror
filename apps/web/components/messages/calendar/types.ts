@@ -21,4 +21,6 @@ export type CalendarItem = {
   abVariant: string | null;
   movable: boolean;
   editable: boolean;
+  /** Qui publie : le bot, ou le compte Telegram connecté (emojis animés, sans boutons). */
+  publisher: "BOT" | "ACCOUNT";
 };

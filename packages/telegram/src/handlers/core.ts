@@ -10,7 +10,8 @@ import {
   mayCreateChannelFrom,
   rememberKnownChannel,
 } from "./channels";
-import { registerForwardHandlers } from "./forward";
+import { registerCustomEmojiHandlers } from "./custom-emoji";
+import { RecentKeys, registerForwardHandlers } from "./forward";
 
 const UPDATE_TYPES = [
   "message",
@@ -88,8 +89,14 @@ export function registerCoreHandlers(
     await next();
   });
 
+  // Emojis animés d'un message envoyé par l'équipe (bibliothèque, phase 12) : avant le transfert de canal, qui suit
+  // seulement quand le message vient d'un de nos canaux (déjà connu, ou dont l'un de nos bots est administrateur).
+  // Mémoire courte partagée : un album d'un canal tiers n'est pas ajouté par ses autres photos.
+  const forwardMemory = new RecentKeys();
+  registerCustomEmojiHandlers(bot, identity, deps, forwardMemory);
+
   // Transfert d'un message de canal au bot (ajout d'un canal existant) : avant tout `/start`.
-  registerForwardHandlers(bot, identity, deps);
+  registerForwardHandlers(bot, identity, deps, forwardMemory);
 
   // Handlers spécialisés (adhésion, offres, réactions) : ils doivent passer avant le /start générique.
   hooks.beforeStart?.(bot);

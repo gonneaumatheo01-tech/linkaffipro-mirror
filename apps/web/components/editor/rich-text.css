@@ -78,3 +78,48 @@
   color: var(--warning);
   border-radius: 4px;
 }
+
+/*
+ * Emoji animé (phase 12) : une image indivisible dans le texte (custom-emoji-chip.ts), de la taille d'un caractère un
+ * peu agrandi, qui montre l'emoji de remplacement. L'animation est dessinée dans un calque posé par-dessus, hors du
+ * texte (components/custom-emoji/emoji-chips.ts) ; quand elle est prête (`data-ce-ready`), l'image est masquée.
+ */
+img.lap-ce {
+  display: inline-block;
+  width: 1.3em;
+  height: 1.3em;
+  margin: 0 0.03em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+  border-radius: 4px;
+}
+img.lap-ce[data-ce-ready] {
+  opacity: 0;
+}
+/* Aperçu : un emoji animé dans un texte masqué reste caché tant que le texte n'est pas révélé (survol), comme sur
+   Telegram ; son animation suit (emoji-chips.ts, `isConcealed`). */
+[data-spoiler]:not(:hover) img.lap-ce {
+  visibility: hidden;
+}
+.lap-ce-layer {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.lap-ce-box {
+  position: absolute;
+  border-radius: 4px;
+}
+.lap-ce-box > canvas,
+.lap-ce-box > img,
+.lap-ce-box > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* Emoji animé dans la sélection : repérable avant de le supprimer ou de le remplacer. */
+.lap-ce-box.lap-ce-selected {
+  background-color: color-mix(in oklab, var(--brand) 35%, transparent);
+}

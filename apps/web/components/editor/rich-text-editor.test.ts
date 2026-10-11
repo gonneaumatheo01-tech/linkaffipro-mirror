@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { customEmojiChipHtml } from "./custom-emoji-chip";
 import { FormattedText } from "./formatted-text";
 import { RichTextEditor, type RichTextEditorProps } from "./rich-text-editor";
 
@@ -101,6 +102,36 @@ describe("RichTextEditor (rendu serveur)", () => {
   it("champ en erreur signalé par le parent", () => {
     expect(render({ invalid: true })).toContain('aria-invalid="true"');
   });
+
+  it("emoji animé : bouton dans la barre d'outils (fenêtre), sauf si le formulaire le refuse", () => {
+    const html = render();
+    const toolbar = /role="toolbar"[\s\S]*?<\/div><div class="relative">/.exec(html)?.[0] ?? "";
+    expect(toolbar).toMatch(
+      /aria-label="Insérer un emoji animé"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Insérer un emoji animé"/,
+    );
+    expect(render({ customEmoji: false })).not.toContain("Insérer un emoji animé");
+  });
+
+  it("emoji animé : le bouton porte son nom visible « Emoji animé » (celui du guide et des écrans), pas seulement une icône", () => {
+    const html = render();
+    const trigger =
+      /<button[^>]*aria-label="Insérer un emoji animé"[^>]*>([\s\S]*?)<\/button>/.exec(html)?.[1] ??
+      "";
+    expect(trigger.replace(/<[^>]+>/g, "").trim()).toBe("Emoji animé");
+  });
+
+  it("emoji animé : affiché en image indivisible, compté comme son emoji de remplacement", () => {
+    const html = render({
+      value: 'Salut <tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>',
+      name: "text",
+    });
+    expect(textbox(html)).toBe(`Salut ${customEmojiChipHtml("5368324170671202286", "👍")}`);
+    expect(html).toMatch(new RegExp(`>${"Salut 👍".length} \\/ 4[\\s  ]096<`));
+    // La valeur soumise garde la balise telle quelle.
+    expect(html).toContain(
+      'value="Salut &lt;tg-emoji emoji-id=&quot;5368324170671202286&quot;&gt;👍&lt;/tg-emoji&gt;"',
+    );
+  });
 });
 
 describe("FormattedText", () => {
@@ -113,5 +144,13 @@ describe("FormattedText", () => {
     expect(html).toBe(
       '<div data-slot="formatted-text" class="lap-rich text-body text-foreground">Salut <span class="lap-ph">{prenom}</span> <b>gras</b><br></div>',
     );
+  });
+  it("emoji animé : puce avec son emoji de remplacement (animée dans le navigateur)", () => {
+    const html = renderToStaticMarkup(
+      createElement(FormattedText, {
+        html: 'Top <b><tg-emoji emoji-id="5368324170671202286">🔥</tg-emoji></b>',
+      }),
+    );
+    expect(html).toContain(`Top <b>${customEmojiChipHtml("5368324170671202286", "🔥")}</b>`);
   });
 });

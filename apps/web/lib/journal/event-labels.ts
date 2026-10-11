@@ -36,9 +36,14 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "dm.sent": "Message privé envoyé",
   "dm.failed": "Message privé en échec",
   "dm.blocked": "Message privé refusé (bot bloqué)",
+  "dm.custom_emoji_fallback":
+    "Message privé renvoyé avec des emojis normaux (emojis animés refusés)",
   "post.sent": "Message publié",
   "post.failed": "Message en échec",
   "post.deleted": "Message supprimé",
+  "post.deferred": "Publication reportée (compte Telegram occupé, attente imposée ou réseau)",
+  "post.custom_emoji_fallback": "Message publié avec des emojis normaux (emojis animés refusés)",
+  "custom_emoji.added": "Emojis animés ajoutés à la bibliothèque",
   "channel.bot_admin_detected": "Bot ajouté comme administrateur",
   "channel.bot_admin_revoked": "Bot retiré des administrateurs",
   "channel.primary_bot_set": "Bot principal choisi automatiquement",
@@ -79,6 +84,7 @@ export function eventLabel(type: string): string {
   if (type.startsWith("membership.")) return "Adhésion";
   if (type.startsWith("invite_link.")) return "Lien d'invitation";
   if (type.startsWith("member.")) return "Membre";
+  if (type.startsWith("custom_emoji.")) return "Emojis animés";
   return "Autre événement";
 }
 
@@ -91,6 +97,7 @@ export const EVENT_FAMILIES: Array<{ prefix: string; label: string }> = [
   { prefix: "tracking.", label: "Clics sur un lien traqué" },
   { prefix: "dm.", label: "Messages privés" },
   { prefix: "post.", label: "Messages de canal" },
+  { prefix: "custom_emoji.", label: "Emojis animés" },
   { prefix: "channel.", label: "Canaux et droits des bots" },
   { prefix: "player.", label: "Joueurs (nos joueurs)" },
   { prefix: "broadcast.", label: "Messages à un groupe" },

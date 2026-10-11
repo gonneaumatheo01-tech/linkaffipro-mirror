@@ -25,9 +25,35 @@ describe("message en échec : que faire", () => {
       expect(failureFix(reason).kind).toBe("message");
   });
 
+  it("message publié par le compte Telegram connecté (emojis animés) → réglages du compte", () => {
+    for (const reason of [
+      "La session du compte Telegram connecté a expiré ou a été révoquée : reconnectez-le dans Réglages → Connexions → Telegram. Puis reprogrammez ce message.",
+      "Le compte Telegram connecté n'est pas administrateur de ce canal avec le droit de publier.",
+      "Le compte Telegram connecté n'a pas Telegram Premium : les emojis animés ne peuvent pas être publiés.",
+      "Telegram ne répond pas au compte connecté : message non publié, reprogrammez-le.",
+    ])
+      expect(failureFix(reason).kind).toBe("account");
+    expect(failureFix("Le compte Telegram connecté n'est pas administrateur.").hint).toContain(
+      "Réglages → Connexions → Telegram",
+    );
+    // Les phrases du bot ne changent pas de famille.
+    expect(failureFix("Le bot n'est pas administrateur du canal.").kind).toBe("channel");
+  });
+
   it("cause inconnue ou absente → phrase générale", () => {
     expect(failureFix("Erreur réseau vers Telegram.").kind).toBe("other");
     expect(failureFix(null).kind).toBe("other");
     expect(failureFix(undefined).hint).toMatch(/page du canal/);
+  });
+
+  it("publication interrompue : dupliquer plutôt que reprogrammer (phase 12)", () => {
+    for (const reason of [
+      "Une partie de ce message est déjà publiée dans un autre canal : supprimez-la dans Telegram, puis dupliquez ce message et programmez la copie (elle partira en entier).",
+      "Une partie de ce message a déjà été publiée par votre compte Telegram : supprimez-la dans Telegram, puis dupliquez ce message et programmez la copie (elle partira en entier).",
+    ])
+      expect(failureFix(reason)).toMatchObject({
+        kind: "message",
+        hint: expect.stringContaining("Dupliquez"),
+      });
   });
 });

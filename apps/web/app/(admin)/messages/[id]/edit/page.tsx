@@ -8,7 +8,7 @@ import { parseButtons } from "@/lib/posts/buttons";
 import { toParisLocalInput } from "@/lib/posts/time";
 import { loadBestSlots } from "@/lib/besthours/queries";
 import { updatePostAction } from "../../actions";
-import { loadFormOptions } from "../../new/page";
+import { loadFormOptions, postEmojiActions } from "../../new/page";
 
 export const metadata: Metadata = { title: "Modifier le message" };
 
@@ -25,7 +25,8 @@ export default async function EditMessagePage({
     where: { id: { in: ids } },
     select: { id: true, filename: true, mimeType: true, size: true },
   });
-  const { channels, categories, campaigns, campaignOptions } = await loadFormOptions();
+  const { channels, categories, campaigns, campaignOptions, accountStatus } =
+    await loadFormOptions();
   const bestSlots = post.isTemplate ? {} : await loadBestSlots(channels.map((c) => c.id));
   const initial: PostFormValues = {
     postId: post.id,
@@ -82,6 +83,8 @@ export default async function EditMessagePage({
           initial={initial}
           singleChannel
           bestSlots={bestSlots}
+          accountStatus={accountStatus}
+          emojiActions={postEmojiActions}
         />
       ) : null}
     </>

@@ -125,6 +125,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
   },
   { path: "/messages/ab", label: "Test A/B", sections: ["Test A/B d'un message de canal"] },
   {
+    // Phase 12 : bibliothèque des emojis animés (section du guide sous « Messages »).
+    path: "/messages/emojis",
+    label: "Emojis animés",
+    sections: ["Ajouter des emojis animés"],
+  },
+  {
     path: "/messages/categories",
     label: "Comparer par catégorie",
     sections: ["Comparer par catégorie", "Catégories de messages"],

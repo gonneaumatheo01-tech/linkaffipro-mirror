@@ -1,4 +1,32 @@
-# État du projet : phase 11 (règles selon la provenance) terminée (11 octobre 2026)
+# État du projet : phase 12 (emojis animés) terminée (12 octobre 2026)
+
+Phases 0 à 11 en ligne. Phase 12 = les emojis animés des packs Premium de Telegram dans les messages (`docs/prompts/14-phase-12-emojis-animes.md`). 2 863 tests unitaires et 289 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
+
+## Phase 12 : ce qui a changé
+- **Bibliothèque « Emojis animés »** (Messages → Emojis animés) : 3 façons d'ajouter — transférer au bot un message qui contient vos emojis (le bot répond « 6 emojis animés ajoutés ✅ »), coller le lien d'un pack (t.me/addemoji/…), ou importer les packs installés sur votre compte Telegram connecté. Aperçus animés, recherche, packs ; un administrateur peut retirer un emoji.
+- **Éditeur** : bouton « Emoji animé » dans la barre de tous les écrans de rédaction (messages de canal, modèles, ce que dit le bot, relances, écrire à un groupe) ; l'emoji s'insère animé, se supprime comme une lettre et compte pour un caractère. L'assistant IA et les traductions le gardent.
+- **Messages privés du bot** (accueil, rappels, relances, écrire à un groupe…) : le bot envoie les emojis animés lui-même (règle Telegram depuis février 2026, propriétaire des bots Premium). Si Telegram les refuse, le message part aussitôt avec les emojis normaux et l'admin est prévenu une fois par jour au plus. Même chose pour les messages de groupe.
+- **Messages de canal** : Telegram interdit ces emojis aux bots dans les canaux, donc un message de canal qui en contient est publié par votre compte Telegram connecté, sans boutons (une offre se met en lien dans le texte, clics comptés). Avec des boutons, vous choisissez : garder les emojis animés (sans boutons) ou garder les boutons (emojis normaux). Le formulaire vérifie avant de programmer que votre compte peut publier (connecté, Premium, administrateur du canal). Badge « Publié par votre compte · emojis animés » ; épingler, supprimer après N minutes, envoyer sans son passent par votre compte ; jamais de doublon, jamais de modification par le bot.
+
+## Test de 5 minutes
+1. Dans Telegram, transférez à @casinogamblingoobot un message qui contient des emojis animés : le bot répond « … emojis animés ajoutés ✅ ».
+2. https://app.linkaffipro.com/messages/emojis : vos emojis sont là, animés.
+3. Messages → Programmer un message → canal « Test » → bouton **Emoji animé** : insérez-en un ; le bandeau « publié par votre compte Telegram, sans boutons » apparaît, et la ligne « Votre compte Telegram … peut publier » (sinon **Vérifier**).
+4. Programmez-le dans 2 minutes : il paraît dans « Test », publié par votre compte, avec l'emoji animé.
+5. Membres → Relances automatiques → une relance → **Tester sur moi** avec un emoji animé : vous le recevez animé du bot.
+
+## Vérifications faites
+- Quatre agents de réalisation (bot : ajout, aperçus, repli ; compte connecté : publication ; éditeur, sélecteur, bibliothèque ; formulaire des messages), deux relectures adverses puis une relecture finale de bout en bout, chaque défaut corrigé avec un test qui échouait avant. Défauts importants trouvés et corrigés : les groupes passaient à tort par votre compte (le bot peut y publier les emojis lui-même) ; transférer le message du canal de quelqu'un d'autre pour récupérer ses emojis ajoutait ce canal.
+- Conversion du texte vers le format du compte vérifiée avec des emojis composés, des drapeaux et des caractères spéciaux (positions exactes) ; aller-retour de l'éditeur sans perte dans Chrome et Firefox ; 0 violation d'accessibilité.
+- Captures de référence : `docs/captures/messages-emojis-*`, `messages-new-*` et, pour l'éditeur et le sélecteur (que l'outil de captures ne sait pas ouvrir), `docs/captures/phase12-emojis/`.
+__REALTEST__
+
+## Limites et suites
+- La forme exacte du refus de Telegram (Premium expiré) n'est documentée nulle part : la détection est prudente et le repli a été testé en simulation.
+- « Contenu protégé » ne s'applique pas à un message publié par votre compte (Telegram le réserve aux bots) : protégez tout le canal dans ses réglages Telegram.
+- Les emojis récents de votre clavier Telegram ne peuvent pas être importés (Telegram ne les garde que sur le téléphone) : utilisez le transfert au bot ou les packs.
+
+## Phase 11 — (règles selon la provenance) terminée (11 octobre 2026)
 
 Phases 0 à 10 en ligne. Phase 11 = les règles d'acceptation selon la provenance et le délai après les canaux obligatoires, demandés par le client le 11 octobre (`docs/prompts/13-phase-11-regles-par-provenance.md`). 2 537 tests unitaires et 220 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
 

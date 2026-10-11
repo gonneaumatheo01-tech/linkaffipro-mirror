@@ -52,6 +52,7 @@ import {
 import { nextOccurrence } from "@/lib/posts/time";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { UNIVERSES, universeLabel, type Universe } from "@/lib/universe";
+import { ACCOUNT_PUBLISHER_LABEL, PublisherBadge } from "../publisher-badge";
 import { PostPanel } from "./post-panel";
 import type { CalendarItem } from "./types";
 
@@ -278,6 +279,7 @@ export function MessagesCalendar({
       time,
       p.abVariant ? `version ${p.abVariant}` : null,
       p.excerpt ? p.excerpt.slice(0, 80) : "média seul",
+      p.publisher === "ACCOUNT" ? ACCOUNT_PUBLISHER_LABEL : null,
       p.channelTitle,
       statusLabel("post", p.status),
       universeLabel(p.universe),
@@ -365,7 +367,9 @@ export function MessagesCalendar({
                 <input type="hidden" name="channelId" value={recomputeChannelId} />
                 {/* Retour sur la même semaine et les mêmes filtres après le recalcul. */}
                 <input type="hidden" name="week" value={monday} />
-                {query.vertical ? <input type="hidden" name="vertical" value={query.vertical} /> : null}
+                {query.vertical ? (
+                  <input type="hidden" name="vertical" value={query.vertical} />
+                ) : null}
                 {query.campaignId ? (
                   <input type="hidden" name="campaignId" value={query.campaignId} />
                 ) : null}
@@ -559,6 +563,7 @@ export function MessagesCalendar({
                                         className="h-5 px-1.5"
                                       />
                                       {p.abVariant ? <AbTag variant={p.abVariant} /> : null}
+                                      <PublisherBadge publisher={p.publisher} compact />
                                     </span>
                                     <span className="mt-0.5 line-clamp-2 break-words">
                                       {p.excerpt || "(média seul)"}
@@ -711,6 +716,7 @@ export function MessagesCalendar({
                         </span>
                         <StatusBadge kind="post" value={p.status} />
                         {p.abVariant ? <AbTag variant={p.abVariant} /> : null}
+                        <PublisherBadge publisher={p.publisher} />
                       </span>
                       <span className="flex items-center gap-1.5 text-note text-muted-foreground">
                         <UniverseDot universe={p.universe} />

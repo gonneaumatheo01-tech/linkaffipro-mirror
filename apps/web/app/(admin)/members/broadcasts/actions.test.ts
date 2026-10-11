@@ -18,6 +18,8 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/env", () => ({ env: { trackingBaseUrl: "https://go.example" } }));
 vi.mock("@linkaffipro/queue", () => ({ enqueue: vi.fn(async () => ({})), enqueueDm: vi.fn() }));
 vi.mock("@linkaffipro/telegram", () => ({ offerDeepLink: vi.fn(() => "https://t.me/x") }));
+const usage = vi.hoisted(() => vi.fn(async (..._texts: unknown[]) => 1));
+vi.mock("@/lib/custom-emoji/usage", () => ({ markCustomEmojisUsed: usage }));
 const refresh = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("@/lib/campaigns/refresh", () => ({ refreshCampaignStats: refresh }));
 const ab = vi.hoisted(() => ({ cmp: null as unknown }));
@@ -320,5 +322,21 @@ describe("« Envoyer un test à moi » depuis l'assistant", () => {
       expect.objectContaining({ jobId: "broadcast-b1" }),
     );
     expect(enqueueDm).not.toHaveBeenCalled();
+  });
+});
+
+describe("emojis animés dans un message à un groupe (phase 12)", () => {
+  it("texte enregistré avec ses balises, emojis notés comme utilisés", async () => {
+    usage.mockClear();
+    db.prisma.broadcast.create.mockResolvedValue({ id: "b1" });
+    const text = 'Bonus <tg-emoji emoji-id="5368324170671202286">🎁</tg-emoji> ce soir';
+    const url = await run(
+      createBroadcastAction(form({ name: "Promo", botId: "bot1", text, intent: "draft" })),
+    );
+    expect(param(url, "ok")).toBe("Brouillon enregistré.");
+    expect(db.prisma.broadcast.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ text }) }),
+    );
+    expect(usage).toHaveBeenCalledWith([text]);
   });
 });

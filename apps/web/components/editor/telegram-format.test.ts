@@ -159,8 +159,10 @@ describe("éditeur → HTML Telegram", () => {
       htmlToTelegram("<script>alert(1)</script><style>b{}</style><iframe src=x></iframe>ok"),
     ).toBe("ok");
   });
-  it("tg-emoji : l'émoji de secours est gardé", () => {
-    expect(htmlToTelegram('<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>')).toBe("👍");
+  it("tg-emoji : l'emoji animé est gardé tel quel (phase 12, voir custom-emoji-format.test.ts)", () => {
+    expect(htmlToTelegram('<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>')).toBe(
+      '<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>',
+    );
   });
   it("sortie toujours acceptée par validateTelegramHtml", () => {
     for (const html of [

@@ -39,7 +39,7 @@ export async function suggest(req: AiRequest, client: AiClient): Promise<AiResul
     const user =
       attempt === 0
         ? baseUser
-        : `${baseUser}\n\nRAPPEL : ta réponse précédente n'était pas exploitable (${lastError?.message ?? "format invalide"}). Réponds uniquement avec le JSON demandé, en conservant tous les repères {…} et tous les liens du brouillon.`;
+        : `${baseUser}\n\nRAPPEL : ta réponse précédente n'était pas exploitable (${lastError?.message ?? "format invalide"}). Réponds uniquement avec le JSON demandé, en conservant tous les repères {…}, tous les liens et toutes les balises <tg-emoji> (emojis animés) du brouillon, telles quelles.`;
     const res = await client.createMessage({
       model: req.model,
       maxTokens: MAX_TOKENS,

@@ -36,6 +36,7 @@ export function toPanelItem(p: {
   mediaAssetIds: unknown;
   abGroupId: string | null;
   abVariant: string | null;
+  publisher?: string | null;
 }): CalendarItem {
   return {
     id: p.id,
@@ -53,5 +54,6 @@ export function toPanelItem(p: {
     abVariant: p.abVariant,
     movable: canMove(p) && p.scheduledAt !== null,
     editable: canEdit(p),
+    publisher: p.publisher === "ACCOUNT" ? "ACCOUNT" : "BOT",
   };
 }

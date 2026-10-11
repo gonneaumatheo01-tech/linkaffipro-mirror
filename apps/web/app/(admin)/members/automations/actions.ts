@@ -13,6 +13,7 @@ import {
 import { prisma, audit, toJsonValue, Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin, requireUser, type CurrentUser } from "@/lib/session";
+import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 import { buildCardRule, CardInputError, cardSettingsFromForm } from "@/lib/automations/cards";
 import { actionsFromForm, conditionsFromForm } from "@/lib/automations/form";
 import { assertRuleOfferButtons } from "@/lib/automations/offer-buttons";
@@ -68,6 +69,16 @@ async function updateRule(
     }),
   ]);
   return moved.count;
+}
+
+/** Textes d'une relance (liste d'actions ou parcours) qui contiennent des emojis animés (phase 12). */
+function emojiTexts(value: unknown, out: string[] = []): string[] {
+  if (typeof value === "string") {
+    if (value.includes("<tg-emoji")) out.push(value);
+  } else if (Array.isArray(value)) for (const v of value) emojiTexts(v, out);
+  else if (value && typeof value === "object")
+    for (const v of Object.values(value as Record<string, unknown>)) emojiTexts(v, out);
+  return out;
 }
 
 const movedText = (n: number) =>
@@ -172,6 +183,8 @@ async function persistRule(
     await assertRuleOfferButtons({ actions: r.actions, graph: null });
   }
 
+  // Emojis animés des messages : « Récents de l'équipe » dans le sélecteur.
+  const usedTexts = emojiTexts([data.actions, form === "graph" ? data.graph : null]);
   if (previous) {
     const moved = await updateRule(previous.id, data, previous, {
       graph: form === "graph" ? data.graph : null,
@@ -184,6 +197,7 @@ async function persistRule(
       entityId: previous.id,
       metadata: { form, templateKey: data.templateKey, ...(moved ? { pendingMoved: moved } : {}) },
     });
+    await markCustomEmojisUsed(usedTexts);
     return { id: previous.id, created: false, moved };
   }
   const rule = await prisma.automationRule.create({
@@ -196,6 +210,7 @@ async function persistRule(
     entityId: rule.id,
     metadata: { name: data.name, trigger: data.trigger, form, templateKey: data.templateKey },
   });
+  await markCustomEmojisUsed(usedTexts);
   return { id: rule.id, created: true, moved: 0 };
 }
 
@@ -316,6 +331,7 @@ export async function saveCardAction(formData: FormData): Promise<SaveResult> {
         metadata: { name: built.name, trigger: built.trigger, templateKey: key },
       });
     }
+    await markCustomEmojisUsed(emojiTexts([built.actions, built.graph]));
   } catch (err) {
     if (isRedirect(err)) throw err;
     return {

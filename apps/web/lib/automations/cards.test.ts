@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   graphToLinear,
   linearToGraph,
+  parseActions,
   templateGraph,
   validateGraph,
   type AutomationAction,
@@ -20,6 +21,7 @@ import {
   groupRulesByCard,
   readCardSettings,
   recognizeCard,
+  type CardKey,
   type CardRule,
 } from "./cards";
 
@@ -29,6 +31,17 @@ function fd(entries: Array<[string, string]>): FormData {
   const f = new FormData();
   for (const [k, v] of entries) f.append(k, v);
   return f;
+}
+
+const EMOJI_TAG = '<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>';
+const LONG_WITH_EMOJIS = "a".repeat(3000) + EMOJI_TAG.repeat(30);
+function coreAcceptsVisibleLength(): boolean {
+  try {
+    parseActions([{ type: "send_message", text: LONG_WITH_EMOJIS }]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 let n = 0;
@@ -414,6 +427,77 @@ describe("cartes : formulaire", () => {
       ).level,
     ).toBe("REGULIER");
   });
+
+  it("longueur visible : un emoji animé compte comme son emoji (comme le compteur de l'éditeur)", () => {
+    // 3 000 caractères + 30 emojis animés = 3 060 caractères visibles (4 620 en HTML brut).
+    expect(LONG_WITH_EMOJIS.length).toBeGreaterThan(4096);
+    const cases: Array<[CardKey, [string, string]]> = [
+      ["offer_no_signup", ["delay", "24"]],
+      ["welcome", ["delay", "now"]],
+      ["inactive_7d", ["inactiveDays", "7"]],
+    ];
+    for (const [key, entry] of cases) {
+      const s = cardSettingsFromForm(key, fd([entry, ["text", LONG_WITH_EMOJIS]]));
+      expect(s.message.text).toBe(LONG_WITH_EMOJIS);
+    }
+    // Au-delà de 4 096 caractères visibles (👍 en vaut 2, comme dans le compteur) : toujours refusé, même message.
+    expect(() =>
+      cardSettingsFromForm(
+        "welcome",
+        fd([
+          ["delay", "now"],
+          ["text", "a".repeat(4095) + EMOJI_TAG],
+        ]),
+      ),
+    ).toThrow(/Message trop long \(4 096 caractères au plus\)/);
+    expect(() =>
+      cardSettingsFromForm(
+        "welcome",
+        fd([
+          ["delay", "now"],
+          ["text", "a".repeat(4094) + EMOJI_TAG],
+        ]),
+      ),
+    ).not.toThrow();
+  });
+
+  it("ne construit jamais un parcours que le worker refuserait (refus en français à la place)", () => {
+    const s = cardSettingsFromForm(
+      "offer_no_signup",
+      fd([
+        ["delay", "24"],
+        ["text", LONG_WITH_EMOJIS],
+      ]),
+    );
+    let built: ReturnType<typeof buildCardRule> | null = null;
+    try {
+      built = buildCardRule("offer_no_signup", s, null);
+    } catch (err) {
+      expect(err).toBeInstanceOf(CardInputError);
+      expect((err as Error).message).toMatch(/^Relance à corriger : /);
+    }
+    if (built) expect(validateGraph(built.graph).ok).toBe(true);
+  });
+
+  // Actif dès que `parseActions` (core) mesure la longueur visible ; avant, le core refuse ce texte partout.
+  it.runIf(coreAcceptsVisibleLength())(
+    "3 000 caractères + 30 emojis animés : relance enregistrable, en liste comme en parcours",
+    () => {
+      const cases: Array<[CardKey, [string, string]]> = [
+        ["offer_no_signup", ["delay", "24"]],
+        ["welcome", ["delay", "now"]],
+      ];
+      for (const [key, entry] of cases) {
+        const s = cardSettingsFromForm(key, fd([entry, ["text", LONG_WITH_EMOJIS]]));
+        const built = buildCardRule(key, s, null);
+        const sent = built.graph
+          ? (built.graph.nodes.find((n) => n.id === "message") as { action: { text?: string } })
+              .action.text
+          : (built.actions.find((a) => a.type === "send_message") as { text: string }).text;
+        expect(sent).toBe(LONG_WITH_EMOJIS);
+      }
+    },
+  );
 
   it("refuse en français : message vide, mise en forme cassée, bouton sans adresse, délai hors bornes", () => {
     const bad =

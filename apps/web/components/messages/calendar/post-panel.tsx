@@ -10,6 +10,7 @@ import type { MovePostResult } from "@/app/(admin)/messages/move-action";
 import { momentLabel } from "@/lib/posts/calendar";
 import { StatusBadge } from "@/lib/status-badges";
 import { MoveForm } from "../move-form";
+import { PublisherBadge } from "../publisher-badge";
 import { TelegramPreview } from "../telegram-preview";
 import type { CalendarItem } from "./types";
 
@@ -85,6 +86,7 @@ export function PostPanel({
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge kind="post" value={item.status} />
+            <PublisherBadge publisher={item.publisher} />
             <UniverseDot universe={item.universe} variant="pill" />
             {item.category ? (
               <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-border px-2.5 text-note font-medium">

@@ -207,6 +207,21 @@ describe("vue « jour » du téléphone", () => {
     const a = dayAgenda(items, slots, "2026-10-09", NOW);
     expect(a.map((e) => e.key)).toEqual(["p2", "slot-2026-10-09-9", "p1", "slot-2026-10-09-19"]);
   });
+  it("deux messages à la même heure : toujours le même ordre (serveur et navigateur identiques)", () => {
+    const same = [
+      { id: "b-roulette", local: "2026-10-09T18:00" },
+      { id: "a-pronos", local: "2026-10-09T18:00" },
+    ];
+    // Ordre des identifiants, comme dans la grille de l'ordinateur, quel que soit l'ordre reçu.
+    expect(dayAgenda(same, [], "2026-10-09", NOW).map((e) => e.key)).toEqual([
+      "a-pronos",
+      "b-roulette",
+    ]);
+    expect(dayAgenda([...same].reverse(), [], "2026-10-09", NOW).map((e) => e.key)).toEqual([
+      "a-pronos",
+      "b-roulette",
+    ]);
+  });
   it("un créneau déjà occupé n'est pas proposé ; un créneau passé est marqué", () => {
     const a = dayAgenda(items, slots, "2026-10-09", NOW);
     expect(a.some((e) => e.key === "slot-2026-10-09-12")).toBe(false);

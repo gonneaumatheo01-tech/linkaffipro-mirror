@@ -1,5 +1,6 @@
 import type { Vertical } from "@linkaffipro/core";
 import type { Chat, ChatMemberAdministrator, ChatMemberOwner, Update, User } from "grammy/types";
+import type { CustomEmojiAddOutcome, ExtractedCustomEmoji } from "./custom-emoji/extract";
 
 /** Identité d'un bot telle que connue en base (jamais le jeton). */
 export type BotIdentity = {
@@ -78,8 +79,22 @@ export interface TelegramDeps {
    * `unavailable` : vérification impossible pour le moment (réseau, limite de débit) ; les droits enregistrés sont conservés.
    */
   recheckChannelRights?(channelId: string): Promise<RecheckOutcome>;
+  /**
+   * Phase 12 : l'un de nos autres bots actifs (sauf `exceptBotTelegramId`, le bot courant, qui a déjà essayé) est-il
+   * administrateur de ce chat ? Lecture seule avec leurs propres jetons, aucune écriture. Faux sur un doute (réseau).
+   */
+  isOurBotAdminOf?(telegramChatId: number, exceptBotTelegramId: bigint): Promise<boolean>;
   /** Méthode 2 depuis le bot : un utilisateur de la plateforme colle le lien public d'un canal (t.me/<nom>, @nom). */
   importChannelByLink?(input: string, telegramUserId: bigint): Promise<LinkImportOutcome>;
+  /**
+   * Phase 12 : emojis animés d'un message envoyé au bot par un utilisateur de la plateforme → bibliothèque de l'équipe
+   * (sans doublon, un emoji retiré y revient), événement `custom_emoji.added` et aperçus enfilés. Absent : rien n'est fait.
+   */
+  addCustomEmojis?(input: {
+    emojis: ExtractedCustomEmoji[];
+    telegramUserId: bigint;
+    botId: string;
+  }): Promise<CustomEmojiAddOutcome>;
 }
 
 /** Résultat d'une re-vérification des droits pour le bot (méthode 1). */

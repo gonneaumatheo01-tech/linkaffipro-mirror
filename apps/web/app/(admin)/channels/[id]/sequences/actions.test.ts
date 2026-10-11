@@ -21,6 +21,8 @@ vi.mock("@/lib/session", () => ({
   })),
 }));
 vi.mock("@linkaffipro/queue", () => ({ enqueueDm: vi.fn() }));
+const usage = vi.hoisted(() => vi.fn(async (..._texts: unknown[]) => 1));
+vi.mock("@/lib/custom-emoji/usage", () => ({ markCustomEmojisUsed: usage }));
 vi.mock("@linkaffipro/telegram", () => ({
   ensureDefaultSequences: vi.fn(async () => undefined),
   previewText: (t: string) => t,
@@ -51,6 +53,7 @@ import {
 } from "./actions";
 
 beforeEach(() => {
+  usage.mockClear();
   db.step = { id: "st1", texts: { fr: "Bonjour {prenom}" } };
   db.audits = [];
   db.updates = 0;
@@ -169,5 +172,36 @@ describe("textes du bot : retour vers la bonne carte et la bonne langue", () => 
     expect(q.has("open")).toBe(false);
     expect(q.get("ok")).toMatch(/désactivé/);
     expect(db.audits.at(-1)).toMatchObject({ action: "sequence.deactivated" });
+  });
+});
+
+describe("emojis animés dans les messages du bot (phase 12)", () => {
+  const EMOJI = '<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji>';
+
+  it("texte enregistré avec sa balise, emoji noté comme utilisé", async () => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({
+      channelId: "ch1",
+      trigger: "APPROVED",
+      lang: "fr",
+      text: `Bienvenue {prenom} ${EMOJI}`,
+    }))
+      fd.append(k, v);
+    await saveSequenceTextAction(fd).catch((e: { url?: string }) => {
+      if (!e.url) throw e;
+    });
+    expect(db.step.texts.fr).toBe(`Bienvenue {prenom} ${EMOJI}`);
+    expect(usage).toHaveBeenCalledWith(`Bienvenue {prenom} ${EMOJI}`);
+  });
+
+  it("traductions de l'assistant : balises gardées, emojis notés comme utilisés", async () => {
+    const r = await saveSequenceTranslationsAction({
+      channelId: "ch1",
+      trigger: "APPROVED",
+      texts: { en: `Welcome ${EMOJI}` },
+    });
+    expect(r).toEqual({ ok: true, saved: ["en"] });
+    expect(db.step.texts.en).toBe(`Welcome ${EMOJI}`);
+    expect(usage).toHaveBeenCalledWith([`Welcome ${EMOJI}`]);
   });
 });

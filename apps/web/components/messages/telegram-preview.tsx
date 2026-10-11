@@ -1,13 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
+import "@/components/editor/rich-text.css";
+import { useMemo, useRef } from "react";
 import { ImageIcon } from "lucide-react";
 import { validateTelegramHtml } from "@linkaffipro/core";
 import { cn } from "@/components/ui/cn";
+import { useCustomEmojiChips } from "@/components/custom-emoji/emoji-chips";
+import { telegramHtmlWithChips } from "@/components/editor/custom-emoji-chip";
 import { markTemplatePlaceholders } from "./preview-placeholders";
 
+/**
+ * Texte masqué : caché jusqu'au survol, comme sur Telegram. `data-spoiler` cache aussi ses emojis animés (image :
+ * components/editor/rich-text.css ; animation : components/custom-emoji/emoji-chips.ts).
+ */
 const SPOILER =
-  '<span class="rounded bg-foreground/80 px-1 text-transparent transition hover:bg-transparent hover:text-inherit">';
+  '<span data-spoiler="" class="rounded bg-foreground/80 px-1 text-transparent transition hover:bg-transparent hover:text-inherit">';
 
 /**
  * Rendu approché d'un message Telegram (HTML validé uniquement) : bulle blanche à gauche sur fond de discussion
@@ -36,6 +43,7 @@ export function TelegramPreview({
   highlightPlaceholders?: boolean;
   className?: string;
 }) {
+  const textRef = useRef<HTMLDivElement>(null);
   const safe = useMemo(() => {
     const r = validateTelegramHtml(html);
     if (!r.ok) return { ok: false as const, error: r.error };
@@ -59,12 +67,10 @@ export function TelegramPreview({
         /<a href="/g,
         '<a target="_blank" rel="noopener" class="text-info underline" href="',
       );
-    return {
-      ok: true as const,
-      html: highlightPlaceholders ? markTemplatePlaceholders(rendered) : rendered,
-      length: r.textLength,
-    };
+    const marked = highlightPlaceholders ? markTemplatePlaceholders(rendered) : rendered;
+    return { ok: true as const, html: telegramHtmlWithChips(marked), length: r.textLength };
   }, [html, highlightPlaceholders]);
+  useCustomEmojiChips(textRef, safe.ok ? safe.html : null);
   const shownButtons = compact ? buttons.slice(0, 2) : buttons;
   return (
     <div
@@ -90,6 +96,7 @@ export function TelegramPreview({
         ) : null}
         {safe.ok ? (
           <div
+            ref={textRef}
             className={cn(
               "break-words whitespace-pre-wrap",
               compact && "line-clamp-5 text-note leading-5",

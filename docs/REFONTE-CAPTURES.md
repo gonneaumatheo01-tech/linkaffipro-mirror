@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-11 19:04 UTC.
+Dernière mise à jour : 2026-10-11 22:35 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -31,6 +31,7 @@ Dernière mise à jour : 2026-10-11 19:04 UTC.
 | Modifier le message | `/messages/[id]/edit` | <a href="captures/messages-id-edit-1440.webp"><img src="captures/messages-id-edit-1440.webp" alt="Modifier le message, 1440 px" width="360"></a> | <a href="captures/messages-id-edit-390.webp"><img src="captures/messages-id-edit-390.webp" alt="Modifier le message, 390 px" width="120"></a> |
 | Test A/B | `/messages/ab/[groupId]` | <a href="captures/messages-ab-groupid-1440.webp"><img src="captures/messages-ab-groupid-1440.webp" alt="Test A/B, 1440 px" width="360"></a> | <a href="captures/messages-ab-groupid-390.webp"><img src="captures/messages-ab-groupid-390.webp" alt="Test A/B, 390 px" width="120"></a> |
 | Comparer par catégorie | `/messages/categories` | <a href="captures/messages-categories-1440.webp"><img src="captures/messages-categories-1440.webp" alt="Comparer par catégorie, 1440 px" width="360"></a> | <a href="captures/messages-categories-390.webp"><img src="captures/messages-categories-390.webp" alt="Comparer par catégorie, 390 px" width="120"></a> |
+| Emojis animés | `/messages/emojis` | <a href="captures/messages-emojis-1440.webp"><img src="captures/messages-emojis-1440.webp" alt="Emojis animés, 1440 px" width="360"></a> | <a href="captures/messages-emojis-390.webp"><img src="captures/messages-emojis-390.webp" alt="Emojis animés, 390 px" width="120"></a> |
 | Programmer un message | `/messages/new` | <a href="captures/messages-new-1440.webp"><img src="captures/messages-new-1440.webp" alt="Programmer un message, 1440 px" width="360"></a> | <a href="captures/messages-new-390.webp"><img src="captures/messages-new-390.webp" alt="Programmer un message, 390 px" width="120"></a> |
 | Messages | `/messages?view=templates` : 390 px coupée à 16000 px (page de 18580 px) | <a href="captures/messages-view-templates-1440.webp"><img src="captures/messages-view-templates-1440.webp" alt="Messages, 1440 px" width="360"></a> | <a href="captures/messages-view-templates-390.webp"><img src="captures/messages-view-templates-390.webp" alt="Messages, 390 px" width="120"></a> |
 | Membres | `/members` | <a href="captures/members-1440.webp"><img src="captures/members-1440.webp" alt="Membres, 1440 px" width="360"></a> | <a href="captures/members-390.webp"><img src="captures/members-390.webp" alt="Membres, 390 px" width="120"></a> |

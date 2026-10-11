@@ -59,6 +59,8 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/messages/p1").help.label).toBe("Fiche d'un message");
     expect(pageHelpFor("/messages/p1/edit").help.label).toBe("Modifier un message");
     expect(pageHelpFor("/messages/ab/g1").help.label).toBe("Test A/B");
+    expect(pageHelpFor("/messages/emojis").help.label).toBe("Emojis animés");
+    expect(pageHelpFor("/messages/emojis").help.sections).toEqual(["Ajouter des emojis animés"]);
     expect(pageHelpFor("/settings/connectors/meta/choose").help.label).toBe("Meta et TikTok");
     expect(pageHelpFor("/settings/connectors/telegram").help.label).toBe("Telegram (vues)");
     expect(pageHelpFor("/settings/journal/events").help.label).toBe("Journal");

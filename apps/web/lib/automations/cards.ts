@@ -18,7 +18,10 @@ import {
   isAutomationTemplateKey,
   parseActions,
   parseConditions,
+  parseGraph,
   templateGraph,
+  textLength,
+  TELEGRAM_TEXT_MAX,
   validateGraph,
   validateTelegramHtml,
   formatWaitHours,
@@ -487,6 +490,12 @@ export function buildCardRule(
   if (asGraph) {
     // templateGraph : « null » = délai par défaut de la carte ; une carte sans délai par défaut n'attend pas.
     const graph = templateGraph(key, { message, hours });
+    // Jamais un parcours que le worker refuserait (`parseGraph`, comme `parseActions` pour une liste).
+    try {
+      parseGraph(graph);
+    } catch (err) {
+      throw new CardInputError(err instanceof Error ? err.message : String(err));
+    }
     return {
       name: def.ruleName,
       trigger: tpl.trigger,
@@ -548,7 +557,9 @@ export function cardSettingsFromForm(key: CardKey, fd: FormData): CardSettings {
   const def = CARD_DEFS[key];
   const text = str(fd, "text");
   if (!text) throw new CardInputError("Écrivez le message que le bot va envoyer.");
-  if (text.length > 4096) throw new CardInputError("Message trop long (4 096 caractères au plus).");
+  // Longueur visible (comme le compteur de l'éditeur) : un emoji animé compte comme son emoji, pas comme sa balise.
+  if (textLength(text) > TELEGRAM_TEXT_MAX)
+    throw new CardInputError("Message trop long (4 096 caractères au plus).");
   const html = validateTelegramHtml(text);
   if (!html.ok) throw new CardInputError(`Mise en forme du message à corriger : ${html.error}`);
   const buttons = buttonsFromForm(fd);

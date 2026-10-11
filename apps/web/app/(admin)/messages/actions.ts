@@ -3,10 +3,17 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { TELEGRAM_CAPTION_MAX, shortId, validateTelegramHtml } from "@linkaffipro/core";
+import {
+  TELEGRAM_CAPTION_MAX,
+  hasCustomEmoji,
+  shortId,
+  validateTelegramHtml,
+  type MtprotoPublishStatus,
+} from "@linkaffipro/core";
 import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin, requireUser } from "@/lib/session";
+import { env } from "@/lib/env";
 import { parsePostForm, type PostFormInput } from "@/lib/posts/schema";
 import { publishingBotFor } from "@/lib/posts/queries";
 import { fromParisLocal } from "@/lib/posts/time";
@@ -15,6 +22,16 @@ import { buttonUrlError, type PostButtonRow } from "@/lib/posts/buttons";
 import { assertButtonRows, materializeOfferButton } from "@/lib/campaigns/offer-button";
 import { isOfferToChoose, rowsToVerify, templateOfferButton } from "@/lib/posts/offer-buttons";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
+import {
+  accountProblemsFor,
+  planPostVersion,
+  scheduleRefusal,
+  type EmojiButtonsChoice,
+  type PostPublisherValue,
+} from "@/lib/posts/publisher";
+import { loadChatTypes, loadPublishStatus, requestAccountCheck } from "@/lib/posts/account-publish";
+import { attachTextOfferLinks, createTextOfferLink } from "@/lib/posts/offer-link-db";
+import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 
 function back(path: string, params: Record<string, string>): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}`);
@@ -129,10 +146,66 @@ function resolveSchedule(input: PostFormInput): {
   return { status: "SCHEDULED", scheduledAt: at };
 }
 
+type VersionPlan = {
+  text: string;
+  buttons: PostFormInput["buttons"];
+  publisher: PostPublisherValue;
+};
+
+/**
+ * Emojis animés (phase 12) : texte, boutons et auteur d'une version (`planPostVersion`) selon le type du canal (un
+ * groupe ou un supergroupe reçoit les emojis animés du bot, avec ses boutons). Lève le refus lisible quand un message
+ * de canal a des emojis animés et des boutons sans que l'équipe ait choisi.
+ */
+function planVersion(input: {
+  text: string;
+  buttons: PostFormInput["buttons"];
+  choice: EmojiButtonsChoice | null;
+  isTemplate: boolean;
+  chatType?: string | null;
+}): VersionPlan {
+  const plan = planPostVersion(input);
+  if (!plan.ok) throw new Error(plan.error);
+  return { text: plan.text, buttons: plan.buttons, publisher: plan.publisher };
+}
+
+/** Telegram réserve la protection d'un message aux bots : jamais enregistrée pour un message publié par le compte. */
+function protectFor(publisher: PostPublisherValue, requested: boolean): boolean {
+  return publisher === "ACCOUNT" ? false : requested;
+}
+
+/**
+ * Programmation d'un message publié par le compte connecté : le compte doit pouvoir publier dans chacun de ses canaux
+ * (connecté, Premium, administrateur avec le droit de publier, d'après le dernier relevé). Sinon la phrase du refus
+ * (le message est gardé en brouillon), null si tout va bien. Les messages publiés par le bot (groupes compris) ne sont
+ * pas concernés.
+ */
+async function accountScheduleRefusal(
+  versions: ReadonlyArray<{ channelId: string; publisher: PostPublisherValue }>,
+  count = 1,
+): Promise<string | null> {
+  const ids = [
+    ...new Set(versions.filter((v) => v.publisher === "ACCOUNT").map((v) => v.channelId)),
+  ];
+  if (ids.length === 0) return null;
+  const [status, channels] = await Promise.all([
+    loadPublishStatus(),
+    prisma.channel.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } }),
+  ]);
+  const titled = ids.map((id) => ({
+    id,
+    title: channels.find((c) => c.id === id)?.title ?? "ce canal",
+  }));
+  return scheduleRefusal(accountProblemsFor(status, titled), count);
+}
+
 /**
  * Création : un Post par canal (liés par duplicatedFromId), brouillon, programmé ou modèle.
  * Test A/B (pas pour un modèle) : pour chaque canal coché, deux Post (A puis B) avec le même `abGroupId` ;
  * B part 30 minutes après A dans le même canal, ou à la même heure dans l'autre canal choisi.
+ * Emojis animés (phase 12) : une version qui en garde est publiée par le compte Telegram connecté, sans boutons ; avec
+ * des boutons, le choix « emojis » / « boutons » est exigé. Programmer alors que le compte ne peut pas publier dans un
+ * des canaux : les messages sont gardés en brouillon (rien n'est perdu) et le refus est expliqué.
  */
 export async function createPostAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -144,6 +217,8 @@ export async function createPostAction(formData: FormData): Promise<void> {
   const input = parsed.data;
   // Messages déjà créés par cette action : retirés si l'enregistrement échoue en cours de route.
   const created: string[] = [];
+  // Liens d'offre du texte rattachés à ces messages : rendus libres (pas supprimés) si l'enregistrement échoue.
+  const claimedLinks: string[] = [];
   try {
     const html = validateText(input);
     const isTemplate = input.intent === "template";
@@ -157,27 +232,90 @@ export async function createPostAction(formData: FormData): Promise<void> {
     const schedule = isTemplate
       ? { status: "DRAFT" as const, scheduledAt: null }
       : resolveSchedule(input);
+    // Emojis animés : qui publie chaque version, avec quel texte et quels boutons, selon le type de chaque canal (canal :
+    // compte connecté sans boutons, ou bot avec les emojis normaux si l'équipe garde les boutons ; groupe : le bot, tout
+    // gardé ; un modèle garde tout tel quel). Une version par type de canal, prévue avant la moindre écriture.
+    const choice = input.emojiButtonsChoice ?? null;
+    const otherChannelB = abEnabled && input.abMode === "other-channel";
+    const chatTypes =
+      isTemplate || !(hasCustomEmoji(html) || hasCustomEmoji(htmlB))
+        ? new Map<string, string>()
+        : await loadChatTypes([
+            ...input.channelIds,
+            ...(otherChannelB && input.abChannelId ? [input.abChannelId] : []),
+          ]);
+    const typeOf = (channelId: string | undefined) =>
+      (channelId && chatTypes.get(channelId)) || "CHANNEL";
+    const plans = new Map<string, VersionPlan>();
+    const planOf = (version: "A" | "B", chatType: string): VersionPlan => {
+      const key = `${version}:${chatType}`;
+      let plan = plans.get(key);
+      if (!plan) {
+        plan =
+          version === "A"
+            ? planVersion({ text: html, buttons: input.buttons, choice, isTemplate, chatType })
+            : planVersion({
+                text: htmlB,
+                buttons: input.buttonsB,
+                choice,
+                isTemplate: false,
+                chatType,
+              });
+        plans.set(key, plan);
+      }
+      return plan;
+    };
+    const targets = input.channelIds.map((channelId) => {
+      const typeA = typeOf(channelId);
+      const typeB = otherChannelB ? typeOf(input.abChannelId) : typeA;
+      return { channelId, a: planOf("A", typeA), b: abEnabled ? planOf("B", typeB) : null };
+    });
     // Tous les boutons (A et B) sont vérifiés AVANT de créer le moindre message : un bouton refusé ne laisse jamais
     // un message programmé en base, qui partirait sans ses boutons. Modèle : un bouton Offre sans campagne est gardé.
-    await assertButtonRows(rowsToVerify(input.buttons, isTemplate));
-    if (abEnabled) await assertButtonRows(input.buttonsB);
-    let firstId: string | null = null;
-    let relinked = false;
-    const groups: string[] = [];
-    const journal: Array<{ postId: string; metadata: Record<string, string | null> }> = [];
-    for (const channelId of input.channelIds) {
-      const variants = planVariants(
-        { channelId, text: html, mediaAssetIds: input.mediaAssetIds, buttons: input.buttons },
+    const verified = new Set<string>();
+    for (const t of targets)
+      for (const [plan, template] of [
+        [t.a, isTemplate],
+        [t.b, false],
+      ] as const) {
+        if (!plan) continue;
+        const rows = rowsToVerify(plan.buttons, template);
+        const key = JSON.stringify(rows);
+        if (verified.has(key)) continue;
+        verified.add(key);
+        await assertButtonRows(rows);
+      }
+    // Toutes les versions de tous les canaux, prévues avant la moindre écriture.
+    const perChannel = targets.map((t) =>
+      planVariants(
+        {
+          channelId: t.channelId,
+          text: t.a.text,
+          mediaAssetIds: input.mediaAssetIds,
+          buttons: t.a.buttons,
+        },
         {
           abEnabled,
           abMode: input.abMode,
           abChannelId: input.abChannelId,
           abDelayMinutes: input.abDelayMinutes,
-          textB: htmlB,
+          textB: t.b?.text ?? "",
           mediaAssetIdsB: input.mediaAssetIdsB,
-          buttonsB: input.buttonsB,
+          buttonsB: t.b?.buttons ?? [],
         },
-      );
+      ).map((v) => ({ ...v, publisher: (v.variant === "B" && t.b ? t.b : t.a).publisher })),
+    );
+    const refusal =
+      schedule.status === "SCHEDULED"
+        ? await accountScheduleRefusal(perChannel.flat(), perChannel.flat().length)
+        : null;
+    const scheduled = schedule.status === "SCHEDULED" && !refusal;
+    let firstId: string | null = null;
+    let relinked = false;
+    const groups: string[] = [];
+    const stored: string[] = [];
+    const journal: Array<{ postId: string; metadata: Record<string, string | null> }> = [];
+    for (const variants of perChannel) {
       const abGroupId = variants.length > 1 ? shortId(10) : null;
       if (abGroupId) groups.push(abGroupId);
       for (const v of variants) {
@@ -193,6 +331,7 @@ export async function createPostAction(formData: FormData): Promise<void> {
             })
           : null;
         const dupFrom: string | null = firstId ?? input.duplicatedFromId ?? null;
+        const publisher = v.publisher;
         // Créé en brouillon : il ne devient « programmé » qu'une fois ses boutons enregistrés (voir plus bas).
         const post: { id: string } = await prisma.post.create({
           select: { id: true },
@@ -207,11 +346,12 @@ export async function createPostAction(formData: FormData): Promise<void> {
             text: v.text,
             mediaAssetIds: v.mediaAssetIds,
             buttons: [],
+            publisher,
             pinAfterSend: input.pinAfterSend,
             unpinPrevious: input.unpinPrevious,
             deleteAfterMinutes: input.deleteAfterMinutes,
             disableNotification: input.disableNotification,
-            protectContent: input.protectContent,
+            protectContent: protectFor(publisher, input.protectContent),
             disableLinkPreview: input.disableLinkPreview,
             isTemplate,
             templateName: isTemplate ? input.templateName || "Modèle sans nom" : null,
@@ -230,9 +370,20 @@ export async function createPostAction(formData: FormData): Promise<void> {
           user.id,
         );
         relinked ||= m.relinked;
+        // Offre ajoutée comme lien dans le texte : le lien est rattaché à ce message (copié s'il en a déjà un).
+        const linked = await attachTextOfferLinks(
+          v.text,
+          { id: post.id, channelId: v.channelId },
+          { userId: user.id, trackingBaseUrl: env.trackingBaseUrl },
+        );
+        stored.push(linked.html);
+        claimedLinks.push(...linked.claimed);
         await prisma.post.update({
           where: { id: post.id },
-          data: { buttons: m.buttons as unknown as Prisma.InputJsonValue },
+          data: {
+            buttons: m.buttons as unknown as Prisma.InputJsonValue,
+            ...(linked.html !== v.text ? { text: linked.html } : {}),
+          },
         });
         firstId ??= post.id;
         journal.push({
@@ -243,12 +394,13 @@ export async function createPostAction(formData: FormData): Promise<void> {
               variantScheduledAt(schedule.scheduledAt, v.offsetMinutes)?.toISOString() ?? null,
             abGroupId,
             abVariant: abGroupId ? v.variant : null,
+            publisher,
           },
         });
       }
     }
     // Tous les messages et leurs boutons sont enregistrés : ils peuvent maintenant être programmés.
-    if (schedule.status === "SCHEDULED")
+    if (scheduled)
       await prisma.post.updateMany({
         where: { id: { in: created } },
         data: { status: "SCHEDULED" },
@@ -258,13 +410,23 @@ export async function createPostAction(formData: FormData): Promise<void> {
         userId: user.id,
         action: isTemplate
           ? "post.template_created"
-          : schedule.status === "SCHEDULED"
+          : scheduled
             ? "post.scheduled"
             : "post.drafted",
         entityType: "Post",
         entityId: j.postId,
         metadata: j.metadata,
       });
+    // Emojis animés utilisés : « Récents de l'équipe » dans le sélecteur.
+    await markCustomEmojisUsed(stored);
+    if (refusal) {
+      if (relinked) await refreshCampaignStats();
+      revalidatePath("/messages");
+      // Gardés en brouillon : on rouvre le message (un seul) pour corriger, sinon le calendrier.
+      back(created.length === 1 ? `/messages/${created[0]}/edit` : "/messages", {
+        error: refusal,
+      });
+    }
     if (relinked) await refreshCampaignStats();
     revalidatePath("/messages");
     const msg = isTemplate
@@ -278,7 +440,7 @@ export async function createPostAction(formData: FormData): Promise<void> {
     back(created.length === 1 ? `/messages/${created[0]}` : "/messages", { ok: msg });
   } catch (err) {
     if (isRedirect(err)) throw err;
-    if (created.length) await discardCreated(created);
+    if (created.length) await discardCreated(created, claimedLinks);
     // Copie d'un message ou d'un modèle : on revient sur la copie (contenu rechargé) plutôt qu'un formulaire vide.
     back("/messages/new", {
       ...(input.duplicatedFromId ? { from: input.duplicatedFromId } : {}),
@@ -287,9 +449,17 @@ export async function createPostAction(formData: FormData): Promise<void> {
   }
 }
 
-/** Retire les messages (et leurs liens traqués tout neufs) créés par une création qui a échoué. */
-async function discardCreated(postIds: string[]): Promise<void> {
+/**
+ * Retire les messages (et leurs liens traqués tout neufs) créés par une création qui a échoué. Les liens d'offre du texte
+ * créés avant l'enregistrement (`claimed`) sont seulement détachés : le texte de l'équipe les contient toujours.
+ */
+async function discardCreated(postIds: string[], claimed: string[] = []): Promise<void> {
   try {
+    if (claimed.length)
+      await prisma.trackingLink.updateMany({
+        where: { id: { in: claimed } },
+        data: { postId: null, channelId: null },
+      });
     await prisma.trackingLink.deleteMany({ where: { postId: { in: postIds } } });
     await prisma.post.deleteMany({ where: { id: { in: postIds } } });
   } catch (err) {
@@ -317,30 +487,58 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       : resolveSchedule(input);
     const channelId = input.channelIds[0] ?? post.channelId;
     const bot = channelId !== post.channelId ? await publishingBotFor(channelId) : null;
+    // Emojis animés : publié par le compte connecté (boutons retirés) ou par le bot (emojis remplacés si l'équipe garde
+    // les boutons) dans un canal ; par le bot, tout gardé, dans un groupe ; un modèle garde tout tel quel.
+    const chatType =
+      !post.isTemplate && hasCustomEmoji(html)
+        ? ((await loadChatTypes([channelId])).get(channelId) ?? null)
+        : null;
+    const plan = planVersion({
+      text: html,
+      buttons: input.buttons,
+      choice: input.emojiButtonsChoice ?? null,
+      isTemplate: post.isTemplate,
+      chatType,
+    });
     // Modèle : un bouton Offre dont la campagne reste à choisir est gardé tel quel (modèles fournis compris).
-    await assertButtonRows(rowsToVerify(input.buttons, post.isTemplate));
+    await assertButtonRows(rowsToVerify(plan.buttons, post.isTemplate));
     const { buttons, relinked } = await materializeButtons(
-      input.buttons,
+      plan.buttons,
       { id: post.id, channelId, isTemplate: post.isTemplate },
       user.id,
     );
+    // Offre ajoutée comme lien dans le texte : rattachée à ce message (copiée si elle appartient à un autre).
+    const linked = await attachTextOfferLinks(
+      plan.text,
+      { id: post.id, channelId },
+      { userId: user.id, trackingBaseUrl: env.trackingBaseUrl },
+    );
+    const text = linked.html;
+    const publisher = plan.publisher;
+    // Programmer un message publié par le compte qui ne peut pas (encore) publier dans ce canal : gardé en brouillon.
+    const refusal =
+      schedule.status === "SCHEDULED"
+        ? await accountScheduleRefusal([{ channelId, publisher }])
+        : null;
+    const status = refusal ? ("DRAFT" as const) : schedule.status;
     await prisma.post.update({
       where: { id: postId },
       data: {
         channelId,
         ...(bot ? { botId: bot.id } : {}),
-        status: schedule.status,
+        status,
         scheduledAt: schedule.scheduledAt,
         categoryId: input.categoryId ?? null,
         language: input.language,
-        text: html,
+        text,
         mediaAssetIds: input.mediaAssetIds,
         buttons: buttons as unknown as Prisma.InputJsonValue,
+        publisher,
         pinAfterSend: input.pinAfterSend,
         unpinPrevious: input.unpinPrevious,
         deleteAfterMinutes: input.deleteAfterMinutes,
         disableNotification: input.disableNotification,
-        protectContent: input.protectContent,
+        protectContent: protectFor(publisher, input.protectContent),
         disableLinkPreview: input.disableLinkPreview,
         templateName: post.isTemplate ? input.templateName || post.templateName : post.templateName,
         lastError: null,
@@ -352,14 +550,16 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       action: "post.updated",
       entityType: "Post",
       entityId: postId,
-      metadata: { status: schedule.status },
+      metadata: { status, publisher },
     });
+    await markCustomEmojisUsed(text);
     // Ancien bouton Offre rattaché à une campagne (ou passé d'une campagne à une autre) : ses clics passés changent
     // de campagne, les statistiques journalières sont recalculées depuis le début.
     if (relinked) await refreshCampaignStats();
     revalidatePath("/messages");
+    if (refusal) back(`/messages/${postId}/edit`, { error: refusal });
     back(`/messages/${postId}`, {
-      ok: schedule.status === "SCHEDULED" ? "Message programmé." : "Message enregistré.",
+      ok: status === "SCHEDULED" ? "Message programmé." : "Message enregistré.",
     });
   } catch (err) {
     if (isRedirect(err)) throw err;
@@ -502,4 +702,80 @@ function stripTrackingIds(buttons: unknown): Prisma.InputJsonValue {
       ? row.map((b) => ({ ...(b as object), trackingLinkId: undefined, slug: undefined }))
       : [],
   ) as Prisma.InputJsonValue;
+}
+
+/**
+ * « Ajouter l'offre comme lien dans le texte » (message publié par le compte Telegram connecté, sans boutons) : crée le
+ * lien traqué de l'offre de la campagne (clics comptés, sans identifiant de suivi par membre) et renvoie le lien à
+ * ajouter au texte. Appelée depuis le formulaire : renvoie un résultat, jamais de redirection (le texte reste à l'écran).
+ */
+export async function createTextOfferLinkAction(input: {
+  campaignId?: string;
+  affiliateCampaignId?: string;
+  label: string;
+}): Promise<{ ok: true; html: string; url: string } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const label = String(input?.label ?? "").trim();
+  if (!input?.campaignId) return { ok: false, error: "Choisissez la campagne de l'offre." };
+  if (!input.affiliateCampaignId) return { ok: false, error: "Choisissez l'offre de la campagne." };
+  try {
+    const link = await createTextOfferLink({
+      campaignId: input.campaignId,
+      affiliateCampaignId: input.affiliateCampaignId,
+      label,
+      userId: user.id,
+      trackingBaseUrl: env.trackingBaseUrl,
+    });
+    await audit({
+      userId: user.id,
+      action: "tracking_link.text_offer_created",
+      entityType: "TrackingLink",
+      entityId: link.id,
+      metadata: {
+        campaignId: input.campaignId,
+        affiliateCampaignId: input.affiliateCampaignId,
+        slug: link.slug,
+      },
+    });
+    return { ok: true, html: link.html, url: link.url };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Lien impossible à créer : réessayez.",
+    };
+  }
+}
+
+/**
+ * « Vérifier » : demande au service d'arrière-plan de relever si le compte Telegram connecté peut publier dans ces
+ * canaux (Premium, administrateur avec le droit de publier). Le formulaire attend ensuite le relevé
+ * (`accountPublishStatusAction`), sans recharger la page.
+ */
+export async function checkAccountPublishAction(
+  channelIds: string[],
+): Promise<{ ok: true; requestedAt: string } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const ids = Array.isArray(channelIds) ? channelIds.filter((id) => typeof id === "string") : [];
+  try {
+    const r = await requestAccountCheck(ids);
+    await audit({
+      userId: user.id,
+      action: "post.account_check_requested",
+      entityType: "Channel",
+      metadata: { channelIds: r.channelIds },
+    });
+    return { ok: true, requestedAt: r.requestedAt };
+  } catch (err) {
+    console.error("[messages] vérification du compte Telegram non demandée", err);
+    return {
+      ok: false,
+      error: "Le service d'arrière-plan ne répond pas : réessayez dans une minute.",
+    };
+  }
+}
+
+/** Dernier relevé de l'état du compte Telegram connecté (null s'il n'y en a jamais eu). */
+export async function accountPublishStatusAction(): Promise<MtprotoPublishStatus | null> {
+  await requireUser();
+  return loadPublishStatus();
 }

@@ -10,20 +10,34 @@ import { defaultScheduleAt } from "@/lib/posts/default-schedule";
 import { loadBestSlots } from "@/lib/besthours/queries";
 import { listCampaignOptions } from "@/lib/campaigns/queries";
 import { templateCardTitle as templateTitle } from "@/lib/posts/templates";
-import { createPostAction } from "../actions";
+import { loadPublishStatus } from "@/lib/posts/account-publish";
+import {
+  accountPublishStatusAction,
+  checkAccountPublishAction,
+  createPostAction,
+  createTextOfferLinkAction,
+} from "../actions";
 
 export const metadata: Metadata = { title: "Programmer un message" };
 
+/** Actions des emojis animés du formulaire (vérifier le compte Telegram connecté, offre en lien dans le texte). */
+export const postEmojiActions = {
+  checkAccount: checkAccountPublishAction,
+  accountStatus: accountPublishStatusAction,
+  createOfferLink: createTextOfferLinkAction,
+};
+
 /**
  * Options du formulaire de message : canaux (avec univers, pour l'assistant IA), catégories, campagnes Link Affi
- * (boutons anciens) et nos campagnes avec leurs offres (bouton « Offre », chargées à chaque affichage).
+ * (boutons anciens), nos campagnes avec leurs offres (bouton « Offre », chargées à chaque affichage) et l'état du
+ * compte Telegram connecté (messages avec emojis animés).
  */
 export async function loadFormOptions() {
-  const [channels, categories, campaigns, campaignOptions] = await Promise.all([
+  const [channels, categories, campaigns, campaignOptions, accountStatus] = await Promise.all([
     prisma.channel.findMany({
       where: { isActive: true },
       orderBy: { title: "asc" },
-      select: { id: true, title: true, language: true, vertical: true },
+      select: { id: true, title: true, language: true, vertical: true, type: true },
     }),
     prisma.messageCategory.findMany({
       where: { isActive: true },
@@ -36,12 +50,15 @@ export async function loadFormOptions() {
       select: { id: true, name: true, program: { select: { name: true } } },
     }),
     listCampaignOptions(),
+    // Emojis animés : le compte Telegram connecté peut-il publier dans les canaux (dernier relevé) ?
+    loadPublishStatus(),
   ]);
   return {
     channels,
     categories,
     campaigns: campaigns.map((c) => ({ id: c.id, name: c.name, programName: c.program.name })),
     campaignOptions,
+    accountStatus,
   };
 }
 
@@ -55,7 +72,8 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         select: { id: true, filename: true, mimeType: true, size: true },
       })
     : [];
-  const { channels, categories, campaigns, campaignOptions } = await loadFormOptions();
+  const { channels, categories, campaigns, campaignOptions, accountStatus } =
+    await loadFormOptions();
   const bestSlots = await loadBestSlots(channels.map((c) => c.id));
   // Dans au moins une heure, jamais en pleine nuit (18:00 entre 22 h et 8 h).
   const defaultAt = defaultScheduleAt();
@@ -127,6 +145,8 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
         initial={initial}
         bestSlots={bestSlots}
         abAllowed
+        accountStatus={accountStatus}
+        emojiActions={postEmojiActions}
       />
     </>
   );

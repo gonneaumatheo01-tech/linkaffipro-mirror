@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleAlert, Copy, Pencil, Split } from "lucide-react";
+import { CircleAlert, Copy, Pencil, Split, TriangleAlert } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
@@ -10,6 +10,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { Term } from "@/components/admin/help-tip";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { MoveForm } from "@/components/messages/move-form";
+import { PublisherBadge } from "@/components/messages/publisher-badge";
 import { TelegramPreview } from "@/components/messages/telegram-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -31,8 +32,16 @@ import { BUTTON_TYPE_LABELS, parseButtons, previewButtonUrl } from "@/lib/posts/
 import { canEdit, canMove, toLocal } from "@/lib/posts/calendar";
 import { failureFix } from "@/lib/posts/failure";
 import { postNetRevenue } from "@/lib/posts/calendar-queries";
-import { isSentLike, postHeaderLine, postLanguageOptions } from "@/lib/posts/display";
+import {
+  accountPostNote,
+  isSentLike,
+  postHeaderLine,
+  postLanguageOptions,
+} from "@/lib/posts/display";
 import { templateCardTitle } from "@/lib/posts/templates";
+import { TEXT_OFFER_LINK_SUFFIX, trackedLinkSlugs } from "@/lib/posts/offer-link";
+import { TELEGRAM_ACCOUNT_SETTINGS_HREF, accountProblemsFor } from "@/lib/posts/publisher";
+import { loadPublishStatus } from "@/lib/posts/account-publish";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { ViewsChart } from "./views-chart";
 import {
@@ -45,7 +54,10 @@ import {
 
 export const metadata: Metadata = { title: "Message" };
 
-/** Fiche d'un message : statut et univers, chiffres, aperçu, boutons, actions (Modifier, Déplacer, Annuler…). */
+/**
+ * Fiche d'un message : statut et univers, chiffres, aperçu, boutons, actions (Modifier, Déplacer, Annuler…). Message avec
+ * emojis animés publié par le compte Telegram connecté (phase 12) : badge, liens d'offre du texte et leurs clics.
+ */
 export default async function MessageDetailPage({
   params,
   searchParams,
@@ -64,15 +76,35 @@ export default async function MessageDetailPage({
     },
   });
   if (!post) notFound();
-  const [viewsSession, netRevenue] = await Promise.all([
+  const [viewsSession, netRevenue, accountStatus] = await Promise.all([
     prisma.telegramUserSession.findUnique({ where: { id: "main" }, select: { status: true } }),
     postNetRevenue(post.id),
+    post.publisher === "ACCOUNT" ? loadPublishStatus() : Promise.resolve(null),
   ]);
   const viewsConnected = viewsSession?.status === "ACTIVE";
   const lastSample = post.viewSamples[post.viewSamples.length - 1] ?? null;
   const buttons = parseButtons(post.buttons);
   const mediaCount = ((post.mediaAssetIds as string[]) ?? []).length;
   const linkById = new Map(post.trackingLinks.map((l) => [l.id, l]));
+  // Offres ajoutées comme liens dans le texte (message sans boutons publié par le compte connecté).
+  const textSlugs = trackedLinkSlugs(post.text, env.trackingBaseUrl);
+  const buttonLinkIds = new Set(buttons.flat().map((b) => b.trackingLinkId));
+  const textLinks = post.trackingLinks.filter(
+    (l) => textSlugs.includes(l.slug) && !buttonLinkIds.has(l.id),
+  );
+  const byAccount = post.publisher === "ACCOUNT" && !post.isTemplate;
+  // Publié par le compte : sans boutons, jamais modifié par le bot, et pas de « Contenu protégé ».
+  const accountNote = accountPostNote(post);
+  // Message encore à publier par le compte connecté : le compte peut-il publier dans ce canal (dernier relevé) ?
+  const accountProblem =
+    byAccount && ["SCHEDULED", "DRAFT"].includes(post.status)
+      ? (() => {
+          const p = accountProblemsFor(accountStatus, [
+            { id: post.channelId, title: post.channel.title },
+          ]);
+          return p.global ?? p.channels[0]?.problem ?? null;
+        })()
+      : null;
   // Clics uniques : membres distincts sur les clics offre + ip/ua distincts sur les boutons traqués.
   const uniqueClickers = post.trackingLinks.length
     ? await prisma.click
@@ -116,6 +148,7 @@ export default async function MessageDetailPage({
     sentLocal: post.sentAt ? toLocal(post.sentAt) : null,
     scheduledLocal: post.scheduledAt ? toLocal(post.scheduledAt) : null,
     bot: post.bot.username,
+    publisher: post.publisher,
   });
   // Pas encore parti (brouillon, programmé, annulé…) : les actions d'abord, les chiffres viendront après l'envoi.
   const sent = isSentLike(post);
@@ -134,7 +167,11 @@ export default async function MessageDetailPage({
     post.pinAfterSend ? "épinglé après l'envoi" : null,
     post.unpinPrevious ? "désépingle le précédent" : null,
     post.disableNotification ? "envoi silencieux" : null,
-    post.protectContent ? "contenu protégé" : null,
+    post.protectContent
+      ? byAccount
+        ? "contenu protégé (non appliqué par votre compte Telegram)"
+        : "contenu protégé"
+      : null,
     post.deleteAfterMinutes ? `supprimé après ${post.deleteAfterMinutes} min` : null,
     post.disableLinkPreview ? "sans aperçu des liens" : null,
   ].filter(Boolean);
@@ -157,6 +194,11 @@ export default async function MessageDetailPage({
   );
   // Envoi refusé par Telegram : la raison, ce qu'il faut faire et le bon lien (canal ou « Modifier »).
   const failed = post.status === "FAILED" ? failureFix(post.lastError) : null;
+  // Note d'un message parti ou en cours (publié avec les emojis normaux, publication reportée…) : pas une erreur.
+  const note =
+    !failed && post.lastError && (post.status === "SENT" || post.status === "SENDING")
+      ? post.lastError
+      : null;
 
   const figures = sent ? (
     <section aria-labelledby="chiffres" className="space-y-3">
@@ -276,7 +318,7 @@ export default async function MessageDetailPage({
               <ConfirmSubmit
                 variant="destructive"
                 confirmTitle="Supprimer sur Telegram ?"
-                message={`Le message disparaîtra du canal « ${post.channel.title} » : les membres ne le verront plus. C'est définitif ; les chiffres déjà collectés restent.`}
+                message={`Le message disparaîtra du canal « ${post.channel.title} »${byAccount ? " (supprimé par votre compte Telegram, qui l'a publié)" : ""} : les membres ne le verront plus. C'est définitif ; les chiffres déjà collectés restent.`}
               >
                 Supprimer sur Telegram
               </ConfirmSubmit>
@@ -334,6 +376,7 @@ export default async function MessageDetailPage({
         meta={
           <>
             {post.isTemplate ? null : <StatusBadge kind="post" value={post.status} />}
+            {byAccount ? <PublisherBadge publisher="ACCOUNT" /> : null}
             <UniverseDot universe={post.channel.vertical ?? post.vertical} variant="pill" />
           </>
         }
@@ -372,7 +415,21 @@ export default async function MessageDetailPage({
           </>
         }
       />
-      <Flash ok={sp.ok} error={sp.error ?? (failed ? undefined : (post.lastError ?? undefined))} />
+      <Flash
+        ok={sp.ok}
+        error={sp.error ?? (failed || note ? undefined : (post.lastError ?? undefined))}
+      />
+      {note ? (
+        <Alert variant="warning" role="status" className="mb-6">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>
+            {post.status === "SENDING" ? "Envoi en cours" : "Message envoyé, avec une remarque"}
+          </AlertTitle>
+          <AlertDescription>
+            <p>{note}</p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {failed ? (
         <Alert variant="destructive" className="mb-6">
           <CircleAlert aria-hidden />
@@ -386,6 +443,14 @@ export default async function MessageDetailPage({
               >
                 Ouvrir le canal {post.channel.title}
               </Link>
+              {failed.kind === "account" ? (
+                <Link
+                  href={TELEGRAM_ACCOUNT_SETTINGS_HREF}
+                  className="inline-flex items-center font-medium underline underline-offset-2 max-md:min-h-10"
+                >
+                  Ouvrir Réglages → Connexions → Telegram
+                </Link>
+              ) : null}
               {editable && failed.kind !== "channel" ? (
                 <Link
                   href={`/messages/${post.id}/edit`}
@@ -394,6 +459,23 @@ export default async function MessageDetailPage({
                   Modifier le message
                 </Link>
               ) : null}
+            </p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {accountProblem ? (
+        <Alert variant="warning" role="status" className="mb-6">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>Votre compte Telegram ne peut pas encore publier ce message</AlertTitle>
+          <AlertDescription>
+            <p>{accountProblem}</p>
+            <p>
+              <Link
+                href={TELEGRAM_ACCOUNT_SETTINGS_HREF}
+                className="inline-flex items-center font-medium underline underline-offset-2 max-md:min-h-10"
+              >
+                Ouvrir Réglages → Connexions → Telegram
+              </Link>
             </p>
           </AlertDescription>
         </Alert>
@@ -474,6 +556,52 @@ export default async function MessageDetailPage({
               </CardContent>
             </Card>
           ) : null}
+
+          {textLinks.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Liens dans le texte</CardTitle>
+                <CardDescription>
+                  Offres ajoutées comme liens dans le texte. Clics de vraies personnes ; robots
+                  exclus.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table label="Liens dans le texte du message">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Lien</TableHead>
+                      <TableHead numeric>Clics</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {textLinks.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="max-w-48 md:max-w-xs">
+                          <span className="block truncate font-medium">
+                            {l.label.endsWith(TEXT_OFFER_LINK_SUFFIX)
+                              ? l.label.slice(0, -TEXT_OFFER_LINK_SUFFIX.length)
+                              : l.label}
+                          </span>
+                          <span className="block truncate font-mono text-note text-muted-foreground">
+                            {`${env.trackingBaseUrl}/${l.slug}`}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          numeric
+                          title={`${fmtNum(l._count.clickRecords)} avec les robots`}
+                        >
+                          {fmtNum(l.clicks)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {accountNote ? <p className="text-note text-muted-foreground">{accountNote}</p> : null}
 
           {sent ? actions : post.isTemplate ? null : figures}
         </div>

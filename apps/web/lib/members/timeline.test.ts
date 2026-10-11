@@ -85,4 +85,34 @@ describe("paginateTimeline", () => {
     expect(paginateTimeline(entries, 99, 50).page).toBe(3);
     expect(paginateTimeline([], 5, 50)).toEqual({ entries: [], total: 0, pages: 1, page: 1 });
   });
+  it("message privé parti avec une note (emojis normaux à la place des emojis animés, média non envoyé) : la note est montrée", () => {
+    const at = new Date("2026-10-11T10:00:00Z");
+    const t = buildTimeline({
+      outbound: [
+        {
+          kind: "BROADCAST",
+          status: "SENT",
+          queuedAt: at,
+          sentAt: at,
+          botUsername: "casinobot",
+          error: "Envoyé avec les emojis normaux : Telegram a refusé les emojis animés.",
+        },
+        {
+          kind: "WELCOME",
+          status: "SENT",
+          queuedAt: at,
+          sentAt: at,
+          error: "Telegram a affiché les emojis normaux à la place des emojis animés.",
+        },
+        { kind: "ACCEPTED", status: "SENT", queuedAt: at, sentAt: at, error: null },
+        { kind: "TEST", status: "FAILED", queuedAt: at, error: "chat introuvable" },
+      ],
+    });
+    expect(t.map((e) => e.detail)).toEqual([
+      "Envoyé avec les emojis normaux : Telegram a refusé les emojis animés",
+      "envoyé · Telegram a affiché les emojis normaux à la place des emojis animés",
+      "envoyé",
+      "échec",
+    ]);
+  });
 });

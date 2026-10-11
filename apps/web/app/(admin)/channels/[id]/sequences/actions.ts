@@ -14,6 +14,7 @@ import {
   type SequenceTriggerKey,
 } from "@linkaffipro/telegram";
 import { requireUser } from "@/lib/session";
+import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 
 const TRIGGERS = [
   "JOIN_REQUEST",
@@ -88,6 +89,8 @@ export async function saveSequenceTextAction(formData: FormData): Promise<void> 
     where: { id: step.id },
     data: { texts: texts as unknown as Prisma.InputJsonValue },
   });
+  // Emojis animés du texte : « Récents de l'équipe » dans le sélecteur (phase 12).
+  await markCustomEmojisUsed(v.html);
   await audit({
     userId: user.id,
     action: "sequence.text_saved",
@@ -143,6 +146,7 @@ export async function saveSequenceTranslationsAction(input: {
       data: { texts: next as unknown as Prisma.InputJsonValue },
     });
     const saved = Object.keys(clean);
+    await markCustomEmojisUsed(Object.values(clean));
     await audit({
       userId: user.id,
       action: "sequence.translations_saved",

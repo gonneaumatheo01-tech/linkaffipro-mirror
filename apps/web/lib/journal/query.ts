@@ -60,13 +60,24 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^media\./, "Média"],
   [/^stats\./, "Statistiques"],
   [/^telegram\./, "Compte Telegram (vues)"],
+  // Emojis animés (phase 12).
+  [/^custom_emoji\.pack_imported$/, "Emojis animés : pack ajouté"],
+  [
+    /^custom_emoji\.account_import_requested$/,
+    "Emojis animés : import des packs du compte Telegram demandé",
+  ],
+  [/^custom_emoji\.hidden$/, "Emoji animé retiré de la bibliothèque"],
+  [/^custom_emoji\.restored$/, "Emoji animé remis dans la bibliothèque"],
+  [/^custom_emoji\./, "Emojis animés"],
   [/^broadcast\./, "Écrire à un groupe"],
+  [/^post\.account_check_requested$/, "Message : vérification du compte Telegram demandée"],
   [/^post\./, "Message"],
   [/^channel\./, "Canal"],
   [/^bot\./, "Bot"],
   // Liens de partage (phase 11), avant la famille générale.
   [/^invite_link\.share_created$/, "Lien de partage créé"],
   [/^invite_link\.share_disabled$/, "Lien de partage désactivé"],
+  [/^tracking_link\.text_offer_created$/, "Lien d'offre ajouté dans le texte d'un message"],
   [/^link\.|^invite_link\.|^tracking_link\./, "Lien"],
   [/^campaign\./, "Campagne"],
   [/^adset\.|^ad\.|^adcost\.|^import\.costs/, "Campagne pub"],
@@ -120,6 +131,7 @@ export const ACTION_FAMILIES: ReadonlyArray<{
   },
   { value: "auth.", label: "Connexions au site", prefixes: ["auth.", "user.login"] },
   { value: "broadcast.", label: "Écrire à un groupe", prefixes: ["broadcast."] },
+  { value: "custom_emoji.", label: "Emojis animés", prefixes: ["custom_emoji."] },
   {
     value: "connector.",
     label: "Link Affi, Meta, TikTok et compte Telegram",
@@ -192,6 +204,7 @@ const ENTITY_LABELS: Record<string, string> = {
   InviteLink: "Lien d'invitation",
   Alert: "Alerte",
   AffiliateProgram: "Programme",
+  CustomEmoji: "Emoji animé",
 };
 
 export function entityLabel(entityType: string | null | undefined): string {

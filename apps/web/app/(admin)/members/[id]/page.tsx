@@ -285,6 +285,8 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
       queuedAt: o.queuedAt,
       sentAt: o.sentAt,
       botUsername: o.bot.username,
+      // Parti avec une note : « Envoyé avec les emojis normaux… » (emojis animés refusés), média non envoyé.
+      error: o.error,
     })),
     clicks: member.clicks.map((c) => ({
       createdAt: c.createdAt,

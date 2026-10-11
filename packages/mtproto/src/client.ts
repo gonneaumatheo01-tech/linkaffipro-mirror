@@ -2,16 +2,30 @@
  * Enveloppe GramJS (MTProto) : un seul client par appel, toujours déconnecté en `finally`.
  * Les sessions (StringSession) circulent en clair ici : à chiffrer par l'appelant avant stockage, jamais journalisées.
  */
-import { Api, Logger, TelegramClient, errors as gramErrors, password as gramPassword, sessions } from "telegram";
+import {
+  Api,
+  Logger,
+  TelegramClient,
+  errors as gramErrors,
+  password as gramPassword,
+  sessions,
+} from "telegram";
 import { LogLevel } from "telegram/extensions/Logger.js";
 import { chunkMessageIds, channelIdToNumber } from "./batches";
 import { classifyError, MtprotoRpcError } from "./errors";
 
 export type MtprotoCredentials = { apiId: number; apiHash: string };
 
-export type MtprotoUser = { id: string; firstName: string; username: string | null; phone: string | null };
+export type MtprotoUser = {
+  id: string;
+  firstName: string;
+  username: string | null;
+  phone: string | null;
+};
 
-export type SignInResult = { status: "ok"; session: string; user: MtprotoUser } | { status: "password_needed"; session: string };
+export type SignInResult =
+  | { status: "ok"; session: string; user: MtprotoUser }
+  | { status: "password_needed"; session: string };
 
 export type MessageViews = { id: number; views: number; forwards: number };
 
@@ -41,7 +55,11 @@ const CLIENT_PARAMS = {
 } as const;
 
 /** Crée un client GramJS silencieux (aucun journal GramJS : il pourrait contenir des données de session). */
-export function createClient(sessionString: string, apiId: number, apiHash: string): TelegramClient {
+export function createClient(
+  sessionString: string,
+  apiId: number,
+  apiHash: string,
+): TelegramClient {
   if (!Number.isInteger(apiId) || apiId <= 0) throw new MtprotoRpcError("API_ID_INVALID");
   if (!apiHash || apiHash.length < 16) throw new MtprotoRpcError("API_ID_INVALID");
   return new TelegramClient(new sessions.StringSession(sessionString), apiId, apiHash, {
@@ -74,7 +92,12 @@ function saveSession(client: TelegramClient): string {
 
 function toUser(u: Api.TypeUser): MtprotoUser {
   if (u instanceof Api.User) {
-    return { id: u.id.toString(), firstName: u.firstName ?? "", username: u.username ?? null, phone: u.phone ?? null };
+    return {
+      id: u.id.toString(),
+      firstName: u.firstName ?? "",
+      username: u.username ?? null,
+      phone: u.phone ?? null,
+    };
   }
   return { id: u.id.toString(), firstName: "", username: null, phone: null };
 }
@@ -84,7 +107,10 @@ function toUser(u: Api.TypeUser): MtprotoUser {
  * Retourne la session à conserver (chiffrée) : elle porte la clé d'autorisation liée au code,
  * indispensable pour `signIn` dans un autre processus.
  */
-export async function sendCode(phone: string, creds: MtprotoCredentials): Promise<{ phoneCodeHash: string; session: string }> {
+export async function sendCode(
+  phone: string,
+  creds: MtprotoCredentials,
+): Promise<{ phoneCodeHash: string; session: string }> {
   return withClient("", creds, async (client) => {
     const res = await client.invoke(
       new Api.auth.SendCode({
@@ -108,14 +134,20 @@ export async function signIn(
   try {
     await client.connect();
     const res = await client.invoke(
-      new Api.auth.SignIn({ phoneNumber: input.phone, phoneCodeHash: input.phoneCodeHash, phoneCode: input.code }),
+      new Api.auth.SignIn({
+        phoneNumber: input.phone,
+        phoneCodeHash: input.phoneCodeHash,
+        phoneCode: input.code,
+      }),
     );
-    if (res instanceof Api.auth.AuthorizationSignUpRequired) throw new MtprotoRpcError("PHONE_NUMBER_UNOCCUPIED");
+    if (res instanceof Api.auth.AuthorizationSignUpRequired)
+      throw new MtprotoRpcError("PHONE_NUMBER_UNOCCUPIED");
     if (!(res instanceof Api.auth.Authorization)) throw new MtprotoRpcError("AUTH_RESTART");
     return { status: "ok", session: saveSession(client), user: toUser(res.user) };
   } catch (err) {
     const typed = classifyError(err);
-    if (typed.name === "MtprotoPasswordNeeded") return { status: "password_needed", session: saveSession(client) };
+    if (typed.name === "MtprotoPasswordNeeded")
+      return { status: "password_needed", session: saveSession(client) };
     throw typed;
   } finally {
     await client.disconnect().catch(() => undefined);
@@ -162,7 +194,10 @@ export async function getMe(session: string, creds: MtprotoCredentials): Promise
  * Résout le peer d'un canal à partir de son identifiant numérique (-100…). GramJS tente d'abord `channels.getChannels`
  * (suffit quand le compte est membre) ; sinon on charge les dialogues du compte (remplit le cache d'entités) et on réessaie.
  */
-async function resolveChannelPeer(client: TelegramClient, channelId: number): Promise<Api.TypeInputPeer> {
+export async function resolveChannelPeer(
+  client: TelegramClient,
+  channelId: number,
+): Promise<Api.TypeInputPeer> {
   try {
     return await client.getInputEntity(channelId);
   } catch (first) {
@@ -193,7 +228,9 @@ export async function getViews(
     const peer = await resolveChannelPeer(client, channelIdToNumber(input.channelId));
     const out: MessageViews[] = [];
     for (const ids of batches) {
-      const res = await client.invoke(new Api.messages.GetMessagesViews({ peer, id: ids, increment: false }));
+      const res = await client.invoke(
+        new Api.messages.GetMessagesViews({ peer, id: ids, increment: false }),
+      );
       ids.forEach((id, i) => {
         const v = res.views[i];
         out.push({ id, views: v?.views ?? -1, forwards: v?.forwards ?? (v ? 0 : -1) });
@@ -225,7 +262,10 @@ export function adminChannelFromEntity(entity: unknown): AdminChannel | null {
  * Canaux et supergroupes dont le compte connecté est administrateur ou créateur (parmi ses 500 derniers dialogues),
  * sans doublon, triés par titre. Aucune modification côté Telegram.
  */
-export async function listAdminChannels(session: string, creds: MtprotoCredentials): Promise<AdminChannel[]> {
+export async function listAdminChannels(
+  session: string,
+  creds: MtprotoCredentials,
+): Promise<AdminChannel[]> {
   return withClient(session, creds, async (client) => {
     const dialogs = await client.getDialogs({ limit: 500 });
     const seen = new Set<string>();

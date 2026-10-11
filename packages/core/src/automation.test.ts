@@ -94,6 +94,26 @@ describe("actions", () => {
   });
 });
 
+describe("longueur d'un message de relance avec emojis animés (phase 12)", () => {
+  const emoji = '<tg-emoji emoji-id="5368324170671202286">👍</tg-emoji>';
+  it("compte un emoji animé comme son emoji de remplacement, comme Telegram", () => {
+    expect(() =>
+      parseActions([{ type: "send_message", text: "a".repeat(3000) + emoji.repeat(30) }]),
+    ).not.toThrow();
+    expect(() =>
+      parseActions([{ type: "send_message", text: "a".repeat(4094) + emoji }]),
+    ).not.toThrow();
+  });
+  it("refuse toujours un texte visible de plus de 4096 caractères", () => {
+    expect(() => parseActions([{ type: "send_message", text: "a".repeat(4097) }])).toThrow(
+      /texte trop long/,
+    );
+    expect(() => parseActions([{ type: "send_message", text: "a".repeat(4095) + emoji }])).toThrow(
+      /texte trop long/,
+    );
+  });
+});
+
 describe("bouton « Offre (campagne) » d'un message de relance (phase 10)", () => {
   const offer = {
     text: "Voir l'offre",

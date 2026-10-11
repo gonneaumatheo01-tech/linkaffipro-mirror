@@ -45,6 +45,7 @@ import {
 } from "@/lib/broadcasts/display";
 import { countSentence, describeGroup, reachableSentence } from "@/lib/broadcasts/group";
 import { countTargets } from "@/lib/broadcasts/queries";
+import { emojiFallbackSentence, emojiFallbackWhere } from "@/lib/custom-emoji/dm-fallback";
 import { loadBroadcastResults, loadGroupNames } from "@/lib/broadcasts/results";
 import { confirmSendMessage } from "@/lib/broadcasts/wizard";
 import { fmtDate, fmtNum } from "@/lib/format";
@@ -89,7 +90,7 @@ export default async function BroadcastPage({
   if (!b) notFound();
   const segment = parseSegment(b.segment);
   const pending = notLaunched(b.status);
-  const [errors, results, names, estimate] = await Promise.all([
+  const [errors, results, names, estimate, emojiFallbacks] = await Promise.all([
     pending
       ? Promise.resolve([])
       : prisma.outboundMessage.groupBy({
@@ -102,7 +103,10 @@ export default async function BroadcastPage({
     loadGroupNames([segment]),
     // Avant le départ : nombre de membres joignables aujourd'hui (même calcul que l'assistant).
     pending ? countTargets(segment, b.botId).catch(() => null) : Promise.resolve(null),
+    // Emojis animés refusés par Telegram : messages partis quand même, avec les emojis normaux.
+    pending ? Promise.resolve(0) : prisma.outboundMessage.count({ where: emojiFallbackWhere(id) }),
   ]);
+  const emojiFallbackNote = emojiFallbackSentence(emojiFallbacks);
   const actions = broadcastActions(b.status, user.role);
   const ab = abLabel(b);
   const group = describeGroup(segment, names);
@@ -294,6 +298,12 @@ export default async function BroadcastPage({
               </p>
             </CardContent>
           </Card>
+          {emojiFallbackNote ? (
+            <Alert variant="warning" role="status">
+              <TriangleAlert aria-hidden />
+              <AlertDescription>{emojiFallbackNote}</AlertDescription>
+            </Alert>
+          ) : null}
         </section>
       )}
 

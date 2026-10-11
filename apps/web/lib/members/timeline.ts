@@ -38,7 +38,19 @@ export type OutboundLike = {
   queuedAt: Date;
   sentAt?: Date | null;
   botUsername?: string | null;
+  /**
+   * Note du service d'arrière-plan (`OutboundMessage.error`). Sur un message parti : « Envoyé avec les emojis normaux :
+   * Telegram a refusé les emojis animés. » (phase 12), « Média non envoyé : … ». Montrée dans l'historique.
+   */
+  error?: string | null;
 };
+
+/** « envoyé », ou la note d'un message parti quand même (sans répéter « envoyé »). */
+function sentDetail(error: string | null | undefined): string {
+  const note = error?.trim().replace(/\.$/, "");
+  if (!note) return "envoyé";
+  return /^envoyé/i.test(note) ? note : `envoyé · ${note}`;
+}
 export type ClickLike = {
   createdAt: Date;
   subId?: string | null;
@@ -160,7 +172,7 @@ export function buildTimeline(input: {
     const bot = o.botUsername ? ` (@${o.botUsername})` : "";
     const status =
       o.status === "SENT"
-        ? "envoyé"
+        ? sentDetail(o.error)
         : o.status === "FAILED"
           ? "échec"
           : o.status === "BLOCKED"

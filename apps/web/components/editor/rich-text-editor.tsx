@@ -3,7 +3,12 @@
 import "./rich-text.css";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Bold, EyeOff, Italic, Link2, Smile, Strikethrough, Underline } from "lucide-react";
-import { textLength } from "@linkaffipro/core";
+import { customEmojiTag, textLength } from "@linkaffipro/core";
+import { createChipOverlay, type ChipOverlay } from "@/components/custom-emoji/emoji-chips";
+import {
+  CustomEmojiPickerButton,
+  type PickedEmoji,
+} from "@/components/custom-emoji/custom-emoji-picker";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -176,6 +181,12 @@ export type RichTextEditorProps = {
   ai?: React.ReactNode;
   /** Hauteur minimale en lignes (≈ `rows` d'une zone de texte). */
   rows?: number;
+  /**
+   * Bouton « Emoji animé » (emojis des packs Premium de la bibliothèque de l'équipe), à côté des émojis : oui par
+   * défaut. Un emoji animé s'écrit `<tg-emoji emoji-id="…">😀</tg-emoji>` dans la valeur ; `hasCustomEmoji(value)`
+   * (@linkaffipro/core) dit si le texte en contient.
+   */
+  customEmoji?: boolean;
   className?: string;
 };
 
@@ -184,7 +195,10 @@ export type RichTextEditorProps = {
  * barré, lien, texte masqué, émojis) ; le formulaire reçoit toujours du HTML Telegram propre et validé.
  * Barre d'outils (une seule tabulation, flèches pour passer d'un bouton à l'autre), raccourcis ⌘B ⌘I ⌘U ⌘K ⌘⇧X,
  * collage nettoyé (seule la mise en forme permise par Telegram est gardée), repères {prenom}… insérables et mis en
- * évidence, compteur de caractères (4 096, 1 024 avec un média), emplacement pour l'assistant IA.
+ * évidence, compteur de caractères (4 096, 1 024 avec un média ; un emoji animé compte comme son emoji de
+ * remplacement), emplacement pour l'assistant IA.
+ * Emojis animés (phase 12) : bouton « Emoji animé » (sélecteur de la bibliothèque) ; chaque emoji est une puce
+ * animée que l'on supprime d'un retour arrière, comme un caractère (custom-emoji-chip.ts).
  */
 export function RichTextEditor({
   id,
@@ -201,6 +215,7 @@ export function RichTextEditor({
   hasMedia = false,
   ai,
   rows = 8,
+  customEmoji = true,
   className,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -213,6 +228,11 @@ export function RichTextEditor({
   const pendingEmoji = useRef<string | null>(null);
   const pendingLink = useRef<{ url: string; text: string } | "remove" | null>(null);
   const internalDrag = useRef(false);
+  /** Zone de saisie et son calque d'animations des emojis animés (créé au premier affichage, retiré au démontage). */
+  const textAreaRef = useRef<HTMLDivElement>(null);
+  const chips = useRef<ChipOverlay | null>(null);
+  /** Position du curseur à l'ouverture du sélecteur d'emojis animés (rétablie avant l'insertion). */
+  const customEmojiRange = useRef<Range | null>(null);
   const [initialHtml] = useState(() => telegramToEditorHtml(value));
   const [active, setActive] = useState<ActiveFormats>(NO_FORMATS);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -254,6 +274,16 @@ export function RichTextEditor({
     }
     highlightRegistry.set(id, { ok, warn });
     applyHighlights();
+    animateChips();
+  }
+
+  /** Anime les emojis animés du texte (nouveaux, collés, remis par ⌘Z) et arrête ceux qui ont été supprimés. */
+  function animateChips() {
+    const el = editorRef.current;
+    const wrap = textAreaRef.current;
+    if (typeof document === "undefined" || !el || !wrap) return;
+    chips.current ??= createChipOverlay({ content: el, layerParent: wrap, mode: "over" });
+    chips.current.update();
   }
 
   /** Lit le contenu, le convertit en HTML Telegram et prévient le parent s'il a changé. */
@@ -368,6 +398,37 @@ export function RichTextEditor({
       }
     }
     sync();
+  }
+
+  /** Ouverture du sélecteur d'emojis animés : on retient où est le curseur dans le texte. */
+  function openCustomEmoji() {
+    readFormats();
+    const el = editorRef.current;
+    const saved = savedRange.current;
+    customEmojiRange.current =
+      el && saved && el.contains(saved.commonAncestorContainer) ? saved.cloneRange() : null;
+  }
+
+  /** Sélecteur fermé : curseur remis où il était, puis l'emoji choisi inséré (annulable par ⌘Z). */
+  function closeCustomEmoji(emoji: PickedEmoji | null) {
+    const el = editorRef.current;
+    const range = customEmojiRange.current;
+    customEmojiRange.current = null;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    const sel = document.getSelection();
+    if (sel && range && el.contains(range.commonAncestorContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+      savedRange.current = range.cloneRange();
+    } else focusEditor();
+    if (!emoji) return;
+    try {
+      insertTelegram(customEmojiTag(emoji.id, emoji.fallback));
+    } catch {
+      // Identifiant invalide (ne vient jamais de la bibliothèque) : rien n'est inséré.
+    }
+    readFormats();
   }
 
   function openLink() {
@@ -493,6 +554,8 @@ export function RichTextEditor({
       el.removeEventListener("beforeinput", beforeInput);
       highlightRegistry.delete(id);
       applyHighlights();
+      chips.current?.destroy();
+      chips.current = null;
     };
   }, [id]);
 
@@ -646,6 +709,9 @@ export function RichTextEditor({
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          {customEmoji ? (
+            <CustomEmojiPickerButton onOpen={openCustomEmoji} onClosed={closeCustomEmoji} />
+          ) : null}
           {ai ? (
             // Téléphone : l'assistant passe sur sa propre ligne, sous les outils de mise en forme.
             <div className="ml-auto flex items-center max-md:ml-0 max-md:w-full max-md:border-t max-md:border-border max-md:pt-1">
@@ -654,7 +720,7 @@ export function RichTextEditor({
           ) : null}
         </div>
 
-        <div className="relative">
+        <div ref={textAreaRef} className="relative">
           {empty ? (
             <span
               aria-hidden

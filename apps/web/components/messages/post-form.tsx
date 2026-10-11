@@ -1,6 +1,14 @@
 "use client";
 
-import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -25,8 +33,16 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { ImproveButton, type ImproveContext } from "@/components/ai/improve-button";
+import { hasCustomEmoji, withFallbackEmojis, type MtprotoPublishStatus } from "@linkaffipro/core";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { TelegramPreview } from "./telegram-preview";
+import {
+  EmojiPublishPanel,
+  TelegramSettingsLink,
+  type AccountCheckState,
+} from "./emoji-publish-panel";
+import { PublisherBadge } from "./publisher-badge";
+import { TextOfferLink, type CreateTextOfferLink } from "./text-offer-link";
 import { placeholdersToComplete } from "./preview-placeholders";
 import { CategoryPicker } from "./category-picker";
 import { resolvePostVertical } from "./ai-context";
@@ -44,6 +60,18 @@ import {
 import { advancedModifiedCount, initialSections, scheduleSummary } from "@/lib/posts/form-sections";
 import { postLanguageOptions } from "@/lib/posts/display";
 import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
+import { appendToText } from "@/lib/posts/offer-link";
+import {
+  ACCOUNT_PROTECT_NOTE,
+  accountProblemsFor,
+  channelsToCheck,
+  hasAccountProblem,
+  needsAccountFor,
+  postEmojiState,
+  statusAnswered,
+  targetsOf,
+  type EmojiButtonsChoice,
+} from "@/lib/posts/publisher";
 import type { BestSlot } from "@/lib/besthours/types";
 
 export type ChannelOption = {
@@ -51,6 +79,11 @@ export type ChannelOption = {
   title: string;
   language: string;
   vertical?: string | null;
+  /**
+   * `Channel.type` : CHANNEL (canal) ou GROUP (groupe ou supergroupe). Emojis animés : dans un groupe, le bot les publie
+   * lui-même, avec ses boutons ; seul un canal passe par le compte Telegram connecté. Absent : canal.
+   */
+  type?: string | null;
 };
 export type CategoryOption = { id: string; name: string; color: string };
 export type CampaignOption = { id: string; name: string; programName: string };
@@ -84,6 +117,22 @@ export type PostFormValues = {
   duplicatedFromId?: string;
 };
 
+/** Actions serveur des emojis animés (passées par la page : le formulaire reste sans accès à la base). */
+export type PostEmojiActions = {
+  /** « Vérifier » : relevé de l'état du compte Telegram connecté pour ces canaux. */
+  checkAccount: (
+    channelIds: string[],
+  ) => Promise<{ ok: true; requestedAt: string } | { ok: false; error: string }>;
+  /** Dernier relevé de l'état du compte. */
+  accountStatus: () => Promise<MtprotoPublishStatus | null>;
+  /** « Ajouter l'offre comme lien dans le texte ». */
+  createOfferLink: CreateTextOfferLink;
+};
+
+/** Attente du relevé demandé par « Vérifier » : un coup d'œil toutes les 3 s, 45 s au plus. */
+const CHECK_POLL_MS = 3000;
+const CHECK_TIMEOUT_MS = 45_000;
+
 type Props = {
   action: (formData: FormData) => void | Promise<void>;
   channels: ChannelOption[];
@@ -101,6 +150,12 @@ type Props = {
   bestSlots?: Record<string, Record<string, BestSlot>>;
   /** Création seulement : proposer un test A/B (deux versions publiées, comparées ensuite). */
   abAllowed?: boolean;
+  /**
+   * Emojis animés (phase 12) : dernier relevé de l'état du compte Telegram connecté (`Setting` `mtproto.publishStatus`)
+   * et actions serveur (vérifier le compte, offre en lien dans le texte).
+   */
+  accountStatus?: MtprotoPublishStatus | null;
+  emojiActions?: PostEmojiActions;
 };
 
 async function uploadFiles(
@@ -258,6 +313,7 @@ function ButtonsEditor({
   prefix = "",
   version = "A",
   issues = [],
+  disabled = false,
 }: {
   rows: PostButtonRow[];
   setRows: Dispatch<SetStateAction<PostButtonRow[]>>;
@@ -266,6 +322,8 @@ function ButtonsEditor({
   prefix?: string;
   version?: "A" | "B";
   issues?: OfferButtonIssue[];
+  /** Message publié par le compte Telegram connecté (emojis animés) : boutons gardés à l'écran mais non publiés. */
+  disabled?: boolean;
 }) {
   function setButton(r: number, c: number, patch: Partial<PostButton>) {
     setRows((rs) =>
@@ -273,7 +331,8 @@ function ButtonsEditor({
     );
   }
   return (
-    <div className="space-y-3">
+    <fieldset disabled={disabled} className="min-w-0 space-y-3 disabled:opacity-60">
+      <legend className="sr-only">{`${prefix}Boutons du message`}</legend>
       {rows.map((row, r) => (
         <div key={r} className="space-y-2 rounded-lg border border-border p-2">
           {row.map((b, c) => (
@@ -368,36 +427,48 @@ function ButtonsEditor({
       >
         <Plus aria-hidden /> Nouvelle ligne de boutons
       </Button>
-    </div>
+    </fieldset>
   );
 }
 
-/** Case à cocher du bloc « Avancé » : contrôlée, et envoyée sous son nom habituel (« on ») si elle est cochée. */
+/**
+ * Case à cocher du bloc « Avancé » : contrôlée, et envoyée sous son nom habituel (« on ») si elle est cochée.
+ * `disabled` : réglage sans effet pour ce message (affichée non cochée, rien n'est envoyé ; la phrase dit pourquoi).
+ */
 function OptionCheckbox({
   name,
   checked,
   onChange,
   children,
   hint,
+  disabled = false,
 }: {
   name: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   children: React.ReactNode;
   hint?: string;
+  disabled?: boolean;
 }) {
+  const on = checked && !disabled;
   return (
-    <label className="flex cursor-pointer items-start gap-3 text-body max-md:min-h-10">
+    <label
+      className={cn(
+        "flex items-start gap-3 text-body max-md:min-h-10",
+        disabled ? "cursor-not-allowed" : "cursor-pointer",
+      )}
+    >
       <Checkbox
-        checked={checked}
+        checked={on}
+        disabled={disabled}
         onCheckedChange={(v) => onChange(v === true)}
-        className="mt-0.5"
+        className="mt-0.5 data-disabled:cursor-not-allowed data-disabled:opacity-50"
       />
       <span>
-        <span className="block">{children}</span>
+        <span className={cn("block", disabled && "text-muted-foreground")}>{children}</span>
         {hint ? <span className="block text-note text-muted-foreground">{hint}</span> : null}
       </span>
-      {checked ? <input type="hidden" name={name} value="on" /> : null}
+      {on ? <input type="hidden" name={name} value="on" /> : null}
     </label>
   );
 }
@@ -422,6 +493,8 @@ export function PostForm({
   singleChannel,
   bestSlots = {},
   abAllowed = false,
+  accountStatus = null,
+  emojiActions,
 }: Props) {
   const [text, setText] = useState(initial.text);
   const [media, setMedia] = useState<MediaItem[]>(initial.media);
@@ -461,13 +534,124 @@ export function PostForm({
   const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
   const abActive = abAllowed && ab && intent !== "template";
   const isTemplate = initial.isTemplate;
+
+  // Emojis animés (phase 12) : qui publie chaque version, choix « emojis » / « boutons », état du compte connecté.
+  const [emojiChoice, setEmojiChoice] = useState<EmojiButtonsChoice | null>(null);
+  const [choiceCheck, setChoiceCheck] = useState(false);
+  const [status, setStatus] = useState<MtprotoPublishStatus | null>(accountStatus);
+  const [check, setCheck] = useState<AccountCheckState>({ state: "idle" });
+  const [accountCheckShown, setAccountCheckShown] = useState(false);
+  const [showOfferLink, setShowOfferLink] = useState(false);
+  const autoChecked = useRef(new Set<string>());
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  // Où part chaque version : canaux (compte connecté si emojis animés) et/ou groupes (le bot les publie lui-même).
+  const chatTypeOf = (id: string) => channels.find((c) => c.id === id)?.type ?? null;
+  const channelIdsB = abMode === "other-channel" ? (abChannelId ? [abChannelId] : []) : channelIds;
+  const targetsA = targetsOf(channelIds.map(chatTypeOf));
+  const targetsB = targetsOf(channelIdsB.map(chatTypeOf));
+  const emoji = postEmojiState({
+    textA: text,
+    buttonsA: rows,
+    textB,
+    buttonsB: rowsB,
+    abActive,
+    choice: emojiChoice,
+    // « Enregistrer comme modèle » depuis un nouveau message : rien à choisir non plus.
+    isTemplate: isTemplate || intent === "template",
+    targetsA,
+    targetsB,
+  });
+  const titleOf = (id: string) => channels.find((c) => c.id === id)?.title ?? "ce canal";
+  /** Canaux (pas les groupes) où le compte connecté publiera (versions sans boutons avec emojis animés). */
+  const accountChannels = (() => {
+    const ids: string[] = [];
+    const add = (id: string) => {
+      if (id && needsAccountFor(chatTypeOf(id)) && !ids.includes(id)) ids.push(id);
+    };
+    if (emoji.modeA === "account") channelIds.forEach(add);
+    if (emoji.modeB === "account") channelIdsB.forEach(add);
+    return ids.map((id) => ({ id, title: titleOf(id) }));
+  })();
+  /** Groupes qui recevront des emojis animés du bot lui-même. */
+  const emojiGroups = (() => {
+    const ids: string[] = [];
+    const add = (id: string) => {
+      if (id && !needsAccountFor(chatTypeOf(id)) && !ids.includes(id)) ids.push(id);
+    };
+    if (emoji.groupEmoji && hasCustomEmoji(text)) channelIds.forEach(add);
+    if (emoji.groupEmoji && abActive && hasCustomEmoji(textB)) channelIdsB.forEach(add);
+    return ids.map(titleOf);
+  })();
+  const problems = accountProblemsFor(status, accountChannels);
+  const scheduleBlocked = emoji.account && hasAccountProblem(problems);
+  const accountIds = accountChannels.map((c) => c.id);
+  const toCheckKey = emoji.account ? channelsToCheck(status, accountIds).join(",") : "";
+
+  /** « Vérifier » : relevé demandé au service d'arrière-plan, puis attente de sa réponse (la page n'est pas rechargée). */
+  async function runCheck(ids: string[]) {
+    if (!emojiActions) return;
+    setCheck({ state: "checking" });
+    try {
+      const r = await emojiActions.checkAccount(ids);
+      if (!r.ok) {
+        if (alive.current) setCheck({ state: "error", error: r.error });
+        return;
+      }
+      const deadline = Date.now() + CHECK_TIMEOUT_MS;
+      while (alive.current && Date.now() < deadline) {
+        await new Promise((res) => setTimeout(res, CHECK_POLL_MS));
+        const s = await emojiActions.accountStatus();
+        if (statusAnswered(s, r.requestedAt)) {
+          if (alive.current) {
+            setStatus(s);
+            setCheck({ state: "idle" });
+          }
+          return;
+        }
+      }
+      if (alive.current) setCheck({ state: "late" });
+    } catch {
+      if (alive.current)
+        setCheck({ state: "error", error: "Vérification impossible : réessayez dans une minute." });
+    }
+  }
+  // Canal jamais vérifié pour le compte connecté : la vérification part toute seule (une fois par liste de canaux).
+  const autoCheck = useEffectEvent((key: string) => {
+    if (!key || !emojiActions || check.state === "checking" || autoChecked.current.has(key)) return;
+    autoChecked.current.add(key);
+    void runCheck(key.split(","));
+  });
+  useEffect(() => {
+    if (!toCheckKey) return;
+    const t = setTimeout(() => autoCheck(toCheckKey), 600);
+    return () => clearTimeout(t);
+  }, [toCheckKey]);
+
+  /** Lien d'offre créé : ajouté à la fin du texte de la version choisie. */
+  function insertOfferLink(version: "A" | "B", html: string) {
+    if (version === "B") setTextB((t) => appendToText(t, html));
+    else setText((t) => appendToText(t, html));
+  }
   // Bouton Offre sans campagne : refusé dans le navigateur avant l'envoi (la saisie reste à l'écran). Les messages
   // apparaissent après un premier essai et disparaissent dès que la campagne est choisie.
   const formRef = useRef<HTMLFormElement>(null);
   const [offerCheck, setOfferCheck] = useState(false);
+  // Boutons retirés (message publié par le compte connecté) : absents de l'aperçu (celui d'un canal) ; rien à
+  // compléter s'ils ne partent nulle part (ils restent publiés dans les groupes cochés).
+  const keptRows = emoji.modeA === "account" ? [] : rows;
+  const keptRowsB = emoji.modeB === "account" ? [] : rowsB;
   const offerIssues = isTemplate
     ? []
-    : [...offerButtonIssues(rows), ...(abActive ? offerButtonIssues(rowsB, { version: "B" }) : [])];
+    : [
+        ...offerButtonIssues(emoji.buttonsOffA ? [] : rows),
+        ...(abActive ? offerButtonIssues(emoji.buttonsOffB ? [] : rowsB, { version: "B" }) : []),
+      ];
   const shownOfferIssues = offerCheck ? offerIssues : [];
   const offerSummary = offerIssuesSummary(shownOfferIssues);
 
@@ -479,6 +663,26 @@ export function PostForm({
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
     if (isTemplate || submitter?.dataset.intent === "template") return;
+    // Emojis animés et boutons : le choix est exigé (sinon le serveur refuserait et la saisie serait perdue).
+    if (emoji.choiceMissing) {
+      e.preventDefault();
+      setChoiceCheck(true);
+      requestAnimationFrame(() =>
+        formRef.current
+          ?.querySelector<HTMLInputElement>("#emoji-buttons-choice input[type=radio]")
+          ?.focus(),
+      );
+      return;
+    }
+    // Programmer un message que le compte connecté ne peut pas (encore) publier : arrêté ici, avec la raison.
+    if (submitter?.dataset.intent === "schedule" && scheduleBlocked) {
+      e.preventDefault();
+      setAccountCheckShown(true);
+      requestAnimationFrame(() =>
+        formRef.current?.querySelector<HTMLElement>("#account-blocked")?.focus(),
+      );
+      return;
+    }
     if (offerIssues.length === 0) return;
     e.preventDefault();
     setOfferCheck(true);
@@ -528,12 +732,14 @@ export function PostForm({
     setScheduledAt(toParisLocalInput(nextOccurrence(slotInfo.slot.day, slotInfo.slot.hour)));
   }
 
+  // « Contenu protégé » : Telegram réserve la protection d'un message aux bots (sans effet par le compte connecté).
+  const protectOff = emoji.protect === "none";
   const modified = advancedModifiedCount({
     pinAfterSend,
     unpinPrevious,
     deleteAfterMinutes: deleteAfter,
     disableNotification,
-    protectContent,
+    protectContent: protectContent && !protectOff,
     disableLinkPreview,
     language,
     abDelayMinutes: abActive && abMode === "same-channel" ? abDelay : undefined,
@@ -554,8 +760,20 @@ export function PostForm({
         ]),
       ];
 
-  const preview = <TelegramPreview html={text} buttons={rows} mediaCount={media.length} />;
-  const previewB = <TelegramPreview html={textB} buttons={rowsB} mediaCount={mediaB.length} />;
+  // Aperçu : sans boutons quand le compte publie, emojis normaux quand l'équipe garde les boutons.
+  const previewHtml = emoji.modeA === "fallback" ? withFallbackEmojis(text) : text;
+  const previewHtmlB = emoji.modeB === "fallback" ? withFallbackEmojis(textB) : textB;
+  const preview = (
+    <TelegramPreview html={previewHtml} buttons={keptRows} mediaCount={media.length} />
+  );
+  const previewB = (
+    <TelegramPreview html={previewHtmlB} buttons={keptRowsB} mediaCount={mediaB.length} />
+  );
+  const canOfferLink = !!emojiActions && emoji.account;
+  const offerVersions: Array<"A" | "B"> = [
+    ...(emoji.modeA === "account" ? (["A"] as const) : []),
+    ...(emoji.modeB === "account" ? (["B"] as const) : []),
+  ];
 
   return (
     <form
@@ -572,6 +790,9 @@ export function PostForm({
       <input type="hidden" name="mediaAssetIds" value={JSON.stringify(media.map((m) => m.id))} />
       <input type="hidden" name="buttons" value={JSON.stringify(rows)} />
       <input type="hidden" name="intent" value={intent} />
+      {emoji.choiceOffered && emojiChoice ? (
+        <input type="hidden" name="emojiButtonsChoice" value={emojiChoice} />
+      ) : null}
       {channelIds.map((id) => (
         <input key={id} type="hidden" name="channelIds" value={id} />
       ))}
@@ -689,10 +910,27 @@ export function PostForm({
                 />
               }
             />
+            <EmojiPublishPanel
+              isTemplate={isTemplate || intent === "template"}
+              state={emoji}
+              choice={emojiChoice}
+              onChoice={(c) => setEmojiChoice(c)}
+              choiceError={choiceCheck}
+              problems={problems}
+              accountChannels={accountChannels}
+              status={status}
+              check={check}
+              onCheck={() => void runCheck(accountIds)}
+              canCheck={!!emojiActions}
+              onAddOfferLink={canOfferLink ? () => setShowOfferLink(true) : undefined}
+              offerLinkOpen={showOfferLink}
+              groupTitles={emojiGroups}
+            />
             {/* Téléphone : l'aperçu juste sous le texte (sur ordinateur, il est à droite). */}
             <div className="lg:hidden">
-              <p className="mb-2 text-note font-medium text-muted-foreground">
+              <p className="mb-2 flex flex-wrap items-center gap-2 text-note font-medium text-muted-foreground">
                 Aperçu tel que les membres le verront
+                {emoji.modeA === "account" ? <PublisherBadge publisher="ACCOUNT" /> : null}
               </p>
               {preview}
             </div>
@@ -761,7 +999,17 @@ export function PostForm({
               </Button>
             ) : null}
             {!showButtons ? (
-              <Button type="button" variant="outline" onClick={() => setShowButtons(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={emoji.buttonsOffA}
+                title={
+                  emoji.buttonsOffA
+                    ? "Pas de boutons : ce message sera publié par votre compte Telegram (emojis animés)."
+                    : undefined
+                }
+                onClick={() => setShowButtons(true)}
+              >
                 <MousePointerClick aria-hidden />
                 Boutons
               </Button>
@@ -823,15 +1071,36 @@ export function PostForm({
               description="Lien direct, lien traqué (clics comptés) ou offre d'une campagne (lien Link Affi avec l'identifiant de suivi de chaque membre)."
               className="[&>div:first-child]:pr-10"
             >
+              {emoji.modeA === "account" ? (
+                <p className="text-body font-medium text-foreground">
+                  {!emoji.buttonsOffA
+                    ? "Ces boutons ne partiront que dans les groupes : dans les canaux, ce message est publié par votre compte Telegram, sans boutons."
+                    : rows.length > 0
+                      ? "Ces boutons ne seront pas publiés : un message publié par votre compte Telegram n'a pas de boutons."
+                      : "Pas de boutons : ce message sera publié par votre compte Telegram (emojis animés)."}
+                </p>
+              ) : null}
               <ButtonsEditor
                 rows={rows}
                 setRows={setRows}
                 campaigns={campaigns}
                 campaignOptions={campaignOptions}
                 issues={shownOfferIssues.filter((i) => i.version === "A")}
+                disabled={emoji.buttonsOffA}
               />
             </FormSection>
           </div>
+        ) : null}
+
+        {canOfferLink && showOfferLink ? (
+          <TextOfferLink
+            campaigns={campaigns}
+            campaignOptions={campaignOptions}
+            versions={offerVersions}
+            createLink={emojiActions!.createOfferLink}
+            onInsert={insertOfferLink}
+            onClose={() => setShowOfferLink(false)}
+          />
         ) : null}
 
         {abActive ? (
@@ -928,7 +1197,15 @@ export function PostForm({
                   prefix="Version B : "
                   version="B"
                   issues={shownOfferIssues.filter((i) => i.version === "B")}
+                  disabled={emoji.buttonsOffB}
                 />
+                {emoji.modeB === "account" ? (
+                  <p className="text-note text-muted-foreground">
+                    {emoji.buttonsOffB
+                      ? "Version B publiée par votre compte Telegram (emojis animés) : sans boutons."
+                      : "Version B publiée par votre compte Telegram (emojis animés) dans les canaux, sans boutons ; ses boutons partent dans les groupes."}
+                  </p>
+                ) : null}
               </div>
             </FormSection>
           </div>
@@ -962,7 +1239,14 @@ export function PostForm({
               name="protectContent"
               checked={protectContent}
               onChange={setProtectContent}
-              hint="Pas de transfert ni de capture du message."
+              disabled={protectOff}
+              hint={
+                protectOff
+                  ? ACCOUNT_PROTECT_NOTE
+                  : emoji.protect === "partial"
+                    ? "Pas de transfert ni de capture du message. Ne s'applique pas aux messages publiés par votre compte Telegram : avec des emojis animés, Telegram ne permet pas de les protéger."
+                    : "Pas de transfert ni de capture du message."
+              }
             >
               Contenu protégé
             </OptionCheckbox>
@@ -1029,6 +1313,24 @@ export function PostForm({
               <AlertDescription>{offerSummary}</AlertDescription>
             </Alert>
           ) : null}
+          {accountCheckShown && scheduleBlocked ? (
+            <Alert variant="destructive" id="account-blocked" tabIndex={-1}>
+              <TriangleAlert aria-hidden />
+              <AlertTitle>Pas encore programmable</AlertTitle>
+              <AlertDescription className="space-y-1">
+                <p>
+                  Ce message sera publié par votre compte Telegram :{" "}
+                  {problems.global ??
+                    problems.channels.map((c) => `« ${c.title} » : ${c.problem}`).join(" ")}
+                </p>
+                <p>
+                  Corrigez-le (bloc des emojis animés plus haut, « Vérifier »), ou enregistrez le
+                  message en brouillon en attendant.
+                </p>
+                <TelegramSettingsLink />
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {toComplete.length > 0 ? (
             <Alert variant="warning" role="status">
               <TriangleAlert aria-hidden />
@@ -1084,10 +1386,19 @@ export function PostForm({
                       Enregistrer comme modèle
                     </Button>
                   ) : null}
-                  <Button type="submit" variant="outline" onClick={() => setIntent("draft")}>
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    data-intent="draft"
+                    onClick={() => setIntent("draft")}
+                  >
                     Enregistrer en brouillon
                   </Button>
-                  <Button type="submit" onClick={() => setIntent("schedule")}>
+                  <Button
+                    type="submit"
+                    data-intent="schedule"
+                    onClick={() => setIntent("schedule")}
+                  >
                     <CalendarClock aria-hidden />
                     {abActive ? "Programmer le test A/B" : "Programmer"}
                   </Button>
@@ -1102,14 +1413,18 @@ export function PostForm({
       <aside className="hidden lg:block" aria-label="Aperçu">
         <div className="sticky top-4 space-y-4">
           <div>
-            <p className="mb-2 text-note font-medium text-muted-foreground">
+            <p className="mb-2 flex flex-wrap items-center gap-2 text-note font-medium text-muted-foreground">
               {abActive ? "Aperçu — version A" : "Aperçu tel que les membres le verront"}
+              {emoji.modeA === "account" ? <PublisherBadge publisher="ACCOUNT" /> : null}
             </p>
             {preview}
           </div>
           {abActive ? (
             <div>
-              <p className="mb-2 text-note font-medium text-muted-foreground">Aperçu — version B</p>
+              <p className="mb-2 flex flex-wrap items-center gap-2 text-note font-medium text-muted-foreground">
+                Aperçu — version B
+                {emoji.modeB === "account" ? <PublisherBadge publisher="ACCOUNT" /> : null}
+              </p>
               {previewB}
             </div>
           ) : null}

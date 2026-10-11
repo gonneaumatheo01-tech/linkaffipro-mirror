@@ -3,6 +3,7 @@
  * Les règles vivent dans `AutomationRule` (conditions et actions en JSON) ; l'exécution est dans le worker.
  */
 import { SPEND_LEVELS, type SpendLevel } from "./spend-level";
+import { TELEGRAM_TEXT_MAX, textLength } from "./telegram-html";
 
 export const AUTOMATION_TRIGGERS = [
   "JOINED",
@@ -183,7 +184,8 @@ export function parseActions(raw: unknown): AutomationAction[] {
     switch (o.type) {
       case "send_message": {
         if (!text) throw new Error(`Action ${n} : le texte du message est obligatoire.`);
-        if (text.length > 4096)
+        // Longueur visible (comme Telegram) : un emoji animé compte comme son emoji de remplacement (phase 12).
+        if (textLength(text) > TELEGRAM_TEXT_MAX)
           throw new Error(`Action ${n} : texte trop long (4096 caractères maximum).`);
         let buttons: AutomationButton[][] | undefined;
         if (o.buttons !== undefined && o.buttons !== null) {

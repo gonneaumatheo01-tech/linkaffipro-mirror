@@ -4,6 +4,7 @@ import type { BotIdentity, ChannelDeps } from "../ports";
 import type { JoinFlowDeps } from "../join-flow/deps";
 import { handleChatMember, handleGateStart, handleJoinRequest } from "../join-flow/service";
 import { ensureChannelKnown } from "./channels";
+import { sendWithEmojiFallback } from "../custom-emoji/fallback";
 
 let defaultDeps: JoinFlowDeps | null = null;
 async function getDefaultDeps(): Promise<JoinFlowDeps> {
@@ -70,11 +71,33 @@ export function registerJoinFlowHandlers(
     if (!ctx.from || ctx.chat?.type !== "private" || !/^g[0-9A-Za-z]{6,12}$/.test(payload))
       return next();
     const d = await getDeps();
-    const r = await handleGateStart(ctx.api, identity, d, ctx.from, payload.slice(1));
-    await ctx.reply(r.text, {
-      parse_mode: "HTML",
-      reply_markup: keyboard(r.buttons),
-      link_preview_options: { is_disabled: true },
-    });
+    const from = ctx.from;
+    const r = await handleGateStart(ctx.api, identity, d, from, payload.slice(1));
+    // Réponse « ✅ J'ai rejoint » (texte de l'équipe possible) : emojis animés refusés par Telegram → même réponse
+    // aussitôt renvoyée avec les emojis de remplacement, et journalisée (phase 12).
+    await sendWithEmojiFallback(
+      r.text,
+      (text) =>
+        ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup: keyboard(r.buttons),
+          link_preview_options: { is_disabled: true },
+        }),
+      async (info) => {
+        const member = await d.upsertMember(from).catch(() => null);
+        await d.recordEvent({
+          type: "dm.custom_emoji_fallback",
+          memberId: member?.memberId ?? null,
+          botId: identity.id,
+          payload: {
+            outboundMessageId: null,
+            botId: identity.id,
+            error: info.error,
+            resent: info.resent,
+            via: "gate_start",
+          },
+        });
+      },
+    );
   });
 }

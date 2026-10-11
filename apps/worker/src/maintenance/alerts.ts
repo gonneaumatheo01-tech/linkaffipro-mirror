@@ -1,6 +1,7 @@
 import { campaignPlayerWhere, scopeFromCampaign } from "@linkaffipro/core";
 import { prisma, toJsonValue, ourPlayers, type Prisma } from "@linkaffipro/db";
 import { HEALTH_WINDOW_DAYS, evaluateSubIdHealth } from "@linkaffipro/linkaffi";
+import { TELEGRAM_SESSION_ID } from "@linkaffipro/mtproto";
 import {
   HEARTBEAT_LAST_KEY,
   QUEUE_NAMES,
@@ -18,6 +19,8 @@ import {
   detectBackupFailed,
   detectBotWebhook,
   detectConnectorReconnect,
+  detectCustomEmojiRefused,
+  CUSTOM_EMOJI_REFUSED_WINDOW_MS,
   detectChannelLeak,
   detectDmBlocked,
   detectGateLinksMissing,
@@ -29,6 +32,7 @@ import {
   detectSpendNoConversion,
   detectSubIdHealth,
   detectSyncFailed,
+  detectTelegramAccountReconnect,
   detectWorkerDown,
   DEDUP_WINDOW_MS,
   formatAlert,
@@ -133,8 +137,9 @@ async function spendSnapshot(now: Date, t: AlertThresholds): Promise<SpendSnapsh
         : Promise.resolve({ _sum: { revshareRevenue: null } }),
     ]);
     const commissions =
-      Math.round((Number(cpa._sum.amount ?? 0) + Number(revshare._sum?.revshareRevenue ?? 0)) * 100) /
-      100;
+      Math.round(
+        (Number(cpa._sum.amount ?? 0) + Number(revshare._sum?.revshareRevenue ?? 0)) * 100,
+      ) / 100;
     out.push({
       name: c.name,
       spend: Math.round((spendByCampaign.get(c.id) ?? 0) * 100) / 100,
@@ -253,6 +258,58 @@ function parseBackupSnapshot(value: unknown): BackupSnapshot | null {
   };
 }
 
+/**
+ * Messages partis avec les emojis normaux dans la dernière heure (phase 12) : événements `dm.custom_emoji_fallback`
+ * (envoi des messages privés, réponses directes du bot) et `post.custom_emoji_fallback` (messages programmés publiés
+ * par un bot, groupes).
+ */
+async function customEmojiFallbackSnapshot(now: Date) {
+  const events = await prisma.event.findMany({
+    where: {
+      type: { in: ["dm.custom_emoji_fallback", "post.custom_emoji_fallback"] },
+      occurredAt: { gte: new Date(now.getTime() - CUSTOM_EMOJI_REFUSED_WINDOW_MS), lte: now },
+    },
+    orderBy: { occurredAt: "desc" },
+    take: 500,
+    select: { botId: true, payload: true, type: true },
+  });
+  if (events.length === 0) return [];
+  const botIds = [...new Set(events.map((e) => e.botId).filter((b): b is string => !!b))];
+  const bots = botIds.length
+    ? await prisma.bot.findMany({
+        where: { id: { in: botIds } },
+        select: { id: true, username: true },
+      })
+    : [];
+  const names = new Map(bots.map((b) => [b.id, b.username]));
+  return events.map((e) => ({
+    botUsername: e.botId ? (names.get(e.botId) ?? null) : null,
+    resent: (e.payload as { resent?: unknown } | null)?.resent !== false,
+    kind: e.type === "post.custom_emoji_fallback" ? ("post" as const) : ("dm" as const),
+  }));
+}
+
+/** Session du compte Telegram connecté et messages programmés qui en dépendent (phase 12). */
+async function telegramAccountSnapshot(now: Date) {
+  const session = await prisma.telegramUserSession.findUnique({
+    where: { id: TELEGRAM_SESSION_ID },
+    select: { status: true },
+  });
+  if (!session) return null;
+  const pendingAccountPosts =
+    session.status === "ERROR"
+      ? await prisma.post.count({
+          where: {
+            publisher: "ACCOUNT",
+            isTemplate: false,
+            status: { in: ["SCHEDULED", "SENDING"] },
+            scheduledAt: { gte: new Date(now.getTime() - DAY_MS) },
+          },
+        })
+      : 0;
+  return { status: session.status, pendingAccountPosts };
+}
+
 /** Évalue toutes les règles et renvoie les alertes détectées. */
 export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   const detected: Detected[] = [];
@@ -339,6 +396,16 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
             })),
           })),
         ),
+    ],
+    // Emojis animés refusés ou retirés par Telegram dans les messages privés (phase 12).
+    [
+      "custom_emoji_refused",
+      async () => detectCustomEmojiRefused(await customEmojiFallbackSnapshot(now)),
+    ],
+    // Compte Telegram connecté à reconnecter (vues, messages avec emojis animés : phase 12).
+    [
+      "telegram_account_reconnect",
+      async () => detectTelegramAccountReconnect(await telegramAccountSnapshot(now)),
     ],
     [
       "connector_reconnect",

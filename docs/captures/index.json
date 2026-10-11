@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T19:04:26.106Z",
+  "updatedAt": "2026-10-11T22:35:56.148Z",
   "entries": [
     {
       "route": "/",
@@ -304,7 +304,7 @@
     },
     {
       "route": "/messages/[id]/edit",
-      "path": "/messages/cybwntb1u3hebxbnxmh2kfnzu/edit",
+      "path": "/messages/cudftzhuw50d1ms9tbxpkkhbi/edit",
       "title": "Modifier le message",
       "status": "ok",
       "httpStatus": 200,
@@ -315,7 +315,7 @@
         "1440": "messages-id-edit-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T12:05:30.068Z"
+      "capturedAt": "2026-10-11T22:36:45.693Z"
     },
     {
       "route": "/messages/ab/[groupId]",
@@ -348,6 +348,21 @@
       "capturedAt": "2026-10-11T02:18:50.743Z"
     },
     {
+      "route": "/messages/emojis",
+      "path": "/messages/emojis",
+      "title": "Emojis animés",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-emojis-390.webp",
+        "1440": "messages-emojis-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T20:23:55.907Z"
+    },
+    {
       "route": "/messages/new",
       "path": "/messages/new",
       "title": "Programmer un message",
@@ -360,7 +375,7 @@
         "1440": "messages-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T14:15:52.088Z"
+      "capturedAt": "2026-10-11T22:35:44.555Z"
     },
     {
       "route": "/messages?view=templates",

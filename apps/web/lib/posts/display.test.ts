@@ -5,6 +5,7 @@ import {
   postExcerpt,
   postHeaderLine,
   postLanguageOptions,
+  accountPostNote,
 } from "./display";
 
 describe("extrait d'un message", () => {
@@ -46,6 +47,23 @@ describe("ligne sous le titre de la fiche d'un message", () => {
         sentLocal: "2026-10-07T19:00",
       }),
     ).toBe("Envoyé le mercredi 7 octobre à 19:00 · publié par @demo_sports_bot");
+  });
+  it("message avec emojis animés publié par le compte Telegram connecté : « par votre compte Telegram »", () => {
+    expect(
+      postHeaderLine({ ...base, isTemplate: false, status: "SCHEDULED", publisher: "ACCOUNT" }),
+    ).toBe("Part le mardi 13 octobre à 19:00 · sera publié par votre compte Telegram");
+    expect(
+      postHeaderLine({
+        ...base,
+        isTemplate: false,
+        status: "SENT",
+        sentLocal: "2026-10-07T19:00",
+        publisher: "ACCOUNT",
+      }),
+    ).toBe("Envoyé le mercredi 7 octobre à 19:00 · publié par votre compte Telegram");
+    expect(
+      postHeaderLine({ ...base, isTemplate: false, status: "SCHEDULED", publisher: "BOT" }),
+    ).toBe("Part le mardi 13 octobre à 19:00 · sera publié par @demo_sports_bot");
   });
   it("brouillon, envoi annulé, échec, sans date", () => {
     expect(postHeaderLine({ ...base, isTemplate: false, status: "DRAFT" })).toBe(
@@ -89,5 +107,17 @@ describe("langue du message : liste en clair", () => {
     expect(opts[6]).toEqual({ value: "ru", label: "Russe" });
     expect(postLanguageOptions("xx").at(-1)).toEqual({ value: "xx", label: "XX" });
     expect(postLanguageOptions("")).toEqual(POST_LANGUAGES);
+  });
+});
+
+describe("note de la fiche d'un message publié par le compte Telegram connecté", () => {
+  it("sans boutons, jamais modifié par le bot, et pas de contenu protégé (Telegram le réserve aux bots)", () => {
+    const note = accountPostNote({ publisher: "ACCOUNT", isTemplate: false });
+    expect(note).toContain("Publié par votre compte Telegram (emojis animés), sans boutons");
+    expect(note).toContain(
+      "Avec des emojis animés, Telegram ne permet pas de protéger ce message ; vous pouvez protéger tout le canal dans Telegram.",
+    );
+    expect(accountPostNote({ publisher: "BOT", isTemplate: false })).toBeNull();
+    expect(accountPostNote({ publisher: "ACCOUNT", isTemplate: true })).toBeNull();
   });
 });

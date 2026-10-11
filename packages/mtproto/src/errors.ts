@@ -3,7 +3,7 @@
  * n'aient jamais à dépendre des classes internes de GramJS.
  */
 
-/** Telegram demande d'attendre `seconds` secondes avant de réessayer (FLOOD_WAIT_X). */
+/** Telegram demande d'attendre `seconds` secondes avant de réessayer (FLOOD_WAIT_X, FLOOD_PREMIUM_WAIT_X, SLOWMODE_WAIT_X). */
 export class MtprotoFloodWait extends Error {
   readonly seconds: number;
   constructor(seconds: number) {
@@ -77,6 +77,32 @@ const RPC_MESSAGES: Record<string, string> = {
   CHAT_ADMIN_REQUIRED: "Le compte connecté doit être administrateur du canal.",
   MSG_ID_INVALID: "Identifiant de message invalide.",
   AUTH_RESTART: "Connexion à recommencer : relancez l'envoi du code.",
+  // Publication par le compte connecté (phase 12, emojis animés).
+  CHAT_WRITE_FORBIDDEN:
+    "Le compte Telegram connecté n'a pas le droit de publier dans ce canal (administrateur avec « Publier des messages »).",
+  CHAT_SEND_MEDIA_FORBIDDEN:
+    "Le compte Telegram connecté n'a pas le droit d'envoyer des médias dans ce canal.",
+  USER_BANNED_IN_CHANNEL: "Le compte Telegram connecté est restreint dans ce canal.",
+  USER_NOT_PARTICIPANT:
+    "Le compte Telegram connecté n'est pas dans ce canal : ajoutez-le comme administrateur avec le droit de publier.",
+  PREMIUM_ACCOUNT_REQUIRED:
+    "Le compte Telegram connecté n'a pas Telegram Premium : les emojis animés ne peuvent pas être publiés.",
+  ENTITY_BOUNDS_INVALID:
+    "Mise en forme refusée par Telegram (position invalide) : vérifiez le texte du message.",
+  ENTITIES_TOO_LONG: "Trop de mises en forme dans ce message pour Telegram.",
+  DOCUMENT_INVALID: "Un emoji animé de ce message n'existe plus chez Telegram : remplacez-le.",
+  MESSAGE_EMPTY: "Message vide : ajoutez un texte ou un média.",
+  MESSAGE_TOO_LONG: "Texte trop long pour Telegram (4096 caractères).",
+  MEDIA_CAPTION_TOO_LONG: "Légende trop longue pour Telegram (1024 caractères).",
+  MEDIA_EMPTY: "Média introuvable : il a peut-être été supprimé de la bibliothèque.",
+  MEDIA_INVALID: "Média refusé par Telegram (taille ou format).",
+  MEDIA_FILE_INVALID: "Média refusé par Telegram (taille ou format).",
+  MULTI_MEDIA_TOO_LONG: "Trop de médias pour un album (10 au maximum).",
+  RANDOM_ID_DUPLICATE: "Telegram indique que ce message a déjà été publié : vérifiez le canal.",
+  MESSAGE_DELETE_FORBIDDEN: "Telegram refuse de supprimer ce message.",
+  MESSAGE_ID_INVALID: "Message introuvable dans le canal (déjà supprimé ?).",
+  CHAT_NOT_MODIFIED: "Rien à changer.",
+  STICKERSET_INVALID: "Pack d'emojis introuvable.",
 };
 
 /** Message en français pour un code d'erreur Telegram connu, sinon le code lui-même. */
@@ -108,11 +134,11 @@ export function floodWaitSecondsOf(err: unknown): number | null {
     typeof e.seconds === "number" &&
     Number.isFinite(e.seconds) &&
     e.seconds >= 0 &&
-    /FLOOD/.test(code)
+    /FLOOD|SLOWMODE_WAIT/.test(code)
   )
     return Math.ceil(e.seconds);
   const m =
-    /FLOOD_WAIT_(\d+)/.exec(code) ??
+    /(?:FLOOD_WAIT|FLOOD_PREMIUM_WAIT|SLOWMODE_WAIT)_(\d+)/.exec(code) ??
     /A wait of (\d+) seconds is required/.exec(String(e.message ?? ""));
   if (m?.[1]) return Number(m[1]);
   return null;

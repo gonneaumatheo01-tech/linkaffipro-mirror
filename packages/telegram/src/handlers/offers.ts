@@ -1,10 +1,16 @@
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import { fillUrlTemplate, newSubId } from "@linkaffipro/core";
+import { fillUrlTemplate, newSubId, TELEGRAM_CAPTION_MAX, textLength } from "@linkaffipro/core";
 import type { BotIdentity } from "../ports";
 import { isLang, pickLang } from "../i18n";
 import type { OfferDeps } from "../offers/deps";
-import { DEFAULT_OFFER_REPLY, INVALID_OFFER_REPLY, fillPlaceholders, parseOfferPayload } from "../offers/logic";
+import {
+  DEFAULT_OFFER_REPLY,
+  INVALID_OFFER_REPLY,
+  fillPlaceholders,
+  parseOfferPayload,
+} from "../offers/logic";
+import { sendWithEmojiFallback, type CustomEmojiFallbackInfo } from "../custom-emoji/fallback";
 
 let defaultDeps: OfferDeps | null = null;
 async function loadDefaultDeps(): Promise<OfferDeps> {
@@ -31,33 +37,73 @@ export function registerOfferHandlers(bot: Bot, identity: BotIdentity, deps?: Of
       return;
     }
     const subId = newSubId();
-    const destination = fillUrlTemplate(offer.destinationTemplate, { subid: subId, member_id: memberId, post_id: offer.postId ?? "" });
-    await d.recordOfferClick({ trackingLinkId: offer.trackingLinkId, postId: offer.postId, memberId, botId: identity.id, subId, destination });
+    const destination = fillUrlTemplate(offer.destinationTemplate, {
+      subid: subId,
+      member_id: memberId,
+      post_id: offer.postId ?? "",
+    });
+    await d.recordOfferClick({
+      trackingLinkId: offer.trackingLinkId,
+      postId: offer.postId,
+      memberId,
+      botId: identity.id,
+      subId,
+      destination,
+    });
     // Langue du membre si le bot la connaît, sinon celle du canal, sinon fr.
     const channelLang = pickLang(offer.channelLanguage);
-    const textLang = isLang(from.language_code?.toLowerCase().split(/[-_]/)[0]) ? lang : channelLang;
+    const textLang = isLang(from.language_code?.toLowerCase().split(/[-_]/)[0])
+      ? lang
+      : channelLang;
     const custom = await d.offerReplyTexts(offer.channelId, lang, identity.id);
     const texts = custom ?? DEFAULT_OFFER_REPLY[textLang];
     const text = fillPlaceholders(texts.text, { prenom: from.first_name, bot: identity.name });
     const keyboard = new InlineKeyboard().url(texts.button, destination);
     const media = custom?.media ?? null;
-    // Média avec légende (≤ 1024 caractères) si Telegram connaît déjà le fichier pour ce bot ; sinon texte seul.
-    if (media && text.length <= 1024) {
+    // Emojis animés du texte de l'équipe refusés par Telegram : même réponse aussitôt renvoyée avec les emojis de
+    // remplacement, et journalisée (phase 12, règle commune avec les messages privés du worker).
+    const onFallback = (info: CustomEmojiFallbackInfo) =>
+      d.recordEvent?.({
+        type: "dm.custom_emoji_fallback",
+        memberId,
+        botId: identity.id,
+        payload: {
+          outboundMessageId: null,
+          botId: identity.id,
+          error: info.error,
+          resent: info.resent,
+          via: "offer_reply",
+        },
+      });
+    // Média avec légende (≤ 1024 caractères visibles, comme send-dm : un emoji animé compte comme son emoji de
+    // remplacement, jamais la longueur de sa balise) si Telegram connaît déjà le fichier pour ce bot ; sinon texte seul.
+    if (media && textLength(text) <= TELEGRAM_CAPTION_MAX) {
       try {
-        const opts = { caption: text, parse_mode: "HTML" as const, reply_markup: keyboard };
-        if (media.kind === "photo") await ctx.replyWithPhoto(media.fileId, opts);
-        else if (media.kind === "video") await ctx.replyWithVideo(media.fileId, opts);
-        else if (media.kind === "animation") await ctx.replyWithAnimation(media.fileId, opts);
-        else await ctx.replyWithDocument(media.fileId, opts);
+        await sendWithEmojiFallback<unknown>(
+          text,
+          (caption) => {
+            const opts = { caption, parse_mode: "HTML" as const, reply_markup: keyboard };
+            if (media.kind === "photo") return ctx.replyWithPhoto(media.fileId, opts);
+            if (media.kind === "video") return ctx.replyWithVideo(media.fileId, opts);
+            if (media.kind === "animation") return ctx.replyWithAnimation(media.fileId, opts);
+            return ctx.replyWithDocument(media.fileId, opts);
+          },
+          onFallback,
+        );
         return;
       } catch (err) {
         console.warn("[offers] média non envoyé, repli texte", (err as Error).message);
       }
     }
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: keyboard,
-      link_preview_options: { is_disabled: true },
-    });
+    await sendWithEmojiFallback(
+      text,
+      (t) =>
+        ctx.reply(t, {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+          link_preview_options: { is_disabled: true },
+        }),
+      onFallback,
+    );
   });
 }

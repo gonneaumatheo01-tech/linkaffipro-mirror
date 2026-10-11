@@ -95,6 +95,11 @@ export class RecentKeys {
   }
 }
 
+/** Clé de la mémoire courte d'un album transféré (`media_group_id`) : un seul traitement pour tout l'album. */
+export function albumKey(botId: string, mediaGroupId: string): string {
+  return `mg:${botId}:${mediaGroupId}`;
+}
+
 /** Fenêtre pendant laquelle un même canal transféré par la même personne au même bot n'est traité qu'une fois. */
 export const FORWARD_DEDUP_MS = 60_000;
 /** Fenêtre raccourcie quand il faut pouvoir réessayer (aucun bot administrateur, vérification impossible). */
@@ -123,7 +128,7 @@ async function handleChannelForward(
   // Album transféré : un seul traitement pour tout le groupe de médias ; puis une fois par (bot, personne, canal) et par minute.
   if (
     ctx.message.media_group_id &&
-    memory.hit(`mg:${identity.id}:${ctx.message.media_group_id}`, FORWARD_DEDUP_MS)
+    memory.hit(albumKey(identity.id, ctx.message.media_group_id), FORWARD_DEDUP_MS)
   )
     return;
   const key = `fwd:${identity.id}:${from.id}:${origin.id}`;

@@ -75,6 +75,14 @@ describe("Journal → vue « Événements »", () => {
       "Ancien lien de canal à rejoindre retiré",
     );
     expect(eventLabel("invite_link.autre")).toBe("Lien d'invitation");
+    // Phase 12 : emojis animés.
+    expect(eventLabel("custom_emoji.added")).toBe("Emojis animés ajoutés à la bibliothèque");
+    expect(eventLabel("dm.custom_emoji_fallback")).toBe(
+      "Message privé renvoyé avec des emojis normaux (emojis animés refusés)",
+    );
+    expect(eventLabel("custom_emoji.autre")).toBe("Emojis animés");
+    expect(EVENT_FAMILIES.find((f) => f.prefix === "custom_emoji.")?.label).toBe("Emojis animés");
+    expect(entityLabel("CustomEmoji")).toBe("Emoji animé");
     expect(EVENT_FAMILIES.find((f) => f.prefix === "invite_link.")?.label).toBe(
       "Liens d'invitation",
     );

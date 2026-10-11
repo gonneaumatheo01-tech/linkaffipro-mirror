@@ -17,7 +17,9 @@ export type AlertKind =
   | "post_failed"
   | "offer_link_inactive"
   | "connector_reconnect"
-  | "gate_links_missing";
+  | "gate_links_missing"
+  | "custom_emoji_refused"
+  | "telegram_account_reconnect";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -437,6 +439,80 @@ export function detectGateLinksMissing(rows: GateLinksMissingSnapshot[]): Detect
   };
 }
 
+/** Fenêtre lue pour l'alerte des emojis animés refusés (événements `dm.custom_emoji_fallback`). */
+export const CUSTOM_EMOJI_REFUSED_WINDOW_MS = 3600_000;
+
+export type CustomEmojiFallbackSnapshot = {
+  /** Bot qui a envoyé (nom d'utilisateur Telegram), null s'il n'est plus connu. */
+  botUsername: string | null;
+  /** Vrai : message refusé puis renvoyé avec les emojis normaux ; faux : Telegram a retiré les emojis animés. */
+  resent: boolean;
+  /**
+   * Message privé (`dm.custom_emoji_fallback`, par défaut) ou message programmé publié par un bot dans un groupe
+   * (`post.custom_emoji_fallback`).
+   */
+  kind?: "dm" | "post";
+};
+
+function countLabel(n: number, one: string, many: string): string {
+  return `${n} ${n > 1 ? many : one}`;
+}
+
+/**
+ * Messages partis avec les emojis normaux au lieu des emojis animés dans la dernière heure (Telegram les a refusés ou
+ * retirés : abonnement Premium du propriétaire des bots expiré, emoji supprimé par son auteur) : messages privés et
+ * messages programmés publiés par un bot (groupes). Alerte de type « rouvert en silence » (`REOPEN_KINDS`) : une
+ * notification Telegram par 24 h au plus.
+ */
+export function detectCustomEmojiRefused(rows: CustomEmojiFallbackSnapshot[]): Detected | null {
+  if (rows.length === 0) return null;
+  const n = rows.length;
+  const posts = rows.filter((r) => r.kind === "post").length;
+  const dms = n - posts;
+  const bots = [...new Set(rows.map((r) => r.botUsername).filter((b): b is string => !!b))];
+  const who = bots.length > 0 ? ` (${bots.map((b) => `@${b}`).join(", ")})` : "";
+  const verb = n > 1 ? "sont partis" : "est parti";
+  const what =
+    posts === 0
+      ? `${countLabel(n, "message privé", "messages privés")} de la dernière heure ${verb}`
+      : dms === 0
+        ? `${countLabel(n, "message programmé", "messages programmés")} de la dernière heure ${verb}`
+        : `${n} messages de la dernière heure (${countLabel(dms, "message privé", "messages privés")}, ${countLabel(posts, "message programmé", "messages programmés")}) ${verb}`;
+  return {
+    kind: "custom_emoji_refused",
+    severity: "WARNING",
+    message: `${what} avec les emojis normaux au lieu des emojis animés${who}. Vérifiez que le compte Telegram propriétaire des bots a toujours Telegram Premium.`,
+    payload: { messages: n, bots, resent: rows.filter((r) => r.resent).length, dms, posts },
+  };
+}
+
+export type TelegramAccountSnapshot = {
+  /** Statut de la session (`TelegramUserSession.status`) : ACTIVE, ERROR… */
+  status: string;
+  /** Messages de canal programmés qui doivent être publiés par le compte (emojis animés). */
+  pendingAccountPosts: number;
+};
+
+/**
+ * Compte Telegram connecté à reconnecter (session expirée, révoquée ou utilisée ailleurs, phase 12) : les vues ne sont
+ * plus relevées et les messages avec emojis animés ne peuvent plus être publiés. Critique si de tels messages attendent.
+ * Condition durable : une alerte ouverte n'est pas recréée avant 24 h (une notification par jour au plus).
+ */
+export function detectTelegramAccountReconnect(s: TelegramAccountSnapshot | null): Detected | null {
+  if (!s || s.status !== "ERROR") return null;
+  const n = s.pendingAccountPosts;
+  const pending =
+    n > 0
+      ? ` ${n} message${n > 1 ? "s" : ""} programmé${n > 1 ? "s" : ""} avec emojis animés ne partir${n > 1 ? "ont" : "a"} pas.`
+      : "";
+  return {
+    kind: "telegram_account_reconnect",
+    severity: n > 0 ? "CRITICAL" : "WARNING",
+    message: `Le compte Telegram connecté est à reconnecter (session expirée ou révoquée) : les vues des messages ne sont plus relevées et les messages avec emojis animés ne peuvent pas être publiés.${pending} Réglages → Connexions → Telegram → Reconnecter.`,
+    payload: { pendingAccountPosts: n },
+  };
+}
+
 function formatTime(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -461,7 +537,10 @@ export function shouldCreate(
  * est acceptée, la suivante arrive une heure plus tard. Pour eux, une alerte résolue créée il y a moins de 24 h est
  * rouverte en silence au lieu d'une nouvelle alerte notifiée : une notification Telegram par 24 h au plus.
  */
-export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>(["gate_links_missing"]);
+export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
+  "gate_links_missing",
+  "custom_emoji_refused",
+]);
 
 /**
  * Alerte à rouvrir (sans nouvelle notification) au lieu d'en créer une : la plus récente du même type créée il y a

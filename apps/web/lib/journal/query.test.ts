@@ -89,6 +89,15 @@ describe("filtre « Type d'action » du Journal", () => {
     );
     expect(actionLabel("invite_link.share_created")).toBe("Lien de partage créé");
     expect(actionLabel("invite_link.share_disabled")).toBe("Lien de partage désactivé");
+    // Phase 12 : emojis animés (bibliothèque de l'équipe).
+    expect(actionLabel("custom_emoji.pack_imported")).toBe("Emojis animés : pack ajouté");
+    expect(actionLabel("custom_emoji.account_import_requested")).toBe(
+      "Emojis animés : import des packs du compte Telegram demandé",
+    );
+    expect(actionLabel("custom_emoji.hidden")).toBe("Emoji animé retiré de la bibliothèque");
+    expect(actionLabel("custom_emoji.restored")).toBe("Emoji animé remis dans la bibliothèque");
+    expect(actionFamily("custom_emoji.")?.label).toBe("Emojis animés");
+    expect(where("custom_emoji.")).toEqual({ OR: [{ action: { startsWith: "custom_emoji." } }] });
     // Les exceptions se retrouvent avec les règles d'adhésion ; les liens de partage avec les liens.
     expect(where("membership.")).toEqual({
       OR: [{ action: { startsWith: "membership." } }, { action: { startsWith: "approval_rule." } }],

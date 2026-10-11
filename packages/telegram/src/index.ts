@@ -75,3 +75,22 @@ export {
 } from "./sequences/index";
 export type { SequenceTriggerKey } from "./sequences/index";
 export { notifyAdmin } from "./admin-notify";
+export {
+  customEmojisOfMessage,
+  messageHasCustomEmoji,
+  customEmojiAddedReply,
+  customEmojiChannelSkippedNote,
+  CUSTOM_EMOJI_ADD_FAILED_REPLY,
+  MAX_CUSTOM_EMOJIS_PER_MESSAGE,
+} from "./custom-emoji/extract";
+export type { ExtractedCustomEmoji, CustomEmojiAddOutcome } from "./custom-emoji/extract";
+export {
+  isCustomEmojiRefusal,
+  customEmojiTagCount,
+  customEmojisDropped,
+  sendWithEmojiFallback,
+  CUSTOM_EMOJIS_DROPPED_ERROR,
+} from "./custom-emoji/fallback";
+export type { CustomEmojiFallbackInfo } from "./custom-emoji/fallback";
+export { addCustomEmojisToLibrary } from "./custom-emoji/library";
+export type { AddCustomEmojisInput } from "./custom-emoji/library";

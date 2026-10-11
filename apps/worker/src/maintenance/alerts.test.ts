@@ -1,5 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+/**
+ * Événements `dm.custom_emoji_fallback` simulés (phase 12) ; `type` : `post.custom_emoji_fallback` pour un message
+ * programmé publié par un bot (groupes), sinon message privé.
+ */
+const fallbackEvents = vi.hoisted(() => ({
+  rows: [] as Array<{
+    botId: string | null;
+    occurredAt: Date;
+    payload: { resent: boolean };
+    type?: string;
+  }>,
+}));
+/** Session du compte Telegram connecté simulée et messages programmés qui en dépendent (phase 12). */
+const tgAccount = vi.hoisted(() => ({
+  row: null as { status: string } | null,
+  pending: 0,
+}));
 const db = vi.hoisted(() => {
   const alerts: Array<{
     id: string;
@@ -43,6 +60,26 @@ const db = vi.hoisted(() => {
         ),
       },
       outboundMessage: { count: vi.fn(async () => 0) },
+      // Messages partis avec les emojis normaux (phase 12, `dm.` / `post.custom_emoji_fallback`) : filtrés par type et date.
+      event: {
+        findMany: vi.fn(
+          async ({
+            where,
+          }: {
+            where: { type: string | { in: string[] }; occurredAt: { gte: Date; lte: Date } };
+          }) => {
+            const types = typeof where.type === "string" ? [where.type] : where.type.in;
+            return fallbackEvents.rows
+              .map((e) => ({ ...e, type: e.type ?? "dm.custom_emoji_fallback" }))
+              .filter(
+                (e) =>
+                  types.includes(e.type) &&
+                  e.occurredAt >= where.occurredAt.gte &&
+                  e.occurredAt <= where.occurredAt.lte,
+              );
+          },
+        ),
+      },
       player: { count: vi.fn(async () => 0) },
       // Commissions de la fenêtre (phase 10) : primes par joueur et part du revenu des offres.
       playerEvent: { aggregate: vi.fn(async () => ({ _sum: { amount: 15 } })) },
@@ -96,7 +133,9 @@ const db = vi.hoisted(() => {
             Array<{ code: string; lastError: string | null; channel: { title: string } }>
           > => [],
         ),
+        count: vi.fn(async () => tgAccount.pending),
       },
+      telegramUserSession: { findUnique: vi.fn(async () => tgAccount.row) },
       alert: {
         findFirst: vi.fn(
           async ({ where }: { where: { kind: string; resolvedAt: null } }) =>
@@ -521,5 +560,130 @@ describe("règles métier (phase 6) dans le passage d'alertes", () => {
     const r = await runAlerts(new Date("2026-10-09T12:00:00Z"));
     expect(r.created).toBe(2);
     expect(db.alerts.map((a) => a.kind).sort()).toEqual(["channel_leak", "offer_link_inactive"]);
+  });
+});
+
+describe("emojis animés refusés par Telegram (phase 12)", () => {
+  beforeEach(() => {
+    db.alerts.length = 0;
+    failures.counts = {};
+    notify.mockClear();
+    fallbackEvents.rows = [];
+    db.prisma.bot.findMany.mockResolvedValue([
+      { username: "casino", isActive: true, lastWebhookAt: new Date(), lastError: null },
+    ]);
+  });
+
+  const emojiAlerts = () => db.alerts.filter((a) => a.kind === "custom_emoji_refused");
+  const at = (iso: string) => new Date(iso);
+
+  it("une alerte et une seule notification par 24 h, même si les refus continuent ou reviennent", async () => {
+    fallbackEvents.rows = [
+      { botId: "b1", occurredAt: at("2026-10-11T09:58:00Z"), payload: { resent: true } },
+      { botId: "b1", occurredAt: at("2026-10-11T09:59:00Z"), payload: { resent: true } },
+    ];
+    const r1 = await runAlerts(at("2026-10-11T10:00:00Z"));
+    expect(r1.created).toBe(1);
+    expect(emojiAlerts()).toHaveLength(1);
+    expect(emojiAlerts()[0]).toMatchObject({ severity: "WARNING" });
+    expect(emojiAlerts()[0]?.message).toContain(
+      "2 messages privés de la dernière heure sont partis avec les emojis normaux",
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    // Nouveaux refus 5 minutes plus tard : rien de plus.
+    fallbackEvents.rows.push({
+      botId: "b1",
+      occurredAt: at("2026-10-11T10:03:00Z"),
+      payload: { resent: true },
+    });
+    expect((await runAlerts(at("2026-10-11T10:05:00Z"))).created).toBe(0);
+    // Plus aucun refus depuis une heure : résolue.
+    expect((await runAlerts(at("2026-10-11T11:10:00Z"))).resolved).toBe(1);
+    // Ils reviennent l'après-midi : la même alerte est rouverte, sans nouvelle notification.
+    fallbackEvents.rows.push({
+      botId: "b1",
+      occurredAt: at("2026-10-11T15:00:00Z"),
+      payload: { resent: false },
+    });
+    expect((await runAlerts(at("2026-10-11T15:02:00Z"))).created).toBe(0);
+    expect(emojiAlerts()).toHaveLength(1);
+    expect(emojiAlerts()[0]?.resolvedAt).toBeNull();
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    // Plus de 24 h après la première : nouvelle alerte, nouvelle notification.
+    await runAlerts(at("2026-10-12T09:00:00Z"));
+    fallbackEvents.rows.push({
+      botId: "b1",
+      occurredAt: at("2026-10-12T10:30:00Z"),
+      payload: { resent: true },
+    });
+    expect((await runAlerts(at("2026-10-12T10:35:00Z"))).created).toBe(1);
+    expect(emojiAlerts()).toHaveLength(2);
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("aucun refus : aucune alerte", async () => {
+    await runAlerts(at("2026-10-11T10:00:00Z"));
+    expect(emojiAlerts()).toHaveLength(0);
+  });
+
+  it("messages programmés d'un groupe partis avec les emojis normaux : comptés dans la même alerte", async () => {
+    fallbackEvents.rows = [
+      {
+        botId: "b1",
+        occurredAt: at("2026-10-11T09:58:00Z"),
+        payload: { resent: true },
+        type: "post.custom_emoji_fallback",
+      },
+      { botId: "b1", occurredAt: at("2026-10-11T09:59:00Z"), payload: { resent: true } },
+    ];
+    expect((await runAlerts(at("2026-10-11T10:00:00Z"))).created).toBe(1);
+    expect(emojiAlerts()[0]?.message).toContain(
+      "2 messages de la dernière heure (1 message privé, 1 message programmé) sont partis avec les emojis normaux",
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("compte Telegram connecté à reconnecter (phase 12)", () => {
+  beforeEach(() => {
+    db.alerts.length = 0;
+    failures.counts = {};
+    notify.mockClear();
+    fallbackEvents.rows = [];
+    tgAccount.row = null;
+    tgAccount.pending = 0;
+    db.prisma.bot.findMany.mockResolvedValue([
+      { username: "casino", isActive: true, lastWebhookAt: new Date(), lastError: null },
+    ]);
+  });
+  const accountAlerts = () => db.alerts.filter((a) => a.kind === "telegram_account_reconnect");
+  const at = (iso: string) => new Date(iso);
+
+  it("session en erreur : une alerte critique si des messages avec emojis animés attendent, une notification par jour", async () => {
+    tgAccount.row = { status: "ERROR" };
+    tgAccount.pending = 2;
+    expect((await runAlerts(at("2026-10-11T10:00:00Z"))).created).toBe(1);
+    expect(accountAlerts()[0]).toMatchObject({ severity: "CRITICAL" });
+    expect(accountAlerts()[0]?.message).toContain(
+      "2 messages programmés avec emojis animés ne partiront pas",
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+    // Toujours en erreur une heure plus tard : rien de plus.
+    expect((await runAlerts(at("2026-10-11T11:00:00Z"))).created).toBe(0);
+    expect(notify).toHaveBeenCalledTimes(1);
+    // Compte reconnecté : alerte résolue.
+    tgAccount.row = { status: "ACTIVE" };
+    expect((await runAlerts(at("2026-10-11T12:00:00Z"))).resolved).toBe(1);
+    expect(accountAlerts()[0]?.resolvedAt).not.toBeNull();
+  });
+
+  it("session active ou absente : aucune alerte", async () => {
+    tgAccount.row = { status: "ACTIVE" };
+    await runAlerts(at("2026-10-11T10:00:00Z"));
+    tgAccount.row = null;
+    await runAlerts(at("2026-10-11T10:05:00Z"));
+    expect(accountAlerts()).toHaveLength(0);
   });
 });

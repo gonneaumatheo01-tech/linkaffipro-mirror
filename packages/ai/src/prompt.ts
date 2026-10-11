@@ -44,12 +44,13 @@ export function buildRulesBlock(notice: AiRiskNotice): string {
     "7. Pas de propos haineux, discriminatoire ou harcelant.",
     "",
     "FORMAT TELEGRAM",
-    '- HTML Telegram uniquement : <b>, <i>, <u>, <s>, <a href="https://…">, <code>, <tg-spoiler>. Aucune autre balise, pas de Markdown, pas de titres #.',
+    '- HTML Telegram uniquement : <b>, <i>, <u>, <s>, <a href="https://…">, <code>, <tg-spoiler>, et <tg-emoji emoji-id="…"> seulement pour les emojis animés déjà dans le brouillon. Aucune autre balise, pas de Markdown, pas de titres #.',
+    "- Emojis animés : chaque balise <tg-emoji emoji-id=\"…\">😀</tg-emoji> du brouillon est un emoji animé de l'équipe. Recopie chacune exactement, caractère pour caractère (même identifiant, même emoji entre les balises, autant de fois que dans le brouillon), dans chaque version et dans chaque traduction, à l'endroit qui convient ; ne la traduis pas, ne la modifie pas, ne la supprime pas, ne la remplace pas par un emoji normal, et n'en ajoute jamais de nouvelle (tu ne connais aucun autre identifiant). Jamais à l'intérieur d'un lien <a> ni d'un <code>.",
     "- Échappe les caractères « < », « > » et « & » qui ne font pas partie d'une balise (&lt; &gt; &amp;).",
     `- Longueur du texte visible : au plus ${TELEGRAM_CAPTION_MAX} caractères si le message accompagne un média, ${TELEGRAM_TEXT_MAX} sinon (la limite exacte est rappelée dans la demande).`,
     "- Repères entre accolades ({prenom}, {canal}, {bot}, {delai}, {liste_canaux}) : ils sont remplacés à l'envoi uniquement dans les messages privés envoyés par le bot (textes du bot, relances automatiques, envois groupés), jamais dans un message de canal ni dans un modèle de message de canal, où ils partiraient tels quels. {offre} n'est remplacé nulle part : ne le propose jamais (le bouton de l'offre est déjà sous le message). N'ajoute un repère que si la demande indique qu'il est remplacé à cet endroit ; ceux du brouillon, recopie-les exactement, sans les traduire ni les modifier, et n'en invente pas de nouveaux.",
     "- Les liens (URL et balises <a>) du brouillon doivent tous être conservés tels quels. N'ajoute jamais de lien qui n'est pas dans le brouillon.",
-    "- Les émojis sont bienvenus avec modération (0 à 3), jamais en début de chaque ligne.",
+    "- Les émojis sont bienvenus avec modération (0 à 3, sans compter les emojis animés du brouillon, toujours gardés), jamais en début de chaque ligne.",
     "- Sauts de ligne : retours à la ligne simples, un paragraphe = une idée.",
     "",
     "STYLE",
@@ -108,7 +109,7 @@ const KIND_INSTRUCTIONS: Record<AiKind, string> = {
   angle:
     "Réécris ce message sous 3 angles vraiment différents de l'original (par exemple : question au lecteur, bénéfice concret, curiosité, témoignage honnête sans chiffres inventés, rappel pratique). Propose exactement 3 versions.",
   translate:
-    "Traduis ce message dans chacune des langues demandées, en adaptant naturellement les expressions (pas de mot à mot). Garde les repères entre accolades, les liens et la mise en forme HTML. Traduis aussi la mention des risques.",
+    "Traduis ce message dans chacune des langues demandées, en adaptant naturellement les expressions (pas de mot à mot). Garde les repères entre accolades, les liens, les emojis animés (balises <tg-emoji> recopiées telles quelles) et la mise en forme HTML. Traduis aussi la mention des risques.",
   ab_variant:
     "Ce message est la version A d'un test A/B. Écris la version B : même objectif, même offre, même longueur environ, mais un angle d'accroche différent pour comparer. Propose exactement 3 candidates pour la version B.",
 };

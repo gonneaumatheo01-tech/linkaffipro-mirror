@@ -390,7 +390,19 @@ export function dayAgenda<T extends Placeable>(
       },
     });
   }
+  // Comparaison cohérente (0 entre deux messages de la même minute : l'ordre de `itemsOfDay` est gardé). Sinon chaque
+  // moteur de JavaScript range différemment et la page du serveur ne correspond plus à celle du navigateur.
   return entries
-    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.entry.kind === "post" ? -1 : 1))
+    .sort((a, b) =>
+      a.at < b.at
+        ? -1
+        : a.at > b.at
+          ? 1
+          : a.entry.kind === b.entry.kind
+            ? 0
+            : a.entry.kind === "post"
+              ? -1
+              : 1,
+    )
     .map((e) => e.entry);
 }
