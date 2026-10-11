@@ -78,6 +78,26 @@ enum InviteLinkKind {
   SHARE
 }
 
+/// Qui publie un message de canal (phase 12). Telegram interdit les emojis animés (emojis personnalisés des packs
+/// Premium) aux bots dans les canaux : un message de canal qui en contient est publié par le compte Telegram connecté
+/// (MTProto, Réglages → Connecteurs → Telegram), sans boutons.
+enum PostPublisher {
+  /// Le bot du message (Bot API), comme avant la phase 12.
+  BOT
+  /// Le compte Telegram Premium connecté (TelegramUserSession), pour un message avec emojis animés.
+  ACCOUNT
+}
+
+/// D'où vient un emoji animé de la bibliothèque (phase 12).
+enum CustomEmojiSource {
+  /// Message transféré (ou envoyé) au bot par un membre de l'équipe.
+  FORWARD
+  /// Lien d'un pack collé dans le site (t.me/addemoji/<nom>).
+  PACK
+  /// Packs installés sur le compte Telegram connecté.
+  ACCOUNT
+}
+
 /// Portée d'une règle d'adhésion (phase 11) : règle par défaut du canal, ou exception selon la provenance.
 /// Résolution, du plus précis au plus général : INVITE_LINK → SOURCE_CHANNEL → SOURCE_KIND → DEFAULT
 /// (fonction pure `pickRuleForProvenance` de packages/core/src/provenance.ts).
@@ -295,6 +315,7 @@ model User {
   broadcasts           Broadcast[]
   adAccountConnections AdAccountConnection[]
   aiSuggestions        AiSuggestion[]
+  customEmojis         CustomEmoji[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -751,6 +772,41 @@ model MediaAssetTelegramFile {
   @@unique([assetId, botId])
 }
 
+/// Emoji animé (emoji personnalisé d'un pack Premium Telegram) de la bibliothèque de l'équipe (phase 12). Inséré dans
+/// un texte HTML Telegram sous la forme `<tg-emoji emoji-id="<customEmojiId>"><fallback></tg-emoji>`.
+model CustomEmoji {
+  id            String            @id @default(cuid())
+  /// Identifiant Telegram de l'emoji (`custom_emoji_id`, entier 64 bits en chaîne).
+  customEmojiId String            @unique
+  /// Emoji standard affiché quand l'animation n'est pas disponible (et compté dans la longueur du texte).
+  fallback      String
+  /// Pack (nom court Telegram, t.me/addemoji/<setName>) et son titre, s'ils sont connus.
+  setName       String?
+  setTitle      String?
+  /// Format du fichier Telegram : "tgs" (Lottie compressé), "webm" (vidéo) ou "webp" (image) ; null tant qu'inconnu.
+  format        String?
+  /// Aperçu (fichier Telegram téléchargé, quelques Ko) et son type MIME ; null tant que le worker ne l'a pas récupéré.
+  previewBytes  Bytes?
+  previewMime   String?
+  /// Dernière tentative de récupération de l'aperçu et son erreur éventuelle.
+  previewAt     DateTime?
+  previewError  String?
+  source        CustomEmojiSource
+  addedById     String?
+  addedBy       User?             @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  /// Utilisation par l'équipe (emojis récents du sélecteur).
+  useCount      Int               @default(0)
+  lastUsedAt    DateTime?
+  /// Retiré de la bibliothèque (les messages qui l'utilisent gardent leur balise).
+  hiddenAt      DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([setName])
+  @@index([lastUsedAt])
+  @@index([hiddenAt])
+}
+
 /// Message programmé pour un canal. `code` court pour les liens profonds d'offre.
 model Post {
   id                  String           @id @default(cuid())
@@ -805,6 +861,10 @@ model Post {
   viewSamples      PostViewSample[]
   /// Prochain relevé des vues par le compte Telegram connecté (phase 7) ; null = plus de relevé.
   viewsNextAt      DateTime?
+  /// Qui publie ce message (phase 12) : BOT (défaut) ou ACCOUNT (compte Telegram connecté, message avec emojis animés,
+  /// sans boutons). Un message publié par le compte n'est JAMAIS modifié ensuite par le bot (les emojis animés
+  /// disparaîtraient) : épingler, désépingler et supprimer passent aussi par le compte.
+  publisher        PostPublisher     @default(BOT)
 
   @@index([channelId, scheduledAt])
   @@index([status, scheduledAt])

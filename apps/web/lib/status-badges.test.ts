@@ -11,6 +11,7 @@ import {
   ChatType,
   ConnectionStatus,
   CostSource,
+  CustomEmojiSource,
   ExpireAction,
   GateMode,
   ImportKind,
@@ -20,6 +21,7 @@ import {
   OutboundStatus,
   PlayerEventType,
   PostbackStatus,
+  PostPublisher,
   PostStatus,
   Role,
   SequenceTrigger,
@@ -67,6 +69,8 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["adPlatform", AdPlatform],
   ["trackingLinkKind", TrackingLinkKind],
   ["sequenceTrigger", SequenceTrigger],
+  ["postPublisher", PostPublisher],
+  ["customEmojiSource", CustomEmojiSource],
 ];
 
 describe("badges de statut", () => {

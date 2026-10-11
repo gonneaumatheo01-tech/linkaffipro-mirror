@@ -10,6 +10,7 @@ import type {
   ChatType,
   ConnectionStatus,
   CostSource,
+  CustomEmojiSource,
   ExpireAction,
   GateMode,
   ImportKind,
@@ -19,6 +20,7 @@ import type {
   OutboundStatus,
   PlayerEventType,
   PostbackStatus,
+  PostPublisher,
   PostStatus,
   Role,
   SequenceTrigger,
@@ -247,6 +249,15 @@ export const STATUS_DICT = {
     ERROR: bad("À reconnecter"),
     DISCONNECTED: muted("Déconnecté"),
   } satisfies Record<TelegramSessionStatus, StatusEntry>,
+  postPublisher: {
+    BOT: plain("Publié par le bot"),
+    ACCOUNT: { ...plain("Publié par votre compte"), term: "emojis animés" },
+  } satisfies Record<PostPublisher, StatusEntry>,
+  customEmojiSource: {
+    FORWARD: plain("Message transféré au bot"),
+    PACK: plain("Lien d'un pack"),
+    ACCOUNT: plain("Votre compte Telegram"),
+  } satisfies Record<CustomEmojiSource, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

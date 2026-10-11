@@ -14,6 +14,7 @@ export const QUEUE_NAMES = [
   "automations",
   "sync-ads",
   "sync-views",
+  "custom-emoji",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -96,6 +97,8 @@ export const JOB_RETRY_OPTIONS: Record<
   // Synchros externes : reprise avec attente longue (quotas Meta / TikTok, FLOOD_WAIT Telegram).
   "sync-ads": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
   "sync-views": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // Emojis animés (phase 12) : aperçus par le Bot API, packs et état du compte par MTProto (FLOOD_WAIT possible).
+  "custom-emoji": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -106,6 +109,21 @@ export type SyncAdsJob =
 
 /** File `sync-views` (phase 7) : vues et transferts des messages de canal via le compte Telegram connecté. */
 export type SyncViewsJob = { type: "tick" } | { type: "post"; postId: string };
+
+/**
+ * File `custom-emoji` (phase 12) : bibliothèque des emojis animés et publication par le compte Telegram connecté.
+ * - `fetch-previews` : aperçus manquants (ou ceux de `customEmojiIds`) par le Bot API (`getCustomEmojiStickers` puis
+ *   `getFile`), stockés dans `CustomEmoji.previewBytes` ;
+ * - `import-account` : packs d'emojis installés sur le compte Telegram connecté (MTProto, sous `withMtprotoLock`) ;
+ * - `account-status` : compte Premium ? administrateur avec le droit de publier dans ces canaux ? (MTProto) → `Setting`
+ *   `mtproto.publishStatus` (forme `MtprotoPublishStatus` de @linkaffipro/core) ;
+ * - `tick` : passage périodique (aperçus manquants, état du compte s'il date de plus d'une heure).
+ */
+export type CustomEmojiJob =
+  | { type: "fetch-previews"; customEmojiIds?: string[] }
+  | { type: "import-account"; requestedById?: string | null }
+  | { type: "account-status"; channelIds?: string[] }
+  | { type: "tick" };
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
@@ -123,4 +141,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
               ? SyncAdsJob
               : Q extends "sync-views"
                 ? SyncViewsJob
-                : StatsJob;
+                : Q extends "custom-emoji"
+                  ? CustomEmojiJob
+                  : StatsJob;

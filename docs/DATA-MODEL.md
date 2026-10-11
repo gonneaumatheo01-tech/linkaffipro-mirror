@@ -227,3 +227,23 @@ previousStatus, previousApproveAt, approveAt }`).
 
 `Membership.expiresAt` n'est rempli et utilisé que pour les demandes qui attendent encore (REQUESTED : l'équipe ;
 PENDING_GATE : la personne) ; une demande SCHEDULED dont l'heure d'acceptation est fixée n'expire jamais.
+
+## Phase 12 (11 octobre 2026) — migration `20261011191631_phase12_emojis_animes`
+
+Emojis animés (emojis personnalisés des packs Premium Telegram). Migration additive : énumérations `PostPublisher`
+(BOT, ACCOUNT) et `CustomEmojiSource` (FORWARD, PACK, ACCOUNT), colonne `Post.publisher` (défaut BOT : rien ne change pour
+les messages existants), table `CustomEmoji`. Garde : `packages/db/prisma/migrations/phase12-emojis-animes.test.ts`.
+Règles pures : `packages/core/src/custom-emoji.ts` (balises, emoji de remplacement, lien de pack, qui publie, état du compte).
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `CustomEmoji` | Bibliothèque de l'équipe : `customEmojiId` (unique, identifiant Telegram), `fallback` (emoji standard de remplacement), `setName` / `setTitle` (pack), `format` (tgs / webm / webp), aperçu `previewBytes` + `previewMime` (récupéré par le worker, `previewAt`, `previewError`), `source`, `addedById`, `useCount` / `lastUsedAt` (emojis récents), `hiddenAt` (retiré de la bibliothèque). |
+| `Post.publisher` | BOT (le bot du message, Bot API) ou ACCOUNT (compte Telegram connecté, MTProto) pour un message de canal qui contient des emojis animés : Telegram les interdit aux bots dans les canaux. Un message ACCOUNT n'a pas de boutons et n'est jamais modifié ensuite par le bot ; épingler, désépingler et supprimer passent par le compte. |
+
+Texte : un emoji animé s'écrit `<tg-emoji emoji-id="<customEmojiId>"><fallback></tg-emoji>` dans le HTML Telegram de
+tous les textes (messages de canal, messages du bot, relances, envois à un groupe, modèles). Il compte comme son emoji de
+remplacement dans la longueur du texte.
+
+File BullMQ `custom-emoji` : `fetch-previews` (aperçus par le Bot API), `import-account` (packs installés sur le compte
+connecté), `account-status` (Premium et droits de publication par canal → `Setting` `mtproto.publishStatus`, forme
+`MtprotoPublishStatus`), `tick` (toutes les 10 minutes).

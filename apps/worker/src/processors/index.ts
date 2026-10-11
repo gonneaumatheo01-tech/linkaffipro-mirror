@@ -9,6 +9,7 @@ import { processMaintenance, repeatableMaintenance } from "./maintenance";
 import { processAutomations, repeatableAutomations } from "./automations";
 import { processSyncAds, repeatableSyncAds } from "./sync-ads";
 import { processSyncViews, repeatableSyncViews } from "./sync-views";
+import { processCustomEmoji, repeatableCustomEmoji } from "./custom-emoji";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -23,4 +24,6 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   // Un seul appel externe à la fois : quotas des plateformes et un seul client MTProto.
   "sync-ads": { process: (job: Job) => processSyncAds(job), repeatable: repeatableSyncAds, concurrency: 1 },
   "sync-views": { process: (job: Job) => processSyncViews(job), repeatable: repeatableSyncViews, concurrency: 1 },
+  // Emojis animés (phase 12) : un appel à la fois (MTProto sous withMtprotoLock, Bot API getFile).
+  "custom-emoji": { process: (job: Job) => processCustomEmoji(job), repeatable: repeatableCustomEmoji, concurrency: 1 },
 };
