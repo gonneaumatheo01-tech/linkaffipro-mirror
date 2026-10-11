@@ -198,6 +198,7 @@ export const STATUS_DICT = {
     AD_ENTRY: plain("Entrée de pub"),
     GATE: plain("Canal à rejoindre"),
     MANUAL: plain("Manuel"),
+    SHARE: plain("Lien de partage"),
   } satisfies Record<InviteLinkKind, StatusEntry>,
   adPlatform: {
     TIKTOK: plain("TikTok"),

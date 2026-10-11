@@ -180,3 +180,34 @@ Migration additive (valeurs d'énumération, colonnes facultatives ou avec défa
 | `TrackingLink.automationRuleId` | Relance automatique qui a envoyé ce bouton (Offre ou lien traqué), comme `postId` pour un message de canal. Chaîne d'attribution : `Player.clickId` → `Click.trackingLinkId` → `TrackingLink.automationRuleId`. Relance supprimée : le lien reste actif, le rattachement est effacé. | `String?` → `AutomationRule` (`ON DELETE SET NULL`), index |
 | `OutboundMessage.automationRuleId` | Relance à l'origine d'un message privé (kind `AUTOMATION`) : « envoyés » par relance = messages `SENT` de la relance. | `String?` → `AutomationRule` (`ON DELETE SET NULL`), index `(automationRuleId, status)` |
 | `Broadcast` (inchangé) | Un bouton d'un envoi à un groupe est déjà rattaché par le message « conteneur » `Post` (`templateName = broadcast:<id>`) : `TrackingLink.postId` et `Click.postId` (code du conteneur dans `/start o<slug>_<code>`). Aucune colonne ajoutée. | — |
+
+## Phase 11 (11 octobre 2026) — migration `20261011155518_phase11_regles_provenance`
+
+Règles d'adhésion selon la provenance et liens de partage. Migration additive (deux énumérations, une valeur
+d'énumération, colonnes facultatives ou avec défaut, un index) ; seule écriture : la portée `INVITE_LINK` des anciennes
+règles d'un lien précis (même comportement qu'avant). Garde : `packages/db/prisma/migrations/phase11-regles-provenance.test.ts`.
+Règles pures de résolution : `packages/core/src/provenance.ts` (partagées par le bot, le worker et le site).
+
+| Table / colonne | Rôle | Valeurs |
+| --- | --- | --- |
+| `ApprovalRule.scope` (`ApprovalRuleScope`) | Portée : règle par défaut du canal ou exception. | `DEFAULT` (avec `isDefault = true`), `INVITE_LINK` (`inviteLinkId`), `SOURCE_CHANNEL` (`sourceChannelId`), `SOURCE_KIND` (`sourceKind`) |
+| `ApprovalRule.sourceChannelId` | Canal d'où vient la personne (lien GATE ou SHARE de ce canal). Sans clé étrangère, comme `InviteLink.sourceChannelId`. | identifiant de `Channel` |
+| `ApprovalRule.sourceKind` (`ApprovalSourceKind`) | Type de provenance. | `GATE` (bouton « canal à rejoindre » d'un de nos canaux), `ANY_CHANNEL` (lien GATE, ou lien SHARE posté dans un de nos canaux), `AD_ANY`, `AD_TIKTOK`, `AD_META` (liens d'entrée de pub), `SHARE` (liens de partage) |
+| `ApprovalRule.label` | Texte lisible de l'exception, recalculé à l'enregistrement. | « Venu de « Tir Cadré » » |
+| `ApprovalRule.sortOrder` | Ordre de l'équipe entre exceptions de même niveau (10, 20, 30…). | entier, défaut 0 |
+| `ApprovalRule.sendWelcome` | Message privé à l'arrivée (accueil, ou court message pour une personne venue d'un canal obligatoire). Toujours envoyé quand des canaux sont à rejoindre. | défaut vrai |
+| `InviteLinkKind.SHARE` | Lien de partage nommé créé depuis la fiche du canal, avec demande d'adhésion ; `sourceChannelId` facultatif (« à poster dans <canal> »). | — |
+
+Résolution d'une demande (`pickRuleForProvenance`) : règle du lien précis → règle du canal d'origine → règle du type de
+provenance → règle par défaut du canal → aucune règle (validation à la main ; entrée directe pour une personne venue
+du bouton « canal à rejoindre » d'un de nos canaux, comme les anciens liens GATE). À niveau égal, `sortOrder` départage.
+Une personne venue d'un canal obligatoire qui tombe sur la règle par défaut ne se voit imposer aucun canal à rejoindre
+(`effectiveGateChannelIds`), et le canal d'où elle vient compte toujours comme rejoint (exigences croisées sans boucle).
+
+`Membership.source` (JSON) gagne :
+- `provenance` : `{ type: "GATE" | "SHARE" | "AD" | "MANUAL" | "UNKNOWN", inviteLinkId, sourceChannelId, adPlatform, label }` ;
+- `appliedRule` : `{ id, scope, label, noGates? }` (`noGates` : canaux à rejoindre de la règle non imposés pour cette provenance).
+
+Liens GATE : depuis la phase 11, créés avec demande d'adhésion (`createsJoinRequest = true`) ; le canal obligatoire
+applique alors sa propre règle. Les anciens liens GATE à entrée directe (`createsJoinRequest = false`) ne sont plus
+proposés et sont révoqués par le worker 7 jours après la mise en ligne de la phase 11.

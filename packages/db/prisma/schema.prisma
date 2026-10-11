@@ -73,6 +73,39 @@ enum InviteLinkKind {
   AD_ENTRY
   GATE
   MANUAL
+  /// Lien de partage créé depuis la fiche du canal (phase 11), nommé, avec demande d'adhésion, à poster où l'on veut
+  /// (`sourceChannelId` facultatif : « à poster dans <canal> »).
+  SHARE
+}
+
+/// Portée d'une règle d'adhésion (phase 11) : règle par défaut du canal, ou exception selon la provenance.
+/// Résolution, du plus précis au plus général : INVITE_LINK → SOURCE_CHANNEL → SOURCE_KIND → DEFAULT
+/// (fonction pure `pickRuleForProvenance` de packages/core/src/provenance.ts).
+enum ApprovalRuleScope {
+  /// Règle par défaut du canal (`isDefault = true`).
+  DEFAULT
+  /// Exception d'un lien d'invitation précis (`inviteLinkId`).
+  INVITE_LINK
+  /// Exception pour les personnes venues d'un de nos canaux (`sourceChannelId` du lien GATE ou SHARE).
+  SOURCE_CHANNEL
+  /// Exception pour un type de provenance (`sourceKind`).
+  SOURCE_KIND
+}
+
+/// Type de provenance d'une exception `SOURCE_KIND` (phase 11).
+enum ApprovalSourceKind {
+  /// Venue du bouton « canal à rejoindre » (obligatoire) d'un de nos canaux (lien GATE).
+  GATE
+  /// Venue de n'importe lequel de nos canaux (lien GATE, ou lien SHARE posté dans un de nos canaux).
+  ANY_CHANNEL
+  /// Venue de n'importe quelle pub (lien d'entrée AD_ENTRY).
+  AD_ANY
+  /// Venue d'une pub TikTok (lien d'entrée AD_ENTRY, plateforme TIKTOK).
+  AD_TIKTOK
+  /// Venue d'une pub Meta (lien d'entrée AD_ENTRY, plateforme META).
+  AD_META
+  /// Venue de n'importe quel lien de partage (SHARE).
+  SHARE
 }
 
 /// Plateforme publicitaire.
@@ -473,7 +506,9 @@ model Membership {
   expiresAt       DateTime?
   approvedByBotId String?
   approvedByBot   Bot?             @relation("ApprovedByBot", fields: [approvedByBotId], references: [id])
-  /// Instantané de la source : lien, pub, campagne (JSON).
+  /// Instantané de la source : lien, pub, campagne (JSON). Phase 11 : `provenance` = provenance résolue
+  /// `{ type, sourceChannelId, inviteLinkId, adPlatform, label }` et `appliedRule` = règle appliquée
+  /// `{ id, scope, label, noGates? }` (voir docs/DATA-MODEL.md).
   source          Json             @default("{}")
   remindersSent   Int              @default(0)
   lastReminderAt  DateTime?
@@ -494,34 +529,50 @@ model Membership {
   @@index([leftAt])
 }
 
-/// Règle d'approbation d'un canal (ou d'un lien précis).
+/// Règle d'approbation d'un canal : règle par défaut (`scope = DEFAULT`, `isDefault = true`) ou exception selon la
+/// provenance (phase 11 : `scope` INVITE_LINK / SOURCE_CHANNEL / SOURCE_KIND, `isDefault = false`).
 model ApprovalRule {
-  id                   String       @id @default(cuid())
+  id                   String              @id @default(cuid())
   channelId            String
-  channel              Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel              Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
   name                 String
-  isDefault            Boolean      @default(false)
-  /// Règle spécifique à un lien d'invitation (sinon règle du canal).
-  inviteLinkId         String?      @unique
-  inviteLink           InviteLink?  @relation("RuleForLink", fields: [inviteLinkId], references: [id])
-  mode                 ApprovalMode @default(DELAY)
-  delaySeconds         Int          @default(0)
+  isDefault            Boolean             @default(false)
+  /// Portée de la règle (phase 11). Les règles d'avant la phase 11 : DEFAULT, ou INVITE_LINK si `inviteLinkId`.
+  scope                ApprovalRuleScope   @default(DEFAULT)
+  /// Règle spécifique à un lien d'invitation (`scope = INVITE_LINK`, sinon règle du canal).
+  inviteLinkId         String?             @unique
+  inviteLink           InviteLink?         @relation("RuleForLink", fields: [inviteLinkId], references: [id])
+  /// Canal d'où vient la personne (`scope = SOURCE_CHANNEL`) : `sourceChannelId` du lien GATE ou SHARE. Pas de clé
+  /// étrangère (comme `InviteLink.sourceChannelId`) : un canal supprimé laisse une exception affichée « canal supprimé ».
+  sourceChannelId      String?
+  /// Type de provenance (`scope = SOURCE_KIND`).
+  sourceKind           ApprovalSourceKind?
+  /// Texte lisible de l'exception (« Venu de Tir Cadré »), recalculé à l'enregistrement.
+  label                String?
+  /// Ordre des exceptions de même niveau (ordre choisi par l'équipe, du plus petit au plus grand).
+  sortOrder            Int                 @default(0)
+  /// Message privé envoyé à l'arrivée de la demande (accueil, ou court message pour une personne venue d'un canal
+  /// obligatoire). Toujours envoyé quand des canaux sont à rejoindre (sinon la personne resterait bloquée).
+  sendWelcome          Boolean             @default(true)
+  mode                 ApprovalMode        @default(DELAY)
+  delaySeconds         Int                 @default(0)
   /// Liste d'identifiants de canaux à rejoindre d'abord (JSON : string[]).
-  gateChannelIds       Json         @default("[]")
-  gateMode             GateMode     @default(NONE)
+  gateChannelIds       Json                @default("[]")
+  gateMode             GateMode            @default(NONE)
   /// Minutes après la demande pour chaque rappel (JSON : number[]), ex. [60, 1440].
-  reminderAfterMinutes Json         @default("[60, 1440]")
-  maxReminders         Int          @default(2)
+  reminderAfterMinutes Json                @default("[60, 1440]")
+  maxReminders         Int                 @default(2)
   expireAfterHours     Int?
-  expireAction         ExpireAction @default(KEEP)
-  sendAcceptedMessage  Boolean      @default(true)
-  isActive             Boolean      @default(true)
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  expireAction         ExpireAction        @default(KEEP)
+  sendAcceptedMessage  Boolean             @default(true)
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   memberships Membership[]
 
   @@index([channelId, isDefault])
+  @@index([channelId, scope, isActive])
 }
 
 /// Lien d'invitation Telegram créé par la plateforme (entrée par pub, gate, manuel).
@@ -542,7 +593,7 @@ model InviteLink {
   adSetName          String?
   adName             String?
   adExternalIds      Json?
-  /// Canal source pour un lien GATE (d'où vient le membre).
+  /// Canal source pour un lien GATE (d'où vient le membre), ou canal où poster un lien SHARE (facultatif).
   sourceChannelId    String?
   language           String         @default("fr")
   isActive           Boolean        @default(true)

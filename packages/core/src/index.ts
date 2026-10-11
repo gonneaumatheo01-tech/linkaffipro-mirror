@@ -15,3 +15,4 @@ export * from "./attribution-scope";
 export * from "./campaign-attribution";
 export * from "./team-labels";
 export * from "./commissions";
+export * from "./provenance";
