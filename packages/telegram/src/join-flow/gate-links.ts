@@ -7,6 +7,9 @@
  * `createChatInviteLink` et `getChatMember` échouent avec lui. On essaie donc d'abord ce bot, puis chacun de nos bots
  * administrateurs du canal à rejoindre (avec le droit d'inviter pour un lien), dans un ordre stable, et chaque échec
  * est journalisé avec l'erreur exacte de Telegram (plus jamais de `catch` muet).
+ *
+ * Phase 11 : un lien avec demande d'adhésion est créé d'abord par le bot qui traitera la demande dans le canal à
+ * rejoindre (Telegram masque la fin d'un lien créé par un autre administrateur, voir `resolveGateLink`).
  */
 import type { ChannelInfo, GateButton } from "./deps";
 
@@ -14,7 +17,7 @@ import type { ChannelInfo, GateButton } from "./deps";
 export interface GateLinkApi {
   createChatInviteLink(
     chatId: number | string,
-    other?: { name?: string },
+    other?: { name?: string; creates_join_request?: boolean },
   ): Promise<{ invite_link: string }>;
   getChatMember(chatId: number | string, userId: number): Promise<{ status: string }>;
 }
@@ -55,16 +58,33 @@ export type GateProblemReason = "no_link" | "cannot_verify";
 export interface GateLinkDeps {
   /**
    * Lien GATE déjà créé pour (canal source → canal à rejoindre), encore actif, dont le bot créateur est actif et n'a
-   * pas perdu ses droits sur le canal à rejoindre ; sinon null.
+   * pas perdu ses droits sur le canal à rejoindre ; sinon null. Phase 11 : seulement un lien du bon type
+   * (`createsJoinRequest`, avec demande d'adhésion par défaut) : les anciens liens à entrée directe ne sont plus
+   * proposés vers un canal actif.
    */
-  findGateLink(sourceChannelId: string, gateChannelId: string): Promise<string | null>;
-  /** Mémorise un lien GATE créé par `botId`. */
+  findGateLink(
+    sourceChannelId: string,
+    gateChannelId: string,
+    opts?: {
+      createsJoinRequest?: boolean;
+      /** Seulement un lien créé par ce bot (celui qui traite les demandes du canal à rejoindre). */
+      botId?: string;
+    },
+  ): Promise<string | null>;
+  /** Mémorise un lien GATE créé par `botId` (avec ou sans demande d'adhésion). */
   saveGateLink(input: {
     sourceChannelId: string;
     gate: ChannelInfo;
     botId: string;
     url: string;
+    createsJoinRequest: boolean;
   }): Promise<void>;
+  /**
+   * Canaux (parmi `channelIds`) où le membre a une demande à nous ouverte ou acceptée : sa dernière demande y est
+   * REQUESTED, PENDING_GATE, SCHEDULED ou APPROVED. Un canal obligatoire est alors satisfait même si Telegram répond
+   * « left » (c'est sa réponse pour une demande en attente). Facultatif (tests anciens) : aucun canal.
+   */
+  requestedChannelIds?(memberId: string, channelIds: string[]): Promise<string[]>;
   /** Nos bots actifs administrateurs du canal (droits non retirés), dans un ordre stable. */
   adminBots(channelId: string): Promise<GateBot[]>;
   /** API Telegram d'un de nos bots (null si le bot est inconnu ou inactif). */
@@ -161,8 +181,37 @@ async function apiOf(
 }
 
 /**
- * Lien d'un canal à rejoindre : lien GATE existant et valide, sinon création par le premier de nos bots qui y arrive,
- * sinon le lien public du canal (s'il a un nom public). Renvoie le bouton, ou le problème (canal, erreurs exactes).
+ * Le lien vers ce canal à rejoindre doit-il passer par une demande d'adhésion ? Oui (phase 11 : le canal obligatoire
+ * applique sa propre règle), sauf pour un canal que l'équipe a désactivé chez nous : sa demande ne serait jamais
+ * traitée, le lien fait donc entrer directement, comme avant.
+ */
+export function gateLinkCreatesJoinRequest(gate: Pick<ChannelInfo, "isActive">): boolean {
+  return gate.isActive;
+}
+
+/**
+ * Bot qui traitera les demandes d'adhésion du canal à rejoindre : son bot principal s'il en est administrateur, sinon
+ * le premier de nos bots administrateurs (même règle que `actingBotIdFor` du webhook et `actingBotFor` du worker ;
+ * `adminBots` les rend dans le même ordre).
+ */
+export function gateActingBot(
+  gate: Pick<ChannelInfo, "primaryBotId">,
+  admins: readonly GateBot[],
+): GateBot | null {
+  const primary = gate.primaryBotId ? admins.find((a) => a.botId === gate.primaryBotId) : undefined;
+  return primary ?? admins[0] ?? null;
+}
+
+/**
+ * Lien d'un canal à rejoindre : lien GATE existant et valide (du bon type : avec demande d'adhésion, sauf canal
+ * désactivé), sinon création par le premier de nos bots qui y arrive, sinon le lien public du canal (s'il a un nom
+ * public). Renvoie le bouton, ou le problème (canal, erreurs exactes).
+ *
+ * Lien avec demande d'adhésion : créé (et réutilisé) par le bot qui traitera la demande dans le canal à rejoindre.
+ * Telegram masque la fin d'un lien créé par un autre administrateur (« https://t.me/+AbCd… ») : ce bot ne retrouverait
+ * pas le lien, la provenance de la personne serait perdue (règle par défaut au lieu de l'exception, canal d'origine
+ * redemandé). S'il n'y arrive pas, un lien existant de n'importe lequel de nos bots sert, sinon un autre bot le crée
+ * (le flux retrouve alors le lien par son début et son créateur, `masked-link.ts`).
  */
 export async function resolveGateLink(
   deps: GateLinkDeps,
@@ -171,14 +220,23 @@ export async function resolveGateLink(
   first?: FirstBot | null,
 ): Promise<{ button: GateButton } | { problem: GateLinkProblem }> {
   const warn = warnOf(deps);
-  const existing = await deps.findGateLink(source.id, gate.id);
-  if (existing) return { button: { channelId: gate.id, title: gate.title, url: existing } };
-
+  const createsJoinRequest = gateLinkCreatesJoinRequest(gate);
+  const button = (url: string) => ({ button: { channelId: gate.id, title: gate.title, url } });
   const admins = await deps.adminBots(gate.id);
-  const candidates = inviteCandidates(first, admins);
+  const acting = createsJoinRequest ? gateActingBot(gate, admins) : null;
+  // Un bot dont le droit d'inviter est refusé n'est ni attendu ni essayé.
+  const preferred = acting && acting.canInvite !== false ? acting : null;
+  const existing = await deps.findGateLink(
+    source.id,
+    gate.id,
+    preferred ? { createsJoinRequest, botId: preferred.botId } : { createsJoinRequest },
+  );
+  if (existing) return button(existing);
+
   const errors: string[] = [];
   const tried: string[] = [];
-  for (const c of candidates) {
+  /** Essaie de créer le lien avec ce bot : adresse créée, ou null (erreur notée et journalisée). */
+  const attempt = async (c: { botId: string; username: string }): Promise<string | null> => {
     tried.push(`@${c.username}`);
     const opened = await apiOf(deps, first, c.botId);
     if ("error" in opened) {
@@ -190,24 +248,26 @@ export async function resolveGateLink(
         bot: c.username,
         error: opened.error,
       });
-      continue;
+      return null;
     }
     const api = opened.api;
     if (!api) {
       errors.push(`@${c.username} : bot inactif ou inconnu`);
-      continue;
+      return null;
     }
     try {
       const link = await api.createChatInviteLink(Number(gate.telegramChatId), {
         name: `gate ${source.title}`.slice(0, 32),
+        creates_join_request: createsJoinRequest,
       });
       await deps.saveGateLink({
         sourceChannelId: source.id,
         gate,
         botId: c.botId,
         url: link.invite_link,
+        createsJoinRequest,
       });
-      return { button: { channelId: gate.id, title: gate.title, url: link.invite_link } };
+      return link.invite_link;
     } catch (err) {
       const text = telegramErrorText(err);
       errors.push(`@${c.username} : ${text}`);
@@ -219,7 +279,21 @@ export async function resolveGateLink(
         bot: c.username,
         error: text,
       });
+      return null;
     }
+  };
+
+  if (preferred) {
+    const url = await attempt(preferred);
+    if (url) return button(url);
+    // Le bot du canal n'y arrive pas : un lien existant de n'importe lequel de nos bots plutôt qu'un lien de plus.
+    const any = await deps.findGateLink(source.id, gate.id, { createsJoinRequest });
+    if (any) return button(any);
+  }
+  for (const c of inviteCandidates(first, admins)) {
+    if (preferred && c.botId === preferred.botId) continue;
+    const url = await attempt(c);
+    if (url) return button(url);
   }
   if (gate.username)
     return {
@@ -288,23 +362,39 @@ export type GateCheckResult = {
   missing: ChannelInfo[];
   /** Canaux qu'aucun de nos bots n'a pu vérifier (erreurs exactes, bots essayés) : comptés comme non rejoints. */
   unverified: Array<{ channelId: string; title: string; error: string; tried: string[] }>;
+  /** Canaux satisfaits par une demande à nous en cours ou acceptée (sans appel à Telegram). */
+  requested?: string[];
 };
 
 /**
- * Le membre a-t-il rejoint chaque canal ? `getChatMember` avec nos bots administrateurs du canal, puis avec le bot qui
- * traite la demande s'il n'est pas connu comme administrateur (un bot non administrateur d'un canal ne peut pas lire
- * ses membres). Si aucun bot ne peut répondre, le canal compte comme non rejoint (jamais d'acceptation sans
- * vérification) et l'erreur est gardée. Un bot impossible à ouvrir est noté et le suivant est essayé.
+ * Le membre a-t-il rejoint chaque canal ? D'abord nos demandes : une demande du membre en cours ou acceptée dans ce
+ * canal (`requestedChannelIds`, lue avant Telegram) suffit, car Telegram répond « left » tant qu'une demande attend.
+ * Sinon `getChatMember` avec nos bots administrateurs du canal, puis avec le bot qui traite la demande s'il n'est pas
+ * connu comme administrateur (un bot non administrateur d'un canal ne peut pas lire ses membres). Si aucun bot ne peut
+ * répondre, le canal compte comme non rejoint (jamais d'acceptation sans vérification) et l'erreur est gardée. Un bot
+ * impossible à ouvrir est noté et le suivant est essayé.
  */
 export async function checkGateMembership(
   deps: GateLinkDeps,
   gates: readonly ChannelInfo[],
   userId: number,
   first?: FirstBot | null,
+  opts: { memberId?: string | null } = {},
 ): Promise<GateCheckResult> {
   const warn = warnOf(deps);
   const result: GateCheckResult = { missing: [], unverified: [] };
+  const requested = new Set(
+    opts.memberId && deps.requestedChannelIds && gates.length > 0
+      ? await deps.requestedChannelIds(
+          opts.memberId,
+          gates.map((g) => g.id),
+        )
+      : [],
+  );
+  if (requested.size > 0)
+    result.requested = gates.filter((g) => requested.has(g.id)).map((g) => g.id);
   for (const g of gates) {
+    if (requested.has(g.id)) continue;
     const candidates = checkCandidates(first, await deps.adminBots(g.id));
     let status: string | null = null;
     const errors: string[] = [];

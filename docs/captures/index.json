@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T15:16:02.663Z",
+  "updatedAt": "2026-10-11T19:04:26.106Z",
   "entries": [
     {
       "route": "/",
@@ -153,6 +153,51 @@
       "capturedAt": "2026-10-11T02:17:59.927Z"
     },
     {
+      "route": "/channels/[id]?tab=members",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=members",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-tab-members-390.webp",
+        "1440": "channels-id-tab-members-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T18:17:52.559Z"
+    },
+    {
+      "route": "/channels/[id]?tab=requests",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=requests",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-tab-requests-390.webp",
+        "1440": "channels-id-tab-requests-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T18:17:48.850Z"
+    },
+    {
+      "route": "/channels/[id]?tab=rules",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=rules",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-tab-rules-390.webp",
+        "1440": "channels-id-tab-rules-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T19:04:21.238Z"
+    },
+    {
       "route": "/channels/[id]?tab=rules&liens=a-corriger",
       "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=rules&liens=a-corriger",
       "title": "Démo · Bonus Casino du jour",
@@ -181,6 +226,36 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T11:30:08.387Z"
+    },
+    {
+      "route": "/channels/c15v95vfniklakruxer1oo4jh?tab=requests",
+      "path": "/channels/c15v95vfniklakruxer1oo4jh?tab=requests",
+      "title": "Démo · Zone Interdite 🔞",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-c15v95vfniklakruxer1oo4jh-tab-requests-390.webp",
+        "1440": "channels-c15v95vfniklakruxer1oo4jh-tab-requests-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T19:04:15.876Z"
+    },
+    {
+      "route": "/channels/c15v95vfniklakruxer1oo4jh?tab=rules",
+      "path": "/channels/c15v95vfniklakruxer1oo4jh?tab=rules",
+      "title": "Démo · Zone Interdite 🔞",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-c15v95vfniklakruxer1oo4jh-tab-rules-390.webp",
+        "1440": "channels-c15v95vfniklakruxer1oo4jh-tab-rules-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T19:03:59.194Z"
     },
     {
       "route": "/channels/import",
@@ -330,7 +405,7 @@
         "1440": "members-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:20.379Z"
+      "capturedAt": "2026-10-11T18:17:57.668Z"
     },
     {
       "route": "/members/automations",

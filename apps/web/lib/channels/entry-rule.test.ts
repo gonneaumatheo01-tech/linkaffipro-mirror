@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DELAY_PRESETS,
+  GATE_DELAY_PRESETS,
   MAX_REMINDER_MINUTES,
   NO_RULE_SENTENCE,
   REMINDER_PRESETS,
@@ -17,7 +18,9 @@ import {
   entryRuleFromRow,
   entrySentence,
   entryShort,
+  entryShortWithExceptions,
   expirationSentence,
+  gatePresetForSeconds,
   gateChannelChoices,
   initialEntryState,
   parseReminders,
@@ -28,6 +31,7 @@ import {
   splitDelay,
   stateDelaySeconds,
   toggleReminder,
+  welcomeOption,
   type EntryRule,
 } from "./entry-rule";
 
@@ -41,6 +45,7 @@ const base: EntryRule = {
   expireAfterHours: null,
   expireAction: "KEEP",
   sendAcceptedMessage: true,
+  sendWelcome: true,
   isActive: true,
 };
 const titles = { a: "Bonus du jour", b: "Preuves de gains", c: "VIP", d: "Live" };
@@ -57,6 +62,7 @@ describe("délais", () => {
     expect(Object.fromEntries(DELAY_PRESETS.map((p) => [p.key, p.seconds]))).toEqual({
       immediate: 0,
       "1m": 60,
+      "5m": 300,
       "10m": 600,
       "1h": 3600,
       "1d": 86400,
@@ -64,6 +70,18 @@ describe("délais", () => {
     });
     expect(presetForSeconds(600)).toBe("10m");
     expect(presetForSeconds(90)).toBe("custom");
+  });
+
+  it("« puis accepter » : tout de suite, 5 minutes, 1 heure, 1 jour ou sur mesure", () => {
+    expect(GATE_DELAY_PRESETS.map((p) => [p.key, p.label, p.seconds])).toEqual([
+      ["immediate", "Tout de suite", 0],
+      ["5m", "5 minutes", 300],
+      ["1h", "1 heure", 3600],
+      ["1d", "1 jour", 86400],
+    ]);
+    expect(gatePresetForSeconds(86400)).toBe("1d");
+    // 10 minutes (réglage de « Zone Interdite » en production) : « sur mesure », jamais perdu.
+    expect(gatePresetForSeconds(600)).toBe("custom");
   });
 
   it("découpe une durée dans l'unité la plus lisible", () => {
@@ -109,6 +127,7 @@ describe("choix principal ↔ champs de la règle", () => {
       expireAfterHours: ["0"],
       expireAction: ["KEEP"],
       sendAcceptedMessage: ["on"],
+      sendWelcome: ["on"],
     });
   });
 
@@ -209,8 +228,108 @@ describe("choix principal ↔ champs de la règle", () => {
       gateChannelIds: ["a"],
     });
     expect(s.choice).toBe("gate");
-    expect(s.delayPreset).toBe("immediate");
+    expect(s.gateDelayPreset).toBe("immediate");
     expect(fieldsOf(s).mode).toEqual(["DELAY"]);
+    expect(fieldsOf(s).delayPreset).toEqual(["immediate"]);
+  });
+
+  it("« puis accepter » enregistre vraiment le délai (jamais remis à zéro)", () => {
+    const gate = {
+      ...chooseEntry(initialEntryState(null), "gate"),
+      gateIds: ["a"],
+      gateDelayPreset: "1d" as const,
+    };
+    expect(fieldsOf(gate).mode).toEqual(["DELAY"]);
+    expect(fieldsOf(gate).delayPreset).toEqual(["1d"]);
+    expect(ruleFromState(gate)).toMatchObject({
+      mode: "DELAY",
+      delaySeconds: 86400,
+      gateMode: "REQUIRED",
+      gateChannelIds: ["a"],
+    });
+    expect(fieldsOf({ ...gate, gateDelayPreset: "5m" }).delayPreset).toEqual(["5m"]);
+    const custom = {
+      ...gate,
+      gateDelayPreset: "custom" as const,
+      gateCustomAmount: 3,
+      gateCustomUnit: "hours" as const,
+    };
+    expect(fieldsOf(custom).delayCustomSeconds).toEqual(["10800"]);
+    expect(stateDelaySeconds(custom)).toBe(10800);
+  });
+
+  it("une règle « 10 minutes après avoir rejoint » se relit en « sur mesure : 10 minutes » et se renvoie à l'identique", () => {
+    const stored = {
+      ...base,
+      gateMode: "REQUIRED" as const,
+      gateChannelIds: ["a"],
+      delaySeconds: 600,
+    };
+    const s = initialEntryState(stored);
+    expect([s.choice, s.gateDelayPreset, s.gateCustomAmount, s.gateCustomUnit]).toEqual([
+      "gate",
+      "custom",
+      10,
+      "minutes",
+    ]);
+    expect(fieldsOf(s).delayPreset).toEqual(["custom"]);
+    expect(fieldsOf(s).delayCustomSeconds).toEqual(["600"]);
+    expect(ruleFromState(s).delaySeconds).toBe(600);
+  });
+
+  it("chaque choix garde son délai : passer de « après un délai » à « après avoir rejoint » et revenir", () => {
+    const delay = { ...initialEntryState(null), delayPreset: "1h" as const };
+    const gate = chooseEntry(delay, "gate");
+    expect(stateDelaySeconds(gate)).toBe(0);
+    const gate1d = { ...gate, gateIds: ["a"], gateDelayPreset: "1d" as const };
+    expect(stateDelaySeconds(gate1d)).toBe(86400);
+    expect(stateDelaySeconds(chooseEntry(gate1d, "delay"))).toBe(3600);
+  });
+
+  it("message à l'arrivée coupé : envoyé « off », compté dans les réglages avancés modifiés", () => {
+    const s = { ...initialEntryState(null), sendWelcome: false };
+    expect(fieldsOf(s).sendWelcome).toEqual(["off"]);
+    expect(advancedModifiedCount(s)).toBe(1);
+    expect(ruleFromState(s).sendWelcome).toBe(false);
+    expect(initialEntryState({ ...base, sendWelcome: false }).sendWelcome).toBe(false);
+    expect(initialEntryState({ ...base, sendWelcome: undefined }).sendWelcome).toBe(true);
+  });
+
+  it("message à l'arrivée : la case montre ce qui est enregistré, même avec des canaux à rejoindre", () => {
+    // Relecture du 11 octobre : décoché puis « Après avoir rejoint ces canaux » → case affichée cochée et grisée,
+    // alors que « off » partait. Avec la règle par défaut, une personne venue du bouton « canal à rejoindre » d'un
+    // autre canal n'a aucun canal à rejoindre : sans message, le bot ne lui écrit pas (`welcomeKindFor`).
+    for (const choice of ["now", "delay", "gate"] as const) {
+      for (const sendWelcome of [true, false]) {
+        const s = { ...initialEntryState(null), choice, gateIds: ["a"], sendWelcome };
+        const shown = welcomeOption(s);
+        expect(shown.checked, `${choice} ${sendWelcome}`).toBe(
+          fieldsOf(s).sendWelcome?.[0] === "on",
+        );
+        expect(shown.disabled, `${choice} ${sendWelcome}`).toBe(false);
+        expect(ruleFromState(s).sendWelcome).toBe(shown.checked);
+      }
+    }
+    const gate = {
+      ...initialEntryState(null),
+      choice: "gate" as const,
+      gateIds: ["a"],
+      sendWelcome: false,
+    };
+    expect(welcomeOption(gate).help).toBe(
+      "Les personnes qui ont des canaux à rejoindre reçoivent toujours l'accueil (il porte les boutons). Décoché : une personne venue du bouton « canal à rejoindre » d'un autre canal ne reçoit aucun message.",
+    );
+    expect(welcomeOption(gate, { variant: "exception" }).help).toBe(
+      "Les personnes qui ont des canaux à rejoindre reçoivent toujours l'accueil (il porte les boutons). Décoché : une personne qui n'en a finalement aucun à rejoindre (elle vient du seul canal coché) ne reçoit aucun message.",
+    );
+    // Décoché et visible : compté dans les réglages avancés modifiés, comme sans canaux à rejoindre.
+    expect(advancedModifiedCount(gate)).toBe(1);
+    expect(
+      welcomeOption(
+        { ...gate, choice: "delay" },
+        { variant: "exception", help: "Aide de l'exception" },
+      ).help,
+    ).toBe("Aide de l'exception");
   });
 
   it("des canaux enregistrés sans exigence ne comptent pas comme « Après avoir rejoint »", () => {
@@ -262,6 +381,18 @@ describe("phrases de résumé", () => {
     );
     expect(entryShort({ ...base, delaySeconds: 0 })).toBe("Acceptés tout de suite");
     expect(entryShort(base)).toBe("Acceptés après 10 minutes");
+  });
+
+  it("liste des canaux : nombre d'exceptions selon la provenance", () => {
+    expect(entryShortWithExceptions({ ...base, delaySeconds: 300 }, 0)).toBe(
+      "Acceptés après 5 minutes",
+    );
+    expect(entryShortWithExceptions({ ...base, delaySeconds: 300 }, 1)).toBe(
+      "Acceptés après 5 minutes · 1 exception",
+    );
+    expect(entryShortWithExceptions(null, 2)).toBe(
+      "Aucune règle : validation à la main · 2 exceptions",
+    );
   });
 
   it("canaux obligatoires ou proposés", () => {
@@ -350,6 +481,7 @@ describe("lecture de la base", () => {
       isActive: true,
     });
     expect(r.delaySeconds).toBe(0);
+    expect(r.sendWelcome).toBe(true);
     expect(r.gateChannelIds).toEqual(["a"]);
     expect(r.reminderAfterMinutes).toEqual([60, 90]);
   });
@@ -404,6 +536,24 @@ describe("canaux à rejoindre inactifs ou supprimés", () => {
   it("sans canal manquant : la liste des canaux actifs telle quelle", () => {
     expect(gateChannelChoices(active, ["g1"], [])).toEqual(active);
     expect(gateChannelChoices(active, [], [])).toEqual(active);
+  });
+
+  it("met en tête les canaux déjà choisis (dans l'ordre de la règle), sans bouger pendant la saisie", () => {
+    const many = ["a", "b", "c", "d"].map((id) => ({
+      id,
+      title: id.toUpperCase(),
+      vertical: null,
+      isMediaLibrary: false,
+    }));
+    expect(gateChannelChoices(many, ["d", "b"], []).map((c) => c.id)).toEqual(["d", "b", "a", "c"]);
+    // Pendant la saisie : le canal a vient d'être coché, l'ordre suit toujours la règle enregistrée.
+    expect(gateChannelChoices(many, ["d", "b", "a"], [], ["d", "b"]).map((c) => c.id)).toEqual([
+      "d",
+      "b",
+      "a",
+      "c",
+    ]);
+    expect(gateChannelChoices(many, [], [], []).map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
   });
 });
 

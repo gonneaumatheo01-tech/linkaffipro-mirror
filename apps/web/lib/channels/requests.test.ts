@@ -7,7 +7,6 @@ import {
   requestNext,
   requestsTabLabel,
   sourceHint,
-  sourceLabel,
   trackedMembersLabel,
 } from "./requests";
 
@@ -40,25 +39,11 @@ describe("demandes d'un canal", () => {
     expect(requestNext("FAILED", null, now)).not.toMatch(/échou|échec/i);
   });
 
-  it("origine d'une adhésion", () => {
-    expect(
-      sourceLabel({ inviteLink: { name: "Pub TikTok 1", adPlatform: "TIKTOK" } }, () => "TikTok"),
-    ).toBe("Pub TikTok 1 (TikTok)");
-    expect(sourceLabel({ inviteLink: { name: "Lien manuel", adPlatform: null } })).toBe(
-      "Lien manuel",
-    );
-    expect(sourceLabel({ joinedDirectly: true })).toBe("Entrée directe");
-    // Pas un lien d'entrée créé ici : rien ne ressemble à une panne.
-    expect(sourceLabel(null)).toBe("Sans lien suivi");
-    expect(sourceLabel({ inviteLink: null, telegramInviteLink: "https://t.me/+abc" })).toBe(
-      "Sans lien suivi",
-    );
-  });
-
-  it("explication de l'origine dans le volet de détail, seulement quand le lien n'est pas suivi", () => {
-    expect(sourceHint({ inviteLink: { name: "Pub TikTok 1" } })).toBeNull();
-    expect(sourceHint({ joinedDirectly: true })).toBeNull();
-    expect(sourceHint(null)).toMatch(/lien d'invitation qui n'a pas été créé ici/);
+  it("explication de l'origine dans le volet de détail, seulement quand la provenance est inconnue", () => {
+    // Un de nos liens (bouton « canal à rejoindre », lien de partage, pub, lien du canal) : rien à expliquer.
+    for (const t of ["GATE", "SHARE", "AD", "MANUAL"]) expect(sourceHint(t)).toBeNull();
+    // Lien que la plateforme n'a pas créé : rien ne ressemble à une panne, l'explication est donnée.
+    expect(sourceHint("UNKNOWN")).toMatch(/lien d'invitation qui n'a pas été créé ici/);
   });
 
   it("résumé des membres de l'onglet : présents, puis partis et exclus s'il y en a", () => {

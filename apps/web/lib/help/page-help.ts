@@ -74,7 +74,17 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/channels/:id",
     label: "Fiche du canal",
-    sections: ["Fiche d'un canal", "Un membre n'est pas accepté", "Le bot ne répond pas"],
+    // Phase 11 : « Qui peut entrer et quand » (règle par défaut, exceptions selon la provenance, simulateur) d'abord,
+    // puis le dépannage d'une demande, puis les autres onglets de la fiche.
+    sections: [
+      intro("Fiche d'un canal"),
+      "Qui peut entrer et quand",
+      "Un membre n'est pas accepté",
+      "Ce que dit le bot",
+      "Demandes",
+      "Membres du canal",
+      "Le bot ne répond pas",
+    ],
   },
   {
     path: "/channels/import",

@@ -4,7 +4,17 @@
  */
 export const QUEUE_PREFIX = "lap";
 
-export const QUEUE_NAMES = ["scheduler", "telegram-send", "approvals", "sync-linkaffi", "stats", "maintenance", "automations", "sync-ads", "sync-views"] as const;
+export const QUEUE_NAMES = [
+  "scheduler",
+  "telegram-send",
+  "approvals",
+  "sync-linkaffi",
+  "stats",
+  "maintenance",
+  "automations",
+  "sync-ads",
+  "sync-views",
+] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 /** Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit). */
@@ -34,12 +44,33 @@ export type StatsJob =
 
 /** Tâches de la file `automations` : événement métier à évaluer, ou reprise des étapes différées. */
 export type AutomationsJob =
-  | { type: "event"; trigger: "JOINED" | "OFFER_CLICKED" | "REGISTERED" | "DEPOSITED" | "LEFT" | "SPEND_LEVEL_REACHED" | "INACTIVE"; memberId: string; context?: Record<string, unknown> }
+  | {
+      type: "event";
+      trigger:
+        | "JOINED"
+        | "OFFER_CLICKED"
+        | "REGISTERED"
+        | "DEPOSITED"
+        | "LEFT"
+        | "SPEND_LEVEL_REACHED"
+        | "INACTIVE";
+      memberId: string;
+      context?: Record<string, unknown>;
+    }
   | { type: "test"; ruleId: string; memberId: string }
   | { type: "tick" };
 
-/** Tâches de la file `maintenance` (purge 24 mois, alertes, purge des tâches échouées, sauvegardes). */
-export type MaintenanceJob = { type: "purge" } | { type: "alerts" } | { type: "clean-failed" } | { type: "backup" } | { type: "tick" };
+/**
+ * Tâches de la file `maintenance` (purge 24 mois, alertes, purge des tâches échouées, sauvegardes, révocation des
+ * anciens liens des canaux à rejoindre à entrée directe, phase 11).
+ */
+export type MaintenanceJob =
+  | { type: "purge" }
+  | { type: "alerts" }
+  | { type: "clean-failed" }
+  | { type: "backup" }
+  | { type: "legacy-gate-links" }
+  | { type: "tick" };
 
 /**
  * Reprise sur erreur par file (options par défaut des tâches ajoutées, et des tâches périodiques du worker).
@@ -51,7 +82,10 @@ export type MaintenanceJob = { type: "purge" } | { type: "alerts" } | { type: "c
  * - `stats` : 3 tentatives (10 s, 20 s, 40 s) ; recalculs idempotents, rapports marqués « envoyés » avant l'envoi.
  * - autres files : 1 tentative (balayages périodiques relancés de toute façon au prochain passage).
  */
-export const JOB_RETRY_OPTIONS: Record<QueueName, { attempts: number; backoff?: { type: "exponential"; delay: number } }> = {
+export const JOB_RETRY_OPTIONS: Record<
+  QueueName,
+  { attempts: number; backoff?: { type: "exponential"; delay: number } }
+> = {
   "telegram-send": { attempts: 3, backoff: { type: "exponential", delay: 2000 } },
   "sync-linkaffi": { attempts: 3, backoff: { type: "exponential", delay: 30_000 } },
   stats: { attempts: 3, backoff: { type: "exponential", delay: 10_000 } },

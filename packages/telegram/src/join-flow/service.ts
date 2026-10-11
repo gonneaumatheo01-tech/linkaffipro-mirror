@@ -1,10 +1,17 @@
 /**
  * Logique du flux d'adhésion, indépendante de grammY (prend une API minimale et des deps).
  */
-import { shortId } from "@linkaffipro/core";
+import {
+  isDuplicateWelcome,
+  provenanceLabel,
+  provenanceOfLink,
+  shortId,
+  welcomeKindFor,
+  type Provenance,
+} from "@linkaffipro/core";
 import type { ChatJoinRequest, ChatMemberUpdated, User } from "grammy/types";
 import type { BotIdentity } from "../ports";
-import type { ChannelInfo, GateButton, JoinFlowDeps, MembershipInfo } from "./deps";
+import type { ChannelInfo, GateButton, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
 import {
   checkGateMembership,
   gateButtonsOf,
@@ -22,10 +29,13 @@ import {
   computeInitialState,
   formatDelay,
   hasGate,
+  isDirectEntry,
   isNoRule,
   OPEN_STATUSES,
+  ruleDelayText,
   type RuleData,
 } from "./rules";
+import { maskedLinkPrefix, pickMaskedLink } from "./masked-link";
 import { baseLang, defaultText, pickText, renderHtmlText, type Lang, type TextVars } from "./texts";
 
 /** Sous-ensemble de l'API Telegram utilisé par le flux (facile à simuler). */
@@ -38,6 +48,81 @@ export const JOIN_REQUEST_DM_WINDOW_MS = 5 * 60_000;
 
 export type JoinFlowResult = { handled: boolean; reason?: string };
 
+/** Provenance enregistrée sur une demande (`Membership.source.provenance`) : provenance résolue + texte en français. */
+export type ProvenanceSnapshot = Provenance & { label: string };
+
+/** Règle appliquée enregistrée sur une demande (`Membership.source.appliedRule`) ; null : aucune règle. */
+export type AppliedRuleSnapshot = {
+  id: string;
+  scope: RuleData["scope"];
+  /** Texte de l'exception ; null pour la règle par défaut (« Règle par défaut »). */
+  label: string | null;
+  /** Canaux à rejoindre de la règle non imposés pour cette provenance. */
+  noGates?: true;
+} | null;
+
+/**
+ * Provenance d'une demande avec son texte (« Venu de « Tir Cadré » (canal obligatoire) ») : titre du canal d'origine
+ * relu (canal supprimé : texte générique), nom du lien pour une pub, un lien de partage ou un lien manuel.
+ */
+export async function provenanceSnapshot(
+  deps: Pick<JoinFlowDeps, "getChannels">,
+  provenance: Provenance,
+  link: Pick<InviteLinkInfo, "name"> | null,
+): Promise<ProvenanceSnapshot> {
+  const titles: Record<string, string> = {};
+  if (provenance.sourceChannelId)
+    for (const c of await deps.getChannels([provenance.sourceChannelId])) titles[c.id] = c.title;
+  return { ...provenance, label: provenanceLabel(provenance, titles, link?.name ?? null) };
+}
+
+/** Lien d'invitation tel que Telegram le transmet dans une demande ou une entrée (adresse, créateur). */
+type TelegramInvite = { invite_link: string; creator?: { id: number } | null };
+
+/**
+ * Lien d'invitation d'une demande ou d'une entrée : par son adresse exacte, sinon (fin masquée par Telegram : lien créé
+ * par un autre de nos bots administrateurs du canal) par son début, son canal et son créateur. Plusieurs liens
+ * possibles : null (provenance inconnue, jamais devinée).
+ */
+export async function findRequestLink(
+  deps: Pick<JoinFlowDeps, "findInviteLinkByUrl" | "findInviteLinksByPrefix">,
+  channelId: string,
+  invite: TelegramInvite | null | undefined,
+): Promise<InviteLinkInfo | null> {
+  const url = invite?.invite_link;
+  if (!url) return null;
+  const exact = await deps.findInviteLinkByUrl(url);
+  if (exact) return exact;
+  const prefix = maskedLinkPrefix(url);
+  if (!prefix || !invite?.creator || !deps.findInviteLinksByPrefix) return null;
+  const found = pickMaskedLink(
+    prefix,
+    await deps.findInviteLinksByPrefix({
+      channelId,
+      prefix,
+      creatorTelegramId: BigInt(invite.creator.id),
+    }),
+  );
+  if (!found)
+    console.warn("[join-flow] lien masqué par Telegram non retrouvé (provenance inconnue)", {
+      channelId,
+      prefix,
+      creatorTelegramId: invite.creator.id,
+    });
+  return found;
+}
+
+/** Règle appliquée telle qu'enregistrée sur la demande (null : aucune règle). */
+export function appliedRuleOf(rule: RuleData): AppliedRuleSnapshot {
+  if (!rule.id) return null;
+  return {
+    id: rule.id,
+    scope: rule.scope,
+    label: rule.scope === "DEFAULT" ? null : rule.label,
+    ...(rule.noGates ? { noGates: true as const } : {}),
+  };
+}
+
 function vars(
   member: { firstName: string | null },
   channel: ChannelInfo,
@@ -49,13 +134,13 @@ function vars(
     prenom: member.firstName ?? "",
     canal: channel.title,
     liste_canaux: gateTitles.join(", "),
-    delai: formatDelay(rule.mode === "IMMEDIATE" ? 0 : rule.delaySeconds, "fr"),
+    delai: ruleDelayText(rule, "fr"),
     bot: `@${identity.username}`,
   };
 }
 
 function varsLang(v: TextVars, rule: RuleData, lang: Lang): TextVars {
-  return { ...v, delai: formatDelay(rule.mode === "IMMEDIATE" ? 0 : rule.delaySeconds, lang) };
+  return { ...v, delai: ruleDelayText(rule, lang) };
 }
 
 /** Boutons d'accueil : un bouton par canal à rejoindre + « J'ai rejoint ». */
@@ -190,15 +275,17 @@ export async function handleJoinRequest(
   if (acting.warning) console.warn("[join-flow]", acting.warning);
 
   const member = await deps.upsertMember(req.from);
-  const link = req.invite_link?.invite_link
-    ? await deps.findInviteLinkByUrl(req.invite_link.invite_link)
-    : null;
-  const rule = await deps.resolveRule(channel.id, link?.id ?? null);
+  const link = await findRequestLink(deps, channel.id, req.invite_link);
+  // Provenance (phase 11) : d'après le lien de la demande (retrouvé même si Telegram en masque la fin) ; un lien que la
+  // plateforme n'a pas créé ou une demande sans lien suit la règle par défaut.
+  const provenance = provenanceOfLink(link);
+  const rule = await deps.resolveRule(channel.id, link);
   const requestedAt = new Date(req.date * 1000);
   const initial = computeInitialState(rule, requestedAt);
   const code = shortId();
   const userChatId = req.user_chat_id ? BigInt(req.user_chat_id) : null;
 
+  // Canaux à rejoindre effectifs de la règle (sans ce canal ni celui d'où vient la personne).
   const gateChannels = await gateChannelsOf(deps, rule, channel.id);
   const { gates, missing } = await resolveGateLinks(deps, channel, gateChannels, {
     botId: identity.id,
@@ -206,6 +293,8 @@ export async function handleJoinRequest(
     api,
   });
   const startUrl = startUrlFor(identity, code);
+  const provenanceRecord = await provenanceSnapshot(deps, provenance, link);
+  const appliedRule = appliedRuleOf(rule);
   const source: Record<string, unknown> = {
     inviteLink: link
       ? {
@@ -226,6 +315,11 @@ export async function handleJoinRequest(
       delaySeconds: rule.delaySeconds,
       gateMode: rule.gateMode,
     },
+    // D'où vient la personne et quelle règle s'applique (listes des demandes, fiche membre, statistiques).
+    provenance: provenanceRecord,
+    appliedRule,
+    // Aucune règle : validation à la main, ou entrée directe pour une personne venue d'un canal obligatoire.
+    ...(rule.id === null ? { noRule: isDirectEntry(rule) ? "IMMEDIATE" : "MANUAL" } : {}),
     gates,
     // Canaux à rejoindre restés sans lien : point « À faire » de l'accueil, alerte, bouton « Renvoyer l'accueil ».
     gateLinksMissing: missing,
@@ -257,6 +351,8 @@ export async function handleJoinRequest(
       status: initial.status,
       inviteLinkId: link?.id ?? null,
       ruleId: rule.id,
+      provenance: provenanceRecord,
+      appliedRule,
     },
   });
 
@@ -272,18 +368,80 @@ export async function handleJoinRequest(
   // Canal pas encore réglé (aucune règle) : la demande attend une validation manuelle, sans message privé au membre.
   if (isNoRule(rule)) return { handled: true };
 
+  // Message à l'arrivée : accueil complet dès qu'il reste des canaux à rejoindre ; sinon rien si l'équipe l'a coupé,
+  // court message pour une personne venue du bouton « canal à rejoindre » d'un autre canal, accueil complet sinon.
+  const hasGates = hasGate(rule);
+  const kind = welcomeKindFor({ provenance, hasGates, sendWelcome: rule.sendWelcome });
+  if (kind === "none") return { handled: true };
+  if (!hasGates) {
+    // Anti-doublon : un même bot n'envoie pas deux accueils à la même personne en 10 minutes (jamais un accueil avec
+    // des canaux à rejoindre : ses boutons sont nécessaires pour entrer).
+    const lastWelcomeAt = await deps.lastWelcomeAt(member.memberId, identity.id);
+    if (isDuplicateWelcome({ kind, hasGates, lastWelcomeAt, now: new Date() })) {
+      await deps.recordEvent({
+        type: "membership.welcome_skipped",
+        memberId: member.memberId,
+        channelId: channel.id,
+        botId: identity.id,
+        payload: {
+          membershipId,
+          reason: "duplicate",
+          kind,
+          lastWelcomeAt: lastWelcomeAt?.toISOString() ?? null,
+        },
+      });
+      return { handled: true };
+    }
+  }
+
   // Message d'accueil immédiat (via la file ; un échec d'envoi est géré par le worker : canDm=false, dm.failed).
-  await sendWelcome(deps, {
-    channel,
-    identity,
-    member,
-    chatId: userChatId,
-    rule,
-    gateChannels,
-    gates,
-    startUrl,
-  });
+  if (kind === "short")
+    await sendShortWelcome(deps, { channel, identity, member, chatId: userChatId, rule });
+  else
+    await sendWelcome(deps, {
+      channel,
+      identity,
+      member,
+      chatId: userChatId,
+      rule,
+      gateChannels,
+      gates,
+      startUrl,
+    });
   return { handled: true };
+}
+
+/**
+ * Court message d'une personne venue du bouton « canal à rejoindre » d'un autre canal : « Ta demande pour <canal> est
+ * bien reçue, accès dans 1 jour. » (validation à la main : « … elle sera examinée par l'équipe. »). Six langues, sans
+ * bouton : jamais deux accueils complets à la suite.
+ */
+async function sendShortWelcome(
+  deps: JoinFlowDeps,
+  input: {
+    channel: ChannelInfo;
+    identity: Pick<BotIdentity, "id" | "username">;
+    member: { memberId: string; languageCode: string | null; firstName: string | null };
+    chatId: bigint | null;
+    rule: RuleData;
+  },
+): Promise<void> {
+  const { channel, identity, member, rule } = input;
+  const lang = baseLang(member.languageCode ?? channel.language);
+  const key = rule.mode === "MANUAL" ? "joinRequestShortManual" : "joinRequestShort";
+  const text = renderHtmlText(
+    defaultText(key, lang),
+    varsLang(vars(member, channel, rule, identity, []), rule, lang),
+  );
+  await deps.enqueueDm({
+    botId: identity.id,
+    memberId: member.memberId,
+    chatId: input.chatId,
+    kind: "WELCOME",
+    text,
+    buttons: [],
+    mediaAssetId: null,
+  });
 }
 
 /**
@@ -335,6 +493,14 @@ async function sendWelcome(
   });
 }
 
+/** Mêmes boutons (canal et lien), dans le même ordre ? */
+function sameGateButtons(a: readonly GateButton[], b: readonly GateButton[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((g, i) => g.channelId === b[i]!.channelId && g.url === b[i]!.url)
+  );
+}
+
 /** Traite `/start g<code>` : vérifie les canaux requis puis planifie l'approbation. Retourne le texte de réponse. */
 export async function handleGateStart(
   api: JoinFlowApi,
@@ -384,9 +550,13 @@ export async function handleGateStart(
     return { text: defaultText("unknownCode", lang), buttons: [] };
 
   // Vérification des canaux requis : par nos bots administrateurs du canal, puis par le bot qui traite la demande.
+  // Canaux à rejoindre effectifs (jamais un canal que l'accueil n'a pas demandé). Une demande de la personne en cours
+  // ou acceptée dans un canal obligatoire compte comme rejointe (Telegram répond « left » tant qu'elle attend).
   const required = await gateChannelsOf(deps, rule, channel.id);
   const first: FirstBot = { botId: identity.id, username: identity.username, api };
-  const check = await checkGateMembership(deps, required, from.id, first);
+  const check = await checkGateMembership(deps, required, from.id, first, {
+    memberId: m.memberId,
+  });
   if (check.unverified.length > 0)
     await deps.recordEvent({
       type: "membership.gate_check_failed",
@@ -415,31 +585,32 @@ export async function handleGateStart(
     sourceChanged = true;
   }
   if (check.missing.length > 0) {
-    // Liens manquants à l'accueil (droits corrigés depuis ?) : recalculés maintenant pour les canaux encore à rejoindre.
-    let known = gates;
-    const lacking = check.missing.filter((c) => !gates.some((g) => g.channelId === c.id));
-    if (lacking.length > 0) {
-      const r = await resolveGateLinks(deps, channel, lacking, first);
-      known = [...gates, ...r.gates];
-      const stillMissing = r.missing;
-      const before = gateProblemsOf(m.source);
-      const fixed = r.gates.length > 0;
-      if (fixed || !sameGateChannels(before, stillMissing)) {
-        source = { ...source, gates: known, gateLinksMissing: stillMissing };
-        sourceChanged = true;
-      }
-      if (stillMissing.length > 0 && before.length === 0)
-        await recordGateLinksMissing(deps, {
-          membershipId: m.id,
-          memberId: m.memberId,
-          channelId: channel.id,
-          botId: identity.id,
-          stage: "start",
-          missing: stillMissing,
-        });
+    // Liens recalculés pour TOUS les canaux encore à rejoindre (comme les rappels), jamais le lien enregistré à
+    // l'accueil tel quel : manquant alors (droits corrigés depuis ?), ancien lien à entrée directe d'une demande d'avant
+    // la phase 11 (plus proposé, révoqué au bout de 7 jours), lien d'un bot qui a perdu ses droits.
+    const r = await resolveGateLinks(deps, channel, check.missing, first);
+    const missingIds = new Set(check.missing.map((c) => c.id));
+    const fresh = new Map(r.gates.map((g) => [g.channelId, g]));
+    const known = required.flatMap((c) => {
+      const g = missingIds.has(c.id) ? fresh.get(c.id) : gates.find((x) => x.channelId === c.id);
+      return g ? [g] : [];
+    });
+    const before = gateProblemsOf(m.source);
+    if (!sameGateButtons(gates, known) || !sameGateChannels(before, r.missing)) {
+      source = { ...source, gates: known, gateLinksMissing: r.missing };
+      sourceChanged = true;
     }
+    if (r.missing.length > 0 && before.length === 0)
+      await recordGateLinksMissing(deps, {
+        membershipId: m.id,
+        memberId: m.memberId,
+        channelId: channel.id,
+        botId: identity.id,
+        stage: "start",
+        missing: r.missing,
+      });
     if (sourceChanged) await deps.updateMembership(m.id, { source });
-    const missingGates = known.filter((g) => check.missing.some((c) => c.id === g.channelId));
+    const missingGates = known.filter((g) => missingIds.has(g.channelId));
     const list = check.missing.map((c) => c.title).join(", ");
     return {
       text: renderHtmlText(defaultText("gateMissing", lang), { ...v, liste_canaux: list }),
@@ -454,7 +625,9 @@ export async function handleGateStart(
     sourceChanged = true;
   }
   const cleared = sourceChanged ? { source } : {};
-  if (m.status === "PENDING_GATE" || rule.mode !== "MANUAL") {
+  // Validation à la main (demande à valider par l'équipe) : les canaux rejoints sont notés, rien n'est planifié.
+  const scheduled = m.status === "PENDING_GATE" || rule.mode !== "MANUAL";
+  if (scheduled) {
     await deps.updateMembership(m.id, {
       status: "SCHEDULED",
       gateSatisfiedAt: now,
@@ -469,16 +642,20 @@ export async function handleGateStart(
     memberId: m.memberId,
     channelId: channel.id,
     botId: identity.id,
-    payload: { membershipId: m.id, approveAt: approveAt.toISOString() },
+    payload: { membershipId: m.id, approveAt: scheduled ? approveAt.toISOString() : null },
   });
   const seq = await deps.getSequenceText(channel.id, identity.id, "GATE_SATISFIED");
+  // Texte de l'équipe s'il existe ; sinon le texte intégré (« sera examinée par l'équipe » quand rien n'est planifié :
+  // jamais une heure d'acceptation qui n'existe pas). `{delai}` vaut alors « par l'équipe ».
   const template =
     pickText(seq?.texts, member.languageCode, channel.language) ??
-    defaultText("gateSatisfied", lang);
+    defaultText(scheduled ? "gateSatisfied" : "gateSatisfiedManual", lang);
   return {
     text: renderHtmlText(template, {
       ...v,
-      delai: formatDelay(Math.round((approveAt.getTime() - now.getTime()) / 1000), lang),
+      delai: scheduled
+        ? formatDelay(Math.round((approveAt.getTime() - now.getTime()) / 1000), lang)
+        : ruleDelayText({ mode: "MANUAL", delaySeconds: 0 }, lang),
     }),
     buttons: [],
   };
@@ -508,8 +685,9 @@ export async function handleChatMember(
   const viaLink = upd.invite_link?.invite_link ?? null;
 
   if (!oldOk && newOk) {
-    const link = viaLink ? await deps.findInviteLinkByUrl(viaLink) : null;
+    const link = await findRequestLink(deps, channel.id, upd.invite_link);
     if (link) await deps.incrementInviteLink(link.id, "joined");
+    const provenance = provenanceOfLink(link);
     if (
       latest &&
       (latest.status === "APPROVED" ||
@@ -534,6 +712,9 @@ export async function handleChatMember(
           joinedDirectly: true,
           telegramInviteLink: viaLink,
           gateFromChannelId: link?.sourceChannelId ?? null,
+          // Entrée directe (sans demande) : provenance enregistrée aussi, aucune règle appliquée.
+          provenance: await provenanceSnapshot(deps, provenance, link),
+          appliedRule: null,
         },
       });
     }
@@ -546,6 +727,7 @@ export async function handleChatMember(
         inviteLink: viaLink,
         inviteLinkId: link?.id ?? null,
         gateFromChannelId: link?.sourceChannelId ?? null,
+        provenanceType: provenance.type,
       },
     });
     await deps.emitAutomation?.("JOINED", member.memberId, {
@@ -740,12 +922,16 @@ export type {
   GateProblemReason,
 } from "./gate-links";
 export type { ChannelInfo, GateButton } from "./deps";
+export { gateLinkCreatesJoinRequest } from "./gate-links";
 export {
   canInviteFromRights,
   createPrismaGateLinkDeps,
+  GATE_SATISFYING_STATUSES,
   listGateLinksMissing,
   webBotApi,
 } from "./prisma-gate-links";
+// Règles relues en base selon la provenance (phase 11) : webhook, site et worker.
+export { activeChannelRules, resolveRuleWithDb, ruleForMembershipWithDb } from "./prisma-rules";
 export type { GateLinksMissingRow } from "./prisma-gate-links";
 
 /** `resendGateWelcome` avec la base (site : bouton « Renvoyer l'accueil avec les liens »). */

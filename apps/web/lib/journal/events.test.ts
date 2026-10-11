@@ -68,6 +68,17 @@ describe("Journal → vue « Événements »", () => {
     expect(eventLabel("channel.gate_links_checked")).toBe("Liens des canaux à rejoindre vérifiés");
     expect(eventLabel("player.cpa_credited")).toBe("Commission créditée");
     expect(eventLabel("player.cpa_reversed")).toBe("Commission annulée");
+    expect(eventLabel("membership.welcome_skipped")).toBe(
+      "Accueil non renvoyé (déjà envoyé il y a moins de 10 minutes)",
+    );
+    expect(eventLabel("invite_link.legacy_revoked")).toBe(
+      "Ancien lien de canal à rejoindre retiré",
+    );
+    expect(eventLabel("invite_link.autre")).toBe("Lien d'invitation");
+    expect(EVENT_FAMILIES.find((f) => f.prefix === "invite_link.")?.label).toBe(
+      "Liens d'invitation",
+    );
+    expect(entityLabel("InviteLink")).toBe("Lien d'invitation");
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 

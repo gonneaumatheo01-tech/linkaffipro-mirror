@@ -50,6 +50,11 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^invitation\./, "Invitation"],
   [/^member\./, "Membre"],
   [/^membership\./, "Adhésion"],
+  // Exceptions selon la provenance (phase 11), avant la famille générale.
+  [/^approval_rule\.exception_created$/, "Règle d'adhésion : exception ajoutée"],
+  [/^approval_rule\.exception_updated$/, "Règle d'adhésion : exception modifiée"],
+  [/^approval_rule\.exception_deleted$/, "Règle d'adhésion : exception supprimée"],
+  [/^approval_rule\.exceptions_reordered$/, "Règle d'adhésion : ordre des exceptions modifié"],
   [/^approval_rule\./, "Règle d'adhésion"],
   [/^tag\./, "Étiquette"],
   [/^media\./, "Média"],
@@ -59,6 +64,9 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^post\./, "Message"],
   [/^channel\./, "Canal"],
   [/^bot\./, "Bot"],
+  // Liens de partage (phase 11), avant la famille générale.
+  [/^invite_link\.share_created$/, "Lien de partage créé"],
+  [/^invite_link\.share_disabled$/, "Lien de partage désactivé"],
   [/^link\.|^invite_link\.|^tracking_link\./, "Lien"],
   [/^campaign\./, "Campagne"],
   [/^adset\.|^ad\.|^adcost\.|^import\.costs/, "Campagne pub"],
@@ -181,6 +189,7 @@ const ENTITY_LABELS: Record<string, string> = {
   MediaAsset: "Média",
   ImportBatch: "Import",
   ApprovalRule: "Règle d'adhésion",
+  InviteLink: "Lien d'invitation",
   Alert: "Alerte",
   AffiliateProgram: "Programme",
 };

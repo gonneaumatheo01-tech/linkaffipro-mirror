@@ -1,10 +1,19 @@
-import { prisma, type ChatType, type Prisma, type Vertical } from "@linkaffipro/db";
+import {
+  prisma,
+  type AdPlatform,
+  type ApprovalRule,
+  type ChatType,
+  type InviteLinkKind,
+  type Prisma,
+  type Vertical,
+} from "@linkaffipro/db";
 import {
   entryRuleFromRow,
   gateChannelChoices,
   type EntryRule,
   type GateChannelChoice,
 } from "./entry-rule";
+import type { ExceptionItem } from "./exceptions";
 import { MEMBER_STATUSES, OPEN_REQUEST_STATUSES } from "./requests";
 
 /**
@@ -30,9 +39,17 @@ export type ChannelListItem = {
   botAdmins: string[];
   /** Règle par défaut du canal, ou null. */
   rule: EntryRule | null;
+  /** Exceptions actives selon la provenance (phase 11). */
+  exceptions: number;
   members: number;
   pending: number;
 };
+
+/** Exceptions selon la provenance : toute règle qui n'est pas la règle par défaut, avec une portée d'exception. */
+const EXCEPTION_WHERE = {
+  isDefault: false,
+  scope: { not: "DEFAULT" },
+} satisfies Prisma.ApprovalRuleWhereInput;
 
 function countsBy(
   rows: Array<{ channelId: string; _count: { _all: number } }>,
@@ -42,7 +59,7 @@ function countsBy(
 
 /** Tous les canaux (plus récents d'abord) avec leurs bots, leur règle d'entrée, leurs membres et demandes en cours. */
 export async function loadChannelList(): Promise<ChannelListItem[]> {
-  const [channels, rules, approved, pending] = await Promise.all([
+  const [channels, rules, exceptions, approved, pending] = await Promise.all([
     prisma.channel.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -56,6 +73,11 @@ export async function loadChannelList(): Promise<ChannelListItem[]> {
     prisma.approvalRule.findMany({
       where: { isDefault: true },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.approvalRule.groupBy({
+      by: ["channelId"],
+      where: { ...EXCEPTION_WHERE, isActive: true },
+      _count: { _all: true },
     }),
     prisma.membership.groupBy({
       by: ["channelId"],
@@ -72,6 +94,7 @@ export async function loadChannelList(): Promise<ChannelListItem[]> {
   for (const r of rules) if (!ruleOf.has(r.channelId)) ruleOf.set(r.channelId, entryRuleFromRow(r));
   const members = countsBy(approved);
   const open = countsBy(pending);
+  const exceptionCount = countsBy(exceptions);
   return channels.map((c) => ({
     id: c.id,
     title: c.title,
@@ -87,6 +110,7 @@ export async function loadChannelList(): Promise<ChannelListItem[]> {
     createdAt: c.createdAt,
     botAdmins: c.botAdmins.map((a) => a.bot.username),
     rule: ruleOf.get(c.id) ?? null,
+    exceptions: exceptionCount.get(c.id) ?? 0,
     members: members.get(c.id) ?? 0,
     pending: open.get(c.id) ?? 0,
   }));
@@ -177,4 +201,106 @@ export async function loadGateChannelChoices(
       })
     : [];
   return gateChannelChoices(active, gateIds, known);
+}
+
+/** Ligne `ApprovalRule` d'une exception → ce que montre l'écran (sérialisable). */
+export function exceptionItemFromRow(row: ApprovalRule): ExceptionItem {
+  return {
+    id: row.id,
+    scope: row.scope === "DEFAULT" ? "SOURCE_KIND" : row.scope,
+    isDefault: false,
+    isActive: row.isActive,
+    inviteLinkId: row.inviteLinkId,
+    sourceChannelId: row.sourceChannelId,
+    sourceKind: row.sourceKind,
+    sortOrder: row.sortOrder,
+    label: row.label,
+    rule: entryRuleFromRow(row),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** Un de nos canaux, pour les menus et les noms de « Qui peut entrer et quand ». */
+export type RulesTabChannel = {
+  id: string;
+  title: string;
+  vertical: Vertical | null;
+  isActive: boolean;
+  isMediaLibrary: boolean;
+};
+
+/** Un lien d'invitation nommé : liens de partage du canal, et liens visés par une exception. */
+export type RulesTabLink = {
+  id: string;
+  name: string;
+  kind: InviteLinkKind;
+  isActive: boolean;
+  sourceChannelId: string | null;
+  /** Plateforme d'un lien d'entrée de pub (simulateur : provenance comme le bot). */
+  adPlatform: AdPlatform | null;
+};
+
+export type RulesTabData = {
+  /** Règle par défaut (ligne relue), ou null. */
+  defaultRow: ApprovalRule | null;
+  defaultRule: EntryRule | null;
+  /** Exceptions selon la provenance, actives ou non (ordre : niveau puis `sortOrder`, voir `groupByLevel`). */
+  exceptions: ExceptionItem[];
+  /** Tous nos canaux (titres et menus ; le canal lui-même compris, pour son nom). */
+  channels: RulesTabChannel[];
+  links: RulesTabLink[];
+  /** Canaux dont une règle active demande de rejoindre ce canal : ils y envoient leurs membres. */
+  senders: string[];
+};
+
+/**
+ * Onglet « Qui peut entrer et quand » : règle par défaut, exceptions selon la provenance, nos canaux, les liens de
+ * partage du canal (et ceux visés par une exception) et les canaux qui envoient leurs membres ici.
+ */
+export async function loadRulesTab(channelId: string): Promise<RulesTabData> {
+  const [rules, channels, senderRows] = await Promise.all([
+    prisma.approvalRule.findMany({
+      where: { channelId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    }),
+    prisma.channel.findMany({
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, vertical: true, isActive: true, isMediaLibrary: true },
+    }),
+    prisma.approvalRule.findMany({
+      where: {
+        channelId: { not: channelId },
+        isActive: true,
+        gateMode: { not: "NONE" },
+        gateChannelIds: { array_contains: [channelId] },
+      },
+      select: { channelId: true },
+      distinct: ["channelId"],
+    }),
+  ]);
+  const defaultRow = rules.find((r) => r.isDefault) ?? null;
+  const exceptionRows = rules.filter((r) => !r.isDefault && r.scope !== "DEFAULT");
+  const linkIds = exceptionRows.map((r) => r.inviteLinkId).filter((id): id is string => !!id);
+  const links = await prisma.inviteLink.findMany({
+    where: {
+      OR: [{ channelId, kind: "SHARE" }, ...(linkIds.length ? [{ id: { in: linkIds } }] : [])],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      kind: true,
+      isActive: true,
+      sourceChannelId: true,
+      adPlatform: true,
+    },
+  });
+  return {
+    defaultRow,
+    defaultRule: defaultRow ? entryRuleFromRow(defaultRow) : null,
+    exceptions: exceptionRows.map(exceptionItemFromRow),
+    channels,
+    links,
+    senders: senderRows.map((r) => r.channelId),
+  };
 }

@@ -269,9 +269,10 @@ describe("liens des canaux à rejoindre gérés par d'autres bots (base réelle)
     });
     expect(m.status).toBe("PENDING_GATE");
 
-    // Le bot rencontres essaie d'abord (refus), puis le bot de chaque canal crée le lien.
+    // Le bot de chaque canal à rejoindre crée le lien directement (c'est lui qui recevra la demande : Telegram
+    // masquerait la fin d'un lien créé par un autre bot) ; le bot rencontres n'essaie même pas.
     const datingCreates = calls.get(dating.id)!.filter((c) => c.method === "createChatInviteLink");
-    expect(datingCreates.map((c) => c.payload.chat_id)).toEqual([Number(ROULETTE), Number(TIR)]);
+    expect(datingCreates.map((c) => c.payload.chat_id)).toEqual([]);
     const gates = await prisma.inviteLink.findMany({
       where: { kind: "GATE", sourceChannelId: ids.zone },
       orderBy: { createdAt: "asc" },

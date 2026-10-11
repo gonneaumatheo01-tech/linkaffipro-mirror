@@ -126,6 +126,22 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pages.filter((p) => p !== "/styleguide" && pageHelpFor(p).fallback)).toEqual([]);
   });
 
+  it("fiche d'un canal : « Qui peut entrer et quand » d'abord, puis le dépannage et les autres onglets", () => {
+    const channel = guideSections(GUIDE, pageHelpFor("/channels/c1").help.sections);
+    expect(channel.map((s) => s.title)).toEqual([
+      "Fiche d'un canal",
+      "Qui peut entrer et quand",
+      "Un membre n'est pas accepté",
+      "Ce que dit le bot",
+      "Demandes",
+      "Membres du canal",
+      "Le bot ne répond pas",
+    ]);
+    // L'introduction seule : les onglets ne sont pas répétés deux fois dans le volet.
+    expect(channel[0]!.markdown).not.toContain("#### Qui peut entrer et quand");
+    expect(channel[1]!.markdown).toContain("Après avoir rejoint ces canaux");
+  });
+
   it("accueil : sa propre section « Accueil » ; l'aide et la visite ont la leur", () => {
     const home = guideSections(GUIDE, pageHelpFor("/").help.sections);
     expect(home.map((s) => s.id)).toEqual(["accueil"]);

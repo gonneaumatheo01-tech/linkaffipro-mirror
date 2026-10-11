@@ -190,8 +190,12 @@ function makeDeps(opts: DepsOpts = {}) {
         .reverse()
         .find((m) => m.memberId === memberId && m.channelId === channelId) ?? null,
     getRuleForMembership: async () => rule,
+    lastWelcomeAt: async () => null,
     incrementInviteLink: vi.fn(async () => undefined),
-    findGateLink: async (src, gateId) => st.links[`${src}->${gateId}`]?.url ?? null,
+    findGateLink: async (src, gateId, o) => {
+      const l = st.links[`${src}->${gateId}`];
+      return l && (!o?.botId || l.botId === o.botId) ? l.url : null;
+    },
     saveGateLink: async ({ sourceChannelId, gate, botId, url }) => {
       st.links[`${sourceChannelId}->${gate.id}`] = { url, botId };
     },
@@ -454,6 +458,23 @@ describe("chat_join_request", () => {
   });
 });
 
+describe("droits enregistrés en retard (phase 11 : liens des canaux à rejoindre avec demande d'adhésion)", () => {
+  it("aucun bot administrateur connu : droits relevés (la demande le prouve), puis demande traitée", async () => {
+    const { deps, st } = makeDeps();
+    let known = false;
+    deps.actingBotIdFor = async () => (known ? { botId: "bot_1" } : null);
+    const { bot, apiCalls, channelDeps } = makeBot(deps);
+    channelDeps.upsertChannel.mockImplementation(async () => {
+      known = true;
+      return { channelId: "cA", created: false };
+    });
+    await bot.handleUpdate(joinRequest(-100100));
+    expect(apiCalls.some((c) => c.method === "getChatAdministrators")).toBe(true);
+    expect(st.memberships).toHaveLength(1);
+    expect(st.memberships[0]!.status).toBe("SCHEDULED");
+  });
+});
+
 describe("canaux à rejoindre gérés par d'autres bots (cas du client du 11 octobre)", () => {
   /** Règle du canal « Zone Interdite » : délai de 10 minutes après avoir rejoint deux canaux obligatoires. */
   const clientRule: RuleData = {
@@ -498,8 +519,9 @@ describe("canaux à rejoindre gérés par d'autres bots (cas du client du 11 oct
     const { bot, apiCalls } = makeBot(deps, {}, onlySource);
     await bot.handleUpdate(joinRequest(-100100));
 
-    // Le bot qui traite la demande essaie d'abord (refus de Telegram), puis le bot de chaque canal crée le lien.
-    expect(apiCalls.filter((c) => c.method === "createChatInviteLink")).toHaveLength(2);
+    // Le bot de chaque canal à rejoindre crée le lien (c'est lui qui recevra la demande : Telegram masquerait la fin
+    // d'un lien créé par un autre bot) ; le bot qui traite la demande n'essaie même pas.
+    expect(apiCalls.filter((c) => c.method === "createChatInviteLink")).toHaveLength(0);
     expect(casinoApi.calls).toEqual(["createChatInviteLink -100500"]);
     expect(sportsApi.calls).toEqual(["createChatInviteLink -100600"]);
     expect(st.links["cA->cRoulette"]).toEqual({

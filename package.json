@@ -21,6 +21,7 @@
     "db:phase8": "pnpm --filter @linkaffipro/db db:phase8",
     "db:phase10": "pnpm --filter @linkaffipro/db db:phase10",
     "db:phase10:gains": "pnpm --filter @linkaffipro/db db:phase10:gains",
+    "db:phase11": "pnpm --filter @linkaffipro/db db:phase11",
     "seed:templates": "pnpm --filter @linkaffipro/db seed:templates",
     "db:demo": "pnpm --filter @linkaffipro/db db:demo",
     "bots:register": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/register-bots.ts",

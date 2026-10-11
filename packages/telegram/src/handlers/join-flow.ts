@@ -28,15 +28,29 @@ function keyboard(rows: Array<Array<{ text: string; url: string }>>): InlineKeyb
  * Chantier A : chat_join_request, /start g<code>, chat_member.
  * `channelDeps` : création d'un canal encore inconnu (droits relevés) avant un second essai ; par défaut, Prisma.
  */
-export function registerJoinFlowHandlers(bot: Bot, identity: BotIdentity, deps?: JoinFlowDeps, channelDeps?: ChannelDeps): void {
+export function registerJoinFlowHandlers(
+  bot: Bot,
+  identity: BotIdentity,
+  deps?: JoinFlowDeps,
+  channelDeps?: ChannelDeps,
+): void {
   const getDeps = () => (deps ? Promise.resolve(deps) : getDefaultDeps());
-  const getChannelDeps = () => (channelDeps ? Promise.resolve(channelDeps) : getDefaultChannelDeps());
+  const getChannelDeps = () =>
+    channelDeps ? Promise.resolve(channelDeps) : getDefaultChannelDeps();
 
   bot.on("chat_join_request", async (ctx) => {
     const d = await getDeps();
     let r = await handleJoinRequest(ctx.api, identity, d, ctx.chatJoinRequest);
     if (!r.handled && r.reason === "canal inconnu") {
       await ensureChannelKnown(ctx, await getChannelDeps(), ctx.chatJoinRequest.chat);
+      r = await handleJoinRequest(ctx.api, identity, d, ctx.chatJoinRequest);
+    } else if (!r.handled && r.reason === "aucun bot administrateur") {
+      // Telegram n'envoie une demande d'adhésion qu'à un bot administrateur du canal : nos droits enregistrés sont en
+      // retard (ex. lien du bouton « canal à rejoindre » créé par ce bot, avec demande d'adhésion depuis la phase 11).
+      // Droits relevés, puis second essai : la demande n'est jamais perdue.
+      await ensureChannelKnown(ctx, await getChannelDeps(), ctx.chatJoinRequest.chat, {
+        refreshRights: true,
+      });
       r = await handleJoinRequest(ctx.api, identity, d, ctx.chatJoinRequest);
     }
     if (!r.handled && r.reason) console.warn("[join-flow] demande ignorée :", r.reason);
@@ -53,9 +67,14 @@ export function registerJoinFlowHandlers(bot: Bot, identity: BotIdentity, deps?:
 
   bot.command("start", async (ctx, next) => {
     const payload = typeof ctx.match === "string" ? ctx.match : "";
-    if (!ctx.from || ctx.chat?.type !== "private" || !/^g[0-9A-Za-z]{6,12}$/.test(payload)) return next();
+    if (!ctx.from || ctx.chat?.type !== "private" || !/^g[0-9A-Za-z]{6,12}$/.test(payload))
+      return next();
     const d = await getDeps();
     const r = await handleGateStart(ctx.api, identity, d, ctx.from, payload.slice(1));
-    await ctx.reply(r.text, { parse_mode: "HTML", reply_markup: keyboard(r.buttons), link_preview_options: { is_disabled: true } });
+    await ctx.reply(r.text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard(r.buttons),
+      link_preview_options: { is_disabled: true },
+    });
   });
 }

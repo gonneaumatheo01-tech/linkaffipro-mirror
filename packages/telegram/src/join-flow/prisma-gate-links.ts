@@ -2,7 +2,7 @@
  * Accès base des liens des canaux à rejoindre (gate-links.ts), partagés par le webhook, le site (vérification d'une
  * règle, renvoi de l'accueil, point « À faire ») et le worker (rappels, alerte).
  */
-import { prisma } from "@linkaffipro/db";
+import { prisma, type MembershipStatus } from "@linkaffipro/db";
 import type { GateBot, GateLinkApi, GateLinkDeps, GateLinkProblem } from "./gate-links";
 import { gateCheckProblemsOf, gateProblemsOf } from "./gate-links";
 
@@ -40,6 +40,17 @@ export async function webBotApi(botId: string): Promise<GateLinkApi | null> {
 }
 
 /**
+ * Statuts d'une demande qui satisfont un canal obligatoire (« ✅ J'ai rejoint ») : en cours ou acceptée. Telegram
+ * répond « left » pour une demande en attente.
+ */
+export const GATE_SATISFYING_STATUSES: readonly MembershipStatus[] = [
+  "REQUESTED",
+  "PENDING_GATE",
+  "SCHEDULED",
+  "APPROVED",
+];
+
+/**
  * Dépendances Prisma des liens GATE. `apiFor` : API d'un bot (site / webhook : `webBotApi` ; worker : son propre
  * cache d'API) ; `warn` : journal des échecs (console par défaut).
  */
@@ -50,14 +61,18 @@ export function createPrismaGateLinkDeps(
   } = {},
 ): GateLinkDeps {
   return {
-    async findGateLink(sourceChannelId, gateChannelId) {
-      // Lien valide : actif, créé par un bot actif qui n'a pas perdu ses droits sur le canal à rejoindre.
+    async findGateLink(sourceChannelId, gateChannelId, opts = {}) {
+      // Lien valide : actif, du bon type (avec demande d'adhésion depuis la phase 11, sauf canal à rejoindre
+      // désactivé), créé par un bot actif qui n'a pas perdu ses droits sur le canal à rejoindre ; `botId` : créé par
+      // ce bot (celui qui traite les demandes du canal à rejoindre).
       const link = await prisma.inviteLink.findFirst({
         where: {
           channelId: gateChannelId,
           kind: "GATE",
           sourceChannelId,
           isActive: true,
+          createsJoinRequest: opts.createsJoinRequest ?? true,
+          ...(opts.botId ? { botId: opts.botId } : {}),
           bot: {
             isActive: true,
             channelAdmins: { none: { channelId: gateChannelId, revokedAt: { not: null } } },
@@ -68,7 +83,7 @@ export function createPrismaGateLinkDeps(
       });
       return link?.telegramInviteLink ?? null;
     },
-    async saveGateLink({ sourceChannelId, gate, botId, url }) {
+    async saveGateLink({ sourceChannelId, gate, botId, url, createsJoinRequest }) {
       await prisma.inviteLink
         .create({
           data: {
@@ -77,7 +92,7 @@ export function createPrismaGateLinkDeps(
             telegramInviteLink: url,
             name: `gate:${sourceChannelId}`,
             kind: "GATE",
-            createsJoinRequest: false,
+            createsJoinRequest,
             sourceChannelId,
             language: gate.language,
           },
@@ -100,6 +115,21 @@ export function createPrismaGateLinkDeps(
         username: r.bot.username,
         canInvite: canInviteFromRights(r.rights),
       }));
+    },
+    async requestedChannelIds(memberId, channelIds) {
+      if (channelIds.length === 0) return [];
+      // Dernière demande du membre dans chaque canal (un membre qui revient crée une nouvelle demande).
+      const rows = await prisma.membership.findMany({
+        where: { memberId, channelId: { in: channelIds } },
+        orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+        select: { channelId: true, status: true },
+      });
+      const latest = new Map<string, MembershipStatus>();
+      for (const r of rows) if (!latest.has(r.channelId)) latest.set(r.channelId, r.status);
+      return channelIds.filter((id) => {
+        const st = latest.get(id);
+        return st !== undefined && GATE_SATISFYING_STATUSES.includes(st);
+      });
     },
     apiFor: opts.apiFor ?? webBotApi,
     ...(opts.warn ? { warn: opts.warn } : {}),

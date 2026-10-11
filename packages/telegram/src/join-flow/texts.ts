@@ -7,10 +7,19 @@ import { LANGS, MESSAGES, pickLang, t, type Lang, type MessageKey } from "../i18
 
 export type { Lang };
 
-export type TextVars = { prenom?: string; canal?: string; liste_canaux?: string; delai?: string; bot?: string };
+export type TextVars = {
+  prenom?: string;
+  canal?: string;
+  liste_canaux?: string;
+  delai?: string;
+  bot?: string;
+};
 
 export function renderText(template: string, vars: TextVars): string {
-  return template.replace(/\{(prenom|canal|liste_canaux|delai|bot)\}/g, (_m, k: keyof TextVars) => vars[k] ?? "");
+  return template.replace(
+    /\{(prenom|canal|liste_canaux|delai|bot)\}/g,
+    (_m, k: keyof TextVars) => vars[k] ?? "",
+  );
 }
 
 /**
@@ -28,9 +37,15 @@ export function renderHtmlText(template: string, vars: TextVars): string {
 }
 
 /** Choisit la langue : celle du membre si disponible, sinon celle du canal, sinon fr. */
-export function pickText(texts: Record<string, string> | null | undefined, memberLang: string | null | undefined, channelLang: string | null | undefined): string | null {
+export function pickText(
+  texts: Record<string, string> | null | undefined,
+  memberLang: string | null | undefined,
+  channelLang: string | null | undefined,
+): string | null {
   if (!texts) return null;
-  const candidates = [memberLang, channelLang, "fr"].map((l) => (l ?? "").toLowerCase().split("-")[0] ?? "").filter(Boolean);
+  const candidates = [memberLang, channelLang, "fr"]
+    .map((l) => (l ?? "").toLowerCase().split("-")[0] ?? "")
+    .filter(Boolean);
   for (const l of candidates) {
     const t = texts[l];
     if (typeof t === "string" && t.trim()) return t;
@@ -48,7 +63,10 @@ const DEFAULT_TEXT_KEYS = [
   "joinRequestGate",
   "joinRequestSoft",
   "joinRequestPlain",
+  "joinRequestShort",
+  "joinRequestShortManual",
   "gateSatisfied",
+  "gateSatisfiedManual",
   "gateMissing",
   "gateReminder",
   "approved",

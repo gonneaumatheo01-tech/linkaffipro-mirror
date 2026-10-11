@@ -3,7 +3,7 @@ import { emitAutomationEvent, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { ChannelInfo, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
 import { createPrismaGateLinkDeps } from "./prisma-gate-links";
-import { resolveRule, ruleFromRow, type RuleData } from "./rules";
+import { resolveRuleWithDb, ruleForMembershipWithDb } from "./prisma-rules";
 
 function memberData(from: User) {
   return {
@@ -59,19 +59,6 @@ function toMembership(m: { source: unknown } & Omit<MembershipInfo, "source">): 
   };
 }
 
-async function ruleFor(channelId: string, inviteLinkId: string | null): Promise<RuleData> {
-  const [linkRule, defaultRule] = await Promise.all([
-    inviteLinkId
-      ? prisma.approvalRule.findUnique({ where: { inviteLinkId } })
-      : Promise.resolve(null),
-    prisma.approvalRule.findFirst({
-      where: { channelId, isDefault: true },
-      orderBy: { updatedAt: "desc" },
-    }),
-  ]);
-  return resolveRule(linkRule, defaultRule);
-}
-
 export const prismaJoinFlowDeps: JoinFlowDeps = {
   // Liens des canaux à rejoindre : créés par n'importe lequel de nos bots administrateurs (gate-links.ts).
   ...createPrismaGateLinkDeps(),
@@ -122,7 +109,21 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
       select: linkSelect,
     }) as Promise<InviteLinkInfo | null>;
   },
-  resolveRule: ruleFor,
+  async findInviteLinksByPrefix({ channelId, prefix, creatorTelegramId }) {
+    // Lien masqué par Telegram : même canal, même bot créateur, même début (revérifié par `pickMaskedLink`).
+    return prisma.inviteLink.findMany({
+      where: {
+        channelId,
+        telegramInviteLink: { startsWith: prefix },
+        bot: { telegramBotId: creatorTelegramId },
+      },
+      orderBy: [{ isActive: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+      take: 10,
+      select: { ...linkSelect, isActive: true },
+    }) as Promise<Array<InviteLinkInfo & { isActive: boolean }>>;
+  },
+  // Règle selon la provenance (phase 11) : exception du lien, du canal d'origine, du type, sinon règle par défaut.
+  resolveRule: (channelId, link) => resolveRuleWithDb(channelId, link),
   async createMembership(data) {
     const m = await prisma.membership.create({
       data: { ...data, source: toJsonValue(data.source) },
@@ -149,12 +150,15 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
     });
     return m ? toMembership(m) : null;
   },
-  async getRuleForMembership(m) {
-    if (m.approvalRuleId) {
-      const row = await prisma.approvalRule.findUnique({ where: { id: m.approvalRuleId } });
-      if (row) return ruleFromRow(row);
-    }
-    return ruleFor(m.channelId, m.inviteLinkId);
+  getRuleForMembership: (m) => ruleForMembershipWithDb(m),
+  async lastWelcomeAt(memberId, botId) {
+    // Accueil en file ou envoyé (un accueil en échec ou bloqué n'a pas été reçu : il ne compte pas).
+    const last = await prisma.outboundMessage.findFirst({
+      where: { memberId, botId, kind: "WELCOME", status: { in: ["QUEUED", "SENT"] } },
+      orderBy: { queuedAt: "desc" },
+      select: { queuedAt: true },
+    });
+    return last?.queuedAt ?? null;
   },
   async incrementInviteLink(id, field) {
     await prisma.inviteLink

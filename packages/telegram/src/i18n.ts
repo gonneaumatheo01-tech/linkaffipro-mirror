@@ -27,7 +27,13 @@ export const MESSAGES = {
       "Salut {prenom} ! Ta demande pour <b>{canal}</b> est bien reçue : elle sera validée {delai}. En attendant, découvre aussi nos autres canaux ci-dessous.",
     joinRequestPlain:
       "Salut {prenom} ! Ta demande pour <b>{canal}</b> est bien reçue : elle sera validée {delai}.",
+    // Court message d'une personne venue du bouton « canal à rejoindre » d'un autre canal (phase 11)
+    joinRequestShort: "Ta demande pour <b>{canal}</b> est bien reçue, accès {delai}.",
+    joinRequestShortManual:
+      "Ta demande pour <b>{canal}</b> est bien reçue, elle sera examinée par l'équipe.",
     gateSatisfied: "C'est bon {prenom}, tu seras accepté dans <b>{canal}</b> {delai}.",
+    gateSatisfiedManual:
+      "C'est bon {prenom}, ta demande pour <b>{canal}</b> sera examinée par l'équipe.",
     gateMissing:
       "Il te manque encore : {liste_canaux}. Rejoins-les puis appuie à nouveau sur ✅ J'ai rejoint.",
     gateReminder:
@@ -43,6 +49,7 @@ export const MESSAGES = {
     offerInvalid: "Ce lien n'est plus valable.",
     // Délais (« dans 10 minutes »)
     delayNow: "immédiatement",
+    delayManual: "par l'équipe",
     delayIn: "dans {n} {unit}",
     unitDay: "jour",
     unitDays: "jours",
@@ -71,7 +78,12 @@ export const MESSAGES = {
       "Hi {prenom}! Your request for <b>{canal}</b> is received and will be confirmed {delai}. Meanwhile, check out our other channels below.",
     joinRequestPlain:
       "Hi {prenom}! Your request for <b>{canal}</b> is received and will be confirmed {delai}.",
+    joinRequestShort: "Your request for <b>{canal}</b> has been received, access {delai}.",
+    joinRequestShortManual:
+      "Your request for <b>{canal}</b> has been received, it will be reviewed by the team.",
     gateSatisfied: "All good {prenom}, you'll be accepted into <b>{canal}</b> {delai}.",
+    gateSatisfiedManual:
+      "All good {prenom}, your request for <b>{canal}</b> will be reviewed by the team.",
     gateMissing: "Still missing: {liste_canaux}. Join them, then tap ✅ I joined again.",
     gateReminder:
       "{prenom}, your request for <b>{canal}</b> is still pending: join {liste_canaux} then tap ✅ I joined.",
@@ -83,6 +95,7 @@ export const MESSAGES = {
     offerButton: "Open the offer",
     offerInvalid: "This link is no longer valid.",
     delayNow: "immediately",
+    delayManual: "by the team",
     delayIn: "in {n} {unit}",
     unitDay: "day",
     unitDays: "days",
@@ -111,7 +124,11 @@ export const MESSAGES = {
       "¡Hola {prenom}! Hemos recibido tu solicitud para <b>{canal}</b>: se confirmará {delai}. Mientras tanto, descubre también nuestros otros canales aquí abajo.",
     joinRequestPlain:
       "¡Hola {prenom}! Hemos recibido tu solicitud para <b>{canal}</b>: se confirmará {delai}.",
+    joinRequestShort: "Tu solicitud para <b>{canal}</b> ha sido recibida, acceso {delai}.",
+    joinRequestShortManual:
+      "Tu solicitud para <b>{canal}</b> ha sido recibida, el equipo la revisará.",
     gateSatisfied: "Perfecto {prenom}, serás aceptado en <b>{canal}</b> {delai}.",
+    gateSatisfiedManual: "Perfecto {prenom}, el equipo revisará tu solicitud para <b>{canal}</b>.",
     gateMissing: "Todavía te falta: {liste_canaux}. Únete y vuelve a pulsar ✅ Ya me uní.",
     gateReminder:
       "{prenom}, tu solicitud para <b>{canal}</b> sigue pendiente: únete a {liste_canaux} y pulsa ✅ Ya me uní.",
@@ -124,6 +141,7 @@ export const MESSAGES = {
     offerButton: "Abrir la oferta",
     offerInvalid: "Este enlace ya no es válido.",
     delayNow: "inmediatamente",
+    delayManual: "por el equipo",
     delayIn: "en {n} {unit}",
     unitDay: "día",
     unitDays: "días",
@@ -153,7 +171,12 @@ export const MESSAGES = {
       "Olá {prenom}! Recebemos o teu pedido para <b>{canal}</b>: será confirmado {delai}. Entretanto, descobre também os nossos outros canais abaixo.",
     joinRequestPlain:
       "Olá {prenom}! Recebemos o teu pedido para <b>{canal}</b>: será confirmado {delai}.",
+    joinRequestShort: "O teu pedido para <b>{canal}</b> foi recebido, acesso {delai}.",
+    joinRequestShortManual:
+      "O teu pedido para <b>{canal}</b> foi recebido, será analisado pela equipa.",
     gateSatisfied: "Tudo certo {prenom}, serás aceite em <b>{canal}</b> {delai}.",
+    gateSatisfiedManual:
+      "Tudo certo {prenom}, o teu pedido para <b>{canal}</b> será analisado pela equipa.",
     gateMissing: "Ainda falta: {liste_canaux}. Entra e depois toca novamente em ✅ Já entrei.",
     gateReminder:
       "{prenom}, o teu pedido para <b>{canal}</b> ainda está pendente: entra em {liste_canaux} e toca em ✅ Já entrei.",
@@ -166,6 +189,7 @@ export const MESSAGES = {
     offerButton: "Abrir a oferta",
     offerInvalid: "Este link já não é válido.",
     delayNow: "imediatamente",
+    delayManual: "pela equipa",
     delayIn: "em {n} {unit}",
     unitDay: "dia",
     unitDays: "dias",
@@ -195,7 +219,12 @@ export const MESSAGES = {
       "Hallo {prenom}! Deine Anfrage für <b>{canal}</b> ist angekommen und wird {delai} bestätigt. Schau dir in der Zwischenzeit auch unsere anderen Kanäle unten an.",
     joinRequestPlain:
       "Hallo {prenom}! Deine Anfrage für <b>{canal}</b> ist angekommen und wird {delai} bestätigt.",
+    joinRequestShort: "Deine Anfrage für <b>{canal}</b> ist angekommen, Zugang {delai}.",
+    joinRequestShortManual:
+      "Deine Anfrage für <b>{canal}</b> ist angekommen und wird vom Team geprüft.",
     gateSatisfied: "Alles klar {prenom}, du wirst {delai} in <b>{canal}</b> aufgenommen.",
+    gateSatisfiedManual:
+      "Alles klar {prenom}, deine Anfrage für <b>{canal}</b> wird vom Team geprüft.",
     gateMissing:
       "Es fehlt noch: {liste_canaux}. Tritt bei und tippe dann erneut auf ✅ Beigetreten.",
     gateReminder:
@@ -209,6 +238,7 @@ export const MESSAGES = {
     offerButton: "Angebot öffnen",
     offerInvalid: "Dieser Link ist nicht mehr gültig.",
     delayNow: "sofort",
+    delayManual: "vom Team",
     delayIn: "in {n} {unit}",
     unitDay: "Tag",
     unitDays: "Tagen",
@@ -237,7 +267,12 @@ export const MESSAGES = {
       "Ciao {prenom}! Abbiamo ricevuto la tua richiesta per <b>{canal}</b>: sarà confermata {delai}. Nel frattempo, scopri anche gli altri nostri canali qui sotto.",
     joinRequestPlain:
       "Ciao {prenom}! Abbiamo ricevuto la tua richiesta per <b>{canal}</b>: sarà confermata {delai}.",
+    joinRequestShort: "La tua richiesta per <b>{canal}</b> è stata ricevuta, accesso {delai}.",
+    joinRequestShortManual:
+      "La tua richiesta per <b>{canal}</b> è stata ricevuta, sarà esaminata dal team.",
     gateSatisfied: "Perfetto {prenom}, sarai accettato in <b>{canal}</b> {delai}.",
+    gateSatisfiedManual:
+      "Perfetto {prenom}, la tua richiesta per <b>{canal}</b> sarà esaminata dal team.",
     gateMissing: "Manca ancora: {liste_canaux}. Unisciti e poi tocca di nuovo ✅ Mi sono unito.",
     gateReminder:
       "{prenom}, la tua richiesta per <b>{canal}</b> è ancora in attesa: unisciti a {liste_canaux} e poi tocca ✅ Mi sono unito.",
@@ -250,6 +285,7 @@ export const MESSAGES = {
     offerButton: "Apri l'offerta",
     offerInvalid: "Questo link non è più valido.",
     delayNow: "subito",
+    delayManual: "dal team",
     delayIn: "tra {n} {unit}",
     unitDay: "giorno",
     unitDays: "giorni",

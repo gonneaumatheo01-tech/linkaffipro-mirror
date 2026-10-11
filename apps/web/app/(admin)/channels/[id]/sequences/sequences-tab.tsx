@@ -4,8 +4,8 @@ import { prisma } from "@linkaffipro/db";
 import {
   PLACEHOLDERS,
   ensureDefaultSequences,
-  formatDelay,
   isLang,
+  ruleDelayText,
   t,
   type Lang,
 } from "@linkaffipro/telegram";
@@ -33,7 +33,7 @@ import {
   type BotMoment,
   type PlaceholderExamples,
 } from "@/lib/channels/bot-messages";
-import { effectiveDelay, isRuleInForce, type EntryRule } from "@/lib/channels/entry-rule";
+import { isRuleInForce, type EntryRule } from "@/lib/channels/entry-rule";
 import {
   addSequenceLangAction,
   removeSequenceLangAction,
@@ -64,7 +64,7 @@ function examplesFor(
     prenom: example("prenom"),
     canal: ctx.channelTitle,
     liste_canaux: ctx.gateTitles.length > 0 ? ctx.gateTitles.join(", ") : example("liste_canaux"),
-    delai: isRuleInForce(ctx.rule) ? formatDelay(effectiveDelay(ctx.rule), l) : example("delai"),
+    delai: isRuleInForce(ctx.rule) ? ruleDelayText(ctx.rule, l) : example("delai"),
     bot: ctx.botUsername ? `@${ctx.botUsername}` : example("bot"),
   };
 }

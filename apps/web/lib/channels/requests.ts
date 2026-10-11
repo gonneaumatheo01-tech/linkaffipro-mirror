@@ -51,35 +51,12 @@ export function requestNext(status: MembershipStatus, approveAt: Date | null, no
   }
 }
 
-type SourceSnapshot = {
-  inviteLink?: { name?: string; adPlatform?: string | null } | null;
-  joinedDirectly?: boolean;
-};
-
-function isUntracked(source: unknown): boolean {
-  const s = (source ?? {}) as SourceSnapshot;
-  return !s.inviteLink?.name && !s.joinedDirectly;
-}
-
 /**
- * Origine d'une adhésion (instantané `Membership.source`) : nom du lien de pub, entrée directe, ou « Sans lien suivi »
- * quand la demande est passée par un lien d'invitation qui n'a pas été créé ici (« Lien inconnu » faisait croire à
- * une panne).
+ * Explication d'une origine inconnue pour le volet de détail (« Venu d'un autre lien ») ; null pour une provenance
+ * connue (un de nos liens : bouton « canal à rejoindre », lien de partage, pub, lien du canal).
  */
-export function sourceLabel(
-  source: unknown,
-  platformLabel: (platform: string) => string = (p) => p,
-): string {
-  const s = (source ?? {}) as SourceSnapshot;
-  if (s.inviteLink?.name)
-    return `${s.inviteLink.name}${s.inviteLink.adPlatform ? ` (${platformLabel(s.inviteLink.adPlatform)})` : ""}`;
-  if (s.joinedDirectly) return "Entrée directe";
-  return "Sans lien suivi";
-}
-
-/** Explication de « Sans lien suivi » pour le volet de détail ; null pour une origine connue. */
-export function sourceHint(source: unknown): string | null {
-  return isUntracked(source)
+export function sourceHint(provenanceType: string): string | null {
+  return provenanceType === "UNKNOWN"
     ? "Demande faite par un lien d'invitation qui n'a pas été créé ici (lien principal du canal, lien d'un autre administrateur…) : on ne sait pas de quelle pub elle vient."
     : null;
 }

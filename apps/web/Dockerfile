@@ -12,5 +12,6 @@ RUN pnpm install --frozen-lockfile --prod=false \
   && pnpm exec turbo run build --filter=web \
   && pnpm store prune
 EXPOSE 3000
-# Au démarrage : migrations Prisma, puis Next.
-CMD ["sh", "-c", "pnpm --filter @linkaffipro/db db:migrate && pnpm --filter @linkaffipro/db db:seed && pnpm --filter web exec next start -p ${PORT:-3000}"]
+# Au démarrage : migrations Prisma, premier compte, reprise de la phase 11 (une seule fois, marque Setting
+# phase11.gateExceptions ; un échec ne bloque jamais le site), puis Next.
+CMD ["sh", "-c", "pnpm --filter @linkaffipro/db db:migrate && pnpm --filter @linkaffipro/db db:seed && (pnpm --filter @linkaffipro/db db:phase11 || echo '[phase11] reprise en échec, à relancer : pnpm db:phase11') && pnpm --filter web exec next start -p ${PORT:-3000}"]

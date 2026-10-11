@@ -1,8 +1,20 @@
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { enqueueDm } from "@linkaffipro/queue";
-import { dueReminderIndex, expirationOutcome, formatDelay, ruleFromRow, IMPLICIT_RULE, type RuleData } from "@linkaffipro/telegram";
+import {
+  dueReminderIndex,
+  expirationOutcome,
+  ruleDelayText,
+  ruleForMembershipWithDb,
+  type RuleData,
+} from "@linkaffipro/telegram";
 import { baseLang, defaultText, pickText, renderHtmlText } from "@linkaffipro/telegram";
-import { createPrismaGateLinkDeps, gateProblemsOf, resolveGateLinks, type ChannelInfo, type GateLinkDeps } from "@linkaffipro/telegram";
+import {
+  createPrismaGateLinkDeps,
+  gateProblemsOf,
+  resolveGateLinks,
+  type ChannelInfo,
+  type GateLinkDeps,
+} from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { apiForBot, approveMembership, declineMembership } from "./telegram-actions";
 
@@ -29,47 +41,93 @@ export async function runApprovalsTick(): Promise<{ claimed: number; approved: n
   return { claimed: ids.length, approved };
 }
 
-async function ruleOf(m: { approvalRuleId: string | null; channelId: string; inviteLinkId: string | null }): Promise<RuleData> {
-  if (m.approvalRuleId) {
-    const row = await prisma.approvalRule.findUnique({ where: { id: m.approvalRuleId } });
-    if (row) return ruleFromRow(row);
-  }
-  const def = await prisma.approvalRule.findFirst({ where: { channelId: m.channelId, isDefault: true, isActive: true } });
-  return def ? ruleFromRow(def) : IMPLICIT_RULE;
+/**
+ * Règle d'une demande (même relecture que le bot, phase 11) : la règle appliquée à son arrivée, avec ses canaux à
+ * rejoindre effectifs (jamais le canal d'où vient la personne, aucun si l'accueil n'en a pas demandé). Sans règle :
+ * aucun rappel, expiration « garder » (comme l'ancienne règle implicite).
+ */
+async function ruleOf(m: {
+  approvalRuleId: string | null;
+  channelId: string;
+  inviteLinkId: string | null;
+  source: unknown;
+}): Promise<RuleData> {
+  return ruleForMembershipWithDb(m);
 }
 
 /** Liens des canaux à rejoindre côté worker : API de chaque bot par le cache du worker, échecs dans son journal. */
 const gateLinkDeps: GateLinkDeps = createPrismaGateLinkDeps({
   apiFor: async (botId) => {
-    const bot = await prisma.bot.findFirst({ where: { id: botId, isActive: true }, select: { id: true, tokenEncrypted: true } });
+    const bot = await prisma.bot.findFirst({
+      where: { id: botId, isActive: true },
+      select: { id: true, tokenEncrypted: true },
+    });
     return bot ? apiForBot(bot) : null;
   },
   warn: (message, details) => logger.warn(details, message),
 });
 
-const channelInfoSelect = { id: true, title: true, username: true, language: true, telegramChatId: true, primaryBotId: true, isActive: true } as const;
+const channelInfoSelect = {
+  id: true,
+  title: true,
+  username: true,
+  language: true,
+  telegramChatId: true,
+  primaryBotId: true,
+  isActive: true,
+} as const;
 
 /**
- * Liens des canaux à rejoindre recalculés au moment du rappel (jamais la liste de l'accueil telle quelle : vide si les
+ * Liens des canaux à rejoindre recalculés au moment du rappel (canaux effectifs de la règle : `rule` vient de `ruleOf`) (jamais la liste de l'accueil telle quelle : vide si les
  * droits manquaient alors, ou périmée si un bot a perdu ses droits) : lien GATE existant et valide, sinon création par
  * le bot de la demande puis par nos bots administrateurs du canal à rejoindre. La demande garde les liens à jour.
  */
 export async function refreshReminderGates(
-  m: { id: string; memberId: string; channelId: string; source: Record<string, unknown>; channel: { title: string } },
+  m: {
+    id: string;
+    memberId: string;
+    channelId: string;
+    source: Record<string, unknown>;
+    channel: { title: string };
+  },
   rule: RuleData,
   botId: string,
   deps: GateLinkDeps = gateLinkDeps,
 ) {
   const ids = rule.gateChannelIds.filter((id) => id !== m.channelId);
-  const rows = ids.length ? await prisma.channel.findMany({ where: { id: { in: ids } }, select: channelInfoSelect }) : [];
-  const gateChannels = ids.map((id) => rows.find((r) => r.id === id)).filter((c): c is ChannelInfo => !!c);
-  const bot = await prisma.bot.findFirst({ where: { id: botId, isActive: true }, select: { id: true, username: true, tokenEncrypted: true } });
+  const rows = ids.length
+    ? await prisma.channel.findMany({ where: { id: { in: ids } }, select: channelInfoSelect })
+    : [];
+  const gateChannels = ids
+    .map((id) => rows.find((r) => r.id === id))
+    .filter((c): c is ChannelInfo => !!c);
+  const bot = await prisma.bot.findFirst({
+    where: { id: botId, isActive: true },
+    select: { id: true, username: true, tokenEncrypted: true },
+  });
   const first = bot ? { botId: bot.id, username: bot.username, api: apiForBot(bot) } : null;
-  const { gates, missing } = await resolveGateLinks(deps, { id: m.channelId, title: m.channel.title }, gateChannels, first);
+  const { gates, missing } = await resolveGateLinks(
+    deps,
+    { id: m.channelId, title: m.channel.title },
+    gateChannels,
+    first,
+  );
   const before = gateProblemsOf(m.source);
-  await prisma.membership.update({ where: { id: m.id }, data: { source: toJsonValue({ ...m.source, gates, gateLinksMissing: missing }) } });
-  if (missing.length > 0 && before.map((p) => p.channelId).join() !== missing.map((p) => p.channelId).join())
-    await recordEvent({ type: "membership.gate_links_missing", memberId: m.memberId, channelId: m.channelId, botId, payload: toJsonValue({ membershipId: m.id, stage: "reminder", missing }) });
+  await prisma.membership.update({
+    where: { id: m.id },
+    data: { source: toJsonValue({ ...m.source, gates, gateLinksMissing: missing }) },
+  });
+  if (
+    missing.length > 0 &&
+    before.map((p) => p.channelId).join() !== missing.map((p) => p.channelId).join()
+  )
+    await recordEvent({
+      type: "membership.gate_links_missing",
+      memberId: m.memberId,
+      channelId: m.channelId,
+      botId,
+      payload: toJsonValue({ membershipId: m.id, stage: "reminder", missing }),
+    });
   return { gateChannels, gates, missing, botUsername: bot?.username ?? null };
 }
 
@@ -78,7 +136,16 @@ type PendingReminder = Awaited<ReturnType<typeof pendingReminders>>[number];
 function pendingReminders() {
   return prisma.membership.findMany({
     where: { status: "PENDING_GATE", channel: { isActive: true } },
-    include: { member: { select: { firstName: true, languageCode: true, botStates: { select: { botId: true, canDm: true } } } }, channel: { select: { title: true, language: true } } },
+    include: {
+      member: {
+        select: {
+          firstName: true,
+          languageCode: true,
+          botStates: { select: { botId: true, canDm: true } },
+        },
+      },
+      channel: { select: { title: true, language: true } },
+    },
     take: 500,
   });
 }
@@ -89,31 +156,74 @@ function pendingReminders() {
  */
 async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
   const rule = await ruleOf(m);
-  const idx = dueReminderIndex(rule, { requestedAt: m.requestedAt, remindersSent: m.remindersSent }, now);
+  const idx = dueReminderIndex(
+    rule,
+    { requestedAt: m.requestedAt, remindersSent: m.remindersSent },
+    now,
+  );
   if (idx === null) return false;
-  const source = (m.source ?? {}) as Record<string, unknown> & { botId?: string; startUrl?: string };
+  const source = (m.source ?? {}) as Record<string, unknown> & {
+    botId?: string;
+    startUrl?: string;
+  };
   const botId = source.botId;
   if (!botId) return false;
   const state = m.member.botStates.find((s) => s.botId === botId);
   if (!state?.canDm) return false;
-  const { gateChannels, gates, botUsername } = await refreshReminderGates({ ...m, source }, rule, botId);
+  const { gateChannels, gates, botUsername } = await refreshReminderGates(
+    { ...m, source },
+    rule,
+    botId,
+  );
   const lang = baseLang(m.member.languageCode ?? m.channel.language);
-  const seq = await prisma.sequence.findFirst({ where: { trigger: "GATE_REMINDER", isActive: true, OR: [{ channelId: m.channelId }, { channelId: null }] }, orderBy: { channelId: "desc" }, include: { steps: { orderBy: { order: "asc" }, take: 1 } } });
-  const texts = seq?.steps[0]?.texts && typeof seq.steps[0].texts === "object" ? (seq.steps[0].texts as Record<string, string>) : null;
-  const template = pickText(texts, m.member.languageCode, m.channel.language) ?? defaultText("gateReminder", lang);
+  const seq = await prisma.sequence.findFirst({
+    where: {
+      trigger: "GATE_REMINDER",
+      isActive: true,
+      OR: [{ channelId: m.channelId }, { channelId: null }],
+    },
+    orderBy: { channelId: "desc" },
+    include: { steps: { orderBy: { order: "asc" }, take: 1 } },
+  });
+  const texts =
+    seq?.steps[0]?.texts && typeof seq.steps[0].texts === "object"
+      ? (seq.steps[0].texts as Record<string, string>)
+      : null;
+  const template =
+    pickText(texts, m.member.languageCode, m.channel.language) ?? defaultText("gateReminder", lang);
   // {liste_canaux} : tous les canaux de la règle, même ceux restés sans lien (le membre sait lesquels rejoindre).
   const text = renderHtmlText(template, {
     prenom: m.member.firstName ?? "",
     canal: m.channel.title,
     liste_canaux: gateChannels.map((g) => g.title).join(", "),
-    delai: formatDelay(rule.mode === "IMMEDIATE" ? 0 : rule.delaySeconds, lang),
+    delai: ruleDelayText(rule, lang),
     bot: botUsername ? `@${botUsername}` : "",
   });
-  const buttons = gates.map((g) => [{ text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url }]);
-  if (source.startUrl) buttons.push([{ text: defaultText("joinedLabel", lang), url: source.startUrl }]);
-  await enqueueDm({ botId, memberId: m.memberId, chatId: m.userChatId, kind: "GATE_REMINDER", text, buttons, mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null });
-  await prisma.membership.update({ where: { id: m.id }, data: { remindersSent: { increment: 1 }, lastReminderAt: now } });
-  await recordEvent({ type: "membership.reminder_sent", memberId: m.memberId, channelId: m.channelId, botId, payload: { membershipId: m.id, index: idx, gates: gates.length } as Prisma.InputJsonValue });
+  const buttons = gates.map((g) => [
+    { text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url },
+  ]);
+  if (source.startUrl)
+    buttons.push([{ text: defaultText("joinedLabel", lang), url: source.startUrl }]);
+  await enqueueDm({
+    botId,
+    memberId: m.memberId,
+    chatId: m.userChatId,
+    kind: "GATE_REMINDER",
+    text,
+    buttons,
+    mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null,
+  });
+  await prisma.membership.update({
+    where: { id: m.id },
+    data: { remindersSent: { increment: 1 }, lastReminderAt: now },
+  });
+  await recordEvent({
+    type: "membership.reminder_sent",
+    memberId: m.memberId,
+    channelId: m.channelId,
+    botId,
+    payload: { membershipId: m.id, index: idx, gates: gates.length } as Prisma.InputJsonValue,
+  });
   return true;
 }
 
@@ -127,15 +237,33 @@ export async function runReminders(now = new Date()): Promise<number> {
     try {
       if (await sendReminder(m, now)) sent++;
     } catch (err) {
-      logger.error({ membershipId: m.id, err: err instanceof Error ? err.message : String(err) }, "rappel impossible pour cette demande");
+      logger.error(
+        { membershipId: m.id, err: err instanceof Error ? err.message : String(err) },
+        "rappel impossible pour cette demande",
+      );
     }
   }
   return sent;
 }
 
-/** Expiration des demandes non abouties selon la règle (DECLINE / APPROVE / KEEP). */
+/**
+ * Expiration des demandes non abouties selon la règle (DECLINE / APPROVE / KEEP). L'expiration ne concerne que les
+ * demandes qui attendent l'équipe (REQUESTED) ou la personne (PENDING_GATE). Une demande dont l'acceptation est
+ * planifiée (SCHEDULED avec une heure d'acceptation : canaux confirmés par « ✅ J'ai rejoint », délai sans canaux à
+ * rejoindre, personne venue du bouton « canal à rejoindre » d'un autre canal) attend le délai que le bot lui a annoncé
+ * (« accès dans 2 jours ») : elle n'expire jamais, même si l'expiration de la règle tombe avant ou en même temps que
+ * l'acceptation (sinon elle serait refusée, ou laissée de côté, avant son acceptation).
+ */
 export async function runExpirations(now = new Date()): Promise<number> {
-  const expired = await prisma.membership.findMany({ where: { status: { in: ["REQUESTED", "PENDING_GATE", "SCHEDULED"] }, expiresAt: { not: null, lte: now }, channel: { isActive: true } }, take: 200 });
+  const expired = await prisma.membership.findMany({
+    where: {
+      status: { in: ["REQUESTED", "PENDING_GATE", "SCHEDULED"] },
+      expiresAt: { not: null, lte: now },
+      channel: { isActive: true },
+      NOT: { status: "SCHEDULED", approveAt: { not: null } },
+    },
+    take: 200,
+  });
   let n = 0;
   for (const m of expired) {
     const rule = await ruleOf(m);
@@ -144,11 +272,19 @@ export async function runExpirations(now = new Date()): Promise<number> {
       const r = await declineMembership(m.id, { reason: "expiration" });
       if (r === "failed") continue;
     } else if (outcome.approveNow) {
-      await prisma.membership.update({ where: { id: m.id }, data: { status: "SCHEDULED", approveAt: now, expiresAt: null } });
+      await prisma.membership.update({
+        where: { id: m.id },
+        data: { status: "SCHEDULED", approveAt: now, expiresAt: null },
+      });
     } else {
       await prisma.membership.update({ where: { id: m.id }, data: { status: "EXPIRED" } });
     }
-    await recordEvent({ type: "membership.expired", memberId: m.memberId, channelId: m.channelId, payload: { membershipId: m.id, action: rule.expireAction } });
+    await recordEvent({
+      type: "membership.expired",
+      memberId: m.memberId,
+      channelId: m.channelId,
+      payload: { membershipId: m.id, action: rule.expireAction },
+    });
     n++;
   }
   return n;

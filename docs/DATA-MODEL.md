@@ -206,8 +206,24 @@ Une personne venue d'un canal obligatoire qui tombe sur la règle par défaut ne
 
 `Membership.source` (JSON) gagne :
 - `provenance` : `{ type: "GATE" | "SHARE" | "AD" | "MANUAL" | "UNKNOWN", inviteLinkId, sourceChannelId, adPlatform, label }` ;
-- `appliedRule` : `{ id, scope, label, noGates? }` (`noGates` : canaux à rejoindre de la règle non imposés pour cette provenance).
+- `appliedRule` : `{ id, scope, label, noGates? }` (`noGates` : canaux à rejoindre de la règle non imposés pour cette provenance ; `label` null pour la règle par défaut) ; `appliedRule = null` quand le canal n'a aucune règle, avec alors
+- `noRule` : `"MANUAL"` (validation à la main) ou `"IMMEDIATE"` (entrée directe silencieuse d'une personne venue d'un bouton « canal à rejoindre » : ni accueil ni message « Accepté »).
+La provenance est aussi enregistrée pour une entrée directe vue seulement par `chat_member`. Les anciennes demandes sans `provenance` se lisent par leur `InviteLink` (`provenanceOfLink`).
 
 Liens GATE : depuis la phase 11, créés avec demande d'adhésion (`createsJoinRequest = true`) ; le canal obligatoire
 applique alors sa propre règle. Les anciens liens GATE à entrée directe (`createsJoinRequest = false`) ne sont plus
-proposés et sont révoqués par le worker 7 jours après la mise en ligne de la phase 11.
+proposés et sont révoqués par le worker 7 jours après la mise en ligne de la phase 11 (`Setting`
+`phase11.legacyGateRevokeAfter`, date ISO écrite au premier passage, jamais repoussée ; événement
+`invite_link.legacy_revoked`). Un lien GATE avec demande d'adhésion est créé par le bot qui agit pour le canal à
+rejoindre (`InviteLink.botId`) : Telegram masque la fin d'un lien créé par un autre administrateur ; un lien reçu masqué
+se retrouve par `InviteLink.channelId` + début de `telegramInviteLink` + `Bot.telegramBotId` du créateur (un seul
+candidat, sinon provenance inconnue).
+
+Autres `Setting` de la phase 11 : `phase11.gateExceptions` (marque de la reprise `pnpm db:phase11`, lancée au démarrage
+du conteneur web juste après la migration : `{ doneAt, created, skippedExisting, rescheduled }`). La reprise replanifie
+aussi les demandes arrivées entre la mise en ligne et sa propre exécution par un bouton « canal à rejoindre » et tombées
+sur la règle par défaut (événement `membership.rescheduled` : `{ membershipId, reason, ruleId, previousRuleId,
+previousStatus, previousApproveAt, approveAt }`).
+
+`Membership.expiresAt` n'est rempli et utilisé que pour les demandes qui attendent encore (REQUESTED : l'équipe ;
+PENDING_GATE : la personne) ; une demande SCHEDULED dont l'heure d'acceptation est fixée n'expire jamais.

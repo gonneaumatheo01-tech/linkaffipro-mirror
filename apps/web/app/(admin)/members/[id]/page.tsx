@@ -13,6 +13,7 @@ import { PAGE_SIZE, Pagination, pageHref, pageOf } from "@/components/admin/pagi
 import { StatusPill } from "@/components/admin/status-pill";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { MemberTags } from "@/components/members/member-cells";
+import { MemberMemberships } from "@/components/members/member-memberships";
 import { MemberTimeline } from "@/components/members/member-timeline";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -23,6 +24,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { withMinusSign } from "@/lib/campaigns/cards";
+import {
+  acceptanceText,
+  appliedRuleText,
+  appliedRuleView,
+  membershipProvenance,
+  sourceChannelIdsOf,
+} from "@/lib/channels/provenance-display";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum, fmtRelative } from "@/lib/format";
 import { adLabel, memberProfile, memberSubline, plural } from "@/lib/members/profile";
 import { displayName, getSpendThresholds } from "@/lib/members/query";
@@ -38,6 +46,9 @@ import {
 } from "./actions";
 
 export const metadata: Metadata = { title: "Fiche membre" };
+
+/** Demandes montrées dans « Ses demandes et canaux » (les plus récentes ; toutes restent dans la chronologie). */
+const MAX_MEMBERSHIPS = 20;
 
 /** Origine du rattachement d'un compte joueur, en mots simples. */
 const SUB_ID_SOURCE: Record<string, string> = {
@@ -126,6 +137,18 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                 trackingLinks: { select: { affiliateCampaign: { select: { name: true } } } },
               },
             },
+            // Règle des demandes d'avant la phase 11 (sans règle enregistrée dans `source`).
+            approvalRule: {
+              select: {
+                scope: true,
+                isDefault: true,
+                label: true,
+                mode: true,
+                delaySeconds: true,
+                gateMode: true,
+                gateChannelIds: true,
+              },
+            },
           },
         },
         clicks: {
@@ -164,6 +187,31 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
   ]);
   if (!member) notFound();
   const now = new Date();
+  // Demandes et canaux : d'où vient chaque demande (titres actuels des canaux d'origine), règle, acceptation.
+  const sourceIds = sourceChannelIdsOf(member.memberships);
+  const sourceTitles = sourceIds.length
+    ? Object.fromEntries(
+        (
+          await prisma.channel.findMany({
+            where: { id: { in: sourceIds } },
+            select: { id: true, title: true },
+          })
+        ).map((c) => [c.id, c.title]),
+      )
+    : {};
+  const membershipItems = member.memberships.slice(0, MAX_MEMBERSHIPS).map((m) => ({
+    id: m.id,
+    channelId: m.channel.id,
+    channelTitle: m.channel.title,
+    universe: m.channel.vertical,
+    status: m.status,
+    provenance: membershipProvenance(m, sourceTitles).label,
+    detail:
+      [appliedRuleText(appliedRuleView(m)), acceptanceText(m, now)]
+        .filter((x): x is string => Boolean(x))
+        .join(" · ") || null,
+    requestedAt: fmtDate(m.requestedAt),
+  }));
   const tags = memberTags(member.tags);
   const anonymized = Boolean(member.anonymizedAt);
   const name = displayName(member);
@@ -417,6 +465,19 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
           )}
         </Block>
       </div>
+
+      {membershipItems.length > 0 ? (
+        <Block
+          className="mt-4"
+          title="Ses demandes et canaux"
+          description="D'où vient chaque demande, la règle appliquée et la date d'acceptation."
+        >
+          <MemberMemberships
+            items={membershipItems}
+            more={member.memberships.length - membershipItems.length}
+          />
+        </Block>
+      ) : null}
 
       {/* Même grille que la rangée du dessus : Étiquettes sur deux colonnes, « Joignable » sur la troisième. */}
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

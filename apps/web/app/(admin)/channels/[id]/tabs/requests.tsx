@@ -6,15 +6,20 @@ import { RequestCard } from "@/components/channels/request-card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
+  acceptanceText,
+  appliedRuleText,
+  appliedRuleView,
+  membershipProvenance,
+  sourceChannelIdsOf,
+} from "@/lib/channels/provenance-display";
+import {
   OPEN_REQUEST_STATUSES,
   memberHandle,
   memberName,
   requestNext,
-  sourceLabel,
 } from "@/lib/channels/requests";
 import { channelTabHref } from "@/lib/channels/tabs";
 import { fmtDate, fmtNum } from "@/lib/format";
-import { statusLabel } from "@/lib/status-badges";
 import { approveMembershipAction, declineMembershipAction } from "../actions";
 
 /** Demandes montrées au plus (les plus récentes). */
@@ -23,6 +28,8 @@ const MAX_REQUESTS = 200;
 /**
  * Onglet « Demandes » (pensé d'abord pour le téléphone) : une carte par demande en cours, avec « Accepter » et
  * « Refuser » en boutons de 40 px. Les demandes programmées sont acceptées toutes seules à l'heure prévue.
+ * Chaque carte dit d'où vient la personne, la règle appliquée et la date d'acceptation prévue (phase 11 ; demandes
+ * plus anciennes : provenance déduite de leur lien, règle relue en base).
  */
 export async function RequestsTab({ channelId, now }: { channelId: string; now: Date }) {
   const requests = await prisma.membership.findMany({
@@ -31,8 +38,34 @@ export async function RequestsTab({ channelId, now }: { channelId: string; now: 
     take: MAX_REQUESTS,
     include: {
       member: { select: { firstName: true, lastName: true, username: true, telegramUserId: true } },
+      // Provenance et règle des demandes d'avant la phase 11 (relues depuis leur lien et leur règle).
+      inviteLink: {
+        select: { id: true, kind: true, sourceChannelId: true, adPlatform: true, name: true },
+      },
+      approvalRule: {
+        select: {
+          scope: true,
+          isDefault: true,
+          label: true,
+          mode: true,
+          delaySeconds: true,
+          gateMode: true,
+          gateChannelIds: true,
+        },
+      },
     },
   });
+  const sourceIds = sourceChannelIdsOf(requests);
+  const titles = sourceIds.length
+    ? Object.fromEntries(
+        (
+          await prisma.channel.findMany({
+            where: { id: { in: sourceIds } },
+            select: { id: true, title: true },
+          })
+        ).map((c) => [c.id, c.title]),
+      )
+    : {};
   if (requests.length === 0)
     return (
       <EmptyState
@@ -78,7 +111,9 @@ export async function RequestsTab({ channelId, now }: { channelId: string; now: 
               telegramUserId: r.member.telegramUserId.toString(),
               status: r.status,
               next: requestNext(r.status, r.approveAt, now),
-              source: sourceLabel(r.source, (p) => statusLabel("adPlatform", p)),
+              provenance: membershipProvenance(r, titles).label,
+              rule: appliedRuleText(appliedRuleView(r)),
+              acceptance: acceptanceText(r, now),
               requestedAt: fmtDate(r.requestedAt),
               lastError: r.lastError,
             }}

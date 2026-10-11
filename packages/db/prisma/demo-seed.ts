@@ -16,10 +16,14 @@ import {
   fillUrlTemplate,
   newSubId,
   parseEncryptionKey,
+  provenanceLabel,
+  provenanceOfLink,
   randomToken,
   shortId,
+  type ProvenanceLink,
 } from "@linkaffipro/core";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { GATE_EXCEPTION_LABEL } from "./phase11-gate-exceptions";
 
 // ============================================================
 // Repères des données de démonstration
@@ -33,7 +37,8 @@ export const DEMO_PREFIX = "Démo · ";
 export const DEMO_MEMBER_ID_BASE = 990_000_000_000n;
 const DEMO_MEMBER_ID_END = DEMO_MEMBER_ID_BASE + 1_000_000n;
 const DEMO_BOT_IDS = [9_900_000_001n, 9_900_000_002n, 9_900_000_003n];
-const DEMO_CHAT_IDS = [1n, 2n, 3n, 4n, 5n, 6n].map((n) => -1_009_900_000_000n - n);
+/** Canaux de démonstration : six canaux habituels, puis les trois du cas du client de la phase 11 (7, 8, 9). */
+const DEMO_CHAT_IDS = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n].map((n) => -1_009_900_000_000n - n);
 const MEMBER_COUNT = 300;
 const SEED = 20_261_010;
 
@@ -2017,6 +2022,15 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
     });
   await inBatches(events, 1000, (chunk) => db.event.createMany({ data: chunk }));
 
+  // Phase 11 : règles selon la provenance, sur trois canaux qui reproduisent le cas du client.
+  const phase11 = await createPhase11Demo(db, {
+    now,
+    adminId: users.admin,
+    botIdByVertical,
+    botUsername,
+    members: members.map((m) => ({ id: m.id, firstSeenAt: m.firstSeenAt })),
+  });
+
   // Étiquettes du registre (ajoutées sans rien retirer) et état de la synchronisation Link Affi (si absent).
   const regValue = (await db.setting.findUnique({ where: { key: "members.tags" } }))?.value;
   const registry = Array.isArray(regValue)
@@ -2062,10 +2076,10 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
   });
 
   return {
-    channelIds: Object.values(channelId),
+    channelIds: [...Object.values(channelId), ...phase11.channelIds],
     counts: {
       bots: BOTS.length,
-      canaux: CHANNELS.length,
+      canaux: CHANNELS.length + phase11.channelIds.length,
       campagnes: CAMPAIGNS.length,
       pubs: ads.length,
       "coûts (jours × pubs)": costs.length,
@@ -2082,7 +2096,692 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "premiers dépôts aujourd'hui": plans.filter((p) => p.ftdAt && p.ftdAt >= todayStart).length,
       "événements du journal": events.length,
       "messages privés": outbound.length,
+      "phase 11 : exceptions selon la provenance": phase11.exceptions,
+      "phase 11 : liens de partage": phase11.shareLinks,
+      "phase 11 : demandes avec provenance": phase11.memberships,
     },
+  };
+}
+
+// ============================================================
+// Phase 11 : règles d'acceptation selon la provenance (cas du client du 11 octobre)
+// ============================================================
+//
+// « Zone Interdite 🔞 » exige « Zone Roulette » et « Tir Cadré », puis 5 minutes ; sauf les personnes venues de
+// « Tir Cadré » (son bouton « canal à rejoindre », ou un lien de partage posté dans Tir Cadré) : 1 jour. « Tir Cadré »
+// exige « Zone Interdite ». Chaque canal à rejoindre a l'exception de la reprise (`pnpm db:phase11`) : venu du bouton
+// « canal à rejoindre » d'un de nos canaux → tout de suite, sans message. Deux liens de partage sur Zone Interdite
+// (« Post Tir Cadré » posté dans Tir Cadré, « Story Instagram » avec sa propre exception → 1 heure), une pub TikTok,
+// et des demandes sur 30 jours avec la provenance et la règle appliquée enregistrées comme le fait le bot.
+// Tirage à part (graine propre) : les données des autres canaux restent exactement les mêmes.
+
+type P11Key = "zone" | "tir" | "roulette";
+
+const P11_CHANNELS: ReadonlyArray<{
+  key: P11Key;
+  title: string;
+  vertical: Vertical;
+  chatId: bigint;
+}> = [
+  {
+    key: "zone",
+    title: `${DEMO_PREFIX}Zone Interdite 🔞`,
+    vertical: "DATING",
+    chatId: DEMO_CHAT_IDS[6]!,
+  },
+  { key: "tir", title: `${DEMO_PREFIX}Tir Cadré`, vertical: "SPORTS", chatId: DEMO_CHAT_IDS[7]! },
+  {
+    key: "roulette",
+    title: `${DEMO_PREFIX}Zone Roulette`,
+    vertical: "CASINO",
+    chatId: DEMO_CHAT_IDS[8]!,
+  },
+];
+
+/** Espaces insécables dans les guillemets (comme les libellés enregistrés par l'écran des exceptions). */
+function frQuotesDemo(text: string): string {
+  return text.replace(/\u00ab /g, "\u00ab\u00a0").replace(/ \u00bb/g, "\u00a0\u00bb");
+}
+
+type P11Rule = {
+  id: string;
+  channel: P11Key;
+  scope: "DEFAULT" | "INVITE_LINK" | "SOURCE_CHANNEL" | "SOURCE_KIND";
+  label: string | null;
+  name: string;
+  mode: "IMMEDIATE" | "DELAY" | "MANUAL";
+  delaySeconds: number;
+  gateMode: "NONE" | "REQUIRED";
+  gates: P11Key[];
+  sendWelcome: boolean;
+};
+
+type P11Link = ProvenanceLink & { name: string; url: string; channel: P11Key };
+
+async function createPhase11Demo(
+  db: Db,
+  ctx: {
+    now: Date;
+    adminId: string;
+    botIdByVertical: Record<Vertical, string>;
+    botUsername: Record<Vertical, string>;
+    members: Array<{ id: string; firstSeenAt: Date }>;
+  },
+): Promise<{ channelIds: string[]; exceptions: number; shareLinks: number; memberships: number }> {
+  const { now } = ctx;
+  const r = createRandom(SEED + 11);
+  const id = {} as Record<P11Key, string>;
+  const title = {} as Record<P11Key, string>;
+  const botOf = {} as Record<P11Key, string>;
+  for (const c of P11_CHANNELS) {
+    id[c.key] = stableId(`p11:channel:${c.key}`);
+    title[c.key] = c.title;
+    botOf[c.key] = ctx.botIdByVertical[c.vertical];
+    await db.channel.create({
+      data: {
+        id: id[c.key],
+        telegramChatId: c.chatId,
+        title: c.title,
+        username: null,
+        type: "CHANNEL",
+        vertical: c.vertical,
+        language: "fr",
+        primaryBotId: botOf[c.key],
+        isTest: false,
+        createdAt: new Date(now.getTime() - 45 * DAY),
+      },
+    });
+    await db.channelBotAdmin.create({
+      data: {
+        channelId: id[c.key],
+        botId: botOf[c.key],
+        detectedAt: new Date(now.getTime() - 45 * DAY),
+        rights: {
+          status: "administrator",
+          can_post_messages: true,
+          can_edit_messages: true,
+          can_delete_messages: true,
+          can_invite_users: true,
+          can_manage_chat: true,
+          can_restrict_members: true,
+          can_promote_members: false,
+          can_change_info: true,
+        },
+      },
+    });
+  }
+
+  // Liens : boutons « canal à rejoindre » (avec demande d'adhésion, phase 11), deux liens de partage, une pub TikTok.
+  const link = (
+    key: string,
+    channel: P11Key,
+    data: Omit<P11Link, "id" | "url" | "channel">,
+  ): P11Link => ({
+    ...data,
+    id: stableId(`p11:link:${key}`),
+    url: `https://t.me/+DEMO11${key.replace(/[^a-z]/gi, "").slice(0, 12)}${shortId(6)}`,
+    channel,
+  });
+  const L = {
+    zoneFromTir: link("zone-from-tir", "zone", {
+      kind: "GATE",
+      sourceChannelId: id.tir,
+      adPlatform: null,
+      name: `Canal à rejoindre de ${title.tir}`,
+    }),
+    tirFromZone: link("tir-from-zone", "tir", {
+      kind: "GATE",
+      sourceChannelId: id.zone,
+      adPlatform: null,
+      name: `Canal à rejoindre de ${title.zone}`,
+    }),
+    rouletteFromZone: link("roulette-from-zone", "roulette", {
+      kind: "GATE",
+      sourceChannelId: id.zone,
+      adPlatform: null,
+      name: `Canal à rejoindre de ${title.zone}`,
+    }),
+    sharePost: link("share-post", "zone", {
+      kind: "SHARE",
+      sourceChannelId: id.tir,
+      adPlatform: null,
+      name: "Post Tir Cadré",
+    }),
+    shareStory: link("share-story", "zone", {
+      kind: "SHARE",
+      sourceChannelId: null,
+      adPlatform: null,
+      name: "Story Instagram",
+    }),
+    tiktok: link("tiktok", "zone", {
+      kind: "AD_ENTRY",
+      sourceChannelId: null,
+      adPlatform: "TIKTOK",
+      name: "Zone Interdite — Pub TikTok 1",
+    }),
+  };
+  for (const l of Object.values(L))
+    await db.inviteLink.create({
+      data: {
+        id: l.id,
+        channelId: id[l.channel],
+        botId: botOf[l.channel],
+        telegramInviteLink: l.url,
+        name: l.name,
+        kind: l.kind,
+        createsJoinRequest: true,
+        sourceChannelId: l.sourceChannelId,
+        adPlatform: l.kind === "AD_ENTRY" ? "TIKTOK" : null,
+        adName: l.kind === "AD_ENTRY" ? "Pub TikTok 1" : null,
+        createdById: l.kind === "GATE" ? null : ctx.adminId,
+        createdAt: new Date(now.getTime() - 40 * DAY),
+      },
+    });
+
+  // Règles : par défaut, exceptions selon la provenance (libellés comme l'écran les enregistre).
+  const gateLabel = frQuotesDemo(GATE_EXCEPTION_LABEL);
+  const rules: Record<string, P11Rule> = {
+    zoneDefault: {
+      id: stableId("p11:rule:zone:default"),
+      channel: "zone",
+      scope: "DEFAULT",
+      label: null,
+      name: "Règle du canal",
+      mode: "DELAY",
+      delaySeconds: 300,
+      gateMode: "REQUIRED",
+      gates: ["roulette", "tir"],
+      sendWelcome: true,
+    },
+    zoneFromTir: {
+      id: stableId("p11:rule:zone:from-tir"),
+      channel: "zone",
+      scope: "SOURCE_CHANNEL",
+      label: frQuotesDemo(`Venu de « ${title.tir} »`),
+      name: frQuotesDemo(`Venu de « ${title.tir} »`),
+      mode: "DELAY",
+      delaySeconds: 86_400,
+      gateMode: "NONE",
+      gates: [],
+      sendWelcome: true,
+    },
+    zoneStory: {
+      id: stableId("p11:rule:zone:story"),
+      channel: "zone",
+      scope: "INVITE_LINK",
+      label: frQuotesDemo(`Venu du lien « ${L.shareStory.name} »`),
+      name: frQuotesDemo(`Venu du lien « ${L.shareStory.name} »`),
+      mode: "DELAY",
+      delaySeconds: 3_600,
+      gateMode: "NONE",
+      gates: [],
+      sendWelcome: true,
+    },
+    tirDefault: {
+      id: stableId("p11:rule:tir:default"),
+      channel: "tir",
+      scope: "DEFAULT",
+      label: null,
+      name: "Règle du canal",
+      mode: "DELAY",
+      delaySeconds: 0,
+      gateMode: "REQUIRED",
+      gates: ["zone"],
+      sendWelcome: true,
+    },
+    rouletteDefault: {
+      id: stableId("p11:rule:roulette:default"),
+      channel: "roulette",
+      scope: "DEFAULT",
+      label: null,
+      name: "Règle du canal",
+      mode: "IMMEDIATE",
+      delaySeconds: 0,
+      gateMode: "NONE",
+      gates: [],
+      sendWelcome: true,
+    },
+  };
+  // Exception de la reprise sur chaque canal à rejoindre : venu du bouton « canal à rejoindre » → tout de suite, sans
+  // message (comportement des anciens liens à entrée directe).
+  for (const k of ["zone", "tir", "roulette"] as const)
+    rules[`${k}Gate`] = {
+      id: stableId(`p11:rule:${k}:gate`),
+      channel: k,
+      scope: "SOURCE_KIND",
+      label: gateLabel,
+      name: gateLabel,
+      mode: "IMMEDIATE",
+      delaySeconds: 0,
+      gateMode: "NONE",
+      gates: [],
+      sendWelcome: false,
+    };
+  for (const rule of Object.values(rules))
+    await db.approvalRule.create({
+      data: {
+        id: rule.id,
+        channelId: id[rule.channel],
+        name: rule.name,
+        label: rule.label,
+        isDefault: rule.scope === "DEFAULT",
+        scope: rule.scope,
+        sourceChannelId: rule.scope === "SOURCE_CHANNEL" ? id.tir : null,
+        sourceKind: rule.scope === "SOURCE_KIND" ? "GATE" : null,
+        inviteLinkId: rule.scope === "INVITE_LINK" ? L.shareStory.id : null,
+        sortOrder: rule.scope === "DEFAULT" ? 0 : 10,
+        sendWelcome: rule.sendWelcome,
+        sendAcceptedMessage: rule.sendWelcome,
+        mode: rule.mode,
+        delaySeconds: rule.delaySeconds,
+        gateMode: rule.gateMode,
+        gateChannelIds: rule.gates.map((g) => id[g]),
+        reminderAfterMinutes: rule.gateMode === "REQUIRED" ? [60, 1440] : [],
+        maxReminders: rule.gateMode === "REQUIRED" ? 2 : 0,
+        expireAfterHours: rule.gateMode === "REQUIRED" ? 72 : null,
+        expireAction: "KEEP",
+        createdAt: new Date(now.getTime() - 40 * DAY),
+      },
+    });
+
+  // Demandes : chaque personne suit un parcours réel du flux d'adhésion.
+  type Status = "REQUESTED" | "PENDING_GATE" | "SCHEDULED" | "APPROVED" | "LEFT";
+  const rows: Prisma.MembershipCreateManyInput[] = [];
+  const events: Prisma.EventCreateManyInput[] = [];
+  const used = new Set<string>();
+  const counters = new Map<
+    string,
+    { requests: number; approved: number; joined: number; left: number }
+  >();
+  const pool = ctx.members.slice(40);
+  let next = 0;
+  const pickMember = (at: Date): string => {
+    for (let i = 0; i < pool.length; i++) {
+      const m = pool[(next + i) % pool.length]!;
+      if (!used.has(m.id) && m.firstSeenAt.getTime() < at.getTime()) {
+        used.add(m.id);
+        next = (next + i + 1) % pool.length;
+        return m.id;
+      }
+    }
+    const m = pool[next++ % pool.length]!;
+    return m.id;
+  };
+  const notFuture = (d: Date) =>
+    d.getTime() > now.getTime() - MIN ? new Date(now.getTime() - MIN) : d;
+
+  /** Une demande, enregistrée comme le bot de la phase 11 (provenance, règle appliquée, canaux à rejoindre). */
+  const request = (input: {
+    memberId: string;
+    channel: P11Key;
+    link: P11Link | null;
+    rule: P11Rule;
+    at: Date;
+    status: Status;
+    gateSatisfiedAt?: Date | null;
+    approvedAt?: Date | null;
+    leftAt?: Date | null;
+    noGates?: boolean;
+  }) => {
+    const provenance = provenanceOfLink(input.link);
+    const titles = { [id.tir]: title.tir, [id.zone]: title.zone, [id.roulette]: title.roulette };
+    const gates = input.noGates
+      ? []
+      : input.rule.gates
+          .map((g) => id[g])
+          .filter((g) => g !== provenance.sourceChannelId && g !== id[input.channel]);
+    const gateLink = (g: string) =>
+      Object.values(L).find(
+        (l) => l.kind === "GATE" && id[l.channel] === g && l.sourceChannelId === id[input.channel],
+      );
+    const code = `demo11${shortId(6)}`;
+    const vertical = P11_CHANNELS.find((c) => c.key === input.channel)!.vertical;
+    const approveAt =
+      input.status === "SCHEDULED" || input.approvedAt
+        ? new Date(
+            (input.gateSatisfiedAt ?? input.at).getTime() +
+              (input.rule.mode === "IMMEDIATE" ? 0 : input.rule.delaySeconds) * 1000,
+          )
+        : null;
+    const approvedAt = input.approvedAt ?? null;
+    const joinedAt = approvedAt ? new Date(approvedAt.getTime() + r.int(3, 90) * 1000) : null;
+    const msId = newId();
+    rows.push({
+      id: msId,
+      code,
+      memberId: input.memberId,
+      channelId: id[input.channel],
+      status: input.status,
+      inviteLinkId: input.link?.id ?? null,
+      approvalRuleId: input.rule.id,
+      userChatId: null,
+      requestedAt: input.at,
+      gateSatisfiedAt: input.gateSatisfiedAt ?? null,
+      approveAt,
+      approvedAt,
+      joinedAt,
+      leftAt: input.leftAt ?? null,
+      approvedByBotId: approvedAt ? botOf[input.channel] : null,
+      source: {
+        demo: true,
+        inviteLink: input.link
+          ? {
+              id: input.link.id,
+              name: input.link.name,
+              kind: input.link.kind,
+              campaignId: null,
+              adPlatform: input.link.adPlatform,
+              adCampaignName: null,
+              adName: input.link.kind === "AD_ENTRY" ? "Pub TikTok 1" : null,
+            }
+          : null,
+        telegramInviteLink: input.link?.url ?? null,
+        rule: {
+          id: input.rule.id,
+          name: input.rule.name,
+          mode: input.rule.mode,
+          delaySeconds: input.rule.delaySeconds,
+          gateMode: input.rule.gateMode,
+        },
+        provenance: {
+          ...provenance,
+          label: provenanceLabel(provenance, titles, input.link?.name ?? null),
+        },
+        appliedRule: {
+          id: input.rule.id,
+          scope: input.rule.scope,
+          label: input.rule.scope === "DEFAULT" ? null : input.rule.label,
+          ...(input.noGates ? { noGates: true } : {}),
+        },
+        gates: gates.map((g) => ({
+          channelId: g,
+          title: titles[g],
+          url: gateLink(g)?.url ?? `https://t.me/+DEMO11manquant`,
+        })),
+        gateLinksMissing: [],
+        startUrl: `https://t.me/${ctx.botUsername[vertical]}?start=g${code}`,
+        botId: botOf[input.channel],
+      },
+    });
+    const base = {
+      memberId: input.memberId,
+      channelId: id[input.channel],
+      botId: botOf[input.channel],
+    };
+    events.push({
+      ...base,
+      type: "membership.requested",
+      occurredAt: input.at,
+      payload: {
+        membershipId: msId,
+        code,
+        status: input.status,
+        inviteLinkId: input.link?.id ?? null,
+        ruleId: input.rule.id,
+        provenance: {
+          ...provenance,
+          label: provenanceLabel(provenance, titles, input.link?.name ?? null),
+        },
+        appliedRule: { id: input.rule.id, scope: input.rule.scope, label: input.rule.label },
+        demo: true,
+      },
+    });
+    if (input.gateSatisfiedAt)
+      events.push({
+        ...base,
+        type: "membership.gate_satisfied",
+        occurredAt: input.gateSatisfiedAt,
+        payload: { membershipId: msId, demo: true },
+      });
+    if (approvedAt)
+      events.push({
+        ...base,
+        type: "membership.approved",
+        occurredAt: approvedAt,
+        payload: { membershipId: msId, demo: true },
+      });
+    if (joinedAt)
+      events.push({
+        ...base,
+        type: "membership.joined",
+        occurredAt: joinedAt,
+        payload: { membershipId: msId, demo: true },
+      });
+    if (input.leftAt)
+      events.push({
+        ...base,
+        type: "membership.left",
+        occurredAt: input.leftAt,
+        payload: { membershipId: msId, demo: true },
+      });
+    if (input.link) {
+      const c = counters.get(input.link.id) ?? { requests: 0, approved: 0, joined: 0, left: 0 };
+      c.requests++;
+      if (approvedAt) c.approved++;
+      if (joinedAt) c.joined++;
+      if (input.leftAt) c.left++;
+      counters.set(input.link.id, c);
+    }
+  };
+  /** Départ dans les 7 jours (une partie), ou plus tard (rarement), ou jamais. */
+  const fate = (joined: Date): { status: Status; leftAt: Date | null } => {
+    const x = r.next();
+    if (x < 0.14) {
+      const at = new Date(joined.getTime() + r.int(2, 6 * 24) * HOUR);
+      if (at.getTime() < now.getTime() - MIN) return { status: "LEFT", leftAt: at };
+    }
+    if (x > 0.95) {
+      const at = new Date(joined.getTime() + r.int(9, 20) * DAY);
+      if (at.getTime() < now.getTime() - MIN) return { status: "LEFT", leftAt: at };
+    }
+    return { status: "APPROVED", leftAt: null };
+  };
+  const at = (daysAgo: number, hoursAgo = 0) =>
+    notFuture(new Date(now.getTime() - daysAgo * DAY - hoursAgo * HOUR - r.int(0, 50) * MIN));
+
+  /**
+   * Cas du client : demande pour Tir Cadré (qui exige Zone Interdite), clic sur le bouton « Zone Interdite » → demande
+   * pour Zone Interdite (venue de Tir Cadré : 1 jour, court message), « ✅ J'ai rejoint » satisfait par cette demande
+   * en attente → Tir Cadré accepté tout de suite.
+   */
+  const fromTir = (memberId: string, t: Date) => {
+    const zoneAt = new Date(t.getTime() + r.int(1, 8) * MIN);
+    const gateAt = new Date(zoneAt.getTime() + r.int(1, 4) * MIN);
+    if (gateAt.getTime() >= now.getTime() - MIN) return;
+    request({
+      memberId,
+      channel: "tir",
+      link: null,
+      rule: rules.tirDefault!,
+      at: t,
+      status: "APPROVED",
+      gateSatisfiedAt: gateAt,
+      approvedAt: gateAt,
+    });
+    const zoneApprove = new Date(zoneAt.getTime() + DAY);
+    if (zoneApprove.getTime() > now.getTime()) {
+      request({
+        memberId,
+        channel: "zone",
+        link: L.zoneFromTir,
+        rule: rules.zoneFromTir!,
+        at: zoneAt,
+        status: "SCHEDULED",
+      });
+      return;
+    }
+    const f = fate(zoneApprove);
+    request({
+      memberId,
+      channel: "zone",
+      link: L.zoneFromTir,
+      rule: rules.zoneFromTir!,
+      at: zoneAt,
+      status: f.status,
+      approvedAt: zoneApprove,
+      leftAt: f.leftAt,
+    });
+  };
+  /** Demande pour Zone Interdite (pub, lien inconnu) : rejoindre Zone Roulette et Tir Cadré, puis 5 minutes. */
+  const viaDefault = (
+    memberId: string,
+    link: P11Link | null,
+    t: Date,
+    stage: "pending" | "scheduled" | "done",
+  ) => {
+    if (stage === "pending") {
+      request({
+        memberId,
+        channel: "zone",
+        link,
+        rule: rules.zoneDefault!,
+        at: t,
+        status: "PENDING_GATE",
+      });
+      return;
+    }
+    const rouletteAt = new Date(t.getTime() + r.int(1, 6) * MIN);
+    const tirAt = new Date(rouletteAt.getTime() + r.int(1, 6) * MIN);
+    const gateAt = new Date(tirAt.getTime() + r.int(1, 5) * MIN);
+    if (gateAt.getTime() >= now.getTime() - MIN) {
+      request({
+        memberId,
+        channel: "zone",
+        link,
+        rule: rules.zoneDefault!,
+        at: t,
+        status: "PENDING_GATE",
+      });
+      return;
+    }
+    // Canaux à rejoindre : venus du bouton de Zone Interdite → exception « tout de suite, sans message ».
+    request({
+      memberId,
+      channel: "roulette",
+      link: L.rouletteFromZone,
+      rule: rules.rouletteGate!,
+      at: rouletteAt,
+      status: "APPROVED",
+      approvedAt: new Date(rouletteAt.getTime() + 15_000),
+    });
+    request({
+      memberId,
+      channel: "tir",
+      link: L.tirFromZone,
+      rule: rules.tirGate!,
+      at: tirAt,
+      status: "APPROVED",
+      approvedAt: new Date(tirAt.getTime() + 15_000),
+    });
+    const approveAt = new Date(gateAt.getTime() + 300_000);
+    if (stage === "scheduled" || approveAt.getTime() > now.getTime()) {
+      request({
+        memberId,
+        channel: "zone",
+        link,
+        rule: rules.zoneDefault!,
+        at: t,
+        status: "SCHEDULED",
+        gateSatisfiedAt: gateAt,
+      });
+      return;
+    }
+    const f = fate(approveAt);
+    request({
+      memberId,
+      channel: "zone",
+      link,
+      rule: rules.zoneDefault!,
+      at: t,
+      status: f.status,
+      gateSatisfiedAt: gateAt,
+      approvedAt: approveAt,
+      leftAt: f.leftAt,
+    });
+  };
+  /** Lien de partage : la règle qui s'applique (venu de Tir Cadré → 1 jour ; « Story Instagram » → 1 heure). */
+  const viaShare = (memberId: string, l: P11Link, rule: P11Rule, t: Date) => {
+    const approve = new Date(t.getTime() + rule.delaySeconds * 1000);
+    if (approve.getTime() > now.getTime()) {
+      request({ memberId, channel: "zone", link: l, rule, at: t, status: "SCHEDULED" });
+      return;
+    }
+    const f = fate(approve);
+    request({
+      memberId,
+      channel: "zone",
+      link: l,
+      rule,
+      at: t,
+      status: f.status,
+      approvedAt: approve,
+      leftAt: f.leftAt,
+    });
+  };
+
+  // La personne des captures de la fiche membre (premier dépôt, la plus ancienne) : le cas du client, il y a 2 heures.
+  const featured = await db.member.findFirst({
+    where: {
+      telegramUserId: { gte: DEMO_MEMBER_ID_BASE, lt: DEMO_MEMBER_ID_END },
+      anonymizedAt: null,
+      players: { some: { ftdAt: { not: null } } },
+    },
+    orderBy: { firstSeenAt: "asc" },
+    select: { id: true },
+  });
+  if (featured) {
+    used.add(featured.id);
+    fromTir(featured.id, new Date(now.getTime() - 2 * HOUR));
+  }
+  for (const d of [27, 24, 21, 19, 16, 14, 12, 10, 8, 6, 5, 3, 2])
+    fromTir(pickMember(at(d)), at(d));
+  for (const h of [3, 9, 16]) fromTir(pickMember(at(0, h)), at(0, h));
+  for (const d of [28, 23, 20, 17, 13, 11, 9, 7, 4, 2, 1])
+    viaDefault(pickMember(at(d)), L.tiktok, at(d), "done");
+  viaDefault(pickMember(at(0, 1)), L.tiktok, at(0, 1), "pending");
+  viaDefault(pickMember(at(0, 5)), L.tiktok, at(0, 5), "pending");
+  viaDefault(
+    pickMember(new Date(now.getTime() - 20 * MIN)),
+    L.tiktok,
+    new Date(now.getTime() - 20 * MIN),
+    "scheduled",
+  );
+  for (const d of [26, 18, 12, 6, 3]) viaDefault(pickMember(at(d)), null, at(d), "done");
+  viaDefault(pickMember(at(0, 2)), null, at(0, 2), "pending");
+  for (const d of [22, 15, 9, 4, 2])
+    viaShare(pickMember(at(d)), L.sharePost, rules.zoneFromTir!, at(d));
+  viaShare(pickMember(at(0, 6)), L.sharePost, rules.zoneFromTir!, at(0, 6));
+  for (const d of [20, 11, 5, 1])
+    viaShare(pickMember(at(d)), L.shareStory, rules.zoneStory!, at(d));
+  viaShare(
+    pickMember(new Date(now.getTime() - 25 * MIN)),
+    L.shareStory,
+    rules.zoneStory!,
+    new Date(now.getTime() - 25 * MIN),
+  );
+
+  await inBatches(rows, 500, (chunk) => db.membership.createMany({ data: chunk }));
+  await inBatches(events, 1000, (chunk) => db.event.createMany({ data: chunk }));
+  for (const [linkId, c] of counters)
+    await db.inviteLink.update({ where: { id: linkId }, data: c });
+  // Dernière activité des membres concernés.
+  const lastAt = new Map<string, Date>();
+  for (const m of rows) {
+    const t = (m.joinedAt ?? m.requestedAt) as Date;
+    const prev = lastAt.get(m.memberId);
+    if (!prev || prev < t) lastAt.set(m.memberId, t);
+  }
+  for (const [memberId, t] of lastAt)
+    await db.member.updateMany({
+      where: { id: memberId, lastSeenAt: { lt: t } },
+      data: { lastSeenAt: t },
+    });
+
+  return {
+    channelIds: P11_CHANNELS.map((c) => id[c.key]),
+    exceptions: Object.values(rules).filter((x) => x.scope !== "DEFAULT").length,
+    shareLinks: 2,
+    memberships: rows.length,
   };
 }
 

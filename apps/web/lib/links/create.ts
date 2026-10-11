@@ -8,14 +8,26 @@ export class LinkError extends Error {}
 export async function actingBotForChannel(channelId: string) {
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
-    include: { primaryBot: true, botAdmins: { where: { revokedAt: null }, include: { bot: true } } },
+    include: {
+      primaryBot: true,
+      botAdmins: { where: { revokedAt: null }, include: { bot: true } },
+    },
   });
   if (!channel) throw new LinkError("Canal introuvable.");
   const admins = channel.botAdmins.map((a) => a.bot).filter((b) => b.isActive);
-  const primary = channel.primaryBot && admins.some((b) => b.id === channel.primaryBot!.id) ? channel.primaryBot : null;
+  const primary =
+    channel.primaryBot && admins.some((b) => b.id === channel.primaryBot!.id)
+      ? channel.primaryBot
+      : null;
   const bot = primary ?? admins[0] ?? null;
-  if (!bot) throw new LinkError(`Aucun bot administrateur sur « ${channel.title} » : ajoutez un bot comme administrateur du canal (droit « Inviter des utilisateurs »).`);
-  if (!primary) console.warn(`[links] canal ${channel.id} : bot principal absent ou non administrateur, utilisation de @${bot.username}`);
+  if (!bot)
+    throw new LinkError(
+      `Aucun bot administrateur sur « ${channel.title} » : ajoutez un bot comme administrateur du canal (droit « Inviter des utilisateurs »).`,
+    );
+  if (!primary)
+    console.warn(
+      `[links] canal ${channel.id} : bot principal absent ou non administrateur, utilisation de @${bot.username}`,
+    );
   return { channel, bot };
 }
 
@@ -40,9 +52,15 @@ export async function createEntryLink(input: EntryLinkInput) {
   const api = new Api(decrypt(bot.tokenEncrypted));
   let invite;
   try {
-    invite = await api.createChatInviteLink(Number(channel.telegramChatId), { name: input.name.slice(0, 32), creates_join_request: true });
+    invite = await api.createChatInviteLink(Number(channel.telegramChatId), {
+      name: input.name.slice(0, 32),
+      creates_join_request: true,
+    });
   } catch (err) {
-    if (err instanceof GrammyError) throw new LinkError(`Telegram a refusé la création du lien (${err.error_code}) : ${err.description}`);
+    if (err instanceof GrammyError)
+      throw new LinkError(
+        `Telegram a refusé la création du lien (${err.error_code}) : ${err.description}`,
+      );
     throw err;
   }
   const slug = await freeSlug();
@@ -75,14 +93,20 @@ export async function createEntryLink(input: EntryLinkInput) {
       },
     });
     if (input.approvalRuleId) {
-      const rule = await tx.approvalRule.findFirst({ where: { id: input.approvalRuleId, channelId: channel.id } });
+      const rule = await tx.approvalRule.findFirst({
+        where: { id: input.approvalRuleId, channelId: channel.id },
+      });
       if (rule) {
         await tx.approvalRule.create({
           data: {
             channelId: channel.id,
             name: `${rule.name} — ${input.name}`,
             isDefault: false,
+            // Règle d'un lien précis (phase 11 : exception de portée INVITE_LINK, la plus prioritaire).
+            scope: "INVITE_LINK",
             inviteLinkId: inviteLink.id,
+            label: `Venu du lien « ${input.name} »`,
+            sendWelcome: rule.sendWelcome,
             mode: rule.mode,
             delaySeconds: rule.delaySeconds,
             gateChannelIds: rule.gateChannelIds as object,
@@ -98,24 +122,55 @@ export async function createEntryLink(input: EntryLinkInput) {
     }
     return { inviteLink, trackingLink };
   });
-  await audit({ userId: input.userId, action: "link.entry_created", entityType: "TrackingLink", entityId: result.trackingLink.id, metadata: { name: input.name, channelId: channel.id, platform: input.platform, slug } });
-  await recordEvent({ type: "link.created", channelId: channel.id, botId: bot.id, payload: { kind: "AD_ENTRY", slug, inviteLinkId: result.inviteLink.id } });
+  await audit({
+    userId: input.userId,
+    action: "link.entry_created",
+    entityType: "TrackingLink",
+    entityId: result.trackingLink.id,
+    metadata: { name: input.name, channelId: channel.id, platform: input.platform, slug },
+  });
+  await recordEvent({
+    type: "link.created",
+    channelId: channel.id,
+    botId: bot.id,
+    payload: { kind: "AD_ENTRY", slug, inviteLinkId: result.inviteLink.id },
+  });
   return result;
 }
 
-export async function createGenericLink(input: { label: string; url: string; userId: string; kind?: "GENERIC" | "BUTTON"; postId?: string | null }) {
+export async function createGenericLink(input: {
+  label: string;
+  url: string;
+  userId: string;
+  kind?: "GENERIC" | "BUTTON";
+  postId?: string | null;
+}) {
   let parsed: URL;
   try {
     parsed = new URL(input.url);
   } catch {
     throw new LinkError("URL invalide.");
   }
-  if (!/^https?:$/.test(parsed.protocol)) throw new LinkError("L'URL doit commencer par http:// ou https://.");
+  if (!/^https?:$/.test(parsed.protocol))
+    throw new LinkError("L'URL doit commencer par http:// ou https://.");
   const slug = await freeSlug();
   const link = await prisma.trackingLink.create({
-    data: { slug, kind: input.kind ?? "GENERIC", destinationTemplate: input.url, label: input.label, createdById: input.userId, postId: input.postId ?? null },
+    data: {
+      slug,
+      kind: input.kind ?? "GENERIC",
+      destinationTemplate: input.url,
+      label: input.label,
+      createdById: input.userId,
+      postId: input.postId ?? null,
+    },
   });
-  await audit({ userId: input.userId, action: "link.generic_created", entityType: "TrackingLink", entityId: link.id, metadata: { label: input.label, slug } });
+  await audit({
+    userId: input.userId,
+    action: "link.generic_created",
+    entityType: "TrackingLink",
+    entityId: link.id,
+    metadata: { label: input.label, slug },
+  });
   return link;
 }
 

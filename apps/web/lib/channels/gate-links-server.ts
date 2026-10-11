@@ -2,6 +2,7 @@ import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import {
   canInviteFromRights,
   createPrismaGateLinkDeps,
+  gateLinkCreatesJoinRequest,
   resolveGateLink,
   webBotApi,
   type ChannelInfo,
@@ -132,7 +133,7 @@ export async function loadGateLinkView(
   const [channels, links, admins, last, acting] = await Promise.all([
     prisma.channel.findMany({
       where: { id: { in: ids } },
-      select: { id: true, title: true, username: true },
+      select: { id: true, title: true, username: true, isActive: true },
     }),
     prisma.inviteLink.findMany({
       where: {
@@ -146,6 +147,7 @@ export async function loadGateLinkView(
       select: {
         channelId: true,
         botId: true,
+        createsJoinRequest: true,
         bot: { select: { username: true } },
       },
     }),
@@ -169,10 +171,14 @@ export async function loadGateLinkView(
   const revoked = new Set(
     admins.filter((a) => a.revokedAt).map((a) => `${a.channelId}:${a.botId}`),
   );
+  // Type de lien attendu (phase 11) : avec demande d'adhésion, sauf canal à rejoindre désactivé chez nous ; un ancien
+  // lien à entrée directe n'est plus proposé par le bot (même règle que `findGateLink`).
+  const wantsRequest = new Map(channels.map((c) => [c.id, gateLinkCreatesJoinRequest(c)]));
   const linkBy: Record<string, string | null> = {};
   for (const l of links) {
     // Lien valide : son bot n'a pas perdu ses droits sur le canal à rejoindre (même règle que le bot).
     if (l.channelId in linkBy || revoked.has(`${l.channelId}:${l.botId}`)) continue;
+    if (l.createsJoinRequest !== (wantsRequest.get(l.channelId) ?? true)) continue;
     linkBy[l.channelId] = l.bot.username;
   }
   const adminBy: Record<string, Array<{ username: string; canInvite: boolean | null }>> = {};
@@ -185,7 +191,8 @@ export async function loadGateLinkView(
   }
   const ordered = ids
     .map((id) => channels.find((c) => c.id === id))
-    .filter((c): c is { id: string; title: string; username: string | null } => !!c);
+    .filter((c): c is (typeof channels)[number] => !!c)
+    .map((c) => ({ id: c.id, title: c.title, username: c.username }));
   const rows = gateLinkRows({
     gateMode: rule.gateMode,
     channels: ordered,

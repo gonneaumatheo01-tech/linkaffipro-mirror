@@ -13,7 +13,11 @@ import { ChannelStatePills } from "@/components/channels/channel-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { isAccountSessionActive } from "@/lib/channels/account-import";
-import { entrySentence, entryShort } from "@/lib/channels/entry-rule";
+import {
+  entrySentence,
+  entryShortWithExceptions,
+  exceptionsCountLabel,
+} from "@/lib/channels/entry-rule";
 import { loadChannelList, type ChannelListItem } from "@/lib/channels/queries";
 import { TRACKED_MEMBERS_HELP } from "@/lib/channels/requests";
 import { channelTabHref } from "@/lib/channels/tabs";
@@ -68,7 +72,14 @@ function ChannelDetail({
         </div>
         <div className="col-span-2">
           <dt className="text-note text-muted-foreground">Qui peut entrer et quand</dt>
-          <dd className="mt-0.5">{entrySentence(c.rule, titles)}</dd>
+          <dd className="mt-0.5">
+            {entrySentence(c.rule, titles)}
+            {c.exceptions > 0 ? (
+              <span className="mt-0.5 block text-note text-muted-foreground">
+                Sauf {exceptionsCountLabel(c.exceptions)} selon la provenance (fiche du canal).
+              </span>
+            ) : null}
+          </dd>
         </div>
         <div className="col-span-2">
           <dt className="text-note text-muted-foreground">Bots administrateurs</dt>
@@ -116,7 +127,7 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
   const botOptions = bots.map((b) => ({ id: b.id, username: b.username }));
 
   const rows: DataTableRow[] = channels.map((c) => {
-    const short = entryShort(c.rule);
+    const short = entryShortWithExceptions(c.rule, c.exceptions);
     return {
       id: c.id,
       detailTitle: c.title,

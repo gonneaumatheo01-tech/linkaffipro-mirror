@@ -19,6 +19,12 @@ const REAL_ACTIONS = [
   "channel.updated",
   "membership.approve_now",
   "approval_rule.created",
+  "approval_rule.exception_created",
+  "approval_rule.exception_updated",
+  "approval_rule.exception_deleted",
+  "approval_rule.exceptions_reordered",
+  "invite_link.share_created",
+  "invite_link.share_disabled",
   "member.anonymized",
   "tag.created",
   "post.updated",
@@ -66,6 +72,31 @@ describe("filtre « Type d'action » du Journal", () => {
         code,
       ).toBe(true);
     expect(actionLabel("approval_rule.updated")).toBe("Règle d'adhésion");
+  });
+
+  it("phase 11 : exceptions selon la provenance et liens de partage, en français", () => {
+    expect(actionLabel("approval_rule.exception_created")).toBe(
+      "Règle d'adhésion : exception ajoutée",
+    );
+    expect(actionLabel("approval_rule.exception_updated")).toBe(
+      "Règle d'adhésion : exception modifiée",
+    );
+    expect(actionLabel("approval_rule.exception_deleted")).toBe(
+      "Règle d'adhésion : exception supprimée",
+    );
+    expect(actionLabel("approval_rule.exceptions_reordered")).toBe(
+      "Règle d'adhésion : ordre des exceptions modifié",
+    );
+    expect(actionLabel("invite_link.share_created")).toBe("Lien de partage créé");
+    expect(actionLabel("invite_link.share_disabled")).toBe("Lien de partage désactivé");
+    // Les exceptions se retrouvent avec les règles d'adhésion ; les liens de partage avec les liens.
+    expect(where("membership.")).toEqual({
+      OR: [{ action: { startsWith: "membership." } }, { action: { startsWith: "approval_rule." } }],
+    });
+    expect(
+      ACTION_FAMILIES.find((a) => a.prefixes.some((p) => "invite_link.share_created".startsWith(p)))
+        ?.label,
+    ).toBe("Campagnes et liens");
   });
 
   it("une famille filtre sur tous ses préfixes ; un ancien code garde son filtre exact", () => {

@@ -10,6 +10,7 @@ import {
   isNoRule,
   NO_RULE,
   resolveRule,
+  ruleDelayText,
   ruleFromRow,
 } from "./rules";
 import { pickText, renderHtmlText, renderText } from "./texts";
@@ -77,11 +78,37 @@ describe("état initial", () => {
     );
     expect(s).toEqual({ status: "SCHEDULED", approveAt: t0, expiresAt: null });
   });
-  it("délai sans gate → SCHEDULED après le délai", () => {
+  it("délai sans gate → SCHEDULED après le délai, sans expiration (l'acceptation est planifiée)", () => {
     const s = computeInitialState(ruleFromRow(row({ gateMode: "NONE" })), t0);
     expect(s.status).toBe("SCHEDULED");
     expect(s.approveAt?.getTime()).toBe(t0.getTime() + 600_000);
-    expect(s.expiresAt?.getTime()).toBe(t0.getTime() + 48 * 3600_000);
+    expect(s.expiresAt).toBeNull();
+  });
+  it("délai plus long que l'expiration (2 jours, expiration 24 h → refuser) : planifiée, jamais d'expiration", () => {
+    // Cas d'une personne venue du bouton « canal à rejoindre » qui tombe sur la règle par défaut (canaux non imposés) :
+    // le bot lui annonce « accès dans 2 jours ».
+    const r = {
+      ...ruleFromRow(row({ delaySeconds: 2 * 86_400, expireAfterHours: 24 })),
+      gateChannelIds: [],
+      noGates: true,
+    };
+    const s = computeInitialState(r, t0);
+    expect(s).toEqual({
+      status: "SCHEDULED",
+      approveAt: new Date(t0.getTime() + 2 * 86_400_000),
+      expiresAt: null,
+    });
+  });
+  it("à valider à la main ou canaux à rejoindre : l'expiration s'applique (la demande attend l'équipe ou la personne)", () => {
+    expect(computeInitialState(ruleFromRow(row()), t0).expiresAt?.getTime()).toBe(
+      t0.getTime() + 48 * 3600_000,
+    );
+    expect(
+      computeInitialState(
+        ruleFromRow(row({ mode: "MANUAL", gateMode: "NONE" })),
+        t0,
+      ).expiresAt?.getTime(),
+    ).toBe(t0.getTime() + 48 * 3600_000);
   });
   it("gate requis → PENDING_GATE sans échéance", () => {
     expect(computeInitialState(ruleFromRow(row()), t0)).toMatchObject({
@@ -201,5 +228,18 @@ describe("textes", () => {
     expect(pickText(texts, "de", "es")).toBe("FR");
     expect(pickText({ es: "ES" }, "de", "fr")).toBe("ES");
     expect(pickText(null, "fr", "fr")).toBeNull();
+  });
+});
+
+describe("texte du délai d'une règle ({delai})", () => {
+  it("validation à la main : « par l'équipe », jamais l'heure d'un délai enregistré", () => {
+    expect(ruleDelayText({ mode: "MANUAL", delaySeconds: 86_400 })).toBe("par l'équipe");
+    expect(ruleDelayText({ mode: "MANUAL", delaySeconds: 0 }, "en")).toBe("by the team");
+    expect(ruleDelayText({ mode: "MANUAL", delaySeconds: 600 }, "de")).toBe("vom Team");
+  });
+  it("tout de suite : « immédiatement » ; délai : « dans 1 jour »", () => {
+    expect(ruleDelayText({ mode: "IMMEDIATE", delaySeconds: 600 })).toBe("immédiatement");
+    expect(ruleDelayText({ mode: "DELAY", delaySeconds: 86_400 })).toBe("dans 1 jour");
+    expect(ruleDelayText({ mode: "DELAY", delaySeconds: 300 }, "it")).toBe(formatDelay(300, "it"));
   });
 });

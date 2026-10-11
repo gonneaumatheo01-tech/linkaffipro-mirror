@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 11 : régler « venu de Tir Cadré → 1 jour » et faire un vrai essai (10 minutes)
+1. **Régler l'exemple** (3 clics) : https://app.linkaffipro.com/channels → **Zone Interdite** → onglet **Qui peut entrer et quand** → **+ Ajouter une exception** → « Si la personne vient » de « Tir Cadré » → **Après un délai** : 1 jour → **Enregistrer l'exception**. Pour les 5 minutes des autres : en haut, **Par défaut**, « Puis accepter » : 5 minutes → **Enregistrer la règle**.
+2. **Vérifier avec le simulateur** (même onglet, « Et si quelqu'un demande à entrer ? ») : choisissez « bouton de Tir Cadré » puis « une pub » : il dit ce qui se passera, sans rien envoyer.
+3. **Vrai essai sur Telegram** (avec un compte qui n'est pas encore membre) : demandez à rejoindre Zone Interdite par un lien d'entrée → l'accueil propose LA ZONE ROULETTE et TIR CADRÉ → touchez les deux boutons (une demande part dans chacun) → « ✅ J'ai rejoint » est accepté tout de suite (une demande en attente compte) → acceptation dans Zone Interdite 5 minutes après le clic. Dans **Demandes** de LA ZONE ROULETTE, la carte dit « Venu de « Zone Interdite » (canal obligatoire) ».
+4. **Canaux à rejoindre** : LA ZONE ROULETTE et TIR CADRÉ ont reçu l'exception « Venu du bouton « canal à rejoindre » → tout de suite, sans message » : les personnes envoyées par Zone Interdite y entrent comme avant. Changez-la (par exemple « après 1 jour ») si vous voulez leur propre délai.
+
 ## Phase 10 : à regarder (5 minutes, rien d'obligatoire)
 1. **Accueil** : la carte « Gains du jour » = vos commissions moins la dépense pub (le détail est écrit dessous). Les dépôts ne comptent plus dans les gains.
 2. **« À faire »** : deux demandes du 11 octobre au matin (Zone Interdite) y sont encore : cliquez « Renvoyer l'accueil avec les liens » ou acceptez-les.

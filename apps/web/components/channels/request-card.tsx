@@ -14,14 +14,21 @@ export type RequestCardData = {
   status: MembershipStatus;
   /** Ce qui va se passer (« Acceptée dans 10 min », « À valider à la main »…). */
   next: string;
-  source: string;
+  /** D'où vient la personne : « Venu de « Tir Cadré » (canal obligatoire) » (phase 11). */
+  provenance: string;
+  /** Règle appliquée : « règle : 1 jour », « règle par défaut : 5 minutes » ; null si inconnue. */
+  rule: string | null;
+  /** « acceptation prévue le 12 oct. à 10 h 14 » (demande programmée), sinon null. */
+  acceptance: string | null;
   requestedAt: string;
   lastError: string | null;
 };
 
 /**
- * Une demande d'adhésion en carte (pensée d'abord pour le téléphone) : qui, où en est la demande, d'où elle vient,
- * puis « Accepter » et « Refuser » en boutons de 40 px. Mêmes actions serveur qu'avant.
+ * Une demande d'adhésion en carte (pensée d'abord pour le téléphone) : qui, où en est la demande, puis d'où elle vient
+ * avec la règle appliquée et la date d'acceptation prévue (« Venu de « Tir Cadré » (canal obligatoire) · règle :
+ * 1 jour · acceptation prévue le 12 oct. à 10 h 14 »), puis « Accepter » et « Refuser » en boutons de 40 px. Mêmes
+ * actions serveur qu'avant.
  */
 export function RequestCard({
   request: r,
@@ -44,13 +51,15 @@ export function RequestCard({
         <StatusBadge kind="membership" value={r.status} />
       </div>
       <p className="mt-3 text-body text-foreground">{r.next}</p>
+      <p className="mt-1 text-note break-words text-muted-foreground">
+        <span className="sr-only">Origine : </span>
+        <span className="text-foreground">{r.provenance}</span>
+        {[r.rule, r.acceptance]
+          .filter((x): x is string => Boolean(x))
+          .map((x) => ` · ${x}`)
+          .join("")}
+      </p>
       <dl className="mt-1 space-y-0.5 text-note text-muted-foreground">
-        <div className="flex gap-1">
-          <dt className="shrink-0">Origine :</dt>
-          <dd className="min-w-0 truncate" title={r.source}>
-            {r.source}
-          </dd>
-        </div>
         <div className="flex gap-1">
           <dt className="shrink-0">Demandé le</dt>
           <dd>{r.requestedAt}</dd>

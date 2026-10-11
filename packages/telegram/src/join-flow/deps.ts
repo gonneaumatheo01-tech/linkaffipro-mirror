@@ -62,7 +62,23 @@ export interface JoinFlowDeps extends GateLinkDeps {
   /** Bot qui doit agir pour ce canal : bot principal s'il est administrateur, sinon le premier bot administrateur. */
   actingBotIdFor(channelId: string): Promise<{ botId: string; warning?: string } | null>;
   findInviteLinkByUrl(url: string): Promise<InviteLinkInfo | null>;
-  resolveRule(channelId: string, inviteLinkId: string | null): Promise<RuleData>;
+  /**
+   * Liens de ce canal créés par notre bot d'identifiant Telegram `creatorTelegramId` dont l'adresse commence par
+   * `prefix` (quelques-uns, actifs d'abord) : relecture d'un lien dont Telegram a masqué la fin (« https://t.me/+AbCd… »,
+   * lien créé par un autre administrateur que le bot qui reçoit la demande). Le choix se fait par `pickMaskedLink`.
+   * Facultatif (tests anciens) : aucun lien.
+   */
+  findInviteLinksByPrefix?(input: {
+    channelId: string;
+    prefix: string;
+    creatorTelegramId: bigint;
+  }): Promise<Array<InviteLinkInfo & { isActive: boolean }>>;
+  /**
+   * Règle d'une nouvelle demande selon sa provenance (phase 11) : lien d'invitation de la demande (null : lien que la
+   * plateforme n'a pas créé, ou aucun lien), règles actives du canal → `resolveRuleForProvenance` (canaux à rejoindre
+   * effectifs ; aucune règle → `NO_RULE` ou `NO_RULE_DIRECT`).
+   */
+  resolveRule(channelId: string, link: InviteLinkInfo | null): Promise<RuleData>;
   createMembership(data: {
     code: string;
     memberId: string;
@@ -92,7 +108,17 @@ export interface JoinFlowDeps extends GateLinkDeps {
   findMembershipByCode(code: string): Promise<MembershipInfo | null>;
   /** Dernière demande ouverte ou approuvée d'un membre sur un canal. */
   findLatestMembership(memberId: string, channelId: string): Promise<MembershipInfo | null>;
+  /**
+   * Règle d'une demande enregistrée, avec ses canaux à rejoindre effectifs : sans le canal d'où vient la personne, et
+   * aucun si l'accueil n'en a pas demandé (`source.appliedRule.noGates`). Sert au « ✅ J'ai rejoint », au renvoi de
+   * l'accueil et aux rappels : jamais un canal que l'accueil n'a pas demandé.
+   */
   getRuleForMembership(m: MembershipInfo): Promise<RuleData>;
+  /**
+   * Date du dernier message d'accueil (OutboundMessage WELCOME, en file ou envoyé) de ce bot à ce membre, ou null.
+   * Anti-doublon : pas deux accueils du même bot à la même personne en 10 minutes (`isDuplicateWelcome`).
+   */
+  lastWelcomeAt(memberId: string, botId: string): Promise<Date | null>;
   incrementInviteLink(
     id: string,
     field: "requests" | "approved" | "joined" | "left",

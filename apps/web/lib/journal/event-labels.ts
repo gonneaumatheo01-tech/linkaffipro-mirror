@@ -24,6 +24,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "membership.gate_check_failed": "Vérification des canaux rejoints impossible",
   "membership.welcome_resent": "Accueil renvoyé avec les liens",
   "membership.gate_links_ready": "Liens de canaux prêts",
+  "membership.welcome_skipped": "Accueil non renvoyé (déjà envoyé il y a moins de 10 minutes)",
+  "membership.rescheduled": "Demande replanifiée (reprise de la phase 11)",
+  "invite_link.legacy_revoked": "Ancien lien de canal à rejoindre retiré",
   "channel.gate_links_checked": "Liens des canaux à rejoindre vérifiés",
   "player.cpa_credited": "Commission créditée",
   "player.cpa_reversed": "Commission annulée",
@@ -74,6 +77,7 @@ export function eventLabel(type: string): string {
     return TELEGRAM_UPDATE_LABELS[type.slice("telegram.".length)] ?? "Mise à jour Telegram";
   if (type.startsWith("player.")) return "Événement joueur";
   if (type.startsWith("membership.")) return "Adhésion";
+  if (type.startsWith("invite_link.")) return "Lien d'invitation";
   if (type.startsWith("member.")) return "Membre";
   return "Autre événement";
 }
@@ -92,6 +96,7 @@ export const EVENT_FAMILIES: Array<{ prefix: string; label: string }> = [
   { prefix: "broadcast.", label: "Messages à un groupe" },
   { prefix: "automation.", label: "Relances automatiques" },
   { prefix: "link.", label: "Liens" },
+  { prefix: "invite_link.", label: "Liens d'invitation" },
   { prefix: "offer.", label: "Boutons Offre" },
   { prefix: "ads.", label: "Campagnes pub (synchro)" },
 ];

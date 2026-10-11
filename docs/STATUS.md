@@ -1,4 +1,34 @@
-# État du projet : phase 10 (finitions après la refonte) terminée (11 octobre 2026)
+# État du projet : phase 11 (règles selon la provenance) terminée (11 octobre 2026)
+
+Phases 0 à 10 en ligne. Phase 11 = les règles d'acceptation selon la provenance et le délai après les canaux obligatoires, demandés par le client le 11 octobre (`docs/prompts/13-phase-11-regles-par-provenance.md`). 2 537 tests unitaires et 220 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
+
+## Phase 11 : ce qui a changé (11 octobre)
+- **Délai selon la provenance** (fiche canal → « Qui peut entrer et quand ») : en haut, **Par défaut** ; en dessous, **Exceptions selon la provenance** : « Si la personne vient de [Tir Cadré] → après 1 jour ». Provenances possibles : un de nos canaux, le bouton « canal à rejoindre » d'un de nos canaux, n'importe lequel de nos canaux, une pub TikTok, une pub Meta, n'importe quelle pub, un lien de partage (n'importe lequel ou un précis). Ordre : lien précis, puis canal, puis type de provenance ; glisser ou Monter / Descendre dans chaque groupe ; « Jamais utilisée » signale une exception masquée. Suppression réservée aux administrateurs.
+- **Simulateur** « Et si quelqu'un demande à entrer ? » : il dit ce qui se passera pour chaque provenance (règle, canaux à rejoindre, heure d'entrée, message), avec exactement la même logique que le bot (vérifié sur 20 000 cas tirés au hasard : aucun écart).
+- **Délai après « ✅ J'ai rejoint »** : « Puis accepter : tout de suite / 5 minutes / 1 heure / 1 jour / sur mesure » ; le délai part du clic, le bot l'annonce, aucun rappel ni expiration pendant ce temps.
+- **Canaux obligatoires avec leur propre délai** : leurs boutons font maintenant une demande d'adhésion, et le canal obligatoire applique sa propre règle. Une demande en attente compte comme « rejoint » ; le canal d'où vient la personne compte toujours comme rejoint (deux canaux peuvent s'exiger l'un l'autre sans bloquer personne) ; une personne venue d'un canal obligatoire reçoit au plus un court message, jamais un deuxième accueil complet ; un même bot n'envoie pas deux accueils en 10 minutes.
+- **Rien ne change pour vos canaux sans action de votre part** : LA ZONE ROULETTE et TIR CADRÉ ont reçu l'exception « Venu du bouton « canal à rejoindre » → tout de suite, sans message » (comme avant). Les anciens boutons restent valables 7 jours, puis sont retirés automatiquement.
+- **Liens de partage** (sous le simulateur) : un lien nommé à poster où vous voulez, « à poster dans » un de nos canaux en option, à copier, avec ses demandes et acceptées, désactivable.
+- **Suivi** : chaque demande et la fiche membre disent « Venu de « Tir Cadré » (canal obligatoire) · règle : 1 jour · acceptation prévue le … » ; onglet Membres de la fiche canal : « D'où viennent les demandes » (30 jours : demandes, acceptées, départs dans les 7 jours) ; journal des exceptions et des liens de partage.
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com/channels → **Zone Interdite** → **Qui peut entrer et quand** : **+ Ajouter une exception** → « de « Tir Cadré » » → **Après un délai** : 1 jour → **Enregistrer l'exception**.
+2. En haut, **Par défaut** : « Puis accepter » → 5 minutes → **Enregistrer la règle**.
+3. Plus bas, **Et si quelqu'un demande à entrer ?** : choisissez le bouton de Tir Cadré, puis une pub : le simulateur annonce 1 jour, puis 5 minutes après « ✅ J'ai rejoint ».
+4. Onglet **Demandes** : chaque carte dit d'où vient la personne et quand elle sera acceptée.
+5. **LA ZONE ROULETTE** → **Qui peut entrer et quand** : l'exception « bouton « canal à rejoindre » → tout de suite » est là.
+
+## Vérifications faites
+- Trois agents de réalisation (bot et worker ; écran des règles ; liens de partage et suivi), puis relectures adverses indépendantes de chaque partie et une relecture finale du scénario du client de bout en bout, chaque défaut corrigé avec un test qui échouait avant. Défaut bloquant trouvé et corrigé avant la mise en ligne : Telegram masque la fin d'un lien créé par un autre bot, ce qui aurait perdu la provenance (les liens des canaux obligatoires sont maintenant créés par le bot du canal à rejoindre, avec un filet de secours).
+- Scénario exact du client testé sur une vraie base avec des mises à jour Telegram simulées (Tir Cadré exige Zone Interdite ; Zone Interdite exige Zone Roulette et Tir Cadré ; venu de Tir Cadré → 1 jour ; autre lien → 5 minutes), de la demande jusqu'à l'acceptation par le worker.
+- Accessibilité : 0 violation (axe) sur les onglets de la fiche canal, les volets et la fiche membre, à 1 440 et 390 px ; captures de référence dans `docs/captures`.
+
+## Limites et suites
+- Le court message « Ta demande pour … est bien reçue » a un texte intégré (6 langues) : pas encore modifiable dans « Ce que dit le bot ».
+- Le glisser-déposer des exceptions marche à la souris sur ordinateur ; sur téléphone, flèches Monter / Descendre.
+- Pas encore testé par une vraie personne sur Telegram : essai à faire (voir `docs/A-FAIRE-HUMAIN.md`, phase 11).
+
+## Phase 10 — (finitions après la refonte) terminée (11 octobre 2026)
 
 Phases 0 à 9 en ligne. Phase 10 = les retours du client après la refonte (`docs/prompts/12-phase-10-finitions-apres-refonte.md`). 2 380 tests unitaires et 182 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
 

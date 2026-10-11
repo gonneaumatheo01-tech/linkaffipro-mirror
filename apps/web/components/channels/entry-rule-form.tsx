@@ -13,9 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
+  CUSTOM_DELAY_LABEL,
   DELAY_PRESETS,
   DELAY_UNITS,
   ENTRY_CHOICES,
+  GATE_DELAY_PRESETS,
   NO_RULE_SENTENCE,
   REMINDER_UNITS,
   advancedModifiedCount,
@@ -29,13 +31,17 @@ import {
   reminderChips,
   remindersSentence,
   ruleFromState,
+  stateDelaySeconds,
   toggleReminder,
+  welcomeOption,
+  type DelayPreset,
   type DelayPresetKey,
   type DelayUnit,
   type EntryChoice,
   type EntryFormState,
   type GateChannelChoice,
 } from "@/lib/channels/entry-rule";
+import { defaultGateSkipNote, type GateSkipExceptions } from "@/lib/channels/exceptions";
 
 /** Canal à cocher (canaux actifs, et ceux de la règle devenus inactifs ou supprimés : `gateChannelChoices`). */
 export type GateChannelOption = GateChannelChoice;
@@ -63,32 +69,54 @@ function SubmitButton() {
   );
 }
 
-/** Délais proposés en pastilles (boutons radio), plus « Autre durée » avec un nombre et une unité. */
+/**
+ * Délais proposés en pastilles (boutons radio), plus « Sur mesure » avec un nombre et une unité. Sert à « Après un
+ * délai » (`DELAY_PRESETS`) et à « puis accepter » après les canaux à rejoindre (`GATE_DELAY_PRESETS`).
+ */
+/**
+ * Validation à la main cochée (Avancé) : aucun délai ne s'applique, personne n'est accepté tout seul et le bot
+ * n'annonce aucune heure (accès validé par l'équipe). Le choix du délai est donc masqué.
+ */
+function ManualNote() {
+  return (
+    <p className="flex items-start gap-2 text-body text-muted-foreground">
+      <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+      Vous validez vous-même chaque demande (bloc « Avancé ») : aucun délai ne s&apos;applique et le
+      bot n&apos;annonce aucune heure d&apos;entrée.
+    </p>
+  );
+}
+
 function DelayPicker({
   legend,
   name,
-  state,
-  withImmediate,
+  presets,
+  value,
+  amount,
+  unit,
+  help,
   onChange,
 }: {
   legend: string;
   name: string;
-  state: EntryFormState;
-  withImmediate: boolean;
-  onChange: (patch: Partial<EntryFormState>) => void;
+  presets: readonly DelayPreset[];
+  value: DelayPresetKey;
+  amount: number;
+  unit: DelayUnit;
+  help?: React.ReactNode;
+  onChange: (patch: { preset?: DelayPresetKey; amount?: number; unit?: DelayUnit }) => void;
 }) {
   const id = useId();
-  const presets = DELAY_PRESETS.filter((p) => withImmediate || p.key !== "immediate");
   const options: Array<{ key: DelayPresetKey; label: string }> = [
     ...presets,
-    { key: "custom", label: "Autre durée" },
+    { key: "custom", label: CUSTOM_DELAY_LABEL },
   ];
   return (
-    <fieldset className="space-y-3">
+    <fieldset className="space-y-3" aria-describedby={help ? `${id}-help` : undefined}>
       <legend className="mb-3 text-body font-medium text-foreground">{legend}</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((o) => {
-          const checked = state.delayPreset === o.key;
+          const checked = value === o.key;
           return (
             <label
               key={o.key}
@@ -103,7 +131,7 @@ function DelayPicker({
                 name={name}
                 value={o.key}
                 checked={checked}
-                onChange={() => onChange({ delayPreset: o.key })}
+                onChange={() => onChange({ preset: o.key })}
                 className="sr-only"
               />
               {checked ? <Check aria-hidden className="size-4" /> : null}
@@ -112,7 +140,7 @@ function DelayPicker({
           );
         })}
       </div>
-      {state.delayPreset === "custom" ? (
+      {value === "custom" ? (
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-2">
             <Label htmlFor={`${id}-amount`}>Durée</Label>
@@ -121,8 +149,8 @@ function DelayPicker({
               type="number"
               min={0}
               inputMode="numeric"
-              value={Number.isFinite(state.customAmount) ? state.customAmount : ""}
-              onChange={(e) => onChange({ customAmount: numberValue(e.target.value) })}
+              value={Number.isFinite(amount) ? amount : ""}
+              onChange={(e) => onChange({ amount: numberValue(e.target.value) })}
               className="w-28"
             />
           </div>
@@ -130,8 +158,8 @@ function DelayPicker({
             <Label htmlFor={`${id}-unit`}>Unité</Label>
             <NativeSelect
               id={`${id}-unit`}
-              value={state.customUnit}
-              onChange={(e) => onChange({ customUnit: e.target.value as DelayUnit })}
+              value={unit}
+              onChange={(e) => onChange({ unit: e.target.value as DelayUnit })}
               className="w-36"
             >
               {DELAY_UNITS.map((u) => (
@@ -142,6 +170,11 @@ function DelayPicker({
             </NativeSelect>
           </div>
         </div>
+      ) : null}
+      {help ? (
+        <p id={`${id}-help`} className="text-note text-muted-foreground">
+          {help}
+        </p>
       ) : null}
     </fieldset>
   );
@@ -267,132 +300,64 @@ function RemindersPicker({
 }
 
 /**
- * « Qui peut entrer et quand » : phrase de résumé, trois grands choix (tout de suite / après un délai / après avoir
- * rejoint ces canaux), les détails du choix, puis « Avancé » (validation à la main, rappels, expiration, message
- * « accepté »). Envoie à `saveRuleAction` exactement les champs de l'ancien formulaire (`entryFormFields`).
- * Canal sans règle : un encadré « Aucune règle » et le bouton « Choisir une règle » ouvrent le formulaire.
+ * Les choix d'une règle, communs à la règle par défaut et aux exceptions selon la provenance : trois grands choix
+ * (tout de suite / après un délai / après avoir rejoint ces canaux), les détails du choix (« puis accepter » après les
+ * canaux à rejoindre), puis « Avancé » (validation à la main, message à l'arrivée, rappels, expiration, message
+ * « Accepté »).
  */
-export function EntryRuleForm({
-  channelId,
-  hasRule,
-  initial,
+export function EntryRuleFields({
+  state,
+  setState,
   channels,
-  action,
-  requestsHref,
+  initial,
+  variant,
   gateStatus,
+  gateNote,
+  welcomeHelp,
+  gateSkip,
 }: {
-  channelId: string;
-  /** Une règle est enregistrée et active pour ce canal. */
-  hasRule: boolean;
-  initial: EntryFormState;
-  /** Autres canaux actifs (canaux à rejoindre). */
+  state: EntryFormState;
+  setState: (update: (s: EntryFormState) => EntryFormState) => void;
+  /** Canaux à cocher (`gateChannelChoices`). */
   channels: GateChannelOption[];
-  action: (formData: FormData) => Promise<void>;
-  requestsHref: string;
-  /**
-   * État des liens des canaux à rejoindre de la règle enregistrée (`GateLinksStatus`, rendu par le serveur), montré
-   * dans « Les canaux à rejoindre ». Son bouton « Vérifier les liens » envoie ce formulaire vers une autre action.
-   */
+  /** État enregistré : sert à dire si les canaux cochés ont changé depuis la dernière vérification des liens. */
+  initial: EntryFormState | null;
+  variant: "default" | "exception";
+  /** État des liens des canaux à rejoindre de la règle enregistrée (`GateLinksStatus`, rendu par le serveur). */
   gateStatus?: React.ReactNode;
+  /** Remarque sous la liste des canaux (ex. « Tir Cadré compte comme déjà rejoint »). */
+  gateNote?: React.ReactNode;
+  /** Aide de « Envoyer un message à l'arrivée » (hors canaux à rejoindre). */
+  welcomeHelp?: string;
+  /**
+   * Règle par défaut : exceptions actives qui visent les personnes envoyées ici par le bouton du canal à rejoindre
+   * d'un autre de nos canaux (`gateSenderExceptions`), rappelées dans la note sous les choix du délai.
+   */
+  gateSkip?: GateSkipExceptions | null;
 }) {
   const id = useId();
-  const [state, setState] = useState<EntryFormState>(initial);
-  const [started, setStarted] = useState(hasRule);
-  const [showProblem, setShowProblem] = useState(false);
-  const problemRef = useRef<HTMLParagraphElement>(null);
   const patch = (p: Partial<EntryFormState>) => setState((s) => ({ ...s, ...p }));
-
-  const titles = useMemo(
-    () => Object.fromEntries(channels.map((c) => [c.id, c.title])),
-    [channels],
-  );
-  const fields = entryFormFields(state);
-  const dirty = !hasRule || JSON.stringify(fields) !== JSON.stringify(entryFormFields(initial));
-  const problem = entryProblem(state);
-  const sentence = entrySentence({ ...ruleFromState(state), isActive: true }, titles);
   const expiration = expirationSentence(ruleFromState(state));
   const modified = advancedModifiedCount(state);
   const unavailableChecked = channels.some((c) => c.unavailable && state.gateIds.includes(c.id));
   // Canaux cochés différents de la règle enregistrée : la vérification des liens porte sur la règle enregistrée.
   const gateChanged =
+    !initial ||
     [...state.gateIds].sort().join() !== [...initial.gateIds].sort().join() ||
     state.gateMode !== initial.gateMode ||
     initial.choice !== "gate";
-
-  if (!started) {
-    return (
-      <div className="max-w-3xl space-y-4">
-        <div
-          role="status"
-          className="flex gap-3 rounded-xl border border-warning/25 bg-warning-soft p-4"
-        >
-          <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warning" />
-          <div className="min-w-0 space-y-3">
-            <div>
-              <p className="text-body font-semibold text-foreground">{NO_RULE_SENTENCE}</p>
-              <p className="mt-1 text-body text-foreground">
-                Le bot n&apos;écrit à personne de lui-même tant qu&apos;aucune règle n&apos;est
-                choisie.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" className="max-md:h-10" onClick={() => setStarted(true)}>
-                Choisir une règle
-              </Button>
-              <Link
-                href={requestsHref}
-                className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
-              >
-                Voir les demandes
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const gateChoice = state.choice === "gate";
+  const welcome = welcomeOption(state, { variant, help: welcomeHelp });
 
   return (
-    <form
-      action={action}
-      className="max-w-3xl space-y-8"
-      onSubmit={(e) => {
-        // « Vérifier les liens » n'enregistre pas la règle : pas de contrôle des champs.
-        const submitter = (e.nativeEvent as SubmitEvent).submitter;
-        if (submitter?.hasAttribute("data-verify-links")) return;
-        if (problem) {
-          e.preventDefault();
-          setShowProblem(true);
-          // Le message n'est affiché qu'au rendu suivant : le focus y va une fois qu'il existe.
-          requestAnimationFrame(() => problemRef.current?.focus());
-        }
-      }}
-    >
-      <input type="hidden" name="channelId" value={channelId} />
-      {fields.map(([name, value], i) => (
-        <input key={`${name}-${i}`} type="hidden" name={name} value={value} />
-      ))}
-
-      <div aria-live="polite" className="flex gap-3 rounded-xl border border-border bg-surface p-4">
-        <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-ink" />
-        <div className="min-w-0">
-          <p className="text-body font-semibold text-foreground">{sentence}</p>
-          {expiration ? <p className="mt-1 text-body text-muted-foreground">{expiration}</p> : null}
-          {dirty ? (
-            <p className="mt-1 text-note text-muted-foreground">
-              {hasRule
-                ? "Modifications pas encore enregistrées."
-                : "Règle pas encore enregistrée : les demandes attendent toujours votre validation."}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
+    <>
       <fieldset className="space-y-3">
         <legend className="mb-3 text-body font-semibold text-foreground">
-          Quand une personne demande à entrer, elle est acceptée…
+          {variant === "default"
+            ? "Quand une personne demande à entrer, elle est acceptée…"
+            : "Cette personne est acceptée…"}
         </legend>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className={cn("grid gap-3", variant === "default" && "md:grid-cols-3")}>
           {ENTRY_CHOICES.map((c) => {
             const Icon = CHOICE_ICONS[c.key];
             const checked = state.choice === c.key;
@@ -401,7 +366,8 @@ export function EntryRuleForm({
                 key={c.key}
                 className={cn(
                   OPTION_CLASS,
-                  "relative flex min-h-24 gap-3 rounded-xl p-4 md:flex-col",
+                  "relative flex gap-3 rounded-xl p-4",
+                  variant === "default" ? "min-h-24 md:flex-col" : "min-h-16",
                 )}
               >
                 <input
@@ -436,7 +402,9 @@ export function EntryRuleForm({
 
       {state.choice === "now" ? (
         <p className="text-body text-muted-foreground">
-          Le bot envoie son message d&apos;accueil, puis accepte la personne aussitôt.
+          {state.sendWelcome
+            ? "Le bot envoie son message d'accueil, puis accepte la personne aussitôt."
+            : "Le bot accepte la personne aussitôt, sans lui écrire."}
         </p>
       ) : null}
 
@@ -445,17 +413,29 @@ export function EntryRuleForm({
           title="Le délai"
           description="Le temps de lire le message d'accueil du bot avant d'entrer."
         >
-          <DelayPicker
-            legend="Accepter la demande après :"
-            name={`${id}-delay`}
-            state={state}
-            withImmediate={false}
-            onChange={patch}
-          />
+          {state.manual ? (
+            <ManualNote />
+          ) : (
+            <DelayPicker
+              legend="Accepter la demande après :"
+              name={`${id}-delay`}
+              presets={DELAY_PRESETS.filter((p) => p.key !== "immediate")}
+              value={state.delayPreset}
+              amount={state.customAmount}
+              unit={state.customUnit}
+              onChange={(p) =>
+                patch({
+                  ...(p.preset ? { delayPreset: p.preset } : {}),
+                  ...(p.amount !== undefined ? { customAmount: p.amount } : {}),
+                  ...(p.unit ? { customUnit: p.unit } : {}),
+                })
+              }
+            />
+          )}
         </FormSection>
       ) : null}
 
-      {state.choice === "gate" ? (
+      {gateChoice ? (
         <FormSection
           title="Les canaux à rejoindre"
           description="Le bot envoie un bouton par canal et un bouton « ✅ J'ai rejoint »."
@@ -520,13 +500,19 @@ export function EntryRuleForm({
               ) : null}
             </fieldset>
           )}
-          {gateStatus && hasRule ? (
+          {gateNote ? (
+            <p className="flex items-start gap-2 text-note text-muted-foreground">
+              <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {gateNote}
+            </p>
+          ) : null}
+          {gateStatus ? (
             <div className="space-y-2">
               {gateChanged ? (
                 <p className="flex items-start gap-2 text-note text-muted-foreground">
                   <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  Enregistrez la règle : les liens des canaux que vous venez de choisir seront créés
-                  et vérifiés tout de suite.
+                  Enregistrez : les liens des canaux que vous venez de choisir seront créés et
+                  vérifiés tout de suite.
                 </p>
               ) : null}
               {gateStatus}
@@ -573,24 +559,46 @@ export function EntryRuleForm({
               })}
             </div>
           </fieldset>
-          <DelayPicker
-            legend={
-              state.gateMode === "REQUIRED"
-                ? "Une fois les canaux rejoints, accepter :"
-                : "Accepter la demande :"
-            }
-            name={`${id}-gate-delay`}
-            state={state}
-            withImmediate
-            onChange={patch}
-          />
+          {state.manual ? (
+            <ManualNote />
+          ) : (
+            <DelayPicker
+              legend={state.gateMode === "REQUIRED" ? "Puis accepter :" : "Accepter la demande :"}
+              name={`${id}-gate-delay`}
+              presets={GATE_DELAY_PRESETS}
+              value={state.gateDelayPreset}
+              amount={state.gateCustomAmount}
+              unit={state.gateCustomUnit}
+              help={
+                state.gateMode === "REQUIRED"
+                  ? "Le délai part du clic sur « ✅ J'ai rejoint »."
+                  : "Le délai part de la demande."
+              }
+              onChange={(p) =>
+                patch({
+                  ...(p.preset ? { gateDelayPreset: p.preset } : {}),
+                  ...(p.amount !== undefined ? { gateCustomAmount: p.amount } : {}),
+                  ...(p.unit ? { gateCustomUnit: p.unit } : {}),
+                })
+              }
+            />
+          )}
+          {variant === "default" ? (
+            <p className="flex items-start gap-2 text-note text-muted-foreground">
+              <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {defaultGateSkipNote(
+                { manual: state.manual, delaySeconds: stateDelaySeconds(state) },
+                gateSkip,
+              )}
+            </p>
+          ) : null}
         </FormSection>
       ) : null}
 
       <AdvancedSection
-        description="Validation à la main, rappels, expiration, message « Accepté »."
+        description="Validation à la main, message à l'arrivée, rappels, expiration, message « Accepté »."
         modifiedCount={modified}
-        defaultOpen={initial.manual}
+        defaultOpen={Boolean(initial?.manual)}
       >
         <label className="flex min-h-10 cursor-pointer items-start gap-3">
           <Checkbox
@@ -604,8 +612,23 @@ export function EntryRuleForm({
             </span>
             <span className="block text-note text-muted-foreground">
               Personne n&apos;est accepté tout seul : vous acceptez ou refusez dans l&apos;onglet
-              Demandes. Le bot envoie quand même son message d&apos;accueil.
+              Demandes. Le bot envoie quand même son message à l&apos;arrivée.
             </span>
+          </span>
+        </label>
+
+        <label className="flex min-h-10 cursor-pointer items-start gap-3">
+          <Checkbox
+            checked={welcome.checked}
+            disabled={welcome.disabled}
+            onCheckedChange={(on) => patch({ sendWelcome: Boolean(on) })}
+            className="mt-0.5"
+          />
+          <span className="min-w-0">
+            <span className="block text-body font-medium text-foreground">
+              Envoyer un message à l&apos;arrivée de la demande
+            </span>
+            <span className="block text-note text-muted-foreground">{welcome.help}</span>
           </span>
         </label>
 
@@ -685,6 +708,144 @@ export function EntryRuleForm({
           </span>
         </label>
       </AdvancedSection>
+    </>
+  );
+}
+
+/**
+ * « Qui peut entrer et quand » → « Par défaut » : phrase de résumé, les choix de la règle (`EntryRuleFields`) et
+ * « Enregistrer la règle ». Envoie à `saveRuleAction` les champs de l'ancien formulaire (`entryFormFields`), avec le
+ * délai de « puis accepter » après les canaux à rejoindre et le message à l'arrivée.
+ * Canal sans règle : un encadré « Aucune règle » et le bouton « Choisir une règle » ouvrent le formulaire.
+ */
+export function EntryRuleForm({
+  channelId,
+  hasRule,
+  initial,
+  channels,
+  action,
+  requestsHref,
+  gateStatus,
+  exceptionsCount = 0,
+  gateSkip = null,
+}: {
+  channelId: string;
+  /** Une règle est enregistrée et active pour ce canal. */
+  hasRule: boolean;
+  initial: EntryFormState;
+  /** Autres canaux actifs (canaux à rejoindre). */
+  channels: GateChannelOption[];
+  action: (formData: FormData) => Promise<void>;
+  requestsHref: string;
+  /**
+   * État des liens des canaux à rejoindre de la règle enregistrée (`GateLinksStatus`, rendu par le serveur), montré
+   * dans « Les canaux à rejoindre ». Son bouton « Vérifier les liens » envoie ce formulaire vers une autre action.
+   */
+  gateStatus?: React.ReactNode;
+  /** Exceptions actives selon la provenance (rappelées sous la phrase de résumé). */
+  exceptionsCount?: number;
+  /** Exceptions actives qui visent les personnes envoyées par le bouton d'un autre canal (`gateSenderExceptions`). */
+  gateSkip?: GateSkipExceptions | null;
+}) {
+  const [state, setState] = useState<EntryFormState>(initial);
+  const [started, setStarted] = useState(hasRule);
+  const [showProblem, setShowProblem] = useState(false);
+  const problemRef = useRef<HTMLParagraphElement>(null);
+
+  const titles = useMemo(
+    () => Object.fromEntries(channels.map((c) => [c.id, c.title])),
+    [channels],
+  );
+  const fields = entryFormFields(state);
+  const dirty = !hasRule || JSON.stringify(fields) !== JSON.stringify(entryFormFields(initial));
+  const problem = entryProblem(state);
+  const sentence = entrySentence({ ...ruleFromState(state), isActive: true }, titles);
+  const expiration = expirationSentence(ruleFromState(state));
+
+  if (!started) {
+    return (
+      <div className="space-y-4">
+        <div
+          role="status"
+          className="flex gap-3 rounded-xl border border-warning/25 bg-warning-soft p-4"
+        >
+          <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warning" />
+          <div className="min-w-0 space-y-3">
+            <div>
+              <p className="text-body font-semibold text-foreground">{NO_RULE_SENTENCE}</p>
+              <p className="mt-1 text-body text-foreground">
+                Le bot n&apos;écrit à personne de lui-même tant qu&apos;aucune règle n&apos;est
+                choisie.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" className="max-md:h-10" onClick={() => setStarted(true)}>
+                Choisir une règle
+              </Button>
+              <Link
+                href={requestsHref}
+                className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+              >
+                Voir les demandes
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      action={action}
+      className="space-y-8"
+      onSubmit={(e) => {
+        // « Vérifier les liens » n'enregistre pas la règle : pas de contrôle des champs.
+        const submitter = (e.nativeEvent as SubmitEvent).submitter;
+        if (submitter?.hasAttribute("data-verify-links")) return;
+        if (problem) {
+          e.preventDefault();
+          setShowProblem(true);
+          // Le message n'est affiché qu'au rendu suivant : le focus y va une fois qu'il existe.
+          requestAnimationFrame(() => problemRef.current?.focus());
+        }
+      }}
+    >
+      <input type="hidden" name="channelId" value={channelId} />
+      {fields.map(([name, value], i) => (
+        <input key={`${name}-${i}`} type="hidden" name={name} value={value} />
+      ))}
+
+      <div aria-live="polite" className="flex gap-3 rounded-xl border border-border bg-surface p-4">
+        <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-ink" />
+        <div className="min-w-0">
+          <p className="text-body font-semibold text-foreground">{sentence}</p>
+          {expiration ? <p className="mt-1 text-body text-muted-foreground">{expiration}</p> : null}
+          {exceptionsCount > 0 ? (
+            <p className="mt-1 text-body text-muted-foreground">
+              Sauf {exceptionsCount > 1 ? `${exceptionsCount} exceptions` : "1 exception"} selon la
+              provenance, plus bas.
+            </p>
+          ) : null}
+          {dirty ? (
+            <p className="mt-1 text-note text-muted-foreground">
+              {hasRule
+                ? "Modifications pas encore enregistrées."
+                : "Règle pas encore enregistrée : les demandes attendent toujours votre validation."}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <EntryRuleFields
+        state={state}
+        setState={setState}
+        channels={channels}
+        initial={hasRule ? initial : null}
+        variant="default"
+        gateStatus={hasRule ? gateStatus : null}
+        gateSkip={gateSkip}
+      />
 
       <div className="space-y-3">
         {showProblem && problem ? (

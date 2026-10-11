@@ -356,20 +356,23 @@ En haut : le nom, l'univers, l'état, le nombre de membres et le bot principal ;
 
 #### Qui peut entrer et quand
 
-Une phrase en haut résume la règle (« Les demandes sont acceptées 10 minutes après, sans condition. »). Choisissez quand une personne qui demande à entrer est acceptée :
+Une phrase en haut résume la règle (« Les demandes sont acceptées 10 minutes après, sans condition. »). **Par défaut** : choisissez quand une personne qui demande à entrer est acceptée :
 
 1. **Tout de suite** : le bot envoie son message d'accueil, puis accepte la personne aussitôt.
-2. **Après un délai** : 1 minute, 10 minutes, 1 heure, 1 jour, 2 jours ou **Autre durée** (entre 1 minute et 30 jours). Le temps de lire le message d'accueil avant d'entrer.
-3. **Après avoir rejoint ces canaux** : cochez les canaux à rejoindre, puis choisissez **Obligatoires** (acceptée seulement après « ✅ J'ai rejoint » : le bot vérifie) ou **Proposés** (le bot les propose mais accepte la personne dans tous les cas), puis le délai.
+2. **Après un délai** : 1 minute, 5 minutes, 10 minutes, 1 heure, 1 jour, 2 jours ou **Sur mesure** (entre 1 minute et 30 jours). Le temps de lire le message d'accueil avant d'entrer.
+3. **Après avoir rejoint ces canaux** : cochez les canaux à rejoindre, puis choisissez **Obligatoires** (acceptée seulement après « ✅ J'ai rejoint » : le bot vérifie) ou **Proposés** (le bot les propose mais accepte la personne dans tous les cas), puis **Puis accepter** : tout de suite, 5 minutes, 1 heure, 1 jour ou **Sur mesure**. Le délai part du clic sur « ✅ J'ai rejoint », et le bot annonce le vrai délai (par exemple : acceptation dans 1 jour). Pendant ce délai, la personne ne reçoit plus de rappel et sa demande n'expire plus. Un réglage qui ne fait pas partie de ces choix (par exemple 10 minutes) s'affiche en « Sur mesure ».
+
+Quand une personne appuie sur le bouton d'un canal à rejoindre, elle fait une demande dans ce canal, qui applique sa propre règle (délai, message). Une demande en attente dans un canal à rejoindre compte comme « rejoint » : la personne peut appuyer sur « ✅ J'ai rejoint » sans attendre d'y être acceptée. Le canal d'où elle vient compte toujours comme rejoint : deux canaux peuvent s'exiger l'un l'autre sans bloquer personne. Une personne venue du bouton d'un autre canal qui tombe sur la règle par défaut n'a aucun canal à rejoindre : seul le délai s'applique (une exception peut en décider autrement).
 
 Le bloc **Avancé** contient le reste :
 
-- **Je valide moi-même chaque demande** : personne n'est accepté tout seul ; vous acceptez ou refusez dans l'onglet **Demandes**. Le bot envoie quand même son message d'accueil.
+- **Je valide moi-même chaque demande** : personne n'est accepté tout seul ; vous acceptez ou refusez dans l'onglet **Demandes**. Le bot envoie quand même son message d'accueil, mais n'annonce jamais de délai (l'accès est validé par l'équipe, y compris après « ✅ J'ai rejoint ») ; le choix du délai est alors masqué.
 - **Rappels, après la demande** : cochez 30 minutes, 1 heure, 6 heures, 1 jour ou 2 jours, ou **Autre délai** puis **Ajouter ce rappel** ; et le **Nombre de rappels au plus**. Seulement pour les personnes qui n'ont pas encore rejoint les canaux obligatoires, et si elles ont accepté les messages du bot. Aucun rappel ne part quand vous validez vous-même chaque demande.
-- **Expiration (heures)** (0 = jamais) et **Ensuite** : laisser la demande en attente, l'accepter quand même, ou la refuser.
+- **Expiration (heures)** (0 = jamais) et **Ensuite** : laisser la demande en attente, l'accepter quand même, ou la refuser. L'expiration ne concerne que les demandes qui attendent encore (la personne n'a pas rejoint les canaux, ou l'équipe n'a pas validé) : une demande dont l'heure d'accès est fixée n'expire jamais et entre à l'heure annoncée par le bot.
 - **Envoyer le message « Accepté » au membre** (son texte se modifie dans **Ce que dit le bot**).
+- **Envoyer un message à l'arrivée de la demande** : décoché, le bot n'écrit pas à la personne à son arrivée. Les personnes qui ont des canaux à rejoindre reçoivent toujours l'accueil (il porte leurs boutons) ; décoché, une personne venue du bouton « canal à rejoindre » d'un autre de nos canaux (qui n'a donc rien à rejoindre) ne reçoit aucun message.
 
-**Liens des canaux à rejoindre** : un cadre montre chaque canal à rejoindre avec « Prêt », « À vérifier » ou « À corriger ». N'importe lequel de nos bots peut fournir le lien d'un canal, s'il en est administrateur avec le droit « Inviter via un lien » (ce n'est plus forcément le bot du canal demandé). En cas de problème, la solution est écrite en toutes lettres (« Ajoutez @bot comme administrateur de « X » avec le droit Inviter via un lien »), puis cliquez **Vérifier les liens**. Le cadre devient vert (« Tout est prêt ») quand tout va bien. Si un lien manque malgré tout, le bot envoie l'accueil avec les liens possibles et « ✅ J'ai rejoint », une alerte Telegram vous prévient une fois, et la demande apparaît dans « À faire » sur l'accueil.
+**Liens des canaux à rejoindre** : un cadre montre chaque canal à rejoindre avec « Prêt », « À vérifier » ou « À corriger ». N'importe lequel de nos bots peut fournir le lien d'un canal, s'il en est administrateur avec le droit « Inviter via un lien » (ce n'est plus forcément le bot du canal demandé). En cas de problème, la solution est écrite en toutes lettres (« Ajoutez @bot comme administrateur de « X » avec le droit Inviter via un lien »), puis cliquez **Vérifier les liens**. Le cadre devient vert (« Tout est prêt ») quand tout va bien. Le lien de chaque bouton est créé par le bot principal du canal à rejoindre (c'est lui qui reçoit la demande) : la provenance « Venu de … (canal obligatoire) » reste juste même si plusieurs de nos bots y sont administrateurs. **Vérifier les liens** contrôle les canaux de la règle par défaut et de toutes les exceptions actives. Si un lien manque malgré tout, le bot envoie l'accueil avec les liens possibles et « ✅ J'ai rejoint », une alerte Telegram vous prévient une fois, et la demande apparaît dans « À faire » sur l'accueil.
 
 Cliquez sur **Enregistrer la règle** : elle s'applique aux prochaines demandes ; les liens sont créés et vérifiés tout de suite.
 
@@ -377,6 +380,31 @@ Cliquez sur **Enregistrer la règle** : elle s'applique aux prochaines demandes 
 - Un canal à rejoindre qui a été désactivé ou supprimé reste coché en haut de la liste (« Canal inactif » ou « Canal supprimé ») et le bot continue de le demander : décochez-le, puis **Enregistrer la règle**.
 - Un lien d'entrée peut avoir sa propre règle (**Campagnes → Tous les liens**) : elle remplace celle du canal pour les membres venus de ce lien.
 - Un seul changement à la fois sur un canal très actif, puis surveillez l'onglet **Demandes**.
+
+#### Exceptions selon la provenance
+
+Une règle à part pour les personnes venues d'un endroit précis. Cliquez sur **+ Ajouter une exception**, choisissez **Si la personne vient…** (d'un de nos canaux ; du bouton « canal à rejoindre » d'un de nos canaux ; de n'importe lequel de nos canaux ; d'une pub TikTok ; d'une pub Meta ; de n'importe quelle pub ; d'un lien de partage ; ou d'un lien de partage précis), puis les mêmes choix que pour la règle par défaut (dont les canaux à rejoindre et « Puis accepter », et le bloc **Avancé**). Terminez par **Enregistrer l'exception**.
+
+**Exemple** : dans la fiche de « Zone Interdite », **+ Ajouter une exception** → **Si la personne vient** de « Tir Cadré » → **Après un délai** : 1 jour → **Enregistrer l'exception**. Le réglage par défaut (par exemple 5 minutes après avoir rejoint les canaux) vaut pour tous les autres.
+
+- Chaque exception s'affiche en une phrase (« Si la personne vient de « Tir Cadré » → après 1 jour »), avec un résumé dessous (« Une personne venue de « Tir Cadré » sera acceptée 1 jour après sa demande »). Cliquez sur la phrase ou sur **Modifier** pour la changer. L'interrupteur l'active ou la désactive : désactivée, ces personnes suivent la règle par défaut.
+- **Ordre** : un lien précis passe avant un de nos canaux, qui passe avant un type de provenance. Dans chaque groupe, la première exception qui correspond s'applique ; changez l'ordre en glissant la poignée (ordinateur) ou avec **Monter** / **Descendre**. « Jamais utilisée » signale une exception masquée par une autre placée avant (par exemple « n'importe quelle pub » avant « pub TikTok ») : montez-la, ou désactivez l'autre.
+- Une seule exception par provenance : si elle existe déjà, le volet le dit (« modifiez-la plutôt »). **Supprimer** est réservé aux administrateurs ; un responsable peut désactiver l'exception. Les demandes déjà planifiées gardent leur date d'acceptation.
+- Une personne venue du bouton « canal à rejoindre » d'un autre canal reçoit seulement un court message (sa demande pour Zone Interdite est bien reçue, accès dans 1 jour), jamais un deuxième accueil complet ; si vous coupez le message de l'exception, elle ne reçoit rien. Un même bot n'envoie pas deux messages d'accueil à la même personne en moins de 10 minutes, sauf s'il reste des canaux à rejoindre.
+- Un canal sans règle fait entrer tout de suite, sans aucun message, les personnes venues du bouton d'un de nos canaux ; les autres attendent votre validation.
+- À la mise en ligne du 11 octobre, chaque canal à rejoindre a reçu l'exception « Venu du bouton « canal à rejoindre » d'un de nos canaux → tout de suite, sans message » : rien ne change tant que vous ne la modifiez pas (par exemple « après 1 jour »). Les anciens boutons envoyés avant cette date restent valables 7 jours, puis sont retirés automatiquement.
+
+#### Et si quelqu'un demande à entrer ?
+
+Le simulateur, sous les exceptions : choisissez d'où vient la personne (le bouton « canal à rejoindre » d'un de nos canaux, un lien de partage, un lien qui a sa propre règle — par exemple le lien d'entrée d'une pub réglé dans **Campagnes → Tous les liens** —, une pub TikTok, une pub Meta, une autre pub, un autre lien). Il affiche la règle appliquée, les canaux à rejoindre, le moment où elle est acceptée et le message du bot. Il utilise les règles enregistrées, exactement comme le bot, et n'envoie rien.
+
+#### Liens de partage
+
+Sous le simulateur : des liens à poster où vous voulez (un post, une story, un autre canal). Cliquez sur **+ Créer un lien de partage**, donnez-lui un nom (par exemple « Post Tir Cadré ») et, si vous le postez dans un de nos canaux, choisissez-le dans **À poster dans** : les personnes venues par ce lien comptent alors comme venues de ce canal (exception « venu de … »). Cliquez sur **Créer le lien** puis **Copier**.
+
+- Chaque lien de partage passe par une demande d'adhésion : la règle du canal s'applique, ou son exception. Pour régler un lien précis, ajoutez une exception « un lien de partage précis ». La ligne « Règle : … » sous chaque lien dit ce qui s'applique.
+- Sous chaque lien : le nombre de demandes et d'acceptées. **Désactiver** arrête le lien dans Telegram ; les demandes déjà reçues et les chiffres restent. Les responsables peuvent créer et désactiver des liens.
+- Si Telegram refuse de créer le lien, le message dit quoi faire : ajouter le bot indiqué comme administrateur du canal avec le droit « Inviter via un lien », puis réessayer.
 
 #### Ce que dit le bot
 
@@ -391,11 +419,11 @@ Une note orange signale un message que la règle actuelle n'envoie pas (par exem
 
 #### Demandes
 
-Une carte par demande en cours : le nom, le @pseudo s'il y en a un, l'état, ce qui va se passer (« Acceptée dans 10 min », « À valider à la main »…), l'origine (nom du lien de pub) et la date de la demande. Boutons **Accepter** et **Refuser** (le refus demande confirmation : la personne devra refaire une demande). **Actualiser** recharge la liste.
+Une carte par demande en cours : le nom, le @pseudo s'il y en a un, l'état, ce qui va se passer (« Acceptée dans 10 min », « À valider à la main »…), d'où vient la personne, la règle appliquée et, pour une acceptation programmée, la date prévue (« Venu de « Tir Cadré » (canal obligatoire) · règle : 1 jour · acceptation prévue le 12 oct. à 10 h 14 » ; « Venu d'une pub TikTok », « Venu d'un autre lien »…) et la date de la demande. Boutons **Accepter** et **Refuser** (le refus demande confirmation : la personne devra refaire une demande). **Actualiser** recharge la liste.
 
 #### Membres du canal
 
-Onglet **Membres** : tableau Membre, Statut, Origine, Accepté le, Parti le. Cliquez sur une ligne pour le détail (dates et origine) et **Ouvrir la fiche du membre**. **Voir dans Membres** ouvre la liste complète filtrée sur ce canal.
+Onglet **Membres** : en tête, **D'où viennent les demandes** : sur les 30 derniers jours, pour chaque provenance (bouton « canal à rejoindre » de chacun de nos canaux, chaque lien de partage, pubs TikTok, pubs Meta, autres pubs, autres liens), le nombre de demandes, combien ont été acceptées et combien de personnes sont reparties dans les 7 jours qui suivent leur entrée. Puis le tableau Membre, Statut, Origine (la provenance), Accepté le, Parti le. Cliquez sur une ligne pour le détail (dates et origine) et **Ouvrir la fiche du membre**. **Voir dans Membres** ouvre la liste complète filtrée sur ce canal.
 
 ## Messages
 
@@ -515,6 +543,8 @@ En haut, l'essentiel :
 - **D'où il vient** : campagne, pub, canal, date d'arrivée, offre.
 - **Ce qu'il a fait** : demandes pour rejoindre, canaux où il est, clics sur une offre, dernière activité.
 - **Ce qu'il a déposé** : premiers dépôts, dépôts, revenu net.
+
+**Ses demandes et canaux** : pour chaque demande, le canal, l'état, d'où il vient (« Venu de « Tir Cadré » (canal obligatoire) »), la règle appliquée et la date d'acceptation (prévue ou faite).
 
 Ensuite : ses **Étiquettes** (cochez, puis **Enregistrer les étiquettes** ; **Gérer les étiquettes** pour en créer), et **Joignable par le bot** : pour chaque bot, Joignable, A bloqué le bot, ou Pas joignable. En bas, la **Chronologie** complète (du plus récent au plus ancien), les **Notes internes** (visibles seulement par l'équipe : **Ajouter la note**, **Modifier**, **Supprimer**) et ses **Comptes joueurs**, avec l'identifiant de suivi qui les relie à son clic. **Ouvrir dans Telegram** ouvre son profil quand il a un pseudo.
 
