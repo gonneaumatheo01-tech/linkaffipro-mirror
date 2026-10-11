@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
+import { FormSection } from "@/components/admin/form-section";
 import { MiniTrend, StatCard } from "@/components/admin/stat-card";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { BarList } from "@/components/charts/bar-list";
@@ -22,6 +23,7 @@ import {
   perPostText,
   postsClicksNote,
   sumSeries,
+  trendOrNone,
 } from "@/lib/dashboard/display";
 import { deltaPct } from "@/lib/dashboard/metrics";
 import { loadStatsOptions } from "@/lib/dashboard/stats-options";
@@ -104,11 +106,12 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             <span className="min-w-0">{g.title}</span>
           </span>
         ),
-        trend: multiDay ? (
-          <MiniTrend values={g.net} />
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
+        trend:
+          multiDay && trendOrNone(g.net) ? (
+            <MiniTrend values={g.net} />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
         joined: <NumCell value={fmtNum(g.joined)} delta={d("joined")} />,
         left: <NumCell value={fmtNum(g.left)} delta={d("left")} favorable="down" />,
         net: (
@@ -126,7 +129,7 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
       detail: (
         <div className="space-y-4">
           <MetricDetail figures={figures} compare={f.compare} />
-          {multiDay ? (
+          {multiDay && trendOrNone(g.net) ? (
             <div>
               <p className="mb-1 text-note text-muted-foreground">Croissance nette jour par jour</p>
               <MiniTrend values={g.net} />
@@ -135,13 +138,13 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/channels/${g.channelId}`}
-              className={buttonVariants({ variant: "outline" })}
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
             >
               Ouvrir le canal
             </Link>
             <Link
               href={`/messages?${new URLSearchParams({ channelId: g.channelId }).toString()}`}
-              className={buttonVariants({ variant: "ghost" })}
+              className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
             >
               Ses meilleurs créneaux
             </Link>
@@ -175,26 +178,20 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
               }
               favorable={x.favorable}
               hint={f.compare ? `Avant : ${fmtFigure(x.key, prevSum(x.key))}` : undefined}
-              trend={x.key === "net" && multiDay ? net : undefined}
+              trend={x.key === "net" && multiDay ? trendOrNone(net) : undefined}
             />
           ))}
         </div>
       </section>
 
-      <section
-        aria-labelledby="channels-daily"
+      <FormSection
+        id="channels-daily"
         className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
+        title="Croissance nette jour par jour"
+        description={`Membres entrés moins départs, pour ${
+          growth.length === 1 ? "ce canal" : "les canaux affichés"
+        }. Sous la ligne du zéro, le canal a perdu des membres.`}
       >
-        <div className="mb-3">
-          <h2 id="channels-daily" className="text-title text-foreground">
-            Croissance nette jour par jour
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Membres entrés moins départs, pour{" "}
-            {growth.length === 1 ? "ce canal" : "les canaux affichés"}. Sous la ligne du zéro, le
-            canal a perdu des membres.
-          </p>
-        </div>
         {multiDay ? (
           <MetricChart
             metrics={[
@@ -214,17 +211,14 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             Choisissez une période de plusieurs jours pour voir l&apos;évolution jour par jour.
           </p>
         )}
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="channels-table" className="mb-8">
-        <div className="mb-3">
-          <h2 id="channels-table" className="text-title text-foreground">
-            Par canal
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Cliquez sur un canal pour voir ses demandes et la période précédente.
-          </p>
-        </div>
+      <FormSection
+        id="channels-table"
+        className="mb-8"
+        title="Par canal"
+        description="Cliquez sur un canal pour voir ses demandes et la période précédente."
+      >
         <DataTable
           label="Croissance par canal"
           defaultSort={{ key: "net", direction: "desc" }}
@@ -246,31 +240,26 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             action: { href: "/channels", label: "Voir les canaux", variant: "outline" },
           }}
         />
-      </section>
+      </FormSection>
 
-      <section
-        aria-labelledby="channels-categories"
+      <FormSection
+        id="channels-categories"
         className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
-      >
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="channels-categories" className="text-title text-foreground">
-              Meilleures catégories
-            </h2>
-            <p className="text-body text-muted-foreground">
-              Clics par message envoyé,{" "}
-              {channelName ? `sur « ${channelName} »` : "sur tous vos canaux"}.
-            </p>
-          </div>
-          {best.categories.length > 0 ? (
+        title="Meilleures catégories"
+        description={`Clics par message envoyé, ${
+          channelName ? `sur « ${channelName} »` : "sur tous vos canaux"
+        }.`}
+        actions={
+          best.categories.length > 0 ? (
             <Link
               href="/messages/categories"
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}
             >
               Comparer en détail
             </Link>
-          ) : null}
-        </div>
+          ) : null
+        }
+      >
         {best.categories.length === 0 ? (
           <EmptyState
             title="Aucun message envoyé sur la période"
@@ -293,7 +282,7 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
                     className="size-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: c.color }}
                   />
-                  <span className="min-w-0 truncate">{c.name}</span>
+                  <span className="min-w-0 break-words">{c.name}</span>
                 </span>
               ),
               value: c.clicksPerPost,
@@ -302,30 +291,25 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             }))}
           />
         )}
-      </section>
+      </FormSection>
 
-      <section
-        aria-labelledby="channels-hours"
+      <FormSection
+        id="channels-hours"
         className="rounded-xl border border-border bg-card p-4 md:p-5"
-      >
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="channels-hours" className="text-title text-foreground">
-              Meilleurs horaires d&apos;envoi
-            </h2>
-            <p className="text-body text-muted-foreground">
-              Clics par message selon l&apos;heure d&apos;envoi (heure de Paris),{" "}
-              {channelName ? `sur « ${channelName} »` : "sur tous vos canaux"}.
-            </p>
-          </div>
+        title="Meilleurs horaires d'envoi"
+        description={`Clics par message selon l'heure d'envoi (heure de Paris), ${
+          channelName ? `sur « ${channelName} »` : "sur tous vos canaux"
+        }.`}
+        actions={
           <Link
             href={calendarHref}
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}
           >
             <CalendarClock aria-hidden />
             Voir dans le calendrier
           </Link>
-        </div>
+        }
+      >
         {best.hours.length === 0 ? (
           <EmptyState
             title="Aucun message envoyé sur la période"
@@ -342,7 +326,7 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             </p>
           </>
         )}
-      </section>
+      </FormSection>
     </>
   );
 }

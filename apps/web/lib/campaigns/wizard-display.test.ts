@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   adsAdvancedCount,
+  fieldIdOnStep,
   generalAdvancedCount,
+  hiddenOffersLabel,
   IMPORT_STEPS,
   importStep,
+  offerChipLabel,
   offersUniverseFirst,
   UNIVERSE_CHOICES,
+  universeFirst,
 } from "./wizard-display";
 import { WIZARD_STEPS } from "./wizard";
 import { JARGON } from "./display";
@@ -38,6 +42,63 @@ describe("assistant Nouvelle campagne : affichage", () => {
     expect(same.map((o) => o.id)).toEqual(["b1", "c1", "x", "b2", "c2"]);
     expect(same).not.toBe(offers);
     expect(offersUniverseFirst(offers, null).map((o) => o.id)).toEqual(same.map((o) => o.id));
+  });
+
+  it("étape 3 : les canaux de l'univers choisi d'abord, avec la même règle que les offres", () => {
+    const channels = [
+      { id: "test", vertical: null },
+      { id: "bonus", vertical: "CASINO" },
+      { id: "foot", vertical: "SPORTS" },
+      { id: "vip", vertical: "CASINO" },
+    ];
+    expect(universeFirst(channels, "CASINO").map((c) => c.id)).toEqual([
+      "bonus",
+      "vip",
+      "test",
+      "foot",
+    ]);
+    expect(universeFirst(channels, null).map((c) => c.id)).toEqual([
+      "test",
+      "bonus",
+      "foot",
+      "vip",
+    ]);
+    expect(offersUniverseFirst).toBe(universeFirst);
+  });
+
+  it("étape 2 : offres masquées au singulier et au pluriel", () => {
+    expect(hiddenOffersLabel(1)).toBe("1 masquée");
+    expect(hiddenOffersLabel(3)).toBe("3 masquées");
+    expect(hiddenOffersLabel(1200)).toBe("1\u202f200 masquées");
+  });
+
+  it("étape 2 : une offre choisie sans répéter son programme", () => {
+    expect(
+      offerChipLabel({
+        name: "Démo · Casino Royal — Bienvenue 200 %",
+        programName: "Démo · Casino Royal",
+      }),
+    ).toBe("Démo · Casino Royal — Bienvenue 200 %");
+    // Sans tenir compte de la casse ni des accents.
+    expect(
+      offerChipLabel({ name: "demo · casino royal — Tours", programName: "Démo · Casino Royal" }),
+    ).toBe("demo · casino royal — Tours");
+    expect(offerChipLabel({ name: "Bienvenue 200 %", programName: "Casino Royal" })).toBe(
+      "Casino Royal · Bienvenue 200 %",
+    );
+    expect(offerChipLabel({ name: "Bienvenue", programName: "" })).toBe("Bienvenue");
+  });
+
+  it("erreur : le champ fautif s'il est sur l'étape affichée, sinon rien (bandeau en haut)", () => {
+    expect(fieldIdOnStep("name", "general")).toBe("wz-name");
+    expect(fieldIdOnStep("endAt", "general")).toBe("wz-end");
+    expect(fieldIdOnStep("budgetDaily", "general")).toBe("wz-budget");
+    expect(fieldIdOnStep("channelIds", "channels")).toBe("wz-channels");
+    expect(fieldIdOnStep("entryChannelId", "ads")).toBe("wz-entry-channel");
+    // Le nom se corrige aussi dans le récapitulatif de l'étape 4.
+    expect(fieldIdOnStep("name", "ads")).toBe("wz-name-final");
+    expect(fieldIdOnStep("channelIds", "ads")).toBeNull();
+    expect(fieldIdOnStep("endAt", "offers")).toBeNull();
   });
 
   it("quatre étapes nommées comme la spécification, une ligne d'aide courte chacune, sans jargon", () => {

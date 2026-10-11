@@ -1,7 +1,8 @@
 import { cn } from "@/components/ui/cn";
 
 /**
- * Liste « libellé : valeur » des volets de détail et des blocs techniques de Réglages (`<dl>` en deux colonnes).
+ * Liste « libellé : valeur » des volets de détail (Statistiques, Réglages, Journal) et des blocs techniques
+ * (`<dl>` en deux colonnes : libellé gris, valeur à gauche ; `mono` pour un code technique).
  * Usage : `<DetailList><DetailRow label="Devise">EUR</DetailRow></DetailList>`.
  */
 export function DetailList({

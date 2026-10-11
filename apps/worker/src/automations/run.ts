@@ -98,7 +98,7 @@ export async function resumePending(now = new Date(), limit = 100): Promise<numb
     const claimed = await prisma.automationRun.updateMany({ where: { id: run.id, status: "PENDING" }, data: { status: "RUNNING" } });
     if (claimed.count === 0) continue;
     if (!run.rule.isActive) {
-      await prisma.automationRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: "Règle désactivée" } });
+      await prisma.automationRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: "Relance désactivée" } });
       continue;
     }
     // Règle passée de liste à graphe (ou l'inverse) pendant l'attente : la position enregistrée ne veut plus rien dire.

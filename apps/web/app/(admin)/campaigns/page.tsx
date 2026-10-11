@@ -21,7 +21,7 @@ import { PeriodSelect } from "@/components/admin/period-select";
 import { RememberFilters } from "@/components/admin/remember-filters";
 import { CampaignCard } from "@/components/campaigns/campaign-card";
 import { FigureDelta } from "@/components/campaigns/campaign-figure";
-import { FilterChips } from "@/components/campaigns/filter-chips";
+import { FilterChips } from "@/components/admin/filter-chips";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -42,6 +42,7 @@ import {
   groupMoney,
   groupMoneyDigits,
   hasCampaignFilters,
+  hasFilterParams,
   noMatchTitle,
   parseCampaignFilters,
   platformShortLabel,
@@ -227,7 +228,8 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                   </Button>
                 }
               />
-              <DropdownMenuContent align="end">
+              {/* Largeur propre au menu : par défaut il prendrait celle du petit bouton « Plus » (libellés coupés). */}
+              <DropdownMenuContent align="end" className="w-auto min-w-60">
                 <DropdownMenuItem className="md:hidden" render={<Link href="/campaigns/links" />}>
                   <Link2 aria-hidden />
                   Tous les liens
@@ -278,7 +280,12 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                 extra={filterParams}
               />
               <Suspense fallback={null}>
-                <RememberFilters storageKey="campaigns" className="max-md:h-10" />
+                {/* Monté même sans filtre (il rappelle les filtres mémorisés), mais montré seulement s'il y a quelque
+                    chose à réinitialiser ; sur téléphone, aligné sur la marge de la page (retrait du bouton discret). */}
+                <RememberFilters
+                  storageKey="campaigns"
+                  className={cn("max-md:-ml-3 max-md:h-10", !hasFilterParams(sp) && "hidden")}
+                />
               </Suspense>
             </div>
             <div className="space-y-2">

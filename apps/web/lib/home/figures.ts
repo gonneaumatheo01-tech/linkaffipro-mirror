@@ -138,6 +138,19 @@ export function homeFigures(today: DayTotals, yesterday: DayTotals): HomeFigures
   };
 }
 
+/**
+ * Ligne grise sous un chiffre du jour quand la variation ne se calcule pas (hier valait 0 et aujourd'hui non) : la
+ * valeur d'hier, connue, est plus utile que « Pas de comparaison possible ». Null quand la variation s'affiche.
+ */
+export function previousHint(
+  f: HomeFigure,
+  format: (n: number) => string,
+  sameTime = HOME_COMPARE_SAME_TIME,
+): string | null {
+  if (f.delta !== null) return null;
+  return `${sameTime ? "Hier à la même heure" : "Hier"} : ${format(f.previous)}`;
+}
+
 /** Nombre de décimales des montants affichés ensemble : 0 si tous sont des euros ronds, 2 sinon. */
 export function moneyDigits(values: readonly number[]): 0 | 2 {
   return values.every((v) => Number.isInteger(round2(v))) ? 0 : 2;

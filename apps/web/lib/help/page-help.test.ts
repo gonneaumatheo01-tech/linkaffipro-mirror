@@ -1,8 +1,15 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { withBuiltinSections } from "./builtin-sections";
-import { DEFAULT_HELP, PAGE_HELP, normalizePath, pageHelpFor } from "./page-help";
+import {
+  DEFAULT_HELP,
+  PAGE_HELP,
+  guideHref,
+  matchesPath,
+  normalizePath,
+  pageHelpFor,
+} from "./page-help";
 import { findHeading, guideHeadings, guideSections } from "./sections";
 
 const GUIDE = readFileSync(
@@ -10,18 +17,66 @@ const GUIDE = readFileSync(
   "utf8",
 );
 
+/** Adresses de toutes les pages de l'espace connecté (`app/(admin)/**\/page.tsx`), segments dynamiques remplis. */
+function adminPages(): string[] {
+  const root = join(__dirname, "..", "..", "app", "(admin)");
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (name === "page.tsx") {
+        const rel = relative(root, dir).split(sep).filter(Boolean);
+        // Dossiers privés (« _views ») : pas des pages. Segments dynamiques ([id], [groupId]) : une valeur d'exemple.
+        if (rel.some((s) => s.startsWith("_"))) continue;
+        out.push(
+          `/${rel.map((s) => (s.startsWith("[") ? "x1" : s)).join("/")}`.replace(/\/$/, "") || "/",
+        );
+      }
+    }
+  };
+  walk(root);
+  return out.sort();
+}
+
 describe("aide de la page courante : table adresse → sections du guide", () => {
   it("l'entrée la plus précise gagne, sous-pages comprises", () => {
-    expect(pageHelpFor("/campaigns").help.label).toBe("Campagnes");
-    expect(pageHelpFor("/campaigns/abc123?tab=ads").help.label).toBe("Campagnes");
+    expect(pageHelpFor("/campaigns").help.path).toBe("/campaigns");
+    expect(pageHelpFor("/campaigns/abc123?tab=ads").help.path).toBe("/campaigns/:id");
     expect(pageHelpFor("/campaigns/links").help.label).toBe("Tous les liens");
+    expect(pageHelpFor("/campaigns/new").help.label).toBe("Nouvelle campagne");
     expect(pageHelpFor("/members/broadcasts/new").help.label).toBe("Écrire à un groupe");
-    expect(pageHelpFor("/members/automations/r1/edit").help.label).toBe("Relances automatiques");
-    expect(pageHelpFor("/members/m1").help.label).toBe("Membres");
-    expect(pageHelpFor("/settings/connectors/meta/choose").help.label).toBe("Connexions");
-    expect(pageHelpFor("/settings/journal/events").help.label).toBe("Journal");
+    expect(pageHelpFor("/members/broadcasts/ab/g1").help.label).toBe(
+      "Test A/B d'un message à un groupe",
+    );
+    expect(pageHelpFor("/members/automations").help.label).toBe("Relances automatiques");
+    expect(pageHelpFor("/members/automations/r1").help.label).toBe("Fiche d'une relance");
+    expect(pageHelpFor("/members/automations/r1/edit").help.label).toBe("Éditeur avancé");
+    expect(pageHelpFor("/members/automations/new").help.label).toBe("Éditeur avancé");
+    expect(pageHelpFor("/members/m1").help.label).toBe("Fiche d'un membre");
+    expect(pageHelpFor("/channels/c1").help.label).toBe("Fiche du canal");
+    expect(pageHelpFor("/channels/import").help.label).toBe("Importer mes canaux");
+    expect(pageHelpFor("/messages/p1").help.label).toBe("Fiche d'un message");
+    expect(pageHelpFor("/messages/p1/edit").help.label).toBe("Modifier un message");
     expect(pageHelpFor("/messages/ab/g1").help.label).toBe("Test A/B");
+    expect(pageHelpFor("/settings/connectors/meta/choose").help.label).toBe("Meta et TikTok");
+    expect(pageHelpFor("/settings/connectors/telegram").help.label).toBe("Telegram (vues)");
+    expect(pageHelpFor("/settings/journal/events").help.label).toBe("Journal");
+    expect(pageHelpFor("/settings/postbacks/import").help.label).toBe("Retours du casino");
     expect(pageHelpFor("/stats").help.label).toBe("Statistiques");
+    expect(pageHelpFor("/stats/cohorts").help.label).toBe("Membres dans le temps");
+  });
+
+  it("segment « :id » : un segment quelconque, jamais vide ; un segment fixe l'emporte", () => {
+    expect(matchesPath("/channels/c1", "/channels/:id")).toBe(true);
+    expect(matchesPath("/channels/c1/x", "/channels/:id")).toBe(true);
+    expect(matchesPath("/channels", "/channels/:id")).toBe(false);
+    expect(matchesPath("/channelsx/c1", "/channels/:id")).toBe(false);
+    expect(matchesPath("/", "/")).toBe(true);
+    expect(matchesPath("/campaigns", "/")).toBe(false);
+    // « /channels/import » est aussi une valeur possible de « :id » : l'adresse fixe gagne.
+    expect(pageHelpFor("/channels/import").help.path).toBe("/channels/import");
+    expect(pageHelpFor("/campaigns/imports").help.path).toBe("/campaigns/imports");
   });
 
   it("« / » ne vaut que pour l'accueil ; repli sur « Les 10 premières minutes »", () => {
@@ -39,12 +94,19 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(normalizePath("/")).toBe("/");
   });
 
-  it("une seule ligne par adresse", () => {
+  it("une seule ligne par adresse ; libellés courts et sans jargon", () => {
     const paths = PAGE_HELP.map((p) => p.path);
     expect(new Set(paths).size).toBe(paths.length);
+    for (const p of PAGE_HELP) {
+      expect(p.label.length, p.path).toBeLessThanOrEqual(40);
+      expect(p.sections.length, p.path).toBeGreaterThan(0);
+      expect(p.label).not.toMatch(
+        /\b(FTD|NGR|sub-?ID|ROAS|CPL|CPA|webhook|postback|cohorte|entonnoir|segment)\b/i,
+      );
+    }
   });
 
-  it("chaque titre de la table existe dans docs/GUIDE-UTILISATEUR.md ou ses sections intégrées", () => {
+  it("chaque titre de la table existe dans docs/GUIDE-UTILISATEUR.md", () => {
     const headings = guideHeadings(withBuiltinSections(GUIDE));
     const missing: string[] = [];
     for (const entry of [...PAGE_HELP, DEFAULT_HELP])
@@ -54,58 +116,54 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(missing).toEqual([]);
   });
 
-  it("chaque page de l'application a une aide propre (sauf la page interne /styleguide)", () => {
-    const pages = [
-      "/",
-      "/account",
-      "/campaigns",
-      "/campaigns/new",
-      "/campaigns/import",
-      "/campaigns/imports",
-      "/campaigns/links",
-      "/channels",
-      "/channels/import",
-      "/help",
-      "/members",
-      "/members/automations",
-      "/members/broadcasts",
-      "/messages",
-      "/messages/categories",
-      "/messages/new",
-      "/settings",
-      "/settings/ai",
-      "/settings/alerts",
-      "/settings/bots",
-      "/settings/categories",
-      "/settings/connectors",
-      "/settings/journal",
-      "/settings/postbacks",
-      "/settings/reports",
-      "/settings/status",
-      "/settings/tags",
-      "/settings/team",
-      "/stats",
-    ];
-    expect(pages.filter((p) => pageHelpFor(p).fallback)).toEqual([]);
+  it("chaque page de l'espace connecté a une aide propre (sauf la page interne /styleguide)", () => {
+    const pages = adminPages();
+    // Garde-fou : la recherche des pages fonctionne (accueil, fiches, sous-pages de Réglages…).
+    expect(pages).toContain("/");
+    expect(pages).toContain("/channels/x1");
+    expect(pages).toContain("/members/automations/x1/edit");
+    expect(pages.length).toBeGreaterThan(40);
+    expect(pages.filter((p) => p !== "/styleguide" && pageHelpFor(p).fallback)).toEqual([]);
   });
 
-  it("accueil : sa propre section « Accueil » (plus « Les 10 premières minutes »)", () => {
-    const sections = guideSections(withBuiltinSections(GUIDE), pageHelpFor("/").help.sections);
-    expect(sections.map((s) => s.id)).toEqual(["accueil"]);
-    expect(sections[0]!.markdown).toContain("Bénéfice du jour");
+  it("accueil : sa propre section « Accueil » ; l'aide et la visite ont la leur", () => {
+    const home = guideSections(GUIDE, pageHelpFor("/").help.sections);
+    expect(home.map((s) => s.id)).toEqual(["accueil"]);
+    expect(home[0]!.markdown).toContain("Bénéfice du jour");
+    const help = guideSections(GUIDE, pageHelpFor("/help").help.sections);
+    expect(help.map((s) => s.id)).toEqual(["aide-et-visite-guidee"]);
+    expect(help[0]!.markdown).toContain("Revoir la visite guidée");
+    expect(help[0]!.markdown).toContain("Ouvrir le guide complet");
   });
 
-  it("les sections de chaque page se retrouvent dans le guide réel", () => {
-    const sections = guideSections(GUIDE, pageHelpFor("/campaigns").help.sections);
-    expect(sections.map((s) => s.id)).toEqual([
+  it("les sections de chaque page se retrouvent dans le guide réel, dans l'ordre de la table", () => {
+    const campaigns = guideSections(GUIDE, pageHelpFor("/campaigns/abc").help.sections);
+    expect(campaigns.map((s) => s.id)).toEqual([
       "campagnes",
-      "nommer-ses-campagnes-et-les-relier-a-link-affi",
+      "fiche-d-une-campagne",
       "une-pub-ne-remonte-pas",
     ]);
-    expect(sections[0]!.markdown.startsWith("## Campagnes")).toBe(true);
-    // Réglages : seulement l'introduction, sans les sous-sections.
+    // Introduction seulement : pas les sous-sections de Campagnes (elles viennent à la demande).
+    expect(campaigns[0]!.markdown.startsWith("## Campagnes")).toBe(true);
+    expect(campaigns[0]!.markdown).not.toContain("### ");
+    // Réglages : seulement l'introduction (l'écran en cartes), sans les sous-sections.
     const settings = guideSections(GUIDE, pageHelpFor("/settings").help.sections);
     expect(settings).toHaveLength(1);
     expect(settings[0]!.markdown).not.toContain("### ");
+    // Équipe : l'introduction de la section, puis sa sous-section (même découpage que l'API d'aide).
+    const team = guideSections(GUIDE, pageHelpFor("/settings/team").help.sections);
+    expect(team.map((s) => s.id)).toEqual(["reglages-equipe", "utilisateurs-et-invitations"]);
+    expect(team[0]!.markdown).not.toContain("#### ");
+  });
+
+  it("lien « Ouvrir le guide complet » : ancre de la première section de la page", () => {
+    expect(guideHref(pageHelpFor("/").help)).toBe("/help#accueil");
+    expect(guideHref(pageHelpFor("/settings/team").help)).toBe("/help#reglages-equipe");
+    expect(guideHref(pageHelpFor("/styleguide").help)).toBe("/help#les-10-premieres-minutes");
+    expect(guideHref({ path: "/x", label: "X", sections: [] })).toBe("/help");
+    // Chaque ancre existe dans la page /help (mêmes identifiants que le rendu du guide).
+    const ids = new Set(guideHeadings(GUIDE).map((h) => h.id));
+    for (const entry of [...PAGE_HELP, DEFAULT_HELP])
+      expect(ids.has(guideHref(entry).slice("/help#".length)), entry.path).toBe(true);
   });
 });

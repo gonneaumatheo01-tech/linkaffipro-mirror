@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
+import { EmptyState } from "@/components/admin/empty-state";
 import { FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,12 @@ import { requireAdminPage } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
 import { cancelPendingAction, connectChosenAccountsAction } from "../actions";
 
-export const metadata: Metadata = { title: "Connexions — TikTok — choix des comptes" };
+export const metadata: Metadata = { title: "Choisir les comptes TikTok" };
 
-/** Après le retour de TikTok : l'administrateur coche les comptes publicitaires à suivre. */
+/**
+ * Après le retour de TikTok : l'administrateur coche les comptes publicitaires à suivre. Sans connexion en attente
+ * (15 minutes passées, ou page ouverte directement) : le même état vide que pour Meta.
+ */
 export default async function TikTokChoosePage({
   searchParams,
 }: PageProps<"/settings/connectors/tiktok/choose">) {
@@ -22,8 +25,25 @@ export default async function TikTokChoosePage({
   const sp = await searchParams;
   const pending = await loadPending("TIKTOK", admin.id);
   if (!pending) {
-    redirect(
-      `/settings/connectors/tiktok?${new URLSearchParams({ error: "Aucune connexion en attente (ou délai de 15 minutes dépassé) : cliquez sur « Connecter un compte TikTok »." })}`,
+    return (
+      <>
+        <PageHeader
+          backHref="/settings/connectors/tiktok"
+          backLabel="TikTok Ads"
+          title="Choisir les comptes TikTok"
+          description="Cochez les comptes publicitaires dont vous voulez suivre les dépenses."
+        />
+        <Flash ok={sp.ok} error={sp.error} />
+        <EmptyState
+          title="Aucune connexion TikTok en attente"
+          description="Le délai de 15 minutes est passé, ou la connexion n'a pas encore été lancée. Lancez-la depuis la page TikTok Ads."
+          action={{
+            href: "/settings/connectors/tiktok",
+            label: "Retour à TikTok Ads",
+            variant: "outline",
+          }}
+        />
+      </>
     );
   }
   const existing = await prisma.adAccountConnection.findMany({
@@ -37,10 +57,10 @@ export default async function TikTokChoosePage({
     <>
       <PageHeader
         backHref="/settings/connectors/tiktok"
-        backLabel="TikTok"
+        backLabel="TikTok Ads"
         title="Choisir les comptes TikTok"
         description={`TikTok a accepté la connexion : ${n} compte${n > 1 ? "s sont visibles" : " est visible"}. Cochez ceux dont vous voulez suivre les dépenses.`}
-        help="Un compte déjà connecté est mis à jour avec le nouvel accès (utile pour « Reconnecter »). Vous pourrez en ajouter d'autres plus tard."
+        help="Un compte déjà connecté est mis à jour avec le nouvel accès (utile pour « Reconnecter »). Vous pourrez en ajouter d'autres plus tard."
       />
       <Flash ok={sp.ok} error={sp.error} />
       <FormSection

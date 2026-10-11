@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-10T11:16:09.957Z",
+  "updatedAt": "2026-10-11T01:02:55.075Z",
   "entries": [
     {
       "route": "/",
       "path": "/",
-      "title": "Tableau de bord",
+      "title": "Accueil",
       "status": "ok",
       "httpStatus": 200,
       "redirectedTo": null,
@@ -15,7 +15,7 @@
         "1440": "accueil-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-10T11:15:49.506Z"
+      "capturedAt": "2026-10-11T00:57:09.292Z"
     },
     {
       "route": "/campaigns",
@@ -29,11 +29,218 @@
         "390": "campaigns-390.webp",
         "1440": "campaigns-1440.webp"
       },
-      "jsErrors": 2,
-      "capturedAt": "2026-10-10T11:15:57.920Z",
-      "errorSamples": [
-        "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and acce"
-      ]
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:17.512Z"
+    },
+    {
+      "route": "/campaigns/[id]",
+      "path": "/campaigns/c1qbnpjer4zjz9qsv1c2wljh3",
+      "title": "Démo · Casino Bienvenue TikTok",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-id-390.webp",
+        "1440": "campaigns-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:22.463Z"
+    },
+    {
+      "route": "/campaigns/import",
+      "path": "/campaigns/import",
+      "title": "Importer des dépenses (CSV)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-import-390.webp",
+        "1440": "campaigns-import-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:29.060Z"
+    },
+    {
+      "route": "/campaigns/imports",
+      "path": "/campaigns/imports",
+      "title": "Historique des imports",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-imports-390.webp",
+        "1440": "campaigns-imports-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:32.753Z"
+    },
+    {
+      "route": "/campaigns/links",
+      "path": "/campaigns/links",
+      "title": "Tous les liens",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-links-390.webp",
+        "1440": "campaigns-links-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:36.497Z"
+    },
+    {
+      "route": "/campaigns/new",
+      "path": "/campaigns/new",
+      "title": "Nouvelle campagne",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-new-390.webp",
+        "1440": "campaigns-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:43.002Z"
+    },
+    {
+      "route": "/channels",
+      "path": "/channels",
+      "title": "Canaux",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-390.webp",
+        "1440": "channels-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:47.440Z"
+    },
+    {
+      "route": "/channels/[id]",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-390.webp",
+        "1440": "channels-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:52.730Z"
+    },
+    {
+      "route": "/channels/import",
+      "path": "/channels/import",
+      "title": "Importer mes canaux",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-import-390.webp",
+        "1440": "channels-import-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:57:59.453Z"
+    },
+    {
+      "route": "/messages",
+      "path": "/messages",
+      "title": "Messages",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-390.webp",
+        "1440": "messages-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:02.854Z"
+    },
+    {
+      "route": "/messages/[id]",
+      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg",
+      "title": "Message pour Démo · Rencontres Lyon",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-id-390.webp",
+        "1440": "messages-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:08.206Z"
+    },
+    {
+      "route": "/messages/[id]/edit",
+      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg/edit",
+      "title": "Modifier le message",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-id-edit-390.webp",
+        "1440": "messages-id-edit-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:14.001Z"
+    },
+    {
+      "route": "/messages/ab/[groupId]",
+      "path": "/messages/ab/demo-ab-xdxAVC",
+      "title": "Test A/B",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-ab-groupid-390.webp",
+        "1440": "messages-ab-groupid-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:18.526Z"
+    },
+    {
+      "route": "/messages/categories",
+      "path": "/messages/categories",
+      "title": "Comparer par catégorie",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-categories-390.webp",
+        "1440": "messages-categories-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:23.743Z"
+    },
+    {
+      "route": "/messages/new",
+      "path": "/messages/new",
+      "title": "Programmer un message",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "messages-new-390.webp",
+        "1440": "messages-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:28.183Z"
     },
     {
       "route": "/members",
@@ -47,11 +254,593 @@
         "390": "members-390.webp",
         "1440": "members-1440.webp"
       },
-      "jsErrors": 2,
-      "capturedAt": "2026-10-10T11:16:03.184Z",
-      "errorSamples": [
-        "Base UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and acce"
-      ]
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:32.643Z"
+    },
+    {
+      "route": "/members/[id]",
+      "path": "/members/c1ihgxwagd7i4mh1jwyexz3xc",
+      "title": "Hugo",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-id-390.webp",
+        "1440": "members-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:58:50.607Z"
+    },
+    {
+      "route": "/members/automations",
+      "path": "/members/automations",
+      "title": "Relances automatiques",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-automations-390.webp",
+        "1440": "members-automations-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:01.476Z"
+    },
+    {
+      "route": "/members/automations/[id]",
+      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6",
+      "title": "Démo · Relance 24 h après l'entrée",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-automations-id-390.webp",
+        "1440": "members-automations-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:07.511Z"
+    },
+    {
+      "route": "/members/automations/[id]/edit",
+      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6/edit",
+      "title": "Modifier : Démo · Relance 24 h après l'entrée",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-automations-id-edit-390.webp",
+        "1440": "members-automations-id-edit-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:15.572Z"
+    },
+    {
+      "route": "/members/automations/new",
+      "path": "/members/automations/new",
+      "title": "Nouvelle relance sur mesure",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-automations-new-390.webp",
+        "1440": "members-automations-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:21.659Z"
+    },
+    {
+      "route": "/members/broadcasts",
+      "path": "/members/broadcasts",
+      "title": "Écrire à un groupe",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-broadcasts-390.webp",
+        "1440": "members-broadcasts-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:26.527Z"
+    },
+    {
+      "route": "/members/broadcasts/[id]",
+      "path": "/members/broadcasts/co8ti1txt0jmn29f8t5qosgww",
+      "title": "Démo · Nouveau canal Lyon",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-broadcasts-id-390.webp",
+        "1440": "members-broadcasts-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:30.801Z"
+    },
+    {
+      "route": "/members/broadcasts/ab/[groupId]",
+      "path": "/members/broadcasts/ab/demo-ab-66BI7o",
+      "title": "Test A/B — Démo · Test A/B relance casino",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-broadcasts-ab-groupid-390.webp",
+        "1440": "members-broadcasts-ab-groupid-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:37.263Z"
+    },
+    {
+      "route": "/members/broadcasts/new",
+      "path": "/members/broadcasts/new",
+      "title": "Nouveau message à un groupe",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "members-broadcasts-new-390.webp",
+        "1440": "members-broadcasts-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:42.719Z"
+    },
+    {
+      "route": "/stats",
+      "path": "/stats",
+      "title": "Statistiques",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "stats-390.webp",
+        "1440": "stats-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:48.324Z"
+    },
+    {
+      "route": "/stats/ads",
+      "path": "/stats/ads",
+      "title": "Statistiques des pubs",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "stats-ads-390.webp",
+        "1440": "stats-ads-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:53.954Z"
+    },
+    {
+      "route": "/stats/channels",
+      "path": "/stats/channels",
+      "title": "Statistiques des canaux",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "stats-channels-390.webp",
+        "1440": "stats-channels-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T00:59:58.961Z"
+    },
+    {
+      "route": "/stats/cohorts",
+      "path": "/stats/cohorts",
+      "title": "Membres dans le temps",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "stats-cohorts-390.webp",
+        "1440": "stats-cohorts-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:03.963Z"
+    },
+    {
+      "route": "/stats/funnel",
+      "path": "/stats/funnel",
+      "title": "Parcours",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "stats-funnel-390.webp",
+        "1440": "stats-funnel-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:08.862Z"
+    },
+    {
+      "route": "/settings",
+      "path": "/settings",
+      "title": "Réglages",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-390.webp",
+        "1440": "settings-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:13.212Z"
+    },
+    {
+      "route": "/settings/ai",
+      "path": "/settings/ai",
+      "title": "Assistant d'écriture (IA)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-ai-390.webp",
+        "1440": "settings-ai-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:21.866Z"
+    },
+    {
+      "route": "/settings/alerts",
+      "path": "/settings/alerts",
+      "title": "Alertes",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-alerts-390.webp",
+        "1440": "settings-alerts-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:32.247Z"
+    },
+    {
+      "route": "/settings/bots",
+      "path": "/settings/bots",
+      "title": "Bots",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-bots-390.webp",
+        "1440": "settings-bots-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:39.985Z"
+    },
+    {
+      "route": "/settings/categories",
+      "path": "/settings/categories",
+      "title": "Catégories de messages",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-categories-390.webp",
+        "1440": "settings-categories-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:44.899Z"
+    },
+    {
+      "route": "/settings/connectors",
+      "path": "/settings/connectors",
+      "title": "Connexions",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-390.webp",
+        "1440": "settings-connectors-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:48.913Z"
+    },
+    {
+      "route": "/settings/connectors/meta",
+      "path": "/settings/connectors/meta",
+      "title": "Meta Ads",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-meta-390.webp",
+        "1440": "settings-connectors-meta-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:54.622Z"
+    },
+    {
+      "route": "/settings/connectors/meta/choose",
+      "path": "/settings/connectors/meta/choose",
+      "title": "Choisir les comptes Meta",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-meta-choose-390.webp",
+        "1440": "settings-connectors-meta-choose-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:00:59.455Z"
+    },
+    {
+      "route": "/settings/connectors/telegram",
+      "path": "/settings/connectors/telegram",
+      "title": "Telegram (vues et transferts)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-telegram-390.webp",
+        "1440": "settings-connectors-telegram-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:03.150Z"
+    },
+    {
+      "route": "/settings/connectors/tiktok",
+      "path": "/settings/connectors/tiktok",
+      "title": "TikTok Ads",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-tiktok-390.webp",
+        "1440": "settings-connectors-tiktok-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:07.834Z"
+    },
+    {
+      "route": "/settings/connectors/tiktok/choose",
+      "path": "/settings/connectors/tiktok/choose",
+      "title": "Choisir les comptes TikTok",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-connectors-tiktok-choose-390.webp",
+        "1440": "settings-connectors-tiktok-choose-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:12.600Z"
+    },
+    {
+      "route": "/settings/journal",
+      "path": "/settings/journal",
+      "title": "Journal",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-journal-390.webp",
+        "1440": "settings-journal-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:16.738Z"
+    },
+    {
+      "route": "/settings/journal/events",
+      "path": "/settings/journal/events",
+      "title": "Journal",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-journal-events-390.webp",
+        "1440": "settings-journal-events-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:23.082Z"
+    },
+    {
+      "route": "/settings/postbacks",
+      "path": "/settings/postbacks",
+      "title": "Retours du casino (postbacks)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-postbacks-390.webp",
+        "1440": "settings-postbacks-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:29.099Z"
+    },
+    {
+      "route": "/settings/postbacks/import",
+      "path": "/settings/postbacks/import",
+      "title": "Importer des joueurs (CSV)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-postbacks-import-390.webp",
+        "1440": "settings-postbacks-import-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:33.686Z"
+    },
+    {
+      "route": "/settings/reports",
+      "path": "/settings/reports",
+      "title": "Rapports automatiques",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-reports-390.webp",
+        "1440": "settings-reports-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:38.046Z"
+    },
+    {
+      "route": "/settings/status",
+      "path": "/settings/status",
+      "title": "État du système",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-status-390.webp",
+        "1440": "settings-status-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:42.557Z"
+    },
+    {
+      "route": "/settings/tags",
+      "path": "/settings/tags",
+      "title": "Étiquettes de membres",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-tags-390.webp",
+        "1440": "settings-tags-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:48.911Z"
+    },
+    {
+      "route": "/settings/team",
+      "path": "/settings/team",
+      "title": "Équipe",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-team-390.webp",
+        "1440": "settings-team-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:53.056Z"
+    },
+    {
+      "route": "/help",
+      "path": "/help",
+      "title": "Aide",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": "1440 px coupée à 16000 px (page de 37885 px) ; 390 px coupée à 16000 px (page de 62794 px)",
+      "files": {
+        "390": "help-390.webp",
+        "1440": "help-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:01:58.260Z"
+    },
+    {
+      "route": "/account",
+      "path": "/account",
+      "title": "Mon compte",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "account-390.webp",
+        "1440": "account-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:02:19.493Z"
+    },
+    {
+      "route": "/styleguide",
+      "path": "/styleguide",
+      "title": "Guide de style",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "styleguide-390.webp",
+        "1440": "styleguide-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:02:30.434Z"
+    },
+    {
+      "route": "/login",
+      "path": "/login",
+      "title": "LinkAffi Pro",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "login-390.webp",
+        "1440": "login-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:02:43.043Z"
+    },
+    {
+      "route": "/privacy",
+      "path": "/privacy",
+      "title": "Politique de confidentialité",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "privacy-390.webp",
+        "1440": "privacy-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:02:46.248Z"
+    },
+    {
+      "route": "/terms",
+      "path": "/terms",
+      "title": "Conditions d'utilisation",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "terms-390.webp",
+        "1440": "terms-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T01:02:51.333Z"
     }
   ]
 }

@@ -30,13 +30,13 @@ export function evaluateSubIdHealth(c: SubIdHealthCounts): SubIdHealth {
     return { ...c, status: "alert", message: SUB_ID_ALERT_MESSAGE };
   }
   if (c.postback === 0 && c.timeMatch === 0 && c.offerClicks === 0) {
-    return { ...c, status: "idle", message: "Aucun clic d'offre avec sub-ID sur les 7 derniers jours : rien à vérifier encore." };
+    return { ...c, status: "idle", message: "Aucun clic d'offre avec identifiant de suivi sur les 7 derniers jours : rien à vérifier encore." };
   }
   if (c.postback === 0 && (c.timeMatch > 0 || c.missingWithClicks > 0)) {
-    return { ...c, status: "warning", message: "Aucun joueur rattaché par postback pour l'instant : à surveiller dès les premiers inscrits." };
+    return { ...c, status: "warning", message: "Aucun joueur rattaché par le retour du casino pour l'instant : à surveiller dès les premiers inscrits." };
   }
   if (c.missingWithClicks > c.postback) {
-    return { ...c, status: "warning", message: "Beaucoup de joueurs sans sub-ID malgré des clics avec sub-ID : vérifier les liens d'offre utilisés." };
+    return { ...c, status: "warning", message: "Beaucoup de joueurs sans identifiant de suivi malgré des clics qui en portaient un : vérifier les liens d'offre utilisés." };
   }
-  return { ...c, status: "ok", message: "La chaîne pub → membre → clic → inscription fonctionne (sub-ID reçus par postback)." };
+  return { ...c, status: "ok", message: "La chaîne pub → membre → clic → inscription fonctionne (identifiants de suivi bien reçus par le casino)." };
 }

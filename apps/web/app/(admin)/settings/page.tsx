@@ -36,7 +36,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         }
         help={
           isAdmin
-            ? "Pour ajouter un équipier ou réinitialiser un mot de passe, ouvrez « Équipe »."
+            ? "Pour ajouter un équipier ou réinitialiser un mot de passe, ouvrez « Équipe »."
             : undefined
         }
         secondaryActions={

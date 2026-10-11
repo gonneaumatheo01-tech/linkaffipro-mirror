@@ -3,6 +3,7 @@
 import { withMinusSign } from "@/lib/campaigns/cards";
 import { fmtMoney } from "@/lib/format";
 import { eventLabel } from "@/lib/journal/event-labels";
+import { linkLabel } from "@/lib/links/label";
 
 export type TimelineKind = "membership" | "message" | "click" | "player" | "event";
 
@@ -176,7 +177,7 @@ export function buildTimeline(input: {
   for (const c of input.clicks ?? []) {
     if (c.isBot) continue;
     const offer = c.kind === "OFFER";
-    const name = offer ? offerLabel(c.label) : (c.label ?? "").trim();
+    const name = offer ? offerLabel(c.label) : linkLabel((c.label ?? "").trim());
     const label = name ? ` — ${name}` : "";
     out.push({
       at: c.createdAt,

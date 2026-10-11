@@ -7,6 +7,7 @@ import {
   homeFigures,
   homeMoney,
   moneyDigits,
+  previousHint,
   profitBreakdown,
   profitOf,
   profitValue,
@@ -170,5 +171,27 @@ describe("variation vs hier", () => {
     expect(f.profit).toEqual({ value: 100, previous: 50, delta: 100 });
     expect(f.breakdown).toEqual({ deposits: 120, ngr: 30, spend: 50 });
     expect(homeFigures(EMPTY_DAY, EMPTY_DAY).profit.delta).toBe(0);
+  });
+});
+
+describe("valeur d'hier quand il n'y a pas de pourcentage", () => {
+  it("hier valait 0 : la valeur d'hier est écrite au lieu de « Pas de comparaison possible »", () => {
+    const f = homeFigures({ ...EMPTY_DAY, members: 25, ftds: 6 }, EMPTY_DAY);
+    expect(f.members.delta).toBeNull();
+    expect(previousHint(f.members, (n) => String(n))).toBe("Hier à la même heure : 0");
+    expect(previousHint(f.ftds, (n) => String(n), false)).toBe("Hier : 0");
+  });
+
+  it("une variation calculable (ou 0 → 0, stable) n'a pas besoin de cette ligne", () => {
+    const f = homeFigures({ ...EMPTY_DAY, members: 4 }, { ...EMPTY_DAY, members: 2 });
+    expect(previousHint(f.members, String)).toBeNull();
+    expect(previousHint(homeFigures(EMPTY_DAY, EMPTY_DAY).members, String)).toBeNull();
+  });
+
+  it("le bénéfice d'hier garde le format des montants de l'accueil", () => {
+    const f = homeFigures({ ...EMPTY_DAY, deposits: 120 }, EMPTY_DAY);
+    expect(previousHint(f.profit, (n) => homeMoney(n, 0))).toBe(
+      `Hier à la même heure : ${eur0(0)}`,
+    );
   });
 });

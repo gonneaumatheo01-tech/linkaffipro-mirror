@@ -1,65 +1,23 @@
 "use client";
 
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import {
-  Bold,
-  EyeOff,
-  ImagePlus,
-  Italic,
-  Link2,
-  MousePointerClick,
-  Plus,
-  Smile,
-  Strikethrough,
-  Trash2,
-  Underline,
-  X,
-} from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { ImagePlus, MousePointerClick, Plus, Trash2, X } from "lucide-react";
 import { FormSection } from "@/components/admin/form-section";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
 
 export type MediaOption = { id: string; filename: string; mimeType: string };
 export type AffiliateOption = { id: string; name: string; programName: string };
 
-/** Outils de mise en forme Telegram : libellé, icône, balises (ou lien à demander). */
-const TEXT_TOOLS: Array<{
-  title: string;
-  icon: React.ReactNode;
-  open: string;
-  close: string;
-  link?: boolean;
-}> = [
-  { title: "Gras", icon: <Bold aria-hidden />, open: "<b>", close: "</b>" },
-  { title: "Italique", icon: <Italic aria-hidden />, open: "<i>", close: "</i>" },
-  { title: "Souligné", icon: <Underline aria-hidden />, open: "<u>", close: "</u>" },
-  { title: "Barré", icon: <Strikethrough aria-hidden />, open: "<s>", close: "</s>" },
-  { title: "Insérer un lien", icon: <Link2 aria-hidden />, open: "", close: "", link: true },
-  {
-    title: "Texte masqué (spoiler)",
-    icon: <EyeOff aria-hidden />,
-    open: "<tg-spoiler>",
-    close: "</tg-spoiler>",
-  },
-];
-const EMOJIS = ["🔥", "🎁", "💰", "⚡", "✅", "👉", "🎰", "⚽", "❤️"];
-
 /**
- * Zone de texte du message (version A ou B) : barre d'outils collée (mise en forme, émojis, « Améliorer avec l'IA »
- * à droite). Même présentation que l'éditeur des messages de canal. La sélection est gardée pour insérer un émoji.
+ * Zone de texte du message (version A ou B) : l'éditeur partagé (texte mis en forme sans balise visible, barre
+ * d'outils, émojis, « Améliorer avec l'IA » à droite, compteur). Le texte reste en HTML Telegram dans l'état du
+ * formulaire (champs cachés `text` / `textB` de l'assistant).
  */
 export function MessageTextEditor({
   id,
@@ -68,6 +26,7 @@ export function MessageTextEditor({
   label,
   rows = 8,
   ai,
+  hasMedia = false,
 }: {
   id: string;
   text: string;
@@ -76,101 +35,19 @@ export function MessageTextEditor({
   label: string;
   rows?: number;
   ai?: React.ReactNode;
+  /** Média joint : légende limitée à 1 024 caractères (compteur). */
+  hasMedia?: boolean;
 }) {
-  const ta = useRef<HTMLTextAreaElement>(null);
-  const sel = useRef<{ start: number; end: number }>({ start: text.length, end: text.length });
-  function remember() {
-    const el = ta.current;
-    if (el) sel.current = { start: el.selectionStart, end: el.selectionEnd };
-  }
-  function wrap(open: string, close: string, fromMenu = false) {
-    const el = ta.current;
-    if (!el) return;
-    const s = fromMenu ? sel.current.start : el.selectionStart;
-    const e = fromMenu ? sel.current.end : el.selectionEnd;
-    const picked = text.slice(s, e) || (close ? "texte" : "");
-    setText(text.slice(0, s) + open + picked + close + text.slice(e));
-    requestAnimationFrame(() => {
-      el.focus();
-      const at = s + open.length;
-      el.setSelectionRange(at, at + picked.length);
-      sel.current = { start: at, end: at + picked.length };
-    });
-  }
-  function insertLink() {
-    const url = window.prompt("Adresse du lien (https://…)");
-    if (!url) return;
-    wrap(`<a href="${url.replace(/"/g, "%22")}">`, "</a>");
-  }
   return (
-    <div className="rounded-lg border border-muted-foreground/75 bg-surface focus-within:border-ring focus-within:ring-3 focus-within:ring-brand/30">
-      <div
-        className="flex flex-wrap items-center gap-0.5 border-b border-border p-1"
-        role="toolbar"
-        aria-label={`Mise en forme : ${label}`}
-      >
-        {TEXT_TOOLS.map((t) => (
-          <Button
-            key={t.title}
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => (t.link ? insertLink() : wrap(t.open, t.close))}
-            title={t.title}
-            aria-label={t.title}
-          >
-            {t.icon}
-          </Button>
-        ))}
-        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Insérer un émoji"
-                title="Insérer un émoji"
-              />
-            }
-          >
-            <Smile aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent finalFocus={ta} className="w-auto">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Émojis</DropdownMenuLabel>
-              <div className="grid grid-cols-5 gap-0.5">
-                {EMOJIS.map((e) => (
-                  <DropdownMenuItem
-                    key={e}
-                    aria-label={`Insérer ${e}`}
-                    className="justify-center text-title"
-                    onClick={() => wrap(e, "", true)}
-                  >
-                    {e}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {ai ? <div className="ml-auto">{ai}</div> : null}
-      </div>
-      <Textarea
-        ref={ta}
-        id={id}
-        aria-label={label}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onSelect={remember}
-        onKeyUp={remember}
-        onBlur={remember}
-        rows={rows}
-        placeholder="Votre message…"
-        className="min-h-40 rounded-t-none border-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
-      />
-    </div>
+    <RichTextEditor
+      id={id}
+      label={label}
+      value={text}
+      onChange={setText}
+      rows={rows}
+      ai={ai}
+      hasMedia={hasMedia}
+    />
   );
 }
 

@@ -20,16 +20,19 @@ function cleanParams(sp: URLSearchParams): string {
  * - sinon, les filtres courants sont mémorisés.
  * Le bouton « Réinitialiser » vide la mémoire et revient à l'URL sans filtre, en gardant la vue choisie
  * (`keepParams`, par défaut `view` et `tab` : Liste / Calendrier / Modèles, onglet d'une fiche).
- * À monter dans la page de liste, avec `storageKey` unique (ex. "members").
+ * À monter dans la page de liste, avec `storageKey` unique (ex. "members"). `label` : texte du bouton à la place de
+ * « Réinitialiser (filtres mémorisés) » (la mémorisation reste dite au survol).
  */
 export function RememberFilters({
   storageKey,
   className,
   keepParams = ["view", "tab"],
+  label,
 }: {
   storageKey: string;
   className?: string;
   keepParams?: string[];
+  label?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -82,7 +85,7 @@ export function RememberFilters({
       onClick={reset}
       title={remembered ? "Les filtres sont mémorisés sur cet appareil" : undefined}
     >
-      Réinitialiser{remembered ? " (filtres mémorisés)" : ""}
+      {label ?? `Réinitialiser${remembered ? " (filtres mémorisés)" : ""}`}
     </Button>
   );
 }

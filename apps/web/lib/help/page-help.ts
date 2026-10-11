@@ -2,131 +2,257 @@
  * Aide de la page courante (bouton « ? » de l'en-tête) : table adresse → sections du guide
  * (docs/GUIDE-UTILISATEUR.md). Fonctions pures, testées dans page-help.test.ts.
  *
- * Mettre à jour quand le guide change : chaque ligne donne l'adresse (elle vaut aussi pour ses sous-pages, la plus
- * précise gagne ; « / » ne vaut que pour l'accueil), le nom de la page et les titres des sections à montrer, dans
- * l'ordre (titre exact du guide ; accents et ponctuation ne comptent pas). `{ title, introOnly: true }` : seulement
- * le texte avant la première sous-section. Un test vérifie que chaque titre existe dans le guide (ou, en attendant
- * qu'il y soit, dans les sections intégrées de `builtin-sections.ts` : « Accueil »).
+ * Mettre à jour quand le guide ou un écran change : chaque ligne donne l'adresse (elle vaut aussi pour ses sous-pages ;
+ * « / » ne vaut que pour l'accueil ; un segment « :id » vaut pour n'importe quel identifiant, comme la fiche d'un canal),
+ * le nom de la page dans le volet et les titres des sections à montrer, dans l'ordre (titre exact du guide ; accents et
+ * ponctuation ne comptent pas). `{ title, introOnly: true }` : seulement le texte avant la première sous-section (une
+ * rubrique entière serait trop longue pour le volet). L'entrée la plus précise gagne : plus de segments d'abord, puis
+ * plus de segments fixes (« /channels/import » l'emporte sur « /channels/:id »).
+ * Les tests vérifient que chaque titre existe dans le guide et que chaque page de `app/(admin)` a sa ligne.
  */
+import { slugify } from "./markdown";
 import type { SectionRef } from "./sections";
 
 export type PageHelp = {
-  /** Adresse de la page (sans paramètres). */
+  /** Adresse de la page (sans paramètres) ; « :id » = un segment quelconque. */
   path: string;
   /** Nom de la page dans le volet (« Aide : Campagnes »). */
   label: string;
   sections: readonly SectionRef[];
 };
 
+const intro = (title: string): SectionRef => ({ title, introOnly: true });
+
 export const PAGE_HELP: readonly PageHelp[] = [
   { path: "/", label: "Accueil", sections: ["Accueil"] },
+
+  // Campagnes
   {
     path: "/campaigns",
     label: "Campagnes",
     sections: [
-      "Campagnes",
+      intro("Campagnes"),
+      "Nouvelle campagne (assistant en 4 étapes)",
       "Nommer ses campagnes et les relier à Link Affi",
-      "Une pub ne remonte pas",
+    ],
+  },
+  {
+    path: "/campaigns/:id",
+    label: "Campagnes",
+    sections: [intro("Campagnes"), "Fiche d'une campagne", "Une pub ne remonte pas"],
+  },
+  {
+    path: "/campaigns/new",
+    label: "Nouvelle campagne",
+    sections: [
+      "Nouvelle campagne (assistant en 4 étapes)",
+      "Nommer ses campagnes et les relier à Link Affi",
     ],
   },
   {
     path: "/campaigns/links",
     label: "Tous les liens",
-    sections: ["Liens", "Une pub ne remonte pas"],
+    sections: ["Tous les liens", "Une pub ne remonte pas"],
   },
   {
     path: "/campaigns/import",
-    label: "Import des coûts",
-    sections: ["Import des coûts publicitaires"],
+    label: "Importer des dépenses",
+    sections: ["Importer des dépenses (CSV)"],
   },
   {
     path: "/campaigns/imports",
-    label: "Imports de coûts",
-    sections: ["Import des coûts publicitaires"],
+    label: "Historique des imports",
+    sections: ["Importer des dépenses (CSV)"],
   },
+
+  // Canaux
   {
     path: "/channels",
     label: "Canaux",
-    sections: ["Canaux", "Meilleurs horaires de publication", "Un membre n'est pas accepté"],
+    sections: [intro("Canaux"), "Ajouter un canal existant", "Importer tous mes canaux"],
   },
+  {
+    path: "/channels/:id",
+    label: "Fiche du canal",
+    sections: ["Fiche d'un canal", "Un membre n'est pas accepté", "Le bot ne répond pas"],
+  },
+  {
+    path: "/channels/import",
+    label: "Importer mes canaux",
+    sections: ["Importer tous mes canaux", "Compte Telegram pour les vues"],
+  },
+
+  // Messages
   {
     path: "/messages",
     label: "Messages",
     sections: [
-      "Messages",
-      "Modèles de messages prêts à l'emploi",
-      "Assistant IA pour écrire les messages",
+      intro("Messages"),
+      "Calendrier des messages",
+      "Meilleurs créneaux",
+      "Liste des messages",
+      "Modèles de messages",
     ],
+  },
+  {
+    path: "/messages/new",
+    label: "Programmer un message",
+    sections: [
+      "Programmer un message",
+      "Assistant IA pour écrire les messages",
+      "Test A/B d'un message de canal",
+    ],
+  },
+  {
+    path: "/messages/:id",
+    label: "Fiche d'un message",
+    sections: ["Fiche d'un message", "Test A/B d'un message de canal"],
+  },
+  {
+    path: "/messages/:id/edit",
+    label: "Modifier un message",
+    sections: ["Programmer un message", "Assistant IA pour écrire les messages"],
   },
   { path: "/messages/ab", label: "Test A/B", sections: ["Test A/B d'un message de canal"] },
   {
     path: "/messages/categories",
     label: "Comparer par catégorie",
-    sections: ["Catégories de messages"],
+    sections: ["Comparer par catégorie", "Catégories de messages"],
   },
+
+  // Membres, Écrire à un groupe, Relances automatiques
   {
     path: "/members",
     label: "Membres",
-    sections: [
-      "Membres",
-      "Notes sur un membre",
-      "Réglages → Étiquettes de membres",
-      "Je veux supprimer un membre (RGPD)",
-    ],
+    sections: [intro("Membres"), "Liste des membres"],
   },
-  { path: "/members/broadcasts", label: "Écrire à un groupe", sections: ["Envois"] },
-  { path: "/members/automations", label: "Relances automatiques", sections: ["Automatisations"] },
+  {
+    path: "/members/:id",
+    label: "Fiche d'un membre",
+    sections: ["Fiche d'un membre", "Je veux supprimer un membre (RGPD)"],
+  },
+  {
+    path: "/members/broadcasts",
+    label: "Écrire à un groupe",
+    sections: ["Écrire à un groupe", "Test A/B d'un message à un groupe"],
+  },
+  {
+    path: "/members/broadcasts/ab",
+    label: "Test A/B d'un message à un groupe",
+    sections: ["Test A/B d'un message à un groupe"],
+  },
+  {
+    path: "/members/automations",
+    label: "Relances automatiques",
+    sections: ["Relances automatiques"],
+  },
+  {
+    path: "/members/automations/:id",
+    label: "Fiche d'une relance",
+    sections: ["Fiche d'une relance", "Relances automatiques"],
+  },
+  {
+    path: "/members/automations/:id/edit",
+    label: "Éditeur avancé",
+    sections: ["Éditeur avancé à branches"],
+  },
+  {
+    path: "/members/automations/new",
+    label: "Éditeur avancé",
+    sections: ["Éditeur avancé à branches"],
+  },
+
+  // Statistiques
   {
     path: "/stats",
     label: "Statistiques",
-    sections: ["Tableau de bord", "Période et comparaison"],
+    sections: [intro("Statistiques"), "Statistiques → Vue d'ensemble", "Période et comparaison"],
   },
-  { path: "/settings", label: "Réglages", sections: [{ title: "Réglages", introOnly: true }] },
-  { path: "/settings/bots", label: "Bots", sections: ["Bots", "Le bot ne répond pas"] },
-  { path: "/settings/journal", label: "Journal", sections: ["Journal"] },
   {
-    path: "/settings/team",
-    label: "Équipe",
-    sections: ["Réglages → Équipe", "Utilisateurs et invitations"],
+    path: "/stats/ads",
+    label: "Statistiques : Pubs",
+    sections: ["Statistiques → Pubs", "Période et comparaison", "Les chiffres semblent en retard"],
   },
+  {
+    path: "/stats/funnel",
+    label: "Statistiques : Parcours",
+    sections: ["Statistiques → Parcours", "Période et comparaison"],
+  },
+  {
+    path: "/stats/channels",
+    label: "Statistiques : Canaux",
+    sections: ["Statistiques → Canaux", "Meilleurs créneaux"],
+  },
+  {
+    path: "/stats/cohorts",
+    label: "Membres dans le temps",
+    sections: ["Statistiques → Membres dans le temps", "Période et comparaison"],
+  },
+
+  // Réglages
+  { path: "/settings", label: "Réglages", sections: [intro("Réglages")] },
   {
     path: "/settings/connectors",
     label: "Connexions",
-    sections: [
-      "Connecteurs (Link Affi)",
-      "Comptes publicitaires et compte Telegram (Réglages → Connecteurs)",
-      "La synchro Link Affi est en échec",
-    ],
+    sections: ["Réglages → Connexions", "La synchro Link Affi est en échec"],
+  },
+  {
+    path: "/settings/connectors/meta",
+    label: "Meta et TikTok",
+    sections: ["Comptes publicitaires Meta et TikTok"],
+  },
+  {
+    path: "/settings/connectors/tiktok",
+    label: "Meta et TikTok",
+    sections: ["Comptes publicitaires Meta et TikTok"],
+  },
+  {
+    path: "/settings/connectors/telegram",
+    label: "Telegram (vues)",
+    sections: ["Compte Telegram pour les vues"],
+  },
+  { path: "/settings/bots", label: "Bots", sections: ["Réglages → Bots", "Le bot ne répond pas"] },
+  {
+    path: "/settings/team",
+    label: "Équipe",
+    sections: [intro("Réglages → Équipe"), "Utilisateurs et invitations"],
+  },
+  {
+    path: "/settings/alerts",
+    label: "Alertes",
+    sections: ["Alertes et conservation des données", "Une alerte arrive sur Telegram"],
+  },
+  {
+    path: "/settings/reports",
+    label: "Rapports automatiques",
+    sections: ["Rapports automatiques"],
   },
   {
     path: "/settings/ai",
     label: "Assistant IA",
-    sections: ["IA", "Assistant IA pour écrire les messages"],
+    sections: ["Réglages → IA", "Assistant IA pour écrire les messages"],
   },
-  { path: "/settings/postbacks", label: "Retour du casino", sections: ["Postbacks"] },
-  {
-    path: "/settings/alerts",
-    label: "Alertes",
-    sections: [
-      "Alertes et rétention",
-      "Nouvelles alertes et seuils",
-      "Une alerte arrive sur Telegram",
-    ],
-  },
-  { path: "/settings/reports", label: "Rapports", sections: ["Rapports automatiques"] },
   { path: "/settings/categories", label: "Catégories", sections: ["Catégories de messages"] },
-  { path: "/settings/tags", label: "Étiquettes", sections: ["Réglages → Étiquettes de membres"] },
+  { path: "/settings/tags", label: "Étiquettes", sections: ["Étiquettes de membres"] },
+  { path: "/settings/journal", label: "Journal", sections: ["Réglages → Journal"] },
   {
     path: "/settings/status",
     label: "État du système",
-    sections: ["État du système", "Sauvegardes", "Le site est lent"],
+    sections: ["Réglages → État du système", "Sauvegardes", "Le site est lent"],
   },
+  {
+    path: "/settings/postbacks",
+    label: "Retours du casino",
+    sections: ["Réglages → Avancé : retours du casino (postbacks)"],
+  },
+
+  // Compte et aide
   {
     path: "/account",
     label: "Mon compte",
     sections: ["Mon compte", "J'ai perdu mon mot de passe"],
   },
-  { path: "/help", label: "Aide", sections: ["Aide"] },
+  { path: "/help", label: "Aide", sections: ["Aide « ? » et visite guidée"] },
 ];
 
 /** Réponse de GET /api/help?path=… (volet du bouton « ? »). */
@@ -159,10 +285,32 @@ export function normalizePath(pathname: string): string {
   return trimmed === "" ? "/" : trimmed;
 }
 
-/** La page `path` (ou une de ses sous-pages) est-elle l'adresse `pathname` ? « / » : accueil seulement. */
+function segments(path: string): string[] {
+  return path.split("/").filter(Boolean);
+}
+
+/**
+ * La page `path` (ou une de ses sous-pages) est-elle l'adresse `pathname` ? « / » : accueil seulement ; « :id » : un
+ * segment quelconque (jamais vide).
+ */
 export function matchesPath(pathname: string, path: string): boolean {
   if (path === "/") return pathname === "/";
-  return pathname === path || pathname.startsWith(`${path}/`);
+  const want = segments(path);
+  const got = segments(pathname);
+  if (got.length < want.length) return false;
+  return want.every((s, i) => (s.startsWith(":") ? Boolean(got[i]) : s === got[i]));
+}
+
+/** Précision d'une entrée : nombre de segments, puis nombre de segments fixes. */
+function precision(path: string): [number, number] {
+  const s = segments(path);
+  return [s.length, s.filter((x) => !x.startsWith(":")).length];
+}
+
+function morePrecise(a: string, b: string): boolean {
+  const [la, fa] = precision(a);
+  const [lb, fb] = precision(b);
+  return la !== lb ? la > lb : fa > fb;
 }
 
 /** Aide de la page : l'entrée la plus précise de la table, sinon « Les 10 premières minutes ». */
@@ -176,7 +324,17 @@ export function pageHelpFor(
   const path = normalizePath(pathname);
   let best: PageHelp | null = null;
   for (const entry of table)
-    if (matchesPath(path, entry.path) && (!best || entry.path.length > best.path.length))
+    if (matchesPath(path, entry.path) && (!best || morePrecise(entry.path, best.path)))
       best = entry;
   return best ? { help: best, fallback: false } : { help: DEFAULT_HELP, fallback: true };
+}
+
+/**
+ * Lien « Ouvrir le guide complet » du volet : la page /help, à l'ancre de la première section de la page (mêmes
+ * identifiants que le rendu du guide : les titres du guide sont uniques, un test le vérifie).
+ */
+export function guideHref(help: PageHelp): string {
+  const first = help.sections[0];
+  const anchor = first ? slugify(typeof first === "string" ? first : first.title) : "";
+  return anchor ? `/help#${anchor}` : "/help";
 }

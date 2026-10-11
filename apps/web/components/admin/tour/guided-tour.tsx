@@ -204,6 +204,7 @@ export function GuidedTour({ autoStart }: { autoStart: boolean }) {
     <div data-slot="guided-tour">
       {/* Bloque les clics sur la page pendant la visite (la bulle et ses boutons restent utilisables). */}
       <div aria-hidden className="fixed inset-0 z-[60]" />
+      {/* Cadre de 3 px (`SPOT_RING` de tour-logic.ts : la zone est calculée pour qu'il reste dans l'écran). */}
       <div
         ref={spotRef}
         aria-hidden

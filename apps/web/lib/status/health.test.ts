@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { healthTiles, type HealthTile } from "./health";
+import { healthTiles, syncRowState, type HealthTile } from "./health";
 
 const now = new Date("2026-10-10T12:00:00Z");
 const ago = (min: number) => new Date(now.getTime() - min * 60_000);
@@ -140,5 +140,34 @@ describe("tuiles de l'état du système", () => {
         ),
       ).worker!.state.label,
     ).toBe("Injoignable");
+  });
+});
+
+describe("lignes du tableau « Synchro Link Affi »", () => {
+  const row = (o: Partial<Parameters<typeof syncRowState>[0]>) => ({
+    isRunning: false,
+    lastError: null,
+    lastSuccessAt: ago(1),
+    ...o,
+  });
+
+  it("même seuil que la tuile : un dernier succès de plus de 15 minutes est « en retard »", () => {
+    expect(syncRowState(row({ lastSuccessAt: ago(2) }), now)).toBe("ok");
+    expect(syncRowState(row({ lastSuccessAt: ago(14) }), now)).toBe("ok");
+    expect(syncRowState(row({ lastSuccessAt: ago(16) }), now)).toBe("late");
+    expect(syncRowState(row({ lastSuccessAt: ago(13 * 60) }), now)).toBe("late");
+  });
+
+  it("en cours, en erreur et jamais passée l'emportent sur le retard", () => {
+    expect(syncRowState(row({ isRunning: true, lastSuccessAt: ago(600) }), now)).toBe("running");
+    expect(syncRowState(row({ lastError: "boom", lastSuccessAt: ago(600) }), now)).toBe("error");
+    expect(syncRowState(row({ lastSuccessAt: null }), now)).toBe("never");
+  });
+
+  it("la tuile « En retard » et les lignes disent la même chose", () => {
+    const syncStates = [{ ...healthy.syncStates[0]!, lastSuccessAt: ago(780) }];
+    const tiles = healthTiles({ ...healthy, syncStates }, now);
+    expect(tiles.find((t) => t.key === "sync")?.state.label).toBe("En retard");
+    expect(syncStates.map((s) => syncRowState(s, now))).toEqual(["late"]);
   });
 });

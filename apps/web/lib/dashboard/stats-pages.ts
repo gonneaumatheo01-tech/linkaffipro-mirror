@@ -6,19 +6,28 @@
 import { isVertical, type Vertical } from "@linkaffipro/core";
 import { universeLabel } from "@/lib/universe";
 import {
+  isDayKey,
   parseCompare,
+  parsePeriodKey,
   periodLabelWithDates,
   periodParams,
   previousPeriod,
   resolvePeriod,
   type Period,
+  type PeriodKey,
 } from "@/lib/periods";
 
 export type StatsPageKey = "overview" | "ads" | "funnel" | "channels" | "cohorts";
 
+/** Période commune par défaut des statistiques (adresse sans `range`). */
+export const STATS_DEFAULT_RANGE: PeriodKey = "7d";
+
 /**
- * Les cinq pages, dans l'ordre de la sous-navigation. `term` : terme technique au survol des mots `termOn` de la
- * ligne d'aide (« parcours » → entonnoir).
+ * Les cinq pages, dans l'ordre de la sous-navigation. `label` : mot court de l'onglet ; `title` : titre de la page
+ * (le `<h1>`), précisé quand le mot court est aussi une entrée du menu (« Canaux ») ou un onglet d'une campagne
+ * (« Pubs »). `term` : terme technique au survol des mots `termOn` de la ligne d'aide (« parcours » → entonnoir).
+ * `defaultRange` : période de la page quand l'adresse n'en choisit pas (« Membres dans le temps » compare des
+ * semaines : 90 jours, sinon une seule barre).
  */
 export const STATS_PAGES: ReadonlyArray<{
   key: StatsPageKey;
@@ -28,6 +37,7 @@ export const STATS_PAGES: ReadonlyArray<{
   term?: string;
   termOn?: string;
   description: string;
+  defaultRange?: PeriodKey;
 }> = [
   {
     key: "overview",
@@ -40,7 +50,7 @@ export const STATS_PAGES: ReadonlyArray<{
     key: "ads",
     path: "/stats/ads",
     label: "Pubs",
-    title: "Pubs",
+    title: "Statistiques des pubs",
     description: "Ce que chaque campagne a coûté et ce qu'elle a rapporté.",
   },
   {
@@ -57,7 +67,7 @@ export const STATS_PAGES: ReadonlyArray<{
     key: "channels",
     path: "/stats/channels",
     label: "Canaux",
-    title: "Canaux",
+    title: "Statistiques des canaux",
     description: "Comment vos canaux grandissent, et quels messages font cliquer.",
   },
   {
@@ -69,11 +79,17 @@ export const STATS_PAGES: ReadonlyArray<{
     termOn: "membres arrivés chaque semaine",
     description:
       "Les membres arrivés chaque semaine : combien s'inscrivent, déposent, et ce qu'ils rapportent.",
+    defaultRange: "90d",
   },
 ];
 
 export function statsPage(key: StatsPageKey) {
   return STATS_PAGES.find((p) => p.key === key)!;
+}
+
+/** Période par défaut de la page à l'adresse `path` (7 derniers jours, sauf « Membres dans le temps »). */
+export function statsDefaultRange(path: string): PeriodKey {
+  return STATS_PAGES.find((p) => p.path === path)?.defaultRange ?? STATS_DEFAULT_RANGE;
 }
 
 type Param = string | string[] | undefined;
@@ -88,6 +104,11 @@ export type StatsFilters = {
   vertical: Vertical | "";
   campaignId: string;
   channelId: string;
+  /**
+   * Vrai quand l'adresse ne choisit pas la période (période par défaut de la page) : les liens vers les autres pages
+   * ne l'écrivent pas, chacune prend alors la sienne.
+   */
+  defaultPeriod?: boolean;
 };
 
 /** Paramètres du sélecteur (tout le reste de l'adresse est propre à une page ou à un message de retour). */
@@ -101,18 +122,32 @@ export const STATS_FILTER_PARAMS = [
   "channelId",
 ] as const;
 
+/** L'adresse choisit-elle une période (`range` connu, ou deux dates valides pour une période personnalisée) ? */
+function choosesPeriod(sp: StatsSearchParams): boolean {
+  const key = parsePeriodKey(sp.range);
+  if (key && key !== "custom") return true;
+  return isDayKey(one(sp.from)) && isDayKey(one(sp.to));
+}
+
 /**
- * Lit le sélecteur dans l'adresse. Ancienne adresse du parcours (`dim=campaign:…`, `channel:…`, `vertical:…`) :
- * le filtre correspondant est rempli s'il est vide, pour que le sélecteur montre ce qui est affiché.
+ * Lit le sélecteur dans l'adresse. Sans période dans l'adresse : `defaultRange`, la période par défaut de la page
+ * (`statsDefaultRange`). Ancienne adresse du parcours (`dim=campaign:…`, `channel:…`, `vertical:…`) : le filtre
+ * correspondant est rempli s'il est vide, pour que le sélecteur montre ce qui est affiché.
  */
-export function parseStatsFilters(sp: StatsSearchParams, now = new Date()): StatsFilters {
+export function parseStatsFilters(
+  sp: StatsSearchParams,
+  now = new Date(),
+  defaultRange: PeriodKey = STATS_DEFAULT_RANGE,
+): StatsFilters {
   const v = one(sp.vertical);
+  const chosen = choosesPeriod(sp);
   const f: StatsFilters = {
-    period: resolvePeriod(sp, now),
+    period: resolvePeriod(chosen ? sp : { range: defaultRange }, now),
     compare: parseCompare(sp.compare),
     vertical: isVertical(v) ? v : "",
     campaignId: one(sp.campaignId),
     channelId: one(sp.channelId),
+    defaultPeriod: !chosen,
   };
   const dim = parseFunnelDim(one(sp.dim));
   if (dim?.kind === "campaign" && !f.campaignId) f.campaignId = dim.id;
@@ -132,8 +167,10 @@ export function statsParams(f: StatsFilters): Record<string, string> {
 }
 
 /**
- * Adresse d'une page des statistiques avec le sélecteur (et des paramètres en plus). La période par défaut
- * (7 derniers jours, sans comparaison) n'est pas écrite : « /stats/ads » plutôt que « /stats/ads?range=7d ».
+ * Adresse d'une page des statistiques avec le sélecteur (et des paramètres en plus). La période n'est pas écrite
+ * quand c'est celle par défaut de la page visée (« /stats/ads » plutôt que « /stats/ads?range=7d »), ni quand
+ * l'adresse d'origine n'en choisissait pas (`defaultPeriod`) : de la vue d'ensemble (7 jours par défaut),
+ * « Membres dans le temps » s'ouvre sur ses 90 jours.
  */
 export function statsHref(
   path: string,
@@ -141,7 +178,7 @@ export function statsHref(
   extra: Record<string, string | undefined> = {},
 ): string {
   const p = new URLSearchParams(statsParams(f));
-  if (p.get("range") === "7d") p.delete("range");
+  if (f.defaultPeriod || p.get("range") === statsDefaultRange(path)) p.delete("range");
   for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
   const q = p.toString();
   return q ? `${path}?${q}` : path;

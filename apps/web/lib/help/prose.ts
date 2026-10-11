@@ -13,9 +13,12 @@ const COMMON =
   "[&_hr]:my-8 [&_hr]:border-t [&_hr]:border-border " +
   "[&_table]:w-full [&_table]:border-collapse [&_table]:text-note [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_td]:align-top";
 
-/** Page /help (guide complet) : `#` masqué (le titre de la page est le `<h1>`), sections en titres. */
+/**
+ * Page /help (guide complet) : `#` masqué (le titre de la page est le `<h1>`), sections en titres. Colonne limitée à
+ * ~72 caractères par ligne (au-delà, la lecture d'un long guide fatigue).
+ */
 export const GUIDE_PROSE =
-  `space-y-4 ${COMMON} ` +
+  `max-w-[72ch] space-y-4 ${COMMON} ` +
   "[&_h1]:hidden " +
   "[&_h2]:mt-10 [&_h2]:scroll-mt-20 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-2 [&_h2]:text-title [&_h2]:text-foreground [&_h2:first-child]:mt-0 " +
   "[&_h3]:mt-8 [&_h3]:scroll-mt-20 [&_h3]:text-body [&_h3]:font-semibold " +

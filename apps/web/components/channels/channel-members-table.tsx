@@ -15,6 +15,8 @@ export type ChannelMemberRow = {
   username: string | null;
   status: MembershipStatus;
   source: string;
+  /** Explication de l'origine quand le lien n'est pas suivi (volet de détail), sinon null. */
+  sourceHint?: string | null;
   /** Dates déjà formatées (heure de Paris), « — » si absente. */
   requestedAt: string;
   approvedAt: string;
@@ -44,6 +46,7 @@ function Detail({ m }: { m: ChannelMemberRow }) {
           </div>
         ))}
       </dl>
+      {m.sourceHint ? <p className="text-note text-muted-foreground">{m.sourceHint}</p> : null}
       <Link href={`/members/${m.memberId}`} className={cn(buttonVariants(), "w-full max-md:h-10")}>
         Ouvrir la fiche du membre
       </Link>

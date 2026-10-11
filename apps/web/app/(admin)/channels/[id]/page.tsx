@@ -173,7 +173,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
 
       {tab === "rules" ? <RulesTab channelId={channel.id} /> : null}
       {tab === "requests" ? <RequestsTab channelId={channel.id} now={now} /> : null}
-      {tab === "members" ? <MembersTab channelId={channel.id} present={counts.members} /> : null}
+      {tab === "members" ? <MembersTab channelId={channel.id} sp={sp} /> : null}
       {tab === "sequences" ? (
         <SequencesTabLoader
           channel={channel}

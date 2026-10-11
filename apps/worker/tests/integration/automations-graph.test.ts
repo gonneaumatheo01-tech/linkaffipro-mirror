@@ -542,6 +542,6 @@ describe("relances automatiques à branches (base réelle)", () => {
     expect(await resumePending(new Date(t0.getTime() + 2 * H))).toBe(0);
     expect(
       await prisma.automationRun.findUniqueOrThrow({ where: { id: graphRun.id } }),
-    ).toMatchObject({ status: "CANCELLED", error: "Règle désactivée" });
+    ).toMatchObject({ status: "CANCELLED", error: "Relance désactivée" });
   });
 });

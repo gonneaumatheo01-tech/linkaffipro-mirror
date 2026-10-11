@@ -47,7 +47,7 @@ export default async function ChooseMetaAccountsPage({
       {!pending ? (
         <EmptyState
           title="Aucune connexion Meta en attente"
-          description="Le délai de 15 minutes est passé, ou la connexion n'a pas encore été lancée. Cliquez sur « Connecter un compte Meta » depuis la page Meta Ads."
+          description="Le délai de 15 minutes est passé, ou la connexion n'a pas encore été lancée. Cliquez sur « Connecter un compte Meta » depuis la page Meta Ads."
           action={{
             href: "/settings/connectors/meta",
             label: "Retour à Meta Ads",

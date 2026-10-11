@@ -13,7 +13,8 @@ import {
   pageSkip,
 } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,8 @@ export default async function JournalPage({ searchParams }: PageProps<"/settings
     prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
   const pages = pageCount(total);
-  const hasFilters = Boolean(f.userId || f.action || f.from || f.to);
+  const activeFilters = [f.userId, f.action, f.from, f.to].filter(Boolean).length;
+  const hasFilters = activeFilters > 0;
   const exportQuery = new URLSearchParams(
     Object.entries({ userId: f.userId, action: f.action, from: f.from, to: f.to }).filter(
       ([, v]) => v,
@@ -75,7 +77,7 @@ export default async function JournalPage({ searchParams }: PageProps<"/settings
         backLabel="Réglages"
         title="Journal"
         description="Toutes les actions faites sur le site par l'équipe (et par le système), dans l'ordre, sans possibilité de les modifier."
-        help="Filtrez par personne, par type d'action (par exemple « Écrire à un groupe ») ou par période. Les filtres sont mémorisés sur cet appareil."
+        help="Filtrez par personne, par type d'action (par exemple « Écrire à un groupe ») ou par période. Les filtres sont mémorisés sur cet appareil."
         secondaryActions={
           <a
             href={`/settings/journal/export${exportQuery ? `?${exportQuery}` : ""}`}
@@ -87,61 +89,72 @@ export default async function JournalPage({ searchParams }: PageProps<"/settings
         }
       />
       <ViewTabs view="actions" />
-      <form
-        method="get"
-        aria-label="Filtrer le journal"
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end"
-      >
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor="journal-user">Qui</Label>
-          <NativeSelect
-            id="journal-user"
-            name="userId"
-            defaultValue={f.userId}
-            wrapperClassName="w-full"
-          >
-            <option value="">Tout le monde</option>
-            <option value="system">Système (sans utilisateur)</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor="journal-action">Type d&apos;action</Label>
-          <NativeSelect
-            id="journal-action"
-            name="action"
-            defaultValue={f.action}
-            wrapperClassName="w-full"
-          >
-            <option value="">Toutes les actions</option>
-            {actionFilterOptions(f.action).map((a) => (
-              <option key={a.value} value={a.value}>
-                {a.label}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor="journal-from">Du</Label>
-          <Input id="journal-from" type="date" name="from" defaultValue={f.from} />
-        </div>
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor="journal-to">Au</Label>
-          <Input id="journal-to" type="date" name="to" defaultValue={f.to} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-1">
-          <Button type="submit" variant="outline" className="max-md:h-10">
-            Filtrer
-          </Button>
-          <Suspense fallback={null}>
-            <RememberFilters storageKey="journal" className="max-md:h-10" />
-          </Suspense>
-        </div>
-      </form>
+      {/* Même barre de filtres que les Statistiques (libellés en note, « Appliquer ») ; repliée sur téléphone. */}
+      <CollapsibleFilters activeCount={activeFilters} className="mb-6">
+        <form
+          method="get"
+          aria-label="Filtrer le journal"
+          className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2 md:p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end"
+        >
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="journal-user" className="text-note font-medium text-muted-foreground">
+              Qui
+            </Label>
+            <NativeSelect
+              id="journal-user"
+              name="userId"
+              defaultValue={f.userId}
+              wrapperClassName="w-full"
+            >
+              <option value="">Tout le monde</option>
+              <option value="system">Système (sans utilisateur)</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="journal-action" className="text-note font-medium text-muted-foreground">
+              Type d&apos;action
+            </Label>
+            <NativeSelect
+              id="journal-action"
+              name="action"
+              defaultValue={f.action}
+              wrapperClassName="w-full"
+            >
+              <option value="">Toutes les actions</option>
+              {actionFilterOptions(f.action).map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="journal-from" className="text-note font-medium text-muted-foreground">
+              Du
+            </Label>
+            <Input id="journal-from" type="date" name="from" defaultValue={f.from} />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="journal-to" className="text-note font-medium text-muted-foreground">
+              Au
+            </Label>
+            <Input id="journal-to" type="date" name="to" defaultValue={f.to} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-1">
+            <Button type="submit" variant="outline" className="max-md:h-10">
+              Appliquer
+            </Button>
+            <Suspense fallback={null}>
+              <RememberFilters storageKey="journal" className="max-md:h-10" />
+            </Suspense>
+          </div>
+        </form>
+      </CollapsibleFilters>
       <div className="space-y-4">
         <DataTable
           label="Actions de l'équipe"

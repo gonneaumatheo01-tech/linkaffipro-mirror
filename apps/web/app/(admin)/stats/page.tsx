@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@linkaffipro/db";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { EmptyState } from "@/components/admin/empty-state";
+import { FormSection } from "@/components/admin/form-section";
 import { StatCard } from "@/components/admin/stat-card";
 import { MetricChart, type ChartMetric } from "@/components/charts/metric-chart";
 import { NumCell, STAT_GRID_PHONE } from "@/components/dashboard/cells";
@@ -15,8 +17,11 @@ import {
   comparableDelta,
   dayLabels,
   fmtMetric,
+  fmtMetricExact,
+  metricGroupFormatter,
   moneyColumn,
   overviewLabel,
+  trendOrNone,
   type MetricKey,
 } from "@/lib/dashboard/display";
 import { loadLastEvents, type LastEvent } from "@/lib/dashboard/events";
@@ -43,25 +48,6 @@ const CHANNEL_DETAIL: Array<keyof Omit<ChannelRow, "channelId" | "title">> = [
 
 function memberName(m: NonNullable<LastEvent["member"]>): string {
   return m.username ? `@${m.username}` : (m.firstName ?? "Membre");
-}
-
-function SectionTitle({
-  id,
-  title,
-  description,
-}: {
-  id: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-3">
-      <h2 id={id} className="text-title text-foreground">
-        {title}
-      </h2>
-      <p className="text-body text-muted-foreground">{description}</p>
-    </div>
-  );
 }
 
 export default async function StatsOverviewPage({ searchParams }: PageProps<"/stats">) {
@@ -93,31 +79,43 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
   const labels = dayLabels(dash.keys);
   const previousLabels = f.compare ? dayLabels(periodDayKeys(previousPeriod(f.period))) : undefined;
 
-  const cards = (group: "telegram" | "argent") =>
-    dash.metrics
-      .filter((m) => m.group === group)
-      .map((m) => {
-        const v = overviewLabel(m.key);
-        return (
-          <StatCard
-            key={m.key}
-            label={v.label}
-            term={v.term}
-            value={fmtMetric(m.key as MetricKey, m.series.total)}
-            delta={
-              f.compare
-                ? comparableDelta(deltaPct(m.series.total, prevTotal(m.key)), prevTotal(m.key))
-                : undefined
-            }
-            favorable={v.favorable}
-            comparison="vs période précédente"
-            hint={
-              f.compare ? `Avant : ${fmtMetric(m.key as MetricKey, prevTotal(m.key))}` : undefined
-            }
-            trend={multiDay ? m.series.values : undefined}
-          />
-        );
-      });
+  const cards = (group: "telegram" | "argent") => {
+    const metrics = dash.metrics.filter((m) => m.group === group);
+    // Une seule précision pour les montants de la grille (« 5 750 € » ne côtoie pas « 12,40 € »), avant compris.
+    const fmt = metricGroupFormatter(
+      metrics.flatMap((m) => [
+        { key: m.key as MetricKey, value: m.series.total },
+        ...(f.compare ? [{ key: m.key as MetricKey, value: prevTotal(m.key) }] : []),
+      ]),
+    );
+    return metrics.map((m) => {
+      const v = overviewLabel(m.key);
+      const key = m.key as MetricKey;
+      return (
+        <StatCard
+          key={m.key}
+          label={v.label}
+          term={v.term}
+          value={
+            v.format === "money" ? (
+              <span title={fmtMetricExact(key, m.series.total)}>{fmt(key, m.series.total)}</span>
+            ) : (
+              fmt(key, m.series.total)
+            )
+          }
+          delta={
+            f.compare
+              ? comparableDelta(deltaPct(m.series.total, prevTotal(m.key)), prevTotal(m.key))
+              : undefined
+          }
+          favorable={v.favorable}
+          comparison="vs période précédente"
+          hint={f.compare ? `Avant : ${fmt(key, prevTotal(m.key))}` : undefined}
+          trend={multiDay ? trendOrNone(m.series.values) : undefined}
+        />
+      );
+    });
+  };
 
   const chartMetrics: ChartMetric[] = dash.metrics.map((m) => {
     const v = overviewLabel(m.key);
@@ -175,13 +173,13 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/channels/${r.channelId}`}
-              className={buttonVariants({ variant: "outline" })}
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
             >
               Ouvrir le canal
             </Link>
             <Link
               href={statsHref("/stats/channels", { ...f, channelId: r.channelId })}
-              className={buttonVariants({ variant: "ghost" })}
+              className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
             >
               Sa croissance
             </Link>
@@ -208,24 +206,21 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
       ),
     },
     sortValues: { member: e.member ? memberName(e.member) : null },
+    // Même volet que dans le Journal (DetailList) ; le code technique de l'événement reste dans le Journal.
     detail: (
-      <div className="space-y-4">
-        <dl className="divide-y divide-border">
-          {[
-            ["Quand", fmtDate(e.occurredAt)],
-            ["Bot", e.bot ? `@${e.bot.username}` : "—"],
-            ["Canal", e.channel?.title ?? "—"],
-            ["Membre", e.member ? memberName(e.member) : "—"],
-            ["Code technique", e.type],
-          ].map(([k, v]) => (
-            <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-              <dt className="text-body text-muted-foreground">{k}</dt>
-              <dd className="min-w-0 text-right text-body break-words text-foreground">{v}</dd>
-            </div>
-          ))}
-        </dl>
+      <div className="space-y-6">
+        <DetailList>
+          <DetailRow label="Quand">{fmtDate(e.occurredAt)}</DetailRow>
+          <DetailRow label="Événement">{e.label}</DetailRow>
+          <DetailRow label="Bot">{e.bot ? `@${e.bot.username}` : "—"}</DetailRow>
+          <DetailRow label="Canal">{e.channel?.title ?? "—"}</DetailRow>
+          <DetailRow label="Membre">{e.member ? memberName(e.member) : "—"}</DetailRow>
+        </DetailList>
         {e.member ? (
-          <Link href={`/members/${e.member.id}`} className={buttonVariants({ variant: "outline" })}>
+          <Link
+            href={`/members/${e.member.id}`}
+            className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+          >
             Ouvrir la fiche du membre
           </Link>
         ) : null}
@@ -253,47 +248,38 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
         />
       ) : null}
 
-      <section aria-labelledby="stats-telegram" className="mb-8">
-        <div className="mb-3">
-          <h2 id="stats-telegram" className="text-title text-foreground">
-            Telegram
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Les demandes d&apos;adhésion, les membres acceptés, entrés et partis de vos canaux.
-          </p>
-        </div>
+      <FormSection
+        id="stats-telegram"
+        className="mb-8"
+        title="Telegram"
+        description="Les demandes d'adhésion, les membres acceptés, entrés et partis de vos canaux."
+      >
         <div className={cn("grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4", STAT_GRID_PHONE)}>
           {cards("telegram")}
         </div>
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="stats-money" className="mb-8">
-        <div className="mb-3">
-          <h2 id="stats-money" className="text-title text-foreground">
-            Argent
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Des clics sur vos pubs jusqu&apos;au revenu net de vos joueurs.
-          </p>
-        </div>
+      <FormSection
+        id="stats-money"
+        className="mb-8"
+        title="Argent"
+        description="Des clics sur vos pubs jusqu'au revenu net de vos joueurs."
+      >
         <div className={cn("grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3", STAT_GRID_PHONE)}>
           {cards("argent")}
         </div>
-      </section>
+      </FormSection>
 
-      <section
-        aria-labelledby="stats-daily"
+      <FormSection
+        id="stats-daily"
         className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
+        title="Jour par jour"
+        description={
+          f.compare
+            ? "La période choisie en orange, la précédente en gris. Survolez la courbe pour lire chaque jour."
+            : "Choisissez le chiffre à suivre. Survolez la courbe pour lire chaque jour."
+        }
       >
-        <SectionTitle
-          id="stats-daily"
-          title="Jour par jour"
-          description={
-            f.compare
-              ? "La période choisie en orange, la précédente en gris. Survolez la courbe pour lire chaque jour."
-              : "Choisissez le chiffre à suivre. Survolez la courbe pour lire chaque jour."
-          }
-        />
         {multiDay ? (
           <MetricChart
             metrics={chartMetrics}
@@ -307,17 +293,14 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
             Choisissez une période de plusieurs jours pour voir l&apos;évolution jour par jour.
           </p>
         )}
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="stats-channels" className="mb-8">
-        <div className="mb-3">
-          <h2 id="stats-channels" className="text-title text-foreground">
-            Par canal
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Cliquez sur un canal pour voir tous ses chiffres.
-          </p>
-        </div>
+      <FormSection
+        id="stats-channels"
+        className="mb-8"
+        title="Par canal"
+        description="Cliquez sur un canal pour voir tous ses chiffres."
+      >
         <DataTable
           label="Chiffres par canal"
           defaultSort={{ key: "joined", direction: "desc" }}
@@ -336,25 +319,21 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
             action: { href: "/channels", label: "Voir les canaux", variant: "outline" },
           }}
         />
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="stats-events">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="stats-events" className="text-title text-foreground">
-              Derniers événements
-            </h2>
-            <p className="text-body text-muted-foreground">
-              Les 12 dernières choses arrivées sur vos bots, tous filtres confondus.
-            </p>
-          </div>
+      <FormSection
+        id="stats-events"
+        title="Derniers événements"
+        description="Les 12 dernières choses arrivées sur vos bots, tous filtres confondus."
+        actions={
           <Link
             href="/settings/journal/events"
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}
           >
             Tout le journal
           </Link>
-        </div>
+        }
+      >
         <DataTable
           label="Derniers événements"
           columns={[
@@ -371,7 +350,7 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
             action: { href: "/settings/bots", label: "Voir les bots", variant: "outline" },
           }}
         />
-      </section>
+      </FormSection>
     </>
   );
 }

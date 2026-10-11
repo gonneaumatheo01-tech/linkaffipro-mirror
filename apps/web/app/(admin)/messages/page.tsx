@@ -20,7 +20,7 @@ const HELP: Record<MessagesView, string> = {
   calendar: "Cliquez un message pour voir son détail, le modifier ou le déplacer.",
   list: "Cliquez un message pour voir son détail. « Exporter » télécharge la liste filtrée avec ses chiffres.",
   templates:
-    "Choisissez un modèle puis « Utiliser » : le message est pré-rempli, il ne reste qu'à le programmer.",
+    "Choisissez un modèle puis « Utiliser » : le message est pré-rempli. Remplacez les mots entre accolades, puis programmez-le.",
 };
 
 /**
@@ -70,11 +70,16 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
         title="Messages"
         description="Ce qui part dans vos canaux, et quand."
         help={HELP[view]}
-        primaryAction={{
-          label: "Programmer un message",
-          href: newPostHref({ channelId: f.channelId || undefined }),
-          icon: <Plus aria-hidden />,
-        }}
+        // Téléphone : le bouton principal en premier (avant « Comparer par catégorie »).
+        primaryAction={
+          <Link
+            href={newPostHref({ channelId: f.channelId || undefined })}
+            className={cn(buttonVariants(), "max-md:order-first max-md:h-10")}
+          >
+            <Plus aria-hidden />
+            Programmer un message
+          </Link>
+        }
         secondaryActions={
           <Link
             href="/messages/categories"

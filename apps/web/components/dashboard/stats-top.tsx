@@ -3,6 +3,7 @@ import { Term } from "@/components/admin/help-tip";
 import { PageHeader, type PageAction } from "@/components/admin/page-header";
 import {
   periodSentence,
+  statsDefaultRange,
   statsHref,
   statsPage,
   type StatsFilters as Filters,
@@ -75,6 +76,7 @@ export function StatsTop({
         showCompare={showCompare}
         showChannel={showChannel}
         channelHelp={channelHelp}
+        defaultRange={statsDefaultRange(p.path)}
       />
       <p className="mb-6 text-note text-muted-foreground">
         {periodSentence(filters.period, filters.compare && showCompare)}.

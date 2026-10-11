@@ -24,9 +24,9 @@ vi.mock("@/lib/session", () => ({
 
 import CategoryComparisonPage from "./page";
 
-async function render(): Promise<string> {
+async function render(sp: Record<string, string> = {}): Promise<string> {
   return renderToStaticMarkup(
-    await CategoryComparisonPage({ searchParams: Promise.resolve({}) } as never),
+    await CategoryComparisonPage({ searchParams: Promise.resolve(sp) } as never),
   );
 }
 
@@ -75,5 +75,15 @@ describe("comparaison par catégorie : états vides", () => {
     mocks.categories = [{ id: "c1", name: "Promo", color: "#16a34a" }];
     const html = await render();
     expect(html).toContain("Aucun message envoyé sur la période");
+    expect(html).toContain('href="/messages/new"');
+  });
+  it("filtré sur un canal sans envoi : phrase adaptée et retour à tous les canaux", async () => {
+    mocks.categories = [{ id: "c1", name: "Promo", color: "#16a34a" }];
+    const html = await render({ range: "7d", channel: "ch1" });
+    expect(html).toContain("Aucun message envoyé dans ce canal sur la période");
+    expect(html).toContain("Changez de période ou de canal.");
+    expect(html).toContain('href="/messages/categories?range=7d&amp;measure=');
+    expect(html).toContain("Tous les canaux");
+    expect(html).not.toContain("Donnez une catégorie");
   });
 });

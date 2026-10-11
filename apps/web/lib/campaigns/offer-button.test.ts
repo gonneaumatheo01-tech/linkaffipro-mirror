@@ -211,13 +211,15 @@ describe("matérialisation du bouton Offre", () => {
     expect(b.trackingLinkId).toBe("tl-old");
   });
 
-  it("libellé du lien suffixé pour un envoi groupé", async () => {
+  it("libellé du lien suffixé pour un message à un groupe", async () => {
     await materializeOfferButton(
       { text: "Jouer", type: "OFFER", campaignId: "camp1", affiliateCampaignId: "aff1" },
-      { ...ctx, labelSuffix: " (envoi groupé)" },
+      { ...ctx, labelSuffix: " (message à un groupe)" },
     );
     expect(db.trackingLink.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ label: "Jouer (envoi groupé)" }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ label: "Jouer (message à un groupe)" }),
+      }),
     );
   });
 });

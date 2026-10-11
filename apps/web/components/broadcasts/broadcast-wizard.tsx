@@ -193,12 +193,16 @@ function FinalActions({
   );
 }
 
-/** Carte « Recevront ce message » : nombre de membres joignables et groupe en une phrase. */
+/**
+ * Carte « Recevront ce message » : nombre de membres joignables et groupe en une phrase. `showCount={false}`
+ * (téléphone et tablette) : « Votre groupe » sans le gros chiffre, déjà écrit dans la barre collante juste en dessous.
+ */
 function GroupSummary({
   count,
   sentence,
   botUsername,
   pending,
+  showCount = true,
   className,
 }: {
   count: Count;
@@ -206,6 +210,7 @@ function GroupSummary({
   botUsername: string | null;
   /** Critères ajoutés mais pas encore réglés (ils ne comptent pas). */
   pending: number;
+  showCount?: boolean;
   className?: string;
 }) {
   const pendingText = pendingSentence(pending);
@@ -213,24 +218,26 @@ function GroupSummary({
     <div className={cn("rounded-xl border border-border bg-card p-4", className)}>
       <p className="flex items-center gap-2 text-note text-muted-foreground">
         <Users aria-hidden className="size-4" />
-        Recevront ce message
+        {showCount ? "Recevront ce message" : "Votre groupe"}
       </p>
-      <p className="mt-1 text-figure text-foreground tabular-nums" aria-live="polite">
-        {count.loading && count.count === null ? (
-          <span className="text-muted-foreground">…</span>
-        ) : count.count === null ? (
-          "—"
-        ) : (
-          <>
-            {fmtNum(count.count)}
-            <span className="sr-only"> membre{count.count > 1 ? "s" : ""}</span>
-          </>
-        )}
-        {count.loading && count.count !== null ? (
-          <span className="ml-2 text-note font-normal text-muted-foreground">mise à jour…</span>
-        ) : null}
-      </p>
-      <p className="mt-2 text-body text-foreground">{sentence}.</p>
+      {showCount ? (
+        <p className="mt-1 text-figure text-foreground tabular-nums" aria-live="polite">
+          {count.loading && count.count === null ? (
+            <span className="text-muted-foreground">…</span>
+          ) : count.count === null ? (
+            "—"
+          ) : (
+            <>
+              {fmtNum(count.count)}
+              <span className="sr-only"> membre{count.count > 1 ? "s" : ""}</span>
+            </>
+          )}
+          {count.loading && count.count !== null ? (
+            <span className="ml-2 text-note font-normal text-muted-foreground">mise à jour…</span>
+          ) : null}
+        </p>
+      ) : null}
+      <p className={cn("text-body text-foreground", showCount ? "mt-2" : "mt-1")}>{sentence}.</p>
       <p className="mt-1 text-note text-muted-foreground">{reachableSentence(botUsername)}</p>
       {pendingText ? (
         <p className="mt-2 flex items-start gap-1.5 text-note text-warning">
@@ -264,7 +271,7 @@ function StickyCount({ count, onContinue }: { count: Count; onContinue: () => vo
   return (
     <div className="sticky bottom-[calc(3.5rem+1px+env(safe-area-inset-bottom)+0.5rem)] z-30 md:bottom-4 lg:hidden">
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 shadow-md">
-        <p className="min-w-0 leading-tight">
+        <p className="min-w-0 leading-tight" aria-live="polite">
           <span className="block text-body font-semibold text-foreground tabular-nums">
             {lines.figure}
             {count.loading && count.count !== null ? (
@@ -692,6 +699,7 @@ export function BroadcastWizard({
               sentence={sentence}
               botUsername={bot?.username ?? null}
               pending={pending.length}
+              showCount={false}
               className="lg:hidden"
             />
             <StickyCount count={count} onContinue={next} />
@@ -710,13 +718,14 @@ export function BroadcastWizard({
             <div className={card}>
               <FormSection
                 title={ab ? "Texte — version A" : "Le message"}
-                description="Mise en forme Telegram par la barre d'outils. 4 096 caractères au plus."
+                description="Ce que les membres liront. Sélectionnez un mot pour le mettre en gras, en italique ou en lien."
               >
                 <MessageTextEditor
                   id="broadcast-text"
                   text={text}
                   setText={setText}
                   label={ab ? "Texte de la version A" : "Texte du message"}
+                  hasMedia={Boolean(mediaAssetId)}
                   ai={
                     <ImproveButton
                       getText={() => text}
@@ -807,6 +816,7 @@ export function BroadcastWizard({
                       text={textB}
                       setText={setTextB}
                       label="Texte de la version B"
+                      hasMedia={Boolean(mediaAssetIdB)}
                       rows={6}
                       ai={
                         <ImproveButton

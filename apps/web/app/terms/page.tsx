@@ -83,18 +83,24 @@ export default function TermsPage() {
             6. Responsabilité et évolution
           </h2>
           <p>
-            L&apos;outil est fourni « en l&apos;état » pour un usage interne. Les chiffres affichés
+            L&apos;outil est fourni « en l&apos;état » pour un usage interne. Les chiffres affichés
             proviennent des plateformes tierces et peuvent être recalculés par elles après coup. Ces
             conditions peuvent évoluer ; la version en ligne fait foi.
           </p>
         </section>
 
         <footer className="border-t border-border pt-4 text-note text-muted-foreground">
-          <Link href="/privacy" className="font-medium text-brand-ink underline underline-offset-4">
+          <Link
+            href="/privacy"
+            className="inline-flex items-center font-medium text-brand-ink underline underline-offset-4 max-md:min-h-10"
+          >
             Politique de confidentialité
           </Link>
           {" · "}
-          <Link href="/login" className="font-medium text-brand-ink underline underline-offset-4">
+          <Link
+            href="/login"
+            className="inline-flex items-center font-medium text-brand-ink underline underline-offset-4 max-md:min-h-10"
+          >
             Connexion
           </Link>
         </footer>

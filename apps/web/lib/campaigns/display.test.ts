@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeMetrics } from "./metrics";
 import {
   adCampaignLine,
+  adSetTitle,
   CAMPAIGN_TABS,
   campaignTabHref,
   costLevelLabel,
@@ -31,6 +32,8 @@ describe("onglets de la fiche campagne", () => {
       "Membres",
     ]);
     for (const t of CAMPAIGN_TABS) expect(t.help.length).toBeLessThan(120);
+    // Téléphone : six boutons en deux rangées de trois, libellés courts (sans « … »).
+    for (const t of CAMPAIGN_TABS) expect(t.short.length).toBeLessThanOrEqual(12);
   });
 
   it("l'ancien onglet Offres et toute valeur inconnue ouvrent la vue d'ensemble", () => {
@@ -276,6 +279,14 @@ describe("libellés de lignes", () => {
         connectionName: null,
       }),
     ).toBe("Pubs sur une autre plateforme");
+  });
+
+  it("titre d'un groupe de pubs sans répéter « Groupe »", () => {
+    expect(adSetTitle("Groupe 1 · Jeunes actifs")).toBe("Groupe 1 · Jeunes actifs");
+    expect(adSetTitle("groupe FR")).toBe("groupe FR");
+    expect(adSetTitle("FR 18-34")).toBe("Groupe « FR 18-34 »");
+    // « Groupes » ou « Groupement » ne sont pas le mot « Groupe » seul.
+    expect(adSetTitle("Groupement Sud")).toBe("Groupe « Groupement Sud »");
   });
 });
 

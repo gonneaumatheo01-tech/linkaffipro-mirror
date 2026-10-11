@@ -90,7 +90,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/settings
             dépense pub et alertes.
           </>
         }
-        help="Choisissez l'heure, puis « Envoyer maintenant » pour vérifier que vous le recevez bien."
+        help="Choisissez l'heure, puis « Envoyer maintenant » pour vérifier que vous le recevez bien."
       />
       <SettingsGroupNav group="alerts" current="reports" />
       <Flash ok={sp.ok} error={sp.error} />
@@ -171,13 +171,13 @@ export default async function ReportsPage({ searchParams }: PageProps<"/settings
               title="Résumé quotidien"
               text={str("reports.lastDailyText")}
               emptyTitle="Aucun résumé envoyé pour l'instant"
-              emptyHint="« Envoyer le résumé maintenant » ci-dessus : il s'affichera ici."
+              emptyHint="« Envoyer le résumé maintenant » ci-dessus : il s'affichera ici."
             />
             <ReportPreview
               title="Rapport hebdomadaire"
               text={str("reports.lastWeeklyText")}
               emptyTitle="Aucun rapport envoyé pour l'instant"
-              emptyHint="« Envoyer le rapport maintenant » ci-dessus : il s'affichera ici."
+              emptyHint="« Envoyer le rapport maintenant » ci-dessus : il s'affichera ici."
             />
           </div>
         </FormSection>

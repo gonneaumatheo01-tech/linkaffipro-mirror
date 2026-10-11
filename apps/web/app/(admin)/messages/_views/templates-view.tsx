@@ -3,8 +3,12 @@ import { LayoutGrid, Pencil, SearchX } from "lucide-react";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { UniverseDot } from "@/components/admin/universe-dot";
-import { FilterChips, type FilterChip } from "@/components/campaigns/filter-chips";
+import { FilterChips, type FilterChip } from "@/components/admin/filter-chips";
 import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import {
+  placeholdersToComplete,
+  PLACEHOLDER_MARK_CLASS,
+} from "@/components/messages/preview-placeholders";
 import { TelegramPreview } from "@/components/messages/telegram-preview";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -22,7 +26,8 @@ import type { SearchParams } from "./shared";
 
 /**
  * Vue Modèles : galerie de cartes filtrable par univers, par thème et (quand des modèles en ont) par catégorie ;
- * aperçu du texte, « Utiliser » (nouveau message pré-rempli) et « Modifier ».
+ * aperçu du texte (repères {prenom}, {offre}… surlignés, avec « À compléter »), « Utiliser » (nouveau message
+ * pré-rempli) et « Modifier ».
  */
 export async function TemplatesView({
   sp,
@@ -123,6 +128,7 @@ export async function TemplatesView({
           {listed.rows.map((t) => {
             const th = templateThemeOf(t.code);
             const title = templateCardTitle(t.templateName ?? "Modèle sans nom");
+            const toComplete = placeholdersToComplete(t.text);
             return (
               <li
                 key={t.id}
@@ -152,8 +158,20 @@ export async function TemplatesView({
                   buttons={parseButtons(t.buttons)}
                   mediaCount={Array.isArray(t.mediaAssetIds) ? t.mediaAssetIds.length : 0}
                   compact
+                  highlightPlaceholders
                   className="flex-1"
                 />
+                {toComplete.length > 0 ? (
+                  <p className="text-note text-muted-foreground">
+                    À compléter :{" "}
+                    {toComplete.map((k, i) => (
+                      <span key={k}>
+                        {i > 0 ? ", " : null}
+                        <mark className={PLACEHOLDER_MARK_CLASS}>{`{${k}}`}</mark>
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href={`/messages/new?from=${t.id}`}

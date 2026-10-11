@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   memberHandle,
   memberName,
+  membersSummary,
   remaining,
   requestNext,
   requestsTabLabel,
+  sourceHint,
   sourceLabel,
   trackedMembersLabel,
 } from "./requests";
@@ -46,7 +48,30 @@ describe("demandes d'un canal", () => {
       "Lien manuel",
     );
     expect(sourceLabel({ joinedDirectly: true })).toBe("Entrée directe");
-    expect(sourceLabel(null)).toBe("Lien inconnu");
+    // Pas un lien d'entrée créé ici : rien ne ressemble à une panne.
+    expect(sourceLabel(null)).toBe("Sans lien suivi");
+    expect(sourceLabel({ inviteLink: null, telegramInviteLink: "https://t.me/+abc" })).toBe(
+      "Sans lien suivi",
+    );
+  });
+
+  it("explication de l'origine dans le volet de détail, seulement quand le lien n'est pas suivi", () => {
+    expect(sourceHint({ inviteLink: { name: "Pub TikTok 1" } })).toBeNull();
+    expect(sourceHint({ joinedDirectly: true })).toBeNull();
+    expect(sourceHint(null)).toMatch(/lien d'invitation qui n'a pas été créé ici/);
+  });
+
+  it("résumé des membres de l'onglet : présents, puis partis et exclus s'il y en a", () => {
+    expect(membersSummary({ present: 65, left: 12, kicked: 1 })).toBe(
+      "65 membres présents · 12 partis · 1 exclu",
+    );
+    expect(membersSummary({ present: 1, left: 0, kicked: 0 })).toBe("1 membre présent");
+    expect(membersSummary({ present: 0, left: 1, kicked: 2 })).toBe(
+      "0 membre présent · 1 parti · 2 exclus",
+    );
+    expect(membersSummary({ present: 1200, left: 0, kicked: 0 })).toBe(
+      "1\u202f200 membres présents",
+    );
   });
 
   it("nom d'un membre", () => {

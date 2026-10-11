@@ -341,7 +341,7 @@ export async function reportWorkerRestart(
   const d = detectWorkerDown(new Date(last.at), now);
   if (!d) return null;
   const downMinutes = Number(d.payload.downMinutes ?? 0);
-  const backText = `✅ <b>Worker de retour</b>\nIl a été arrêté environ ${downMinutes} min (dernier signe de vie : ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date(last.at))}).`;
+  const backText = `✅ <b>Service d'arrière-plan de retour</b>\nIl a été arrêté environ ${downMinutes} min (dernier signe de vie : ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date(last.at))}).`;
 
   const open = await prisma.alert.findFirst({
     where: { kind: "worker_down", resolvedAt: null },

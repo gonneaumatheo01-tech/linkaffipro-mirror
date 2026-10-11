@@ -6,6 +6,7 @@ import { PostForm, type PostFormValues } from "@/components/messages/post-form";
 import { parseButtons } from "@/lib/posts/buttons";
 import { fromParisLocal, nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
 import { presetScheduleLocal } from "@/lib/posts/calendar";
+import { defaultScheduleAt } from "@/lib/posts/default-schedule";
 import { loadBestSlots } from "@/lib/besthours/queries";
 import { listCampaignOptions } from "@/lib/campaigns/queries";
 import { templateCardTitle as templateTitle } from "@/lib/posts/templates";
@@ -44,11 +45,6 @@ export async function loadFormOptions() {
   };
 }
 
-/** Prochain quart d'heure, dans au moins une heure. */
-function defaultScheduleTime(): Date {
-  return new Date(Math.ceil((Date.now() + 60 * 60_000) / (15 * 60_000)) * 15 * 60_000);
-}
-
 export default async function NewMessagePage({ searchParams }: PageProps<"/messages/new">) {
   const sp = await searchParams;
   const fromId = typeof sp.from === "string" ? sp.from : null;
@@ -61,7 +57,8 @@ export default async function NewMessagePage({ searchParams }: PageProps<"/messa
     : [];
   const { channels, categories, campaigns, campaignOptions } = await loadFormOptions();
   const bestSlots = await loadBestSlots(channels.map((c) => c.id));
-  const defaultAt = defaultScheduleTime();
+  // Dans au moins une heure, jamais en pleine nuit (18:00 entre 22 h et 8 h).
+  const defaultAt = defaultScheduleAt();
   const presetChannel = typeof sp.channel === "string" ? sp.channel : "";
   const presetCategory = typeof sp.category === "string" ? sp.category : "";
   const presetAt = (() => {

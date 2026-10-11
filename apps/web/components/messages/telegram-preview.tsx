@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ImageIcon } from "lucide-react";
 import { validateTelegramHtml } from "@linkaffipro/core";
 import { cn } from "@/components/ui/cn";
+import { markTemplatePlaceholders } from "./preview-placeholders";
 
 const SPOILER =
   '<span class="rounded bg-foreground/80 px-1 text-transparent transition hover:bg-transparent hover:text-inherit">';
@@ -11,20 +12,26 @@ const SPOILER =
 /**
  * Rendu approché d'un message Telegram (HTML validé uniquement) : bulle blanche à gauche sur fond de discussion
  * (comme un message de canal ou de bot reçu par le membre), médias,
- * boutons sous le message. `compact` : version réduite (galerie de modèles, volet du calendrier), texte coupé
- * après quelques lignes, sans compteur de caractères.
+ * boutons sous le message. `compact` : version réduite (galerie de modèles), texte coupé après quelques lignes, sans
+ * compteur de caractères. `counter={false}` : sans compteur (message déjà enregistré). `highlightPlaceholders` : repères
+ * {prenom}, {offre}… surlignés « à compléter » (modèles).
  */
 export function TelegramPreview({
   html,
   buttons,
   mediaCount,
   compact = false,
+  counter = true,
+  highlightPlaceholders = false,
   className,
 }: {
   html: string;
   buttons: Array<Array<{ text: string }>>;
   mediaCount: number;
   compact?: boolean;
+  /** Compteur de caractères (saisie) ; masqué d'office en version `compact`. */
+  counter?: boolean;
+  highlightPlaceholders?: boolean;
   className?: string;
 }) {
   const safe = useMemo(() => {
@@ -50,8 +57,12 @@ export function TelegramPreview({
         /<a href="/g,
         '<a target="_blank" rel="noopener" class="text-info underline" href="',
       );
-    return { ok: true as const, html: rendered, length: r.textLength };
-  }, [html]);
+    return {
+      ok: true as const,
+      html: highlightPlaceholders ? markTemplatePlaceholders(rendered) : rendered,
+      length: r.textLength,
+    };
+  }, [html, highlightPlaceholders]);
   const shownButtons = compact ? buttons.slice(0, 2) : buttons;
   return (
     <div
@@ -110,7 +121,7 @@ export function TelegramPreview({
             ) : null}
           </div>
         ) : null}
-        {!compact ? (
+        {!compact && counter ? (
           <div className="mt-1 text-right text-note text-muted-foreground tabular-nums">
             {safe.ok ? `${safe.length} caractères` : ""}
           </div>

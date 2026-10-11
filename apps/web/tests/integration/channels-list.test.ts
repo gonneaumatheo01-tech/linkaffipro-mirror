@@ -1,7 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@linkaffipro/db";
 import { entryShort } from "@/lib/channels/entry-rule";
-import { loadChannelCounts, loadChannelList, loadGateChannelChoices } from "@/lib/channels/queries";
+import {
+  loadChannelCounts,
+  loadChannelList,
+  loadChannelMembersPage,
+  loadGateChannelChoices,
+} from "@/lib/channels/queries";
 import { createTestBot, resetDb } from "./helpers";
 
 /**
@@ -104,6 +109,30 @@ describe("liste et fiche des canaux (base réelle)", () => {
     const c = byId.get(C)!;
     expect(c).toMatchObject({ botAdmins: [], members: 0, pending: 0, isActive: false, rule: null });
     expect(typeof c.telegramChatId).toBe("string");
+  });
+
+  it("fiche, onglet Membres : présents, partis et exclus, une page à la fois", async () => {
+    const all = await loadChannelMembersPage(A, 1);
+    expect(all).toMatchObject({ total: 3, present: 2, left: 1, kicked: 0, page: 1, pages: 1 });
+    // Ni les demandes en cours, ni les refusées.
+    expect(all.rows.map((r) => r.status).sort()).toEqual(["APPROVED", "APPROVED", "LEFT"]);
+    expect(all.rows.every((r) => r.channelId === A)).toBe(true);
+    expect(all.rows[0]!.member.firstName).toMatch(/^M\d$/);
+
+    const p1 = await loadChannelMembersPage(A, 1, 2);
+    const p2 = await loadChannelMembersPage(A, 2, 2);
+    expect([p1.rows.length, p2.rows.length, p2.pages]).toEqual([2, 1, 2]);
+    expect(new Set([...p1.rows, ...p2.rows].map((r) => r.id)).size).toBe(3);
+    // Page trop grande : la dernière.
+    expect((await loadChannelMembersPage(A, 99, 2)).page).toBe(2);
+
+    expect(await loadChannelMembersPage(B, 1)).toMatchObject({ total: 1, present: 1, left: 0 });
+    expect(await loadChannelMembersPage(C, 1)).toMatchObject({
+      total: 0,
+      rows: [],
+      page: 1,
+      pages: 1,
+    });
   });
 
   it("fiche : membres présents et demandes en cours d'un canal", async () => {

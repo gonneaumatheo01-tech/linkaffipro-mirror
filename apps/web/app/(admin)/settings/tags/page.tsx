@@ -62,7 +62,7 @@ export default async function TagsPage({ searchParams }: PageProps<"/settings/ta
     <SidePanel
       key={`create-${flashKey}`}
       title="Nouvelle étiquette"
-      description="Elle se pose ensuite depuis la fiche d'un membre (bloc « Étiquettes »)."
+      description="Elle se pose ensuite depuis la fiche d'un membre (bloc « Étiquettes »)."
       trigger={
         <Button className="max-md:h-10">
           <Plus aria-hidden />
@@ -191,7 +191,7 @@ export default async function TagsPage({ searchParams }: PageProps<"/settings/ta
                   <ConfirmSubmit
                     variant="destructive"
                     className="max-md:h-10"
-                    confirmTitle={`Supprimer l'étiquette « ${t.name} »\u00a0?`}
+                    confirmTitle={`Supprimer l'étiquette « ${t.name} »\u00a0?`}
                     message={deleteTagMessage(t.name, count)}
                   >
                     Supprimer
@@ -203,7 +203,7 @@ export default async function TagsPage({ searchParams }: PageProps<"/settings/ta
         })}
         empty={{
           title: "Aucune étiquette pour l'instant",
-          description: "Cliquez sur « Nouvelle étiquette » (ex. VIP, test, à relancer).",
+          description: "Cliquez sur « Nouvelle étiquette » (ex. VIP, test, à relancer).",
         }}
       />
       {registry.length > 0 ? (

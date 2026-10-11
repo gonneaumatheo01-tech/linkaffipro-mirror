@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  Ban,
+  BadgeEuro,
   CircleCheck,
   MousePointerClick,
   Send,
   Smartphone,
+  Target,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -17,11 +20,11 @@ import { Flash } from "@/components/admin/flash";
 import { AdvancedSection } from "@/components/admin/form-section";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
-import { StatusPill } from "@/components/admin/status-pill";
 import { BroadcastProgress } from "@/components/broadcasts/broadcast-progress";
 import { ReadOnlyPreview } from "@/components/broadcasts/read-only-preview";
 import { ScheduleDialog } from "@/components/broadcasts/schedule-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -45,7 +48,10 @@ import { countTargets } from "@/lib/broadcasts/queries";
 import { loadBroadcastResults, loadGroupNames } from "@/lib/broadcasts/results";
 import { confirmSendMessage } from "@/lib/broadcasts/wizard";
 import { fmtDate, fmtNum } from "@/lib/format";
+import { withoutGroupMessageSuffix } from "@/lib/links/label";
 import { BUTTON_TYPE_LABELS, parseButtons } from "@/lib/posts/buttons";
+import { momentLabel, toLocal } from "@/lib/posts/calendar";
+import { defaultScheduleAt } from "@/lib/posts/default-schedule";
 import { toParisLocalInput } from "@/lib/posts/time";
 import { requireUser } from "@/lib/session";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
@@ -59,8 +65,10 @@ import {
 
 export const metadata: Metadata = { title: "Envoi à un groupe" };
 
-function inOneHour(): Date {
-  return new Date(Date.now() + 3_600_000);
+/** « Vendredi 16 octobre à 12:30 » (heure de Paris), comme sur la fiche d'un message. */
+function departureLabel(at: Date): string {
+  const label = momentLabel(toLocal(at));
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export default async function BroadcastPage({
@@ -106,7 +114,7 @@ export default async function BroadcastPage({
     <form action={sendNowAction} className="contents">
       <input type="hidden" name="broadcastId" value={b.id} />
       <ConfirmSubmit
-        className="max-md:h-10"
+        className="max-md:order-first max-md:h-10"
         confirmTitle="Envoyer maintenant ?"
         confirmLabel="Envoyer"
         message={confirmSendMessage(targets, { enabled: false, split: 50 })}
@@ -126,10 +134,10 @@ export default async function BroadcastPage({
         meta={
           <>
             <StatusBadge kind="broadcast" value={b.status} />
-            {ab ? <StatusPill tone="info">{ab}</StatusPill> : null}
+            {ab ? <Badge variant="outline">{ab}</Badge> : null}
           </>
         }
-        description={`Envoyé par @${b.bot.username} · créé le ${fmtDate(b.createdAt)}${b.createdBy?.name ? ` par ${b.createdBy.name}` : ""}`}
+        description={`${pending ? "Expéditeur\u00a0:" : "Envoyé par"} @${b.bot.username} · créé le ${fmtDate(b.createdAt)}${b.createdBy?.name ? ` par ${b.createdBy.name}` : ""}`}
         help={
           pending
             ? "Envoyez-vous d'abord un test sur Telegram, puis envoyez ou programmez."
@@ -147,14 +155,6 @@ export default async function BroadcastPage({
                 Envoyer un test à moi
               </Button>
             </form>
-            {actions.schedule ? (
-              <ScheduleDialog
-                action={scheduleAction}
-                broadcastId={b.id}
-                defaultValue={toParisLocalInput(b.scheduledAt ?? inOneHour())}
-                label={actions.schedule}
-              />
-            ) : null}
             {actions.cancel ? (
               <form action={cancelBroadcastAction} className="contents">
                 <input type="hidden" name="broadcastId" value={b.id} />
@@ -212,16 +212,31 @@ export default async function BroadcastPage({
             label="Départ"
             icon={<Send aria-hidden />}
             value={
-              <span className="text-title">
+              <span className="text-title whitespace-normal">
                 {b.status === "SCHEDULED" && b.scheduledAt
-                  ? fmtDate(b.scheduledAt)
+                  ? departureLabel(b.scheduledAt)
                   : "Pas encore programmé"}
               </span>
             }
             hint={
-              b.status === "SCHEDULED"
-                ? "Heure de Paris. Il partira tout seul."
-                : "Brouillon : rien ne part tant que vous n'envoyez pas ou ne programmez pas."
+              <>
+                <span className="block">
+                  {b.status === "SCHEDULED"
+                    ? "Heure de Paris. Il partira tout seul."
+                    : "Brouillon : rien ne part tant que vous n'envoyez pas ou ne programmez pas."}
+                </span>
+                {actions.schedule ? (
+                  <span className="mt-2 block">
+                    <ScheduleDialog
+                      action={scheduleAction}
+                      broadcastId={b.id}
+                      defaultValue={toParisLocalInput(b.scheduledAt ?? defaultScheduleAt())}
+                      label={actions.schedule}
+                      size="sm"
+                    />
+                  </span>
+                ) : null}
+              </>
             }
           />
         </div>
@@ -233,10 +248,16 @@ export default async function BroadcastPage({
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <StatCard
               label="Ciblés"
+              icon={<Target aria-hidden />}
               value={fmtNum(b.targeted)}
               hint="Membres du groupe joignables."
             />
-            <StatCard label="Envoyés" icon={<CircleCheck aria-hidden />} value={fmtNum(b.sent)} />
+            <StatCard
+              label="Envoyés"
+              icon={<CircleCheck aria-hidden />}
+              value={fmtNum(b.sent)}
+              hint={`sur ${fmtNum(b.targeted)} ciblé${b.targeted > 1 ? "s" : ""}`}
+            />
             <StatCard
               label="Échoués"
               icon={<TriangleAlert aria-hidden />}
@@ -245,6 +266,7 @@ export default async function BroadcastPage({
             />
             <StatCard
               label="Bloqués"
+              icon={<Ban aria-hidden />}
               value={fmtNum(b.blocked)}
               hint="Ont bloqué le bot : plus sollicités."
             />
@@ -257,6 +279,7 @@ export default async function BroadcastPage({
             <StatCard
               label="Premiers dépôts"
               term="FTD"
+              icon={<BadgeEuro aria-hidden />}
               value={fmtNum(results.ftds)}
               hint={`${fmtNum(results.registrations)} inscription${results.registrations > 1 ? "s" : ""} rattachée${results.registrations > 1 ? "s" : ""}`}
             />
@@ -306,8 +329,9 @@ export default async function BroadcastPage({
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 space-y-6">
+      <div className="space-y-6">
+        {/* Le groupe et le message côte à côte, à parts égales ; le détail des clics en dessous. */}
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
           <Card>
             <CardHeader>
               <CardTitle>Le groupe de membres</CardTitle>
@@ -317,92 +341,91 @@ export default async function BroadcastPage({
               <p className="text-note text-muted-foreground">{reachableSentence(b.bot.username)}</p>
             </CardContent>
           </Card>
-
-          {results.links.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Clics par bouton</CardTitle>
-                <CardDescription>
-                  Clics comptés sur les boutons traqués et les offres.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table label="Clics par bouton">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bouton</TableHead>
-                      <TableHead className="max-md:hidden">Type</TableHead>
-                      <TableHead numeric>Clics</TableHead>
-                      <TableHead numeric>Personnes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.links.map((l) => (
-                      <TableRow key={l.slug}>
-                        <TableCell className="whitespace-normal break-words">
-                          {l.label.replace(/ \(envoi groupé\)$/, "")}
-                        </TableCell>
-                        <TableCell className="max-md:hidden">
-                          {statusLabel("trackingLinkKind", l.kind)}
-                        </TableCell>
-                        <TableCell numeric>{fmtNum(l.clicks)}</TableCell>
-                        <TableCell numeric>{fmtNum(l.uniqueClicks)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {actions.remove ? (
-            <AdvancedSection
-              title="Supprimer cet envoi"
-              description="Le retire de la liste. Les messages déjà partis restent sur Telegram."
-            >
-              <form action={deleteDraftAction}>
-                <input type="hidden" name="broadcastId" value={b.id} />
-                <ConfirmSubmit
-                  variant="destructive"
-                  className="max-md:h-10"
-                  confirmTitle="Supprimer cet envoi ?"
-                  confirmLabel="Supprimer définitivement"
-                  message={`L'envoi « ${b.name} » sera retiré de la liste. Cette action est irréversible.`}
-                >
-                  Supprimer
-                </ConfirmSubmit>
-              </form>
-            </AdvancedSection>
-          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>Le message</CardTitle>
+              <CardDescription>Tel que les membres le voient.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ReadOnlyPreview
+                html={b.text}
+                buttons={buttons.map((r) => r.map((x) => ({ text: x.text })))}
+                mediaCount={b.mediaAssetId ? 1 : 0}
+              />
+              {b.mediaAsset ? (
+                <p className="text-note text-muted-foreground">
+                  Média joint : {b.mediaAsset.filename}
+                </p>
+              ) : null}
+              {buttons.length > 0 ? (
+                <ul className="space-y-1 text-note text-muted-foreground">
+                  {buttons.flat().map((x, i) => (
+                    <li key={i}>
+                      {x.text} · {BUTTON_TYPE_LABELS[x.type]?.toLowerCase() ?? x.type}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </CardContent>
+          </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Le message</CardTitle>
-            <CardDescription>Tel que les membres le voient.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ReadOnlyPreview
-              html={b.text}
-              buttons={buttons.map((r) => r.map((x) => ({ text: x.text })))}
-              mediaCount={b.mediaAssetId ? 1 : 0}
-            />
-            {b.mediaAsset ? (
-              <p className="text-note text-muted-foreground">
-                Média joint : {b.mediaAsset.filename}
-              </p>
-            ) : null}
-            {buttons.length > 0 ? (
-              <ul className="space-y-1 text-note text-muted-foreground">
-                {buttons.flat().map((x, i) => (
-                  <li key={i}>
-                    {x.text} · {BUTTON_TYPE_LABELS[x.type]?.toLowerCase() ?? x.type}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </CardContent>
-        </Card>
+        {results.links.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Clics par bouton</CardTitle>
+              <CardDescription>
+                Clics comptés sur les boutons traqués et les offres.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table label="Clics par bouton">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Bouton</TableHead>
+                    <TableHead className="max-md:hidden">Type</TableHead>
+                    <TableHead numeric>Clics</TableHead>
+                    <TableHead numeric>Personnes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {results.links.map((l) => (
+                    <TableRow key={l.slug}>
+                      <TableCell className="whitespace-normal break-words">
+                        {withoutGroupMessageSuffix(l.label)}
+                      </TableCell>
+                      <TableCell className="max-md:hidden">
+                        {statusLabel("trackingLinkKind", l.kind)}
+                      </TableCell>
+                      <TableCell numeric>{fmtNum(l.clicks)}</TableCell>
+                      <TableCell numeric>{fmtNum(l.uniqueClicks)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {actions.remove ? (
+          <AdvancedSection
+            title="Supprimer cet envoi"
+            description="Le retire de la liste. Les messages déjà partis restent sur Telegram."
+          >
+            <form action={deleteDraftAction}>
+              <input type="hidden" name="broadcastId" value={b.id} />
+              <ConfirmSubmit
+                variant="destructive"
+                className="max-md:h-10"
+                confirmTitle="Supprimer cet envoi ?"
+                confirmLabel="Supprimer définitivement"
+                message={`L'envoi « ${b.name} » sera retiré de la liste. Cette action est irréversible.`}
+              >
+                Supprimer
+              </ConfirmSubmit>
+            </form>
+          </AdvancedSection>
+        ) : null}
       </div>
     </>
   );

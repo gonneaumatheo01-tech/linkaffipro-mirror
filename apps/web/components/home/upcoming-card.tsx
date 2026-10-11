@@ -58,7 +58,8 @@ export function UpcomingCard({ posts, now }: { posts: readonly UpcomingPost[]; n
               </li>
             ))}
           </ol>
-          <div className="mt-auto pt-3">
+          {/* Collé à la liste (pas en bas de la carte quand elle s'étire à la hauteur de « À faire »). */}
+          <div className="pt-3">
             <Link
               href={NEW_POST_HREF}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}

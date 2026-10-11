@@ -13,7 +13,7 @@ import { Term } from "@/components/admin/help-tip";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusPill } from "@/components/admin/status-pill";
 import { ConnectionTiles } from "@/components/settings/connection-tiles";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -209,7 +209,7 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
             ) : null}
             {syncErrors > 0 ? (
               <span className="text-note text-muted-foreground">
-                Le détail des erreurs est dans « Avancé », en bas de page.
+                Le détail des erreurs est dans « Avancé », en bas de page.
               </span>
             ) : null}
           </div>
@@ -444,7 +444,7 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="regularDeposits">Dépôts pour devenir « Régulier »</Label>
+                  <Label htmlFor="regularDeposits">Dépôts pour devenir « Régulier »</Label>
                   <Input
                     id="regularDeposits"
                     name="regularDeposits"
@@ -474,8 +474,8 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-2xl text-note text-muted-foreground">
               Les données sont relues toutes les 2 minutes, par fenêtre de dates avec un léger
-              chevauchement pour ne rien manquer. Si une donnée reste en erreur, cliquez sur «
-              Synchroniser Link Affi » ; si l&apos;erreur persiste, prévenez l&apos;administrateur
+              chevauchement pour ne rien manquer. Si une donnée reste en erreur, cliquez sur
+              « Synchroniser Link Affi » ; si l&apos;erreur persiste, prévenez l&apos;administrateur
               technique.
             </p>
             <form action={syncNowAction}>
@@ -553,7 +553,8 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
             })}
           />
           <p className="text-note text-muted-foreground">
-            Message technique sur l&apos;identifiant de suivi (sub-ID) : {health.message}
+            Message technique sur l&apos;<Term term="sub-ID">identifiant de suivi</Term> :{" "}
+            {health.message}
           </p>
         </AdvancedSection>
       </div>

@@ -19,9 +19,9 @@ export function MetaAppGuide({
   return (
     <div className="space-y-6 text-body">
       <p className="text-muted-foreground">
-        Meta demande qu&apos;une « application » porte la connexion. Elle se crée gratuitement sur
+        Meta demande qu&apos;une « application » porte la connexion. Elle se crée gratuitement sur
         developers.facebook.com avec votre compte Facebook. Les valeurs à coller sont ci-dessous,
-        avec un bouton « Copier » pour chacune.
+        avec un bouton « Copier » pour chacune.
       </p>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -64,18 +64,18 @@ export function MetaAppGuide({
             developers.facebook.com/apps
           </a>{" "}
           et connectez-vous avec votre compte Facebook (celui qui voit vos comptes publicitaires).
-          Si Meta vous demande de devenir « développeur », acceptez : c&apos;est gratuit et
+          Si Meta vous demande de devenir « développeur », acceptez : c&apos;est gratuit et
           immédiat.
         </li>
         <li>
-          Cliquez sur <strong>Créer une app</strong>. Nom : « LinkAffi Pro » (ou ce que vous
+          Cliquez sur <strong>Créer une app</strong>. Nom : « LinkAffi Pro » (ou ce que vous
           voulez). Si Meta propose un cas d&apos;usage, choisissez <strong>Autre</strong> ; puis le
           type <strong>Entreprise</strong> (Business). Rattachez-la à votre Business Manager si la
           question est posée. Validez.
         </li>
         <li>
           Dans le tableau de bord de l&apos;app, cliquez sur <strong>Ajouter un produit</strong> (ou
-          « Cas d&apos;usage ») et ajoutez <strong>Facebook Login for Business</strong> (si vous ne
+          « Cas d&apos;usage ») et ajoutez <strong>Facebook Login for Business</strong> (si vous ne
           le voyez pas : <strong>Facebook Login</strong>, c&apos;est équivalent ici).
         </li>
         <li>
@@ -87,8 +87,8 @@ export function MetaAppGuide({
         <li>
           Menu de gauche → <strong>Paramètres de l&apos;app</strong> → <strong>Général</strong>.
           Vous y trouvez l&apos;<strong>ID de l&apos;app</strong> (App ID) et la{" "}
-          <strong>Clé secrète</strong> (App Secret : cliquez sur « Afficher », Meta redemande votre
-          mot de passe). Copiez-les dans le formulaire « Application Meta » ci-dessus, puis{" "}
+          <strong>Clé secrète</strong> (App Secret : cliquez sur « Afficher », Meta redemande votre
+          mot de passe). Copiez-les dans le formulaire « Application Meta » ci-dessus, puis{" "}
           <strong>Enregistrer</strong> et <strong>Vérifier</strong>. Sur la même page, renseignez
           aussi <em>Domaines de l&apos;app</em> (le domaine ci-dessus),{" "}
           <em>URL de politique de confidentialité</em> et <em>URL des conditions de service</em>{" "}
@@ -117,7 +117,7 @@ export function MetaAppGuide({
         </p>
         <p className="mt-1 text-muted-foreground">
           Nécessaire uniquement pour laisser des personnes <em>hors</em> de l&apos;app (non ajoutées
-          dans « Rôles de l&apos;app ») connecter leurs propres comptes. Dans ce cas : renseigner
+          dans « Rôles de l&apos;app ») connecter leurs propres comptes. Dans ce cas : renseigner
           l&apos;URL de politique de confidentialité (ci-dessus), faire la{" "}
           <strong>Vérification de l&apos;entreprise</strong> (documents de la société, quelques
           jours), puis demander l&apos;

@@ -16,7 +16,6 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusPill } from "@/components/admin/status-pill";
 import { RuleFlowView } from "@/components/automations/rule-flow-view";
-import { RuleStatusPill } from "@/components/automations/rule-status";
 import { RuleSwitch, TestOnMeButton } from "@/components/automations/rule-switch";
 import { MembersNav } from "@/components/members/members-nav";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -107,12 +106,8 @@ export default async function AutomationDetailPage({
         backHref="/members/automations"
         backLabel="Relances automatiques"
         title={rule.name}
-        meta={
-          <>
-            <RuleStatusPill active={rule.isActive} />
-            {card ? <StatusPill tone="brand">Prête à l&apos;emploi</StatusPill> : null}
-          </>
-        }
+        // L'état est dit par l'interrupteur « Activée / Désactivée » des actions : pas de pastille en double.
+        meta={card ? <StatusPill tone="brand">Prête à l&apos;emploi</StatusPill> : undefined}
         description={`Quand : ${triggerText} · Pour : ${filtersText}`}
         help={
           rule.isActive

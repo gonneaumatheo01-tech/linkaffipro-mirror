@@ -33,6 +33,7 @@ export function BotToggle({
   trigger,
   view,
   action,
+  className,
 }: {
   active: boolean;
   title: string;
@@ -40,6 +41,8 @@ export function BotToggle({
   trigger: string;
   view: boolean;
   action: (formData: FormData) => Promise<void>;
+  /** Classes du bouton (ex. alignement sur la marge quand il passe à la ligne sur téléphone). */
+  className?: string;
 }) {
   const label = (
     <>
@@ -56,7 +59,7 @@ export function BotToggle({
       {active ? (
         <ConfirmSubmit
           variant="ghost"
-          className="max-md:h-10"
+          className={cn("max-md:h-10", className)}
           aria-pressed
           confirmTitle={`Désactiver le message « ${title} » ?`}
           confirmLabel="Désactiver"
@@ -65,7 +68,12 @@ export function BotToggle({
           {label}
         </ConfirmSubmit>
       ) : (
-        <Button type="submit" variant="ghost" className="max-md:h-10" aria-pressed={false}>
+        <Button
+          type="submit"
+          variant="ghost"
+          className={cn("max-md:h-10", className)}
+          aria-pressed={false}
+        >
           {label}
         </Button>
       )}

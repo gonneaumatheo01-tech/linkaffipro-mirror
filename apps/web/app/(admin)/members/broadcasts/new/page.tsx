@@ -7,15 +7,11 @@ import { BroadcastWizard } from "@/components/broadcasts/broadcast-wizard";
 import { segmentFromSearchParams } from "@/lib/broadcasts/group";
 import { loadBroadcastOptions } from "@/lib/broadcasts/queries";
 import { getTagRegistry } from "@/lib/members/tags";
+import { defaultScheduleAt } from "@/lib/posts/default-schedule";
 import { toParisLocalInput } from "@/lib/posts/time";
 import { createAndTestAction, createBroadcastAction } from "../actions";
 
 export const metadata: Metadata = { title: "Écrire à un groupe" };
-
-/** Proposition pour « Plus tard » : dans une heure, au quart d'heure suivant. */
-function defaultScheduleTime(): Date {
-  return new Date(Math.ceil((Date.now() + 60 * 60_000) / (15 * 60_000)) * 15 * 60_000);
-}
 
 /**
  * « Écrire à un groupe » : assistant en trois étapes (qui, quoi, quand). Le groupe peut arriver préparé depuis la
@@ -56,7 +52,7 @@ export default async function NewBroadcastPage({
           options={{ ...options, tags }}
           initialSegment={prefill.segment}
           prefill={{ carried: prefill.carried, dropped: prefill.dropped }}
-          defaultScheduledAt={toParisLocalInput(defaultScheduleTime())}
+          defaultScheduledAt={toParisLocalInput(defaultScheduleAt())}
           canRestore={Boolean(sp.error)}
         />
       )}

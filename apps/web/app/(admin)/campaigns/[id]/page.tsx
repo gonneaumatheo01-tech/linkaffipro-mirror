@@ -52,7 +52,7 @@ const TREND_OF: Record<string, keyof CampaignTrend> = {
 
 /**
  * Fiche d'une campagne : en-tête (univers, statut, contexte, « Modifier » dans un volet), période, 4 chiffres de la
- * période avec la variation et la mini-courbe, puis les onglets (`?tab=`) Vue d'ensemble (avec les offres Link
+ * période avec la mini-courbe (et la variation si « Comparer » est coché), puis les onglets (`?tab=`) Vue d'ensemble (avec les offres Link
  * Affi), Pubs, Liens, Canaux, Messages, Membres. L'ancien `?tab=offers` ouvre la vue d'ensemble.
  */
 export default async function CampaignPage({ params, searchParams }: PageProps<"/campaigns/[id]">) {
@@ -201,7 +201,8 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                       x.format(metrics)
                     )
                   }
-                  delta={displayVariation(metrics[x.key], previous[x.key])}
+                  // Variation seulement avec « Comparer à la période précédente », comme sur la page Campagnes.
+                  delta={compare ? displayVariation(metrics[x.key], previous[x.key]) : undefined}
                   favorable={x.favorable}
                   comparison="vs période précédente"
                   trend={withTrend && hasTrend(series) ? series : undefined}

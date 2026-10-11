@@ -99,3 +99,36 @@ export function guideSections(markdown: string, refs: readonly SectionRef[]): Gu
   }
   return out;
 }
+
+/**
+ * Le guide sans les sections citées (titre et contenu jusqu'au titre suivant de même niveau ou plus haut) : la page
+ * /help retire « Table des matières », que son sommaire remplace. Titres introuvables ignorés.
+ */
+export function withoutSections(markdown: string, refs: readonly SectionRef[]): string {
+  const lines = markdown.split(/\r?\n/);
+  const headings = guideHeadings(markdown);
+  const drop = new Set<number>();
+  for (const ref of refs) {
+    const h = findHeading(headings, ref);
+    if (!h) continue;
+    const next = headings.find((o) => o.line > h.line && o.level <= h.level);
+    for (let i = h.line; i < (next ? next.line : lines.length); i++) drop.add(i);
+  }
+  return lines.filter((_, i) => !drop.has(i)).join("\n");
+}
+
+/**
+ * Le guide sans son titre de niveau 1 (`# Guide d'utilisation…`) : dans la page /help, le seul `<h1>` est celui du
+ * `PageHeader`. Les ancres des autres titres ne changent pas (elles ne dépendent que de leur propre texte).
+ */
+export function withoutTitle(markdown: string): string {
+  const drop = new Set(
+    guideHeadings(markdown)
+      .filter((h) => h.level === 1)
+      .map((h) => h.line),
+  );
+  return markdown
+    .split(/\r?\n/)
+    .filter((_, i) => !drop.has(i))
+    .join("\n");
+}

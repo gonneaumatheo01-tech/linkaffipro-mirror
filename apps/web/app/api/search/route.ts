@@ -167,7 +167,7 @@ export async function GET(req: Request) {
     rules.map((r) => ({
       id: r.id,
       title: r.name,
-      subtitle: r.isActive ? "règle active" : "règle inactive",
+      subtitle: r.isActive ? "relance activée" : "relance désactivée",
       href: `/members/automations/${r.id}`,
     })),
   );

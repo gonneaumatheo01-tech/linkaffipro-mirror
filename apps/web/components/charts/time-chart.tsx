@@ -209,7 +209,7 @@ export function TimeChart({
           }
         }}
         onBlur={() => setActive(null)}
-        className="relative touch-pan-y rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="relative touch-pan-y rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring"
         style={{ height }}
       >
         <svg

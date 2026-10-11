@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { FormSection } from "@/components/admin/form-section";
 import { SidePanel } from "@/components/admin/side-panel";
 import { StatusPill } from "@/components/admin/status-pill";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -128,7 +128,7 @@ export default async function TeamPage({ searchParams }: PageProps<"/settings/te
         backLabel="Réglages"
         title="Équipe"
         description="Les comptes qui accèdent au site : rôle, état, dernière connexion."
-        help="Pour ajouter un équipier : « Inviter un équipier », puis copiez le lien et envoyez-le-lui. Il choisira son mot de passe."
+        help="Pour ajouter un équipier : « Inviter un équipier », puis copiez le lien et envoyez-le-lui. Il choisira son mot de passe."
         primaryAction={invitePanel}
       />
       <Flash ok={sp.ok} error={sp.error} />

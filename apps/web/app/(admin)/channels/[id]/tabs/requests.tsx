@@ -52,9 +52,10 @@ export async function RequestsTab({ channelId, now }: { channelId: string; now: 
           {requests.length >= MAX_REQUESTS ? " (les plus récentes)" : ""}. Les demandes programmées
           sont acceptées toutes seules à l&apos;heure prévue.
         </p>
+        {/* Téléphone : passé à la ligne, le bouton discret est aligné sur la marge (sans son retrait intérieur). */}
         <Link
           href={channelTabHref(channelId, "requests")}
-          className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
+          className={cn(buttonVariants({ variant: "ghost" }), "max-md:-ml-3.5 max-md:h-10")}
         >
           <RefreshCw aria-hidden />
           Actualiser

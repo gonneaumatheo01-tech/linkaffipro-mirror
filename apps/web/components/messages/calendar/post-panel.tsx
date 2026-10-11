@@ -15,7 +15,8 @@ import type { CalendarItem } from "./types";
 
 /**
  * Volet de détail d'un message (calendrier et liste : le même volet) : statut, univers, catégorie, aperçu,
- * « Déplacer » au clavier (brouillon ou message programmé), puis Fermer, Dupliquer, Modifier, Ouvrir (principal).
+ * « Déplacer » au clavier (brouillon ou message programmé), puis Fermer, Dupliquer, Ouvrir et Modifier (principal
+ * quand le message se modifie encore, sinon « Ouvrir »). Aperçu complet du message (jamais coupé).
  * `onMoved` (calendrier) : affichage immédiat et « Annuler » ; sans lui (liste), la confirmation s'affiche sous
  * le formulaire et la page est rechargée.
  */
@@ -40,27 +41,42 @@ export function PostPanel({
       footer={
         item ? (
           <>
-            <SidePanelClose />
+            {/* Téléphone : deux boutons seulement (la croix du haut ferme le volet ; « Dupliquer » reste sur la
+                fiche), sauf pour un message parti, où « Dupliquer » est le seul moyen de le reprogrammer. */}
+            <span className="max-md:hidden md:contents">
+              <SidePanelClose />
+            </span>
             <Link
               href={`/messages/new?from=${item.id}`}
-              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "max-md:h-10",
+                item.editable && "max-md:hidden",
+              )}
             >
               <Copy aria-hidden />
               Dupliquer
             </Link>
+            {/* Le geste courant d'abord : « Modifier » est le principal quand le message se modifie encore. */}
+            <Link
+              href={`/messages/${item.id}`}
+              className={cn(
+                buttonVariants({ variant: item.editable ? "outline" : "default" }),
+                "max-md:h-10",
+              )}
+            >
+              <ExternalLink aria-hidden />
+              Ouvrir
+            </Link>
             {item.editable ? (
               <Link
                 href={`/messages/${item.id}/edit`}
-                className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+                className={cn(buttonVariants(), "max-md:h-10")}
               >
                 <Pencil aria-hidden />
                 Modifier
               </Link>
             ) : null}
-            <Link href={`/messages/${item.id}`} className={cn(buttonVariants(), "max-md:h-10")}>
-              <ExternalLink aria-hidden />
-              Ouvrir
-            </Link>
           </>
         ) : null
       }
@@ -94,7 +110,7 @@ export function PostPanel({
             html={item.html}
             buttons={item.buttons}
             mediaCount={item.mediaCount}
-            compact
+            counter={false}
           />
           {item.movable ? (
             <section aria-labelledby="panel-move-title" className="space-y-2">

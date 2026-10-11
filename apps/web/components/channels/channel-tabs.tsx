@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ScrollToCurrent } from "@/components/campaigns/scroll-to-current";
+import { ScrollToCurrent } from "@/components/admin/scroll-to-current";
 import { cn } from "@/components/ui/cn";
 import { requestsTabLabel } from "@/lib/channels/requests";
 import { CHANNEL_TABS, channelTabHref, type ChannelTabKey } from "@/lib/channels/tabs";

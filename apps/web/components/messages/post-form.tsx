@@ -1,45 +1,33 @@
 "use client";
 
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   ArrowDown,
   ArrowUp,
-  Bold,
   CalendarClock,
-  EyeOff,
   ImagePlus,
-  Italic,
-  Link2,
   MousePointerClick,
   Plus,
-  Smile,
   Split,
-  Strikethrough,
   Trash2,
-  Underline,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { UniverseDot } from "@/components/admin/universe-dot";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/components/ui/cn";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { ImproveButton, type ImproveContext } from "@/components/ai/improve-button";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
 import { TelegramPreview } from "./telegram-preview";
+import { placeholdersToComplete } from "./preview-placeholders";
 import { CategoryPicker } from "./category-picker";
 import { resolvePostVertical } from "./ai-context";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
@@ -129,145 +117,6 @@ async function uploadFiles(
     items: data.files.filter((f) => f.id),
     error: errors.length ? errors.join(" · ") : null,
   };
-}
-
-/** Outils de mise en forme : libellé, icône, balises (ou lien à demander). */
-const TEXT_TOOLS: Array<{
-  title: string;
-  icon: React.ReactNode;
-  open: string;
-  close: string;
-  link?: boolean;
-}> = [
-  { title: "Gras", icon: <Bold aria-hidden />, open: "<b>", close: "</b>" },
-  { title: "Italique", icon: <Italic aria-hidden />, open: "<i>", close: "</i>" },
-  { title: "Souligné", icon: <Underline aria-hidden />, open: "<u>", close: "</u>" },
-  { title: "Barré", icon: <Strikethrough aria-hidden />, open: "<s>", close: "</s>" },
-  { title: "Insérer un lien", icon: <Link2 aria-hidden />, open: "", close: "", link: true },
-  {
-    title: "Texte masqué (spoiler)",
-    icon: <EyeOff aria-hidden />,
-    open: "<tg-spoiler>",
-    close: "</tg-spoiler>",
-  },
-];
-const EMOJIS = ["🔥", "🎁", "💰", "⚡", "✅", "👉", "🎰", "⚽", "❤️"];
-
-/**
- * Éditeur de texte (version A ou B) : barre d'outils (mise en forme, émojis, et « Améliorer avec l'IA » à droite)
- * collée à la zone de texte. La sélection est gardée pour insérer un émoji choisi dans le menu.
- */
-function TextEditor({
-  id,
-  text,
-  setText,
-  label,
-  rows = 10,
-  ai,
-}: {
-  id: string;
-  text: string;
-  setText: (t: string) => void;
-  label: string;
-  rows?: number;
-  /** Bouton de l'assistant IA, placé dans la barre d'outils. */
-  ai?: React.ReactNode;
-}) {
-  const ta = useRef<HTMLTextAreaElement>(null);
-  const sel = useRef<{ start: number; end: number }>({ start: text.length, end: text.length });
-  function remember() {
-    const el = ta.current;
-    if (el) sel.current = { start: el.selectionStart, end: el.selectionEnd };
-  }
-  function wrap(open: string, close: string, fromMenu = false) {
-    const el = ta.current;
-    if (!el) return;
-    const s = fromMenu ? sel.current.start : el.selectionStart;
-    const e = fromMenu ? sel.current.end : el.selectionEnd;
-    const picked = text.slice(s, e) || (close ? "texte" : "");
-    const next = text.slice(0, s) + open + picked + close + text.slice(e);
-    setText(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const at = s + open.length;
-      el.setSelectionRange(at, at + picked.length);
-      sel.current = { start: at, end: at + picked.length };
-    });
-  }
-  function insertLink() {
-    const url = window.prompt("Adresse du lien (https://…)");
-    if (!url) return;
-    wrap(`<a href="${url.replace(/"/g, "%22")}">`, "</a>");
-  }
-  return (
-    <div className="rounded-lg border border-muted-foreground/75 bg-surface focus-within:border-ring focus-within:ring-3 focus-within:ring-brand/30">
-      <div
-        className="flex flex-wrap items-center gap-0.5 border-b border-border p-1"
-        role="toolbar"
-        aria-label={`Mise en forme : ${label}`}
-      >
-        {TEXT_TOOLS.map((t) => (
-          <Button
-            key={t.title}
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => (t.link ? insertLink() : wrap(t.open, t.close))}
-            title={t.title}
-            aria-label={t.title}
-          >
-            {t.icon}
-          </Button>
-        ))}
-        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Insérer un émoji"
-                title="Insérer un émoji"
-              />
-            }
-          >
-            <Smile aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent finalFocus={ta} className="w-auto">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Émojis</DropdownMenuLabel>
-              <div className="grid grid-cols-5 gap-0.5">
-                {EMOJIS.map((e) => (
-                  <DropdownMenuItem
-                    key={e}
-                    aria-label={`Insérer ${e}`}
-                    className="justify-center text-title"
-                    onClick={() => wrap(e, "", true)}
-                  >
-                    {e}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {ai ? <div className="ml-auto">{ai}</div> : null}
-      </div>
-      <Textarea
-        ref={ta}
-        id={id}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onSelect={remember}
-        onKeyUp={remember}
-        onBlur={remember}
-        rows={rows}
-        placeholder="Votre message…"
-        className="min-h-40 rounded-t-none border-0 shadow-none focus-visible:border-0 focus-visible:ring-0"
-      />
-    </div>
-  );
 }
 
 /** Dépôt de fichiers + liste ordonnée des médias (version A ou B). */
@@ -637,6 +486,16 @@ export function PostForm({
     ab: abActive ? { mode: abMode, delayMinutes: abDelay } : null,
   });
 
+  // Repères {offre}, {canal}… laissés dans le texte (souvent un modèle) : un message de canal ne les remplace pas.
+  const toComplete = isTemplate
+    ? []
+    : [
+        ...new Set([
+          ...placeholdersToComplete(text),
+          ...(abActive ? placeholdersToComplete(textB) : []),
+        ]),
+      ];
+
   const preview = <TelegramPreview html={text} buttons={rows} mediaCount={media.length} />;
   const previewB = <TelegramPreview html={textB} buttons={rowsB} mediaCount={mediaB.length} />;
 
@@ -736,16 +595,15 @@ export function PostForm({
 
           <FormSection
             title={abActive ? "Texte — version A" : "Texte"}
-            description="Mise en forme Telegram par la barre d'outils. 4 096 caractères au plus, 1 024 avec un média."
+            description="Ce que les membres liront. Sélectionnez un mot pour le mettre en gras, en italique ou en lien."
           >
-            <Label htmlFor="post-text" className="sr-only">
-              Texte du message
-            </Label>
-            <TextEditor
+            <RichTextEditor
               id="post-text"
-              text={text}
-              setText={setText}
-              label="Texte du message"
+              value={text}
+              onChange={setText}
+              label={abActive ? "Texte de la version A" : "Texte du message"}
+              hasMedia={media.length > 0}
+              rows={10}
               ai={
                 <ImproveButton
                   getText={() => text}
@@ -968,11 +826,12 @@ export function PostForm({
               </fieldset>
               <div className="space-y-2">
                 <Label htmlFor="post-text-b">Texte — version B</Label>
-                <TextEditor
+                <RichTextEditor
                   id="post-text-b"
-                  text={textB}
-                  setText={setTextB}
+                  value={textB}
+                  onChange={setTextB}
                   label="Texte de la version B"
+                  hasMedia={mediaB.length > 0}
                   rows={6}
                   ai={
                     <ImproveButton
@@ -1094,6 +953,18 @@ export function PostForm({
 
         {/* Un seul bouton principal. */}
         <div className="space-y-3 border-t border-border pt-4">
+          {toComplete.length > 0 ? (
+            <Alert variant="warning" role="status">
+              <TriangleAlert aria-hidden />
+              <AlertTitle>Des mots restent à compléter</AlertTitle>
+              <AlertDescription>
+                {toComplete.map((k) => `{${k}}`).join(", ")}{" "}
+                {toComplete.length > 1 ? "partiraient tels quels" : "partirait tel quel"} dans le
+                canal : remplacez-{toComplete.length > 1 ? "les" : "le"} par les vrais mots avant de
+                programmer.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {namingTemplate ? (
             <div className="flex flex-wrap items-end gap-2 rounded-lg bg-muted p-3">
               <div className="min-w-0 flex-1 space-y-1.5">

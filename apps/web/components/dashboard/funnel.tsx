@@ -34,7 +34,7 @@ export function Funnel({
               {stepNote(s.rate) ? <span className="block">{stepNote(s.rate)}</span> : null}
               {previous ? (
                 <span className="flex items-center justify-end gap-2 md:justify-start">
-                  <span className="tabular-nums">avant : {fmtNum(before)}</span>
+                  <span className="tabular-nums">Avant : {fmtNum(before)}</span>
                   <FigureDelta delta={deltaPct(s.value, before)} />
                 </span>
               ) : null}

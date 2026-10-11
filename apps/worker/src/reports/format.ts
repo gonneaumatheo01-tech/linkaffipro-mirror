@@ -1,6 +1,8 @@
 /**
  * Mise en forme des rapports Telegram (brief quotidien, rapport hebdomadaire). Fonctions pures.
  * HTML Telegram : seules les balises b, i, code sont utilisées ; le reste est échappé.
+ * Vocabulaire du client (docs/REFONTE-UX.md) : premiers dépôts, revenu net, coût par membre, coût par
+ * inscription, retour sur dépense pub ; jamais FTD, NGR, CPL, CPA ni ROAS.
  */
 
 export type ReportMetrics = {
@@ -59,6 +61,11 @@ export function eur(n: number): string {
   return `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} €`;
 }
 
+/** Rapport (retour sur dépense pub), format du site : « 0,42× ». */
+export function ratio2(n: number): string {
+  return `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}×`;
+}
+
 /** Variation en % entre `prev` et `cur` : « +25 % », « −10 % », « = », ou « nouveau » si prev = 0 et cur > 0. */
 export function pct(cur: number, prev: number): string {
   if (prev === 0) return cur === 0 ? "=" : "nouveau";
@@ -102,23 +109,26 @@ export function formatMetricsBlock(cur: ReportMetrics, prev: ReportMetrics): str
     line("🔗 Clics pub", cur.entryClicks, prev.entryClicks),
     line("🎁 Clics offres", cur.offerClicks, prev.offerClicks),
     line("📝 Inscriptions", cur.registrations, prev.registrations),
-    line("💳 FTD", cur.ftds, prev.ftds),
+    line("💳 Premiers dépôts", cur.ftds, prev.ftds),
     line("💰 Dépôts", cur.deposits, prev.deposits) + ` · ${eur(cur.depositAmount)}`,
-    line("📈 NGR", cur.ngr, prev.ngr, eur),
+    line("📈 Revenu net", cur.ngr, prev.ngr, eur),
   ];
   if (cur.spend > 0 || prev.spend > 0) {
     out.push(line("💸 Dépense pub", cur.spend, prev.spend, eur));
     const cpl = ratio(cur.spend, cur.approved);
     const cpa = ratio(cur.spend, cur.registrations);
     const cftd = ratio(cur.spend, cur.ftds);
-    const roas = cur.spend > 0 ? `${(cur.ngr / cur.spend).toFixed(2)}` : null;
+    const roas = cur.spend > 0 ? ratio2(cur.ngr / cur.spend) : null;
     const parts = [
-      cpl && `CPL ${cpl}`,
-      cpa && `CPA ${cpa}`,
-      cftd && `coût/FTD ${cftd}`,
-      roas && `ROAS ${roas}`,
-    ].filter(Boolean);
-    if (parts.length) out.push(`🧮 ${parts.join(" · ")}`);
+      cpl && `coût par membre ${cpl}`,
+      cpa && `coût par inscription ${cpa}`,
+      cftd && `coût par premier dépôt ${cftd}`,
+      roas && `retour sur dépense pub ${roas}`,
+    ].filter((p): p is string => Boolean(p));
+    if (parts.length) {
+      const text = parts.join(" · ");
+      out.push(`🧮 ${text.charAt(0).toUpperCase()}${text.slice(1)}`);
+    }
   }
   return out;
 }
@@ -127,9 +137,13 @@ function formatTop(title: string, rows: NamedMetrics[]): string[] {
   if (rows.length === 0) return [];
   const out = [`<b>${title}</b>`];
   for (const r of rows) {
-    const bits = [`${r.approved} acceptés`, `${r.registrations} inscr.`, `${r.ftds} FTD`];
+    const bits = [
+      `${r.approved} acceptés`,
+      `${r.registrations} inscr.`,
+      `${r.ftds} premier${r.ftds > 1 ? "s" : ""} dépôt${r.ftds > 1 ? "s" : ""}`,
+    ];
     if (r.spend > 0) bits.push(`${eur(r.spend)} dépensés`);
-    if (r.ngr !== 0) bits.push(`NGR ${eur(r.ngr)}`);
+    if (r.ngr !== 0) bits.push(`revenu net ${eur(r.ngr)}`);
     out.push(`• ${escapeHtml(r.name)} — ${bits.join(", ")}`);
   }
   return out;

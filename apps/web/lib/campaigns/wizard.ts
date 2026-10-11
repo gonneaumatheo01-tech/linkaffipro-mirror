@@ -13,7 +13,7 @@ export const WIZARD_STEPS = [
   {
     key: "offers",
     title: "Offres",
-    help: "Choisissez les offres Link Affi à promouvoir, ou collez un lien linkaffi.me/go/….",
+    help: "Choisissez les offres Link Affi à promouvoir, ou collez un lien linkaffi.me/go/…",
   },
   {
     key: "channels",
@@ -56,7 +56,19 @@ export type WizardPayload = {
   requestId: string | null;
 };
 
-export type WizardError = { step: WizardStepKey; message: string };
+/** Champ de l'assistant concerné par une erreur (le message s'affiche sous ce champ, qui reçoit le focus). */
+export type WizardField =
+  | "name"
+  | "startAt"
+  | "endAt"
+  | "budgetDaily"
+  | "notes"
+  | "channelIds"
+  | "adPlatform"
+  | "adCount"
+  | "entryChannelId";
+
+export type WizardError = { step: WizardStepKey; field: WizardField; message: string };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -89,25 +101,39 @@ export function parseWizardPayload(
   if (!name)
     return {
       ok: false,
-      error: { step: "general", message: "Le nom de la campagne est obligatoire." },
+      error: { step: "general", field: "name", message: "Le nom de la campagne est obligatoire." },
     };
   if (name.length > 120)
     return {
       ok: false,
-      error: { step: "general", message: "Le nom ne peut pas dépasser 120 caractères." },
+      error: {
+        step: "general",
+        field: "name",
+        message: "Le nom ne peut pas dépasser 120 caractères.",
+      },
     };
   const verticalRaw = str(v.vertical);
   const vertical = isVertical(verticalRaw) ? verticalRaw : null;
   const startAt = str(v.startAt) || null;
   const endAt = str(v.endAt) || null;
   if (startAt && !DAY.test(startAt))
-    return { ok: false, error: { step: "general", message: "La date de début n'est pas valide." } };
+    return {
+      ok: false,
+      error: { step: "general", field: "startAt", message: "La date de début n'est pas valide." },
+    };
   if (endAt && !DAY.test(endAt))
-    return { ok: false, error: { step: "general", message: "La date de fin n'est pas valide." } };
+    return {
+      ok: false,
+      error: { step: "general", field: "endAt", message: "La date de fin n'est pas valide." },
+    };
   if (startAt && endAt && endAt < startAt)
     return {
       ok: false,
-      error: { step: "general", message: "La date de fin doit être après la date de début." },
+      error: {
+        step: "general",
+        field: "endAt",
+        message: "La date de fin doit être après la date de début.",
+      },
     };
   let budgetDaily: number | null = null;
   const budgetRaw = v.budgetDaily;
@@ -118,6 +144,7 @@ export function parseWizardPayload(
         ok: false,
         error: {
           step: "general",
+          field: "budgetDaily",
           message: "Le budget par jour doit être un nombre positif (ex. 50).",
         },
       };
@@ -130,7 +157,11 @@ export function parseWizardPayload(
   if (!Number.isInteger(adCountRaw) || adCountRaw < 0 || adCountRaw > MAX_ADS)
     return {
       ok: false,
-      error: { step: "ads", message: `Le nombre de pubs doit être compris entre 0 et ${MAX_ADS}.` },
+      error: {
+        step: "ads",
+        field: "adCount",
+        message: `Le nombre de pubs doit être compris entre 0 et ${MAX_ADS}.`,
+      },
     };
   const platformRaw = str(v.adPlatform);
   const adPlatform = (AD_PLATFORMS as readonly string[]).includes(platformRaw)
@@ -139,13 +170,18 @@ export function parseWizardPayload(
   if (adCountRaw > 0 && !adPlatform)
     return {
       ok: false,
-      error: { step: "ads", message: "Choisissez la plateforme des pubs (TikTok, Meta ou autre)." },
+      error: {
+        step: "ads",
+        field: "adPlatform",
+        message: "Choisissez la plateforme des pubs (TikTok, Meta ou autre).",
+      },
     };
   if (adCountRaw > 0 && channelIds.length === 0)
     return {
       ok: false,
       error: {
         step: "channels",
+        field: "channelIds",
         message:
           "Cochez au moins un canal : chaque pub reçoit un lien d'invitation vers le canal d'entrée choisi à l'étape 4.",
       },
@@ -160,6 +196,7 @@ export function parseWizardPayload(
         ok: false,
         error: {
           step: "ads",
+          field: "entryChannelId",
           message:
             "Choisissez le canal d'entrée des pubs : celui que les liens des pubs font rejoindre.",
         },
@@ -169,6 +206,7 @@ export function parseWizardPayload(
         ok: false,
         error: {
           step: "ads",
+          field: "entryChannelId",
           message: "Le canal d'entrée des pubs doit être un des canaux cochés à l'étape 3.",
         },
       };
@@ -179,7 +217,11 @@ export function parseWizardPayload(
   if (notes && notes.length > 2000)
     return {
       ok: false,
-      error: { step: "general", message: "Les notes ne peuvent pas dépasser 2000 caractères." },
+      error: {
+        step: "general",
+        field: "notes",
+        message: "Les notes ne peuvent pas dépasser 2000 caractères.",
+      },
     };
   const requestIdRaw = str(v.requestId);
   const requestId = REQUEST_ID.test(requestIdRaw) ? requestIdRaw.toLowerCase() : null;

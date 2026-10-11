@@ -54,7 +54,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
         title="Mon compte"
         meta={<StatusPill tone="neutral">{ROLE_LABELS[me.role]}</StatusPill>}
         description={`${me.name} · ${me.email}`}
-        help="Liez votre Telegram : il sert aux alertes, aux rapports et aux tests (« Envoyer un test sur mon Telegram », « Tester sur moi »)."
+        help="Liez votre Telegram : il sert aux alertes, aux rapports et aux tests (« Envoyer un test sur mon Telegram », « Tester sur moi »)."
       />
       <Flash ok={sp.ok} error={sp.error} />
 
@@ -182,7 +182,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
 
         <FormSection
           title="Visite guidée"
-          description="Deux minutes pour retrouver chaque rubrique du menu. Elle repart de l'accueil, et la liste « À faire pour démarrer » réapparaît si elle n'est pas finie."
+          description="Deux minutes pour retrouver chaque rubrique du menu. Elle repart de l'accueil, et la liste « À faire pour démarrer » réapparaît si elle n'est pas finie."
         >
           <form action={restartTourAction}>
             <Button type="submit" variant="outline" className="max-md:h-10">

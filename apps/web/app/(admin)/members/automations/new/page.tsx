@@ -55,16 +55,12 @@ export default async function NewAutomationPage({
         backHref="/members/automations"
         backLabel="Relances automatiques"
         title="Nouvelle relance sur mesure"
+        // Sur téléphone, l'éditeur affiche lui-même « À utiliser sur ordinateur » : la consigne n'est pas répétée ici.
         description={
-          <>
-            <span className="max-md:hidden">
-              Glissez des blocs depuis la bibliothèque, reliez-les, puis réglez chacun dans le
-              panneau de droite.
-            </span>
-            <span className="md:hidden">
-              Sur téléphone, le parcours se lit seulement : créez-le depuis un ordinateur.
-            </span>
-          </>
+          <span className="max-md:hidden">
+            Glissez des blocs depuis la bibliothèque, reliez-les, puis réglez chacun dans le panneau
+            de droite.
+          </span>
         }
         help="La relance est créée désactivée : rien ne part vers les membres tant que vous ne l'activez pas."
       />

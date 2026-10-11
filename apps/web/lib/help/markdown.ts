@@ -11,7 +11,7 @@ export type Heading = { level: number; text: string; id: string };
 /**
  * Options de rendu (volet d'aide de la page courante : un extrait du guide affiché dans une autre page) :
  * - `idPrefix` : préfixe des identifiants d'ancre (pas de doublon avec la page /help ouverte derrière le volet) ;
- * - `headingOffset` : décalage des niveaux de titre (1 : `##` devient `<h3>`), plafonné à `<h6>` ;
+ * - `headingOffset` : décalage des niveaux de titre (1 : `##` devient `<h3>` ; -1 : `####` devient `<h3>`), entre `<h1>` et `<h6>` ;
  * - `anchorBase` : adresse des liens internes `#ancre` (« /help » : ils ouvrent le guide complet au bon endroit).
  */
 export type RenderOptions = { idPrefix?: string; headingOffset?: number; anchorBase?: string };
@@ -132,7 +132,7 @@ const TABLE_SEP_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 /** Rend le Markdown en HTML. Les identifiants des titres sont ceux de `extractHeadings` (avec `idPrefix`). */
 export function renderMarkdown(markdown: string, opts: RenderOptions = {}): string {
   const prefix = opts.idPrefix ?? "";
-  const offset = Math.max(0, Math.round(opts.headingOffset ?? 0));
+  const offset = Math.round(opts.headingOffset ?? 0);
   const lines = markdown.split(/\r?\n/);
   const seen = new Map<string, number>();
   const out: string[] = [];
@@ -145,7 +145,7 @@ export function renderMarkdown(markdown: string, opts: RenderOptions = {}): stri
     }
     const h = /^(#{1,4})\s+(.+?)\s*#*\s*$/.exec(line);
     if (h) {
-      const level = Math.min(6, h[1]!.length + offset);
+      const level = Math.min(6, Math.max(1, h[1]!.length + offset));
       const id = `${prefix}${uniqueId(h[2]!, seen)}`;
       out.push(`<h${level} id="${id}">${renderInline(h[2]!, opts)}</h${level}>`);
       i++;

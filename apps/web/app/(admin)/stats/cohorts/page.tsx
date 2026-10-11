@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
+import { FormSection } from "@/components/admin/form-section";
 import { Term } from "@/components/admin/help-tip";
 import { MetricChart, type ChartMetric } from "@/components/charts/metric-chart";
 import { NumCell } from "@/components/dashboard/cells";
@@ -9,11 +11,16 @@ import { cohortsChronological, dayLabel, fmtMetric, shareOf } from "@/lib/dashbo
 import { loadCohorts } from "@/lib/dashboard/daily";
 import type { CohortRow } from "@/lib/dashboard/metrics";
 import { loadStatsOptions } from "@/lib/dashboard/stats-options";
-import { parseStatsFilters } from "@/lib/dashboard/stats-pages";
+import { parseStatsFilters, statsDefaultRange, statsHref } from "@/lib/dashboard/stats-pages";
 import { fmtNum } from "@/lib/format";
 import { periodLabel } from "@/lib/periods";
 
 export const metadata: Metadata = { title: "Statistiques · Membres dans le temps" };
+
+const PATH = "/stats/cohorts";
+
+/** En dessous, la période tient sur une ou deux semaines : rien à comparer. */
+const MIN_DAYS_TO_COMPARE = 28;
 
 /** Chiffres du graphique par semaine d'arrivée. */
 const CHART: Array<{
@@ -31,7 +38,8 @@ const CHART: Array<{
 
 export default async function StatsCohortsPage({ searchParams }: PageProps<"/stats/cohorts">) {
   const sp = await searchParams;
-  const f = parseStatsFilters(sp);
+  // Sans période dans l'adresse : 90 jours (plusieurs semaines à comparer), pas les 7 jours des autres pages.
+  const f = parseStatsFilters(sp, new Date(), statsDefaultRange(PATH));
   const [options, cohorts] = await Promise.all([
     loadStatsOptions(),
     loadCohorts(f.period, {
@@ -111,18 +119,23 @@ export default async function StatsCohortsPage({ searchParams }: PageProps<"/sta
         channelHelp="Seulement les membres arrivés dans ce canal."
       />
 
-      <section
-        aria-labelledby="cohorts-chart"
+      <FormSection
+        id="cohorts-chart"
         className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
+        title="Semaine par semaine"
+        description="Chaque barre : les membres arrivés une même semaine, suivis depuis leur arrivée."
       >
-        <div className="mb-3">
-          <h2 id="cohorts-chart" className="text-title text-foreground">
-            Semaine par semaine
-          </h2>
+        {f.period.days < MIN_DAYS_TO_COMPARE ? (
           <p className="text-body text-muted-foreground">
-            Chaque barre : les membres arrivés une même semaine, suivis depuis leur arrivée.
+            Choisissez une période plus longue pour comparer plusieurs semaines.{" "}
+            <Link
+              href={statsHref(PATH, { ...f, defaultPeriod: true })}
+              className="font-medium text-brand-ink underline underline-offset-4"
+            >
+              Voir les 90 derniers jours
+            </Link>
           </p>
-        </div>
+        ) : null}
         {weeks.length > 0 ? (
           <MetricChart
             kind="bar"
@@ -136,17 +149,13 @@ export default async function StatsCohortsPage({ searchParams }: PageProps<"/sta
         ) : (
           <p className="text-body text-muted-foreground">Aucun membre arrivé sur cette période.</p>
         )}
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="cohorts-table">
-        <div className="mb-3">
-          <h2 id="cohorts-table" className="text-title text-foreground">
-            Par semaine d&apos;arrivée
-          </h2>
-          <p className="text-body text-muted-foreground">
-            Cliquez sur une semaine pour voir ce que ses membres ont déposé sous 7 et 30 jours.
-          </p>
-        </div>
+      <FormSection
+        id="cohorts-table"
+        title="Par semaine d'arrivée"
+        description="Cliquez sur une semaine pour voir ce que ses membres ont déposé sous 7 et 30 jours."
+      >
         <DataTable
           label="Membres par semaine d'arrivée"
           defaultSort={{ key: "week", direction: "desc" }}
@@ -176,7 +185,7 @@ export default async function StatsCohortsPage({ searchParams }: PageProps<"/sta
           <Term term="LTV">Valeur par membre</Term> = revenu net de vos joueurs ÷ membres arrivés
           cette semaine-là.
         </p>
-      </section>
+      </FormSection>
     </>
   );
 }

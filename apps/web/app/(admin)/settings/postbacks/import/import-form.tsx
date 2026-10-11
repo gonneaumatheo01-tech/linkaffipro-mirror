@@ -95,7 +95,7 @@ function ImportFlow({
   if (current.step === "preview") {
     const recognized = Object.entries(current.columns)
       .filter(([, v]) => v !== null)
-      .map(([k, v]) => `${COLUMN_LABELS[k] ?? k} = « ${current.headers[v as number]} »`)
+      .map(([k, v]) => `${COLUMN_LABELS[k] ?? k} = « ${current.headers[v as number]} »`)
       .join(", ");
     return (
       <FormSection

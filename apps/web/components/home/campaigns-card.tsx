@@ -23,7 +23,7 @@ export function CampaignsCard({ rows, total }: { rows: readonly ActiveCampaign[]
     <HomeSection
       id="campagnes-actives"
       title="Campagnes actives"
-      description="7 derniers jours · bénéfice = revenu net − dépense pub"
+      description="7 derniers jours · bénéfice = revenu net − dépense pub, sans les dépôts"
       action={
         <Link href="/campaigns" className={sectionLinkClass}>
           {total > rows.length ? `Toutes les campagnes (${fmtNum(total)})` : "Toutes les campagnes"}

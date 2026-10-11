@@ -120,7 +120,7 @@ export function parseConditions(raw: unknown): AutomationConditions {
 export function parseActions(raw: unknown): AutomationAction[] {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) throw new Error("Actions invalides : liste attendue.");
-  if (raw.length > MAX_ACTIONS) throw new Error(`Au maximum ${MAX_ACTIONS} actions par règle.`);
+  if (raw.length > MAX_ACTIONS) throw new Error(`Au maximum ${MAX_ACTIONS} actions par relance.`);
   return raw.map((a, i) => {
     const n = i + 1;
     if (!a || typeof a !== "object") throw new Error(`Action ${n} invalide.`);
@@ -171,7 +171,7 @@ export function parseActions(raw: unknown): AutomationAction[] {
             "OFFER_REPLY",
           ].includes(String(t))
         )
-          throw new Error(`Action ${n} : séquence inconnue.`);
+          throw new Error(`Action ${n} : message du bot inconnu.`);
         return {
           type: "send_sequence",
           trigger: t as Extract<AutomationAction, { type: "send_sequence" }>["trigger"],

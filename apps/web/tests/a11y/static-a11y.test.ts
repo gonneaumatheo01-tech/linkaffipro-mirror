@@ -20,6 +20,17 @@ function tsxFiles(dir: string): string[] {
   return out;
 }
 
+/** Fichiers .ts et .tsx (classes partagées dans `lib/`, ex. constantes de style), hors tests. */
+function tsFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) out.push(...tsFiles(p));
+    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
 /** Balises ouvrantes complètes (`<img …>` / `<Button …>`), multi-lignes comprises. */
 function tags(src: string, name: string): string[] {
   // `=>` (fonctions fléchées dans les attributs) ne termine pas la balise.
@@ -47,6 +58,23 @@ describe("accessibilité statique des écrans", () => {
     for (const f of files) {
       for (const t of tags(readFileSync(f, "utf8"), "Button")) {
         if (/size="icon"/.test(t) && !/aria-label=|title=/.test(t)) offenders.push(`${f.split("/apps/web/")[1]} : ${t.slice(0, 80)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("aucun contour de focus annulé par outline-none (Tailwind 4 : il faut aussi focus-visible:outline-solid)", () => {
+    // `outline-none` / `outline-hidden` posent `--tw-outline-style: none`, que `focus-visible:outline-2` réutilise :
+    // le contour de focus clavier reste invisible (WCAG 2.4.7). Contrôle par chaîne de classes (guillemets ou `…`).
+    const offenders: string[] = [];
+    const sources = [...ROOTS, join(__dirname, "..", "..", "lib")].flatMap(tsFiles);
+    for (const f of sources) {
+      for (const lit of readFileSync(f, "utf8").match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? []) {
+        const classes = lit.slice(1, -1).split(/\s+/);
+        const hidesOutline = classes.some((c) => c === "outline-none" || c === "outline-hidden");
+        const focusOutline = classes.some((c) => /^focus-visible:outline-(\d|\[)/.test(c));
+        const styled = classes.some((c) => /^(focus-visible:)?outline-(solid|dashed|dotted|double)$/.test(c));
+        if (hidesOutline && focusOutline && !styled) offenders.push(`${f.split("/apps/web/")[1]} : ${lit.slice(0, 90)}`);
       }
     }
     expect(offenders).toEqual([]);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pencil, Send } from "lucide-react";
+import { Pencil, Plus, Send } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import {
   PLACEHOLDERS,
@@ -130,21 +130,9 @@ export async function SequencesTab({
       <div className="max-w-3xl space-y-1">
         <p className="text-body text-muted-foreground">
           Les messages privés que le bot envoie aux membres de ce canal, moment par moment. Le
-          français est obligatoire ; ajoutez une langue pour les membres dont Telegram est réglé
+          français est obligatoire ; « Ajouter une langue » sert aux membres dont Telegram est réglé
           dans une autre langue (sinon ils reçoivent le français).
         </p>
-        {!telegramLinked ? (
-          <p className="text-note text-muted-foreground">
-            Pour recevoir un test, liez votre Telegram dans{" "}
-            <Link
-              href="/account"
-              className="font-medium text-brand-ink underline underline-offset-4"
-            >
-              Mon compte
-            </Link>
-            .
-          </p>
-        ) : null}
       </div>
 
       {BOT_MOMENTS.map((trigger) => (
@@ -175,6 +163,21 @@ type SequenceRow = {
     mediaAsset: { id: string; filename: string; mimeType: string } | null;
   }>;
 };
+
+/**
+ * Sous un bouton de test grisé : pourquoi il l'est, et où le débloquer (relié au bouton par `aria-describedby`).
+ */
+function TestNeedsTelegram({ id }: { id: string }) {
+  return (
+    <p id={id} className="text-note text-muted-foreground md:max-w-48">
+      Pour recevoir un test, liez votre Telegram dans{" "}
+      <Link href="/account" className="font-medium text-brand-ink underline underline-offset-4">
+        Mon compte
+      </Link>
+      .
+    </p>
+  );
+}
 
 function MomentCard({
   trigger,
@@ -247,6 +250,7 @@ function MomentCard({
             variant="outline"
             className="max-md:h-10"
             disabled={!telegramLinked}
+            aria-describedby={!telegramLinked ? `${trigger}-${l}-test-help` : undefined}
           >
             <Send aria-hidden />
             M&apos;envoyer un test
@@ -257,6 +261,7 @@ function MomentCard({
           >
             Fermer
           </Link>
+          {!telegramLinked ? <TestNeedsTelegram id={`${trigger}-${l}-test-help`} /> : null}
           {l !== "fr" ? (
             <ConfirmSubmit
               formAction={removeSequenceLangAction}
@@ -297,11 +302,13 @@ function MomentCard({
               variant="outline"
               className="w-full max-md:h-10"
               disabled={!telegramLinked}
+              aria-describedby={!telegramLinked ? `${trigger}-${l}-test-help` : undefined}
             >
               <Send aria-hidden />
               Envoyer un test
             </Button>
           </form>
+          {!telegramLinked ? <TestNeedsTelegram id={`${trigger}-${l}-test-help`} /> : null}
         </div>
       </div>
     );
@@ -332,6 +339,7 @@ function MomentCard({
           <p className="mt-0.5 text-note text-muted-foreground">{when}</p>
           {note ? <p className="mt-1 text-note text-warning">{note}</p> : null}
         </div>
+        {/* Téléphone : l'interrupteur passe sous le titre, aligné sur lui (sans le retrait du bouton discret). */}
         <BotToggle
           active={active}
           title={title}
@@ -339,6 +347,7 @@ function MomentCard({
           trigger={trigger}
           view={!isOpen}
           action={toggleSequenceAction}
+          className="max-md:-ml-3.5"
         />
       </div>
       <div className="space-y-6 p-4">
@@ -347,7 +356,20 @@ function MomentCard({
           items={items}
           defaultValue={lang}
           actions={
-            isOpen && missing.length > 0 ? (
+            !isOpen && missing.length > 0 ? (
+              // En lecture : le lien ouvre la carte en modification, où la langue se choisit.
+              <Link
+                href={`${base}&open=${trigger}#${trigger}`}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "sm" }),
+                  "text-brand-ink max-md:h-10",
+                )}
+              >
+                <Plus aria-hidden />
+                Ajouter une langue
+                <span className="sr-only"> au message « {title} »</span>
+              </Link>
+            ) : isOpen && missing.length > 0 ? (
               <form action={addSequenceLangAction} className="flex items-center gap-2">
                 <input type="hidden" name="channelId" value={channelId} />
                 <input type="hidden" name="trigger" value={trigger} />

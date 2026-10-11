@@ -9,8 +9,8 @@ import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
-import { StatusPill } from "@/components/admin/status-pill";
 import { MembersNav } from "@/components/members/members-nav";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Label } from "@/components/ui/label";
@@ -59,9 +59,9 @@ function rowOf(
             {b.createdBy?.name ? ` · par ${b.createdBy.name}` : ""}
           </span>
           {ab ? (
-            <StatusPill tone="info" className="mt-1 font-normal">
+            <Badge variant="outline" className="mt-1 font-normal">
               {ab}
-            </StatusPill>
+            </Badge>
           ) : null}
           {/* Téléphone : la ligne devient une carte (groupe, statut, résultats et date dedans). */}
           <span className="mt-2 block space-y-1 font-normal md:hidden">
@@ -135,7 +135,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/membe
         description="Les messages privés envoyés par vos bots à un groupe de membres, et ce qu'ils ont donné."
         help="Écrivez votre message, envoyez-vous un test, puis envoyez-le ou programmez-le. Telegram limite le rythme : un gros groupe met quelques minutes."
         primaryAction={{
-          label: "Écrire à un groupe",
+          label: "Nouveau message",
           href: "/members/broadcasts/new",
           icon: <Send aria-hidden />,
         }}
@@ -194,6 +194,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/membe
           <Suspense fallback={null}>
             <RememberFilters
               storageKey="broadcasts"
+              label="Effacer les filtres"
               className={cn("max-md:h-10", !filtered && "hidden")}
             />
           </Suspense>

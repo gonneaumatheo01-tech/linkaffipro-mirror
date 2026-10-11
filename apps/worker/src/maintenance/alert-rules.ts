@@ -1,5 +1,7 @@
 /** Règles pures de détection des alertes (testées sans base). */
 
+import { alertKindLabel, linkAffiTableLabel, queueLabel } from "@linkaffipro/core";
+
 export type AlertKind =
   | "bot_webhook"
   | "sync_failed"
@@ -75,7 +77,7 @@ export function detectSyncFailed(states: SyncSnapshot[]): Detected | null {
   return {
     kind: "sync_failed",
     severity: "WARNING",
-    message: `Synchro Link Affi en échec répété : ${failing.map((s) => `${s.source} (${(s.lastError ?? "").slice(0, 60)})`).join(", ")}`,
+    message: `Synchro Link Affi en échec répété : ${failing.map((s) => `${linkAffiTableLabel(s.source)} (${(s.lastError ?? "").slice(0, 60)})`).join(", ")}`,
     payload: { sources: failing.map((s) => s.source) },
   };
 }
@@ -105,7 +107,7 @@ export function detectSubIdHealth(status: string, message: string): Detected | n
   return {
     kind: "subid_health",
     severity: "CRITICAL",
-    message: `Santé du sub-ID : ${message}`,
+    message: `Identifiant de suivi qui ne revient pas : ${message}`,
     payload: { status },
   };
 }
@@ -123,7 +125,7 @@ export function detectWorkerDown(lastHeartbeatAt: Date | null, now: Date): Detec
   return {
     kind: "worker_down",
     severity: "CRITICAL",
-    message: `Worker arrêté : aucun signe de vie depuis ${minutes} min (dernier battement ${formatTime(lastHeartbeatAt)})`,
+    message: `Service d'arrière-plan arrêté : aucun signe de vie depuis ${minutes} min (dernier signal ${formatTime(lastHeartbeatAt)})`,
     payload: { lastHeartbeatAt: lastHeartbeatAt.toISOString(), downMinutes: minutes },
   };
 }
@@ -132,11 +134,11 @@ export function detectWorkerDown(lastHeartbeatAt: Date | null, now: Date): Detec
 export function detectJobFailures(failuresByQueue: Record<string, number>): Detected | null {
   const hot = Object.entries(failuresByQueue).filter(([, n]) => n >= JOB_FAILURES_THRESHOLD);
   if (hot.length === 0) return null;
-  const list = hot.map(([q, n]) => `${q} (${n})`).join(", ");
+  const list = hot.map(([q, n]) => `${queueLabel(q)} (${n})`).join(", ");
   return {
     kind: "job_failures",
     severity: "WARNING",
-    message: `Erreurs répétées sur les tâches du worker en 15 min : ${list}. Voir Réglages → État du système.`,
+    message: `Erreurs répétées sur les tâches du service d'arrière-plan en 15 min : ${list}. Voir Réglages → État du système.`,
     payload: { queues: Object.fromEntries(hot) },
   };
 }
@@ -354,10 +356,10 @@ export function shouldCreate(
   );
 }
 
-/** Formate l'alerte pour Telegram (HTML). */
+/** Formate l'alerte pour Telegram (HTML) : titre en français (`alertKindLabel`), jamais le code technique. */
 export function formatAlert(d: Detected): string {
   const icon = d.severity === "CRITICAL" ? "🔴" : d.severity === "WARNING" ? "🟠" : "ℹ️";
-  return `${icon} <b>Alerte ${d.kind}</b>\n${escapeHtml(d.message)}\n<i>Voir Réglages → Alertes.</i>`;
+  return `${icon} <b>Alerte : ${escapeHtml(alertKindLabel(d.kind))}</b>\n${escapeHtml(d.message)}\n<i>Voir Réglages → Alertes.</i>`;
 }
 
 function escapeHtml(s: string): string {
@@ -396,7 +398,7 @@ export function detectConnectorReconnect(
   return {
     kind: "connector_reconnect",
     severity: needs.length ? "CRITICAL" : "WARNING",
-    message: `Compte publicitaire ${parts.join(" ; ")}. Réglages → Connecteurs → Reconnecter.`,
+    message: `Compte publicitaire ${parts.join(" ; ")}. Réglages → Connexions → Reconnecter.`,
     payload: { needsReconnect: needs.map((c) => c.name), expiringSoon: soon.map((c) => c.name) },
   };
 }

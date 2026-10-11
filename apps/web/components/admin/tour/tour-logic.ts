@@ -118,12 +118,28 @@ function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), Math.max(min, max));
 }
 
-/** Zone mise en lumière : le repère agrandi de `pad` pixels, gardée dans l'écran. */
-export function spotlightRect(anchor: Rect, viewport: Size, pad = 6): Rect {
-  const left = clamp(anchor.left - pad, 2, viewport.width - 2);
-  const top = clamp(anchor.top - pad, 2, viewport.height - 2);
-  const right = clamp(anchor.left + anchor.width + pad, 2, viewport.width - 2);
-  const bottom = clamp(anchor.top + anchor.height + pad, 2, viewport.height - 2);
+/** Épaisseur du cadre orange de la zone mise en lumière (`outline` tracé à l'extérieur de la zone, guided-tour.tsx). */
+export const SPOT_RING = 3;
+/** Distance minimale entre ce cadre et le bord de l'écran. */
+const SPOT_EDGE = 2;
+
+/**
+ * Zone mise en lumière, dont le cadre (`SPOT_RING` px tracés autour) reste entier dans l'écran, à `SPOT_EDGE` px
+ * du bord au moins :
+ * - ordinateur : le repère agrandi de `pad` pixels (6 par défaut) ;
+ * - téléphone : le repère rétréci de l'épaisseur du cadre (`pad` négatif), pour que le cadre suive exactement ses
+ *   bords : les onglets de la barre du bas sont collés les uns aux autres, un cadre agrandi mordait sur le voisin.
+ */
+export function spotlightRect(
+  anchor: Rect,
+  viewport: Size,
+  pad = viewport.width < PHONE_MAX_WIDTH ? -SPOT_RING : 6,
+): Rect {
+  const min = SPOT_RING + SPOT_EDGE;
+  const left = clamp(anchor.left - pad, min, viewport.width - min);
+  const top = clamp(anchor.top - pad, min, viewport.height - min);
+  const right = clamp(anchor.left + anchor.width + pad, min, viewport.width - min);
+  const bottom = clamp(anchor.top + anchor.height + pad, min, viewport.height - min);
   return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 }
 

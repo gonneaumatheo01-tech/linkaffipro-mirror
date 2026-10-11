@@ -1,0 +1,80 @@
+/*
+ * Texte mis en forme (éditeur et aperçus) : rendu proche de Telegram, jetons du thème seulement (app/globals.css).
+ * `.lap-rich` : zone éditable (`RichTextEditor`) et texte en lecture seule (`FormattedText`).
+ */
+.lap-rich {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lap-rich b,
+.lap-rich strong {
+  font-weight: 600;
+}
+.lap-rich a {
+  color: var(--info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/*
+ * Texte masqué : visible pour qui écrit, signalé par un fond gris et un trait pointillé. Dans l'éditeur, c'est un <sub>
+ * (posé et retiré par la commande « subscript » du navigateur) remis sur la ligne et à la taille du texte.
+ */
+.lap-rich sub {
+  /* « vertical-align: sub » doit rester (le navigateur s'en sert pour savoir que c'est un texte masqué et pour l'enlever) ;
+     on annule le décalage à l'œil : remonté d'autant, sans agrandir la ligne. */
+  vertical-align: sub;
+  font-size: inherit;
+  line-height: 0;
+  position: relative;
+  top: -0.25em;
+}
+.lap-rich sub,
+.lap-rich .tg-spoiler {
+  background-color: color-mix(in oklab, var(--muted-foreground) 16%, transparent);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  border-bottom: 1px dashed var(--muted-foreground);
+}
+.lap-rich code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9em;
+  background-color: var(--muted);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.lap-rich pre {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9em;
+  background-color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+.lap-rich blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+  margin: 4px 0;
+  color: var(--muted-foreground);
+}
+
+/* Repères remplacés à l'envoi ({prenom}…) : en évidence. Repères qui partiront tels quels : en jaune d'attention. */
+::highlight(lap-placeholder) {
+  background-color: var(--brand-soft);
+  color: var(--brand-ink);
+}
+::highlight(lap-placeholder-warn) {
+  background-color: var(--warning-soft);
+  color: var(--warning);
+}
+.lap-rich .lap-ph {
+  background-color: var(--brand-soft);
+  color: var(--brand-ink);
+  border-radius: 4px;
+}
+.lap-rich .lap-ph-warn {
+  background-color: var(--warning-soft);
+  color: var(--warning);
+  border-radius: 4px;
+}

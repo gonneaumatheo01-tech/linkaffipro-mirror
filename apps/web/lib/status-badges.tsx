@@ -40,7 +40,8 @@ import { UniverseDot } from "@/components/admin/universe-dot";
 export type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 /** Nuance facultative, en plus de la variante : vert (réussi) ou ambre (à surveiller), contraste AA. */
 export type Tone = "success" | "warning";
-export type StatusEntry = { label: string; variant: BadgeVariant; tone?: Tone };
+/** `term` : terme technique montré au survol de la pastille (« Terme technique : FTD »), jamais en surface. */
+export type StatusEntry = { label: string; variant: BadgeVariant; tone?: Tone; term?: string };
 
 const ok = (label: string): StatusEntry => ({ label, variant: "outline", tone: "success" });
 const warn = (label: string): StatusEntry => ({ label, variant: "outline", tone: "warning" });
@@ -98,8 +99,8 @@ export const STATUS_DICT = {
     GATE_REMINDER: plain("Rappel canaux"),
     ACCEPTED: plain("Accepté"),
     OFFER_REPLY: plain("Réponse offre"),
-    BROADCAST: plain("Envoi groupé"),
-    AUTOMATION: plain("Automatisation"),
+    BROADCAST: plain("Message à un groupe"),
+    AUTOMATION: plain("Relance automatique"),
     TEST: muted("Test"),
   } satisfies Record<OutboundKind, StatusEntry>,
   alert: {
@@ -149,10 +150,10 @@ export const STATUS_DICT = {
   playerEvent: {
     CLICK: plain("Clic"),
     REGISTRATION: plain("Inscription"),
-    FTD: ok("Premier dépôt (FTD)"),
+    FTD: { ...ok("Premier dépôt"), term: "FTD" },
     DEPOSIT: ok("Dépôt"),
     REDEPOSIT: ok("Nouveau dépôt"),
-    NGR: plain("Revenu net (NGR)"),
+    NGR: { ...plain("Revenu net"), term: "NGR" },
     OTHER: muted("Autre"),
   } satisfies Record<PlayerEventType, StatusEntry>,
   affiliateSource: {
@@ -311,6 +312,7 @@ export function StatusBadge<K extends StatusKind>({
   title?: string;
 }) {
   const e = statusEntry(kind, value);
+  const hover = title ?? (e.term ? `Terme technique : ${e.term}` : undefined);
   if (kind === "vertical") {
     return (
       <span title={title} className="inline-flex">
@@ -324,7 +326,7 @@ export function StatusBadge<K extends StatusKind>({
     );
   }
   return (
-    <StatusPill tone={entryTone(e)} className={className} title={title}>
+    <StatusPill tone={entryTone(e)} className={className} title={hover}>
       {e.label}
     </StatusPill>
   );

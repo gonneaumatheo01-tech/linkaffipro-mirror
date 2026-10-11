@@ -159,6 +159,16 @@ export function campaignsHref(
   return q ? `${path}?${q}` : path;
 }
 
+/**
+ * Vrai si l'adresse porte au moins un réglage de liste (période, comparaison, filtre…) : le bouton « Réinitialiser »
+ * n'est montré que dans ce cas. Les messages de retour (`ok`, `error`) et la page ne comptent pas, comme dans
+ * `RememberFilters` ; sans aucun réglage dans l'adresse, rien n'est mémorisé non plus (sinon `RememberFilters`
+ * redirige vers l'adresse mémorisée).
+ */
+export function hasFilterParams(sp: Record<string, Param>): boolean {
+  return Object.entries(sp).some(([k, v]) => !["ok", "error", "page"].includes(k) && one(v) !== "");
+}
+
 /** Une seule valeur par paramètre (la première), pour recopier une adresse. */
 export function flatParams(sp: Record<string, Param>): Record<string, string> {
   const out: Record<string, string> = {};

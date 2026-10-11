@@ -18,6 +18,7 @@ import {
   fmtSigned,
   hourBars,
   hourLabel,
+  metricGroupFormatter,
   metricValue,
   moneyColumn,
   perPostText,
@@ -26,6 +27,7 @@ import {
   shareOf,
   stepNote,
   sumSeries,
+  trendOrNone,
 } from "./display";
 import { EMPTY_TOTALS, FUNNEL_STEPS, deltaPct, derive, funnel } from "./metrics";
 
@@ -132,10 +134,54 @@ describe("Pubs : tableau par campagne", () => {
   });
 });
 
+describe("grille de cartes", () => {
+  it("une seule précision pour les montants affichés ensemble", () => {
+    const fmt = metricGroupFormatter([
+      { key: "spend", value: 0.26 },
+      { key: "ngr", value: 214.1 },
+      { key: "profit", value: 213.84 },
+      { key: "joined", value: 1234 },
+    ]);
+    // « 0,26 € » ne côtoie pas « 214 € » : tout à l'euro (le montant exact reste au survol).
+    expect(sp(fmt("spend", 0.26))).toBe("0 €");
+    expect(sp(fmt("ngr", 214.1))).toBe("214 €");
+    expect(sp(fmt("profit", -213.84))).toBe("−214 €");
+    // Les chiffres qui ne sont pas des montants ne changent pas.
+    expect(sp(fmt("joined", 1234))).toBe("1 234");
+    expect(fmt("roas", 1.53)).toBe("1,53×");
+    // Tous sous 100 € : au centime.
+    const small = metricGroupFormatter([
+      { key: "spend", value: 12.5 },
+      { key: "ngr", value: 40 },
+    ]);
+    expect(sp(small("spend", 12.5))).toBe("12,50 €");
+    expect(sp(small("ngr", 40))).toBe("40,00 €");
+    expect(small("ngr", null)).toBe("—");
+  });
+
+  it("pas de mini-courbe pour une période sans aucune valeur", () => {
+    expect(trendOrNone([0, 0, 0, 0])).toBeUndefined();
+    expect(trendOrNone([])).toBeUndefined();
+    expect(trendOrNone(null)).toBeUndefined();
+    expect(trendOrNone([0, 2, 0])).toEqual([0, 2, 0]);
+    expect(trendOrNone([0, -1])).toEqual([0, -1]);
+  });
+});
+
 describe("Parcours", () => {
   it("chaque étape a son nom en mots du client", () => {
     for (const s of FUNNEL_STEPS) expect(FUNNEL_LABELS[s.key]).toBeDefined();
     expect(FUNNEL_LABELS.ftds).toEqual({ label: "Premiers dépôts", term: "FTD" });
+  });
+
+  it("un seul libellé par chiffre : le parcours dit comme les cartes et les volets", () => {
+    for (const s of FUNNEL_STEPS) {
+      const view = METRIC_VIEWS[s.key];
+      expect(FUNNEL_LABELS[s.key]?.label).toBe(view.label);
+      expect(FUNNEL_LABELS[s.key]?.term).toBe(view.term);
+    }
+    expect(FUNNEL_LABELS.offerClicks?.label).toBe("Clics sur les offres");
+    expect(FUNNEL_LABELS.joined?.label).toBe("Membres entrés");
   });
 
   it("la plus grosse perte, hors dépôts répétés", () => {

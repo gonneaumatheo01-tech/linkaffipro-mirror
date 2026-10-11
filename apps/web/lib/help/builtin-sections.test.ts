@@ -36,17 +36,14 @@ describe("sections d'aide intégrées en attendant le guide", () => {
 
   it("le guide prime : une section qu'il contient déjà n'est pas ajoutée (accents et casse ignorés)", () => {
     const guide = `${MINI}\n## ACCUEIL\n\nTexte du guide.\n`;
-    expect(withBuiltinSections(guide)).toBe(guide);
+    expect(
+      withBuiltinSections(guide, [{ title: "Accueil", markdown: "## Accueil\n\nNouveau." }]),
+    ).toBe(guide);
   });
 
-  it("le guide réel reçoit l'accueil avant « Tableau de bord » s'il ne l'a pas encore", () => {
-    const out = withBuiltinSections(GUIDE);
-    const titles = guideHeadings(out)
-      .filter((h) => h.level === 2)
-      .map((h) => h.text);
-    expect(titles.filter((t) => t === "Accueil")).toHaveLength(1);
-    if (!guideHeadings(GUIDE).some((h) => h.text === "Accueil"))
-      expect(titles.indexOf("Accueil")).toBe(titles.indexOf("Tableau de bord") - 1);
+  it("le guide réel contient déjà tout : il est rendu tel quel", () => {
+    expect(withBuiltinSections(GUIDE)).toBe(GUIDE);
+    expect(guideHeadings(GUIDE).filter((h) => h.text === "Accueil")).toHaveLength(1);
   });
 
   it("textes intégrés : titre de niveau 2 identique au titre déclaré, mots du client (aucun jargon)", () => {

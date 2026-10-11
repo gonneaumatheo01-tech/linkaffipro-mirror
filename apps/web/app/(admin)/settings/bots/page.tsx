@@ -10,8 +10,12 @@ import { AdvancedSection } from "@/components/admin/form-section";
 import { SidePanel } from "@/components/admin/side-panel";
 import { StatusPill } from "@/components/admin/status-pill";
 import { UniverseDot } from "@/components/admin/universe-dot";
-import { BotConnection, botCheckLabel } from "@/components/settings/bot-connection";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import {
+  BotConnection,
+  TelegramErrorText,
+  botCheckLabel,
+} from "@/components/settings/bot-connection";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,7 +111,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
         help={
           isAdmin
             ? "Première chose à faire : ajouter un bot avec son jeton, puis l'ajouter comme administrateur de vos canaux dans Telegram."
-            : "Si une connexion Telegram est « À vérifier », ouvrez le bot et cliquez sur « Reposer la connexion »."
+            : "Si une connexion Telegram est « À vérifier », ouvrez le bot et cliquez sur « Reposer la connexion »."
         }
         meta={
           bots.length > 0 ? (
@@ -133,7 +137,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
         rows={bots.map((b, i) => {
           const w = webhooks[i] ?? null;
           const check = botCheck(health[i]!);
-          const connectionCell = <BotConnection check={check} />;
+          const connectionCell = <BotConnection check={check} error={w?.fetchError} />;
           return {
             id: b.id,
             cells: {
@@ -152,7 +156,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
               bot: b.name,
               universe: universeLabel(b.vertical),
               state: b.isActive ? 1 : 0,
-              connection: botCheckLabel(check),
+              connection: botCheckLabel(check, w?.fetchError),
             },
             detailTitle: b.name,
             detailDescription: `@${b.username} · ${universeLabel(b.vertical)}`,
@@ -165,7 +169,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                   <DetailRow label="Connexion Telegram">{connectionCell}</DetailRow>
                   {w?.fetchError ? (
                     <DetailRow label="Réponse de Telegram">
-                      <span className="text-danger">{w.fetchError}</span>
+                      <TelegramErrorText raw={w.fetchError} />
                     </DetailRow>
                   ) : null}
                   {w?.pending ? (
@@ -175,14 +179,16 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                   ) : null}
                   {w?.lastError ? (
                     <DetailRow label="Erreur de connexion">
-                      <span className="text-danger">
-                        {w.lastError} ({fmtDate(w.lastErrorAt)})
-                      </span>
+                      <TelegramErrorText
+                        raw={w.lastError}
+                        source="delivery"
+                        at={w.lastErrorAt ? fmtDate(w.lastErrorAt) : null}
+                      />
                     </DetailRow>
                   ) : null}
                   {b.lastError ? (
                     <DetailRow label="Dernière erreur du bot">
-                      <span className="text-danger">{b.lastError}</span>
+                      <TelegramErrorText raw={b.lastError} source="bot" />
                     </DetailRow>
                   ) : null}
                   <DetailRow label="Univers">
@@ -233,7 +239,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                     description="L'adresse à laquelle Telegram envoie au bot tout ce qui se passe."
                   >
                     <DetailList>
-                      <DetailRow label="Adresse (webhook)" mono>
+                      <DetailRow label="Adresse de connexion" mono>
                         {w.url || "aucune adresse"}
                       </DetailRow>
                     </DetailList>
@@ -246,7 +252,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
         empty={{
           title: "Aucun bot enregistré",
           description: isAdmin
-            ? "Créez un bot avec @BotFather dans Telegram, puis cliquez sur « Ajouter un bot » et collez son jeton."
+            ? "Créez un bot avec @BotFather dans Telegram, puis cliquez sur « Ajouter un bot » et collez son jeton."
             : "Un administrateur doit ajouter un bot (jeton @BotFather).",
         }}
       />

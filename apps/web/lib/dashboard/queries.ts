@@ -291,7 +291,7 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
     },
     {
       key: "ftds",
-      label: "Premiers dépôts (FTD)",
+      label: "Premiers dépôts",
       group: "argent",
       series: aggregateByDay(
         ftds.map((p) => p.ftdAt!),
@@ -310,7 +310,7 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
     },
     {
       key: "ngr",
-      label: "NGR (€)",
+      label: "Revenu net (€)",
       group: "argent",
       money: true,
       series: aggregateByDay(

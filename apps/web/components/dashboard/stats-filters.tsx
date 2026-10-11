@@ -9,24 +9,25 @@ import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { moreFiltersCount } from "@/lib/dashboard/stats-pages";
+import { STATS_DEFAULT_RANGE, moreFiltersCount } from "@/lib/dashboard/stats-pages";
 import { PERIOD_KEYS, PERIOD_LABELS, type Period, type PeriodKey } from "@/lib/periods";
 import { UNIVERSES, UNIVERSE_LABELS } from "@/lib/universe";
 
-/** Adresse propre : sans champ vide ni période par défaut (« 7 derniers jours »). */
-function cleanQuery(form: HTMLFormElement): string {
+/** Adresse propre : sans champ vide ni la période par défaut de la page (« 7 derniers jours » en général). */
+function cleanQuery(form: HTMLFormElement, defaultRange: PeriodKey): string {
   const p = new URLSearchParams();
   for (const [k, v] of new FormData(form)) {
     if (typeof v !== "string" || v === "") continue;
-    if (k === "range" && v === "7d") continue;
+    if (k === "range" && v === defaultRange) continue;
     p.append(k, v);
   }
   return p.toString();
 }
 
 /**
- * Sélecteur unique des statistiques, en haut de chaque page : période (avec deux dates pour « Personnalisée »),
- * comparaison avec la période précédente, univers, campagne ; le canal est rangé dans « Plus de filtres ».
+ * Sélecteur unique des statistiques, en haut de chaque page : période (avec deux dates pour « Personnalisée », juste
+ * après la période qu'elles précisent), comparaison avec la période précédente, univers, campagne ; le canal est
+ * rangé dans « Plus de filtres ». `defaultRange` : période par défaut de la page (non écrite dans l'adresse).
  * Formulaire GET vers la page courante : les valeurs vivent dans l'adresse et suivent la sous-navigation.
  * Un filtre qu'une page n'utilise pas (`showCompare`, `showChannel` à faux) est gardé en champ caché.
  * « Appliquer » recharge la page (pas d'envoi automatique : lire une liste au clavier ne change pas la page).
@@ -45,6 +46,7 @@ export function StatsFilters({
   showCompare = true,
   showChannel = true,
   channelHelp,
+  defaultRange = STATS_DEFAULT_RANGE,
   className,
 }: {
   action: string;
@@ -59,6 +61,8 @@ export function StatsFilters({
   showChannel?: boolean;
   /** Une phrase sous le choix du canal (ce qu'il change sur cette page). */
   channelHelp?: string;
+  /** Période par défaut de la page (`statsDefaultRange`). */
+  defaultRange?: PeriodKey;
   className?: string;
 }) {
   const id = useId();
@@ -74,7 +78,7 @@ export function StatsFilters({
       aria-label="Filtres des statistiques"
       onSubmit={(e) => {
         e.preventDefault();
-        const q = cleanQuery(e.currentTarget);
+        const q = cleanQuery(e.currentTarget, defaultRange);
         router.push(q ? `${action}?${q}` : action);
       }}
       className={cn("mb-2 rounded-xl border border-border bg-card p-3 md:p-4", className)}
@@ -94,24 +98,6 @@ export function StatsFilters({
             {PERIOD_KEYS.map((k) => (
               <option key={k} value={k}>
                 {PERIOD_LABELS[k]}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <Label htmlFor={`${id}-vertical`} className="text-note font-medium text-muted-foreground">
-            Univers
-          </Label>
-          <NativeSelect
-            id={`${id}-vertical`}
-            name="vertical"
-            defaultValue={vertical}
-            wrapperClassName="w-full md:w-44"
-          >
-            <option value="">Tous les univers</option>
-            {UNIVERSES.map((u) => (
-              <option key={u} value={u}>
-                {UNIVERSE_LABELS[u]}
               </option>
             ))}
           </NativeSelect>
@@ -146,6 +132,24 @@ export function StatsFilters({
             </div>
           </>
         ) : null}
+        <div className="flex min-w-0 flex-col gap-1">
+          <Label htmlFor={`${id}-vertical`} className="text-note font-medium text-muted-foreground">
+            Univers
+          </Label>
+          <NativeSelect
+            id={`${id}-vertical`}
+            name="vertical"
+            defaultValue={vertical}
+            wrapperClassName="w-full md:w-44"
+          >
+            <option value="">Tous les univers</option>
+            {UNIVERSES.map((u) => (
+              <option key={u} value={u}>
+                {UNIVERSE_LABELS[u]}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
         <div className="flex min-w-0 flex-col gap-1">
           <Label htmlFor={`${id}-campaign`} className="text-note font-medium text-muted-foreground">
             Campagne

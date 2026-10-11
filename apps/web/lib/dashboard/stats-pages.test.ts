@@ -7,7 +7,9 @@ import {
   parseFunnelDim,
   parseStatsFilters,
   periodSentence,
+  statsDefaultRange,
   statsHref,
+  statsPage,
   statsParams,
   statsParamsFromForm,
 } from "./stats-pages";
@@ -33,6 +35,56 @@ describe("rubriques des statistiques", () => {
         /\b(FTD|NGR|ROAS|CPL|CPA|sub-ID|cohorte|entonnoir)\b/i,
       );
     }
+  });
+});
+
+describe("titres des pages", () => {
+  it("un titre qui ne se confond pas avec une entrée du menu ou un onglet de campagne", () => {
+    // « Canaux » est aussi une entrée du menu, « Pubs » un onglet de chaque campagne : le <h1> précise.
+    expect(statsPage("channels").title).toBe("Statistiques des canaux");
+    expect(statsPage("ads").title).toBe("Statistiques des pubs");
+    // L'onglet garde le mot court.
+    expect(statsPage("channels").label).toBe("Canaux");
+    expect(statsPage("ads").label).toBe("Pubs");
+  });
+});
+
+describe("période par défaut de chaque page", () => {
+  it("7 derniers jours partout, 90 jours pour « Membres dans le temps » (plusieurs semaines à comparer)", () => {
+    expect(statsDefaultRange("/stats")).toBe("7d");
+    expect(statsDefaultRange("/stats/ads")).toBe("7d");
+    expect(statsDefaultRange("/stats/cohorts")).toBe("90d");
+    expect(statsDefaultRange("/ailleurs")).toBe("7d");
+  });
+
+  it("sans période dans l'adresse : celle de la page ; une période choisie l'emporte", () => {
+    const cohorts = (q: Record<string, string>) => parseStatsFilters(q, NOW, "90d");
+    expect(cohorts({}).period).toMatchObject({ key: "90d", days: 90, to: "2026-10-10" });
+    expect(cohorts({}).defaultPeriod).toBe(true);
+    expect(cohorts({ range: "7d" }).period.key).toBe("7d");
+    expect(cohorts({ range: "7d" }).defaultPeriod).toBe(false);
+    expect(cohorts({ from: "2026-09-01", to: "2026-09-30" }).period).toMatchObject({
+      key: "custom",
+      days: 30,
+    });
+    // Période personnalisée incomplète : la période de la page.
+    expect(cohorts({ range: "custom", from: "2026-09-01" }).period.key).toBe("90d");
+    expect(parseStatsFilters({}, NOW).period.key).toBe("7d");
+  });
+
+  it("liens entre pages : une période par défaut n'est pas recopiée, chaque page prend la sienne", () => {
+    const overview = parseStatsFilters({}, NOW);
+    // De la vue d'ensemble (7 jours par défaut), « Membres dans le temps » s'ouvre sur 90 jours…
+    expect(statsHref("/stats/cohorts", overview)).toBe("/stats/cohorts");
+    // … et en revient sur les 7 jours de la vue d'ensemble.
+    expect(statsHref("/stats", parseStatsFilters({}, NOW, "90d"))).toBe("/stats");
+    // Période choisie : gardée, sauf si c'est celle par défaut de la page visée.
+    const sevenDays = parseStatsFilters({ range: "7d" }, NOW, "90d");
+    expect(statsHref("/stats/cohorts", sevenDays)).toBe("/stats/cohorts?range=7d");
+    expect(statsHref("/stats", sevenDays)).toBe("/stats");
+    const ninety = parseStatsFilters({ range: "90d" }, NOW);
+    expect(statsHref("/stats/cohorts", ninety)).toBe("/stats/cohorts");
+    expect(statsHref("/stats/ads", ninety)).toBe("/stats/ads?range=90d");
   });
 });
 

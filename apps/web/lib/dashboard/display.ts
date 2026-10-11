@@ -113,6 +113,31 @@ function plural(n: number, one: string, many: string): string {
   return `${fmtNum(n)} ${n > 1 ? many : one}`;
 }
 
+/**
+ * Chiffres d'une même grille de cartes : les montants à une seule précision (règle « une précision d'arrondi par
+ * groupe » de docs/DESIGN-SYSTEM.md : à l'euro dès que l'un d'eux atteint 100 €, au centime sinon), les autres
+ * chiffres comme `fmtMetric`. `values` : tous les montants affichés ensemble (période et, si on compare, période
+ * précédente). Le montant exact reste au survol (`fmtMetricExact`).
+ */
+export function metricGroupFormatter(
+  values: ReadonlyArray<{ key: MetricKey; value: number | null | undefined }>,
+): (key: MetricKey, v: number | null | undefined) => string {
+  const digits = groupMoneyDigits(
+    values.filter((e) => METRIC_VIEWS[e.key].format === "money").map((e) => e.value),
+  );
+  return (key, v) =>
+    METRIC_VIEWS[key].format === "money" ? groupMoney(v, digits) : fmtMetric(key, v);
+}
+
+/**
+ * Mini-courbe d'une carte : rien quand la période n'a aucune valeur (une ligne plate à zéro n'apprend rien et
+ * ajoute du bruit), la série sinon.
+ */
+export function trendOrNone(values: readonly number[] | null | undefined): number[] | undefined {
+  if (!values || values.length === 0 || values.every((v) => v === 0)) return undefined;
+  return [...values];
+}
+
 // ——— Vue d'ensemble ———
 
 /** Libellés des chiffres de la vue d'ensemble (clés de `loadDashboard`). */
@@ -200,17 +225,27 @@ export function moneyColumn(
 
 // ——— Parcours ———
 
-/** Nom de chaque étape du parcours, en mots du client. */
-export const FUNNEL_LABELS: Record<string, { label: string; term?: string }> = {
-  entryClicks: { label: "Clics sur les pubs" },
-  requests: { label: "Demandes d'adhésion" },
-  approved: { label: "Acceptés" },
-  joined: { label: "Entrés dans le canal" },
-  offerClicks: { label: "Clics sur une offre" },
-  registrations: { label: "Inscriptions" },
-  ftds: { label: "Premiers dépôts", term: "FTD" },
-  deposits: { label: "Dépôts" },
-};
+/**
+ * Nom de chaque étape du parcours, en mots du client : le même mot que partout ailleurs dans les statistiques
+ * (`METRIC_VIEWS` : cartes, volets, graphiques), un seul libellé par chiffre.
+ */
+const FUNNEL_KEYS = [
+  "entryClicks",
+  "requests",
+  "approved",
+  "joined",
+  "offerClicks",
+  "registrations",
+  "ftds",
+  "deposits",
+] as const satisfies ReadonlyArray<keyof StatTotals>;
+
+export const FUNNEL_LABELS: Record<string, { label: string; term?: string }> = Object.fromEntries(
+  FUNNEL_KEYS.map((k) => {
+    const v = METRIC_VIEWS[k];
+    return [k, v.term ? { label: v.label, term: v.term } : { label: v.label }];
+  }),
+);
 
 export function funnelLabel(step: Pick<FunnelStep, "key" | "label">): {
   label: string;

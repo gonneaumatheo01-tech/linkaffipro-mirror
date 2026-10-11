@@ -7,7 +7,7 @@ import { DataTable } from "@/components/admin/data-table";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusPill } from "@/components/admin/status-pill";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -74,7 +74,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
         description="Il propose 3 versions de vos messages en respectant les règles du secteur : pas de promesse de gains, mention des risques, pas d'offre inventée."
         help={
           isAdmin
-            ? "Première fois : créez la clé Anthropic (guide en bas de page, 5 minutes), collez-la ici, « Enregistrer » puis « Vérifier »."
+            ? "Première fois : créez la clé Anthropic (guide en bas de page, 5 minutes), collez-la ici, « Enregistrer » puis « Vérifier »."
             : "Lecture seule : seuls les administrateurs peuvent coller la clé ou changer les limites."
         }
       />
@@ -85,14 +85,14 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
           <form action={saveAiSettingsAction} className="space-y-10">
             <FormSection
               title="Clé Anthropic"
-              description="Chiffrée en base et jamais réaffichée. Sans clé, le bouton « Améliorer avec l'IA » explique où la coller."
+              description="Chiffrée en base et jamais réaffichée. Sans clé, le bouton « Améliorer avec l'IA » explique où la coller."
             >
-              <Alert variant={key.alert} role="status">
+              <Alert variant={key.alert} role="status" className="max-w-xl">
                 <AlertTitle>{key.title}</AlertTitle>
                 <AlertDescription>{key.sentence}</AlertDescription>
               </Alert>
               <div className="max-w-xl space-y-2">
-                <Label htmlFor="apiKey">Clé API Anthropic</Label>
+                <Label htmlFor="apiKey">Clé Anthropic</Label>
                 <Input
                   id="apiKey"
                   name="apiKey"
@@ -109,7 +109,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
                 <p id="apiKey-aide" className="text-note text-muted-foreground">
                   {state.hasKey
                     ? `Clé actuelle : ${state.keyHint ?? "enregistrée"}. Collez-en une autre seulement pour la remplacer.`
-                    : "Elle commence par « sk-ant- ». Collez-la entièrement, sans espace."}
+                    : "Elle commence par « sk-ant- ». Collez-la entièrement, sans espace."}
                 </p>
               </div>
             </FormSection>
@@ -166,7 +166,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qualityModel">Modèle « qualité supérieure »</Label>
+                  <Label htmlFor="qualityModel">Modèle « qualité supérieure »</Label>
                   <NativeSelect
                     id="qualityModel"
                     name="qualityModel"
@@ -177,7 +177,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
                     <ModelOptions />
                   </NativeSelect>
                   <p id="qualityModel-aide" className="text-note text-muted-foreground">
-                    Proposé par la case « Qualité supérieure » de l&apos;assistant, environ 20 fois
+                    Proposé par la case « Qualité supérieure » de l&apos;assistant, environ 20 fois
                     plus cher par suggestion.
                   </p>
                 </div>
@@ -202,7 +202,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
                   />
                 </div>
                 <p id="risk-aide" className="text-note text-muted-foreground md:col-span-2">
-                  Ajoutée en fin de message (avec « 18+ ») quand elle manque. Même texte que les
+                  Ajoutée en fin de message (avec « 18+ ») quand elle manque. Même texte que les
                   modèles installés.
                 </p>
               </div>
@@ -241,7 +241,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
           </form>
         ) : (
           <FormSection title="Réglages actuels">
-            <Alert variant={key.alert} role="status">
+            <Alert variant={key.alert} role="status" className="max-w-2xl">
               <AlertTitle>{key.title}</AlertTitle>
               <AlertDescription>{key.sentence}</AlertDescription>
             </Alert>
@@ -367,7 +367,7 @@ export default async function AiSettingsPage({ searchParams }: PageProps<"/setti
             empty={{
               title: "Aucune suggestion pour l'instant",
               description:
-                "Dès qu'un membre de l'équipe cliquera sur « Améliorer avec l'IA », ses demandes apparaîtront ici.",
+                "Dès qu'un membre de l'équipe cliquera sur « Améliorer avec l'IA », ses demandes apparaîtront ici.",
             }}
           />
         </FormSection>

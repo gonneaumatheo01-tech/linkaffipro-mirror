@@ -5,6 +5,7 @@ import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
 import { MessagesListTable } from "@/components/messages/messages-list-table";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import {
   postListQuery,
   type PostListFilters,
 } from "@/lib/posts/queries";
-import { statusLabel, StatusBadge } from "@/lib/status-badges";
+import { StatusBadge } from "@/lib/status-badges";
 import { toPanelItem, type MessagesOptions, type SearchParams } from "./shared";
 
 const STATUSES = Object.keys(POST_STATUS_LABELS) as PostStatus[];
@@ -195,15 +196,27 @@ export async function ListView({
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="min-w-0 max-md:line-clamp-2 md:truncate">{text}</span>
                     {p.abGroupId ? (
-                      <span className="shrink-0 rounded-full border border-border px-1.5 text-note font-normal text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="font-normal"
+                        title={`Test A/B${p.abVariant ? `, version ${p.abVariant}` : ""}`}
+                      >
                         A/B{p.abVariant ? ` · ${p.abVariant}` : ""}
-                      </span>
+                      </Badge>
                     ) : null}
                   </span>
-                  {/* Téléphone : la date et l'état sous l'extrait (les autres colonnes sont masquées). */}
-                  <span className="text-note font-normal text-muted-foreground md:hidden">
-                    {p.scheduledAt ? fmtDate(p.scheduledAt) : "Sans date"} ·{" "}
-                    {statusLabel("post", p.status)}
+                  {/* Téléphone : l'état (pastille), le canal et la date sous l'extrait (autres colonnes masquées). */}
+                  <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-note font-normal text-muted-foreground md:hidden">
+                    <StatusBadge kind="post" value={p.status} />
+                    <UniverseDot
+                      universe={p.channel.vertical}
+                      withLabel
+                      label={p.channel.title}
+                      className="min-w-0 whitespace-normal text-foreground"
+                    />
+                    <span className="w-full">
+                      {p.scheduledAt ? fmtDate(p.scheduledAt) : "Sans date"}
+                    </span>
                   </span>
                 </span>
               ),

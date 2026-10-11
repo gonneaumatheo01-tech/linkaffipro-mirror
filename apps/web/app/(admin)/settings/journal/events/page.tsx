@@ -13,8 +13,9 @@ import {
   pageSkip,
 } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
+import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
 import { StatCard } from "@/components/admin/stat-card";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -90,7 +91,8 @@ export default async function JournalEventsPage({
   const f = parseEventFilters(sp);
   const { total, last24h, events, channels, bots } = await loadEventsView(f);
   const pages = pageCount(total);
-  const hasFilters = Boolean(f.type || f.channelId || f.botId || f.from || f.to);
+  const activeFilters = [f.type, f.channelId, f.botId, f.from, f.to].filter(Boolean).length;
+  const hasFilters = activeFilters > 0;
   const query = eventsQuery(f);
   return (
     <>
@@ -118,76 +120,92 @@ export default async function JournalEventsPage({
           value={fmtNum(last24h)}
           hint="événements des bots et des membres"
         />
-        <form
-          method="get"
-          aria-label="Filtrer les événements"
-          className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end"
-        >
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="events-type">Type</Label>
-            <NativeSelect
-              id="events-type"
-              name="type"
-              defaultValue={f.type}
-              wrapperClassName="w-full"
-            >
-              <option value="">Tous les types</option>
-              {EVENT_FAMILIES.map((t) => (
-                <option key={t.prefix} value={t.prefix}>
-                  {t.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="events-channel">Canal</Label>
-            <NativeSelect
-              id="events-channel"
-              name="channelId"
-              defaultValue={f.channelId}
-              wrapperClassName="w-full"
-            >
-              <option value="">Tous les canaux</option>
-              {channels.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="events-bot">Bot</Label>
-            <NativeSelect
-              id="events-bot"
-              name="botId"
-              defaultValue={f.botId}
-              wrapperClassName="w-full"
-            >
-              <option value="">Tous les bots</option>
-              {bots.map((b) => (
-                <option key={b.id} value={b.id}>
-                  @{b.username}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="events-from">Du</Label>
-            <Input id="events-from" type="date" name="from" defaultValue={f.from} />
-          </div>
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="events-to">Au</Label>
-            <Input id="events-to" type="date" name="to" defaultValue={f.to} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" variant="outline" className="max-md:h-10">
-              Filtrer
-            </Button>
-            <Suspense fallback={null}>
-              <RememberFilters storageKey="journal-events" className="max-md:h-10" />
-            </Suspense>
-          </div>
-        </form>
+        {/* Même barre de filtres que les Statistiques (libellés en note, « Appliquer ») ; repliée sur téléphone. */}
+        <CollapsibleFilters activeCount={activeFilters}>
+          <form
+            method="get"
+            aria-label="Filtrer les événements"
+            className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2 md:p-4 lg:grid-cols-3 lg:items-end"
+          >
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="events-type" className="text-note font-medium text-muted-foreground">
+                Type
+              </Label>
+              <NativeSelect
+                id="events-type"
+                name="type"
+                defaultValue={f.type}
+                wrapperClassName="w-full"
+              >
+                <option value="">Tous les types</option>
+                {EVENT_FAMILIES.map((t) => (
+                  <option key={t.prefix} value={t.prefix}>
+                    {t.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <Label
+                htmlFor="events-channel"
+                className="text-note font-medium text-muted-foreground"
+              >
+                Canal
+              </Label>
+              <NativeSelect
+                id="events-channel"
+                name="channelId"
+                defaultValue={f.channelId}
+                wrapperClassName="w-full"
+              >
+                <option value="">Tous les canaux</option>
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="events-bot" className="text-note font-medium text-muted-foreground">
+                Bot
+              </Label>
+              <NativeSelect
+                id="events-bot"
+                name="botId"
+                defaultValue={f.botId}
+                wrapperClassName="w-full"
+              >
+                <option value="">Tous les bots</option>
+                {bots.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    @{b.username}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="events-from" className="text-note font-medium text-muted-foreground">
+                Du
+              </Label>
+              <Input id="events-from" type="date" name="from" defaultValue={f.from} />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="events-to" className="text-note font-medium text-muted-foreground">
+                Au
+              </Label>
+              <Input id="events-to" type="date" name="to" defaultValue={f.to} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" variant="outline" className="max-md:h-10">
+                Appliquer
+              </Button>
+              <Suspense fallback={null}>
+                <RememberFilters storageKey="journal-events" className="max-md:h-10" />
+              </Suspense>
+            </div>
+          </form>
+        </CollapsibleFilters>
       </div>
       <div className="space-y-4">
         <DataTable
@@ -230,16 +248,26 @@ export default async function JournalEventsPage({
               detailTitle: eventLabel(e.type),
               detailDescription: fmtDate(e.occurredAt),
               detail: (
-                <DetailList>
-                  <DetailRow label="Quand">{fmtDate(e.occurredAt)}</DetailRow>
-                  <DetailRow label="Type">{eventLabel(e.type)}</DetailRow>
-                  <DetailRow label="Code technique" mono>
-                    {e.type}
-                  </DetailRow>
-                  <DetailRow label="Bot">{e.bot ? `@${e.bot.username}` : "—"}</DetailRow>
-                  <DetailRow label="Canal">{channel}</DetailRow>
-                  <DetailRow label="Membre">{member}</DetailRow>
-                </DetailList>
+                <div className="space-y-6">
+                  <DetailList>
+                    <DetailRow label="Quand">{fmtDate(e.occurredAt)}</DetailRow>
+                    <DetailRow label="Type">{eventLabel(e.type)}</DetailRow>
+                    <DetailRow label="Code technique" mono>
+                      {e.type}
+                    </DetailRow>
+                    <DetailRow label="Bot">{e.bot ? `@${e.bot.username}` : "—"}</DetailRow>
+                    <DetailRow label="Canal">{channel}</DetailRow>
+                    <DetailRow label="Membre">{member}</DetailRow>
+                  </DetailList>
+                  {e.member && !e.member.anonymizedAt ? (
+                    <Link
+                      href={`/members/${e.member.id}`}
+                      className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+                    >
+                      Ouvrir la fiche du membre
+                    </Link>
+                  ) : null}
+                </div>
               ),
             };
           })}

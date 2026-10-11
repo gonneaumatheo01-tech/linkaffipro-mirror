@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-10-10T11:16:21.752Z",
-  "base": "http://localhost:3103",
+  "generatedAt": "2026-10-11T01:06:08.720Z",
+  "base": "http://localhost:3126",
   "width": 1440,
   "tags": [
     "wcag2a",
     "wcag2aa"
   ],
-  "failOn": "critical",
+  "failOn": "serious",
   "totals": {
     "critical": 0,
     "serious": 0,
@@ -17,6 +17,446 @@
     {
       "route": "/",
       "path": "/",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns",
+      "path": "/campaigns",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns/[id]",
+      "path": "/campaigns/c1qbnpjer4zjz9qsv1c2wljh3",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns/import",
+      "path": "/campaigns/import",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns/imports",
+      "path": "/campaigns/imports",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns/links",
+      "path": "/campaigns/links",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/campaigns/new",
+      "path": "/campaigns/new",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/channels",
+      "path": "/channels",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/channels/[id]",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/channels/import",
+      "path": "/channels/import",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages",
+      "path": "/messages",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages/[id]",
+      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages/[id]/edit",
+      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg/edit",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages/ab/[groupId]",
+      "path": "/messages/ab/demo-ab-xdxAVC",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages/categories",
+      "path": "/messages/categories",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/messages/new",
+      "path": "/messages/new",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members",
+      "path": "/members",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/[id]",
+      "path": "/members/c1ihgxwagd7i4mh1jwyexz3xc",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/automations",
+      "path": "/members/automations",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/automations/[id]",
+      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/automations/[id]/edit",
+      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6/edit",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/automations/new",
+      "path": "/members/automations/new",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/broadcasts",
+      "path": "/members/broadcasts",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/broadcasts/[id]",
+      "path": "/members/broadcasts/co8ti1txt0jmn29f8t5qosgww",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/broadcasts/ab/[groupId]",
+      "path": "/members/broadcasts/ab/demo-ab-66BI7o",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/members/broadcasts/new",
+      "path": "/members/broadcasts/new",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/stats",
+      "path": "/stats",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/stats/ads",
+      "path": "/stats/ads",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/stats/channels",
+      "path": "/stats/channels",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/stats/cohorts",
+      "path": "/stats/cohorts",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/stats/funnel",
+      "path": "/stats/funnel",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings",
+      "path": "/settings",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/ai",
+      "path": "/settings/ai",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/alerts",
+      "path": "/settings/alerts",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/bots",
+      "path": "/settings/bots",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/categories",
+      "path": "/settings/categories",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors",
+      "path": "/settings/connectors",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors/meta",
+      "path": "/settings/connectors/meta",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors/meta/choose",
+      "path": "/settings/connectors/meta/choose",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors/telegram",
+      "path": "/settings/connectors/telegram",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors/tiktok",
+      "path": "/settings/connectors/tiktok",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/connectors/tiktok/choose",
+      "path": "/settings/connectors/tiktok/choose",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/journal",
+      "path": "/settings/journal",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/journal/events",
+      "path": "/settings/journal/events",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/postbacks",
+      "path": "/settings/postbacks",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/postbacks/import",
+      "path": "/settings/postbacks/import",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/reports",
+      "path": "/settings/reports",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/status",
+      "path": "/settings/status",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/tags",
+      "path": "/settings/tags",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/settings/team",
+      "path": "/settings/team",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/help",
+      "path": "/help",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/account",
+      "path": "/account",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/styleguide",
+      "path": "/styleguide",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/login",
+      "path": "/login",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/privacy",
+      "path": "/privacy",
+      "status": "ok",
+      "httpStatus": 200,
+      "note": null,
+      "violations": []
+    },
+    {
+      "route": "/terms",
+      "path": "/terms",
       "status": "ok",
       "httpStatus": 200,
       "note": null,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Download, RefreshCw } from "lucide-react";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
+import { FormSection } from "@/components/admin/form-section";
 import { Term } from "@/components/admin/help-tip";
 import { SidePanel } from "@/components/admin/side-panel";
 import { StatCard } from "@/components/admin/stat-card";
@@ -21,12 +22,13 @@ import {
   comparableDelta,
   costPerMemberNote,
   dayLabels,
-  fmtMetric,
   fmtMetricExact,
   fmtTimes,
+  metricGroupFormatter,
   metricValue,
   moneyColumn,
   profitNote,
+  trendOrNone,
   type MetricKey,
 } from "@/lib/dashboard/display";
 import { round2, type Derived, type StatTotals } from "@/lib/dashboard/metrics";
@@ -99,6 +101,16 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
   const total = { totals: ads.total, derived: ads.totalDerived };
   const previousTotal = { totals: ads.previousTotal, derived: ads.previousTotalDerived };
 
+  // Une seule précision pour les montants des cartes (dépense, revenu net, bénéfice, et la période d'avant quand on
+  // compare) : « 0,26 € » ne côtoie pas « 214 € ». Le montant exact reste au survol et dans « Détail du total ».
+  const fmt = metricGroupFormatter(
+    KEY_FIGURES.flatMap((k) => [
+      { key: k, value: metricValue(ads.total, ads.totalDerived, k) },
+      ...(f.compare
+        ? [{ key: k, value: metricValue(ads.previousTotal, ads.previousTotalDerived, k) }]
+        : []),
+    ]),
+  );
   const cards = KEY_FIGURES.map((k) => {
     const v = METRIC_VIEWS[k];
     const value = metricValue(ads.total, ads.totalDerived, k);
@@ -109,11 +121,19 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
         key={k}
         label={v.label}
         term={v.term}
-        value={k === "roas" ? fmtTimes(value) : fmtMetric(k, value)}
+        value={
+          k === "roas" ? (
+            fmtTimes(value)
+          ) : v.format === "money" ? (
+            <span title={fmtMetricExact(k, value)}>{fmt(k, value)}</span>
+          ) : (
+            fmt(k, value)
+          )
+        }
         delta={f.compare ? comparableDelta(ads.totalDeltas[k], before) : undefined}
         favorable={v.favorable}
-        hint={f.compare ? `Avant : ${fmtMetric(k, before)}` : undefined}
-        trend={multiDay && chart ? ads.daily.map(chart.pick) : undefined}
+        hint={f.compare ? `Avant : ${k === "roas" ? fmtTimes(before) : fmt(k, before)}` : undefined}
+        trend={multiDay && chart ? trendOrNone(ads.daily.map(chart.pick)) : undefined}
       />
     );
   });
@@ -197,13 +217,13 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/campaigns/${r.campaignId}`}
-              className={buttonVariants({ variant: "outline" })}
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
             >
               Ouvrir la campagne
             </Link>
             <Link
               href={statsHref("/stats/funnel", { ...f, campaignId: r.campaignId })}
-              className={buttonVariants({ variant: "ghost" })}
+              className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-10")}
             >
               Son parcours
             </Link>
@@ -263,20 +283,16 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
         </div>
       </section>
 
-      <section
-        aria-labelledby="ads-daily"
+      <FormSection
+        id="ads-daily"
         className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
+        title="Jour par jour"
+        description={
+          f.compare
+            ? "La période choisie en orange, la précédente en gris, pour toutes les campagnes affichées."
+            : "Pour toutes les campagnes affichées. Survolez la courbe pour lire chaque jour."
+        }
       >
-        <div className="mb-3">
-          <h2 id="ads-daily" className="text-title text-foreground">
-            Jour par jour
-          </h2>
-          <p className="text-body text-muted-foreground">
-            {f.compare
-              ? "La période choisie en orange, la précédente en gris, pour toutes les campagnes affichées."
-              : "Pour toutes les campagnes affichées. Survolez la courbe pour lire chaque jour."}
-          </p>
-        </div>
         {multiDay ? (
           <MetricChart
             metrics={chartMetrics}
@@ -290,24 +306,19 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
             Choisissez une période de plusieurs jours pour voir l&apos;évolution jour par jour.
           </p>
         )}
-      </section>
+      </FormSection>
 
-      <section aria-labelledby="ads-campaigns">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="ads-campaigns" className="text-title text-foreground">
-              Par campagne
-            </h2>
-            <p className="text-body text-muted-foreground">
-              Cliquez sur une campagne pour voir tous ses chiffres.
-            </p>
-          </div>
-          {ads.rows.length > 0 ? (
+      <FormSection
+        id="ads-campaigns"
+        title="Par campagne"
+        description="Cliquez sur une campagne pour voir tous ses chiffres."
+        actions={
+          ads.rows.length > 0 ? (
             <SidePanel
               title="Total de toutes les campagnes"
               description={periodLabel(f.period)}
               trigger={
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="max-md:h-10">
                   Détail du total
                 </Button>
               }
@@ -321,8 +332,9 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
                 une offre.
               </p>
             </SidePanel>
-          ) : null}
-        </div>
+          ) : null
+        }
+      >
         <DataTable
           label="Chiffres par campagne"
           defaultSort={adsDefaultSort(one(sp.sort), one(sp.dir))}
@@ -335,13 +347,19 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
             action: { href: "/campaigns/new", label: "Nouvelle campagne", variant: "outline" },
           }}
         />
-        <p className="mt-3 text-note text-muted-foreground">
-          <Term term="CPL">Coût par membre</Term> = dépense pub ÷ membres entrés ;{" "}
-          <Term term="ROAS">retour sur dépense pub</Term> = revenu net ÷ dépense pub (au-dessus de
-          1, les pubs rapportent plus qu&apos;elles ne coûtent). Les dépenses viennent des comptes
-          publicitaires connectés, des imports et des saisies (onglet Pubs d&apos;une campagne).
-        </p>
-      </section>
+        <div className="space-y-1 text-note text-muted-foreground">
+          <p>
+            Chaque joueur ne compte qu&apos;une fois dans le total, même quand deux campagnes
+            partagent une offre : le total peut être plus petit que la somme des lignes.
+          </p>
+          <p className="max-md:hidden">
+            <Term term="CPL">Coût par membre</Term> = dépense pub ÷ membres entrés ;{" "}
+            <Term term="ROAS">retour sur dépense pub</Term> = revenu net ÷ dépense pub (au-dessus de
+            1, les pubs rapportent plus qu&apos;elles ne coûtent). Les dépenses viennent des comptes
+            publicitaires connectés, des imports et des saisies (onglet Pubs d&apos;une campagne).
+          </p>
+        </div>
+      </FormSection>
     </>
   );
 }

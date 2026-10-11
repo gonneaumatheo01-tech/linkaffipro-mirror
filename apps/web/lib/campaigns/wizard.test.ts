@@ -40,22 +40,26 @@ describe("assistant Nouvelle campagne : lecture de la charge", () => {
       expect(r.data.connectionId).toBeNull();
     }
   });
-  it("refuse un nom vide et renvoie à l'étape 1", () => {
+  it("refuse un nom vide et renvoie à l'étape 1, sur le champ du nom", () => {
     const r = parseWizardPayload({ ...base, name: "  " });
-    expect(r).toMatchObject({ ok: false, error: { step: "general" } });
+    expect(r).toMatchObject({ ok: false, error: { step: "general", field: "name" } });
   });
-  it("refuse une date de fin avant le début", () => {
+  it("refuse une date de fin avant le début (champ « Fin »)", () => {
     const r = parseWizardPayload({ ...base, startAt: "2026-10-10", endAt: "2026-10-01" });
-    expect(r).toMatchObject({ ok: false, error: { step: "general" } });
+    expect(r).toMatchObject({ ok: false, error: { step: "general", field: "endAt" } });
+    expect(parseWizardPayload({ ...base, budgetDaily: "-3" })).toMatchObject({
+      ok: false,
+      error: { step: "general", field: "budgetDaily" },
+    });
   });
   it("exige une plateforme et un canal dès qu'il y a des pubs", () => {
     expect(parseWizardPayload({ ...base, adPlatform: "" })).toMatchObject({
       ok: false,
-      error: { step: "ads" },
+      error: { step: "ads", field: "adPlatform" },
     });
     expect(parseWizardPayload({ ...base, channelIds: [] })).toMatchObject({
       ok: false,
-      error: { step: "channels" },
+      error: { step: "channels", field: "channelIds" },
     });
   });
   it("accepte une campagne sans pub ni canal (modifiable ensuite)", () => {
@@ -74,7 +78,7 @@ describe("assistant Nouvelle campagne : lecture de la charge", () => {
     expect(r.ok && r.data.entryChannelId).toBe("ch2");
     expect(
       parseWizardPayload({ ...base, channelIds: ["ch1", "ch2"], entryChannelId: "ch9" }),
-    ).toMatchObject({ ok: false, error: { step: "ads" } });
+    ).toMatchObject({ ok: false, error: { step: "ads", field: "entryChannelId" } });
     expect(
       parseWizardPayload({ ...base, channelIds: ["ch1", "ch2"], entryChannelId: "" }),
     ).toMatchObject({ ok: false, error: { step: "ads" } });
@@ -102,7 +106,7 @@ describe("assistant Nouvelle campagne : lecture de la charge", () => {
   it("limite le nombre de pubs à 20 et ignore un univers inconnu", () => {
     expect(parseWizardPayload({ ...base, adCount: 21 })).toMatchObject({
       ok: false,
-      error: { step: "ads" },
+      error: { step: "ads", field: "adCount" },
     });
     const r = parseWizardPayload({ ...base, vertical: "AUTRE" });
     if (r.ok) expect(r.data.vertical).toBeNull();

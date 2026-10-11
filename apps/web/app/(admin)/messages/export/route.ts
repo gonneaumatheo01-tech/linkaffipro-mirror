@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       "Clics uniques",
       "Clics offres",
       "Inscriptions",
-      "Premiers dépôts",
+      "Premiers dépôts (FTD)",
       "Dépôts (nb)",
       "Dépôts (EUR)",
       "Début du texte",

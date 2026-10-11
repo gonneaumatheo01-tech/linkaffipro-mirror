@@ -1,11 +1,11 @@
-import { prisma, type ChatType, type Vertical } from "@linkaffipro/db";
+import { prisma, type ChatType, type Prisma, type Vertical } from "@linkaffipro/db";
 import {
   entryRuleFromRow,
   gateChannelChoices,
   type EntryRule,
   type GateChannelChoice,
 } from "./entry-rule";
-import { OPEN_REQUEST_STATUSES } from "./requests";
+import { MEMBER_STATUSES, OPEN_REQUEST_STATUSES } from "./requests";
 
 /**
  * Lectures des écrans Canaux (liste et fiche). Mêmes définitions que les onglets de la fiche :
@@ -103,6 +103,55 @@ export async function loadChannelCounts(
     }),
   ]);
   return { members, pending };
+}
+
+/** Lignes par page de l'onglet « Membres » de la fiche canal (même taille que les autres listes longues). */
+export const CHANNEL_MEMBERS_PAGE_SIZE = 50;
+
+const channelMemberInclude = {
+  member: { select: { id: true, firstName: true, lastName: true, username: true } },
+} satisfies Prisma.MembershipInclude;
+
+export type ChannelMembersPage = {
+  rows: Prisma.MembershipGetPayload<{ include: typeof channelMemberInclude }>[];
+  /** Adhésions abouties listées (présents + partis + exclus). */
+  total: number;
+  present: number;
+  left: number;
+  kicked: number;
+  page: number;
+  pages: number;
+};
+
+/**
+ * Onglet « Membres » de la fiche canal : une page d'adhésions abouties (`MEMBER_STATUSES` : acceptés, partis, exclus),
+ * les plus récemment acceptées d'abord, avec le compte par état pour l'en-tête. Une page trop grande revient à la
+ * dernière.
+ */
+export async function loadChannelMembersPage(
+  channelId: string,
+  page: number,
+  size = CHANNEL_MEMBERS_PAGE_SIZE,
+): Promise<ChannelMembersPage> {
+  const where: Prisma.MembershipWhereInput = { channelId, status: { in: [...MEMBER_STATUSES] } };
+  const groups = await prisma.membership.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const count = (status: string) => groups.find((g) => g.status === status)?._count._all ?? 0;
+  const present = count("APPROVED");
+  const left = count("LEFT");
+  const kicked = count("KICKED");
+  const total = present + left + kicked;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const current = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  const rows = total
+    ? await prisma.membership.findMany({
+        where,
+        orderBy: [{ approvedAt: "desc" }, { requestedAt: "desc" }, { id: "asc" }],
+        skip: (current - 1) * size,
+        take: size,
+        include: channelMemberInclude,
+      })
+    : [];
+  return { rows, total, present, left, kicked, page: current, pages };
 }
 
 /**

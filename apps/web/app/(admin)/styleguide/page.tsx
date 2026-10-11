@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+import { fmtTimes } from "@/components/charts/chart-logic";
 import { resolvePeriod } from "@/lib/periods";
 import { requireAdminPage } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
@@ -42,6 +42,7 @@ import {
   ConfirmDemos,
   DialogDemo,
   MenuDemo,
+  RichTextDemo,
   SelectDemo,
   SidePanelDemo,
   StepperDemo,
@@ -139,7 +140,7 @@ const COLOR_GROUPS: Array<{ title: string; swatches: Swatch[] }> = [
         cls: "bg-input",
         name: "input",
         hex: "#D5D9E0",
-        usage: "Bordure des champs et boutons « outline ».",
+        usage: "Bordure des champs et boutons « outline ».",
       },
     ],
   },
@@ -592,7 +593,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
   description="Ce que vous promouvez et ce que ça rapporte."
   backHref="/" backLabel="Accueil"
   meta={<UniverseDot universe="CASINO" variant="pill" />}
-  secondaryActions={<Link className={buttonVariants({ variant: "outline" })} href="/campaigns/links">Tous les liens</Link>}
+  secondaryActions={<Link className={cn(buttonVariants({ variant: "outline" }))} href="/campaigns/links">Tous les liens</Link>}
   primaryAction={{ label: "Nouvelle campagne", href: "/campaigns/new" }}
 />`}</pre>
           </Demo>
@@ -647,7 +648,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
             <StatCard
               label="Retour sur dépense pub"
               term="ROAS"
-              value="2,4"
+              value={fmtTimes(2.4)}
               delta={0}
               comparison="vs la semaine dernière"
             />
@@ -747,7 +748,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
         <Section
           id="formulaires"
           title="Formulaires"
-          description="Trois niveaux : visible (ce qu'il faut pour que ça marche), un clic (médias, boutons, test A/B), « Avancé » replié (réglages rares, valeurs par défaut sensées). Chaque champ a son libellé relié."
+          description="Trois niveaux : visible (ce qu'il faut pour que ça marche), un clic (médias, boutons, test A/B), « Avancé » replié (réglages rares, valeurs par défaut sensées). Chaque champ a son libellé relié."
         >
           <Demo>
             <form className="max-w-2xl space-y-8" action="/styleguide" method="get">
@@ -768,10 +769,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
                     Visible seulement par l&apos;équipe.
                   </p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sg-text">Texte</Label>
-                  <Textarea id="sg-text" name="text" placeholder="Bonjour ! Ce week-end…" />
-                </div>
+                <RichTextDemo />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SelectDemo />
                   <div className="space-y-1.5">
@@ -831,7 +829,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
         <Section
           id="aide"
           title="Aide"
-          description="Le terme technique apparaît au survol, au toucher et au focus clavier (Term) ; le bouton « ? » ouvre l'aide de la page dans un volet ; les infobulles (HelpTip) restent courtes et ne sont jamais coupées par une carte."
+          description="Le terme technique apparaît au survol, au toucher et au focus clavier (Term) ; le bouton « ? » ouvre l'aide de la page dans un volet ; les infobulles (HelpTip) restent courtes et ne sont jamais coupées par une carte."
         >
           <Demo>
             <div className="flex flex-wrap items-center gap-6">
@@ -869,7 +867,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
         <Section
           id="etapes"
           title="Étapes"
-          description="Stepper : étapes numérotées, en cours en orange, faites cochées, à venir en gris ; sur téléphone « Étape 2 sur 4 · Offres »."
+          description="Stepper : étapes numérotées, en cours en orange, faites cochées, à venir en gris ; sur téléphone « Étape 2 sur 4 · Offres »."
         >
           <Demo title="Statique (composant serveur)">
             <Stepper
@@ -890,7 +888,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
         <Section
           id="confirmation"
           title="Confirmation et volets"
-          description="ConfirmDialog dit ce qui va se passer ; le bouton est rouge si l'action est destructive ; « Annuler » a le focus. ConfirmSubmit fait la même chose pour un bouton de formulaire. SidePanel : détail à droite, plein écran sur téléphone."
+          description="ConfirmDialog dit ce qui va se passer ; le bouton est rouge si l'action est destructive ; « Annuler » a le focus. ConfirmSubmit fait la même chose pour un bouton de formulaire. SidePanel : détail à droite, plein écran sur téléphone."
         >
           <Demo>
             <ConfirmDemos />
@@ -930,7 +928,7 @@ export default async function StyleguidePage({ searchParams }: PageProps<"/style
           </div>
           <Flash
             ok="Message programmé pour vendredi 19 h."
-            error="Le canal « VIP » n'a pas pu être importé."
+            error="Le canal « VIP » n'a pas pu être importé."
           />
         </Section>
 

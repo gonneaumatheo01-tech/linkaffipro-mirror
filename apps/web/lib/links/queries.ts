@@ -1,4 +1,5 @@
 import { prisma, type Prisma, type TrackingLinkKind } from "@linkaffipro/db";
+import { linkLabel } from "./label";
 
 export const LINKS_PAGE_SIZE = 50;
 
@@ -37,5 +38,7 @@ export async function listLinksPage(kinds: TrackingLinkKind[], page: number, siz
     if (p.ftdAt) a.ftds++;
     agg.set(id, a);
   }
-  return { rows, total, pages: Math.max(1, Math.ceil(total / size)), page: current, agg };
+  // Nom affiché : l'ancien repère « (envoi groupé) » devient « (message à un groupe) » (voir ./label).
+  const shown = rows.map((r) => ({ ...r, label: linkLabel(r.label) }));
+  return { rows: shown, total, pages: Math.max(1, Math.ceil(total / size)), page: current, agg };
 }

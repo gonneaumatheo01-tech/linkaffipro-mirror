@@ -4,40 +4,52 @@ Règles visuelles et catalogue des composants de l'interface (phase 9, spécific
 Tout est visible en situation sur la page interne **`/styleguide`** (administrateurs seulement, hors menu).
 
 - Jetons de thème : `apps/web/app/globals.css` (thème clair uniquement, pas de classes `.dark`).
-- Primitives : `apps/web/components/ui/*` (shadcn sur Base UI, restylées). Composants d'application : `apps/web/components/admin/*`.
-- Une seule bibliothèque, un seul style : on n'ajoute pas de deuxième jeu de composants, on n'écrit pas de couleur en dur (`#…`, `emerald-500`, `amber-50`…). On utilise les jetons ci-dessous.
+- Primitives : `apps/web/components/ui/*` (shadcn sur Base UI, restylées). Composants partagés de l'application : `apps/web/components/admin/*`. Composants propres à une rubrique : `apps/web/components/<rubrique>/*` (voir § 3.6).
+- Une seule bibliothèque, un seul style : on n'ajoute pas de deuxième jeu de composants, on n'écrit pas de couleur en dur (`#…`, `emerald-500`, `amber-50`…). On utilise les jetons ci-dessous. Un composant qui sert à deux rubriques ou plus va dans `components/admin/` (ex. `FilterChips`, `ScrollToCurrent`).
+
+Contrôles automatiques (`pnpm --filter web test`) qui gardent ces règles :
+
+| Test                                                | Ce qu'il vérifie                                                                                                       |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/components/ui/theme-contrast.test.ts`     | Contrastes AA recalculés depuis `globals.css` (texte ≥ 4,5:1 ; bordures de champ, courbes, focus ≥ 3:1).               |
+| `apps/web/tests/a11y/static-a11y.test.ts`           | `alt` sur les images, nom accessible des boutons icône, champs reliés à un libellé.                                    |
+| `apps/web/tests/vocabulary/no-jargon.test.ts`       | Aucun terme technique dans le texte visible (le terme passe par `Term`, `term` ou `title`).                            |
+| `apps/web/tests/routes/no-legacy-addresses.test.ts` | Aucune ancienne adresse (`/broadcasts`, `/links`…) dans le code : tout déplacement s'ajoute à `lib/legacy-routes.ts`.  |
+| `apps/web/lib/help/page-help.test.ts`               | Chaque page de `app/(admin)` a son aide « ? » (une ligne de `PAGE_HELP`) et chaque section citée existe dans le guide. |
+| `apps/web/lib/help/guide-content.test.ts`           | Plan du guide (ordre du menu), titres uniques, liens internes, vocabulaire du client et vouvoiement.                   |
+| `apps/web/lib/status-badges.test.ts`                | Tout statut a son libellé français.                                                                                    |
 
 ## 1. Règles
 
 ### Couleurs et usage
 
-| Jeton (classe Tailwind)                                                   | Valeur            | Usage                                                                                                        |
-| ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| `bg-brand` + `text-brand-foreground`                                      | #FCA314 + #020713 | Bouton principal, élément actif ou sélectionné, accents. Jamais de texte blanc sur l'orange (contraste 2:1). |
-| `text-brand-ink`                                                          | #9A5B00           | Orange lisible pour un texte ou un lien sur fond clair (5,2:1).                                              |
-| `bg-brand-soft`                                                           | #FFF4E0           | Fond orange très pâle : rond des états vides, compteur « réglages modifiés », ligne sélectionnée.            |
-| `bg-night`, `text-night-foreground`, `text-night-muted`, `bg-night-hover` | #020713…          | Barre de menu, en-têtes sombres, infobulles.                                                                 |
-| `bg-background`                                                           | #FAFAF7           | Fond des pages (blanc cassé).                                                                                |
-| `bg-card` / `bg-surface`                                                  | #FFFFFF           | Cartes, tableaux, volets, champs.                                                                            |
-| `text-foreground`                                                         | #1A1F2B           | Texte principal.                                                                                             |
-| `text-muted-foreground`                                                   | #5B6474           | Texte secondaire, lignes d'aide, en-têtes de tableau (5,7:1).                                                |
-| `border-border`                                                           | #E4E6EB           | Bordures 1 px des cartes, tableaux, séparateurs.                                                             |
-| `border-muted-foreground/75` (`fieldBorderClass`)                         | ≈ #848C9B         | Bordure des champs (Input, Textarea, SelectTrigger, Checkbox, `NativeSelect`) : 3,4:1 (WCAG 1.4.11).         |
-| `border-input`                                                            | #D5D9E0           | Boutons « outline » seulement (1,4:1 : reconnus par leur texte). Jamais pour un champ.                       |
-| `text-success` + `bg-success-soft`                                        | #15803D           | Réussi, en ligne, variation favorable.                                                                       |
-| `text-warning` + `bg-warning-soft`                                        | #854D0E           | À surveiller, en attente (jaune-brun, distinct de l'orange de marque).                                       |
-| `text-danger` + `bg-danger-soft`                                          | #B91C1C           | Échec, erreur, action destructive.                                                                           |
-| `text-info` + `bg-info-soft`                                              | #1D4ED8           | En cours, programmé, information.                                                                            |
+| Jeton (classe Tailwind)                                                   | Valeur            | Usage                                                                                                         |
+| ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| `bg-brand` + `text-brand-foreground`                                      | #FCA314 + #020713 | Bouton principal, élément actif ou sélectionné, accents. Jamais de texte blanc sur l'orange (contraste 2:1).  |
+| `text-brand-ink`                                                          | #9A5B00           | Orange lisible pour un texte ou un lien sur fond clair (5,2:1).                                               |
+| `bg-brand-soft`                                                           | #FFF4E0           | Fond orange très pâle : rond des états vides, compteur « réglages modifiés », ligne ou pastille sélectionnée. |
+| `bg-night`, `text-night-foreground`, `text-night-muted`, `bg-night-hover` | #020713…          | Barre de menu, barre du bas du téléphone, en-têtes sombres, infobulles.                                       |
+| `bg-background`                                                           | #FAFAF7           | Fond des pages (blanc cassé).                                                                                 |
+| `bg-card` / `bg-surface`                                                  | #FFFFFF           | Cartes, tableaux, volets, champs.                                                                             |
+| `text-foreground`                                                         | #1A1F2B           | Texte principal.                                                                                              |
+| `text-muted-foreground`                                                   | #5B6474           | Texte secondaire, lignes d'aide, en-têtes de tableau (5,7:1).                                                 |
+| `border-border`                                                           | #E4E6EB           | Bordures 1 px des cartes, tableaux, séparateurs.                                                              |
+| `border-muted-foreground/75` (`fieldBorderClass`)                         | ≈ #848C9B         | Bordure des champs (Input, Textarea, SelectTrigger, Checkbox, `NativeSelect`) : 3,4:1 (WCAG 1.4.11).          |
+| `border-input`                                                            | #D5D9E0           | Boutons « outline » seulement (1,4:1 : reconnus par leur texte). Jamais pour un champ.                        |
+| `text-success` + `bg-success-soft`                                        | #15803D           | Réussi, en ligne, variation favorable.                                                                        |
+| `text-warning` + `bg-warning-soft`                                        | #854D0E           | À surveiller, en attente (jaune-brun, distinct de l'orange de marque).                                        |
+| `text-danger` + `bg-danger-soft`                                          | #B91C1C           | Échec, erreur, action destructive.                                                                            |
+| `text-info` + `bg-info-soft`                                              | #1D4ED8           | En cours, programmé, information.                                                                             |
 
-Contrastes vérifiés (WCAG AA) : chaque texte d'état sur son fond doux ≥ 4,7:1 ; texte nuit sur orange 10:1. Le test
-`apps/web/components/ui/theme-contrast.test.ts` recalcule ces rapports depuis `globals.css` (texte ≥ 4,5:1 ; bordure
-des champs, courbes et anneau de focus ≥ 3:1) : ajoutez-y tout nouveau couple de couleurs.
+**`primary` = fonds seulement.** `bg-primary` (l'orange de marque, utilisé par les primitives shadcn) est un fond ; `text-primary` est interdit pour du texte (orange à 2:1 sur blanc, illisible). Un texte ou un lien orange s'écrit **`text-brand-ink`** ; un texte posé sur l'orange s'écrit `text-brand-foreground` (nuit). Même règle pour les bordures fines porteuses de sens (`border-brand-ink`) et les courbes (`stroke-brand-ink`).
+
+Contrastes vérifiés (WCAG AA) : chaque texte d'état sur son fond doux ≥ 4,7:1 ; texte nuit sur orange 10:1. Ajoutez tout nouveau couple de couleurs à `theme-contrast.test.ts`.
 
 ### Univers
 
 Casino violet `casino` (#7C3AED), Paris sportifs vert `sports` (#059669), Rencontres rose `dating` (#DB2777).
-**Toujours en pastille, en bordure fine ou en étiquette, jamais en fond plein.** Texte coloré : `text-casino-ink`, `text-sports-ink`, `text-dating-ink` (AA).
-Libellés et classes : `apps/web/lib/universe.ts` (`UNIVERSE_LABELS`, `toUniverse`, `universeLabel`, `universeClasses`, `UNIVERSE_CSS_VARS` pour les graphiques). Composant : `UniverseDot`.
+**Toujours en pastille, en bordure fine ou en étiquette, jamais en fond plein.** Texte coloré : `text-casino-ink`, `text-sports-ink`, `text-dating-ink` (AA). Libellés affichés : « Casino », « Paris sportifs », « Rencontres » (jamais « Dating » ni « Sports »).
+Libellés et classes : `apps/web/lib/universe.ts` (`UNIVERSE_LABELS`, `toUniverse`, `universeLabel`, `universeClasses`, `UNIVERSE_CSS_VARS` pour les graphiques). Composant : `UniverseDot`. Le calendrier des messages borde chaque carte de la couleur de son univers (bordure gauche, jamais un fond).
 
 ### Typographie
 
@@ -55,27 +67,38 @@ cellules de chiffres** (`TableCell numeric`, ou cellule alignée à droite). Pas
 élargissent les tirets (« week - end », « - 1001111 »).
 Exception technique : les champs de saisie passent à 16 px sur téléphone (sinon iOS zoome).
 
+### Chiffres, montants et dates
+
+- **Vrai signe moins.** Un nombre négatif s'écrit avec U+2212 (« −151,64 € »), jamais avec le trait d'union : en chiffres tabulaires, le trait d'union d'Inter prend la largeur d'un chiffre et se détache (« - 151,64 € »). `withMinusSign()` (`lib/campaigns/cards.ts`) ; `groupMoney`, `compactMoney` et `exactMoney` l'appliquent d'office. Une baisse se lit « −12,96 € » ou « −15,3 % ».
+- **Une précision d'arrondi par groupe.** Les montants affichés ensemble (une grille de cartes et sa ligne de total, l'en-tête d'une fiche, une colonne) ont tous la même précision : à l'euro dès que l'un d'eux atteint 100 € en valeur absolue, au centime sinon (`groupMoneyDigits(values)` puis `groupMoney(n, digits)`). « 1 813 € » ne côtoie jamais « 558,14 € ». Un montant isolé : `compactMoney`. Le montant exact au centime reste au survol (`title`), dans le volet de détail et dans l'export (`exactMoney`).
+- **Montants très petits** : « moins de 0,01 € » plutôt que « 0,00 € ». Un bénéfice de moins d'un centime est neutre (`profitTone`), jamais un « −0,00 € » rouge.
+- **Valeur absente** : « — » (tiret cadratin), trié avec les vides dans un `DataTable`.
+- **Variation** : flèche + signe + pourcentage, verte si favorable (`favorable="down"` pour un coût : une baisse est verte), et une phrase pour les lecteurs d'écran. Si la valeur d'avant est nulle ou négative, aucun pourcentage : « Pas de comparaison possible » (`delta={null}`), la valeur d'avant reste écrite (« Avant : −1,74 € »).
+- **Formats** : `lib/format.ts` (`fmtNum` « 12 345 », `fmtMoney`, `fmtPct` « 15,3 % », `fmtDate` « 09/10/2026 14:05 » en heure de Paris, `fmtDateShort` « 9 oct. », `fmtRelative` « il y a 3 min »). Toujours l'heure de Paris à l'écran.
+
 ### Espacements, formes, ombres
 
 - Grille de 8 px (`gap-2`, `gap-4`, `p-4`, `space-y-6`…).
 - Cartes : `rounded-xl` (12 px), bordure 1 px `border-border`, fond blanc, **aucune ombre lourde** (au plus `shadow-xs` ; les menus et boîtes flottantes ont une ombre légère pour se détacher).
 - Boutons et champs : `rounded-lg` ; pastilles : `rounded-full`.
 
-### Un bouton principal par page
+### Un bouton principal par écran
 
-Le bouton orange (`<Button>` variante `default`) est **unique** sur un écran : « Programmer », « Envoyer », « Nouvelle campagne ». Les autres actions sont `outline`, `secondary` ou `ghost`. Dans un `PageHeader`, le principal se passe en `primaryAction`, les autres en `secondaryActions`.
+Le bouton orange (`<Button>` variante `default`) est **unique** sur un écran : « Programmer », « Envoyer », « Nouvelle campagne ». Les autres actions sont `outline`, `secondary` ou `ghost`. Dans un `PageHeader`, le principal se passe en `primaryAction`, les autres en `secondaryActions`. Les sous-navigations (onglets), les filtres et le volet d'aide n'ont jamais de bouton orange. Dans un volet ou une boîte de dialogue, le principal est le dernier du pied.
+
+**Lien qui ressemble à un bouton** : `<Link href="…" className={buttonVariants({ variant: "outline" })}>`. Jamais `<Button render={<Link/>}>` (avertissement Base UI, sémantique de bouton donnée à un lien).
 
 ### Tableaux : 5 colonnes au plus
 
-Une liste montre au plus 5 colonnes (le `DataTable` avertit en développement au-delà). Le reste va dans le volet de détail (ligne cliquable) ou sur la fiche. Graphiques avant tableaux. Sur téléphone, masquez la colonne la moins utile (`hideOnMobile`).
+Une liste montre au plus 5 colonnes (le `DataTable` avertit en développement au-delà). Le reste va dans le volet de détail (ligne cliquable) ou sur la fiche. **Graphiques avant tableaux.** Sur téléphone, masquez la colonne la moins utile (`hideOnMobile`).
 
 ### Formulaires en trois niveaux
 
 1. **Visible** (`FormSection`) : ce qu'il faut pour que ça marche (3 à 5 champs).
-2. **Un clic** (`FormSection` supplémentaire ou bouton « + Ajouter… ») : médias, boutons, test A/B.
-3. **Avancé** (`AdvancedSection`, replié) : réglages rares, avec des valeurs par défaut sensées. Pas de champ obligatoire dans un bloc replié.
+2. **Un clic** (`FormSection` supplémentaire ou bouton « + Média », « + Boutons », « Test A/B ») : médias, boutons, test A/B.
+3. **Avancé** (`AdvancedSection`, replié) : réglages rares, avec des valeurs par défaut sensées. Pas de champ obligatoire dans un bloc replié ; `modifiedCount` signale ce qui a été changé.
 
-Un seul bouton principal (« Programmer » / « Envoyer ») ; « Enregistrer en brouillon » en secondaire. Chaque champ a un `<Label htmlFor>` relié (ou un `aria-label`) ; une ligne d'aide en `text-note text-muted-foreground` sous le champ si besoin.
+Un seul bouton principal (« Programmer » / « Envoyer ») ; « Enregistrer en brouillon » en secondaire. Chaque champ a un `<Label htmlFor>` relié (ou un `aria-label`) ; une ligne d'aide en `text-note text-muted-foreground` sous le champ si besoin. Les assistants en étapes (nouvelle campagne, écrire à un groupe, import CSV) utilisent `Stepper` avec une ligne d'aide par étape et un récapitulatif avant l'action finale.
 
 ### Vocabulaire (interface, guide, rapports, exports)
 
@@ -92,40 +115,95 @@ Un seul bouton principal (« Programmer » / « Envoyer ») ; « Enregistrer en 
 | cohorte               | membres dans le temps                  | cohorte                                      |
 | entonnoir             | parcours                               | entonnoir                                    |
 | webhook, postback     | connexion, retour du casino            | terme exact dans Réglages → Avancé seulement |
+| worker                | service d'arrière-plan                 | —                                            |
 
-Vouvoiement, français simple, pas de jargon en surface. Univers : « Casino », « Paris sportifs », « Rencontres ».
+Vouvoiement, français simple, une phrase claire plutôt qu'une longue infobulle. Univers : « Casino », « Paris sportifs », « Rencontres ». **Le terme technique ne revient jamais en surface** : `tests/vocabulary/no-jargon.test.ts` échoue sinon. Exceptions courtes et justifiées : Réglages → Avancé (retours du casino), le `/styleguide`, les exports CSV (« Premiers dépôts (FTD) », le terme entre parenthèses après le mot du client) et l'aide intégrée (`lib/help/`). Dans le guide, le terme technique n'apparaît que dans le **Petit lexique**, la table des anciennes pages et Réglages → Avancé.
 
 ### Le terme technique au survol
 
-Le mot du client est affiché ; le terme exact apparaît au survol, au toucher et au focus clavier : `<Term term="FTD">premiers dépôts</Term>` (soulignement pointillé discret, bulle « Terme technique : FTD »). Il est aussi lu par les lecteurs d'écran (« premiers dépôts (FTD) »). Dans un bouton, un lien ou un libellé (en-tête triable, carte cliquable), `Term` reste un simple texte (pas de bouton dans un bouton) : le terme passe alors dans le nom accessible du parent et en `title`. `StatCard` (`term`) et `DataTable` (`column.term`) le font tout seuls. Les infobulles longues (`HelpTip`) sont l'exception, pas la règle.
+Le mot du client est affiché ; le terme exact apparaît au survol, au toucher et au focus clavier : `<Term term="FTD">premiers dépôts</Term>` (soulignement pointillé discret, bulle « Terme technique : FTD »). Il est aussi lu par les lecteurs d'écran (« premiers dépôts (FTD) »). Dans un bouton, un lien ou un libellé (en-tête triable, carte cliquable), `Term` reste un simple texte (pas de bouton dans un bouton) : le terme passe alors dans le nom accessible du parent et en `title`. `StatCard` (`term`), `CampaignFigure` (`term`) et `DataTable` (`column.term`) le font tout seuls. Les infobulles longues (`HelpTip`) sont l'exception, pas la règle.
 
 ### Accessibilité
 
 - Libellés reliés (`<Label htmlFor>`), `aria-label` sur tout bouton icône (contrôlé par `apps/web/tests/a11y`).
 - Focus toujours visible : contour 2 px `ring` (#9A5B00) décalé de 2 px ; les champs prennent une bordure orange foncé et un halo.
-- Contraste AA pour tout texte (voir tableau des couleurs) ; la couleur n'est jamais la seule information (pastille = point + mot, variation = flèche + signe + phrase pour lecteur d'écran).
-- Cibles tactiles ≥ 40 px sur téléphone : les boutons, éléments de menu, listes de choix, pagination, en-têtes triables et premières cellules du `DataTable` le font d'office (`max-md:min-h-10`).
-- Bordure des champs à 3:1 au moins (`fieldBorderClass`) ; mini-courbes en `brand-ink` (l'orange de marque ne fait que 2:1 sur blanc).
+- Contraste AA pour tout texte (voir tableau des couleurs) ; la couleur n'est jamais la seule information (pastille = point + mot, variation = flèche + signe + phrase pour lecteur d'écran, barres = valeur écrite à côté).
+- Cibles tactiles ≥ 40 px sur téléphone : les boutons, éléments de menu, listes de choix, pagination, en-têtes triables, pastilles de filtre et premières cellules du `DataTable` le font d'office (`max-md:min-h-10`, `max-md:h-10`).
+- Bordure des champs à 3:1 au moins (`fieldBorderClass`) ; mini-courbes et lignes de graphique en `brand-ink` (l'orange de marque ne fait que 2:1 sur blanc).
 - Tableau plus large que l'écran : la zone défile, prend le focus clavier (flèches) avec un nom (`label` ou légende) et montre un dégradé sur le bord tant qu'il reste des colonnes (contrôle axe `scrollable-region-focusable`).
 - Bulles d'aide (`Term`, `HelpTip`) : ouvertes au survol, au toucher et au focus clavier, rendues dans un portail (jamais coupées par une carte ou un tableau), texte relié au bouton par `aria-describedby`.
 - Un seul `<h1>` par page (celui du `PageHeader`) ; titres de section en `<h2>`.
+- Lien d'évitement « Aller au contenu » (coque) ; `prefers-reduced-motion` coupe les animations (`motion-safe:`).
+- Contrôle de rendu : `pnpm a11y --base http://localhost:<port> --pages …` (axe, échoue sur « critical » ; `--fail-on serious` à 390 px pour l'accueil). Procédure : `docs/REFONTE-DEV.md`.
+
+### Navigation, adresses et aide
+
+- **Menu** : `components/admin/nav-logic.ts` (`NAV`) : 6 entrées + Réglages en bas ; « Guide d'utilisation » et « Mon compte » seulement dans « Plus » du téléphone (`mobileOnly`). Barre du bas du téléphone : `MOBILE_PRIMARY_HREFS` (Accueil, Messages, Membres, Campagnes) puis « Plus ». Une rubrique rangée sous une entrée l'allume (`activeHref`, la plus précise gagne).
+- **Adresses déplacées** : `lib/legacy-routes.ts` (redirection 308 appelée par `proxy.ts`, après la branche de tracking). Tout nouveau déplacement s'y ajoute.
+- **Aide « ? »** : toute nouvelle page reçoit une ligne dans `lib/help/page-help.ts` (`PAGE_HELP`, segments `:id` permis pour les fiches) et sa section dans `docs/GUIDE-UTILISATEUR.md` (une section par écran, libellés exacts des boutons). Une section pas encore écrite peut vivre dans `lib/help/builtin-sections.ts` le temps de l'écrire.
+- **Visite guidée** : repères `data-tour="nav-<clé>"` (`navTourId`), `nav-more` et `help` ; étapes dans `components/admin/tour/tour-logic.ts`.
 
 ## 2. Pièges connus (développeurs)
 
-- **Fusion de classes** : importez `cn` depuis `@/components/ui/cn`. Il connaît les tailles `text-title|body|note|figure` ; le `cn` brut du paquet « cn » croit que `text-note` est une couleur et l'efface devant `text-muted-foreground`.
-- **Lien qui ressemble à un bouton** : `<Link href="…" className={buttonVariants({ variant: "outline" })}>` (et non `<Button render={<Link/>}>`, qui déclenche un avertissement Base UI et donne une sémantique de bouton à un lien).
-- **Composants serveur / client** : `DataTable`, `SidePanel`, `HelpButton`, `ConfirmDialog`, `ConfirmSubmit` sont des composants client. Depuis une page serveur, passez des données sérialisables (cellules déjà rendues, `detail` en JSX) ; les fonctions (`renderDetail`, `rowHref`, `onConfirm`, `onStepClick`) seulement depuis un composant client.
+- **Fusion de classes** : importez `cn` depuis `@/lib/utils` (ou `@/components/ui/cn`, même fonction). Il connaît les tailles `text-title|body|note|figure` ; le `cn` brut du paquet « cn » croit que `text-note` est une couleur et l'efface devant `text-muted-foreground`.
+- **Lien qui ressemble à un bouton** : `<Link className={buttonVariants({...})}>`, jamais `<Button render={<Link/>}>`.
+- **Composants serveur / client** : `DataTable`, `SidePanel`, `HelpButton`, `ConfirmDialog`, `ConfirmSubmit`, `ScrollToCurrent`, `RichTextEditor`, `TimeChart`, `MetricChart` sont des composants client. Depuis une page serveur, passez des données sérialisables (cellules déjà rendues, `detail` en JSX) ; les fonctions (`renderDetail`, `rowHref`, `onConfirm`, `onStepClick`) seulement depuis un composant client. `FilterChips`, `BarList`, `HomeSection`, `SettingsCardGrid`, `BrandLogo` sont des composants serveur.
 - **Tri du DataTable** : il trie les lignes reçues (la page affichée). Pour trier toute une liste paginée, triez côté serveur. Une cellule texte au format français (« 1 234 € », « −15,3 % », « 09/10/2026 14:05 ») est relue comme nombre ou date, et « — » est trié avec les vides ; pour un nœud React (`<span>`, pastille) ou un autre texte (« 12 / 40 »), passez `sortValues`, sinon la colonne ne se trie pas (avertissement en développement pour les colonnes `align: "right"`).
-- **`DropdownMenuLabel`** : placez-le dans un `DropdownMenuGroup` (ou `DropdownMenuRadioGroup`) avec les éléments qu'il annonce. Le `Menu.GroupLabel` de Base UI plante sans groupe parent (« MenuGroupContext is missing » : toute la page tombait sur l'écran d'erreur à l'ouverture du menu) ; notre `DropdownMenuLabel` se replie seul sur un simple intitulé hors groupe, mais le groupe reste la bonne écriture (il nomme le groupe pour les lecteurs d'écran). N'utilisez pas `MenuPrimitive.GroupLabel` directement.
+- **`DropdownMenuLabel`** : placez-le dans un `DropdownMenuGroup` (ou `DropdownMenuRadioGroup`) avec les éléments qu'il annonce. Le `Menu.GroupLabel` de Base UI plante sans groupe parent (« MenuGroupContext is missing ») ; notre `DropdownMenuLabel` se replie seul sur un simple intitulé hors groupe, mais le groupe reste la bonne écriture. N'utilisez pas `MenuPrimitive.GroupLabel` directement.
 - **Bulles et `overflow`** : une bulle positionnée en `absolute` est coupée par une carte (`Card` est en `overflow-hidden`) ou un tableau qui défile. Toute bulle, menu ou liste flottante passe par un portail Base UI (`Popover`, `Menu`, `Select`, `Tooltip`), comme `HelpTip` et `Term`.
 - **Chiffres tabulaires** : ne posez pas `tabular-nums` sur un `<table>`, une ligne ou un bloc de texte ; seulement sur les cellules de chiffres (`TableCell numeric`) ou un chiffre isolé. La règle globale `table { tabular-nums }` de `globals.css` est neutralisée par `Table` (`normal-nums`).
-- **Pied de boîte de dialogue** : dans `DialogFooter` (et les pieds de `SidePanel`), écrivez d'abord le bouton secondaire (« Annuler », `SidePanelClose`), puis le principal : il se retrouve à droite sur ordinateur et en haut sur téléphone (`flex-col-reverse`). `showCloseButton` place « Fermer » au bon endroit.
+- **Pied de boîte de dialogue et de volet** : dans `DialogFooter` (et les pieds de `SidePanel`), écrivez d'abord le bouton secondaire (« Annuler », `SidePanelClose`), puis le principal : il se retrouve à droite sur ordinateur et en haut sur téléphone (`flex-col-reverse`). `showCloseButton` place « Fermer » au bon endroit. Deux actions longues côte à côte : un conteneur `flex-wrap` (comme `HelpButton`), pour qu'elles passent à la ligne dans un volet étroit.
 - **`<select>` natif** : utilisez `NativeSelect` (ou `nativeSelectClass`) : texte 16 px sur téléphone (sinon iOS zoome au focus), bordure à 3:1, même flèche que `SelectTrigger`.
 - **`Term` et `HelpTip` sont des composants client** (bulle Base UI) : utilisables tels quels depuis une page serveur (le contenu est du JSX sérialisable).
+- **Serveur de développement** : un dossier de build par serveur (`NEXT_DIST_DIR=.next-<port>`), procédure dans `docs/REFONTE-DEV.md`. Jamais `next build` en parallèle d'un autre serveur.
 
 ## 3. Catalogue des composants
 
-### Primitives (`apps/web/components/ui/`)
+### 3.1 Coque de l'application
+
+`app/(admin)/layout.tsx` assemble la coque : lien « Aller au contenu », `Sidebar`, `Header`, `<main id="contenu">` (marges des zones sûres iOS, place réservée à la barre du bas), `Shortcuts`, `BottomNav`, `GuidedTour`.
+
+#### Sidebar — `components/admin/sidebar.tsx`
+
+Barre de menu fond nuit, logo en haut, 6 entrées puis Réglages en bas, séparé. Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Ordinateur (≥ 1024 px) : 240 px, icône et libellé ; tablette (768–1023 px) : rail de 64 px, icônes seules (nom lu par les lecteurs d'écran, infobulle au survol) ; téléphone : cachée. Props : `isAdmin`.
+
+#### BottomNav — `components/admin/bottom-nav.tsx`
+
+Barre du bas du téléphone (< 768 px), fond nuit : Accueil, Messages, Membres, Campagnes, puis **Plus** (volet : Canaux, Statistiques, puis Réglages, Guide d'utilisation, Mon compte). Onglet actif blanc avec un trait orange en haut ; zones sûres iOS respectées. Props : `isAdmin`.
+
+#### Header — `components/admin/header.tsx`
+
+En-tête blanc de toutes les pages : logo et nom sur téléphone ; à droite `GlobalSearch`, `HelpPanel` (bouton « ? », repère `data-tour="help"`) et le menu du compte (rond aux initiales `initials(name)` : Mon compte, Déconnexion). Props : `user`.
+
+#### nav-logic, nav-icons — `components/admin/nav-logic.ts`, `nav-icons.tsx`
+
+Logique pure du menu (testée) : `NAV`, `MOBILE_PRIMARY_HREFS`, `visibleNav`, `navSections` (ordinateur), `mobileNav` (téléphone : `primary` + `more`), `isActiveHref`, `activeHref`, `navTourId`, `initials`. Icônes lucide par nom : `NAV_ICONS`. Pour ajouter une entrée : une ligne dans `NAV` (et son icône), jamais de liste en dur dans un composant.
+
+#### BrandLogo — `components/admin/brand-logo.tsx`
+
+Logo « L » orange sur nuit (import statique, mis en cache, chargé tout de suite), décoratif (`alt=""` : le nom « LinkAffi Pro » est toujours écrit à côté). Composant serveur, utilisable sur les pages sans session (connexion, invitation, confidentialité). Props : `size` (32 par défaut), `className`.
+
+```tsx
+<BrandLogo size={28} />
+```
+
+#### GlobalSearch, Shortcuts — `global-search.tsx`, `shortcuts.tsx`
+
+Recherche globale (`/api/search`) : loupe dans l'en-tête, fenêtre avec résultats groupés, clavier ↑ ↓ Entrée Échap ; ouverture par ⌘K / Ctrl+K, `/` hors d'un champ, ou l'événement `SEARCH_OPEN_EVENT` (`lap:search`). `Shortcuts` : `?` liste les raccourcis, `n` nouveau message depuis /messages.
+
+#### HelpPanel — `components/admin/help-panel.tsx`
+
+Le bouton « ? » de l'en-tête : `HelpButton` dont le contenu vient de `GET /api/help?path=…` (sections du guide choisies par `lib/help/page-help.ts`, repli sur « Les 10 premières minutes »), mis en cache par page. Pied : **Revoir la visite guidée** (ferme le volet puis relance la visite par `requestTourStart`) et **Ouvrir le guide complet** (`guideHref(help)` : `/help#<première section>`). Props : `className`.
+
+#### GuidedTour — `components/admin/tour/guided-tour.tsx` (+ `tour-logic.ts`, `tour-events.ts`)
+
+Visite de 2 minutes (7 étapes, `TOUR_STEPS`) : bulle accrochée à chaque entrée du menu, fond assombri autour, « Suivant », « Précédent », « Terminer », « Passer la visite », Échap, flèches. Démarre seule à la première connexion (`autoStart`, état `onboarding.<userId>`), jamais dans un navigateur piloté (captures). Relance : `requestTourStart()` ou `restartTourAction` (Réglages, Mon compte, /help). Composant maison sans dépendance ; placement calculé par `tour-logic.ts` (testé).
+
+#### ErrorPage, NotFoundPage, PageSkeleton — `error-page.tsx`, `page-skeleton.tsx`
+
+`ErrorPage` (contenu des `error.tsx`) : carte blanche, phrase simple, « Réessayer » orange, jamais de trace technique (`error`, `reset`, `title`). `NotFoundPage` : « Cette page n'existe pas ou n'existe plus. » + « Retour à l'accueil ». `PageSkeleton` (`rows`) : squelette des `loading.tsx`, animation coupée si l'utilisateur demande moins de mouvement.
+
+### 3.2 Primitives (`apps/web/components/ui/`)
 
 #### Button — `button.tsx`
 
@@ -214,7 +292,7 @@ Case 16 px, cochée en orange, zone cliquable agrandie. À placer dans un `<labe
 
 #### Dialog — `dialog.tsx`
 
-Boîte centrée : `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`), `DialogHeader`, `DialogTitle` (20 px), `DialogDescription`, `DialogFooter` (`showCloseButton` → « Fermer », placé avant vos boutons), `DialogClose`. Échap, croix « Fermer », focus piégé. Pied : trait fin, sans fond ; bouton secondaire puis principal (principal à droite sur ordinateur, en haut sur téléphone), comme `ConfirmDialog` et `SidePanel`.
+Boîte centrée : `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`), `DialogHeader`, `DialogTitle` (20 px), `DialogDescription`, `DialogFooter` (`showCloseButton` → « Fermer », placé avant vos boutons), `DialogClose`. Échap, croix « Fermer », focus piégé. Pied : trait fin, sans fond ; bouton secondaire puis principal.
 
 ```tsx
 <Dialog>
@@ -230,7 +308,7 @@ Boîte centrée : `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`)
 
 #### DropdownMenu — `dropdown-menu.tsx`
 
-Menu Base UI : `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuGroup`, `DropdownMenuLabel` (dans un groupe : voir Pièges), `DropdownMenuItem` (`variant="destructive"`), `DropdownMenuSeparator`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup` / `DropdownMenuRadioItem`, sous-menus.
+Menu Base UI : `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuGroup`, `DropdownMenuLabel` (dans un groupe : voir Pièges), `DropdownMenuItem` (`variant="destructive"`), `DropdownMenuSeparator`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup` / `DropdownMenuRadioItem`, sous-menus. Exemple d'usage : le bouton « Plus » de Campagnes, « Exporter » de Membres.
 
 ```tsx
 <DropdownMenu>
@@ -254,7 +332,7 @@ Menu Base UI : `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `Dr
 
 #### Table — `table.tsx`
 
-Tableau brut : `Table` (`label` : nom de la zone défilante, par défaut la légende), `TableHeader`, `TableBody`, `TableFooter`, `TableRow` (`data-state="selected"`), `TableHead` (note grise ; `numeric` → aligné à droite), `TableCell` (ligne de 48 px ; `numeric` → aligné à droite en chiffres tabulaires), `TableCaption`. Plus large que l'écran : la zone défile, reçoit le focus (flèches gauche / droite) et un dégradé montre le côté où il reste des colonnes ; sinon, aucune tabulation en plus. Pour une liste avec tri et détail : `DataTable`.
+Tableau brut : `Table` (`label` : nom de la zone défilante, par défaut la légende), `TableHeader`, `TableBody`, `TableFooter`, `TableRow` (`data-state="selected"`), `TableHead` (note grise ; `numeric` → aligné à droite), `TableCell` (ligne de 48 px ; `numeric` → aligné à droite en chiffres tabulaires), `TableCaption`. Plus large que l'écran : la zone défile, reçoit le focus (flèches gauche / droite) et un dégradé montre le côté où il reste des colonnes. Pour une liste avec tri et détail : `DataTable`.
 
 ```tsx
 <Table label="Canaux">
@@ -285,20 +363,20 @@ Tableau brut : `Table` (`label` : nom de la zone défilante, par défaut la lég
 </Alert>
 ```
 
-#### Separator — `separator.tsx`
+#### Separator, Avatar — `separator.tsx`, `avatar.tsx`
 
-Trait 1 px (`orientation` `horizontal` | `vertical`).
+`Separator` : trait 1 px (`orientation` `horizontal` | `vertical`). `Avatar` (shadcn) existe mais n'est pas utilisé : les ronds aux initiales de l'en-tête et des membres sont dessinés sur place (voir § 4).
 
-### Composants d'application (`apps/web/components/admin/`)
+### 3.3 Composants d'application (`apps/web/components/admin/`)
 
 #### PageHeader — `page-header.tsx`
 
-Le seul `<h1>` de la page. Props : `title`, `description` (une ligne d'aide), `help` (note : la première chose à faire), `primaryAction` (`{ label, href, icon? }` ou un nœud : LE bouton orange), `secondaryActions` (nœuds discrets), `children` (contenu libre à droite, compatibilité), `backHref` / `backLabel` (« ← Retour »), `meta` (pastilles à côté du titre), `className`.
+Le seul `<h1>` de la page. Props : `title`, `description` (une ligne d'aide), `help` (note : la première chose à faire), `primaryAction` (`{ label, href, icon? }` ou un nœud : LE bouton orange), `secondaryActions` (nœuds discrets), `children` (contenu libre à droite, compatibilité), `backHref` / `backLabel` (« ← Réglages », « ← Membres »), `meta` (pastilles à côté du titre), `className`.
 
 ```tsx
 <PageHeader
   title="Campagnes"
-  description="Ce que vous promouvez et ce que ça rapporte."
+  description="Ce que vous promouvez, où, et ce que ça rapporte."
   primaryAction={{ label: "Nouvelle campagne", href: "/campaigns/new", icon: <Plus aria-hidden /> }}
   secondaryActions={
     <Link href="/campaigns/links" className={buttonVariants({ variant: "outline" })}>
@@ -327,7 +405,6 @@ Props : `label`, `value` (déjà formaté), `delta` (variation en %, ex. `deltaP
 #### DataTable — `data-table.tsx` (+ `data-table-logic.ts`)
 
 Composant client. Props : `columns` (`{ key, header, term?, align? ("right" pour les chiffres), sortable? (oui par défaut), sortFirst?, hideOnMobile?, className? }`, 5 au plus), `rows` (`{ id, cells: { [clé]: nœud }, sortValues?, href?, detail?, detailTitle?, detailDescription?, data? }`), `label` (légende pour lecteur d'écran, et nom de la zone défilante), `empty` (props d'`EmptyState`), `defaultSort` (`{ key, direction }`), `renderDetail(row)` / `rowHref(row)` (depuis un composant client), `panelSize`, `className`.
-Valeurs de tri : nombres, dates et textes au format français (« 1 234 € », « 15,3 % », « 09/10/2026 14:05 ») sont lus tout seuls ; « — » est trié avec les vides ; `sortValues` pour tout le reste (nœud React, « 12 / 40 »).
 Clic sur un en-tête : premier sens (les chiffres du plus grand au plus petit) → sens inverse → ordre d'origine (`aria-sort`). Clic sur une ligne : volet de détail (`detail`) ou page (`href`) ; au clavier, la première cellule est un bouton ou un lien.
 
 ```tsx
@@ -380,13 +457,13 @@ Volet latéral (Dialog Base UI) : à droite sur ordinateur, plein écran sur té
 
 #### EmptyState — `empty-state.tsx`
 
-Icône lucide dans un rond orange pâle (boîte de réception par défaut), `title`, `description` (une phrase), `action` (`{ href, label, variant? }`, orange par défaut), `children`, `className`.
+Icône lucide dans un rond orange pâle (boîte de réception par défaut), `title`, `description` (une phrase), `action` (`{ href, label, variant? }`, orange par défaut : c'est alors le bouton principal de l'écran), `children`, `className`.
 
 ```tsx
 <EmptyState
   icon={<Send />}
   title="Aucun message programmé"
-  description="Programmez un premier message."
+  description="Un message programmé part tout seul dans le canal à l'heure choisie."
   action={{ href: "/messages/new", label: "Programmer un message" }}
 />
 ```
@@ -417,12 +494,50 @@ Props : `universe` (« CASINO », « sports »… ; null = « Sans univers », g
 <UniverseDot universe="DATING" variant="pill" />
 ```
 
-#### HelpButton — `help-button.tsx`
+#### FilterChips — `filter-chips.tsx`
 
-Bouton rond « ? » (`aria-label` « Aide de cette page ») qui ouvre l'aide de la page dans un `SidePanel`. Props : `children` (contenu de l'aide : `h3`, `p`, `ul` sont stylés), `title`, `description`, `guideHref` (`/help` par défaut, `null` pour masquer), `guideLabel`, `className`.
+Rangée de pastilles de filtre (liens, formulaire inutile) : un clic filtre la liste, la pastille choisie est orange pâle avec texte `brand-ink` (`aria-current`). Sur téléphone, les pastilles passent à la ligne (40 px de haut) ; sur ordinateur, la rangée défile si elle est trop longue. Composant serveur. Props : `label` (nom du groupe, affiché et annoncé : « Univers », « Statut »), `chips` (`{ key, label, href, count?, selected, icon? }`, `icon` = pastille d'univers), `className`. Utilisé par Campagnes, Membres, Modèles de messages, Comparer par catégorie.
 
 ```tsx
-<HelpButton>
+<FilterChips
+  label="Univers"
+  chips={UNIVERSES.map((u) => ({
+    key: u,
+    label: universeLabel(u),
+    href: campaignsHref({ ...filters, vertical: u }),
+    count: counts[u],
+    selected: filters.vertical === u,
+    icon: <UniverseDot universe={u} />,
+  }))}
+/>
+```
+
+#### ScrollToCurrent — `scroll-to-current.tsx` (+ `scroll-to-current-logic.ts`)
+
+Liste horizontale qui défile (onglets sur téléphone) : à l'affichage et à chaque changement de `currentKey`, l'élément marqué `aria-current` est ramené au centre de la liste ; seule la liste défile, jamais la page. Sans JavaScript, la liste reste une simple liste défilante. Composant client ; règle pure `centeredScrollLeft` testée. Props : `currentKey`, `className` (classes du `<ul>`), `children` (les `<li>`). Utilisé par les onglets d'une campagne, d'un canal et des Statistiques.
+
+```tsx
+<ScrollToCurrent currentKey={tab} className="-mb-px flex gap-1 overflow-x-auto">
+  {TABS.map((t) => (
+    <li key={t.key}>
+      <Link href={t.href} aria-current={t.key === tab ? "page" : undefined}>
+        {t.label}
+      </Link>
+    </li>
+  ))}
+</ScrollToCurrent>
+```
+
+#### RememberFilters — `remember-filters.tsx`
+
+Mémorise les filtres d'une liste dans le navigateur (clé par page) et affiche **Réinitialiser** (qui garde la vue choisie, `keepParams` : `view` et `tab` par défaut). Props : `storageKey` (unique, ex. « members »), `keepParams`, `className`.
+
+#### HelpButton — `help-button.tsx`
+
+Bouton rond « ? » (`aria-label` « Aide de cette page ») qui ouvre une aide dans un `SidePanel`. Props : `children` (contenu de l'aide : `h3`, `p`, `ul` sont stylés), `title`, `description`, `guideHref` (`/help` par défaut, `null` pour masquer), `guideLabel`, `footerExtra` (action de plus dans le pied, à côté du lien vers le guide : un bouton `outline`), `size` (largeur du volet, `lg` 512 px par défaut : ligne de lecture confortable et deux actions côte à côte), `className`. Pas de bouton orange dans une aide. Pour l'aide de la page courante, l'en-tête utilise `HelpPanel` (§ 3.1).
+
+```tsx
+<HelpButton footerExtra={<Button variant="outline">Revoir la visite guidée</Button>}>
   <h3>À quoi sert cette page ?</h3>
   <p>…</p>
 </HelpButton>
@@ -430,16 +545,16 @@ Bouton rond « ? » (`aria-label` « Aide de cette page ») qui ouvre l'aide de 
 
 #### Term, HelpTip — `help-tip.tsx`
 
-`Term` : mot du client, terme technique (`term`) en bulle au survol, au toucher et au focus clavier, et lu par les lecteurs d'écran ; simple texte dans un bouton, un lien ou un libellé. `HelpTip` (API inchangée : `children`, `label`, `className`) : petit « ? » discret ; bulle courte au survol, au toucher et au focus clavier, dans un portail (jamais coupée par une carte ou un tableau), retournée près des bords ; texte relié au bouton (`aria-describedby`), pas de `title` en double. Composants client (Popover Base UI). Règle pure testée : `help-tip-logic.ts`.
+`Term` : mot du client, terme technique (`term`) en bulle au survol, au toucher et au focus clavier, et lu par les lecteurs d'écran ; simple texte dans un bouton, un lien ou un libellé. `HelpTip` (`children`, `label`, `className`) : petit « ? » discret ; bulle courte dans un portail, retournée près des bords ; texte relié au bouton (`aria-describedby`). Composants client (Popover Base UI). Règle pure testée : `help-tip-logic.ts`.
 
 ```tsx
 <Term term="NGR">revenu net</Term>
-<HelpTip label="Aide : coût par membre">Dépense pub divisée par les membres entrés.</HelpTip>
+<HelpTip label="Aide : membres suivis">Les personnes entrées depuis qu'un de nos bots gère le canal.</HelpTip>
 ```
 
 #### Stepper — `stepper.tsx` (+ `stepper-logic.ts`)
 
-Props : `steps` (`{ key?, title, help? }`, ex. `WIZARD_STEPS`), `current` (index à partir de 0), `onStepClick(i)` (étapes faites cliquables, composant client), `label`, `showHelp`, `className`. Ordinateur : étapes numérotées, en cours en orange, faites cochées ; téléphone : « Étape 2 sur 4 · Offres » et une barre d'avancement. `aria-current="step"`.
+Props : `steps` (`{ key?, title, help? }`), `current` (index à partir de 0), `onStepClick(i)` (étapes faites cliquables, composant client), `label`, `showHelp`, `className`. Ordinateur : étapes numérotées, en cours en orange, faites cochées ; téléphone : « Étape 2 sur 4 · Offres » et une barre d'avancement. `aria-current="step"`. Utilisé par Nouvelle campagne (4 étapes), Écrire à un groupe (Qui, Quoi, Quand) et Importer des dépenses (3 étapes).
 
 ```tsx
 <Stepper steps={WIZARD_STEPS} current={step} onStepClick={(i) => setStep(i)} />
@@ -447,7 +562,7 @@ Props : `steps` (`{ key?, title, help? }`, ex. `WIZARD_STEPS`), `current` (index
 
 #### ConfirmDialog — `confirm-dialog.tsx`
 
-Boîte de confirmation (AlertDialog Base UI). Props : `title`, `description` (ce qui va se passer), `confirmLabel`, `cancelLabel` (« Annuler », focus par défaut), `destructive` (bouton rouge), `onConfirm` (attendu s'il renvoie une promesse) ; `trigger` (élément qui ouvre ; si c'est un bouton de soumission sans `onConfirm`, le formulaire parent est soumis avec ce bouton : `name`/`value`/`formAction` conservés, une seule fois même sur un double clic) ; contrôlé : `open`, `onOpenChange`. Le déclencheur reçoit `aria-haspopup="dialog"` et `aria-expanded` (sauf valeurs fournies). Logique d'envoi testée dans `confirm-logic.ts` (`submitFromOpener`, `confirmTriggerAria`).
+Boîte de confirmation (AlertDialog Base UI). Props : `title`, `description` (ce qui va se passer), `confirmLabel`, `cancelLabel` (« Annuler », focus par défaut), `destructive` (bouton rouge), `onConfirm` (attendu s'il renvoie une promesse) ; `trigger` (élément qui ouvre ; si c'est un bouton de soumission sans `onConfirm`, le formulaire parent est soumis avec ce bouton : `name`/`value`/`formAction` conservés, une seule fois même sur un double clic) ; contrôlé : `open`, `onOpenChange`. Logique d'envoi testée dans `confirm-logic.ts`.
 
 ```tsx
 <form action={deletePostAction}>
@@ -468,7 +583,7 @@ Boîte de confirmation (AlertDialog Base UI). Props : `title`, `description` (ce
 
 #### ConfirmSubmit — `confirm-submit.tsx` (+ `confirm-logic.ts`)
 
-API inchangée : un `Button` de soumission + `message`. S'appuie sur `ConfirmDialog` (plus de `window.confirm`). Facultatif : `confirmTitle` (par défaut « <libellé> ? »), `confirmLabel` (par défaut le libellé), `destructive` (par défaut : variante `destructive` ou texte rouge). `title` reste l'infobulle HTML du bouton.
+Un `Button` de soumission + `message`, sur `ConfirmDialog` (plus de `window.confirm`). Facultatif : `confirmTitle` (par défaut « <libellé> ? »), `confirmLabel`, `destructive`. `title` reste l'infobulle HTML du bouton.
 
 ```tsx
 <ConfirmSubmit name="intent" value="now" message="Le message va partir maintenant à 1 240 membres.">
@@ -476,44 +591,93 @@ API inchangée : un `Button` de soumission + `message`. S'appuie sur `ConfirmDia
 </ConfirmSubmit>
 ```
 
-#### Flash — `flash.tsx`
+#### Flash, Pagination, CopyField, PeriodSelect, SoonPage
 
-Retour d'une action par l'adresse (`ok`, `error`) : bandeau vert (`role="status"`) et/ou rouge, avec icône.
+- `Flash` (`flash.tsx`) : retour d'une action par l'adresse (`ok`, `error`) : bandeau vert (`role="status"`) et/ou rouge, avec icône. `<Flash ok={sp.ok} error={sp.error} />`.
+- `Pagination` (`pagination.tsx`) : `page`, `pages`, `total`, `hrefFor`, `noun` ; page en cours en orange (`aria-current="page"`). Sur téléphone : flèches de 40 px et « Page 2 sur 8 ». Fonctions `pageOf`, `pageCount`, `pageSkip`, `pageHref`, `pageWindow`, constante `PAGE_SIZE`.
+- `CopyField` (`copy-field.tsx`) : champ en lecture seule + « Copier » (annonce « Copié ») ; `value`, `label` (« Adresse à copier » par défaut).
+- `PeriodSelect` (`period-select.tsx`) : sélecteur de période (formulaire GET, `NativeSelect`) : `period`, `compare`, `extra` (paramètres à conserver), `action`, `className`. Les Statistiques ont leur sélecteur complet (`StatsFilters`, § 3.6).
+- `SoonPage` (`soon.tsx`) : page « bientôt disponible » (`title`, `description`, `items`).
+
+### 3.4 Écriture des messages
+
+#### RichTextEditor — `components/editor/rich-text-editor.tsx` (+ `editor-logic.ts`, `telegram-format.ts`, `html-parser.ts`, `rich-text.css`)
+
+Éditeur de texte sans balise visible : le texte s'écrit et se relit mis en forme (gras, italique, souligné, barré, lien, texte masqué, émojis) ; le formulaire reçoit toujours du HTML Telegram propre et validé. Barre d'outils (une seule tabulation, flèches entre les boutons), raccourcis ⌘B ⌘I ⌘U ⌘K ⌘⇧X, collage nettoyé, repères `{prenom}`… insérables (`placeholders`) et mis en évidence, compteur (4 096, 1 024 avec un média), emplacement pour l'assistant IA (`ai`). Composant client. Props : `id`, `label` (nom accessible), `value`, `onChange(html)`, `name` (champ caché soumis), `required`, `invalid`, `describedBy`, `placeholder`, `placeholders`, `warnUnresolved`, `hasMedia`, `ai`, `rows`, `className`. Utilisé par Programmer un message, Écrire à un groupe, Ce que dit le bot, Relances automatiques et l'éditeur à branches : **tout nouveau champ de texte de message l'utilise**.
 
 ```tsx
-<Flash ok={sp.ok} error={sp.error} />
-```
-
-#### Pagination — `pagination.tsx`
-
-`Pagination` (`page`, `pages`, `total`, `hrefFor`, `noun`) ; page en cours en orange (`aria-current="page"`). Sur téléphone, une seule ligne : flèches de 40 px (« Précédent » / « Suivant » restent lus par les lecteurs d'écran) et « Page 2 sur 8 ». Fonctions `pageOf`, `pageCount`, `pageSkip`, `pageHref`, `pageWindow`, constante `PAGE_SIZE`.
-
-```tsx
-<Pagination
-  page={page}
-  pages={pageCount(total)}
-  total={total}
-  noun="membre"
-  hrefFor={(n) => pageHref("/members", sp, n)}
+<RichTextEditor
+  id="text"
+  label="Texte du message"
+  name="text"
+  value={text}
+  onChange={setText}
+  hasMedia={media.length > 0}
+  ai={<ImproveButton … />}
 />
 ```
 
-#### CopyField — `copy-field.tsx`
+`FormattedText` (`formatted-text.tsx`) : HTML Telegram affiché mis en forme, en lecture seule (propositions de l'IA, récapitulatifs), réécrit depuis la liste blanche avant affichage. Props : `html`, `className`.
 
-Champ en lecture seule + « Copier » (annonce « Copié »). Props : `value`, `label` (nom accessible, « Adresse à copier » par défaut).
+#### TelegramPreview — `components/messages/telegram-preview.tsx`
 
-```tsx
-<CopyField value={link.url} label="Lien de la pub" />
-```
+Rendu approché d'un message Telegram (bulle blanche sur fond de discussion, médias, boutons sous le message). Props : `html`, `buttons`, `mediaCount`, `compact` (galerie de modèles, volet du calendrier : texte coupé, sans compteur), `className`. À droite du formulaire sur ordinateur (« Aperçu tel que les membres le verront »).
 
-#### PeriodSelect — `period-select.tsx`
+#### ImproveButton — `components/ai/improve-button.tsx`
 
-Sélecteur de période (formulaire GET, liste `NativeSelect`) : `period`, `compare`, `extra` (paramètres à conserver), `action`, `className`.
+« Améliorer avec l'IA » (icône étoiles) : volet de l'assistant d'écriture (3 versions, retouches, traductions, version B). À passer dans `RichTextEditor` (`ai`), jamais en bouton orange.
 
-```tsx
-<PeriodSelect period={period} compare={compare} extra={{ campaign: sp.campaign }} />
-```
+### 3.5 Graphiques
 
-#### SoonPage — `soon.tsx`
+Règles : SVG maison, sans bibliothèque ; couleurs du thème seulement (ligne `brand-ink`, surface et barres orange de marque, période précédente `muted-foreground`, grille `border`) ; une seule courbe à la fois (pas de double axe) ; la bulle n'est jamais le seul moyen de lire un chiffre (texte alternatif complet et tableau des valeurs repliable) ; graphique avant tableau.
 
-Page « bientôt disponible » : `title`, `description`, `items`.
+- `TimeChart` (`components/charts/time-chart.tsx`, client) : courbe (`kind="line"`) ou barres (`"bar"`), période précédente en gris. Réticule et bulle au survol, au toucher (la bulle reste jusqu'au prochain toucher) et au clavier (flèches, Début, Fin). Props : `title`, `period`, `labels`, `previousLabels`, `series`, `format`, `integer`, `kind`, `height`, `unitLabel`, `valuesSummary` (« Voir les chiffres jour par jour »), `className`.
+- `MetricChart` (`metric-chart.tsx`, client) : `TimeChart` avec le choix du chiffre affiché (« Afficher : Membres entrés »), sans recharger la page. Props : `metrics`, `labels`, `previousLabels`, `period`, `defaultKey`, `kind`, `suffix`, `unitLabel`, `valuesSummary`, `height`, `className`.
+- `BarList` (`components/charts/bar-list.tsx`, serveur) : barres horizontales lisibles sans couleur, chaque ligne écrit son nom et sa valeur (barre masquée aux lecteurs d'écran) ; ordinateur : nom | barre | valeur, téléphone : barre en dessous. Props : `items` (`{ key, label, value, valueText, note? }`), `label`, `max`, `className`. **À utiliser pour toute nouvelle liste en barres** (voir § 4 pour l'ancienne `components/messages/bar-list.tsx`).
+- `Funnel` (`components/dashboard/funnel.tsx`) : le parcours en barres (`BarList`) : à chaque étape le nombre, la part gardée, la période précédente. Props : `steps`, `previous`.
+- `MetricDetail` (`components/dashboard/metric-detail.tsx`) : tous les chiffres d'une ligne dans le volet (`dl`), avec période précédente et variation. Props : `figures`, `compare`, `className`.
+- `MiniTrend` (`stat-card.tsx`) : mini-courbe des cartes.
+
+### 3.6 Composants de rubrique
+
+Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu'une deuxième en a besoin).
+
+**Accueil** (`components/home/`) : `HomeSection` (carte avec titre `<h2>`, une ligne d'aide, lien discret à droite `sectionLinkClass` ; props `id`, `title`, `description`, `action`, `children`, `className`), `StatusBar` (barre d'état verte ou orange), `TodayCards` (les trois chiffres du jour en `StatCard`), `ChecklistCard` (« À faire pour démarrer », repliée sur téléphone), `TodoCard`, `UpcomingCard`, `CampaignsCard`.
+
+**Campagnes** (`components/campaigns/`) :
+
+- `CampaignCard` : carte d'une campagne (univers, statut, nom, contexte, dépensé, membres, premiers dépôts, bénéfice, mini-courbe des membres par jour) ; toute la carte mène à la fiche (lien « étiré » sur le nom). Props : `row`, `href`, `platformLabel`, `compare`, `membersTrend`, `moneyDigits` (précision commune de la grille, `groupMoneyDigits`).
+- `CampaignFigure` + `FigureDelta` (`campaign-figure.tsx`) : un chiffre de carte (libellé en note, `term` au survol, valeur 20 px tabulaire, variation sur sa propre ligne, hauteur réservée) ; à placer dans un `<dl>`. Props : `label`, `term`, `value`, `delta`, `favorable`, `valueTone`, `hint`, `className`.
+- `NewCampaignButton`, `OfferPicker` (choix des offres Link Affi, état pur `offer-picker-state.ts`).
+
+**Canaux** (`components/channels/`) : `ChannelTabs` (onglets de la fiche ; téléphone : deux rangées de deux boutons), `EntryRuleForm` (« Qui peut entrer et quand » : trois choix, puis Avancé), `BotTextEditor` (texte d'un message du bot avec `RichTextEditor` et aperçu), `LangTabs` (langues en onglets Base UI), `BotToggle` (interrupteur « Activé »), `RequestCard` (une demande, Accepter / Refuser), `ChannelMembersTable`, `ChannelSettingsForm`, `BotPills`, `ChannelStatePills`.
+
+**Messages** (`components/messages/`) :
+
+- `MessagesCalendar` (`calendar/messages-calendar.tsx`, client) : la semaine heure par heure (heure de Paris). Ordinateur : une colonne par jour ; chaque carte (heure, statut, version A/B, début du texte, canal) bordée de la couleur de son univers ; glisser un brouillon ou un message programmé le déplace (confirmation, « Annuler ») ; les 3 meilleurs créneaux surlignés (étoile) ; « + Programmer » sur une case libre ; colonne d'aujourd'hui en orange pâle. Téléphone : un jour à la fois (bande des 7 jours, flèches). Clic sur un message : `PostPanel` (volet : Déplacer, Dupliquer, Modifier, Ouvrir). Props : `monday`, `todayKey`, `nowIso`, `items`, `slots`, `slotsNote`, `computedLabel`, `recomputeChannelId`, `initialDay`, `query`, `prefill`.
+- `PostForm` (création en trois niveaux), `CategoryPicker` (« + Nouvelle catégorie » sans quitter la page), `MoveForm` (« Déplacer » au clavier), `ViewTabs` (Calendrier, Liste, Modèles : commutateur sobre, pas d'orange), `CollapsibleFilters` (filtres repliés derrière « Filtres (n) » sur téléphone ; props `activeCount`, `children`, `className`), `MessagesListTable`.
+
+**Membres** (`components/members/`) : `MembersNav` (Liste, Écrire à un groupe, Relances automatiques), `MemberFilterBar` (`member-filters.tsx` : recherche, volet « Filtrer » en trois questions, pastilles `FilterChips`, filtres en phrases), `MemberQuickView` (résumé dans le volet), `MemberTimeline`, `member-cells.tsx` (`MemberAvatar` rond aux initiales, `MemberTags`, `MemberOriginCell`, `DepositsCell`, `LastActivity`).
+
+**Écrire à un groupe** (`components/broadcasts/`) : `BroadcastWizard` (Qui, Quoi, Quand avec `Stepper` et récapitulatif), `GroupBuilder` (critères en blocs avec croix ; critère non réglé en pointillé « Pas encore réglé »), `message-editor.tsx` (`MessageTextEditor`, `MediaChooser`, `ButtonsEditor`, `MessageExtras`), `SplitSlider` (curseur natif aux couleurs du thème, 40 px), `ScheduleDialog`, `BroadcastProgress`, `ReadOnlyPreview`.
+
+**Relances automatiques** (`components/automations/`) :
+
+- Cartes prêtes à l'emploi : `AutomationCard`, `CardSettingsPanel`, `RuleSwitch` (interrupteur avec confirmation) et `TestOnMeButton`, `RuleStatusPill`, `MessageField`, `LinkButtonsField`, `LanguageChecklist`.
+- **Éditeur à branches** (`editor/`, client, `@xyflow/react`) : `RuleEditor` (bibliothèque de blocs `palette.tsx`, canevas avec glisser-déposer, liens, zoom et mini-carte, panneau de réglage `node-panel.tsx`, validation en direct : bloc à corriger entouré de rouge et « N points à corriger », « Tester sur moi », « Enregistrer ») ; `nodes.tsx` (un composant qui s'adapte au type : Départ, Condition à deux sorties « oui » / « non », Action, Attendre, Arrêter ; passages sur la fiche) ; `canvas-controls.tsx` (zoom, ajuster, « Ranger les blocs », barre au-dessus du canevas, jamais dessus) ; `outline.tsx` (le parcours en liste : alternative accessible au canevas, et affichage sur téléphone) ; `flow.css` (styles du canevas aux jetons du thème). Logique pure dans `packages/core` (graphe) et `lib/automations/` (formulaires, description, journal).
+- `RuleFlowView` : le parcours en lecture seule avec les passages de chaque bloc (fiche d'une relance), échelle jamais sous 0,85, la molette fait défiler la page.
+
+**Statistiques** (`components/dashboard/`) : `StatsTop` (haut commun des cinq pages : titre, sous-navigation, retour d'action, sélecteur unique, période en toutes lettres ; un seul `primaryAction`, « Exporter » sur Pubs), `StatsNav` (onglets avec `ScrollToCurrent`, filtres conservés), `StatsFilters` (période, comparaison, univers, campagne, « Plus de filtres » : canal ; bouton « Appliquer »), `NumCell` (`cells.tsx`).
+
+**Réglages** (`components/settings/`) : `SettingsCardGrid` (cartes de Réglages : icône, titre `<h2>` lien, une phrase, pastille d'état, liens des pages regroupées ; grille 1, 2 puis 3 colonnes ; props `cards`, `states`, `className`), `HealthTiles` (six tuiles d'État du système ; props `tiles`, `className`), `ConnectionTiles` (quatre connexions ; props `tiles`, `className`), `DetailList` / `DetailRow` (liste « libellé : valeur » des volets et blocs techniques), `AdAccountsTable`, `BotConnection`.
+
+## 4. À consolider (doublons connus)
+
+Relevés pendant la phase 9 ; à faire par l'équipe qui touche ces fichiers, sans changer le rendu attendu :
+
+1. **Deux `BarList`** : `components/charts/bar-list.tsx` (Statistiques, parcours ; barre `bg-brand`, valeur et note) et `components/messages/bar-list.tsx` (test A/B, Comparer par catégorie ; barre `brand-ink`, mise en avant `emphasis`, libellés `narrow`). Garder `charts/bar-list.tsx`, lui ajouter `emphasis` et une largeur de libellé, puis migrer les deux pages de Messages.
+2. **Six barres d'onglets** au même dessin (lien souligné d'orange, `aria-current`) : `MembersNav`, `ViewTabs` (commutateur), `StatsNav`, `ChannelTabs`, onglets de la fiche campagne (`app/(admin)/campaigns/[id]/tabs/nav.tsx`), Journal (`settings/journal/view-tabs.tsx`) et regroupements de Réglages (`settings/categories/group-nav.tsx`). Un `TabNav` partagé dans `components/admin/` (variantes téléphone : « défile » avec `ScrollToCurrent`, « grille »).
+3. **Deux interrupteurs** dessinés à l'identique (`Track` de `BotToggle` et de `RuleSwitch`) : un `SwitchTrack` partagé (ou une primitive `ui/switch.tsx`).
+4. **Ronds aux initiales** : l'en-tête et `MemberAvatar` (`member-cells.tsx`) dessinent chacun le leur ; `ui/avatar.tsx` n'est pas utilisé. Un seul composant (ou retirer `avatar.tsx`).
+5. **`ReadOnlyPreview`** (Écrire à un groupe) masque le compteur de `TelegramPreview` par CSS : une option `counter={false}` de `TelegramPreview` le remplace.
+6. **`FigureDelta`** (cartes de campagne) reprend le rendu de la variation de `StatCard` : extraire un `DeltaLine` commun dans `stat-card.tsx`.

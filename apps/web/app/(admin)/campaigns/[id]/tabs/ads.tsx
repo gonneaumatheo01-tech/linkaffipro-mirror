@@ -12,7 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { isImportedShell, readAdLink } from "@/lib/campaigns/ad-link";
-import { adCampaignLine, costLevelLabel, groupCostsByDay } from "@/lib/campaigns/display";
+import {
+  adCampaignLine,
+  adSetTitle,
+  costLevelLabel,
+  groupCostsByDay,
+} from "@/lib/campaigns/display";
 import { listImportedShells, unattachedEntryLinks } from "@/lib/campaigns/queries";
 import { fmtMoney, fmtNum } from "@/lib/format";
 import { periodDates, periodParams } from "@/lib/periods";
@@ -134,6 +139,14 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
     </SidePanel>
   );
 
+  const platformLine = adCampaignLine({
+    platform: campaign.adPlatform,
+    externalCampaignId: campaign.externalCampaignId,
+    platformName: adLink?.platformName ?? null,
+    imported: shell,
+    connectionName: campaign.connection?.name ?? null,
+  });
+
   const linkOptions = (current: { id: string; name: string } | null) => (
     <>
       <option value="">Aucun (détacher)</option>
@@ -148,16 +161,6 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
 
   return (
     <div className="space-y-8">
-      <p className="text-body text-muted-foreground">
-        {adCampaignLine({
-          platform: campaign.adPlatform,
-          externalCampaignId: campaign.externalCampaignId,
-          platformName: adLink?.platformName ?? null,
-          imported: shell,
-          connectionName: campaign.connection?.name ?? null,
-        })}
-      </p>
-
       {shell ? (
         <Alert variant="info" role="status">
           <Info aria-hidden />
@@ -218,7 +221,18 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
 
       <FormSection
         title="Groupes et pubs"
-        description="La campagne pub se découpe en groupes, puis en pubs ; chaque pub a son lien d'entrée. Clics et membres comptés depuis la création du lien (pas seulement sur la période)."
+        // La ligne de la campagne pub (plateforme, compte) ouvre la description du bloc, au lieu de flotter seule
+        // entre les onglets et ce titre.
+        description={
+          <>
+            <span className="block">{platformLine}.</span>
+            <span className="block">
+              La campagne pub se découpe en groupes, puis en pubs ; chaque pub a son lien
+              d&apos;entrée. Clics et membres comptés depuis la création du lien (pas seulement sur
+              la période).
+            </span>
+          </>
+        }
         actions={adSets.length ? addAdSetPanel : null}
       >
         {adSets.length === 0 ? (
@@ -233,7 +247,7 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
             <div key={s.id} className="rounded-xl border border-border bg-card">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
                 <h3 className="text-body font-semibold text-foreground">
-                  Groupe « {s.name} »{" "}
+                  {adSetTitle(s.name)}{" "}
                   <span className="font-normal text-muted-foreground">
                     · {s.ads.length} pub{s.ads.length > 1 ? "s" : ""}
                   </span>
@@ -369,7 +383,7 @@ export async function AdsTab({ id, campaign, period, compare, isAdmin }: TabProp
                       approved: fmtNum(a.inviteLink?.approved ?? 0),
                     },
                     sortValues: { link: a.inviteLink?.name ?? "" },
-                    detailDescription: `Groupe « ${s.name} »`,
+                    detailDescription: adSetTitle(s.name),
                     detail: (
                       <div className="space-y-6">
                         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">

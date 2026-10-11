@@ -12,7 +12,7 @@ type EmptyProps = React.ComponentProps<typeof DataTable>["empty"];
 
 /**
  * Liste des messages : `DataTable` (5 colonnes, tri) dont chaque ligne ouvre le même volet que le calendrier
- * (`PostPanel` : aperçu, « Déplacer », puis Fermer, Dupliquer, Modifier, Ouvrir). La première cellule est un bouton
+ * (`PostPanel` : aperçu, « Déplacer », puis Fermer, Dupliquer, Ouvrir, Modifier). La première cellule est un bouton
  * (clavier) ; un clic ailleurs sur la ligne l'actionne.
  */
 export function MessagesListTable({

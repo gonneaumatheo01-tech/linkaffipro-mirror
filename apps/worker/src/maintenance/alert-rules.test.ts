@@ -23,7 +23,10 @@ describe("alertes bots", () => {
 describe("autres règles", () => {
   it("synchro en échec après 3 passages", () => {
     expect(detectSyncFailed([{ source: "players", lastError: "500", errorStreak: 2 }])).toBeNull();
-    expect(detectSyncFailed([{ source: "players", lastError: "500", errorStreak: 3 }])?.payload.sources).toEqual(["players"]);
+    const d = detectSyncFailed([{ source: "players", lastError: "500", errorStreak: 3 }]);
+    expect(d?.payload.sources).toEqual(["players"]);
+    // La table Link Affi est nommée en clair (« Joueurs »), le nom technique reste dans le payload.
+    expect(d?.message).toBe("Synchro Link Affi en échec répété : Joueurs (500)");
   });
   it("file engorgée au-delà de 500", () => {
     expect(detectQueueBacklog(500)).toBeNull();
@@ -35,7 +38,7 @@ describe("autres règles", () => {
   });
   it("santé du sub-ID seulement en état alert", () => {
     expect(detectSubIdHealth("warning", "x")).toBeNull();
-    expect(detectSubIdHealth("alert", "tronqué")?.message).toContain("tronqué");
+    expect(detectSubIdHealth("alert", "tronqué")?.message).toBe("Identifiant de suivi qui ne revient pas : tronqué");
   });
   it("dédoublonne sur une heure", () => {
     expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(30) }], now)).toBe(false);
@@ -48,6 +51,12 @@ describe("autres règles", () => {
     expect(t).toContain("🟠");
     expect(t).toContain("a &lt;b&gt; &amp; c");
   });
+  it("titre de l'alerte en français, jamais le code technique", () => {
+    const t = formatAlert({ kind: "bot_webhook", severity: "CRITICAL", message: "Bot en difficulté : @a", payload: {} });
+    expect(t.split("\n")[0]).toBe("🔴 <b>Alerte : Bot en difficulté</b>");
+    expect(t).not.toContain("bot_webhook");
+    expect(formatAlert({ kind: "subid_health", severity: "CRITICAL", message: "x", payload: {} })).toContain("Alerte : Identifiant de suivi qui ne revient pas");
+  });
 });
 
 describe("règles de solidité", () => {
@@ -59,6 +68,7 @@ describe("règles de solidité", () => {
     expect(d?.severity).toBe("CRITICAL");
     expect(d?.payload.downMinutes).toBe(12);
     expect(d?.message).toContain("12 min");
+    expect(d?.message).toMatch(/^Service d'arrière-plan arrêté : /);
   });
   it("sauvegarde en échec seulement sans succès depuis 36 h", () => {
     expect(detectBackupFailed(null, now)).toBeNull();
@@ -78,8 +88,9 @@ describe("règles de solidité", () => {
     expect(detectJobFailures({ stats: 9, "telegram-send": 3 })).toBeNull();
     const d = detectJobFailures({ stats: 10, "telegram-send": 3 });
     expect(d?.kind).toBe("job_failures");
-    expect(d?.message).toContain("stats (10)");
-    expect(d?.message).not.toContain("telegram-send");
+    expect(d?.message).toContain("Statistiques (10)");
+    expect(d?.message).not.toContain("Envois Telegram");
+    expect(d?.message).not.toMatch(/worker|stats \(/);
     expect(d?.payload.queues).toEqual({ stats: 10 });
   });
 });
@@ -150,5 +161,33 @@ describe("comptes publicitaires à reconnecter", () => {
     const w = detectConnectorReconnect([{ platform: "META", name: "A", status: "ACTIVE", tokenExpiresAt: new Date("2026-10-13T00:00:00Z"), lastError: null }], now);
     expect(w?.severity).toBe("WARNING");
     expect(w?.payload.expiringSoon).toEqual(["A"]);
+  });
+});
+
+describe("vocabulaire des alertes (docs/REFONTE-UX.md)", () => {
+  const JARGON = /\b(FTDs?|NGR|ROAS|CPL|CPA)\b|sub[-_ ]?id|webhook|postback|worker|segment|séquence|automatisation|cohorte|entonnoir|\b[a-z]+_[a-z_]+\b/i;
+  it("aucune alerte détectée ne montre de terme technique ni de code (bot_webhook, telegram-send…)", () => {
+    const all = [
+      detectBotWebhook([{ username: "casino_bot", isActive: true, lastWebhookAt: ago(1), lastError: "Erreur Telegram" }], now),
+      detectSyncFailed([{ source: "player_events", lastError: "500", errorStreak: 3 }]),
+      detectQueueBacklog(900),
+      detectDmBlocked(80),
+      detectSubIdHealth("alert", "valeur tronquée"),
+      detectWorkerDown(ago(12), now),
+      detectJobFailures({ "telegram-send": 12, "sync-linkaffi": 10 }),
+      detectBackupFailed({ at: now.toISOString(), file: null, ok: false, error: "disque plein" }, now),
+      detectRegistrationsDrop({ last24h: 1, previous7dTotal: 140 }),
+      detectSpendNoConversion([{ name: "Campagne A", spend: 90, registrations: 0 }]),
+      detectChannelLeak([{ title: "Canal A", activeMembers: 100, left24h: 30 }]),
+      detectPostFailed([{ code: "p1", channelTitle: "Canal A", lastError: null }]),
+      detectOfferLinkInactive([{ slug: "abc", label: "Bonus", clicks: 2 }]),
+      detectConnectorReconnect([{ platform: "META", name: "Compte A", status: "NEEDS_RECONNECT", tokenExpiresAt: null, lastError: null }], now),
+    ];
+    for (const d of all) {
+      expect(d).not.toBeNull();
+      // Le pseudo du bot (« @casino_bot ») est un nom propre : retiré avant le contrôle.
+      const text = formatAlert(d!).replace(/@\w+/g, "@bot");
+      expect(text, d!.kind).not.toMatch(JARGON);
+    }
   });
 });

@@ -206,7 +206,7 @@ export type MaterializedOfferButton = {
 
 /**
  * Crée ou met à jour le lien traqué (kind OFFER) d'un bouton Offre et renvoie le bouton à stocker.
- * `labelSuffix` : ajouté au libellé d'un lien créé (ex. « (envoi groupé) ») ; `copy` : voir `resolveOfferButton`.
+ * `labelSuffix` : ajouté au libellé d'un lien créé (ex. « (message à un groupe) », `GROUP_MESSAGE_LINK_SUFFIX`) ; `copy` : voir `resolveOfferButton`.
  * Lève une erreur lisible si le bouton est refusé (voir `offerButtonError`).
  */
 export async function materializeOfferButton(

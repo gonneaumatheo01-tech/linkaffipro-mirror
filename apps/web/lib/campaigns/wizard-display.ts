@@ -4,6 +4,7 @@
  * `wizard.ts` ; ici seulement ce qui décide de l'affichage (réglages « Avancé » modifiés, étapes de l'import CSV).
  */
 import { toUniverse, UNIVERSES, UNIVERSE_LABELS, type Universe } from "@/lib/universe";
+import type { WizardField, WizardStepKey } from "./wizard";
 
 /** Choix d'univers de l'étape 1 (cartes à cocher), « Sans univers » en dernier. */
 export const UNIVERSE_CHOICES: ReadonlyArray<{ value: Universe | ""; label: string }> = [
@@ -12,19 +13,71 @@ export const UNIVERSE_CHOICES: ReadonlyArray<{ value: Universe | ""; label: stri
 ];
 
 /**
- * Étape 2 : les offres de l'univers choisi à l'étape 1 passent en tête (tri d'affichage seulement, stable : l'ordre
- * d'origine est gardé dans chaque bloc). Sans univers choisi, ordre inchangé.
+ * Étapes 2 et 3 : les offres et les canaux de l'univers choisi à l'étape 1 passent en tête (tri d'affichage
+ * seulement, stable : l'ordre d'origine est gardé dans chaque bloc ; rien n'est coché d'office). Sans univers choisi,
+ * ordre inchangé.
  */
-export function offersUniverseFirst<T extends { vertical: string | null }>(
-  offers: readonly T[],
+export function universeFirst<T extends { vertical: string | null }>(
+  items: readonly T[],
   universe: string | null | undefined,
 ): T[] {
   const u = toUniverse(universe);
-  if (!u) return [...offers];
+  if (!u) return [...items];
   const same: T[] = [];
   const others: T[] = [];
-  for (const o of offers) (toUniverse(o.vertical) === u ? same : others).push(o);
+  for (const o of items) (toUniverse(o.vertical) === u ? same : others).push(o);
   return [...same, ...others];
+}
+
+/** Étape 2 (offres) : même règle que `universeFirst`. */
+export const offersUniverseFirst = universeFirst;
+
+/** « 1 masquée », « 3 masquées » (offres des autres affiliés cachées à l'étape 2). */
+export function hiddenOffersLabel(n: number): string {
+  return `${n.toLocaleString("fr-FR")} masquée${n > 1 ? "s" : ""}`;
+}
+
+function fold(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Étiquette d'une offre choisie : son nom, précédé du programme seulement si le nom ne commence pas déjà par lui
+ * (les offres Link Affi s'appellent souvent « <programme> — <offre> » : « Démo · Casino Royal — Bienvenue 200 % »).
+ */
+export function offerChipLabel(o: { name: string; programName: string }): string {
+  const program = o.programName.trim();
+  if (!program || fold(o.name).startsWith(fold(program))) return o.name;
+  return `${program} · ${o.name}`;
+}
+
+/**
+ * Champ de l'étape affichée qui porte une erreur de l'assistant (identifiant du champ ou du groupe de cases), ou null
+ * s'il n'est pas sur cette étape : le message s'affiche alors en haut, avec un bouton pour aller à la bonne étape.
+ */
+const FIELD_IDS: Partial<Record<WizardStepKey, Partial<Record<WizardField, string>>>> = {
+  general: {
+    name: "wz-name",
+    startAt: "wz-start",
+    endAt: "wz-end",
+    budgetDaily: "wz-budget",
+    notes: "wz-notes",
+  },
+  channels: { channelIds: "wz-channels" },
+  ads: {
+    adPlatform: "wz-platform",
+    adCount: "wz-count",
+    entryChannelId: "wz-entry-channel",
+    name: "wz-name-final",
+  },
+};
+
+export function fieldIdOnStep(field: WizardField, step: WizardStepKey): string | null {
+  return FIELD_IDS[step]?.[field] ?? null;
 }
 
 function filled(v: unknown): boolean {

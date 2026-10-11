@@ -13,3 +13,4 @@ export * from "./automation-graph";
 export * from "./ab";
 export * from "./attribution-scope";
 export * from "./campaign-attribution";
+export * from "./team-labels";

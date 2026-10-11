@@ -36,7 +36,7 @@ export function AnthropicKeyGuide() {
         <li>
           Cliquez sur <Ui>Create key</Ui>. Nom :{" "}
           <code className="rounded bg-muted px-1 font-mono text-note">LinkAffi Pro</code>.
-          Expiration : laissez « Never » (ou 1 an). « Linked account » : vous-même. Espace de
+          Expiration : laissez « Never » (ou 1 an). « Linked account » : vous-même. Espace de
           travail (workspace) : laissez par défaut.
         </li>
         <li>
@@ -46,15 +46,15 @@ export function AnthropicKeyGuide() {
           l&apos;ancienne).
         </li>
         <li>
-          Revenez ici, collez la clé dans « Clé API Anthropic », cliquez sur <Ui>Enregistrer</Ui>{" "}
-          puis sur <Ui>Vérifier</Ui>. Le bouton « Améliorer avec l&apos;IA » devient actif pour
-          toute l&apos;équipe.
+          Revenez ici, collez la clé dans « Clé Anthropic », cliquez sur <Ui>Enregistrer</Ui> puis
+          sur <Ui>Vérifier</Ui>. Le bouton « Améliorer avec l&apos;IA » devient actif pour toute
+          l&apos;équipe.
         </li>
       </ol>
       <p className="text-note text-muted-foreground">
         Anthropic facture à l&apos;usage : quelques centimes par jour avec le modèle rapide, et le
         plafond mensuel protège le budget. Pour révoquer la clé : console Anthropic →{" "}
-        <Ui>API keys</Ui> → la ligne de la clé → <Ui>Delete</Ui>, puis ici « Retirer la clé ».
+        <Ui>API keys</Ui> → la ligne de la clé → <Ui>Delete</Ui>, puis ici « Retirer la clé ».
       </p>
     </div>
   );

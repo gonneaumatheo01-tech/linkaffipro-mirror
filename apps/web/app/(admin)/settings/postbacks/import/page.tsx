@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { FormSection } from "@/components/admin/form-section";
 import { Term } from "@/components/admin/help-tip";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { fmtDate, fmtNum } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { importSummary } from "../postback-view";

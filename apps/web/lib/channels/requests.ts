@@ -51,19 +51,48 @@ export function requestNext(status: MembershipStatus, approveAt: Date | null, no
   }
 }
 
-/** Origine d'une adhésion (instantané `Membership.source`) : nom du lien de pub, entrée directe ou lien inconnu. */
+type SourceSnapshot = {
+  inviteLink?: { name?: string; adPlatform?: string | null } | null;
+  joinedDirectly?: boolean;
+};
+
+function isUntracked(source: unknown): boolean {
+  const s = (source ?? {}) as SourceSnapshot;
+  return !s.inviteLink?.name && !s.joinedDirectly;
+}
+
+/**
+ * Origine d'une adhésion (instantané `Membership.source`) : nom du lien de pub, entrée directe, ou « Sans lien suivi »
+ * quand la demande est passée par un lien d'invitation qui n'a pas été créé ici (« Lien inconnu » faisait croire à
+ * une panne).
+ */
 export function sourceLabel(
   source: unknown,
   platformLabel: (platform: string) => string = (p) => p,
 ): string {
-  const s = (source ?? {}) as {
-    inviteLink?: { name?: string; adPlatform?: string | null } | null;
-    joinedDirectly?: boolean;
-  };
+  const s = (source ?? {}) as SourceSnapshot;
   if (s.inviteLink?.name)
     return `${s.inviteLink.name}${s.inviteLink.adPlatform ? ` (${platformLabel(s.inviteLink.adPlatform)})` : ""}`;
   if (s.joinedDirectly) return "Entrée directe";
-  return "Lien inconnu";
+  return "Sans lien suivi";
+}
+
+/** Explication de « Sans lien suivi » pour le volet de détail ; null pour une origine connue. */
+export function sourceHint(source: unknown): string | null {
+  return isUntracked(source)
+    ? "Demande faite par un lien d'invitation qui n'a pas été créé ici (lien principal du canal, lien d'un autre administrateur…) : on ne sait pas de quelle pub elle vient."
+    : null;
+}
+
+/** En-tête de l'onglet Membres : « 65 membres présents · 12 partis · 1 exclu » (partis et exclus s'il y en a). */
+export function membersSummary(c: { present: number; left: number; kicked: number }): string {
+  const n = (v: number) => v.toLocaleString("fr-FR");
+  const parts = [
+    `${n(c.present)} ${c.present > 1 ? "membres présents" : "membre présent"}`,
+    c.left > 0 ? `${n(c.left)} ${c.left > 1 ? "partis" : "parti"}` : null,
+    c.kicked > 0 ? `${n(c.kicked)} ${c.kicked > 1 ? "exclus" : "exclu"}` : null,
+  ];
+  return parts.filter(Boolean).join(" · ");
 }
 
 /** Nom affiché d'un membre : prénom et nom, sinon @nom, sinon « Membre sans nom ». */

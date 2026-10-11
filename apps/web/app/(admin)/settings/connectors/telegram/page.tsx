@@ -7,7 +7,7 @@ import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { CopyField } from "@/components/admin/copy-field";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,24 +66,26 @@ export default async function TelegramConnectorPage({
           et connectez-vous avec le numéro du compte qui possède les canaux (un code arrive dans
           Telegram).
         </li>
-        <li>Cliquez « API development tools ».</li>
+        <li>Cliquez « API development tools ».</li>
         <li>
-          Créez une application : nom « LinkAffi Pro », plateforme « Web », adresse ci-dessous. Les
+          Créez une application : nom « LinkAffi Pro », plateforme « Web », adresse ci-dessous. Les
           autres champs peuvent rester vides.
         </li>
         <li>
-          Copiez « App api_id » et « App api_hash » dans les deux champs ci-dessous, puis «
-          Enregistrer ».
+          Copiez « App api_id » et « App api_hash » dans les deux champs ci-dessous, puis
+          « Enregistrer ».
         </li>
       </ol>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <p className="text-note font-medium text-muted-foreground">Nom de l&apos;application</p>
+        <div className="space-y-2">
+          <p className="text-body leading-tight font-medium text-foreground">
+            Nom de l&apos;application
+          </p>
           <CopyField value="LinkAffi Pro" label="Nom de l'application" />
         </div>
-        <div className="space-y-1.5">
-          <p className="text-note font-medium text-muted-foreground">Adresse (URL)</p>
-          <CopyField value="https://app.linkaffipro.com" label="Adresse de l'application" />
+        <div className="space-y-2">
+          <p className="text-body leading-tight font-medium text-foreground">Adresse (URL)</p>
+          <CopyField value="https://app.linkaffipro.com" label="Adresse (URL)" />
         </div>
       </div>
       {isAdmin ? (
@@ -147,7 +149,7 @@ export default async function TelegramConnectorPage({
       <div className="space-y-10">
         <FormSection
           title="1. Application Telegram"
-          description="Telegram demande une « application » pour autoriser la lecture des vues. Elle se crée en 2 minutes et ne sert qu'à ça."
+          description="Telegram demande une « application » pour autoriser la lecture des vues. Elle se crée en 2 minutes et ne sert qu'à ça."
           actions={
             api ? (
               <StatusPill tone="success">Enregistrée</StatusPill>
@@ -193,7 +195,7 @@ export default async function TelegramConnectorPage({
                 : "—"}
             </DetailRow>
             <DetailRow label="Dernier relevé">
-              {lastSample ? fmtDate(lastSample.at) : "aucun"}
+              {lastSample ? fmtDate(lastSample.at) : "—"}
               {session?.lastUsedAt ? (
                 <span className="text-muted-foreground">
                   {" "}
@@ -221,7 +223,7 @@ export default async function TelegramConnectorPage({
               <AlertTitle>Compte à reconnecter</AlertTitle>
               <AlertDescription>
                 Telegram n&apos;accepte plus la session (fermée depuis l&apos;application ou
-                expirée). Recommencez l&apos;étape « Numéro de téléphone » ci-dessous.
+                expirée). Recommencez l&apos;étape « Numéro de téléphone » ci-dessous.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -300,7 +302,7 @@ export default async function TelegramConnectorPage({
                 </Button>
               </div>
               <p className="text-note text-muted-foreground">
-                Le code arrive dans un message de « Telegram » sur le téléphone connecté au numéro{" "}
+                Le code arrive dans un message de « Telegram » sur le téléphone connecté au numéro{" "}
                 {session?.phone ? maskPhone(session.phone) : ""}. Il expire au bout de quelques
                 minutes.
               </p>
@@ -388,7 +390,7 @@ export default async function TelegramConnectorPage({
             </p>
             <p>
               Rien n&apos;est écrit ni envoyé depuis ce compte : lecture seule, un seul relevé à la
-              fois, en respectant les limites de Telegram. La session est chiffrée ; « Déconnecter »
+              fois, en respectant les limites de Telegram. La session est chiffrée ; « Déconnecter »
               la révoque.
             </p>
           </div>

@@ -2,6 +2,7 @@
 
 import { CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import {
   Dialog,
   DialogClose,
@@ -18,24 +19,29 @@ import { Label } from "@/components/ui/label";
 /**
  * « Programmer » / « Changer la date » sur la fiche d'un envoi : une petite boîte avec la date et l'heure (heure de
  * Paris), envoyée à l'action serveur existante `scheduleAction` (champs `broadcastId` et `scheduledAt`).
+ * `size` / `className` : bouton d'ouverture (petit bouton dans la carte « Départ » de la fiche).
  */
 export function ScheduleDialog({
   action,
   broadcastId,
   defaultValue,
   label,
+  size = "default",
+  className,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   broadcastId: string;
   /** Valeur du champ datetime-local (heure de Paris). */
   defaultValue: string;
   label: string;
+  size?: "default" | "sm";
+  className?: string;
 }) {
   return (
     <Dialog>
       <DialogTrigger
         render={
-          <Button variant="outline" className="max-md:h-10">
+          <Button variant="outline" size={size} className={cn("max-md:h-10", className)}>
             <CalendarClock aria-hidden />
             {label}
           </Button>

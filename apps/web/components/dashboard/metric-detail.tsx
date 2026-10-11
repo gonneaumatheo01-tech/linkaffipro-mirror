@@ -41,7 +41,7 @@ export function MetricDetail({
             {compare ? (
               <span className="mt-0.5 flex items-center justify-end gap-2 text-note text-muted-foreground">
                 {f.previous !== undefined ? (
-                  <span className="tabular-nums">avant : {f.previous}</span>
+                  <span className="tabular-nums">Avant : {f.previous}</span>
                 ) : null}
                 <FigureDelta delta={f.delta ?? null} favorable={f.favorable} />
               </span>

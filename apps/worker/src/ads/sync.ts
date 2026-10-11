@@ -95,7 +95,7 @@ export async function syncConnection(
     await prisma.adAccountConnection.update({
       where: { id: conn.id },
       data: {
-        lastError: "Identifiants d'application absents (Réglages → Connecteurs → Applications).",
+        lastError: "Identifiants d'application absents (Réglages → Connexions → Meta ou TikTok).",
       },
     });
     return { ok: false, rows: 0, error: "application non configurée" };
@@ -171,7 +171,7 @@ export async function syncConnection(
         if (!report.unknownCurrencies.includes(c)) report.unknownCurrencies.push(c);
     }
     const warn = report.unknownCurrencies.length
-      ? `Devise sans taux : ${report.unknownCurrencies.join(", ")} (${report.skipped} lignes ignorées ; saisissez un taux dans Réglages → Connecteurs).`
+      ? `Devise sans taux : ${report.unknownCurrencies.join(", ")} (${report.skipped} lignes ignorées ; saisissez un taux dans Réglages → Connexions).`
       : null;
     await prisma.connectorSyncRun.update({
       where: { id: run.id },

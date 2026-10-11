@@ -6,7 +6,7 @@ import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { RememberFilters } from "@/components/admin/remember-filters";
 import { SidePanel, SidePanelClose } from "@/components/admin/side-panel";
 import { UniverseDot } from "@/components/admin/universe-dot";
-import { FilterChips } from "@/components/campaigns/filter-chips";
+import { FilterChips } from "@/components/admin/filter-chips";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/components/ui/cn";
@@ -116,7 +116,7 @@ export function MemberFilterBar({
         >
           <Hidden entries={hiddenFilterFields(f, ["q"])} />
           <Label htmlFor="members-q" className="sr-only">
-            Rechercher un membre
+            Rechercher un membre (nom, @pseudo ou identifiant Telegram)
           </Label>
           {/* `key` : remonte le champ quand l'adresse change (filtres mémorisés rappelés après l'affichage). */}
           <Input
@@ -125,7 +125,7 @@ export function MemberFilterBar({
             name="q"
             type="search"
             defaultValue={f.q}
-            placeholder="Nom, @pseudo ou identifiant Telegram"
+            placeholder="Nom ou @pseudo"
             className="min-w-0 flex-1"
           />
           {/* Téléphone : la touche « Rechercher » du clavier envoie la recherche ; le champ garde toute la place. */}
@@ -386,6 +386,7 @@ export function MemberFilterBar({
           <Suspense fallback={null}>
             <RememberFilters
               storageKey="members"
+              label="Effacer les filtres"
               className={cn("max-md:h-10", count === 0 && "hidden")}
             />
           </Suspense>

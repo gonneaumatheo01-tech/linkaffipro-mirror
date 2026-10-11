@@ -93,7 +93,7 @@ export const CRITERIA: Record<
     missing: "cochez au moins un niveau",
   },
   clickedCategoryIds: {
-    add: "A cliqué une catégorie",
+    add: "A cliqué un message de la catégorie…",
     title: "Ont cliqué un message de ces catégories",
     help: "Un bouton d'un message de canal rangé dans une de ces catégories.",
     missing: "cochez au moins une catégorie",

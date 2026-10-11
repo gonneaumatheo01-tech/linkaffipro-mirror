@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { Term } from "@/components/admin/help-tip";
 import { SidePanel } from "@/components/admin/side-panel";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -176,7 +176,7 @@ export default async function PostbacksPage({ searchParams }: PageProps<"/settin
           {endpoints.length === 0 ? (
             <EmptyState
               title="Aucune adresse pour l'instant"
-              description="Créez-en une pour chaque programme capable d'envoyer ses retours (bouton « Nouvelle adresse »). Les programmes Link Affi n'en ont pas besoin."
+              description="Créez-en une pour chaque programme capable d'envoyer ses retours (bouton « Nouvelle adresse »). Les programmes Link Affi n'en ont pas besoin."
             />
           ) : (
             <ul className="space-y-3">
@@ -223,7 +223,7 @@ export default async function PostbacksPage({ searchParams }: PageProps<"/settin
                                   <ConfirmSubmit
                                     variant="outline"
                                     className="max-md:h-10"
-                                    confirmTitle={`Désactiver « ${ep.name} »\u00a0?`}
+                                    confirmTitle={`Désactiver « ${ep.name} »\u00a0?`}
                                     confirmLabel="Désactiver"
                                     destructive
                                     message="Les retours de ce partenaire seront refusés jusqu'à la réactivation de l'adresse."
@@ -301,7 +301,7 @@ export default async function PostbacksPage({ searchParams }: PageProps<"/settin
                                 Envoyer un retour de test
                               </h3>
                               <p className="text-note text-muted-foreground">
-                                Crée un joueur fictif (identifiant « test-… »). Avec un identifiant
+                                Crée un joueur fictif (identifiant « test-… »). Avec un identifiant
                                 de suivi existant, il est rattaché au membre correspondant.
                               </p>
                             </div>
@@ -432,7 +432,7 @@ export default async function PostbacksPage({ searchParams }: PageProps<"/settin
             empty={{
               title: "Rien reçu pour l'instant",
               description:
-                "Ouvrez une adresse (« Modifier et tester ») pour envoyer un retour de test.",
+                "Ouvrez une adresse (« Modifier et tester ») pour envoyer un retour de test.",
             }}
           />
         </FormSection>

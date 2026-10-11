@@ -321,7 +321,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                 {origin.campaign ? (
                   <Link
                     href={`/campaigns/${origin.campaign.id}`}
-                    className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-2 underline-offset-4 hover:underline max-md:min-h-10"
                   >
                     <UniverseDot universe={origin.universe} />
                     {origin.campaign.name}
@@ -336,7 +336,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
               <Fact label="Canal">
                 <Link
                   href={`/channels/${origin.channelId}`}
-                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline max-md:min-h-10"
                 >
                   {origin.campaign ? null : <UniverseDot universe={origin.universe} />}
                   {origin.channelTitle}
@@ -418,9 +418,11 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
         </Block>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* Même grille que la rangée du dessus : Étiquettes sur deux colonnes, « Joignable » sur la troisième. */}
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Block
           title="Étiquettes"
+          className="xl:col-span-2"
           description="Pour le retrouver dans la liste et l'inclure dans un groupe de membres."
           action={
             me.role === "ADMIN" && !anonymized ? (
@@ -510,7 +512,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
         </Block>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Block
           id="chronologie"
           title="Chronologie"

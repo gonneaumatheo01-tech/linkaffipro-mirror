@@ -41,11 +41,14 @@ describe("page « Écrire à un groupe » : filtre Campagne", () => {
     const html = await render({});
     expect(html).toContain('href="/members/broadcasts/export"');
   });
-  it("sous-navigation Membres, un seul bouton principal « Écrire à un groupe », sans jargon", async () => {
+  it("sous-navigation Membres, un seul bouton principal « Nouveau message », sans jargon", async () => {
     const html = await render({});
     expect(html).toContain('aria-label="Rubriques Membres"');
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Écrire à un groupe<\/a>/);
-    expect(html).toContain('href="/members/broadcasts/new"');
+    // Le titre et l'onglet disent déjà « Écrire à un groupe » : le bouton dit ce qu'il fait.
+    expect(html).toMatch(
+      /<a [^>]*href="\/members\/broadcasts\/new"[^>]*>(?:(?!<\/a>).)*Nouveau message<\/a>/,
+    );
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(html).not.toMatch(/segment/i);
     expect(html).toContain("Aucun message à un groupe pour l&#x27;instant");

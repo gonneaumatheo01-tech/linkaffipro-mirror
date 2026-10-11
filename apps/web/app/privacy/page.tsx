@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BrandLogo } from "@/components/admin/brand-logo";
+import { Term } from "@/components/admin/help-tip";
 
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
@@ -53,8 +54,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Données d&apos;affiliation</strong> : événements transmis par nos partenaires
-              (inscription, dépôt) via un identifiant de suivi anonyme (sub-ID), sans nom ni
-              coordonnées du joueur.
+              (inscription, dépôt) via un <Term term="sub-ID">identifiant de suivi</Term> anonyme,
+              sans nom ni coordonnées du joueur.
             </li>
             <li>
               <strong>Comptes de l&apos;équipe</strong> : nom, adresse e-mail, rôle, journal des
@@ -106,11 +107,17 @@ export default function PrivacyPage() {
         </section>
 
         <footer className="border-t border-border pt-4 text-note text-muted-foreground">
-          <Link href="/terms" className="font-medium text-brand-ink underline underline-offset-4">
+          <Link
+            href="/terms"
+            className="inline-flex items-center font-medium text-brand-ink underline underline-offset-4 max-md:min-h-10"
+          >
             Conditions d&apos;utilisation
           </Link>
           {" · "}
-          <Link href="/login" className="font-medium text-brand-ink underline underline-offset-4">
+          <Link
+            href="/login"
+            className="inline-flex items-center font-medium text-brand-ink underline underline-offset-4 max-md:min-h-10"
+          >
             Connexion
           </Link>
         </footer>

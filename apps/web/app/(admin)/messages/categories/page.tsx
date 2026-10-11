@@ -3,7 +3,7 @@ import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
-import { FilterChips } from "@/components/campaigns/filter-chips";
+import { FilterChips } from "@/components/admin/filter-chips";
 import { BarList } from "@/components/messages/bar-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,6 +136,7 @@ export default async function CategoryComparisonPage({
   const isAdmin = user.role === "ADMIN";
   const ranked = rankCategories(rows, measure);
   const measureLabel = CATEGORY_MEASURES.find((m) => m.key === measure)!.label;
+  const allChannelsHref = `/messages/categories?${new URLSearchParams({ range, measure }).toString()}`;
   const hrefFor = (m: string) => {
     const p = new URLSearchParams({ range, measure: m });
     if (channelId) p.set("channel", channelId);
@@ -206,11 +207,19 @@ export default async function CategoryComparisonPage({
           }
         />
       ) : rows.length === 0 || posts.length === 0 ? (
-        <EmptyState
-          title="Aucun message envoyé sur la période"
-          description="Donnez une catégorie à vos messages en les écrivant : vous verrez ensuite ce qui marche le mieux."
-          action={{ href: "/messages/new", label: "Programmer un message", variant: "outline" }}
-        />
+        channelId ? (
+          <EmptyState
+            title="Aucun message envoyé dans ce canal sur la période"
+            description="Changez de période ou de canal."
+            action={{ href: allChannelsHref, label: "Tous les canaux", variant: "outline" }}
+          />
+        ) : (
+          <EmptyState
+            title="Aucun message envoyé sur la période"
+            description="Changez de période, ou programmez un message : ses chiffres apparaîtront ici après l'envoi."
+            action={{ href: "/messages/new", label: "Programmer un message", variant: "outline" }}
+          />
+        )
       ) : (
         <div className="space-y-6">
           <Card>
@@ -236,10 +245,11 @@ export default async function CategoryComparisonPage({
                 label={measureLabel}
                 items={ranked.map((r) => ({
                   key: r.categoryId ?? "none",
+                  // `flex` (pas `inline-flex`) : le nom se coupe avec des points de suspension sur téléphone.
                   label: (
-                    <span className="inline-flex min-w-0 items-center gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
                       <Dot color={r.color} />
-                      <span className="truncate">{r.name}</span>
+                      <span className="min-w-0 truncate">{r.name}</span>
                     </span>
                   ),
                   value: r.avg[measure],

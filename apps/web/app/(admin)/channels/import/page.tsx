@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, SearchX, Send, TriangleAlert } from "lucide-react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { EmptyState } from "@/components/admin/empty-state";
@@ -43,7 +43,11 @@ export default async function ImportChannelsPage({ searchParams }: PageProps<"/c
         title="Importer mes canaux"
         backHref="/channels"
         backLabel="Tous les canaux"
-        description="Les canaux et groupes dont votre compte Telegram connecté est administrateur ou créateur. Cochez ceux à ajouter."
+        description={
+          rows.length > 0
+            ? "Les canaux et groupes dont votre compte Telegram connecté est administrateur ou créateur. Cochez ceux à ajouter."
+            : "Les canaux et groupes dont votre compte Telegram connecté est administrateur ou créateur."
+        }
         help={
           active
             ? `Les canaux où l'un de nos bots est déjà administrateur sont cochés d'avance. Pour les autres, ajoutez d'abord le bot dans Telegram (canal → Administrateurs → Ajouter → ${bot}) : rien n'est modifié dans Telegram.`
@@ -67,8 +71,9 @@ export default async function ImportChannelsPage({ searchParams }: PageProps<"/c
 
       {!active ? (
         <EmptyState
+          icon={<Send />}
           title="Compte Telegram non connecté"
-          description="Cette page lit la liste de vos canaux avec votre compte Telegram (celui qui possède les canaux). Connectez-le d'abord dans Réglages → Connexions → Telegram, puis revenez ici."
+          description="Connectez d'abord le compte Telegram qui possède vos canaux, puis revenez ici."
           action={{
             href: "/settings/connectors/telegram",
             label: "Connecter mon compte Telegram",
@@ -76,12 +81,14 @@ export default async function ImportChannelsPage({ searchParams }: PageProps<"/c
         />
       ) : listing && !listing.ok ? (
         <EmptyState
+          icon={<TriangleAlert />}
           title="Lecture des canaux impossible pour le moment"
           description={listing.error}
           action={{ href: "/channels/import", label: "Réessayer", variant: "outline" }}
         />
       ) : rows.length === 0 ? (
         <EmptyState
+          icon={<SearchX />}
           title="Aucun canal trouvé"
           description="Votre compte Telegram n'est administrateur ou créateur d'aucun canal parmi ses 500 derniers échanges."
           action={{ href: "/channels", label: "Retour aux canaux", variant: "outline" }}

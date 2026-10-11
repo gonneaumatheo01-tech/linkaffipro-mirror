@@ -6,7 +6,7 @@ import { Flash } from "@/components/admin/flash";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
 import { AdAccountsTable } from "@/components/settings/ad-accounts-table";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -82,13 +82,13 @@ export default async function MetaConnectorPage({
         reconnect={{ href: START_URL }}
         syncWhen="notDisabled"
         disconnectMessage={(name) =>
-          `Le compte « ${name} » ne sera plus synchronisé et son accès sera effacé. Les dépenses déjà importées restent.`
+          `Le compte « ${name} » ne sera plus synchronisé et son accès sera effacé. Les dépenses déjà importées restent.`
         }
         empty={{
           title: "Aucun compte Meta connecté",
           description: isAdmin
             ? appReady
-              ? "Cliquez sur « Connecter un compte Meta » : Facebook s'ouvre, vous acceptez l'accès, puis vous cochez les comptes à suivre."
+              ? "Cliquez sur « Connecter un compte Meta » : Facebook s'ouvre, vous acceptez l'accès, puis vous cochez les comptes à suivre."
               : "Créez d'abord l'application Meta (guide ci-dessous), enregistrez ses identifiants, puis connectez vos comptes."
             : "Un administrateur doit connecter les comptes publicitaires.",
         }}
@@ -109,7 +109,7 @@ export default async function MetaConnectorPage({
         </Alert>
       ) : app && !app.verifiedAt ? (
         <p className="text-note text-muted-foreground">
-          Cliquez sur « Vérifier » pour tester les identifiants auprès de Meta, sans rien connecter.
+          Cliquez sur « Vérifier » pour tester les identifiants auprès de Meta, sans rien connecter.
         </p>
       ) : null}
       {isAdmin ? (
@@ -157,8 +157,8 @@ export default async function MetaConnectorPage({
                 className="md:max-w-sm"
               />
               <p className="text-note text-muted-foreground">
-                Si l&apos;application utilise « Facebook Login for Business » avec une
-                configuration, Meta affiche un « ID de configuration » : collez-le ici. Sinon,
+                Si l&apos;application utilise « Facebook Login for Business » avec une
+                configuration, Meta affiche un « ID de configuration » : collez-le ici. Sinon,
                 laissez vide.
               </p>
             </div>
@@ -206,7 +206,7 @@ export default async function MetaConnectorPage({
         help={
           isAdmin
             ? appReady
-              ? "Cliquez sur « Connecter un compte Meta », acceptez l'accès sur Facebook, puis cochez les comptes à suivre."
+              ? "Cliquez sur « Connecter un compte Meta », acceptez l'accès sur Facebook, puis cochez les comptes à suivre."
               : "Première fois : créez l'application Meta (guide en bas de page, 10 minutes), enregistrez son App ID et son App Secret, puis connectez un compte."
             : "Lecture seule : seuls les administrateurs peuvent enregistrer l'application ou connecter des comptes."
         }

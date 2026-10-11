@@ -46,7 +46,7 @@ export const FUNNEL_STEPS: Array<{ key: keyof StatTotals; label: string }> = [
   { key: "joined", label: "Entrés" },
   { key: "offerClicks", label: "Clics offres" },
   { key: "registrations", label: "Inscriptions" },
-  { key: "ftds", label: "FTD" },
+  { key: "ftds", label: "Premiers dépôts" },
   { key: "deposits", label: "Dépôts" },
 ];
 

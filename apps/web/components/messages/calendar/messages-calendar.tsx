@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/admin/empty-state";
 import { UniverseDot } from "@/components/admin/universe-dot";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { horizontalScrollState } from "@/components/ui/table-logic";
@@ -77,6 +78,16 @@ function messageCount(n: number): string {
 /** Clic simple (sans touche ni bouton du milieu) : ouvre le volet ; sinon le lien ouvre la fiche normalement. */
 function plainClick(e: React.MouseEvent): boolean {
   return !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0);
+}
+
+/** Repère d'un message de test A/B, écrit comme dans la liste (« A/B · B ») ; lu « Test A/B, version B ». */
+function AbTag({ variant }: { variant: string }) {
+  return (
+    <Badge variant="outline" className="font-normal">
+      <span aria-hidden>A/B · {variant}</span>
+      <span className="sr-only">Test A/B, version {variant}</span>
+    </Badge>
+  );
 }
 
 /**
@@ -539,18 +550,15 @@ export function MessagesCalendar({
                                       (pending.includes(p.id) || dragId === p.id) && "opacity-50",
                                     )}
                                   >
-                                    <span className="flex items-center gap-1 overflow-hidden">
+                                    {/* Le repère A/B passe à la ligne s'il manque de place (jamais coupé). */}
+                                    <span className="flex flex-wrap items-center gap-1">
                                       <span className="font-semibold tabular-nums">{time}</span>
                                       <StatusBadge
                                         kind="post"
                                         value={p.status}
                                         className="h-5 px-1.5"
                                       />
-                                      {p.abVariant ? (
-                                        <span className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm border border-border bg-muted px-1 font-semibold">
-                                          {p.abVariant}
-                                        </span>
-                                      ) : null}
+                                      {p.abVariant ? <AbTag variant={p.abVariant} /> : null}
                                     </span>
                                     <span className="mt-0.5 line-clamp-2 break-words">
                                       {p.excerpt || "(média seul)"}
@@ -702,12 +710,7 @@ export function MessagesCalendar({
                           {p.channelTitle}
                         </span>
                         <StatusBadge kind="post" value={p.status} />
-                        {p.abVariant ? (
-                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-sm border border-border bg-muted px-1 text-note font-semibold">
-                            <span className="sr-only">version </span>
-                            {p.abVariant}
-                          </span>
-                        ) : null}
+                        {p.abVariant ? <AbTag variant={p.abVariant} /> : null}
                       </span>
                       <span className="flex items-center gap-1.5 text-note text-muted-foreground">
                         <UniverseDot universe={p.universe} />

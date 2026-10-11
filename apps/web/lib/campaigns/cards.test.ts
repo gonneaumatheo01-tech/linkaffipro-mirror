@@ -10,6 +10,7 @@ import {
   groupMoney,
   groupMoneyDigits,
   hasCampaignFilters,
+  hasFilterParams,
   matchesCampaignFilters,
   noMatchTitle,
   parseCampaignFilters,
@@ -152,6 +153,13 @@ describe("adresses des pastilles", () => {
 
   it("aplatit les paramètres d'adresse (première valeur)", () => {
     expect(flatParams({ a: ["1", "2"], b: "x", c: undefined, d: "" })).toEqual({ a: "1", b: "x" });
+  });
+
+  it("« Réinitialiser » : seulement si l'adresse porte un réglage (ni message de retour, ni page, ni valeur vide)", () => {
+    expect(hasFilterParams({})).toBe(false);
+    expect(hasFilterParams({ ok: "Enregistré", error: "x", page: "2", status: "" })).toBe(false);
+    expect(hasFilterParams({ range: "30d" })).toBe(true);
+    expect(hasFilterParams({ vertical: ["CASINO"] })).toBe(true);
   });
 });
 

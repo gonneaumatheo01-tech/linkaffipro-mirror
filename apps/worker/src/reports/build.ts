@@ -1,4 +1,5 @@
 import { prisma } from "@linkaffipro/db";
+import { linkAffiTableLabel } from "@linkaffipro/core";
 import { dayKey } from "../stats/aggregate";
 import { EMPTY_METRICS, type NamedMetrics, type ReportData, type ReportMetrics } from "./format";
 import { describeBackup, type BackupStatus } from "../backups/plan";
@@ -70,7 +71,7 @@ async function statusBlock(now: Date): Promise<Pick<ReportData, "openAlerts" | "
   ]);
   const backup = describeBackup(backupSetting && backupSetting.value && typeof backupSetting.value === "object" ? (backupSetting.value as BackupStatus) : null);
   const lastSuccessAt = states.reduce<Date | null>((acc, s) => (s.lastSuccessAt && (!acc || s.lastSuccessAt > acc) ? s.lastSuccessAt : acc), null);
-  const errors = states.filter((s) => s.lastError).map((s) => `${s.source} : ${s.lastError}`).slice(0, 3);
+  const errors = states.filter((s) => s.lastError).map((s) => `${linkAffiTableLabel(s.source)} : ${s.lastError}`).slice(0, 3);
   return { openAlerts: alerts, sync: { lastSuccessAt, errors }, backup, upcomingPosts: posts.map((p) => ({ channel: p.channel.title, scheduledAt: p.scheduledAt ?? now })) };
 }
 

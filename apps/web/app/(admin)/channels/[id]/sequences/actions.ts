@@ -46,7 +46,7 @@ async function stepFor(channelId: string, trigger: SequenceTriggerKey) {
     where: { channelId, trigger },
     include: { steps: { orderBy: { order: "asc" }, take: 1 } },
   });
-  if (!seq) throw new Error("Séquence introuvable.");
+  if (!seq) throw new Error("Message du bot introuvable pour ce canal.");
   const step =
     seq.steps[0] ??
     (await prisma.sequenceStep.create({

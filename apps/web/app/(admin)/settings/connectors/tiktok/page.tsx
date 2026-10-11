@@ -6,7 +6,7 @@ import { Flash } from "@/components/admin/flash";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
 import { AdAccountsTable } from "@/components/settings/ad-accounts-table";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,7 +58,7 @@ export default async function TikTokConnectorPage({
   const redirectUri = redirectUriFor("TIKTOK");
   const now = new Date();
   const notConnectableReason = sandbox
-    ? "En mode bac à sable, connectez le compte de test avec le formulaire « Compte de test »."
+    ? "En mode bac à sable, connectez le compte de test avec le formulaire « Compte de test »."
     : "Enregistrez d'abord l'application TikTok.";
 
   const appState = !app ? (
@@ -86,14 +86,14 @@ export default async function TikTokConnectorPage({
         reconnect={canConnect ? { href: START_URL } : { disabledReason: notConnectableReason }}
         syncWhen="active"
         disconnectMessage={(name) =>
-          `L'accès du compte « ${name} » sera effacé : plus aucune dépense ne sera lue pour ce compte. Les chiffres déjà importés restent.`
+          `L'accès du compte « ${name} » sera effacé : plus aucune dépense ne sera lue pour ce compte. Les chiffres déjà importés restent.`
         }
         empty={{
           title: "Aucun compte TikTok connecté",
           description: appReady
             ? sandbox
-              ? "Mode bac à sable : collez le jeton et l'identifiant du compte de test dans « Compte de test » ci-dessous."
-              : "Cliquez sur « Connecter un compte TikTok », acceptez sur la page TikTok, puis cochez les comptes à suivre."
+              ? "Mode bac à sable : collez le jeton et l'identifiant du compte de test dans « Compte de test » ci-dessous."
+              : "Cliquez sur « Connecter un compte TikTok », acceptez sur la page TikTok, puis cochez les comptes à suivre."
             : "Commencez par enregistrer l'application TikTok.",
         }}
       />
@@ -238,7 +238,7 @@ export default async function TikTokConnectorPage({
           !isAdmin
             ? "Lecture seule : seul un administrateur peut enregistrer l'application ou connecter un compte."
             : appReady
-              ? "L'application est enregistrée : cliquez sur « Connecter un compte TikTok » et cochez les comptes à suivre."
+              ? "L'application est enregistrée : cliquez sur « Connecter un compte TikTok » et cochez les comptes à suivre."
               : "Première fois : créez l'application TikTok (guide en bas de page, 10 minutes), collez l'App ID et le Secret, puis Enregistrer et Vérifier."
         }
         primaryAction={

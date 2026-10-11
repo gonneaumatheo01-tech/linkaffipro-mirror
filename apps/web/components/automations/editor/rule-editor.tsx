@@ -109,8 +109,12 @@ const triggerLabel = (t: string) => AUTOMATION_TRIGGER_LABELS[t as AutomationTri
 /** Ajustement de la vue : marge de 40 px autour des blocs, jamais au-delà de l'échelle 1. */
 const FIT_VIEW: FitViewOptions = { padding: "40px", maxZoom: 1 };
 
-/** Largeur de canevas à partir de laquelle la mini-carte s'affiche. */
-const MINIMAP_MIN_WIDTH = 720;
+/**
+ * Mini-carte : petite (120 × 80) dès 480 px de canevas (cas de l'écran de 1440 px, bibliothèque et panneau ouverts :
+ * environ 540 px), grande (140 × 96) dès 720 px ; en dessous, elle cacherait des blocs.
+ */
+const MINIMAP_MIN_WIDTH = 480;
+const MINIMAP_LARGE_WIDTH = 720;
 
 function EditorDesktop({
   ruleId,
@@ -127,8 +131,8 @@ function EditorDesktop({
   const wrapper = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
-  /** Mini-carte seulement sur un canevas assez large : sur un canevas étroit, elle cacherait des blocs. */
-  const [wide, setWide] = useState(false);
+  /** Taille de la mini-carte selon la largeur du canevas (aucune sur un canevas étroit). */
+  const [minimap, setMinimap] = useState<null | "small" | "large">(null);
   const [rule, setRule] = useState<RuleState>({
     name: initial.name,
     trigger: initial.trigger,
@@ -188,7 +192,13 @@ function EditorDesktop({
       if (!el) return;
       const box = el.getBoundingClientRect();
       setHeight(fillHeight(window.innerHeight, box.top + window.scrollY));
-      setWide(box.width >= MINIMAP_MIN_WIDTH);
+      setMinimap(
+        box.width >= MINIMAP_LARGE_WIDTH
+          ? "large"
+          : box.width >= MINIMAP_MIN_WIDTH
+            ? "small"
+            : null,
+      );
     };
     measure();
     window.addEventListener("resize", measure);
@@ -473,7 +483,8 @@ function EditorDesktop({
           </Alert>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[13rem_minmax(0,1fr)_22rem]">
+        {/* 14rem : chaque bloc de la bibliothèque tient sur une ligne ; le canevas garde plus de 480 px (mini-carte). */}
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[14rem_minmax(0,1fr)_22rem]">
           <div className="md:col-span-2 xl:col-span-1">
             <BlockPalette
               onAdd={addFromPalette}
@@ -528,13 +539,15 @@ function EditorDesktop({
               >
                 <Background variant={BackgroundVariant.Dots} gap={16} size={1.25} />
                 {/* En haut à droite : un parcours s'élargit vers le bas, ce coin reste presque toujours libre. */}
-                {wide ? (
+                {minimap ? (
                   <MiniMap<FlowNode>
                     position="top-right"
                     pannable
                     zoomable
                     ariaLabel="Mini-carte du parcours"
-                    style={{ width: 140, height: 96 }}
+                    style={
+                      minimap === "large" ? { width: 140, height: 96 } : { width: 120, height: 80 }
+                    }
                     nodeClassName={(n) =>
                       miniMapClass(
                         n.type,

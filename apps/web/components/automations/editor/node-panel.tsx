@@ -39,7 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor, type PlaceholderChip } from "@/components/editor/rich-text-editor";
 import {
   PALETTE,
   canConnect,
@@ -72,6 +72,16 @@ export type RuleState = {
   conditions: Record<string, unknown>;
   oncePerMember: boolean;
 };
+
+/** Repères remplacés dans le texte « Proposer un canal » et dans la notification à l'équipe (exécution des relances). */
+const SUGGEST_WORDS: readonly PlaceholderChip[] = [
+  { key: "canal_propose", label: "Canal proposé" },
+  { key: "prenom", label: "Prénom" },
+];
+const TEAM_WORDS: readonly PlaceholderChip[] = [
+  { key: "prenom", label: "Prénom" },
+  { key: "canal", label: "Nom du canal" },
+];
 
 type Vertical = "CASINO" | "SPORTS" | "DATING";
 const toVertical = (v: string | undefined): Vertical | null =>
@@ -622,12 +632,15 @@ function ActionForm({
             label="Texte (facultatif)"
             help="{canal_propose} est remplacé par le nom du canal ; un bouton pour le rejoindre est ajouté."
           >
-            <Textarea
+            <RichTextEditor
               id={`${id}-sugg`}
+              label="Texte (facultatif)"
               rows={3}
               value={str(a.text)}
-              onChange={(e) => set({ text: e.target.value })}
-              aria-describedby={`${id}-sugg-help`}
+              onChange={(text) => set({ text })}
+              describedBy={`${id}-sugg-help`}
+              placeholder="Par défaut : « On te propose aussi de rejoindre {canal_propose} : »"
+              placeholders={SUGGEST_WORDS}
             />
           </Field>
         </>
@@ -638,12 +651,15 @@ function ActionForm({
           label="Texte de la notification"
           help="Envoyé à l'équipe sur Telegram, avec le nom du membre."
         >
-          <Textarea
+          <RichTextEditor
             id={`${id}-team`}
+            label="Texte de la notification"
             rows={3}
             value={str(a.text)}
-            onChange={(e) => set({ text: e.target.value })}
-            aria-describedby={`${id}-team-help`}
+            onChange={(text) => set({ text })}
+            describedBy={`${id}-team-help`}
+            placeholder="Ex. : {prenom} a déposé, à rappeler."
+            placeholders={TEAM_WORDS}
           />
         </Field>
       ) : null}

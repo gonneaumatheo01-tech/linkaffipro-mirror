@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { extractHeadings, renderMarkdown } from "./markdown";
-import { findHeading, guideHeadings, guideSections } from "./sections";
+import {
+  findHeading,
+  guideHeadings,
+  guideSections,
+  withoutSections,
+  withoutTitle,
+} from "./sections";
 
 const MD = [
   "# Guide",
@@ -71,6 +77,33 @@ describe("sections du guide", () => {
   });
 });
 
+describe("guide sans certaines sections (page /help)", () => {
+  it("retire la section et ses sous-sections, jusqu'au titre suivant de même niveau", () => {
+    const out = withoutSections(MD, ["Réglages", "Inconnu"]);
+    expect(guideHeadings(out).map((h) => h.text)).toEqual([
+      "Guide",
+      "Les 10 premières minutes",
+      "1. Se connecter",
+      "Mon compte",
+    ]);
+    expect(out).not.toContain("Doublon.");
+    expect(out).toContain("Voir [la suite](#reglages).");
+    expect(withoutSections(MD, [])).toBe(MD);
+  });
+
+  it("retire le titre de niveau 1 (le seul <h1> de /help est celui de la page), ancres inchangées", () => {
+    const out = withoutTitle(MD);
+    expect(guideHeadings(out).some((h) => h.level === 1)).toBe(false);
+    expect(out).toContain("## pas un titre"); // bloc de code intact
+    expect(guideHeadings(out).map((h) => h.id)).toEqual(
+      guideHeadings(MD)
+        .filter((h) => h.level > 1)
+        .map((h) => h.id),
+    );
+    expect(renderMarkdown(withoutTitle("# Guide\n\nTexte."))).toBe("<p>Texte.</p>");
+  });
+});
+
 describe("rendu d'un extrait dans le volet", () => {
   it("préfixe des ancres, titres décalés, liens internes vers /help", () => {
     const [s] = guideSections(MD, ["Mon compte"]);
@@ -86,5 +119,13 @@ describe("rendu d'un extrait dans le volet", () => {
   it("sans option : rendu inchangé ; niveaux plafonnés à h6", () => {
     expect(renderMarkdown("[a](#x)")).toBe('<p><a href="#x">a</a></p>');
     expect(renderMarkdown("#### Petit", { headingOffset: 5 })).toBe('<h6 id="petit">Petit</h6>');
+  });
+
+  it("décalage négatif : une sous-section de niveau 4 devient le <h3> du volet, jamais moins que h1", () => {
+    const md = "#### Utilisateurs\nTexte.";
+    expect(renderMarkdown(md, { headingOffset: 3 - 4 })).toBe(
+      '<h3 id="utilisateurs">Utilisateurs</h3>\n<p>Texte.</p>',
+    );
+    expect(renderMarkdown("## Grand", { headingOffset: -5 })).toBe('<h1 id="grand">Grand</h1>');
   });
 });

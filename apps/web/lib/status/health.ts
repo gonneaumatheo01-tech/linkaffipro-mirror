@@ -11,7 +11,7 @@
  */
 import { fmtDate, fmtRelative } from "@/lib/format";
 import { pointsLabel } from "@/lib/home/status";
-import { linkAffiState, plural, type CardState } from "./card-state";
+import { LINKAFFI_STALE_MS, linkAffiState, plural, type CardState } from "./card-state";
 import type { HealthInput } from "./queries";
 
 export type HealthTileKey = "site" | "worker" | "backup" | "bots" | "sync" | "alerts";
@@ -181,6 +181,23 @@ function syncTile(sync: Input["syncStates"], now: Date): HealthTile {
     state: { tone: s.tone, label: s.tone === "warning" ? "En retard" : "À jour" },
     detail: `${s.label}.`,
   };
+}
+
+/** État d'une ligne du tableau « Synchro Link Affi » : `late` quand son dernier succès est trop ancien. */
+export type SyncRowState = "running" | "error" | "late" | "ok" | "never";
+
+/**
+ * État d'une donnée Link Affi dans le tableau d'État du système, avec le même seuil que la tuile « Synchro Link
+ * Affi » (`LINKAFFI_STALE_MS`, 15 minutes) : la tuile « En retard » ne côtoie jamais des lignes « OK ».
+ */
+export function syncRowState(
+  s: { isRunning: boolean; lastError: string | null; lastSuccessAt: Date | null },
+  now: Date,
+): SyncRowState {
+  if (s.isRunning) return "running";
+  if (s.lastError) return "error";
+  if (!s.lastSuccessAt) return "never";
+  return now.getTime() - s.lastSuccessAt.getTime() > LINKAFFI_STALE_MS ? "late" : "ok";
 }
 
 function alertsTile(alerts: Input["openAlerts"]): HealthTile {

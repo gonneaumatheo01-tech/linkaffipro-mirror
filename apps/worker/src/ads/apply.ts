@@ -284,7 +284,7 @@ export async function applyInsights(
   if (report.unknownCurrencies.length)
     logger.warn(
       { connection: connection.name, currencies: report.unknownCurrencies },
-      "devises sans taux : lignes ignorées (saisir un taux dans Réglages → Connecteurs)",
+      "devises sans taux : lignes ignorées (saisir un taux dans Réglages → Connexions)",
     );
   return report;
 }

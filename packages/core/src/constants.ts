@@ -6,7 +6,7 @@ export type Vertical = (typeof VERTICALS)[number];
 export const VERTICAL_LABELS: Record<Vertical, string> = {
   CASINO: "Casino",
   SPORTS: "Paris sportifs",
-  DATING: "Dating",
+  DATING: "Rencontres",
 };
 
 /** Rôles des utilisateurs internes. Valeurs identiques à l'enum Prisma `Role`. */

@@ -7,6 +7,7 @@ import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { SidePanel, SidePanelClose } from "@/components/admin/side-panel";
 import { Stepper } from "@/components/admin/stepper";
 import { StatusPill } from "@/components/admin/status-pill";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -137,7 +138,7 @@ export function SidePanelDemo() {
   return (
     <SidePanel
       title="Léa M."
-      description="Membre depuis le 3 octobre · venue de la pub « Casino octobre #2 »"
+      description="Membre depuis le 3 octobre · venue de la pub « Casino octobre #2 »"
       trigger={<Button variant="outline">Ouvrir un volet de détail</Button>}
       footer={
         <>
@@ -251,6 +252,25 @@ export function CheckboxDemo() {
         <Checkbox />
         Envoyer sans notification
       </label>
+    </div>
+  );
+}
+
+/** Texte d'un message : toujours `RichTextEditor` (jamais une simple zone de texte), libellé relié. */
+export function RichTextDemo() {
+  const [text, setText] = useState("Bonjour ! Ce <b>week-end</b>…");
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="sg-text">Texte</Label>
+      <RichTextEditor
+        id="sg-text"
+        label="Texte"
+        name="text"
+        value={text}
+        onChange={setText}
+        rows={4}
+        warnUnresolved={false}
+      />
     </div>
   );
 }

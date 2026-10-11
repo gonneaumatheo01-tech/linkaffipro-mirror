@@ -144,7 +144,7 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/setti
         backLabel="Réglages"
         title="Catégories de messages"
         description="Vos propres catégories (bonus, jackpot, match du jour…) pour ranger les messages et comparer ce qui marche le mieux."
-        help="Créez une catégorie ici, ou directement en écrivant un message (champ Catégorie → « + Nouvelle catégorie »)."
+        help="Créez une catégorie ici, ou directement en écrivant un message (champ Catégorie → « + Nouvelle catégorie »)."
         primaryAction={createPanel}
         secondaryActions={
           <Link
@@ -311,8 +311,8 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/setti
                     className="max-md:h-10"
                     confirmTitle={
                       referenced
-                        ? `Fusionner et supprimer « ${c.name} »\u00a0?`
-                        : `Supprimer « ${c.name} »\u00a0?`
+                        ? `Fusionner et supprimer « ${c.name} »\u00a0?`
+                        : `Supprimer « ${c.name} »\u00a0?`
                     }
                     message={deleteConfirmMessage(c.name, c._count.posts, refs)}
                   >
@@ -326,7 +326,7 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/setti
         empty={{
           title: "Aucune catégorie pour l'instant",
           description:
-            "Les catégories sont à créer vous-même, selon vos types de messages : cliquez sur « Nouvelle catégorie », ou créez-la en écrivant un message.",
+            "Les catégories sont à créer vous-même, selon vos types de messages : cliquez sur « Nouvelle catégorie », ou créez-la en écrivant un message.",
         }}
       />
       {categories.length > 0 ? (

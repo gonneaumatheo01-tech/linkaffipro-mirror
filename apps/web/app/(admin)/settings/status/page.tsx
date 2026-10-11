@@ -9,8 +9,12 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { Term } from "@/components/admin/help-tip";
 import { StatusPill } from "@/components/admin/status-pill";
-import { BotConnection, botCheckLabel } from "@/components/settings/bot-connection";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import {
+  BotConnection,
+  TelegramErrorText,
+  botCheckLabel,
+} from "@/components/settings/bot-connection";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { HealthTiles } from "@/components/settings/health-tiles";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -18,7 +22,7 @@ import { fmtDate, fmtNum } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { getSystemStatus } from "@/lib/status/queries";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
-import { botCheck, healthSummary, healthTiles } from "@/lib/status/health";
+import { botCheck, healthSummary, healthTiles, syncRowState } from "@/lib/status/health";
 import {
   alertKindLabel,
   fmtAgeSec,
@@ -70,7 +74,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
               href="/settings/alerts"
               className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
             >
-              Alertes et conservation
+              Alertes
             </Link>
             <Link
               href="/settings/status"
@@ -92,7 +96,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
 
         <FormSection
           title="Alertes ouvertes"
-          description="Elles se ferment toutes seules quand la cause disparaît. Réglages et historique dans Alertes et conservation."
+          description="Elles se ferment toutes seules quand la cause disparaît. Seuils et historique : Réglages → Alertes et rapports."
           actions={
             s.openAlerts.length > 0 ? (
               <StatusPill tone="danger">{fmtNum(s.openAlerts.length)}</StatusPill>
@@ -121,7 +125,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
 
         <FormSection
           title="Tâches en échec"
-          description="Les 20 plus récentes. « Relancer » remet la tâche en attente ; les échecs de plus de 7 jours sont effacés chaque nuit."
+          description="Les 20 plus récentes. « Relancer » remet la tâche en attente ; les échecs de plus de 7 jours sont effacés chaque nuit."
           actions={
             <form action={cleanFailedJobsAction}>
               <ConfirmSubmit
@@ -215,7 +219,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
 
         <FormSection
           title="Files de tâches"
-          description="Ce que le service d'arrière-plan a à faire. Si « En attente » grimpe sans redescendre, il est arrêté ou trop lent."
+          description="Ce que le service d'arrière-plan a à faire. Si « En attente » grimpe sans redescendre, il est arrêté ou trop lent."
           actions={
             s.queues.error ? (
               <StatusPill tone="danger">Injoignables</StatusPill>
@@ -272,7 +276,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
         <div className="grid gap-10 xl:grid-cols-2">
           <FormSection
             title="Bots"
-            description="La connexion Telegram de chaque bot actif, vérifiée auprès de Telegram, et la dernière erreur du bot."
+            description="La connexion Telegram de chaque bot actif."
             actions={
               <Link
                 href="/settings/bots"
@@ -291,7 +295,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
               ]}
               rows={s.bots.map((b) => {
                 const check = botCheck(b);
-                const connection = <BotConnection check={check} />;
+                const connection = <BotConnection check={check} error={b.webhook?.fetchError} />;
                 return {
                   id: b.id,
                   cells: {
@@ -308,7 +312,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
                   },
                   sortValues: {
                     bot: b.name,
-                    connection: botCheckLabel(check),
+                    connection: botCheckLabel(check, b.webhook?.fetchError),
                   },
                   detailTitle: b.name,
                   detailDescription: `@${b.username}`,
@@ -324,22 +328,23 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
                         ) : null}
                         {b.webhook?.fetchError ? (
                           <DetailRow label="Réponse de Telegram">
-                            <span className="text-danger">{b.webhook.fetchError}</span>
+                            <TelegramErrorText raw={b.webhook.fetchError} />
                           </DetailRow>
                         ) : null}
                         {b.webhook?.lastError ? (
                           <DetailRow label="Erreur de connexion">
-                            <span className="text-danger">
-                              {b.webhook.lastError}
-                              {b.webhook.lastErrorAt ? ` (${fmtDate(b.webhook.lastErrorAt)})` : ""}
-                            </span>
+                            <TelegramErrorText
+                              raw={b.webhook.lastError}
+                              source="delivery"
+                              at={b.webhook.lastErrorAt ? fmtDate(b.webhook.lastErrorAt) : null}
+                            />
                           </DetailRow>
                         ) : null}
                         <DetailRow label="Dernier message reçu">
                           {fmtDate(b.lastWebhookAt)}
                         </DetailRow>
                         <DetailRow label="Dernière erreur du bot">
-                          {b.lastError ? <span className="text-danger">{b.lastError}</span> : "—"}
+                          <TelegramErrorText raw={b.lastError} source="bot" />
                         </DetailRow>
                       </DetailList>
                       <Link
@@ -380,31 +385,38 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
                 { key: "state", header: "État" },
               ]}
               rows={s.syncStates.map((st) => {
-                const state = st.isRunning
-                  ? "running"
-                  : st.lastError
-                    ? "error"
-                    : st.lastSuccessAt
-                      ? "ok"
-                      : "never";
+                // Même seuil que la tuile « Synchro Link Affi » : un dernier succès trop ancien est « En retard ».
+                const rowState = syncRowState(st, now);
+                const state = rowState === "late" ? "ok" : rowState;
+                const pill =
+                  rowState === "late" ? (
+                    <StatusPill
+                      tone="warning"
+                      title="La synchro passe normalement toutes les 2 minutes."
+                    >
+                      En retard
+                    </StatusPill>
+                  ) : (
+                    <StatusBadge kind="sync" value={state} />
+                  );
                 return {
                   id: st.source,
                   cells: {
                     source: linkAffiTableLabel(st.source),
                     success: fmtDate(st.lastSuccessAt),
                     rows: fmtNum(st.rowsImported),
-                    state: <StatusBadge kind="sync" value={state} />,
+                    state: pill,
                   },
-                  sortValues: { state: statusLabel("sync", state) },
+                  sortValues: {
+                    state: rowState === "late" ? "En retard" : statusLabel("sync", state),
+                  },
                   detailTitle: linkAffiTableLabel(st.source),
                   detail: (
                     <DetailList>
                       <DetailRow label="Nom technique" mono>
                         {st.source}
                       </DetailRow>
-                      <DetailRow label="État">
-                        <StatusBadge kind="sync" value={state} />
-                      </DetailRow>
+                      <DetailRow label="État">{pill}</DetailRow>
                       <DetailRow label="Dernière exécution">{fmtDate(st.lastRunAt)}</DetailRow>
                       <DetailRow label="Dernier succès">{fmtDate(st.lastSuccessAt)}</DetailRow>
                       <DetailRow label="Lignes importées">{fmtNum(st.rowsImported)}</DetailRow>

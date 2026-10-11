@@ -232,7 +232,13 @@ describe("page Messages : liste lisible", () => {
     });
     const html = await render({ view: "list", status: "DRAFT" });
     expect(html).toContain("Rappel · Votre bonus expire à minuit");
-    expect(html).toContain("Sans date · Brouillon");
+    // Téléphone : sous l'extrait, la pastille d'état (couleur + mot), le canal avec son univers, puis la date.
+    const phoneLine =
+      html.match(/<span class="mt-1 flex[^"]*md:hidden">(.*?)<\/span><\/span><\/button>/)?.[1] ??
+      "";
+    expect(phoneLine).toMatch(/data-slot="status-pill"[^>]*>Brouillon</);
+    expect(phoneLine).toMatch(/data-universe="CASINO"[^>]*>.*Mediatheque/);
+    expect(phoneLine).toContain("Sans date");
     // La ligne ouvre le même volet que le calendrier (bouton de la première cellule).
     expect(html).toContain('data-open-post="p2"');
     expect(html).toContain("Effacer les filtres");

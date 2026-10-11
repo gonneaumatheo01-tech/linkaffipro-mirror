@@ -35,8 +35,10 @@ import {
   statusLabel,
   statusLabels,
   statusVariant,
+  type StatusEntry,
   type StatusKind,
 } from "./status-badges";
+import { jargonIn } from "@/tests/vocabulary/jargon-scan";
 
 /** Chaque enum Prisma affiché dans l'interface et le genre du dictionnaire qui le couvre. */
 const ENUMS: Array<[StatusKind, Record<string, string>]> = [
@@ -91,6 +93,20 @@ describe("badges de statut", () => {
     const labels = statusLabels("post");
     expect(labels.DRAFT).toBe("Brouillon");
     expect(Object.keys(labels)).toEqual(Object.keys(PostStatus));
+  });
+
+  it("aucun libellé ne contient de jargon ; le terme technique passe au survol (`term`)", () => {
+    for (const kind of Object.keys(STATUS_DICT) as StatusKind[])
+      for (const [value, entry] of Object.entries(STATUS_DICT[kind] as Record<string, StatusEntry>))
+        expect(jargonIn(entry.label), `${kind}.${value} : ${entry.label}`).toEqual([]);
+    expect(statusEntry("playerEvent", "FTD")).toMatchObject({
+      label: "Premier dépôt",
+      term: "FTD",
+    });
+    expect(statusEntry("playerEvent", "NGR")).toMatchObject({ label: "Revenu net", term: "NGR" });
+    expect(statusLabel("outboundKind", "BROADCAST")).toBe("Message à un groupe");
+    expect(statusLabel("outboundKind", "AUTOMATION")).toBe("Relance automatique");
+    expect(statusLabel("vertical", "DATING")).toBe("Rencontres");
   });
 
   it("couvre aussi les statuts hors Prisma (synchro, connexion Telegram, actif)", () => {

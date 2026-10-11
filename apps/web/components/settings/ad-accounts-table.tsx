@@ -4,7 +4,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { fmtDate, fmtDateShort, fmtNum } from "@/lib/format";
 import { StatusBadge, statusLabel, type SyncStatus } from "@/lib/status-badges";
-import { DetailList, DetailRow } from "./detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 
 type ConnectionStatus = "ACTIVE" | "NEEDS_RECONNECT" | "DISABLED";
 

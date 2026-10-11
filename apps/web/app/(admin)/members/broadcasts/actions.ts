@@ -18,6 +18,7 @@ import { fromParisLocal } from "@/lib/posts/time";
 import { buttonUrlError, type PostButtonRow } from "@/lib/posts/buttons";
 import { assertButtonRows, materializeOfferButton } from "@/lib/campaigns/offer-button";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
+import { GROUP_MESSAGE_LINK_SUFFIX } from "@/lib/links/label";
 import { parseBroadcastForm } from "@/lib/broadcasts/schema";
 import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
@@ -104,7 +105,7 @@ async function materializeButtons(
                   kind: "BUTTON",
                   // Adresse vérifiée plus haut (buttonUrlError).
                   destinationTemplate: x.url!,
-                  label: `${x.text} (envoi groupé)`,
+                  label: `${x.text}${GROUP_MESSAGE_LINK_SUFFIX}`,
                   channelId: container!.channelId,
                   postId: container!.id,
                   createdById: userId,
@@ -124,7 +125,7 @@ async function materializeButtons(
         channelId: container!.channelId,
         postId: container!.id,
         userId,
-        labelSuffix: " (envoi groupé)",
+        labelSuffix: GROUP_MESSAGE_LINK_SUFFIX,
         copy: opts.copy,
       });
       relinked ||= offer.relinked;

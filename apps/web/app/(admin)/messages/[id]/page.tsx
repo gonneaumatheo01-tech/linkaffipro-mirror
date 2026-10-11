@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Copy, Pencil, Split } from "lucide-react";
+import { CircleAlert, Copy, Pencil, Split } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
@@ -11,6 +11,7 @@ import { Term } from "@/components/admin/help-tip";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { MoveForm } from "@/components/messages/move-form";
 import { TelegramPreview } from "@/components/messages/telegram-preview";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
@@ -28,6 +29,7 @@ import { env } from "@/lib/env";
 import { fmtDate, fmtMoney, fmtNum } from "@/lib/format";
 import { BUTTON_TYPE_LABELS, parseButtons, previewButtonUrl } from "@/lib/posts/buttons";
 import { canEdit, canMove, toLocal } from "@/lib/posts/calendar";
+import { failureFix } from "@/lib/posts/failure";
 import { postNetRevenue } from "@/lib/posts/calendar-queries";
 import { isSentLike, postHeaderLine, postLanguageOptions } from "@/lib/posts/display";
 import { templateCardTitle } from "@/lib/posts/templates";
@@ -123,9 +125,11 @@ export default async function MessageDetailPage({
       ? "Ce message partira à l'heure prévue. Vous pouvez encore le modifier, le déplacer ou annuler l'envoi."
       : post.status === "SENT"
         ? "Ce message est publié. Ses chiffres se mettent à jour tout seuls."
-        : editable
-          ? "Ce message n'est pas programmé : « Modifier » puis « Programmer » pour choisir sa date d'envoi."
-          : undefined;
+        : post.status === "FAILED"
+          ? "L'envoi a échoué : corrigez la cause ci-dessous, puis « Modifier » et « Programmer » pour le renvoyer."
+          : editable
+            ? "Ce message n'est pas programmé : « Modifier » puis « Programmer » pour choisir sa date d'envoi."
+            : undefined;
   const options = [
     post.pinAfterSend ? "épinglé après l'envoi" : null,
     post.unpinPrevious ? "désépingle le précédent" : null,
@@ -136,7 +140,7 @@ export default async function MessageDetailPage({
   ].filter(Boolean);
   const reactions = Object.entries(stats.reactions);
 
-  const primary = post.isTemplate
+  const primaryLink = post.isTemplate
     ? {
         label: "Utiliser ce modèle",
         href: `/messages/new?from=${post.id}`,
@@ -145,6 +149,18 @@ export default async function MessageDetailPage({
     : editable
       ? { label: "Modifier", href: `/messages/${post.id}/edit`, icon: <Pencil aria-hidden /> }
       : { label: "Dupliquer", href: `/messages/new?from=${post.id}`, icon: <Copy aria-hidden /> };
+  // Téléphone : le bouton principal en premier, avant les actions secondaires.
+  const primary = (
+    <Link
+      href={primaryLink.href}
+      className={cn(buttonVariants(), "max-md:order-first max-md:h-10")}
+    >
+      {primaryLink.icon}
+      {primaryLink.label}
+    </Link>
+  );
+  // Envoi refusé par Telegram : la raison, ce qu'il faut faire et le bon lien (canal ou « Modifier »).
+  const failed = post.status === "FAILED" ? failureFix(post.lastError) : null;
 
   const figures = sent ? (
     <section aria-labelledby="chiffres" className="space-y-3">
@@ -249,7 +265,7 @@ export default async function MessageDetailPage({
             <form action={cancelPostAction}>
               <input type="hidden" name="postId" value={post.id} />
               <ConfirmSubmit
-                variant="outline"
+                variant="destructive"
                 confirmTitle="Annuler l'envoi ?"
                 message={`Le message prévu le ${fmtDate(post.scheduledAt)} ne partira pas. Il restera modifiable et vous pourrez le reprogrammer.`}
                 confirmLabel="Annuler l'envoi"
@@ -296,9 +312,7 @@ export default async function MessageDetailPage({
           <form action={saveAsTemplateAction} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="postId" value={post.id} />
             <div className="space-y-1.5">
-              <Label htmlFor="templateName" className="text-note">
-                Nom du modèle
-              </Label>
+              <Label htmlFor="templateName">Nom du modèle</Label>
               <Input
                 id="templateName"
                 name="templateName"
@@ -362,9 +376,47 @@ export default async function MessageDetailPage({
           </>
         }
       />
-      <Flash ok={sp.ok} error={sp.error ?? post.lastError ?? undefined} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-6">
+      <Flash ok={sp.ok} error={sp.error ?? (failed ? undefined : (post.lastError ?? undefined))} />
+      {failed ? (
+        <Alert variant="destructive" className="mb-6">
+          <CircleAlert aria-hidden />
+          <AlertTitle>{post.lastError ?? "Telegram a refusé l'envoi."}</AlertTitle>
+          <AlertDescription>
+            <p>{failed.hint}</p>
+            <p className="flex flex-wrap gap-x-4 gap-y-1">
+              <Link
+                href={`/channels/${post.channelId}`}
+                className="inline-flex items-center font-medium underline underline-offset-2 max-md:min-h-10"
+              >
+                Ouvrir le canal {post.channel.title}
+              </Link>
+              {editable && failed.kind !== "channel" ? (
+                <Link
+                  href={`/messages/${post.id}/edit`}
+                  className="inline-flex items-center font-medium underline underline-offset-2 max-md:min-h-10"
+                >
+                  Modifier le message
+                </Link>
+              ) : null}
+            </p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {/* Téléphone : l'aperçu juste sous l'en-tête, puis les chiffres et actions, puis les réglages du message.
+          Ordinateur : l'aperçu et les réglages à droite. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[auto_1fr]">
+        <div className="lg:col-start-2 lg:row-start-1">
+          <p className="mb-2 text-note font-medium text-muted-foreground">
+            Aperçu tel que les membres le voient
+          </p>
+          <TelegramPreview
+            html={post.text}
+            buttons={buttons}
+            mediaCount={mediaCount}
+            counter={false}
+          />
+        </div>
+        <div className="min-w-0 space-y-6 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           {sent ? figures : actions}
 
           {post.viewSamples.length > 0 ? (
@@ -430,13 +482,7 @@ export default async function MessageDetailPage({
           {sent ? actions : post.isTemplate ? null : figures}
         </div>
 
-        <aside className="space-y-4" aria-label="Aperçu et réglages">
-          <div>
-            <p className="mb-2 text-note font-medium text-muted-foreground">
-              Aperçu tel que les membres le voient
-            </p>
-            <TelegramPreview html={post.text} buttons={buttons} mediaCount={mediaCount} />
-          </div>
+        <aside aria-label="Réglages du message" className="lg:col-start-2 lg:row-start-2">
           <dl className="space-y-3 rounded-xl border border-border bg-card p-4 text-body">
             <div>
               <dt className="text-note text-muted-foreground">Canal</dt>

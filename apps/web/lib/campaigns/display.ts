@@ -12,36 +12,45 @@ import { fmtRatio, type CampaignMetrics } from "./metrics";
 
 // ——— Onglets ———
 
-/** Onglets de la fiche ; `help` résume l'onglet en une phrase (aide de la page, guide d'utilisation). */
+/**
+ * Onglets de la fiche ; `help` résume l'onglet en une phrase (aide de la page, guide d'utilisation) ; `short` : libellé
+ * sur téléphone, où les six onglets tiennent en deux rangées de trois boutons (12 caractères au plus).
+ */
 export const CAMPAIGN_TABS = [
   {
     key: "overview",
     label: "Vue d'ensemble",
+    short: "Résumé",
     help: "Ce que la campagne a coûté et rapporté, et les offres Link Affi qu'elle promeut.",
   },
   {
     key: "ads",
     label: "Pubs",
+    short: "Pubs",
     help: "La campagne pub TikTok ou Meta (groupes et pubs) et ses dépenses jour par jour.",
   },
   {
     key: "links",
     label: "Liens",
+    short: "Liens",
     help: "Un lien d'entrée par pub : collez son adresse dans la pub, chaque clic ouvre l'invitation Telegram.",
   },
   {
     key: "channels",
     label: "Canaux",
+    short: "Canaux",
     help: "Les canaux Telegram où arrivent les membres de cette campagne.",
   },
   {
     key: "messages",
     label: "Messages",
+    short: "Messages",
     help: "Les messages des canaux de la campagne, et ceux qui portent un bouton Offre vers ses offres.",
   },
   {
     key: "members",
     label: "Membres",
+    short: "Membres",
     help: "Les personnes arrivées par les liens d'entrée de la campagne.",
   },
 ] as const;
@@ -266,6 +275,14 @@ const AD_PLATFORM_LINE: Record<string, string> = {
   META: "Pubs Meta (Facebook / Instagram)",
   OTHER: "Pubs sur une autre plateforme",
 };
+
+/**
+ * Titre d'un groupe de pubs : son nom tel quel s'il commence déjà par le mot « Groupe » (« Groupe 1 », nom donné par
+ * défaut), sinon « Groupe « FR 18-34 » ». Évite « Groupe « Groupe 1 » ».
+ */
+export function adSetTitle(name: string): string {
+  return /^groupe(\s|$)/i.test(name.trim()) ? name : `Groupe « ${name} »`;
+}
 
 export function adCampaignLine(c: {
   /** Plateforme des pubs (TIKTOK, META, OTHER) ou null. */

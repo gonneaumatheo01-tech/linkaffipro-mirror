@@ -8,6 +8,7 @@ import {
   pickAnchor,
   placeBubble,
   spotlightRect,
+  SPOT_RING,
   stepLabel,
   tourSelector,
 } from "./tour-logic";
@@ -149,8 +150,26 @@ describe("placement de la bulle", () => {
       width: 228,
       height: 48,
     });
-    const r = spotlightRect({ top: 800, left: 0, width: 78, height: 56 }, phone);
-    expect(r.left).toBe(2);
-    expect(r.top + r.height).toBeLessThanOrEqual(phone.height - 2);
+  });
+
+  it("téléphone : le cadre (tracé autour de la zone) reste entier dans l'écran et ne déborde pas sur l'onglet voisin", () => {
+    // Barre du bas : 5 onglets de 78 px collés les uns aux autres, jusqu'au bas de l'écran.
+    const outer = (r: { top: number; left: number; width: number; height: number }) => ({
+      left: r.left - SPOT_RING,
+      top: r.top - SPOT_RING,
+      right: r.left + r.width + SPOT_RING,
+      bottom: r.top + r.height + SPOT_RING,
+    });
+    const first = outer(spotlightRect({ top: 788, left: 0, width: 78, height: 56 }, phone));
+    expect(first.left).toBeGreaterThanOrEqual(2);
+    expect(first.bottom).toBeLessThanOrEqual(phone.height - 2);
+    expect(first.right).toBeLessThanOrEqual(78);
+    const last = outer(spotlightRect({ top: 788, left: 312, width: 78, height: 56 }, phone));
+    expect(last.left).toBeGreaterThanOrEqual(312);
+    expect(last.right).toBeLessThanOrEqual(phone.width - 2);
+    expect(last.bottom).toBeLessThanOrEqual(phone.height - 2);
+    // Repère au milieu de la barre : le cadre suit exactement ses bords, sans mordre sur les voisins.
+    const middle = outer(spotlightRect({ top: 788, left: 156, width: 78, height: 56 }, phone));
+    expect([middle.left, middle.right]).toEqual([156, 234]);
   });
 });

@@ -312,23 +312,18 @@ export default async function LinksPage({ searchParams }: PageProps<"/campaigns/
           title={`Entrées par pub (${fmtNum(entries.total)})`}
           description="Chaque pub a son lien traqué et son invitation Telegram : on sait quelle pub a amené chaque membre."
         >
+          {/* Un lien d'entrée mène à Telegram, jamais chez le casino : ses joueurs passent ensuite par un bouton Offre
+              (tableau suivant). Ce tableau montre donc ce que le lien produit lui-même : clics, demandes, acceptés. */}
           <DataTable
             label="Liens d'entrée des pubs"
             columns={[
               { key: "name", header: "Nom", className: "min-w-40 whitespace-normal" },
               { key: "channel", header: "Canal", hideOnMobile: true },
               { key: "clicks", header: "Clics", align: "right" },
-              { key: "registrations", header: "Inscriptions", align: "right", hideOnMobile: true },
-              {
-                key: "ftds",
-                header: "Premiers dépôts",
-                term: "FTD",
-                align: "right",
-                hideOnMobile: true,
-              },
+              { key: "requests", header: "Demandes", align: "right", hideOnMobile: true },
+              { key: "approved", header: "Acceptés", align: "right" },
             ]}
             rows={entries.rows.map((l) => {
-              const a = entries.agg.get(l.id) ?? { registrations: 0, ftds: 0 };
               const platform = l.inviteLink?.adPlatform ?? "OTHER";
               return {
                 id: l.id,
@@ -336,8 +331,8 @@ export default async function LinksPage({ searchParams }: PageProps<"/campaigns/
                   name: <NameCell link={l} />,
                   channel: l.channel?.title ?? "—",
                   clicks: fmtNum(l.clicks),
-                  registrations: fmtNum(a.registrations),
-                  ftds: fmtNum(a.ftds),
+                  requests: fmtNum(l.inviteLink?.requests ?? 0),
+                  approved: fmtNum(l.inviteLink?.approved ?? 0),
                 },
                 sortValues: { name: l.label },
                 detailTitle: l.label,
@@ -357,12 +352,14 @@ export default async function LinksPage({ searchParams }: PageProps<"/campaigns/
                       </Row>
                       <Row label="Demandes">{fmtNum(l.inviteLink?.requests ?? 0)}</Row>
                       <Row label="Acceptés">{fmtNum(l.inviteLink?.approved ?? 0)}</Row>
-                      <Row label="Inscriptions">{fmtNum(a.registrations)}</Row>
-                      <Row label={<Term term="FTD">Premiers dépôts</Term>}>{fmtNum(a.ftds)}</Row>
                       <Row label="État">
                         <ActiveBadge active={l.isActive} />
                       </Row>
                     </dl>
+                    <p className="text-note text-muted-foreground">
+                      Ce lien mène à Telegram : les inscriptions et les premiers dépôts se comptent
+                      sur les boutons Offre des messages, et par campagne.
+                    </p>
                     <div className="border-t border-border pt-4">
                       <ToggleLink
                         id={l.id}

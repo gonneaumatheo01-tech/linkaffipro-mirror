@@ -7,7 +7,7 @@ import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { DataTable } from "@/components/admin/data-table";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
-import { DetailList, DetailRow } from "@/components/settings/detail-list";
+import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +65,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
         title="Alertes"
         meta={<StatusPill tone={pill.tone}>{pill.label}</StatusPill>}
         description="Le site surveille les bots, la synchro, les envois et vos chiffres toutes les 5 minutes, et vous prévient sur Telegram."
-        help="Une alerte vous est envoyée une fois et se ferme seule quand le problème disparaît. « Vérifier maintenant » force un passage."
+        help="Une alerte vous est envoyée une fois et se ferme seule quand le problème disparaît. « Vérifier maintenant » force un passage."
         secondaryActions={
           <form action={checkAlertsNowAction}>
             <Button type="submit" variant="outline" className="max-md:h-10">

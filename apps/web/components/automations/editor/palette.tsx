@@ -19,14 +19,16 @@ export function BlockPalette({
   onAdd: (key: PaletteKey) => void;
   targetLabel: string;
 }) {
+  // Guillemets collés à leur texte (espaces insécables) : jamais « seul en fin de ligne ou » seul au début.
+  const target = targetLabel.replace(/« /g, "«\u00a0").replace(/ »/g, "\u00a0»");
   return (
     <section aria-labelledby="bibliotheque-titre" className="space-y-2">
       <div>
         <h2 id="bibliotheque-titre" className="text-body font-semibold text-foreground">
           Bibliothèque
         </h2>
-        <p className="text-note text-muted-foreground">
-          Glissez un bloc sur le canevas, ou cliquez pour l&apos;ajouter {targetLabel}.
+        <p className="text-note text-pretty text-muted-foreground">
+          Glissez un bloc sur le canevas, ou cliquez pour l&apos;ajouter {target}.
         </p>
       </div>
       <ul className="grid gap-1.5 md:grid-cols-4 xl:grid-cols-1">

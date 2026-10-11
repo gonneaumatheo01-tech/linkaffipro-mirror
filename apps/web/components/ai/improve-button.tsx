@@ -29,7 +29,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { FormattedText } from "@/components/editor/formatted-text";
+import { telegramToEditorHtml, visibleText } from "@/components/editor/telegram-format";
 import { contextLine, toAiLanguage, translationAction } from "./improve-logic";
+
+/**
+ * Copie un texte (HTML Telegram) mis en forme : collé dans un éditeur de la plateforme, il garde le gras et les liens
+ * sans balise visible ; collé ailleurs, il arrive en texte simple.
+ */
+async function copyFormatted(telegramHtml: string): Promise<void> {
+  const plain = visibleText(telegramHtml);
+  const Item = (globalThis as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
+  if (Item && navigator.clipboard?.write) {
+    await navigator.clipboard.write([
+      new Item({
+        "text/html": new Blob([telegramToEditorHtml(telegramHtml, { fragment: true })], {
+          type: "text/html",
+        }),
+        "text/plain": new Blob([plain], { type: "text/plain" }),
+      }),
+    ]);
+    return;
+  }
+  if (!navigator.clipboard?.writeText) throw new Error("Presse-papiers indisponible.");
+  await navigator.clipboard.writeText(plain);
+}
 
 /** Contexte connu du formulaire qui héberge le bouton (tout est facultatif sauf `surface`). */
 export type ImproveContext = {
@@ -276,8 +300,7 @@ export function ImproveButton({
 
   const copy = useCallback((v: AiVersion) => {
     const name = v.lang ? AI_LABELS.language[v.lang] : "";
-    navigator.clipboard
-      ?.writeText(v.text)
+    copyFormatted(v.text)
       .then(() =>
         setNotice(
           `Traduction${name ? ` (${name})` : ""} copiée : collez-la dans le champ de cette langue.`,
@@ -634,9 +657,7 @@ export function ImproveButton({
                                 ) : null}
                               </div>
                             </div>
-                            <pre className="whitespace-pre-wrap break-words font-sans text-body">
-                              {v.text}
-                            </pre>
+                            <FormattedText html={v.text} className="break-words" />
                             {result.kind !== "translate" ? (
                               <div
                                 className="mt-2 flex flex-wrap gap-1"
