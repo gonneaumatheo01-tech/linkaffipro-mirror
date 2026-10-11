@@ -13,6 +13,7 @@ import { fromParisLocal } from "@/lib/posts/time";
 import { planVariants, variantScheduledAt } from "@/lib/posts/ab";
 import { buttonUrlError, type PostButtonRow } from "@/lib/posts/buttons";
 import { assertButtonRows, materializeOfferButton } from "@/lib/campaigns/offer-button";
+import { isOfferToChoose, rowsToVerify, templateOfferButton } from "@/lib/posts/offer-buttons";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 
 function back(path: string, params: Record<string, string>): never {
@@ -28,10 +29,12 @@ function isRedirect(err: unknown): boolean {
 /**
  * Crée ou met à jour les liens traqués des boutons (BUTTON / OFFER) et renvoie les boutons à stocker.
  * `relinked` : un lien Offre déjà enregistré a changé de campagne ou d'offre (recalcul des statistiques à demander).
+ * `isTemplate` : un bouton Offre dont la campagne reste à choisir est gardé tel quel, sans lien (voir
+ * `lib/posts/offer-buttons.ts`) ; la campagne se choisit en utilisant le modèle.
  */
 async function materializeButtons(
   rows: PostFormInput["buttons"],
-  post: { id: string; channelId: string },
+  post: { id: string; channelId: string; isTemplate: boolean },
   userId: string,
 ): Promise<{ buttons: PostButtonRow[]; relinked: boolean }> {
   const out: PostButtonRow[] = [];
@@ -73,6 +76,10 @@ async function materializeButtons(
           trackingLinkId: link.id,
           slug: link.slug,
         });
+        continue;
+      }
+      if (post.isTemplate && isOfferToChoose(b)) {
+        line.push(templateOfferButton(b));
         continue;
       }
       // OFFER : la campagne choisie détermine le lien Link Affi (voir lib/campaigns/offer-button.ts).
@@ -151,8 +158,8 @@ export async function createPostAction(formData: FormData): Promise<void> {
       ? { status: "DRAFT" as const, scheduledAt: null }
       : resolveSchedule(input);
     // Tous les boutons (A et B) sont vérifiés AVANT de créer le moindre message : un bouton refusé ne laisse jamais
-    // un message programmé en base, qui partirait sans ses boutons.
-    await assertButtonRows(input.buttons);
+    // un message programmé en base, qui partirait sans ses boutons. Modèle : un bouton Offre sans campagne est gardé.
+    await assertButtonRows(rowsToVerify(input.buttons, isTemplate));
     if (abEnabled) await assertButtonRows(input.buttonsB);
     let firstId: string | null = null;
     let relinked = false;
@@ -219,7 +226,7 @@ export async function createPostAction(formData: FormData): Promise<void> {
         created.push(post.id);
         const m = await materializeButtons(
           v.buttons,
-          { id: post.id, channelId: v.channelId },
+          { id: post.id, channelId: v.channelId, isTemplate },
           user.id,
         );
         relinked ||= m.relinked;
@@ -310,10 +317,11 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       : resolveSchedule(input);
     const channelId = input.channelIds[0] ?? post.channelId;
     const bot = channelId !== post.channelId ? await publishingBotFor(channelId) : null;
-    await assertButtonRows(input.buttons);
+    // Modèle : un bouton Offre dont la campagne reste à choisir est gardé tel quel (modèles fournis compris).
+    await assertButtonRows(rowsToVerify(input.buttons, post.isTemplate));
     const { buttons, relinked } = await materializeButtons(
       input.buttons,
-      { id: post.id, channelId },
+      { id: post.id, channelId, isTemplate: post.isTemplate },
       user.id,
     );
     await prisma.post.update({

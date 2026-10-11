@@ -126,7 +126,8 @@ export function previewButtons(
 ): Array<Array<{ text: string }>> {
   if (moment === "OFFER_REPLY") return [[{ text: labels.offer }]];
   if (moment !== "JOIN_REQUEST" && moment !== "GATE_REMINDER") return [];
-  if (!isRuleInForce(rule) || !hasGate(rule) || gateTitles.length === 0) return [];
+  // Comme le bot : avec des canaux à rejoindre, « ✅ J'ai rejoint » est toujours là (même sans canal encore listé).
+  if (!isRuleInForce(rule) || !hasGate(rule)) return [];
   return [...gateTitles.map((t) => [{ text: `${labels.join} ${t}` }]), [{ text: labels.joined }]];
 }
 

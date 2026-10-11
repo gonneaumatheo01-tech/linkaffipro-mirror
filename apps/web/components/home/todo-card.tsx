@@ -6,15 +6,19 @@ import {
   CircleCheck,
   DoorOpen,
   KeyRound,
+  Link2Off,
   Plug,
+  Send,
   Split,
   UserRoundCheck,
   type LucideIcon,
 } from "lucide-react";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import type { TodoIcon, TodoLine, TodoTone } from "@/lib/home/todo";
+import { resendGateWelcomeAction } from "@/lib/approval/resend-welcome-action";
+import type { TodoAction, TodoIcon, TodoLine, TodoTone } from "@/lib/home/todo";
 import { HomeSection } from "./home-section";
 
 const ICONS: Record<TodoIcon, LucideIcon> = {
@@ -25,7 +29,27 @@ const ICONS: Record<TodoIcon, LucideIcon> = {
   ab: Split,
   telegram: Bot,
   ai: KeyRound,
+  links: Link2Off,
 };
+
+/** Actions serveur des boutons de ligne (jamais automatiques : seulement sur clic). */
+const ACTIONS: Record<TodoAction["kind"], (formData: FormData) => Promise<void>> = {
+  "resend-gate-welcome": resendGateWelcomeAction,
+};
+
+/** Bouton d'action d'une ligne, sous la phrase (à côté du lien, jamais dedans). */
+function LineAction({ action }: { action: TodoAction }) {
+  return (
+    <form action={ACTIONS[action.kind]} className="pb-2.5 pl-13">
+      <input type="hidden" name="channelId" value={action.channelId} />
+      <input type="hidden" name="returnTo" value="/" />
+      <Button type="submit" variant="outline" size="sm" className="max-md:h-10">
+        <Send aria-hidden />
+        {action.label}
+      </Button>
+    </form>
+  );
+}
 
 const TONES: Record<TodoTone, string> = {
   danger: "bg-danger-soft text-danger",
@@ -81,6 +105,7 @@ export function TodoCard({ lines }: { lines: readonly TodoLine[] }) {
                     className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                   />
                 </Link>
+                {l.action ? <LineAction action={l.action} /> : null}
               </li>
             );
           })}

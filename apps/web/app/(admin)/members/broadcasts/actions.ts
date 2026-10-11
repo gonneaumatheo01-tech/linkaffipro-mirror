@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   describeSegment,
+  fillPlaceholders,
   parseSegment,
   shortId,
   validateTelegramHtml,
@@ -539,8 +540,8 @@ export async function cancelBroadcastAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Envoie un envoi en message de test (kind TEST) au compte Telegram lié de l'utilisateur, rien qu'à lui.
- * Renvoie la raison à afficher si le test ne peut pas partir, sinon null.
+ * Envoie un envoi en message de test (kind TEST) au compte Telegram lié de l'utilisateur, rien qu'à lui, personnalisé
+ * comme pour un destinataire ({prenom}, {bot}). Renvoie la raison à afficher si le test ne peut pas partir, sinon null.
  */
 async function sendTestToUser(user: CurrentUser, id: string): Promise<string | null> {
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id }, include: { bot: true } });
@@ -557,7 +558,9 @@ async function sendTestToUser(user: CurrentUser, id: string): Promise<string | n
     botId: b.botId,
     memberId: member.id,
     kind: "TEST",
-    text: b.text,
+    // Personnalisé comme l'envoi réel (apps/worker/src/broadcasts/personalize.ts) : {prenom} → prénom de l'utilisateur
+    // (vide s'il n'en a pas), {bot} → nom du bot ; valeurs échappées, autres mots entre accolades tels quels.
+    text: fillPlaceholders(b.text, { prenom: member.firstName ?? "", bot: b.bot.name }),
     buttons,
     mediaAssetId: b.mediaAssetId ?? null,
   });

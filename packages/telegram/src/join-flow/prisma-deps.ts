@@ -2,6 +2,7 @@ import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { emitAutomationEvent, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { ChannelInfo, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
+import { createPrismaGateLinkDeps } from "./prisma-gate-links";
 import { resolveRule, ruleFromRow, type RuleData } from "./rules";
 
 function memberData(from: User) {
@@ -72,6 +73,8 @@ async function ruleFor(channelId: string, inviteLinkId: string | null): Promise<
 }
 
 export const prismaJoinFlowDeps: JoinFlowDeps = {
+  // Liens des canaux à rejoindre : créés par n'importe lequel de nos bots administrateurs (gate-links.ts).
+  ...createPrismaGateLinkDeps(),
   async upsertMember(from) {
     const m = await prisma.member.upsert({
       where: { telegramUserId: BigInt(from.id) },
@@ -158,29 +161,30 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
       .update({ where: { id }, data: { [field]: { increment: 1 } } })
       .catch(() => undefined);
   },
-  async findOrCreateGateLink(sourceChannelId, gate, botId, create) {
-    const existing = await prisma.inviteLink.findFirst({
-      where: { channelId: gate.id, kind: "GATE", sourceChannelId, isActive: true },
-      select: { telegramInviteLink: true },
+  async findMembershipById(id) {
+    const m = await prisma.membership.findUnique({ where: { id }, select: membershipSelect });
+    return m ? toMembership(m) : null;
+  },
+  async getMember(memberId) {
+    const m = await prisma.member.findUnique({
+      where: { id: memberId },
+      select: { id: true, languageCode: true, firstName: true, anonymizedAt: true },
     });
-    if (existing) return existing.telegramInviteLink;
-    const url = await create();
-    if (!url) return gate.username ? `https://t.me/${gate.username}` : null;
-    await prisma.inviteLink
-      .create({
-        data: {
-          channelId: gate.id,
-          botId,
-          telegramInviteLink: url,
-          name: `gate:${sourceChannelId}`,
-          kind: "GATE",
-          createsJoinRequest: false,
-          sourceChannelId,
-          language: gate.language,
-        },
-      })
-      .catch(() => undefined);
-    return url;
+    if (!m || m.anonymizedAt) return null;
+    return { memberId: m.id, languageCode: m.languageCode, firstName: m.firstName };
+  },
+  async getBotIdentity(botId) {
+    return prisma.bot.findFirst({
+      where: { id: botId, isActive: true },
+      select: { id: true, name: true, username: true, telegramBotId: true, vertical: true },
+    });
+  },
+  async canWriteTo(memberId, botId) {
+    const st = await prisma.memberBotState.findUnique({
+      where: { memberId_botId: { memberId, botId } },
+      select: { canDm: true, startedAt: true },
+    });
+    return Boolean(st?.canDm && st.startedAt);
   },
   async getSequenceText(channelId, botId, trigger) {
     const seq = await prisma.sequence.findFirst({

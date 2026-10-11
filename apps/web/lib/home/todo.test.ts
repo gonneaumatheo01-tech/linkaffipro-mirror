@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTodo, type TodoInput } from "./todo";
+import { buildTodo, groupGateLinksMissing, type TodoInput } from "./todo";
 
 const empty: TodoInput = {
   isAdmin: true,
@@ -43,6 +43,112 @@ describe("bloc « À faire » de l'accueil", () => {
         pendingRequests: [{ channelId: "c1", channelTitle: "A", count: 1 }],
       })[0]!.text,
     ).toBe("1 demande d'adhésion à valider dans « A »");
+  });
+
+  it("demandes qui attendent des liens de canaux : en tête, avec le bouton « Renvoyer l'accueil avec les liens »", () => {
+    const lines = buildTodo({
+      ...empty,
+      pendingRequests: [{ channelId: "c1", channelTitle: "A", count: 2 }],
+      gateLinksMissing: [
+        { channelId: "z1", channelTitle: "Autre", count: 1, missingTitles: ["Canal B"] },
+        {
+          channelId: "z",
+          channelTitle: "Zone Interdite 🔞",
+          count: 2,
+          missingTitles: ["LA ZONE ROULETTE 🎰", "🎯 TIR CADRÉ ⚡"],
+        },
+      ],
+    });
+    expect(lines[0]).toEqual({
+      key: "gate-links:z",
+      text: "2 demandes dans « Zone Interdite 🔞 » attendent des liens de canaux : « LA ZONE ROULETTE 🎰 », « 🎯 TIR CADRÉ ⚡ »",
+      href: "/channels/z?tab=rules",
+      icon: "links",
+      tone: "danger",
+      action: {
+        kind: "resend-gate-welcome",
+        channelId: "z",
+        label: "Renvoyer l'accueil avec les liens",
+      },
+    });
+    expect(lines[1]!.text).toBe(
+      "1 demande dans « Autre » attend des liens de canaux : « Canal B »",
+    );
+    expect(lines[2]!.key).toBe("requests:c1");
+    // Sans demande concernée : aucune ligne.
+    expect(buildTodo({ ...empty, gateLinksMissing: [] })).toEqual([]);
+  });
+
+  it("canal obligatoire que le bot ne peut pas vérifier : même ligne, en mots clairs", () => {
+    const lines = buildTodo({
+      ...empty,
+      gateLinksMissing: [
+        {
+          channelId: "p",
+          channelTitle: "Paris public",
+          count: 1,
+          missingTitles: [],
+          uncheckedTitles: ["Canal public"],
+        },
+        {
+          channelId: "z",
+          channelTitle: "Zone",
+          count: 2,
+          missingTitles: ["Roulette"],
+          uncheckedTitles: ["Canal public"],
+        },
+        {
+          channelId: "q",
+          channelTitle: "Quiz",
+          count: 3,
+          missingTitles: [],
+          uncheckedTitles: ["C"],
+        },
+      ],
+    });
+    expect(lines.map((l) => l.text)).toEqual([
+      "3 demandes dans « Quiz » sont bloquées : le bot ne peut pas vérifier « C »",
+      "2 demandes dans « Zone » attendent des liens de canaux : « Roulette » ; le bot ne peut pas vérifier « Canal public »",
+      "1 demande dans « Paris public » est bloquée : le bot ne peut pas vérifier « Canal public »",
+    ]);
+    expect(lines[2]).toMatchObject({
+      key: "gate-links:p",
+      tone: "danger",
+      action: { kind: "resend-gate-welcome", channelId: "p" },
+    });
+  });
+
+  it("regroupement par canal : canaux sans lien et canaux impossibles à vérifier séparés", () => {
+    expect(
+      groupGateLinksMissing([
+        {
+          channelId: "z",
+          channelTitle: "Zone",
+          missing: [{ title: "Roulette" }, { title: "Public", reason: "cannot_verify" }],
+        },
+        { channelId: "z", channelTitle: "Zone", missing: [{ title: "Tir", reason: "no_link" }] },
+        {
+          channelId: "p",
+          channelTitle: "Paris",
+          missing: [{ title: "Public", reason: "cannot_verify" }],
+        },
+      ]),
+    ).toEqual([
+      {
+        channelId: "z",
+        channelTitle: "Zone",
+        count: 2,
+        missingTitles: ["Roulette", "Tir"],
+        uncheckedTitles: ["Public"],
+      },
+      {
+        channelId: "p",
+        channelTitle: "Paris",
+        count: 1,
+        missingTitles: [],
+        uncheckedTitles: ["Public"],
+      },
+    ]);
   });
 
   it("ordre : demandes, échecs, connexions, canaux sans règle, tests A/B, Telegram, clé IA", () => {

@@ -126,12 +126,13 @@ const db = vi.hoisted(() => {
               message: string;
               notifiedAt?: Date;
               resolvedAt?: Date;
+              createdAt?: Date;
             };
           }) => {
             const a = {
               id: `a${alerts.length + 1}`,
               ...data,
-              createdAt: new Date(),
+              createdAt: data.createdAt ?? new Date(),
               notifiedAt: data.notifiedAt ?? null,
               resolvedAt: data.resolvedAt ?? null,
             };
@@ -157,11 +158,19 @@ const db = vi.hoisted(() => {
             data,
           }: {
             where: { id: string };
-            data: { notifiedAt?: Date; resolvedAt?: Date };
+            data: {
+              notifiedAt?: Date;
+              resolvedAt?: Date | null;
+              severity?: string;
+              message?: string;
+            };
           }) => {
             const a = alerts.find((x) => x.id === where.id)!;
             if (data.notifiedAt) a.notifiedAt = data.notifiedAt;
-            if (data.resolvedAt) a.resolvedAt = data.resolvedAt;
+            // Alerte rouverte : `resolvedAt: null` explicite.
+            if ("resolvedAt" in data) a.resolvedAt = data.resolvedAt ?? null;
+            if (data.severity) a.severity = data.severity;
+            if (data.message) a.message = data.message;
             return a;
           },
         ),
@@ -184,7 +193,18 @@ vi.mock("@linkaffipro/queue", () => ({
   parseHeartbeat: (raw: string | null) => (raw ? (JSON.parse(raw) as { at: string }) : null),
 }));
 const notify = vi.hoisted(() => vi.fn(async () => true));
-vi.mock("@linkaffipro/telegram", () => ({ notifyAdmin: notify }));
+/** Demandes dont l'accueil est parti sans tous les liens des canaux à rejoindre (`listGateLinksMissing`). */
+const gateRows = vi.hoisted(() => ({
+  rows: [] as Array<{
+    channelTitle: string;
+    status: string;
+    missing: Array<{ title: string; suggestedBot: string | null }>;
+  }>,
+}));
+vi.mock("@linkaffipro/telegram", () => ({
+  notifyAdmin: notify,
+  listGateLinksMissing: async () => gateRows.rows,
+}));
 
 import { reportWorkerRestart, runAlerts } from "./alerts";
 
@@ -413,6 +433,76 @@ describe("règles métier (phase 6) dans le passage d'alertes", () => {
     expect(r.created).toBe(1);
     expect(db.alerts[0]).toMatchObject({ kind: "spend_no_conversion" });
     expect(db.alerts[0]?.message).toContain("Pub A (60.00 €)");
+  });
+
+  it("liens des canaux à rejoindre impossibles à créer : une alerte, une seule notification, résolue ensuite", async () => {
+    gateRows.rows = [
+      {
+        channelTitle: "Zone Interdite",
+        status: "PENDING_GATE",
+        missing: [{ title: "LA ZONE ROULETTE", suggestedBot: "womendatingoobot" }],
+      },
+    ];
+    try {
+      const r1 = await runAlerts(new Date("2026-10-11T10:00:00Z"));
+      expect(r1.created).toBe(1);
+      expect(db.alerts[0]).toMatchObject({ kind: "gate_links_missing", severity: "CRITICAL" });
+      expect(notify).toHaveBeenCalledTimes(1);
+      expect(String((notify.mock.calls[0] as unknown[])[0])).toContain(
+        "Liens de canaux à rejoindre impossibles à créer",
+      );
+      // Toujours là 5 minutes plus tard : ni nouvelle alerte, ni nouvelle notification.
+      const r2 = await runAlerts(new Date("2026-10-11T10:05:00Z"));
+      expect(r2.created).toBe(0);
+      expect(notify).toHaveBeenCalledTimes(1);
+      gateRows.rows = [];
+      const r3 = await runAlerts(new Date("2026-10-11T10:10:00Z"));
+      expect(r3.resolved).toBe(1);
+    } finally {
+      gateRows.rows = [];
+    }
+  });
+
+  it("liens des canaux à rejoindre : condition qui disparaît puis revient dans les 24 h → alerte rouverte, une seule notification", async () => {
+    // Canal à 10 minutes de délai : chaque demande attend ses liens 10 minutes puis est acceptée ; la suivante arrive
+    // plus tard. Avant la correction : une alerte et une notification Telegram par demande, jour et nuit.
+    const row = {
+      channelTitle: "Zone Interdite",
+      status: "SCHEDULED",
+      missing: [{ title: "LA ZONE ROULETTE", suggestedBot: "womendatingoobot" }],
+    };
+    const gateAlerts = () => db.alerts.filter((a) => a.kind === "gate_links_missing");
+    try {
+      gateRows.rows = [row];
+      expect((await runAlerts(new Date("2026-10-11T10:00:00Z"))).created).toBe(1);
+      gateRows.rows = [];
+      expect((await runAlerts(new Date("2026-10-11T10:15:00Z"))).resolved).toBe(1);
+      expect(gateAlerts()[0]?.resolvedAt).not.toBeNull();
+
+      // La demande suivante : même alerte rouverte, sans nouvelle notification.
+      gateRows.rows = [{ ...row, status: "PENDING_GATE" }];
+      const r3 = await runAlerts(new Date("2026-10-11T11:00:00Z"));
+      expect(r3.created).toBe(0);
+      expect(gateAlerts()).toHaveLength(1);
+      expect(gateAlerts()[0]).toMatchObject({ resolvedAt: null, severity: "CRITICAL" });
+      gateRows.rows = [];
+      await runAlerts(new Date("2026-10-11T11:15:00Z"));
+      gateRows.rows = [row];
+      await runAlerts(new Date("2026-10-11T23:00:00Z"));
+      expect(gateAlerts()).toHaveLength(1);
+      expect(notify).toHaveBeenCalledTimes(1);
+
+      // Plus de 24 h après la première alerte : nouvelle alerte, nouvelle notification (une par jour au plus).
+      gateRows.rows = [];
+      await runAlerts(new Date("2026-10-12T09:00:00Z"));
+      gateRows.rows = [row];
+      const r4 = await runAlerts(new Date("2026-10-12T10:30:00Z"));
+      expect(r4.created).toBe(1);
+      expect(gateAlerts()).toHaveLength(2);
+      expect(notify).toHaveBeenCalledTimes(2);
+    } finally {
+      gateRows.rows = [];
+    }
   });
 
   it("canal qui fuit et lien désactivé cliqué", async () => {

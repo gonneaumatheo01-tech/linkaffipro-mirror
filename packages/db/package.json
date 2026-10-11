@@ -19,6 +19,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:phase8": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase8-data.ts",
+    "db:phase10": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase10-templates.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -21,6 +21,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   post_failed: "Message programmé en échec",
   offer_link_inactive: "Lien désactivé encore cliqué",
   connector_reconnect: "Compte publicitaire à reconnecter",
+  gate_links_missing: "Liens de canaux à rejoindre impossibles à créer",
 };
 
 export function alertKindLabel(kind: string): string {

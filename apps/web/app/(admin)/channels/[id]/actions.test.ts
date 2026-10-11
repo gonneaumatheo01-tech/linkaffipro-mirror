@@ -30,6 +30,16 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/approval/telegram", () => ({ approveNow: vi.fn(), declineNow: vi.fn() }));
 vi.mock("@linkaffipro/queue", () => ({ enqueue: db.enqueue }));
 vi.mock("@linkaffipro/telegram", () => ({ recheckChannelRights: vi.fn() }));
+/** Vérification des liens des canaux à rejoindre (appels Telegram) : simulée. */
+const gate = vi.hoisted(() => ({
+  verify: vi.fn(
+    async (): Promise<{
+      results: Array<{ channelId: string; title: string; status: string; tried: string[] }>;
+      solutionBot: string | null;
+    }> => ({ results: [], solutionBot: null }),
+  ),
+}));
+vi.mock("@/lib/channels/gate-links-server", () => ({ verifyGateLinks: gate.verify }));
 vi.mock("@linkaffipro/db", () => ({
   prisma: {
     approvalRule: {
@@ -47,7 +57,7 @@ vi.mock("@linkaffipro/db", () => ({
   audit: vi.fn(async () => undefined),
 }));
 
-import { recomputeBestHoursAction, saveRuleAction } from "./actions";
+import { checkGateLinksAction, recomputeBestHoursAction, saveRuleAction } from "./actions";
 
 function formOf(state: EntryFormState, channelId = "ch1"): FormData {
   const f = new FormData();
@@ -71,6 +81,7 @@ beforeEach(() => {
   db.created = [];
   db.updated = [];
   db.existing = null;
+  gate.verify.mockClear();
 });
 
 describe("« Qui peut entrer et quand » → saveRuleAction", () => {
@@ -165,6 +176,85 @@ describe("« Qui peut entrer et quand » → saveRuleAction", () => {
       expireAction: "APPROVE",
       sendAcceptedMessage: true,
     });
+  });
+});
+
+describe("canaux à rejoindre : exigence alignée et liens vérifiés à l'enregistrement", () => {
+  it("des canaux envoyés sans exigence sont enregistrés comme obligatoires (jamais « aucune exigence » avec des canaux)", async () => {
+    const f = new FormData();
+    f.append("channelId", "ch1");
+    for (const [k, v] of entryFormFields(initialEntryState(null)))
+      if (k !== "gateMode") f.append(k, v);
+    f.append("gateMode", "NONE");
+    f.append("gateChannelIds", "a");
+    f.append("gateChannelIds", "a");
+    try {
+      await saveRuleAction(f);
+    } catch {
+      // redirection attendue
+    }
+    expect(db.created[0]).toMatchObject({ gateMode: "REQUIRED", gateChannelIds: ["a"] });
+  });
+
+  it("vérifie les liens tout de suite et nomme le canal en cause avec la solution", async () => {
+    gate.verify.mockResolvedValueOnce({
+      results: [
+        { channelId: "a", title: "LA ZONE ROULETTE", status: "ok", tried: [] },
+        { channelId: "b", title: "TIR CADRÉ", status: "no_link", tried: ["@womendatingoobot"] },
+      ],
+      solutionBot: "womendatingoobot",
+    });
+    const url = await save({
+      ...chooseEntry(initialEntryState(null), "gate"),
+      gateIds: ["a", "b"],
+      gateMode: "REQUIRED",
+    });
+    expect(gate.verify).toHaveBeenCalledWith("ch1", { userId: "u1" });
+    const q = new URLSearchParams(url.split("?")[1]);
+    expect(q.get("ok")).toMatch(/^Règle d'adhésion enregistrée/);
+    expect(q.get("error")).toBe(
+      "Le bot ne peut pas créer le lien de « TIR CADRÉ » : ajoutez @womendatingoobot comme administrateur de « TIR CADRÉ » avec le droit « Inviter via un lien », puis cliquez « Vérifier les liens ».",
+    );
+  });
+
+  it("tout est prêt : confirmation sans erreur", async () => {
+    gate.verify.mockResolvedValueOnce({
+      results: [{ channelId: "a", title: "A", status: "ok", tried: [] }],
+      solutionBot: "x",
+    });
+    const url = await save({
+      ...chooseEntry(initialEntryState(null), "gate"),
+      gateIds: ["a"],
+    });
+    const q = new URLSearchParams(url.split("?")[1]);
+    expect(q.get("ok")).toContain("Liens des canaux à rejoindre vérifiés : tout est prêt.");
+    expect(q.get("error")).toBeNull();
+  });
+
+  it("une panne de la vérification n'empêche pas l'enregistrement", async () => {
+    gate.verify.mockRejectedValueOnce(new Error("réseau"));
+    const url = await save({ ...chooseEntry(initialEntryState(null), "gate"), gateIds: ["a"] });
+    expect(db.created).toHaveLength(1);
+    const q = new URLSearchParams(url.split("?")[1]);
+    expect(q.get("ok")).toMatch(/^Règle d'adhésion enregistrée/);
+    expect(q.get("error")).toMatch(/Vérification des liens impossible pour le moment/);
+  });
+
+  it("« Vérifier les liens » : revient sur l'onglet avec le résultat", async () => {
+    gate.verify.mockResolvedValueOnce({
+      results: [{ channelId: "a", title: "A", status: "ok", tried: [] }],
+      solutionBot: "x",
+    });
+    const f = new FormData();
+    f.append("channelId", "ch1");
+    let url = "";
+    try {
+      await checkGateLinksAction(f);
+    } catch (err) {
+      url = (err as { url: string }).url;
+    }
+    expect(url.startsWith("/channels/ch1?tab=rules&ok=")).toBe(true);
+    expect(gate.verify).toHaveBeenCalledWith("ch1", { userId: "u1" });
   });
 });
 

@@ -10,15 +10,17 @@ import {
   parseHeartbeat,
 } from "@linkaffipro/queue";
 import type { Redis } from "ioredis";
-import { notifyAdmin } from "@linkaffipro/telegram";
+import { listGateLinksMissing, notifyAdmin } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { dayKey, parisMidnightUtc } from "../stats/aggregate";
 import {
+  alertToReopen,
   detectBackupFailed,
   detectBotWebhook,
   detectConnectorReconnect,
   detectChannelLeak,
   detectDmBlocked,
+  detectGateLinksMissing,
   detectJobFailures,
   detectOfferLinkInactive,
   detectPostFailed,
@@ -31,6 +33,7 @@ import {
   DEDUP_WINDOW_MS,
   formatAlert,
   parseThresholds,
+  REOPEN_KINDS,
   shouldCreate,
   type AlertKind,
   type AlertThresholds,
@@ -295,6 +298,23 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
       "offer_link_inactive",
       async () => detectOfferLinkInactive(await inactiveLinkClicksSnapshot(now)),
     ],
+    // Demandes en attente bloquées par un canal à rejoindre : lien impossible à créer, accueil parti sans ce lien
+    // (ancienne version) ou canal obligatoire impossible à vérifier (`listGateLinksMissing`).
+    [
+      "gate_links_missing",
+      async () =>
+        detectGateLinksMissing(
+          (await listGateLinksMissing({ limit: 500 })).map((r) => ({
+            channelTitle: r.channelTitle,
+            status: r.status,
+            missing: r.missing.map((m) => ({
+              title: m.title,
+              suggestedBot: m.suggestedBot,
+              ...(m.reason ? { reason: m.reason } : {}),
+            })),
+          })),
+        ),
+    ],
     [
       "connector_reconnect",
       async () =>
@@ -399,12 +419,34 @@ export async function runAlerts(
   let created = 0;
   for (const d of detected) {
     if (!shouldCreate(d.kind, open, now)) continue;
+    // Condition qui va et vient (liens des canaux à rejoindre) : l'alerte des dernières 24 h est rouverte en silence,
+    // jamais une nouvelle notification par demande (au plus une par 24 h).
+    if (REOPEN_KINDS.has(d.kind)) {
+      const recent = await prisma.alert.findMany({
+        where: { kind: d.kind, createdAt: { gte: new Date(now.getTime() - DEDUP_WINDOW_MS) } },
+        select: { id: true, kind: true, createdAt: true },
+      });
+      const reopenId = alertToReopen(d.kind, recent, now);
+      if (reopenId) {
+        await prisma.alert.update({
+          where: { id: reopenId },
+          data: {
+            resolvedAt: null,
+            severity: d.severity,
+            message: d.message,
+            payload: toJsonValue(d.payload),
+          },
+        });
+        continue;
+      }
+    }
     await prisma.alert.create({
       data: {
         kind: d.kind,
         severity: d.severity,
         message: d.message,
         payload: toJsonValue(d.payload),
+        createdAt: now,
       },
     });
     created++;

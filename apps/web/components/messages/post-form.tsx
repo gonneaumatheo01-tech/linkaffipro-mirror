@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -31,6 +31,11 @@ import { placeholdersToComplete } from "./preview-placeholders";
 import { CategoryPicker } from "./category-picker";
 import { resolvePostVertical } from "./ai-context";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
+import {
+  offerButtonIssues,
+  offerIssuesSummary,
+  type OfferButtonIssue,
+} from "@/lib/posts/offer-buttons";
 import {
   AB_DEFAULT_DELAY_MINUTES,
   AB_MAX_DELAY_MINUTES,
@@ -236,19 +241,31 @@ function MediaEditor({
   );
 }
 
-/** Lignes de boutons (version A ou B). */
+/** Repère d'un choix de campagne dans le formulaire (mise au point sur le premier bouton Offre à compléter). */
+function offerSlot(i: Pick<OfferButtonIssue, "version" | "row" | "col">): string {
+  return `${i.version}-${i.row}-${i.col}`;
+}
+
+/**
+ * Lignes de boutons (version A ou B). `issues` : boutons Offre à compléter, signalés sous leur choix de campagne
+ * (après un essai d'enregistrement refusé dans le navigateur).
+ */
 function ButtonsEditor({
   rows,
   setRows,
   campaigns,
   campaignOptions,
   prefix = "",
+  version = "A",
+  issues = [],
 }: {
   rows: PostButtonRow[];
   setRows: Dispatch<SetStateAction<PostButtonRow[]>>;
   campaigns: CampaignOption[];
   campaignOptions?: CampaignOptionWithOffers[];
   prefix?: string;
+  version?: "A" | "B";
+  issues?: OfferButtonIssue[];
 }) {
   function setButton(r: number, c: number, patch: Partial<PostButton>) {
     setRows((rs) =>
@@ -287,13 +304,25 @@ function ButtonsEditor({
                 ))}
               </NativeSelect>
               {b.type === "OFFER" ? (
-                <OfferPicker
-                  value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
-                  onChange={(patch) => setButton(r, c, patch)}
-                  campaigns={campaignOptions}
-                  affiliateCampaigns={campaigns}
-                  label={`${prefix}Campagne du bouton Offre`}
-                />
+                <div
+                  className="flex flex-col gap-1"
+                  data-offer-slot={offerSlot({ version, row: r, col: c })}
+                >
+                  <OfferPicker
+                    value={{ campaignId: b.campaignId, affiliateCampaignId: b.affiliateCampaignId }}
+                    onChange={(patch) => setButton(r, c, patch)}
+                    campaigns={campaignOptions}
+                    affiliateCampaigns={campaigns}
+                    label={`${prefix}Campagne du bouton Offre`}
+                  />
+                  {issues
+                    .filter((i) => i.row === r && i.col === c)
+                    .map((i) => (
+                      <p key={offerSlot(i)} className="text-note font-medium text-danger">
+                        {i.message}
+                      </p>
+                    ))}
+                </div>
               ) : (
                 <Input
                   value={b.url ?? ""}
@@ -432,6 +461,35 @@ export function PostForm({
   const [rowsB, setRowsB] = useState<PostButtonRow[]>([]);
   const abActive = abAllowed && ab && intent !== "template";
   const isTemplate = initial.isTemplate;
+  // Bouton Offre sans campagne : refusé dans le navigateur avant l'envoi (la saisie reste à l'écran). Les messages
+  // apparaissent après un premier essai et disparaissent dès que la campagne est choisie.
+  const formRef = useRef<HTMLFormElement>(null);
+  const [offerCheck, setOfferCheck] = useState(false);
+  const offerIssues = isTemplate
+    ? []
+    : [...offerButtonIssues(rows), ...(abActive ? offerButtonIssues(rowsB, { version: "B" }) : [])];
+  const shownOfferIssues = offerCheck ? offerIssues : [];
+  const offerSummary = offerIssuesSummary(shownOfferIssues);
+
+  /**
+   * Avant l'envoi : un message (pas un modèle) dont un bouton Offre n'a pas de campagne est arrêté ici, avec la phrase
+   * sous le choix de la campagne et la mise au point dessus. Sinon le serveur le refuserait et la page rechargée
+   * perdrait le texte saisi. « Enregistrer le modèle » n'est pas concerné (`data-intent="template"`).
+   */
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    if (isTemplate || submitter?.dataset.intent === "template") return;
+    if (offerIssues.length === 0) return;
+    e.preventDefault();
+    setOfferCheck(true);
+    setShowButtons(true);
+    const first = offerIssues[0]!;
+    requestAnimationFrame(() =>
+      formRef.current
+        ?.querySelector<HTMLSelectElement>(`[data-offer-slot="${offerSlot(first)}"] select`)
+        ?.focus(),
+    );
+  }
 
   // Contexte de l'assistant IA : univers (campagne du bouton Offre, modèle, puis canal), catégorie, langue, média.
   const aiContext: ImproveContext = {
@@ -500,7 +558,12 @@ export function PostForm({
   const previewB = <TelegramPreview html={textB} buttons={rowsB} mediaCount={mediaB.length} />;
 
   return (
-    <form action={action} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <form
+      ref={formRef}
+      action={action}
+      onSubmit={onSubmit}
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+    >
       {initial.postId ? <input type="hidden" name="postId" value={initial.postId} /> : null}
       {initial.duplicatedFromId ? (
         <input type="hidden" name="duplicatedFromId" value={initial.duplicatedFromId} />
@@ -765,6 +828,7 @@ export function PostForm({
                 setRows={setRows}
                 campaigns={campaigns}
                 campaignOptions={campaignOptions}
+                issues={shownOfferIssues.filter((i) => i.version === "A")}
               />
             </FormSection>
           </div>
@@ -862,6 +926,8 @@ export function PostForm({
                   campaigns={campaigns}
                   campaignOptions={campaignOptions}
                   prefix="Version B : "
+                  version="B"
+                  issues={shownOfferIssues.filter((i) => i.version === "B")}
                 />
               </div>
             </FormSection>
@@ -956,6 +1022,13 @@ export function PostForm({
 
         {/* Un seul bouton principal. */}
         <div className="space-y-3 border-t border-border pt-4">
+          {offerSummary ? (
+            <Alert variant="destructive">
+              <TriangleAlert aria-hidden />
+              <AlertTitle>Un bouton Offre n&apos;a pas de campagne</AlertTitle>
+              <AlertDescription>{offerSummary}</AlertDescription>
+            </Alert>
+          ) : null}
           {toComplete.length > 0 ? (
             <Alert variant="warning" role="status">
               <TriangleAlert aria-hidden />
@@ -980,7 +1053,12 @@ export function PostForm({
                   autoFocus
                 />
               </div>
-              <Button type="submit" variant="outline" onClick={() => setIntent("template")}>
+              <Button
+                type="submit"
+                variant="outline"
+                data-intent="template"
+                onClick={() => setIntent("template")}
+              >
                 Enregistrer le modèle
               </Button>
               <Button type="button" variant="ghost" onClick={() => setNamingTemplate(false)}>
@@ -996,7 +1074,7 @@ export function PostForm({
             </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {isTemplate ? (
-                <Button type="submit" onClick={() => setIntent("template")}>
+                <Button type="submit" data-intent="template" onClick={() => setIntent("template")}>
                   Enregistrer le modèle
                 </Button>
               ) : (

@@ -20,14 +20,16 @@ import {
   templateThemeOf,
   type PostListFilters,
 } from "@/lib/posts/queries";
-import { templateCardTitle, templatesHref } from "@/lib/posts/templates";
+import { offerButtonsToChoose, templateCardTitle, templatesHref } from "@/lib/posts/templates";
 import { toUniverse, UNIVERSE_LABELS, UNIVERSES } from "@/lib/universe";
 import type { SearchParams } from "./shared";
 
 /**
  * Vue Modèles : galerie de cartes filtrable par univers, par thème et (quand des modèles en ont) par catégorie ;
- * aperçu du texte (repères {prenom}, {offre}… surlignés, avec « À compléter »), « Utiliser » (nouveau message
- * pré-rempli) et « Modifier ».
+ * aperçu du texte et des boutons, « Utiliser » (nouveau message pré-rempli) et « Modifier ».
+ * Les modèles fournis ne contiennent aucun mot à compléter (phase 10) : « À compléter » ne s'affiche que pour un
+ * modèle de l'équipe qui garde un repère ({prenom}, {offre}…) qu'un message de canal ne remplace pas. Un bouton Offre
+ * sans campagne est annoncé : la campagne se choisit en utilisant le modèle.
  */
 export async function TemplatesView({
   sp,
@@ -129,6 +131,8 @@ export async function TemplatesView({
             const th = templateThemeOf(t.code);
             const title = templateCardTitle(t.templateName ?? "Modèle sans nom");
             const toComplete = placeholdersToComplete(t.text);
+            const buttons = parseButtons(t.buttons);
+            const offersToChoose = offerButtonsToChoose(buttons);
             return (
               <li
                 key={t.id}
@@ -155,7 +159,7 @@ export async function TemplatesView({
                 <h3 className="text-body font-semibold text-foreground">{title}</h3>
                 <TelegramPreview
                   html={t.text}
-                  buttons={parseButtons(t.buttons)}
+                  buttons={buttons}
                   mediaCount={Array.isArray(t.mediaAssetIds) ? t.mediaAssetIds.length : 0}
                   compact
                   highlightPlaceholders
@@ -170,6 +174,12 @@ export async function TemplatesView({
                         <mark className={PLACEHOLDER_MARK_CLASS}>{`{${k}}`}</mark>
                       </span>
                     ))}
+                  </p>
+                ) : null}
+                {offersToChoose > 0 ? (
+                  <p className="text-note text-muted-foreground">
+                    {offersToChoose > 1 ? "Boutons Offre" : "Bouton Offre"} : vous choisirez la
+                    campagne en utilisant ce modèle.
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">

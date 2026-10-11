@@ -6,7 +6,7 @@ import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { enqueueDm } from "@linkaffipro/queue";
-import { baseLang, defaultText, pickText, renderText } from "@linkaffipro/telegram";
+import { baseLang, defaultText, pickText, renderHtmlText } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 
 const MAX_ATTEMPTS = 3;
@@ -32,7 +32,8 @@ export async function actingBotFor(channelId: string) {
 
 export type ApproveOutcome = "approved" | "already" | "missing" | "retry" | "failed";
 
-async function sendAcceptedMessage(m: { id: string; memberId: string; channelId: string; userChatId: bigint | null; approvalRuleId: string | null }, bot: { id: string }) {
+/** Message « accepté » (texte de « Ce que dit le bot » ou intégré) en HTML Telegram, valeurs échappées. */
+async function sendAcceptedMessage(m: { id: string; memberId: string; channelId: string; userChatId: bigint | null; approvalRuleId: string | null }, bot: { id: string; username: string }) {
   const rule = m.approvalRuleId ? await prisma.approvalRule.findUnique({ where: { id: m.approvalRuleId } }) : null;
   if (rule && !rule.sendAcceptedMessage) return;
   const [member, channel] = await Promise.all([
@@ -44,7 +45,7 @@ async function sendAcceptedMessage(m: { id: string; memberId: string; channelId:
   const texts = seq?.steps[0]?.texts && typeof seq.steps[0].texts === "object" ? (seq.steps[0].texts as Record<string, string>) : null;
   const lang = baseLang(member.languageCode ?? channel.language);
   const template = pickText(texts, member.languageCode, channel.language) ?? defaultText("approved", lang);
-  const text = renderText(template, { prenom: member.firstName ?? "", canal: channel.title });
+  const text = renderHtmlText(template, { prenom: member.firstName ?? "", canal: channel.title, bot: `@${bot.username}` });
   await enqueueDm({ botId: bot.id, memberId: m.memberId, chatId: m.userChatId, kind: "ACCEPTED", text, buttons: [], mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null });
 }
 

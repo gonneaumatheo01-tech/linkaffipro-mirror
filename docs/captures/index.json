@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T02:23:34.779Z",
+  "updatedAt": "2026-10-11T12:14:52.183Z",
   "entries": [
     {
       "route": "/",
@@ -16,6 +16,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T02:17:09.354Z"
+    },
+    {
+      "route": "/?a-faire=liens-canaux",
+      "path": "/?a-faire=liens-canaux",
+      "title": "Accueil",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "a-faire-liens-canaux-390.webp",
+        "1440": "a-faire-liens-canaux-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T12:14:44.423Z"
     },
     {
       "route": "/campaigns",
@@ -138,6 +153,36 @@
       "capturedAt": "2026-10-11T02:17:59.927Z"
     },
     {
+      "route": "/channels/[id]?tab=rules&liens=a-corriger",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=rules&liens=a-corriger",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-tab-rules-liens-a-corriger-390.webp",
+        "1440": "channels-id-tab-rules-liens-a-corriger-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T11:29:51.805Z"
+    },
+    {
+      "route": "/channels/[id]?tab=rules&liens=prets",
+      "path": "/channels/c12tqg5q0ja4ti7omsbt5n3ze?tab=rules&liens=prets",
+      "title": "Démo · Bonus Casino du jour",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "channels-id-tab-rules-liens-prets-390.webp",
+        "1440": "channels-id-tab-rules-liens-prets-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T11:30:08.387Z"
+    },
+    {
       "route": "/channels/import",
       "path": "/channels/import",
       "title": "Importer mes canaux",
@@ -195,7 +240,7 @@
         "1440": "messages-id-edit-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:18:28.184Z"
+      "capturedAt": "2026-10-11T12:05:30.068Z"
     },
     {
       "route": "/messages/ab/[groupId]",
@@ -240,7 +285,22 @@
         "1440": "messages-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:18:56.582Z"
+      "capturedAt": "2026-10-11T12:05:21.567Z"
+    },
+    {
+      "route": "/messages?view=templates",
+      "path": "/messages?view=templates",
+      "title": "Messages",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": "390 px coupée à 16000 px (page de 18580 px)",
+      "files": {
+        "390": "messages-view-templates-390.webp",
+        "1440": "messages-view-templates-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-11T11:10:12.542Z"
     },
     {
       "route": "/members",
@@ -390,7 +450,7 @@
         "1440": "members-broadcasts-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:20:19.832Z"
+      "capturedAt": "2026-10-11T12:05:33.681Z"
     },
     {
       "route": "/stats",

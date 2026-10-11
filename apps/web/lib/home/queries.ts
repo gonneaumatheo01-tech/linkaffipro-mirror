@@ -10,6 +10,7 @@
  */
 import { ourPlayers, prisma, type Prisma } from "@linkaffipro/db";
 import { isWorkerDown, readHeartbeat } from "@linkaffipro/queue";
+import { listGateLinksMissing } from "@linkaffipro/telegram";
 import { loadAiConfig } from "@/lib/ai/config";
 import { isImportedShell } from "@/lib/campaigns/ad-link";
 import { listCampaigns, type CampaignList } from "@/lib/campaigns/queries";
@@ -27,7 +28,7 @@ import {
 import { AB_LOOKBACK_MS, abTestsToConclude } from "./ab";
 import { activeCampaigns, type ActiveCampaign } from "./lists";
 import type { StatusInput } from "./status";
-import type { TodoInput } from "./todo";
+import { groupGateLinksMissing, type TodoInput } from "./todo";
 
 const DAY = 24 * 3_600_000;
 
@@ -130,7 +131,7 @@ export async function loadTodoInput(
 ): Promise<TodoInput> {
   const isAdmin = user.role === "ADMIN";
   const weekAgo = new Date(now.getTime() - 7 * DAY);
-  const [requests, failedPosts, adReconnect, session, noRule, abPosts, aiKeyMissing] =
+  const [requests, failedPosts, adReconnect, session, noRule, abPosts, aiKeyMissing, gateRows] =
     await Promise.all([
       prisma.membership.groupBy({
         by: ["channelId"],
@@ -187,6 +188,8 @@ export async function loadTodoInput(
             .then((c) => !c.apiKeyEncrypted)
             .catch(() => false)
         : Promise.resolve(false),
+      // Demandes dont l'accueil est parti sans tous les liens des canaux à rejoindre (règle commune avec l'alerte).
+      listGateLinksMissing({ limit: 1000 }),
     ]);
 
   const titles = new Map(
@@ -213,6 +216,7 @@ export async function loadTodoInput(
     telegramLinked: user.telegramUserId !== null,
     telegramInChecklist: false,
     aiKeyMissing,
+    gateLinksMissing: groupGateLinksMissing(gateRows),
   };
 }
 

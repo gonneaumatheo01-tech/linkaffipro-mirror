@@ -252,6 +252,55 @@ describe("« Envoyer un test à moi » depuis l'assistant", () => {
     );
   });
 
+  it("le test est personnalisé comme l'envoi réel : {prenom} et {bot} remplacés (valeurs échappées)", async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: "u1",
+      email: "a@b.c",
+      name: "Admin",
+      role: "MANAGER",
+      telegramUserId: BigInt(42),
+    });
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
+      ...container,
+      text: "Bonjour {prenom}, ici {bot}. {offre} reste tel quel.",
+      bot: { username: "casino_bot", name: "Casino & Co" },
+    });
+    db.prisma.member.findUnique.mockResolvedValueOnce({
+      id: "m1",
+      firstName: "Tom <3",
+      botStates: [{ canDm: true }],
+    } as never);
+    await run(createAndTestAction(form({ ...fields, intent: "draft" })));
+    expect(enqueueDm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "TEST",
+        text: "Bonjour Tom &lt;3, ici Casino &amp; Co. {offre} reste tel quel.",
+      }),
+    );
+  });
+
+  it("membre sans prénom : {prenom} disparaît (comme pour les destinataires)", async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: "u1",
+      email: "a@b.c",
+      name: "Admin",
+      role: "MANAGER",
+      telegramUserId: BigInt(42),
+    });
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
+      ...container,
+      text: "Bonjour {prenom} !",
+      bot: { username: "casino_bot", name: "Casino" },
+    });
+    db.prisma.member.findUnique.mockResolvedValueOnce({
+      id: "m1",
+      firstName: null,
+      botStates: [{ canDm: true }],
+    } as never);
+    await run(createAndTestAction(form({ ...fields, intent: "draft" })));
+    expect(enqueueDm).toHaveBeenCalledWith(expect.objectContaining({ text: "Bonjour  !" }));
+  });
+
   it("compte Telegram non lié : le brouillon reste, la raison s'affiche", async () => {
     const url = await run(createAndTestAction(form(fields)));
     expect(url.split("?")[0]).toBe("/members/broadcasts/b1");

@@ -4,20 +4,44 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { ImagePlus, MousePointerClick, Plus, Trash2, X } from "lucide-react";
 import { FormSection } from "@/components/admin/form-section";
 import { OfferPicker } from "@/components/campaigns/offer-picker";
-import { RichTextEditor } from "@/components/editor/rich-text-editor";
+import { RichTextEditor, type PlaceholderChip } from "@/components/editor/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { CampaignOptionWithOffers } from "@/lib/campaigns/queries";
+import { escapeHtml } from "@linkaffipro/core";
 import { BUTTON_TYPE_LABELS, type PostButton, type PostButtonRow } from "@/lib/posts/buttons";
 
 export type MediaOption = { id: string; filename: string; mimeType: string };
 export type AffiliateOption = { id: string; name: string; programName: string };
 
 /**
+ * Repères remplacés pour chaque destinataire d'un message à un groupe : mêmes mots que l'envoi réel
+ * (`apps/worker/src/broadcasts/personalize.ts`) et que le test envoyé à soi-même (`sendTestToUser`).
+ */
+export const BROADCAST_WORDS: readonly PlaceholderChip[] = [
+  { key: "prenom", label: "Prénom" },
+  { key: "bot", label: "Nom du bot" },
+];
+
+/** Prénom d'exemple de l'aperçu (même exemple que les relances automatiques). */
+const EXAMPLE_FIRST_NAME = "Léa";
+const EXAMPLE_BOT_NAME = "LinkAffi Bot";
+
+/**
+ * Aperçu d'un message à un groupe : {prenom} → un prénom d'exemple, {bot} → le nom du bot choisi (échappé, le texte est
+ * en HTML Telegram) ; les autres mots entre accolades restent tels quels (l'éditeur les signale).
+ */
+export function fillBroadcastExamples(text: string, botName: string | null | undefined): string {
+  return text
+    .replace(/\{prenom\}/g, EXAMPLE_FIRST_NAME)
+    .replace(/\{bot\}/g, escapeHtml(botName || EXAMPLE_BOT_NAME));
+}
+
+/**
  * Zone de texte du message (version A ou B) : l'éditeur partagé (texte mis en forme sans balise visible, barre
- * d'outils, émojis, « Améliorer avec l'IA » à droite, compteur). Le texte reste en HTML Telegram dans l'état du
- * formulaire (champs cachés `text` / `textB` de l'assistant).
+ * d'outils, émojis, « Améliorer avec l'IA » à droite, compteur, repères {prenom} et {bot} insérables, remplacés pour
+ * chaque destinataire). Le texte reste en HTML Telegram dans l'état du formulaire (champs cachés `text` / `textB`).
  */
 export function MessageTextEditor({
   id,
@@ -47,6 +71,7 @@ export function MessageTextEditor({
       rows={rows}
       ai={ai}
       hasMedia={hasMedia}
+      placeholders={BROADCAST_WORDS}
     />
   );
 }

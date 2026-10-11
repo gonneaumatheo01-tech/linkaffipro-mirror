@@ -8,6 +8,8 @@ import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
 import { recheckChannelRights } from "@linkaffipro/telegram";
 import { approveNow, declineNow } from "@/lib/approval/telegram";
+import { gateCheckFlash, alignGate } from "@/lib/channels/gate-links";
+import { verifyGateLinks } from "@/lib/channels/gate-links-server";
 import { calendarReturnParams } from "@/lib/channels/return-to";
 import { rightsMessage } from "@/lib/channels/rights-message";
 
@@ -97,13 +99,14 @@ export async function saveRuleAction(formData: FormData): Promise<void> {
     .split(/[,\s]+/)
     .map((x) => Number(x))
     .filter((n) => Number.isFinite(n) && n >= 0);
-  const gateChannelIds = d.gateChannelIds.filter((id) => id !== d.channelId);
+  // L'exigence suit toujours les canaux choisis (aucun canal → aucune ; des canaux sans exigence → obligatoires).
+  const { gateMode, gateChannelIds } = alignGate(d.gateMode, d.gateChannelIds, d.channelId);
   const data = {
     name: "Règle par défaut",
     isDefault: true,
     mode: d.mode,
     delaySeconds,
-    gateMode: gateChannelIds.length === 0 ? ("NONE" as const) : d.gateMode,
+    gateMode,
     gateChannelIds,
     reminderAfterMinutes: reminders,
     maxReminders: d.maxReminders,
@@ -131,10 +134,57 @@ export async function saveRuleAction(formData: FormData): Promise<void> {
       gateChannelIds,
     },
   });
+  // Liens des canaux à rejoindre créés et vérifiés tout de suite : le canal en cause et la solution sont affichés.
+  const saved = "Règle d'adhésion enregistrée : elle s'applique aux prochaines demandes.";
+  const flash = gateChannelIds.length > 0 ? await checkGateLinks(d.channelId, user.id) : {};
   revalidatePath(`/channels/${d.channelId}`);
   back(d.channelId, "rules", {
-    ok: "Règle d'adhésion enregistrée : elle s'applique aux prochaines demandes.",
+    ok: flash.ok ? `${saved} ${flash.ok}` : saved,
+    ...(flash.error ? { error: flash.error } : {}),
   });
+}
+
+/** Crée et vérifie les liens des canaux à rejoindre ; une panne (réseau, Telegram) devient un message, jamais une erreur. */
+async function checkGateLinks(
+  channelId: string,
+  userId: string,
+): Promise<{ ok?: string; error?: string }> {
+  try {
+    const { results, solutionBot } = await verifyGateLinks(channelId, { userId });
+    return gateCheckFlash(results, solutionBot);
+  } catch (err) {
+    console.warn("[canaux] vérification des liens impossible", {
+      channelId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      error:
+        "Vérification des liens impossible pour le moment : réessayez « Vérifier les liens » dans une minute.",
+    };
+  }
+}
+
+/**
+ * « Vérifier les liens » (onglet « Qui peut entrer et quand ») : crée tout de suite les liens manquants des canaux à
+ * rejoindre avec nos bots, puis revient sur l'onglet avec le résultat. Aucun message n'est envoyé aux membres.
+ */
+export async function checkGateLinksAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const channelId = z.string().min(1).parse(formData.get("channelId"));
+  const flash = await checkGateLinks(channelId, user.id);
+  await audit({
+    userId: user.id,
+    action: "channel.gate_links_checked",
+    entityType: "Channel",
+    entityId: channelId,
+    metadata: { ok: !flash.error },
+  });
+  revalidatePath(`/channels/${channelId}`);
+  const params: Record<string, string> = {};
+  if (flash.ok) params.ok = flash.ok;
+  if (flash.error) params.error = flash.error;
+  if (!flash.ok && !flash.error) params.ok = "Aucun canal à rejoindre dans la règle de ce canal.";
+  back(channelId, "rules", params);
 }
 
 export async function approveMembershipAction(formData: FormData): Promise<void> {

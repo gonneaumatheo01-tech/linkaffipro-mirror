@@ -62,6 +62,7 @@ import { GroupBuilder, type GroupOptions } from "./group-builder";
 import {
   MessageExtras,
   MessageTextEditor,
+  fillBroadcastExamples,
   type AffiliateOption,
   type MediaOption,
 } from "./message-editor";
@@ -566,11 +567,20 @@ export function BroadcastWizard({
     setConfirmOpen(true);
   }
 
+  // Aperçu tel qu'un membre le recevra : {prenom} et {bot} remplacés (exemple de prénom, nom du bot choisi).
   const preview = (
-    <TelegramPreview html={text} buttons={filledRows(rows)} mediaCount={mediaAssetId ? 1 : 0} />
+    <TelegramPreview
+      html={fillBroadcastExamples(text, bot?.name)}
+      buttons={filledRows(rows)}
+      mediaCount={mediaAssetId ? 1 : 0}
+    />
   );
   const previewB = (
-    <TelegramPreview html={textB} buttons={filledRows(rowsB)} mediaCount={mediaAssetIdB ? 1 : 0} />
+    <TelegramPreview
+      html={fillBroadcastExamples(textB, bot?.name)}
+      buttons={filledRows(rowsB)}
+      mediaCount={mediaAssetIdB ? 1 : 0}
+    />
   );
   const buttonCount = filledRows(rows).reduce((n, r) => n + r.length, 0);
   const extras = [

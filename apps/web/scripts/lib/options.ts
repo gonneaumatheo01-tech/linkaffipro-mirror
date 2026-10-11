@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 /**
  * Options des scripts `pnpm captures` et `pnpm a11y` (fonctions pures, testées dans options.test.ts).
  * Les deux scripts se connectent au site comme un utilisateur (formulaire /login) avec le compte de vérification
@@ -131,7 +132,10 @@ export function parseWidths(raw: string): number[] {
 
 function common(flags: Record<string, string | true>, env: Env): Common {
   const base = parseBase(str(flags.base) ?? env.CAPTURE_BASE ?? DEFAULT_BASE);
-  const explicitPassword = str(flags.password) ?? env.CAPTURE_PASSWORD;
+  // --password-file : le mot de passe est lu dans un fichier (droits 600), jamais écrit sur la ligne de commande.
+  const passwordFile = str(flags["password-file"]) ?? env.CAPTURE_PASSWORD_FILE;
+  const fromFile = passwordFile ? readFileSync(passwordFile, "utf8").trim() : undefined;
+  const explicitPassword = str(flags.password) ?? fromFile ?? env.CAPTURE_PASSWORD;
   // Le mot de passe de démonstration n'existe que dans la base locale : on ne l'essaie jamais ailleurs
   // (une tentative ratée en production compterait dans la limite de connexions et le journal).
   if (!explicitPassword && !isLocalHost(new URL(base).hostname))
@@ -152,6 +156,7 @@ const COMMON_SPEC: FlagSpec = {
   base: "string",
   email: "string",
   password: "string",
+  "password-file": "string",
   pages: "string",
   timeout: "string",
   help: "boolean",
@@ -260,6 +265,7 @@ export const CAPTURES_HELP = `pnpm captures [options]
   --base <url>        site à capturer (défaut ${DEFAULT_BASE}, variable CAPTURE_BASE)
   --email <e-mail>    compte (défaut ${DEFAULT_EMAIL}, variable CAPTURE_EMAIL)
   --password <mdp>    mot de passe (variables CAPTURE_PASSWORD puis DEMO_PASSWORD ; défaut local : celui de pnpm db:demo)
+  --password-file <f> mot de passe lu dans un fichier (variable CAPTURE_PASSWORD_FILE) : rien sur la ligne de commande
   --pages <liste|fichier>  ex. /,/campaigns,/members ou /campaigns/:id ; fichier : une adresse par ligne
                       (défaut : toutes les pages de l'admin + adresses prévues par la refonte + pages publiques)
   --widths <liste>    largeurs en px (défaut 1440,390)

@@ -12,7 +12,7 @@ import {
   resolveRule,
   ruleFromRow,
 } from "./rules";
-import { pickText, renderText } from "./texts";
+import { pickText, renderHtmlText, renderText } from "./texts";
 
 const row = (over: Partial<Parameters<typeof ruleFromRow>[0]> = {}) => ({
   id: "r1",
@@ -179,6 +179,20 @@ describe("textes", () => {
       }),
     ).toBe("Salut Jean, canal VIP dans 1 minute @b");
     expect(renderText("{inconnu} {prenom}", {})).toBe("{inconnu} ");
+  });
+  it("textes HTML Telegram : valeurs échappées (un prénom « Tom <3 » ne fait plus refuser le message)", () => {
+    expect(
+      renderHtmlText("Salut {prenom} ! <b>{canal}</b> : rejoins {liste_canaux} ({bot}) {delai}", {
+        prenom: "Tom <3",
+        canal: "Paris & Foot <VIP>",
+        liste_canaux: "Roulette & Co, <Tir>",
+        bot: "@b",
+        delai: "dans 1 minute",
+      }),
+    ).toBe(
+      "Salut Tom &lt;3 ! <b>Paris &amp; Foot &lt;VIP&gt;</b> : rejoins Roulette &amp; Co, &lt;Tir&gt; (@b) dans 1 minute",
+    );
+    expect(renderHtmlText("{inconnu} {prenom}", {})).toBe("{inconnu} ");
   });
   it("choisit la langue du membre, sinon du canal, sinon fr", () => {
     const texts = { fr: "FR", en: "EN" };

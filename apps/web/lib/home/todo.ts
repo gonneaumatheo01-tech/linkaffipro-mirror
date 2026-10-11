@@ -3,8 +3,16 @@
  * du plus urgent au moins urgent. Vide : « Rien à faire pour l'instant ».
  */
 
-export type TodoIcon = "requests" | "failed" | "reconnect" | "rules" | "ab" | "telegram" | "ai";
+export type TodoIcon =
+  "requests" | "failed" | "reconnect" | "rules" | "ab" | "telegram" | "ai" | "links";
 export type TodoTone = "danger" | "warning" | "neutral";
+
+/** Bouton d'action à côté de la ligne (action serveur choisie par `kind`, jamais automatique). */
+export type TodoAction = {
+  kind: "resend-gate-welcome";
+  channelId: string;
+  label: string;
+};
 
 export type TodoLine = {
   key: string;
@@ -12,6 +20,7 @@ export type TodoLine = {
   href: string;
   icon: TodoIcon;
   tone: TodoTone;
+  action?: TodoAction;
 };
 
 export type TodoInput = {
@@ -32,7 +41,56 @@ export type TodoInput = {
   /** « Reliez votre Telegram » figure déjà dans la liste « À faire pour démarrer » : pas de doublon. */
   telegramInChecklist: boolean;
   aiKeyMissing: boolean;
+  /**
+   * Demandes en attente bloquées par des canaux à rejoindre, par canal : `missingTitles` = canaux restés sans lien
+   * (aucun de nos bots ne pouvait le créer, ou accueil parti sans lui) ; `uncheckedTitles` = canaux obligatoires
+   * qu'aucun de nos bots ne peut vérifier au « ✅ J'ai rejoint ».
+   */
+  gateLinksMissing?: ReadonlyArray<GateLinksGroup>;
 };
+
+export type GateLinksGroup = {
+  channelId: string;
+  channelTitle: string;
+  count: number;
+  missingTitles: string[];
+  uncheckedTitles?: string[];
+};
+
+/**
+ * Demandes bloquées regroupées par canal (lignes de `listGateLinksMissing`), canaux concernés dans l'ordre où ils
+ * apparaissent : sans lien d'un côté, impossibles à vérifier de l'autre.
+ */
+export function groupGateLinksMissing(
+  rows: ReadonlyArray<{
+    channelId: string;
+    channelTitle: string;
+    missing: ReadonlyArray<{ title: string; reason?: string }>;
+  }>,
+): GateLinksGroup[] {
+  const by = new Map<
+    string,
+    { channelTitle: string; count: number; titles: Set<string>; unchecked: Set<string> }
+  >();
+  for (const r of rows) {
+    const g = by.get(r.channelId) ?? {
+      channelTitle: r.channelTitle,
+      count: 0,
+      titles: new Set<string>(),
+      unchecked: new Set<string>(),
+    };
+    g.count++;
+    for (const m of r.missing) (m.reason === "cannot_verify" ? g.unchecked : g.titles).add(m.title);
+    by.set(r.channelId, g);
+  }
+  return [...by.entries()].map(([channelId, g]) => ({
+    channelId,
+    channelTitle: g.channelTitle,
+    count: g.count,
+    missingTitles: [...g.titles],
+    uncheckedTitles: [...g.unchecked],
+  }));
+}
 
 /** Demandes listées canal par canal ; au-delà, une ligne « autres canaux ». */
 export const MAX_REQUEST_LINES = 3;
@@ -49,8 +107,49 @@ function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
+/** Canaux sans lien cités dans une ligne ; au-delà, « et N autres ». */
+export const MAX_GATE_TITLES = 3;
+
+function titleList(all: readonly string[]): string {
+  const titles = all.slice(0, MAX_GATE_TITLES).map((t) => `« ${t} »`);
+  const more = all.length - titles.length;
+  return `${titles.join(", ")}${more > 0 ? ` et ${more} ${plural(more, "autre", "autres")}` : ""}`;
+}
+
+/** Phrase d'une ligne de demandes bloquées par des canaux à rejoindre (liens manquants, vérification impossible). */
+function gateLineText(g: GateLinksGroup): string {
+  const demandes = `${g.count} ${plural(g.count, "demande", "demandes")} dans « ${g.channelTitle} »`;
+  const unchecked =
+    (g.uncheckedTitles ?? []).length > 0
+      ? `le bot ne peut pas vérifier ${titleList(g.uncheckedTitles ?? [])}`
+      : "";
+  if (g.missingTitles.length === 0)
+    return `${demandes} ${plural(g.count, "est bloquée", "sont bloquées")} : ${unchecked}`;
+  return `${demandes} ${plural(g.count, "attend", "attendent")} des liens de canaux : ${titleList(g.missingTitles)}${unchecked ? ` ; ${unchecked}` : ""}`;
+}
+
 export function buildTodo(input: TodoInput): TodoLine[] {
   const lines: TodoLine[] = [];
+
+  // En tête : des personnes attendent des liens que le bot n'a pas pu créer, ou un canal obligatoire que le bot ne
+  // peut pas vérifier (elles ne peuvent pas entrer).
+  const gate = [...(input.gateLinksMissing ?? [])]
+    .filter((g) => g.count > 0)
+    .sort((a, b) => b.count - a.count || a.channelTitle.localeCompare(b.channelTitle, "fr"));
+  for (const g of gate.slice(0, MAX_REQUEST_LINES)) {
+    lines.push({
+      key: `gate-links:${g.channelId}`,
+      text: gateLineText(g),
+      href: `/channels/${g.channelId}?tab=rules`,
+      icon: "links",
+      tone: "danger",
+      action: {
+        kind: "resend-gate-welcome",
+        channelId: g.channelId,
+        label: "Renvoyer l'accueil avec les liens",
+      },
+    });
+  }
 
   const requests = [...input.pendingRequests]
     .filter((r) => r.count > 0)

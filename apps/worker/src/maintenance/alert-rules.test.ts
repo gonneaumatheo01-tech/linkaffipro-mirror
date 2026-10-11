@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupFileDate, detectConnectorReconnect, DEFAULT_THRESHOLDS, detectBackupFailed, detectBotWebhook, detectChannelLeak, detectDmBlocked, detectJobFailures, detectOfferLinkInactive, detectPostFailed, detectQueueBacklog, detectRegistrationsDrop, detectSpendNoConversion, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, parseThresholds, shouldCreate } from "./alert-rules";
+import { backupFileDate, detectConnectorReconnect, detectGateLinksMissing, DEFAULT_THRESHOLDS, detectBackupFailed, detectBotWebhook, detectChannelLeak, detectDmBlocked, detectJobFailures, detectOfferLinkInactive, detectPostFailed, detectQueueBacklog, detectRegistrationsDrop, detectSpendNoConversion, detectSubIdHealth, detectSyncFailed, detectWorkerDown, formatAlert, parseThresholds, shouldCreate, alertToReopen } from "./alert-rules";
 
 const now = new Date("2026-10-09T12:00:00Z");
 const ago = (min: number) => new Date(now.getTime() - min * 60_000);
@@ -45,6 +45,17 @@ describe("autres règles", () => {
     expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(23 * 60) }], now)).toBe(false);
     expect(shouldCreate("bot_webhook", [{ kind: "bot_webhook", createdAt: ago(25 * 60) }], now)).toBe(true);
     expect(shouldCreate("bot_webhook", [{ kind: "sync_failed", createdAt: ago(1) }], now)).toBe(true);
+  });
+  it("liens des canaux à rejoindre : alerte de moins de 24 h rouverte (résolue ou non), jamais pour les autres types", () => {
+    const recent = [
+      { id: "vieille", kind: "gate_links_missing", createdAt: ago(25 * 60) },
+      { id: "a1", kind: "gate_links_missing", createdAt: ago(5 * 60) },
+      { id: "a2", kind: "gate_links_missing", createdAt: ago(60) },
+      { id: "autre", kind: "bot_webhook", createdAt: ago(1) },
+    ];
+    expect(alertToReopen("gate_links_missing", recent, now)).toBe("a2");
+    expect(alertToReopen("gate_links_missing", [recent[0]!], now)).toBeNull();
+    expect(alertToReopen("bot_webhook", recent, now)).toBeNull();
   });
   it("formate en HTML échappé", () => {
     const t = formatAlert({ kind: "queue_backlog", severity: "WARNING", message: "a <b> & c", payload: {} });
@@ -164,6 +175,51 @@ describe("comptes publicitaires à reconnecter", () => {
   });
 });
 
+describe("liens des canaux à rejoindre impossibles à créer", () => {
+  const row = (channelTitle: string, status: string, missing: Array<[string, string | null]>) => ({ channelTitle, status, missing: missing.map(([title, suggestedBot]) => ({ title, suggestedBot })) });
+  it("rien sans demande concernée", () => {
+    expect(detectGateLinksMissing([])).toBeNull();
+  });
+  it("demandes regroupées par canal, canaux sans lien et solution avec le bot à ajouter", () => {
+    const d = detectGateLinksMissing([
+      row("Zone Interdite 🔞", "PENDING_GATE", [["LA ZONE ROULETTE 🎰", "womendatingoobot"], ["🎯 TIR CADRÉ ⚡", "womendatingoobot"]]),
+      row("Zone Interdite 🔞", "PENDING_GATE", [["LA ZONE ROULETTE 🎰", "womendatingoobot"]]),
+    ]);
+    expect(d?.kind).toBe("gate_links_missing");
+    // Des personnes sont bloquées (canaux obligatoires) : alerte critique.
+    expect(d?.severity).toBe("CRITICAL");
+    expect(d?.message).toBe(
+      "2 demandes attendent les liens des canaux à rejoindre dans « Zone Interdite 🔞 » : « LA ZONE ROULETTE 🎰 », « 🎯 TIR CADRÉ ⚡ ». Ajoutez @womendatingoobot comme administrateur de ces canaux avec le droit « Inviter via un lien », puis cliquez « Renvoyer l'accueil avec les liens » dans « À faire » sur l'accueil du site.",
+    );
+    expect(d?.payload).toEqual({ requests: 2, channels: ["Zone Interdite 🔞"] });
+  });
+  it("canaux seulement proposés (demandes acceptées de toute façon) : simple avertissement", () => {
+    const d = detectGateLinksMissing([row("Canal A", "SCHEDULED", [["Canal B", null]])]);
+    expect(d?.severity).toBe("WARNING");
+    expect(d?.message).toContain("1 demande attend les liens des canaux à rejoindre dans « Canal A » : « Canal B ».");
+    expect(d?.message).toContain("Ajoutez un de nos bots comme administrateur");
+  });
+});
+
+describe("canaux obligatoires impossibles à vérifier", () => {
+  it("personnes bloquées au « J'ai rejoint » : même alerte, mots clairs, même solution", () => {
+    const d = detectGateLinksMissing([
+      { channelTitle: "Paris public", status: "PENDING_GATE", missing: [{ title: "Canal public", suggestedBot: "datingbot", reason: "cannot_verify" }] },
+      { channelTitle: "Zone", status: "PENDING_GATE", missing: [{ title: "Roulette", suggestedBot: "datingbot" }, { title: "Canal public", suggestedBot: "datingbot", reason: "cannot_verify" }] },
+      { channelTitle: "Zone", status: "PENDING_GATE", missing: [{ title: "Roulette", suggestedBot: "datingbot", reason: "no_link" }] },
+    ]);
+    expect(d?.severity).toBe("CRITICAL");
+    expect(d?.message).toBe(
+      "1 demande est bloquée dans « Paris public » : le bot ne peut pas vérifier « Canal public ». 2 demandes attendent les liens des canaux à rejoindre dans « Zone » : « Roulette » ; le bot ne peut pas vérifier « Canal public ». Ajoutez @datingbot comme administrateur de ces canaux avec le droit « Inviter via un lien », puis cliquez « Renvoyer l'accueil avec les liens » dans « À faire » sur l'accueil du site.",
+    );
+    const two = detectGateLinksMissing([
+      { channelTitle: "P", status: "PENDING_GATE", missing: [{ title: "C", suggestedBot: null, reason: "cannot_verify" }] },
+      { channelTitle: "P", status: "PENDING_GATE", missing: [{ title: "C", suggestedBot: null, reason: "cannot_verify" }] },
+    ]);
+    expect(two?.message).toContain("2 demandes sont bloquées dans « P » : le bot ne peut pas vérifier « C ».");
+  });
+});
+
 describe("vocabulaire des alertes (docs/REFONTE-UX.md)", () => {
   const JARGON = /\b(FTDs?|NGR|ROAS|CPL|CPA)\b|sub[-_ ]?id|webhook|postback|worker|segment|séquence|automatisation|cohorte|entonnoir|\b[a-z]+_[a-z_]+\b/i;
   it("aucune alerte détectée ne montre de terme technique ni de code (bot_webhook, telegram-send…)", () => {
@@ -182,6 +238,7 @@ describe("vocabulaire des alertes (docs/REFONTE-UX.md)", () => {
       detectPostFailed([{ code: "p1", channelTitle: "Canal A", lastError: null }]),
       detectOfferLinkInactive([{ slug: "abc", label: "Bonus", clicks: 2 }]),
       detectConnectorReconnect([{ platform: "META", name: "Compte A", status: "NEEDS_RECONNECT", tokenExpiresAt: null, lastError: null }], now),
+      detectGateLinksMissing([{ channelTitle: "Canal A", status: "PENDING_GATE", missing: [{ title: "Canal B", suggestedBot: "dating_bot" }] }]),
     ];
     for (const d of all) {
       expect(d).not.toBeNull();

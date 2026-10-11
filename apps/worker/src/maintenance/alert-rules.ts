@@ -16,7 +16,8 @@ export type AlertKind =
   | "channel_leak"
   | "post_failed"
   | "offer_link_inactive"
-  | "connector_reconnect";
+  | "connector_reconnect"
+  | "gate_links_missing";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -337,6 +338,73 @@ export function detectOfferLinkInactive(links: InactiveLinkClickSnapshot[]): Det
   };
 }
 
+/**
+ * Demande encore en attente bloquée par un canal à rejoindre : accueil parti sans son lien, ou (raison
+ * « cannot_verify ») canal obligatoire qu'aucun de nos bots ne peut vérifier au « ✅ J'ai rejoint ».
+ */
+export type GateLinksMissingSnapshot = {
+  channelTitle: string;
+  status: string;
+  missing: Array<{
+    title: string;
+    suggestedBot: string | null;
+    reason?: "no_link" | "cannot_verify";
+  }>;
+};
+
+function quoted(titles: string[], max = 3): string {
+  const shown = titles.slice(0, max).map((t) => `« ${t} »`);
+  const more = titles.length > max ? ` et ${titles.length - max} autre(s)` : "";
+  return `${shown.join(", ")}${more}`;
+}
+
+/**
+ * Liens des canaux à rejoindre impossibles à créer (aucun de nos bots n'y est administrateur avec le droit d'inviter),
+ * ou canaux obligatoires impossibles à vérifier : demandes regroupées par canal, canaux concernés, et la solution avec
+ * le bot à ajouter. Critique si des personnes attendent des canaux obligatoires (elles ne peuvent pas entrer), sinon
+ * avertissement.
+ */
+export function detectGateLinksMissing(rows: GateLinksMissingSnapshot[]): Detected | null {
+  if (rows.length === 0) return null;
+  const byChannel = new Map<
+    string,
+    { requests: number; missing: Set<string>; unchecked: Set<string>; bots: Set<string> }
+  >();
+  for (const r of rows) {
+    const c = byChannel.get(r.channelTitle) ?? {
+      requests: 0,
+      missing: new Set(),
+      unchecked: new Set(),
+      bots: new Set(),
+    };
+    c.requests++;
+    for (const m of r.missing) {
+      (m.reason === "cannot_verify" ? c.unchecked : c.missing).add(m.title);
+      if (m.suggestedBot) c.bots.add(m.suggestedBot);
+    }
+    byChannel.set(r.channelTitle, c);
+  }
+  const parts = [...byChannel.entries()].slice(0, 3).map(([title, c]) => {
+    const n = c.requests;
+    const unchecked =
+      c.unchecked.size > 0 ? `le bot ne peut pas vérifier ${quoted([...c.unchecked])}` : "";
+    if (c.missing.size === 0)
+      return `${n > 1 ? `${n} demandes sont bloquées` : "1 demande est bloquée"} dans « ${title} » : ${unchecked}.`;
+    const verb = n > 1 ? `${n} demandes attendent` : "1 demande attend";
+    return `${verb} les liens des canaux à rejoindre dans « ${title} » : ${quoted([...c.missing])}${unchecked ? ` ; ${unchecked}` : ""}.`;
+  });
+  if (byChannel.size > 3) parts.push(`Et ${byChannel.size - 3} autre(s) canal(aux).`);
+  const bots = [...new Set([...byChannel.values()].flatMap((c) => [...c.bots]))];
+  const who = bots.length > 0 ? bots.map((b) => `@${b}`).join(" ou ") : "un de nos bots";
+  const blocked = rows.some((r) => r.status === "PENDING_GATE");
+  return {
+    kind: "gate_links_missing",
+    severity: blocked ? "CRITICAL" : "WARNING",
+    message: `${parts.join(" ")} Ajoutez ${who} comme administrateur de ces canaux avec le droit « Inviter via un lien », puis cliquez « Renvoyer l'accueil avec les liens » dans « À faire » sur l'accueil du site.`,
+    payload: { requests: rows.length, channels: [...byChannel.keys()] },
+  };
+}
+
 function formatTime(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -354,6 +422,33 @@ export function shouldCreate(
   return !open.some(
     (a) => a.kind === kind && now.getTime() - a.createdAt.getTime() < DEDUP_WINDOW_MS,
   );
+}
+
+/**
+ * Types d'alerte dont la condition apparaît et disparaît d'elle-même : une demande attend ses liens 10 minutes puis
+ * est acceptée, la suivante arrive une heure plus tard. Pour eux, une alerte résolue créée il y a moins de 24 h est
+ * rouverte en silence au lieu d'une nouvelle alerte notifiée : une notification Telegram par 24 h au plus.
+ */
+export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>(["gate_links_missing"]);
+
+/**
+ * Alerte à rouvrir (sans nouvelle notification) au lieu d'en créer une : la plus récente du même type créée il y a
+ * moins de 24 h, résolue ou non, pour les types de `REOPEN_KINDS` ; sinon null (nouvelle alerte).
+ */
+export function alertToReopen(
+  kind: AlertKind,
+  recent: ReadonlyArray<{ id: string; kind: string; createdAt: Date }>,
+  now: Date,
+): string | null {
+  if (!REOPEN_KINDS.has(kind)) return null;
+  let best: { id: string; createdAt: Date } | null = null;
+  for (const a of recent) {
+    if (a.kind !== kind) continue;
+    const age = now.getTime() - a.createdAt.getTime();
+    if (age >= DEDUP_WINDOW_MS) continue;
+    if (!best || a.createdAt.getTime() > best.createdAt.getTime()) best = a;
+  }
+  return best?.id ?? null;
 }
 
 /** Formate l'alerte pour Telegram (HTML) : titre en français (`alertKindLabel`), jamais le code technique. */

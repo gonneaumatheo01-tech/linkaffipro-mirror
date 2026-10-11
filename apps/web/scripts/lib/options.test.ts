@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BASE,
@@ -46,6 +49,17 @@ describe("options de pnpm captures", () => {
     expect(o.pages).toBe("/,/campaigns");
     expect(o.widths).toEqual([1280]);
     expect(o.out).toBe("tmp/x");
+  });
+
+  it("--password-file lit le mot de passe dans un fichier (rien sur la ligne de commande)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lap-pw-"));
+    const f = join(dir, "pw");
+    writeFileSync(f, "secret-du-fichier\n", { mode: 0o600 });
+    expect(
+      parseCaptureOptions(["--base", "https://app.linkaffipro.com", "--password-file", f], {})
+        .password,
+    ).toBe("secret-du-fichier");
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it("variables CAPTURE_EMAIL / CAPTURE_PASSWORD, puis DEMO_PASSWORD ; les options gagnent", () => {

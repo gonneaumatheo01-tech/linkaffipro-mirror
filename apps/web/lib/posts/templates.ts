@@ -1,4 +1,5 @@
 /** Galerie de modèles (vue Modèles de la page Messages) : fonctions pures, testées dans templates.test.ts. */
+import type { PostButton } from "./buttons";
 
 /**
  * Titre d'une carte : les modèles de la bibliothèque s'appellent « Univers · Thème · titre » ; l'univers et le thème
@@ -20,4 +21,12 @@ export function templatesHref(f: {
   if (f.theme) p.set("theme", f.theme);
   if (f.categoryId) p.set("category", f.categoryId);
   return `/messages?${p.toString()}`;
+}
+
+/**
+ * Boutons « Offre (campagne) » d'un modèle dont la campagne reste à choisir : les modèles fournis en ont un, sans
+ * campagne, et un nouveau message exige la sienne (`lib/campaigns/offer-button.ts`). La carte le dit à l'avance.
+ */
+export function offerButtonsToChoose(rows: ReadonlyArray<ReadonlyArray<PostButton>>): number {
+  return rows.flat().filter((b) => b.type === "OFFER" && !b.campaignId).length;
 }

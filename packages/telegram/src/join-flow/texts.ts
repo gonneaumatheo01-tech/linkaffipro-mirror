@@ -1,7 +1,8 @@
 /**
  * Textes par défaut des séquences du flux d'adhésion (six langues, voir i18n.ts) et rendu des placeholders.
- * Placeholders : {prenom} {canal} {liste_canaux} {delai} {bot}.
+ * Placeholders : {prenom} {canal} {liste_canaux} {delai} {bot} (valeurs échappées pour le HTML : `renderHtmlText`).
  */
+import { escapeHtml } from "@linkaffipro/core";
 import { LANGS, MESSAGES, pickLang, t, type Lang, type MessageKey } from "../i18n";
 
 export type { Lang };
@@ -10,6 +11,20 @@ export type TextVars = { prenom?: string; canal?: string; liste_canaux?: string;
 
 export function renderText(template: string, vars: TextVars): string {
   return template.replace(/\{(prenom|canal|liste_canaux|delai|bot)\}/g, (_m, k: keyof TextVars) => vars[k] ?? "");
+}
+
+/**
+ * Rendu d'un texte du bot en HTML Telegram (envoyé avec parse_mode HTML) : chaque valeur est échappée. Un prénom
+ * « Tom <3 » ou un canal « Paris & Foot » ne fait plus refuser le message entier par Telegram (« can't parse entities »).
+ * Les valeurs sont passées brutes : ne pas les échapper avant (sinon « &amp;amp; »).
+ */
+export function renderHtmlText(template: string, vars: TextVars): string {
+  const safe: TextVars = {};
+  for (const k of Object.keys(vars) as Array<keyof TextVars>) {
+    const v = vars[k];
+    if (typeof v === "string") safe[k] = escapeHtml(v);
+  }
+  return renderText(template, safe);
 }
 
 /** Choisit la langue : celle du membre si disponible, sinon celle du canal, sinon fr. */

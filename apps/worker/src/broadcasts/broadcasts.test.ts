@@ -67,6 +67,7 @@ vi.mock("../logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.
 import { expandBroadcast } from "./expand";
 import { closeIfFinished, recordBroadcastOutcome } from "./progress";
 import { resolveBroadcastButtons } from "./buttons";
+import { personalizeBroadcastText } from "./personalize";
 
 function reset(n: number) {
   db.state.broadcast = { id: "b1", botId: "bot1", status: "SCHEDULED", startedAt: null, text: "Salut", buttons: [], segment: {}, targeted: 0, sent: 0, failed: 0, blocked: 0, bot: { username: "casinobot" } };
@@ -127,6 +128,29 @@ describe("développement d'un envoi groupé", () => {
     const r = await expandBroadcast("b1");
     expect(r.created).toBe(0);
     expect(db.state.outbound).toHaveLength(0);
+  });
+
+  it("remplace {prenom} et {bot} pour chaque destinataire (valeurs échappées), laisse les autres mots", async () => {
+    db.state.broadcast.text = "Bonjour <b>{prenom}</b>, ici {bot}. {canal} {inconnu}";
+    db.state.broadcast.bot = { username: "casinobot", name: "Casino & Co" };
+    db.state.members = [{ id: "m1", firstName: "Léa" }, { id: "m2", firstName: "Tom <3" }, { id: "m3", firstName: null }];
+    await expandBroadcast("b1");
+    expect(Object.fromEntries(db.state.outbound.map((o) => [o.memberId, o.text]))).toEqual({
+      m1: "Bonjour <b>Léa</b>, ici Casino &amp; Co. {canal} {inconnu}",
+      m2: "Bonjour <b>Tom &lt;3</b>, ici Casino &amp; Co. {canal} {inconnu}",
+      m3: "Bonjour <b></b>, ici Casino &amp; Co. {canal} {inconnu}",
+    });
+    // Le prénom est lu avec les destinataires (aucune requête de plus par membre).
+    const select = (db.prisma.member.findMany.mock.calls[0] as unknown as [{ select: Record<string, unknown> }])[0].select;
+    expect(select.firstName).toBe(true);
+  });
+});
+
+describe("texte personnalisé d'un message à un groupe", () => {
+  it("{prenom} → prénom du membre, {bot} → nom du bot ; texte sans repère inchangé", () => {
+    expect(personalizeBroadcastText("Salut {prenom} ! {bot}", { firstName: "Léa", botName: "Bot" })).toBe("Salut Léa ! Bot");
+    expect(personalizeBroadcastText("Salut à tous", { firstName: "Léa", botName: "Bot" })).toBe("Salut à tous");
+    expect(personalizeBroadcastText("{prenom}", { firstName: "A&B <i>", botName: "Bot" })).toBe("A&amp;B &lt;i&gt;");
   });
 });
 

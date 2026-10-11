@@ -1,4 +1,4 @@
-import { GRAPH_SEQUENCE_LABELS, renderActionText, type AutomationAction } from "@linkaffipro/core";
+import { GRAPH_SEQUENCE_LABELS, escapeHtml, renderActionText, type AutomationAction } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { enqueueDm, type DmButton } from "@linkaffipro/queue";
 import { notifyAdmin, pickText, renderText } from "@linkaffipro/telegram";
@@ -19,14 +19,17 @@ async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
   return (await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true } })) ?? (await prisma.bot.findFirst({ where: { isActive: true } }));
 }
 
-/** Exécuteur réel (Prisma, file Telegram, notification admin). */
+/**
+ * Exécuteur réel (Prisma, file Telegram, notification admin). Repères {prenom}, {canal}, {bot} remplacés par des valeurs
+ * échappées : les textes sont en HTML Telegram, un prénom « Tom <3 » ne doit pas faire refuser le message.
+ */
 export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: string; test?: boolean }): ActionExecutor {
-  const vars = { prenom: snapshot.firstName ?? "", canal: snapshot.channelTitle ?? "", bot: "" };
+  const vars = { prenom: escapeHtml(snapshot.firstName ?? ""), canal: escapeHtml(snapshot.channelTitle ?? ""), bot: "" };
   return {
     async sendMessage(a) {
       const bot = await pickBot(snapshot, a.botId);
       if (!bot) throw new Error("Aucun bot actif pour envoyer le message.");
-      const text = renderActionText(a.text, { ...vars, bot: bot.name });
+      const text = renderActionText(a.text, { ...vars, bot: escapeHtml(bot.name) });
       const buttons: DmButton[][] = (a.buttons ?? []).map((row) => row.map((b) => ({ text: b.text, url: b.url })));
       await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons, mediaAssetId: a.mediaAssetId ?? null });
       return `message via @${bot.username}`;
@@ -44,7 +47,7 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
       const texts = (step.texts ?? {}) as Record<string, string>;
       const raw = pickText(texts, snapshot.languageCode, null);
       if (!raw) throw new Error(`Message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » sans texte.`);
-      const text = renderText(raw, { prenom: snapshot.firstName ?? "", canal: snapshot.channelTitle ?? "", bot: bot.name });
+      const text = renderText(raw, { prenom: vars.prenom, canal: vars.canal, bot: escapeHtml(bot.name) });
       const buttons = Array.isArray(step.buttons) ? (step.buttons as DmButton[][]) : [];
       await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons, sequenceStepId: step.id, mediaAssetId: step.mediaAssetId ?? null });
       return `message du bot « ${GRAPH_SEQUENCE_LABELS[a.trigger]} » via @${bot.username}`;
@@ -73,13 +76,13 @@ export function prismaExecutor(snapshot: MemberSnapshot, opts: { ruleName: strin
         if (!url) throw new Error("Impossible de créer un lien d'invitation pour ce canal (bot non administrateur ?).");
         link = await prisma.inviteLink.create({ data: { channelId: channel.id, botId: actor.id, telegramInviteLink: url, name: "automation", kind: "MANUAL", createsJoinRequest: true, language: channel.language }, select: { telegramInviteLink: true } }).catch(() => ({ telegramInviteLink: url! }));
       }
-      const text = renderActionText(a.text ?? "On te propose aussi de rejoindre <b>{canal_propose}</b> :", { ...vars, bot: bot.name, canal_propose: channel.title });
+      const text = renderActionText(a.text ?? "On te propose aussi de rejoindre <b>{canal_propose}</b> :", { ...vars, bot: escapeHtml(bot.name), canal_propose: escapeHtml(channel.title) });
       await enqueueDm({ botId: bot.id, memberId: snapshot.memberId, kind: opts.test ? "TEST" : "AUTOMATION", text, buttons: [[{ text: `➕ ${channel.title}`, url: link.telegramInviteLink }]] });
       return `canal « ${channel.title} » proposé`;
     },
     async notifyTeam(a) {
-      const who = snapshot.firstName ? `${snapshot.firstName} (${snapshot.memberId})` : snapshot.memberId;
-      const text = `🤖 <b>Relance automatique « ${opts.ruleName} »</b>\n${renderActionText(a.text, vars)}\nMembre : ${who}`;
+      const who = snapshot.firstName ? `${escapeHtml(snapshot.firstName)} (${snapshot.memberId})` : snapshot.memberId;
+      const text = `🤖 <b>Relance automatique « ${escapeHtml(opts.ruleName)} »</b>\n${renderActionText(a.text, vars)}\nMembre : ${who}`;
       if (opts.test) return "notification (test, non envoyée)";
       const ok = await notifyAdmin(text);
       if (!ok) throw new Error("Notification Telegram impossible (admin non configuré).");

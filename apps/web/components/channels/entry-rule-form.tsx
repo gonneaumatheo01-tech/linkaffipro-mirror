@@ -279,6 +279,7 @@ export function EntryRuleForm({
   channels,
   action,
   requestsHref,
+  gateStatus,
 }: {
   channelId: string;
   /** Une règle est enregistrée et active pour ce canal. */
@@ -288,6 +289,11 @@ export function EntryRuleForm({
   channels: GateChannelOption[];
   action: (formData: FormData) => Promise<void>;
   requestsHref: string;
+  /**
+   * État des liens des canaux à rejoindre de la règle enregistrée (`GateLinksStatus`, rendu par le serveur), montré
+   * dans « Les canaux à rejoindre ». Son bouton « Vérifier les liens » envoie ce formulaire vers une autre action.
+   */
+  gateStatus?: React.ReactNode;
 }) {
   const id = useId();
   const [state, setState] = useState<EntryFormState>(initial);
@@ -307,6 +313,11 @@ export function EntryRuleForm({
   const expiration = expirationSentence(ruleFromState(state));
   const modified = advancedModifiedCount(state);
   const unavailableChecked = channels.some((c) => c.unavailable && state.gateIds.includes(c.id));
+  // Canaux cochés différents de la règle enregistrée : la vérification des liens porte sur la règle enregistrée.
+  const gateChanged =
+    [...state.gateIds].sort().join() !== [...initial.gateIds].sort().join() ||
+    state.gateMode !== initial.gateMode ||
+    initial.choice !== "gate";
 
   if (!started) {
     return (
@@ -346,6 +357,9 @@ export function EntryRuleForm({
       action={action}
       className="max-w-3xl space-y-8"
       onSubmit={(e) => {
+        // « Vérifier les liens » n'enregistre pas la règle : pas de contrôle des champs.
+        const submitter = (e.nativeEvent as SubmitEvent).submitter;
+        if (submitter?.hasAttribute("data-verify-links")) return;
         if (problem) {
           e.preventDefault();
           setShowProblem(true);
@@ -506,6 +520,18 @@ export function EntryRuleForm({
               ) : null}
             </fieldset>
           )}
+          {gateStatus && hasRule ? (
+            <div className="space-y-2">
+              {gateChanged ? (
+                <p className="flex items-start gap-2 text-note text-muted-foreground">
+                  <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  Enregistrez la règle : les liens des canaux que vous venez de choisir seront créés
+                  et vérifiés tout de suite.
+                </p>
+              ) : null}
+              {gateStatus}
+            </div>
+          ) : null}
           <fieldset>
             <legend className="mb-2 text-body font-medium text-foreground">Ces canaux sont…</legend>
             <div className="grid gap-2 sm:grid-cols-2">

@@ -100,6 +100,10 @@ describe("ce que dit le bot", () => {
       [{ text: "✅ J'ai rejoint" }],
     ]);
     expect(previewButtons("GATE_REMINDER", gate, ["VIP"], labels)).toHaveLength(2);
+    // Comme le bot : avec des canaux à rejoindre, « ✅ J'ai rejoint » est toujours là (même si un canal a disparu).
+    expect(previewButtons("JOIN_REQUEST", gate, [], labels)).toEqual([
+      [{ text: "✅ J'ai rejoint" }],
+    ]);
     expect(previewButtons("APPROVED", gate, ["VIP"], labels)).toEqual([]);
     expect(previewButtons("JOIN_REQUEST", { ...gate, isActive: false }, ["VIP"], labels)).toEqual(
       [],

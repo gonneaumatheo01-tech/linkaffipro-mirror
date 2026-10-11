@@ -1,12 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { validateTelegramHtml } from "@linkaffipro/core";
+import { PHASE9_TEMPLATE_TEXTS } from "./phase10-templates";
 import {
   buildTemplateRows,
   LIBRARY,
+  RISK_NOTICE,
   seedTemplates,
   THEME_LABELS,
   VERTICAL_LABELS,
   type TemplateDb,
+  type TemplateRow,
 } from "./seed-templates";
 
 // Bibliothèque des 63 modèles : construction des lignes (pure) et insertion idempotente, sans aucune catégorie.
@@ -68,6 +72,65 @@ describe("bibliothèque de modèles (construction pure)", () => {
   });
 });
 
+// Phase 10 : un message de canal ne remplace aucun repère ({prenom}, {offre}, {canal}… partiraient tels quels).
+describe("modèles prêts à partir dans un canal (phase 10)", () => {
+  const rows = buildTemplateRows();
+  const offerRows = (r: TemplateRow) => r.buttons.flat().filter((b) => b.type === "OFFER");
+
+  it("aucun repère entre accolades : ni {prenom}, ni {offre}, ni {canal}", () => {
+    for (const r of rows) {
+      expect(r.text, r.code).not.toContain("{prenom}");
+      expect(r.text, r.code).not.toContain("{offre}");
+      expect(r.text, r.code).not.toContain("{canal}");
+      expect(r.text, r.code).not.toMatch(/\{[a-z_]+\}/);
+    }
+  });
+  it("chaque modèle qui citait l'offre a un bouton « Offre (campagne) », sans campagne choisie d'avance", () => {
+    const withOffer = Object.entries(PHASE9_TEMPLATE_TEXTS).filter(([, t]) =>
+      t.includes("{offre}"),
+    );
+    expect(withOffer).toHaveLength(43);
+    for (const r of rows) {
+      const hadOffer = PHASE9_TEMPLATE_TEXTS[r.code]!.includes("{offre}");
+      const offers = offerRows(r);
+      expect(offers.length, r.code).toBe(hadOffer ? 1 : 0);
+      if (!hadOffer) {
+        expect(r.buttons, r.code).toEqual([]);
+        continue;
+      }
+      // Structure de `Post.buttons` : une ligne, un bouton Offre ; la campagne se choisit à l'utilisation.
+      expect(r.buttons, r.code).toEqual([[{ text: offers[0]!.text, type: "OFFER" }]]);
+      expect(offers[0]!.text.trim().length, r.code).toBeGreaterThan(0);
+      expect(offers[0]!.text.length, r.code).toBeLessThanOrEqual(64);
+    }
+  });
+  it("un modèle avec bouton Offre invite à appuyer dessus ; sans bouton, il n'en parle pas", () => {
+    for (const r of rows) {
+      const mentions = /bouton ci-dessous/.test(r.text);
+      expect(mentions, r.code).toBe(offerRows(r).length > 0);
+    }
+  });
+  it("texte valable pour Telegram (balises permises, longueur)", () => {
+    for (const r of rows) {
+      const v = validateTelegramHtml(r.text);
+      expect(v.ok, `${r.code} : ${v.ok ? "" : v.error}`).toBe(true);
+      if (v.ok) expect(v.html).toBe(r.text);
+    }
+  });
+  it("ton et mentions de risques inchangés : les modèles sans repère restent mot pour mot", () => {
+    for (const r of rows) {
+      const before = PHASE9_TEMPLATE_TEXTS[r.code]!;
+      if (!/\{[a-z_]+\}/.test(before)) expect(r.text, r.code).toBe(before);
+      // La mention des risques termine toujours les modèles casino et paris sportifs.
+      if (r.vertical !== "DATING") expect(r.text.endsWith(RISK_NOTICE), r.code).toBe(true);
+    }
+    // Les messages de jeu responsable gardent le numéro d'aide.
+    expect(rows.find((r) => r.code === "modele:casino:information:3")!.text).toContain(
+      "09 74 75 13 13",
+    );
+  });
+});
+
 /** Base simulée : un canal et un bot par univers, posts en mémoire (aucune table de catégories). */
 function fakeDb(opts: { withChannel?: boolean } = {}) {
   const posts = new Map<string, Record<string, unknown>>();
@@ -109,6 +172,19 @@ describe("insertion (idempotente)", () => {
       categoryId: null,
       vertical: "SPORTS",
     });
+  });
+  it("insère le bouton Offre des modèles qui en ont un, aucun bouton pour les autres", async () => {
+    const { db, posts } = fakeDb();
+    await seedTemplates(db, () => undefined);
+    for (const r of buildTemplateRows()) {
+      const p = posts.get(r.code)!;
+      expect(p.text, r.code).toBe(r.text);
+      expect(p.buttons, r.code).toEqual(r.buttons);
+    }
+    expect(posts.get("modele:casino:bonus:1")!.buttons).toEqual([
+      [{ text: expect.any(String), type: "OFFER" }],
+    ]);
+    expect(posts.get("modele:casino:information:3")!.buttons).toEqual([]);
   });
   it("relancé : ne recrée rien", async () => {
     const { db } = fakeDb();

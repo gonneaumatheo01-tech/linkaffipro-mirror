@@ -4,15 +4,17 @@ import { enqueue } from "@linkaffipro/queue";
 import { logger } from "../logger";
 import { resolveBroadcastButtons } from "./buttons";
 import { abAllows, splitAOf, type AbContext } from "./ab";
+import { personalizeBroadcastText } from "./personalize";
 
 export const BATCH_SIZE = 500;
 
 /**
  * Développe un envoi groupé en `OutboundMessage` (kind BROADCAST) par destinataire, par lots, et enfile
  * un job `dm` par message (jobId `dm-<id>`, donc idempotent). Rejouable : les membres déjà servis sont ignorés.
+ * Le texte est personnalisé pour chaque destinataire ({prenom}, {bot} : voir `personalize.ts`).
  */
 export async function expandBroadcast(broadcastId: string): Promise<{ targeted: number; created: number }> {
-  const b = await prisma.broadcast.findUnique({ where: { id: broadcastId }, include: { bot: { select: { username: true } } } });
+  const b = await prisma.broadcast.findUnique({ where: { id: broadcastId }, include: { bot: { select: { username: true, name: true } } } });
   if (!b) return { targeted: 0, created: 0 };
   if (b.status === "CANCELLED" || b.status === "SENT") return { targeted: b.targeted, created: 0 };
   if (b.status !== "SENDING") {
@@ -37,7 +39,7 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
       orderBy: { id: "asc" },
       take: BATCH_SIZE,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: { id: true, players: needLevel ? { select: { registeredAt: true, depositCount: true, depositTotal: true } } : false },
+      select: { id: true, firstName: true, players: needLevel ? { select: { registeredAt: true, depositCount: true, depositTotal: true } } : false },
     });
     if (members.length === 0) break;
     cursor = members[members.length - 1]!.id;
@@ -49,7 +51,7 @@ export async function expandBroadcast(broadcastId: string): Promise<{ targeted: 
         if (!matchesSpendLevels(computeSpendLevel(aggregatePlayers(players), thresholds), segment)) continue;
       }
       const om = await prisma.outboundMessage.create({
-        data: { botId: b.botId, memberId: m.id, kind: "BROADCAST", broadcastId: b.id, text: b.text, buttons: toJsonValue(buttons), mediaAssetId: b.mediaAssetId ?? null },
+        data: { botId: b.botId, memberId: m.id, kind: "BROADCAST", broadcastId: b.id, text: personalizeBroadcastText(b.text, { firstName: m.firstName, botName: b.bot.name }), buttons: toJsonValue(buttons), mediaAssetId: b.mediaAssetId ?? null },
         select: { id: true },
       });
       await enqueue("telegram-send", { type: "dm", outboundMessageId: om.id }, { jobId: `dm-${om.id}`, attempts: 3, backoff: { type: "exponential", delay: 2000 } });

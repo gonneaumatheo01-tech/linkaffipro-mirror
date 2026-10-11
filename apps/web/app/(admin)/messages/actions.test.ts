@@ -319,3 +319,144 @@ describe("modification d'un message", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("modèles : bouton Offre dont la campagne se choisit à l'utilisation", () => {
+  const offerToChoose = [[{ text: "🎁 J'en profite", type: "OFFER" }]];
+  const template = {
+    id: "tpl1",
+    status: "DRAFT",
+    channelId: "ch1",
+    isTemplate: true,
+    templateName: "Casino · Bonus · Tours gratuits",
+  };
+
+  it("modifier un modèle fourni (bouton Offre sans campagne) : accepté, bouton gardé tel quel, aucun lien", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(template);
+    const url = await run(
+      updatePostAction(
+        form({
+          postId: "tpl1",
+          channelIds: "ch1",
+          text: "Des <b>tours gratuits</b> cette semaine.",
+          intent: "template",
+          templateName: "Casino · Bonus · Tours gratuits",
+          buttons: JSON.stringify(offerToChoose),
+        }),
+      ),
+    );
+    expect(url).toMatch(/^\/messages\/tpl1\?/);
+    expect(param(url, "error")).toBe("");
+    const upd = (
+      db.prisma.post.update.mock.calls as unknown as Array<
+        [{ where: { id: string }; data: { text: string; buttons: unknown } }]
+      >
+    )[0]![0];
+    expect(upd.where.id).toBe("tpl1");
+    expect(upd.data.text).toBe("Des <b>tours gratuits</b> cette semaine.");
+    expect(upd.data.buttons).toEqual([[{ text: "🎁 J'en profite", type: "OFFER" }]]);
+    expect(db.prisma.trackingLink.create).not.toHaveBeenCalled();
+    expect(db.prisma.trackingLink.update).not.toHaveBeenCalled();
+  });
+
+  it("modèle avec une campagne à plusieurs offres, offre pas encore choisie : la campagne est gardée", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(template);
+    await run(
+      updatePostAction(
+        form({
+          postId: "tpl1",
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "template",
+          buttons: JSON.stringify([[{ text: "Jouer", type: "OFFER", campaignId: "camp1" }]]),
+        }),
+      ),
+    );
+    const upd = (
+      db.prisma.post.update.mock.calls as unknown as Array<[{ data: { buttons: unknown } }]>
+    )[0]![0];
+    expect(upd.data.buttons).toEqual([[{ text: "Jouer", type: "OFFER", campaignId: "camp1" }]]);
+  });
+
+  it("« Enregistrer comme modèle » avec un bouton Offre sans campagne : modèle créé", async () => {
+    const url = await run(
+      createPostAction(
+        form({
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "template",
+          templateName: "Notre modèle",
+          buttons: JSON.stringify(offerToChoose),
+        }),
+      ),
+    );
+    expect(param(url, "ok")).toBe("Modèle enregistré.");
+    const created = db.prisma.post.create.mock.calls[0]![0] as {
+      data: { isTemplate: boolean; templateName: string };
+    };
+    expect(created.data).toMatchObject({ isTemplate: true, templateName: "Notre modèle" });
+    const upd = (
+      db.prisma.post.update.mock.calls as unknown as Array<[{ data: { buttons: unknown } }]>
+    )[0]![0];
+    expect(upd.data.buttons).toEqual([[{ text: "🎁 J'en profite", type: "OFFER" }]]);
+    expect(db.prisma.trackingLink.create).not.toHaveBeenCalled();
+  });
+
+  it("modèle avec campagne et offre choisies : vérifié et relié comme un message", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(template);
+    await run(
+      updatePostAction(
+        form({
+          postId: "tpl1",
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "template",
+          buttons: JSON.stringify(offerWithCampaign),
+        }),
+      ),
+    );
+    expect(db.prisma.trackingLink.create).toHaveBeenCalledTimes(1);
+    const upd = (
+      db.prisma.post.update.mock.calls as unknown as Array<[{ data: { buttons: unknown } }]>
+    )[0]![0];
+    expect(JSON.stringify(upd.data.buttons)).toContain("camp1");
+  });
+
+  it("message ordinaire (brouillon) avec le même bouton sans campagne : toujours refusé", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue({
+      ...template,
+      id: "p9",
+      isTemplate: false,
+      templateName: null,
+    });
+    const url = await run(
+      updatePostAction(
+        form({
+          postId: "p9",
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "draft",
+          buttons: JSON.stringify(offerToChoose),
+        }),
+      ),
+    );
+    expect(url).toMatch(/^\/messages\/p9\/edit\?/);
+    expect(param(url, "error")).toMatch(/choisissez une campagne/);
+    expect(db.prisma.post.update).not.toHaveBeenCalled();
+  });
+
+  it("nouveau message depuis un modèle, campagne oubliée : toujours refusé", async () => {
+    const url = await run(
+      createPostAction(
+        form({
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "draft",
+          duplicatedFromId: "tpl1",
+          buttons: JSON.stringify(offerToChoose),
+        }),
+      ),
+    );
+    expect(param(url, "error")).toMatch(/choisissez une campagne/);
+    expect(db.prisma.post.create).not.toHaveBeenCalled();
+  });
+});

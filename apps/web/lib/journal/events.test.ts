@@ -61,6 +61,11 @@ describe("Journal → vue « Événements »", () => {
     expect(eventLabel("telegram.something_new")).toBe("Mise à jour Telegram");
     expect(eventLabel("player.ftd")).toBe("Premier dépôt");
     expect(eventLabel("membership.approved")).toBe("Demande acceptée");
+    expect(eventLabel("membership.gate_links_missing")).toBe(
+      "Liens de canaux à rejoindre impossibles à créer",
+    );
+    expect(eventLabel("membership.welcome_resent")).toBe("Accueil renvoyé avec les liens");
+    expect(eventLabel("channel.gate_links_checked")).toBe("Liens des canaux à rejoindre vérifiés");
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 

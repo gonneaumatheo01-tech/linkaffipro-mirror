@@ -3,6 +3,8 @@
  */
 import type { InviteLinkKind, MembershipStatus, Prisma } from "@linkaffipro/db";
 import type { User } from "grammy/types";
+import type { BotIdentity } from "../ports";
+import type { GateLinkDeps } from "./gate-links";
 import type { RuleData } from "./rules";
 
 export type ChannelInfo = {
@@ -47,7 +49,11 @@ export type SequenceText = {
   mediaAssetId?: string | null;
 } | null;
 
-export interface JoinFlowDeps {
+/**
+ * Accès base et file du flux d'adhésion. Les liens des canaux à rejoindre (`GateLinkDeps`) se créent avec n'importe
+ * lequel de nos bots administrateurs du canal à rejoindre (voir gate-links.ts).
+ */
+export interface JoinFlowDeps extends GateLinkDeps {
   upsertMember(
     from: User,
   ): Promise<{ memberId: string; languageCode: string | null; firstName: string | null }>;
@@ -91,13 +97,20 @@ export interface JoinFlowDeps {
     id: string,
     field: "requests" | "approved" | "joined" | "left",
   ): Promise<void>;
-  /** Lien GATE (canal source → canal requis) existant, ou création via `create` (createChatInviteLink). */
-  findOrCreateGateLink(
-    sourceChannelId: string,
-    gate: ChannelInfo,
-    botId: string,
-    create: () => Promise<string | null>,
-  ): Promise<string | null>;
+  /** Demande par identifiant (renvoi de l'accueil depuis le site). */
+  findMembershipById(id: string): Promise<MembershipInfo | null>;
+  /** Prénom et langue d'un membre (renvoi de l'accueil). */
+  getMember(
+    memberId: string,
+  ): Promise<{ memberId: string; languageCode: string | null; firstName: string | null } | null>;
+  /** Identité d'un de nos bots actifs (jamais le jeton), ou null. */
+  getBotIdentity(botId: string): Promise<BotIdentity | null>;
+  /**
+   * Le bot peut-il écrire en premier à ce membre ? Vrai seulement si le membre a ouvert la conversation avec le bot
+   * (`startedAt`) et ne l'a pas bloqué. Hors de ce cas, Telegram n'accepte un message que dans les 5 minutes qui
+   * suivent la demande d'adhésion (`user_chat_id`).
+   */
+  canWriteTo(memberId: string, botId: string): Promise<boolean>;
   getSequenceText(
     channelId: string,
     botId: string,
@@ -126,5 +139,4 @@ export interface JoinFlowDeps {
     memberId: string,
     context: Record<string, unknown>,
   ): Promise<void>;
-  /** Le membre est-il dans le chat ? (getChatMember est appelé par le handler ; ici on isole pour les tests.) */
 }

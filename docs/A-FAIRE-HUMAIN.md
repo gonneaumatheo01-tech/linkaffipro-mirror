@@ -13,7 +13,6 @@
 4. **Créer vos catégories de messages** : les 7 catégories créées d'office ont été retirées. Créez les vôtres dans Messages → Programmer un message → Catégorie → **+ Nouvelle catégorie**, ou dans Réglages → Catégories de messages.
 
 ## Tableau de bord Railway (2 clics chacun)
-5. **Worker en Europe** : railway.com → projet linkaffipro → service worker → Settings → Regions → EU West (Amsterdam) → Deploy. Il est encore aux États-Unis (0,15 s par requête vers la base). Le volume de sauvegardes suivra le service.
 6. **Sauvegardes de volume Railway** (en plus des sauvegardes automatiques de la plateforme) : projet linkaffipro → Postgres → Settings → Backups → activer Daily, Weekly et Monthly (voir `docs/SAUVEGARDES.md`).
 
 ## Phase 7 : trois applications à créer, puis tout se branche depuis le site (Réglages → Connexions)
