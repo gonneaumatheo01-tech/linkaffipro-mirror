@@ -28,7 +28,6 @@ import {
   metricValue,
   moneyColumn,
   profitNote,
-  trendOrNone,
   type MetricKey,
 } from "@/lib/dashboard/display";
 import { round2, type Derived, type StatTotals } from "@/lib/dashboard/metrics";
@@ -133,7 +132,7 @@ export default async function StatsAdsPage({ searchParams }: PageProps<"/stats/a
         delta={f.compare ? comparableDelta(ads.totalDeltas[k], before) : undefined}
         favorable={v.favorable}
         hint={f.compare ? `Avant : ${k === "roas" ? fmtTimes(before) : fmt(k, before)}` : undefined}
-        trend={multiDay && chart ? trendOrNone(ads.daily.map(chart.pick)) : undefined}
+        trend={multiDay && chart ? ads.daily.map(chart.pick) : undefined}
       />
     );
   });

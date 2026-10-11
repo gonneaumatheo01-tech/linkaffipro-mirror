@@ -5,6 +5,8 @@ import { cn } from "@/components/ui/cn";
 /**
  * Bloc de formulaire : un titre, une ligne d'aide, puis les champs (niveau 1 « ce qu'il faut pour que
  * ça marche » ou niveau 2 « un clic » des formulaires en trois niveaux, docs/DESIGN-SYSTEM.md).
+ * Le bloc titre prend toute la place disponible. Les actions qui passent à la ligne vont à gauche sur téléphone,
+ * sous le titre (comme celles du `PageHeader`), et restent à droite sur ordinateur.
  */
 export function FormSection({
   title,
@@ -28,7 +30,7 @@ export function FormSection({
   return (
     <section id={id} aria-labelledby={headingId} className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-56">
           <h2 id={headingId} className="text-body font-semibold text-foreground">
             {title}
           </h2>
@@ -36,7 +38,11 @@ export function FormSection({
             <p className="mt-0.5 text-note text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
+            {actions}
+          </div>
+        ) : null}
       </div>
       <div className="space-y-4">{children}</div>
     </section>

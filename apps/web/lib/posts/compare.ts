@@ -1,18 +1,9 @@
 /**
- * Graphiques de comparaison des messages (test A/B, catégories) : barres horizontales à une seule couleur, valeurs
- * écrites à côté. Fonctions pures, testées dans compare.test.ts.
+ * Graphiques de comparaison des messages (test A/B, catégories) : mesures et classement, affichés en barres
+ * horizontales par `BarList` (components/charts, longueur des barres : `barPercent`). Fonctions pures, testées dans
+ * compare.test.ts.
  */
 import type { CategoryRow } from "./category-stats";
-
-/**
- * Largeur de chaque barre en % de la plus grande valeur (0 si tout est nul). Une valeur positive reste visible
- * (au moins 2 %).
- */
-export function barWidths(values: number[]): number[] {
-  const max = Math.max(0, ...values);
-  if (max <= 0) return values.map(() => 0);
-  return values.map((v) => (v <= 0 ? 0 : Math.max(2, Math.round((v / max) * 1000) / 10)));
-}
 
 /** Variante d'un test A/B (chiffres de `PostStats`). */
 export type AbVariantFigures = {

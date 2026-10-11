@@ -5,19 +5,20 @@ Tout est visible en situation sur la page interne **`/styleguide`** (administrat
 
 - Jetons de thème : `apps/web/app/globals.css` (thème clair uniquement, pas de classes `.dark`).
 - Primitives : `apps/web/components/ui/*` (shadcn sur Base UI, restylées). Composants partagés de l'application : `apps/web/components/admin/*`. Composants propres à une rubrique : `apps/web/components/<rubrique>/*` (voir § 3.6).
-- Une seule bibliothèque, un seul style : on n'ajoute pas de deuxième jeu de composants, on n'écrit pas de couleur en dur (`#…`, `emerald-500`, `amber-50`…). On utilise les jetons ci-dessous. Un composant qui sert à deux rubriques ou plus va dans `components/admin/` (ex. `FilterChips`, `ScrollToCurrent`).
+- Une seule bibliothèque, un seul style : on n'ajoute pas de deuxième jeu de composants, on n'écrit pas de couleur en dur (`#…`, `emerald-500`, `amber-50`…). On utilise les jetons ci-dessous. Un composant qui sert à deux rubriques ou plus va dans `components/admin/` (ex. `FilterChips`, `TabNav`, `CollapsibleFilters`, `DetailList`).
 
 Contrôles automatiques (`pnpm --filter web test`) qui gardent ces règles :
 
 | Test                                                | Ce qu'il vérifie                                                                                                       |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `apps/web/components/ui/theme-contrast.test.ts`     | Contrastes AA recalculés depuis `globals.css` (texte ≥ 4,5:1 ; bordures de champ, courbes, focus ≥ 3:1).               |
-| `apps/web/tests/a11y/static-a11y.test.ts`           | `alt` sur les images, nom accessible des boutons icône, champs reliés à un libellé.                                    |
+| `apps/web/tests/a11y/static-a11y.test.ts`           | `alt` sur les images, nom accessible des boutons icône, champs reliés à un libellé, contour de focus jamais annulé.    |
 | `apps/web/tests/vocabulary/no-jargon.test.ts`       | Aucun terme technique dans le texte visible (le terme passe par `Term`, `term` ou `title`).                            |
 | `apps/web/tests/routes/no-legacy-addresses.test.ts` | Aucune ancienne adresse (`/broadcasts`, `/links`…) dans le code : tout déplacement s'ajoute à `lib/legacy-routes.ts`.  |
 | `apps/web/lib/help/page-help.test.ts`               | Chaque page de `app/(admin)` a son aide « ? » (une ligne de `PAGE_HELP`) et chaque section citée existe dans le guide. |
 | `apps/web/lib/help/guide-content.test.ts`           | Plan du guide (ordre du menu), titres uniques, liens internes, vocabulaire du client et vouvoiement.                   |
 | `apps/web/lib/status-badges.test.ts`                | Tout statut a son libellé français.                                                                                    |
+| `apps/web/components/admin/tab-nav-logic.test.ts`   | Barres d'onglets : jamais de fond orange, onglet ouvert souligné, cibles de 40 px (44 px en grille), focus visible.    |
 
 ## 1. Règles
 
@@ -146,8 +147,9 @@ Le mot du client est affiché ; le terme exact apparaît au survol, au toucher e
 ## 2. Pièges connus (développeurs)
 
 - **Fusion de classes** : importez `cn` depuis `@/lib/utils` (ou `@/components/ui/cn`, même fonction). Il connaît les tailles `text-title|body|note|figure` ; le `cn` brut du paquet « cn » croit que `text-note` est une couleur et l'efface devant `text-muted-foreground`.
-- **Lien qui ressemble à un bouton** : `<Link className={buttonVariants({...})}>`, jamais `<Button render={<Link/>}>`.
-- **Composants serveur / client** : `DataTable`, `SidePanel`, `HelpButton`, `ConfirmDialog`, `ConfirmSubmit`, `ScrollToCurrent`, `RichTextEditor`, `TimeChart`, `MetricChart` sont des composants client. Depuis une page serveur, passez des données sérialisables (cellules déjà rendues, `detail` en JSX) ; les fonctions (`renderDetail`, `rowHref`, `onConfirm`, `onStepClick`) seulement depuis un composant client. `FilterChips`, `BarList`, `HomeSection`, `SettingsCardGrid`, `BrandLogo` sont des composants serveur.
+- **Lien qui ressemble à un bouton** : `<Link className={buttonVariants({...})}>`, jamais `<Button render={<Link/>}>`. `buttonVariants()` renvoie des classes **déjà fusionnées** par `cn` (la bordure de la variante `outline` remplace la bordure transparente de la base : sans fusion, un lien `outline` perdait sa bordure). Pour ajouter des classes : `buttonVariants({ variant: "outline", className: "max-md:h-10" })` ou `cn(buttonVariants({ variant: "outline" }), "max-md:h-10")` : la dernière classe gagne.
+- **Contour de focus et `outline-none` (Tailwind 4)** : `outline-none` (ou `outline-hidden`) pose `--tw-outline-style: none`, que `focus-visible:outline-2` réutilise : le contour de focus clavier reste invisible. Toute chaîne de classes qui cumule les deux ajoute **`focus-visible:outline-solid`** (`Button`, `Badge`, `Checkbox`, `TimeChart`, `TabNav` le font). Contrôlé par `tests/a11y/static-a11y.test.ts` et `components/ui/focus-outline.test.ts` (lit toutes les sources de `app`, `components` et `lib`).
+- **Composants serveur / client** : `DataTable`, `SidePanel`, `HelpButton`, `ConfirmDialog`, `ConfirmSubmit`, `ScrollToCurrent`, `ScrollFade`, `CollapsibleFilters`, `RichTextEditor`, `TimeChart`, `MetricChart` sont des composants client. Depuis une page serveur, passez des données sérialisables (cellules déjà rendues, `detail` en JSX) ; les fonctions (`renderDetail`, `rowHref`, `onConfirm`, `onStepClick`) seulement depuis un composant client. `FilterChips`, `TabNav`, `BarList`, `DetailList`, `HomeSection`, `SettingsCardGrid`, `BrandLogo` sont des composants serveur (sans état : utilisables aussi depuis un composant client).
 - **Tri du DataTable** : il trie les lignes reçues (la page affichée). Pour trier toute une liste paginée, triez côté serveur. Une cellule texte au format français (« 1 234 € », « −15,3 % », « 09/10/2026 14:05 ») est relue comme nombre ou date, et « — » est trié avec les vides ; pour un nœud React (`<span>`, pastille) ou un autre texte (« 12 / 40 »), passez `sortValues`, sinon la colonne ne se trie pas (avertissement en développement pour les colonnes `align: "right"`).
 - **`DropdownMenuLabel`** : placez-le dans un `DropdownMenuGroup` (ou `DropdownMenuRadioGroup`) avec les éléments qu'il annonce. Le `Menu.GroupLabel` de Base UI plante sans groupe parent (« MenuGroupContext is missing ») ; notre `DropdownMenuLabel` se replie seul sur un simple intitulé hors groupe, mais le groupe reste la bonne écriture. N'utilisez pas `MenuPrimitive.GroupLabel` directement.
 - **Bulles et `overflow`** : une bulle positionnée en `absolute` est coupée par une carte (`Card` est en `overflow-hidden`) ou un tableau qui défile. Toute bulle, menu ou liste flottante passe par un portail Base UI (`Popover`, `Menu`, `Select`, `Tooltip`), comme `HelpTip` et `Term`.
@@ -189,7 +191,7 @@ Logo « L » orange sur nuit (import statique, mis en cache, chargé tout de sui
 
 #### GlobalSearch, Shortcuts — `global-search.tsx`, `shortcuts.tsx`
 
-Recherche globale (`/api/search`) : loupe dans l'en-tête, fenêtre avec résultats groupés, clavier ↑ ↓ Entrée Échap ; ouverture par ⌘K / Ctrl+K, `/` hors d'un champ, ou l'événement `SEARCH_OPEN_EVENT` (`lap:search`). `Shortcuts` : `?` liste les raccourcis, `n` nouveau message depuis /messages.
+Recherche globale (`/api/search`) : loupe dans l'en-tête, fenêtre avec résultats groupés, clavier ↑ ↓ Entrée Échap ; ouverture par ⌘K / Ctrl+K, `/` hors d'un champ, ou l'événement `SEARCH_OPEN_EVENT` (`lap:search`). `Shortcuts` : `?` (hors d'un champ) ouvre la liste des raccourcis dans une boîte de dialogue (`Dialog` : focus gardé, Échap, « Ouvrir la recherche ») en trois groupes : Partout (⌘K recherche, Échap), Hors d'un champ de saisie (`/`, `?`, `n` nouveau message depuis /messages), **Dans un texte de message** (⌘B gras, ⌘I italique, ⌘U souligné, ⌘K lien, ⌘⇧X barré ; « Ctrl » hors d'un Mac). Liste dans `shortcuts-logic.ts` (testée) : les touches de mise en forme sont lues dans l'éditeur (`shortcutLabel`), la liste ne peut pas les contredire. Plateforme : `useIsMac` (`components/editor/use-is-mac.ts`).
 
 #### HelpPanel — `components/admin/help-panel.tsx`
 
@@ -218,7 +220,7 @@ Props : celles de Base UI `Button` + `variant` (`default` orange principal · `o
 
 #### Badge — `badge.tsx`
 
-Étiquette courte (compteur, mot-clé). `variant` : `default` (orange pâle) · `secondary` · `outline` · `success` · `warning` · `info` · `destructive` · `ghost` · `link`. Pour un **état**, utilisez `StatusPill` / `StatusBadge`.
+Étiquette courte (compteur, mot-clé). `variant` : `default` (orange pâle) · `secondary` · `outline` · `success` · `warning` · `info` · `destructive` · `ghost` · `link`. Pour un **état**, utilisez `StatusPill` / `StatusBadge`. `badgeVariants()` renvoie, comme `buttonVariants()`, des classes déjà fusionnées.
 
 ```tsx
 <Badge variant="secondary">12</Badge>
@@ -240,7 +242,7 @@ Props : celles de Base UI `Button` + `variant` (`default` orange principal · `o
 
 #### Input, Textarea, Label — `input.tsx`, `textarea.tsx`, `label.tsx`
 
-Champs 36 px (40 px sur téléphone), fond blanc, bordure gris moyen à 3:1 (`fieldBorderClass`), focus orange foncé ; `aria-invalid` → bordure rouge. Texte 16 px sur téléphone (pas de zoom iOS), 14 px sur ordinateur.
+Champs 36 px (40 px sur téléphone), fond blanc, bordure gris moyen à 3:1 (`fieldBorderClass`), focus orange foncé ; `aria-invalid` → bordure rouge. Texte 16 px sur téléphone (pas de zoom iOS), 14 px sur ordinateur. **Champ de fichier** (`<Input type="file">`) : le bouton « Choisir un fichier » du navigateur prend l'allure d'un bouton secondaire (fond gris clair, bordure fine, 28 px, 32 px sur téléphone) et tout le champ ouvre le sélecteur ; aucun écran ne le restyle (`inputClassName`, testé).
 
 ```tsx
 <Label htmlFor="title">Titre interne</Label>
@@ -308,7 +310,7 @@ Boîte centrée : `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`)
 
 #### DropdownMenu — `dropdown-menu.tsx`
 
-Menu Base UI : `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuGroup`, `DropdownMenuLabel` (dans un groupe : voir Pièges), `DropdownMenuItem` (`variant="destructive"`), `DropdownMenuSeparator`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup` / `DropdownMenuRadioItem`, sous-menus. Exemple d'usage : le bouton « Plus » de Campagnes, « Exporter » de Membres.
+Menu Base UI : `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuGroup`, `DropdownMenuLabel` (dans un groupe : voir Pièges), `DropdownMenuItem` (`variant="destructive"`), `DropdownMenuSeparator`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup` / `DropdownMenuRadioItem`, sous-menus. Exemple d'usage : le bouton « Plus » de Campagnes, « Exporter » de Membres. Largeur : celle de son texte (`w-auto`), jamais plus étroit que le bouton qui l'ouvre ni que 128 px, jamais plus large que l'espace disponible (le texte passe alors à la ligne) ; un petit bouton icône ne coupe donc plus les libellés. Une largeur posée par l'écran (`className="w-60"` ou `"min-w-60"`) remplace la règle (`DROPDOWN_CONTENT_CLASS`, testé).
 
 ```tsx
 <DropdownMenu>
@@ -371,7 +373,7 @@ Tableau brut : `Table` (`label` : nom de la zone défilante, par défaut la lég
 
 #### PageHeader — `page-header.tsx`
 
-Le seul `<h1>` de la page. Props : `title`, `description` (une ligne d'aide), `help` (note : la première chose à faire), `primaryAction` (`{ label, href, icon? }` ou un nœud : LE bouton orange), `secondaryActions` (nœuds discrets), `children` (contenu libre à droite, compatibilité), `backHref` / `backLabel` (« ← Réglages », « ← Membres »), `meta` (pastilles à côté du titre), `className`.
+Le seul `<h1>` de la page. Props : `title`, `description` (une ligne d'aide), `help` (note : la première chose à faire), `primaryAction` (`{ label, href, icon? }` ou un nœud : LE bouton orange), `secondaryActions` (nœuds discrets), `children` (contenu libre à droite, compatibilité), `backHref` / `backLabel` (« ← Réglages », « ← Membres »), `meta` (pastilles à côté du titre), `className`. Sur téléphone, les actions passent sous le titre, sur toute la largeur, **le bouton principal en premier** (sous le pouce) : aucune page n'ajoute `max-md:order-first` elle-même.
 
 ```tsx
 <PageHeader
@@ -388,7 +390,7 @@ Le seul `<h1>` de la page. Props : `title`, `description` (une ligne d'aide), `h
 
 #### StatCard — `stat-card.tsx` (+ `stat-card-logic.ts`)
 
-Props : `label`, `value` (déjà formaté), `delta` (variation en %, ex. `deltaPct(aujourdhui, hier)` ; `null` = « Pas de comparaison possible » ; absent = pas de ligne), `favorable` (`up` par défaut · `down` pour un coût · `none`), `comparison` (« vs hier »), `trend` (nombres → mini-courbe SVG : ligne `brand-ink`, remplissage orange à 12 %), `href` (carte cliquable), `term` (terme technique du libellé : bulle au survol, au toucher et au focus si la carte n'est pas un lien), `hint`, `icon`, `className`. `MiniTrend` est exporté seul.
+Props : `label`, `value` (déjà formaté), `delta` (variation en %, ex. `deltaPct(aujourdhui, hier)` ; `null` = « Pas de comparaison possible » ; absent = pas de ligne ; affichage plafonné à « > +999 % » / « < −999 % », lu « En hausse de plus de 999 % » : `VARIATION_CAP`, le calcul ne change pas), `favorable` (`up` par défaut · `down` pour un coût · `none`), `comparison` (« vs hier »), `trend` (nombres → mini-courbe SVG : ligne `brand-ink`, remplissage orange à 12 % ; rien n'est dessiné sous deux points ou quand toutes les valeurs sont nulles : `hasTrend`, et `trendOrNone(série)` pour préparer la prop), `href` (carte cliquable), `term` (terme technique du libellé : bulle au survol, au toucher et au focus si la carte n'est pas un lien), `hint`, `icon`, `className`. `MiniTrend` est exporté seul (même règle `hasTrend`). Règles pures testées : `stat-card-logic.ts`.
 
 ```tsx
 <StatCard
@@ -428,7 +430,7 @@ Clic sur un en-tête : premier sens (les chiffres du plus grand au plus petit) �
 
 #### SidePanel — `side-panel.tsx`
 
-Volet latéral (Dialog Base UI) : à droite sur ordinateur, plein écran sur téléphone ; titre relié, Échap, croix « Fermer », focus piégé puis rendu. Props : `title`, `description`, `children`, `footer`, `size` (`sm` · `md` · `lg` · `xl`), contrôlé (`open`, `onOpenChange`) ou non (`trigger`, `defaultOpen`). `SidePanelClose` : bouton de fermeture pour le pied.
+Volet latéral (Dialog Base UI) : à droite sur ordinateur, plein écran sur téléphone ; titre relié, Échap, croix « Fermer », focus piégé puis rendu. Contenu plus haut que l'écran sans lien ni bouton (texte seul, liste de chiffres) : la zone qui défile prend elle-même le focus clavier (flèches), nommée « Contenu : <titre> » (contrôle axe `scrollable-region-focusable` ; règle pure `scrollRegionNeedsFocus` dans `side-panel-logic.ts`, testée) ; rien à faire dans les pages. Props : `title`, `description`, `children`, `footer`, `size` (`sm` · `md` · `lg` · `xl`), contrôlé (`open`, `onOpenChange`) ou non (`trigger`, `defaultOpen`). `SidePanelClose` : bouton de fermeture pour le pied.
 
 ```tsx
 <SidePanel
@@ -478,7 +480,7 @@ Pastille d'état : `tone` (`neutral` · `muted` · `info` · `success` · `warni
 
 #### StatusBadge, ActiveBadge — `apps/web/lib/status-badges.tsx`
 
-Libellé français et nuance de **tous** les statuts (dictionnaire `STATUS_DICT`), rendus en `StatusPill` ; les univers (`kind="vertical"`) en `UniverseDot` étiquette. `statusLabel`, `statusLabels`, `statusVariant`, `statusTone`, `entryTone` exportés. Tout nouveau statut doit avoir son libellé (un test le vérifie).
+Libellé français et nuance de **tous** les statuts (dictionnaire `STATUS_DICT`), rendus en `StatusPill` ; les univers (`kind="vertical"`) en `UniverseDot` étiquette. `statusLabel`, `statusLabels`, `statusVariant`, `statusTone`, `entryTone` exportés. Tout nouveau statut doit avoir son libellé (un test le vérifie). Synchronisation (`kind="sync"`) : OK, **En retard** (`late`, ambre : la dernière réussite est trop ancienne, `syncRowState` de `lib/status/health.ts`), Erreur, En cours, Jamais.
 
 ```tsx
 <StatusBadge kind="post" value={post.status} />
@@ -514,7 +516,7 @@ Rangée de pastilles de filtre (liens, formulaire inutile) : un clic filtre la l
 
 #### ScrollToCurrent — `scroll-to-current.tsx` (+ `scroll-to-current-logic.ts`)
 
-Liste horizontale qui défile (onglets sur téléphone) : à l'affichage et à chaque changement de `currentKey`, l'élément marqué `aria-current` est ramené au centre de la liste ; seule la liste défile, jamais la page. Sans JavaScript, la liste reste une simple liste défilante. Composant client ; règle pure `centeredScrollLeft` testée. Props : `currentKey`, `className` (classes du `<ul>`), `children` (les `<li>`). Utilisé par les onglets d'une campagne, d'un canal et des Statistiques.
+Liste horizontale qui défile (onglets sur téléphone) : à l'affichage et à chaque changement de `currentKey`, l'élément marqué `aria-current` est ramené au centre de la liste ; seule la liste défile, jamais la page. Sans JavaScript, la liste reste une simple liste défilante. Composant client ; règle pure `centeredScrollLeft` testée. Props : `currentKey`, `className` (classes du `<ul>`), `children` (les `<li>`). Utilisé par `TabNav` : pour une barre d'onglets, utilisez `TabNav`, pas `ScrollToCurrent` seul.
 
 ```tsx
 <ScrollToCurrent currentKey={tab} className="-mb-px flex gap-1 overflow-x-auto">
@@ -528,9 +530,61 @@ Liste horizontale qui défile (onglets sur téléphone) : à l'affichage et à c
 </ScrollToCurrent>
 ```
 
+#### TabNav — `tab-nav.tsx` (+ `tab-nav-logic.ts`)
+
+**La** barre d'onglets de l'application (liens : chaque onglet a son adresse, `aria-current="page"` sur l'onglet ouvert). Ordinateur : onglets soulignés, l'onglet ouvert souligné d'orange et en semi-gras ; si la fenêtre est étroite, la rangée défile. Téléphone, deux présentations (`phone`) : `scroll` (par défaut : une rangée d'onglets de 40 px qui défile, Statistiques, Journal) ou `grid` (boutons bordés de 44 px sur `columns` = 2 ou 3 colonnes, tous visibles, libellé court ou sur deux lignes : fiche campagne, fiche canal, Membres). Quand la rangée défile, un dégradé montre qu'il reste des onglets (`ScrollFade`) et l'onglet ouvert est ramené au centre (`ScrollToCurrent`). Jamais de fond orange (le seul bouton orange reste celui du `PageHeader`). Composant serveur. Props : `label` (nom de la navigation, lu par les lecteurs d'écran), `items` (`{ key, href, label, short?, count?, ariaLabel? }` : `short` = libellé du téléphone, `count` = pastille ambre (rien à 0) ; dites le nombre dans `ariaLabel`, « Demandes, 3 en attente »), `current`, `phone`, `columns`, `className`. Utilisé par `CampaignTabs`, `ChannelTabs`, `MembersNav`, `StatsNav` et les onglets du Journal (`ViewTabs`). Toute nouvelle barre d'onglets l'utilise.
+
+```tsx
+<TabNav
+  label="Onglets de la campagne"
+  current={tab}
+  items={CAMPAIGN_TABS.map((t) => ({
+    key: t.key,
+    href: campaignTabHref(id, t.key, keep),
+    label: t.label,
+    short: t.short,
+  }))}
+  phone="grid"
+  columns={3}
+/>
+```
+
+#### ScrollFade — `scroll-fade.tsx`
+
+Dégradé sur le bord d'une rangée qui défile, tant qu'il reste des éléments à voir de ce côté (même règle que `Table`, `horizontalScrollState`) ; il suit le défilement et la taille de la rangée ; rien quand tout tient ou sans JavaScript. Le **premier enfant** est la zone qui défile (`overflow-x-auto`). Composant client. Props : `children`, `className`, `fadeClassName` (couleur du fond sous la rangée : `from-background` par défaut, `from-card` sur une carte). Utilisé par `TabNav`.
+
+#### CollapsibleFilters — `collapsible-filters.tsx`
+
+Filtres d'une liste : toujours visibles sur ordinateur ; repliés sur téléphone derrière un bouton « Filtres (n) » (`aria-expanded`), pour que la liste se lise d'abord. Le contenu (un formulaire GET) n'est rendu qu'une fois. Composant client. Props : `activeCount` (filtres posés, affiché sur le bouton), `children`, `className`. Utilisé par Messages (calendrier, liste, modèles) et le Journal.
+
+```tsx
+<CollapsibleFilters activeCount={active}>
+  <form method="get">…</form>
+</CollapsibleFilters>
+```
+
+#### DetailList, DetailRow — `detail-list.tsx`
+
+Liste « libellé : valeur » des volets de détail et des blocs techniques (`<dl>` en deux colonnes : libellé gris, valeur à gauche). `DetailList` : `children`, `className` ; `DetailRow` : `label`, `children`, `mono` (identifiant, adresse en chasse fixe). Composant serveur. Utilisé par Statistiques, Réglages (Bots, Connexions, État du système, Équipe…) et le Journal.
+
+```tsx
+<DetailList>
+  <DetailRow label="Devise">EUR</DetailRow>
+  <DetailRow label="Identifiant" mono>
+    act_1234
+  </DetailRow>
+</DetailList>
+```
+
 #### RememberFilters — `remember-filters.tsx`
 
-Mémorise les filtres d'une liste dans le navigateur (clé par page) et affiche **Réinitialiser** (qui garde la vue choisie, `keepParams` : `view` et `tab` par défaut). Props : `storageKey` (unique, ex. « members »), `keepParams`, `className`.
+Mémorise les filtres d'une liste dans le navigateur (clé par page) et les rappelle quand on revient sur l'adresse nue. Bouton **Effacer les filtres** (discret, `ghost` ; « Les filtres sont mémorisés sur cet appareil » au survol), visible **seulement quand un filtre est actif** (`hasActiveFilters`, `remember-filters-logic.ts`, testé) ; il vide la mémoire et garde la vue choisie (`keepParams` : `view` et `tab` par défaut). Aucune page ne le cache ni ne change son libellé : ni `hidden`, ni `label` (la prop existe encore, ne vous en servez pas). Un paramètre qui n'est pas un filtre (tri) se passe dans `keepParams`. À monter dans un `<Suspense>`. Props : `storageKey` (unique, ex. « members »), `keepParams`, `className`.
+
+```tsx
+<Suspense fallback={null}>
+  <RememberFilters storageKey="campaigns" className="max-md:h-10" />
+</Suspense>
+```
 
 #### HelpButton — `help-button.tsx`
 
@@ -595,7 +649,7 @@ Un `Button` de soumission + `message`, sur `ConfirmDialog` (plus de `window.conf
 
 - `Flash` (`flash.tsx`) : retour d'une action par l'adresse (`ok`, `error`) : bandeau vert (`role="status"`) et/ou rouge, avec icône. `<Flash ok={sp.ok} error={sp.error} />`.
 - `Pagination` (`pagination.tsx`) : `page`, `pages`, `total`, `hrefFor`, `noun` ; page en cours en orange (`aria-current="page"`). Sur téléphone : flèches de 40 px et « Page 2 sur 8 ». Fonctions `pageOf`, `pageCount`, `pageSkip`, `pageHref`, `pageWindow`, constante `PAGE_SIZE`.
-- `CopyField` (`copy-field.tsx`) : champ en lecture seule + « Copier » (annonce « Copié ») ; `value`, `label` (« Adresse à copier » par défaut).
+- `CopyField` (`copy-field.tsx`) : champ en lecture seule + « Copier » (annonce « Copié ») ; `value`, `label` (nom lu par les lecteurs d'écran, « Adresse à copier » par défaut), `id` (pour relier un libellé visible `<Label htmlFor>` : c'est alors lui qui nomme le champ, `label` n'est plus posé).
 - `PeriodSelect` (`period-select.tsx`) : sélecteur de période (formulaire GET, `NativeSelect`) : `period`, `compare`, `extra` (paramètres à conserver), `action`, `className`. Les Statistiques ont leur sélecteur complet (`StatsFilters`, § 3.6).
 - `SoonPage` (`soon.tsx`) : page « bientôt disponible » (`title`, `description`, `items`).
 
@@ -603,7 +657,9 @@ Un `Button` de soumission + `message`, sur `ConfirmDialog` (plus de `window.conf
 
 #### RichTextEditor — `components/editor/rich-text-editor.tsx` (+ `editor-logic.ts`, `telegram-format.ts`, `html-parser.ts`, `rich-text.css`)
 
-Éditeur de texte sans balise visible : le texte s'écrit et se relit mis en forme (gras, italique, souligné, barré, lien, texte masqué, émojis) ; le formulaire reçoit toujours du HTML Telegram propre et validé. Barre d'outils (une seule tabulation, flèches entre les boutons), raccourcis ⌘B ⌘I ⌘U ⌘K ⌘⇧X, collage nettoyé, repères `{prenom}`… insérables (`placeholders`) et mis en évidence, compteur (4 096, 1 024 avec un média), emplacement pour l'assistant IA (`ai`). Composant client. Props : `id`, `label` (nom accessible), `value`, `onChange(html)`, `name` (champ caché soumis), `required`, `invalid`, `describedBy`, `placeholder`, `placeholders`, `warnUnresolved`, `hasMedia`, `ai`, `rows`, `className`. Utilisé par Programmer un message, Écrire à un groupe, Ce que dit le bot, Relances automatiques et l'éditeur à branches : **tout nouveau champ de texte de message l'utilise**.
+Éditeur de texte sans balise visible : le texte s'écrit et se relit mis en forme (gras, italique, souligné, barré, lien, texte masqué, émojis) ; le formulaire reçoit toujours du HTML Telegram propre et validé. Barre d'outils (une seule tabulation, flèches entre les boutons), raccourcis ⌘B ⌘I ⌘U ⌘K ⌘⇧X (Ctrl hors d'un Mac ; rappelés dans la liste « ? »), collage nettoyé, repères `{prenom}`… insérables (`placeholders`) et mis en évidence, **compteur** (4 096, 1 024 avec un média : c'est le seul compteur de l'écran, l'aperçu n'en affiche pas), emplacement pour l'assistant IA (`ai`). Composant client. Props : `id`, `label` (nom accessible), `value`, `onChange(html)`, `name` (champ caché soumis), `required`, `invalid`, `describedBy`, `placeholder`, `placeholders`, `warnUnresolved`, `hasMedia`, `ai`, `rows`, `className`. Utilisé par Programmer un message, Écrire à un groupe, Ce que dit le bot, Relances automatiques et l'éditeur à branches : **tout nouveau champ de texte de message l'utilise**.
+
+`warnUnresolved` (repère connu, `{offre}`…, qui ne sera pas remplacé dans ce formulaire) : `true` (par défaut) = surligné en jaune dans le texte **et** une phrase sous le champ ; `"highlight"` = surligné seulement, quand le formulaire affiche déjà sa propre alerte (Programmer un message : « Des mots restent à compléter » au-dessus de « Programmer ») ; `false` = rien (démonstrations). Règle pure : `unresolvedDisplay` (`editor-logic.ts`, testée).
 
 ```tsx
 <RichTextEditor
@@ -621,7 +677,7 @@ Un `Button` de soumission + `message`, sur `ConfirmDialog` (plus de `window.conf
 
 #### TelegramPreview — `components/messages/telegram-preview.tsx`
 
-Rendu approché d'un message Telegram (bulle blanche sur fond de discussion, médias, boutons sous le message). Props : `html`, `buttons`, `mediaCount`, `compact` (galerie de modèles, volet du calendrier : texte coupé, sans compteur), `className`. À droite du formulaire sur ordinateur (« Aperçu tel que les membres le verront »).
+Rendu approché d'un message Telegram (bulle blanche sur fond de discussion, médias, boutons sous le message). Props : `html`, `buttons`, `mediaCount`, `compact` (galerie de modèles, volet du calendrier : texte coupé), `counter` (nombre de caractères sous la bulle, **non par défaut** : à côté d'un `RichTextEditor`, c'est l'éditeur qui compte ; un aperçu en lecture seule n'en a pas besoin), `highlightPlaceholders` (repères surlignés « à compléter », modèles), `className`. À droite du formulaire sur ordinateur (« Aperçu tel que les membres le verront »).
 
 #### ImproveButton — `components/ai/improve-button.tsx`
 
@@ -633,10 +689,25 @@ Règles : SVG maison, sans bibliothèque ; couleurs du thème seulement (ligne `
 
 - `TimeChart` (`components/charts/time-chart.tsx`, client) : courbe (`kind="line"`) ou barres (`"bar"`), période précédente en gris. Réticule et bulle au survol, au toucher (la bulle reste jusqu'au prochain toucher) et au clavier (flèches, Début, Fin). Props : `title`, `period`, `labels`, `previousLabels`, `series`, `format`, `integer`, `kind`, `height`, `unitLabel`, `valuesSummary` (« Voir les chiffres jour par jour »), `className`.
 - `MetricChart` (`metric-chart.tsx`, client) : `TimeChart` avec le choix du chiffre affiché (« Afficher : Membres entrés »), sans recharger la page. Props : `metrics`, `labels`, `previousLabels`, `period`, `defaultKey`, `kind`, `suffix`, `unitLabel`, `valuesSummary`, `height`, `className`.
-- `BarList` (`components/charts/bar-list.tsx`, serveur) : barres horizontales lisibles sans couleur, chaque ligne écrit son nom et sa valeur (barre masquée aux lecteurs d'écran) ; ordinateur : nom | barre | valeur, téléphone : barre en dessous. Props : `items` (`{ key, label, value, valueText, note? }`), `label`, `max`, `className`. **À utiliser pour toute nouvelle liste en barres** (voir § 4 pour l'ancienne `components/messages/bar-list.tsx`).
+- `BarList` (`components/charts/bar-list.tsx`, serveur ; règles dans `bar-list-logic.ts`, testées) : **la** liste en barres horizontales (parcours, canaux des Statistiques, Comparer par catégorie, test A/B), lisible sans couleur : chaque ligne écrit son nom et sa valeur (barre orange masquée aux lecteurs d'écran, longueur `barPercent`). Ordinateur : nom | barre | valeur ; téléphone : nom et valeur sur une ligne, barre en dessous. Props : `items` (`{ key, label, value, valueText, note?, emphasis?, title? }` : `note` = précision sous la valeur ; `emphasis` = barre mise en avant, les autres passent en gris, ex. la version en tête d'un test A/B ; `title` = infobulle native de la ligne), `label` (nom de la liste pour les lecteurs d'écran), `max`, `labelWidth` (`wide` par défaut, `narrow` pour « Version A »), `className`. Sans aucune `note`, la colonne des valeurs prend juste la place des chiffres, alignés à droite.
+
+  ```tsx
+  <BarList
+    label="Taux de clic"
+    labelWidth="narrow"
+    items={variants.map((v) => ({
+      key: v.variant,
+      label: `Version ${v.variant}`,
+      value: v.ctr,
+      valueText: fmtPct(v.ctr),
+      emphasis: v.variant === leader,
+    }))}
+  />
+  ```
+
 - `Funnel` (`components/dashboard/funnel.tsx`) : le parcours en barres (`BarList`) : à chaque étape le nombre, la part gardée, la période précédente. Props : `steps`, `previous`.
 - `MetricDetail` (`components/dashboard/metric-detail.tsx`) : tous les chiffres d'une ligne dans le volet (`dl`), avec période précédente et variation. Props : `figures`, `compare`, `className`.
-- `MiniTrend` (`stat-card.tsx`) : mini-courbe des cartes.
+- `MiniTrend` (`stat-card.tsx`) : mini-courbe des cartes (rien sous deux points ou quand tout vaut zéro : `hasTrend`).
 
 ### 3.6 Composants de rubrique
 
@@ -649,15 +720,16 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 - `CampaignCard` : carte d'une campagne (univers, statut, nom, contexte, dépensé, membres, premiers dépôts, bénéfice, mini-courbe des membres par jour) ; toute la carte mène à la fiche (lien « étiré » sur le nom). Props : `row`, `href`, `platformLabel`, `compare`, `membersTrend`, `moneyDigits` (précision commune de la grille, `groupMoneyDigits`).
 - `CampaignFigure` + `FigureDelta` (`campaign-figure.tsx`) : un chiffre de carte (libellé en note, `term` au survol, valeur 20 px tabulaire, variation sur sa propre ligne, hauteur réservée) ; à placer dans un `<dl>`. Props : `label`, `term`, `value`, `delta`, `favorable`, `valueTone`, `hint`, `className`.
 - `NewCampaignButton`, `OfferPicker` (choix des offres Link Affi, état pur `offer-picker-state.ts`).
+- `CampaignTabs` (`app/(admin)/campaigns/[id]/tabs/nav.tsx`) : onglets de la fiche (`TabNav`, grille de 3 sur téléphone, libellés courts ; période conservée).
 
-**Canaux** (`components/channels/`) : `ChannelTabs` (onglets de la fiche ; téléphone : deux rangées de deux boutons), `EntryRuleForm` (« Qui peut entrer et quand » : trois choix, puis Avancé), `BotTextEditor` (texte d'un message du bot avec `RichTextEditor` et aperçu), `LangTabs` (langues en onglets Base UI), `BotToggle` (interrupteur « Activé »), `RequestCard` (une demande, Accepter / Refuser), `ChannelMembersTable`, `ChannelSettingsForm`, `BotPills`, `ChannelStatePills`.
+**Canaux** (`components/channels/`) : `ChannelTabs` (onglets de la fiche, `TabNav` ; téléphone : deux rangées de deux boutons ; nombre de demandes en pastille), `EntryRuleForm` (« Qui peut entrer et quand » : trois choix, puis Avancé), `BotTextEditor` (texte d'un message du bot avec `RichTextEditor` et aperçu), `LangTabs` (langues en onglets Base UI), `BotToggle` (interrupteur « Activé »), `RequestCard` (une demande, Accepter / Refuser), `ChannelMembersTable`, `ChannelSettingsForm`, `BotPills`, `ChannelStatePills`.
 
 **Messages** (`components/messages/`) :
 
 - `MessagesCalendar` (`calendar/messages-calendar.tsx`, client) : la semaine heure par heure (heure de Paris). Ordinateur : une colonne par jour ; chaque carte (heure, statut, version A/B, début du texte, canal) bordée de la couleur de son univers ; glisser un brouillon ou un message programmé le déplace (confirmation, « Annuler ») ; les 3 meilleurs créneaux surlignés (étoile) ; « + Programmer » sur une case libre ; colonne d'aujourd'hui en orange pâle. Téléphone : un jour à la fois (bande des 7 jours, flèches). Clic sur un message : `PostPanel` (volet : Déplacer, Dupliquer, Modifier, Ouvrir). Props : `monday`, `todayKey`, `nowIso`, `items`, `slots`, `slotsNote`, `computedLabel`, `recomputeChannelId`, `initialDay`, `query`, `prefill`.
-- `PostForm` (création en trois niveaux), `CategoryPicker` (« + Nouvelle catégorie » sans quitter la page), `MoveForm` (« Déplacer » au clavier), `ViewTabs` (Calendrier, Liste, Modèles : commutateur sobre, pas d'orange), `CollapsibleFilters` (filtres repliés derrière « Filtres (n) » sur téléphone ; props `activeCount`, `children`, `className`), `MessagesListTable`.
+- `PostForm` (création en trois niveaux), `CategoryPicker` (« + Nouvelle catégorie » sans quitter la page), `MoveForm` (« Déplacer » au clavier), `ViewTabs` (Calendrier, Liste, Modèles : commutateur sobre, pas d'orange ; ce n'est pas une barre d'onglets), `MessagesListTable`. Les filtres repliables sont `CollapsibleFilters` (§ 3.3).
 
-**Membres** (`components/members/`) : `MembersNav` (Liste, Écrire à un groupe, Relances automatiques), `MemberFilterBar` (`member-filters.tsx` : recherche, volet « Filtrer » en trois questions, pastilles `FilterChips`, filtres en phrases), `MemberQuickView` (résumé dans le volet), `MemberTimeline`, `member-cells.tsx` (`MemberAvatar` rond aux initiales, `MemberTags`, `MemberOriginCell`, `DepositsCell`, `LastActivity`).
+**Membres** (`components/members/`) : `MembersNav` (Liste, Écrire à un groupe, Relances automatiques : `TabNav`, grille de 3 sur téléphone), `MemberFilterBar` (`member-filters.tsx` : recherche, volet « Filtrer » en trois questions, pastilles `FilterChips`, filtres en phrases), `MemberQuickView` (résumé dans le volet), `MemberTimeline`, `member-cells.tsx` (`MemberAvatar` rond aux initiales, `MemberTags`, `MemberOriginCell`, `DepositsCell`, `LastActivity`).
 
 **Écrire à un groupe** (`components/broadcasts/`) : `BroadcastWizard` (Qui, Quoi, Quand avec `Stepper` et récapitulatif), `GroupBuilder` (critères en blocs avec croix ; critère non réglé en pointillé « Pas encore réglé »), `message-editor.tsx` (`MessageTextEditor`, `MediaChooser`, `ButtonsEditor`, `MessageExtras`), `SplitSlider` (curseur natif aux couleurs du thème, 40 px), `ScheduleDialog`, `BroadcastProgress`, `ReadOnlyPreview`.
 
@@ -667,17 +739,27 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 - **Éditeur à branches** (`editor/`, client, `@xyflow/react`) : `RuleEditor` (bibliothèque de blocs `palette.tsx`, canevas avec glisser-déposer, liens, zoom et mini-carte, panneau de réglage `node-panel.tsx`, validation en direct : bloc à corriger entouré de rouge et « N points à corriger », « Tester sur moi », « Enregistrer ») ; `nodes.tsx` (un composant qui s'adapte au type : Départ, Condition à deux sorties « oui » / « non », Action, Attendre, Arrêter ; passages sur la fiche) ; `canvas-controls.tsx` (zoom, ajuster, « Ranger les blocs », barre au-dessus du canevas, jamais dessus) ; `outline.tsx` (le parcours en liste : alternative accessible au canevas, et affichage sur téléphone) ; `flow.css` (styles du canevas aux jetons du thème). Logique pure dans `packages/core` (graphe) et `lib/automations/` (formulaires, description, journal).
 - `RuleFlowView` : le parcours en lecture seule avec les passages de chaque bloc (fiche d'une relance), échelle jamais sous 0,85, la molette fait défiler la page.
 
-**Statistiques** (`components/dashboard/`) : `StatsTop` (haut commun des cinq pages : titre, sous-navigation, retour d'action, sélecteur unique, période en toutes lettres ; un seul `primaryAction`, « Exporter » sur Pubs), `StatsNav` (onglets avec `ScrollToCurrent`, filtres conservés), `StatsFilters` (période, comparaison, univers, campagne, « Plus de filtres » : canal ; bouton « Appliquer »), `NumCell` (`cells.tsx`).
+**Statistiques** (`components/dashboard/`) : `StatsTop` (haut commun des cinq pages : titre, sous-navigation, retour d'action, sélecteur unique, période en toutes lettres ; un seul `primaryAction`, « Exporter » sur Pubs), `StatsNav` (`TabNav`, rangée qui défile sur téléphone, filtres conservés), `StatsFilters` (période, comparaison, univers, campagne, « Plus de filtres » : canal ; bouton « Appliquer »), `NumCell` (`cells.tsx`).
 
-**Réglages** (`components/settings/`) : `SettingsCardGrid` (cartes de Réglages : icône, titre `<h2>` lien, une phrase, pastille d'état, liens des pages regroupées ; grille 1, 2 puis 3 colonnes ; props `cards`, `states`, `className`), `HealthTiles` (six tuiles d'État du système ; props `tiles`, `className`), `ConnectionTiles` (quatre connexions ; props `tiles`, `className`), `DetailList` / `DetailRow` (liste « libellé : valeur » des volets et blocs techniques), `AdAccountsTable`, `BotConnection`.
+**Réglages** (`components/settings/`) : `SettingsCardGrid` (cartes de Réglages : icône, titre `<h2>` lien, une phrase, pastille d'état, liens des pages regroupées ; grille 1, 2 puis 3 colonnes ; props `cards`, `states`, `className`), `HealthTiles` (six tuiles d'État du système ; props `tiles`, `className`), `ConnectionTiles` (quatre connexions ; props `tiles`, `className`), `AdAccountsTable`, `BotConnection`. Les listes « libellé : valeur » sont `DetailList` / `DetailRow` (§ 3.3). Journal : `ViewTabs` (`app/(admin)/settings/journal/view-tabs.tsx`, `TabNav`).
 
 ## 4. À consolider (doublons connus)
 
-Relevés pendant la phase 9 ; à faire par l'équipe qui touche ces fichiers, sans changer le rendu attendu :
+Relevés pendant la phase 9 ; à faire par l'équipe qui touche ces fichiers, sans changer le rendu attendu.
 
-1. **Deux `BarList`** : `components/charts/bar-list.tsx` (Statistiques, parcours ; barre `bg-brand`, valeur et note) et `components/messages/bar-list.tsx` (test A/B, Comparer par catégorie ; barre `brand-ink`, mise en avant `emphasis`, libellés `narrow`). Garder `charts/bar-list.tsx`, lui ajouter `emphasis` et une largeur de libellé, puis migrer les deux pages de Messages.
-2. **Six barres d'onglets** au même dessin (lien souligné d'orange, `aria-current`) : `MembersNav`, `ViewTabs` (commutateur), `StatsNav`, `ChannelTabs`, onglets de la fiche campagne (`app/(admin)/campaigns/[id]/tabs/nav.tsx`), Journal (`settings/journal/view-tabs.tsx`) et regroupements de Réglages (`settings/categories/group-nav.tsx`). Un `TabNav` partagé dans `components/admin/` (variantes téléphone : « défile » avec `ScrollToCurrent`, « grille »).
-3. **Deux interrupteurs** dessinés à l'identique (`Track` de `BotToggle` et de `RuleSwitch`) : un `SwitchTrack` partagé (ou une primitive `ui/switch.tsx`).
-4. **Ronds aux initiales** : l'en-tête et `MemberAvatar` (`member-cells.tsx`) dessinent chacun le leur ; `ui/avatar.tsx` n'est pas utilisé. Un seul composant (ou retirer `avatar.tsx`).
-5. **`ReadOnlyPreview`** (Écrire à un groupe) masque le compteur de `TelegramPreview` par CSS : une option `counter={false}` de `TelegramPreview` le remplace.
-6. **`FigureDelta`** (cartes de campagne) reprend le rendu de la variation de `StatCard` : extraire un `DeltaLine` commun dans `stat-card.tsx`.
+**Résolus (consolidation de la phase 9)** :
+
+- **Un seul `BarList`** : `components/charts/bar-list.tsx` (avec `emphasis`, `title`, `labelWidth`) ; l'ancien `components/messages/bar-list.tsx` est retiré, le test A/B et Comparer par catégorie l'utilisent (barres orange, la version en tête orange et l'autre grise).
+- **Une seule barre d'onglets `TabNav`** pour la fiche campagne, la fiche canal, Membres, les Statistiques et le Journal (même dessin, mêmes cibles, même focus ; adresses inchangées).
+- **Composants partagés rangés dans `components/admin/`** : `CollapsibleFilters` (ex-`components/messages/`) et `ScrollFade` (ex-`components/dashboard/`).
+- **Un seul compteur de caractères** : celui de `RichTextEditor` ; le compteur de `TelegramPreview` est désactivé par défaut (`counter`).
+- **Code mort retiré** : `AiTextarea` (`components/ai/ai-textarea.tsx`, plus utilisé depuis l'éditeur sans balises), `wrapSelection` (`lib/channels/bot-messages.ts`) et `barWidths` (`lib/posts/compare.ts`), avec leurs tests.
+
+**Restent à faire** :
+
+1. **Regroupements de Réglages** (`settings/categories/group-nav.tsx`, `SettingsGroupNav`) : même dessin que `TabNav` à quelques détails près (téléphone : onglets soulignés sur deux colonnes) ; à passer sur `TabNav` (`phone="grid"`, `columns={2}`).
+2. **Deux interrupteurs** dessinés à l'identique (`Track` de `BotToggle` et de `RuleSwitch`) : un `SwitchTrack` partagé (ou une primitive `ui/switch.tsx`).
+3. **Ronds aux initiales** : l'en-tête et `MemberAvatar` (`member-cells.tsx`) dessinent chacun le leur ; `ui/avatar.tsx` n'est pas utilisé. Un seul composant (ou retirer `avatar.tsx`).
+4. **`ReadOnlyPreview`** (Écrire à un groupe) n'est plus qu'un `TelegramPreview` sans compteur, ce qui est désormais le comportement par défaut : à remplacer par `TelegramPreview` (et retirer les `counter={false}` devenus inutiles).
+5. **`FigureDelta`** (cartes de campagne) reprend le rendu de la variation de `StatCard` : extraire un `DeltaLine` commun dans `stat-card.tsx`.
+6. **« Effacer les filtres » de Membres** (`components/members/member-filters.tsx`) : la page le cache encore elle-même (`count === 0 && "hidden"`) pour que le tri seul (`sort`) ne l'affiche pas. À remplacer par `keepParams={["view", "tab", "sort"]}` (le tri est alors gardé par « Effacer les filtres ») et retirer le `hidden`.

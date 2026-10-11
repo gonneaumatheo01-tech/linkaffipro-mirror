@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T01:02:55.075Z",
+  "updatedAt": "2026-10-11T02:23:34.779Z",
   "entries": [
     {
       "route": "/",
@@ -15,7 +15,7 @@
         "1440": "accueil-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:09.292Z"
+      "capturedAt": "2026-10-11T02:17:09.354Z"
     },
     {
       "route": "/campaigns",
@@ -30,7 +30,7 @@
         "1440": "campaigns-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:17.512Z"
+      "capturedAt": "2026-10-11T02:17:17.687Z"
     },
     {
       "route": "/campaigns/[id]",
@@ -45,7 +45,7 @@
         "1440": "campaigns-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:22.463Z"
+      "capturedAt": "2026-10-11T02:17:23.112Z"
     },
     {
       "route": "/campaigns/import",
@@ -60,7 +60,7 @@
         "1440": "campaigns-import-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:29.060Z"
+      "capturedAt": "2026-10-11T02:17:30.089Z"
     },
     {
       "route": "/campaigns/imports",
@@ -75,7 +75,7 @@
         "1440": "campaigns-imports-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:32.753Z"
+      "capturedAt": "2026-10-11T02:17:34.658Z"
     },
     {
       "route": "/campaigns/links",
@@ -90,7 +90,7 @@
         "1440": "campaigns-links-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:36.497Z"
+      "capturedAt": "2026-10-11T02:17:38.919Z"
     },
     {
       "route": "/campaigns/new",
@@ -105,7 +105,7 @@
         "1440": "campaigns-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:43.002Z"
+      "capturedAt": "2026-10-11T02:17:47.325Z"
     },
     {
       "route": "/channels",
@@ -120,7 +120,7 @@
         "1440": "channels-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:47.440Z"
+      "capturedAt": "2026-10-11T02:17:52.548Z"
     },
     {
       "route": "/channels/[id]",
@@ -135,7 +135,7 @@
         "1440": "channels-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:52.730Z"
+      "capturedAt": "2026-10-11T02:17:59.927Z"
     },
     {
       "route": "/channels/import",
@@ -150,7 +150,7 @@
         "1440": "channels-import-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:57:59.453Z"
+      "capturedAt": "2026-10-11T02:18:08.184Z"
     },
     {
       "route": "/messages",
@@ -165,11 +165,11 @@
         "1440": "messages-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:02.854Z"
+      "capturedAt": "2026-10-11T02:18:12.113Z"
     },
     {
       "route": "/messages/[id]",
-      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg",
+      "path": "/messages/cybwntb1u3hebxbnxmh2kfnzu",
       "title": "Message pour Démo · Rencontres Lyon",
       "status": "ok",
       "httpStatus": 200,
@@ -180,11 +180,11 @@
         "1440": "messages-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:08.206Z"
+      "capturedAt": "2026-10-11T02:18:18.844Z"
     },
     {
       "route": "/messages/[id]/edit",
-      "path": "/messages/cr2hyjkoixdmd230p5wfz2xjg/edit",
+      "path": "/messages/cybwntb1u3hebxbnxmh2kfnzu/edit",
       "title": "Modifier le message",
       "status": "ok",
       "httpStatus": 200,
@@ -195,11 +195,11 @@
         "1440": "messages-id-edit-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:14.001Z"
+      "capturedAt": "2026-10-11T02:18:28.184Z"
     },
     {
       "route": "/messages/ab/[groupId]",
-      "path": "/messages/ab/demo-ab-xdxAVC",
+      "path": "/messages/ab/demo-ab-KKhTdr",
       "title": "Test A/B",
       "status": "ok",
       "httpStatus": 200,
@@ -210,7 +210,7 @@
         "1440": "messages-ab-groupid-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:18.526Z"
+      "capturedAt": "2026-10-11T02:18:40.138Z"
     },
     {
       "route": "/messages/categories",
@@ -225,7 +225,7 @@
         "1440": "messages-categories-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:23.743Z"
+      "capturedAt": "2026-10-11T02:18:50.743Z"
     },
     {
       "route": "/messages/new",
@@ -240,7 +240,7 @@
         "1440": "messages-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:28.183Z"
+      "capturedAt": "2026-10-11T02:18:56.582Z"
     },
     {
       "route": "/members",
@@ -255,7 +255,7 @@
         "1440": "members-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:32.643Z"
+      "capturedAt": "2026-10-11T02:19:02.298Z"
     },
     {
       "route": "/members/[id]",
@@ -270,7 +270,7 @@
         "1440": "members-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:58:50.607Z"
+      "capturedAt": "2026-10-11T02:19:20.379Z"
     },
     {
       "route": "/members/automations",
@@ -285,11 +285,11 @@
         "1440": "members-automations-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:01.476Z"
+      "capturedAt": "2026-10-11T02:19:30.641Z"
     },
     {
       "route": "/members/automations/[id]",
-      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6",
+      "path": "/members/automations/cmv36zocs01k4f4vhdhd98v98",
       "title": "Démo · Relance 24 h après l'entrée",
       "status": "ok",
       "httpStatus": 200,
@@ -300,11 +300,11 @@
         "1440": "members-automations-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:07.511Z"
+      "capturedAt": "2026-10-11T02:19:36.880Z"
     },
     {
       "route": "/members/automations/[id]/edit",
-      "path": "/members/automations/cmv344oha01jgf4v1pdrs14i6/edit",
+      "path": "/members/automations/cmv36zocs01k4f4vhdhd98v98/edit",
       "title": "Modifier : Démo · Relance 24 h après l'entrée",
       "status": "ok",
       "httpStatus": 200,
@@ -315,7 +315,7 @@
         "1440": "members-automations-id-edit-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:15.572Z"
+      "capturedAt": "2026-10-11T02:19:46.367Z"
     },
     {
       "route": "/members/automations/new",
@@ -330,7 +330,7 @@
         "1440": "members-automations-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:21.659Z"
+      "capturedAt": "2026-10-11T02:19:53.776Z"
     },
     {
       "route": "/members/broadcasts",
@@ -345,11 +345,11 @@
         "1440": "members-broadcasts-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:26.527Z"
+      "capturedAt": "2026-10-11T02:19:59.218Z"
     },
     {
       "route": "/members/broadcasts/[id]",
-      "path": "/members/broadcasts/co8ti1txt0jmn29f8t5qosgww",
+      "path": "/members/broadcasts/c3vb2whzsue1v61pm0xgbqion",
       "title": "Démo · Nouveau canal Lyon",
       "status": "ok",
       "httpStatus": 200,
@@ -360,11 +360,11 @@
         "1440": "members-broadcasts-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:30.801Z"
+      "capturedAt": "2026-10-11T02:20:04.312Z"
     },
     {
       "route": "/members/broadcasts/ab/[groupId]",
-      "path": "/members/broadcasts/ab/demo-ab-66BI7o",
+      "path": "/members/broadcasts/ab/demo-ab-B4WVXE",
       "title": "Test A/B — Démo · Test A/B relance casino",
       "status": "ok",
       "httpStatus": 200,
@@ -375,7 +375,7 @@
         "1440": "members-broadcasts-ab-groupid-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:37.263Z"
+      "capturedAt": "2026-10-11T02:20:11.838Z"
     },
     {
       "route": "/members/broadcasts/new",
@@ -390,7 +390,7 @@
         "1440": "members-broadcasts-new-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:42.719Z"
+      "capturedAt": "2026-10-11T02:20:19.832Z"
     },
     {
       "route": "/stats",
@@ -405,7 +405,7 @@
         "1440": "stats-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:48.324Z"
+      "capturedAt": "2026-10-11T02:20:26.788Z"
     },
     {
       "route": "/stats/ads",
@@ -420,7 +420,7 @@
         "1440": "stats-ads-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:53.954Z"
+      "capturedAt": "2026-10-11T02:20:37.448Z"
     },
     {
       "route": "/stats/channels",
@@ -435,7 +435,7 @@
         "1440": "stats-channels-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T00:59:58.961Z"
+      "capturedAt": "2026-10-11T02:20:46.936Z"
     },
     {
       "route": "/stats/cohorts",
@@ -450,7 +450,7 @@
         "1440": "stats-cohorts-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:03.963Z"
+      "capturedAt": "2026-10-11T02:20:52.676Z"
     },
     {
       "route": "/stats/funnel",
@@ -465,7 +465,7 @@
         "1440": "stats-funnel-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:08.862Z"
+      "capturedAt": "2026-10-11T02:20:57.728Z"
     },
     {
       "route": "/settings",
@@ -480,7 +480,7 @@
         "1440": "settings-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:13.212Z"
+      "capturedAt": "2026-10-11T02:21:02.310Z"
     },
     {
       "route": "/settings/ai",
@@ -495,7 +495,7 @@
         "1440": "settings-ai-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:21.866Z"
+      "capturedAt": "2026-10-11T02:21:09.805Z"
     },
     {
       "route": "/settings/alerts",
@@ -510,7 +510,7 @@
         "1440": "settings-alerts-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:32.247Z"
+      "capturedAt": "2026-10-11T02:21:16.172Z"
     },
     {
       "route": "/settings/bots",
@@ -525,7 +525,7 @@
         "1440": "settings-bots-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:39.985Z"
+      "capturedAt": "2026-10-11T02:21:20.964Z"
     },
     {
       "route": "/settings/categories",
@@ -540,7 +540,7 @@
         "1440": "settings-categories-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:44.899Z"
+      "capturedAt": "2026-10-11T02:21:25.445Z"
     },
     {
       "route": "/settings/connectors",
@@ -555,7 +555,7 @@
         "1440": "settings-connectors-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:48.913Z"
+      "capturedAt": "2026-10-11T02:21:29.356Z"
     },
     {
       "route": "/settings/connectors/meta",
@@ -570,7 +570,7 @@
         "1440": "settings-connectors-meta-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:54.622Z"
+      "capturedAt": "2026-10-11T02:21:34.551Z"
     },
     {
       "route": "/settings/connectors/meta/choose",
@@ -585,7 +585,7 @@
         "1440": "settings-connectors-meta-choose-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:00:59.455Z"
+      "capturedAt": "2026-10-11T02:21:39.352Z"
     },
     {
       "route": "/settings/connectors/telegram",
@@ -600,7 +600,7 @@
         "1440": "settings-connectors-telegram-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:03.150Z"
+      "capturedAt": "2026-10-11T02:21:42.812Z"
     },
     {
       "route": "/settings/connectors/tiktok",
@@ -615,7 +615,7 @@
         "1440": "settings-connectors-tiktok-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:07.834Z"
+      "capturedAt": "2026-10-11T02:21:47.732Z"
     },
     {
       "route": "/settings/connectors/tiktok/choose",
@@ -630,7 +630,7 @@
         "1440": "settings-connectors-tiktok-choose-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:12.600Z"
+      "capturedAt": "2026-10-11T02:21:52.478Z"
     },
     {
       "route": "/settings/journal",
@@ -645,7 +645,7 @@
         "1440": "settings-journal-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:16.738Z"
+      "capturedAt": "2026-10-11T02:21:56.001Z"
     },
     {
       "route": "/settings/journal/events",
@@ -660,7 +660,7 @@
         "1440": "settings-journal-events-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:23.082Z"
+      "capturedAt": "2026-10-11T02:22:02.198Z"
     },
     {
       "route": "/settings/postbacks",
@@ -675,7 +675,7 @@
         "1440": "settings-postbacks-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:29.099Z"
+      "capturedAt": "2026-10-11T02:22:08.537Z"
     },
     {
       "route": "/settings/postbacks/import",
@@ -690,7 +690,7 @@
         "1440": "settings-postbacks-import-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:33.686Z"
+      "capturedAt": "2026-10-11T02:22:12.900Z"
     },
     {
       "route": "/settings/reports",
@@ -705,7 +705,7 @@
         "1440": "settings-reports-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:38.046Z"
+      "capturedAt": "2026-10-11T02:22:18.059Z"
     },
     {
       "route": "/settings/status",
@@ -720,7 +720,7 @@
         "1440": "settings-status-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:42.557Z"
+      "capturedAt": "2026-10-11T02:22:22.610Z"
     },
     {
       "route": "/settings/tags",
@@ -735,7 +735,7 @@
         "1440": "settings-tags-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:48.911Z"
+      "capturedAt": "2026-10-11T02:22:31.797Z"
     },
     {
       "route": "/settings/team",
@@ -750,7 +750,7 @@
         "1440": "settings-team-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:53.056Z"
+      "capturedAt": "2026-10-11T02:22:40.601Z"
     },
     {
       "route": "/help",
@@ -765,7 +765,7 @@
         "1440": "help-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:01:58.260Z"
+      "capturedAt": "2026-10-11T02:22:48.110Z"
     },
     {
       "route": "/account",
@@ -780,7 +780,7 @@
         "1440": "account-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:02:19.493Z"
+      "capturedAt": "2026-10-11T02:23:04.878Z"
     },
     {
       "route": "/styleguide",
@@ -795,7 +795,7 @@
         "1440": "styleguide-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:02:30.434Z"
+      "capturedAt": "2026-10-11T02:23:10.512Z"
     },
     {
       "route": "/login",
@@ -810,7 +810,7 @@
         "1440": "login-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:02:43.043Z"
+      "capturedAt": "2026-10-11T02:23:22.722Z"
     },
     {
       "route": "/privacy",
@@ -825,7 +825,7 @@
         "1440": "privacy-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:02:46.248Z"
+      "capturedAt": "2026-10-11T02:23:26.171Z"
     },
     {
       "route": "/terms",
@@ -840,7 +840,7 @@
         "1440": "terms-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T01:02:51.333Z"
+      "capturedAt": "2026-10-11T02:23:30.610Z"
     }
   ]
 }

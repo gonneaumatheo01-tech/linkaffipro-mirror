@@ -85,10 +85,8 @@ export function CampaignFigure({
   return (
     <div className={cn("min-w-0", className)}>
       <dt className="text-note text-muted-foreground">
-        {/* Au-dessus du lien « étiré » d'une carte : le terme reste survolable et touchable. */}
-        <Term term={term} className="relative z-10">
-          {label}
-        </Term>
+        {/* Dans une carte à lien « étiré », `Term` se place seul (survolable sur ordinateur, la carte au toucher). */}
+        <Term term={term}>{label}</Term>
       </dt>
       <dd
         className={cn(

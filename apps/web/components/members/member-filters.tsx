@@ -386,7 +386,6 @@ export function MemberFilterBar({
           <Suspense fallback={null}>
             <RememberFilters
               storageKey="members"
-              label="Effacer les filtres"
               className={cn("max-md:h-10", count === 0 && "hidden")}
             />
           </Suspense>

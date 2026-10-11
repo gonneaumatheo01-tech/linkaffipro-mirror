@@ -149,12 +149,8 @@ export default async function MessageDetailPage({
     : editable
       ? { label: "Modifier", href: `/messages/${post.id}/edit`, icon: <Pencil aria-hidden /> }
       : { label: "Dupliquer", href: `/messages/new?from=${post.id}`, icon: <Copy aria-hidden /> };
-  // Téléphone : le bouton principal en premier, avant les actions secondaires.
   const primary = (
-    <Link
-      href={primaryLink.href}
-      className={cn(buttonVariants(), "max-md:order-first max-md:h-10")}
-    >
+    <Link href={primaryLink.href} className={cn(buttonVariants(), "max-md:h-10")}>
       {primaryLink.icon}
       {primaryLink.label}
     </Link>

@@ -11,6 +11,7 @@ import {
   shortcutCommand,
   shortcutLabel,
   toolbarIndex,
+  unresolvedDisplay,
   unresolvedMessage,
   unresolvedPlaceholders,
 } from "./editor-logic";
@@ -73,6 +74,20 @@ describe("repères", () => {
       "{offre} ne sera pas remplacé ici : il partira tel quel. Écrivez le vrai mot à la place.",
     );
     expect(unresolvedMessage(["offre", "prenom"])).toMatch(/^\{offre\}, \{prenom\} ne seront pas/);
+  });
+});
+
+describe("repères non remplacés : surlignage et phrase", () => {
+  it("par défaut : surlignage jaune et phrase sous le champ", () => {
+    expect(unresolvedDisplay(true)).toEqual({ highlight: true, message: true });
+  });
+
+  it("« highlight » : surlignage seul, le formulaire affiche sa propre alerte", () => {
+    expect(unresolvedDisplay("highlight")).toEqual({ highlight: true, message: false });
+  });
+
+  it("false : aucun avertissement", () => {
+    expect(unresolvedDisplay(false)).toEqual({ highlight: false, message: false });
   });
 });
 

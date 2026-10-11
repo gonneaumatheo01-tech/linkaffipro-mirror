@@ -21,7 +21,6 @@ import {
   metricGroupFormatter,
   moneyColumn,
   overviewLabel,
-  trendOrNone,
   type MetricKey,
 } from "@/lib/dashboard/display";
 import { loadLastEvents, type LastEvent } from "@/lib/dashboard/events";
@@ -111,7 +110,7 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
           favorable={v.favorable}
           comparison="vs période précédente"
           hint={f.compare ? `Avant : ${fmt(key, prevTotal(m.key))}` : undefined}
-          trend={multiDay ? trendOrNone(m.series.values) : undefined}
+          trend={multiDay ? m.series.values : undefined}
         />
       );
     });

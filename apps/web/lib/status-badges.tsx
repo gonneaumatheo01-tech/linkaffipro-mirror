@@ -50,8 +50,11 @@ const muted = (label: string): StatusEntry => ({ label, variant: "secondary" });
 const bad = (label: string): StatusEntry => ({ label, variant: "destructive" });
 const plain = (label: string): StatusEntry => ({ label, variant: "outline" });
 
-/** Statut de synchronisation (Link Affi…) : pas un enum Prisma, mais affiché au même endroit. */
-export type SyncStatus = "ok" | "error" | "running" | "never";
+/**
+ * Statut de synchronisation (Link Affi…) : pas un enum Prisma, mais affiché au même endroit. « late » : la dernière
+ * réussite est trop ancienne (`syncRowState`, lib/status/health.ts), affiché « En retard ».
+ */
+export type SyncStatus = "ok" | "late" | "error" | "running" | "never";
 /** Statut de la connexion Telegram (webhook) d'un bot. */
 export type WebhookStatus = "ok" | "check" | "off";
 /** Actif / inactif (bots, liens, utilisateurs, catégories, règles). */
@@ -215,6 +218,7 @@ export const STATUS_DICT = {
   } satisfies Record<SequenceTrigger, StatusEntry>,
   sync: {
     ok: ok("OK"),
+    late: warn("En retard"),
     error: bad("Erreur"),
     running: main("En cours"),
     never: muted("Jamais"),

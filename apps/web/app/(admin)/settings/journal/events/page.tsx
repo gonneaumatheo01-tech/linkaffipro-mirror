@@ -13,7 +13,7 @@ import {
   pageSkip,
 } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
-import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import { StatCard } from "@/components/admin/stat-card";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -81,7 +81,7 @@ function memberName(m: EventMember): string {
  * Vue « Événements » du Journal (`/settings/journal/events`) : tout ce que les bots et les membres ont fait (mises à jour
  * Telegram, adhésions, clics, messages privés, publications…), filtrable, paginée et exportable. Lisible par les MANAGER.
  * Les événements joueurs d'autres affiliés Link Affi (sans membre) n'y figurent pas.
- * Adresse propre (pas de paramètre `view`) : les filtres mémorisés reviennent et « Réinitialiser » reste sur cette vue ;
+ * Adresse propre (pas de paramètre `view`) : les filtres mémorisés reviennent et « Effacer les filtres » reste sur cette vue ;
  * l'ancienne adresse `/settings/journal?view=events` y renvoie.
  */
 export default async function JournalEventsPage({

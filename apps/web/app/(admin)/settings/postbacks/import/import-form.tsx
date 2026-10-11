@@ -178,14 +178,7 @@ function ImportFlow({
         </div>
         <div className="space-y-2">
           <Label htmlFor="file">Fichier CSV (5 Mo au plus)</Label>
-          <Input
-            id="file"
-            name="file"
-            type="file"
-            accept=".csv,text/csv,text/plain"
-            required
-            className="h-auto py-1.5 max-md:h-auto"
-          />
+          <Input id="file" name="file" type="file" accept=".csv,text/csv,text/plain" required />
         </div>
         {current.error ? (
           <p className="text-body text-danger" role="alert">

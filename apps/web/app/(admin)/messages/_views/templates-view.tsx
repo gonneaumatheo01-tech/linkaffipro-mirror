@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { FilterChips, type FilterChip } from "@/components/admin/filter-chips";
-import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import {
   placeholdersToComplete,
   PLACEHOLDER_MARK_CLASS,

@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 
 /**
- * Zone de filtres : toujours visible sur ordinateur ; repliée sur téléphone derrière « Filtres (n) » pour que le
- * calendrier (ou la liste) reste lisible d'abord. Le contenu (un formulaire GET) est rendu une seule fois.
+ * Zone de filtres d'une liste (Messages : calendrier, liste, modèles ; Journal) : toujours visible sur ordinateur ;
+ * repliée sur téléphone derrière « Filtres (n) » pour que la liste reste lisible d'abord. Le contenu (un formulaire
+ * GET) est rendu une seule fois. Composant client.
  */
 export function CollapsibleFilters({
   activeCount,

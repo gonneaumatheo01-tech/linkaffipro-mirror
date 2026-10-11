@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import { MessagesCalendar } from "@/components/messages/calendar/messages-calendar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";

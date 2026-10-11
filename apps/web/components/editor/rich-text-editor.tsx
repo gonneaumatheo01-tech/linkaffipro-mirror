@@ -1,14 +1,7 @@
 "use client";
 
 import "./rich-text.css";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Bold, EyeOff, Italic, Link2, Smile, Strikethrough, Underline } from "lucide-react";
 import { textLength } from "@linkaffipro/core";
 import { Button } from "@/components/ui/button";
@@ -40,10 +33,12 @@ import {
   shortcutCommand,
   shortcutLabel,
   toolbarIndex,
+  unresolvedDisplay,
   unresolvedMessage,
   unresolvedPlaceholders,
   type EditorCommand,
   type PlaceholderChip,
+  type UnresolvedWarning,
 } from "./editor-logic";
 import {
   escapeText,
@@ -53,8 +48,9 @@ import {
   telegramToEditorHtml,
   type ActiveFormats,
 } from "./telegram-format";
+import { useIsMac } from "./use-is-mac";
 
-export type { PlaceholderChip } from "./editor-logic";
+export type { PlaceholderChip, UnresolvedWarning } from "./editor-logic";
 
 /** Émojis proposés dans la barre d'outils (les plus utilisés dans les messages de l'équipe). */
 export const EDITOR_EMOJIS = ["🔥", "🎁", "💰", "⚡", "✅", "👉", "🎰", "⚽", "❤️"];
@@ -88,16 +84,6 @@ function sameFormats(a: ActiveFormats, b: ActiveFormats): boolean {
     a.spoiler === b.spoiler &&
     a.code === b.code &&
     a.link === b.link
-  );
-}
-
-const noopSubscribe = () => () => {};
-/** Mac (⌘) ou autre (Ctrl) ; « autre » au rendu serveur, corrigé après l'hydratation sans avertissement. */
-function useIsMac(): boolean {
-  return useSyncExternalStore(
-    noopSubscribe,
-    () => /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent),
-    () => false,
   );
 }
 
@@ -178,8 +164,12 @@ export type RichTextEditorProps = {
   placeholder?: string;
   /** Repères remplacés à l'envoi dans ce formulaire, insérables en un clic et mis en évidence. */
   placeholders?: readonly PlaceholderChip[];
-  /** Avertit si un repère connu ({offre}, {prenom}…) ne sera pas remplacé ici (par défaut : oui). */
-  warnUnresolved?: boolean;
+  /**
+   * Repère connu ({offre}, {prenom}…) qui ne sera pas remplacé ici : surligné en jaune et signalé par une phrase sous
+   * le champ (`true`, par défaut) ; surligné seulement (`"highlight"` : le formulaire a déjà sa propre alerte) ; ou
+   * rien (`false`).
+   */
+  warnUnresolved?: UnresolvedWarning;
   /** Média joint : la légende est limitée à 1 024 caractères (compteur). */
   hasMedia?: boolean;
   /** Bouton « Améliorer avec l'IA », placé au bout de la barre d'outils. */
@@ -239,7 +229,8 @@ export function RichTextEditor({
   const replacedKeys = placeholders.map((p) => p.key);
   const length = textLength(value);
   const counter = counterState(length, hasMedia);
-  const unresolved = warnUnresolved ? unresolvedPlaceholders(value, replacedKeys) : [];
+  const unresolvedShown = unresolvedDisplay(warnUnresolved);
+  const unresolved = unresolvedShown.message ? unresolvedPlaceholders(value, replacedKeys) : [];
   const empty = value.length === 0;
   const helpId = `${id}-editor-help`;
   const counterId = `${id}-counter`;
@@ -254,7 +245,7 @@ export function RichTextEditor({
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
       for (const m of findPlaceholders(n.data, replacedKeys)) {
-        if (!m.replaced && !warnUnresolved) continue;
+        if (!m.replaced && !unresolvedShown.highlight) continue;
         const r = document.createRange();
         r.setStart(n, m.start);
         r.setEnd(n, m.end);
@@ -786,7 +777,8 @@ export function RichTextEditor({
       <p id={helpId} className="sr-only">
         Mise en forme avec la barre d&apos;outils ou les raccourcis : gras{" "}
         {shortcutLabel("bold", isMac)}, italique {shortcutLabel("italic", isMac)}, souligné{" "}
-        {shortcutLabel("underline", isMac)}, lien {shortcutLabel("link", isMac)}.
+        {shortcutLabel("underline", isMac)}, lien {shortcutLabel("link", isMac)}, barré{" "}
+        {shortcutLabel("strike", isMac)}.
       </p>
       {counter.message ? (
         <p className={cn("text-note", counter.over ? "text-danger" : "text-warning")}>

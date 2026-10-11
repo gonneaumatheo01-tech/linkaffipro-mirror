@@ -1,4 +1,46 @@
-# État du projet : phase 8 (corrections du client, canaux existants, campagnes, assistant IA) terminée (10 octobre 2026, 12h05)
+# État du projet : phase 9 (refonte UX et design) terminée (11 octobre 2026, 5h00)
+
+Phases 0 à 8 en ligne. Phase 9 = la refonte validée par le client (`docs/REFONTE-UX.md`), livrée en 8 étapes, chacune déployée dès qu'elle était prête. 2 117 tests unitaires et 139 tests d'intégration (base réelle) réussis, lint, typage et build verts, 0 violation d'accessibilité (axe) sur les 56 pages en 1 440 et 390 px ; tout est déployé (site et service d'arrière-plan).
+
+## Phase 9 : ce qui a changé (10 et 11 octobre)
+- **Allure** : couleurs du logo (menu nuit, bouton principal orange), police Inter, trois tailles de texte, une couleur par univers (casino violet, paris vert, rencontres rose), icône du site ; thème clair (le mode sombre viendra plus tard).
+- **Menu à 6 entrées + Réglages** : Accueil, Campagnes, Canaux, Messages, Membres, Statistiques. Sur téléphone : barre du bas (Accueil, Messages, Membres, Campagnes, Plus). Tout ce qui a quitté le menu est rangé, et les anciennes adresses mènent au bon endroit.
+- **Accueil** : barre d'état (« Tout va bien… » ou « N points à voir »), membres arrivés, premiers dépôts et bénéfice du jour comparés à hier à la même heure, « À faire », prochains messages, campagnes actives, liste « À faire pour démarrer ».
+- **Aide** : bouton « ? » sur chaque page (l'aide de la page), guide complet réécrit (page Aide), **visite guidée** de 2 minutes à la première connexion (Réglages → « Revoir la visite »).
+- **Campagnes** : cartes avec tendance, création en 4 étapes, fiche à 6 onglets (Vue d'ensemble, Pubs, Liens, Canaux, Messages, Membres) ; Pubs et Liens y sont rangés.
+- **Messages** : calendrier de la semaine coloré par univers, glisser un message pour changer son heure (avec « Annuler »), meilleurs créneaux surlignés, création simplifiée (l'essentiel visible, le reste dans « Avancé »), éditeur de texte sans balises, modèles en galerie.
+- **Canaux** : fiche en langage courant : « Qui peut entrer et quand » (tout de suite / après un délai / après avoir rejoint ces canaux), « Ce que dit le bot », « Demandes » faciles sur téléphone, « Membres ».
+- **Membres** : filtres en mots simples (ont déposé, rien fait depuis 7 jours…), fiche « l'essentiel d'abord » ; **Écrire à un groupe** en 3 étapes avec le nombre exact de destinataires ; **Relances automatiques** : 6 relances prêtes à l'emploi (interrupteur, « Tester sur moi », compteur de la semaine) et un éditeur visuel à branches (conditions oui / non, attente, arrêt).
+- **Statistiques** : 5 pages (Vue d'ensemble, Pubs, Parcours, Canaux, Membres dans le temps), un seul choix de période / univers / campagne, graphiques d'abord, détail au clic.
+- **Réglages** : un écran en cartes (Connexions, Bots, Équipe, Alertes et rapports, IA, Catégories et étiquettes, Journal, État du système, Avancé).
+- **Mots simples partout** (premier dépôt, revenu net, identifiant de suivi, retour sur dépense pub…), y compris dans les rapports et alertes Telegram ; le terme technique reste au survol.
+
+## Où sont passées les anciennes pages ?
+Tableau de bord → Accueil (le jour) et Statistiques (le détail) · Pubs et Liens → Campagnes · Envois → Membres → Écrire à un groupe · Automatisations → Membres → Relances automatiques · Bots et Journal → Réglages · Meilleurs horaires → calendrier des Messages. Les anciens liens et favoris redirigent tout seuls.
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com : la visite guidée démarre ; faites-la (2 minutes) ou « Passer la visite ».
+2. Accueil : la barre d'état, les 3 chiffres du jour, « À faire ».
+3. Messages : le calendrier de la semaine ; cliquez un message pour voir son volet ; « Programmer un message » : écrivez un texte en gras sans balise.
+4. Membres → Relances automatiques : les 6 cartes (toutes désactivées).
+5. Le « ? » en haut à droite sur deux pages différentes ; sur téléphone, la barre du bas.
+
+## Vérifications faites
+- Chaque étape : relecture design sur captures (1 440 et 390 px) et relecture du code par des agents indépendants, puis corrections, avant déploiement ; environ 250 défauts trouvés et corrigés au total.
+- Captures de référence des 56 pages dans `docs/captures` (index `docs/REFONTE-CAPTURES.md`), faites sur les données de démonstration locales.
+- Tests de garde permanents : aucun mot technique en surface, aucune ancienne adresse dans le code, contour de focus toujours visible, titres du guide, accessibilité statique.
+- Production : site et service d'arrière-plan redéployés à chaque étape, migration additive des relances appliquée (sauvegarde faite juste avant), redirections des anciennes adresses vérifiées en 308.
+
+## Limites et suites
+- **Modèles de messages** : 43 des 63 modèles fournis contiennent {offre} et 13 contiennent {prenom}, qui ne sont pas remplacés dans un message de canal. L'éditeur les surligne en jaune et le formulaire prévient « Des mots restent à compléter ». Une réécriture des modèles est prévue.
+- **Relances** : le bouton « Offre (campagne) » avec identifiant de suivi n'existe pas encore dans les messages de relance (liens simples seulement).
+- **Éditeur de texte** : testé dans Chrome et Safari (moteur WebKit), pas encore dans Firefox.
+- **Mode sombre** : prévu plus tard (décision du client).
+- **Fiche introuvable** : une fiche supprimée affiche bien « Cette page n'existe pas », mais le code HTTP reste 200 (affichage progressif de Next) ; sans effet pour l'équipe.
+- **Barre d'état de l'accueil** : résumé rapide sans appel à Telegram ; le détail exact est dans Réglages → État du système.
+- Actions humaines toujours en attente (inchangées) : clé de l'assistant IA, ajout des canaux existants et règle d'adhésion de Mediatheque et Test, première campagne, applications Meta / TikTok / Telegram, worker en Europe (voir `docs/A-FAIRE-HUMAIN.md`).
+
+## Phase 8 — (corrections du client, canaux existants, campagnes, assistant IA) terminée (10 octobre 2026, 12h05)
 
 Phases 0 à 7 en ligne. Phase 8 = les retours du client du 10 octobre (`docs/prompts/10-phase-8-corrections-et-ia-messages.md`). 993 tests unitaires et 82 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé.
 

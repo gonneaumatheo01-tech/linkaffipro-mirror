@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { CircleHelp } from "lucide-react";
 import { cn } from "@/components/ui/cn";
-import { isInsideInteractive } from "./help-tip-logic";
+import { termMode, termTriggerClass, type TermMode } from "./help-tip-logic";
 
 /**
  * Bulle sombre commune à `Term` et `HelpTip` : rendue dans un portail (jamais coupée par une carte ou un
@@ -52,6 +52,9 @@ function Bubble({ children }: { children: React.ReactNode }) {
  * apparaît au survol, au toucher et au focus clavier, et il est lu par les lecteurs d'écran (« premiers dépôts (FTD) »).
  * Dans un bouton, un lien ou un libellé (en-tête triable, carte cliquable), il reste un simple texte (pas de bouton
  * dans un bouton) : le terme est alors en `title` et dans le nom accessible de l'élément parent.
+ * Sur téléphone, la zone de toucher fait 40 px (`TERM_TOUCH_TARGET`, invisible) sans changer l'allure du mot.
+ * Dans une carte entièrement cliquable par un lien « étiré » (`data-stretched-link`, carte de campagne) : bulle au
+ * survol sur ordinateur, mais sur téléphone le toucher ouvre la carte (`TERM_IN_CARD`, règle `termMode`).
  * Usage : `<Term term="FTD">premiers dépôts</Term>`. Sans `term`, le texte est rendu tel quel.
  */
 export function Term({
@@ -64,11 +67,11 @@ export function Term({
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [interactive, setInteractive] = useState(false);
+  const [mode, setMode] = useState<TermMode>("text");
   const bubble = useBubble();
   useEffect(() => {
     // Après l'affichage seulement (même rendu serveur et client) : devient un bouton s'il n'est pas déjà dans un.
-    if (ref.current && !isInsideInteractive(ref.current)) setInteractive(true);
+    if (ref.current) setMode(termMode(ref.current));
   }, []);
 
   if (!term) return <>{children}</>;
@@ -78,7 +81,7 @@ export function Term({
   );
   const spoken = <span className="sr-only"> ({term})</span>;
 
-  if (!interactive) {
+  if (mode === "text") {
     return (
       <span ref={ref} title={term} data-slot="term" className={look}>
         {children}
@@ -94,7 +97,7 @@ export function Term({
         closeDelay={100}
         data-slot="term"
         {...bubble.trigger}
-        className={cn(look, "rounded-xs text-left")}
+        className={cn(look, "rounded-xs text-left", termTriggerClass(mode))}
       >
         {children}
         {spoken}

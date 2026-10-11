@@ -21,12 +21,14 @@ import { initials } from "./nav-logic";
  * - téléphone : logo et nom à gauche (la navigation est dans la barre du bas, `BottomNav`) ;
  * - à droite : recherche globale (⌘K), bouton « ? » (aide de la page courante, `HelpPanel`), menu utilisateur
  *   (Mon compte, Déconnexion).
- * Les marges suivent les zones sûres iOS (encoche d'un iPhone en paysage, `viewportFit: "cover"`).
+ * Les marges suivent les zones sûres iOS (encoche d'un iPhone en paysage, `viewportFit: "cover"`) et celles du
+ * contenu (`<main>` du layout : 16 px, 24 px dès 768 px, 32 px dès 1024 px) : la recherche commence à l'aplomb du
+ * titre de la page et le menu du compte finit à l'aplomb des boutons de l'en-tête de page.
  */
 export function Header({ user }: { user: CurrentUser }) {
   const role = ROLE_LABELS[user.role];
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] md:pr-[max(1.5rem,env(safe-area-inset-right))] md:pl-6">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] md:pr-[max(1.5rem,env(safe-area-inset-right))] md:pl-6 lg:pr-[max(2rem,env(safe-area-inset-right))] lg:pl-8">
       <Link
         href="/"
         className="-ml-1 flex min-h-10 items-center gap-2 rounded-lg px-1 md:hidden"

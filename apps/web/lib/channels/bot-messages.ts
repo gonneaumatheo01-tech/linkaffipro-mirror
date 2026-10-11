@@ -161,32 +161,3 @@ export const PLACEHOLDER_CHIPS: ReadonlyArray<{ key: keyof PlaceholderExamples; 
   { key: "delai", label: "Délai d'acceptation" },
   { key: "bot", label: "Nom du bot" },
 ];
-
-/**
- * Entoure la sélection de balises (gras, lien…) ou insère un texte au curseur (émoji, mot à remplacer). Sans
- * sélection, `fallback` est entouré (« texte ») pour qu'on voie où écrire. Renvoie le texte et la nouvelle sélection
- * (le texte entouré ou inséré reste sélectionné, le curseur après une simple insertion).
- */
-export function wrapSelection(
-  text: string,
-  start: number,
-  end: number,
-  open: string,
-  close = "",
-  fallback = "texte",
-): { text: string; selectionStart: number; selectionEnd: number } {
-  const s = Math.max(0, Math.min(start, text.length));
-  const e = Math.max(s, Math.min(end, text.length));
-  if (!close) {
-    const next = text.slice(0, s) + open + text.slice(e);
-    const at = s + open.length;
-    return { text: next, selectionStart: at, selectionEnd: at };
-  }
-  const picked = text.slice(s, e) || fallback;
-  const at = s + open.length;
-  return {
-    text: text.slice(0, s) + open + picked + close + text.slice(e),
-    selectionStart: at,
-    selectionEnd: at + picked.length,
-  };
-}

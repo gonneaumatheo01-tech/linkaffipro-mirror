@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/table-logic";
 
 /**
- * Rangée qui défile (onglets des Statistiques sur téléphone) : un dégradé sur le bord montre qu'il reste des onglets
+ * Rangée qui défile (barre d'onglets `TabNav`, pastilles…) : un dégradé sur le bord montre qu'il reste des éléments
  * à voir, tant qu'il en reste (même règle que `Table`, `horizontalScrollState`). Le premier enfant est la zone qui
- * défile (`overflow-x-auto`). Sans JavaScript, ou quand tout tient, aucun dégradé. `fadeClassName` : couleur du fond
- * sur lequel la rangée est posée (fond de page par défaut).
+ * défile (`overflow-x-auto`) ; le dégradé suit le défilement et la taille de cette zone. Sans JavaScript, ou quand
+ * tout tient, aucun dégradé. `fadeClassName` : couleur du fond sur lequel la rangée est posée (fond de page par
+ * défaut, `from-card` sur une carte). Composant client.
  */
 export function ScrollFade({
   children,

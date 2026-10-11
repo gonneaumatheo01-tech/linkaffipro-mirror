@@ -17,11 +17,25 @@ function valid(pct: number | null | undefined): pct is number {
   return typeof pct === "number" && Number.isFinite(pct);
 }
 
-/** « +12,5 % », « −3 % », « 0 % » ; sans décimale au-delà de 100 % ; « — » sans comparaison. */
+/**
+ * Plafond d'affichage d'une variation : au-delà, « > +999 % » (un « +18 661 % » n'apprend rien de plus et casse la
+ * carte). Le calcul ne change pas ; seule la présentation est bornée.
+ */
+export const VARIATION_CAP = 999;
+
+function capped(r: number): boolean {
+  return Math.abs(r) > VARIATION_CAP;
+}
+
+/**
+ * « +12,5 % », « −3 % », « 0 % » ; sans décimale au-delà de 100 % ; « > +999 % » / « < −999 % » au-delà du
+ * plafond ; « — » sans comparaison.
+ */
 export function formatVariation(pct: number | null | undefined): string {
   if (!valid(pct)) return "—";
   const r = rounded(pct);
   if (r === 0) return "0 %";
+  if (capped(r)) return r > 0 ? `> +${VARIATION_CAP} %` : `< −${VARIATION_CAP} %`;
   const abs = Math.abs(r).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
   return `${r > 0 ? "+" : "−"}${abs} %`;
 }
@@ -35,14 +49,19 @@ export function variationTone(pct: number | null | undefined, favorable: Favorab
   return good ? "positive" : "negative";
 }
 
-/** Phrase lue par les lecteurs d'écran : « En hausse de 12,5 % vs hier ». */
+/**
+ * Phrase lue par les lecteurs d'écran : « En hausse de 12,5 % vs hier » ; au-delà du plafond, « En hausse de plus
+ * de 999 % vs hier ».
+ */
 export function variationSummary(pct: number | null | undefined, comparison: string): string {
   if (!valid(pct)) return "Pas de comparaison possible";
   const r = rounded(pct);
   const tail = comparison ? ` ${comparison}` : "";
   if (r === 0) return `Stable${tail}`;
+  const direction = r > 0 ? "En hausse" : "En baisse";
+  if (capped(r)) return `${direction} de plus de ${VARIATION_CAP} %${tail}`;
   const abs = Math.abs(r).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
-  return `${r > 0 ? "En hausse" : "En baisse"} de ${abs} %${tail}`;
+  return `${direction} de ${abs} %${tail}`;
 }
 
 export type SparklinePath = {
@@ -59,8 +78,24 @@ function n(v: number): string {
 }
 
 /**
+ * Une mini-courbe mérite d'être dessinée : au moins deux valeurs, dont une non nulle. Une ligne plate à zéro
+ * n'apprend rien et ajoute du bruit (période sans activité). Règle unique des cartes de chiffres.
+ */
+export function hasTrend(values: readonly number[] | null | undefined): values is number[] {
+  if (!values) return false;
+  const pts = values.filter((v) => Number.isFinite(v));
+  return pts.length >= 2 && pts.some((v) => v !== 0);
+}
+
+/** La série si elle mérite une mini-courbe (`hasTrend`), rien sinon (pour la prop `trend` d'une carte). */
+export function trendOrNone(values: readonly number[] | null | undefined): number[] | undefined {
+  return hasTrend(values) ? [...values] : undefined;
+}
+
+/**
  * Tracé SVG d'une mini-courbe (sans dépendance) : points répartis de gauche à droite, valeur la plus haute
- * en haut, marge verticale `pad`. Valeurs négatives acceptées ; série plate au milieu ; null sous deux points.
+ * en haut, marge verticale `pad`. Valeurs négatives acceptées ; série plate au milieu ; null sous deux points
+ * ou quand toutes les valeurs sont nulles (`hasTrend`).
  */
 export function sparklinePath(
   values: readonly number[],
@@ -68,8 +103,8 @@ export function sparklinePath(
   height: number,
   pad = 2,
 ): SparklinePath | null {
+  if (!hasTrend(values)) return null;
   const pts = values.filter((v) => Number.isFinite(v));
-  if (pts.length < 2) return null;
   const min = Math.min(...pts);
   const max = Math.max(...pts);
   const step = width / (pts.length - 1);

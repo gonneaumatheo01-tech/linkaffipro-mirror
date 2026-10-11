@@ -130,13 +130,11 @@ export function metricGroupFormatter(
 }
 
 /**
- * Mini-courbe d'une carte : rien quand la période n'a aucune valeur (une ligne plate à zéro n'apprend rien et
- * ajoute du bruit), la série sinon.
+ * Mini-courbe : rien quand la période n'a aucune valeur (une ligne plate à zéro n'apprend rien), la série sinon.
+ * Règle unique dans `stat-card-logic.ts` (`StatCard` et `MiniTrend` l'appliquent d'office) ; réexportée ici pour
+ * les cellules et volets qui affichent « — » à la place.
  */
-export function trendOrNone(values: readonly number[] | null | undefined): number[] | undefined {
-  if (!values || values.length === 0 || values.every((v) => v === 0)) return undefined;
-  return [...values];
-}
+export { trendOrNone } from "@/components/admin/stat-card-logic";
 
 // ——— Vue d'ensemble ———
 

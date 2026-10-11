@@ -70,11 +70,10 @@ export default async function MessagesPage({ searchParams }: PageProps<"/message
         title="Messages"
         description="Ce qui part dans vos canaux, et quand."
         help={HELP[view]}
-        // Téléphone : le bouton principal en premier (avant « Comparer par catégorie »).
         primaryAction={
           <Link
             href={newPostHref({ channelId: f.channelId || undefined })}
-            className={cn(buttonVariants(), "max-md:order-first max-md:h-10")}
+            className={cn(buttonVariants(), "max-md:h-10")}
           >
             <Plus aria-hidden />
             Programmer un message

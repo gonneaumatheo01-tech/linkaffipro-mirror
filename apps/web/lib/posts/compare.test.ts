@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withAverages, type CategoryTotals } from "./category-stats";
-import { abMetricRows, barWidths, rankCategories, toCategoryMeasure } from "./compare";
-
-describe("barres de comparaison", () => {
-  it("largeur relative à la plus grande valeur ; une valeur positive reste visible", () => {
-    expect(barWidths([10, 5, 0])).toEqual([100, 50, 0]);
-    expect(barWidths([1000, 1])).toEqual([100, 2]);
-    expect(barWidths([0, 0])).toEqual([0, 0]);
-    expect(barWidths([])).toEqual([]);
-  });
-});
+import { abMetricRows, rankCategories, toCategoryMeasure } from "./compare";
 
 describe("graphique du test A/B", () => {
   const a = { variant: "A", views: 0, clicks: 9, uniqueClickers: 3, registrations: 1, ftds: 0 };

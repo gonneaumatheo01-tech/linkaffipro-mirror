@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import type { PostStatus } from "@linkaffipro/db";
 import { Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { UniverseDot } from "@/components/admin/universe-dot";
-import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import { MessagesListTable } from "@/components/messages/messages-list-table";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";

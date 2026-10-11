@@ -18,7 +18,8 @@ function isLinkAction(a: PageAction): a is { label: string; href: string; icon?:
  * - `children` : contenu libre à droite, comme avant (compatibilité) ;
  * - `backHref` / `backLabel` : lien « ← Retour » au-dessus du titre (fiches, sous-pages) ;
  * - `meta` : pastilles à côté du titre (univers, statut).
- * Sur téléphone, les actions passent sous le titre.
+ * Sur téléphone, les actions passent sous le titre, sur toute la largeur, le bouton principal en premier (le geste
+ * attendu est le premier sous le pouce) : aucune page n'a besoin d'ajouter `max-md:order-first` elle-même.
  */
 export function PageHeader({
   title,
@@ -79,10 +80,14 @@ export function PageHeader({
         {help ? <p className="mt-1 max-w-3xl text-note text-muted-foreground">{help}</p> : null}
       </div>
       {hasActions ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-slot="page-actions" className="flex flex-wrap items-center gap-2 max-md:w-full">
           {children}
           {secondaryActions}
-          {primary}
+          {primary ? (
+            <div data-slot="page-primary-action" className="flex max-md:order-first">
+              {primary}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

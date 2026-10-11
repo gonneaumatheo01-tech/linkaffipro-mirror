@@ -178,7 +178,7 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
               }
               favorable={x.favorable}
               hint={f.compare ? `Avant : ${fmtFigure(x.key, prevSum(x.key))}` : undefined}
-              trend={x.key === "net" && multiDay ? trendOrNone(net) : undefined}
+              trend={x.key === "net" && multiDay ? net : undefined}
             />
           ))}
         </div>

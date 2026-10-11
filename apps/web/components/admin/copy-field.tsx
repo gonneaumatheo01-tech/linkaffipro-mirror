@@ -5,21 +5,28 @@ import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-/** Champ en lecture seule avec un bouton « Copier » (lien, adresse, identifiant de suivi). */
+/**
+ * Champ en lecture seule avec un bouton « Copier » (lien, adresse, identifiant de suivi).
+ * - `label` : nom du champ pour les lecteurs d'écran (« Adresse à copier » par défaut) ;
+ * - `id` : pour relier un libellé visible, `<Label htmlFor="…">` ; le libellé visible nomme alors le champ.
+ */
 export function CopyField({
   value,
   label = "Adresse à copier",
+  id,
 }: {
   value: string;
   label?: string;
+  id?: string;
 }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
       <Input
+        id={id}
         readOnly
         value={value}
-        aria-label={label}
+        aria-label={id ? undefined : label}
         className="font-mono md:text-note"
         onFocus={(e) => e.currentTarget.select()}
       />

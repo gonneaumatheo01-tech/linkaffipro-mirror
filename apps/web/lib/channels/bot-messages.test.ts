@@ -10,7 +10,6 @@ import {
   momentNote,
   previewButtons,
   textKey,
-  wrapSelection,
 } from "./bot-messages";
 import type { EntryRule } from "./entry-rule";
 
@@ -123,30 +122,6 @@ describe("aperçu des mots magiques", () => {
         delai: "dans 10 minutes",
       }),
     ).toBe("Salut Léa, bienvenue dans VIP dans 10 minutes {inconnu} {bot}");
-  });
-
-  it("mise en forme : entoure la sélection, ou « texte » sans sélection", () => {
-    expect(wrapSelection("Salut Léa", 6, 9, "<b>", "</b>")).toEqual({
-      text: "Salut <b>Léa</b>",
-      selectionStart: 9,
-      selectionEnd: 12,
-    });
-    expect(wrapSelection("Salut ", 6, 6, "<i>", "</i>")).toEqual({
-      text: "Salut <i>texte</i>",
-      selectionStart: 9,
-      selectionEnd: 14,
-    });
-  });
-
-  it("insère un émoji ou un mot à remplacer au curseur (et remplace la sélection)", () => {
-    expect(wrapSelection("Salut !", 6, 6, "{prenom}")).toEqual({
-      text: "Salut {prenom}!",
-      selectionStart: 14,
-      selectionEnd: 14,
-    });
-    expect(wrapSelection("Salut X", 6, 7, "🔥").text).toBe("Salut 🔥");
-    // Curseur hors du texte : ramené dans le texte.
-    expect(wrapSelection("abc", 10, 12, "!").text).toBe("abc!");
   });
 
   it("les mots à insérer sont ceux que le bot remplace", () => {

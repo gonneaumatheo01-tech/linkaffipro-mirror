@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
 import { FilterChips } from "@/components/admin/filter-chips";
-import { BarList } from "@/components/messages/bar-list";
+import { BarList } from "@/components/charts/bar-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -253,7 +253,7 @@ export default async function CategoryComparisonPage({
                     </span>
                   ),
                   value: r.avg[measure],
-                  display: measureValue(measure, r.avg[measure]),
+                  valueText: measureValue(measure, r.avg[measure]),
                   title: `${r.name} : ${fmtNum(r.posts)} message${r.posts > 1 ? "s" : ""}`,
                 }))}
               />

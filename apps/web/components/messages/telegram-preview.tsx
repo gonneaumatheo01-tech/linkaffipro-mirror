@@ -11,17 +11,19 @@ const SPOILER =
 
 /**
  * Rendu approché d'un message Telegram (HTML validé uniquement) : bulle blanche à gauche sur fond de discussion
- * (comme un message de canal ou de bot reçu par le membre), médias,
- * boutons sous le message. `compact` : version réduite (galerie de modèles), texte coupé après quelques lignes, sans
- * compteur de caractères. `counter={false}` : sans compteur (message déjà enregistré). `highlightPlaceholders` : repères
- * {prenom}, {offre}… surlignés « à compléter » (modèles).
+ * (comme un message de canal ou de bot reçu par le membre), médias, boutons sous le message. `compact` : version
+ * réduite (galerie de modèles, volet du calendrier), texte coupé après quelques lignes. `counter` : nombre de
+ * caractères sous la bulle, **désactivé par défaut** : à côté d'un `RichTextEditor`, c'est l'éditeur qui compte
+ * (avec la limite de Telegram, 4 096 ou 1 024 avec un média) ; un aperçu en lecture seule n'en a pas besoin. À
+ * réserver à un aperçu sans éditeur où la longueur compte. `highlightPlaceholders` : repères {prenom}, {offre}…
+ * surlignés « à compléter » (modèles).
  */
 export function TelegramPreview({
   html,
   buttons,
   mediaCount,
   compact = false,
-  counter = true,
+  counter = false,
   highlightPlaceholders = false,
   className,
 }: {
@@ -29,7 +31,7 @@ export function TelegramPreview({
   buttons: Array<Array<{ text: string }>>;
   mediaCount: number;
   compact?: boolean;
-  /** Compteur de caractères (saisie) ; masqué d'office en version `compact`. */
+  /** Nombre de caractères sous la bulle (non par défaut ; jamais en version `compact`). */
   counter?: boolean;
   highlightPlaceholders?: boolean;
   className?: string;

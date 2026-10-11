@@ -111,6 +111,9 @@ describe("badges de statut", () => {
 
   it("couvre aussi les statuts hors Prisma (synchro, connexion Telegram, actif)", () => {
     expect(statusLabel("sync", "error")).toBe("Erreur");
+    // Synchro dont la dernière réussite est trop ancienne (État du système) : à surveiller, pas une erreur.
+    expect(statusLabel("sync", "late")).toBe("En retard");
+    expect(statusTone("sync", "late")).toBe("warning");
     expect(statusLabel("webhook", "check")).toBe("À vérifier");
     expect(statusLabel("active", "inactive")).toBe("Inactif");
   });

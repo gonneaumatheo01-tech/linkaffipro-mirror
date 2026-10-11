@@ -42,7 +42,6 @@ import {
   groupMoney,
   groupMoneyDigits,
   hasCampaignFilters,
-  hasFilterParams,
   noMatchTitle,
   parseCampaignFilters,
   platformShortLabel,
@@ -228,8 +227,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                   </Button>
                 }
               />
-              {/* Largeur propre au menu : par défaut il prendrait celle du petit bouton « Plus » (libellés coupés). */}
-              <DropdownMenuContent align="end" className="w-auto min-w-60">
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem className="md:hidden" render={<Link href="/campaigns/links" />}>
                   <Link2 aria-hidden />
                   Tous les liens
@@ -280,12 +278,8 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                 extra={filterParams}
               />
               <Suspense fallback={null}>
-                {/* Monté même sans filtre (il rappelle les filtres mémorisés), mais montré seulement s'il y a quelque
-                    chose à réinitialiser ; sur téléphone, aligné sur la marge de la page (retrait du bouton discret). */}
-                <RememberFilters
-                  storageKey="campaigns"
-                  className={cn("max-md:-ml-3 max-md:h-10", !hasFilterParams(sp) && "hidden")}
-                />
+                {/* Sur téléphone, aligné sur la marge de la page (retrait du bouton discret). */}
+                <RememberFilters storageKey="campaigns" className="max-md:-ml-3 max-md:h-10" />
               </Suspense>
             </div>
             <div className="space-y-2">

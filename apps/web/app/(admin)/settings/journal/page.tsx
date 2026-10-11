@@ -13,7 +13,7 @@ import {
   pageSkip,
 } from "@/components/admin/pagination";
 import { RememberFilters } from "@/components/admin/remember-filters";
-import { CollapsibleFilters } from "@/components/messages/collapsible-filters";
+import { CollapsibleFilters } from "@/components/admin/collapsible-filters";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";

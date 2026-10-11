@@ -93,6 +93,20 @@ export function unresolvedPlaceholders(text: string, replaced: readonly string[]
   ];
 }
 
+/**
+ * Avertissement pour un repère connu non remplacé ici : `true` (par défaut) = surlignage jaune dans le texte et phrase
+ * sous le champ ; `"highlight"` = surlignage seul (le formulaire affiche déjà sa propre alerte, comme « Des mots
+ * restent à compléter » de Programmer un message) ; `false` = aucun avertissement (modèles, démonstrations).
+ */
+export type UnresolvedWarning = boolean | "highlight";
+
+/** Ce que l'éditeur montre pour les repères non remplacés : surlignage jaune, phrase sous le champ. */
+export type UnresolvedDisplay = { highlight: boolean; message: boolean };
+
+export function unresolvedDisplay(warn: UnresolvedWarning): UnresolvedDisplay {
+  return { highlight: warn !== false, message: warn === true };
+}
+
 /** Phrase d'avertissement pour des repères qui ne seront pas remplacés. */
 export function unresolvedMessage(keys: readonly string[]): string | null {
   if (keys.length === 0) return null;
@@ -137,6 +151,11 @@ export function normalizeLinkUrl(input: string): LinkCheck {
 }
 
 export type EditorCommand = "bold" | "italic" | "underline" | "strike" | "spoiler" | "link";
+
+/** Plateforme Apple (touche ⌘) d'après `navigator.platform` ou, à défaut, `navigator.userAgent`. */
+export function isMacPlatform(platform: string): boolean {
+  return /Mac|iPhone|iPad|iPod/i.test(platform);
+}
 
 /** Touches d'un raccourci (Mac : ⌘ ; Windows et Linux : Ctrl). */
 export function shortcutCommand(

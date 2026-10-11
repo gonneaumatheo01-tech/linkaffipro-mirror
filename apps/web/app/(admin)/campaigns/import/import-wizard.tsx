@@ -117,14 +117,7 @@ export function ImportWizard() {
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="file">Fichier CSV (2 Mo au plus)</Label>
-                    {/* Le bouton du navigateur prend l'allure d'un bouton secondaire (sinon un simple texte gras). */}
-                    <Input
-                      id="file"
-                      name="file"
-                      type="file"
-                      accept=".csv,text/csv,.txt"
-                      className="cursor-pointer pl-1 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-input file:bg-muted file:px-3 hover:file:bg-muted/70 max-md:pl-1.5 max-md:file:h-8"
-                    />
+                    <Input id="file" name="file" type="file" accept=".csv,text/csv,.txt" />
                     {p ? (
                       <p className="text-note text-muted-foreground">
                         Sans nouveau fichier, « {p.filename} » est relu.

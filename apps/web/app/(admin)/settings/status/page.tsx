@@ -387,18 +387,17 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
               rows={s.syncStates.map((st) => {
                 // Même seuil que la tuile « Synchro Link Affi » : un dernier succès trop ancien est « En retard ».
                 const rowState = syncRowState(st, now);
-                const state = rowState === "late" ? "ok" : rowState;
-                const pill =
-                  rowState === "late" ? (
-                    <StatusPill
-                      tone="warning"
-                      title="La synchro passe normalement toutes les 2 minutes."
-                    >
-                      En retard
-                    </StatusPill>
-                  ) : (
-                    <StatusBadge kind="sync" value={state} />
-                  );
+                const pill = (
+                  <StatusBadge
+                    kind="sync"
+                    value={rowState}
+                    title={
+                      rowState === "late"
+                        ? "La synchro passe normalement toutes les 2 minutes."
+                        : undefined
+                    }
+                  />
+                );
                 return {
                   id: st.source,
                   cells: {
@@ -408,7 +407,7 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
                     state: pill,
                   },
                   sortValues: {
-                    state: rowState === "late" ? "En retard" : statusLabel("sync", state),
+                    state: statusLabel("sync", rowState),
                   },
                   detailTitle: linkAffiTableLabel(st.source),
                   detail: (

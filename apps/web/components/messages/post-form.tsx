@@ -603,6 +603,8 @@ export function PostForm({
               onChange={setText}
               label={abActive ? "Texte de la version A" : "Texte du message"}
               hasMedia={media.length > 0}
+              // Repères à compléter : surlignés dans le texte ; la phrase est l'alerte au-dessus de « Programmer ».
+              warnUnresolved="highlight"
               rows={10}
               ai={
                 <ImproveButton
@@ -832,6 +834,7 @@ export function PostForm({
                   onChange={setTextB}
                   label="Texte de la version B"
                   hasMedia={mediaB.length > 0}
+                  warnUnresolved="highlight"
                   rows={6}
                   ai={
                     <ImproveButton

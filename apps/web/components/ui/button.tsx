@@ -9,10 +9,13 @@ import { cn } from "@/components/ui/cn"
  * - `destructive` : action qui supprime ou arrête (rouge lisible sur fond doux) ;
  *   `danger` : confirmation d'une action destructive (rouge plein, dans ConfirmDialog).
  * Tailles : `default` 36 px, `sm` 32 px, `lg` 40 px ; sur téléphone, toute cible fait au moins 40 px.
- * Pour un lien qui ressemble à un bouton, utilisez `buttonVariants()` sur `<Link>` (pas `render`).
+ * Pour un lien qui ressemble à un bouton, utilisez `buttonVariants()` sur `<Link>` (pas `render`) : les classes
+ * rendues sont déjà fusionnées (la bordure d'`outline` remplace la bordure transparente de la base).
+ * Focus clavier : `focus-visible:outline-solid` reste dans la base pour que le contour reste visible même si un
+ * appelant ajoute `outline-none` (Tailwind 4 : `outline-none` pose `--tw-outline-style: none`).
  */
-const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-colors select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-danger max-md:min-h-10 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+const buttonVariantsRaw = cva(
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-colors select-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-danger max-md:min-h-10 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -50,6 +53,15 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * Classes d'un bouton, déjà fusionnées par `cn` : sans fusion, `<Link className={buttonVariants({ variant:
+ * "outline" })}>` gardait `border-transparent` (base) à côté de `border-input` (variante), et la bordure
+ * disparaissait (Tailwind écrit `border-transparent` après `border-input`).
+ */
+function buttonVariants(props?: Parameters<typeof buttonVariantsRaw>[0]): string {
+  return cn(buttonVariantsRaw(props))
+}
+
 function Button({
   className,
   variant = "default",
@@ -59,7 +71,7 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={buttonVariants({ variant, size, className })}
       {...props}
     />
   )

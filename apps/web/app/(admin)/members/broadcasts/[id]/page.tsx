@@ -114,7 +114,7 @@ export default async function BroadcastPage({
     <form action={sendNowAction} className="contents">
       <input type="hidden" name="broadcastId" value={b.id} />
       <ConfirmSubmit
-        className="max-md:order-first max-md:h-10"
+        className="max-md:h-10"
         confirmTitle="Envoyer maintenant ?"
         confirmLabel="Envoyer"
         message={confirmSendMessage(targets, { enabled: false, split: 50 })}

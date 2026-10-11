@@ -192,11 +192,7 @@ export default async function BroadcastsPage({ searchParams }: PageProps<"/membe
             Filtrer
           </Button>
           <Suspense fallback={null}>
-            <RememberFilters
-              storageKey="broadcasts"
-              label="Effacer les filtres"
-              className={cn("max-md:h-10", !filtered && "hidden")}
-            />
+            <RememberFilters storageKey="broadcasts" className="max-md:h-10" />
           </Suspense>
         </div>
       </form>

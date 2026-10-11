@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { StatusPill } from "@/components/admin/status-pill";
 import { Term } from "@/components/admin/help-tip";
-import { BarList } from "@/components/messages/bar-list";
+import { BarList } from "@/components/charts/bar-list";
 import { TelegramPreview } from "@/components/messages/telegram-preview";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -134,12 +134,12 @@ export default async function PostAbPage({
                   </h3>
                   <BarList
                     label={m.label}
-                    labels="narrow"
+                    labelWidth="narrow"
                     items={m.values.map((x) => ({
                       key: x.variant,
                       label: `Version ${x.variant}`,
                       value: x.value,
-                      display: m.key === "ctr" ? fmtPct(x.value) : fmtNum(x.value),
+                      valueText: m.key === "ctr" ? fmtPct(x.value) : fmtNum(x.value),
                       emphasis: m.leader === null ? undefined : m.leader === x.variant,
                     }))}
                   />

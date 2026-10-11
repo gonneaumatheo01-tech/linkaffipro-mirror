@@ -6,9 +6,10 @@ import { cn } from "@/components/ui/cn"
 /**
  * Étiquette courte (compteur, catégorie, mot-clé). Pour un état (envoyé, en attente, échec…),
  * utilisez `StatusPill` / `StatusBadge`, qui ajoutent le point coloré et le libellé standard.
+ * `badgeVariants()` rend des classes déjà fusionnées (comme `buttonVariants()`).
  */
-const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-note font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-danger [&>svg]:pointer-events-none [&>svg]:size-3!",
+const badgeVariantsRaw = cva(
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-note font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-danger [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
@@ -28,6 +29,11 @@ const badgeVariants = cva(
     },
   }
 )
+
+/** Classes d'une étiquette, fusionnées par `cn` (la bordure d'`outline` remplace la bordure transparente). */
+function badgeVariants(props?: Parameters<typeof badgeVariantsRaw>[0]): string {
+  return cn(badgeVariantsRaw(props))
+}
 
 function Badge({
   className,
