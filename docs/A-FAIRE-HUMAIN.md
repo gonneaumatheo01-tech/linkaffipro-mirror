@@ -1,5 +1,10 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 12 : vos emojis animés (5 minutes)
+1. **Ajouter vos emojis** : dans Telegram, transférez à @casinogamblingoobot un message qui contient vos emojis animés préférés (votre compte Telegram doit être lié : site → Mon compte). Le bot répond « … emojis animés ajoutés ✅ ». Ou collez le lien d'un pack (t.me/addemoji/…) dans Messages → Emojis animés → **Ajouter des emojis animés**. Votre compte n'a aucun pack d'emojis installé : « Importer mes packs » n'ajoute donc rien pour l'instant.
+2. **Message privé de test** : vous avez reçu cette nuit de @casinogamblingoobot « Essai des emojis animés (phase 12) » avec un pouce animé : s'il bougeait, les messages privés du bot avec emojis animés fonctionnent.
+3. **Canal « Test »** : un message « Test automatique (Claude) » a été publié par votre compte avec un emoji animé, puis supprimé tout seul 15 minutes après (c'est normal).
+
 ## Phase 11 : régler « venu de Tir Cadré → 1 jour » et faire un vrai essai (10 minutes)
 1. **Régler l'exemple** (3 clics) : https://app.linkaffipro.com/channels → **Zone Interdite** → onglet **Qui peut entrer et quand** → **+ Ajouter une exception** → « Si la personne vient » de « Tir Cadré » → **Après un délai** : 1 jour → **Enregistrer l'exception**. Pour les 5 minutes des autres : en haut, **Par défaut**, « Puis accepter » : 5 minutes → **Enregistrer la règle**.
 2. **Vérifier avec le simulateur** (même onglet, « Et si quelqu'un demande à entrer ? ») : choisissez « bouton de Tir Cadré » puis « une pub » : il dit ce qui se passera, sans rien envoyer.
