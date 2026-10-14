@@ -17,3 +17,4 @@ export * from "./team-labels";
 export * from "./commissions";
 export * from "./provenance";
 export * from "./custom-emoji";
+export * from "./linkaffi-partners";

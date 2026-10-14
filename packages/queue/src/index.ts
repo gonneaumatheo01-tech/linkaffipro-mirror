@@ -3,6 +3,8 @@ export { getRedis, getQueue, enqueue, closeQueues, safeJobId } from "./client";
 export { enqueueDm } from "./outbound";
 export type { EnqueueDmInput, DmButton } from "./outbound";
 export { emitAutomationEvent } from "./automations";
+export { emitLinkaffiEvent } from "./linkaffi-events";
+export type { EmitLinkaffiEventInput, EmitLinkaffiEventResult } from "./linkaffi-events";
 export * from "./monitoring";
 export {
   queueCounts,

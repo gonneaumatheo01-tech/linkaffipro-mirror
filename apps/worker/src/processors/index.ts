@@ -10,6 +10,7 @@ import { processAutomations, repeatableAutomations } from "./automations";
 import { processSyncAds, repeatableSyncAds } from "./sync-ads";
 import { processSyncViews, repeatableSyncViews } from "./sync-views";
 import { processCustomEmoji, repeatableCustomEmoji } from "./custom-emoji";
+import { processLinkaffiEvents, repeatableLinkaffiEvents } from "./linkaffi-events";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -26,4 +27,6 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   "sync-views": { process: (job: Job) => processSyncViews(job), repeatable: repeatableSyncViews, concurrency: 1 },
   // Emojis animés (phase 12) : un appel à la fois (MTProto sous withMtprotoLock, Bot API getFile).
   "custom-emoji": { process: (job: Job) => processCustomEmoji(job), repeatable: repeatableCustomEmoji, concurrency: 1 },
+  // Événements Link Affi (phase 13) : envois HTTP signés, un à la fois (ordre des événements d'un membre gardé).
+  "linkaffi-events": { process: (job: Job) => processLinkaffiEvents(job), repeatable: repeatableLinkaffiEvents, concurrency: 1 },
 };

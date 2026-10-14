@@ -76,6 +76,10 @@ enum InviteLinkKind {
   /// Lien de partage créé depuis la fiche du canal (phase 11), nommé, avec demande d'adhésion, à poster où l'on veut
   /// (`sourceChannelId` facultatif : « à poster dans <canal> »).
   SHARE
+  /// Lien d'une campagne Telegram d'affilié créée DANS Link Affi (phase 13, docs/LINKAFFI-PARTENAIRES.md) : demandé
+  /// par Link Affi via l'API d'intégration (`POST /invite-links`), avec demande d'adhésion ; `linkaffi.me/go/<clé>`
+  /// redirige vers lui. Les personnes entrées par ce lien sont rattachées à l'affilié (premier affilié gagne).
+  LINKAFFI
 }
 
 /// Qui publie un message de canal (phase 12). Telegram interdit les emojis animés (emojis personnalisés des packs
@@ -126,6 +130,10 @@ enum ApprovalSourceKind {
   AD_META
   /// Venue de n'importe quel lien de partage (SHARE).
   SHARE
+  /// Venue de n'importe quelle campagne Telegram d'affilié Link Affi (lien LINKAFFI, phase 13).
+  LINKAFFI_ANY
+  /// Venue d'une campagne d'un affilié Link Affi précis (`ApprovalRule.linkaffiAffiliateId`, phase 13).
+  LINKAFFI_AFFILIATE
 }
 
 /// Plateforme publicitaire.
@@ -425,19 +433,28 @@ model ChannelBotAdmin {
 
 /// Membre Telegram vu par au moins un bot.
 model Member {
-  id             String    @id @default(cuid())
-  telegramUserId BigInt    @unique
-  firstName      String?
-  lastName       String?
-  username       String?
-  languageCode   String?
-  isPremium      Boolean   @default(false)
-  firstSeenAt    DateTime  @default(now())
-  lastSeenAt     DateTime  @default(now())
+  id                         String      @id @default(cuid())
+  telegramUserId             BigInt      @unique
+  firstName                  String?
+  lastName                   String?
+  username                   String?
+  languageCode               String?
+  isPremium                  Boolean     @default(false)
+  firstSeenAt                DateTime    @default(now())
+  lastSeenAt                 DateTime    @default(now())
   /// Anonymisé (suppression sur demande) : identité effacée, événements conservés sans données personnelles.
-  anonymizedAt   DateTime?
+  anonymizedAt               DateTime?
   /// Étiquettes libres (JSON : string[]).
-  tags           Json      @default("[]")
+  tags                       Json        @default("[]")
+  /// Affilié Link Affi qui a amené ce membre (phase 13) : premier affilié gagne, jamais écrasé automatiquement ;
+  /// changé ou retiré seulement par un ADMIN (journal). `affiliateAttributionEndsAt` : fin de l'attribution si la
+  /// campagne a une durée (null = à vie).
+  linkaffiCampaignKey        String?
+  linkaffiAffiliateId        String?
+  affiliateAttributedAt      DateTime?
+  affiliateAttributionEndsAt DateTime?
+  affiliateInviteLinkId      String?
+  affiliateInviteLink        InviteLink? @relation("AffiliateInviteLink", fields: [affiliateInviteLinkId], references: [id], onDelete: SetNull)
 
   botStates        MemberBotState[]
   events           Event[]
@@ -448,6 +465,8 @@ model Member {
   notes            MemberNote[]
   automationRuns   AutomationRun[]
 
+  @@index([linkaffiAffiliateId])
+  @@index([linkaffiCampaignKey])
   @@index([lastSeenAt])
   @@index([firstSeenAt])
   @@index([anonymizedAt, lastSeenAt])
@@ -568,6 +587,8 @@ model ApprovalRule {
   sourceChannelId      String?
   /// Type de provenance (`scope = SOURCE_KIND`).
   sourceKind           ApprovalSourceKind?
+  /// Affilié Link Affi visé par une exception `SOURCE_KIND` = LINKAFFI_AFFILIATE (phase 13 ; identifiant Link Affi).
+  linkaffiAffiliateId  String?
   /// Texte lisible de l'exception (« Venu de Tir Cadré »), recalculé à l'enregistrement.
   label                String?
   /// Ordre des exceptions de même niveau (ordre choisi par l'équipe, du plus petit au plus grand).
@@ -598,41 +619,52 @@ model ApprovalRule {
 
 /// Lien d'invitation Telegram créé par la plateforme (entrée par pub, gate, manuel).
 model InviteLink {
-  id                 String         @id @default(cuid())
-  channelId          String
-  channel            Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  botId              String
-  bot                Bot            @relation(fields: [botId], references: [id])
-  telegramInviteLink String         @unique
-  name               String
-  kind               InviteLinkKind @default(AD_ENTRY)
-  createsJoinRequest Boolean        @default(true)
-  campaignId         String?
-  campaign           Campaign?      @relation(fields: [campaignId], references: [id])
-  adPlatform         AdPlatform?
-  adCampaignName     String?
-  adSetName          String?
-  adName             String?
-  adExternalIds      Json?
+  id                    String         @id @default(cuid())
+  channelId             String
+  channel               Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  botId                 String
+  bot                   Bot            @relation(fields: [botId], references: [id])
+  telegramInviteLink    String         @unique
+  name                  String
+  kind                  InviteLinkKind @default(AD_ENTRY)
+  createsJoinRequest    Boolean        @default(true)
+  campaignId            String?
+  campaign              Campaign?      @relation(fields: [campaignId], references: [id])
+  adPlatform            AdPlatform?
+  adCampaignName        String?
+  adSetName             String?
+  adName                String?
+  adExternalIds         Json?
   /// Canal source pour un lien GATE (d'où vient le membre), ou canal où poster un lien SHARE (facultatif).
-  sourceChannelId    String?
-  language           String         @default("fr")
-  isActive           Boolean        @default(true)
-  createdById        String?
-  createdBy          User?          @relation(fields: [createdById], references: [id])
+  sourceChannelId       String?
+  /// Campagne Telegram d'affilié créée dans Link Affi (kind LINKAFFI, phase 13) : clé du lien de l'affilié
+  /// (`linkaffi.me/go/<clé>`), nom de la campagne, affilié, durée d'attribution en jours (null = à vie).
+  /// Idempotence de `POST /invite-links` : même clé + même canal = même lien.
+  linkaffiCampaignKey   String?
+  linkaffiCampaignName  String?
+  linkaffiAffiliateId   String?
+  linkaffiAffiliateName String?
+  attributionDays       Int?
+  language              String         @default("fr")
+  isActive              Boolean        @default(true)
+  createdById           String?
+  createdBy             User?          @relation(fields: [createdById], references: [id])
   /// Compteurs dénormalisés.
-  requests           Int            @default(0)
-  approved           Int            @default(0)
-  joined             Int            @default(0)
-  left               Int            @default(0)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  requests              Int            @default(0)
+  approved              Int            @default(0)
+  joined                Int            @default(0)
+  left                  Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  memberships   Membership[]
-  trackingLinks TrackingLink[]
-  rule          ApprovalRule?  @relation("RuleForLink")
-  ad            Ad?
+  memberships      Membership[]
+  affiliateMembers Member[]       @relation("AffiliateInviteLink")
+  trackingLinks    TrackingLink[]
+  rule             ApprovalRule?  @relation("RuleForLink")
+  ad               Ad?
 
+  @@unique([linkaffiCampaignKey, channelId])
+  @@index([linkaffiAffiliateId])
   @@index([channelId, kind])
   @@index([kind, createdAt])
   @@index([campaignId])
@@ -687,31 +719,34 @@ model TrackingLink {
 
 /// Clic sur un lien traqué ou un bouton. `subId` unique pour les clics OFFER (12 caractères base62, sans point).
 model Click {
-  id             String       @id @default(cuid())
-  trackingLinkId String
-  trackingLink   TrackingLink @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
-  subId          String?      @unique
-  memberId       String?
-  member         Member?      @relation(fields: [memberId], references: [id])
-  postId         String?
-  post           Post?        @relation(fields: [postId], references: [id])
-  botId          String?
-  bot            Bot?         @relation(fields: [botId], references: [id])
-  ipHash         String?
-  userAgent      String?
-  isBot          Boolean      @default(false)
-  referer        String?
-  country        String?
-  ttclid         String?
-  fbclid         String?
-  gclid          String?
-  utm            Json?
+  id                          String       @id @default(cuid())
+  trackingLinkId              String
+  trackingLink                TrackingLink @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+  subId                       String?      @unique
+  memberId                    String?
+  member                      Member?      @relation(fields: [memberId], references: [id])
+  postId                      String?
+  post                        Post?        @relation(fields: [postId], references: [id])
+  botId                       String?
+  bot                         Bot?         @relation(fields: [botId], references: [id])
+  ipHash                      String?
+  userAgent                   String?
+  isBot                       Boolean      @default(false)
+  referer                     String?
+  country                     String?
+  ttclid                      String?
+  fbclid                      String?
+  gclid                       String?
+  utm                         Json?
   /// URL finale envoyée au membre (offres), pour diagnostic.
-  destination    String?
-  createdAt      DateTime     @default(now())
+  destination                 String?
+  /// Campagne Telegram d'affilié Link Affi du membre au moment du clic d'offre (paramètre `tg`, phase 13).
+  linkaffiTelegramCampaignKey String?
+  createdAt                   DateTime     @default(now())
 
   players Player[]
 
+  @@index([linkaffiTelegramCampaignKey])
   @@index([memberId, createdAt])
   @@index([trackingLinkId, createdAt])
   @@index([postId, createdAt])
@@ -1580,4 +1615,66 @@ model AiSuggestion {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+// ============================================================
+// Phase 13 : campagnes Telegram des affiliés Link Affi (docs/LINKAFFI-PARTENAIRES.md)
+// ============================================================
+
+/// État d'un événement à envoyer à Link Affi (fonction `telegram-events`).
+enum LinkaffiEventStatus {
+  /// À envoyer (ou nouvel essai prévu à `nextAttemptAt`).
+  PENDING
+  /// Reçu par Link Affi (réponse 2xx).
+  SENT
+  /// Abandonné après 24 h de tentatives (Link Affi peut le rattraper par `GET /members`).
+  FAILED
+}
+
+/// Événement d'un membre d'affilié à envoyer à Link Affi : `join_requested`, `join_approved`, `join_declined`,
+/// `join_expired`, `joined`, `left`, `offer_clicked`. Corps exact du contrat dans `body` (JSON), signé HMAC-SHA256 à
+/// l'envoi avec le secret de `IntegrationKey`. `eventId` unique et déterministe : un doublon n'est jamais créé ni
+/// envoyé deux fois ; Link Affi ignore de toute façon un `eventId` déjà reçu.
+model LinkaffiEvent {
+  id            String              @id @default(cuid())
+  eventId       String              @unique
+  type          String
+  occurredAt    DateTime
+  campaignKey   String
+  memberId      String?
+  channelId     String?
+  /// Corps envoyé (contrat § 2), tel quel.
+  body          Json
+  status        LinkaffiEventStatus @default(PENDING)
+  attempts      Int                 @default(0)
+  nextAttemptAt DateTime            @default(now())
+  lastError     String?
+  lastStatus    Int?
+  sentAt        DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([campaignKey, occurredAt])
+  @@index([memberId])
+}
+
+/// Clés de l'intégration Link Affi (une ligne, `provider` = "linkaffi") : clé d'API que Link Affi envoie à notre API
+/// d'intégration (stockée hachée SHA-256, affichée une seule fois à la génération) et secret de signature des
+/// événements (chiffré AES-256-GCM avec APP_ENCRYPTION_KEY), adresse de la fonction `telegram-events`.
+model IntegrationKey {
+  provider               String    @id
+  apiKeyHash             String?   @unique
+  /// Début de la clé (affiché pour la reconnaître, jamais la clé entière).
+  apiKeyPrefix           String?
+  apiKeyCreatedAt        DateTime?
+  apiKeyCreatedById      String?
+  webhookSecretEncrypted String?
+  webhookSecretCreatedAt DateTime?
+  /// Adresse de la fonction Link Affi qui reçoit les événements (modifiable).
+  eventsUrl              String?
+  lastApiCallAt          DateTime?
+  lastEventSentAt        DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }

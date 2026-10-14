@@ -257,3 +257,25 @@ jobId `post:<id>:<attempts>` (sinon BullMQ ignorerait la reprogrammation).
 `post.custom_emoji_fallback` `{ postId, botId, error, resent }` (comptés par l'alerte `custom_emoji_refused`) ;
 `post.deferred` (publication par le compte reportée : FLOOD_WAIT, session occupée, réseau).
 
+
+## Phase 13 (14 octobre 2026) — migration `20261014124215_phase13_affilies_linkaffi`
+
+Campagnes Telegram des affiliés Link Affi (contrat `docs/LINKAFFI-PARTENAIRES.md`, version 2). Migration additive
+(une énumération, trois valeurs d'énumération, colonnes facultatives, deux tables, index, clé étrangère SET NULL) ;
+l'index unique `(linkaffiCampaignKey, channelId)` porte sur une colonne nouvelle (vide en production). Garde :
+`packages/db/prisma/migrations/phase13-affilies-linkaffi.test.ts`. Règles pures : `packages/core/src/linkaffi-partners.ts`
+(événements, signature, clés, paramètre `tg`, attribution, nouvelles tentatives) et `packages/core/src/provenance.ts`
+(provenance LINKAFFI, exceptions « n'importe quel affilié » et « un affilié précis »).
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `InviteLinkKind.LINKAFFI` + `InviteLink.linkaffiCampaignKey`, `linkaffiCampaignName`, `linkaffiAffiliateId`, `linkaffiAffiliateName`, `attributionDays` | Lien d'une campagne Telegram d'affilié créée dans Link Affi (`POST /invite-links`), avec demande d'adhésion. Même clé + même canal = même lien (`@@unique`). `attributionDays` null = à vie. |
+| `Member.linkaffiCampaignKey`, `linkaffiAffiliateId`, `affiliateAttributedAt`, `affiliateAttributionEndsAt`, `affiliateInviteLinkId` | Affilié qui a amené le membre : premier affilié gagne, jamais écrasé automatiquement ; changé ou retiré seulement par un ADMIN (journal). |
+| `Click.linkaffiTelegramCampaignKey` | Campagne Telegram d'affilié du membre au moment du clic d'offre (`&tg=<clé>` ajouté au lien Link Affi). |
+| `ApprovalSourceKind.LINKAFFI_ANY`, `LINKAFFI_AFFILIATE` + `ApprovalRule.linkaffiAffiliateId` | Exceptions de règle d'adhésion : n'importe quel affilié Link Affi, un affilié précis (une campagne précise = exception du lien, portée INVITE_LINK). |
+| `LinkaffiEvent` | Événement à envoyer à Link Affi : `eventId` unique et stable (`lap_<type>_<demande ou clic>`), `type`, `occurredAt`, `campaignKey`, corps exact du contrat (`body`), `status` PENDING / SENT / FAILED, `attempts`, `nextAttemptAt`, `lastError`, `lastStatus`, `sentAt`. Nouvelles tentatives pendant 24 h ; sert aussi au rattrapage `GET /members`. |
+| `IntegrationKey` (`provider` = "linkaffi") | Clé d'API de Link Affi stockée hachée (`apiKeyHash`, `apiKeyPrefix` pour l'affichage), secret de signature chiffré (`webhookSecretEncrypted`), adresse de la fonction `telegram-events` (`eventsUrl`), dernières utilisations. |
+
+Envoi : `emitLinkaffiEvent` (`packages/queue/src/linkaffi-events.ts`) enregistre l'événement d'un membre rattaché
+(attribution en cours ; événements d'adhésion du seul canal de sa campagne ; `offer_clicked` pour tout clic d'offre) et
+l'enfile dans la file BullMQ `linkaffi-events` (`deliver`, `tick` chaque minute).

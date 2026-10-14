@@ -534,6 +534,9 @@ importers:
 
   packages/queue:
     dependencies:
+      '@linkaffipro/core':
+        specifier: workspace:*
+        version: link:../core
       '@linkaffipro/db':
         specifier: workspace:*
         version: link:../db

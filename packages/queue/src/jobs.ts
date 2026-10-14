@@ -15,6 +15,7 @@ export const QUEUE_NAMES = [
   "sync-ads",
   "sync-views",
   "custom-emoji",
+  "linkaffi-events",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -99,6 +100,8 @@ export const JOB_RETRY_OPTIONS: Record<
   "sync-views": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
   // Emojis animés (phase 12) : aperçus par le Bot API, packs et état du compte par MTProto (FLOOD_WAIT possible).
   "custom-emoji": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // Événements Link Affi (phase 13) : nouvelles tentatives gérées par la ligne LinkaffiEvent (nextAttemptAt, 24 h).
+  "linkaffi-events": { attempts: 1 },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -125,6 +128,13 @@ export type CustomEmojiJob =
   | { type: "account-status"; channelIds?: string[] }
   | { type: "tick" };
 
+/**
+ * File `linkaffi-events` (phase 13) : envoi des événements des membres d'affiliés à la fonction Link Affi
+ * `telegram-events` (corps signé HMAC). `deliver` : un événement (`LinkaffiEvent.eventId`) ; `tick` : passage
+ * périodique (événements dus ou jamais mis en file, abandon après 24 h, alerte si la file est bloquée).
+ */
+export type LinkaffiEventsJob = { type: "deliver"; eventId: string } | { type: "tick" };
+
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
   : Q extends "approvals"
@@ -143,4 +153,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                 ? SyncViewsJob
                 : Q extends "custom-emoji"
                   ? CustomEmojiJob
-                  : StatsJob;
+                  : Q extends "linkaffi-events"
+                    ? LinkaffiEventsJob
+                    : StatsJob;

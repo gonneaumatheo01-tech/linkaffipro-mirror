@@ -349,3 +349,94 @@ describe("textes en français", () => {
     );
   });
 });
+
+describe("campagnes Telegram des affiliés Link Affi (phase 13)", () => {
+  const link = {
+    id: "l-aff",
+    kind: "LINKAFFI" as const,
+    sourceChannelId: null,
+    adPlatform: null,
+    linkaffiCampaignKey: "aB3dE5",
+    linkaffiCampaignName: "Paul · Zone Interdite",
+    linkaffiAffiliateId: "aff-paul",
+    linkaffiAffiliateName: "Paul",
+  };
+  const fromPaul = provenanceOfLink(link);
+  const fromMarie = provenanceOfLink({
+    ...link,
+    id: "l-aff2",
+    linkaffiAffiliateId: "aff-marie",
+    linkaffiAffiliateName: "Marie",
+  });
+  const kind = (
+    id: string,
+    sourceKind: ScopedRule["sourceKind"],
+    extra: Partial<ScopedRule> = {},
+  ) => rule({ id, scope: "SOURCE_KIND", sourceKind, ...extra });
+
+  it("lit la campagne et l'affilié du lien, et les relit depuis la demande enregistrée", () => {
+    expect(fromPaul).toMatchObject({
+      type: "LINKAFFI",
+      inviteLinkId: "l-aff",
+      linkaffi: { campaignKey: "aB3dE5", affiliateId: "aff-paul", affiliateName: "Paul" },
+    });
+    expect(provenanceFromJson(JSON.parse(JSON.stringify(fromPaul)))).toEqual(fromPaul);
+  });
+
+  it("campagne précise (lien), affilié précis, n'importe quel affilié", () => {
+    const rules = [
+      rule({ id: "default", scope: "DEFAULT" }),
+      kind("any", "LINKAFFI_ANY", { sortOrder: 20 }),
+      kind("paul", "LINKAFFI_AFFILIATE", { linkaffiAffiliateId: "aff-paul", sortOrder: 10 }),
+      rule({ id: "campaign", scope: "INVITE_LINK", inviteLinkId: "l-aff" }),
+    ];
+    expect(pickRuleForProvenance(rules, fromPaul)?.id).toBe("campaign");
+    expect(
+      pickRuleForProvenance(
+        rules.filter((r) => r.id !== "campaign"),
+        fromPaul,
+      )?.id,
+    ).toBe("paul");
+    expect(pickRuleForProvenance(rules, fromMarie)?.id).toBe("any");
+    expect(pickRuleForProvenance(rules, tiktok)?.id).toBe("default");
+    expect(
+      ruleMatches(kind("x", "LINKAFFI_AFFILIATE", { linkaffiAffiliateId: null }), fromPaul),
+    ).toBe(false);
+  });
+
+  it("« n'importe quel affilié » placé avant masque un affilié précis", () => {
+    const anyAff = kind("any", "LINKAFFI_ANY", { sortOrder: 1 });
+    const paul = kind("paul", "LINKAFFI_AFFILIATE", {
+      linkaffiAffiliateId: "aff-paul",
+      sortOrder: 2,
+    });
+    expect(shadowingRule([anyAff, paul], paul)?.id).toBe("any");
+    expect(placeNewRule([anyAff], paul).map((r) => r.id)).toEqual(["paul", "any"]);
+    const marie = kind("marie", "LINKAFFI_AFFILIATE", {
+      linkaffiAffiliateId: "aff-marie",
+      sortOrder: 0,
+    });
+    expect(shadowingRule([marie, paul], paul)).toBeNull();
+  });
+
+  it("canal sans règle : validation à la main ; accueil complet ; textes en français", () => {
+    expect(noRuleOutcome(fromPaul)).toBe("MANUAL");
+    expect(welcomeKindFor({ provenance: fromPaul, hasGates: false, sendWelcome: true })).toBe(
+      "full",
+    );
+    expect(provenanceLabel(fromPaul)).toBe(
+      "Venu de l'affilié « Paul » (campagne « Paul · Zone Interdite »)",
+    );
+    expect(exceptionCondition(kind("x", "LINKAFFI_ANY"))).toBe(
+      "de n'importe quel affilié Link Affi",
+    );
+    expect(
+      exceptionCondition(
+        kind("x", "LINKAFFI_AFFILIATE", { linkaffiAffiliateId: "aff-paul" }),
+        {},
+        {},
+        { "aff-paul": "Paul" },
+      ),
+    ).toBe("de l'affilié « Paul »");
+  });
+});

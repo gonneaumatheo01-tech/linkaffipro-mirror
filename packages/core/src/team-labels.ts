@@ -24,6 +24,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   gate_links_missing: "Liens de canaux à rejoindre impossibles à créer",
   custom_emoji_refused: "Emojis animés refusés par Telegram",
   telegram_account_reconnect: "Compte Telegram à reconnecter",
+  linkaffi_events_stuck: "Événements Link Affi en attente",
 };
 
 export function alertKindLabel(kind: string): string {
@@ -58,6 +59,7 @@ export const QUEUE_LABELS: Record<string, string> = {
   "sync-ads": "Synchro des pubs (Meta, TikTok)",
   "sync-views": "Vues Telegram",
   "custom-emoji": "Emojis animés",
+  "linkaffi-events": "Événements Link Affi",
   stats: "Statistiques",
   maintenance: "Maintenance",
   automations: "Relances automatiques",
