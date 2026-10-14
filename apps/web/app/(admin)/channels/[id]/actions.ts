@@ -23,6 +23,7 @@ import {
   type ExceptionScope,
   type ExceptionTarget,
 } from "@/lib/channels/exceptions";
+import { affiliateLabel, campaignLabel } from "@/lib/affiliates/scope";
 import { gateCheckFlash, alignGate } from "@/lib/channels/gate-links";
 import { verifyChannelGateLinks } from "@/lib/channels/rule-gate-links";
 import { calendarReturnParams } from "@/lib/channels/return-to";
@@ -261,6 +262,7 @@ function exceptionMetadata(
     sourceChannelId: string | null;
     sourceKind: string | null;
     inviteLinkId: string | null;
+    linkaffiAffiliateId?: string | null;
     label: string | null;
     isActive: boolean;
   },
@@ -272,6 +274,7 @@ function exceptionMetadata(
     sourceChannelId: r.sourceChannelId,
     sourceKind: r.sourceKind,
     inviteLinkId: r.inviteLinkId,
+    ...(r.linkaffiAffiliateId ? { linkaffiAffiliateId: r.linkaffiAffiliateId } : {}),
     label: r.label,
     isActive: r.isActive,
     ...extra,
@@ -325,10 +328,7 @@ export async function saveExceptionAction(
   const existing = d.ruleId ? siblings.find((r) => r.id === d.ruleId) : undefined;
   if (d.ruleId && !existing) return { error: "Cette exception n'existe plus : rechargez la page." };
 
-  const names: { titles: Record<string, string>; linkNames: Record<string, string> } = {
-    titles: {},
-    linkNames: {},
-  };
+  const names: TargetNames = { titles: {}, linkNames: {}, affiliateNames: {}, affiliateLinks: {} };
   const problem = await checkTarget(target, d.channelId, existing?.inviteLinkId ?? null, names);
   if (problem) return { error: problem };
   if (findDuplicate(siblings, target, existing?.id))
@@ -355,6 +355,8 @@ export async function saveExceptionAction(
     inviteLinkId: target.inviteLinkId,
     sourceChannelId: target.sourceChannelId,
     sourceKind: target.sourceKind,
+    // Affilié Link Affi précis (phase 13) ; vidé pour toute autre provenance.
+    linkaffiAffiliateId: target.linkaffiAffiliateId,
   };
   let saved;
   try {
@@ -401,13 +403,34 @@ export async function saveExceptionAction(
   });
 }
 
+/** Noms remplis par `checkTarget` pour le libellé et les messages de l'exception. */
+type TargetNames = {
+  titles: Record<string, string>;
+  linkNames: Record<string, string>;
+  affiliateNames: Record<string, string>;
+  affiliateLinks: Record<string, { campaignName: string; affiliateName: string }>;
+};
+
 /** La cible existe-t-elle et appartient-elle bien à ce canal ? Remplit les noms utiles au libellé ; message sinon. */
 async function checkTarget(
   target: ExceptionTarget,
   channelId: string,
   currentLinkId: string | null,
-  names: { titles: Record<string, string>; linkNames: Record<string, string> },
+  names: TargetNames,
 ): Promise<string | null> {
+  if (target.scope === "SOURCE_KIND" && target.sourceKind === "LINKAFFI_AFFILIATE") {
+    // Un affilié précis : connu par au moins une campagne Telegram d'affilié (lien LINKAFFI), la plus récente nomme.
+    const link = await prisma.inviteLink.findFirst({
+      where: { kind: "LINKAFFI", linkaffiAffiliateId: target.linkaffiAffiliateId },
+      orderBy: { createdAt: "desc" },
+      select: { linkaffiAffiliateId: true, linkaffiAffiliateName: true },
+    });
+    if (!link) return "Cet affilié n'est plus connu : choisissez une autre provenance.";
+    names.affiliateNames[target.linkaffiAffiliateId!] = affiliateLabel(
+      link.linkaffiAffiliateId,
+      link.linkaffiAffiliateName,
+    );
+  }
   if (target.scope === "SOURCE_CHANNEL") {
     if (target.sourceChannelId === channelId)
       return "Choisissez un autre canal que celui-ci : la personne vient d'ailleurs.";
@@ -421,12 +444,29 @@ async function checkTarget(
   if (target.scope === "INVITE_LINK") {
     const link = await prisma.inviteLink.findFirst({
       where: { id: target.inviteLinkId!, channelId },
-      select: { id: true, name: true, kind: true },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        linkaffiCampaignKey: true,
+        linkaffiCampaignName: true,
+        linkaffiAffiliateId: true,
+        linkaffiAffiliateName: true,
+      },
     });
     if (!link) return "Ce lien n'existe plus : choisissez une autre provenance.";
-    if (link.kind !== "SHARE" && link.id !== currentLinkId)
-      return "Choisissez un lien de partage de ce canal.";
+    // Lien de partage, ou campagne Telegram d'affilié Link Affi de ce canal (phase 13).
+    if (link.kind !== "SHARE" && link.kind !== "LINKAFFI" && link.id !== currentLinkId)
+      return "Choisissez un lien de partage ou une campagne d'affilié de ce canal.";
     names.linkNames[link.id] = link.name;
+    if (link.kind === "LINKAFFI" && link.linkaffiCampaignKey)
+      names.affiliateLinks[link.id] = {
+        campaignName: campaignLabel({
+          campaignName: link.linkaffiCampaignName,
+          campaignKey: link.linkaffiCampaignKey,
+        }),
+        affiliateName: affiliateLabel(link.linkaffiAffiliateId, link.linkaffiAffiliateName),
+      };
   }
   return null;
 }

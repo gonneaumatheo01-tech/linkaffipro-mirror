@@ -26,8 +26,8 @@ function cleanQuery(form: HTMLFormElement, defaultRange: PeriodKey): string {
 
 /**
  * Sélecteur unique des statistiques, en haut de chaque page : période (avec deux dates pour « Personnalisée », juste
- * après la période qu'elles précisent), comparaison avec la période précédente, univers, campagne ; le canal est
- * rangé dans « Plus de filtres ». `defaultRange` : période par défaut de la page (non écrite dans l'adresse).
+ * après la période qu'elles précisent), comparaison avec la période précédente, univers, campagne ; le canal et
+ * l'affilié Link Affi (vue d'ensemble seulement, `showAffiliate`) sont rangés dans « Plus de filtres ». `defaultRange` : période par défaut de la page (non écrite dans l'adresse).
  * Formulaire GET vers la page courante : les valeurs vivent dans l'adresse et suivent la sous-navigation.
  * Un filtre qu'une page n'utilise pas (`showCompare`, `showChannel` à faux) est gardé en champ caché.
  * « Appliquer » recharge la page (pas d'envoi automatique : lire une liste au clavier ne change pas la page).
@@ -41,10 +41,13 @@ export function StatsFilters({
   vertical,
   campaignId,
   channelId,
+  affiliateId = "",
   campaigns,
   channels,
+  affiliates = [],
   showCompare = true,
   showChannel = true,
+  showAffiliate = false,
   channelHelp,
   defaultRange = STATS_DEFAULT_RANGE,
   className,
@@ -55,10 +58,16 @@ export function StatsFilters({
   vertical: string;
   campaignId: string;
   channelId: string;
+  /** Affilié Link Affi choisi (phase 13). */
+  affiliateId?: string;
   campaigns: Array<{ id: string; name: string }>;
   channels: Array<{ id: string; title: string }>;
+  /** Affiliés Link Affi connus ; le choix n'apparaît que s'il y en a. */
+  affiliates?: Array<{ id: string; name: string }>;
   showCompare?: boolean;
   showChannel?: boolean;
+  /** La page sait-elle filtrer par affilié ? Sinon le filtre posé reste en champ caché. */
+  showAffiliate?: boolean;
   /** Une phrase sous le choix du canal (ce qu'il change sur cette page). */
   channelHelp?: string;
   /** Période par défaut de la page (`statsDefaultRange`). */
@@ -69,7 +78,18 @@ export function StatsFilters({
   const router = useRouter();
   const [range, setRange] = useState<PeriodKey>(period.key);
   const custom = range === "custom";
-  const more = moreFiltersCount({ channelId });
+  const affiliateChoices = [
+    ...affiliates,
+    ...(affiliateId && !affiliates.some((a) => a.id === affiliateId)
+      ? [{ id: affiliateId, name: affiliateId }]
+      : []),
+  ];
+  const affiliateShown = showAffiliate && affiliateChoices.length > 0;
+  const more = moreFiltersCount({
+    channelId: showChannel ? channelId : "",
+    affiliateId: affiliateShown ? affiliateId : "",
+  });
+  const moreShown = showChannel || affiliateShown;
 
   return (
     <form
@@ -180,37 +200,73 @@ export function StatsFilters({
           Appliquer
         </Button>
       </div>
-      {showChannel ? (
+      {moreShown ? (
         <details className="group/more mt-3" open={more > 0}>
           <summary className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md text-note font-medium text-muted-foreground hover:text-foreground max-md:min-h-10">
             <SlidersHorizontal aria-hidden className="size-3.5" />
             Plus de filtres{more ? ` (${more})` : ""}
           </summary>
-          <div className="mt-2 flex flex-col gap-1">
-            <Label
-              htmlFor={`${id}-channel`}
-              className="text-note font-medium text-muted-foreground"
-            >
-              Canal
-            </Label>
-            <NativeSelect
-              id={`${id}-channel`}
-              name="channelId"
-              defaultValue={channelId}
-              wrapperClassName="w-full md:w-64"
-            >
-              <option value="">Tous les canaux</option>
-              {channels.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </NativeSelect>
-            {channelHelp ? <p className="text-note text-muted-foreground">{channelHelp}</p> : null}
+          <div className="mt-2 grid grid-cols-1 gap-3 md:flex md:flex-wrap md:items-start">
+            {showChannel ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <Label
+                  htmlFor={`${id}-channel`}
+                  className="text-note font-medium text-muted-foreground"
+                >
+                  Canal
+                </Label>
+                <NativeSelect
+                  id={`${id}-channel`}
+                  name="channelId"
+                  defaultValue={channelId}
+                  wrapperClassName="w-full md:w-64"
+                >
+                  <option value="">Tous les canaux</option>
+                  {channels.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </NativeSelect>
+                {channelHelp ? (
+                  <p className="text-note text-muted-foreground md:max-w-64">{channelHelp}</p>
+                ) : null}
+              </div>
+            ) : null}
+            {affiliateShown ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <Label
+                  htmlFor={`${id}-affiliate`}
+                  className="text-note font-medium text-muted-foreground"
+                >
+                  Affilié Link Affi
+                </Label>
+                <NativeSelect
+                  id={`${id}-affiliate`}
+                  name="affiliateId"
+                  defaultValue={affiliateId}
+                  wrapperClassName="w-full md:w-64"
+                >
+                  <option value="">Tous, avec ou sans affilié</option>
+                  {affiliateChoices.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="text-note text-muted-foreground md:max-w-64">
+                  Ses membres, leurs clics sur les offres et ses joueurs.
+                </p>
+              </div>
+            ) : null}
           </div>
         </details>
-      ) : channelId ? (
+      ) : null}
+      {!showChannel && channelId ? (
         <input type="hidden" name="channelId" value={channelId} />
+      ) : null}
+      {!affiliateShown && affiliateId ? (
+        <input type="hidden" name="affiliateId" value={affiliateId} />
       ) : null}
     </form>
   );

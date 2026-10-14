@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Handshake } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
@@ -56,6 +57,8 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
     vertical: f.vertical,
     channelId: f.channelId,
     ...(f.campaignId ? { campaignId: f.campaignId } : {}),
+    // Affilié Link Affi (phase 13) : ses membres, ses clics d'offre et ses joueurs.
+    ...(f.affiliateId ? { affiliateId: f.affiliateId } : {}),
   };
   const [options, bots, channels, members, lastEvents, dash, prevDash] = await Promise.all([
     loadStatsOptions(),
@@ -242,6 +245,17 @@ export default async function StatsOverviewPage({ searchParams }: PageProps<"/st
         sp={sp}
         help={activeSummary({ bots, channels, members })}
         channelHelp="Limite les chiffres à un canal : ses demandes, ses membres et les joueurs venus de ses messages."
+        secondaryActions={
+          options.affiliates?.length ? (
+            <Link
+              href="/campaigns/affiliates"
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+            >
+              <Handshake aria-hidden />
+              Affiliés Link Affi
+            </Link>
+          ) : undefined
+        }
       />
 
       {options.campaigns.length === 0 ? (

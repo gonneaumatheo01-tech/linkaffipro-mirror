@@ -10,6 +10,14 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "member.unblocked": "A débloqué le bot",
   "member.anonymized": "Données anonymisées",
   "member.tags_changed": "Étiquettes modifiées",
+  // Affiliés Link Affi (phase 13).
+  "member.affiliate_attributed": "Rattaché à un affilié Link Affi",
+  "member.affiliate_changed": "Affilié Link Affi changé par un administrateur",
+  "member.affiliate_removed": "Affilié Link Affi retiré par un administrateur",
+  "membership.affiliate_not_attributed":
+    "Pas rattaché à l'affilié (déjà rattaché à un autre, ou déjà dans le canal)",
+  "linkaffi_event.sent": "Événement transmis à Link Affi",
+  "linkaffi_event.failed": "Événement non transmis à Link Affi (abandonné après 24 h)",
   "membership.requested": "Demande d'adhésion",
   "membership.gate_satisfied": "Canaux requis rejoints",
   "membership.approved": "Demande acceptée",
@@ -85,6 +93,7 @@ export function eventLabel(type: string): string {
   if (type.startsWith("invite_link.")) return "Lien d'invitation";
   if (type.startsWith("member.")) return "Membre";
   if (type.startsWith("custom_emoji.")) return "Emojis animés";
+  if (type.startsWith("linkaffi_event.")) return "Événement pour Link Affi";
   return "Autre événement";
 }
 
@@ -106,4 +115,5 @@ export const EVENT_FAMILIES: Array<{ prefix: string; label: string }> = [
   { prefix: "invite_link.", label: "Liens d'invitation" },
   { prefix: "offer.", label: "Boutons Offre" },
   { prefix: "ads.", label: "Campagnes pub (synchro)" },
+  { prefix: "linkaffi_event.", label: "Événements envoyés à Link Affi" },
 ];

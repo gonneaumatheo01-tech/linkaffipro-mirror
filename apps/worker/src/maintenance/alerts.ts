@@ -25,6 +25,7 @@ import {
   detectDmBlocked,
   detectGateLinksMissing,
   detectJobFailures,
+  detectLinkaffiEventsStuck,
   detectOfferLinkInactive,
   detectPostFailed,
   detectQueueBacklog,
@@ -310,6 +311,18 @@ async function telegramAccountSnapshot(now: Date) {
   return { status: session.status, pendingAccountPosts };
 }
 
+/** Événements à envoyer à Link Affi encore en attente (phase 13) : nombre, plus ancien, sa raison d'attente. */
+async function linkaffiEventsSnapshot() {
+  const oldest = await prisma.linkaffiEvent.findFirst({
+    where: { status: "PENDING" },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true, lastError: true },
+  });
+  if (!oldest) return null;
+  const pending = await prisma.linkaffiEvent.count({ where: { status: "PENDING" } });
+  return { pending, oldestCreatedAt: oldest.createdAt, lastError: oldest.lastError };
+}
+
 /** Évalue toutes les règles et renvoie les alertes détectées. */
 export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   const detected: Detected[] = [];
@@ -401,6 +414,11 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     [
       "custom_emoji_refused",
       async () => detectCustomEmojiRefused(await customEmojiFallbackSnapshot(now)),
+    ],
+    // Événements des membres d'affiliés pas reçus par Link Affi depuis plus d'une heure (phase 13).
+    [
+      "linkaffi_events_stuck",
+      async () => detectLinkaffiEventsStuck(await linkaffiEventsSnapshot(), now),
     ],
     // Compte Telegram connecté à reconnecter (vues, messages avec emojis animés : phase 12).
     [

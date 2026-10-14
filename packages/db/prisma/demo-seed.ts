@@ -12,14 +12,19 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import bcrypt from "bcryptjs";
 import {
+  affiliateAttributionEndsAt,
+  buildLinkaffiEvent,
   encrypt,
   fillUrlTemplate,
+  linkaffiInviteLinkName,
   newSubId,
   parseEncryptionKey,
   provenanceLabel,
   provenanceOfLink,
   randomToken,
   shortId,
+  withTelegramCampaignParam,
+  type LinkaffiEventType,
   type ProvenanceLink,
 } from "@linkaffipro/core";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -619,6 +624,13 @@ async function removeDemo(db: Db): Promise<Record<string, number>> {
     }),
   );
   count("joueurs", await db.player.deleteMany({ where: { memberId: { in: members } } }));
+  // Phase 13 : événements à envoyer à Link Affi des membres de démonstration (aucune clé étrangère).
+  count(
+    "événements pour Link Affi",
+    await db.linkaffiEvent.deleteMany({
+      where: { OR: [{ memberId: { in: members } }, { campaignKey: { startsWith: "demotg" } }] },
+    }),
+  );
   count(
     "programmes",
     await db.affiliateProgram.deleteMany({ where: { id: { in: programs.map((p) => p.id) } } }),
@@ -2031,6 +2043,27 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
     members: members.map((m) => ({ id: m.id, firstSeenAt: m.firstSeenAt })),
   });
 
+  // Phase 13 : campagnes Telegram des affiliés Link Affi (deux affiliés, trois campagnes, leurs membres et joueurs).
+  const phase13 = await createPhase13Demo(db, {
+    now,
+    botIdByVertical,
+    channelId,
+    channelTitle: Object.fromEntries(CHANNELS.map((c) => [c.key, c.title])) as Record<
+      ChannelKey,
+      string
+    >,
+    channelVertical: Object.fromEntries(CHANNELS.map((c) => [c.key, c.vertical])) as Record<
+      ChannelKey,
+      Vertical
+    >,
+    offerId,
+    offerTemplate,
+    campaignIdOfChannel: (k) => {
+      const i = campaignOfChannel(k);
+      return i === null ? null : campaignIds[i]!;
+    },
+  });
+
   // Étiquettes du registre (ajoutées sans rien retirer) et état de la synchronisation Link Affi (si absent).
   const regValue = (await db.setting.findUnique({ where: { key: "members.tags" } }))?.value;
   const registry = Array.isArray(regValue)
@@ -2098,6 +2131,12 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "messages privés": outbound.length,
       "phase 11 : exceptions selon la provenance": phase11.exceptions,
       "phase 11 : liens de partage": phase11.shareLinks,
+      "phase 13 : campagnes d'affiliés Link Affi": phase13.campaigns,
+      "phase 13 : membres d'affiliés": phase13.members,
+      "phase 13 : clics d'offre avec la campagne": phase13.clicks,
+      "phase 13 : joueurs d'affiliés": phase13.players,
+      "phase 13 : premiers dépôts d'affiliés": phase13.ftds,
+      "phase 13 : événements transmis à Link Affi": phase13.linkaffiEvents,
       "phase 11 : demandes avec provenance": phase11.memberships,
     },
   };
@@ -2782,6 +2821,704 @@ async function createPhase11Demo(
     exceptions: Object.values(rules).filter((x) => x.scope !== "DEFAULT").length,
     shareLinks: 2,
     memberships: rows.length,
+  };
+}
+
+// ============================================================
+// Phase 13 : campagnes Telegram des affiliés Link Affi (contrat docs/LINKAFFI-PARTENAIRES.md)
+// ============================================================
+//
+// Deux affiliés (Paul Martin, Sarah K.) et trois campagnes Telegram créées « dans Link Affi » (liens LINKAFFI avec
+// demande d'adhésion) : Paul sur « Casino VIP » (à vie) et « Pronos Foot » (à vie), Sarah sur « Casino VIP » (30 jours).
+// Leurs membres (rattachés, premier affilié gagne), des demandes à tous les statuts, des clics d'offre avec `&tg=`, des
+// joueurs avec premiers dépôts (dont aujourd'hui et hier), les événements déjà « transmis à Link Affi » (jamais en
+// attente : rien ne part vers Link Affi depuis la base locale), une personne non rattachée (déjà membre d'un autre
+// affilié), deux exceptions de règle (« de l'affilié « Paul Martin » », « de n'importe quel affilié Link Affi ») et
+// le relevé de la synchro (clics comptés par Link Affi, un écart). Le membre le plus ancien avec un premier dépôt est
+// un membre de Paul : c'est la fiche des captures (`/members/:id`). Tirage à part (graine propre).
+
+const P13_AFFILIATES = [
+  { id: "demo-aff-paul", name: "Paul Martin" },
+  { id: "demo-aff-sarah", name: "Sarah K." },
+] as const;
+
+const P13_CAMPAIGNS: ReadonlyArray<{
+  key: string;
+  name: string;
+  affiliate: 0 | 1;
+  channel: ChannelKey;
+  offer: OfferKey;
+  attributionDays: number | null;
+  createdDaysAgo: number;
+  members: number;
+}> = [
+  {
+    key: "demotgpaul01",
+    name: "Paul — Casino VIP",
+    affiliate: 0,
+    channel: "casinoVip",
+    offer: "casinoA",
+    attributionDays: null,
+    createdDaysAgo: 70,
+    members: 22,
+  },
+  {
+    key: "demotgpaul02",
+    name: "Paul — Pronos Foot",
+    affiliate: 0,
+    channel: "sportsFoot",
+    offer: "sportsA",
+    attributionDays: null,
+    createdDaysAgo: 35,
+    members: 12,
+  },
+  {
+    key: "demotgsarah1",
+    name: "Sarah — Casino VIP 30 jours",
+    affiliate: 1,
+    channel: "casinoVip",
+    offer: "casinoB",
+    attributionDays: 30,
+    createdDaysAgo: 28,
+    members: 14,
+  },
+];
+
+/** Identifiants Telegram des membres de la phase 13 (dans la plage de démonstration, après ceux des autres). */
+const P13_MEMBER_ID_BASE = DEMO_MEMBER_ID_BASE + 600_000n;
+
+async function createPhase13Demo(
+  db: Db,
+  ctx: {
+    now: Date;
+    botIdByVertical: Record<Vertical, string>;
+    channelId: Record<ChannelKey, string>;
+    channelTitle: Record<ChannelKey, string>;
+    channelVertical: Record<ChannelKey, Vertical>;
+    offerId: Record<OfferKey, string>;
+    offerTemplate: Record<OfferKey, string>;
+    /** Notre campagne du canal (bouton Offre rattaché à la campagne, comme les autres messages de démonstration). */
+    campaignIdOfChannel: (k: ChannelKey) => string | null;
+  },
+): Promise<{
+  campaigns: number;
+  members: number;
+  memberships: number;
+  clicks: number;
+  players: number;
+  ftds: number;
+  linkaffiEvents: number;
+}> {
+  const { now } = ctx;
+  const r = createRandom(SEED + 13);
+  const notFuture = (d: Date) =>
+    d.getTime() > now.getTime() - MIN ? new Date(now.getTime() - MIN) : d;
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+
+  // Liens des campagnes Telegram d'affiliés (créés à la demande de Link Affi, avec demande d'adhésion).
+  const links = P13_CAMPAIGNS.map((c) => {
+    const a = P13_AFFILIATES[c.affiliate];
+    return {
+      ...c,
+      id: stableId(`p13:link:${c.key}`),
+      offerLinkId: stableId(`p13:offer-link:${c.key}`),
+      affiliateId: a.id,
+      affiliateName: a.name,
+      url: `https://t.me/+DEMO13${c.key.slice(6)}${shortId(6)}`,
+      createdAt: ago(c.createdDaysAgo * DAY),
+      botId: ctx.botIdByVertical[ctx.channelVertical[c.channel]],
+      counters: { requests: 0, approved: 0, joined: 0, left: 0 },
+    };
+  });
+  for (const l of links) {
+    await db.inviteLink.create({
+      data: {
+        id: l.id,
+        channelId: ctx.channelId[l.channel],
+        botId: l.botId,
+        telegramInviteLink: l.url,
+        name: linkaffiInviteLinkName(l.name),
+        kind: "LINKAFFI",
+        createsJoinRequest: true,
+        linkaffiCampaignKey: l.key,
+        linkaffiCampaignName: l.name,
+        linkaffiAffiliateId: l.affiliateId,
+        linkaffiAffiliateName: l.affiliateName,
+        attributionDays: l.attributionDays,
+        createdById: null,
+        createdAt: l.createdAt,
+      },
+    });
+    // Bouton Offre des messages du canal (un identifiant de suivi par membre et par clic).
+    await db.trackingLink.create({
+      data: {
+        id: l.offerLinkId,
+        slug: `d13${shortId(7)}`,
+        kind: "OFFER",
+        destinationTemplate: ctx.offerTemplate[l.offer],
+        label: `Bouton Offre · ${ctx.channelTitle[l.channel]}`,
+        channelId: ctx.channelId[l.channel],
+        campaignId: ctx.campaignIdOfChannel(l.channel),
+        affiliateCampaignId: ctx.offerId[l.offer],
+        createdAt: l.createdAt,
+      },
+    });
+  }
+
+  // Exceptions de règle selon la provenance (phase 13).
+  const exceptions = [
+    {
+      id: stableId("p13:rule:casinoVip:paul"),
+      channel: "casinoVip" as const,
+      sourceKind: "LINKAFFI_AFFILIATE" as const,
+      linkaffiAffiliateId: P13_AFFILIATES[0].id as string | null,
+      label: frQuotesDemo(`Venu de l'affilié « ${P13_AFFILIATES[0].name} »`),
+      mode: "IMMEDIATE" as const,
+      delaySeconds: 0,
+    },
+    {
+      id: stableId("p13:rule:sportsFoot:any"),
+      channel: "sportsFoot" as const,
+      sourceKind: "LINKAFFI_ANY" as const,
+      linkaffiAffiliateId: null,
+      label: "Venu de n'importe quel affilié Link Affi",
+      mode: "DELAY" as const,
+      delaySeconds: 3_600,
+    },
+  ];
+  for (const e of exceptions)
+    await db.approvalRule.create({
+      data: {
+        id: e.id,
+        channelId: ctx.channelId[e.channel],
+        name: e.label,
+        label: e.label,
+        isDefault: false,
+        scope: "SOURCE_KIND",
+        sourceKind: e.sourceKind,
+        linkaffiAffiliateId: e.linkaffiAffiliateId,
+        sortOrder: 10,
+        sendWelcome: true,
+        sendAcceptedMessage: true,
+        mode: e.mode,
+        delaySeconds: e.delaySeconds,
+        gateMode: "NONE",
+        gateChannelIds: [],
+        reminderAfterMinutes: [],
+        maxReminders: 0,
+        expireAfterHours: null,
+        expireAction: "KEEP",
+        createdAt: ago(25 * DAY),
+      },
+    });
+  const ruleOf = (c: ChannelKey) => exceptions.find((e) => e.channel === c)!;
+
+  const members: Prisma.MemberCreateManyInput[] = [];
+  const memberships: Prisma.MembershipCreateManyInput[] = [];
+  const clicks: Prisma.ClickCreateManyInput[] = [];
+  const players: Prisma.PlayerCreateManyInput[] = [];
+  const playerEvents: Prisma.PlayerEventCreateManyInput[] = [];
+  const events: Prisma.EventCreateManyInput[] = [];
+  const linkaffiEvents: Prisma.LinkaffiEventCreateManyInput[] = [];
+  let memberIndex = 0;
+  let playerIndex = 0;
+  let ftds = 0;
+  const forcedFtd = { today: false, yesterday: false };
+
+  /** Événement « transmis à Link Affi » (corps exact du contrat, déjà reçu : rien ne repartira). */
+  const sent = (input: {
+    type: LinkaffiEventType;
+    sourceId: string;
+    at: Date;
+    link: (typeof links)[number];
+    member: { id: string; tgId: bigint; firstName: string; username: string | null };
+    data?: Record<string, unknown>;
+  }) => {
+    if (input.at.getTime() > now.getTime() - MIN) return;
+    const body = buildLinkaffiEvent({
+      type: input.type,
+      sourceId: input.sourceId,
+      occurredAt: input.at,
+      campaignKey: input.link.key,
+      channel: {
+        id: ctx.channelId[input.link.channel],
+        title: ctx.channelTitle[input.link.channel],
+      },
+      member: {
+        telegramUserId: input.member.tgId,
+        username: input.member.username,
+        firstName: input.member.firstName,
+        languageCode: "fr",
+      },
+      data: input.data,
+    });
+    linkaffiEvents.push({
+      eventId: body.eventId,
+      type: input.type,
+      occurredAt: input.at,
+      campaignKey: input.link.key,
+      memberId: input.member.id,
+      channelId: ctx.channelId[input.link.channel],
+      body: body as unknown as Prisma.InputJsonValue,
+      status: "SENT",
+      attempts: 1,
+      nextAttemptAt: input.at,
+      lastStatus: 200,
+      sentAt: new Date(input.at.getTime() + 2_000),
+      createdAt: input.at,
+    });
+  };
+
+  for (const l of links) {
+    const channelId = ctx.channelId[l.channel];
+    const span = Math.max(1, l.createdDaysAgo - 1);
+    for (let i = 0; i < l.members; i++) {
+      const tgId = P13_MEMBER_ID_BASE + BigInt(memberIndex++);
+      const memberId = stableId(`p13:member:${l.key}:${i}`);
+      const firstName = r.pick(FIRST_NAMES);
+      const username = r.chance(0.7)
+        ? `${firstName
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[^a-z]/g, "")}${r.int(10, 99)}`
+        : null;
+      // Le tout premier membre de Paul : le plus ancien des déposants (fiche des captures).
+      const featured = l.key === "demotgpaul01" && i === 0;
+      const requestedAt = featured
+        ? ago(62 * DAY + 3 * HOUR)
+        : notFuture(ago(r.next() * span * DAY + r.int(1, 20) * MIN));
+      const recent = now.getTime() - requestedAt.getTime() < 2 * DAY;
+      const status = featured
+        ? "APPROVED"
+        : r.weighted<"APPROVED" | "LEFT" | "REQUESTED" | "DECLINED" | "EXPIRED">([
+            ["APPROVED", 70],
+            ["LEFT", 12],
+            [recent ? "REQUESTED" : "APPROVED", 8],
+            ["DECLINED", 5],
+            ["EXPIRED", 5],
+          ]);
+      const rule = ruleOf(l.channel);
+      const approvedAt =
+        status === "APPROVED" || status === "LEFT"
+          ? notFuture(new Date(requestedAt.getTime() + (rule.delaySeconds + r.int(2, 40)) * 1000))
+          : null;
+      const joinedAt = approvedAt
+        ? notFuture(new Date(approvedAt.getTime() + r.int(3, 90) * 1000))
+        : null;
+      const leftAt =
+        status === "LEFT" && joinedAt
+          ? notFuture(new Date(joinedAt.getTime() + r.int(1, 12) * DAY))
+          : null;
+      // Refus (par l'équipe) ou expiration (la personne n'a pas fini) : 1 à 72 heures après la demande.
+      const closedAt =
+        status === "DECLINED" || status === "EXPIRED"
+          ? notFuture(new Date(requestedAt.getTime() + r.int(1, 72) * HOUR))
+          : null;
+      const declinedAt = status === "DECLINED" ? closedAt : null;
+      const endsAt = affiliateAttributionEndsAt(requestedAt, l.attributionDays);
+      const lastSeenAt = [requestedAt, joinedAt, leftAt]
+        .filter((d): d is Date => !!d)
+        .sort((a, b) => b.getTime() - a.getTime())[0]!;
+      members.push({
+        id: memberId,
+        telegramUserId: tgId,
+        firstName,
+        lastName: r.chance(0.4) ? `${r.pick(LAST_INITIALS.split(""))}.` : null,
+        username,
+        languageCode: "fr",
+        firstSeenAt: requestedAt,
+        lastSeenAt,
+        tags: [],
+        linkaffiCampaignKey: l.key,
+        linkaffiAffiliateId: l.affiliateId,
+        affiliateAttributedAt: requestedAt,
+        affiliateAttributionEndsAt: endsAt,
+        affiliateInviteLinkId: l.id,
+      });
+      const msId = newId();
+      const link = {
+        id: l.id,
+        kind: "LINKAFFI" as const,
+        sourceChannelId: null,
+        adPlatform: null,
+        linkaffiCampaignKey: l.key,
+        linkaffiCampaignName: l.name,
+        linkaffiAffiliateId: l.affiliateId,
+        linkaffiAffiliateName: l.affiliateName,
+      };
+      const provenance = provenanceOfLink(link);
+      memberships.push({
+        id: msId,
+        code: shortId(8),
+        memberId,
+        channelId,
+        status,
+        inviteLinkId: l.id,
+        approvalRuleId: rule.id,
+        requestedAt,
+        approveAt: approvedAt,
+        approvedAt,
+        joinedAt,
+        leftAt,
+        declinedAt,
+        expiresAt: status === "EXPIRED" ? closedAt : null,
+        approvedByBotId: approvedAt ? l.botId : null,
+        source: {
+          demo: true,
+          provenance: { ...provenance, label: provenanceLabel(provenance, {}, l.name) },
+          appliedRule: { id: rule.id, scope: "SOURCE_KIND", label: rule.label },
+          telegramInviteLink: l.url,
+          botId: l.botId,
+        },
+      });
+      l.counters.requests++;
+      if (approvedAt) l.counters.approved++;
+      if (joinedAt) l.counters.joined++;
+      if (leftAt) l.counters.left++;
+      const who = { id: memberId, tgId, firstName, username };
+      const base = { memberId, channelId, botId: l.botId };
+      events.push({
+        ...base,
+        type: "membership.requested",
+        occurredAt: requestedAt,
+        payload: { membershipId: msId, inviteLinkId: l.id, demo: true },
+      });
+      events.push({
+        ...base,
+        type: "member.affiliate_attributed",
+        occurredAt: requestedAt,
+        payload: {
+          membershipId: msId,
+          inviteLinkId: l.id,
+          campaignKey: l.key,
+          campaignName: l.name,
+          affiliateId: l.affiliateId,
+          affiliateName: l.affiliateName,
+          stage: "request",
+          attributedAt: requestedAt.toISOString(),
+          endsAt: endsAt?.toISOString() ?? null,
+          demo: true,
+        },
+      });
+      sent({ type: "join_requested", sourceId: msId, at: requestedAt, link: l, member: who });
+      if (approvedAt)
+        sent({ type: "join_approved", sourceId: msId, at: approvedAt, link: l, member: who });
+      if (joinedAt) sent({ type: "joined", sourceId: msId, at: joinedAt, link: l, member: who });
+      if (leftAt) sent({ type: "left", sourceId: msId, at: leftAt, link: l, member: who });
+      if (status === "DECLINED")
+        sent({ type: "join_declined", sourceId: msId, at: closedAt!, link: l, member: who });
+      if (status === "EXPIRED")
+        sent({ type: "join_expired", sourceId: msId, at: closedAt!, link: l, member: who });
+
+      // Clics d'offre des membres entrés : un identifiant de suivi par clic, et la clé de la campagne (`&tg=`).
+      if (!joinedAt || (!featured && !r.chance(0.65))) continue;
+      const until = leftAt ?? now;
+      const memberClicks: Array<{ id: string; at: Date; subId: string }> = [];
+      for (let k = featured ? 2 : r.int(1, 3); k > 0; k--) {
+        const at = notFuture(
+          new Date(
+            joinedAt.getTime() + r.next() * Math.max(HOUR, until.getTime() - joinedAt.getTime()),
+          ),
+        );
+        if (endsAt && at > endsAt) continue;
+        const subId = newSubId();
+        const id = newId();
+        clicks.push({
+          id,
+          trackingLinkId: l.offerLinkId,
+          subId,
+          memberId,
+          botId: l.botId,
+          isBot: false,
+          country: "FR",
+          destination: withTelegramCampaignParam(
+            fillUrlTemplate(ctx.offerTemplate[l.offer], { subid: subId }),
+            l.key,
+          ),
+          linkaffiTelegramCampaignKey: l.key,
+          createdAt: at,
+        });
+        memberClicks.push({ id, at, subId });
+        sent({
+          type: "offer_clicked",
+          sourceId: id,
+          at,
+          link: l,
+          member: who,
+          data: { subId, offerCampaignKey: ctx.offerTemplate[l.offer].match(/go\/([^?]+)/)?.[1] },
+        });
+      }
+      memberClicks.sort((a, b) => a.at.getTime() - b.at.getTime());
+      const first = memberClicks[0];
+      if (!first || (!featured && !r.chance(0.55))) continue;
+
+      // Joueur Link Affi rattaché par son identifiant de suivi ; premier dépôt pour une partie d'entre eux.
+      const registeredAt = notFuture(new Date(first.at.getTime() + r.int(5, 180) * MIN));
+      let ftdAt: Date | null = null;
+      if (featured) ftdAt = notFuture(new Date(registeredAt.getTime() + 3 * HOUR));
+      else if (!forcedFtd.today && registeredAt < ago(2 * HOUR)) {
+        forcedFtd.today = true;
+        ftdAt = notFuture(ago(r.int(20, 90) * MIN));
+        if (ftdAt < registeredAt) ftdAt = null;
+      } else if (!forcedFtd.yesterday && registeredAt < ago(DAY + 4 * HOUR)) {
+        forcedFtd.yesterday = true;
+        ftdAt = ago(DAY + r.int(1, 3) * HOUR);
+      } else if (r.chance(0.6))
+        ftdAt = notFuture(new Date(registeredAt.getTime() + r.int(10, 72 * 60) * MIN));
+      if (ftdAt && ftdAt.getTime() >= now.getTime() - MIN) ftdAt = null;
+      const playerId = newId();
+      const ext = `demo13-${++playerIndex}`;
+      const evs: Array<{
+        type: Prisma.PlayerEventCreateManyInput["type"];
+        amount: number | null;
+        at: Date;
+      }> = [{ type: "REGISTRATION", amount: null, at: registeredAt }];
+      let depositTotal = 0;
+      let deposits = 0;
+      let ngr = 0;
+      let ftdAmount: number | null = null;
+      let cpaCreditedAt: Date | null = null;
+      if (ftdAt) {
+        ftds++;
+        ftdAmount = featured ? 100 : r.pick([20, 30, 50, 80, 100, 150]);
+        evs.push({ type: "FTD", amount: ftdAmount, at: ftdAt });
+        depositTotal += ftdAmount;
+        deposits++;
+        for (let k = r.int(0, 3); k > 0; k--) {
+          const at = new Date(ftdAt.getTime() + r.next() * (now.getTime() - ftdAt.getTime()));
+          if (at.getTime() >= now.getTime() - MIN) continue;
+          const amount = r.pick([10, 20, 30, 50, 80]);
+          evs.push({ type: "DEPOSIT", amount, at });
+          depositTotal += amount;
+          deposits++;
+        }
+        for (let k = r.int(1, 4); k > 0; k--) {
+          const at = new Date(ftdAt.getTime() + r.next() * (now.getTime() - ftdAt.getTime()));
+          if (at.getTime() >= now.getTime() - MIN) continue;
+          const amount = r.amount(-20, 60);
+          evs.push({ type: "NGR", amount, at });
+          ngr += amount;
+        }
+        const credit = new Date(ftdAt.getTime() + DAY);
+        if (credit < now && r.chance(0.7)) {
+          cpaCreditedAt = credit;
+          evs.push({ type: "CPA", amount: 40, at: credit });
+        }
+      }
+      players.push({
+        id: playerId,
+        affiliateCampaignId: ctx.offerId[l.offer],
+        externalPlayerId: ext,
+        subId: first.subId,
+        subIdSource: "postback",
+        clickId: first.id,
+        memberId,
+        registeredAt,
+        ftdAt,
+        ftdAmount,
+        depositCount: deposits,
+        redepositCount: Math.max(0, deposits - 1),
+        depositTotal: Math.round(depositTotal * 100) / 100,
+        ngr: Math.round(ngr * 100) / 100,
+        currency: "EUR",
+        status: "active",
+        cpaStatus: cpaCreditedAt ? "approved" : ftdAt ? "none" : null,
+        cpaAmount: cpaCreditedAt ? 40 : null,
+        cpaCreditedAt,
+        lastEventAt: new Date(Math.max(...evs.map((e) => e.at.getTime()))),
+        raw: { demo: true },
+        createdAt: registeredAt,
+      });
+      for (const [j, e] of evs.entries())
+        playerEvents.push({
+          playerId,
+          type: e.type,
+          amount: e.amount,
+          currency: e.amount === null ? null : "EUR",
+          occurredAt: e.at,
+          externalId: `${ext}-${e.type.toLowerCase()}-${j}`,
+          raw: { demo: true },
+        });
+      events.push({
+        type: "player.registered",
+        occurredAt: registeredAt,
+        memberId,
+        payload: { playerId, demo: true },
+      });
+      if (ftdAt)
+        events.push({
+          type: "player.ftd",
+          occurredAt: ftdAt,
+          memberId,
+          payload: { playerId, amount: ftdAmount, demo: true },
+        });
+    }
+  }
+
+  // Premier affilié gagne : un membre de Paul (Pronos Foot) demande ensuite « Casino VIP » par le lien de Sarah.
+  const sarah = links.find((l) => l.key === "demotgsarah1")!;
+  const paulFoot = members.find((m) => m.linkaffiCampaignKey === "demotgpaul02");
+  if (paulFoot) {
+    const at = notFuture(ago(3 * DAY + 5 * HOUR));
+    const msId = newId();
+    const approvedAt = new Date(at.getTime() + 20_000);
+    const provenance = provenanceOfLink({
+      id: sarah.id,
+      kind: "LINKAFFI",
+      sourceChannelId: null,
+      adPlatform: null,
+      linkaffiCampaignKey: sarah.key,
+      linkaffiCampaignName: sarah.name,
+      linkaffiAffiliateId: sarah.affiliateId,
+      linkaffiAffiliateName: sarah.affiliateName,
+    });
+    memberships.push({
+      id: msId,
+      code: shortId(8),
+      memberId: paulFoot.id!,
+      channelId: ctx.channelId.casinoVip,
+      status: "APPROVED",
+      inviteLinkId: sarah.id,
+      requestedAt: at,
+      approveAt: approvedAt,
+      approvedAt,
+      joinedAt: new Date(approvedAt.getTime() + 15_000),
+      approvedByBotId: sarah.botId,
+      source: {
+        demo: true,
+        provenance: { ...provenance, label: provenanceLabel(provenance, {}, sarah.name) },
+        telegramInviteLink: sarah.url,
+        botId: sarah.botId,
+      },
+    });
+    sarah.counters.requests++;
+    sarah.counters.approved++;
+    sarah.counters.joined++;
+    events.push({
+      memberId: paulFoot.id!,
+      channelId: ctx.channelId.casinoVip,
+      botId: sarah.botId,
+      type: "membership.affiliate_not_attributed",
+      occurredAt: at,
+      payload: {
+        membershipId: msId,
+        inviteLinkId: sarah.id,
+        campaignKey: sarah.key,
+        campaignName: sarah.name,
+        affiliateId: sarah.affiliateId,
+        affiliateName: sarah.affiliateName,
+        stage: "request",
+        reason: "already_attributed",
+        currentCampaignKey: "demotgpaul02",
+        currentAffiliateId: P13_AFFILIATES[0].id,
+        demo: true,
+      },
+    });
+  }
+
+  // Un événement abandonné (Link Affi injoignable pendant 24 h) : visible dans l'état de la file des réglages.
+  const failedSource = memberships.find((m) => m.status === "DECLINED");
+  if (failedSource) {
+    const l = links.find((x) => x.id === failedSource.inviteLinkId)!;
+    const m = members.find((x) => x.id === failedSource.memberId)!;
+    const at = notFuture(ago(4 * DAY));
+    const body = buildLinkaffiEvent({
+      type: "join_requested",
+      sourceId: `${failedSource.id}-relance`,
+      occurredAt: at,
+      campaignKey: l.key,
+      channel: { id: ctx.channelId[l.channel], title: ctx.channelTitle[l.channel] },
+      member: {
+        telegramUserId: m.telegramUserId as bigint,
+        username: (m.username as string | null) ?? null,
+        firstName: (m.firstName as string | null) ?? null,
+        languageCode: "fr",
+      },
+    });
+    linkaffiEvents.push({
+      eventId: body.eventId,
+      type: "join_requested",
+      occurredAt: at,
+      campaignKey: l.key,
+      memberId: m.id!,
+      channelId: ctx.channelId[l.channel],
+      body: body as unknown as Prisma.InputJsonValue,
+      status: "FAILED",
+      attempts: 13,
+      nextAttemptAt: new Date(at.getTime() + DAY),
+      lastError: "Link Affi injoignable (délai dépassé)",
+      lastStatus: null,
+      createdAt: at,
+    });
+  }
+
+  await inBatches(members, 500, (chunk) => db.member.createMany({ data: chunk }));
+  await inBatches(memberships, 500, (chunk) => db.membership.createMany({ data: chunk }));
+  await inBatches(clicks, 1000, (chunk) => db.click.createMany({ data: chunk }));
+  await inBatches(players, 500, (chunk) => db.player.createMany({ data: chunk }));
+  await inBatches(playerEvents, 1000, (chunk) => db.playerEvent.createMany({ data: chunk }));
+  await inBatches(events, 1000, (chunk) => db.event.createMany({ data: chunk }));
+  await inBatches(linkaffiEvents, 1000, (chunk) => db.linkaffiEvent.createMany({ data: chunk }));
+  for (const l of links) await db.inviteLink.update({ where: { id: l.id }, data: l.counters });
+  for (const l of links) {
+    const n = clicks.filter((c) => c.trackingLinkId === l.offerLinkId).length;
+    await db.trackingLink.update({
+      where: { id: l.offerLinkId },
+      data: { clicks: n, uniqueClicks: n },
+    });
+  }
+
+  // Relevé de la synchro Link Affi (forme D6) : leurs chiffres, et un écart sur les premiers dépôts de Paul.
+  const campaignsSetting: Record<string, unknown> = {};
+  const divergences: Array<Record<string, unknown>> = [];
+  for (const l of links) {
+    const ours = {
+      members: members.filter((m) => m.linkaffiCampaignKey === l.key).length,
+      registrations: players.filter(
+        (p) => clicks.find((c) => c.id === p.clickId)?.linkaffiTelegramCampaignKey === l.key,
+      ).length,
+      ftds: players.filter(
+        (p) =>
+          p.ftdAt && clicks.find((c) => c.id === p.clickId)?.linkaffiTelegramCampaignKey === l.key,
+      ).length,
+    };
+    const theirs = {
+      ...ours,
+      ftds: l.key === "demotgpaul01" ? Math.max(0, ours.ftds - 1) : ours.ftds,
+    };
+    if (theirs.ftds !== ours.ftds)
+      divergences.push({ campaignKey: l.key, field: "ftds", ours: ours.ftds, theirs: theirs.ftds });
+    campaignsSetting[l.key] = {
+      affiliateId: l.affiliateId,
+      affiliateName: l.affiliateName,
+      name: l.name,
+      inviteLinkId: l.id,
+      channelId: ctx.channelId[l.channel],
+      isActive: true,
+      clicks: l.counters.requests * 3 + r.int(4, 30),
+      ...theirs,
+    };
+  }
+  const setting = {
+    syncedAt: ago(3 * MIN).toISOString(),
+    available: true,
+    campaigns: campaignsSetting,
+    divergences,
+  } as Prisma.InputJsonValue;
+  await db.setting.upsert({
+    where: { key: "linkaffi.telegramCampaigns" },
+    create: { key: "linkaffi.telegramCampaigns", value: setting },
+    update: { value: setting },
+  });
+
+  return {
+    campaigns: links.length,
+    members: members.length,
+    memberships: memberships.length,
+    clicks: clicks.length,
+    players: players.length,
+    ftds,
+    linkaffiEvents: linkaffiEvents.length,
   };
 }
 

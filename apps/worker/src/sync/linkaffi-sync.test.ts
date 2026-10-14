@@ -624,6 +624,28 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
     data.players![0] = original;
   });
 
+  it("une campagne Telegram d'affilié (phase 13) n'est jamais importée comme offre ; la synchro générale reste verte", async () => {
+    data.campaigns!.push({
+      id: "tg1",
+      campaign_key: "tgPaul01",
+      name: "Paul VIP",
+      type: "telegram",
+      casino_id: null,
+      invite_link_id: "link-paul",
+    });
+    try {
+      const r = await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
+      expect(r.every((x) => x.ok)).toBe(true);
+      expect(store.campaigns.map((c) => c.externalId)).toEqual(["camp1"]);
+      expect(store.programs.map((p) => p.externalId)).toEqual(["cas1"]);
+      // La lecture Telegram n'ajoute aucune table au résultat ni au suivi des tables (alerte `sync_failed`).
+      expect(r.map((x) => x.table)).not.toContain("telegram");
+      expect([...store.syncStates.keys()].some((k) => k.startsWith("telegram"))).toBe(false);
+    } finally {
+      data.campaigns!.pop();
+    }
+  });
+
   it("garde la table de taux Link Affi pour la reprise des gains", async () => {
     await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
     expect(store.settings.get("linkaffi.currencyRates")?.value).toEqual({ EUR: 1 });

@@ -23,7 +23,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { fmtDate } from "@/lib/format";
 import {
   actionFilterOptions,
-  actionLabel,
+  auditActionLabel,
   entityLabel,
   journalWhere,
   parseJournalFilters,
@@ -171,17 +171,17 @@ export default async function JournalPage({ searchParams }: PageProps<"/settings
               cells: {
                 when: fmtDate(l.createdAt),
                 who: l.user?.name ?? "système",
-                action: actionLabel(l.action),
+                action: auditActionLabel(l.action, l.metadata),
                 object: entityLabel(l.entityType),
               },
-              detailTitle: actionLabel(l.action),
+              detailTitle: auditActionLabel(l.action, l.metadata),
               detailDescription: `${fmtDate(l.createdAt)} · ${l.user?.name ?? "système"}`,
               detail: (
                 <div className="space-y-6">
                   <DetailList>
                     <DetailRow label="Quand">{fmtDate(l.createdAt)}</DetailRow>
                     <DetailRow label="Qui">{l.user?.name ?? "système"}</DetailRow>
-                    <DetailRow label="Action">{actionLabel(l.action)}</DetailRow>
+                    <DetailRow label="Action">{auditActionLabel(l.action, l.metadata)}</DetailRow>
                     <DetailRow label="Code technique" mono>
                       {l.action}
                     </DetailRow>

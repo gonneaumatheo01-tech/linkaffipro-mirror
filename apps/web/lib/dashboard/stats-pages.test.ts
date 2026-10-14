@@ -4,6 +4,7 @@ import {
   funnelDimension,
   funnelScopeLabel,
   moreFiltersCount,
+  affiliateIgnoredNote,
   parseFunnelDim,
   parseStatsFilters,
   periodSentence,
@@ -158,6 +159,24 @@ describe("sélecteur commun", () => {
   it("« Plus de filtres » compte le canal", () => {
     expect(moreFiltersCount({ channelId: "" })).toBe(0);
     expect(moreFiltersCount({ channelId: "x" })).toBe(1);
+  });
+});
+
+describe("filtre « Affilié » (phase 13)", () => {
+  it("lu dans l'adresse, gardé par les liens et au retour d'une action ; compté dans « Plus de filtres »", () => {
+    const f = parseStatsFilters({ range: "30d", affiliateId: " aff-paul " }, NOW);
+    expect(f.affiliateId).toBe("aff-paul");
+    expect(statsParams(f)).toEqual({ range: "30d", affiliateId: "aff-paul" });
+    expect(statsHref("/stats/ads", f)).toBe("/stats/ads?range=30d&affiliateId=aff-paul");
+    expect(statsParamsFromForm([["affiliateId", "aff-paul"]])).toEqual({ affiliateId: "aff-paul" });
+    expect(moreFiltersCount({ channelId: "ch1", affiliateId: "aff-paul" })).toBe(2);
+    expect(parseStatsFilters({}, NOW).affiliateId).toBe("");
+  });
+
+  it("seule la vue d'ensemble filtre par affilié ; les autres pages le disent", () => {
+    expect(affiliateIgnoredNote("overview", { affiliateId: "aff" })).toBeNull();
+    expect(affiliateIgnoredNote("ads", { affiliateId: "" })).toBeNull();
+    expect(affiliateIgnoredNote("ads", { affiliateId: "aff" })).toMatch(/vue d'ensemble/);
   });
 });
 

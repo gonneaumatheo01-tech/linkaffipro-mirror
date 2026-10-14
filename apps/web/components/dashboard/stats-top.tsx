@@ -2,6 +2,8 @@ import { Flash } from "@/components/admin/flash";
 import { Term } from "@/components/admin/help-tip";
 import { PageHeader, type PageAction } from "@/components/admin/page-header";
 import {
+  AFFILIATE_FILTER_PAGES,
+  affiliateIgnoredNote,
   periodSentence,
   statsDefaultRange,
   statsHref,
@@ -71,16 +73,20 @@ export function StatsTop({
         vertical={filters.vertical}
         campaignId={filters.campaignId}
         channelId={filters.channelId}
+        affiliateId={filters.affiliateId ?? ""}
         campaigns={options.campaigns}
         channels={options.channels}
+        affiliates={options.affiliates ?? []}
         showCompare={showCompare}
         showChannel={showChannel}
+        showAffiliate={AFFILIATE_FILTER_PAGES.includes(page)}
         channelHelp={channelHelp}
         defaultRange={statsDefaultRange(p.path)}
       />
       <p className="mb-6 text-note text-muted-foreground">
         {periodSentence(filters.period, filters.compare && showCompare)}.
         {note ? <> {note}</> : null}
+        {affiliateIgnoredNote(page, filters) ? <> {affiliateIgnoredNote(page, filters)}</> : null}
       </p>
     </>
   );

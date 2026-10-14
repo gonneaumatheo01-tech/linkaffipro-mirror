@@ -48,6 +48,9 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^user\.role_changed/, "Rôle modifié"],
   [/^user\.telegram/, "Compte Telegram lié ou délié"],
   [/^invitation\./, "Invitation"],
+  // Affiliés Link Affi (phase 13), avant la famille générale.
+  [/^member\.affiliate_changed$/, "Membre : affilié Link Affi changé"],
+  [/^member\.affiliate_removed$/, "Membre : affilié Link Affi retiré"],
   [/^member\./, "Membre"],
   [/^membership\./, "Adhésion"],
   // Exceptions selon la provenance (phase 11), avant la famille générale.
@@ -89,6 +92,24 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^alert\./, "Alerte"],
   [/^maintenance\./, "Maintenance"],
   [/^linkaffi\./, "Synchro Link Affi"],
+  // Campagnes Telegram des affiliés Link Affi (phase 13) : appels de Link Affi et réglages de la connexion.
+  [/^integration\.linkaffi\.get_channels$/, "Link Affi : liste des canaux demandée"],
+  [
+    /^integration\.linkaffi\.post_invite_links$/,
+    "Link Affi : lien d'une campagne d'affilié demandé",
+  ],
+  [
+    /^integration\.linkaffi\.patch_invite_link$/,
+    "Link Affi : lien d'une campagne d'affilié désactivé",
+  ],
+  [/^integration\.linkaffi\.get_members$/, "Link Affi : membres d'une campagne relus"],
+  [/^integration\.linkaffi\.unknown_route$/, "Link Affi : adresse ou méthode inconnue appelée"],
+  [/^integration\.linkaffi\./, "Link Affi : appel de la connexion"],
+  [/^integration\.linkaffi_key_generated$/, "Link Affi : clé de connexion générée"],
+  [/^integration\.linkaffi_secret_generated$/, "Link Affi : secret de signature généré"],
+  [/^integration\.linkaffi_events_url_changed$/, "Link Affi : adresse des événements modifiée"],
+  [/^integration\.linkaffi_test_sent$/, "Link Affi : événement de test envoyé"],
+  [/^integration\./, "Connexion Link Affi"],
   [/^connector\./, "Connexions Meta et TikTok"],
   [/^sequence\./, "Messages du bot"],
   [/^reports\./, "Rapport"],
@@ -135,7 +156,7 @@ export const ACTION_FAMILIES: ReadonlyArray<{
   {
     value: "connector.",
     label: "Link Affi, Meta, TikTok et compte Telegram",
-    prefixes: ["connector.", "linkaffi.", "telegram."],
+    prefixes: ["connector.", "linkaffi.", "telegram.", "integration."],
   },
   { value: "member.", label: "Membres et étiquettes", prefixes: ["member.", "tag."] },
   { value: "sequence.", label: "Messages du bot", prefixes: ["sequence."] },
@@ -172,6 +193,82 @@ export function actionLabel(action: string): string {
   return "Autre";
 }
 
+/**
+ * Appels de Link Affi (`integration.linkaffi.<route>`, phase 13) : ce que l'appel demandait, pour un libellé de refus
+ * (« liste des canaux refusée »). `fem` : accord de « refusé ».
+ */
+const LINKAFFI_CALLS: Record<string, { what: string; fem: boolean }> = {
+  get_channels: { what: "liste des canaux", fem: true },
+  post_invite_links: { what: "demande de lien d'affilié", fem: true },
+  patch_invite_link: { what: "modification d'un lien d'affilié", fem: true },
+  get_members: { what: "lecture des membres d'une campagne", fem: true },
+};
+
+/** Raison d'un refus, d'après le code d'erreur de l'API d'intégration (`IntegrationErrorCode`). */
+const LINKAFFI_REFUSALS: Record<string, string> = {
+  unauthorized: "clé de connexion absente ou fausse",
+  rate_limited: "trop de requêtes",
+  invalid_json: "demande invalide",
+  invalid_body: "demande invalide",
+  invalid_query: "demande invalide",
+  payload_too_large: "demande trop volumineuse",
+  not_found: "adresse inconnue",
+  method_not_allowed: "méthode non prévue",
+  channel_not_found: "canal inconnu",
+  campaign_not_found: "campagne inconnue",
+  invite_link_not_found: "lien inconnu",
+  affiliate_mismatch: "clé d'un autre affilié",
+  invite_link_disabled: "lien désactivé",
+  reactivation_refused: "un lien désactivé ne revient pas",
+  no_bot: "aucun bot ne peut créer le lien",
+  telegram_refused: "refus de Telegram",
+  telegram_unavailable: "Telegram injoignable",
+  internal_error: "erreur interne",
+};
+
+/** Raison lue d'après le code HTTP quand le code d'erreur manque (ancienne ligne). */
+const STATUS_REASONS: Record<number, string> = {
+  400: "demande invalide",
+  401: "clé de connexion absente ou fausse",
+  404: "introuvable",
+  405: "méthode non prévue",
+  413: "demande trop volumineuse",
+  429: "trop de requêtes",
+  500: "erreur interne",
+};
+
+const rec = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/**
+ * Libellé d'une ligne du journal avec ses détails : pour un appel de Link Affi, le statut journalisé décide (un appel
+ * refusé — sans clé, clé fausse, trop de requêtes, demande invalide — ne se lit jamais comme une action réussie) ;
+ * pour toute autre action, le libellé habituel (`actionLabel`).
+ */
+export function auditActionLabel(action: string, metadata: unknown): string {
+  const m = /^integration\.linkaffi\.(.+)$/.exec(action);
+  if (!m) return actionLabel(action);
+  const meta = rec(metadata);
+  const status = typeof meta.status === "number" ? meta.status : null;
+  const route = m[1]!;
+  if (status === null || status < 400) {
+    if (route === "post_invite_links" && meta.created === true)
+      return "Link Affi : lien d'une campagne d'affilié créé";
+    if (route === "post_invite_links" && meta.created === false)
+      return "Link Affi : lien d'une campagne d'affilié redemandé (déjà créé)";
+    if (route === "patch_invite_link" && meta.changed === false)
+      return meta.isActive === true
+        ? "Link Affi : lien d'une campagne d'affilié laissé actif"
+        : "Link Affi : lien d'une campagne d'affilié déjà désactivé";
+    return actionLabel(action);
+  }
+  const call = LINKAFFI_CALLS[route] ?? { what: "appel", fem: false };
+  const code = typeof meta.error === "string" ? meta.error : "";
+  const reason = LINKAFFI_REFUSALS[code] ?? STATUS_REASONS[status] ?? `code ${status}`;
+  const verb = status >= 500 ? "en échec" : call.fem ? "refusée" : "refusé";
+  return `Link Affi : ${call.what} ${verb} (${reason})`;
+}
+
 /** Objets du journal (`AuditLog.entityType`) en français ; un type inconnu reste lisible (« Autre »). */
 const ENTITY_LABELS: Record<string, string> = {
   User: "Compte",
@@ -205,6 +302,7 @@ const ENTITY_LABELS: Record<string, string> = {
   Alert: "Alerte",
   AffiliateProgram: "Programme",
   CustomEmoji: "Emoji animé",
+  IntegrationKey: "Connexion Link Affi",
 };
 
 export function entityLabel(entityType: string | null | undefined): string {

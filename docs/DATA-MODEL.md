@@ -279,3 +279,12 @@ l'index unique `(linkaffiCampaignKey, channelId)` porte sur une colonne nouvelle
 Envoi : `emitLinkaffiEvent` (`packages/queue/src/linkaffi-events.ts`) enregistre l'événement d'un membre rattaché
 (attribution en cours ; événements d'adhésion du seul canal de sa campagne ; `offer_clicked` pour tout clic d'offre) et
 l'enfile dans la file BullMQ `linkaffi-events` (`deliver`, `tick` chaque minute).
+
+Autres données de la phase 13 : `Setting` `linkaffi.telegramCampaigns` (écrit par la synchro toutes les 10 minutes :
+campagnes Telegram lues chez Link Affi, leurs chiffres et les écarts avec les nôtres ; disponibilité des tables) ;
+`Setting` `affiliates.tutorial.<userId>` (`{ dismissedAt }`, mini-tutoriel de la page des affiliés). Événements :
+`member.affiliate_attributed` `{ membershipId, inviteLinkId, campaignKey, campaignName, affiliateId, affiliateName, stage,
+attributedAt, endsAt }`, `membership.affiliate_not_attributed` (mêmes champs + `reason`, `currentCampaignKey`,
+`currentAffiliateId`), `linkaffi_event.failed` (un par événement abandonné), `member.affiliate_changed` /
+`member.affiliate_removed` `{ from, to?, reason, by }` ; `click.offer` porte `linkaffiTelegramCampaignKey` quand `tg` a été
+ajouté. Livraison : réservation d'un événement par mise à jour conditionnelle avec un bail de 2 minutes.

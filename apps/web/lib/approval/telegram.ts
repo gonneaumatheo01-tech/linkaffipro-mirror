@@ -1,7 +1,7 @@
 import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
-import { enqueueDm } from "@linkaffipro/queue";
+import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 
 /** Bot qui agit pour un canal (principal s'il est administrateur, sinon premier administrateur). */
 export async function actingBotFor(channelId: string) {
@@ -45,6 +45,13 @@ export async function approveNow(
         where: { id: m.id },
         data: { status: "EXPIRED", lastError: "demande retirée par le membre" },
       });
+      // Membre d'un affilié Link Affi : demande expirée pour Link Affi (phase 13, filtré, jamais bloquant).
+      await emitLinkaffiEvent({
+        type: "join_expired",
+        sourceId: m.id,
+        memberId: m.memberId,
+        channelId: m.channelId,
+      });
       return { ok: false, error: "Le membre a retiré sa demande." };
     }
     if (!(err instanceof GrammyError && /USER_ALREADY_PARTICIPANT/i.test(err.description))) {
@@ -56,9 +63,12 @@ export async function approveNow(
       return { ok: false, error: `Telegram a refusé : ${message}` };
     }
   }
+  // Une seule date pour la demande et pour Link Affi : l'entrée (`chat_member`, datée à la seconde par Telegram) est
+  // datée après elle par le flux d'adhésion, jamais avant.
+  const approvedAt = new Date();
   await prisma.membership.update({
     where: { id: m.id },
-    data: { status: "APPROVED", approvedAt: new Date(), approvedByBotId: bot.id, lastError: null },
+    data: { status: "APPROVED", approvedAt, approvedByBotId: bot.id, lastError: null },
   });
   if (m.inviteLinkId)
     await prisma.inviteLink
@@ -70,6 +80,14 @@ export async function approveNow(
     channelId: m.channelId,
     botId: bot.id,
     payload: { membershipId: m.id, byUserId, manual: true },
+  });
+  // Membre d'un affilié Link Affi : « accepté » envoyé à Link Affi (phase 13, filtré, jamais bloquant).
+  await emitLinkaffiEvent({
+    type: "join_approved",
+    sourceId: m.id,
+    memberId: m.memberId,
+    channelId: m.channelId,
+    occurredAt: approvedAt,
   });
   const rule = m.approvalRuleId
     ? await prisma.approvalRule.findUnique({ where: { id: m.approvalRuleId } })
@@ -129,6 +147,13 @@ export async function declineNow(
     channelId: m.channelId,
     botId: bot.id,
     payload: { membershipId: m.id, byUserId, manual: true },
+  });
+  // Membre d'un affilié Link Affi : « refusé » envoyé à Link Affi (phase 13, filtré, jamais bloquant).
+  await emitLinkaffiEvent({
+    type: "join_declined",
+    sourceId: m.id,
+    memberId: m.memberId,
+    channelId: m.channelId,
   });
   return { ok: true };
 }

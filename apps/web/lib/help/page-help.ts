@@ -55,6 +55,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Tous les liens", "Une pub ne remonte pas"],
   },
   {
+    // Phase 13 : membres amenés par les affiliés Link Affi (section intégrée en attendant le guide).
+    path: "/campaigns/affiliates",
+    label: "Affiliés Link Affi",
+    sections: ["Affiliés sur vos canaux"],
+  },
+  {
     path: "/campaigns/import",
     label: "Importer des dépenses",
     sections: ["Importer des dépenses (CSV)"],

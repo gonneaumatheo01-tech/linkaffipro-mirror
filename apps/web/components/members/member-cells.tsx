@@ -2,7 +2,7 @@ import { SPEND_LEVEL_LABELS, type SpendLevel } from "@linkaffipro/core";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { cn } from "@/components/ui/cn";
 import { fmtDate, fmtDateShort, fmtMoney, fmtRelative } from "@/lib/format";
-import { adLabel, initials, plural } from "@/lib/members/profile";
+import { initials, originSourceLabel, plural } from "@/lib/members/profile";
 import type { MemberOrigin } from "@/lib/members/query";
 import { colorOf, tagColorClass, type TagDef } from "@/lib/members/tags";
 
@@ -59,22 +59,21 @@ export function MemberTags({
 }
 
 /**
- * D'où vient le membre, en deux lignes : la campagne (ou le canal) avec la couleur de son univers, puis la pub et
- * le canal d'arrivée. Sans demande d'adhésion : « Pas encore venu par un canal ».
+ * D'où vient le membre, en deux lignes : la campagne (ou le canal) avec la couleur de son univers, puis la pub (ou
+ * l'affilié Link Affi) et le canal d'arrivée. Sans demande d'adhésion : « Pas encore venu par un canal ».
  */
 export function MemberOriginCell({ origin }: { origin: MemberOrigin | null }) {
   if (!origin) {
     return <span className="text-note text-muted-foreground">Pas encore venu par un canal</span>;
   }
   const universe = origin.campaignVertical ?? origin.channelVertical;
-  const ad = adLabel(origin);
+  // « Pub … » pour un lien de pub, « Affilié … » pour le lien d'une campagne d'affilié Link Affi.
+  const source = originSourceLabel(origin);
   const main = origin.campaignName ?? origin.channelTitle;
-  // Deuxième ligne : la pub (et le canal si la campagne est en titre), sinon la date d'arrivée.
+  // Deuxième ligne : la source (et le canal si la campagne est en titre), sinon la date d'arrivée.
   const sub = origin.campaignName
-    ? [ad ? `Pub ${ad}` : null, origin.channelTitle].filter(Boolean).join(" · ")
-    : ad
-      ? `Pub ${ad}`
-      : `Arrivé le ${fmtDateShort(origin.at)}`;
+    ? [source, origin.channelTitle].filter(Boolean).join(" · ")
+    : (source ?? `Arrivé le ${fmtDateShort(origin.at)}`);
   return (
     <span className="flex min-w-0 items-start gap-2">
       <UniverseDot universe={universe} className="mt-1.5" />

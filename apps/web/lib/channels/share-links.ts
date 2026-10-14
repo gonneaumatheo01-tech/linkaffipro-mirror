@@ -33,6 +33,20 @@ export const TELEGRAM_LINK_NAME_MAX = 32;
 
 export class ShareLinkError extends Error {}
 
+/**
+ * Échec de création d'un lien chez Telegram, avec sa nature (réutilisé par l'API d'intégration Link Affi, phase 13,
+ * pour choisir le code de réponse) : aucun de nos bots administrateurs, Telegram injoignable, ou refus de Telegram.
+ * Hérite de `ShareLinkError` : les écrans des liens de partage l'affichent tel quel.
+ */
+export class TelegramLinkError extends ShareLinkError {
+  constructor(
+    readonly kind: "no_bot" | "transient" | "refused",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Nom du lien chez Telegram : 32 caractères au plus, sans couper un émoji. */
 export function telegramLinkName(name: string): string {
   return Array.from(name.trim()).slice(0, TELEGRAM_LINK_NAME_MAX).join("").trim();
@@ -112,6 +126,69 @@ async function candidateBots(channelId: string): Promise<BotRow[]> {
   return [...(acting ? [acting] : []), ...others];
 }
 
+/**
+ * Crée chez Telegram un lien AVEC demande d'adhésion, par le bot qui agit pour le canal, sinon par un autre de nos bots
+ * administrateurs (voir `candidateBots`). Telegram injoignable : on n'essaie pas les autres bots tout de suite.
+ * Lève `TelegramLinkError` avec un message en français. Partagé par les liens de partage et les liens des campagnes
+ * Telegram des affiliés Link Affi (phase 13).
+ */
+export async function createJoinRequestLink(
+  channel: { id: string; title: string; telegramChatId: bigint },
+  telegramName: string,
+): Promise<{ botId: string; url: string }> {
+  const bots = await candidateBots(channel.id);
+  if (bots.length === 0)
+    throw new TelegramLinkError(
+      "no_bot",
+      `Aucun de nos bots n'est administrateur de « ${channel.title} » : ajoutez un de nos bots comme administrateur avec le droit « Inviter via un lien », puis cliquez « Re-vérifier les droits des bots ».`,
+    );
+  let firstError: unknown = null;
+  for (const bot of bots) {
+    try {
+      const invite = await apiOf(bot).createChatInviteLink(Number(channel.telegramChatId), {
+        name: telegramName,
+        creates_join_request: true,
+      });
+      return { botId: bot.id, url: invite.invite_link };
+    } catch (err) {
+      firstError ??= err;
+      // Telegram injoignable : inutile d'essayer les autres bots tout de suite.
+      if (isTransientTelegramError(err)) break;
+    }
+  }
+  throw new TelegramLinkError(
+    isTransientTelegramError(firstError) ? "transient" : "refused",
+    createErrorMessage(firstError, bots[0]!.username, channel.title),
+  );
+}
+
+/**
+ * Révoque un lien chez Telegram par le bot qui l'a créé (seul autorisé par Telegram). Renvoie null si le lien ne
+ * fonctionne plus (révoqué, ou déjà retiré), sinon le refus de Telegram en clair (bot désactivé, bot plus
+ * administrateur…). Telegram injoignable : lève `TelegramLinkError` (« transient »), rien n'a changé.
+ */
+export async function revokeOnTelegram(link: {
+  telegramInviteLink: string;
+  bot: BotRow;
+  channel: { telegramChatId: bigint };
+}): Promise<string | null> {
+  if (!link.bot.isActive) return "bot désactivé";
+  try {
+    await apiOf(link.bot).revokeChatInviteLink(
+      Number(link.channel.telegramChatId),
+      link.telegramInviteLink,
+    );
+  } catch (err) {
+    if (isTransientTelegramError(err))
+      throw new TelegramLinkError(
+        "transient",
+        "Telegram ne répond pas pour l'instant : réessayez dans une minute. Le lien fonctionne encore.",
+      );
+    if (!isGoneLinkError(err)) return telegramText(err);
+  }
+  return null;
+}
+
 export type CreatedShareLink = { id: string; name: string; url: string };
 
 /** Crée un lien de partage (voir l'en-tête). Lève `ShareLinkError` avec un message en français. */
@@ -154,29 +231,7 @@ export async function createShareLink(input: {
       `Un lien de partage actif s'appelle déjà « ${name} » dans ce canal : choisissez un autre nom.`,
     );
 
-  const bots = await candidateBots(channel.id);
-  if (bots.length === 0)
-    throw new ShareLinkError(
-      `Aucun de nos bots n'est administrateur de « ${channel.title} » : ajoutez un de nos bots comme administrateur avec le droit « Inviter via un lien », puis cliquez « Re-vérifier les droits des bots ».`,
-    );
-  let created: { botId: string; url: string } | null = null;
-  let firstError: unknown = null;
-  for (const bot of bots) {
-    try {
-      const invite = await apiOf(bot).createChatInviteLink(Number(channel.telegramChatId), {
-        name: telegramLinkName(name),
-        creates_join_request: true,
-      });
-      created = { botId: bot.id, url: invite.invite_link };
-      break;
-    } catch (err) {
-      firstError ??= err;
-      // Telegram injoignable : inutile d'essayer les autres bots tout de suite.
-      if (isTransientTelegramError(err)) break;
-    }
-  }
-  if (!created)
-    throw new ShareLinkError(createErrorMessage(firstError, bots[0]!.username, channel.title));
+  const created = await createJoinRequestLink(channel, telegramLinkName(name));
 
   const link = await prisma.inviteLink.create({
     data: {
@@ -235,22 +290,7 @@ export async function disableShareLink(input: {
       bot: link.bot.username,
       alreadyDisabled: true,
     };
-  let error: string | null = null;
-  if (!link.bot.isActive) error = "bot désactivé";
-  else {
-    try {
-      await apiOf(link.bot).revokeChatInviteLink(
-        Number(link.channel.telegramChatId),
-        link.telegramInviteLink,
-      );
-    } catch (err) {
-      if (isTransientTelegramError(err))
-        throw new ShareLinkError(
-          "Telegram ne répond pas pour l'instant : réessayez dans une minute. Le lien fonctionne encore.",
-        );
-      if (!isGoneLinkError(err)) error = telegramText(err);
-    }
-  }
+  const error = await revokeOnTelegram(link);
   await prisma.inviteLink.update({ where: { id: link.id }, data: { isActive: false } });
   await audit({
     userId: input.userId,

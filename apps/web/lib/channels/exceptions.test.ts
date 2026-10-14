@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialEntryState, type EntryRule } from "./entry-rule";
 import {
+  conditionText,
   defaultGateSkipNote,
   dropOrder,
   duplicateMessage,
@@ -72,6 +73,7 @@ describe("menu « Si la personne vient… » ↔ portée et cible", () => {
       sourceChannelId: "tir",
       sourceKind: null,
       inviteLinkId: null,
+      linkaffiAffiliateId: null,
     });
     expect(targetOfKey("kind:GATE")?.sourceKind).toBe("GATE");
     expect(targetOfKey("link:l1")).toMatchObject({ scope: "INVITE_LINK", inviteLinkId: "l1" });
@@ -120,6 +122,18 @@ describe("menu « Si la personne vient… » ↔ portée et cible", () => {
     ]);
     expect(menu[1]!.options.find((o) => o.key === "kind:AD_META")?.used).toBe(true);
     expect(menu[2]!.options).toEqual([{ key: "link:l1", label: "du lien « Post Tir Cadré »" }]);
+  });
+
+  it("sans affilié Link Affi connu : ni groupe d'affiliés, ni type « affilié » parmi les types", () => {
+    const menu = provenanceMenu({
+      channelId: "zone",
+      channels: [],
+      links: [],
+      senders: [],
+      used: [],
+    });
+    expect(menu.map((g) => g.label)).toEqual(["Un type de provenance"]);
+    expect(menu[0]!.options.some((o) => o.key.includes("LINKAFFI"))).toBe(false);
   });
 
   it("garde l'option en cours même si son lien n'est pas un lien de partage actif", () => {
@@ -443,5 +457,128 @@ describe("nouvelle exception", () => {
     expect(defaultGateSkipNote({ manual: false, delaySeconds: 86400 }, off)).toBe(
       defaultGateSkipNote({ manual: false, delaySeconds: 86400 }),
     );
+  });
+});
+
+describe("affiliés Link Affi (phase 13) : n'importe quel affilié, un affilié précis, une campagne précise", () => {
+  const affNames = {
+    ...names,
+    affiliateNames: { "aff-paul": "Paul", "aff/étrange id": "Zoé" },
+    affiliateLinks: { la1: { campaignName: "Casino VIP", affiliateName: "Paul" } },
+  };
+
+  it("clés : « affiliate:<id> » encodée, n'importe quel affilié, campagne = lien précis ; aller-retour à l'identique", () => {
+    expect(targetOfKey("affiliate:aff-paul")).toEqual({
+      scope: "SOURCE_KIND",
+      sourceKind: "LINKAFFI_AFFILIATE",
+      linkaffiAffiliateId: "aff-paul",
+      sourceChannelId: null,
+      inviteLinkId: null,
+    });
+    const odd = "affiliate:" + encodeURIComponent("aff/étrange id");
+    expect(targetOfKey(odd)?.linkaffiAffiliateId).toBe("aff/étrange id");
+    for (const key of ["affiliate:aff-paul", odd, "kind:LINKAFFI_ANY", "link:la1"])
+      expect(provenanceKey(targetOfKey(key)!)).toBe(key);
+    // Un affilié précis sans affilié ne vise personne.
+    expect(targetOfKey("kind:LINKAFFI_AFFILIATE")).toBeNull();
+    expect(targetOfKey("affiliate:%E0%A4%A")).toBeNull();
+    expect(targetOfKey(`affiliate:${"x".repeat(129)}`)).toBeNull();
+    expect(
+      provenanceKey({ ...targetOfKey("affiliate:aff-paul")!, linkaffiAffiliateId: null }),
+    ).toBeNull();
+  });
+
+  it("phrases : condition, libellé enregistré, résumé", () => {
+    expect(conditionText(targetOfKey("kind:LINKAFFI_ANY")!, affNames)).toBe(
+      "de n'importe quel affilié Link Affi",
+    );
+    expect(conditionText(targetOfKey("affiliate:aff-paul")!, affNames)).toBe(
+      "de l'affilié « Paul »".replace(" «", " «"),
+    );
+    expect(exceptionRuleLabel(targetOfKey("link:la1")!, affNames)).toBe(
+      "Venu de la campagne « Casino VIP » de l'affilié « Paul »",
+    );
+    // Affilié inconnu (aucun nom) : phrase lisible.
+    expect(conditionText(targetOfKey("affiliate:aff-x")!, names)).toBe(
+      "d'un affilié Link Affi précis",
+    );
+    expect(
+      exceptionSentence(
+        { ...targetOfKey("affiliate:aff-paul")!, rule: rule({ mode: "MANUAL" }) },
+        affNames,
+      ),
+    ).toBe("Une personne venue de l'affilié « Paul » attend votre validation (onglet Demandes).");
+  });
+
+  it("aide sous le menu", () => {
+    expect(provenanceHelp(targetOfKey("kind:LINKAFFI_ANY"))).toMatch(/n'importe quel affilié/);
+    expect(provenanceHelp(targetOfKey("affiliate:aff-paul"))).toMatch(/cet affilié/);
+    expect(provenanceHelp(targetOfKey("link:la1"), affNames)).toBe(
+      "Par le lien Link Affi de cette campagne d'affilié seulement.",
+    );
+    expect(provenanceHelp(targetOfKey("link:l1"), affNames)).toBe("Par ce lien précis seulement.");
+  });
+
+  it("menu : groupe « Un affilié Link Affi » (n'importe lequel, puis chacun) et « Une campagne d'affilié précise »", () => {
+    const menu = provenanceMenu({
+      channelId: "zone",
+      channels: [],
+      links: [{ id: "l1", name: "Post Tir Cadré", kind: "SHARE", isActive: true }],
+      senders: [],
+      affiliates: [
+        { id: "aff-sarah", name: "Sarah" },
+        { id: "aff-paul", name: "Paul" },
+      ],
+      affiliateLinks: [
+        { id: "la1", campaignName: "Casino VIP", affiliateName: "Paul", isActive: true },
+        { id: "la2", campaignName: "Ancienne", affiliateName: "Paul", isActive: false },
+      ],
+      used: ["affiliate:aff-paul"],
+    });
+    expect(menu.map((g) => g.label)).toEqual([
+      "Un type de provenance",
+      "Un lien de partage précis",
+      "Un affilié Link Affi",
+      "Une campagne d'affilié précise",
+    ]);
+    expect(menu[2]!.options).toEqual([
+      { key: "kind:LINKAFFI_ANY", label: "de n'importe quel affilié Link Affi" },
+      { key: "affiliate:aff-paul", label: "de l'affilié « Paul »", used: true },
+      { key: "affiliate:aff-sarah", label: "de l'affilié « Sarah »" },
+    ]);
+    expect(menu[3]!.options).toEqual([
+      { key: "link:la1", label: "de la campagne « Casino VIP » de l'affilié « Paul »" },
+    ]);
+  });
+
+  it("menu : la campagne ou l'affilié en cours restent proposés (lien désactivé, affilié disparu)", () => {
+    const base = {
+      channelId: "zone",
+      channels: [],
+      links: [],
+      senders: [],
+      used: [],
+      affiliateLinks: [
+        { id: "la2", campaignName: "Ancienne", affiliateName: "Paul", isActive: false },
+      ],
+    };
+    const campaign = provenanceMenu({ ...base, current: "link:la2" });
+    expect(
+      campaign.find((g) => g.label === "Une campagne d'affilié précise")!.options[0]!.key,
+    ).toBe("link:la2");
+    const gone = provenanceMenu({ ...base, affiliateLinks: [], current: "affiliate:aff-x" });
+    expect(gone.find((g) => g.label === "Un affilié Link Affi")!.options.map((o) => o.key)).toEqual(
+      ["kind:LINKAFFI_ANY", "affiliate:aff-x"],
+    );
+  });
+
+  it("pas deux exceptions pour le même affilié ; « n'importe quel affilié » placé avant masque l'affilié précis", () => {
+    const paul = item("p", targetOfKey("affiliate:aff-paul")!, { sortOrder: 20 });
+    const any = item("a", targetOfKey("kind:LINKAFFI_ANY")!, { sortOrder: 10 });
+    expect(findDuplicate([paul], targetOfKey("affiliate:aff-paul")!)).toBe(paul);
+    expect(findDuplicate([paul], targetOfKey("affiliate:aff-sarah")!)).toBeNull();
+    expect(shadowNote([any, paul], paul, affNames)).toMatch(/^Jamais utilisée/);
+    // Une nouvelle exception d'affilié précis se place avant « n'importe quel affilié ».
+    expect(placementOrder([any], paul)).toEqual(["p", "a"]);
   });
 });

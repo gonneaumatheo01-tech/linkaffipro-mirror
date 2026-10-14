@@ -44,6 +44,10 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/campaigns").help.path).toBe("/campaigns");
     expect(pageHelpFor("/campaigns/abc123?tab=ads").help.path).toBe("/campaigns/:id");
     expect(pageHelpFor("/campaigns/links").help.label).toBe("Tous les liens");
+    expect(pageHelpFor("/campaigns/affiliates").help.label).toBe("Affiliés Link Affi");
+    expect(pageHelpFor("/campaigns/affiliates/export").help.sections).toEqual([
+      "Affiliés sur vos canaux",
+    ]);
     expect(pageHelpFor("/campaigns/new").help.label).toBe("Nouvelle campagne");
     expect(pageHelpFor("/members/broadcasts/new").help.label).toBe("Écrire à un groupe");
     expect(pageHelpFor("/members/broadcasts/ab/g1").help.label).toBe(
@@ -179,8 +183,8 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(guideHref(pageHelpFor("/settings/team").help)).toBe("/help#reglages-equipe");
     expect(guideHref(pageHelpFor("/styleguide").help)).toBe("/help#les-10-premieres-minutes");
     expect(guideHref({ path: "/x", label: "X", sections: [] })).toBe("/help");
-    // Chaque ancre existe dans la page /help (mêmes identifiants que le rendu du guide).
-    const ids = new Set(guideHeadings(GUIDE).map((h) => h.id));
+    // Chaque ancre existe dans la page /help (mêmes identifiants que le rendu du guide, sections intégrées comprises).
+    const ids = new Set(guideHeadings(withBuiltinSections(GUIDE)).map((h) => h.id));
     for (const entry of [...PAGE_HELP, DEFAULT_HELP])
       expect(ids.has(guideHref(entry).slice("/help#".length)), entry.path).toBe(true);
   });

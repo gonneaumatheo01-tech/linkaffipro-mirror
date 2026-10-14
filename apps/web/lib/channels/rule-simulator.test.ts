@@ -287,3 +287,131 @@ describe("simulateur : même logique que le bot", () => {
     );
   });
 });
+
+describe("simulateur : affiliés Link Affi (phase 13)", () => {
+  const affLinks = [
+    {
+      id: "la1",
+      campaignKey: "k1",
+      campaignName: "Casino VIP",
+      affiliateId: "aff-paul",
+      affiliateName: "Paul",
+      isActive: true,
+    },
+    {
+      id: "la2",
+      campaignKey: "k2",
+      campaignName: "Été",
+      affiliateId: "aff-sarah",
+      affiliateName: "Sarah",
+      isActive: false,
+    },
+  ];
+  const affCtx = {
+    ...ctx,
+    affiliateNames: { "aff-paul": "Paul", "aff-sarah": "Sarah" },
+    affiliateLinks: { la1: { campaignName: "Casino VIP", affiliateName: "Paul" } },
+  };
+  const choices = () =>
+    simulationChoices({
+      channelId: "zone",
+      channels: [],
+      senders: [],
+      shareLinks: [],
+      affiliateLinks: affLinks,
+      // Un lien d'affilié visé par une exception n'est pas proposé une deuxième fois dans « Un lien précis ».
+      preciseLinks: [
+        {
+          id: "la1",
+          kind: "LINKAFFI",
+          sourceChannelId: null,
+          adPlatform: null,
+          name: "Casino VIP",
+          isActive: true,
+        },
+      ],
+    });
+
+  it("chaque campagne du canal et « un autre affilié », avec la provenance lue comme le bot", () => {
+    const group = choices().find((g) => g.label === "Un affilié Link Affi")!;
+    expect(group.choices.map((c) => c.label)).toEqual([
+      "de la campagne « Casino VIP » de l'affilié « Paul »",
+      "de la campagne « Été » de l'affilié « Sarah » (désactivée)",
+      "d'un autre affilié Link Affi",
+    ]);
+    expect(group.choices[0]!.provenance).toMatchObject({
+      type: "LINKAFFI",
+      inviteLinkId: "la1",
+      linkaffi: { campaignKey: "k1", affiliateId: "aff-paul", affiliateName: "Paul" },
+    });
+    expect(choices().some((g) => g.label === "Un lien précis")).toBe(false);
+  });
+
+  it("aucun affilié : pas de groupe ; affiliés connus sans campagne ici : « un autre affilié » seul", () => {
+    const base = { channelId: "zone", channels: [], senders: [], shareLinks: [] };
+    expect(simulationChoices(base).some((g) => g.label === "Un affilié Link Affi")).toBe(false);
+    const only = simulationChoices({ ...base, withAffiliates: true }).find(
+      (g) => g.label === "Un affilié Link Affi",
+    )!;
+    expect(only.choices.map((c) => c.key)).toEqual(["linkaffi:other"]);
+  });
+
+  it("règle retenue : campagne précise, puis affilié précis, puis n'importe quel affilié, puis défaut", () => {
+    const rules: SimRule[] = [
+      {
+        ...base,
+        id: "default",
+        scope: "DEFAULT",
+        isDefault: true,
+        rule: entry({ delaySeconds: 300 }),
+      },
+      {
+        ...base,
+        id: "any",
+        scope: "SOURCE_KIND",
+        sourceKind: "LINKAFFI_ANY",
+        // Placée après l'affilié précis (l'écran range une nouvelle exception précise avant la générale).
+        sortOrder: 20,
+        isDefault: false,
+        rule: entry({ delaySeconds: 3600 }),
+      },
+      {
+        ...base,
+        id: "paul",
+        scope: "SOURCE_KIND",
+        sourceKind: "LINKAFFI_AFFILIATE",
+        linkaffiAffiliateId: "aff-paul",
+        sortOrder: 10,
+        isDefault: false,
+        rule: entry({ delaySeconds: 0 }),
+      },
+    ];
+    const group = choices().find((g) => g.label === "Un affilié Link Affi")!;
+    const paul = simulate(rules, group.choices[0]!.provenance, affCtx);
+    expect(paul.ruleText).toBe("L'exception pour les personnes venues de l'affilié « Paul ».");
+    expect(paul.whenText).toBe("Elle est acceptée tout de suite.");
+    const sarah = simulate(rules, group.choices[1]!.provenance, affCtx);
+    expect(sarah.ruleText).toBe(
+      "L'exception pour les personnes venues de n'importe quel affilié Link Affi.",
+    );
+    const campaign = simulate(
+      [
+        ...rules,
+        {
+          ...base,
+          id: "camp",
+          scope: "INVITE_LINK",
+          inviteLinkId: "la1",
+          isDefault: false,
+          rule: entry({ mode: "MANUAL" }),
+        },
+      ],
+      group.choices[0]!.provenance,
+      affCtx,
+    );
+    expect(campaign.ruleText).toBe(
+      "L'exception pour les personnes venues de la campagne « Casino VIP » de l'affilié « Paul ».",
+    );
+    expect(simulate([rules[0]!], group.choices[2]!.provenance, affCtx).ruleKind).toBe("default");
+  });
+});

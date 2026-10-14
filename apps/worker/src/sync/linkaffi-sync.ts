@@ -18,6 +18,7 @@ import {
   buildRateTable,
   computeWindow,
   cursorAfterPage,
+  isTelegramCampaignRow,
   cursorAfterSuccess,
   mapCampaign,
   mapCasino,
@@ -50,6 +51,11 @@ import {
 } from "@linkaffipro/linkaffi";
 import { logger } from "../logger";
 import { markDailyStatsDirty } from "../stats/daily";
+import {
+  TELEGRAM_SYNC_NAME,
+  syncTelegramCampaigns,
+  telegramCampaignsDue,
+} from "./linkaffi-telegram";
 import { applyPlayerRow, diffCpaEvents, type ExistingPlayer } from "./player-apply";
 
 type Db = typeof prisma;
@@ -82,6 +88,8 @@ class SyncContext {
   touchedPostIds = new Set<string>();
   /** Jours de Paris dont les commissions ont changé (CPA, revshare) : statistiques journalières à recalculer. */
   dirtyDays = new Set<string>();
+  /** Lignes Telegram de `campaigns` vues par ce passage (phase 13) : jamais des offres, relues par la synchro Telegram. */
+  telegramCampaignRows: LaCampaign[] = [];
   /** Offres Link Affi rattachées à nos campagnes (lu une fois par passage) : « nos » joueurs, voir `isOurPlayer`. */
   private ourOffers: Set<string> | null = null;
   constructor(
@@ -207,6 +215,11 @@ async function handleCasinos(ctx: SyncContext, rows: LaCasino[]) {
 
 async function handleCampaigns(ctx: SyncContext, rows: LaCampaign[]) {
   for (const row of rows) {
+    // Campagne Telegram d'affilié (lien Link Affi vers un de nos canaux) : pas une offre.
+    if (isTelegramCampaignRow(row)) {
+      ctx.telegramCampaignRows.push(row);
+      continue;
+    }
     const m = mapCampaign(row);
     if (!m) continue;
     const programId = await ctx.ensureProgram(m.programExternalId);
@@ -969,6 +982,19 @@ export async function runSync(opts: SyncOptions = {}): Promise<TableResult[]> {
     await recomputePostStats(db, ctx.touchedPostIds).catch((err: Error) =>
       logger.error({ err: err.message }, "recalcul PostStats"),
     );
+  // Campagnes Telegram des affiliés (phase 13) : lecture toutes les 10 minutes, après les joueurs. Hors `results` et
+  // hors `SyncState` : une table Telegram absente chez Link Affi n'est jamais une erreur de synchro.
+  if (!wanted || wanted.has(TELEGRAM_SYNC_NAME)) {
+    if (await telegramCampaignsDue(db, now(), opts.full === true)) {
+      const campaigns = results.find((r) => r.table === "campaigns");
+      await syncTelegramCampaigns({
+        db,
+        client,
+        now,
+        campaignRows: campaigns?.ok && !campaigns.skipped ? ctx.telegramCampaignRows : null,
+      });
+    }
+  }
   const total = results.reduce((s, r) => s + r.rows, 0);
   logger.info(
     { total, errors: results.filter((r) => !r.ok).map((r) => r.table) },

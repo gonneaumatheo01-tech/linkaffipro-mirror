@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, audit, recordEvent, type Prisma } from "@linkaffipro/db";
-import { requireAdmin, requireUser } from "@/lib/session";
+import { ForbiddenError, requireAdmin, requireUser } from "@/lib/session";
 import { getTagRegistry, memberTags } from "@/lib/members/tags";
+import { scrubLinkaffiEventsOps } from "@/lib/affiliates/anonymize";
+import { changeMemberAffiliate, removeMemberAffiliate } from "@/lib/affiliates/attribution-server";
 
 export async function addNoteAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -61,10 +63,15 @@ export async function editNoteAction(formData: FormData): Promise<void> {
 export async function setMemberTagsAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const memberId = z.string().min(1).parse(formData.get("memberId"));
-  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { tags: true, anonymizedAt: true } });
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { tags: true, anonymizedAt: true },
+  });
   if (!member) redirect("/members");
   if (member.anonymizedAt)
-    redirect(`/members/${memberId}?error=${encodeURIComponent("Un membre anonymisé ne porte pas d'étiquette.")}`);
+    redirect(
+      `/members/${memberId}?error=${encodeURIComponent("Un membre anonymisé ne porte pas d'étiquette.")}`,
+    );
   const registry = await getTagRegistry();
   const known = new Set(registry.map((t) => t.name));
   const wanted = formData
@@ -74,8 +81,15 @@ export async function setMemberTagsAction(formData: FormData): Promise<void> {
   const before = memberTags(member.tags);
   const kept = before.filter((t) => !known.has(t));
   const next = [...new Set([...kept, ...wanted])];
-  await prisma.member.update({ where: { id: memberId }, data: { tags: next as Prisma.InputJsonValue } });
-  await recordEvent({ type: "member.tags_changed", memberId, payload: { from: before, to: next, by: user.id } });
+  await prisma.member.update({
+    where: { id: memberId },
+    data: { tags: next as Prisma.InputJsonValue },
+  });
+  await recordEvent({
+    type: "member.tags_changed",
+    memberId,
+    payload: { from: before, to: next, by: user.id },
+  });
   await audit({
     userId: user.id,
     action: "member.tags_changed",
@@ -112,6 +126,7 @@ export async function deleteNoteAction(formData: FormData): Promise<void> {
  * Suppression d'un membre sur demande (RGPD) = anonymisation : identité effacée, notes supprimées,
  * événements et statistiques conservés sans donnée personnelle. Le telegramUserId est remplacé par un
  * entier négatif aléatoire (jamais attribué par Telegram) pour préserver l'unicité et les relations.
+ * Événements destinés à Link Affi (phase 13) : en attente supprimés, les autres sans l'identité du membre.
  */
 export async function anonymizeMemberAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
@@ -144,6 +159,7 @@ export async function anonymizeMemberAction(formData: FormData): Promise<void> {
         anonymizedAt: new Date(),
       },
     }),
+    ...scrubLinkaffiEventsOps(memberId),
   ]);
   await recordEvent({ type: "member.anonymized", memberId, payload: { by: admin.id } });
   await audit({
@@ -155,5 +171,54 @@ export async function anonymizeMemberAction(formData: FormData): Promise<void> {
   revalidatePath(`/members/${memberId}`);
   redirect(
     `/members/${memberId}?ok=${encodeURIComponent("Membre supprimé : identité effacée, historique conservé sans donnée personnelle.")}`,
+  );
+}
+
+/** Retour d'une correction d'affilié (fiche membre) : confirmation ou erreur, sans quitter la fiche. */
+function backToMember(
+  memberId: string,
+  r: { ok: true; message: string } | { ok: false; error: string },
+): never {
+  revalidatePath(`/members/${memberId}`);
+  redirect(
+    `/members/${memberId}?${new URLSearchParams(r.ok ? { ok: r.message } : { error: r.error }).toString()}`,
+  );
+}
+
+/** Administrateur, sinon retour sur la fiche avec un message (un responsable lit l'affilié sans le changer). */
+async function adminOrBack(memberId: string) {
+  try {
+    return await requireAdmin();
+  } catch (err) {
+    if (!(err instanceof ForbiddenError)) throw err;
+    backToMember(memberId, { ok: false, error: "Réservé aux administrateurs." });
+  }
+}
+
+/**
+ * « Changer d'affilié » (phase 13, ADMIN) : rattache le membre à une campagne Telegram d'affilié existante, avec un
+ * motif (journal `member.affiliate_changed`).
+ */
+export async function changeMemberAffiliateAction(formData: FormData): Promise<void> {
+  const memberId = z.string().min(1).parse(formData.get("memberId"));
+  const admin = await adminOrBack(memberId);
+  backToMember(
+    memberId,
+    await changeMemberAffiliate({
+      memberId,
+      inviteLinkId: String(formData.get("inviteLinkId") ?? ""),
+      reason: formData.get("reason"),
+      userId: admin.id,
+    }),
+  );
+}
+
+/** « Retirer l'affilié » (phase 13, ADMIN) : plus aucun affilié, avec un motif (journal `member.affiliate_removed`). */
+export async function removeMemberAffiliateAction(formData: FormData): Promise<void> {
+  const memberId = z.string().min(1).parse(formData.get("memberId"));
+  const admin = await adminOrBack(memberId);
+  backToMember(
+    memberId,
+    await removeMemberAffiliate({ memberId, reason: formData.get("reason"), userId: admin.id }),
   );
 }

@@ -3,7 +3,8 @@
  * - lecture et écriture des paramètres d'adresse (les anciens restent valides : q, channelId, status, inviteLinkId,
  *   campaignId, level, language, tag, since, until, sort, page) ;
  * - nouveaux filtres : `deposited=1` (ont déposé), `ftd=today|7d|30d|month` (premier dépôt dans la période),
- *   `inactive=7|30` (rien fait depuis N jours), `universe=CASINO|SPORTS|DATING` ;
+ *   `inactive=7|30` (rien fait depuis N jours), `universe=CASINO|SPORTS|DATING`, `affiliateId=<id Link Affi>`
+ *   (membres amenés par un affilié Link Affi, phase 13) ;
  * - phrases affichées (« Venus de la campagne « Casino octobre » »), pastilles de raccourcis, lien vers
  *   « Écrire à un groupe » avec les filtres qui s'y traduisent, et la phrase qui dit lesquels ne le sont pas.
  */
@@ -73,6 +74,8 @@ export type MemberFilters = {
   inactive: number | "";
   /** Univers d'un des canaux du membre. */
   universe: Universe | "";
+  /** Affilié Link Affi qui a amené le membre (identifiant Link Affi, `Member.linkaffiAffiliateId`). */
+  affiliateId: string;
   sort: MemberSort;
   page: number;
 };
@@ -106,6 +109,7 @@ export function parseMemberFilters(sp: SP): MemberFilters {
     inactive:
       Number.isInteger(inactive) && inactive > 0 && inactive <= MAX_INACTIVE_DAYS ? inactive : "",
     universe: toUniverse(one(sp.universe)) ?? "",
+    affiliateId: one(sp.affiliateId).trim().slice(0, 128),
     sort: sort === "firstSeen" || sort === "name" ? sort : "lastSeen",
     page: Math.max(1, Number(one(sp.page)) || 1),
   };
@@ -163,6 +167,7 @@ const EMPTY: Pick<MemberFilters, MemberFilterKey> = {
   ftd: "",
   inactive: "",
   universe: "",
+  affiliateId: "",
 };
 
 export const FILTER_KEYS = Object.keys(EMPTY) as MemberFilterKey[];
@@ -210,6 +215,8 @@ export type FilterNames = {
   channels?: Record<string, string>;
   campaigns?: Record<string, string>;
   inviteLinks?: Record<string, string>;
+  /** Noms des affiliés Link Affi par identifiant. */
+  affiliates?: Record<string, string>;
 };
 
 export type ActiveFilter = {
@@ -249,6 +256,10 @@ export function filterLabel(
       return f.campaignId
         ? `Venus de la campagne « ${names.campaigns?.[f.campaignId] ?? "inconnue"} »`
         : null;
+    case "affiliateId":
+      return f.affiliateId
+        ? `Amenés par l'affilié « ${names.affiliates?.[f.affiliateId] ?? f.affiliateId} »`
+        : null;
     case "inviteLinkId":
       return f.inviteLinkId
         ? `Venus de la pub « ${names.inviteLinks?.[f.inviteLinkId] ?? "inconnue"} »`
@@ -277,6 +288,7 @@ const DISPLAY_ORDER: MemberFilterKey[] = [
   "inactive",
   "universe",
   "campaignId",
+  "affiliateId",
   "inviteLinkId",
   "channelId",
   "tag",
@@ -373,7 +385,7 @@ export type BroadcastLink = {
  * Lien vers « Écrire à un groupe » avec les filtres qui se traduisent en groupe de membres (mêmes noms que
  * le `Segment` de `@linkaffipro/core`, listes en paramètres répétés) : channelIds, membershipStatuses, spendLevels,
  * inviteLinkIds, campaignIds, languages, inactiveDays, tags. L'univers devient la liste de ses canaux.
- * Non repris : la recherche, le premier dépôt dans une période, les dates d'arrivée, un statut que l'assistant ne
+ * Non repris : la recherche, l'affilié, le premier dépôt dans une période, les dates d'arrivée, un statut que l'assistant ne
  * propose pas (Refusé, Acceptation échouée), et la campagne quand un canal, un univers, un statut ou une pub est
  * repris : le groupe lit tous ces critères sur une même demande pour rejoindre, alors que la liste lit la campagne
  * sur n'importe laquelle de ses demandes (le groupe viserait d'autres membres que la liste).
@@ -413,6 +425,7 @@ export function broadcastLink(
   if (f.inactive) p.set("inactiveDays", String(f.inactive));
   if (f.tag) p.append("tags", f.tag);
   if (f.q) dropped.push("la recherche");
+  if (f.affiliateId) dropped.push("l'affilié");
   if (f.ftd) dropped.push("le premier dépôt");
   if (f.since || f.until) dropped.push("les dates d'arrivée");
   // En dernier : la phrase porte sa raison (« …, sauf la recherche et la campagne, qui ne s'y combine pas avec le statut »).

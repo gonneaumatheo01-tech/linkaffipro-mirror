@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 13 : brancher les affiliés Link Affi (10 minutes, quand Link Affi est prêt)
+1. **Générer les deux valeurs** : https://app.linkaffipro.com/settings/connectors → partie « Campagnes Telegram des affiliés » → **Générer la clé** (copiez-la tout de suite, elle ne s'affiche qu'une fois), puis **Générer le secret** (idem).
+2. **Les coller dans Link Affi** : dans Lovable, projet Link Affi → Cloud → Secrets → ajoutez `LINKAFFIPRO_API_KEY` (la clé) et `LINKAFFIPRO_WEBHOOK_SECRET` (le secret).
+3. **Tester** : revenez dans la même partie et cliquez **Envoyer un événement de test** : « Reçu » = c'est branché.
+4. **Transmettre au développeur de Link Affi** l'annexe de `docs/LINKAFFI-PARTENAIRES.md` (« Annexe — précisions de la plateforme ») : réponses exactes de notre API, événement de test, et surtout `attributionDays` à envoyer pour qu'une campagne à durée limitée le soit aussi chez nous.
+
 ## Phase 12 : vos emojis animés (5 minutes)
 1. **Ajouter vos emojis** : dans Telegram, transférez à @casinogamblingoobot un message qui contient vos emojis animés préférés (votre compte Telegram doit être lié : site → Mon compte). Le bot répond « … emojis animés ajoutés ✅ ». Ou collez le lien d'un pack (t.me/addemoji/…) dans Messages → Emojis animés → **Ajouter des emojis animés**. Votre compte n'a aucun pack d'emojis installé : « Importer mes packs » n'ajoute donc rien pour l'instant.
 2. **Message privé de test** : vous avez reçu cette nuit de @casinogamblingoobot « Essai des emojis animés (phase 12) » avec un pouce animé : s'il bougeait, les messages privés du bot avec emojis animés fonctionnent.

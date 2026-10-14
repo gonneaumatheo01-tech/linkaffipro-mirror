@@ -208,6 +208,8 @@ export type ScopedRuleRow = RuleRow & {
   sourceChannelId: string | null;
   sourceKind: SourceKind | null;
   sortOrder: number;
+  /** Affilié visé par une exception « un affilié précis » (LINKAFFI_AFFILIATE, phase 13). */
+  linkaffiAffiliateId?: string | null;
 };
 
 /**

@@ -458,3 +458,32 @@ describe("nom des langues", () => {
     expect(languageName("zz-not a code")).toBe("zz-not a code");
   });
 });
+
+describe("filtre « Affilié » (phase 13)", () => {
+  it("lu et réécrit dans l'adresse ; compté comme un filtre ; retiré par sa pastille", () => {
+    const f = parseMemberFilters({ affiliateId: " aff-paul ", deposited: "1" });
+    expect(f.affiliateId).toBe("aff-paul");
+    expect(filtersToQuery(f)).toBe("?deposited=1&affiliateId=aff-paul");
+    expect(activeFilterCount(f)).toBe(2);
+    const chips = describeMemberFilters(f, { affiliates: { "aff-paul": "Paul" } });
+    const chip = chips.find((c) => c.key === "affiliateId")!;
+    expect(chip.label).toBe("Amenés par l'affilié « Paul »");
+    expect(chip.removeHref).toBe("/members?deposited=1");
+    expect(clearedFilters().affiliateId).toBe("");
+  });
+
+  it("affilié inconnu : son identifiant reste lisible ; valeur trop longue tronquée", () => {
+    const f = parseMemberFilters({ affiliateId: "aff-x" });
+    expect(describeMemberFilters(f)[0]!.label).toBe("Amenés par l'affilié « aff-x »");
+    expect(parseMemberFilters({ affiliateId: "a".repeat(300) }).affiliateId).toHaveLength(128);
+  });
+
+  it("« Écrire à un groupe » ne reprend pas l'affilié et le dit", () => {
+    const l = broadcastLink(parseMemberFilters({ affiliateId: "aff-paul", deposited: "1" }));
+    expect(new URLSearchParams(l.href.split("?")[1]).getAll("spendLevels").length).toBeGreaterThan(
+      0,
+    );
+    expect(l.dropped).toEqual(["l'affilié"]);
+    expect(broadcastNote(l)).toBe("« Écrire à un groupe » reprend vos filtres, sauf l'affilié.");
+  });
+});

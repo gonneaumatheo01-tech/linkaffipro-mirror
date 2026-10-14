@@ -43,7 +43,17 @@ const prismaRuleLoaders: RuleLoaders = {
   linkById: (id) =>
     prisma.inviteLink.findUnique({
       where: { id },
-      select: { id: true, kind: true, sourceChannelId: true, adPlatform: true },
+      select: {
+        id: true,
+        kind: true,
+        sourceChannelId: true,
+        adPlatform: true,
+        // Lien d'affilié Link Affi (phase 13) : exceptions « un affilié précis ».
+        linkaffiCampaignKey: true,
+        linkaffiCampaignName: true,
+        linkaffiAffiliateId: true,
+        linkaffiAffiliateName: true,
+      },
     }),
 };
 

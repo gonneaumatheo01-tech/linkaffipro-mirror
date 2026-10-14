@@ -62,6 +62,11 @@ import { postLanguageOptions } from "@/lib/posts/display";
 import { nextOccurrence, toParisLocalInput } from "@/lib/posts/time";
 import { appendToText } from "@/lib/posts/offer-link";
 import {
+  AFFILIATE_POST_WARNING,
+  affiliatePostWarningChannels,
+  affiliateWarningDetail,
+} from "@/lib/posts/affiliate-warning";
+import {
   ACCOUNT_PROTECT_NOTE,
   accountProblemsFor,
   channelsToCheck,
@@ -84,6 +89,11 @@ export type ChannelOption = {
    * lui-même, avec ses boutons ; seul un canal passe par le compte Telegram connecté. Absent : canal.
    */
   type?: string | null;
+  /**
+   * Membres amenés par des affiliés Link Affi présents dans le canal (phase 13) : un message publié par le compte
+   * (sans boutons) ne peut pas leur créditer les dépôts ; le formulaire prévient.
+   */
+  affiliateMembers?: number;
 };
 export type CategoryOption = { id: string; name: string; color: string };
 export type CampaignOption = { id: string; name: string; programName: string };
@@ -590,6 +600,17 @@ export function PostForm({
   })();
   const problems = accountProblemsFor(status, accountChannels);
   const scheduleBlocked = emoji.account && hasAccountProblem(problems);
+  // Phase 13 : publié par le compte (sans bouton d'offre) dans un canal qui compte des membres d'affiliés.
+  const affiliateWarning = affiliatePostWarningChannels({
+    modeA: emoji.modeA,
+    modeB: emoji.modeB,
+    channelIdsA: channelIds,
+    channelIdsB,
+    affiliateMembers: Object.fromEntries(channels.map((c) => [c.id, c.affiliateMembers ?? 0])),
+    titleOf,
+    isChannel: (id) => needsAccountFor(chatTypeOf(id)),
+    isTemplate: isTemplate || intent === "template",
+  });
   const accountIds = accountChannels.map((c) => c.id);
   const toCheckKey = emoji.account ? channelsToCheck(status, accountIds).join(",") : "";
 
@@ -926,6 +947,13 @@ export function PostForm({
               offerLinkOpen={showOfferLink}
               groupTitles={emojiGroups}
             />
+            {affiliateWarning.length > 0 ? (
+              <Alert variant="warning" role="status">
+                <TriangleAlert aria-hidden />
+                <AlertTitle>{AFFILIATE_POST_WARNING}</AlertTitle>
+                <AlertDescription>{affiliateWarningDetail(affiliateWarning)}</AlertDescription>
+              </Alert>
+            ) : null}
             {/* Téléphone : l'aperçu juste sous le texte (sur ordinateur, il est à droite). */}
             <div className="lg:hidden">
               <p className="mb-2 flex flex-wrap items-center gap-2 text-note font-medium text-muted-foreground">

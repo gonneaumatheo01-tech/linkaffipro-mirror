@@ -196,6 +196,27 @@ export function adLabel(o: {
 }
 
 /**
+ * Source d'arrivée affichée dans la liste des membres et son volet de résumé : « Pub Vidéo bonus (TikTok) » pour un
+ * lien de pub, « Affilié Paul » pour le lien d'une campagne d'affilié Link Affi (phase 13 : ce n'est pas une pub, la
+ * fiche le dit aussi) ; null sans lien.
+ */
+export function originSourceLabel(o: {
+  kind?: string | null;
+  adName: string | null;
+  adPlatform: string | null;
+  linkName: string | null;
+  affiliateName?: string | null;
+  affiliateId?: string | null;
+}): string | null {
+  if (o.kind === "LINKAFFI") {
+    const who = (o.affiliateName ?? "").trim() || (o.affiliateId ?? "").trim();
+    return who ? `Affilié ${who}` : "Affilié Link Affi";
+  }
+  const ad = adLabel(o);
+  return ad ? `Pub ${ad}` : null;
+}
+
+/**
  * Canaux du volet de résumé de la liste, chacun une seule fois : le canal d'arrivée est déjà dans « D'où il vient » ;
  * le canal de la dernière demande ne s'écrit sous le statut que si le membre a plusieurs canaux ; « Aussi dans »
  * liste les autres.

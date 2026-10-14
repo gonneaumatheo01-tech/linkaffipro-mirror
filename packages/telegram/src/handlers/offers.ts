@@ -1,6 +1,11 @@
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import { fillUrlTemplate, newSubId, TELEGRAM_CAPTION_MAX, textLength } from "@linkaffipro/core";
+import {
+  isAffiliateAttributionActive,
+  newSubId,
+  TELEGRAM_CAPTION_MAX,
+  textLength,
+} from "@linkaffipro/core";
 import type { BotIdentity } from "../ports";
 import { isLang, pickLang } from "../i18n";
 import type { OfferDeps } from "../offers/deps";
@@ -8,6 +13,7 @@ import {
   DEFAULT_OFFER_REPLY,
   INVALID_OFFER_REPLY,
   fillPlaceholders,
+  offerDestination,
   parseOfferPayload,
 } from "../offers/logic";
 import { sendWithEmojiFallback, type CustomEmojiFallbackInfo } from "../custom-emoji/fallback";
@@ -21,6 +27,9 @@ async function loadDefaultDeps(): Promise<OfferDeps> {
 /**
  * `/start o<slug>_<code post>` : offre personnalisée. Crée un clic avec un sub-ID neuf (12 caractères),
  * construit l'URL Link Affi (`…/go/<key>?sub_id=<subId>`) et répond avec un bouton « Ouvrir l'offre ».
+ * Sert à tous les boutons d'offre : messages de canal, relances, écrire à un groupe, réponses d'offre.
+ * Phase 13 : membre rattaché à une campagne Telegram d'affilié Link Affi (attribution en cours) → `&tg=<clé>` ajouté
+ * au lien Link Affi, clé copiée sur le clic, événement `offer_clicked` (sub-ID, clé de l'offre) envoyé à Link Affi.
  */
 export function registerOfferHandlers(bot: Bot, identity: BotIdentity, deps?: OfferDeps): void {
   bot.command("start", async (ctx, next) => {
@@ -30,26 +39,60 @@ export function registerOfferHandlers(bot: Bot, identity: BotIdentity, deps?: Of
     const d = deps ?? (await loadDefaultDeps());
     const lang = pickLang(from.language_code);
     const parsed = parseOfferPayload(payload);
-    const { memberId } = await d.memberStarted(identity.id, from);
+    const { memberId, affiliate } = await d.memberStarted(identity.id, from);
     const offer = parsed ? await d.resolveOffer(parsed.slug, parsed.postCode) : null;
     if (!offer) {
       await ctx.reply(INVALID_OFFER_REPLY[lang]);
       return;
     }
     const subId = newSubId();
-    const destination = fillUrlTemplate(offer.destinationTemplate, {
-      subid: subId,
-      member_id: memberId,
-      post_id: offer.postId ?? "",
+    const now = new Date();
+    const { destination, telegramCampaignKey } = offerDestination({
+      template: offer.destinationTemplate,
+      subId,
+      memberId,
+      postId: offer.postId,
+      offerCampaignKey: offer.offerCampaignKey,
+      affiliate,
+      now,
     });
-    await d.recordOfferClick({
+    const { clickId } = await d.recordOfferClick({
       trackingLinkId: offer.trackingLinkId,
       postId: offer.postId,
       memberId,
       botId: identity.id,
       subId,
       destination,
+      linkaffiTelegramCampaignKey: telegramCampaignKey,
     });
+    // Membre d'un affilié Link Affi (attribution en cours) : le clic part aussi à Link Affi, qui rapproche le sub-ID du
+    // joueur. Jamais bloquant pour la réponse.
+    if (
+      d.emitLinkaffiEvent &&
+      affiliate?.campaignKey &&
+      isAffiliateAttributionActive(
+        {
+          linkaffiCampaignKey: affiliate.campaignKey,
+          affiliateAttributionEndsAt: affiliate.attributionEndsAt,
+        },
+        now,
+      )
+    )
+      await d
+        .emitLinkaffiEvent({
+          type: "offer_clicked",
+          sourceId: clickId,
+          memberId,
+          channelId: offer.channelId,
+          occurredAt: now,
+          data: { subId, offerCampaignKey: offer.offerCampaignKey ?? null },
+        })
+        .catch((err: unknown) =>
+          console.warn("[offers] événement Link Affi non enregistré", {
+            clickId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
     // Langue du membre si le bot la connaît, sinon celle du canal, sinon fr.
     const channelLang = pickLang(offer.channelLanguage);
     const textLang = isLang(from.language_code?.toLowerCase().split(/[-_]/)[0])

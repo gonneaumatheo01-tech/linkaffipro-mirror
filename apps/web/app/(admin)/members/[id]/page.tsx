@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { PAGE_SIZE, Pagination, pageHref, pageOf } from "@/components/admin/pagination";
 import { StatusPill } from "@/components/admin/status-pill";
 import { UniverseDot } from "@/components/admin/universe-dot";
+import { MemberAffiliate } from "@/components/affiliates/member-affiliate";
 import { MemberTags } from "@/components/members/member-cells";
 import { MemberMemberships } from "@/components/members/member-memberships";
 import { MemberTimeline } from "@/components/members/member-timeline";
@@ -23,6 +24,7 @@ import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { loadAffiliateCampaigns } from "@/lib/affiliates/campaigns";
 import { withMinusSign } from "@/lib/campaigns/cards";
 import {
   acceptanceText,
@@ -40,8 +42,10 @@ import { requireUser } from "@/lib/session";
 import {
   addNoteAction,
   anonymizeMemberAction,
+  changeMemberAffiliateAction,
   deleteNoteAction,
   editNoteAction,
+  removeMemberAffiliateAction,
   setMemberTagsAction,
 } from "./actions";
 
@@ -177,6 +181,15 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
           orderBy: { createdAt: "desc" },
           include: { author: { select: { name: true, id: true } } },
         },
+        // Affilié Link Affi qui a amené le membre (phase 13) : sa campagne Telegram d'affilié.
+        affiliateInviteLink: {
+          select: {
+            linkaffiCampaignKey: true,
+            linkaffiCampaignName: true,
+            linkaffiAffiliateName: true,
+            channel: { select: { title: true } },
+          },
+        },
         _count: {
           select: { clicks: { where: { isBot: false, trackingLink: { kind: "OFFER" } } } },
         },
@@ -187,6 +200,38 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
   ]);
   if (!member) notFound();
   const now = new Date();
+  // Affilié Link Affi (phase 13) : un ADMIN peut le corriger parmi les campagnes d'affiliés existantes.
+  const canEditAffiliate = me.role === "ADMIN" && !member.anonymizedAt;
+  const affiliateCampaigns = canEditAffiliate ? await loadAffiliateCampaigns() : [];
+  const affiliateView = {
+    linkaffiCampaignKey: member.linkaffiCampaignKey,
+    linkaffiAffiliateId: member.linkaffiAffiliateId,
+    affiliateAttributedAt: member.affiliateAttributedAt,
+    affiliateAttributionEndsAt: member.affiliateAttributionEndsAt,
+    affiliateInviteLinkId: member.affiliateInviteLinkId,
+    link: member.affiliateInviteLink
+      ? {
+          campaignName: member.affiliateInviteLink.linkaffiCampaignName,
+          campaignKey: member.affiliateInviteLink.linkaffiCampaignKey,
+          affiliateName: member.affiliateInviteLink.linkaffiAffiliateName,
+          channelTitle: member.affiliateInviteLink.channel.title,
+        }
+      : null,
+  };
+  const showAffiliate =
+    Boolean(member.linkaffiCampaignKey || member.linkaffiAffiliateId) ||
+    affiliateCampaigns.length > 0;
+  const affiliateBlock = showAffiliate ? (
+    <MemberAffiliate
+      memberId={member.id}
+      view={affiliateView}
+      now={now}
+      canEdit={canEditAffiliate}
+      campaigns={affiliateCampaigns}
+      changeAction={changeMemberAffiliateAction}
+      removeAction={removeMemberAffiliateAction}
+    />
+  ) : null;
   // Demandes et canaux : d'où vient chaque demande (titres actuels des canaux d'origine), règle, acceptation.
   const sourceIds = sourceChannelIdsOf(member.memberships);
   const sourceTitles = sourceIds.length
@@ -315,7 +360,10 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
     : [memberSubline(member), member.isPremium ? "Telegram Premium" : null]
         .filter(Boolean)
         .join(" · ");
-  const ad = origin ? adLabel(origin) : null;
+  // Lien d'une campagne d'affilié Link Affi (phase 13) : ce n'est pas une pub (l'affilié est montré plus bas).
+  const originByAffiliate =
+    member.memberships[member.memberships.length - 1]?.inviteLink?.kind === "LINKAFFI";
+  const ad = origin && !originByAffiliate ? adLabel(origin) : null;
   const unknownTags = tags.filter((t) => !tagRegistry.some((r) => r.name === t));
   const canEditNote = (authorId: string | undefined) => me.role === "ADMIN" || authorId === me.id;
 
@@ -381,7 +429,11 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                 )}
               </Fact>
               <Fact label="Pub">
-                {ad ?? <span className="text-muted-foreground">Aucune (lien direct)</span>}
+                {ad ?? (
+                  <span className="text-muted-foreground">
+                    {originByAffiliate ? "Aucune (lien d'un affilié)" : "Aucune (lien direct)"}
+                  </span>
+                )}
               </Fact>
               <Fact label="Canal">
                 <Link
@@ -394,12 +446,26 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
               </Fact>
               <Fact label="Arrivé le">{fmtDate(origin.at)}</Fact>
               {origin.offerName ? <Fact label="Offre">{origin.offerName}</Fact> : null}
+              {affiliateBlock ? (
+                <div className="min-w-0 sm:col-span-2">
+                  <dt className="text-note text-muted-foreground">Affilié Link Affi</dt>
+                  <dd className="mt-0.5 min-w-0 break-words">{affiliateBlock}</dd>
+                </div>
+              ) : null}
             </dl>
           ) : (
-            <p className="text-muted-foreground">
-              Pas encore de demande pour rejoindre un canal. Vu pour la première fois le{" "}
-              {fmtDate(member.firstSeenAt)}.
-            </p>
+            <div className="space-y-3">
+              <p className="text-muted-foreground">
+                Pas encore de demande pour rejoindre un canal. Vu pour la première fois le{" "}
+                {fmtDate(member.firstSeenAt)}.
+              </p>
+              {affiliateBlock ? (
+                <dl>
+                  <dt className="text-note text-muted-foreground">Affilié Link Affi</dt>
+                  <dd className="mt-0.5 min-w-0 break-words">{affiliateBlock}</dd>
+                </dl>
+              ) : null}
+            </div>
           )}
         </Block>
 

@@ -87,6 +87,25 @@ describe("Journal → vue « Événements »", () => {
       "Liens d'invitation",
     );
     expect(entityLabel("InviteLink")).toBe("Lien d'invitation");
+    // Phase 13 : affiliés Link Affi.
+    expect(eventLabel("member.affiliate_attributed")).toBe("Rattaché à un affilié Link Affi");
+    expect(eventLabel("membership.affiliate_not_attributed")).toBe(
+      "Pas rattaché à l'affilié (déjà rattaché à un autre, ou déjà dans le canal)",
+    );
+    expect(eventLabel("member.affiliate_changed")).toBe(
+      "Affilié Link Affi changé par un administrateur",
+    );
+    expect(eventLabel("member.affiliate_removed")).toBe(
+      "Affilié Link Affi retiré par un administrateur",
+    );
+    expect(eventLabel("linkaffi_event.sent")).toBe("Événement transmis à Link Affi");
+    expect(eventLabel("linkaffi_event.failed")).toBe(
+      "Événement non transmis à Link Affi (abandonné après 24 h)",
+    );
+    expect(eventLabel("linkaffi_event.autre")).toBe("Événement pour Link Affi");
+    expect(EVENT_FAMILIES.find((f) => f.prefix === "linkaffi_event.")?.label).toBe(
+      "Événements envoyés à Link Affi",
+    );
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 

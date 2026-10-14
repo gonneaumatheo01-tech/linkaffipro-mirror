@@ -81,7 +81,8 @@ export class LinkAffiClient {
     this.sleep = opts.sleep ?? defaultSleep;
     this.now = opts.now ?? (() => Date.now());
     if (!this.baseUrl) throw new LinkAffiError("LINKAFFI_API_URL manquante", null, false);
-    if (!this.apiKey || !this.anonKey) throw new LinkAffiError("LINKAFFI_API_KEY ou LINKAFFI_ANON_KEY manquante", null, false);
+    if (!this.apiKey || !this.anonKey)
+      throw new LinkAffiError("LINKAFFI_API_KEY ou LINKAFFI_ANON_KEY manquante", null, false);
   }
 
   /** Liste des tables exposées par l'API. */
@@ -100,7 +101,10 @@ export class LinkAffiClient {
   }
 
   /** Lit une page d'une table. */
-  async getPage<T = LinkAffiRow>(table: string, query: LinkAffiQuery = {}): Promise<LinkAffiPage<T>> {
+  async getPage<T = LinkAffiRow>(
+    table: string,
+    query: LinkAffiQuery = {},
+  ): Promise<LinkAffiPage<T>> {
     const params = new URLSearchParams();
     if (query.from) params.set("from", query.from);
     if (query.to) params.set("to", query.to);
@@ -110,13 +114,19 @@ export class LinkAffiClient {
     if (query.order) params.set("order", query.order);
     for (const [k, v] of Object.entries(query.eq ?? {})) params.set(`eq.${k}`, String(v));
     const qs = params.toString();
-    const data = await this.request<LinkAffiPage<T>>(`/${encodeURIComponent(table)}${qs ? `?${qs}` : ""}`);
-    if (!data || !Array.isArray(data.rows)) throw new LinkAffiError(`Réponse inattendue pour la table ${table}`, null, false);
+    const data = await this.request<LinkAffiPage<T>>(
+      `/${encodeURIComponent(table)}${qs ? `?${qs}` : ""}`,
+    );
+    if (!data || !Array.isArray(data.rows))
+      throw new LinkAffiError(`Réponse inattendue pour la table ${table}`, null, false);
     return data;
   }
 
   /** Parcourt toutes les pages d'une table (générateur asynchrone). */
-  async *iterate<T = LinkAffiRow>(table: string, query: Omit<LinkAffiQuery, "offset"> = {}): AsyncGenerator<T[], void, void> {
+  async *iterate<T = LinkAffiRow>(
+    table: string,
+    query: Omit<LinkAffiQuery, "offset"> = {},
+  ): AsyncGenerator<T[], void, void> {
     const limit = Math.min(query.limit ?? MAX_LIMIT, MAX_LIMIT);
     let offset = 0;
     for (;;) {
@@ -128,7 +138,10 @@ export class LinkAffiClient {
   }
 
   /** Lit toutes les lignes (attention au volume). */
-  async getAll<T = LinkAffiRow>(table: string, query: Omit<LinkAffiQuery, "offset"> = {}): Promise<T[]> {
+  async getAll<T = LinkAffiRow>(
+    table: string,
+    query: Omit<LinkAffiQuery, "offset"> = {},
+  ): Promise<T[]> {
     const out: T[] = [];
     for await (const rows of this.iterate<T>(table, query)) out.push(...rows);
     return out;
@@ -184,9 +197,15 @@ export class LinkAffiClient {
     } finally {
       clearTimeout(timer);
     }
-    if (res.status === 401 || res.status === 403) throw new LinkAffiError(`Accès refusé (${res.status}) : vérifier les clés`, res.status, false);
+    if (res.status === 401 || res.status === 403)
+      throw new LinkAffiError(
+        `Accès refusé (${res.status}) : vérifier les clés`,
+        res.status,
+        false,
+      );
     if (res.status === 404) throw new LinkAffiError(`Introuvable (404) : ${path}`, 404, false);
-    if (res.status === 429 || res.status >= 500) throw new LinkAffiError(`Réponse ${res.status}`, res.status, true);
+    if (res.status === 429 || res.status >= 500)
+      throw new LinkAffiError(`Réponse ${res.status}`, res.status, true);
     if (!res.ok) throw new LinkAffiError(`Réponse ${res.status}`, res.status, false);
     try {
       return (await res.json()) as T;
@@ -212,6 +231,10 @@ export const LINKAFFI_ALLOWED_TABLES = [
   "stats",
   "landing_events_daily",
   "currency_rates",
+  // Phase 13 (campagnes Telegram des affiliés) : annoncées par Link Affi, lues seulement si elles existent.
+  "telegram_members",
+  "telegram_member_events",
+  "telegram_campaigns",
 ] as const;
 
 export type LinkAffiTable = (typeof LINKAFFI_ALLOWED_TABLES)[number];

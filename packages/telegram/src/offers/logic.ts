@@ -1,4 +1,9 @@
 /** Logique pure du flux « offre personnalisée » (`/start o<slug>_<code post>`). */
+import {
+  fillUrlTemplate,
+  isAffiliateAttributionActive,
+  withTelegramCampaignParam,
+} from "@linkaffipro/core";
 import { LANGS, t, type Lang } from "../i18n";
 
 const SLUG_RE = /^[0-9A-Za-z]{6,10}$/;
@@ -63,4 +68,57 @@ export function pickCampaignOffer(
       return { offerId: o.id, template: o.trackingUrlTemplate, replaced: true };
   }
   return null;
+}
+
+/**
+ * Lien d'offre Link Affi `https://<domaine>/go/<clé de l'offre>` (celui qui passe par le suivi des clics de Link Affi) ?
+ * Jamais un lien court, une page d'atterrissage ni une autre adresse (docs/LINKAFFI-SUBID.md).
+ */
+export function isLinkaffiOfferUrl(url: string, offerCampaignKey: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    const path = u.pathname.replace(/\/+$/, "");
+    return (
+      path === `/go/${offerCampaignKey}` || path === `/go/${encodeURIComponent(offerCampaignKey)}`
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Adresse finale d'un clic d'offre : modèle de l'offre rempli (sub-ID neuf), puis, pour un membre rattaché à une
+ * campagne Telegram d'affilié Link Affi dont l'attribution est en cours, `&tg=<clé de cette campagne>` (contrat
+ * `docs/LINKAFFI-PARTENAIRES.md` § 3) — seulement sur un lien d'offre Link Affi, jamais sur une autre adresse.
+ */
+export function offerDestination(input: {
+  template: string;
+  subId: string;
+  memberId: string;
+  postId: string | null;
+  offerCampaignKey: string | null | undefined;
+  affiliate: { campaignKey: string | null; attributionEndsAt: Date | null } | null | undefined;
+  now: Date;
+}): { destination: string; telegramCampaignKey: string | null } {
+  const destination = fillUrlTemplate(input.template, {
+    subid: input.subId,
+    member_id: input.memberId,
+    post_id: input.postId ?? "",
+  });
+  const tg = input.affiliate?.campaignKey ?? null;
+  if (
+    !tg ||
+    !input.offerCampaignKey ||
+    !isAffiliateAttributionActive(
+      {
+        linkaffiCampaignKey: tg,
+        affiliateAttributionEndsAt: input.affiliate?.attributionEndsAt ?? null,
+      },
+      input.now,
+    ) ||
+    !isLinkaffiOfferUrl(destination, input.offerCampaignKey)
+  )
+    return { destination, telegramCampaignKey: null };
+  return { destination: withTelegramCampaignParam(destination, tg), telegramCampaignKey: tg };
 }

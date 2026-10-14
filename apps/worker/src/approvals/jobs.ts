@@ -1,5 +1,5 @@
 import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
-import { enqueueDm } from "@linkaffipro/queue";
+import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   dueReminderIndex,
   expirationOutcome,
@@ -285,6 +285,16 @@ export async function runExpirations(now = new Date()): Promise<number> {
       channelId: m.channelId,
       payload: { membershipId: m.id, action: rule.expireAction },
     });
+    // Link Affi (phase 13) : expiration sans refus ni acceptation → « expirée » (le refus envoie déjà « refusée »,
+    // l'acceptation enverra « acceptée »).
+    if (!outcome.declineNow && !outcome.approveNow)
+      await emitLinkaffiEvent({
+        type: "join_expired",
+        sourceId: m.id,
+        memberId: m.memberId,
+        channelId: m.channelId,
+        occurredAt: now,
+      });
     n++;
   }
   return n;

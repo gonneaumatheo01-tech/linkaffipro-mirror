@@ -566,7 +566,7 @@ describe("exceptions selon la provenance → saveExceptionAction", () => {
       /^Choisissez un autre canal que celui-ci/,
     );
     expect((await saveException(exceptionForm("link:ad1"))).error).toBe(
-      "Choisissez un lien de partage de ce canal.",
+      "Choisissez un lien de partage ou une campagne d'affilié de ce canal.",
     );
     expect(db.created).toHaveLength(0);
   });

@@ -11,6 +11,7 @@ import { loadBestSlots } from "@/lib/besthours/queries";
 import { listCampaignOptions } from "@/lib/campaigns/queries";
 import { templateCardTitle as templateTitle } from "@/lib/posts/templates";
 import { loadPublishStatus } from "@/lib/posts/account-publish";
+import { affiliateMembersByChannel } from "@/lib/affiliates/queries";
 import {
   accountPublishStatusAction,
   checkAccountPublishAction,
@@ -33,28 +34,31 @@ export const postEmojiActions = {
  * compte Telegram connecté (messages avec emojis animés).
  */
 export async function loadFormOptions() {
-  const [channels, categories, campaigns, campaignOptions, accountStatus] = await Promise.all([
-    prisma.channel.findMany({
-      where: { isActive: true },
-      orderBy: { title: "asc" },
-      select: { id: true, title: true, language: true, vertical: true, type: true },
-    }),
-    prisma.messageCategory.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, color: true },
-    }),
-    prisma.affiliateCampaign.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, program: { select: { name: true } } },
-    }),
-    listCampaignOptions(),
-    // Emojis animés : le compte Telegram connecté peut-il publier dans les canaux (dernier relevé) ?
-    loadPublishStatus(),
-  ]);
+  const [channels, categories, campaigns, campaignOptions, accountStatus, affiliates] =
+    await Promise.all([
+      prisma.channel.findMany({
+        where: { isActive: true },
+        orderBy: { title: "asc" },
+        select: { id: true, title: true, language: true, vertical: true, type: true },
+      }),
+      prisma.messageCategory.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, color: true },
+      }),
+      prisma.affiliateCampaign.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, program: { select: { name: true } } },
+      }),
+      listCampaignOptions(),
+      // Emojis animés : le compte Telegram connecté peut-il publier dans les canaux (dernier relevé) ?
+      loadPublishStatus(),
+      // Phase 13 : membres d'affiliés Link Affi par canal (avertissement des messages publiés sans boutons).
+      affiliateMembersByChannel(),
+    ]);
   return {
-    channels,
+    channels: channels.map((c) => ({ ...c, affiliateMembers: affiliates[c.id] ?? 0 })),
     categories,
     campaigns: campaigns.map((c) => ({ id: c.id, name: c.name, programName: c.program.name })),
     campaignOptions,

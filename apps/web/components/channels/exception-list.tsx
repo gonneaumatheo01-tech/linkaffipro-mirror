@@ -31,6 +31,7 @@ import {
   shadowNote,
   suggestedProvenance,
   whenShort,
+  type AffiliateLinkOption,
   type ExceptionItem,
   type ExceptionScope,
   type NameMaps,
@@ -109,6 +110,9 @@ export function ExceptionList({
     channels: Array<{ id: string; title: string; isActive: boolean }>;
     links: Array<{ id: string; name: string; kind: string; isActive: boolean }>;
     senders: string[];
+    /** Affiliés Link Affi connus et campagnes d'affiliés du canal (phase 13). */
+    affiliates?: Array<{ id: string; name: string }>;
+    affiliateLinks?: AffiliateLinkOption[];
   };
   baseState: EntryFormState;
   activeChannels: Array<Omit<GateChannelChoice, "unavailable">>;
@@ -219,7 +223,10 @@ export function ExceptionList({
           </h2>
           <p className="mt-0.5 text-note text-muted-foreground">
             Une règle à part pour les personnes venues d&apos;un endroit précis : un de nos canaux,
-            une pub, un lien de partage.
+            une pub, un lien de partage
+            {menuInput.affiliates?.length || menuInput.affiliateLinks?.length
+              ? ", un affilié Link Affi."
+              : "."}
           </p>
         </div>
         <Button

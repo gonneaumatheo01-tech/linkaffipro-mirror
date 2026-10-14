@@ -91,6 +91,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/members"
     channels: Object.fromEntries(options.channels.map((c) => [c.id, c.title])),
     campaigns: Object.fromEntries(options.campaigns.map((c) => [c.id, c.name])),
     inviteLinks: Object.fromEntries(options.inviteLinks.map((l) => [l.id, l.label])),
+    affiliates: Object.fromEntries(options.affiliates.map((a) => [a.id, a.name])),
   };
   const channelsByUniverse: Partial<Record<Universe, string[]>> = {};
   for (const c of options.channels) {

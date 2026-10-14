@@ -20,7 +20,25 @@ export async function GET(req: Request) {
   const f = parseMemberFilters(sp);
   const { rows } = await listMembers(f, { all: true });
   const csv = toCsv(
-    ["Identifiant Telegram", "Nom", "Pseudo", "Langue", "Canaux", "Pub d'origine", "Campagne d'origine", "Univers", "Statut (dernière demande)", "Arrivé le (Paris)", "Dernière activité (Paris)", "Clics", "Joueur", "Premier dépôt (FTD, Paris)", "Nombre de dépôts", "Dépôts (EUR)", "Niveau"],
+    [
+      "Identifiant Telegram",
+      "Nom",
+      "Pseudo",
+      "Langue",
+      "Canaux",
+      "Pub ou affilié d'origine",
+      "Campagne d'origine",
+      "Univers",
+      "Statut (dernière demande)",
+      "Arrivé le (Paris)",
+      "Dernière activité (Paris)",
+      "Clics",
+      "Joueur",
+      "Premier dépôt (FTD, Paris)",
+      "Nombre de dépôts",
+      "Dépôts (EUR)",
+      "Niveau",
+    ],
     rows.map((r) => [
       r.telegramUserId,
       r.displayName,
@@ -43,6 +61,10 @@ export async function GET(req: Request) {
   );
   const date = new Date().toISOString().slice(0, 10);
   return new Response(csv, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="membres-${date}.csv"`, "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="membres-${date}.csv"`,
+      "Cache-Control": "no-store",
+    },
   });
 }

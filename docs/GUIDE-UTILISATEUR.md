@@ -12,6 +12,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Comment ça marche](#comment-ca-marche)
 - [Accueil](#accueil)
 - [Campagnes](#campagnes)
+- [Affiliés sur vos canaux](#affilies-sur-vos-canaux)
 - [Canaux](#canaux)
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
@@ -233,6 +234,8 @@ Le bouton orange **Programmer un message**, en haut, ouvre directement l'écritu
 
 **À quoi ça sert.** Une campagne réunit ce que vous promouvez (une ou plusieurs offres Link Affi), où (vos canaux Telegram) et avec quelles pubs (TikTok, Meta ou autre). La page répond à la question : « qu'est-ce que je promeus et combien ça rapporte ? ». Vocabulaire : « campagne » = la vôtre, sur la plateforme ; « campagne pub » = la campagne côté TikTok ou Meta, avec ses groupes et ses pubs.
 
+Le bouton **Affiliés Link Affi** en haut de la page (dans « Plus » sur téléphone) ouvre le suivi des affiliés de Link Affi sur vos canaux (voir [Affiliés sur vos canaux](#affilies-sur-vos-canaux)).
+
 **Ce que vous voyez.** Une carte par campagne : sa pastille d'univers (violet Casino, vert Paris sportifs, rose Rencontres), son statut, ce qui a été dépensé, les membres arrivés, les premiers dépôts, les gains (commissions − dépense pub) de la période choisie et une petite courbe des membres arrivés chaque jour. Cliquez sur une carte pour ouvrir la campagne.
 
 **Comment faire.**
@@ -311,6 +314,25 @@ Vos choix de colonnes sont mémorisés pour le prochain import de la même plate
 
 Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, programme, langue, canal, mois), ou cliquez sur **Proposer un nom conventionnel** dans le récapitulatif de l'assistant. Utilisez le même nom dans TikTok ou Meta : la synchronisation rattache alors toute seule la campagne pub à votre campagne. Le nom de vos campagnes n'est jamais remplacé par celui de la plateforme. Une offre Link Affi qui a des joueurs mais aucune campagne apparaît dans **Réglages → Connexions** : cliquez dessus pour créer une campagne avec elle.
 
+## Affiliés sur vos canaux
+
+Les affiliés de Link Affi peuvent amener des membres sur vos canaux Telegram. Leurs membres, puis les inscriptions et les premiers dépôts qui en viennent, leur sont crédités dans Link Affi, comme leurs autres campagnes. Ici, vous suivez tout dans **Campagnes → Affiliés Link Affi**.
+
+1. **Coller les deux clés dans Link Affi (une seule fois).** Un administrateur ouvre Réglages → Connexions → Link Affi → « Campagnes Telegram des affiliés », génère la clé de connexion et le secret de signature, et les colle dans les secrets de Link Affi.
+2. **Créer la campagne dans Link Affi.** Dans Link Affi, Campagnes → nouvelle campagne de type Telegram pour l'affilié, puis choisissez le canal. Le lien d'invitation est créé tout seul ; la campagne apparaît dans la page Affiliés Link Affi.
+3. **L'affilié partage son lien.** Il diffuse son lien Link Affi comme d'habitude. Les personnes arrivent sur votre canal avec une demande d'adhésion, et vos règles d'entrée s'appliquent (vous pouvez régler une exception pour un affilié dans la fiche du canal, onglet « Qui peut entrer et quand »).
+4. **Suivre ses membres ici et dans Link Affi.** Par affilié puis par campagne : clics (comptés par Link Affi), demandes, acceptés, présents, partis, clics sur les offres, inscriptions, premiers dépôts (liste dépliable), dépôts et revenu net, sur la période choisie, avec l'export en fichier. Le filtre « Affilié » existe aussi dans Membres et dans Statistiques. Dans Link Affi, l'affilié voit ses membres dans la partie Joueurs.
+5. **Premier affilié gagne, et les boutons d'offre seulement.** Un membre déjà rattaché à un affilié, ou déjà dans le canal avant de cliquer le lien, ne change pas d'affilié. Seuls les boutons d'offre du bot créditent l'affilié : un message publié par votre compte Telegram (avec des emojis animés, donc sans boutons) ne le peut pas, et le formulaire du message vous prévient.
+
+Un administrateur peut corriger l'affilié d'un membre depuis sa fiche (« Corriger », avec un motif gardé dans le journal).
+
+**Brancher Link Affi (administrateur, une seule fois).** Dans **Réglages → Connexions**, partie « Campagnes Telegram des affiliés » : cliquez sur **Générer la clé**, copiez-la tout de suite ; puis **Générer le secret**, copiez-le tout de suite (ils ne s'affichent qu'une fois). Dans Lovable, ouvrez le projet Link Affi, puis Cloud → Secrets : ajoutez `LINKAFFIPRO_API_KEY` avec la clé de connexion et `LINKAFFIPRO_WEBHOOK_SECRET` avec le secret de signature. Revenez ensuite dans Réglages → Connexions et cliquez sur **Envoyer un événement de test** : « Reçu » = c'est branché ; « Signature refusée » = le secret collé n'est pas le bon ; « Injoignable » = Link Affi ne répond pas encore. **Régénérer** rend l'ancienne valeur inutilisable tout de suite : collez la nouvelle dans Link Affi juste après. Quand vous corrigez le branchement (nouveau secret, nouvelle adresse) ou qu'un test est « Reçu », les événements en attente repartent tout de suite ; le message du test indique combien.
+
+- La pastille de la partie dit où vous en êtes : « À brancher », « En attente de Link Affi », « Branché », « Envois bloqués ».
+- Chaque étape d'un membre d'affilié (demande, acceptation, refus, demande expirée, entrée, départ, clic sur une offre) est envoyée à Link Affi ; en cas de panne, la plateforme réessaie pendant 24 heures, ensuite Link Affi peut tout rattraper. Une alerte Telegram prévient si un envoi attend depuis plus d'une heure (une fois par jour au plus). Tant que le secret n'est pas créé, rien n'est envoyé : les étapes attendent. Quand un membre est supprimé (fiche membre → Supprimer, ou après la durée de conservation), ses étapes pas encore parties ne partent jamais et son identité est effacée de celles déjà enregistrées ; quand un administrateur retire ou change l'affilié d'un membre, ses étapes en attente ne partent plus vers l'ancien affilié (« abandonnées », avec la raison). Une campagne désactivée dans Link Affi ne rattache plus personne, même si son ancien lien marche encore.
+- **Écarts avec Link Affi** : toutes les 10 minutes, la plateforme compare pour chaque campagne Telegram ses membres, inscriptions et premiers dépôts avec ceux de Link Affi (« En attente de Link Affi » tant qu'il ne les donne pas ; petits écarts du moment mis de côté).
+- Quand un membre amené par un affilié clique un bouton d'offre du bot, le lien vers Link Affi porte la campagne de l'affilié : son inscription et son premier dépôt sont comptés pour l'affilié dans Link Affi. La durée pendant laquelle un membre compte pour son affilié se règle dans Link Affi, sur la campagne (à vie par défaut).
+
 ## Canaux
 
 **À quoi ça sert.** Vos canaux et groupes Telegram, et la façon dont le bot accueille les membres : qui peut entrer et quand, ce que dit le bot, les demandes en attente.
@@ -385,6 +407,8 @@ Cliquez sur **Enregistrer la règle** : elle s'applique aux prochaines demandes 
 
 Une règle à part pour les personnes venues d'un endroit précis. Cliquez sur **+ Ajouter une exception**, choisissez **Si la personne vient…** (d'un de nos canaux ; du bouton « canal à rejoindre » d'un de nos canaux ; de n'importe lequel de nos canaux ; d'une pub TikTok ; d'une pub Meta ; de n'importe quelle pub ; d'un lien de partage ; ou d'un lien de partage précis), puis les mêmes choix que pour la règle par défaut (dont les canaux à rejoindre et « Puis accepter », et le bloc **Avancé**). Terminez par **Enregistrer l'exception**.
 
+Pour les affiliés Link Affi : « de n'importe quel affilié Link Affi », « de l'affilié « … » » et « de la campagne « … » de l'affilié « … » » (une campagne précise passe avant l'affilié, qui passe avant « n'importe quel affilié »). Le simulateur propose chaque campagne d'affilié du canal.
+
 **Exemple** : dans la fiche de « Zone Interdite », **+ Ajouter une exception** → **Si la personne vient** de « Tir Cadré » → **Après un délai** : 1 jour → **Enregistrer l'exception**. Le réglage par défaut (par exemple 5 minutes après avoir rejoint les canaux) vaut pour tous les autres.
 
 - Chaque exception s'affiche en une phrase (« Si la personne vient de « Tir Cadré » → après 1 jour »), avec un résumé dessous (« Une personne venue de « Tir Cadré » sera acceptée 1 jour après sa demande »). Cliquez sur la phrase ou sur **Modifier** pour la changer. L'interrupteur l'active ou la désactive : désactivée, ces personnes suivent la règle par défaut.
@@ -452,6 +476,8 @@ Tant qu'il n'y a pas assez de messages envoyés au même créneau, une phrase l'
 ### Programmer un message
 
 Le formulaire est en trois niveaux : l'essentiel visible, le reste à un clic, les réglages rares dans **Avancé**.
+
+Si le message part par votre compte Telegram (emojis animés, sans boutons) dans un canal qui a des membres d'affiliés, l'avertissement « Les dépôts venant de ce post ne pourront pas être crédités aux affiliés : utilisez un bouton d'offre. » s'affiche.
 
 1. **L'essentiel.** Cochez les canaux (un message est créé pour chaque canal coché). Écrivez le **Texte** : il s'écrit et se relit déjà mis en forme ; la barre d'outils fait le gras, l'italique, le souligné, le barré, les liens, le texte masqué et les émojis, et **Améliorer avec l'IA** est au bout de la barre. L'aperçu à droite montre le message tel que les membres le verront. Choisissez la **Date et heure (heure de Paris)** (le meilleur créneau du canal est proposé) et la **Catégorie** (**+ Nouvelle catégorie** pour en créer une sans quitter la page).
 2. **Un clic : Ajouter au message.**
@@ -556,6 +582,8 @@ L'aperçu animé d'un emoji arrive en général en moins d'une minute ; en atten
 4. Cliquez sur un membre : son résumé s'ouvre à droite (d'où il vient, son statut, ses dépôts, son premier dépôt, ses étiquettes) avec **Ouvrir la fiche complète**. Le canal d'arrivée est sous « D'où il vient » ; un membre de plusieurs canaux a les autres sous « Aussi dans ».
 5. **Écrire à un groupe** ouvre l'écriture d'un message à un groupe, en reprenant vos filtres. **Exporter** propose **Les membres de cette liste** (avec vos filtres) ou **Les joueurs**, avec leur revenu net (fichiers CSV pour Excel).
 
+Filtre **Affilié Link Affi** dans Filtrer → D'où ils viennent (seulement s'il y a des affiliés) ; « Écrire à un groupe » ne reprend pas ce filtre.
+
 **Pièges.**
 
 - Sous les filtres, une phrase dit ce que **Écrire à un groupe** reprendra. La recherche, la période du premier dépôt, les dates d'arrivée, les statuts Refusé et Acceptation échouée, et la campagne combinée à un canal, un univers, un statut ou une pub ne passent pas dans un groupe de membres.
@@ -566,6 +594,8 @@ L'aperçu animé d'un emoji arrive en général en moins d'une minute ; en atten
 ### Fiche d'un membre
 
 En haut, l'essentiel :
+
+**Affilié Link Affi** (dans « D'où il vient ») : « Amené par … · campagne … · le … » (et « jusqu'au … » pour une campagne à durée limitée). Un administrateur peut **Corriger** : changer d'affilié (parmi les campagnes existantes) ou retirer l'affilié, avec un motif obligatoire gardé dans le journal. Dans la liste des membres, un membre d'affilié affiche « Affilié <nom> » dans « D'où il vient » (colonne « Pub ou affilié d'origine » de l'export).
 
 - **D'où il vient** : campagne, pub, canal, date d'arrivée, offre.
 - **Ce qu'il a fait** : demandes pour rejoindre, canaux où il est, clics sur une offre, dernière activité.
@@ -686,6 +716,8 @@ Le même sélecteur de période (avec **Comparer à la période précédente**) 
 ### Statistiques → Vue d'ensemble
 
 Les chiffres de la période en deux lignes : **Telegram** (demandes d'adhésion, acceptés, membres entrés, départs) et **Argent** (clics sur les pubs, clics sur les offres, inscriptions, premiers dépôts, montant déposé, revenu net). Puis le graphique **Jour par jour** (choisissez le chiffre dans **Afficher** ; survolez la courbe, ou utilisez les flèches du clavier ; **Voir les chiffres jour par jour** montre toutes les valeurs), le tableau **Par canal** (cliquez sur une ligne pour tous ses chiffres) et les **Derniers événements** (lien **Tout le journal**). Sur téléphone, touchez un jour du graphique pour lire sa valeur.
+
+**Plus de filtres → Affilié Link Affi** : les membres d'un affilié, leurs clics sur les offres et ses joueurs (pas de dépense pub ni de gains pour un affilié ; commissions = primes de ses joueurs). Les autres pages des statistiques ignorent ce filtre et le disent. Le bouton **Affiliés Link Affi** en haut ouvre la page des affiliés.
 
 ### Statistiques → Pubs
 

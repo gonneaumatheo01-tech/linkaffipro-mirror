@@ -3,7 +3,7 @@ Je veux que mes affiliés puissent travailler sur mes canaux Telegram et que tou
 ## 1. Campagnes : nouveau type de lien « Telegram »
 - Dans la partie Campagnes où je crée déjà les liens affiliés vers les casinos et les paris sportifs, ajoute un type de destination **« Canal Telegram »**.
 - Formulaire : affilié (mes affiliés existants), canal Telegram (liste chargée depuis ma plateforme, voir § 6), nom, offres autorisées (toutes par défaut, ou une liste de mes offres), durée d'attribution (à vie par défaut, ou N jours).
-- À l'enregistrement, côté serveur uniquement (fonction edge, jamais dans le navigateur) : `POST /invite-links` sur ma plateforme avec `{ campaignKey, campaignName, affiliateId, affiliateName, channelId }`. `campaignKey` = la clé du lien de cet affilié, celle de `linkaffi.me/go/<clé>`. Une clé = un affilié = un lien Telegram. Garde `inviteLinkId` et `url`.
+- À l'enregistrement, côté serveur uniquement (fonction edge, jamais dans le navigateur) : `POST /invite-links` sur ma plateforme avec `{ campaignKey, campaignName, affiliateId, affiliateName, channelId, attributionDays }` (`attributionDays` = la durée d'attribution en jours ; absente ou 0 = à vie). `campaignKey` = la clé du lien de cet affilié, celle de `linkaffi.me/go/<clé>`. Une clé = un affilié = un lien Telegram. Garde `inviteLinkId` et `url`.
 - `linkaffi.me/go/<clé>` redirige (302) vers cette `url` Telegram ; le clic est compté comme pour tous mes liens.
 - Désactiver la campagne : `PATCH /invite-links/{inviteLinkId}` avec `{ "isActive": false }`, et la redirection ne marche plus.
 - Si ma plateforme ne répond pas, message clair et rien n'est créé à moitié.

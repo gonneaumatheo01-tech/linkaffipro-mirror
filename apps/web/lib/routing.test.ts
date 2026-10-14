@@ -52,6 +52,14 @@ describe("routage par hôte", () => {
       decideRoute("app.linkaffipro.com", "/api/connectors/meta/start", "go.goolink.eu"),
     ).toEqual({ kind: "protected" });
   });
+  it("laisse passer l'API d'intégration Link Affi sans session (la clé est vérifiée par la route)", () => {
+    expect(
+      decideRoute("app.linkaffipro.com", "/api/integrations/linkaffi/v1/channels", "go.goolink.eu"),
+    ).toEqual({ kind: "public" });
+    expect(isPublicPath("/api/integrations/linkaffi/v1/invite-links/abc")).toBe(true);
+    expect(isPublicPath("/api/integrationsx")).toBe(false);
+    expect(isPublicPath("/api/integrations")).toBe(false);
+  });
   it("laisse les icônes du site lisibles sans session (onglet de connexion, écran d'accueil iPhone)", () => {
     expect(isPublicPath("/icon.png")).toBe(true);
     expect(isPublicPath("/apple-icon.png")).toBe(true);

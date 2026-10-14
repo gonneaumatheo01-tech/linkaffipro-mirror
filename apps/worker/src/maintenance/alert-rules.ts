@@ -1,6 +1,11 @@
 /** Règles pures de détection des alertes (testées sans base). */
 
-import { alertKindLabel, linkAffiTableLabel, queueLabel } from "@linkaffipro/core";
+import {
+  alertKindLabel,
+  isLinkaffiQueueStuck,
+  linkAffiTableLabel,
+  queueLabel,
+} from "@linkaffipro/core";
 
 export type AlertKind =
   | "bot_webhook"
@@ -19,7 +24,8 @@ export type AlertKind =
   | "connector_reconnect"
   | "gate_links_missing"
   | "custom_emoji_refused"
-  | "telegram_account_reconnect";
+  | "telegram_account_reconnect"
+  | "linkaffi_events_stuck";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -513,6 +519,48 @@ export function detectTelegramAccountReconnect(s: TelegramAccountSnapshot | null
   };
 }
 
+export type LinkaffiEventsSnapshot = {
+  /** Événements en attente d'envoi à Link Affi (`LinkaffiEvent` PENDING). */
+  pending: number;
+  /** Création du plus ancien en attente. */
+  oldestCreatedAt: Date;
+  /** Raison de l'attente du plus ancien (réponse de Link Affi, secret pas encore créé…). */
+  lastError: string | null;
+};
+
+function durationText(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  if (minutes < 120) return `${minutes} min`;
+  return `${Math.round(minutes / 60)} h`;
+}
+
+/**
+ * Événements des membres d'affiliés bloqués : le plus ancien attend d'être reçu par Link Affi depuis plus d'une heure
+ * (phase 13). Alerte « rouverte en silence » (`REOPEN_KINDS`) : une notification Telegram par 24 h au plus.
+ */
+export function detectLinkaffiEventsStuck(
+  s: LinkaffiEventsSnapshot | null,
+  now: Date,
+): Detected | null {
+  if (!s || s.pending === 0 || !isLinkaffiQueueStuck(s.oldestCreatedAt, now)) return null;
+  const n = s.pending;
+  const what =
+    n > 1
+      ? `${n} événements de membres d'affiliés attendent`
+      : "1 événement de membre d'affilié attend";
+  const reason = s.lastError ? ` Dernier problème : ${s.lastError.slice(0, 160)}.` : "";
+  return {
+    kind: "linkaffi_events_stuck",
+    severity: "WARNING",
+    message: `${what} d'être reçus par Link Affi depuis ${durationText(now.getTime() - s.oldestCreatedAt.getTime())}.${reason} Vérifiez Réglages → Connexions → Link Affi (secret de signature, adresse de réception, « Envoyer un événement de test ») ; les essais continuent pendant 24 h et Link Affi peut tout rattraper.`,
+    payload: {
+      pending: n,
+      oldestCreatedAt: s.oldestCreatedAt.toISOString(),
+      lastError: s.lastError,
+    },
+  };
+}
+
 function formatTime(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -540,6 +588,7 @@ export function shouldCreate(
 export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
   "gate_links_missing",
   "custom_emoji_refused",
+  "linkaffi_events_stuck",
 ]);
 
 /**

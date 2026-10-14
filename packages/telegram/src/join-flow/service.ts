@@ -36,6 +36,7 @@ import {
   type RuleData,
 } from "./rules";
 import { maskedLinkPrefix, pickMaskedLink } from "./masked-link";
+import { attributeAffiliateSafely, emitLinkaffi, isLinkaffiInviteLink } from "./affiliate";
 import { baseLang, defaultText, pickText, renderHtmlText, type Lang, type TextVars } from "./texts";
 
 /** Sous-ensemble de l'API Telegram utilisé par le flux (facile à simuler). */
@@ -295,6 +296,10 @@ export async function handleJoinRequest(
   const startUrl = startUrlFor(identity, code);
   const provenanceRecord = await provenanceSnapshot(deps, provenance, link);
   const appliedRule = appliedRuleOf(rule);
+  // Lien d'affilié Link Affi (phase 13) : dernière demande sur ce canal AVANT celle-ci (« déjà dans le canal ? »).
+  const latestBefore = isLinkaffiInviteLink(link)
+    ? await deps.findLatestMembership(member.memberId, channel.id)
+    : null;
   const source: Record<string, unknown> = {
     inviteLink: link
       ? {
@@ -354,6 +359,27 @@ export async function handleJoinRequest(
       provenance: provenanceRecord,
       appliedRule,
     },
+  });
+
+  // Affilié Link Affi (phase 13) : rattachement si c'est son lien (premier affilié gagne, pas un membre déjà dans le
+  // canal), puis événement « demande » pour Link Affi (seulement pour un membre rattaché à une campagne de ce canal).
+  await attributeAffiliateSafely(api, deps, {
+    stage: "request",
+    memberId: member.memberId,
+    telegramUserId: req.from.id,
+    channel,
+    link,
+    membershipId,
+    latestBefore,
+    at: requestedAt,
+    botId: identity.id,
+  });
+  await emitLinkaffi(deps, {
+    type: "join_requested",
+    sourceId: membershipId,
+    memberId: member.memberId,
+    channelId: channel.id,
+    occurredAt: requestedAt,
   });
 
   await recordGateLinksMissing(deps, {
@@ -661,6 +687,17 @@ export async function handleGateStart(
   };
 }
 
+/**
+ * Date d'un fait de `chat_member` (entrée, départ) qui suit un fait déjà enregistré (acceptation, entrée). Telegram date
+ * la mise à jour à la seconde (tronquée), alors que le site et le worker datent l'acceptation à la milliseconde, souvent
+ * dans la même seconde : sans correction, « entrée » précéderait « acceptée » dans le parcours rendu à Link Affi
+ * (`GET /members`, trié par date). Le fait suivant est donc daté au plus tôt 1 ms après le précédent.
+ */
+export function chatMemberFactDate(telegramDate: Date, previous: Date | null | undefined): Date {
+  if (!previous || previous.getTime() < telegramDate.getTime()) return telegramDate;
+  return new Date(previous.getTime() + 1);
+}
+
 /** Traite `chat_member` : entrée effective, départ, exclusion. */
 export async function handleChatMember(
   identity: BotIdentity,
@@ -688,6 +725,15 @@ export async function handleChatMember(
     const link = await findRequestLink(deps, channel.id, upd.invite_link);
     if (link) await deps.incrementInviteLink(link.id, "joined");
     const provenance = provenanceOfLink(link);
+    let membershipId: string;
+    // Demande encore ouverte chez nous : acceptée hors de la plateforme (par un administrateur dans Telegram), ou
+    // acceptation du worker pas encore enregistrée (même identifiant d'événement : aucun doublon vers Link Affi).
+    const approvedHere = !!latest && OPEN_STATUSES.includes(latest.status);
+    // Entrée datée après l'acceptation (enregistrée chez nous, ou constatée ici à la date de Telegram).
+    const joinedAt = chatMemberFactDate(
+      now,
+      approvedHere ? now : latest?.status === "APPROVED" ? latest.approvedAt : null,
+    );
     if (
       latest &&
       (latest.status === "APPROVED" ||
@@ -695,9 +741,10 @@ export async function handleChatMember(
         latest.status === "PENDING_GATE" ||
         latest.status === "REQUESTED")
     ) {
-      await deps.updateMembership(latest.id, { status: "APPROVED", joinedAt: now });
+      await deps.updateMembership(latest.id, { status: "APPROVED", joinedAt });
+      membershipId = latest.id;
     } else {
-      await deps.createMembership({
+      const created = await deps.createMembership({
         code: shortId(),
         memberId: member.memberId,
         channelId: channel.id,
@@ -717,7 +764,35 @@ export async function handleChatMember(
           appliedRule: null,
         },
       });
+      membershipId = created.id;
     }
+    // Entrée directe par le lien d'un affilié Link Affi (sans demande) : même règle d'attribution qu'une demande.
+    await attributeAffiliateSafely(null, deps, {
+      stage: "join",
+      memberId: member.memberId,
+      telegramUserId: user.id,
+      channel,
+      link,
+      membershipId,
+      latestBefore: latest,
+      at: now,
+      botId: identity.id,
+    });
+    if (approvedHere)
+      await emitLinkaffi(deps, {
+        type: "join_approved",
+        sourceId: membershipId,
+        memberId: member.memberId,
+        channelId: channel.id,
+        occurredAt: now,
+      });
+    await emitLinkaffi(deps, {
+      type: "joined",
+      sourceId: membershipId,
+      memberId: member.memberId,
+      channelId: channel.id,
+      occurredAt: joinedAt,
+    });
     await deps.recordEvent({
       type: "membership.joined",
       memberId: member.memberId,
@@ -739,8 +814,10 @@ export async function handleChatMember(
   }
   if (oldOk && !newOk) {
     const kicked = newStatus === "kicked";
+    // Départ jamais daté avant l'entrée (ou l'acceptation) enregistrée dans la même seconde.
+    const leftAt = chatMemberFactDate(now, latest?.joinedAt ?? latest?.approvedAt ?? null);
     if (latest && latest.status !== "LEFT" && latest.status !== "KICKED")
-      await deps.updateMembership(latest.id, { status: kicked ? "KICKED" : "LEFT", leftAt: now });
+      await deps.updateMembership(latest.id, { status: kicked ? "KICKED" : "LEFT", leftAt });
     if (latest?.inviteLinkId) await deps.incrementInviteLink(latest.inviteLinkId, "left");
     await deps.recordEvent({
       type: kicked ? "membership.kicked" : "membership.left",
@@ -749,6 +826,15 @@ export async function handleChatMember(
       botId: identity.id,
       payload: { membershipId: latest?.id ?? null },
     });
+    // Départ (ou exclusion) d'un membre d'affilié : « left » pour Link Affi (une seule fois par demande).
+    if (latest)
+      await emitLinkaffi(deps, {
+        type: "left",
+        sourceId: latest.id,
+        memberId: member.memberId,
+        channelId: channel.id,
+        occurredAt: leftAt,
+      });
     if (!kicked)
       await deps.emitAutomation?.("LEFT", member.memberId, {
         channelId: channel.id,

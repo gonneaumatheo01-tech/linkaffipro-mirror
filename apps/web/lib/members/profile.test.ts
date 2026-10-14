@@ -5,6 +5,7 @@ import {
   memberProfile,
   memberReach,
   memberSubline,
+  originSourceLabel,
   plural,
   quickViewChannels,
   type ProfileMembership,
@@ -201,6 +202,27 @@ describe("lignes d'identité et d'origine", () => {
     );
     expect(adLabel({ adName: null, adPlatform: null, linkName: "Lien 1" })).toBe("Lien 1");
     expect(adLabel({ adName: null, adPlatform: "META", linkName: null })).toBeNull();
+  });
+  it("source de la liste : « Pub … » pour un lien de pub, « Affilié … » pour un lien d'affilié Link Affi", () => {
+    const base = { adName: null, adPlatform: null, linkName: "Paul — Casino VIP" };
+    expect(originSourceLabel({ ...base, kind: "AD_ENTRY" })).toBe("Pub Paul — Casino VIP");
+    expect(
+      originSourceLabel({
+        adName: "Vidéo bonus",
+        adPlatform: "TIKTOK",
+        linkName: "L1",
+        kind: null,
+      }),
+    ).toBe("Pub Vidéo bonus (TikTok)");
+    // Lien d'affilié : jamais « Pub » (ce n'est pas une pub), le nom de l'affilié, sinon son identifiant.
+    expect(
+      originSourceLabel({ ...base, kind: "LINKAFFI", affiliateName: "Paul", affiliateId: "aff-1" }),
+    ).toBe("Affilié Paul");
+    expect(
+      originSourceLabel({ ...base, kind: "LINKAFFI", affiliateName: " ", affiliateId: "aff-1" }),
+    ).toBe("Affilié aff-1");
+    expect(originSourceLabel({ ...base, kind: "LINKAFFI" })).toBe("Affilié Link Affi");
+    expect(originSourceLabel({ adName: null, adPlatform: null, linkName: null })).toBeNull();
   });
 });
 

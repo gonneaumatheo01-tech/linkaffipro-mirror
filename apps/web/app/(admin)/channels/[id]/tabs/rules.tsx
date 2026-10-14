@@ -4,7 +4,7 @@ import { GateLinksStatus } from "@/components/channels/gate-links-status";
 import { RuleSimulator } from "@/components/channels/rule-simulator";
 import { ShareLinksSection } from "@/components/channels/share-links-section";
 import { initialEntryState, isRuleInForce } from "@/lib/channels/entry-rule";
-import { gateSenderExceptions } from "@/lib/channels/exceptions";
+import { affiliateNameMaps, gateSenderExceptions } from "@/lib/channels/exceptions";
 import { loadGateLinkView } from "@/lib/channels/gate-links-server";
 import { loadGateChannelChoices, loadRulesTab } from "@/lib/channels/queries";
 import { loadExceptionGateViews } from "@/lib/channels/rule-gate-links";
@@ -47,6 +47,8 @@ export async function RulesTab({ channelId }: { channelId: string }) {
   const names = {
     titles: Object.fromEntries(data.channels.map((c) => [c.id, c.title])),
     linkNames: Object.fromEntries(data.links.map((l) => [l.id, l.name])),
+    // Affiliés Link Affi (phase 13) : « de l'affilié « Paul » », « de la campagne « … » de l'affilié « Paul » ».
+    ...affiliateNameMaps({ affiliates: data.affiliates, affiliateLinks: data.affiliateLinks }),
   };
   const channelTitle = names.titles[channelId] ?? "ce canal";
   const activeChannels = data.channels
@@ -100,6 +102,13 @@ export async function RulesTab({ channelId }: { channelId: string }) {
     shareLinks: data.links.filter((l) => l.kind === "SHARE" && l.isActive),
     // Liens qui ont leur propre règle (ex. lien d'entrée d'une pub réglé dans Campagnes → Tous les liens).
     preciseLinks: data.links.filter((l) => exceptionLinkIds.has(l.id)),
+    // Campagnes d'affiliés Link Affi du canal, et « un autre affilié » dès qu'un affilié est connu (phase 13).
+    affiliateLinks: data.affiliateLinks,
+    withAffiliates:
+      data.affiliates.length > 0 ||
+      exceptions.some(
+        (e) => e.sourceKind === "LINKAFFI_ANY" || e.sourceKind === "LINKAFFI_AFFILIATE",
+      ),
   });
   const activeExceptions = exceptions.filter((e) => e.isActive).length;
   // Personnes envoyées ici par le bouton d'un autre canal : l'exception qui les vise, comme le bot (rappelée dans
@@ -147,6 +156,13 @@ export async function RulesTab({ channelId }: { channelId: string }) {
             isActive: l.isActive,
           })),
           senders: data.senders,
+          affiliates: data.affiliates.map((a) => ({ id: a.id, name: a.name })),
+          affiliateLinks: data.affiliateLinks.map((l) => ({
+            id: l.id,
+            campaignName: l.campaignName,
+            affiliateName: l.affiliateName,
+            isActive: l.isActive,
+          })),
         }}
         baseState={initial}
         activeChannels={activeChannels}

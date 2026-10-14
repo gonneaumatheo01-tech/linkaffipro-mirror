@@ -203,7 +203,7 @@ export function ExceptionPanel({
             id={`${id}-provenance-help`}
             className={duplicateText ? "text-note text-danger" : "text-note text-muted-foreground"}
           >
-            {duplicateText ?? provenanceHelp(target)}
+            {duplicateText ?? provenanceHelp(target, names)}
           </p>
         </div>
 

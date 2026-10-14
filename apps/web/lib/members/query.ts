@@ -1,9 +1,18 @@
 import { prisma, type Prisma } from "@linkaffipro/db";
-import { aggregatePlayers, computeSpendLevel, parseSpendThresholds, type SpendLevel, type SpendThresholds } from "@linkaffipro/core";
+import {
+  aggregatePlayers,
+  computeSpendLevel,
+  parseSpendThresholds,
+  type SpendLevel,
+  type SpendThresholds,
+} from "@linkaffipro/core";
+import { loadAffiliateOptions } from "@/lib/affiliates/campaigns";
+import type { AffiliateOption } from "@/lib/affiliates/scope";
 import { campaignMemberWhere, type CampaignScope } from "@/lib/campaigns/attribution";
 import { campaignScope } from "@/lib/dashboard/campaign-scope";
 import { periodEnd, periodStart, resolvePeriod } from "@/lib/periods";
 import type { MemberFilters } from "./filters";
+import { originSourceLabel } from "./profile";
 
 export const PAGE_SIZE = 50;
 
@@ -14,10 +23,15 @@ export { filtersToQuery, parseMemberFilters, type MemberFilters } from "./filter
  * Clause Prisma des filtres (fonction pure) ; `scope` = périmètre de la campagne filtrée, s'il y en a une ;
  * `now` = instant de référence de « premier dépôt » (jours de Paris) et « rien fait depuis ».
  */
-export function buildWhere(f: MemberFilters, scope?: CampaignScope | null, now: Date = new Date()): Prisma.MemberWhereInput {
+export function buildWhere(
+  f: MemberFilters,
+  scope?: CampaignScope | null,
+  now: Date = new Date(),
+): Prisma.MemberWhereInput {
   const where: Prisma.MemberWhereInput = {};
   const and: Prisma.MemberWhereInput[] = [];
-  if (f.campaignId) and.push(campaignMemberWhere(scope ?? { inviteLinkIds: [] }) as Prisma.MemberWhereInput);
+  if (f.campaignId)
+    and.push(campaignMemberWhere(scope ?? { inviteLinkIds: [] }) as Prisma.MemberWhereInput);
   if (f.q) {
     const asId = /^\d{5,}$/.test(f.q) ? BigInt(f.q) : null;
     and.push({
@@ -42,33 +56,46 @@ export function buildWhere(f: MemberFilters, scope?: CampaignScope | null, now: 
       },
     });
   }
+  // Affilié Link Affi qui a amené le membre (premier affilié gagne, phase 13).
+  if (f.affiliateId) and.push({ linkaffiAffiliateId: f.affiliateId });
   if (f.language) and.push({ languageCode: { startsWith: f.language } });
   if (f.tag) and.push({ tags: { array_contains: [f.tag] } });
   if (f.since) and.push({ firstSeenAt: { gte: new Date(f.since) } });
   if (f.until) and.push({ firstSeenAt: { lte: new Date(`${f.until}T23:59:59.999+02:00`) } });
   // « Ont déposé » : même règle que le niveau de dépense (au moins un dépôt, ou un montant déposé).
-  if (f.deposited) and.push({ players: { some: { OR: [{ depositCount: { gt: 0 } }, { depositTotal: { gt: 0 } }] } } });
+  if (f.deposited)
+    and.push({
+      players: { some: { OR: [{ depositCount: { gt: 0 } }, { depositTotal: { gt: 0 } }] } },
+    });
   if (f.ftd) {
     const p = resolvePeriod({ range: f.ftd }, now);
     and.push({ players: { some: { ftdAt: { gte: periodStart(p), lt: periodEnd(p) } } } });
   }
   // « Rien fait depuis N jours » : même règle que les groupes de membres (`inactiveDays` du segment).
-  if (f.inactive) and.push({ lastSeenAt: { lt: new Date(now.getTime() - f.inactive * 86_400_000) } });
+  if (f.inactive)
+    and.push({ lastSeenAt: { lt: new Date(now.getTime() - f.inactive * 86_400_000) } });
   if (and.length) where.AND = and;
   return where;
 }
 
 export async function getSpendThresholds(): Promise<SpendThresholds> {
-  const s = await prisma.setting.findUnique({ where: { key: "spend.thresholds" } }).catch(() => null);
+  const s = await prisma.setting
+    .findUnique({ where: { key: "spend.thresholds" } })
+    .catch(() => null);
   return parseSpendThresholds(s?.value);
 }
 
-/** D'où vient le membre : sa première demande (canal, lien d'entrée, pub, campagne). */
+/** D'où vient le membre : sa première demande (canal, lien d'entrée, pub ou affilié Link Affi, campagne). */
 export type MemberOrigin = {
   at: Date;
   channelTitle: string;
   channelVertical: string | null;
+  /** Type du lien d'entrée (`InviteLinkKind`) : LINKAFFI = campagne d'un affilié Link Affi, pas une pub. */
+  kind: string | null;
   linkName: string | null;
+  /** Affilié Link Affi du lien (lien LINKAFFI seulement). */
+  affiliateId: string | null;
+  affiliateName: string | null;
   adName: string | null;
   adPlatform: string | null;
   campaignId: string | null;
@@ -101,7 +128,13 @@ export type MemberRow = {
   level: SpendLevel;
 };
 
-export function displayName(m: { firstName: string | null; lastName: string | null; username: string | null; anonymizedAt?: Date | null; telegramUserId: bigint }): string {
+export function displayName(m: {
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  anonymizedAt?: Date | null;
+  telegramUserId: bigint;
+}): string {
   if (m.anonymizedAt) return "Membre anonymisé";
   const n = [m.firstName, m.lastName].filter(Boolean).join(" ").trim();
   return n || (m.username ? `@${m.username}` : `#${m.telegramUserId.toString()}`);
@@ -112,23 +145,66 @@ const memberInclude = {
     orderBy: { requestedAt: "desc" as const },
     include: {
       channel: { select: { title: true, vertical: true } },
-      inviteLink: { select: { name: true, adName: true, adPlatform: true, campaign: { select: { id: true, name: true, vertical: true } } } },
+      inviteLink: {
+        select: {
+          name: true,
+          kind: true,
+          adName: true,
+          adPlatform: true,
+          linkaffiAffiliateId: true,
+          linkaffiAffiliateName: true,
+          campaign: { select: { id: true, name: true, vertical: true } },
+        },
+      },
     },
   },
-  players: { select: { registeredAt: true, ftdAt: true, depositCount: true, depositTotal: true, lastEventAt: true } },
+  players: {
+    select: {
+      registeredAt: true,
+      ftdAt: true,
+      depositCount: true,
+      depositTotal: true,
+      lastEventAt: true,
+    },
+  },
   _count: { select: { clicks: { where: { isBot: false } } } },
 } satisfies Prisma.MemberInclude;
 
 type MemberWithRels = Prisma.MemberGetPayload<{ include: typeof memberInclude }>;
 
 export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow {
-  const players = m.players.map((p) => ({ registeredAt: p.registeredAt, depositCount: p.depositCount, depositTotal: Number(p.depositTotal) }));
+  const players = m.players.map((p) => ({
+    registeredAt: p.registeredAt,
+    depositCount: p.depositCount,
+    depositTotal: Number(p.depositTotal),
+  }));
   const agg = aggregatePlayers(players);
-  const ftd = m.players.map((p) => p.ftdAt).filter((d): d is Date => !!d).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
-  const lastPlayerEvent = m.players.map((p) => p.lastEventAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const ftd =
+    m.players
+      .map((p) => p.ftdAt)
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  const lastPlayerEvent =
+    m.players
+      .map((p) => p.lastEventAt)
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   const first = m.memberships[m.memberships.length - 1];
   const latest = m.memberships[0];
-  const src = first?.inviteLink ? first.inviteLink.adName || first.inviteLink.name : null;
+  const link = first?.inviteLink ?? null;
+  // Lien d'affilié Link Affi : « Affilié Paul » (jamais présenté comme une pub) ; sinon la pub ou le nom du lien.
+  const src = link
+    ? link.kind === "LINKAFFI"
+      ? originSourceLabel({
+          kind: link.kind,
+          adName: null,
+          adPlatform: null,
+          linkName: link.name,
+          affiliateId: link.linkaffiAffiliateId,
+          affiliateName: link.linkaffiAffiliateName,
+        })
+      : link.adName || link.name
+    : null;
   return {
     id: m.id,
     telegramUserId: m.telegramUserId.toString(),
@@ -144,7 +220,10 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
           at: first.requestedAt,
           channelTitle: first.channel.title,
           channelVertical: first.channel.vertical,
-          linkName: first.inviteLink?.name ?? null,
+          kind: link?.kind ?? null,
+          linkName: link?.name ?? null,
+          affiliateId: link?.kind === "LINKAFFI" ? (link.linkaffiAffiliateId ?? null) : null,
+          affiliateName: link?.kind === "LINKAFFI" ? (link.linkaffiAffiliateName ?? null) : null,
           adName: first.inviteLink?.adName ?? null,
           adPlatform: first.inviteLink?.adPlatform ?? null,
           campaignId: first.inviteLink?.campaign?.id ?? null,
@@ -155,7 +234,10 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
     status: latest?.status ?? null,
     statusChannel: latest?.channel.title ?? null,
     firstSeenAt: m.firstSeenAt,
-    lastEventAt: [m.lastSeenAt, lastPlayerEvent].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+    lastEventAt:
+      [m.lastSeenAt, lastPlayerEvent]
+        .filter((d): d is Date => !!d)
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
     clicks: m._count.clicks,
     isPlayer: m.players.length > 0,
     ftdAt: ftd,
@@ -166,17 +248,34 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
 }
 
 /** Liste paginée. Le filtre « niveau » est appliqué après calcul (dérivé), sur la page courante élargie. */
-export async function listMembers(f: MemberFilters, opts: { all?: boolean; now?: Date } = {}): Promise<{ rows: MemberRow[]; total: number; pages: number }> {
-  const [thresholds, scope] = await Promise.all([getSpendThresholds(), f.campaignId ? campaignScope(f.campaignId) : null]);
+export async function listMembers(
+  f: MemberFilters,
+  opts: { all?: boolean; now?: Date } = {},
+): Promise<{ rows: MemberRow[]; total: number; pages: number }> {
+  const [thresholds, scope] = await Promise.all([
+    getSpendThresholds(),
+    f.campaignId ? campaignScope(f.campaignId) : null,
+  ]);
   const where = buildWhere(f, scope, opts.now);
   const orderBy: Prisma.MemberOrderByWithRelationInput =
-    f.sort === "name" ? { firstName: "asc" } : f.sort === "firstSeen" ? { firstSeenAt: "desc" } : { lastSeenAt: "desc" };
+    f.sort === "name"
+      ? { firstName: "asc" }
+      : f.sort === "firstSeen"
+        ? { firstSeenAt: "desc" }
+        : { lastSeenAt: "desc" };
   const total = await prisma.member.count({ where });
   const take = opts.all ? undefined : f.level ? PAGE_SIZE * 4 : PAGE_SIZE;
   const skip = opts.all ? 0 : (f.page - 1) * (f.level ? PAGE_SIZE * 4 : PAGE_SIZE);
-  const members = await prisma.member.findMany({ where, orderBy, take, skip, include: memberInclude });
+  const members = await prisma.member.findMany({
+    where,
+    orderBy,
+    take,
+    skip,
+    include: memberInclude,
+  });
   let rows = members.map((m) => toRow(m, thresholds));
-  if (f.level) rows = rows.filter((r) => r.level === f.level).slice(0, opts.all ? undefined : PAGE_SIZE);
+  if (f.level)
+    rows = rows.filter((r) => r.level === f.level).slice(0, opts.all ? undefined : PAGE_SIZE);
   return { rows, total, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
@@ -188,6 +287,8 @@ export type MemberFilterOptions = {
   inviteLinks: Array<{ id: string; label: string; campaignName: string | null }>;
   /** Langues des membres (code de base « fr », « en »…), de la plus fréquente à la moins fréquente. */
   languages: Array<{ code: string; count: number }>;
+  /** Affiliés Link Affi connus par leurs campagnes Telegram (filtre « Affilié », vide sans campagne d'affilié). */
+  affiliates: AffiliateOption[];
 };
 
 /**
@@ -195,32 +296,55 @@ export type MemberFilterOptions = {
  * langues présentes chez les membres non anonymisés (regroupées par code de base : « pt-br » compte pour « pt »).
  */
 export async function loadMemberFilterOptions(): Promise<MemberFilterOptions> {
-  const [channels, campaigns, links, langs] = await Promise.all([
-    prisma.channel.findMany({ where: { isActive: true }, orderBy: { title: "asc" }, select: { id: true, title: true, vertical: true } }),
-    prisma.campaign.findMany({ orderBy: [{ status: "asc" }, { name: "asc" }], select: { id: true, name: true, vertical: true } }),
+  const [channels, campaigns, links, langs, affiliates] = await Promise.all([
+    prisma.channel.findMany({
+      where: { isActive: true },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, vertical: true },
+    }),
+    prisma.campaign.findMany({
+      orderBy: [{ status: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, vertical: true },
+    }),
     prisma.inviteLink.findMany({
       where: { kind: "AD_ENTRY" },
       orderBy: { createdAt: "desc" },
       take: 200,
       select: { id: true, name: true, adName: true, campaign: { select: { name: true } } },
     }),
-    prisma.member.groupBy({ by: ["languageCode"], where: { anonymizedAt: null, languageCode: { not: null } }, _count: { _all: true } }),
+    prisma.member.groupBy({
+      by: ["languageCode"],
+      where: { anonymizedAt: null, languageCode: { not: null } },
+      _count: { _all: true },
+    }),
+    loadAffiliateOptions(),
   ]);
   return {
     channels,
     campaigns,
-    inviteLinks: links.map((l) => ({ id: l.id, label: l.adName || l.name, campaignName: l.campaign?.name ?? null })),
-    languages: groupLanguages(langs.map((l) => ({ code: l.languageCode ?? "", count: l._count._all }))),
+    inviteLinks: links.map((l) => ({
+      id: l.id,
+      label: l.adName || l.name,
+      campaignName: l.campaign?.name ?? null,
+    })),
+    languages: groupLanguages(
+      langs.map((l) => ({ code: l.languageCode ?? "", count: l._count._all })),
+    ),
+    affiliates,
   };
 }
 
 /** Regroupe les codes de langue par code de base (« fr-FR » et « fr » → « fr »), du plus fréquent au moins fréquent. */
-export function groupLanguages(rows: Array<{ code: string; count: number }>): Array<{ code: string; count: number }> {
+export function groupLanguages(
+  rows: Array<{ code: string; count: number }>,
+): Array<{ code: string; count: number }> {
   const by = new Map<string, number>();
   for (const r of rows) {
     const base = r.code.trim().toLowerCase().split(/[-_]/)[0] ?? "";
     if (!base) continue;
     by.set(base, (by.get(base) ?? 0) + r.count);
   }
-  return [...by.entries()].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+  return [...by.entries()]
+    .map(([code, count]) => ({ code, count }))
+    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 }

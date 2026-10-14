@@ -6,6 +6,7 @@ import {
   Download,
   FileClock,
   FileUp,
+  Handshake,
   Link2,
   Megaphone,
   Plus,
@@ -220,6 +221,14 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
               <Link2 aria-hidden />
               Tous les liens
             </Link>
+            {/* Phase 13 : membres amenés par les affiliés Link Affi (campagnes Telegram créées dans Link Affi). */}
+            <Link
+              href="/campaigns/affiliates"
+              className={cn(buttonVariants({ variant: "outline" }), "max-md:hidden")}
+            >
+              <Handshake aria-hidden />
+              Affiliés Link Affi
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -233,6 +242,13 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/campai
                 <DropdownMenuItem className="md:hidden" render={<Link href="/campaigns/links" />}>
                   <Link2 aria-hidden />
                   Tous les liens
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="md:hidden"
+                  render={<Link href="/campaigns/affiliates" />}
+                >
+                  <Handshake aria-hidden />
+                  Affiliés Link Affi
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="md:hidden" />
                 <DropdownMenuItem render={<Link href="/campaigns/import" />}>

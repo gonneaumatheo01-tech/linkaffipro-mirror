@@ -1,7 +1,7 @@
 import { prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
 import { csvDate, toCsv } from "@/lib/members/csv";
-import { actionLabel, journalWhere, parseJournalFilters } from "@/lib/journal/query";
+import { auditActionLabel, journalWhere, parseJournalFilters } from "@/lib/journal/query";
 import { eventLabel } from "@/lib/journal/event-labels";
 import { eventsWhere, parseEventFilters } from "@/lib/journal/events";
 
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       csvDate(l.createdAt),
       l.user?.name ?? "système",
       l.user?.email ?? "",
-      actionLabel(l.action),
+      auditActionLabel(l.action, l.metadata),
       l.action,
       l.entityType ?? "",
       l.entityId ?? "",

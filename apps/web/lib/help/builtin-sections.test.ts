@@ -41,9 +41,33 @@ describe("sections d'aide intégrées en attendant le guide", () => {
     ).toBe(guide);
   });
 
-  it("le guide réel contient déjà tout : il est rendu tel quel", () => {
-    expect(withBuiltinSections(GUIDE)).toBe(GUIDE);
+  it("guide réel : seules les sections qu'il n'a pas encore sont ajoutées, une seule fois chacune", () => {
+    const out = withBuiltinSections(GUIDE);
+    const missing = BUILTIN_SECTIONS.filter(
+      (b) => !guideHeadings(GUIDE).some((h) => h.text === b.title),
+    );
+    if (missing.length === 0) expect(out).toBe(GUIDE);
+    for (const b of BUILTIN_SECTIONS)
+      expect(
+        guideHeadings(out).filter((h) => h.text === b.title),
+        b.title,
+      ).toHaveLength(1);
+    // Le texte du guide est gardé tel quel autour des sections ajoutées.
+    let rest = out;
+    for (const b of missing) rest = rest.replace(`${b.markdown.trim()}\n\n`, "");
+    expect(rest).toBe(GUIDE);
     expect(guideHeadings(GUIDE).filter((h) => h.text === "Accueil")).toHaveLength(1);
+  });
+
+  it("phase 13 : « Affiliés sur vos canaux », juste avant Canaux, avec les cinq points du mode d'emploi", () => {
+    const out = withBuiltinSections(GUIDE);
+    const titles = guideHeadings(out)
+      .filter((h) => h.level === 2)
+      .map((h) => h.text);
+    expect(titles.indexOf("Affiliés sur vos canaux")).toBe(titles.indexOf("Canaux") - 1);
+    const [s] = guideSections(out, ["Affiliés sur vos canaux"]);
+    expect(s!.markdown.match(/^\d\. /gm)).toHaveLength(5);
+    expect(s!.markdown).toContain("Premier affilié gagne");
   });
 
   it("textes intégrés : titre de niveau 2 identique au titre déclaré, mots du client (aucun jargon)", () => {

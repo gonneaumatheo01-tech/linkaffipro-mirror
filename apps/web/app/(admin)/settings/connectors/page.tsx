@@ -26,6 +26,7 @@ import { StatusBadge, statusLabel, type SyncStatus } from "@/lib/status-badges";
 import { linkAffiTableLabel } from "@/lib/status/labels";
 import { adPlatformState, linkAffiState, telegramState } from "@/lib/status/settings-cards";
 import { subIdHealthView } from "@/lib/status/sub-id-view";
+import { AffiliatesSection } from "./_affilies/affiliates-section";
 import { computeSubIdHealth } from "./health";
 import { saveRatesAction, saveSpendThresholdsAction, syncNowAction } from "./actions";
 
@@ -45,6 +46,7 @@ const PLATFORM_PAGES: Record<string, string> = {
  * TikTok, Telegram) avec leur état ; puis Link Affi (vos joueurs, offres non liées, identifiant de suivi), les comptes
  * publicitaires connectés, les réglages des chiffres (taux de change, niveaux de dépense), et le détail technique de
  * la synchro dans « Avancé » (ouvert d'office si une donnée est en erreur). Contenu et actions inchangés.
+ * Phase 13 : sous-section « Campagnes Telegram des affiliés » (`_affilies/affiliates-section.tsx`) sous Link Affi.
  */
 export default async function ConnectorsPage({ searchParams }: PageProps<"/settings/connectors">) {
   await requireAdminPage();
@@ -284,6 +286,8 @@ export default async function ConnectorsPage({ searchParams }: PageProps<"/setti
             ) : null}
           </div>
         </FormSection>
+
+        <AffiliatesSection />
 
         <FormSection
           title="Identifiant de suivi, 7 derniers jours"

@@ -1,5 +1,5 @@
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
-import { emitAutomationEvent, enqueueDm } from "@linkaffipro/queue";
+import { emitAutomationEvent, emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { ChannelInfo, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
 import { createPrismaGateLinkDeps } from "./prisma-gate-links";
@@ -36,6 +36,14 @@ const linkSelect = {
   adName: true,
   sourceChannelId: true,
   telegramInviteLink: true,
+  // Campagne Telegram d'affilié Link Affi (phase 13) : provenance, exceptions de règle, attribution.
+  linkaffiCampaignKey: true,
+  linkaffiCampaignName: true,
+  linkaffiAffiliateId: true,
+  linkaffiAffiliateName: true,
+  attributionDays: true,
+  // Lien désactivé (campagne d'affilié fermée) : plus aucune attribution, l'admission ne change pas.
+  isActive: true,
 } as const;
 const membershipSelect = {
   id: true,
@@ -50,6 +58,8 @@ const membershipSelect = {
   approvalRuleId: true,
   source: true,
   remindersSent: true,
+  approvedAt: true,
+  joinedAt: true,
 } as const;
 
 function toMembership(m: { source: unknown } & Omit<MembershipInfo, "source">): MembershipInfo {
@@ -119,7 +129,7 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
       },
       orderBy: [{ isActive: "desc" }, { createdAt: "desc" }, { id: "asc" }],
       take: 10,
-      select: { ...linkSelect, isActive: true },
+      select: linkSelect,
     }) as Promise<Array<InviteLinkInfo & { isActive: boolean }>>;
   },
   // Règle selon la provenance (phase 11) : exception du lien, du canal d'origine, du type, sinon règle par défaut.
@@ -236,5 +246,44 @@ export const prismaJoinFlowDeps: JoinFlowDeps = {
   },
   async emitAutomation(trigger, memberId, context) {
     await emitAutomationEvent(trigger, memberId, context);
+  },
+  async getMemberAffiliate(memberId) {
+    const m = await prisma.member.findUnique({
+      where: { id: memberId },
+      select: {
+        linkaffiCampaignKey: true,
+        linkaffiAffiliateId: true,
+        affiliateAttributionEndsAt: true,
+      },
+    });
+    return m
+      ? {
+          campaignKey: m.linkaffiCampaignKey,
+          affiliateId: m.linkaffiAffiliateId,
+          attributionEndsAt: m.affiliateAttributionEndsAt,
+        }
+      : null;
+  },
+  async attributeAffiliate(input) {
+    // Écriture conditionnelle : seulement un membre sans affilié (premier affilié gagne, même en cas de course).
+    const r = await prisma.member.updateMany({
+      where: {
+        id: input.memberId,
+        linkaffiCampaignKey: null,
+        linkaffiAffiliateId: null,
+        anonymizedAt: null,
+      },
+      data: {
+        linkaffiCampaignKey: input.campaignKey,
+        linkaffiAffiliateId: input.affiliateId,
+        affiliateAttributedAt: input.attributedAt,
+        affiliateAttributionEndsAt: input.endsAt,
+        affiliateInviteLinkId: input.inviteLinkId,
+      },
+    });
+    return r.count > 0;
+  },
+  async emitLinkaffiEvent(input) {
+    return emitLinkaffiEvent(input);
   },
 };

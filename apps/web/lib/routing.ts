@@ -8,6 +8,8 @@ import { isTrackingHost } from "@linkaffipro/core";
  * - `/api/telegram/<botId>` : webhooks Telegram (secret par bot vérifié dans la route) ;
  * - `/api/auth/*` : Auth.js (connexion, déconnexion, session) ;
  * - `/api/postback/<token>` : postbacks directs (jeton par point d'entrée) ;
+ * - `/api/integrations/` : API d'intégration appelée par Link Affi (clé `Authorization: Bearer` vérifiée par son
+ *   empreinte dans chaque route, limite de débit, journal ; phase 13) ;
  * - `/r` et `/r/<slug>` : redirections goolink (aussi atteintes par réécriture depuis go.goolink.eu) ;
  * - `/privacy` et `/terms` : politique de confidentialité et conditions d'utilisation (exigées par Meta / TikTok
  *   pour les apps développeur ; pages en lecture seule, aucune donnée).
@@ -21,6 +23,7 @@ const PUBLIC_PREFIXES = [
   "/api/telegram/",
   "/api/auth/",
   "/api/postback/",
+  "/api/integrations/",
   "/r/",
   "/r",
   "/privacy",

@@ -1,7 +1,17 @@
-/** Génération CSV (séparateur point-virgule, compatible Excel français), avec échappement. */
+/** Un nombre écrit en texte (« -12,50 », « +3 », « 1e3 ») : jamais une formule, laissé intact. */
+const NUMERIC_TEXT = /^[-+]?(\d+([.,]\d*)?|[.,]\d+)(e[-+]?\d+)?$/i;
+/** Début d'une formule pour Excel ou LibreOffice (injection de formule à l'ouverture du fichier). */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/**
+ * Génération CSV (séparateur point-virgule, compatible Excel français), avec échappement. Un texte qui commence par
+ * = + - @ (ou une tabulation, un retour chariot) et n'est pas un nombre est préfixé d'une apostrophe : ouvert dans
+ * Excel, il reste du texte au lieu de s'exécuter comme une formule (prénoms Telegram, noms venus de Link Affi…).
+ */
 export function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const s = value instanceof Date ? value.toISOString() : String(value);
+  let s = value instanceof Date ? value.toISOString() : String(value);
+  if (typeof value === "string" && FORMULA_START.test(s) && !NUMERIC_TEXT.test(s)) s = `'${s}`;
   if (/[;"\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

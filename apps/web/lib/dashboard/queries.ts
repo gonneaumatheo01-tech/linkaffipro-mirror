@@ -6,6 +6,8 @@ import {
   type Prisma,
   type Vertical,
 } from "@linkaffipro/db";
+import { affiliateScope } from "@/lib/affiliates/campaigns";
+import { affiliateMembershipWhere, affiliatePlayerWhere } from "@/lib/affiliates/scope";
 import { campaignOfferClickWhere, campaignPlayerWhere } from "@/lib/campaigns/attribution";
 import { periodDates, periodDayKeys, periodEnd, periodStart, type Period } from "@/lib/periods";
 import { aggregateByDay, type DaySeries } from "./aggregate";
@@ -17,6 +19,12 @@ export type DashboardFilters = {
   vertical: Vertical | "";
   channelId: string;
   /** Campagne (la nôtre) : périmètre via `campaignScope` (lib/dashboard/campaign-scope.ts). */ campaignId?: string;
+  /**
+   * Affilié Link Affi (phase 13) : demandes de ses membres dans les canaux de ses campagnes, clics d'offre portant une
+   * de ses clés (paramètre `tg`), ses joueurs (clic portant une de ses clés, ou membre rattaché) ; ni clic pub, ni
+   * dépense, ni part du revenu (rien de cela ne se rattache à un affilié).
+   */
+  affiliateId?: string;
 };
 
 /** Groupe d'affichage : parcours Telegram (demandes → départs) ou argent (clics pub → NGR). */
@@ -35,6 +43,10 @@ export type Metric = {
 export const CHANNEL_COMMISSIONS_NOTE =
   "Primes des joueurs seulement : la part du revenu et la dépense pub ne se rattachent pas à un canal.";
 
+/** Filtre affilié (phase 13) : même règle qu'un canal, la part du revenu et la dépense pub ne s'y rattachent pas. */
+export const AFFILIATE_COMMISSIONS_NOTE =
+  "Primes de ses joueurs seulement : la part du revenu et la dépense pub ne se rattachent pas à un affilié.";
+
 function round2(n: number): number {
   const r = Math.round(n * 100) / 100;
   return r === 0 ? 0 : r;
@@ -49,7 +61,7 @@ async function revshareOffers(
   f: DashboardFilters,
   scopeOffers: string[] | null,
 ): Promise<string[] | null> {
-  if (f.channelId) return null;
+  if (f.channelId || f.affiliateId) return null;
   if (scopeOffers) {
     if (!f.vertical) return scopeOffers;
     const c = await prisma.campaign.findFirst({
@@ -70,7 +82,7 @@ async function revshareOffers(
 
 /** Dépense pub de la vue filtrée (`AdCost` au niveau campagne, groupe ou pub) ; null avec un filtre canal. */
 function costWhere(f: DashboardFilters): Prisma.AdCostWhereInput | null {
-  if (f.channelId) return null;
+  if (f.channelId || f.affiliateId) return null;
   const campaign: Prisma.CampaignWhereInput = {
     ...(f.campaignId ? { id: f.campaignId } : {}),
     ...(f.vertical ? { vertical: f.vertical } : {}),
@@ -173,8 +185,13 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
   const membershipScope: Prisma.MembershipWhereInput = scope
     ? { inviteLinkId: { in: scope.inviteLinkIds } }
     : {};
+  // Filtre Affilié Link Affi (phase 13) : ses membres dans les canaux de ses campagnes, ses clics d'offre, ses joueurs.
+  const affiliate = f.affiliateId ? await affiliateScope(f.affiliateId) : null;
+  const affiliateMemberships: Prisma.MembershipWhereInput = affiliate
+    ? (affiliateMembershipWhere(affiliate.campaigns) as Prisma.MembershipWhereInput)
+    : {};
   const membershipWhere = (date: Prisma.MembershipWhereInput): Prisma.MembershipWhereInput => ({
-    AND: [date, byChannel, membershipScope],
+    AND: [date, byChannel, membershipScope, affiliateMemberships],
   });
   const entryClickWhere: Prisma.ClickWhereInput = {
     createdAt: within,
@@ -194,6 +211,7 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
           }
         : {},
       scope ? (campaignOfferClickWhere(scope) as Prisma.ClickWhereInput) : {},
+      affiliate ? { linkaffiTelegramCampaignKey: { in: affiliate.keys } } : {},
     ],
   };
 
@@ -204,6 +222,7 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
     ours,
     ...(channelFilter ? [channelFilter] : []),
     ...(scope ? [campaignPlayerWhere(scope) as Prisma.PlayerWhereInput] : []),
+    ...(affiliate ? [affiliatePlayerWhere(affiliate.keys) as Prisma.PlayerWhereInput] : []),
   ];
   const playerScope = { player: { AND: playerAnd } };
   // Canal d'arrivée par une pub (la plus récente), pour le tableau par canal.
@@ -258,7 +277,10 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
       where: membershipWhere({ leftAt: within }),
       select: { leftAt: true, channelId: true },
     }),
-    prisma.click.findMany({ where: entryClickWhere, select: { createdAt: true } }),
+    // Un affilié n'a pas de pub : aucun clic pub.
+    affiliate
+      ? Promise.resolve([] as Array<{ createdAt: Date }>)
+      : prisma.click.findMany({ where: entryClickWhere, select: { createdAt: true } }),
     prisma.click.findMany({
       where: offerClickWhere,
       select: { createdAt: true, post: { select: { channelId: true } }, member: adOrigin },
@@ -440,7 +462,11 @@ export async function loadDashboardUncached(f: DashboardFilters): Promise<Dashbo
       "commissions",
       "Commissions (€)",
       commissionValues,
-      f.channelId ? CHANNEL_COMMISSIONS_NOTE : undefined,
+      f.channelId
+        ? CHANNEL_COMMISSIONS_NOTE
+        : f.affiliateId
+          ? AFFILIATE_COMMISSIONS_NOTE
+          : undefined,
     ),
     ...(costs
       ? [

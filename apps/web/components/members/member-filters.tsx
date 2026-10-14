@@ -103,6 +103,19 @@ export function MemberFilterBar({
     ...options.languages.map((l) => l.code),
     ...(f.language && !options.languages.some((l) => l.code === f.language) ? [f.language] : []),
   ];
+  // Affiliés Link Affi (phase 13) : le choix n'apparaît que s'il y en a, ou si le filtre est déjà posé.
+  const affiliates = [
+    ...options.affiliates,
+    ...(f.affiliateId && !options.affiliates.some((a) => a.id === f.affiliateId)
+      ? [
+          {
+            id: f.affiliateId,
+            name: names.affiliates?.[f.affiliateId] ?? f.affiliateId,
+            campaigns: 0,
+          },
+        ]
+      : []),
+  ];
   const inactiveChoices: number[] = [...MEMBER_INACTIVE_CHOICES];
   if (f.inactive && !inactiveChoices.includes(f.inactive)) inactiveChoices.push(f.inactive);
 
@@ -214,7 +227,11 @@ export function MemberFilterBar({
               <FormSection
                 id="members-filters-from"
                 title="D'où ils viennent"
-                description="La campagne, la pub, l'univers ou le canal par lesquels ils sont arrivés."
+                description={
+                  affiliates.length > 0
+                    ? "La campagne, la pub, l'affilié, l'univers ou le canal par lesquels ils sont arrivés."
+                    : "La campagne, la pub, l'univers ou le canal par lesquels ils sont arrivés."
+                }
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field id="mf-campaign" label="Campagne">
@@ -247,6 +264,27 @@ export function MemberFilterBar({
                       ))}
                     </NativeSelect>
                   </Field>
+                  {affiliates.length > 0 ? (
+                    <Field
+                      id="mf-affiliate"
+                      label="Affilié Link Affi"
+                      help="Les membres qu'il a amenés sur vos canaux."
+                    >
+                      <NativeSelect
+                        id="mf-affiliate"
+                        name="affiliateId"
+                        defaultValue={f.affiliateId}
+                        wrapperClassName="w-full"
+                      >
+                        <option value="">Tous, avec ou sans affilié</option>
+                        {affiliates.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  ) : null}
                   <Field id="mf-universe" label="Univers">
                     <NativeSelect
                       id="mf-universe"

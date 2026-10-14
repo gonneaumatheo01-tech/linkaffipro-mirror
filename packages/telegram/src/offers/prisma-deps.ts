@@ -1,8 +1,20 @@
 import { jsonIds } from "@linkaffipro/core";
 import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
-import { emitAutomationEvent } from "@linkaffipro/queue";
+import { emitAutomationEvent, emitLinkaffiEvent } from "@linkaffipro/queue";
 import type { OfferDeps } from "./deps";
 import { pickCampaignOffer } from "./logic";
+
+/**
+ * Clé Link Affi d'une offre (phase 13) : seulement une offre d'un programme Link Affi qui a sa clé (lien
+ * `…/go/<clé>`), sinon null (aucun paramètre `tg`).
+ */
+function linkaffiOfferKey(
+  offer:
+    { campaignKey?: string | null; program?: { source?: string | null } | null } | null | undefined,
+): string | null {
+  if (!offer?.campaignKey) return null;
+  return offer.program?.source === "LINKAFFI" ? offer.campaignKey : null;
+}
 
 function mediaKindOf(mimeType: string): "photo" | "video" | "animation" | "document" {
   if (mimeType === "image/gif") return "animation";
@@ -32,7 +44,12 @@ export const prismaOfferDeps: OfferDeps = {
       where: { telegramUserId: BigInt(from.id) },
       create: { telegramUserId: BigInt(from.id), ...data },
       update: data,
-      select: { id: true },
+      select: {
+        id: true,
+        anonymizedAt: true,
+        linkaffiCampaignKey: true,
+        affiliateAttributionEndsAt: true,
+      },
     });
     const now = new Date();
     await prisma.memberBotState.upsert({
@@ -40,20 +57,40 @@ export const prismaOfferDeps: OfferDeps = {
       create: { memberId: member.id, botId, canDm: true, startedAt: now },
       update: { canDm: true, startedAt: now, blockedAt: null },
     });
-    return { memberId: member.id };
+    // Affilié Link Affi (phase 13) : paramètre `tg` du lien d'offre et événement `offer_clicked`.
+    const affiliate =
+      member.linkaffiCampaignKey && !member.anonymizedAt
+        ? {
+            campaignKey: member.linkaffiCampaignKey,
+            attributionEndsAt: member.affiliateAttributionEndsAt,
+          }
+        : null;
+    return { memberId: member.id, affiliate };
   },
 
   async resolveOffer(slug, postCode) {
     const link = await prisma.trackingLink.findUnique({
       where: { slug },
       include: {
-        affiliateCampaign: { select: { trackingUrlTemplate: true, isActive: true } },
+        affiliateCampaign: {
+          select: {
+            trackingUrlTemplate: true,
+            isActive: true,
+            campaignKey: true,
+            program: { select: { source: true } },
+          },
+        },
         channel: { select: { id: true, language: true } },
         campaign: { select: { id: true, affiliateCampaignIds: true } },
       },
     });
     if (!link || !link.isActive || link.kind !== "OFFER") return null;
     let template = link.affiliateCampaign?.trackingUrlTemplate ?? link.destinationTemplate;
+    // Clé Link Affi de l'offre seulement si son lien est celui utilisé (sinon : adresse du bouton, pas de `tg`).
+    let offerCampaignKey =
+      link.affiliateCampaign?.trackingUrlTemplate != null
+        ? linkaffiOfferKey(link.affiliateCampaign)
+        : null;
     // Bouton rattaché à une de nos campagnes : le lien Link Affi suit la campagne. Si l'offre du bouton en a été
     // retirée (ou est désactivée), on prend la première offre active de la campagne, et on le journalise.
     if (link.campaign) {
@@ -61,12 +98,19 @@ export const prismaOfferDeps: OfferDeps = {
       const offers = ids.length
         ? await prisma.affiliateCampaign.findMany({
             where: { id: { in: ids } },
-            select: { id: true, trackingUrlTemplate: true, isActive: true },
+            select: {
+              id: true,
+              trackingUrlTemplate: true,
+              isActive: true,
+              campaignKey: true,
+              program: { select: { source: true } },
+            },
           })
         : [];
       const picked = pickCampaignOffer(link.affiliateCampaignId, ids, offers);
       if (picked?.replaced) {
         template = picked.template;
+        offerCampaignKey = linkaffiOfferKey(offers.find((o) => o.id === picked.offerId));
         await recordEvent({
           type: "offer.campaign_fallback",
           channelId: link.channelId,
@@ -100,6 +144,7 @@ export const prismaOfferDeps: OfferDeps = {
       postId,
       channelId,
       channelLanguage,
+      offerCampaignKey,
     };
   },
 
@@ -112,6 +157,7 @@ export const prismaOfferDeps: OfferDeps = {
         postId: input.postId,
         botId: input.botId,
         destination: input.destination,
+        linkaffiTelegramCampaignKey: input.linkaffiTelegramCampaignKey ?? null,
       },
       select: { id: true },
     });
@@ -149,6 +195,9 @@ export const prismaOfferDeps: OfferDeps = {
         subId: input.subId,
         trackingLinkId: input.trackingLinkId,
         postId: input.postId,
+        ...(input.linkaffiTelegramCampaignKey
+          ? { linkaffiTelegramCampaignKey: input.linkaffiTelegramCampaignKey }
+          : {}),
       },
     });
     const post = input.postId
@@ -171,6 +220,10 @@ export const prismaOfferDeps: OfferDeps = {
       botId: input.botId,
     });
     return { clickId: click.id };
+  },
+
+  async emitLinkaffiEvent(input) {
+    return emitLinkaffiEvent(input);
   },
 
   async offerReplyTexts(channelId, lang, botId) {

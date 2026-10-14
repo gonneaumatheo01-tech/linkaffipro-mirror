@@ -1,4 +1,31 @@
-# État du projet : phase 12 (emojis animés) terminée (12 octobre 2026)
+# État du projet : phase 13 (affiliés Link Affi sur vos canaux) terminée (14 octobre 2026)
+
+Phases 0 à 12 en ligne. Phase 13 = les campagnes Telegram des affiliés Link Affi (`docs/prompts/15-phase-13-partenaires.md`, contrat `docs/LINKAFFI-PARTENAIRES.md` v2 + annexe). 3 151 tests unitaires et 363 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan). La partie Link Affi est construite en parallèle par le client (Lovable) : notre côté est prêt et se branche dès que les deux valeurs sont collées dans Link Affi.
+
+## Phase 13 : ce qui a changé
+- **Connexion avec Link Affi** (Réglages → Connexions → « Campagnes Telegram des affiliés », administrateur) : générer la clé de connexion et le secret de signature (affichés une seule fois), adresse de Link Affi, « Envoyer un événement de test », état des envois, écarts entre nos chiffres et ceux de Link Affi.
+- **Liens des affiliés** : Link Affi demande à la plateforme un lien d'invitation par campagne d'affilié (avec demande d'adhésion), le désactive, et relit les membres et leur parcours.
+- **Membres des affiliés** : une personne entrée par le lien d'un affilié lui est rattachée (premier affilié gagne ; pas une personne déjà dans le canal ; à vie ou pendant la durée de la campagne). Chaque étape (demande, acceptation, refus, expiration, entrée, départ, clic sur une offre) est envoyée à Link Affi, signée, avec nouvelles tentatives pendant 24 h et une alerte si un envoi attend plus d'une heure.
+- **Crédit à l'affilié** : ses clics sur les boutons d'offre du bot ajoutent la campagne de l'affilié au lien Link Affi (`tg`) : inscription et premier dépôt comptés pour lui dans Link Affi.
+- **Suivi ici** : page **Campagnes → Affiliés Link Affi** (par affilié et par campagne : clics, demandes, acceptés, présents, partis, clics d'offre, inscriptions, premiers dépôts, dépôts, revenu net ; export), filtre Affilié dans Membres et Statistiques, « Amené par … » sur la fiche membre (correction par un administrateur), exceptions d'entrée par affilié, avertissement pour les messages sans bouton d'offre.
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com/settings/connectors → « Campagnes Telegram des affiliés » : la partie est là, pastille « À brancher ».
+2. Générez la clé de connexion puis le secret de signature, et collez-les dans les secrets de Link Affi (voir `docs/A-FAIRE-HUMAIN.md`, phase 13).
+3. Cliquez « Envoyer un événement de test » : « Reçu » quand Link Affi est prêt.
+4. Dans Link Affi, créez une campagne de type « Canal Telegram » pour un affilié : elle apparaît dans Campagnes → Affiliés Link Affi.
+5. Une personne entre par le lien de l'affilié : sa fiche membre dit « Amené par … ».
+
+## Vérifications faites
+- Quatre agents de réalisation (attribution, événements et `tg` ; synchro Link Affi ; API d'intégration et réglages ; vues internes), deux relectures adverses puis une relecture finale qui a rejoué tout le scénario du cahier des charges (clés, appels simulés de Link Affi, lien, demande, événements signés vérifiés par un récepteur, clic d'offre avec `tg`, joueur, premier dépôt visible) : 8 vérifications sur 8. Défauts importants trouvés et corrigés : données d'un membre supprimé restées dans les événements, ordre « entré » avant « accepté », événements annulés encore relus par Link Affi.
+- __PRODCHECK__
+
+## Limites et suites
+- Les noms exacts des tables Telegram de Link Affi ne sont pas encore connus : la synchro les détecte toute seule et compare dès qu'elles existent ; à resserrer quand Link Affi publiera son récapitulatif.
+- La durée d'attribution choisie dans Link Affi doit nous être envoyée (`attributionDays`) : ajouté au contrat et au prompt Lovable ; à transmettre au développeur de Link Affi avec l'annexe du contrat.
+- Une demande qu'aucun bot administrateur ne peut accepter est réessayée sans fin (défaut antérieur, à traiter plus tard).
+
+## Phase 12 — (emojis animés) terminée (12 octobre 2026)
 
 Phases 0 à 11 en ligne. Phase 12 = les emojis animés des packs Premium de Telegram dans les messages (`docs/prompts/14-phase-12-emojis-animes.md`). 2 863 tests unitaires et 289 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan).
 

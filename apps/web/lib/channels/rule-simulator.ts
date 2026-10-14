@@ -29,11 +29,22 @@ const none = { inviteLinkId: null, sourceChannelId: null, adPlatform: null } as 
 /** Lien visé par une exception « lien précis » (lien d'entrée de pub, lien de partage, lien manuel), actif ou non. */
 export type SimPreciseLink = ProvenanceLink & { name: string; isActive: boolean };
 
+/** Campagne Telegram d'affilié du canal (lien LINKAFFI), pour le simulateur (phase 13). */
+export type SimAffiliateLink = {
+  id: string;
+  campaignKey: string;
+  campaignName: string;
+  affiliateId: string | null;
+  affiliateName: string;
+  isActive: boolean;
+};
+
 /**
  * Provenances proposées (phrases après « Si quelqu'un vient ») : le bouton « canal à rejoindre » de chacun de nos
  * canaux (ceux qui envoient leurs membres ici d'abord), chaque lien de partage du canal et un autre lien de partage,
- * une pub TikTok, une pub Meta, une autre pub, chaque lien qui a sa propre règle (ex. lien d'entrée d'une pub réglé
- * dans Campagnes → Tous les liens ; provenance lue comme le bot : `provenanceOfLink`), un autre lien.
+ * une pub TikTok, une pub Meta, une autre pub, chaque campagne d'affilié Link Affi du canal et un autre affilié
+ * (phase 13, dès qu'un affilié est connu), chaque lien qui a sa propre règle (ex. lien d'entrée d'une pub réglé dans
+ * Campagnes → Tous les liens ; provenance lue comme le bot : `provenanceOfLink`), un autre lien.
  */
 export function simulationChoices(input: {
   channelId: string;
@@ -42,6 +53,10 @@ export function simulationChoices(input: {
   shareLinks: ReadonlyArray<{ id: string; name: string; sourceChannelId: string | null }>;
   /** Liens visés par une exception « lien précis » (hors liens de partage déjà proposés). */
   preciseLinks?: readonly SimPreciseLink[];
+  /** Campagnes d'affiliés du canal (liens LINKAFFI actifs, et ceux visés par une exception). */
+  affiliateLinks?: readonly SimAffiliateLink[];
+  /** Proposer « d'un autre affilié Link Affi » (des affiliés sont connus, ou une exception en vise). */
+  withAffiliates?: boolean;
 }): SimGroup[] {
   const senders = new Set(input.senders);
   const channels = input.channels
@@ -51,7 +66,15 @@ export function simulationChoices(input: {
         Number(senders.has(b.id)) - Number(senders.has(a.id)) ||
         a.title.localeCompare(b.title, "fr"),
     );
-  const shared = new Set(input.shareLinks.map((l) => l.id));
+  const affiliateLinks = [...(input.affiliateLinks ?? [])].sort(
+    (a, b) =>
+      a.affiliateName.localeCompare(b.affiliateName, "fr") ||
+      a.campaignName.localeCompare(b.campaignName, "fr"),
+  );
+  const shared = new Set([
+    ...input.shareLinks.map((l) => l.id),
+    ...affiliateLinks.map((l) => l.id),
+  ]);
   const precise = (input.preciseLinks ?? [])
     .filter((l, i, all) => !shared.has(l.id) && all.findIndex((x) => x.id === l.id) === i)
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -104,6 +127,44 @@ export function simulationChoices(input: {
           provenance: { ...none, type: "AD", adPlatform: "OTHER" },
         },
       ],
+    },
+    {
+      label: "Un affilié Link Affi",
+      choices:
+        affiliateLinks.length > 0 || input.withAffiliates
+          ? [
+              ...affiliateLinks.map((l) => ({
+                key: `linkaffi:${l.id}`,
+                label: frQuotes(
+                  `de la campagne « ${l.campaignName} » de l'affilié « ${l.affiliateName} »${l.isActive ? "" : " (désactivée)"}`,
+                ),
+                provenance: provenanceOfLink({
+                  id: l.id,
+                  kind: "LINKAFFI",
+                  sourceChannelId: null,
+                  adPlatform: null,
+                  linkaffiCampaignKey: l.campaignKey,
+                  linkaffiCampaignName: l.campaignName,
+                  linkaffiAffiliateId: l.affiliateId,
+                  linkaffiAffiliateName: l.affiliateName,
+                }),
+              })),
+              {
+                key: "linkaffi:other",
+                label: "d'un autre affilié Link Affi",
+                provenance: {
+                  ...none,
+                  type: "LINKAFFI" as const,
+                  linkaffi: {
+                    campaignKey: null,
+                    campaignName: null,
+                    affiliateId: null,
+                    affiliateName: null,
+                  },
+                },
+              },
+            ]
+          : [],
     },
     {
       label: "Un lien précis",

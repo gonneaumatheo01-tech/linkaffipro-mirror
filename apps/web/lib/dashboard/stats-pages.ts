@@ -1,7 +1,8 @@
 /**
  * Pages de Statistiques (phase 9) : rubriques, sélecteur commun et adresses. Fonctions pures, testées dans
- * stats-pages.test.ts. Le sélecteur (période avec comparaison, univers, campagne, et le canal dans « Plus de
- * filtres ») vit dans l'adresse : il garde ses valeurs d'une page à l'autre (sous-navigation, retour d'une action).
+ * stats-pages.test.ts. Le sélecteur (période avec comparaison, univers, campagne, et le canal et l'affilié Link Affi
+ * dans « Plus de filtres ») vit dans l'adresse : il garde ses valeurs d'une page à l'autre (sous-navigation, retour
+ * d'une action). L'affilié (phase 13) ne s'applique qu'à la vue d'ensemble (`AFFILIATE_FILTER_PAGES`).
  */
 import { isVertical, type Vertical } from "@linkaffipro/core";
 import { universeLabel } from "@/lib/universe";
@@ -104,6 +105,8 @@ export type StatsFilters = {
   vertical: Vertical | "";
   campaignId: string;
   channelId: string;
+  /** Affilié Link Affi (identifiant Link Affi) : ses membres, leurs clics d'offre et ses joueurs (phase 13). */
+  affiliateId?: string;
   /**
    * Vrai quand l'adresse ne choisit pas la période (période par défaut de la page) : les liens vers les autres pages
    * ne l'écrivent pas, chacune prend alors la sienne.
@@ -120,7 +123,11 @@ export const STATS_FILTER_PARAMS = [
   "vertical",
   "campaignId",
   "channelId",
+  "affiliateId",
 ] as const;
+
+/** Pages où le filtre « Affilié » s'applique (les autres le gardent dans l'adresse sans s'en servir). */
+export const AFFILIATE_FILTER_PAGES: readonly StatsPageKey[] = ["overview"];
 
 /** L'adresse choisit-elle une période (`range` connu, ou deux dates valides pour une période personnalisée) ? */
 function choosesPeriod(sp: StatsSearchParams): boolean {
@@ -147,6 +154,7 @@ export function parseStatsFilters(
     vertical: isVertical(v) ? v : "",
     campaignId: one(sp.campaignId),
     channelId: one(sp.channelId),
+    affiliateId: one(sp.affiliateId).trim().slice(0, 128),
     defaultPeriod: !chosen,
   };
   const dim = parseFunnelDim(one(sp.dim));
@@ -163,6 +171,7 @@ export function statsParams(f: StatsFilters): Record<string, string> {
     ...(f.vertical ? { vertical: f.vertical } : {}),
     ...(f.campaignId ? { campaignId: f.campaignId } : {}),
     ...(f.channelId ? { channelId: f.channelId } : {}),
+    ...(f.affiliateId ? { affiliateId: f.affiliateId } : {}),
   };
 }
 
@@ -251,7 +260,16 @@ export function periodSentence(period: Period, compare: boolean): string {
   return `${current}, comparés à la période précédente (${prev})`;
 }
 
-/** Nombre de filtres rangés dans « Plus de filtres » (aujourd'hui : le canal). */
-export function moreFiltersCount(f: Pick<StatsFilters, "channelId">): number {
-  return f.channelId ? 1 : 0;
+/** Nombre de filtres rangés dans « Plus de filtres » : le canal, et l'affilié Link Affi. */
+export function moreFiltersCount(f: Pick<StatsFilters, "channelId" | "affiliateId">): number {
+  return (f.channelId ? 1 : 0) + (f.affiliateId ? 1 : 0);
+}
+
+/** Phrase des pages qui ne savent pas filtrer par affilié, quand le filtre est posé (null sinon). */
+export function affiliateIgnoredNote(
+  page: StatsPageKey,
+  f: Pick<StatsFilters, "affiliateId">,
+): string | null {
+  if (!f.affiliateId || AFFILIATE_FILTER_PAGES.includes(page)) return null;
+  return "Le filtre « Affilié » ne s'applique qu'à la vue d'ensemble : cette page montre tous les membres.";
 }

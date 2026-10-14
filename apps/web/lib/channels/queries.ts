@@ -13,6 +13,8 @@ import {
   type EntryRule,
   type GateChannelChoice,
 } from "./entry-rule";
+import { loadAffiliateOptions } from "@/lib/affiliates/campaigns";
+import { affiliateLabel, campaignLabel, type AffiliateOption } from "@/lib/affiliates/scope";
 import type { ExceptionItem } from "./exceptions";
 import { MEMBER_STATUSES, OPEN_REQUEST_STATUSES } from "./requests";
 
@@ -213,6 +215,7 @@ export function exceptionItemFromRow(row: ApprovalRule): ExceptionItem {
     inviteLinkId: row.inviteLinkId,
     sourceChannelId: row.sourceChannelId,
     sourceKind: row.sourceKind,
+    linkaffiAffiliateId: row.linkaffiAffiliateId,
     sortOrder: row.sortOrder,
     label: row.label,
     rule: entryRuleFromRow(row),
@@ -240,6 +243,16 @@ export type RulesTabLink = {
   adPlatform: AdPlatform | null;
 };
 
+/** Campagne Telegram d'affilié du canal (lien LINKAFFI, phase 13) : menu des exceptions et simulateur. */
+export type RulesTabAffiliateLink = {
+  id: string;
+  campaignKey: string;
+  campaignName: string;
+  affiliateId: string | null;
+  affiliateName: string;
+  isActive: boolean;
+};
+
 export type RulesTabData = {
   /** Règle par défaut (ligne relue), ou null. */
   defaultRow: ApprovalRule | null;
@@ -251,6 +264,10 @@ export type RulesTabData = {
   links: RulesTabLink[];
   /** Canaux dont une règle active demande de rejoindre ce canal : ils y envoient leurs membres. */
   senders: string[];
+  /** Affiliés Link Affi connus par leurs campagnes, tous canaux (exception « un affilié précis », phase 13). */
+  affiliates: AffiliateOption[];
+  /** Campagnes d'affiliés de ce canal (liens LINKAFFI), actives ou visées par une exception. */
+  affiliateLinks: RulesTabAffiliateLink[];
 };
 
 /**
@@ -258,7 +275,7 @@ export type RulesTabData = {
  * partage du canal (et ceux visés par une exception) et les canaux qui envoient leurs membres ici.
  */
 export async function loadRulesTab(channelId: string): Promise<RulesTabData> {
-  const [rules, channels, senderRows] = await Promise.all([
+  const [rules, channels, senderRows, affiliates, linkaffiLinks] = await Promise.all([
     prisma.approvalRule.findMany({
       where: { channelId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
@@ -276,6 +293,19 @@ export async function loadRulesTab(channelId: string): Promise<RulesTabData> {
       },
       select: { channelId: true },
       distinct: ["channelId"],
+    }),
+    loadAffiliateOptions(),
+    prisma.inviteLink.findMany({
+      where: { channelId, kind: "LINKAFFI", linkaffiCampaignKey: { not: null } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        isActive: true,
+        linkaffiCampaignKey: true,
+        linkaffiCampaignName: true,
+        linkaffiAffiliateId: true,
+        linkaffiAffiliateName: true,
+      },
     }),
   ]);
   const defaultRow = rules.find((r) => r.isDefault) ?? null;
@@ -295,6 +325,7 @@ export async function loadRulesTab(channelId: string): Promise<RulesTabData> {
       adPlatform: true,
     },
   });
+  const affiliateNames = Object.fromEntries(affiliates.map((a) => [a.id, a.name]));
   return {
     defaultRow,
     defaultRule: defaultRow ? entryRuleFromRow(defaultRow) : null,
@@ -302,5 +333,22 @@ export async function loadRulesTab(channelId: string): Promise<RulesTabData> {
     channels,
     links,
     senders: senderRows.map((r) => r.channelId),
+    affiliates,
+    affiliateLinks: linkaffiLinks
+      .filter((l) => l.isActive || linkIds.includes(l.id))
+      .map((l) => ({
+        id: l.id,
+        campaignKey: l.linkaffiCampaignKey!,
+        campaignName: campaignLabel({
+          campaignName: l.linkaffiCampaignName,
+          campaignKey: l.linkaffiCampaignKey!,
+        }),
+        affiliateId: l.linkaffiAffiliateId,
+        // Nom le plus récent connu de l'affilié (renommé dans Link Affi depuis la création du lien).
+        affiliateName:
+          (l.linkaffiAffiliateId ? affiliateNames[l.linkaffiAffiliateId] : undefined) ??
+          affiliateLabel(l.linkaffiAffiliateId, l.linkaffiAffiliateName),
+        isActive: l.isActive,
+      })),
   };
 }

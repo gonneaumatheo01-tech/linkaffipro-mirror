@@ -2,6 +2,7 @@
  * Dépendances du flux d'adhésion (accès base et file d'attente), abstraites pour les tests.
  */
 import type { InviteLinkKind, MembershipStatus, Prisma } from "@linkaffipro/db";
+import type { EmitLinkaffiEventInput } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { BotIdentity } from "../ports";
 import type { GateLinkDeps } from "./gate-links";
@@ -27,6 +28,26 @@ export type InviteLinkInfo = {
   adName: string | null;
   sourceChannelId: string | null;
   telegramInviteLink: string;
+  /**
+   * Lien d'une campagne Telegram d'affilié Link Affi (kind LINKAFFI, phase 13) : clé de la campagne de l'affilié, nom,
+   * affilié, durée d'attribution en jours (null = à vie). Facultatifs (anciens tests, autres types de lien).
+   */
+  linkaffiCampaignKey?: string | null;
+  linkaffiCampaignName?: string | null;
+  linkaffiAffiliateId?: string | null;
+  linkaffiAffiliateName?: string | null;
+  attributionDays?: number | null;
+  /**
+   * Lien encore actif chez nous (false : désactivé, par exemple une campagne d'affilié fermée par Link Affi dont
+   * Telegram a refusé la révocation). Facultatif (anciens tests : actif).
+   */
+  isActive?: boolean;
+};
+/** Affilié Link Affi auquel un membre est rattaché (phase 13), ou champs vides. */
+export type MemberAffiliate = {
+  campaignKey: string | null;
+  affiliateId: string | null;
+  attributionEndsAt: Date | null;
 };
 export type MembershipInfo = {
   id: string;
@@ -41,6 +62,9 @@ export type MembershipInfo = {
   approvalRuleId: string | null;
   source: Record<string, unknown>;
   remindersSent: number;
+  /** Acceptation et entrée enregistrées (dates à la milliseconde ; absentes des anciens tests). */
+  approvedAt?: Date | null;
+  joinedAt?: Date | null;
 };
 export type GateButton = { channelId: string; title: string; url: string };
 export type SequenceText = {
@@ -165,4 +189,26 @@ export interface JoinFlowDeps extends GateLinkDeps {
     memberId: string,
     context: Record<string, unknown>,
   ): Promise<void>;
+  /**
+   * Affilié Link Affi actuel du membre (phase 13), null si le membre est inconnu. Facultatif (tests anciens) : sans
+   * lui, aucune attribution.
+   */
+  getMemberAffiliate?(memberId: string): Promise<MemberAffiliate | null>;
+  /**
+   * Rattache le membre à la campagne d'un lien LINKAFFI (phase 13), seulement s'il n'a encore aucun affilié (écriture
+   * conditionnelle : premier affilié gagne, même avec deux demandes simultanées). Vrai si le rattachement a été écrit.
+   */
+  attributeAffiliate?(input: {
+    memberId: string;
+    campaignKey: string;
+    affiliateId: string | null;
+    inviteLinkId: string;
+    attributedAt: Date;
+    endsAt: Date | null;
+  }): Promise<boolean>;
+  /**
+   * Événement d'un membre d'affilié à envoyer à Link Affi (`emitLinkaffiEvent` de @linkaffipro/queue : filtre les
+   * membres non rattachés, jamais d'erreur). Facultatif (tests anciens) : rien n'est émis.
+   */
+  emitLinkaffiEvent?(input: EmitLinkaffiEventInput): Promise<unknown>;
 }

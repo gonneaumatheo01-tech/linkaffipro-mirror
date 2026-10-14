@@ -5,7 +5,7 @@
 import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
-import { enqueueDm } from "@linkaffipro/queue";
+import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import { baseLang, defaultText, pickText, renderHtmlText } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 
@@ -137,11 +137,14 @@ export async function approveMembership(
   }
   const api = apiForBot(bot);
   const markApproved = async () => {
+    // Une seule date pour la demande et pour Link Affi : l'entrée (`chat_member`, datée à la seconde par Telegram) est
+    // datée après elle par le flux d'adhésion, jamais avant.
+    const approvedAt = new Date();
     await prisma.membership.update({
       where: { id: m.id },
       data: {
         status: "APPROVED",
-        approvedAt: new Date(),
+        approvedAt,
         approvedByBotId: bot.id,
         lastError: null,
       },
@@ -156,6 +159,14 @@ export async function approveMembership(
       channelId: m.channelId,
       botId: bot.id,
       payload: { membershipId: m.id, byUserId: opts.byUserId ?? null },
+    });
+    // Membre d'un affilié Link Affi : « accepté » envoyé à Link Affi (filtré et jamais bloquant, phase 13).
+    await emitLinkaffiEvent({
+      type: "join_approved",
+      sourceId: m.id,
+      memberId: m.memberId,
+      channelId: m.channelId,
+      occurredAt: approvedAt,
     });
     await sendAcceptedMessage(m, bot).catch((err: Error) =>
       logger.warn({ err: err.message }, "message accepté non enfilé"),
@@ -186,6 +197,13 @@ export async function approveMembership(
           botId: bot.id,
           payload: { membershipId: m.id, reason: "HIDE_REQUESTER_MISSING" },
         });
+        // Demande retirée par la personne : pour Link Affi, demande expirée (phase 13).
+        await emitLinkaffiEvent({
+          type: "join_expired",
+          sourceId: m.id,
+          memberId: m.memberId,
+          channelId: m.channelId,
+        });
         return "missing";
       }
       if (err.error_code === 429) {
@@ -205,7 +223,7 @@ export async function approveMembership(
         ...(attempts >= MAX_ATTEMPTS ? { status: "FAILED" } : {}),
       },
     });
-    if (attempts >= MAX_ATTEMPTS)
+    if (attempts >= MAX_ATTEMPTS) {
       await recordEvent({
         type: "membership.failed",
         memberId: m.memberId,
@@ -213,6 +231,15 @@ export async function approveMembership(
         botId: bot.id,
         payload: { membershipId: m.id, error: message },
       });
+      // Acceptation impossible pour de bon : la personne n'entrera pas par cette demande. Pour Link Affi, demande
+      // expirée (même lecture que `GET /members` : FAILED = « expired »), sinon elle resterait « en attente » chez lui.
+      await emitLinkaffiEvent({
+        type: "join_expired",
+        sourceId: m.id,
+        memberId: m.memberId,
+        channelId: m.channelId,
+      });
+    }
     logger.error({ membershipId: m.id, attempts, err: message }, "approbation échouée");
     return attempts >= MAX_ATTEMPTS ? "failed" : "retry";
   }
@@ -261,6 +288,13 @@ export async function declineMembership(
     channelId: m.channelId,
     botId: bot.id,
     payload: { membershipId: m.id, byUserId: opts.byUserId ?? null, reason: opts.reason ?? null },
+  });
+  // Refus (à la main ou à l'expiration avec refus) d'un membre d'affilié Link Affi (phase 13).
+  await emitLinkaffiEvent({
+    type: "join_declined",
+    sourceId: m.id,
+    memberId: m.memberId,
+    channelId: m.channelId,
   });
   return "declined";
 }

@@ -25,7 +25,9 @@ import {
  * « Exceptions selon la provenance » (fiche canal → « Qui peut entrer et quand », phase 11) : règles d'affichage et de
  * saisie pures, testées sans base. La résolution elle-même (quelle règle s'applique à qui) vient de
  * `packages/core/src/provenance.ts`, la même que celle du bot.
- * - menu « Si la personne vient… » (clé `channel:<id>` / `kind:<type>` / `link:<id>`) ↔ portée et cible de la règle ;
+ * - menu « Si la personne vient… » (clé `channel:<id>` / `kind:<type>` / `link:<id>` / `affiliate:<id>`) ↔ portée et
+ *   cible de la règle ; phase 13 : affiliés Link Affi (n'importe quel affilié, un affilié précis, une campagne
+ *   d'affilié précise = le lien LINKAFFI de la campagne) ;
  * - textes : condition, libellé enregistré (« Venu de « Tir Cadré » »), phrase de résumé, délai court ;
  * - garde-fous : pas deux exceptions pour la même provenance, exception masquée (« jamais utilisée ») ;
  * - ordre : déplacement dans un même niveau seulement, numéros 10, 20, 30…
@@ -34,12 +36,14 @@ import {
 /** Portée d'une exception (toute règle qui n'est pas la règle par défaut). */
 export type ExceptionScope = Exclude<RuleScope, "DEFAULT">;
 
-/** Ce que vise une exception : un lien précis, un de nos canaux, ou un type de provenance. */
+/** Ce que vise une exception : un lien précis, un de nos canaux, un type de provenance, ou un affilié Link Affi. */
 export type ExceptionTarget = {
   scope: ExceptionScope;
   sourceChannelId: string | null;
   sourceKind: SourceKind | null;
   inviteLinkId: string | null;
+  /** Affilié Link Affi précis (exception `SOURCE_KIND` = LINKAFFI_AFFILIATE, phase 13). */
+  linkaffiAffiliateId: string | null;
 };
 
 /** Une exception telle que l'écran la montre (ligne `ApprovalRule` relue, sérialisable). */
@@ -55,6 +59,10 @@ export type ExceptionItem = ScopedRule & {
 export type NameMaps = {
   titles: Readonly<Record<string, string>>;
   linkNames: Readonly<Record<string, string>>;
+  /** Noms des affiliés Link Affi par identifiant Link Affi (phase 13). */
+  affiliateNames?: Readonly<Record<string, string>>;
+  /** Liens des campagnes Telegram d'affiliés (LINKAFFI), par identifiant de lien : campagne et affilié. */
+  affiliateLinks?: Readonly<Record<string, { campaignName: string; affiliateName: string }>>;
 };
 
 /** Niveaux des exceptions, du plus précis au plus général (même ordre que le bot). */
@@ -75,14 +83,22 @@ export const LEVEL_TITLES: Record<ExceptionScope, string> = {
 export const EXCEPTIONS_HELP =
   "Un lien précis passe avant un de nos canaux, qui passe avant un type de provenance. Dans chaque groupe, la première exception qui correspond s'applique.";
 
+/** Clé du menu d'un affilié Link Affi précis (identifiant Link Affi encodé : il peut contenir n'importe quoi). */
+export function affiliateKey(affiliateId: string): string {
+  return `affiliate:${encodeURIComponent(affiliateId)}`;
+}
+
 /** Clé du menu « Si la personne vient… » pour une exception (null : cible absente). */
 export function provenanceKey(
-  t: Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId">,
+  t: Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId"> &
+    Partial<Pick<ScopedRule, "linkaffiAffiliateId">>,
 ): string | null {
   switch (t.scope) {
     case "SOURCE_CHANNEL":
       return t.sourceChannelId ? `channel:${t.sourceChannelId}` : null;
     case "SOURCE_KIND":
+      if (t.sourceKind === "LINKAFFI_AFFILIATE")
+        return t.linkaffiAffiliateId ? affiliateKey(t.linkaffiAffiliateId) : null;
       return t.sourceKind ? `kind:${t.sourceKind}` : null;
     case "INVITE_LINK":
       return t.inviteLinkId ? `link:${t.inviteLinkId}` : null;
@@ -93,19 +109,43 @@ export function provenanceKey(
 
 /** Clé du menu → portée et cible de l'exception (null : clé illisible). */
 export function targetOfKey(key: string): ExceptionTarget | null {
+  const none = {
+    sourceChannelId: null,
+    sourceKind: null,
+    inviteLinkId: null,
+    linkaffiAffiliateId: null,
+  };
+  const affiliate = /^affiliate:(.{1,400})$/.exec(key.trim());
+  if (affiliate) {
+    let id: string;
+    try {
+      id = decodeURIComponent(affiliate[1]!).trim();
+    } catch {
+      return null;
+    }
+    if (!id || id.length > 128) return null;
+    return {
+      ...none,
+      scope: "SOURCE_KIND",
+      sourceKind: "LINKAFFI_AFFILIATE",
+      linkaffiAffiliateId: id,
+    };
+  }
   const m = /^(channel|kind|link):([A-Za-z0-9_-]{1,64})$/.exec(key.trim());
   if (!m) return null;
   const [, type, value] = m as unknown as [string, string, string];
-  const none = { sourceChannelId: null, sourceKind: null, inviteLinkId: null };
   if (type === "channel") return { ...none, scope: "SOURCE_CHANNEL", sourceChannelId: value };
   if (type === "link") return { ...none, scope: "INVITE_LINK", inviteLinkId: value };
+  // Un affilié précis s'écrit `affiliate:<id>` : « kind:LINKAFFI_AFFILIATE » sans affilié ne vise personne.
+  if (value === "LINKAFFI_AFFILIATE") return null;
   return SOURCE_KINDS.includes(value as SourceKind)
     ? { ...none, scope: "SOURCE_KIND", sourceKind: value as SourceKind }
     : null;
 }
 
 /** Ce qu'il faut d'une règle pour écrire sa condition. */
-type TargetLike = Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId">;
+type TargetLike = Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId"> &
+  Partial<Pick<ScopedRule, "linkaffiAffiliateId">>;
 
 /**
  * Espaces insécables à l'intérieur des guillemets français (les textes du paquet commun ont des espaces ordinaires :
@@ -115,9 +155,19 @@ export function frQuotes(text: string): string {
   return text.replace(/\u00ab /g, "\u00ab\u00a0").replace(/ \u00bb/g, "\u00a0\u00bb");
 }
 
+/** Condition d'une campagne d'affilié précise : « de la campagne « Casino VIP » de l'affilié « Paul » ». */
+function affiliateCampaignCondition(c: { campaignName: string; affiliateName: string }): string {
+  return `de la campagne « ${c.campaignName} » de l'affilié « ${c.affiliateName} »`;
+}
+
 /** Condition en français, après « Si la personne vient » : « de « Tir Cadré » », « d'une pub TikTok »… */
 export function conditionText(t: TargetLike, names: NameMaps): string {
-  return frQuotes(exceptionCondition(t, names.titles, names.linkNames));
+  const campaign =
+    t.scope === "INVITE_LINK" && t.inviteLinkId
+      ? names.affiliateLinks?.[t.inviteLinkId]
+      : undefined;
+  if (campaign) return frQuotes(affiliateCampaignCondition(campaign));
+  return frQuotes(exceptionCondition(t, names.titles, names.linkNames, names.affiliateNames ?? {}));
 }
 
 /** Libellé enregistré de l'exception (`ApprovalRule.label`) : « Venu de « Tir Cadré » ». */
@@ -126,12 +176,22 @@ export function exceptionRuleLabel(t: TargetLike, names: NameMaps): string {
 }
 
 /** Ligne d'aide sous « Si la personne vient… » : par où passe la personne visée. */
-export function provenanceHelp(t: Pick<ExceptionTarget, "scope" | "sourceKind"> | null): string {
+export function provenanceHelp(
+  t: (Pick<ExceptionTarget, "scope" | "sourceKind"> & { inviteLinkId?: string | null }) | null,
+  names?: Pick<NameMaps, "affiliateLinks">,
+): string {
   if (!t) return "Choisissez d'où vient la personne.";
   if (t.scope === "SOURCE_CHANNEL")
     return "Par le bouton « canal à rejoindre » de ce canal, ou par un lien de partage posté dedans.";
-  if (t.scope === "INVITE_LINK") return "Par ce lien précis seulement.";
+  if (t.scope === "INVITE_LINK")
+    return t.inviteLinkId && names?.affiliateLinks?.[t.inviteLinkId]
+      ? "Par le lien Link Affi de cette campagne d'affilié seulement."
+      : "Par ce lien précis seulement.";
   switch (t.sourceKind) {
+    case "LINKAFFI_ANY":
+      return "Par le lien Link Affi de n'importe quel affilié (campagnes Telegram créées dans Link Affi).";
+    case "LINKAFFI_AFFILIATE":
+      return "Par le lien Link Affi d'une des campagnes de cet affilié.";
     case "GATE":
       return "Par le bouton « canal à rejoindre » de n'importe lequel de nos canaux.";
     case "ANY_CHANNEL":
@@ -362,10 +422,41 @@ export type ProvenanceOption = {
 };
 export type ProvenanceGroup = { label: string; options: ProvenanceOption[] };
 
+/** Types de provenance proposés dans « Un type de provenance » (les affiliés Link Affi ont leur propre groupe). */
+const KIND_OPTIONS: readonly SourceKind[] = SOURCE_KINDS.filter(
+  (k) => k !== "LINKAFFI_ANY" && k !== "LINKAFFI_AFFILIATE",
+);
+
+/** Lien d'une campagne Telegram d'affilié (LINKAFFI) dans le menu : campagne et affilié. */
+export type AffiliateLinkOption = {
+  id: string;
+  campaignName: string;
+  affiliateName: string;
+  isActive: boolean;
+};
+
+/** Noms des affiliés et des campagnes d'affiliés pour les phrases (`NameMaps`). */
+export function affiliateNameMaps(input: {
+  affiliates?: ReadonlyArray<{ id: string; name: string }>;
+  affiliateLinks?: readonly AffiliateLinkOption[];
+}): Required<Pick<NameMaps, "affiliateNames" | "affiliateLinks">> {
+  return {
+    affiliateNames: Object.fromEntries((input.affiliates ?? []).map((a) => [a.id, a.name])),
+    affiliateLinks: Object.fromEntries(
+      (input.affiliateLinks ?? []).map((l) => [
+        l.id,
+        { campaignName: l.campaignName, affiliateName: l.affiliateName },
+      ]),
+    ),
+  };
+}
+
 /**
  * Menu « Si la personne vient… » : un de nos canaux (ceux qui envoient leurs membres ici d'abord), un type de
- * provenance, un lien de partage précis. L'option en cours reste proposée même si son canal ou son lien a disparu.
- * `used` : clés des autres exceptions (marquées « déjà réglée »).
+ * provenance, un lien de partage précis, et (phase 13, dès qu'un affilié Link Affi est connu) un affilié Link Affi
+ * (n'importe lequel, ou un affilié précis) et une campagne d'affilié précise (liens LINKAFFI de ce canal). L'option en
+ * cours reste proposée même si son canal ou son lien a disparu. `used` : clés des autres exceptions (marquées « déjà
+ * réglée »).
  */
 export function provenanceMenu(input: {
   channelId: string;
@@ -374,12 +465,18 @@ export function provenanceMenu(input: {
   links: ReadonlyArray<{ id: string; name: string; kind: string; isActive: boolean }>;
   /** Canaux dont une règle demande de rejoindre ce canal (ils y envoient leurs membres). */
   senders: readonly string[];
+  /** Affiliés Link Affi connus (par leurs campagnes, tous canaux). */
+  affiliates?: ReadonlyArray<{ id: string; name: string }>;
+  /** Campagnes d'affiliés de ce canal (liens LINKAFFI). */
+  affiliateLinks?: readonly AffiliateLinkOption[];
   current?: string | null;
   used: readonly string[];
 }): ProvenanceGroup[] {
   const titles = Object.fromEntries(input.channels.map((c) => [c.id, c.title]));
   const linkNames = Object.fromEntries(input.links.map((l) => [l.id, l.name]));
-  const names = { titles, linkNames };
+  const affiliates = input.affiliates ?? [];
+  const campaignLinks = input.affiliateLinks ?? [];
+  const names: NameMaps = { titles, linkNames, ...affiliateNameMaps(input) };
   const used = new Set(input.used);
   const option = (key: string): ProvenanceOption => {
     const target = targetOfKey(key)!;
@@ -398,15 +495,49 @@ export function provenanceMenu(input: {
     .filter((l) => l.kind === "SHARE" && l.isActive)
     .sort((a, b) => a.name.localeCompare(b.name, "fr"))
     .map((l) => option(`link:${l.id}`));
+  const campaignIds = new Set(campaignLinks.map((l) => l.id));
+  const campaigns = campaignLinks
+    .filter((l) => l.isActive)
+    .sort(
+      (a, b) =>
+        a.affiliateName.localeCompare(b.affiliateName, "fr") ||
+        a.campaignName.localeCompare(b.campaignName, "fr"),
+    )
+    .map((l) => option(`link:${l.id}`));
+  const affiliateOptions = [...affiliates]
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
+    .map((a) => option(affiliateKey(a.id)));
   const current = input.current ? targetOfKey(input.current) : null;
   if (current?.scope === "SOURCE_CHANNEL" && !channels.some((o) => o.key === input.current))
     channels.unshift(option(input.current!));
-  if (current?.scope === "INVITE_LINK" && !links.some((o) => o.key === input.current))
+  if (
+    current?.scope === "INVITE_LINK" &&
+    current.inviteLinkId &&
+    campaignIds.has(current.inviteLinkId)
+  ) {
+    if (!campaigns.some((o) => o.key === input.current)) campaigns.unshift(option(input.current!));
+  } else if (current?.scope === "INVITE_LINK" && !links.some((o) => o.key === input.current))
     links.unshift(option(input.current!));
+  if (
+    current?.sourceKind === "LINKAFFI_AFFILIATE" &&
+    !affiliateOptions.some((o) => o.key === input.current)
+  )
+    affiliateOptions.unshift(option(input.current!));
+  // Groupe des affiliés : dès qu'un affilié ou une campagne est connu (ou que l'exception en cours en vise un).
+  const showAffiliates =
+    affiliates.length > 0 ||
+    campaigns.length > 0 ||
+    current?.sourceKind === "LINKAFFI_ANY" ||
+    current?.sourceKind === "LINKAFFI_AFFILIATE";
   const groups: ProvenanceGroup[] = [
     { label: "Un de nos canaux", options: channels },
-    { label: "Un type de provenance", options: SOURCE_KINDS.map((k) => option(`kind:${k}`)) },
+    { label: "Un type de provenance", options: KIND_OPTIONS.map((k) => option(`kind:${k}`)) },
     { label: "Un lien de partage précis", options: links },
+    {
+      label: "Un affilié Link Affi",
+      options: showAffiliates ? [option("kind:LINKAFFI_ANY"), ...affiliateOptions] : [],
+    },
+    { label: "Une campagne d'affilié précise", options: campaigns },
   ];
   return groups.filter((g) => g.options.length > 0);
 }

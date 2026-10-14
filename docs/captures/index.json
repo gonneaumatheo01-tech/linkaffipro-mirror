@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-11T22:35:56.148Z",
+  "updatedAt": "2026-10-14T15:24:37.479Z",
   "entries": [
     {
       "route": "/",
@@ -61,6 +61,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T15:15:39.955Z"
+    },
+    {
+      "route": "/campaigns/affiliates",
+      "path": "/campaigns/affiliates",
+      "title": "Affiliés Link Affi",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "campaigns-affiliates-390.webp",
+        "1440": "campaigns-affiliates-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-14T14:23:15.291Z"
     },
     {
       "route": "/campaigns/import",
@@ -405,12 +420,12 @@
         "1440": "members-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:19:02.298Z"
+      "capturedAt": "2026-10-14T15:24:24.859Z"
     },
     {
       "route": "/members/[id]",
-      "path": "/members/c1ihgxwagd7i4mh1jwyexz3xc",
-      "title": "Hugo",
+      "path": "/members/c2w5g4iswfut09f5pln1ggm6i",
+      "title": "Paul D.",
       "status": "ok",
       "httpStatus": 200,
       "redirectedTo": null,
@@ -420,7 +435,7 @@
         "1440": "members-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T18:17:57.668Z"
+      "capturedAt": "2026-10-14T14:23:23.523Z"
     },
     {
       "route": "/members/automations",

@@ -17,6 +17,7 @@ import type {
   StatInput,
   SubIdSource,
 } from "./types";
+import { isTelegramCampaignRow } from "./telegram";
 
 /** Convertit une date ISO (ou vide) en Date, sinon null. */
 export function toDate(v: unknown): Date | null {
@@ -85,8 +86,12 @@ export function trackingUrlTemplateFor(
   return `https://${host}/go/${encodeURIComponent(campaignKey)}?sub_id=${SUB_ID_PLACEHOLDER}`;
 }
 
-/** `campaigns` → AffiliateCampaign. */
+/**
+ * `campaigns` → AffiliateCampaign. Une campagne Telegram d'affilié (phase 13 : lien Link Affi vers un de nos canaux,
+ * voir `isTelegramCampaignRow`) n'est pas une offre : ignorée ici, lue par la synchro des campagnes Telegram.
+ */
 export function mapCampaign(row: LaCampaign): CampaignInput | null {
+  if (isTelegramCampaignRow(row)) return null;
   const id = str(row.id);
   const key = str(row.campaign_key);
   if (!id || !key) return null;
@@ -264,9 +269,7 @@ export function mapDepositSnapshot(
 }
 
 /** `ftd_invalidations` → annulation du FTD (clé = identifiant externe + casino). */
-export function mapFtdInvalidation(
-  row: LaFtdInvalidation,
-): {
+export function mapFtdInvalidation(row: LaFtdInvalidation): {
   programExternalId: string;
   externalPlayerId: string;
   reason: string | null;
