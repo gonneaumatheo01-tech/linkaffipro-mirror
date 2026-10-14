@@ -18,7 +18,7 @@ Phases 0 à 12 en ligne. Phase 13 = les campagnes Telegram des affiliés Link Af
 
 ## Vérifications faites
 - Quatre agents de réalisation (attribution, événements et `tg` ; synchro Link Affi ; API d'intégration et réglages ; vues internes), deux relectures adverses puis une relecture finale qui a rejoué tout le scénario du cahier des charges (clés, appels simulés de Link Affi, lien, demande, événements signés vérifiés par un récepteur, clic d'offre avec `tg`, joueur, premier dépôt visible) : 8 vérifications sur 8. Défauts importants trouvés et corrigés : données d'un membre supprimé restées dans les événements, ordre « entré » avant « accepté », événements annulés encore relus par Link Affi.
-- __PRODCHECK__
+- Production (14 octobre) : sauvegarde faite avant, migration appliquée, file d'envoi des événements démarrée par le worker, clé « anon » de Link Affi copiée sur le site (sans l'afficher) ; l'API d'intégration répond 401 en JSON français sans clé ou avec une clé fausse (et pas une redirection vers la connexion) ; pages Réglages → Connexions, Campagnes → Affiliés Link Affi (et son export), Membres, Statistiques, fiche canal vérifiées avec le compte de vérification. Les deux clés ne sont pas générées : c'est vous qui le faites (elles ne s'affichent qu'une fois). La sauvegarde est passée à 36 Mo : ce sont vos 1 125 emojis animés et vos médias, c'est normal.
 
 ## Limites et suites
 - Les noms exacts des tables Telegram de Link Affi ne sont pas encore connus : la synchro les détecte toute seule et compare dès qu'elles existent ; à resserrer quand Link Affi publiera son récapitulatif.
