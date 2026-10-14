@@ -44,3 +44,11 @@ ordinateur et associé à venir · Q24 lancement dans 3-4 jours, pas de budget m
 - « Campagne » = notre campagne (offre Link Affi + canaux + pubs + liens), entrée principale du menu ; « campagne pub » = structure TikTok / Meta à l'intérieur.
 - Comptes publicitaires : comptes d'agence partagés avec le Business Manager / Business Center du client, connectés depuis la plateforme (phase 7).
 - Canal détecté automatiquement (bot déjà administrateur) : aucune acceptation automatique ni message privé automatique tant que l'équipe n'a pas réglé la règle d'adhésion du canal (une demande acceptée à la main reçoit le message « accepté ») (rappel de la décision « approbation jamais automatique par défaut »).
+
+## Décisions du 14 octobre (affiliés Link Affi sur nos canaux Telegram)
+
+- Les affiliés existants de Link Affi peuvent amener des membres dans nos canaux. C'est l'admin qui crée, **dans Link Affi** (partie Campagnes), une campagne de type « Canal Telegram » pour un affilié ; Link Affi demande le lien d'invitation à notre plateforme ; `linkaffi.me/go/<clé>` redirige vers ce lien.
+- Les inscriptions, FTD et dépôts des membres venus de ce lien sont crédités à l'affilié dans les stats normales de Link Affi (paramètre `tg` ajouté à nos liens d'offre). Seules les campagnes créées ainsi ont des affiliés.
+- Dans la partie « Joueurs » de Link Affi, l'affilié voit ses demandes d'adhésion, les pseudos et le parcours de ses membres ; l'admin voit tout.
+- Premier affilié gagne, pas d'attribution pour un membre déjà présent, à vie par défaut ; seuls les boutons d'offre du bot créditent l'affilié.
+- Exception à la règle « Link Affi en lecture seule » : notre API d'intégration appelée par Link Affi et l'envoi des événements à `telegram-events`. Contrat : `docs/LINKAFFI-PARTENAIRES.md` ; prompts : `docs/prompts/15-phase-13-partenaires.md` (Claude Code) et `docs/prompts/LOVABLE-campagnes-telegram.md` (Link Affi).
