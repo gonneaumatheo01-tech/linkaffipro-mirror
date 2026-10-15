@@ -1,5 +1,10 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 14 : demandes bloquées sur « Attend les canaux » (5 minutes)
+1. **Corriger l'accueil de Zone Interdite** (il parle encore de « J'ai rejoint », qui n'existe plus en « Proposés ») : https://app.linkaffipro.com/channels → **Zone Interdite** → onglet **Ce que dit le bot** → message d'accueil → remplacez le texte par, par exemple : « {prenom}, tu y es presque !🔞🤫 Rejoins aussi nos deux canaux ci-dessous 👇 Ton accès à {canal} est validé {delai}. » → **Enregistrer**. L'avertissement orange disparaît.
+2. **Vrai essai** (avec un compte qui n'est pas encore membre) : demandez à rejoindre Tir Cadré par un lien d'entrée, rejoignez les canaux proposés sans appuyer sur rien : la demande passe « Acceptation programmée » en 2 minutes au plus. Puis, sur un autre essai, appuyez sur **✅ J'ai rejoint** sans « Démarrer » : le message du bot se met à jour.
+3. **À décider par vous** : si des demandes restent un jour en attente sous une ancienne règle, le bouton **Leur appliquer la nouvelle règle** (onglet « Qui peut entrer et quand ») ou **Tout accepter** (onglet Demandes) les débloque. Nous ne les avons jamais utilisés en production.
+
 ## Phase 13 : brancher les affiliés Link Affi (10 minutes, quand Link Affi est prêt)
 1. **Générer les deux valeurs** : https://app.linkaffipro.com/settings/connectors → partie « Campagnes Telegram des affiliés » → **Générer la clé** (copiez-la tout de suite, elle ne s'affiche qu'une fois), puis **Générer le secret** (idem).
 2. **Les coller dans Link Affi** : dans Lovable, projet Link Affi → Cloud → Secrets → ajoutez `LINKAFFIPRO_API_KEY` (la clé) et `LINKAFFIPRO_WEBHOOK_SECRET` (le secret).

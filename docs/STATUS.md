@@ -1,4 +1,47 @@
-# État du projet : phase 13 (affiliés Link Affi sur vos canaux) terminée (14 octobre 2026)
+# État du projet : phase 14 (demandes bloquées sur « Attend les canaux ») terminée (15 octobre 2026)
+
+Phases 0 à 13 en ligne. Phase 14 = ce qui bloquait les demandes de Zone Interdite pendant la pub TikTok (`docs/prompts/16-phase-14-demandes-bloquees.md`). 3 303 tests unitaires et 398 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (service d'arrière-plan puis site), sauvegarde faite juste avant.
+
+## Constat du 15 octobre vérifié dans la base (lecture seule, 15 octobre au matin)
+- « Zone Interdite 🔞 » : **48 demandes** depuis le 14 octobre 16 h (pub TikTok). Aujourd'hui **44 acceptées, 4 parties, aucune encore « Attend les canaux »** : vous avez accepté **37 demandes à la main** après être passé en « Proposés » à 3 h 33 (37 « Accepter » dans le journal) ; 12 personnes avaient appuyé sur « ✅ J'ai rejoint ». Aucune demande « Attend les canaux » ailleurs (Tir Cadré et Zone Roulette : 47 demandes programmées, normales).
+- **« A bloqué le bot » mélangeait deux choses** :
+  - **vrai blocage** (Telegram nous dit que la personne a bloqué le bot) : **19 personnes**, dont 12 dans les 2 minutes qui suivent l'accueil (les autres entre 9 et 23 minutes) ;
+  - **refus d'envoi** : **14 rappels** (1 h) et **33 messages « Accepté »** (après vos acceptations à la main) refusés par Telegram et classés à tort « bloqué ». Ces personnes n'ont jamais appuyé sur « Démarrer » (21 sur 48 l'ont fait) : passé 5 minutes après la demande, Telegram refuse que le bot leur écrive (« bot can't initiate conversation with a user »). Aucune n'avait bloqué le bot (pas de signal de blocage pour elles). Le message exact de Telegram n'était pas gardé : il l'est désormais.
+- Par heure (Paris) : 14 oct. 17 h : 23 demandes, 16 blocages ou refus ; ensuite 1 à 5 demandes par heure, dont 1 à 4 blocages ou refus.
+
+## Phase 14 : ce qui a changé
+- **Acceptation toute seule quand les canaux sont rejoints** : dès que la personne a rejoint (ou demandé à rejoindre) tous les canaux obligatoires, sa demande passe en « Acceptation programmée », sans « ✅ J'ai rejoint ». Le bot le voit tout de suite quand la demande ou l'entrée arrive dans un de nos canaux, et revérifie seul toutes les 2 minutes.
+- **« ✅ J'ai rejoint » marche sans « Démarrer »** : c'est maintenant un bouton qui met à jour le message du bot (« C'est bon… » ou « Il te manque encore… »). Les anciens boutons déjà envoyés marchent toujours.
+- **Rappel à 4 minutes** proposé par défaut pour toute nouvelle règle avec canaux obligatoires (le seul moment où Telegram laisse encore le bot écrire à tout le monde) ; les rappels plus tardifs ne partent qu'aux personnes qui ont démarré le bot. Les règles existantes n'ont pas changé.
+- **« A bloqué le bot » veut dire bloqué** : un refus de Telegram parce que la personne n'a jamais démarré le bot n'est plus compté comme un blocage, et rien ne lui est envoyé (« Accepté », rappels). Le message exact de Telegram est gardé dans le journal.
+- **Onglet Demandes** : filtre (Toutes, Attend les canaux, Acceptation programmée, À valider à la main) et **Tout accepter** sur le filtre choisi ; en haut, le **parcours des demandes** par provenance (demandes, accueil envoyé, ont bloqué le bot, canaux rejoints, acceptées, parties), repris dans Statistiques → Canaux.
+- **Qui peut entrer et quand** : après une modification, « N demandes déjà en attente suivent l'ancienne règle » avec **Leur appliquer la nouvelle règle** (jamais lancé par nous : c'est vous qui décidez) ; avertissement quand l'accueil parle d'une étape obligatoire alors que les canaux sont « Proposés » (le bouton « J'ai rejoint » n'y est plus) ; notes sous les rappels.
+- **Alerte Telegram** si plus d'un quart des personnes d'un canal bloquent le bot dans l'heure qui suit l'accueil (au moins 10 demandes ; au plus une par canal toutes les 6 heures), avec la pub la plus touchée.
+
+## Rattrapage en production (15 octobre, 8 h 07, fait tout seul par le service d'arrière-plan au déploiement)
+- **0 demande** « Attend les canaux » à accepter (vous les aviez déjà toutes acceptées) ; 0 encore en attente.
+- **15 « a bloqué le bot » effacés** (refus de Telegram qui n'étaient pas des blocages) ; 1 personne qui n'avait jamais démarré le bot n'est plus comptée « joignable ».
+- **11 accueils par défaut** réécrits sans « ✅ J'ai rejoint » ; **1 accueil écrit par vous** jamais touché : celui de Zone Interdite, qui dit encore « clique sur « J'ai rejoint » pour être accepté » alors que les canaux sont « Proposés » (le site l'affiche en avertissement ; texte proposé dans `docs/A-FAIRE-HUMAIN.md`).
+- `railway ssh --service web -- pnpm db:phase14` réaffiche ce résultat sans rien refaire.
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com/channels → **Zone Interdite** → onglet **Demandes** : en haut, le parcours des demandes de la pub TikTok (combien ont vraiment bloqué le bot, combien ont rejoint les canaux).
+2. Onglet **Qui peut entrer et quand** : un avertissement orange vous signale l'accueil qui parle encore de « J'ai rejoint ». Corrigez-le dans **Ce que dit le bot** (texte proposé dans la liste des actions).
+3. Avec un compte qui n'est pas membre, demandez à rejoindre un canal réglé sur « canaux obligatoires » (par exemple Tir Cadré), rejoignez les canaux proposés **sans appuyer sur rien** : 2 minutes plus tard au plus, la carte de la demande passe « Acceptation programmée ».
+4. Refaites l'essai en appuyant sur **✅ J'ai rejoint** sans avoir appuyé sur « Démarrer » : le message du bot se met à jour tout de suite.
+5. Onglet **Demandes** d'un canal avec des demandes programmées : le filtre et **Tout accepter** sont là (n'appuyez que si vous voulez vraiment les accepter toutes).
+
+## Vérifications faites
+- Trois agents de réalisation (bot et service d'arrière-plan ; règles et demandes du site ; parcours des demandes), deux relectures adverses puis une relecture finale qui a rejoué le cas de Zone Interdite par les tests (canaux rejoints sans appuyer, bouton sans « Démarrer », rappel à 4 minutes, blocage ou refus, alerte, « Tout accepter », appliquer une règle). Défauts importants trouvés et corrigés : « Tout accepter » pouvait laisser des demandes « Acceptation en cours » pour toujours (heure de secours à 10 minutes ajoutée) ; un accueil envoyé dans les 5 minutes rendait la personne « joignable » à tort (cause des rappels et « Accepté » refusés) ; le rattrapage aurait rendu injoignables des personnes qui avaient écrit au bot ; une demande acceptée en même temps par deux voies pouvait être notée « expirée ».
+- Production : sauvegarde (36 Mo) juste avant ; service d'arrière-plan déployé avant le site (sinon les rappels à 4 minutes de la transition seraient perdus) ; santé OK (base 12 ms, battement du service d'arrière-plan 17 s), go.goolink.eu répond 302 ; pages vérifiées avec le compte de vérification : fiche canal (Demandes, Qui peut entrer et quand, Ce que dit le bot), Statistiques → Canaux, Journal, Membres, Aide (nouvelle section du guide), État du système ; aucune erreur dans les journaux. Captures 1440 / 390 px refaites : `docs/captures/channels-id-tab-requests-*`, `channels-id-tab-rules-*`, `stats-channels-*`, `settings-journal-events-*`.
+- Aucun message envoyé à de vrais membres par nous ; « Leur appliquer la nouvelle règle » et « Tout accepter » jamais utilisés en production.
+
+## Limites et suites
+- Telegram ne laisse le bot écrire en premier que 5 minutes après la demande : une personne qui n'appuie jamais sur un bouton du bot ne reçoit ni rappel tardif ni « Accepté » ; elle est quand même acceptée.
+- La vérification par Telegram (filet de 2 minutes) est limitée à 30 appels par bot et par passage : avec un très gros afflux, certaines demandes sont vérifiées au passage suivant.
+- « Canaux rejoints » est rangé avec les rappels dans les statistiques des messages du bot (pas de type dédié sans changer la base).
+
+## Phase 13 — (affiliés Link Affi sur vos canaux) terminée (14 octobre 2026)
 
 Phases 0 à 12 en ligne. Phase 13 = les campagnes Telegram des affiliés Link Affi (`docs/prompts/15-phase-13-partenaires.md`, contrat `docs/LINKAFFI-PARTENAIRES.md` v2 + annexe). 3 151 tests unitaires et 363 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site et service d'arrière-plan). La partie Link Affi est construite en parallèle par le client (Lovable) : notre côté est prêt et se branche dès que les deux valeurs sont collées dans Link Affi.
 
