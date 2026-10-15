@@ -1,4 +1,41 @@
-# État du projet : phase 14 (demandes bloquées sur « Attend les canaux ») terminée (15 octobre 2026)
+# État du projet : phase 15 (pages d'atterrissage, rubrique « Pages ») terminée (15 octobre 2026)
+
+Phases 0 à 14 en ligne. Phase 15 = les pages d'atterrissage Telegram ultra-rapides demandées le 15 octobre (`docs/prompts/17-phase-15-pages-atterrissage.md`, contrat `docs/PAGES-ATTERRISSAGE.md`). 3 645 tests unitaires et 461 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (le site d'abord, qui applique les deux migrations, puis le service d'arrière-plan), sauvegarde faite juste avant.
+
+## Phase 15 : ce qui a changé
+- **Rubrique « Pages »** (menu, juste après Campagnes) : un seul formulaire (canal, phrase d'accroche, sous-texte, texte du bouton, sources ; le reste dans « Avancé » : langue, pixels TikTok / Meta vérifiés à la saisie, bandeau cookies, photo du canal, petite ligne, adresse) avec l'aperçu téléphone en direct à côté. Chaque source (tk01, tk03, exo1…) a son bouton **Copier le lien** (`https://go.goolink.eu/j/<page>?src=<source>`, celui à coller dans la pub) et peut être reliée à une pub pour le coût par join.
+- **La page publique** : un écran sans défilement, le vrai titre du canal (relu automatiquement chez Telegram, jamais saisi), l'accroche, le gros bouton bleu « Rejoindre le canal → » en bas, sous le pouce. Même page pour tout le monde (robots compris) ; seule la façon d'ouvrir l'appli Telegram s'adapte au téléphone au moment du clic (iPhone, Android, TikTok, Instagram…), avec repli sur le lien t.me. Servie depuis la mémoire, sans aucune requête à la base, mise à jour dès que vous modifiez la page.
+- **Liens d'invitation** : un lien par source, avec demande d'adhésion, créé tout seul par le bot de l'univers du canal (sinon un autre de nos bots administrateurs) ; un refus de Telegram s'affiche sur la source en français, avec « Réessayer », et un nouvel essai automatique toutes les 10 minutes. Les demandes et acceptations remontent à la page et à la source ; la provenance « Venu de la page « X » (source « tk01 ») » s'affiche partout ; exceptions « une page d'atterrissage (toutes) » et « la page X » dans « Qui peut entrer et quand ».
+- **Chiffres** (fiche d'une page, avec le choix des dates) : visites, clics, % de clic, demandes, acceptés, % visite → join, coût par join (dépense de la pub reliée, partagée sans double compte avec le lien direct de la même pub), « Telegram ouvert après le clic » par téléphone et par appli, et en dessous la comparaison avec les liens directs des pubs du même canal. Robots jamais comptés, adresse IP jamais gardée (pays par une base locale). Export CSV.
+- **Pixels TikTok et Meta** facultatifs, chargés après l'affichage (PageView, puis ClickButton / Contact au clic) ; bandeau cookies facultatif (pixels seulement après « Accepter »).
+
+## Mesures en production (15 octobre, page de test sur le canal « Test » seulement)
+- **Lighthouse mobile : score 100** (médiane de 3 ; accessibilité 100, bonnes pratiques 100). Affichage complet (LCP) : **1,07 s** avec le profil standard de Lighthouse (« Slow 4G » : 150 ms de latence, bridage du processeur ×4), **0,61 s** avec un profil 4G réaliste (60 ms, 9 Mbit/s). Ces mesures partent du Mac du projet, qui sort par l'Indonésie : elles comptent ~220 ms de trajet Asie → Europe qu'un visiteur en France n'a pas. Le profil standard a un plancher d'environ 1,2 à 1,5 s même pour une page vide sur un serveur proche : « moins de 1 s » n'est tenu qu'avec le profil 4G.
+- **Poids** : 8,7 Ko (4,2 Ko compressée), pixels non compris ; mêmes octets pour les 9 navigateurs et robots testés (TikTok, Instagram, Safari, aperçu Facebook, robots TikTok et Google, aucun).
+- **Temps de première réponse** : depuis l'Europe (conteneur, par l'adresse publique) 18 ms en médiane avec une nouvelle connexion, 10 ms sinon ; depuis le Mac (Indonésie, entrée Railway de Singapour) 310 ms. Service web en Europe (europe-west4) : rien à changer.
+- **Clic** (navigateurs intégrés TikTok et Instagram sur iPhone et Android, Safari, Chrome, simulés sur la vraie page) : tentative d'ouverture de Telegram en 1,4 ms au plus, repli vers t.me si l'appli ne s'ouvre pas, « Telegram ouvert » seulement quand la page passe en arrière-plan, aucune erreur ni blocage de sécurité. Visites bien enregistrées en base par le service d'arrière-plan (pays déduit, IP non gardée).
+
+## Test de 5 minutes
+1. https://app.linkaffipro.com/pages → la page « test » (canal Test) : formulaire, aperçu, 4 liens prêts (principal, tk01, tk03, exo1).
+2. Cliquez **Copier le lien** de tk01 et ouvrez-le sur votre téléphone : la page s'affiche tout de suite ; appuyez sur le bouton bleu : Telegram s'ouvre sur la demande d'adhésion au canal Test.
+3. Envoyez-vous ce lien dans un message TikTok puis Instagram et refaites le geste depuis chaque appli (le seul test que je ne peux pas faire moi-même).
+4. Revenez sur la page « test » → **Chiffres** : vos visites, clics et « Telegram ouvert » y sont.
+5. **Nouvelle page** : créez votre première vraie page sur un de vos canaux et copiez le lien d'une source dans votre pub.
+
+## Vérifications faites
+- Cinq agents de réalisation (socle, recherche web sur l'ouverture de Telegram depuis TikTok / Instagram, page publique, moteur, interface), trois relectures adverses, corrections, relecture finale de bout en bout et dernières corrections. Défauts importants trouvés et corrigés : la pub reliée réécrivait l'historique des chiffres (pub désormais figée sur chaque lien) ; la dépense d'une pub comptée deux fois (page et lien direct) ; un repli vers t.me perdu après une boîte de dialogue ; « Telegram ouvert » compté pour une page d'erreur ; la page pouvait défiler avec des textes longs ; envois fabriqués capables de gonfler les visites (limites ajoutées) ; pixels servis sur l'adresse du site d'administration ; liens des pages affichés comme liens de pub dans Campagnes.
+- Production : sauvegarde (36 Mo) avant ; migrations appliquées au démarrage du site ; pages préchargées ; canal « Test » marqué « canal de test » (étiquette seulement) pour y créer la page de test ; pages Pages, fiche, création, export, exceptions, Journal, aide vérifiées avec le compte de vérification ; aucun message envoyé, aucune pub, aucun vrai membre touché.
+- Captures 1440 / 390 : `docs/captures/pages-*`, `pages-id-*`, `pages-new-*` et la page publique `j-demo-casino-vip-src-tk01-390`.
+
+## Limites et suites
+- **TikTok iPhone** bloque peut-être toute ouverture d'appli depuis son navigateur (sources contradictoires) : la page essaie deux façons et compte ce qui marche ; les vrais chiffres « Telegram ouvert » trancheront.
+- **Publicité TikTok** : son aide ne cite pas Telegram parmi les messageries de destination ; une pub vers Telegram, même par une page, peut être refusée à la modération.
+- `https://goolink.eu/j/…` (sans « go. ») demande de confier les DNS à Cloudflare : pas fait (clics exacts dans `docs/A-FAIRE-HUMAIN.md`).
+- Une adresse avec une barre oblique finale (`/j/page/`) reçoit une redirection de Next avant la page ; les liens copiés n'en ont jamais.
+- Les 6 passages de Lighthouse et les essais du clic comptent comme visites de la page de test (source inconnue « lh » pour Lighthouse).
+- Les chiffres en direct du tableau de bord filtré par campagne ne comptent pas encore les visites des pages comme clics pub (les Statistiques et les fiches campagne, si).
+
+## Phase 14 — (demandes bloquées sur « Attend les canaux ») terminée (15 octobre 2026)
 
 Phases 0 à 13 en ligne. Phase 14 = ce qui bloquait les demandes de Zone Interdite pendant la pub TikTok (`docs/prompts/16-phase-14-demandes-bloquees.md`). 3 303 tests unitaires et 398 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (service d'arrière-plan puis site), sauvegarde faite juste avant.
 

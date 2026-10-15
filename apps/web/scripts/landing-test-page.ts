@@ -211,6 +211,8 @@ async function main() {
     // Connexion Redis de la publication : le processus doit se terminer.
     const { closeQueues } = await import("@linkaffipro/queue");
     await closeQueues().catch(() => undefined);
+    // Filet : une connexion restée ouverte (client HTTP des bots…) ne doit pas bloquer la commande en production.
+    setTimeout(() => process.exit(process.exitCode ?? 0), 1000).unref();
   }
 }
 
