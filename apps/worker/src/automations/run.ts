@@ -148,7 +148,7 @@ export async function sweepInactive(now = new Date(), limit = 200): Promise<numb
     if (!days) continue;
     const cutoff = new Date(now.getTime() - days * 86_400_000);
     const candidates = await prisma.member.findMany({
-      where: { anonymizedAt: null, lastSeenAt: { lt: cutoff }, automationRuns: { none: { ruleId: rule.id, status: { not: "CANCELLED" } } }, botStates: { some: { canDm: true } } },
+      where: { anonymizedAt: null, lastSeenAt: { lt: cutoff }, automationRuns: { none: { ruleId: rule.id, status: { not: "CANCELLED" } } }, botStates: { some: { canDm: true, startedAt: { not: null }, blockedAt: null } } },
       select: { id: true },
       take: limit,
     });

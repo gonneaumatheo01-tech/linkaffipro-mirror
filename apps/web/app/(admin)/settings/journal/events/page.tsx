@@ -22,7 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { fmtDate, fmtNum } from "@/lib/format";
-import { EVENT_FAMILIES, eventLabel } from "@/lib/journal/event-labels";
+import { EVENT_FAMILIES } from "@/lib/journal/event-labels";
+import { eventRowLabels } from "@/lib/journal/event-row-labels";
 import {
   VISIBLE_EVENT_WHERE,
   eventsQuery,
@@ -62,7 +63,9 @@ async function loadEventsView(f: ReturnType<typeof parseEventFilters>, now = new
     prisma.channel.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true } }),
     prisma.bot.findMany({ orderBy: { username: "asc" }, select: { id: true, username: true } }),
   ]);
-  return { total, last24h, events, channels, bots };
+  // Libellés précisés par le détail de l'événement quand il en dépend (phase 14).
+  const labels = await eventRowLabels(events);
+  return { total, last24h, events, labels, channels, bots };
 }
 
 type EventMember = {
@@ -89,7 +92,7 @@ export default async function JournalEventsPage({
 }: PageProps<"/settings/journal/events">) {
   const sp = await searchParams;
   const f = parseEventFilters(sp);
-  const { total, last24h, events, channels, bots } = await loadEventsView(f);
+  const { total, last24h, events, labels, channels, bots } = await loadEventsView(f);
   const pages = pageCount(total);
   const activeFilters = [f.type, f.channelId, f.botId, f.from, f.to].filter(Boolean).length;
   const hasFilters = activeFilters > 0;
@@ -218,6 +221,7 @@ export default async function JournalEventsPage({
             { key: "member", header: "Membre", hideOnMobile: true },
           ]}
           rows={events.map((e) => {
+            const label = labels.get(e.id)!;
             const channel = e.channel ? (
               <Link href={`/channels/${e.channel.id}`} className={linkClass}>
                 {e.channel.title}
@@ -236,7 +240,7 @@ export default async function JournalEventsPage({
               id: e.id,
               cells: {
                 when: fmtDate(e.occurredAt),
-                type: eventLabel(e.type),
+                type: label,
                 bot: e.bot ? `@${e.bot.username}` : "—",
                 channel,
                 member,
@@ -245,13 +249,13 @@ export default async function JournalEventsPage({
                 channel: e.channel?.title ?? null,
                 member: e.member ? memberName(e.member) : null,
               },
-              detailTitle: eventLabel(e.type),
+              detailTitle: label,
               detailDescription: fmtDate(e.occurredAt),
               detail: (
                 <div className="space-y-6">
                   <DetailList>
                     <DetailRow label="Quand">{fmtDate(e.occurredAt)}</DetailRow>
-                    <DetailRow label="Type">{eventLabel(e.type)}</DetailRow>
+                    <DetailRow label="Type">{label}</DetailRow>
                     <DetailRow label="Code technique" mono>
                       {e.type}
                     </DetailRow>

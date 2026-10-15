@@ -153,7 +153,7 @@ type Dm = {
   memberId: string;
   kind: string;
   text: string;
-  buttons: Array<Array<{ text: string; url: string }>>;
+  buttons: Array<Array<{ text: string; url?: string; callbackData?: string }>>;
   queuedAt: Date;
 };
 type Call = { bot: BotKey; method: string; payload: Record<string, unknown> };
@@ -480,7 +480,7 @@ function world(rules = clientRules(), opts: WorldOpts = {}) {
     const newCalls = calls.slice(before);
     return { reply: newCalls.filter((c) => c.method === "sendMessage").at(-1), calls: newCalls };
   }
-  const urlOf = (button: { url: string } | undefined) => button!.url;
+  const urlOf = (button: { url?: string } | undefined) => button!.url!;
   function linkBotOfUrl(url: string): BotKey | undefined {
     const l = links.find((x) => x.telegramInviteLink === url);
     return l ? linkBot[l.id] : undefined;

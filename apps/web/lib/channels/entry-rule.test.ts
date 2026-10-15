@@ -32,6 +32,11 @@ import {
   stateDelaySeconds,
   toggleReminder,
   welcomeOption,
+  remindersHelp,
+  freshReminders,
+  NEW_RULE_REMINDERS,
+  REMINDERS_LATE_NOTE,
+  REMINDERS_ONLY_REQUIRED,
   type EntryRule,
 } from "./entry-rule";
 
@@ -122,7 +127,7 @@ describe("choix principal ↔ champs de la règle", () => {
       delayPreset: ["10m"],
       delayCustomSeconds: [""],
       gateMode: ["NONE"],
-      reminderAfterMinutes: ["60, 1440"],
+      reminderAfterMinutes: ["4, 60"],
       maxReminders: ["2"],
       expireAfterHours: ["0"],
       expireAction: ["KEEP"],
@@ -501,6 +506,7 @@ describe("rappels en pastilles", () => {
   it("montre les rappels proposés puis les autres rappels enregistrés", () => {
     const chips = reminderChips("60, 90, 1440");
     expect(chips.map((c) => c.label)).toEqual([
+      "4 minutes",
       "30 minutes",
       "1 heure",
       "6 heures",
@@ -566,5 +572,79 @@ describe("rappel « Autre délai »", () => {
     expect(customReminderMinutes(Number.NaN, "hours")).toBeNull();
     expect(customReminderMinutes(31, "days")).toBeNull();
     expect(REMINDER_UNITS.map((u) => u.label)).toEqual(["minutes", "heures", "jours"]);
+  });
+});
+
+describe("rappels à 4 minutes (phase 14)", () => {
+  it("une nouvelle règle propose les rappels 4 minutes puis 1 heure, réglables", () => {
+    const s = initialEntryState(null);
+    expect(NEW_RULE_REMINDERS).toBe("4, 60");
+    expect(s.reminders).toBe("4, 60");
+    expect(s.maxReminders).toBe(2);
+    expect(advancedModifiedCount(s)).toBe(0);
+    const gate = { ...chooseEntry(s, "gate"), gateIds: ["a"] };
+    expect(fieldsOf(gate).reminderAfterMinutes).toEqual(["4, 60"]);
+    expect(remindersSentence(parseReminders(gate.reminders), gate.maxReminders)).toBe(
+      "2 rappels : 4 minutes puis 1 heure après la demande.",
+    );
+    // Réglable : décocher « 4 minutes » garde le rappel d'une heure.
+    expect(toggleReminder(gate.reminders, 4, false)).toBe("60");
+    expect(reminderChips(gate.reminders).find((c) => c.minutes === 4)).toEqual({
+      minutes: 4,
+      label: "4 minutes",
+      checked: true,
+    });
+  });
+
+  it("une règle existante garde ses rappels (jamais remplacés)", () => {
+    const s = initialEntryState({
+      ...base,
+      gateMode: "REQUIRED",
+      gateChannelIds: ["a"],
+      reminderAfterMinutes: [60, 1440],
+    });
+    expect(s.reminders).toBe("60, 1440");
+    expect(fieldsOf(s).reminderAfterMinutes).toEqual(["60, 1440"]);
+    // Les anciens rappels par défaut ne comptent pas comme « modifiés ».
+    expect(advancedModifiedCount(s)).toBe(0);
+    expect(advancedModifiedCount({ ...s, reminders: "30" })).toBe(1);
+  });
+
+  it("anciens rappels par défaut d'une règle copiée → rappels de 4 minutes et 1 heure", () => {
+    expect(freshReminders("60, 1440")).toBe("4, 60");
+    expect(freshReminders("1440, 60")).toBe("4, 60");
+    expect(freshReminders("30, 120")).toBe("30, 120");
+    expect(freshReminders("")).toBe("");
+  });
+
+  it("à côté du réglage : rappels seulement avec des canaux obligatoires, et la limite de 5 minutes", () => {
+    expect(REMINDERS_ONLY_REQUIRED).toBe("Les rappels n'existent qu'avec des canaux obligatoires.");
+    expect(REMINDERS_LATE_NOTE).toBe(
+      "Après 5 minutes, Telegram ne transmet vos rappels qu'aux personnes qui ont déjà écrit au bot.",
+    );
+    const gate = {
+      ...chooseEntry(initialEntryState(null), "gate"),
+      gateIds: ["a"],
+      gateMode: "REQUIRED" as const,
+    };
+    expect(remindersHelp(gate)).toEqual([
+      "2 rappels : 4 minutes puis 1 heure après la demande.",
+      REMINDERS_ONLY_REQUIRED,
+      REMINDERS_LATE_NOTE,
+    ]);
+    // Aucun rappel avant 5 minutes : le conseil de cocher « 4 minutes ».
+    expect(remindersHelp({ ...gate, reminders: "60, 1440" }).at(-1)).toBe(
+      "Cochez « 4 minutes » : un rappel avant 5 minutes arrive à tout le monde.",
+    );
+    // Canaux proposés, ou pas de canaux : aucun rappel ne part.
+    expect(remindersHelp({ ...gate, gateMode: "SOFT" })).toEqual([
+      `${REMINDERS_ONLY_REQUIRED} Avec ce choix, aucun rappel ne part.`,
+    ]);
+    expect(remindersHelp(initialEntryState(null))).toEqual([
+      `${REMINDERS_ONLY_REQUIRED} Avec ce choix, aucun rappel ne part.`,
+    ]);
+    expect(remindersHelp({ ...gate, manual: true })).toEqual([
+      "Aucun rappel ne part tant que vous validez vous-même chaque demande.",
+    ]);
   });
 });

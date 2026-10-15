@@ -38,6 +38,13 @@ function shouldRefreshRights(type: string, update: Update): boolean {
   return false;
 }
 
+/** Message (nouveau, pas modifié) envoyé par la personne elle-même dans sa conversation privée avec le bot. */
+function wroteToBot(type: string, update: Update, fromId: number): boolean {
+  if (type !== "message" || !update.message) return false;
+  const chat = update.message.chat;
+  return chat.type === "private" && chat.id === fromId;
+}
+
 export function updateTypeOf(update: Update): string {
   for (const k of UPDATE_TYPES) if (k in update) return k;
   const other = Object.keys(update).find((k) => k !== "update_id");
@@ -81,6 +88,9 @@ export function registerCoreHandlers(
       if (ctx.from && !ctx.from.is_bot) {
         const { memberId } = await deps.memberSeen(identity, ctx.from);
         refs.memberId = memberId;
+        // Message privé de la personne au bot (« ok », une photo… pas seulement /start) : Telegram laisse ensuite le
+        // bot lui écrire, elle devient joignable (« Accepté », rappels tardifs ; phase 14, décision E2).
+        if (wroteToBot(type, ctx.update, ctx.from.id)) await deps.memberWrote?.(identity, memberId);
       }
     } catch (err) {
       console.error("[telegram] pré-traitement", err);

@@ -88,6 +88,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
       "Un membre n'est pas accepté",
       "Ce que dit le bot",
       "Demandes",
+      "Pourquoi des demandes restent sur « Attend les canaux »",
       "Membres du canal",
       "Le bot ne répond pas",
     ],
@@ -203,7 +204,8 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/stats/channels",
     label: "Statistiques : Canaux",
-    sections: ["Statistiques → Canaux", "Meilleurs créneaux"],
+    // Phase 14 : le parcours des demandes suit la période et la comparaison du sélecteur commun.
+    sections: ["Statistiques → Canaux", "Période et comparaison", "Meilleurs créneaux"],
   },
   {
     path: "/stats/cohorts",

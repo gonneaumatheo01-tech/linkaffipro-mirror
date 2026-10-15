@@ -11,7 +11,14 @@ import {
 } from "@linkaffipro/core";
 import type { ChatJoinRequest, ChatMemberUpdated, User } from "grammy/types";
 import type { BotIdentity } from "../ports";
-import type { ChannelInfo, GateButton, InviteLinkInfo, JoinFlowDeps, MembershipInfo } from "./deps";
+import type {
+  ChannelInfo,
+  DmButtonRow,
+  GateButton,
+  InviteLinkInfo,
+  JoinFlowDeps,
+  MembershipInfo,
+} from "./deps";
 import {
   checkGateMembership,
   gateButtonsOf,
@@ -27,6 +34,7 @@ import {
 import {
   approveAtAfterGate,
   computeInitialState,
+  earlyReminders,
   formatDelay,
   hasGate,
   isDirectEntry,
@@ -38,14 +46,15 @@ import {
 import { maskedLinkPrefix, pickMaskedLink } from "./masked-link";
 import { attributeAffiliateSafely, emitLinkaffi, isLinkaffiInviteLink } from "./affiliate";
 import { baseLang, defaultText, pickText, renderHtmlText, type Lang, type TextVars } from "./texts";
+import { gateChannelsOf, reachableFor, recheckPendingGates } from "./auto-gate";
+import { JOIN_REQUEST_DM_WINDOW_MS } from "./reachability";
 
 /** Sous-ensemble de l'API Telegram utilisé par le flux (facile à simuler). */
 export type JoinFlowApi = GateLinkApi;
 
 const GOOD_STATUSES = new Set(["member", "administrator", "creator", "restricted"]);
 
-/** Fenêtre pendant laquelle Telegram laisse le bot écrire après une demande d'adhésion (`user_chat_id`). */
-export const JOIN_REQUEST_DM_WINDOW_MS = 5 * 60_000;
+export { JOIN_REQUEST_DM_WINDOW_MS };
 
 export type JoinFlowResult = { handled: boolean; reason?: string };
 
@@ -144,16 +153,34 @@ function varsLang(v: TextVars, rule: RuleData, lang: Lang): TextVars {
   return { ...v, delai: ruleDelayText(rule, lang) };
 }
 
-/** Boutons d'accueil : un bouton par canal à rejoindre + « J'ai rejoint ». */
+/** Données du bouton à rappel « ✅ J'ai rejoint » (phase 14) : `g:<code de la demande>` (64 octets au plus). */
+export function gateCallbackData(code: string): string {
+  return `g:${code}`;
+}
+
+/** Code de la demande d'un bouton « ✅ J'ai rejoint » (`g:<code>`), ou null. */
+export function parseGateCallbackData(data: string | null | undefined): string | null {
+  const m = /^g:([0-9A-Za-z]{6,12})$/.exec(data ?? "");
+  return m ? m[1]! : null;
+}
+
+/**
+ * Boutons d'accueil : un bouton « Rejoindre … » par canal à rejoindre, puis, si `joined` est donné (canaux
+ * obligatoires), le bouton à rappel « ✅ J'ai rejoint » (phase 14 : il marche sans « Démarrer », la réponse modifie le
+ * message du bot). Canaux « Proposés » : pas de « J'ai rejoint » (la personne est acceptée de toute façon).
+ */
 export function buildGateButtons(
   gates: GateButton[],
-  startUrl: string,
+  joined: { code: string } | null,
   lang: Lang,
-): Array<Array<{ text: string; url: string }>> {
-  const rows = gates.map((g) => [
+): DmButtonRow[] {
+  const rows: DmButtonRow[] = gates.map((g) => [
     { text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url },
   ]);
-  rows.push([{ text: defaultText("joinedLabel", lang), url: startUrl }]);
+  if (joined)
+    rows.push([
+      { text: defaultText("joinedLabel", lang), callbackData: gateCallbackData(joined.code) },
+    ]);
   return rows;
 }
 
@@ -161,15 +188,7 @@ export function startUrlFor(identity: Pick<BotIdentity, "username">, code: strin
   return `https://t.me/${identity.username}?start=g${code}`;
 }
 
-/** Canaux à rejoindre d'une règle (sans le canal source), dans l'ordre de la règle. */
-export async function gateChannelsOf(
-  deps: Pick<JoinFlowDeps, "getChannels">,
-  rule: RuleData,
-  sourceChannelId: string,
-): Promise<ChannelInfo[]> {
-  if (!hasGate(rule)) return [];
-  return deps.getChannels(rule.gateChannelIds.filter((id) => id !== sourceChannelId));
-}
+export { gateChannelsOf };
 
 /**
  * Résout les liens des canaux à rejoindre : lien GATE existant, sinon création par le bot qui traite la demande puis
@@ -237,7 +256,7 @@ async function sendSequenceOrDefault(
     trigger: "JOIN_REQUEST" | "GATE_SATISFIED" | "APPROVED" | "GATE_REMINDER";
     fallbackKey: Parameters<typeof defaultText>[0];
     vars: TextVars;
-    buttons: Array<Array<{ text: string; url: string }>>;
+    buttons: DmButtonRow[];
     rule: RuleData;
   },
 ): Promise<void> {
@@ -391,14 +410,68 @@ export async function handleJoinRequest(
     missing,
   });
 
-  // Canal pas encore réglé (aucune règle) : la demande attend une validation manuelle, sans message privé au membre.
-  if (isNoRule(rule)) return { handled: true };
+  await sendArrivalMessage(deps, {
+    membershipId,
+    channel,
+    identity,
+    member,
+    chatId: userChatId,
+    rule,
+    provenance,
+    gateChannels,
+    gates,
+    code,
+  });
 
-  // Message à l'arrivée : accueil complet dès qu'il reste des canaux à rejoindre ; sinon rien si l'équipe l'a coupé,
-  // court message pour une personne venue du bouton « canal à rejoindre » d'un autre canal, accueil complet sinon.
+  // Rappel de moins de 5 minutes (ex. 4 minutes) : tâche différée propre à la demande, pour partir à l'heure tant que
+  // Telegram laisse encore le bot écrire (phase 14) ; les rappels plus tardifs restent au passage du worker.
+  if (initial.status === "PENDING_GATE" && deps.scheduleReminder)
+    for (const r of earlyReminders(rule, requestedAt))
+      await deps
+        .scheduleReminder({ membershipId, index: r.index, at: r.at })
+        .catch((err: unknown) =>
+          console.warn("[join-flow] rappel à l'heure non programmé", {
+            membershipId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+
+  // Validation automatique (phase 14) : une demande dans ce canal compte comme « rejoint » pour les autres demandes de
+  // la personne en attente de ce canal obligatoire (sans attendre « ✅ J'ai rejoint »).
+  await recheckPendingGates(api, identity, deps, {
+    memberId: member.memberId,
+    telegramUserId: req.from.id,
+    channelId: channel.id,
+    trigger: "join_request",
+  });
+  return { handled: true };
+}
+
+/**
+ * Message à l'arrivée d'une demande : accueil complet dès qu'il reste des canaux à rejoindre ; sinon rien si l'équipe
+ * l'a coupé, court message pour une personne venue du bouton « canal à rejoindre » d'un autre canal, accueil complet
+ * sinon. Canal pas encore réglé (aucune règle) : rien (validation manuelle, sans message privé au membre).
+ */
+async function sendArrivalMessage(
+  deps: JoinFlowDeps,
+  input: {
+    membershipId: string;
+    channel: ChannelInfo;
+    identity: BotIdentity;
+    member: { memberId: string; languageCode: string | null; firstName: string | null };
+    chatId: bigint | null;
+    rule: RuleData;
+    provenance: Provenance;
+    gateChannels: ChannelInfo[];
+    gates: GateButton[];
+    code: string;
+  },
+): Promise<void> {
+  const { membershipId, channel, identity, member, rule, provenance } = input;
+  if (isNoRule(rule)) return;
   const hasGates = hasGate(rule);
   const kind = welcomeKindFor({ provenance, hasGates, sendWelcome: rule.sendWelcome });
-  if (kind === "none") return { handled: true };
+  if (kind === "none") return;
   if (!hasGates) {
     // Anti-doublon : un même bot n'envoie pas deux accueils à la même personne en 10 minutes (jamais un accueil avec
     // des canaux à rejoindre : ses boutons sont nécessaires pour entrer).
@@ -416,25 +489,24 @@ export async function handleJoinRequest(
           lastWelcomeAt: lastWelcomeAt?.toISOString() ?? null,
         },
       });
-      return { handled: true };
+      return;
     }
   }
 
   // Message d'accueil immédiat (via la file ; un échec d'envoi est géré par le worker : canDm=false, dm.failed).
   if (kind === "short")
-    await sendShortWelcome(deps, { channel, identity, member, chatId: userChatId, rule });
+    await sendShortWelcome(deps, { channel, identity, member, chatId: input.chatId, rule });
   else
     await sendWelcome(deps, {
       channel,
       identity,
       member,
-      chatId: userChatId,
+      chatId: input.chatId,
       rule,
-      gateChannels,
-      gates,
-      startUrl,
+      gateChannels: input.gateChannels,
+      gates: input.gates,
+      code: input.code,
     });
-  return { handled: true };
 }
 
 /**
@@ -472,8 +544,9 @@ async function sendShortWelcome(
 
 /**
  * Message d'accueil (texte de « Ce que dit le bot » ou texte intégré) : avec des canaux à rejoindre, un bouton par
- * canal dont le lien existe et TOUJOURS le bouton « ✅ J'ai rejoint » (jamais un accueil muet sans boutons) ;
- * `{liste_canaux}` nomme tous les canaux de la règle, même ceux restés sans lien.
+ * canal dont le lien existe ; avec des canaux obligatoires, TOUJOURS le bouton « ✅ J'ai rejoint » (jamais un accueil
+ * muet sans boutons) ; avec des canaux « Proposés », pas de « J'ai rejoint » (phase 14 : il ne sert à rien, la personne
+ * est acceptée de toute façon). `{liste_canaux}` nomme tous les canaux de la règle, même ceux restés sans lien.
  */
 async function sendWelcome(
   deps: JoinFlowDeps,
@@ -485,7 +558,7 @@ async function sendWelcome(
     rule: RuleData;
     gateChannels: ChannelInfo[];
     gates: GateButton[];
-    startUrl: string;
+    code: string;
   },
 ): Promise<void> {
   const { channel, identity, member, rule } = input;
@@ -503,7 +576,13 @@ async function sendWelcome(
       : "joinRequestSoft"
     : "joinRequestPlain";
   const lang = baseLang(member.languageCode ?? channel.language);
-  const buttons = gateActive ? buildGateButtons(input.gates, input.startUrl, lang) : [];
+  const buttons = gateActive
+    ? buildGateButtons(
+        input.gates,
+        rule.gateMode === "REQUIRED" ? { code: input.code } : null,
+        lang,
+      )
+    : [];
   await sendSequenceOrDefault(deps, {
     channel,
     botId: identity.id,
@@ -527,26 +606,96 @@ function sameGateButtons(a: readonly GateButton[], b: readonly GateButton[]): bo
   );
 }
 
-/** Traite `/start g<code>` : vérifie les canaux requis puis planifie l'approbation. Retourne le texte de réponse. */
+/**
+ * Réponse à « ✅ J'ai rejoint » : texte, boutons, et ce qui s'est passé (`outcome`) : demande inconnue ou d'une autre
+ * personne, déjà acceptée, déjà programmée, canaux encore manquants, ou canaux rejoints maintenant.
+ */
+export type GateStartReply = {
+  text: string;
+  buttons: DmButtonRow[];
+  outcome?: "unknown" | "approved" | "scheduled" | "missing" | "satisfied";
+};
+
+/**
+ * Réponse à « ✅ J'ai rejoint » pour une demande qui n'attend plus les canaux : déjà acceptée, déjà programmée (heure
+ * d'acceptation restante), sinon (refusée, expirée…) « demande introuvable ». Null pour une demande encore en cours
+ * (en attente des canaux, ou à valider à la main).
+ */
+function settledGateReply(
+  m: Pick<MembershipInfo, "status" | "approveAt">,
+  v: TextVars,
+  lang: Lang,
+  now: Date,
+): GateStartReply | null {
+  if (m.status === "APPROVED")
+    return {
+      text: renderHtmlText(defaultText("approved", lang), v),
+      buttons: [],
+      outcome: "approved",
+    };
+  if (m.status === "SCHEDULED")
+    return {
+      text: renderHtmlText(defaultText("gateSatisfied", lang), {
+        ...v,
+        delai: formatDelay(
+          Math.max(
+            0,
+            Math.round(((m.approveAt?.getTime() ?? now.getTime()) - now.getTime()) / 1000),
+          ),
+          lang,
+        ),
+      }),
+      buttons: [],
+      outcome: "scheduled",
+    };
+  if (m.status !== "PENDING_GATE" && m.status !== "REQUESTED")
+    return { text: defaultText("unknownCode", lang), buttons: [], outcome: "unknown" };
+  return null;
+}
+
+/**
+ * Écrit une demande seulement si elle a toujours le statut lu au début (`updateMembershipIfStatus`) : la validation
+ * automatique (demande, entrée, filet du worker) et l'acceptation des 20 secondes écrivent en même temps que
+ * « ✅ J'ai rejoint ». Faux si la demande a changé entre-temps (rien n'est écrit).
+ */
+async function writeIfUnchanged(
+  deps: JoinFlowDeps,
+  m: Pick<MembershipInfo, "id" | "status">,
+  data: Parameters<JoinFlowDeps["updateMembership"]>[1],
+): Promise<boolean> {
+  if (deps.updateMembershipIfStatus) return deps.updateMembershipIfStatus(m.id, m.status, data);
+  await deps.updateMembership(m.id, data);
+  return true;
+}
+
+/**
+ * Traite « ✅ J'ai rejoint » (`/start g<code>` des anciens messages, ou bouton à rappel `g:<code>` depuis la phase 14) :
+ * vérifie les canaux requis puis planifie l'approbation. Retourne le texte de réponse. La personne qui appuie a ouvert
+ * la conversation avec le bot : elle devient joignable (décision E2). Seule la personne de la demande peut l'utiliser.
+ *
+ * Écritures conditionnelles (phase 14) : la demande n'est modifiée que si elle a toujours le statut lu au début. Si la
+ * validation automatique ou l'acceptation est passée pendant la vérification (appels `getChatMember`), la demande est
+ * relue et la réponse suit son état actuel (« programmée » ou « acceptée ») : jamais de second événement
+ * `membership.gate_satisfied`, jamais une demande acceptée remise en acceptation programmée.
+ */
 export async function handleGateStart(
   api: JoinFlowApi,
   identity: BotIdentity,
   deps: JoinFlowDeps,
   from: User,
   code: string,
-): Promise<{ text: string; buttons: Array<Array<{ text: string; url: string }>> }> {
+  attempt = 0,
+): Promise<GateStartReply> {
   const member = await deps.upsertMember(from);
-  await deps.setCanDm(member.memberId, identity.id, true);
+  if (attempt === 0) await deps.setCanDm(member.memberId, identity.id, true);
   const lang = baseLang(member.languageCode);
   const m = await deps.findMembershipByCode(code);
   if (!m || m.memberId !== member.memberId)
-    return { text: defaultText("unknownCode", lang), buttons: [] };
+    return { text: defaultText("unknownCode", lang), buttons: [], outcome: "unknown" };
   const [channel] = await deps.getChannels([m.channelId]);
-  if (!channel) return { text: defaultText("unknownCode", lang), buttons: [] };
+  if (!channel) return { text: defaultText("unknownCode", lang), buttons: [], outcome: "unknown" };
   const rule = await deps.getRuleForMembership(m);
   const gates = gateButtonsOf(m.source);
-  const startUrl =
-    typeof m.source.startUrl === "string" ? m.source.startUrl : startUrlFor(identity, m.code);
   const v = varsLang(
     vars(
       member,
@@ -559,21 +708,23 @@ export async function handleGateStart(
     lang,
   );
 
-  if (m.status === "APPROVED")
-    return { text: renderHtmlText(defaultText("approved", lang), v), buttons: [] };
-  if (m.status === "SCHEDULED")
-    return {
-      text: renderHtmlText(defaultText("gateSatisfied", lang), {
-        ...v,
-        delai: formatDelay(
-          Math.max(0, Math.round(((m.approveAt?.getTime() ?? Date.now()) - Date.now()) / 1000)),
-          lang,
-        ),
-      }),
-      buttons: [],
-    };
-  if (m.status !== "PENDING_GATE" && m.status !== "REQUESTED")
-    return { text: defaultText("unknownCode", lang), buttons: [] };
+  const settled = settledGateReply(m, v, lang, new Date());
+  if (settled) return settled;
+  // Statut lu maintenant : toute écriture plus bas exige qu'il n'ait pas changé (copie : jamais l'objet relu modifié).
+  const read = { id: m.id, status: m.status };
+  /**
+   * La demande a changé pendant la vérification : relue, réponse selon son état actuel. Encore en cours (règle
+   * réappliquée entre-temps) : une seule nouvelle vérification.
+   */
+  const changedMeanwhile = async (): Promise<GateStartReply> => {
+    const current = await deps.findMembershipByCode(code);
+    if (!current || current.memberId !== member.memberId)
+      return { text: defaultText("unknownCode", lang), buttons: [], outcome: "unknown" };
+    const reply = settledGateReply(current, v, lang, new Date());
+    if (reply) return reply;
+    if (attempt === 0) return handleGateStart(api, identity, deps, from, code, 1);
+    return { text: defaultText("unknownCode", lang), buttons: [], outcome: "unknown" };
+  };
 
   // Vérification des canaux requis : par nos bots administrateurs du canal, puis par le bot qui traite la demande.
   // Canaux à rejoindre effectifs (jamais un canal que l'accueil n'a pas demandé). Une demande de la personne en cours
@@ -626,6 +777,12 @@ export async function handleGateStart(
       source = { ...source, gates: known, gateLinksMissing: r.missing };
       sourceChanged = true;
     }
+    // Écriture (liens recalculés) seulement si la demande attend toujours ; sans écriture, relecture de son statut : une
+    // demande validée entre-temps (canal rejoint pendant la vérification) n'affiche jamais « Il te manque encore ».
+    const unchanged = sourceChanged
+      ? await writeIfUnchanged(deps, read, { source })
+      : (await deps.findMembershipByCode(code))?.status === read.status;
+    if (!unchanged) return changedMeanwhile();
     if (r.missing.length > 0 && before.length === 0)
       await recordGateLinksMissing(deps, {
         membershipId: m.id,
@@ -635,12 +792,13 @@ export async function handleGateStart(
         stage: "start",
         missing: r.missing,
       });
-    if (sourceChanged) await deps.updateMembership(m.id, { source });
     const missingGates = known.filter((g) => missingIds.has(g.channelId));
     const list = check.missing.map((c) => c.title).join(", ");
     return {
       text: renderHtmlText(defaultText("gateMissing", lang), { ...v, liste_canaux: list }),
-      buttons: buildGateButtons(missingGates, startUrl, lang),
+      // Bouton à rappel « ✅ J'ai rejoint » (phase 14) : la personne vient d'écrire au bot, la réponse modifie le message.
+      buttons: buildGateButtons(missingGates, { code: m.code }, lang),
+      outcome: "missing",
     };
   }
   const now = new Date();
@@ -652,17 +810,17 @@ export async function handleGateStart(
   }
   const cleared = sourceChanged ? { source } : {};
   // Validation à la main (demande à valider par l'équipe) : les canaux rejoints sont notés, rien n'est planifié.
-  const scheduled = m.status === "PENDING_GATE" || rule.mode !== "MANUAL";
-  if (scheduled) {
-    await deps.updateMembership(m.id, {
-      status: "SCHEDULED",
-      gateSatisfiedAt: now,
-      approveAt,
-      ...cleared,
-    });
-  } else {
-    await deps.updateMembership(m.id, { gateSatisfiedAt: now, ...cleared });
-  }
+  const scheduled = read.status === "PENDING_GATE" || rule.mode !== "MANUAL";
+  const wrote = await writeIfUnchanged(
+    deps,
+    read,
+    scheduled
+      ? { status: "SCHEDULED", gateSatisfiedAt: now, approveAt, ...cleared }
+      : { gateSatisfiedAt: now, ...cleared },
+  );
+  // Validée (ou acceptée) entre-temps par la validation automatique ou l'équipe : ni second événement ni second
+  // « C'est bon », la réponse suit l'état actuel.
+  if (!wrote) return changedMeanwhile();
   await deps.recordEvent({
     type: "membership.gate_satisfied",
     memberId: m.memberId,
@@ -684,6 +842,7 @@ export async function handleGateStart(
         : ruleDelayText({ mode: "MANUAL", delaySeconds: 0 }, lang),
     }),
     buttons: [],
+    outcome: "satisfied",
   };
 }
 
@@ -698,25 +857,45 @@ export function chatMemberFactDate(telegramDate: Date, previous: Date | null | u
   return new Date(previous.getTime() + 1);
 }
 
-/** Traite `chat_member` : entrée effective, départ, exclusion. */
+/**
+ * Traite `chat_member` : entrée effective, départ, exclusion. Entrée (phase 14) : les demandes de la personne en
+ * attente de ce canal obligatoire sont revérifiées (validation automatique), même si ce canal est désactivé chez nous.
+ * `api` : API du bot qui reçoit la mise à jour (vérification des autres canaux obligatoires) ; facultative.
+ */
 export async function handleChatMember(
   identity: BotIdentity,
   deps: JoinFlowDeps,
   upd: ChatMemberUpdated,
+  api: JoinFlowApi | null = null,
 ): Promise<JoinFlowResult> {
   if (upd.chat.type === "private") return { handled: false };
   const channel = await deps.findChannelByChatId(BigInt(upd.chat.id));
   if (!channel) return { handled: false, reason: "canal inconnu" };
-  if (!channel.isActive) return { handled: false, reason: "canal inactif" };
   const user = upd.new_chat_member.user;
+  const oldOk = GOOD_STATUSES.has(upd.old_chat_member.status);
+  const newStatus = upd.new_chat_member.status;
+  const newOk = GOOD_STATUSES.has(newStatus);
+  if (!channel.isActive) {
+    // Canal désactivé : le flux d'adhésion l'ignore, mais y entrer compte pour les canaux obligatoires des autres canaux.
+    if (!oldOk && newOk && !user.is_bot) {
+      const acting = await deps.actingBotIdFor(channel.id);
+      if (!acting || acting.botId === identity.id) {
+        const member = await deps.upsertMember(user);
+        await recheckPendingGates(api, identity, deps, {
+          memberId: member.memberId,
+          telegramUserId: user.id,
+          channelId: channel.id,
+          trigger: "joined",
+        });
+      }
+    }
+    return { handled: false, reason: "canal inactif" };
+  }
   if (user.is_bot) return { handled: false };
   const acting = await deps.actingBotIdFor(channel.id);
   if (acting && acting.botId !== identity.id)
     return { handled: false, reason: "un autre bot agit pour ce canal" };
   const member = await deps.upsertMember(user);
-  const oldOk = GOOD_STATUSES.has(upd.old_chat_member.status);
-  const newStatus = upd.new_chat_member.status;
-  const newOk = GOOD_STATUSES.has(newStatus);
   const now = new Date(upd.date * 1000);
   const latest = await deps.findLatestMembership(member.memberId, channel.id);
   const viaLink = upd.invite_link?.invite_link ?? null;
@@ -809,6 +988,14 @@ export async function handleChatMember(
       channelId: channel.id,
       inviteLinkId: link?.id ?? latest?.inviteLinkId ?? null,
       botId: identity.id,
+    });
+    // Validation automatique (phase 14) : entrer dans ce canal compte pour les autres demandes de la personne en
+    // attente de ce canal obligatoire.
+    await recheckPendingGates(api, identity, deps, {
+      memberId: member.memberId,
+      telegramUserId: user.id,
+      channelId: channel.id,
+      trigger: "joined",
     });
     return { handled: true };
   }
@@ -942,9 +1129,16 @@ export async function resendGateWelcome(
 
   const startUrl =
     typeof m.source.startUrl === "string" ? m.source.startUrl : startUrlFor(identity, m.code);
-  const inWindow =
-    m.userChatId !== null && now.getTime() - m.requestedAt.getTime() < JOIN_REQUEST_DM_WINDOW_MS;
-  const canWrite = inWindow || (await deps.canWriteTo(m.memberId, identity.id));
+  // Joignable : a démarré le bot (ou appuyé sur un de ses boutons), ou demande de moins de 5 minutes (phase 14, E2).
+  const canWrite = (
+    await reachableFor(
+      deps,
+      m.memberId,
+      identity.id,
+      { userChatId: m.userChatId, requestedAt: m.requestedAt },
+      now,
+    )
+  ).reachable;
   const member = canWrite ? await deps.getMember(m.memberId) : null;
   const sent = Boolean(canWrite && member);
   if (sent && member)
@@ -956,7 +1150,7 @@ export async function resendGateWelcome(
       rule,
       gateChannels,
       gates,
-      startUrl,
+      code: m.code,
     });
   await deps.updateMembership(m.id, {
     source: {
@@ -988,6 +1182,8 @@ export type { MembershipInfo };
 export {
   checkCandidates,
   checkGateMembership,
+  NO_TELEGRAM_CALLS,
+  perBotBudget,
   gateButtonsOf,
   gateCheckProblemsOf,
   gateProblemsOf,
@@ -1000,6 +1196,7 @@ export {
 export type {
   FirstBot,
   GateBot,
+  GateCheckBudget,
   GateCheckResult,
   GateLinkApi,
   GateLinkDeps,

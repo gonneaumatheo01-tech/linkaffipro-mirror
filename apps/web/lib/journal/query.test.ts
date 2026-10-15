@@ -94,6 +94,12 @@ describe("filtre « Type d'action » du Journal", () => {
     expect(actionLabel("approval_rule.exceptions_reordered")).toBe(
       "Règle d'adhésion : ordre des exceptions modifié",
     );
+    // Phase 14 : nouvelle règle appliquée aux demandes en attente, « Tout accepter ».
+    expect(actionLabel("approval_rule.applied_to_pending")).toBe(
+      "Règle d'adhésion : appliquée aux demandes en attente",
+    );
+    expect(actionLabel("membership.approve_all")).toBe("Demandes : tout accepter");
+    expect(actionLabel("membership.approve_now")).toBe("Adhésion");
     expect(actionLabel("invite_link.share_created")).toBe("Lien de partage créé");
     expect(actionLabel("invite_link.share_disabled")).toBe("Lien de partage désactivé");
     // Phase 12 : emojis animés (bibliothèque de l'équipe).

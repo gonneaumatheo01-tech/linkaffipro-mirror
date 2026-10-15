@@ -201,5 +201,5 @@ export async function loadGateLinkView(
     lastCheck: lastCheckOf(last?.payload),
     solutionBot: acting?.username ?? null,
   });
-  return { rows, summary: gateLinksSummary(rows) };
+  return { rows, summary: gateLinksSummary(rows, rule.gateMode) };
 }

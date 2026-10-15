@@ -2,10 +2,11 @@
  * Dépendances du flux d'adhésion (accès base et file d'attente), abstraites pour les tests.
  */
 import type { InviteLinkKind, MembershipStatus, Prisma } from "@linkaffipro/db";
-import type { EmitLinkaffiEventInput } from "@linkaffipro/queue";
+import type { DmButton, EmitLinkaffiEventInput } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { BotIdentity } from "../ports";
 import type { GateLinkDeps } from "./gate-links";
+import type { BotStateLike } from "./reachability";
 import type { RuleData } from "./rules";
 
 export type ChannelInfo = {
@@ -65,8 +66,24 @@ export type MembershipInfo = {
   /** Acceptation et entrée enregistrées (dates à la milliseconde ; absentes des anciens tests). */
   approvedAt?: Date | null;
   joinedAt?: Date | null;
+  /** Identifiant Telegram du membre (vérification des canaux sans mise à jour Telegram ; absent des anciens tests). */
+  telegramUserId?: bigint | null;
 };
 export type GateButton = { channelId: string; title: string; url: string };
+/** Ligne de boutons d'un message privé : lien (`url`) ou bouton à rappel (`callbackData`, « ✅ J'ai rejoint »). */
+export type DmButtonRow = DmButton[];
+/** Champs modifiables d'une demande par le flux d'adhésion. */
+export type MembershipUpdate = Partial<{
+  status: MembershipStatus;
+  approveAt: Date | null;
+  expiresAt: Date | null;
+  gateSatisfiedAt: Date;
+  joinedAt: Date;
+  leftAt: Date;
+  source: Record<string, unknown>;
+  remindersSent: number;
+  lastReminderAt: Date;
+}>;
 export type SequenceText = {
   texts: Record<string, string>;
   buttons: unknown[];
@@ -116,19 +133,32 @@ export interface JoinFlowDeps extends GateLinkDeps {
     expiresAt: Date | null;
     source: Record<string, unknown>;
   }): Promise<{ id: string }>;
-  updateMembership(
+  updateMembership(id: string, data: MembershipUpdate): Promise<void>;
+  /**
+   * Mise à jour seulement si la demande a toujours ce statut (phase 14 : validation automatique, une seule fois même si
+   * plusieurs bots ou le worker vérifient en même temps). Vrai si la demande a été modifiée. Facultatif (tests
+   * anciens) : mise à jour simple.
+   */
+  updateMembershipIfStatus?(
     id: string,
-    data: Partial<{
-      status: MembershipStatus;
-      approveAt: Date | null;
-      gateSatisfiedAt: Date;
-      joinedAt: Date;
-      leftAt: Date;
-      source: Record<string, unknown>;
-      remindersSent: number;
-      lastReminderAt: Date;
-    }>,
-  ): Promise<void>;
+    expected: MembershipStatus,
+    data: MembershipUpdate,
+  ): Promise<boolean>;
+  /**
+   * Demandes du membre en attente des canaux (PENDING_GATE) dans nos canaux actifs (phase 14 : validation automatique
+   * quand il fait une demande dans un canal obligatoire ou y entre). Facultatif (tests anciens) : aucune.
+   */
+  findPendingGateMemberships?(memberId: string): Promise<MembershipInfo[]>;
+  /**
+   * Rappel d'une demande à envoyer à l'heure (moins de 5 minutes après la demande, phase 14) : tâche différée de la
+   * file `approvals`. Facultatif (tests anciens) : rien n'est programmé (le passage toutes les 5 minutes reste).
+   */
+  scheduleReminder?(input: { membershipId: string; index: number; at: Date }): Promise<void>;
+  /**
+   * État enregistré du membre pour ce bot (démarré, bloqué, joignable). Facultatif (tests anciens) : déduit de
+   * `canWriteTo`.
+   */
+  botState?(memberId: string, botId: string): Promise<BotStateLike>;
   findMembershipByCode(code: string): Promise<MembershipInfo | null>;
   /** Dernière demande ouverte ou approuvée d'un membre sur un canal. */
   findLatestMembership(memberId: string, channelId: string): Promise<MembershipInfo | null>;
@@ -172,9 +202,9 @@ export interface JoinFlowDeps extends GateLinkDeps {
     chatId: bigint | null;
     kind: "WELCOME" | "GATE_REMINDER" | "ACCEPTED";
     text: string;
-    buttons: Array<Array<{ text: string; url: string }>>;
+    buttons: DmButtonRow[];
     mediaAssetId?: string | null;
-  }): Promise<void>;
+  }): Promise<{ outboundMessageId: string } | void>;
   setCanDm(memberId: string, botId: string, canDm: boolean): Promise<void>;
   recordEvent(input: {
     type: string;

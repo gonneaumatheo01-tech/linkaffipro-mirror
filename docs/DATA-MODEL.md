@@ -288,3 +288,27 @@ attributedAt, endsAt }`, `membership.affiliate_not_attributed` (mêmes champs + 
 `currentAffiliateId`), `linkaffi_event.failed` (un par événement abandonné), `member.affiliate_changed` /
 `member.affiliate_removed` `{ from, to?, reason, by }` ; `click.offer` porte `linkaffiTelegramCampaignKey` quand `tg` a été
 ajouté. Livraison : réservation d'un événement par mise à jour conditionnelle avec un bail de 2 minutes.
+
+## Phase 14 (15 octobre 2026) — aucune migration
+
+Demandes bloquées sur « Attend les canaux » : aucun changement de schéma. Données nouvelles :
+
+| Donnée | Rôle |
+| --- | --- |
+| `Setting` `phase14.gateBackfill` | Résultat du rattrapage unique (`runGateBackfillOnce`, fait par le premier passage du filet du worker ou `pnpm db:phase14`) : `satisfied`, `stillPending`, `errors`, `byChannel`, `botStates { canDmCleared, blockedCleared, wroteKept }`, `sequenceTexts { updated, upToDate, keptByTeam }`. Sa présence empêche un second passage (sauf `--force`). |
+| `MemberBotState.canDm` | Désormais vrai seulement après « Démarrer » ou l'appui sur un bouton du bot (`startedAt` rempli) ; un message parti dans les 5 minutes d'une demande crée l'état avec `canDm` faux. `blockedAt` n'est plus rempli que par un vrai blocage. |
+| `Membership.source.ruleAppliedAt` | Heure à laquelle « Leur appliquer la nouvelle règle » a recalculé la demande. |
+| `Membership.source.approveAll` | `{ at, byUserId, fallbackAt }` : demande lancée par « Tout accepter » (affichée « Acceptation en cours ») ; `approveAt` vaut l'heure de secours `fallbackAt` (+10 minutes). |
+| `OutboundMessage.error` | Texte exact de Telegram gardé pour tout refus (« 403 Forbidden: … »). |
+
+Événements : `dm.blocked` (seulement « bot was blocked by the user ») et `dm.unreachable` (autre refus 403 : la personne n'a
+jamais démarré le bot) portent `telegramError` ; `dm.skipped_unreachable` `{ membershipId, kind: WELCOME | GATE_REMINDER |
+GATE_SATISFIED | ACCEPTED, reason: blocked | never_started | unreachable, manual? }` (aucun message mis en file) ;
+`membership.gate_satisfied` `{ auto: true, trigger: join_request | joined | sweep | backfill | rule_applied,
+requested }` ; `membership.rule_applied` `{ previousStatus, status, ruleId, approveAt, byUserId }`. Journal d'actions :
+`approval_rule.applied_to_pending`, `membership.approve_all`.
+
+Tâches : file `approvals` `gate-sweep` (toutes les 2 minutes, demandes « Attend les canaux » de moins de 7 jours, 30
+vérifications Telegram par bot et par passage), `reminder` (rappel différé de moins de 5 minutes, identifiant
+`reminder-<demande>-<rang>`) ; file `telegram-send` `approve` / `decline` (« Tout accepter »). Alerte `bot_blocked_rate`
+(plus de 25 % de vrais blocages dans l'heure qui suit l'accueil, au moins 10 demandes, une alerte par canal toutes les 6 h).

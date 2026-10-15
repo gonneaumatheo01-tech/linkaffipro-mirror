@@ -9,6 +9,7 @@
     "prisma/demo-seed.ts",
     "prisma/demo-seed.test.ts",
     "prisma/phase10-gains.ts",
-    "prisma/phase11-gate-exceptions.ts"
+    "prisma/phase11-gate-exceptions.ts",
+    "prisma/phase14-gates.ts"
   ]
 }

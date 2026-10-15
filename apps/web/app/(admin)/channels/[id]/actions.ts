@@ -28,6 +28,21 @@ import { gateCheckFlash, alignGate } from "@/lib/channels/gate-links";
 import { verifyChannelGateLinks } from "@/lib/channels/rule-gate-links";
 import { calendarReturnParams } from "@/lib/channels/return-to";
 import { rightsMessage } from "@/lib/channels/rights-message";
+import {
+  appliedMessage,
+  applyRuleToPending,
+  pendingFlash,
+  pendingSummaryForRule,
+} from "@/lib/channels/pending-rule";
+import {
+  APPROVE_ALL_LIST_CHANGED,
+  approveAllDone,
+  approveAllListGrew,
+  approveAllMark,
+  approveJobId,
+  parseApproveAllForm,
+  requestFilterStatuses,
+} from "@/lib/channels/requests";
 
 function back(channelId: string, tab: string, params: Record<string, string>): never {
   redirect(`/channels/${channelId}?${new URLSearchParams({ tab, ...params }).toString()}`);
@@ -124,7 +139,8 @@ type RuleFields = z.infer<typeof ruleSchema>;
 
 /**
  * Réglages enregistrés d'une règle (par défaut ou exception) : le délai choisi est TOUJOURS enregistré, y compris
- * « puis accepter » après les canaux à rejoindre (le délai part du clic sur « ✅ J'ai rejoint ») ; l'exigence suit
+ * « puis accepter » après les canaux à rejoindre (le délai part du moment où tous sont rejoints : vu par le bot, ou
+ * au clic sur « ✅ J'ai rejoint ») ; l'exigence suit
  * les canaux choisis (aucun canal → aucune ; des canaux sans exigence → obligatoires).
  */
 function ruleData(d: RuleFields, gateIds: readonly string[]) {
@@ -188,11 +204,74 @@ export async function saveRuleAction(formData: FormData): Promise<void> {
   // Liens des canaux à rejoindre créés et vérifiés tout de suite : le canal en cause et la solution sont affichés.
   const saved = "Règle d'adhésion enregistrée : elle s'applique aux prochaines demandes.";
   const flash = gateChannelIds.length > 0 ? await checkGateLinks(d.channelId, user.id) : {};
+  const pending = await pendingNote(d.channelId, rule.id, "default");
   revalidatePath(`/channels/${d.channelId}`);
   back(d.channelId, "rules", {
-    ok: flash.ok ? `${saved} ${flash.ok}` : saved,
+    ok: [saved, pending, flash.ok].filter(Boolean).join(" "),
     ...(flash.error ? { error: flash.error } : {}),
   });
+}
+
+/**
+ * Demandes en cours qui suivent encore l'ancienne version de la règle (phrase ajoutée à la confirmation, vide sinon).
+ * Une panne de lecture ne bloque jamais l'enregistrement de la règle.
+ */
+async function pendingNote(
+  channelId: string,
+  ruleId: string,
+  where: "default" | "exception",
+): Promise<string> {
+  try {
+    const s = await pendingSummaryForRule(channelId, ruleId);
+    return pendingFlash(s?.count ?? 0, where);
+  } catch (err) {
+    console.warn("[canaux] demandes en attente de l'ancienne règle illisibles", {
+      channelId,
+      ruleId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return "";
+  }
+}
+
+/**
+ * « Leur appliquer la nouvelle règle » (sous « Enregistrer la règle », règle par défaut ou exception, phase 14) :
+ * recalcule les demandes en cours qui suivent encore l'ancienne version de la règle, comme si elles arrivaient
+ * maintenant, avec leur date d'origine pour le délai (`applyRuleToPending`). Aucun message n'est envoyé. Journal de
+ * l'équipe : `approval_rule.applied_to_pending` { ruleId, count, byStatus }.
+ */
+export async function applyRuleToPendingAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const channelId = String(formData.get("channelId") ?? "");
+  const ruleId = String(formData.get("ruleId") ?? "");
+  if (!channelId) redirect("/channels");
+  if (!ruleId) back(channelId, "rules", { error: "Règle introuvable : rechargez la page." });
+  const r = await applyRuleToPending({ channelId, ruleId, userId: user.id });
+  if (r.status === "not_found")
+    back(channelId, "rules", { error: "Cette règle n'existe plus : rechargez la page." });
+  if (r.status === "inactive")
+    back(channelId, "rules", {
+      error:
+        "Cette exception est désactivée : activez-la d'abord, ou laissez ces demandes suivre leur règle actuelle.",
+    });
+  await audit({
+    userId: user.id,
+    action: "approval_rule.applied_to_pending",
+    entityType: "ApprovalRule",
+    entityId: ruleId,
+    metadata: {
+      channelId,
+      ruleId,
+      count: r.count,
+      byStatus: r.byStatus,
+      acceptNow: r.acceptNow,
+      gateSatisfied: r.gateSatisfied,
+      skipped: r.skipped,
+      kept: r.kept ?? 0,
+    },
+  });
+  revalidatePath(`/channels/${channelId}`);
+  back(channelId, "rules", { ok: appliedMessage(r) });
 }
 
 /**
@@ -396,9 +475,11 @@ export async function saveExceptionAction(
     saved.isActive && fields.gateChannelIds.length > 0
       ? await checkGateLinks(d.channelId, user.id)
       : {};
+  const pending =
+    existing && saved.isActive ? await pendingNote(d.channelId, saved.id, "exception") : "";
   revalidatePath(`/channels/${d.channelId}`);
   back(d.channelId, "rules", {
-    ok: flash.ok ? `${ok} ${flash.ok}` : ok,
+    ok: [ok, pending, flash.ok].filter(Boolean).join(" "),
     ...(flash.error ? { error: flash.error } : {}),
   });
 }
@@ -662,6 +743,138 @@ export async function approveMembershipAction(formData: FormData): Promise<void>
     "requests",
     r.ok ? { ok: "Demande acceptée : le membre entre dans le canal." } : { error: r.error },
   );
+}
+
+/** Tâches d'acceptation ajoutées à la file en même temps (« Tout accepter »). */
+const APPROVE_ALL_ENQUEUE_CHUNK = 50;
+
+/**
+ * « Tout accepter » (onglet Demandes, liste filtrée, phase 14, décision E8) : les demandes de la liste affichée
+ * (filtre, faites avant l'affichage `asOf`, jamais plus que le nombre annoncé `expected`) sont acceptées par la file
+ * telegram-send, une tâche `approve` par demande, au rythme permis par Telegram, avec l'utilisateur pour le journal.
+ * Avant d'enfiler, chaque demande passe « en file d'acceptation » en une seule écriture : programmée à l'heure de
+ * secours (dans 10 minutes, `approveAllMark`), sans expiration, avec la marque `source.approveAll` (la carte dit
+ * « Acceptation en cours », « Leur appliquer la nouvelle règle » ne la touche pas). La tâche accepte d'abord ; si elle
+ * n'aboutit pas (aucun bot administrateur à ce moment-là, trois refus de Telegram, ancien service d'arrière-plan
+ * pendant un déploiement), le passage des 20 secondes l'accepte à l'heure de secours : jamais de demande bloquée.
+ * Identifiant de tâche propre à l'affichage (`approve:<id>:<asOf>`) : un double envoi du formulaire n'en crée qu'une,
+ * un nouveau clic en crée une nouvelle (la file ignorerait sinon un identifiant qu'elle garde encore). Si la file est
+ * indisponible pour une demande, elle est programmée pour maintenant. Message « Accepté » seulement si le bot peut
+ * encore écrire à la personne (worker). Responsable autorisé (ce n'est pas une suppression).
+ * Journal de l'équipe : `membership.approve_all` { channelId, filter, count, byStatus, queued }.
+ */
+export async function approveAllRequestsAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const channelId = String(formData.get("channelId") ?? "");
+  if (!channelId) redirect("/channels");
+  const now = new Date();
+  const { filter, asOf, expected } = parseApproveAllForm((name) => formData.get(name), now);
+  const keep: Record<string, string> = filter === "all" ? {} : { status: filter };
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: {
+      id: true,
+      isActive: true,
+      botAdmins: {
+        where: { revokedAt: null, bot: { isActive: true } },
+        select: { botId: true },
+        take: 1,
+      },
+    },
+  });
+  if (!channel) redirect("/channels");
+  if (!channel.isActive)
+    back(channelId, "requests", {
+      ...keep,
+      error:
+        "Ce canal est désactivé : réactivez-le dans « Réglages du canal » pour que les demandes soient acceptées.",
+    });
+  if (channel.botAdmins.length === 0)
+    back(channelId, "requests", {
+      ...keep,
+      error:
+        "Aucun de nos bots n'est administrateur de ce canal : les demandes ne peuvent pas être acceptées.",
+    });
+  const statuses = requestFilterStatuses(filter);
+  const rows = await prisma.membership.findMany({
+    where: { channelId, status: { in: statuses }, requestedAt: { lte: asOf } },
+    orderBy: { requestedAt: "asc" },
+    select: { id: true, status: true },
+  });
+  if (approveAllListGrew(rows.length, expected))
+    back(channelId, "requests", { ...keep, error: APPROVE_ALL_LIST_CHANGED });
+  const byStatus: Record<string, number> = {};
+  for (const r of rows) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+  const ids = rows.map((r) => r.id);
+  // En file d'acceptation, en une seule écriture : heure de secours, sans expiration, marque « Tout accepter » ;
+  // seulement si elle est encore dans le filtre (acceptée ou refusée entre-temps : pas touchée, pas de tâche).
+  const mark = approveAllMark(now, user.id);
+  const queuedIds = ids.length ? await markForApproval(ids, statuses, mark) : [];
+  const res = { count: queuedIds.length };
+  const notQueued: string[] = [];
+  for (let i = 0; i < queuedIds.length; i += APPROVE_ALL_ENQUEUE_CHUNK) {
+    const chunk = queuedIds.slice(i, i + APPROVE_ALL_ENQUEUE_CHUNK);
+    const results = await Promise.allSettled(
+      chunk.map((membershipId) =>
+        enqueue(
+          "telegram-send",
+          { type: "approve", membershipId, byUserId: user.id },
+          { jobId: approveJobId(membershipId, asOf) },
+        ),
+      ),
+    );
+    results.forEach((r, j) => {
+      if (r.status === "rejected") notQueued.push(chunk[j]!);
+    });
+  }
+  // File indisponible : acceptation par le passage des 20 secondes (programmée pour maintenant, marque gardée).
+  if (notQueued.length)
+    await prisma.membership.updateMany({
+      where: { id: { in: notQueued }, status: "SCHEDULED" },
+      data: { approveAt: now },
+    });
+  await audit({
+    userId: user.id,
+    action: "membership.approve_all",
+    entityType: "Channel",
+    entityId: channelId,
+    metadata: {
+      channelId,
+      filter,
+      count: res.count,
+      byStatus,
+      queued: queuedIds.length - notQueued.length,
+      asOf: asOf.toISOString(),
+      membershipIds: ids.slice(0, 500),
+    },
+  });
+  revalidatePath(`/channels/${channelId}`);
+  back(channelId, "requests", { ...keep, ok: approveAllDone(res.count) });
+}
+
+/**
+ * Met en file d'acceptation les demandes encore dans le filtre (une seule requête, atomique) : programmées à l'heure de
+ * secours de la marque, sans expiration, marque `source.approveAll` ajoutée à leur source. Renvoie les demandes
+ * modifiées (les autres ont changé entre-temps : aucune tâche pour elles). Heures écrites en UTC comme Prisma.
+ */
+async function markForApproval(
+  ids: string[],
+  statuses: string[],
+  mark: ReturnType<typeof approveAllMark>,
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    UPDATE "Membership"
+    SET status = 'SCHEDULED',
+        "approveAt" = (${mark.fallbackAt}::timestamptz AT TIME ZONE 'UTC'),
+        "expiresAt" = NULL,
+        source = (CASE WHEN jsonb_typeof(source) = 'object' THEN source ELSE '{}'::jsonb END)
+          || jsonb_build_object('approveAll', ${JSON.stringify(mark)}::jsonb),
+        "updatedAt" = (NOW() AT TIME ZONE 'UTC')
+    WHERE id = ANY(${ids}::text[]) AND status::text = ANY(${statuses}::text[])
+    RETURNING id`;
+  const updated = new Set(rows.map((r) => r.id));
+  // Ordre de la liste (les plus anciennes d'abord).
+  return ids.filter((id) => updated.has(id));
 }
 
 export async function declineMembershipAction(formData: FormData): Promise<void> {

@@ -113,8 +113,8 @@ beforeAll(async () => {
   // Alice et Bruno peuvent recevoir un message privé du bot ; Chloé non.
   await prisma.memberBotState.createMany({
     data: [
-      { memberId: ids.alice, botId: bot.id, canDm: true },
-      { memberId: ids.bruno, botId: bot.id, canDm: true },
+      { memberId: ids.alice, botId: bot.id, canDm: true, startedAt: new Date() },
+      { memberId: ids.bruno, botId: bot.id, canDm: true, startedAt: new Date() },
       { memberId: ids.chloe, botId: bot.id, canDm: false },
     ],
   });

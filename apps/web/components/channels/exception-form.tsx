@@ -29,6 +29,7 @@ import {
   type NameMaps,
   type ProvenanceGroup,
 } from "@/lib/channels/exceptions";
+import { ApplyRulePending } from "./apply-rule-pending";
 import { EntryRuleFields } from "./entry-rule-form";
 
 /** Retour de « Enregistrer l'exception » quand l'enregistrement est refusé (même type que l'action serveur). */
@@ -43,6 +44,8 @@ export type KnownChannel = Omit<GateChannelChoice, "unavailable"> & { isActive: 
  * résumé en direct et « Enregistrer l'exception » (`saveExceptionAction`). Un refus revient dans le volet ; un succès
  * revient sur l'onglet avec la confirmation. Nouvelle exception : réglages copiés de la règle par défaut, sans canaux à
  * rejoindre pour une personne venue d'un de nos canaux (`newExceptionState`) tant que l'équipe n'a rien changé.
+ * Exception enregistrée dont des demandes en cours suivent encore l'ancienne version : « Leur appliquer la nouvelle
+ * règle » sous le formulaire, tant que rien n'est modifié dans le volet (phase 14).
  */
 export function ExceptionPanel({
   open,
@@ -263,6 +266,9 @@ export function ExceptionPanel({
         ) : null}
         <p className="text-note text-muted-foreground">S&apos;applique aux prochaines demandes.</p>
       </form>
+      {item && !touched && provenance === initialKey ? (
+        <ApplyRulePending ruleId={item.id} className="mt-8" />
+      ) : null}
     </SidePanel>
   );
 }

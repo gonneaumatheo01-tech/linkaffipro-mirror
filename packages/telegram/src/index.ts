@@ -61,6 +61,52 @@ export {
 export * from "./join-flow/rules";
 export * from "./join-flow/texts";
 export * from "./join-flow/service";
+// Phase 14 : validation automatique des canaux obligatoires, filet du worker, rattrapage, joignabilité (le bot peut-il
+// encore écrire à la personne ?).
+export {
+  apiCheckIntervalMs,
+  autoSatisfyGate,
+  botOfMembership,
+  evaluateMembershipGates,
+  reachableFor,
+  recheckPendingGates,
+  sendGateSatisfiedIfReachable,
+  sourceAfterGateSatisfied,
+  sweepPendingGates,
+} from "./join-flow/auto-gate";
+export type {
+  AutoGateTrigger,
+  GateSatisfiedMessage,
+  GateSweepDeps,
+  GateSweepOptions,
+  GateSweepReport,
+  MembershipGateEvaluation,
+  PendingGateRow,
+} from "./join-flow/auto-gate";
+export { hasStartedBot, inJoinWindow, reachability } from "./join-flow/reachability";
+export type { BotStateLike, JoinWindowRequest, Reachability } from "./join-flow/reachability";
+export { createPrismaJoinFlowDeps } from "./join-flow/prisma-deps";
+export {
+  GATE_BACKFILL_KEY,
+  memberReachabilityWithDb,
+  membershipGatesStatusWithDb,
+  repairBotStatesForPhase14,
+  runGateBackfillOnce,
+  runGateSweepWithDb,
+} from "./join-flow/prisma-auto-gate";
+export type {
+  BotStateRepair,
+  GateBackfillResult,
+  MembershipGatesStatus,
+  PrismaAutoGateOptions,
+} from "./join-flow/prisma-auto-gate";
+export {
+  PHASE13_JOIN_REQUEST_TEXTS,
+  PHASE14_TEXTS_ACTION,
+  rewriteDefaultJoinRequestTexts,
+  rewrittenJoinRequestTexts,
+} from "./sequences/phase14-texts";
+export type { Phase14TextsReport } from "./sequences/phase14-texts";
 export { offerDeepLink, buildOfferPayload, parseOfferPayload } from "./offers/logic";
 export {
   SEQUENCE_TRIGGERS,

@@ -39,6 +39,12 @@ export interface TelegramDeps {
   /** Le membre a bloqué (ou débloqué) le bot en privé. */
   memberDmStatus(bot: BotIdentity, from: User, canDm: boolean): Promise<void>;
   /**
+   * Le membre a écrit au bot en privé (n'importe quel message, pas seulement /start ; phase 14, décision E2) : Telegram
+   * laisse désormais le bot lui écrire, donc il devient joignable (`canDm`, `startedAt` si absent, `blockedAt` effacé).
+   * Sans écriture s'il l'était déjà. Absent dans les tests qui n'en ont pas besoin.
+   */
+  memberWrote?(bot: BotIdentity, memberId: string): Promise<void>;
+  /**
    * Crée ou met à jour un canal/groupe. Retourne l'id interne et `created: true` seulement pour l'appel qui l'a réellement créé
    * (plusieurs bots peuvent recevoir la même première mise à jour en même temps).
    */

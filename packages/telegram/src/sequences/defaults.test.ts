@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SEQUENCE_TRIGGERS, defaultSequenceText, previewText } from "./defaults";
-import { pickText, renderText } from "../join-flow/texts";
+import { SEQUENCE_TRIGGERS, TRIGGER_HELP, defaultSequenceText, previewText } from "./defaults";
+import { mentionsRequiredStep, pickText, renderText } from "../join-flow/texts";
 
 const VERTICALS = ["CASINO", "SPORTS", "DATING", null, "AUTRE"];
 
@@ -25,6 +25,21 @@ describe("textes par défaut des séquences", () => {
       expect(defaultSequenceText(v, "APPROVED")).toContain("{canal}");
       expect(defaultSequenceText(v, "OFFER_REPLY")).toContain("{prenom}");
     }
+  });
+  it("accueil par défaut juste avec des canaux « Proposés » : jamais d'étape obligatoire ni de bouton « J'ai rejoint »", () => {
+    // Phase 14 : avec des canaux proposés, l'accueil n'a pas de bouton « ✅ J'ai rejoint » (la personne est acceptée de
+    // toute façon) ; le texte fourni par la plateforme ne doit pas demander d'appuyer dessus.
+    for (const v of VERTICALS) {
+      const text = defaultSequenceText(v, "JOIN_REQUEST");
+      expect(mentionsRequiredStep(text)).toBe(false);
+      expect(text).not.toMatch(/rejoint/i);
+    }
+    expect(TRIGGER_HELP.JOIN_REQUEST).toContain("seulement si ces canaux sont obligatoires");
+    expect(TRIGGER_HELP.GATE_SATISFIED).toContain("le bot le voit tout seul");
+  });
+  it("le rappel (canaux obligatoires seulement, où le bouton existe) garde « ✅ J'ai rejoint »", () => {
+    for (const v of VERTICALS)
+      expect(defaultSequenceText(v, "GATE_REMINDER")).toContain("✅ J'ai rejoint");
   });
   it("ne promet pas de gains", () => {
     for (const v of VERTICALS)

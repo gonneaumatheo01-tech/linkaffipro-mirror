@@ -8,11 +8,14 @@ import { MiniTrend, StatCard } from "@/components/admin/stat-card";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { BarList } from "@/components/charts/bar-list";
 import { MetricChart } from "@/components/charts/metric-chart";
+import { RequestFunnel } from "@/components/channels/request-funnel";
 import { NumCell, STAT_GRID_PHONE } from "@/components/dashboard/cells";
 import { MetricDetail, type DetailFigure } from "@/components/dashboard/metric-detail";
 import { StatsTop } from "@/components/dashboard/stats-top";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { funnelView, loadStatsRequestFunnel } from "@/lib/channels/request-funnel";
+import { channelTabHref } from "@/lib/channels/tabs";
 import { campaignScope } from "@/lib/dashboard/campaign-scope";
 import { loadBestTimes, loadChannelGrowth, type ChannelDaily } from "@/lib/dashboard/daily";
 import {
@@ -67,6 +70,12 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
       (!f.vertical || universeOf.get(g.channelId) === f.vertical) &&
       (!scope || scope.channelIds.includes(g.channelId)),
   );
+  // Parcours des demandes (phase 14) : les mêmes canaux que la page, demandes lues en direct (pas les chiffres du jour).
+  const requestFunnel = await loadStatsRequestFunnel({
+    channelIds: growth.map((g) => g.channelId),
+    period: f.period,
+    compare: f.compare,
+  });
   const keys = periodDayKeys(f.period);
   const multiDay = f.period.days > 1;
   const sum = (k: Figure) => growth.reduce((a, g) => a + valueOf(g, k), 0);
@@ -210,6 +219,34 @@ export default async function StatsChannelsPage({ searchParams }: PageProps<"/st
             Choisissez une période de plusieurs jours pour voir l&apos;évolution jour par jour.
           </p>
         )}
+      </FormSection>
+
+      <FormSection
+        id="channels-requests"
+        className="mb-8 rounded-xl border border-border bg-card p-4 md:p-5"
+        title="Parcours des demandes"
+        description={`Les demandes d'adhésion reçues sur la période et ce qu'elles sont devenues depuis, ${
+          growth.length === 1 ? "pour ce canal" : "pour les canaux affichés"
+        }. Les entrées directes, sans demande, n'y sont pas.`}
+      >
+        <RequestFunnel
+          periods={[
+            {
+              key: f.period.key,
+              label: periodLabel(f.period),
+              // Conseil « passez les canaux en Proposés » seulement si des canaux obligatoires sont demandés.
+              view: funnelView(requestFunnel.data, requestFunnel.previous, {
+                requiredGates: requestFunnel.requiredGates,
+              }),
+            },
+          ]}
+          compare={f.compare}
+          welcomeHref={
+            growth.length === 1
+              ? `${channelTabHref(growth[0]!.channelId, "sequences")}&open=JOIN_REQUEST#JOIN_REQUEST`
+              : undefined
+          }
+        />
       </FormSection>
 
       <FormSection

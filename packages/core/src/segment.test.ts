@@ -63,7 +63,14 @@ describe("segments", () => {
 
   it("ajoute la condition de joignabilité par bot", () => {
     expect(withReachableBy({ anonymizedAt: null }, "b1")).toEqual({
-      AND: [{ anonymizedAt: null }, { botStates: { some: { botId: "b1", canDm: true } } }],
+      AND: [
+        { anonymizedAt: null },
+        {
+          botStates: {
+            some: { botId: "b1", canDm: true, startedAt: { not: null }, blockedAt: null },
+          },
+        },
+      ],
     });
   });
 

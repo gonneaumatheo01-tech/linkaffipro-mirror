@@ -38,6 +38,7 @@ import {
   DEDUP_WINDOW_MS,
   formatAlert,
   parseThresholds,
+  PER_CHANNEL_KINDS,
   REOPEN_KINDS,
   shouldCreate,
   type AlertKind,
@@ -46,6 +47,7 @@ import {
   type Detected,
   type SpendSnapshot,
 } from "./alert-rules";
+import { syncBotBlockedRateAlerts } from "./blocked-rate";
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -562,8 +564,21 @@ export async function runAlerts(
     created++;
   }
 
-  // Résolution automatique : alertes ouvertes dont le type n'est plus détecté.
-  const toResolve = open.filter((a) => !detectedKinds.has(a.kind as AlertKind));
+  // Alerte « bot bloqué après l'accueil » (phase 14) : canal par canal, au plus une toutes les 6 heures par canal.
+  try {
+    created += (await syncBotBlockedRateAlerts(now)).created;
+  } catch (err) {
+    logger.warn(
+      { kind: "bot_blocked_rate", err: (err as Error).message },
+      "règle d'alerte impossible à évaluer",
+    );
+  }
+
+  // Résolution automatique : alertes ouvertes dont le type n'est plus détecté (les alertes par canal se résolvent
+  // canal par canal, ci-dessus).
+  const toResolve = open.filter(
+    (a) => !detectedKinds.has(a.kind as AlertKind) && !PER_CHANNEL_KINDS.has(a.kind as AlertKind),
+  );
   if (toResolve.length > 0) {
     await prisma.alert.updateMany({
       where: { id: { in: toResolve.map((a) => a.id) } },

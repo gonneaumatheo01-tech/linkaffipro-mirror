@@ -25,7 +25,8 @@ export type AlertKind =
   | "gate_links_missing"
   | "custom_emoji_refused"
   | "telegram_account_reconnect"
-  | "linkaffi_events_stuck";
+  | "linkaffi_events_stuck"
+  | "bot_blocked_rate";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -103,12 +104,122 @@ export function detectQueueBacklog(waiting: number): Detected | null {
 
 export function detectDmBlocked(blockedLastHour: number): Detected | null {
   if (blockedLastHour <= DM_BLOCKED_THRESHOLD) return null;
+  // Depuis la phase 14, « bloqué » = la personne a vraiment bloqué le bot (les personnes injoignables sont à part).
   return {
     kind: "dm_blocked",
     severity: "WARNING",
-    message: `${blockedLastHour} messages privés bloqués dans l'heure (membres ayant bloqué le bot ou fenêtres expirées)`,
+    message: `${blockedLastHour} messages privés refusés dans l'heure par des personnes qui ont bloqué le bot`,
     payload: { blockedLastHour },
   };
+}
+
+/** Alerte « bot bloqué après l'accueil » (phase 14, décision E10) : au plus une par canal toutes les 6 heures. */
+export const BOT_BLOCKED_RATE_DEDUP_MS = 6 * 60 * 60 * 1000;
+/** Au moins 10 demandes dont l'accueil est parti depuis au moins 1 heure (sur les dernières 24 heures). */
+export const BOT_BLOCKED_RATE_MIN_REQUESTS = 10;
+/** Plus de 25 % de vrais blocages dans l'heure qui suit l'accueil. */
+export const BOT_BLOCKED_RATE_THRESHOLD = 0.25;
+
+/** Demandes d'un canal dont l'accueil est parti (fenêtre glissante), et vrais blocages dans l'heure qui suit. */
+export type BotBlockedRateGroup = {
+  /** D'où viennent ces personnes, après « venues » : « de Pub 1 », « de « Tir Cadré » », « d'un autre lien ». */
+  fromText: string;
+  requests: number;
+  blocked: number;
+};
+
+export type BotBlockedRateSnapshot = {
+  channelId: string;
+  channelTitle: string;
+  /** Bot qui a envoyé l'accueil (le plus souvent bloqué s'il y en a plusieurs). */
+  botUsername: string | null;
+  requests: number;
+  blocked: number;
+  /** Par provenance (pub, canal, lien). */
+  groups: BotBlockedRateGroup[];
+};
+
+function percent(n: number, total: number): number {
+  return total > 0 ? Math.round((n / total) * 100) : 0;
+}
+
+/** Une provenance au-dessus du seuil : au moins 10 demandes et plus de 25 % de vrais blocages (comme le canal). */
+function overBlockedRate(g: Pick<BotBlockedRateGroup, "requests" | "blocked">): boolean {
+  return (
+    g.requests >= BOT_BLOCKED_RATE_MIN_REQUESTS &&
+    g.blocked / g.requests > BOT_BLOCKED_RATE_THRESHOLD
+  );
+}
+
+/**
+ * Provenance la plus touchée à citer dans l'alerte : seulement parmi celles au-dessus du seuil (au moins 10 demandes,
+ * plus de 25 %), du taux le plus haut au plus bas, puis du plus de blocages au moins. Aucune : null (l'alerte cite le
+ * total du canal), jamais une provenance sous le seuil qui rassurerait à tort.
+ */
+export function worstBlockedGroup(
+  groups: readonly BotBlockedRateGroup[],
+): BotBlockedRateGroup | null {
+  return (
+    groups
+      .filter(overBlockedRate)
+      .sort(
+        (a, b) => b.blocked / b.requests - a.blocked / a.requests || b.blocked - a.blocked,
+      )[0] ?? null
+  );
+}
+
+/**
+ * Canaux où plus de 25 % des personnes bloquent le bot dans l'heure qui suit l'accueil, sur au moins 10 demandes
+ * (phase 14) : une alerte par canal, avec la provenance la plus touchée au-dessus du seuil (`worstBlockedGroup`), sinon
+ * le total du canal. « 40 % des personnes venues de Pub 1 ont bloqué @womendatingoobot après l'accueil… ».
+ */
+export function detectBotBlockedRate(rows: readonly BotBlockedRateSnapshot[]): Detected[] {
+  const out: Detected[] = [];
+  for (const r of rows) {
+    if (!overBlockedRate(r)) continue;
+    const worst = worstBlockedGroup(r.groups);
+    const g = worst ?? { fromText: "", requests: r.requests, blocked: r.blocked };
+    const who = g.fromText ? `des personnes venues ${g.fromText}` : "des personnes";
+    const bot = r.botUsername ? `@${r.botUsername}` : "le bot";
+    out.push({
+      kind: "bot_blocked_rate",
+      severity: "WARNING",
+      message: `${percent(g.blocked, g.requests)} % ${who} ont bloqué ${bot} après l'accueil de « ${r.channelTitle} » (${g.blocked} sur ${g.requests} en 24 h) : Telegram peut limiter un bot signalé. Adoucir le message ou passer les canaux en « Proposés ».`,
+      payload: {
+        channelId: r.channelId,
+        channelTitle: r.channelTitle,
+        botUsername: r.botUsername,
+        requests: r.requests,
+        blocked: r.blocked,
+        rate: percent(r.blocked, r.requests),
+        worst: worst
+          ? {
+              fromText: worst.fromText,
+              requests: worst.requests,
+              blocked: worst.blocked,
+              rate: percent(worst.blocked, worst.requests),
+            }
+          : null,
+      },
+    });
+  }
+  return out;
+}
+
+/**
+ * Alerte « bot bloqué » à créer pour ce canal ? Non si une alerte du même canal a été créée il y a moins de 6 heures
+ * (ouverte ou résolue) : au plus une notification par canal toutes les 6 heures.
+ */
+export function shouldCreateForChannel(
+  channelId: string,
+  recent: ReadonlyArray<{ createdAt: Date; payload: unknown }>,
+  now: Date,
+): boolean {
+  return !recent.some(
+    (a) =>
+      (a.payload as { channelId?: unknown } | null)?.channelId === channelId &&
+      now.getTime() - a.createdAt.getTime() < BOT_BLOCKED_RATE_DEDUP_MS,
+  );
 }
 
 export function detectSubIdHealth(status: string, message: string): Detected | null {
@@ -568,6 +679,12 @@ function formatTime(d: Date): string {
     timeZone: "Europe/Paris",
   }).format(d);
 }
+
+/**
+ * Types d'alerte gérés canal par canal (création, dédoublonnage et résolution à part : `bot_blocked_rate`), jamais
+ * résolus par la règle générale « type plus détecté ».
+ */
+export const PER_CHANNEL_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>(["bot_blocked_rate"]);
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */
 export function shouldCreate(

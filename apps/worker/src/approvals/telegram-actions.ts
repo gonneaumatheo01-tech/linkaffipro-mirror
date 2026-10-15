@@ -6,7 +6,14 @@ import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
-import { baseLang, defaultText, pickText, renderHtmlText } from "@linkaffipro/telegram";
+import {
+  baseLang,
+  defaultText,
+  OPEN_STATUSES,
+  pickText,
+  reachability,
+  renderHtmlText,
+} from "@linkaffipro/telegram";
 import { logger } from "../logger";
 
 const MAX_ATTEMPTS = 3;
@@ -54,6 +61,38 @@ export function isSilentDirectEntry(source: unknown): boolean {
   );
 }
 
+/**
+ * Le bot peut-il encore écrire à la personne pour lui dire « Accepté » ? (phase 14, décision E2) : elle a démarré le
+ * bot (ou appuyé sur un de ses boutons) et ne l'a pas bloqué, ou sa demande a moins de 5 minutes. Sinon rien n'est
+ * envoyé : événement `dm.skipped_unreachable` (jamais une erreur ni « a bloqué le bot »).
+ */
+export async function acceptedMessageReachable(
+  m: {
+    id: string;
+    memberId: string;
+    channelId: string;
+    userChatId: bigint | null;
+    requestedAt: Date;
+  },
+  botId: string,
+  now = new Date(),
+): Promise<boolean> {
+  const state = await prisma.memberBotState.findUnique({
+    where: { memberId_botId: { memberId: m.memberId, botId } },
+    select: { canDm: true, startedAt: true, blockedAt: true },
+  });
+  const reach = reachability(state, { userChatId: m.userChatId, requestedAt: m.requestedAt }, now);
+  if (reach.reachable) return true;
+  await recordEvent({
+    type: "dm.skipped_unreachable",
+    memberId: m.memberId,
+    channelId: m.channelId,
+    botId,
+    payload: { membershipId: m.id, kind: "ACCEPTED", reason: reach.reason },
+  });
+  return false;
+}
+
 /** Message « accepté » (texte de « Ce que dit le bot » ou intégré) en HTML Telegram, valeurs échappées. */
 async function sendAcceptedMessage(
   m: {
@@ -61,6 +100,7 @@ async function sendAcceptedMessage(
     memberId: string;
     channelId: string;
     userChatId: bigint | null;
+    requestedAt: Date;
     approvalRuleId: string | null;
     source: unknown;
   },
@@ -71,6 +111,8 @@ async function sendAcceptedMessage(
     ? await prisma.approvalRule.findUnique({ where: { id: m.approvalRuleId } })
     : null;
   if (rule && !rule.sendAcceptedMessage) return;
+  // Personne injoignable (jamais démarré le bot, fenêtre de 5 minutes passée) : rien n'est mis en file.
+  if (!(await acceptedMessageReachable(m, bot.id))) return;
   const [member, channel] = await Promise.all([
     prisma.member.findUnique({
       where: { id: m.memberId },
@@ -114,10 +156,13 @@ async function sendAcceptedMessage(
   });
 }
 
-/** Approuve une demande. Met à jour le Membership et journalise. */
+/**
+ * Approuve une demande. Met à jour le Membership et journalise. `beforeCall` : attente avant l'appel à Telegram
+ * (limite de débit du bot, « Tout accepter » par la file telegram-send).
+ */
 export async function approveMembership(
   membershipId: string,
-  opts: { byUserId?: string | null } = {},
+  opts: { byUserId?: string | null; beforeCall?: (botId: string) => Promise<void> } = {},
 ): Promise<ApproveOutcome> {
   const m = await prisma.membership.findUnique({
     where: { id: membershipId },
@@ -140,8 +185,10 @@ export async function approveMembership(
     // Une seule date pour la demande et pour Link Affi : l'entrée (`chat_member`, datée à la seconde par Telegram) est
     // datée après elle par le flux d'adhésion, jamais avant.
     const approvedAt = new Date();
-    await prisma.membership.update({
-      where: { id: m.id },
+    // Mise à jour conditionnelle : si une autre voie (tâche « Tout accepter », passage des 20 secondes) l'a déjà
+    // acceptée, rien n'est compté ni envoyé une seconde fois.
+    const { count } = await prisma.membership.updateMany({
+      where: { id: m.id, status: { in: OPEN_STATUSES } },
       data: {
         status: "APPROVED",
         approvedAt,
@@ -149,6 +196,7 @@ export async function approveMembership(
         lastError: null,
       },
     });
+    if (count === 0) return;
     if (m.inviteLinkId)
       await prisma.inviteLink
         .update({ where: { id: m.inviteLinkId }, data: { approved: { increment: 1 } } })
@@ -173,6 +221,7 @@ export async function approveMembership(
     );
   };
   try {
+    await opts.beforeCall?.(bot.id);
     await api.approveChatJoinRequest(
       Number(m.channel.telegramChatId),
       Number(m.member.telegramUserId),
@@ -186,10 +235,13 @@ export async function approveMembership(
         return "already";
       }
       if (/HIDE_REQUESTER_MISSING/i.test(err.description)) {
-        await prisma.membership.update({
-          where: { id: m.id },
+        // Demande déjà acceptée par une autre voie pendant l'appel : Telegram ne la trouve plus, mais elle n'a pas
+        // expiré. Seule une demande encore en cours passe « expirée ».
+        const { count } = await prisma.membership.updateMany({
+          where: { id: m.id, status: { in: OPEN_STATUSES } },
           data: { status: "EXPIRED", lastError: "demande retirée par le membre" },
         });
+        if (count === 0) return "already";
         await recordEvent({
           type: "membership.expired",
           memberId: m.memberId,
@@ -245,10 +297,14 @@ export async function approveMembership(
   }
 }
 
-/** Refuse une demande (manuel ou expiration DECLINE). */
+/** Refuse une demande (manuel ou expiration DECLINE). `beforeCall` : attente avant l'appel (limite de débit). */
 export async function declineMembership(
   membershipId: string,
-  opts: { byUserId?: string | null; reason?: string } = {},
+  opts: {
+    byUserId?: string | null;
+    reason?: string;
+    beforeCall?: (botId: string) => Promise<void>;
+  } = {},
 ): Promise<"declined" | "missing" | "failed"> {
   const m = await prisma.membership.findUnique({
     where: { id: membershipId },
@@ -261,6 +317,7 @@ export async function declineMembership(
   const bot = await actingBotFor(m.channelId);
   if (!bot) return "failed";
   try {
+    await opts.beforeCall?.(bot.id);
     await apiForBot(bot).declineChatJoinRequest(
       Number(m.channel.telegramChatId),
       Number(m.member.telegramUserId),

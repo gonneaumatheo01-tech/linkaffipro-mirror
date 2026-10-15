@@ -43,6 +43,7 @@ function makeDeps(): TelegramDeps & { calls: Record<string, unknown[][]> } {
     memberStarted: rec("memberStarted", { memberId: "m1" }),
     memberSeen: rec("memberSeen", { memberId: "m1" }),
     memberDmStatus: rec("memberDmStatus", undefined),
+    memberWrote: rec("memberWrote", undefined),
     upsertChannel: rec("upsertChannel", { channelId: "c1" }),
     findChannelId: rec("findChannelId", "c1"),
     setChannelAdmin: rec("setChannelAdmin", undefined),
@@ -181,6 +182,72 @@ describe("/start", () => {
     expect(
       (apiCalls.find((c) => c.method === "sendMessage")?.payload as { text: string }).text,
     ).toMatch(/invalide/);
+  });
+});
+
+describe("message privé au bot (phase 14)", () => {
+  it("une personne qui écrit au bot (autre chose que /start) devient joignable", async () => {
+    const deps = makeDeps();
+    const { bot } = makeBot(deps);
+    await bot.handleUpdate({
+      update_id: 5,
+      message: { message_id: 5, date: 1, chat: privateChat, from, text: "ok" },
+    });
+    expect(deps.calls.memberWrote).toEqual([[identity, "m1"]]);
+  });
+
+  it("une photo envoyée au bot compte aussi", async () => {
+    const deps = makeDeps();
+    const { bot } = makeBot(deps);
+    await bot.handleUpdate({
+      update_id: 6,
+      message: {
+        message_id: 6,
+        date: 1,
+        chat: privateChat,
+        from,
+        photo: [{ file_id: "f", file_unique_id: "u", width: 1, height: 1 }],
+      },
+    });
+    expect(deps.calls.memberWrote).toEqual([[identity, "m1"]]);
+  });
+
+  it("un message dans un groupe ou un message modifié ne compte pas", async () => {
+    const deps = makeDeps();
+    const { bot } = makeBot(deps);
+    const group = { id: -1009876, type: "supergroup" as const, title: "Groupe" };
+    await bot.handleUpdate({
+      update_id: 7,
+      message: { message_id: 7, date: 1, chat: group, from, text: "ok" },
+    });
+    await bot.handleUpdate({
+      update_id: 9,
+      edited_message: {
+        message_id: 5,
+        date: 1,
+        edit_date: 2,
+        chat: privateChat,
+        from,
+        text: "ok !",
+      },
+    });
+    expect(deps.calls.memberWrote).toBeUndefined();
+  });
+
+  it("un échec de l'enregistrement ne bloque jamais le reste", async () => {
+    const deps = makeDeps();
+    deps.memberWrote = vi.fn(async () => {
+      throw new Error("base indisponible");
+    });
+    const { bot } = makeBot(deps);
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const update: Update = {
+      update_id: 10,
+      message: { message_id: 10, date: 1, chat: privateChat, from, text: "ok" },
+    };
+    await bot.handleUpdate(update);
+    expect(deps.recordUpdate).toHaveBeenCalledWith(identity, "message", update, { memberId: "m1" });
+    err.mockRestore();
   });
 });
 

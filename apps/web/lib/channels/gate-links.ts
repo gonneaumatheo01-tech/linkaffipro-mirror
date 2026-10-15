@@ -121,8 +121,14 @@ export function gateLinkRows(input: {
   });
 }
 
-/** Phrase d'ensemble au-dessus de la liste (et état « OK » visible quand tout va bien). */
-export function gateLinksSummary(rows: readonly GateLinkRow[]): { ok: boolean; text: string } {
+/**
+ * Phrase d'ensemble au-dessus de la liste (et état « OK » visible quand tout va bien). `gateMode` : canaux
+ * « Proposés » (SOFT) → l'accueil n'a que les boutons des canaux, sans « ✅ J'ai rejoint » (phase 14, décision E5).
+ */
+export function gateLinksSummary(
+  rows: readonly GateLinkRow[],
+  gateMode: GateMode = "REQUIRED",
+): { ok: boolean; text: string } {
   const problems = rows.filter((r) => r.state === "problem").length;
   if (problems === 1)
     return {
@@ -138,7 +144,10 @@ export function gateLinksSummary(rows: readonly GateLinkRow[]): { ok: boolean; t
     return { ok: false, text: "Liens pas encore vérifiés : cliquez « Vérifier les liens »." };
   return {
     ok: true,
-    text: "Tout est prêt : le bot envoie un bouton par canal et « ✅ J'ai rejoint ».",
+    text:
+      gateMode === "SOFT"
+        ? "Tout est prêt : le bot envoie un bouton par canal."
+        : "Tout est prêt : le bot envoie un bouton par canal et « ✅ J'ai rejoint ».",
   };
 }
 

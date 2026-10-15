@@ -239,6 +239,20 @@ describe("date d'acceptation (heure de Paris)", () => {
     expect(acceptanceText({ status: "REQUESTED" }, now)).toBeNull();
   });
 
+  it("« Tout accepter » : acceptation en cours, jamais l'heure de secours", () => {
+    const fallbackAt = "2026-10-12T08:24:00.000Z";
+    const queued = {
+      status: "SCHEDULED",
+      approveAt: new Date(fallbackAt),
+      source: { approveAll: { at: "2026-10-12T08:14:00.000Z", byUserId: "u1", fallbackAt } },
+    };
+    expect(acceptanceText(queued, now)).toBe("acceptation en cours");
+    // Heure repoussée ensuite par une nouvelle règle : de nouveau une heure prévue.
+    expect(acceptanceText({ ...queued, approveAt: new Date("2026-10-13T08:14:00Z") }, now)).toBe(
+      "acceptation prévue le 13 oct. à 10 h 14",
+    );
+  });
+
   it("ligne sans la date quand l'écran la montre déjà", () => {
     expect(provenanceLine(phase11(), titles, now, { withAcceptance: false })).toBe(
       "Venu de « Tir Cadré » (canal obligatoire) · règle : 1 jour",

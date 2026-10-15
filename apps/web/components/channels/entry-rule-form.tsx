@@ -3,7 +3,16 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import { Check, CircleAlert, Clock, Info, ListChecks, Plus, Zap } from "lucide-react";
+import {
+  Check,
+  CircleAlert,
+  Clock,
+  Info,
+  ListChecks,
+  Plus,
+  TriangleAlert,
+  Zap,
+} from "lucide-react";
 import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -27,9 +36,8 @@ import {
   entryProblem,
   entrySentence,
   expirationSentence,
-  parseReminders,
   reminderChips,
-  remindersSentence,
+  remindersHelp,
   ruleFromState,
   stateDelaySeconds,
   toggleReminder,
@@ -41,7 +49,9 @@ import {
   type EntryFormState,
   type GateChannelChoice,
 } from "@/lib/channels/entry-rule";
+import { softGateWarning } from "@/lib/channels/bot-messages";
 import { defaultGateSkipNote, type GateSkipExceptions } from "@/lib/channels/exceptions";
+import { ApplyRulePending, useChannelRules } from "./apply-rule-pending";
 
 /** Canal à cocher (canaux actifs, et ceux de la règle devenus inactifs ou supprimés : `gateChannelChoices`). */
 export type GateChannelOption = GateChannelChoice;
@@ -348,6 +358,9 @@ export function EntryRuleFields({
     initial.choice !== "gate";
   const gateChoice = state.choice === "gate";
   const welcome = welcomeOption(state, { variant, help: welcomeHelp });
+  const rulesCtx = useChannelRules();
+  const softWarning = softGateWarning(state, rulesCtx?.welcomeMentionsStep ?? false);
+  const reminderLines = remindersHelp(state);
 
   return (
     <>
@@ -438,7 +451,11 @@ export function EntryRuleFields({
       {gateChoice ? (
         <FormSection
           title="Les canaux à rejoindre"
-          description="Le bot envoie un bouton par canal et un bouton « ✅ J'ai rejoint »."
+          description={
+            state.gateMode === "SOFT"
+              ? "Le bot envoie un bouton par canal, sans « ✅ J'ai rejoint » : la personne est acceptée de toute façon."
+              : "Le bot envoie un bouton par canal et un bouton « ✅ J'ai rejoint »."
+          }
         >
           {channels.length === 0 ? (
             <p className="text-body text-muted-foreground">
@@ -526,7 +543,7 @@ export function EntryRuleFields({
                   {
                     key: "REQUIRED",
                     title: "Obligatoires",
-                    help: "Acceptée seulement après « ✅ J'ai rejoint » : le bot vérifie.",
+                    help: "Acceptée dès que le bot voit tous les canaux rejoints, ou à « ✅ J'ai rejoint ».",
                   },
                   {
                     key: "SOFT",
@@ -559,6 +576,22 @@ export function EntryRuleFields({
               })}
             </div>
           </fieldset>
+          {softWarning ? (
+            <p className="flex items-start gap-2 text-note text-warning">
+              <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <span>
+                {softWarning}{" "}
+                {rulesCtx?.welcomeHref ? (
+                  <Link
+                    href={rulesCtx.welcomeHref}
+                    className="font-medium text-brand-ink underline underline-offset-4"
+                  >
+                    Modifier le message d&apos;accueil
+                  </Link>
+                ) : null}
+              </span>
+            </p>
+          ) : null}
           {state.manual ? (
             <ManualNote />
           ) : (
@@ -571,7 +604,7 @@ export function EntryRuleFields({
               unit={state.gateCustomUnit}
               help={
                 state.gateMode === "REQUIRED"
-                  ? "Le délai part du clic sur « ✅ J'ai rejoint »."
+                  ? "Le délai part du moment où tous les canaux sont rejoints."
                   : "Le délai part de la demande."
               }
               onChange={(p) =>
@@ -651,11 +684,11 @@ export function EntryRuleFields({
               className="w-28"
             />
           </div>
-          <p id={`${id}-reminders-help`} className="text-note text-muted-foreground">
-            {state.manual
-              ? "Aucun rappel ne part tant que vous validez vous-même chaque demande."
-              : `${remindersSentence(parseReminders(state.reminders), state.maxReminders)} Seulement pour les personnes qui n'ont pas encore rejoint les canaux obligatoires, et si elles ont accepté les messages du bot.`}
-          </p>
+          <div id={`${id}-reminders-help`} className="space-y-1 text-note text-muted-foreground">
+            {reminderLines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[12rem_1fr]">
@@ -720,6 +753,7 @@ export function EntryRuleFields({
  */
 export function EntryRuleForm({
   channelId,
+  ruleId = null,
   hasRule,
   initial,
   channels,
@@ -730,6 +764,8 @@ export function EntryRuleForm({
   gateSkip = null,
 }: {
   channelId: string;
+  /** Règle par défaut enregistrée (demandes en attente qui suivent encore son ancienne version). */
+  ruleId?: string | null;
   /** Une règle est enregistrée et active pour ce canal. */
   hasRule: boolean;
   initial: EntryFormState;
@@ -796,76 +832,85 @@ export function EntryRuleForm({
   }
 
   return (
-    <form
-      action={action}
-      className="space-y-8"
-      onSubmit={(e) => {
-        // « Vérifier les liens » n'enregistre pas la règle : pas de contrôle des champs.
-        const submitter = (e.nativeEvent as SubmitEvent).submitter;
-        if (submitter?.hasAttribute("data-verify-links")) return;
-        if (problem) {
-          e.preventDefault();
-          setShowProblem(true);
-          // Le message n'est affiché qu'au rendu suivant : le focus y va une fois qu'il existe.
-          requestAnimationFrame(() => problemRef.current?.focus());
-        }
-      }}
-    >
-      <input type="hidden" name="channelId" value={channelId} />
-      {fields.map(([name, value], i) => (
-        <input key={`${name}-${i}`} type="hidden" name={name} value={value} />
-      ))}
+    <div className="space-y-4">
+      <form
+        action={action}
+        className="space-y-8"
+        onSubmit={(e) => {
+          // « Vérifier les liens » n'enregistre pas la règle : pas de contrôle des champs.
+          const submitter = (e.nativeEvent as SubmitEvent).submitter;
+          if (submitter?.hasAttribute("data-verify-links")) return;
+          if (problem) {
+            e.preventDefault();
+            setShowProblem(true);
+            // Le message n'est affiché qu'au rendu suivant : le focus y va une fois qu'il existe.
+            requestAnimationFrame(() => problemRef.current?.focus());
+          }
+        }}
+      >
+        <input type="hidden" name="channelId" value={channelId} />
+        {fields.map(([name, value], i) => (
+          <input key={`${name}-${i}`} type="hidden" name={name} value={value} />
+        ))}
 
-      <div aria-live="polite" className="flex gap-3 rounded-xl border border-border bg-surface p-4">
-        <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-ink" />
-        <div className="min-w-0">
-          <p className="text-body font-semibold text-foreground">{sentence}</p>
-          {expiration ? <p className="mt-1 text-body text-muted-foreground">{expiration}</p> : null}
-          {exceptionsCount > 0 ? (
-            <p className="mt-1 text-body text-muted-foreground">
-              Sauf {exceptionsCount > 1 ? `${exceptionsCount} exceptions` : "1 exception"} selon la
-              provenance, plus bas.
+        <div
+          aria-live="polite"
+          className="flex gap-3 rounded-xl border border-border bg-surface p-4"
+        >
+          <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-ink" />
+          <div className="min-w-0">
+            <p className="text-body font-semibold text-foreground">{sentence}</p>
+            {expiration ? (
+              <p className="mt-1 text-body text-muted-foreground">{expiration}</p>
+            ) : null}
+            {exceptionsCount > 0 ? (
+              <p className="mt-1 text-body text-muted-foreground">
+                Sauf {exceptionsCount > 1 ? `${exceptionsCount} exceptions` : "1 exception"} selon
+                la provenance, plus bas.
+              </p>
+            ) : null}
+            {dirty ? (
+              <p className="mt-1 text-note text-muted-foreground">
+                {hasRule
+                  ? "Modifications pas encore enregistrées."
+                  : "Règle pas encore enregistrée : les demandes attendent toujours votre validation."}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <EntryRuleFields
+          state={state}
+          setState={setState}
+          channels={channels}
+          initial={hasRule ? initial : null}
+          variant="default"
+          gateStatus={hasRule ? gateStatus : null}
+          gateSkip={gateSkip}
+        />
+
+        <div className="space-y-3">
+          {showProblem && problem ? (
+            <p
+              ref={problemRef}
+              tabIndex={-1}
+              role="alert"
+              className="flex items-start gap-2 text-body text-danger outline-none"
+            >
+              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {problem}
             </p>
           ) : null}
-          {dirty ? (
-            <p className="mt-1 text-note text-muted-foreground">
-              {hasRule
-                ? "Modifications pas encore enregistrées."
-                : "Règle pas encore enregistrée : les demandes attendent toujours votre validation."}
+          <div className="flex flex-wrap items-center gap-3">
+            <SubmitButton />
+            <p className="text-note text-muted-foreground">
+              S&apos;applique aux prochaines demandes.
             </p>
-          ) : null}
+          </div>
         </div>
-      </div>
-
-      <EntryRuleFields
-        state={state}
-        setState={setState}
-        channels={channels}
-        initial={hasRule ? initial : null}
-        variant="default"
-        gateStatus={hasRule ? gateStatus : null}
-        gateSkip={gateSkip}
-      />
-
-      <div className="space-y-3">
-        {showProblem && problem ? (
-          <p
-            ref={problemRef}
-            tabIndex={-1}
-            role="alert"
-            className="flex items-start gap-2 text-body text-danger outline-none"
-          >
-            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {problem}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-3">
-          <SubmitButton />
-          <p className="text-note text-muted-foreground">
-            S&apos;applique aux prochaines demandes.
-          </p>
-        </div>
-      </div>
-    </form>
+      </form>
+      {/* Demandes en cours qui suivent l'ancienne version de la règle enregistrée (pas pendant une modification). */}
+      {hasRule && !dirty ? <ApplyRulePending ruleId={ruleId} /> : null}
+    </div>
   );
 }

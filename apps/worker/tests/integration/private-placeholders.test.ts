@@ -132,7 +132,9 @@ describe("messages privés : repères remplacés à l'envoi (base réelle)", () 
       const m = await prisma.member.create({
         data: { ...p, languageCode: "fr", tags: ["test-prenom"] },
       });
-      await prisma.memberBotState.create({ data: { memberId: m.id, botId, canDm: true } });
+      await prisma.memberBotState.create({
+        data: { memberId: m.id, botId, canDm: true, startedAt: new Date() },
+      });
     }
     const b = await prisma.broadcast.create({
       data: {

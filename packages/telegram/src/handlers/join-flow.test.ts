@@ -109,7 +109,7 @@ type State = {
   dms: Array<{
     kind: string;
     text: string;
-    buttons: Array<Array<{ text: string; url: string }>>;
+    buttons: Array<Array<{ text: string; url?: string; callbackData?: string }>>;
     chatId: bigint | null;
   }>;
   events: string[];
@@ -422,11 +422,13 @@ describe("chat_join_request", () => {
     expect(btns).toHaveLength(3);
     expect(btns[0]![0]!.text).toBe("Rejoindre Canal B");
     expect(btns[2]![0]!.text).toBe("✅ J'ai rejoint");
-    expect(btns[2]![0]!.url).toBe(`https://t.me/casinobot?start=g${m.code}`);
+    // Phase 14 : bouton à rappel (marche sans « Démarrer »), plus un lien /start.
+    expect(btns[2]![0]!.callbackData).toBe(`g:${m.code}`);
+    expect(btns[2]![0]!.url).toBeUndefined();
     expect((m.source.gates as unknown[]).length).toBe(2);
   });
 
-  it("gate SOFT : planifié malgré tout, canaux proposés", async () => {
+  it("gate SOFT : planifié malgré tout, canaux proposés (sans « J'ai rejoint », phase 14)", async () => {
     const rule: RuleData = {
       ...IMPLICIT_RULE,
       id: "r",
@@ -438,7 +440,12 @@ describe("chat_join_request", () => {
     const { bot } = makeBot(deps);
     await bot.handleUpdate(joinRequest(-100100));
     expect(st.memberships[0]!.status).toBe("SCHEDULED");
-    expect(st.dms[0]!.buttons).toHaveLength(2);
+    // Canaux proposés : seulement « Rejoindre … », jamais « ✅ J'ai rejoint » (la personne est acceptée de toute façon).
+    expect(st.dms[0]!.buttons).toHaveLength(1);
+    expect(st.dms[0]!.buttons[0]![0]!.text).toBe("Rejoindre Canal B");
+    expect(st.dms[0]!.buttons.flat().some((b) => b.callbackData || /rejoint/.test(b.text))).toBe(
+      false,
+    );
   });
 
   it("ignore la demande si un autre bot agit pour le canal ou si le canal est inconnu", async () => {
@@ -541,7 +548,7 @@ describe("canaux à rejoindre gérés par d'autres bots (cas du client du 11 oct
       "✅ J'ai rejoint",
     ]);
     expect(btns[0]![0]!.url).toBe("https://t.me/+casino500");
-    expect(btns[2]![0]!.url).toBe(`https://t.me/casinobot?start=g${m.code}`);
+    expect(btns[2]![0]!.callbackData).toBe(`g:${m.code}`);
 
     // « J'ai rejoint » : le bot source ne peut pas lire ces canaux, les bots administrateurs vérifient.
     await bot.handleUpdate(startUpdate(`g${m.code}`));
@@ -577,7 +584,7 @@ describe("canaux à rejoindre gérés par d'autres bots (cas du client du 11 oct
     // Jamais un accueil muet sans boutons : le bouton « J'ai rejoint » est toujours là.
     expect(st.dms).toHaveLength(1);
     expect(st.dms[0]!.buttons).toEqual([
-      [{ text: "✅ J'ai rejoint", url: `https://t.me/casinobot?start=g${m.code}` }],
+      [{ text: "✅ J'ai rejoint", callbackData: `g:${m.code}` }],
     ]);
     const missing = m.source.gateLinksMissing as Array<Record<string, unknown>>;
     expect(missing.map((p) => p.title)).toEqual(["LA ZONE ROULETTE 🎰", "🎯 TIR CADRÉ ⚡"]);

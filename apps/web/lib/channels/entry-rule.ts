@@ -51,7 +51,8 @@ export const DELAY_PRESETS: readonly DelayPreset[] = [
 ];
 
 /**
- * « Puis accepter » de « Après avoir rejoint ces canaux » (phase 11) : le délai part du clic sur « ✅ J'ai rejoint ».
+ * « Puis accepter » de « Après avoir rejoint ces canaux » (phase 11) : le délai part du moment où tous les canaux sont
+ * rejoints (vu par le bot tout seul depuis la phase 14, ou au clic sur « ✅ J'ai rejoint »).
  * Une valeur enregistrée hors de ces choix (ex. 10 minutes) s'affiche en « Sur mesure », sans être perdue.
  */
 export const GATE_DELAY_PRESETS: readonly DelayPreset[] = [
@@ -76,9 +77,18 @@ export const DELAY_UNITS: ReadonlyArray<{ key: DelayUnit; label: string; seconds
   { key: "days", label: "jours", seconds: 86400 },
 ];
 
-/** Valeurs par défaut d'une règle (celles de la base et de l'ancien formulaire). */
+/**
+ * Rappels d'une nouvelle règle (phase 14) : 4 minutes, tant que Telegram laisse encore le bot écrire à la personne
+ * (5 minutes après sa demande), puis 1 heure. Les règles déjà enregistrées gardent leurs rappels.
+ */
+export const NEW_RULE_REMINDERS = "4, 60";
+
+/** Anciens rappels par défaut (avant la phase 14) : 1 heure puis 1 jour. */
+export const LEGACY_REMINDERS = "60, 1440";
+
+/** Valeurs par défaut d'une nouvelle règle. */
 export const RULE_DEFAULTS = {
-  reminders: "60, 1440",
+  reminders: NEW_RULE_REMINDERS,
   maxReminders: 2,
   expireAfterHours: 0,
   expireAction: "KEEP" as ExpireAction,
@@ -405,7 +415,13 @@ export function welcomeOption(
 export function advancedModifiedCount(state: EntryFormState): number {
   let n = 0;
   if (state.manual) n++;
-  if (parseReminders(state.reminders).join(",") !== "60,1440") n++;
+  // Les rappels d'une nouvelle règle et les anciens rappels par défaut ne comptent pas comme un réglage modifié.
+  const reminders = parseReminders(state.reminders).join(",");
+  if (
+    reminders !== parseReminders(NEW_RULE_REMINDERS).join(",") &&
+    reminders !== parseReminders(LEGACY_REMINDERS).join(",")
+  )
+    n++;
   if (state.maxReminders !== RULE_DEFAULTS.maxReminders) n++;
   if (state.expireAfterHours !== RULE_DEFAULTS.expireAfterHours) n++;
   if (state.expireAction !== RULE_DEFAULTS.expireAction) n++;
@@ -514,6 +530,7 @@ export function entryShort(rule: EntryRule | null | undefined): string {
 
 /** Rappels proposés en pastilles (minutes après la demande), dans le bloc « Avancé ». */
 export const REMINDER_PRESETS: ReadonlyArray<{ minutes: number; label: string }> = [
+  { minutes: 4, label: "4 minutes" },
   { minutes: 30, label: "30 minutes" },
   { minutes: 60, label: "1 heure" },
   { minutes: 360, label: "6 heures" },
@@ -636,4 +653,46 @@ export function entryShortWithExceptions(
 ): string {
   const short = entryShort(rule);
   return exceptions > 0 ? `${short} · ${exceptionsCountLabel(exceptions)}` : short;
+}
+
+/**
+ * Rappels d'une règle copiée (nouvelle exception, phase 14) : les anciens rappels par défaut (1 heure puis 1 jour)
+ * deviennent ceux d'une nouvelle règle (4 minutes puis 1 heure) ; des rappels choisis par l'équipe restent tels quels.
+ */
+export function freshReminders(reminders: string): string {
+  const sorted = [...parseReminders(reminders)].sort((a, b) => a - b).join(",");
+  return sorted === parseReminders(LEGACY_REMINDERS).join(",") ? NEW_RULE_REMINDERS : reminders;
+}
+
+/** À côté du réglage des rappels : ils ne partent qu'avec des canaux obligatoires. */
+export const REMINDERS_ONLY_REQUIRED = "Les rappels n'existent qu'avec des canaux obligatoires.";
+
+/** À côté du réglage des rappels : la fenêtre de 5 minutes de Telegram après la demande. */
+export const REMINDERS_LATE_NOTE =
+  "Après 5 minutes, Telegram ne transmet vos rappels qu'aux personnes qui ont déjà écrit au bot.";
+
+/** Telegram laisse le bot écrire à une personne pendant 5 minutes après sa demande (même sans « Démarrer »). */
+export const DM_WINDOW_MINUTES = 5;
+
+/**
+ * Lignes d'aide sous les rappels (bloc « Avancé ») : ce qui partira, puis les deux limites (canaux obligatoires
+ * seulement ; après 5 minutes, seulement aux personnes qui ont déjà écrit au bot) et, si aucun rappel ne part avant
+ * 5 minutes, le conseil de cocher « 4 minutes ».
+ */
+export function remindersHelp(
+  state: Pick<EntryFormState, "manual" | "choice" | "gateMode" | "reminders" | "maxReminders">,
+): string[] {
+  if (state.manual) return ["Aucun rappel ne part tant que vous validez vous-même chaque demande."];
+  if (state.choice !== "gate" || state.gateMode !== "REQUIRED")
+    return [`${REMINDERS_ONLY_REQUIRED} Avec ce choix, aucun rappel ne part.`];
+  const minutes = parseReminders(state.reminders);
+  const sent = minutes.slice(0, Math.max(0, state.maxReminders));
+  const lines = [
+    remindersSentence(minutes, state.maxReminders),
+    REMINDERS_ONLY_REQUIRED,
+    REMINDERS_LATE_NOTE,
+  ];
+  if (sent.length > 0 && !sent.some((m) => m < DM_WINDOW_MINUTES))
+    lines.push("Cochez « 4 minutes » : un rappel avant 5 minutes arrive à tout le monde.");
+  return lines;
 }

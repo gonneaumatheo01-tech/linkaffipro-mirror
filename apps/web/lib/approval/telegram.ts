@@ -2,6 +2,7 @@ import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
+import { memberReachabilityWithDb } from "@linkaffipro/telegram";
 
 /** Bot qui agit pour un canal (principal s'il est administrateur, sinon premier administrateur). */
 export async function actingBotFor(channelId: string) {
@@ -95,7 +96,24 @@ export async function approveNow(
   // Entrée directe silencieuse (personne venue du bouton « canal à rejoindre » d'un canal sans règle, phase 11) :
   // aucun message, comme le worker (isSilentDirectEntry).
   const silent = (m.source as { noRule?: unknown } | null)?.noRule === "IMMEDIATE";
-  if (!silent && (!rule || rule.sendAcceptedMessage)) {
+  // « Accepté » seulement si le bot peut encore écrire à la personne (phase 14) : elle a démarré le bot (ou appuyé sur
+  // un de ses boutons), ou sa demande a moins de 5 minutes. Sinon rien n'est envoyé (jamais « a bloqué le bot »).
+  const reach =
+    !silent && (!rule || rule.sendAcceptedMessage)
+      ? await memberReachabilityWithDb(m.memberId, bot.id, {
+          userChatId: m.userChatId,
+          requestedAt: m.requestedAt,
+        })
+      : null;
+  if (reach && !reach.reachable)
+    await recordEvent({
+      type: "dm.skipped_unreachable",
+      memberId: m.memberId,
+      channelId: m.channelId,
+      botId: bot.id,
+      payload: { membershipId: m.id, kind: "ACCEPTED", reason: reach.reason, manual: true },
+    });
+  if (reach?.reachable) {
     const text = `Bienvenue dans <b>${escapeHtml(m.channel.title)}</b>${m.member.firstName ? `, ${escapeHtml(m.member.firstName)}` : ""} ! Tu es accepté.`;
     await enqueueDm({
       botId: bot.id,

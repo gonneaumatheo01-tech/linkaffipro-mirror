@@ -255,9 +255,12 @@ describe("adhésion de bout en bout : demande → file → approbation par le wo
     const welcome = await prisma.outboundMessage.findFirstOrThrow({
       where: { memberId: member.id, kind: "WELCOME" },
     });
-    const buttons = welcome.buttons as Array<Array<{ text: string; url: string }>>;
+    const buttons = welcome.buttons as Array<
+      Array<{ text: string; url?: string; callbackData?: string }>
+    >;
     expect(buttons[0]?.[0]?.url).toBe(gateLink!.telegramInviteLink);
-    expect(buttons[1]?.[0]?.url).toBe(`https://t.me/bot_test?start=g${membership.code}`);
+    // Phase 14 : « ✅ J'ai rejoint » est un bouton à rappel (marche sans « Démarrer ») ; l'ancien lien reste valable.
+    expect(buttons[1]?.[0]?.callbackData).toBe(`g:${membership.code}`);
 
     // Rien à approuver tant que le canal requis n'est pas rejoint.
     expect(await processApprovals(fakeJob({ type: "tick" as const }))).toEqual({
@@ -554,9 +557,7 @@ describe("canaux à rejoindre gérés par d'autres bots : de bout en bout et rap
     const welcome = await prisma.outboundMessage.findFirstOrThrow({
       where: { memberId: member.id, kind: "WELCOME" },
     });
-    expect(welcome.buttons).toEqual([
-      [{ text: "✅ J'ai rejoint", url: `https://t.me/bot_333?start=g${m.code}` }],
-    ]);
+    expect(welcome.buttons).toEqual([[{ text: "✅ J'ai rejoint", callbackData: `g:${m.code}` }]]);
     expect((m.source as { gates: unknown[] }).gates).toEqual([]);
     expect((m.source as { gateLinksMissing: unknown[] }).gateLinksMissing).toHaveLength(1);
 

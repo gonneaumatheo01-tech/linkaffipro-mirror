@@ -13,6 +13,7 @@ import {
   channelList,
   delayLabel,
   effectiveDelay,
+  freshReminders,
   hasGate,
   presetForSeconds,
   splitDelay,
@@ -261,7 +262,8 @@ export function whenShort(item: Pick<ExceptionItem, "scope" | "sourceChannelId" 
 
 /**
  * Phrase de résumé sous la ligne : « Une personne venue de « Tir Cadré » sera acceptée 1 jour après sa demande. »
- * Le délai après des canaux obligatoires part du clic sur « ✅ J'ai rejoint ».
+ * Le délai après des canaux obligatoires part du moment où la personne les a tous rejoints (vu par le bot, ou à
+ * « ✅ J'ai rejoint »).
  */
 export function exceptionSentence(
   item: Pick<ExceptionItem, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId" | "rule">,
@@ -282,7 +284,7 @@ export function exceptionSentence(
   if (gates.length > 0 && rule.gateMode === "REQUIRED")
     return delay === 0
       ? `${who} sera acceptée dès qu'elle aura rejoint ${list}.`
-      : `${who} sera acceptée ${delayLabel(delay)} après avoir rejoint ${list} (à partir de son clic sur « ✅ J'ai rejoint »).`;
+      : `${who} sera acceptée ${delayLabel(delay)} après avoir rejoint ${list} (à partir du moment où elle les a tous rejoints).`;
   const when = delay === 0 ? "tout de suite" : `${delayLabel(delay)} après sa demande`;
   if (gates.length > 0)
     return `${who} sera acceptée ${when} ; le bot lui propose aussi de rejoindre ${list}.`;
@@ -565,9 +567,11 @@ export function suggestedProvenance(
  * de « puis accepter » devient alors un simple délai.
  */
 export function newExceptionState(
-  base: EntryFormState,
+  base0: EntryFormState,
   target: Pick<ExceptionTarget, "scope" | "sourceKind"> | null,
 ): EntryFormState {
+  // Nouvelle règle (phase 14) : les anciens rappels par défaut deviennent 4 minutes puis 1 heure.
+  const base = { ...base0, reminders: freshReminders(base0.reminders) };
   if (!target || !isFromOurChannels(target)) return { ...base, gateIds: [...base.gateIds] };
   if (base.choice !== "gate") return { ...base, gateIds: [] };
   const seconds = stateDelaySeconds(base);

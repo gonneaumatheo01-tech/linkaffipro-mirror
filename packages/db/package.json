@@ -22,6 +22,7 @@
     "db:phase10": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase10-templates.ts",
     "db:phase10:gains": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase10-gains.ts",
     "db:phase11": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase11-gate-exceptions.ts",
+    "db:phase14": "node --env-file-if-exists=../../.env.local --import tsx prisma/phase14-gates.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -52,12 +52,16 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^member\.affiliate_changed$/, "Membre : affilié Link Affi changé"],
   [/^member\.affiliate_removed$/, "Membre : affilié Link Affi retiré"],
   [/^member\./, "Membre"],
+  // « Tout accepter » de l'onglet Demandes (phase 14), avant la famille générale.
+  [/^membership\.approve_all$/, "Demandes : tout accepter"],
   [/^membership\./, "Adhésion"],
   // Exceptions selon la provenance (phase 11), avant la famille générale.
   [/^approval_rule\.exception_created$/, "Règle d'adhésion : exception ajoutée"],
   [/^approval_rule\.exception_updated$/, "Règle d'adhésion : exception modifiée"],
   [/^approval_rule\.exception_deleted$/, "Règle d'adhésion : exception supprimée"],
   [/^approval_rule\.exceptions_reordered$/, "Règle d'adhésion : ordre des exceptions modifié"],
+  // Phase 14 : « Leur appliquer la nouvelle règle ».
+  [/^approval_rule\.applied_to_pending$/, "Règle d'adhésion : appliquée aux demandes en attente"],
   [/^approval_rule\./, "Règle d'adhésion"],
   [/^tag\./, "Étiquette"],
   [/^media\./, "Média"],

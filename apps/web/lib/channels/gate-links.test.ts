@@ -54,6 +54,26 @@ describe("gateLinkRows : état de chaque canal à rejoindre dans l'éditeur", ()
       ok: true,
       text: "Tout est prêt : le bot envoie un bouton par canal et « ✅ J'ai rejoint ».",
     });
+    expect(gateLinksSummary(rows, "REQUIRED").text).toBe(
+      "Tout est prêt : le bot envoie un bouton par canal et « ✅ J'ai rejoint ».",
+    );
+  });
+
+  it("canaux « Proposés » : tout est prêt, sans promettre « ✅ J'ai rejoint » (le bot ne l'envoie pas)", () => {
+    const rows = gateLinkRows({
+      ...base,
+      gateMode: "SOFT",
+      links: { roulette: "casinogamblingoobot", tir: "sportbettingoobot" },
+      admins: {},
+      lastCheck: null,
+    });
+    expect(gateLinksSummary(rows, "SOFT")).toEqual({
+      ok: true,
+      text: "Tout est prêt : le bot envoie un bouton par canal.",
+    });
+    // Un problème reste signalé de la même façon.
+    const bad = gateLinkRows({ ...base, gateMode: "SOFT", links: {}, admins: {}, lastCheck: null });
+    expect(gateLinksSummary(bad, "SOFT").ok).toBe(false);
   });
 
   it("aucun bot administrateur : le canal en cause et la solution en français clair", () => {

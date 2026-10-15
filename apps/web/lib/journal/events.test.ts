@@ -109,6 +109,62 @@ describe("Journal → vue « Événements »", () => {
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 
+  it("phase 14 : injoignable distinct de bloqué, validation automatique, règle réappliquée", () => {
+    // Sans détail : libellé neutre (le refus couvre aussi un compte supprimé, un chat introuvable…).
+    expect(eventLabel("dm.unreachable")).toBe(
+      "Message privé refusé : le bot ne peut plus écrire à cette personne",
+    );
+    expect(eventLabel("dm.skipped_unreachable")).toBe(
+      "Message privé non envoyé : le bot ne peut plus écrire à cette personne",
+    );
+    // Un vrai blocage reste « A bloqué le bot » / « bot bloqué ».
+    expect(eventLabel("member.blocked")).toBe("A bloqué le bot");
+    expect(eventLabel("dm.blocked")).toBe("Message privé refusé (bot bloqué)");
+    expect(eventLabel("membership.rule_applied")).toBe("Nouvelle règle appliquée à la demande");
+    // Canaux rejoints : vus par le bot tout seul, ou au bouton « ✅ J'ai rejoint ».
+    expect(eventLabel("membership.gate_satisfied")).toBe("Canaux requis rejoints");
+    expect(eventLabel("membership.gate_satisfied", { auto: true, trigger: "chat_member" })).toBe(
+      "Canaux requis rejoints (vérifié automatiquement)",
+    );
+    expect(eventLabel("membership.gate_satisfied", { auto: false })).toBe("Canaux requis rejoints");
+    expect(eventLabel("membership.gate_satisfied", null)).toBe("Canaux requis rejoints");
+    expect(eventLabel("dm.sent", { auto: true })).toBe("Message privé envoyé");
+  });
+
+  it("phase 14 : message privé refusé ou non envoyé, selon la raison (jamais « jamais démarré » pour un blocage)", () => {
+    // Refus de Telegram (`dm.unreachable`, erreur exacte gardée dans `telegramError`).
+    const refused = (telegramError: string | null) =>
+      eventLabel("dm.unreachable", { kind: "GATE_REMINDER", telegramError });
+    expect(refused("403 Forbidden: bot can't initiate conversation with a user")).toBe(
+      "Message privé refusé : la personne n'a jamais démarré le bot (5 minutes passées)",
+    );
+    expect(refused("403 Forbidden: user is deactivated")).toBe(
+      "Message privé refusé : compte Telegram supprimé",
+    );
+    expect(refused("400 Bad Request: chat not found")).toBe(
+      "Message privé refusé : chat privé introuvable",
+    );
+    expect(refused("403 Forbidden: something else")).toBe(
+      "Message privé refusé : le bot ne peut plus écrire à cette personne",
+    );
+    expect(refused(null)).toBe(
+      "Message privé refusé : le bot ne peut plus écrire à cette personne",
+    );
+    // Non envoyé par nous (`dm.skipped_unreachable`, raison de `reachability`).
+    const skipped = (reason: unknown) =>
+      eventLabel("dm.skipped_unreachable", { membershipId: "m1", kind: "ACCEPTED", reason });
+    expect(skipped("blocked")).toBe("Message privé non envoyé : la personne a bloqué le bot");
+    expect(skipped("never_started")).toBe(
+      "Message privé non envoyé : la personne n'a jamais démarré le bot",
+    );
+    expect(skipped("unreachable")).toBe(
+      "Message privé non envoyé : Telegram a refusé un message précédent",
+    );
+    expect(skipped("autre")).toBe(
+      "Message privé non envoyé : le bot ne peut plus écrire à cette personne",
+    );
+  });
+
   it("vocabulaire de la refonte : pas de jargon dans les libellés ni dans les familles du filtre", () => {
     const jargon = /\b(ngr|ftd|sub-id|postback|webhook|automatisation|envoi groupé|goolink)\b/i;
     for (const label of [

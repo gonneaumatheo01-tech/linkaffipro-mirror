@@ -222,7 +222,7 @@ describe("textes d'une exception", () => {
     });
     expect(whenShort(gated)).toBe("5 minutes après avoir rejoint 1 canal");
     expect(exceptionSentence(gated, names)).toBe(
-      "Une personne venue d'une pub TikTok sera acceptée 5 minutes après avoir rejoint « Zone Roulette » (à partir de son clic sur « ✅ J'ai rejoint »).",
+      "Une personne venue d'une pub TikTok sera acceptée 5 minutes après avoir rejoint « Zone Roulette » (à partir du moment où elle les a tous rejoints).",
     );
     expect(exceptionMessageNote(gated)).toBeNull();
     const soft = item("d", tiktok, {
@@ -368,6 +368,15 @@ describe("nouvelle exception", () => {
     expect(s.gateDelayPreset).toBe("5m");
     expect(s.reminders).toBe("30");
     expect(s.expireAfterHours).toBe(48);
+  });
+
+  it("nouvelle exception : les anciens rappels par défaut deviennent 4 minutes puis 1 heure (phase 14)", () => {
+    const legacy = { ...gateDefault, reminders: "60, 1440" };
+    expect(newExceptionState(legacy, targetOfKey("kind:AD_TIKTOK")).reminders).toBe("4, 60");
+    expect(newExceptionState(legacy, targetOfKey("kind:GATE")).reminders).toBe("4, 60");
+    expect(newExceptionState(legacy, null).reminders).toBe("4, 60");
+    // Rappels choisis par l'équipe : copiés tels quels.
+    expect(newExceptionState(gateDefault, targetOfKey("kind:AD_TIKTOK")).reminders).toBe("30");
   });
 
   it("venue d'un de nos canaux : aucun canal à rejoindre d'office, « puis accepter » devient le délai", () => {

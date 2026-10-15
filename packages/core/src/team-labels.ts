@@ -25,6 +25,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   custom_emoji_refused: "Emojis animés refusés par Telegram",
   telegram_account_reconnect: "Compte Telegram à reconnecter",
   linkaffi_events_stuck: "Événements Link Affi en attente",
+  bot_blocked_rate: "Personnes qui bloquent le bot après l'accueil",
 };
 
 export function alertKindLabel(kind: string): string {

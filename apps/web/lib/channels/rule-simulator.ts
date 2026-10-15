@@ -254,12 +254,15 @@ export function simulate(
     notes.push(
       "Si ce bot lui a déjà envoyé un message d'accueil il y a moins de 10 minutes, il ne lui réécrit pas.",
     );
+  // Canaux obligatoires (phase 14) : le délai part du moment où tous les canaux sont rejoints, vu par le bot tout seul
+  // (demande ou entrée dans chaque canal) ou au bouton « ✅ J'ai rejoint ».
+  const joinedAll = gateIds.length > 1 ? "tous les canaux" : "ce canal";
   const whenText = manual
     ? "Sa demande attend votre validation (onglet Demandes)."
     : required
       ? delay === 0
-        ? "Elle est acceptée dès son clic sur « ✅ J'ai rejoint »."
-        : `Elle est acceptée ${delayLabel(delay)} après son clic sur « ✅ J'ai rejoint ».`
+        ? `Elle est acceptée dès qu'elle a rejoint ${joinedAll} (vu par le bot, ou à « ✅ J'ai rejoint »).`
+        : `Elle est acceptée ${delayLabel(delay)} après avoir rejoint ${joinedAll} (vu par le bot, ou à « ✅ J'ai rejoint »).`
       : delay === 0
         ? "Elle est acceptée tout de suite."
         : `Elle est acceptée ${delayLabel(delay)} après sa demande.`;
@@ -269,10 +272,14 @@ export function simulate(
     : delay === 0
       ? ", accès tout de suite"
       : `, accès dans ${delayLabel(delay)}`;
+  // « ✅ J'ai rejoint » seulement avec des canaux obligatoires : en « Proposés », l'accueil n'a que les boutons des
+  // canaux (phase 14, décision E5).
   const messageText =
     kind === "full"
       ? hasGates
-        ? "Le bot lui envoie son message d'accueil, avec un bouton par canal et « ✅ J'ai rejoint »."
+        ? required
+          ? "Le bot lui envoie son message d'accueil, avec un bouton par canal et « ✅ J'ai rejoint »."
+          : "Le bot lui envoie son message d'accueil, avec un bouton par canal."
         : "Le bot lui envoie son message d'accueil."
       : kind === "short"
         ? `Le bot lui envoie seulement un court message : sa demande pour « ${ctx.channelTitle} » est bien reçue${access}.`

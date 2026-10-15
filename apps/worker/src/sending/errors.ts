@@ -5,11 +5,34 @@ export type TelegramFailure = {
   retryable: boolean;
   /** Attente imposée par Telegram (429), en ms. */
   retryAfterMs?: number;
-  /** Le destinataire a bloqué le bot / chat introuvable : ne plus réessayer, marquer BLOCKED. */
+  /**
+   * La personne a bloqué le bot : Telegram répond « Forbidden: bot was blocked by the user » (phase 14, décision E1 :
+   * seul vrai blocage connu par une erreur). Ne plus réessayer, marquer BLOCKED.
+   */
   blocked: boolean;
+  /**
+   * Le bot ne peut pas écrire à cette personne, sans qu'elle l'ait bloqué (phase 14, décision E1) : elle n'a jamais
+   * appuyé sur « Démarrer » et les 5 minutes après sa demande sont passées (« bot can't initiate conversation with a
+   * user »), compte supprimé, chat privé introuvable, autre refus 403. Ne plus réessayer, marquer FAILED.
+   */
+  unreachable: boolean;
   /** Message lisible en français pour l'interface. */
   message: string;
+  /** Erreur exacte de Telegram (« 403 Forbidden: bot can't initiate conversation with a user »), gardée dans les journaux. */
+  telegramError: string | null;
 };
+
+/** Texte d'un message privé refusé parce que la personne n'a jamais démarré le bot (décision E1). */
+export const DM_NEVER_STARTED_MESSAGE =
+  "Le bot ne peut plus écrire à cette personne : elle n'a jamais appuyé sur « Démarrer » et les 5 minutes après sa demande sont passées.";
+/** Texte d'un message privé refusé parce que la personne a bloqué le bot. */
+export const DM_BLOCKED_MESSAGE = "Cette personne a bloqué le bot.";
+
+/** Blocage par la personne (seul cas où le bot est réellement « bloqué »). */
+const BLOCKED_BY_USER_RE = /bot was blocked by the user/i;
+/** Le bot n'a pas le droit d'écrire en premier (jamais démarré, fenêtre de 5 minutes passée). */
+const CANNOT_INITIATE_RE =
+  /can't initiate conversation|can not initiate conversation|cannot initiate conversation/i;
 
 const READABLE: Array<[RegExp, string]> = [
   [
@@ -40,55 +63,90 @@ const READABLE: Array<[RegExp, string]> = [
     "Message déjà supprimé ou trop ancien pour être supprimé.",
   ],
   [/message to pin not found/i, "Message à épingler introuvable."],
+  [BLOCKED_BY_USER_RE, DM_BLOCKED_MESSAGE],
+  [CANNOT_INITIATE_RE, DM_NEVER_STARTED_MESSAGE],
   [
-    /bot was kicked|bot was blocked|user is deactivated|chat not found|Forbidden/i,
-    "Le destinataire a bloqué le bot ou le chat n'existe plus.",
+    /user is deactivated/i,
+    "Compte Telegram supprimé : le bot ne peut plus écrire à cette personne.",
   ],
+  [/bot was kicked/i, "Le bot a été retiré du canal ou du groupe."],
+  [/Forbidden/i, "Telegram refuse que le bot écrive à ce destinataire."],
 ];
 
 export function describeTelegramError(err: unknown): TelegramFailure {
   if (err instanceof GrammyError) {
     const retryAfter = err.parameters?.retry_after;
+    const telegramError = `${err.error_code} ${err.description}`;
+    const base = { blocked: false, unreachable: false, telegramError };
     if (err.error_code === 429)
       return {
+        ...base,
         retryable: true,
         retryAfterMs: Math.max(1000, (retryAfter ?? 5) * 1000),
-        blocked: false,
         message: `Telegram demande d'attendre ${retryAfter ?? 5} s (trop de messages).`,
       };
     const readable = READABLE.find(([re]) => re.test(err.description))?.[1];
     // « Premium requis » n'est pas un blocage par le membre : on ne le marque jamais comme ayant bloqué le bot.
     if (err.error_code === 403 && /PREMIUM/i.test(err.description))
       return {
+        ...base,
         retryable: false,
-        blocked: false,
         message: readable ?? `Accès refusé par Telegram : ${err.description}`,
       };
+    // Seul vrai blocage connu par une erreur : « bot was blocked by the user » (décision E1).
+    if (err.error_code === 403 && BLOCKED_BY_USER_RE.test(err.description))
+      return { ...base, retryable: false, blocked: true, message: DM_BLOCKED_MESSAGE };
+    // Tout autre refus 403 : le bot ne peut pas écrire à ce destinataire, sans blocage de sa part.
     if (err.error_code === 403)
       return {
+        ...base,
         retryable: false,
-        blocked: true,
+        unreachable: true,
         message: readable ?? `Accès refusé par Telegram : ${err.description}`,
       };
     if (err.error_code >= 500)
-      return {
-        retryable: true,
-        blocked: false,
-        message: `Telegram indisponible (${err.error_code}).`,
-      };
+      return { ...base, retryable: true, message: `Telegram indisponible (${err.error_code}).` };
     return {
+      ...base,
       retryable: false,
-      blocked: /chat not found/i.test(err.description),
+      // Chat introuvable : pour un message privé, la personne est injoignable (jamais « bloqué »).
+      unreachable: /chat not found/i.test(err.description),
       message: readable ?? `Telegram a refusé (${err.error_code}) : ${err.description}`,
     };
   }
   if (err instanceof HttpError)
-    return { retryable: true, blocked: false, message: "Erreur réseau vers Telegram." };
+    return {
+      retryable: true,
+      blocked: false,
+      unreachable: false,
+      telegramError: null,
+      message: "Erreur réseau vers Telegram.",
+    };
   return {
     retryable: false,
     blocked: false,
+    unreachable: false,
+    telegramError: null,
     message: err instanceof Error ? err.message : String(err),
   };
+}
+
+/**
+ * Erreur d'un message privé (décision E1) : statut du message (BLOCKED seulement pour un vrai blocage), texte pour
+ * l'équipe et erreur exacte de Telegram. Chat introuvable : texte d'un message privé, pas d'un canal.
+ */
+export function describeDmFailure(err: unknown): TelegramFailure & {
+  status: "BLOCKED" | "FAILED";
+} {
+  const d = describeTelegramError(err);
+  if (d.blocked) return { ...d, status: "BLOCKED" };
+  if (d.unreachable && d.telegramError && /chat not found/i.test(d.telegramError))
+    return {
+      ...d,
+      status: "FAILED",
+      message: "Chat privé introuvable : le bot ne peut pas écrire à cette personne.",
+    };
+  return { ...d, status: "FAILED" };
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

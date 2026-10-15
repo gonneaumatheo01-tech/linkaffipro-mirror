@@ -2,7 +2,7 @@ import { prisma } from "@linkaffipro/db";
 import { requireUser } from "@/lib/session";
 import { csvDate, toCsv } from "@/lib/members/csv";
 import { auditActionLabel, journalWhere, parseJournalFilters } from "@/lib/journal/query";
-import { eventLabel } from "@/lib/journal/event-labels";
+import { eventRowLabels } from "@/lib/journal/event-row-labels";
 import { eventsWhere, parseEventFilters } from "@/lib/journal/events";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,7 @@ async function exportEvents(sp: Record<string, string>): Promise<Response> {
     orderBy: { occurredAt: "desc" },
     take: MAX_ROWS,
     select: {
+      id: true,
       occurredAt: true,
       type: true,
       bot: { select: { username: true } },
@@ -60,11 +61,13 @@ async function exportEvents(sp: Record<string, string>): Promise<Response> {
       member: { select: { id: true, username: true, firstName: true, anonymizedAt: true } },
     },
   });
+  // Libellés précisés par le détail de l'événement quand il en dépend (phase 14).
+  const labels = await eventRowLabels(events);
   const csv = toCsv(
     ["Quand (Paris)", "Type", "Code", "Bot", "Canal", "Membre", "Identifiant membre"],
     events.map((e) => [
       csvDate(e.occurredAt),
-      eventLabel(e.type),
+      labels.get(e.id)!,
       e.type,
       e.bot ? `@${e.bot.username}` : "",
       e.channel?.title ?? "",

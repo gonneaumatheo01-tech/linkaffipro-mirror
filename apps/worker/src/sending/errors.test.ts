@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GrammyError, HttpError } from "grammy";
-import { describeTelegramError, withTelegramRetry } from "./errors";
+import {
+  DM_NEVER_STARTED_MESSAGE,
+  describeDmFailure,
+  describeTelegramError,
+  withTelegramRetry,
+} from "./errors";
 
 function grammyError(code: number, description: string, parameters: Record<string, number> = {}) {
   return new GrammyError(
@@ -36,6 +41,42 @@ describe("erreurs Telegram", () => {
     expect(
       describeTelegramError(grammyError(403, "Forbidden: bot was blocked by the user")),
     ).toMatchObject({ blocked: true, retryable: false });
+  });
+  it("phase 14 : seul « blocked by the user » est un blocage ; « can't initiate » et les autres refus = injoignable", () => {
+    expect(
+      describeTelegramError(grammyError(403, "Forbidden: bot was blocked by the user")),
+    ).toMatchObject({
+      blocked: true,
+      unreachable: false,
+      telegramError: "403 Forbidden: bot was blocked by the user",
+    });
+    expect(
+      describeTelegramError(
+        grammyError(403, "Forbidden: bot can't initiate conversation with a user"),
+      ),
+    ).toMatchObject({
+      blocked: false,
+      unreachable: true,
+      retryable: false,
+      message: DM_NEVER_STARTED_MESSAGE,
+      telegramError: "403 Forbidden: bot can't initiate conversation with a user",
+    });
+    expect(describeTelegramError(grammyError(403, "Forbidden: user is deactivated"))).toMatchObject(
+      { blocked: false, unreachable: true, message: expect.stringMatching(/supprimé/) },
+    );
+    expect(describeDmFailure(grammyError(400, "Bad Request: chat not found"))).toMatchObject({
+      status: "FAILED",
+      blocked: false,
+      unreachable: true,
+      message: expect.stringMatching(/Chat privé introuvable/),
+    });
+    expect(
+      describeDmFailure(grammyError(403, "Forbidden: bot was blocked by the user")).status,
+    ).toBe("BLOCKED");
+    expect(
+      describeDmFailure(grammyError(403, "Forbidden: bot can't initiate conversation with a user"))
+        .status,
+    ).toBe("FAILED");
   });
   it("« Premium requis » (emojis animés) n'est jamais un blocage par le membre", () => {
     expect(

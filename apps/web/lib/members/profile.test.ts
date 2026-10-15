@@ -151,8 +151,18 @@ describe("joignable par le bot", () => {
   it("joignable dès qu'un bot peut lui écrire", () => {
     expect(
       memberReach([
-        { canDm: false, blockedAt: t("2026-10-01T00:00:00Z"), bot: { username: "a_bot" } },
-        { canDm: true, blockedAt: null, bot: { username: "b_bot" } },
+        {
+          canDm: false,
+          startedAt: null,
+          blockedAt: t("2026-10-01T00:00:00Z"),
+          bot: { username: "a_bot" },
+        },
+        {
+          canDm: true,
+          startedAt: t("2026-09-30T00:00:00Z"),
+          blockedAt: null,
+          bot: { username: "b_bot" },
+        },
       ]),
     ).toEqual({
       tone: "success",
@@ -164,13 +174,25 @@ describe("joignable par le bot", () => {
   it("a bloqué tous les bots ; n'a jamais écrit au bot", () => {
     expect(
       memberReach([
-        { canDm: false, blockedAt: t("2026-10-01T00:00:00Z"), bot: { username: "a_bot" } },
+        {
+          canDm: false,
+          startedAt: null,
+          blockedAt: t("2026-10-01T00:00:00Z"),
+          bot: { username: "a_bot" },
+        },
       ]).label,
     ).toBe("A bloqué le bot");
     expect(memberReach([]).label).toBe("Pas joignable en privé");
-    expect(memberReach([{ canDm: false, blockedAt: null, bot: { username: "a_bot" } }]).tone).toBe(
-      "muted",
-    );
+    expect(
+      memberReach([{ canDm: false, startedAt: null, blockedAt: null, bot: { username: "a_bot" } }])
+        .tone,
+    ).toBe("muted");
+  });
+  it("un accueil parti dans les 5 minutes d'une demande ne rend pas joignable (jamais démarré le bot)", () => {
+    expect(
+      memberReach([{ canDm: true, startedAt: null, blockedAt: null, bot: { username: "a_bot" } }])
+        .label,
+    ).toBe("Pas joignable en privé");
   });
 });
 

@@ -163,7 +163,7 @@ function startCommand(userId: number, payload: string, updateId: number) {
   };
 }
 
-type Buttons = Array<Array<{ text: string; url: string }>>;
+type Buttons = Array<Array<{ text: string; url?: string; callbackData?: string }>>;
 
 describe("liens des canaux à rejoindre gérés par d'autres bots (base réelle)", () => {
   const world = new GateWorld();
@@ -292,7 +292,8 @@ describe("liens des canaux à rejoindre gérés par d'autres bots (base réelle)
       "✅ J'ai rejoint",
     ]);
     expect(buttons[0]![0]!.url).toBe(gates[0]!.telegramInviteLink);
-    expect(buttons[2]![0]!.url).toBe(`https://t.me/bot_333?start=g${m.code}`);
+    // Phase 14 : « ✅ J'ai rejoint » est un bouton à rappel (l'ancien lien /start g… reste valable).
+    expect(buttons[2]![0]!.callbackData).toBe(`g:${m.code}`);
     expect((m.source as { gateLinksMissing?: unknown[] }).gateLinksMissing).toEqual([]);
     expect(await listGateLinksMissing({ channelId: ids.zone })).toEqual([]);
 
@@ -327,9 +328,7 @@ describe("liens des canaux à rejoindre gérés par d'autres bots (base réelle)
     const welcome = await prisma.outboundMessage.findFirstOrThrow({
       where: { memberId: member.id, kind: "WELCOME" },
     });
-    expect(welcome.buttons).toEqual([
-      [{ text: "✅ J'ai rejoint", url: `https://t.me/bot_333?start=g${m.code}` }],
-    ]);
+    expect(welcome.buttons).toEqual([[{ text: "✅ J'ai rejoint", callbackData: `g:${m.code}` }]]);
     const ev = await prisma.event.findFirstOrThrow({
       where: { type: "membership.gate_links_missing", memberId: member.id },
     });
@@ -537,7 +536,7 @@ describe("liens des canaux à rejoindre gérés par d'autres bots (base réelle)
     expect((welcome.buttons as Buttons).map((r) => r[0]!)).toEqual([
       { text: "Rejoindre LA ZONE ROULETTE 🎰", url: roulette.telegramInviteLink },
       { text: "Rejoindre 🎯 TIR CADRÉ ⚡", url: tir.telegramInviteLink },
-      { text: "✅ J'ai rejoint", url: "https://t.me/bot_333?start=gancien01" },
+      { text: "✅ J'ai rejoint", callbackData: "g:ancien01" },
     ]);
     expect(await listGateLinksMissing({ channelId: ids.zone })).toEqual([]);
   });

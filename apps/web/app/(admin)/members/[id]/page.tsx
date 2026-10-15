@@ -34,7 +34,13 @@ import {
   sourceChannelIdsOf,
 } from "@/lib/channels/provenance-display";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum, fmtRelative } from "@/lib/format";
-import { adLabel, memberProfile, memberSubline, plural } from "@/lib/members/profile";
+import {
+  adLabel,
+  botStateReach,
+  memberProfile,
+  memberSubline,
+  plural,
+} from "@/lib/members/profile";
 import { displayName, getSpendThresholds } from "@/lib/members/query";
 import { getTagRegistry, memberTags, tagColorClass } from "@/lib/members/tags";
 import { buildTimeline, paginateTimeline } from "@/lib/members/timeline";
@@ -625,10 +631,13 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                   className="flex min-h-10 flex-wrap items-center justify-between gap-2 py-1.5"
                 >
                   <span className="min-w-0 break-all">@{s.bot.username}</span>
-                  {s.canDm ? (
+                  {botStateReach(s) === "reachable" ? (
                     <StatusPill tone="success">Joignable</StatusPill>
-                  ) : s.blockedAt ? (
-                    <StatusPill tone="danger" title={`Depuis le ${fmtDate(s.blockedAt)}`}>
+                  ) : botStateReach(s) === "blocked" ? (
+                    <StatusPill
+                      tone="danger"
+                      title={s.blockedAt ? `Depuis le ${fmtDate(s.blockedAt)}` : undefined}
+                    >
                       A bloqué le bot
                     </StatusPill>
                   ) : (

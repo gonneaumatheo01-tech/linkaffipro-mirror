@@ -3,6 +3,8 @@ import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   dueReminderIndex,
   expirationOutcome,
+  gateCallbackData,
+  reachability,
   ruleDelayText,
   ruleForMembershipWithDb,
   type RuleData,
@@ -133,29 +135,53 @@ export async function refreshReminderGates(
 
 type PendingReminder = Awaited<ReturnType<typeof pendingReminders>>[number];
 
+const reminderInclude = {
+  member: {
+    select: {
+      firstName: true,
+      languageCode: true,
+      botStates: { select: { botId: true, canDm: true, startedAt: true, blockedAt: true } },
+    },
+  },
+  channel: { select: { title: true, language: true } },
+} as const;
+
 function pendingReminders() {
   return prisma.membership.findMany({
     where: { status: "PENDING_GATE", channel: { isActive: true } },
-    include: {
-      member: {
-        select: {
-          firstName: true,
-          languageCode: true,
-          botStates: { select: { botId: true, canDm: true } },
-        },
-      },
-      channel: { select: { title: true, language: true } },
-    },
+    include: reminderInclude,
     take: 500,
   });
 }
 
 /**
- * Rappel d'une demande (si échu et si le bot peut écrire au membre) : liens recalculés, texte en HTML Telegram avec les
- * valeurs échappées (un prénom « Tom <3 » ne fait plus refuser le message). Renvoie vrai si un rappel est parti.
+ * Réserve le rappel `index` d'une demande (mise à jour conditionnelle) : un seul envoi même si la tâche différée du
+ * rappel à 4 minutes et le passage toutes les 5 minutes tombent en même temps. Vrai si ce passage l'a réservé.
+ */
+async function claimReminder(
+  membershipId: string,
+  index: number,
+  now: Date,
+  sent: boolean,
+): Promise<boolean> {
+  const r = await prisma.membership.updateMany({
+    where: { id: membershipId, status: "PENDING_GATE", remindersSent: index },
+    data: { remindersSent: index + 1, ...(sent ? { lastReminderAt: now } : {}) },
+  });
+  return r.count > 0;
+}
+
+/**
+ * Rappel d'une demande (si échu) : seulement avec des canaux obligatoires (les rappels n'existent qu'avec eux) et
+ * seulement si le bot peut encore écrire à la personne (phase 14, décision E2 : elle a démarré le bot ou appuyé sur un
+ * de ses boutons, ou la demande a moins de 5 minutes). Personne injoignable : le rappel est compté comme passé, rien
+ * n'est envoyé (événement `dm.skipped_unreachable`). Liens recalculés, texte en HTML Telegram avec les valeurs
+ * échappées (un prénom « Tom <3 » ne fait plus refuser le message), bouton à rappel « ✅ J'ai rejoint ». Renvoie vrai
+ * si un rappel est parti.
  */
 async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
   const rule = await ruleOf(m);
+  if (rule.gateMode !== "REQUIRED" || rule.gateChannelIds.length === 0) return false;
   const idx = dueReminderIndex(
     rule,
     { requestedAt: m.requestedAt, remindersSent: m.remindersSent },
@@ -168,8 +194,26 @@ async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
   };
   const botId = source.botId;
   if (!botId) return false;
-  const state = m.member.botStates.find((s) => s.botId === botId);
-  if (!state?.canDm) return false;
+  const state = m.member.botStates.find((s) => s.botId === botId) ?? null;
+  const reach = reachability(state, { userChatId: m.userChatId, requestedAt: m.requestedAt }, now);
+  if (!reach.reachable) {
+    // Rappel passé sans envoi (Telegram ne le transmettrait pas) : compté, pour ne pas le retenter à chaque passage.
+    if (await claimReminder(m.id, idx, now, false))
+      await recordEvent({
+        type: "dm.skipped_unreachable",
+        memberId: m.memberId,
+        channelId: m.channelId,
+        botId,
+        payload: {
+          membershipId: m.id,
+          kind: "GATE_REMINDER",
+          index: idx,
+          reason: reach.reason,
+        } as Prisma.InputJsonValue,
+      });
+    return false;
+  }
+  if (!(await claimReminder(m.id, idx, now, true))) return false;
   const { gateChannels, gates, botUsername } = await refreshReminderGates(
     { ...m, source },
     rule,
@@ -199,11 +243,13 @@ async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
     delai: ruleDelayText(rule, lang),
     bot: botUsername ? `@${botUsername}` : "",
   });
-  const buttons = gates.map((g) => [
-    { text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url },
+  const buttons: Array<Array<{ text: string; url?: string; callbackData?: string }>> = gates.map(
+    (g) => [{ text: `${defaultText("joinLabel", lang)} ${g.title}`, url: g.url }],
+  );
+  // Bouton à rappel « ✅ J'ai rejoint » (phase 14) : marche sans « Démarrer ».
+  buttons.push([
+    { text: defaultText("joinedLabel", lang), callbackData: gateCallbackData(m.code) },
   ]);
-  if (source.startUrl)
-    buttons.push([{ text: defaultText("joinedLabel", lang), url: source.startUrl }]);
   await enqueueDm({
     botId,
     memberId: m.memberId,
@@ -213,18 +259,32 @@ async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
     buttons,
     mediaAssetId: seq?.steps[0]?.mediaAssetId ?? null,
   });
-  await prisma.membership.update({
-    where: { id: m.id },
-    data: { remindersSent: { increment: 1 }, lastReminderAt: now },
-  });
   await recordEvent({
     type: "membership.reminder_sent",
     memberId: m.memberId,
     channelId: m.channelId,
     botId,
-    payload: { membershipId: m.id, index: idx, gates: gates.length } as Prisma.InputJsonValue,
+    payload: {
+      membershipId: m.id,
+      index: idx,
+      gates: gates.length,
+      via: reach.via,
+    } as Prisma.InputJsonValue,
   });
   return true;
+}
+
+/**
+ * Rappel d'une demande à l'heure (tâche différée `approvals` `reminder`, phase 14) : rappel de moins de 5 minutes
+ * (ex. 4 minutes) programmé à l'arrivée de la demande. Rien si la demande n'attend plus les canaux.
+ */
+export async function runReminderFor(membershipId: string, now = new Date()): Promise<boolean> {
+  const m = await prisma.membership.findFirst({
+    where: { id: membershipId, status: "PENDING_GATE", channel: { isActive: true } },
+    include: reminderInclude,
+  });
+  if (!m) return false;
+  return sendReminder(m, now);
 }
 
 /**

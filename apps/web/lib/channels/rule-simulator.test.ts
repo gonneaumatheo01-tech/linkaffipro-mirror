@@ -73,7 +73,7 @@ describe("simulateur : même logique que le bot", () => {
     );
   });
 
-  it("exemple du client : n'importe quel autre lien → canaux à rejoindre puis 5 minutes après « ✅ J'ai rejoint »", () => {
+  it("exemple du client : n'importe quel autre lien → canaux obligatoires, acceptée 5 minutes après les avoir tous rejoints", () => {
     for (const p of [
       { ...none, type: "AD" as const, adPlatform: "TIKTOK" as const },
       { ...none, type: "UNKNOWN" as const },
@@ -82,13 +82,75 @@ describe("simulateur : même logique que le bot", () => {
       expect(r.ruleKind).toBe("default");
       expect(r.gateIds).toEqual(["roulette", "tir"]);
       expect(r.gatesText).toBe("Elle doit d'abord rejoindre « Zone Roulette » et « Tir Cadré ».");
+      // Phase 14 : le bot voit tout seul les canaux rejoints ; « ✅ J'ai rejoint » n'est plus le seul déclencheur.
       expect(r.whenText).toBe(
-        "Elle est acceptée 5 minutes après son clic sur « ✅ J'ai rejoint ».",
+        "Elle est acceptée 5 minutes après avoir rejoint tous les canaux (vu par le bot, ou à « ✅ J'ai rejoint »).",
       );
       expect(r.messageText).toBe(
         "Le bot lui envoie son message d'accueil, avec un bouton par canal et « ✅ J'ai rejoint ».",
       );
     }
+  });
+
+  it("canaux « Proposés » : accueil avec un bouton par canal, sans « ✅ J'ai rejoint », délai depuis la demande", () => {
+    const soft: SimRule[] = [
+      {
+        ...zoneRules[0]!,
+        rule: entry({ gateMode: "SOFT", gateChannelIds: ["roulette", "tir"], delaySeconds: 300 }),
+      },
+    ];
+    for (const p of [
+      { ...none, type: "AD" as const, adPlatform: "TIKTOK" as const },
+      { ...none, type: "UNKNOWN" as const },
+    ]) {
+      const r = simulate(soft, p, ctx);
+      expect(r.gatesText).toBe(
+        "Le bot lui propose aussi de rejoindre « Zone Roulette » et « Tir Cadré ».",
+      );
+      expect(r.whenText).toBe("Elle est acceptée 5 minutes après sa demande.");
+      expect(r.messageText).toBe(
+        "Le bot lui envoie son message d'accueil, avec un bouton par canal.",
+      );
+      expect(JSON.stringify(r)).not.toMatch(/J'ai rejoint/);
+    }
+    // Tout de suite : même chose, acceptée sans attendre.
+    const now = simulate(
+      [
+        {
+          ...soft[0]!,
+          rule: entry({ gateMode: "SOFT", gateChannelIds: ["roulette"], delaySeconds: 0 }),
+        },
+      ],
+      { ...none, type: "UNKNOWN" },
+      ctx,
+    );
+    expect([now.whenText, now.messageText]).toEqual([
+      "Elle est acceptée tout de suite.",
+      "Le bot lui envoie son message d'accueil, avec un bouton par canal.",
+    ]);
+  });
+
+  it("canaux obligatoires tout de suite : acceptée dès qu'elle a rejoint tous les canaux", () => {
+    const r = simulate(
+      [
+        {
+          ...zoneRules[0]!,
+          rule: entry({
+            gateMode: "REQUIRED",
+            gateChannelIds: ["roulette", "tir"],
+            delaySeconds: 0,
+          }),
+        },
+      ],
+      { ...none, type: "UNKNOWN" },
+      ctx,
+    );
+    expect(r.whenText).toBe(
+      "Elle est acceptée dès qu'elle a rejoint tous les canaux (vu par le bot, ou à « ✅ J'ai rejoint »).",
+    );
+    expect(r.messageText).toBe(
+      "Le bot lui envoie son message d'accueil, avec un bouton par canal et « ✅ J'ai rejoint ».",
+    );
   });
 
   it("venue du bouton d'un autre canal, règle par défaut : aucun canal imposé (pas de chaîne), le délai s'applique", () => {
@@ -120,7 +182,9 @@ describe("simulateur : même logique que le bot", () => {
     );
     expect(r.gateIds).toEqual(["roulette"]);
     expect(r.notes[0]).toBe("« Tir Cadré » compte comme déjà rejoint : elle en vient.");
-    expect(r.whenText).toBe("Elle est acceptée dès son clic sur « ✅ J'ai rejoint ».");
+    expect(r.whenText).toBe(
+      "Elle est acceptée dès qu'elle a rejoint ce canal (vu par le bot, ou à « ✅ J'ai rejoint »).",
+    );
   });
 
   it("canal sans règle : à valider à la main, sauf venue du bouton « canal à rejoindre » (entrée tout de suite)", () => {

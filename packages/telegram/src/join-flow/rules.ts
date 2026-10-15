@@ -356,6 +356,33 @@ export function approveAtAfterGate(rule: RuleData, now: Date): Date {
   return new Date(now.getTime() + delayMs);
 }
 
+/**
+ * Rappels par défaut d'une nouvelle règle avec des canaux obligatoires (phase 14, décision E6) : 4 minutes (dans les 5
+ * minutes où Telegram laisse encore le bot écrire après la demande) puis 1 heure. Les règles existantes ne changent pas.
+ */
+export const DEFAULT_GATE_REMINDER_MINUTES: readonly number[] = [4, 60];
+
+/** Délai sous lequel un rappel part à l'heure par une tâche différée propre à la demande (sinon : passage toutes les 5 min). */
+export const EARLY_REMINDER_MAX_MS = 5 * 60_000;
+
+/**
+ * Rappels d'une demande à envoyer à l'heure exacte (moins de 5 minutes après la demande, phase 14) : index et heure.
+ * Seulement avec des canaux obligatoires (les rappels n'existent qu'avec eux), dans la limite du nombre de rappels.
+ */
+export function earlyReminders(
+  rule: Pick<RuleData, "gateMode" | "gateChannelIds" | "reminderAfterMinutes" | "maxReminders">,
+  requestedAt: Date,
+): Array<{ index: number; at: Date }> {
+  if (rule.gateMode !== "REQUIRED" || rule.gateChannelIds.length === 0) return [];
+  const out: Array<{ index: number; at: Date }> = [];
+  rule.reminderAfterMinutes.forEach((minutes, index) => {
+    if (index >= rule.maxReminders) return;
+    const ms = minutes * 60_000;
+    if (ms < EARLY_REMINDER_MAX_MS) out.push({ index, at: new Date(requestedAt.getTime() + ms) });
+  });
+  return out;
+}
+
 /** Un rappel est-il dû ? Retourne l'index du rappel à envoyer, ou null. */
 export function dueReminderIndex(
   rule: RuleData,

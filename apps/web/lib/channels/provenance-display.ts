@@ -9,6 +9,7 @@ import {
 } from "@linkaffipro/core";
 import { delayLabel, stringList } from "./entry-rule";
 import { frQuotes } from "./exceptions";
+import { isQueuedForApproval } from "./requests";
 
 /**
  * Provenance et règle appliquée d'une demande d'adhésion, en français (phase 11) : carte de l'onglet « Demandes »,
@@ -185,9 +186,15 @@ export function parisDateTime(d: Date, now: Date = new Date()): string {
 
 /** Date d'acceptation : prévue (demande programmée) ou faite ; null sinon (la suite est dite ailleurs). */
 export function acceptanceText(
-  m: Pick<DisplayMembership, "status" | "approveAt" | "approvedAt">,
+  m: Pick<DisplayMembership, "status" | "approveAt" | "approvedAt"> & { source?: unknown },
   now: Date = new Date(),
 ): string | null {
+  // « Tout accepter » : l'heure enregistrée n'est qu'une heure de secours, l'acceptation est en cours.
+  if (
+    m.status === "SCHEDULED" &&
+    isQueuedForApproval({ status: "SCHEDULED", approveAt: m.approveAt ?? null, source: m.source })
+  )
+    return "acceptation en cours";
   if (m.status === "SCHEDULED" && m.approveAt)
     return `acceptation prévue ${parisDateTime(m.approveAt, now)}`;
   if (m.approvedAt && ["APPROVED", "LEFT", "KICKED"].includes(m.status))

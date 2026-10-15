@@ -2138,6 +2138,10 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "phase 13 : premiers dépôts d'affiliés": phase13.ftds,
       "phase 13 : événements transmis à Link Affi": phase13.linkaffiEvents,
       "phase 11 : demandes avec provenance": phase11.memberships,
+      "phase 14 : demandes venues des pubs TikTok (Zone Interdite)": phase11.phase14.requests,
+      "phase 14 : encore « Attend les canaux »": phase11.phase14.pending,
+      "phase 14 : ont bloqué le bot": phase11.phase14.blocked,
+      "phase 14 : messages refusés sans blocage": phase11.phase14.refused,
     },
   };
 }
@@ -2195,7 +2199,13 @@ type P11Rule = {
   sendWelcome: boolean;
 };
 
-type P11Link = ProvenanceLink & { name: string; url: string; channel: P11Key };
+type P11Link = ProvenanceLink & {
+  name: string;
+  url: string;
+  channel: P11Key;
+  /** Nom de la pub (lien d'entrée d'une pub). */
+  adName?: string;
+};
 
 async function createPhase11Demo(
   db: Db,
@@ -2206,7 +2216,13 @@ async function createPhase11Demo(
     botUsername: Record<Vertical, string>;
     members: Array<{ id: string; firstSeenAt: Date }>;
   },
-): Promise<{ channelIds: string[]; exceptions: number; shareLinks: number; memberships: number }> {
+): Promise<{
+  channelIds: string[];
+  exceptions: number;
+  shareLinks: number;
+  memberships: number;
+  phase14: { requests: number; blocked: number; refused: number; pending: number };
+}> {
   const { now } = ctx;
   const r = createRandom(SEED + 11);
   const id = {} as Record<P11Key, string>;
@@ -2297,6 +2313,15 @@ async function createPhase11Demo(
       sourceChannelId: null,
       adPlatform: "TIKTOK",
       name: "Zone Interdite — Pub TikTok 1",
+      adName: "Pub 1",
+    }),
+    // Phase 14 : seconde pub TikTok du trafic du 14 octobre (parcours des demandes par pub).
+    tiktok2: link("tiktok-2", "zone", {
+      kind: "AD_ENTRY",
+      sourceChannelId: null,
+      adPlatform: "TIKTOK",
+      name: "Zone Interdite — Pub TikTok 2",
+      adName: "Pub 2",
     }),
   };
   for (const l of Object.values(L))
@@ -2311,9 +2336,9 @@ async function createPhase11Demo(
         createsJoinRequest: true,
         sourceChannelId: l.sourceChannelId,
         adPlatform: l.kind === "AD_ENTRY" ? "TIKTOK" : null,
-        adName: l.kind === "AD_ENTRY" ? "Pub TikTok 1" : null,
+        adName: l.adName ?? null,
         createdById: l.kind === "GATE" ? null : ctx.adminId,
-        createdAt: new Date(now.getTime() - 40 * DAY),
+        createdAt: new Date(now.getTime() - (l.id === L.tiktok2.id ? 2 : 40) * DAY),
       },
     });
 
@@ -2427,6 +2452,9 @@ async function createPhase11Demo(
   type Status = "REQUESTED" | "PENDING_GATE" | "SCHEDULED" | "APPROVED" | "LEFT";
   const rows: Prisma.MembershipCreateManyInput[] = [];
   const events: Prisma.EventCreateManyInput[] = [];
+  // Messages privés du bot (phase 14 : accueil de chaque demande, rappels, « Canaux rejoints », « Accepté »).
+  const outbound: Prisma.OutboundMessageCreateManyInput[] = [];
+  let telegramMessageId = 5_000;
   const used = new Set<string>();
   const counters = new Map<
     string,
@@ -2449,7 +2477,11 @@ async function createPhase11Demo(
   const notFuture = (d: Date) =>
     d.getTime() > now.getTime() - MIN ? new Date(now.getTime() - MIN) : d;
 
-  /** Une demande, enregistrée comme le bot de la phase 11 (provenance, règle appliquée, canaux à rejoindre). */
+  /**
+   * Une demande, enregistrée comme le bot de la phase 11 (provenance, règle appliquée, canaux à rejoindre), avec son
+   * message d'accueil envoyé 2 secondes après (sauf règle « sans message ») : le parcours des demandes (phase 14) le
+   * retrouve. `extra` : champs propres au trafic de la phase 14 (fenêtre de 5 minutes, rappels, expiration).
+   */
   const request = (input: {
     memberId: string;
     channel: P11Key;
@@ -2461,7 +2493,10 @@ async function createPhase11Demo(
     approvedAt?: Date | null;
     leftAt?: Date | null;
     noGates?: boolean;
-  }) => {
+    /** Charge de l'événement « canaux rejoints » (phase 14 : `auto`, `trigger`). */
+    gateEvent?: Record<string, unknown>;
+    extra?: Partial<Prisma.MembershipCreateManyInput>;
+  }): { id: string; joinedAt: Date | null; welcomeAt: Date | null } => {
     const provenance = provenanceOfLink(input.link);
     const titles = { [id.tir]: title.tir, [id.zone]: title.zone, [id.roulette]: title.roulette };
     const gates = input.noGates
@@ -2511,7 +2546,7 @@ async function createPhase11Demo(
               campaignId: null,
               adPlatform: input.link.adPlatform,
               adCampaignName: null,
-              adName: input.link.kind === "AD_ENTRY" ? "Pub TikTok 1" : null,
+              adName: input.link.adName ?? null,
             }
           : null,
         telegramInviteLink: input.link?.url ?? null,
@@ -2541,6 +2576,7 @@ async function createPhase11Demo(
         startUrl: `https://t.me/${ctx.botUsername[vertical]}?start=g${code}`,
         botId: botOf[input.channel],
       },
+      ...input.extra,
     });
     const base = {
       memberId: input.memberId,
@@ -2570,7 +2606,12 @@ async function createPhase11Demo(
         ...base,
         type: "membership.gate_satisfied",
         occurredAt: input.gateSatisfiedAt,
-        payload: { membershipId: msId, demo: true },
+        payload: {
+          membershipId: msId,
+          ...(approveAt ? { approveAt: approveAt.toISOString() } : {}),
+          ...input.gateEvent,
+          demo: true,
+        } as Prisma.InputJsonValue,
       });
     if (approvedAt)
       events.push({
@@ -2601,6 +2642,28 @@ async function createPhase11Demo(
       if (input.leftAt) c.left++;
       counters.set(input.link.id, c);
     }
+    // Message d'accueil (accueil complet avec les canaux à rejoindre, sinon court message), comme le bot.
+    let welcomeAt: Date | null = null;
+    if (input.rule.sendWelcome) {
+      welcomeAt = new Date(input.at.getTime() + 2_000);
+      outbound.push({
+        botId: botOf[input.channel],
+        memberId: input.memberId,
+        kind: "WELCOME",
+        chatId: (input.extra?.userChatId as bigint | null | undefined) ?? null,
+        text: gates.length
+          ? `Bienvenue ! Pour entrer dans ${title[input.channel]}, rejoins ${gates
+              .map((g) => titles[g])
+              .join(" et ")}, puis appuie sur « ✅ J'ai rejoint ».`
+          : `Ta demande pour ${title[input.channel]} est bien reçue.`,
+        buttons: [],
+        status: "SENT",
+        queuedAt: welcomeAt,
+        sentAt: new Date(welcomeAt.getTime() + 1_000),
+        telegramMessageId: telegramMessageId++,
+      });
+    }
+    return { id: msId, joinedAt, welcomeAt };
   };
   /** Départ dans les 7 jours (une partie), ou plus tard (rarement), ou jamais. */
   const fate = (joined: Date): { status: Status; leftAt: Date | null } => {
@@ -2799,8 +2862,350 @@ async function createPhase11Demo(
     new Date(now.getTime() - 25 * MIN),
   );
 
+  // ——— Phase 14 : trafic TikTok du 14 au 15 octobre sur Zone Interdite (constat du client) ———
+  // Des personnes nouvelles venues de deux pubs TikTok (« Pub 1 », « Pub 2 »), qui n'ont jamais appuyé sur « Démarrer » :
+  // l'accueil part dans les 5 minutes de leur demande (fenêtre `user_chat_id`) ; une partie bloque le bot dans les
+  // 3 minutes (vrai blocage : mise à jour Telegram) ; d'autres rejoignent un seul des deux canaux, ou les deux
+  // (validation automatique, « Canaux rejoints » dans la fenêtre, acceptation 5 minutes après ; avant la mise à jour du
+  // 15 octobre, validées par le rattrapage) ; deux appuient sur « ✅ J'ai rejoint » (joignables ensuite). Rappels d'une
+  // heure : refusés par Telegram avant la mise à jour (les plus anciens enregistrés comme avant la phase 14 : « bloqué »
+  // sans l'erreur exacte ; les suivants « bot can't initiate conversation with a user », pas un blocage), puis plus
+  // envoyés aux personnes injoignables (`dm.skipped_unreachable`). Graine propre : le reste ne change pas.
+  const r14 = createRandom(SEED + 14);
+  const p14Members: Prisma.MemberCreateManyInput[] = [];
+  const p14States: Prisma.MemberBotStateCreateManyInput[] = [];
+  const p14 = { requests: 0, blocked: 0, refused: 0, pending: 0 };
+  const zoneBot = botOf.zone;
+  /** Mise à jour du 15 octobre : avant, les rappels partaient et Telegram les refusait ; après, plus d'envoi. */
+  const fixAt = new Date(now.getTime() - 8 * HOUR);
+  /** Avant la phase 14, un refus était enregistré « bloqué », sans l'erreur exacte de Telegram. */
+  const legacyBefore = new Date(now.getTime() - 16 * HOUR);
+  const NEVER_STARTED =
+    "Le bot ne peut plus écrire à cette personne : elle n'a jamais appuyé sur « Démarrer » et les 5 minutes après sa demande sont passées.";
+  type P14Fate = "blocked" | "both" | "pressed" | "one" | "nothing";
+  const p14Plan: Array<{ link: P11Link; fate: P14Fate }> = [];
+  const p14Mix: Array<[P11Link, Array<[P14Fate, number]>]> = [
+    [
+      L.tiktok,
+      [
+        ["blocked", 14],
+        ["both", 5],
+        ["one", 4],
+        ["nothing", 7],
+      ],
+    ],
+    [
+      L.tiktok2,
+      [
+        ["blocked", 1],
+        ["both", 4],
+        ["pressed", 2],
+        ["one", 2],
+        ["nothing", 5],
+      ],
+    ],
+  ];
+  // Ordre d'arrivée : chaque parcours réparti sur toute la période (petit décalage tiré au sort), pour en retrouver
+  // aussi aujourd'hui et dans la dernière heure.
+  const p14Order: Array<{ link: P11Link; fate: P14Fate; key: number }> = [];
+  for (const [l, fates] of p14Mix)
+    for (const [fate, count] of fates)
+      for (let i = 0; i < count; i++)
+        p14Order.push({ link: l, fate, key: (i + 0.2 + r14.next() * 0.6) / count });
+  p14Order.sort((a, b) => a.key - b.key);
+  for (const o of p14Order) p14Plan.push({ link: o.link, fate: o.fate });
+  const sec = (d: Date, s: number) => new Date(d.getTime() + s * 1000);
+  /**
+   * Message privé tardif (rappel, « Accepté ») à une personne injoignable : refusé par Telegram avant la mise à jour
+   * (ancien ou nouvel enregistrement), plus envoyé après (`dm.skipped_unreachable`). Rien s'il n'est pas encore dû.
+   */
+  const lateDm = (input: {
+    memberId: string;
+    membershipId: string;
+    kind: "GATE_REMINDER" | "ACCEPTED";
+    at: Date;
+    text: string;
+    blocked: boolean;
+  }): "attempted" | "skipped" | "none" => {
+    if (input.at.getTime() > now.getTime() - MIN) return "none";
+    if (input.at.getTime() >= fixAt.getTime()) {
+      events.push({
+        type: "dm.skipped_unreachable",
+        memberId: input.memberId,
+        channelId: id.zone,
+        botId: zoneBot,
+        occurredAt: input.at,
+        payload: {
+          membershipId: input.membershipId,
+          kind: input.kind,
+          reason: input.blocked ? "blocked" : "never_started",
+          demo: true,
+        },
+      });
+      return "skipped";
+    }
+    const omId = newId();
+    const legacy = input.at.getTime() < legacyBefore.getTime();
+    const error = legacy
+      ? "Le destinataire a bloqué le bot ou le chat n'existe plus."
+      : input.blocked
+        ? "Cette personne a bloqué le bot."
+        : NEVER_STARTED;
+    outbound.push({
+      id: omId,
+      botId: zoneBot,
+      memberId: input.memberId,
+      kind: input.kind,
+      text: input.text,
+      buttons: [],
+      status: legacy || input.blocked ? "BLOCKED" : "FAILED",
+      error,
+      queuedAt: input.at,
+    });
+    events.push({
+      type: legacy || input.blocked ? "dm.blocked" : "dm.unreachable",
+      memberId: input.memberId,
+      botId: zoneBot,
+      occurredAt: sec(input.at, 1),
+      payload: legacy
+        ? { outboundMessageId: omId, error, demo: true }
+        : {
+            outboundMessageId: omId,
+            kind: input.kind,
+            error,
+            telegramError: input.blocked
+              ? "403 Forbidden: bot was blocked by the user"
+              : "403 Forbidden: bot can't initiate conversation with a user",
+            demo: true,
+          },
+    });
+    if (!input.blocked) p14.refused++;
+    return "attempted";
+  };
+  /** Une personne du trafic TikTok : sa demande, ses canaux, son blocage éventuel, les messages du bot. */
+  const addP14Person = (l: P11Link, fate: P14Fate, at: Date, k: number) => {
+    const tgId = P14_MEMBER_ID_BASE + BigInt(k);
+    const memberId = stableId(`p14:member:${k}`);
+    const firstName = r14.pick(FIRST_NAMES);
+    p14Members.push({
+      id: memberId,
+      telegramUserId: tgId,
+      firstName,
+      lastName: r14.chance(0.5) ? `${r14.pick([...LAST_INITIALS])}.` : null,
+      username: r14.chance(0.6)
+        ? `${firstName
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[^a-z]/g, "")}${r14.int(10, 99)}`
+        : null,
+      languageCode: "fr",
+      firstSeenAt: at,
+      lastSeenAt: at,
+    });
+    const welcomeAt = sec(at, 2);
+    // Canaux à rejoindre (boutons de l'accueil : demandes acceptées tout de suite, sans message, phase 11).
+    const rouletteAt = fate === "blocked" || fate === "nothing" ? null : sec(at, r14.int(40, 110));
+    const tirAt = rouletteAt && fate !== "one" ? sec(rouletteAt, r14.int(30, 100)) : null;
+    let gateAt: Date | null = null;
+    let gateEvent: Record<string, unknown> = {};
+    if (tirAt && fate === "pressed") gateAt = sec(tirAt, r14.int(10, 40));
+    else if (tirAt && tirAt.getTime() >= fixAt.getTime()) {
+      gateAt = sec(tirAt, 1);
+      gateEvent = { auto: true, trigger: "join_request" };
+    } else if (tirAt) {
+      // Canaux rejoints sans « ✅ J'ai rejoint » avant la mise à jour : validées par le rattrapage (`pnpm db:phase14`).
+      gateAt = sec(fixAt, 30 + k);
+      gateEvent = { auto: true, trigger: "backfill" };
+    }
+    if (gateAt && gateAt.getTime() > now.getTime() - MIN) gateAt = null;
+    const approveAt = gateAt ? sec(gateAt, rules.zoneDefault!.delaySeconds) : null;
+    const accepted = approveAt && approveAt.getTime() <= now.getTime() - MIN ? approveAt : null;
+    const pending = !gateAt;
+    const blockedAt = fate === "blocked" ? sec(welcomeAt, r14.int(25, 170)) : null;
+    // Rappels de la règle (60 minutes, puis 1 jour), seulement tant que les canaux ne sont pas rejoints.
+    const reminders = [60, 1440]
+      .map((m) => sec(at, m * 60))
+      .filter(
+        (d) => d.getTime() <= now.getTime() - MIN && (!gateAt || gateAt.getTime() > d.getTime()),
+      );
+    const attempted = reminders.filter((d) => d.getTime() < fixAt.getTime());
+    // Une partie des personnes acceptées repart du canal (de 6 heures à 2 jours et demi après).
+    const leftAt = accepted && r14.chance(0.15) ? sec(accepted, r14.int(6, 60) * 3600) : null;
+    const left = leftAt && leftAt.getTime() <= now.getTime() - MIN ? leftAt : null;
+    const ms = request({
+      memberId,
+      channel: "zone",
+      link: l,
+      rule: rules.zoneDefault!,
+      at,
+      status: pending ? "PENDING_GATE" : accepted ? (left ? "LEFT" : "APPROVED") : "SCHEDULED",
+      gateSatisfiedAt: gateAt,
+      approvedAt: accepted,
+      leftAt: left,
+      gateEvent,
+      extra: {
+        userChatId: tgId,
+        expiresAt: pending ? new Date(at.getTime() + 72 * HOUR) : null,
+        remindersSent: attempted.length,
+        lastReminderAt: attempted.at(-1) ?? null,
+      },
+    });
+    p14.requests++;
+    if (pending) p14.pending++;
+    if (rouletteAt)
+      request({
+        memberId,
+        channel: "roulette",
+        link: L.rouletteFromZone,
+        rule: rules.rouletteGate!,
+        at: rouletteAt,
+        status: "APPROVED",
+        approvedAt: sec(rouletteAt, 15),
+        extra: { userChatId: tgId },
+      });
+    if (tirAt)
+      request({
+        memberId,
+        channel: "tir",
+        link: L.tirFromZone,
+        rule: rules.tirGate!,
+        at: tirAt,
+        status: "APPROVED",
+        approvedAt: sec(tirAt, 15),
+        extra: { userChatId: tgId },
+      });
+    if (blockedAt) {
+      // Vrai blocage : mise à jour Telegram « bot bloqué » en privé (`my_chat_member`).
+      events.push({
+        type: "member.blocked",
+        memberId,
+        botId: zoneBot,
+        occurredAt: blockedAt,
+        payload: { demo: true },
+      });
+      p14.blocked++;
+    }
+    p14States.push({
+      memberId,
+      botId: zoneBot,
+      canDm: fate === "pressed",
+      startedAt: fate === "pressed" && gateAt ? gateAt : null,
+      blockedAt,
+      lastDmAt: welcomeAt,
+    });
+    for (const reminderAt of reminders)
+      lateDm({
+        memberId,
+        membershipId: ms.id,
+        kind: "GATE_REMINDER",
+        at: reminderAt,
+        text: `Plus qu'une étape pour entrer dans ${title.zone} : rejoins ${title.roulette} et ${title.tir}.`,
+        blocked: !!blockedAt,
+      });
+    if (gateAt) {
+      // « Canaux rejoints » : dans les 5 minutes de la demande, ou après « ✅ J'ai rejoint » ; sinon plus d'envoi.
+      const inWindow = gateAt.getTime() - at.getTime() < 5 * MIN;
+      if (inWindow || fate === "pressed")
+        outbound.push({
+          botId: zoneBot,
+          memberId,
+          kind: "GATE_REMINDER",
+          chatId: inWindow ? tgId : null,
+          text: `C'est bon ${firstName}, tu seras accepté dans ${title.zone} dans 5 minutes.`,
+          buttons: [],
+          status: "SENT",
+          queuedAt: sec(gateAt, 2),
+          sentAt: sec(gateAt, 3),
+          telegramMessageId: telegramMessageId++,
+        });
+      else
+        events.push({
+          type: "dm.skipped_unreachable",
+          memberId,
+          channelId: id.zone,
+          botId: zoneBot,
+          occurredAt: gateAt,
+          payload: {
+            membershipId: ms.id,
+            kind: "GATE_SATISFIED",
+            reason: "never_started",
+            demo: true,
+          },
+        });
+    }
+    if (accepted) {
+      const acceptedText = `Bienvenue dans ${title.zone} !`;
+      if (fate === "pressed")
+        outbound.push({
+          botId: zoneBot,
+          memberId,
+          kind: "ACCEPTED",
+          text: acceptedText,
+          buttons: [],
+          status: "SENT",
+          queuedAt: sec(accepted, 1),
+          sentAt: sec(accepted, 2),
+          telegramMessageId: telegramMessageId++,
+        });
+      else
+        lateDm({
+          memberId,
+          membershipId: ms.id,
+          kind: "ACCEPTED",
+          at: sec(accepted, 1),
+          text: acceptedText,
+          blocked: false,
+        });
+    }
+  };
+  // Nuit du 14 au 15 octobre : deux pubs, de 19 heures à 12 minutes avant maintenant.
+  const p14Span = 19 * HOUR - 12 * MIN;
+  p14Plan.forEach(({ link: l, fate }, k) =>
+    addP14Person(
+      l,
+      fate,
+      notFuture(
+        new Date(
+          now.getTime() -
+            19 * HOUR +
+            Math.round(((k + r14.next() * 0.8) / p14Plan.length) * p14Span),
+        ),
+      ),
+      k,
+    ),
+  );
+  // Semaine de test de la pub 1, de 7 à 2 jours avant : avant la phase 14, seule « ✅ J'ai rejoint » faisait entrer ;
+  // les personnes qui n'ont rien fait restent « Attend les canaux » (expiration : laisser en attente).
+  const olderMix: Array<[P14Fate, number]> = [
+    ["pressed", 20],
+    ["blocked", 4],
+    ["one", 3],
+    ["nothing", 3],
+  ];
+  const older = olderMix
+    .flatMap(([fate, count]) =>
+      Array.from({ length: count }, (_, i) => ({
+        fate,
+        key: (i + 0.2 + r14.next() * 0.6) / count,
+      })),
+    )
+    .sort((a, b) => a.key - b.key);
+  older.forEach(({ fate }, i) =>
+    addP14Person(
+      L.tiktok,
+      fate,
+      new Date(
+        now.getTime() - 7 * DAY + Math.round(((i + r14.next() * 0.8) / older.length) * 5 * DAY),
+      ),
+      p14Plan.length + i,
+    ),
+  );
+
+  await inBatches(p14Members, 500, (chunk) => db.member.createMany({ data: chunk }));
   await inBatches(rows, 500, (chunk) => db.membership.createMany({ data: chunk }));
   await inBatches(events, 1000, (chunk) => db.event.createMany({ data: chunk }));
+  await inBatches(p14States, 500, (chunk) => db.memberBotState.createMany({ data: chunk }));
+  await inBatches(outbound, 1000, (chunk) => db.outboundMessage.createMany({ data: chunk }));
   for (const [linkId, c] of counters)
     await db.inviteLink.update({ where: { id: linkId }, data: c });
   // Dernière activité des membres concernés.
@@ -2821,6 +3226,7 @@ async function createPhase11Demo(
     exceptions: Object.values(rules).filter((x) => x.scope !== "DEFAULT").length,
     shareLinks: 2,
     memberships: rows.length,
+    phase14: p14,
   };
 }
 
@@ -2886,6 +3292,8 @@ const P13_CAMPAIGNS: ReadonlyArray<{
 
 /** Identifiants Telegram des membres de la phase 13 (dans la plage de démonstration, après ceux des autres). */
 const P13_MEMBER_ID_BASE = DEMO_MEMBER_ID_BASE + 600_000n;
+/** Personnes du trafic TikTok de la phase 14 (Zone Interdite). */
+const P14_MEMBER_ID_BASE = DEMO_MEMBER_ID_BASE + 700_000n;
 
 async function createPhase13Demo(
   db: Db,

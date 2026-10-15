@@ -2,7 +2,7 @@
  * Textes par défaut des séquences du flux d'adhésion (six langues, voir i18n.ts) et rendu des placeholders.
  * Placeholders : {prenom} {canal} {liste_canaux} {delai} {bot} (valeurs échappées pour le HTML : `renderHtmlText`).
  */
-import { escapeHtml } from "@linkaffipro/core";
+import { escapeHtml, stripHtml } from "@linkaffipro/core";
 import { LANGS, MESSAGES, pickLang, t, type Lang, type MessageKey } from "../i18n";
 
 export type { Lang };
@@ -85,3 +85,20 @@ export const DEFAULT_TEXTS: Record<DefaultTextKey, Record<Lang, string>> = Objec
 export function defaultText(key: DefaultTextKey, lang: Lang): string {
   return t(lang, key);
 }
+
+/**
+ * Texte brut (sans balises ni entités) d'un texte du bot en HTML Telegram : réponse courte d'un bouton
+ * (`answerCallbackQuery`, 200 caractères au plus, sans mise en forme).
+ */
+export function plainBotText(html: string, max = 200): string {
+  const text = stripHtml(html).replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/**
+ * Le texte d'accueil de l'équipe parle-t-il d'une étape obligatoire (« J'ai rejoint » dans les six langues du bot,
+ * « pour être accepté », « dernière étape », « obligatoire »…) ? Règle unique dans le paquet core (phase 14, décision
+ * E5), partagée avec le site ; `required-step.test.ts` vérifie que chaque libellé du bouton « ✅ J'ai rejoint » est
+ * reconnu.
+ */
+export { mentionsRequiredStep } from "@linkaffipro/core";

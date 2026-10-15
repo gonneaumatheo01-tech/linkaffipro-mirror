@@ -71,6 +71,12 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/settings/postbacks/import").help.label).toBe("Retours du casino");
     expect(pageHelpFor("/stats").help.label).toBe("Statistiques");
     expect(pageHelpFor("/stats/cohorts").help.label).toBe("Membres dans le temps");
+    // Phase 14 : parcours des demandes sur la période choisie, avec la comparaison.
+    expect(pageHelpFor("/stats/channels?range=30d").help.sections).toEqual([
+      "Statistiques → Canaux",
+      "Période et comparaison",
+      "Meilleurs créneaux",
+    ]);
   });
 
   it("segment « :id » : un segment quelconque, jamais vide ; un segment fixe l'emporte", () => {
@@ -140,6 +146,7 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
       "Un membre n'est pas accepté",
       "Ce que dit le bot",
       "Demandes",
+      "Pourquoi des demandes restent sur « Attend les canaux »",
       "Membres du canal",
       "Le bot ne répond pas",
     ]);

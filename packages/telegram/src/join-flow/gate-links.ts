@@ -358,13 +358,92 @@ export async function resolveGateLinks(
 const GOOD_STATUSES = new Set(["member", "administrator", "creator", "restricted"]);
 
 export type GateCheckResult = {
-  /** Canaux pas encore rejoints (ou impossibles à vérifier). */
+  /** Canaux pas encore rejoints (ou impossibles à vérifier, ou pas encore vérifiés : `deferred`). */
   missing: ChannelInfo[];
   /** Canaux qu'aucun de nos bots n'a pu vérifier (erreurs exactes, bots essayés) : comptés comme non rejoints. */
   unverified: Array<{ channelId: string; title: string; error: string; tried: string[] }>;
   /** Canaux satisfaits par une demande à nous en cours ou acceptée (sans appel à Telegram). */
   requested?: string[];
+  /**
+   * Canaux pas vérifiés à ce passage (phase 14) : limite d'appels atteinte pour nos bots, ou Telegram a demandé
+   * d'attendre (429). Comptés dans `missing` (jamais d'acceptation sans vérification), à revoir au passage suivant.
+   */
+  deferred?: string[];
+  /** Appels `getChatMember` faits pendant cette vérification (seulement avec une limite d'appels `budget`). */
+  apiCalls?: number;
 };
+
+/**
+ * Limite d'appels `getChatMember` (phase 14, filet du worker) : `take` réserve un appel pour ce bot (faux : limite
+ * atteinte ou bot en pause, le canal est revu plus tard) ; `exhaust` arrête les appels de ce bot (429 de Telegram :
+ * pour ce passage, et jusqu'à la fin de l'attente `retryAfterSec` imposée par Telegram si une mémoire des pauses est
+ * donnée à `perBotBudget`).
+ */
+export type GateCheckBudget = {
+  take(botId: string): boolean;
+  exhaust(botId: string, retryAfterSec?: number): void;
+};
+
+/** Aucun appel à Telegram : seulement nos données (demandes et entrées enregistrées). */
+export const NO_TELEGRAM_CALLS: GateCheckBudget = { take: () => false, exhaust: () => undefined };
+
+/** Attente par défaut après un 429 sans durée lisible (secondes). */
+const DEFAULT_RETRY_AFTER_SEC = 30;
+
+/**
+ * Attente imposée par Telegram après un 429, en secondes : `parameters.retry_after` de l'erreur, sinon « retry after N »
+ * dans son texte, sinon 30 secondes.
+ */
+export function retryAfterSeconds(err: unknown): number {
+  if (err && typeof err === "object") {
+    const e = err as { parameters?: { retry_after?: unknown }; description?: unknown };
+    const p = e.parameters?.retry_after;
+    if (typeof p === "number" && Number.isFinite(p) && p > 0) return Math.ceil(p);
+    const m = typeof e.description === "string" ? /retry after (\d+)/i.exec(e.description) : null;
+    if (m) return Math.max(1, Number(m[1]));
+  }
+  return DEFAULT_RETRY_AFTER_SEC;
+}
+
+/**
+ * Au plus `limit` appels par bot ; un 429 arrête ce bot jusqu'à la fin du passage. `pausedUntil` (mémoire du worker,
+ * gardée d'un passage à l'autre) : heure de reprise de chaque bot après un 429 (`now` + `retry_after`) ; avant cette
+ * heure, aucun appel de ce bot (Telegram allongerait l'attente, et le même bot sert aux acceptations et aux messages).
+ */
+export function perBotBudget(
+  limit: number,
+  opts: { pausedUntil?: Map<string, number>; now?: Date } = {},
+): GateCheckBudget & { used: Map<string, number> } {
+  const used = new Map<string, number>();
+  const stopped = new Set<string>();
+  const pauses = opts.pausedUntil;
+  const now = (opts.now ?? new Date()).getTime();
+  return {
+    used,
+    take(botId) {
+      if (stopped.has(botId)) return false;
+      const until = pauses?.get(botId);
+      if (until !== undefined) {
+        if (until > now) return false;
+        pauses?.delete(botId);
+      }
+      const n = used.get(botId) ?? 0;
+      if (n >= limit) return false;
+      used.set(botId, n + 1);
+      return true;
+    },
+    exhaust(botId, retryAfterSec) {
+      stopped.add(botId);
+      if (pauses && retryAfterSec !== undefined && retryAfterSec > 0)
+        pauses.set(botId, Math.max(pauses.get(botId) ?? 0, now + retryAfterSec * 1000));
+    },
+  };
+}
+
+/** Erreur 429 de Telegram (« Too Many Requests ») ? */
+function isTooManyRequests(err: unknown): boolean {
+  return !!err && typeof err === "object" && (err as { error_code?: unknown }).error_code === 429;
+}
 
 /**
  * Le membre a-t-il rejoint chaque canal ? D'abord nos demandes : une demande du membre en cours ou acceptée dans ce
@@ -373,16 +452,25 @@ export type GateCheckResult = {
  * connu comme administrateur (un bot non administrateur d'un canal ne peut pas lire ses membres). Si aucun bot ne peut
  * répondre, le canal compte comme non rejoint (jamais d'acceptation sans vérification) et l'erreur est gardée. Un bot
  * impossible à ouvrir est noté et le suivant est essayé.
+ *
+ * Phase 14 : `alsoSatisfied` = canaux déjà connus comme rejoints sans appel (la mise à jour qui déclenche la
+ * vérification : demande ou entrée dans ce canal) ; `budget` = limite d'appels à Telegram (filet du worker) : un canal
+ * pas vérifié faute d'appel disponible, ou après un 429, est « reporté » (`deferred`), pas « impossible à vérifier ».
  */
 export async function checkGateMembership(
   deps: GateLinkDeps,
   gates: readonly ChannelInfo[],
   userId: number,
   first?: FirstBot | null,
-  opts: { memberId?: string | null } = {},
+  opts: {
+    memberId?: string | null;
+    alsoSatisfied?: readonly string[];
+    budget?: GateCheckBudget;
+  } = {},
 ): Promise<GateCheckResult> {
   const warn = warnOf(deps);
   const result: GateCheckResult = { missing: [], unverified: [] };
+  let apiCalls = 0;
   const requested = new Set(
     opts.memberId && deps.requestedChannelIds && gates.length > 0
       ? await deps.requestedChannelIds(
@@ -393,13 +481,20 @@ export async function checkGateMembership(
   );
   if (requested.size > 0)
     result.requested = gates.filter((g) => requested.has(g.id)).map((g) => g.id);
+  const known = new Set(opts.alsoSatisfied ?? []);
   for (const g of gates) {
-    if (requested.has(g.id)) continue;
+    if (requested.has(g.id) || known.has(g.id)) continue;
     const candidates = checkCandidates(first, await deps.adminBots(g.id));
     let status: string | null = null;
     const errors: string[] = [];
     const tried: string[] = [];
+    /** Un bot n'a pas été essayé faute d'appel disponible, ou Telegram a demandé d'attendre. */
+    let postponed = false;
     for (const c of candidates) {
+      if (opts.budget && !opts.budget.take(c.botId)) {
+        postponed = true;
+        continue;
+      }
       const opened = await apiOf(deps, first, c.botId);
       if ("error" in opened) {
         tried.push(`@${c.username}`);
@@ -409,23 +504,36 @@ export async function checkGateMembership(
       if (!opened.api) continue;
       tried.push(`@${c.username}`);
       try {
+        apiCalls++;
         status = (await opened.api.getChatMember(Number(g.telegramChatId), userId)).status;
         break;
       } catch (err) {
+        if (opts.budget && isTooManyRequests(err)) {
+          opts.budget.exhaust(c.botId, retryAfterSeconds(err));
+          postponed = true;
+          continue;
+        }
         errors.push(`@${c.username} : ${telegramErrorText(err)}`);
       }
     }
-    if (status === null) {
+    if (status === null && postponed) {
+      // Pas vérifié à ce passage (limite d'appels, 429) : non rejoint pour l'instant, revu plus tard, sans erreur.
+      (result.deferred ??= []).push(g.id);
+      result.missing.push(g);
+    } else if (status === null) {
       const error = errors.length > 0 ? errors.join(" ; ") : NO_BOT_ERROR;
       result.unverified.push({ channelId: g.id, title: g.title, error, tried });
       result.missing.push(g);
-      warn("vérification du canal à rejoindre impossible", {
-        gateChannelId: g.id,
-        gateTitle: g.title,
-        error,
-      });
+      // Filet du worker (avec limite d'appels) : pas de journal toutes les 2 minutes pour le même canal.
+      if (!opts.budget)
+        warn("vérification du canal à rejoindre impossible", {
+          gateChannelId: g.id,
+          gateTitle: g.title,
+          error,
+        });
     } else if (!GOOD_STATUSES.has(status)) result.missing.push(g);
   }
+  if (opts.budget) result.apiCalls = apiCalls;
   return result;
 }
 

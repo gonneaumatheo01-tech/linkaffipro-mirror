@@ -106,12 +106,20 @@ export function buildMemberWhere(
   return and.length === 1 ? and[0]! : { AND: and };
 }
 
-/** Ajoute la condition « joignable en privé par ce bot ». */
+/**
+ * Ajoute la condition « joignable en privé par ce bot » : a démarré le bot (ou appuyé sur un de ses boutons) et ne l'a
+ * pas bloqué, même règle que `hasStartedBot` (phase 14). Telegram refuse un message à qui n'a jamais démarré le bot.
+ */
 export function withReachableBy(
   where: Record<string, unknown>,
   botId: string,
 ): Record<string, unknown> {
-  return { AND: [where, { botStates: { some: { botId, canDm: true } } }] };
+  return {
+    AND: [
+      where,
+      { botStates: { some: { botId, canDm: true, startedAt: { not: null }, blockedAt: null } } },
+    ],
+  };
 }
 
 /** Vrai si le niveau calculé du membre fait partie des niveaux demandés (ou si aucun niveau n'est demandé). */

@@ -35,6 +35,7 @@ export type ProfilePlayer = {
 
 export type ProfileBotState = {
   canDm: boolean;
+  startedAt: Date | null;
   blockedAt: Date | null;
   bot: { username: string };
 };
@@ -97,10 +98,25 @@ export type MemberReach = {
   blockedBy: string[];
 };
 
+/**
+ * État d'un bot pour ce membre, même règle que le bot et le worker (`hasStartedBot` de `packages/telegram`, phase 14) :
+ * joignable seulement s'il a démarré le bot (ou appuyé sur un de ses boutons) et ne l'a pas bloqué. Un accueil parti
+ * dans les 5 minutes d'une demande ne rend pas joignable.
+ */
+export function botStateReach(
+  s: Pick<ProfileBotState, "canDm" | "startedAt" | "blockedAt">,
+): "reachable" | "blocked" | "none" {
+  if (s.canDm && s.startedAt && !s.blockedAt) return "reachable";
+  if (!s.canDm && s.blockedAt) return "blocked";
+  return "none";
+}
+
 /** Le membre peut-il recevoir un message privé d'un de nos bots ? */
 export function memberReach(states: ProfileBotState[]): MemberReach {
-  const reachableBy = states.filter((s) => s.canDm).map((s) => s.bot.username);
-  const blockedBy = states.filter((s) => !s.canDm && s.blockedAt).map((s) => s.bot.username);
+  const reachableBy = states
+    .filter((s) => botStateReach(s) === "reachable")
+    .map((s) => s.bot.username);
+  const blockedBy = states.filter((s) => botStateReach(s) === "blocked").map((s) => s.bot.username);
   if (reachableBy.length > 0)
     return { tone: "success", label: "Joignable par le bot", reachableBy, blockedBy };
   if (blockedBy.length > 0)

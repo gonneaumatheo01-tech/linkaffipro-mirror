@@ -61,6 +61,8 @@ async function membership(source: Record<string, unknown>) {
       channelId: ids.channel,
       status: "SCHEDULED",
       approveAt: new Date(),
+      // Demande de moins de 5 minutes avec `user_chat_id` : le bot peut encore écrire « Accepté » (phase 14).
+      userChatId: 911_001n,
       source: source as never,
     },
   });

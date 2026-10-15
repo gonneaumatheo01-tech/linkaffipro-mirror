@@ -19,16 +19,30 @@ export const QUEUE_NAMES = [
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
-/** Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit). */
+/**
+ * Tâches de la file `telegram-send` (tout envoi vers Telegram passe ici, avec les limites de débit).
+ * `approve` / `decline` (phase 14, « Tout accepter » de l'onglet Demandes) : acceptation ou refus d'une demande encore
+ * en cours, au rythme permis par Telegram ; `byUserId` : utilisateur du site qui l'a demandé (journal).
+ */
 export type TelegramSendJob =
   | { type: "dm"; outboundMessageId: string }
   | { type: "post"; postId: string }
   | { type: "delete-post"; postId: string }
-  | { type: "approve"; membershipId: string }
-  | { type: "decline"; membershipId: string };
+  | { type: "approve"; membershipId: string; byUserId?: string | null }
+  | { type: "decline"; membershipId: string; byUserId?: string | null };
 
-/** Tâches de la file `approvals` (balayages périodiques). */
-export type ApprovalsJob = { type: "tick" } | { type: "reminders" } | { type: "expirations" };
+/**
+ * Tâches de la file `approvals` : balayages périodiques (acceptations échues, rappels, expirations) et, depuis la
+ * phase 14, `gate-sweep` (filet de la validation automatique, toutes les 2 minutes), `reminder` (rappel d'une demande
+ * à l'heure, tâche différée), `gate-backfill` (rattrapage unique des demandes en attente des canaux).
+ */
+export type ApprovalsJob =
+  | { type: "tick" }
+  | { type: "reminders" }
+  | { type: "expirations" }
+  | { type: "gate-sweep" }
+  | { type: "reminder"; membershipId: string }
+  | { type: "gate-backfill"; force?: boolean };
 
 /** Tâches de la file `scheduler` (balayage des messages échus, expansion des envois groupés). */
 export type SchedulerJob = { type: "tick" } | { type: "broadcast"; broadcastId: string };

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pencil, Plus, Send } from "lucide-react";
+import { Pencil, Plus, Send, TriangleAlert } from "lucide-react";
 import { prisma } from "@linkaffipro/db";
 import {
   PLACEHOLDERS,
@@ -29,11 +29,12 @@ import {
   messageLangs,
   momentNote,
   previewButtons,
+  softWelcomeWarning,
   textKey,
   type BotMoment,
   type PlaceholderExamples,
 } from "@/lib/channels/bot-messages";
-import { isRuleInForce, type EntryRule } from "@/lib/channels/entry-rule";
+import { entryRuleFromRow, isRuleInForce, type EntryRule } from "@/lib/channels/entry-rule";
 import {
   addSequenceLangAction,
   removeSequenceLangAction,
@@ -78,6 +79,8 @@ function buttonLabels(lang: string) {
  * Onglet « Ce que dit le bot » (ex-« Messages du bot ») : une carte par moment (accueil, rappel, canaux rejoints,
  * accepté, réponse à une offre) avec l'aperçu Telegram, les langues en onglets, « Modifier » (texte, « ✨ Améliorer
  * avec l'IA », média, langues), « Envoyer un test » et l'interrupteur « Activé ». Mêmes actions serveur qu'avant.
+ * Phase 14 : avertissement sur l'accueil quand une règle du canal (par défaut ou exception active) propose ses canaux
+ * sans les imposer alors que l'accueil dit qu'il faut les rejoindre (« J'ai rejoint », « pour être accepté »…).
  */
 export async function SequencesTab({
   channelId,
@@ -104,7 +107,7 @@ export async function SequencesTab({
   botUsername: string | null;
 }) {
   await ensureDefaultSequences(channelId);
-  const [sequences, mediaOptions] = await Promise.all([
+  const [sequences, mediaOptions, exceptionRows] = await Promise.all([
     prisma.sequence.findMany({
       where: { channelId },
       include: {
@@ -120,7 +123,13 @@ export async function SequencesTab({
       take: 100,
       select: { id: true, filename: true, mimeType: true },
     }),
+    // Exceptions actives : leurs canaux proposés comptent pour l'avertissement de l'accueil.
+    prisma.approvalRule.findMany({ where: { channelId, isActive: true, isDefault: false } }),
   ]);
+  const channelRules: EntryRule[] = [
+    ...(rule ? [rule] : []),
+    ...exceptionRows.map(entryRuleFromRow),
+  ];
   const byTrigger = new Map(sequences.map((s) => [s.trigger as string, s]));
   const ctx = { channelTitle, gateTitles, rule, botUsername };
   const base = `/channels/${encodeURIComponent(channelId)}?tab=sequences`;
@@ -146,6 +155,7 @@ export async function SequencesTab({
           lang={open === trigger ? lang : undefined}
           telegramLinked={telegramLinked}
           rule={rule}
+          channelRules={channelRules}
           gateTitles={gateTitles}
           ctx={ctx}
           base={base}
@@ -188,6 +198,7 @@ function MomentCard({
   lang,
   telegramLinked,
   rule,
+  channelRules,
   gateTitles,
   ctx,
   base,
@@ -201,6 +212,8 @@ function MomentCard({
   lang: string | undefined;
   telegramLinked: boolean;
   rule: EntryRule | null;
+  /** Règle par défaut et exceptions actives du canal (avertissement des canaux proposés). */
+  channelRules: EntryRule[];
   gateTitles: string[];
   ctx: Parameters<typeof examplesFor>[1];
   base: string;
@@ -215,6 +228,9 @@ function MomentCard({
   const { title, when } = BOT_MOMENT_TEXT[trigger];
   const active = seq?.isActive !== false;
   const note = momentNote(trigger, rule);
+  // Texte de l'équipe seulement (désactivé : le bot envoie son texte intégré, qui dit déjà la bonne chose).
+  const warning =
+    trigger === "JOIN_REQUEST" && active ? softWelcomeWarning(channelRules, texts) : null;
   const media = step?.mediaAsset ?? null;
   const headingId = `moment-${trigger}`;
 
@@ -338,6 +354,12 @@ function MomentCard({
           </div>
           <p className="mt-0.5 text-note text-muted-foreground">{when}</p>
           {note ? <p className="mt-1 text-note text-warning">{note}</p> : null}
+          {warning ? (
+            <p className="mt-1 flex items-start gap-2 text-note text-warning">
+              <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {warning}
+            </p>
+          ) : null}
         </div>
         {/* Téléphone : l'interrupteur passe sous le titre, aligné sur lui (sans le retrait du bouton discret). */}
         <BotToggle

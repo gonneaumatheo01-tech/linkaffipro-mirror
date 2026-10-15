@@ -444,8 +444,16 @@ describe("emojis animés : aperçus, messages privés, repli et alerte (base ré
           },
         },
       });
+      // Demande de moins de 5 minutes avec `user_chat_id` : le bot peut encore écrire « Accepté » (phase 14).
       const m = await prisma.membership.create({
-        data: { code: "EMOJI001", memberId, channelId, status: "SCHEDULED", approveAt: new Date() },
+        data: {
+          code: "EMOJI001",
+          memberId,
+          channelId,
+          status: "SCHEDULED",
+          approveAt: new Date(),
+          userChatId: 9_120_001n,
+        },
       });
       expect(await approveMembership(m.id)).toBe("approved");
       const accepted = await prisma.outboundMessage.findFirstOrThrow({

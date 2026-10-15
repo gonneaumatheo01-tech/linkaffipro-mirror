@@ -390,7 +390,9 @@ describe("scénario du client (phase 11) : Tir Cadré ↔ Zone Interdite, de la 
       { chat_id: Number(TIR), user_id: 7001 },
     ]);
 
-    // Un seul accueil complet en tout (aucune boucle), un court message, deux « accepté ».
+    // Un seul accueil complet en tout (aucune boucle), un court message. « Accepté » : seulement par le bot que la
+    // personne a démarré (« ✅ J'ai rejoint » sur Tir Cadré) ; pour Zone, sa demande date d'un jour et elle n'a jamais
+    // démarré le bot de Zone : Telegram refuserait, rien n'est envoyé (phase 14).
     const all = await prisma.outboundMessage.findMany({
       where: { memberId: member.id },
       orderBy: { queuedAt: "asc" },
@@ -398,12 +400,13 @@ describe("scénario du client (phase 11) : Tir Cadré ↔ Zone Interdite, de la 
     expect(
       all.filter((d) => d.kind === "WELCOME" && (d.buttons as Buttons).length > 0),
     ).toHaveLength(1);
-    expect(
-      all
-        .filter((d) => d.kind === "ACCEPTED")
-        .map((d) => d.botId)
-        .sort(),
-    ).toEqual([botIds.dating, botIds.sports].sort());
+    expect(all.filter((d) => d.kind === "ACCEPTED").map((d) => d.botId)).toEqual([botIds.sports]);
+    const skipped = await prisma.event.findMany({
+      where: { memberId: member.id, type: "dm.skipped_unreachable", botId: botIds.dating },
+    });
+    expect(skipped.map((e) => e.payload)).toEqual([
+      { membershipId: zone.id, kind: "ACCEPTED", reason: "never_started" },
+    ]);
   });
 
   it("venu d'un autre lien sur Zone : accueil avec Roulette et Tir Cadré → demandes dans ces canaux (sans règle / reprise) → « ✅ J'ai rejoint » → acceptée 5 minutes après le clic, jamais relancée pendant l'attente", async () => {
@@ -462,6 +465,17 @@ describe("scénario du client (phase 11) : Tir Cadré ↔ Zone Interdite, de la 
     });
     // Tir Cadré : exception de la reprise (venu du bouton → tout de suite, sans message).
     await tg.sports.handleUpdate(join(TIR, "🎯 TIR CADRÉ ⚡", 7002, buttons[1]![0]!.url));
+    // Phase 14 : les deux canaux obligatoires sont « rejoints » (demandes à nous) : Zone passe en acceptation programmée
+    // sans attendre « ✅ J'ai rejoint ».
+    const autoZone = await latest(7002, ids.zone);
+    expect(autoZone.status).toBe("SCHEDULED");
+    expect(
+      (
+        await prisma.event.findFirstOrThrow({
+          where: { memberId: member.id, type: "membership.gate_satisfied", channelId: ids.zone },
+        })
+      ).payload,
+    ).toMatchObject({ membershipId: zone.id, auto: true, trigger: "join_request" });
     const tir = await latest(7002, ids.tir);
     expect(tir).toMatchObject({ status: "SCHEDULED" });
     expect(tir.source).toMatchObject({
@@ -508,14 +522,20 @@ describe("scénario du client (phase 11) : Tir Cadré ↔ Zone Interdite, de la 
     expect(await tick()).toEqual({ claimed: 1, approved: 1 });
     expect((await latest(7002, ids.zone)).status).toBe("APPROVED");
 
-    // Un seul accueil complet, aucun double accueil.
+    // Un seul accueil complet, aucun double accueil ; un seul rappel, puis le message « Canaux rejoints » (phase 14 :
+    // la personne a démarré le bot, il peut lui écrire).
     const welcomes = await prisma.outboundMessage.findMany({
       where: { memberId: member.id, kind: "WELCOME" },
     });
     expect(welcomes).toHaveLength(1);
-    expect(
-      await prisma.outboundMessage.count({ where: { memberId: member.id, kind: "GATE_REMINDER" } }),
-    ).toBe(1);
+    const gateMessages = await prisma.outboundMessage.findMany({
+      where: { memberId: member.id, kind: "GATE_REMINDER" },
+      orderBy: { queuedAt: "asc" },
+    });
+    expect(gateMessages.map((d) => d.text.startsWith("C'est bon"))).toEqual([false, true]);
+    expect(gateMessages[1]!.text).toBe(
+      "C'est bon U7002, tu seras accepté dans <b>Zone Interdite 🔞</b> dans 5 minutes.",
+    );
   });
 
   it("la reprise D7 ne se refait jamais : relancée, elle ne crée ni ne modifie aucune règle", async () => {

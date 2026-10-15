@@ -312,3 +312,65 @@ describe("sendDm avec emojis animés (phase 12)", () => {
     expect(fallbackEvents()).toEqual([]);
   });
 });
+
+describe("sendDm : bloqué ou injoignable (phase 14)", () => {
+  const upserts = () =>
+    (db.prisma.memberBotState.upsert as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as { create: Row; update: Row },
+    );
+  const events = () =>
+    vi.mocked(recordEvent).mock.calls.map((c) => c[0] as { type: string; payload: Row });
+  beforeEach(() => {
+    (db.prisma.memberBotState.upsert as ReturnType<typeof vi.fn>).mockClear();
+    vi.mocked(recordEvent).mockClear();
+  });
+
+  it("« bot can't initiate conversation » : FAILED, personne injoignable, jamais « a bloqué le bot »", async () => {
+    db.api.sendMessage.mockRejectedValueOnce(
+      tgError(403, "Forbidden: bot can't initiate conversation with a user"),
+    );
+    await sendDm("om1");
+    expect(db.state.updates.at(-1)).toEqual({
+      status: "FAILED",
+      error:
+        "Le bot ne peut plus écrire à cette personne : elle n'a jamais appuyé sur « Démarrer » et les 5 minutes après sa demande sont passées.",
+    });
+    expect(db.state.outcomes).toEqual(["FAILED"]);
+    expect(upserts()).toEqual([
+      expect.objectContaining({
+        create: { memberId: "m1", botId: "b1", canDm: false },
+        update: { canDm: false },
+      }),
+    ]);
+    expect(events().map((e) => [e.type, e.payload.telegramError])).toEqual([
+      ["dm.unreachable", "403 Forbidden: bot can't initiate conversation with a user"],
+    ]);
+  });
+
+  it("« bot was blocked by the user » : BLOCKED, blockedAt, événement dm.blocked avec l'erreur exacte", async () => {
+    db.api.sendMessage.mockRejectedValueOnce(
+      tgError(403, "Forbidden: bot was blocked by the user"),
+    );
+    await sendDm("om1");
+    expect(db.state.updates.at(-1)).toMatchObject({
+      status: "BLOCKED",
+      error: "Cette personne a bloqué le bot.",
+    });
+    const u = upserts()[0]!;
+    expect(u.update).toMatchObject({ canDm: false, blockedAt: expect.any(Date) });
+    expect(events()[0]).toMatchObject({
+      type: "dm.blocked",
+      payload: { telegramError: "403 Forbidden: bot was blocked by the user", kind: "WELCOME" },
+    });
+  });
+
+  it("message envoyé dans la fenêtre de 5 minutes : la personne ne devient pas joignable (canDm faux à la création)", async () => {
+    await sendDm("om1");
+    expect(db.state.updates.at(-1)).toMatchObject({ status: "SENT" });
+    expect(upserts()[0]).toMatchObject({
+      create: { memberId: "m1", botId: "b1", canDm: false, lastDmAt: expect.any(Date) },
+      update: { lastDmAt: expect.any(Date), blockedAt: null },
+    });
+    expect(upserts()[0]!.update).not.toHaveProperty("canDm");
+  });
+});

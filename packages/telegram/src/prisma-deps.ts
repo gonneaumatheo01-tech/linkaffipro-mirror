@@ -4,6 +4,7 @@ import type { AdminRights, BotIdentity, LinkImportOutcome, TelegramDeps } from "
 import { ensureDefaultSequences } from "./sequences/ensure";
 import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
 import { addCustomEmojisToLibrary } from "./custom-emoji/library";
+import { hasStartedBot } from "./join-flow/reachability";
 
 function memberData(from: User) {
   return {
@@ -80,6 +81,21 @@ export const prismaTelegramDeps: TelegramDeps = {
       payload: { payload: payload ?? null },
     });
     return { memberId: member.id };
+  },
+
+  async memberWrote(bot, memberId) {
+    const key = { memberId_botId: { memberId, botId: bot.id } };
+    const state = await prisma.memberBotState.findUnique({
+      where: key,
+      select: { canDm: true, startedAt: true, blockedAt: true },
+    });
+    if (hasStartedBot(state)) return;
+    const now = new Date();
+    await prisma.memberBotState.upsert({
+      where: key,
+      create: { memberId, botId: bot.id, canDm: true, startedAt: now },
+      update: { canDm: true, blockedAt: null, ...(state?.startedAt ? {} : { startedAt: now }) },
+    });
   },
 
   async memberDmStatus(bot, from, canDm) {

@@ -34,6 +34,8 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "membership.gate_links_ready": "Liens de canaux prêts",
   "membership.welcome_skipped": "Accueil non renvoyé (déjà envoyé il y a moins de 10 minutes)",
   "membership.rescheduled": "Demande replanifiée (reprise de la phase 11)",
+  // Phase 14 : nouvelle règle appliquée aux demandes en attente (bouton de l'équipe).
+  "membership.rule_applied": "Nouvelle règle appliquée à la demande",
   "invite_link.legacy_revoked": "Ancien lien de canal à rejoindre retiré",
   "channel.gate_links_checked": "Liens des canaux à rejoindre vérifiés",
   "player.cpa_credited": "Commission créditée",
@@ -44,6 +46,12 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "dm.sent": "Message privé envoyé",
   "dm.failed": "Message privé en échec",
   "dm.blocked": "Message privé refusé (bot bloqué)",
+  // Phase 14 : Telegram refuse le message sans que la personne ait bloqué le bot (jamais démarré le bot et 5 minutes
+  // passées, compte supprimé, chat introuvable…), ou le bot ne l'envoie pas (personne injoignable). Libellés neutres :
+  // la raison précise vient du détail de l'événement (`dmLabel`).
+  "dm.unreachable": "Message privé refusé : le bot ne peut plus écrire à cette personne",
+  "dm.skipped_unreachable":
+    "Message privé non envoyé : le bot ne peut plus écrire à cette personne",
   "dm.custom_emoji_fallback":
     "Message privé renvoyé avec des emojis normaux (emojis animés refusés)",
   "post.sent": "Message publié",
@@ -82,8 +90,61 @@ const TELEGRAM_UPDATE_LABELS: Record<string, string> = {
   inline_query: "Recherche en ligne",
 };
 
-/** Libellé lisible d'un type d'événement. */
-export function eventLabel(type: string): string {
+/** Types dont le libellé dépend du détail de l'événement (`eventLabel(type, payload)`). */
+export const PAYLOAD_LABEL_TYPES: ReadonlySet<string> = new Set([
+  "membership.gate_satisfied",
+  "dm.unreachable",
+  "dm.skipped_unreachable",
+]);
+
+function payloadField(payload: unknown, key: string): unknown {
+  return payload && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/** Refus de Telegram (`dm.unreachable`) selon son erreur exacte (`telegramError`, gardée depuis la phase 14). */
+const DM_REFUSED_REASONS: Array<[RegExp, string]> = [
+  [
+    /can'?t initiate conversation|can not initiate conversation|cannot initiate conversation/i,
+    "Message privé refusé : la personne n'a jamais démarré le bot (5 minutes passées)",
+  ],
+  [/user is deactivated/i, "Message privé refusé : compte Telegram supprimé"],
+  [/chat not found/i, "Message privé refusé : chat privé introuvable"],
+];
+
+/** Message non envoyé par le bot (`dm.skipped_unreachable`) selon la raison enregistrée (`reachability`). */
+const DM_SKIPPED_REASONS: Record<string, string> = {
+  blocked: "Message privé non envoyé : la personne a bloqué le bot",
+  never_started: "Message privé non envoyé : la personne n'a jamais démarré le bot",
+  unreachable: "Message privé non envoyé : Telegram a refusé un message précédent",
+};
+
+/** Libellé précis d'un message privé refusé ou non envoyé, d'après le détail de l'événement ; null sinon. */
+function dmLabel(type: string, payload: unknown): string | null {
+  if (type === "dm.unreachable") {
+    const error = payloadField(payload, "telegramError");
+    if (typeof error !== "string") return null;
+    return DM_REFUSED_REASONS.find(([re]) => re.test(error))?.[1] ?? null;
+  }
+  if (type === "dm.skipped_unreachable") {
+    const reason = payloadField(payload, "reason");
+    return typeof reason === "string" ? (DM_SKIPPED_REASONS[reason] ?? null) : null;
+  }
+  return null;
+}
+
+/**
+ * Libellé lisible d'un type d'événement. `payload` (facultatif, détail de l'événement) précise certains libellés :
+ * canaux rejoints vus par le bot tout seul (`membership.gate_satisfied` avec `auto: true`, phase 14) plutôt qu'au
+ * bouton « ✅ J'ai rejoint » ; raison d'un message privé refusé par Telegram (`dm.unreachable`) ou non envoyé
+ * (`dm.skipped_unreachable` : a bloqué le bot, n'a jamais démarré le bot…). Sans détail : libellé neutre du type.
+ */
+export function eventLabel(type: string, payload?: unknown): string {
+  if (type === "membership.gate_satisfied" && payloadField(payload, "auto") === true)
+    return "Canaux requis rejoints (vérifié automatiquement)";
+  const dm = dmLabel(type, payload);
+  if (dm) return dm;
   const direct = EVENT_TYPE_LABELS[type];
   if (direct) return direct;
   if (type.startsWith("telegram."))

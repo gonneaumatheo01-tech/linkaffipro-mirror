@@ -5,7 +5,7 @@ import type { Api } from "grammy";
 import type { InlineKeyboardMarkup, Message } from "grammy/types";
 import { logger } from "../logger";
 import { apiForBot } from "./api";
-import { describeTelegramError, withTelegramRetry } from "./errors";
+import { describeDmFailure, describeTelegramError, withTelegramRetry } from "./errors";
 import { sendWithEmojiFallback, type CustomEmojiFallbackInfo } from "@linkaffipro/telegram";
 import { buildDmKeyboard } from "./keyboard";
 import { loadMedia, rememberTelegramFile, type LoadedMedia } from "./media";
@@ -40,6 +40,14 @@ export function customEmojiFallbackNote(info: CustomEmojiFallbackInfo): string {
  * texte + boutons en second message. Si le média échoue, le texte part seul (SENT, erreur mémorisée).
  * Emojis animés (phase 12) : texte envoyé tel quel ; si Telegram les refuse, le même message repart aussitôt avec les
  * emojis de remplacement (`sendWithEmojiFallback`), journalisé `dm.custom_emoji_fallback` (alerte `custom_emoji_refused`).
+ *
+ * Phase 14 (décisions E1, E2) :
+ * - un message parti grâce à la fenêtre de 5 minutes d'une demande d'adhésion (`user_chat_id`) ne rend PAS la personne
+ *   joignable ensuite : seul « Démarrer » (ou un bouton du bot) le fait (`MemberBotState.startedAt`) ;
+ * - « bot was blocked by the user » : message BLOCKED, `canDm` faux et `blockedAt`, événement `dm.blocked` ;
+ * - « bot can't initiate conversation with a user » (et les autres refus qui ne sont pas un blocage) : message FAILED
+ *   (« Le bot ne peut plus écrire à cette personne… »), `canDm` faux SANS `blockedAt`, événement `dm.unreachable` ;
+ * - l'erreur exacte de Telegram est gardée dans les événements (`telegramError`).
  */
 export async function sendDm(outboundMessageId: string): Promise<void> {
   const om = await prisma.outboundMessage.findUnique({
@@ -89,7 +97,8 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
         textSent = captionFits;
       } catch (err) {
         const d = describeTelegramError(err);
-        if (d.blocked) throw err;
+        // Personne injoignable ou qui a bloqué le bot : le texte seul échouerait de même.
+        if (d.blocked || d.unreachable) throw err;
         mediaError = `Média non envoyé : ${d.message}`;
         logger.warn(
           { outboundMessageId: om.id, err: d.message },
@@ -146,10 +155,12 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
         }),
       });
     }
+    // Message reçu : la personne n'a pas bloqué le bot. Joignable ensuite seulement si elle l'a démarré (startedAt) :
+    // un message envoyé grâce à la fenêtre de 5 minutes d'une demande ne la rend pas joignable (canDm faux à la création).
     await prisma.memberBotState.upsert({
       where: { memberId_botId: { memberId: om.memberId, botId: om.botId } },
-      create: { memberId: om.memberId, botId: om.botId, canDm: true, lastDmAt: now },
-      update: { lastDmAt: now },
+      create: { memberId: om.memberId, botId: om.botId, canDm: false, lastDmAt: now },
+      update: { lastDmAt: now, blockedAt: null },
     });
     await recordEvent({
       type: "dm.sent",
@@ -165,8 +176,8 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
     });
     await recordBroadcastOutcome(om.broadcastId, "SENT");
   } catch (err) {
-    const d = describeTelegramError(err);
-    const status = d.blocked ? "BLOCKED" : "FAILED";
+    const d = describeDmFailure(err);
+    const status = d.status;
     await prisma.outboundMessage.update({
       where: { id: om.id },
       data: { status, error: d.message },
@@ -177,14 +188,29 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
         create: { memberId: om.memberId, botId: om.botId, canDm: false, blockedAt: new Date() },
         update: { canDm: false, blockedAt: new Date() },
       });
+    } else if (d.unreachable) {
+      // Injoignable sans blocage : plus de message en premier, mais jamais compté comme « a bloqué le bot ».
+      await prisma.memberBotState.upsert({
+        where: { memberId_botId: { memberId: om.memberId, botId: om.botId } },
+        create: { memberId: om.memberId, botId: om.botId, canDm: false },
+        update: { canDm: false },
+      });
     }
     await recordEvent({
-      type: d.blocked ? "dm.blocked" : "dm.failed",
+      type: d.blocked ? "dm.blocked" : d.unreachable ? "dm.unreachable" : "dm.failed",
       memberId: om.memberId,
       botId: om.botId,
-      payload: toJsonValue({ outboundMessageId: om.id, error: d.message }),
+      payload: toJsonValue({
+        outboundMessageId: om.id,
+        kind: om.kind,
+        error: d.message,
+        telegramError: d.telegramError,
+      }),
     });
-    logger.warn({ outboundMessageId: om.id, err: d.message }, "message privé non envoyé");
+    logger.warn(
+      { outboundMessageId: om.id, err: d.message, telegramError: d.telegramError },
+      "message privé non envoyé",
+    );
     await recordBroadcastOutcome(om.broadcastId, status);
   }
 }
