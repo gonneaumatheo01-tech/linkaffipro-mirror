@@ -80,6 +80,10 @@ enum InviteLinkKind {
   /// par Link Affi via l'API d'intégration (`POST /invite-links`), avec demande d'adhésion ; `linkaffi.me/go/<clé>`
   /// redirige vers lui. Les personnes entrées par ce lien sont rattachées à l'affilié (premier affilié gagne).
   LINKAFFI
+  /// Lien d'une source d'une page d'atterrissage (phase 15, `landingPageId` + `landingSource`), avec demande
+  /// d'adhésion, créé par le bot de l'univers du canal (repli sur un autre de nos bots administrateurs). Nom
+  /// « <page>-<source> » tronqué à 32 caractères.
+  LANDING
 }
 
 /// Qui publie un message de canal (phase 12). Telegram interdit les emojis animés (emojis personnalisés des packs
@@ -134,6 +138,10 @@ enum ApprovalSourceKind {
   LINKAFFI_ANY
   /// Venue d'une campagne d'un affilié Link Affi précis (`ApprovalRule.linkaffiAffiliateId`, phase 13).
   LINKAFFI_AFFILIATE
+  /// Venue de n'importe quelle page d'atterrissage (lien LANDING, phase 15).
+  LANDING_ANY
+  /// Venue d'une page d'atterrissage précise (`ApprovalRule.landingPageId`, phase 15), toutes sources.
+  LANDING_PAGE
 }
 
 /// Plateforme publicitaire.
@@ -324,6 +332,7 @@ model User {
   adAccountConnections AdAccountConnection[]
   aiSuggestions        AiSuggestion[]
   customEmojis         CustomEmoji[]
+  landingPages         LandingPage[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -390,23 +399,30 @@ model Bot {
 
 /// Canal (ou groupe) Telegram détecté automatiquement.
 model Channel {
-  id             String    @id @default(cuid())
-  telegramChatId BigInt    @unique
-  title          String
-  username       String?
-  type           ChatType  @default(CHANNEL)
-  vertical       Vertical?
-  language       String    @default("fr")
-  primaryBotId   String?
-  primaryBot     Bot?      @relation("PrimaryBot", fields: [primaryBotId], references: [id])
-  isActive       Boolean   @default(true)
-  isTest         Boolean   @default(false)
-  isMediaLibrary Boolean   @default(false)
-  settings       Json      @default("{}")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  telegramChatId    BigInt    @unique
+  title             String
+  username          String?
+  type              ChatType  @default(CHANNEL)
+  vertical          Vertical?
+  language          String    @default("fr")
+  primaryBotId      String?
+  primaryBot        Bot?      @relation("PrimaryBot", fields: [primaryBotId], references: [id])
+  isActive          Boolean   @default(true)
+  isTest            Boolean   @default(false)
+  isMediaLibrary    Boolean   @default(false)
+  settings          Json      @default("{}")
+  /// Petite photo du canal (JPEG 160 px de Telegram, `getChat` → `small_file_id`), pour les pages d'atterrissage qui
+  /// l'affichent (phase 15). `photoFileUniqueId` : photo actuelle chez Telegram (rien à retélécharger s'il ne change pas).
+  photoSmall        Bytes?
+  photoFileUniqueId String?
+  /// Dernière relecture du titre et de la photo par `getChat` (phase 15, canaux qui ont une page d'atterrissage).
+  chatCheckedAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   botAdmins     ChannelBotAdmin[]
+  landingPages  LandingPage[]
   events        Event[]
   memberships   Membership[]
   approvalRules ApprovalRule[]
@@ -589,6 +605,9 @@ model ApprovalRule {
   sourceKind           ApprovalSourceKind?
   /// Affilié Link Affi visé par une exception `SOURCE_KIND` = LINKAFFI_AFFILIATE (phase 13 ; identifiant Link Affi).
   linkaffiAffiliateId  String?
+  /// Page d'atterrissage visée par une exception `SOURCE_KIND` = LANDING_PAGE (phase 15). Pas de clé étrangère (comme
+  /// `sourceChannelId`) : une page supprimée laisse une exception affichée « page supprimée ».
+  landingPageId        String?
   /// Texte lisible de l'exception (« Venu de Tir Cadré »), recalculé à l'enregistrement.
   label                String?
   /// Ordre des exceptions de même niveau (ordre choisi par l'équipe, du plus petit au plus grand).
@@ -645,6 +664,11 @@ model InviteLink {
   linkaffiAffiliateId   String?
   linkaffiAffiliateName String?
   attributionDays       Int?
+  /// Page d'atterrissage (kind LANDING, phase 15) et clé de sa source (« tk01 » ; "" = lien par défaut de la page,
+  /// sans `?src=`). Un lien révoqué garde sa page et sa source (les anciennes demandes restent rattachées).
+  landingPageId         String?
+  landingPage           LandingPage?   @relation(fields: [landingPageId], references: [id], onDelete: SetNull)
+  landingSource         String?
   language              String         @default("fr")
   isActive              Boolean        @default(true)
   createdById           String?
@@ -662,8 +686,10 @@ model InviteLink {
   trackingLinks    TrackingLink[]
   rule             ApprovalRule?  @relation("RuleForLink")
   ad               Ad?
+  landingSourceOf  LandingSource? @relation("LandingSourceLink")
 
   @@unique([linkaffiCampaignKey, channelId])
+  @@index([landingPageId, landingSource])
   @@index([linkaffiAffiliateId])
   @@index([channelId, kind])
   @@index([kind, createdAt])
@@ -1250,8 +1276,9 @@ model Ad {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  costs      AdCost[]
-  dailyStats DailyStat[]
+  costs          AdCost[]
+  dailyStats     DailyStat[]
+  landingSources LandingSource[]
 
   @@unique([adSetId, name])
 }
@@ -1677,4 +1704,118 @@ model IntegrationKey {
   lastEventSentAt        DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+}
+
+// ─── Phase 15 : pages d'atterrissage Telegram (rubrique « Pages ») ───────────────────────────────────────────────
+
+/// Page d'atterrissage d'un canal, servie sur le domaine de tracking (`https://go.goolink.eu/j/<slug>?src=<source>`) :
+/// un écran, le vrai titre du canal (jamais saisi), une accroche, un bouton « Rejoindre le canal → ». HTML pré-rendu
+/// gardé en mémoire par le service web, invalidé par Redis à chaque modification (`version`) ou changement de titre.
+model LandingPage {
+  id            String   @id @default(cuid())
+  /// Adresse publique (`/j/<slug>`), minuscules, chiffres et tirets.
+  slug          String   @unique
+  /// Nom interne de la page (rubrique Pages, nom des liens d'invitation « <page>-<source> »).
+  name          String
+  channelId     String
+  channel       Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  /// Langue de la page (fr par défaut ; mêmes langues que les textes du bot) : textes par défaut, `lang` du HTML.
+  language      String   @default("fr")
+  /// Phrase d'accroche (obligatoire).
+  headline      String
+  /// Sous-texte court, facultatif.
+  subtext       String?
+  /// Texte du bouton ; null = texte par défaut de la langue (« Rejoindre le canal → »).
+  buttonText    String?
+  /// Petite ligne sous le bouton, facultative (« Gratuit · 1 clic · via Telegram »).
+  footnote      String?
+  /// Photo du canal affichée (désactivée par défaut).
+  showPhoto     Boolean  @default(false)
+  /// Bandeau cookies (désactivé par défaut) : s'il est actif, les pixels ne se chargent qu'après accord.
+  cookieBanner  Boolean  @default(false)
+  /// Pixel TikTok et pixel Meta, facultatifs, vérifiés à la saisie.
+  tiktokPixelId String?
+  metaPixelId   String?
+  isActive      Boolean  @default(true)
+  /// Augmentée à chaque modification : clé du HTML en mémoire et de l'ETag.
+  version       Int      @default(1)
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sources     LandingSource[]
+  inviteLinks InviteLink[]
+  events      LandingEvent[]
+
+  @@index([channelId])
+}
+
+/// Source d'une page (« tk01 », « exo1 ») : son propre lien d'invitation (kind LANDING), lu par `?src=`. La clé ""
+/// est la source par défaut (visite sans `?src=` ou avec une source inconnue), créée avec la page.
+model LandingSource {
+  id            String      @id @default(cuid())
+  landingPageId String
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  /// Clé lue dans `?src=` (lettres, chiffres, tirets, soulignés ; 1 à 32 caractères) ; "" = source par défaut.
+  key           String
+  /// Lien d'invitation actuel de la source (null tant que Telegram ne l'a pas créé : `linkError` dit pourquoi).
+  inviteLinkId  String?     @unique
+  inviteLink    InviteLink? @relation("LandingSourceLink", fields: [inviteLinkId], references: [id], onDelete: SetNull)
+  /// Dernier refus de Telegram à la création du lien (texte en français), null si le lien existe.
+  linkError     String?
+  /// Pub d'une de nos campagnes reliée à la source (facultatif) : sa dépense donne le coût par join.
+  adId          String?
+  ad            Ad?         @relation(fields: [adId], references: [id], onDelete: SetNull)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([landingPageId, key])
+  @@index([adId])
+}
+
+enum LandingEventType {
+  /// Page affichée dans un vrai navigateur (envoi `sendBeacon` après l'affichage).
+  VIEW
+  /// Clic sur le bouton (avec la façon d'ouvrir Telegram, `method`).
+  CLICK
+  /// Page quittée dans les 2 secondes qui suivent le clic : Telegram s'est (très probablement) ouvert.
+  OPENED
+}
+
+/// Visite, clic et ouverture de Telegram sur une page d'atterrissage (append-only, enregistrés par la file
+/// `landing-events`, jamais pendant la réponse). Adresse IP jamais conservée : empreinte `ipHash` et pays seulement.
+/// Purgée avec les autres données personnelles (24 mois).
+model LandingEvent {
+  id            String           @id @default(cuid())
+  landingPageId String
+  landingPage   LandingPage      @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  /// Source retenue (clé de `LandingSource` ; "" = source par défaut).
+  sourceKey     String           @default("")
+  /// `?src=` tel que reçu quand il ne correspond à aucune source (diagnostic), sinon null.
+  rawSrc        String?
+  type          LandingEventType
+  /// Identifiant aléatoire de la visite (créé par la page) : relie affichage, clic et ouverture.
+  visitId       String
+  /// Système : IOS | ANDROID | OTHER.
+  os            String?
+  /// Navigateur intégré reconnu : TIKTOK | INSTAGRAM | FACEBOOK | OTHER.
+  inApp         String?
+  /// Façon d'ouvrir Telegram (clic et ouverture) : par exemple TG_SCHEME | INTENT | HTTPS.
+  method        String?
+  /// Pays (ISO 3166-1 alpha-2) déduit de l'adresse IP par une base locale, adresse jamais gardée.
+  country       String?
+  ipHash        String?
+  /// Robot connu (`isBotUserAgent`) : gardé mais jamais compté.
+  isBot         Boolean          @default(false)
+  ttclid        String?
+  fbclid        String?
+  userAgent     String?
+  createdAt     DateTime         @default(now())
+
+  @@index([landingPageId, createdAt])
+  @@index([landingPageId, type, createdAt])
+  @@index([visitId])
+  @@index([createdAt])
 }
