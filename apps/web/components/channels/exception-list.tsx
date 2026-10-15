@@ -113,6 +113,8 @@ export function ExceptionList({
     /** Affiliés Link Affi connus et campagnes d'affiliés du canal (phase 13). */
     affiliates?: Array<{ id: string; name: string }>;
     affiliateLinks?: AffiliateLinkOption[];
+    /** Pages d'atterrissage du canal (phase 15). */
+    landingPages?: Array<{ id: string; name: string; isActive: boolean }>;
   };
   baseState: EntryFormState;
   activeChannels: Array<Omit<GateChannelChoice, "unavailable">>;
@@ -225,8 +227,9 @@ export function ExceptionList({
             Une règle à part pour les personnes venues d&apos;un endroit précis : un de nos canaux,
             une pub, un lien de partage
             {menuInput.affiliates?.length || menuInput.affiliateLinks?.length
-              ? ", un affilié Link Affi."
-              : "."}
+              ? ", un affilié Link Affi"
+              : ""}
+            {menuInput.landingPages?.length ? ", une page d'atterrissage." : "."}
           </p>
         </div>
         <Button

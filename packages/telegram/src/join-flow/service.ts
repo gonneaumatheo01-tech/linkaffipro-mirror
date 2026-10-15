@@ -73,17 +73,24 @@ export type AppliedRuleSnapshot = {
 
 /**
  * Provenance d'une demande avec son texte (« Venu de « Tir Cadré » (canal obligatoire) ») : titre du canal d'origine
- * relu (canal supprimé : texte générique), nom du lien pour une pub, un lien de partage ou un lien manuel.
+ * relu (canal supprimé : texte générique), nom du lien pour une pub, un lien de partage ou un lien manuel, nom de la
+ * page d'atterrissage (« Venu de la page « Promo » (source « tk01 ») », phase 15).
  */
 export async function provenanceSnapshot(
   deps: Pick<JoinFlowDeps, "getChannels">,
   provenance: Provenance,
-  link: Pick<InviteLinkInfo, "name"> | null,
+  link: Pick<InviteLinkInfo, "name" | "landingPageName"> | null,
 ): Promise<ProvenanceSnapshot> {
   const titles: Record<string, string> = {};
   if (provenance.sourceChannelId)
     for (const c of await deps.getChannels([provenance.sourceChannelId])) titles[c.id] = c.title;
-  return { ...provenance, label: provenanceLabel(provenance, titles, link?.name ?? null) };
+  const pageId = provenance.landing?.pageId;
+  const pages: Record<string, string> =
+    pageId && link?.landingPageName ? { [pageId]: link.landingPageName } : {};
+  return {
+    ...provenance,
+    label: provenanceLabel(provenance, titles, link?.name ?? null, pages),
+  };
 }
 
 /** Lien d'invitation tel que Telegram le transmet dans une demande ou une entrée (adresse, créateur). */
@@ -329,6 +336,13 @@ export async function handleJoinRequest(
           adPlatform: link.adPlatform,
           adCampaignName: link.adCampaignName,
           adName: link.adName,
+          // Page d'atterrissage et source (phase 15).
+          ...(link.kind === "LANDING"
+            ? {
+                landingPageId: link.landingPageId ?? null,
+                landingSource: link.landingSource ?? null,
+              }
+            : {}),
         }
       : null,
     telegramInviteLink: req.invite_link?.invite_link ?? null,

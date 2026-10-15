@@ -1,5 +1,5 @@
 import { revshareRowWhere } from "@linkaffipro/core";
-import { prisma, type AdPlatform, type Prisma } from "@linkaffipro/db";
+import { landingVisitsByLink, prisma, type AdPlatform, type Prisma } from "@linkaffipro/db";
 import { cachedDashboard } from "@/lib/dashboard/cache";
 import {
   periodDates,
@@ -17,6 +17,7 @@ import {
   scopeFromCampaign,
   type CampaignScope,
 } from "./attribution";
+import { shownEntryLinkIds } from "./display";
 import { computeMetrics, type CampaignMetrics, type CampaignTotals } from "./metrics";
 import { affiliateIdOf, markOurOffers } from "./wizard";
 
@@ -71,9 +72,12 @@ export const listCampaigns: (period: Period, compare: boolean) => Promise<Campai
     listCampaignsUncached(period, compare),
   );
 
-/** Relations qui forment le périmètre d'une campagne (liens d'entrée, liens traqués, pubs) : voir `scopeFromCampaign`. */
+/**
+ * Relations qui forment le périmètre d'une campagne (liens d'entrée, liens traqués, pubs) : voir `scopeFromCampaign`.
+ * Type des liens : les liens des pages d'atterrissage ne sont pas comptés comme liens d'entrée (`shownEntryLinkIds`).
+ */
 export const campaignScopeInclude = {
-  inviteLinks: { select: { id: true } },
+  inviteLinks: { select: { id: true, kind: true } },
   trackingLinks: { select: { id: true } },
   adSets: { select: { ads: { select: { inviteLinkId: true, trackingLinkId: true } } } },
 } satisfies Prisma.CampaignInclude;
@@ -124,7 +128,7 @@ export async function listCampaignsUncached(
       vertical: c.vertical,
       status: c.status,
       channels: scope.channelIds.map((id) => channelTitle.get(id) ?? "?"),
-      links: scope.inviteLinkIds.length,
+      links: shownEntryLinkIds(c).length,
       offers: scope.affiliateCampaignIds.length,
       importedFrom: c.adPlatform && isImportedShell(c) ? c.adPlatform : null,
       source: costSourceOf(sourcesByCampaign.get(c.id)),
@@ -160,7 +164,9 @@ function round2(n: number): number {
 }
 
 /**
- * Totaux d'une campagne sur la période : dépense, clics d'entrée, membres, clics d'offre, inscriptions, FTD, dépôts, NGR,
+ * Totaux d'une campagne sur la période : dépense, clics d'entrée (clics sur ses liens goolink de pub et visites des pages
+ * d'atterrissage par ses liens, une par visite : même règle que les statistiques journalières), membres, clics d'offre,
+ * inscriptions, FTD, dépôts, NGR,
  * et nos commissions (phase 10) : CPA de ses joueurs (événements CPA / CPA_REVERSAL datés : + au crédit, − le jour de
  * l'annulation) et part de revshare de ses offres Link Affi (agrégat par offre et par jour, `revshareRowWhere`).
  * Membres = demandes d'adhésion passées par ses liens d'entrée. Joueurs = rattachés à un clic de ses liens, à un de
@@ -214,6 +220,7 @@ export async function totalsForScopes(
     registrations,
     ftds,
     entryClicks,
+    landingVisits,
     offerClicks,
     depositEvents,
     ngrEvents,
@@ -252,6 +259,8 @@ export async function totalsForScopes(
           },
         })
       : 0,
+    // Visites des pages d'atterrissage par ses liens (lien affiché au moment de la visite, pub figée).
+    inviteLinkIds.length ? landingVisitsByLink({ since, until, inviteLinkIds }) : [],
     prisma.click.count({ where: { AND: [offerClickWhere, { createdAt: within }] } }),
     prisma.playerEvent.aggregate({
       _count: { _all: true },
@@ -286,7 +295,7 @@ export async function totalsForScopes(
     registrations,
     ftds,
     revenue: Number(ngrEvents._sum.amount ?? 0),
-    entryClicks,
+    entryClicks: entryClicks + landingVisits.reduce((n, v) => n + v.visits, 0),
     offerClicks,
     deposits: depositEvents._count._all,
     depositAmount: Number(depositEvents._sum.amount ?? 0),

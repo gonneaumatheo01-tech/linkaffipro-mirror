@@ -37,7 +37,10 @@
     "db:dump": "node scripts/db-dump.mjs",
     "test:integration": "node scripts/test-integration.mjs",
     "captures": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/captures.ts",
-    "a11y": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/a11y.ts"
+    "a11y": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/a11y.ts",
+    "landing:test-page": "pnpm --filter web landing:test-page",
+    "landing:measure": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/landing-measure.ts",
+    "landing:browser-check": "node --env-file-if-exists=.env.local --import tsx apps/web/scripts/landing-browser-check.ts"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

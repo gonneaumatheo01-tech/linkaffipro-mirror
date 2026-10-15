@@ -37,6 +37,10 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   // Phase 14 : nouvelle règle appliquée aux demandes en attente (bouton de l'équipe).
   "membership.rule_applied": "Nouvelle règle appliquée à la demande",
   "invite_link.legacy_revoked": "Ancien lien de canal à rejoindre retiré",
+  // Phase 15 : liens Telegram des sources des pages d'atterrissage (créés, refusés par Telegram, retirés).
+  "invite_link.landing_created": "Lien d'une page d'atterrissage créé",
+  "invite_link.landing_failed": "Lien d'une page d'atterrissage : refus de Telegram",
+  "invite_link.landing_revoked": "Lien d'une page d'atterrissage retiré",
   "channel.gate_links_checked": "Liens des canaux à rejoindre vérifiés",
   "player.cpa_credited": "Commission créditée",
   "player.cpa_reversed": "Commission annulée",

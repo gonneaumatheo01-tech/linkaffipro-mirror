@@ -5,6 +5,7 @@ import {
   memberProfile,
   memberReach,
   memberSubline,
+  originAdFact,
   originSourceLabel,
   plural,
   quickViewChannels,
@@ -245,6 +246,49 @@ describe("lignes d'identité et d'origine", () => {
     ).toBe("Affilié aff-1");
     expect(originSourceLabel({ ...base, kind: "LINKAFFI" })).toBe("Affilié Link Affi");
     expect(originSourceLabel({ adName: null, adPlatform: null, linkName: null })).toBeNull();
+  });
+  it("case « Pub » de la fiche : la pub du lien ; aucune pour un affilié ou une page d'atterrissage", () => {
+    const o = { adName: "Vidéo bonus", adPlatform: "TIKTOK", linkName: "Promo-tk01" };
+    expect(originAdFact("AD_ENTRY", o)).toEqual({
+      ad: "Vidéo bonus (TikTok)",
+      none: "Aucune (lien direct)",
+    });
+    expect(originAdFact("LANDING", o)).toEqual({ ad: null, none: "Aucune (page d'atterrissage)" });
+    // Source reliée à une pub (pub figée sur le lien, D9) : la même pub que celle des statistiques.
+    const viaPage = {
+      adName: "Vidéo bonus",
+      adPlatform: "TIKTOK",
+      pageName: "Casino VIP",
+      sourceKey: "tk01",
+    };
+    expect(originAdFact("LANDING", o, viaPage)).toEqual({
+      ad: "Vidéo bonus (TikTok), par la page «\u00a0Casino VIP\u00a0» (source «\u00a0tk01\u00a0»)",
+      none: "Aucune (page d'atterrissage)",
+    });
+    expect(originAdFact("LANDING", o, { ...viaPage, sourceKey: "" }).ad).toBe(
+      "Vidéo bonus (TikTok), par la page «\u00a0Casino VIP\u00a0»",
+    );
+    // Page supprimée : la pub reste.
+    expect(originAdFact("LANDING", o, { ...viaPage, pageName: null }).ad).toBe(
+      "Vidéo bonus (TikTok), par une page d'atterrissage",
+    );
+    // Source sans pub : aucune pub.
+    expect(originAdFact("LANDING", o, { ...viaPage, adName: null }).ad).toBeNull();
+    expect(originAdFact("LINKAFFI", o).ad).toBeNull();
+    expect(originAdFact(null, null)).toEqual({ ad: null, none: "Aucune (lien direct)" });
+  });
+  it("source de la liste : « Page … » pour une page d'atterrissage (phase 15), jamais « Pub »", () => {
+    const base = { adName: null, adPlatform: null, linkName: "Promo VIP-tk01", kind: "LANDING" };
+    expect(
+      originSourceLabel({ ...base, landingPageName: "Promo VIP", landingSource: "tk01" }),
+    ).toBe("Page Promo VIP (tk01)");
+    expect(originSourceLabel({ ...base, landingPageName: "Promo VIP", landingSource: "" })).toBe(
+      "Page Promo VIP",
+    );
+    // Page supprimée : le nom du lien (« <page>-<source> »).
+    expect(originSourceLabel({ ...base, landingPageName: null, landingSource: "tk01" })).toBe(
+      "Page Promo VIP-tk01",
+    );
   });
 });
 

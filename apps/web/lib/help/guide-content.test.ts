@@ -60,6 +60,7 @@ describe("guide d'utilisation : plan", () => {
     expect(menu).toEqual([
       "Accueil",
       "Campagnes",
+      "Pages",
       "Canaux",
       "Messages",
       "Membres",
@@ -78,6 +79,36 @@ describe("guide d'utilisation : plan", () => {
     expect(after.every((p) => p > positions.at(-1)!)).toBe(true);
     expect([...after].sort((a, b) => a - b)).toEqual(after);
     expect(h2.at(-1)).toBe("Petit lexique");
+  });
+
+  it("Pages (phase 15) : créer une page, copier le lien, lire le tableau, vitesse, ce qui est compté", () => {
+    const pages = guideSections(GUIDE, ["Pages"])[0]!.markdown;
+    for (const t of [
+      "### Créer une page",
+      "### Copier le lien d'une source",
+      "### Lire le tableau d'une page",
+      "### Vitesse de la page",
+      "### Ce qui est compté",
+      "**Copier le lien**",
+      "**Créer la page**",
+      "% visite → join",
+      "Coût par join",
+    ])
+      expect(pages).toContain(t);
+  });
+
+  it("Pages : ce que le guide promet est ce que fait le site (règles d'entrée, source retirée, coût par join)", () => {
+    const pages = guideSections(GUIDE, ["Pages"])[0]!.markdown;
+    // Les exceptions « pub » ne visent jamais une personne venue d'une page (provenance LANDING).
+    expect(pages).not.toMatch(/s'appliquent comme pour une pub/);
+    expect(pages).toMatch(/exceptions « pub » ne visent pas les pages/);
+    expect(pages).toContain("n'importe quelle page d'atterrissage");
+    // Source retirée : l'adresse de la pub ouvre la page avec le lien principal (jamais « inutilisable »).
+    expect(pages).not.toMatch(/inutilisable \(dans la pub/);
+    expect(pages).toMatch(/ouvre alors la page avec le lien principal/);
+    expect(pages).toContain("**Relier à une pub**");
+    expect(pages).toMatch(/source inconnue ou retirée/);
+    expect(pages).toMatch(/rien n'est compté deux fois/);
   });
 
   it("Membres réunit la liste, Écrire à un groupe et les Relances automatiques", () => {

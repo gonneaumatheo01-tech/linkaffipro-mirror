@@ -5,6 +5,7 @@ import {
   deleteLinkaffiEventsBefore,
   scrubDeletedMembersLinkaffiEvents,
 } from "../linkaffi-events/privacy";
+import { deleteLandingEventsBefore } from "./landing";
 import { isPurgeable, parseRetentionMonths, retentionCutoff } from "./retention";
 
 export type PurgeResult = {
@@ -16,6 +17,8 @@ export type PurgeResult = {
   linkaffiEventsScrubbed: number;
   /** Événements Link Affi plus anciens que la durée de conservation, supprimés. */
   linkaffiEventsDeleted: number;
+  /** Visites, clics et ouvertures des pages d'atterrissage plus anciens que la durée de conservation (phase 15). */
+  landingEventsDeleted: number;
 };
 
 /**
@@ -23,6 +26,8 @@ export type PurgeResult = {
  * et supprime les événements plus anciens que N mois, sauf les événements joueurs (`player.*`).
  * Événements des membres d'affiliés pour Link Affi (phase 13) : identité effacée pour tout membre supprimé (à sa
  * demande ou ici), envoi en attente abandonné ; événements de plus de N mois supprimés.
+ * Visites et clics des pages d'atterrissage (phase 15, empreinte de l'adresse IP, agent utilisateur, identifiants de
+ * clic des pubs) : supprimés après N mois.
  */
 export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const setting = await prisma.setting.findUnique({ where: { key: "retention.months" } });
@@ -115,6 +120,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   });
   const linkaffiEventsScrubbed = await scrubDeletedMembersLinkaffiEvents();
   const linkaffiEventsDeleted = await deleteLinkaffiEventsBefore(cutoff);
+  const landingEventsDeleted = await deleteLandingEventsBefore(cutoff);
   const result: PurgeResult = {
     months,
     cutoff,
@@ -122,6 +128,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     eventsDeleted: deleted.count,
     linkaffiEventsScrubbed,
     linkaffiEventsDeleted,
+    landingEventsDeleted,
   };
   await audit({
     action: "maintenance.purge",
@@ -132,6 +139,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
       eventsDeleted: deleted.count,
       linkaffiEventsScrubbed,
       linkaffiEventsDeleted,
+      landingEventsDeleted,
     },
   });
   logger.info(result, "purge de rétention effectuée");

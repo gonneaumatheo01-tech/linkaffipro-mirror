@@ -162,7 +162,7 @@ export const DETAIL_METRICS: MetricView[] = [
   {
     key: "entryClicks",
     label: "Clics sur les pubs",
-    hint: "Clics sur les liens d'entrée, robots exclus.",
+    hint: "Clics sur les liens d'entrée et visites des pages de ses pubs, robots exclus.",
     favorable: "up",
     format: (m) => fmtNum(m.entryClicks ?? 0),
   },
@@ -272,6 +272,25 @@ export function entryLinkTitle(l: {
 }): string {
   if (l.ad) return `${l.ad.adSet.name} › ${l.ad.name}`;
   return l.adName?.trim() || l.name;
+}
+
+/**
+ * Liens d'entrée affichés d'une campagne (onglet Liens, carte, en-tête « 3 liens d'entrée ») : ses liens directs de
+ * pub (rattachés à la campagne ou à une de ses pubs). Les liens des pages d'atterrissage (type LANDING) comptent dans
+ * ses chiffres (périmètre `scopeFromCampaign`), mais ne sont jamais présentés comme des liens d'entrée : l'adresse à
+ * coller dans la pub est celle de la page (rubrique Pages), jamais leur lien Telegram.
+ */
+export function shownEntryLinkIds(c: {
+  inviteLinks: ReadonlyArray<{ id: string; kind: string }>;
+  adSets: ReadonlyArray<{ ads: ReadonlyArray<{ inviteLinkId: string | null }> }>;
+}): string[] {
+  const landing = new Set(c.inviteLinks.filter((l) => l.kind === "LANDING").map((l) => l.id));
+  const out = new Set<string>();
+  for (const l of c.inviteLinks) if (!landing.has(l.id)) out.add(l.id);
+  for (const s of c.adSets)
+    for (const a of s.ads)
+      if (a.inviteLinkId && !landing.has(a.inviteLinkId)) out.add(a.inviteLinkId);
+  return [...out];
 }
 
 /** Adresse courte d'un lien traqué pour une cellule de tableau (« go.goolink.eu/ab12cd »). */

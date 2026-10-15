@@ -109,6 +109,17 @@ describe("Journal → vue « Événements »", () => {
     expect(eventLabel("foo.bar")).toBe("Autre événement");
   });
 
+  it("phase 15 : liens des pages d'atterrissage (un refus de Telegram ne se lit jamais comme une création)", () => {
+    expect(eventLabel("invite_link.landing_created")).toBe("Lien d'une page d'atterrissage créé");
+    expect(eventLabel("invite_link.landing_failed")).toBe(
+      "Lien d'une page d'atterrissage : refus de Telegram",
+    );
+    expect(eventLabel("invite_link.landing_revoked")).toBe("Lien d'une page d'atterrissage retiré");
+    expect(eventLabel("invite_link.landing_failed")).not.toBe(
+      eventLabel("invite_link.landing_created"),
+    );
+  });
+
   it("phase 14 : injoignable distinct de bloqué, validation automatique, règle réappliquée", () => {
     // Sans détail : libellé neutre (le refus couvre aussi un compte supprimé, un chat introuvable…).
     expect(eventLabel("dm.unreachable")).toBe(

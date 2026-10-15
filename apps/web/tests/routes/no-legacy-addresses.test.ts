@@ -8,6 +8,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { legacyRedirect } from "@/lib/legacy-routes";
 
 const WEB = join(__dirname, "..", "..");
 const ROOTS = ["app", "components", "lib"].map((d) => join(WEB, d));
@@ -59,6 +60,22 @@ describe("anciennes adresses absentes du code", () => {
 
   it("aucun onglet des statistiques en paramètre « tab » (une page par rubrique)", () => {
     expect(offenders(OLD_STATS_TAB)).toEqual([]);
+  });
+
+  it("rubrique « Pages » (phase 15) : une adresse neuve, jamais redirigée, ni la rubrique ni les pages publiques", () => {
+    for (const path of [
+      "/pages",
+      "/pages/new",
+      "/pages/p1",
+      "/pages/p1/export",
+      "/j/promo",
+      "/j/_e",
+    ])
+      expect(legacyRedirect(path), path).toBeNull();
+    // Le menu et les liens de la rubrique pointent vers /pages (aucune autre adresse inventée pour elle).
+    const nav = files.find((f) => f.rel === "components/admin/nav-logic.ts")!;
+    expect(nav.src).toContain('href: "/pages"');
+    expect(offenders(/["'`]\/landing(?:-pages)?(?:[/?"'`])/)).toEqual([]);
   });
 
   it("le contrôle reconnaît bien une ancienne adresse", () => {

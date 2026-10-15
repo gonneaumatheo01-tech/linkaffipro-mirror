@@ -14,12 +14,13 @@ import {
 } from "./tour-logic";
 
 describe("étapes de la visite guidée", () => {
-  it("5 à 7 étapes : Accueil, Campagnes, Canaux, Messages, Membres, Statistiques, puis le « ? »", () => {
+  it("une étape par entrée du menu, dans son ordre (Pages comprise, phase 15), puis le « ? »", () => {
     expect(TOUR_STEPS.length).toBeGreaterThanOrEqual(5);
-    expect(TOUR_STEPS.length).toBeLessThanOrEqual(7);
+    expect(TOUR_STEPS.length).toBeLessThanOrEqual(8);
     expect(TOUR_STEPS.map((s) => s.key)).toEqual([
       "home",
       "campaigns",
+      "pages",
       "channels",
       "messages",
       "members",
@@ -36,10 +37,10 @@ describe("étapes de la visite guidée", () => {
   });
 
   it("rubriques rangées sous « Plus » sur téléphone : repli sur nav-more avec une phrase", () => {
-    for (const key of ["channels", "stats"]) {
+    for (const key of ["pages", "channels", "stats"]) {
       const step = TOUR_STEPS.find((s) => s.key === key)!;
       expect(step.anchors.at(-1)).toBe("nav-more");
-      expect(step.fallbackNote).toMatch(/« Plus »/);
+      expect(step.fallbackNote).toMatch(/«\s?Plus\s?»/);
     }
   });
 

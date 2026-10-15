@@ -11,6 +11,7 @@ import { processSyncAds, repeatableSyncAds } from "./sync-ads";
 import { processSyncViews, repeatableSyncViews } from "./sync-views";
 import { processCustomEmoji, repeatableCustomEmoji } from "./custom-emoji";
 import { processLinkaffiEvents, repeatableLinkaffiEvents } from "./linkaffi-events";
+import { processLandingEvents, repeatableLandingEvents } from "./landing-events";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -29,4 +30,7 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   "custom-emoji": { process: (job: Job) => processCustomEmoji(job), repeatable: repeatableCustomEmoji, concurrency: 1 },
   // Événements Link Affi (phase 13) : envois HTTP signés, un à la fois (ordre des événements d'un membre gardé).
   "linkaffi-events": { process: (job: Job) => processLinkaffiEvents(job), repeatable: repeatableLinkaffiEvents, concurrency: 1 },
+  // Pages d'atterrissage (phase 15) : écriture des visites, clics et ouvertures (une ligne par envoi, sans ordre à
+  // garder) ; plusieurs à la fois pour suivre le trafic des pubs.
+  "landing-events": { process: (job: Job) => processLandingEvents(job), repeatable: repeatableLandingEvents, concurrency: 8 },
 };

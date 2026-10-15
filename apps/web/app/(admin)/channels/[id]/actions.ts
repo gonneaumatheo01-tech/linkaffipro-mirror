@@ -342,6 +342,7 @@ function exceptionMetadata(
     sourceKind: string | null;
     inviteLinkId: string | null;
     linkaffiAffiliateId?: string | null;
+    landingPageId?: string | null;
     label: string | null;
     isActive: boolean;
   },
@@ -354,6 +355,7 @@ function exceptionMetadata(
     sourceKind: r.sourceKind,
     inviteLinkId: r.inviteLinkId,
     ...(r.linkaffiAffiliateId ? { linkaffiAffiliateId: r.linkaffiAffiliateId } : {}),
+    ...(r.landingPageId ? { landingPageId: r.landingPageId } : {}),
     label: r.label,
     isActive: r.isActive,
     ...extra,
@@ -407,7 +409,13 @@ export async function saveExceptionAction(
   const existing = d.ruleId ? siblings.find((r) => r.id === d.ruleId) : undefined;
   if (d.ruleId && !existing) return { error: "Cette exception n'existe plus : rechargez la page." };
 
-  const names: TargetNames = { titles: {}, linkNames: {}, affiliateNames: {}, affiliateLinks: {} };
+  const names: TargetNames = {
+    titles: {},
+    linkNames: {},
+    affiliateNames: {},
+    affiliateLinks: {},
+    landingPageNames: {},
+  };
   const problem = await checkTarget(target, d.channelId, existing?.inviteLinkId ?? null, names);
   if (problem) return { error: problem };
   if (findDuplicate(siblings, target, existing?.id))
@@ -436,6 +444,8 @@ export async function saveExceptionAction(
     sourceKind: target.sourceKind,
     // Affilié Link Affi précis (phase 13) ; vidé pour toute autre provenance.
     linkaffiAffiliateId: target.linkaffiAffiliateId,
+    // Page d'atterrissage précise (phase 15) ; vidée pour toute autre provenance.
+    landingPageId: target.landingPageId,
   };
   let saved;
   try {
@@ -490,6 +500,7 @@ type TargetNames = {
   linkNames: Record<string, string>;
   affiliateNames: Record<string, string>;
   affiliateLinks: Record<string, { campaignName: string; affiliateName: string }>;
+  landingPageNames: Record<string, string>;
 };
 
 /** La cible existe-t-elle et appartient-elle bien à ce canal ? Remplit les noms utiles au libellé ; message sinon. */
@@ -511,6 +522,15 @@ async function checkTarget(
       link.linkaffiAffiliateId,
       link.linkaffiAffiliateName,
     );
+  }
+  if (target.scope === "SOURCE_KIND" && target.sourceKind === "LANDING_PAGE") {
+    // Une page d'atterrissage précise (phase 15) : une page de ce canal.
+    const page = await prisma.landingPage.findFirst({
+      where: { id: target.landingPageId!, channelId },
+      select: { id: true, name: true },
+    });
+    if (!page) return "Cette page d'atterrissage n'existe plus : choisissez une autre provenance.";
+    names.landingPageNames[page.id] = page.name;
   }
   if (target.scope === "SOURCE_CHANNEL") {
     if (target.sourceChannelId === channelId)

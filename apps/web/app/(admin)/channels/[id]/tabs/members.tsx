@@ -10,8 +10,10 @@ import {
   appliedRuleText,
   appliedRuleView,
   membershipProvenance,
+  landingPageIdsOf,
   sourceChannelIdsOf,
 } from "@/lib/channels/provenance-display";
+import { landingPageNames } from "@/lib/landing/queries";
 import {
   PROVENANCE_STATS_DAYS,
   loadProvenanceStats,
@@ -42,7 +44,15 @@ export async function MembersTab({ channelId, sp }: { channelId: string; sp: Sea
   const links = linkIds.length
     ? await prisma.inviteLink.findMany({
         where: { id: { in: linkIds } },
-        select: { id: true, kind: true, sourceChannelId: true, adPlatform: true, name: true },
+        select: {
+          id: true,
+          kind: true,
+          sourceChannelId: true,
+          adPlatform: true,
+          name: true,
+          landingPageId: true,
+          landingSource: true,
+        },
       })
     : [];
   const linkOf = new Map(links.map((l) => [l.id, l]));
@@ -51,6 +61,8 @@ export async function MembersTab({ channelId, sp }: { channelId: string; sp: Sea
     inviteLink: m.inviteLinkId ? linkOf.get(m.inviteLinkId) : null,
   }));
   const sourceIds = sourceChannelIdsOf(rows);
+  // Pages d'atterrissage (phase 15) : nom actuel d'une page renommée.
+  const pageNames = await landingPageNames(landingPageIdsOf(rows));
   const titles = sourceIds.length
     ? Object.fromEntries(
         (
@@ -64,7 +76,7 @@ export async function MembersTab({ channelId, sp }: { channelId: string; sp: Sea
   const table = (
     <ChannelMembersTable
       rows={rows.map((m) => {
-        const { provenance, label } = membershipProvenance(m, titles);
+        const { provenance, label } = membershipProvenance(m, titles, pageNames);
         const rule = appliedRuleText(appliedRuleView(m));
         return {
           id: m.id,

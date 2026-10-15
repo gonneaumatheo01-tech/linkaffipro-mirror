@@ -139,7 +139,7 @@ Le mot du client est affiché ; le terme exact apparaît au survol, au toucher e
 
 ### Navigation, adresses et aide
 
-- **Menu** : `components/admin/nav-logic.ts` (`NAV`) : 6 entrées + Réglages en bas ; « Guide d'utilisation » et « Mon compte » seulement dans « Plus » du téléphone (`mobileOnly`). Barre du bas du téléphone : `MOBILE_PRIMARY_HREFS` (Accueil, Messages, Membres, Campagnes) puis « Plus ». Une rubrique rangée sous une entrée l'allume (`activeHref`, la plus précise gagne).
+- **Menu** : `components/admin/nav-logic.ts` (`NAV`) : 7 entrées (les 6 de la refonte, plus Pages après Campagnes depuis la phase 15) + Réglages en bas ; « Guide d'utilisation » et « Mon compte » seulement dans « Plus » du téléphone (`mobileOnly`). Barre du bas du téléphone : `MOBILE_PRIMARY_HREFS` (Accueil, Messages, Membres, Campagnes) puis « Plus ». Une rubrique rangée sous une entrée l'allume (`activeHref`, la plus précise gagne).
 - **Adresses déplacées** : `lib/legacy-routes.ts` (redirection 308 appelée par `proxy.ts`, après la branche de tracking). Tout nouveau déplacement s'y ajoute.
 - **Aide « ? »** : toute nouvelle page reçoit une ligne dans `lib/help/page-help.ts` (`PAGE_HELP`, segments `:id` permis pour les fiches) et sa section dans `docs/GUIDE-UTILISATEUR.md` (une section par écran, libellés exacts des boutons). Une section pas encore écrite peut vivre dans `lib/help/builtin-sections.ts` le temps de l'écrire.
 - **Visite guidée** : repères `data-tour="nav-<clé>"` (`navTourId`), `nav-more` et `help` ; étapes dans `components/admin/tour/tour-logic.ts`.
@@ -167,7 +167,7 @@ Le mot du client est affiché ; le terme exact apparaît au survol, au toucher e
 
 #### Sidebar — `components/admin/sidebar.tsx`
 
-Barre de menu fond nuit, logo en haut, 6 entrées puis Réglages en bas, séparé. Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Ordinateur (≥ 1024 px) : 240 px, icône et libellé ; tablette (768–1023 px) : rail de 64 px, icônes seules (nom lu par les lecteurs d'écran, infobulle au survol) ; téléphone : cachée. Props : `isAdmin`.
+Barre de menu fond nuit, logo en haut, 7 entrées (dont Pages, phase 15) puis Réglages en bas, séparé. Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Ordinateur (≥ 1024 px) : 240 px, icône et libellé ; tablette (768–1023 px) : rail de 64 px, icônes seules (nom lu par les lecteurs d'écran, infobulle au survol) ; téléphone : cachée. Props : `isAdmin`.
 
 #### BottomNav — `components/admin/bottom-nav.tsx`
 
@@ -721,6 +721,14 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 - `CampaignFigure` + `FigureDelta` (`campaign-figure.tsx`) : un chiffre de carte (libellé en note, `term` au survol, valeur 20 px tabulaire, variation sur sa propre ligne, hauteur réservée) ; à placer dans un `<dl>`. Props : `label`, `term`, `value`, `delta`, `favorable`, `valueTone`, `hint`, `className`.
 - `NewCampaignButton`, `OfferPicker` (choix des offres Link Affi, état pur `offer-picker-state.ts`).
 - `CampaignTabs` (`app/(admin)/campaigns/[id]/tabs/nav.tsx`) : onglets de la fiche (`TabNav`, grille de 3 sur téléphone, libellés courts ; période conservée).
+
+**Pages** (`components/landing/`, phase 15) :
+
+- `LandingPageForm` (client) : le formulaire unique d'une page d'atterrissage (canal, accroche, sous-texte, texte du bouton ; « Sources » avec « Copier le lien » et, à la demande, « Relier à une pub » : pubs des campagnes du canal d'abord, « (déjà reliée) » signalé ; « Avancé » : langue, pixels vérifiés à la frappe, cookies, photo, petite ligne, nom, adresse, pause), un seul bouton principal, l'aperçu à côté (sous les textes de la page sur téléphone). Sous le canal, une ligne si ses exceptions « pub » ne visent pas les pages ; prévient avant de quitter la page avec des modifications non enregistrées. Props : `initial`, `saved`, `channels`, `adGroups`, `links`, `trackingBase`, `takenNames`, `landingExceptionChannels`, `action`, `retryAction`.
+- `PhonePreview` : aperçu téléphone en direct, même rendu que la page publique (`renderLandingHtml` en mode aperçu : ni script, ni pixel, ni lien actif). Props : `input`, `drawnWidth` (270 par défaut), `title` (nom du cadre, unique dans la page), `className`.
+- `PagePreviewDialog` (client) : « Voir la page » dans l'en-tête de la fiche : la page enregistrée en grand dans une boîte (`Dialog`), jusqu'à la taille réelle d'un téléphone (`largePreviewWidth`, `preview-size.ts` : textes à côté à partir de 768 px, au-dessus sur téléphone). Toujours l'aperçu (`savedPagePreviewInput`), jamais la vraie page publique : l'équipe y serait comptée comme une vraie visite et les pixels enverraient leurs événements aux régies (test de garde `tests/routes/no-public-landing-links.test.ts`). Props : `input`, `isActive`.
+- `CopyLinkButton` (client) : « Copier le lien » d'une source, désactivé avec la raison tant que le lien Telegram n'est pas prêt. Props : `url`, `label`, `disabledReason`, `size`, `compact`, `className`.
+- `LandingStats` (serveur) : les chiffres d'une page : sélecteur de période (revient sur `#chiffres`), cinq `StatCard`, `DataTable` par source (volet de détail, « — » sans pub, « aucun join » sous une dépense sans demande), ligne des sources inconnues ou retirées, « Telegram ouvert » en `BarList` par téléphone avec le détail par appli replié (`AdvancedSection`), comparaison avec les liens directs des pubs (`DataTable`, colonnes secondaires cachées sur téléphone). Props : `pageId`, `table`, `previous`, `period`, `compare`, `direct`, `slug`, `trackingBase`, `adNames`, `readyKeys`. Règles pures : `lib/landing/form.ts`, `lib/landing/stats.ts`.
 
 **Canaux** (`components/channels/`) : `ChannelTabs` (onglets de la fiche, `TabNav` ; téléphone : deux rangées de deux boutons ; nombre de demandes en pastille), `EntryRuleForm` (« Qui peut entrer et quand » : trois choix, puis Avancé), `BotTextEditor` (texte d'un message du bot avec `RichTextEditor` et aperçu), `LangTabs` (langues en onglets Base UI), `BotToggle` (interrupteur « Activé »), `RequestCard` (une demande, Accepter / Refuser), `ChannelMembersTable`, `ChannelSettingsForm`, `BotPills`, `ChannelStatePills`.
 

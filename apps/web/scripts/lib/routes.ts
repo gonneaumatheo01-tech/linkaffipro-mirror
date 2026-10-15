@@ -31,6 +31,7 @@ export const PUBLIC_ROUTES = ["/login", "/privacy", "/terms"];
 const SECTION_ORDER = [
   "",
   "campaigns",
+  "pages",
   "channels",
   "messages",
   "members",
@@ -99,7 +100,8 @@ export type EntityKey =
   | "broadcast"
   | "broadcastAbGroup"
   | "automation"
-  | "importBatch";
+  | "importBatch"
+  | "landingPage";
 export type EntityIds = Partial<Record<EntityKey, string>>;
 
 /** Segment qui précède l'identifiant → objet (anciennes et nouvelles adresses : /broadcasts et /members/broadcasts). */
@@ -111,6 +113,8 @@ const ENTITY_BY_SEGMENT: Record<string, EntityKey> = {
   broadcasts: "broadcast",
   automations: "automation",
   imports: "importBatch",
+  // Phase 15 : fiche d'une page d'atterrissage (`/pages/[id]`).
+  pages: "landingPage",
 };
 const AB_GROUP: Partial<Record<EntityKey, EntityKey>> = {
   post: "postAbGroup",

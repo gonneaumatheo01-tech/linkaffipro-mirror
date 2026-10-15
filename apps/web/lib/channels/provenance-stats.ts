@@ -4,7 +4,7 @@ import { prisma } from "@linkaffipro/db";
 /**
  * Statistiques d'un canal selon la provenance (fiche canal → onglet « Membres », phase 11) : pour les 30 derniers
  * jours, d'où viennent les demandes (bouton « canal à rejoindre » de chacun de nos canaux, chaque lien de partage,
- * pubs TikTok / Meta / autres, autres liens), combien sont acceptées et combien de personnes repartent dans les
+ * pubs TikTok / Meta / autres, chaque page d'atterrissage (phase 15), autres liens), combien sont acceptées et combien de personnes repartent dans les
  * 7 jours qui suivent leur entrée.
  *
  * Une demande appartient à la provenance de son lien d'invitation (`provenanceOfLink`, la règle du bot) : le lien d'une
@@ -25,7 +25,12 @@ export type LinkCounts = {
   left7: number;
 };
 
-export type StatsLink = ProvenanceLink & { name: string; isActive?: boolean };
+export type StatsLink = ProvenanceLink & {
+  name: string;
+  isActive?: boolean;
+  /** Nom actuel de la page d'atterrissage du lien (lien LANDING, phase 15) ; null : page supprimée. */
+  landingPageName?: string | null;
+};
 
 export type ProvenanceStatsRow = {
   key: string;
@@ -55,6 +60,17 @@ export function bucketOf(
     }
     case "SHARE":
       return { key: `share:${link!.id}`, label: `Lien de partage « ${link!.name} »` };
+    case "LANDING": {
+      // Une ligne par page, toutes sources (le détail par source est dans la rubrique Pages).
+      const pageId = p.landing?.pageId ?? null;
+      const name = pageId ? link?.landingPageName : null;
+      return pageId
+        ? {
+            key: `landing:${pageId}`,
+            label: name ? `Page d'atterrissage « ${name} »` : "Page d'atterrissage",
+          }
+        : { key: "landing:?", label: "Page d'atterrissage supprimée" };
+    }
     case "AD":
       return p.adPlatform === "TIKTOK"
         ? { key: "ad:TIKTOK", label: "Pubs TikTok" }
@@ -169,9 +185,17 @@ export async function loadProvenanceStats(
       adPlatform: true,
       name: true,
       isActive: true,
+      landingPageId: true,
+      landingSource: true,
+      landingPage: { select: { name: true } },
     },
   });
-  const links = new Map(linkRows.map((l) => [l.id, l]));
+  const links = new Map<string, StatsLink>(
+    linkRows.map(({ landingPage, ...l }) => [
+      l.id,
+      { ...l, landingPageName: landingPage?.name ?? null },
+    ]),
+  );
   const sourceIds = [
     ...new Set(linkRows.map((l) => l.sourceChannelId).filter((id): id is string => !!id)),
   ];

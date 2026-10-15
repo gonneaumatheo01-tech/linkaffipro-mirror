@@ -15,6 +15,7 @@ import type {
   GateMode,
   ImportKind,
   InviteLinkKind,
+  LandingEventType,
   MembershipStatus,
   OutboundKind,
   OutboundStatus,
@@ -202,6 +203,7 @@ export const STATUS_DICT = {
     MANUAL: plain("Manuel"),
     SHARE: plain("Lien de partage"),
     LINKAFFI: plain("Campagne d'affilié Link Affi"),
+    LANDING: plain("Page d'atterrissage"),
   } satisfies Record<InviteLinkKind, StatusEntry>,
   adPlatform: {
     TIKTOK: plain("TikTok"),
@@ -259,6 +261,12 @@ export const STATUS_DICT = {
     PACK: plain("Lien d'un pack"),
     ACCOUNT: plain("Votre compte Telegram"),
   } satisfies Record<CustomEmojiSource, StatusEntry>,
+  // Pages d'atterrissage (phase 15) : visite, clic sur le bouton, Telegram ouvert (page quittée juste après le clic).
+  landingEvent: {
+    VIEW: plain("Visite"),
+    CLICK: plain("Clic"),
+    OPENED: ok("Telegram ouvert"),
+  } satisfies Record<LandingEventType, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

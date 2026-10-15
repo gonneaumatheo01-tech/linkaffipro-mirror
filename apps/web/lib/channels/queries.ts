@@ -216,6 +216,8 @@ export function exceptionItemFromRow(row: ApprovalRule): ExceptionItem {
     sourceChannelId: row.sourceChannelId,
     sourceKind: row.sourceKind,
     linkaffiAffiliateId: row.linkaffiAffiliateId,
+    // Page d'atterrissage d'une exception LANDING_PAGE (phase 15).
+    landingPageId: row.landingPageId,
     sortOrder: row.sortOrder,
     label: row.label,
     rule: entryRuleFromRow(row),

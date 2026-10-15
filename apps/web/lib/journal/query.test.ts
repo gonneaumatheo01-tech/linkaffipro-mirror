@@ -57,6 +57,13 @@ const REAL_ACTIONS = [
   "stats.recompute_requested",
   "system.job_retried",
   "maintenance.purge",
+  "landing.page_created",
+  "landing.page_updated",
+  "landing.page_deleted",
+  "landing.test_page_created",
+  "landing.test_page_updated",
+  "invite_link.landing_created",
+  "invite_link.landing_revoked",
 ];
 
 const where = (action: string) => journalWhere({ userId: "", action, from: "", to: "" });
@@ -155,6 +162,29 @@ describe("filtre « Type d'action » du Journal", () => {
     expect(ACTION_FAMILIES.find((a) => a.prefixes.includes("integration."))?.label).toBe(
       "Link Affi, Meta, TikTok et compte Telegram",
     );
+  });
+
+  it("phase 15 : pages d'atterrissage et leurs liens, en français, filtrables dans « Pages d'atterrissage »", () => {
+    expect(actionLabel("landing.page_created")).toBe("Page d'atterrissage créée");
+    expect(actionLabel("landing.page_updated")).toBe("Page d'atterrissage modifiée");
+    expect(actionLabel("landing.page_deleted")).toBe("Page d'atterrissage supprimée");
+    expect(actionLabel("landing.test_page_created")).toBe("Page d'essai du canal TEST créée");
+    expect(actionLabel("landing.test_page_updated")).toBe(
+      "Page d'essai du canal TEST remise à jour",
+    );
+    expect(actionLabel("landing.autre_action")).toBe("Page d'atterrissage");
+    expect(actionLabel("invite_link.landing_created")).toBe("Lien d'une page créé");
+    expect(actionLabel("invite_link.landing_revoked")).toBe("Lien d'une page retiré");
+    expect(actionLabel("invite_link.landing_failed")).toBe("Lien d'une page : refus de Telegram");
+    expect(entityLabel("LandingPage")).toBe("Page d'atterrissage");
+    expect(entityLabel("LandingSource")).toBe("Source d'une page");
+    expect(actionFamily("landing.")?.label).toBe("Pages d'atterrissage");
+    expect(where("landing.")).toEqual({
+      OR: [
+        { action: { startsWith: "landing." } },
+        { action: { startsWith: "invite_link.landing_" } },
+      ],
+    });
   });
 
   it("appels de Link Affi : un appel refusé ne se lit jamais comme une action réussie", () => {

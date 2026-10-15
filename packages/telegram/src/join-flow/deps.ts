@@ -43,6 +43,13 @@ export type InviteLinkInfo = {
    * Telegram a refusé la révocation). Facultatif (anciens tests : actif).
    */
   isActive?: boolean;
+  /**
+   * Lien d'une source d'une page d'atterrissage (kind LANDING, phase 15) : page (null si supprimée), clé de la source
+   * ("" = lien par défaut de la page) et nom de la page (texte de la provenance). Facultatifs (autres types de lien).
+   */
+  landingPageId?: string | null;
+  landingSource?: string | null;
+  landingPageName?: string | null;
 };
 /** Affilié Link Affi auquel un membre est rattaché (phase 13), ou champs vides. */
 export type MemberAffiliate = {

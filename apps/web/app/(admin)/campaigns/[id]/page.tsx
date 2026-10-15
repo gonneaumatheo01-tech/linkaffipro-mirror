@@ -16,7 +16,12 @@ import { isImportedShell } from "@/lib/campaigns/ad-link";
 import { scopeFromCampaign } from "@/lib/campaigns/attribution";
 import { loadCampaignTrends } from "@/lib/campaigns/card-queries";
 import { campaignSummary, flatParams, platformShortLabel } from "@/lib/campaigns/cards";
-import { campaignVariations, HEADER_METRICS, parseCampaignTab } from "@/lib/campaigns/display";
+import {
+  campaignVariations,
+  HEADER_METRICS,
+  parseCampaignTab,
+  shownEntryLinkIds,
+} from "@/lib/campaigns/display";
 import { unknownBefore } from "@/lib/dashboard/display";
 import { computeMetrics } from "@/lib/campaigns/metrics";
 import { campaignTotals, listActiveConnections } from "@/lib/campaigns/queries";
@@ -161,7 +166,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         description={campaignSummary({
           platformLabel,
           channels: scope.channelIds.length,
-          links: scope.inviteLinkIds.length,
+          links: shownEntryLinkIds(campaign).length,
           offers: scope.affiliateCampaignIds.length,
         })}
         secondaryActions={editPanel}

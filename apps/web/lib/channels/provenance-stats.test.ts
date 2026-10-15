@@ -97,3 +97,56 @@ describe("statistiques par provenance", () => {
     );
   });
 });
+
+describe("statistiques par provenance : pages d'atterrissage (phase 15)", () => {
+  it("une ligne par page (toutes sources), avec son nom actuel ; page supprimée à part", () => {
+    expect(
+      bucketOf(
+        link("lp-tk01", {
+          kind: "LANDING",
+          landingPageId: "lp1",
+          landingSource: "tk01",
+          landingPageName: "Promo VIP",
+        }),
+      ),
+    ).toEqual({ key: "landing:lp1", label: "Page d'atterrissage « Promo VIP »" });
+    expect(
+      bucketOf(link("lp-x", { kind: "LANDING", landingPageId: null, landingSource: "tk01" })),
+    ).toEqual({ key: "landing:?", label: "Page d'atterrissage supprimée" });
+    const rows = provenanceStatsRows({
+      counts: [
+        { inviteLinkId: "lp-a", requests: 3, accepted: 2, left7: 0 },
+        { inviteLinkId: "lp-b", requests: 2, accepted: 2, left7: 1 },
+      ],
+      links: new Map([
+        [
+          "lp-a",
+          link("lp-a", {
+            kind: "LANDING",
+            landingPageId: "lp1",
+            landingSource: "",
+            landingPageName: "Promo VIP",
+          }),
+        ],
+        [
+          "lp-b",
+          link("lp-b", {
+            kind: "LANDING",
+            landingPageId: "lp1",
+            landingSource: "tk01",
+            landingPageName: "Promo VIP",
+          }),
+        ],
+      ]),
+    });
+    expect(rows).toEqual([
+      {
+        key: "landing:lp1",
+        label: "Page d'atterrissage « Promo VIP »",
+        requests: 5,
+        accepted: 4,
+        left7: 1,
+      },
+    ]);
+  });
+});

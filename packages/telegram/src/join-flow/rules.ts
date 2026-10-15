@@ -210,6 +210,8 @@ export type ScopedRuleRow = RuleRow & {
   sortOrder: number;
   /** Affilié visé par une exception « un affilié précis » (LINKAFFI_AFFILIATE, phase 13). */
   linkaffiAffiliateId?: string | null;
+  /** Page visée par une exception « la page <nom> » (LANDING_PAGE, phase 15). */
+  landingPageId?: string | null;
 };
 
 /**

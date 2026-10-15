@@ -669,6 +669,12 @@ model InviteLink {
   landingPageId         String?
   landingPage           LandingPage?   @relation(fields: [landingPageId], references: [id], onDelete: SetNull)
   landingSource         String?
+  /// Pub pour laquelle ce lien LANDING a été créé (pub reliée à la source à ce moment-là), figée : ses demandes comptent
+  /// pour cette pub et sa campagne (`campaignId`, posée à la création) pour toujours. La pub d'une source change : un
+  /// nouveau lien est créé, l'ancien garde sa pub. Page supprimée : le lien garde sa pub. Pub supprimée : null, le lien
+  /// garde sa campagne (comme un lien d'entrée direct).
+  landingAdId           String?
+  landingAd             Ad?            @relation("LandingAdLinks", fields: [landingAdId], references: [id], onDelete: SetNull)
   language              String         @default("fr")
   isActive              Boolean        @default(true)
   createdById           String?
@@ -685,11 +691,12 @@ model InviteLink {
   affiliateMembers Member[]       @relation("AffiliateInviteLink")
   trackingLinks    TrackingLink[]
   rule             ApprovalRule?  @relation("RuleForLink")
-  ad               Ad?
+  ad               Ad?            @relation("AdInviteLink")
   landingSourceOf  LandingSource? @relation("LandingSourceLink")
 
   @@unique([linkaffiCampaignKey, channelId])
   @@index([landingPageId, landingSource])
+  @@index([landingAdId])
   @@index([linkaffiAffiliateId])
   @@index([channelId, kind])
   @@index([kind, createdAt])
@@ -1270,7 +1277,7 @@ model Ad {
   name           String
   externalId     String?
   inviteLinkId   String?       @unique
-  inviteLink     InviteLink?   @relation(fields: [inviteLinkId], references: [id])
+  inviteLink     InviteLink?   @relation("AdInviteLink", fields: [inviteLinkId], references: [id])
   trackingLinkId String?       @unique
   trackingLink   TrackingLink? @relation(fields: [trackingLinkId], references: [id])
   createdAt      DateTime      @default(now())
@@ -1279,6 +1286,8 @@ model Ad {
   costs          AdCost[]
   dailyStats     DailyStat[]
   landingSources LandingSource[]
+  /// Liens des pages d'atterrissage créés pour cette pub (`InviteLink.landingAdId`, figée à la création).
+  landingLinks   InviteLink[]    @relation("LandingAdLinks")
 
   @@unique([adSetId, name])
 }
@@ -1764,6 +1773,9 @@ model LandingSource {
   inviteLink    InviteLink? @relation("LandingSourceLink", fields: [inviteLinkId], references: [id], onDelete: SetNull)
   /// Dernier refus de Telegram à la création du lien (texte en français), null si le lien existe.
   linkError     String?
+  /// Dernier essai de création du lien (réussi ou non) : la reprise du worker passe d'abord les pages essayées le moins
+  /// récemment (chacune à son tour).
+  linkTriedAt   DateTime?
   /// Pub d'une de nos campagnes reliée à la source (facultatif) : sa dépense donne le coût par join.
   adId          String?
   ad            Ad?         @relation(fields: [adId], references: [id], onDelete: SetNull)

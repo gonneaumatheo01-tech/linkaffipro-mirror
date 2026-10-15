@@ -5,6 +5,24 @@ export type { EnqueueDmInput, DmButton } from "./outbound";
 export { emitAutomationEvent } from "./automations";
 export { emitLinkaffiEvent } from "./linkaffi-events";
 export type { EmitLinkaffiEventInput, EmitLinkaffiEventResult } from "./linkaffi-events";
+export {
+  enqueueLandingEvent,
+  landingEventData,
+  publishLandingInvalidate,
+  subscribeLandingInvalidate,
+  parseLandingInvalidate,
+  LANDING_INVALIDATE_CHANNEL,
+} from "./landing";
+export type {
+  LandingEventInput,
+  EnqueueLandingEventResult,
+  EnqueueLandingEventDeps,
+  LandingInvalidateMessage,
+  PublishLandingInvalidateDeps,
+  LandingSubscriberClient,
+  LandingInvalidateSubscription,
+  SubscribeLandingInvalidateOptions,
+} from "./landing";
 export * from "./monitoring";
 export {
   queueCounts,

@@ -12,6 +12,8 @@ import {
   provenanceOfLink,
   ruleMatches,
   shadowingRule,
+  SOURCE_KINDS,
+  sourceKindMatches,
   UNKNOWN_PROVENANCE,
   welcomeKindFor,
   type ScopedRule,
@@ -438,5 +440,198 @@ describe("campagnes Telegram des affiliés Link Affi (phase 13)", () => {
         { "aff-paul": "Paul" },
       ),
     ).toBe("de l'affilié « Paul »");
+  });
+});
+
+describe("pages d'atterrissage (phase 15)", () => {
+  const landingLink = {
+    id: "l-land-tk01",
+    kind: "LANDING" as const,
+    sourceChannelId: null,
+    adPlatform: null,
+    landingPageId: "page-promo",
+    landingSource: "tk01",
+  };
+  const fromPromo = provenanceOfLink(landingLink);
+  const fromPromoDefault = provenanceOfLink({
+    ...landingLink,
+    id: "l-land-def",
+    landingSource: "",
+  });
+  const fromOtherPage = provenanceOfLink({
+    ...landingLink,
+    id: "l-land-x",
+    landingPageId: "page-autre",
+    landingSource: "exo1",
+  });
+  // Page supprimée : le lien révoqué garde sa source, plus sa page (clé étrangère SetNull).
+  const fromDeletedPage = provenanceOfLink({
+    ...landingLink,
+    id: "l-land-del",
+    landingPageId: null,
+  });
+  const kind = (
+    id: string,
+    sourceKind: ScopedRule["sourceKind"],
+    extra: Partial<ScopedRule> = {},
+  ) => rule({ id, scope: "SOURCE_KIND", sourceKind, ...extra });
+
+  it('lit la page et la source du lien (source par défaut "" gardée), et les relit depuis la demande enregistrée', () => {
+    expect(fromPromo).toEqual({
+      type: "LANDING",
+      inviteLinkId: "l-land-tk01",
+      sourceChannelId: null,
+      adPlatform: null,
+      landing: { pageId: "page-promo", sourceKey: "tk01" },
+    });
+    expect(fromPromoDefault.landing).toEqual({ pageId: "page-promo", sourceKey: "" });
+    expect(fromDeletedPage.landing).toEqual({ pageId: null, sourceKey: "tk01" });
+    for (const p of [fromPromo, fromPromoDefault, fromDeletedPage])
+      expect(provenanceFromJson(JSON.parse(JSON.stringify(p)))).toEqual(p);
+    expect(provenanceFromJson({ type: "LANDING", inviteLinkId: "l1" })).toEqual({
+      type: "LANDING",
+      inviteLinkId: "l1",
+      sourceChannelId: null,
+      adPlatform: null,
+      landing: { pageId: null, sourceKey: null },
+    });
+    expect(
+      provenanceFromJson({ type: "LANDING", landing: { pageId: 3, sourceKey: ["x"] } })?.landing,
+    ).toEqual({ pageId: null, sourceKey: null });
+    // Les autres provenances n'ont pas de page.
+    expect(provenanceFromJson({ ...tiktok, landing: { pageId: "p" } })).not.toHaveProperty(
+      "landing",
+    );
+    expect(
+      provenanceOfLink({ ...landingLink, landingPageId: undefined, landingSource: undefined })
+        .landing,
+    ).toEqual({
+      pageId: null,
+      sourceKey: null,
+    });
+  });
+
+  it("type de provenance : « toutes les pages » et « la page <nom> » (jamais pour une pub ou un autre lien)", () => {
+    expect(sourceKindMatches("LANDING_ANY", fromPromo)).toBe(true);
+    expect(sourceKindMatches("LANDING_ANY", fromDeletedPage)).toBe(true);
+    for (const p of [tiktok, meta, gateFromTir, shareInTir, manual, UNKNOWN_PROVENANCE])
+      expect(sourceKindMatches("LANDING_ANY", p)).toBe(false);
+    expect(sourceKindMatches("LANDING_PAGE", fromPromo, { landingPageId: "page-promo" })).toBe(
+      true,
+    );
+    expect(sourceKindMatches("LANDING_PAGE", fromOtherPage, { landingPageId: "page-promo" })).toBe(
+      false,
+    );
+    // Sans la page visée par la règle, « la page <nom> » ne vise personne.
+    expect(sourceKindMatches("LANDING_PAGE", fromPromo)).toBe(false);
+    expect(sourceKindMatches("LANDING_PAGE", fromDeletedPage, { landingPageId: null })).toBe(false);
+    // Une page d'atterrissage n'est pas une pub, même si la pub envoie vers la page.
+    for (const k of [
+      "AD_ANY",
+      "AD_TIKTOK",
+      "AD_META",
+      "GATE",
+      "ANY_CHANNEL",
+      "SHARE",
+      "LINKAFFI_ANY",
+    ] as const)
+      expect(sourceKindMatches(k, fromPromo), k).toBe(false);
+  });
+
+  it("résolution : lien précis → la page précise → toutes les pages → défaut", () => {
+    const rules = [
+      rule({ id: "default", scope: "DEFAULT" }),
+      kind("any", "LANDING_ANY", { sortOrder: 20 }),
+      kind("promo", "LANDING_PAGE", { landingPageId: "page-promo", sortOrder: 10 }),
+      rule({ id: "link", scope: "INVITE_LINK", inviteLinkId: "l-land-tk01" }),
+    ];
+    expect(pickRuleForProvenance(rules, fromPromo)?.id).toBe("link");
+    const noLink = rules.filter((r) => r.id !== "link");
+    expect(pickRuleForProvenance(noLink, fromPromo)?.id).toBe("promo");
+    expect(pickRuleForProvenance(noLink, fromPromoDefault)?.id).toBe("promo");
+    expect(pickRuleForProvenance(noLink, fromOtherPage)?.id).toBe("any");
+    expect(pickRuleForProvenance(noLink, fromDeletedPage)?.id).toBe("any");
+    expect(pickRuleForProvenance(noLink, tiktok)?.id).toBe("default");
+    expect(pickRuleForProvenance(noLink, gateFromTir)?.id).toBe("default");
+    expect(ruleMatches(kind("x", "LANDING_PAGE", { landingPageId: null }), fromPromo)).toBe(false);
+    expect(
+      ruleMatches(
+        kind("x", "LANDING_PAGE", { landingPageId: "page-promo", isActive: false }),
+        fromPromo,
+      ),
+    ).toBe(false);
+    // Une exception « pub » n'attrape pas les personnes venues d'une page.
+    expect(pickRuleForProvenance([rules[0]!, kind("ads", "AD_ANY")], fromPromo)?.id).toBe(
+      "default",
+    );
+  });
+
+  it("« toutes les pages » placé avant masque une page précise ; une page précise se place avant", () => {
+    const anyPage = kind("any", "LANDING_ANY", { sortOrder: 1 });
+    const promo = kind("promo", "LANDING_PAGE", { landingPageId: "page-promo", sortOrder: 2 });
+    const autre = kind("autre", "LANDING_PAGE", { landingPageId: "page-autre", sortOrder: 0 });
+    expect(shadowingRule([anyPage, promo], promo)?.id).toBe("any");
+    expect(shadowingRule([{ ...anyPage, sortOrder: 9 }, promo], promo)).toBeNull();
+    expect(shadowingRule([autre, promo], promo)).toBeNull();
+    expect(shadowingRule([{ ...promo, id: "promo-0", sortOrder: 0 }, promo], promo)?.id).toBe(
+      "promo-0",
+    );
+    expect(shadowingRule([promo, anyPage], anyPage)).toBeNull();
+    expect(placeNewRule([anyPage], promo).map((r) => r.id)).toEqual(["promo", "any"]);
+    expect(placeNewRule([autre], promo).map((r) => r.id)).toEqual(["autre", "promo"]);
+  });
+
+  it("comme une pub : validation à la main sans règle, accueil normal, canaux à rejoindre de la règle", () => {
+    expect(noRuleOutcome(fromPromo)).toBe("MANUAL");
+    expect(welcomeKindFor({ provenance: fromPromo, hasGates: false, sendWelcome: true })).toBe(
+      "full",
+    );
+    expect(welcomeKindFor({ provenance: fromPromo, hasGates: false, sendWelcome: false })).toBe(
+      "none",
+    );
+    expect(welcomeKindFor({ provenance: fromPromo, hasGates: true, sendWelcome: false })).toBe(
+      "full",
+    );
+    expect(
+      effectiveGateChannelIds(
+        { scope: "DEFAULT", gateChannelIds: [ROULETTE, TIR] },
+        fromPromo,
+        ZONE,
+      ),
+    ).toEqual({ gateChannelIds: [ROULETTE, TIR], noGates: false });
+  });
+
+  it("textes en français", () => {
+    const pages = { "page-promo": "Promo octobre" };
+    expect(provenanceLabel(fromPromo, {}, null, pages)).toBe(
+      "Venu de la page « Promo octobre » (source « tk01 »)",
+    );
+    expect(provenanceLabel(fromPromoDefault, {}, null, pages)).toBe(
+      "Venu de la page « Promo octobre »",
+    );
+    expect(provenanceLabel(fromDeletedPage, {}, "promo-tk01", pages)).toBe(
+      "Venu d'une page d'atterrissage (« promo-tk01 »)",
+    );
+    expect(provenanceLabel(fromDeletedPage)).toBe("Venu d'une page d'atterrissage");
+    expect(exceptionCondition(kind("x", "LANDING_ANY"))).toBe(
+      "de n'importe quelle page d'atterrissage",
+    );
+    expect(
+      exceptionCondition(
+        kind("x", "LANDING_PAGE", { landingPageId: "page-promo" }),
+        {},
+        {},
+        {},
+        pages,
+      ),
+    ).toBe("de la page « Promo octobre »");
+    expect(
+      exceptionCondition(kind("x", "LANDING_PAGE", { landingPageId: "gone" }), {}, {}, {}, pages),
+    ).toBe("d'une page supprimée");
+  });
+
+  it("les deux types de provenance sont proposés, la page précise avant toutes les pages", () => {
+    expect(SOURCE_KINDS).toContain("LANDING_ANY");
+    expect(SOURCE_KINDS.indexOf("LANDING_PAGE")).toBeLessThan(SOURCE_KINDS.indexOf("LANDING_ANY"));
   });
 });

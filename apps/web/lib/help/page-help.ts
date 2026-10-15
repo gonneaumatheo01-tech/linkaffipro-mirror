@@ -71,6 +71,28 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Importer des dépenses (CSV)"],
   },
 
+  // Pages d'atterrissage (phase 15)
+  {
+    path: "/pages",
+    label: "Pages",
+    sections: [intro("Pages"), "Créer une page", "Copier le lien d'une source"],
+  },
+  {
+    path: "/pages/new",
+    label: "Nouvelle page",
+    sections: ["Créer une page", "Copier le lien d'une source", "Vitesse de la page"],
+  },
+  {
+    path: "/pages/:id",
+    label: "Fiche d'une page",
+    sections: [
+      "Copier le lien d'une source",
+      "Lire le tableau d'une page",
+      "Ce qui est compté",
+      "Créer une page",
+    ],
+  },
+
   // Canaux
   {
     path: "/channels",

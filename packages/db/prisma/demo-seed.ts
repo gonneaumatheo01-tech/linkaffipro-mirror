@@ -16,6 +16,7 @@ import {
   buildLinkaffiEvent,
   encrypt,
   fillUrlTemplate,
+  landingInviteLinkName,
   linkaffiInviteLinkName,
   newSubId,
   parseEncryptionKey,
@@ -637,6 +638,11 @@ async function removeDemo(db: Db): Promise<Record<string, number>> {
   );
   count("campagnes", await db.campaign.deleteMany({ where: { id: { in: campaigns } } }));
   count("messages", await db.post.deleteMany({ where: { id: { in: posts } } }));
+  // Phase 15 : pages d'atterrissage des canaux de démonstration (sources et visites supprimées avec elles).
+  count(
+    "pages d'atterrissage",
+    await db.landingPage.deleteMany({ where: { channelId: { in: channels } } }),
+  );
   count("liens d'invitation", await db.inviteLink.deleteMany({ where: { id: { in: invites } } }));
   count("canaux", await db.channel.deleteMany({ where: { id: { in: channels } } }));
   count("membres", await db.member.deleteMany({ where: { id: { in: members } } }));
@@ -2064,6 +2070,27 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
     },
   });
 
+  // Phase 15 : pages d'atterrissage (deux pages, leurs sources, visites, clics, ouvertures de Telegram, demandes).
+  const phase15 = await createPhase15Demo(db, {
+    now,
+    adminId: users.admin,
+    botIdByVertical,
+    channelId,
+    channelTitle: Object.fromEntries(CHANNELS.map((c) => [c.key, c.title])) as Record<
+      ChannelKey,
+      string
+    >,
+    channelVertical: Object.fromEntries(CHANNELS.map((c) => [c.key, c.vertical])) as Record<
+      ChannelKey,
+      Vertical
+    >,
+    ruleIdOf: (k) => ruleId[k],
+    adOf: (campaignIndex, adName) => {
+      const a = ads.find((x) => x.campaignIndex === campaignIndex && x.name === adName);
+      return a ? { id: a.id, campaignId: campaignIds[campaignIndex]! } : null;
+    },
+  });
+
   // Étiquettes du registre (ajoutées sans rien retirer) et état de la synchronisation Link Affi (si absent).
   const regValue = (await db.setting.findUnique({ where: { key: "members.tags" } }))?.value;
   const registry = Array.isArray(regValue)
@@ -2142,6 +2169,10 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "phase 14 : encore « Attend les canaux »": phase11.phase14.pending,
       "phase 14 : ont bloqué le bot": phase11.phase14.blocked,
       "phase 14 : messages refusés sans blocage": phase11.phase14.refused,
+      "phase 15 : pages d'atterrissage": phase15.pages,
+      "phase 15 : sources (liens à coller)": phase15.sources,
+      "phase 15 : visites, clics et ouvertures": phase15.events,
+      "phase 15 : demandes venues des pages": phase15.memberships,
     },
   };
 }
@@ -3927,6 +3958,449 @@ async function createPhase13Demo(
     players: players.length,
     ftds,
     linkaffiEvents: linkaffiEvents.length,
+  };
+}
+
+// ============================================================
+// Phase 15 : pages d'atterrissage (rubrique « Pages »)
+// ============================================================
+//
+// Deux pages : « Casino VIP — TikTok » (Casino VIP ; sources tk01 et tk03 reliées à deux pubs TikTok de la campagne
+// « Casino Bienvenue TikTok », exo1 sans pub, et le lien principal) ; « Pronos
+// du week-end » (Pronos Foot ; meta1 reliée à une pub Meta, story sans pub). 30 jours de visites (dont des robots,
+// jamais comptés), de clics avec la façon d'ouvrir Telegram selon le téléphone, d'ouvertures de l'appli, et des
+// demandes d'adhésion par les liens des sources (provenance LANDING enregistrée comme le fait le bot). Une exception
+// « la page « Casino VIP — TikTok » » sur Casino VIP (tout de suite, sans canal à rejoindre). Tirage à part (graine
+// propre) : les données des autres phases restent exactement les mêmes.
+
+const P15_MEMBER_ID_BASE = DEMO_MEMBER_ID_BASE + 800_000n;
+
+const P15_PAGES: ReadonlyArray<{
+  key: string;
+  channel: ChannelKey;
+  slug: string;
+  name: string;
+  headline: string;
+  subtext: string | null;
+  footnote: string | null;
+  tiktokPixelId: string | null;
+  createdDaysAgo: number;
+  /** Sources : clé, pub reliée (campagne, nom de la pub), visites par jour (moyenne), navigateur intégré. */
+  sources: ReadonlyArray<{
+    key: string;
+    ad: { campaign: number; name: string } | null;
+    perDay: number;
+    inApp: "TIKTOK" | "INSTAGRAM" | "FACEBOOK" | null;
+  }>;
+}> = [
+  {
+    key: "casino",
+    channel: "casinoVip",
+    slug: "demo-casino-vip",
+    name: "Casino VIP — TikTok",
+    headline: "Les meilleurs bonus casino, chaque soir",
+    subtext: "Bonus exclusifs et alertes en direct, réservés aux membres.",
+    footnote: "Gratuit · 1 clic · via Telegram",
+    // Aucun pixel en démonstration : les captures et le contrôle axe ne doivent jamais appeler TikTok ni Meta.
+    tiktokPixelId: null,
+    createdDaysAgo: 32,
+    sources: [
+      { key: "", ad: null, perDay: 3, inApp: null },
+      { key: "tk01", ad: { campaign: 0, name: "Vidéo bonus" }, perDay: 14, inApp: "TIKTOK" },
+      { key: "tk03", ad: { campaign: 0, name: "Carrousel des gains" }, perDay: 9, inApp: "TIKTOK" },
+      { key: "exo1", ad: null, perDay: 5, inApp: null },
+    ],
+  },
+  {
+    key: "foot",
+    channel: "sportsFoot",
+    slug: "demo-pronos-foot",
+    name: "Pronos du week-end",
+    headline: "Nos pronos du week-end, gratuits",
+    subtext: null,
+    footnote: null,
+    tiktokPixelId: null,
+    createdDaysAgo: 20,
+    sources: [
+      { key: "", ad: null, perDay: 2, inApp: null },
+      { key: "meta1", ad: { campaign: 1, name: "Ligue 1 · A" }, perDay: 8, inApp: "INSTAGRAM" },
+      { key: "story", ad: null, perDay: 4, inApp: "FACEBOOK" },
+    ],
+  },
+];
+
+const P15_UA = {
+  IOS_TIKTOK:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 musical_ly_36.5.0 JsSdk/2.0 NetType/WIFI Channel/App Store",
+  ANDROID_TIKTOK:
+    "Mozilla/5.0 (Linux; Android 14; SM-S918B Build/UP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36 trill_360500 BytedanceWebview/d8a21c6",
+  IOS_INSTAGRAM:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 355.0.0.21.108 (iPhone15,2; iOS 18_1; fr_FR)",
+  ANDROID_FACEBOOK:
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/482.0.0.40.79;]",
+  IOS_SAFARI:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  ANDROID_CHROME:
+    "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
+  DESKTOP:
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  BOT: "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+} as const;
+
+async function createPhase15Demo(
+  db: Db,
+  ctx: {
+    now: Date;
+    adminId: string;
+    botIdByVertical: Record<Vertical, string>;
+    channelId: Record<ChannelKey, string>;
+    channelTitle: Record<ChannelKey, string>;
+    channelVertical: Record<ChannelKey, Vertical>;
+    ruleIdOf: (k: ChannelKey) => string;
+    adOf: (campaignIndex: number, adName: string) => { id: string; campaignId: string } | null;
+  },
+): Promise<{ pages: number; sources: number; events: number; memberships: number }> {
+  const { now } = ctx;
+  const r = createRandom(SEED + 15);
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+  const notFuture = (d: Date) =>
+    d.getTime() > now.getTime() - MIN ? new Date(now.getTime() - MIN) : d;
+  const PARIS_EVENING = [12, 13, 18, 19, 20, 21, 21, 22, 22, 23];
+
+  const events: Prisma.LandingEventCreateManyInput[] = [];
+  const members: Prisma.MemberCreateManyInput[] = [];
+  const memberships: Prisma.MembershipCreateManyInput[] = [];
+  const journal: Prisma.EventCreateManyInput[] = [];
+  let memberIndex = 0;
+  let sourceCount = 0;
+
+  // Exception de la page Casino VIP : tout de suite, sans canal à rejoindre (la règle du canal en demande un).
+  const casinoPageId = stableId("p15:page:casino");
+  const exceptionId = stableId("p15:rule:casinoVip:page");
+  const exceptionLabel = frQuotesDemo(`Venu de la page « ${P15_PAGES[0]!.name} »`);
+  await db.landingPage.create({
+    data: {
+      id: casinoPageId,
+      slug: P15_PAGES[0]!.slug,
+      name: P15_PAGES[0]!.name,
+      channelId: ctx.channelId[P15_PAGES[0]!.channel],
+      headline: P15_PAGES[0]!.headline,
+      subtext: P15_PAGES[0]!.subtext,
+      footnote: P15_PAGES[0]!.footnote,
+      tiktokPixelId: P15_PAGES[0]!.tiktokPixelId,
+      createdById: ctx.adminId,
+      createdAt: ago(P15_PAGES[0]!.createdDaysAgo * DAY),
+    },
+  });
+  await db.approvalRule.create({
+    data: {
+      id: exceptionId,
+      channelId: ctx.channelId.casinoVip,
+      name: exceptionLabel,
+      label: exceptionLabel,
+      isDefault: false,
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_PAGE",
+      landingPageId: casinoPageId,
+      sortOrder: 30,
+      sendWelcome: true,
+      sendAcceptedMessage: true,
+      mode: "DELAY",
+      delaySeconds: 120,
+      gateMode: "NONE",
+      gateChannelIds: [],
+      reminderAfterMinutes: [],
+      maxReminders: 0,
+      expireAfterHours: null,
+      expireAction: "KEEP",
+      createdAt: ago(30 * DAY),
+    },
+  });
+
+  for (const page of P15_PAGES) {
+    const pageId = stableId(`p15:page:${page.key}`);
+    const channelId = ctx.channelId[page.channel];
+    const vertical = ctx.channelVertical[page.channel];
+    const botId = ctx.botIdByVertical[vertical];
+    const createdAt = ago(page.createdDaysAgo * DAY);
+    if (pageId !== casinoPageId)
+      await db.landingPage.create({
+        data: {
+          id: pageId,
+          slug: page.slug,
+          name: page.name,
+          channelId,
+          headline: page.headline,
+          subtext: page.subtext,
+          footnote: page.footnote,
+          tiktokPixelId: page.tiktokPixelId,
+          createdById: ctx.adminId,
+          createdAt,
+        },
+      });
+    const rule =
+      page.channel === "casinoVip"
+        ? { id: exceptionId, scope: "SOURCE_KIND" as const, label: exceptionLabel, delay: 120 }
+        : { id: ctx.ruleIdOf(page.channel), scope: "DEFAULT" as const, label: null, delay: 300 };
+
+    for (const src of page.sources) {
+      sourceCount++;
+      const ad = src.ad ? ctx.adOf(src.ad.campaign, src.ad.name) : null;
+      const linkId = stableId(`p15:link:${page.key}:${src.key || "main"}`);
+      const linkName = landingInviteLinkName(page.name, src.key);
+      const url = `https://t.me/+DEMO15${page.key}${src.key || "main"}${shortId(5)}`;
+      const counters = { requests: 0, approved: 0, joined: 0, left: 0 };
+      await db.inviteLink.create({
+        data: {
+          id: linkId,
+          channelId,
+          botId,
+          telegramInviteLink: url,
+          name: linkName,
+          kind: "LANDING",
+          createsJoinRequest: true,
+          // Source reliée à une pub : ses demandes comptent aussi pour la pub et sa campagne, figées sur le lien (D9).
+          campaignId: ad?.campaignId ?? null,
+          landingAdId: ad?.id ?? null,
+          landingPageId: pageId,
+          landingSource: src.key,
+          createdById: ctx.adminId,
+          createdAt,
+        },
+      });
+      await db.landingSource.create({
+        data: {
+          id: stableId(`p15:source:${page.key}:${src.key || "main"}`),
+          landingPageId: pageId,
+          key: src.key,
+          inviteLinkId: linkId,
+          adId: ad?.id ?? null,
+          createdAt,
+        },
+      });
+
+      const provenanceLink: ProvenanceLink = {
+        id: linkId,
+        kind: "LANDING",
+        sourceChannelId: null,
+        adPlatform: null,
+        landingPageId: pageId,
+        landingSource: src.key,
+      };
+      const provenance = provenanceOfLink(provenanceLink);
+      const label = frQuotesDemo(
+        provenanceLabel(provenance, {}, linkName, { [pageId]: page.name }),
+      );
+
+      for (let n = page.createdDaysAgo - 1; n >= 0; n--) {
+        // Moins de visites le premier jour et aujourd'hui (journée pas finie), un peu plus le week-end.
+        const dayStart = new Date(parisDayStart(now).getTime() - n * DAY);
+        const weekend = [0, 6].includes(new Date(dayStart.getTime() + 12 * HOUR).getUTCDay());
+        const visits = Math.max(
+          0,
+          Math.round(
+            src.perDay * (0.55 + r.next() * 0.9) * (weekend ? 1.3 : 1) * (n === 0 ? 0.6 : 1),
+          ),
+        );
+        for (let v = 0; v < visits; v++) {
+          const at = new Date(
+            dayStart.getTime() +
+              (r.pick(PARIS_EVENING) - 2) * HOUR +
+              r.int(0, 59) * MIN +
+              r.int(0, 59) * 1000,
+          );
+          if (at.getTime() > now.getTime() - 2 * MIN) continue;
+          const os = r.weighted<"IOS" | "ANDROID" | "OTHER">([
+            ["IOS", 58],
+            ["ANDROID", 37],
+            ["OTHER", 5],
+          ]);
+          const inApp = os === "OTHER" ? null : src.inApp;
+          const ua =
+            os === "OTHER"
+              ? P15_UA.DESKTOP
+              : inApp === "TIKTOK"
+                ? os === "IOS"
+                  ? P15_UA.IOS_TIKTOK
+                  : P15_UA.ANDROID_TIKTOK
+                : inApp === "INSTAGRAM"
+                  ? P15_UA.IOS_INSTAGRAM
+                  : inApp === "FACEBOOK"
+                    ? P15_UA.ANDROID_FACEBOOK
+                    : os === "IOS"
+                      ? P15_UA.IOS_SAFARI
+                      : P15_UA.ANDROID_CHROME;
+          const visitId = shortId(16);
+          const country = r.weighted<string>([
+            ["FR", 78],
+            ["BE", 9],
+            ["CH", 6],
+            ["CA", 4],
+            ["LU", 3],
+          ]);
+          const base = {
+            landingPageId: pageId,
+            sourceKey: src.key,
+            visitId,
+            os,
+            inApp,
+            country,
+            ipHash: shortId(24),
+            isBot: false,
+            ttclid: inApp === "TIKTOK" && r.chance(0.8) ? `E.C.P.${shortId(18)}` : null,
+            fbclid:
+              inApp === "INSTAGRAM" || inApp === "FACEBOOK" ? `IwZXh0bgNhZW0${shortId(16)}` : null,
+            userAgent: ua,
+            // Adresse de pub mal recopiée (« tk1 » au lieu de « tk01 ») : servie avec le lien principal, signalée.
+            rawSrc: page.key === "casino" && src.key === "" && r.chance(0.3) ? "tk1" : null,
+          };
+          events.push({ ...base, type: "VIEW", createdAt: at });
+          if (!r.chance(os === "OTHER" ? 0.25 : 0.42)) continue;
+          // Façon d'ouvrir Telegram choisie par la page, comme le vrai script : tirage tg:// ou lien https dans TikTok
+          // (iPhone et Android), tg:// dans les autres applis sur iPhone, intent:// dans Instagram et Facebook sur
+          // Android, lien https ailleurs.
+          const method =
+            inApp === "TIKTOK" && os !== "OTHER"
+              ? r.chance(0.5)
+                ? "TG_SCHEME"
+                : "HTTPS"
+              : os === "IOS" && inApp
+                ? "TG_SCHEME"
+                : os === "ANDROID" && inApp
+                  ? "INTENT"
+                  : "HTTPS";
+          const clickAt = new Date(at.getTime() + r.int(2, 25) * 1000);
+          events.push({ ...base, type: "CLICK", method, createdAt: clickAt });
+          const openRate =
+            method === "TG_SCHEME"
+              ? os === "IOS"
+                ? 0.81
+                : 0.62
+              : method === "INTENT"
+                ? 0.74
+                : 0.55;
+          const opened = r.chance(openRate);
+          if (opened)
+            events.push({
+              ...base,
+              type: "OPENED",
+              method,
+              createdAt: new Date(clickAt.getTime() + r.int(200, 1500)),
+            });
+          // Demande d'adhésion par le lien de la source (une partie des personnes qui ont ouvert Telegram).
+          if (!opened || !r.chance(0.34)) continue;
+          const requestedAt = notFuture(new Date(clickAt.getTime() + r.int(4, 40) * 1000));
+          const recent = now.getTime() - requestedAt.getTime() < rule.delay * 1000 + 3 * MIN;
+          const status = recent
+            ? "SCHEDULED"
+            : r.weighted<"APPROVED" | "LEFT">([
+                ["APPROVED", 88],
+                ["LEFT", 12],
+              ]);
+          const approvedAt =
+            status === "SCHEDULED"
+              ? null
+              : notFuture(new Date(requestedAt.getTime() + (rule.delay + r.int(1, 30)) * 1000));
+          const joinedAt = approvedAt
+            ? notFuture(new Date(approvedAt.getTime() + r.int(2, 60) * 1000))
+            : null;
+          const leftAt =
+            status === "LEFT" && joinedAt
+              ? notFuture(new Date(joinedAt.getTime() + r.int(1, 9) * DAY))
+              : null;
+          const memberId = stableId(`p15:member:${memberIndex}`);
+          const firstName = r.pick(FIRST_NAMES);
+          members.push({
+            id: memberId,
+            telegramUserId: P15_MEMBER_ID_BASE + BigInt(memberIndex++),
+            firstName,
+            lastName: r.chance(0.4) ? `${r.pick(LAST_INITIALS.split(""))}.` : null,
+            username: r.chance(0.6)
+              ? `${firstName
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[^a-z]/g, "")}${r.int(10, 99)}`
+              : null,
+            languageCode: "fr",
+            firstSeenAt: requestedAt,
+            lastSeenAt: leftAt ?? joinedAt ?? requestedAt,
+            tags: [],
+          });
+          const msId = newId();
+          memberships.push({
+            id: msId,
+            code: shortId(8),
+            memberId,
+            channelId,
+            status,
+            inviteLinkId: linkId,
+            approvalRuleId: rule.id,
+            requestedAt,
+            approveAt:
+              status === "SCHEDULED"
+                ? new Date(requestedAt.getTime() + rule.delay * 1000)
+                : approvedAt,
+            approvedAt,
+            joinedAt,
+            leftAt,
+            approvedByBotId: approvedAt ? botId : null,
+            source: {
+              demo: true,
+              inviteLink: { id: linkId, name: linkName, kind: "LANDING" },
+              provenance: { ...provenance, label },
+              appliedRule: { id: rule.id, scope: rule.scope, label: rule.label },
+              rule: { id: rule.id, mode: "DELAY", delaySeconds: rule.delay, gateMode: "NONE" },
+              gates: [],
+              telegramInviteLink: url,
+              botId,
+            },
+          });
+          counters.requests++;
+          if (approvedAt) counters.approved++;
+          if (joinedAt) counters.joined++;
+          if (leftAt) counters.left++;
+          journal.push({
+            type: "membership.requested",
+            occurredAt: requestedAt,
+            memberId,
+            channelId,
+            botId,
+            payload: { membershipId: msId, inviteLinkId: linkId, demo: true },
+          });
+        }
+        // Robots connus (aperçus de liens, vérificateurs des régies) : enregistrés, jamais comptés.
+        if (r.chance(0.5))
+          events.push({
+            landingPageId: pageId,
+            sourceKey: src.key,
+            visitId: shortId(16),
+            type: "VIEW",
+            os: "OTHER",
+            inApp: null,
+            country: "US",
+            ipHash: shortId(24),
+            isBot: true,
+            userAgent: P15_UA.BOT,
+            createdAt: new Date(dayStart.getTime() + r.int(1, 10) * HOUR),
+          });
+      }
+      await db.inviteLink.update({ where: { id: linkId }, data: counters });
+    }
+  }
+
+  await inBatches(
+    events.filter((e) => (e.createdAt as Date).getTime() <= now.getTime() - MIN),
+    2000,
+    (chunk) => db.landingEvent.createMany({ data: chunk }),
+  );
+  await inBatches(members, 500, (chunk) => db.member.createMany({ data: chunk }));
+  await inBatches(memberships, 500, (chunk) => db.membership.createMany({ data: chunk }));
+  await inBatches(journal, 1000, (chunk) => db.event.createMany({ data: chunk }));
+  return {
+    pages: P15_PAGES.length,
+    sources: sourceCount,
+    events: events.length,
+    memberships: memberships.length,
   };
 }
 

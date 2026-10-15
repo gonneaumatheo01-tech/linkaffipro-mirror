@@ -24,6 +24,8 @@ export type ProvenanceType =
   | "MANUAL"
   /** Lien d'une campagne Telegram d'affilié créée dans Link Affi (lien LINKAFFI, phase 13). */
   | "LINKAFFI"
+  /** Lien d'une source d'une page d'atterrissage (lien LANDING, phase 15). */
+  | "LANDING"
   /** Lien que la plateforme n'a pas créé (Telegram en masque la fin), lien public ou entrée sans lien. */
   | "UNKNOWN";
 
@@ -39,6 +41,17 @@ export type Provenance = {
   adPlatform: ProvenanceAdPlatform | null;
   /** Campagne Telegram d'affilié Link Affi (type LINKAFFI seulement, phase 13). */
   linkaffi?: ProvenanceLinkaffi | null;
+  /** Page d'atterrissage et source (type LANDING seulement, phase 15). */
+  landing?: ProvenanceLanding | null;
+};
+
+/**
+ * Page d'atterrissage d'une provenance LANDING (phase 15) : `pageId` null si la page a été supprimée (le lien révoqué
+ * garde sa source) ; `sourceKey` : clé de la source (« tk01 » ; "" = source par défaut de la page).
+ */
+export type ProvenanceLanding = {
+  pageId: string | null;
+  sourceKey: string | null;
 };
 
 /** Affilié et campagne Telegram Link Affi d'une provenance LINKAFFI (phase 13). */
@@ -52,7 +65,7 @@ export type ProvenanceLinkaffi = {
 /** Ce qu'il faut d'un lien d'invitation pour en déduire la provenance (`InviteLink` relu en base). */
 export type ProvenanceLink = {
   id: string;
-  kind: "AD_ENTRY" | "GATE" | "MANUAL" | "SHARE" | "LINKAFFI";
+  kind: "AD_ENTRY" | "GATE" | "MANUAL" | "SHARE" | "LINKAFFI" | "LANDING";
   sourceChannelId: string | null;
   adPlatform: string | null;
   /** Lien LINKAFFI (phase 13) : campagne et affilié Link Affi. */
@@ -60,6 +73,9 @@ export type ProvenanceLink = {
   linkaffiCampaignName?: string | null;
   linkaffiAffiliateId?: string | null;
   linkaffiAffiliateName?: string | null;
+  /** Lien LANDING (phase 15) : page d'atterrissage et clé de sa source ("" = source par défaut). */
+  landingPageId?: string | null;
+  landingSource?: string | null;
 };
 
 /** Provenance inconnue (lien absent ou créé hors de la plateforme) : la règle par défaut s'applique. */
@@ -112,6 +128,14 @@ export function provenanceOfLink(link: ProvenanceLink | null | undefined): Prove
           affiliateName: link.linkaffiAffiliateName ?? null,
         },
       };
+    case "LANDING":
+      return {
+        type: "LANDING",
+        inviteLinkId: link.id,
+        sourceChannelId: null,
+        adPlatform: null,
+        landing: { pageId: link.landingPageId ?? null, sourceKey: link.landingSource ?? null },
+      };
     default:
       return { type: "MANUAL", inviteLinkId: link.id, sourceChannelId: null, adPlatform: null };
   }
@@ -121,11 +145,21 @@ export function provenanceOfLink(link: ProvenanceLink | null | undefined): Prove
 export function provenanceFromJson(raw: unknown): Provenance | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const types: ProvenanceType[] = ["GATE", "SHARE", "AD", "MANUAL", "LINKAFFI", "UNKNOWN"];
+  const types: ProvenanceType[] = [
+    "GATE",
+    "SHARE",
+    "AD",
+    "MANUAL",
+    "LINKAFFI",
+    "LANDING",
+    "UNKNOWN",
+  ];
   if (!types.includes(r.type as ProvenanceType)) return null;
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   const la =
     r.linkaffi && typeof r.linkaffi === "object" ? (r.linkaffi as Record<string, unknown>) : null;
+  const lp =
+    r.landing && typeof r.landing === "object" ? (r.landing as Record<string, unknown>) : null;
   return {
     type: r.type as ProvenanceType,
     inviteLinkId: str(r.inviteLinkId),
@@ -138,6 +172,15 @@ export function provenanceFromJson(raw: unknown): Provenance | null {
             campaignName: str(la?.campaignName),
             affiliateId: str(la?.affiliateId),
             affiliateName: str(la?.affiliateName),
+          },
+        }
+      : {}),
+    ...(r.type === "LANDING"
+      ? {
+          landing: {
+            pageId: str(lp?.pageId),
+            // "" = source par défaut de la page : gardée telle quelle.
+            sourceKey: typeof lp?.sourceKey === "string" ? lp.sourceKey : null,
           },
         }
       : {}),
@@ -158,7 +201,11 @@ export type SourceKind =
   /** N'importe quelle campagne Telegram d'affilié Link Affi (phase 13). */
   | "LINKAFFI_ANY"
   /** Les campagnes d'un affilié Link Affi précis (`ScopedRule.linkaffiAffiliateId`, phase 13). */
-  | "LINKAFFI_AFFILIATE";
+  | "LINKAFFI_AFFILIATE"
+  /** N'importe quelle page d'atterrissage (lien LANDING, phase 15). */
+  | "LANDING_ANY"
+  /** Une page d'atterrissage précise, toutes sources (`ScopedRule.landingPageId`, phase 15). */
+  | "LANDING_PAGE";
 
 export const SOURCE_KINDS: readonly SourceKind[] = [
   "GATE",
@@ -169,6 +216,8 @@ export const SOURCE_KINDS: readonly SourceKind[] = [
   "SHARE",
   "LINKAFFI_AFFILIATE",
   "LINKAFFI_ANY",
+  "LANDING_PAGE",
+  "LANDING_ANY",
 ];
 
 /** Ce qu'il faut d'une règle (`ApprovalRule`) pour savoir si elle s'applique à une provenance. */
@@ -184,6 +233,8 @@ export type ScopedRule = {
   sortOrder: number;
   /** Affilié visé par une exception LINKAFFI_AFFILIATE (phase 13). */
   linkaffiAffiliateId?: string | null;
+  /** Page d'atterrissage visée par une exception LANDING_PAGE (phase 15 ; sans clé étrangère : page supprimée possible). */
+  landingPageId?: string | null;
 };
 
 /** Niveaux de résolution, du plus précis au plus général. */
@@ -194,8 +245,15 @@ export const RULE_LEVELS: readonly RuleScope[] = [
   "DEFAULT",
 ];
 
-/** Le type de provenance d'une exception SOURCE_KIND correspond-il à la provenance ? */
-export function sourceKindMatches(kind: SourceKind, p: Provenance): boolean {
+/**
+ * Le type de provenance d'une exception SOURCE_KIND correspond-il à la provenance ? `target` : ce que vise la règle
+ * (`landingPageId` d'une exception LANDING_PAGE : sans lui, « la page <nom> » ne vise personne).
+ */
+export function sourceKindMatches(
+  kind: SourceKind,
+  p: Provenance,
+  target: Pick<ScopedRule, "landingPageId"> = {},
+): boolean {
   switch (kind) {
     case "GATE":
       return p.type === "GATE";
@@ -214,6 +272,13 @@ export function sourceKindMatches(kind: SourceKind, p: Provenance): boolean {
     case "LINKAFFI_AFFILIATE":
       // L'affilié précis est contrôlé par `ruleMatches` (la règle porte `linkaffiAffiliateId`).
       return p.type === "LINKAFFI";
+    case "LANDING_ANY":
+      // Une page d'atterrissage n'est pas une pub (même si une pub envoie vers la page) : exceptions à part.
+      return p.type === "LANDING";
+    case "LANDING_PAGE":
+      return (
+        p.type === "LANDING" && !!target.landingPageId && p.landing?.pageId === target.landingPageId
+      );
   }
 }
 
@@ -238,7 +303,7 @@ export function ruleMatches(rule: ScopedRule, p: Provenance): boolean {
           !!rule.linkaffiAffiliateId &&
           p.linkaffi?.affiliateId === rule.linkaffiAffiliateId
         );
-      return rule.sourceKind !== null && sourceKindMatches(rule.sourceKind, p);
+      return rule.sourceKind !== null && sourceKindMatches(rule.sourceKind, p, rule);
   }
 }
 
@@ -285,6 +350,14 @@ export function ruleCovers(a: ScopedRule, b: ScopedRule): boolean {
               (a.sourceKind === "LINKAFFI_AFFILIATE" &&
                 !!a.linkaffiAffiliateId &&
                 a.linkaffiAffiliateId === b.linkaffiAffiliateId)
+          : false;
+      if (a.sourceKind === "LANDING_PAGE" || b.sourceKind === "LANDING_PAGE")
+        // Une page précise : couverte par la même page, ou par « n'importe quelle page ».
+        return b.sourceKind === "LANDING_PAGE"
+          ? a.sourceKind === "LANDING_ANY" ||
+              (a.sourceKind === "LANDING_PAGE" &&
+                !!a.landingPageId &&
+                a.landingPageId === b.landingPageId)
           : false;
       if (a.sourceKind === b.sourceKind) return true;
       if (a.sourceKind === "ANY_CHANNEL") return b.sourceKind === "GATE";
@@ -405,13 +478,15 @@ function titleOf(id: string | null, titles: Readonly<Record<string, string>>): s
 
 /**
  * Provenance en français, pour les listes de demandes et la fiche membre : « Venu de « Tir Cadré » (canal
- * obligatoire) », « Venu du lien de partage « Post Tir Cadré » », « Venu d'une pub TikTok », « Venu d'un autre lien ».
- * `linkName` : nom du lien (lien de partage, lien manuel, pub).
+ * obligatoire) », « Venu du lien de partage « Post Tir Cadré » », « Venu d'une pub TikTok », « Venu de la page
+ * « Promo » (source « tk01 ») », « Venu d'un autre lien ». `linkName` : nom du lien (lien de partage, lien manuel,
+ * pub, lien d'une page) ; `landingPageNames` : noms des pages d'atterrissage par identifiant (phase 15).
  */
 export function provenanceLabel(
   p: Provenance,
   titles: Readonly<Record<string, string>> = {},
   linkName?: string | null,
+  landingPageNames: Readonly<Record<string, string>> = {},
 ): string {
   switch (p.type) {
     case "GATE": {
@@ -437,6 +512,17 @@ export function provenanceLabel(
       const camp = p.linkaffi?.campaignName ?? linkName;
       return camp ? `Venu de ${who} (campagne « ${camp} »)` : `Venu de ${who}`;
     }
+    case "LANDING": {
+      const page = p.landing?.pageId ? landingPageNames[p.landing.pageId] : undefined;
+      if (!page)
+        return linkName
+          ? `Venu d'une page d'atterrissage (« ${linkName} »)`
+          : "Venu d'une page d'atterrissage";
+      const source = p.landing?.sourceKey;
+      return source
+        ? `Venu de la page « ${page} » (source « ${source} »)`
+        : `Venu de la page « ${page} »`;
+    }
     default:
       return "Venu d'un autre lien";
   }
@@ -445,11 +531,13 @@ export function provenanceLabel(
 /** Condition d'une exception, après « Si la personne vient » : « de « Tir Cadré » », « d'une pub TikTok »… */
 export function exceptionCondition(
   rule: Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId"> &
-    Partial<Pick<ScopedRule, "linkaffiAffiliateId">>,
+    Partial<Pick<ScopedRule, "linkaffiAffiliateId" | "landingPageId">>,
   titles: Readonly<Record<string, string>> = {},
   linkNames: Readonly<Record<string, string>> = {},
   /** Noms des affiliés Link Affi par identifiant (exception LINKAFFI_AFFILIATE, phase 13). */
   affiliateNames: Readonly<Record<string, string>> = {},
+  /** Noms des pages d'atterrissage par identifiant (exception LANDING_PAGE, phase 15). */
+  landingPageNames: Readonly<Record<string, string>> = {},
 ): string {
   switch (rule.scope) {
     case "DEFAULT":
@@ -483,6 +571,12 @@ export function exceptionCondition(
             ? affiliateNames[rule.linkaffiAffiliateId]
             : undefined;
           return name ? `de l'affilié « ${name} »` : "d'un affilié Link Affi précis";
+        }
+        case "LANDING_ANY":
+          return "de n'importe quelle page d'atterrissage";
+        case "LANDING_PAGE": {
+          const name = rule.landingPageId ? landingPageNames[rule.landingPageId] : undefined;
+          return name ? `de la page « ${name} »` : "d'une page supprimée";
         }
         default:
           return "d'une provenance inconnue";

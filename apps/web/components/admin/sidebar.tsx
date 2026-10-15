@@ -66,9 +66,9 @@ function SidebarLink({ item, active, rail }: { item: NavItem; active: boolean; r
 }
 
 /**
- * Barre de menu : fond nuit, logo en haut, 6 entrées principales, puis Réglages en bas, séparé (visible pour tous
- * les rôles). Le guide et « Mon compte » sont dans l'en-tête (bouton « ? », menu du compte). Chaque entrée porte son
- * repère de visite guidée `data-tour="nav-<clé>"`.
+ * Barre de menu : fond nuit, logo en haut, 7 entrées principales (les 6 de la refonte et Pages, phase 15), puis
+ * Réglages en bas, séparé (visible pour tous les rôles). Le guide et « Mon compte » sont dans l'en-tête (bouton « ? »,
+ * menu du compte). Chaque entrée porte son repère de visite guidée `data-tour="nav-<clé>"`.
  * Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Reste visible pendant le défilement
  * (collée en haut, hauteur de l'écran).
  * - ordinateur (à partir de 1024 px) : barre complète de 240 px, icône et libellé ;

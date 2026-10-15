@@ -16,6 +16,7 @@ export const QUEUE_NAMES = [
   "sync-views",
   "custom-emoji",
   "linkaffi-events",
+  "landing-events",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -78,7 +79,8 @@ export type AutomationsJob =
 
 /**
  * Tâches de la file `maintenance` (purge 24 mois, alertes, purge des tâches échouées, sauvegardes, révocation des
- * anciens liens des canaux à rejoindre à entrée directe, phase 11).
+ * anciens liens des canaux à rejoindre à entrée directe, phase 11 ; pages d'atterrissage, phase 15 : relecture des
+ * titres et photos des canaux `landing-chats`, reprise des liens des sources `landing-links`).
  */
 export type MaintenanceJob =
   | { type: "purge" }
@@ -86,6 +88,8 @@ export type MaintenanceJob =
   | { type: "clean-failed" }
   | { type: "backup" }
   | { type: "legacy-gate-links" }
+  | { type: "landing-chats" }
+  | { type: "landing-links" }
   | { type: "tick" };
 
 /**
@@ -116,6 +120,8 @@ export const JOB_RETRY_OPTIONS: Record<
   "custom-emoji": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
   // Événements Link Affi (phase 13) : nouvelles tentatives gérées par la ligne LinkaffiEvent (nextAttemptAt, 24 h).
   "linkaffi-events": { attempts: 1 },
+  // Pages d'atterrissage (phase 15) : écriture d'une visite ou d'un clic, sans doublon (identifiant fixé à l'ajout).
+  "landing-events": { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -149,6 +155,46 @@ export type CustomEmojiJob =
  */
 export type LinkaffiEventsJob = { type: "deliver"; eventId: string } | { type: "tick" };
 
+/**
+ * Une visite, un clic ou une ouverture de Telegram sur une page d'atterrissage (phase 15), telle que le site la met en
+ * file : une ligne `LandingEvent` à écrire, champ pour champ (sauf `createdAt`, en ISO). Jamais d'adresse IP : le site
+ * calcule l'empreinte (`hashIp`) et le pays avant la mise en file. `id` est fixé à l'ajout (`enqueueLandingEvent`) :
+ * le worker écrit avec cet identifiant et ignore un doublon (`createMany` + `skipDuplicates`), une reprise n'écrit
+ * jamais deux fois.
+ */
+export type LandingEventData = {
+  /** Identifiant de la ligne `LandingEvent` (aléatoire, fixé à l'ajout). */
+  id: string;
+  landingPageId: string;
+  type: "VIEW" | "CLICK" | "OPENED";
+  /** Identifiant aléatoire de la visite (créé par la page). */
+  visitId: string;
+  /** Source retenue ("" = source par défaut). */
+  sourceKey: string;
+  /** `?src=` reçu quand il n'a pas été suivi (diagnostic), sinon null. */
+  rawSrc: string | null;
+  /** IOS | ANDROID | OTHER (`detectLandingOs`). */
+  os: string | null;
+  /** TIKTOK | INSTAGRAM | FACEBOOK | OTHER, null : navigateur ordinaire (`detectInApp`). */
+  inApp: string | null;
+  /** Façon d'ouvrir Telegram (clic et ouverture) : TG_SCHEME | INTENT | HTTPS… */
+  method: string | null;
+  /** Pays ISO 3166-1 alpha-2 (base locale), null si inconnu. */
+  country: string | null;
+  /** Empreinte de l'adresse IP (`hashIp`, sel `IP_HASH_SALT`), jamais l'adresse. */
+  ipHash: string | null;
+  /** Robot connu (`isLandingBotUserAgent`) : gardé, jamais compté. */
+  isBot: boolean;
+  ttclid: string | null;
+  fbclid: string | null;
+  userAgent: string | null;
+  /** Heure de réception par le site (ISO 8601) : l'heure réelle, même si la file a du retard. */
+  createdAt: string;
+};
+
+/** File `landing-events` (phase 15) : `event` = une ligne `LandingEvent` à écrire. */
+export type LandingEventsJob = { type: "event"; event: LandingEventData };
+
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
   : Q extends "approvals"
@@ -169,4 +215,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                   ? CustomEmojiJob
                   : Q extends "linkaffi-events"
                     ? LinkaffiEventsJob
-                    : StatsJob;
+                    : Q extends "landing-events"
+                      ? LandingEventsJob
+                      : StatsJob;

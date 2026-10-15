@@ -53,6 +53,9 @@ const prismaRuleLoaders: RuleLoaders = {
         linkaffiCampaignName: true,
         linkaffiAffiliateId: true,
         linkaffiAffiliateName: true,
+        // Lien d'une page d'atterrissage (phase 15) : exceptions « la page <nom> ».
+        landingPageId: true,
+        landingSource: true,
       },
     }),
 };

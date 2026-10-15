@@ -1,4 +1,5 @@
 import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
 import type { AdminRights, BotIdentity, LinkImportOutcome, TelegramDeps } from "./ports";
 import { ensureDefaultSequences } from "./sequences/ensure";
@@ -26,6 +27,19 @@ function chatTitle(chat: Chat): string {
 /** Violation d'unicité Prisma (P2002) : l'enregistrement vient d'être créé par un appel concurrent. */
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
+}
+
+/**
+ * Titre d'un canal changé chez Telegram (phase 15, D7) : ses pages d'atterrissage affichent le vrai titre, le HTML gardé
+ * en mémoire par le service web est invalidé (seulement si le canal a une page : rien à publier sinon). Ne lève jamais.
+ */
+async function invalidateLandingTitle(channelId: string): Promise<void> {
+  try {
+    const page = await prisma.landingPage.findFirst({ where: { channelId }, select: { id: true } });
+    if (page) await publishLandingInvalidate({ channelId });
+  } catch (err) {
+    console.warn("[telegram] invalidation des pages du canal impossible", channelId, err);
+  }
 }
 
 /** Identifiant Telegram de l'admin du dialogue avec Claude (`Setting admin.telegramUserId`, posé par `pnpm tg:send`). */
@@ -133,6 +147,7 @@ export const prismaTelegramDeps: TelegramDeps = {
         known.type !== data.type
       ) {
         await prisma.channel.update({ where: { id: known.id }, data });
+        if (known.title !== data.title) await invalidateLandingTitle(known.id);
       }
       return { channelId: known.id, created: false };
     }

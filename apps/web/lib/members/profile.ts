@@ -5,6 +5,7 @@
  */
 import type { PillTone } from "@/components/admin/status-pill";
 import { platformShortLabel } from "@/lib/campaigns/cards";
+import { frQuotes } from "@/lib/channels/exceptions";
 import { languageName } from "./filters";
 
 export type ProfileMembership = {
@@ -211,10 +212,50 @@ export function adLabel(o: {
   return platform ? `${name} (${platform})` : name;
 }
 
+/** Pub d'un lien de page d'atterrissage (pub figée sur le lien, `InviteLink.landingAdId`), sa page et sa source. */
+export type LandingOriginAd = {
+  /** Nom de la pub figée sur le lien ; null : source sans pub (ou pub supprimée). */
+  adName: string | null;
+  adPlatform: string | null;
+  /** Nom actuel de la page ; null : page supprimée. */
+  pageName: string | null;
+  /** Clé de la source (« tk01 ») ; "" : lien principal. */
+  sourceKey: string | null;
+};
+
 /**
- * Source d'arrivée affichée dans la liste des membres et son volet de résumé : « Pub Vidéo bonus (TikTok) » pour un
- * lien de pub, « Affilié Paul » pour le lien d'une campagne d'affilié Link Affi (phase 13 : ce n'est pas une pub, la
- * fiche le dit aussi) ; null sans lien.
+ * Case « Pub » de « D'où il vient » (fiche membre) : la pub du lien d'entrée ; aucune pub pour le lien d'une campagne
+ * d'affilié Link Affi (phase 13). Lien d'une page d'atterrissage (phase 15) : la pub figée sur le lien (celle de la
+ * source au moment où le lien a été créé), la même que celle qui compte sa demande dans les statistiques, avec la page
+ * et la source (« Vidéo bonus (TikTok), par la page « Promo » (source « tk01 ») ») ; aucune pub pour une source sans
+ * pub. Avec la raison quand il n'y a pas de pub.
+ */
+export function originAdFact(
+  kind: string | null | undefined,
+  origin: { adName: string | null; adPlatform: string | null; linkName: string | null } | null,
+  landing?: LandingOriginAd | null,
+): { ad: string | null; none: string } {
+  if (kind === "LINKAFFI") return { ad: null, none: "Aucune (lien d'un affilié)" };
+  if (kind === "LANDING") {
+    const none = "Aucune (page d'atterrissage)";
+    const ad = adLabel({
+      adName: landing?.adName?.trim() || null,
+      adPlatform: landing?.adPlatform ?? null,
+      linkName: null,
+    });
+    if (!ad) return { ad: null, none };
+    const page = landing?.pageName?.trim();
+    if (!page) return { ad: `${ad}, par une page d'atterrissage`, none };
+    const source = landing?.sourceKey ? ` (source « ${landing.sourceKey} »)` : "";
+    return { ad: frQuotes(`${ad}, par la page « ${page} »${source}`), none };
+  }
+  return { ad: origin ? adLabel(origin) : null, none: "Aucune (lien direct)" };
+}
+
+/**
+ * Source d'arrivée affichée dans la liste des membres et son volet de résumé : « Pub Vidéo bonus (TikTok) » pour un
+ * lien de pub, « Affilié Paul » pour le lien d'une campagne d'affilié Link Affi (phase 13 : ce n'est pas une pub, la
+ * fiche le dit aussi), « Page Promo (tk01) » pour une page d'atterrissage (phase 15) ; null sans lien.
  */
 export function originSourceLabel(o: {
   kind?: string | null;
@@ -223,7 +264,16 @@ export function originSourceLabel(o: {
   linkName: string | null;
   affiliateName?: string | null;
   affiliateId?: string | null;
+  /** Lien d'une page d'atterrissage (phase 15) : nom actuel de la page (null : page supprimée) et source. */
+  landingPageName?: string | null;
+  landingSource?: string | null;
 }): string | null {
+  if (o.kind === "LANDING") {
+    // Une page d'atterrissage n'est pas une pub (même si une pub y mène) : « Page Promo (tk01) ».
+    const page = (o.landingPageName ?? "").trim();
+    if (!page) return o.linkName ? `Page ${o.linkName}` : "Page d'atterrissage";
+    return o.landingSource ? `Page ${page} (${o.landingSource})` : `Page ${page}`;
+  }
   if (o.kind === "LINKAFFI") {
     const who = (o.affiliateName ?? "").trim() || (o.affiliateId ?? "").trim();
     return who ? `Affilié ${who}` : "Affilié Link Affi";

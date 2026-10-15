@@ -81,6 +81,16 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^post\./, "Message"],
   [/^channel\./, "Canal"],
   [/^bot\./, "Bot"],
+  // Pages d'atterrissage (phase 15) et leurs liens Telegram, avant les familles générales.
+  [/^landing\.page_created$/, "Page d'atterrissage créée"],
+  [/^landing\.page_updated$/, "Page d'atterrissage modifiée"],
+  [/^landing\.page_deleted$/, "Page d'atterrissage supprimée"],
+  [/^landing\.test_page_created$/, "Page d'essai du canal TEST créée"],
+  [/^landing\.test_page_updated$/, "Page d'essai du canal TEST remise à jour"],
+  [/^landing\./, "Page d'atterrissage"],
+  [/^invite_link\.landing_created$/, "Lien d'une page créé"],
+  [/^invite_link\.landing_revoked$/, "Lien d'une page retiré"],
+  [/^invite_link\.landing_failed$/, "Lien d'une page : refus de Telegram"],
   // Liens de partage (phase 11), avant la famille générale.
   [/^invite_link\.share_created$/, "Lien de partage créé"],
   [/^invite_link\.share_disabled$/, "Lien de partage désactivé"],
@@ -165,6 +175,12 @@ export const ACTION_FAMILIES: ReadonlyArray<{
   { value: "member.", label: "Membres et étiquettes", prefixes: ["member.", "tag."] },
   { value: "sequence.", label: "Messages du bot", prefixes: ["sequence."] },
   { value: "post.", label: "Messages et médias", prefixes: ["post.", "media."] },
+  // Phase 15 : les liens des pages sont aussi dans « Campagnes et liens » (même préfixe `invite_link.`).
+  {
+    value: "landing.",
+    label: "Pages d'atterrissage",
+    prefixes: ["landing.", "invite_link.landing_"],
+  },
   {
     value: "settings.",
     label: "Réglages, alertes et rapports",
@@ -307,6 +323,8 @@ const ENTITY_LABELS: Record<string, string> = {
   AffiliateProgram: "Programme",
   CustomEmoji: "Emoji animé",
   IntegrationKey: "Connexion Link Affi",
+  LandingPage: "Page d'atterrissage",
+  LandingSource: "Source d'une page",
 };
 
 export function entityLabel(entityType: string | null | undefined): string {

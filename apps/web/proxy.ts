@@ -31,7 +31,8 @@ const CONTENT_SECURITY_POLICY = [
 
 /**
  * Ajoute l'identifiant de requête (diagnostic) et les en-têtes de sécurité.
- * Pas de CSP sur les redirections de tracking ni sur les API (inutile, et risqué pour les intégrations).
+ * Pas de CSP sur les redirections de tracking ni sur les API (inutile, et risqué pour les intégrations), ni sur les
+ * pages d'atterrissage `/j/…` : leur route pose sa propre CSP (empreintes du CSS et du script de la page, pixels).
  */
 function finalize(res: NextResponse, request: NextRequest, opts: { csp: boolean }): NextResponse {
   res.headers.set("x-request-id", request.headers.get("x-request-id") ?? crypto.randomUUID());
@@ -44,23 +45,48 @@ const { auth } = NextAuth(authConfig);
 
 /**
  * Proxy (ex-middleware) :
- * 1. le trafic du domaine de tracking (go.goolink.eu) est réécrit vers /r/… sans authentification ;
- * 2. une ancienne adresse du site (/broadcasts, /bots, /?tab=ads…) renvoie (308) vers sa nouvelle place
+ * 1. le trafic du domaine de tracking (go.goolink.eu) est réécrit vers /r/… sans authentification, sauf les pages
+ *    d'atterrissage `/j/…`, servies telles quelles (aucune redirection avant la page) ;
+ * 2. en production, une page d'atterrissage demandée sur l'adresse du site (et non sur go.goolink.eu) répond 404 :
+ *    ses pixels ne doivent jamais tourner avec la session de l'équipe (lib/routing.ts, `landingAllowedOnHost`) ;
+ * 3. une ancienne adresse du site (/broadcasts, /bots, /?tab=ads…) renvoie (308) vers sa nouvelle place
  *    (lib/legacy-routes.ts) ;
- * 3. les chemins publics passent ;
- * 4. tout le reste exige une session, sinon redirection vers /login.
+ * 4. les chemins publics passent ;
+ * 5. tout le reste exige une session, sinon redirection vers /login.
  */
 export default async function proxy(request: NextRequest) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const decision = decideRoute(host, request.nextUrl.pathname, process.env.TRACKING_HOST);
+  const trackingHost = process.env.TRACKING_HOST;
+  const decision = decideRoute(host, request.nextUrl.pathname, trackingHost, {
+    landingOnSiteHost: process.env.NODE_ENV !== "production",
+  });
 
   const path = request.nextUrl.pathname;
-  const csp = !path.startsWith("/api/") && !path.startsWith("/r/") && path !== "/r";
+  const csp =
+    !path.startsWith("/api/") &&
+    !path.startsWith("/r/") &&
+    path !== "/r" &&
+    !path.startsWith("/j/");
 
   if (decision.kind === "tracking") {
+    // Page d'atterrissage déjà à sa place : laissée passer telle quelle (pas de réécriture inutile).
+    if (decision.rewriteTo === path) return finalize(NextResponse.next(), request, { csp: false });
     const url = request.nextUrl.clone();
     url.pathname = decision.rewriteTo;
     return finalize(NextResponse.rewrite(url), request, { csp: false });
+  }
+  if (decision.kind === "landing-elsewhere") {
+    // Texte simple (aucun lien, aucun script) : l'équipe voit où la page s'ouvre.
+    const where = `https://${trackingHost ?? ""}${path}`;
+    const res = new NextResponse(`Cette page s'ouvre à l'adresse ${where}\n`, {
+      status: 404,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
+    return finalize(res, request, { csp: false });
   }
   // Anciennes adresses (refonte de la phase 9) : 308 vers la nouvelle place, paramètres gardés, avant la connexion.
   const moved = legacyRedirect(path, request.nextUrl.searchParams);

@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts", "./landing-render": "./src/landing-render.ts" },
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

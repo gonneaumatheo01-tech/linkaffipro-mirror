@@ -58,6 +58,8 @@ export type FunnelLink = ProvenanceLink & {
   name: string;
   /** Nom de la pub (`Ad.name`, sinon `InviteLink.adName`). */
   adName: string | null;
+  /** Nom actuel de la page d'atterrissage du lien (lien LANDING, phase 15) ; null : page supprimée. */
+  landingPageName?: string | null;
 };
 
 /** Une demande lue en base, prête pour le calcul. */
@@ -118,8 +120,9 @@ export const EMPTY_FUNNEL: Readonly<FunnelCounts> = Object.freeze({
   left: 0,
 });
 
-/** Nature d'une provenance (pub, un de nos canaux, lien, affilié, autre). */
-export type FunnelGroupKind = "ad" | "channel" | "share" | "link" | "affiliate" | "other";
+/** Nature d'une provenance (pub, un de nos canaux, lien, affilié, page d'atterrissage, autre). */
+export type FunnelGroupKind =
+  "ad" | "channel" | "share" | "link" | "affiliate" | "landing" | "other";
 
 export type FunnelGroup = {
   key: string;
@@ -322,6 +325,20 @@ export function provenanceGroupOf(
         key: `affiliate:${p.linkaffi?.affiliateId ?? p.inviteLinkId ?? "?"}`,
         label: who ? `Affilié ${quoted(who)}` : "Affilié Link Affi",
         kind: "affiliate",
+      };
+    }
+    case "LANDING": {
+      // Une ligne par page, toutes sources (le détail par source est dans la rubrique Pages).
+      const pageId = p.landing?.pageId ?? r.link?.landingPageId ?? null;
+      const name = pageId ? r.link?.landingPageName : null;
+      return {
+        key: `landing:${pageId ?? "?"}`,
+        label: name
+          ? `Page ${quoted(name)}`
+          : pageId
+            ? "Page d'atterrissage"
+            : "Page d'atterrissage supprimée",
+        kind: "landing",
       };
     }
     default:
@@ -670,6 +687,10 @@ type RawRow = {
   linkaffiCampaignName: string | null;
   linkaffiAffiliateId: string | null;
   linkaffiAffiliateName: string | null;
+  /** Lien LANDING (phase 15) : page, source et nom actuel de la page. */
+  landingPageId?: string | null;
+  landingSource?: string | null;
+  landingPageName?: string | null;
   welcomed: boolean;
   blocked: boolean;
   refused: boolean;
@@ -690,6 +711,9 @@ export function funnelRequestFromRow(row: RawRow): FunnelRequest {
           linkaffiCampaignName: row.linkaffiCampaignName,
           linkaffiAffiliateId: row.linkaffiAffiliateId,
           linkaffiAffiliateName: row.linkaffiAffiliateName,
+          landingPageId: row.landingPageId ?? null,
+          landingSource: row.landingSource ?? null,
+          landingPageName: row.landingPageName ?? null,
         }
       : null;
   return {
@@ -758,6 +782,7 @@ export async function loadFunnelRequests(input: {
       COALESCE(l."name", m."source"->'inviteLink'->>'name') AS "linkName",
       COALESCE(a."name", l."adName", m."source"->'inviteLink'->>'adName') AS "adName",
       l."linkaffiCampaignKey", l."linkaffiCampaignName", l."linkaffiAffiliateId", l."linkaffiAffiliateName",
+      l."landingPageId", l."landingSource", lp."name" AS "landingPageName",
       EXISTS (
         SELECT 1 FROM "OutboundMessage" o
         WHERE o."memberId" = m."memberId" AND o."kind" = 'WELCOME' AND o."status" = 'SENT'
@@ -781,6 +806,7 @@ export async function loadFunnelRequests(input: {
     LEFT JOIN "ApprovalRule" r ON r."id" = m."approvalRuleId"
     LEFT JOIN "InviteLink" l ON l."id" = m."inviteLinkId"
     LEFT JOIN "Ad" a ON a."inviteLinkId" = l."id"
+    LEFT JOIN "LandingPage" lp ON lp."id" = l."landingPageId"
     WHERE m."requestedAt" >= ${input.from} AND m."requestedAt" < ${input.to}
       AND m."source"->>'joinedDirectly' IS DISTINCT FROM 'true'
       ${channelFilter}

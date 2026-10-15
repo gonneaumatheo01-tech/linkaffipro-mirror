@@ -312,3 +312,30 @@ Tâches : file `approvals` `gate-sweep` (toutes les 2 minutes, demandes « Atten
 vérifications Telegram par bot et par passage), `reminder` (rappel différé de moins de 5 minutes, identifiant
 `reminder-<demande>-<rang>`) ; file `telegram-send` `approve` / `decline` (« Tout accepter »). Alerte `bot_blocked_rate`
 (plus de 25 % de vrais blocages dans l'heure qui suit l'accueil, au moins 10 demandes, une alerte par canal toutes les 6 h).
+
+## Phase 15 (15 octobre 2026) — migration `20261015061843_phase15_pages_atterrissage`
+
+Pages d'atterrissage Telegram (rubrique « Pages », contrat `docs/PAGES-ATTERRISSAGE.md`). Migration additive (une
+énumération, trois valeurs d'énumération, colonnes facultatives, trois tables, index, clés étrangères SET NULL / CASCADE
+sur les nouvelles tables seulement). Garde : `packages/db/prisma/migrations/phase15-pages-atterrissage.test.ts`. Règles
+pures : `packages/core/src/landing.ts`, rendu `packages/core/src/landing-render.ts`, provenance LANDING dans
+`packages/core/src/provenance.ts`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `LandingPage` | Page servie sur `https://go.goolink.eu/j/<slug>` : canal (titre jamais saisi), langue, accroche, sous-texte, texte du bouton, petite ligne, photo, bandeau cookies, pixels TikTok / Meta, `isActive` (pause), `version` (clé du HTML en mémoire). |
+| `LandingSource` | Source d'une page (`key` lue dans `?src=`, "" = lien principal) : lien actuel `inviteLinkId`, refus de Telegram `linkError`, dernier essai de création du lien `linkTriedAt` (reprise du worker : chaque page à son tour), pub reliée `adId` (coût par join). Jamais supprimée : désactivée (`isActive`), son lien révoqué. |
+| `InviteLinkKind.LANDING` + `InviteLink.landingPageId`, `landingSource`, `landingAdId` | Lien d'invitation d'une source (avec demande d'adhésion), créé par le bot de l'univers du canal pour la pub reliée à sa source à ce moment-là : `landingAdId` et `campaignId` figés à la création (ses demandes et ses visites comptent pour cette pub et sa campagne, pour toujours ; pub de la source changée : nouveau lien). Pub supprimée : `landingAdId` à null (SET NULL), la campagne reste. Un lien révoqué garde sa page, sa source et sa pub ; un lien en trop d'un passage concurrent n'a ni source, ni pub, ni campagne. |
+| `LandingEvent` | Visite (VIEW), clic (CLICK, avec la façon d'ouvrir Telegram `method`) et ouverture de Telegram (OPENED : page quittée dans les 2 s) ; `visitId`, source, os, navigateur intégré, pays, `ipHash`, `isBot`, `ttclid` / `fbclid`. Append-only, écrit par la file `landing-events`, purgé avec les données personnelles. Aucune adresse IP. |
+| `ApprovalSourceKind.LANDING_ANY`, `LANDING_PAGE` + `ApprovalRule.landingPageId` | Exceptions de « Qui peut entrer et quand » : n'importe quelle page, une page précise (pas de clé étrangère : « page supprimée »). |
+| `Channel.photoSmall`, `photoFileUniqueId`, `chatCheckedAt` | Petite photo du canal (JPEG 160 px) pour les pages qui l'affichent ; dernière relecture `getChat` (titre et photo). |
+
+Correction de la même phase, migration `20261015105038_phase15_pub_figee_liens` (additive : `InviteLink.landingAdId` +
+index + clé étrangère SET NULL vers `Ad`, `LandingSource.linkTriedAt` ; reprise de la pub du lien actuel des sources
+reliées ; garde dans le même fichier de test). `Channel.photoSmall` est omise par défaut par le client partagé
+(`omit` global) : lue seulement avec `select: { photoSmall: true }`. Tâches : file `landing-events` (`event`),
+maintenance `landing-chats` (toutes les 5 min, titre et photo relus au plus toutes les 30 min par canal) et
+`landing-links` (toutes les 10 min : liens manquants ou créés pour une autre pub, liens détachés révoqués, campagne des
+liens actuels). Canal Redis `landing:invalidate` (`{ pageId?, channelId?, all? }`). Journal : `landing.page_created` /
+`updated` / `deleted`, `landing.test_page_created` / `updated` (AuditLog) ; événements `invite_link.landing_created`,
+`invite_link.landing_failed`, `invite_link.landing_revoked`.

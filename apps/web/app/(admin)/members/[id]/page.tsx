@@ -31,11 +31,13 @@ import {
   appliedRuleText,
   appliedRuleView,
   membershipProvenance,
+  landingPageIdsOf,
   sourceChannelIdsOf,
 } from "@/lib/channels/provenance-display";
+import { landingPageNames } from "@/lib/landing/queries";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum, fmtRelative } from "@/lib/format";
 import {
-  adLabel,
+  originAdFact,
   botStateReach,
   memberProfile,
   memberSubline,
@@ -145,6 +147,9 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
               include: {
                 campaign: { select: { id: true, name: true, vertical: true, adPlatform: true } },
                 trackingLinks: { select: { affiliateCampaign: { select: { name: true } } } },
+                // Lien d'une page d'atterrissage (phase 15) : sa page et la pub figée sur le lien (D9).
+                landingPage: { select: { name: true } },
+                landingAd: { select: { name: true } },
               },
             },
             // Règle des demandes d'avant la phase 11 (sans règle enregistrée dans `source`).
@@ -240,6 +245,8 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
   ) : null;
   // Demandes et canaux : d'où vient chaque demande (titres actuels des canaux d'origine), règle, acceptation.
   const sourceIds = sourceChannelIdsOf(member.memberships);
+  // Pages d'atterrissage (phase 15) : nom actuel d'une page renommée.
+  const pageNames = await landingPageNames(landingPageIdsOf(member.memberships));
   const sourceTitles = sourceIds.length
     ? Object.fromEntries(
         (
@@ -256,7 +263,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
     channelTitle: m.channel.title,
     universe: m.channel.vertical,
     status: m.status,
-    provenance: membershipProvenance(m, sourceTitles).label,
+    provenance: membershipProvenance(m, sourceTitles, pageNames).label,
     detail:
       [appliedRuleText(appliedRuleView(m)), acceptanceText(m, now)]
         .filter((x): x is string => Boolean(x))
@@ -366,10 +373,22 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
     : [memberSubline(member), member.isPremium ? "Telegram Premium" : null]
         .filter(Boolean)
         .join(" · ");
-  // Lien d'une campagne d'affilié Link Affi (phase 13) : ce n'est pas une pub (l'affilié est montré plus bas).
-  const originByAffiliate =
-    member.memberships[member.memberships.length - 1]?.inviteLink?.kind === "LINKAFFI";
-  const ad = origin && !originByAffiliate ? adLabel(origin) : null;
+  // Lien d'une campagne d'affilié Link Affi (phase 13, l'affilié est montré plus bas) : ce n'est pas une pub. Lien
+  // d'une page d'atterrissage (phase 15) : la pub figée sur le lien (celle qui compte sa demande), avec la page.
+  const firstLink = member.memberships[member.memberships.length - 1]?.inviteLink ?? null;
+  const originAd = originAdFact(
+    firstLink?.kind,
+    origin,
+    firstLink?.kind === "LANDING"
+      ? {
+          adName: firstLink.landingAd?.name ?? null,
+          adPlatform: firstLink.campaign?.adPlatform ?? null,
+          pageName: firstLink.landingPage?.name ?? null,
+          sourceKey: firstLink.landingSource,
+        }
+      : null,
+  );
+  const ad = originAd.ad;
   const unknownTags = tags.filter((t) => !tagRegistry.some((r) => r.name === t));
   const canEditNote = (authorId: string | undefined) => me.role === "ADMIN" || authorId === me.id;
 
@@ -435,11 +454,7 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
                 )}
               </Fact>
               <Fact label="Pub">
-                {ad ?? (
-                  <span className="text-muted-foreground">
-                    {originByAffiliate ? "Aucune (lien d'un affilié)" : "Aucune (lien direct)"}
-                  </span>
-                )}
+                {ad ?? <span className="text-muted-foreground">{originAd.none}</span>}
               </Fact>
               <Fact label="Canal">
                 <Link

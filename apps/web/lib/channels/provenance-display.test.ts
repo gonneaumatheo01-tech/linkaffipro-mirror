@@ -7,6 +7,7 @@ import {
   parisDateTime,
   provenanceLine,
   ruleTiming,
+  landingPageIdsOf,
   sourceChannelIdsOf,
   type DisplayMembership,
 } from "./provenance-display";
@@ -256,6 +257,63 @@ describe("date d'acceptation (heure de Paris)", () => {
   it("ligne sans la date quand l'écran la montre déjà", () => {
     expect(provenanceLine(phase11(), titles, now, { withAcceptance: false })).toBe(
       "Venu de « Tir Cadré » (canal obligatoire) · règle : 1 jour",
+    );
+  });
+});
+
+describe("provenance d'une page d'atterrissage (phase 15)", () => {
+  const landing = (label: string | null, pageId: string | null = "lp1") =>
+    phase11(
+      {},
+      {
+        inviteLink: { id: "l-land", name: "Promo VIP-tk01", kind: "LANDING" },
+        provenance: {
+          type: "LANDING",
+          inviteLinkId: "l-land",
+          sourceChannelId: null,
+          adPlatform: null,
+          landing: { pageId, sourceKey: "tk01" },
+          ...(label ? { label } : {}),
+        },
+        appliedRule: { id: "r-lp", scope: "SOURCE_KIND", label: "Venu de la page « Promo VIP »" },
+        rule: { id: "r-lp", mode: "DELAY", delaySeconds: 0, gateMode: "NONE" },
+      },
+    );
+
+  it("nom actuel de la page et sa source ; règle de la page", () => {
+    expect(
+      provenanceLine(landing("Venu de la page « Ancien nom » (source « tk01 »)"), titles, now, {
+        withAcceptance: false,
+      }),
+    ).toBe("Venu de la page « Ancien nom » (source « tk01 ») · règle : tout de suite");
+    expect(
+      membershipProvenance(landing("Venu de la page « Ancien nom » (source « tk01 »)"), titles, {
+        lp1: "Promo VIP",
+      }).label,
+    ).toBe("Venu de la page « Promo VIP » (source « tk01 »)");
+  });
+
+  it("page renommée : pages à relire (`landingPageIdsOf`) et ligne complète avec le nom actuel", () => {
+    const m = landing("Venu de la page « Ancien nom » (source « tk01 »)");
+    expect(landingPageIdsOf([m, landing(null), { source: null }])).toEqual(["lp1"]);
+    expect(
+      provenanceLine(m, titles, now, {
+        withAcceptance: false,
+        landingPageNames: { lp1: "Promo VIP" },
+      }),
+    ).toBe("Venu de la page « Promo VIP » (source « tk01 ») · règle : tout de suite");
+  });
+
+  it("page supprimée ou nom inconnu : le texte enregistré par le bot ; sans texte, une phrase générique", () => {
+    expect(
+      membershipProvenance(
+        landing("Venu de la page « Promo VIP » (source « tk01 »)", null),
+        titles,
+        {},
+      ).label,
+    ).toBe("Venu de la page « Promo VIP » (source « tk01 »)");
+    expect(membershipProvenance(landing(null), titles).label).toBe(
+      "Venu d'une page d'atterrissage (« Promo VIP-tk01 »)",
     );
   });
 });

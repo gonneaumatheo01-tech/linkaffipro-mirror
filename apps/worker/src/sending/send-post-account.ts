@@ -50,7 +50,10 @@ import { loadActiveSession } from "../views/credentials";
 import { mediaKindOf } from "./media";
 import { RateLimiter } from "./rate-limit";
 
-export type AccountPost = Prisma.PostGetPayload<{ include: { channel: true } }>;
+/** Message et son canal tels que lus par le client partagé (petite photo du canal omise, voir `@linkaffipro/db`). */
+export type AccountPost = Prisma.PostGetPayload<{
+  include: { channel: { omit: { photoSmall: true } } };
+}>;
 
 /** Attente du verrou de la session avant de reporter l'envoi (le relevé des vues le rend entre deux canaux). */
 export const ACCOUNT_LOCK_WAIT_MS = 60_000;

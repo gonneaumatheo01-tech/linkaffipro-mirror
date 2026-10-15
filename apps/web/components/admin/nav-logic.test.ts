@@ -35,11 +35,12 @@ describe("NAV (liste du menu)", () => {
     }
   });
 
-  it("six entrées principales, dans l'ordre de docs/REFONTE-UX.md", () => {
+  it("entrées principales dans l'ordre de docs/REFONTE-UX.md, « Pages » juste après Campagnes (phase 15)", () => {
     const main = NAV.filter((i) => i.section === "main");
     expect(main.map((i) => [i.href, i.label])).toEqual([
       ["/", "Accueil"],
       ["/campaigns", "Campagnes"],
+      ["/pages", "Pages"],
       ["/channels", "Canaux"],
       ["/messages", "Messages"],
       ["/members", "Membres"],
@@ -80,6 +81,7 @@ describe("NAV (liste du menu)", () => {
     expect(NAV.map(navTourId)).toEqual([
       "nav-home",
       "nav-campaigns",
+      "nav-pages",
       "nav-channels",
       "nav-messages",
       "nav-members",
@@ -114,10 +116,10 @@ describe("navSections (barre de menu de l'ordinateur)", () => {
     expect(navSections(nav, false).bottom.map((i) => i.href)).toEqual(["/settings"]);
   });
 
-  it("menu réel : 6 entrées + Réglages, pour un administrateur comme pour un manager", () => {
+  it("menu réel : 7 entrées (6 + Pages) + Réglages, pour un administrateur comme pour un manager", () => {
     for (const isAdmin of [true, false]) {
       const s = navSections(NAV, isAdmin);
-      expect(s.main).toHaveLength(6);
+      expect(s.main).toHaveLength(7);
       expect(s.bottom.map((i) => i.href)).toEqual(["/settings"]);
     }
   });
@@ -161,6 +163,10 @@ describe("activeHref", () => {
       ["/campaigns/new", "/campaigns"],
       ["/campaigns/links", "/campaigns"],
       ["/campaigns/import", "/campaigns"],
+      ["/pages", "/pages"],
+      ["/pages/new", "/pages"],
+      ["/pages/p1", "/pages"],
+      ["/pagesx", null],
       ["/channels/ch1", "/channels"],
       ["/messages/new", "/messages"],
       ["/stats", "/stats"],
@@ -221,11 +227,12 @@ describe("mobileNav", () => {
     expect(more.map((i) => i.href)).toContain("/messages");
   });
 
-  it("menu réel : « Plus » contient Canaux, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
+  it("menu réel : « Plus » contient Pages, Canaux, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
     for (const isAdmin of [true, false]) {
       const { primary, more } = mobileNav(NAV, isAdmin);
       expect(primary.map((i) => i.href)).toEqual([...MOBILE_PRIMARY_HREFS]);
       expect(more.map((i) => i.label)).toEqual([
+        "Pages",
         "Canaux",
         "Statistiques",
         "Réglages",

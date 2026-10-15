@@ -49,6 +49,16 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
       "Affiliés sur vos canaux",
     ]);
     expect(pageHelpFor("/campaigns/new").help.label).toBe("Nouvelle campagne");
+    // Phase 15 : rubrique « Pages » (liste, nouvelle page, fiche d'une page et ses chiffres).
+    expect(pageHelpFor("/pages").help.label).toBe("Pages");
+    expect(pageHelpFor("/pages/new").help.label).toBe("Nouvelle page");
+    expect(pageHelpFor("/pages/p1?range=30d").help.label).toBe("Fiche d'une page");
+    expect(pageHelpFor("/pages/p1").help.sections).toEqual([
+      "Copier le lien d'une source",
+      "Lire le tableau d'une page",
+      "Ce qui est compté",
+      "Créer une page",
+    ]);
     expect(pageHelpFor("/members/broadcasts/new").help.label).toBe("Écrire à un groupe");
     expect(pageHelpFor("/members/broadcasts/ab/g1").help.label).toBe(
       "Test A/B d'un message à un groupe",
@@ -183,6 +193,18 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     const team = guideSections(GUIDE, pageHelpFor("/settings/team").help.sections);
     expect(team.map((s) => s.id)).toEqual(["reglages-equipe", "utilisateurs-et-invitations"]);
     expect(team[0]!.markdown).not.toContain("#### ");
+  });
+
+  it("pages d'atterrissage : introduction de la rubrique, puis ses sous-sections du guide", () => {
+    const list = guideSections(GUIDE, pageHelpFor("/pages").help.sections);
+    expect(list.map((s) => s.id)).toEqual([
+      "pages",
+      "creer-une-page",
+      "copier-le-lien-d-une-source",
+    ]);
+    expect(list[0]!.markdown.startsWith("## Pages")).toBe(true);
+    expect(list[0]!.markdown).not.toContain("### ");
+    expect(guideHref(pageHelpFor("/pages/p1").help)).toBe("/help#copier-le-lien-d-une-source");
   });
 
   it("lien « Ouvrir le guide complet » : ancre de la première section de la page", () => {

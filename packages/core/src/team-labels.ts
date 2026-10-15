@@ -61,6 +61,7 @@ export const QUEUE_LABELS: Record<string, string> = {
   "sync-views": "Vues Telegram",
   "custom-emoji": "Emojis animés",
   "linkaffi-events": "Événements Link Affi",
+  "landing-events": "Visites des pages",
   stats: "Statistiques",
   maintenance: "Maintenance",
   automations: "Relances automatiques",

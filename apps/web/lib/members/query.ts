@@ -96,6 +96,9 @@ export type MemberOrigin = {
   /** Affilié Link Affi du lien (lien LINKAFFI seulement). */
   affiliateId: string | null;
   affiliateName: string | null;
+  /** Page d'atterrissage du lien et sa source (lien LANDING seulement, phase 15) ; page supprimée : null. */
+  landingPageName?: string | null;
+  landingSource?: string | null;
   adName: string | null;
   adPlatform: string | null;
   campaignId: string | null;
@@ -153,6 +156,8 @@ const memberInclude = {
           adPlatform: true,
           linkaffiAffiliateId: true,
           linkaffiAffiliateName: true,
+          landingSource: true,
+          landingPage: { select: { name: true } },
           campaign: { select: { id: true, name: true, vertical: true } },
         },
       },
@@ -193,8 +198,9 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
   const latest = m.memberships[0];
   const link = first?.inviteLink ?? null;
   // Lien d'affilié Link Affi : « Affilié Paul » (jamais présenté comme une pub) ; sinon la pub ou le nom du lien.
+  // Page d'atterrissage (phase 15) : « Page Promo (tk01) », jamais présentée comme une pub.
   const src = link
-    ? link.kind === "LINKAFFI"
+    ? link.kind === "LINKAFFI" || link.kind === "LANDING"
       ? originSourceLabel({
           kind: link.kind,
           adName: null,
@@ -202,6 +208,8 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
           linkName: link.name,
           affiliateId: link.linkaffiAffiliateId,
           affiliateName: link.linkaffiAffiliateName,
+          landingPageName: link.landingPage?.name ?? null,
+          landingSource: link.landingSource,
         })
       : link.adName || link.name
     : null;
@@ -224,6 +232,8 @@ export function toRow(m: MemberWithRels, thresholds: SpendThresholds): MemberRow
           linkName: link?.name ?? null,
           affiliateId: link?.kind === "LINKAFFI" ? (link.linkaffiAffiliateId ?? null) : null,
           affiliateName: link?.kind === "LINKAFFI" ? (link.linkaffiAffiliateName ?? null) : null,
+          landingPageName: link?.kind === "LANDING" ? (link.landingPage?.name ?? null) : null,
+          landingSource: link?.kind === "LANDING" ? (link.landingSource ?? null) : null,
           adName: first.inviteLink?.adName ?? null,
           adPlatform: first.inviteLink?.adPlatform ?? null,
           campaignId: first.inviteLink?.campaign?.id ?? null,

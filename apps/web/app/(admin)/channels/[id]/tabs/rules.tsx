@@ -16,6 +16,7 @@ import {
 } from "@/lib/channels/pending-rule";
 import { loadGateLinkView } from "@/lib/channels/gate-links-server";
 import { loadGateChannelChoices, loadRulesTab } from "@/lib/channels/queries";
+import { loadChannelLandingPages } from "@/lib/landing/queries";
 import { loadExceptionGateViews } from "@/lib/channels/rule-gate-links";
 import { simulationChoices, type SimRule } from "@/lib/channels/rule-simulator";
 import { channelTabHref } from "@/lib/channels/tabs";
@@ -67,10 +68,15 @@ export async function RulesTab({ channelId }: { channelId: string }) {
   ]);
   const { defaultRow, defaultRule: rule, exceptions } = data;
   const initial = initialEntryState(rule);
-  const [channels, gateView, exceptionViews] = await Promise.all([
+  const [channels, gateView, exceptionViews, landingPages] = await Promise.all([
     loadGateChannelChoices(channelId, initial.gateIds),
     loadGateLinkView(channelId, rule),
     loadExceptionGateViews(channelId, exceptions),
+    // Pages d'atterrissage du canal, et celles que visent déjà des exceptions (phase 15).
+    loadChannelLandingPages(
+      channelId,
+      exceptions.flatMap((e) => (e.landingPageId ? [e.landingPageId] : [])),
+    ),
   ]);
 
   const names = {
@@ -78,6 +84,8 @@ export async function RulesTab({ channelId }: { channelId: string }) {
     linkNames: Object.fromEntries(data.links.map((l) => [l.id, l.name])),
     // Affiliés Link Affi (phase 13) : « de l'affilié « Paul » », « de la campagne « … » de l'affilié « Paul » ».
     ...affiliateNameMaps({ affiliates: data.affiliates, affiliateLinks: data.affiliateLinks }),
+    // Pages d'atterrissage (phase 15) : « de la page « Promo » ».
+    landingPageNames: Object.fromEntries(landingPages.map((p) => [p.id, p.name])),
   };
   const channelTitle = names.titles[channelId] ?? "ce canal";
   const activeChannels = data.channels
@@ -138,6 +146,11 @@ export async function RulesTab({ channelId }: { channelId: string }) {
       exceptions.some(
         (e) => e.sourceKind === "LINKAFFI_ANY" || e.sourceKind === "LINKAFFI_AFFILIATE",
       ),
+    // Pages d'atterrissage du canal, et « une autre page » dès qu'une exception en vise une (phase 15).
+    landingPages,
+    withLandingPages: exceptions.some(
+      (e) => e.sourceKind === "LANDING_ANY" || e.sourceKind === "LANDING_PAGE",
+    ),
   });
   const activeExceptions = exceptions.filter((e) => e.isActive).length;
   // Personnes envoyées ici par le bouton d'un autre canal : l'exception qui les vise, comme le bot (rappelée dans
@@ -236,6 +249,7 @@ export async function RulesTab({ channelId }: { channelId: string }) {
               affiliateName: l.affiliateName,
               isActive: l.isActive,
             })),
+            landingPages,
           }}
           baseState={initial}
           activeChannels={activeChannels}

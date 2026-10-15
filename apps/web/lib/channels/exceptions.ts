@@ -26,9 +26,10 @@ import {
  * « Exceptions selon la provenance » (fiche canal → « Qui peut entrer et quand », phase 11) : règles d'affichage et de
  * saisie pures, testées sans base. La résolution elle-même (quelle règle s'applique à qui) vient de
  * `packages/core/src/provenance.ts`, la même que celle du bot.
- * - menu « Si la personne vient… » (clé `channel:<id>` / `kind:<type>` / `link:<id>` / `affiliate:<id>`) ↔ portée et
- *   cible de la règle ; phase 13 : affiliés Link Affi (n'importe quel affilié, un affilié précis, une campagne
- *   d'affilié précise = le lien LINKAFFI de la campagne) ;
+ * - menu « Si la personne vient… » (clé `channel:<id>` / `kind:<type>` / `link:<id>` / `affiliate:<id>` /
+ *   `landing:<id>`) ↔ portée et cible de la règle ; phase 13 : affiliés Link Affi (n'importe quel affilié, un affilié
+ *   précis, une campagne d'affilié précise = le lien LINKAFFI de la campagne) ; phase 15 : pages d'atterrissage
+ *   (n'importe quelle page, une page précise, toutes sources) ;
  * - textes : condition, libellé enregistré (« Venu de « Tir Cadré » »), phrase de résumé, délai court ;
  * - garde-fous : pas deux exceptions pour la même provenance, exception masquée (« jamais utilisée ») ;
  * - ordre : déplacement dans un même niveau seulement, numéros 10, 20, 30…
@@ -45,6 +46,8 @@ export type ExceptionTarget = {
   inviteLinkId: string | null;
   /** Affilié Link Affi précis (exception `SOURCE_KIND` = LINKAFFI_AFFILIATE, phase 13). */
   linkaffiAffiliateId: string | null;
+  /** Page d'atterrissage précise (exception `SOURCE_KIND` = LANDING_PAGE, phase 15). */
+  landingPageId: string | null;
 };
 
 /** Une exception telle que l'écran la montre (ligne `ApprovalRule` relue, sérialisable). */
@@ -64,6 +67,8 @@ export type NameMaps = {
   affiliateNames?: Readonly<Record<string, string>>;
   /** Liens des campagnes Telegram d'affiliés (LINKAFFI), par identifiant de lien : campagne et affilié. */
   affiliateLinks?: Readonly<Record<string, { campaignName: string; affiliateName: string }>>;
+  /** Noms des pages d'atterrissage par identifiant (phase 15) ; une page absente est « une page supprimée ». */
+  landingPageNames?: Readonly<Record<string, string>>;
 };
 
 /** Niveaux des exceptions, du plus précis au plus général (même ordre que le bot). */
@@ -84,6 +89,11 @@ export const LEVEL_TITLES: Record<ExceptionScope, string> = {
 export const EXCEPTIONS_HELP =
   "Un lien précis passe avant un de nos canaux, qui passe avant un type de provenance. Dans chaque groupe, la première exception qui correspond s'applique.";
 
+/** Clé du menu d'une page d'atterrissage précise (phase 15). */
+export function landingPageKey(pageId: string): string {
+  return `landing:${pageId}`;
+}
+
 /** Clé du menu d'un affilié Link Affi précis (identifiant Link Affi encodé : il peut contenir n'importe quoi). */
 export function affiliateKey(affiliateId: string): string {
   return `affiliate:${encodeURIComponent(affiliateId)}`;
@@ -92,7 +102,7 @@ export function affiliateKey(affiliateId: string): string {
 /** Clé du menu « Si la personne vient… » pour une exception (null : cible absente). */
 export function provenanceKey(
   t: Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId"> &
-    Partial<Pick<ScopedRule, "linkaffiAffiliateId">>,
+    Partial<Pick<ScopedRule, "linkaffiAffiliateId" | "landingPageId">>,
 ): string | null {
   switch (t.scope) {
     case "SOURCE_CHANNEL":
@@ -100,6 +110,8 @@ export function provenanceKey(
     case "SOURCE_KIND":
       if (t.sourceKind === "LINKAFFI_AFFILIATE")
         return t.linkaffiAffiliateId ? affiliateKey(t.linkaffiAffiliateId) : null;
+      if (t.sourceKind === "LANDING_PAGE")
+        return t.landingPageId ? landingPageKey(t.landingPageId) : null;
       return t.sourceKind ? `kind:${t.sourceKind}` : null;
     case "INVITE_LINK":
       return t.inviteLinkId ? `link:${t.inviteLinkId}` : null;
@@ -115,7 +127,16 @@ export function targetOfKey(key: string): ExceptionTarget | null {
     sourceKind: null,
     inviteLinkId: null,
     linkaffiAffiliateId: null,
+    landingPageId: null,
   };
+  const landing = /^landing:([A-Za-z0-9_-]{1,64})$/.exec(key.trim());
+  if (landing)
+    return {
+      ...none,
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_PAGE",
+      landingPageId: landing[1]!,
+    };
   const affiliate = /^affiliate:(.{1,400})$/.exec(key.trim());
   if (affiliate) {
     let id: string;
@@ -138,7 +159,8 @@ export function targetOfKey(key: string): ExceptionTarget | null {
   if (type === "channel") return { ...none, scope: "SOURCE_CHANNEL", sourceChannelId: value };
   if (type === "link") return { ...none, scope: "INVITE_LINK", inviteLinkId: value };
   // Un affilié précis s'écrit `affiliate:<id>` : « kind:LINKAFFI_AFFILIATE » sans affilié ne vise personne.
-  if (value === "LINKAFFI_AFFILIATE") return null;
+  // De même « kind:LANDING_PAGE » sans page (phase 15).
+  if (value === "LINKAFFI_AFFILIATE" || value === "LANDING_PAGE") return null;
   return SOURCE_KINDS.includes(value as SourceKind)
     ? { ...none, scope: "SOURCE_KIND", sourceKind: value as SourceKind }
     : null;
@@ -146,7 +168,7 @@ export function targetOfKey(key: string): ExceptionTarget | null {
 
 /** Ce qu'il faut d'une règle pour écrire sa condition. */
 type TargetLike = Pick<ScopedRule, "scope" | "sourceChannelId" | "sourceKind" | "inviteLinkId"> &
-  Partial<Pick<ScopedRule, "linkaffiAffiliateId">>;
+  Partial<Pick<ScopedRule, "linkaffiAffiliateId" | "landingPageId">>;
 
 /**
  * Espaces insécables à l'intérieur des guillemets français (les textes du paquet commun ont des espaces ordinaires :
@@ -168,7 +190,15 @@ export function conditionText(t: TargetLike, names: NameMaps): string {
       ? names.affiliateLinks?.[t.inviteLinkId]
       : undefined;
   if (campaign) return frQuotes(affiliateCampaignCondition(campaign));
-  return frQuotes(exceptionCondition(t, names.titles, names.linkNames, names.affiliateNames ?? {}));
+  return frQuotes(
+    exceptionCondition(
+      t,
+      names.titles,
+      names.linkNames,
+      names.affiliateNames ?? {},
+      names.landingPageNames ?? {},
+    ),
+  );
 }
 
 /** Libellé enregistré de l'exception (`ApprovalRule.label`) : « Venu de « Tir Cadré » ». */
@@ -193,6 +223,10 @@ export function provenanceHelp(
       return "Par le lien Link Affi de n'importe quel affilié (campagnes Telegram créées dans Link Affi).";
     case "LINKAFFI_AFFILIATE":
       return "Par le lien Link Affi d'une des campagnes de cet affilié.";
+    case "LANDING_ANY":
+      return "Par le bouton de n'importe quelle page d'atterrissage de ce canal (rubrique Pages), toutes sources.";
+    case "LANDING_PAGE":
+      return "Par le bouton de cette page d'atterrissage, quelle que soit la source.";
     case "GATE":
       return "Par le bouton « canal à rejoindre » de n'importe lequel de nos canaux.";
     case "ANY_CHANNEL":
@@ -426,7 +460,12 @@ export type ProvenanceGroup = { label: string; options: ProvenanceOption[] };
 
 /** Types de provenance proposés dans « Un type de provenance » (les affiliés Link Affi ont leur propre groupe). */
 const KIND_OPTIONS: readonly SourceKind[] = SOURCE_KINDS.filter(
-  (k) => k !== "LINKAFFI_ANY" && k !== "LINKAFFI_AFFILIATE",
+  // Les pages d'atterrissage (phase 15) ont aussi leur propre groupe.
+  (k) =>
+    k !== "LINKAFFI_ANY" &&
+    k !== "LINKAFFI_AFFILIATE" &&
+    k !== "LANDING_ANY" &&
+    k !== "LANDING_PAGE",
 );
 
 /** Lien d'une campagne Telegram d'affilié (LINKAFFI) dans le menu : campagne et affilié. */
@@ -471,6 +510,8 @@ export function provenanceMenu(input: {
   affiliates?: ReadonlyArray<{ id: string; name: string }>;
   /** Campagnes d'affiliés de ce canal (liens LINKAFFI). */
   affiliateLinks?: readonly AffiliateLinkOption[];
+  /** Pages d'atterrissage de ce canal (et celles que vise déjà une exception), phase 15. */
+  landingPages?: ReadonlyArray<{ id: string; name: string; isActive: boolean }>;
   current?: string | null;
   used: readonly string[];
 }): ProvenanceGroup[] {
@@ -478,7 +519,13 @@ export function provenanceMenu(input: {
   const linkNames = Object.fromEntries(input.links.map((l) => [l.id, l.name]));
   const affiliates = input.affiliates ?? [];
   const campaignLinks = input.affiliateLinks ?? [];
-  const names: NameMaps = { titles, linkNames, ...affiliateNameMaps(input) };
+  const landingPages = input.landingPages ?? [];
+  const names: NameMaps = {
+    titles,
+    linkNames,
+    ...affiliateNameMaps(input),
+    landingPageNames: Object.fromEntries(landingPages.map((p) => [p.id, p.name])),
+  };
   const used = new Set(input.used);
   const option = (key: string): ProvenanceOption => {
     const target = targetOfKey(key)!;
@@ -525,6 +572,17 @@ export function provenanceMenu(input: {
     !affiliateOptions.some((o) => o.key === input.current)
   )
     affiliateOptions.unshift(option(input.current!));
+  const pageOptions = landingPages
+    .filter((p) => p.isActive)
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"))
+    .map((p) => option(landingPageKey(p.id)));
+  if (current?.sourceKind === "LANDING_PAGE" && !pageOptions.some((o) => o.key === input.current))
+    pageOptions.push(option(input.current!));
+  // Groupe des pages : dès qu'une page existe sur ce canal (ou que l'exception en cours en vise une).
+  const showPages =
+    pageOptions.length > 0 ||
+    current?.sourceKind === "LANDING_ANY" ||
+    current?.sourceKind === "LANDING_PAGE";
   // Groupe des affiliés : dès qu'un affilié ou une campagne est connu (ou que l'exception en cours en vise un).
   const showAffiliates =
     affiliates.length > 0 ||
@@ -540,6 +598,10 @@ export function provenanceMenu(input: {
       options: showAffiliates ? [option("kind:LINKAFFI_ANY"), ...affiliateOptions] : [],
     },
     { label: "Une campagne d'affilié précise", options: campaigns },
+    {
+      label: "Une page d'atterrissage",
+      options: showPages ? [option("kind:LANDING_ANY"), ...pageOptions] : [],
+    },
   ];
   return groups.filter((g) => g.options.length > 0);
 }

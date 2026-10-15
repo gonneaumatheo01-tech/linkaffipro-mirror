@@ -489,3 +489,85 @@ describe("périodes et lecture en base", () => {
     expect(requestGateChannelIds(bare)).toEqual([]);
   });
 });
+
+describe("parcours des demandes : pages d'atterrissage (phase 15)", () => {
+  const landingLink = {
+    id: "lp-tk01",
+    kind: "LANDING" as const,
+    sourceChannelId: null,
+    adPlatform: null,
+    name: "Promo VIP-tk01",
+    adName: null,
+    landingPageId: "lp1",
+    landingSource: "tk01",
+    landingPageName: "Promo VIP",
+  };
+  const landing = (pageId: string | null, sourceKey: string) => ({
+    type: "LANDING",
+    inviteLinkId: "lp-tk01",
+    sourceChannelId: null,
+    adPlatform: null,
+    landing: { pageId, sourceKey },
+  });
+
+  it("une ligne par page (toutes sources), nommée avec le nom actuel de la page", () => {
+    const a = provenanceGroupOf(req({ provenance: landing("lp1", "tk01"), link: landingLink }));
+    expect(a).toEqual({ key: "landing:lp1", label: "Page « Promo VIP »", kind: "landing" });
+    const b = provenanceGroupOf(
+      req({
+        provenance: landing("lp1", ""),
+        link: { ...landingLink, id: "lp-main", landingSource: "" },
+      }),
+    );
+    expect(b.key).toBe("landing:lp1");
+    // Page supprimée (lien détaché) : une seule ligne « Page supprimée ».
+    expect(
+      provenanceGroupOf(
+        req({
+          provenance: landing(null, "tk01"),
+          link: { ...landingLink, landingPageId: null, landingPageName: null },
+        }),
+      ),
+    ).toEqual({ key: "landing:?", label: "Page d'atterrissage supprimée", kind: "landing" });
+    // Demande d'avant l'enregistrement de la provenance : déduite du lien, comme le bot.
+    expect(provenanceGroupOf(req({ provenance: null, link: landingLink })).key).toBe("landing:lp1");
+  });
+
+  it("ligne de la base → demande : page et source du lien gardées", () => {
+    const r = funnelRequestFromRow({
+      id: "ms2",
+      memberId: "m2",
+      channelId: ZONE,
+      status: "REQUESTED",
+      requestedAt: T0,
+      gateSatisfiedAt: null,
+      approvedAt: null,
+      joinedAt: null,
+      provenance: null,
+      gates: null,
+      gateLinksMissing: null,
+      noGates: false,
+      gateMode: null,
+      ruleScope: null,
+      ruleGateChannelIds: null,
+      linkId: "lp-tk01",
+      linkKind: "LANDING",
+      linkSourceChannelId: null,
+      linkAdPlatform: null,
+      linkName: "Promo VIP-tk01",
+      adName: null,
+      linkaffiCampaignKey: null,
+      linkaffiCampaignName: null,
+      linkaffiAffiliateId: null,
+      linkaffiAffiliateName: null,
+      landingPageId: "lp1",
+      landingSource: "tk01",
+      landingPageName: "Promo VIP",
+      welcomed: false,
+      blocked: false,
+      refused: false,
+    });
+    expect(r.link).toMatchObject({ kind: "LANDING", landingPageId: "lp1", landingSource: "tk01" });
+    expect(provenanceGroupOf(r).label).toBe("Page « Promo VIP »");
+  });
+});

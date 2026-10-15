@@ -140,3 +140,66 @@ export {
 export type { CustomEmojiFallbackInfo } from "./custom-emoji/fallback";
 export { addCustomEmojisToLibrary } from "./custom-emoji/library";
 export type { AddCustomEmojisInput } from "./custom-emoji/library";
+// Phase 15 : pages d'atterrissage — liens d'invitation des sources (bot de l'univers du canal, repli, révocation), pub
+// reliée aux sources, relecture du titre et de la photo des canaux (`getChat`).
+export {
+  ensureLandingLinks,
+  isGoneLandingLinkError,
+  isTransientLandingError,
+  landingLinkCandidates,
+  landingLinkErrorText,
+  landingNoBotText,
+  landingSourceLinkIsCurrent,
+  revokeLandingLinks,
+} from "./landing/links";
+export type {
+  EnsureLandingLinksReport,
+  LandingInvalidate,
+  LandingLinkApi,
+  LandingLinkBot,
+  LandingLinkChannel,
+  LandingLinkDeps,
+  LandingLinkOutcome,
+  LandingLinkToRevoke,
+  LandingPageLinks,
+  LandingSourceLinkState,
+  RevokeLandingLinksReport,
+} from "./landing/links";
+export {
+  LANDING_CHAT_BATCH,
+  LANDING_CHAT_SPACING_MS,
+  LANDING_CHAT_STALE_MS,
+  LANDING_PHOTO_MAX_BYTES,
+  refreshLandingChat,
+  refreshLandingChats,
+} from "./landing/chat";
+export type {
+  LandingChatChannel,
+  LandingChatClient,
+  LandingChatDeps,
+  LandingChatInfo,
+  LandingChatOutcome,
+  LandingChatsReport,
+  LandingChatUpdate,
+} from "./landing/chat";
+export {
+  LANDING_ORPHAN_GRACE_MS,
+  LANDING_REPLACED_GRACE_MS,
+  createPrismaLandingDeps,
+  ensureLandingLinksWithDb,
+  landingApiOf,
+  pagesMissingLandingLinks,
+  refreshLandingChannelWithDb,
+  refreshLandingChatsWithDb,
+  retryMissingLandingLinksWithDb,
+  revokeDetachedLandingLinksWithDb,
+  revokeLandingPageLinksWithDb,
+  syncLandingAdLinksWithDb,
+  webLandingApi,
+} from "./landing/prisma-links";
+export type {
+  LandingAdSyncReport,
+  LandingBotApi,
+  PrismaLandingOptions,
+  RetryLandingLinksReport,
+} from "./landing/prisma-links";

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-15T04:53:41.339Z",
+  "updatedAt": "2026-10-15T13:46:36.435Z",
   "entries": [
     {
       "route": "/",
@@ -136,6 +136,51 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T02:17:47.325Z"
+    },
+    {
+      "route": "/pages",
+      "path": "/pages",
+      "title": "Pages",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "pages-390.webp",
+        "1440": "pages-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-15T13:46:12.715Z"
+    },
+    {
+      "route": "/pages/[id]",
+      "path": "/pages/c38gqga8hwohwc0la3rlhjxf1",
+      "title": "Casino VIP — TikTok",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "pages-id-390.webp",
+        "1440": "pages-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-15T13:46:20.834Z"
+    },
+    {
+      "route": "/pages/new",
+      "path": "/pages/new",
+      "title": "Nouvelle page",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "pages-new-390.webp",
+        "1440": "pages-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-15T13:46:31.281Z"
     },
     {
       "route": "/channels",
@@ -961,6 +1006,20 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T02:23:10.512Z"
+    },
+    {
+      "route": "/j/demo-casino-vip?src=tk01",
+      "path": "/j/demo-casino-vip?src=tk01",
+      "title": "Les meilleurs bonus casino, chaque soir",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "j-demo-casino-vip-src-tk01-390.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-15T09:28:18.804Z"
     },
     {
       "route": "/login",

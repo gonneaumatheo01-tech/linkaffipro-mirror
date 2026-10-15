@@ -3,7 +3,8 @@
  * répartition entre la barre de menu (ordinateur) et la barre du bas (téléphone).
  * Les icônes (lucide) sont associées par leur nom dans `nav-icons.tsx` (`NAV_ICONS`).
  *
- * Menu cible de docs/REFONTE-UX.md : 6 entrées principales (`section: "main"`), puis Réglages en bas et séparé
+ * Menu cible de docs/REFONTE-UX.md : 6 entrées principales (`section: "main"`), plus « Pages » après Campagnes
+ * (phase 15, demande explicite du client : pages d'atterrissage), puis Réglages en bas et séparé
  * (`section: "bottom"`), visible pour tous les rôles (l'écran Réglages ne montre à chacun que ce qu'il peut ouvrir).
  * Le guide d'utilisation et « Mon compte » ne sont que dans le volet « Plus » du téléphone (`mobileOnly`) : sur
  * ordinateur, ils sont dans l'en-tête (bouton « ? » et menu du compte).
@@ -17,6 +18,7 @@ export type NavIcon =
   | "House"
   | "Megaphone"
   | "MessageSquare"
+  | "PanelTop"
   | "Radio"
   | "Settings"
   | "UserRound"
@@ -45,6 +47,8 @@ export type NavItem = {
 export const NAV: NavItem[] = [
   { key: "home", href: "/", label: "Accueil", icon: "House", section: "main" },
   { key: "campaigns", href: "/campaigns", label: "Campagnes", icon: "Megaphone", section: "main" },
+  // Phase 15 : pages d'atterrissage (sur téléphone, dans « Plus »).
+  { key: "pages", href: "/pages", label: "Pages", icon: "PanelTop", section: "main" },
   { key: "channels", href: "/channels", label: "Canaux", icon: "Radio", section: "main" },
   { key: "messages", href: "/messages", label: "Messages", icon: "MessageSquare", section: "main" },
   { key: "members", href: "/members", label: "Membres", icon: "Users", section: "main" },

@@ -5,7 +5,8 @@ import type { Period } from "@/lib/periods";
 /** Relations chargées une fois par la fiche, partagées par tous les onglets. */
 export const campaignInclude = {
   connection: { select: { id: true, name: true, platform: true, status: true } },
-  inviteLinks: { select: { id: true } },
+  // Type des liens : ceux des pages d'atterrissage ne sont pas présentés comme liens d'entrée (`shownEntryLinkIds`).
+  inviteLinks: { select: { id: true, kind: true } },
   trackingLinks: { select: { id: true } },
   adSets: { select: { ads: { select: { inviteLinkId: true, trackingLinkId: true } } } },
 } satisfies Prisma.CampaignInclude;

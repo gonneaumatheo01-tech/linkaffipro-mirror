@@ -10,7 +10,9 @@ noms communs pour que les parties avancent en parallèle sans se marcher dessus.
 - `LandingSource` (landingPageId, key — "" = source par défaut —, inviteLinkId? unique = lien actuel, linkError?,
   adId?, isActive). Unique (landingPageId, key).
 - `InviteLink.kind = LANDING` + `landingPageId` + `landingSource` (clé de la source). Un lien révoqué garde sa page et
-  sa source.
+  sa source. `InviteLink.landingAdId` (correction D9, migration `20261015105038_phase15_pub_figee_liens`) : pub pour
+  laquelle le lien a été créé, figée avec sa campagne (`campaignId`) ; la pub d'une source change → nouveau lien.
+  `LandingSource.linkTriedAt` : dernier essai de création du lien.
 - `LandingEvent` (append-only) : VIEW / CLICK / OPENED, visitId, sourceKey, rawSrc?, os, inApp, method, country,
   ipHash, isBot, ttclid, fbclid, userAgent. Jamais d'adresse IP.
 - `ApprovalSourceKind` `LANDING_ANY` (toute page) et `LANDING_PAGE` (+ `ApprovalRule.landingPageId`, sans clé
@@ -62,9 +64,22 @@ noms communs pour que les parties avancent en parallèle sans se marcher dessus.
 ## Comptage
 - Visite = VIEW d'un vrai navigateur (envoyé par la page après l'affichage, `sendBeacon`), comptée une fois par
   `visitId`, robots connus jamais comptés. Clic = CLICK (un par `visitId` au plus dans les chiffres). % d'ouverture de
-  Telegram = OPENED ÷ CLICK, par système. Demandes et acceptés : `Membership` dont `inviteLinkId` est un lien LANDING de
-  la page / source, demandes faites dans la période (acceptés = ces demandes acceptées depuis).
-- Coût par join = dépense de la pub reliée (`AdCost` niveau `ad:<id>`, EUR) sur la période ÷ demandes ; « — » sans pub.
+  Telegram = premiers CLICK de chaque visite suivis d'un OPENED de la même façon avant le CLICK suivant ÷ premiers
+  CLICK (seul le premier appui est tiré au sort ; un nouvel appui prend l'autre façon et n'entre pas dans la
+  comparaison ; même total que la colonne « Clics »), par système, puis par navigateur (`LandingEvent.inApp`) et façon
+  d'ouvrir : les façons d'ouvrir ne se comparent que dans un même navigateur intégré (là où la page les tire au sort). Demandes et
+  acceptés : `Membership` dont `inviteLinkId` est un lien LANDING de la page / source, demandes faites dans la période
+  (acceptés = ces demandes acceptées depuis). Visites dont `?src=` n'a pas été suivi (`rawSrc` : source inconnue,
+  retirée ou pas prête) : comptées dans le lien principal et signalées sous le tableau.
+- Coût par join = part de la dépense de la pub (`AdCost` niveau `ad:<id>`, EUR) ÷ demandes ; « — » sans pub. La pub
+  est celle figée sur chaque lien (`landingAdId`, D9). Sa dépense est partagée entre tous ses chemins d'arrivée (son
+  lien direct `Ad.inviteLinkId` et les liens de toutes les pages créés pour elle), jour par jour, au prorata des
+  arrivées (clics humains sur le lien direct, visites humaines par le lien de la source), sinon des demandes du jour,
+  sinon de la période (`allocateAdSpend`, `apps/web/lib/landing/stats.ts`) : jamais comptée deux fois. Aucune ligne
+  `ad:<id>` sur la période : dépense inconnue (« — » avec la raison : saisie pour toute la campagne ou le groupe, ou
+  aucune), jamais 0 €. Dépense sans aucune demande : « X € · aucun join ».
+- Statistiques journalières (`DailyStat`) : demandes d'un lien LANDING → pub et campagne figées sur le lien ; visites
+  humaines (une par `visitId`) → « Clics pub » de la pub et de la campagne du lien affiché à ce moment-là.
 
 ## Qui fait quoi (périmètres)
 - Socle : `packages/core/src/landing.ts`, `landing-render.ts` (squelette rendu + tests), provenance, `packages/queue`

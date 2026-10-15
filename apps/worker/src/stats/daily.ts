@@ -3,11 +3,18 @@ import {
   campaignsOfMember,
   campaignsOfOfferClick,
   campaignsOfPlayer,
+  landingAdByInviteLink,
   revshareDayKey,
   scopeFromCampaign,
   type CampaignIndex,
 } from "@linkaffipro/core";
-import { ourAffiliateCampaignIds, ourPlayers, prisma, type Prisma } from "@linkaffipro/db";
+import {
+  landingVisitsByLink,
+  ourAffiliateCampaignIds,
+  ourPlayers,
+  prisma,
+  type Prisma,
+} from "@linkaffipro/db";
 import { logger } from "../logger";
 import {
   METRIC_KEYS,
@@ -313,6 +320,15 @@ async function loadEvents(start: Date): Promise<StatEvent[]> {
     if (a.inviteLinkId) adByInvite.set(a.inviteLinkId, a.id);
     if (a.trackingLinkId) adByTracking.set(a.trackingLinkId, a.id);
   }
+  // Pages d'atterrissage (phase 15, D9) : chaque lien compte pour la pub pour laquelle il a été créé (`landingAdId`,
+  // figée : un changement de pub de la source crée un nouveau lien, une page supprimée ne change rien). Sa campagne est
+  // portée par le lien (`InviteLink.campaignId`, ci-dessus) : une seule fois par demande, comme un lien d'entrée.
+  const landingLinks = await prisma.inviteLink.findMany({
+    where: { kind: "LANDING", OR: [{ landingAdId: { not: null } }, { campaignId: { not: null } }] },
+    select: { id: true, channelId: true, landingAdId: true },
+  });
+  for (const [linkId, adId] of landingAdByInviteLink(landingLinks))
+    if (!adByInvite.has(linkId)) adByInvite.set(linkId, adId);
   const channels = await prisma.channel.findMany({ select: { id: true, vertical: true } });
   const channelVertical = new Map(channels.map((c) => [c.id, c.vertical as string | null]));
   const offers = await prisma.affiliateCampaign.findMany({
@@ -436,6 +452,19 @@ async function loadEvents(start: Date): Promise<StatEvent[]> {
           c.trackingLink.affiliateCampaignId,
         ),
       });
+    }
+  }
+
+  // Visites des pages d'atterrissage (phase 15) : « Clics pub » de la pub et de la campagne du lien que le bouton
+  // affichait (une page visitée = un clic sur la pub arrivé à bon port, comme un clic sur un lien goolink de pub).
+  if (landingLinks.length > 0) {
+    const landingLinkById = new Map(landingLinks.map((l) => [l.id, l]));
+    for (const v of await landingVisitsByLink({ since: start })) {
+      const link = landingLinkById.get(v.inviteLinkId);
+      if (!link) continue; // lien sans pub ni campagne : pas un clic de pub
+      const at = new Date(parisMidnightUtc(v.day).getTime() + 12 * 3_600_000);
+      const base = dimsFor(link.channelId, campaignsOfMember(index, [link.id]), link.landingAdId);
+      for (let i = 0; i < v.visits; i++) events.push({ kind: "entryClick", at, ...base });
     }
   }
 

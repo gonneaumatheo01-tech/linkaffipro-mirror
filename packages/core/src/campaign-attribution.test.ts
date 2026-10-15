@@ -7,10 +7,13 @@ import {
   campaignOfferClickWhere,
   campaignPlayerWhere,
   campaignPostWhere,
+  campaignsOfMember,
   campaignsOfOfferClick,
   campaignsOfPlayer,
   isCampaignPlayer,
   jsonIds,
+  landingAdByInviteLink,
+  landingLinkCampaignFixes,
   scopeFromCampaign,
   type CampaignScope,
 } from "./campaign-attribution";
@@ -315,5 +318,60 @@ describe("deux campagnes qui partagent la même offre Link Affi", () => {
     expect(index.byTracking.get("tl-fb")).toEqual(["FB"]);
     expect(index.byOffer.get("aff1")).toEqual(["TT", "FB"]);
     expect(index.vertical.get("FB")).toBe("CASINO");
+  });
+});
+
+describe("pages d'atterrissage : pub figée sur le lien (phase 15, D9)", () => {
+  it("chaque lien compte pour la pub pour laquelle il a été créé, jamais d'après la pub actuelle de sa source", () => {
+    const map = landingAdByInviteLink([
+      // Lien actuel de tk01 (pub Y) et ancien lien de tk01 (créé pour la pub X) : chacun garde sa pub.
+      { id: "l-y", landingAdId: "adY" },
+      { id: "l-x", landingAdId: "adX" },
+      // Page supprimée (landingPageId vidé) : le lien garde sa pub.
+      { id: "l-page-supprimee", landingAdId: "adX" },
+      // Pub supprimée (landingAdId vidé) ou source sans pub : aucune pub.
+      { id: "l-sans-pub", landingAdId: null },
+    ]);
+    expect(Object.fromEntries(map)).toEqual({
+      "l-y": "adY",
+      "l-x": "adX",
+      "l-page-supprimee": "adX",
+    });
+  });
+
+  it("campagne du lien actuel : celle de sa pub figée ; lien sans pub (pub supprimée) jamais retiré de sa campagne", () => {
+    expect(
+      landingLinkCampaignFixes([
+        // Déjà juste : rien.
+        { id: "l1", landingAdId: "ad1", campaignId: "C1", adCampaignId: "C1" },
+        // Campagne manquante ou différente de celle de la pub : corrigée.
+        { id: "l2", landingAdId: "ad1", campaignId: null, adCampaignId: "C1" },
+        { id: "l3", landingAdId: "ad2", campaignId: "C1", adCampaignId: "C2" },
+        // Pub supprimée : le lien garde sa campagne (ses demandes restent dans la campagne, comme un lien direct).
+        { id: "l4", landingAdId: null, campaignId: "C1", adCampaignId: null },
+        // Lien sans pub ni campagne : rien.
+        { id: "l5", landingAdId: null, campaignId: null, adCampaignId: null },
+      ]),
+    ).toEqual([
+      { id: "l2", campaignId: "C1" },
+      { id: "l3", campaignId: "C2" },
+    ]);
+  });
+
+  it("une demande par le lien d'une source reliée compte une seule fois pour la campagne", () => {
+    const index = buildCampaignIndex([
+      {
+        id: "C1",
+        scope: scopeFromCampaign({
+          channelIds: [],
+          affiliateCampaignIds: [],
+          // Lien de la page rattaché à la campagne (InviteLink.campaignId) ET pub de la campagne.
+          inviteLinks: [{ id: "l1" }],
+          trackingLinks: [],
+          adSets: [{ ads: [{ inviteLinkId: "l-pub", trackingLinkId: null }] }],
+        }),
+      },
+    ]);
+    expect(campaignsOfMember(index, ["l1", "l1", "l-pub"])).toEqual(["C1"]);
   });
 });

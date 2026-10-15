@@ -1,5 +1,16 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 15 : pages d'atterrissage (10 minutes)
+1. **Essai dans les vraies applis** (le seul test impossible à faire sans vous) : envoyez-vous le lien https://go.goolink.eu/j/test?src=tk01 dans un message TikTok, puis dans un message Instagram ; ouvrez-le depuis chaque appli (iPhone et, si possible, Android) et appuyez sur le bouton bleu : Telegram doit s'ouvrir sur le canal « Test » avec la demande d'adhésion. Dans la rubrique **Pages** → page « test », le tableau « Telegram ouvert après le clic » montre ensuite ce qui a marché.
+2. **Créer votre première vraie page** : menu **Pages** → **Nouvelle page** → choisissez le canal, écrivez votre phrase d'accroche, ajoutez une source par pub (par exemple tk01), et si vous voulez le coût par join, **Relier à une pub** → **Créer la page**. Copiez le lien de chaque source (bouton **Copier le lien**) et collez-le dans la pub correspondante.
+3. **Bon à savoir avant de lancer une pub TikTok** : l'aide TikTok ne cite pas Telegram parmi les messageries autorisées comme destination. Une pub qui mène à Telegram, même par une page, peut être refusée à la modération.
+4. **Facultatif : servir aussi https://goolink.eu/j/… (sans « go. »)**. IONOS refuse ce réglage sur le domaine nu ; la solution propre est de confier les DNS à Cloudflare (gratuit), le domaine restant chez IONOS. Clics exacts :
+   - dash.cloudflare.com → créer un compte gratuit → **Ajouter un domaine** → goolink.eu → offre **Free**.
+   - Dans Cloudflare → **DNS** → **Enregistrements** : vérifier que tout ce qui existe chez IONOS (Domaines & SSL → goolink.eu → DNS) est recopié : le CNAME **go** et le TXT **_railway-verify.go** (indispensables, sinon les liens actuels tombent), les **MX** mx00.ionos.fr / mx01.ionos.fr et le TXT **SPF** ; tout en « DNS uniquement » (nuage gris).
+   - Railway → service **web** → **Settings** → **Networking** → **Custom Domain** → goolink.eu ; noter la cible CNAME et le TXT affichés.
+   - Cloudflare : supprimer les enregistrements A / AAAA de « @ » (page de parking IONOS), ajouter un **CNAME @** vers la cible Railway (nuage gris) et le **TXT _railway-verify** donné par Railway.
+   - IONOS : **Domaines & SSL** → engrenage à côté de goolink.eu → **Serveur de noms** → **Utiliser des serveurs de noms personnalisés** → les deux serveurs Cloudflare → **Enregistrer**. Attendre que Cloudflare dise « actif » et que Railway affiche la coche verte, puis me prévenir : j'ajouterai l'adresse aux pages.
+
 ## Phase 14 : demandes bloquées sur « Attend les canaux » (5 minutes)
 1. **Corriger l'accueil de Zone Interdite** (il parle encore de « J'ai rejoint », qui n'existe plus en « Proposés ») : https://app.linkaffipro.com/channels → **Zone Interdite** → onglet **Ce que dit le bot** → message d'accueil → remplacez le texte par, par exemple : « {prenom}, tu y es presque !🔞🤫 Rejoins aussi nos deux canaux ci-dessous 👇 Ton accès à {canal} est validé {delai}. » → **Enregistrer**. L'avertissement orange disparaît.
 2. **Vrai essai** (avec un compte qui n'est pas encore membre) : demandez à rejoindre Tir Cadré par un lien d'entrée, rejoignez les canaux proposés sans appuyer sur rien : la demande passe « Acceptation programmée » en 2 minutes au plus. Puis, sur un autre essai, appuyez sur **✅ J'ai rejoint** sans « Démarrer » : le message du bot se met à jour.

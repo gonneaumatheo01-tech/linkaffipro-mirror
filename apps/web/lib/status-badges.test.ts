@@ -16,6 +16,7 @@ import {
   GateMode,
   ImportKind,
   InviteLinkKind,
+  LandingEventType,
   MembershipStatus,
   OutboundKind,
   OutboundStatus,
@@ -71,6 +72,7 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["sequenceTrigger", SequenceTrigger],
   ["postPublisher", PostPublisher],
   ["customEmojiSource", CustomEmojiSource],
+  ["landingEvent", LandingEventType],
 ];
 
 describe("badges de statut", () => {
@@ -111,6 +113,8 @@ describe("badges de statut", () => {
     expect(statusLabel("outboundKind", "BROADCAST")).toBe("Message à un groupe");
     expect(statusLabel("outboundKind", "AUTOMATION")).toBe("Relance automatique");
     expect(statusLabel("vertical", "DATING")).toBe("Rencontres");
+    expect(statusLabel("inviteLinkKind", "LANDING")).toBe("Page d'atterrissage");
+    expect(statusLabel("landingEvent", "OPENED")).toBe("Telegram ouvert");
   });
 
   it("couvre aussi les statuts hors Prisma (synchro, connexion Telegram, actif)", () => {

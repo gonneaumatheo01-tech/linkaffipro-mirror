@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-15 04:53 UTC.
+Dernière mise à jour : 2026-10-15 13:46 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -17,6 +17,9 @@ Dernière mise à jour : 2026-10-15 04:53 UTC.
 | Historique des imports | `/campaigns/imports` | <a href="captures/campaigns-imports-1440.webp"><img src="captures/campaigns-imports-1440.webp" alt="Historique des imports, 1440 px" width="360"></a> | <a href="captures/campaigns-imports-390.webp"><img src="captures/campaigns-imports-390.webp" alt="Historique des imports, 390 px" width="120"></a> |
 | Tous les liens | `/campaigns/links` | <a href="captures/campaigns-links-1440.webp"><img src="captures/campaigns-links-1440.webp" alt="Tous les liens, 1440 px" width="360"></a> | <a href="captures/campaigns-links-390.webp"><img src="captures/campaigns-links-390.webp" alt="Tous les liens, 390 px" width="120"></a> |
 | Nouvelle campagne | `/campaigns/new` | <a href="captures/campaigns-new-1440.webp"><img src="captures/campaigns-new-1440.webp" alt="Nouvelle campagne, 1440 px" width="360"></a> | <a href="captures/campaigns-new-390.webp"><img src="captures/campaigns-new-390.webp" alt="Nouvelle campagne, 390 px" width="120"></a> |
+| Pages | `/pages` | <a href="captures/pages-1440.webp"><img src="captures/pages-1440.webp" alt="Pages, 1440 px" width="360"></a> | <a href="captures/pages-390.webp"><img src="captures/pages-390.webp" alt="Pages, 390 px" width="120"></a> |
+| Casino VIP — TikTok | `/pages/[id]` | <a href="captures/pages-id-1440.webp"><img src="captures/pages-id-1440.webp" alt="Casino VIP — TikTok, 1440 px" width="360"></a> | <a href="captures/pages-id-390.webp"><img src="captures/pages-id-390.webp" alt="Casino VIP — TikTok, 390 px" width="120"></a> |
+| Nouvelle page | `/pages/new` | <a href="captures/pages-new-1440.webp"><img src="captures/pages-new-1440.webp" alt="Nouvelle page, 1440 px" width="360"></a> | <a href="captures/pages-new-390.webp"><img src="captures/pages-new-390.webp" alt="Nouvelle page, 390 px" width="120"></a> |
 | Canaux | `/channels` | <a href="captures/channels-1440.webp"><img src="captures/channels-1440.webp" alt="Canaux, 1440 px" width="360"></a> | <a href="captures/channels-390.webp"><img src="captures/channels-390.webp" alt="Canaux, 390 px" width="120"></a> |
 | Démo · Bonus Casino du jour | `/channels/[id]` | <a href="captures/channels-id-1440.webp"><img src="captures/channels-id-1440.webp" alt="Démo · Bonus Casino du jour, 1440 px" width="360"></a> | <a href="captures/channels-id-390.webp"><img src="captures/channels-id-390.webp" alt="Démo · Bonus Casino du jour, 390 px" width="120"></a> |
 | Démo · Bonus Casino du jour | `/channels/[id]?tab=members` | <a href="captures/channels-id-tab-members-1440.webp"><img src="captures/channels-id-tab-members-1440.webp" alt="Démo · Bonus Casino du jour, 1440 px" width="360"></a> | <a href="captures/channels-id-tab-members-390.webp"><img src="captures/channels-id-tab-members-390.webp" alt="Démo · Bonus Casino du jour, 390 px" width="120"></a> |
@@ -72,6 +75,7 @@ Dernière mise à jour : 2026-10-15 04:53 UTC.
 | Aide | `/help` : 1440 px coupée à 16000 px (page de 37885 px) ; 390 px coupée à 16000 px (page de 62794 px) | <a href="captures/help-1440.webp"><img src="captures/help-1440.webp" alt="Aide, 1440 px" width="360"></a> | <a href="captures/help-390.webp"><img src="captures/help-390.webp" alt="Aide, 390 px" width="120"></a> |
 | Mon compte | `/account` | <a href="captures/account-1440.webp"><img src="captures/account-1440.webp" alt="Mon compte, 1440 px" width="360"></a> | <a href="captures/account-390.webp"><img src="captures/account-390.webp" alt="Mon compte, 390 px" width="120"></a> |
 | Guide de style | `/styleguide` | <a href="captures/styleguide-1440.webp"><img src="captures/styleguide-1440.webp" alt="Guide de style, 1440 px" width="360"></a> | <a href="captures/styleguide-390.webp"><img src="captures/styleguide-390.webp" alt="Guide de style, 390 px" width="120"></a> |
+| Les meilleurs bonus casino, chaque soir | `/j/demo-casino-vip?src=tk01` | — | <a href="captures/j-demo-casino-vip-src-tk01-390.webp"><img src="captures/j-demo-casino-vip-src-tk01-390.webp" alt="Les meilleurs bonus casino, chaque soir, 390 px" width="120"></a> |
 | LinkAffi Pro | `/login` | <a href="captures/login-1440.webp"><img src="captures/login-1440.webp" alt="LinkAffi Pro, 1440 px" width="360"></a> | <a href="captures/login-390.webp"><img src="captures/login-390.webp" alt="LinkAffi Pro, 390 px" width="120"></a> |
 | Politique de confidentialité | `/privacy` | <a href="captures/privacy-1440.webp"><img src="captures/privacy-1440.webp" alt="Politique de confidentialité, 1440 px" width="360"></a> | <a href="captures/privacy-390.webp"><img src="captures/privacy-390.webp" alt="Politique de confidentialité, 390 px" width="120"></a> |
 | Conditions d'utilisation | `/terms` | <a href="captures/terms-1440.webp"><img src="captures/terms-1440.webp" alt="Conditions d'utilisation, 1440 px" width="360"></a> | <a href="captures/terms-390.webp"><img src="captures/terms-390.webp" alt="Conditions d'utilisation, 390 px" width="120"></a> |

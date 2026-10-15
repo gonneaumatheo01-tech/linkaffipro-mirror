@@ -8,8 +8,10 @@ import {
   appliedRuleText,
   appliedRuleView,
   membershipProvenance,
+  landingPageIdsOf,
   sourceChannelIdsOf,
 } from "@/lib/channels/provenance-display";
+import { landingPageNames } from "@/lib/landing/queries";
 import {
   OPEN_REQUEST_STATUSES,
   REQUESTS_SHOWN_MAX,
@@ -124,6 +126,8 @@ export async function RequestsTab({ channelId, now }: { channelId: string; now: 
     channelsWithRequiredGates([channelId]),
   ]);
   const sourceIds = sourceChannelIdsOf(requests);
+  // Pages d'atterrissage (phase 15) : nom actuel d'une page renommée.
+  const pageNames = await landingPageNames(landingPageIdsOf(requests));
   const titles = sourceIds.length
     ? Object.fromEntries(
         (
@@ -187,7 +191,7 @@ export async function RequestsTab({ channelId, now }: { channelId: string; now: 
               status: r.status,
               next: requestNext(r.status, r.approveAt, now, queued),
               nextNote: requestNextNote(r.status),
-              provenance: membershipProvenance(r, titles).label,
+              provenance: membershipProvenance(r, titles, pageNames).label,
               rule: appliedRuleText(appliedRuleView(r)),
               acceptance: queued ? null : acceptanceText(r, now),
               requestedAt: fmtDate(r.requestedAt),

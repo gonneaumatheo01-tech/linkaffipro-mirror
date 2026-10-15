@@ -52,7 +52,19 @@ const linkSelect = {
   attributionDays: true,
   // Lien désactivé (campagne d'affilié fermée) : plus aucune attribution, l'admission ne change pas.
   isActive: true,
+  // Page d'atterrissage et source (phase 15) : provenance LANDING, exceptions « la page <nom> ».
+  landingPageId: true,
+  landingSource: true,
+  landingPage: { select: { name: true } },
 } as const;
+
+/** Lien relu en base → `InviteLinkInfo` (nom de la page d'atterrissage à plat). */
+function toLinkInfo<T extends { landingPage: { name: string } | null }>(
+  row: T,
+): Omit<T, "landingPage"> & { landingPageName: string | null } {
+  const { landingPage, ...rest } = row;
+  return { ...rest, landingPageName: landingPage?.name ?? null };
+}
 const membershipSelect = {
   id: true,
   code: true,
@@ -151,14 +163,15 @@ export function createPrismaJoinFlowDeps(
       };
     },
     async findInviteLinkByUrl(url) {
-      return prisma.inviteLink.findUnique({
+      const row = await prisma.inviteLink.findUnique({
         where: { telegramInviteLink: url },
         select: linkSelect,
-      }) as Promise<InviteLinkInfo | null>;
+      });
+      return row ? (toLinkInfo(row) as InviteLinkInfo) : null;
     },
     async findInviteLinksByPrefix({ channelId, prefix, creatorTelegramId }) {
       // Lien masqué par Telegram : même canal, même bot créateur, même début (revérifié par `pickMaskedLink`).
-      return prisma.inviteLink.findMany({
+      const rows = await prisma.inviteLink.findMany({
         where: {
           channelId,
           telegramInviteLink: { startsWith: prefix },
@@ -167,7 +180,8 @@ export function createPrismaJoinFlowDeps(
         orderBy: [{ isActive: "desc" }, { createdAt: "desc" }, { id: "asc" }],
         take: 10,
         select: linkSelect,
-      }) as Promise<Array<InviteLinkInfo & { isActive: boolean }>>;
+      });
+      return rows.map(toLinkInfo) as Array<InviteLinkInfo & { isActive: boolean }>;
     },
     // Règle selon la provenance (phase 11) : exception du lien, du canal d'origine, du type, sinon règle par défaut.
     resolveRule: (channelId, link) => resolveRuleWithDb(channelId, link),

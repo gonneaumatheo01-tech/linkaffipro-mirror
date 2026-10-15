@@ -10,6 +10,7 @@ import {
   DETAIL_METRICS,
   campaignVariations,
   entryLinkTitle,
+  shownEntryLinkIds,
   groupCostsByDay,
   HEADER_METRICS,
   headerDigits,
@@ -404,5 +405,22 @@ describe("ligne de total de la page Campagnes", () => {
     expect(CAMPAIGNS_TOTAL_NOTE).toMatch(/commission/);
     expect(CAMPAIGNS_TOTAL_NOTE).toMatch(/plus petit que la somme des cartes/);
     expect(CAMPAIGNS_TOTAL_NOTE).not.toMatch(JARGON);
+  });
+});
+
+describe("liens d'entrée affichés d'une campagne (phase 15)", () => {
+  it("les liens des pages d'atterrissage comptent dans les chiffres, jamais comme « liens d'entrée » à coller dans une pub", () => {
+    expect(
+      shownEntryLinkIds({
+        inviteLinks: [
+          { id: "direct", kind: "AD_ENTRY" },
+          { id: "page-tk01", kind: "LANDING" },
+          { id: "page-tk01-ancien", kind: "LANDING" },
+        ],
+        adSets: [
+          { ads: [{ inviteLinkId: "direct" }, { inviteLinkId: "pub-2" }, { inviteLinkId: null }] },
+        ],
+      }),
+    ).toEqual(["direct", "pub-2"]);
   });
 });

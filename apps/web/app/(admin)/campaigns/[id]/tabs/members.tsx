@@ -12,7 +12,8 @@ import { listMembers, parseMemberFilters } from "@/lib/members/query";
 import type { TabProps } from "./shared";
 
 /**
- * Onglet Membres : membres arrivés par les liens d'entrée de la campagne (la liste Membres filtrée par campagne),
+ * Onglet Membres : membres arrivés par les liens d'entrée de la campagne ou par les pages d'atterrissage reliées à
+ * ses pubs (phase 15 : la liste Membres filtrée par campagne),
  * les plus récemment arrivés d'abord (tri existant `firstSeen`), dans l'ordre de la colonne « Arrivé le ».
  */
 export async function MembersTab({ id, sp }: TabProps) {
@@ -25,7 +26,7 @@ export async function MembersTab({ id, sp }: TabProps) {
   return (
     <FormSection
       title={`Membres (${fmtNum(total)})`}
-      description="Toutes les personnes arrivées par un lien d'entrée de la campagne, depuis le début (pas seulement sur la période)."
+      description="Toutes les personnes arrivées par un lien d'entrée ou une page de la campagne, depuis le début (pas seulement sur la période)."
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -86,7 +87,7 @@ export async function MembersTab({ id, sp }: TabProps) {
         empty={{
           title: "Aucun membre arrivé par cette campagne pour l'instant",
           description:
-            "Ils apparaissent dès qu'une personne clique un lien d'entrée de la campagne et demande à rejoindre le canal.",
+            "Ils apparaissent dès qu'une personne clique un lien d'entrée de la campagne (ou passe par une de ses pages) et demande à rejoindre le canal.",
         }}
       />
       {total > 0 ? (

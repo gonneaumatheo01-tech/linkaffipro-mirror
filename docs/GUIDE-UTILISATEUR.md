@@ -12,6 +12,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Comment ça marche](#comment-ca-marche)
 - [Accueil](#accueil)
 - [Campagnes](#campagnes)
+- [Pages](#pages)
 - [Affiliés sur vos canaux](#affilies-sur-vos-canaux)
 - [Canaux](#canaux)
 - [Messages](#messages)
@@ -38,7 +39,7 @@ Il n'y a pas d'inscription libre : un administrateur vous envoie un lien d'invit
 
 ### 2. Suivre la visite guidée
 
-À votre première connexion, une visite de 2 minutes s'ouvre toute seule. Une bulle montre chaque rubrique du menu : **Accueil**, **Campagnes**, **Canaux**, **Messages**, **Membres**, **Statistiques**, puis le bouton **?**.
+À votre première connexion, une visite de 2 minutes s'ouvre toute seule. Une bulle montre chaque rubrique du menu : **Accueil**, **Campagnes**, **Pages**, **Canaux**, **Messages**, **Membres**, **Statistiques**, puis le bouton **?**.
 
 1. Lisez la bulle, puis cliquez sur **Suivant** (ou la flèche droite du clavier). **Précédent** revient en arrière.
 2. À la dernière étape, cliquez sur **Terminer**. **Passer la visite** (ou la touche Échap) la ferme tout de suite.
@@ -313,6 +314,57 @@ Vos choix de colonnes sont mémorisés pour le prochain import de la même plate
 ### Nommer ses campagnes et les relier à Link Affi
 
 Nommez vos campagnes sur le modèle `TT-casinoX-FR-canalA-2026-10` (plateforme, programme, langue, canal, mois), ou cliquez sur **Proposer un nom conventionnel** dans le récapitulatif de l'assistant. Utilisez le même nom dans TikTok ou Meta : la synchronisation rattache alors toute seule la campagne pub à votre campagne. Le nom de vos campagnes n'est jamais remplacé par celui de la plateforme. Une offre Link Affi qui a des joueurs mais aucune campagne apparaît dans **Réglages → Connexions** : cliquez dessus pour créer une campagne avec elle.
+
+## Pages
+
+**À quoi ça sert.** Une page d'atterrissage est un seul écran de téléphone, entre votre pub (TikTok, Meta, régie) et votre canal Telegram : le vrai nom du canal, votre phrase d'accroche et un gros bouton bleu « Rejoindre le canal → ». Elle s'affiche tout de suite, même dans le navigateur de TikTok ou d'Instagram, et chaque visite, clic et demande d'adhésion est compté. Adresse des pages : `https://go.goolink.eu/j/…`.
+
+**Ce que vous voyez.** La liste de vos pages : leur canal, les **Visites**, **Clics** et **Demandes** des 7 derniers jours, et **Copier le lien** (le lien principal de la page). « En pause » : la page n'est plus affichée ; « Lien en attente » : Telegram n'a pas encore créé son lien. Cliquez sur une page pour l'ouvrir.
+
+### Créer une page
+
+1. **Pages** → **Nouvelle page**.
+2. Choisissez le **Canal**. Le nom affiché sur la page est toujours le vrai nom du canal dans Telegram : il se met à jour tout seul, vous ne le saisissez pas.
+3. Écrivez la **Phrase d'accroche**, et si vous voulez un **Sous-texte** et le **Texte du bouton** (vide : « Rejoindre le canal → »). L'**Aperçu sur un téléphone**, à droite, change à chaque lettre.
+4. **Sources** : cliquez sur **Ajouter une source** pour chaque pub ou régie, et donnez-lui un nom court (par exemple `tk01`, `tk03`, `exo1`). En option, cliquez sur **Relier à une pub** et choisissez la pub : sa dépense donne le coût par join. Les pubs des campagnes du canal viennent en premier ; « (déjà reliée) » signale une pub déjà reliée à une autre source ou une autre page.
+5. Le reste est dans **Avancé** (replié) : **Langue de la page**, **Pixel TikTok** et **Pixel Meta** (collez l'identifiant du pixel, ou son code complet : il est vérifié tout de suite), **Demander l'accord pour les cookies**, **Afficher la photo du canal**, **Petite ligne sous le bouton** (« Utiliser l'exemple » propose « Gratuit · 1 clic · via Telegram »), **Nom de la page (pour vous)** et **Adresse de la page**.
+6. Cliquez sur **Créer la page**. Les liens Telegram des sources sont créés tout de suite par le bot de l'univers du canal (sinon par un autre de vos bots administrateurs), avec demande d'adhésion : la règle du canal s'applique. Les exceptions « pub » ne visent pas les pages : si un canal en a une, ajoutez une exception « n'importe quelle page d'atterrissage » (ou « la page » précise) dans **Canaux** → **Qui peut entrer et quand**. Le formulaire vous le rappelle sous le canal.
+
+Pour modifier une page, ouvrez-la, changez ce que vous voulez, puis **Enregistrer** : la page en ligne change dans la minute. **Voir la page** (en haut) la montre en grand, telle qu'elle est en ligne, à la taille d'un téléphone : rien n'y est compté et les pixels ne reçoivent rien. Le vrai lien de la page, lui, compte chaque visite, même la vôtre. **Avancé** → **Page en ligne** met la page en pause sans rien perdre. **Supprimer la page** (administrateurs, en bas de la page) retire ses liens dans Telegram et efface ses chiffres.
+
+### Copier le lien d'une source
+
+Dans la page, partie **Sources** : chaque source a son bouton **Copier le lien** (par exemple `go.goolink.eu/j/promo?src=tk01`). C'est l'adresse à coller dans la pub. Une pub = une source : chaque source a ses propres chiffres. Le **Lien principal** (sans source) sert pour tout le reste, et quand une adresse porte une source inconnue.
+
+- « Lien Telegram en cours de création » : il sera prêt dans quelques minutes, rechargez la page.
+- Message rouge : Telegram a refusé de créer le lien (le plus souvent, le bot n'est pas administrateur du canal avec le droit « Inviter via un lien »). Corrigez dans Telegram, puis cliquez sur **Réessayer** ; sinon un nouvel essai part tout seul toutes les 10 minutes.
+- **Retirer** une source retire son lien Telegram. L'adresse déjà collée dans la pub ouvre alors la page avec le lien principal, et ses visites y sont comptées : pensez à arrêter la pub. Ses chiffres restent. Rajoutée plus tard avec le même nom, elle retrouve son historique.
+- Changer l'**Adresse de la page** casse les liens déjà collés dans vos pubs : évitez-le une fois les pubs lancées.
+
+### Lire le tableau d'une page
+
+Partie **Chiffres** de la page (bouton **Voir les chiffres** en haut), avec le choix de la période en jours de Paris et **Comparer à la période précédente** (après **Appliquer**, la page revient sur les chiffres) :
+
+- **Visites** : les personnes qui ont vu la page ; **Clics** : celles qui ont appuyé sur le bouton, et le **% de clic**.
+- **Demandes** : les demandes d'adhésion faites par les liens de la page sur la période (le « join »), et les **Acceptés** parmi elles.
+- **% visite → join** : demandes ÷ visites. **Coût par join** : dépense de la pub reliée ÷ demandes. Une pub qui mène à la fois à la page et à son lien direct (ou à deux pages) partage sa dépense selon les visites et les clics de chaque côté : rien n'est compté deux fois. « — » quand aucune pub n'est reliée, ou quand la dépense est saisie pour toute la campagne (pas pour la pub). Une dépense sans aucune demande s'affiche avec « aucun join ».
+- Le tableau donne les mêmes chiffres par source ; cliquez sur une source pour tout voir et copier son lien. **Exporter** télécharge le tableau.
+- Une ligne sous le tableau signale les visites arrivées avec une source inconnue ou retirée (par exemple `tk1` au lieu de `tk01`) : elles sont comptées dans le lien principal. Vérifiez l'adresse collée dans la pub.
+- **Telegram ouvert après le clic** : la part des clics où l'appli Telegram s'est vraiment ouverte, par téléphone (iPhone, Android, autre). Le **Détail par appli et par façon d'ouvrir** (replié) donne chaque appli (TikTok, Instagram, Facebook, navigateur habituel) et chaque façon d'ouvrir : comparez les façons d'ouvrir dans une même appli, c'est ce chiffre qui dit laquelle marche le mieux. Un clic par visite, comme dans le tableau : seul le premier appui compte. Si Telegram ne s'ouvre pas et que la personne appuie de nouveau, la page essaie une autre façon, et ce nouvel essai ne fausse pas la comparaison. Avec le lien Telegram classique dans une appli, l'ouverture faite depuis la page de Telegram ne se voit pas : son chiffre est un minimum.
+- **Comparaison avec les liens directs des pubs** : pour le même canal et la même période, vos pubs qui envoient directement vers Telegram, sans page. Vous voyez si la page fait mieux. Cliquez sur une pub pour son détail.
+
+### Vitesse de la page
+
+La page est faite pour s'afficher en moins d'une seconde sur un téléphone en 4G : moins de 15 Ko, aucune redirection avant elle, prête d'avance (aucune lecture de la base à l'affichage). Les pixels se chargent après l'affichage, jamais avant : ils ne retardent ni la page ni le bouton. Le bouton est un vrai lien Telegram : il marche même sans script. Après une modification, la nouvelle version est en ligne dans la minute.
+
+### Ce qui est compté
+
+- La page est la même pour tout le monde : personne n'est trié selon son téléphone, son pays ou son navigateur, et le bouton mène au même canal. Seule la façon technique d'ouvrir l'appli Telegram s'adapte au téléphone.
+- Les robots connus (aperçus de liens, vérificateurs des régies) voient la même page mais ne sont jamais comptés.
+- Une visite compte une fois, même si la personne recharge la page ; un clic aussi.
+- Le pays vient de l'adresse de connexion, lue sur place puis oubliée : elle n'est jamais gardée. Les identifiants de clic de TikTok et de Meta présents dans l'adresse sont gardés avec la visite, pour plus tard.
+- Les demandes venues d'une source reliée à une pub comptent aussi pour cette pub et sa campagne dans les Statistiques (une seule fois).
+- Dans **Canaux → Qui peut entrer et quand**, une exception peut viser « n'importe quelle page d'atterrissage » ou « la page » précise. Les demandes et la fiche d'un membre disent de quelle page et de quelle source il vient.
 
 ## Affiliés sur vos canaux
 
@@ -904,7 +956,7 @@ Deux onglets : **Catégories de messages** et **Étiquettes de membres**.
 
 **À quoi ça sert.** Retrouver qui a fait quoi, et ce que les bots ont vu passer. Le journal ne se modifie ni ne s'efface : c'est voulu. Deux onglets :
 
-1. **Actions de l'équipe** : toutes les actions faites sur le site par l'équipe et par le système. Filtres **Qui** (Tout le monde, Système, une personne), **Type d'action** (une famille : Bots, Canaux, Écrire à un groupe, Campagnes pub et dépenses, Connexions au site…), **Du** / **Au**, puis **Filtrer**. Cliquez sur une ligne pour le détail (code technique, objet, détails). **Exporter (CSV)** garde le filtre.
+1. **Actions de l'équipe** : toutes les actions faites sur le site par l'équipe et par le système. Filtres **Qui** (Tout le monde, Système, une personne), **Type d'action** (une famille : Bots, Canaux, Écrire à un groupe, Campagnes pub et dépenses, Pages d'atterrissage, Connexions au site…), **Du** / **Au**, puis **Filtrer**. Cliquez sur une ligne pour le détail (code technique, objet, détails). **Exporter (CSV)** garde le filtre.
 2. **Bots et membres** : l'activité des bots et des membres (demandes d'adhésion, entrées, clics, messages privés, publications, mises à jour reçues de Telegram), avec le nombre des 24 dernières heures. Filtres **Type**, **Canal**, **Bot**, **Du** / **Au**, puis **Filtrer** ; **Exporter (CSV)**.
 
 Les filtres sont mémorisés sur l'appareil. Les refus de connexion et les mots de passe faux y figurent aussi : un pic signale une tentative d'intrusion.

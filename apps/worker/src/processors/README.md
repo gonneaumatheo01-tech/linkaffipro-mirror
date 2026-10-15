@@ -23,3 +23,16 @@ s'il tombe pendant l'écart, la fenêtre de 5 minutes est passée quand le nouve
 secours posée par le site, 10 minutes plus tard). Le nouveau worker accepte tout ce que produit l'ancien site (liens
 `/start g…`, anciennes tâches) et aucune migration n'est prévue. Ne pas utiliser « Tout accepter » avant la fin des
 deux déploiements.
+
+Phase 15 (pages d'atterrissage) :
+
+- `landing-events` (`landing-events.ts`, logique dans `apps/worker/src/landing/`) : `event` = une visite (VIEW), un
+  clic (CLICK) ou une ouverture de Telegram (OPENED) envoyé par une page (`/j/_e`) et mis en file par le site après sa
+  réponse 204. Une ligne `LandingEvent` par envoi, identifiant fixé par le site (`createMany` + `skipDuplicates` :
+  une reprise n'écrit jamais deux fois), page retrouvée par identifiant ou adresse, source inconnue → source par
+  défaut "" et valeur reçue dans `rawSrc`, page inconnue ignorée (`{ ok: false, reason: "unknown-page" }`, la tâche
+  se termine). Jamais d'adresse IP (empreinte et pays calculés par le site). 8 à la fois.
+- Aucune tâche périodique : les visites plus anciennes que `retention.months` (24 mois par défaut) sont supprimées par
+  la purge de nuit (`maintenance/purge.ts` → `deleteLandingEventsBefore`).
+- Ordre de déploiement : le worker peut partir avant ou après le site (le site ne met rien en file tant qu'aucune page
+  n'existe ; un ancien worker ne lit pas cette file : les envois y attendent le nouveau, rien n'est perdu).

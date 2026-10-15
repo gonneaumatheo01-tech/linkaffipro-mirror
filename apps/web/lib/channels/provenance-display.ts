@@ -61,10 +61,15 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
 
-/** Provenance de l'adhésion (enregistrée, sinon déduite du lien) et son texte (« Venu de « Tir Cadré » … »). */
+/**
+ * Provenance de l'adhésion (enregistrée, sinon déduite du lien) et son texte (« Venu de « Tir Cadré » … »).
+ * Page d'atterrissage (phase 15) : « Venu de la page « Promo » (source « tk01 ») », refait avec le nom actuel de la
+ * page (`landingPageNames`) ; page supprimée ou nom non fourni : le texte enregistré par le bot.
+ */
 export function membershipProvenance(
   m: Pick<DisplayMembership, "source" | "inviteLink">,
   titles: Readonly<Record<string, string>> = {},
+  landingPageNames: Readonly<Record<string, string>> = {},
 ): { provenance: Provenance; label: string } {
   const s = rec(m.source);
   const stored = provenanceFromJson(s.provenance);
@@ -78,7 +83,16 @@ export function membershipProvenance(
     (!provenance.sourceChannelId || !titles[provenance.sourceChannelId])
   )
     return { provenance, label: frQuotes(storedLabel) };
-  return { provenance, label: frQuotes(provenanceLabel(provenance, titles, linkName)) };
+  if (
+    storedLabel &&
+    provenance.type === "LANDING" &&
+    (!provenance.landing?.pageId || !landingPageNames[provenance.landing.pageId])
+  )
+    return { provenance, label: frQuotes(storedLabel) };
+  return {
+    provenance,
+    label: frQuotes(provenanceLabel(provenance, titles, linkName, landingPageNames)),
+  };
 }
 
 /** Règle appliquée à une demande, prête à afficher. */
@@ -204,20 +218,36 @@ export function acceptanceText(
 
 /**
  * La ligne complète : « Venu de « Tir Cadré » (canal obligatoire) · règle : 1 jour · acceptation prévue le 12 oct. à
- * 10 h 14 ». `withAcceptance` : faux quand l'écran dit déjà la date (volet de l'onglet Membres).
+ * 10 h 14 ». `withAcceptance` : faux quand l'écran dit déjà la date (volet de l'onglet Membres) ;
+ * `landingPageNames` : noms actuels des pages d'atterrissage (`landingPageIdsOf`), pour une page renommée.
  */
 export function provenanceLine(
   m: DisplayMembership,
   titles: Readonly<Record<string, string>> = {},
   now: Date = new Date(),
-  opts: { withAcceptance?: boolean } = {},
+  opts: { withAcceptance?: boolean; landingPageNames?: Readonly<Record<string, string>> } = {},
 ): string {
   const parts = [
-    membershipProvenance(m, titles).label,
+    membershipProvenance(m, titles, opts.landingPageNames).label,
     appliedRuleText(appliedRuleView(m)),
     opts.withAcceptance === false ? null : acceptanceText(m, now),
   ];
   return parts.filter((p): p is string => Boolean(p)).join(" · ");
+}
+
+/**
+ * Pages d'atterrissage à relire pour les textes (`landingPageNames` de `lib/landing/queries.ts`, phase 15) : page d'où
+ * vient chaque personne, pour montrer son nom actuel (page renommée), comme les statistiques.
+ */
+export function landingPageIdsOf(
+  rows: ReadonlyArray<Pick<DisplayMembership, "source" | "inviteLink">>,
+): string[] {
+  const ids = new Set<string>();
+  for (const r of rows) {
+    const p = membershipProvenance(r).provenance;
+    if (p.type === "LANDING" && p.landing?.pageId) ids.add(p.landing.pageId);
+  }
+  return [...ids];
 }
 
 /** Canaux d'origine à relire pour les textes (`titles`) : canal d'où vient chaque personne. */

@@ -60,86 +60,107 @@ export async function loadEntityIds(env: Env): Promise<{ ids: EntityIds; note: s
   const { prisma } = await import("@linkaffipro/db");
   try {
     const demo = { startsWith: "Démo" };
-    const [campaign, channel, member, post, postAb, broadcast, broadcastAb, automation, batch] =
-      await Promise.all([
-        prisma.campaign
-          .findFirst({
-            where: { name: demo, status: "ACTIVE" },
-            // La plus fournie (le plus de liens d'entrée), pour une fiche représentative.
-            orderBy: [{ inviteLinks: { _count: "desc" } }, { createdAt: "asc" }],
-            select: { id: true },
-          })
-          .then(
-            (r) =>
-              r ??
-              prisma.campaign.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
-          ),
-        prisma.channel
-          .findFirst({
-            where: { title: demo, isTest: false },
-            orderBy: [{ memberships: { _count: "desc" } }, { createdAt: "asc" }],
-            select: { id: true },
-          })
-          .then(
-            (r) =>
-              r ??
-              prisma.channel.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
-          ),
-        prisma.member
-          .findFirst({
-            where: { anonymizedAt: null, players: { some: { ftdAt: { not: null } } } },
-            orderBy: { firstSeenAt: "asc" },
-            select: { id: true },
-          })
-          .then(
-            (r) =>
-              r ??
-              prisma.member.findFirst({ orderBy: { firstSeenAt: "desc" }, select: { id: true } }),
-          ),
-        prisma.post
-          .findFirst({
-            where: {
-              isTemplate: false,
-              status: "SENT",
-              abGroupId: null,
-              stats: { offerClicks: { gt: 0 } },
-            },
-            orderBy: { sentAt: "desc" },
-            select: { id: true },
-          })
-          .then(
-            (r) =>
-              r ??
-              prisma.post.findFirst({
-                where: { isTemplate: false },
-                orderBy: { createdAt: "desc" },
-                select: { id: true },
-              }),
-          ),
-        prisma.post.findFirst({
-          where: { isTemplate: false, abGroupId: { not: null } },
+    const [
+      campaign,
+      channel,
+      member,
+      post,
+      postAb,
+      broadcast,
+      broadcastAb,
+      automation,
+      batch,
+      landingPage,
+    ] = await Promise.all([
+      prisma.campaign
+        .findFirst({
+          where: { name: demo, status: "ACTIVE" },
+          // La plus fournie (le plus de liens d'entrée), pour une fiche représentative.
+          orderBy: [{ inviteLinks: { _count: "desc" } }, { createdAt: "asc" }],
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.campaign.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
+        ),
+      prisma.channel
+        .findFirst({
+          where: { title: demo, isTest: false },
+          orderBy: [{ memberships: { _count: "desc" } }, { createdAt: "asc" }],
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ?? prisma.channel.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
+        ),
+      prisma.member
+        .findFirst({
+          where: { anonymizedAt: null, players: { some: { ftdAt: { not: null } } } },
+          orderBy: { firstSeenAt: "asc" },
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.member.findFirst({ orderBy: { firstSeenAt: "desc" }, select: { id: true } }),
+        ),
+      prisma.post
+        .findFirst({
+          where: {
+            isTemplate: false,
+            status: "SENT",
+            abGroupId: null,
+            stats: { offerClicks: { gt: 0 } },
+          },
+          orderBy: { sentAt: "desc" },
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.post.findFirst({
+              where: { isTemplate: false },
+              orderBy: { createdAt: "desc" },
+              select: { id: true },
+            }),
+        ),
+      prisma.post.findFirst({
+        where: { isTemplate: false, abGroupId: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { abGroupId: true },
+      }),
+      prisma.broadcast
+        .findFirst({
+          where: { status: "SENT", abGroupId: null },
           orderBy: { createdAt: "desc" },
-          select: { abGroupId: true },
-        }),
-        prisma.broadcast
-          .findFirst({
-            where: { status: "SENT", abGroupId: null },
-            orderBy: { createdAt: "desc" },
-            select: { id: true },
-          })
-          .then(
-            (r) =>
-              r ??
-              prisma.broadcast.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
-          ),
-        prisma.broadcast.findFirst({
-          where: { abGroupId: { not: null } },
-          orderBy: { createdAt: "desc" },
-          select: { abGroupId: true },
-        }),
-        prisma.automationRule.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
-        prisma.importBatch.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
-      ]);
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.broadcast.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
+        ),
+      prisma.broadcast.findFirst({
+        where: { abGroupId: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { abGroupId: true },
+      }),
+      prisma.automationRule.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
+      prisma.importBatch.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } }),
+      // Phase 15 : la page de démonstration la plus fournie (« Casino VIP — TikTok » de `pnpm db:demo`).
+      prisma.landingPage
+        .findFirst({
+          where: { slug: { startsWith: "demo-" } },
+          orderBy: [{ sources: { _count: "desc" } }, { createdAt: "asc" }],
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.landingPage.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
+        ),
+    ]);
     const ids: EntityIds = {};
     if (campaign) ids.campaign = campaign.id;
     if (channel) ids.channel = channel.id;
@@ -150,6 +171,7 @@ export async function loadEntityIds(env: Env): Promise<{ ids: EntityIds; note: s
     if (broadcastAb?.abGroupId) ids.broadcastAbGroup = broadcastAb.abGroupId;
     if (automation) ids.automation = automation.id;
     if (batch) ids.importBatch = batch.id;
+    if (landingPage) ids.landingPage = landingPage.id;
     return { ids, note: null };
   } catch (err) {
     return {

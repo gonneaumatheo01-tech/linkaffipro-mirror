@@ -141,4 +141,18 @@ describe("le contrôle reconnaît le texte visible", () => {
     expect(jargonIn("segmentation, cpanel, FTDX, postbacker")).toEqual([]);
     expect(jargonIn("premier dépôt, revenu net, relance automatique, parcours")).toEqual([]);
   });
+
+  it("pages d'atterrissage (phase 15) : ni « slug » ni « pixel ID » en surface ; « join » reste le mot du client", () => {
+    expect(words(`<Label htmlFor="s">Slug de la page</Label>`)).toEqual(["slug"]);
+    expect(words(`<p>Votre Pixel ID TikTok</p>`)).toEqual(["pixel ID"]);
+    expect(words(`<PageHeader title="Landing pages" />`)).toEqual(["landing page"]);
+    expect(words(`<Label htmlFor="s">Adresse de la page</Label>`)).toEqual([]);
+    expect(words(`<p>Identifiant du pixel TikTok</p>`)).toEqual([]);
+    expect(
+      words(`<StatCard label="Coût par join" term="join = demande d'adhésion au canal" />`),
+    ).toEqual([]);
+    expect(
+      words(`const where = { slug: params.slug }; landingPublicUrl(base, page.slug, "");`),
+    ).toEqual([]);
+  });
 });

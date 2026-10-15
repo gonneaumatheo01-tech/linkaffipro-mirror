@@ -13,6 +13,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { entryLinkTitle, shortLinkAddress } from "@/lib/campaigns/display";
 import { env } from "@/lib/env";
 import { fmtNum } from "@/lib/format";
+import { shortUrl, sourcePublicUrl } from "@/lib/landing/form";
 import { ActiveBadge } from "@/lib/status-badges";
 import { PLATFORM_LABELS } from "../../campaign-form";
 import { addEntryLinkAction } from "../../actions";
@@ -21,12 +22,14 @@ import type { TabProps } from "./shared";
 /**
  * Onglet Liens : les liens d'entrée de la campagne (l'adresse à coller dans chaque pub, détail et copie au clic sur
  * la ligne) et « Ajouter un lien d'entrée » dans un volet (une pub et son lien : goolink + invitation Telegram).
+ * Les liens des pages d'atterrissage n'y sont jamais (leurs demandes comptent dans la campagne, mais leur lien
+ * Telegram ne se colle pas dans une pub) : en dessous, les pages reliées à ses pubs, avec l'adresse de la page.
  */
 export async function LinksTab({ id, campaign, scope }: TabProps) {
-  const [links, channels] = await Promise.all([
+  const [links, channels, pageSources] = await Promise.all([
     scope.inviteLinkIds.length
       ? prisma.inviteLink.findMany({
-          where: { id: { in: scope.inviteLinkIds } },
+          where: { id: { in: scope.inviteLinkIds }, kind: { not: "LANDING" } },
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
@@ -53,6 +56,17 @@ export async function LinksTab({ id, campaign, scope }: TabProps) {
       where: { isActive: true },
       orderBy: { title: "asc" },
       select: { id: true, title: true },
+    }),
+    // Sources de pages d'atterrissage reliées aujourd'hui à une pub de la campagne.
+    prisma.landingSource.findMany({
+      where: { isActive: true, ad: { adSet: { campaignId: id } } },
+      orderBy: [{ landingPage: { name: "asc" } }, { key: "asc" }],
+      select: {
+        id: true,
+        key: true,
+        ad: { select: { name: true } },
+        landingPage: { select: { id: true, name: true, slug: true } },
+      },
     }),
   ]);
   const base = env.trackingBaseUrl.replace(/\/$/, "");
@@ -262,6 +276,37 @@ export async function LinksTab({ id, campaign, scope }: TabProps) {
           })}
         />
       )}
+      {pageSources.length ? (
+        <div className="space-y-3">
+          <p className="text-body font-medium">Pages reliées à ses pubs</p>
+          <ul className="space-y-3">
+            {pageSources.map((s) => {
+              const url = sourcePublicUrl(env.trackingBaseUrl, s.landingPage.slug, s.key);
+              return (
+                <li key={s.id} className="space-y-1.5">
+                  <p className="text-note">
+                    <Link
+                      href={`/pages/${s.landingPage.id}`}
+                      className="font-medium text-brand-ink underline"
+                    >
+                      {s.landingPage.name}
+                    </Link>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {s.key ? `source ${s.key}` : "lien principal"} · pub « {s.ad?.name} »
+                    </span>
+                  </p>
+                  <CopyField value={url} label={`Adresse de la page ${shortUrl(url)}`} />
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-note text-muted-foreground">
+            Dans ces pubs, collez l&apos;adresse de la page : ses visites et ses demandes comptent
+            dans la campagne.
+          </p>
+        </div>
+      ) : null}
       <p className="text-note text-muted-foreground">
         Un lien créé dans{" "}
         <Link href="/campaigns/links" className="font-medium text-brand-ink underline">

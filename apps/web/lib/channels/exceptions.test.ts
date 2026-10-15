@@ -74,6 +74,7 @@ describe("menu « Si la personne vient… » ↔ portée et cible", () => {
       sourceKind: null,
       inviteLinkId: null,
       linkaffiAffiliateId: null,
+      landingPageId: null,
     });
     expect(targetOfKey("kind:GATE")?.sourceKind).toBe("GATE");
     expect(targetOfKey("link:l1")).toMatchObject({ scope: "INVITE_LINK", inviteLinkId: "l1" });
@@ -481,6 +482,7 @@ describe("affiliés Link Affi (phase 13) : n'importe quel affilié, un affilié 
       scope: "SOURCE_KIND",
       sourceKind: "LINKAFFI_AFFILIATE",
       linkaffiAffiliateId: "aff-paul",
+      landingPageId: null,
       sourceChannelId: null,
       inviteLinkId: null,
     });
@@ -589,5 +591,105 @@ describe("affiliés Link Affi (phase 13) : n'importe quel affilié, un affilié 
     expect(shadowNote([any, paul], paul, affNames)).toMatch(/^Jamais utilisée/);
     // Une nouvelle exception d'affilié précis se place avant « n'importe quel affilié ».
     expect(placementOrder([any], paul)).toEqual(["p", "a"]);
+  });
+});
+
+describe("pages d'atterrissage (phase 15) : n'importe quelle page, une page précise", () => {
+  const pageNames = { ...names, landingPageNames: { lp1: "Promo VIP", lp2: "Été" } };
+
+  it("clés : « landing:<id> » pour une page, « kind:LANDING_ANY » pour toutes ; aller-retour à l'identique", () => {
+    expect(targetOfKey("landing:lp1")).toEqual({
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_PAGE",
+      landingPageId: "lp1",
+      linkaffiAffiliateId: null,
+      sourceChannelId: null,
+      inviteLinkId: null,
+    });
+    expect(targetOfKey("kind:LANDING_ANY")).toMatchObject({
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_ANY",
+      landingPageId: null,
+    });
+    for (const key of ["landing:lp1", "kind:LANDING_ANY"])
+      expect(provenanceKey(targetOfKey(key)!)).toBe(key);
+    // Une page précise sans page ne vise personne.
+    expect(targetOfKey("kind:LANDING_PAGE")).toBeNull();
+    expect(targetOfKey("landing:")).toBeNull();
+    expect(provenanceKey({ ...targetOfKey("landing:lp1")!, landingPageId: null })).toBeNull();
+  });
+
+  it("phrases : condition, libellé enregistré, résumé, page supprimée", () => {
+    expect(conditionText(targetOfKey("kind:LANDING_ANY")!, pageNames)).toBe(
+      "de n'importe quelle page d'atterrissage",
+    );
+    expect(conditionText(targetOfKey("landing:lp1")!, pageNames)).toBe(
+      "de la page « Promo VIP »".replace("page «", "page «"),
+    );
+    expect(exceptionRuleLabel(targetOfKey("landing:lp1")!, pageNames)).toBe(
+      "Venu de la page « Promo VIP »",
+    );
+    expect(conditionText(targetOfKey("landing:gone")!, pageNames)).toBe("d'une page supprimée");
+    expect(
+      exceptionSentence(
+        { ...targetOfKey("landing:lp2")!, rule: rule({ delaySeconds: 0 }) },
+        pageNames,
+      ),
+    ).toBe("Une personne venue de la page « Été » sera acceptée tout de suite.");
+  });
+
+  it("aide sous le menu ; une page n'est pas « un de nos canaux » (canaux à rejoindre copiés de la règle par défaut)", () => {
+    expect(provenanceHelp(targetOfKey("kind:LANDING_ANY"))).toMatch(/n'importe quelle page/);
+    expect(provenanceHelp(targetOfKey("landing:lp1"))).toMatch(/cette page/);
+    const base = { ...initialEntryState(rule({ gateMode: "REQUIRED", gateChannelIds: ["tir"] })) };
+    expect(newExceptionState(base, targetOfKey("landing:lp1")).gateIds).toEqual(["tir"]);
+  });
+
+  it("menu : groupe « Une page d'atterrissage » (toutes, puis chaque page active), page en cours gardée", () => {
+    const menu = provenanceMenu({
+      channelId: "zone",
+      channels: [],
+      links: [],
+      senders: [],
+      landingPages: [
+        { id: "lp2", name: "Été", isActive: true },
+        { id: "lp1", name: "Promo VIP", isActive: true },
+        { id: "lp3", name: "En pause", isActive: false },
+      ],
+      used: ["landing:lp1"],
+    });
+    expect(menu.map((g) => g.label)).toEqual(["Un type de provenance", "Une page d'atterrissage"]);
+    // Les pages ne sont pas mêlées aux types de provenance.
+    expect(menu[0]!.options.some((o) => o.key.includes("LANDING"))).toBe(false);
+    expect(menu[1]!.options).toEqual([
+      { key: "kind:LANDING_ANY", label: "de n'importe quelle page d'atterrissage" },
+      { key: "landing:lp2", label: "de la page « Été »" },
+      { key: "landing:lp1", label: "de la page « Promo VIP »", used: true },
+    ]);
+    const current = provenanceMenu({
+      channelId: "zone",
+      channels: [],
+      links: [],
+      senders: [],
+      landingPages: [{ id: "lp3", name: "En pause", isActive: false }],
+      current: "landing:lp3",
+      used: [],
+    });
+    expect(current.at(-1)!.options.map((o) => o.key)).toEqual(["kind:LANDING_ANY", "landing:lp3"]);
+    // Aucune page : pas de groupe.
+    expect(
+      provenanceMenu({ channelId: "zone", channels: [], links: [], senders: [], used: [] }).map(
+        (g) => g.label,
+      ),
+    ).toEqual(["Un type de provenance"]);
+  });
+
+  it("pas deux exceptions pour la même page ; « toutes les pages » placée avant masque une page précise", () => {
+    const one = item("p", targetOfKey("landing:lp1")!, { sortOrder: 20 });
+    const any = item("a", targetOfKey("kind:LANDING_ANY")!, { sortOrder: 10 });
+    expect(findDuplicate([one], targetOfKey("landing:lp1")!)).toBe(one);
+    expect(findDuplicate([one], targetOfKey("landing:lp2")!)).toBeNull();
+    expect(shadowNote([any, one], one, pageNames)).toMatch(/^Jamais utilisée/);
+    expect(placementOrder([any], one)).toEqual(["p", "a"]);
   });
 });

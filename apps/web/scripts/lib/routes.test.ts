@@ -38,9 +38,11 @@ describe("liste par défaut", () => {
     for (const r of [...PLANNED_ROUTES, ...PUBLIC_ROUTES, "/links"]) expect(list).toContain(r);
     expect(new Set(list).size).toBe(list.length);
   });
-  it("ordre du menu : Accueil, Campagnes, Canaux, Messages, Membres, Statistiques, Réglages, puis le reste", () => {
+  it("ordre du menu : Accueil, Campagnes, Pages, Canaux, Messages, Membres, Statistiques, Réglages, puis le reste", () => {
     expect(
       sortRoutes([
+        "/pages/[id]",
+        "/pages",
         "/settings",
         "/login",
         "/links",
@@ -56,6 +58,8 @@ describe("liste par défaut", () => {
       "/",
       "/campaigns",
       "/campaigns/[id]",
+      "/pages",
+      "/pages/[id]",
       "/channels",
       "/messages",
       "/members",
@@ -87,6 +91,9 @@ describe("fiches : identifiants réels", () => {
     expect(entityForRoute("/automations/[id]/edit")).toBe("automation");
     expect(entityForRoute("/members/automations/[id]")).toBe("automation");
     expect(entityForRoute("/campaigns/imports/[id]")).toBe("importBatch");
+    // Phase 15 : fiche d'une page d'atterrissage (rubrique « Pages »).
+    expect(entityForRoute("/pages/[id]")).toBe("landingPage");
+    expect(fillRoute("/pages/[id]", { landingPage: "lp1" })).toBe("/pages/lp1");
     expect(entityForRoute("/inconnu/[id]")).toBeNull();
     expect(entityForRoute("/campaigns/[id]/ads/[adId]")).toBeNull();
   });

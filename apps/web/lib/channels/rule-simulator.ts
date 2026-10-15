@@ -40,7 +40,8 @@ export type SimAffiliateLink = {
 };
 
 /**
- * Provenances proposées (phrases après « Si quelqu'un vient ») : le bouton « canal à rejoindre » de chacun de nos
+ * Provenances proposées (phrases après « Si quelqu'un vient ») ; phase 15 : chaque page d'atterrissage du canal et
+ * une autre page d'atterrissage ; le bouton « canal à rejoindre » de chacun de nos
  * canaux (ceux qui envoient leurs membres ici d'abord), chaque lien de partage du canal et un autre lien de partage,
  * une pub TikTok, une pub Meta, une autre pub, chaque campagne d'affilié Link Affi du canal et un autre affilié
  * (phase 13, dès qu'un affilié est connu), chaque lien qui a sa propre règle (ex. lien d'entrée d'une pub réglé dans
@@ -57,6 +58,10 @@ export function simulationChoices(input: {
   affiliateLinks?: readonly SimAffiliateLink[];
   /** Proposer « d'un autre affilié Link Affi » (des affiliés sont connus, ou une exception en vise). */
   withAffiliates?: boolean;
+  /** Pages d'atterrissage du canal (phase 15) : une ligne par page active, et « une autre page d'atterrissage ». */
+  landingPages?: ReadonlyArray<{ id: string; name: string; isActive: boolean }>;
+  /** Proposer « d'une autre page d'atterrissage » même sans page sur ce canal (une exception en vise). */
+  withLandingPages?: boolean;
 }): SimGroup[] {
   const senders = new Set(input.senders);
   const channels = input.channels
@@ -77,6 +82,9 @@ export function simulationChoices(input: {
   ]);
   const precise = (input.preciseLinks ?? [])
     .filter((l, i, all) => !shared.has(l.id) && all.findIndex((x) => x.id === l.id) === i)
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  const landingPages = (input.landingPages ?? [])
+    .filter((pg) => pg.isActive)
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
   const groups: SimGroup[] = [
     {
@@ -161,6 +169,32 @@ export function simulationChoices(input: {
                     affiliateId: null,
                     affiliateName: null,
                   },
+                },
+              },
+            ]
+          : [],
+    },
+    {
+      label: "Une page d'atterrissage",
+      choices:
+        landingPages.length > 0 || input.withLandingPages
+          ? [
+              ...landingPages.map((pg) => ({
+                key: `landing:${pg.id}`,
+                label: frQuotes(`de la page « ${pg.name} »`),
+                provenance: {
+                  ...none,
+                  type: "LANDING" as const,
+                  landing: { pageId: pg.id, sourceKey: "" },
+                },
+              })),
+              {
+                key: "landing:other",
+                label: "d'une autre page d'atterrissage",
+                provenance: {
+                  ...none,
+                  type: "LANDING" as const,
+                  landing: { pageId: null, sourceKey: "" },
                 },
               },
             ]

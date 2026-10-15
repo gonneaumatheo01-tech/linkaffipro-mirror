@@ -271,3 +271,44 @@ export function campaignsOfOfferClick(
     collect(out, index.byOffer.get(c.trackingLinkAffiliateCampaignId));
   return out;
 }
+
+// ---------- Pages d'atterrissage (phase 15) : pub figée sur le lien ----------
+//
+// Un lien LANDING est créé pour la pub reliée à sa source à ce moment-là (`InviteLink.landingAdId`, et sa campagne
+// `InviteLink.campaignId`), et la garde pour toujours : l'historique d'une pub ne change jamais après coup.
+// - La pub d'une source change (reliée, changée, retirée) : un nouveau lien est créé pour la nouvelle pub, l'ancien est
+//   révoqué et garde ses demandes, sa pub et sa campagne.
+// - Pub supprimée : `landingAdId` passe à null, le lien garde sa campagne (comme un lien d'entrée direct,
+//   `keepLinksInCampaignOps`).
+// - Page supprimée : `landingPageId` passe à null, le lien garde sa pub et sa campagne.
+
+/** Lien d'une page d'atterrissage et la pub pour laquelle il a été créé (null : source sans pub, ou pub supprimée). */
+export type LandingLinkAdRef = { id: string; landingAdId: string | null };
+
+/**
+ * Pub de chaque lien d'une page d'atterrissage (statistiques journalières, dimension `ad:`) : celle pour laquelle le lien
+ * a été créé, jamais recalculée d'après la pub actuelle de sa source (anciens liens et liens d'une page supprimée
+ * compris).
+ */
+export function landingAdByInviteLink(links: readonly LandingLinkAdRef[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const l of links) if (l.landingAdId) out.set(l.id, l.landingAdId);
+  return out;
+}
+
+/**
+ * Filet de sécurité sur les liens ACTUELS des sources (jamais les anciens liens) : un lien créé pour une pub porte la
+ * campagne de cette pub (`adCampaignId` = campagne de `landingAdId`). Un lien sans pub n'est jamais touché : pub
+ * supprimée, il garde sa campagne. Rend seulement les liens à corriger.
+ */
+export function landingLinkCampaignFixes(
+  links: ReadonlyArray<
+    LandingLinkAdRef & { campaignId: string | null; adCampaignId: string | null }
+  >,
+): Array<{ id: string; campaignId: string }> {
+  const out: Array<{ id: string; campaignId: string }> = [];
+  for (const l of links)
+    if (l.landingAdId && l.adCampaignId && l.adCampaignId !== l.campaignId)
+      out.push({ id: l.id, campaignId: l.adCampaignId });
+  return out;
+}

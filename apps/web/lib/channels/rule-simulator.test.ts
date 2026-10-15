@@ -479,3 +479,89 @@ describe("simulateur : affiliés Link Affi (phase 13)", () => {
     expect(simulate([rules[0]!], group.choices[2]!.provenance, affCtx).ruleKind).toBe("default");
   });
 });
+
+describe("simulateur : pages d'atterrissage (phase 15)", () => {
+  const pageRules: SimRule[] = [
+    { ...zoneRules[0]! },
+    {
+      ...base,
+      id: "promo",
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_PAGE",
+      landingPageId: "lp1",
+      isDefault: false,
+      sortOrder: 10,
+      label: "Venu de la page « Promo VIP »",
+      rule: entry({ delaySeconds: 0 }),
+    },
+    {
+      ...base,
+      id: "any",
+      scope: "SOURCE_KIND",
+      sourceKind: "LANDING_ANY",
+      isDefault: false,
+      sortOrder: 20,
+      label: "Venu de n'importe quelle page d'atterrissage",
+      rule: entry({ delaySeconds: 3600 }),
+    },
+  ];
+  const pageCtx = { ...ctx, landingPageNames: { lp1: "Promo VIP", lp2: "Été" } };
+
+  it("une page par page du canal et « une autre page d'atterrissage », provenance LANDING", () => {
+    const groups = simulationChoices({
+      channelId: "zone",
+      channels: [],
+      senders: [],
+      shareLinks: [],
+      landingPages: [
+        { id: "lp2", name: "Été", isActive: true },
+        { id: "lp1", name: "Promo VIP", isActive: true },
+      ],
+    });
+    const g = groups.find((x) => x.label === "Une page d'atterrissage")!;
+    expect(g.choices.map((c) => [c.key, c.label])).toEqual([
+      ["landing:lp2", "de la page « Été »"],
+      ["landing:lp1", "de la page « Promo VIP »"],
+      ["landing:other", "d'une autre page d'atterrissage"],
+    ]);
+    expect(g.choices[1]!.provenance).toEqual({
+      ...none,
+      type: "LANDING",
+      landing: { pageId: "lp1", sourceKey: "" },
+    });
+    // Aucune page : pas de groupe.
+    expect(
+      simulationChoices({ channelId: "zone", channels: [], senders: [], shareLinks: [] }).some(
+        (x) => x.label === "Une page d'atterrissage",
+      ),
+    ).toBe(false);
+  });
+
+  it("règle retenue : la page précise, puis « n'importe quelle page », jamais une exception de pub ; accueil normal", () => {
+    const lp1 = simulate(
+      pageRules,
+      { ...none, type: "LANDING", landing: { pageId: "lp1", sourceKey: "tk01" } },
+      pageCtx,
+    );
+    expect(lp1.ruleText).toBe("L'exception pour les personnes venues de la page « Promo VIP ».");
+    expect(lp1.whenText).toBe("Elle est acceptée tout de suite.");
+    expect(lp1.messageText).toBe("Le bot lui envoie son message d'accueil.");
+    const lp2 = simulate(
+      pageRules,
+      { ...none, type: "LANDING", landing: { pageId: "lp2", sourceKey: "" } },
+      pageCtx,
+    );
+    expect(lp2.ruleText).toBe(
+      "L'exception pour les personnes venues de n'importe quelle page d'atterrissage.",
+    );
+    expect(lp2.whenText).toBe("Elle est acceptée 1 heure après sa demande.");
+    // Sans exception de page : la règle par défaut (avec ses canaux à rejoindre), comme une pub.
+    const def = simulate(
+      [pageRules[0]!],
+      { ...none, type: "LANDING", landing: { pageId: "lp1", sourceKey: "" } },
+      pageCtx,
+    );
+    expect(def.ruleKind).toBe("default");
+    expect(def.gateIds).toEqual(["roulette", "tir"]);
+  });
+});

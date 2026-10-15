@@ -37,6 +37,10 @@ export const JARGON: JargonRule[] = [
   { word: "automatisation", re: word("automatisations?"), instead: "relance automatique" },
   { word: "envoi groupé", re: word("envois? group[ée]s?"), instead: "écrire à un groupe" },
   { word: "Dating", re: word("dating"), instead: "Rencontres" },
+  // Phase 15 (rubrique « Pages ») : l'adresse d'une page et l'identifiant d'un pixel, dits avec les mots du client.
+  { word: "slug", re: word("slugs?"), instead: "adresse de la page" },
+  { word: "pixel ID", re: word("pixel[-_ ]?ids?"), instead: "identifiant du pixel" },
+  { word: "landing page", re: word("landing[- ]pages?"), instead: "page d'atterrissage" },
 ];
 
 /** Mots interdits trouvés dans un texte. */
