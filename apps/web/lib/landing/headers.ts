@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import { LANDING_SCRIPT, LANDING_STYLE } from "@linkaffipro/core";
+import {
+  LANDING_HEAD_SCRIPT,
+  LANDING_PIXEL_SCRIPT,
+  LANDING_SCRIPT,
+  LANDING_STYLE,
+} from "@linkaffipro/core";
 
 /**
  * En-têtes des pages d'atterrissage (phase 15) : type, cache, ETag, robots, politique de sécurité (CSP) propre à la
@@ -18,19 +23,24 @@ export function etagOf(body: Uint8Array | string): string {
 }
 
 const STYLE_HASH = cspHash(LANDING_STYLE);
-const SCRIPT_HASH = cspHash(LANDING_SCRIPT);
+/** Script du début du `<head>` (navigateur, ouverture automatique) puis script de fin de page. */
+const SCRIPT_HASHES = `${cspHash(LANDING_HEAD_SCRIPT)} ${cspHash(LANDING_SCRIPT)}`;
+const PIXEL_SCRIPT_HASH = cspHash(LANDING_PIXEL_SCRIPT);
 
 /**
- * CSP d'une page : seuls le CSS et le script de la page (empreintes) s'exécutent ; images et envois vers le site
- * seulement. Avec un pixel : `'strict-dynamic'` laisse le script de la page charger celui du pixel (et ce que ce
- * dernier charge), envois et images des pixels en https (TikTok et Meta changent leurs adresses sans prévenir ;
- * `https:` reste le repli des navigateurs sans `'strict-dynamic'`).
+ * CSP d'une page : seuls le CSS et les scripts de la page (empreintes) s'exécutent ; images et envois vers le site
+ * seulement ; cadre caché d'ouverture de Telegram (phase 16, navigateurs intégrés) vers `tg:` seulement (les demandes
+ * des applis Meta, `tg://` sur iPhone et `intent://` sur Android, sont des navigations de la page, passées au
+ * téléphone par l'appli, pas des cadres : aucune directive de la CSP ne les concerne).
+ * Avec un pixel : le script des pixels (empreinte) et `'strict-dynamic'`, qui le laisse charger celui du pixel (et ce
+ * que ce dernier charge), envois, images et cadres des pixels en https (TikTok et Meta changent leurs adresses sans
+ * prévenir ; `https:` reste le repli des navigateurs sans `'strict-dynamic'`).
  */
 export function landingCsp(opts: { pixels: boolean; script: boolean }): string {
   const script = opts.script
     ? opts.pixels
-      ? `script-src ${SCRIPT_HASH} 'strict-dynamic' https:`
-      : `script-src ${SCRIPT_HASH}`
+      ? `script-src ${SCRIPT_HASHES} ${PIXEL_SCRIPT_HASH} 'strict-dynamic' https:`
+      : `script-src ${SCRIPT_HASHES}`
     : "script-src 'none'";
   return [
     "default-src 'none'",
@@ -38,7 +48,7 @@ export function landingCsp(opts: { pixels: boolean; script: boolean }): string {
     `style-src ${STYLE_HASH}`,
     opts.pixels ? "img-src 'self' data: https:" : "img-src 'self'",
     opts.pixels ? "connect-src 'self' https:" : "connect-src 'self'",
-    ...(opts.pixels ? ["frame-src https:"] : []),
+    ...(opts.script ? [opts.pixels ? "frame-src tg: https:" : "frame-src tg:"] : []),
     "base-uri 'none'",
     "form-action 'none'",
     "frame-ancestors 'none'",

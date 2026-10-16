@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-15T13:46:36.435Z",
+  "updatedAt": "2026-10-16T09:54:13.118Z",
   "entries": [
     {
       "route": "/",
@@ -150,7 +150,7 @@
         "1440": "pages-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-15T13:46:12.715Z"
+      "capturedAt": "2026-10-16T09:54:06.954Z"
     },
     {
       "route": "/pages/[id]",
@@ -165,7 +165,7 @@
         "1440": "pages-id-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-15T13:46:20.834Z"
+      "capturedAt": "2026-10-16T08:09:55.137Z"
     },
     {
       "route": "/pages/new",
@@ -1020,6 +1020,34 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-15T09:28:18.804Z"
+    },
+    {
+      "route": "/j/demo-casino-vip?src=tk01#aide-tiktok-android",
+      "path": "/j/demo-casino-vip?src=tk01",
+      "title": "Aide « Ouvrir dans le navigateur » (TikTok Android, après l'appui ; phase 16)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": "capture par `pnpm landing:browser-check --captures` (identifiant de navigateur TikTok émulé)",
+      "files": {
+        "390": "j-aide-tiktok-android-390.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-16T09:00:00.000Z"
+    },
+    {
+      "route": "/j/demo-casino-vip?src=tk01#aide-tiktok-iphone",
+      "path": "/j/demo-casino-vip?src=tk01",
+      "title": "Aide « Ouvrir dans le navigateur » (TikTok iPhone, après l'appui ; phase 16)",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": "capture par `pnpm landing:browser-check --captures` (identifiant de navigateur TikTok émulé)",
+      "files": {
+        "390": "j-aide-tiktok-iphone-390.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-16T09:00:00.000Z"
     },
     {
       "route": "/login",

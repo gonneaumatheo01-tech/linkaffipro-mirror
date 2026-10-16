@@ -23,6 +23,7 @@ import {
   methodLabel,
   type CostView,
   type DirectLinksView,
+  type EscapeFigures,
   type LandingFigures,
   type LandingPageTable,
   type LandingSourceRow,
@@ -34,6 +35,13 @@ import { ScrollToHash } from "./scroll-to-hash";
 /** Explication de « join », au survol (mot du client gardé tel quel). */
 export const JOIN_TERM = "join = demande d'adhésion au canal";
 
+/** Explication de « Sortis de TikTok », au survol (libellé du client gardé tel quel, phase 16). */
+export const ESCAPED_TERM =
+  "sortis du navigateur de TikTok ou d'une autre appli vers Safari ou Chrome";
+
+/** Explication de « % sortis », au survol : seules les visites qui ont vu l'aide comptent. */
+export const ESCAPED_RATE_TERM = "visites qui ont vu l'aide puis sont sorties ÷ aide affichée";
+
 /** Nom affiché d'une source. */
 export function sourceName(key: string): string {
   return key ? key : "Lien principal";
@@ -41,6 +49,35 @@ export function sourceName(key: string): string {
 
 function plural(n: number, one: string, many: string): string {
   return `${fmtNum(n)} ${n > 1 ? many : one}`;
+}
+
+/** Sorties après l'aide sur un système : « 54 sur 120 aides affichées ». */
+function escapeNote(f: EscapeFigures): string {
+  return `${fmtNum(f.helpedEscaped)} sur ${plural(f.help, "aide affichée", "aides affichées")}`;
+}
+
+/** Sorties sans l'aide avant elles : « dont 2 sans l'aide » (null s'il n'y en a pas). */
+function directNote(f: EscapeFigures): string | null {
+  if (f.direct === 0) return null;
+  return `dont ${fmtNum(f.direct)} sans l'aide`;
+}
+
+/** « 5 sur 6 sorties », et « dont 3 tout seul » à part (null si aucune). */
+function openedAfterText(f: EscapeFigures): { main: string; auto: string | null } {
+  return {
+    main: `${fmtNum(f.openedAfter)} sur ${plural(f.escaped, "sortie", "sorties")}`,
+    auto: f.autoOpened > 0 ? `dont ${fmtNum(f.autoOpened)} tout seul` : null,
+  };
+}
+
+/** L'aide a-t-elle servi (aide affichée ou sortie) sur la période ? */
+function escapeShown(f: EscapeFigures | null | undefined): f is EscapeFigures {
+  return !!f && (f.help > 0 || f.escaped > 0);
+}
+
+/** « sur iPhone », « sur Android », « sur un autre appareil ». */
+function onSystem(os: keyof typeof LANDING_OS_LABELS): string {
+  return os === "OTHER" ? "sur un autre appareil" : `sur ${LANDING_OS_LABELS[os]}`;
 }
 
 /** Cellule « Coût par join » : « — », le coût, ou la dépense avec « aucun join » en dessous. */
@@ -63,10 +100,12 @@ function costHint(t: LandingFigures | null, view: CostView): string {
 
 /**
  * Chiffres d'une page d'atterrissage (rubrique « Pages », phase 15) sur la période choisie : cartes de la page
- * (visites, clics, demandes, % visite → join, coût par join), tableau par source (5 colonnes ; tout le détail au clic),
- * sources inconnues ou retirées vues dans les adresses, ouverture de Telegram par téléphone (détail par appli replié),
- * et en dessous la comparaison avec les liens directs des pubs du même canal (même partage de la dépense d'une pub
- * entre la page et son lien direct : rien n'est compté deux fois). Composant serveur.
+ * (visites, clics, demandes, % visite → join, coût par join), tableau par source (5 colonnes, plus « % sortis » quand
+ * l'aide a servi sur la période ; tout le détail au clic), sources inconnues ou retirées vues dans les adresses,
+ * ouverture de Telegram par téléphone (détail par appli replié) et, à côté, la sortie de TikTok (phase 16 : aide
+ * affichée, sortis dont sans l'aide, % sortis, détail iPhone / Android, Telegram ouvert après la sortie), et en
+ * dessous la comparaison avec les liens directs des pubs du même canal (même partage de la dépense d'une pub entre la
+ * page et son lien direct : rien n'est compté deux fois). Composant serveur.
  */
 export function LandingStats({
   pageId,
@@ -107,6 +146,8 @@ export function LandingStats({
   const totalView = costView(t ?? { spend: null, costPerJoin: null });
   const unknown = table?.unknownSources ?? [];
   const unknownVisits = unknown.reduce((s, u) => s + u.visits, 0);
+  // « % sortis » par source (phase 16) : seulement quand l'aide a servi sur la période (sinon une colonne de « — »).
+  const showEscape = escapeShown(t?.escape) || rows.some((r) => escapeShown(r.escape));
 
   const dataRows: DataTableRow[] = rows.map((r, i) => ({
     id: r.key || "_principal",
@@ -133,6 +174,16 @@ export function LandingStats({
         />
       ),
       cost: <CostCell view={views[i]!} digits={digits} />,
+      escape: (
+        <NumCell
+          value={fmtPct(r.escape.rate)}
+          note={
+            r.escape.help > 0
+              ? `${fmtNum(r.escape.helpedEscaped)} sur ${plural(r.escape.help, "aide", "aides")}`
+              : null
+          }
+        />
+      ),
     },
     sortValues: {
       source: r.key,
@@ -140,9 +191,10 @@ export function LandingStats({
       clicks: r.clicks,
       requests: r.requests,
       cost: costSortValue(views[i]!),
+      escape: r.escape.rate,
     },
     detail: (
-      <SourceDetail
+      <LandingSourceDetail
         row={r}
         url={sourcePublicUrl(trackingBase, slug, r.key)}
         ready={r.isActive && readyKeys.includes(r.key)}
@@ -223,6 +275,17 @@ export function LandingStats({
             align: "right",
             hideOnMobile: true,
           },
+          ...(showEscape
+            ? [
+                {
+                  key: "escape",
+                  header: "% sortis",
+                  term: ESCAPED_RATE_TERM,
+                  align: "right" as const,
+                  hideOnMobile: true,
+                },
+              ]
+            : []),
         ]}
         rows={dataRows}
         empty={{
@@ -233,7 +296,13 @@ export function LandingStats({
       <div className="space-y-1">
         <p className="text-note text-muted-foreground">
           Sous les demandes : les acceptés et le <Term term={JOIN_TERM}>% visite → join</Term>.
-          Cliquez sur une source pour tout voir.
+          {showEscape ? (
+            <span className="max-md:hidden">
+              {" "}
+              Sous le % sortis : les visites sorties après l&apos;aide, sur les aides affichées.
+            </span>
+          ) : null}{" "}
+          Cliquez sur une source pour tout voir, avec le détail iPhone et Android.
         </p>
         {unknownVisits > 0 ? (
           <p className="text-note text-warning" role="note">
@@ -248,7 +317,10 @@ export function LandingStats({
         ) : null}
       </div>
 
-      <OpenedSection figures={t} />
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        <OpenedSection figures={t} />
+        <EscapeSection figures={t} />
+      </div>
 
       <DirectLinksSection direct={direct} page={t} />
     </section>
@@ -256,7 +328,7 @@ export function LandingStats({
 }
 
 /** Tout le détail d'une source (volet du tableau). */
-function SourceDetail({
+export function LandingSourceDetail({
   row,
   url,
   ready,
@@ -315,15 +387,54 @@ function SourceDetail({
           </DetailList>
         </div>
       ) : null}
+      {escapeShown(row.escape) ? (
+        <div className="space-y-2">
+          <h3 className="text-body font-semibold text-foreground">Sortie de TikTok</h3>
+          <DetailList>
+            <DetailRow label="Aide affichée">{fmtNum(row.escape.help)}</DetailRow>
+            <DetailRow label={<Term term={ESCAPED_TERM}>Sortis de TikTok</Term>}>
+              {fmtNum(row.escape.escaped)}
+              {directNote(row.escape) ? (
+                <span className="block text-note text-muted-foreground">
+                  {directNote(row.escape)}
+                </span>
+              ) : null}
+            </DetailRow>
+            <DetailRow label={<Term term={ESCAPED_RATE_TERM}>% sortis</Term>}>
+              {fmtPct(row.escape.rate)}
+            </DetailRow>
+            {row.escape.systems.map((s) => (
+              <DetailRow key={s.os} label={`% sortis ${onSystem(s.os)}`}>
+                {fmtPct(s.rate)}{" "}
+                {s.help > 0 ? (
+                  <span className="text-muted-foreground">({escapeNote(s)})</span>
+                ) : null}
+              </DetailRow>
+            ))}
+            {row.escape.escaped > 0 ? (
+              <DetailRow label="Telegram ouvert après la sortie">
+                {openedAfterText(row.escape).main}
+                {openedAfterText(row.escape).auto ? (
+                  <span className="block text-note text-muted-foreground">
+                    {openedAfterText(row.escape).auto}
+                  </span>
+                ) : null}
+              </DetailRow>
+            ) : null}
+          </DetailList>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 /**
  * « Telegram ouvert après le clic » : part des clics suivis de l'ouverture de l'appli, par téléphone ; replié, le
- * détail par appli (TikTok, Instagram…) et par façon d'ouvrir : les façons d'ouvrir ne se comparent que dans une même
- * appli (c'est là que la page les tire au sort). Un clic par visite, le premier appui (`loadLandingTables`) : le même
- * nombre que la colonne « Clics ».
+ * détail par appli (TikTok, Instagram…) et par façon d'ouvrir. Depuis la phase 16, chaque appli n'a plus qu'une façon
+ * d'ouvrir (l'aide « Ouvrir dans le navigateur ») : les façons tirées au sort de la phase 15 ne restent visibles que
+ * sur les anciennes périodes, rien à comparer de nos jours. Un clic par visite, le premier appui
+ * (`loadLandingTables`) : le même nombre que la colonne « Clics » ; une sortie vers Safari ou Chrome juste après
+ * l'appui n'y compte pas comme une ouverture.
  */
 function OpenedSection({ figures }: { figures: LandingFigures | null }) {
   const opened = figures?.opened ?? [];
@@ -336,7 +447,8 @@ function OpenedSection({ figures }: { figures: LandingFigures | null }) {
         </h3>
         <p className="text-note text-muted-foreground">
           Part des clics où la page a laissé la place à l&apos;appli Telegram dans les 2 secondes.
-          Un clic par visite, comme dans le tableau : seul le premier appui compte.
+          Un clic par visite, comme dans le tableau : seul le premier appui compte. Une sortie vers
+          Safari ou Chrome n&apos;y compte pas.
         </p>
       </div>
       {opened.length === 0 ? (
@@ -357,7 +469,7 @@ function OpenedSection({ figures }: { figures: LandingFigures | null }) {
           />
           <AdvancedSection
             title="Détail par appli et par façon d'ouvrir"
-            description="Comparez les façons d'ouvrir dans une même appli."
+            description="Dans une appli, la page montre l'aide. Les anciennes façons d'ouvrir (avant le 16 octobre) restent visibles sur les anciennes périodes."
           >
             {browsers.map((b) => (
               <div key={b.key} className="space-y-1.5">
@@ -387,6 +499,93 @@ function OpenedSection({ figures }: { figures: LandingFigures | null }) {
               </p>
             ) : null}
           </AdvancedSection>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Un chiffre de la sortie de TikTok (petite case), avec une petite note dessous si besoin. */
+function EscapeFigure({
+  label,
+  value,
+  note,
+}: {
+  label: React.ReactNode;
+  value: string;
+  note?: string | null;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border bg-card p-3">
+      <dt className="text-note font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-title text-foreground tabular-nums">{value}</dd>
+      {note ? <dd className="mt-0.5 text-note text-muted-foreground">{note}</dd> : null}
+    </div>
+  );
+}
+
+/**
+ * « Sortie de TikTok » (phase 16), à côté de « Telegram ouvert après le clic » : dans un navigateur intégré, le bouton
+ * montre l'aide « Ouvrir dans le navigateur » ; ici, combien de visites l'ont vue (Aide affichée), combien de visites
+ * ont rouvert la page dans Safari ou Chrome (Sortis de TikTok, dont celles sorties sans l'aide), la part des visites
+ * aidées qui sont sorties (% sortis, les sorties sans l'aide n'y entrent pas), le détail iPhone / Android, et
+ * combien de sorties ont fini dans Telegram (tout seul ou par un appui). Rien n'est compté deux fois (`escapeFigures`).
+ */
+function EscapeSection({ figures }: { figures: LandingFigures | null }) {
+  const e = figures?.escape;
+  return (
+    <section aria-labelledby="landing-escape-title" className="space-y-3">
+      <div>
+        <h3 id="landing-escape-title" className="text-body font-semibold text-foreground">
+          Sortie de TikTok
+        </h3>
+        <p className="text-note text-muted-foreground">
+          Dans TikTok, Instagram ou Facebook, le bouton montre une aide «&nbsp;Ouvrir dans le
+          navigateur&nbsp;». Rouverte dans Safari, ou dans Chrome sur Android, la page essaie
+          d&apos;ouvrir Telegram toute seule ; sur iPhone, Chrome demande un appui sur le bouton.
+        </p>
+      </div>
+      {!escapeShown(e) ? (
+        <p className="text-body text-muted-foreground">Aucune aide affichée sur la période.</p>
+      ) : (
+        <>
+          <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+            <EscapeFigure label="Aide affichée" value={fmtNum(e.help)} />
+            <EscapeFigure
+              label={<Term term={ESCAPED_TERM}>Sortis de TikTok</Term>}
+              value={fmtNum(e.escaped)}
+              note={directNote(e)}
+            />
+            <EscapeFigure
+              label={<Term term={ESCAPED_RATE_TERM}>% sortis</Term>}
+              value={fmtPct(e.rate)}
+            />
+          </dl>
+          <BarList
+            label="Sortis de TikTok, par téléphone"
+            labelWidth="narrow"
+            max={1}
+            items={e.systems.map((s) => ({
+              key: s.os,
+              label: LANDING_OS_LABELS[s.os],
+              value: s.rate ?? 0,
+              valueText: fmtPct(s.rate),
+              note: escapeNote(s),
+            }))}
+          />
+          {e.direct > 0 ? (
+            <p className="text-note text-muted-foreground">
+              Sans l&apos;aide : page ouverte dans Safari ou Chrome avant l&apos;appui sur le
+              bouton, ou lien de pub ouvert directement hors de l&apos;appli. Comptées dans les
+              sortis, jamais dans le % sortis.
+            </p>
+          ) : null}
+          {e.escaped > 0 ? (
+            <p className="text-note text-muted-foreground">
+              Telegram ouvert après la sortie : {openedAfterText(e).main}
+              {openedAfterText(e).auto ? `, ${openedAfterText(e).auto}` : ""}.
+            </p>
+          ) : null}
         </>
       )}
     </section>

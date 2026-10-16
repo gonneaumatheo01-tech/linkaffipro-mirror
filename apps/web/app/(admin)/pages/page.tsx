@@ -8,6 +8,7 @@ import { StatusPill } from "@/components/admin/status-pill";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { NumCell } from "@/components/dashboard/cells";
 import { CopyLinkButton } from "@/components/landing/copy-link-button";
+import { ESCAPED_RATE_TERM } from "@/components/landing/landing-stats";
 import { env } from "@/lib/env";
 import { fmtNum, fmtPct } from "@/lib/format";
 import { sourcePublicUrl } from "@/lib/landing/form";
@@ -19,14 +20,20 @@ export const metadata: Metadata = { title: "Pages" };
 
 /**
  * Rubrique « Pages » (phase 15) : les pages d'atterrissage ultra-rapides qui envoient les pubs vers nos canaux
- * Telegram. Une ligne par page : nom, canal, chiffres des 7 derniers jours (visites, clics, demandes) et « Copier le
- * lien » (lien principal) ; un clic ouvre la fiche (formulaire, aperçu, sources et leurs liens, tableau par source).
- * ADMIN et MANAGER.
+ * Telegram. Une ligne par page : nom, canal, chiffres des 7 derniers jours (visites, clics, demandes ; phase 16 :
+ * « % sortis » de TikTok, seulement quand l'aide « Ouvrir dans le navigateur » a servi sur la période) et « Copier le
+ * lien » (lien principal) ; un clic ouvre la fiche (formulaire, aperçu, sources et leurs liens, tableau par source,
+ * détail iPhone / Android). ADMIN et MANAGER.
  */
 export default async function PagesPage({ searchParams }: PageProps<"/pages">) {
   await requireUser();
   const sp = await searchParams;
   const { rows, period } = await loadLandingList();
+  // « % sortis » (phase 16) : seulement si l'aide a servi sur une des pages (sinon une colonne de « — »).
+  const showEscape = rows.some((p) => {
+    const e = p.table?.totals.escape;
+    return !!e && (e.help > 0 || e.escaped > 0);
+  });
 
   const tableRows: DataTableRow[] = rows.map((p) => {
     const t = p.table?.totals;
@@ -63,6 +70,16 @@ export default async function PagesPage({ searchParams }: PageProps<"/pages">) {
             note={t?.visitToJoin == null ? null : `${fmtPct(t.visitToJoin)} des visites`}
           />
         ),
+        escape: (
+          <NumCell
+            value={fmtPct(t?.escape.rate ?? null)}
+            note={
+              t && t.escape.help > 0
+                ? `${fmtNum(t.escape.helpedEscaped)} sur ${fmtNum(t.escape.help)} ${t.escape.help > 1 ? "aides" : "aide"}`
+                : null
+            }
+          />
+        ),
         link: (
           <CopyLinkButton
             url={url}
@@ -78,6 +95,7 @@ export default async function PagesPage({ searchParams }: PageProps<"/pages">) {
         visits: t?.visits ?? 0,
         clicks: t?.clicks ?? 0,
         requests: t?.requests ?? 0,
+        escape: t?.escape.rate ?? null,
       },
     };
   });
@@ -110,13 +128,25 @@ export default async function PagesPage({ searchParams }: PageProps<"/pages">) {
               { key: "visits", header: "Visites", align: "right", hideOnMobile: true },
               { key: "clicks", header: "Clics", align: "right", hideOnMobile: true },
               { key: "requests", header: "Demandes", align: "right" },
+              ...(showEscape
+                ? [
+                    {
+                      key: "escape",
+                      header: "% sortis",
+                      term: ESCAPED_RATE_TERM,
+                      align: "right" as const,
+                      hideOnMobile: true,
+                    },
+                  ]
+                : []),
               { key: "link", header: "Lien", sortable: false },
             ]}
             rows={tableRows}
           />
           <p className="text-note text-muted-foreground">
             Chiffres des {periodLabelWithDates(period).toLowerCase()}. Le détail par source est dans
-            chaque page.
+            chaque page{showEscape ? ", avec le détail iPhone et Android des sortis de TikTok" : ""}
+            .
           </p>
         </div>
       )}

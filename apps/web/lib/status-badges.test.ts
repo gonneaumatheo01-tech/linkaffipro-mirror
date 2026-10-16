@@ -115,6 +115,9 @@ describe("badges de statut", () => {
     expect(statusLabel("vertical", "DATING")).toBe("Rencontres");
     expect(statusLabel("inviteLinkKind", "LANDING")).toBe("Page d'atterrissage");
     expect(statusLabel("landingEvent", "OPENED")).toBe("Telegram ouvert");
+    expect(statusLabel("landingEvent", "HELP")).toBe("Aide affichée");
+    expect(statusLabel("landingEvent", "ESCAPED")).toBe("Sorti de l'appli");
+    expect(statusLabel("landingEvent", "AUTO_OPEN")).toBe("Ouverture automatique");
   });
 
   it("couvre aussi les statuts hors Prisma (synchro, connexion Telegram, actif)", () => {

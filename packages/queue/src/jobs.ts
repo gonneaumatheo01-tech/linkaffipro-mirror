@@ -166,8 +166,9 @@ export type LandingEventData = {
   /** Identifiant de la ligne `LandingEvent` (aléatoire, fixé à l'ajout). */
   id: string;
   landingPageId: string;
-  type: "VIEW" | "CLICK" | "OPENED";
-  /** Identifiant aléatoire de la visite (créé par la page). */
+  /** Phase 16 : aussi HELP (aide affichée), ESCAPED (sortie de l'appli) et AUTO_OPEN (ouverture automatique). */
+  type: "VIEW" | "CLICK" | "OPENED" | "HELP" | "ESCAPED" | "AUTO_OPEN";
+  /** Identifiant aléatoire de la visite (créé par la page ; `vid` de l'adresse après une sortie de l'appli). */
   visitId: string;
   /** Source retenue ("" = source par défaut). */
   sourceKey: string;
@@ -177,7 +178,7 @@ export type LandingEventData = {
   os: string | null;
   /** TIKTOK | INSTAGRAM | FACEBOOK | OTHER, null : navigateur ordinaire (`detectInApp`). */
   inApp: string | null;
-  /** Façon d'ouvrir Telegram (clic et ouverture) : TG_SCHEME | INTENT | HTTPS… */
+  /** Façon d'ouvrir Telegram (clic et ouverture) : HTTPS | TG_FRAME | INTENT_FRAME | AUTO_TG | AUTO_INTENT… ; appli pour HELP, marqueur (TGO | TTCLID | FBCLID) pour ESCAPED. */
   method: string | null;
   /** Pays ISO 3166-1 alpha-2 (base locale), null si inconnu. */
   country: string | null;

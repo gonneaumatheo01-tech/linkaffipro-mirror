@@ -1,5 +1,6 @@
 import {
   DEFAULT_LANDING_SOURCE,
+  LANDING_ESCAPE_MAX_AGE_MS,
   landingRatio,
   type LandingCounts,
   type LandingInApp,
@@ -28,21 +29,42 @@ import { periodDates, periodEnd, periodStart, type Period } from "@/lib/periods"
  *   période : « — » avec la raison (`spendNote`), jamais « 0 € » faute de donnée ;
  * - Telegram ouvert : premiers appuis suivis d'une ouverture ÷ premiers appuis, par système, puis par navigateur
  *   (appli TikTok, Instagram, Facebook, autre appli, navigateur habituel) et façon d'ouvrir. Seul le PREMIER appui de
- *   chaque visite dans la période compte (`loadLandingTables`, requête `opens`) : c'est le seul dont la façon d'ouvrir
- *   est tirée au sort ; un nouvel appui (Telegram ne s'est pas ouvert, la page essaie l'autre façon) et son ouverture
- *   n'y entrent pas, sinon la façon qui sert de second essai serait jugée sur des personnes qui ont déjà échoué. Une
+ *   chaque visite dans la période compte (`loadLandingTables`, requête `opens`) : en phase 15, c'était le seul dont la
+ *   façon d'ouvrir était tirée au sort (un nouvel appui essayait l'autre façon) ; depuis la phase 16, la façon dépend
+ *   seulement du navigateur (lien natif dans Safari ou Chrome, aide et cadre caché `TG_FRAME` / `INTENT_FRAME` dans
+ *   une appli), et le premier appui reste le seul compté (un clic par visite, comme la colonne « Clics »). Une
  *   ouverture compte pour ce premier appui si elle a la même façon d'ouvrir et arrive avant l'appui suivant (jusqu'à
  *   2 s avant lui : deux envois de la page peuvent arriver dans le désordre, et même après la fin de la période).
- *   Le nombre de clics est donc celui de la colonne « Clics » (un par visite). La façon d'ouvrir n'est tirée au sort
- *   qu'à l'intérieur d'un même navigateur intégré, c'est donc là seulement que les méthodes se comparent ;
+ *   L'ouverture automatique après la sortie de l'appli (`AUTO_TG` / `AUTO_INTENT`) n'y entre jamais : elle est
+ *   comptée dans la sortie de TikTok. Une ouverture vue dans l'appli (`inApp`) suivie dans la minute d'une sortie de
+ *   la même visite (ESCAPED, même `visitId` ou même identifiant de clic) n'y entre pas non plus : la page de l'appli a
+ *   été cachée par le passage à Safari ou Chrome, Telegram ne s'est pas ouvert ;
+ * - sortie de TikTok (phase 16, requête `escapes`, règle pure `escapeFigures`) :
+ *   - « Aide affichée » = visites dont la PREMIÈRE aide (HELP, l'aide « Ouvrir dans le navigateur » montrée dans une
+ *     appli) est dans la période ; système et source : ceux de l'aide ;
+ *   - sortie « après l'aide » = une de ces visites rouverte ensuite dans Safari ou Chrome (ESCAPED), à n'importe quel
+ *     moment après l'aide, même après la fin de la période (une aide à 23 h 59 et une sortie à 0 h 01 comptent le
+ *     jour de l'aide) : même visite (marqueur `tgo` + `vid`), ou, repère perdu, nouvelle visite reconnue par
+ *     l'identifiant de clic de la pub (sortie `TTCLID` / `FBCLID` de la même page avec le même `ttclid` / `fbclid` que
+ *     l'aide, 30 min au plus après elle, `LANDING_ESCAPE_MAX_AGE_MS`) ;
+ *   - sortie « sans l'aide » (`direct`) = ESCAPED dans la période d'une visite qui n'a jamais vu l'aide, et qu'aucune
+ *     aide du même identifiant de clic ne précède (30 min au plus) : page ouverte dans le navigateur avant l'appui
+ *     (sortie `VID` ou `TTCLID`), ou lien de pub ouvert directement dans Safari ou Chrome ; système et source : ceux
+ *     de la sortie ;
+ *   - « Sortis de TikTok » = sorties après l'aide + sorties sans l'aide (visites distinctes : jamais comptées deux
+ *     fois) ; « % sortis » = sorties après l'aide ÷ aide affichée (les sorties sans l'aide n'y entrent jamais ; aucun
+ *     plafond ; total = somme des numérateurs ÷ somme des dénominateurs, aucune compensation entre systèmes) ;
+ *   - « Telegram ouvert après la sortie » = sorties suivies d'une ouverture de Telegram (OPENED hors de l'appli, après
+ *     la sortie, de n'importe quelle façon : tout seul `AUTO_TG` / `AUTO_INTENT`, ou par un appui sur le bouton quand
+ *     l'ouverture automatique est refusée, Chrome sur iPhone par exemple), dont « tout seul » ; robots exclus ;
  * - visites arrivées avec une source inconnue, retirée ou pas encore prête (`LandingEvent.rawSrc`) : comptées dans le
  *   lien principal, et signalées sous le tableau.
  * En dessous de la page (comparaison, D10) : les liens directs des pubs du même canal (liens d'entrée AD_ENTRY) sur la
  * même période : clics humains sur le lien goolink, demandes, acceptés, coût par join (même partage de la dépense).
  *
- * Règles pures (`allocateAdSpend`, `buildLandingTables`, `buildDirectLinks`, `openedBySystem`, `costView`) testées
- * dans stats.test.ts ; lectures en base en quelques requêtes groupées (`loadLandingTables`, `loadDirectAdLinks`,
- * `loadAdSpendAllocation`), testées en intégration (landing-flow).
+ * Règles pures (`allocateAdSpend`, `buildLandingTables`, `buildDirectLinks`, `openedBySystem`, `escapeFigures`,
+ * `costView`) testées dans stats.test.ts ; lectures en base en quelques requêtes groupées (`loadLandingTables`,
+ * `loadDirectAdLinks`, `loadAdSpendAllocation`), testées en intégration (landing-flow, landing-flow-escape).
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -131,6 +153,53 @@ export type OpenedBySystem = {
   browsers: OpenedByBrowser[];
 };
 
+/**
+ * Sortie de l'appli (phase 16), visites distinctes par page, source et système (requête `escapes` de
+ * `loadLandingTables`) : une visite n'a qu'un système et qu'une source (ceux de l'aide, ou de la sortie directe).
+ */
+export type LandingEscapeCount = {
+  pageId: string;
+  sourceKey: string;
+  os: string | null;
+  /** Visites dont la première aide est dans la période. */
+  help: number;
+  /** Parmi elles, celles rouvertes ensuite dans Safari ou Chrome (même visite, ou même identifiant de clic). */
+  helpedEscaped: number;
+  /** Visites rouvertes dans Safari ou Chrome dans la période sans aucune aide avant (sorties sans l'aide). */
+  direct: number;
+  /** Sorties (après l'aide ou sans l'aide) avec une ouverture automatique tentée. */
+  autoTried: number;
+  /** Sorties suivies de Telegram ouvert, de n'importe quelle façon. */
+  openedAfter: number;
+  /** Dont Telegram ouvert tout seul (`AUTO_TG` / `AUTO_INTENT`). */
+  autoOpened: number;
+};
+
+/** Chiffres de la sortie de l'appli (une source, toute la page ou un système). */
+export type EscapeFigures = {
+  /** « Aide affichée » : visites où l'aide « Ouvrir dans le navigateur » a été montrée (première aide). */
+  help: number;
+  /** « Sortis de TikTok » : visites rouvertes dans Safari ou Chrome (après l'aide + sans l'aide). */
+  escaped: number;
+  /** Visites aidées puis rouvertes dans Safari ou Chrome (numérateur de « % sortis »). */
+  helpedEscaped: number;
+  /** « dont N sans l'aide » : sorties sans aide avant elles (navigateur ouvert avant l'appui, lien ouvert hors de l'appli), hors du %. */
+  direct: number;
+  /** « % sortis » : sorties après l'aide ÷ aide affichée ; null sans aide. */
+  rate: number | null;
+  /** Ouvertures automatiques de Telegram tentées après la sortie. */
+  autoTried: number;
+  /** « Telegram ouvert après la sortie » : sorties suivies de Telegram ouvert (tout seul ou par un appui). */
+  openedAfter: number;
+  /** Dont Telegram ouvert tout seul. */
+  autoOpened: number;
+};
+
+export type EscapeBySystem = EscapeFigures & { os: LandingOs };
+
+/** Sortie de l'appli et détail par système (systèmes sans aide ni sortie absents). */
+export type LandingEscape = EscapeFigures & { systems: EscapeBySystem[] };
+
 /** Pourquoi la dépense d'une pub reliée n'est pas connue : saisie pour toute la campagne ou le groupe, ou aucune. */
 export type SpendNote = "campaign" | "none";
 
@@ -144,6 +213,8 @@ export type LandingFigures = LandingCounts &
     spendNote: SpendNote | null;
     /** Ouverture de Telegram par système (systèmes sans clic absents). */
     opened: OpenedBySystem[];
+    /** Sortie de TikTok (ou d'une autre appli) vers Safari ou Chrome (phase 16). */
+    escape: LandingEscape;
   };
 
 export type LandingSourceRow = LandingFigures & {
@@ -193,11 +264,23 @@ export function browserLabel(os: LandingOs, inApp: LandingInApp | null): string 
   return os === "IOS" ? "Safari ou Chrome sur iPhone" : "Chrome ou autre navigateur sur Android";
 }
 
-/** Façons d'ouvrir Telegram, en mots simples. */
+/**
+ * Façons d'ouvrir Telegram, en mots simples. Envoyées (phase 16, `LANDING_SENT_OPEN_METHODS`) : `HTTPS` (navigateur
+ * normal), `TG_FRAME` (appli : aide et tentative dans un cadre caché), `TG_NAV` (applis Meta sur iPhone : la page demande
+ * l'appli dans le geste de l'appui), `INTENT_HELP` (applis Meta sur Android), `AUTO_TG` / `AUTO_INTENT` (ouverture
+ * automatique une fois la page rouverte dans Safari ou Chrome). Retirées, gardées pour les anciennes données
+ * (`LANDING_RETIRED_OPEN_METHODS`) : `TG_SCHEME`, `INTENT` (phase 15, avec repli), `INTENT_FRAME`.
+ */
 export const LANDING_METHOD_LABELS: Record<string, string> = {
   TG_SCHEME: "Ouverture directe de l'appli",
   INTENT: "Ouverture par Android, avec repli",
   HTTPS: "Lien Telegram classique",
+  TG_FRAME: "Ouverture en arrière-plan, avec l'aide",
+  INTENT_FRAME: "Ouverture par Android en arrière-plan, avec l'aide",
+  TG_NAV: "Ouverture de l'appli par la page, avec l'aide",
+  INTENT_HELP: "Ouverture par Android, avec l'aide",
+  AUTO_TG: "Ouverture automatique après la sortie",
+  AUTO_INTENT: "Ouverture automatique après la sortie",
 };
 
 /** Libellé d'une façon d'ouvrir (une façon inconnue garde un libellé générique). */
@@ -238,8 +321,9 @@ export function openCountsOfFirstClicks(rows: readonly FirstClickCount[]): Landi
 
 /**
  * Ouvertures de Telegram regroupées par système, puis par navigateur (`inApp`), puis par façon d'ouvrir ; systèmes,
- * navigateurs et façons sans clic retirés. Les façons d'ouvrir ne se comparent qu'à l'intérieur d'un navigateur : le
- * tirage au sort (TikTok) n'existe que là, et Safari ou Chrome n'ont pas les mêmes chances qu'une appli.
+ * navigateurs et façons sans clic retirés. Les façons d'ouvrir ne se comparent qu'à l'intérieur d'un navigateur : la
+ * façon dépend du navigateur (le tirage au sort de la phase 15 n'existait que dans TikTok), et Safari ou Chrome n'ont
+ * pas les mêmes chances qu'une appli.
  */
 export function openedBySystem(
   rows: readonly Pick<LandingOpenCount, "os" | "inApp" | "method" | "type" | "n">[],
@@ -295,6 +379,71 @@ export function openedBySystem(
     out.push({ os, ...rated(total), browsers: list });
   }
   return out;
+}
+
+// ─── Règles pures : sortie de l'appli (phase 16) ─────────────────────────────────────────────────────────────────
+
+/** Champs comptés d'une ligne de la requête `escapes`. */
+const ESCAPE_FIELDS = [
+  "help",
+  "helpedEscaped",
+  "direct",
+  "autoTried",
+  "openedAfter",
+  "autoOpened",
+] as const;
+type EscapeCell = Record<(typeof ESCAPE_FIELDS)[number], number>;
+
+const EMPTY_ESCAPE = (): EscapeCell => ({
+  help: 0,
+  helpedEscaped: 0,
+  direct: 0,
+  autoTried: 0,
+  openedAfter: 0,
+  autoOpened: 0,
+});
+
+/** Sortis = après l'aide + sans l'aide ; % sortis = après l'aide ÷ aide affichée (sans l'aide : jamais dans le %). */
+function escapeRated(c: EscapeCell): EscapeFigures {
+  return {
+    help: c.help,
+    escaped: c.helpedEscaped + c.direct,
+    helpedEscaped: c.helpedEscaped,
+    direct: c.direct,
+    rate: landingRatio(c.helpedEscaped, c.help),
+    autoTried: c.autoTried,
+    openedAfter: c.openedAfter,
+    autoOpened: c.autoOpened,
+  };
+}
+
+/**
+ * Sortie de TikTok (ou d'une autre appli) d'une source ou de toute la page, et par système (iPhone, Android, puis
+ * « Autre » s'il y en a ; systèmes sans aide ni sortie absents). Les lignes comptent des visites distinctes par
+ * système (`loadLandingTables`) : une visite n'a qu'un système et qu'une source, les sommes ne comptent rien deux fois.
+ * « % sortis » d'un système comme du total : visites aidées puis sorties ÷ visites aidées (somme des numérateurs ÷
+ * somme des dénominateurs : un système sans aide ne compense jamais un autre) ; aucun plafond, une sortie sans aide
+ * (« sans l'aide », `direct`) est comptée dans les sortis mais jamais dans le %.
+ */
+export function escapeFigures(
+  rows: readonly Pick<LandingEscapeCount, "os" | (typeof ESCAPE_FIELDS)[number]>[],
+): LandingEscape {
+  const by = new Map<LandingOs, EscapeCell>();
+  for (const r of rows) {
+    const os = osOf(r.os);
+    const c = by.get(os) ?? EMPTY_ESCAPE();
+    for (const k of ESCAPE_FIELDS) c[k] += Number(r[k]) || 0;
+    by.set(os, c);
+  }
+  const systems: EscapeBySystem[] = [];
+  const total = EMPTY_ESCAPE();
+  for (const os of LANDING_OS_ORDER) {
+    const c = by.get(os);
+    if (!c || (c.help === 0 && c.helpedEscaped + c.direct === 0)) continue;
+    systems.push({ os, ...escapeRated(c) });
+    for (const k of ESCAPE_FIELDS) total[k] += c[k];
+  }
+  return { ...escapeRated(total), systems };
 }
 
 // ─── Règles pures : dépense d'une pub partagée entre ses chemins d'arrivée ──────────────────────────────────────
@@ -441,7 +590,11 @@ const EMPTY = (): Acc => ({
   notes: new Set(),
 });
 
-function finish(a: Acc, opens: readonly LandingOpenCount[]): LandingFigures {
+function finish(
+  a: Acc,
+  opens: readonly LandingOpenCount[],
+  escapes: readonly LandingEscapeCount[],
+): LandingFigures {
   const spend = a.known ? round2(a.spend ?? 0) : null;
   return {
     visits: a.visits,
@@ -456,6 +609,7 @@ function finish(a: Acc, opens: readonly LandingOpenCount[]): LandingFigures {
     adLinked: a.adLinked,
     spendNote: a.adLinked && !a.known ? (a.notes.has("campaign") ? "campaign" : "none") : null,
     opened: openedBySystem(opens),
+    escape: escapeFigures(escapes),
   };
 }
 
@@ -472,6 +626,8 @@ export function buildLandingTables(input: {
   links?: readonly LandingLinkRef[];
   visits: readonly LandingVisitCount[];
   opens: readonly LandingOpenCount[];
+  /** Sortie de l'appli (phase 16), visites distinctes par source et système. */
+  escapes?: readonly LandingEscapeCount[];
   requests: readonly LandingLinkRequestCount[];
   unknown?: readonly UnknownSourceCount[];
   /** Partage de la dépense des pubs figées sur les liens (`allocateAdSpend`). */
@@ -509,6 +665,12 @@ export function buildLandingTables(input: {
         const key = keyOf(o.sourceKey);
         opens.set(key, [...(opens.get(key) ?? []), o]);
       }
+    const pageEscapes = (input.escapes ?? []).filter((e) => e.pageId === pageId);
+    const escapes = new Map<string, LandingEscapeCount[]>();
+    for (const e of pageEscapes) {
+      const key = keyOf(e.sourceKey);
+      escapes.set(key, [...(escapes.get(key) ?? []), e]);
+    }
 
     // Argent : chaque lien de la page compte pour sa source, avec la pub figée sur lui.
     const currentLink = new Set(refs.map((s) => s.inviteLinkId).filter((id): id is string => !!id));
@@ -541,7 +703,7 @@ export function buildLandingTables(input: {
       key: s.key,
       isActive: s.isActive,
       adId: s.adId,
-      ...finish(accs.get(s.key) ?? EMPTY(), opens.get(s.key) ?? []),
+      ...finish(accs.get(s.key) ?? EMPTY(), opens.get(s.key) ?? [], escapes.get(s.key) ?? []),
     }));
     rows.sort(
       (a, b) =>
@@ -572,6 +734,7 @@ export function buildLandingTables(input: {
       totals: finish(
         total,
         input.opens.filter((o) => o.pageId === pageId),
+        pageEscapes,
       ),
       sources: rows,
       unknownSources: [...unknownSources.entries()]
@@ -703,6 +866,17 @@ function bounds(period: Period) {
   return { from: periodStart(period), to: periodEnd(period), ...periodDates(period) };
 }
 
+/** Façons d'ouvrir de l'ouverture automatique après la sortie de l'appli (OPENED qui la suit). */
+const AUTO_OPEN_METHODS: string[] = ["AUTO_TG", "AUTO_INTENT"];
+
+/**
+ * Sorties reconnues par l'identifiant de clic de la pub (repère `vid` perdu) : rattachées à l'aide de la même page qui
+ * porte le même `ttclid` / `fbclid`, au plus `LANDING_ESCAPE_MAX_AGE_MS` (30 min) après elle (même durée que le repère
+ * de sortie de la page, et que le rattachement fait par le worker).
+ */
+const CLICK_ID_ESCAPES: string[] = ["TTCLID", "FBCLID"];
+const CLICK_ID_MAX_AGE_S = Math.round(LANDING_ESCAPE_MAX_AGE_MS / 1000);
+
 /** Jour d'une dépense (`AdCost.date`, jour civil stocké à minuit UTC) : « AAAA-MM-JJ ». */
 const dayKeyOf = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -831,7 +1005,7 @@ export async function loadLandingTables(
   const ids = [...new Set(pageIds)];
   if (ids.length === 0) return new Map();
   const { from, to } = bounds(period);
-  const [sources, links, visits, opens, requests, unknown] = await Promise.all([
+  const [sources, links, visits, opens, requests, unknown, escapes] = await Promise.all([
     prisma.landingSource.findMany({
       where: { landingPageId: { in: ids } },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -874,6 +1048,16 @@ export async function loadLandingTables(
                 AND c."sourceKey" = f."sourceKey" AND c."type" = 'CLICK' AND c."isBot" = false
                 AND c."createdAt" > f."createdAt" AND c."createdAt" <= o."createdAt"
             )
+            AND NOT (o."inApp" IS NOT NULL AND EXISTS (
+              SELECT 1 FROM "LandingEvent" x
+              WHERE x."landingPageId" = o."landingPageId" AND x."type" = 'ESCAPED' AND x."isBot" = false
+                AND x."createdAt" >= o."createdAt" - interval '2 seconds'
+                AND x."createdAt" <= o."createdAt" + interval '60 seconds'
+                AND (x."visitId" = o."visitId"
+                  OR x."method" = ANY(${CLICK_ID_ESCAPES}::text[]) AND (
+                    o."ttclid" IS NOT NULL AND x."ttclid" = o."ttclid"
+                    OR o."fbclid" IS NOT NULL AND x."fbclid" = o."fbclid"))
+            ))
         ))::int AS "opened"
       FROM f
       GROUP BY 1, 2, 3, 4, 5`.then(openCountsOfFirstClicks),
@@ -897,6 +1081,113 @@ export async function loadLandingTables(
         AND "rawSrc" IS NOT NULL AND "rawSrc" <> ''
         AND "createdAt" >= ${from} AND "createdAt" < ${to}
       GROUP BY 1, 2`,
+    // Sortie de l'appli (phase 16) : visites dont la première aide est dans la période (h) et la première sortie qui
+    // leur est rattachée, à n'importe quel moment après l'aide (même visite ; ou, pour une sortie TTCLID / FBCLID, même
+    // identifiant de clic, 30 min au plus après l'aide) ; sorties de la période sans aide (d : visite sans aucune aide,
+    // ni aide du même identifiant de clic dans les 30 min avant) ; puis, pour chaque sortie, l'ouverture automatique
+    // tentée et Telegram ouvert hors de l'appli après elle (2 s de marge pour deux envois arrivés dans le désordre).
+    // Système et source : ceux de l'aide (Safari sur iPad se présente comme un Mac), ou de la sortie sans aide.
+    prisma.$queryRaw<LandingEscapeCount[]>`
+      WITH h AS (
+        SELECT DISTINCT ON (x."landingPageId", x."visitId")
+          x."landingPageId", x."visitId", x."sourceKey", x."os", x."createdAt", x."ttclid", x."fbclid"
+        FROM "LandingEvent" x
+        WHERE x."landingPageId" = ANY(${ids}::text[]) AND x."isBot" = false AND x."type" = 'HELP'
+          AND x."createdAt" >= ${from} AND x."createdAt" < ${to}
+          AND NOT EXISTS (
+            SELECT 1 FROM "LandingEvent" y
+            WHERE y."visitId" = x."visitId" AND y."landingPageId" = x."landingPageId"
+              AND y."type" = 'HELP' AND y."isBot" = false AND y."createdAt" < ${from}
+          )
+        ORDER BY x."landingPageId", x."visitId", x."createdAt", x."id"
+      ),
+      hs AS (
+        SELECT h."landingPageId", h."sourceKey", h."os", true AS "helped",
+          s."visitId" AS "escVisitId", s."createdAt" AS "escAt"
+        FROM h
+        LEFT JOIN LATERAL (
+          SELECT u."visitId", u."createdAt" FROM (
+            (SELECT e."visitId", e."createdAt", e."id" FROM "LandingEvent" e
+              WHERE e."visitId" = h."visitId" AND e."landingPageId" = h."landingPageId"
+                AND e."type" = 'ESCAPED' AND e."isBot" = false
+                AND e."createdAt" >= h."createdAt" - interval '2 seconds'
+              ORDER BY e."createdAt", e."id"
+              LIMIT 1)
+            UNION ALL
+            (SELECT e."visitId", e."createdAt", e."id" FROM "LandingEvent" e
+              WHERE (h."ttclid" IS NOT NULL OR h."fbclid" IS NOT NULL)
+                AND e."landingPageId" = h."landingPageId" AND e."type" = 'ESCAPED' AND e."isBot" = false
+                AND e."createdAt" >= h."createdAt" - interval '2 seconds'
+                AND e."createdAt" <= h."createdAt" + ${CLICK_ID_MAX_AGE_S}::int * interval '1 second'
+                AND e."method" = ANY(${CLICK_ID_ESCAPES}::text[])
+                AND e."os" IS NOT DISTINCT FROM h."os"
+                AND (h."ttclid" IS NOT NULL AND e."ttclid" = h."ttclid"
+                  OR h."fbclid" IS NOT NULL AND e."fbclid" = h."fbclid")
+              ORDER BY e."createdAt", e."id"
+              LIMIT 1)
+          ) u
+          ORDER BY u."createdAt", u."id"
+          LIMIT 1
+        ) s ON true
+      ),
+      d AS (
+        SELECT DISTINCT ON (e."landingPageId", e."visitId")
+          e."landingPageId", e."sourceKey", e."os", false AS "helped",
+          e."visitId" AS "escVisitId", e."createdAt" AS "escAt"
+        FROM "LandingEvent" e
+        WHERE e."landingPageId" = ANY(${ids}::text[]) AND e."isBot" = false AND e."type" = 'ESCAPED'
+          AND e."createdAt" >= ${from} AND e."createdAt" < ${to}
+          AND NOT EXISTS (
+            SELECT 1 FROM "LandingEvent" y
+            WHERE y."visitId" = e."visitId" AND y."landingPageId" = e."landingPageId"
+              AND y."type" = 'ESCAPED' AND y."isBot" = false AND y."createdAt" < ${from}
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "LandingEvent" x
+            WHERE x."visitId" = e."visitId" AND x."landingPageId" = e."landingPageId"
+              AND x."type" = 'HELP' AND x."isBot" = false
+          )
+          AND NOT (e."method" = ANY(${CLICK_ID_ESCAPES}::text[]) AND EXISTS (
+            SELECT 1 FROM "LandingEvent" x
+            WHERE x."landingPageId" = e."landingPageId" AND x."type" = 'HELP' AND x."isBot" = false
+              AND x."createdAt" <= e."createdAt" + interval '2 seconds'
+              AND x."createdAt" >= e."createdAt" - ${CLICK_ID_MAX_AGE_S}::int * interval '1 second'
+              AND x."os" IS NOT DISTINCT FROM e."os"
+              AND (e."ttclid" IS NOT NULL AND x."ttclid" = e."ttclid"
+                OR e."fbclid" IS NOT NULL AND x."fbclid" = e."fbclid")
+          ))
+        ORDER BY e."landingPageId", e."visitId", e."createdAt", e."id"
+      ),
+      z AS (
+        SELECT * FROM hs
+        UNION ALL
+        SELECT * FROM d
+      )
+      SELECT z."landingPageId" AS "pageId", z."sourceKey", z."os",
+        COUNT(*) FILTER (WHERE z."helped")::int AS "help",
+        COUNT(*) FILTER (WHERE z."helped" AND z."escVisitId" IS NOT NULL)::int AS "helpedEscaped",
+        COUNT(*) FILTER (WHERE NOT z."helped")::int AS "direct",
+        COUNT(*) FILTER (WHERE z."escVisitId" IS NOT NULL AND EXISTS (
+          SELECT 1 FROM "LandingEvent" a
+          WHERE a."visitId" = z."escVisitId" AND a."landingPageId" = z."landingPageId"
+            AND a."type" = 'AUTO_OPEN' AND a."isBot" = false
+            AND a."createdAt" >= z."escAt" - interval '2 seconds'
+        ))::int AS "autoTried",
+        COUNT(*) FILTER (WHERE z."escVisitId" IS NOT NULL AND EXISTS (
+          SELECT 1 FROM "LandingEvent" o
+          WHERE o."visitId" = z."escVisitId" AND o."landingPageId" = z."landingPageId"
+            AND o."type" = 'OPENED' AND o."isBot" = false AND o."inApp" IS NULL
+            AND o."createdAt" >= z."escAt" - interval '2 seconds'
+        ))::int AS "openedAfter",
+        COUNT(*) FILTER (WHERE z."escVisitId" IS NOT NULL AND EXISTS (
+          SELECT 1 FROM "LandingEvent" o
+          WHERE o."visitId" = z."escVisitId" AND o."landingPageId" = z."landingPageId"
+            AND o."type" = 'OPENED' AND o."isBot" = false AND o."inApp" IS NULL
+            AND o."method" = ANY(${AUTO_OPEN_METHODS}::text[])
+            AND o."createdAt" >= z."escAt" - interval '2 seconds'
+        ))::int AS "autoOpened"
+      FROM z
+      GROUP BY 1, 2, 3`,
   ]);
   const { allocation } = await loadAdSpendAllocation(
     links.map((l) => l.landingAdId).filter((id): id is string => !!id),
@@ -921,6 +1212,7 @@ export async function loadLandingTables(
       })),
     visits,
     opens,
+    escapes,
     requests,
     unknown,
     allocation,

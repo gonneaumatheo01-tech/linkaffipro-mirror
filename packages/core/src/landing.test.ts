@@ -8,6 +8,10 @@ import {
   detectLandingOs,
   inviteHashOf,
   isLandingBotUserAgent,
+  LANDING_EVENT_KINDS,
+  LANDING_OPEN_METHODS,
+  LANDING_RETIRED_OPEN_METHODS,
+  LANDING_SENT_OPEN_METHODS,
   isLandingEventKind,
   isLandingLang,
   isReservedLandingSegment,
@@ -15,7 +19,11 @@ import {
   isValidMetaPixelId,
   isValidTikTokPixelId,
   isValidVisitId,
+  LANDING_ESCAPE_MAX_AGE_MS,
+  LANDING_OPENED_INAPP_WINDOW_MS,
+  LANDING_OPENED_WINDOW_MS,
   landingDefaults,
+  landingEscapeClickId,
   landingInviteLinkName,
   landingLang,
   landingOpenUrls,
@@ -66,6 +74,27 @@ const UA = {
     "Mozilla/5.0 (Linux; Android 12; M2101K6G Build/SKQ1.210908.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/119.0.6045.163 Mobile Safari/537.36",
   iosWebView:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+  // Relevés en production (16 octobre 2026, docs/tiktok-captures/agents-utilisateurs-reels.md).
+  tiktokIos26:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1 musical_ly_47.1.0 BytedanceWebview/d8a21c6",
+  tiktokIosAds:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_7_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148thirdLandingPageFeInfra",
+  tiktokAndroidNoWv:
+    "Mozilla/5.0 (Linux; Android 9; SM-A505F; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/136.0.7103.125 Mobile Safari/537.36 musical_ly_2024605040 JsSdk/1.0 NetType/WIFI Channel/googleplay AppName/musical_ly app_version/46.5.4 ByteLocale/fr ByteFullLocale/fr Region/FR AppId/1233 Spark/1.7.2 AppVersion/46.5.4 PIA/2.5.3 BytedanceWebview/d8a21c6",
+  snapchatIos18:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/605.1 Snapchat/13.42.0.47 (like Safari/8614.4.6.0.6, panda)",
+  naverIos:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_7_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 NAVER(inapp; search; 2000; 12.13.2)",
+  daumAndroid:
+    "Mozilla/5.0 (Linux; Android 14; SM-S921U Build/UP1A.231005.007; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/117.0.5938.60 Mobile Safari/537.36 DaumApps/8.1.2 DaumDevice/mobile",
+  newsSapphire:
+    "Mozilla/5.0 (Linux; Android 10; ONEPLUS A7010; ) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.40 Mobile Safari/E7FBAF NewsSapphire/32.0.430627001",
+  miuiBrowser:
+    "Mozilla/5.0 (Linux; U; Android 12; fr-fr; Redmi Note 11 Build/SKQ1.211103.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/112.0.5615.136 Mobile Safari/537.36 XiaoMi/MiuiBrowser/14.7.10-gn",
+  huaweiBrowser:
+    "Mozilla/5.0 (Linux; Android 10; HMA-L29; HMSCore 6.11.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 HuaweiBrowser/14.0.0.322 Mobile Safari/537.36",
+  safariIos26:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/23F77 Safari/604.1",
   desktopChrome:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   bytespider:
@@ -393,6 +422,16 @@ describe("visiteur : système et navigateur intégré", () => {
     ["pinterestIos", "IOS", "OTHER"],
     ["androidWebView", "ANDROID", "OTHER"],
     ["iosWebView", "IOS", "OTHER"],
+    ["tiktokIos26", "IOS", "TIKTOK"],
+    ["tiktokIosAds", "IOS", "TIKTOK"],
+    ["tiktokAndroidNoWv", "ANDROID", "TIKTOK"],
+    ["snapchatIos18", "IOS", "OTHER"],
+    ["naverIos", "IOS", "OTHER"],
+    ["daumAndroid", "ANDROID", "OTHER"],
+    ["newsSapphire", "ANDROID", "OTHER"],
+    ["miuiBrowser", "ANDROID", null],
+    ["huaweiBrowser", "ANDROID", null],
+    ["safariIos26", "IOS", null],
     ["safariIos", "IOS", null],
     ["chromeIos", "IOS", null],
     ["chromeAndroid", "ANDROID", null],
@@ -431,6 +470,15 @@ describe("robots sur les pages d'atterrissage", () => {
     "samsungAndroid",
     "androidWebView",
     "desktopChrome",
+    "tiktokIos26",
+    "tiktokIosAds",
+    "tiktokAndroidNoWv",
+    "snapchatIos18",
+    "naverIos",
+    "daumAndroid",
+    "newsSapphire",
+    "miuiBrowser",
+    "safariIos26",
   ] as const)("%s est une vraie personne", (name) => {
     expect(isLandingBotUserAgent(UA[name])).toBe(false);
   });
@@ -463,7 +511,21 @@ describe("événements de page", () => {
   it("types, identifiant de visite et façon d'ouvrir", () => {
     expect(isLandingEventKind("VIEW")).toBe(true);
     expect(isLandingEventKind("OPENED")).toBe(true);
+    // Phase 16 : aide affichée, sortie de l'appli, ouverture automatique.
+    expect(LANDING_EVENT_KINDS).toEqual([
+      "VIEW",
+      "CLICK",
+      "OPENED",
+      "HELP",
+      "ESCAPED",
+      "AUTO_OPEN",
+    ]);
+    for (const k of ["HELP", "ESCAPED", "AUTO_OPEN"]) expect(isLandingEventKind(k)).toBe(true);
     expect(isLandingEventKind("view")).toBe(false);
+    expect(isLandingEventKind("PURCHASE")).toBe(false);
+    for (const m of LANDING_OPEN_METHODS) expect(normalizeLandingMethod(m)).toBe(m);
+    for (const m of ["TGO", "TTCLID", "FBCLID", "TIKTOK", "MESSENGER"])
+      expect(normalizeLandingMethod(m)).toBe(m);
     expect(isValidVisitId("k3j4h5g6f7d8s9a0")).toBe(true);
     expect(isValidVisitId("short")).toBe(false);
     expect(isValidVisitId("x".repeat(65))).toBe(false);
@@ -473,6 +535,25 @@ describe("événements de page", () => {
     expect(normalizeLandingMethod("x'); drop")).toBeNull();
     expect(normalizeLandingMethod("A".repeat(33))).toBeNull();
     expect(normalizeLandingMethod(null)).toBeNull();
+  });
+
+  it("façons d'ouvrir : celles que la page envoie aujourd'hui, et celles des versions précédentes, jamais mélangées", () => {
+    // Phase 16 : chaque façon a son propre code (applis Meta sur iPhone : TG_NAV ; sur Android, avec l'aide :
+    // INTENT_HELP, distinct d'INTENT, l'ouverture « avec repli » de la phase 15).
+    expect([...LANDING_SENT_OPEN_METHODS]).toEqual([
+      "HTTPS",
+      "TG_FRAME",
+      "TG_NAV",
+      "INTENT_HELP",
+      "AUTO_TG",
+      "AUTO_INTENT",
+    ]);
+    expect([...LANDING_RETIRED_OPEN_METHODS]).toEqual(["TG_SCHEME", "INTENT", "INTENT_FRAME"]);
+    expect([...LANDING_OPEN_METHODS].sort()).toEqual(
+      [...LANDING_SENT_OPEN_METHODS, ...LANDING_RETIRED_OPEN_METHODS].sort(),
+    );
+    for (const m of LANDING_SENT_OPEN_METHODS)
+      expect(LANDING_RETIRED_OPEN_METHODS as readonly string[]).not.toContain(m);
   });
 });
 
@@ -515,5 +596,38 @@ describe("chiffres du tableau", () => {
     expect(landingRatio(3, 0)).toBeNull();
     expect(landingRatio(-1, 4)).toBe(0);
     expect(landingRatio(Number.NaN, 4)).toBe(0);
+  });
+});
+
+describe("sortie de l'appli : rattachement par identifiant de clic pub (phase 16)", () => {
+  it("seulement pour un navigateur ordinaire de téléphone, humain, avec ttclid (d'abord) ou fbclid", () => {
+    const safari = { inApp: null, os: "IOS", isBot: false };
+    // Avec le système que doit avoir la visite de l'appli : une sortie reste sur le même téléphone (un lien copié
+    // dans TikTok et ouvert dans Safari par un ami sur un Android n'est jamais fondu dans la visite de l'expéditeur).
+    expect(landingEscapeClickId({ ...safari, ttclid: " TT-1 ", fbclid: "FB-1" })).toEqual({
+      field: "ttclid",
+      value: "TT-1",
+      os: "IOS",
+    });
+    expect(landingEscapeClickId({ ...safari, os: "ANDROID", fbclid: "FB-1" })).toEqual({
+      field: "fbclid",
+      value: "FB-1",
+      os: "ANDROID",
+    });
+    // Dans l'appli elle-même, sur ordinateur, pour un robot, ou sans identifiant : rien à rattacher.
+    expect(landingEscapeClickId({ ...safari, inApp: "TIKTOK", ttclid: "TT-1" })).toBeNull();
+    expect(landingEscapeClickId({ ...safari, os: "OTHER", ttclid: "TT-1" })).toBeNull();
+    expect(landingEscapeClickId({ ...safari, isBot: true, ttclid: "TT-1" })).toBeNull();
+    expect(landingEscapeClickId({ ...safari, ttclid: "  ", fbclid: null })).toBeNull();
+  });
+
+  it("durées : repère valable 30 min ; ouverture comptée dans l'appli seulement juste après la tentative", () => {
+    expect(LANDING_ESCAPE_MAX_AGE_MS).toBe(30 * 60_000);
+    // Le script du <head> compte en minutes entières.
+    expect(LANDING_ESCAPE_MAX_AGE_MS % 60_000).toBe(0);
+    // Plus court que le geste « ••• → Ouvrir dans le navigateur » (plus d'une seconde), plus court que la fenêtre
+    // d'un navigateur ordinaire.
+    expect(LANDING_OPENED_INAPP_WINDOW_MS).toBeLessThan(1000);
+    expect(LANDING_OPENED_INAPP_WINDOW_MS).toBeLessThan(LANDING_OPENED_WINDOW_MS);
   });
 });

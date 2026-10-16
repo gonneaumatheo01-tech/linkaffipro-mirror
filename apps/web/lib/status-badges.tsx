@@ -261,11 +261,16 @@ export const STATUS_DICT = {
     PACK: plain("Lien d'un pack"),
     ACCOUNT: plain("Votre compte Telegram"),
   } satisfies Record<CustomEmojiSource, StatusEntry>,
-  // Pages d'atterrissage (phase 15) : visite, clic sur le bouton, Telegram ouvert (page quittée juste après le clic).
+  // Pages d'atterrissage (phase 15) : visite, clic sur le bouton, Telegram ouvert (page quittée juste après le clic) ;
+  // phase 16 : aide « Ouvrir dans le navigateur » affichée dans une appli, visite rouverte hors de l'appli (Safari,
+  // Chrome), ouverture automatique de Telegram tentée au chargement.
   landingEvent: {
     VIEW: plain("Visite"),
     CLICK: plain("Clic"),
     OPENED: ok("Telegram ouvert"),
+    HELP: plain("Aide affichée"),
+    ESCAPED: ok("Sorti de l'appli"),
+    AUTO_OPEN: plain("Ouverture automatique"),
   } satisfies Record<LandingEventType, StatusEntry>,
 } as const;
 

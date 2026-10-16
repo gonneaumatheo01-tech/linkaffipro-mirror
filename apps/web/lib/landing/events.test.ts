@@ -68,6 +68,49 @@ describe("envoi des visites et clics : lecture", () => {
     });
   });
 
+  it("phase 16 : aide affichée, sortie de l'appli, ouverture automatique (avec leur méthode)", () => {
+    expect(parseLandingBeacon(beacon({ t: "HELP", m: "TIKTOK" }))).toMatchObject({
+      type: "HELP",
+      method: "TIKTOK",
+    });
+    // Sortie de l'appli : même visite que dans l'appli (vid de l'adresse), marqueur déjà retiré par la page.
+    expect(
+      parseLandingBeacon(
+        beacon({ t: "ESCAPED", m: "TGO", v: "visit_tiktok_0001", q: "?src=tk01&ttclid=TT-1" }),
+      ),
+    ).toMatchObject({
+      type: "ESCAPED",
+      method: "TGO",
+      visitId: "visit_tiktok_0001",
+      sourceKey: "tk01",
+      ttclid: "TT-1",
+    });
+    expect(parseLandingBeacon(beacon({ t: "AUTO_OPEN", m: "auto_intent" }))).toMatchObject({
+      type: "AUTO_OPEN",
+      method: "AUTO_INTENT",
+    });
+    // Marqueur encore présent (envoi d'un clic depuis la page marquée dans l'appli) : rien de plus n'est gardé.
+    expect(
+      parseLandingBeacon(beacon({ q: "?src=tk01&tgo=1&vid=a1b2c3d4e5f6a7b8c9d0e1f2" })),
+    ).toMatchObject({ sourceKey: "tk01", rawSrc: null, ttclid: null });
+    expect(parseLandingBeacon(beacon({ t: "help" }))).toBeNull();
+  });
+
+  it("chaque façon d'ouvrir envoyée par la page est gardée telle quelle (clic et ouverture)", async () => {
+    const { LANDING_SENT_OPEN_METHODS } = await import("@linkaffipro/core");
+    for (const m of LANDING_SENT_OPEN_METHODS)
+      for (const t of ["CLICK", "OPENED"])
+        expect(parseLandingBeacon(beacon({ t, m })), `${t} ${m}`).toMatchObject({
+          type: t,
+          method: m,
+        });
+    // Applis Meta : codes propres à la phase 16, distincts de ceux de la phase 15.
+    expect(parseLandingBeacon(beacon({ t: "CLICK", m: "TG_NAV" }))?.method).toBe("TG_NAV");
+    expect(parseLandingBeacon(beacon({ t: "CLICK", m: "INTENT_HELP" }))?.method).toBe(
+      "INTENT_HELP",
+    );
+  });
+
   it("pas de méthode pour une visite ; envois illisibles ignorés", () => {
     expect(parseLandingBeacon(beacon({ t: "VIEW", m: "TG_SCHEME" }))?.method).toBeNull();
     expect(parseLandingBeacon("pas du json")).toBeNull();
@@ -144,6 +187,28 @@ describe("envoi des visites et clics : ligne mise en file", () => {
     });
     expect(input.ipHash).toHaveLength(64);
     expect(JSON.stringify(input)).not.toContain("90.84.1.1");
+  });
+
+  it("sortie de l'appli : ligne de la visite d'origine, navigateur ordinaire, méthode gardée", () => {
+    const safari =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/23F77 Safari/604.1";
+    const req = new Request("https://go.goolink.eu/j/_e", {
+      method: "POST",
+      headers: { "user-agent": safari },
+    });
+    const input = landingEventInput(
+      parseLandingBeacon(beacon({ t: "ESCAPED", m: "TGO", v: "visit_tiktok_0001" }))!,
+      beaconRequestInfo(req),
+      { country: "FR" },
+    );
+    expect(input).toMatchObject({
+      type: "ESCAPED",
+      visitId: "visit_tiktok_0001",
+      method: "TGO",
+      os: "IOS",
+      inApp: null,
+      isBot: false,
+    });
   });
 
   it("robot connu : enregistré mais marqué (jamais compté)", () => {
@@ -301,6 +366,26 @@ describe("envoi des visites et clics : garde-fous", () => {
     for (let i = 0; i < 12; i++) clicks.push(await send("CLICK", `10.0.1.${i}`));
     expect(clicks.filter((r) => r === "queued")).toHaveLength(10);
     expect(await send("OPENED", "10.0.2.1")).toBe("queued");
+  });
+
+  it("par visite : 10 HELP, 3 ESCAPED et 3 AUTO_OPEN au plus (phase 16)", async () => {
+    const limiter = new LandingBeaconLimiter();
+    const cache = knownPage();
+    const send = async (t: string, ip: string) =>
+      recordLandingBeacon(beacon({ t, v: "samevisit000002" }), info(ip), {
+        cache,
+        country,
+        queueState,
+        limiter,
+      });
+    const count = async (t: string, n: number) => {
+      let ok = 0;
+      for (let i = 0; i < n; i++) if ((await send(t, `10.1.${t.length}.${i}`)) === "queued") ok++;
+      return ok;
+    };
+    expect(await count("HELP", 12)).toBe(10);
+    expect(await count("ESCAPED", 5)).toBe(3);
+    expect(await count("AUTO_OPEN", 5)).toBe(3);
   });
 
   it("Redis coupé : rien n'est empilé en mémoire, la mise en file reprend à son retour", async () => {

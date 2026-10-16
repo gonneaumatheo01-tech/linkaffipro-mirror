@@ -160,7 +160,8 @@ describe("aperçu en direct", () => {
         photoUrl: "/pages/photo/ch1",
       }),
     );
-    expect(html).toContain("Votre phrase d&#39;accroche");
+    // L'apostrophe peut rester telle quelle dans le texte de la page (sûre hors d'un attribut) ou être échappée.
+    expect(html).toMatch(/Votre phrase d(?:&#39;|')accroche/);
     expect(html).toContain('src="/pages/photo/ch1"');
     expect(html).toContain('<html lang="en">');
     expect(html).toContain("Join the channel →");

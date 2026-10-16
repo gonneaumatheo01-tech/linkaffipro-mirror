@@ -9,8 +9,11 @@
  *   médiane / 90e centile / minimum ;
  * - poids : HTML brut, et tel qu'envoyé compressé (gzip, br) ; limite de 15 Ko ;
  * - aucune redirection (GET et HEAD), en-têtes (type, cache, ETag + 304, CSP, robots) ;
- * - mêmes octets pour tous : la page est demandée avec plusieurs agents utilisateurs (TikTok, Instagram, robots,
- *   aucun) et les empreintes comparées (règle 7 du client) ;
+ * - `<head>` : seulement le petit script d'ouverture automatique (phase 16, en ligne, au tout début), aucune ressource
+ *   extérieure ; aide « Ouvrir dans le navigateur » et code d'invitation (`data-k`) présents ;
+ * - mêmes octets pour tous : la page est demandée avec plusieurs agents utilisateurs (TikTok, Instagram, Safari,
+ *   robots, aucun), et avec le marqueur de sortie de l'appli (`tgo=1&vid=…&tgt=…`), et les empreintes comparées (règle 7 du
+ *   client : jamais de redirection selon le navigateur) ;
  * - `--beacon` : temps de réponse de `/j/_e` avec un envoi marqué robot (jamais compté dans les chiffres). Sans cette
  *   option, rien n'est envoyé : la mesure ne crée aucune visite.
  * Code de sortie 1 si une vérification échoue. Aucune dépendance : `node:http(s)` seulement.
@@ -193,9 +196,24 @@ async function main(): Promise<number> {
   check(plain.status === 200, `GET : statut ${plain.status} (attendu 200, aucune redirection)`);
   check(!plain.headers.location, "GET : en-tête Location présent (redirection)");
   check(plain.body.length < 15 * 1024, `poids ${plain.body.length} octets (limite 15 360)`);
+  // Phase 16 : un seul script dans le <head>, en ligne, au tout début (ouverture automatique) ; rien d'extérieur.
+  const headScripts = head.match(/<script[^>]*>/gi) ?? [];
   check(
-    !/<script|<link|src=|@import|url\(/i.test(head),
-    "ressource extérieure ou script dans le <head>",
+    headScripts.length === 1 && headScripts[0] === "<script>",
+    `le <head> doit avoir un seul script en ligne (${headScripts.length})`,
+  );
+  check(
+    head.startsWith('<meta charset="utf-8"><script>'),
+    "le script d'ouverture n'est pas au tout début du <head>",
+  );
+  check(
+    !/<link|src=|@import|url\(/i.test(head.replace(/<script>[\s\S]*?<\/script>/i, "")),
+    "ressource extérieure dans le <head>",
+  );
+  check(/<html lang="[a-z]{2}" data-k="[\w-]+">/.test(html), "code d'invitation (data-k) absent");
+  check(
+    /<div id="h" class="h" role="dialog"[^>]* hidden data-t='/.test(html),
+    "aide absente ou visible",
   );
   check((html.match(/<a\s/g) ?? []).length === 1, "la page doit avoir un seul lien (le bouton)");
   check(/href="https:\/\/t\.me\/\+[\w-]+"/.test(html), "bouton sans lien https://t.me/+…");
@@ -223,6 +241,18 @@ async function main(): Promise<number> {
     const r = await request(o.url, { headers: ua ? { "user-agent": ua } : {} });
     byUa[name] = { status: r.status, sha: sha(decode(r)), etag: String(r.headers.etag ?? "") };
   }
+  // Adresse marquée comme après « Ouvrir dans le navigateur » : mêmes octets, aucune redirection.
+  const markedUrl = new URL(o.url);
+  markedUrl.searchParams.set("tgo", "1");
+  markedUrl.searchParams.set("vid", "measure_marker_0001");
+  markedUrl.searchParams.set("tgt", Math.floor(Date.now() / 6e4).toString(36));
+  const marked = await request(markedUrl, { headers: { "user-agent": UAS.safariIos! } });
+  byUa.safariIosMarked = {
+    status: marked.status,
+    sha: sha(decode(marked)),
+    etag: String(marked.headers.etag ?? ""),
+  };
+  check(!marked.headers.location, "adresse marquée : redirection");
   const hashes = new Set(Object.values(byUa).map((v) => v.sha));
   check(hashes.size === 1, `corps différents selon l'agent utilisateur (${hashes.size} versions)`);
   check(decode(gzip).equals(plain.body), "corps gzip différent du corps brut");

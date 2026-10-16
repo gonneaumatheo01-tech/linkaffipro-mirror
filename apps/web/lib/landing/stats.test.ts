@@ -1,3 +1,4 @@
+import { LANDING_OPEN_METHODS } from "@linkaffipro/core";
 import { describe, expect, it } from "vitest";
 import {
   allocateAdSpend,
@@ -6,10 +7,12 @@ import {
   buildLandingTables,
   costSortValue,
   costView,
+  escapeFigures,
   methodLabel,
   openCountsOfFirstClicks,
   openedBySystem,
   type AdSpendAllocation,
+  type LandingEscapeCount,
   type LandingOpenCount,
 } from "./stats";
 
@@ -378,9 +381,194 @@ describe("chiffres d'une page par source", () => {
       visitToJoin: null,
       costPerJoin: null,
       opened: [],
+      escape: {
+        help: 0,
+        escaped: 0,
+        helpedEscaped: 0,
+        direct: 0,
+        rate: null,
+        autoTried: 0,
+        openedAfter: 0,
+        autoOpened: 0,
+        systems: [],
+      },
     });
     expect(empty.sources).toHaveLength(1);
     expect(empty.unknownSources).toEqual([]);
+  });
+});
+
+describe("sortie de TikTok (phase 16) : aide affichée, sortis, % sortis", () => {
+  /** Une ligne de la requête `escapes` (zéros par défaut). */
+  const esc = (
+    os: string | null,
+    over: Partial<Omit<LandingEscapeCount, "pageId" | "sourceKey" | "os">> = {},
+    sourceKey = "",
+    pageId = P,
+  ): LandingEscapeCount => ({
+    pageId,
+    sourceKey,
+    os,
+    help: 0,
+    helpedEscaped: 0,
+    direct: 0,
+    autoTried: 0,
+    openedAfter: 0,
+    autoOpened: 0,
+    ...over,
+  });
+
+  it("par système : aide affichée, sortis, % sortis sur les visites aidées, Telegram ouvert après la sortie", () => {
+    const e = escapeFigures([
+      esc("IOS", {
+        help: 120,
+        helpedEscaped: 54,
+        autoTried: 54,
+        openedAfter: 47,
+        autoOpened: 40,
+      }),
+      esc("ANDROID", {
+        help: 80,
+        helpedEscaped: 20,
+        autoTried: 20,
+        openedAfter: 16,
+        autoOpened: 15,
+      }),
+    ]);
+    expect(e).toEqual({
+      help: 200,
+      escaped: 74,
+      helpedEscaped: 74,
+      direct: 0,
+      rate: 74 / 200,
+      autoTried: 74,
+      openedAfter: 63,
+      autoOpened: 55,
+      systems: [
+        {
+          os: "IOS",
+          help: 120,
+          escaped: 54,
+          helpedEscaped: 54,
+          direct: 0,
+          rate: 54 / 120,
+          autoTried: 54,
+          openedAfter: 47,
+          autoOpened: 40,
+        },
+        {
+          os: "ANDROID",
+          help: 80,
+          escaped: 20,
+          helpedEscaped: 20,
+          direct: 0,
+          rate: 0.25,
+          autoTried: 20,
+          openedAfter: 16,
+          autoOpened: 15,
+        },
+      ],
+    });
+  });
+
+  it("% sortis : seules les visites aidées puis sorties comptent ; une sortie sans aide reste à part", () => {
+    // Android : B, E et C voient l'aide, seule C sort ; D arrive directement dans Chrome (lien Meta ouvert hors de
+    // l'appli, ou page ouverte dans le navigateur avant l'appui) : sortie comptée, mais pas dans le %.
+    const e = escapeFigures([esc("ANDROID", { help: 3, helpedEscaped: 1, direct: 1 })]);
+    expect(e.systems).toEqual([
+      expect.objectContaining({ os: "ANDROID", help: 3, escaped: 2, direct: 1, rate: 1 / 3 }),
+    ]);
+    expect(e).toMatchObject({ help: 3, escaped: 2, helpedEscaped: 1, direct: 1, rate: 1 / 3 });
+  });
+
+  it("aucune compensation entre systèmes : 100 aides sur iPhone sans sortie et 60 sorties sans l'aide sur Android → 0 %", () => {
+    const e = escapeFigures([
+      esc("IOS", { help: 100 }),
+      esc("ANDROID", { direct: 60, autoTried: 60, openedAfter: 30, autoOpened: 30 }),
+    ]);
+    expect(e).toMatchObject({ help: 100, escaped: 60, helpedEscaped: 0, direct: 60, rate: 0 });
+    expect(e.systems.map((s) => [s.os, s.help, s.escaped, s.rate])).toEqual([
+      ["IOS", 100, 0, 0],
+      ["ANDROID", 0, 60, null],
+    ]);
+    // Le total est la somme des numérateurs ÷ la somme des dénominateurs, jamais une moyenne de taux plafonnés.
+    const t = escapeFigures([
+      esc("IOS", { help: 2, helpedEscaped: 2 }),
+      esc("ANDROID", { help: 8, helpedEscaped: 1, direct: 5 }),
+    ]);
+    expect(t.rate).toBe(3 / 10);
+  });
+
+  it("« — » sans aide ; système inconnu → « Autre » ; systèmes vides absents ; aucun plafond", () => {
+    const e = escapeFigures([
+      esc("IOS", { help: 2, helpedEscaped: 1, direct: 2 }),
+      esc(null, { help: 1 }),
+      esc("ANDROID"),
+    ]);
+    expect(e.systems.map((s) => [s.os, s.help, s.escaped, s.rate])).toEqual([
+      ["IOS", 2, 3, 0.5],
+      ["OTHER", 1, 0, 0],
+    ]);
+    expect(e).toMatchObject({ help: 3, escaped: 3, rate: 1 / 3 });
+    expect(escapeFigures([])).toEqual({
+      help: 0,
+      escaped: 0,
+      helpedEscaped: 0,
+      direct: 0,
+      rate: null,
+      autoTried: 0,
+      openedAfter: 0,
+      autoOpened: 0,
+      systems: [],
+    });
+  });
+
+  it("dans le tableau : par source et pour toute la page ; source inconnue comptée dans le lien principal", () => {
+    const escapes: LandingEscapeCount[] = [
+      esc("IOS", { help: 10, helpedEscaped: 6 }, "tk01"),
+      esc("ANDROID", { help: 5, helpedEscaped: 1, direct: 2 }, "tk01"),
+      esc("IOS", { help: 4, helpedEscaped: 1 }, "zzz"),
+      esc("IOS", { help: 99 }, "", "autre"),
+    ];
+    const t = buildLandingTables({
+      pageIds: [P],
+      sources: [
+        { pageId: P, key: "", adId: null, isActive: true },
+        { pageId: P, key: "tk01", adId: null, isActive: true },
+        { pageId: P, key: "tk03", adId: null, isActive: true },
+      ],
+      visits: [{ pageId: P, sourceKey: "tk01", type: "VIEW", n: 30 }],
+      opens: [],
+      escapes,
+      requests: [],
+      allocation: new Map(),
+    }).get(P)!;
+    const row = (k: string) => t.sources.find((s) => s.key === k)!;
+    expect(row("tk01").escape).toMatchObject({ help: 15, escaped: 9, direct: 2, rate: 7 / 15 });
+    expect(row("tk01").escape.systems.map((s) => [s.os, s.help, s.escaped])).toEqual([
+      ["IOS", 10, 6],
+      ["ANDROID", 5, 3],
+    ]);
+    expect(row("").escape).toMatchObject({ help: 4, escaped: 1, rate: 0.25 });
+    expect(row("tk03").escape).toMatchObject({ help: 0, escaped: 0, rate: null, systems: [] });
+    expect(t.totals.escape).toMatchObject({ help: 19, escaped: 10, direct: 2, rate: 8 / 19 });
+    expect(t.totals.escape.systems.map((s) => [s.os, s.help, s.escaped])).toEqual([
+      ["IOS", 14, 7],
+      ["ANDROID", 5, 3],
+    ]);
+    // Le tableau principal ne change pas : visites et clics comme avant.
+    expect(row("tk01")).toMatchObject({ visits: 30, clicks: 0 });
+  });
+
+  it("façons d'ouvrir de la phase 16 : en mots simples", () => {
+    expect(methodLabel("TG_FRAME")).toBe("Ouverture en arrière-plan, avec l'aide");
+    expect(methodLabel("INTENT_FRAME")).toBe("Ouverture par Android en arrière-plan, avec l'aide");
+    expect(methodLabel("AUTO_TG")).toBe("Ouverture automatique après la sortie");
+    expect(methodLabel("AUTO_INTENT")).toBe("Ouverture automatique après la sortie");
+    expect(methodLabel("TG_NAV")).toBe("Ouverture de l'appli par la page, avec l'aide");
+    expect(methodLabel("INTENT_HELP")).toBe("Ouverture par Android, avec l'aide");
+    // Toute façon d'ouvrir connue (envoyée ou retirée) a son libellé : jamais « Autre façon d'ouvrir ».
+    for (const m of LANDING_OPEN_METHODS) expect(methodLabel(m)).not.toBe("Autre façon d'ouvrir");
   });
 });
 

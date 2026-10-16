@@ -355,20 +355,43 @@ export function detectLandingOs(ua: string | null | undefined): LandingOs {
   return "OTHER";
 }
 
-/** Marqueurs du navigateur intégré de TikTok (iPhone : `musical_ly_…`, Android : `trill_…`, `BytedanceWebview`). */
-const TIKTOK_INAPP_RE = /musical_ly|\btrill_\d|BytedanceWebview|ByteLocale|\bTikTok[ /]\d/i;
-const INSTAGRAM_INAPP_RE = /\bInstagram[ /]\d/i;
-/** Facebook et Messenger : `[FBAN/FBIOS;…]`, `[FB_IAB/FB4A;FBAV/…]`, `MessengerForiOS`. */
-const FACEBOOK_INAPP_RE =
-  /FBAN\/|FBAV\/|FB_IAB\/|\bFBIOS\b|\bFB4A\b|MessengerForiOS|MessengerLite/i;
-/** Autres navigateurs intégrés connus (Snapchat, X, LinkedIn, Pinterest, Line, WeChat, appli Google, Telegram…). */
-const OTHER_INAPP_RE =
-  /\bSnapchat\/|Twitter for (iPhone|iPad|Android)|\bTwitterAndroid\b|\[LinkedInApp\]|\bPinterest\/|\bLine\/\d|MicroMessenger\/|\bGSA\/\d|\bTelegram-Android\b/i;
+/**
+ * Marqueurs du navigateur intégré de TikTok (iPhone : `musical_ly_…`, Android : `trill_…`, `BytedanceWebview` ;
+ * `thirdLandingPageFeInfra` : pages des pubs TikTok sur iPhone, relevé en production le 16 octobre 2026).
+ */
+export const TIKTOK_INAPP_RE =
+  /musical_ly|\btrill_\d|BytedanceWebview|ByteLocale|\bTikTok[ /]\d|thirdLandingPageFeInfra/i;
+export const INSTAGRAM_INAPP_RE = /\bInstagram[ /]\d/i;
+/** Facebook et Messenger : `[FBAN/FBIOS;…]`, `[FB_IAB/FB4A;FBAV/…]`, `MessengerForiOS` (FBIOS et FB4A sont toujours
+ * précédés de `FBAN/` ou `FB_IAB/`). */
+export const FACEBOOK_INAPP_RE = /FBAN\/|FBAV\/|FB_IAB\/|MessengerForiOS|MessengerLite/i;
+/** Messenger, parmi les navigateurs intégrés de Meta (`MessengerForiOS`, `Orca-Android`). */
+export const MESSENGER_INAPP_RE = /MessengerForiOS|MessengerLite|Orca-Android/i;
+/**
+ * Autres navigateurs intégrés connus (Snapchat, X, LinkedIn, Pinterest, Line, WeChat, appli Google, Telegram, NAVER,
+ * Daum, NewsSapphire…).
+ */
+export const OTHER_INAPP_RE =
+  /\bSnapchat\/|Twitter for |\bTwitterAndroid\b|\[LinkedInApp\]|\bPinterest\/|\bLine\/\d|MicroMessenger\/|\bGSA\/\d|\bTelegram-Android\b|NAVER\(inapp|\bDaumApps\/|\bNewsSapphire\//i;
+/** Snapchat, parmi les autres navigateurs intégrés. */
+export const SNAPCHAT_INAPP_RE = /\bSnapchat\//i;
+/**
+ * Navigateur intégré de Telegram (Android) : compté comme « autre appli » dans les statistiques, mais jamais d'aide
+ * pour en sortir (Telegram ouvre lui-même `tg://` et `https://t.me/+…` ; inapp-debugger : sortie possible).
+ */
+export const TELEGRAM_INAPP_RE = /\bTelegram-Android\b/i;
+/**
+ * Vue web Android : `; wv)`, ou `Version/4.0 Chrome/…` (TikTok et d'autres retirent `wv`) sauf dans un vrai
+ * navigateur qui garde cette forme (Mi, Huawei, UC… : `…Browser/`, Opera `OPR/`, Edge `EdgA/`).
+ */
+export const ANDROID_WEBVIEW_RE = /;\s*wv\)|Version\/4\.0 Chrome\//;
+export const ANDROID_BROWSER_RE = /[A-Za-z]Browser\/|\bOPR\/|\bEdgA\/|\bFirefox\//;
 
 /**
- * Navigateur intégré d'après l'agent utilisateur (statistiques seulement : la page est la même pour tous) ; null pour
- * un navigateur ordinaire. « OTHER » : autre application connue, ou vue web Android (`; wv)`) ou iPhone (sans
- * `Safari/`).
+ * Navigateur intégré d'après l'agent utilisateur ; null pour un navigateur ordinaire. « OTHER » : autre application
+ * connue, ou vue web Android (`ANDROID_WEBVIEW_RE`) ou iPhone (sans `Safari/`). Sert aux statistiques et, dans la
+ * page, SEULEMENT à afficher l'aide « Ouvrir dans le navigateur » et à placer sa flèche (précision de la règle 7
+ * acceptée par le client le 15 octobre) : le HTML et la destination sont les mêmes pour tous.
  */
 export function detectInApp(ua: string | null | undefined): LandingInApp | null {
   if (!ua) return null;
@@ -376,7 +399,8 @@ export function detectInApp(ua: string | null | undefined): LandingInApp | null 
   if (INSTAGRAM_INAPP_RE.test(ua)) return "INSTAGRAM";
   if (FACEBOOK_INAPP_RE.test(ua)) return "FACEBOOK";
   if (OTHER_INAPP_RE.test(ua)) return "OTHER";
-  if (/\bAndroid\b/i.test(ua) && /;\s*wv\)/.test(ua)) return "OTHER";
+  if (/\bAndroid\b/i.test(ua) && ANDROID_WEBVIEW_RE.test(ua) && !ANDROID_BROWSER_RE.test(ua))
+    return "OTHER";
   if (/iPhone|iPad|iPod/i.test(ua) && /AppleWebKit/i.test(ua) && !/Safari\//.test(ua))
     return "OTHER";
   return null;
@@ -403,9 +427,20 @@ export function isLandingBotUserAgent(ua: string | null | undefined): boolean {
 
 // ─── Visites, clics, ouvertures ──────────────────────────────────────────────────────────────────────────────────
 
-/** Type d'un événement de page (enum Prisma `LandingEventType`). */
-export type LandingEventKind = "VIEW" | "CLICK" | "OPENED";
-export const LANDING_EVENT_KINDS: readonly LandingEventKind[] = ["VIEW", "CLICK", "OPENED"];
+/**
+ * Type d'un événement de page (enum Prisma `LandingEventType`) : visite, clic, Telegram ouvert ; phase 16 : aide
+ * « Ouvrir dans le navigateur » affichée (HELP), visite sortie de l'appli et rouverte dans Safari / Chrome (ESCAPED,
+ * même `visitId` que la visite d'origine), ouverture automatique de Telegram tentée au chargement (AUTO_OPEN).
+ */
+export type LandingEventKind = "VIEW" | "CLICK" | "OPENED" | "HELP" | "ESCAPED" | "AUTO_OPEN";
+export const LANDING_EVENT_KINDS: readonly LandingEventKind[] = [
+  "VIEW",
+  "CLICK",
+  "OPENED",
+  "HELP",
+  "ESCAPED",
+  "AUTO_OPEN",
+];
 
 export function isLandingEventKind(v: unknown): v is LandingEventKind {
   return typeof v === "string" && (LANDING_EVENT_KINDS as readonly string[]).includes(v);
@@ -418,8 +453,38 @@ export function isValidVisitId(v: unknown): v is string {
   return typeof v === "string" && LANDING_VISIT_ID_RE.test(v);
 }
 
-/** Façons d'ouvrir Telegram connues (`LandingEvent.method`) ; la page peut en envoyer d'autres (même forme). */
-export const LANDING_OPEN_METHODS = ["TG_SCHEME", "INTENT", "HTTPS"] as const;
+/**
+ * Valeurs de `LandingEvent.method` envoyées par la page (la page peut en envoyer d'autres, même forme) :
+ * - CLICK / OPENED : `HTTPS` (lien natif `https://t.me/+…`, navigateur ordinaire) ; phase 16, navigateur intégré
+ *   (aide affichée), d'après la table `landing-escape.ts` (`ESCAPE_OPEN_METHOD`) : `TG_FRAME` (`tg://join` dans un
+ *   cadre caché : TikTok, Snapchat, applis inconnues), `TG_NAV` (applis Meta sur iPhone : la page demande
+ *   `tg://join` elle-même pendant l'appui, que l'appli passe à iOS sans quitter la page) ou `INTENT_HELP` (applis Meta
+ *   sur Android : la page demande `intent://…;scheme=tg`, sans repli, que l'appli passe à Android) ;
+ * - AUTO_OPEN / OPENED qui la suit : `AUTO_TG` (iPhone, `tg://join`) ou `AUTO_INTENT` (Android, `intent://`) ;
+ * - ESCAPED : façon dont la sortie a été reconnue : `TGO` (marqueur `tgo=1` + `vid` : appui dans l'appli, même
+ *   visite), `VID` (`vid` seul : page rouverte AVANT tout appui, même visite), `TTCLID` ou `FBCLID` (identifiant de
+ *   clic pub hors navigateur intégré, sans `vid` : le worker la rattache à la visite de l'appli qui porte le même
+ *   identifiant, sur le même système, `LANDING_ESCAPE_MAX_AGE_MS`) ;
+ * - HELP : appli dont l'aide a été montrée (`TIKTOK`, `INSTAGRAM`, `FACEBOOK`, `MESSENGER`, `SNAPCHAT`, `OTHER`).
+ *
+ * Façons d'ouvrir des versions précédentes, plus jamais envoyées (elles ne restent que dans les anciennes périodes ;
+ * aucune n'est réutilisée, pour que les chiffres des deux époques ne se mélangent pas) : `TG_SCHEME` et `INTENT`
+ * (phase 15 : navigation de la page, avec repli vers t.me après 1,5 à 2 s), `INTENT_FRAME` (`intent://` dans un
+ * cadre caché, première version de la phase 16).
+ */
+export const LANDING_SENT_OPEN_METHODS = [
+  "HTTPS",
+  "TG_FRAME",
+  "TG_NAV",
+  "INTENT_HELP",
+  "AUTO_TG",
+  "AUTO_INTENT",
+] as const;
+export const LANDING_RETIRED_OPEN_METHODS = ["TG_SCHEME", "INTENT", "INTENT_FRAME"] as const;
+export const LANDING_OPEN_METHODS = [
+  ...LANDING_SENT_OPEN_METHODS,
+  ...LANDING_RETIRED_OPEN_METHODS,
+] as const;
 export type LandingOpenMethod = (typeof LANDING_OPEN_METHODS)[number];
 
 /** Façon d'ouvrir reçue de la page → `A_Z_0_9` en majuscules (32 caractères au plus), ou null. */
@@ -431,8 +496,58 @@ export function normalizeLandingMethod(raw: unknown): string | null {
 
 /** Délai après le clic pendant lequel quitter la page compte comme « Telegram s'est ouvert » (OPENED). */
 export const LANDING_OPENED_WINDOW_MS = 2000;
-/** Attente maximale avant la tentative d'ouverture de Telegram après le clic. */
-export const LANDING_MAX_OPEN_DELAY_MS = 150;
+/**
+ * Dans un navigateur intégré : délai après la TENTATIVE (cadre caché ou `intent://`) pendant lequel quitter la page
+ * compte comme « Telegram s'est ouvert ». Court exprès : passer par « ••• → Ouvrir dans le navigateur » prend plus
+ * d'une seconde (lire l'aide, deux appuis, la feuille du menu qui monte) et ne doit pas compter comme une ouverture.
+ */
+export const LANDING_OPENED_INAPP_WINDOW_MS = 800;
+/**
+ * Durée de validité du repère de sortie posé par la page dans un navigateur intégré (`vid` + `tgt` = minute de la
+ * pose, en base 36) : au-delà, une page rouverte avec ce repère est une nouvelle visite, sans ouverture automatique
+ * par `tgo` (lien copié par « Copier le lien » et envoyé à d'autres). Même durée pour rattacher, côté worker, une
+ * sortie reconnue seulement par `ttclid` / `fbclid` à la visite de l'appli qui porte le même identifiant.
+ */
+export const LANDING_ESCAPE_MAX_AGE_MS = 30 * 60_000;
+/**
+ * Hors navigateur intégré, une perte de focus dans ce délai (question « Ouvrir dans « Telegram » ? » de Safari ou de
+ * Chrome) allonge la fenêtre d'OPENED jusqu'à cette durée après l'appui ou la tentative automatique. Mesure seulement :
+ * aucune minuterie, aucune navigation n'en dépend.
+ */
+export const LANDING_OPENED_AFTER_PROMPT_MS = 10_000;
+/**
+ * Identifiant de clic pub qui peut rattacher un envoi d'un navigateur ORDINAIRE de téléphone (Safari, Chrome) à la
+ * visite faite juste avant dans le navigateur intégré d'une appli (même page, même `ttclid` / `fbclid`, moins de
+ * `LANDING_ESCAPE_MAX_AGE_MS` avant, MÊME système `os`) : page rouverte par « Ouvrir dans le navigateur » sans le
+ * repère `vid` (appli qui rouvre l'adresse d'origine, ou sortie avant l'appui). Null : rien à rattacher (navigateur
+ * intégré, ordinateur, robot, aucun identifiant). `ttclid` d'abord (TikTok), puis `fbclid` (Meta).
+ *
+ * Une sortie reste sur le même téléphone : `os` est le système que doit avoir la visite de l'appli (iPhone ↔ iPhone,
+ * Android ↔ Android). Sans cela, un lien copié dans TikTok (« Copier le lien » garde `ttclid`) et ouvert par un ami
+ * sur un autre système serait fondu dans la visite de l'expéditeur (visite perdue, fausse sortie). Un iPad dont
+ * Safari se présente comme un Mac (`OTHER`) n'est jamais rattaché par cette voie (seulement par `vid`), et une vue
+ * web d'iPad présentée comme un Mac n'en reçoit aucune : aucun cas réel n'y gagnerait, alors qu'accepter `OTHER`
+ * ouvrirait la porte aux appareils mélangés.
+ */
+export function landingEscapeClickId(e: {
+  inApp: string | null | undefined;
+  os: string | null | undefined;
+  isBot?: boolean | null;
+  ttclid?: string | null;
+  fbclid?: string | null;
+}): { field: "ttclid" | "fbclid"; value: string; os: "IOS" | "ANDROID" } | null {
+  if (e.inApp || e.isBot === true || (e.os !== "IOS" && e.os !== "ANDROID")) return null;
+  const os = e.os;
+  const tt = typeof e.ttclid === "string" ? e.ttclid.trim() : "";
+  if (tt) return { field: "ttclid", value: tt, os };
+  const fb = typeof e.fbclid === "string" ? e.fbclid.trim() : "";
+  return fb ? { field: "fbclid", value: fb, os } : null;
+}
+
+/** Objectif (phase 16) : de l'appui à l'aide visible ou au départ du lien vers Telegram. */
+export const LANDING_TAP_REACTION_MS = 100;
+/** Objectif (phase 16) : de la première réponse du serveur à la tentative d'ouverture automatique. */
+export const LANDING_AUTO_OPEN_MAX_MS = 300;
 
 // ─── Chiffres du tableau ─────────────────────────────────────────────────────────────────────────────────────────
 

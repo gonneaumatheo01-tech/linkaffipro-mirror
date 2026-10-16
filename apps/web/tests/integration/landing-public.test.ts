@@ -166,6 +166,32 @@ describe("page d'atterrissage publique (base réelle)", () => {
     expect(bodies[0]!.body).toContain('href="https://t.me/+Landtk03Xyz"');
   });
 
+  it("phase 16 : même page avec ou sans le marqueur de sortie (tgo, vid, tgt, tgd), aide et scripts d'ouverture compris", async () => {
+    const get = async (path: string, ua: string) =>
+      pageGET(pageReq(path, { "user-agent": ua }), ctx({ slug: "promo-test" }));
+    const safari =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/23F77 Safari/604.1";
+    const plain = await get("/j/promo-test?src=tk01", UA.tiktokIos);
+    const marked = await get(
+      "/j/promo-test?src=tk01&ttclid=TT1&tgo=1&vid=a1b2c3d4e5f6a7b8c9d0e1f2&tgt=hs71j&tgd=1",
+      safari,
+    );
+    // Jamais de redirection selon le navigateur (règle 7) : 200, mêmes octets, même ETag.
+    expect(marked.status).toBe(200);
+    expect(marked.headers.get("location")).toBeNull();
+    const html = await plain.text();
+    expect(await marked.text()).toBe(html);
+    expect(marked.headers.get("etag")).toBe(plain.headers.get("etag"));
+    // Code d'invitation pour l'ouverture automatique, aide cachée avec la table, deux scripts autorisés par la CSP.
+    expect(html).toContain('<html lang="fr" data-k="Landtk01Xyz">');
+    expect(html).toContain('<div id="h" class="h" role="dialog"');
+    expect(html.match(/<script>/g)).toHaveLength(2);
+    const csp = plain.headers.get("content-security-policy")!;
+    expect(csp.match(/'sha256-/g)!.length).toBeGreaterThanOrEqual(3); // 2 scripts + CSS
+    expect(csp).toContain("frame-src tg:;");
+    expect(Buffer.byteLength(html)).toBeLessThan(15 * 1024);
+  });
+
   it("source inconnue ou retirée : lien par défaut, exactement la page sans ?src=", async () => {
     const plain = await (
       await pageGET(pageReq("/j/promo-test"), ctx({ slug: "promo-test" }))
@@ -373,6 +399,48 @@ describe("envoi des visites et clics /j/_e (base réelle)", () => {
       "CLICK:tk01:FR",
       "VIEW:tk01:FR",
     ]);
+  });
+
+  it("phase 16 : aide affichée, sortie de l'appli et ouverture automatique mises en file puis écrites (même visite)", async () => {
+    const safari =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/23F77 Safari/604.1";
+    const v = "visit_tiktok_00001";
+    const inTikTok = { "user-agent": UA.tiktokIos, "x-forwarded-for": "90.84.1.1" };
+    const inSafari = { "user-agent": safari, "x-forwarded-for": "90.84.1.1" };
+    const q = "?src=tk01&ttclid=TT-ESC";
+    const sends = [
+      [{ p: ids.pageId, s: "tk01", v, t: "VIEW", m: null, q }, inTikTok],
+      [
+        { p: ids.pageId, s: "tk01", v, t: "CLICK", m: "TG_FRAME", q: `${q}&tgo=1&vid=${v}` },
+        inTikTok,
+      ],
+      [{ p: ids.pageId, s: "tk01", v, t: "HELP", m: "TIKTOK", q: `${q}&tgo=1&vid=${v}` }, inTikTok],
+      [{ p: ids.pageId, s: "tk01", v, t: "ESCAPED", m: "TGO", q }, inSafari],
+      [{ p: ids.pageId, s: "tk01", v, t: "AUTO_OPEN", m: "AUTO_TG", q }, inSafari],
+    ] as const;
+    for (const [body, headers] of sends) {
+      const res = await eventPOST(beaconReq(body, headers));
+      expect(res.status).toBe(204);
+    }
+    await flushAfter();
+    const jobs = capturedJobs("landing-events");
+    const events = jobs.map((j) => (j.data as { event: Record<string, unknown> }).event);
+    expect(events.map((e) => `${e.type}:${e.method ?? ""}:${e.inApp ?? ""}`)).toEqual([
+      "VIEW::TIKTOK",
+      "CLICK:TG_FRAME:TIKTOK",
+      "HELP:TIKTOK:TIKTOK",
+      "ESCAPED:TGO:",
+      "AUTO_OPEN:AUTO_TG:",
+    ]);
+    expect(new Set(events.map((e) => e.visitId))).toEqual(new Set([v]));
+    expect(events.every((e) => e.sourceKey === "tk01" && e.ttclid === "TT-ESC")).toBe(true);
+    const { writeLandingEvent } = await import("../../../worker/src/landing/events");
+    for (const j of jobs) await writeLandingEvent((j.data as { event: never }).event);
+    const rows = await prisma.landingEvent.findMany({ where: { visitId: v } });
+    expect(rows.map((r) => r.type).sort()).toEqual(
+      ["AUTO_OPEN", "CLICK", "ESCAPED", "HELP", "VIEW"].sort(),
+    );
+    expect(rows.find((r) => r.type === "ESCAPED")).toMatchObject({ os: "IOS", inApp: null });
   });
 
   it("robot connu : mis en file mais marqué ; source non suivie gardée pour le diagnostic", async () => {

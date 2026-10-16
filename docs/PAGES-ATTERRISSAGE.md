@@ -90,3 +90,10 @@ noms communs pour que les parties avancent en parallèle sans se marcher dessus.
   statistiques journalières des pubs, script de page de test (canal TEST seulement).
 - Interface : rubrique « Pages » (`apps/web/app/(admin)/pages/…`, `components/landing/…`, `lib/landing/{stats,…}.ts`),
   menu, exceptions de règles, guide, captures.
+
+## Phase 16 : sortie du navigateur intégré (TikTok, Instagram…)
+- Table des menus des applis : `packages/core/src/landing-escape.ts` (`LANDING_ESCAPE_TABLE`, appli × système : coin, décalages, signe, libellé par langue, confiance, sources ; seul TikTok iPhone est confirmé par une capture).
+- Script en tout début de `<head>` (code d'invitation dans `<html data-k>`) : reconnaissance du navigateur (aide et flèche seulement), ouverture automatique hors navigateur intégré au `DOMContentLoaded`.
+- Paramètres d'adresse posés par la page (jamais lus par le serveur) : `vid` (visite) et `tgt` (minute, base 36, valable 30 min) dès l'affichage dans un navigateur intégré, `tgo=1` à l'appui, `tgd=1` après une ouverture automatique (plus jamais de nouvelle tentative depuis cette adresse).
+- Événements : HELP (`method` = appli), ESCAPED (`method` TGO / VID / TTCLID / FBCLID ; `visitId` = `vid`, ou rattaché par le worker au même `ttclid` / `fbclid` dans les 30 min), AUTO_OPEN (AUTO_TG / AUTO_INTENT). Façons d'ouvrir au clic : HTTPS (navigateur normal), TG_FRAME (cadre caché : TikTok, Snapchat, applis inconnues), TG_NAV (applis Meta sur iPhone, dans le geste de l'appui), INTENT_HELP (applis Meta sur Android) ; retirées : TG_SCHEME, INTENT, INTENT_FRAME. Rattachement par `ttclid` / `fbclid` seulement au même système.
+- Chiffres : « Aide affichée », « Sortis de TikTok » (dont sans l'aide), « % sortis » (visites aidées puis sorties ÷ aide affichée), « Telegram ouvert après la sortie ».

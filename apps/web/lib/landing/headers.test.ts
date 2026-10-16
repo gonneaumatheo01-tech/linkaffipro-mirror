@@ -1,13 +1,24 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { LANDING_SCRIPT, LANDING_STYLE } from "@linkaffipro/core";
+import {
+  LANDING_HEAD_SCRIPT,
+  LANDING_PIXEL_SCRIPT,
+  LANDING_SCRIPT,
+  LANDING_STYLE,
+} from "@linkaffipro/core";
 import { cspHash, etagMatches, etagOf, landingCsp, pageHeaders } from "./headers";
 
 describe("en-têtes des pages d'atterrissage", () => {
   it("CSP sans pixel : seuls le CSS et le script de la page, envois et images vers le site", () => {
     const csp = landingCsp({ pixels: false, script: true });
     const sha = (s: string) => createHash("sha256").update(s).digest("base64");
-    expect(csp).toContain(`script-src 'sha256-${sha(LANDING_SCRIPT)}'`);
+    // Les deux scripts de la page : celui du début du <head> (ouverture automatique) et celui de la fin.
+    expect(csp).toContain(
+      `script-src 'sha256-${sha(LANDING_HEAD_SCRIPT)}' 'sha256-${sha(LANDING_SCRIPT)}'`,
+    );
+    expect(csp).not.toContain(sha(LANDING_PIXEL_SCRIPT));
+    // Cadre caché d'ouverture de Telegram (navigateurs intégrés) : tg: et intent: seulement.
+    expect(csp).toContain("frame-src tg:;");
     expect(csp).toContain(`style-src 'sha256-${sha(LANDING_STYLE)}'`);
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("connect-src 'self'");
@@ -18,11 +29,16 @@ describe("en-têtes des pages d'atterrissage", () => {
 
   it("CSP avec pixel : le script de la page peut charger celui du pixel, envois du pixel en https", () => {
     const csp = landingCsp({ pixels: true, script: true });
-    expect(csp).toMatch(/script-src 'sha256-[^']+' 'strict-dynamic' https:/);
+    const sha = (s: string) => createHash("sha256").update(s).digest("base64");
+    expect(csp).toContain(
+      `script-src 'sha256-${sha(LANDING_HEAD_SCRIPT)}' 'sha256-${sha(LANDING_SCRIPT)}' 'sha256-${sha(LANDING_PIXEL_SCRIPT)}' 'strict-dynamic' https:`,
+    );
+    expect(csp).toContain("frame-src tg: https:;");
     expect(csp).toContain("connect-src 'self' https:");
     expect(csp).toContain("img-src 'self' data: https:");
     expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
     expect(landingCsp({ pixels: false, script: false })).toContain("script-src 'none'");
+    expect(landingCsp({ pixels: false, script: false })).not.toContain("frame-src");
   });
 
   it("ETag stable pour un même corps, cache court et revalidé, jamais indexée", () => {

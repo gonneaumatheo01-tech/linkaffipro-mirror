@@ -80,7 +80,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/pages/new",
     label: "Nouvelle page",
-    sections: ["Créer une page", "Copier le lien d'une source", "Vitesse de la page"],
+    sections: [
+      "Créer une page",
+      "Copier le lien d'une source",
+      "Ouvrir Telegram depuis TikTok",
+      "Vitesse de la page",
+    ],
   },
   {
     path: "/pages/:id",
@@ -88,6 +93,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: [
       "Copier le lien d'une source",
       "Lire le tableau d'une page",
+      "Ouvrir Telegram depuis TikTok",
       "Ce qui est compté",
       "Créer une page",
     ],

@@ -23,14 +23,20 @@ import { clientIp, countryOfIp } from "./geo";
  *
  * Garde-fous (un concurrent peut fabriquer des envois : l'identifiant de la page est dans son HTML public) : au plus
  * `LANDING_BEACON_LIMITS.perIpPerMinute` envois par minute et par adresse (IPv6 : par bloc /64), et par visite au plus
- * 3 VIEW, 10 CLICK, 10 OPENED ; au-delà, l'envoi est ignoré (avertissement limité). Redis coupé : rien n'est empilé
- * en mémoire (la connexion n'est pas prête, ou trop d'ajouts attendent déjà) ; la page, elle, reste servie.
+ * 3 VIEW, 10 CLICK, 10 OPENED, 10 HELP, 3 ESCAPED, 3 AUTO_OPEN (phase 16) ; au-delà, l'envoi est ignoré
+ * (avertissement limité). Redis coupé : rien n'est empilé en mémoire (la connexion n'est pas prête, ou trop d'ajouts
+ * attendent déjà) ; la page, elle, reste servie.
  */
 
 /** Taille maximale lue d'un envoi (le script en envoie ~200 octets ; `ttclid` / `fbclid` peuvent être longs). */
 export const LANDING_BEACON_MAX_BYTES = 4096;
 
-/** Ce que la page envoie (`JSON.stringify` dans `LANDING_SCRIPT`). */
+/**
+ * Ce que la page envoie (`JSON.stringify` dans `LANDING_SCRIPT`). Phase 16 : HELP (aide affichée, `method` = appli),
+ * ESCAPED (page rouverte hors de l'appli, `visitId` = `vid` de l'adresse, `method` = TGO / VID ; sans `vid`,
+ * TTCLID / FBCLID, rattachée par le worker à la visite de l'appli au même identifiant) et AUTO_OPEN (ouverture
+ * automatique tentée, `method` = AUTO_TG / AUTO_INTENT).
+ */
 export type LandingBeacon = {
   pageId: string;
   /** Source retenue par la page ("" = défaut), telle qu'écrite dans le HTML. */
@@ -161,7 +167,8 @@ export function landingEventInput(
   }
   return {
     landingPageId: beacon.pageId,
-    type: beacon.type,
+    // Les six types de `LandingEventType` (phase 16) ; la file les recopie tels quels (`landingEventData`).
+    type: beacon.type as LandingEventInput["type"],
     visitId: beacon.visitId,
     sourceKey: beacon.sourceKey,
     rawSrc: beacon.rawSrc,
@@ -183,12 +190,22 @@ export type RecordBeaconResult =
 
 // ─── Limite des envois ───────────────────────────────────────────────────────────────────────────────────────────
 
-/** Limites des envois `/j/_e` (une vraie visite en envoie 2 ou 3 : VIEW, CLICK, parfois OPENED). */
+/**
+ * Limites des envois `/j/_e` (une vraie visite en envoie 2 à 5 : VIEW, CLICK, HELP, parfois OPENED ; rouverte hors de
+ * l'appli : ESCAPED, AUTO_OPEN, parfois CLICK et OPENED).
+ */
 export const LANDING_BEACON_LIMITS = {
   /** Envois par minute et par adresse (IPv6 : bloc /64) ; large pour les adresses partagées des opérateurs. */
   perIpPerMinute: 60,
   /** Envois gardés par visite (`visitId`) et par type. */
-  perVisit: { VIEW: 3, CLICK: 10, OPENED: 10 } as Record<LandingEventKind, number>,
+  perVisit: {
+    VIEW: 3,
+    CLICK: 10,
+    OPENED: 10,
+    HELP: 10,
+    ESCAPED: 3,
+    AUTO_OPEN: 3,
+  } satisfies Record<LandingEventKind, number>,
   /** Durée pendant laquelle une visite est suivie. */
   visitMemoryMs: 30 * 60_000,
   /** Mémoire bornée : au-delà, les entrées expirées sont retirées, puis tout est oublié. */
@@ -247,7 +264,10 @@ export class LandingBeaconLimiter {
     let v = this.visits.get(vkey);
     if (!v || v.until <= now) {
       if (!v && this.visits.size >= L.maxVisits) this.prune(now);
-      v = { until: now + L.visitMemoryMs, counts: { VIEW: 0, CLICK: 0, OPENED: 0 } };
+      v = {
+        until: now + L.visitMemoryMs,
+        counts: { VIEW: 0, CLICK: 0, OPENED: 0, HELP: 0, ESCAPED: 0, AUTO_OPEN: 0 },
+      };
       this.visits.set(vkey, v);
     }
     v.counts[type]++;

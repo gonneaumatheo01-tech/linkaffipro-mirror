@@ -2173,6 +2173,8 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "phase 15 : sources (liens à coller)": phase15.sources,
       "phase 15 : visites, clics et ouvertures": phase15.events,
       "phase 15 : demandes venues des pages": phase15.memberships,
+      "phase 16 : aides « Ouvrir dans le navigateur » affichées": phase15.help,
+      "phase 16 : visites sorties de l'appli vers Safari ou Chrome": phase15.escaped,
     },
   };
 }
@@ -3972,8 +3974,28 @@ async function createPhase13Demo(
 // demandes d'adhésion par les liens des sources (provenance LANDING enregistrée comme le fait le bot). Une exception
 // « la page « Casino VIP — TikTok » » sur Casino VIP (tout de suite, sans canal à rejoindre). Tirage à part (graine
 // propre) : les données des autres phases restent exactement les mêmes.
+// Phase 16 (sortie de l'appli), sur les `P16_DEMO_DAYS` derniers jours : dans une appli, l'appui montre l'aide
+// « Ouvrir dans le navigateur » (CLICK `TG_FRAME` / `TG_NAV` / `INTENT_HELP` puis HELP) ; Telegram s'ouvre rarement depuis
+// l'appli ; une partie des personnes rouvre la page dans Safari ou Chrome (ESCAPED, même visite), où l'ouverture
+// automatique est tentée (AUTO_OPEN `AUTO_TG` / `AUTO_INTENT`) et Telegram s'ouvre le plus souvent (OPENED) ; Chrome
+// sur iPhone la refuse et la personne appuie sur le bouton (CLICK puis OPENED `HTTPS`). Quelques personnes ouvrent la
+// page dans le navigateur avant d'appuyer : sortie « sans l'aide » (ESCAPED `TTCLID` / `FBCLID`, nouvelle visite).
+// Avant : la façon d'ouvrir de la phase 15 (tirage `TG_SCHEME` / `HTTPS` dans TikTok).
 
 const P15_MEMBER_ID_BASE = DEMO_MEMBER_ID_BASE + 800_000n;
+
+/** Jours de démonstration avec la sortie de l'appli de la phase 16 (les plus récents). */
+const P16_DEMO_DAYS = 5;
+
+/** Phase 16 : part des visites rouvertes dans Safari ou Chrome après l'aide (démonstration), par appli et système. */
+const P16_ESCAPE_RATE: Record<
+  "TIKTOK" | "INSTAGRAM" | "FACEBOOK",
+  { IOS: number; ANDROID: number }
+> = {
+  TIKTOK: { IOS: 0.47, ANDROID: 0.38 },
+  INSTAGRAM: { IOS: 0.42, ANDROID: 0.4 },
+  FACEBOOK: { IOS: 0.36, ANDROID: 0.34 },
+};
 
 const P15_PAGES: ReadonlyArray<{
   key: string;
@@ -4040,6 +4062,8 @@ const P15_UA = {
     "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/482.0.0.40.79;]",
   IOS_SAFARI:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  IOS_CHROME:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.7390.41 Mobile/15E148 Safari/604.1",
   ANDROID_CHROME:
     "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
   DESKTOP:
@@ -4059,7 +4083,14 @@ async function createPhase15Demo(
     ruleIdOf: (k: ChannelKey) => string;
     adOf: (campaignIndex: number, adName: string) => { id: string; campaignId: string } | null;
   },
-): Promise<{ pages: number; sources: number; events: number; memberships: number }> {
+): Promise<{
+  pages: number;
+  sources: number;
+  events: number;
+  memberships: number;
+  help: number;
+  escaped: number;
+}> {
   const { now } = ctx;
   const r = createRandom(SEED + 15);
   const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -4255,41 +4286,135 @@ async function createPhase15Demo(
             rawSrc: page.key === "casino" && src.key === "" && r.chance(0.3) ? "tk1" : null,
           };
           events.push({ ...base, type: "VIEW", createdAt: at });
-          if (!r.chance(os === "OTHER" ? 0.25 : 0.42)) continue;
-          // Façon d'ouvrir Telegram choisie par la page, comme le vrai script : tirage tg:// ou lien https dans TikTok
-          // (iPhone et Android), tg:// dans les autres applis sur iPhone, intent:// dans Instagram et Facebook sur
-          // Android, lien https ailleurs.
-          const method =
-            inApp === "TIKTOK" && os !== "OTHER"
-              ? r.chance(0.5)
-                ? "TG_SCHEME"
-                : "HTTPS"
-              : os === "IOS" && inApp
-                ? "TG_SCHEME"
-                : os === "ANDROID" && inApp
-                  ? "INTENT"
-                  : "HTTPS";
+          if (!r.chance(os === "OTHER" ? 0.25 : 0.42)) {
+            // Phase 16 : quelques personnes ouvrent la page dans Safari ou Chrome AVANT d'appuyer (sans voir l'aide) ;
+            // venue d'une pub, la page rouverte est reconnue par l'identifiant de clic (nouvelle visite) : sortie
+            // « sans l'aide », comptée dans les sortis mais jamais dans le % sortis ; ouverture automatique.
+            if (
+              n < P16_DEMO_DAYS &&
+              inApp &&
+              os !== "OTHER" &&
+              (base.ttclid || base.fbclid) &&
+              r.chance(0.1)
+            ) {
+              const outside = {
+                ...base,
+                visitId: shortId(16),
+                inApp: null,
+                userAgent: os === "IOS" ? P15_UA.IOS_SAFARI : P15_UA.ANDROID_CHROME,
+              };
+              const outAt = new Date(at.getTime() + r.int(5, 40) * 1000);
+              const auto = os === "IOS" ? "AUTO_TG" : "AUTO_INTENT";
+              events.push({ ...outside, type: "VIEW", createdAt: outAt });
+              events.push({
+                ...outside,
+                type: "ESCAPED",
+                method: base.ttclid ? "TTCLID" : "FBCLID",
+                createdAt: new Date(outAt.getTime() + r.int(5, 60)),
+              });
+              events.push({
+                ...outside,
+                type: "AUTO_OPEN",
+                method: auto,
+                createdAt: new Date(outAt.getTime() + r.int(70, 120)),
+              });
+              if (r.chance(0.7))
+                events.push({
+                  ...outside,
+                  type: "OPENED",
+                  method: auto,
+                  createdAt: new Date(outAt.getTime() + r.int(800, 4000)),
+                });
+            }
+            continue;
+          }
           const clickAt = new Date(at.getTime() + r.int(2, 25) * 1000);
-          events.push({ ...base, type: "CLICK", method, createdAt: clickAt });
-          const openRate =
-            method === "TG_SCHEME"
-              ? os === "IOS"
-                ? 0.81
-                : 0.62
-              : method === "INTENT"
-                ? 0.74
-                : 0.55;
-          const opened = r.chance(openRate);
-          if (opened)
+          let opened = false;
+          let openedAt = clickAt;
+          if (n < P16_DEMO_DAYS && inApp && os !== "OTHER") {
+            // Phase 16, comme le vrai script : aide « Ouvrir dans le navigateur » tout de suite, puis tentative sans quitter
+            // la page : applis Meta (Instagram, Facebook) intent:// sur Android et tg:// dans le geste sur iPhone, cadre
+            // caché tg:// ailleurs (TikTok, autres applis).
+            const meta = inApp === "INSTAGRAM" || inApp === "FACEBOOK";
+            const method = meta ? (os === "ANDROID" ? "INTENT_HELP" : "TG_NAV") : "TG_FRAME";
+            events.push({ ...base, type: "CLICK", method, createdAt: clickAt });
             events.push({
               ...base,
-              type: "OPENED",
-              method,
-              createdAt: new Date(clickAt.getTime() + r.int(200, 1500)),
+              type: "HELP",
+              method: inApp,
+              createdAt: new Date(clickAt.getTime() + r.int(30, 300)),
             });
+            if (r.chance(inApp === "TIKTOK" ? 0.03 : os === "IOS" ? 0.18 : 0.3)) {
+              opened = true;
+              openedAt = new Date(clickAt.getTime() + r.int(300, 1500));
+              events.push({ ...base, type: "OPENED", method, createdAt: openedAt });
+            } else if (r.chance(P16_ESCAPE_RATE[inApp][os])) {
+              // Page rouverte dans Safari ou Chrome (même visite, marqueur `tgo` + `vid`), ouverture automatique.
+              // Chrome sur iPhone la refuse (aucun geste) : la personne appuie alors sur le bouton (lien natif).
+              const chromeIos = os === "IOS" && r.chance(0.15);
+              const outside = {
+                ...base,
+                inApp: null,
+                userAgent: chromeIos
+                  ? P15_UA.IOS_CHROME
+                  : os === "IOS"
+                    ? P15_UA.IOS_SAFARI
+                    : P15_UA.ANDROID_CHROME,
+              };
+              const escapedAt = new Date(clickAt.getTime() + r.int(4, 30) * 1000);
+              const auto = os === "IOS" ? "AUTO_TG" : "AUTO_INTENT";
+              events.push({ ...outside, type: "ESCAPED", method: "TGO", createdAt: escapedAt });
+              events.push({
+                ...outside,
+                type: "AUTO_OPEN",
+                method: auto,
+                createdAt: new Date(escapedAt.getTime() + r.int(5, 60)),
+              });
+              if (!chromeIos && r.chance(os === "IOS" ? 0.86 : 0.8)) {
+                opened = true;
+                openedAt = new Date(escapedAt.getTime() + r.int(600, 4000));
+                events.push({ ...outside, type: "OPENED", method: auto, createdAt: openedAt });
+              } else if (r.chance(0.6)) {
+                // Telegram ouvert par un appui après la sortie (compté dans « Telegram ouvert après la sortie »).
+                const tapAt = new Date(escapedAt.getTime() + r.int(2, 12) * 1000);
+                opened = true;
+                openedAt = new Date(tapAt.getTime() + r.int(300, 1500));
+                events.push({ ...outside, type: "CLICK", method: "HTTPS", createdAt: tapAt });
+                events.push({ ...outside, type: "OPENED", method: "HTTPS", createdAt: openedAt });
+              }
+            }
+          } else {
+            // Façon d'ouvrir Telegram de la phase 15 : tirage tg:// ou lien https dans TikTok (iPhone et Android),
+            // tg:// dans les autres applis sur iPhone, intent:// dans Instagram et Facebook sur Android, lien https
+            // ailleurs (et toujours dans Safari, Chrome ou sur ordinateur).
+            const method =
+              inApp === "TIKTOK" && os !== "OTHER"
+                ? r.chance(0.5)
+                  ? "TG_SCHEME"
+                  : "HTTPS"
+                : os === "IOS" && inApp
+                  ? "TG_SCHEME"
+                  : os === "ANDROID" && inApp
+                    ? "INTENT"
+                    : "HTTPS";
+            events.push({ ...base, type: "CLICK", method, createdAt: clickAt });
+            const openRate =
+              method === "TG_SCHEME"
+                ? os === "IOS"
+                  ? 0.81
+                  : 0.62
+                : method === "INTENT"
+                  ? 0.74
+                  : 0.55;
+            opened = r.chance(openRate);
+            if (opened) {
+              openedAt = new Date(clickAt.getTime() + r.int(200, 1500));
+              events.push({ ...base, type: "OPENED", method, createdAt: openedAt });
+            }
+          }
           // Demande d'adhésion par le lien de la source (une partie des personnes qui ont ouvert Telegram).
           if (!opened || !r.chance(0.34)) continue;
-          const requestedAt = notFuture(new Date(clickAt.getTime() + r.int(4, 40) * 1000));
+          const requestedAt = notFuture(new Date(openedAt.getTime() + r.int(4, 40) * 1000));
           const recent = now.getTime() - requestedAt.getTime() < rule.delay * 1000 + 3 * MIN;
           const status = recent
             ? "SCHEDULED"
@@ -4388,11 +4513,8 @@ async function createPhase15Demo(
     }
   }
 
-  await inBatches(
-    events.filter((e) => (e.createdAt as Date).getTime() <= now.getTime() - MIN),
-    2000,
-    (chunk) => db.landingEvent.createMany({ data: chunk }),
-  );
+  const written = events.filter((e) => (e.createdAt as Date).getTime() <= now.getTime() - MIN);
+  await inBatches(written, 2000, (chunk) => db.landingEvent.createMany({ data: chunk }));
   await inBatches(members, 500, (chunk) => db.member.createMany({ data: chunk }));
   await inBatches(memberships, 500, (chunk) => db.membership.createMany({ data: chunk }));
   await inBatches(journal, 1000, (chunk) => db.event.createMany({ data: chunk }));
@@ -4401,6 +4523,8 @@ async function createPhase15Demo(
     sources: sourceCount,
     events: events.length,
     memberships: memberships.length,
+    help: written.filter((e) => e.type === "HELP").length,
+    escaped: written.filter((e) => e.type === "ESCAPED").length,
   };
 }
 

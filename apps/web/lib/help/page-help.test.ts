@@ -53,9 +53,11 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/pages").help.label).toBe("Pages");
     expect(pageHelpFor("/pages/new").help.label).toBe("Nouvelle page");
     expect(pageHelpFor("/pages/p1?range=30d").help.label).toBe("Fiche d'une page");
+    // Phase 16 : la sortie de TikTok (aide « Ouvrir dans le navigateur ») est expliquée dans la fiche.
     expect(pageHelpFor("/pages/p1").help.sections).toEqual([
       "Copier le lien d'une source",
       "Lire le tableau d'une page",
+      "Ouvrir Telegram depuis TikTok",
       "Ce qui est compté",
       "Créer une page",
     ]);

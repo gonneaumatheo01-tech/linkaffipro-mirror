@@ -339,3 +339,18 @@ maintenance `landing-chats` (toutes les 5 min, titre et photo relus au plus tout
 liens actuels). Canal Redis `landing:invalidate` (`{ pageId?, channelId?, all? }`). Journal : `landing.page_created` /
 `updated` / `deleted`, `landing.test_page_created` / `updated` (AuditLog) ; événements `invite_link.landing_created`,
 `invite_link.landing_failed`, `invite_link.landing_revoked`.
+
+## Phase 16 (16 octobre 2026) — migration `20261016050025_phase16_sortie_des_applis`
+
+Sortie du navigateur intégré de TikTok (et des autres applis). Migration additive : trois valeurs ajoutées à
+`LandingEventType`.
+
+| Valeur | Rôle |
+| --- | --- |
+| `HELP` | Aide plein écran « Appuie sur ⋯ puis « Ouvrir dans le navigateur » » affichée dans un navigateur intégré après l'appui (`method` = appli reconnue). |
+| `ESCAPED` | Page rouverte dans Safari / Chrome avec le marqueur `tgo=1&vid=<visite>` (`method` = TGO), ou à défaut avec `ttclid` / `fbclid` hors navigateur intégré (TTCLID / FBCLID). Avec le marqueur, `visitId` = `vid` : même visite que dans l'appli. |
+| `AUTO_OPEN` | Ouverture automatique de Telegram tentée au chargement dans Safari / Chrome (`method` AUTO_TG ou AUTO_INTENT) ; un OPENED de même méthode suit si la page passe en arrière-plan. |
+
+Nouvelles façons d'ouvrir (`LandingEvent.method`) : TG_FRAME / INTENT_FRAME (tentative dans un cadre caché, avec l'aide),
+AUTO_TG / AUTO_INTENT ; TG_SCHEME et INTENT (phase 15) ne sont plus envoyés. Table des menus des applis :
+`packages/core/src/landing-escape.ts` (`LANDING_ESCAPE_TABLE`).
