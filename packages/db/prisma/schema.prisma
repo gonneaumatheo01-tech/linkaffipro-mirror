@@ -1794,6 +1794,14 @@ enum LandingEventType {
   CLICK
   /// Page quittée dans les 2 secondes qui suivent le clic : Telegram s'est (très probablement) ouvert.
   OPENED
+  /// Phase 16 : aide plein écran « Appuie sur ⋯ puis « Ouvrir dans le navigateur » » affichée dans un navigateur
+  /// intégré (TikTok, Instagram…) après l'appui sur le bouton.
+  HELP
+  /// Phase 16 : la visite est sortie de l'appli : page rouverte dans Safari / Chrome avec le marqueur `tgo=1` (ou un
+  /// `ttclid` / `fbclid` hors navigateur intégré), rattachée à la visite d'origine (`visitId` = `vid` de l'adresse).
+  ESCAPED
+  /// Phase 16 : ouverture automatique de Telegram tentée au chargement dans Safari / Chrome (avec `method`).
+  AUTO_OPEN
 }
 
 /// Visite, clic et ouverture de Telegram sur une page d'atterrissage (append-only, enregistrés par la file
