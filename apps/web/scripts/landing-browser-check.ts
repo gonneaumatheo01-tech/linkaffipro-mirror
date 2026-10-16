@@ -222,9 +222,14 @@ async function open(
     } catch {
       // envoi illisible : compté comme rien
     }
-    const res = await route.fetch();
-    s.statuses.push(res.status());
-    await route.fulfill({ response: res });
+    // Serveur lointain (production) : un envoi peut être encore en route quand l'onglet se ferme ; l'ignorer.
+    try {
+      const res = await route.fetch();
+      s.statuses.push(res.status());
+      await route.fulfill({ response: res });
+    } catch {
+      await route.abort().catch(() => undefined);
+    }
   });
   // t.me n'est jamais appelé : intercepté (l'appli « s'ouvre », la page reste).
   await page.route("https://t.me/**", (route) => {

@@ -1,4 +1,42 @@
-# État du projet : phase 15 (pages d'atterrissage, rubrique « Pages ») terminée (15 octobre 2026)
+# État du projet : phase 16 (sortir du navigateur de TikTok) terminée (16 octobre 2026)
+
+Phases 0 à 15 en ligne. Phase 16 = faire sortir les visiteurs du navigateur intégré de TikTok (et des autres applis) vers Safari ou Chrome, où Telegram s'ouvre (`docs/prompts/18-phase-16-sortir-de-tiktok.md`). 3 727 tests unitaires et 471 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site d'abord, qui applique la migration, puis le service d'arrière-plan), sauvegarde faite juste avant. Vos 5 nouvelles pages (Zone Interdite) ont la nouvelle version.
+
+## Constat
+- Vos vraies visites des 15 et 16 octobre le confirment : dans TikTok, aucun appui n'a ouvert Telegram (`tg://` et le lien t.me y sont bloqués). La seule voie sûre est « ••• » → « Ouvrir dans le navigateur ».
+
+## Phase 16 : ce qui a changé
+- **Aucun délai** : plus aucune attente ni saut automatique vers la page t.me. Dans Safari ou Chrome, le lien part tout de suite.
+- **Dans TikTok (et Instagram, Facebook, Messenger, Snapchat…)**, l'appui sur « Rejoindre » affiche aussitôt une aide plein écran : « Appuie sur ••• puis « Ouvrir dans le navigateur » », 3 étapes, une grosse flèche jaune animée pointée sur le bouton « ••• » de l'appli, « Réessayer ». Sur iPhone, la flèche est calée sur votre capture (« ••• » en haut à droite, dans la barre noire de TikTok). En même temps, la page tente discrètement d'ouvrir Telegram (au cas où l'appli le laisse faire).
+- **Dans Safari ou Chrome** (après « Ouvrir dans le navigateur »), la page lance Telegram toute seule dès l'affichage : l'iPhone pose sa question « Ouvrir dans « Telegram » ? » ; Chrome Android ouvre Telegram directement. Une seule fois, jamais de boucle ; si rien ne s'ouvre, le bouton reste là.
+- **Même page pour tout le monde** (règle 7) : la reconnaissance de l'appli sert seulement à afficher l'aide et placer la flèche (précision acceptée le 15 octobre).
+- **Chiffres** (rubrique Pages, fiche d'une page) : nouveau bloc « Sortie de TikTok » : Aide affichée, Sortis de TikTok, % sortis, détail iPhone / Android, et « Telegram ouvert après la sortie » ; colonne « % sortis » dans les tableaux ; export.
+
+## Mesures en production (16 octobre, page de test du canal Test)
+- **Appui → aide visible** (navigateurs intégrés simulés) : TikTok iPhone 19 ms, TikTok Android 35 ms, Instagram 26 / 31 ms, Facebook 20 / 28 ms (objectif < 100 ms) ; flèche exactement à la position de la table ; adresse marquée ; aucun saut vers t.me.
+- **Navigateur normal** : le lien part en 1 ms (Safari), 13 ms (Chrome Android).
+- **Première réponse du serveur → ouverture automatique** : Safari 40-41 ms, Chrome Android 30 ms (objectif < 300 ms), puis marqueur neutralisé (`tgd=1`).
+- **Lighthouse mobile : 100/100** (accessibilité 100, bonnes pratiques 100) ; affichage complet 1,02 s (profil standard « Slow 4G », depuis le Mac qui sort par l'Indonésie) et 0,63 s (profil 4G). Poids 12 Ko (5,6 Ko compressée) sans pixel ; mêmes octets pour tous ; premier octet 15 ms depuis l'Europe.
+
+## Test de 5 minutes
+1. Envoyez-vous https://go.goolink.eu/j/test?src=tk01 dans un message TikTok et ouvrez-le depuis TikTok (un lien en message ou en bio passe d'abord par l'écran TikTok « Tu quittes TikTok pour accéder à un site Internet externe » : touchez le lien ; pour une pub, cet écran n'existe pas).
+2. Appuyez sur « Rejoindre le canal » : l'aide apparaît tout de suite avec la flèche jaune vers « ••• ».
+3. Suivez-la : « ••• » → « Ouvrir dans le navigateur ».
+4. Safari demande « Ouvrir dans « Telegram » ? » → Ouvrir : Telegram s'ouvre sur la demande d'adhésion au canal Test.
+5. Rubrique Pages → page « test » → Chiffres : « Aide affichée » et « Sortis de TikTok » montrent votre essai.
+
+## Vérifications faites
+- Recherche web (positions et libellés des menus par appli et système, code de Chrome et de WebKit pour l'ouverture automatique), deux passes sur la page, chiffres, deux relectures adverses, corrections, relecture finale, dernières corrections. Défauts trouvés et corrigés : « % sortis » faussé par des sorties sans aide ; 2e événement pixel pour une même personne ; ouverture directe perdue pour Instagram / Facebook ; marqueur d'adresse recopiable (désormais valable 30 minutes) ; page au-dessus de 15 Ko dans le pire cas ; flèche qui défilait en paysage.
+- Identifiants de navigateur réels relevés en production (`docs/tiktok-captures/agents-utilisateurs-reels.md`) : TikTok iOS 26, navigateur publicitaire de TikTok, Snapchat, NAVER, Daum… tous reconnus.
+- Captures : `docs/captures/j-aide-tiktok-iphone-390.webp`, `j-aide-tiktok-android-390.webp`, `pages-*`, `pages-id-*`.
+
+## Limites et suites
+- Seule la position du « ••• » de **TikTok iPhone** est confirmée par une capture. **TikTok Android** : en haut à droite d'après le code de l'appli et les guides, mais l'aide TikTok parle du bas de l'écran ; une capture Android est demandée (`docs/A-FAIRE-HUMAIN.md`). Instagram, Facebook, Messenger : d'après des guides, à confirmer.
+- Personne n'a encore prouvé que TikTok emporte l'adresse marquée vers Safari ; à défaut, la page reconnaît la sortie au paramètre `ttclid` des pubs.
+- iPhone sans Telegram installé : l'ouverture automatique fait afficher par Safari « adresse non valide » (limite de l'iPhone).
+- Chrome sur iPhone pose sa propre question avant d'ouvrir Telegram.
+
+## Phase 15 — (pages d'atterrissage, rubrique « Pages ») terminée (15 octobre 2026)
 
 Phases 0 à 14 en ligne. Phase 15 = les pages d'atterrissage Telegram ultra-rapides demandées le 15 octobre (`docs/prompts/17-phase-15-pages-atterrissage.md`, contrat `docs/PAGES-ATTERRISSAGE.md`). 3 645 tests unitaires et 461 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (le site d'abord, qui applique les deux migrations, puis le service d'arrière-plan), sauvegarde faite juste avant.
 
