@@ -1,4 +1,11 @@
-import { campaignPlayerWhere, scopeFromCampaign } from "@linkaffipro/core";
+import {
+  ALERT_SETTINGS_KEY,
+  campaignPlayerWhere,
+  isAlertKindEnabled,
+  parseAlertSwitches,
+  scopeFromCampaign,
+  type AlertSwitches,
+} from "@linkaffipro/core";
 import { prisma, toJsonValue, ourPlayers, type Prisma } from "@linkaffipro/db";
 import { HEALTH_WINDOW_DAYS, evaluateSubIdHealth } from "@linkaffipro/linkaffi";
 import { TELEGRAM_SESSION_ID } from "@linkaffipro/mtproto";
@@ -51,10 +58,16 @@ import { syncBotBlockedRateAlerts } from "./blocked-rate";
 
 const DAY_MS = 24 * 3600 * 1000;
 
-/** Seuils réglables (Réglages → Alertes), `Setting` `alerts.thresholds`. */
-export async function loadThresholds(): Promise<AlertThresholds> {
-  const row = await prisma.setting.findUnique({ where: { key: "alerts.thresholds" } });
-  return parseThresholds(row?.value);
+/**
+ * Réglages des alertes sur les chiffres (Réglages → Alertes), `Setting` `alerts.thresholds`, lu une fois par passage :
+ * seuils et interrupteurs « Alerte activée » (absent = activée, règle commune `@linkaffipro/core`, alert-switches).
+ */
+export async function loadAlertSettings(): Promise<{
+  thresholds: AlertThresholds;
+  switches: AlertSwitches;
+}> {
+  const row = await prisma.setting.findUnique({ where: { key: ALERT_SETTINGS_KEY } });
+  return { thresholds: parseThresholds(row?.value), switches: parseAlertSwitches(row?.value) };
 }
 
 /** Inscriptions des dernières 24 h et total des 7 jours précédents (`Player.registeredAt`). */
@@ -379,7 +392,7 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   if (d7) detected.push(d7);
 
   // Règles métier (seuils réglables) : chaque lecture est isolée pour qu'une erreur n'empêche pas les autres règles.
-  const thresholds = await loadThresholds();
+  const { thresholds, switches } = await loadAlertSettings();
   const business: Array<[string, () => Promise<Detected | null>]> = [
     [
       "registrations_drop",
@@ -446,6 +459,9 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     ],
   ];
   for (const [kind, run] of business) {
+    // Alerte désactivée dans Réglages → Alertes : ni lecture ni détection. Une alerte encore ouverte de ce type n'est
+    // donc plus « détectée » et se ferme dans `runAlerts` (résolution automatique), sans notification.
+    if (!isAlertKindEnabled(switches, kind)) continue;
     try {
       const d = await run();
       if (d) detected.push(d);
@@ -574,8 +590,9 @@ export async function runAlerts(
     );
   }
 
-  // Résolution automatique : alertes ouvertes dont le type n'est plus détecté (les alertes par canal se résolvent
-  // canal par canal, ci-dessus).
+  // Résolution automatique : alertes ouvertes dont le type n'est plus détecté, y compris celles d'un type désactivé
+  // dans Réglages → Alertes (jamais évalué, donc jamais détecté) ; les alertes par canal se résolvent canal par canal,
+  // ci-dessus.
   const toResolve = open.filter(
     (a) => !detectedKinds.has(a.kind as AlertKind) && !PER_CHANNEL_KINDS.has(a.kind as AlertKind),
   );

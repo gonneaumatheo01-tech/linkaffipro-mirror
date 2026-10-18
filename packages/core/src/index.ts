@@ -14,6 +14,7 @@ export * from "./ab";
 export * from "./attribution-scope";
 export * from "./campaign-attribution";
 export * from "./team-labels";
+export * from "./alert-switches";
 export * from "./commissions";
 export * from "./provenance";
 export * from "./custom-emoji";

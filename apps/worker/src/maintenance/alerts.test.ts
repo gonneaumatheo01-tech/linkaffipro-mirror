@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Événements `dm.custom_emoji_fallback` simulés (phase 12) ; `type` : `post.custom_emoji_fallback` pour un message
@@ -560,6 +560,114 @@ describe("règles métier (phase 6) dans le passage d'alertes", () => {
     const r = await runAlerts(new Date("2026-10-09T12:00:00Z"));
     expect(r.created).toBe(2);
     expect(db.alerts.map((a) => a.kind).sort()).toEqual(["channel_leak", "offer_link_inactive"]);
+  });
+});
+
+describe("alertes sur les chiffres désactivées dans Réglages → Alertes", () => {
+  type CountArgs = { where: { AND?: unknown } };
+  /** Requêtes des inscriptions « nos joueurs » (chute des inscriptions et dépense sans inscription). */
+  const ourPlayerCounts = () =>
+    (db.prisma.player.count.mock.calls as unknown as Array<[CountArgs]>).filter(
+      ([a]) => a.where.AND,
+    );
+
+  beforeEach(() => {
+    db.alerts.length = 0;
+    failures.counts = {};
+    for (const k of Object.keys(db.settings)) delete db.settings[k];
+    notify.mockClear();
+    db.prisma.bot.findMany.mockResolvedValue([
+      { username: "casino", isActive: true, lastWebhookAt: new Date(), lastError: null },
+    ]);
+    db.prisma.player.count.mockReset();
+    db.prisma.player.count.mockResolvedValue(0);
+    db.prisma.channel.findMany.mockClear();
+    db.prisma.membership.groupBy.mockClear();
+    db.prisma.adCost.findMany.mockClear();
+    db.prisma.campaign.findMany.mockClear();
+  });
+
+  // Valeurs simulées non consommées (règle coupée) : retirées pour ne pas fausser les tests suivants.
+  afterEach(() => {
+    db.prisma.channel.findMany.mockReset();
+    db.prisma.channel.findMany.mockResolvedValue([]);
+    db.prisma.membership.groupBy.mockReset();
+    db.prisma.membership.groupBy.mockResolvedValue([]);
+    db.prisma.adCost.findMany.mockReset();
+    db.prisma.adCost.findMany.mockResolvedValue([]);
+    db.prisma.campaign.findMany.mockReset();
+    db.prisma.campaign.findMany.mockResolvedValue([]);
+  });
+
+  /** Un canal qui perd 9 membres sur 50 en 24 h et une pub à 60 € sans inscrit (lus seulement si la règle tourne). */
+  function lossConditions() {
+    db.prisma.channel.findMany.mockResolvedValueOnce([{ id: "ch1", title: "VIP" }]);
+    db.prisma.membership.groupBy
+      .mockResolvedValueOnce([{ channelId: "ch1", _count: { _all: 50 } }])
+      .mockResolvedValueOnce([{ channelId: "ch1", _count: { _all: 9 } }]);
+    db.prisma.adCost.findMany.mockResolvedValueOnce([
+      { spend: 60, campaignId: "c1", adSet: null, ad: null },
+    ]);
+    db.prisma.campaign.findMany.mockResolvedValueOnce([
+      { id: "c1", name: "Pub A", inviteLinks: [], trackingLinks: [{ id: "t1" }], adSets: [] },
+    ]);
+  }
+
+  it("désactivées : aucune requête, aucune alerte ; l'alerte ouverte se ferme sans notification ; réactivées : de nouveau évaluées", async () => {
+    // Alerte « canal qui perd ses membres » ouverte et déjà envoyée avant que l'équipe ne la coupe.
+    await db.prisma.alert.create({
+      data: {
+        kind: "channel_leak",
+        severity: "WARNING",
+        message: "VIP : 9 départs",
+        createdAt: new Date("2026-10-09T11:00:00Z"),
+        notifiedAt: new Date("2026-10-09T11:00:00Z"),
+      },
+    });
+    db.settings["alerts.thresholds"] = {
+      registrationsDropPct: 50,
+      spendNoConversionEur: 50,
+      channelLeakPct: 10,
+      enabled: { registrations_drop: false, spend_no_conversion: false, channel_leak: false },
+    };
+    lossConditions();
+    const now = new Date("2026-10-09T12:00:00Z");
+    const r1 = await runAlerts(now);
+    expect(r1.created).toBe(0);
+    expect(r1.resolved).toBe(1);
+    expect(db.alerts).toHaveLength(1);
+    expect(db.alerts[0]).toMatchObject({ kind: "channel_leak", resolvedAt: now });
+    expect(notify).not.toHaveBeenCalled();
+    // Aucune lecture inutile pour une alerte coupée.
+    expect(db.prisma.channel.findMany).not.toHaveBeenCalled();
+    expect(db.prisma.membership.groupBy).not.toHaveBeenCalled();
+    expect(db.prisma.adCost.findMany).not.toHaveBeenCalled();
+    expect(db.prisma.campaign.findMany).not.toHaveBeenCalled();
+    expect(ourPlayerCounts()).toHaveLength(0);
+
+    // Réactivées (réglage sans « enabled » : activées par défaut) : les pertes sont de nouveau signalées.
+    db.settings["alerts.thresholds"] = { channelLeakPct: 10 };
+    const r2 = await runAlerts(new Date("2026-10-09T12:05:00Z"));
+    expect(r2.created).toBe(2);
+    expect(
+      db.alerts
+        .filter((a) => !a.resolvedAt)
+        .map((a) => a.kind)
+        .sort(),
+    ).toEqual(["channel_leak", "spend_no_conversion"]);
+    expect(ourPlayerCounts().length).toBeGreaterThan(0);
+  });
+
+  it("une seule coupée : les deux autres tournent normalement", async () => {
+    db.settings["alerts.thresholds"] = { enabled: { channel_leak: false } };
+    lossConditions();
+    const r = await runAlerts(new Date("2026-10-09T12:00:00Z"));
+    expect(r.created).toBe(1);
+    expect(db.alerts.map((a) => a.kind)).toEqual(["spend_no_conversion"]);
+    expect(db.prisma.channel.findMany).not.toHaveBeenCalled();
+    expect(db.prisma.adCost.findMany).toHaveBeenCalledTimes(1);
+    // Chute des inscriptions évaluée (requêtes « nos joueurs » sur 24 h et 7 jours).
+    expect(ourPlayerCounts().length).toBeGreaterThanOrEqual(2);
   });
 });
 

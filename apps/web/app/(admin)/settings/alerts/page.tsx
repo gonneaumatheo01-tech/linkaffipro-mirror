@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { RefreshCw } from "lucide-react";
+import { parseAlertSwitches, type SwitchableAlertKind } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
@@ -9,6 +10,7 @@ import { AdvancedSection, FormSection } from "@/components/admin/form-section";
 import { StatusPill } from "@/components/admin/status-pill";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fmtDate } from "@/lib/format";
@@ -24,7 +26,7 @@ import {
   saveRetentionAction,
 } from "./actions";
 import { openAlertsPill, purgeSummary, retentionMonths } from "./alert-view";
-import { ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
+import { ALERT_SWITCH_FIELDS, ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
 
 export const metadata: Metadata = { title: "Alertes" };
 
@@ -33,8 +35,8 @@ const SEVERITY_RANK: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1
 
 /**
  * Réglages → Alertes et rapports → Alertes : les alertes du système en tableau de 4 colonnes (alerte, gravité, date,
- * état) avec le détail et « Marquer résolue » au clic ; les trois seuils réglables ; la durée de conservation des
- * données, la purge manuelle étant rangée dans « Avancé ». Mêmes champs et mêmes actions serveur qu'avant.
+ * état) avec le détail et « Marquer résolue » au clic ; les trois alertes sur les chiffres (seuil et case « Alerte
+ * activée ») ; la durée de conservation des données, la purge manuelle étant rangée dans « Avancé ».
  */
 export default async function AlertsPage({ searchParams }: PageProps<"/settings/alerts">) {
   await requireAdminPage();
@@ -52,6 +54,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
     prisma.setting.findUnique({ where: { key: ALERT_THRESHOLDS_KEY } }),
   ]);
   const thresholds = parseThresholds(thresholdsRow?.value);
+  const switches = parseAlertSwitches(thresholdsRow?.value);
   const months = retentionMonths(retention?.value);
   const pill = openAlertsPill(alerts.filter((a) => !a.resolvedAt).length);
   // Après une action, le tableau (et son volet) repart de zéro : le message de retour reste visible.
@@ -158,8 +161,8 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
         </FormSection>
 
         <FormSection
-          title="Seuils"
-          description="Trois alertes se règlent ici. Les autres (bot, synchro, sauvegarde, message en échec…) n'ont pas de seuil."
+          title="Alertes sur vos chiffres"
+          description="Trois alertes se règlent ici : leur seuil, et si elles vous sont envoyées. Une alerte désactivée n'est plus envoyée ; si elle était ouverte, elle se ferme toute seule. Les autres (bot, synchro, sauvegarde, message en échec…) restent toujours actives."
         >
           <form
             action={saveAlertThresholdsAction}
@@ -180,6 +183,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 Les 24 dernières heures comparées à la moyenne des 7 jours d&apos;avant (dès 10
                 inscriptions par jour). 50 = alerte si on passe de 20 à moins de 10 par jour.
               </p>
+              <AlertSwitch kind="registrations_drop" checked={switches.registrations_drop} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="spendNoConversionEur">Dépense sans inscription (€)</Label>
@@ -194,6 +198,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 Une pub qui a coûté plus que ce montant en 24 h sans aucune inscription. 50 = une
                 pub à 60 € sans inscrit déclenche l&apos;alerte.
               </p>
+              <AlertSwitch kind="spend_no_conversion" checked={switches.spend_no_conversion} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="channelLeakPct">Départs d&apos;un canal (%)</Label>
@@ -210,10 +215,11 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 Part des membres d&apos;un canal (20 au moins) partis en 24 h. 10 = alerte si 11
                 membres sur 100 partent dans la journée.
               </p>
+              <AlertSwitch kind="channel_leak" checked={switches.channel_leak} />
             </div>
             <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
-                Enregistrer les seuils
+                Enregistrer
               </Button>
             </div>
           </form>
@@ -269,5 +275,20 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
         </FormSection>
       </div>
     </>
+  );
+}
+
+/**
+ * Case « Alerte activée » d'une alerte sur les chiffres. Le seuil reste toujours envoyé (jamais désactivé) ; le nom de
+ * l'alerte est lu par les lecteurs d'écran pour distinguer les trois cases.
+ */
+function AlertSwitch({ kind, checked }: { kind: SwitchableAlertKind; checked: boolean }) {
+  return (
+    <label className="flex min-h-10 items-center gap-3 text-body">
+      <Checkbox name={ALERT_SWITCH_FIELDS[kind]} value="on" defaultChecked={checked} />
+      <span>
+        Alerte activée<span className="sr-only">{` : ${alertKindLabel(kind)}`}</span>
+      </span>
+    </label>
   );
 }

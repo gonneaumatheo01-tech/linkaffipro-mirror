@@ -3,10 +3,16 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma, audit } from "@linkaffipro/db";
+import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin } from "@/lib/session";
-import { ALERT_THRESHOLDS_KEY, parseThresholds } from "./thresholds";
+import {
+  ALERT_THRESHOLDS_KEY,
+  alertSettingsValue,
+  parseThresholds,
+  switchesFromForm,
+  thresholdsSavedMessage,
+} from "./thresholds";
 
 function back(params: Record<string, string>): never {
   redirect(`/settings/alerts?${new URLSearchParams(params).toString()}`);
@@ -52,7 +58,11 @@ const thresholdsSchema = z.object({
   channelLeakPct: z.coerce.number().int().min(1).max(100),
 });
 
-/** Enregistre les seuils des alertes métier (chute des inscriptions, dépense sans conversion, canal qui fuit). */
+/**
+ * Enregistre les seuils et les interrupteurs « Alerte activée » des alertes sur les chiffres (chute des inscriptions,
+ * dépense sans inscription, canal qui perd ses membres) dans le même réglage, sans perdre ses autres clés. Une alerte
+ * désactivée n'est plus évaluée par le worker ; une alerte ouverte de ce type se ferme au passage suivant.
+ */
 export async function saveAlertThresholdsAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const parsed = thresholdsSchema.safeParse({
@@ -65,17 +75,22 @@ export async function saveAlertThresholdsAction(formData: FormData): Promise<voi
       error:
         "Seuils invalides : les pourcentages vont de 1 à 100 et la dépense est un montant positif en euros.",
     });
-  const value = parseThresholds(parsed.data);
+  const thresholds = parseThresholds(parsed.data);
+  const enabled = switchesFromForm(formData);
+  const previous = await prisma.setting.findUnique({ where: { key: ALERT_THRESHOLDS_KEY } });
+  const value = alertSettingsValue(previous?.value, thresholds, enabled);
   await prisma.setting.upsert({
     where: { key: ALERT_THRESHOLDS_KEY },
-    create: { key: ALERT_THRESHOLDS_KEY, value },
-    update: { value },
+    create: { key: ALERT_THRESHOLDS_KEY, value: value as Prisma.InputJsonObject },
+    update: { value: value as Prisma.InputJsonObject },
   });
-  await audit({ userId: admin.id, action: "settings.alert_thresholds_updated", metadata: value });
+  await audit({
+    userId: admin.id,
+    action: "settings.alert_thresholds_updated",
+    metadata: { ...thresholds, enabled },
+  });
   revalidatePath("/settings/alerts");
-  back({
-    ok: `Seuils enregistrés : chute des inscriptions ${value.registrationsDropPct} %, dépense sans inscription ${value.spendNoConversionEur} €, départs ${value.channelLeakPct} %. Ils s'appliquent au prochain passage (5 minutes).`,
-  });
+  back({ ok: thresholdsSavedMessage(thresholds, enabled) });
 }
 
 /** Lance la purge de rétention maintenant (tâche du worker). */
