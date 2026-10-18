@@ -3,6 +3,7 @@ import {
   BOT_DESCRIPTION_MAX,
   BOT_SHORT_DESCRIPTION_MAX,
   assistantProfilePlan,
+  assistantProfileTextOk,
   mentionsAssistant,
   personaChatLangs,
 } from "./profile";
@@ -120,5 +121,28 @@ describe("cache des instances de bot", () => {
   });
   it("appelant qui ne connaît ni le mode ni la persona (lecture seule) : instance réutilisée", () => {
     expect(cachedBotMatches(hit, { tokenEncrypted: "t1" })).toBe(true);
+  });
+});
+
+describe("profil : jamais de déni d'être une IA (règle 2)", () => {
+  it("description qui dit « assistante » mais nie être une IA : refusée, texte par défaut", () => {
+    const plan = assistantProfilePlan({
+      ...lea,
+      botDescription: "Je ne suis pas une assistante, juste une vraie fille 😘",
+      botShortDescription: "Léa, assistante et 100% humaine",
+    });
+    expect(plan.entries[0]!.description).toContain("une IA");
+    expect(plan.entries[0]!.shortDescription).toBe("Léa, l'assistante du canal (une IA)");
+    expect(plan.warnings).toHaveLength(2);
+    expect(plan.warnings.join(" ")).toMatch(/vraie personne/);
+  });
+
+  it("textes par défaut acceptés dans les 6 langues", () => {
+    const plan = assistantProfilePlan({ ...lea, languages: ["fr", "en", "es", "pt", "de", "it"] });
+    for (const e of plan.entries) {
+      expect(assistantProfileTextOk(e.description), e.description).toBe(true);
+      expect(assistantProfileTextOk(e.shortDescription), e.shortDescription).toBe(true);
+    }
+    expect(assistantProfileTextOk("Je suis une assistante, pas une IA")).toBe(false);
   });
 });

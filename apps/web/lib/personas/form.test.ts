@@ -362,6 +362,17 @@ describe("activation", () => {
     }
   });
 
+  it("persona masculine : le refus cite le champ tel qu'il est affiché (« Ce que l'assistant… »)", () => {
+    const r = validatePersonaForm(
+      form({ gender: "M", affiliateCampaignId: "aff1", offerPitch: " ", isActive: true }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.isActive).toContain("« Ce que l'assistant peut dire de l'app »");
+      expect(r.errors.isActive).toContain("il ne pourrait rien en dire");
+    }
+  });
+
   it("permise avec un prénom et une fiche de l'offre (ou sans offre)", () => {
     expect(
       validatePersonaForm(

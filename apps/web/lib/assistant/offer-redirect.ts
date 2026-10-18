@@ -6,8 +6,11 @@
  *   d'affilié), compteurs du lien, événements `offer_opened` / `click.offer` / `conversation.offer_opened`, et
  *   `offer_clicked` vers Link Affi pour un membre d'affilié ; JAMAIS d'événement vers les relances automatiques (elles
  *   écriraient au membre par un autre bot) ;
- * - ouvertures suivantes : même adresse (celle du clic), `opens + 1`, `TrackingLink.clicks + 1` ;
+ * - ouvertures suivantes : même adresse (celle du clic), `opens + 1` seulement (contrat § 5 : un clic par lien ouvert,
+ *   comme dans les Statistiques et l'écran Chiffres) ;
  * - robots connus : même redirection, rien n'est compté ;
+ * - conversation d'un mineur déclaré (règle 3) : le lien déjà envoyé ne mène plus à l'app (null, comme un lien inconnu),
+ *   aucun clic compté ;
  * - sub-ID inconnu : null (l'appelant répond comme pour un lien inconnu).
  */
 import {
@@ -54,6 +57,7 @@ const offerSelect = {
   member: {
     select: { linkaffiCampaignKey: true, affiliateAttributionEndsAt: true, anonymizedAt: true },
   },
+  conversation: { select: { isMinor: true } },
 } as const;
 
 /** Lien d'offre tel que lu en base (forme du `select` ci-dessus). */
@@ -81,6 +85,8 @@ export type AssistantOfferRow = {
     affiliateAttributionEndsAt: Date | null;
     anonymizedAt: Date | null;
   } | null;
+  /** Conversation d'origine (null si elle a été supprimée). */
+  conversation?: { isMinor: boolean } | null;
 };
 
 export type AssistantOfferTarget = {
@@ -99,12 +105,16 @@ export type AssistantOfferTarget = {
 /**
  * Adresse d'un lien d'offre (fonction pure, testée) : celle du premier clic s'il existe ; sinon le modèle d'URL de
  * l'offre Link Affi du lien (à défaut celui du lien lui-même) rempli avec le sub-ID de cet envoi, et `tg` pour un
- * membre d'affilié (même règle que les boutons d'offre du bot). Null si le lien est désactivé ou sans adresse.
+ * membre d'affilié (même règle que les boutons d'offre du bot). Null si le lien est désactivé ou sans adresse, ou si la
+ * conversation est celle d'un mineur déclaré.
  */
 export function assistantOfferTarget(
   row: AssistantOfferRow,
   now: Date,
 ): AssistantOfferTarget | null {
+  // Règle 3 (adultes seulement) : la personne a dit avoir moins de 18 ans après l'envoi du lien → il ne mène plus à
+  // l'app, même rouvert.
+  if (row.conversation?.isMinor) return null;
   const member =
     row.member && !row.member.anonymizedAt && row.member.linkaffiCampaignKey ? row.member : null;
   const affiliateActive = member
@@ -215,20 +225,16 @@ function isUniqueViolation(err: unknown): boolean {
 
 class AlreadyOpened extends Error {}
 
-/** Ouverture suivante : même adresse, `opens + 1` et un clic de plus sur le lien. */
+/**
+ * Ouverture suivante : même adresse, `opens + 1` seulement (contrat § 5). Jamais un clic de plus sur le lien : un lien
+ * envoyé ouvert 4 fois compte 1 clic partout (Campagnes → Liens, Statistiques, Chiffres des conversations).
+ */
 async function recordReopen(row: AssistantOfferRow): Promise<"reopened"> {
-  await prisma.$transaction([
-    prisma.assistantOfferLink.update({
-      where: { id: row.id },
-      data: { opens: { increment: 1 } },
-      select: { id: true },
-    }),
-    prisma.trackingLink.update({
-      where: { id: row.trackingLinkId },
-      data: { clicks: { increment: 1 } },
-      select: { id: true },
-    }),
-  ]);
+  await prisma.assistantOfferLink.update({
+    where: { id: row.id },
+    data: { opens: { increment: 1 } },
+    select: { id: true },
+  });
   return "reopened";
 }
 

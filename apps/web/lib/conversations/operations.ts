@@ -68,6 +68,7 @@ type Locked = {
   assistantTurns: number;
   followUpCount: number;
   lastAssistantAt: Date | null;
+  convertedAt: Date | null;
   persona: { gender: string; followUpAfterHours: number; followUpsMax: number } | null;
   bot: { isActive: boolean };
 };
@@ -94,6 +95,7 @@ async function lock(tx: Prisma.TransactionClient, id: string): Promise<Locked | 
       assistantTurns: true,
       followUpCount: true,
       lastAssistantAt: true,
+      convertedAt: true,
       persona: { select: { gender: true, followUpAfterHours: true, followUpsMax: true } },
       bot: { select: { isActive: true } },
     },
@@ -118,8 +120,16 @@ async function ruleInputOf(
   };
 }
 
-/** Étape d'une conversation fermée par l'équipe, à sa réouverture (avant le dernier passage vers « Fermée »). */
-async function stageOnReopen(tx: Prisma.TransactionClient, c: Locked): Promise<ConversationStage> {
+/**
+ * Étape d'une conversation fermée par l'équipe, à sa réouverture : « Inscrit » si une inscription est déjà comptée
+ * (`convertedAt`, même arrivée pendant la fermeture, comme la réouverture par le bot) ; sinon celle d'avant le dernier
+ * passage vers « Fermée » (`reopenStage`). Exportée pour les tests.
+ */
+export async function stageOnReopen(
+  tx: Pick<Prisma.TransactionClient, "conversationEvent">,
+  c: Pick<Locked, "id" | "stage" | "assistantTurns" | "convertedAt">,
+): Promise<ConversationStage> {
+  if (c.convertedAt) return "CONVERTED";
   if (c.stage !== "CLOSED") return c.stage;
   const lastClose = await tx.conversationEvent.findFirst({
     where: { conversationId: c.id, type: "stage_changed", toStage: "CLOSED" },
@@ -129,6 +139,7 @@ async function stageOnReopen(tx: Prisma.TransactionClient, c: Locked): Promise<C
   return reopenStage({
     stageBeforeClose: lastClose?.fromStage ?? null,
     assistantTurns: c.assistantTurns,
+    convertedAt: c.convertedAt,
   });
 }
 

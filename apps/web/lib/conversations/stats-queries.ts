@@ -3,7 +3,8 @@
  * Paris, `lib/periods.ts`). Définitions et calcul : `stats.ts`. Les inscriptions et premiers dépôts sont ceux des
  * joueurs rattachés au clic d'un lien de l'offre envoyé par l'assistant (règle « nos joueurs » de `ourPlayers`), aux
  * dates réelles de Link Affi (`registeredAt`, `ftdAt`), comme les autres Statistiques. Persona et source d'un joueur :
- * celles de sa conversation, sinon celles copiées sur le lien de l'offre (conversation supprimée depuis).
+ * celles de sa conversation, sinon celles copiées sur le lien de l'offre (conversation supprimée depuis). Coût de
+ * l'IA : persona et source copiées sur chaque coût enregistré (`costsBetween`).
  */
 import { Prisma, ourPlayers, prisma, type ConversationStage } from "@linkaffipro/db";
 import { periodEnd, periodStart, type Period } from "@/lib/periods";
@@ -25,12 +26,14 @@ type ConversationRaw = {
   stage: string;
   replied: boolean;
   reached: string[] | null;
+  converted: boolean;
 };
 
 /**
  * Conversations commencées entre `start` (inclus) et `end` (exclu), avec « la personne a répondu » : un message de la
  * personne (hors commande) après le premier message de l'assistante ou de l'équipe, ou une étape qui l'implique (le
- * fil peut avoir été effacé par /reset ; les passages d'étape restent).
+ * fil peut avoir été effacé par /reset ; les passages d'étape restent), et « inscrite » : une inscription rattachée
+ * (`convertedAt`), même arrivée pendant que la conversation était fermée (aucun passage d'étape n'est alors écrit).
  */
 async function conversationsBetween(start: Date, end: Date): Promise<StatsConversation[]> {
   const rows = await prisma.$queryRaw<ConversationRaw[]>`
@@ -55,7 +58,8 @@ async function conversationsBetween(start: Date, end: Date): Promise<StatsConver
            ARRAY(
              SELECT DISTINCT e2."toStage"::text FROM "ConversationEvent" e2
               WHERE e2."conversationId" = c."id" AND e2."type" = 'stage_changed' AND e2."toStage" IS NOT NULL
-           ) AS "reached"
+           ) AS "reached",
+           (c."convertedAt" IS NOT NULL) AS "converted"
       FROM "Conversation" c
      WHERE c."createdAt" >= ${start} AND c."createdAt" < ${end}`;
   return rows.map((r) => ({
@@ -64,6 +68,7 @@ async function conversationsBetween(start: Date, end: Date): Promise<StatsConver
     stage: r.stage as ConversationStage,
     replied: Boolean(r.replied),
     reached: (r.reached ?? []) as ConversationStage[],
+    converted: Boolean(r.converted),
   }));
 }
 
@@ -128,29 +133,22 @@ async function playersBetween(start: Date, end: Date): Promise<StatsPlayer[]> {
   });
 }
 
-/** Coût de l'IA de la période (hors « Tester »), par persona et par conversation (source de la conversation). */
-async function costsBetween(start: Date, end: Date): Promise<StatsCost[]> {
+/**
+ * Coût de l'IA de la période (hors « Tester »), par persona et par source : la persona et la source copiées sur chaque
+ * coût enregistré (`AiConversationUsage.personaId` / `source`), jamais relues sur la conversation (elle peut avoir été
+ * supprimée depuis, à la demande de la personne : son coût reste compté avec sa source).
+ */
+export async function costsBetween(start: Date, end: Date): Promise<StatsCost[]> {
   const groups = await prisma.aiConversationUsage.groupBy({
-    by: ["personaId", "conversationId"],
+    by: ["personaId", "source"],
     where: { createdAt: { gte: start, lt: end }, purpose: { not: "TEST" } },
     _sum: { costEur: true },
   });
-  const ids = [...new Set(groups.map((g) => g.conversationId).filter((x): x is string => !!x))];
-  const convs = ids.length
-    ? await prisma.conversation.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, source: true, personaId: true },
-      })
-    : [];
-  const byId = new Map(convs.map((c) => [c.id, c]));
-  return groups.map((g) => {
-    const conv = g.conversationId ? byId.get(g.conversationId) : undefined;
-    return {
-      personaId: g.personaId ?? conv?.personaId ?? null,
-      source: conv?.source ?? null,
-      costEur: Number(g._sum.costEur ?? 0),
-    };
-  });
+  return groups.map((g) => ({
+    personaId: g.personaId ?? null,
+    source: g.source ?? null,
+    costEur: Number(g._sum.costEur ?? 0),
+  }));
 }
 
 /** Tous les chiffres de la période (total, par persona, par source, parcours). */

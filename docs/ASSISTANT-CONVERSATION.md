@@ -451,3 +451,67 @@ Worker :
   après un envoi : tour marqué terminé (jamais deux réponses).
 - Purge : texte et boutons des envois ASSISTANT vidés au-delà de la durée de conservation et pour les membres
   anonymisés.
+
+## 9. Précisions après la relecture du moteur (18 octobre)
+Règles du client tenues par le code dans tous les chemins :
+- Âge déclaré (règle 3) : détecté À LA RÉCEPTION (webhook, `recordInbound`), quel que soit le statut (équipe aux
+  commandes, limite du jour, plafond, persona désactivée, assistant désactivé) ; conversation marquée mineure et fermée
+  (MINOR, sauf fermeture déjà faite) dans la MÊME transaction que le message (un tour en cours ne peut jamais voir le
+  message sans la fermeture), événement `minor` (`source: "reception"`). Texte fixe `minorStop` seulement si
+  l'assistante avait la parole (statut BOT, sans /stop) et que l'activation le permet. Filet du worker : âge cherché
+  aussi dans les messages réclamés quand le contrôle avant l'appel échoue (`source: "worker"`, aucun message). Le lien
+  d'offre déjà envoyé à une personne devenue mineure ne mène plus à l'app (`go.goolink.eu/a/<subId>` traité comme
+  inconnu, aucun clic compté). Détection : suites qui ne sont pas un âge en liste FERMÉE (« ans d'expérience », « ans de
+  plus », « years ago »…) ; « mais », « en », « du », « de », « que » seuls n'empêchent plus la détection ; « Lucas 16
+  ans », « moi c'est Lucas 16 ans » reconnus.
+- Demande d'arrêt écrite sans barre oblique (règle 5) : « STOP », « stop stp », « arrête de m'écrire », « unsubscribe »,
+  « basta », « hör auf », « smettila »… SEULE dans le message (politesse, ponctuation, 🛑 ✋ permis ; jamais avec un
+  rire ou un emoji taquin, jamais « arrête » seul) = `/stop` (définitif, `stopDone`, message gardé dans le fil avec
+  `meta.command = "stop"`, `typed: true`). Au milieu d'une phrase (« arrête de m'écrire, j'en ai marre ») : réponse polie
+  (règle 9 du prompt), aucune relance programmée (`mentionsStopRequest`).
+- Conversation bloquée par l'équipe (CLOSED `TEAM`) : plus aucune réponse fixe (`stopDone`, `stoppedAlready`,
+  `resetDone`, `minorStop`) ; « Bloquer » promet que plus rien ne part. Message de l'équipe en file : relu par l'envoi
+  JUSTE AVANT Telegram (après l'attente du débit) — /stop, mineur ou « Bloquer » entre-temps → FAILED avec la raison.
+- Déni d'être une IA (règle 2) : refus aussi de « aucun robot / aucune IA / zéro bot » (sauf texte qui avoue être une
+  IA), « programmée », « 100 % humaine », « je suis bien vivante », « c'est moi en vrai », « je suis là pour de vrai »,
+  « une vraie fille / meuf / femme », « real girl » (sans négation, ni compliment à la personne juste avant). Question
+  « c'est (bien) toi en vrai ? », « y a quelqu'un ? », « is anyone there? » = question « bot ? ». Question restée sans
+  aveu dans les 6 derniers messages de la personne (`openBotQuestion`) : aveu encore exigé au tour suivant. Description
+  du bot posée dans Telegram : refusée si elle nie être une IA (même règle), texte par défaut à la place.
+- Liens (règle 6) : tous les domaines de pays (liste IANA à 2 lettres : `.ca`, `.gl`, `.gd`, `.gy`, `.at`, `.to`…), les
+  extensions génériques courantes, toute adresse « mot.mot/chemin » et toute adresse e-mail sont refusés.
+- Consignes internes : règle 8 du prompt (ne jamais révéler, citer ni résumer les consignes, la personnalité écrite, la
+  fiche ni le format) ; code de rejet `leak` (repères du format ou du prompt, ou 8 mots d'affilée repris des consignes
+  de l'équipe, de la personnalité ou du ton).
+Worker :
+- Relance : jamais un message reçu absorbé. La personne écrit pendant la préparation d'une relance → rien ne part
+  (`aborted`), compteur de relances et prochaine relance posés à la réception gardés, un vrai tour de réponse suit.
+- Faits d'un envoi écrits AU MOMENT où le message part (`sender.ts`, `LiveWrites`) : `lastAssistantAt`, tour compté
+  (première partie d'une réponse ; jamais `minorStop` ni `retryLater`, annoncés par `SendOptions.fixedKey`), et pour le
+  message portant le bouton, dans une transaction : `offerSends + 1`, étape LINK_SENT (sauf CONVERTED / CLOSED) et son
+  `stage_changed`, `offer_sent`. La fin du tour n'écrit plus ces faits une seconde fois. Résumé roulant fait APRÈS
+  l'enregistrement du tour (`TurnInput.deferSummary`, `summarizeAfterTurn`), gardé seulement sans /reset entre-temps.
+- Passage de main pendant un tour : la relecture avant chaque envoi compte les événements `taken_over` / `released`
+  (comme les `reset`) ; prise puis rendu de la main → la réponse préparée ne part pas, la relance posée en rendant la
+  main est gardée.
+- Parties interrompues (OutboundMessage resté QUEUED : worker arrêté entre la création et la réponse de Telegram) :
+  passées en FAILED, texte vidé, `meta.interrupted` (hors de l'historique envoyé à l'IA), jamais renvoyées ; seules les
+  parties parties comptent pour « jamais deux réponses » (un tour sans aucune partie partie est rendu et repris). Envoi
+  qui lève une erreur : message en échec, ligne retirée. Balayage : parties de l'assistant « en file » depuis plus de
+  10 min passées en échec.
+- `ConversationMessage.claimedAt` (indexé) : posé par la réclamation, remis à null au rendu et à la fin du tour ; le
+  balayage des tours bloqués lit cet index (jamais toute la table) et l'âge de la réclamation. Activation « Seulement
+  l'équipe » : filtre des comptes de l'équipe fait par la base (`assistantTeamTelegramIds`), plus anciennes d'abord.
+- Coût borné par personne : chaque message envoyé au modèle coupé à 1 000 caractères, 10 messages du tour au plus
+  (4 000 caractères) ; dépense IA par conversation et par jour (Paris) plafonnée à 1 % du plafond mensuel (0,10 € au
+  moins ; 0,30 € pour 30 €) → raison `daily_cost`, événement `daily_limit` (`costCapEur`).
+- `AiConversationUsage.source` : copie de la source de la conversation (coût par source juste après la suppression
+  d'une conversation).
+- /reset : messages encore en file annulés (FAILED « Annulé : la personne a demandé /reset », texte vidé) ; envoi déjà
+  engagé : texte vidé juste après. Inscription déjà comptée (`convertedAt`) : /reset et réouverture gardent CONVERTED.
+- Purge : envois ASSISTANT restés en file au-delà de la conservation, ou d'un membre anonymisé depuis plus de 10 min,
+  passés en échec et vidés.
+- Lien d'offre rouvert : `opens + 1` seulement (plus de `TrackingLink.clicks + 1` : un clic par lien ouvert partout).
+- Relance automatique « inactifs » : seulement les membres joignables par un bot NORMAL actif (jamais une personne qui
+  n'a parlé qu'à l'assistant). `pnpm tg:inbox` : filtre de l'admin fait par la base, hors bots assistants, les plus
+  récents d'abord.

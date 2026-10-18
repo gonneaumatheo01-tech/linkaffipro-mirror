@@ -3,6 +3,7 @@ import {
   aiCostText,
   assistantNoun,
   assistantWord,
+  botStatusLabel,
   closedReasonLabel,
   excerpt,
   JOURNEY_STAGES,
@@ -16,6 +17,7 @@ import {
   sourceLabel,
   TEAM_CLOSED_REASON,
 } from "./labels";
+import { statusLabel } from "@/lib/status-badges";
 
 const m = (over: Partial<Parameters<typeof personName>[0]> = {}) => ({
   firstName: null,
@@ -105,5 +107,14 @@ describe("source, fermeture, parcours, coût", () => {
     expect(aiCostText(0)).toMatch(/^0,00\s€$/);
     expect(aiCostText(0.0042)).toMatch(/^moins de 0,01\s€$/);
     expect(aiCostText(1.236)).toMatch(/^1,24\s€$/);
+  });
+});
+
+describe("« Qui répond » quand l'assistante a la main", () => {
+  it("même libellé que la pastille par défaut (« L'assistante répond »), accordé à une persona masculine", () => {
+    expect(botStatusLabel(null)).toBe("L'assistante répond");
+    expect(botStatusLabel(null)).toBe(statusLabel("conversationStatus", "BOT"));
+    expect(botStatusLabel("F")).toBe("L'assistante répond");
+    expect(botStatusLabel("M")).toBe("L'assistant répond");
   });
 });

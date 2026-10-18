@@ -16,6 +16,8 @@ export * from "./journey";
 export * from "./follow-ups";
 export * from "./rhythm";
 export * from "./minor";
+// Demande d'arrêt écrite sans /stop (relecture du moteur).
+export * from "./stop-request";
 export * from "./texts";
 export * from "./turn-types";
 export * from "./engine";

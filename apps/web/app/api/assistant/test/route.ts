@@ -153,6 +153,8 @@ export async function POST(req: Request) {
     state,
     offerButtonText: persona.input.offerButtonText,
     usages: deps.usages,
+    // Refus et bandeau accordés à la persona testée (« l'assistant » pour une persona masculine).
+    gender: persona.input.gender,
   });
   // Journal de l'équipe (sans aucun texte) : il sert aussi à compter la limite par heure.
   await audit({

@@ -6,7 +6,7 @@ import {
   primaryButtonCount,
   visibleText,
 } from "../settings/categories/page-checks";
-import type { InboxRow } from "@/lib/conversations/inbox";
+import type { InboxListRow } from "@/lib/conversations/inbox";
 
 // Boîte de réception rendue côté serveur (base simulée) : un titre, aucun bouton orange quand il y a des conversations,
 // 5 colonnes, nom de la personne (jamais son identifiant Telegram), dernier message en extrait, pastilles et filtres,
@@ -46,7 +46,7 @@ vi.mock("@/lib/conversations/inbox", () => ({
 import ConversationsInboxPage from "./page";
 
 const NOW = new Date();
-const row = (over: Partial<InboxRow> = {}): InboxRow => ({
+const row = (over: Partial<InboxListRow> = {}): InboxListRow => ({
   id: "clconversation0001",
   createdAt: NOW,
   stage: "LINK_SENT",
@@ -56,6 +56,8 @@ const row = (over: Partial<InboxRow> = {}): InboxRow => ({
   personaName: "Léa",
   personaGender: "F",
   closedReason: null,
+  stoppedAt: null,
+  isMinor: false,
   member: { id: "m1", firstName: null, lastName: null, username: null, anonymizedAt: null },
   last: {
     direction: "IN",
@@ -67,6 +69,7 @@ const row = (over: Partial<InboxRow> = {}): InboxRow => ({
   },
   unread: true,
   activityAt: NOW,
+  replyBlock: null,
   ...over,
 });
 
@@ -151,6 +154,41 @@ describe("Conversations → Boîte de réception", () => {
     const manager = await render();
     expect(visibleText(manager)).toContain("Un administrateur peut l'activer");
     expect(manager).not.toContain('href="/settings/assistant"');
+  });
+
+  it("« Qui répond » : l'assistante accordée à la persona, « Personne ne répond » quand elle ne répondra pas", async () => {
+    m.activation = "team";
+    m.rows = [
+      row({ id: "clconversation0010", status: "BOT", unread: false }),
+      row({
+        id: "clconversation0011",
+        status: "BOT",
+        personaName: "Hugo",
+        personaGender: "M",
+        unread: false,
+      }),
+      row({ id: "clconversation0012", status: "BOT", replyBlock: "team_only" }),
+    ];
+    m.counts = { all: 3, unread: 1, human: 0 };
+    const html = await render();
+    const text = visibleText(html);
+    expect(text).toContain("L'assistante répond");
+    expect(text).toContain("L'assistant répond");
+    expect(text).toContain("Personne ne répond");
+    expect(html).toMatch(/title="L&#x27;essai est limité aux comptes de l&#x27;équipe/);
+    // Essai réservé à l'équipe : rappelé au-dessus de la liste.
+    expect(text).toContain("Essai par l'équipe : l'assistante ne répond qu'aux comptes Telegram");
+    m.activation = "all";
+    expect(visibleText(await render())).not.toContain("Essai par l'équipe");
+  });
+
+  it("filtre « Qui répond » : sans « En pause » (jamais posé), sauf déjà choisi dans l'adresse", async () => {
+    m.rows = [row()];
+    m.counts = { all: 1, unread: 1, human: 1 };
+    const html = await render();
+    expect(html).not.toContain('value="PAUSED"');
+    expect(html).toContain("L&#x27;assistante répond</option>");
+    expect(await render({ status: "PAUSED" })).toContain('value="PAUSED"');
   });
 
   it("filtres sans résultat : retour à toute la liste", async () => {

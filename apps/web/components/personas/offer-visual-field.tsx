@@ -28,6 +28,10 @@ async function uploadImage(file: File): Promise<VisualOption> {
  * Visuel de l'app ou de l'offre envoyé en photo avec le lien : une image déjà envoyée sur le site, ou une nouvelle
  * (même envoi que les médias des messages, `/api/media`). Jamais une photo présentée comme celle de l'assistante :
  * la phrase est sous le champ.
+ *
+ * Accessibilité : l'étiquette du formulaire (`<Label htmlFor={id}>`) pointe toujours vers un élément, quel que soit
+ * l'état (liste des images déjà envoyées, sinon envoi d'une image, sinon « Retirer le visuel ») ; l'envoi d'une image
+ * (champ fichier masqué) montre l'anneau de focus sur son libellé ; une image refusée est annoncée (`role="alert"`).
  */
 export function OfferVisualField({
   id,
@@ -77,9 +81,11 @@ export function OfferVisualField({
         />
         <span className="min-w-0 flex-1 truncate">{current.filename}</span>
         <Button
+          id={id}
           type="button"
           size="icon-sm"
           variant="ghost"
+          aria-describedby={describedBy}
           aria-label={`Retirer le visuel ${current.filename}`}
           title="Retirer le visuel"
           onClick={() => onChange("")}
@@ -110,12 +116,16 @@ export function OfferVisualField({
             ))}
           </NativeSelect>
         ) : null}
-        <label className="inline-flex min-h-9 cursor-pointer items-center gap-1 text-body font-medium text-brand-ink underline underline-offset-2 max-md:min-h-10">
+        <label className="inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-sm text-body font-medium text-brand-ink underline underline-offset-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring max-md:min-h-10">
           {images.length > 0 ? "ou envoyer une image" : "Envoyer une image"}
           <input
+            // Sans liste d'images, c'est le seul champ : l'étiquette « Visuel de l'app » pointe vers lui.
+            id={images.length > 0 ? undefined : id}
             type="file"
             className="sr-only"
             aria-label="Visuel de l'app : envoyer une image"
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
             accept={OFFER_VISUAL_MIME_TYPES.join(",")}
             onChange={(e) => {
               void onFile(e.target.files?.[0]);
@@ -124,8 +134,16 @@ export function OfferVisualField({
           />
         </label>
       </div>
-      {uploading ? <p className="text-note text-muted-foreground">Envoi de l&apos;image…</p> : null}
-      {error ? <p className="text-body text-danger">{error}</p> : null}
+      {uploading ? (
+        <p role="status" className="text-note text-muted-foreground">
+          Envoi de l&apos;image…
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-body text-danger">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

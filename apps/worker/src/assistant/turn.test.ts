@@ -30,6 +30,13 @@ const h = vi.hoisted(() => {
     unclaimed: 0,
     /** /reset reçus (relu au début du tour, avant chaque envoi et à l'enregistrement). */
     resets: 0,
+    /** Valeurs successives du compte des /reset (puis `resets`). */
+    resetsQueue: [] as number[],
+    /** Prises / rendus de main par l'équipe. */
+    handovers: 0,
+    handoversQueue: [] as number[],
+    /** Dépense IA de la conversation aujourd'hui. */
+    convSpend: 0,
     /** Parties OUT déjà enregistrées pour le tour (reprise d'un tour planté). */
     outOfTurn: 0,
     crashReleased: [] as Array<{ turnId: string; max: number }>,
@@ -54,7 +61,9 @@ const h = vi.hoisted(() => {
     persona: { findUnique: vi.fn(async () => state.persona) },
     memberBotState: { findUnique: vi.fn(async () => ({ blockedAt: state.blockedAt })) },
     aiConversationUsage: {
-      aggregate: vi.fn(async () => ({ _sum: { costEur: state.monthSpend } })),
+      aggregate: vi.fn(async (args: { where: Row }) => ({
+        _sum: { costEur: "conversationId" in args.where ? state.convSpend : state.monthSpend },
+      })),
       create: vi.fn(async ({ data }: { data: Row }) => {
         state.usages.push(data);
         return data;
@@ -75,7 +84,11 @@ const h = vi.hoisted(() => {
     conversationEvent: {
       findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => [] as Row[]),
-      count: vi.fn(async () => state.resets),
+      count: vi.fn(async (args: { where: { type: unknown } }) =>
+        typeof args.where.type === "string"
+          ? (state.resetsQueue.shift() ?? state.resets)
+          : (state.handoversQueue.shift() ?? state.handovers),
+      ),
     },
     channel: { findMany: vi.fn(async () => [{ id: "ch1", title: "Rencontres Paris" }]) },
     channelBotAdmin: { findFirst: vi.fn(async () => null) },
@@ -124,6 +137,7 @@ vi.mock("./claim", () => ({
     h.state.crashReleased.push({ turnId, max });
     return { released: 1, gaveUp: 0 };
   }),
+  settleTurnParts: vi.fn(async () => ({ sent: h.state.outOfTurn, interrupted: 0 })),
 }));
 vi.mock("./settings", () => ({
   loadAssistantSettings: vi.fn(async () => ({
@@ -245,8 +259,12 @@ describe("tour de l'assistant (worker)", () => {
       team: false,
       unclaimed: 0,
       resets: 0,
+      handovers: 0,
+      convSpend: 0,
       outOfTurn: 0,
     });
+    h.state.resetsQueue.length = 0;
+    h.state.handoversQueue.length = 0;
     for (const k of [
       "crashReleased",
       "turnReleased",
@@ -264,7 +282,10 @@ describe("tour de l'assistant (worker)", () => {
     replies.length = 0;
     llm.requests.length = 0;
     const s = createFakeSender();
-    fakeSender.current = Object.assign(s, { sentRows: [] });
+    fakeSender.current = Object.assign(s, {
+      sentRows: [],
+      live: { lastSentAt: null, assistantTurnCounted: false, offerSends: 0, stage: null },
+    });
     configureChatRuntime({
       llmFactory: () => llm,
       sleep: async () => undefined,
@@ -462,7 +483,7 @@ describe("tour de l'assistant (worker)", () => {
 
   it("/reset pendant la préparation : rien ne part, rien de l'ancienne conversation n'est réécrit", async () => {
     h.state.conversation = conversation({ facts: ["s'appelle Julien"], stage: "WELCOME" });
-    h.prisma.conversationEvent.count.mockResolvedValueOnce(0); // début du tour
+    h.state.resetsQueue.push(0); // début du tour
     h.state.resets = 1; // /reset reçu pendant l'appel à l'IA
     replies.push({
       messages: ["Super Julien, Lyon c'est top 😊"],
@@ -480,9 +501,7 @@ describe("tour de l'assistant (worker)", () => {
   });
 
   it("/reset après l'envoi mais avant l'enregistrement : la mémoire effacée n'est jamais réécrite", async () => {
-    h.prisma.conversationEvent.count
-      .mockResolvedValueOnce(0) // début du tour
-      .mockResolvedValueOnce(0); // relecture avant l'envoi
+    h.state.resetsQueue.push(0, 0); // début du tour, relecture avant l'envoi
     h.state.resets = 1; // enregistrement : /reset passé entre-temps
     h.state.conversation = conversation({ stage: "WELCOME" });
     replies.push({
@@ -537,5 +556,101 @@ describe("tour de l'assistant (worker)", () => {
     expect(h.state.crashReleased).toEqual([]);
     expect(h.state.done).toEqual(["t1"]);
     expect(h.state.enqueued).toEqual([]);
+  });
+
+  it("relance en préparation et la personne écrit : rien ne part, aucun message absorbé, un vrai tour suit", async () => {
+    h.state.claimed = [];
+    h.state.conversation = conversation({
+      nextFollowUpAt: new Date("2026-10-18T09:30:00Z"),
+      lastAssistantAt: new Date("2026-10-17T09:30:00Z"),
+      lastInboundAt: new Date("2026-10-17T09:29:00Z"),
+    });
+    replies.push({ messages: ["Tu es toujours là ? 😊"], stage: "FOLLOW_UP" });
+    // La personne écrit pendant l'appel à l'IA (message non traité, `lastInboundAt` plus récent à l'enregistrement).
+    h.state.unclaimed = 1;
+    const findUnique = h.prisma.conversation.findUnique;
+    findUnique.mockImplementation(async (args: { select?: Row }) => {
+      if (args.select && "lastInboundAt" in args.select)
+        return { ...h.state.conversation, lastInboundAt: new Date("2026-10-18T09:59:59Z") };
+      return h.state.conversation ? { ...h.state.conversation } : null;
+    });
+    try {
+      expect(await processChatTurn("conv1")).toMatchObject({
+        kind: "follow_up",
+        outcome: "aborted",
+      });
+    } finally {
+      findUnique.mockImplementation(async () =>
+        h.state.conversation ? { ...h.state.conversation } : null,
+      );
+    }
+    const s = fakeSender.current as ReturnType<typeof createFakeSender>;
+    expect(s.messages()).toHaveLength(0);
+    const data = (h.state.convUpdates.at(-1) as { data: Row }).data;
+    // Compteur et prochaine relance posés à la réception (0, aucune) jamais réécrits.
+    expect(data).not.toHaveProperty("followUpCount");
+    expect(data).not.toHaveProperty("nextFollowUpAt");
+    expect(h.state.events.map((e) => e.type)).not.toContain("follow_up_sent");
+    // Le message reçu reçoit un vrai tour de réponse.
+    expect(h.state.enqueued).toEqual([{ id: "conv1" }]);
+  });
+
+  it("l'équipe prend puis rend la main pendant la préparation : la réponse préparée ne part pas", async () => {
+    h.state.handoversQueue.push(0); // début du tour
+    h.state.handovers = 2; // prise puis rendu de la main pendant l'appel
+    replies.push({ messages: ["Coucou 😊"], stage: "CHAT" });
+    expect(await processChatTurn("conv1")).toMatchObject({ status: "done", outcome: "aborted" });
+    const s = fakeSender.current as ReturnType<typeof createFakeSender>;
+    expect(s.messages()).toHaveLength(0);
+    const data = (h.state.convUpdates.at(-1) as { data: Row }).data;
+    expect(data).not.toHaveProperty("nextFollowUpAt");
+    expect(data).not.toHaveProperty("retryAt");
+  });
+
+  it("dépense IA de la conversation du jour atteinte : aucun appel (plafond commun protégé)", async () => {
+    h.state.convSpend = 0.31; // 1 % de 30 € = 0,30 €
+    expect(await processChatTurn("conv1")).toMatchObject({
+      status: "skipped",
+      reason: "daily_cost",
+    });
+    expect(h.state.oncePerDay[0]).toMatchObject({
+      type: "daily_limit",
+      payload: { costCapEur: 0.3 },
+    });
+    expect(llm.calls).toBe(0);
+  });
+
+  it("limite atteinte et âge déclaré dans les messages réclamés : conversation fermée (mineur), sans message", async () => {
+    h.state.todayCount = 60;
+    h.state.claimed = [
+      { id: "in1", text: "j'ai 16 ans", media: null, createdAt: new Date("2026-10-18T09:59:58Z") },
+    ];
+    expect(await processChatTurn("conv1")).toMatchObject({ status: "skipped", reason: "minor" });
+    const update = h.state.convUpdates.at(-1) as { data: Row };
+    expect(update.data).toMatchObject({
+      isMinor: true,
+      status: "CLOSED",
+      stage: "CLOSED",
+      closedReason: "MINOR",
+      nextFollowUpAt: null,
+    });
+    expect(h.state.events.map((e) => e.type)).toEqual(["minor", "stage_changed"]);
+    expect(llm.calls).toBe(0);
+  });
+
+  it("faits déjà écrits à l'envoi (lien, tour, heure) : jamais écrits une seconde fois à la fin du tour", async () => {
+    const s = fakeSender.current as { live: Row };
+    s.live = {
+      lastSentAt: new Date("2026-10-18T09:59:59Z"),
+      assistantTurnCounted: true,
+      offerSends: 0,
+      stage: null,
+    };
+    replies.push({ messages: ["Hello 😊"], stage: "CHAT" });
+    await processChatTurn("conv1");
+    const data = (h.state.convUpdates.at(-1) as { data: Row }).data;
+    expect(data).not.toHaveProperty("assistantTurns");
+    expect(data).not.toHaveProperty("lastAssistantAt");
+    expect(h.state.usages[0]).toMatchObject({ source: "pub1" });
   });
 });

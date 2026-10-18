@@ -1,16 +1,17 @@
 import type { Bot } from "grammy";
-import { fixedText, type FixedTextKey } from "@linkaffipro/chat";
+import { detectMinor, fixedText, type FixedTextKey } from "@linkaffipro/chat";
 import { pickLang, t } from "../i18n";
 import { isAssistantBot, type BotIdentity } from "../ports";
 import type { AssistantConversation, AssistantDeps, AssistantPersonaInfo } from "../assistant/deps";
 import {
   adminLinkToken,
+  assistantCommandOf,
   assistantReplyLang,
   canReopenConversation,
   classifyAssistantMessage,
   cleanStartSource,
   conversationPersonaId,
-  parseAssistantCommand,
+  fixedReplyAllowed,
 } from "../assistant/logic";
 import { seenMemberIdOf } from "./core";
 
@@ -37,9 +38,15 @@ function warn(message: string, err: unknown, details: Record<string, unknown> = 
  * - `/start [source]` : conversation créée si besoin, source gardée (première reçue), message entrant `/start` pour que
  *   l'assistant se présente ; `/start admin_<jeton>` (Mon compte) lie le compte Telegram de l'équipe, sans conversation ;
  * - `/stop` : définitif (plus aucune réponse ni relance), réponse fixe si l'activation permet de répondre à la personne ;
+ *   une demande d'arrêt écrite sans la barre oblique (« STOP », « arrête de m'écrire », « unsubscribe »…, seule dans le
+ *   message) vaut /stop ;
  * - `/reset` : historique, résumé, faits et style effacés (une seule fois par /reset, même renvoyé par Telegram) ; après
  *   un `/stop`, rien ne repart (réponse fixe « tu m'as demandé de ne plus t'écrire » une fois par jour au plus) ;
- * - tout autre message (texte, photo, autocollant, vocal…) : enregistré (une update renvoyée est ignorée), tour en file.
+ * - tout autre message (texte, photo, autocollant, vocal…) : enregistré (une update renvoyée est ignorée), tour en file ;
+ *   un âge déclaré de moins de 18 ans (règle 3) est détecté ICI, quel que soit le statut (équipe aux commandes, limite
+ *   du jour, persona désactivée…) : conversation fermée (mineur) dans la même transaction que le message, texte fixe
+ *   d'arrêt seulement si l'assistante avait la parole.
+ * Aucune réponse fixe vers un mineur ni vers une conversation bloquée par l'équipe.
  * Une conversation fermée seulement parce que l'envoi avait échoué (bot bloqué, personne injoignable) repart quand la
  * personne réécrit d'elle-même. Les boutons (`callback_query`) reçoivent seulement leur accusé de réception.
  */
@@ -138,7 +145,7 @@ export function registerAssistantHandlers(
 
     /** Après un /stop : « tu m'as demandé de ne plus t'écrire », une fois par jour au plus. */
     const replyStoppedAlready = async (conv: AssistantConversation, memberId: string) => {
-      if (conv.isMinor) return;
+      if (!fixedReplyAllowed(conv)) return;
       if (!(await assistantMayReply(conv))) return;
       const claimed = await d.claimStoppedReply({
         conversationId: conv.id,
@@ -178,7 +185,7 @@ export function registerAssistantHandlers(
     };
 
     const cmd =
-      typeof msg.text === "string" ? parseAssistantCommand(msg.text, identity.username) : null;
+      typeof msg.text === "string" ? assistantCommandOf(msg.text, identity.username) : null;
 
     if (cmd?.command === "start") {
       // Lien « Lier votre Telegram » de Mon compte : liaison seulement, aucune conversation, jeton jamais journalisé.
@@ -225,7 +232,23 @@ export function registerAssistantHandlers(
         memberId,
         at: now,
       });
-      if (!changed || conv.isMinor) return;
+      if (!changed) return;
+      // « STOP » écrit sans la barre oblique : gardé dans le fil (sans compter comme un échange, sans réponse de l'IA).
+      if (cmd.typed)
+        await d
+          .recordInbound({
+            conversationId: conv.id,
+            telegramMessageId: msg.message_id,
+            text: msg.text ?? "",
+            media: null,
+            meta: { command: "stop", typed: true },
+            countsAsExchange: false,
+            at: now,
+          })
+          .catch((err: unknown) =>
+            warn("demande d'arrêt non gardée", err, { conversationId: conv.id }),
+          );
+      if (!fixedReplyAllowed(conv)) return;
       if (await d.activationAllows(telegramUserId)) await sendFixed(conv, "stopDone");
       return;
     }
@@ -247,7 +270,7 @@ export function registerAssistantHandlers(
         return;
       }
       // Conversation fermée, mineure, reprise par l'équipe ou en pause : l'assistant se tait.
-      if (conv.isMinor || conv.status !== "BOT") return;
+      if (!fixedReplyAllowed(conv) || conv.status !== "BOT") return;
       if (await assistantMayReply(conv)) await sendFixed(conv, "resetDone");
       return;
     }
@@ -256,16 +279,27 @@ export function registerAssistantHandlers(
     if (!inbound) return;
     const memberId = await memberIdOf();
     const conv = await reopenIfNeeded(await conversationOf(memberId, null), memberId);
-    const { duplicate } = await d.recordInbound({
+    // Âge déclaré de moins de 18 ans (règle 3) : détecté à la réception, quel que soit le statut de la conversation.
+    const minor = detectMinor(inbound.text);
+    const { duplicate, minorClosed } = await d.recordInbound({
       conversationId: conv.id,
       telegramMessageId: msg.message_id,
       text: inbound.text,
       media: inbound.media,
-      meta: {},
+      meta: minor.minor ? { minor: true } : {},
       countsAsExchange: true,
+      ...(minor.minor && !conv.isMinor
+        ? { minor: { age: minor.age, botId: identity.id, memberId } }
+        : {}),
       at: now,
     });
     if (duplicate) return;
+    if (minorClosed) {
+      // L'assistante avait la parole : arrêt poli (texte fixe, jamais de lien) ; sinon rien ne part.
+      if (minorClosed.wasAnswering && (await assistantMayReply(conv)))
+        await sendFixed(conv, "minorStop");
+      return;
+    }
     await maybeEnqueue(conv);
   });
 }

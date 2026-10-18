@@ -9,7 +9,7 @@ export function PromptPreview({ prompt, role }: { prompt: string; role: string }
   return (
     <AdvancedSection
       title={`Ce que ${role} reçoit comme consignes`}
-      description="Le texte exact envoyé à l'IA pour un premier message, d'après la version enregistrée. Les règles du client y sont toujours."
+      description="Le texte exact envoyé à l'IA pour un premier message, d'après la version enregistrée. Les règles de sécurité (se présenter comme assistante ou assistant, adultes seulement, honnêteté sur l'offre, jamais d'insistance) y sont toujours."
     >
       <pre
         tabIndex={0}

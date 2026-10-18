@@ -249,7 +249,7 @@ describe("ouverture", () => {
     expect(m.events).toEqual([]);
   });
 
-  it("ouverture suivante : opens + 1 et un clic de plus sur le lien, sans nouveau clic ni événement", async () => {
+  it("ouverture suivante : opens + 1 seulement (jamais un clic de plus sur le lien), sans nouveau clic ni événement", async () => {
     const r = row({
       clickId: "click1",
       click: { id: "click1", destination: "https://linkaffi.me/go/x" },
@@ -260,9 +260,30 @@ describe("ouverture", () => {
     );
     expect(res).toBe("reopened");
     expect(m.tx.click.create).not.toHaveBeenCalled();
-    expect(m.prisma.trackingLink.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "tl1" }, data: { clicks: { increment: 1 } } }),
+    expect(m.prisma.assistantOfferLink.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "aol1" }, data: { opens: { increment: 1 } } }),
     );
+    expect(m.prisma.trackingLink.update).not.toHaveBeenCalled();
     expect(m.emit).not.toHaveBeenCalled();
+  });
+
+  it("mineur déclaré après l'envoi : le lien ne mène plus à l'app (comme un lien inconnu), même déjà ouvert", async () => {
+    expect(assistantOfferTarget(row({ conversation: { isMinor: true } }), NOW)).toBeNull();
+    expect(
+      assistantOfferTarget(
+        row({
+          conversation: { isMinor: true },
+          clickId: "click1",
+          click: { id: "click1", destination: "https://linkaffi.me/go/x" },
+        }),
+        NOW,
+      ),
+    ).toBeNull();
+    m.prisma.assistantOfferLink.findUnique.mockResolvedValueOnce(
+      row({ conversation: { isMinor: true } }) as never,
+    );
+    expect(await resolveAssistantOffer(SUB, NOW)).toBeNull();
+    // Conversation supprimée (membre anonymisé) : le lien reste un lien ordinaire.
+    expect(assistantOfferTarget(row({ conversation: null }), NOW)).not.toBeNull();
   });
 });

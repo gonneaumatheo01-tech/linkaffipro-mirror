@@ -11,7 +11,7 @@ import { enqueueChatTurn } from "@linkaffipro/queue";
 import { prismaTelegramDeps } from "../prisma-deps";
 import { createConversationLock, type ConversationLock } from "./conversation-lock";
 import type { AssistantConversation, AssistantDeps } from "./deps";
-import { canReopenConversation, reopenStage } from "./logic";
+import { canReopenConversation, reopenStage, resetStage } from "./logic";
 import { isAssistantTeamMember } from "./team";
 
 /** Violation d'unicité Prisma (P2002) : enregistrement créé par un appel concurrent, ou update renvoyée par Telegram. */
@@ -74,6 +74,9 @@ async function journal(
     payload: toJsonValue({ conversationId: input.conversationId, ...(input.payload ?? {}) }),
   });
 }
+
+/** Erreur gardée sur un message de l'assistant ou de l'équipe encore en file au moment d'un /reset. */
+export const RESET_CANCELLED_ERROR = "Annulé : la personne a demandé /reset (tout effacer).";
 
 /** Le /start (`meta.command`) n'est pas un échange : il ne compte pas dans `memberMessages`. */
 function isCommandMeta(meta: unknown): boolean {
@@ -155,6 +158,7 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
             stoppedAt: true,
             isMinor: true,
             assistantTurns: true,
+            convertedAt: true,
           },
         });
         if (!conv || !canReopenConversation(conv)) return null;
@@ -167,6 +171,7 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
         const toStage = reopenStage({
           stageBeforeClose: lastClose?.fromStage ?? null,
           assistantTurns: conv.assistantTurns,
+          convertedAt: conv.convertedAt,
         });
         // Comparaison-échange : un /stop, une reprise par l'équipe ou une autre réouverture arrivés entre-temps gagnent.
         const { count } = await tx.conversation.updateMany({
@@ -246,9 +251,15 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
     },
 
     async recordInbound(input) {
+      type MinorClosure = {
+        wasAnswering: boolean;
+        fromStage: AssistantConversation["stage"];
+        stageChanged: boolean;
+      };
+      let closure: MinorClosure | null = null;
       try {
-        await prisma.$transaction([
-          prisma.conversationMessage.create({
+        closure = await prisma.$transaction(async (tx) => {
+          await tx.conversationMessage.create({
             data: {
               conversationId: input.conversationId,
               direction: "IN",
@@ -260,9 +271,9 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
               createdAt: input.at,
             },
             select: { id: true },
-          }),
+          });
           // Le worker recalcule la prochaine relance après sa réponse.
-          prisma.conversation.update({
+          await tx.conversation.update({
             where: { id: input.conversationId },
             data: {
               lastInboundAt: input.at,
@@ -271,13 +282,78 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
               ...(input.countsAsExchange ? { memberMessages: { increment: 1 } } : {}),
             },
             select: { id: true },
-          }),
-        ]);
-        return { duplicate: false };
+          });
+          if (!input.minor) return null;
+          // Âge déclaré de moins de 18 ans : fermée dans la même transaction que le message (un tour de l'assistant ne
+          // peut jamais le voir sans voir aussi la fermeture ; son contrôle avant chaque envoi l'arrête).
+          const conv = await tx.conversation.findUniqueOrThrow({
+            where: { id: input.conversationId },
+            select: {
+              status: true,
+              stage: true,
+              isMinor: true,
+              stoppedAt: true,
+              closedAt: true,
+              closedReason: true,
+            },
+          });
+          if (conv.isMinor) return null;
+          const alreadyClosed = conv.status === "CLOSED";
+          await tx.conversation.update({
+            where: { id: input.conversationId },
+            data: {
+              isMinor: true,
+              status: "CLOSED",
+              stage: "CLOSED",
+              closedAt: alreadyClosed && conv.closedAt ? conv.closedAt : input.at,
+              closedReason: alreadyClosed && conv.closedReason ? conv.closedReason : "MINOR",
+              nextFollowUpAt: null,
+              retryAt: null,
+              takenOverById: null,
+              takenOverAt: null,
+            },
+            select: { id: true },
+          });
+          await conversationEvent(tx, {
+            conversationId: input.conversationId,
+            type: "minor",
+            payload: { source: "reception", age: input.minor.age },
+            at: input.at,
+          });
+          const stageChanged = conv.stage !== "CLOSED";
+          if (stageChanged)
+            await conversationEvent(tx, {
+              conversationId: input.conversationId,
+              type: "stage_changed",
+              fromStage: conv.stage,
+              toStage: "CLOSED",
+              payload: { reason: "MINOR" },
+              at: input.at,
+            });
+          return {
+            wasAnswering: conv.status === "BOT" && !conv.stoppedAt,
+            fromStage: conv.stage,
+            stageChanged,
+          };
+        });
       } catch (err) {
         if (isUniqueViolation(err)) return { duplicate: true };
         throw err;
       }
+      if (!closure || !input.minor) return { duplicate: false };
+      const ref = {
+        botId: input.minor.botId,
+        memberId: input.minor.memberId,
+        conversationId: input.conversationId,
+        at: input.at,
+      };
+      await journal("minor", { ...ref, payload: { source: "reception", age: input.minor.age } });
+      if (closure.stageChanged)
+        await journal("stage_changed", {
+          ...ref,
+          payload: { fromStage: closure.fromStage, toStage: "CLOSED", reason: "MINOR" },
+        });
+      return { duplicate: false, minorClosed: { wasAnswering: closure.wasAnswering } };
     },
 
     async recordFixedReply(input) {
@@ -375,12 +451,28 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
           if (already) return { duplicate: true as const };
           const conv = await tx.conversation.findUniqueOrThrow({
             where: { id: conversationId },
-            select: { stage: true, status: true },
+            select: { stage: true, status: true, convertedAt: true },
           });
           // Heure de l'effacement (et de l'événement `reset`) : le worker peut comparer un tour commencé avant.
           const at = new Date();
+          // Messages encore en file (équipe, ou partie de l'assistant en attente du débit) : annulés, texte vidé ; l'envoi
+          // les ignore (rien ne part après « j'ai tout oublié »). Un envoi déjà engagé vide son texte en partant.
+          await tx.outboundMessage.updateMany({
+            where: {
+              botId,
+              memberId,
+              kind: "ASSISTANT",
+              status: "QUEUED",
+              queuedAt: { lte: at },
+            },
+            data: {
+              status: "FAILED",
+              error: RESET_CANCELLED_ERROR,
+              text: "",
+              buttons: [],
+            },
+          });
           // Texte des messages déjà partis (ou refusés) du bot à cette personne : il reprend souvent ce qu'elle a dit.
-          // Un message encore en file (envoi par l'équipe en cours) garde le sien jusqu'à son envoi.
           await tx.outboundMessage.updateMany({
             where: {
               botId,
@@ -412,8 +504,9 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
             where: { conversationId, direction: "IN" },
             select: { meta: true },
           });
-          // Conversation fermée (/stop, mineur, équipe) : elle le reste ; sinon elle repart de l'accueil.
-          const toStage = conv.status === "CLOSED" ? conv.stage : "WELCOME";
+          // Conversation fermée (/stop, mineur, équipe) : elle le reste ; inscription déjà comptée : « Inscrite » reste ;
+          // sinon elle repart de l'accueil.
+          const toStage = resetStage(conv);
           await tx.conversation.update({
             where: { id: conversationId },
             data: {
@@ -491,7 +584,14 @@ export function createPrismaAssistantDeps(opts: PrismaAssistantDepsOptions = {})
           createdAt: at,
         },
       });
-      await journal("blocked", { botId, memberId: conv.memberId, conversationId: conv.id, at });
+      // La personne a bloqué le bot (≠ « Bloquer » de l'équipe) : la conversation reprend si elle réécrit.
+      await journal("blocked", {
+        botId,
+        memberId: conv.memberId,
+        conversationId: conv.id,
+        payload: { via: "telegram" },
+        at,
+      });
     },
 
     async enqueueTurn(conversationId) {

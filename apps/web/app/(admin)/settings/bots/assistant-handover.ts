@@ -2,8 +2,11 @@ import { prisma, recordEvent } from "@linkaffipro/db";
 import { choosePrimaryBot } from "@linkaffipro/telegram";
 
 /**
- * Passage d'un bot en assistant de conversation (phase 17) : il ne publie plus rien dans les canaux. Ses rôles sont
- * repris par un bot normal administrateur du même canal :
+ * Passage d'un bot en assistant de conversation (phase 17) : il ne publie plus rien dans les canaux. Un bot normal qui
+ * administre encore un canal ne peut pas passer en assistant (`setBotModeAction`) ; la reprise sert pour les rôles qui
+ * lui restent malgré tout (bot principal d'un canal dont ses droits ont été retirés, messages à venir encore à son nom)
+ * et pour un assistant ajouté plus tard comme administrateur d'un canal (mode réenregistré). Ses rôles sont repris par
+ * un bot normal administrateur du même canal :
  * - bot principal d'un canal → remplacé (même choix que pour un canal nouveau : même univers, sinon le plus ancien
  *   administrateur), ou laissé vide s'il n'y en a aucun (rempli dès qu'un bot normal devient administrateur) ;
  * - messages de canal pas encore publiés (brouillons, programmés, annulés, échoués : ces deux derniers restent

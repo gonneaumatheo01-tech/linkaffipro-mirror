@@ -24,6 +24,9 @@ const m = vi.hoisted(() => ({
     stuck: [] as Array<{ postId: string; channelId: string; channelTitle: string | null }>,
   },
   applied: { replaced: 0, emptied: 0, posts: 0 },
+  /** Canaux que le bot administre encore (`ChannelBotAdmin` non retirés). */
+  channelAdmins: 0,
+  channelCountWhere: [] as unknown[],
   loadAssistantHandover: vi.fn(),
   applyAssistantHandover: vi.fn(),
 }));
@@ -58,6 +61,12 @@ vi.mock("@linkaffipro/db", () => ({
       findUnique: vi.fn(
         async ({ where }: { where: { id: string } }) => m.personas.get(where.id) ?? null,
       ),
+    },
+    channelBotAdmin: {
+      count: vi.fn(async (args: unknown) => {
+        m.channelCountWhere.push(args);
+        return m.channelAdmins;
+      }),
     },
   },
   audit: vi.fn(async (a: Record<string, unknown>) => void m.audits.push(a)),
@@ -107,6 +116,8 @@ beforeEach(() => {
   m.requireAdmin.mockClear();
   m.handover = { primaries: [], posts: [], stuck: [] };
   m.applied = { replaced: 0, emptied: 0, posts: 0 };
+  m.channelAdmins = 0;
+  m.channelCountWhere.length = 0;
   m.loadAssistantHandover.mockReset();
   m.loadAssistantHandover.mockImplementation(async () => m.handover);
   m.applyAssistantHandover.mockReset();
@@ -182,14 +193,106 @@ describe("mode du bot", () => {
     expect(sp.get("ok")).toContain("Description de la persona refusée");
   });
 
-  it("Telegram injoignable pour le profil : mode gardé, erreur expliquée", async () => {
-    m.setAssistantProfile.mockRejectedValue(new Error("Network request failed"));
+  it("Telegram injoignable pour le profil : mode gardé, raison en clair, jamais le texte technique", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    m.setAssistantProfile.mockRejectedValue(
+      new Error("Network request for 'setMyDescription' failed!"),
+    );
     const sp = await redirected(
       setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
     );
     expect(m.updates).toHaveLength(1);
-    expect(sp.get("error")).toMatch(/^@lea_bot est maintenant un assistant de conversation/);
-    expect(sp.get("error")).toContain("la description du bot n'a pas pu être posée");
+    expect(sp.get("error")).toBe(
+      "@lea_bot est maintenant un assistant de conversation (persona Léa). Mais la description du bot n'a pas pu être posée dans Telegram : Telegram ne répond pas pour l'instant. Réessayez dans un instant.",
+    );
+    expect(sp.get("error")).not.toMatch(/Network|setMyDescription|failed/);
+    // Le texte brut part dans le journal du serveur.
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0]?.[1])).toContain("setMyDescription");
+    logged.mockRestore();
+  });
+
+  it("limite de Telegram (429) pour le profil : « attendre quelques secondes »", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    m.setAssistantProfile.mockRejectedValue(
+      new Error("Call to 'setMyDescription' failed! (429: Too Many Requests: retry after 31)"),
+    );
+    const sp = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
+    );
+    expect(sp.get("error")).toContain(
+      "n'a pas pu être posée dans Telegram : Telegram demande d'attendre quelques secondes. Réessayez dans un instant.",
+    );
+    expect(sp.get("error")).not.toMatch(/Call to|Too Many|retry/);
+    logged.mockRestore();
+  });
+
+  it("jeton refusé par Telegram pour le profil : coller le nouveau jeton, jamais « réessayez »", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    m.setAssistantProfile.mockRejectedValue(
+      new Error("Call to 'setMyDescription' failed! (401: Unauthorized)"),
+    );
+    const sp = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
+    );
+    expect(m.updates).toHaveLength(1);
+    expect(sp.get("error")).toBe(
+      "@lea_bot est maintenant un assistant de conversation (persona Léa). Mais la description du bot n'a pas pu être posée dans Telegram : Telegram refuse le jeton de ce bot (supprimé ou régénéré dans @BotFather). Collez le nouveau jeton avec « Ajouter un bot » (Réglages → Bots), puis réenregistrez.",
+    );
+    expect(sp.get("error")).not.toMatch(/Réessayez|Unauthorized|401/);
+    logged.mockRestore();
+  });
+
+  it("description refusée par notre garde-fou : la corriger dans la persona, jamais « réessayez »", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    m.setAssistantProfile.mockRejectedValue(
+      new Error(
+        "Description du bot refusée : elle doit dire que c'est l'assistante ou l'assistant du canal, sans laisser croire à une vraie personne.",
+      ),
+    );
+    const sp = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
+    );
+    expect(sp.get("error")).toContain(
+      "n'a pas pu être posée dans Telegram : Description du bot refusée : elle doit dire que c'est l'assistante ou l'assistant du canal, sans laisser croire à une vraie personne. Corrigez la description dans le bloc « Profil du bot » de la persona, puis réenregistrez.",
+    );
+    expect(sp.get("error")).not.toMatch(/Réessayez/);
+    logged.mockRestore();
+  });
+
+  it("garde-fou : un bot normal qui gère des canaux ne devient jamais l'assistante (rien n'est modifié)", async () => {
+    m.channelAdmins = 2;
+    const sp = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
+    );
+    expect(sp.get("error")).toBe(
+      "Ce bot gère 2 canaux : il ne peut pas devenir l'assistante. Créez un bot dédié dans @BotFather (voir le guide) et ajoutez-le ici.",
+    );
+    expect(m.channelCountWhere).toEqual([{ where: { botId: "bot1", revokedAt: null } }]);
+    expect(m.updates).toEqual([]);
+    expect(m.audits).toEqual([]);
+    expect(m.evictBot).not.toHaveBeenCalled();
+    expect(m.loadAssistantHandover).not.toHaveBeenCalled();
+    expect(m.setAssistantProfile).not.toHaveBeenCalled();
+    m.channelAdmins = 1;
+    const one = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
+    );
+    expect(one.get("error")).toMatch(/^Ce bot gère 1 canal : /);
+  });
+
+  it("garde-fou : retour en bot normal, ou persona changée d'un bot déjà assistant, toujours possibles", async () => {
+    m.channelAdmins = 3;
+    Object.assign(m.bot, { mode: "ASSISTANT", personaId: "p1" });
+    let sp = await redirected(
+      setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p2" })),
+    );
+    expect(sp.get("error")).toBeNull();
+    expect(m.updates).toEqual([{ mode: "ASSISTANT", personaId: "p2" }]);
+    m.setAssistantProfile.mockResolvedValue({ mode: "STANDARD", cleared: true, languages: ["fr"] });
+    sp = await redirected(setBotModeAction(form({ botId: "bot1", mode: "STANDARD" })));
+    expect(sp.get("ok")).toBe("@lea_bot est maintenant un bot normal.");
+    expect(m.channelCountWhere).toEqual([]);
   });
 
   it("refusé : mode inconnu, bot ou persona introuvable (rien n'est modifié)", async () => {

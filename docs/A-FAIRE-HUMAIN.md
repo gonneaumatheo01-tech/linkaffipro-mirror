@@ -1,5 +1,15 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 17 : l'assistante de conversation Rencontres (15 minutes, quand vous voulez)
+L'assistante est **désactivée** : elle ne répond à personne tant que vous ne l'avez pas mise en route.
+1. **Créer le bot dédié** : dans Telegram, ouvrez @BotFather → envoyez `/newbot` → nom affiché (par exemple « Léa · Assistante ») → identifiant qui finit par « bot » → copiez le jeton (la longue ligne après « Use this token »). Ce bot ne doit être ajouté à **aucun** canal : le site refuse de transformer un bot qui gère des canaux.
+2. **L'ajouter au site** : https://app.linkaffipro.com/settings/bots → **Ajouter un bot** → collez le jeton, univers **Rencontres** → **Ajouter le bot**.
+3. **Clé Venice** : https://app.linkaffipro.com/settings/assistant → suivez le guide en bas de la page (compte Venice, quelques dollars de crédit, **Generate New API Key**, type **Inference Only**) → collez la clé → **Vérifier**. Le plafond est réglé à 30 € par mois.
+4. **Créer la persona** : menu **Conversations** → **Personas** → **Nouvelle persona** : prénom, personnalité, ton ; dans **Offre**, choisissez l'offre Link Affi de l'app et écrivez la fiche de l'offre (ce que l'assistante a le droit de dire, rien d'autre) ; essayez-la avec **Tester** (discussion simulée, rien ne part sur Telegram) ; cochez **Activée** → **Enregistrer**.
+5. **Relier le bot à la persona** : Réglages → Bots → le nouveau bot → **Mode** « Assistant de conversation », **Persona liée** → **Enregistrer le mode**.
+6. **Essai par vous seul** : Réglages → IA de conversation → Activation **Seulement l'équipe (essai)** → **Enregistrer**. Depuis votre Telegram, ouvrez le nouveau bot → **Démarrer** → écrivez comme un vrai prospect (demandez aussi « t'es un bot ? »). Puis menu **Conversations** : votre fil est là ; essayez **Prendre la main**, écrivez un message, puis **Rendre à l'assistante**.
+7. **Mise en route** : quand l'essai vous plaît, Activation **Tout le monde**. Lien à donner (canaux, pages, pubs) : `https://t.me/<identifiant du bot>?start=tk01` — remplacez `tk01` par le nom de la source pour avoir les chiffres par source (menu Conversations → Chiffres).
+
 ## Phase 16 : sortir de TikTok (5 minutes)
 1. **Test sur iPhone** : envoyez-vous le lien https://go.goolink.eu/j/test?src=tk01 dans un message TikTok, ouvrez-le depuis TikTok, appuyez sur « Rejoindre le canal » : l'aide sombre apparaît tout de suite avec une flèche jaune vers « ••• » en haut à droite. Suivez-la : « ••• » → « Ouvrir dans le navigateur » ; Safari s'ouvre et demande « Ouvrir dans « Telegram » ? » → **Ouvrir** : Telegram s'ouvre sur la demande d'adhésion au canal Test.
 2. **Même essai sur un téléphone Android** (si vous en avez un sous la main), puis **faites une capture d'écran de TikTok avec le menu « ••• » ouvert** et déposez-la dans le dossier `docs/tiktok-captures/` (ou envoyez-la au bot) : elle confirmera où se trouve le bouton sur Android (en haut à droite d'après nos recherches, mais ce n'est pas certain) et le libellé exact.

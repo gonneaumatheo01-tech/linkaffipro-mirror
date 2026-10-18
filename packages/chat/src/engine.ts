@@ -7,6 +7,7 @@ import { canSendOffer, decideStage } from "./journey";
 import { nextFollowUpAt } from "./follow-ups";
 import { mergeFacts } from "./memory";
 import { detectMinorIn } from "./minor";
+import { mentionsStopRequest } from "./stop-request";
 import { parseTurnOutput } from "./parse";
 import { buildSummaryRequest, buildSystemPrompt, buildTurnMessages, cleanSummary } from "./prompt";
 import { pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
@@ -33,7 +34,7 @@ import {
   type LlmResponse,
   type UsagePurpose,
 } from "./types";
-import { asksIfBot, validateTurnOutput, type RejectCode } from "./validate";
+import { asksIfBot, openBotQuestion, validateTurnOutput, type RejectCode } from "./validate";
 
 /** Attente avant le nouvel essai sur le même modèle après une panne passagère. */
 export const TRANSIENT_RETRY_DELAY_MS = 2000;
@@ -202,6 +203,16 @@ function buildRequest(
   };
 }
 
+/**
+ * Textes où chercher la question « bot / IA / vraie personne ? » : messages du tour, et question restée sans aveu dans
+ * l'historique (`openBotQuestion`). Jamais pour une relance.
+ */
+function botQuestionTexts(input: TurnInput, inbound: TurnInbound[]): string[] {
+  if (input.kind !== "reply") return [];
+  const open = openBotQuestion(input.history);
+  return [...(open ? [open] : []), ...inbound.map((m) => m.text)];
+}
+
 /** Lecture + contrôle d'une réponse ; le coût est journalisé avec le verdict. */
 async function checkResponse(
   run: Run,
@@ -241,9 +252,10 @@ async function checkResponse(
     personaName: input.persona.name,
     offerPitch: input.persona.hasOffer ? input.persona.offerPitch : "",
     memberTexts,
-    turnInboundTexts: input.kind === "reply" ? inbound.map((m) => m.text) : [],
+    turnInboundTexts: botQuestionTexts(input, inbound),
     facts: conv.facts,
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
+    privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
   });
   if (!v.ok) {
     await recordUsage(run, {
@@ -355,7 +367,7 @@ async function stopForMinor(
 ): Promise<TurnResult> {
   const conv = run.input.conversation;
   const text = fixedText(run.lang, "minorStop");
-  const r = await safeSend(() => run.deps.sender.sendText(text));
+  const r = await safeSend(() => run.deps.sender.sendText(text, { fixedKey: "minorStop" }));
   const stage = stageEvents(conv.stage, "CLOSED");
   return {
     ...baseResult(run, inbound),
@@ -397,7 +409,7 @@ function capResult(run: Run, inbound: TurnInbound[], deferred: TurnInbound[] = [
  */
 function safeFallbackKey(run: Run, inbound: TurnInbound[]): FixedTextKey | null {
   if (run.input.kind !== "reply") return null;
-  if (inbound.some((m) => asksIfBot(m.text))) return "isAssistant";
+  if (botQuestionTexts(run.input, inbound).some((t) => asksIfBot(t))) return "isAssistant";
   if (run.input.conversation.isFirstAssistantTurn) return "intro";
   return null;
 }
@@ -438,7 +450,7 @@ async function retryLater(
   if (canNeutral) {
     const text = fixedText(run.lang, "retryLater");
     await safeTyping(run);
-    const r = await safeSend(() => deps.sender.sendText(text));
+    const r = await safeSend(() => deps.sender.sendText(text, { fixedKey: "retryLater" }));
     if (r.ok)
       sent.push({
         index: 0,
@@ -509,8 +521,11 @@ async function sendParts(
     const mediaAssetId = link && persona.offerMediaAssetId ? persona.offerMediaAssetId : null;
     const r = await safeSend(() =>
       mediaAssetId
-        ? deps.sender.sendMedia({ mediaAssetId }, text, { buttons })
-        : deps.sender.sendText(text, buttons ? { buttons } : undefined),
+        ? deps.sender.sendMedia({ mediaAssetId }, text, { buttons, fixedKey: opts.fixedKey })
+        : deps.sender.sendText(
+            text,
+            buttons ? { buttons, fixedKey: opts.fixedKey } : { fixedKey: opts.fixedKey },
+          ),
     );
     if (!r.ok) {
       sendError = { blocked: r.blocked, unreachable: r.unreachable, error: r.error };
@@ -576,10 +591,9 @@ async function rollingSummary(run: Run): Promise<string | undefined> {
   }
 }
 
-/** Un tour complet de l'assistant (contrat §3.10). */
-export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnResult> {
+function newRun(input: TurnInput, deps: TurnDeps): Run {
   const conv = input.conversation;
-  const run: Run = {
+  return {
     input,
     deps,
     lang: replyLanguage({
@@ -592,6 +606,23 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     extraMemberMessages: 0,
     startedAt: deps.now(),
   };
+}
+
+/**
+ * Résumé roulant fait APRÈS l'enregistrement du tour (`TurnInput.deferSummary`) : même règle que dans le tour (au-delà
+ * de 30 messages, modèle de repli, plafond vérifié, coût journalisé) ; un échec est sans conséquence (undefined).
+ */
+export async function summarizeAfterTurn(
+  input: TurnInput,
+  deps: TurnDeps,
+): Promise<string | undefined> {
+  return rollingSummary(newRun(input, deps));
+}
+
+/** Un tour complet de l'assistant (contrat §3.10). */
+export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnResult> {
+  const conv = input.conversation;
+  const run = newRun(input, deps);
   let inbound: TurnInbound[] = input.kind === "reply" ? [...input.inbound] : [];
 
   // Jamais de réponse à une conversation fermée ou à un mineur (l'appelant ne devrait pas appeler).
@@ -635,6 +666,14 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     const lateMinor = detectMinorIn(check.newInbound.map((m) => m.text));
     if (lateMinor.minor)
       return stopForMinor(run, [...inbound, ...check.newInbound], "code", lateMinor.age);
+    // La personne écrit pendant la préparation d'une relance : la relance n'a plus lieu d'être. Rien ne part ; ses
+    // messages sont rendus pour un vrai tour de réponse (aveu exigé si elle demande « bot ? »).
+    if (input.kind === "follow_up")
+      return {
+        ...baseResult(run, inbound),
+        outcome: "aborted",
+        deferredInbound: check.newInbound,
+      };
     if (regenerated || gen.kind === "error") {
       deferred = check.newInbound;
       break;
@@ -713,8 +752,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     : sending.sendError?.unreachable
       ? ("UNREACHABLE" as const)
       : null;
+  // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
+  const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
   const next =
-    anySent && !closeReason
+    anySent && !closeReason && !stopAsked
       ? nextFollowUpAt(
           {
             status: "BOT",
@@ -727,7 +768,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
           input.persona,
         )
       : null;
-  const summary = anySent && !sending.sendError ? await rollingSummary(run) : undefined;
+  const summary =
+    anySent && !sending.sendError && !input.deferSummary ? await rollingSummary(run) : undefined;
 
   return {
     ...baseResult(run, inbound),

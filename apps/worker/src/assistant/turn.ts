@@ -15,10 +15,16 @@
  *    l'équipe ou une conversion survenus pendant le tour ne sont jamais défaits ; messages rendus au tour suivant, et
  *    tour suivant mis en file s'il reste des messages.
  * Tour planté (erreur de la base…) sans rien avoir envoyé : messages rendus et repris 30 s plus tard, au plus 2 fois.
+ * Les faits d'un envoi (dernier message parti, tour compté, lien envoyé, étape LINK_SENT) sont écrits par l'envoi au
+ * moment où le message part ; le résumé roulant est fait APRÈS l'enregistrement du tour (jamais un arrêt du worker
+ * pendant le résumé ne fait perdre un lien envoyé). Relance : la personne qui écrit pendant sa préparation l'annule
+ * (jamais un message reçu traité comme une relance). Âge déclaré : aussi cherché dans les messages réclamés quand le
+ * contrôle avant l'appel échoue (filet de la détection faite à la réception).
  */
 import {
   HISTORY_LIMIT,
   clampMaxTokens,
+  detectMinorIn,
   estimateCostEur,
   findModel,
   modelSupportsReasoning,
@@ -28,6 +34,7 @@ import {
   parseFacts,
   parseStyleProfile,
   runTurn,
+  summarizeAfterTurn,
   type ConversationStage,
   type TurnDeps,
   type TurnInbound,
@@ -51,6 +58,7 @@ import {
   releaseCrashedTurn,
   releaseInbound,
   releaseTurn,
+  settleTurnParts,
   type ClaimedInbound,
 } from "./claim";
 import {
@@ -58,13 +66,14 @@ import {
   recordConversationEventOncePerDay,
   type ConversationRef,
 } from "./events";
-import { conversationGuard, countResets } from "./guard";
+import { conversationGuard, countHandovers, countResets, HANDOVER_EVENT_TYPES } from "./guard";
 import { createAssistantOfferLink, dropUnsentOfferLink } from "./offer-link";
 import {
   CHAT_LOCK_BUSY_RETRY_MS,
   CHAT_LOCK_TTL_MS,
   CRASH_RETRY_DELAY_MS,
   MAX_TURN_CRASHES,
+  conversationDailyCostCapEur,
   SUMMARY_MAX_MESSAGES,
   SUMMARY_TRIGGER_MESSAGES,
   chatLockKey,
@@ -80,6 +89,7 @@ import {
   toPersonaInput,
   type ConversationPatch,
   type HistoryRow,
+  type LiveWrites,
   type PrecheckResult,
 } from "./rules";
 import { chatRuntime } from "./runtime";
@@ -164,11 +174,14 @@ type TurnContext = {
   blocked: boolean;
   /** Nombre de /reset de la conversation au début du tour (un /reset pendant le tour est repéré par la différence). */
   resetsAtStart: number;
+  /** Nombre de prises / rendus de main au début du tour (même principe). */
+  handoversAtStart: number;
 };
 
 async function loadTurnContext(
   conversationId: string,
   resetsAtStart: number,
+  handoversAtStart: number,
 ): Promise<TurnContext | null> {
   const conv = await loadConversation(conversationId);
   if (!conv) return null;
@@ -190,6 +203,7 @@ async function loadTurnContext(
     settings,
     blocked: Boolean(botState?.blockedAt),
     resetsAtStart,
+    handoversAtStart,
   };
 }
 
@@ -224,15 +238,28 @@ export async function assistantMessagesSentToday(
   });
 }
 
+/** Dépense IA de cette conversation aujourd'hui (Paris), en euros. */
+export async function conversationSpendTodayEur(
+  conversationId: string,
+  now: Date,
+): Promise<number> {
+  const agg = await prisma.aiConversationUsage.aggregate({
+    _sum: { costEur: true },
+    where: { conversationId, createdAt: { gte: parisDayStart(now) } },
+  });
+  return Number(agg._sum.costEur ?? 0);
+}
+
 async function runPrecheck(ctx: TurnContext, now: Date): Promise<PrecheckResult> {
   const { config } = ctx.settings;
   const isTeamMember =
     config.activation === "team"
       ? await isAssistantTeamMember(ctx.conv.member.telegramUserId)
       : false;
-  const [assistantMessagesToday, monthSpend] = await Promise.all([
+  const [assistantMessagesToday, monthSpend, conversationSpend] = await Promise.all([
     assistantMessagesSentToday(ctx.conv.botId, ctx.conv.memberId, now),
     monthSpendEur(now),
+    conversationSpendTodayEur(ctx.conv.id, now),
   ]);
   return precheck({
     bot: ctx.conv.bot,
@@ -245,6 +272,7 @@ async function runPrecheck(ctx: TurnContext, now: Date): Promise<PrecheckResult>
     dailyLimit: config.perConversationDailyLimit,
     monthSpendEur: monthSpend,
     monthlyCapEur: config.monthlyCapEur,
+    conversationSpendTodayEur: conversationSpend,
   });
 }
 
@@ -259,9 +287,14 @@ async function onPrecheckFailure(
       type: check.event,
       dayStart: parisDayStart(now),
       payload:
-        check.event === "daily_limit"
-          ? { limit: ctx.settings.config.perConversationDailyLimit, day: parisDayKey(now) }
-          : { capEur: ctx.settings.config.monthlyCapEur, day: parisDayKey(now) },
+        check.reason === "daily_cost"
+          ? {
+              costCapEur: conversationDailyCostCapEur(ctx.settings.config.monthlyCapEur),
+              day: parisDayKey(now),
+            }
+          : check.event === "daily_limit"
+            ? { limit: ctx.settings.config.perConversationDailyLimit, day: parisDayKey(now) }
+            : { capEur: ctx.settings.config.monthlyCapEur, day: parisDayKey(now) },
       at: now,
     });
   logger.info(
@@ -300,8 +333,18 @@ const historySelect = {
   author: true,
   text: true,
   media: true,
+  meta: true,
   createdAt: true,
 } as const;
+
+/** Parties interrompues écartées de l'historique au plus (marge de lecture). */
+const INTERRUPTED_MARGIN = 5;
+
+/** Partie de l'assistant dont l'envoi a été interrompu (`meta.interrupted`) ? */
+function notInterrupted(r: { direction: string; meta: unknown }): boolean {
+  if (r.direction !== "OUT" || !r.meta || typeof r.meta !== "object") return true;
+  return (r.meta as { interrupted?: unknown }).interrupted !== true;
+}
 
 type HistorySelected = {
   id: string;
@@ -309,11 +352,19 @@ type HistorySelected = {
   author: "MEMBER" | "ASSISTANT" | "TEAM" | "SYSTEM";
   text: string;
   media: unknown;
+  meta?: unknown;
   createdAt: Date;
 };
 
 function toHistoryRow(r: HistorySelected): HistoryRow {
-  return { ...r, media: parseChatMedia(r.media) };
+  return {
+    id: r.id,
+    direction: r.direction,
+    author: r.author,
+    text: r.text,
+    media: parseChatMedia(r.media),
+    createdAt: r.createdAt,
+  };
 }
 
 /**
@@ -329,14 +380,18 @@ async function loadHistory(conversationId: string, turnId: string) {
       { direction: "IN", turnId: null },
     ],
   };
+  // Partie dont l'envoi a été interrompu (peut-être jamais reçue) : jamais présentée à l'IA comme dite. Écartée ici
+  // (un filtre JSON dans NOT écarterait aussi les lignes sans ce repère : NULL en SQL).
   const recent = (
     await prisma.conversationMessage.findMany({
       where: notThisTurn,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: HISTORY_LIMIT,
+      take: HISTORY_LIMIT + INTERRUPTED_MARGIN,
       select: historySelect,
     })
   )
+    .filter(notInterrupted)
+    .slice(0, HISTORY_LIMIT)
     .reverse()
     .map(toHistoryRow);
   const mark = await prisma.conversationMessage.findFirst({
@@ -358,6 +413,7 @@ async function loadHistory(conversationId: string, turnId: string) {
         select: historySelect,
       })
     )
+      .filter(notInterrupted)
       .reverse()
       .map(toHistoryRow);
     plan = summaryPlan(rows);
@@ -378,11 +434,15 @@ async function runConversationTurn(conversationId: string): Promise<ChatTurnRepo
   const turnId = newTurnId(now);
   let crashed = false;
   try {
-    // Compté AVANT la réclamation : un /reset qui tombe ensuite est toujours vu par la relecture avant l'envoi.
-    const resetsAtStart = await countResets(conversationId);
+    // Comptés AVANT la réclamation : un /reset ou un passage de main qui tombe ensuite est toujours vu par la relecture
+    // avant l'envoi.
+    const [resetsAtStart, handoversAtStart] = await Promise.all([
+      countResets(conversationId),
+      countHandovers(conversationId),
+    ]);
     const claimed = await claimInbound(conversationId, turnId);
     if (claimed === null) return { conversationId, status: "missing" };
-    const ctx = await loadTurnContext(conversationId, resetsAtStart);
+    const ctx = await loadTurnContext(conversationId, resetsAtStart, handoversAtStart);
     if (!ctx) return { conversationId, status: "missing" };
     if (claimed.length === 0) return await followUpPath(ctx, turnId, now);
     return await replyPath(ctx, turnId, claimed, now);
@@ -407,7 +467,8 @@ async function runConversationTurn(conversationId: string): Promise<ChatTurnRepo
 async function recoverCrashedTurn(conversationId: string, turnId: string, err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
   try {
-    const sent = await prisma.conversationMessage.count({ where: { turnId, direction: "OUT" } });
+    // Parties restées « en file » : passées en échec (jamais renvoyées) ; seules les parties parties comptent.
+    const { sent } = await settleTurnParts(turnId);
     if (sent > 0) {
       await markTurnDone(turnId);
       logger.warn(
@@ -486,6 +547,18 @@ async function replyPath(
   }
   const check = await runPrecheck(ctx, now);
   if (!check.ok) {
+    // Filet de la règle 3 : ces messages ne passeront pas par le moteur (limite du jour, plafond, persona désactivée…) ;
+    // un âge déclaré y est quand même cherché, la conversation est fermée (aucun message).
+    const minor = ctx.conv.isMinor ? null : detectMinorIn(claimed.map((m) => m.text));
+    if (minor?.minor) {
+      await closeForMinor(ctx, minor.age, now);
+      return {
+        conversationId: conv.id,
+        status: "skipped",
+        reason: "minor",
+        claimed: claimed.length,
+      };
+    }
     if (check.release)
       await releaseInbound(
         turnId,
@@ -507,6 +580,51 @@ async function replyPath(
     lastNeutralAt: failures.lastNeutralAt,
     followUpCountBefore: conv.followUpCount,
   });
+}
+
+/**
+ * Âge déclaré trouvé par le filet du worker : conversation marquée mineure et fermée (raison MINOR, sauf fermeture déjà
+ * faite), relance et nouvel essai annulés, événements `minor` et `stage_changed`. Aucun message (l'assistante n'avait
+ * pas la parole pour ce tour).
+ */
+async function closeForMinor(ctx: TurnContext, age: number | null, now: Date): Promise<void> {
+  const fromStage = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Conversation" WHERE id = ${ctx.conv.id} FOR UPDATE`;
+    const cur = await tx.conversation.findUnique({
+      where: { id: ctx.conv.id },
+      select: { status: true, stage: true, isMinor: true, closedAt: true, closedReason: true },
+    });
+    if (!cur || cur.isMinor) return null;
+    const alreadyClosed = cur.status === "CLOSED";
+    await tx.conversation.update({
+      where: { id: ctx.conv.id },
+      data: {
+        isMinor: true,
+        status: "CLOSED",
+        stage: "CLOSED",
+        closedAt: alreadyClosed && cur.closedAt ? cur.closedAt : now,
+        closedReason: alreadyClosed && cur.closedReason ? cur.closedReason : "MINOR",
+        nextFollowUpAt: null,
+        retryAt: null,
+        takenOverById: null,
+        takenOverAt: null,
+      },
+    });
+    return { stage: cur.stage as ConversationStage };
+  });
+  if (!fromStage) return;
+  await recordConversationEvent(ctx.ref, {
+    type: "minor",
+    payload: { source: "worker", age },
+    at: now,
+  });
+  if (fromStage.stage !== "CLOSED")
+    await recordConversationEvent(ctx.ref, {
+      type: "stage_changed",
+      fromStage: fromStage.stage,
+      toStage: "CLOSED",
+      at: now,
+    });
 }
 
 async function followUpPath(ctx: TurnContext, turnId: string, now: Date): Promise<ChatTurnReport> {
@@ -641,6 +759,8 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
     needsSummary: plan.needsSummary,
     summaryMessages: plan.summaryMessages,
     retryCount: args.retryCount,
+    // Résumé fait après l'enregistrement du tour (voir plus bas).
+    deferSummary: true,
   };
   const sendCtx: SenderContext = {
     conversationId: conv.id,
@@ -651,9 +771,11 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
     pendingOffer: null,
     offerSendsBefore: conv.offerSends,
     resetsAtStart: ctx.resetsAtStart,
+    handoversAtStart: ctx.handoversAtStart,
   };
-  // Reprise par l'équipe, /stop, mineur ou /reset pendant le tour : relu avant le premier envoi ET avant chaque partie.
-  const guard = () => conversationGuard(conv.id, ctx.resetsAtStart);
+  // Reprise par l'équipe (même rendue depuis), /stop, mineur ou /reset pendant le tour : relu avant le premier envoi ET
+  // avant chaque partie.
+  const guard = () => conversationGuard(conv.id, ctx.resetsAtStart, ctx.handoversAtStart);
   const sender = createWorkerChatSender(sendCtx, { now: () => rt.now(), guard });
   const deps: TurnDeps = {
     llm: rt.llmFactory(settings.apiKey ?? ""),
@@ -676,6 +798,10 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
     beforeSend: async () => {
       // Reprise par l'équipe, /stop, mineur ou /reset pendant la préparation : rien ne part.
       if (!(await guard()).ok) return { abort: true, newInbound: [] };
+      // Relance : jamais un message reçu absorbé (il serait traité comme une relance, sans aveu exigé). La personne a
+      // écrit pendant la préparation → la relance n'a plus lieu d'être ; un vrai tour de réponse suit.
+      if (args.kind === "follow_up")
+        return { abort: (await countUnclaimed(conv.id)) > 0, newInbound: [] };
       const more = await claimMoreInbound(conv.id, args.turnId);
       return { abort: false, newInbound: more.map(toTurnInbound) };
     },
@@ -684,6 +810,8 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
         data: {
           personaId: persona.id,
           conversationId: conv.id,
+          // Copie de la source : le coût reste rattaché à sa source après la suppression de la conversation.
+          source: conv.source,
           purpose: u.purpose,
           model: u.model.slice(0, 200),
           inputTokens: Math.max(0, Math.round(u.inputTokens)),
@@ -701,7 +829,13 @@ async function runAndPersist(ctx: TurnContext, args: RunArgs): Promise<ChatTurnR
   };
 
   const result = await runTurn(input, deps);
-  await persistTurn(ctx, args, result, sender.sentRows, plan.markId);
+  const persisted = await persistTurn(ctx, args, result, sender, plan.markId);
+  // Résumé roulant APRÈS l'enregistrement (lien, compteurs, relance déjà écrits) : un échec ou un arrêt ici est sans
+  // conséquence.
+  if (persisted && result.outcome === "replied" && !result.sendError && plan.needsSummary)
+    await summarizeAndStore(ctx, input, deps, plan.markId).catch((err: Error) =>
+      logger.warn({ conversationId: conv.id, err: err.message }, "assistant : résumé non fait"),
+    );
   return {
     conversationId: conv.id,
     status: "done",
@@ -751,37 +885,77 @@ function partMeta(
   };
 }
 
+/** Résumé roulant fait après le tour ; gardé seulement si aucun /reset n'a tout effacé depuis le début du tour. */
+async function summarizeAndStore(
+  ctx: TurnContext,
+  input: TurnInput,
+  deps: TurnDeps,
+  summaryMarkId: string | null,
+): Promise<void> {
+  const summary = await summarizeAfterTurn(input, deps);
+  if (!summary) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Conversation" WHERE id = ${ctx.conv.id} FOR UPDATE`;
+    const resets = await tx.conversationEvent.count({
+      where: { conversationId: ctx.conv.id, type: "reset" },
+    });
+    if (resets > ctx.resetsAtStart) return;
+    await tx.conversation.updateMany({ where: { id: ctx.conv.id }, data: { summary } });
+    if (summaryMarkId)
+      await tx.$executeRaw`
+        UPDATE "ConversationMessage" SET "meta" = "meta" || '{"summarized": true}'::jsonb WHERE id = ${summaryMarkId}`;
+  });
+}
+
 async function persistTurn(
   ctx: TurnContext,
   args: RunArgs,
   result: TurnResult,
-  sentRows: SentRow[],
+  sender: { sentRows: SentRow[]; live: LiveWrites },
   summaryMarkId: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const rt = chatRuntime();
   const now = rt.now();
   const { conv } = ctx;
-  const before = { stage: conv.stage, followUpCount: args.followUpCountBefore };
-  const planned = planTurnPersistence({ kind: args.kind, before, result, now });
+  const { sentRows, live } = sender;
+  // Étape après l'envoi du lien (déjà écrite par l'envoi) : point de départ de ce qui reste à écrire.
+  const before = {
+    stage: live.stage?.to ?? conv.stage,
+    followUpCount: args.followUpCountBefore,
+  };
+  const planned = planTurnPersistence({ kind: args.kind, before, result, now, live });
   // Relecture sous verrou de ligne (le /reset et la reprise par l'équipe verrouillent la même ligne) : ce qui a changé
   // pendant le tour n'est jamais défait (voir `reconcileTurnPlan`).
   const applied = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Conversation" WHERE id = ${conv.id} FOR UPDATE`;
     const cur = await tx.conversation.findUnique({
       where: { id: conv.id },
-      select: { status: true, stoppedAt: true, stage: true },
+      select: { status: true, stoppedAt: true, stage: true, lastInboundAt: true },
     });
     if (!cur) return null;
-    const resets = await tx.conversationEvent.count({
-      where: { conversationId: conv.id, type: "reset" },
-    });
+    const [resets, handovers] = await Promise.all([
+      tx.conversationEvent.count({ where: { conversationId: conv.id, type: "reset" } }),
+      tx.conversationEvent.count({
+        where: { conversationId: conv.id, type: { in: [...HANDOVER_EVENT_TYPES] } },
+      }),
+    ]);
     const reset = resets > ctx.resetsAtStart;
-    const plan = reconcileTurnPlan(planned, before, {
-      status: cur.status,
-      stoppedAt: cur.stoppedAt,
-      stage: cur.stage as ConversationStage,
-      reset,
-    });
+    const memberWrote =
+      cur.lastInboundAt !== null &&
+      (conv.lastInboundAt === null || cur.lastInboundAt.getTime() > conv.lastInboundAt.getTime());
+    const plan = reconcileTurnPlan(
+      planned,
+      before,
+      {
+        status: cur.status,
+        stoppedAt: cur.stoppedAt,
+        stage: cur.stage as ConversationStage,
+        reset,
+        handedOver: handovers > ctx.handoversAtStart,
+        memberWrote,
+      },
+      args.kind,
+    );
     await tx.conversation.update({
       where: { id: conv.id },
       data: toConversationUpdate(plan.patch),
@@ -791,7 +965,7 @@ async function persistTurn(
   // Conversation supprimée pendant le tour (membre supprimé à sa demande) : plus rien à écrire.
   if (!applied) {
     if (result.unsentOfferSubId) await dropUnsentOfferLink(result.unsentOfferSubId);
-    return;
+    return false;
   }
   const { plan, reset } = applied;
   for (const e of plan.events) {
@@ -822,13 +996,14 @@ async function persistTurn(
       .update({ where: { id: row.conversationMessageId }, data: { meta: toJsonValue(meta) } })
       .catch(() => undefined);
   }
-  // Résumé roulant fait (et gardé : pas de /reset entre-temps) : repère sur le dernier message résumé.
+  // Résumé roulant fait dans le tour (appelant sans `deferSummary`) et gardé : repère sur le dernier message résumé.
   if (result.summary && summaryMarkId && !reset)
     await prisma.$executeRaw`
       UPDATE "ConversationMessage" SET "meta" = "meta" || '{"summarized": true}'::jsonb WHERE id = ${summaryMarkId}`.catch(
       () => undefined,
     );
   await scheduleNext(conv.id, now);
+  return !reset;
 }
 
 /** Tour suivant : à l'heure du nouvel essai, ou tout de suite s'il reste des messages reçus non traités. */

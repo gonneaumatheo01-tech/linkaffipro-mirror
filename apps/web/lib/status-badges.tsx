@@ -292,7 +292,7 @@ export const STATUS_DICT = {
     CLOSED: muted("Fermée"),
   } satisfies Record<ConversationStage, StatusEntry>,
   conversationStatus: {
-    BOT: ok("L'assistant répond"),
+    BOT: ok("L'assistante répond"),
     HUMAN: warn("L'équipe a la main"),
     PAUSED: muted("En pause"),
     CLOSED: muted("Fermée"),

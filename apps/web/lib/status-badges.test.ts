@@ -132,6 +132,8 @@ describe("badges de statut", () => {
     expect(statusLabel("conversationStage", "LINK_SENT")).toBe("Lien envoyé");
     expect(statusLabel("conversationStage", "CONVERTED")).toBe("Inscrit");
     expect(statusLabel("conversationStatus", "HUMAN")).toBe("L'équipe a la main");
+    // Même libellé que les écrans (boîte de réception, fiche, export) : « l'assistante » par défaut.
+    expect(statusLabel("conversationStatus", "BOT")).toBe("L'assistante répond");
     expect(statusTone("conversationStatus", "BOT")).toBe("success");
     expect(statusLabel("conversationAuthor", "TEAM")).toBe("Équipe");
   });

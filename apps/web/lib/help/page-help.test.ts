@@ -227,6 +227,9 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(guideHref(pageHelpFor("/conversations/c1").help)).toBe("/help#boite-de-reception");
     expect(guideHref(pageHelpFor("/conversations/personas/p1").help)).toBe("/help#personas");
     expect(guideHref(pageHelpFor("/conversations/stats").help)).toBe("/help#chiffres");
+    // Les chiffres utilisent le sélecteur de période commun : son aide est jointe, comme pour les Statistiques.
+    const stats = guideSections(GUIDE, pageHelpFor("/conversations/stats").help.sections);
+    expect(stats.map((s) => s.id)).toEqual(["chiffres", "periode-et-comparaison"]);
   });
 
   it("lien « Ouvrir le guide complet » : ancre de la première section de la page", () => {

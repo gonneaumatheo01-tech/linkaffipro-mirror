@@ -9,6 +9,8 @@
  *   terminé sans réponse (plafond, limite du jour…) pour un tour bloqué.
  * - Tour planté ou bloqué sans rien avoir envoyé : messages rendus avec un compteur `meta.crashes`, abandonnés (marqués
  *   traités) au-delà de 2 (jamais de boucle).
+ * - `claimedAt` : heure de réclamation, posée par la réclamation et remise à null quand le message est rendu ou que son
+ *   tour se termine ; seuls les tours en cours (ou bloqués) en ont une (index : balayage sans lecture de toute la table).
  */
 import { randomBytes } from "node:crypto";
 import type { ChatMedia, ChatMediaKind } from "@linkaffipro/chat";
@@ -73,7 +75,7 @@ export async function claimInbound(
     if (locked.length === 0) return null;
     const rows = await tx.$queryRaw<ClaimedRow[]>`
       UPDATE "ConversationMessage"
-         SET "turnId" = ${turnId}, "meta" = "meta" - 'turnDone'
+         SET "turnId" = ${turnId}, "meta" = "meta" - 'turnDone', "claimedAt" = now()
        WHERE "conversationId" = ${conversationId} AND "direction" = 'IN' AND "turnId" IS NULL
       RETURNING id, text, media, "createdAt"`;
     return toClaimed(rows);
@@ -94,7 +96,7 @@ export async function releaseInbound(turnId: string, ids: readonly string[]): Pr
   if (unique.length === 0) return 0;
   const r = await prisma.conversationMessage.updateMany({
     where: { id: { in: unique }, turnId, direction: "IN" },
-    data: { turnId: null },
+    data: { turnId: null, claimedAt: null },
   });
   return r.count;
 }
@@ -103,7 +105,7 @@ export async function releaseInbound(turnId: string, ids: readonly string[]): Pr
 export async function releaseTurn(turnId: string): Promise<number> {
   const r = await prisma.conversationMessage.updateMany({
     where: { turnId, direction: "IN" },
-    data: { turnId: null },
+    data: { turnId: null, claimedAt: null },
   });
   return r.count;
 }
@@ -126,11 +128,11 @@ export async function releaseCrashedTurn(
                              THEN ("meta" ->> 'crashes')::numeric::int END, 0) + 1)
        WHERE "turnId" = ${turnId} AND "direction" = 'IN'`;
     const gaveUp = await tx.$executeRaw`
-      UPDATE "ConversationMessage" SET "meta" = "meta" || '{"turnDone": true}'::jsonb
+      UPDATE "ConversationMessage" SET "meta" = "meta" || '{"turnDone": true}'::jsonb, "claimedAt" = NULL
        WHERE "turnId" = ${turnId} AND "direction" = 'IN'
          AND ("meta" ->> 'crashes')::numeric::int > ${maxCrashes}`;
     const released = await tx.$executeRaw`
-      UPDATE "ConversationMessage" SET "turnId" = NULL
+      UPDATE "ConversationMessage" SET "turnId" = NULL, "claimedAt" = NULL
        WHERE "turnId" = ${turnId} AND "direction" = 'IN' AND ("meta" ->> 'turnDone') IS NULL`;
     return { released, gaveUp };
   });
@@ -139,8 +141,42 @@ export async function releaseCrashedTurn(
 /** Fin d'un tour : ses messages entrants sont marqués traités (jamais repris par le balayage). */
 export async function markTurnDone(turnId: string): Promise<number> {
   return prisma.$executeRaw`
-    UPDATE "ConversationMessage" SET "meta" = "meta" || '{"turnDone": true}'::jsonb
+    UPDATE "ConversationMessage" SET "meta" = "meta" || '{"turnDone": true}'::jsonb, "claimedAt" = NULL
      WHERE "turnId" = ${turnId} AND "direction" = 'IN'`;
+}
+
+/** Erreur gardée sur une partie de l'assistant dont l'envoi a été interrompu (worker arrêté, panne de la base). */
+export const INTERRUPTED_PART_ERROR =
+  "Envoi interrompu (service d'arrière-plan arrêté pendant l'envoi) : message peut-être non reçu.";
+
+/**
+ * Parties d'un tour restées « en file » (`OutboundMessage` QUEUED : le worker s'est arrêté entre leur création et la
+ * réponse de Telegram) : passées en échec, texte vidé (jamais renvoyées : elles sont peut-être parties), marquées
+ * `meta.interrupted` (exclues de l'historique envoyé à l'IA). Renvoie le nombre de parties parties du tour (sans les
+ * parties interrompues) : seules elles comptent pour « jamais deux réponses ».
+ */
+export async function settleTurnParts(
+  turnId: string,
+): Promise<{ sent: number; interrupted: number }> {
+  const queued = await prisma.conversationMessage.findMany({
+    where: { turnId, direction: "OUT", outboundMessage: { is: { status: "QUEUED" } } },
+    select: { id: true, outboundMessageId: true },
+  });
+  if (queued.length > 0) {
+    const omIds = queued.map((q) => q.outboundMessageId).filter((id): id is string => Boolean(id));
+    await prisma.$transaction([
+      prisma.outboundMessage.updateMany({
+        where: { id: { in: omIds }, status: "QUEUED" },
+        data: { status: "FAILED", error: INTERRUPTED_PART_ERROR, text: "", buttons: [] },
+      }),
+      prisma.$executeRaw`
+        UPDATE "ConversationMessage" SET "meta" = "meta" || '{"interrupted": true}'::jsonb
+         WHERE id = ANY(${queued.map((q) => q.id)}::text[])`,
+    ]);
+  }
+  // Parties refusées par Telegram : leur ligne est retirée à l'envoi ; restent les parties parties.
+  const out = await prisma.conversationMessage.count({ where: { turnId, direction: "OUT" } });
+  return { sent: Math.max(0, out - queued.length), interrupted: queued.length };
 }
 
 /** Messages entrants encore non traités de la conversation. */

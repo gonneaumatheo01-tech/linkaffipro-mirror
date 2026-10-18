@@ -120,6 +120,8 @@ export type FakeSender = ChatSender & {
   /** Messages envoyés (texte et légendes), dans l'ordre. */
   messages(): Extract<FakeSendEntry, { kind: "text" | "media" }>[];
   typingCount(): number;
+  /** Texte fixe annoncé à chaque envoi (`SendOptions.fixedKey`, null pour une réponse du modèle), dans l'ordre. */
+  fixedKeys(): (string | null)[];
 };
 
 /**
@@ -134,6 +136,7 @@ export function createFakeSender(
   } = {},
 ): FakeSender {
   const log: FakeSendEntry[] = [];
+  const keys: (string | null)[] = [];
   let seq = 0;
   let sends = 0;
   const result = (text: string): SendResult => {
@@ -149,11 +152,13 @@ export function createFakeSender(
         (e): e is Extract<FakeSendEntry, { kind: "text" | "media" }> => e.kind !== "typing",
       ),
     typingCount: () => log.filter((e) => e.kind === "typing").length,
+    fixedKeys: () => [...keys],
     async sendTyping() {
       log.push({ kind: "typing", seq: ++seq });
     },
     async sendText(text, o) {
       log.push({ kind: "text", seq: ++seq, text, ...(o?.buttons ? { buttons: o.buttons } : {}) });
+      keys.push(o?.fixedKey ?? null);
       return result(text);
     },
     async sendMedia(media, caption, o) {
@@ -164,6 +169,7 @@ export function createFakeSender(
         text: caption,
         ...(o?.buttons ? { buttons: o.buttons } : {}),
       });
+      keys.push(o?.fixedKey ?? null);
       return result(caption);
     },
   };

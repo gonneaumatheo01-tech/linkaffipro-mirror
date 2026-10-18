@@ -11,6 +11,8 @@ import {
   setAssistantProfile,
   setWebhookForBot,
 } from "@linkaffipro/telegram";
+import { assistantModeRefusal } from "@/components/settings/bot-mode-logic";
+import { profileErrorNextStep, profileErrorReason } from "@/lib/personas/profile-error";
 import { requireAdmin, requireUser } from "@/lib/session";
 import { applyAssistantHandover, loadAssistantHandover } from "./assistant-handover";
 
@@ -100,9 +102,15 @@ const botModeSchema = z.object({
  * Mode du bot (phase 17, ADMIN) : bot normal, ou assistant de conversation avec sa persona liée. L'instance du bot est
  * recréée (handlers du nouveau mode) et son profil Telegram reposé (description qui dit « assistant(e) », commandes
  * /start, /stop, /reset ; remis à vide pour un bot normal). Un bot normal n'a pas de persona liée.
- * Passage en assistant : il ne publie plus rien dans les canaux. Il cesse d'être bot principal (remplacé par un bot
- * normal administrateur du canal) et ses messages pas encore publiés (brouillons, programmés, annulés, échoués) passent
- * à ce bot ; refusé tant qu'un brouillon ou un message programmé n'a aucun autre bot pour le publier.
+ * Passage en assistant : refusé pour un bot normal qui administre au moins un canal (`ChannelBotAdmin` non retiré) :
+ * l'assistante a toujours un bot à elle, créé exprès dans @BotFather (`assistantModeRefusal`, même règle que le
+ * formulaire). Sinon il ne publie plus rien dans les canaux : il cesse d'être bot principal d'un canal qu'il
+ * n'administre plus (remplacé par un bot normal administrateur du canal) et ses messages pas encore publiés
+ * (brouillons, programmés, annulés, échoués) passent à ce bot ; refusé tant qu'un brouillon ou un message programmé n'a
+ * aucun autre bot pour le publier.
+ * Profil Telegram jamais bloquant : une erreur est notée dans le journal du serveur, la page n'en montre que la raison
+ * en clair (`profileErrorReason`) et la suite qui débloque vraiment (`profileErrorNextStep` : nouveau jeton, correction
+ * de la description, ou réessayer si l'échec est passager).
  */
 export async function setBotModeAction(formData: FormData): Promise<void> {
   const user = await requireAdmin();
@@ -119,6 +127,14 @@ export async function setBotModeAction(formData: FormData): Promise<void> {
     select: { id: true, username: true, mode: true, personaId: true },
   });
   if (!bot) back({ error: "Bot introuvable." });
+  // Garde-fou : un bot qui gère des canaux n'en deviendrait pas moins absent pour eux (accueil, demandes d'adhésion).
+  if (mode === "ASSISTANT" && bot.mode !== "ASSISTANT") {
+    const channelCount = await prisma.channelBotAdmin.count({
+      where: { botId, revokedAt: null },
+    });
+    const refusal = assistantModeRefusal(bot.mode, channelCount);
+    if (refusal) back({ error: refusal });
+  }
   const persona = personaId
     ? await prisma.persona.findUnique({
         where: { id: personaId },
@@ -172,7 +188,9 @@ export async function setBotModeAction(formData: FormData): Promise<void> {
     const report = await setAssistantProfile(botId);
     if (report.mode === "ASSISTANT" && report.applied) profileWarnings = report.warnings;
   } catch (err) {
-    profileProblem = err instanceof Error ? err.message : String(err);
+    // Texte brut de Telegram ou de la bibliothèque : jamais affiché, seulement dans le journal du serveur.
+    console.error(`[bots] profil Telegram de @${bot.username} non posé :`, err);
+    profileProblem = `${profileErrorReason(err)}. ${profileErrorNextStep(err, "Réessayez dans un instant.")}`;
   }
 
   const done =
@@ -183,7 +201,7 @@ export async function setBotModeAction(formData: FormData): Promise<void> {
   if (profileProblem)
     back({
       error: [
-        `${done} Mais la description du bot n'a pas pu être posée dans Telegram (${profileProblem}). Réessayez dans un instant.`,
+        `${done} Mais la description du bot n'a pas pu être posée dans Telegram : ${profileProblem}`,
         ...handoverNotes,
       ].join(" "),
     });

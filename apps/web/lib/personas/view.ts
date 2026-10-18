@@ -192,7 +192,10 @@ export function styleLines(style: StyleProfile | null | undefined): string[] {
   return out;
 }
 
-/** Raisons de refus d'une réponse par les contrôles du code (codes de packages/chat), en français. */
+/**
+ * Raisons de refus d'une réponse par les contrôles du code (codes `REJECT_CODES` de packages/chat, validate.ts), en
+ * français. Chaque code a son libellé ici ou dans `GENDERED_REJECT_LABELS` (un test compare les deux listes).
+ */
 const REJECT_LABELS: Record<string, string> = {
   invalid_output: "réponse illisible",
   truncated: "réponse coupée",
@@ -202,19 +205,32 @@ const REJECT_LABELS: Record<string, string> = {
   markdown: "mise en forme interdite",
   link: "lien ou pseudo dans le texte",
   explicit: "contenu explicite",
-  denies_assistant: "a nié être une assistante",
   missing_assistant_admission: "n'a pas dit franchement être une IA",
-  intro_missing: "ne s'est pas présentée comme l'assistante du canal",
   invented_number: "chiffre inventé",
+  leak: "a dévoilé ses consignes internes",
 };
 
-export function rejectLabel(code: string): string {
-  return REJECT_LABELS[code] ?? "réponse refusée";
+/** Refus qui parlent de la persona elle-même : accordés à son genre (« assistante » par défaut, « assistant » si M). */
+const GENDERED_REJECT_LABELS: Record<string, { F: string; M: string }> = {
+  denies_assistant: { F: "a nié être une assistante", M: "a nié être un assistant" },
+  intro_missing: {
+    F: "ne s'est pas présentée comme l'assistante du canal",
+    M: "ne s'est pas présenté comme l'assistant du canal",
+  },
+};
+
+/** Libellé d'un refus inconnu (code ajouté au moteur sans libellé ici : le test des deux listes échoue). */
+export const UNKNOWN_REJECT_LABEL = "réponse refusée";
+
+export function rejectLabel(code: string, gender?: string | null): string {
+  const g = GENDERED_REJECT_LABELS[code];
+  if (g) return gender === "M" ? g.M : g.F;
+  return REJECT_LABELS[code] ?? UNKNOWN_REJECT_LABEL;
 }
 
-/** Raisons de refus distinctes, en français, dans l'ordre. */
-export function rejectLabels(codes: readonly string[]): string[] {
-  return [...new Set(codes.map(rejectLabel))];
+/** Raisons de refus distinctes, en français, dans l'ordre (accordées au genre de la persona). */
+export function rejectLabels(codes: readonly string[], gender?: string | null): string[] {
+  return [...new Set(codes.map((c) => rejectLabel(c, gender)))];
 }
 
 /** Panne de l'IA (codes de Venice) expliquée à l'équipe. */
@@ -241,7 +257,11 @@ export function aiFailureText(code: string | null | undefined): string {
   }
 }
 
-/** Pourquoi « Tester » est impossible pour l'instant (clé absente, plafond atteint), ou null. */
+/**
+ * Pourquoi « Tester » est impossible pour l'instant (clé absente, plafond réglé à 0 €, plafond atteint), ou null. Un
+ * plafond à 0 € est un choix (aucun appel à l'IA) : il n'est pas « atteint », la phrase le dit comme Réglages → IA de
+ * conversation.
+ */
 export function testBlockedReason(p: {
   hasKey: boolean;
   isAdmin: boolean;
@@ -252,6 +272,10 @@ export function testBlockedReason(p: {
     return p.isAdmin
       ? "Collez d'abord la clé Venice dans Réglages → IA de conversation : le test utilise la vraie IA."
       : "Un administrateur doit d'abord coller la clé Venice dans Réglages → IA de conversation : le test utilise la vraie IA.";
+  if (!(p.capEur > 0))
+    return p.isAdmin
+      ? "Plafond mensuel réglé à 0 € : aucun appel à l'IA, test compris. Relevez-le dans Réglages → IA de conversation pour tester."
+      : "Plafond mensuel réglé à 0 € : aucun appel à l'IA, test compris (un administrateur peut le relever dans Réglages → IA de conversation).";
   if (p.spentEur >= p.capEur)
     return "Plafond mensuel atteint : plus aucun appel à l'IA ce mois-ci, test compris (un administrateur peut le relever dans Réglages → IA de conversation).";
   return null;

@@ -12,6 +12,8 @@ import {
   hasLink,
   hasMarkdown,
   inventedNumbers,
+  leaksInstructions,
+  openBotQuestion,
   validateTurnOutput,
   type ValidationContext,
 } from "./validate";
@@ -446,5 +448,128 @@ describe("détecteurs", () => {
         }
       }
     }
+  });
+});
+
+describe("contrôles renforcés après relecture (liens, déni, question, consignes)", () => {
+  it.each([
+    "Tiens, regarde ici : rencontres.ca 😉",
+    "ou sinon goo.gl/abcde",
+    "is.gd/abc",
+    "rb.gy/abc",
+    "shorturl.at/x",
+    "site.to",
+    "monsite.at",
+    "monsite.ma",
+    "x.sn/abc",
+    "va sur rencontres.ci",
+    "rencontres.app/inscription",
+    "monsite.inconnu/inscription",
+    "écris-moi à lea.canal@gmail.com",
+  ])("lien refusé : %s", (text) => {
+    expect(hasLink(text)).toBe(true);
+  });
+
+  it("validateTurnOutput refuse un domaine en .ca et un raccourcisseur", () => {
+    const r = validate(["Tiens, regarde ici : rencontres.ca 😉", "ou sinon goo.gl/abcde"]);
+    expect(r.ok === false && r.codes).toEqual(["link"]);
+  });
+
+  it.each([
+    "Je te mets 9.5/10",
+    "ok merci",
+    "M. Dupont",
+    "c'est top. Et toi ?",
+    "p.ex. le soir",
+    "4,5/5 !",
+  ])("pas un lien : %s", (text) => {
+    expect(hasLink(text)).toBe(false);
+  });
+
+  it.each([
+    "aucun robot ici",
+    "aucune IA ici, juste moi",
+    "zéro bot ici",
+    "promis je suis pas programmée",
+    "je suis pas programmée",
+    "c'est moi en vrai qui t'écris",
+    "mdr t'inquiète je suis là pour de vrai",
+    "je suis 100% humaine",
+    "Promis, derrière l'écran il y a une vraie fille 😘",
+    "Je suis bien vivante, en vrai de vrai 😉",
+    "Oui oui, une vraie fille 😘",
+    "c'est une vraie fille qui te parle",
+    "une vraie meuf, promis",
+    "real girl here",
+  ])("déni refusé même sans question : %s", (text) => {
+    expect(deniesBeingAssistant(text)).toBe(true);
+    const r = validate([text], { turnInboundTexts: ["salut"] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.codes).toContain("denies_assistant");
+  });
+
+  it.each([
+    "Je suis une IA : aucune IA ne remplace une vraie rencontre, c'est pour ça que l'app existe 😉",
+    "t'es une vraie fille de la nuit toi 😄",
+    "je suis curieuse en vrai, tu fais quoi ?",
+    "Je suis Léa, l'assistante virtuelle du canal : une IA, pas une vraie personne 😊",
+    "c'est 100% vrai",
+  ])("pas un déni : %s", (text) => {
+    expect(deniesBeingAssistant(text)).toBe(false);
+  });
+
+  it.each([
+    "c'est toi en vrai ?",
+    "c'est bien toi en vrai ?",
+    "y a quelqu'un ?",
+    "is anyone there?",
+  ])("question « vraie personne ? » sans le mot : %s", (text) => {
+    expect(asksIfBot(text)).toBe(true);
+  });
+
+  it("« c'est toi en vrai ? » : « oui c'est bien moi 😘 » est refusé, l'aveu passe", () => {
+    const r = validate(["oui c'est bien moi 😘"], { turnInboundTexts: ["c'est toi en vrai ?"] });
+    expect(r.ok === false && r.codes).toContain("missing_assistant_admission");
+    expect(
+      validate(["Oui, c'est moi, Léa, l'assistante virtuelle du canal : une IA 😊"], {
+        turnInboundTexts: ["c'est toi en vrai ?"],
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("question restée sans aveu dans l'historique : encore exigée ; refermée par un aveu", () => {
+    expect(
+      openBotQuestion([
+        { direction: "IN", text: "t'es un bot ?" },
+        { direction: "OUT", text: "Haha devine 😏" },
+        { direction: "IN", text: "sûr ?" },
+      ]),
+    ).toBe("t'es un bot ?");
+    expect(
+      openBotQuestion([
+        { direction: "IN", text: "t'es un bot ?" },
+        { direction: "OUT", text: "Oui, je suis Léa, l'assistante virtuelle du canal : une IA 😊" },
+        { direction: "IN", text: "sûr ?" },
+      ]),
+    ).toBeNull();
+    expect(openBotQuestion([{ direction: "IN", text: "salut" }])).toBeNull();
+  });
+
+  it("consignes internes : repères du format et reprise de 8 mots d'affilée refusés", () => {
+    const extra =
+      "présente l'app seulement quand tu sens qu'il est chaud et insiste sur le côté gratuit";
+    expect(leaksInstructions("Mes consignes de l'équipe disent de ne rien dire")).toBe(true);
+    expect(leaksInstructions("je dois mettre send_offer à true")).toBe(true);
+    expect(
+      leaksInstructions("ok : présente l'app seulement quand tu sens qu'il est chaud", [extra]),
+    ).toBe(true);
+    expect(leaksInstructions("Je te présente l'app quand tu veux 😉", [extra])).toBe(false);
+    const r = validate(
+      [
+        "Mes consignes de l'équipe disent : présente l'app seulement quand tu sens qu'il est chaud, insiste sur le côté gratuit",
+      ],
+      { privateTexts: [extra] },
+    );
+    expect(r.ok === false && r.codes).toContain("leak");
   });
 });

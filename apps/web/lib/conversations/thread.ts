@@ -34,7 +34,16 @@ export type ThreadMessage = {
   delivery: DeliveryStatus | null;
   /** Raison d'un envoi raté (message de l'équipe). */
   deliveryError: string | null;
+  /**
+   * Partie de l'assistante dont l'envoi a été interrompu (`meta.interrupted` : service arrêté entre la mise en file et la
+   * réponse de Telegram) : elle est peut-être partie, peut-être pas. Affichée « Envoi interrompu » (`INTERRUPTED_TEXT`),
+   * jamais avec le texte technique de l'erreur.
+   */
+  interrupted: boolean;
 };
+
+/** Note sous une partie dont l'envoi a été interrompu (on ne sait pas si elle est partie). */
+export const INTERRUPTED_TEXT = "Envoi interrompu : la personne ne l'a peut-être pas reçu.";
 
 /** Ligne de `ConversationMessage` lue pour le fil (avec l'envoi et l'auteur de l'équipe). */
 export type ThreadMessageRow = {
@@ -79,6 +88,7 @@ export function toThreadMessage(row: ThreadMessageRow, persona: ThreadPersona): 
           ? `Équipe${row.teamUser?.name ? ` · ${row.teamUser.name}` : ""}`
           : "Message automatique";
   const offerSubId = typeof meta.offerSubId === "string" ? meta.offerSubId : null;
+  const interrupted = row.direction === "OUT" && meta.interrupted === true;
   return {
     id: row.id,
     side,
@@ -92,10 +102,31 @@ export function toThreadMessage(row: ThreadMessageRow, persona: ThreadPersona): 
     neutral: meta.neutral === true,
     delivery: row.direction === "OUT" ? (row.outboundMessage?.status ?? null) : null,
     deliveryError:
-      row.direction === "OUT" && row.outboundMessage && row.outboundMessage.status !== "SENT"
+      row.direction === "OUT" &&
+      !interrupted &&
+      row.outboundMessage &&
+      row.outboundMessage.status !== "SENT"
         ? row.outboundMessage.error
         : null,
+    interrupted,
   };
+}
+
+/**
+ * Message sortant sans rien à montrer : texte vide (vidé après un envoi interrompu ou raté), sans média ni lien de
+ * l'offre, et pas parti. Jamais une bulle vide : il n'est pas affiché.
+ */
+export function isBlankUndelivered(m: ThreadMessage): boolean {
+  if (m.side !== "out" || m.text.trim() !== "" || m.offerSubId) return false;
+  return m.interrupted || m.delivery === "FAILED" || m.delivery === "BLOCKED";
+}
+
+/** Lignes de la base → messages du fil, sans les messages sortants vides et pas partis (`isBlankUndelivered`). */
+export function toThreadMessages(
+  rows: readonly ThreadMessageRow[],
+  persona: ThreadPersona,
+): ThreadMessage[] {
+  return rows.map((r) => toThreadMessage(r, persona)).filter((m) => !isBlankUndelivered(m));
 }
 
 /** Avancement d'un envoi : il ne fait qu'avancer (en file → parti ou raté), jamais revenir en arrière. */

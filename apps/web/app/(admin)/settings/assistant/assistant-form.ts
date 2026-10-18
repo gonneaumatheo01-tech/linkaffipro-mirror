@@ -98,3 +98,27 @@ export function parseAssistantKeyField(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Clé Venice invalide." };
   return { ok: true, apiKey: parsed.data || null };
 }
+
+/** Réglages de la page (hors clé) différents de ceux enregistrés ? */
+export function assistantSettingsChanged(
+  saved: {
+    activation: string;
+    defaultModel: string;
+    fallbackModel: string;
+    temperature: number;
+    maxTokens: number;
+    monthlyCapEur: number;
+    perConversationDailyLimit: number;
+  },
+  form: AssistantForm,
+): boolean {
+  return (
+    saved.activation !== form.activation ||
+    saved.defaultModel !== form.defaultModel ||
+    saved.fallbackModel !== form.fallbackModel ||
+    saved.temperature !== form.temperature ||
+    saved.maxTokens !== form.maxTokens ||
+    saved.monthlyCapEur !== form.monthlyCapEur ||
+    saved.perConversationDailyLimit !== form.perConversationDailyLimit
+  );
+}

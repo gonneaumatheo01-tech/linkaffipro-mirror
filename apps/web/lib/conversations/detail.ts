@@ -2,11 +2,14 @@
  * Lecture d'une conversation (fiche `/conversations/[id]`) et de ses nouveaux messages (fil en direct, GET
  * /api/conversations/[id]/messages) : fil (200 derniers messages), personne, persona, bot, source, étape, statut,
  * langue, faits retenus, résumé, coût de l'IA, liens de l'offre envoyés et ouverts, inscription et premier dépôt
- * rattachés, état qui décide des actions (/stop, mineur, blocage). Aucun repère interne n'est renvoyé (refus de l'IA,
- * modèle, tour).
+ * rattachés, état qui décide des actions (/stop, mineur, blocage), et si l'assistante répondra vraiment à cette
+ * personne (`replyBlock`, même règle que le webhook). Aucun repère interne n'est renvoyé (refus de l'IA, modèle, tour).
  */
 import { parseFacts } from "@linkaffipro/chat";
 import { prisma, type ConversationStage, type ConversationStatus } from "@linkaffipro/db";
+import { isAssistantTeamMember } from "@linkaffipro/telegram";
+import { loadAssistantConfig } from "@/lib/assistant/config";
+import { replyBlock, type ReplyBlock } from "./reply-state";
 import { conversationActions, type ConversationActions, type ConversationRuleInput } from "./rules";
 import {
   THREAD_LIMIT,
@@ -14,7 +17,7 @@ import {
   threadSince,
   threadStateKey,
   threadWindowStart,
-  toThreadMessage,
+  toThreadMessages,
   type OfferState,
   type ThreadMessage,
   type ThreadMessageRow,
@@ -156,6 +159,11 @@ export type ConversationDetail = {
   cursor: string;
   resets: number;
   actions: ConversationActions;
+  /**
+   * Pourquoi l'assistante ne répondrait pas à cette personne si la conversation lui est laissée (activation, mode du
+   * bot, persona, essai réservé à l'équipe) ; null : elle répond.
+   */
+  replyBlock: ReplyBlock | null;
 };
 
 /** Tout ce que montre la fiche d'une conversation ; null si elle n'existe pas (ou plus). */
@@ -182,9 +190,19 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
           username: true,
           languageCode: true,
           anonymizedAt: true,
+          telegramUserId: true,
         },
       },
-      bot: { select: { id: true, username: true, name: true, isActive: true, mode: true } },
+      bot: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          isActive: true,
+          mode: true,
+          persona: { select: { isActive: true } },
+        },
+      },
       persona: { select: { id: true, name: true, gender: true, isActive: true } },
     },
   });
@@ -192,41 +210,45 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
   const persona: ThreadPersona = c.persona
     ? { name: c.persona.name, gender: c.persona.gender }
     : null;
-  const [memberBlocked, rows, total, offers, links, cost, players, resets] = await Promise.all([
-    memberBlockedBot(c.memberId, c.botId),
-    prisma.conversationMessage.findMany({
-      where: { conversationId: id },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: THREAD_LIMIT,
-      select: messageSelect,
-    }),
-    prisma.conversationMessage.count({ where: { conversationId: id } }),
-    offersOf(id),
-    prisma.assistantOfferLink.findMany({
-      where: { conversationId: id },
-      orderBy: { sentAt: "asc" },
-      select: { subId: true, sentAt: true, firstOpenedAt: true, opens: true },
-    }),
-    prisma.aiConversationUsage.aggregate({
-      where: { conversationId: id, purpose: { not: "TEST" } },
-      _sum: { costEur: true },
-    }),
-    prisma.player.findMany({
-      where: { click: { conversationId: id } },
-      orderBy: { registeredAt: "asc" },
-      select: {
-        id: true,
-        registeredAt: true,
-        ftdAt: true,
-        ftdAmount: true,
-        currency: true,
-        affiliateCampaign: { select: { name: true } },
-      },
-    }),
-    countResets(id),
-  ]);
-  const messages = (rows as ThreadMessageRow[]).reverse().map((r) => toThreadMessage(r, persona));
+  const [memberBlocked, rows, total, offers, links, cost, players, resets, block] =
+    await Promise.all([
+      memberBlockedBot(c.memberId, c.botId),
+      prisma.conversationMessage.findMany({
+        where: { conversationId: id },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: THREAD_LIMIT,
+        select: messageSelect,
+      }),
+      prisma.conversationMessage.count({ where: { conversationId: id } }),
+      offersOf(id),
+      prisma.assistantOfferLink.findMany({
+        where: { conversationId: id },
+        orderBy: { sentAt: "asc" },
+        select: { subId: true, sentAt: true, firstOpenedAt: true, opens: true },
+      }),
+      prisma.aiConversationUsage.aggregate({
+        where: { conversationId: id, purpose: { not: "TEST" } },
+        _sum: { costEur: true },
+      }),
+      prisma.player.findMany({
+        where: { click: { conversationId: id } },
+        orderBy: { registeredAt: "asc" },
+        select: {
+          id: true,
+          registeredAt: true,
+          ftdAt: true,
+          ftdAmount: true,
+          currency: true,
+          affiliateCampaign: { select: { name: true } },
+        },
+      }),
+      countResets(id),
+      replyBlockOf(c),
+    ]);
+  const messages = toThreadMessages((rows as ThreadMessageRow[]).reverse(), persona);
   const state = stateOf(c, memberBlocked, resets);
+  const { telegramUserId: _telegramUserId, ...member } = c.member;
+  const { persona: _botPersona, ...bot } = c.bot;
   return {
     id: c.id,
     createdAt: c.createdAt,
@@ -244,8 +266,8 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
     takenOverAt: c.takenOverAt,
     takenOverBy: c.takenOverBy,
     memberMessages: c.memberMessages,
-    member: c.member,
-    bot: c.bot,
+    member,
+    bot,
     persona: c.persona,
     memberBlocked,
     costEur: Math.round(Number(cost._sum.costEur ?? 0) * 10_000) / 10_000,
@@ -265,7 +287,30 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
     cursor: threadCursor(messages, c.createdAt.toISOString()),
     resets,
     actions: conversationActions(ruleInput(c, memberBlocked)),
+    replyBlock: block,
   };
+}
+
+/**
+ * L'assistante répondrait-elle à cette personne ? Persona de la conversation, sinon celle du bot (comme le webhook) ;
+ * le compte de l'équipe n'est cherché qu'avec l'activation « Seulement l'équipe ».
+ */
+async function replyBlockOf(c: {
+  member: { telegramUserId: bigint };
+  bot: { isActive: boolean; mode: string; persona: { isActive: boolean } | null };
+  persona: { isActive: boolean } | null;
+}): Promise<ReplyBlock | null> {
+  const { activation } = await loadAssistantConfig();
+  const personaActive = (c.persona ?? c.bot.persona)?.isActive ?? null;
+  const isTeamMember =
+    activation === "team" ? await isAssistantTeamMember(c.member.telegramUserId) : false;
+  return replyBlock({
+    activation,
+    botActive: c.bot.isActive,
+    botMode: c.bot.mode,
+    personaActive,
+    isTeamMember,
+  });
 }
 
 /**
@@ -297,7 +342,7 @@ export async function loadThreadUpdate(
   ]);
   // Avant `reverse()` (qui retourne la liste en place) : lecture du plus récent au plus ancien.
   const windowStart = threadWindowStart(since, rows);
-  const messages = (rows as ThreadMessageRow[]).reverse().map((r) => toThreadMessage(r, persona));
+  const messages = toThreadMessages((rows as ThreadMessageRow[]).reverse(), persona);
   return {
     messages,
     offers,

@@ -24,6 +24,7 @@ import {
   type TurnResult,
   type UsageRecord,
 } from "@linkaffipro/chat";
+import { personaRole } from "./form";
 import { aiFailureText, rejectLabels } from "./view";
 
 /** Bornes du test : messages par heure et par personne de l'équipe, historique renvoyé, longueur des textes. */
@@ -256,9 +257,13 @@ function failureCode(result: TurnResult): string | null {
   return typeof code === "string" ? code : null;
 }
 
-/** Bandeau sous la conversation : mineur, plafond, panne, repli ou réponse refaite (rien si tout va bien). */
-export function testNotice(result: TurnResult): TestNotice | null {
-  const rejected = rejectLabels(result.rejected);
+/**
+ * Bandeau sous la conversation : mineur, plafond, panne, repli ou réponse refaite (rien si tout va bien). Textes
+ * accordés au genre de la persona (« l'assistante » par défaut, « l'assistant » pour une persona masculine).
+ */
+export function testNotice(result: TurnResult, gender?: string | null): TestNotice | null {
+  const rejected = rejectLabels(result.rejected, gender);
+  const role = personaRole(gender);
   const code = failureCode(result);
   switch (result.outcome) {
     case "minor":
@@ -269,7 +274,7 @@ export function testNotice(result: TurnResult): TestNotice | null {
     case "skipped_cap":
       return {
         tone: "danger",
-        text: "Plafond mensuel atteint : l'assistante ne répond plus jusqu'au mois prochain (un administrateur peut le relever dans Réglages → IA de conversation).",
+        text: `Plafond mensuel atteint : ${role} ne répond plus jusqu'au mois prochain (un administrateur peut le relever dans Réglages → IA de conversation).`,
       };
     case "aborted":
       return { tone: "info", text: "Conversation fermée : cliquez sur « Recommencer »." };
@@ -280,8 +285,7 @@ export function testNotice(result: TurnResult): TestNotice | null {
         parts.push(
           "Comme dans la vraie vie, la personne a reçu « je reviens vers toi dans un instant ».",
         );
-      if (result.retryAt)
-        parts.push("Dans la vraie vie, l'assistante réessaie 5 minutes plus tard.");
+      if (result.retryAt) parts.push(`Dans la vraie vie, ${role} réessaie 5 minutes plus tard.`);
       return { tone: "danger", text: parts.join(" ") };
     }
     default: {
@@ -303,12 +307,16 @@ export function testNotice(result: TurnResult): TestNotice | null {
   }
 }
 
-/** Réponse affichée par le panneau « Tester » à partir du résultat du tour. */
+/**
+ * Réponse affichée par le panneau « Tester » à partir du résultat du tour. `gender` : genre de la persona testée
+ * (`persona.input.gender`), pour accorder les refus et le bandeau ; absent : « l'assistante ».
+ */
 export function testResponseFrom(input: {
   result: TurnResult;
   state: TestState;
   offerButtonText: string;
   usages: readonly UsageRecord[];
+  gender?: string | null;
 }): TestResponse {
   const { result, state } = input;
   const costEur =
@@ -335,8 +343,8 @@ export function testResponseFrom(input: {
     language: result.language,
     model: result.model,
     note: result.note,
-    rejected: rejectLabels(result.rejected),
-    notice: testNotice(result),
+    rejected: rejectLabels(result.rejected, input.gender),
+    notice: testNotice(result, input.gender),
     costEur,
   };
 }

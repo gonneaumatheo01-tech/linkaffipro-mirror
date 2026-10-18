@@ -16,7 +16,7 @@ export type AssistantConversation = {
   stage: ConversationStage;
   isMinor: boolean;
   stoppedAt: Date | null;
-  /** Raison de la fermeture (STOP, MINOR, TEAM, BLOCKED, UNREACHABLE), null si ouverte. */
+  /** Raison de la fermeture (STOP, MINOR, TEAM, TEAM_CLOSED, BLOCKED, UNREACHABLE), null si ouverte. */
   closedReason: string | null;
   /** Langue de réponse courante (textes fixes). */
   language: string | null;
@@ -72,6 +72,9 @@ export interface AssistantDeps {
   /**
    * Message reçu → `ConversationMessage` IN (anti-doublon : une update renvoyée par Telegram est ignorée sans erreur),
    * `lastInboundAt`, relances remises à zéro, `memberMessages + 1` si `countsAsExchange`.
+   * `minor` (âge déclaré de moins de 18 ans détecté par le code) : dans la MÊME transaction, conversation marquée
+   * mineure et fermée (raison MINOR, sauf fermeture déjà faite), relance et nouvel essai annulés, événements `minor` et
+   * `stage_changed`. `minorClosed.wasAnswering` : l'assistante avait la parole (statut BOT, sans /stop) juste avant.
    */
   recordInbound(input: {
     conversationId: string;
@@ -80,8 +83,9 @@ export interface AssistantDeps {
     media: ChatMedia | null;
     meta: Record<string, unknown>;
     countsAsExchange: boolean;
+    minor?: { age: number | null; botId: string; memberId: string };
     at: Date;
-  }): Promise<{ duplicate: boolean }>;
+  }): Promise<{ duplicate: boolean; minorClosed?: { wasAnswering: boolean } }>;
   /** Texte fixe envoyé par le bot (author SYSTEM, OUT), pour la boîte de réception. Ne lève jamais. */
   recordFixedReply(input: {
     conversationId: string;
@@ -102,8 +106,10 @@ export interface AssistantDeps {
   }): Promise<{ changed: boolean }>;
   /**
    * `/reset` : messages (jusqu'au /reset compris ; ceux envoyés après par la personne restent), texte des messages
-   * envoyés par le bot (`OutboundMessage`), résumé, faits et style effacés, compteurs remis à zéro (sauf les liens
-   * envoyés), étape WELCOME (sauf conversation fermée), événement `reset` (portant l'identifiant Telegram du /reset).
+   * envoyés par le bot (`OutboundMessage`), résumé, faits et style effacés, messages encore en file annulés (FAILED, texte
+   * vidé : rien ne part après « j'ai tout oublié »), compteurs remis à zéro (sauf les liens envoyés), étape WELCOME (sauf
+   * conversation fermée, et CONVERTED si l'inscription est déjà comptée), événement `reset` (portant l'identifiant
+   * Telegram du /reset).
    * Fait sous le verrou de la conversation (jamais pendant un tour de l'assistant, attente bornée). `duplicate` : ce
    * /reset a déjà été traité (update renvoyée par Telegram) : rien n'est effacé une seconde fois.
    */

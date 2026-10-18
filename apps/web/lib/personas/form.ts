@@ -536,17 +536,21 @@ export function botProfileTextProblem(text: string, kind: "long" | "short"): str
   return null;
 }
 
-/** Ce qui empêche d'activer la persona (liste vide : activation permise). */
+/**
+ * Ce qui empêche d'activer la persona (liste vide : activation permise). Le nom du champ cité est celui affiché par le
+ * formulaire, accordé au genre de la persona (« Ce que l'assistant peut dire de l'app » pour une persona masculine).
+ */
 export function activationProblems(p: {
   name: string;
   affiliateCampaignId: string | null;
   offerPitch: string;
+  gender?: string | null;
 }): string[] {
   const out: string[] = [];
   if (!p.name.trim()) out.push("Donnez-lui d'abord un prénom.");
   if (p.affiliateCampaignId && !p.offerPitch.trim())
     out.push(
-      "Une offre est liée : remplissez d'abord « Ce que l'assistante peut dire de l'app » (sans ce texte, elle ne pourrait rien en dire d'honnête).",
+      `Une offre est liée : remplissez d'abord « Ce que ${personaRole(p.gender)} peut dire de l'app » (sans ce texte, ${p.gender === "M" ? "il" : "elle"} ne pourrait rien en dire d'honnête).`,
     );
   return out;
 }

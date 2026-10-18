@@ -36,8 +36,9 @@ export const metadata: Metadata = { title: "Bots" };
  * détail au clic (canaux administrés, membres, messages en attente, actions « Reposer la connexion » et
  * « Activer / Désactiver ») ; le détail technique de la connexion (adresse du webhook) est dans « Avancé ».
  * « Ajouter un bot » (ADMIN) ouvre un volet. Contenu et actions inchangés.
- * Phase 17 : colonne « Mode » (bot normal / assistant de conversation) ; dans le détail, le mode et la persona liée,
- * modifiables par un ADMIN (`setBotModeAction`, bouton secondaire : un seul bouton orange par page).
+ * Phase 17 : pastille « Assistant de conversation » sous le nom d'un assistant ; dans le détail, le mode et la persona
+ * liée, modifiables par un ADMIN (`setBotModeAction`, bouton secondaire : un seul bouton orange par page). Un bot qui
+ * gère des canaux (`_count.channelAdmins`) ne peut pas devenir l'assistante (choix désactivé, refusé par le serveur).
  * État de chaque bot : règle `botCheck` (lib/status/health.ts), la même que la carte Bots de Réglages et la tuile
  * « Bots » d'État du système ; la pastille de l'en-tête reprend cette tuile (« 2 à vérifier »).
  */
@@ -140,7 +141,6 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
         columns={[
           { key: "bot", header: "Bot", className: "min-w-40 whitespace-normal" },
           { key: "universe", header: "Univers", hideOnMobile: true },
-          { key: "mode", header: "Mode", hideOnMobile: true },
           { key: "state", header: "État", hideOnMobile: true },
           { key: "connection", header: "Connexion Telegram" },
           { key: "signal", header: "Dernier signal", hideOnMobile: true },
@@ -152,23 +152,23 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
           return {
             id: b.id,
             cells: {
+              // Tableau à 5 colonnes au plus (DESIGN-SYSTEM) : le mode n'est montré que pour un assistant, sous le nom
+              // (le détail reste dans le volet).
               bot: (
-                <span className="flex flex-col items-start">
+                <span className="flex flex-col items-start gap-1">
                   <span>{b.name}</span>
                   <span className="text-note font-normal text-muted-foreground">@{b.username}</span>
-                </span>
-              ),
-              universe: <UniverseDot universe={b.vertical} withLabel />,
-              mode: (
-                <span className="flex flex-col items-start gap-1">
-                  <StatusBadge kind="botMode" value={b.mode} />
                   {b.mode === "ASSISTANT" ? (
-                    <span className="text-note text-muted-foreground">
-                      {b.persona ? b.persona.name : "Aucune persona liée"}
+                    <span className="flex flex-wrap items-center gap-1">
+                      <StatusBadge kind="botMode" value={b.mode} />
+                      <span className="text-note font-normal text-muted-foreground">
+                        {b.persona ? b.persona.name : "Aucune persona liée"}
+                      </span>
                     </span>
                   ) : null}
                 </span>
               ),
+              universe: <UniverseDot universe={b.vertical} withLabel />,
               state: <ActiveBadge active={b.isActive} />,
               connection: connectionCell,
               signal: fmtDate(b.lastWebhookAt),
@@ -176,7 +176,6 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
             sortValues: {
               bot: b.name,
               universe: universeLabel(b.vertical),
-              mode: botModeSummary(b.mode, b.persona),
               state: b.isActive ? 1 : 0,
               connection: botCheckLabel(check, w?.fetchError),
             },
@@ -259,7 +258,12 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                 {isAdmin ? (
                   <div className="border-t border-border pt-4">
                     <BotModeForm
-                      bot={{ id: b.id, mode: b.mode, personaId: b.personaId }}
+                      bot={{
+                        id: b.id,
+                        mode: b.mode,
+                        personaId: b.personaId,
+                        channelCount: b._count.channelAdmins,
+                      }}
                       personas={personas}
                       action={setBotModeAction}
                     />

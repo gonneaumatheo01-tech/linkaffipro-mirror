@@ -87,7 +87,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "conversation.minor": "Conversation fermée : la personne a moins de 18 ans",
   "conversation.taken_over": "Conversation reprise en main par l'équipe",
   "conversation.released": "Conversation rendue à l'assistant",
-  "conversation.blocked": "Conversation bloquée (plus aucun envoi)",
+  "conversation.blocked": "Conversation bloquée",
   "conversation.closed": "Conversation fermée",
   "conversation.ai_failed": "Assistant : l'IA n'a pas pu répondre",
   "conversation.cap_reached": "Assistant : plafond mensuel atteint, aucune réponse",
@@ -117,6 +117,8 @@ export const PAYLOAD_LABEL_TYPES: ReadonlySet<string> = new Set([
   "membership.gate_satisfied",
   "dm.unreachable",
   "dm.skipped_unreachable",
+  "conversation.blocked",
+  "conversation.daily_limit",
 ]);
 
 function payloadField(payload: unknown, key: string): unknown {
@@ -160,11 +162,20 @@ function dmLabel(type: string, payload: unknown): string | null {
  * Libellé lisible d'un type d'événement. `payload` (facultatif, détail de l'événement) précise certains libellés :
  * canaux rejoints vus par le bot tout seul (`membership.gate_satisfied` avec `auto: true`, phase 14) plutôt qu'au
  * bouton « ✅ J'ai rejoint » ; raison d'un message privé refusé par Telegram (`dm.unreachable`) ou non envoyé
- * (`dm.skipped_unreachable` : a bloqué le bot, n'a jamais démarré le bot…). Sans détail : libellé neutre du type.
+ * (`dm.skipped_unreachable` : a bloqué le bot, n'a jamais démarré le bot…) ; conversation bloquée par l'équipe
+ * (`byTeam`) ou par la personne (`conversation.blocked`, phase 17). Sans détail : libellé neutre du type.
  */
 export function eventLabel(type: string, payload?: unknown): string {
   if (type === "membership.gate_satisfied" && payloadField(payload, "auto") === true)
     return "Canaux requis rejoints (vérifié automatiquement)";
+  // « Bloquer » de l'équipe (définitif) ≠ la personne qui bloque le bot (la conversation reprend si elle réécrit).
+  if (type === "conversation.blocked" && payload && typeof payload === "object")
+    return payloadField(payload, "byTeam") === true
+      ? "Conversation bloquée par l'équipe (plus aucun envoi)"
+      : "La personne a bloqué le bot (la conversation reprend si elle réécrit)";
+  // Limite du jour : nombre de réponses, ou dépense IA de la conversation (`costCapEur`).
+  if (type === "conversation.daily_limit" && payloadField(payload, "costCapEur") !== undefined)
+    return "Assistant : dépense IA du jour atteinte pour cette conversation";
   const dm = dmLabel(type, payload);
   if (dm) return dm;
   const direct = EVENT_TYPE_LABELS[type];

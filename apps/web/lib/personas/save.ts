@@ -23,6 +23,7 @@ import {
   type PersonaData,
   type PersonaFormErrors,
 } from "./form";
+import { profileErrorMessage } from "./profile-error";
 
 export type PersonaSaveResult =
   | {
@@ -131,9 +132,9 @@ export async function refreshPersonaBotProfiles(
         notes.push(...report.warnings);
       }
     } catch (err) {
-      problems.push(
-        `La description de @${bot.username} n'a pas pu être posée dans Telegram (${err instanceof Error ? err.message : String(err)}). Réenregistrez dans un instant.`,
-      );
+      // Texte brut (anglais, technique) dans le journal du serveur seulement ; une phrase simple à l'écran.
+      console.error(`[personas] profil Telegram de @${bot.username} non posé`, err);
+      problems.push(profileErrorMessage(bot.username, err));
     }
   }
   return { notes, problems };

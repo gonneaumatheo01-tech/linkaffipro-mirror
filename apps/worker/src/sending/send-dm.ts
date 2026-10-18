@@ -11,6 +11,13 @@ import { buildDmKeyboard } from "./keyboard";
 import { loadMedia, rememberTelegramFile, type LoadedMedia } from "./media";
 import { RateLimiter } from "./rate-limit";
 import { recordBroadcastOutcome } from "../broadcasts/progress";
+import {
+  assistantDmConversation,
+  assistantDmRefusal,
+  clearIfResetSince,
+  stillQueued,
+  type AssistantDmConversation,
+} from "./assistant-dm";
 
 /** Envoie un média en privé (photo, vidéo, gif, document) avec légende et clavier éventuels. */
 function sendMedia(
@@ -94,6 +101,38 @@ export async function sendDm(outboundMessageId: string): Promise<DmSendResult> {
       throw new Error(ASSISTANT_DM_REFUSED);
     await rl.forBot(om.botId);
     await rl.forPrivateChat(chatId);
+    // Phase 17 : message de conversation (assistant ou équipe) relu JUSTE AVANT l'envoi (l'attente du débit peut durer) :
+    // /stop, mineur, « Bloquer » ou /reset entre-temps → rien ne part.
+    let conversation: AssistantDmConversation = null;
+    if (om.kind === "ASSISTANT") {
+      if (!(await stillQueued(om.id)))
+        return {
+          status: "SKIPPED",
+          telegramMessageId: null,
+          blocked: false,
+          unreachable: false,
+          error: "Message annulé avant son envoi.",
+        };
+      conversation = await assistantDmConversation(om.botId, om.memberId);
+      const refusal = assistantDmRefusal(conversation);
+      if (refusal) {
+        await prisma.outboundMessage.updateMany({
+          where: { id: om.id, status: "QUEUED" },
+          data: { status: "FAILED", error: refusal },
+        });
+        logger.info(
+          { outboundMessageId: om.id, reason: refusal },
+          "message de conversation non envoyé",
+        );
+        return {
+          status: "FAILED",
+          telegramMessageId: null,
+          blocked: false,
+          unreachable: false,
+          error: refusal,
+        };
+      }
+    }
     const keyboard = buildDmKeyboard(om.buttons);
     const chat = Number(chatId);
     let mediaError: string | null = null;
@@ -170,6 +209,11 @@ export async function sendDm(outboundMessageId: string): Promise<DmSendResult> {
         error: note,
       },
     });
+    // /reset reçu pendant l'envoi : le texte de ce message ne survit pas à « j'ai tout oublié ».
+    if (conversation)
+      await clearIfResetSince(conversation.id, om.id, om.queuedAt).catch((err: Error) =>
+        logger.warn({ outboundMessageId: om.id, err: err.message }, "texte non vidé après /reset"),
+      );
     if (fallback) {
       logger.warn(
         { outboundMessageId: om.id, botId: om.botId, err: fallback.error, resent: fallback.resent },

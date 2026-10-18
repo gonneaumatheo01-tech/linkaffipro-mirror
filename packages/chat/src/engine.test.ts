@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RETRY_LATER_MS, runTurn } from "./engine";
+import { RETRY_LATER_MS, runTurn, summarizeAfterTurn } from "./engine";
 import {
   createFakeLlm,
   createFakeSender,
@@ -895,5 +895,107 @@ describe("runTurn : relances et résumé", () => {
     const { deps } = setup([{ messages: ["Coucou"] }]);
     await runTurn(input({ usagePurpose: "TEST" }), deps);
     expect(deps.usages[0]?.purpose).toBe("TEST");
+  });
+});
+
+describe("runTurn : corrections après relecture", () => {
+  it("relance en préparation et la personne écrit : rien ne part, ses messages sont rendus pour un vrai tour", async () => {
+    const { llm, deps } = setup(
+      [{ messages: ["Hey, tu as pu regarder ? 😊"] }, { messages: ["jamais"] }],
+      {
+        beforeSend: [
+          { newInbound: [{ id: "in-9", text: "attends, t'es un bot ou une vraie personne ?" }] },
+        ],
+      },
+    );
+    const r = await runTurn(
+      input({
+        kind: "follow_up",
+        inbound: [],
+        conversation: fakeConversation({ stage: "LINK_SENT", offerSends: 1 }),
+      }),
+      deps,
+    );
+    expect(r.outcome).toBe("aborted");
+    expect(llm.calls).toBe(1);
+    expect(deps.sender.messages()).toHaveLength(0);
+    expect(r.deferredInbound.map((m) => m.id)).toEqual(["in-9"]);
+    expect(r.inboundUsed).toEqual([]);
+  });
+
+  it("« arrête de m'écrire » au milieu d'un message : réponse polie, aucune relance programmée", async () => {
+    const { deps } = setup([
+      { messages: ["D'accord, je te laisse tranquille. Tu peux taper /stop 🙏"] },
+    ]);
+    const r = await runTurn(
+      input({
+        inbound: [{ id: "in-1", text: "arrête de m'écrire, j'en ai marre" }],
+        conversation: fakeConversation({ stage: "CHAT" }),
+      }),
+      deps,
+    );
+    expect(r.outcome).toBe("replied");
+    expect(r.nextFollowUpAt).toBeNull();
+  });
+
+  it("textes fixes annoncés à l'envoi : arrêt mineur et « je reviens vers toi » (pas un tour de réponse)", async () => {
+    const minor = setup([{ messages: ["jamais"] }]);
+    await runTurn(input({ inbound: [{ id: "in-1", text: "j'ai 15 ans" }] }), minor.deps);
+    expect(minor.deps.sender.fixedKeys()).toEqual(["minorStop"]);
+    const reply = setup([{ messages: ["Coucou 😊", "Et toi ?"] }]);
+    await runTurn(input(), reply.deps);
+    expect(reply.deps.sender.fixedKeys()).toEqual([null, null]);
+  });
+
+  it("résumé laissé à l'appelant (deferSummary) : aucun appel dans le tour, summarizeAfterTurn le fait ensuite", async () => {
+    const history = [
+      { direction: "IN" as const, author: "MEMBER" as const, text: "je m'appelle Marc" },
+    ];
+    const { llm, deps } = setup([{ messages: ["Top 😊"] }, "Il s'appelle Marc."]);
+    const turn = input({ needsSummary: true, summaryMessages: history, deferSummary: true });
+    const r = await runTurn(turn, deps);
+    expect(llm.calls).toBe(1);
+    expect(r.summary).toBeUndefined();
+    expect(await summarizeAfterTurn(turn, deps)).toBe("Il s'appelle Marc.");
+    expect(deps.usages.map((u) => u.purpose)).toEqual(["REPLY", "SUMMARY"]);
+  });
+
+  it("question « bot ? » restée sans aveu dans l'historique : l'aveu est encore exigé", async () => {
+    const { llm, deps } = setup([
+      { messages: ["Haha devine 😏"] },
+      { messages: ["Je suis Léa, l'assistante virtuelle du canal : une IA 😊"] },
+    ]);
+    const r = await runTurn(
+      input({
+        history: [
+          { direction: "IN", author: "MEMBER", text: "t'es un bot ?" },
+          { direction: "OUT", author: "TEAM", text: "On en parle plus tard 😉" },
+        ],
+        inbound: [{ id: "in-2", text: "sûr ?" }],
+        conversation: fakeConversation({ stage: "CHAT" }),
+      }),
+      deps,
+    );
+    expect(llm.calls).toBe(2);
+    expect(r.rejected).toContain("missing_assistant_admission");
+    expect(deps.sender.messages().map((m) => m.text)).toEqual([
+      "Je suis Léa, l'assistante virtuelle du canal : une IA 😊",
+    ]);
+  });
+
+  it("messages énormes en rafale : chaque message coupé, 10 messages du tour au plus envoyés au modèle", async () => {
+    const big = "a".repeat(4000);
+    const { llm, deps } = setup([{ messages: ["Waouh, beaucoup de a 😄"] }]);
+    await runTurn(
+      input({
+        inbound: Array.from({ length: 15 }, (_, i) => ({ id: `in-${i}`, text: `${i} ${big}` })),
+        conversation: fakeConversation({ stage: "CHAT" }),
+      }),
+      deps,
+    );
+    const user = llm.requests[0]!.messages.filter((m) => m.role === "user");
+    const total = user.reduce((n, m) => n + m.content.length, 0);
+    expect(total).toBeLessThan(5000);
+    expect(user.at(-1)!.content).toContain("plus anciens non repris");
   });
 });

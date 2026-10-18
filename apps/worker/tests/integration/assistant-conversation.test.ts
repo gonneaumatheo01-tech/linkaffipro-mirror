@@ -812,6 +812,69 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
     expect(c.nextFollowUpAt).not.toBeNull();
   }, 60_000);
 
+  it("relance en préparation et la personne demande « t'es un bot ? » : rien ne part, puis un vrai tour avec l'aveu", async () => {
+    const T0 = new Date("2026-10-20T10:00:00Z"); // 12 h à Paris
+    simulatedNow = T0;
+    const { conv, tg } = await newConversation();
+    await receive(conv.id, "/start");
+    replies.push({
+      messages: ["Coucou, moi c'est Léa, l'assistante du canal 😊"],
+      stage: "WELCOME",
+    });
+    await turn(conv.id);
+    await receive(conv.id, "Salut");
+    replies.push({ messages: ["Tu fais quoi ce week-end ?"], stage: "CHAT" });
+    await turn(conv.id);
+    const sentBefore = sentTexts(tg).length;
+
+    // Relance due ; la personne écrit pendant l'appel à l'IA.
+    simulatedNow = new Date("2026-10-21T10:01:00Z");
+    let inserted = false;
+    setChatLlmFactory(() => ({
+      async complete(req) {
+        if (!inserted) {
+          inserted = true;
+          await receive(conv.id, "attends, t'es un bot ou une vraie personne ?");
+        }
+        return fakeLlm.complete(req);
+      },
+    }));
+    replies.push({ messages: ["Haha devine 😏"], stage: "FOLLOW_UP" });
+    try {
+      expect(await turn(conv.id)).toMatchObject({ kind: "follow_up", outcome: "aborted" });
+    } finally {
+      setChatLlmFactory(() => fakeLlm);
+    }
+    expect(sentTexts(tg)).toHaveLength(sentBefore);
+    let c = await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } });
+    expect(c.followUpCount).toBe(0);
+    expect(c.nextFollowUpAt).toBeNull();
+    expect(
+      await prisma.conversationEvent.count({
+        where: { conversationId: conv.id, type: "follow_up_sent" },
+      }),
+    ).toBe(0);
+    const question = await prisma.conversationMessage.findFirstOrThrow({
+      where: { conversationId: conv.id, text: { startsWith: "attends" } },
+    });
+    expect(question.turnId).toBeNull();
+
+    // Le tour de réponse suivant exige l'aveu franc (réponse évasive refusée, l'aveu part).
+    replies.push({ messages: ["Haha devine 😏"], stage: "CHAT" });
+    replies.push({
+      messages: [
+        "Je suis Léa, l'assistante virtuelle du canal : une IA, pas une vraie personne 😊",
+      ],
+      stage: "CHAT",
+    });
+    expect(await turn(conv.id)).toMatchObject({ kind: "reply", outcome: "replied" });
+    expect(sentTexts(tg).at(-1)).toBe(
+      "Je suis Léa, l'assistante virtuelle du canal : une IA, pas une vraie personne 😊",
+    );
+    c = await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } });
+    expect(c.followUpCount).toBe(0);
+  }, 30_000);
+
   it("âge de moins de 18 ans déclaré : arrêt poli sans lien, conversation fermée, plus jamais de réponse", async () => {
     const { conv, tg } = await newConversation();
     await receive(conv.id, "/start");
@@ -1164,6 +1227,7 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
         text: "Tu es là ?",
         createdAt: minutesAgo(5),
         turnId: "tour-plante-1",
+        claimedAt: minutesAgo(5),
       },
     });
     // Tour bloqué mais une partie est déjà partie : jamais rejoué (pas de double réponse), seulement marqué terminé.
@@ -1176,6 +1240,7 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
         text: "Coucou",
         createdAt: minutesAgo(5),
         turnId: "tour-plante-2",
+        claimedAt: minutesAgo(5),
       },
     });
     await prisma.conversationMessage.create({
@@ -1198,6 +1263,41 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
         text: "Re",
         createdAt: minutesAgo(5),
         turnId: "tour-en-cours",
+        claimedAt: minutesAgo(5),
+      },
+    });
+    // Tour bloqué dont la seule partie est restée « en file » (worker arrêté avant la réponse de Telegram) : partie
+    // passée en échec (jamais renvoyée, texte vidé, hors de l'historique), message rendu et repris.
+    const cut = await newConversation();
+    const cutMsg = await prisma.conversationMessage.create({
+      data: {
+        conversationId: cut.conv.id,
+        direction: "IN",
+        author: "MEMBER",
+        text: "Hello",
+        createdAt: minutesAgo(6),
+        turnId: "tour-coupe",
+        claimedAt: minutesAgo(6),
+      },
+    });
+    const cutOm = await prisma.outboundMessage.create({
+      data: {
+        botId: cut.conv.botId,
+        memberId: cut.conv.memberId,
+        kind: "ASSISTANT",
+        text: "Réponse jamais partie",
+        queuedAt: minutesAgo(6),
+      },
+    });
+    const cutPart = await prisma.conversationMessage.create({
+      data: {
+        conversationId: cut.conv.id,
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "Réponse jamais partie",
+        turnId: "tour-coupe",
+        partIndex: 0,
+        outboundMessageId: cutOm.id,
       },
     });
     await getRedis().set(`chat:lock:${busy.conv.id}`, "worker:chat:autre", "PX", 60_000, "NX");
@@ -1205,7 +1305,7 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
     (globalThis.__jobs ??= []).length = 0;
     const report = await runChatSweep(now);
     const enqueued = capturedJobs("chat").map((j) => j.data.conversationId);
-    expect(enqueued).toEqual(expect.arrayContaining([lost.conv.id, stuck.conv.id]));
+    expect(enqueued).toEqual(expect.arrayContaining([lost.conv.id, stuck.conv.id, cut.conv.id]));
     expect(enqueued).not.toContain(old.conv.id);
     expect(enqueued).not.toContain(half.conv.id);
     expect(enqueued).not.toContain(busy.conv.id);
@@ -1221,6 +1321,15 @@ describe("assistant de conversation (base réelle, Venice et Telegram simulés)"
     expect(
       (await prisma.conversationMessage.findUniqueOrThrow({ where: { id: busyMsg.id } })).turnId,
     ).toBe("tour-en-cours");
+    expect(
+      await prisma.outboundMessage.findUniqueOrThrow({ where: { id: cutOm.id } }),
+    ).toMatchObject({ status: "FAILED", text: "" });
+    expect(
+      (await prisma.conversationMessage.findUniqueOrThrow({ where: { id: cutPart.id } })).meta,
+    ).toMatchObject({ interrupted: true });
+    expect(
+      await prisma.conversationMessage.findUniqueOrThrow({ where: { id: cutMsg.id } }),
+    ).toMatchObject({ turnId: null, claimedAt: null });
     // Le message bloqué rendu est traité par le tour suivant.
     replies.push({
       messages: ["Coucou, moi c'est Léa, l'assistante du canal 😊"],

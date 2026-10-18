@@ -385,9 +385,15 @@ describe("/reset, journal du /start, liaison d'un compte, réouverture", () => {
     expect(
       await prisma.outboundMessage.findUniqueOrThrow({ where: { id: sentOm.id } }),
     ).toMatchObject({ text: "", buttons: [] });
+    // Message encore en file au moment du /reset : annulé (rien ne part après « j'ai tout oublié »), texte vidé.
     expect(
-      (await prisma.outboundMessage.findUniqueOrThrow({ where: { id: queuedOm.id } })).text,
-    ).toBe("Message de l'équipe");
+      await prisma.outboundMessage.findUniqueOrThrow({ where: { id: queuedOm.id } }),
+    ).toMatchObject({
+      status: "FAILED",
+      text: "",
+      buttons: [],
+      error: expect.stringMatching(/\/reset/),
+    });
   });
 
   it("/start suivi d'un texte libre : rien de ce texte dans le journal", async () => {
@@ -569,7 +575,7 @@ describe("lien d'offre go.goolink.eu/a/<subId>", () => {
     expect(capturedJobs("automations")).toEqual([]);
   });
 
-  it("ouverture suivante : même adresse, opens + 1, aucun nouveau clic", async () => {
+  it("ouverture suivante : même adresse, opens + 1, aucun nouveau clic (le lien compte toujours 1 clic)", async () => {
     const res = await open(subId);
     expect(res.headers.get("location")).toBe(`https://linkaffi.me/go/47eb8mwc?sub_id=${subId}`);
     await flushAfter();
@@ -580,7 +586,7 @@ describe("lien d'offre go.goolink.eu/a/<subId>", () => {
     expect(
       await prisma.trackingLink.findUniqueOrThrow({ where: { id: trackingLinkId } }),
     ).toMatchObject({
-      clicks: 2,
+      clicks: 1,
       uniqueClicks: 1,
     });
   });
@@ -803,5 +809,75 @@ describe("suppression d'un membre", () => {
     const aol = await prisma.assistantOfferLink.findFirst({ where: { memberId: conv.memberId } });
     expect(aol?.conversationId).toBeNull();
     expect(aol?.clickId).not.toBeNull();
+  });
+});
+
+describe("relecture : mineur à la réception, « STOP » écrit, conversation bloquée par l'équipe", () => {
+  it("âge déclaré : fermée dans la même transaction que le message, arrêt poli, aucune tâche", async () => {
+    await send(privateMessage(4101, "/start", 1));
+    const jobsBefore = chatJobs().length;
+    const before = sentTexts().length;
+    await send(privateMessage(4101, "au fait j'ai 16 ans mais je suis mature", 2));
+    const conv = (await conversationOf(4101))!;
+    expect(conv).toMatchObject({
+      isMinor: true,
+      status: "CLOSED",
+      closedReason: "MINOR",
+      stage: "CLOSED",
+      nextFollowUpAt: null,
+    });
+    expect(sentTexts().slice(before)).toEqual([expect.stringMatching(/réservé aux adultes/)]);
+    expect(chatJobs()).toHaveLength(jobsBefore);
+    const minor = await prisma.conversationEvent.findFirst({
+      where: { conversationId: conv.id, type: "minor" },
+    });
+    expect(minor?.payload).toMatchObject({ source: "reception", age: 16 });
+    expect(
+      await prisma.event.count({
+        where: { type: "conversation.minor", botId, memberId: conv.memberId },
+      }),
+    ).toBe(1);
+  });
+
+  it("âge déclaré pendant que l'équipe a la main : fermée quand même, sans aucun message", async () => {
+    await send(privateMessage(4102, "/start", 1));
+    const c = (await conversationOf(4102))!;
+    await prisma.conversation.update({ where: { id: c.id }, data: { status: "HUMAN" } });
+    const before = sentTexts().length;
+    await send(privateMessage(4102, "Lucas 16 ans", 2));
+    expect(await conversationOf(4102)).toMatchObject({
+      isMinor: true,
+      status: "CLOSED",
+      closedReason: "MINOR",
+    });
+    expect(sentTexts().slice(before)).toEqual([]);
+  });
+
+  it("« STOP » écrit sans barre oblique : comme /stop, gardé dans le fil", async () => {
+    await send(privateMessage(4103, "/start", 1));
+    const before = sentTexts().length;
+    await send(privateMessage(4103, "STOP", 2));
+    const conv = (await conversationOf(4103))!;
+    expect(conv).toMatchObject({ status: "CLOSED", closedReason: "STOP", stage: "CLOSED" });
+    expect(conv.stoppedAt).not.toBeNull();
+    expect(sentTexts().slice(before)).toEqual([
+      "C'est noté, je ne t'écrirai plus. Bonne continuation !",
+    ]);
+    expect(conv.messages.some((m) => m.direction === "IN" && m.text === "STOP")).toBe(true);
+  });
+
+  it("conversation bloquée par l'équipe : /stop puis /start ne répondent rien", async () => {
+    await send(privateMessage(4104, "/start", 1));
+    const c = (await conversationOf(4104))!;
+    await prisma.conversation.update({
+      where: { id: c.id },
+      data: { status: "CLOSED", closedReason: "TEAM", stage: "CLOSED" },
+    });
+    const before = sentTexts().length;
+    await send(privateMessage(4104, "/stop", 2));
+    await send(privateMessage(4104, "/start", 3));
+    await send(privateMessage(4104, "/reset", 4));
+    expect(sentTexts().slice(before)).toEqual([]);
+    expect((await conversationOf(4104))!.stoppedAt).not.toBeNull();
   });
 });

@@ -2056,12 +2056,16 @@ model ConversationMessage {
   turnId            String?
   /// OUT assistant : rang dans le tour (0 à 2).
   partIndex         Int?
+  /// IN : heure de réclamation par un tour du worker en cours (null une fois le tour terminé ou le message rendu) ;
+  /// sert au balayage des tours bloqués (index : jamais une lecture de toute la table).
+  claimedAt         DateTime?
   createdAt         DateTime              @default(now())
 
   @@unique([conversationId, direction, telegramMessageId])
   @@unique([turnId, partIndex])
   @@index([conversationId, createdAt])
   @@index([conversationId, direction, turnId])
+  @@index([claimedAt])
 }
 
 /// Événement d'une conversation (append-only, aucun texte) : statistiques du parcours, survit à /reset.
@@ -2119,6 +2123,8 @@ model AiConversationUsage {
   /// null pour « Tester ».
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  /// Copie de `Conversation.source` (statistiques par source après suppression de la conversation).
+  source         String?
   /// REPLY | FOLLOW_UP | SUMMARY | TEST.
   purpose        String
   model          String

@@ -106,6 +106,7 @@ export function PersonaForm({
     name: state.name,
     affiliateCampaignId: state.affiliateCampaignId || null,
     offerPitch: state.offerPitch,
+    gender: state.gender,
   });
   const err = (k: PersonaFormField) => errors[k];
 
@@ -529,7 +530,7 @@ export function PersonaForm({
           rows={3}
           counter
           placeholder="Parle de séries si la personne aime le cinéma."
-          help="Une précision pour l'IA. Les règles du client restent toujours plus fortes."
+          help="Une précision pour l'IA. Les règles de sécurité (se présenter comme assistante ou assistant, adultes seulement, honnêteté sur l'offre, jamais d'insistance) restent toujours plus fortes."
           error={err("extraPrompt")}
         />
       </AdvancedSection>

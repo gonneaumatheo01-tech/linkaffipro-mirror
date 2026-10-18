@@ -115,6 +115,11 @@ export type TurnInput = {
    * `TurnResult.retryCount` du passage précédent ; remettre à 0 quand la personne écrit un nouveau message.
    */
   retryCount?: number;
+  /**
+   * Résumé roulant laissé à l'appelant (`summarizeAfterTurn`, après l'enregistrement du tour) : le tour rend la main dès
+   * le dernier envoi, sans attendre un appel de plus à l'IA (le worker enregistre les faits du tour d'abord).
+   */
+  deferSummary?: boolean;
 };
 
 export type ChatButton = { text: string; url: string };
@@ -123,14 +128,21 @@ export type SendResult =
   | { ok: true; telegramMessageId?: number }
   | { ok: false; blocked: boolean; unreachable: boolean; error: string };
 
+/**
+ * Options d'un envoi : boutons, et texte fixe envoyé (`minorStop`, `retryLater`… ; absent pour une réponse du modèle).
+ * L'envoi du worker s'en sert pour écrire les faits au moment où le message part (tour de réponse compté sauf pour
+ * l'arrêt mineur et « je reviens vers toi »).
+ */
+export type SendOptions = { buttons?: ChatButton[][]; fixedKey?: string | null };
+
 /** Envoi vers la personne (implémenté par le bot, ou par le faux envoi des tests et du « Tester »). Texte brut. */
 export type ChatSender = {
   sendTyping(): Promise<void>;
-  sendText(text: string, opts?: { buttons?: ChatButton[][] }): Promise<SendResult>;
+  sendText(text: string, opts?: SendOptions): Promise<SendResult>;
   sendMedia(
     media: { mediaAssetId: string },
     caption: string,
-    opts?: { buttons?: ChatButton[][] },
+    opts?: SendOptions,
   ): Promise<SendResult>;
 };
 

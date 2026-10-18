@@ -13,7 +13,7 @@ import { toThreadMessage } from "@/lib/conversations/thread";
 // Fiche d'une conversation rendue côté serveur (base simulée) : un titre, « Envoyer » seul bouton orange, fil (bulles
 // de la personne, de l'assistante, de l'équipe avec son prénom, média décrit, lien de l'offre ouvert ou non), boutons
 // de reprise en main selon l'état, explication quand plus rien ne peut partir (/stop), faits retenus et résultats.
-const m = vi.hoisted(() => ({ detail: null as unknown, activation: "all" as "off" | "all" }));
+const m = vi.hoisted(() => ({ detail: null as unknown }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -23,9 +23,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/session", () => ({
   requireUser: vi.fn(async () => ({ id: "u1", name: "Marie", role: "MANAGER" })),
-}));
-vi.mock("@/lib/assistant/config", () => ({
-  loadAssistantConfig: vi.fn(async () => ({ activation: m.activation })),
 }));
 vi.mock("@/lib/conversations/detail", () => ({
   loadConversationDetail: vi.fn(async () => m.detail),
@@ -148,6 +145,7 @@ function detail(over: Partial<ConversationDetail> = {}): ConversationDetail {
     stateKey: "k",
     cursor: messages.at(-1)!.at,
     resets: 0,
+    replyBlock: null,
     ...over,
   };
   return {
@@ -176,7 +174,6 @@ async function render(): Promise<string> {
 
 beforeEach(() => {
   m.detail = detail();
-  m.activation = "all";
 });
 
 describe("Conversations → fiche d'une conversation", () => {
@@ -236,6 +233,57 @@ describe("Conversations → fiche d'une conversation", () => {
     expect(html).not.toContain('name="text"');
     expect(text).not.toMatch(/Prendre la main|Rendre à l'assistante|Bloquer|Envoyer/);
     expect(primaryButtonCount(html)).toBe(0);
+  });
+
+  it("l'assistante répond vraiment : pastille accordée et phrase « C'est l'assistante qui répond »", async () => {
+    m.detail = detail({ status: "BOT", takenOverAt: null, takenOverBy: null });
+    const text = visibleText(await render());
+    expect(text).toContain("L'assistante répond");
+    expect(text).not.toContain("L'assistant répond");
+    expect(text).toContain("C'est l'assistante qui répond.");
+    expect(text).not.toContain("Personne ne répond");
+  });
+
+  it("essai réservé à l'équipe, personne hors équipe : jamais « C'est l'assistante qui répond »", async () => {
+    m.detail = detail({
+      status: "BOT",
+      takenOverAt: null,
+      takenOverBy: null,
+      replyBlock: "team_only",
+    });
+    const html = await render();
+    const text = visibleText(html);
+    expect(text).not.toContain("C'est l'assistante qui répond");
+    expect(text).not.toContain("L'assistante répond");
+    expect(text).toContain("Personne ne répond");
+    expect(text).toContain(
+      "Personne ne répond pour l'instant : l'essai est limité aux comptes de l'équipe",
+    );
+    expect(text).toContain("Prenez la main pour lui répondre vous-même.");
+    expect(html).toMatch(/title="L&#x27;essai est limité aux comptes de l&#x27;équipe/);
+  });
+
+  it("persona désactivée ou bot repassé en bot normal : la raison à la place de « l'assistante répond »", async () => {
+    for (const [block, reason] of [
+      ["persona_inactive", "la persona de cette conversation est désactivée"],
+      ["not_assistant_bot", "ce bot n'est plus en mode assistant"],
+      ["activation_off", "l'assistant de conversation est désactivé"],
+    ] as const) {
+      m.detail = detail({ status: "BOT", takenOverAt: null, takenOverBy: null, replyBlock: block });
+      const text = visibleText(await render());
+      expect(text).toContain(`Personne ne répond pour l'instant : ${reason}`);
+      expect(text).not.toContain("C'est l'assistante qui répond");
+    }
+  });
+
+  it("l'équipe a la main et personne ne répondrait ensuite : prévenu avant de rendre la main", async () => {
+    m.detail = detail({ replyBlock: "persona_inactive" });
+    const text = visibleText(await render());
+    expect(text).toContain(
+      "En rendant la main, personne ne répondra : la persona de cette conversation est désactivée",
+    );
+    m.detail = detail({ replyBlock: null });
+    expect(visibleText(await render())).not.toContain("En rendant la main");
   });
 
   it("persona masculine : « Rendre à l'assistant »", async () => {

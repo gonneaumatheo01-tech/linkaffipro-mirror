@@ -10,7 +10,8 @@
  * - inscriptions et premiers dépôts : joueurs rattachés au clic d'un lien de l'offre d'une conversation, aux dates
  *   réelles de Link Affi (date d'inscription, date du premier dépôt), comme le reste des Statistiques ;
  * - coût de l'IA : appels de la période, hors « Tester » ;
- * - parcours : conversations commencées dans la période arrivées à chaque étape (étape actuelle ou passage enregistré).
+ * - parcours : conversations commencées dans la période arrivées à chaque étape (étape actuelle ou passage enregistré ;
+ *   « Inscrit » aussi pour toute conversation dont une inscription est rattachée, même fermée entre-temps).
  */
 import type { ConversationStage } from "@linkaffipro/db";
 import { JOURNEY_STAGES, NONE_KEY, personaLabel, sourceLabel } from "./labels";
@@ -24,6 +25,11 @@ export type StatsConversation = {
   replied: boolean;
   /** Étapes atteintes d'après les passages enregistrés (`stage_changed`). */
   reached: readonly ConversationStage[];
+  /**
+   * Une inscription est rattachée à la conversation (`convertedAt`). Compte pour « Inscrit » même sans passage
+   * d'étape : une conversation fermée (/stop, « Fermer », bot bloqué) puis convertie garde l'étape « Fermée ».
+   */
+  converted: boolean;
 };
 
 /** Événement rattaché à une persona et une source (lien envoyé, lien ouvert, coût). */
@@ -137,12 +143,16 @@ function sortRows(rows: FigureRow[]): FigureRow[] {
   );
 }
 
-/** Une conversation est-elle arrivée à cette étape (étape actuelle, passage enregistré, ou Accueil pour toutes) ? */
+/**
+ * Une conversation est-elle arrivée à cette étape (étape actuelle, passage enregistré, Accueil pour toutes, et
+ * « Inscrit » dès qu'une inscription est rattachée, même pendant une fermeture) ?
+ */
 export function reachedStage(
-  c: Pick<StatsConversation, "stage" | "reached">,
+  c: Pick<StatsConversation, "stage" | "reached" | "converted">,
   stage: ConversationStage,
 ): boolean {
   if (stage === "WELCOME") return true;
+  if (stage === "CONVERTED" && c.converted) return true;
   return c.stage === stage || c.reached.includes(stage);
 }
 

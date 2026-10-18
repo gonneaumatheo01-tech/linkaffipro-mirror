@@ -8,6 +8,14 @@ const db = vi.hoisted(() => {
     files: [] as Row[],
     updates: [] as Row[],
     outcomes: [] as string[],
+    conv: {
+      id: "conv1",
+      status: "BOT",
+      stoppedAt: null,
+      isMinor: false,
+      closedReason: null,
+    } as Row | null,
+    resetAfter: false,
   };
   const prisma = {
     outboundMessage: {
@@ -16,6 +24,14 @@ const db = vi.hoisted(() => {
         state.updates.push(data);
         return data;
       }),
+      updateMany: vi.fn(async ({ data }: { data: Row }) => {
+        state.updates.push(data);
+        return { count: 1 };
+      }),
+    },
+    conversation: { findUnique: vi.fn(async () => state.conv) },
+    conversationEvent: {
+      findFirst: vi.fn(async () => (state.resetAfter ? { id: "ev1" } : null)),
     },
     memberBotState: { upsert: vi.fn(async () => undefined) },
     mediaAsset: { findUnique: vi.fn(async () => state.asset) },
@@ -69,6 +85,7 @@ const tgError = (code: number, description: string) =>
 const baseOm = {
   id: "om1",
   status: "QUEUED",
+  queuedAt: new Date("2026-10-18T10:00:00Z"),
   botId: "b1",
   memberId: "m1",
   broadcastId: null,
@@ -86,6 +103,14 @@ beforeEach(() => {
   db.state.files = [];
   db.state.updates = [];
   db.state.outcomes = [];
+  db.state.conv = {
+    id: "conv1",
+    status: "BOT",
+    stoppedAt: null,
+    isMinor: false,
+    closedReason: null,
+  };
+  db.state.resetAfter = false;
   for (const f of Object.values(db.api)) (f as ReturnType<typeof vi.fn>).mockClear();
 });
 
@@ -407,5 +432,53 @@ describe("filet : bot devenu assistant de conversation (phase 17)", () => {
     const r = await sendDm("om1");
     expect(r.status).toBe("SENT");
     expect(db.api.sendMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("message de conversation relu juste avant l'envoi (phase 17)", () => {
+  it.each([
+    [{ stoppedAt: new Date(), status: "CLOSED", closedReason: "STOP" }, /\/stop/],
+    [{ isMinor: true, status: "CLOSED", closedReason: "MINOR" }, /moins de 18 ans/],
+    [{ status: "CLOSED", closedReason: "TEAM" }, /bloquée par l'équipe/],
+  ])(
+    "message de l'équipe en file, conversation changée entre-temps (%o) : rien ne part",
+    async (conv, reason) => {
+      db.state.om.kind = "ASSISTANT";
+      db.state.conv = { ...db.state.conv, ...conv };
+      const r = await sendDm("om1");
+      expect(db.api.sendMessage).not.toHaveBeenCalled();
+      expect(r.status).toBe("FAILED");
+      expect(r.error).toMatch(reason);
+      expect(db.state.updates.at(-1)).toMatchObject({ status: "FAILED" });
+    },
+  );
+
+  it("équipe aux commandes ou conversation fermée par « Fermer » : le message de l'équipe part", async () => {
+    db.state.om.kind = "ASSISTANT";
+    db.state.conv = { ...db.state.conv, status: "HUMAN" };
+    expect((await sendDm("om1")).status).toBe("SENT");
+  });
+
+  it("annulé par un /reset pendant l'attente du débit : rien ne part", async () => {
+    db.state.om.kind = "ASSISTANT";
+    db.prisma.outboundMessage.findUnique
+      .mockResolvedValueOnce({ ...baseOm, kind: "ASSISTANT" } as never)
+      .mockResolvedValueOnce({ status: "FAILED" } as never);
+    const r = await sendDm("om1");
+    expect(r.status).toBe("SKIPPED");
+    expect(db.api.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("/reset pendant l'envoi : texte vidé juste après (rien ne survit à « tout effacer »)", async () => {
+    db.state.om.kind = "ASSISTANT";
+    db.state.resetAfter = true;
+    expect((await sendDm("om1")).status).toBe("SENT");
+    expect(db.state.updates.at(-1)).toEqual({ text: "", buttons: [] });
+  });
+
+  it("autres messages (accueil…) : jamais relus ainsi", async () => {
+    db.prisma.conversation.findUnique.mockClear();
+    await sendDm("om1");
+    expect(db.prisma.conversation.findUnique).not.toHaveBeenCalled();
   });
 });

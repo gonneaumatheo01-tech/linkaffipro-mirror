@@ -15,7 +15,16 @@ import { NONE_KEY } from "@/lib/conversations/labels";
 import { statusLabels } from "@/lib/status-badges";
 
 const STAGE_OPTIONS = statusLabels("conversationStage");
+/** « L'assistante répond » (au féminin, comme le libellé par défaut : la liste mêle plusieurs personas). */
 const STATUS_OPTIONS = statusLabels("conversationStatus");
+
+/**
+ * Choix « Qui répond » : sans « En pause », qu'aucune action ni règle ne pose aujourd'hui (le filtre serait toujours
+ * vide), sauf s'il est déjà choisi dans l'adresse (lien ancien ou filtre mémorisé).
+ */
+export function statusChoices(current: string): Array<[string, string]> {
+  return Object.entries(STATUS_OPTIONS).filter(([k]) => k !== "PAUSED" || current === "PAUSED");
+}
 
 /**
  * Filtres de la boîte de réception : pastilles « Toutes », « Non lues » (dernier message de la personne, sans
@@ -92,7 +101,7 @@ export function InboxFilters({
               wrapperClassName="w-full"
             >
               <option value="">Tous</option>
-              {Object.entries(STATUS_OPTIONS).map(([k, v]) => (
+              {statusChoices(f.status).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
                 </option>

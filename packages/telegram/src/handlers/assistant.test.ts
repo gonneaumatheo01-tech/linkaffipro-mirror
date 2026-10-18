@@ -111,6 +111,16 @@ function assistantDeps(over: Partial<FakeState["conv"]> = {}) {
       if (state.seenTelegramIds.has(input.telegramMessageId)) return { duplicate: true };
       state.seenTelegramIds.add(input.telegramMessageId);
       state.inbound.push(input);
+      if (input.minor && !state.conv.isMinor) {
+        const wasAnswering = state.conv.status === "BOT" && !state.conv.stoppedAt;
+        Object.assign(state.conv, {
+          isMinor: true,
+          status: "CLOSED",
+          stage: "CLOSED",
+          closedReason: state.conv.closedReason ?? "MINOR",
+        });
+        return { duplicate: false, minorClosed: { wasAnswering } };
+      }
       return { duplicate: false };
     }),
     recordFixedReply: vi.fn(async (input) => {
@@ -595,5 +605,89 @@ describe("/reset", () => {
     await bot.handleUpdate(privateText("/reset"));
     expect(deps.resetConversation).toHaveBeenCalledTimes(1);
     expect(sent(apiCalls)).toEqual([]);
+  });
+});
+
+describe("corrections après relecture : mineur à la réception, « STOP » écrit, conversation bloquée par l'équipe", () => {
+  it("âge déclaré, l'assistante a la parole : fermée dès la réception, arrêt poli, aucun tour en file", async () => {
+    const { state, deps } = assistantDeps({ stage: "CHAT" });
+    const { bot, apiCalls } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("au fait j'ai 16 ans mais je suis mature"));
+    expect(state.inbound[0]).toMatchObject({
+      minor: { age: 16, botId: "bot_lea", memberId: "m1" },
+      countsAsExchange: true,
+    });
+    expect(state.conv).toMatchObject({ isMinor: true, status: "CLOSED" });
+    expect(state.enqueued).toEqual([]);
+    expect(state.fixed.map((f) => f.key)).toEqual(["minorStop"]);
+    expect(sent(apiCalls)[0]).toMatch(/réservé aux adultes/);
+  });
+
+  it("âge déclaré pendant que l'équipe a la main (ou limite atteinte) : fermée quand même, sans message", async () => {
+    const { state, deps } = assistantDeps({ status: "HUMAN", stage: "CHAT" });
+    const { bot, apiCalls } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("j'ai 16 ans"));
+    expect(state.conv).toMatchObject({ isMinor: true, status: "CLOSED" });
+    expect(sent(apiCalls)).toEqual([]);
+    expect(state.enqueued).toEqual([]);
+    // Rendre la main ensuite ne peut plus rien déclencher : la conversation est close (mineur).
+    await bot.handleUpdate(privateText("salut"));
+    expect(state.enqueued).toEqual([]);
+  });
+
+  it("assistant désactivé : fermée pour mineur, sans message", async () => {
+    const { state, deps } = assistantDeps();
+    state.activation = false;
+    const { bot, apiCalls } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("Lucas 16 ans"));
+    expect(state.conv.isMinor).toBe(true);
+    expect(sent(apiCalls)).toEqual([]);
+  });
+
+  it("« STOP » écrit sans barre oblique : comme /stop (définitif, réponse fixe), gardé dans le fil, rien en file", async () => {
+    const { state, deps } = assistantDeps({ stage: "CHAT" });
+    const { bot, apiCalls } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("STOP"));
+    expect(deps.stopConversation).toHaveBeenCalledTimes(1);
+    expect(state.enqueued).toEqual([]);
+    expect(state.fixed.map((f) => f.key)).toEqual(["stopDone"]);
+    expect(sent(apiCalls)).toEqual(["C'est noté, je ne t'écrirai plus. Bonne continuation !"]);
+    expect(state.inbound[0]).toMatchObject({
+      text: "STOP",
+      meta: { command: "stop", typed: true },
+      countsAsExchange: false,
+    });
+    // Ensuite : plus aucune réponse de l'IA.
+    await bot.handleUpdate(privateText("ok"));
+    expect(state.enqueued).toEqual([]);
+  });
+
+  it("« arrête de m'écrire » seul vaut /stop ; « stop 😂 » est un message normal", async () => {
+    let { state, deps } = assistantDeps();
+    let { bot } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("Arrête de m'écrire stp"));
+    expect(deps.stopConversation).toHaveBeenCalledTimes(1);
+    ({ state, deps } = assistantDeps());
+    ({ bot } = makeBot(assistant, deps));
+    await bot.handleUpdate(privateText("stop 😂"));
+    expect(deps.stopConversation).not.toHaveBeenCalled();
+    expect(state.enqueued).toEqual(["conv_1"]);
+  });
+
+  it("conversation bloquée par l'équipe : /stop sans « c'est noté », puis ni /start ni /reset ne répondent", async () => {
+    const { state, deps } = assistantDeps({
+      status: "CLOSED",
+      stage: "CLOSED",
+      closedReason: "TEAM",
+    });
+    const { bot, apiCalls } = makeBot(assistant, deps);
+    await bot.handleUpdate(privateText("/stop"));
+    expect(deps.stopConversation).toHaveBeenCalledTimes(1);
+    expect(state.conv.stoppedAt).not.toBeNull();
+    await bot.handleUpdate(privateText("/start"));
+    await bot.handleUpdate(privateText("/reset"));
+    expect(sent(apiCalls)).toEqual([]);
+    expect(state.fixed).toEqual([]);
+    expect(deps.claimStoppedReply).not.toHaveBeenCalled();
   });
 });

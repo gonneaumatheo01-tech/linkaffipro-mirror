@@ -21,6 +21,7 @@ export const REJECT_CODES = [
   "missing_assistant_admission",
   "intro_missing",
   "invented_number",
+  "leak",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -37,6 +38,12 @@ export type ValidationContext = {
   facts?: readonly string[];
   /** Premier message de l'assistant dans cette conversation : prénom + « assistant(e) » exigés. */
   isFirstAssistantMessage: boolean;
+  /**
+   * Textes internes de la persona que la personne ne doit jamais lire (consignes complémentaires de l'équipe,
+   * personnalité et ton écrits) : une reprise de 8 mots d'affilée est refusée (`leak`). La fiche de l'offre n'en fait
+   * pas partie (elle peut être dite).
+   */
+  privateTexts?: readonly (string | null | undefined)[];
 };
 
 export type ValidationResult =
@@ -69,8 +76,35 @@ export function hasMarkdown(text: string): boolean {
 // Liens, domaines, @pseudos
 // ------------------------------------------------------------------
 
-const TLDS =
-  "com|fr|net|org|io|me|app|co|info|biz|xyz|eu|de|es|it|pt|uk|us|be|ch|br|ru|ly|gg|link|site|online|club|dating|tv|ai|live|love|top|vip|bet|casino|shop|store|page|fun|cc|lu|nl|pl";
+/**
+ * Extensions de domaine reconnues : TOUS les domaines de pays (2 lettres, liste IANA : « rencontres.ca », « goo.gl »,
+ * « is.gd », « rb.gy », « shorturl.at », « site.to »…) et les extensions génériques courantes. Telegram rend cliquable
+ * toute adresse dont l'extension existe, même dans un texte brut.
+ */
+const CC_TLDS =
+  "ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bm bn bo bq br bs bt bv bw by bz " +
+  "ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg eh er es et eu fi fj fk fm fo " +
+  "fr ga gb gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm " +
+  "jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mg mh mk ml mm mn mo mp mq mr " +
+  "ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro " +
+  "rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr ss st su sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt " +
+  "tv tw tz ua ug uk us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw";
+const GENERIC_TLDS =
+  "com net org info biz name pro mobi tel travel jobs asia cat coop aero museum xxx post int edu gov mil " +
+  "app dev page site online website web store shop shopping club live love life world today tech technology space " +
+  "fun xyz top vip bet casino poker games game win bingo lotto dating date singles sexy sex porn adult cam chat " +
+  "social network media news blog wiki link click download stream video icu cyou buzz ooo one plus email mail " +
+  "cloud host hosting digital agency company business ltd inc llc group team work works zone center city town guru " +
+  "expert solutions services support help care health fit fitness beauty hair fashion style clothing shoes jewelry " +
+  "watch tube movie film music band rocks lol wtf fail fyi ninja cool cash money bank finance loan credit insurance " +
+  "tax trade market markets exchange deals sale discount coupons gift gifts red blue pink black gold art design " +
+  "photo photos pics pictures gallery studio events party wedding family kids baby pet pets house home homes realty " +
+  "estate rent property farm garden earth eco bio global international systems software tools codes academy school " +
+  "college university education courses training institute boutique bar pub cafe restaurant pizza beer wine vin " +
+  "paris berlin london nyc tokyo moscow madrid barcelona amsterdam brussels wien swiss quebec bzh alsace corsica eus " +
+  "gal scot wales africa men gay lgbt girl girls boy boys meet friends fan fans best review reviews press report " +
+  "now new free promo bio ink lat kim moe onl rip run vote vin wang xin";
+const TLDS = [...new Set(`${CC_TLDS} ${GENERIC_TLDS}`.split(/\s+/).filter(Boolean))].join("|");
 const LINK_PATTERNS: readonly RegExp[] = [
   /https?:\/\//i,
   /\bwww\./i,
@@ -78,6 +112,10 @@ const LINK_PATTERNS: readonly RegExp[] = [
   /\btelegram\.(?:me|dog)\b/i,
   /\btg:\/\//i,
   new RegExp(`\\b[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.(?:${TLDS})\\b`, "i"),
+  // « mot.mot/quelque chose » : une adresse avec un chemin, quelle que soit son extension (pas « 9.5/10 »)
+  /(?:^|[^\p{L}\p{N}_@.])[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]*\p{L}[\p{L}\p{N}-]*)+\/[^\s/]/iu,
+  // adresse e-mail
+  /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/iu,
   /(^|[^\p{L}\p{N}_])@[a-z0-9_]{3,}/iu,
 ];
 
@@ -158,10 +196,22 @@ const ASKS_CLAUSE_PATTERNS: readonly RegExp[] = [
   ),
 ];
 
+// Questions sans mot « bot » ni « personne » : « c'est (bien) toi en vrai ? », « y a quelqu'un ? », « is anyone there? »
+// (forme « propositions », « ? » exigé).
+const ASKS_REAL_PATTERNS: readonly RegExp[] = [
+  /\bc est (?:bien |vraiment |really )?toi (?:en vrai|pour de vrai)(?: [|:])* \?/,
+  /\b(?:y a|il y a|ya|y aurait|il y aurait) (?:t il )?(?:quelqu un|qqn|qn)(?: de vivant| de vrai)?(?: (?:la|ici|derriere))?(?: [|:])* \?/,
+  /\b(?:anyone|anybody|someone|somebody) (?:there|here|home|real)(?: [|:])* \?/,
+  /\b(?:hay alguien|tem alguem|ist da jemand|c e qualcuno)(?: (?:ahi|ai|ali|da|li))?(?: [|:])* \?/,
+];
+
 /** Vrai si la personne demande (ou se demande) si elle parle à un bot, une IA ou une vraie personne. */
 export function asksIfBot(text: string): boolean {
+  const clauses = clauseForm(text);
   return (
-    matchesAny(wordsForm(text), ASKS_PATTERNS) || matchesAny(clauseForm(text), ASKS_CLAUSE_PATTERNS)
+    matchesAny(wordsForm(text), ASKS_PATTERNS) ||
+    matchesAny(clauses, ASKS_CLAUSE_PATTERNS) ||
+    matchesAny(clauses, ASKS_REAL_PATTERNS)
   );
 }
 
@@ -254,7 +304,10 @@ export function admitsBeingAssistant(text: string): boolean {
 
 const SELF_NEG =
   "je ne suis pas|je suis pas|j suis pas|jsuis pas|chui pas|suis pas|i m not|im not|i am not|i m no|i am no|no soy|yo no soy|nao sou|eu nao sou|ich bin kein|ich bin keine|ich bin nicht|non sono|io non sono";
-const DENIED_WHAT = `${BOT_WORDS}|ia|ai|ki|i a|a i|${AI_FULL}|machine|maschine|macchina|maquina|programme|program|programa|programm|programma|assistante?|asistente|assistente|assistentin|assistent|${VIRTUAL_WORDS}`;
+/** Programmé(e), scripté(e), automatisé(e) : toutes les formes (« je suis pas programmée »). */
+const PROGRAMMED_WORDS =
+  "programmee?s?|programmes|programado|programada|programmato|programmata|programmiert|programmed|scriptee?s?|scripted|automatisee?s?|automated|automatico|automatica|automatisiert|automatizzat[oa]";
+const DENIED_WHAT = `${BOT_WORDS}|ia|ai|ki|i a|a i|${AI_FULL}|machine|maschine|macchina|maquina|program|programa|programm|programma|${PROGRAMMED_WORDS}|assistante?|asistente|assistente|assistentin|assistent|${VIRTUAL_WORDS}`;
 const SELF = "je suis|chui|jsuis|j suis|i m|im|i am|soy|yo soy|sou|eu sou|ich bin|sono|io sono";
 const ADV_WORDS =
   "bien|vraiment|totalement|tout a fait|really|totally|definitely|absolutely|realmente|totalmente|de verdad|de verdade|wirklich|ganz|davvero|proprio|100";
@@ -285,6 +338,16 @@ const DENY_WORD_PATTERNS: readonly RegExp[] = [
   ),
   // « je suis humaine », « I'm human », « sono umana », « ich bin ein Mensch » (sauf « … assistante », « … IA »)
   new RegExp(`\\b(?:${SELF}) ${ADV}${SELF_ART}(?:${CLEAR_HUMAN})\\b(?! (?:${AI_AFTER})\\b)`),
+  // « 100 % humaine », « 100% human »
+  /\b100 (?:pour cent |percent |por ciento |por cento |prozent |per cento )?(?:humaine?|human|humana|humano|umana|umano|mensch)\b/,
+  // « je suis bien vivante », « I'm alive »
+  new RegExp(`\\b(?:${SELF}) ${ADV}(?:vivante?|alive|viva|vivo|lebendig)\\b`),
+  // « c'est moi en vrai qui t'écris », « c'est bien moi pour de vrai », « it's me for real »
+  /\b(?:c est moi|it s me|its me|soy yo|sou eu|sono io|ich bin es) (?:bien |vraiment |really )?(?:en vrai|pour de vrai|for real|de verdad|de verdade|davvero|wirklich)\b/,
+  // « je suis là pour de vrai », « I'm here for real », « je suis vraie en vrai de vrai »
+  new RegExp(
+    `\\b(?:${SELF}) (?:(?:la|ici|here|bien|vraiment|really|aqui|aca|qui|hier|vraie?|real|echt|vera|vero) )*(?:pour de vrai|en vrai de vrai|for real|de verdad|de verdade|per davvero)\\b`,
+  ),
 ];
 
 /** Négation directement suivie d'un mot d'IA (sans ponctuation entre les deux : « Non, une IA » n'est pas un déni). */
@@ -304,6 +367,12 @@ const DENY_CLAUSE_PATTERNS: readonly RegExp[] = [
   /\b(?:not|no) ai\b/,
 ];
 
+/** « aucun robot ici », « aucune IA », « zéro bot », « ningún bot » : déni, sauf si le texte avoue être une IA (« Je suis
+ * une IA : aucune IA ne remplace une vraie rencontre »). */
+const DENY_NONE = new RegExp(
+  `\\b(?:aucun|aucune|zero|nul|nulle|ningun|ninguna|ninguno|nenhum|nenhuma|nessun|nessuna|nessuno|keinerlei|no hay|nao ha|nao tem) ${NEG_ADV}(?:${DENY_TARGET}|ai)\\b`,
+);
+
 /** « Moi un bot ? Pas du tout », « Bot? Never! », « Eine KI? Quatsch » : déni sauf si le texte avoue être une IA. */
 const LAUGH = "(?:ha|ah|he|hi|ja|je|k){2,}h?|mdr|lol|ptdr|xd|lmao";
 const Q_FILLER = `moi|me|io|yo|eu|ich|ah|oh|euh|bah|ben|well|um|uh|pf+|${LAUGH}`;
@@ -321,6 +390,18 @@ const DENY_SENTENCE_PATTERN = new RegExp(
 const NEGATION_BEFORE =
   /\b(?:pas|not|no|nao|kein|keine|keinen|nicht|non|ni|jamais|never|nunca|nie|mai|n)\b/;
 
+/**
+ * « une vraie fille », « une vraie meuf », « a real girl », « una chica de verdad », « eine echte Frau »… : prétendre
+ * qu'une vraie personne écrit, même sans « je suis » devant (« derrière l'écran il y a une vraie fille »).
+ */
+const REAL_ADJ = "vraie|vrai|reelle|reel|real|actual|echte|echter|echtes|vera|vero";
+const GIRL_NOUN =
+  "fille|femme|meuf|nana|mec|gars|homme|girl|woman|guy|man|lady|chica|mujer|chico|hombre|menina|mulher|garota|homem|frau|madchen|mann|ragazza|donna|ragazzo|uomo";
+const REAL_PERSON_PHRASES = `(?:${REAL_ADJ}) (?:${GIRL_NOUN})|(?:fille|femme|meuf|chica|mujer|menina|mulher|garota|ragazza|donna|girl|woman) (?:reelle|real|reale|vera|de verdad|de verdade)|vivante en vrai|en vrai de vrai`;
+/** Compliment adressé à la personne (« t'es une vraie fille de la nuit ») : ce n'est pas l'assistante qui parle d'elle. */
+const SECOND_PERSON_BEFORE =
+  /\b(?:tu es|t es|tes|es tu|tu as l air|t as l air|tu sembles|you re|you are|ur|u r|you look like|you seem like|eres|sos|pareces|voce e|vc e|sei|sembri|bist du|du bist)\b/;
+
 /** Vrai si le texte prétend être une vraie personne ou nie être un assistant / une IA / un bot (6 langues). */
 export function deniesBeingAssistant(text: string): boolean {
   const words = wordsForm(text);
@@ -331,12 +412,17 @@ export function deniesBeingAssistant(text: string): boolean {
     .replace(/['’‘`´-]/g, " ")
     .replace(/[ \t]+/g, " ");
   if (DENY_SENTENCE_PATTERN.test(light)) return true;
-  if (DENY_QUESTION.test(clauses) && !admitsBeingAi(text)) return true;
-  // « vraie personne », « real person »… sans négation juste avant, dans un texte qui ne dit pas être un assistant.
+  if ((DENY_QUESTION.test(clauses) || DENY_NONE.test(clauses)) && !admitsBeingAi(text)) return true;
+  // « vraie personne », « real person », « une vraie fille »… sans négation juste avant, dans un texte qui ne dit pas
+  // être un assistant.
   if (admitsBeingAssistant(text)) return false;
   for (const m of words.matchAll(new RegExp(`\\b(?:${HUMAN_PHRASES})\\b`, "g"))) {
     const before = words.slice(Math.max(0, (m.index ?? 0) - 25), m.index ?? 0);
     if (!NEGATION_BEFORE.test(before)) return true;
+  }
+  for (const m of words.matchAll(new RegExp(`\\b(?:${REAL_PERSON_PHRASES})\\b`, "g"))) {
+    const before = words.slice(Math.max(0, (m.index ?? 0) - 25), m.index ?? 0);
+    if (!NEGATION_BEFORE.test(before) && !SECOND_PERSON_BEFORE.test(before)) return true;
   }
   return false;
 }
@@ -612,6 +698,65 @@ export function inventedNumbers(
 }
 
 // ------------------------------------------------------------------
+// Consignes internes (jamais montrées à la personne)
+// ------------------------------------------------------------------
+
+/** Repères du prompt système et du format de sortie (forme « mots ») : leur présence trahit une fuite des consignes. */
+const LEAK_MARKERS =
+  /\b(?:send offer|minor suspected|note interne|style update|memory facts|consignes complementaires|consignes de l equipe|fiche de l offre|regles prioritaires|prompt systeme|system prompt|mes consignes|mes instructions|my instructions|my system prompt|mis instrucciones|minhas instrucoes|meine anweisungen|le mie istruzioni)\b/;
+/** Reprise mot pour mot d'un texte interne : 8 mots d'affilée. */
+export const LEAK_NGRAM = 8;
+
+/**
+ * Vrai si le texte dévoile les consignes internes : repères du prompt ou du format de sortie (« send_offer »,
+ * « consignes complémentaires de l'équipe », « fiche de l'offre »…), ou 8 mots d'affilée repris d'un texte interne
+ * (consignes de l'équipe, personnalité, ton).
+ */
+export function leaksInstructions(
+  text: string,
+  privateTexts: readonly (string | null | undefined)[] = [],
+): boolean {
+  const words = wordsForm(text);
+  if (LEAK_MARKERS.test(words)) return true;
+  const out = words.split(" ").filter(Boolean);
+  if (out.length < LEAK_NGRAM) return false;
+  const grams = new Set<string>();
+  for (const t of privateTexts) {
+    const w = wordsForm(t ?? "")
+      .split(" ")
+      .filter(Boolean);
+    for (let i = 0; i + LEAK_NGRAM <= w.length; i++)
+      grams.add(w.slice(i, i + LEAK_NGRAM).join(" "));
+  }
+  if (grams.size === 0) return false;
+  for (let i = 0; i + LEAK_NGRAM <= out.length; i++)
+    if (grams.has(out.slice(i, i + LEAK_NGRAM).join(" "))) return true;
+  return false;
+}
+
+/**
+ * Question « bot / IA / vraie personne ? » restée sans aveu dans l'historique : la plus récente des 6 derniers messages de
+ * la personne qui la pose, si aucun message envoyé ensuite ne dit franchement être une IA (sinon null). L'aveu reste
+ * exigé au tour suivant (« sûr ? », « banane » après une question posée pendant la reprise par l'équipe…).
+ */
+export function openBotQuestion(
+  history: ReadonlyArray<{ direction: "IN" | "OUT"; text: string }>,
+): string | null {
+  let seenIn = 0;
+  for (let i = history.length - 1; i >= 0 && seenIn < 6; i--) {
+    const h = history[i]!;
+    if (h.direction !== "IN") continue;
+    seenIn++;
+    if (!asksIfBot(h.text)) continue;
+    const admitted = history
+      .slice(i + 1)
+      .some((o) => o.direction === "OUT" && admitsBeingAi(o.text));
+    return admitted ? null : h.text;
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------
 // Validation d'une réponse
 // ------------------------------------------------------------------
 
@@ -657,6 +802,8 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
       "missing_assistant_admission",
       "La personne demande si c'est un bot : l'aveu franc d'être une IA manque.",
     );
+  if (leaksInstructions(joined, ctx.privateTexts ?? []))
+    reject("leak", "Dévoile les consignes internes (règles, consignes de l'équipe, format).");
   if (ctx.isFirstAssistantMessage && !hasIntro(joined, ctx.personaName))
     reject(
       "intro_missing",

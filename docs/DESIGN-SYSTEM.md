@@ -139,7 +139,7 @@ Le mot du client est affiché ; le terme exact apparaît au survol, au toucher e
 
 ### Navigation, adresses et aide
 
-- **Menu** : `components/admin/nav-logic.ts` (`NAV`) : 7 entrées (les 6 de la refonte, plus Pages après Campagnes depuis la phase 15) + Réglages en bas ; « Guide d'utilisation » et « Mon compte » seulement dans « Plus » du téléphone (`mobileOnly`). Barre du bas du téléphone : `MOBILE_PRIMARY_HREFS` (Accueil, Messages, Membres, Campagnes) puis « Plus ». Une rubrique rangée sous une entrée l'allume (`activeHref`, la plus précise gagne).
+- **Menu** : `components/admin/nav-logic.ts` (`NAV`) : 8 entrées (les 6 de la refonte, plus Pages après Campagnes depuis la phase 15 et Conversations après Membres depuis la phase 17) + Réglages en bas ; « Guide d'utilisation » et « Mon compte » seulement dans « Plus » du téléphone (`mobileOnly`). Barre du bas du téléphone : `MOBILE_PRIMARY_HREFS` (Accueil, Messages, Membres, Campagnes) puis « Plus » (Pages, Canaux, Conversations, Statistiques, puis Réglages, Guide d'utilisation, Mon compte). Une rubrique rangée sous une entrée l'allume (`activeHref`, la plus précise gagne).
 - **Adresses déplacées** : `lib/legacy-routes.ts` (redirection 308 appelée par `proxy.ts`, après la branche de tracking). Tout nouveau déplacement s'y ajoute.
 - **Aide « ? »** : toute nouvelle page reçoit une ligne dans `lib/help/page-help.ts` (`PAGE_HELP`, segments `:id` permis pour les fiches) et sa section dans `docs/GUIDE-UTILISATEUR.md` (une section par écran, libellés exacts des boutons). Une section pas encore écrite peut vivre dans `lib/help/builtin-sections.ts` le temps de l'écrire.
 - **Visite guidée** : repères `data-tour="nav-<clé>"` (`navTourId`), `nav-more` et `help` ; étapes dans `components/admin/tour/tour-logic.ts`.
@@ -167,11 +167,11 @@ Le mot du client est affiché ; le terme exact apparaît au survol, au toucher e
 
 #### Sidebar — `components/admin/sidebar.tsx`
 
-Barre de menu fond nuit, logo en haut, 7 entrées (dont Pages, phase 15) puis Réglages en bas, séparé. Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Ordinateur (≥ 1024 px) : 240 px, icône et libellé ; tablette (768–1023 px) : rail de 64 px, icônes seules (nom lu par les lecteurs d'écran, infobulle au survol) ; téléphone : cachée. Props : `isAdmin`.
+Barre de menu fond nuit, logo en haut, 8 entrées (dont Pages, phase 15, et Conversations, phase 17) puis Réglages en bas, séparé. Entrée active : texte blanc, fond nuit éclairci, trait orange à gauche. Ordinateur (≥ 1024 px) : 240 px, icône et libellé ; tablette (768–1023 px) : rail de 64 px, icônes seules (nom lu par les lecteurs d'écran, infobulle au survol) ; téléphone : cachée. Props : `isAdmin`.
 
 #### BottomNav — `components/admin/bottom-nav.tsx`
 
-Barre du bas du téléphone (< 768 px), fond nuit : Accueil, Messages, Membres, Campagnes, puis **Plus** (volet : Canaux, Statistiques, puis Réglages, Guide d'utilisation, Mon compte). Onglet actif blanc avec un trait orange en haut ; zones sûres iOS respectées. Props : `isAdmin`.
+Barre du bas du téléphone (< 768 px), fond nuit : Accueil, Messages, Membres, Campagnes, puis **Plus** (volet : Pages, Canaux, Conversations, Statistiques, puis Réglages, Guide d'utilisation, Mon compte). Onglet actif blanc avec un trait orange en haut ; zones sûres iOS respectées. Props : `isAdmin`.
 
 #### Header — `components/admin/header.tsx`
 
@@ -199,7 +199,7 @@ Le bouton « ? » de l'en-tête : `HelpButton` dont le contenu vient de `GET /ap
 
 #### GuidedTour — `components/admin/tour/guided-tour.tsx` (+ `tour-logic.ts`, `tour-events.ts`)
 
-Visite de 2 minutes (7 étapes, `TOUR_STEPS`) : bulle accrochée à chaque entrée du menu, fond assombri autour, « Suivant », « Précédent », « Terminer », « Passer la visite », Échap, flèches. Démarre seule à la première connexion (`autoStart`, état `onboarding.<userId>`), jamais dans un navigateur piloté (captures). Relance : `requestTourStart()` ou `restartTourAction` (Réglages, Mon compte, /help). Composant maison sans dépendance ; placement calculé par `tour-logic.ts` (testé).
+Visite de 2 minutes (9 étapes, `TOUR_STEPS` : Accueil, Campagnes, Pages, Canaux, Messages, Membres, Conversations, Statistiques, aide « ? » ; sur téléphone, les entrées rangées sous « Plus » s'accrochent à « Plus » avec une phrase `fallbackNote`) : bulle accrochée à chaque entrée du menu, fond assombri autour, « Suivant », « Précédent », « Terminer », « Passer la visite », Échap, flèches. Démarre seule à la première connexion (`autoStart`, état `onboarding.<userId>`), jamais dans un navigateur piloté (captures). Relance : `requestTourStart()` ou `restartTourAction` (Réglages, Mon compte, /help). Composant maison sans dépendance ; placement calculé par `tour-logic.ts` (testé).
 
 #### ErrorPage, NotFoundPage, PageSkeleton — `error-page.tsx`, `page-skeleton.tsx`
 
@@ -532,7 +532,7 @@ Liste horizontale qui défile (onglets sur téléphone) : à l'affichage et à c
 
 #### TabNav — `tab-nav.tsx` (+ `tab-nav-logic.ts`)
 
-**La** barre d'onglets de l'application (liens : chaque onglet a son adresse, `aria-current="page"` sur l'onglet ouvert). Ordinateur : onglets soulignés, l'onglet ouvert souligné d'orange et en semi-gras ; si la fenêtre est étroite, la rangée défile. Téléphone, deux présentations (`phone`) : `scroll` (par défaut : une rangée d'onglets de 40 px qui défile, Statistiques, Journal) ou `grid` (boutons bordés de 44 px sur `columns` = 2 ou 3 colonnes, tous visibles, libellé court ou sur deux lignes : fiche campagne, fiche canal, Membres). Quand la rangée défile, un dégradé montre qu'il reste des onglets (`ScrollFade`) et l'onglet ouvert est ramené au centre (`ScrollToCurrent`). Jamais de fond orange (le seul bouton orange reste celui du `PageHeader`). Composant serveur. Props : `label` (nom de la navigation, lu par les lecteurs d'écran), `items` (`{ key, href, label, short?, count?, ariaLabel? }` : `short` = libellé du téléphone, `count` = pastille ambre (rien à 0) ; dites le nombre dans `ariaLabel`, « Demandes, 3 en attente »), `current`, `phone`, `columns`, `className`. Utilisé par `CampaignTabs`, `ChannelTabs`, `MembersNav`, `StatsNav` et les onglets du Journal (`ViewTabs`). Toute nouvelle barre d'onglets l'utilise.
+**La** barre d'onglets de l'application (liens : chaque onglet a son adresse, `aria-current="page"` sur l'onglet ouvert). Ordinateur : onglets soulignés, l'onglet ouvert souligné d'orange et en semi-gras ; si la fenêtre est étroite, la rangée défile. Téléphone, deux présentations (`phone`) : `scroll` (par défaut : une rangée d'onglets de 40 px qui défile, Statistiques, Journal) ou `grid` (boutons bordés de 44 px sur `columns` = 2 ou 3 colonnes, tous visibles, libellé court ou sur deux lignes : fiche campagne, fiche canal, Membres). Quand la rangée défile, un dégradé montre qu'il reste des onglets (`ScrollFade`) et l'onglet ouvert est ramené au centre (`ScrollToCurrent`). Jamais de fond orange (le seul bouton orange reste celui du `PageHeader`). Composant serveur. Props : `label` (nom de la navigation, lu par les lecteurs d'écran), `items` (`{ key, href, label, short?, count?, ariaLabel? }` : `short` = libellé du téléphone, `count` = pastille ambre (rien à 0) ; dites le nombre dans `ariaLabel`, « Demandes, 3 en attente »), `current`, `phone`, `columns`, `className`. Utilisé par `CampaignTabs`, `ChannelTabs`, `MembersNav`, `ConversationsNav`, `StatsNav` et les onglets du Journal (`ViewTabs`). Toute nouvelle barre d'onglets l'utilise.
 
 ```tsx
 <TabNav
@@ -739,6 +739,13 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 
 **Membres** (`components/members/`) : `MembersNav` (Liste, Écrire à un groupe, Relances automatiques : `TabNav`, grille de 3 sur téléphone), `MemberFilterBar` (`member-filters.tsx` : recherche, volet « Filtrer » en trois questions, pastilles `FilterChips`, filtres en phrases), `MemberQuickView` (résumé dans le volet), `MemberTimeline`, `member-cells.tsx` (`MemberAvatar` rond aux initiales, `MemberTags`, `MemberOriginCell`, `DepositsCell`, `LastActivity`).
 
+**Conversations** (`components/conversations/` et `components/personas/`, phase 17) :
+
+- `ConversationsNav` : sous-navigation de la rubrique (Boîte de réception, Personas, Chiffres : `TabNav`, trois boutons côte à côte sur téléphone), avant le `PageHeader` ; la fiche d'une conversation ou d'une persona garde l'onglet de sa rubrique allumé. Props : `current`, `className`.
+- `ConversationStatusBadge` (serveur) : pastille « Qui répond » : « L'assistante répond » accordé à la persona (« L'assistant répond » si masculine), « Personne ne répond » (ambre, raison au survol) quand l'assistante ne répondra pas (règle `lib/conversations/reply-state.ts`, même que le webhook), sinon `StatusBadge`. Props : `status`, `gender`, `nobodyReason`, `className`.
+- `InboxFilters` (pastilles Toutes / Non lues / L'équipe a la main, puis étape, qui répond, source, persona ; « En pause » caché), `ConversationThread` (client : fil en direct), `MessageBubble`, `ConversationActionButtons` (Prendre la main, Rendre, Fermer, Bloquer), `TeamReplyForm` (client : « Envoyer », seul bouton orange de la fiche), `ConversationFacts` (colonne de droite), `ConversationStatsTable` + `FigureDetail` (Chiffres).
+- Personas : `PersonaForm` (client, six blocs), `OfferVisualField` (client : visuel de l'app ; l'étiquette pointe toujours vers un élément), `PersonaTester` (client : « Tester »), `PromptPreview` (consignes envoyées à l'IA, repliées).
+
 **Écrire à un groupe** (`components/broadcasts/`) : `BroadcastWizard` (Qui, Quoi, Quand avec `Stepper` et récapitulatif), `GroupBuilder` (critères en blocs avec croix ; critère non réglé en pointillé « Pas encore réglé »), `message-editor.tsx` (`MessageTextEditor`, `MediaChooser`, `ButtonsEditor`, `MessageExtras`), `SplitSlider` (curseur natif aux couleurs du thème, 40 px), `ScheduleDialog`, `BroadcastProgress`, `ReadOnlyPreview`.
 
 **Relances automatiques** (`components/automations/`) :
@@ -749,7 +756,7 @@ Ils servent à une seule rubrique (à déplacer dans `components/admin/` dès qu
 
 **Statistiques** (`components/dashboard/`) : `StatsTop` (haut commun des cinq pages : titre, sous-navigation, retour d'action, sélecteur unique, période en toutes lettres ; un seul `primaryAction`, « Exporter » sur Pubs), `StatsNav` (`TabNav`, rangée qui défile sur téléphone, filtres conservés), `StatsFilters` (période, comparaison, univers, campagne, « Plus de filtres » : canal ; bouton « Appliquer »), `NumCell` (`cells.tsx`).
 
-**Réglages** (`components/settings/`) : `SettingsCardGrid` (cartes de Réglages : icône, titre `<h2>` lien, une phrase, pastille d'état, liens des pages regroupées ; grille 1, 2 puis 3 colonnes ; props `cards`, `states`, `className`), `HealthTiles` (six tuiles d'État du système ; props `tiles`, `className`), `ConnectionTiles` (quatre connexions ; props `tiles`, `className`), `AdAccountsTable`, `BotConnection`. Les listes « libellé : valeur » sont `DetailList` / `DetailRow` (§ 3.3). Journal : `ViewTabs` (`app/(admin)/settings/journal/view-tabs.tsx`, `TabNav`).
+**Réglages** (`components/settings/`) : `SettingsCardGrid` (cartes de Réglages : icône, titre `<h2>` lien, une phrase, pastille d'état, liens des pages regroupées ; grille 1, 2 puis 3 colonnes ; props `cards`, `states`, `className`), `HealthTiles` (six tuiles d'État du système ; props `tiles`, `className`), `ConnectionTiles` (quatre connexions ; props `tiles`, `className`), `AdAccountsTable`, `BotConnection`, `BotModeForm` (serveur : « Mode » et « Persona liée » d'un bot, `bot.channelCount` facultatif) + `BotModeFields` (client : demande confirmation avant de passer en assistant un bot normal, règle `bot-mode-logic.ts`). Les listes « libellé : valeur » sont `DetailList` / `DetailRow` (§ 3.3). Journal : `ViewTabs` (`app/(admin)/settings/journal/view-tabs.tsx`, `TabNav`).
 
 ## 4. À consolider (doublons connus)
 

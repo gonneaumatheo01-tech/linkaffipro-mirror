@@ -9,7 +9,7 @@ import { prismaTelegramDeps } from "./prisma-deps";
 import { chatFromFullInfo } from "./handlers/forward";
 import { botPresence, isAdminStatus, isTelegramAccessError } from "./handlers/channels";
 import { parseChannelLink } from "./channels/username";
-import { PROFILE_LANGS, assistantProfilePlan, mentionsAssistant } from "./assistant/profile";
+import { PROFILE_LANGS, assistantProfilePlan, assistantProfileTextOk } from "./assistant/profile";
 
 export function webhookUrlFor(botId: string, baseUrl = process.env.APP_BASE_URL): string {
   if (!baseUrl) throw new Error("APP_BASE_URL manquante");
@@ -213,10 +213,13 @@ export async function setAssistantProfile(
   const plan = assistantProfilePlan(bot.persona);
   for (const entry of plan.entries) {
     const other = entry.languageCode ? { language_code: entry.languageCode } : undefined;
-    // Garde-fou (règle 2 du client) : jamais une description qui ne dit pas « assistant(e) ».
-    if (!mentionsAssistant(entry.description) || !mentionsAssistant(entry.shortDescription))
+    // Garde-fou (règle 2 du client) : jamais une description qui ne dit pas « assistant(e) » ou qui nie être une IA.
+    if (
+      !assistantProfileTextOk(entry.description) ||
+      !assistantProfileTextOk(entry.shortDescription)
+    )
       throw new Error(
-        "Description du bot refusée : elle doit dire que c'est l'assistante ou l'assistant du canal.",
+        "Description du bot refusée : elle doit dire que c'est l'assistante ou l'assistant du canal, sans laisser croire à une vraie personne.",
       );
     await api.setMyDescription(entry.description, other);
     await api.setMyShortDescription(entry.shortDescription, other);

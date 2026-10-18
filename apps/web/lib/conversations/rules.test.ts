@@ -140,6 +140,22 @@ describe("réouverture par l'équipe", () => {
     expect(reopenStage({ stageBeforeClose: "LINK_SENT", assistantTurns: 3 })).toBe("LINK_SENT");
     expect(reopenStage({ stageBeforeClose: "CLOSED", assistantTurns: 3 })).toBe("CHAT");
     expect(reopenStage({ stageBeforeClose: null, assistantTurns: 0 })).toBe("WELCOME");
+    expect(
+      reopenStage({ stageBeforeClose: "LINK_SENT", assistantTurns: 3, convertedAt: null }),
+    ).toBe("LINK_SENT");
+  });
+
+  it("inscription déjà comptée (même pendant la fermeture) : « Inscrit », comme la réception du bot", () => {
+    const convertedAt = new Date("2026-10-17T08:00:00Z");
+    expect(reopenStage({ stageBeforeClose: "LINK_SENT", assistantTurns: 3, convertedAt })).toBe(
+      "CONVERTED",
+    );
+    expect(reopenStage({ stageBeforeClose: null, assistantTurns: 0, convertedAt })).toBe(
+      "CONVERTED",
+    );
+    expect(reopenStage({ stageBeforeClose: "CLOSED", assistantTurns: 2, convertedAt })).toBe(
+      "CONVERTED",
+    );
   });
 
   it("repère des messages reçus pendant la reprise : team-<horodatage>", () => {

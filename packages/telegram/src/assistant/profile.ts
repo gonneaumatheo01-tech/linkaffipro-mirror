@@ -1,6 +1,12 @@
 // Profil Telegram d'un bot assistant de conversation (phase 17, contrat § 0 règle 2 et § 4) : description, description
 // courte et commandes, par langue de la persona. Règles pures (testées) ; les appels à Telegram sont dans service.ts.
-import { assistantRole, chatLangOf, CHAT_LANGS, type ChatLang } from "@linkaffipro/chat";
+import {
+  assistantRole,
+  chatLangOf,
+  CHAT_LANGS,
+  deniesBeingAssistant,
+  type ChatLang,
+} from "@linkaffipro/chat";
 
 /** Bornes de Telegram : description ≤ 512 caractères, description courte ≤ 120. */
 export const BOT_DESCRIPTION_MAX = 512;
@@ -9,6 +15,14 @@ export const BOT_SHORT_DESCRIPTION_MAX = 120;
 /** Le texte dit-il que c'est un assistant (« assistant », « assistante », « asistente », « Assistentin »…) ? */
 export function mentionsAssistant(text: string | null | undefined): boolean {
   return /assist[ae]nt|asistent/i.test(text ?? "");
+}
+
+/**
+ * Texte de profil acceptable (règle 2 du client) : il dit « assistant(e) » ET ne prétend pas être une vraie personne ni
+ * ne nie être une IA (« je ne suis pas une assistante, juste une vraie fille » est refusé), même règle que les réponses.
+ */
+export function assistantProfileTextOk(text: string | null | undefined): boolean {
+  return mentionsAssistant(text) && !deniesBeingAssistant(text ?? "");
 }
 
 const DESCRIPTIONS: Record<ChatLang, { long: string; short: string }> = {
@@ -110,7 +124,10 @@ export function personaChatLangs(languages: readonly string[]): ChatLang[] {
   return out.length > 0 ? out : ["fr"];
 }
 
-/** Texte de la persona accepté seulement s'il dit « assistant(e) » et tient dans la borne de Telegram. */
+/**
+ * Texte de la persona accepté seulement s'il dit « assistant(e) », ne nie pas être une IA ni ne prétend être une vraie
+ * personne, et tient dans la borne de Telegram.
+ */
 function customText(
   value: string | null,
   max: number,
@@ -128,6 +145,12 @@ function customText(
   if (!mentionsAssistant(text)) {
     warnings.push(
       `${label} de la persona refusée : elle doit dire que c'est l'assistante ou l'assistant du canal. Texte par défaut utilisé.`,
+    );
+    return null;
+  }
+  if (deniesBeingAssistant(text)) {
+    warnings.push(
+      `${label} de la persona refusée : elle ne doit jamais laisser croire à une vraie personne ni nier être une IA. Texte par défaut utilisé.`,
     );
     return null;
   }

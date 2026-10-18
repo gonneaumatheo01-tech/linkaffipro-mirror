@@ -166,13 +166,17 @@ export function isReopenableByTeam(
 }
 
 /**
- * Étape d'une conversation rouverte par l'équipe : celle d'avant la fermeture (dernier passage vers « Fermée »), sinon
- * « Discussion » si l'assistante a déjà répondu, sinon « Accueil » (même règle que la réception du bot).
+ * Étape d'une conversation rouverte par l'équipe : « Inscrit » si une inscription est déjà comptée (`convertedAt`, même
+ * arrivée pendant la fermeture : jamais de relance ni de nouveau lien) ; sinon celle d'avant la fermeture (dernier
+ * passage vers « Fermée »), sinon « Discussion » si l'assistante a déjà répondu, sinon « Accueil » (même règle que la
+ * réception du bot, `reopenStage` de packages/telegram).
  */
 export function reopenStage(input: {
   stageBeforeClose: ConversationStage | null;
   assistantTurns: number;
+  convertedAt?: Date | null;
 }): ConversationStage {
+  if (input.convertedAt) return "CONVERTED";
   const before = input.stageBeforeClose;
   if (before && before !== "CLOSED") return before;
   return input.assistantTurns > 0 ? "CHAT" : "WELCOME";

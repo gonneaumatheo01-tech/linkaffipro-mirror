@@ -6,14 +6,20 @@ import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { ConversationActionButtons } from "@/components/conversations/conversation-actions";
 import { ConversationFacts } from "@/components/conversations/conversation-facts";
+import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge";
 import { ConversationThread } from "@/components/conversations/conversation-thread";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
 import { TeamReplyForm } from "@/components/conversations/team-reply-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
-import { loadAssistantConfig } from "@/lib/assistant/config";
 import { loadConversationDetail } from "@/lib/conversations/detail";
 import { assistantWord, personName } from "@/lib/conversations/labels";
+import {
+  nobodyRepliesSentence,
+  releaseWarning,
+  replyBlockTitle,
+  type ReplyBlock,
+} from "@/lib/conversations/reply-state";
 import { requireUser } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
 import { cn } from "@/lib/utils";
@@ -28,11 +34,15 @@ import {
 export const metadata: Metadata = { title: "Conversation" };
 export const dynamic = "force-dynamic";
 
-/** Phrase sous les boutons : qui répond en ce moment dans cette conversation (sans accord selon la persona). */
-function whoAnswersSentence(status: string, word: string, activationOff: boolean): string | null {
+/**
+ * Phrase sous les boutons : qui répond en ce moment dans cette conversation (sans accord selon la persona). Laissée à
+ * l'assistante, elle peut rester sans réponse (essai réservé à l'équipe, persona désactivée, bot repassé en bot normal,
+ * assistant désactivé) : la phrase le dit, avec la raison, au lieu de « C'est l'assistante qui répond ».
+ */
+function whoAnswersSentence(status: string, word: string, block: ReplyBlock | null): string | null {
   if (status === "BOT")
-    return activationOff
-      ? `C'est ${word} qui a la main, mais l'assistant de conversation est désactivé (Réglages → IA de conversation) : personne ne répond pour l'instant.`
+    return block
+      ? nobodyRepliesSentence(block)
       : `C'est ${word} qui répond. Prenez la main pour écrire vous-même : ${word} se tait aussitôt.`;
   if (status === "HUMAN")
     return `Vous avez la main : ${word} ne répond pas. Rendez-lui la conversation quand vous avez fini ; les messages reçus entre-temps resteront sans réponse de sa part.`;
@@ -58,11 +68,14 @@ export default async function ConversationPage({
   await requireUser();
   const { id } = await params;
   const sp = await searchParams;
-  const [c, config] = await Promise.all([loadConversationDetail(id), loadAssistantConfig()]);
+  const c = await loadConversationDetail(id);
   if (!c) notFound();
   const name = personName(c.member);
   const word = assistantWord(c.persona?.gender);
-  const sentence = whoAnswersSentence(c.status, word, config.activation === "off");
+  const sentence = whoAnswersSentence(c.status, word, c.replyBlock);
+  // L'équipe a la main (ou a fermé) et peut la rendre : prévenir si personne ne répondrait ensuite.
+  const releaseNotice =
+    c.status !== "BOT" && c.actions.release && c.replyBlock ? releaseWarning(c.replyBlock) : null;
   const ok = typeof sp.ok === "string" ? sp.ok : undefined;
   const error = typeof sp.error === "string" ? sp.error : undefined;
 
@@ -81,7 +94,11 @@ export default async function ConversationPage({
         meta={
           <>
             <StatusBadge kind="conversationStage" value={c.stage} />
-            <StatusBadge kind="conversationStatus" value={c.status} />
+            <ConversationStatusBadge
+              status={c.status}
+              gender={c.persona?.gender}
+              nobodyReason={c.replyBlock ? replyBlockTitle(c.replyBlock) : null}
+            />
           </>
         }
         secondaryActions={
@@ -117,13 +134,10 @@ export default async function ConversationPage({
               <p className="text-note text-muted-foreground">{sentence}</p>
             ) : null}
           </div>
-          {c.status === "HUMAN" && config.activation !== "off" && !c.persona?.isActive ? (
+          {releaseNotice ? (
             <Alert variant="info" role="status">
               <Info aria-hidden />
-              <AlertDescription>
-                La persona de cette conversation est désactivée : en rendant la main, personne ne
-                répondra tant qu&apos;elle n&apos;est pas réactivée (onglet Personas).
-              </AlertDescription>
+              <AlertDescription>{releaseNotice}</AlertDescription>
             </Alert>
           ) : null}
           <ConversationThread

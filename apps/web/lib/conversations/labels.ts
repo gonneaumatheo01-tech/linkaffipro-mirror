@@ -3,7 +3,8 @@
  * § 6) : nom d'une personne (jamais son identifiant Telegram), « l'assistante » / « l'assistant » selon la persona,
  * médias décrits, source du /start, raison d'une fermeture, étapes du parcours. Règles pures (testées), sans
  * dépendance (le fil en direct, composant client, les importe). Libellés des étapes et de « qui répond » :
- * `statusLabel("conversationStage" | "conversationStatus", …)` de `lib/status-badges`.
+ * `statusLabel("conversationStage" | "conversationStatus", …)` de `lib/status-badges` (« L'assistante répond » par
+ * défaut), accordé à la persona quand elle est connue (`botStatusLabel`).
  */
 import type { ConversationStage } from "@linkaffipro/db";
 import { fmtMoney } from "@/lib/format";
@@ -37,6 +38,17 @@ export function assistantWord(gender: string | null | undefined): string {
 export function assistantNoun(gender: string | null | undefined): string {
   return gender === "M" ? "assistant" : "assistante";
 }
+
+/**
+ * « Qui répond » quand l'assistante a la main : « L'assistante répond » (par défaut, comme le reste de l'interface et
+ * le guide) ou « L'assistant répond » (persona masculine). Les autres statuts : `statusLabel("conversationStatus", …)`.
+ */
+export function botStatusLabel(gender: string | null | undefined): string {
+  return `L'${assistantNoun(gender)} répond`;
+}
+
+/** « Qui répond » quand la conversation est laissée à l'assistante mais que personne ne répondra (`reply-state.ts`). */
+export const NOBODY_REPLIES_LABEL = "Personne ne répond";
 
 /** Libellé du bouton qui rend la conversation : « Rendre à l'assistante » / « Rendre à l'assistant ». */
 export function releaseLabel(gender: string | null | undefined): string {

@@ -258,6 +258,17 @@ describe("POST /api/assistant/test", () => {
     expect((await res.json()).state.stage).toBe("CHAT");
   });
 
+  it("persona masculine : bandeau accordé (« l'assistant »), jamais « l'assistante »", async () => {
+    m.persona = { input: fakePersona({ name: "Hugo", gender: "M" }), offerLinked: true };
+    m.spent = [0, 30];
+    const res = await post({ personaId: "p1", message: "salut" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.outcome).toBe("skipped_cap");
+    expect(body.notice.text).toContain("l'assistant ne répond plus");
+    expect(body.notice.text).not.toContain("assistante");
+  });
+
   it("plafond atteint entre deux appels : vérifié avant CHAQUE appel à l'IA", async () => {
     // 1re lecture (avant le tour) : 0 € ; ensuite : plafond atteint.
     m.spent = [0, 30];

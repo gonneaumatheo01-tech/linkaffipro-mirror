@@ -1,6 +1,6 @@
 /**
  * Filtres de la boîte de réception (`/conversations`) : étape, qui répond, source du /start, persona, « non lues »
- * (dernier message de la personne, sans réponse), page. Lecture tolérante des paramètres d'adresse et liens qui
+ * (dernier message de la personne, sans réponse, hors conversations définitives : voir `inbox.ts`), page. Lecture tolérante des paramètres d'adresse et liens qui
  * gardent les autres filtres (mémorisés par `RememberFilters`). Règles pures (testées).
  */
 import type { ConversationStage, ConversationStatus } from "@linkaffipro/db";

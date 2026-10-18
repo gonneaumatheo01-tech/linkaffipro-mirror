@@ -129,6 +129,8 @@ export type PrecheckInput = {
   /** Dépense IA du mois (Paris), en euros. */
   monthSpendEur: number;
   monthlyCapEur: number;
+  /** Dépense IA de CETTE conversation aujourd'hui (Paris), en euros (absent : pas de contrôle). */
+  conversationSpendTodayEur?: number;
 };
 
 export type PrecheckReason =
@@ -142,6 +144,7 @@ export type PrecheckReason =
   | "minor"
   | "blocked"
   | "daily_limit"
+  | "daily_cost"
   | "cap_reached";
 
 export type PrecheckResult =
@@ -158,8 +161,9 @@ export type PrecheckResult =
 /**
  * Contrôles avant tout appel au modèle, dans l'ordre : bot en mode assistant et actif, persona liée active, activation pour
  * cette personne (désactivé / équipe / tout le monde), statut BOT, pas de /stop, pas mineur, bot non bloqué, limite du
- * jour, plafond du mois. Un échec laisse les messages réclamés (pas de boucle), sauf « pas encore activé » (rendus : ils
- * seront traités si l'assistant est activé dans les 24 h).
+ * jour (messages, puis dépense IA de la conversation : `conversationDailyCostCapEur`), plafond du mois. Un échec laisse
+ * les messages réclamés (pas de boucle), sauf « pas encore activé » (rendus : ils seront traités si l'assistant est
+ * activé dans les 24 h).
  */
 export function precheck(s: PrecheckInput): PrecheckResult {
   const fail = (
@@ -183,8 +187,23 @@ export function precheck(s: PrecheckInput): PrecheckResult {
   if (s.blocked) return fail("blocked");
   if (s.assistantMessagesToday >= s.dailyLimit)
     return fail("daily_limit", { event: "daily_limit" });
+  if (
+    s.conversationSpendTodayEur !== undefined &&
+    s.conversationSpendTodayEur >= conversationDailyCostCapEur(s.monthlyCapEur)
+  )
+    return fail("daily_cost", { event: "daily_limit" });
   if (s.monthSpendEur >= s.monthlyCapEur) return fail("cap_reached", { event: "cap_reached" });
   return { ok: true };
+}
+
+/**
+ * Dépense IA permise par conversation et par jour (Paris) : 1 % du plafond mensuel, 0,10 € au moins (30 € → 0,30 € par
+ * jour, soit plus de 100 tours normaux). Une seule personne qui envoie des pavés en rafale ne peut jamais épuiser le
+ * plafond commun.
+ */
+export function conversationDailyCostCapEur(monthlyCapEur: number): number {
+  const cap = Number.isFinite(monthlyCapEur) ? monthlyCapEur : 0;
+  return Math.max(0.1, Math.round(cap) / 100);
 }
 
 // ------------------------------------------------------------------
@@ -380,6 +399,19 @@ export type TurnPersistencePlan = {
 };
 
 /**
+ * Faits déjà écrits par l'envoi du worker AU MOMENT où chaque message est parti (`sender.ts`) : heure du dernier
+ * message parti, tour compté, lien envoyé (compteur, étape LINK_SENT et son passage d'étape). Ils ne sont jamais écrits
+ * une seconde fois à la fin du tour (un arrêt du worker entre les deux ne les perd plus).
+ */
+export type LiveWrites = {
+  lastSentAt: Date | null;
+  assistantTurnCounted: boolean;
+  offerSends: number;
+  /** Passage d'étape fait à l'envoi du lien (null : aucun). */
+  stage: { from: ConversationStage; to: ConversationStage } | null;
+};
+
+/**
  * Ce qu'il faut écrire après un tour (contrat §5 « Après le tour ») : étape et passages d'étape, style, faits, résumé,
  * langue, compteurs, relance, nouvel essai, fermeture (mineur, bot bloqué, personne injoignable) ; messages rendus au
  * tour suivant. L'événement `offer_sent` n'est PAS repris ici : il est enregistré au moment où le message portant le
@@ -390,8 +422,10 @@ export function planTurnPersistence(input: {
   before: ConversationBefore;
   result: TurnResult;
   now: Date;
+  /** Faits déjà écrits à l'envoi (absent : tout est écrit ici). `before.stage` est alors l'étape après l'envoi. */
+  live?: LiveWrites;
 }): TurnPersistencePlan {
-  const { kind, before, result: r, now } = input;
+  const { kind, before, result: r, now, live } = input;
   const anySent = r.sent.length > 0;
   const patch: ConversationPatch = {
     styleProfile: r.style,
@@ -402,6 +436,8 @@ export function planTurnPersistence(input: {
   const events: PlannedEvent[] = [];
   for (const e of r.events) {
     if (e.type === "offer_sent") continue;
+    // Passage d'étape déjà journalisé à l'envoi du lien.
+    if (e.type === "stage_changed" && live?.stage) continue;
     if (e.type === "stage_changed") {
       const p = e.payload as { fromStage?: ConversationStage; toStage?: ConversationStage };
       events.push({
@@ -416,9 +452,9 @@ export function planTurnPersistence(input: {
   }
   let stage = r.newStage;
   if (stage !== before.stage) patch.stage = stage;
-  if (anySent) patch.lastAssistantAt = now;
-  if (r.outcome === "replied") patch.assistantTurnsIncrement = 1;
-  if (r.offerSent) patch.offerSendsIncrement = 1;
+  if (anySent && !live?.lastSentAt) patch.lastAssistantAt = now;
+  if (r.outcome === "replied" && !live?.assistantTurnCounted) patch.assistantTurnsIncrement = 1;
+  if (r.offerSent && !(live && live.offerSends > 0)) patch.offerSendsIncrement = 1;
 
   const releaseIds = r.deferredInbound.map((m) => m.id).filter((id): id is string => Boolean(id));
   if (kind === "reply") {
@@ -464,24 +500,29 @@ export function planTurnPersistence(input: {
 // Changements faits pendant le tour (/stop, /reset, reprise par l'équipe, conversion)
 // ------------------------------------------------------------------
 
-export type GuardReason = "missing" | "not_bot" | "stopped" | "minor" | "reset";
+export type GuardReason = "missing" | "not_bot" | "stopped" | "minor" | "reset" | "handed_over";
 export type GuardVerdict = { ok: true } | { ok: false; reason: GuardReason };
 
 /**
  * L'assistant peut-il encore envoyer dans ce tour ? Non si la conversation a disparu, n'est plus au statut BOT (reprise
- * par l'équipe, fermée), a reçu /stop, est celle d'un mineur, ou a été effacée par /reset depuis le début du tour
- * (`resetsAtStart` : nombre d'événements `reset` au début du tour ; null = pas de contrôle).
+ * par l'équipe, fermée), a reçu /stop, est celle d'un mineur, a été effacée par /reset depuis le début du tour
+ * (`resetsAtStart` : nombre d'événements `reset` au début du tour ; null = pas de contrôle), ou si l'équipe a pris PUIS
+ * rendu la main depuis le début du tour (statut de nouveau BOT, mais la réponse a été préparée sur l'ancien contexte et
+ * doublerait le message de l'équipe : `handoversAtStart`, nombre d'événements `taken_over` / `released`).
  */
 export function guardVerdict(
   conv: { status: string; stoppedAt: Date | null; isMinor: boolean } | null,
   resetsNow: number,
   resetsAtStart: number | null,
+  handovers: { now: number; atStart: number | null } = { now: 0, atStart: null },
 ): GuardVerdict {
   if (!conv) return { ok: false, reason: "missing" };
   if (conv.stoppedAt) return { ok: false, reason: "stopped" };
   if (conv.isMinor) return { ok: false, reason: "minor" };
   if (conv.status !== "BOT") return { ok: false, reason: "not_bot" };
   if (resetsAtStart !== null && resetsNow > resetsAtStart) return { ok: false, reason: "reset" };
+  if (handovers.atStart !== null && handovers.now > handovers.atStart)
+    return { ok: false, reason: "handed_over" };
   return { ok: true };
 }
 
@@ -492,6 +533,13 @@ export type ConversationNow = {
   stage: ConversationStage;
   /** /reset reçu depuis le début du tour. */
   reset: boolean;
+  /** L'équipe a pris puis rendu la main pendant le tour (événements `taken_over` / `released`). */
+  handedOver?: boolean;
+  /**
+   * La personne a écrit pendant le tour (`lastInboundAt` plus récent qu'au début) : pour une relance, ses compteurs
+   * (remis à 0 à la réception) ne sont jamais réécrits ; un vrai tour de réponse suit.
+   */
+  memberWrote?: boolean;
 };
 
 /**
@@ -499,6 +547,9 @@ export type ConversationNow = {
  * qui peut durer plusieurs secondes) :
  * - /reset : rien de ce que le tour avait lu ne revient (faits, style, résumé, langue, étape, compteur des tours,
  *   relances, nouvel essai) ; seuls restent les faits établis (heure du dernier message parti, lien envoyé) ;
+ * - l'équipe a pris puis rendu la main pendant le tour : ni relance ni nouvel essai écrits (ceux posés en rendant la
+ *   main restent) ;
+ * - relance pendant laquelle la personne a écrit : ni compteur de relances ni prochaine relance réécrits ;
  * - étape changée entre-temps (/stop → FERMÉ, conversion, /reset) : l'étape du tour n'est pas écrite, ses passages
  *   d'étape ne sont pas journalisés ;
  * - plus au statut BOT ou /stop : ni relance ni nouvel essai programmés ;
@@ -508,13 +559,21 @@ export function reconcileTurnPlan(
   plan: TurnPersistencePlan,
   before: ConversationBefore,
   cur: ConversationNow,
+  kind: TurnKind = "reply",
 ): TurnPersistencePlan {
-  const open = cur.status === "BOT" && !cur.stoppedAt;
+  const open = cur.status === "BOT" && !cur.stoppedAt && !cur.handedOver;
   const alreadyClosed = cur.status === "CLOSED";
   // L'étape est encore celle que le tour a lue : ses passages d'étape restent vrais.
   const stageOurs = !cur.reset && !alreadyClosed && cur.stage === before.stage;
-  if (open && stageOurs) return plan;
+  const followUpOverridden = kind === "follow_up" && Boolean(cur.memberWrote);
+  if (open && stageOurs && !followUpOverridden) return plan;
   const patch: ConversationPatch = { ...plan.patch };
+  if (followUpOverridden) {
+    // La personne a répondu pendant la préparation de la relance : compteur et prochaine relance restent ceux posés à
+    // la réception (0, aucune) ; son message reçoit un vrai tour de réponse.
+    delete patch.followUpCount;
+    delete patch.nextFollowUpAt;
+  }
   const closing = patch.status === "CLOSED";
   if (cur.reset) {
     delete patch.styleProfile;

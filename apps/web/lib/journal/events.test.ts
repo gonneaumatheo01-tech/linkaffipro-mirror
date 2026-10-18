@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@linkaffipro/db", () => ({ prisma: {} }));
 
 import { eventsQuery, eventsWhere, parseEventFilters, VISIBLE_EVENT_WHERE } from "./events";
-import { EVENT_FAMILIES, EVENT_TYPE_LABELS, eventLabel } from "./event-labels";
+import { EVENT_FAMILIES, EVENT_TYPE_LABELS, PAYLOAD_LABEL_TYPES, eventLabel } from "./event-labels";
 import { actionLabel, entityLabel, journalWhere } from "./query";
 
 describe("Journal → vue « Événements »", () => {
@@ -261,5 +261,30 @@ describe("Journal → actions de l'équipe", () => {
     expect(journalWhere({ userId: "", action: "", from: "2026-10-01", to: "" }).createdAt).toEqual({
       gte: new Date("2026-09-30T22:00:00Z"),
     });
+  });
+});
+
+describe("conversation bloquée : par l'équipe ou par la personne (phase 17)", () => {
+  it("le détail de l'événement dit qui a bloqué ; sans détail, libellé neutre", () => {
+    expect(PAYLOAD_LABEL_TYPES.has("conversation.blocked")).toBe(true);
+    expect(eventLabel("conversation.blocked", { byTeam: true, conversationId: "c1" })).toBe(
+      "Conversation bloquée par l'équipe (plus aucun envoi)",
+    );
+    expect(eventLabel("conversation.blocked", { via: "telegram", conversationId: "c1" })).toBe(
+      "La personne a bloqué le bot (la conversation reprend si elle réécrit)",
+    );
+    expect(eventLabel("conversation.blocked", { kind: "reply", conversationId: "c1" })).toMatch(
+      /La personne a bloqué le bot/,
+    );
+    expect(eventLabel("conversation.blocked")).toBe("Conversation bloquée");
+  });
+
+  it("limite du jour : réponses ou dépense IA de la conversation", () => {
+    expect(eventLabel("conversation.daily_limit", { limit: 60 })).toBe(
+      "Assistant : limite de réponses du jour atteinte",
+    );
+    expect(eventLabel("conversation.daily_limit", { costCapEur: 0.3 })).toBe(
+      "Assistant : dépense IA du jour atteinte pour cette conversation",
+    );
   });
 });

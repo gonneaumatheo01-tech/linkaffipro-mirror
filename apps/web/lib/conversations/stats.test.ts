@@ -16,6 +16,7 @@ const conv = (over: Partial<StatsConversation> = {}): StatsConversation => ({
   stage: "WELCOME",
   replied: false,
   reached: [],
+  converted: false,
   ...over,
 });
 
@@ -112,6 +113,25 @@ describe("règles des chiffres", () => {
     expect(reachedStage(conv({ stage: "FOLLOW_UP" }), "FOLLOW_UP")).toBe(true);
     expect(reachedStage(conv({ stage: "CLOSED", reached: ["CHAT", "CLOSED"] }), "CHAT")).toBe(true);
     expect(reachedStage(conv({ stage: "CHAT" }), "LINK_SENT")).toBe(false);
+  });
+
+  it("inscription rattachée pendant une fermeture : comptée à l'étape « Inscrit »", () => {
+    // /stop (ou « Fermer ») après l'ouverture du lien, inscription le lendemain : l'étape reste « Fermée », aucun
+    // passage vers « Inscrit » n'est écrit, seule `convertedAt` est remplie.
+    const closed = conv({
+      replied: true,
+      stage: "CLOSED",
+      reached: ["CHAT", "PROPOSAL", "LINK_SENT", "CLOSED"],
+      converted: true,
+    });
+    expect(reachedStage(closed, "CONVERTED")).toBe(true);
+    // Rouverte après un déblocage : l'étape d'avant la fermeture revient, l'inscription reste comptée.
+    expect(reachedStage({ ...closed, stage: "LINK_SENT" }, "CONVERTED")).toBe(true);
+    expect(
+      reachedStage(conv({ stage: "CLOSED", reached: ["LINK_SENT", "CLOSED"] }), "CONVERTED"),
+    ).toBe(false);
+    const steps = journeySteps([closed, conv({ stage: "CONVERTED", converted: true })]);
+    expect(steps.find((s) => s.stage === "CONVERTED")?.count).toBe(2);
   });
 
   it("période sans conversation : parcours à zéro, sans part", () => {

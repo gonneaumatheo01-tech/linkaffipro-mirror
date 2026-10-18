@@ -4,6 +4,7 @@ import {
   assistantOfferSlug,
   assistantOfferUrl,
   chatLockKey,
+  conversationDailyCostCapEur,
   followUpDecision,
   followUpRetryCount,
   guardVerdict,
@@ -712,5 +713,91 @@ describe("persona et lien d'offre", () => {
 
   it("verrou par conversation", () => {
     expect(chatLockKey("c1")).toBe("chat:lock:c1");
+  });
+});
+
+describe("corrections après relecture", () => {
+  const now = new Date("2026-10-18T10:00:00Z");
+
+  it("dépense IA par conversation et par jour : 1 % du plafond mensuel, 0,10 € au moins", () => {
+    expect(conversationDailyCostCapEur(30)).toBe(0.3);
+    expect(conversationDailyCostCapEur(5)).toBe(0.1);
+    expect(precheck({ ...okInput, conversationSpendTodayEur: 0.29 })).toEqual({ ok: true });
+    expect(precheck({ ...okInput, conversationSpendTodayEur: 0.3 })).toEqual({
+      ok: false,
+      reason: "daily_cost",
+      release: false,
+      event: "daily_limit",
+    });
+  });
+
+  it("l'équipe a pris puis rendu la main pendant le tour : plus rien ne part", () => {
+    const open = { status: "BOT", stoppedAt: null, isMinor: false };
+    expect(guardVerdict(open, 0, 0, { now: 2, atStart: 0 })).toEqual({
+      ok: false,
+      reason: "handed_over",
+    });
+    expect(guardVerdict(open, 0, 0, { now: 2, atStart: 2 })).toEqual({ ok: true });
+    expect(guardVerdict(open, 0, 0, { now: 2, atStart: null })).toEqual({ ok: true });
+  });
+
+  it("faits écrits à l'envoi : ni tour, ni lien, ni heure, ni passage d'étape écrits une seconde fois", () => {
+    const plan = planTurnPersistence({
+      kind: "reply",
+      before: { stage: "LINK_SENT", followUpCount: 0 },
+      result: result({
+        newStage: "LINK_SENT",
+        offerSent: { subId: "AbCdEfGh1234", url: "https://go.goolink.eu/a/AbCdEfGh1234" },
+        events: [
+          { type: "stage_changed", payload: { fromStage: "PROPOSAL", toStage: "LINK_SENT" } },
+          { type: "offer_sent", payload: { subId: "AbCdEfGh1234" } },
+        ],
+      }),
+      now,
+      live: {
+        lastSentAt: new Date("2026-10-18T09:59:58Z"),
+        assistantTurnCounted: true,
+        offerSends: 1,
+        stage: { from: "PROPOSAL", to: "LINK_SENT" },
+      },
+    });
+    expect(plan.patch).not.toHaveProperty("assistantTurnsIncrement");
+    expect(plan.patch).not.toHaveProperty("offerSendsIncrement");
+    expect(plan.patch).not.toHaveProperty("lastAssistantAt");
+    expect(plan.patch).not.toHaveProperty("stage");
+    expect(plan.events).toEqual([]);
+  });
+
+  it("relance pendant laquelle la personne a écrit : compteur et prochaine relance jamais réécrits", () => {
+    const before = { stage: "LINK_SENT" as const, followUpCount: 1 };
+    const planned = planTurnPersistence({
+      kind: "follow_up",
+      before,
+      result: result({ outcome: "aborted", sent: [], newStage: "LINK_SENT", events: [] }),
+      now,
+    });
+    expect(planned.patch.followUpCount).toBe(1);
+    const plan = reconcileTurnPlan(
+      planned,
+      before,
+      { status: "BOT", stoppedAt: null, stage: "LINK_SENT", reset: false, memberWrote: true },
+      "follow_up",
+    );
+    expect(plan.patch).not.toHaveProperty("followUpCount");
+    expect(plan.patch).not.toHaveProperty("nextFollowUpAt");
+  });
+
+  it("main prise puis rendue pendant le tour : relance et nouvel essai posés en rendant la main gardés", () => {
+    const before = { stage: "CHAT" as const, followUpCount: 0 };
+    const planned = planTurnPersistence({ kind: "reply", before, result: result(), now });
+    const plan = reconcileTurnPlan(planned, before, {
+      status: "BOT",
+      stoppedAt: null,
+      stage: "CHAT",
+      reset: false,
+      handedOver: true,
+    });
+    expect(plan.patch).not.toHaveProperty("nextFollowUpAt");
+    expect(plan.patch).not.toHaveProperty("retryAt");
   });
 });

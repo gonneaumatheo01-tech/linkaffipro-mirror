@@ -38,33 +38,27 @@ export function eventPayload(payload: Record<string, unknown> = {}): Record<stri
   return out;
 }
 
-/** Enregistre un événement de conversation et son double dans le journal. Ne lève jamais. */
-export async function recordConversationEvent(
+/** Ligne `ConversationEvent` d'un événement (sans texte), pour l'écrire dans une transaction. */
+export function conversationEventRow(conv: ConversationRef, input: ConversationEventInput) {
+  return {
+    conversationId: conv.id,
+    type: input.type,
+    fromStage: input.fromStage ?? null,
+    toStage: input.toStage ?? null,
+    payload: toJsonValue(eventPayload(input.payload)),
+    createdAt: input.at ?? new Date(),
+  };
+}
+
+/** Double d'un événement de conversation dans le journal (`Event` `conversation.<type>`). Ne lève jamais. */
+export async function journalConversationEvent(
   conv: ConversationRef,
   input: ConversationEventInput,
 ): Promise<void> {
   const payload = eventPayload(input.payload);
-  const at = input.at ?? new Date();
-  try {
-    await prisma.conversationEvent.create({
-      data: {
-        conversationId: conv.id,
-        type: input.type,
-        fromStage: input.fromStage ?? null,
-        toStage: input.toStage ?? null,
-        payload: toJsonValue(payload),
-        createdAt: at,
-      },
-    });
-  } catch (err) {
-    logger.warn(
-      { conversationId: conv.id, type: input.type, err: (err as Error).message },
-      "assistant : événement de conversation non enregistré",
-    );
-  }
   await recordEvent({
     type: `conversation.${input.type}`,
-    occurredAt: at,
+    occurredAt: input.at ?? new Date(),
     memberId: conv.memberId,
     botId: conv.botId,
     payload: toJsonValue({
@@ -74,6 +68,23 @@ export async function recordConversationEvent(
       ...payload,
     }),
   });
+}
+
+/** Enregistre un événement de conversation et son double dans le journal. Ne lève jamais. */
+export async function recordConversationEvent(
+  conv: ConversationRef,
+  input: ConversationEventInput,
+): Promise<void> {
+  const at = input.at ?? new Date();
+  try {
+    await prisma.conversationEvent.create({ data: conversationEventRow(conv, { ...input, at }) });
+  } catch (err) {
+    logger.warn(
+      { conversationId: conv.id, type: input.type, err: (err as Error).message },
+      "assistant : événement de conversation non enregistré",
+    );
+  }
+  await journalConversationEvent(conv, { ...input, at });
 }
 
 /**

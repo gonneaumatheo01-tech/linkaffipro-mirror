@@ -62,7 +62,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     key: "conversations",
     anchors: ["nav-conversations", "nav-more"],
     title: "Conversations",
-    body: "L'assistante répond aux personnes qui écrivent au bot de Rencontres ; vous lisez chaque échange et pouvez reprendre la main.",
+    body: "L'assistante répond, sur son propre bot, aux personnes qui lui écrivent ; vous lisez chaque échange et pouvez reprendre la main.",
     fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
   },
   {

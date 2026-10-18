@@ -177,7 +177,11 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
             events: { orderBy: { occurredAt: "desc" }, take: 200 },
           },
         },
+        // Messages de l'assistant de conversation (une ligne par partie de réponse) : hors de la chronologie, sinon ils
+        // en chasseraient l'accueil, le « Accepté », les envois à un groupe et les relances ; la conversation entière
+        // est derrière le bouton « Conversation avec l'assistante » de l'en-tête.
         outboundMessages: {
+          where: { kind: { not: "ASSISTANT" } },
           orderBy: { queuedAt: "desc" },
           take: 200,
           include: { bot: { select: { username: true } } },

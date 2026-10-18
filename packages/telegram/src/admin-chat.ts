@@ -54,6 +54,26 @@ export function chooseAdminTelegramId(input: AdminCandidateInput): AdminCandidat
 
 export type InboxMessage = { at: Date; text: string; updateId?: number };
 
+/** Messages de l'admin lus au plus par `tg:inbox` (les plus récents). */
+export const INBOX_LIMIT = 500;
+
+/**
+ * Filtre des messages privés de l'admin dans `Event` (`telegram.message`), fait PAR LA BASE : chat privé, expéditeur =
+ * l'admin, reçus par un bot qui n'est pas un assistant de conversation (ses messages y sont sans texte). Sans ce filtre,
+ * les messages des personnes qui écrivent à l'assistant passeraient avant ceux de l'admin dans la limite de lecture.
+ */
+export function adminInboxWhere(adminId: bigint, since: Date) {
+  return {
+    type: "telegram.message",
+    occurredAt: { gte: since },
+    AND: [
+      { payload: { path: ["message", "chat", "type"], equals: "private" } },
+      { payload: { path: ["message", "from", "id"], equals: Number(adminId) } },
+    ],
+    NOT: { bot: { is: { mode: "ASSISTANT" as const } } },
+  };
+}
+
 /** Extrait, d'un payload d'événement `telegram.message`, le message privé s'il vient de l'admin. */
 export function inboxMessageFromPayload(payload: unknown, adminId: bigint): InboxMessage | null {
   if (!payload || typeof payload !== "object") return null;

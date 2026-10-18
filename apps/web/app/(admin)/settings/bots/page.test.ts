@@ -82,17 +82,25 @@ beforeEach(() => {
 });
 
 describe("Réglages → Bots : mode des bots", () => {
-  it("colonne « Mode » : bot normal ou assistant de conversation (avec sa persona), un seul bouton orange", async () => {
+  it("mode : pastille « Assistant de conversation » (avec sa persona) sous le nom, un seul bouton orange", async () => {
     const html = await render();
     expect(h1Count(html)).toBe(1);
     expect(primaryButtonCount(html)).toBe(1);
     const text = visibleText(html);
-    expect(text).toContain("Mode");
-    expect(text).toContain("Bot normal");
     expect(text).toContain("Assistant de conversation");
     expect(text).toContain("Léa");
     expect(jargonIn(text)).toEqual([]);
     expect(text).not.toMatch(/dating|entonnoir/i);
+  });
+
+  it("tableau : 5 colonnes au plus (règle du design), plus de colonne « Mode »", async () => {
+    const html = await render();
+    const headers = [...html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)].map((x) =>
+      visibleText(x[1] ?? ""),
+    );
+    expect(headers.length).toBeGreaterThan(0);
+    expect(headers.length).toBeLessThanOrEqual(5);
+    expect(headers).not.toContain("Mode");
   });
 
   it("résumé du mode en mots simples", () => {
@@ -129,5 +137,36 @@ describe("Réglages → Bots : mode des bots", () => {
     expect(html).toMatch(/<option value="ASSISTANT" selected="">/);
     expect(html).toMatch(/<option value="p1" selected="">/);
     expect(jargonIn(text)).toEqual([]);
+  });
+
+  it("bot normal qui gère des canaux : « Assistant de conversation » désactivé, avec l'explication", () => {
+    const html = renderToStaticMarkup(
+      createElement(BotModeForm, {
+        bot: { id: "b1", mode: "STANDARD", personaId: null, channelCount: 2 },
+        personas: m.personas,
+        action: vi.fn(),
+      }),
+    );
+    expect(html).toMatch(/<option value="ASSISTANT" disabled="">/);
+    expect(html).toContain('aria-describedby="bot-mode-refusal-b1"');
+    const text = visibleText(html);
+    expect(text).toContain(
+      "Ce bot gère 2 canaux : il ne peut pas devenir l'assistante. Créez un bot dédié dans @BotFather (voir le guide) et ajoutez-le ici.",
+    );
+    expect(jargonIn(text)).toEqual([]);
+    expect(primaryButtonCount(html)).toBe(0);
+  });
+
+  it("bot normal sans canal, ou déjà assistant : le choix reste possible", () => {
+    for (const bot of [
+      { id: "b3", mode: "STANDARD", personaId: null, channelCount: 0 },
+      { id: "b2", mode: "ASSISTANT", personaId: "p1", channelCount: 2 },
+    ]) {
+      const html = renderToStaticMarkup(
+        createElement(BotModeForm, { bot, personas: m.personas, action: vi.fn() }),
+      );
+      expect(html).not.toMatch(/<option value="ASSISTANT"[^>]*disabled/);
+      expect(visibleText(html)).not.toContain("il ne peut pas devenir l'assistante");
+    }
   });
 });

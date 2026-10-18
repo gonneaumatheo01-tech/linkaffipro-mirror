@@ -13,6 +13,8 @@ const row = (over: Partial<InboxExportRow> = {}): InboxExportRow => ({
   personaName: "Léa",
   personaGender: "F",
   closedReason: null,
+  stoppedAt: null,
+  isMinor: false,
   member: { id: "m1", firstName: "Jean", lastName: null, username: "jean_m", anonymizedAt: null },
   last: {
     direction: "IN",
@@ -81,14 +83,50 @@ describe("export CSV de la boîte de réception", () => {
     expect(cells[7]).toContain("/stop");
     expect(cells.at(-1)).toBe("non");
   });
+
+  it("« Qui répond » et « Dernier message de » accordés à la persona, comme sur la fiche", () => {
+    const last = {
+      direction: "OUT" as const,
+      author: "ASSISTANT" as const,
+      text: "Coucou",
+      media: null,
+      meta: {},
+      at: new Date("2026-10-18T09:30:00Z"),
+    };
+    const cellsOf = (csv: string) => csv.trim().split("\r\n")[1]!.split(";");
+    const lea = cellsOf(inboxCsv([row({ status: "BOT", last, unread: false })]));
+    expect(lea[6]).toBe("L'assistante répond");
+    expect(lea.at(-2)).toBe("L'assistante");
+    const hugo = cellsOf(
+      inboxCsv([
+        row({ status: "BOT", personaName: "Hugo", personaGender: "M", last, unread: false }),
+      ]),
+    );
+    expect(hugo[6]).toBe("L'assistant répond");
+    expect(hugo.at(-2)).toBe("L'assistant");
+  });
 });
 
 describe("export CSV des chiffres", () => {
   it("le total, puis les personas, puis les sources", () => {
     const stats = aggregateConversationStats({
       conversations: [
-        { personaId: "p1", source: "tk01", stage: "CHAT", replied: true, reached: ["CHAT"] },
-        { personaId: "p1", source: null, stage: "WELCOME", replied: false, reached: [] },
+        {
+          personaId: "p1",
+          source: "tk01",
+          stage: "CHAT",
+          replied: true,
+          reached: ["CHAT"],
+          converted: false,
+        },
+        {
+          personaId: "p1",
+          source: null,
+          stage: "WELCOME",
+          replied: false,
+          reached: [],
+          converted: false,
+        },
       ],
       linksSent: [{ personaId: "p1", source: "tk01" }],
       linksOpened: [],

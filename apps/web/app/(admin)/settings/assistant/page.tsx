@@ -91,7 +91,7 @@ export default async function AssistantSettingsPage({
         title="IA de conversation"
         meta={<StatusPill tone={activation.tone}>{activation.pill}</StatusPill>}
         description="L'assistant qui discute en privé avec les personnes qui écrivent d'elles-mêmes au bot de conversation (Rencontres), et leur présente l'offre au bon moment."
-        help="Première fois : créez la clé Venice (guide en bas de page), collez-la puis cliquez sur « Vérifier » (la clé collée est enregistrée et testée). Essayez d'abord avec « Seulement l'équipe (essai) »."
+        help="Première fois : créez la clé Venice (guide en bas de page), collez-la puis cliquez sur « Vérifier » : la clé et les réglages de la page sont enregistrés, puis la clé est testée. Essayez d'abord avec « Seulement l'équipe (essai) »."
       />
       <Flash ok={sp.ok} error={sp.error} />
 

@@ -11,7 +11,9 @@ import {
   sourceLabel,
 } from "@/lib/conversations/labels";
 import type { ConversationDetail } from "@/lib/conversations/detail";
+import { replyBlockTitle } from "@/lib/conversations/reply-state";
 import { StatusBadge } from "@/lib/status-badges";
+import { ConversationStatusBadge } from "./conversation-status-badge";
 
 const linkClass =
   "font-medium text-brand-ink underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-10 max-md:items-center";
@@ -33,7 +35,11 @@ function WhoAnswers({ c }: { c: ConversationDetail }) {
   const reason = c.status === "CLOSED" ? closedReasonLabel(c.closedReason) : null;
   return (
     <span className="flex flex-col items-start gap-1">
-      <StatusBadge kind="conversationStatus" value={c.status} />
+      <ConversationStatusBadge
+        status={c.status}
+        gender={c.persona?.gender}
+        nobodyReason={c.replyBlock ? replyBlockTitle(c.replyBlock) : null}
+      />
       {c.status === "HUMAN" && c.takenOverAt ? (
         <span className="text-note text-muted-foreground">
           Depuis le {fmtDate(c.takenOverAt)}
@@ -87,6 +93,9 @@ export function ConversationFacts({ c }: { c: ConversationDetail }) {
             <span className="block text-note text-muted-foreground">
               Bot @{c.bot.username}
               {c.bot.isActive ? "" : " (désactivé)"}
+              {c.bot.isActive && c.bot.mode !== "ASSISTANT"
+                ? " (n'est plus en mode assistant)"
+                : ""}
             </span>
           </DetailRow>
           <DetailRow label="Source">

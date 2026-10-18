@@ -87,7 +87,7 @@ export default async function ConversationsStatsPage({
           description={
             config.activation === "off"
               ? "L'assistante est désactivée : elle ne répond à personne. Les chiffres apparaîtront dès les premières conversations."
-              : "Les chiffres apparaîtront dès qu'une personne écrira au bot de Rencontres."
+              : "Les chiffres apparaîtront dès qu'une personne écrira au bot de l'assistante."
           }
           action={
             config.activation === "off" && me.role === "ADMIN"

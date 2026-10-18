@@ -42,6 +42,11 @@ export type PurgeResult = {
  * du texte gardée par l'envoi (`OutboundMessage` ASSISTANT, qui reprend souvent le prénom ou la ville de la personne) est
  * vidée pour les membres anonymisés et au-delà de N mois (l'envoi lui-même reste, pour les chiffres).
  */
+/** Message de conversation resté « en file » plus de 10 minutes : envoi interrompu (jamais un envoi en cours). */
+const STALE_QUEUED_MS = 10 * 60_000;
+const PURGED_QUEUED_ERROR =
+  "Non envoyé : resté en file (envoi interrompu ou personne supprimée), texte effacé par la purge.";
+
 export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const setting = await prisma.setting.findUnique({ where: { key: "retention.months" } });
   const months = parseRetentionMonths(setting?.value);
@@ -140,16 +145,34 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const conversationMessages = await prisma.conversationMessage.deleteMany({
     where: { createdAt: { lt: cutoff } },
   });
-  // Un message encore en file garde son texte jusqu'à son envoi (membre anonymisé : l'envoi est refusé de toute façon).
-  const assistantTexts = await prisma.outboundMessage.updateMany({
-    where: {
-      kind: "ASSISTANT",
-      status: { not: "QUEUED" },
-      text: { not: "" },
-      OR: [{ queuedAt: { lt: cutoff } }, { member: { anonymizedAt: { not: null } } }],
-    },
+  // Un message encore en file garde son texte jusqu'à son envoi ; resté « en file » plus de 10 minutes (envoi
+  // interrompu, membre anonymisé dont l'envoi est refusé de toute façon), il est passé en échec et vidé lui aussi.
+  const purgeScope = {
+    kind: "ASSISTANT" as const,
+    text: { not: "" },
+    OR: [{ queuedAt: { lt: cutoff } }, { member: { anonymizedAt: { not: null } } }],
+  };
+  const sentTexts = await prisma.outboundMessage.updateMany({
+    where: { ...purgeScope, status: { not: "QUEUED" } },
     data: { text: "", buttons: [] },
   });
+  const staleQueued = await prisma.outboundMessage.updateMany({
+    where: { kind: "ASSISTANT", text: { not: "" }, status: "QUEUED", queuedAt: { lt: cutoff } },
+    data: { status: "FAILED", error: PURGED_QUEUED_ERROR, text: "", buttons: [] },
+  });
+  const staleQueuedAnonymized = await prisma.outboundMessage.updateMany({
+    where: {
+      kind: "ASSISTANT",
+      text: { not: "" },
+      status: "QUEUED",
+      member: { anonymizedAt: { not: null } },
+      queuedAt: { lt: new Date(now.getTime() - STALE_QUEUED_MS) },
+    },
+    data: { status: "FAILED", error: PURGED_QUEUED_ERROR, text: "", buttons: [] },
+  });
+  const assistantTexts = {
+    count: sentTexts.count + staleQueued.count + staleQueuedAnonymized.count,
+  };
   const result: PurgeResult = {
     months,
     cutoff,

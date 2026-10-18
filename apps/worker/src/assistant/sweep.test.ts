@@ -21,21 +21,38 @@ const h = vi.hoisted(() => {
     updateMany: [] as Row[],
     events: [] as Row[],
     findManyWheres: [] as Row[],
+    stuckSql: [] as string[],
+    interrupted: [] as Row[],
+    outboundUpdates: [] as Row[],
+  };
+  const byTeam = (rows: Row[], where: Row) => {
+    const ids = (where.member as { telegramUserId?: { in?: bigint[] } } | undefined)?.telegramUserId
+      ?.in;
+    if (!ids) return rows;
+    return rows.filter((r) =>
+      ids.includes((r.member as { telegramUserId: bigint }).telegramUserId),
+    );
   };
   const prisma = {
-    $queryRaw: vi.fn(async () => state.stuck),
-    conversationMessage: {
-      count: vi.fn(
-        async ({ where }: { where: { turnId: string } }) => state.outByTurn[where.turnId] ?? 0,
-      ),
+    $queryRaw: vi.fn(async (strings: TemplateStringsArray) => {
+      state.stuckSql.push(strings.join("?"));
+      return state.stuck;
+    }),
+    $executeRaw: vi.fn(async () => 0),
+    outboundMessage: {
+      findMany: vi.fn(async () => state.interrupted),
+      updateMany: vi.fn(async (args: Row) => {
+        state.outboundUpdates.push(args);
+        return { count: state.interrupted.length };
+      }),
     },
     conversation: {
       findMany: vi.fn(async ({ where }: { where: Row }) => {
         state.findManyWheres.push(where);
         if ("convertedAt" in where) return state.conversions;
-        if ("messages" in where) return state.unclaimed;
-        if ("retryAt" in where) return state.retries;
-        if ("nextFollowUpAt" in where) return state.followUps;
+        if ("messages" in where) return byTeam(state.unclaimed, where);
+        if ("retryAt" in where) return byTeam(state.retries, where);
+        if ("nextFollowUpAt" in where) return byTeam(state.followUps, where);
         return [];
       }),
       updateMany: vi.fn(async (args: Row) => {
@@ -61,7 +78,7 @@ vi.mock("@linkaffipro/queue", () => ({
   }),
 }));
 vi.mock("@linkaffipro/telegram", () => ({
-  isAssistantTeamMember: vi.fn(async (tg: bigint) => h.state.teamIds.has(String(tg))),
+  assistantTeamTelegramIds: vi.fn(async () => [...h.state.teamIds].map((x) => BigInt(x))),
 }));
 vi.mock("../logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("./settings", () => ({
@@ -71,6 +88,11 @@ vi.mock("./settings", () => ({
   })),
 }));
 vi.mock("./claim", () => ({
+  INTERRUPTED_PART_ERROR: "Envoi interrompu",
+  settleTurnParts: vi.fn(async (turnId: string) => ({
+    sent: h.state.outByTurn[turnId] ?? 0,
+    interrupted: 0,
+  })),
   releaseCrashedTurn: vi.fn(async (turnId: string, max: number) => {
     h.state.released.push(turnId);
     h.state.releaseMax.push(max);
@@ -103,6 +125,7 @@ describe("balayage de l'assistant", () => {
       retries: [],
       followUps: [],
       casCount: 1,
+      interrupted: [],
     });
     h.state.lockedConversations.clear();
     h.state.teamIds.clear();
@@ -114,6 +137,8 @@ describe("balayage de l'assistant", () => {
       "updateMany",
       "events",
       "findManyWheres",
+      "stuckSql",
+      "outboundUpdates",
     ] as const)
       h.state[k].length = 0;
   });
@@ -197,5 +222,42 @@ describe("balayage de l'assistant", () => {
     h.state.unclaimed = [conv("x", 7n), conv("y", 8n)];
     await runChatSweep(NOW);
     expect(h.state.enqueued).toEqual(["x"]);
+  });
+
+  it("tours bloqués : lus par l'heure de réclamation (index), jamais par toute la table", async () => {
+    await runChatSweep(NOW);
+    expect(h.state.stuckSql[0]).toMatch(/"claimedAt" IS NOT NULL/);
+    expect(h.state.stuckSql[0]).toMatch(/"claimedAt" </);
+  });
+
+  it("activation « équipe » : filtre fait par la base, les plus anciennes d'abord (jamais 50 prospects lus puis écartés)", async () => {
+    h.state.activation = "team";
+    h.state.teamIds.add("7");
+    h.state.unclaimed = [
+      ...Array.from({ length: 60 }, (_, i) => conv(`p${i}`, 100n + BigInt(i))),
+      conv("x", 7n),
+    ];
+    await runChatSweep(NOW);
+    expect(h.state.enqueued).toEqual(["x"]);
+    const where = h.state.findManyWheres.find((w) => "messages" in w) as Row;
+    expect(where.member).toEqual({ telegramUserId: { in: [7n] } });
+  });
+
+  it("activation « équipe » sans aucun compte de l'équipe : rien n'est repris", async () => {
+    h.state.activation = "team";
+    h.state.unclaimed = [conv("y", 8n)];
+    await runChatSweep(NOW);
+    expect(h.state.enqueued).toEqual([]);
+  });
+
+  it("parties de l'assistant restées « en file » : passées en échec, texte vidé", async () => {
+    h.state.activation = "off";
+    h.state.interrupted = [{ id: "om1", conversationMessage: { id: "cm1" } }];
+    const r = await runChatSweep(NOW);
+    expect(r.interruptedParts).toBe(1);
+    expect(h.state.outboundUpdates[0]).toMatchObject({
+      where: { id: { in: ["om1"] }, status: "QUEUED" },
+      data: { status: "FAILED", text: "", buttons: [] },
+    });
   });
 });

@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 import type { Message, Update } from "grammy/types";
 import {
   adminLinkToken,
+  assistantCommandOf,
   assistantReplyLang,
   canReopenConversation,
   classifyAssistantMessage,
   cleanStartSource,
   conversationPersonaId,
+  fixedReplyAllowed,
   parseAssistantCommand,
   redactAssistantUpdate,
   reopenStage,
+  resetStage,
 } from "./logic";
 
 const base = {
@@ -220,5 +223,41 @@ describe("journal sans texte : aperçu de lien et nom de fichier", () => {
     expect(json).not.toContain("Julie");
     expect(json).not.toContain("link_preview_options");
     expect(json).toContain('"file_nameLength":19');
+  });
+});
+
+describe("corrections après relecture", () => {
+  it("demande d'arrêt écrite sans barre oblique : vaut /stop", () => {
+    expect(assistantCommandOf("STOP")).toEqual({ command: "stop", payload: null, typed: true });
+    expect(assistantCommandOf("unsubscribe please")).toMatchObject({
+      command: "stop",
+      typed: true,
+    });
+    expect(assistantCommandOf("/stop")).toEqual({ command: "stop", payload: null });
+    expect(assistantCommandOf("stop 😂")).toBeNull();
+    expect(assistantCommandOf("stop, t'es drôle")).toBeNull();
+  });
+
+  it("réponse fixe : jamais vers un mineur ni une conversation bloquée par l'équipe", () => {
+    expect(fixedReplyAllowed({ status: "BOT", closedReason: null, isMinor: false })).toBe(true);
+    expect(fixedReplyAllowed({ status: "CLOSED", closedReason: "TEAM", isMinor: false })).toBe(
+      false,
+    );
+    expect(fixedReplyAllowed({ status: "CLOSED", closedReason: "MINOR", isMinor: true })).toBe(
+      false,
+    );
+    expect(
+      fixedReplyAllowed({ status: "CLOSED", closedReason: "TEAM_CLOSED", isMinor: false }),
+    ).toBe(true);
+  });
+
+  it("inscription déjà comptée : réouverture et /reset gardent « Inscrite »", () => {
+    const convertedAt = new Date("2026-10-18T10:00:00Z");
+    expect(reopenStage({ stageBeforeClose: "LINK_SENT", assistantTurns: 3, convertedAt })).toBe(
+      "CONVERTED",
+    );
+    expect(resetStage({ status: "BOT", stage: "CONVERTED", convertedAt })).toBe("CONVERTED");
+    expect(resetStage({ status: "BOT", stage: "LINK_SENT", convertedAt: null })).toBe("WELCOME");
+    expect(resetStage({ status: "CLOSED", stage: "CLOSED", convertedAt })).toBe("CLOSED");
   });
 });

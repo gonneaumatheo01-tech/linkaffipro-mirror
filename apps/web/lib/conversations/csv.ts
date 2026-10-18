@@ -6,15 +6,26 @@
 import { csvDate, csvNumber, toCsv } from "@/lib/members/csv";
 import { statusLabel } from "@/lib/status-badges";
 import type { InboxExportRow } from "./inbox";
-import { closedReasonLabel, personName, personaLabel, sourceLabel } from "./labels";
+import {
+  assistantNoun,
+  botStatusLabel,
+  closedReasonLabel,
+  personName,
+  personaLabel,
+  sourceLabel,
+} from "./labels";
 import type { ConversationStats, FigureRow } from "./stats";
 
 const AUTHOR_LABELS: Record<string, string> = {
   MEMBER: "La personne",
-  ASSISTANT: "L'assistante",
   TEAM: "L'équipe",
   SYSTEM: "Message automatique",
 };
+
+/** Auteur du dernier message : « L'assistante » / « L'assistant » selon la persona, comme la colonne « Qui répond ». */
+function authorLabel(author: string, gender: string | null): string {
+  return author === "ASSISTANT" ? `L'${assistantNoun(gender)}` : (AUTHOR_LABELS[author] ?? "");
+}
 
 export const INBOX_CSV_HEADERS = [
   "Personne",
@@ -50,7 +61,9 @@ export function inboxCsv(rows: readonly InboxExportRow[]): string {
       personaLabel(r.personaName),
       sourceLabel(r.source),
       statusLabel("conversationStage", r.stage),
-      statusLabel("conversationStatus", r.status),
+      r.status === "BOT"
+        ? botStatusLabel(r.personaGender)
+        : statusLabel("conversationStatus", r.status),
       r.status === "CLOSED" ? (closedReasonLabel(r.closedReason) ?? "") : "",
       r.language ?? "",
       r.memberMessages,
@@ -61,7 +74,7 @@ export function inboxCsv(rows: readonly InboxExportRow[]): string {
       csvNumber(r.costEur, 4),
       csvDate(r.createdAt),
       csvDate(r.last?.at ?? null),
-      r.last ? (AUTHOR_LABELS[r.last.author] ?? "") : "",
+      r.last ? authorLabel(r.last.author, r.personaGender) : "",
       r.unread ? "oui" : "non",
     ]),
   );

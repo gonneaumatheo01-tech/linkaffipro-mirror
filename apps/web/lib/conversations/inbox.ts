@@ -3,11 +3,19 @@
  * d'abord), filtres (étape, qui répond, source, persona, non lues), pagination, compteurs des pastilles, choix des
  * filtres, et lignes de l'export CSV (sans aucun texte de conversation). Une seule requête SQL par liste : le dernier
  * message de chaque conversation est lu par une jointure latérale (index `conversationId, createdAt`).
+ *
+ * « Non lue » : le dernier message vient de la personne ET quelqu'un peut encore lui répondre. Une conversation
+ * définitive (/stop, moins de 18 ans, bloquée par l'équipe : `isFinal`) n'est jamais « non lue » : la personne peut
+ * continuer d'écrire, mais plus rien ne peut lui être envoyé et l'équipe ne pourrait jamais la sortir de la liste.
  */
 import { Prisma, prisma, type ConversationStage, type ConversationStatus } from "@linkaffipro/db";
+import { isAssistantTeamMember } from "@linkaffipro/telegram";
 import { PAGE_SIZE, pageCount, pageSkip } from "@/components/admin/pagination";
+import { loadAssistantConfig } from "@/lib/assistant/config";
 import type { InboxFilters } from "./filters";
 import { NONE_KEY } from "./labels";
+import { replyBlock, type ReplyBlock } from "./reply-state";
+import { isFinal } from "./rules";
 
 /** Ligne de la boîte de réception. */
 export type InboxRow = {
@@ -20,6 +28,8 @@ export type InboxRow = {
   personaName: string | null;
   personaGender: string | null;
   closedReason: string | null;
+  stoppedAt: Date | null;
+  isMinor: boolean;
   member: {
     id: string;
     firstName: string | null;
@@ -35,7 +45,7 @@ export type InboxRow = {
     meta: unknown;
     at: Date;
   } | null;
-  /** Dernier message de la personne, sans réponse. */
+  /** Dernier message de la personne, sans réponse, dans une conversation qui n'est pas définitive (`isFinal`). */
   unread: boolean;
   /** Dernière activité (dernier message, sinon le début de la conversation). */
   activityAt: Date;
@@ -51,7 +61,13 @@ type RawRow = {
   personaName: string | null;
   personaGender: string | null;
   closedReason: string | null;
+  stoppedAt: Date | null;
+  isMinor: boolean;
   memberId: string;
+  memberTelegramId: string;
+  botActive: boolean;
+  botMode: string;
+  personaActive: boolean | null;
   firstName: string | null;
   lastName: string | null;
   username: string | null;
@@ -64,6 +80,13 @@ type RawRow = {
   lastAt: Date | null;
 };
 
+/**
+ * « Non lue » en SQL (sur `c` et `lm`) : dernier message de la personne, conversation pas définitive (même règle que
+ * `isFinal` : ni /stop, ni mineur, ni bloquée par l'équipe). `IS DISTINCT FROM` : une raison vide ne retire rien.
+ */
+const UNREAD = Prisma.sql`(lm."direction" = 'IN' AND c."stoppedAt" IS NULL AND NOT c."isMinor"
+  AND (c."status" <> 'CLOSED' OR c."closedReason" IS DISTINCT FROM 'TEAM'))`;
+
 /** Conditions SQL des filtres (sur `c` : conversation, `lm` : dernier message). */
 export function inboxWhere(f: InboxFilters): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
@@ -73,14 +96,16 @@ export function inboxWhere(f: InboxFilters): Prisma.Sql {
   else if (f.source) parts.push(Prisma.sql`c."source" = ${f.source}`);
   if (f.persona === NONE_KEY) parts.push(Prisma.sql`c."personaId" IS NULL`);
   else if (f.persona) parts.push(Prisma.sql`c."personaId" = ${f.persona}`);
-  if (f.unread) parts.push(Prisma.sql`lm."direction" = 'IN'`);
+  if (f.unread) parts.push(UNREAD);
   return parts.length ? Prisma.sql`WHERE ${Prisma.join(parts, " AND ")}` : Prisma.empty;
 }
 
 const FROM = Prisma.sql`
   FROM "Conversation" c
   JOIN "Member" m ON m."id" = c."memberId"
+  JOIN "Bot" b ON b."id" = c."botId"
   LEFT JOIN "Persona" p ON p."id" = c."personaId"
+  LEFT JOIN "Persona" bp ON bp."id" = b."personaId"
   LEFT JOIN LATERAL (
     SELECT x."direction", x."author", x."text", x."media", x."meta", x."createdAt"
       FROM "ConversationMessage" x
@@ -111,6 +136,8 @@ function toRow(r: RawRow): InboxRow {
     personaName: r.personaName,
     personaGender: r.personaGender,
     closedReason: r.closedReason,
+    stoppedAt: r.stoppedAt ? new Date(r.stoppedAt) : null,
+    isMinor: Boolean(r.isMinor),
     member: {
       id: r.memberId,
       firstName: r.firstName,
@@ -119,7 +146,14 @@ function toRow(r: RawRow): InboxRow {
       anonymizedAt: r.anonymizedAt ? new Date(r.anonymizedAt) : null,
     },
     last,
-    unread: last?.direction === "IN",
+    unread:
+      last?.direction === "IN" &&
+      !isFinal({
+        status: r.status as ConversationStatus,
+        stoppedAt: r.stoppedAt,
+        isMinor: Boolean(r.isMinor),
+        closedReason: r.closedReason,
+      }),
     activityAt: last?.at ?? new Date(r.createdAt),
   };
 }
@@ -127,17 +161,54 @@ function toRow(r: RawRow): InboxRow {
 const SELECT = Prisma.sql`
   SELECT c."id", c."createdAt", c."stage"::text AS "stage", c."status"::text AS "status", c."source",
          c."personaId", p."name" AS "personaName", p."gender" AS "personaGender", c."closedReason",
-         m."id" AS "memberId", m."firstName", m."lastName", m."username", m."anonymizedAt",
+         c."stoppedAt", c."isMinor",
+         m."id" AS "memberId", m."telegramUserId"::text AS "memberTelegramId", m."firstName", m."lastName",
+         m."username", m."anonymizedAt",
+         b."isActive" AS "botActive", b."mode"::text AS "botMode",
+         COALESCE(p."isActive", bp."isActive") AS "personaActive",
          lm."direction"::text AS "lastDirection", lm."author"::text AS "lastAuthor", lm."text" AS "lastText",
          lm."media" AS "lastMedia", lm."meta" AS "lastMeta", lm."createdAt" AS "lastAt"`;
 
 const ORDER = Prisma.sql`ORDER BY COALESCE(lm."createdAt", c."createdAt") DESC, c."id" DESC`;
 
+/** Ligne affichée de la boîte de réception : avec « l'assistante répondra-t-elle à cette personne ? ». */
+export type InboxListRow = InboxRow & {
+  /** Pourquoi personne ne répondrait si la conversation est laissée à l'assistante (`reply-state.ts`) ; null : elle répond. */
+  replyBlock: ReplyBlock | null;
+};
+
+/**
+ * Qui répond vraiment, ligne par ligne (même règle que le webhook) : activation, bot actif et en mode assistant, persona
+ * de la conversation (sinon du bot) active, et pour l'essai « Seulement l'équipe », le compte de l'équipe (cherché pour
+ * les seules personnes de la page).
+ */
+async function withReplyBlocks(raw: RawRow[]): Promise<InboxListRow[]> {
+  const { activation } = await loadAssistantConfig();
+  const team = new Set<string>();
+  if (activation === "team") {
+    const ids = [...new Set(raw.map((r) => r.memberTelegramId))];
+    const checks = await Promise.all(
+      ids.map(async (id) => [id, await isAssistantTeamMember(BigInt(id))] as const),
+    );
+    for (const [id, ok] of checks) if (ok) team.add(id);
+  }
+  return raw.map((r) => ({
+    ...toRow(r),
+    replyBlock: replyBlock({
+      activation,
+      botActive: Boolean(r.botActive),
+      botMode: r.botMode,
+      personaActive: r.personaActive === null ? null : Boolean(r.personaActive),
+      isTeamMember: team.has(r.memberTelegramId),
+    }),
+  }));
+}
+
 /** Une page de la boîte de réception (50 conversations), triée par dernier message. */
 export async function listConversations(
   f: InboxFilters,
   opts: { pageSize?: number } = {},
-): Promise<{ rows: InboxRow[]; total: number; pages: number; page: number }> {
+): Promise<{ rows: InboxListRow[]; total: number; pages: number; page: number }> {
   const size = opts.pageSize ?? PAGE_SIZE;
   const where = inboxWhere(f);
   const [countRows, raw] = await Promise.all([
@@ -147,14 +218,17 @@ export async function listConversations(
   ]);
   const total = Number(countRows[0]?.n ?? 0);
   const pages = pageCount(total, size);
-  return { rows: raw.map(toRow), total, pages, page: Math.min(f.page, pages) };
+  return { rows: await withReplyBlocks(raw), total, pages, page: Math.min(f.page, pages) };
 }
 
-/** Compteurs des pastilles : conversations non lues et conversations où l'équipe a la main (toutes, sans filtre). */
+/**
+ * Compteurs des pastilles : conversations non lues (hors conversations définitives) et conversations où l'équipe a la
+ * main (toutes, sans filtre).
+ */
 export async function inboxCounts(): Promise<{ all: number; unread: number; human: number }> {
   const rows = await prisma.$queryRaw<Array<{ all: bigint; unread: bigint; human: bigint }>>`
     SELECT COUNT(*) AS "all",
-           COUNT(*) FILTER (WHERE lm."direction" = 'IN') AS "unread",
+           COUNT(*) FILTER (WHERE ${UNREAD}) AS "unread",
            COUNT(*) FILTER (WHERE c."status" = 'HUMAN') AS "human"
     ${FROM}`;
   const r = rows[0];

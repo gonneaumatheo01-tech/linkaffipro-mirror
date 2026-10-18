@@ -122,6 +122,12 @@ beforeEach(() => {
   Object.assign(m.config, {
     apiKeyEncrypted: null,
     activation: "off",
+    defaultModel: "venice-uncensored-role-play",
+    fallbackModel: "venice-uncensored-1-2",
+    temperature: 0.85,
+    maxTokens: 400,
+    monthlyCapEur: 30,
+    perConversationDailyLimit: 60,
     models: [],
     modelsFetchedAt: null,
     verifiedAt: null,
@@ -342,5 +348,48 @@ describe("Retirer la clé", () => {
       "assistant.key_removed",
       "assistant.activation_changed",
     ]);
+  });
+});
+
+describe("Vérifier enregistre aussi les autres réglages de la page", () => {
+  it("clé collée + « Seulement l'équipe » + plafond 50 € : tout est enregistré, et le message le dit", async () => {
+    m.verify.mockResolvedValue({ ok: true });
+    m.list.mockResolvedValue([model]);
+    const sp = await redirected(
+      verifyAssistantKeyAction(
+        form({ apiKey: "VENICE_premiere_cle_123456", activation: "team", monthlyCapEur: "50" }),
+      ),
+    );
+    expect(m.config.activation).toBe("team");
+    expect(m.config.monthlyCapEur).toBe(50);
+    expect(sp.get("ok")).toMatch(/^Clé vérifiée/);
+    expect(sp.get("ok")).toMatch(/autres réglages sont aussi enregistrés/);
+    expect(m.audits.map((a) => a.action)).toEqual([
+      "assistant.settings_saved",
+      "assistant.settings_saved",
+      "assistant.activation_changed",
+      "assistant.key_verified",
+    ]);
+    expect(JSON.stringify(m.audits)).not.toContain("premiere_cle");
+  });
+
+  it("autres réglages invalides : rien n'en est enregistré, le message le dit", async () => {
+    m.config.apiKeyEncrypted = "chiffrée";
+    m.verify.mockResolvedValue({ ok: true });
+    m.list.mockResolvedValue([model]);
+    const sp = await redirected(
+      verifyAssistantKeyAction(form({ activation: "team", temperature: "3" })),
+    );
+    expect(m.config.activation).toBe("off");
+    expect(sp.get("ok")).toMatch(/autres réglages ne sont pas enregistrés/);
+    expect(sp.get("ok")).toMatch(/Enregistrer/);
+  });
+
+  it("rien n'a changé : aucun enregistrement de plus (seulement la vérification)", async () => {
+    m.config.apiKeyEncrypted = "chiffrée";
+    m.verify.mockResolvedValue({ ok: true });
+    m.list.mockResolvedValue([model]);
+    await redirected(verifyAssistantKeyAction(form()));
+    expect(m.audits.map((a) => a.action)).toEqual(["assistant.key_verified"]);
   });
 });

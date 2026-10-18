@@ -8,6 +8,7 @@ import {
   listVeniceModels,
   selectableModels,
   verifyVeniceKey,
+  type AssistantConfig,
 } from "@linkaffipro/chat";
 import {
   loadAssistantApiKey,
@@ -15,7 +16,11 @@ import {
   saveAssistantConfig,
 } from "@/lib/assistant/config";
 import { requireAdmin } from "@/lib/session";
-import { parseAssistantForm, parseAssistantKeyField } from "./assistant-form";
+import {
+  assistantSettingsChanged,
+  parseAssistantForm,
+  parseAssistantKeyField,
+} from "./assistant-form";
 
 const PAGE = "/settings/assistant";
 const ENTITY = { entityType: "Setting", entityId: "assistant.venice" } as const;
@@ -91,10 +96,65 @@ export async function saveAssistantSettingsAction(formData: FormData): Promise<v
 }
 
 /**
+ * « Vérifier » enregistre aussi les autres réglages de la page (activation, modèles, limites) s'ils ont changé et sont
+ * valides : l'aide de la page dit de cliquer sur « Vérifier » après avoir collé la clé, jamais un choix ne doit se
+ * perdre en silence. Réglages invalides : rien n'en est enregistré et le message le dit. Renvoie la phrase à ajouter.
+ */
+async function saveOtherSettingsOnVerify(
+  adminId: string,
+  formData: FormData,
+  config: AssistantConfig,
+): Promise<{ config: AssistantConfig; note: string | null }> {
+  if (!formData.has("activation")) return { config, note: null };
+  const parsed = parseAssistantForm(formData);
+  if (!parsed.ok)
+    return {
+      config,
+      note: `Vos autres réglages ne sont pas enregistrés (${parsed.error}) : corrigez-les puis cliquez sur « Enregistrer ».`,
+    };
+  const d = parsed.data;
+  if (!assistantSettingsChanged(config, d)) return { config, note: null };
+  const after = await saveAssistantConfig({
+    activation: d.activation,
+    defaultModel: d.defaultModel,
+    fallbackModel: d.fallbackModel,
+    temperature: d.temperature,
+    maxTokens: d.maxTokens,
+    monthlyCapEur: d.monthlyCapEur,
+    perConversationDailyLimit: d.perConversationDailyLimit,
+  });
+  await audit({
+    userId: adminId,
+    action: "assistant.settings_saved",
+    ...ENTITY,
+    metadata: {
+      keyChanged: false,
+      via: "verify",
+      activation: after.activation,
+      defaultModel: after.defaultModel,
+      fallbackModel: after.fallbackModel,
+      temperature: after.temperature,
+      maxTokens: after.maxTokens,
+      monthlyCapEur: after.monthlyCapEur,
+      perConversationDailyLimit: after.perConversationDailyLimit,
+    },
+  });
+  if (config.activation !== after.activation)
+    await audit({
+      userId: adminId,
+      action: "assistant.activation_changed",
+      ...ENTITY,
+      metadata: { from: config.activation, to: after.activation, via: "verify" },
+    });
+  return { config: after, note: "Vos autres réglages sont aussi enregistrés." };
+}
+
+/**
  * Vérifie la clé sans dépenser de crédits (solde et limites chez Venice) et relit la liste des modèles (sans clé).
  * Une clé collée dans le champ (pas encore enregistrée) est d'abord enregistrée : c'est elle qui est vérifiée, jamais
- * l'ancienne. Enregistre `verifiedAt` (clé acceptée) ou `lastError` (vrai refus seulement : clé refusée, solde vide,
- * accès coupé…), la liste des modèles proposables et sa date. Un échec passager ne touche pas à l'état de la clé.
+ * l'ancienne ; les autres réglages de la page modifiés sont enregistrés avec elle (`saveOtherSettingsOnVerify`).
+ * Enregistre `verifiedAt` (clé acceptée) ou `lastError` (vrai refus seulement : clé refusée, solde vide, accès coupé…),
+ * la liste des modèles proposables et sa date. Un échec passager ne touche pas à l'état de la clé.
  */
 export async function verifyAssistantKeyAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
@@ -113,6 +173,8 @@ export async function verifyAssistantKeyAction(formData: FormData): Promise<void
   const apiKey = pasted.apiKey ?? (await loadAssistantApiKey(config));
   if (!apiKey)
     back({ error: "Collez d'abord la clé Venice dans le champ, puis cliquez sur « Vérifier »." });
+  const others = await saveOtherSettingsOnVerify(admin.id, formData, config);
+  config = others.config;
   const [result, models] = await Promise.all([
     verifyVeniceKey(apiKey),
     listVeniceModels().catch((err: unknown) => {
@@ -147,7 +209,7 @@ export async function verifyAssistantKeyAction(formData: FormData): Promise<void
     },
   });
   revalidatePath(PAGE);
-  const parts: string[] = [];
+  const parts: string[] = others.note ? [others.note] : [];
   if (offered === null)
     parts.push("La liste des modèles n'a pas pu être relue : réessayez plus tard.");
   else {

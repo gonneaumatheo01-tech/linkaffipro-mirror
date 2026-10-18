@@ -96,7 +96,7 @@ export default async function PersonaPage({
         }`}
         help={
           assistantBots.length === 0
-            ? "Aucun bot ne l'utilise encore : un administrateur la lie au bot de Rencontres dans Réglages → Bots (Mode : assistant de conversation)."
+            ? "Aucun bot ne l'utilise encore : un administrateur ajoute un bot créé exprès pour l'assistante (jamais un bot de vos canaux), puis la lie dans Réglages → Bots (Mode : assistant de conversation)."
             : undefined
         }
         secondaryActions={

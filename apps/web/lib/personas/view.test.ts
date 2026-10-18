@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { VeniceModelInfo } from "@linkaffipro/chat";
+import { REJECT_CODES, type VeniceModelInfo } from "@linkaffipro/chat";
 import { jargonIn } from "../../tests/vocabulary/jargon-scan";
 import {
   aiFailureText,
@@ -8,9 +8,11 @@ import {
   personaDisplayName,
   personaListRow,
   personaModelOptions,
+  rejectLabel,
   rejectLabels,
   styleLines,
   testBlockedReason,
+  UNKNOWN_REJECT_LABEL,
 } from "./view";
 
 function model(over: Partial<VeniceModelInfo>): VeniceModelInfo {
@@ -163,6 +165,35 @@ describe("panneau « Tester »", () => {
     ]);
   });
 
+  it("consignes internes dévoilées : refus expliqué en clair", () => {
+    expect(rejectLabels(["leak"])).toEqual(["a dévoilé ses consignes internes"]);
+  });
+
+  it("chaque code de refus du moteur (packages/chat) a son libellé, pour les deux genres, sans jargon", () => {
+    expect(REJECT_CODES.length).toBeGreaterThan(0);
+    const missing = REJECT_CODES.filter(
+      (code) =>
+        rejectLabel(code, "F") === UNKNOWN_REJECT_LABEL ||
+        rejectLabel(code, "M") === UNKNOWN_REJECT_LABEL,
+    );
+    expect(missing).toEqual([]);
+    for (const code of REJECT_CODES) {
+      expect(jargonIn(rejectLabel(code, "F"))).toEqual([]);
+      expect(rejectLabel(code, "F")).not.toContain("_");
+    }
+  });
+
+  it("refus qui parlent de la persona : accordés à son genre", () => {
+    expect(rejectLabels(["denies_assistant", "intro_missing"])).toEqual([
+      "a nié être une assistante",
+      "ne s'est pas présentée comme l'assistante du canal",
+    ]);
+    expect(rejectLabels(["denies_assistant", "intro_missing"], "M")).toEqual([
+      "a nié être un assistant",
+      "ne s'est pas présenté comme l'assistant du canal",
+    ]);
+  });
+
   it("pannes de l'IA expliquées à l'équipe", () => {
     expect(aiFailureText("auth")).toMatch(/clé/);
     expect(aiFailureText("balance")).toMatch(/solde/);
@@ -180,5 +211,13 @@ describe("panneau « Tester »", () => {
       /Plafond mensuel atteint/,
     );
     expect(testBlockedReason({ hasKey: true, isAdmin: false, spentEur: 2, capEur: 30 })).toBeNull();
+  });
+
+  it("plafond réglé à 0 € : dit comme un choix, jamais « atteint »", () => {
+    for (const isAdmin of [true, false]) {
+      const r = testBlockedReason({ hasKey: true, isAdmin, spentEur: 0, capEur: 0 });
+      expect(r).toMatch(/^Plafond mensuel réglé à 0 €/);
+      expect(r).not.toMatch(/atteint/);
+    }
   });
 });

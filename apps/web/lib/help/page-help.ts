@@ -234,7 +234,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/conversations/stats",
     label: "Chiffres des conversations",
-    sections: ["Chiffres"],
+    sections: ["Chiffres", "Période et comparaison"],
   },
 
   // Statistiques

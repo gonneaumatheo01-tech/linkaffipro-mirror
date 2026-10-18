@@ -25,7 +25,7 @@ export default async function NewPersonaPage() {
         title="Nouvelle persona"
         backHref="/conversations/personas"
         backLabel="Personas"
-        description="Un prénom, une personnalité, l'offre présentée et le moment du lien. Elle est créée désactivée : vous la testez sur sa fiche avant de l'activer."
+        description="Un prénom, une personnalité, l'offre présentée et le moment du lien. Elle est créée désactivée si vous ne cochez pas « Persona activée » : testez-la d'abord sur sa fiche, puis activez-la."
       />
       <PersonaForm
         initial={emptyPersonaForm(choices.templates)}

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assistantLabel,
   deliveryRank,
+  INTERRUPTED_TEXT,
+  isBlankUndelivered,
   mergeOffers,
   mergeThread,
   nextRemoved,
@@ -11,6 +13,7 @@ import {
   threadStateKey,
   threadWindowStart,
   toThreadMessage,
+  toThreadMessages,
   vanishedFromThread,
   type ThreadMessage,
   type ThreadMessageRow,
@@ -108,6 +111,76 @@ describe("messages du fil", () => {
     expect(m.offerSubId).toBe("AbCdEf123456");
     expect(m.followUp).toBe(true);
     expect(JSON.stringify(m)).not.toMatch(/markdown|rejected|model|mediaAssetId/);
+  });
+
+  it("partie interrompue : « Envoi interrompu », jamais le texte technique de l'erreur", () => {
+    const m = toThreadMessage(
+      row({
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "Tu fais quoi ce soir ?",
+        meta: { interrupted: true },
+        outboundMessage: {
+          status: "FAILED",
+          error:
+            "Envoi interrompu (service d'arrière-plan arrêté pendant l'envoi) : message peut-être non reçu.",
+        },
+      }),
+      LEA,
+    );
+    expect(m).toMatchObject({
+      side: "out",
+      text: "Tu fais quoi ce soir ?",
+      delivery: "FAILED",
+      deliveryError: null,
+      interrupted: true,
+    });
+    expect(INTERRUPTED_TEXT).toBe("Envoi interrompu : la personne ne l'a peut-être pas reçu.");
+    expect(JSON.stringify(m)).not.toMatch(/arrière-plan/);
+    expect(isBlankUndelivered(m)).toBe(false);
+    // Le repère n'a de sens que pour un message sortant.
+    expect(toThreadMessage(row({ meta: { interrupted: true } }), LEA).interrupted).toBe(false);
+  });
+
+  it("jamais une bulle vide : un message sortant vide et pas parti n'est pas affiché", () => {
+    const rows = [
+      row({ id: "in1", text: "salut" }),
+      // Partie interrompue dont le texte a été vidé.
+      row({
+        id: "out-blank",
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "",
+        meta: { interrupted: true },
+        outboundMessage: { status: "FAILED", error: "x" },
+      }),
+      // Envoi raté, texte vidé, sans repère.
+      row({
+        id: "out-failed",
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "  ",
+        outboundMessage: { status: "FAILED", error: "x" },
+      }),
+      // Envoi raté mais avec un média : gardé (« [photo] »).
+      row({
+        id: "out-photo",
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "",
+        media: { kind: "photo" },
+        outboundMessage: { status: "FAILED", error: null },
+      }),
+      // Parti : toujours affiché.
+      row({
+        id: "out-sent",
+        direction: "OUT",
+        author: "ASSISTANT",
+        text: "Coucou",
+        outboundMessage: { status: "SENT", error: null },
+      }),
+    ];
+    expect(toThreadMessages(rows, LEA).map((m) => m.id)).toEqual(["in1", "out-photo", "out-sent"]);
   });
 });
 

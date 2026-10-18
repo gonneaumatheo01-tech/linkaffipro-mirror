@@ -345,4 +345,41 @@ describe("conversation d'essai avec le vrai moteur (faux client Venice, aucun r�
     expect(response.outcome).toBe("skipped_cap");
     expect(response.notice?.text).toMatch(/Plafond mensuel atteint/);
   });
+
+  it("bandeau et refus accordés au genre de la persona testée", async () => {
+    const llm = createFakeLlm([]);
+    const deps = createTestTurnDeps({
+      llm,
+      capReached: async () => true,
+      recordUsage: async () => undefined,
+      costEur: () => 0,
+    });
+    const result = await runTurn(
+      buildTestTurnInput({
+        persona: fakePersona({ name: "Hugo", gender: "M" }),
+        config,
+        history: [],
+        message: "salut",
+        state: INITIAL_TEST_STATE,
+      }),
+      deps,
+    );
+    const hugo = testResponseFrom({
+      result: { ...result, rejected: ["intro_missing"] },
+      state: INITIAL_TEST_STATE,
+      offerButtonText: "x",
+      usages: [],
+      gender: "M",
+    });
+    expect(hugo.notice?.text).toContain("l'assistant ne répond plus");
+    expect(hugo.notice?.text).not.toContain("assistante");
+    expect(hugo.rejected).toEqual(["ne s'est pas présenté comme l'assistant du canal"]);
+    const lea = testResponseFrom({
+      result,
+      state: INITIAL_TEST_STATE,
+      offerButtonText: "x",
+      usages: [],
+    });
+    expect(lea.notice?.text).toContain("l'assistante ne répond plus");
+  });
 });

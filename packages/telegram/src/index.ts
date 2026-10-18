@@ -8,7 +8,7 @@ export {
 } from "./factory";
 export type { BotRecordLike } from "./factory";
 export { prismaTelegramDeps } from "./prisma-deps";
-export { isAssistantTeamMember } from "./assistant/team";
+export { assistantTeamTelegramIds, isAssistantTeamMember } from "./assistant/team";
 // Phase 17 : réception par le bot assistant de conversation (journal sans texte, /start, /stop, /reset, messages).
 export { registerAssistantHandlers } from "./handlers/assistant";
 export {
@@ -24,6 +24,7 @@ export {
   BOT_DESCRIPTION_MAX,
   BOT_SHORT_DESCRIPTION_MAX,
   assistantProfilePlan,
+  assistantProfileTextOk,
   mentionsAssistant,
   personaChatLangs,
 } from "./assistant/profile";

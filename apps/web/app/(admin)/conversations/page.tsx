@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { Pagination } from "@/components/admin/pagination";
+import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
 import { InboxFilters } from "@/components/conversations/inbox-filters";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   inboxCounts,
   listConversations,
   loadInboxOptions,
+  type InboxListRow,
   type InboxRow,
 } from "@/lib/conversations/inbox";
 import {
@@ -30,6 +32,7 @@ import {
   personaLabel,
   sourceLabel,
 } from "@/lib/conversations/labels";
+import { replyBlockTitle } from "@/lib/conversations/reply-state";
 import { fmtDate, fmtRelative } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import { StatusBadge } from "@/lib/status-badges";
@@ -46,8 +49,19 @@ function lastMessageText(r: InboxRow): string {
   return `${lastAuthorPrefix(r.last.author, r.personaGender)}${excerpt(messageText(r.last.text, r.last.media), 90)}`;
 }
 
+/** « Qui répond » : l'assistante (accordée à la persona), l'équipe, fermée, ou « Personne ne répond » (raison au survol). */
+function WhoAnswersBadge({ r }: { r: InboxListRow }) {
+  return (
+    <ConversationStatusBadge
+      status={r.status}
+      gender={r.personaGender}
+      nobodyReason={r.replyBlock ? replyBlockTitle(r.replyBlock) : null}
+    />
+  );
+}
+
 /** Première cellule : nom (en gras si non lue), persona et source ; sur téléphone, tout le reste de la ligne. */
-function PersonCell({ r, now }: { r: InboxRow; now: Date }) {
+function PersonCell({ r, now }: { r: InboxListRow; now: Date }) {
   const name = personName(r.member);
   const sub = [
     name.startsWith("@") || !r.member.username || r.member.anonymizedAt
@@ -73,7 +87,7 @@ function PersonCell({ r, now }: { r: InboxRow; now: Date }) {
         <span className="line-clamp-2 block text-note text-foreground">{lastMessageText(r)}</span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <StatusBadge kind="conversationStage" value={r.stage} />
-          <StatusBadge kind="conversationStatus" value={r.status} />
+          <WhoAnswersBadge r={r} />
           <span className="text-note text-muted-foreground">{fmtRelative(r.activityAt, now)}</span>
         </span>
       </span>
@@ -85,7 +99,8 @@ function PersonCell({ r, now }: { r: InboxRow; now: Date }) {
  * Boîte de réception de l'assistant de conversation (phase 17, contrat docs/ASSISTANT-CONVERSATION.md § 6) : les
  * conversations, la plus récemment active d'abord (personne, dernier message, étape, qui répond, mis à jour),
  * pastilles « Non lues » et « L'équipe a la main », filtres mémorisés (étape, qui répond, source, persona),
- * pagination, export CSV. Clic sur une ligne : le fil de la conversation. Administrateurs et managers.
+ * pagination, export CSV. « Qui répond » dit « Personne ne répond » quand la conversation est laissée à l'assistante
+ * mais qu'elle ne répondra pas (essai réservé à l'équipe, persona désactivée, bot repassé en bot normal). Clic sur une ligne : le fil de la conversation. Administrateurs et managers.
  */
 export default async function ConversationsInboxPage({
   searchParams,
@@ -119,7 +134,7 @@ export default async function ConversationsInboxPage({
         </span>
       ),
       stage: <StatusBadge kind="conversationStage" value={r.stage} />,
-      status: <StatusBadge kind="conversationStatus" value={r.status} />,
+      status: <WhoAnswersBadge r={r} />,
       updated: (
         <time
           dateTime={r.activityAt.toISOString()}
@@ -166,7 +181,7 @@ export default async function ConversationsInboxPage({
       <EmptyState
         icon={<MessagesSquare />}
         title="Aucune conversation pour l'instant"
-        description="Une conversation commence dès qu'une personne écrit au bot de Rencontres (après Démarrer, depuis un canal, une page ou une pub)."
+        description="Une conversation commence dès qu'une personne écrit au bot de l'assistante (un bot à part, créé exprès pour elle) : après Démarrer, depuis un canal, une page ou une pub."
       />
     );
   })();
@@ -176,7 +191,7 @@ export default async function ConversationsInboxPage({
       <ConversationsNav current="inbox" />
       <PageHeader
         title="Conversations"
-        description="Ce que l'assistante du bot de Rencontres échange en privé avec les personnes qui lui écrivent."
+        description="Ce que l'assistante échange en privé, sur son propre bot, avec les personnes qui lui écrivent."
         help="Cliquez sur une conversation pour lire le fil en direct, prendre la main ou écrire vous-même. Les filtres sont mémorisés sur cet appareil."
         secondaryActions={
           total > 0 ? (
@@ -201,6 +216,13 @@ export default async function ConversationsInboxPage({
         <p className="mb-3 text-note text-muted-foreground">
           L&apos;assistante est désactivée : elle ne répond à personne pour l&apos;instant (Réglages
           → IA de conversation).
+        </p>
+      ) : null}
+      {config.activation === "team" && counts.all > 0 ? (
+        <p className="mb-3 text-note text-muted-foreground">
+          Essai par l&apos;équipe : l&apos;assistante ne répond qu&apos;aux comptes Telegram de
+          l&apos;équipe. Les autres personnes ne reçoivent aucune réponse (« Personne ne répond ») :
+          prenez la main pour leur répondre vous-même.
         </p>
       ) : null}
       {total === 0 ? (

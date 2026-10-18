@@ -236,11 +236,17 @@ describe("modifier une persona", () => {
     m.existing = { ...saved };
     m.bots = [{ id: "b1", username: "lea_bot" }];
     m.profile.mockRejectedValue(new Error("Network request failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const r = await savePersona(draft({ id: "p1", tone: "léger" }), admin);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(m.updated).toHaveLength(1);
-    expect(r.problem).toMatch(/@lea_bot.*Network request failed/);
+    // Phrase simple à l'écran ; le texte technique (anglais) va seulement dans le journal du serveur.
+    expect(r.problem).toContain("@lea_bot");
+    expect(r.problem).toContain("Telegram ne répond pas pour l'instant");
+    expect(r.problem).not.toContain("Network request failed");
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
   });
 
   it("désactivation journalisée ; aucun changement : pas de « persona.updated »", async () => {

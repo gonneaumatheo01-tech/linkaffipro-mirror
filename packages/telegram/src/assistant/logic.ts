@@ -2,6 +2,7 @@
 // le bot assistant — source du /start, commande, nature du message reçu, langue des textes fixes, journal sans texte.
 import {
   chatLangOf,
+  isStopRequest,
   type ChatLang,
   type ChatMediaKind,
   type ConversationStage,
@@ -49,6 +50,33 @@ export function parseAssistantCommand(
   if (m[2] && botUsername && m[2].toLowerCase() !== botUsername.toLowerCase()) return null;
   const payload = (m[3] ?? "").trim();
   return { command: m[1]!.toLowerCase() as AssistantCommand, payload: payload || null };
+}
+
+/**
+ * Commande de l'assistant, y compris une demande d'arrêt écrite sans la barre oblique (« STOP », « stop stp »,
+ * « arrête de m'écrire », « unsubscribe », « basta »… seule dans le message, 6 langues) : traitée exactement comme /stop
+ * (règle 5 du client : respect des membres, jamais de relance après une demande d'arrêt).
+ */
+export function assistantCommandOf(
+  text: string | null | undefined,
+  botUsername?: string,
+): { command: AssistantCommand; payload: string | null; typed?: boolean } | null {
+  const cmd = parseAssistantCommand(text, botUsername);
+  if (cmd) return cmd;
+  return isStopRequest(text) ? { command: "stop", payload: null, typed: true } : null;
+}
+
+/**
+ * Une réponse fixe (« c'est noté », « j'ai tout oublié », « tu m'as demandé de ne plus t'écrire ») peut-elle partir ?
+ * Jamais vers un mineur, ni vers une conversation bloquée par l'équipe (« Bloquer » promet que plus rien ne part).
+ */
+export function fixedReplyAllowed(conv: {
+  status: ConversationStatus;
+  closedReason: string | null;
+  isMinor: boolean;
+}): boolean {
+  if (conv.isMinor) return false;
+  return !(conv.status === "CLOSED" && conv.closedReason === "TEAM");
 }
 
 /** Message reçu, tel que gardé dans la conversation : texte brut (ou légende) et nature du média éventuel. */
@@ -147,16 +175,32 @@ export function canReopenConversation(conv: {
 }
 
 /**
- * Étape d'une conversation rouverte : celle d'avant la fermeture (passage d'étape vers CLOSED), sinon la discussion si
+ * Étape d'une conversation rouverte : inscrite (CONVERTED) si une inscription a déjà été comptée (`convertedAt`, même
+ * obtenue pendant la fermeture) ; sinon celle d'avant la fermeture (passage d'étape vers CLOSED), sinon la discussion si
  * l'assistant avait déjà répondu, sinon l'accueil.
  */
 export function reopenStage(input: {
   stageBeforeClose: ConversationStage | null;
   assistantTurns: number;
+  convertedAt?: Date | null;
 }): ConversationStage {
+  if (input.convertedAt) return "CONVERTED";
   const before = input.stageBeforeClose;
   if (before && before !== "CLOSED") return before;
   return input.assistantTurns > 0 ? "CHAT" : "WELCOME";
+}
+
+/**
+ * Étape après un /reset : une conversation fermée garde la sienne ; une conversation dont l'inscription est déjà
+ * comptée reste « Inscrite » (jamais de relance ni de lien de nouveau) ; sinon l'accueil.
+ */
+export function resetStage(conv: {
+  status: ConversationStatus;
+  stage: ConversationStage;
+  convertedAt: Date | null;
+}): ConversationStage {
+  if (conv.status === "CLOSED") return conv.stage;
+  return conv.convertedAt ? "CONVERTED" : "WELCOME";
 }
 
 // ------------------------------------------------------------------

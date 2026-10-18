@@ -2,7 +2,7 @@ import { Clock, CornerDownRight, Link2, Play, TriangleAlert } from "lucide-react
 import { StatusPill } from "@/components/admin/status-pill";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
-import type { OfferState, ThreadMessage } from "@/lib/conversations/thread";
+import { INTERRUPTED_TEXT, type OfferState, type ThreadMessage } from "@/lib/conversations/thread";
 
 /** Classes d'une bulle selon qui parle : la personne à gauche, l'assistante et l'équipe à droite. */
 const BUBBLE = {
@@ -46,8 +46,18 @@ function OfferChip({ offer }: { offer: OfferState | undefined }) {
   );
 }
 
-/** État de l'envoi sous un message sortant : en cours, ou raté avec sa raison. Rien une fois parti. */
+/**
+ * État de l'envoi sous un message sortant : en cours, interrompu (peut-être parti, peut-être pas), ou raté avec sa
+ * raison. Rien une fois parti.
+ */
 function Delivery({ m }: { m: ThreadMessage }) {
+  if (m.interrupted)
+    return (
+      <span className="inline-flex items-start gap-1 text-note text-warning">
+        <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        {INTERRUPTED_TEXT}
+      </span>
+    );
   if (m.delivery === "QUEUED")
     return (
       <span className="inline-flex items-center gap-1 text-note text-muted-foreground">

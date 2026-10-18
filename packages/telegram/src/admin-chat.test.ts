@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { chooseAdminTelegramId, inboxMessageFromPayload, splitMessage } from "./admin-chat";
+import {
+  adminInboxWhere,
+  chooseAdminTelegramId,
+  inboxMessageFromPayload,
+  splitMessage,
+} from "./admin-chat";
 
 describe("découpage des messages", () => {
   it("laisse un message court intact", () => {
@@ -52,5 +57,17 @@ describe("inbox", () => {
     expect(inboxMessageFromPayload(payload(43), 42n)).toBeNull();
     expect(inboxMessageFromPayload(payload(42, "channel"), 42n)).toBeNull();
     expect(inboxMessageFromPayload({ update_id: 1, my_chat_member: {} }, 42n)).toBeNull();
+  });
+});
+
+describe("tg:inbox : filtre fait par la base", () => {
+  it("expéditeur = l'admin, chat privé, jamais les bots assistants (la limite ne coupe pas ses réponses)", () => {
+    const since = new Date("2026-10-18T00:00:00Z");
+    const w = adminInboxWhere(123456789n, since);
+    expect(w.type).toBe("telegram.message");
+    expect(w.occurredAt).toEqual({ gte: since });
+    expect(w.AND).toContainEqual({ payload: { path: ["message", "from", "id"], equals: 123456789 } });
+    expect(w.AND).toContainEqual({ payload: { path: ["message", "chat", "type"], equals: "private" } });
+    expect(w.NOT).toEqual({ bot: { is: { mode: "ASSISTANT" } } });
   });
 });

@@ -20,6 +20,7 @@ import {
   takeOverConversation,
 } from "@/lib/conversations/operations";
 import { loadConversationStats } from "@/lib/conversations/stats-queries";
+import { ASSISTANT_SETTING_KEY } from "@/lib/assistant/config";
 import { resolvePeriod } from "@/lib/periods";
 import { capturedJobs, resetDb } from "./helpers";
 
@@ -637,9 +638,11 @@ describe("chiffres et export", () => {
     await newConversation({ source: "tk01", createdAt: new Date(Date.now() - 40 * 86_400_000) });
     await prisma.aiConversationUsage.createMany({
       data: [
+        // Source copiée sur chaque coût par le worker (comptée même après la suppression de la conversation).
         {
           personaId,
           conversationId: one.conv.id,
+          source: "tk01",
           purpose: "REPLY",
           model: "m",
           costEur: 0.4,
@@ -648,6 +651,7 @@ describe("chiffres et export", () => {
         {
           personaId,
           conversationId: two.conv.id,
+          source: null,
           purpose: "REPLY",
           model: "m",
           costEur: 0.1,
@@ -691,5 +695,116 @@ describe("chiffres et export", () => {
     });
     expect(exported?.registeredAt).not.toBeNull();
     expect(rows).toHaveLength(3);
+  });
+});
+
+describe("non lues et « personne ne répond » (défauts de la relecture de la phase 17)", () => {
+  afterAll(async () => {
+    await prisma.setting.deleteMany({ where: { key: ASSISTANT_SETTING_KEY } });
+    await prisma.user.deleteMany({ where: { email: "inbox-team-tg@test" } });
+  });
+
+  it("une conversation définitive n'est jamais « non lue », même si la personne continue d'écrire", async () => {
+    await prisma.conversation.deleteMany();
+    const make = async (
+      firstName: string,
+      extra: Record<string, unknown>,
+      status: "BOT" | "HUMAN" | "CLOSED" = "CLOSED",
+    ) => {
+      const c = await newConversation({ firstName, status, extra });
+      await message(c.conv.id, "IN", "MEMBER", "Tu es là ?", minutesAgo(2));
+      return c.conv.id;
+    };
+    const open = await make("Ouverte", {}, "BOT");
+    const stopped = await make("Stop", { stoppedAt: minutesAgo(10), closedReason: "STOP" });
+    const minor = await make("Mineur", { isMinor: true, closedReason: "MINOR" });
+    const blocked = await make("Bloquée", { closedReason: "TEAM" });
+    const closed = await make("Fermée", { closedReason: "TEAM_CLOSED" });
+
+    const ids = async (sp: Record<string, string>) =>
+      (await listConversations(parseInboxFilters(sp))).rows.map((r) => r.id).sort();
+    expect(await ids({ unread: "1" })).toEqual([open, closed].sort());
+    expect((await inboxCounts()).unread).toBe(2);
+    const rows = (await listConversations(parseInboxFilters({}))).rows;
+    for (const id of [stopped, minor, blocked])
+      expect(rows.find((r) => r.id === id)?.unread).toBe(false);
+    const exported = await exportConversations(parseInboxFilters({}));
+    expect(exported.find((r) => r.id === stopped)?.unread).toBe(false);
+  });
+
+  it("essai réservé à l'équipe : « Personne ne répond » pour les autres ; persona désactivée, bot normal", async () => {
+    await prisma.conversation.deleteMany();
+    await prisma.setting.upsert({
+      where: { key: ASSISTANT_SETTING_KEY },
+      create: { key: ASSISTANT_SETTING_KEY, value: { activation: "team" } },
+      update: { value: { activation: "team" } },
+    });
+    const outsider = await newConversation({ firstName: "Prospect" });
+    const mate = await newConversation({ firstName: "Équipier" });
+    await prisma.user.create({
+      data: {
+        email: "inbox-team-tg@test",
+        name: "Équipier",
+        role: "MANAGER",
+        passwordHash: "x",
+        telegramUserId: mate.member.telegramUserId,
+      },
+    });
+
+    const blocks = async () =>
+      Object.fromEntries(
+        (await listConversations(parseInboxFilters({}))).rows.map((r) => [r.id, r.replyBlock]),
+      );
+    expect(await blocks()).toEqual({ [outsider.conv.id]: "team_only", [mate.conv.id]: null });
+    expect((await loadConversationDetail(outsider.conv.id))?.replyBlock).toBe("team_only");
+    expect((await loadConversationDetail(mate.conv.id))?.replyBlock).toBeNull();
+    // Le détail ne renvoie jamais l'identifiant Telegram de la personne.
+    expect(
+      JSON.stringify(await loadConversationDetail(mate.conv.id), (_k, v) =>
+        typeof v === "bigint" ? `big:${v}` : v,
+      ),
+    ).not.toContain("big:");
+
+    await prisma.persona.update({ where: { id: personaId }, data: { isActive: false } });
+    expect((await blocks())[mate.conv.id]).toBe("persona_inactive");
+    await prisma.persona.update({ where: { id: personaId }, data: { isActive: true } });
+    await prisma.bot.update({ where: { id: botId }, data: { mode: "STANDARD" } });
+    expect((await loadConversationDetail(mate.conv.id))?.replyBlock).toBe("not_assistant_bot");
+    await prisma.bot.update({ where: { id: botId }, data: { mode: "ASSISTANT" } });
+
+    await prisma.setting.update({
+      where: { key: ASSISTANT_SETTING_KEY },
+      data: { value: { activation: "all" } },
+    });
+    expect(await blocks()).toEqual({ [outsider.conv.id]: null, [mate.conv.id]: null });
+  });
+
+  it("parcours : une inscription arrivée pendant une fermeture compte à l'étape « Inscrit »", async () => {
+    await prisma.conversation.deleteMany();
+    const c = await newConversation({
+      firstName: "Inscrite",
+      stage: "CLOSED",
+      status: "CLOSED",
+      createdAt: minutesAgo(30),
+      extra: { closedReason: "STOP", stoppedAt: minutesAgo(20), convertedAt: minutesAgo(5) },
+    });
+    for (const [from, to] of [
+      ["WELCOME", "CHAT"],
+      ["CHAT", "LINK_SENT"],
+      ["LINK_SENT", "CLOSED"],
+    ] as const)
+      await prisma.conversationEvent.create({
+        data: { conversationId: c.conv.id, type: "stage_changed", fromStage: from, toStage: to },
+      });
+    await prisma.conversationEvent.create({
+      data: { conversationId: c.conv.id, type: "converted" },
+    });
+    await newConversation({ firstName: "Autre", stage: "CHAT", createdAt: minutesAgo(25) });
+    const stats = await loadConversationStats(resolvePeriod({ range: "7d" }));
+    expect(Object.fromEntries(stats.journey.map((s) => [s.stage, s.count]))).toMatchObject({
+      WELCOME: 2,
+      LINK_SENT: 1,
+      CONVERTED: 1,
+    });
   });
 });

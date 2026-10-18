@@ -139,6 +139,27 @@ export async function runRuleForMember(ruleId: string, memberId: string, now = n
   return { runId: run.id, status: after.status, error: after.error };
 }
 
+/**
+ * Membres candidats d'une relance INACTIVE : non anonymisés, inactifs depuis `cutoff`, pas encore pris par cette règle,
+ * et joignables par un bot NORMAL actif (démarré, non bloqué). Un membre qui n'a parlé qu'à un bot assistant de
+ * conversation (phase 17) n'est jamais candidat : la relance lui écrirait par un autre bot qu'il n'a jamais démarré.
+ */
+export function inactiveCandidatesWhere(ruleId: string, cutoff: Date) {
+  return {
+    anonymizedAt: null,
+    lastSeenAt: { lt: cutoff },
+    automationRuns: { none: { ruleId, status: { not: "CANCELLED" as const } } },
+    botStates: {
+      some: {
+        canDm: true,
+        startedAt: { not: null },
+        blockedAt: null,
+        bot: { mode: "STANDARD" as const, isActive: true },
+      },
+    },
+  };
+}
+
 /** Balayage des membres inactifs pour les règles INACTIVE (au plus `limit` membres par règle et par passage). */
 export async function sweepInactive(now = new Date(), limit = 200): Promise<number> {
   const rules = await prisma.automationRule.findMany({ where: { trigger: "INACTIVE", isActive: true } });
@@ -148,7 +169,7 @@ export async function sweepInactive(now = new Date(), limit = 200): Promise<numb
     if (!days) continue;
     const cutoff = new Date(now.getTime() - days * 86_400_000);
     const candidates = await prisma.member.findMany({
-      where: { anonymizedAt: null, lastSeenAt: { lt: cutoff }, automationRuns: { none: { ruleId: rule.id, status: { not: "CANCELLED" } } }, botStates: { some: { canDm: true, startedAt: { not: null }, blockedAt: null } } },
+      where: inactiveCandidatesWhere(rule.id, cutoff),
       select: { id: true },
       take: limit,
     });

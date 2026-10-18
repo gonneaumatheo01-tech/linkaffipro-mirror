@@ -12,8 +12,26 @@ const db = vi.hoisted(() => {
     typing: [] as Array<{ chatId: number; action: string }>,
     guardCalls: [] as Array<{ conversationId: string; resetsAtStart: number | null }>,
     verdicts: [] as Array<{ ok: true } | { ok: false; reason: string }>,
+    convUpdates: [] as Row[],
+    txEvents: [] as Row[],
+    journal: [] as Row[],
+    stage: [] as string[],
+    outboundUpdates: [] as Row[],
   };
   const tx = {
+    $queryRaw: vi.fn(async () => [{ stage: state.stage[0] ?? "PROPOSAL" }]),
+    conversation: {
+      updateMany: vi.fn(async (args: Row) => {
+        state.convUpdates.push(args);
+        return { count: 1 };
+      }),
+    },
+    conversationEvent: {
+      create: vi.fn(async ({ data }: { data: Row }) => {
+        state.txEvents.push(data);
+        return data;
+      }),
+    },
     outboundMessage: {
       create: vi.fn(async ({ data }: { data: Row }) => {
         state.outbound.push(data);
@@ -29,6 +47,12 @@ const db = vi.hoisted(() => {
   };
   const prisma = {
     $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
+    outboundMessage: {
+      updateMany: vi.fn(async (args: Row) => {
+        state.outboundUpdates.push(args);
+        return { count: 1 };
+      }),
+    },
     conversationMessage: {
       update: vi.fn(async (args: Row) => {
         state.updates.push(args);
@@ -75,6 +99,10 @@ vi.mock("./guard", () => ({
 vi.mock("./events", () => ({
   recordConversationEvent: vi.fn(async (conv: Row, input: Row) => {
     db.state.events.push({ conv, input });
+  }),
+  conversationEventRow: (conv: Row, input: Row) => ({ conversationId: conv.id, ...input }),
+  journalConversationEvent: vi.fn(async (_conv: Row, input: Row) => {
+    db.state.journal.push(input);
   }),
 }));
 
@@ -164,16 +192,38 @@ describe("envoi des messages de l'assistant", () => {
       media: { kind: "photo", mediaAssetId: "media1" },
       meta: { offerSubId: "AbCdEfGh1234" },
     });
-    expect(db.state.events).toEqual([
+    // Écrit dans la même transaction que le compteur des liens et l'étape LINK_SENT, puis journalisé.
+    expect(db.state.txEvents).toEqual([
       {
-        conv: { id: "conv1", botId: "bot1", memberId: "mem1" },
-        input: {
-          type: "offer_sent",
-          payload: { subId: "AbCdEfGh1234", offerSends: 2 },
-          at: new Date("2026-10-18T10:00:00Z"),
-        },
+        conversationId: "conv1",
+        type: "offer_sent",
+        payload: { subId: "AbCdEfGh1234", offerSends: 2 },
+        at: new Date("2026-10-18T10:00:00Z"),
+      },
+      {
+        conversationId: "conv1",
+        type: "stage_changed",
+        fromStage: "PROPOSAL",
+        toStage: "LINK_SENT",
+        at: new Date("2026-10-18T10:00:00Z"),
       },
     ]);
+    expect(db.state.convUpdates[0]).toEqual({
+      where: { id: "conv1" },
+      data: {
+        lastAssistantAt: new Date("2026-10-18T10:00:00Z"),
+        assistantTurns: { increment: 1 },
+        offerSends: { increment: 1 },
+        stage: "LINK_SENT",
+      },
+    });
+    expect(db.state.journal.map((e) => e.type)).toEqual(["offer_sent", "stage_changed"]);
+    expect(db.state.events).toHaveLength(0);
+    expect(sender.live).toMatchObject({
+      assistantTurnCounted: true,
+      offerSends: 1,
+      stage: { from: "PROPOSAL", to: "LINK_SENT" },
+    });
     expect(c.pendingOffer).toBeNull();
     expect(sender.sentRows[0]?.offerSubId).toBe("AbCdEfGh1234");
   });
@@ -247,5 +297,60 @@ describe("envoi des messages de l'assistant", () => {
     await sender.sendTyping();
     expect(db.state.typing).toEqual([{ chatId: 4242, action: "typing" }]);
     expect(db.state.rl).toEqual(["bot:bot1"]);
+  });
+
+  it("faits écrits dès l'envoi : heure à chaque partie, tour compté une seule fois, jamais pour l'arrêt mineur", async () => {
+    const at = new Date("2026-10-18T10:00:00Z");
+    const sender = createWorkerChatSender(ctx(), { sendDm: async () => sent(1), now: () => at });
+    await sender.sendText("Partie 1");
+    await sender.sendText("Partie 2");
+    expect(db.state.convUpdates.map((u) => u.data)).toEqual([
+      { lastAssistantAt: at, assistantTurns: { increment: 1 } },
+      { lastAssistantAt: at },
+    ]);
+    expect(sender.live).toEqual({
+      lastSentAt: at,
+      assistantTurnCounted: true,
+      offerSends: 0,
+      stage: null,
+    });
+    db.state.convUpdates.length = 0;
+    const minor = createWorkerChatSender(ctx(), { sendDm: async () => sent(2), now: () => at });
+    await minor.sendText("Cet espace est réservé aux adultes", { fixedKey: "minorStop" });
+    expect(db.state.convUpdates.map((u) => u.data)).toEqual([{ lastAssistantAt: at }]);
+    expect(minor.live.assistantTurnCounted).toBe(false);
+  });
+
+  it("lien envoyé alors que la conversation est déjà inscrite : compteur augmenté, étape inchangée", async () => {
+    db.state.stage.push("CONVERTED");
+    const c = ctx();
+    c.pendingOffer = { subId: "AbCdEfGh1234", url: "https://go.goolink.eu/a/AbCdEfGh1234" };
+    const sender = createWorkerChatSender(c, { sendDm: async () => sent(3) });
+    await sender.sendText("Le voici", {
+      buttons: [[{ text: "Voir", url: "https://go.goolink.eu/a/AbCdEfGh1234" }]],
+    });
+    expect(db.state.convUpdates[0]?.data).not.toHaveProperty("stage");
+    expect(db.state.txEvents.map((e) => e.type)).toEqual(["offer_sent"]);
+    expect(sender.live.stage).toBeNull();
+  });
+
+  it("envoi qui lève une erreur (base indisponible) : message en échec, ligne retirée, jamais « en file »", async () => {
+    const sender = createWorkerChatSender(ctx(), {
+      sendDm: async () => {
+        throw new Error("connexion perdue");
+      },
+    });
+    expect(await sender.sendText("a")).toEqual({
+      ok: false,
+      blocked: false,
+      unreachable: false,
+      error: "connexion perdue",
+    });
+    expect(db.state.outboundUpdates[0]).toMatchObject({
+      where: { id: "om1", status: "QUEUED" },
+      data: { status: "FAILED" },
+    });
+    expect(db.state.deleted).toEqual(["cm1"]);
+    expect(sender.sentRows).toEqual([]);
   });
 });
