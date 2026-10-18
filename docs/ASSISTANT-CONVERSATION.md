@@ -388,3 +388,27 @@ atteint → aucun appel, aucun message, événement `cap_reached`.
   par étape (jamais le mot « entonnoir »).
 - Journal : chaque `ConversationEvent` est doublé d'un `Event` `conversation.<type>` (memberId, botId, sans aucun texte)
   (famille « Assistant de conversation ») ; audit `assistant.*` / `persona.*` / `conversation.*` (actions de l'équipe).
+
+## 7. Précisions après l'étape 2 (moteur livré, à respecter par le worker et le site)
+- `isFirstAssistantTurn` = `Conversation.assistantTurns === 0` (jamais d'après l'étape : WELCOME reste l'étape après la
+  seule présentation, pour qu'aucune relance ne suive une simple présentation).
+- `TurnInput.retryCount` / `TurnResult.retryCount`, `MAX_TURN_ATTEMPTS = 3` : le worker le calcule (pas de colonne) =
+  nombre de `ConversationEvent` `ai_failed` depuis le dernier message de la personne (`lastInboundAt`) ; remis à 0 quand
+  la personne écrit. `TurnResult.retryAt` absent = échec définitif (aucun nouvel essai programmé). `ai_failed` porte
+  `final` et `pass`. L'alerte `assistant_ai_failing` part aussi sur un seul `ai_failed` avec `final: true`.
+- `lastInboundAt` toujours renseigné à chaque message reçu (le message neutre n'est renvoyé que si la personne a écrit
+  depuis le dernier).
+- Messages entrants : ceux rendus par `beforeSend` sont considérés comme réclamés par le tour ; ceux arrivés après la
+  régénération reviennent dans `TurnResult.deferredInbound` et doivent être rendus au tour suivant (`turnId = null`).
+  `history` ne contient pas les messages du tour ; `conversation.memberMessages` les compte déjà.
+- `TurnResult` porte aussi `language`, `model`, `rejected`, `note`, `inboundUsed`, `followUpCount`, `nextFollowUpAt`,
+  `neutralSent`, `closeReason`, `sendError`, `unsentOfferSubId` (lien créé mais pas parti : à ignorer, aucun clic ne
+  peut arriver). `nextFollowUpAt` n'a de sens que si des messages sont partis ; pour une relance en échec, `retryAt`
+  peut être ignoré.
+- Aveu : quand la personne demande si c'est un bot / une IA / une vraie personne, la réponse doit dire « IA », « bot »
+  ou « virtuel(le) » ; « l'assistante du canal » seule ne suffit plus.
+- « Tester » (site) : `createTestTurnDeps({ llm, capReached, recordUsage, costEur })` (plafond vérifié, coût enregistré
+  en `purpose TEST` au vrai prix) ; `createFakeTurnDeps` est réservé aux tests. L'aperçu `previewSystemPrompt` contient
+  des termes techniques : l'afficher dans un bloc `<pre>` (non lu par le contrôle du vocabulaire).
+- Fiche Persona : avertir (et refuser l'activation) quand une offre est liée mais que la fiche de l'offre est vide.
+- Schéma envoyé à Venice sans `minItems` / `maxItems` / `minimum` / `maximum` (bornes vérifiées par le code).

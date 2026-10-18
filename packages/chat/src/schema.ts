@@ -53,7 +53,12 @@ const STYLE_FIELDS = ["length", "emojis", "register", "language", "tone", "inter
 
 const stringEnum = (values: readonly string[]) => ({ type: "string", enum: [...values] });
 
-/** Schéma strict (tous les champs requis, aucun champ en plus, valeurs fixes). */
+/**
+ * Schéma strict (tous les champs requis, aucun champ en plus, valeurs fixes). Sans `minItems` / `maxItems` / `minimum`
+ * / `maximum` : la documentation de Venice ne garantit pas ces mots-clés en mode strict, et un refus (400) rendrait
+ * l'assistant muet ; les bornes (1 à 3 messages, intérêt de 0 à 10) sont dites dans le prompt et vérifiées par
+ * `checkTurnOutput`.
+ */
 export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -61,8 +66,6 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
   properties: {
     messages: {
       type: "array",
-      minItems: MIN_TURN_MESSAGES,
-      maxItems: MAX_TURN_MESSAGES,
       items: {
         type: "object",
         additionalProperties: false,
@@ -80,7 +83,7 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
         register: stringEnum(STYLE_REGISTERS),
         language: stringEnum(CHAT_LANGS),
         tone: stringEnum(STYLE_TONES),
-        interest: { type: "integer", minimum: MIN_INTEREST, maximum: MAX_INTEREST },
+        interest: { type: "integer" },
       },
     },
     stage: stringEnum(CONVERSATION_STAGES),

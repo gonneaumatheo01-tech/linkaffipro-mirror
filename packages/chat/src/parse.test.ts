@@ -14,7 +14,8 @@ describe("schéma strict", () => {
     };
     expect(s.additionalProperties).toBe(false);
     expect(s.required.sort()).toEqual(Object.keys(s.properties).sort());
-    expect(s.properties.messages).toMatchObject({ minItems: 1, maxItems: 3 });
+    // Bornes vérifiées par le code (checkTurnOutput), pas par Venice : aucun mot-clé que le mode strict pourrait refuser.
+    expect(JSON.stringify(s)).not.toMatch(/minItems|maxItems|minimum|maximum/);
     const style = s.properties.style_update as {
       required: string[];
       additionalProperties: boolean;
