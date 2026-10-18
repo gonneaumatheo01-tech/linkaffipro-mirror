@@ -2,6 +2,7 @@ export { registerHandlers, updateTypeOf } from "./handlers";
 export { createBot, getOrCreateBot, evictBot, botInfoFromRecord } from "./factory";
 export type { BotRecordLike } from "./factory";
 export { prismaTelegramDeps } from "./prisma-deps";
+export { isAssistantTeamMember } from "./assistant/team";
 export type {
   TelegramDeps,
   BotIdentity,

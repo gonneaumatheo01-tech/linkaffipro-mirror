@@ -354,3 +354,34 @@ Sortie du navigateur intégré de TikTok (et des autres applis). Migration addit
 Nouvelles façons d'ouvrir (`LandingEvent.method`) : TG_FRAME / INTENT_FRAME (tentative dans un cadre caché, avec l'aide),
 AUTO_TG / AUTO_INTENT ; TG_SCHEME et INTENT (phase 15) ne sont plus envoyés. Table des menus des applis :
 `packages/core/src/landing-escape.ts` (`LANDING_ESCAPE_TABLE`).
+
+## Phase 17 (18 octobre 2026) — migration `20261018125018_phase17_assistant_conversation`
+
+Assistant de conversation (bot officiel dédié, univers Rencontres ; contrat `docs/ASSISTANT-CONVERSATION.md` § 1).
+Migration additive : cinq énumérations, une valeur ajoutée à `OutboundKind`, colonnes facultatives (ou avec défaut) sur
+`Bot`, `Click` et `TrackingLink`, six tables, index et clés étrangères. Supprimer un membre ou un bot supprime ses
+conversations (et leurs messages et événements) ; supprimer une persona, une conversation, un clic ou un message privé ne
+supprime jamais un bot, un lien traqué ni un clic (SET NULL). Garde :
+`packages/db/prisma/migrations/phase17-assistant-conversation.test.ts`. Libellés français des énumérations :
+`apps/web/lib/status-badges.tsx` (`botMode`, `conversationStage`, `conversationStatus`, `conversationAuthor`,
+`outboundKind.ASSISTANT`).
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `Bot.mode` (`BotMode` STANDARD / ASSISTANT, index) + `Bot.personaId` | Bot normal ou assistant de conversation (réglé par un ADMIN), persona liée (SET NULL). Un bot ASSISTANT n'est jamais choisi automatiquement. |
+| `Persona` | Assistant ASSUMÉ (jamais une vraie personne) : prénom, `gender` (F → « l'assistante », M → « l'assistant »), personnalité, ton, langues, centres d'intérêt, consigne en plus, modèle et température (null = réglages), règles du parcours (`minExchangesBeforeOffer` 4, `requireInterest`, `maxOfferSends` 2, `followUpAfterHours` 24, `followUpsMax` 2), offre Link Affi et notre campagne liées, fiche de l'offre `offerPitch`, texte du bouton, visuel de l'app `offerMediaAssetId`, descriptions du bot, `isActive` (faux par défaut). |
+| `Conversation` | Une par bot et par membre (`@@unique([botId, memberId])`) : persona du premier message, source du `/start` (jamais écrasée), étape (`ConversationStage` WELCOME → CHAT → PROPOSAL → LINK_SENT → FOLLOW_UP → CONVERTED → CLOSED), statut (`ConversationStatus` BOT / HUMAN / PAUSED / CLOSED), profil de style, résumé roulant, faits dits par la personne, langue, mineur, `/stop` (`stoppedAt`, définitif), fermeture et sa raison (STOP, MINOR, TEAM, BLOCKED, UNREACHABLE), reprise en main, compteurs, relances (`followUpCount`, `nextFollowUpAt`), nouvel essai après une panne (`retryAt`), conversion. |
+| `ConversationMessage` | Texte brut (jamais de HTML), sens (`ConversationDirection` IN / OUT), auteur (`ConversationAuthor` MEMBER / ASSISTANT / TEAM / SYSTEM), média, méta (sub-ID de l'offre, modèle, rejets…), message Telegram (anti-doublon `@@unique([conversationId, direction, telegramMessageId])`), message privé sortant (`outboundMessageId` unique, kind ASSISTANT, SET NULL), tour (`turnId`, `partIndex` : `@@unique([turnId, partIndex])`). Effacé par `/reset` et la purge. |
+| `ConversationEvent` | Événements du parcours, append-only, sans aucun texte (`stage_changed`, `offer_sent`, `offer_opened`, `follow_up_sent`, `stopped`, `reset`, `minor`, `taken_over`, `released`, `blocked`, `closed`, `ai_failed`, `cap_reached`, `daily_limit`, `converted`) ; survit à `/reset`. Doublé d'un `Event` `conversation.<type>` (famille « Assistant de conversation » du Journal). |
+| `AssistantOfferLink` | Un lien d'offre envoyé = un sub-ID unique (`go.goolink.eu/a/<subId>`) : conversation, persona, membre (SET NULL), bot, lien OFFER de la persona (CASCADE), copie de la source, ouvertures, `Click` de la première ouverture (unique, SET NULL). |
+| `Click.conversationId` (index), `TrackingLink.personaId` (index) | Clic d'une offre ouverte depuis une conversation ; lien OFFER stable d'une persona (slug déterministe). |
+| `OutboundKind.ASSISTANT` | Message privé de l'assistant (ou de l'équipe dans une conversation reprise en main). |
+| `AiConversationUsage` | Coût de chaque appel à l'IA de conversation (Venice) : persona, conversation (null pour « Tester »), but (REPLY, FOLLOW_UP, SUMMARY, TEST), modèle, jetons, `costEur` (4 décimales), réussite, code d'erreur, essai, identifiant de requête (`CF-RAY`). Le plafond mensuel est la somme de `costEur` depuis le début du mois à Paris (`parisMonthStart` de `packages/chat`). |
+
+Réglage `Setting` `assistant.venice` (forme et lecture tolérante : `packages/chat/src/config.ts`) : clé Venice chiffrée
+(`encrypt` de core, jamais renvoyée au navigateur), activation (`off` par défaut, `team`, `all`), modèle par défaut
+(`venice-uncensored-role-play`) et de repli (`venice-uncensored-1-2`), température (0,85), longueur maximale (400 jetons),
+plafond mensuel (30 €, 0 = aucun appel), réponses par jour et par conversation (60), cache des modèles proposables et sa
+date, dernière vérification et dernière erreur. Page Réglages → IA de conversation (`/settings/assistant`, ADMIN). Journal
+d'actions : `assistant.settings_saved`, `assistant.key_verified`, `assistant.key_removed`, `assistant.activation_changed`
+(jamais la clé) ; familles `persona.*` et `conversation.*` pour l'équipe.

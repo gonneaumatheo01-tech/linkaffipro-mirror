@@ -77,6 +77,22 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "player.deposit": "Dépôt",
   "player.ngr_updated": "Revenu net mis à jour",
   "player.ftd_invalidated": "Premier dépôt annulé",
+  // Assistant de conversation (phase 17) : chaque événement d'une conversation, sans aucun texte de la conversation.
+  "conversation.stage_changed": "Conversation : étape du parcours changée",
+  "conversation.offer_sent": "Conversation : lien de l'offre envoyé",
+  "conversation.offer_opened": "Conversation : lien de l'offre ouvert",
+  "conversation.follow_up_sent": "Conversation : relance envoyée après un silence",
+  "conversation.stopped": "Conversation arrêtée par la personne (/stop)",
+  "conversation.reset": "Conversation effacée par la personne (/reset)",
+  "conversation.minor": "Conversation fermée : la personne a moins de 18 ans",
+  "conversation.taken_over": "Conversation reprise en main par l'équipe",
+  "conversation.released": "Conversation rendue à l'assistant",
+  "conversation.blocked": "Conversation bloquée (plus aucun envoi)",
+  "conversation.closed": "Conversation fermée",
+  "conversation.ai_failed": "Assistant : l'IA n'a pas pu répondre",
+  "conversation.cap_reached": "Assistant : plafond mensuel atteint, aucune réponse",
+  "conversation.daily_limit": "Assistant : limite de réponses du jour atteinte",
+  "conversation.converted": "Conversation : inscription obtenue",
 };
 
 /** Mises à jour Telegram reçues par les bots (`telegram.<type>`). */
@@ -159,6 +175,7 @@ export function eventLabel(type: string, payload?: unknown): string {
   if (type.startsWith("member.")) return "Membre";
   if (type.startsWith("custom_emoji.")) return "Emojis animés";
   if (type.startsWith("linkaffi_event.")) return "Événement pour Link Affi";
+  if (type.startsWith("conversation.")) return "Assistant de conversation";
   return "Autre événement";
 }
 
@@ -181,4 +198,5 @@ export const EVENT_FAMILIES: Array<{ prefix: string; label: string }> = [
   { prefix: "offer.", label: "Boutons Offre" },
   { prefix: "ads.", label: "Campagnes pub (synchro)" },
   { prefix: "linkaffi_event.", label: "Événements envoyés à Link Affi" },
+  { prefix: "conversation.", label: "Assistant de conversation" },
 ];

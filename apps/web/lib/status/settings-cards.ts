@@ -22,6 +22,7 @@ export const SETTINGS_STATE_KEYS = [
   "team",
   "alerts",
   "ai",
+  "assistant",
   "categories",
   "tags",
   "status",
@@ -50,6 +51,13 @@ export type SettingsStateInput = {
   /** Alertes non résolues. */
   openAlerts: number | null;
   ai: { hasKey: boolean; lastError: string | null } | null;
+  /** IA de conversation (phase 17) : clé Venice, vérification et activation (`Setting` `assistant.venice`). */
+  assistant: {
+    hasKey: boolean;
+    lastError: string | null;
+    verifiedAt: string | null;
+    activation: "off" | "team" | "all";
+  } | null;
   categories: number | null;
   tags: number | null;
   /** Données des tuiles d'État du système (même règle « Tout va bien / N points à voir » que la page). */
@@ -126,6 +134,22 @@ export function aiState(ai: SettingsStateInput["ai"]): CardState | undefined {
   return { tone: "success", label: "Prêt" };
 }
 
+/**
+ * IA de conversation : clé refusée, clé absente (grave seulement si l'assistant est activé), désactivé, clé à vérifier,
+ * essai par l'équipe, ou actif pour tout le monde.
+ */
+export function assistantState(a: SettingsStateInput["assistant"]): CardState | undefined {
+  if (!a) return undefined;
+  if (a.hasKey && a.lastError)
+    return { tone: "danger", label: "Clé Venice refusée", title: a.lastError };
+  if (!a.hasKey)
+    return { tone: a.activation === "off" ? "muted" : "danger", label: "Clé Venice absente" };
+  if (a.activation === "off") return { tone: "muted", label: "Désactivé" };
+  if (!a.verifiedAt) return { tone: "warning", label: "Clé à vérifier" };
+  if (a.activation === "team") return { tone: "info", label: "Essai par l'équipe" };
+  return { tone: "success", label: "Actif pour tout le monde" };
+}
+
 /** Catégories de messages actives : « Aucune catégorie » ou « 5 catégories ». */
 export function categoriesState(n: number | null): CardState | undefined {
   if (n === null) return undefined;
@@ -168,6 +192,7 @@ export function settingsStates(input: SettingsStateInput, now: Date): SettingsSt
     team: teamState(input.team),
     alerts: alertsState(input.openAlerts),
     ai: aiState(input.ai),
+    assistant: assistantState(input.assistant),
     categories: categoriesState(input.categories),
     tags: tagsState(input.tags),
     status: systemState(input.health, now),
@@ -190,6 +215,7 @@ export const NO_STATE_INPUT: SettingsStateInput = {
   team: null,
   openAlerts: null,
   ai: null,
+  assistant: null,
   categories: null,
   tags: null,
   health: null,

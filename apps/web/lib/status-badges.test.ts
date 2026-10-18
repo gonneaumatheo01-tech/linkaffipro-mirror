@@ -6,10 +6,14 @@ import {
   ApprovalMode,
   AutomationRunStatus,
   AutomationTrigger,
+  BotMode,
   BroadcastStatus,
   CampaignStatus,
   ChatType,
   ConnectionStatus,
+  ConversationAuthor,
+  ConversationStage,
+  ConversationStatus,
   CostSource,
   CustomEmojiSource,
   ExpireAction,
@@ -73,6 +77,10 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["postPublisher", PostPublisher],
   ["customEmojiSource", CustomEmojiSource],
   ["landingEvent", LandingEventType],
+  ["botMode", BotMode],
+  ["conversationStage", ConversationStage],
+  ["conversationStatus", ConversationStatus],
+  ["conversationAuthor", ConversationAuthor],
 ];
 
 describe("badges de statut", () => {
@@ -118,6 +126,14 @@ describe("badges de statut", () => {
     expect(statusLabel("landingEvent", "HELP")).toBe("Aide affichée");
     expect(statusLabel("landingEvent", "ESCAPED")).toBe("Sorti de l'appli");
     expect(statusLabel("landingEvent", "AUTO_OPEN")).toBe("Ouverture automatique");
+    // Assistant de conversation (phase 17) : « parcours », jamais « entonnoir » ; étapes en mots simples.
+    expect(statusLabel("outboundKind", "ASSISTANT")).toBe("Assistant de conversation");
+    expect(statusLabel("botMode", "ASSISTANT")).toBe("Assistant de conversation");
+    expect(statusLabel("conversationStage", "LINK_SENT")).toBe("Lien envoyé");
+    expect(statusLabel("conversationStage", "CONVERTED")).toBe("Inscrit");
+    expect(statusLabel("conversationStatus", "HUMAN")).toBe("L'équipe a la main");
+    expect(statusTone("conversationStatus", "BOT")).toBe("success");
+    expect(statusLabel("conversationAuthor", "TEAM")).toBe("Équipe");
   });
 
   it("couvre aussi les statuts hors Prisma (synchro, connexion Telegram, actif)", () => {

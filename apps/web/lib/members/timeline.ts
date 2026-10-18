@@ -1,5 +1,6 @@
 /** Construction de la chronologie d'un membre : fusion de sources hétérogènes, triée par date (fonction pure). */
 
+import type { OutboundKind } from "@linkaffipro/db";
 import { withMinusSign } from "@/lib/campaigns/cards";
 import { fmtMoney } from "@/lib/format";
 import { eventLabel } from "@/lib/journal/event-labels";
@@ -80,7 +81,7 @@ const MEMBERSHIP_STATUS_LABEL: Record<string, string> = {
   FAILED: "Acceptation échouée",
 };
 
-const OUTBOUND_KIND_LABEL: Record<string, string> = {
+const OUTBOUND_KIND_LABEL: Record<OutboundKind, string> = {
   WELCOME: "Message d'accueil",
   GATE_REMINDER: "Rappel « rejoins les canaux »",
   ACCEPTED: "Message « accepté »",
@@ -88,6 +89,7 @@ const OUTBOUND_KIND_LABEL: Record<string, string> = {
   BROADCAST: "Message à un groupe",
   AUTOMATION: "Relance automatique",
   TEST: "Message de test",
+  ASSISTANT: "Message de l'assistant de conversation",
 };
 
 const PLAYER_EVENT_LABEL: Record<string, string> = {
@@ -181,7 +183,7 @@ export function buildTimeline(input: {
     out.push({
       at: o.sentAt ?? o.queuedAt,
       kind: "message",
-      title: `${OUTBOUND_KIND_LABEL[o.kind] ?? o.kind}${bot}`,
+      title: `${OUTBOUND_KIND_LABEL[o.kind as OutboundKind] ?? "Message du bot"}${bot}`,
       detail: status,
     });
   }

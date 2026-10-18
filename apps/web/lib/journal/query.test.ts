@@ -64,6 +64,10 @@ const REAL_ACTIONS = [
   "landing.test_page_updated",
   "invite_link.landing_created",
   "invite_link.landing_revoked",
+  "assistant.settings_saved",
+  "assistant.key_verified",
+  "assistant.key_removed",
+  "assistant.activation_changed",
 ];
 
 const where = (action: string) => journalWhere({ userId: "", action, from: "", to: "" });
@@ -126,6 +130,37 @@ describe("filtre « Type d'action » du Journal", () => {
       ACTION_FAMILIES.find((a) => a.prefixes.some((p) => "invite_link.share_created".startsWith(p)))
         ?.label,
     ).toBe("Campagnes et liens");
+  });
+
+  it("phase 17 : assistant de conversation (réglages, personas, conversations), en français", () => {
+    expect(actionLabel("assistant.settings_saved")).toBe(
+      "IA de conversation : réglages enregistrés",
+    );
+    expect(actionLabel("assistant.key_verified")).toBe("IA de conversation : clé vérifiée");
+    expect(actionLabel("assistant.key_removed")).toBe("IA de conversation : clé retirée");
+    expect(actionLabel("assistant.activation_changed")).toBe(
+      "IA de conversation : activation modifiée",
+    );
+    expect(actionLabel("assistant.autre")).toBe("IA de conversation");
+    expect(actionLabel("persona.created")).toBe("Persona créée");
+    expect(actionLabel("persona.tested")).toBe("Persona");
+    expect(actionLabel("conversation.taken_over")).toBe(
+      "Conversation : reprise en main par l'équipe",
+    );
+    expect(actionLabel("conversation.released")).toBe("Conversation : rendue à l'assistant");
+    expect(actionLabel("conversation.autre")).toBe("Conversation");
+    // L'assistant d'écriture garde sa propre famille.
+    expect(actionLabel("ai.key_verified")).toBe("Assistant IA");
+    expect(actionFamily("assistant.")?.label).toBe("Assistant de conversation");
+    expect(where("assistant.")).toEqual({
+      OR: [
+        { action: { startsWith: "assistant." } },
+        { action: { startsWith: "persona." } },
+        { action: { startsWith: "conversation." } },
+      ],
+    });
+    expect(entityLabel("Persona")).toBe("Persona");
+    expect(entityLabel("Conversation")).toBe("Conversation");
   });
 
   it("phase 13 : affiliés Link Affi (appels de Link Affi, clés, corrections d'affilié), en français", () => {

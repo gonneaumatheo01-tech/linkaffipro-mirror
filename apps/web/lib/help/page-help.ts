@@ -284,6 +284,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Assistant IA",
     sections: ["Réglages → IA", "Assistant IA pour écrire les messages"],
   },
+  {
+    // Phase 17 : l'IA de l'assistant de conversation (clé Venice, activation, limites), réservée aux administrateurs.
+    path: "/settings/assistant",
+    label: "IA de conversation",
+    sections: ["Réglages → IA de conversation"],
+  },
   { path: "/settings/categories", label: "Catégories", sections: ["Catégories de messages"] },
   { path: "/settings/tags", label: "Étiquettes", sections: ["Étiquettes de membres"] },
   { path: "/settings/journal", label: "Journal", sections: ["Réglages → Journal"] },

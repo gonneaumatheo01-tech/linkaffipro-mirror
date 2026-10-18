@@ -5,10 +5,14 @@ import type {
   ApprovalMode,
   AutomationRunStatus,
   AutomationTrigger,
+  BotMode,
   BroadcastStatus,
   CampaignStatus,
   ChatType,
   ConnectionStatus,
+  ConversationAuthor,
+  ConversationStage,
+  ConversationStatus,
   CostSource,
   CustomEmojiSource,
   ExpireAction,
@@ -108,6 +112,7 @@ export const STATUS_DICT = {
     BROADCAST: plain("Message à un groupe"),
     AUTOMATION: plain("Relance automatique"),
     TEST: muted("Test"),
+    ASSISTANT: plain("Assistant de conversation"),
   } satisfies Record<OutboundKind, StatusEntry>,
   alert: {
     INFO: muted("Info"),
@@ -272,6 +277,32 @@ export const STATUS_DICT = {
     ESCAPED: ok("Sorti de l'appli"),
     AUTO_OPEN: plain("Ouverture automatique"),
   } satisfies Record<LandingEventType, StatusEntry>,
+  // Assistant de conversation (phase 17) : mode du bot, étape du parcours, qui répond, auteur d'un message.
+  botMode: {
+    STANDARD: plain("Bot normal"),
+    ASSISTANT: main("Assistant de conversation"),
+  } satisfies Record<BotMode, StatusEntry>,
+  conversationStage: {
+    WELCOME: plain("Accueil"),
+    CHAT: main("Discussion"),
+    PROPOSAL: main("Proposition"),
+    LINK_SENT: main("Lien envoyé"),
+    FOLLOW_UP: warn("Relance"),
+    CONVERTED: ok("Inscrit"),
+    CLOSED: muted("Fermée"),
+  } satisfies Record<ConversationStage, StatusEntry>,
+  conversationStatus: {
+    BOT: ok("L'assistant répond"),
+    HUMAN: warn("L'équipe a la main"),
+    PAUSED: muted("En pause"),
+    CLOSED: muted("Fermée"),
+  } satisfies Record<ConversationStatus, StatusEntry>,
+  conversationAuthor: {
+    MEMBER: plain("Membre"),
+    ASSISTANT: plain("Assistant"),
+    TEAM: main("Équipe"),
+    SYSTEM: muted("Message automatique"),
+  } satisfies Record<ConversationAuthor, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

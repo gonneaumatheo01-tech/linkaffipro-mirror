@@ -3,10 +3,12 @@
  * (un MANAGER ne voit que Bots, IA et Journal) ; chaque bloc tolère une panne (`null` : pas de pastille plutôt
  * qu'une page en erreur). Règles reprises telles quelles : tuiles d'État du système (`getHealthInput`, connexion des
  * bots vérifiée auprès de Telegram en 5 s au plus, comme la page Bots), invitations en attente comme Réglages →
- * Équipe (non acceptées, non expirées), clé IA de `loadAiConfig`, registre des étiquettes `getTagRegistry`.
+ * Équipe (non acceptées, non expirées), clé IA de `loadAiConfig`, IA de conversation de `loadAssistantConfig`,
+ * registre des étiquettes `getTagRegistry`.
  */
 import { prisma } from "@linkaffipro/db";
 import { loadAiConfig } from "@/lib/ai/config";
+import { loadAssistantConfig } from "@/lib/assistant/config";
 import { getTagRegistry } from "@/lib/members/tags";
 import type { BotHealth } from "./health";
 import { botStatuses, getHealthInput, type HealthInput } from "./queries";
@@ -53,6 +55,7 @@ export async function loadSettingsStateInput(
     team,
     openAlerts,
     ai,
+    assistant,
     categories,
     tags,
     postbacks,
@@ -102,6 +105,17 @@ export async function loadSettingsStateInput(
           "IA",
         )
       : skip,
+    need("assistant")
+      ? safe(
+          loadAssistantConfig().then((c) => ({
+            hasKey: Boolean(c.apiKeyEncrypted),
+            lastError: c.lastError,
+            verifiedAt: c.verifiedAt,
+            activation: c.activation,
+          })),
+          "IA de conversation",
+        )
+      : skip,
     need("categories")
       ? safe(prisma.messageCategory.count({ where: { isActive: true } }), "catégories")
       : skip,
@@ -125,6 +139,7 @@ export async function loadSettingsStateInput(
     team,
     openAlerts,
     ai,
+    assistant,
     categories,
     tags,
     postbacks,

@@ -821,7 +821,7 @@ Les membres regroupés par semaine d'arrivée (première demande d'adhésion) : 
 
 ## Réglages
 
-Réglages réunit tout ce qui se règle une fois pour toute l'équipe, en cartes : **Connexions**, **Bots**, **Équipe**, **Alertes et rapports**, **IA**, **Catégories et étiquettes**, **Journal**, **État du système** et **Avancé**. Chaque carte dit en une phrase à quoi elle sert et montre son état d'un coup d'œil (« Link Affi synchronisé il y a 2 min », « Clé IA absente », « 2 points à voir ») : pastille verte, tout va bien ; jaune, à surveiller ; rouge, à corriger.
+Réglages réunit tout ce qui se règle une fois pour toute l'équipe, en cartes : **Connexions**, **Bots**, **Équipe**, **Alertes et rapports**, **IA**, **IA de conversation**, **Catégories et étiquettes**, **Journal**, **État du système** et **Avancé**. Chaque carte dit en une phrase à quoi elle sert et montre son état d'un coup d'œil (« Link Affi synchronisé il y a 2 min », « Clé IA absente », « 2 points à voir ») : pastille verte, tout va bien ; jaune, à surveiller ; rouge, à corriger.
 
 Chacun ne voit que les cartes qu'il peut ouvrir : un administrateur voit tout ; un manager voit **Bots**, **IA** et **Journal** (pas les comptes, les jetons, les connexions ni les suppressions). Le bouton **Revoir la visite**, en haut à droite, relance la visite guidée et fait revenir la liste « À faire pour démarrer » de l'accueil.
 
@@ -925,7 +925,9 @@ Deux onglets : **Alertes** et **Rapports automatiques**.
 
 1. **Vérifier maintenant** force un passage.
 2. **Alertes récentes** : les alertes ouvertes d'abord ; la pastille du titre compte les alertes ouvertes. Cliquez sur une alerte pour son détail, puis **Marquer résolue** si le problème est réglé (elle se rouvre si la cause revient).
-3. **Seuils** : **Chute des inscriptions (%)** (50 par défaut), **Dépense sans inscription (€)** (50 par défaut), **Départs d'un canal (%)** (10 par défaut), puis **Enregistrer les seuils** (effet au prochain passage, 5 minutes).
+3. **Alertes sur vos chiffres** : trois alertes, chacune avec son seuil et sa case **Alerte activée** : **Chute des inscriptions (%)** (50 par défaut), **Dépense sans inscription (€)** (50 par défaut), **Départs d'un canal (%)** (10 par défaut, alerte « Canal qui perd ses membres »), puis **Enregistrer** (effet au prochain passage, 5 minutes).
+   - Pour ne plus recevoir une de ces alertes, décochez sa case **Alerte activée**, puis **Enregistrer**. Elle n'est plus envoyée ; si elle était ouverte, elle se ferme toute seule. Son seuil est gardé : recochez la case pour la réactiver.
+   - Les autres alertes (bot, synchro, sauvegarde, message en échec…) restent toujours actives.
 4. **Conservation des données** : **Durée en mois (de 6 à 120)**, puis **Enregistrer la durée**. Règle de l'équipe : 24 mois. Au-delà, les membres inactifs sont anonymisés chaque nuit et leurs événements supprimés (les chiffres des joueurs sont gardés).
 5. **Avancé : purge manuelle** : **Lancer la purge maintenant**, seulement pour effacer tout de suite après avoir réduit la durée.
 
@@ -949,6 +951,17 @@ Les alertes partent vers le Telegram des administrateurs liés dans **Mon compte
 4. En bas : **Usage du mois** (coût estimé au centime ; en dessous d'un centime, « moins de 0,01 € ») et **Historique** des 50 dernières demandes (cliquez sur une ligne pour le détail, avec le coût exact). **Retirer la clé** désactive l'assistant pour toute l'équipe.
 
 Un manager voit la page en lecture seule. Une réponse coupée compte dans le plafond : elle a été facturée.
+
+### Réglages → IA de conversation
+
+**À quoi ça sert.** Brancher l'IA (Venice) de l'**assistant de conversation** : le bot dédié à l'univers Rencontres qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes, se présente toujours comme l'assistante ou l'assistant du canal et envoie le lien de l'offre au bon moment. Page réservée aux administrateurs. La pastille à côté du titre dit à qui l'assistant répond.
+
+1. Créez la clé (5 minutes, une seule fois ; guide en bas de page) : https://venice.ai/settings/api → ajoutez du crédit → **Generate New API Key** → type **Inference Only** → **Generate** → copiez la clé (elle ne s'affiche qu'une fois).
+2. Collez-la dans **Clé Venice**, puis cliquez sur **Enregistrer** et **Vérifier**. La vérification ne coûte rien : elle lit le solde Venice et la liste des modèles. La clé est chiffrée et ne s'affiche plus jamais en entier.
+3. **Qui reçoit une réponse** : **Désactivé** (par défaut : l'assistant ne répond à personne), **Seulement l'équipe (essai)** (seulement les comptes Telegram de l'équipe, reliés dans **Mon compte**) ou **Tout le monde**. Faites d'abord l'essai avec l'équipe.
+4. **Limites** : **Plafond mensuel (€)** (30 € par défaut ; à 0 €, aucune réponse) et **Réponses par jour et par conversation** (60 par défaut). Plafond atteint : l'assistant se tait jusqu'au mois suivant.
+5. **Avancé : modèles, créativité et longueur** : modèle par défaut et modèle de repli (avec leurs prix, du moins cher au plus cher), **Créativité des réponses** (0,85 conseillé) et **Longueur maximale des réponses** (400 conseillé). Les valeurs par défaut conviennent.
+6. En bas : **Dépense du mois** (coût estimé, part du plafond utilisée, conversations du mois). **Retirer la clé** désactive l'assistant ; les conversations restent.
 
 ### Réglages → Catégories et étiquettes
 

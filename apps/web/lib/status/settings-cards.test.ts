@@ -6,6 +6,7 @@ import {
   adPlatformState,
   aiState,
   alertsState,
+  assistantState,
   botsState,
   categoriesState,
   linkAffiState,
@@ -216,6 +217,36 @@ describe("pastilles des cartes de Réglages", () => {
       title: "401 invalid x-api-key",
     });
     expect(aiState({ hasKey: true, lastError: null })?.label).toBe("Prêt");
+  });
+
+  it("IA de conversation : refusée, absente, désactivée, à vérifier, essai par l'équipe, actif", () => {
+    const a = (over: Partial<NonNullable<Parameters<typeof assistantState>[0]>> = {}) =>
+      assistantState({
+        hasKey: true,
+        lastError: null,
+        verifiedAt: "2026-10-18T10:00:00.000Z",
+        activation: "all",
+        ...over,
+      });
+    expect(assistantState(null)).toBeUndefined();
+    expect(a({ lastError: "Solde Venice vide" })).toEqual({
+      tone: "danger",
+      label: "Clé Venice refusée",
+      title: "Solde Venice vide",
+    });
+    // Sans clé : grave seulement si l'assistant est activé (il ne peut répondre à personne).
+    expect(a({ hasKey: false, activation: "off" })).toEqual({
+      tone: "muted",
+      label: "Clé Venice absente",
+    });
+    expect(a({ hasKey: false, activation: "team" })).toEqual({
+      tone: "danger",
+      label: "Clé Venice absente",
+    });
+    expect(a({ activation: "off" })).toEqual({ tone: "muted", label: "Désactivé" });
+    expect(a({ verifiedAt: null })).toEqual({ tone: "warning", label: "Clé à vérifier" });
+    expect(a({ activation: "team" })).toEqual({ tone: "info", label: "Essai par l'équipe" });
+    expect(a()).toEqual({ tone: "success", label: "Actif pour tout le monde" });
   });
 
   it("état du système : tout va bien, sinon le nombre de tuiles qui ne sont pas vertes", () => {

@@ -2,8 +2,8 @@ import type { Role } from "@linkaffipro/core";
 import type { SettingsStateKey } from "@/lib/status/settings-cards";
 
 /**
- * Cartes de la page Réglages (docs/REFONTE-UX.md) : les 15 sous-pages rangées en 9 cartes, dans l'ordre de la
- * spécification. Une carte = une icône (choisie par `key` dans components/settings/settings-card-grid.tsx), un titre,
+ * Cartes de la page Réglages (docs/REFONTE-UX.md) : les sous-pages rangées en 10 cartes, dans l'ordre de la
+ * spécification (phase 17 : « IA de conversation » juste après « IA », réservée aux administrateurs). Une carte = une icône (choisie par `key` dans components/settings/settings-card-grid.tsx), un titre,
  * une phrase, une pastille d'état facultative (`state`, calculée dans lib/status/settings-cards.ts) et, pour les
  * cartes qui regroupent plusieurs pages, la liste de leurs liens (`links`, chacun avec sa pastille).
  * `managers` : la carte s'affiche aussi pour un MANAGER (sinon, réservée aux administrateurs).
@@ -11,7 +11,16 @@ import type { SettingsStateKey } from "@/lib/status/settings-cards";
  * cacher une carte n'ouvre ni ne ferme rien.
  */
 export type SettingsCardKey =
-  "connections" | "bots" | "team" | "alerts" | "ai" | "content" | "journal" | "status" | "advanced";
+  | "connections"
+  | "bots"
+  | "team"
+  | "alerts"
+  | "ai"
+  | "assistant"
+  | "content"
+  | "journal"
+  | "status"
+  | "advanced";
 
 export type SettingsLink = {
   href: string;
@@ -85,6 +94,14 @@ export const SETTINGS_CARDS: SettingsCard[] = [
     href: "/settings/ai",
     state: "ai",
     managers: true,
+  },
+  {
+    key: "assistant",
+    title: "IA de conversation",
+    description:
+      "L'assistant qui discute en privé avec les personnes : clé Venice, plafond et activation.",
+    href: "/settings/assistant",
+    state: "assistant",
   },
   {
     key: "content",

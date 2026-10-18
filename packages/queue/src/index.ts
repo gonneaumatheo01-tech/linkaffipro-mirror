@@ -1,6 +1,7 @@
 export * from "./jobs";
 export { getRedis, getQueue, enqueue, closeQueues, safeJobId } from "./client";
 export { enqueueDm } from "./outbound";
+export { enqueueChatTurn, CHAT_TURN_DEBOUNCE_MS } from "./chat";
 export type { EnqueueDmInput, DmButton } from "./outbound";
 export { emitAutomationEvent } from "./automations";
 export { emitLinkaffiEvent } from "./linkaffi-events";

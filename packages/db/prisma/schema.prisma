@@ -196,6 +196,8 @@ enum OutboundKind {
   BROADCAST
   AUTOMATION
   TEST
+  /// Phase 17 : message de l'assistant de conversation (ou de l'équipe dans une conversation reprise en main).
+  ASSISTANT
 }
 
 /// Statut d'un message privé sortant.
@@ -333,6 +335,9 @@ model User {
   aiSuggestions        AiSuggestion[]
   customEmojis         CustomEmoji[]
   landingPages         LandingPage[]
+  personasCreated      Persona[]
+  conversationsTaken   Conversation[]
+  conversationMessages ConversationMessage[]
 }
 
 /// Invitation à rejoindre l'équipe, créée par un ADMIN.
@@ -380,6 +385,11 @@ model Bot {
   webhookSecret  String
   lastWebhookAt  DateTime?
   lastError      String?
+  /// Phase 17 : bot normal (STANDARD) ou assistant de conversation (ASSISTANT, persona liée). Un bot ASSISTANT n'est
+  /// jamais choisi automatiquement (bot principal, liens, relances, envois à un groupe).
+  mode           BotMode   @default(STANDARD)
+  personaId      String?
+  persona        Persona?  @relation(fields: [personaId], references: [id], onDelete: SetNull)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -395,6 +405,10 @@ model Bot {
   outboundMessages   OutboundMessage[]
   mediaTelegramFiles MediaAssetTelegramFile[]
   broadcasts         Broadcast[]
+  conversations      Conversation[]
+  assistantOffers    AssistantOfferLink[]
+
+  @@index([mode])
 }
 
 /// Canal (ou groupe) Telegram détecté automatiquement.
@@ -480,6 +494,8 @@ model Member {
   outboundMessages OutboundMessage[]
   notes            MemberNote[]
   automationRuns   AutomationRun[]
+  conversations    Conversation[]
+  assistantOffers  AssistantOfferLink[]
 
   @@index([linkaffiAffiliateId])
   @@index([linkaffiCampaignKey])
@@ -729,6 +745,10 @@ model TrackingLink {
   /// message de canal (phase 10). Relance supprimée : le lien reste utilisable, le rattachement est effacé.
   automationRuleId    String?
   automationRule      AutomationRule?    @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
+  /// Phase 17 : lien OFFER stable d'une persona de l'assistant de conversation (slug déterministe). Persona supprimée :
+  /// le lien reste utilisable, le rattachement est effacé.
+  personaId           String?
+  persona             Persona?           @relation(fields: [personaId], references: [id], onDelete: SetNull)
   isActive            Boolean            @default(true)
   createdById         String?
   createdBy           User?              @relation(fields: [createdById], references: [id])
@@ -738,8 +758,9 @@ model TrackingLink {
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
-  clickRecords Click[]
-  ad           Ad?
+  clickRecords    Click[]
+  ad              Ad?
+  assistantOffers AssistantOfferLink[]
 
   @@index([kind, isActive])
   @@index([postId])
@@ -748,23 +769,24 @@ model TrackingLink {
   @@index([channelId])
   @@index([affiliateCampaignId])
   @@index([automationRuleId])
+  @@index([personaId])
 }
 
 /// Clic sur un lien traqué ou un bouton. `subId` unique pour les clics OFFER (12 caractères base62, sans point).
 model Click {
-  id                          String       @id @default(cuid())
+  id                          String        @id @default(cuid())
   trackingLinkId              String
-  trackingLink                TrackingLink @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
-  subId                       String?      @unique
+  trackingLink                TrackingLink  @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+  subId                       String?       @unique
   memberId                    String?
-  member                      Member?      @relation(fields: [memberId], references: [id])
+  member                      Member?       @relation(fields: [memberId], references: [id])
   postId                      String?
-  post                        Post?        @relation(fields: [postId], references: [id])
+  post                        Post?         @relation(fields: [postId], references: [id])
   botId                       String?
-  bot                         Bot?         @relation(fields: [botId], references: [id])
+  bot                         Bot?          @relation(fields: [botId], references: [id])
   ipHash                      String?
   userAgent                   String?
-  isBot                       Boolean      @default(false)
+  isBot                       Boolean       @default(false)
   referer                     String?
   country                     String?
   ttclid                      String?
@@ -775,11 +797,16 @@ model Click {
   destination                 String?
   /// Campagne Telegram d'affilié Link Affi du membre au moment du clic d'offre (paramètre `tg`, phase 13).
   linkaffiTelegramCampaignKey String?
-  createdAt                   DateTime     @default(now())
+  /// Phase 17 : conversation de l'assistant dont le lien d'offre a été ouvert (première ouverture humaine).
+  conversationId              String?
+  conversation                Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  createdAt                   DateTime      @default(now())
 
-  players Player[]
+  players        Player[]
+  assistantOffer AssistantOfferLink?
 
   @@index([linkaffiTelegramCampaignKey])
+  @@index([conversationId])
   @@index([memberId, createdAt])
   @@index([trackingLinkId, createdAt])
   @@index([postId, createdAt])
@@ -824,6 +851,7 @@ model MediaAsset {
   sequenceSteps    SequenceStep[]
   broadcasts       Broadcast[]
   outboundMessages OutboundMessage[]
+  personas         Persona[]
 }
 
 /// Identifiant Telegram d'un média une fois envoyé par un bot (réutilisable sans ré-upload).
@@ -1034,6 +1062,9 @@ model OutboundMessage {
   queuedAt          DateTime        @default(now())
   sentAt            DateTime?
 
+  /// Phase 17 : message de conversation correspondant (kind ASSISTANT).
+  conversationMessage ConversationMessage?
+
   @@index([memberId, queuedAt])
   @@index([status, queuedAt])
   @@index([broadcastId, status])
@@ -1084,6 +1115,7 @@ model AffiliateCampaign {
   players       Player[]
   trackingLinks TrackingLink[]
   dailyStats    AffiliateDailyStat[]
+  personas      Persona[]
 
   @@unique([programId, externalId])
   @@index([campaignKey])
@@ -1251,6 +1283,7 @@ model Campaign {
   adSets        AdSet[]
   costs         AdCost[]
   dailyStats    DailyStat[]
+  personas      Persona[]
 }
 
 /// Groupe de pubs (adset / ad group) d'une campagne.
@@ -1838,4 +1871,269 @@ model LandingEvent {
   @@index([landingPageId, type, createdAt])
   @@index([visitId])
   @@index([createdAt])
+}
+
+// ─── Phase 17 : assistant de conversation (rencontres), contrat docs/ASSISTANT-CONVERSATION.md ─────────────────────
+
+/// Mode d'un bot : bot normal ou assistant de conversation (réglé par un ADMIN dans Réglages → Bots).
+enum BotMode {
+  STANDARD
+  ASSISTANT
+}
+
+/// Étape du parcours d'une conversation : ACCUEIL → DISCUSSION → PROPOSITION → LIEN ENVOYÉ → RELANCE → CONVERTI → FERMÉ.
+enum ConversationStage {
+  WELCOME
+  CHAT
+  PROPOSAL
+  LINK_SENT
+  FOLLOW_UP
+  CONVERTED
+  CLOSED
+}
+
+/// Qui répond : l'assistant (BOT), l'équipe (HUMAN, reprise en main), personne pour l'instant (PAUSED), conversation
+/// fermée (CLOSED : /stop, mineur, équipe, blocage).
+enum ConversationStatus {
+  BOT
+  HUMAN
+  PAUSED
+  CLOSED
+}
+
+/// Sens d'un message de conversation : reçu de la personne (IN) ou envoyé par le bot (OUT).
+enum ConversationDirection {
+  IN
+  OUT
+}
+
+/// Auteur d'un message de conversation : la personne, l'assistant, un membre de l'équipe, ou un texte fixe du système.
+enum ConversationAuthor {
+  MEMBER
+  ASSISTANT
+  TEAM
+  SYSTEM
+}
+
+/// Persona de l'assistant : prénom, personnalité et ton d'un assistant ASSUMÉ (jamais une vraie personne), règles du
+/// parcours et offre liée. Le premier message et la description du bot disent « l'assistante » / « l'assistant ».
+model Persona {
+  id                      String             @id @default(cuid())
+  /// Prénom affiché, ex. « Léa ».
+  name                    String
+  /// "F" → « l'assistante », "M" → « l'assistant ».
+  gender                  String             @default("F")
+  personality             String             @default("")
+  tone                    String             @default("")
+  /// Langues de réponse (codes de packages/telegram/src/i18n.ts : fr en es pt de it), la première par défaut.
+  languages               String[]           @default(["fr"])
+  interests               String[]           @default([])
+  extraPrompt             String?
+  /// Modèle Venice ; null = modèle par défaut des réglages.
+  model                   String?
+  /// Température ; null = réglage général (0,85).
+  temperature             Float?
+  /// Messages de la personne avant tout lien (jamais au premier message).
+  minExchangesBeforeOffer Int                @default(4)
+  /// Intérêt d'au moins 6/10 exigé avant le lien.
+  requireInterest         Boolean            @default(true)
+  /// Envois du lien par conversation (1 à 3).
+  maxOfferSends           Int                @default(2)
+  /// Première relance après X heures de silence (au moins 4) ; la seconde au moins 24 h après la première.
+  followUpAfterHours      Int                @default(24)
+  /// Relances après un silence (0 à 2, jamais plus de 2).
+  followUpsMax            Int                @default(2)
+  /// Offre Link Affi liée.
+  affiliateCampaignId     String?
+  affiliateCampaign       AffiliateCampaign? @relation(fields: [affiliateCampaignId], references: [id], onDelete: SetNull)
+  /// Notre campagne : rattachement des statistiques.
+  campaignId              String?
+  campaign                Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  /// Fiche de l'offre : seuls éléments que l'assistant peut dire de l'offre (ni chiffres inventés, ni promesses).
+  offerPitch              String             @default("")
+  offerButtonText         String             @default("Découvrir l'app")
+  /// Visuel de l'app ou de l'offre (jamais un « selfie »).
+  offerMediaAssetId       String?
+  offerMediaAsset         MediaAsset?        @relation(fields: [offerMediaAssetId], references: [id], onDelete: SetNull)
+  /// Description du bot (≤ 512) et description courte (≤ 120) : disent « assistant(e) ».
+  botDescription          String?
+  botShortDescription     String?
+  isActive                Boolean            @default(false)
+  createdById             String?
+  createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  bots          Bot[]
+  conversations Conversation[]
+  trackingLinks TrackingLink[]
+  offerLinks    AssistantOfferLink[]
+  usages        AiConversationUsage[]
+}
+
+/// Conversation privée entre un bot ASSISTANT et une personne qui lui a écrit d'elle-même (une par bot et par membre).
+/// Supprimée avec le membre ou le bot ; `/reset` efface les messages, le résumé, les faits et le style.
+model Conversation {
+  id              String             @id @default(cuid())
+  botId           String
+  bot             Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)
+  memberId        String
+  member          Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// Persona du bot au premier message.
+  personaId       String?
+  persona         Persona?           @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  /// Paramètre du /start (nettoyé : [A-Za-z0-9_-]{1,64}), premier reçu, jamais écrasé.
+  source          String?
+  stage           ConversationStage  @default(WELCOME)
+  status          ConversationStatus @default(BOT)
+  /// Profil de style de la personne (longueur, emojis, registre, langue, ton, intérêt), fusionné à chaque tour.
+  styleProfile    Json               @default("{}")
+  /// Résumé roulant des messages anciens.
+  summary         String?
+  /// Faits dits par la personne elle-même (JSON : string[], 20 au plus).
+  facts           Json               @default("[]")
+  /// Langue de réponse courante.
+  language        String?
+  isMinor         Boolean            @default(false)
+  /// /stop (définitif : plus aucune réponse ni relance).
+  stoppedAt       DateTime?
+  closedAt        DateTime?
+  /// STOP | MINOR | TEAM | BLOCKED (bot bloqué) | UNREACHABLE.
+  closedReason    String?
+  takenOverById   String?
+  takenOverBy     User?              @relation(fields: [takenOverById], references: [id], onDelete: SetNull)
+  takenOverAt     DateTime?
+  /// Messages de la personne (échanges).
+  memberMessages  Int                @default(0)
+  assistantTurns  Int                @default(0)
+  offerSends      Int                @default(0)
+  lastInboundAt   DateTime?
+  lastAssistantAt DateTime?
+  followUpCount   Int                @default(0)
+  nextFollowUpAt  DateTime?
+  /// Nouvel essai après une panne de l'IA.
+  retryAt         DateTime?
+  convertedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  messages   ConversationMessage[]
+  events     ConversationEvent[]
+  offerLinks AssistantOfferLink[]
+  clicks     Click[]
+  usages     AiConversationUsage[]
+
+  @@unique([botId, memberId])
+  @@index([status, nextFollowUpAt])
+  @@index([status, retryAt])
+  @@index([personaId, createdAt])
+  @@index([source])
+  @@index([lastInboundAt])
+  @@index([memberId])
+}
+
+/// Message d'une conversation (texte brut, jamais de HTML). Purgé avec les données personnelles et par /reset.
+model ConversationMessage {
+  id                String                @id @default(cuid())
+  conversationId    String
+  conversation      Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction         ConversationDirection
+  author            ConversationAuthor
+  /// Membre de l'équipe auteur du message (author TEAM).
+  teamUserId        String?
+  teamUser          User?                 @relation(fields: [teamUserId], references: [id], onDelete: SetNull)
+  /// Texte brut ; média sans légende : "".
+  text              String
+  /// { kind: "photo"|"sticker"|"voice"|"video"|"document"|"other", mediaAssetId? }.
+  media             Json?
+  /// { offerSubId?, model?, rejected?: string[], followUp?: true, neutral?: true, command? }.
+  meta              Json                  @default("{}")
+  telegramMessageId BigInt?
+  /// Message privé sortant correspondant (OUT, kind ASSISTANT).
+  outboundMessageId String?               @unique
+  outboundMessage   OutboundMessage?      @relation(fields: [outboundMessageId], references: [id], onDelete: SetNull)
+  /// IN : tour qui l'a traité ; OUT : tour qui l'a produit.
+  turnId            String?
+  /// OUT assistant : rang dans le tour (0 à 2).
+  partIndex         Int?
+  createdAt         DateTime              @default(now())
+
+  @@unique([conversationId, direction, telegramMessageId])
+  @@unique([turnId, partIndex])
+  @@index([conversationId, createdAt])
+  @@index([conversationId, direction, turnId])
+}
+
+/// Événement d'une conversation (append-only, aucun texte) : statistiques du parcours, survit à /reset.
+/// `type` : stage_changed | offer_sent | offer_opened | follow_up_sent | stopped | reset | minor | taken_over |
+/// released | blocked | closed | ai_failed | cap_reached | daily_limit | converted.
+model ConversationEvent {
+  id             String             @id @default(cuid())
+  conversationId String
+  conversation   Conversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type           String
+  fromStage      ConversationStage?
+  toStage        ConversationStage?
+  payload        Json               @default("{}")
+  createdAt      DateTime           @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Lien d'offre envoyé par l'assistant : un sub-ID unique par conversation et par envoi (`go.goolink.eu/a/<subId>`).
+/// Le `Click` est créé à la première ouverture humaine.
+model AssistantOfferLink {
+  id             String        @id @default(cuid())
+  /// newSubId() de core (12 caractères base62).
+  subId          String        @unique
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  personaId      String?
+  persona        Persona?      @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  botId          String
+  bot            Bot           @relation(fields: [botId], references: [id], onDelete: Cascade)
+  memberId       String?
+  member         Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  /// Lien OFFER de la persona.
+  trackingLinkId String
+  trackingLink   TrackingLink  @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+  /// Copie de `Conversation.source` (statistiques après suppression de la conversation).
+  source         String?
+  sentAt         DateTime      @default(now())
+  firstOpenedAt  DateTime?
+  opens          Int           @default(0)
+  clickId        String?       @unique
+  click          Click?        @relation(fields: [clickId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([personaId, sentAt])
+}
+
+/// Coût d'un appel à l'IA de conversation (Venice), sur le modèle d'`AiSuggestion`. Le plafond mensuel est la somme de
+/// `costEur` depuis le début du mois à Paris.
+model AiConversationUsage {
+  id             String        @id @default(cuid())
+  personaId      String?
+  persona        Persona?      @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  /// null pour « Tester ».
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  /// REPLY | FOLLOW_UP | SUMMARY | TEST.
+  purpose        String
+  model          String
+  inputTokens    Int           @default(0)
+  outputTokens   Int           @default(0)
+  costEur        Decimal       @db.Decimal(10, 4)
+  ok             Boolean
+  /// Code d'erreur (auth, balance, rate_limit, server, invalid_output…).
+  error          String?
+  attempt        Int           @default(1)
+  /// En-tête CF-RAY.
+  requestId      String?
+  createdAt      DateTime      @default(now())
+
+  @@index([createdAt])
+  @@index([personaId, createdAt])
+  @@index([conversationId])
 }

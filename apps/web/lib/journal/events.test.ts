@@ -120,6 +120,42 @@ describe("Journal → vue « Événements »", () => {
     );
   });
 
+  it("phase 17 : famille « Assistant de conversation », chaque événement du contrat a son libellé", () => {
+    const types = [
+      "stage_changed",
+      "offer_sent",
+      "offer_opened",
+      "follow_up_sent",
+      "stopped",
+      "reset",
+      "minor",
+      "taken_over",
+      "released",
+      "blocked",
+      "closed",
+      "ai_failed",
+      "cap_reached",
+      "daily_limit",
+      "converted",
+    ];
+    const labels = types.map((t) => EVENT_TYPE_LABELS[`conversation.${t}`]);
+    for (const [i, label] of labels.entries()) expect(label, types[i]).toBeTruthy();
+    // Deux événements différents ne se lisent jamais pareil.
+    expect(new Set(labels).size).toBe(types.length);
+    expect(eventLabel("conversation.minor")).toBe(
+      "Conversation fermée : la personne a moins de 18 ans",
+    );
+    expect(eventLabel("conversation.offer_opened")).toBe("Conversation : lien de l'offre ouvert");
+    expect(eventLabel("conversation.autre")).toBe("Assistant de conversation");
+    expect(EVENT_FAMILIES.find((f) => f.prefix === "conversation.")?.label).toBe(
+      "Assistant de conversation",
+    );
+    expect(
+      eventsWhere({ type: "conversation.", channelId: "", botId: "", from: "", to: "" }).AND,
+    ).toContainEqual({ type: { startsWith: "conversation." } });
+    for (const label of labels) expect(label).not.toMatch(/entonnoir|dating|sub-?id/i);
+  });
+
   it("phase 14 : injoignable distinct de bloqué, validation automatique, règle réappliquée", () => {
     // Sans détail : libellé neutre (le refus couvre aussi un compte supprimé, un chat introuvable…).
     expect(eventLabel("dm.unreachable")).toBe(

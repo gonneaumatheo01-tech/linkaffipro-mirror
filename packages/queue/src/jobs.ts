@@ -17,6 +17,7 @@ export const QUEUE_NAMES = [
   "custom-emoji",
   "linkaffi-events",
   "landing-events",
+  "chat",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -122,6 +123,8 @@ export const JOB_RETRY_OPTIONS: Record<
   "linkaffi-events": { attempts: 1 },
   // Pages d'atterrissage (phase 15) : écriture d'une visite ou d'un clic, sans doublon (identifiant fixé à l'ajout).
   "landing-events": { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
+  // Assistant de conversation (phase 17) : un seul essai ; la reprise passe par le balayage `sweep` (Postgres fait foi).
+  chat: { attempts: 1 },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -196,6 +199,18 @@ export type LandingEventData = {
 /** File `landing-events` (phase 15) : `event` = une ligne `LandingEvent` à écrire. */
 export type LandingEventsJob = { type: "event"; event: LandingEventData };
 
+/**
+ * File `chat` (phase 17, assistant de conversation, contrat `docs/ASSISTANT-CONVERSATION.md` §5) :
+ * - `turn` : un tour de la conversation (réponse ou relance : le worker décide d'après la base, qui fait foi) ;
+ * - `sweep` : balayage périodique (messages non traités, tours bloqués, nouvel essai après panne, relances dues,
+ *   conversions) ;
+ * - `refresh-models` : liste des modèles Venice et leurs prix (cache du réglage `assistant.venice`).
+ */
+export type ChatJob =
+  | { type: "turn"; conversationId: string }
+  | { type: "sweep" }
+  | { type: "refresh-models" };
+
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
   : Q extends "approvals"
@@ -218,4 +233,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                     ? LinkaffiEventsJob
                     : Q extends "landing-events"
                       ? LandingEventsJob
-                      : StatsJob;
+                      : Q extends "chat"
+                        ? ChatJob
+                        : StatsJob;

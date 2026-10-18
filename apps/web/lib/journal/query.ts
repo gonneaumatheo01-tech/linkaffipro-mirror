@@ -102,6 +102,22 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^postback\./, "Retour du casino"],
   [/^category\./, "Catégorie"],
   [/^ai\./, "Assistant IA"],
+  // Assistant de conversation (phase 17) : réglages de l'IA de conversation, personas, conversations (équipe).
+  [/^assistant\.settings_saved$/, "IA de conversation : réglages enregistrés"],
+  [/^assistant\.key_verified$/, "IA de conversation : clé vérifiée"],
+  [/^assistant\.key_removed$/, "IA de conversation : clé retirée"],
+  [/^assistant\.activation_changed$/, "IA de conversation : activation modifiée"],
+  [/^assistant\./, "IA de conversation"],
+  [/^persona\.created$/, "Persona créée"],
+  [/^persona\.updated$/, "Persona modifiée"],
+  [/^persona\.deleted$/, "Persona supprimée"],
+  [/^persona\./, "Persona"],
+  [/^conversation\.taken_over$/, "Conversation : reprise en main par l'équipe"],
+  [/^conversation\.released$/, "Conversation : rendue à l'assistant"],
+  [/^conversation\.message_sent$/, "Conversation : message envoyé par l'équipe"],
+  [/^conversation\.blocked$/, "Conversation bloquée"],
+  [/^conversation\.closed$/, "Conversation fermée"],
+  [/^conversation\./, "Conversation"],
   [/^settings\./, "Réglage"],
   [/^alert\./, "Alerte"],
   [/^maintenance\./, "Maintenance"],
@@ -144,6 +160,12 @@ export const ACTION_FAMILIES: ReadonlyArray<{
     value: "membership.",
     label: "Adhésions et règles d'adhésion",
     prefixes: ["membership.", "approval_rule."],
+  },
+  // Phase 17 : réglages de l'IA de conversation, personas et actions de l'équipe dans les conversations.
+  {
+    value: "assistant.",
+    label: "Assistant de conversation",
+    prefixes: ["assistant.", "persona.", "conversation."],
   },
   { value: "ai.", label: "Assistant IA", prefixes: ["ai."] },
   { value: "bot.", label: "Bots", prefixes: ["bot."] },
@@ -325,6 +347,8 @@ const ENTITY_LABELS: Record<string, string> = {
   IntegrationKey: "Connexion Link Affi",
   LandingPage: "Page d'atterrissage",
   LandingSource: "Source d'une page",
+  Persona: "Persona",
+  Conversation: "Conversation",
 };
 
 export function entityLabel(entityType: string | null | undefined): string {

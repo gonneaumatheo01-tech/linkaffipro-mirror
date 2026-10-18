@@ -12,6 +12,7 @@ import { processSyncViews, repeatableSyncViews } from "./sync-views";
 import { processCustomEmoji, repeatableCustomEmoji } from "./custom-emoji";
 import { processLinkaffiEvents, repeatableLinkaffiEvents } from "./linkaffi-events";
 import { processLandingEvents, repeatableLandingEvents } from "./landing-events";
+import { processChat, repeatableChat } from "./chat";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -33,4 +34,7 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   // Pages d'atterrissage (phase 15) : écriture des visites, clics et ouvertures (une ligne par envoi, sans ordre à
   // garder) ; plusieurs à la fois pour suivre le trafic des pubs.
   "landing-events": { process: (job: Job) => processLandingEvents(job), repeatable: repeatableLandingEvents, concurrency: 8 },
+  // Assistant de conversation (phase 17) : plusieurs conversations à la fois, une seule tâche à la fois par conversation
+  // (déduplication BullMQ + verrou Redis + réclamation des messages en base).
+  chat: { process: (job: Job) => processChat(job), repeatable: repeatableChat, concurrency: 8 },
 };

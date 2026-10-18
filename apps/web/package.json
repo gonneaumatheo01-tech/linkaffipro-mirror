@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.8.0",
     "@ip-location-db/dbip-country-mmdb": "2.3.2026060120",
     "@linkaffipro/ai": "workspace:*",
+    "@linkaffipro/chat": "workspace:*",
     "@linkaffipro/connectors": "workspace:*",
     "@linkaffipro/core": "workspace:*",
     "@linkaffipro/db": "workspace:*",

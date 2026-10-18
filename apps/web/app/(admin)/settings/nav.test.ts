@@ -5,13 +5,14 @@ import { SETTINGS_STATE_KEYS } from "@/lib/status/settings-cards";
 import { SETTINGS_CARDS, settingsCardsFor, settingsHrefs, stateKeysOf } from "./nav";
 
 describe("cartes de la page Réglages", () => {
-  it("les 9 cartes de la spécification, dans l'ordre", () => {
+  it("les 10 cartes de la spécification, dans l'ordre", () => {
     expect(SETTINGS_CARDS.map((c) => c.title)).toEqual([
       "Connexions",
       "Bots",
       "Équipe",
       "Alertes et rapports",
       "IA",
+      "IA de conversation",
       "Catégories et étiquettes",
       "Journal",
       "État du système",
@@ -60,6 +61,16 @@ describe("cartes de la page Réglages", () => {
 
   it("un administrateur voit toutes les cartes, dans l'ordre", () => {
     expect(settingsCardsFor("ADMIN")).toEqual(SETTINGS_CARDS);
+  });
+
+  it("phase 17 : « IA de conversation » ouvre /settings/assistant, réservée aux administrateurs", () => {
+    const card = SETTINGS_CARDS.find((c) => c.key === "assistant")!;
+    expect(card.href).toBe("/settings/assistant");
+    expect(card.managers).toBeUndefined();
+    expect(card.state).toBe("assistant");
+    expect(card.description).not.toMatch(/dating|entonnoir/i);
+    expect(settingsCardsFor("ADMIN").map((c) => c.href)).toContain("/settings/assistant");
+    expect(settingsCardsFor("MANAGER").map((c) => c.href)).not.toContain("/settings/assistant");
   });
 
   it("un manager ne voit que ce qu'il peut ouvrir (Bots, IA, Journal)", () => {
