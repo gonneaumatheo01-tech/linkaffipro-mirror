@@ -76,9 +76,13 @@ export type ChoiceGroup = { label: string; options: Array<{ value: string; label
  * Offres Link Affi proposées : celles de l'univers Rencontres d'abord, puis les autres ; l'offre déjà liée reste
  * proposée même si elle n'est plus active (signalée).
  */
+/** Nom complet d'une offre dans la liste (« Offre · Programme », « (inactive) ») : repris sous la liste, en entier. */
+export function offerChoiceLabel(o: OfferChoice): string {
+  return `${o.name}${o.programName && o.programName !== o.name ? ` · ${o.programName}` : ""}${o.isActive ? "" : " (inactive)"}`;
+}
+
 export function offerChoiceGroups(offers: readonly OfferChoice[]): ChoiceGroup[] {
-  const label = (o: OfferChoice) =>
-    `${o.name}${o.programName && o.programName !== o.name ? ` · ${o.programName}` : ""}${o.isActive ? "" : " (inactive)"}`;
+  const label = offerChoiceLabel;
   const sorted = [...offers].sort((a, b) => a.name.localeCompare(b.name, "fr"));
   const dating = sorted.filter((o) => o.vertical === "DATING");
   const others = sorted.filter((o) => o.vertical !== "DATING");

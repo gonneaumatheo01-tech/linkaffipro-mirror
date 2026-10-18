@@ -42,7 +42,8 @@ export const DEMO_PREFIX = "Démo · ";
 /** Identifiants Telegram des membres de démonstration : bien au-delà des vrais comptes (≈ 8 × 10⁹ aujourd'hui). */
 export const DEMO_MEMBER_ID_BASE = 990_000_000_000n;
 const DEMO_MEMBER_ID_END = DEMO_MEMBER_ID_BASE + 1_000_000n;
-const DEMO_BOT_IDS = [9_900_000_001n, 9_900_000_002n, 9_900_000_003n];
+/** Bots de démonstration : les trois bots d'univers, puis le bot de l'assistante de conversation (phase 17). */
+const DEMO_BOT_IDS = [9_900_000_001n, 9_900_000_002n, 9_900_000_003n, 9_900_000_004n];
 /** Canaux de démonstration : six canaux habituels, puis les trois du cas du client de la phase 11 (7, 8, 9). */
 const DEMO_CHAT_IDS = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n].map((n) => -1_009_900_000_000n - n);
 const MEMBER_COUNT = 300;
@@ -539,12 +540,22 @@ async function removeDemo(db: Db): Promise<Record<string, number>> {
       where: {
         OR: [
           { telegramBotId: { in: DEMO_BOT_IDS } },
-          { username: { in: BOTS.map((b) => b.username) } },
+          { username: { in: [...BOTS.map((b) => b.username), P17_BOT.username] } },
         ],
       },
       select: { id: true },
     })
   ).map((b) => b.id);
+  // Phase 17 : coûts de l'IA de la persona de démonstration et de ses conversations (sans eux, la suppression de la
+  // persona et des conversations les laisserait sans rattachement).
+  const p17Conversations = (
+    await db.conversation.findMany({ where: { botId: { in: bots } }, select: { id: true } })
+  ).map((c) => c.id);
+  const p17Usages = await db.aiConversationUsage.deleteMany({
+    where: {
+      OR: [{ personaId: P17_PERSONA_ID }, { conversationId: { in: p17Conversations } }],
+    },
+  });
   const channels = (
     await db.channel.findMany({
       where: { telegramChatId: { in: DEMO_CHAT_IDS } },
@@ -583,6 +594,7 @@ async function removeDemo(db: Db): Promise<Record<string, number>> {
 
   const n: Record<string, number> = {};
   const count = (k: string, r: { count: number }) => (n[k] = (n[k] ?? 0) + r.count);
+  count("coûts de l'IA de conversation", p17Usages);
   count(
     "événements",
     await db.event.deleteMany({
@@ -650,7 +662,10 @@ async function removeDemo(db: Db): Promise<Record<string, number>> {
     "relances automatiques",
     await db.automationRule.deleteMany({ where: { name: { startsWith: DEMO_PREFIX } } }),
   );
+  // Le bot de l'assistante emporte ses conversations (messages, événements, liens de l'offre) ; la persona de
+  // démonstration est retirée par son identifiant fixe (jamais une persona créée par l'équipe).
   count("bots", await db.bot.deleteMany({ where: { id: { in: bots } } }));
+  count("personas", await db.persona.deleteMany({ where: { id: P17_PERSONA_ID } }));
   count(
     "catégories",
     await db.messageCategory.deleteMany({ where: { slug: { startsWith: "demo-" } } }),
@@ -2091,6 +2106,44 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
     },
   });
 
+  // Phase 17 : assistant de conversation (bot assistant, persona « Léa », réglage sans clé, six conversations).
+  // Personnes : membres de démonstration francophones, entrés dans un canal Rencontres il y a 7 à 59 jours, sans joueur.
+  const datingJoined = new Set(
+    memberships
+      .filter(
+        (ms) =>
+          (ms.channelKey === "datingParis" || ms.channelKey === "datingLyon") &&
+          ms.joinedAt &&
+          !ms.leftAt,
+      )
+      .map((ms) => ms.memberId),
+  );
+  const withPlayer = new Set(players.map((p) => p.memberId).filter(Boolean));
+  const datingCampaign = CAMPAIGNS.findIndex((c) => c.vertical === "DATING");
+  const phase17 = await createPhase17Demo(db, {
+    now,
+    key: ctx.key,
+    adminId: users.admin,
+    managerId: users.manager,
+    offerId: offerId.datingA,
+    offerTemplate: offerTemplate.datingA,
+    campaignId: datingCampaign === -1 ? null : campaignIds[datingCampaign]!,
+    members: members
+      .filter(
+        (m) =>
+          !withPlayer.has(m.id) &&
+          now.getTime() - m.firstSeenAt.getTime() > 7 * DAY &&
+          now.getTime() - m.firstSeenAt.getTime() < 59 * DAY,
+      )
+      .map((m) => ({
+        id: m.id,
+        tgId: m.tgId,
+        firstName: m.firstName,
+        languageCode: m.languageCode,
+        dating: datingJoined.has(m.id),
+      })),
+  });
+
   // Étiquettes du registre (ajoutées sans rien retirer) et état de la synchronisation Link Affi (si absent).
   const regValue = (await db.setting.findUnique({ where: { key: "members.tags" } }))?.value;
   const registry = Array.isArray(regValue)
@@ -2138,7 +2191,7 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
   return {
     channelIds: [...Object.values(channelId), ...phase11.channelIds],
     counts: {
-      bots: BOTS.length,
+      bots: BOTS.length + 1, // + le bot de l'assistante (phase 17)
       canaux: CHANNELS.length + phase11.channelIds.length,
       campagnes: CAMPAIGNS.length,
       pubs: ads.length,
@@ -2175,6 +2228,10 @@ async function createDemo(db: Db, ctx: { now: Date; password: string; key: strin
       "phase 15 : demandes venues des pages": phase15.memberships,
       "phase 16 : aides « Ouvrir dans le navigateur » affichées": phase15.help,
       "phase 16 : visites sorties de l'appli vers Safari ou Chrome": phase15.escaped,
+      "phase 17 : conversations de l'assistante « Léa »": phase17.conversations,
+      "phase 17 : messages de conversation": phase17.messages,
+      "phase 17 : liens de l'offre envoyés": phase17.offerLinks,
+      "phase 17 : coûts de l'IA enregistrés": phase17.usages,
     },
   };
 }
@@ -4525,6 +4582,984 @@ async function createPhase15Demo(
     memberships: memberships.length,
     help: written.filter((e) => e.type === "HELP").length,
     escaped: written.filter((e) => e.type === "ESCAPED").length,
+  };
+}
+
+// ============================================================
+// Phase 17 : assistant de conversation (contrat docs/ASSISTANT-CONVERSATION.md)
+// ============================================================
+
+// Un 4e bot de démonstration en mode ASSISTANT (univers Rencontres, jeton factice chiffré, administrateur d'AUCUN canal),
+// lié à la persona « Léa » (active ; offre « Cœurs à prendre — Inscription gratuite » et campagne « Rencontres Été » ;
+// fiche de l'offre courte et vraie ; description du bot qui dit « l'assistante du canal »). Réglage `assistant.venice`
+// en « essai par l'équipe » et SANS clé : aucun appel à l'IA n'est possible depuis la base locale. Six conversations
+// écrites comme le feraient le webhook, le worker et l'équipe (tutoiement, messages courts, la première réponse de
+// l'assistante la présente toujours comme l'assistante du canal) : accueil seul, proposition, lien envoyé et ouvert,
+// inscription et premier dépôt, reprise par l'équipe, arrêt par /stop. Passages d'étape, liens de l'offre (un
+// identifiant de suivi par envoi), clics, coûts de l'IA (dont trois essais « Tester ») et journal sans aucun texte.
+// La personne de la conversation « lien envoyé » est reliée au compte Telegram du manager de démonstration : pendant
+// l'essai, c'est la seule à qui l'assistante répond (les autres lignes affichent « Personne ne répond »).
+// Aucun tirage au hasard : les données des autres phases restent exactement les mêmes.
+
+export const P17_BOT = {
+  name: `${DEMO_PREFIX}Léa · assistante Rencontres`,
+  username: "demo_lea_assistante_bot",
+  tgId: DEMO_BOT_IDS[3]!,
+  vertical: "DATING" as const,
+};
+export const P17_PERSONA_ID = stableId("persona:lea");
+const P17_MODEL = "venice-uncensored-role-play";
+
+/** Persona de démonstration : textes tels que l'équipe les saisirait dans la fiche. */
+export const P17_PERSONA = {
+  name: "Léa",
+  gender: "F",
+  personality:
+    "Souriante, curieuse et un brin taquine. Elle aime les voyages, les séries et les sorties entre amis. Elle écoute plus qu'elle ne parle et pose une seule question à la fois.",
+  tone: "Tutoiement, phrases courtes, un emoji de temps en temps. Jamais lourde ni insistante.",
+  languages: ["fr"],
+  interests: ["voyages", "séries", "concerts", "cuisine"],
+  extraPrompt:
+    "Si la personne n'a pas envie de parler de l'appli, n'insiste pas et continue simplement la discussion.",
+  offerPitch:
+    "Cœurs à prendre est une appli de rencontres. L'inscription est gratuite. On crée son profil en quelques minutes, on ajoute ses photos et ses centres d'intérêt, puis on découvre des profils selon ses critères.",
+  offerButtonText: "Découvrir l'app",
+  botDescription:
+    "Moi c'est Léa, l'assistante du canal Rencontres : une IA, pas une vraie personne. Écris-moi quand tu veux ! /stop pour arrêter, /reset pour tout effacer.",
+  botShortDescription: "Léa, l'assistante du canal (une IA)",
+} as const;
+
+/**
+ * Réglage `assistant.venice` (forme de `packages/chat/src/config.ts`) : essai par l'équipe, SANS clé (aucun appel
+ * possible), valeurs par défaut pour le reste, liste des modèles pas encore relue.
+ */
+export const P17_ASSISTANT_SETTING = {
+  apiKeyEncrypted: null,
+  activation: "team",
+  defaultModel: P17_MODEL,
+  fallbackModel: "venice-uncensored-1-2",
+  temperature: 0.85,
+  maxTokens: 400,
+  monthlyCapEur: 30,
+  perConversationDailyLimit: 60,
+  models: [],
+  modelsFetchedAt: null,
+  verifiedAt: null,
+  lastError: null,
+} as const;
+
+type P17Stage =
+  "WELCOME" | "CHAT" | "PROPOSAL" | "LINK_SENT" | "FOLLOW_UP" | "CONVERTED" | "CLOSED";
+/** Ligne du fil ; `ago` : minutes avant maintenant. */
+export type P17Line =
+  | { ago: number; kind: "start"; source: string | null }
+  | { ago: number; kind: "in"; text: string }
+  | { ago: number; kind: "lea"; text: string; offer?: true; followUp?: true }
+  | { ago: number; kind: "team"; text: string }
+  | { ago: number; kind: "stopDone"; text: string };
+export type P17Event = {
+  ago: number;
+  type: string;
+  from?: P17Stage;
+  to?: P17Stage;
+  payload?: Record<string, unknown>;
+};
+export type P17Conversation = {
+  key: string;
+  stage: P17Stage;
+  status: "BOT" | "HUMAN" | "CLOSED";
+  closedReason?: "STOP";
+  lines: P17Line[];
+  /** Événements du parcours (sans texte) ; les identifiants des liens sont ajoutés aux `offer_*`. */
+  events: P17Event[];
+  /** Première ouverture du lien de l'offre et nombre d'ouvertures. */
+  opened?: { ago: number; opens: number };
+  /** Inscription (et premier dépôt) rattachée au clic ; conversion relevée par le balayage du worker. */
+  player?: {
+    registeredAgo: number;
+    ftdAgo: number | null;
+    ftdAmount: number;
+    convertedAgo: number;
+  };
+  takenOverAgo?: number;
+  stoppedAgo?: number;
+  /** Personne reliée au compte Telegram du manager de démonstration (essai « Seulement l'équipe »). */
+  team?: true;
+  style: Record<string, string | number>;
+  facts: string[];
+  followUpCount?: number;
+};
+
+const P17_STOP_DONE = "C'est noté, je ne t'écrirai plus. Bonne continuation !";
+
+export const P17_CONVERSATIONS: P17Conversation[] = [
+  {
+    key: "accueil",
+    stage: "WELCOME",
+    status: "BOT",
+    lines: [
+      { ago: 26, kind: "start", source: "tk02" },
+      { ago: 25.9, kind: "lea", text: "Salut ! Moi c'est Léa, l'assistante du canal 😉" },
+      { ago: 25.8, kind: "lea", text: "Bienvenue par ici ! Qu'est-ce qui t'amène sur le canal ?" },
+    ],
+    events: [],
+    style: { language: "fr" },
+    facts: [],
+  },
+  {
+    key: "proposition",
+    stage: "PROPOSAL",
+    status: "BOT",
+    lines: [
+      { ago: 300, kind: "start", source: "insta" },
+      {
+        ago: 299.9,
+        kind: "lea",
+        text: "Hello ! Moi c'est Léa, l'assistante du canal 😊 Qu'est-ce qui t'amène ?",
+      },
+      { ago: 290, kind: "in", text: "je viens d'arriver à Paris et je connais pas grand monde" },
+      { ago: 289.8, kind: "lea", text: "Bienvenue à Paris alors ! Tu viens d'où à la base ?" },
+      { ago: 282, kind: "in", text: "de Nantes. dis moi t'es une vraie personne ?" },
+      {
+        ago: 281.8,
+        kind: "lea",
+        text: "Je préfère être franche : je suis une IA, l'assistante virtuelle du canal 🙂",
+      },
+      {
+        ago: 281.6,
+        kind: "lea",
+        text: "Mais je peux quand même te donner des idées pour rencontrer du monde !",
+      },
+      { ago: 275, kind: "in", text: "ok merci d'être honnête. tu conseilles quoi ?" },
+      {
+        ago: 274.8,
+        kind: "lea",
+        text: "Les afterworks et les cours collectifs, c'est top pour commencer.",
+      },
+      {
+        ago: 274.6,
+        kind: "lea",
+        text: "Et sinon il y a les applis de rencontres. Tu en as déjà essayé une ?",
+      },
+      { ago: 268, kind: "in", text: "jamais, ça me fait un peu peur" },
+      {
+        ago: 267.8,
+        kind: "lea",
+        text: "Je comprends 😊 Celle que l'équipe recommande, c'est Cœurs à prendre : une appli de rencontres, et l'inscription est gratuite. Ça te dirait d'y jeter un œil ?",
+      },
+    ],
+    events: [
+      { ago: 290, type: "stage_changed", from: "WELCOME", to: "CHAT" },
+      { ago: 267.8, type: "stage_changed", from: "CHAT", to: "PROPOSAL" },
+    ],
+    style: {
+      length: "short",
+      emojis: "none",
+      register: "casual",
+      language: "fr",
+      tone: "shy",
+      interest: 6,
+    },
+    facts: [
+      "vient d'arriver à Paris",
+      "vient de Nantes",
+      "n'a jamais essayé d'appli de rencontres",
+    ],
+  },
+  {
+    key: "lien-envoye",
+    stage: "LINK_SENT",
+    status: "BOT",
+    team: true,
+    lines: [
+      { ago: 1400, kind: "start", source: "tk01" },
+      {
+        ago: 1399.9,
+        kind: "lea",
+        text: "Salut, moi c'est Léa, l'assistante du canal 😊 Ravie de te voir ! Tu es du coin ?",
+      },
+      { ago: 1390, kind: "in", text: "salut Léa ! oui je suis sur Paris" },
+      { ago: 1389.8, kind: "lea", text: "Top ! Et tu fais quoi de ton temps libre ?" },
+      { ago: 1380, kind: "in", text: "du sport, des concerts, et voyager dès que je peux" },
+      {
+        ago: 1379.8,
+        kind: "lea",
+        text: "Les concerts, j'adore l'ambiance ! C'était quoi ton dernier ?",
+      },
+      { ago: 1370, kind: "in", text: "un festival cet été, c'était génial" },
+      {
+        ago: 1369.8,
+        kind: "lea",
+        text: "Ça devait être une super ambiance 🎶 Et côté rencontres, tu as déjà testé une appli ?",
+      },
+      { ago: 1360, kind: "in", text: "un peu mais j'ai pas trop accroché" },
+      {
+        ago: 1359.8,
+        kind: "lea",
+        text: "Je vois. Celle que l'équipe recommande, c'est Cœurs à prendre : l'inscription est gratuite et tu choisis toi-même tes critères.",
+      },
+      {
+        ago: 1359.6,
+        kind: "lea",
+        text: "Je te laisse le lien ici si tu veux regarder 😉",
+        offer: true,
+      },
+      { ago: 1350, kind: "in", text: "ok je regarde ça ce soir" },
+      { ago: 1349.8, kind: "lea", text: "Super ! Tu me diras ce que tu en penses 😊" },
+    ],
+    events: [
+      { ago: 1390, type: "stage_changed", from: "WELCOME", to: "CHAT" },
+      { ago: 1359.8, type: "stage_changed", from: "CHAT", to: "PROPOSAL" },
+      { ago: 1359.6, type: "stage_changed", from: "PROPOSAL", to: "LINK_SENT" },
+      { ago: 1359.6, type: "offer_sent", payload: { offerSends: 1 } },
+      { ago: 1290, type: "offer_opened" },
+    ],
+    opened: { ago: 1290, opens: 2 },
+    style: {
+      length: "medium",
+      emojis: "few",
+      register: "casual",
+      language: "fr",
+      tone: "chatty",
+      interest: 8,
+    },
+    facts: [
+      "habite à Paris",
+      "aime le sport, les concerts et les voyages",
+      "a déjà essayé une appli de rencontres sans accrocher",
+    ],
+  },
+  {
+    key: "inscrit",
+    stage: "CONVERTED",
+    status: "BOT",
+    lines: [
+      { ago: 7300, kind: "start", source: "meta1" },
+      {
+        ago: 7299.9,
+        kind: "lea",
+        text: "Coucou ! Moi c'est Léa, l'assistante du canal 😉 Comment tu vas ?",
+      },
+      { ago: 7290, kind: "in", text: "ça va et toi ? je cherche quelqu'un de sérieux" },
+      {
+        ago: 7289.8,
+        kind: "lea",
+        text: "Ça va bien, merci ! Sérieux, c'est noté 🙂 Tu es de quelle ville ?",
+      },
+      { ago: 7282, kind: "in", text: "Lyon" },
+      {
+        ago: 7281.8,
+        kind: "lea",
+        text: "Lyon, belle ville ! Plutôt un verre en terrasse ou une balade au bord du Rhône ?",
+      },
+      { ago: 7275, kind: "in", text: "un verre en terrasse c'est parfait" },
+      {
+        ago: 7274.8,
+        kind: "lea",
+        text: "Je valide 😄 L'équipe recommande Cœurs à prendre : une appli de rencontres, l'inscription est gratuite.",
+      },
+      { ago: 7268, kind: "in", text: "ah ouais envoie" },
+      {
+        ago: 7267.8,
+        kind: "lea",
+        text: "Voilà le lien 👇 Tu crées ton profil en quelques minutes.",
+        offer: true,
+      },
+      { ago: 7230, kind: "in", text: "c'est bon je me suis inscrit !" },
+      {
+        ago: 7229.8,
+        kind: "lea",
+        text: "Génial ! Ajoute de belles photos et tes centres d'intérêt, ça aide vraiment 😊",
+      },
+      { ago: 7225, kind: "in", text: "merci Léa" },
+      { ago: 7224.8, kind: "lea", text: "Avec plaisir ! Bonne chance pour tes rencontres 🍀" },
+    ],
+    events: [
+      { ago: 7290, type: "stage_changed", from: "WELCOME", to: "CHAT" },
+      { ago: 7274.8, type: "stage_changed", from: "CHAT", to: "PROPOSAL" },
+      { ago: 7267.8, type: "stage_changed", from: "PROPOSAL", to: "LINK_SENT" },
+      { ago: 7267.8, type: "offer_sent", payload: { offerSends: 1 } },
+      { ago: 7262, type: "offer_opened" },
+      { ago: 7234, type: "stage_changed", from: "LINK_SENT", to: "CONVERTED" },
+      { ago: 7234, type: "converted" },
+    ],
+    opened: { ago: 7262, opens: 1 },
+    player: { registeredAgo: 7236, ftdAgo: 4300, ftdAmount: 20, convertedAgo: 7234 },
+    style: {
+      length: "short",
+      emojis: "few",
+      register: "casual",
+      language: "fr",
+      tone: "direct",
+      interest: 9,
+    },
+    facts: ["cherche une relation sérieuse", "habite à Lyon", "aime les verres en terrasse"],
+  },
+  {
+    key: "equipe",
+    stage: "CHAT",
+    status: "HUMAN",
+    lines: [
+      { ago: 600, kind: "start", source: "tk02" },
+      {
+        ago: 599.9,
+        kind: "lea",
+        text: "Salut ! Moi c'est Léa, l'assistante du canal 😊 Qu'est-ce qui t'amène ?",
+      },
+      { ago: 590, kind: "in", text: "bonjour, je vois pas les messages du canal, c'est normal ?" },
+      {
+        ago: 589.8,
+        kind: "lea",
+        text: "Hmm, tu as bien rejoint le canal ? Parfois il suffit de rouvrir Telegram 🙂",
+      },
+      { ago: 585, kind: "in", text: "oui j'ai demandé à rejoindre mais je vois toujours rien" },
+      {
+        ago: 581,
+        kind: "team",
+        text: "Bonjour, ici l'équipe du canal 👋 Je prends le relais : ta demande pour rejoindre le canal était encore en attente, elle vient d'être acceptée. Tu devrais tout voir maintenant !",
+      },
+      { ago: 570, kind: "in", text: "ah oui ça marche, merci beaucoup !" },
+    ],
+    events: [
+      { ago: 590, type: "stage_changed", from: "WELCOME", to: "CHAT" },
+      { ago: 587, type: "taken_over", payload: { fromStatus: "BOT", via: "button" } },
+    ],
+    takenOverAgo: 587,
+    style: { length: "short", emojis: "none", register: "neutral", language: "fr", tone: "direct" },
+    facts: ["a demandé à rejoindre le canal"],
+  },
+  {
+    key: "stop",
+    stage: "CLOSED",
+    status: "CLOSED",
+    closedReason: "STOP",
+    lines: [
+      { ago: 5800, kind: "start", source: null },
+      {
+        ago: 5799.9,
+        kind: "lea",
+        text: "Hello ! Moi c'est Léa, l'assistante du canal 😉 Tu cherches quoi par ici ?",
+      },
+      { ago: 5790, kind: "in", text: "je sais pas trop, je regarde" },
+      {
+        ago: 5789.8,
+        kind: "lea",
+        text: "Pas de souci, prends ton temps 🙂 Tu es plutôt sorties ou soirées canapé ?",
+      },
+      {
+        ago: 4349,
+        kind: "lea",
+        followUp: true,
+        text: "Coucou ! Je repasse juste te souhaiter une bonne journée 😊 Si tu as une question sur le canal, je suis là.",
+      },
+      // /stop (avec la barre oblique) n'est pas gardé dans le fil : seule la réponse fixe l'est.
+      { ago: 4200, kind: "stopDone", text: P17_STOP_DONE },
+    ],
+    events: [
+      { ago: 5790, type: "stage_changed", from: "WELCOME", to: "CHAT" },
+      { ago: 4349, type: "follow_up_sent", payload: { number: 1 } },
+      { ago: 4349, type: "stage_changed", from: "CHAT", to: "FOLLOW_UP" },
+      { ago: 4200, type: "stopped" },
+      {
+        ago: 4200,
+        type: "stage_changed",
+        from: "FOLLOW_UP",
+        to: "CLOSED",
+        payload: { reason: "STOP" },
+      },
+    ],
+    stoppedAgo: 4200,
+    followUpCount: 1,
+    style: {
+      length: "short",
+      emojis: "none",
+      register: "casual",
+      language: "fr",
+      tone: "dry",
+      interest: 2,
+    },
+    facts: [],
+  },
+];
+
+/** Prénoms masculins du catalogue : public habituel des canaux Rencontres de démonstration. */
+const P17_MEMBER_NAMES = new Set([
+  "Lucas",
+  "Hugo",
+  "Louis",
+  "Nathan",
+  "Enzo",
+  "Théo",
+  "Mathis",
+  "Tom",
+  "Noah",
+  "Gabriel",
+  "Raphaël",
+  "Arthur",
+  "Maxime",
+  "Antoine",
+  "Yanis",
+  "Karim",
+  "Mehdi",
+  "Paul",
+]);
+
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+/** Identifiant de suivi stable (12 caractères base62, comme `newSubId()`), le même à chaque passe. */
+export function p17SubId(key: string): string {
+  const digest = createHash("sha256").update(`linkaffipro-demo:subid:${key}`).digest();
+  let out = "";
+  for (let i = 0; i < 12; i++) out += BASE62[digest[i]! % 62];
+  return out;
+}
+
+/** Nom court du lien Offre d'une persona : même formule que `assistantOfferSlug` du worker (lien réutilisé par lui). */
+function p17OfferSlug(personaId: string, affiliateCampaignId: string): string {
+  const digest = createHash("sha256")
+    .update(`assistant-offer:${personaId}:${affiliateCampaignId}`)
+    .digest();
+  let out = "";
+  for (let i = 0; i < 10; i++) out += BASE62[digest[i]! % 62];
+  return out;
+}
+
+function p17EscapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Personnes des six conversations : membres francophones d'un canal Rencontres d'abord, puis tout membre francophone,
+ * puis n'importe qui (repli) ; ordre stable (identifiant Telegram).
+ */
+export function pickP17Members<
+  T extends { id: string; tgId: bigint; firstName: string; languageCode: string; dating: boolean },
+>(candidates: readonly T[], count: number): T[] {
+  const sorted = [...candidates].sort((a, b) => (a.tgId < b.tgId ? -1 : a.tgId > b.tgId ? 1 : 0));
+  const tiers = [
+    (m: T) => m.dating && m.languageCode === "fr" && P17_MEMBER_NAMES.has(m.firstName),
+    (m: T) => m.languageCode === "fr" && P17_MEMBER_NAMES.has(m.firstName),
+    (m: T) => m.languageCode === "fr",
+    () => true,
+  ];
+  const out: T[] = [];
+  for (const keep of tiers)
+    for (const m of sorted) {
+      if (out.length >= count) return out;
+      if (keep(m) && !out.includes(m)) out.push(m);
+    }
+  return out;
+}
+
+async function createPhase17Demo(
+  db: Db,
+  ctx: {
+    now: Date;
+    key: string;
+    adminId: string;
+    managerId: string;
+    offerId: string;
+    offerTemplate: string;
+    campaignId: string | null;
+    members: Array<{
+      id: string;
+      tgId: bigint;
+      firstName: string;
+      languageCode: string;
+      dating: boolean;
+    }>;
+  },
+) {
+  const { now } = ctx;
+  const ago = (min: number) => new Date(now.getTime() - Math.round(min * MIN));
+  const people = pickP17Members(ctx.members, P17_CONVERSATIONS.length);
+  if (people.length < P17_CONVERSATIONS.length)
+    throw new Error("phase 17 : pas assez de membres de démonstration pour les conversations.");
+
+  // Réglages de l'assistant : essai par l'équipe, sans clé (jamais d'appel à l'IA depuis la base locale).
+  await db.setting.upsert({
+    where: { key: "assistant.venice" },
+    create: {
+      key: "assistant.venice",
+      value: P17_ASSISTANT_SETTING as unknown as Prisma.InputJsonValue,
+    },
+    update: { value: P17_ASSISTANT_SETTING as unknown as Prisma.InputJsonValue },
+  });
+
+  // Persona « Léa », puis son bot (aucun droit d'administrateur sur un canal).
+  const personaCreatedAt = ago(8 * 24 * 60);
+  await db.persona.create({
+    data: {
+      id: P17_PERSONA_ID,
+      ...P17_PERSONA,
+      languages: [...P17_PERSONA.languages],
+      interests: [...P17_PERSONA.interests],
+      minExchangesBeforeOffer: 4,
+      requireInterest: true,
+      maxOfferSends: 2,
+      followUpAfterHours: 24,
+      followUpsMax: 2,
+      affiliateCampaignId: ctx.offerId,
+      campaignId: ctx.campaignId,
+      isActive: true,
+      createdById: ctx.adminId,
+      createdAt: personaCreatedAt,
+    },
+  });
+  const botId = stableId("bot:assistant:lea");
+  await db.bot.create({
+    data: {
+      id: botId,
+      name: P17_BOT.name,
+      username: P17_BOT.username,
+      telegramBotId: P17_BOT.tgId,
+      tokenEncrypted: encrypt(`${P17_BOT.tgId}:DEMO-ASSISTANT-jeton-factice-hors-service`, ctx.key),
+      vertical: P17_BOT.vertical,
+      isActive: true,
+      webhookSecret: randomToken(16),
+      lastWebhookAt: ago(3),
+      mode: "ASSISTANT",
+      personaId: P17_PERSONA_ID,
+      createdAt: personaCreatedAt,
+    },
+  });
+
+  // Trois essais « Tester » de la fiche de la persona (coût compté, sans conversation).
+  const usages: Prisma.AiConversationUsageCreateManyInput[] = [0, 1, 2].map((i) => ({
+    id: stableId(`p17:usage:test:${i}`),
+    personaId: P17_PERSONA_ID,
+    conversationId: null,
+    source: null,
+    purpose: "TEST",
+    model: P17_MODEL,
+    inputTokens: 1650 + i * 140,
+    outputTokens: 70 + i * 12,
+    costEur: (0.0007 + i * 0.0001).toFixed(4),
+    ok: true,
+    createdAt: ago(8 * 24 * 60 - 20 - i * 6),
+  }));
+
+  // Lien Offre de la persona (créé au premier envoi, réutilisé ensuite).
+  const offerLinks = P17_CONVERSATIONS.filter((c) =>
+    c.lines.some((l) => l.kind === "lea" && l.offer),
+  );
+  const firstOfferAgo = Math.max(
+    ...offerLinks.flatMap((c) =>
+      c.lines.filter((l) => l.kind === "lea" && l.offer).map((l) => l.ago),
+    ),
+  );
+  const trackingLinkId = stableId("p17:offer-tracking");
+  await db.trackingLink.create({
+    data: {
+      id: trackingLinkId,
+      slug: p17OfferSlug(P17_PERSONA_ID, ctx.offerId),
+      kind: "OFFER",
+      destinationTemplate: ctx.offerTemplate,
+      label: `Assistant « ${P17_PERSONA.name} »`,
+      affiliateCampaignId: ctx.offerId,
+      campaignId: ctx.campaignId,
+      personaId: P17_PERSONA_ID,
+      clicks: offerLinks.filter((c) => c.opened).length,
+      uniqueClicks: offerLinks.filter((c) => c.opened).length,
+      createdAt: ago(firstOfferAgo),
+    },
+  });
+
+  const states: Prisma.MemberBotStateCreateManyInput[] = [];
+  const outbound: Prisma.OutboundMessageCreateManyInput[] = [];
+  const messages: Prisma.ConversationMessageCreateManyInput[] = [];
+  const convEvents: Prisma.ConversationEventCreateManyInput[] = [];
+  const journal: Prisma.EventCreateManyInput[] = [];
+  let offerLinkCount = 0;
+  let teamTgId: bigint | null = null;
+
+  for (const [ci, c] of P17_CONVERSATIONS.entries()) {
+    const person = people[ci]!;
+    const convId = stableId(`p17:conversation:${c.key}`);
+    const start = c.lines.find((l) => l.kind === "start");
+    const source = start && start.kind === "start" ? start.source : null;
+    const startedAt = ago(c.lines[0]!.ago);
+    if (c.team) teamTgId = person.tgId;
+    states.push({
+      id: stableId(`p17:state:${c.key}`),
+      memberId: person.id,
+      botId,
+      canDm: true,
+      startedAt,
+      lastDmAt: ago(
+        Math.min(
+          ...c.lines
+            .filter((l) => l.kind === "lea" || l.kind === "team" || l.kind === "stopDone")
+            .map((l) => l.ago),
+        ),
+      ),
+    });
+    journal.push({
+      type: "member.start",
+      occurredAt: startedAt,
+      memberId: person.id,
+      botId,
+      payload: { payload: source, demo: true },
+    });
+
+    // Lien de l'offre de cette conversation (un identifiant de suivi par envoi) et son clic à la première ouverture.
+    const offerLine = c.lines.find((l) => l.kind === "lea" && l.offer);
+    const subId = offerLine ? p17SubId(c.key) : null;
+    const clickId = c.opened ? stableId(`p17:click:${c.key}`) : null;
+    const offerLinkId = subId ? stableId(`p17:offer-link:${c.key}`) : null;
+
+    // Fil : un tour de l'assistante = ses messages consécutifs ; chaque message reçu est rattaché au tour qui l'a traité.
+    let turn = 0;
+    let part = 0;
+    let tgMessageId = 0;
+    let prevKind: P17Line["kind"] | null = null;
+    let pendingIn: number[] = [];
+    let lastInboundAgo: number | null = null;
+    let lastAssistantAgo: number | null = null;
+    let memberMessages = 0;
+    let assistantTurns = 0;
+    let offerSends = 0;
+    for (const [li, l] of c.lines.entries()) {
+      tgMessageId++;
+      const at = ago(l.ago);
+      const id = stableId(`p17:message:${c.key}:${li}`);
+      if (l.kind === "start" || l.kind === "in") {
+        lastInboundAgo = l.ago;
+        if (l.kind === "in") memberMessages++;
+        messages.push({
+          id,
+          conversationId: convId,
+          direction: "IN",
+          author: "MEMBER",
+          text: l.kind === "start" ? "/start" : l.text,
+          meta:
+            l.kind === "start"
+              ? { command: "start", ...(l.source ? { source: l.source } : {}) }
+              : {},
+          telegramMessageId: BigInt(tgMessageId),
+          createdAt: at,
+        });
+        pendingIn.push(messages.length - 1);
+      } else if (l.kind === "lea") {
+        // Nouveau tour : après un message reçu (ou de l'équipe), ou une relance après un silence.
+        if (prevKind !== "lea" || l.followUp) {
+          turn++;
+          part = 0;
+          assistantTurns++;
+          const turnId = `p17-${c.key}-${turn}`;
+          // Messages reçus traités par ce tour (le webhook les a enregistrés, le worker les a réclamés).
+          for (const i of pendingIn)
+            messages[i] = {
+              ...messages[i]!,
+              turnId,
+              meta: { ...(messages[i]!.meta as object), turnDone: true },
+            };
+          pendingIn = [];
+          usages.push({
+            id: stableId(`p17:usage:${c.key}:${turn}`),
+            personaId: P17_PERSONA_ID,
+            conversationId: convId,
+            source,
+            purpose: l.followUp ? "FOLLOW_UP" : "REPLY",
+            model: P17_MODEL,
+            inputTokens: 1700 + turn * 180,
+            outputTokens: 60 + ((turn * 23) % 70),
+            costEur: (0.0007 + turn * 0.00012).toFixed(4),
+            ok: true,
+            createdAt: new Date(at.getTime() - 3_000),
+          });
+        }
+        lastAssistantAgo = l.ago;
+        const omId = stableId(`p17:outbound:${c.key}:${li}`);
+        const offer = l.offer && subId ? subId : null;
+        if (offer) offerSends++;
+        outbound.push({
+          id: omId,
+          botId,
+          memberId: person.id,
+          kind: "ASSISTANT",
+          text: p17EscapeHtml(l.text),
+          buttons: offer
+            ? [[{ text: P17_PERSONA.offerButtonText, url: `https://go.goolink.eu/a/${offer}` }]]
+            : [],
+          status: "SENT",
+          telegramMessageId: tgMessageId,
+          queuedAt: new Date(at.getTime() - 2_000),
+          sentAt: at,
+        });
+        messages.push({
+          id,
+          conversationId: convId,
+          direction: "OUT",
+          author: "ASSISTANT",
+          text: l.text,
+          meta: {
+            ...(offer ? { offerSubId: offer } : {}),
+            ...(l.followUp ? { followUp: true } : {}),
+          },
+          telegramMessageId: BigInt(tgMessageId),
+          outboundMessageId: omId,
+          turnId: `p17-${c.key}-${turn}`,
+          partIndex: part++,
+          createdAt: at,
+        });
+      } else if (l.kind === "team") {
+        const omId = stableId(`p17:outbound:${c.key}:${li}`);
+        outbound.push({
+          id: omId,
+          botId,
+          memberId: person.id,
+          kind: "ASSISTANT",
+          text: p17EscapeHtml(l.text),
+          buttons: [],
+          status: "SENT",
+          telegramMessageId: tgMessageId,
+          queuedAt: new Date(at.getTime() - 2_000),
+          sentAt: at,
+        });
+        messages.push({
+          id,
+          conversationId: convId,
+          direction: "OUT",
+          author: "TEAM",
+          teamUserId: ctx.adminId,
+          text: l.text,
+          meta: {},
+          telegramMessageId: BigInt(tgMessageId),
+          outboundMessageId: omId,
+          createdAt: at,
+        });
+        // Messages reçus pendant la reprise : lus par l'équipe, jamais confiés à l'assistante.
+        pendingIn = [];
+      } else {
+        messages.push({
+          id,
+          conversationId: convId,
+          direction: "OUT",
+          author: "SYSTEM",
+          text: l.text,
+          meta: { fixed: "stopDone" },
+          telegramMessageId: BigInt(tgMessageId),
+          createdAt: at,
+        });
+      }
+      prevKind = l.kind;
+    }
+
+    const nextFollowUpAt =
+      c.status === "BOT" &&
+      (c.stage === "CHAT" || c.stage === "PROPOSAL" || c.stage === "LINK_SENT") &&
+      lastAssistantAgo !== null
+        ? new Date(ago(lastAssistantAgo).getTime() + 24 * HOUR)
+        : null;
+    await db.conversation.create({
+      data: {
+        id: convId,
+        botId,
+        memberId: person.id,
+        personaId: P17_PERSONA_ID,
+        source,
+        stage: c.stage,
+        status: c.status,
+        styleProfile: {
+          ...c.style,
+          updatedAt: ago(lastAssistantAgo ?? c.lines[0]!.ago).toISOString(),
+        },
+        facts: c.facts,
+        language: "fr",
+        stoppedAt: c.stoppedAgo !== undefined ? ago(c.stoppedAgo) : null,
+        closedAt: c.status === "CLOSED" && c.stoppedAgo !== undefined ? ago(c.stoppedAgo) : null,
+        closedReason: c.closedReason ?? null,
+        takenOverById: c.takenOverAgo !== undefined ? ctx.adminId : null,
+        takenOverAt: c.takenOverAgo !== undefined ? ago(c.takenOverAgo) : null,
+        memberMessages,
+        assistantTurns,
+        offerSends,
+        lastInboundAt: lastInboundAgo !== null ? ago(lastInboundAgo) : null,
+        lastAssistantAt: lastAssistantAgo !== null ? ago(lastAssistantAgo) : null,
+        followUpCount: c.followUpCount ?? 0,
+        nextFollowUpAt: nextFollowUpAt && nextFollowUpAt > now ? nextFollowUpAt : null,
+        convertedAt: c.player ? ago(c.player.convertedAgo) : null,
+        createdAt: startedAt,
+      },
+    });
+
+    if (subId && offerLine) {
+      offerLinkCount++;
+      if (clickId && c.opened) {
+        await db.click.create({
+          data: {
+            id: clickId,
+            trackingLinkId,
+            subId,
+            memberId: person.id,
+            botId,
+            conversationId: convId,
+            userAgent:
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Telegram-iOS",
+            country: "FR",
+            isBot: false,
+            destination: fillUrlTemplate(ctx.offerTemplate, { subid: subId }),
+            createdAt: ago(c.opened.ago),
+          },
+        });
+        journal.push({
+          type: "click.offer",
+          occurredAt: ago(c.opened.ago),
+          memberId: person.id,
+          botId,
+          payload: {
+            clickId,
+            subId,
+            trackingLinkId,
+            postId: null,
+            conversationId: convId,
+            via: "assistant",
+            demo: true,
+          },
+        });
+      }
+      await db.assistantOfferLink.create({
+        data: {
+          id: offerLinkId!,
+          subId,
+          conversationId: convId,
+          personaId: P17_PERSONA_ID,
+          botId,
+          memberId: person.id,
+          trackingLinkId,
+          source,
+          sentAt: ago(offerLine.ago),
+          firstOpenedAt: c.opened ? ago(c.opened.ago) : null,
+          opens: c.opened?.opens ?? 0,
+          clickId,
+        },
+      });
+    }
+
+    // Inscription et premier dépôt rattachés au clic (synchro Link Affi), comme les autres joueurs de démonstration.
+    if (c.player && clickId && subId) {
+      const playerId = stableId(`p17:player:${c.key}`);
+      const ext = `demo-lea-${String(ci + 1).padStart(4, "0")}`;
+      const registeredAt = ago(c.player.registeredAgo);
+      const ftdAt = c.player.ftdAgo !== null ? ago(c.player.ftdAgo) : null;
+      await db.player.create({
+        data: {
+          id: playerId,
+          affiliateCampaignId: ctx.offerId,
+          externalPlayerId: ext,
+          subId,
+          subIdSource: "postback",
+          clickId,
+          memberId: person.id,
+          registeredAt,
+          ftdAt,
+          ftdAmount: ftdAt ? c.player.ftdAmount : null,
+          depositCount: ftdAt ? 1 : 0,
+          depositTotal: ftdAt ? c.player.ftdAmount : 0,
+          currency: "EUR",
+          status: "active",
+          lastEventAt: ftdAt ?? registeredAt,
+          raw: { demo: true },
+          createdAt: registeredAt,
+        },
+      });
+      await db.playerEvent.createMany({
+        data: [
+          {
+            playerId,
+            type: "REGISTRATION",
+            amount: null,
+            currency: null,
+            occurredAt: registeredAt,
+            externalId: `${ext}-registration-0`,
+            raw: { demo: true },
+          },
+          ...(ftdAt
+            ? [
+                {
+                  playerId,
+                  type: "FTD" as const,
+                  amount: c.player.ftdAmount,
+                  currency: "EUR",
+                  occurredAt: ftdAt,
+                  externalId: `${ext}-ftd-1`,
+                  raw: { demo: true },
+                },
+              ]
+            : []),
+        ],
+      });
+      journal.push({
+        type: "player.registered",
+        occurredAt: registeredAt,
+        memberId: person.id,
+        payload: { playerId, demo: true },
+      });
+      if (ftdAt)
+        journal.push({
+          type: "player.ftd",
+          occurredAt: ftdAt,
+          memberId: person.id,
+          payload: { playerId, amount: c.player.ftdAmount, demo: true },
+        });
+    }
+
+    // Parcours (append-only, sans texte) et son double dans le journal (`conversation.<type>`).
+    for (const [ei, e] of c.events.entries()) {
+      const payload: Record<string, unknown> = { ...(e.payload ?? {}) };
+      if (e.type === "offer_sent" && subId) payload.subId = subId;
+      if (e.type === "offer_opened" && subId)
+        Object.assign(payload, { subId, clickId, offerLinkId });
+      if (e.type === "taken_over") payload.teamUserId = ctx.adminId;
+      convEvents.push({
+        id: stableId(`p17:event:${c.key}:${ei}`),
+        conversationId: convId,
+        type: e.type,
+        fromStage: e.from ?? null,
+        toStage: e.to ?? null,
+        payload: payload as Prisma.InputJsonValue,
+        createdAt: ago(e.ago),
+      });
+      journal.push({
+        type: `conversation.${e.type}`,
+        occurredAt: ago(e.ago),
+        memberId: person.id,
+        botId,
+        payload: {
+          conversationId: convId,
+          ...(e.from ? { fromStage: e.from } : {}),
+          ...(e.to ? { toStage: e.to } : {}),
+          ...payload,
+        } as Prisma.InputJsonValue,
+      });
+    }
+  }
+
+  await db.memberBotState.createMany({ data: states });
+  await db.outboundMessage.createMany({ data: outbound });
+  await db.conversationMessage.createMany({ data: messages });
+  await db.conversationEvent.createMany({ data: convEvents });
+  await db.aiConversationUsage.createMany({ data: usages });
+  await db.event.createMany({ data: journal });
+
+  // Essai par l'équipe : la personne de la conversation « lien envoyé » est le compte Telegram du manager de
+  // démonstration (jamais un compte relié à un vrai Telegram : seulement s'il n'en a pas, ou un de démonstration).
+  if (teamTgId !== null) {
+    const manager = await db.user.findUnique({
+      where: { id: ctx.managerId },
+      select: { telegramUserId: true },
+    });
+    const current = manager?.telegramUserId ?? null;
+    if (current === null || isDemoTelegramUserId(current))
+      await db.user.update({ where: { id: ctx.managerId }, data: { telegramUserId: teamTgId } });
+  }
+
+  return {
+    conversations: P17_CONVERSATIONS.length,
+    messages: messages.length,
+    offerLinks: offerLinkCount,
+    usages: usages.length,
   };
 }
 

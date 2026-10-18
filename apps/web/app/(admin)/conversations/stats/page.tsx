@@ -13,8 +13,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { loadAssistantConfig } from "@/lib/assistant/config";
 import { monthCostEur } from "@/lib/assistant/usage";
 import { comparableVariation } from "@/lib/dashboard/display";
-import { fmtMoney, fmtNum, fmtPct } from "@/lib/format";
-import { aiCostText } from "@/lib/conversations/labels";
+import { fmtMoney, fmtNum } from "@/lib/format";
+import { aiCostText, pctText } from "@/lib/conversations/labels";
 import { capShare } from "@/lib/conversations/stats";
 import { hasAnyConversation, loadConversationStats } from "@/lib/conversations/stats-queries";
 import {
@@ -120,10 +120,10 @@ export default async function ConversationsStatsPage({
             />
             <StatCard
               label="Taux de réponse"
-              value={fmtPct(t.replyRate)}
+              value={pctText(t.replyRate)}
               hint={
                 p && p.replyRate !== null
-                  ? `${fmtNum(t.replies)} réponses · avant : ${fmtPct(p.replyRate)}`
+                  ? `${fmtNum(t.replies)} réponses · avant : ${pctText(p.replyRate)}`
                   : `${fmtNum(t.replies)} conversation${t.replies > 1 ? "s" : ""} avec une réponse`
               }
             />
@@ -149,7 +149,7 @@ export default async function ConversationsStatsPage({
               hint={
                 share === null
                   ? "Plafond à 0 € : aucune réponse"
-                  : `sur ${fmtMoney(config.monthlyCapEur, "EUR", { digits: 0 })} de plafond (${fmtPct(share, 0)})`
+                  : `sur ${fmtMoney(config.monthlyCapEur, "EUR", { digits: 0 })} de plafond (${pctText(share, 0)})`
               }
             />
           </div>
@@ -177,7 +177,7 @@ export default async function ConversationsStatsPage({
                   label: statusLabel("conversationStage", s.stage),
                   value: s.count,
                   valueText: fmtNum(s.count),
-                  note: s.share === null ? null : `${fmtPct(s.share)} des conversations`,
+                  note: s.share === null ? null : `${pctText(s.share)} des conversations`,
                 }))}
               />
             )}

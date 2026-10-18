@@ -109,25 +109,27 @@ export type PersonaFormErrors = Partial<Record<PersonaFormField, string>>;
 export type ProfileTemplate = { long: string; short: string };
 export type ProfileTemplates = Partial<Record<ChatLang, Record<PersonaGender, ProfileTemplate>>>;
 
-/** Prénom utilisé dans les textes proposés tant qu'aucun prénom n'est saisi. */
-const NAME_PLACEHOLDER = "Léa";
-
-/** Textes proposés du profil (description et description courte) pour ce prénom, ce rôle et cette langue. */
+/**
+ * Textes proposés du profil (description et description courte) pour ce prénom, ce rôle et cette langue ; null tant
+ * qu'aucun prénom n'est saisi (jamais un prénom d'exemple dans un texte que Telegram afficherait).
+ */
 export function proposedProfileTexts(
   templates: ProfileTemplates,
   state: Pick<PersonaFormState, "name" | "gender" | "languages">,
 ): ProfileTemplate | null {
+  const name = state.name.trim();
+  if (!name) return null;
   const lang = state.languages[0] ?? "fr";
   const t = templates[lang]?.[state.gender] ?? templates.fr?.[state.gender];
   if (!t) return null;
-  const name = state.name.trim() || NAME_PLACEHOLDER;
   const fill = (s: string) => s.replace("{name}", () => name);
   return { long: fill(t.long), short: fill(t.short) };
 }
 
 /**
  * Les textes du profil suivent le prénom, le rôle et la langue tant que l'équipe ne les a pas réécrits : un texte encore
- * égal au texte proposé AVANT la modification (ou vide) est remplacé par le nouveau texte proposé.
+ * égal au texte proposé AVANT la modification (ou vide) est remplacé par le nouveau texte proposé, ou vidé quand il n'y
+ * a plus de texte proposé (prénom effacé). Un texte réécrit par l'équipe est toujours gardé.
  */
 export function withProfileTexts(
   before: PersonaFormState,
@@ -136,19 +138,23 @@ export function withProfileTexts(
 ): PersonaFormState {
   const prev = proposedProfileTexts(templates, before);
   const next = proposedProfileTexts(templates, after);
-  if (!next) return after;
   const follows = (current: string, proposed: string | undefined) =>
     current.trim() === "" || (proposed !== undefined && current === proposed);
   return {
     ...after,
-    botDescription: follows(after.botDescription, prev?.long) ? next.long : after.botDescription,
+    botDescription: follows(after.botDescription, prev?.long)
+      ? (next?.long ?? "")
+      : after.botDescription,
     botShortDescription: follows(after.botShortDescription, prev?.short)
-      ? next.short
+      ? (next?.short ?? "")
       : after.botShortDescription,
   };
 }
 
-/** Nouvelle persona : désactivée, valeurs par défaut du contrat, textes du profil proposés. */
+/**
+ * Nouvelle persona : désactivée, valeurs par défaut du contrat ; descriptions du bot vides tant qu'aucun prénom n'est
+ * saisi (proposées dès qu'un prénom est tapé ; laissées vides, le texte par défaut est posé à l'enregistrement).
+ */
 export function emptyPersonaForm(templates: ProfileTemplates = {}): PersonaFormState {
   const base: PersonaFormState = {
     id: null,

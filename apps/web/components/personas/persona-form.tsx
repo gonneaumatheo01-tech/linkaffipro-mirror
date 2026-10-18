@@ -27,6 +27,7 @@ import {
 import {
   campaignOfferNote,
   offerChoiceGroups,
+  offerChoiceLabel,
   personaModelOptions,
   type CampaignChoice,
   type OfferChoice,
@@ -310,7 +311,9 @@ export function PersonaForm({
         title="Offre"
         description="L'app présentée, ce qui peut en être dit, et le bouton qui ouvre le lien suivi (clics, inscriptions et dépôts comptés)."
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* Offre et campagne l'une sous l'autre, sur toute la largeur : les noms d'offres sont longs (une liste fermée
+            ne passe jamais à la ligne) ; le nom complet de l'offre choisie est aussi écrit sous la liste (téléphone). */}
+        <div className="grid gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="persona-offer">Offre Link Affi</Label>
             <NativeSelect
@@ -344,7 +347,9 @@ export function PersonaForm({
               {err("affiliateCampaignId") ??
                 (selectedOffer && !selectedOffer.isActive
                   ? "Cette offre n'est plus active chez Link Affi : aucun lien ne partira. Choisissez-en une autre."
-                  : "Les offres de l'univers Rencontres sont en premier.")}
+                  : selectedOffer
+                    ? `Offre choisie : ${offerChoiceLabel(selectedOffer)}. Les offres de l'univers Rencontres sont en premier.`
+                    : "Les offres de l'univers Rencontres sont en premier.")}
             </p>
           </div>
           <div className="space-y-1.5">
@@ -389,7 +394,7 @@ export function PersonaForm({
           max={PERSONA_LIMITS.offerPitch}
           rows={4}
           counter
-          placeholder="Une app de rencontres gratuite à l'inscription, avec des profils vérifiés."
+          placeholder="Une app de rencontres. L'inscription est gratuite. On crée son profil, puis on découvre des profils selon ses critères."
           help="Rien d'autre ne sera dit : pas de chiffres, pas de promesses. Écrivez seulement ce qui est vrai."
           error={err("offerPitch")}
         />
@@ -463,7 +468,11 @@ export function PersonaForm({
           max={PERSONA_LIMITS.botDescription}
           rows={3}
           counter
-          help="Affichée avant le premier message. Les autres langues de la persona reçoivent le texte proposé, traduit."
+          help={
+            proposed || state.botDescription.trim()
+              ? "Affichée avant le premier message. Les autres langues de la persona reçoivent le texte proposé, traduit."
+              : "Proposée dès que vous tapez un prénom. Affichée avant le premier message."
+          }
           error={err("botDescription")}
         />
         <TextField

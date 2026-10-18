@@ -2,8 +2,8 @@ import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { Term } from "@/components/admin/help-tip";
 import { NumCell } from "@/components/dashboard/cells";
-import { fmtMoney, fmtNum, fmtPct } from "@/lib/format";
-import { aiCostText } from "@/lib/conversations/labels";
+import { fmtMoney, fmtNum } from "@/lib/format";
+import { aiCostText, pctText } from "@/lib/conversations/labels";
 import type { FigureRow } from "@/lib/conversations/stats";
 
 function plural(n: number, one: string, many: string): string {
@@ -19,7 +19,7 @@ export function FigureDetail({ r }: { r: FigureRow }) {
         {fmtNum(r.replies)}
         {r.replyRate !== null ? (
           <span className="block text-note text-muted-foreground">
-            {fmtPct(r.replyRate)} des conversations
+            {pctText(r.replyRate)} des conversations
           </span>
         ) : null}
       </DetailRow>
@@ -64,7 +64,7 @@ export function ConversationStatsTable({
       conversations: (
         <NumCell
           value={fmtNum(r.conversations)}
-          note={r.replyRate === null ? null : `${fmtPct(r.replyRate)} de réponses`}
+          note={r.replyRate === null ? null : `${pctText(r.replyRate)} de réponses`}
         />
       ),
       opened: (

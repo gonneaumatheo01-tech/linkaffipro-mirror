@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-16T09:54:13.118Z",
+  "updatedAt": "2026-10-18T20:25:42.850Z",
   "entries": [
     {
       "route": "/",
@@ -603,6 +603,96 @@
       "capturedAt": "2026-10-11T12:05:33.681Z"
     },
     {
+      "route": "/conversations",
+      "path": "/conversations",
+      "title": "Conversations",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-390.webp",
+        "1440": "conversations-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:13:24.393Z"
+    },
+    {
+      "route": "/conversations/[id]",
+      "path": "/conversations/cmqc26nres6gc7bie21x93geh",
+      "title": "Louis D.",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-id-390.webp",
+        "1440": "conversations-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:25:12.124Z"
+    },
+    {
+      "route": "/conversations/personas",
+      "path": "/conversations/personas",
+      "title": "Personas",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-personas-390.webp",
+        "1440": "conversations-personas-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:13:36.047Z"
+    },
+    {
+      "route": "/conversations/personas/[id]",
+      "path": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
+      "title": "Léa",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-personas-id-390.webp",
+        "1440": "conversations-personas-id-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:25:29.659Z"
+    },
+    {
+      "route": "/conversations/personas/new",
+      "path": "/conversations/personas/new",
+      "title": "Nouvelle persona",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-personas-new-390.webp",
+        "1440": "conversations-personas-new-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:25:22.881Z"
+    },
+    {
+      "route": "/conversations/stats",
+      "path": "/conversations/stats",
+      "title": "Chiffres des conversations",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-stats-390.webp",
+        "1440": "conversations-stats-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:25:37.376Z"
+    },
+    {
       "route": "/stats",
       "path": "/stats",
       "title": "Statistiques",
@@ -723,6 +813,21 @@
       "capturedAt": "2026-10-11T02:21:16.172Z"
     },
     {
+      "route": "/settings/assistant",
+      "path": "/settings/assistant",
+      "title": "IA de conversation",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "settings-assistant-390.webp",
+        "1440": "settings-assistant-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-18T20:13:51.533Z"
+    },
+    {
       "route": "/settings/bots",
       "path": "/settings/bots",
       "title": "Bots",
@@ -735,7 +840,7 @@
         "1440": "settings-bots-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:21:20.964Z"
+      "capturedAt": "2026-10-18T20:13:55.356Z"
     },
     {
       "route": "/settings/categories",

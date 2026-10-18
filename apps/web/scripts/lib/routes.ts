@@ -35,6 +35,7 @@ const SECTION_ORDER = [
   "channels",
   "messages",
   "members",
+  "conversations",
   "stats",
   "settings",
   "help",
@@ -101,7 +102,9 @@ export type EntityKey =
   | "broadcastAbGroup"
   | "automation"
   | "importBatch"
-  | "landingPage";
+  | "landingPage"
+  | "conversation"
+  | "persona";
 export type EntityIds = Partial<Record<EntityKey, string>>;
 
 /** Segment qui précède l'identifiant → objet (anciennes et nouvelles adresses : /broadcasts et /members/broadcasts). */
@@ -115,6 +118,9 @@ const ENTITY_BY_SEGMENT: Record<string, EntityKey> = {
   imports: "importBatch",
   // Phase 15 : fiche d'une page d'atterrissage (`/pages/[id]`).
   pages: "landingPage",
+  // Phase 17 : fil d'une conversation (`/conversations/[id]`) et fiche d'une persona (`/conversations/personas/[id]`).
+  conversations: "conversation",
+  personas: "persona",
 };
 const AB_GROUP: Partial<Record<EntityKey, EntityKey>> = {
   post: "postAbGroup",

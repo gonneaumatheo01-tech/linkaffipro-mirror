@@ -71,6 +71,8 @@ export async function loadEntityIds(env: Env): Promise<{ ids: EntityIds; note: s
       automation,
       batch,
       landingPage,
+      conversation,
+      persona,
     ] = await Promise.all([
       prisma.campaign
         .findFirst({
@@ -160,6 +162,30 @@ export async function loadEntityIds(env: Env): Promise<{ ids: EntityIds; note: s
             r ??
             prisma.landingPage.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
         ),
+      // Phase 17 : la conversation « lien envoyé » de `pnpm db:demo` (fil le plus complet : lien de l'offre ouvert),
+      // sinon celle qui a le plus de messages ; la persona active la plus utilisée.
+      prisma.conversation
+        .findFirst({
+          where: { stage: "LINK_SENT", status: "BOT" },
+          orderBy: [{ messages: { _count: "desc" } }, { createdAt: "asc" }],
+          select: { id: true },
+        })
+        .then(
+          (r) =>
+            r ??
+            prisma.conversation.findFirst({
+              orderBy: [{ messages: { _count: "desc" } }, { createdAt: "asc" }],
+              select: { id: true },
+            }),
+        ),
+      prisma.persona.findFirst({
+        orderBy: [
+          { isActive: "desc" },
+          { conversations: { _count: "desc" } },
+          { createdAt: "asc" },
+        ],
+        select: { id: true },
+      }),
     ]);
     const ids: EntityIds = {};
     if (campaign) ids.campaign = campaign.id;
@@ -172,6 +198,8 @@ export async function loadEntityIds(env: Env): Promise<{ ids: EntityIds; note: s
     if (automation) ids.automation = automation.id;
     if (batch) ids.importBatch = batch.id;
     if (landingPage) ids.landingPage = landingPage.id;
+    if (conversation) ids.conversation = conversation.id;
+    if (persona) ids.persona = persona.id;
     return { ids, note: null };
   } catch (err) {
     return {

@@ -1,4 +1,45 @@
-# État du projet : phase 16 (sortir du navigateur de TikTok) terminée (16 octobre 2026)
+# État du projet : phase 17 (assistante de conversation Rencontres) terminée (18 octobre 2026)
+
+Phases 0 à 16 en ligne. Phase 17 = un bot dédié de l'univers Rencontres qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes, s'adapte à leur ton, présente l'app et envoie au bon moment le lien suivi (`docs/prompts/19-phase-17-assistant-dating.md`, contrat technique `docs/ASSISTANT-CONVERSATION.md`). 4 853 tests unitaires et 533 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site d'abord, qui applique les deux migrations additives, puis le service d'arrière-plan), sauvegardes faites avant chaque déploiement. **L'assistante est désactivée** : elle ne répond à personne tant que vous ne l'avez pas mise en route (`docs/A-FAIRE-HUMAIN.md`).
+
+## Phase 17 : ce qui a changé
+- **Nouvelle rubrique « Conversations »** (menu, après Membres) :
+  - **Boîte de réception** : toutes les conversations (filtres étape, qui répond, source, persona, non lues), fil en direct ; **Prendre la main** (l'assistante se tait), écrire vous-même, **Rendre à l'assistante**, **Bloquer**, **Fermer**. Écrire est impossible après un /stop ou à un mineur. « Personne ne répond » s'affiche quand l'assistante ne peut pas répondre (désactivée, essai réservé à l'équipe…).
+  - **Personas** : prénom, personnalité, ton, langues, centres d'intérêt ; règles du parcours (nombre d'échanges avant le lien, intérêt exigé, envois du lien, relances) ; offre Link Affi liée et **fiche de l'offre** (seule chose que l'assistante peut dire de l'app) ; visuel de l'app ; description du bot qui dit « l'assistante du canal » ; aperçu des consignes ; bouton **Tester** (discussion simulée dans la page, rien ne part sur Telegram, coût compté).
+  - **Chiffres** : par persona et par source du lien (`?start=tk01`) : conversations, réponses, liens envoyés, clics, inscriptions, premiers dépôts, coût de l'IA ; parcours par étape (Accueil → Discussion → Proposition → Lien envoyé → Relance → Inscrit) ; export.
+- **Réglages → IA de conversation** (administrateurs) : clé Venice (chiffrée, jamais réaffichée), **Vérifier** (gratuit : solde et liste des modèles), modèle par défaut `venice-uncensored-role-play` et modèle de repli, plafond **30 € par mois** (votre choix du 18 octobre), limite par conversation et par jour, **Activation** : Désactivé / Seulement l'équipe (essai) / Tout le monde.
+- **Réglages → Bots** : « Mode : assistant de conversation » et persona liée. Un bot qui gère des canaux ne peut pas devenir l'assistante : il faut un bot dédié créé dans @BotFather.
+- **Le lien de l'offre** part par un bouton `go.goolink.eu/a/…` : un identifiant de suivi neuf à chaque envoi, le clic compte à la première ouverture, l'inscription et le premier dépôt remontent jusqu'à la conversation, la persona et la source.
+- **Réglages → Alertes** (votre demande du 17 octobre) : chaque alerte a sa case « Alerte activée » ; **« Canal qui perd ses membres » est coupée**. Deux nouvelles alertes : assistante en panne (clé, solde Venice) et plafond mensuel atteint.
+
+## Vos règles, tenues par le code (pas seulement par les consignes de l'IA)
+- **Bot officiel seulement** (aucun compte utilisateur, rien sur votre session Telegram). **Aucune prise de contact à froid** : l'assistante ne répond qu'aux personnes qui ont écrit au bot.
+- **Assumée comme assistante** : le premier message le dit (« moi c'est Léa, l'assistante du canal »), la description du bot aussi ; à « t'es un bot ? », la réponse dit franchement que c'est une IA. Une réponse qui le nie, qui contient un lien, du markdown, un texte trop long, un contenu explicite, un chiffre absent de la fiche de l'offre ou un morceau des consignes est refusée et refaite une fois, puis remplacée par un texte sûr. Aucun réglage ne permet de le cacher.
+- **Adultes uniquement** : un âge de moins de 18 ans (6 langues) arrête tout, poliment, sans lien, conversation fermée pour toujours.
+- **Pas de spam** : jamais de lien au premier message ; au plus 2 relances après un silence, à 24 h d'écart au moins, jamais la nuit (décalées à 10 h) ; `/stop` (ou « STOP » seul) arrête tout définitivement ; `/reset` efface l'historique ; 1 message par seconde par personne, pauses de Telegram respectées, blocages respectés.
+- **Rythme naturel** : « écrit… », délai selon la longueur (1 à 4 s), 1 à 3 messages courts.
+- **Données** : les textes des conversations ne sont jamais copiés dans le journal ; `/reset`, la suppression d'un membre et la purge (24 mois) effacent tout.
+
+## Test de 5 minutes (après la mise en route, `docs/A-FAIRE-HUMAIN.md` : créer le bot, coller la clé Venice, créer la persona)
+1. Réglages → IA de conversation → Activation « Seulement l'équipe (essai) » → Enregistrer.
+2. Depuis votre Telegram, ouvrez le nouveau bot → Démarrer → écrivez comme un vrai prospect (4 ou 5 messages), demandez « t'es un bot ? ».
+3. Vérifiez : elle se présente comme l'assistante, répond franchement, et le lien n'arrive qu'après quelques échanges.
+4. Menu Conversations : votre fil est là ; **Prendre la main**, écrivez un message, puis **Rendre à l'assistante**.
+5. Écrivez `/stop` : elle confirme et ne vous écrit plus jamais.
+
+## Vérifications faites
+- Recherche dans la documentation officielle de Venice (noms exacts des paramètres, sortie JSON stricte, modèles et prix, vérification gratuite d'une clé) : `docs/DECISIONS-TECH.md`.
+- Moteur testé sans Telegram ni réseau (faux client Venice, faux envoi) ; conversation de bout en bout simulée sur base réelle : /start avec une source → présentation → 4 échanges → lien (bouton suivi) → clic → inscription de test → étape « Inscrit » ; deux tours en parallèle → une seule réponse ; /stop, /reset pendant un tour, reprise en main, plafond, mineur, relances, pannes Venice.
+- Une relecture adverse de chaque lot à chaque étape (suivie de ses corrections), puis une relecture finale en 6 dimensions (règles du client, robustesse, données personnelles, chiffres, interface, non-régression) : 41 défauts signalés, 37 confirmés par une contre-vérification et corrigés, avec un test chacun (par exemple : un « stop » sans barre oblique, un âge dit pendant une relance, un lien raccourci, un /reset pendant une réponse, le risque de transformer le bot Rencontres qui gère vos canaux).
+- Production (18 octobre au soir) : santé du site et du service d'arrière-plan OK, migrations appliquées, liste des modèles Venice relue (111), 15 pages ouvertes avec le compte de vérification sans erreur, assistante désactivée et sans clé, vos 3 bots inchangés (mode normal, ils reçoivent toujours leurs messages), lien `go.goolink.eu/a/…` inconnu → redirection, aucune conversation, aucun message envoyé.
+
+## Limites et suites
+- Rien n'a été essayé avec la vraie API Venice ni le vrai bot : il faut votre clé et le bot créé dans @BotFather (le site ne peut pas les créer). La première réponse réelle confirmera le modèle choisi.
+- Le contrôle « jamais de déni d'être une IA » et la détection d'âge reposent sur des tournures de phrase (6 langues) : ils rattrapent les cas courants, pas toutes les formulations ; l'équipe peut toujours reprendre la main.
+- Une fois l'assistante mise en route, elle répond aussi aux personnes qui lui ont écrit dans les 24 h précédentes.
+- L'alerte « Bot en difficulté (silencieux) » des bots normaux reste bavarde quand un bot ne reçoit rien pendant 10 minutes (107 fois en une semaine) : vous pouvez la signaler si elle vous gêne.
+
+## Phase 16 — (sortir du navigateur de TikTok) terminée (16 octobre 2026)
 
 Phases 0 à 15 en ligne. Phase 16 = faire sortir les visiteurs du navigateur intégré de TikTok (et des autres applis) vers Safari ou Chrome, où Telegram s'ouvre (`docs/prompts/18-phase-16-sortir-de-tiktok.md`). 3 727 tests unitaires et 471 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site d'abord, qui applique la migration, puis le service d'arrière-plan), sauvegarde faite juste avant. Vos 5 nouvelles pages (Zone Interdite) ont la nouvelle version.
 

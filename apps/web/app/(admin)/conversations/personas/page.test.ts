@@ -170,7 +170,7 @@ describe("liste des personas", () => {
 });
 
 describe("nouvelle persona", () => {
-  it("formulaire en sections, textes du profil proposés, un seul bouton orange", async () => {
+  it("formulaire en sections, descriptions du bot vides sans prénom, un seul bouton orange", async () => {
     const html = renderToStaticMarkup(await NewPersonaPage());
     const text = visibleText(html);
     expect(h1Count(html)).toBe(1);
@@ -187,7 +187,9 @@ describe("nouvelle persona", () => {
       "jamais une photo présentée comme celle de l'assistante",
     ])
       expect(text).toContain(t);
-    expect(html).toContain("l&#x27;assistante du canal : une IA.");
+    // Sans prénom, rien n'est pré-rempli (jamais « Léa » d'exemple) : le texte est proposé dès qu'un prénom est tapé.
+    expect(html).not.toContain("l&#x27;assistante du canal : une IA.");
+    expect(text).toContain("Proposée dès que vous tapez un prénom.");
     expect(text).not.toMatch(/dating/i);
     expect(jargonIn(text)).toEqual([]);
   });
@@ -203,6 +205,8 @@ describe("fiche d'une persona", () => {
     expect(text).toContain("Tester");
     expect(text).toContain("Recommencer");
     expect(text).toContain("Ce que l'assistante reçoit comme consignes");
+    // Nom complet de l'offre choisie écrit sous la liste (une liste fermée ne passe jamais à la ligne).
+    expect(text).toContain("Offre choisie : Love App · Love Corp.");
     expect(html).toMatch(/<pre[^>]*>[\s\S]*Léa/);
     expect(html).toContain('id="tester"');
     // Le texte des consignes (destiné à l'IA) est hors du contrôle du vocabulaire : retiré avant de chercher le jargon.

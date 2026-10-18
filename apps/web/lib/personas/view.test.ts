@@ -5,6 +5,7 @@ import {
   aiFailureText,
   campaignOfferNote,
   offerChoiceGroups,
+  offerChoiceLabel,
   personaDisplayName,
   personaListRow,
   personaModelOptions,
@@ -101,6 +102,23 @@ describe("choix de l'offre, de la campagne et du modèle", () => {
     expect(groups[0]!.options[0]!.label).toBe("Amour · Love Corp (inactive)");
     expect(groups[1]!.options[0]!.label).toBe("Casino Max");
     for (const g of groups) expect(jargonIn(g.label)).toEqual([]);
+  });
+
+  it("nom complet de l'offre choisie (repris sous la liste, qui ne passe jamais à la ligne)", () => {
+    const o = {
+      id: "d",
+      name: "Démo · Cœurs à prendre — Inscription gratuite",
+      programName: "Démo · Cœurs à prendre",
+      vertical: "DATING",
+      isActive: true,
+    };
+    expect(offerChoiceLabel(o)).toBe(
+      "Démo · Cœurs à prendre — Inscription gratuite · Démo · Cœurs à prendre",
+    );
+    expect(offerChoiceGroups([o])[0]!.options[0]!.label).toBe(offerChoiceLabel(o));
+    expect(offerChoiceLabel({ ...o, programName: o.name, isActive: false })).toBe(
+      "Démo · Cœurs à prendre — Inscription gratuite (inactive)",
+    );
   });
 
   it("sans offre de Rencontres : un seul groupe « Offres »", () => {

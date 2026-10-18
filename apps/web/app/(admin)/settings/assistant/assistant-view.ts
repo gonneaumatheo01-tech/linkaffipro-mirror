@@ -167,7 +167,7 @@ export function assistantCapUsage(
   const sentence =
     ratio >= 1
       ? "Plafond atteint : l'assistant ne répond plus jusqu'au mois prochain (ou relevez le plafond)."
-      : `${pct} % du plafond utilisé ce mois-ci.`;
+      : `${pct}\u00a0% du plafond utilisé ce mois-ci.`;
   return { pct, tone, sentence };
 }
 

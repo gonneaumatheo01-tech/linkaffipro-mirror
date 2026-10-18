@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aiCostText,
+  pctText,
   assistantNoun,
   assistantWord,
   botStatusLabel,
@@ -107,6 +108,13 @@ describe("source, fermeture, parcours, coût", () => {
     expect(aiCostText(0)).toMatch(/^0,00\s€$/);
     expect(aiCostText(0.0042)).toMatch(/^moins de 0,01\s€$/);
     expect(aiCostText(1.236)).toMatch(/^1,24\s€$/);
+  });
+  it("pourcentage : espace insécable avant « % » (jamais seul à la ligne), « — » sans valeur", () => {
+    expect(pctText(0)).toBe("0\u00a0%");
+    expect(pctText(0.8333)).toBe("83,3\u00a0%");
+    expect(pctText(0.2, 0)).toBe("20\u00a0%");
+    expect(pctText(null)).toBe("—");
+    expect(pctText(0.5)).not.toContain(" %");
   });
 });
 

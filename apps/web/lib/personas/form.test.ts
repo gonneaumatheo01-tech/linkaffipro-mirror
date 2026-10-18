@@ -71,14 +71,35 @@ describe("nouvelle persona", () => {
     expect(f.offerButtonText).toBe("Découvrir l'app");
   });
 
-  it("textes du profil déjà proposés : ils disent « assistante du canal » (et passent la règle du bot)", () => {
+  it("sans prénom, descriptions du bot vides (jamais un prénom d'exemple) ; proposées dès qu'un prénom est tapé", () => {
     const f = emptyPersonaForm(T);
-    expect(f.botDescription).toContain("l'assistante du canal");
-    expect(f.botShortDescription).toContain("l'assistante du canal");
-    expect(mentionsAssistant(f.botDescription)).toBe(true);
-    expect(mentionsAssistant(f.botShortDescription)).toBe(true);
-    expect(f.botDescription.length).toBeLessThanOrEqual(PERSONA_LIMITS.botDescription);
-    expect(f.botShortDescription.length).toBeLessThanOrEqual(PERSONA_LIMITS.botShortDescription);
+    expect(f.botDescription).toBe("");
+    expect(f.botShortDescription).toBe("");
+    expect(proposedProfileTexts(T, f)).toBeNull();
+    expect(proposedProfileTexts(T, { ...f, name: "   " })).toBeNull();
+    const named = withProfileTexts(f, { ...f, name: "Chloé" }, T);
+    expect(named.botDescription).toContain("Chloé, l'assistante du canal");
+    expect(named.botShortDescription).toContain("Chloé, l'assistante du canal");
+    expect(named.botDescription).not.toContain("Léa");
+    expect(mentionsAssistant(named.botDescription)).toBe(true);
+    expect(mentionsAssistant(named.botShortDescription)).toBe(true);
+    expect(named.botDescription.length).toBeLessThanOrEqual(PERSONA_LIMITS.botDescription);
+    expect(named.botShortDescription.length).toBeLessThanOrEqual(
+      PERSONA_LIMITS.botShortDescription,
+    );
+    // Le prénom effacé : les textes proposés repartent ; un texte réécrit par l'équipe reste.
+    const cleared = withProfileTexts(named, { ...named, name: "" }, T);
+    expect(cleared.botDescription).toBe("");
+    expect(cleared.botShortDescription).toBe("");
+    const custom = { ...named, botDescription: "Moi c'est Chloé, l'assistante du canal, une IA." };
+    const kept = withProfileTexts(custom, { ...custom, name: "" }, T);
+    expect(kept.botDescription).toBe("Moi c'est Chloé, l'assistante du canal, une IA.");
+    expect(kept.botShortDescription).toBe("");
+    // Un texte écrit avant le prénom n'est pas remplacé quand le prénom arrive.
+    const early = { ...f, botDescription: "Je suis l'assistante du canal, une IA." };
+    expect(withProfileTexts(early, { ...early, name: "Chloé" }, T).botDescription).toBe(
+      "Je suis l'assistante du canal, une IA.",
+    );
   });
 
   it("les textes proposés sont exactement ceux que Telegram reçoit par défaut, pour chaque langue et chaque rôle", () => {

@@ -7,7 +7,7 @@
  * défaut), accordé à la persona quand elle est connue (`botStatusLabel`).
  */
 import type { ConversationStage } from "@linkaffipro/db";
-import { fmtMoney } from "@/lib/format";
+import { fmtMoney, fmtPct } from "@/lib/format";
 
 /** Nom affiché quand la personne n'a ni prénom ni pseudo (jamais son identifiant Telegram). */
 export const PERSON_FALLBACK = "Personne sans nom";
@@ -152,4 +152,12 @@ export function lastAuthorPrefix(
 export function aiCostText(eur: number): string {
   if (eur > 0 && eur < 0.01) return `moins de ${fmtMoney(0.01)}`;
   return fmtMoney(eur);
+}
+
+/**
+ * Pourcentage affiché (« 83,3 % », « — » sans valeur) avec une espace insécable avant « % » : le signe ne part jamais
+ * seul à la ligne (cartes étroites sur téléphone).
+ */
+export function pctText(ratio: number | null | undefined, digits = 1): string {
+  return fmtPct(ratio, digits).replace(/ %$/, "\u00a0%");
 }

@@ -94,6 +94,12 @@ describe("fiches : identifiants réels", () => {
     // Phase 15 : fiche d'une page d'atterrissage (rubrique « Pages »).
     expect(entityForRoute("/pages/[id]")).toBe("landingPage");
     expect(fillRoute("/pages/[id]", { landingPage: "lp1" })).toBe("/pages/lp1");
+    // Phase 17 : fil d'une conversation et fiche d'une persona.
+    expect(entityForRoute("/conversations/[id]")).toBe("conversation");
+    expect(entityForRoute("/conversations/personas/[id]")).toBe("persona");
+    expect(fillRoute("/conversations/personas/[id]", { persona: "p1" })).toBe(
+      "/conversations/personas/p1",
+    );
     expect(entityForRoute("/inconnu/[id]")).toBeNull();
     expect(entityForRoute("/campaigns/[id]/ads/[adId]")).toBeNull();
   });
