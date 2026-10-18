@@ -18,7 +18,7 @@ import {
   type GateLinkDeps,
 } from "@linkaffipro/telegram";
 import { logger } from "../logger";
-import { apiForBot, approveMembership, declineMembership } from "./telegram-actions";
+import { actingBotFor, apiForBot, approveMembership, declineMembership } from "./telegram-actions";
 
 const BATCH = 50;
 
@@ -61,7 +61,7 @@ async function ruleOf(m: {
 const gateLinkDeps: GateLinkDeps = createPrismaGateLinkDeps({
   apiFor: async (botId) => {
     const bot = await prisma.bot.findFirst({
-      where: { id: botId, isActive: true },
+      where: { id: botId, isActive: true, mode: "STANDARD" },
       select: { id: true, tokenEncrypted: true },
     });
     return bot ? apiForBot(bot) : null;
@@ -104,7 +104,7 @@ export async function refreshReminderGates(
     .map((id) => rows.find((r) => r.id === id))
     .filter((c): c is ChannelInfo => !!c);
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true },
+    where: { id: botId, isActive: true, mode: "STANDARD" },
     select: { id: true, username: true, tokenEncrypted: true },
   });
   const first = bot ? { botId: bot.id, username: bot.username, api: apiForBot(bot) } : null;
@@ -172,6 +172,22 @@ async function claimReminder(
 }
 
 /**
+ * Bot qui écrit le rappel : celui qui a reçu la demande s'il est encore actif et normal ; sinon (désactivé, ou devenu
+ * assistant de conversation, phase 17 : il n'a plus les boutons « ✅ J'ai rejoint ») le bot qui agit pour le canal.
+ */
+export async function reminderBotId(
+  sourceBotId: string,
+  channelId: string,
+): Promise<string | null> {
+  const own = await prisma.bot.findFirst({
+    where: { id: sourceBotId, isActive: true, mode: "STANDARD" },
+    select: { id: true },
+  });
+  if (own) return own.id;
+  return (await actingBotFor(channelId))?.id ?? null;
+}
+
+/**
  * Rappel d'une demande (si échu) : seulement avec des canaux obligatoires (les rappels n'existent qu'avec eux) et
  * seulement si le bot peut encore écrire à la personne (phase 14, décision E2 : elle a démarré le bot ou appuyé sur un
  * de ses boutons, ou la demande a moins de 5 minutes). Personne injoignable : le rappel est compté comme passé, rien
@@ -192,7 +208,8 @@ async function sendReminder(m: PendingReminder, now: Date): Promise<boolean> {
     botId?: string;
     startUrl?: string;
   };
-  const botId = source.botId;
+  if (!source.botId) return false;
+  const botId = await reminderBotId(source.botId, m.channelId);
   if (!botId) return false;
   const state = m.member.botStates.find((s) => s.botId === botId) ?? null;
   const reach = reachability(state, { userChatId: m.userChatId, requestedAt: m.requestedAt }, now);

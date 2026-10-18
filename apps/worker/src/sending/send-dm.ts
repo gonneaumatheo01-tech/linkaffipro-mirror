@@ -27,6 +27,28 @@ function sendMedia(
   return api.sendDocument(chatId, m.media, opts);
 }
 
+/**
+ * Issue d'un envoi (phase 17 : l'assistant de conversation envoie ses messages un par un et doit savoir tout de suite
+ * s'ils sont partis). SKIPPED : message introuvable ou déjà traité (rien n'est envoyé).
+ */
+export type DmSendResult = {
+  status: "SENT" | "FAILED" | "BLOCKED" | "SKIPPED";
+  telegramMessageId: number | null;
+  /** La personne a bloqué le bot. */
+  blocked: boolean;
+  /** Le bot ne peut plus écrire à cette personne (sans blocage de sa part). */
+  unreachable: boolean;
+  /** Erreur lisible en français (null si envoyé). */
+  error: string | null;
+};
+
+/** Types de messages privés qu'un bot assistant de conversation peut envoyer (phase 17). */
+const ASSISTANT_DM_KINDS: ReadonlySet<string> = new Set(["ASSISTANT", "TEST"]);
+
+/** Message refusé parce que son bot est devenu un assistant de conversation (phase 17). */
+export const ASSISTANT_DM_REFUSED =
+  "Non envoyé : ce bot est un assistant de conversation, il n'envoie que ses propres messages de conversation.";
+
 /** Note enregistrée sur un message parti avec les emojis normaux à la place des emojis animés. */
 export function customEmojiFallbackNote(info: CustomEmojiFallbackInfo): string {
   return info.resent
@@ -49,16 +71,27 @@ export function customEmojiFallbackNote(info: CustomEmojiFallbackInfo): string {
  *   (« Le bot ne peut plus écrire à cette personne… »), `canDm` faux SANS `blockedAt`, événement `dm.unreachable` ;
  * - l'erreur exacte de Telegram est gardée dans les événements (`telegramError`).
  */
-export async function sendDm(outboundMessageId: string): Promise<void> {
+export async function sendDm(outboundMessageId: string): Promise<DmSendResult> {
   const om = await prisma.outboundMessage.findUnique({
     where: { id: outboundMessageId },
     include: { member: true },
   });
-  if (!om || om.status !== "QUEUED") return;
+  if (!om || om.status !== "QUEUED")
+    return {
+      status: "SKIPPED",
+      telegramMessageId: null,
+      blocked: false,
+      unreachable: false,
+      error: om ? `Message déjà traité (${om.status}).` : "Message introuvable.",
+    };
   const chatId = om.chatId ?? om.member.telegramUserId;
   const rl = new RateLimiter(getRedis());
   try {
-    const { api } = await apiForBot(om.botId);
+    const { api, mode } = await apiForBot(om.botId);
+    // Filet (phase 17) : un assistant de conversation n'envoie que ses messages de conversation (et les essais de
+    // l'équipe) ; jamais un accueil, un rappel, un « Accepté », une relance ni un envoi à un groupe.
+    if (mode === "ASSISTANT" && !ASSISTANT_DM_KINDS.has(om.kind))
+      throw new Error(ASSISTANT_DM_REFUSED);
     await rl.forBot(om.botId);
     await rl.forPrivateChat(chatId);
     const keyboard = buildDmKeyboard(om.buttons);
@@ -175,6 +208,13 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
       }),
     });
     await recordBroadcastOutcome(om.broadcastId, "SENT");
+    return {
+      status: "SENT",
+      telegramMessageId: last?.message_id ?? null,
+      blocked: false,
+      unreachable: false,
+      error: null,
+    };
   } catch (err) {
     const d = describeDmFailure(err);
     const status = d.status;
@@ -212,5 +252,12 @@ export async function sendDm(outboundMessageId: string): Promise<void> {
       "message privé non envoyé",
     );
     await recordBroadcastOutcome(om.broadcastId, status);
+    return {
+      status,
+      telegramMessageId: null,
+      blocked: d.blocked,
+      unreachable: d.unreachable,
+      error: d.message,
+    };
   }
 }

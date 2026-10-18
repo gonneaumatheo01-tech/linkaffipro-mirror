@@ -8,10 +8,12 @@ const fallbackEvents = vi.hoisted(() => ({
   rows: [] as Array<{
     botId: string | null;
     occurredAt: Date;
-    payload: { resent: boolean };
+    payload: Record<string, unknown>;
     type?: string;
   }>,
 }));
+/** Dépense de l'assistant de conversation du mois simulée (phase 17). */
+const assistantSpend = vi.hoisted(() => ({ eur: 0 }));
 /** Session du compte Telegram connecté simulée et messages programmés qui en dépendent (phase 12). */
 const tgAccount = vi.hoisted(() => ({
   row: null as { status: string } | null,
@@ -136,6 +138,9 @@ const db = vi.hoisted(() => {
         count: vi.fn(async () => tgAccount.pending),
       },
       telegramUserSession: { findUnique: vi.fn(async () => tgAccount.row) },
+      aiConversationUsage: {
+        aggregate: vi.fn(async () => ({ _sum: { costEur: assistantSpend.eur } })),
+      },
       alert: {
         findFirst: vi.fn(
           async ({ where }: { where: { kind: string; resolvedAt: null } }) =>
@@ -793,5 +798,72 @@ describe("compte Telegram connecté à reconnecter (phase 12)", () => {
     tgAccount.row = null;
     await runAlerts(at("2026-10-11T10:05:00Z"));
     expect(accountAlerts()).toHaveLength(0);
+  });
+});
+
+describe("assistant de conversation (phase 17)", () => {
+  beforeEach(() => {
+    db.alerts.length = 0;
+    failures.counts = {};
+    notify.mockClear();
+    fallbackEvents.rows = [];
+    assistantSpend.eur = 0;
+    delete db.settings["assistant.venice"];
+    db.prisma.bot.findMany.mockResolvedValue([
+      { username: "casino", isActive: true, lastWebhookAt: new Date(), lastError: null },
+    ]);
+  });
+  afterEach(() => {
+    delete db.settings["assistant.venice"];
+  });
+  const kindOf = (k: string) => db.alerts.filter((a) => a.kind === k);
+  const at = (iso: string) => new Date(iso);
+
+  it("clé Venice refusée : alerte critique tout de suite, une notification, résolue quand les pannes cessent", async () => {
+    fallbackEvents.rows = [
+      {
+        botId: "lea",
+        type: "conversation.ai_failed",
+        occurredAt: at("2026-10-18T09:58:00Z"),
+        payload: { code: "auth", final: true, conversationId: "c1" },
+      },
+    ];
+    expect((await runAlerts(at("2026-10-18T10:00:00Z"))).created).toBe(1);
+    expect(kindOf("assistant_ai_failing")[0]).toMatchObject({ severity: "CRITICAL" });
+    expect(kindOf("assistant_ai_failing")[0]?.message).toContain("la clé Venice est refusée");
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(String((notify.mock.calls[0] as unknown[] | undefined)?.[0])).toContain(
+      "Assistant de conversation en panne",
+    );
+    // 20 minutes plus tard, plus aucune panne : résolue.
+    expect((await runAlerts(at("2026-10-18T10:20:00Z"))).resolved).toBe(1);
+  });
+
+  it("pannes passagères : rien sous 3 en 15 minutes", async () => {
+    fallbackEvents.rows = [
+      {
+        botId: "lea",
+        type: "conversation.ai_failed",
+        occurredAt: at("2026-10-18T09:58:00Z"),
+        payload: { code: "server", final: false },
+      },
+      {
+        botId: "lea",
+        type: "conversation.ai_failed",
+        occurredAt: at("2026-10-18T09:59:00Z"),
+        payload: { code: "server", final: false },
+      },
+    ];
+    await runAlerts(at("2026-10-18T10:00:00Z"));
+    expect(kindOf("assistant_ai_failing")).toHaveLength(0);
+  });
+
+  it("plafond du mois atteint (assistant activé) : alerte ; désactivé : rien", async () => {
+    db.settings["assistant.venice"] = { activation: "all", monthlyCapEur: 30 };
+    assistantSpend.eur = 31;
+    expect((await runAlerts(at("2026-10-18T10:00:00Z"))).created).toBe(1);
+    expect(kindOf("assistant_cap_reached")[0]?.message).toContain("plafond de dépense du mois");
+    db.settings["assistant.venice"] = { activation: "off", monthlyCapEur: 30 };
+    expect((await runAlerts(at("2026-10-18T10:05:00Z"))).resolved).toBe(1);
   });
 });

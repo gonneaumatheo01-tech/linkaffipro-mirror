@@ -3,8 +3,9 @@ import { canInviteFromRights } from "@linkaffipro/telegram";
 
 /**
  * `GET /channels` : canaux proposables à Link Affi pour une campagne Telegram d'affilié. Canal actif (hors bibliothèque
- * de médias) où au moins un de nos bots actifs est administrateur sans refus connu du droit d'inviter (droit accordé,
- * ou pas encore relu : la création essaie alors nos bots un par un, comme les liens de partage).
+ * de médias) où au moins un de nos bots actifs et normaux (jamais un assistant de conversation, phase 17) est
+ * administrateur sans refus connu du droit d'inviter (droit accordé, ou pas encore relu : la création essaie alors nos
+ * bots un par un, comme les liens de partage).
  */
 export type ProposableChannel = {
   id: string;
@@ -19,12 +20,21 @@ export function canProposeChannel(admins: ReadonlyArray<{ rights: unknown }>): b
   return admins.some((a) => canInviteFromRights(a.rights) !== false);
 }
 
+/**
+ * Administrateurs qui peuvent créer les liens : bot actif et normal, jamais un bot en mode assistant de conversation
+ * (phase 17 : il ne crée pas de liens d'invitation).
+ */
+export const PROPOSABLE_ADMIN_WHERE = {
+  revokedAt: null,
+  bot: { isActive: true, mode: "STANDARD" },
+} as const;
+
 export async function listProposableChannels(): Promise<ProposableChannel[]> {
   const rows = await prisma.channel.findMany({
     where: {
       isActive: true,
       isMediaLibrary: false,
-      botAdmins: { some: { revokedAt: null, bot: { isActive: true } } },
+      botAdmins: { some: PROPOSABLE_ADMIN_WHERE },
     },
     orderBy: [{ title: "asc" }, { id: "asc" }],
     select: {
@@ -34,7 +44,7 @@ export async function listProposableChannels(): Promise<ProposableChannel[]> {
       vertical: true,
       isActive: true,
       botAdmins: {
-        where: { revokedAt: null, bot: { isActive: true } },
+        where: PROPOSABLE_ADMIN_WHERE,
         select: { rights: true },
       },
     },

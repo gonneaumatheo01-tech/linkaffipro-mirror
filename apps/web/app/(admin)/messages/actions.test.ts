@@ -63,6 +63,7 @@ import {
   createTextOfferLinkAction,
   updatePostAction,
 } from "./actions";
+import { publishingBotFor } from "@/lib/posts/queries";
 
 /** Date à venir au format du formulaire (heure de Paris, AAAA-MM-JJTHH:MM). */
 function future(): string {
@@ -335,6 +336,74 @@ describe("modification d'un message", () => {
       ),
     );
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("modification : jamais publié par un bot devenu assistant de conversation (phase 17)", () => {
+  const cancelled = {
+    id: "p7",
+    status: "CANCELLED",
+    channelId: "ch1",
+    botId: "assistant",
+    isTemplate: false,
+    templateName: null,
+  };
+  const reschedule = () =>
+    run(
+      updatePostAction(
+        form({
+          postId: "p7",
+          channelIds: "ch1",
+          text: "Bonjour",
+          intent: "schedule",
+          scheduledAt: future(),
+        }),
+      ),
+    );
+
+  it("même canal : le bot actuel n'est gardé que s'il peut encore publier, sinon un bot normal le remplace", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(cancelled);
+    vi.mocked(publishingBotFor).mockResolvedValueOnce({ id: "normal", username: "normal_bot" });
+    const url = await reschedule();
+    expect(publishingBotFor).toHaveBeenCalledWith("ch1", { keep: "assistant" });
+    expect(param(url, "ok")).toBe("Message programmé.");
+    expect(db.prisma.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ botId: "normal", status: "SCHEDULED" }),
+      }),
+    );
+  });
+
+  it("autre canal : choisi sans garder l'ancien bot", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(cancelled);
+    await run(
+      updatePostAction(form({ postId: "p7", channelIds: "ch2", text: "Bonjour", intent: "draft" })),
+    );
+    expect(publishingBotFor).toHaveBeenCalledWith("ch2", {});
+  });
+
+  it("aucun bot normal pour publier : programmation refusée, gardé en brouillon avec la raison", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(cancelled);
+    vi.mocked(publishingBotFor).mockResolvedValueOnce(null);
+    const url = await reschedule();
+    expect(url).toMatch(/^\/messages\/p7\/edit\?/);
+    expect(param(url, "error")).toMatch(/Aucun de nos bots ne peut publier dans ce canal/);
+    const data = (db.prisma.post.update.mock.calls[0]![0] as { data: Record<string, unknown> })
+      .data;
+    expect(data).toMatchObject({ status: "DRAFT", publisher: "BOT", text: "Bonjour" });
+    expect(data.botId).toBeUndefined();
+  });
+
+  it("aucun bot normal, simple brouillon : enregistré sans erreur (rien ne part)", async () => {
+    db.prisma.post.findUniqueOrThrow.mockResolvedValue(cancelled);
+    vi.mocked(publishingBotFor).mockResolvedValueOnce(null);
+    const url = await run(
+      updatePostAction(form({ postId: "p7", channelIds: "ch1", text: "Bonjour", intent: "draft" })),
+    );
+    expect(param(url, "ok")).toBe("Message enregistré.");
+    expect(db.prisma.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "DRAFT" }) }),
+    );
   });
 });
 

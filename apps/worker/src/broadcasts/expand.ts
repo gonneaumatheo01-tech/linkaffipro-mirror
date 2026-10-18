@@ -7,6 +7,9 @@ import { abAllows, splitAOf, type AbContext } from "./ab";
 import { personalizeBroadcastText } from "./personalize";
 
 export const BATCH_SIZE = 500;
+/** Envoi groupé annulé : son bot est un assistant de conversation (phase 17). */
+export const ASSISTANT_BOT_BROADCAST_ERROR =
+  "Annulé : ce bot est un assistant de conversation, il n'écrit pas à un groupe. Choisissez un autre bot.";
 
 /**
  * Développe un envoi groupé en `OutboundMessage` (kind BROADCAST) par destinataire, par lots, et enfile
@@ -14,9 +17,15 @@ export const BATCH_SIZE = 500;
  * Le texte est personnalisé pour chaque destinataire ({prenom}, {bot} : voir `personalize.ts`).
  */
 export async function expandBroadcast(broadcastId: string): Promise<{ targeted: number; created: number }> {
-  const b = await prisma.broadcast.findUnique({ where: { id: broadcastId }, include: { bot: { select: { username: true, name: true } } } });
+  const b = await prisma.broadcast.findUnique({ where: { id: broadcastId }, include: { bot: { select: { username: true, name: true, mode: true } } } });
   if (!b) return { targeted: 0, created: 0 };
   if (b.status === "CANCELLED" || b.status === "SENT") return { targeted: b.targeted, created: 0 };
+  // Phase 17 : un bot assistant de conversation n'écrit jamais à un groupe (il répond seulement à qui lui parle).
+  if (b.bot.mode === "ASSISTANT") {
+    await prisma.broadcast.update({ where: { id: b.id }, data: { status: "CANCELLED", finishedAt: new Date(), lastError: ASSISTANT_BOT_BROADCAST_ERROR } });
+    logger.warn({ broadcastId: b.id }, "envoi groupé refusé : bot assistant de conversation");
+    return { targeted: 0, created: 0 };
+  }
   if (b.status !== "SENDING") {
     await prisma.broadcast.update({ where: { id: b.id }, data: { status: "SENDING", startedAt: b.startedAt ?? new Date() } });
   }

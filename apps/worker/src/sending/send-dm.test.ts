@@ -60,7 +60,8 @@ vi.mock("../broadcasts/progress", () => ({
 
 import { GrammyError } from "grammy";
 import { recordEvent } from "@linkaffipro/db";
-import { sendDm } from "./send-dm";
+import { apiForBot } from "./api";
+import { ASSISTANT_DM_REFUSED, sendDm } from "./send-dm";
 
 const tgError = (code: number, description: string) =>
   new GrammyError("call failed", { ok: false, error_code: code, description }, "sendPhoto", {});
@@ -372,5 +373,39 @@ describe("sendDm : bloqué ou injoignable (phase 14)", () => {
       update: { lastDmAt: expect.any(Date), blockedAt: null },
     });
     expect(upserts()[0]!.update).not.toHaveProperty("canDm");
+  });
+});
+
+describe("filet : bot devenu assistant de conversation (phase 17)", () => {
+  const asAssistant = () =>
+    vi
+      .mocked(apiForBot)
+      .mockResolvedValueOnce({ api: db.api as never, username: "lea_bot", mode: "ASSISTANT" });
+
+  it.each(["WELCOME", "GATE_REMINDER", "ACCEPTED", "BROADCAST", "AUTOMATION", "OFFER_REPLY"])(
+    "message %s : jamais envoyé par un assistant, échec avec une raison claire",
+    async (kind) => {
+      db.state.om.kind = kind;
+      asAssistant();
+      vi.mocked(recordEvent).mockClear();
+      const r = await sendDm("om1");
+      expect(db.api.sendMessage).not.toHaveBeenCalled();
+      expect(r).toMatchObject({ status: "FAILED", blocked: false, unreachable: false });
+      expect(db.state.updates.at(-1)).toMatchObject({
+        status: "FAILED",
+        error: ASSISTANT_DM_REFUSED,
+      });
+      expect(vi.mocked(recordEvent).mock.calls.map((c) => (c[0] as { type: string }).type)).toEqual(
+        ["dm.failed"],
+      );
+    },
+  );
+
+  it.each(["ASSISTANT", "TEST"])("message %s : envoyé par l'assistant", async (kind) => {
+    db.state.om.kind = kind;
+    asAssistant();
+    const r = await sendDm("om1");
+    expect(r.status).toBe("SENT");
+    expect(db.api.sendMessage).toHaveBeenCalledTimes(1);
   });
 });

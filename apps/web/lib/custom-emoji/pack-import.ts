@@ -49,8 +49,9 @@ function isNotFound(err: unknown): boolean {
  * Un pack introuvable est définitif : pas d'essai avec les autres bots.
  */
 export const fetchWithOurBots: FetchStickerSet = async (name) => {
+  // Bots normaux seulement (phase 17 : un bot assistant de conversation ne sert qu'à ses conversations).
   const bots = await prisma.bot.findMany({
-    where: { isActive: true },
+    where: { isActive: true, mode: "STANDARD" },
     orderBy: { createdAt: "asc" },
   });
   if (bots.length === 0)

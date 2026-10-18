@@ -3,7 +3,7 @@
  * gagnante au reste » reprend les boutons de la gagnante tels quels (ancien bouton Offre sans campagne accepté,
  * offre retirée de la campagne remplacée comme le fait le bot) sans toucher aux liens d'origine.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -38,7 +38,15 @@ const db = vi.hoisted(() => ({
       delete: vi.fn(async () => ({})),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
-    bot: { findUnique: vi.fn(async () => ({ id: "bot1", isActive: true })) },
+    bot: {
+      findUnique: vi.fn(
+        async (): Promise<{ id: string; isActive: boolean; mode: string } | null> => ({
+          id: "bot1",
+          isActive: true,
+          mode: "STANDARD",
+        }),
+      ),
+    },
     channel: { findFirst: vi.fn(async () => ({ id: "ch1" })) },
     post: {
       findFirst: vi.fn(async () => null),
@@ -64,7 +72,14 @@ vi.mock("@linkaffipro/db", () => db);
 
 import { enqueue, enqueueDm } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
-import { createAndTestAction, createBroadcastAction, sendWinnerToRestAction } from "./actions";
+import {
+  createAndTestAction,
+  createBroadcastAction,
+  scheduleAction,
+  sendNowAction,
+  sendWinnerToRestAction,
+  testToMeAction,
+} from "./actions";
 
 const offer = {
   id: "aff1",
@@ -223,7 +238,7 @@ describe("« Envoyer un test à moi » depuis l'assistant", () => {
     db.prisma.broadcast.create.mockResolvedValue({ id: "b1" });
     db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
       ...container,
-      bot: { username: "casino_bot" },
+      bot: { username: "casino_bot", mode: "STANDARD" },
     });
   });
 
@@ -265,7 +280,7 @@ describe("« Envoyer un test à moi » depuis l'assistant", () => {
     db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
       ...container,
       text: "Bonjour {prenom}, ici {bot}. {offre} reste tel quel.",
-      bot: { username: "casino_bot", name: "Casino & Co" },
+      bot: { username: "casino_bot", name: "Casino & Co", mode: "STANDARD" },
     });
     db.prisma.member.findUnique.mockResolvedValueOnce({
       id: "m1",
@@ -292,7 +307,7 @@ describe("« Envoyer un test à moi » depuis l'assistant", () => {
     db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
       ...container,
       text: "Bonjour {prenom} !",
-      bot: { username: "casino_bot", name: "Casino" },
+      bot: { username: "casino_bot", name: "Casino", mode: "STANDARD" },
     });
     db.prisma.member.findUnique.mockResolvedValueOnce({
       id: "m1",
@@ -338,5 +353,84 @@ describe("emojis animés dans un message à un groupe (phase 12)", () => {
       expect.objectContaining({ data: expect.objectContaining({ text }) }),
     );
     expect(usage).toHaveBeenCalledWith([text]);
+  });
+});
+
+/** Phase 17 : un bot en mode assistant de conversation n'écrit jamais à un groupe (refus du serveur). */
+describe("écrire à un groupe : jamais par un assistant de conversation", () => {
+  const ASSISTANT = /assistant de conversation : il n'écrit pas à un groupe/;
+  const draft = {
+    id: "b1",
+    name: "Promo",
+    botId: "bot-assistant",
+    status: "DRAFT",
+    segment: {},
+    text: "Bonjour",
+    buttons: [],
+    mediaAssetId: null,
+  };
+
+  beforeEach(() => {
+    db.prisma.bot.findUnique.mockResolvedValue({
+      id: "bot-assistant",
+      isActive: true,
+      mode: "ASSISTANT",
+    });
+  });
+  afterEach(() => {
+    db.prisma.bot.findUnique.mockResolvedValue({ id: "bot1", isActive: true, mode: "STANDARD" });
+  });
+
+  it("création : refusée avant le moindre enregistrement", async () => {
+    const url = await run(
+      createBroadcastAction(
+        form({ name: "Promo", botId: "bot-assistant", text: "Bonjour", intent: "now" }),
+      ),
+    );
+    expect(url.split("?")[0]).toBe("/members/broadcasts/new");
+    expect(param(url, "error")).toMatch(ASSISTANT);
+    expect(db.prisma.broadcast.create).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it("brouillon dont le bot est devenu assistant : « Envoyer maintenant » et « Programmer » refusés", async () => {
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue(draft);
+    const now = await run(sendNowAction(form({ broadcastId: "b1" })));
+    expect(param(now, "error")).toMatch(ASSISTANT);
+    const later = await run(
+      scheduleAction(form({ broadcastId: "b1", scheduledAt: "2099-01-01T10:00" })),
+    );
+    expect(param(later, "error")).toMatch(ASSISTANT);
+    expect(db.prisma.broadcast.update).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it("envoi au reste d'un test A/B : refusé, aucun nouvel envoi", async () => {
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
+      ...draft,
+      id: "bA",
+      name: "Promo — A",
+    });
+    const url = await run(sendWinnerToRestAction(form({ groupId: "g1" })));
+    expect(param(url, "error")).toMatch(ASSISTANT);
+    expect(db.prisma.broadcast.create).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it("« Envoyer un test à moi » : refusé, rien n'est envoyé", async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: "u1",
+      email: "a@b.c",
+      name: "Admin",
+      role: "MANAGER",
+      telegramUserId: BigInt(42),
+    });
+    db.prisma.broadcast.findUniqueOrThrow.mockResolvedValue({
+      ...draft,
+      bot: { username: "assistant_bot", name: "Léa", mode: "ASSISTANT" },
+    });
+    const url = await run(testToMeAction(form({ broadcastId: "b1" })));
+    expect(param(url, "error")).toMatch(ASSISTANT);
+    expect(enqueueDm).not.toHaveBeenCalled();
   });
 });

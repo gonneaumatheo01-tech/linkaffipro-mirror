@@ -9,10 +9,14 @@ const mocks = vi.hoisted(() => ({
     trackingLinkIds: [],
     affiliateCampaignIds: ["aff1"],
   })),
+  channelFindUnique: vi.fn(async (_args: unknown) => null as unknown),
 }));
 
 vi.mock("@linkaffipro/db", () => ({
-  prisma: { post: { count: mocks.count, findMany: mocks.findMany } },
+  prisma: {
+    post: { count: mocks.count, findMany: mocks.findMany },
+    channel: { findUnique: mocks.channelFindUnique },
+  },
 }));
 vi.mock("@/lib/dashboard/campaign-scope", () => ({ campaignScope: mocks.campaignScope }));
 
@@ -22,6 +26,7 @@ import {
   parsePostListFilters,
   postListQuery,
   postListWhere,
+  publishingBotFor,
   TEMPLATE_THEMES,
   templateListWhere,
   templateThemeOf,
@@ -35,6 +40,8 @@ beforeEach(() => {
   mocks.count.mockClear();
   mocks.findMany.mockClear();
   mocks.campaignScope.mockClear();
+  mocks.channelFindUnique.mockReset();
+  mocks.channelFindUnique.mockResolvedValue(null);
 });
 
 describe("filtre « Campagne » de la liste des messages", () => {
@@ -205,5 +212,94 @@ describe("vue « Calendrier » : même filtre Campagne que la liste", () => {
       { channelId: { in: ["ch1"] } },
       { trackingLinks: { some: { affiliateCampaignId: { in: ["aff1"] } } } },
     ]);
+  });
+});
+
+describe("bot qui publie dans un canal (phase 17 : jamais un assistant de conversation)", () => {
+  type B = { id: string; username: string; isActive: boolean; mode: "STANDARD" | "ASSISTANT" };
+  const bot = (id: string, over: Partial<B> = {}): B => ({
+    id,
+    username: `${id}_bot`,
+    isActive: true,
+    mode: "STANDARD",
+    ...over,
+  });
+  const channel = (primaryBot: B | null, admins: B[]) =>
+    mocks.channelFindUnique.mockResolvedValue({
+      primaryBot,
+      botAdmins: admins.map((b) => ({ bot: b })),
+    });
+
+  it("bot principal normal et actif : c'est lui qui publie", async () => {
+    channel(bot("p"), [bot("a1")]);
+    expect(await publishingBotFor("ch1")).toEqual({ id: "p", username: "p_bot" });
+  });
+
+  it("bot principal en mode assistant : jamais choisi, le plus ancien administrateur normal publie", async () => {
+    channel(bot("p", { mode: "ASSISTANT" }), [
+      bot("a1", { mode: "ASSISTANT" }),
+      bot("a2"),
+      bot("a3"),
+    ]);
+    expect(await publishingBotFor("ch1")).toEqual({ id: "a2", username: "a2_bot" });
+  });
+
+  it("bot principal désactivé : le premier administrateur normal et actif", async () => {
+    channel(bot("p", { isActive: false }), [bot("a1", { isActive: false }), bot("a2")]);
+    expect(await publishingBotFor("ch1")).toEqual({ id: "a2", username: "a2_bot" });
+  });
+
+  it("seuls des assistants de conversation : aucun bot pour publier", async () => {
+    channel(bot("p", { mode: "ASSISTANT" }), [bot("a1", { mode: "ASSISTANT" })]);
+    expect(await publishingBotFor("ch1")).toBeNull();
+  });
+
+  it("canal inconnu : aucun bot", async () => {
+    expect(await publishingBotFor("inconnu")).toBeNull();
+  });
+
+  it("modification : le bot actuel du message est gardé s'il peut encore publier dans ce canal", async () => {
+    channel(bot("p"), [bot("a1"), bot("a2")]);
+    expect(await publishingBotFor("ch1", { keep: "a2" })).toEqual({ id: "a2", username: "a2_bot" });
+  });
+
+  it("modification : bot actuel devenu assistant, désactivé ou plus administrateur → remplacé", async () => {
+    channel(bot("p"), [bot("a1", { mode: "ASSISTANT" }), bot("a2", { isActive: false })]);
+    expect(await publishingBotFor("ch1", { keep: "a1" })).toEqual({ id: "p", username: "p_bot" });
+    expect(await publishingBotFor("ch1", { keep: "a2" })).toEqual({ id: "p", username: "p_bot" });
+    expect(await publishingBotFor("ch1", { keep: "parti" })).toEqual({
+      id: "p",
+      username: "p_bot",
+    });
+  });
+
+  it("modification : bot actuel devenu assistant et aucun autre bot normal → aucun bot", async () => {
+    channel(bot("p", { mode: "ASSISTANT" }), [bot("p", { mode: "ASSISTANT" })]);
+    expect(await publishingBotFor("ch1", { keep: "p" })).toBeNull();
+  });
+
+  it("la base ne renvoie que les administrateurs normaux et actifs, du plus ancien au plus récent", async () => {
+    channel(null, []);
+    await publishingBotFor("ch1");
+    const args = mocks.channelFindUnique.mock.calls[0]![0] as {
+      where: unknown;
+      select: {
+        primaryBot: { select: Record<string, boolean> };
+        botAdmins: {
+          where: unknown;
+          orderBy: unknown;
+          select: { bot: { select: Record<string, boolean> } };
+        };
+      };
+    };
+    expect(args.where).toEqual({ id: "ch1" });
+    expect(args.select.botAdmins.where).toEqual({
+      revokedAt: null,
+      bot: { isActive: true, mode: "STANDARD" },
+    });
+    expect(args.select.botAdmins.orderBy).toEqual([{ detectedAt: "asc" }, { id: "asc" }]);
+    // Jamais le jeton du bot.
+    expect(args.select.primaryBot.select.tokenEncrypted).toBeUndefined();
+    expect(args.select.primaryBot.select.mode).toBe(true);
   });
 });

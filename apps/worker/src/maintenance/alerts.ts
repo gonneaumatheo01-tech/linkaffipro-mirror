@@ -9,6 +9,7 @@ import {
 import { prisma, toJsonValue, ourPlayers, type Prisma } from "@linkaffipro/db";
 import { HEALTH_WINDOW_DAYS, evaluateSubIdHealth } from "@linkaffipro/linkaffi";
 import { TELEGRAM_SESSION_ID } from "@linkaffipro/mtproto";
+import { ASSISTANT_SETTING_KEY, parseAssistantConfig, parisMonthStart } from "@linkaffipro/chat";
 import {
   HEARTBEAT_LAST_KEY,
   QUEUE_NAMES,
@@ -22,7 +23,10 @@ import { listGateLinksMissing, notifyAdmin } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { dayKey, parisMidnightUtc } from "../stats/aggregate";
 import {
+  ASSISTANT_AI_FAILING_WINDOW_MS,
   alertToReopen,
+  detectAssistantAiFailing,
+  detectAssistantCapReached,
   detectBackupFailed,
   detectBotWebhook,
   detectConnectorReconnect,
@@ -338,11 +342,44 @@ async function linkaffiEventsSnapshot() {
   return { pending, oldestCreatedAt: oldest.createdAt, lastError: oldest.lastError };
 }
 
+/** Pannes de l'IA de l'assistant de conversation des 15 dernières minutes (`conversation.ai_failed`, phase 17). */
+async function assistantAiFailuresSnapshot(now: Date) {
+  const events = await prisma.event.findMany({
+    where: {
+      type: "conversation.ai_failed",
+      occurredAt: { gte: new Date(now.getTime() - ASSISTANT_AI_FAILING_WINDOW_MS), lte: now },
+    },
+    orderBy: { occurredAt: "desc" },
+    take: 500,
+    select: { payload: true },
+  });
+  return events.map((e) => {
+    const p = (e.payload ?? {}) as { code?: unknown; final?: unknown };
+    return { code: typeof p.code === "string" ? p.code : "inconnu", final: p.final === true };
+  });
+}
+
+/** Dépense de l'assistant de conversation du mois (Paris) et son plafond (phase 17). */
+async function assistantSpendSnapshot(now: Date) {
+  const row = await prisma.setting.findUnique({ where: { key: ASSISTANT_SETTING_KEY } });
+  const config = parseAssistantConfig(row?.value);
+  if (config.activation === "off") return null;
+  const agg = await prisma.aiConversationUsage.aggregate({
+    _sum: { costEur: true },
+    where: { createdAt: { gte: parisMonthStart(now) } },
+  });
+  return {
+    activation: config.activation,
+    spentEur: Number(agg._sum.costEur ?? 0),
+    capEur: config.monthlyCapEur,
+  };
+}
+
 /** Évalue toutes les règles et renvoie les alertes détectées. */
 export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   const detected: Detected[] = [];
   const bots = await prisma.bot.findMany({
-    select: { username: true, isActive: true, lastWebhookAt: true, lastError: true },
+    select: { username: true, isActive: true, lastWebhookAt: true, lastError: true, mode: true },
   });
   const d1 = detectBotWebhook(bots, now);
   if (d1) detected.push(d1);
@@ -439,6 +476,15 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     [
       "telegram_account_reconnect",
       async () => detectTelegramAccountReconnect(await telegramAccountSnapshot(now)),
+    ],
+    // Assistant de conversation (phase 17) : IA en panne (clé, solde, service) et plafond du mois atteint.
+    [
+      "assistant_ai_failing",
+      async () => detectAssistantAiFailing(await assistantAiFailuresSnapshot(now)),
+    ],
+    [
+      "assistant_cap_reached",
+      async () => detectAssistantCapReached(await assistantSpendSnapshot(now)),
     ],
     [
       "connector_reconnect",

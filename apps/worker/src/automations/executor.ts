@@ -7,17 +7,23 @@ import type { ActionExecutor } from "./engine";
 import type { MemberSnapshot } from "./context";
 import { resolveAutomationButtons } from "./offer-links";
 
-/** Bot utilisé pour écrire au membre : bot de l'action, sinon bot agissant du canal, sinon bot casino, sinon premier bot actif. */
+/**
+ * Bot utilisé pour écrire au membre : bot de l'action, sinon bot agissant du canal, sinon bot casino, sinon premier bot
+ * actif. Jamais un bot assistant de conversation (phase 17 : il n'écrit qu'aux personnes qui lui parlent).
+ */
 async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
   if (botId) {
-    const b = await prisma.bot.findFirst({ where: { id: botId, isActive: true } });
+    const b = await prisma.bot.findFirst({ where: { id: botId, isActive: true, mode: "STANDARD" } });
     if (b) return b;
   }
   if (snapshot.channelId) {
     const b = await actingBotFor(snapshot.channelId);
     if (b) return b;
   }
-  return (await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true } })) ?? (await prisma.bot.findFirst({ where: { isActive: true } }));
+  return (
+    (await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true, mode: "STANDARD" } })) ??
+    (await prisma.bot.findFirst({ where: { isActive: true, mode: "STANDARD" } }))
+  );
 }
 
 /**

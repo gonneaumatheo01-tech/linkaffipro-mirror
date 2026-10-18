@@ -33,6 +33,19 @@ function isRedirect(err: unknown): boolean {
   return (err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT") ?? false;
 }
 
+/** Refus d'un bot en mode assistant de conversation (phase 17) : il ne répond qu'aux personnes qui lui parlent. */
+const ASSISTANT_BOT_ERROR =
+  "Ce bot est un assistant de conversation : il n'écrit pas à un groupe. Choisissez un autre bot.";
+
+/**
+ * Un envoi existant ne part jamais par un bot passé en mode assistant de conversation depuis sa création (phase 17).
+ * Le service d'arrière-plan l'annule aussi ; ici, le refus est affiché tout de suite.
+ */
+async function refuseAssistantBot(botId: string, backTo: string): Promise<void> {
+  const bot = await prisma.bot.findUnique({ where: { id: botId }, select: { mode: true } });
+  if (bot && bot.mode !== "STANDARD") back(backTo, { error: ASSISTANT_BOT_ERROR });
+}
+
 /**
  * Matérialise les boutons : URL directe ; BUTTON → TrackingLink kind BUTTON ; OFFER → TrackingLink kind OFFER.
  * Les boutons Offre exigent un message « conteneur » (Post SENT, templateName `broadcast:<id>`) qui porte le
@@ -225,9 +238,14 @@ async function createFromForm(formData: FormData, user: CurrentUser): Promise<Cr
     if (!scheduledAt || scheduledAt.getTime() < Date.now() - 60_000)
       back("/members/broadcasts/new", { error: "Choisissez une date et une heure dans le futur." });
   }
-  const bot = await prisma.bot.findUnique({ where: { id: d.botId } });
+  const bot = await prisma.bot.findUnique({
+    where: { id: d.botId },
+    select: { isActive: true, mode: true },
+  });
   if (!bot || !bot.isActive)
     back("/members/broadcasts/new", { error: "Ce bot est introuvable ou désactivé." });
+  // Jamais un bot assistant de conversation (phase 17) : le formulaire ne le propose pas, refusé ici aussi.
+  if (bot.mode !== "STANDARD") back("/members/broadcasts/new", { error: ASSISTANT_BOT_ERROR });
   const status = d.intent === "now" ? "SENDING" : d.intent === "schedule" ? "SCHEDULED" : "DRAFT";
   const abGroupId = ab.enabled ? shortId(10) : null;
   const created: string[] = [];
@@ -410,6 +428,7 @@ export async function sendWinnerToRestAction(formData: FormData): Promise<void> 
     });
   const src = cmp.variants.find((x) => x.variant === winner.variant)!;
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id: src.id } });
+  await refuseAssistantBot(b.botId, `/members/broadcasts/ab/${groupId}`);
   const rest = await prisma.broadcast.create({
     data: {
       name: b.name.replace(/ — [AB]$/, "") + ` — reste (gagnante ${winner.variant})`,
@@ -474,6 +493,7 @@ export async function sendNowAction(formData: FormData): Promise<void> {
     back(`/members/broadcasts/${id}`, {
       error: "Cet envoi est déjà parti ou annulé : il ne peut plus être lancé.",
     });
+  await refuseAssistantBot(b.botId, `/members/broadcasts/${id}`);
   await prisma.broadcast.update({
     where: { id },
     data: { status: "SENDING", startedAt: new Date(), scheduledAt: null },
@@ -506,6 +526,7 @@ export async function scheduleAction(formData: FormData): Promise<void> {
     back(`/members/broadcasts/${id}`, {
       error: "Cet envoi est déjà parti ou annulé : il ne peut plus être programmé.",
     });
+  await refuseAssistantBot(b.botId, `/members/broadcasts/${id}`);
   await prisma.broadcast.update({ where: { id }, data: { status: "SCHEDULED", scheduledAt: at } });
   await audit({
     userId: user.id,
@@ -548,6 +569,7 @@ export async function cancelBroadcastAction(formData: FormData): Promise<void> {
  */
 async function sendTestToUser(user: CurrentUser, id: string): Promise<string | null> {
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id }, include: { bot: true } });
+  if (b.bot.mode !== "STANDARD") return ASSISTANT_BOT_ERROR;
   if (!user.telegramUserId)
     return "Liez d'abord votre compte Telegram dans « Mon compte » (menu en haut à droite).";
   const member = await prisma.member.findUnique({

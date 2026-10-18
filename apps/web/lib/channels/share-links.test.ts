@@ -66,7 +66,7 @@ vi.mock("@linkaffipro/db", () => ({
     db.audits.push(a);
   }),
 }));
-vi.mock("@/lib/approval/telegram", () => ({ actingBotFor: vi.fn(async () => db.acting) }));
+vi.mock("./acting-bot", () => ({ actingStandardBotFor: vi.fn(async () => db.acting) }));
 vi.mock("@linkaffipro/telegram", () => ({
   canInviteFromRights: (r: unknown) =>
     r && typeof r === "object" && "can_invite_users" in r

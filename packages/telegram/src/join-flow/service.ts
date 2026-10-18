@@ -1108,9 +1108,12 @@ export async function resendGateWelcome(
       });
     return { status: "not_pending" };
   }
+  // Bot de la demande s'il est encore actif et normal (`getBotIdentity`), sinon celui qui agit pour le canal : jamais un
+  // bot devenu assistant de conversation (phase 17).
   const sourceBotId = typeof m.source.botId === "string" ? m.source.botId : null;
-  const botId = sourceBotId ?? (await deps.actingBotIdFor(channel.id))?.botId ?? null;
-  const identity = botId ? await deps.getBotIdentity(botId) : null;
+  const sourceIdentity = sourceBotId ? await deps.getBotIdentity(sourceBotId) : null;
+  const actingId = sourceIdentity ? null : ((await deps.actingBotIdFor(channel.id))?.botId ?? null);
+  const identity = sourceIdentity ?? (actingId ? await deps.getBotIdentity(actingId) : null);
   const api = identity ? await deps.apiFor(identity.id) : null;
   if (!identity || !api) return { status: "no_bot" };
 
@@ -1141,8 +1144,12 @@ export async function resendGateWelcome(
     return { status: "still_missing", missing: [...missing, ...unverifiable] };
   }
 
+  // Lien « Démarrer » du bot qui écrit : celui gardé sur la demande, sauf si son bot a été remplacé.
+  const replaced = sourceBotId !== null && sourceIdentity === null;
   const startUrl =
-    typeof m.source.startUrl === "string" ? m.source.startUrl : startUrlFor(identity, m.code);
+    !replaced && typeof m.source.startUrl === "string"
+      ? m.source.startUrl
+      : startUrlFor(identity, m.code);
   // Joignable : a démarré le bot (ou appuyé sur un de ses boutons), ou demande de moins de 5 minutes (phase 14, E2).
   const canWrite = (
     await reachableFor(

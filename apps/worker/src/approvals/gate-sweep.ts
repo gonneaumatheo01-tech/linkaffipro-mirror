@@ -44,10 +44,10 @@ export function gateSweepBotPauses(): ReadonlyMap<string, number> {
   return botPauses;
 }
 
-/** API d'un de nos bots actifs par le cache du worker (null : bot inconnu ou inactif). */
+/** API d'un de nos bots actifs par le cache du worker (null : bot inconnu, inactif ou assistant de conversation). */
 async function workerApiFor(botId: string) {
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true },
+    where: { id: botId, isActive: true, mode: "STANDARD" },
     select: { id: true, tokenEncrypted: true },
   });
   return bot ? apiForBot(bot) : null;

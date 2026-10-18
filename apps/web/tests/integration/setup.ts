@@ -53,6 +53,17 @@ vi.mock("@linkaffipro/queue", async (importOriginal) => {
     ...orig,
     enqueue: async (name: string, data: Record<string, unknown>, opts: Record<string, unknown> = {}) => push(name, data, opts),
     enqueueDm,
+    // Tour de l'assistant de conversation (phase 17) : même tâche que l'implémentation réelle (anti-rebond).
+    enqueueChatTurn: async (conversationId: string, opts: { delayMs?: number } = {}) => {
+      push(
+        "chat",
+        { type: "turn", conversationId },
+        {
+          delay: opts.delayMs ?? orig.CHAT_TURN_DEBOUNCE_MS,
+          deduplication: { id: `turn-${conversationId}`, extend: true, replace: true, keepLastIfActive: true },
+        },
+      );
+    },
     emitAutomationEvent: async (trigger: string, memberId: string | null | undefined, context: Record<string, unknown> = {}) => {
       if (memberId) push("automations", { type: "event", trigger, memberId, context });
     },

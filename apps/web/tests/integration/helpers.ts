@@ -29,6 +29,9 @@ export async function resetDb(): Promise<void> {
     prisma.member.deleteMany(),
     prisma.channel.deleteMany(),
     prisma.bot.deleteMany(),
+    // Phase 17 : conversations, messages et liens d'offre de l'assistant partent avec les membres et les bots
+    // (cascade) ; les personas restent sinon d'un test à l'autre.
+    prisma.persona.deleteMany(),
     prisma.syncState.deleteMany(),
   ]);
   // Vidé en place : le mock de la file garde une référence sur ce tableau (voir setup.ts).

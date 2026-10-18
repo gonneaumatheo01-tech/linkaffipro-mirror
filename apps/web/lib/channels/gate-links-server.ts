@@ -8,7 +8,7 @@ import {
   type ChannelInfo,
   type FirstBot,
 } from "@linkaffipro/telegram";
-import { actingBotFor } from "@/lib/approval/telegram";
+import { actingStandardBotFor } from "./acting-bot";
 import { entryRuleFromRow, hasGate, isRuleInForce, type EntryRule } from "./entry-rule";
 import {
   gateLinkRows,
@@ -66,7 +66,7 @@ export async function verifyGateLinks(
   const [found, source, acting] = await Promise.all([
     defaultRule(channelId),
     prisma.channel.findUnique({ where: { id: channelId }, select: channelInfoSelect }),
-    actingBotFor(channelId),
+    actingStandardBotFor(channelId),
   ]);
   const solutionBot = acting?.username ?? null;
   if (!found || !source || !isRuleInForce(found.rule) || !hasGate(found.rule))
@@ -141,7 +141,8 @@ export async function loadGateLinkView(
         sourceChannelId: channelId,
         channelId: { in: ids },
         isActive: true,
-        bot: { isActive: true },
+        // Même règle que le bot (`findGateLink`) : jamais le lien d'un bot assistant de conversation (phase 17).
+        bot: { isActive: true, mode: "STANDARD" },
       },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       select: {
@@ -152,7 +153,7 @@ export async function loadGateLinkView(
       },
     }),
     prisma.channelBotAdmin.findMany({
-      where: { channelId: { in: ids }, bot: { isActive: true } },
+      where: { channelId: { in: ids }, bot: { isActive: true, mode: "STANDARD" } },
       select: {
         channelId: true,
         botId: true,
@@ -166,7 +167,7 @@ export async function loadGateLinkView(
       orderBy: { occurredAt: "desc" },
       select: { payload: true },
     }),
-    actingBotFor(channelId),
+    actingStandardBotFor(channelId),
   ]);
   const revoked = new Set(
     admins.filter((a) => a.revokedAt).map((a) => `${a.channelId}:${a.botId}`),

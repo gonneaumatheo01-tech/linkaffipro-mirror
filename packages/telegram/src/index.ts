@@ -1,18 +1,44 @@
 export { registerHandlers, updateTypeOf } from "./handlers";
-export { createBot, getOrCreateBot, evictBot, botInfoFromRecord } from "./factory";
+export {
+  createBot,
+  getOrCreateBot,
+  evictBot,
+  botInfoFromRecord,
+  cachedBotMatches,
+} from "./factory";
 export type { BotRecordLike } from "./factory";
 export { prismaTelegramDeps } from "./prisma-deps";
 export { isAssistantTeamMember } from "./assistant/team";
+// Phase 17 : réception par le bot assistant de conversation (journal sans texte, /start, /stop, /reset, messages).
+export { registerAssistantHandlers } from "./handlers/assistant";
+export {
+  assistantReplyLang,
+  classifyAssistantMessage,
+  cleanStartSource,
+  parseAssistantCommand,
+  redactAssistantUpdate,
+} from "./assistant/logic";
+export type { AssistantCommand, AssistantInbound } from "./assistant/logic";
+export type { AssistantConversation, AssistantDeps, AssistantPersonaInfo } from "./assistant/deps";
+export {
+  BOT_DESCRIPTION_MAX,
+  BOT_SHORT_DESCRIPTION_MAX,
+  assistantProfilePlan,
+  mentionsAssistant,
+  personaChatLangs,
+} from "./assistant/profile";
+export type { AssistantProfilePlan, ProfileEntry, ProfilePersona } from "./assistant/profile";
 export type {
   TelegramDeps,
   BotIdentity,
+  BotMode,
   AdminRights,
   ChannelDeps,
   OurBotAdmin,
   RecheckOutcome,
   LinkImportOutcome,
 } from "./ports";
-export { extractAdminRights } from "./ports";
+export { extractAdminRights, isAssistantBot } from "./ports";
 export { MESSAGES, LANGS, DEFAULT_LANG, isLang, pickLang, t } from "./i18n";
 export type { Lang, MessageKey } from "./i18n";
 export {
@@ -21,7 +47,10 @@ export {
   getWebhookInfoForBot,
   setAllWebhooks,
   webhookUrlFor,
+  setAssistantProfile,
+  ASSISTANT_PROFILE_SETTING_PREFIX,
 } from "./service";
+export type { AssistantProfileApi, AssistantProfileReport } from "./service";
 export {
   readOurAdminsForChat,
   recheckChannelRights,
@@ -108,7 +137,13 @@ export {
   rewrittenJoinRequestTexts,
 } from "./sequences/phase14-texts";
 export type { Phase14TextsReport } from "./sequences/phase14-texts";
-export { offerDeepLink, buildOfferPayload, parseOfferPayload } from "./offers/logic";
+export {
+  offerDeepLink,
+  buildOfferPayload,
+  parseOfferPayload,
+  offerDestination,
+  isLinkaffiOfferUrl,
+} from "./offers/logic";
 export {
   SEQUENCE_TRIGGERS,
   TRIGGER_LABELS,

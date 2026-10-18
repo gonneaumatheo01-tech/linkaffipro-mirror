@@ -102,10 +102,13 @@ export async function loadLibrary(opts: { hidden: boolean }): Promise<LibraryDat
   };
 }
 
-/** Bots actifs auxquels transférer un message (nom d'utilisateur Telegram, sans « @ »). */
+/**
+ * Bots actifs auxquels transférer un message (nom d'utilisateur Telegram, sans « @ »). Jamais un bot assistant de
+ * conversation (phase 17) : il ne reçoit pas les emojis animés de l'équipe.
+ */
 export async function activeBotUsernames(): Promise<Array<{ username: string; name: string }>> {
   return prisma.bot.findMany({
-    where: { isActive: true },
+    where: { isActive: true, mode: "STANDARD" },
     orderBy: { createdAt: "asc" },
     select: { username: true, name: true },
   });

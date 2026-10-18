@@ -190,7 +190,10 @@ export interface JoinFlowDeps extends GateLinkDeps {
   getMember(
     memberId: string,
   ): Promise<{ memberId: string; languageCode: string | null; firstName: string | null } | null>;
-  /** Identité d'un de nos bots actifs (jamais le jeton), ou null. */
+  /**
+   * Identité d'un de nos bots actifs et normaux (jamais le jeton), ou null : un bot assistant de conversation (phase 17)
+   * n'écrit jamais pour une demande d'adhésion.
+   */
   getBotIdentity(botId: string): Promise<BotIdentity | null>;
   /**
    * Le bot peut-il écrire en premier à ce membre ? Vrai seulement si le membre a ouvert la conversation avec le bot

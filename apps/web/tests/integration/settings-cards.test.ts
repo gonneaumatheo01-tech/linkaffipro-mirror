@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma, toJsonValue } from "@linkaffipro/db";
-import { NO_STATE_INPUT, settingsStates } from "@/lib/status/settings-cards";
+import { NO_STATE_INPUT, plural, settingsStates } from "@/lib/status/settings-cards";
 import { botStatuses } from "@/lib/status/queries";
 import { loadSettingsStateInput } from "@/lib/status/settings-cards-queries";
 import { resetDb } from "./helpers";
@@ -196,9 +196,8 @@ describe("pastilles des cartes de Réglages", () => {
       input.bots?.filter((b) => b.isActive).map((b) => Boolean(b.webhook?.fetchError)),
     ).toEqual([true]);
     expect(s.bots).toEqual({ tone: "danger", label: "1 à vérifier" });
-    expect(s.team?.label).toBe(
-      `${usersBefore} compte${usersBefore > 1 ? "s" : ""} · 1 invitation en attente`,
-    );
+    // Même mise en forme que l'écran (séparateur des milliers) : la base de test garde les comptes d'un passage à l'autre.
+    expect(s.team?.label).toBe(`${plural(usersBefore, "compte", "comptes")} · 1 invitation en attente`);
     expect(s.alerts).toEqual({ tone: "warning", label: "1 alerte ouverte" });
     expect(s.ai).toEqual({ tone: "success", label: "Prêt" });
     expect(input.categories).toBe(categoriesBefore + 1);

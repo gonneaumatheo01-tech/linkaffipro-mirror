@@ -7,7 +7,7 @@ import {
   type ChannelInfo,
   type FirstBot,
 } from "@linkaffipro/telegram";
-import { actingBotFor } from "@/lib/approval/telegram";
+import { actingStandardBotFor } from "./acting-bot";
 import { entryRuleFromRow, hasGate } from "./entry-rule";
 import type { ExceptionItem } from "./exceptions";
 import type { GateCheckResult } from "./gate-links";
@@ -74,7 +74,7 @@ export async function verifyChannelGateLinks(
   const [targets, source, acting] = await Promise.all([
     channelGateTargets(channelId),
     prisma.channel.findUnique({ where: { id: channelId }, select: channelInfoSelect }),
-    actingBotFor(channelId),
+    actingStandardBotFor(channelId),
   ]);
   const solutionBot = acting?.username ?? null;
   if (!source || targets.ids.length === 0) return { results: [], solutionBot };

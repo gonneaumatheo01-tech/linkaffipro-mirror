@@ -146,8 +146,9 @@ export function createPrismaJoinFlowDeps(
         where: { id: channelId },
         select: { primaryBotId: true, title: true },
       });
+      // Phase 17 : un bot assistant de conversation n'agit jamais pour un canal.
       const admins = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true } },
+        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true },
       });
@@ -285,8 +286,9 @@ export function createPrismaJoinFlowDeps(
       return { memberId: m.id, languageCode: m.languageCode, firstName: m.firstName };
     },
     async getBotIdentity(botId) {
+      // Phase 17 : jamais un bot assistant de conversation (il n'écrit pas pour les demandes d'adhésion).
       return prisma.bot.findFirst({
-        where: { id: botId, isActive: true },
+        where: { id: botId, isActive: true, mode: "STANDARD" },
         select: { id: true, name: true, username: true, telegramBotId: true, vertical: true },
       });
     },

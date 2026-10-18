@@ -1,7 +1,14 @@
 import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
-import type { AdminRights, BotIdentity, LinkImportOutcome, TelegramDeps } from "./ports";
+import {
+  isAssistantBot,
+  type AdminRights,
+  type BotIdentity,
+  type LinkImportOutcome,
+  type TelegramDeps,
+} from "./ports";
+import { redactAssistantUpdate } from "./assistant/logic";
 import { ensureDefaultSequences } from "./sequences/ensure";
 import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
 import { addCustomEmojisToLibrary } from "./custom-emoji/library";
@@ -58,7 +65,9 @@ export const prismaTelegramDeps: TelegramDeps = {
       botId: bot.id,
       memberId: refs.memberId,
       channelId: refs.channelId,
-      payload: toJsonValue(update),
+      // Bot assistant (phase 17) : jamais le texte d'une conversation dans le journal (déjà retiré par le middleware ;
+      // second filet ici).
+      payload: toJsonValue(isAssistantBot(bot) ? redactAssistantUpdate(update) : update),
     });
     await prisma.bot
       .update({ where: { id: bot.id }, data: { lastWebhookAt: new Date() } })
@@ -271,16 +280,17 @@ export const prismaTelegramDeps: TelegramDeps = {
     });
     if (!channel || channel.primaryBotId) return;
     const [admins, detector] = await Promise.all([
+      // Phase 17 : un bot assistant de conversation n'est jamais bot principal d'un canal.
       prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true } },
+        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
-        select: { bot: { select: { id: true, vertical: true } } },
+        select: { bot: { select: { id: true, vertical: true, mode: true } } },
       }),
       detectorBotTelegramId === null
         ? Promise.resolve(null)
         : prisma.bot.findFirst({
-            where: { telegramBotId: detectorBotTelegramId, isActive: true },
-            select: { id: true, vertical: true },
+            where: { telegramBotId: detectorBotTelegramId, isActive: true, mode: "STANDARD" },
+            select: { id: true, vertical: true, mode: true },
           }),
     ]);
     const choice = choosePrimaryBot({

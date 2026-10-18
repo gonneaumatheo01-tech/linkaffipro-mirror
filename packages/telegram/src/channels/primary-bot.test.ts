@@ -34,6 +34,26 @@ describe("choosePrimaryBot", () => {
     });
     expect(choosePrimaryBot({ channelVertical: "CASINO", detector: null, admins: [] })).toBeNull();
   });
+  it("jamais un bot assistant de conversation (phase 17), même du bon univers ou détecteur", () => {
+    const assistant = { id: "b_assistant", vertical: "DATING", mode: "ASSISTANT" };
+    expect(
+      choosePrimaryBot({
+        channelVertical: "DATING",
+        detector: assistant,
+        admins: [assistant, sport],
+      }),
+    ).toEqual({ botId: "b_sport", reason: "first_admin" });
+    expect(
+      choosePrimaryBot({ channelVertical: "DATING", detector: assistant, admins: [assistant] }),
+    ).toBeNull();
+    expect(
+      choosePrimaryBot({
+        channelVertical: "DATING",
+        detector: null,
+        admins: [{ ...dating, mode: "STANDARD" }],
+      }),
+    ).toEqual({ botId: "b_dating", reason: "same_vertical" });
+  });
 });
 
 describe("sameRights", () => {

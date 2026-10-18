@@ -59,12 +59,16 @@ export function sourceAfterGateSatisfied(source: Record<string, unknown>): Recor
   };
 }
 
-/** Bot qui a traité la demande (celui qui écrit à la personne), sinon celui qui agit pour le canal. */
+/**
+ * Bot qui a traité la demande (celui qui écrit à la personne) s'il est encore actif et normal, sinon celui qui agit
+ * pour le canal : jamais un bot devenu assistant de conversation (phase 17), qui n'a plus le flux d'adhésion.
+ */
 export async function botOfMembership(
-  deps: Pick<JoinFlowDeps, "actingBotIdFor">,
+  deps: Pick<JoinFlowDeps, "actingBotIdFor" | "getBotIdentity">,
   m: Pick<MembershipInfo, "source" | "channelId">,
 ): Promise<string | null> {
-  if (typeof m.source.botId === "string" && m.source.botId) return m.source.botId;
+  const sourceBotId = typeof m.source.botId === "string" && m.source.botId ? m.source.botId : null;
+  if (sourceBotId && (await deps.getBotIdentity(sourceBotId))) return sourceBotId;
   return (await deps.actingBotIdFor(m.channelId))?.botId ?? null;
 }
 

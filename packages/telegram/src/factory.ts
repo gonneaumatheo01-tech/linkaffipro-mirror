@@ -1,7 +1,7 @@
 import { Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
 import { decrypt } from "@linkaffipro/core";
-import type { BotIdentity, TelegramDeps } from "./ports";
+import type { BotIdentity, BotMode, TelegramDeps } from "./ports";
 import { registerHandlers } from "./handlers";
 
 export type BotRecordLike = BotIdentity & { tokenEncrypted: string };
@@ -33,14 +33,36 @@ export function createBot(rec: BotRecordLike, deps: TelegramDeps): Bot {
   return bot;
 }
 
-/** Cache d'instances par id de bot, invalidé si le jeton chiffré change. */
-const cache = new Map<string, { bot: Bot; tokenEncrypted: string }>();
+type CachedBot = { bot: Bot; tokenEncrypted: string; mode: BotMode; personaId: string | null };
+
+/**
+ * Cache d'instances par id de bot, invalidé si le jeton chiffré, le mode ou la persona changent (phase 17 : un bot passé
+ * en mode assistant n'a plus les mêmes handlers). Un appelant qui ne connaît pas le mode ou la persona (lecture des
+ * droits, API seule : champ absent) réutilise l'instance en cache telle quelle.
+ */
+const cache = new Map<string, CachedBot>();
+
+/** L'instance en cache convient-elle à cet enregistrement ? (fonction pure, testée) */
+export function cachedBotMatches(
+  hit: Pick<CachedBot, "tokenEncrypted" | "mode" | "personaId">,
+  rec: Pick<BotRecordLike, "tokenEncrypted" | "mode" | "personaId">,
+): boolean {
+  if (hit.tokenEncrypted !== rec.tokenEncrypted) return false;
+  if (rec.mode !== undefined && hit.mode !== rec.mode) return false;
+  if (rec.personaId !== undefined && hit.personaId !== (rec.personaId ?? null)) return false;
+  return true;
+}
 
 export function getOrCreateBot(rec: BotRecordLike, deps: TelegramDeps): Bot {
   const hit = cache.get(rec.id);
-  if (hit && hit.tokenEncrypted === rec.tokenEncrypted) return hit.bot;
+  if (hit && cachedBotMatches(hit, rec)) return hit.bot;
   const bot = createBot(rec, deps);
-  cache.set(rec.id, { bot, tokenEncrypted: rec.tokenEncrypted });
+  cache.set(rec.id, {
+    bot,
+    tokenEncrypted: rec.tokenEncrypted,
+    mode: rec.mode ?? "STANDARD",
+    personaId: rec.personaId ?? null,
+  });
   return bot;
 }
 

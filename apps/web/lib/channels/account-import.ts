@@ -139,5 +139,7 @@ export async function listAccountChannels(): Promise<
       knownById.get(c.telegramChatId) ?? null,
     ),
   );
-  return { ok: true, rows, firstBot: bots[0]?.username ?? null };
+  // Bot à ajouter comme administrateur (aide de la page) : jamais un assistant de conversation (phase 17).
+  const firstBot = bots.find((b) => (b.mode ?? "STANDARD") === "STANDARD")?.username ?? null;
+  return { ok: true, rows, firstBot };
 }

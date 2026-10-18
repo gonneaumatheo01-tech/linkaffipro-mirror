@@ -27,14 +27,17 @@ export function apiForBot(bot: { id: string; tokenEncrypted: string }): Api {
   return api;
 }
 
-/** Bot qui agit pour un canal : principal s'il est administrateur, sinon premier administrateur actif. */
+/**
+ * Bot qui agit pour un canal : principal s'il est administrateur, sinon premier administrateur actif. Jamais un bot
+ * assistant de conversation (phase 17).
+ */
 export async function actingBotFor(channelId: string) {
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
     select: { primaryBotId: true, title: true },
   });
   const admins = await prisma.channelBotAdmin.findMany({
-    where: { channelId, revokedAt: null, bot: { isActive: true } },
+    where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
     orderBy: { detectedAt: "asc" },
     include: { bot: true },
   });

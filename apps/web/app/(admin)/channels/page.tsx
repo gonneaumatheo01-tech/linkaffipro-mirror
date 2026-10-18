@@ -114,8 +114,10 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
   const sp = await searchParams;
   const [channels, bots, accountActive] = await Promise.all([
     loadChannelList(),
+    // Bots proposés (bot principal, bot à qui transférer un message, exemple de l'aide) : jamais un assistant de
+    // conversation (phase 17). Les bots administrateurs d'un canal restent tous affichés.
     prisma.bot.findMany({
-      where: { isActive: true },
+      where: { isActive: true, mode: "STANDARD" },
       orderBy: { name: "asc" },
       select: { id: true, username: true, name: true, vertical: true },
     }),

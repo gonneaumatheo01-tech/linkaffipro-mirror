@@ -3,7 +3,11 @@
  * Fonctions pures (testées) ; l'accès base est dans `prisma-deps.ts`.
  */
 
-type BotLite = { id: string; vertical: string };
+/** `mode` (phase 17) : un bot en mode assistant de conversation n'est jamais choisi (absent = bot normal). */
+type BotLite = { id: string; vertical: string; mode?: string };
+
+const isStandard = (b: BotLite | null): b is BotLite =>
+  !!b && (b.mode ?? "STANDARD") === "STANDARD";
 
 export type PrimaryBotChoice = {
   botId: string;
@@ -16,14 +20,16 @@ export type PrimaryBotChoice = {
  * 2. le bot qui a détecté le canal, s'il en est administrateur ;
  * 3. le premier bot administrateur (le plus ancien) ;
  * 4. le bot qui a détecté le canal (le canal attend qu'on l'ajoute comme administrateur) ;
- * sinon aucun.
+ * sinon aucun. Les bots en mode assistant de conversation sont toujours écartés (phase 17).
  */
 export function choosePrimaryBot(input: {
   channelVertical: string | null;
   detector: BotLite | null;
   admins: BotLite[];
 }): PrimaryBotChoice | null {
-  const { channelVertical, detector, admins } = input;
+  const detector = isStandard(input.detector) ? input.detector : null;
+  const admins = input.admins.filter(isStandard);
+  const { channelVertical } = input;
   if (channelVertical) {
     const same = admins.find((a) => a.vertical === channelVertical);
     if (same) return { botId: same.id, reason: "same_vertical" };

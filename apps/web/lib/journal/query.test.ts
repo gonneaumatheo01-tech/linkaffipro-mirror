@@ -68,6 +68,7 @@ const REAL_ACTIONS = [
   "assistant.key_verified",
   "assistant.key_removed",
   "assistant.activation_changed",
+  "assistant.bot_mode_changed",
 ];
 
 const where = (action: string) => journalWhere({ userId: "", action, from: "", to: "" });
@@ -140,6 +141,9 @@ describe("filtre « Type d'action » du Journal", () => {
     expect(actionLabel("assistant.key_removed")).toBe("IA de conversation : clé retirée");
     expect(actionLabel("assistant.activation_changed")).toBe(
       "IA de conversation : activation modifiée",
+    );
+    expect(actionLabel("assistant.bot_mode_changed")).toBe(
+      "Mode d'un bot changé (assistant de conversation)",
     );
     expect(actionLabel("assistant.autre")).toBe("IA de conversation");
     expect(actionLabel("persona.created")).toBe("Persona créée");

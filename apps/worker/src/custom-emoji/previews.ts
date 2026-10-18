@@ -95,7 +95,7 @@ export async function activePreviewClients(
   fetchImpl: typeof fetch = (...args) => globalThis.fetch(...args),
 ): Promise<PreviewBotClient[]> {
   const bots = await prisma.bot.findMany({
-    where: { isActive: true },
+    where: { isActive: true, mode: "STANDARD" },
     orderBy: { createdAt: "asc" },
     select: { id: true, username: true, tokenEncrypted: true },
   });

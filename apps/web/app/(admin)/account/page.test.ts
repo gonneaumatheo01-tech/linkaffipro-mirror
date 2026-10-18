@@ -60,6 +60,13 @@ describe("Mon compte", () => {
     expect(visibleText(html)).toContain("Générer un nouveau lien");
   });
 
+  it("phase 17 : liens proposés par les bots normaux seulement, jamais par un assistant de conversation", async () => {
+    const { prisma } = await import("@linkaffipro/db");
+    await render();
+    const args = vi.mocked(prisma.bot.findMany).mock.calls.at(-1)![0] as { where: unknown };
+    expect(args.where).toEqual({ isActive: true, mode: "STANDARD" });
+  });
+
   it("Telegram lié : bouton « Délier », toujours un seul bouton orange", async () => {
     mocks.user = { telegramLinkToken: null, telegramUserId: 123n };
     const html = await render();

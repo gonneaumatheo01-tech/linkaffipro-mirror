@@ -14,6 +14,7 @@ import {
   type SequenceTriggerKey,
 } from "@linkaffipro/telegram";
 import { requireUser } from "@/lib/session";
+import { actingStandardBotFor } from "@/lib/channels/acting-bot";
 import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 
 const TRIGGERS = [
@@ -305,10 +306,12 @@ export async function sendSequenceTestAction(formData: FormData): Promise<void> 
     });
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
-    include: { botAdmins: { where: { revokedAt: null }, select: { botId: true } } },
+    select: { id: true, title: true },
   });
   if (!channel) redirect("/channels");
-  const botId = channel.primaryBotId ?? channel.botAdmins[0]?.botId ?? null;
+  // Le bot qui parle aux membres de ce canal : bot principal s'il est administrateur, sinon le plus ancien
+  // administrateur ; jamais un bot assistant de conversation (phase 17).
+  const botId = (await actingStandardBotFor(channelId))?.id ?? null;
   if (!botId)
     back(channelId, {
       error: "Aucun de nos bots n'est administrateur de ce canal : ajoutez-en un dans Telegram.",

@@ -251,20 +251,40 @@ export const POST_STATUS_VARIANT: Record<PostStatus, BadgeVariant> = Object.from
   (Object.keys(POST_STATUS_LABELS) as PostStatus[]).map((s) => [s, statusVariant("post", s)]),
 ) as Record<PostStatus, BadgeVariant>;
 
-/** Bot qui publie dans un canal : bot principal, sinon premier bot administrateur actif. */
+/** Champs d'un bot lus pour choisir celui qui publie (jamais le jeton). */
+const publishingBotSelect = { id: true, username: true, isActive: true, mode: true } as const;
+
+/** Un bot peut-il publier dans un canal ? Actif et normal : jamais un assistant de conversation (phase 17). */
+function canPublish(bot: { isActive: boolean; mode: string } | null | undefined): boolean {
+  return Boolean(bot?.isActive && bot.mode === "STANDARD");
+}
+
+/**
+ * Bot qui publie dans un canal : bot principal, sinon le plus ancien bot administrateur actif. Jamais un bot en mode
+ * assistant de conversation (phase 17 : il ne s'occupe que de ses conversations privées).
+ * `keep` (modification d'un message) : le bot actuel du message est gardé s'il peut encore publier dans ce canal (bot
+ * principal ou administrateur, actif et normal) ; sinon (désactivé, devenu assistant, plus administrateur) le choix
+ * ci-dessus le remplace.
+ */
 export async function publishingBotFor(
   channelId: string,
+  opts: { keep?: string | null } = {},
 ): Promise<{ id: string; username: string } | null> {
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
-    include: {
-      primaryBot: true,
-      botAdmins: { where: { revokedAt: null }, include: { bot: true } },
+    select: {
+      primaryBot: { select: publishingBotSelect },
+      botAdmins: {
+        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
+        select: { bot: { select: publishingBotSelect } },
+      },
     },
   });
   if (!channel) return null;
-  if (channel.primaryBot?.isActive)
-    return { id: channel.primaryBot.id, username: channel.primaryBot.username };
-  const admin = channel.botAdmins.find((a) => a.bot.isActive);
-  return admin ? { id: admin.bot.id, username: admin.bot.username } : null;
+  const candidates = [channel.primaryBot, ...channel.botAdmins.map((a) => a.bot)].filter(
+    (b): b is NonNullable<typeof b> => canPublish(b),
+  );
+  const chosen = (opts.keep && candidates.find((b) => b.id === opts.keep)) || candidates[0];
+  return chosen ? { id: chosen.id, username: chosen.username } : null;
 }

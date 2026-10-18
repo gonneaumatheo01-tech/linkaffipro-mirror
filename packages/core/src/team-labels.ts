@@ -26,6 +26,8 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   telegram_account_reconnect: "Compte Telegram à reconnecter",
   linkaffi_events_stuck: "Événements Link Affi en attente",
   bot_blocked_rate: "Personnes qui bloquent le bot après l'accueil",
+  assistant_ai_failing: "Assistant de conversation en panne",
+  assistant_cap_reached: "Plafond de l'assistant de conversation atteint",
 };
 
 export function alertKindLabel(kind: string): string {

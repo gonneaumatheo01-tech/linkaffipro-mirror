@@ -3,24 +3,7 @@ import { decrypt } from "@linkaffipro/core";
 import { prisma, recordEvent } from "@linkaffipro/db";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import { memberReachabilityWithDb } from "@linkaffipro/telegram";
-
-/** Bot qui agit pour un canal (principal s'il est administrateur, sinon premier administrateur). */
-export async function actingBotFor(channelId: string) {
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-    select: { primaryBotId: true },
-  });
-  const admins = await prisma.channelBotAdmin.findMany({
-    where: { channelId, revokedAt: null, bot: { isActive: true } },
-    orderBy: { detectedAt: "asc" },
-    include: { bot: true },
-  });
-  if (admins.length === 0) return null;
-  const primary = channel?.primaryBotId
-    ? admins.find((a) => a.botId === channel.primaryBotId)
-    : undefined;
-  return (primary ?? admins[0]!).bot;
-}
+import { actingStandardBotFor } from "@/lib/channels/acting-bot";
 
 /** Accepte une demande maintenant (depuis l'interface). Même règles d'erreur que le worker. */
 export async function approveNow(
@@ -32,7 +15,9 @@ export async function approveNow(
     include: { member: true, channel: true },
   });
   if (!m) return { ok: false, error: "Demande introuvable." };
-  const bot = await actingBotFor(m.channelId);
+  // Bot qui agit pour le canal (principal s'il est administrateur, sinon le plus ancien administrateur), jamais un bot
+  // en mode assistant de conversation (phase 17).
+  const bot = await actingStandardBotFor(m.channelId);
   if (!bot) return { ok: false, error: "Aucun bot administrateur sur ce canal." };
   const api = new Api(decrypt(bot.tokenEncrypted));
   try {
@@ -136,7 +121,9 @@ export async function declineNow(
     include: { member: true, channel: true },
   });
   if (!m) return { ok: false, error: "Demande introuvable." };
-  const bot = await actingBotFor(m.channelId);
+  // Bot qui agit pour le canal (principal s'il est administrateur, sinon le plus ancien administrateur), jamais un bot
+  // en mode assistant de conversation (phase 17).
+  const bot = await actingStandardBotFor(m.channelId);
   if (!bot) return { ok: false, error: "Aucun bot administrateur sur ce canal." };
   const api = new Api(decrypt(bot.tokenEncrypted));
   try {

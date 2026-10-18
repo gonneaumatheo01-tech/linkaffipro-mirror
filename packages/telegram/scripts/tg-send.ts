@@ -9,7 +9,7 @@ async function resolveAdminId(confirm: string | undefined): Promise<bigint> {
   const setting = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
   const settingId = setting && typeof setting.value === "string" ? BigInt(setting.value) : null;
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN", isActive: true }, orderBy: { createdAt: "asc" }, select: { telegramUserId: true } });
-  const casino = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true } });
+  const casino = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true, mode: "STANDARD" } });
   const states = casino
     ? await prisma.memberBotState.findMany({ where: { botId: casino.id, startedAt: { not: null } }, orderBy: { startedAt: "desc" }, take: 20, include: { member: true } })
     : [];
@@ -44,7 +44,7 @@ async function main() {
   if (!text.trim()) throw new Error("Message vide.");
 
   const adminId = await resolveAdminId(confirm);
-  const bot = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true } });
+  const bot = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true, mode: "STANDARD" } });
   if (!bot) throw new Error("Aucun bot casino actif.");
   const api = new Api(decrypt(bot.tokenEncrypted));
   const parts = splitMessage(text);

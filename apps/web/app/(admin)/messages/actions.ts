@@ -467,6 +467,10 @@ async function discardCreated(postIds: string[], claimed: string[] = []): Promis
   }
 }
 
+/** Programmation refusée : aucun de nos bots ne peut publier dans le canal du message (gardé en brouillon). */
+const NO_PUBLISHING_BOT =
+  "Aucun de nos bots ne peut publier dans ce canal : ses bots administrateurs sont désactivés ou sont des assistants de conversation. Le message est gardé en brouillon. Réactivez un bot dans Réglages → Bots, ou ajoutez un autre de nos bots comme administrateur du canal dans Telegram, puis programmez-le.";
+
 /** Mise à jour d'un brouillon / message programmé (un seul canal). */
 export async function updatePostAction(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -486,7 +490,12 @@ export async function updatePostAction(formData: FormData): Promise<void> {
       ? { status: "DRAFT" as const, scheduledAt: null }
       : resolveSchedule(input);
     const channelId = input.channelIds[0] ?? post.channelId;
-    const bot = channelId !== post.channelId ? await publishingBotFor(channelId) : null;
+    // Bot qui publie : le bot actuel s'il peut encore publier dans ce canal, sinon un autre de nos bots normaux. Un
+    // message annulé ou échoué peut avoir gardé un bot devenu assistant de conversation (phase 17) ou désactivé.
+    const bot = await publishingBotFor(
+      channelId,
+      channelId === post.channelId ? { keep: post.botId } : {},
+    );
     // Emojis animés : publié par le compte connecté (boutons retirés) ou par le bot (emojis remplacés si l'équipe garde
     // les boutons) dans un canal ; par le bot, tout gardé, dans un groupe ; un modèle garde tout tel quel.
     const chatType =
@@ -516,9 +525,12 @@ export async function updatePostAction(formData: FormData): Promise<void> {
     const text = linked.html;
     const publisher = plan.publisher;
     // Programmer un message publié par le compte qui ne peut pas (encore) publier dans ce canal : gardé en brouillon.
+    // De même pour un message publié par un bot quand aucun de nos bots normaux et actifs ne peut publier ici.
     const refusal =
       schedule.status === "SCHEDULED"
-        ? await accountScheduleRefusal([{ channelId, publisher }])
+        ? !bot && publisher === "BOT"
+          ? NO_PUBLISHING_BOT
+          : await accountScheduleRefusal([{ channelId, publisher }])
         : null;
     const status = refusal ? ("DRAFT" as const) : schedule.status;
     await prisma.post.update({

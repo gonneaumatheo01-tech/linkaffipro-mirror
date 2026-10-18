@@ -26,7 +26,9 @@ export type AlertKind =
   | "custom_emoji_refused"
   | "telegram_account_reconnect"
   | "linkaffi_events_stuck"
-  | "bot_blocked_rate";
+  | "bot_blocked_rate"
+  | "assistant_ai_failing"
+  | "assistant_cap_reached";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -52,18 +54,29 @@ export type BotSnapshot = {
   isActive: boolean;
   lastWebhookAt: Date | null;
   lastError: string | null;
+  /** Phase 17 : « ASSISTANT » = assistant de conversation (il ne reçoit que les messages privés qu'on lui écrit). */
+  mode?: string;
 };
 
-/** Bots en erreur, ou silencieux depuis 10 min alors qu'un autre bot reçoit des updates. */
+/**
+ * Bots en erreur, ou silencieux depuis 10 min alors qu'un autre bot normal reçoit des updates. Un bot assistant de
+ * conversation n'est jamais « silencieux » (il peut rester des heures sans message) et ne sert pas de référence : seule
+ * la règle « en erreur » s'applique à lui.
+ */
 export function detectBotWebhook(bots: BotSnapshot[], now: Date): Detected | null {
   const active = bots.filter((b) => b.isActive);
+  const isAssistant = (b: BotSnapshot) => b.mode === "ASSISTANT";
   const recent = active.some(
-    (b) => b.lastWebhookAt && now.getTime() - b.lastWebhookAt.getTime() < WEBHOOK_SILENCE_MS,
+    (b) =>
+      !isAssistant(b) &&
+      b.lastWebhookAt &&
+      now.getTime() - b.lastWebhookAt.getTime() < WEBHOOK_SILENCE_MS,
   );
   const faulty = active.filter(
     (b) =>
       b.lastError ||
-      (recent &&
+      (!isAssistant(b) &&
+        recent &&
         (!b.lastWebhookAt || now.getTime() - b.lastWebhookAt.getTime() >= WEBHOOK_SILENCE_MS)),
   );
   if (faulty.length === 0) return null;
@@ -672,6 +685,79 @@ export function detectLinkaffiEventsStuck(
   };
 }
 
+// ------------------------------------------------------------------
+// Assistant de conversation (phase 17)
+// ------------------------------------------------------------------
+
+/** Fenêtre lue pour l'alerte « assistant en panne » (événements `conversation.ai_failed`). */
+export const ASSISTANT_AI_FAILING_WINDOW_MS = 15 * 60_000;
+/** Pannes de l'IA (autres que clé, solde ou clé absente) à partir desquelles l'admin est prévenu. */
+export const ASSISTANT_AI_FAILING_THRESHOLD = 3;
+/** Pannes qui arrêtent l'assistant tout de suite : prévenir sans attendre. */
+const ASSISTANT_FATAL_CODES = new Set(["auth", "balance", "no_key"]);
+
+export type AssistantAiFailure = {
+  /** Code de la panne (`auth`, `balance`, `no_key`, `rate_limit`, `server`, `timeout`, `invalid_output`…). */
+  code: string;
+  /** Aucun nouvel essai prévu (l'assistant n'a pas répondu à ce message). */
+  final: boolean;
+};
+
+const AI_FAILURE_REASON: Record<string, string> = {
+  auth: "la clé Venice est refusée",
+  balance: "le solde Venice est vide",
+  no_key: "aucune clé Venice n'est enregistrée",
+};
+
+/**
+ * L'assistant de conversation n'arrive plus à répondre (pannes `conversation.ai_failed` des 15 dernières minutes) : clé
+ * refusée, solde vide ou clé absente → tout de suite ; une réponse abandonnée (aucun nouvel essai) → tout de suite ;
+ * sinon à partir de 3 pannes. Message en français simple avec la marche à suivre. Alerte « rouverte en silence »
+ * (`REOPEN_KINDS`) : une notification Telegram par 24 h au plus.
+ */
+export function detectAssistantAiFailing(failures: readonly AssistantAiFailure[]): Detected | null {
+  if (failures.length === 0) return null;
+  const fatal = failures.find((f) => ASSISTANT_FATAL_CODES.has(f.code));
+  const final = failures.filter((f) => f.final).length;
+  if (!fatal && final === 0 && failures.length < ASSISTANT_AI_FAILING_THRESHOLD) return null;
+  const n = failures.length;
+  const what = fatal
+    ? `L'assistant de conversation ne peut plus répondre : ${AI_FAILURE_REASON[fatal.code]}.`
+    : `L'assistant de conversation n'a pas réussi à répondre ${n} fois en 15 minutes${final > 0 ? ` (${final} message${final > 1 ? "s" : ""} resté${final > 1 ? "s" : ""} sans réponse)` : ""} : le service d'IA Venice ne répond pas ou refuse.`;
+  const codes = [...new Set(failures.map((f) => f.code))];
+  return {
+    kind: "assistant_ai_failing",
+    severity: fatal ? "CRITICAL" : "WARNING",
+    message: `${what} Vérifiez la clé et le solde Venice dans Réglages → IA de conversation (bouton « Vérifier »).`,
+    payload: { failures: n, final, codes },
+  };
+}
+
+export type AssistantSpendSnapshot = {
+  /** Activation de l'assistant (« off », « team », « all »). */
+  activation: string;
+  /** Dépense IA du mois en cours (Paris), en euros. */
+  spentEur: number;
+  /** Plafond mensuel des réglages, en euros (0 = aucun appel voulu par l'équipe : pas d'alerte). */
+  capEur: number;
+};
+
+/**
+ * Plafond mensuel de l'assistant atteint : il ne répond plus jusqu'au 1er du mois suivant. Seulement si l'assistant est
+ * activé et qu'un plafond est fixé (0 € = choix de l'équipe de ne faire aucun appel).
+ */
+export function detectAssistantCapReached(s: AssistantSpendSnapshot | null): Detected | null {
+  if (!s || s.activation === "off" || s.capEur <= 0 || s.spentEur < s.capEur) return null;
+  const eur = (n: number) =>
+    `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} €`;
+  return {
+    kind: "assistant_cap_reached",
+    severity: "WARNING",
+    message: `L'assistant de conversation a atteint son plafond de dépense du mois (${eur(s.spentEur)} pour un plafond de ${eur(s.capEur)}) : il ne répond plus jusqu'au 1er du mois prochain. Pour le relancer, augmentez le plafond dans Réglages → IA de conversation.`,
+    payload: { spentEur: Math.round(s.spentEur * 100) / 100, capEur: s.capEur },
+  };
+}
+
 function formatTime(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "short",
@@ -706,6 +792,7 @@ export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
   "gate_links_missing",
   "custom_emoji_refused",
   "linkaffi_events_stuck",
+  "assistant_ai_failing",
 ]);
 
 /**

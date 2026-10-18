@@ -43,6 +43,7 @@ export type LandingBotApi = LandingLinkApi & {
 export async function webLandingApi(botId: string): Promise<LandingBotApi | null> {
   const bot = await prisma.bot.findFirst({
     where: { id: botId, isActive: true },
+    // Mode et persona : l'instance en cache reste celle du webhook (handlers du bon mode, phase 17).
     select: {
       id: true,
       name: true,
@@ -50,6 +51,8 @@ export async function webLandingApi(botId: string): Promise<LandingBotApi | null
       telegramBotId: true,
       vertical: true,
       tokenEncrypted: true,
+      mode: true,
+      personaId: true,
     },
   });
   if (!bot) return null;
@@ -83,8 +86,9 @@ export type PrismaLandingOptions = {
 
 /** Bots administrateurs du canal (bot qui agit pour le canal d'abord : principal s'il est administrateur). */
 async function channelAdmins(channelId: string, primaryBotId: string | null) {
+  // Phase 17 : jamais un bot assistant de conversation.
   const rows = await prisma.channelBotAdmin.findMany({
-    where: { channelId, revokedAt: null, bot: { isActive: true } },
+    where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
     orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
     select: { botId: true, rights: true, bot: { select: { username: true, vertical: true } } },
   });
@@ -207,9 +211,10 @@ export function createPrismaLandingDeps(
       };
     },
     async adminBots(channelId) {
-      // Ordre de détection (le bot qui agit pour le canal est retrouvé par `landingLinkCandidates`).
+      // Ordre de détection (le bot qui agit pour le canal est retrouvé par `landingLinkCandidates`). Jamais un bot
+      // assistant de conversation (phase 17).
       const rows = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true } },
+        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true, rights: true, bot: { select: { username: true, vertical: true } } },
       });

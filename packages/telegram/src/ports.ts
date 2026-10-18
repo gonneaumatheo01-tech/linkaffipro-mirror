@@ -2,6 +2,9 @@ import type { Vertical } from "@linkaffipro/core";
 import type { Chat, ChatMemberAdministrator, ChatMemberOwner, Update, User } from "grammy/types";
 import type { CustomEmojiAddOutcome, ExtractedCustomEmoji } from "./custom-emoji/extract";
 
+/** Mode d'un bot (phase 17) : bot normal, ou assistant de conversation (persona liée). */
+export type BotMode = "STANDARD" | "ASSISTANT";
+
 /** Identité d'un bot telle que connue en base (jamais le jeton). */
 export type BotIdentity = {
   id: string;
@@ -9,7 +12,19 @@ export type BotIdentity = {
   username: string;
   telegramBotId: bigint;
   vertical: Vertical;
+  /**
+   * Phase 17 : mode du bot (absent = inconnu de l'appelant, traité comme un bot normal). Un bot ASSISTANT n'a que les
+   * handlers de l'assistant de conversation (`handlers/assistant.ts`) et son journal ne garde aucun texte.
+   */
+  mode?: BotMode;
+  /** Phase 17 : persona liée au bot en mode assistant (absent = inconnue de l'appelant). */
+  personaId?: string | null;
 };
+
+/** Le bot est-il en mode assistant de conversation ? */
+export function isAssistantBot(identity: Pick<BotIdentity, "mode">): boolean {
+  return identity.mode === "ASSISTANT";
+}
 
 export type AdminRights = Record<string, boolean | string | undefined>;
 

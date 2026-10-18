@@ -1023,6 +1023,20 @@ describe("Demandes → « Tout accepter » (phase 14)", () => {
     expect(db.audits).toEqual([]);
   });
 
+  it("phase 17 : seul un bot normal et actif compte comme bot qui accepte (jamais un assistant)", async () => {
+    const { prisma } = await import("@linkaffipro/db");
+    const findUnique = vi.mocked(prisma.channel.findUnique);
+    findUnique.mockClear();
+    await redirectParams(() => approveAllRequestsAction(fdOf(shown("gate", 2))));
+    const args = findUnique.mock.calls[0]![0] as {
+      select: { botAdmins: { where: unknown } };
+    };
+    expect(args.select.botAdmins.where).toEqual({
+      revokedAt: null,
+      bot: { isActive: true, mode: "STANDARD" },
+    });
+  });
+
   it("liste vide entre-temps : rien à accepter", async () => {
     db.memberships = [];
     const q = await redirectParams(() => approveAllRequestsAction(fdOf(shown("manual", 1))));

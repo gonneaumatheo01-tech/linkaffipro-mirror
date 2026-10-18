@@ -40,8 +40,12 @@ const RECOMPUTE_DELAY_MS = 30_000;
 
 type Deps = ReturnType<typeof createPrismaLandingDeps>;
 
-/** API d'un de nos bots par le cache d'API du worker (null si le bot est inconnu ou désactivé). */
-async function workerLandingApi(botId: string) {
+/**
+ * API d'un de nos bots par le cache d'API du worker (null si le bot est inconnu ou désactivé). Sans filtre sur le mode :
+ * Telegram ne laisse révoquer un lien que par le bot qui l'a créé, même devenu assistant de conversation (phase 17) ;
+ * la création de liens, elle, ne passe que par des bots normaux (`adminBots`).
+ */
+export async function workerLandingApi(botId: string) {
   const bot = await prisma.bot.findFirst({
     where: { id: botId, isActive: true },
     select: { id: true, tokenEncrypted: true },

@@ -34,8 +34,10 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
       where: { id: me.id },
       select: { telegramLinkToken: true, telegramUserId: true },
     }),
+    // Liens « Lier votre Telegram » : bots normaux seulement (phase 17 : un bot assistant de conversation est réservé
+    // à ses conversations privées).
     prisma.bot.findMany({
-      where: { isActive: true },
+      where: { isActive: true, mode: "STANDARD" },
       orderBy: { createdAt: "asc" },
       select: { username: true, name: true },
     }),

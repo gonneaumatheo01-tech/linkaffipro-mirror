@@ -19,6 +19,15 @@ export type PurgeResult = {
   linkaffiEventsDeleted: number;
   /** Visites, clics et ouvertures des pages d'atterrissage plus anciens que la durée de conservation (phase 15). */
   landingEventsDeleted: number;
+  /** Conversations de l'assistant des membres anonymisés (supprimées avec leurs messages et événements, phase 17). */
+  conversationsDeleted: number;
+  /** Messages de conversation de l'assistant plus anciens que la durée de conservation (phase 17). */
+  conversationMessagesDeleted: number;
+  /**
+   * Copies des messages de l'assistant gardées par l'envoi (`OutboundMessage` ASSISTANT) vidées de leur texte : membres
+   * anonymisés, ou plus anciennes que la durée de conservation (phase 17).
+   */
+  assistantTextsCleared: number;
 };
 
 /**
@@ -28,6 +37,10 @@ export type PurgeResult = {
  * demande ou ici), envoi en attente abandonné ; événements de plus de N mois supprimés.
  * Visites et clics des pages d'atterrissage (phase 15, empreinte de l'adresse IP, agent utilisateur, identifiants de
  * clic des pubs) : supprimés après N mois.
+ * Assistant de conversation (phase 17) : les conversations des membres anonymisés (ici ou à leur demande) sont
+ * supprimées (messages et événements avec) ; les messages de conversation de plus de N mois sont supprimés ; la copie
+ * du texte gardée par l'envoi (`OutboundMessage` ASSISTANT, qui reprend souvent le prénom ou la ville de la personne) est
+ * vidée pour les membres anonymisés et au-delà de N mois (l'envoi lui-même reste, pour les chiffres).
  */
 export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const setting = await prisma.setting.findUnique({ where: { key: "retention.months" } });
@@ -121,6 +134,22 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const linkaffiEventsScrubbed = await scrubDeletedMembersLinkaffiEvents();
   const linkaffiEventsDeleted = await deleteLinkaffiEventsBefore(cutoff);
   const landingEventsDeleted = await deleteLandingEventsBefore(cutoff);
+  const conversations = await prisma.conversation.deleteMany({
+    where: { member: { anonymizedAt: { not: null } } },
+  });
+  const conversationMessages = await prisma.conversationMessage.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+  // Un message encore en file garde son texte jusqu'à son envoi (membre anonymisé : l'envoi est refusé de toute façon).
+  const assistantTexts = await prisma.outboundMessage.updateMany({
+    where: {
+      kind: "ASSISTANT",
+      status: { not: "QUEUED" },
+      text: { not: "" },
+      OR: [{ queuedAt: { lt: cutoff } }, { member: { anonymizedAt: { not: null } } }],
+    },
+    data: { text: "", buttons: [] },
+  });
   const result: PurgeResult = {
     months,
     cutoff,
@@ -129,6 +158,9 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     linkaffiEventsScrubbed,
     linkaffiEventsDeleted,
     landingEventsDeleted,
+    conversationsDeleted: conversations.count,
+    conversationMessagesDeleted: conversationMessages.count,
+    assistantTextsCleared: assistantTexts.count,
   };
   await audit({
     action: "maintenance.purge",
@@ -140,6 +172,9 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
       linkaffiEventsScrubbed,
       linkaffiEventsDeleted,
       landingEventsDeleted,
+      conversationsDeleted: conversations.count,
+      conversationMessagesDeleted: conversationMessages.count,
+      assistantTextsCleared: assistantTexts.count,
     },
   });
   logger.info(result, "purge de rétention effectuée");

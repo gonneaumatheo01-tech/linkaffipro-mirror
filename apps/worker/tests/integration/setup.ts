@@ -6,15 +6,47 @@ declare global {
   var __jobs: Array<{ queue: string; data: Record<string, unknown>; opts: Record<string, unknown> }> | undefined;
 }
 
-/** Redis minimal en mémoire pour le limiteur de débit (`RateLimiter` : incr / pexpire / pttl). */
+/**
+ * Redis minimal en mémoire : limiteur de débit (`RateLimiter` : incr / pexpire / pttl) et verrous (`withRedisLock` :
+ * SET NX PX, scripts de libération et de prolongation par comparaison du jeton).
+ */
 function fakeRedis() {
   const store = new Map<string, { n: number; expiresAt: number }>();
+  const locks = new Map<string, { value: string; expiresAt: number }>();
   const live = (k: string) => {
     const e = store.get(k);
     if (e && e.expiresAt <= Date.now()) store.delete(k);
     return store.get(k);
   };
+  const liveLock = (k: string) => {
+    const e = locks.get(k);
+    if (e && e.expiresAt <= Date.now()) locks.delete(k);
+    return locks.get(k);
+  };
   return {
+    locks,
+    async set(k: string, value: string, px?: string, ttlMs?: number, nx?: string) {
+      if (nx === "NX" && liveLock(k)) return null;
+      locks.set(k, { value, expiresAt: px === "PX" && ttlMs ? Date.now() + ttlMs : Number.POSITIVE_INFINITY });
+      return "OK";
+    },
+    async get(k: string) {
+      return liveLock(k)?.value ?? null;
+    },
+    async del(k: string) {
+      return locks.delete(k) ? 1 : 0;
+    },
+    /** Scripts Lua des verrous (`RELEASE_LOCK_SCRIPT`, `EXTEND_LOCK_SCRIPT`) : seulement si le jeton est le nôtre. */
+    async eval(script: string, _numKeys: number, key: string, token: string, ttl?: string) {
+      const cur = liveLock(key);
+      if (!cur || cur.value !== token) return 0;
+      if (script.includes("pexpire")) {
+        cur.expiresAt = Date.now() + Number(ttl);
+        return 1;
+      }
+      locks.delete(key);
+      return 1;
+    },
     async incr(k: string) {
       const e = live(k) ?? { n: 0, expiresAt: Number.POSITIVE_INFINITY };
       e.n++;
@@ -73,6 +105,17 @@ vi.mock("@linkaffipro/queue", async (importOriginal) => {
     ...orig,
     enqueue: async (name: string, data: Record<string, unknown>, opts: Record<string, unknown> = {}) => push(name, data, opts),
     enqueueDm,
+    // Tour de l'assistant (phase 17) : même déduplication que l'implémentation réelle, capturé en mémoire.
+    enqueueChatTurn: async (conversationId: string, opts: { delayMs?: number } = {}) => {
+      push(
+        "chat",
+        { type: "turn", conversationId },
+        {
+          delay: opts.delayMs ?? orig.CHAT_TURN_DEBOUNCE_MS,
+          deduplication: { id: `turn-${conversationId}`, extend: true, replace: true, keepLastIfActive: true },
+        },
+      );
+    },
     emitAutomationEvent: async (trigger: string, memberId: string | null | undefined, context: Record<string, unknown> = {}) => {
       if (memberId) push("automations", { type: "event", trigger, memberId, context });
     },

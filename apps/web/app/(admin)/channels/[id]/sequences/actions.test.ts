@@ -27,8 +27,17 @@ vi.mock("@linkaffipro/telegram", () => ({
   ensureDefaultSequences: vi.fn(async () => undefined),
   previewText: (t: string) => t,
 }));
+const acting = vi.hoisted(() => vi.fn(async (_channelId: string) => null as { id: string } | null));
+vi.mock("@/lib/channels/acting-bot", () => ({ actingStandardBotFor: acting }));
 vi.mock("@linkaffipro/db", () => ({
   prisma: {
+    channel: { findUnique: vi.fn(async () => ({ id: "ch1", title: "Canal test" })) },
+    member: {
+      findUnique: vi.fn(async (args: { select: { botStates: { where: { botId: string } } } }) => ({
+        id: "m1",
+        botStates: [{ canDm: true, botId: args.select.botStates.where.botId }],
+      })),
+    },
     sequence: {
       findFirst: vi.fn(async () => ({ id: "seq1", isActive: true, steps: [db.step] })),
       update: vi.fn(async () => ({})),
@@ -46,9 +55,12 @@ vi.mock("@linkaffipro/db", () => ({
   }),
 }));
 
+import { enqueueDm } from "@linkaffipro/queue";
+import { requireUser } from "@/lib/session";
 import {
   saveSequenceTextAction,
   saveSequenceTranslationsAction,
+  sendSequenceTestAction,
   toggleSequenceAction,
 } from "./actions";
 
@@ -203,5 +215,51 @@ describe("emojis animés dans les messages du bot (phase 12)", () => {
     expect(r).toEqual({ ok: true, saved: ["en"] });
     expect(db.step.texts.en).toBe(`Welcome ${EMOJI}`);
     expect(usage).toHaveBeenCalledWith([`Welcome ${EMOJI}`]);
+  });
+});
+
+/** Phase 17 : « Envoyer un test » part par le bot qui parle aux membres du canal, jamais par un assistant. */
+describe("message de test du bot : jamais par un assistant de conversation", () => {
+  const send = async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: "u1",
+      role: "MANAGER",
+      telegramUserId: 42n,
+      name: "Test",
+    } as never);
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({ channelId: "ch1", trigger: "APPROVED", lang: "fr" }))
+      fd.append(k, v);
+    try {
+      await sendSequenceTestAction(fd);
+      return "";
+    } catch (e) {
+      return (e as { url?: string }).url ?? "";
+    }
+  };
+
+  beforeEach(() => {
+    acting.mockReset();
+    vi.mocked(enqueueDm).mockClear();
+  });
+
+  it("envoyé par le bot qui agit pour le canal (bot normal)", async () => {
+    acting.mockResolvedValueOnce({ id: "bot-normal" });
+    const url = await send();
+    expect(acting).toHaveBeenCalledWith("ch1");
+    expect(new URLSearchParams(url.split("?")[1]).get("ok")).toContain("Message de test envoyé");
+    expect(vi.mocked(enqueueDm).mock.calls[0]![0]).toMatchObject({
+      botId: "bot-normal",
+      kind: "TEST",
+    });
+  });
+
+  it("aucun bot normal administrateur (seulement un assistant) : rien n'est envoyé, message clair", async () => {
+    acting.mockResolvedValueOnce(null);
+    const url = await send();
+    expect(new URLSearchParams(url.split("?")[1]).get("error")).toContain(
+      "Aucun de nos bots n'est administrateur de ce canal",
+    );
+    expect(enqueueDm).not.toHaveBeenCalled();
   });
 });

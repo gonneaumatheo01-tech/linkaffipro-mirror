@@ -199,8 +199,9 @@ export async function loadEditorOptions(): Promise<EditorOptions> {
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true },
     }),
+    // Jamais un bot assistant de conversation (phase 17) : il n'écrit qu'aux personnes qui lui parlent.
     prisma.bot.findMany({
-      where: { isActive: true },
+      where: { isActive: true, mode: "STANDARD" },
       orderBy: { name: "asc" },
       select: { id: true, username: true, vertical: true },
     }),

@@ -7,6 +7,12 @@ import type { Api } from "grammy";
 export async function resetDb(): Promise<void> {
   if (!/linkaffipro_test/.test(process.env.DATABASE_URL ?? "")) throw new Error("resetDb refuse de tourner hors de la base de test");
   await prisma.$transaction([
+    // Assistant de conversation (phase 17) : conversations, liens d'offre, coûts IA, personas.
+    prisma.conversationEvent.deleteMany(),
+    prisma.conversationMessage.deleteMany(),
+    prisma.assistantOfferLink.deleteMany(),
+    prisma.aiConversationUsage.deleteMany(),
+    prisma.conversation.deleteMany(),
     prisma.postbackLog.deleteMany(),
     prisma.playerEvent.deleteMany(),
     prisma.player.deleteMany(),
@@ -29,6 +35,7 @@ export async function resetDb(): Promise<void> {
     prisma.member.deleteMany(),
     prisma.channel.deleteMany(),
     prisma.bot.deleteMany(),
+    prisma.persona.deleteMany(),
     prisma.syncState.deleteMany(),
   ]);
   // Vidé en place : le mock de la file garde une référence sur ce tableau (voir setup.ts).

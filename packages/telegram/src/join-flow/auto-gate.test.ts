@@ -5,10 +5,12 @@
 import { describe, expect, it } from "vitest";
 import {
   apiCheckIntervalMs,
+  botOfMembership,
   sweepPendingGates,
   type GateSweepDeps,
   type PendingGateRow,
 } from "./auto-gate";
+import type { BotIdentity } from "../ports";
 import type { ChannelInfo } from "./deps";
 import type { GateLinkApi } from "./gate-links";
 import { IMPLICIT_RULE, type RuleData } from "./rules";
@@ -296,5 +298,35 @@ describe("intervalle des vérifications par Telegram", () => {
     expect(apiCheckIntervalMs(30 * 60_000)).toBe(0);
     expect(apiCheckIntervalMs(2 * 3600_000)).toBe(10 * 60_000);
     expect(apiCheckIntervalMs(3 * 86_400_000)).toBe(3600_000);
+  });
+});
+
+describe("bot qui écrit « Canaux rejoints » (phase 17 : jamais un assistant de conversation)", () => {
+  const normal: BotIdentity = {
+    id: "b1",
+    name: "Casino",
+    username: "casinobot",
+    telegramBotId: 1n,
+    vertical: "CASINO",
+  };
+  const deps = {
+    // Ne rend que les bots actifs et normaux.
+    getBotIdentity: async (id: string) => (id === "b1" ? normal : null),
+    actingBotIdFor: async () => ({ botId: "acting" }),
+  };
+
+  it("bot de la demande actif et normal : c'est lui", async () => {
+    expect(await botOfMembership(deps, { source: { botId: "b1" }, channelId: "c1" })).toBe("b1");
+  });
+
+  it("bot de la demande devenu assistant (ou désactivé) : le bot qui agit pour le canal", async () => {
+    expect(await botOfMembership(deps, { source: { botId: "lea" }, channelId: "c1" })).toBe(
+      "acting",
+    );
+  });
+
+  it("aucun bot normal pour le canal : personne n'écrit", async () => {
+    const none = { ...deps, actingBotIdFor: async () => null };
+    expect(await botOfMembership(none, { source: { botId: "lea" }, channelId: "c1" })).toBeNull();
   });
 });

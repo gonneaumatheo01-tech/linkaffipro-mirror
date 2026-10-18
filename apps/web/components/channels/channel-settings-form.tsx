@@ -17,6 +17,17 @@ export type ChannelSettingsValues = {
   isMediaLibrary: boolean;
 };
 
+/** Bot proposable comme bot principal ; `mode` absent = bot normal (listes déjà filtrées par la page). */
+export type PrimaryBotOption = { id: string; username: string; mode?: string };
+
+/**
+ * Bots proposés comme « Bot principal » : jamais un bot en mode assistant de conversation (phase 17 : il n'accepte pas
+ * les demandes et n'écrit qu'aux personnes qui lui parlent). Le serveur le refuse aussi (`updateChannelAction`).
+ */
+export function primaryBotChoices<T extends PrimaryBotOption>(bots: readonly T[]): T[] {
+  return bots.filter((b) => b.mode === undefined || b.mode === "STANDARD");
+}
+
 /** Case à cocher d'un réglage : libellé et une ligne d'aide, zone cliquable de 40 px. */
 function SettingCheck({
   name,
@@ -51,7 +62,7 @@ export function ChannelSettingsForm({
   returnTo,
 }: {
   channel: ChannelSettingsValues;
-  bots: Array<{ id: string; username: string }>;
+  bots: PrimaryBotOption[];
   action: (formData: FormData) => Promise<void>;
   returnTo: string;
 }) {
@@ -110,7 +121,7 @@ export function ChannelSettingsForm({
             wrapperClassName="w-full"
           >
             <option value="">Aucun : le premier bot administrateur</option>
-            {bots.map((b) => (
+            {primaryBotChoices(bots).map((b) => (
               <option key={b.id} value={b.id}>
                 @{b.username}
               </option>

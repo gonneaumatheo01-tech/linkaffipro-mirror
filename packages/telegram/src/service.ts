@@ -1,13 +1,15 @@
 import { Api, GrammyError } from "grammy";
 import type { Chat } from "grammy/types";
 import { TELEGRAM_ALLOWED_UPDATES, encrypt, randomToken, type Vertical } from "@linkaffipro/core";
-import { prisma, audit } from "@linkaffipro/db";
+import { prisma, audit, toJsonValue } from "@linkaffipro/db";
+import type { ChatLang } from "@linkaffipro/chat";
 import { evictBot, getOrCreateBot } from "./factory";
-import { extractAdminRights } from "./ports";
+import { extractAdminRights, type BotMode } from "./ports";
 import { prismaTelegramDeps } from "./prisma-deps";
 import { chatFromFullInfo } from "./handlers/forward";
 import { botPresence, isAdminStatus, isTelegramAccessError } from "./handlers/channels";
 import { parseChannelLink } from "./channels/username";
+import { PROFILE_LANGS, assistantProfilePlan, mentionsAssistant } from "./assistant/profile";
 
 export function webhookUrlFor(botId: string, baseUrl = process.env.APP_BASE_URL): string {
   if (!baseUrl) throw new Error("APP_BASE_URL manquante");
@@ -127,6 +129,107 @@ export async function setAllWebhooks(): Promise<
 }
 
 // ============================================================
+// Phase 17 : profil Telegram d'un bot assistant de conversation (description, description courte, commandes)
+// ============================================================
+
+/** Méthodes de l'API Telegram utilisées pour le profil d'un bot (grammY `Api` ; simulées dans les tests). */
+export type AssistantProfileApi = Pick<
+  Api,
+  "setMyDescription" | "setMyShortDescription" | "setMyCommands" | "deleteMyCommands"
+>;
+
+/** Repère du profil posé par nous (`Setting` `assistant.botProfile.<botId>`) : langues à retirer plus tard. */
+export const ASSISTANT_PROFILE_SETTING_PREFIX = "assistant.botProfile.";
+
+export type AssistantProfileReport =
+  | { mode: "ASSISTANT"; applied: true; languages: string[]; warnings: string[] }
+  | { mode: "ASSISTANT"; applied: false; reason: "no_persona"; warnings: string[] }
+  | { mode: "STANDARD"; cleared: boolean; languages: string[] };
+
+function storedProfileLanguages(value: unknown): ChatLang[] | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = (value as { languages?: unknown }).languages;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (l): l is ChatLang => typeof l === "string" && PROFILE_LANGS.includes(l as ChatLang),
+  );
+}
+
+/** Retire la description, la description courte et les commandes d'une langue (null = valeur par défaut). */
+async function clearProfileLanguage(
+  api: AssistantProfileApi,
+  lang: ChatLang | null,
+): Promise<void> {
+  const other = lang ? { language_code: lang } : undefined;
+  await api.setMyDescription("", other);
+  await api.setMyShortDescription("", other);
+  await api.deleteMyCommands(other);
+}
+
+/**
+ * Pose le profil Telegram d'un bot selon son mode (contrat docs/ASSISTANT-CONVERSATION.md § 4) :
+ * - bot ASSISTANT avec persona : description et description courte qui DISENT que c'est l'assistante / l'assistant du
+ *   canal (une IA), par langue de la persona (textes de la fiche s'ils disent « assistant(e) », sinon refusés), et
+ *   commandes `/start`, `/stop` « Arrêter la conversation », `/reset` « Tout effacer et recommencer », traduites ; les
+ *   langues posées avant et absentes maintenant sont retirées ;
+ * - bot ASSISTANT sans persona : rien n'est posé (`no_persona`) ;
+ * - bot normal : remise à vide de ce que nous avions posé (repère `assistant.botProfile.<botId>`), jamais d'un profil
+ *   écrit par l'équipe dans @BotFather.
+ * Lève sur un refus de Telegram (l'appelant affiche l'erreur).
+ */
+export async function setAssistantProfile(
+  botId: string,
+  opts: { api?: AssistantProfileApi } = {},
+): Promise<AssistantProfileReport> {
+  const bot = await prisma.bot.findUniqueOrThrow({
+    where: { id: botId },
+    include: {
+      persona: {
+        select: {
+          name: true,
+          gender: true,
+          languages: true,
+          botDescription: true,
+          botShortDescription: true,
+        },
+      },
+    },
+  });
+  const api: AssistantProfileApi = opts.api ?? getOrCreateBot(bot, prismaTelegramDeps).api;
+  const key = `${ASSISTANT_PROFILE_SETTING_PREFIX}${bot.id}`;
+  const marker = await prisma.setting.findUnique({ where: { key } });
+  const previous = storedProfileLanguages(marker?.value);
+
+  if (bot.mode !== "ASSISTANT") {
+    if (previous === null) return { mode: "STANDARD", cleared: false, languages: [] };
+    await clearProfileLanguage(api, null);
+    for (const lang of previous) await clearProfileLanguage(api, lang);
+    await prisma.setting.delete({ where: { key } }).catch(() => undefined);
+    return { mode: "STANDARD", cleared: true, languages: previous };
+  }
+
+  if (!bot.persona)
+    return { mode: "ASSISTANT", applied: false, reason: "no_persona", warnings: [] };
+  const plan = assistantProfilePlan(bot.persona);
+  for (const entry of plan.entries) {
+    const other = entry.languageCode ? { language_code: entry.languageCode } : undefined;
+    // Garde-fou (règle 2 du client) : jamais une description qui ne dit pas « assistant(e) ».
+    if (!mentionsAssistant(entry.description) || !mentionsAssistant(entry.shortDescription))
+      throw new Error(
+        "Description du bot refusée : elle doit dire que c'est l'assistante ou l'assistant du canal.",
+      );
+    await api.setMyDescription(entry.description, other);
+    await api.setMyShortDescription(entry.shortDescription, other);
+    await api.setMyCommands(entry.commands, other);
+  }
+  for (const lang of previous ?? [])
+    if (!plan.languages.includes(lang)) await clearProfileLanguage(api, lang);
+  const value = toJsonValue({ languages: plan.languages, setAt: new Date().toISOString() });
+  await prisma.setting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  return { mode: "ASSISTANT", applied: true, languages: plan.languages, warnings: plan.warnings };
+}
+
+// ============================================================
 // Canaux existants : import par lien public, par identifiant, re-vérification des droits (tous nos bots)
 // ============================================================
 
@@ -141,7 +244,10 @@ export type ReadAdminsResult =
   | { ok: true; admins: ChannelBotRight[]; readBy: string; readByBotId: string }
   | { ok: false; reason: "no_bot" | "not_admin" | "error"; message: string };
 
-/** Bot actif tel que lu en base pour les vérifications (jamais le jeton en clair). */
+/**
+ * Bot actif tel que lu en base pour les vérifications (jamais le jeton en clair). Lecture seule des droits : les bots
+ * assistants de conversation en font partie (leur mode garde la bonne instance en cache).
+ */
 export type ActiveBot = {
   id: string;
   name: string;
@@ -149,6 +255,8 @@ export type ActiveBot = {
   telegramBotId: bigint;
   vertical: Vertical;
   tokenEncrypted: string;
+  mode?: BotMode;
+  personaId?: string | null;
 };
 
 /**
@@ -171,6 +279,8 @@ export async function listActiveBots(): Promise<ActiveBot[]> {
       telegramBotId: true,
       vertical: true,
       tokenEncrypted: true,
+      mode: true,
+      personaId: true,
     },
   });
 }

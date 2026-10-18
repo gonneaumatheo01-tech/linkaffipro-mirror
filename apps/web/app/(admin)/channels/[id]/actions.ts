@@ -795,8 +795,9 @@ export async function approveAllRequestsAction(formData: FormData): Promise<void
     select: {
       id: true,
       isActive: true,
+      // Un bot qui peut accepter : actif et normal, jamais un assistant de conversation (phase 17).
       botAdmins: {
-        where: { revokedAt: null, bot: { isActive: true } },
+        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
         select: { botId: true },
         take: 1,
       },

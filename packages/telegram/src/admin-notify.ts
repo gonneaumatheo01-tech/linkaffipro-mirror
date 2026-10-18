@@ -12,7 +12,10 @@ export async function notifyAdmin(text: string): Promise<boolean> {
   const setting = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
   const adminId = setting && typeof setting.value === "string" ? BigInt(setting.value) : null;
   if (!adminId) return false;
-  const bot = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true } });
+  // Jamais un bot assistant de conversation (phase 17).
+  const bot = await prisma.bot.findFirst({
+    where: { vertical: "CASINO", isActive: true, mode: "STANDARD" },
+  });
   if (!bot) return false;
   const api = new Api(decrypt(bot.tokenEncrypted));
   for (const part of splitMessage(text)) {

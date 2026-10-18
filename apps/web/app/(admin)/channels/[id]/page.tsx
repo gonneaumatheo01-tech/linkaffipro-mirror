@@ -14,6 +14,7 @@ import { ChannelStatePills } from "@/components/channels/channel-state";
 import { ChannelTabs } from "@/components/channels/channel-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { actingBotNotice } from "@/lib/channels/acting-bot-notice";
 import { entryRuleFromRow } from "@/lib/channels/entry-rule";
 import { loadChannelCounts } from "@/lib/channels/queries";
 import { TRACKED_MEMBERS_HELP, trackedMembersLabel } from "@/lib/channels/requests";
@@ -42,26 +43,35 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
   const channel = await prisma.channel.findUnique({
     where: { id },
     include: {
-      primaryBot: { select: { username: true, vertical: true } },
+      primaryBot: { select: { username: true, vertical: true, isActive: true, mode: true } },
       botAdmins: {
         where: { revokedAt: null },
         orderBy: { detectedAt: "asc" },
-        include: { bot: { select: { username: true } } },
+        include: { bot: { select: { username: true, isActive: true, mode: true } } },
       },
     },
   });
   if (!channel) notFound();
   const [counts, bots] = await Promise.all([
     loadChannelCounts(channel.id),
+    // « Bot principal » : jamais un bot assistant de conversation (phase 17).
     prisma.bot.findMany({
-      where: { isActive: true },
+      where: { isActive: true, mode: "STANDARD" },
       orderBy: { name: "asc" },
       select: { id: true, username: true },
     }),
   ]);
   const now = new Date();
+  // Tous les bots administrateurs sont listés dans les réglages ; le bot qui agit pour le canal (accueil, demandes,
+  // « Ce que dit le bot ») n'est jamais un assistant de conversation (phase 17). L'en-tête montre le bot principal et
+  // les bots normaux comme avant (même désactivés), jamais un assistant.
   const admins = channel.botAdmins.map((a) => a.bot.username);
-  const botName = channel.primaryBot?.username ?? admins[0] ?? null;
+  const standardAdmins = channel.botAdmins.filter((a) => a.bot.mode === "STANDARD");
+  const actingAdmins = standardAdmins.filter((a) => a.bot.isActive).map((a) => a.bot.username);
+  const shownPrimary = channel.primaryBot?.mode === "STANDARD" ? channel.primaryBot : null;
+  const botName =
+    (shownPrimary?.isActive ? shownPrimary.username : null) ?? actingAdmins[0] ?? null;
+  const notice = actingBotNotice(channel.botAdmins.map((a) => a.bot));
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
   const parts: React.ReactNode[] = [
@@ -71,10 +81,10 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
       {trackedMembersLabel(counts.members)}
       <HelpTip label="Aide : membres suivis">{TRACKED_MEMBERS_HELP}</HelpTip>
     </span>,
-    channel.primaryBot
-      ? `bot principal @${channel.primaryBot.username}`
-      : admins.length > 0
-        ? `bot @${admins[0]}`
+    shownPrimary
+      ? `bot principal @${shownPrimary.username}`
+      : standardAdmins.length > 0
+        ? `bot @${standardAdmins[0]!.bot.username}`
         : null,
   ].filter(Boolean);
   const description = parts.map((part, i) => (
@@ -157,6 +167,13 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
           </>
         }
       />
+      {notice ? (
+        <Alert variant="destructive" className="mb-6">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>{notice.sentences.join(" ")}</AlertDescription>
+        </Alert>
+      ) : null}
       {admins.length === 0 ? (
         <Alert variant="destructive" className="mb-6">
           <TriangleAlert aria-hidden />

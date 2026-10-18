@@ -28,6 +28,10 @@ const limiter = () => new RateLimiter(getRedis());
 export const PARTIAL_BY_ACCOUNT_MESSAGE =
   "Une partie de ce message a déjà été publiée par votre compte Telegram : supprimez-la dans Telegram, puis dupliquez ce message et programmez la copie (elle partira en entier).";
 
+/** Message de canal dont le bot est devenu un assistant de conversation (phase 17) : refusé, rien n'est publié. */
+export const POST_BY_ASSISTANT_MESSAGE =
+  "Non publié : ce bot est devenu un assistant de conversation et ne publie plus dans les canaux. Ouvrez le message, enregistrez-le et programmez-le de nouveau : un autre de nos bots le publiera.";
+
 /** Note laissée sur un message programmé parti avec les emojis normaux à la place des emojis animés (phase 12). */
 export const POST_CUSTOM_EMOJI_FALLBACK_NOTE = {
   resent: "Publié avec les emojis normaux : Telegram a refusé les emojis animés.",
@@ -96,6 +100,25 @@ export async function sendPost(postId: string): Promise<void> {
   }
   if (post.publisher === "ACCOUNT") {
     await sendPostAccount(post);
+    return;
+  }
+  // Filet (phase 17) : un assistant de conversation ne publie jamais dans un canal. Le site choisit un bot normal à
+  // chaque modification ; un message resté sur un tel bot échoue avec une raison claire, sans rien publier.
+  if (post.bot.mode === "ASSISTANT") {
+    await prisma.post.update({
+      where: { id: postId },
+      data: { status: "FAILED", lastError: POST_BY_ASSISTANT_MESSAGE, attempts: { increment: 1 } },
+    });
+    await recordEvent({
+      type: "post.failed",
+      channelId: post.channelId,
+      botId: post.botId,
+      payload: toJsonValue({ postId, error: POST_BY_ASSISTANT_MESSAGE }),
+    });
+    logger.error(
+      { postId, botId: post.botId },
+      "message de canal refusé : bot assistant de conversation",
+    );
     return;
   }
   const partial = messageIdsOf(post.telegramMessageIds);

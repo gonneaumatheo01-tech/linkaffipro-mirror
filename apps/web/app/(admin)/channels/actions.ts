@@ -17,6 +17,10 @@ const schema = z.object({
   isActive: z.boolean(),
 });
 
+/** Refus affiché quand le bot principal choisi est un assistant de conversation (phase 17). */
+const PRIMARY_BOT_ASSISTANT_ERROR =
+  "Ce bot est un assistant de conversation : il ne peut pas être le bot principal d'un canal. Choisissez un autre bot.";
+
 /**
  * Réglages d'un canal (univers, langue, bot principal, test, médiathèque, actif), depuis le volet de la liste ou de la
  * fiche. `returnTo` (facultatif) : la liste ou la fiche du canal (`channelsReturnPath`), la liste sinon.
@@ -41,6 +45,18 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
       }),
     );
   const d = parsed.data;
+  // Bot principal : jamais un bot en mode assistant de conversation (phase 17 : il n'accepte pas les demandes et
+  // n'écrit qu'aux personnes qui lui parlent). Le formulaire ne le propose pas ; refusé ici aussi.
+  if (d.primaryBotId !== "") {
+    const bot = await prisma.bot.findUnique({
+      where: { id: d.primaryBotId },
+      select: { mode: true },
+    });
+    if (!bot)
+      redirect(withFlash(returnTo, { error: "Ce bot est introuvable : choisissez-en un autre." }));
+    if (bot.mode !== "STANDARD")
+      redirect(withFlash(returnTo, { error: PRIMARY_BOT_ASSISTANT_ERROR }));
+  }
   await prisma.channel.update({
     where: { id: d.channelId },
     data: {

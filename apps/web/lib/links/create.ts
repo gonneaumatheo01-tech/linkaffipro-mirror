@@ -4,17 +4,29 @@ import { prisma, audit, recordEvent, type AdPlatform } from "@linkaffipro/db";
 
 export class LinkError extends Error {}
 
-/** Bot qui agit sur un canal : bot principal s'il est administrateur, sinon n'importe quel bot administrateur. */
+/** Un bot peut-il créer les liens d'un canal ? Actif et normal : jamais un assistant de conversation (phase 17). */
+function canActFor(bot: { isActive: boolean; mode: string }): boolean {
+  return bot.isActive && bot.mode === "STANDARD";
+}
+
+/**
+ * Bot qui agit sur un canal : bot principal s'il est administrateur, sinon le plus ancien bot administrateur. Jamais un
+ * bot en mode assistant de conversation (phase 17 : il ne crée pas de liens d'invitation).
+ */
 export async function actingBotForChannel(channelId: string) {
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
     include: {
       primaryBot: true,
-      botAdmins: { where: { revokedAt: null }, include: { bot: true } },
+      botAdmins: {
+        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
+        include: { bot: true },
+      },
     },
   });
   if (!channel) throw new LinkError("Canal introuvable.");
-  const admins = channel.botAdmins.map((a) => a.bot).filter((b) => b.isActive);
+  const admins = channel.botAdmins.map((a) => a.bot).filter(canActFor);
   const primary =
     channel.primaryBot && admins.some((b) => b.id === channel.primaryBot!.id)
       ? channel.primaryBot

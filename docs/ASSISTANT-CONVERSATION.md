@@ -412,3 +412,42 @@ atteint → aucun appel, aucun message, événement `cap_reached`.
   des termes techniques : l'afficher dans un bloc `<pre>` (non lu par le contrôle du vocabulaire).
 - Fiche Persona : avertir (et refuser l'activation) quand une offre est liée mais que la fiche de l'offre est vide.
 - Schéma envoyé à Venice sans `minItems` / `maxItems` / `minimum` / `maximum` (bornes vérifiées par le code).
+
+## 8. Précisions après l'étape 3 (réception et worker livrés)
+Réception (webhook) :
+- Source du `/start` : la première source NON VIDE reçue, jamais écrasée (un `/start` nu puis `/start tk02` garde
+  `tk02`). `/start` est enregistré comme message entrant (meta.command) mais ne compte pas comme un échange.
+- `/stop` passe aussi l'étape à CLOSED (événement `stage_changed`). Réponse fixe `stopDone` si l'activation le permet ;
+  après un `/stop`, `stoppedAlready` au plus une fois par jour de Paris (événement `stopped_reply`).
+- `/reset` sous le verrou de la conversation (`chat:lock:<id>`, attente 8 s au plus, sinon sans verrou avec
+  `locked: false`), une seule fois par message Telegram (identifiant gardé dans l'événement `reset`), messages de la
+  personne plus récents que le `/reset` gardés ; le texte et les boutons des `OutboundMessage` ASSISTANT déjà partis de
+  la conversation sont vidés. Le worker compte les événements `reset` au début du tour : un `/reset` pendant le tour
+  annule l'enregistrement de fin de tour (rien n'est réécrit) et rend les messages.
+- Réponses fixes envoyées directement par le webhook (comme le `/start` des bots normaux), gardées en message sortant
+  SYSTEM.
+- Blocage du bot (`my_chat_member`) : annule la prochaine relance (événement `blocked`) sans fermer ; une conversation
+  fermée BLOCKED / UNREACHABLE repasse en BOT quand la personne réécrit (événement `reopened`) ; jamais après `/stop`,
+  un mineur ou une fermeture par l'équipe.
+- `/start admin_<jeton>` sur un bot assistant lie le compte (comme un bot normal), sans conversation.
+- « Peut répondre » identique au worker : persona de la conversation, sinon celle du bot ; mode ASSISTANT, persona
+  active, activation.
+- Passage d'un bot en mode assistant (Réglages → Bots) : son rôle de bot principal et ses messages programmés passent
+  à un bot normal administrateur du canal (refus si un message à venir n'a aucun autre bot). Les messages déjà publiés
+  gardent leur bouton Offre vers ce bot (cas sans objet pour un bot neuf créé pour l'assistant).
+- Suppression d'un membre : conversations supprimées et texte des envois ASSISTANT vidé, dans la même transaction.
+Worker :
+- `offer_sent` enregistré quand le message portant le bouton est vraiment parti ; un lien créé mais pas envoyé est
+  supprimé.
+- Repères internes dans `ConversationMessage.meta` : `turnDone`, `summarized`, `crashes`, `fixedKey` (jamais affichés).
+- Persona de la conversation fixée au premier message (à défaut celle du bot) ; pas de changement en cours de route.
+- Relances annulées si un contrôle échoue au moment de les envoyer (jamais rattrapées en rafale) ; une relance en panne
+  compte ses essais (3 au plus, puis abandon).
+- Limite du jour = envois de l'assistant partis aujourd'hui (Paris) pour ce bot et cette personne (survit à `/reset`).
+- `daily_limit` et `cap_reached` : un événement par conversation et par jour au plus.
+- Activation tardive : quand l'assistant est activé, il répond aux messages restés sans réponse depuis moins de 24 h
+  (des personnes qui ont écrit d'elles-mêmes).
+- Tour planté avant tout envoi : messages rendus et tour remis en file 30 s plus tard (2 fois au plus, puis abandon) ;
+  après un envoi : tour marqué terminé (jamais deux réponses).
+- Purge : texte et boutons des envois ASSISTANT vidés au-delà de la durée de conservation et pour les membres
+  anonymisés.

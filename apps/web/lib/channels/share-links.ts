@@ -7,7 +7,7 @@ import {
 } from "@linkaffipro/core";
 import { audit, prisma, type ApprovalRule } from "@linkaffipro/db";
 import { canInviteFromRights, getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
-import { actingBotFor } from "@/lib/approval/telegram";
+import { actingStandardBotFor } from "./acting-bot";
 import { fmtDate } from "@/lib/format";
 import { stringList } from "./entry-rule";
 import { frQuotes } from "./exceptions";
@@ -98,7 +98,7 @@ export function createErrorMessage(err: unknown, bot: string, channelTitle: stri
   return `Telegram refuse que @${bot} crée un lien dans « ${channelTitle} ». Ajoutez @${bot} comme administrateur de « ${channelTitle} » avec le droit « Inviter via un lien », puis réessayez.`;
 }
 
-type BotRow = NonNullable<Awaited<ReturnType<typeof actingBotFor>>>;
+type BotRow = NonNullable<Awaited<ReturnType<typeof actingStandardBotFor>>>;
 
 /** API grammY d'un bot (instance mise en cache, la même que celle des webhooks ; les tests l'interceptent). */
 function apiOf(bot: BotRow) {
@@ -111,9 +111,10 @@ function apiOf(bot: BotRow) {
  */
 async function candidateBots(channelId: string): Promise<BotRow[]> {
   const [acting, admins] = await Promise.all([
-    actingBotFor(channelId),
+    actingStandardBotFor(channelId),
     prisma.channelBotAdmin.findMany({
-      where: { channelId, revokedAt: null, bot: { isActive: true } },
+      // Jamais un bot assistant de conversation (phase 17).
+      where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
       orderBy: { detectedAt: "asc" },
       include: { bot: true },
     }),
@@ -423,7 +424,7 @@ export async function loadShareLinks(channelId: string): Promise<ShareLinksData>
       orderBy: { title: "asc" },
       select: { id: true, title: true },
     }),
-    actingBotFor(channelId),
+    actingStandardBotFor(channelId),
   ]);
   const ids = links.map((l) => l.id);
   const [requested, accepted, sources] = ids.length

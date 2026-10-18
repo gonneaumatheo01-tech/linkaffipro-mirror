@@ -93,6 +93,8 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "conversation.cap_reached": "Assistant : plafond mensuel atteint, aucune réponse",
   "conversation.daily_limit": "Assistant : limite de réponses du jour atteinte",
   "conversation.converted": "Conversation : inscription obtenue",
+  "conversation.reopened": "Conversation reprise : la personne a réécrit après avoir bloqué le bot",
+  "conversation.stopped_reply": "Rappel envoyé : la personne avait demandé l'arrêt",
 };
 
 /** Mises à jour Telegram reçues par les bots (`telegram.<type>`). */

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@linkaffipro/db", () => ({ prisma: {} }));
-const { canProposeChannel } = await import("./channels");
+const findMany = vi.hoisted(() => vi.fn(async (_args: unknown) => [] as unknown[]));
+vi.mock("@linkaffipro/db", () => ({ prisma: { channel: { findMany } } }));
+const { canProposeChannel, listProposableChannels } = await import("./channels");
 
 /** Canaux proposés à Link Affi : au moins un de nos bots peut (ou pourrait) créer un lien. */
 describe("canaux proposables", () => {
@@ -28,5 +29,30 @@ describe("canaux proposables", () => {
         { rights: { can_invite_users: true } },
       ]),
     ).toBe(true);
+  });
+});
+
+/** Phase 17 : un bot en mode assistant de conversation ne crée jamais de liens, il ne rend pas un canal proposable. */
+describe("canaux proposables : jamais par un assistant de conversation", () => {
+  it("la base ne compte que les administrateurs actifs et normaux (présence et droits)", async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        id: "c1",
+        title: "Canal",
+        username: null,
+        vertical: null,
+        isActive: true,
+        botAdmins: [{ rights: { can_invite_users: true } }],
+      },
+    ]);
+    const out = await listProposableChannels();
+    expect(out.map((c) => c.id)).toEqual(["c1"]);
+    const args = findMany.mock.calls.at(-1)![0] as {
+      where: { botAdmins: { some: unknown } };
+      select: { botAdmins: { where: unknown } };
+    };
+    const standard = { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } };
+    expect(args.where.botAdmins.some).toEqual(standard);
+    expect(args.select.botAdmins.where).toEqual(standard);
   });
 });

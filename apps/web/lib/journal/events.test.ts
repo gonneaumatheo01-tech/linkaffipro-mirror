@@ -137,6 +137,8 @@ describe("Journal → vue « Événements »", () => {
       "cap_reached",
       "daily_limit",
       "converted",
+      "reopened",
+      "stopped_reply",
     ];
     const labels = types.map((t) => EVENT_TYPE_LABELS[`conversation.${t}`]);
     for (const [i, label] of labels.entries()) expect(label, types[i]).toBeTruthy();
@@ -146,6 +148,12 @@ describe("Journal → vue « Événements »", () => {
       "Conversation fermée : la personne a moins de 18 ans",
     );
     expect(eventLabel("conversation.offer_opened")).toBe("Conversation : lien de l'offre ouvert");
+    expect(eventLabel("conversation.reopened")).toBe(
+      "Conversation reprise : la personne a réécrit après avoir bloqué le bot",
+    );
+    expect(eventLabel("conversation.stopped_reply")).toBe(
+      "Rappel envoyé : la personne avait demandé l'arrêt",
+    );
     expect(eventLabel("conversation.autre")).toBe("Assistant de conversation");
     expect(EVENT_FAMILIES.find((f) => f.prefix === "conversation.")?.label).toBe(
       "Assistant de conversation",

@@ -22,6 +22,7 @@ export function canInviteFromRights(rights: unknown): boolean | null {
 export async function webBotApi(botId: string): Promise<GateLinkApi | null> {
   const bot = await prisma.bot.findFirst({
     where: { id: botId, isActive: true },
+    // Mode et persona : l'instance en cache reste celle du webhook (handlers du bon mode, phase 17).
     select: {
       id: true,
       name: true,
@@ -29,6 +30,8 @@ export async function webBotApi(botId: string): Promise<GateLinkApi | null> {
       telegramBotId: true,
       vertical: true,
       tokenEncrypted: true,
+      mode: true,
+      personaId: true,
     },
   });
   if (!bot) return null;
@@ -73,8 +76,10 @@ export function createPrismaGateLinkDeps(
           isActive: true,
           createsJoinRequest: opts.createsJoinRequest ?? true,
           ...(opts.botId ? { botId: opts.botId } : {}),
+          // Phase 17 : jamais un lien d'un bot assistant de conversation (il ne traite pas les demandes).
           bot: {
             isActive: true,
+            mode: "STANDARD",
             channelAdmins: { none: { channelId: gateChannelId, revokedAt: { not: null } } },
           },
         },
@@ -105,8 +110,9 @@ export function createPrismaGateLinkDeps(
         );
     },
     async adminBots(channelId) {
+      // Phase 17 : un bot assistant de conversation ne crée jamais de lien de canal à rejoindre.
       const rows = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true } },
+        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true, rights: true, bot: { select: { username: true } } },
       });

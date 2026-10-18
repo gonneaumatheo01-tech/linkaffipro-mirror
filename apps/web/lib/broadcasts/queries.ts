@@ -70,8 +70,9 @@ export async function loadBroadcastOptions(): Promise<{
 }> {
   const [bots, channels, inviteLinks, campaigns, categories, media, affiliateCampaigns, ourCampaigns, langs] =
     await Promise.all([
+      // Jamais un bot assistant de conversation (phase 17) : il n'écrit qu'aux personnes qui lui parlent.
       prisma.bot.findMany({
-        where: { isActive: true },
+        where: { isActive: true, mode: "STANDARD" },
         orderBy: { name: "asc" },
         select: { id: true, name: true, username: true, vertical: true },
       }),

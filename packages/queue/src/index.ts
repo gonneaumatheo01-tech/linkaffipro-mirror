@@ -40,4 +40,12 @@ export {
   MTPROTO_LOCK_KEY,
   MTPROTO_LOCK_TTL_MS,
 } from "./mtproto-lock";
-export type { LockRedis, MtprotoLockOptions } from "./mtproto-lock";
+export type { MtprotoLockOptions } from "./mtproto-lock";
+export {
+  withRedisLock,
+  RedisLockBusy,
+  RedisLockUnavailable,
+  RELEASE_LOCK_SCRIPT,
+  EXTEND_LOCK_SCRIPT,
+} from "./redis-lock";
+export type { LockRedis, RedisLockOptions } from "./redis-lock";

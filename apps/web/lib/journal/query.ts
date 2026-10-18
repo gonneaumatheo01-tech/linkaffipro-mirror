@@ -107,6 +107,7 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^assistant\.key_verified$/, "IA de conversation : clé vérifiée"],
   [/^assistant\.key_removed$/, "IA de conversation : clé retirée"],
   [/^assistant\.activation_changed$/, "IA de conversation : activation modifiée"],
+  [/^assistant\.bot_mode_changed$/, "Mode d'un bot changé (assistant de conversation)"],
   [/^assistant\./, "IA de conversation"],
   [/^persona\.created$/, "Persona créée"],
   [/^persona\.updated$/, "Persona modifiée"],

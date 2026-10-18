@@ -799,6 +799,38 @@ describe("Renvoyer l'accueil avec les liens (bouton de l'équipe)", () => {
     expect(st.dms).toHaveLength(2);
   });
 
+  it("bot de la demande devenu assistant de conversation : l'accueil part par le bot qui agit pour le canal", async () => {
+    const { deps, opts, m } = await pendingWithoutLinks(true);
+    opts.adminsOf = admins;
+    const normal: BotIdentity = { ...identity, id: "bot_normal", username: "normalbot" };
+    opts.apis = { ...opts.apis, bot_normal: otherBotApi("normal", [-100100n]) };
+    // `getBotIdentity` ne rend que les bots actifs et normaux : bot_1 est devenu assistant.
+    deps.getBotIdentity = async (botId) => (botId === normal.id ? normal : null);
+    deps.actingBotIdFor = async () => ({ botId: normal.id });
+    const sentBy: string[] = [];
+    const enqueue = deps.enqueueDm;
+    deps.enqueueDm = async (i) => {
+      sentBy.push(i.botId);
+      return enqueue(i);
+    };
+    const r = await resendGateWelcome(deps, m.id, {
+      now: new Date(m.requestedAt.getTime() + 3_600_000),
+    });
+    expect(r).toEqual({ status: "sent", gates: 2 });
+    expect(sentBy).toEqual(["bot_normal"]);
+    // Lien « Démarrer » du bot qui écrit désormais, jamais celui de l'assistant.
+    expect(m.source.startUrl).toBe(`https://t.me/normalbot?start=g${m.code}`);
+  });
+
+  it("bot de la demande devenu assistant et aucun bot normal pour le canal : rien n'est envoyé", async () => {
+    const { deps, st, opts, m } = await pendingWithoutLinks(true);
+    opts.adminsOf = admins;
+    deps.getBotIdentity = async () => null;
+    deps.actingBotIdFor = async () => null;
+    expect(await resendGateWelcome(deps, m.id)).toEqual({ status: "no_bot" });
+    expect(st.dms).toHaveLength(1);
+  });
+
   it("demande qui n'est plus en attente : rien n'est envoyé", async () => {
     const { deps, st, opts, m } = await pendingWithoutLinks(true);
     opts.adminsOf = admins;

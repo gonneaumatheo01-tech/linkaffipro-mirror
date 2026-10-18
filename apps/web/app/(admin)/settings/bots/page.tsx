@@ -22,11 +22,12 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { fmtDate, fmtNum } from "@/lib/format";
 import { requireUser } from "@/lib/session";
-import { ActiveBadge } from "@/lib/status-badges";
+import { ActiveBadge, StatusBadge } from "@/lib/status-badges";
 import { botCheck, botsTile } from "@/lib/status/health";
 import { liveWebhook } from "@/lib/status/queries";
 import { universeLabel } from "@/lib/universe";
-import { addBotAction, resyncWebhookAction, toggleBotAction } from "./actions";
+import { BotModeForm, botModeSummary } from "@/components/settings/bot-mode-form";
+import { addBotAction, resyncWebhookAction, setBotModeAction, toggleBotAction } from "./actions";
 
 export const metadata: Metadata = { title: "Bots" };
 
@@ -35,18 +36,27 @@ export const metadata: Metadata = { title: "Bots" };
  * détail au clic (canaux administrés, membres, messages en attente, actions « Reposer la connexion » et
  * « Activer / Désactiver ») ; le détail technique de la connexion (adresse du webhook) est dans « Avancé ».
  * « Ajouter un bot » (ADMIN) ouvre un volet. Contenu et actions inchangés.
+ * Phase 17 : colonne « Mode » (bot normal / assistant de conversation) ; dans le détail, le mode et la persona liée,
+ * modifiables par un ADMIN (`setBotModeAction`, bouton secondaire : un seul bouton orange par page).
  * État de chaque bot : règle `botCheck` (lib/status/health.ts), la même que la carte Bots de Réglages et la tuile
  * « Bots » d'État du système ; la pastille de l'en-tête reprend cette tuile (« 2 à vérifier »).
  */
 export default async function BotsPage({ searchParams }: PageProps<"/settings/bots">) {
   const user = await requireUser();
   const sp = await searchParams;
-  const bots = await prisma.bot.findMany({
-    orderBy: { createdAt: "asc" },
-    include: {
-      _count: { select: { channelAdmins: { where: { revokedAt: null } }, memberStates: true } },
-    },
-  });
+  const [bots, personas] = await Promise.all([
+    prisma.bot.findMany({
+      orderBy: { createdAt: "asc" },
+      include: {
+        _count: { select: { channelAdmins: { where: { revokedAt: null } }, memberStates: true } },
+        persona: { select: { name: true, isActive: true } },
+      },
+    }),
+    prisma.persona.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, isActive: true },
+    }),
+  ]);
   const webhooks = await Promise.all(
     bots.map((b) => (b.isActive ? liveWebhook(b.id) : Promise.resolve(null))),
   );
@@ -130,6 +140,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
         columns={[
           { key: "bot", header: "Bot", className: "min-w-40 whitespace-normal" },
           { key: "universe", header: "Univers", hideOnMobile: true },
+          { key: "mode", header: "Mode", hideOnMobile: true },
           { key: "state", header: "État", hideOnMobile: true },
           { key: "connection", header: "Connexion Telegram" },
           { key: "signal", header: "Dernier signal", hideOnMobile: true },
@@ -148,6 +159,16 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                 </span>
               ),
               universe: <UniverseDot universe={b.vertical} withLabel />,
+              mode: (
+                <span className="flex flex-col items-start gap-1">
+                  <StatusBadge kind="botMode" value={b.mode} />
+                  {b.mode === "ASSISTANT" ? (
+                    <span className="text-note text-muted-foreground">
+                      {b.persona ? b.persona.name : "Aucune persona liée"}
+                    </span>
+                  ) : null}
+                </span>
+              ),
               state: <ActiveBadge active={b.isActive} />,
               connection: connectionCell,
               signal: fmtDate(b.lastWebhookAt),
@@ -155,6 +176,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
             sortValues: {
               bot: b.name,
               universe: universeLabel(b.vertical),
+              mode: botModeSummary(b.mode, b.persona),
               state: b.isActive ? 1 : 0,
               connection: botCheckLabel(check, w?.fetchError),
             },
@@ -194,6 +216,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                   <DetailRow label="Univers">
                     <UniverseDot universe={b.vertical} withLabel />
                   </DetailRow>
+                  <DetailRow label="Mode">{botModeSummary(b.mode, b.persona)}</DetailRow>
                   <DetailRow label="Canaux administrés">{fmtNum(b._count.channelAdmins)}</DetailRow>
                   <DetailRow label="Membres">{fmtNum(b._count.memberStates)}</DetailRow>
                   <DetailRow label="Dernier signal">{fmtDate(b.lastWebhookAt)}</DetailRow>
@@ -232,6 +255,16 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                     </form>
                   ) : null}
                 </div>
+
+                {isAdmin ? (
+                  <div className="border-t border-border pt-4">
+                    <BotModeForm
+                      bot={{ id: b.id, mode: b.mode, personaId: b.personaId }}
+                      personas={personas}
+                      action={setBotModeAction}
+                    />
+                  </div>
+                ) : null}
 
                 {w && !w.fetchError ? (
                   <AdvancedSection

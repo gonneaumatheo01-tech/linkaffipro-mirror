@@ -123,8 +123,9 @@ export async function deleteNoteAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Suppression d'un membre sur demande (RGPD) = anonymisation : identité effacée, notes supprimées,
- * événements et statistiques conservés sans donnée personnelle. Le telegramUserId est remplacé par un
+ * Suppression d'un membre sur demande (RGPD) = anonymisation : identité effacée, notes et conversations avec
+ * l'assistant supprimées (texte des messages envoyés par l'assistant vidé), événements et statistiques conservés sans
+ * donnée personnelle. Le telegramUserId est remplacé par un
  * entier négatif aléatoire (jamais attribué par Telegram) pour préserver l'unicité et les relations.
  * Événements destinés à Link Affi (phase 13) : en attente supprimés, les autres sans l'identité du membre.
  */
@@ -143,6 +144,15 @@ export async function anonymizeMemberAction(formData: FormData): Promise<void> {
   const fake = -BigInt(`0x${randomBytes(6).toString("hex")}`);
   await prisma.$transaction([
     prisma.memberNote.deleteMany({ where: { memberId } }),
+    // Conversations avec l'assistant (phase 17) : supprimées avec leurs messages et leurs événements (cascade) ; les
+    // liens d'offre envoyés et les clics restent, sans conversation.
+    prisma.conversation.deleteMany({ where: { memberId } }),
+    // Texte des messages envoyés par l'assistant (ou par l'équipe dans une conversation) : il reprend souvent ce que la
+    // personne a dit (prénom, ville, goûts). Vidé ; les lignes restent pour les statistiques d'envoi.
+    prisma.outboundMessage.updateMany({
+      where: { memberId, kind: "ASSISTANT" },
+      data: { text: "", buttons: [] },
+    }),
     prisma.memberBotState.updateMany({
       where: { memberId },
       data: { canDm: false, blockedAt: new Date() },
