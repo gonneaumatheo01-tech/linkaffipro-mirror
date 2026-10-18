@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink, ShieldOff } from "lucide-react";
+import { ExternalLink, MessagesSquare, ShieldOff } from "lucide-react";
 import { aggregatePlayers, computeSpendLevel, SPEND_LEVEL_LABELS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
@@ -203,6 +203,15 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
         },
         _count: {
           select: { clicks: { where: { isBot: false, trackingLink: { kind: "OFFER" } } } },
+        },
+        // Conversations avec l'assistant de conversation (phase 17) : lien vers leur fil.
+        conversations: {
+          orderBy: { updatedAt: "desc" },
+          select: {
+            id: true,
+            bot: { select: { username: true } },
+            persona: { select: { gender: true } },
+          },
         },
       },
     }),
@@ -410,17 +419,32 @@ export default async function MemberPage({ params, searchParams }: PageProps<"/m
           </>
         }
         secondaryActions={
-          !anonymized && member.username ? (
-            <a
-              href={`https://t.me/${encodeURIComponent(member.username)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
-            >
-              <ExternalLink aria-hidden />
-              Ouvrir dans Telegram
-              <span className="sr-only"> (nouvel onglet)</span>
-            </a>
+          member.conversations.length > 0 || (!anonymized && member.username) ? (
+            <>
+              {member.conversations.map((conv) => (
+                <Link
+                  key={conv.id}
+                  href={`/conversations/${conv.id}`}
+                  className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+                >
+                  <MessagesSquare aria-hidden />
+                  Conversation avec {conv.persona?.gender === "M" ? "l'assistant" : "l'assistante"}
+                  {member.conversations.length > 1 ? ` (@${conv.bot.username})` : ""}
+                </Link>
+              ))}
+              {!anonymized && member.username ? (
+                <a
+                  href={`https://t.me/${encodeURIComponent(member.username)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(buttonVariants({ variant: "outline" }), "max-md:h-10")}
+                >
+                  <ExternalLink aria-hidden />
+                  Ouvrir dans Telegram
+                  <span className="sr-only"> (nouvel onglet)</span>
+                </a>
+              ) : null}
+            </>
           ) : null
         }
       />

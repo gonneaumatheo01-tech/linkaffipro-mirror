@@ -14,9 +14,9 @@ import {
 } from "./tour-logic";
 
 describe("étapes de la visite guidée", () => {
-  it("une étape par entrée du menu, dans son ordre (Pages comprise, phase 15), puis le « ? »", () => {
+  it("une étape par entrée du menu, dans son ordre (Pages, phase 15, et Conversations, phase 17, comprises), puis le « ? »", () => {
     expect(TOUR_STEPS.length).toBeGreaterThanOrEqual(5);
-    expect(TOUR_STEPS.length).toBeLessThanOrEqual(8);
+    expect(TOUR_STEPS.length).toBeLessThanOrEqual(9);
     expect(TOUR_STEPS.map((s) => s.key)).toEqual([
       "home",
       "campaigns",
@@ -24,9 +24,13 @@ describe("étapes de la visite guidée", () => {
       "channels",
       "messages",
       "members",
+      "conversations",
       "stats",
       "help",
     ]);
+    // Même ordre que les entrées principales du menu (Réglages, le guide et le compte n'ont pas d'étape).
+    const mainKeys = NAV.filter((i) => i.section === "main").map((i) => i.key);
+    expect(TOUR_STEPS.filter((s) => s.key !== "help").map((s) => s.key)).toEqual(mainKeys);
   });
 
   it("chaque étape du menu vise un repère posé par le menu (nav-<clé>)", () => {
@@ -37,7 +41,7 @@ describe("étapes de la visite guidée", () => {
   });
 
   it("rubriques rangées sous « Plus » sur téléphone : repli sur nav-more avec une phrase", () => {
-    for (const key of ["pages", "channels", "stats"]) {
+    for (const key of ["pages", "channels", "conversations", "stats"]) {
       const step = TOUR_STEPS.find((s) => s.key === key)!;
       expect(step.anchors.at(-1)).toBe("nav-more");
       expect(step.fallbackNote).toMatch(/«\s?Plus\s?»/);
@@ -47,7 +51,9 @@ describe("étapes de la visite guidée", () => {
   it("textes courts, en français simple (une ou deux phrases)", () => {
     for (const s of TOUR_STEPS) {
       expect(s.body.length).toBeLessThanOrEqual(170);
-      expect(s.body).not.toMatch(/\b(sub-ID|FTD|NGR|ROAS|webhook|postback|cohorte|entonnoir)\b/i);
+      expect(s.body).not.toMatch(
+        /\b(sub-ID|FTD|NGR|ROAS|webhook|postback|cohorte|entonnoir|dating|segment|séquence|automatisation)\b/i,
+      );
     }
   });
 

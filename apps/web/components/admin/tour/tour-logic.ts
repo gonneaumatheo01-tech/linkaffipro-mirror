@@ -5,7 +5,8 @@
  * Les repères sont les attributs `data-tour` posés sur les entrées du menu (`nav-<clé>`, voir `navTourId` dans
  * nav-logic.ts), sur « Plus » de la barre du téléphone (`nav-more`) et sur le bouton « ? » de l'en-tête (`help`).
  * Une entrée existe deux fois (barre de menu de l'ordinateur et barre du bas du téléphone, l'une cachée) : on prend
- * la première visible. Sur téléphone, Pages, Canaux et Statistiques sont rangés sous « Plus » : la bulle montre « Plus ».
+ * la première visible. Sur téléphone, Pages, Canaux, Conversations et Statistiques sont rangés sous « Plus » : la bulle
+ * montre « Plus ».
  */
 
 export type TourStep = {
@@ -56,6 +57,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchors: ["nav-members"],
     title: "Membres",
     body: "Qui sont vos membres et d'où ils viennent. C'est aussi ici que vous écrivez à un groupe et réglez les relances automatiques.",
+  },
+  {
+    key: "conversations",
+    anchors: ["nav-conversations", "nav-more"],
+    title: "Conversations",
+    body: "L'assistante répond aux personnes qui écrivent au bot de Rencontres ; vous lisez chaque échange et pouvez reprendre la main.",
+    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
   },
   {
     key: "stats",

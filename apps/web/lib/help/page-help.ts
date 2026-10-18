@@ -213,6 +213,30 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Éditeur avancé à branches"],
   },
 
+  // Conversations (phase 17) : boîte de réception, fil d'une conversation, personas, chiffres de l'assistant.
+  {
+    path: "/conversations",
+    label: "Conversations",
+    sections: [intro("Conversations"), "Boîte de réception"],
+  },
+  {
+    path: "/conversations/:id",
+    label: "Fil d'une conversation",
+    sections: ["Boîte de réception", intro("Conversations")],
+  },
+  { path: "/conversations/personas", label: "Personas", sections: ["Personas"] },
+  { path: "/conversations/personas/new", label: "Nouvelle persona", sections: ["Personas"] },
+  {
+    path: "/conversations/personas/:id",
+    label: "Fiche d'une persona",
+    sections: ["Personas", "Réglages → IA de conversation"],
+  },
+  {
+    path: "/conversations/stats",
+    label: "Chiffres des conversations",
+    sections: ["Chiffres"],
+  },
+
   // Statistiques
   {
     path: "/stats",

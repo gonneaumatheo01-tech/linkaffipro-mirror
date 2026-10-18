@@ -4,12 +4,14 @@
  * Les icônes (lucide) sont associées par leur nom dans `nav-icons.tsx` (`NAV_ICONS`).
  *
  * Menu cible de docs/REFONTE-UX.md : 6 entrées principales (`section: "main"`), plus « Pages » après Campagnes
- * (phase 15, demande explicite du client : pages d'atterrissage), puis Réglages en bas et séparé
+ * (phase 15, demande explicite du client : pages d'atterrissage) et « Conversations » après Membres (phase 17 :
+ * assistant de conversation, boîte de réception, personas, chiffres), puis Réglages en bas et séparé
  * (`section: "bottom"`), visible pour tous les rôles (l'écran Réglages ne montre à chacun que ce qu'il peut ouvrir).
  * Le guide d'utilisation et « Mon compte » ne sont que dans le volet « Plus » du téléphone (`mobileOnly`) : sur
  * ordinateur, ils sont dans l'en-tête (bouton « ? » et menu du compte).
  * Les rubriques rangées sous une entrée l'allument : /members/broadcasts et /members/automations → Membres,
- * /campaigns/links → Campagnes, /settings/bots et /settings/journal → Réglages (voir `activeHref`).
+ * /campaigns/links → Campagnes, /conversations/personas et /conversations/stats → Conversations, /settings/bots et
+ * /settings/journal → Réglages (voir `activeHref`).
  */
 
 export type NavIcon =
@@ -18,6 +20,7 @@ export type NavIcon =
   | "House"
   | "Megaphone"
   | "MessageSquare"
+  | "MessagesSquare"
   | "PanelTop"
   | "Radio"
   | "Settings"
@@ -52,6 +55,14 @@ export const NAV: NavItem[] = [
   { key: "channels", href: "/channels", label: "Canaux", icon: "Radio", section: "main" },
   { key: "messages", href: "/messages", label: "Messages", icon: "MessageSquare", section: "main" },
   { key: "members", href: "/members", label: "Membres", icon: "Users", section: "main" },
+  // Phase 17 : assistant de conversation (boîte de réception, personas, chiffres ; sur téléphone, dans « Plus »).
+  {
+    key: "conversations",
+    href: "/conversations",
+    label: "Conversations",
+    icon: "MessagesSquare",
+    section: "main",
+  },
   { key: "stats", href: "/stats", label: "Statistiques", icon: "BarChart3", section: "main" },
   { key: "settings", href: "/settings", label: "Réglages", icon: "Settings", section: "bottom" },
   {

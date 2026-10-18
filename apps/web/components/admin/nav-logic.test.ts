@@ -35,7 +35,7 @@ describe("NAV (liste du menu)", () => {
     }
   });
 
-  it("entrées principales dans l'ordre de docs/REFONTE-UX.md, « Pages » juste après Campagnes (phase 15)", () => {
+  it("entrées principales dans l'ordre de docs/REFONTE-UX.md, « Pages » après Campagnes (phase 15), « Conversations » après Membres (phase 17)", () => {
     const main = NAV.filter((i) => i.section === "main");
     expect(main.map((i) => [i.href, i.label])).toEqual([
       ["/", "Accueil"],
@@ -44,8 +44,14 @@ describe("NAV (liste du menu)", () => {
       ["/channels", "Canaux"],
       ["/messages", "Messages"],
       ["/members", "Membres"],
+      ["/conversations", "Conversations"],
       ["/stats", "Statistiques"],
     ]);
+    expect(NAV.find((i) => i.key === "conversations")).toMatchObject({
+      href: "/conversations",
+      icon: "MessagesSquare",
+      section: "main",
+    });
   });
 
   it("en bas : Réglages (barre de menu) ; Guide et Mon compte seulement dans « Plus » du téléphone", () => {
@@ -85,6 +91,7 @@ describe("NAV (liste du menu)", () => {
       "nav-channels",
       "nav-messages",
       "nav-members",
+      "nav-conversations",
       "nav-stats",
       "nav-settings",
       "nav-help",
@@ -116,10 +123,10 @@ describe("navSections (barre de menu de l'ordinateur)", () => {
     expect(navSections(nav, false).bottom.map((i) => i.href)).toEqual(["/settings"]);
   });
 
-  it("menu réel : 7 entrées (6 + Pages) + Réglages, pour un administrateur comme pour un manager", () => {
+  it("menu réel : 8 entrées (6 + Pages + Conversations) + Réglages, pour un administrateur comme pour un manager", () => {
     for (const isAdmin of [true, false]) {
       const s = navSections(NAV, isAdmin);
-      expect(s.main).toHaveLength(7);
+      expect(s.main).toHaveLength(8);
       expect(s.bottom.map((i) => i.href)).toEqual(["/settings"]);
     }
   });
@@ -167,6 +174,13 @@ describe("activeHref", () => {
       ["/pages/new", "/pages"],
       ["/pages/p1", "/pages"],
       ["/pagesx", null],
+      ["/conversations", "/conversations"],
+      ["/conversations/c1", "/conversations"],
+      ["/conversations/personas", "/conversations"],
+      ["/conversations/personas/new", "/conversations"],
+      ["/conversations/personas/p1", "/conversations"],
+      ["/conversations/stats", "/conversations"],
+      ["/conversationsx", null],
       ["/channels/ch1", "/channels"],
       ["/messages/new", "/messages"],
       ["/stats", "/stats"],
@@ -227,13 +241,14 @@ describe("mobileNav", () => {
     expect(more.map((i) => i.href)).toContain("/messages");
   });
 
-  it("menu réel : « Plus » contient Pages, Canaux, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
+  it("menu réel : « Plus » contient Pages, Canaux, Conversations, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
     for (const isAdmin of [true, false]) {
       const { primary, more } = mobileNav(NAV, isAdmin);
       expect(primary.map((i) => i.href)).toEqual([...MOBILE_PRIMARY_HREFS]);
       expect(more.map((i) => i.label)).toEqual([
         "Pages",
         "Canaux",
+        "Conversations",
         "Statistiques",
         "Réglages",
         "Guide d'utilisation",

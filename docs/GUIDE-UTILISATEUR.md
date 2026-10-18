@@ -17,6 +17,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Canaux](#canaux)
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
+- [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Aide « ? » et visite guidée](#aide-et-visite-guidee)
@@ -39,7 +40,7 @@ Il n'y a pas d'inscription libre : un administrateur vous envoie un lien d'invit
 
 ### 2. Suivre la visite guidée
 
-À votre première connexion, une visite de 2 minutes s'ouvre toute seule. Une bulle montre chaque rubrique du menu : **Accueil**, **Campagnes**, **Pages**, **Canaux**, **Messages**, **Membres**, **Statistiques**, puis le bouton **?**.
+À votre première connexion, une visite de 2 minutes s'ouvre toute seule. Une bulle montre chaque rubrique du menu : **Accueil**, **Campagnes**, **Pages**, **Canaux**, **Messages**, **Membres**, **Conversations**, **Statistiques**, puis le bouton **?**.
 
 1. Lisez la bulle, puis cliquez sur **Suivant** (ou la flèche droite du clavier). **Précédent** revient en arrière.
 2. À la dernière étape, cliquez sur **Terminer**. **Passer la visite** (ou la touche Échap) la ferme tout de suite.
@@ -168,9 +169,9 @@ Si vous êtes le seul administrateur : la personne technique peut créer une inv
 
 ## Se repérer dans le site
 
-**Le menu.** Sur ordinateur, la barre de menu est à gauche, sur fond nuit, avec le logo : **Accueil**, **Campagnes**, **Canaux**, **Messages**, **Membres**, **Statistiques**, et **Réglages** en bas, à part. La rubrique ouverte est en blanc avec un trait orange. Sur tablette, la barre ne montre que les icônes : survolez une icône pour voir son nom.
+**Le menu.** Sur ordinateur, la barre de menu est à gauche, sur fond nuit, avec le logo : **Accueil**, **Campagnes**, **Pages**, **Canaux**, **Messages**, **Membres**, **Conversations**, **Statistiques**, et **Réglages** en bas, à part. La rubrique ouverte est en blanc avec un trait orange. Sur tablette, la barre ne montre que les icônes : survolez une icône pour voir son nom.
 
-**Sur téléphone.** Le menu est la barre du bas : **Accueil**, **Messages**, **Membres**, **Campagnes**, puis **Plus**, qui ouvre **Canaux**, **Statistiques**, **Réglages**, **Guide d'utilisation** et **Mon compte**. L'accueil, le calendrier des messages et les demandes à valider sont pensés d'abord pour le téléphone.
+**Sur téléphone.** Le menu est la barre du bas : **Accueil**, **Messages**, **Membres**, **Campagnes**, puis **Plus**, qui ouvre **Pages**, **Canaux**, **Conversations**, **Statistiques**, **Réglages**, **Guide d'utilisation** et **Mon compte**. L'accueil, le calendrier des messages et les demandes à valider sont pensés d'abord pour le téléphone.
 
 **En haut à droite de chaque page** : le champ **Rechercher** (raccourci ⌘K ou Ctrl+K, ou la touche /), le bouton **?** (aide de la page) et le rond à vos initiales (**Mon compte**, **Déconnexion**). Sur téléphone, la recherche est une loupe.
 
@@ -779,6 +780,91 @@ Pour un parcours avec des conditions (« a-t-il déposé ? ») et plusieurs éta
 
 Ce qui a été envoyé cette semaine, le parcours avec, dans chaque bloc, le nombre de passages (oui / non pour une condition, en attente, erreurs) et la dernière erreur, puis les dernières exécutions : cliquez sur une ligne pour voir chaque étape. Faites glisser le parcours pour le déplacer et utilisez les loupes pour zoomer ; la molette fait défiler la page. En bas : ouvrir dans l'éditeur avancé, **Dupliquer**, **Supprimer** (administrateurs).
 
+## Conversations
+
+**À quoi ça sert.** Suivre l'**assistant de conversation** : le bot dédié à l'univers Rencontres qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes (après **Démarrer**, depuis un canal, une page ou une pub), présente l'app et envoie le lien de l'offre au bon moment. Il se présente toujours comme l'assistante ou l'assistant du canal, jamais comme une vraie personne. Vous lisez chaque conversation et pouvez reprendre la main à tout moment. Trois onglets en haut : **Boîte de réception**, **Personas** et **Chiffres**.
+
+**Avant la première réponse**, trois réglages (administrateurs) :
+
+1. [Réglages → IA de conversation](#reglages-ia-de-conversation) : la clé, les limites et **Qui reçoit une réponse** (**Désactivé** par défaut ; faites d'abord l'essai avec **Seulement l'équipe (essai)**).
+2. Onglet **Personas** : une persona activée, avec sa fiche de l'offre remplie.
+3. [Réglages → Bots](#reglages-bots) : ouvrez le bot de Rencontres, choisissez le **Mode** **Assistant de conversation**, puis sa **Persona liée**.
+
+**Ce que l'assistant ne fait jamais.** Il n'écrit jamais le premier : il répond seulement aux personnes qui lui ont écrit. Après un silence, il relance au plus deux fois, à 24 heures d'écart au moins, puis plus rien. Une personne qui envoie `/stop` n'est plus jamais contactée. Une personne qui dit avoir moins de 18 ans reçoit un message poli, aucun lien, et la conversation est fermée. Il n'invente ni chiffres ni promesses : il ne parle de l'offre qu'avec ce qui est écrit dans la fiche de l'offre de la persona.
+
+### Boîte de réception
+
+La liste des conversations, la plus récemment active d'abord : la personne (son prénom ou son pseudo, avec la persona et la source), le début du dernier message, l'étape du parcours, qui répond (**L'assistant répond**, **L'équipe a la main**, **En pause**, **Fermée**) et depuis quand. Une conversation **non lue** (point orange, nom en gras) attend une réponse : le dernier message est celui de la personne.
+
+En haut, trois pastilles avec leur nombre : **Toutes**, **Non lues** et **L'équipe a la main**. Puis les filtres **Étape**, **Qui répond**, **Source** (d'où vient la personne) et **Persona** : cliquez sur **Filtrer**. Les filtres sont mémorisés sur cet appareil ; **Effacer les filtres** repart de toute la liste. **Exporter** télécharge la liste filtrée (fichier CSV, sans le texte des messages). Tant que l'assistant est **Désactivé**, la page le dit ; un administrateur l'active dans [Réglages → IA de conversation](#reglages-ia-de-conversation).
+
+**Ce que veut dire chaque étape** :
+
+- **Accueil** : la personne vient d'écrire au bot ; l'assistante se présente.
+- **Discussion** : la personne a répondu ; elles font connaissance.
+- **Proposition** : l'assistante parle de l'app, sans lien pour l'instant.
+- **Lien envoyé** : le bouton de l'offre est parti (jamais au premier message).
+- **Relance** : la personne ne répondait plus ; l'assistante l'a relancée (deux fois au plus).
+- **Inscrit** : la personne s'est inscrite par le lien de l'offre (voir [Chiffres](#chiffres)).
+- **Fermée** : la personne a envoyé `/stop`, a dit avoir moins de 18 ans ou a bloqué le bot, ou l'équipe a fermé ou bloqué la conversation.
+
+**Le fil d'une conversation.** Cliquez sur une conversation pour ouvrir son fil, mis à jour en direct (toutes les quelques secondes, tant que la page est ouverte et visible). Les messages de la personne sont à gauche, ceux de l'assistante et de l'équipe à droite (avec le prénom du membre de l'équipe qui a écrit), les messages automatiques au centre. Une photo, un message vocal ou un autocollant est décrit entre crochets, par exemple « [photo] ». Sous un message qui portait le bouton de l'offre : **Lien de l'offre envoyé**, avec **Ouvert le …** ou **Pas encore ouvert**. À droite : la personne (lien vers sa fiche), la persona, la source, l'étape, qui répond, la langue, puis les résultats (liens de l'offre envoyés et ouverts, inscription, premier dépôt, coût de l'IA) et ce que l'assistante retient de ce que la personne a dit d'elle-même. Depuis la [fiche d'un membre](#fiche-d-un-membre), **Conversation avec l'assistante** ouvre ce fil.
+
+**Reprendre la main** :
+
+- **Prendre la main** : l'assistante se tait aussitôt pour cette conversation, même au milieu d'une réponse ; c'est vous qui écrivez. Écrire dans **Écrire à cette personne** puis cliquer sur **Envoyer** vous donne aussi la main.
+- **Rendre à l'assistante** (**Rendre à l'assistant** pour une persona masculine) : elle reprend la discussion au prochain message de la personne. Les messages reçus pendant que vous aviez la main ne reçoivent jamais de réponse en retard, et ses relances repartent de ce moment (si votre dernier message est resté sans réponse, elle relancera la personne plus tard, comme après un de ses propres messages). Si elle était encore en train de préparer une réponse commencée avant votre prise de main, le site attend quelques secondes qu'elle ait fini (cette réponse ne part pas) ; sinon il vous demande de réessayer un peu plus tard.
+- **Fermer** : la conversation est terminée, ni réponse ni relance. Vous pouvez la rouvrir en prenant la main ou en écrivant.
+- **Bloquer** (avec confirmation) : plus aucun message ne part vers cette personne, ni de l'assistante ni de l'équipe, même si elle réécrit. C'est définitif.
+
+Vos messages partent par le bot, au même rythme que les autres messages privés, et l'assistante en tient compte ensuite. Il est impossible d'écrire à une personne qui a envoyé `/stop`, qui a dit avoir moins de 18 ans, qui a bloqué le bot, ou dont la conversation est bloquée : la fiche l'explique à la place de la zone d'écriture. Administrateurs et managers peuvent prendre la main, écrire, fermer et bloquer ; chaque action est notée dans le [Journal](#reglages-journal).
+
+### Personas
+
+Une persona, c'est le personnage de l'assistant : un prénom, une personnalité, une façon de parler, ses langues, l'offre qu'il présente et le moment où il envoie le lien. La liste montre pour chacune son état (**Active** ou **Inactive**), l'offre liée, les bots qui l'utilisent et le nombre de conversations. Cliquez sur **Nouvelle persona** pour en créer une, ou sur une ligne pour ouvrir sa fiche.
+
+La fiche se remplit en six blocs :
+
+- **Identité** : le **Prénom**, **Se présente comme** (l'assistante ou l'assistant du canal), la **Personnalité**, le **Ton**, les **Langues** (avec la **Langue par défaut** quand plusieurs sont cochées) et les **Centres d'intérêt**, séparés par des virgules. L'assistante répond dans la langue de la personne quand elle la parle, sinon dans la langue par défaut.
+- **Parcours** : combien de **Messages de la personne avant le lien** (1 au moins, 4 conseillé : jamais de lien au premier message), **Attendre que la personne semble intéressée**, combien d'**Envois du lien au plus** (1 à 3), **Relancer après (heures de silence)** (4 heures au moins) et combien de **Relances au plus** (2 au maximum, jamais la nuit).
+- **Offre** : l'**Offre Link Affi** présentée (celles de l'univers Rencontres sont en premier) et la **Campagne (facultatif)** où retrouver les liens envoyés et leurs inscriptions. Puis **Ce que l'assistante peut dire de l'app** : la fiche de l'offre, les seuls éléments qu'elle peut en dire. Rien d'autre ne sera dit : pas de chiffres, pas de promesses. Ajoutez le **Texte du bouton** et, si vous le souhaitez, un **Visuel de l'app** : une image de l'app ou de l'offre, jamais une photo présentée comme celle de l'assistante.
+- **Profil du bot** : la **Description** et la **Description courte** que Telegram affiche avant la conversation. Elles sont déjà remplies avec un texte qui dit « assistante du canal ». Un texte qui ne dit pas « assistante » ou « assistant », ou qui le nie ou laisse croire à une vraie personne, est refusé ; **Remettre le texte proposé** revient au texte de départ.
+- **Avancé** (replié) : le **Modèle** de l'IA, la **Créativité des réponses** et une **Consigne supplémentaire**. Laissés vides, ils suivent [Réglages → IA de conversation](#reglages-ia-de-conversation).
+- **Mise en service** : la case **Persona activée**. Une persona est créée désactivée. L'activation est refusée sans prénom, ou quand une offre est liée alors que « Ce que l'assistante peut dire de l'app » est vide.
+
+Cliquez sur **Créer la persona** (ou **Enregistrer**). Quand un bot l'utilise déjà, sa description est mise à jour dans Telegram dans la foulée ; si Telegram ne répond pas, l'enregistrement est quand même fait et un message rouge vous invite à réenregistrer un peu plus tard.
+
+**Ce que l'assistante ne fera jamais**, quels que soient les réglages :
+
+- cacher qu'elle est une assistante : elle se présente au premier message et répond franchement quand on lui demande si c'est une IA ; une consigne qui lui demanderait de se faire passer pour une vraie personne, de nier être une IA ou de ne jamais l'avouer est refusée à l'enregistrement, et une réponse qui le laisserait croire est écartée avant l'envoi ;
+- écrire à quelqu'un qui ne lui a pas écrit le premier ;
+- continuer avec une personne qui dit avoir moins de 18 ans : un message poli, aucun lien, conversation fermée ;
+- inventer des chiffres, des promesses ou des témoignages.
+
+**Tester** : sur la fiche (à côté du formulaire sur un grand écran, en dessous sinon ; le bouton **Tester** en haut de la fiche y mène), écrivez comme une personne qui découvre le bot, puis cliquez sur **Envoyer** (ou appuyez sur Entrée). L'assistante répond avec la vraie IA, d'après la version enregistrée : enregistrez d'abord vos changements. Le bouton de l'offre s'affiche comme dans Telegram, avec la mention « lien d'essai, aucun suivi » : rien n'est compté. À côté, l'étape du parcours, le style détecté chez la personne, les liens envoyés et le coût de l'essai. Rien ne part sur Telegram, mais le coût compte dans le plafond du mois (30 messages d'essai par heure et par personne au plus). Un âge de moins de 18 ans, une réponse refusée par les contrôles ou une panne de l'IA s'affichent comme dans la vraie vie. **Recommencer** efface la conversation d'essai. Le test demande la clé Venice, collée par un administrateur.
+
+Plus bas sur la fiche, **Ce que l'assistante reçoit comme consignes** (replié) montre le texte exact envoyé à l'IA pour un premier message.
+
+**Supprimer la persona** (administrateurs seulement) : impossible tant qu'un bot l'utilise ; liez d'abord une autre persona au bot dans [Réglages → Bots](#reglages-bots), ou repassez-le en bot normal. Pour l'arrêter tout de suite, décochez plutôt **Persona activée**. Ses conversations restent dans la boîte de réception.
+
+### Chiffres
+
+Choisissez la période en haut (le même sélecteur que les [Statistiques](#periode-et-comparaison), avec **Comparer à la période précédente**), puis cliquez sur **Appliquer**. Cinq chiffres en tête :
+
+- **Conversations** : les conversations commencées sur la période ;
+- **Taux de réponse** : la part de ces conversations où la personne a répondu au moins une fois après le premier message de l'assistante (ou de l'équipe) ;
+- **Liens ouverts** : les liens de l'offre ouverts pour la première fois, sur les liens envoyés ;
+- **Inscriptions**, avec les premiers dépôts et le coût de l'IA par inscription ;
+- **Coût de l'IA ce mois-ci**, sur le plafond du mois réglé dans [Réglages → IA de conversation](#reglages-ia-de-conversation). Les essais **Tester** d'une persona comptent dans le plafond, mais pas dans les chiffres des personas.
+
+**Parcours, étape par étape** : combien des conversations commencées sur la période sont arrivées à chaque étape, de l'accueil jusqu'à l'inscription (Accueil, Discussion, Proposition, Lien envoyé, Relance, Inscrit : voir [Boîte de réception](#boite-de-reception)). Une conversation peut passer par **Relance** sans avoir reçu de lien : les barres ne baissent donc pas toujours d'une étape à la suivante.
+
+**Par persona** et **Par source** : les conversations (avec le taux de réponse), les liens ouverts (sur les liens envoyés), les inscriptions (avec les premiers dépôts) et le coût de l'IA (avec le coût par inscription). Cliquez sur une ligne pour tous ses chiffres. La source, c'est le mot ajouté après `/start` dans le lien du bot, par exemple `https://t.me/votre_bot?start=tk01` pour une pub TikTok ; « Sans source » : la personne a seulement appuyé sur **Démarrer**.
+
+**D'où viennent les inscriptions.** Chaque lien de l'offre envoyé par l'assistante est unique (un par envoi). Quand la personne l'ouvre, son clic est enregistré ; quand elle s'inscrit puis fait son premier dépôt sur l'app, Link Affi le fait remonter et l'inscription est rattachée à ce clic, donc à la conversation, à sa persona et à sa source. Les inscriptions et les premiers dépôts sont comptés aux dates réelles de Link Affi, comme dans les Statistiques ; les liens et le coût de l'IA, le jour où ils ont eu lieu. Une inscription peut donc arriver plusieurs jours après la conversation. Dès qu'une inscription est rattachée, la conversation passe à l'étape **Inscrit**.
+
+**Exporter** télécharge les chiffres de la période : le total, une ligne par persona et une ligne par source.
+
 ## Statistiques
 
 **À quoi ça sert.** Le détail des chiffres. Cinq pages, en onglets sous le titre (sur téléphone, une rangée à faire glisser de côté) : **Vue d'ensemble**, **Pubs**, **Parcours**, **Canaux** et **Membres dans le temps**. Les graphiques viennent avant les tableaux ; les tableaux ont peu de colonnes : cliquez sur une ligne pour tous ses chiffres.
@@ -1030,7 +1116,7 @@ Cette sauvegarde protège contre une erreur humaine ou une corruption, pas contr
 
 **La page Aide** affiche ce guide en entier, avec son sommaire à gauche, et le bouton **Revoir la visite guidée**. Sur téléphone : **Plus** → **Guide d'utilisation**.
 
-**La visite guidée** (2 minutes) montre les rubriques du menu une par une, puis le bouton **?**. Boutons **Suivant**, **Précédent**, **Terminer**, **Passer la visite** ; Échap la ferme, les flèches avancent ou reculent. Sur téléphone, Canaux et Statistiques sont sous **Plus** : la bulle le dit. Elle démarre seule à la première connexion, puis ne revient plus d'elle-même. Pour la revoir : **?** → **Revoir la visite guidée**, la page **Aide**, **Mon compte** → **Revoir la visite**, ou **Réglages** → **Revoir la visite** (vous revenez à l'accueil, la visite repart, et la liste « À faire pour démarrer » réapparaît si elle n'est pas finie).
+**La visite guidée** (2 minutes) montre les rubriques du menu une par une, puis le bouton **?**. Boutons **Suivant**, **Précédent**, **Terminer**, **Passer la visite** ; Échap la ferme, les flèches avancent ou reculent. Sur téléphone, Pages, Canaux, Conversations et Statistiques sont sous **Plus** : la bulle le dit. Elle démarre seule à la première connexion, puis ne revient plus d'elle-même. Pour la revoir : **?** → **Revoir la visite guidée**, la page **Aide**, **Mon compte** → **Revoir la visite**, ou **Réglages** → **Revoir la visite** (vous revenez à l'accueil, la visite repart, et la liste « À faire pour démarrer » réapparaît si elle n'est pas finie).
 
 ## Mon compte
 

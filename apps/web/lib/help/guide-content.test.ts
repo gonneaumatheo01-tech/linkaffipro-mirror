@@ -64,6 +64,7 @@ describe("guide d'utilisation : plan", () => {
       "Canaux",
       "Messages",
       "Membres",
+      "Conversations",
       "Statistiques",
       "Réglages",
     ]);
@@ -119,6 +120,28 @@ describe("guide d'utilisation : plan", () => {
       "### Relances automatiques",
     ])
       expect(members).toContain(t);
+  });
+
+  it("Conversations (phase 17) : boîte de réception, personas et chiffres, dans l'ordre des onglets", () => {
+    const start = headings.findIndex((h) => h.level === 2 && h.text === "Conversations");
+    const end = headings.findIndex((h, i) => i > start && h.level === 2);
+    const sub = headings
+      .slice(start + 1, end)
+      .filter((h) => h.level === 3)
+      .map((h) => h.text);
+    expect(sub).toEqual(["Boîte de réception", "Personas", "Chiffres"]);
+    const conversations = guideSections(GUIDE, ["Conversations"])[0]!.markdown;
+    // Règles du client : jamais de prise de contact à froid, 2 relances au plus, /stop définitif, adultes seulement.
+    for (const t of [
+      "**Prendre la main**",
+      "**Rendre à l'assistant**",
+      "**Tester**",
+      "au plus deux fois",
+      "`/stop`",
+      "moins de 18 ans",
+      "Désactivé",
+    ])
+      expect(conversations).toContain(t);
   });
 
   it("« Où sont passées les anciennes pages ? » cite chaque rubrique déplacée", () => {

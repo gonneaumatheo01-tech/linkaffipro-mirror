@@ -209,6 +209,26 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(guideHref(pageHelpFor("/pages/p1").help)).toBe("/help#copier-le-lien-d-une-source");
   });
 
+  it("Conversations (phase 17) : boîte de réception, fil, personas et chiffres ont chacun leur aide", () => {
+    expect(pageHelpFor("/conversations").help.label).toBe("Conversations");
+    expect(pageHelpFor("/conversations?stage=CHAT").help.label).toBe("Conversations");
+    expect(pageHelpFor("/conversations/c1").help.label).toBe("Fil d'une conversation");
+    // Adresses fixes : elles l'emportent sur la fiche d'une conversation (« :id »).
+    expect(pageHelpFor("/conversations/personas").help.label).toBe("Personas");
+    expect(pageHelpFor("/conversations/personas/new").help.label).toBe("Nouvelle persona");
+    expect(pageHelpFor("/conversations/personas/p1").help.label).toBe("Fiche d'une persona");
+    expect(pageHelpFor("/conversations/stats?range=30d").help.label).toBe(
+      "Chiffres des conversations",
+    );
+    const inbox = guideSections(GUIDE, pageHelpFor("/conversations").help.sections);
+    expect(inbox.map((s) => s.id)).toEqual(["conversations", "boite-de-reception"]);
+    expect(inbox[0]!.markdown.startsWith("## Conversations")).toBe(true);
+    expect(inbox[0]!.markdown).not.toContain("### ");
+    expect(guideHref(pageHelpFor("/conversations/c1").help)).toBe("/help#boite-de-reception");
+    expect(guideHref(pageHelpFor("/conversations/personas/p1").help)).toBe("/help#personas");
+    expect(guideHref(pageHelpFor("/conversations/stats").help)).toBe("/help#chiffres");
+  });
+
   it("lien « Ouvrir le guide complet » : ancre de la première section de la page", () => {
     expect(guideHref(pageHelpFor("/").help)).toBe("/help#accueil");
     expect(guideHref(pageHelpFor("/settings/team").help)).toBe("/help#reglages-equipe");
