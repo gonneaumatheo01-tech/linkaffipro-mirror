@@ -99,9 +99,13 @@ export const SETTINGS_CARDS: SettingsCard[] = [
     key: "assistant",
     title: "IA de conversation",
     description:
-      "L'assistant qui discute en privé avec les personnes : clé Venice, plafond et activation.",
+      "L'assistant qui discute en privé : clé Venice, plafond, activation et comptes Telegram.",
     href: "/settings/assistant",
     state: "assistant",
+    links: [
+      { href: "/settings/assistant", label: "IA de conversation", state: "assistant" },
+      { href: "/settings/accounts", label: "Comptes Telegram" },
+    ],
   },
   {
     key: "content",
