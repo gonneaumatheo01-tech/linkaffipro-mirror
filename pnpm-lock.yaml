@@ -217,6 +217,9 @@ importers:
       '@linkaffipro/telegram':
         specifier: workspace:*
         version: link:../../packages/telegram
+      '@linkaffipro/userbot':
+        specifier: workspace:*
+        version: link:../../packages/userbot
       '@xyflow/react':
         specifier: ^12.12.0
         version: 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -627,6 +630,34 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@22.20.5)(vite@8.3.3(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/userbot:
+    dependencies:
+      '@linkaffipro/core':
+        specifier: workspace:*
+        version: link:../core
+      '@linkaffipro/db':
+        specifier: workspace:*
+        version: link:../db
+      '@linkaffipro/mtproto':
+        specifier: workspace:*
+        version: link:../mtproto
+    devDependencies:
+      '@linkaffipro/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      eslint:
+        specifier: ^10.12.0
+        version: 10.12.0(jiti@2.7.0)
       typescript:
         specifier: ~5.9.3
         version: 5.9.3

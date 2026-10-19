@@ -1969,6 +1969,7 @@ model Persona {
   trackingLinks TrackingLink[]
   offerLinks    AssistantOfferLink[]
   usages        AiConversationUsage[]
+  accounts      TelegramUserAccount[]
 }
 
 /// Conversation privée entre un bot ASSISTANT et une personne qui lui a écrit d'elle-même (une par bot et par membre).
@@ -2142,4 +2143,43 @@ model AiConversationUsage {
   @@index([createdAt])
   @@index([personaId, createdAt])
   @@index([conversationId])
+}
+
+// --- Phase 18 : assistant sur un VRAI compte Telegram (second transport) ----------------------------------------
+
+/// Compte Telegram REEL (pas un bot) portant une persona de l'assistant : il n'affiche pas le badge « bot »,
+/// il peut ecrire le premier, et il lit les messages par une connexion longue (MTProto).
+model TelegramUserAccount {
+  id               String    @id @default(cuid())
+  /// Nom interne (« Lea »).
+  label            String
+  /// Numero au format international (+33612345678).
+  phone            String    @unique
+  /// Session GramJS (StringSession) chiffree AES-256-GCM.
+  sessionEncrypted String
+  /// PENDING_CODE | PENDING_PASSWORD | ACTIVE | ERROR | DISCONNECTED
+  status           String    @default("PENDING_CODE")
+  /// Code envoye par Telegram, garde entre l'envoi et la saisie.
+  phoneCodeHash    String?
+  /// Persona portee par ce compte.
+  personaId        String?
+  persona          Persona?  @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  /// Identite Telegram, une fois connecte.
+  telegramUserId   BigInt?
+  telegramUsername String?
+  /// Proxy SOCKS5 facultatif (hote:port).
+  proxyUrl         String?
+  /// Plafonds anti-bannissement.
+  dailyCap           Int       @default(60)
+  newConversationCap Int       @default(20)
+  /// Paliers de montee en charge (jours depuis la connexion).
+  warmupDay          Int       @default(0)
+  isActive           Boolean   @default(false)
+  lastActiveAt       DateTime?
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([isActive])
 }

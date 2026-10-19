@@ -12,6 +12,7 @@
     "landing:test-page": "node --env-file-if-exists=../../.env.local --import tsx scripts/landing-test-page.ts"
   },
   "dependencies": {
+    "@linkaffipro/userbot": "workspace:*",
     "@base-ui/react": "^1.8.0",
     "@ip-location-db/dbip-country-mmdb": "2.3.2026060120",
     "@linkaffipro/ai": "workspace:*",
