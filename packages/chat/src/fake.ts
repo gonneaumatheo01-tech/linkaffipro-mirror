@@ -3,6 +3,7 @@
 import type { StyleUpdate, TurnOutput } from "./schema";
 import type {
   ChatButton,
+  ChatCapabilities,
   ChatSender,
   ConversationState,
   PersonaInput,
@@ -111,8 +112,15 @@ export function createFakeLlm(script: FakeLlmScript, opts: FakeLlmOptions = {}):
 
 export type FakeSendEntry =
   | { kind: "typing"; seq: number }
-  | { kind: "text"; seq: number; text: string; buttons?: ChatButton[][] }
-  | { kind: "media"; seq: number; mediaAssetId: string; text: string; buttons?: ChatButton[][] };
+  | { kind: "text"; seq: number; text: string; buttons?: ChatButton[][]; offerSubId?: string | null }
+  | {
+      kind: "media";
+      seq: number;
+      mediaAssetId: string;
+      text: string;
+      buttons?: ChatButton[][];
+      offerSubId?: string | null;
+    };
 
 export type FakeSender = ChatSender & {
   /** Tout ce qui a été fait, dans l'ordre (« écrit… » compris). */
@@ -133,6 +141,7 @@ export function createFakeSender(
     results?:
       | readonly (SendResult | undefined)[]
       | ((index: number, text: string) => SendResult | undefined);
+    capabilities?: Partial<ChatCapabilities>;
   } = {},
 ): FakeSender {
   const log: FakeSendEntry[] = [];
@@ -146,6 +155,12 @@ export function createFakeSender(
     return r ?? { ok: true, telegramMessageId: 1000 + index };
   };
   return {
+    capabilities: {
+      canInitiate: false,
+      canMarkRead: false,
+      canSendButtons: true,
+      ...opts.capabilities,
+    },
     log,
     messages: () =>
       log.filter(
@@ -157,7 +172,13 @@ export function createFakeSender(
       log.push({ kind: "typing", seq: ++seq });
     },
     async sendText(text, o) {
-      log.push({ kind: "text", seq: ++seq, text, ...(o?.buttons ? { buttons: o.buttons } : {}) });
+      log.push({
+        kind: "text",
+        seq: ++seq,
+        text,
+        offerSubId: o?.offerSubId ?? null,
+        ...(o?.buttons ? { buttons: o.buttons } : {}),
+      });
       keys.push(o?.fixedKey ?? null);
       return result(text);
     },
@@ -167,6 +188,7 @@ export function createFakeSender(
         seq: ++seq,
         mediaAssetId: media.mediaAssetId,
         text: caption,
+        offerSubId: o?.offerSubId ?? null,
         ...(o?.buttons ? { buttons: o.buttons } : {}),
       });
       keys.push(o?.fixedKey ?? null);

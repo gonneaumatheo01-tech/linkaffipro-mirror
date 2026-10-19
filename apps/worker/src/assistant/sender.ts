@@ -172,7 +172,12 @@ export function createWorkerChatSender(
 
   async function sendPart(
     text: string,
-    opts: { buttons?: ChatButton[][]; mediaAssetId?: string | null; fixedKey?: string | null },
+    opts: {
+      buttons?: ChatButton[][];
+      mediaAssetId?: string | null;
+      fixedKey?: string | null;
+      offerSubId?: string | null;
+    },
   ): Promise<SendResult> {
     // /stop, reprise par l'équipe, mineur ou /reset pendant le tour (même entre deux parties) : rien de plus ne part.
     const verdict = await guard();
@@ -186,7 +191,9 @@ export function createWorkerChatSender(
     const partIndex = nextPart++;
     const buttons = opts.buttons ?? [];
     const offer =
-      ctx.pendingOffer && buttons.some((row) => row.some((b) => b.url === ctx.pendingOffer?.url))
+      ctx.pendingOffer &&
+      (opts.offerSubId === ctx.pendingOffer.subId ||
+        buttons.some((row) => row.some((b) => b.url === ctx.pendingOffer?.url)))
         ? ctx.pendingOffer
         : null;
     const mediaAssetId = opts.mediaAssetId ?? null;
@@ -258,6 +265,7 @@ export function createWorkerChatSender(
   }
 
   return {
+    capabilities: { canInitiate: false, canMarkRead: false, canSendButtons: true },
     sentRows,
     live,
     async sendTyping() {
@@ -270,13 +278,18 @@ export function createWorkerChatSender(
       });
     },
     sendText(text, opts?: SendOptions) {
-      return sendPart(text, { buttons: opts?.buttons, fixedKey: opts?.fixedKey });
+      return sendPart(text, {
+        buttons: opts?.buttons,
+        fixedKey: opts?.fixedKey,
+        offerSubId: opts?.offerSubId ?? null,
+      });
     },
     sendMedia(media, caption, opts?: SendOptions) {
       return sendPart(caption, {
         buttons: opts?.buttons,
         mediaAssetId: media.mediaAssetId,
         fixedKey: opts?.fixedKey,
+        offerSubId: opts?.offerSubId ?? null,
       });
     },
   };

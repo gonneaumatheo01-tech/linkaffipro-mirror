@@ -133,10 +133,21 @@ export type SendResult =
  * L'envoi du worker s'en sert pour écrire les faits au moment où le message part (tour de réponse compté sauf pour
  * l'arrêt mineur et « je reviens vers toi »).
  */
-export type SendOptions = { buttons?: ChatButton[][]; fixedKey?: string | null };
+export type SendOptions = {
+  buttons?: ChatButton[][];
+  fixedKey?: string | null;
+  offerSubId?: string | null;
+};
+
+export type ChatCapabilities = {
+  canInitiate: boolean;
+  canMarkRead: boolean;
+  canSendButtons: boolean;
+};
 
 /** Envoi vers la personne (implémenté par le bot, ou par le faux envoi des tests et du « Tester »). Texte brut. */
 export type ChatSender = {
+  readonly capabilities: ChatCapabilities;
   sendTyping(): Promise<void>;
   sendText(text: string, opts?: SendOptions): Promise<SendResult>;
   sendMedia(
@@ -144,6 +155,7 @@ export type ChatSender = {
     caption: string,
     opts?: SendOptions,
   ): Promise<SendResult>;
+  markRead?(): Promise<void>;
 };
 
 /** Minuteries du « écrit… » pendant l'appel au modèle (injectables pour les tests). */

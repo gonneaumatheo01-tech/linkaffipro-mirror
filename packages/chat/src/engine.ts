@@ -515,17 +515,18 @@ async function sendParts(
         link = null;
       }
     }
-    const buttons: ChatButton[][] | undefined = link
-      ? [[{ text: persona.offerButtonText?.trim() || DEFAULT_OFFER_BUTTON, url: link.url }]]
-      : undefined;
+    const canButtons = deps.sender.capabilities.canSendButtons;
+    const buttons: ChatButton[][] | undefined =
+      link && canButtons
+        ? [[{ text: persona.offerButtonText?.trim() || DEFAULT_OFFER_BUTTON, url: link.url }]]
+        : undefined;
+    const outgoing = link && !canButtons ? `${text}\n\n${link.url}` : text;
+    const sendOpts = { buttons, fixedKey: opts.fixedKey, offerSubId: link?.subId ?? null };
     const mediaAssetId = link && persona.offerMediaAssetId ? persona.offerMediaAssetId : null;
     const r = await safeSend(() =>
       mediaAssetId
-        ? deps.sender.sendMedia({ mediaAssetId }, text, { buttons, fixedKey: opts.fixedKey })
-        : deps.sender.sendText(
-            text,
-            buttons ? { buttons, fixedKey: opts.fixedKey } : { fixedKey: opts.fixedKey },
-          ),
+        ? deps.sender.sendMedia({ mediaAssetId }, outgoing, sendOpts)
+        : deps.sender.sendText(outgoing, sendOpts),
     );
     if (!r.ok) {
       sendError = { blocked: r.blocked, unreachable: r.unreachable, error: r.error };
@@ -534,7 +535,7 @@ async function sendParts(
     }
     sent.push({
       index: i,
-      text,
+      text: outgoing,
       telegramMessageId: r.telegramMessageId,
       offerSubId: link?.subId ?? null,
       mediaAssetId,
