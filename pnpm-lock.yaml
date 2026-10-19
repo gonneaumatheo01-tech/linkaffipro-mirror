@@ -184,6 +184,9 @@ importers:
 
   apps/userbot:
     dependencies:
+      '@linkaffipro/chat':
+        specifier: workspace:*
+        version: link:../../packages/chat
       '@linkaffipro/core':
         specifier: workspace:*
         version: link:../../packages/core

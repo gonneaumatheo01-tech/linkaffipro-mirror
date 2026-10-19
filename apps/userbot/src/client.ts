@@ -5,12 +5,15 @@
  */
 import { createClient } from "@linkaffipro/mtproto";
 import { credentials, sessionOf } from "@linkaffipro/userbot";
+import type { TelegramClient } from "telegram";
 import { NewMessage } from "telegram/events";
 import { logger } from "./logger";
 
 export type LiveAccount = {
   id: string;
   label: string;
+  /** Expose pour le transport (transport.ts) : la session ne doit jamais etre rouverte ailleurs. */
+  client: TelegramClient;
   stop: () => Promise<void>;
 };
 
@@ -40,6 +43,7 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
   return {
     id: account.id,
     label: account.label,
+    client,
     stop: async () => {
       await client.disconnect().catch(() => undefined);
       await client.destroy().catch(() => undefined);

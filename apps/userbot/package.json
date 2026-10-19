@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@linkaffipro/chat": "workspace:*",
     "@linkaffipro/core": "workspace:*",
     "@linkaffipro/db": "workspace:*",
     "@linkaffipro/mtproto": "workspace:*",
