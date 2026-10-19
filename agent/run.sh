@@ -30,6 +30,5 @@ if git diff --cached --quiet; then
   echo "aucun changement a committer"
 else
   git commit -m "agent : execution du $(date '+%Y-%m-%d %H:%M')"
-  git push mirror "$branch" --force --quiet
 fi
 echo "termine."

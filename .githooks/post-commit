@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
-# Pousse automatiquement le miroir public (canal de lecture de l'agent) apres chaque commit.
-# En arriere-plan : ne bloque jamais le terminal ni le commit.
+# Pousse le miroir public (canal de lecture de l'agent) apres chaque commit.
+# En arriere-plan, avec nouvelles tentatives : ne bloque jamais et resiste a une course.
 repo="$(git rev-parse --show-toplevel)"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 mkdir -p "$repo/agent/logs"
-( git -C "$repo" push mirror "$branch" --force --quiet >"$repo/agent/logs/mirror.log" 2>&1 ) &
-( git -C "$repo" push origin "$branch" --quiet >"$repo/agent/logs/origin.log" 2>&1 ) &
+
+pousse() {
+  remote="$1"; shift
+  n=0
+  while [ "$n" -lt 5 ]; do
+    if git -C "$repo" push "$remote" --quiet "$@" "$branch" >"$repo/agent/logs/$remote.log" 2>&1; then
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 1
+  done
+  return 1
+}
+
+( pousse mirror --force ) &
+( pousse origin ) &
 exit 0
