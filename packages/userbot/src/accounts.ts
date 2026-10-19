@@ -27,7 +27,7 @@ export const USERBOT_ACCOUNT_STATUSES = [
 export type UserbotAccountStatus = (typeof USERBOT_ACCOUNT_STATUSES)[number];
 
 /** Identifiants de l'application Telegram (my.telegram.org), lus dans les reglages et dechiffres. */
-async function credentials(): Promise<MtprotoCredentials> {
+export async function credentials(): Promise<MtprotoCredentials> {
   const row = await prisma.setting.findUnique({ where: { key: TELEGRAM_USER_API_SETTING } });
   const parsed = parseTelegramUserApi(row?.value);
   if (!parsed) throw new Error("Identifiants Telegram (my.telegram.org) absents des reglages.");

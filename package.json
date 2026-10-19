@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:userbot": "pnpm --filter ./apps/userbot dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
