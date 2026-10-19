@@ -374,6 +374,7 @@ model AuditLog {
 
 /// Bot Telegram piloté par la plateforme. Le jeton est chiffré (AES-256-GCM).
 model Bot {
+  userbotAccounts  TelegramUserAccount[]
   id             String    @id @default(cuid())
   name           String
   username       String    @unique
@@ -2179,6 +2180,11 @@ model TelegramUserAccount {
   lastError          String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  /// Bot fantome qui porte les conversations de ce compte. L'API bot n'est pas utilisee :
+  /// la reception et l'envoi passent par la session MTProto tenue par apps/userbot.
+  botId            String?   @unique
+  bot              Bot?      @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([isActive])
