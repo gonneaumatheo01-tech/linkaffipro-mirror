@@ -8,6 +8,8 @@ import { credentials, sessionOf } from "@linkaffipro/userbot";
 import type { TelegramClient } from "telegram";
 import { Api } from "telegram";
 import { NewMessage, type NewMessageEvent } from "telegram/events";
+import { loadUserbotSettings } from "./settings";
+import { transcribe } from "./transcribe";
 import { logger } from "./logger";
 import { handleIncomingPrivate, type IncomingPrivate, type TurnAccount } from "./turn";
 
@@ -29,15 +31,20 @@ export type AccountToStart = {
 };
 
 /** Message prive entrant d'une vraie personne (ni groupe, ni canal, ni bot, ni nous-memes), sinon null. */
-async function toIncomingPrivate(event: NewMessageEvent): Promise<IncomingPrivate | null> {
+async function toIncomingPrivate(
+  client: ReturnType<typeof createClient>,
+  event: NewMessageEvent,
+): Promise<IncomingPrivate | null> {
   const msg = event.message;
   if (!event.isPrivate || msg.out || !msg.senderId) return null;
-  const text = msg.message?.trim() ?? "";
-  // Medias seuls (photo, vocal...) : pas encore lus par le moteur.
-  if (!text) return null;
+  const legende = msg.message?.trim() ?? "";
+  const vocal = isVoiceMessage(msg);
+  // Un vocal n'a pas de texte : on ne le jette pas, il sera transcrit.
+  if (!legende && !vocal) return null;
   const sender = await msg.getSender().catch(() => undefined);
   if (!(sender instanceof Api.User) || sender.bot || sender.self) return null;
   const peer = (await msg.getInputChat().catch(() => undefined)) ?? msg.chatId ?? sender;
+  const text = vocal ? ((await voiceText(client, msg)) ?? "") : legende;
   return {
     telegramUserId: BigInt(msg.senderId.toString()),
     telegramMessageId: msg.id,
@@ -48,6 +55,31 @@ async function toIncomingPrivate(event: NewMessageEvent): Promise<IncomingPrivat
     username: sender.username ?? null,
     languageCode: sender.langCode ?? null,
   };
+}
+
+/** Vrai si le message porte un vocal (document avec attribut audio « voice »). */
+function isVoiceMessage(msg: Api.Message): boolean {
+  const media = msg.media;
+  if (!(media instanceof Api.MessageMediaDocument)) return false;
+  const doc = media.document;
+  if (!(doc instanceof Api.Document)) return false;
+  return doc.attributes.some(
+    (a) => a instanceof Api.DocumentAttributeAudio && Boolean(a.voice),
+  );
+}
+
+/** Texte du vocal, ou null si Telegram ou la transcription a echoue. */
+async function voiceText(
+  client: ReturnType<typeof createClient>,
+  msg: Api.Message,
+): Promise<string | null> {
+  const octets = (await client.downloadMedia(msg, {}).catch(() => undefined)) as
+    | Buffer
+    | undefined;
+  if (!octets?.length) return null;
+  const { apiKey } = await loadUserbotSettings();
+  if (!apiKey) return null;
+  return transcribe(apiKey, octets, "audio/ogg");
 }
 
 export async function startAccount(account: AccountToStart): Promise<LiveAccount> {
@@ -70,7 +102,7 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
     (event: NewMessageEvent) => {
       // Jamais d'attente ici : GramJS doit continuer a recevoir pendant qu'un tour se prepare.
       void (async () => {
-        const incoming = await toIncomingPrivate(event);
+        const incoming = await toIncomingPrivate(client, event);
         if (!incoming) return;
         logger.info(
           {
