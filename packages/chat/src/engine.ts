@@ -10,7 +10,7 @@ import { detectMinorIn } from "./minor";
 import { mentionsStopRequest } from "./stop-request";
 import { parseTurnOutput } from "./parse";
 import { buildSummaryRequest, buildSystemPrompt, buildTurnMessages, cleanSummary } from "./prompt";
-import { pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
+import { openingDelayMs, pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
@@ -334,6 +334,19 @@ async function safeSend(send: () => Promise<SendResult>): Promise<SendResult> {
   }
 }
 
+/** Temps que la personne a mis pour repondre (ms) : null si on ne sait pas. */
+function peerDelay(input: TurnInput): number | null {
+  const dernier = input.conversation.lastInboundAt;
+  const avant = input.conversation.lastAssistantAt;
+  if (!dernier || !avant) return null;
+  return Math.max(0, dernier.getTime() - avant.getTime());
+}
+
+/** Discussion chaude : la personne est tres interesse ou dragueuse, elle repond plus vite. */
+function isHot(input: TurnInput): boolean {
+  return (input.conversation.style.interest ?? 0) >= 7 || input.conversation.style.tone === "flirty";
+}
+
 async function safeTyping(run: Run): Promise<void> {
   try {
     await run.deps.sender.sendTyping();
@@ -523,11 +536,30 @@ async function sendParts(
   for (let i = 0; i < texts.length; i++) {
     const text = texts[i] ?? "";
     const isLast = i === texts.length - 1;
-    await safeTyping(run);
-    let delay = typingDelayMs(text);
-    // Premier message : le temps de préparation compte déjà comme « écrit… » (pas d'attente pénible).
-    if (i === 0) delay = Math.max(0, delay - (deps.now().getTime() - run.startedAt.getTime()));
-    if (delay > 0) await deps.sleep(delay);
+    if (i === 0) {
+      // Ouverture : elle n'a pas le telephone dans la main. Aucun « ecrit… » pendant cette attente,
+      // et le temps de preparation du tour compte dedans (le contact ne voit pas de trou en plus).
+      const opening = openingDelayMs(
+        {
+          peerDelayMs: peerDelay(input),
+          isFirst: input.conversation.assistantTurns === 0,
+          hot: isHot(input),
+          cold: false,
+          refused: input.conversation.appRefused === true,
+        },
+        deps.random,
+      );
+      const reste = Math.max(0, opening - (deps.now().getTime() - run.startedAt.getTime()));
+      if (reste > 0) await deps.sleep(reste);
+      await withTyping(
+        () => deps.sender.sendTyping(),
+        () => deps.sleep(typingDelayMs(text)),
+      );
+    } else {
+      await safeTyping(run);
+      const delay = typingDelayMs(text);
+      if (delay > 0) await deps.sleep(delay);
+    }
 
     let link: { url: string; subId: string } | null = null;
     if (isLast && opts.withOffer) {
@@ -814,6 +846,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     events,
     model,
     note: output?.note_interne?.trim() || null,
+    appRefused: output?.app_refused === true,
     deferredInbound: deferred,
     followUpCount,
     nextFollowUpAt: next,

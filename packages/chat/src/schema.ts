@@ -31,6 +31,7 @@ export type TurnOutput = {
   send_offer: boolean;
   memory_facts: string[];
   minor_suspected: boolean;
+  app_refused: boolean;
   note_interne: string;
 };
 
@@ -47,6 +48,7 @@ const TURN_OUTPUT_FIELDS = [
   "send_offer",
   "memory_facts",
   "minor_suspected",
+  "app_refused",
   "note_interne",
 ] as const;
 const STYLE_FIELDS = ["length", "emojis", "register", "language", "tone", "interest"] as const;
@@ -90,6 +92,7 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
     send_offer: { type: "boolean" },
     memory_facts: { type: "array", items: { type: "string" } },
     minor_suspected: { type: "boolean" },
+    app_refused: { type: "boolean" },
     note_interne: { type: "string" },
   },
 };
@@ -176,6 +179,8 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
 
   if (value.minor_suspected !== undefined && typeof value.minor_suspected !== "boolean")
     errors.push("minor_suspected : vrai ou faux attendu.");
+  if (value.app_refused !== undefined && typeof value.app_refused !== "boolean")
+    errors.push("app_refused : vrai ou faux attendu.");
 
   const note = typeof value.note_interne === "string" ? value.note_interne : "";
 
@@ -189,6 +194,7 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
       send_offer: value.send_offer === true,
       memory_facts: facts,
       minor_suspected: value.minor_suspected === true,
+      app_refused: value.app_refused === true,
       note_interne: note,
     },
   };

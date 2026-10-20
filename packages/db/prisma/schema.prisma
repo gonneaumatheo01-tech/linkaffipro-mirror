@@ -2024,6 +2024,8 @@ model Conversation {
   /// Nouvel essai après une panne de l'IA.
   retryAt         DateTime?
   convertedAt     DateTime?
+  /// La personne a refuse l'app (refus de l'appli, « on reste sur Telegram ») : plus de discussion ici.
+  appRefusedAt    DateTime?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 

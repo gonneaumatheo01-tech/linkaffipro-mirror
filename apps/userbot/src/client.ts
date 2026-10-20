@@ -49,6 +49,7 @@ async function toIncomingPrivate(
     telegramUserId: BigInt(msg.senderId.toString()),
     telegramMessageId: msg.id,
     text,
+    media: vocal ? ({ kind: "voice" } as const) : null,
     peer,
     firstName: sender.firstName ?? null,
     lastName: sender.lastName ?? null,

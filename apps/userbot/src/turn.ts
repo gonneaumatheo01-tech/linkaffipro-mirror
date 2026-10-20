@@ -45,6 +45,8 @@ export type IncomingPrivate = {
   telegramUserId: bigint;
   telegramMessageId: number;
   text: string;
+  /** Media recu (vocal) : le texte peut etre vide quand le vocal n'a pas ete compris. */
+  media?: ChatMedia | null;
   firstName: string | null;
   lastName: string | null;
   username: string | null;
@@ -54,6 +56,14 @@ export type IncomingPrivate = {
 };
 
 type Incoming = IncomingPrivate & { at: Date };
+
+/** Message en attente dans le tour, avec son media. */
+type PendingInbound = {
+  id: string;
+  text: string;
+  createdAt: Date;
+  media: ChatMedia | null;
+};
 
 // Conversations dont un tour est en cours dans ce process : jamais deux reponses en meme temps.
 // Un Set suffit, la session (donc la reception) n'existe que dans ce process.
@@ -113,6 +123,7 @@ async function recordInbound(conversationId: string, msg: Incoming): Promise<str
           direction: "IN",
           author: "MEMBER",
           text: msg.text,
+          media: toJsonValue(msg.media ?? null),
           telegramMessageId: BigInt(msg.telegramMessageId),
           createdAt: msg.at,
         },
@@ -259,16 +270,16 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
   try {
     // Fenetre de regroupement : deux messages coup sur coup partent dans le meme tour.
     // Les messages recus pendant l'attente voient busy et restent en base (turnId null) : ils sont ramasses ici.
-    let pending: { id: string; text: string; createdAt: Date }[] = [];
+    let pending: PendingInbound[] = [];
     for (let pass = 0; pass < 4; pass++) {
       await new Promise((resolve) => setTimeout(resolve, pass === 0 ? GROUP_WINDOW_MS : 400));
       const rows = await prisma.conversationMessage.findMany({
         where: { conversationId: conv.id, direction: "IN", turnId: null },
         orderBy: { createdAt: "asc" },
-        select: { id: true, text: true, createdAt: true },
+        select: { id: true, text: true, createdAt: true, media: true },
       });
       const stable = rows.length === pending.length;
-      pending = rows;
+      pending = rows.map((r) => ({ ...r, media: parseMedia(r.media) }));
       if (stable) break;
     }
     if (pending.length === 0) return;
@@ -278,10 +289,10 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
       const rest = await prisma.conversationMessage.findMany({
         where: { conversationId: conv.id, direction: "IN", turnId: null },
         orderBy: { createdAt: "asc" },
-        select: { id: true, text: true, createdAt: true },
+        select: { id: true, text: true, createdAt: true, media: true },
       });
       if (rest.length === 0) return;
-      pending = rest;
+      pending = rest.map((r) => ({ ...r, media: parseMedia(r.media) }));
     }
   } finally {
     busy.delete(conv.id);
@@ -291,7 +302,7 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
 async function runConversationTurn(
   account: ReadyAccount,
   conversationId: string,
-  inbound: ReadonlyArray<{ id: string; text: string; createdAt: Date }>,
+  inbound: ReadonlyArray<PendingInbound>,
   peer: TransportPeer,
   persona: PersonaRow | null,
 ): Promise<void> {
@@ -336,13 +347,14 @@ async function runConversationTurn(
       offerSends: conv.offerSends,
       followUpCount: conv.followUpCount,
       isMinor: conv.isMinor,
+      appRefused: conv.appRefusedAt !== null,
       isFirstAssistantTurn: conv.assistantTurns === 0,
       memberLanguageCode: conv.member.languageCode,
       lastInboundAt: conv.lastInboundAt,
       lastAssistantAt: conv.lastAssistantAt,
     },
     history,
-    inbound: inbound.map((m) => ({ id: m.id, text: m.text, at: m.createdAt })),
+    inbound: inbound.map((m) => ({ id: m.id, text: m.text, at: m.createdAt, media: m.media })),
   };
 
   const deps: TurnDeps = {
@@ -437,6 +449,7 @@ function turnPatch(result: TurnResult, now: Date): Prisma.ConversationUpdateInpu
     data.closedAt = now;
     data.closedReason = result.closeReason;
     if (result.closeReason === "MINOR") data.isMinor = true;
+    if (result.appRefused) data.appRefusedAt = now;
   }
   return data;
 }

@@ -43,6 +43,7 @@ export function fakeOutput(over: FakeOutputInput = {}): TurnOutput {
     send_offer: over.send_offer ?? false,
     memory_facts: over.memory_facts ?? [],
     minor_suspected: over.minor_suspected ?? false,
+    app_refused: over.app_refused ?? false,
     note_interne: over.note_interne ?? "",
   };
 }

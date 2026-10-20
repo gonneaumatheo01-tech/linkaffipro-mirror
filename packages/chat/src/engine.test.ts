@@ -67,8 +67,9 @@ describe("runTurn : réponse simple", () => {
     const kinds = deps.sender.log.map((e) => e.kind);
     expect(kinds).toEqual(["typing", "typing", "text", "typing", "text"]);
     expect(deps.timers.active()).toBe(0);
-    // délais : 1000 + 25 × longueur ; pause 1,5 s (aléa 0,5) entre les deux
-    expect(deps.sleeps).toEqual([1000 + 25 * 12, 1500, 1000 + 25 * 36]);
+    // délais : ouverture 22,7 s (aucun historique : plancher), puis frappe proportionnelle
+    // (400 + 110 × longueur) et pause entre les deux messages (1,65 s à l'aléa 0,5).
+    expect(deps.sleeps).toEqual([22700, 400 + 110 * 12, 1650, 400 + 110 * 36]);
 
     expect(r.sent).toHaveLength(2);
     expect(r.sent[0]).toMatchObject({

@@ -103,6 +103,8 @@ export type ConversationState = {
   offerSends: number;
   followUpCount: number;
   isMinor: boolean;
+  /** La personne a refuse l'app : elle ne discute plus ici (delais tres longs). */
+  appRefused?: boolean;
   /**
    * Aucun message de l'assistant avant ce tour : présentation exigée, jamais de lien. À calculer par l'appelant avec
    * `assistantTurns === 0` (ou l'absence de message OUT de l'assistant), JAMAIS avec l'étape : l'étape reste WELCOME
@@ -254,6 +256,8 @@ export type TurnResult = {
   rejected: string[];
   /** Note interne du modèle (jamais envoyée à la personne). */
   note: string | null;
+  /** La personne a refuse l'app dans ce tour (ecrit une fois en base). */
+  appRefused?: boolean;
   /** Messages entrants pris en compte par ce tour (ceux de l'entrée + ceux arrivés avant l'envoi et regroupés). */
   inboundUsed: TurnInbound[];
   /** Messages arrivés après la régénération : non traités, à rendre au tour suivant. */
