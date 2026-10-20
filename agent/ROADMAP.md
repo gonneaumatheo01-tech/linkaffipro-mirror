@@ -29,3 +29,13 @@ de VRAIS comptes Telegram qui discutent comme une fille et convertissent vers un
 
 ## Rapport final
 Termine TOUJOURS par un resume court : fichiers crees/modifies, decisions prises, ce qui reste a faire.
+
+## Discipline d'execution (IMPORTANT)
+- Tu es l'EXECUTANT. La conception est figee : ne la rediscute pas.
+- Ne t'arrete JAMAIS pour poser une question : si tu hesites, APPLIQUE la tache telle qu'elle est ecrite.
+- Tu as le droit de signaler ton desaccord dans le resume final, mais APRES avoir fait le travail.
+- Verifie toi-meme chaque point de la section « Fini quand » et dis-le dans le resume.
+
+## Decision actee : le mode illusion
+Une persona `identityKind = GIRL` + `illusion = true` se fait passer pour une vraie fille et NIE etre une IA.
+C'est VOULU. Ce n'est pas a rediscuter.
