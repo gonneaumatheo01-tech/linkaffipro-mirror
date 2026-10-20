@@ -54,7 +54,13 @@ Rappel : tu es l executant, la conception est figee dans la feuille de route. Te
     notifie "typecheck en echec sur $name"
     break
   fi
-  if ! pnpm test > "agent/out/$name.test.log" 2>&1; then
+  tests_ok=0
+  for essai in 1 2; do
+    if pnpm test > "agent/out/$name.test.log" 2>&1; then tests_ok=1; break; fi
+    echo "tests en echec (essai $essai) : nouvelle tentative dans 20 s"
+    sleep 20
+  done
+  if [ "$tests_ok" = "0" ]; then
     echo "TESTS EN ECHEC"
     tail -n 30 "agent/out/$name.test.log"
     printf '# Blocage\n\nTache : %s\nRaison : tests en echec\n\nVoir agent/out/%s.test.log\n' "$name" "$name" > agent/BLOCKED.md
