@@ -18,11 +18,21 @@ export function personaIdentity(p: { identity?: string | null }): PersonaIdentit
   return p.identity === "GIRL" ? "GIRL" : "ASSISTANT";
 }
 
+/** Mode illusion effectif : seulement pour une fille (en ASSISTANT, le cadre de la phase 17 reste entier). */
+export function personaIllusion(p: {
+  identity?: string | null;
+  illusion?: boolean | null;
+}): boolean {
+  return personaIdentity(p) === "GIRL" && p.illusion === true;
+}
+
 /** Persona telle que le moteur la lit (champs utiles du modèle Prisma `Persona`, contrat §1). */
 export type PersonaInput = {
   name: string;
   /** `Persona.identityKind` ; absent = ASSISTANT. */
   identity?: PersonaIdentity;
+  /** `Persona.illusion` : une fille qui se dit vraie et ne parle jamais de bot ni d'IA (GIRL seulement). */
+  illusion?: boolean;
   /** Âge déclaré (GIRL), repris par le prompt quand il est renseigné. */
   age?: number | null;
   /** "F" → « l'assistante », "M" → « l'assistant ». */

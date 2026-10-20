@@ -62,6 +62,8 @@ export type PersonaRow = {
   name: string;
   /** `Persona.identityKind` (phase 18) : "GIRL" ou "ASSISTANT" (défaut). */
   identityKind?: string | null;
+  /** `Persona.illusion` (phase 18) : vraie fille, sans effet hors GIRL. */
+  illusion?: boolean | null;
   age?: number | null;
   gender: string;
   personality: string;
@@ -93,6 +95,7 @@ export function toPersonaInput(
   return {
     name: p.name,
     identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
+    illusion: p.illusion === true,
     age: p.age ?? null,
     gender: p.gender,
     personality: p.personality,

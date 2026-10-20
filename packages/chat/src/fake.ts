@@ -112,7 +112,13 @@ export function createFakeLlm(script: FakeLlmScript, opts: FakeLlmOptions = {}):
 
 export type FakeSendEntry =
   | { kind: "typing"; seq: number }
-  | { kind: "text"; seq: number; text: string; buttons?: ChatButton[][]; offerSubId?: string | null }
+  | {
+      kind: "text";
+      seq: number;
+      text: string;
+      buttons?: ChatButton[][];
+      offerSubId?: string | null;
+    }
   | {
       kind: "media";
       seq: number;

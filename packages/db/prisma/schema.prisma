@@ -1963,6 +1963,8 @@ model Persona {
   identityKind            String             @default("ASSISTANT")
   /// Âge déclaré (repris par le prompt en GIRL quand il est renseigné).
   age                     Int?
+  /// Mode illusion (GIRL seulement) : se présente comme une vraie fille, ne dit jamais être une IA. Sans effet en ASSISTANT.
+  illusion                Boolean            @default(false)
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)

@@ -164,6 +164,7 @@ function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
   return {
     name: p.name,
     identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
+    illusion: p.illusion,
     age: p.age,
     gender: p.gender,
     personality: p.personality,

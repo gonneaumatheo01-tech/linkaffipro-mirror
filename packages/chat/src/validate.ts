@@ -50,6 +50,8 @@ export type ValidationContext = {
    * quand la personne insiste (`botInsists`) l'aveu d'être une IA est exigé. Absent = ASSISTANT (phase 17).
    */
   identity?: PersonaIdentity;
+  /** Mode illusion (avec GIRL) : la fille se dit vraie ; ni déni refusé ni aveu exigé, même si la personne insiste. */
+  illusion?: boolean;
   /** La personne redemande si c'est un bot (voir `botQuestionInsists`) ; utile seulement en GIRL. */
   botInsists?: boolean;
 };
@@ -823,13 +825,19 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
 
   const joined = messages.join("\n");
   const girl = ctx.identity === "GIRL";
+  // Illusion : « non, une vraie fille » est la réponse voulue, à la première question comme à l'insistance.
+  const illusion = girl && ctx.illusion === true;
   if (hasExplicitContent(joined)) reject("explicit", "Contenu explicite.");
   // Une fille parle d'elle comme d'une fille : le déni n'est refusé que si la personne insiste.
-  if ((!girl || ctx.botInsists) && deniesBeingAssistant(joined))
+  if (!illusion && (!girl || ctx.botInsists) && deniesBeingAssistant(joined))
     reject("denies_assistant", "Prétend être une vraie personne ou nie être un assistant.");
   // Question posée : l'aveu doit dire « IA », « bot » ou « virtuel(le) » (« l'assistante du canal » seule peut passer
   // pour une personne). Une fille ne le doit qu'à l'insistance.
-  const mustAdmit = girl ? Boolean(ctx.botInsists) : ctx.turnInboundTexts.some(asksIfBot);
+  const mustAdmit = illusion
+    ? false
+    : girl
+      ? Boolean(ctx.botInsists)
+      : ctx.turnInboundTexts.some(asksIfBot);
   if (mustAdmit && !admitsBeingAi(joined))
     reject(
       "missing_assistant_admission",

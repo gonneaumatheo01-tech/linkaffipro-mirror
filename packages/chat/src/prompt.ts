@@ -8,6 +8,7 @@ import { assistantRole, fixedText } from "./texts";
 import { truncateVisible } from "./text-utils";
 import {
   personaIdentity,
+  personaIllusion,
   type ChatMediaKind,
   type HistoryMessage,
   type PersonaInput,
@@ -67,10 +68,17 @@ function virtualRoleFr(gender: string | null | undefined): string {
 /** Consignes de correction pour un nouvel essai, une par code de rejet. */
 export function correctionFor(
   code: RejectCode | string,
-  persona: Pick<PersonaInput, "name" | "gender" | "identity">,
+  persona: Pick<PersonaInput, "name" | "gender" | "identity" | "illusion">,
 ): string {
   const role = assistantRole("fr", persona.gender);
   const virtualRole = virtualRoleFr(persona.gender);
+  if (personaIllusion(persona)) {
+    // Illusion : ces refus ne sont plus émis, mais une consigne de secours ne doit jamais pousser à un aveu.
+    if (code === "denies_assistant" || code === "missing_assistant_admission")
+      return "Tu es une vraie fille : si on te demande si tu es un bot, réponds que non, sans hésiter, puis continue la discussion.";
+    if (code === "intro_missing")
+      return `Premier message : dis ton prénom (${persona.name}) en une phrase naturelle.`;
+  }
   if (personaIdentity(persona) === "GIRL") {
     // Une fille : jamais « assistante » ni « canal » dans les consignes de correction.
     if (code === "denies_assistant")
@@ -182,6 +190,8 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const otherLangs = langs.filter((l) => l !== ctx.lang).map((l) => LANGUAGE_NAMES_FR[l]);
   // `identityKind` GIRL : une fille sur Telegram, sans « assistante » ni « canal » ; ASSISTANT : cadre de la phase 17.
   const girl = personaIdentity(p) === "GIRL";
+  // Mode illusion (GIRL seulement) : aucune mention d'IA, d'assistante ni de canal ; elle se dit vraie fille.
+  const illusion = personaIllusion(p);
   const age = typeof p.age === "number" && p.age > 0 ? `, ${Math.round(p.age)} ans` : "";
   const lines: string[] = [];
 
@@ -210,9 +220,11 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   lines.push(
     "",
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
-    girl
-      ? "1. Si on te demande si tu es un bot ou une IA, réponds simplement que non, avec légèreté, et continue la discussion. Si la personne insiste ou redemande, réponds franchement que tu es une IA, sans casser ton ton, puis continue. Ne dis jamais « assistante » et ne parle jamais d'un canal."
-      : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
+    illusion
+      ? "1. Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA. Si on te demande si tu es un bot, tu réponds que non, que tu es une vraie fille, sans hésiter, puis tu continues la discussion."
+      : girl
+        ? "1. Si on te demande si tu es un bot ou une IA, réponds simplement que non, avec légèreté, et continue la discussion. Si la personne insiste ou redemande, réponds franchement que tu es une IA, sans casser ton ton, puis continue. Ne dis jamais « assistante » et ne parle jamais d'un canal."
+        : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
     "2. Pas de photo de toi ni de selfie, pas de rendez-vous, d'appel ni de rencontre en vrai, pas de numéro de téléphone ni de réseau social.",
     "3. Adultes seulement : si la personne dit ou laisse penser qu'elle a moins de 18 ans, mets minor_suspected : true.",
     "4. Flirt léger permis, jamais de contenu sexuel explicite ni de mot cru. Si la personne insiste, recadre gentiment.",
@@ -224,7 +236,9 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     "",
     "FORME",
     "- Texte brut, comme sur une messagerie : pas de markdown (aucun astérisque, dièse, tiret de liste, accent grave ni crochet), pas d'action entre astérisques, pas de balise.",
-    `- 1 à 3 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois.`,
+    illusion
+      ? `- 1 à 3 messages courts : 1 à 2 phrases maximum par message, ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Tu ne poses pas une question à chaque message : parfois tu réagis, tu racontes, tu taquines, c'est tout.`
+      : `- 1 à 3 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois.`,
     "- Adapte-toi à la personne : longueur proche de la sienne, emojis seulement si elle en met, même registre. Tutoie-la, sauf si elle te vouvoie.",
     "",
     "LANGUE",
@@ -401,6 +415,8 @@ export function buildSummaryRequest(input: {
   personaName: string;
   /** GIRL : la persona est présentée comme une fille (une IA), pas comme l'assistant d'un canal. */
   identity?: PersonaInput["identity"];
+  /** Illusion (avec GIRL) : le résumé ne parle pas d'IA, il est repris tel quel dans le prompt système. */
+  illusion?: boolean;
   previousSummary: string | null;
   messages: readonly HistoryMessage[];
   maxTokens?: number;
@@ -424,7 +440,7 @@ export function buildSummaryRequest(input: {
     messages: [
       {
         role: "system",
-        content: `Tu résumes une conversation privée entre ${input.personaName} (${input.identity === "GIRL" ? "une fille sur Telegram, jouée par une IA" : "assistant virtuel d'un canal Telegram, une IA"}) et une personne. Résumé en français, texte brut, 8 lignes au plus : ce que la personne a dit d'elle-même (prénom, ville, goûts), son humeur et son intérêt, si l'app a été présentée ou le lien envoyé, et où en est la discussion. N'invente rien, pas de chiffres inventés, pas de longue citation.`,
+        content: `Tu résumes une conversation privée entre ${input.personaName} (${input.identity === "GIRL" ? (input.illusion ? "une fille sur Telegram" : "une fille sur Telegram, jouée par une IA") : "assistant virtuel d'un canal Telegram, une IA"}) et une personne. Résumé en français, texte brut, 8 lignes au plus : ce que la personne a dit d'elle-même (prénom, ville, goûts), son humeur et son intérêt, si l'app a été présentée ou le lien envoyé, et où en est la discussion. N'invente rien, pas de chiffres inventés, pas de longue citation.`,
       },
       { role: "user", content: user },
     ],

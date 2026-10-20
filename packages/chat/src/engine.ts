@@ -14,7 +14,7 @@ import { pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
-import { personaIdentity } from "./turn-types";
+import { personaIdentity, personaIllusion } from "./turn-types";
 import type {
   ChatButton,
   SendResult,
@@ -264,6 +264,7 @@ async function checkResponse(
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
     identity: personaIdentity(input.persona),
+    illusion: personaIllusion(input.persona),
     botInsists:
       input.kind === "reply" &&
       botQuestionInsists(
@@ -573,6 +574,7 @@ async function rollingSummary(run: Run): Promise<string | undefined> {
       model,
       personaName: input.persona.name,
       identity: personaIdentity(input.persona),
+      illusion: personaIllusion(input.persona),
       previousSummary: input.conversation.summary,
       messages: input.summaryMessages,
       reasoning: input.settings.modelSupportsReasoning(model),
@@ -724,6 +726,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
         name: input.persona.name,
         gender: input.persona.gender,
         identity: personaIdentity(input.persona),
+        illusion: personaIllusion(input.persona),
       }),
     ];
     events.push({

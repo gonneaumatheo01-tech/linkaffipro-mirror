@@ -703,6 +703,14 @@ describe("persona et lien d'offre", () => {
     expect(toPersonaInput(persona, extras)).toMatchObject({ identity: "ASSISTANT", age: null });
   });
 
+  it("illusion reprise de la persona, false par défaut", () => {
+    const extras = { offerUsable: true, channelTitle: null, botName: null };
+    expect(
+      toPersonaInput({ ...persona, identityKind: "GIRL", illusion: true }, extras),
+    ).toMatchObject({ identity: "GIRL", illusion: true });
+    expect(toPersonaInput(persona, extras)).toMatchObject({ illusion: false });
+  });
+
   it("nom court stable de 10 caractères par (persona, offre)", () => {
     const a = assistantOfferSlug("persona1", "off1");
     expect(a).toMatch(/^[0-9A-Za-z]{10}$/);

@@ -67,7 +67,11 @@ export class VeniceError extends Error {
   readonly code: VeniceErrorCode;
   readonly status?: number;
   readonly retryAfterMs?: number;
-  constructor(code: VeniceErrorCode, message: string, opts: { status?: number; retryAfterMs?: number } = {}) {
+  constructor(
+    code: VeniceErrorCode,
+    message: string,
+    opts: { status?: number; retryAfterMs?: number } = {},
+  ) {
     super(message);
     this.name = "VeniceError";
     this.code = code;

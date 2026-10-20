@@ -15,9 +15,15 @@ export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
 /**
  * `{name}` = prénom de la persona ; `{role}` = « l'assistante » / « l'assistant » (selon `Persona.gender`), traduit ;
- * `identity` « GIRL » : variantes sans « canal » ni « assistante » pour `intro` et `isAssistant`.
+ * `identity` « GIRL » : variantes sans « canal » ni « assistante » pour `intro` et `isAssistant` ; `illusion` (avec
+ * GIRL) : `isAssistant` devient un déni court de fille.
  */
-export type FixedTextVars = { name?: string; gender?: string | null; identity?: string | null };
+export type FixedTextVars = {
+  name?: string;
+  gender?: string | null;
+  identity?: string | null;
+  illusion?: boolean | null;
+};
 
 const ROLES: Record<ChatLang, { F: string; M: string }> = {
   fr: { F: "l'assistante", M: "l'assistant" },
@@ -121,6 +127,16 @@ export const GIRL_FIXED_TEXTS: Record<ChatLang, Record<"intro" | "isAssistant", 
   },
 };
 
+/** Mode illusion : la fille nie être un bot, en une phrase courte (l'intro reste celle de `GIRL_FIXED_TEXTS`). */
+export const ILLUSION_IS_ASSISTANT: Record<ChatLang, string> = {
+  fr: "non, une vraie fille 😊",
+  en: "no, a real girl 😊",
+  es: "no, una chica de verdad 😊",
+  pt: "não, uma garota de verdade 😊",
+  de: "nein, ein echtes Mädchen 😊",
+  it: "no, una ragazza vera 😊",
+};
+
 /** Code de langue de l'assistant (« pt-br » → pt), ou null s'il n'est pas l'une des 6 langues. */
 export function chatLangOf(code: string | null | undefined): ChatLang | null {
   const base = (code ?? "").toLowerCase().split(/[-_]/)[0] ?? "";
@@ -140,10 +156,13 @@ export function fixedText(
   vars: FixedTextVars = {},
 ): string {
   const l = chatLangOf(lang) ?? "fr";
+  const girl = vars.identity === "GIRL";
   const template =
-    vars.identity === "GIRL" && (key === "intro" || key === "isAssistant")
-      ? GIRL_FIXED_TEXTS[l][key]
-      : FIXED_TEXTS[l][key];
+    girl && vars.illusion === true && key === "isAssistant"
+      ? ILLUSION_IS_ASSISTANT[l]
+      : girl && (key === "intro" || key === "isAssistant")
+        ? GIRL_FIXED_TEXTS[l][key]
+        : FIXED_TEXTS[l][key];
   const values: Record<string, string> = {
     name: vars.name ?? "",
     role: assistantRole(l, vars.gender),
