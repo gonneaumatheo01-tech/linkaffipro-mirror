@@ -2,7 +2,7 @@
  * Tour de conversation d'un compte reel sur message prive entrant (phase 18, tache 04).
  * Porte depuis apps/worker/src/assistant/turn.ts le strict necessaire : le worker ne traite pas ces conversations
  * (bot fantome en mode STANDARD), c'est ce process qui tient la session et donc le tour.
- * Hors perimetre pour l'instant : lien d'offre, relances, limites du jour, reprise par l'equipe, resume roulant,
+ * Hors perimetre pour l'instant : relances, limites du jour, reprise par l'equipe, resume roulant,
  * regroupement des messages arrives pendant la preparation.
  */
 import { randomUUID } from "node:crypto";
@@ -28,6 +28,7 @@ import { prisma, toJsonValue, type Prisma } from "@linkaffipro/db";
 import type { TelegramClient } from "telegram";
 import { logger } from "./logger";
 import { loadUserbotSettings } from "./settings";
+import { createOfferLink, dropUnsentOfferLink, offerUsable } from "./offer-link";
 import { createMtprotoTransport, type TransportPeer } from "./transport";
 
 export type TurnAccount = {
@@ -100,10 +101,7 @@ async function upsertMember(msg: Incoming) {
  * bots phase 17 : `lastInboundAt` et `memberMessages` sont ecrits a l'arrivee, le moteur les lit deja comptes).
  * Rend null si Telegram a redonne un message deja enregistre.
  */
-async function recordInbound(
-  conversationId: string,
-  msg: Incoming,
-): Promise<string | null> {
+async function recordInbound(conversationId: string, msg: Incoming): Promise<string | null> {
   try {
     return await prisma.$transaction(async (tx) => {
       const row = await tx.conversationMessage.create({
@@ -156,7 +154,11 @@ async function loadHistory(conversationId: string, inboundId: string): Promise<H
   }));
 }
 
-type PersonaRow = Prisma.PersonaGetPayload<object>;
+const personaInclude = {
+  affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
+} satisfies Prisma.PersonaInclude;
+
+type PersonaRow = Prisma.PersonaGetPayload<{ include: typeof personaInclude }>;
 
 function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
   return {
@@ -176,8 +178,9 @@ function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
     followUpsMax: p.followUpsMax,
     offerPitch: p.offerPitch,
     offerButtonText: p.offerButtonText,
-    hasOffer: Boolean(p.affiliateCampaignId),
-    offerMediaAssetId: p.offerMediaAssetId,
+    // Comme le worker : sans offre exploitable le moteur ne parle jamais du lien (aucun ne pourrait partir).
+    hasOffer: Boolean(p.affiliateCampaignId) && offerUsable(p.affiliateCampaign),
+    offerMediaAssetId: offerUsable(p.affiliateCampaign) ? p.offerMediaAssetId : null,
     channelTitle: null,
     botName,
   };
@@ -226,7 +229,7 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
   // Persona relue a chaque message : un changement dans Reglages → Comptes s'applique sans redemarrer.
   const accountRow = await prisma.telegramUserAccount.findUnique({
     where: { id: account.id },
-    select: { personaId: true, persona: true },
+    select: { personaId: true, persona: { include: personaInclude } },
   });
   const conv = await prisma.conversation.upsert({
     where: { botId_memberId: { botId: account.botId, memberId } },
@@ -321,7 +324,25 @@ async function runConversationTurn(
     now: () => new Date(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     random: () => Math.random(),
-    createOfferLink: async () => null,
+    createOfferLink: () =>
+      createOfferLink({
+        conversationId: conv.id,
+        personaId: persona.id,
+        botId: account.botId,
+        memberId: conv.memberId,
+        source: conv.source,
+      }).catch((err: unknown) => {
+        // Le moteur avale l'erreur (message parti sans lien) : on garde une trace.
+        logger.error(
+          {
+            compte: account.label,
+            conversation: conv.id,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "creation du lien d'offre en erreur",
+        );
+        return null;
+      }),
     beforeSend: async () => ({ abort: false, newInbound: [] }),
     recordUsage: async (u) => {
       await prisma.aiConversationUsage.create({
@@ -347,6 +368,8 @@ async function runConversationTurn(
 
   const result = await runTurn(input, deps);
   await persistTurn(conv.id, result, new Date());
+  // Lien cree mais pas parti (envoi en echec, tour abandonne) : retire, il ne compterait jamais de clic.
+  if (result.unsentOfferSubId) await dropUnsentOfferLink(result.unsentOfferSubId);
   logger.info(
     {
       compte: account.label,
