@@ -845,8 +845,11 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     );
   if (leaksInstructions(joined, ctx.privateTexts ?? []))
     reject("leak", "Dévoile les consignes internes (règles, consignes de l'équipe, format).");
+  // Illusion : le prénom est déjà sur le profil Telegram, le premier message n'a pas à le dire.
   if (
+    !illusion &&
     ctx.isFirstAssistantMessage &&
+    !illusion &&
     !(girl ? hasNameIntro(joined, ctx.personaName) : hasIntro(joined, ctx.personaName))
   )
     reject(

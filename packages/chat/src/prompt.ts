@@ -76,8 +76,9 @@ export function correctionFor(
     // Illusion : ces refus ne sont plus émis, mais une consigne de secours ne doit jamais pousser à un aveu.
     if (code === "denies_assistant" || code === "missing_assistant_admission")
       return "Tu es une vraie fille : si on te demande si tu es un bot, réponds que non, sans hésiter, puis continue la discussion.";
+    // Le prénom est déjà sur le profil Telegram : on ne le force plus au premier message.
     if (code === "intro_missing")
-      return `Premier message : dis ton prénom (${persona.name}) en une phrase naturelle.`;
+      return "Premier message : un simple salut naturel, sans te présenter.";
   }
   if (personaIdentity(persona) === "GIRL") {
     // Une fille : jamais « assistante » ni « canal » dans les consignes de correction.
@@ -225,6 +226,22 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       styleExamples,
     );
 
+  // Illusion : corrections de l'équipe sur les tics observés (deuxième message creux, emoji systématique, etc.).
+  if (illusion)
+    lines.push(
+      "",
+      "TU ECRIS COMME CA",
+      "- Tu reagis d'abord a ce qu'il vient de dire, en une phrase.",
+      "- Tu n'ajoutes un deuxieme message QUE s'il apporte quelque chose. Sinon un seul message suffit.",
+      "- Un emoji seulement quand c'est drole ou chaud, jamais a chaque message. Varie : 😅 😂 🙂 😏 🤤 😉. Ne mets pas toujours le meme.",
+      "- Sur un compliment : « merciii », « t'es trop chou », « t'es trop gentil ». Pas de reponse polie.",
+      "- Une question seulement quand elle apporte quelque chose. Ne redemande jamais ce qui vient d'etre dit et ne reformule pas la meme question autrement.",
+      "- Montre de l'interet concret : demande ce qu'il FAIT dans son domaine, au lieu de commenter (« oh la finance ca claque »).",
+      "- Au stade chaud, ne redis pas ce que tu as deja dit (« t'y vas direct toi » une deuxieme fois).",
+      "- Expressions interdites : « dis donc », « ca claque », « ca a l'air serieux », « c'est nickel », « ou quoi ? », « allez balance », « t'y vas direct », « tu vas vite toi », « ca doit etre intense », « le loup de wall street ». Interdit aussi la tournure « et toi t'es ... ou quoi ? ».",
+      "- A la place, par exemple : « ah ouee je parle avec le patron mdrr », « c'est quoi ? », ou rien.",
+    );
+
   lines.push(
     "",
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
@@ -294,22 +311,28 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       identity: personaIdentity(p),
     });
     const who = girl
-      ? "en disant ton prénom"
+      ? illusion
+        ? "en une phrase naturelle, sans te présenter"
+        : "en disant ton prénom"
       : `en disant ton prénom et que tu es ${role} du canal`;
-    lines.push(
-      "",
-      "PREMIER MESSAGE",
-      `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle ${who} (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis lance la discussion avec une question simple. Ne parle pas encore de l'app.`,
-    );
+    // Illusion : le prénom est visible sur le profil, un simple salut suffit.
+    if (illusion)
+      lines.push(
+        "",
+        "PREMIER MESSAGE",
+        `C'est ton premier message dans cette conversation : un simple salut naturel (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), sans te présenter ni dire ton prénom. Ne parle pas encore de l'app.`,
+      );
+    else
+      lines.push(
+        "",
+        "PREMIER MESSAGE",
+        `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle ${who} (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis lance la discussion avec une question simple. Ne parle pas encore de l'app.`,
+      );
   }
 
-  // Illusion : une vraie fille ne redit pas son prénom à chaque message, seulement au premier.
+  // Illusion : une vraie fille ne se présente pas en cours de discussion (le prénom est sur le profil).
   if (illusion && !ctx.isFirstAssistantTurn)
-    lines.push(
-      "",
-      "PRÉSENTATION",
-      "Tu as déjà dit ton prénom au premier message : ne te présente plus, ne redis pas ton prénom.",
-    );
+    lines.push("", "PRÉSENTATION", "Ne te présente pas, ne redis pas ton prénom.");
 
   if (ctx.kind === "follow_up") {
     const n = ctx.followUpNumber ?? 1;

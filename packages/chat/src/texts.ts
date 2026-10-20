@@ -101,7 +101,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
 /** Variantes d'une persona « fille » : présentation simple, aveu d'être une IA sans « canal » ni « assistante ». */
 export const GIRL_FIXED_TEXTS: Record<ChatLang, Record<"intro" | "isAssistant", string>> = {
   fr: {
-    intro: "slt 😊 cv ?",
+    intro: "coucou 😊",
     isAssistant:
       "Je vais être honnête avec toi : je suis {name}, une IA, pas une vraie personne 😊",
   },
