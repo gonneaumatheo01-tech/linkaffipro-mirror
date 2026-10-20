@@ -67,6 +67,7 @@ describe("guide d'utilisation : plan", () => {
       "Conversations",
       "Statistiques",
       "Réglages",
+      "Comptes Telegram",
     ]);
     const positions = menu.map((label) => h2.indexOf(label));
     expect(positions.every((p) => p > 0)).toBe(true);

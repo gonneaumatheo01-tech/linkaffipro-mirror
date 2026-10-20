@@ -56,15 +56,15 @@ describe("NAV (liste du menu)", () => {
 
   it("en bas : Réglages (barre de menu) ; Guide et Mon compte seulement dans « Plus » du téléphone", () => {
     const bottom = NAV.filter((i) => i.section === "bottom");
-    expect(bottom.map((i) => i.href)).toEqual(["/settings", "/help", "/account"]);
-    expect(bottom.filter((i) => !i.mobileOnly).map((i) => i.href)).toEqual(["/settings"]);
+    expect(bottom.map((i) => i.href)).toEqual(["/settings", "/settings/accounts", "/help", "/account"]);
+    expect(bottom.filter((i) => !i.mobileOnly).map((i) => i.href)).toEqual(["/settings", "/settings/accounts"]);
     expect(NAV.find((i) => i.href === "/help")?.label).toBe("Guide d'utilisation");
     expect(NAV.find((i) => i.href === "/account")?.label).toBe("Mon compte");
   });
 
   it("Réglages est visible pour tous les rôles", () => {
     expect(NAV.some((i) => i.adminOnly)).toBe(false);
-    expect(navSections(NAV, false).bottom.map((i) => i.href)).toEqual(["/settings"]);
+    expect(navSections(NAV, false).bottom.map((i) => i.href)).toEqual(["/settings", "/settings/accounts"]);
   });
 
   it("les entrées du bas suivent toutes les entrées principales", () => {
@@ -94,6 +94,7 @@ describe("NAV (liste du menu)", () => {
       "nav-conversations",
       "nav-stats",
       "nav-settings",
+      "nav-accounts",
       "nav-help",
       "nav-account",
     ]);
@@ -127,7 +128,7 @@ describe("navSections (barre de menu de l'ordinateur)", () => {
     for (const isAdmin of [true, false]) {
       const s = navSections(NAV, isAdmin);
       expect(s.main).toHaveLength(8);
-      expect(s.bottom.map((i) => i.href)).toEqual(["/settings"]);
+      expect(s.bottom.map((i) => i.href)).toEqual(["/settings", "/settings/accounts"]);
     }
   });
 });
@@ -251,6 +252,7 @@ describe("mobileNav", () => {
         "Conversations",
         "Statistiques",
         "Réglages",
+        "Comptes Telegram",
         "Guide d'utilisation",
         "Mon compte",
       ]);

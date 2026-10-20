@@ -20,6 +20,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
+- [Comptes Telegram](#comptes-telegram)
 - [Aide « ? » et visite guidée](#aide-et-visite-guidee)
 - [Mon compte](#mon-compte)
 - [Où sont passées les anciennes pages ?](#ou-sont-passees-les-anciennes-pages)
@@ -1114,6 +1115,26 @@ Cette sauvegarde protège contre une erreur humaine ou une corruption, pas contr
 5. **Derniers retours reçus** : les 50 derniers ; cliquez sur une ligne pour voir ses paramètres.
 
 **Pièges.** Un retour sans identifiant de suivi crée bien un joueur, mais il n'est rattaché à aucun membre ni à aucune pub. Le même événement reçu deux fois (même transaction) est ignoré. Un retour avec une adresse inconnue est refusé et apparaît dans le journal. Limite : 60 appels par minute et par adresse.
+
+## Comptes Telegram
+
+**À quoi ça sert.** Faire discuter l'assistante depuis un **vrai compte Telegram** (un numéro), et non depuis un bot. La personne en face ne voit aucun badge « bot » : elle croit parler à quelqu'un. Chaque compte porte une persona (son prénom, son style) et reçoit automatiquement le bot fantôme qui l'accompagne.
+
+**Ce que vous voyez.** La liste des comptes et leur état : **Code envoyé** (un code vient d'arriver dans l'application Telegram de ce numéro), **Mot de passe à saisir** (validation en deux étapes), **Connecté**, **Erreur**, **Déconnecté**. Un compte désactivé garde sa session mais ne discute pas.
+
+**Ajouter un compte.**
+
+1. **Ajouter un compte**, saisissez le **numéro au format international** (`+33612345678`), puis **Envoyer le code**.
+2. Ouvrez la conversation **Telegram** de ce numéro : le code y arrive. Recopiez-le dans **Code reçu dans Telegram**, puis **Valider le code**.
+3. Si la validation en deux étapes est activée sur ce numéro, saisissez le mot de passe.
+4. Choisissez la **persona** du compte, puis **Activer**.
+
+**Pièges.**
+
+- Le code arrive **dans l'application Telegram du numéro**, pas par SMS.
+- Une persona par compte : la même persona sur deux comptes mélangerait les conversations.
+- **Déconnecter** révoque la session chez Telegram : pour revenir, il faut renvoyer un code.
+- La connexion permanente (le compte reste en ligne seul) arrive à l'étape suivante du chantier.
 
 ## Aide « ? » et visite guidée
 

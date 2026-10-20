@@ -2,10 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { prisma, audit } from "@linkaffipro/db";
 import {
   disconnect,
+  ensureShadowBot,
   refresh,
   setActive,
   setPersona,
@@ -15,144 +15,118 @@ import {
 } from "@linkaffipro/userbot";
 import { requireAdmin } from "@/lib/session";
 
-const PATH = "/settings/accounts";
+const PAGE = "/settings/accounts";
 
 function back(params: Record<string, string>): never {
-  redirect(`${PATH}?${new URLSearchParams(params).toString()}`);
+  redirect(`${PAGE}?${new URLSearchParams(params).toString()}`);
+}
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : "Erreur inconnue.";
 }
 
-/** Message lisible d'une erreur de Telegram (sans le préfixe technique de la bibliothèque). */
-function reason(err: unknown, fallback: string): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  const map: Record<string, string> = {
-    PHONE_NUMBER_INVALID: "Ce numéro n'a pas l'air valide (forme attendue +33612345678).",
-    PHONE_CODE_INVALID: "Ce code n'est pas le bon. Vérifiez dans Telegram.",
-    PHONE_CODE_EXPIRED: "Le code a expiré. Demandez-en un nouveau.",
-    PASSWORD_HASH_INVALID: "Mot de passe de validation en deux étapes incorrect.",
-    FLOOD_WAIT: "Trop d'essais d'un coup : attendez un instant avant de réessayer.",
-  };
-  for (const [code, text] of Object.entries(map)) if (raw.includes(code)) return text;
-  return raw || fallback;
-}
-
-const idSchema = z.string().min(1);
-
-/** Ajouter un compte : envoie le code au numéro. */
+/** Etape 1 : numero -> code envoye, compte en PENDING_CODE. */
 export async function addAccountAction(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
-  const phone = String(formData.get("phone") ?? "").trim();
-  if (!phone) back({ error: "Saisissez un numéro de téléphone." });
+  const admin = await requireAdmin();
+  const phone = String(formData.get("phone") ?? "");
+  const label = String(formData.get("label") ?? "").trim();
+  let id = "";
   try {
     const account = await startOnboarding(phone);
-    await audit({
-      userId: user.id,
-      action: "userbot.account_added",
-      entityType: "TelegramUserAccount",
-      entityId: account.id,
-    });
-    revalidatePath(PATH);
-    back({ ok: `Code envoyé au ${account.phone}. Ouvrez Telegram et recopiez-le.` });
+    id = account.id;
+    if (label) await prisma.telegramUserAccount.update({ where: { id }, data: { label } });
   } catch (err) {
-    back({ error: reason(err, "Impossible d'envoyer le code.") });
+    back({ error: `Envoi du code impossible : ${describe(err)}` });
   }
-}
-
-/** Saisir le code reçu. */
-export async function submitCodeAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const id = idSchema.parse(formData.get("accountId"));
-  const code = String(formData.get("code") ?? "").trim();
-  if (!code) back({ error: "Saisissez le code reçu dans Telegram." });
-  try {
-    const account = await submitCode(id, code);
-    revalidatePath(PATH);
-    back({
-      ok:
-        account.status === "ACTIVE"
-          ? "Compte connecté."
-          : "Code accepté. Saisissez maintenant votre mot de passe de validation en deux étapes.",
-    });
-  } catch (err) {
-    back({ error: reason(err, "Le code n'a pas été accepté.") });
-  }
-}
-
-/** Saisir le mot de passe de validation en deux étapes. */
-export async function submitPasswordAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const id = idSchema.parse(formData.get("accountId"));
-  const password = String(formData.get("password") ?? "");
-  if (!password) back({ error: "Saisissez le mot de passe de validation en deux étapes." });
-  try {
-    await submitPassword(id, password);
-    revalidatePath(PATH);
-    back({ ok: "Compte connecté." });
-  } catch (err) {
-    back({ error: reason(err, "Le mot de passe n'a pas été accepté.") });
-  }
-}
-
-/** Relire la session : confirme qu'elle est toujours valable. */
-export async function refreshAccountAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const id = idSchema.parse(formData.get("accountId"));
-  const account = await refresh(id);
-  revalidatePath(PATH);
-  back(
-    account.status === "ACTIVE"
-      ? { ok: "Session toujours valable." }
-      : { error: `Session perdue : ${account.lastError ?? "reconnectez le compte."}` },
-  );
-}
-
-/** Activer / désactiver le compte (désactivé : le programme ne le démarre pas). */
-export async function toggleAccountAction(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
-  const id = idSchema.parse(formData.get("accountId"));
-  const account = await prisma.telegramUserAccount.findUniqueOrThrow({ where: { id } });
-  await setActive(id, !account.isActive);
   await audit({
-    userId: user.id,
-    action: account.isActive ? "userbot.account_deactivated" : "userbot.account_activated",
+    userId: admin.id,
+    action: "userbot.account_code_sent",
     entityType: "TelegramUserAccount",
     entityId: id,
   });
-  revalidatePath(PATH);
-  back({ ok: account.isActive ? "Compte désactivé." : "Compte activé." });
+  revalidatePath(PAGE);
+  back({ ok: "Code envoye sur Telegram. Saisissez-le pour terminer la connexion." });
 }
 
-const personaSchema = z.object({
-  accountId: z.string().min(1),
-  personaId: z
-    .string()
-    .trim()
-    .max(64)
-    .optional()
-    .transform((v) => v || null),
-});
+/** Etape 2 : code -> ACTIVE, ou PENDING_PASSWORD si la validation en deux etapes est active. */
+export async function submitCodeAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const id = String(formData.get("accountId") ?? "");
+  const code = String(formData.get("code") ?? "");
+  let status = "ACTIVE";
+  try {
+    const account = await submitCode(id, code);
+    status = account.status;
+  } catch (err) {
+    back({ error: describe(err) });
+  }
+  if (status === "ACTIVE") await ensureShadowBot(id).catch(() => undefined);
+  await audit({
+    userId: admin.id,
+    action: "userbot.account_code_ok",
+    entityType: "TelegramUserAccount",
+    entityId: id,
+  });
+  revalidatePath(PAGE);
+  back(
+    status === "PENDING_PASSWORD"
+      ? { ok: "Code accepte. Ce compte a la validation en deux etapes : entrez le mot de passe." }
+      : { ok: "Compte connecte." },
+  );
+}
 
-/** Rattacher (ou détacher) une persona. */
+/** Etape 3 : mot de passe de validation en deux etapes. */
+export async function submitPasswordAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const id = String(formData.get("accountId") ?? "");
+  const password = String(formData.get("password") ?? "");
+  try {
+    await submitPassword(id, password);
+  } catch (err) {
+    back({ error: describe(err) });
+  }
+  await ensureShadowBot(id).catch(() => undefined);
+  await audit({
+    userId: admin.id,
+    action: "userbot.account_connected",
+    entityType: "TelegramUserAccount",
+    entityId: id,
+  });
+  revalidatePath(PAGE);
+  back({ ok: "Compte connecte." });
+}
+
+export async function toggleAccountAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = String(formData.get("accountId") ?? "");
+  await setActive(id, formData.get("active") === "1");
+  revalidatePath(PAGE);
+  back({ ok: "Mis a jour. Redemarrez le userbot pour appliquer." });
+}
+
 export async function setAccountPersonaAction(formData: FormData): Promise<void> {
   await requireAdmin();
-  const parsed = personaSchema.safeParse({
-    accountId: formData.get("accountId"),
-    personaId: formData.get("personaId") ?? undefined,
-  });
-  if (!parsed.success) back({ error: "Persona invalide." });
-  await setPersona(parsed.data.accountId, parsed.data.personaId);
-  revalidatePath(PATH);
-  back({ ok: parsed.data.personaId ? "Persona liée." : "Persona détachée." });
+  const id = String(formData.get("accountId") ?? "");
+  await setPersona(id, String(formData.get("personaId") ?? "") || null);
+  revalidatePath(PAGE);
+  back({ ok: "Persona mise a jour." });
 }
 
-/** Déconnecter (révoque la session côté Telegram). */
+export async function refreshAccountAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = String(formData.get("accountId") ?? "");
+  const account = await refresh(id);
+  revalidatePath(PAGE);
+  back(
+    account.status === "ACTIVE"
+      ? { ok: "Session valide." }
+      : { error: account.lastError ?? "Session invalide." },
+  );
+}
+
 export async function disconnectAccountAction(formData: FormData): Promise<void> {
   await requireAdmin();
-  const id = idSchema.parse(formData.get("accountId"));
-  try {
-    await disconnect(id);
-    revalidatePath(PATH);
-    back({ ok: "Compte déconnecté." });
-  } catch (err) {
-    back({ error: reason(err, "Impossible de déconnecter le compte.") });
-  }
+  const id = String(formData.get("accountId") ?? "");
+  await disconnect(id).catch(() => undefined);
+  revalidatePath(PAGE);
+  back({ ok: "Compte deconnecte." });
 }

@@ -65,6 +65,14 @@ export const NAV: NavItem[] = [
   },
   { key: "stats", href: "/stats", label: "Statistiques", icon: "BarChart3", section: "main" },
   { key: "settings", href: "/settings", label: "Réglages", icon: "Settings", section: "bottom" },
+  // Phase 18 : comptes Telegram reels (userbot) — ajout, connexion, rattachement bot + persona.
+  {
+    key: "accounts",
+    href: "/settings/accounts",
+    label: "Comptes Telegram",
+    icon: "UserRound",
+    section: "bottom",
+  },
   {
     key: "help",
     href: "/help",
