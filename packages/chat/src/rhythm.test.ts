@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createFakeTimers } from "./fake";
 import { openingDelayMs, pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
 
-const neutre = { peerDelayMs: 30_000, isFirst: false, hot: false, cold: false, refused: false };
+const neutre = {
+  peerDelayMs: 30_000,
+  isFirst: false,
+  hot: false,
+  cold: false,
+  refused: false,
+  live: false,
+};
 
 describe("rythme", () => {
   it("typingDelayMs : 400 + 110 × longueur, plafonné à 12 s, plus rapide si chaud", () => {
@@ -24,6 +31,12 @@ describe("rythme", () => {
     expect(openingDelayMs({ ...neutre, hot: true }, () => 0)).toBe(9563);
     expect(openingDelayMs({ ...neutre, refused: true }, () => 0.5)).toBe(7200000);
     expect(openingDelayMs({ ...neutre, isFirst: true }, () => 0.5)).toBe(20000);
+  });
+
+  it("en direct : elle repond aussitot et colle ses messages", () => {
+    expect(openingDelayMs({ ...neutre, live: true }, () => 0.5)).toBe(4000);
+    expect(openingDelayMs({ ...neutre, live: true }, () => 0)).toBe(2000);
+    expect(pauseBetweenMs(() => 0.5, true)).toBe(1000);
   });
 
   it("pauseBetweenMs : 0,8 à 2,5 s selon l'aléa", () => {

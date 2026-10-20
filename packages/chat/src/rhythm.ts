@@ -27,6 +27,14 @@ export const HOT_MAX_MS = 90_000;
 export const COLD_FACTOR = 1.3;
 
 /** Refus de l'app : plus de discussion ici, 1 a 3 h. */
+/** La personne a repondu dans la foulee : elle est dans la conversation, elle repond aussi sec. */
+export const LIVE_WINDOW_MS = 2 * 60 * 1000;
+export const LIVE_MIN_MS = 2000;
+export const LIVE_MAX_MS = 6000;
+export const LIVE_PAUSE_MIN_MS = 500;
+export const LIVE_PAUSE_MAX_MS = 1500;
+export const LIVE_TYPING_FACTOR = 0.7;
+
 export const REFUSED_MIN_MS = 60 * 60 * 1000;
 export const REFUSED_MAX_MS = 3 * 60 * 60 * 1000;
 
@@ -47,6 +55,8 @@ export function typingDelayMs(text: string, hot = false): number {
 export type OpeningInput = {
   /** Temps que la personne a mis pour repondre (ms) ; null si inconnu. */
   peerDelayMs: number | null;
+  /** La personne vient de repondre : elle est dans la conversation. */
+  live: boolean;
   /** Premier message de la conversation : elle ouvre vite, par curiosite. */
   isFirst: boolean;
   /** Discussion chaude. */
@@ -59,6 +69,8 @@ export type OpeningInput = {
 
 /** Delai avant d'ouvrir le message (sans « ecrit... »). `random` rend une valeur dans [0, 1). */
 export function openingDelayMs(input: OpeningInput, random: () => number): number {
+  if (input.live)
+    return Math.round(LIVE_MIN_MS + clamp01(random()) * (LIVE_MAX_MS - LIVE_MIN_MS));
   if (input.refused)
     return Math.round(REFUSED_MIN_MS + clamp01(random()) * (REFUSED_MAX_MS - REFUSED_MIN_MS));
   if (input.isFirst)
@@ -78,7 +90,11 @@ export function openingDelayMs(input: OpeningInput, random: () => number): numbe
 }
 
 /** Pause entre deux messages : 800 a 2500 ms (alea injectable, valeur dans [0, 1)). */
-export function pauseBetweenMs(random: () => number): number {
+export function pauseBetweenMs(random: () => number, live = false): number {
+  if (live) {
+    const r2 = clamp01(random());
+    return Math.round(LIVE_PAUSE_MIN_MS + r2 * (LIVE_PAUSE_MAX_MS - LIVE_PAUSE_MIN_MS));
+  }
   const r = clamp01(random());
   return Math.round(PAUSE_MIN_MS + r * (PAUSE_MAX_MS - PAUSE_MIN_MS));
 }

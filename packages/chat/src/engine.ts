@@ -10,7 +10,7 @@ import { detectMinorIn } from "./minor";
 import { mentionsStopRequest } from "./stop-request";
 import { parseTurnOutput } from "./parse";
 import { buildSummaryRequest, buildSystemPrompt, buildTurnMessages, cleanSummary } from "./prompt";
-import { openingDelayMs, pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
+import { LIVE_WINDOW_MS, openingDelayMs, pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
@@ -343,6 +343,12 @@ function peerDelay(input: TurnInput): number | null {
 }
 
 /** Discussion chaude : la personne est tres interesse ou dragueuse, elle repond plus vite. */
+/** La personne a repondu il y a moins de deux minutes : elle est encore la, elle repond aussitot. */
+function isLive(input: TurnInput): boolean {
+  const p = peerDelay(input);
+  return p !== null && p <= LIVE_WINDOW_MS;
+}
+
 function isHot(input: TurnInput): boolean {
   return (input.conversation.style.interest ?? 0) >= 7 || input.conversation.style.tone === "flirty";
 }
@@ -546,6 +552,7 @@ async function sendParts(
           hot: isHot(input),
           cold: false,
           refused: input.conversation.appRefused === true,
+          live: isLive(input),
         },
         deps.random,
       );
@@ -553,7 +560,7 @@ async function sendParts(
       if (reste > 0) await deps.sleep(reste);
       await withTyping(
         () => deps.sender.sendTyping(),
-        () => deps.sleep(typingDelayMs(text)),
+        () => deps.sleep(typingDelayMs(text, isHot(input) || isLive(input))),
       );
     } else {
       await safeTyping(run);
@@ -596,7 +603,7 @@ async function sendParts(
       fixedKey: opts.fixedKey,
     });
     if (link) offerSent = { subId: link.subId, url: link.url };
-    if (!isLast) await deps.sleep(pauseBetweenMs(deps.random));
+    if (!isLast) await deps.sleep(pauseBetweenMs(deps.random, isLive(input)));
   }
   return { sent, offerSent, sendError, unsentOfferSubId };
 }
