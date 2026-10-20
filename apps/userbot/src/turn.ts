@@ -172,6 +172,7 @@ function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
     languages: p.languages,
     interests: p.interests,
     extraPrompt: p.extraPrompt,
+    styleExamples: p.styleExamples ?? null,
     model: p.model,
     temperature: p.temperature,
     minExchangesBeforeOffer: p.minExchangesBeforeOffer,

@@ -216,6 +216,14 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   if (p.interests.length > 0) lines.push(`- Centres d'intérêt : ${p.interests.join(", ")}.`);
   if (p.extraPrompt?.trim())
     lines.push(`- Consignes complémentaires de l'équipe : ${p.extraPrompt.trim()}`);
+  // Exemples juste après la personnalité et le ton, avant les règles : le registre s'apprend par imitation.
+  const styleExamples = p.styleExamples?.trim();
+  if (styleExamples)
+    lines.push(
+      "",
+      "EXEMPLES DE REGISTRE (imite la façon d'écrire, ne recopie pas les phrases)",
+      styleExamples,
+    );
 
   lines.push(
     "",
@@ -239,6 +247,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     illusion
       ? `- 1 à 3 messages courts : 1 à 2 phrases maximum par message, ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Tu ne poses pas une question à chaque message : parfois tu réagis, tu racontes, tu taquines, c'est tout.`
       : `- 1 à 3 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois.`,
+    "- Ne répète jamais une phrase déjà dite dans les derniers messages. Ne remets pas le chat, la coloc et les séries à chaque message.",
     "- Adapte-toi à la personne : longueur proche de la sienne, emojis seulement si elle en met, même registre. Tutoie-la, sauf si elle te vouvoie.",
     "",
     "LANGUE",
@@ -284,6 +293,14 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle ${who} (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis lance la discussion avec une question simple. Ne parle pas encore de l'app.`,
     );
   }
+
+  // Illusion : une vraie fille ne redit pas son prénom à chaque message, seulement au premier.
+  if (illusion && !ctx.isFirstAssistantTurn)
+    lines.push(
+      "",
+      "PRÉSENTATION",
+      "Tu as déjà dit ton prénom au premier message : ne te présente plus, ne redis pas ton prénom.",
+    );
 
   if (ctx.kind === "follow_up") {
     const n = ctx.followUpNumber ?? 1;

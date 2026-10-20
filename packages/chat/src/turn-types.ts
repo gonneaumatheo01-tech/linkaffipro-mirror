@@ -43,6 +43,8 @@ export type PersonaInput = {
   languages: string[];
   interests: string[];
   extraPrompt: string | null;
+  /** `Persona.styleExamples` : échanges courts à imiter (un style s'apprend par l'exemple, pas par les adjectifs). */
+  styleExamples?: string | null;
   /** null = modèle par défaut des réglages. */
   model: string | null;
   /** null = température des réglages. */

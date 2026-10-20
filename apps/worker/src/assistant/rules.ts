@@ -64,6 +64,8 @@ export type PersonaRow = {
   identityKind?: string | null;
   /** `Persona.illusion` (phase 18) : vraie fille, sans effet hors GIRL. */
   illusion?: boolean | null;
+  /** `Persona.styleExamples` (phase 18) : échanges à imiter. */
+  styleExamples?: string | null;
   age?: number | null;
   gender: string;
   personality: string;
@@ -103,6 +105,7 @@ export function toPersonaInput(
     languages: p.languages,
     interests: p.interests,
     extraPrompt: p.extraPrompt,
+    styleExamples: p.styleExamples ?? null,
     model: p.model,
     temperature: p.temperature,
     minExchangesBeforeOffer: p.minExchangesBeforeOffer,

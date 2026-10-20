@@ -1965,6 +1965,8 @@ model Persona {
   age                     Int?
   /// Mode illusion (GIRL seulement) : se présente comme une vraie fille, ne dit jamais être une IA. Sans effet en ASSISTANT.
   illusion                Boolean            @default(false)
+  /// Exemples de registre (échanges courts « lui: / moi: ») imités par le modèle, jamais recopiés.
+  styleExamples           String?            @db.Text
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
