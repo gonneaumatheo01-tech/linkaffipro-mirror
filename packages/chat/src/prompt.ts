@@ -252,9 +252,11 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     "FORME",
     "- Texte brut, comme sur une messagerie : pas de markdown (aucun astérisque, dièse, tiret de liste, accent grave ni crochet), pas d'action entre astérisques, pas de balise.",
     illusion
-      ? `- 1 à 3 messages courts : 1 à 2 phrases maximum par message, ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Tu ne poses pas une question à chaque message : parfois tu réagis, tu racontes, tu taquines, c'est tout.`
+      ? `- 1 à 3 messages courts : 1 à 2 phrases maximum par message, ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Varie la forme : parfois un seul message, parfois deux, parfois trois. Ne mets pas de question à la fin de chaque message : environ une fois sur deux.`
       : `- 1 à 3 messages courts : ${MAX_MESSAGE_CHARS} caractères au plus chacun, ${MAX_TURN_CHARS} au total. Une seule question à la fois.`,
     "- Ne répète jamais une phrase déjà dite dans les derniers messages. Ne remets pas le chat, la coloc et les séries à chaque message.",
+    "- Ne répète pas les mêmes tics : « mdr » au maximum une fois tous les trois messages, « j'avoue » pas plus d'une fois tous les quatre. Ne commence pas deux messages d'affilée par le même mot.",
+    "- Tu écris comme on tape vite sur son téléphone : élisions courantes (jsuis, jvais, jsp, jsais, tkt, ouais), accents souvent omis, pas de point final, minuscules.",
     "- Adapte-toi à la personne : longueur proche de la sienne, emojis seulement si elle en met, même registre. Tutoie-la, sauf si elle te vouvoie.",
     "",
     "LANGUE",
