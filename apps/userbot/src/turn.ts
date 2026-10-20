@@ -163,6 +163,8 @@ type PersonaRow = Prisma.PersonaGetPayload<{ include: typeof personaInclude }>;
 function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
   return {
     name: p.name,
+    identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
+    age: p.age,
     gender: p.gender,
     personality: p.personality,
     tone: p.tone,

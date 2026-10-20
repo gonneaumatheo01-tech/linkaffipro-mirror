@@ -10,9 +10,21 @@ import type {
   UsageRecord,
 } from "./types";
 
+/** Identité présentée : l'assistante du canal (phase 17) ou une fille (userbots, phase 18). */
+export type PersonaIdentity = "ASSISTANT" | "GIRL";
+
+/** Identité effective : toute valeur autre que « GIRL » reste l'assistante (comportement de la phase 17). */
+export function personaIdentity(p: { identity?: string | null }): PersonaIdentity {
+  return p.identity === "GIRL" ? "GIRL" : "ASSISTANT";
+}
+
 /** Persona telle que le moteur la lit (champs utiles du modèle Prisma `Persona`, contrat §1). */
 export type PersonaInput = {
   name: string;
+  /** `Persona.identityKind` ; absent = ASSISTANT. */
+  identity?: PersonaIdentity;
+  /** Âge déclaré (GIRL), repris par le prompt quand il est renseigné. */
+  age?: number | null;
   /** "F" → « l'assistante », "M" → « l'assistant ». */
   gender: string;
   personality: string;

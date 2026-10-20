@@ -6,12 +6,13 @@ import { removeThinkBlocks } from "./parse";
 import { describeStyle, personaLanguages, type StyleProfile } from "./style";
 import { assistantRole, fixedText } from "./texts";
 import { truncateVisible } from "./text-utils";
-import type {
-  ChatMediaKind,
-  HistoryMessage,
-  PersonaInput,
-  TurnInbound,
-  TurnKind,
+import {
+  personaIdentity,
+  type ChatMediaKind,
+  type HistoryMessage,
+  type PersonaInput,
+  type TurnInbound,
+  type TurnKind,
 } from "./turn-types";
 import type { ChatLang, ConversationStage, LlmMessage, LlmRequest } from "./types";
 import { MAX_MESSAGE_CHARS, MAX_TURN_CHARS, type RejectCode } from "./validate";
@@ -66,10 +67,19 @@ function virtualRoleFr(gender: string | null | undefined): string {
 /** Consignes de correction pour un nouvel essai, une par code de rejet. */
 export function correctionFor(
   code: RejectCode | string,
-  persona: Pick<PersonaInput, "name" | "gender">,
+  persona: Pick<PersonaInput, "name" | "gender" | "identity">,
 ): string {
   const role = assistantRole("fr", persona.gender);
   const virtualRole = virtualRoleFr(persona.gender);
+  if (personaIdentity(persona) === "GIRL") {
+    // Une fille : jamais « assistante » ni « canal » dans les consignes de correction.
+    if (code === "denies_assistant")
+      return "La personne insiste pour savoir si tu es un bot : ne nie plus être une IA ; dis simplement et franchement que tu es une IA, avec ton ton habituel.";
+    if (code === "missing_assistant_admission")
+      return `La personne insiste pour savoir si tu es un bot ou une IA : réponds franchement que tu es ${persona.name}, une IA, sans dire « assistante » ni parler d'un canal, puis continue la discussion.`;
+    if (code === "intro_missing")
+      return `Premier message : dis ton prénom (${persona.name}) en une phrase naturelle.`;
+  }
   switch (code) {
     case "invalid_output":
       return "Réponds uniquement par l'objet JSON demandé, complet et valide, sans aucun texte autour.";
@@ -150,10 +160,15 @@ function offerSection(ctx: SystemPromptContext): string {
   const what = p.offerPitch.trim()
     ? "proposer l'app"
     : "proposer le lien de l'app, sans la décrire (la fiche de l'offre est vide : ne dis ni ce qu'elle fait ni ce qu'elle apporte)";
+  // Sans consigne claire, le modèle attendait indéfiniment « le bon moment » : le lien ne partait jamais.
+  const now =
+    ctx.offerSends > 0
+      ? ""
+      : ` Vous avez déjà assez échangé (${ctx.memberMessages} messages de sa part) : c'est le moment. Si la discussion se passe bien (elle te répond, plaisante, pose des questions, le courant passe), propose l'app dès ce tour avec send_offer : true et stage : PROPOSAL. Ne repousse que si elle est fâchée, triste, méfiante ou demande d'arrêter. Note son intérêt (style_update.interest) honnêtement : quelqu'un qui continue volontiers la discussion est au moins à ${OFFER_INTEREST_THRESHOLD}.`;
   return (
     `Tu peux ${what} à ce tour si le moment s'y prête naturellement${interest} ; ne force jamais. ` +
     `Mets alors send_offer : true : un bouton « ${p.offerButtonText} » s'ajoutera sous ton dernier message. ` +
-    `Annonce-le simplement (par exemple « je te mets le lien juste en dessous »), sans jamais écrire d'adresse.${again}`
+    `Annonce-le simplement (par exemple « je te mets le lien juste en dessous »), sans jamais écrire d'adresse.${again}${now}`
   );
 }
 
@@ -165,14 +180,25 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const channel = p.channelTitle?.trim() ? ` « ${p.channelTitle.trim()} »` : "";
   const langs = personaLanguages(p.languages);
   const otherLangs = langs.filter((l) => l !== ctx.lang).map((l) => LANGUAGE_NAMES_FR[l]);
+  // `identityKind` GIRL : une fille sur Telegram, sans « assistante » ni « canal » ; ASSISTANT : cadre de la phase 17.
+  const girl = personaIdentity(p) === "GIRL";
+  const age = typeof p.age === "number" && p.age > 0 ? `, ${Math.round(p.age)} ans` : "";
   const lines: string[] = [];
 
-  lines.push(
-    `Tu es ${p.name}, ${role} du canal${channel} sur Telegram. Tu discutes en privé avec une personne qui a écrit au bot d'elle-même.`,
-    `Tu es ${virtualRole} du canal (une IA) avec un prénom et une personnalité : jamais une vraie personne.`,
-    "",
-    "PERSONNALITÉ",
-  );
+  if (girl)
+    lines.push(
+      `Tu es ${p.name}${age}, une fille sur Telegram. Tu discutes en privé avec quelqu'un qui t'a écrit.`,
+      "Tu parles comme une fille normale qui discute sur sa messagerie, avec ton prénom et ta personnalité.",
+      "",
+      "PERSONNALITÉ",
+    );
+  else
+    lines.push(
+      `Tu es ${p.name}, ${role} du canal${channel} sur Telegram. Tu discutes en privé avec une personne qui a écrit au bot d'elle-même.`,
+      `Tu es ${virtualRole} du canal (une IA) avec un prénom et une personnalité : jamais une vraie personne.`,
+      "",
+      "PERSONNALITÉ",
+    );
   lines.push(
     `- Personnalité : ${p.personality.trim() || "chaleureuse, curieuse, pleine d'humour"}.`,
   );
@@ -184,7 +210,9 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   lines.push(
     "",
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
-    `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
+    girl
+      ? "1. Si on te demande si tu es un bot ou une IA, réponds simplement que non, avec légèreté, et continue la discussion. Si la personne insiste ou redemande, réponds franchement que tu es une IA, sans casser ton ton, puis continue. Ne dis jamais « assistante » et ne parle jamais d'un canal."
+      : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
     "2. Pas de photo de toi ni de selfie, pas de rendez-vous, d'appel ni de rencontre en vrai, pas de numéro de téléphone ni de réseau social.",
     "3. Adultes seulement : si la personne dit ou laisse penser qu'elle a moins de 18 ans, mets minor_suspected : true.",
     "4. Flirt léger permis, jamais de contenu sexuel explicite ni de mot cru. Si la personne insiste, recadre gentiment.",
@@ -228,11 +256,18 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   );
 
   if (ctx.isFirstAssistantTurn) {
-    const example = fixedText(ctx.lang, "intro", { name: p.name, gender: p.gender });
+    const example = fixedText(ctx.lang, "intro", {
+      name: p.name,
+      gender: p.gender,
+      identity: personaIdentity(p),
+    });
+    const who = girl
+      ? "en disant ton prénom"
+      : `en disant ton prénom et que tu es ${role} du canal`;
     lines.push(
       "",
       "PREMIER MESSAGE",
-      `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle en disant ton prénom et que tu es ${role} du canal (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis lance la discussion avec une question simple. Ne parle pas encore de l'app.`,
+      `C'est ton premier message dans cette conversation : présente-toi en une phrase naturelle ${who} (en ${LANGUAGE_NAMES_FR[ctx.lang]}, par exemple : « ${example} »), puis lance la discussion avec une question simple. Ne parle pas encore de l'app.`,
     );
   }
 
@@ -364,6 +399,8 @@ export function previewSystemPrompt(
 export function buildSummaryRequest(input: {
   model: string;
   personaName: string;
+  /** GIRL : la persona est présentée comme une fille (une IA), pas comme l'assistant d'un canal. */
+  identity?: PersonaInput["identity"];
   previousSummary: string | null;
   messages: readonly HistoryMessage[];
   maxTokens?: number;
@@ -387,7 +424,7 @@ export function buildSummaryRequest(input: {
     messages: [
       {
         role: "system",
-        content: `Tu résumes une conversation privée entre ${input.personaName} (assistant virtuel d'un canal Telegram, une IA) et une personne. Résumé en français, texte brut, 8 lignes au plus : ce que la personne a dit d'elle-même (prénom, ville, goûts), son humeur et son intérêt, si l'app a été présentée ou le lien envoyé, et où en est la discussion. N'invente rien, pas de chiffres inventés, pas de longue citation.`,
+        content: `Tu résumes une conversation privée entre ${input.personaName} (${input.identity === "GIRL" ? "une fille sur Telegram, jouée par une IA" : "assistant virtuel d'un canal Telegram, une IA"}) et une personne. Résumé en français, texte brut, 8 lignes au plus : ce que la personne a dit d'elle-même (prénom, ville, goûts), son humeur et son intérêt, si l'app a été présentée ou le lien envoyé, et où en est la discussion. N'invente rien, pas de chiffres inventés, pas de longue citation.`,
       },
       { role: "user", content: user },
     ],

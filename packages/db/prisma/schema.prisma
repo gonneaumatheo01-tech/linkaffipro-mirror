@@ -1959,6 +1959,10 @@ model Persona {
   /// Description du bot (≤ 512) et description courte (≤ 120) : disent « assistant(e) ».
   botDescription          String?
   botShortDescription     String?
+  /// Identité présentée : "ASSISTANT" (assistante du canal, phase 17) ou "GIRL" (une fille, userbots phase 18).
+  identityKind            String             @default("ASSISTANT")
+  /// Âge déclaré (repris par le prompt en GIRL quand il est renseigné).
+  age                     Int?
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)

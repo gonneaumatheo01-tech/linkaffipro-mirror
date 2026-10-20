@@ -13,8 +13,11 @@ export const FIXED_TEXT_KEYS = [
 ] as const;
 export type FixedTextKey = (typeof FIXED_TEXT_KEYS)[number];
 
-/** `{name}` = prénom de la persona ; `{role}` = « l'assistante » / « l'assistant » (selon `Persona.gender`), traduit. */
-export type FixedTextVars = { name?: string; gender?: string | null };
+/**
+ * `{name}` = prénom de la persona ; `{role}` = « l'assistante » / « l'assistant » (selon `Persona.gender`), traduit ;
+ * `identity` « GIRL » : variantes sans « canal » ni « assistante » pour `intro` et `isAssistant`.
+ */
+export type FixedTextVars = { name?: string; gender?: string | null; identity?: string | null };
 
 const ROLES: Record<ChatLang, { F: string; M: string }> = {
   fr: { F: "l'assistante", M: "l'assistant" },
@@ -89,6 +92,35 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
   },
 };
 
+/** Variantes d'une persona « fille » : présentation simple, aveu d'être une IA sans « canal » ni « assistante ». */
+export const GIRL_FIXED_TEXTS: Record<ChatLang, Record<"intro" | "isAssistant", string>> = {
+  fr: {
+    intro: "Moi c'est {name} 😉 Comment tu vas ?",
+    isAssistant:
+      "Je vais être honnête avec toi : je suis {name}, une IA, pas une vraie personne 😊",
+  },
+  en: {
+    intro: "I'm {name} 😉 How are you?",
+    isAssistant: "I'll be honest with you: I'm {name}, an AI, not a real person 😊",
+  },
+  es: {
+    intro: "Soy {name} 😉 ¿Qué tal estás?",
+    isAssistant: "Voy a ser sincera contigo: soy {name}, una IA, no una persona real 😊",
+  },
+  pt: {
+    intro: "Eu sou {name} 😉 Tudo bem com você?",
+    isAssistant: "Vou ser sincera com você: eu sou {name}, uma IA, não uma pessoa real 😊",
+  },
+  de: {
+    intro: "Ich bin {name} 😉 Wie geht's dir?",
+    isAssistant: "Ich bin ehrlich zu dir: Ich bin {name}, eine KI, keine echte Person 😊",
+  },
+  it: {
+    intro: "Sono {name} 😉 Come stai?",
+    isAssistant: "Sarò sincera con te: sono {name}, un'IA, non una persona reale 😊",
+  },
+};
+
 /** Code de langue de l'assistant (« pt-br » → pt), ou null s'il n'est pas l'une des 6 langues. */
 export function chatLangOf(code: string | null | undefined): ChatLang | null {
   const base = (code ?? "").toLowerCase().split(/[-_]/)[0] ?? "";
@@ -108,7 +140,10 @@ export function fixedText(
   vars: FixedTextVars = {},
 ): string {
   const l = chatLangOf(lang) ?? "fr";
-  const template = FIXED_TEXTS[l][key];
+  const template =
+    vars.identity === "GIRL" && (key === "intro" || key === "isAssistant")
+      ? GIRL_FIXED_TEXTS[l][key]
+      : FIXED_TEXTS[l][key];
   const values: Record<string, string> = {
     name: vars.name ?? "",
     role: assistantRole(l, vars.gender),

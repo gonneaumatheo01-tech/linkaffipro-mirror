@@ -694,6 +694,15 @@ describe("persona et lien d'offre", () => {
     ).toBe(false);
   });
 
+  it("identité : GIRL et âge repris, ASSISTANT par défaut", () => {
+    const extras = { offerUsable: true, channelTitle: null, botName: null };
+    expect(toPersonaInput({ ...persona, identityKind: "GIRL", age: 24 }, extras)).toMatchObject({
+      identity: "GIRL",
+      age: 24,
+    });
+    expect(toPersonaInput(persona, extras)).toMatchObject({ identity: "ASSISTANT", age: null });
+  });
+
   it("nom court stable de 10 caractères par (persona, offre)", () => {
     const a = assistantOfferSlug("persona1", "off1");
     expect(a).toMatch(/^[0-9A-Za-z]{10}$/);

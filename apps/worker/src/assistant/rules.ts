@@ -60,6 +60,9 @@ export function chatLockKey(conversationId: string): string {
 
 export type PersonaRow = {
   name: string;
+  /** `Persona.identityKind` (phase 18) : "GIRL" ou "ASSISTANT" (défaut). */
+  identityKind?: string | null;
+  age?: number | null;
   gender: string;
   personality: string;
   tone: string;
@@ -89,6 +92,8 @@ export function toPersonaInput(
 ): PersonaInput {
   return {
     name: p.name,
+    identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
+    age: p.age ?? null,
     gender: p.gender,
     personality: p.personality,
     tone: p.tone,

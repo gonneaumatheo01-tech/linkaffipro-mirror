@@ -14,6 +14,7 @@ import { pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
+import { personaIdentity } from "./turn-types";
 import type {
   ChatButton,
   SendResult,
@@ -34,7 +35,13 @@ import {
   type LlmResponse,
   type UsagePurpose,
 } from "./types";
-import { asksIfBot, openBotQuestion, validateTurnOutput, type RejectCode } from "./validate";
+import {
+  asksIfBot,
+  botQuestionInsists,
+  openBotQuestion,
+  validateTurnOutput,
+  type RejectCode,
+} from "./validate";
 
 /** Attente avant le nouvel essai sur le même modèle après une panne passagère. */
 export const TRANSIENT_RETRY_DELAY_MS = 2000;
@@ -256,6 +263,13 @@ async function checkResponse(
     facts: conv.facts,
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
+    identity: personaIdentity(input.persona),
+    botInsists:
+      input.kind === "reply" &&
+      botQuestionInsists(
+        input.history,
+        inbound.map((m) => m.text),
+      ),
   });
   if (!v.ok) {
     await recordUsage(run, {
@@ -558,6 +572,7 @@ async function rollingSummary(run: Run): Promise<string | undefined> {
     const req = buildSummaryRequest({
       model,
       personaName: input.persona.name,
+      identity: personaIdentity(input.persona),
       previousSummary: input.conversation.summary,
       messages: input.summaryMessages,
       reasoning: input.settings.modelSupportsReasoning(model),
@@ -705,7 +720,11 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     fixedKey = safeFallbackKey(run, inbound);
     if (!fixedKey) return retryLater(run, inbound, deferred, code);
     texts = [
-      fixedText(run.lang, fixedKey, { name: input.persona.name, gender: input.persona.gender }),
+      fixedText(run.lang, fixedKey, {
+        name: input.persona.name,
+        gender: input.persona.gender,
+        identity: personaIdentity(input.persona),
+      }),
     ];
     events.push({
       type: "ai_failed",

@@ -1,6 +1,7 @@
 // Contrôles faits par le code après chaque réponse du modèle (contrat §3.3, règles 2 à 4 du client). Une réponse non
 // conforme est rejetée avec des codes stables ; le moteur la refait une fois avec une consigne de correction.
 import type { TurnOutput } from "./schema";
+import type { PersonaIdentity } from "./turn-types";
 import { MAX_TURN_MESSAGES, MIN_TURN_MESSAGES } from "./schema";
 import { escapeRegExp, foldText, matchesAny, visibleLength, wordsForm } from "./text-utils";
 
@@ -44,6 +45,13 @@ export type ValidationContext = {
    * pas partie (elle peut être dite).
    */
   privateTexts?: readonly (string | null | undefined)[];
+  /**
+   * « GIRL » : la persona est une fille ; à la première question « t'es un bot ? » elle peut répondre que non, mais
+   * quand la personne insiste (`botInsists`) l'aveu d'être une IA est exigé. Absent = ASSISTANT (phase 17).
+   */
+  identity?: PersonaIdentity;
+  /** La personne redemande si c'est un bot (voir `botQuestionInsists`) ; utile seulement en GIRL. */
+  botInsists?: boolean;
 };
 
 export type ValidationResult =
@@ -427,6 +435,14 @@ export function deniesBeingAssistant(text: string): boolean {
   return false;
 }
 
+/** Vrai si le texte contient le prénom de la persona (présentation d'une fille : ni « assistante » ni « canal »). */
+export function hasNameIntro(text: string, personaName: string): boolean {
+  const name = wordsForm(personaName);
+  if (!name)
+    return Boolean(personaName.trim()) && foldText(text).includes(foldText(personaName.trim()));
+  return new RegExp(` ${escapeRegExp(name)} `).test(` ${wordsForm(text)} `);
+}
+
 /** Vrai si le texte contient le prénom de la persona et un mot « assistant(e) » (6 langues). */
 export function hasIntro(text: string, personaName: string): boolean {
   const words = ` ${wordsForm(text)} `;
@@ -756,6 +772,20 @@ export function openBotQuestion(
   return null;
 }
 
+/**
+ * La personne insiste : elle demande à ce tour si c'est un bot, et l'a déjà demandé (plus tôt dans l'historique ou dans
+ * un autre message du même tour). Une persona « fille » doit alors avouer être une IA.
+ */
+export function botQuestionInsists(
+  history: ReadonlyArray<{ direction: "IN" | "OUT"; text: string }>,
+  turnTexts: readonly string[],
+): boolean {
+  const now = turnTexts.filter(asksIfBot).length;
+  if (now === 0) return false;
+  const before = history.filter((h) => h.direction === "IN" && asksIfBot(h.text)).length;
+  return now + before >= 2;
+}
+
 // ------------------------------------------------------------------
 // Validation d'une réponse
 // ------------------------------------------------------------------
@@ -792,22 +822,30 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     reject("too_long", `${total} caractères au total (maximum ${MAX_TURN_CHARS}).`);
 
   const joined = messages.join("\n");
+  const girl = ctx.identity === "GIRL";
   if (hasExplicitContent(joined)) reject("explicit", "Contenu explicite.");
-  if (deniesBeingAssistant(joined))
+  // Une fille parle d'elle comme d'une fille : le déni n'est refusé que si la personne insiste.
+  if ((!girl || ctx.botInsists) && deniesBeingAssistant(joined))
     reject("denies_assistant", "Prétend être une vraie personne ou nie être un assistant.");
   // Question posée : l'aveu doit dire « IA », « bot » ou « virtuel(le) » (« l'assistante du canal » seule peut passer
-  // pour une personne).
-  if (ctx.turnInboundTexts.some(asksIfBot) && !admitsBeingAi(joined))
+  // pour une personne). Une fille ne le doit qu'à l'insistance.
+  const mustAdmit = girl ? Boolean(ctx.botInsists) : ctx.turnInboundTexts.some(asksIfBot);
+  if (mustAdmit && !admitsBeingAi(joined))
     reject(
       "missing_assistant_admission",
       "La personne demande si c'est un bot : l'aveu franc d'être une IA manque.",
     );
   if (leaksInstructions(joined, ctx.privateTexts ?? []))
     reject("leak", "Dévoile les consignes internes (règles, consignes de l'équipe, format).");
-  if (ctx.isFirstAssistantMessage && !hasIntro(joined, ctx.personaName))
+  if (
+    ctx.isFirstAssistantMessage &&
+    !(girl ? hasNameIntro(joined, ctx.personaName) : hasIntro(joined, ctx.personaName))
+  )
     reject(
       "intro_missing",
-      "Premier message : prénom de la persona ou mot « assistant(e) » manquant.",
+      girl
+        ? "Premier message : prénom de la persona manquant."
+        : "Premier message : prénom de la persona ou mot « assistant(e) » manquant.",
     );
 
   const invented = inventedNumbers(
