@@ -331,7 +331,7 @@ describe("runTurn : contrôle, nouvel essai unique, repli sûr", () => {
     expect(r.outcome).toBe("replied");
     expect(deps.sender.messages().map((m) => m.text)).toEqual(["Coucou 😊"]);
     expect(r.rejected).toEqual(["markdown", "link"]);
-    expect(deps.usages.map((u) => [u.attempt, u.ok, u.error])).toEqual([
+    expect(deps.usages.map((u) => [u.attempt, u.ok, u.error?.split(" ")[0] ?? null])).toEqual([
       [1, false, "rejected:markdown,link"],
       [2, true, null],
     ]);

@@ -389,7 +389,7 @@ async function runConversationTurn(
           outputTokens: Math.max(0, Math.round(u.outputTokens)),
           costEur: u.costEur,
           ok: u.ok,
-          error: u.error?.slice(0, 200) ?? null,
+          error: u.error?.slice(0, 500) ?? null,
           attempt: u.attempt,
           requestId: u.requestId?.slice(0, 200) ?? null,
         },

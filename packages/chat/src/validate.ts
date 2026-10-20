@@ -669,7 +669,18 @@ const NUMBER_RE = new RegExp(
 );
 
 function numberMatches(text: string): RegExpMatchArray[] {
-  return [...foldText(text).matchAll(NUMBER_RE)];
+  const folded = foldText(text);
+  return [...folded.matchAll(NUMBER_RE)].filter((m) => {
+    const i = m.index ?? 0;
+    const before = folded[i - 1];
+    // Chiffre colle a une lettre = expression, pas un nombre (« h24 ») — sauf si la lettre suit un chiffre
+    // (« 20h30 » : « 30 » reste un nombre).
+    if (before && /[a-z]/.test(before)) {
+      const before2 = folded[i - 2];
+      return before2 !== undefined && /\d/.test(before2);
+    }
+    return true;
+  });
 }
 
 /**

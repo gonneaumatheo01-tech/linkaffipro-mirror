@@ -284,7 +284,7 @@ async function checkResponse(
       model: call.model,
       res: call.res,
       ok: false,
-      error: `rejected:${v.codes.join(",")}`,
+      error: `rejected:${v.codes.join(",")} ${v.details.join(" | ")} :: ${v.messages.join(" / ")}`,
       attempt: call.attempt,
     });
     run.rejected.push(...v.codes);
