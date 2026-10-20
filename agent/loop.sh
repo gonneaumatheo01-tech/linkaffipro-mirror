@@ -7,6 +7,15 @@ cd "$(git rev-parse --show-toplevel)"
 mkdir -p agent/out agent/done agent/tasks
 
 command -v claude >/dev/null 2>&1 || { echo "commande claude introuvable dans le PATH"; exit 1; }
+
+# Verrou : une seule boucle a la fois (une boucle orpheline est le pire des cas).
+LOCK="agent/.loop.lock"
+if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK")" 2>/dev/null; then
+  echo "une boucle tourne deja (pid $(cat "$LOCK")) : arret de celle-ci."
+  exit 0
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 echo "claude : $(claude --version 2>/dev/null || echo version-inconnue)"
 
 notifie() { osascript -e "display notification \"$1\" with title \"phase 18\"" >/dev/null 2>&1 || true; }
