@@ -94,13 +94,15 @@ describe("prompt : envoi du lien", () => {
   it("seuil atteint : consigne claire de proposer l'app quand le courant passe", () => {
     for (const persona of [girl, fakePersona()]) {
       const p = buildSystemPrompt(ctx({ persona }));
-      expect(p).toContain("c'est le moment");
+      expect(p).toContain("messages de sa part) : c'est le moment");
       expect(p).toContain("propose l'app dès ce tour avec send_offer : true et stage : PROPOSAL");
     }
   });
 
   it("lien déjà envoyé une fois : pas de relance de la consigne", () => {
-    expect(buildSystemPrompt(ctx({ offerSends: 1 }))).not.toContain("c'est le moment");
+    expect(buildSystemPrompt(ctx({ offerSends: 1 }))).not.toContain(
+      "messages de sa part) : c'est le moment",
+    );
   });
 });
 
