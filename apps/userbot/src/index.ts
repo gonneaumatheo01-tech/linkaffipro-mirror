@@ -16,7 +16,15 @@ async function main() {
   }
   for (const account of accounts) {
     try {
-      live.push(await startAccount({ id: account.id, label: account.label, phone: account.phone }));
+      live.push(
+        await startAccount({
+          id: account.id,
+          label: account.label,
+          phone: account.phone,
+          botId: account.botId,
+          personaId: account.personaId,
+        }),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ compte: account.label, err: message }, "connexion impossible");
