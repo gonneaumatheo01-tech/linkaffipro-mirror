@@ -28,6 +28,9 @@ export const COLD_FACTOR = 1.3;
 
 /** Refus de l'app : plus de discussion ici, 1 a 3 h. */
 /** La personne a repondu dans la foulee : elle est dans la conversation, elle repond aussi sec. */
+/** Relance : elle revient d'elle-meme, elle ouvre l'app et ecrit. */
+export const FOLLOWUP_OPENING_MIN_MS = 3000;
+export const FOLLOWUP_OPENING_MAX_MS = 10000;
 export const LIVE_WINDOW_MS = 2 * 60 * 1000;
 export const LIVE_MIN_MS = 2000;
 export const LIVE_MAX_MS = 6000;
@@ -57,6 +60,8 @@ export type OpeningInput = {
   peerDelayMs: number | null;
   /** La personne vient de repondre : elle est dans la conversation. */
   live: boolean;
+  /** Relance : c'est elle qui revient, elle n'attend rien de lui. */
+  followUp: boolean;
   /** Premier message de la conversation : elle ouvre vite, par curiosite. */
   isFirst: boolean;
   /** Discussion chaude. */
@@ -69,6 +74,10 @@ export type OpeningInput = {
 
 /** Delai avant d'ouvrir le message (sans « ecrit... »). `random` rend une valeur dans [0, 1). */
 export function openingDelayMs(input: OpeningInput, random: () => number): number {
+  if (input.followUp)
+    return Math.round(
+      FOLLOWUP_OPENING_MIN_MS + clamp01(random()) * (FOLLOWUP_OPENING_MAX_MS - FOLLOWUP_OPENING_MIN_MS),
+    );
   if (input.live)
     return Math.round(LIVE_MIN_MS + clamp01(random()) * (LIVE_MAX_MS - LIVE_MIN_MS));
   if (input.refused)

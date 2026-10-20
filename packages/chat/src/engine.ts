@@ -553,6 +553,7 @@ async function sendParts(
           cold: false,
           refused: input.conversation.appRefused === true,
           live: isLive(input),
+          followUp: input.kind === "follow_up",
         },
         deps.random,
       );
@@ -561,6 +562,7 @@ async function sendParts(
       await withTyping(
         () => deps.sender.sendTyping(),
         () => deps.sleep(typingDelayMs(text, isHot(input) || isLive(input))),
+        deps.timers,
       );
     } else {
       await safeTyping(run);
@@ -700,12 +702,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   // 2. Plafond mensuel : aucun appel, aucun message.
   if (await deps.capReached()) return capResult(run, inbound);
 
-  // 3. Génération avec « écrit… » ; relecture avant le premier envoi (reprise, messages regroupés une fois).
-  let gen = await withTyping(
-    () => deps.sender.sendTyping(),
-    () => generate(run, inbound),
-    deps.timers,
-  );
+  // 3. Génération (sans « écrit » : il part a l'envoi, jamais pendant l'attente) ; relecture (reprise, messages regroupés une fois).
+  let gen = await generate(run, inbound);
   let regenerated = false;
   let deferred: TurnInbound[] = [];
   for (;;) {
@@ -746,11 +744,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     regenerated = true;
     inbound = [...inbound, ...check.newInbound];
     run.extraMemberMessages += check.newInbound.length;
-    gen = await withTyping(
-      () => deps.sender.sendTyping(),
-      () => generate(run, inbound),
-      deps.timers,
-    );
+    gen = await generate(run, inbound);
   }
 
   // 4. Réponse à envoyer : celle du modèle, ou un repli sûr (texte fixe, jamais de lien) après deux refus ou une panne.

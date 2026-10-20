@@ -63,9 +63,9 @@ describe("runTurn : réponse simple", () => {
       "Moi ça va super, et toi ta journée ?",
     ]);
     expect(deps.sender.messages().every((m) => m.kind === "text" && !m.buttons)).toBe(true);
-    // « écrit… » pendant l'appel puis avant chaque message ; minuterie arrêtée
+    // « écrit… » avant chaque message, jamais pendant l'attente ; minuterie arrêtée
     const kinds = deps.sender.log.map((e) => e.kind);
-    expect(kinds).toEqual(["typing", "typing", "text", "typing", "text"]);
+    expect(kinds).toEqual(["typing", "text", "typing", "text"]);
     expect(deps.timers.active()).toBe(0);
     // délais : ouverture 22,7 s (aucun historique : plancher), puis frappe proportionnelle
     // (400 + 110 × longueur) et pause entre les deux messages (1,65 s à l'aléa 0,5).

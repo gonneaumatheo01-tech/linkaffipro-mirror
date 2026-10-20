@@ -9,6 +9,7 @@ const neutre = {
   cold: false,
   refused: false,
   live: false,
+  followUp: false,
 };
 
 describe("rythme", () => {
