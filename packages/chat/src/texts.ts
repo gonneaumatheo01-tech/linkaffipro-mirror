@@ -38,7 +38,7 @@ export const FIXED_TEXTS: Record<ChatLang, Record<FixedTextKey, string>> = {
   fr: {
     intro: "Moi c'est {name}, {role} du canal 😉 Comment tu vas ?",
     isAssistant: "Je suis {name}, {role} du canal : une IA, pas une vraie personne 😊",
-    retryLater: "Je reviens vers toi dans un instant 🙏",
+    retryLater: "attends je reviens 2 sec",
     minorStop:
       "Cet espace est réservé aux adultes (18 ans et plus), je dois donc m'arrêter là. Prends soin de toi 🙏",
     stopDone: "C'est noté, je ne t'écrirai plus. Bonne continuation !",

@@ -260,6 +260,13 @@ async function checkResponse(
     offerPitch: input.persona.hasOffer ? input.persona.offerPitch : "",
     memberTexts,
     turnInboundTexts: botQuestionTexts(input, inbound),
+    selfTexts: [
+      input.persona.name,
+      input.persona.age == null ? null : String(input.persona.age),
+      input.persona.personality,
+      input.persona.tone,
+      input.persona.extraPrompt,
+    ],
     facts: conv.facts,
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],

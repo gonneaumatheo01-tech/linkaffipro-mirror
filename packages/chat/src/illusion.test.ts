@@ -72,7 +72,7 @@ describe("prompt système en illusion", () => {
     expect(rest).not.toMatch(/\bIA\b|\bbot\b|assistante|canal|réponds franchement/);
     expect(p).not.toMatch(/assistante|canal/);
     expect(p).toContain("1 à 2 phrases maximum par message");
-    expect(p).toContain("Ne mets pas de question à la fin de chaque message");
+    expect(p).toContain("Termine presque toujours par une question courte");
     expect(p).not.toContain("Une seule question à la fois");
   });
 

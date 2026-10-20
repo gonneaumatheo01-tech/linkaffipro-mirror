@@ -1,33 +1,32 @@
-import { prisma } from "@linkaffipro/db";
-
-const BOT = "cmvfk8k6v0000f46a0hrhkezz";
+import { prisma } from '@linkaffipro/db';
 
 async function main() {
-  const convs = await prisma.conversation.findMany({ where: { botId: BOT }, orderBy: { createdAt: "asc" } });
-  for (const c of convs) {
-    await prisma.conversationMessage.deleteMany({ where: { conversationId: c.id } });
-    await prisma.conversation.update({
-      where: { id: c.id },
-      data: {
-        assistantTurns: 0,
-        memberMessages: 0,
-        offerSends: 0,
-        stage: "WELCOME",
-        status: "BOT",
-        summary: null,
-        styleProfile: {},
-        facts: [],
-        lastInboundAt: null,
-        lastAssistantAt: null,
-      },
-    });
+  const accounts = await prisma.telegramUserAccount.findMany();
+  const account = accounts.find((a: any) => a.botId) ?? accounts[0];
+  const botId = (account as any)?.botId;
+  if (!botId) { console.log('PAS DE BOT LIE'); process.exit(1); }
+
+  const convs = await prisma.conversation.findMany({ where: { botId } as any });
+  const ids = convs.map((c: any) => c.id);
+  console.log('conversations avant : ' + ids.length);
+
+  if (ids.length) {
+    const jobs: Array<[string, () => Promise<any>]> = [
+      ['liens', () => prisma.assistantOfferLink.deleteMany({ where: { conversationId: { in: ids } } })],
+      ['messages', () => prisma.conversationMessage.deleteMany({ where: { conversationId: { in: ids } } })],
+      ['usage', () => (prisma as any).aiConversationUsage.deleteMany({ where: { conversationId: { in: ids } } })],
+      ['conversations', () => prisma.conversation.deleteMany({ where: { id: { in: ids } } })],
+    ];
+    for (const [nom, fn] of jobs) {
+      try { const r = await fn(); console.log(nom + ' supprimes = ' + r.count); }
+      catch (e: any) { console.log(nom + ' ECHEC : ' + String(e.message).slice(0, 140)); }
+    }
   }
-  const s = await prisma.setting.findUniqueOrThrow({ where: { key: "assistant.venice" } });
-  const v = (s.value && typeof s.value === "object" && !Array.isArray(s.value)) ? s.value : {};
-  const modele = (v as Record<string, unknown>).defaultModel;
-  console.log("conversations remises a zero : " + convs.length);
-  console.log("modele en place : " + String(modele));
+
+  const rest = await prisma.conversation.findMany({ where: { botId } as any });
+  console.log('conversations apres : ' + rest.length);
   await prisma.$disconnect();
+  process.exit(0);
 }
 
-void main();
+main();

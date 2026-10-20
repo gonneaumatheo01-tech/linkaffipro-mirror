@@ -54,6 +54,11 @@ export type ValidationContext = {
   illusion?: boolean;
   /** La personne redemande si c'est un bot (voir `botQuestionInsists`) ; utile seulement en GIRL. */
   botInsists?: boolean;
+  /**
+   * Fiche de la persona (son age, sa ville...) : ses propres chiffres sont autorises. Sans elle, une fille ne peut
+   * pas repondre a « t'as quel age ? » (le validateur refusait « 23 ans »).
+   */
+  selfTexts?: readonly (string | null | undefined)[];
 };
 
 export type ValidationResult =
@@ -827,7 +832,8 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
   const girl = ctx.identity === "GIRL";
   // Illusion : « non, une vraie fille » est la réponse voulue, à la première question comme à l'insistance.
   const illusion = girl && ctx.illusion === true;
-  if (hasExplicitContent(joined)) reject("explicit", "Contenu explicite.");
+  // Illusion : une fille de 23 ans dit « bite », « cul », « baiser » sans se faire rejeter.
+  if (hasExplicitContent(joined) && !illusion) reject("explicit", "Contenu explicite.");
   // Une fille parle d'elle comme d'une fille : le déni n'est refusé que si la personne insiste.
   if (!illusion && (!girl || ctx.botInsists) && deniesBeingAssistant(joined))
     reject("denies_assistant", "Prétend être une vraie personne ou nie être un assistant.");
@@ -859,9 +865,10 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
         : "Premier message : prénom de la persona ou mot « assistant(e) » manquant.",
     );
 
+  const selfTexts = (ctx.selfTexts ?? []).filter((t): t is string => Boolean(t && t.trim()));
   const invented = inventedNumbers(
     joined,
-    [ctx.offerPitch, ...ctx.memberTexts, ...(ctx.facts ?? [])],
+    [ctx.offerPitch, ...ctx.memberTexts, ...(ctx.facts ?? []), ...selfTexts],
     { percentSources: [ctx.offerPitch] },
   );
   if (invented.length > 0)

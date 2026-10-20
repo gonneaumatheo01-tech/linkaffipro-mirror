@@ -37,6 +37,24 @@ export function classifySendError(err: unknown): Extract<SendResult, { ok: false
   };
 }
 
+/**
+ * Garde-fou deterministe sur les tics d'ecriture. Remplacements surs uniquement : aucun ne peut casser une phrase.
+ */
+const TIC_RULES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\b(?:[çc]a)\s+va\s+nickel\b/gi, "ca va"],
+  [/\b(?:[çc]a)\s+va\s+tranquille\b/gi, "ca va"],
+  [/\b(?:c'est|ces|ses)\s+nickel\b/gi, "c'est top"],
+  [/\bnickel\b/gi, "top"],
+  [/\s*,?\s*dis donc\b/gi, ""],
+  [/\s+ou quoi\s*\?/gi, " ?"],
+];
+
+export function normalizeTics(text: string): string {
+  let out = text;
+  for (const [re, to] of TIC_RULES) out = out.replace(re, to);
+  return out.replace(/[ \t]{2,}/g, " ").replace(/[ \t]+([!?.,;:])/g, "$1").trim();
+}
+
 export function createMtprotoTransport(ctx: TransportContext): ChatSender {
   // Rang des parties du tour : avance seulement sur un envoi reussi (aucun trou si un envoi echoue).
   let partIndex = 0;
@@ -67,7 +85,9 @@ export function createMtprotoTransport(ctx: TransportContext): ChatSender {
     }
   }
 
-  async function send(text: string, opts?: SendOptions): Promise<SendResult> {
+  async function send(raw: string, opts?: SendOptions): Promise<SendResult> {
+    // Le modele ignore la liste noire du prompt une fois sur trois : on corrige apres coup, a coup sur.
+    const text = normalizeTics(raw);
     try {
       const sent = await ctx.client.sendMessage(ctx.peer, { message: text, linkPreview: false });
       await persist(text, sent.id, opts);

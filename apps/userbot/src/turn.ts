@@ -59,6 +59,9 @@ type Incoming = IncomingPrivate & { at: Date };
 // Un Set suffit, la session (donc la reception) n'existe que dans ce process.
 const busy = new Set<string>();
 
+// Deux messages coup sur coup partent dans le meme tour.
+const GROUP_WINDOW_MS = 1_500;
+
 // ------------------------------------------------------------------
 // Expediteur et message entrant
 // ------------------------------------------------------------------
@@ -138,9 +141,9 @@ function parseMedia(raw: unknown): ChatMedia | null {
 }
 
 /** 20 derniers messages AVANT ce tour, du plus ancien au plus recent. */
-async function loadHistory(conversationId: string, inboundId: string): Promise<HistoryMessage[]> {
+async function loadHistory(conversationId: string, inboundIds: readonly string[]): Promise<HistoryMessage[]> {
   const rows = await prisma.conversationMessage.findMany({
-    where: { conversationId, NOT: { id: inboundId } },
+    where: { conversationId, NOT: { id: { in: [...inboundIds] } } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: HISTORY_LIMIT,
     select: { direction: true, author: true, text: true, media: true, createdAt: true },
@@ -254,7 +257,32 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
   }
   busy.add(conv.id);
   try {
-    await runConversationTurn(account, msg, conv.id, inboundId, accountRow?.persona ?? null);
+    // Fenetre de regroupement : deux messages coup sur coup partent dans le meme tour.
+    // Les messages recus pendant l'attente voient busy et restent en base (turnId null) : ils sont ramasses ici.
+    let pending: { id: string; text: string; createdAt: Date }[] = [];
+    for (let pass = 0; pass < 4; pass++) {
+      await new Promise((resolve) => setTimeout(resolve, pass === 0 ? GROUP_WINDOW_MS : 400));
+      const rows = await prisma.conversationMessage.findMany({
+        where: { conversationId: conv.id, direction: "IN", turnId: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, text: true, createdAt: true },
+      });
+      const stable = rows.length === pending.length;
+      pending = rows;
+      if (stable) break;
+    }
+    if (pending.length === 0) return;
+    // Un tour, puis on ramasse les messages arrives pendant la preparation (au plus 3 tours d'affilee).
+    for (let round = 0; round < 3; round++) {
+      await runConversationTurn(account, conv.id, pending, msg.peer, accountRow?.persona ?? null);
+      const rest = await prisma.conversationMessage.findMany({
+        where: { conversationId: conv.id, direction: "IN", turnId: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, text: true, createdAt: true },
+      });
+      if (rest.length === 0) return;
+      pending = rest;
+    }
   } finally {
     busy.delete(conv.id);
   }
@@ -262,9 +290,9 @@ async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<vo
 
 async function runConversationTurn(
   account: ReadyAccount,
-  msg: Incoming,
   conversationId: string,
-  inboundId: string,
+  inbound: ReadonlyArray<{ id: string; text: string; createdAt: Date }>,
+  peer: TransportPeer,
   persona: PersonaRow | null,
 ): Promise<void> {
   const conv = await prisma.conversation.findUniqueOrThrow({
@@ -281,11 +309,12 @@ async function runConversationTurn(
   if (!apiKey) return skip("no_api_key");
 
   const turnId = `ub_${randomUUID()}`;
-  await prisma.conversationMessage.update({ where: { id: inboundId }, data: { turnId } });
+  const inboundIds = inbound.map((m) => m.id);
+  await prisma.conversationMessage.updateMany({ where: { id: { in: inboundIds } }, data: { turnId } });
   if (!conv.personaId)
     await prisma.conversation.update({ where: { id: conv.id }, data: { personaId: persona.id } });
 
-  const history = await loadHistory(conv.id, inboundId);
+  const history = await loadHistory(conv.id, inboundIds);
   const modelId = persona.model?.trim() || cfg.defaultModel;
   const input: TurnInput = {
     kind: "reply",
@@ -313,14 +342,14 @@ async function runConversationTurn(
       lastAssistantAt: conv.lastAssistantAt,
     },
     history,
-    inbound: [{ id: inboundId, text: msg.text, at: msg.at }],
+    inbound: inbound.map((m) => ({ id: m.id, text: m.text, at: m.createdAt })),
   };
 
   const deps: TurnDeps = {
     llm: createVeniceClient(apiKey),
     sender: createMtprotoTransport({
       client: account.client,
-      peer: msg.peer,
+      peer,
       conversationId: conv.id,
       memberId: conv.memberId,
       turnId,
@@ -377,7 +406,7 @@ async function runConversationTurn(
   logger.info(
     {
       compte: account.label,
-      de: String(msg.telegramUserId),
+      de: conv.memberId,
       conversation: conv.id,
       entrants: result.inboundUsed.length,
       outcome: result.outcome,

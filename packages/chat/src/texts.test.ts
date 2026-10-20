@@ -29,7 +29,7 @@ describe("textes fixes", () => {
     );
     expect(fixedText("de", "intro", { name: "Lena", gender: "F" })).toContain("die Assistentin");
     expect(fixedText("es", "isAssistant", { name: "Lea", gender: "M" })).toContain("el asistente");
-    expect(fixedText("xx", "retryLater")).toBe("Je reviens vers toi dans un instant 🙏");
+    expect(fixedText("xx", "retryLater")).toBe("attends je reviens 2 sec");
     expect(fixedText("en", "stopDone")).toBe("Got it, I won't write to you again. All the best!");
   });
 
