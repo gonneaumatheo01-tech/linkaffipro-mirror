@@ -73,7 +73,11 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
         const incoming = await toIncomingPrivate(event);
         if (!incoming) return;
         logger.info(
-          { compte: account.label, de: String(incoming.telegramUserId), texte: incoming.text.slice(0, 160) },
+          {
+            compte: account.label,
+            de: String(incoming.telegramUserId),
+            texte: incoming.text.slice(0, 160),
+          },
           "message recu",
         );
         await handleIncomingPrivate(turnAccount, incoming);

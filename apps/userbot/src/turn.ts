@@ -33,12 +33,14 @@ import { createMtprotoTransport, type TransportPeer } from "./transport";
 export type TurnAccount = {
   id: string;
   label: string;
-  /** Bot fantome qui porte les conversations du compte. */
-  botId: string;
+  /** Bot fantome qui porte les conversations du compte (null : pas encore cree, aucun tour possible). */
+  botId: string | null;
+  /** Persona au demarrage ; relue en base a chaque message (changement sans redemarrer). */
+  personaId: string | null;
   client: TelegramClient;
 };
 
-export type IncomingPrivateMessage = {
+export type IncomingPrivate = {
   telegramUserId: bigint;
   telegramMessageId: number;
   text: string;
@@ -48,8 +50,9 @@ export type IncomingPrivateMessage = {
   languageCode: string | null;
   /** Pair GramJS de l'expediteur (deja resolu par l'evenement : evite une resolution de plus). */
   peer: TransportPeer;
-  at: Date;
 };
+
+type Incoming = IncomingPrivate & { at: Date };
 
 // Conversations dont un tour est en cours dans ce process : jamais deux reponses en meme temps.
 // Un Set suffit, la session (donc la reception) n'existe que dans ce process.
@@ -59,7 +62,7 @@ const busy = new Set<string>();
 // Expediteur et message entrant
 // ------------------------------------------------------------------
 
-async function upsertMember(msg: IncomingPrivateMessage) {
+async function upsertMember(msg: Incoming) {
   const identity = {
     firstName: msg.firstName,
     lastName: msg.lastName,
@@ -80,7 +83,12 @@ async function upsertMember(msg: IncomingPrivateMessage) {
   }
   const created = await prisma.member.upsert({
     where: { telegramUserId: msg.telegramUserId },
-    create: { telegramUserId: msg.telegramUserId, ...identity, firstSeenAt: msg.at, lastSeenAt: msg.at },
+    create: {
+      telegramUserId: msg.telegramUserId,
+      ...identity,
+      firstSeenAt: msg.at,
+      lastSeenAt: msg.at,
+    },
     update: { lastSeenAt: msg.at },
     select: { id: true },
   });
@@ -94,7 +102,7 @@ async function upsertMember(msg: IncomingPrivateMessage) {
  */
 async function recordInbound(
   conversationId: string,
-  msg: IncomingPrivateMessage,
+  msg: Incoming,
 ): Promise<string | null> {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -188,21 +196,32 @@ async function monthSpendEur(now: Date): Promise<number> {
 // ------------------------------------------------------------------
 
 /** Point d'entree du handler `NewMessage` : ne jette jamais (une erreur est journalisee). */
-export async function handleIncomingMessage(
+export async function handleIncomingPrivate(
   account: TurnAccount,
-  msg: IncomingPrivateMessage,
+  incoming: IncomingPrivate,
 ): Promise<void> {
+  const msg: Incoming = { ...incoming, at: new Date() };
+  if (!account.botId) {
+    logger.warn({ compte: account.label }, "pas de bot fantome : message ignore");
+    return;
+  }
   try {
-    await processIncoming(account, msg);
+    await processIncoming({ ...account, botId: account.botId }, msg);
   } catch (err) {
     logger.error(
-      { compte: account.label, de: String(msg.telegramUserId), err: err instanceof Error ? err.message : String(err) },
+      {
+        compte: account.label,
+        de: String(msg.telegramUserId),
+        err: err instanceof Error ? err.message : String(err),
+      },
       "tour de conversation en erreur",
     );
   }
 }
 
-async function processIncoming(account: TurnAccount, msg: IncomingPrivateMessage): Promise<void> {
+type ReadyAccount = TurnAccount & { botId: string };
+
+async function processIncoming(account: ReadyAccount, msg: Incoming): Promise<void> {
   const memberId = await upsertMember(msg);
   // Persona relue a chaque message : un changement dans Reglages → Comptes s'applique sans redemarrer.
   const accountRow = await prisma.telegramUserAccount.findUnique({
@@ -220,7 +239,10 @@ async function processIncoming(account: TurnAccount, msg: IncomingPrivateMessage
 
   if (busy.has(conv.id)) {
     // Regroupement hors perimetre : le message reste en base et sera dans l'historique du tour suivant.
-    logger.info({ compte: account.label, conversation: conv.id }, "tour deja en cours, message garde");
+    logger.info(
+      { compte: account.label, conversation: conv.id },
+      "tour deja en cours, message garde",
+    );
     return;
   }
   busy.add(conv.id);
@@ -232,8 +254,8 @@ async function processIncoming(account: TurnAccount, msg: IncomingPrivateMessage
 }
 
 async function runConversationTurn(
-  account: TurnAccount,
-  msg: IncomingPrivateMessage,
+  account: ReadyAccount,
+  msg: Incoming,
   conversationId: string,
   inboundId: string,
   persona: PersonaRow | null,

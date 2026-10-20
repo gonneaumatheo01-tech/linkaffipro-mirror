@@ -2,7 +2,11 @@
  * Reglages de l'IA de conversation lus par le userbot (`Setting` `assistant.venice`, meme forme que le worker) :
  * relus a chaque tour pour qu'un changement fait dans Reglages → IA de conversation s'applique sans redemarrage.
  */
-import { ASSISTANT_SETTING_KEY, parseAssistantConfig, type AssistantConfig } from "@linkaffipro/chat";
+import {
+  ASSISTANT_SETTING_KEY,
+  parseAssistantConfig,
+  type AssistantConfig,
+} from "@linkaffipro/chat";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 

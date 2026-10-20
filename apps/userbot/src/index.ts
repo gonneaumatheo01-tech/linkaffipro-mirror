@@ -29,7 +29,10 @@ async function main() {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ compte: account.label, err: message }, "connexion impossible");
       await prisma.telegramUserAccount
-        .update({ where: { id: account.id }, data: { status: "ERROR", lastError: message.slice(0, 500) } })
+        .update({
+          where: { id: account.id },
+          data: { status: "ERROR", lastError: message.slice(0, 500) },
+        })
         .catch(() => undefined);
     }
   }
