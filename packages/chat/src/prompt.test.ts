@@ -95,7 +95,7 @@ describe("prompt système", () => {
 
   it("parcours : lien permis (bouton, seuil d'intérêt), trop tôt, déjà envoyé, sans offre", () => {
     expect(buildSystemPrompt(ctx())).toContain(
-      "un bouton « Découvrir l'app » s'ajoutera sous ton dernier message",
+      "un lien « Découvrir l'app » s'ajoutera sous son dernier message",
     );
     expect(buildSystemPrompt(ctx())).toContain("d'au moins 6/10");
     expect(buildSystemPrompt(ctx({ memberMessages: 2 }))).toContain("Trop tôt pour le lien");
