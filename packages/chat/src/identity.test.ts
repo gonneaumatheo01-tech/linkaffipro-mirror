@@ -69,7 +69,7 @@ describe("prompt système d'une fille", () => {
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", memberMessages: 0 }),
     );
     expect(p).toContain("présente-toi en une phrase naturelle en disant ton prénom (en français");
-    expect(p).toContain("« Moi c'est Léa 😉 Comment tu vas ? »");
+    expect(p).toContain("« coucou 😊 »");
     expect(p).not.toContain("du canal");
   });
 
@@ -111,10 +111,11 @@ describe("textes fixes d'une fille", () => {
     for (const lang of CHAT_LANGS) {
       const intro = fixedText(lang, "intro", { name: "Léa", identity: "GIRL" });
       const admit = fixedText(lang, "isAssistant", { name: "Léa", identity: "GIRL" });
-      expect(intro).toContain("Léa");
+      // Français : « coucou 😊 », le prénom est déjà sur le profil Telegram.
+      if (lang !== "fr") expect(intro).toContain("Léa");
       for (const t of [intro, admit]) expect(t).not.toMatch(/canal|channel|kanal|canale|assist/i);
       expect(admitsBeingAi(admit)).toBe(true);
-      expect(GIRL_FIXED_TEXTS[lang].intro).toContain("{name}");
+      if (lang !== "fr") expect(GIRL_FIXED_TEXTS[lang].intro).toContain("{name}");
     }
   });
 

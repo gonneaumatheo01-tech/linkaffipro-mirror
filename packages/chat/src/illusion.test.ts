@@ -72,22 +72,32 @@ describe("prompt système en illusion", () => {
     expect(rest).not.toMatch(/\bIA\b|\bbot\b|assistante|canal|réponds franchement/);
     expect(p).not.toMatch(/assistante|canal/);
     expect(p).toContain("1 à 2 phrases maximum par message");
-    expect(p).toContain("Tu ne poses pas une question à chaque message");
+    expect(p).toContain("Ne mets pas de question à la fin de chaque message");
     expect(p).not.toContain("Une seule question à la fois");
   });
 
-  it("premier message : prénom seul", () => {
+  it("style de l'équipe : section « TU ECRIS COMME CA » avant les règles, expressions bannies", () => {
+    const p = buildSystemPrompt(ctx());
+    expect(p.indexOf("TU ECRIS COMME CA")).toBeGreaterThan(0);
+    expect(p.indexOf("TU ECRIS COMME CA")).toBeLessThan(p.indexOf("RÈGLES"));
+    expect(p).toContain("« dis donc »");
+    expect(buildSystemPrompt(ctx({ persona: fakePersona() }))).not.toContain("TU ECRIS COMME CA");
+  });
+
+  it("premier message : simple salut, sans prénom exigé", () => {
     const p = buildSystemPrompt(
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", memberMessages: 0 }),
     );
-    expect(p).toContain("« Moi c'est Léa 😉 Comment tu vas ? »");
+    expect(p).toContain("« coucou 😊 »");
+    expect(p).toContain("sans te présenter ni dire ton prénom");
+    expect(validate(["coucou 😊"], { isFirstAssistantMessage: true }).ok).toBe(true);
     expect(p).not.toMatch(/assistante|canal/);
   });
 
   it("corrections : jamais d'aveu demandé", () => {
     for (const code of ["denies_assistant", "missing_assistant_admission"])
       expect(correctionFor(code, real)).toContain("réponds que non");
-    expect(correctionFor("intro_missing", real)).not.toMatch(/assistante|canal/);
+    expect(correctionFor("intro_missing", real)).not.toMatch(/assistante|canal|prénom \(/);
   });
 
   it("résumé : sans « jouée par une IA »", () => {
