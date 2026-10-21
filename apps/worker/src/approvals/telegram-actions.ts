@@ -15,6 +15,7 @@ import {
   renderHtmlText,
 } from "@linkaffipro/telegram";
 import { logger } from "../logger";
+import { enqueueWelcomeDm } from "./welcome-dm";
 
 const MAX_ATTEMPTS = 3;
 const apiCache = new Map<string, { api: Api; tokenEncrypted: string }>();
@@ -221,6 +222,10 @@ export async function approveMembership(
     });
     await sendAcceptedMessage(m, bot).catch((err: Error) =>
       logger.warn({ err: err.message }, "message accepté non enfilé"),
+    );
+    // DM de bienvenue par le compte reel : mis en file, envoye par apps/userbot (jamais bloquant).
+    await enqueueWelcomeDm({ membershipId: m.id, channelId: m.channelId, memberId: m.memberId }).catch(
+      (err: Error) => logger.warn({ err: err.message }, "DM de bienvenue non enfile"),
     );
   };
   try {

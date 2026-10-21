@@ -433,6 +433,14 @@ model Channel {
   photoFileUniqueId String?
   /// Dernière relecture du titre et de la photo par `getChat` (phase 15, canaux qui ont une page d'atterrissage).
   chatCheckedAt     DateTime?
+  /// DM de bienvenue envoye par un COMPTE REEL (userbot) a l'acceptation d'une demande. Independant du message
+  /// d'accueil du bot (`ApprovalRule.sendWelcome`) : les deux coexistent. Le compte doit etre membre du canal.
+  welcomeDmEnabled      Boolean              @default(false)
+  welcomeDmAccountId    String?
+  welcomeDmAccount      TelegramUserAccount? @relation("WelcomeDmAccount", fields: [welcomeDmAccountId], references: [id], onDelete: SetNull)
+  /// Minutes d'attente apres l'acceptation avant l'envoi.
+  welcomeDmDelayMinutes Int                  @default(30)
+  welcomeDmText         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -441,6 +449,7 @@ model Channel {
   events        Event[]
   memberships   Membership[]
   approvalRules ApprovalRule[]
+  accountDms    AccountDm[]
   inviteLinks   InviteLink[]
   trackingLinks TrackingLink[]
   posts         Post[]
@@ -2160,6 +2169,36 @@ model AiConversationUsage {
 
 /// Compte Telegram REEL (pas un bot) portant une persona de l'assistant : il n'affiche pas le badge « bot »,
 /// il peut ecrire le premier, et il lit les messages par une connexion longue (MTProto).
+/// Message prive envoye depuis un compte Telegram REEL (userbot). Mis en file par l'acceptation d'une demande,
+/// relu par apps/userbot : un redemarrage ne perd rien.
+model AccountDm {
+  id             String              @id @default(cuid())
+  accountId      String
+  account        TelegramUserAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channelId      String?
+  channel        Channel?            @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  membershipId   String?
+  telegramUserId BigInt
+  text           String
+  dueAt          DateTime
+  status         AccountDmStatus     @default(PENDING)
+  attempts       Int                 @default(0)
+  lastError      String?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status, dueAt])
+  @@index([accountId, createdAt])
+}
+
+enum AccountDmStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 model TelegramUserAccount {
   id               String    @id @default(cuid())
   /// Nom interne (« Lea »).
@@ -2180,6 +2219,8 @@ model TelegramUserAccount {
   telegramUsername String?
   /// Proxy SOCKS5 facultatif (hote:port).
   proxyUrl         String?
+  accountDms        AccountDm[]
+  welcomeDmChannels Channel[]    @relation("WelcomeDmAccount")
   /// Plafonds anti-bannissement.
   dailyCap           Int       @default(60)
   newConversationCap Int       @default(20)

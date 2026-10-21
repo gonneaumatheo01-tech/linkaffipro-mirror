@@ -1,9 +1,11 @@
 import { prisma } from "@linkaffipro/db";
 import { logger } from "./logger";
 import { startAccount, type LiveAccount } from "./client";
+import { startWelcomeDmLoop } from "./welcome-dm";
 
 const live: LiveAccount[] = [];
 let stopping = false;
+let stopWelcomeDm: (() => void) | null = null;
 
 async function main() {
   logger.info("programme userbot demarre");
@@ -37,12 +39,16 @@ async function main() {
     }
   }
   logger.info({ connectes: live.length }, "comptes connectes");
+
+  // DM de bienvenue depuis les comptes reels (file remplie par le worker a l'acceptation).
+  stopWelcomeDm = startWelcomeDmLoop(() => new Map(live.map((a) => [a.id, a])));
 }
 
 async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   logger.info({ signal }, "arret en cours");
+  stopWelcomeDm?.();
   const timer = setTimeout(() => process.exit(1), 15_000);
   try {
     await Promise.all(live.map((a) => a.stop()));
