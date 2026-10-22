@@ -461,7 +461,7 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
 
   it("stats : seules les lignes de notre affilié sont demandées et importées (une ligne Link Affi = une ligne)", async () => {
     data.campaigns = [
-      { ...data.campaigns![0]!, affiliate_id: "aff-ours" },
+      { ...data.campaigns![0]!, affiliate_id: "11111111-1111-4111-8111-111111111111" },
       {
         id: "camp2",
         campaign_key: "zz",
@@ -473,7 +473,7 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
     data.stats = [
       {
         id: "st1",
-        affiliate_id: "aff-ours",
+        affiliate_id: "11111111-1111-4111-8111-111111111111",
         casino_id: "cas1",
         campaign_id: "camp1",
         date: "2026-10-04",
@@ -494,22 +494,22 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
         revshare_revenue: 0,
       },
     ];
-    // Le joueur rattaché par sub-ID fait de camp1 une offre à nous (et de aff-ours notre affilié).
+    // Le joueur rattaché par sub-ID fait de camp1 une offre à nous (et de 11111111-1111-4111-8111-111111111111 notre affilié).
     await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
     const statsCalls = calls.filter((c) => c.startsWith("stats?"));
-    expect(statsCalls).toEqual(["stats?order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours"]);
+    expect(statsCalls).toEqual(["stats?order=date&limit=5000&offset=0&eq.affiliate_id=11111111-1111-4111-8111-111111111111"]);
     expect(
       store.dailyStats.map((r) => [r.externalId, r.revshareRevenue, r.affiliateCampaignId]),
     ).toEqual([["st1", 13.0926, store.campaigns[0]!.id]]);
     expect(store.syncStates.get("stats")).toMatchObject({ isRunning: false, lastError: null });
-    expect(store.syncStates.get("stats")!.cursor).toMatchObject({ affiliates: ["aff-ours"] });
+    expect(store.syncStates.get("stats")!.cursor).toMatchObject({ affiliates: ["11111111-1111-4111-8111-111111111111"] });
 
     // Passage suivant : incrémental (jours récents + lignes créées depuis), rien de réimporté en double.
     calls.length = 0;
     await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:10:00Z") });
     expect(calls.filter((c) => c.startsWith("stats?"))).toEqual([
-      "stats?date_col=date&from=2026-10-02&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
-      "stats?date_col=created_at&from=2026-10-09&order=created_at&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+      "stats?date_col=date&from=2026-10-02&order=date&limit=5000&offset=0&eq.affiliate_id=11111111-1111-4111-8111-111111111111",
+      "stats?date_col=created_at&from=2026-10-09&order=created_at&limit=5000&offset=0&eq.affiliate_id=11111111-1111-4111-8111-111111111111",
     ]);
     expect(store.dailyStats).toHaveLength(1);
     data.campaigns = data.campaigns.slice(0, 1).map(({ affiliate_id: _a, ...c }) => c);
@@ -517,7 +517,7 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
   });
 
   it("relecture de nuit : les 35 derniers jours par date, une fois par nuit", async () => {
-    data.campaigns = [{ ...data.campaigns![0]!, affiliate_id: "aff-ours" }];
+    data.campaigns = [{ ...data.campaigns![0]!, affiliate_id: "11111111-1111-4111-8111-111111111111" }];
     // 1er passage (historique complet) à midi, puis 3 h 30 à Paris le lendemain : relecture profonde.
     await runSync({ client: fakeClient, now: () => new Date("2026-10-09T12:00:00Z") });
     expect(store.syncStates.get("stats")!.cursor).toMatchObject({
@@ -526,13 +526,13 @@ describe("commissions (phase 10) : CPA par joueur et agrégat stats de notre aff
     calls.length = 0;
     await runSync({ client: fakeClient, now: () => new Date("2026-10-10T01:30:00Z") });
     expect(calls.filter((c) => c.startsWith("stats?date_col=date"))).toEqual([
-      "stats?date_col=date&from=2026-09-05&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+      "stats?date_col=date&from=2026-09-05&order=date&limit=5000&offset=0&eq.affiliate_id=11111111-1111-4111-8111-111111111111",
     ]);
     // Même nuit, 10 minutes plus tard : retour aux 7 derniers jours.
     calls.length = 0;
     await runSync({ client: fakeClient, now: () => new Date("2026-10-10T01:40:00Z") });
     expect(calls.filter((c) => c.startsWith("stats?date_col=date"))).toEqual([
-      "stats?date_col=date&from=2026-10-03&order=date&limit=5000&offset=0&eq.affiliate_id=aff-ours",
+      "stats?date_col=date&from=2026-10-03&order=date&limit=5000&offset=0&eq.affiliate_id=11111111-1111-4111-8111-111111111111",
     ]);
     data.campaigns = data.campaigns.slice(0, 1).map(({ affiliate_id: _a, ...c }) => c);
   });
