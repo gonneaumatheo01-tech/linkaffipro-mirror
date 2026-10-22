@@ -30,6 +30,7 @@ import {
   mapRevshareSnapshot,
   mapStat,
   ourAffiliateIds,
+  keepUuidIds,
   statsDeepDue,
   statsQueries,
   windowQuery,
@@ -750,7 +751,8 @@ async function ourStatsAffiliates(db: Db): Promise<string[]> {
     where: { id: { in: [...ids] } },
     select: { raw: true },
   });
-  return ourAffiliateIds(offers);
+  // Un affiliate_id non-uuid (donnee de demo, saisie manuelle) ferait echouer toute la table `stats`.
+  return keepUuidIds(ourAffiliateIds(offers));
 }
 
 const HANDLERS: Record<SyncTable, (ctx: SyncContext, rows: never[]) => Promise<void>> = {

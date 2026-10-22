@@ -1,19 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildRateTable,
-  chooseSubId,
-  mapCampaign,
-  mapCasino,
-  mapClick,
-  mapDepositSnapshot,
-  mapEventType,
-  mapFtdInvalidation,
-  mapPlayer,
-  mapPlayerEvent,
-  mapRevshareSnapshot,
-  toEur,
-  trackingUrlTemplateFor,
-} from "./mapping";
+import { buildRateTable, chooseSubId, keepUuidIds, mapCampaign, mapCasino, mapClick, mapDepositSnapshot, mapEventType, mapFtdInvalidation, mapPlayer, mapPlayerEvent, mapRevshareSnapshot, toEur, trackingUrlTemplateFor } from "./mapping";
 
 const rates = buildRateTable([
   { currency: "EUR", rate: 1 },
@@ -304,5 +290,16 @@ describe("snapshots, invalidations, clics", () => {
         created_at: "2026-10-09T12:00:00Z",
       }),
     ).toMatchObject({ subId: "AbC123def456", campaignExternalId: "k1" });
+  });
+});
+
+describe("keepUuidIds", () => {
+  it("garde les uuid et ecarte les slugs de demo", () => {
+    expect(keepUuidIds(["0544e2ee-28e4-4ca8-b160-5b910a95fb8d", "demo-affilie", ""])).toEqual([
+      "0544e2ee-28e4-4ca8-b160-5b910a95fb8d",
+    ]);
+  });
+  it("accepte la casse haute", () => {
+    expect(keepUuidIds(["0544E2EE-28E4-4CA8-B160-5B910A95FB8D"])).toHaveLength(1);
   });
 });

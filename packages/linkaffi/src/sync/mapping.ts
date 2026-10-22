@@ -332,6 +332,17 @@ export function mapStat(row: LaStat): StatInput | null {
 }
 
 /** Affiliés Link Affi propriétaires d'offres (`campaigns.affiliate_id`, gardé dans la ligne brute), sans doublon. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Garde les identifiants utilisables comme filtre `eq.<colonne>` cote API.
+ * Une valeur non-uuid (donnee de demo, saisie manuelle) fait echouer PostgREST
+ * (`invalid input syntax for type uuid`) et bloquerait toute une table.
+ */
+export function keepUuidIds(ids: readonly string[]): string[] {
+  return ids.filter((id) => UUID_RE.test(id));
+}
+
 export function ourAffiliateIds(offers: ReadonlyArray<{ raw: unknown }>): string[] {
   const out = new Set<string>();
   for (const o of offers) {
