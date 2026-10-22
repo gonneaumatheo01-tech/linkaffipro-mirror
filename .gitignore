@@ -32,3 +32,5 @@ docs/PHASE-DONE
 # les webp, index.json, a11y-report.json et docs/REFONTE-CAPTURES.md sont commités.
 docs/captures/raw/
 docs/captures/**/*.png
+
+apps/worker/backups/
