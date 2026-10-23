@@ -99,10 +99,17 @@ export async function runAlgoWeekly(deps: AgentsDeps, nightly: NightlyResult, op
 }
 
 /** La nuit / le lundi sont-ils dus (pur) ? */
-export function algoDue(now: Date, last: { nightly: string | null; weekly: string | null }): { nightly: boolean; weekly: boolean } {
+export function algoDue(
+  now: Date,
+  last: { nightly: string | null; weekly: string | null },
+  frequency: "weekly" | "biweekly" = "weekly",
+): { nightly: boolean; weekly: boolean } {
   const hour = parisParts(now).hour;
   const nightly = hour >= ALGO_NIGHTLY_HOUR && last.nightly !== parisDay(now);
-  const weekly = parisWeekday(now) === 1 && hour >= ALGO_WEEKLY_HOUR && last.weekly !== parisWeekStart(now);
+  // Une semaine sur deux : semaines paires depuis le lundi 5 janvier 1970 (repère fixe, indépendant des passages).
+  const weekIndex = Math.round((Date.parse(`${parisWeekStart(now)}T00:00:00Z`) - Date.UTC(1970, 0, 5)) / (7 * 86_400_000));
+  const weekly =
+    parisWeekday(now) === 1 && hour >= ALGO_WEEKLY_HOUR && last.weekly !== parisWeekStart(now) && (frequency === "weekly" || weekIndex % 2 === 0);
   return { nightly, weekly };
 }
 
@@ -113,7 +120,11 @@ export async function runAlgoTick(deps: AgentsDeps): Promise<Out> {
   if (team.paused || (await isAgentsPausedAll(deps.prisma))) return { skipped: "équipe Algorithme en pause" };
   await part(deps, "alerts", out, () => runDropAlerts(deps));
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  const due = algoDue(nowOf(deps), { nightly: str(await readSetting(deps, ALGO_NIGHTLY_KEY)), weekly: str(await readSetting(deps, ALGO_WEEKLY_KEY)) });
+  const due = algoDue(
+    nowOf(deps),
+    { nightly: str(await readSetting(deps, ALGO_NIGHTLY_KEY)), weekly: str(await readSetting(deps, ALGO_WEEKLY_KEY)) },
+    team.settings.frequency,
+  );
   if (due.nightly || due.weekly) {
     const nightly = await runAlgoNightly(deps);
     out.nightly = nightly.out;

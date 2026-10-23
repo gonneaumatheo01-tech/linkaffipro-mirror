@@ -31,6 +31,8 @@ export type AlgoSettings = {
   experimentMinSamples: number;
   /** Seuil de signification des tests (5 %). */
   alpha: number;
+  /** Synthèse et rapport : chaque semaine ou une semaine sur deux (réglage du site). */
+  frequency: "weekly" | "biweekly";
 };
 
 export const DEFAULT_ALGO_SETTINGS: Readonly<AlgoSettings> = Object.freeze({
@@ -39,13 +41,14 @@ export const DEFAULT_ALGO_SETTINGS: Readonly<AlgoSettings> = Object.freeze({
   minConversations: 30,
   maxMixShiftPoints: 20,
   maxPostsPerDay: 6,
-  allowedHours: { default: { start: "08:00", end: "24:00" }, byChannel: {} },
+  allowedHours: { default: { start: "08:00", end: "23:00" }, byChannel: {} },
   windowRatio: 0.8,
   minPostsPerCell: 3,
   dropPct: 30,
   experimentDays: 14,
   experimentMinSamples: 20,
   alpha: 0.05,
+  frequency: "weekly",
 });
 
 function record(v: unknown): Record<string, unknown> {
@@ -65,11 +68,16 @@ function range(v: unknown): HourRange | null {
   return { start: r.start as string, end: r.end as string };
 }
 
-/** `settings.algo` (JSON) → réglages complets. */
+/**
+ * `settings.algo` (JSON) → réglages complets. Clés écrites par le site (Agents → Ce qui marche → Réglages) :
+ * `minPosts`, `minViews`, `minConversations`, `maxMixPointsPerWeek`, `maxPostsPerDay`, `allowedStart`, `allowedEnd`,
+ * `frequency` ; les autres (`allowedHours.byChannel`, seuils des tests et des alertes) n'ont que leur défaut à l'écran.
+ */
 export function parseAlgoSettings(v: unknown): AlgoSettings {
   const r = record(v);
   const d = DEFAULT_ALGO_SETTINGS;
   const hours = record(r.allowedHours);
+  const siteRange = range({ start: r.allowedStart, end: r.allowedEnd });
   const byChannel: Record<string, HourRange> = {};
   for (const [id, x] of Object.entries(record(hours.byChannel))) {
     const h = range(x);
@@ -79,15 +87,16 @@ export function parseAlgoSettings(v: unknown): AlgoSettings {
     minPosts: Math.round(num(r.minPosts, d.minPosts, 1, 10_000)),
     minViews: Math.round(num(r.minViews, d.minViews, 0, 100_000_000)),
     minConversations: Math.round(num(r.minConversations, d.minConversations, 1, 100_000)),
-    maxMixShiftPoints: num(r.maxMixShiftPoints, d.maxMixShiftPoints, 0, 100),
+    maxMixShiftPoints: num(r.maxMixPointsPerWeek ?? r.maxMixShiftPoints, d.maxMixShiftPoints, 0, 100),
     maxPostsPerDay: Math.round(num(r.maxPostsPerDay, d.maxPostsPerDay, 1, 48)),
-    allowedHours: { default: range(hours.default) ?? { ...d.allowedHours.default }, byChannel },
+    allowedHours: { default: siteRange ?? range(hours.default) ?? { ...d.allowedHours.default }, byChannel },
     windowRatio: num(r.windowRatio, d.windowRatio, 0.1, 1),
     minPostsPerCell: Math.round(num(r.minPostsPerCell, d.minPostsPerCell, 1, 1000)),
     dropPct: num(r.dropPct, d.dropPct, 1, 100),
     experimentDays: Math.round(num(r.experimentDays, d.experimentDays, 1, 90)),
     experimentMinSamples: Math.round(num(r.experimentMinSamples, d.experimentMinSamples, 2, 100_000)),
     alpha: num(r.alpha, d.alpha, 0.001, 0.2),
+    frequency: r.frequency === "biweekly" ? "biweekly" : "weekly",
   };
 }
 

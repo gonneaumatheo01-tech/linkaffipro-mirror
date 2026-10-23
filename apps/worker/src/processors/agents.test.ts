@@ -9,11 +9,14 @@ vi.mock("@linkaffipro/agents", () => ({
   sweepValidations: vi.fn(async () => ({ reminded: 0 })),
   sendDailyReport: vi.fn(async () => ({ sent: false })),
   runBench: vi.fn(async () => ({ ok: true, open: true })),
+  runAlgoTick: vi.fn(async () => ({ alerts: {} })),
+  runAlgoReportNow: vi.fn(async () => ({ ok: true, message: "ok", reportIds: [] })),
 }));
 
 import * as agents from "@linkaffipro/agents";
 import { PROCESSORS } from "./index";
 import { repeatableAgentsOrchestrator } from "./agents-orchestrator";
+import { repeatableAgentsAlgo } from "./agents-algo";
 
 const job = (data: unknown, name = "x") => ({ id: "j", name, data }) as never;
 
@@ -44,5 +47,12 @@ describe("processeurs des agents (phase 19)", () => {
     expect(agents.sweepValidations).toHaveBeenCalled();
     await PROCESSORS["agents-orchestrator"].process(job({ type: "bench", benchId: "b1" }));
     expect(agents.runBench).toHaveBeenCalledWith({}, { type: "bench", benchId: "b1" });
+  });
+  it("équipe Algorithme (phase 21) : passage horaire et rapport maintenant", async () => {
+    expect(repeatableAgentsAlgo).toEqual([{ data: { type: "algo", task: "tick" }, everyMs: 3_600_000, jobId: "agents-algo-tick" }]);
+    await PROCESSORS["agents-algo"].process(job({ type: "algo", task: "tick" }));
+    expect(agents.runAlgoTick).toHaveBeenCalledWith({});
+    await PROCESSORS["agents-algo"].process(job({ type: "algo", task: "report-now", send: false }));
+    expect(agents.runAlgoReportNow).toHaveBeenCalledWith({}, { send: false });
   });
 });

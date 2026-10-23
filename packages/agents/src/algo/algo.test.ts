@@ -39,6 +39,8 @@ describe("alertes de décrochage", () => {
 describe("réglages et questions de l'équipe Algorithme", () => {
   it("lecture tolérante des réglages", () => {
     expect(parseAlgoSettings(null)).toEqual(DEFAULT_ALGO_SETTINGS);
+    const site = parseAlgoSettings({ maxMixPointsPerWeek: 10, allowedStart: "09:00", allowedEnd: "22:00", frequency: "biweekly" });
+    expect(site).toMatchObject({ maxMixShiftPoints: 10, allowedHours: { default: { start: "09:00", end: "22:00" } }, frequency: "biweekly" });
     const p = parseAlgoSettings({ minPosts: "30", maxPostsPerDay: 99, allowedHours: { byChannel: { c: { start: "10:00", end: "20:00" }, d: { start: "x" } } } });
     expect(p.minPosts).toBe(30);
     expect(p.maxPostsPerDay).toBe(6);
@@ -60,5 +62,9 @@ describe("réglages et questions de l'équipe Algorithme", () => {
     expect(algoDue(mon, { nightly: "2026-10-26", weekly: "2026-10-26" })).toEqual({ nightly: false, weekly: false });
     expect(algoDue(new Date("2026-10-27T01:00:00Z"), { nightly: "2026-10-26", weekly: "2026-10-26" })).toEqual({ nightly: false, weekly: false });
     expect(algoDue(new Date("2026-10-27T04:00:00Z"), { nightly: "2026-10-26", weekly: "2026-10-26" }).nightly).toBe(true);
+    // Une semaine sur deux : exactement un lundi sur deux.
+    const a = algoDue(mon, { nightly: null, weekly: null }, "biweekly").weekly;
+    const b = algoDue(new Date("2026-11-02T07:30:00Z"), { nightly: null, weekly: null }, "biweekly").weekly;
+    expect(a).not.toBe(b);
   });
 });

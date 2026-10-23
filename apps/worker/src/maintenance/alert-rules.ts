@@ -29,7 +29,9 @@ export type AlertKind =
   | "bot_blocked_rate"
   | "assistant_ai_failing"
   | "assistant_cap_reached"
-  | "agents_team_paused";
+  | "agents_team_paused"
+  | "agents_channel_drop"
+  | "agents_persona_drop";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -793,7 +795,12 @@ function formatTime(d: Date): string {
  * Types d'alerte gérés canal par canal (création, dédoublonnage et résolution à part : `bot_blocked_rate`), jamais
  * résolus par la règle générale « type plus détecté ».
  */
-export const PER_CHANNEL_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>(["bot_blocked_rate"]);
+export const PER_CHANNEL_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
+  "bot_blocked_rate",
+  // Équipe Algorithme (phase 21) : créées et résolues cible par cible par la file `agents-algo`, notifiées ici.
+  "agents_channel_drop",
+  "agents_persona_drop",
+]);
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */
 export function shouldCreate(

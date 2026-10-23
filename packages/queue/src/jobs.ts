@@ -247,6 +247,12 @@ export type AgentsOrchestratorJob =
  */
 export type AgentStepJob = { type: "step"; missionId: string; index: number; poll?: number };
 
+/**
+ * File `agents-algo` (phase 21) : en plus des étapes, le passage horaire du Chef Algorithme (`tick` : alertes, nuit,
+ * lundi) et « Rapport maintenant » (`report-now`).
+ */
+export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: boolean };
+
 /** File `agents-ads` (phase 24) : vide en phase 19. */
 export type AgentsAdsJob = { type: "tick" };
 
@@ -278,7 +284,9 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                         ? ChatJob
                         : Q extends "agents-orchestrator"
                           ? AgentsOrchestratorJob
-                          : Q extends AgentTeamQueue
+                          : Q extends "agents-algo"
+                            ? AgentStepJob | AgentsAlgoJob
+                            : Q extends AgentTeamQueue
                             ? AgentStepJob
                             : Q extends "agents-ads"
                               ? AgentsAdsJob
