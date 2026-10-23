@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createTestPostMission, startBench } from "@linkaffipro/agents";
 import { audit } from "@linkaffipro/db";
+import { parseCasinoPlanThemesForm, parseCasinoTeamForm } from "@/lib/agents/casino";
+import { readCasinoSettingsRaw, writeCasinoSettings } from "@/lib/agents/casino-save";
 import { parseDatingSettingsForm, parseTestPostForm } from "@/lib/agents/dating";
 import { loadMediaKeys } from "@/lib/agents/dating-queries";
 import { buildAgentsDeps } from "@/lib/agents/deps";
@@ -26,9 +28,20 @@ export async function saveTeamSettingsAction(formData: FormData): Promise<void> 
   if (!parsed.ok) backTo(path, { error: parsed.error }, "#reglages");
   const video = isAdmin && team === "dating" ? parseDatingSettingsForm(formData) : null;
   if (video && !video.ok) backTo(path, { error: video.error }, "#reglages");
+  // Casino (phase 22) : seuil de manque et rotation, ADMIN seulement.
+  const casino = isAdmin && team === "casino" ? parseCasinoTeamForm(formData) : null;
+  if (casino && !casino.ok) backTo(path, { error: casino.error }, "#reglages");
   try {
     await saveTeamSettings(team, { ...parsed.data, budgets: isAdmin ? parsed.data.budgets : null }, user.id);
     if (video?.ok) await saveDatingMediaSettings(video.data, user.id);
+    if (casino?.ok) {
+      const { settings } = await readCasinoSettingsRaw();
+      if (settings.lowStock !== casino.data.lowStock || settings.rotationDays !== casino.data.rotationDays)
+        await writeCasinoSettings({ ...settings, ...casino.data }, user.id, "agents.casino_settings_saved", {
+          from: { lowStock: settings.lowStock, rotationDays: settings.rotationDays },
+          to: casino.data,
+        });
+    }
   } catch (err) {
     if (isRedirectError(err)) throw err;
     backTo(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#reglages");
@@ -45,6 +58,13 @@ export async function saveChannelPlanAction(formData: FormData): Promise<void> {
   const path = `/agents/${team}`;
   const parsed = parseChannelPlanForm(formData);
   if (!parsed.ok) backTo(path, { error: parsed.error }, "#plan");
+  // Casino (phase 22) : thèmes de l'équipe cochés, chacun avec son poids (`[{ theme, weight }]`).
+  if (team === "casino") {
+    const { settings } = await readCasinoSettingsRaw();
+    const themes = parseCasinoPlanThemesForm(formData, settings.themes);
+    if (!themes.ok) backTo(path, { error: themes.error }, "#plan");
+    parsed.data.themes = themes.data;
+  }
   try {
     const r = await saveChannelPlan(team, parsed.data, user.id);
     if (!r.ok) backTo(path, { error: r.error }, "#plan");

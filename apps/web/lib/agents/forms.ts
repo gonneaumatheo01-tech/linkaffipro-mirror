@@ -151,7 +151,8 @@ export type ChannelPlanInput = {
   mix: { video: number; photo: number; text: number };
   personaId: string | null;
   campaignId: string | null;
-  themes: string[];
+  /** Sujets libres ; pour un canal Casino (phase 22), thèmes de l'équipe avec leur poids. */
+  themes: string[] | Array<{ theme: string; weight: number }>;
 };
 
 function minutesOf(hhmm: string): number {

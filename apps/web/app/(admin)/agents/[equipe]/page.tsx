@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AgentsNav } from "@/components/agents/agents-nav";
 import { ChannelPlanForm } from "@/components/agents/channel-plan-form";
+import {
+  CasinoProduction,
+  CasinoRequests,
+  CasinoStock,
+  CasinoThemes,
+  CasinoToClassify,
+} from "@/components/agents/casino/casino-production";
 import { DatingConversationCard, DatingProduction } from "@/components/agents/dating-production";
 import { MissionFiltersForm, MissionsTable } from "@/components/agents/missions-table";
 import { LevelPicker, PauseButton, SimulationSwitch } from "@/components/agents/team-controls";
@@ -26,6 +33,15 @@ import {
   parseDatingSettings,
 } from "@/lib/agents/dating";
 import { loadDatingPersonas, loadDatingSettings, loadMediaKeys } from "@/lib/agents/dating-queries";
+import { parseCasinoSettings } from "@/lib/agents/casino";
+import {
+  loadCasinoRecentUsages,
+  loadCasinoRequests,
+  loadCasinoSettings,
+  loadCasinoStock,
+  loadThemeMediaCounts,
+  loadToClassify,
+} from "@/lib/agents/casino-queries";
 import { simulationSentence, teamPills } from "@/lib/agents/display";
 import { parseMissionFilters } from "@/lib/agents/missions";
 import {
@@ -92,6 +108,19 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
   const [datingPersonas, datingSettings, mediaKeys] = isDating
     ? await Promise.all([loadDatingPersonas(now), loadDatingSettings(), loadMediaKeys()])
     : [[], parseDatingSettings(null), { fal: false, magichour: false }];
+  // Équipe Casino (phase 22) : thèmes, stock, médias à classer, demandes, dernières publications.
+  const isCasino = team === "casino";
+  const casinoSettings = isCasino ? await loadCasinoSettings() : parseCasinoSettings(null);
+  const [casinoStock, toClassify, casinoRequests, casinoUsages, themeCounts] = isCasino
+    ? await Promise.all([
+        loadCasinoStock(now),
+        loadToClassify(),
+        loadCasinoRequests(),
+        loadCasinoRecentUsages(),
+        loadThemeMediaCounts(casinoSettings.themes.map((t) => t.key)),
+      ])
+    : [null, { rows: [], total: 0 }, [], [], {}];
+  const channelTitles = Object.fromEntries(plans.map((c) => [c.id, c.title]));
   // Plafonds affichés : ceux de l'équipe, sinon (Rencontres) les valeurs par défaut du moteur.
   const shownBudgets: Partial<Record<string, number>> = isDating
     ? { video: DATING_DEFAULT_BUDGETS.video, image: DATING_DEFAULT_BUDGETS.image, ...config.budgets }
@@ -113,7 +142,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
         secondaryActions={
           <>
             <PauseButton team={team} config={config} from={from} />
-            {TEST_MISSION_TEAMS.includes(team) && !isDating ? (
+            {TEST_MISSION_TEAMS.includes(team) && !isDating && !isCasino ? (
               <form action={createTestMissionAction}>
                 <input type="hidden" name="team" value={team} />
                 <input type="hidden" name="from" value={from} />
@@ -241,6 +270,55 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
               )}
             </FormSection>
           ) : null}
+          {isCasino ? (
+            <FormSection
+              title="Stock et rotation"
+              description="Quand l'équipe redemande des vidéos, et combien de temps une vidéo attend avant de revenir sur le même canal."
+            >
+              {isAdmin ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="casinoLowStock">Seuil de manque (vidéos non utilisées par thème)</Label>
+                    <Input
+                      id="casinoLowStock"
+                      name="casinoLowStock"
+                      type="number"
+                      min={1}
+                      max={50}
+                      required
+                      defaultValue={casinoSettings.lowStock}
+                      aria-describedby="casinoLowStock-aide"
+                    />
+                    <p id="casinoLowStock-aide" className="text-note text-muted-foreground">
+                      Sous ce nombre, le thème passe en orange et l&apos;équipe vous en redemande (3 conseillé).
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="casinoRotationDays">Rotation (jours)</Label>
+                    <Input
+                      id="casinoRotationDays"
+                      name="casinoRotationDays"
+                      type="number"
+                      min={1}
+                      max={365}
+                      required
+                      defaultValue={casinoSettings.rotationDays}
+                      aria-describedby="casinoRotationDays-aide"
+                    />
+                    <p id="casinoRotationDays-aide" className="text-note text-muted-foreground">
+                      Une vidéo ne revient jamais sur le même canal avant ce délai, ni le même jour sur deux canaux
+                      Casino (30 conseillé).
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-body text-foreground">
+                  Seuil de manque : {casinoSettings.lowStock} vidéos, rotation : {casinoSettings.rotationDays} jours.{" "}
+                  <span className="text-note text-muted-foreground">Réservé aux administrateurs.</span>
+                </p>
+              )}
+            </FormSection>
+          ) : null}
           <FormSection
             title="Plafonds du mois"
             description={
@@ -287,6 +365,20 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
           />
         ) : null}
 
+        {isCasino ? (
+          <>
+            <CasinoStock rows={casinoStock} settings={casinoSettings} />
+            <CasinoToClassify items={toClassify.rows} total={toClassify.total} settings={casinoSettings} now={now} />
+            <CasinoRequests
+              requests={casinoRequests}
+              settings={casinoSettings}
+              channelTitles={channelTitles}
+              now={now}
+            />
+            <CasinoProduction usages={casinoUsages} settings={casinoSettings} simulation={config.simulation} now={now} />
+          </>
+        ) : null}
+
         {TEAM_VERTICAL[team] ? (
           <FormSection
             id="plan"
@@ -309,12 +401,15 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
                     personas={choices.personas}
                     campaigns={choices.campaigns}
                     personaRequired={isDating}
+                    casinoThemes={isCasino ? casinoSettings.themes : undefined}
                   />
                 ))}
               </div>
             )}
           </FormSection>
         ) : null}
+
+        {isCasino ? <CasinoThemes settings={casinoSettings} counts={themeCounts} isAdmin={isAdmin} /> : null}
 
         {isDating ? <DatingConversationCard /> : null}
 

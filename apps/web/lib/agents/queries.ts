@@ -24,6 +24,7 @@ import {
   type MissionFilters,
 } from "./missions";
 import { TEAM_CHAINS, TEAM_VERTICAL } from "./teams";
+import { parsePlanThemes, type WeightedTheme } from "./casino";
 
 const CONFIG_SELECT = {
   teamKey: true,
@@ -166,6 +167,10 @@ export type ChannelPlanRow = ChannelChoice & {
     personaId: string | null;
     campaignId: string | null;
     themes: string[];
+    /** Casino (phase 22) : thèmes de l'équipe avec leur poids (`[{ theme, weight }]`). */
+    weightedThemes: WeightedTheme[];
+    /** Phase 21 : fenêtres conseillées par l'équipe Algorithme (lecture seule), telles qu'enregistrées. */
+    suggestedWindows: unknown[];
   } | null;
 };
 
@@ -203,6 +208,8 @@ export async function loadChannelPlans(team: TeamKey): Promise<ChannelPlanRow[]>
           themes: Array.isArray(c.agentPlan.themes)
             ? c.agentPlan.themes.filter((t): t is string => typeof t === "string")
             : [],
+          weightedThemes: parsePlanThemes(c.agentPlan.themes),
+          suggestedWindows: Array.isArray(c.agentPlan.suggestedWindows) ? c.agentPlan.suggestedWindows : [],
         }
       : null,
   }));

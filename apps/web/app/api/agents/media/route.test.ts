@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   user: { id: "u1", role: "MANAGER" } as { id: string; role: string } | null,
   persona: { id: "p1" } as { id: string } | null,
-  existing: null as { id: string; personaId: string | null; kind: string | null } | null,
+  existing: null as Record<string, unknown> | null,
+  casinoSettings: {} as unknown,
   asset: null as Record<string, unknown> | null,
   create: vi.fn(async (_a: unknown) => ({ id: "new1" })),
   update: vi.fn(async (_a: unknown) => ({})),
@@ -17,6 +18,7 @@ vi.mock("@linkaffipro/db", () => ({
   audit: m.audit,
   prisma: {
     persona: { findUnique: vi.fn(async () => m.persona) },
+    agentTeamConfig: { findUnique: vi.fn(async () => ({ settings: m.casinoSettings })) },
     mediaAsset: {
       findUnique: vi.fn(async (a: { select: Record<string, boolean> }) => (a.select.bytes ? m.asset : m.existing)),
       create: m.create,
@@ -40,6 +42,7 @@ beforeEach(() => {
   m.user = { id: "u1", role: "MANAGER" };
   m.persona = { id: "p1" };
   m.existing = null;
+  m.casinoSettings = {};
   m.asset = null;
   m.create.mockClear();
   m.update.mockClear();
@@ -117,5 +120,53 @@ describe("GET /api/agents/media/[id]", () => {
     expect([...new Uint8Array(await part.arrayBuffer())]).toEqual([2, 3, 4]);
     const bad = await GET(new Request("http://x/api/agents/media/a1", { headers: { range: "bytes=20-" } }), ctx());
     expect(bad.status).toBe(416);
+  });
+});
+
+describe("POST /api/agents/media (équipe Casino, phase 22)", () => {
+  function casino(themes: string[], files: File[]): Request {
+    const fd = new FormData();
+    fd.set("purpose", "casino");
+    for (const t of themes) fd.append("themes", t);
+    for (const f of files) fd.append("files", f);
+    return new Request("http://localhost/api/agents/media", { method: "POST", body: fd });
+  }
+
+  it("vidéo et image rangées pour l'équipe Casino, origine humaine, tous les thèmes en étiquettes", async () => {
+    const img = new File([new Uint8Array(5)], "a.png", { type: "image/png" });
+    const body = (await (await POST(casino(["roulette", "bonus"], [video(), img]))).json()) as { files: unknown[] };
+    expect(body.files).toHaveLength(2);
+    const v = (m.create.mock.calls[0]![0] as { data: Record<string, unknown> }).data;
+    expect(v).toMatchObject({
+      teamKey: "casino",
+      origin: "HUMAN",
+      kind: "SOURCE",
+      theme: "roulette",
+      tags: ["casino", "theme:roulette", "theme:bonus"],
+      createdById: "u1",
+    });
+    expect((m.create.mock.calls[1]![0] as { data: Record<string, unknown> }).data.kind).toBe("PHOTO");
+    expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "agents.media_uploaded" }));
+  });
+
+  it("sans thème ou thème inconnu : refus", async () => {
+    expect((await POST(casino([], [video()]))).status).toBe(400);
+    expect((await POST(casino(["poker"], [video()]))).status).toBe(400);
+    m.casinoSettings = { casino: { themes: ["poker"] } };
+    expect((await POST(casino(["poker"], [video()]))).status).toBe(200);
+  });
+
+  it("même fichier : thèmes ajoutés, « à classer » retiré ; média de l'IA refusé", async () => {
+    m.existing = { id: "old", teamKey: "casino", origin: "HUMAN", theme: null, tags: ["casino", "a-classer"] };
+    await POST(casino(["live"], [video()]));
+    expect(m.update).toHaveBeenCalledWith({
+      where: { id: "old" },
+      data: expect.objectContaining({ theme: "live", tags: ["casino", "theme:live"] }),
+    });
+    m.update.mockClear();
+    m.existing = { id: "ai", teamKey: "casino", origin: "AI", theme: "live", tags: [] };
+    const body = (await (await POST(casino(["live"], [video()]))).json()) as { files: Array<{ error?: string }> };
+    expect(body.files[0]!.error).toContain("IA");
+    expect(m.update).not.toHaveBeenCalled();
   });
 });

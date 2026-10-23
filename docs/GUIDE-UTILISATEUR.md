@@ -929,6 +929,26 @@ L'équipe Rencontres fabrique trois sortes de posts pour chaque persona : des **
 
 Sans clé fal.ai, tout tourne en simulation : la vidéo source revient telle quelle et la photo est celle de la persona. Toute vidéo pour laquelle le Contrôle qualité a un doute (mains, visage, membres, texte déformé) vous est montrée avec 3 images extraites, quel que soit le niveau.
 
+### Équipe Casino : vos vidéos, images et thèmes
+
+L'équipe Casino publie sur vos canaux Casino des **vidéos** et des **images que vous fournissez**, et des **textes** qui parlent de l'offre de la campagne liée au canal. **Aucune vidéo ni image n'est inventée ni fabriquée par l'IA** : sans vidéo du bon thème, l'équipe prend un autre thème du canal, puis une image, puis un texte (le rapport du matin le dit, par exemple « 3 posts texte faute de vidéos : roulette »). Les textes ne disent que ce que la fiche de la campagne permet de dire : aucun chiffre ni promesse inventés.
+
+**Envoyer des vidéos au bot.** Dans Telegram, envoyez (ou transférez) la vidéo ou l'image au bot avec, en légende, `#casino` et le thème, par exemple `#casino #roulette`. Plusieurs thèmes sont possibles : `#casino #roulette #bonus`. Le bot répond en une ligne (« rangée : roulette, 4 vidéos non utilisées »). Un thème qu'il ne connaît pas (par exemple `#casino #poker`) est créé après votre confirmation, d'un appui sur un bouton. Le même fichier envoyé deux fois n'est rangé qu'une fois.
+
+**Que faire d'une demande.** Quand un thème d'un canal passe sous 3 vidéos non utilisées, le bot vous envoie un seul message par jour au plus, avec le thème, le nombre souhaité, le canal et le mot-clé exact à mettre en légende. Envoyez simplement les vidéos au bot avec ce mot-clé : la demande se ferme toute seule quand le nombre est atteint. Le bot ne relance jamais avant 3 jours.
+
+La fiche de l'équipe (**Agents**, puis **Ouvrir l'équipe** sur la carte Casino) a en plus :
+
+- **Stock de vidéos par canal** : pour chaque canal et chacun de ses thèmes, le nombre de vidéos pas encore publiées sur ce canal, en vert (assez), orange (sous le seuil) ou rouge (plus rien).
+- **Médias à classer** : ce que vous avez envoyé sans thème. Cochez ses thèmes sous l'aperçu, puis **Ranger** : il rejoint le stock.
+- **Demandes de vidéos** : ce que l'équipe vous a demandé, avec le thème, la date, le nombre reçu et l'état (**Question posée**, **En file**, **Répondue**).
+- **Vidéos et images** : **Produire un post de test** (choisissez **Vidéo**, **Image** ou **Texte**, puis cliquez : il part en simulation sur le canal Test, après votre validation), les **Dernières publications** avec leur aperçu, et **Déposer des vidéos ou des images** depuis l'ordinateur (cochez d'abord les thèmes ; vidéos MP4, MOV ou WebM de 50 Mo au plus, images JPEG, PNG ou WebP de 10 Mo au plus).
+- **Stock et rotation** (dans les réglages, administrateurs) : le **Seuil de manque** (3 au départ) et la **Rotation** (30 jours au départ) : une vidéo ne revient jamais sur le même canal avant ce délai, ni le même jour sur deux canaux Casino.
+- **Plan par canal** : le **Mélange de la journée** part de 2 vidéos, 1 image et 1 texte ; cochez les **Thèmes du canal** et donnez-leur un **poids** (2 = deux fois plus souvent) ; la **Campagne du bouton Offre** donne l'offre dont parlent les textes. Les **créneaux conseillés par l'équipe Algorithme** s'affichent en lecture.
+- **Thèmes de l'équipe** : la liste des thèmes (machines à sous, roulette, blackjack, bonus, jackpot, casino en direct, tournois, cashback, ambiance au départ), avec leur mot-clé et leur nombre de médias. Les administrateurs peuvent **Ajouter le thème**, **Renommer** (le mot-clé des légendes ne change pas) et **Retirer** un thème qui n'a aucun média.
+
+La fiche de chaque canal Casino montre un encart **Équipe Casino** : le plan du canal en résumé et le bouton **Ouvrir l'équipe Casino**.
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.

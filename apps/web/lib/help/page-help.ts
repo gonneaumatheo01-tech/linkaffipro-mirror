@@ -262,6 +262,15 @@ export const PAGE_HELP: readonly PageHelp[] = [
     ],
   },
   {
+    path: "/agents/casino",
+    label: "Équipe Casino",
+    sections: [
+      "Fiche d'une équipe",
+      "Équipe Casino : vos vidéos, images et thèmes",
+      "Simulation, niveaux et pause",
+    ],
+  },
+  {
     path: "/agents/algo",
     label: "Ce qui marche",
     sections: ["Ce qui marche (équipe Algorithme)", "Simulation, niveaux et pause"],

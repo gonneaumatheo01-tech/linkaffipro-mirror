@@ -7,6 +7,13 @@ import {
   existingAssetProblem,
   parsePurpose,
 } from "@/lib/agents/dating";
+import {
+  casinoClassification,
+  casinoExistingProblem,
+  casinoUploadProblem,
+  mediaThemes,
+  parseCasinoSettings,
+} from "@/lib/agents/casino";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -17,6 +24,8 @@ export const maxDuration = 120;
  * `files`. Chaque fichier devient un `MediaAsset` rangé (persona, nature, origine humaine, équipe Rencontres) ; même
  * empreinte qu'un fichier existant : il est rangé à son tour, sauf s'il l'est déjà pour une autre persona.
  * Réponse : `{ files: [{ id, filename, mimeType, size, error? }] }`. Journal `agents.media_uploaded`.
+ * Équipe Casino (phase 22, `purpose=casino`) : vidéos et images déposées par l'équipe avec un ou plusieurs `themes`
+ * (thèmes connus de l'équipe) ; voir `casinoUpload`.
  */
 export async function POST(req: Request) {
   const user = await apiUser();
@@ -30,6 +39,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (form.get("purpose") === "casino") return casinoUpload(form, user.id);
   const purpose = parsePurpose(form.get("purpose"));
   if (!purpose) return Response.json({ error: "Type de dépôt inconnu : rechargez la page." }, { status: 400 });
   const personaId = String(form.get("personaId") ?? "");
@@ -78,6 +88,87 @@ export async function POST(req: Request) {
       entityType: "MediaAsset",
       entityId: asset.id,
       metadata: { purpose, personaId, filename, size: buf.length, mimeType: mime },
+    });
+    out.push({ id: asset.id, filename, mimeType: mime, size: buf.length });
+  }
+  return Response.json({ files: out });
+}
+
+type UploadOut = Array<{ id: string; filename: string; mimeType: string; size: number; error?: string }>;
+
+/**
+ * Dépôt Casino : chaque fichier devient un `MediaAsset` de l'équipe Casino, d'origine humaine (jamais un média de
+ * l'IA), thème principal = le premier thème coché, tous les thèmes en tags `theme:<clé>`. Même empreinte qu'un média
+ * de l'équipe : ses thèmes s'ajoutent (et il quitte « à classer ») ; un média d'une autre équipe ou produit par l'IA
+ * est refusé.
+ */
+async function casinoUpload(form: FormData, userId: string): Promise<Response> {
+  const config = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "casino" }, select: { settings: true } });
+  const known = parseCasinoSettings(config?.settings).themes.map((t) => t.key);
+  const themes = form
+    .getAll("themes")
+    .filter((v): v is string => typeof v === "string")
+    .filter((v, i, a) => a.indexOf(v) === i);
+  if (themes.length === 0) return Response.json({ error: "Cochez au moins un thème." }, { status: 400 });
+  if (themes.some((t) => !known.includes(t)))
+    return Response.json({ error: "Thème inconnu : rechargez la page." }, { status: 400 });
+  const files = form.getAll("files").filter((f): f is File => f instanceof File);
+  if (files.length === 0) return Response.json({ error: "Aucun fichier." }, { status: 400 });
+  if (files.length > 10) return Response.json({ error: "10 fichiers au plus à la fois." }, { status: 400 });
+
+  const out: UploadOut = [];
+  for (const f of files) {
+    const mime = f.type || "application/octet-stream";
+    const filename = f.name.slice(0, 200);
+    const problem = casinoUploadProblem(mime, f.size);
+    if (problem) {
+      out.push({ id: "", filename, mimeType: mime, size: f.size, error: problem });
+      continue;
+    }
+    const buf = Buffer.from(await f.arrayBuffer());
+    const sha256 = createHash("sha256").update(buf).digest("hex");
+    const existing = await prisma.mediaAsset.findUnique({
+      where: { sha256 },
+      select: { id: true, teamKey: true, origin: true, theme: true, tags: true },
+    });
+    if (existing) {
+      const conflict = casinoExistingProblem(existing);
+      if (conflict) {
+        out.push({ id: "", filename, mimeType: mime, size: buf.length, error: conflict });
+        continue;
+      }
+      const merged = [...mediaThemes(existing), ...themes].filter((v, i, a) => a.indexOf(v) === i);
+      const data = casinoClassification(mime, merged);
+      // Étiquettes d'un média casino : `casino`, `theme:<clé>` (et `a-classer`, retiré ici) seulement.
+      await prisma.mediaAsset.update({ where: { id: existing.id }, data });
+      await audit({
+        userId,
+        action: "agents.media_classified",
+        entityType: "MediaAsset",
+        entityId: existing.id,
+        metadata: { purpose: "casino", themes: merged, via: "dépôt sur la fiche" },
+      });
+      out.push({ id: existing.id, filename, mimeType: mime, size: buf.length });
+      continue;
+    }
+    const asset = await prisma.mediaAsset.create({
+      data: {
+        filename,
+        mimeType: mime,
+        size: buf.length,
+        sha256,
+        bytes: buf,
+        createdById: userId,
+        ...casinoClassification(mime, themes),
+      },
+      select: { id: true },
+    });
+    await audit({
+      userId,
+      action: "agents.media_uploaded",
+      entityType: "MediaAsset",
+      entityId: asset.id,
+      metadata: { purpose: "casino", themes, filename, size: buf.length, mimeType: mime },
     });
     out.push({ id: asset.id, filename, mimeType: mime, size: buf.length });
   }

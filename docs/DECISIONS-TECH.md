@@ -559,3 +559,9 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   `agh:<id>:oui|non` (admin seulement, retirés après le clic) ; « oui » crée le thème et classe les médias en attente.
   Album : une seule ligne, 2 s après le dernier média. `contracts.ts` charge `classify.ts` à la demande (évite une
   boucle de chargement).
+- **Site Casino (phase 22)** : libellés renommés des thèmes dans `settings.casino.themeLabels` (la clé ASCII ne
+  change jamais), clé d'un nouveau thème tirée du libellé, 30 thèmes au plus ; un thème ne se retire que s'il n'a aucun
+  média et n'est dans aucun plan (le dernier jamais). Poids des thèmes d'un canal : 1 à 10. Dépôt depuis la fiche :
+  `origin HUMAN`, thème principal = premier coché, 50 Mo par vidéo, 10 Mo par image ; un fichier d'une autre équipe ou
+  produit par l'IA est refusé. Demandes de vidéos affichées depuis `HumanRequest.expected` (`{ tags, count, received,
+  channelId | channelIds }`). « Dernières publications » = les 12 derniers `MediaUsage` casino.

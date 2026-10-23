@@ -44,6 +44,50 @@ vi.mock("./[equipe]/actions", () => ({
   createTestPostAction: vi.fn(),
   startBenchAction: vi.fn(),
 }));
+vi.mock("./[equipe]/casino-actions", () => ({
+  classifyCasinoMediaAction: vi.fn(),
+  createCasinoTestPostAction: vi.fn(),
+  addCasinoThemeAction: vi.fn(),
+  renameCasinoThemeAction: vi.fn(),
+  removeCasinoThemeAction: vi.fn(),
+}));
+vi.mock("@/lib/agents/casino-queries", async () => {
+  const { parseCasinoSettings } = await import("@/lib/agents/casino");
+  return {
+    loadCasinoSettings: vi.fn(async () => parseCasinoSettings(null)),
+    loadCasinoStock: vi.fn(async () => [
+      { channelId: "c1", channelTitle: "Canal Test", theme: "roulette", unused: 1, state: "low" },
+      { channelId: "c1", channelTitle: "Canal Test", theme: "bonus", unused: 0, state: "empty" },
+    ]),
+    loadToClassify: vi.fn(async () => ({
+      rows: [{ id: "x1", filename: "v.mp4", mimeType: "video/mp4", createdAt: new Date("2026-10-23T08:00:00Z"), themes: [] }],
+      total: 1,
+    })),
+    loadCasinoRequests: vi.fn(async () => [
+      {
+        id: "h1",
+        themes: ["roulette"],
+        channelIds: ["c1"],
+        count: 5,
+        received: 1,
+        status: "PENDING",
+        question: "Envoie 5 vidéos",
+        createdAt: new Date("2026-10-23T08:00:00Z"),
+        askedAt: new Date("2026-10-23T08:00:00Z"),
+        answeredAt: null,
+      },
+    ]),
+    loadCasinoRecentUsages: vi.fn(async () => [
+      {
+        id: "u1",
+        usedAt: new Date("2026-10-22T08:00:00Z"),
+        channelTitle: "Canal Test",
+        asset: { id: "a9", mimeType: "video/mp4", themes: ["roulette"] },
+      },
+    ]),
+    loadThemeMediaCounts: vi.fn(async () => ({ roulette: 4 })),
+  };
+});
 vi.mock("@/lib/agents/dating-queries", () => ({
   loadDatingPersonas: vi.fn(async () => m.datingPersonas),
   loadDatingSettings: vi.fn(async () => ({ videoProvider: "fal", videoResolution: "580p" })),
@@ -342,6 +386,50 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Seul un administrateur peut faire publier");
     expect(text).toContain("Réservé aux administrateurs");
     expect(text).not.toContain("Réglages des agents");
+  });
+
+  it("fiche Casino : stock, à classer, demandes, post de test, dépôt, thèmes, seuil et rotation", async () => {
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "casino" }), searchParams: sp() } as never));
+    const text = checks(html);
+    for (const t of [
+      "Stock de vidéos par canal",
+      "Roulette : 1",
+      "Bonus : 0",
+      "Médias à classer",
+      "Ranger",
+      "Demandes de vidéos",
+      "Mot-clé : #casino #roulette",
+      "Produire un post de test",
+      "Dernières publications",
+      "Déposer des vidéos ou des images",
+      "Thèmes de l'équipe",
+      "Machines à sous",
+      "Ajouter le thème",
+      "Seuil de manque",
+      "Rotation (jours)",
+      "Thèmes du canal et leur poids",
+      "Créneaux conseillés par l'équipe Algorithme",
+    ])
+      expect(text, t).toContain(t);
+    expect(text).not.toContain("Créer une mission de test");
+    expect(html).toContain('src="/api/agents/media/x1"');
+    expect(html).toContain('name="ptheme_roulette"');
+    // Mélange par défaut d'un canal Casino : 2 vidéos, 1 image, 1 texte.
+    expect(html).toMatch(/name="mix_video"[^>]*value="2"|value="2"[^>]*name="mix_video"/);
+    // Un thème avec des médias ne se retire pas ; un thème sans média, oui.
+    expect(text.match(/Retirer/g)?.length).toBe(8);
+  });
+
+  it("fiche Casino pour un manager : classer, déposer, produire ; ni thèmes ni seuil", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "casino" }), searchParams: sp() } as never));
+    const text = checks(html);
+    expect(text).toContain("Ranger");
+    expect(text).toContain("Produire un post de test");
+    expect(text).toContain("Déposer des vidéos ou des images");
+    expect(text).not.toContain("Ajouter le thème");
+    expect(html).not.toContain('name="casinoLowStock"');
+    expect(text).toContain("Seuil de manque : 3 vidéos, rotation : 30 jours.");
   });
 
   it("Ce qui marche (équipe Algorithme) : classements, heures, tests, propositions, conversations, rapports, réglages", async () => {

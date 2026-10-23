@@ -238,6 +238,18 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 </div>
               </div>
             </div>
+            <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
+              <p className="text-body font-medium text-foreground">Équipe Casino</p>
+              <div className="space-y-1">
+                <p className="text-body text-foreground">
+                  Médiathèque Casino : moins de 3 vidéos non utilisées pour un thème
+                </p>
+                <p className="text-note text-muted-foreground">
+                  Le seuil se règle dans la fiche de l&apos;équipe Casino ; une alerte au plus par jour.
+                </p>
+                <AlertSwitch kind="agents_media_low" checked={switches.agents_media_low} />
+              </div>
+            </div>
             <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
                 Enregistrer

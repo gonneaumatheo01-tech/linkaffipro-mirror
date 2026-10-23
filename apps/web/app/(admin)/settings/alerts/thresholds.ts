@@ -59,6 +59,7 @@ export const ALERT_SWITCH_FIELDS: Record<SwitchableAlertKind, string> = {
   channel_leak: "channelLeakEnabled",
   agents_channel_drop: "agentsChannelDropEnabled",
   agents_persona_drop: "agentsPersonaDropEnabled",
+  agents_media_low: "agentsMediaLowEnabled",
 };
 
 /** Interrupteurs envoyés par le formulaire : une case décochée n'est pas envoyée, donc désactivée. */

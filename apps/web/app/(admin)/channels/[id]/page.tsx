@@ -9,6 +9,7 @@ import { HelpTip } from "@/components/admin/help-tip";
 import { PageHeader } from "@/components/admin/page-header";
 import { SidePanel } from "@/components/admin/side-panel";
 import { UniverseDot } from "@/components/admin/universe-dot";
+import { ChannelCasinoCard } from "@/components/agents/casino/channel-casino-card";
 import { ChannelSettingsForm } from "@/components/channels/channel-settings-form";
 import { ChannelStatePills } from "@/components/channels/channel-state";
 import { ChannelTabs } from "@/components/channels/channel-tabs";
@@ -185,6 +186,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
           </AlertDescription>
         </Alert>
       ) : null}
+      {channel.vertical === "CASINO" ? <ChannelCasinoCard channelId={channel.id} /> : null}
       <ChannelTabs channelId={channel.id} current={tab} pending={counts.pending} />
       <Flash ok={sp.ok} error={sp.error} />
 

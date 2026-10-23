@@ -104,7 +104,9 @@ describe("Réglages → Alertes", () => {
     const text = visibleText(html);
     expect(text).toContain("Alertes sur vos chiffres");
     expect(text).toContain("Une alerte désactivée n'est plus envoyée");
-    expect(text.match(/Alerte activée/g)).toHaveLength(5);
+    expect(text.match(/Alerte activée/g)).toHaveLength(6);
+    // Équipe Casino (phase 22) : vidéos en manque.
+    expect(text).toContain("Médiathèque Casino : moins de 3 vidéos non utilisées pour un thème");
     // Équipe Algorithme (phase 21) : canal en baisse, profil de conversation en baisse.
     expect(text).toContain("Canal en baisse : vues ou clics −30 % sur 7 jours");
     expect(text).toContain("Profil de conversation en baisse : réponses ou inscriptions −30 % sur 7 jours");
@@ -114,6 +116,7 @@ describe("Réglages → Alertes", () => {
       "channelLeakEnabled",
       "agentsChannelDropEnabled",
       "agentsPersonaDropEnabled",
+      "agentsMediaLowEnabled",
     ])
       expect(checkboxInput(html, name)).toMatch(/\bchecked=""/);
     // Les seuils restent toujours envoyés, même alerte désactivée.
