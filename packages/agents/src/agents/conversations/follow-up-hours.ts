@@ -38,9 +38,11 @@ export function followUpRatesByHour(sends: readonly FollowUpSend[]): HourRate[] 
 export function suggestFollowUpHours(sends: readonly FollowUpSend[], minTotal: number): { hours: number[]; rates: HourRate[]; overall: number } | null {
   if (sends.length < minTotal) return null;
   const rates = followUpRatesByHour(sends);
-  const overall = sends.filter((s) => s.replied).length / sends.length;
   const candidates = rates.filter((r) => r.hour >= FIRST_HOUR && r.hour <= LAST_HOUR && r.sent >= MIN_FOLLOW_UPS_PER_HOUR);
   if (candidates.length < 2) return null;
+  // Moyenne des seules heures possibles : une heure de nuit (décalée à 10 h par le moteur) ne fausse pas la comparaison.
+  const sent = candidates.reduce((n, r) => n + r.sent, 0);
+  const overall = candidates.reduce((n, r) => n + r.replied, 0) / sent;
   const best = Math.max(...candidates.map((r) => r.rate));
   if (best <= 0 || best < overall * MIN_LIFT) return null;
   const hours = candidates.filter((r) => r.rate >= best * 0.8).map((r) => r.hour);

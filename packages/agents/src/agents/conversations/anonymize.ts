@@ -39,7 +39,7 @@ const ADDRESS =
 const DIGITS = /(?:\+|00)?\d[\d\s.\-()]{4,}\d/gu;
 /** Prénom annoncé : « je m'appelle Julie », « moi c'est Julie », « my name is John ». */
 const INTRO =
-  /\b(je m['’]appelle|mon pr[ée]nom c['’]est|mon pr[ée]nom est|my name is|call me|appelle[- ]moi|moi c['’]est(?=\s+\p{Lu}))(\s+)([\p{L}'’-]{2,30})/giu;
+  /\b(je m['’]appelle|mon pr[ée]nom c['’]est|mon pr[ée]nom est|my name is|call me|moi c['’]est(?=\s+\p{Lu}))(\s+)([\p{L}'’-]{2,30})/giu;
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
