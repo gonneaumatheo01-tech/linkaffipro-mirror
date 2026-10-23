@@ -1,0 +1,49 @@
+/**
+ * Contrats de l'équipe Casino (phase 22). Signatures FIGÉES : A (moteur, stock, chaîne), B (dépôt par le bot,
+ * classement), C (site). Pas de migration : un média casino porte son thème principal dans `MediaAsset.theme` et tous
+ * ses thèmes dans `MediaAsset.tags` (`["theme:roulette", "theme:bonus"]`) ; « à classer » = `teamKey = "casino"`,
+ * `theme = null`, tag `"a-classer"`. Les thèmes de l'équipe vivent dans `AgentTeamConfig.settings.casino.themes`.
+ */
+import type { PrismaClient } from "@linkaffipro/db";
+import type { AgentsDeps } from "../types";
+import type { ActorRef } from "../admin/team";
+
+/** Thèmes de départ de l'équipe Casino (clés ASCII ; libellés affichés par le site). */
+export const CASINO_DEFAULT_THEMES = [
+  "machines-a-sous",
+  "roulette",
+  "blackjack",
+  "bonus",
+  "jackpot",
+  "live",
+  "tournoi",
+  "cashback",
+  "ambiance",
+] as const;
+
+export type CasinoStockRow = {
+  channelId: string;
+  channelTitle: string;
+  theme: string;
+  /** Médias fournis (origin HUMAN) de ce thème non utilisés sur ce canal depuis la durée de rotation. */
+  unused: number;
+  /** « manque » sous le seuil (3 par défaut, `settings.casino.lowStock`). */
+  state: "ok" | "low" | "empty";
+};
+
+/** Stock par canal casino (plan activé ou non) et par thème du canal. Chantier A. */
+export async function casinoStock(
+  _prisma: PrismaClient,
+  _opts?: { now?: Date; channelId?: string },
+): Promise<CasinoStockRow[]> {
+  throw new Error("casinoStock : à écrire (chantier A)");
+}
+
+/** Classe un média « à classer » (ou en change les thèmes) : thèmes connus seulement ; AuditLog. Chantier B. */
+export async function classifyCasinoMedia(
+  _deps: AgentsDeps,
+  _input: { assetId: string; themes: string[] },
+  _actor: ActorRef,
+): Promise<{ ok: boolean; message: string }> {
+  throw new Error("classifyCasinoMedia : à écrire (chantier B)");
+}

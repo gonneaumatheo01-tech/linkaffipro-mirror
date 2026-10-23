@@ -112,3 +112,4 @@ export { currentValue, sameValue } from "./agents/synthese/apply";
 export * from "./agents/synthese/proposals";
 export * from "./agents/synthese/report";
 export { runSynthese, autoApplyPending, type SyntheseResult } from "./agents/synthese/index";
+export * from "./casino/contracts";
