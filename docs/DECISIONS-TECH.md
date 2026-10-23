@@ -493,3 +493,26 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   vidéo par ffmpeg / ffprobe dans le worker (`apps/worker/src/agents/frames.ts`, `ffmpeg` dans l'image). Vérificateurs
   des clés enregistrés au chargement de `@linkaffipro/agents`. `packages/ai` : champ `images` facultatif (base64, avant
   le texte).
+
+## Phase 21 — agents IA : équipe Algorithme (23 octobre 2026)
+
+- **Agent Conversations** : profil = bot × persona × source (compte réel = son bot fantôme, affiché avec le nom du
+  compte) ; liens, joueurs et coûts IA rattachés au profil de leur conversation (lien d'une conversation supprimée :
+  bot / persona / source copiés sur lui ; coûts sans conversation et coûts du bouton « Tester » exclus). « Réponse » =
+  même règle que la page Chiffres ; décrochage = conversation non convertie, fermée ou muette depuis 24 h (étape
+  quittée) ; délai de réponse = entre notre dernier message et la réponse suivante ; heures de réponse = les 3 heures
+  de Paris les plus fréquentes ; seuil `settings.algo.minConversations` (30).
+- **Échantillon relu par l'IA** : mineurs, /stop et conversations fermées pour ces raisons exclus ; 40 conversations ×
+  12 messages au plus sur 30 jours, les plus récentes d'abord ; anonymisé (on masque plutôt un mot de trop qu'un
+  prénom oublié), coupé à 280 caractères, aucun identifiant envoyé. Réponse de l'IA rejetée en entier si le format est
+  faux ; un élément ≥ 80 caractères, une copie d'un message (≥ 15 caractères) ou une donnée personnelle restante est
+  rejeté (jamais tronqué) ; champ interdit ou valeur hors des bornes du formulaire Personas → proposition rejetée ; 3
+  propositions au plus par profil. Sans clé IA : pas de relecture (jamais le faux modèle). Plafond `llm` de l'équipe
+  Algorithme vérifié avant chaque appel, coût compté même si la réponse est rejetée.
+- **Propositions de persona** : toujours PROPOSED, taille BIG, équipe de l'univers du bot (Rencontres par défaut) ; une
+  proposition en attente sur le même champ est mise à jour plutôt que doublée ; `styleExamples` en ajout
+  (`evidence.append`, ré-appliqué sur le registre actuel au moment d'appliquer).
+- **Heures de relance conseillées** (sans IA) : relance « répondue » si la personne écrit dans les 24 h ; heures de 9 h
+  à 21 h, 5 relances par heure et 30 au total au moins ; heures ≥ 80 % de la meilleure, la meilleure devant dépasser
+  de 10 % la moyenne. Le moteur (`packages/chat` `follow-ups.ts`) décale une relance à la prochaine heure conseillée,
+  jamais plus tôt, jamais entre 22 h et 9 h, et seulement si le champ a été rempli par une recommandation appliquée.
