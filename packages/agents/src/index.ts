@@ -76,3 +76,5 @@ export * from "./admin/budget";
 // Vérificateurs des clés fal.ai et Magic Hour (bouton « Vérifier », réponse au bot) : enregistrés au chargement.
 import { registerMediaKeyVerifiers } from "./providers/verifiers";
 registerMediaKeyVerifiers();
+export * from "./algo/contracts";
+export * from "./algo/conversations-contract";

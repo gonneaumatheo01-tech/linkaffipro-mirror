@@ -992,6 +992,7 @@ model Post {
   /// sans boutons). Un message publié par le compte n'est JAMAIS modifié ensuite par le bot (les emojis animés
   /// disparaîtraient) : épingler, désépingler et supprimer passent aussi par le compte.
   publisher        PostPublisher     @default(BOT)
+  insight          PostInsight?
   /// Mission d'agent qui a produit ce message (phase 19).
   agentMissionId   String?
   agentMission     AgentMission?     @relation(fields: [agentMissionId], references: [id], onDelete: SetNull)
@@ -2008,6 +2009,9 @@ model Persona {
   loraTrigger             String?
   loraScale               Float              @default(0.8)
   mediaNotes              String?            @db.Text
+  /// Phase 21 : heures de relance conseillées par l'équipe Algorithme (JSON number[], heure de Paris) ; lues par le
+  /// moteur de relances seulement si une recommandation les a appliquées.
+  suggestedFollowUpHours  Json?
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -2323,6 +2327,10 @@ model ChannelAgentPlan {
   /// Campagne dont le bouton Offre est ajouté aux posts.
   campaignId        String?
   themes            Json     @default("[]")
+  /// Phase 21 : fenêtres suggérées par l'équipe Algorithme (JSON `{ day, start, end, score }[]`, heure de Paris) et
+  /// consignes « ce qui marche ici » lues par la Rédaction.
+  suggestedWindows  Json     @default("[]")
+  styleNotes        String?  @db.Text
   updatedById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -2541,4 +2549,149 @@ model MediaUsage {
 
   @@index([channelId, usedAt])
   @@index([assetId, usedAt])
+}
+
+// ============================================================
+// Phase 21 : équipe Algorithme (ce qui marche, tests A/B, réglages)
+// ============================================================
+
+/// Fiche de résultats d'un post envoyé : chiffres et caractéristiques (recalculée chaque nuit).
+model PostInsight {
+  id             String   @id @default(cuid())
+  postId         String   @unique
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  channelId      String
+  vertical       String?
+  sentAt         DateTime
+  /// Vues interpolées depuis `PostViewSample` (null sans relevé).
+  views1h        Int?
+  views2h        Int?
+  views24h       Int?
+  viewsFinal     Int      @default(0)
+  forwards       Int      @default(0)
+  reactions      Int      @default(0)
+  clicks         Int      @default(0)
+  offerClicks    Int      @default(0)
+  registrations  Int      @default(0)
+  ftds           Int      @default(0)
+  deposits       Int      @default(0)
+  /// VIDEO | PHOTO | ALBUM | TEXT
+  format         String
+  theme          String?
+  categoryId     String?
+  personaId      String?
+  textLength     Int      @default(0)
+  emojiCount     Int      @default(0)
+  hasButtons     Boolean  @default(false)
+  /// Heure (0-23) et jour (1 = lundi … 7 = dimanche), Europe/Paris.
+  hourParis      Int
+  weekdayParis   Int
+  abGroupId      String?
+  abVariant      String?
+  agentMissionId String?
+  model          String?
+  experimentId   String?
+  computedAt     DateTime @default(now())
+
+  @@index([channelId, sentAt])
+  @@index([vertical, sentAt])
+  @@index([format])
+}
+
+enum ExperimentKind {
+  STYLE_LEGENDE
+  HORAIRE
+  MELANGE
+  REGLAGE_PERSONA
+}
+
+enum ExperimentStatus {
+  PROPOSED
+  RUNNING
+  CLOSED
+  CANCELLED
+}
+
+/// Test A/B monté par l'agent Expérimentation (un seul actif par canal et par type).
+model Experiment {
+  id               String           @id @default(cuid())
+  teamKey          String
+  channelId        String?
+  personaId        String?
+  kind             ExperimentKind
+  hypothesis       String
+  /// JSON `{ A: {...}, B: {...} }` (libellé et réglage de chaque variante).
+  variants         Json
+  /// offer_ctr | views24h | reply_rate | registrations
+  metric           String
+  minSamples       Int              @default(20)
+  status           ExperimentStatus @default(PROPOSED)
+  startedAt        DateTime?
+  endsAt           DateTime?
+  closedAt         DateTime?
+  /// JSON : effectifs, taux, p-value.
+  result           Json?
+  /// A | B | NONE
+  winner           String?
+  recommendationId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([status, channelId])
+  @@index([teamKey, status])
+}
+
+enum RecommendationStatus {
+  PROPOSED
+  APPLIED
+  UNDONE
+  REJECTED
+}
+
+enum RecommendationAppliedBy {
+  GRAND_CHEF
+  HUMAN
+}
+
+/// Réglage proposé par l'équipe Algorithme ; « avant » garde de quoi annuler en un clic.
+model Recommendation {
+  id           String                   @id @default(cuid())
+  teamKey      String
+  /// CHANNEL_PLAN | TEAM_CONFIG | PERSONA
+  target       String
+  targetId     String
+  field        String
+  before       Json?
+  after        Json
+  evidence     Json                     @default("{}")
+  expectedGain String?
+  /// SMALL (horaires, mélange) | BIG (persona, quota) : décide de l'application seule au niveau 1.
+  size         String                   @default("SMALL")
+  status       RecommendationStatus     @default(PROPOSED)
+  appliedAt    DateTime?
+  appliedBy    RecommendationAppliedBy?
+  appliedById  String?
+  undoneAt     DateTime?
+  undoneById   String?
+  rejectedAt   DateTime?
+  weekStart    String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([status, teamKey])
+  @@index([target, targetId])
+}
+
+/// Rapport « Ce qui marche » (par équipe et par semaine).
+model InsightReport {
+  id        String    @id @default(cuid())
+  teamKey   String
+  /// AAAA-MM-JJ (lundi, Europe/Paris)
+  weekStart String
+  content   String    @db.Text
+  stats     Json      @default("{}")
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([teamKey, weekStart])
 }
