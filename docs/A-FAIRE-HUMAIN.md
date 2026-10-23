@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 22 : l'équipe Casino (quand vous voulez)
+1. **Le bot vous demande, une question à la fois** : pour chaque canal casino, quelle offre (campagne) mettre sur le bouton (réponse par numéro), puis 3 à 5 vidéos par thème du canal.
+2. **Envoyer des vidéos** : envoyez ou transférez-les au bot avec en légende `#casino` et le thème (`#casino #roulette`, plusieurs thèmes possibles). Le bot répond « rangée » avec le nombre de vidéos disponibles. Un thème inconnu : il vous propose un bouton pour le créer.
+3. **Aucune vidéo n'est inventée** : l'équipe Casino n'utilise que ce que vous fournissez ; sans vidéo, elle publie une image ou un texte.
+4. **Quand ça vous plaît** : répondez au bot `vrai casino` puis `OUI`, et activez le plan des canaux dans Agents → Casino.
+
 ## Phase 21 : l'équipe Algorithme (rien à fournir)
 1. **Lire le premier rapport « Ce qui marche »** : il est arrivé sur Telegram ; le détail est sur le site, Agents → onglet de l'équipe Algorithme (« Ce qui marche »).
 2. **Deux questions du bot** (une à la fois, après les précédentes) : le niveau de l'équipe (conseillé : 2, « appliquer les petits réglages seuls ») et le nombre maximum de posts par jour et par canal que les réglages ne peuvent pas dépasser.

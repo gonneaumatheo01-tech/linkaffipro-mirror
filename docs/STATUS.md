@@ -1,3 +1,34 @@
+# État du projet : phase 22 (agents IA : équipe Casino) terminée (23 octobre 2026)
+
+Phases 0 à 21 en ligne. Phase 22 = deuxième équipe de production : les canaux casino publient chaque jour des vidéos **fournies par vous**, des images et des textes, selon le thème de chaque canal et l'offre du moment, aux bons créneaux (`docs/prompts/24-phase-22-agents-casino.md`). **Tout reste en simulation** sur le canal Test.
+
+## Fait
+- **Médiathèque Casino** : thèmes (machines à sous, roulette, blackjack, bonus, jackpot, live, tournoi, cashback, ambiance, modifiables) ; stock par canal et par thème ; une vidéo ne revient pas sur le même canal avant 30 jours, ni le même jour sur deux canaux casino.
+- **Dépôt par le bot** : `#casino #roulette` (plusieurs thèmes, variantes comme « slots » acceptées), doublons fusionnés, réponse en une ligne avec le stock ; thème inconnu → bouton « Créer le thème » ; sans thème → « à classer » sur le site.
+- **Demandes de vidéos** : sous 3 vidéos non utilisées pour un thème, un seul message groupé par jour au plus, jamais de relance du même thème avant 3 jours ; alerte « Médiathèque Casino » avec interrupteur.
+- **Chaîne** : Médiathèque → Rédaction (ton du canal, offre de la campagne, aucun chiffre que la fiche de l'offre ne donne) → Planification (créneaux de l'équipe Algorithme, jamais deux vidéos à moins de 4 h) → Contrôle (refuse tout média fabriqué par l'IA) → Publication avec le bouton Offre. Replis : autre thème → image → texte, comptés dans le rapport du matin.
+- **Toujours soumis à vous** : nouveau canal, nouveau thème, offre jamais utilisée.
+- **Site** : Agents → Casino (stock en vert / orange / rouge, médias à classer, demandes, dépôt, « Produire un post de test », thèmes, plan par canal) ; encart « Équipe Casino » sur la fiche des canaux casino ; guide à jour.
+
+## Test de 5 minutes
+1. Envoyez au bot une vidéo avec la légende `#casino #roulette` : il répond « rangée : roulette, … ».
+2. Site → Agents → **Casino** → « Produire un post de test » (Vidéo) → ✅ sur Telegram.
+3. Le post arrive sur le canal **Test** avec « [SIMULATION …] » en tête.
+
+## Vérifications faites
+- 5 366 tests unitaires et 552 tests d'intégration (base réelle) réussis, dont **une semaine simulée** jour par jour sur le canal Test : 4 vidéos déposées sur deux thèmes, mélange et rotation respectés, replis quand le stock s'épuise, demande groupée envoyée une seule fois, posts programmés puis envoyés, rapport du matin. Lint, typage, build verts.
+- Sauvegarde avant déploiement ; site puis service d'arrière-plan ; santé vérifiée ; capture de la fiche Casino et contrôle d'accessibilité sans violation (base de démonstration locale).
+
+## Reste / limites
+- La « fiche de l'offre » d'une campagne est celle de la persona qui y est rattachée (les campagnes n'ont pas de fiche à elles) : sans fiche, les textes ne citent que le nom de l'offre, jamais un montant.
+- Le premier média d'un album envoyé sans légende n'est pas rangé (comme avant).
+- Avertissement de sécurité de Next.js 16.4.0 en développement : à traiter dans une phase de solidité.
+
+## Actions humaines
+Répondre aux questions du bot (offre de chaque canal casino, vidéos par thème), puis `vrai casino` + `OUI` quand ça plaît (`docs/A-FAIRE-HUMAIN.md`).
+
+---
+
 # État du projet : phase 21 (agents IA : équipe Algorithme) terminée (23 octobre 2026)
 
 Phases 0 à 20 en ligne. Phase 21 = une équipe qui **ne publie rien** : elle mesure ce qui marche (types de posts, horaires, conversations de chaque profil), monte des tests de deux versions, et en tire des réglages concrets pour les équipes Rencontres, Casino et Paris sportifs, appliqués dans des bornes et annulables en un clic (`docs/prompts/23-phase-21-agents-algorithme.md`).
