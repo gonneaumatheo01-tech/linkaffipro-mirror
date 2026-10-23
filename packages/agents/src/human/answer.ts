@@ -151,7 +151,8 @@ export function interpretAnswer(target: AnswerTarget, raw: string): InterpretedA
       return { type: "answer", value: yn, summary: yn };
     }
     case "SECRET": {
-      if (text.length < 8 || /\s/.test(text))
+      // Un identifiant de compte peut être court (« jean75 ») ; une clé ou un mot de passe, non.
+      if (text.length < (/\.login$/.test(target.key) ? 3 : 8) || /\s/.test(text))
         return { type: "invalid", message: "Ça ne ressemble pas à une clé : colle-la en un seul morceau, sans espace." };
       return { type: "answer", value: text, summary: `…${last4(text)}` };
     }

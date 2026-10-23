@@ -7,6 +7,8 @@ import { registerSecretVerifier, type SecretVerifier } from "../human/secrets";
 import { MAGICHOUR_BASE } from "./magichour";
 import { FAL_QUEUE_BASE, FAL_IMAGE_MODEL, falAppPath } from "./fal";
 import { FAL_SECRET_KEY, MAGICHOUR_SECRET_KEY } from "./registry";
+import { ODDS_SECRET_KEY } from "./odds-registry";
+import { verifySportsGameOddsKey } from "./sportsgameodds";
 
 const ZERO_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -32,8 +34,14 @@ export function magicHourKeyVerifier(fetchImpl: typeof fetch = fetch): SecretVer
   return (key) => probe("Magic Hour", `${MAGICHOUR_BASE}/v1/video-projects/inexistant`, { Authorization: `Bearer ${key.trim()}` }, fetchImpl);
 }
 
-/** Enregistre les deux vérificateurs (appelé au chargement du paquet ; `fetch` imposé par les tests). */
+/** Clé SportsGameOdds (phase 23) : `GET /account/usage`, gratuit. */
+export function oddsKeyVerifier(fetchImpl: typeof fetch = fetch): SecretVerifier {
+  return (key) => verifySportsGameOddsKey(key, fetchImpl);
+}
+
+/** Enregistre les vérificateurs (appelé au chargement du paquet ; `fetch` imposé par les tests). */
 export function registerMediaKeyVerifiers(fetchImpl?: typeof fetch): void {
   registerSecretVerifier(FAL_SECRET_KEY, falKeyVerifier(fetchImpl));
   registerSecretVerifier(MAGICHOUR_SECRET_KEY, magicHourKeyVerifier(fetchImpl));
+  registerSecretVerifier(ODDS_SECRET_KEY, oddsKeyVerifier(fetchImpl));
 }

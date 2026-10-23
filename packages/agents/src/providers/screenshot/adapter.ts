@@ -77,10 +77,56 @@ async function throwIfObstacle(page: GuardedPage, afterLogin = false): Promise<v
   if (kind === "two_factor") throw new CaptureError(kind, "le site demande un code de vérification");
 }
 
+/** Pur : alternatives d'un sélecteur (virgules de premier niveau, hors parenthèses et guillemets). */
+export function splitSelector(selector: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let cur = "";
+  for (const ch of selector) {
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"') quote = ch;
+    else if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    else if (ch === "," && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Premier élément visible de la PREMIÈRE alternative qui en a un : une liste « a, b, c » se lit par ordre de
+ * préférence (le navigateur, lui, la lirait dans l'ordre du document : le bouton « Connexion » de l'en-tête passerait
+ * avant le bouton d'envoi du formulaire).
+ */
+async function firstVisible(page: GuardedPage, selector: string): Promise<ReadonlyLocator | null> {
+  for (const alt of splitSelector(selector)) {
+    const loc = page.find(alt);
+    const n = Math.min(await loc.count().catch(() => 0), 10);
+    for (let i = 0; i < n; i++) if (await loc.nth(i).isVisible().catch(() => false)) return loc.nth(i);
+  }
+  return null;
+}
+
 async function visible(page: GuardedPage, selector: string): Promise<boolean> {
-  if (!selector) return false;
-  const loc = page.find(selector);
-  return (await loc.count()) > 0 && (await loc.first().isVisible().catch(() => false));
+  return selector ? (await firstVisible(page, selector)) !== null : false;
+}
+
+/** Attend qu'une des alternatives soit visible ; renvoie l'élément. */
+async function waitVisible(page: GuardedPage, selector: string, timeoutMs: number): Promise<ReadonlyLocator | null> {
+  if (!selector) return null;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const el = await firstVisible(page, selector);
+    if (el || Date.now() >= deadline) return el;
+    await page.pause(200);
+  }
 }
 
 /** Petite pause variable : un robot qui enchaîne en 0 ms se fait repérer plus vite. */
@@ -101,9 +147,10 @@ export function createSelectorAdapter(config: BookmakerConfig): BookmakerAdapter
       s.page.useFrame(null);
       await s.page.goto(config.baseUrl);
       await throwIfObstacle(s.page);
-      if (sel.cookieAccept && (await s.page.waitFor(sel.cookieAccept, 1_500))) {
+      const cookie = await waitVisible(s.page, sel.cookieAccept, 1_500);
+      if (cookie) {
         // Bannière de cookies : on accepte si la garde le permet, sinon on continue sans.
-        await s.page.click(s.page.find(sel.cookieAccept), "cookie_accept").catch((err) => {
+        await s.page.click(cookie, "cookie_accept").catch((err) => {
           if ((err as CaptureError).kind !== "forbidden_action") throw err;
         });
       }
@@ -113,15 +160,22 @@ export function createSelectorAdapter(config: BookmakerConfig): BookmakerAdapter
       if (await visible(s.page, sel.loggedInMarker)) return "already";
       if (!s.credentials) return "skipped";
       if (config.loginUrl) await s.page.goto(config.loginUrl);
-      else if (sel.loginOpen && (await s.page.waitFor(sel.loginOpen, t))) await s.page.click(s.page.find(sel.loginOpen), "open_login");
+      else {
+        const open = await waitVisible(s.page, sel.loginOpen, t);
+        if (open) await s.page.click(open, "open_login");
+      }
       await throwIfObstacle(s.page);
-      if (!(await s.page.waitFor(sel.loginUser, t))) throw new CaptureError("login_failed", "formulaire de connexion introuvable (sélecteurs à vérifier)");
-      await s.page.fill(s.page.find(sel.loginUser), s.credentials.login, "login");
+      const user = await waitVisible(s.page, sel.loginUser, t);
+      if (!user) throw new CaptureError("login_failed", "formulaire de connexion introuvable (sélecteurs à vérifier)");
+      await s.page.fill(user, s.credentials.login, "login");
       await humanPause(s.page);
-      await s.page.fill(s.page.find(sel.loginPassword), s.credentials.password, "password");
+      const pw = await waitVisible(s.page, sel.loginPassword, t);
+      if (!pw) throw new CaptureError("login_failed", "champ mot de passe introuvable (sélecteurs à vérifier)");
+      await s.page.fill(pw, s.credentials.password, "password");
       await humanPause(s.page);
-      if (sel.loginSubmit && (await visible(s.page, sel.loginSubmit))) await s.page.click(s.page.find(sel.loginSubmit), "login_submit");
-      else await s.page.pressEnter(s.page.find(sel.loginPassword), "password");
+      const submit = await firstVisible(s.page, sel.loginSubmit);
+      if (submit) await s.page.click(submit, "login_submit");
+      else await s.page.pressEnter(pw, "password");
       // Attente du repère « connecté », en surveillant captcha, code de vérification et message d'erreur.
       const deadline = Date.now() + t * 2;
       while (Date.now() < deadline) {
@@ -155,12 +209,15 @@ export function createSelectorAdapter(config: BookmakerConfig): BookmakerAdapter
           if (sel.sportsbookFrame) s.page.useFrame(sel.sportsbookFrame);
         } else {
           if (sel.sportsbookFrame) s.page.useFrame(sel.sportsbookFrame);
-          if (!(await visible(s.page, sel.searchInput)) && sel.searchOpen && (await s.page.waitFor(sel.searchOpen, t)))
-            await s.page.click(s.page.find(sel.searchOpen), "open_search");
-          if (!(await s.page.waitFor(sel.searchInput, t))) throw new CaptureError("not_found", "champ de recherche introuvable (sélecteurs à vérifier)");
-          await s.page.fill(s.page.find(sel.searchInput), query, "search");
+          if (!(await visible(s.page, sel.searchInput))) {
+            const open = await waitVisible(s.page, sel.searchOpen, 2_000);
+            if (open) await s.page.click(open, "open_search");
+          }
+          const input = await waitVisible(s.page, sel.searchInput, t);
+          if (!input) throw new CaptureError("not_found", "champ de recherche introuvable (sélecteurs à vérifier)");
+          await s.page.fill(input, query, "search");
           await humanPause(s.page);
-          await s.page.pressEnter(s.page.find(sel.searchInput), "search");
+          await s.page.pressEnter(input, "search");
         }
         if (!(await s.page.waitFor(sel.searchResult, t))) continue;
         const results = s.page.find(sel.searchResult);

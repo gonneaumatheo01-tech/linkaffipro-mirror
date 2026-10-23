@@ -9,6 +9,8 @@ import { ensureDatingSetupQuestions } from "../human/dating-setup";
 import { ensureAlgoSetupQuestions } from "../algo/setup";
 import { ensureCasinoSetupQuestions } from "../casino/setup";
 import { runCasinoStockCheck } from "../casino/requests";
+import { ensureSportsSetupQuestions } from "../sports/setup";
+import { runSportsPassage } from "../sports/passage";
 import { ensureDailyReportQuestion, sweepHumanRequests } from "../human/site";
 import { ensureTeamConfigs, isAgentsPausedAll } from "../missions/settings";
 import type { AgentsDeps, TeamKey } from "../types";
@@ -55,8 +57,14 @@ export async function runCycle(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {
   // (demande groupée une fois par jour au plus, alerte `agents_media_low`).
   await step(deps, "casinoSetup", out, () => ensureCasinoSetupQuestions(deps));
   await step(deps, "casinoStock", out, () => runCasinoStockCheck(deps));
+  // Équipe Paris sportifs (phase 23) : clé de cotes, compte bookmaker et catégories, demandés une seule fois.
+  await step(deps, "sportsSetup", out, () => ensureSportsSetupQuestions(deps));
   if (await isAgentsPausedAll(deps.prisma)) out.plan = { skipped: "pause générale" };
-  else await step(deps, "plan", out, () => planDay(deps, opts));
+  else {
+    await step(deps, "plan", out, () => planDay(deps, opts));
+    // Passages du Chef Paris (10 h, 15 h, 18 h et 2 h avant les matchs retenus) : missions BET par catégorie.
+    if (!opts.teamKey || opts.teamKey === "sports") await step(deps, "sports", out, () => runSportsPassage(deps));
+  }
   await step(deps, "resume", out, () => resumeMissions(deps));
   await step(deps, "validations", out, () => sweepValidations(deps));
   await step(deps, "humanRequests", out, () => sweepHumanRequests(deps));

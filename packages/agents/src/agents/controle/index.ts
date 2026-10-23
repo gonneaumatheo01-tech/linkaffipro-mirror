@@ -20,6 +20,7 @@ import { casinoFallbacksOf, CASINO_FALLBACK_EVENT } from "../mediatheque/casino"
 import { inventedFigures } from "../../rules/figures";
 import { loadPlan } from "../data";
 import { agentEvent } from "../../admin/journal";
+import { sportsControl } from "../../sports/steps";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
 async function autonomyFacts(mission: Mission, ctx: AgentContext) {
@@ -54,6 +55,8 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
 export const agent: AgentDefinition = {
   key: "controle",
   async run(mission, ctx) {
+    // Équipe Paris sportifs (phase 23) : cote re-vérifiée, coup d'envoi, doublons, image, validations imposées.
+    if (mission.teamKey === "sports") return sportsControl(mission, ctx);
     const p = mission.payload;
     const text = p.text ?? "";
     const problems: string[] = [];

@@ -88,3 +88,26 @@ export function alwaysValidateReason(f: AlwaysValidateFacts): string | null {
   if (f.firstPostOfChannel) reasons.push("nouveau canal");
   return reasons.length ? `toujours validé : ${reasons.join(", ")}` : null;
 }
+
+/** Faits de l'équipe Paris sportifs (phase 23) qui imposent la validation du client quel que soit le niveau. */
+export type SportsValidateFacts = {
+  newLeague: boolean;
+  league?: string | null;
+  newMarket: boolean;
+  market?: string | null;
+  /** Cote constatée hors de la fourchette de la catégorie. */
+  oddsOutOfRange: boolean;
+  /** Image de repli (capture impossible). */
+  fallbackImage: boolean;
+  fallbackReason?: string | null;
+};
+
+/** Toujours validés : ligue ou marché jamais utilisés, cote hors fourchette, image de repli (règle pure). */
+export function sportsAlwaysValidateReason(f: SportsValidateFacts): string | null {
+  const reasons: string[] = [];
+  if (f.fallbackImage) reasons.push(`image de repli (capture impossible${f.fallbackReason ? ` : ${f.fallbackReason}` : ""})`);
+  if (f.newLeague) reasons.push(`ligue jamais utilisée${f.league ? ` (${f.league})` : ""}`);
+  if (f.newMarket) reasons.push(`marché jamais utilisé${f.market ? ` (${f.market})` : ""}`);
+  if (f.oddsOutOfRange) reasons.push("cote hors de la fourchette de la catégorie");
+  return reasons.length ? `toujours validé : ${reasons.join(", ")}` : null;
+}

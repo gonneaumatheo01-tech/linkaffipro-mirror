@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Sportaza (page de test locale)</title>
+<style>body{font-family:sans-serif;margin:0}header{display:flex;gap:12px;padding:12px;background:#222;color:#fff}#login{display:none;padding:16px}#cookies{position:fixed;bottom:0;left:0;right:0;background:#eee;padding:12px}</style></head>
+<body>
+<!-- Imitation d'un site de bookmaker pour les tests (aucun réseau). -->
+<header>
+  <span>Sportaza</span>
+  <button data-testid="login-button" id="open-login">Connexion</button>
+  <a href="/fr/register">Inscription</a>
+  <a href="/fr/deposit" class="deposit-link">Déposer</a>
+  <span data-testid="user-balance" id="balance" style="display:none">Solde : 0,00 €</span>
+</header>
+<div id="login">
+  <form id="login-form">
+    <input name="email" type="email" placeholder="E-mail">
+    <input name="password" type="password" placeholder="Mot de passe">
+    <button type="submit">Se connecter</button>
+  </form>
+  <div id="login-error" style="display:none" data-testid="login-error">Mot de passe incorrect</div>
+  <div id="otp" style="display:none">Entrez le code envoyé par SMS <input autocomplete="one-time-code" name="otp"></div>
+</div>
+<main style="padding:16px">
+  <input type="search" name="search" placeholder="Rechercher un match">
+  <ul id="results"></ul>
+</main>
+<div id="cookies">Nous utilisons des cookies. <button id="onetrust-accept-btn-handler">Tout accepter</button></div>
+<script>
+  if (document.cookie.includes("lapsession=ok")) document.getElementById("balance").style.display = "inline";
+  document.getElementById("onetrust-accept-btn-handler").onclick = () => (document.getElementById("cookies").style.display = "none");
+  document.getElementById("open-login").onclick = () => (document.getElementById("login").style.display = "block");
+  document.getElementById("login-form").onsubmit = (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const user = f.email.value, pw = f.password.value;
+    if (user === "captcha@test.local") { location.href = "/captcha.html"; return; }
+    if (user === "otp@test.local") { document.getElementById("otp").style.display = "block"; return; }
+    if (user === "demo@test.local" && pw === "secret-de-test") {
+      document.cookie = "lapsession=ok; path=/";
+      localStorage.setItem("lap", "1");
+      document.getElementById("login").style.display = "none";
+      document.getElementById("balance").style.display = "inline";
+      return;
+    }
+    document.getElementById("login-error").style.display = "block";
+  };
+  document.querySelector("input[type=search]").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const q = e.target.value.toLowerCase();
+    const all = [
+      ["Paris Saint-Germain - Olympique de Marseille", "/fr/sports/match/psg-om"],
+      ["Lyon - Nice", "/fr/sports/match/lyon-nice"],
+    ];
+    const ul = document.getElementById("results");
+    ul.innerHTML = "";
+    for (const [t, href] of all) if (t.toLowerCase().includes(q.split(" ")[0])) {
+      const li = document.createElement("li");
+      li.setAttribute("data-testid", "search-result");
+      li.innerHTML = '<a href="' + href + '">' + t + "</a>";
+      ul.appendChild(li);
+    }
+  });
+</script>
+</body></html>

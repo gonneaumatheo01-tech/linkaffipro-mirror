@@ -219,7 +219,7 @@ function CategoryForm({
           Active : l&apos;équipe cherche des paris de cette catégorie à chaque passage
         </label>
       </div>
-      <Button type="submit" className="max-md:h-10">
+      <Button type="submit" variant="outline" className="max-md:h-10">
         {category.id ? "Enregistrer la catégorie" : "Créer la catégorie"}
       </Button>
     </form>

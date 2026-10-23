@@ -88,6 +88,79 @@ vi.mock("@/lib/agents/casino-queries", async () => {
     loadThemeMediaCounts: vi.fn(async () => ({ roulette: 4 })),
   };
 });
+vi.mock("./[equipe]/sports-actions", () => ({
+  saveBetCategoryAction: vi.fn(),
+  createTestBetAction: vi.fn(),
+  saveBookmakerCredentialsAction: vi.fn(),
+  deleteBookmakerCredentialsAction: vi.fn(),
+  testBookmakerConnectionAction: vi.fn(),
+  saveScreenshotProxyAction: vi.fn(),
+  deleteScreenshotProxyAction: vi.fn(),
+}));
+vi.mock("@/lib/agents/sports-queries", async () => {
+  const { parseSportsSettings } = await import("@/lib/agents/sports");
+  const category = {
+    id: "cat1",
+    key: "tirs-cadres",
+    name: "Tirs cadrés",
+    sport: "SOCCER",
+    marketTypes: ["shots_onGoal-all-game-ou-over"],
+    leagues: ["EPL"],
+    bookmakers: ["sportaza"],
+    minOdds: 1.5,
+    maxOdds: 3.5,
+    picksPerDay: 2,
+    channelIds: ["c1"],
+    campaignId: null,
+    minMinutesBeforeKickoff: 30,
+    maxOddsDriftPct: 5,
+    active: true,
+    sortOrder: 1,
+    updatedAt: new Date("2026-10-23T08:00:00Z"),
+  };
+  const pick = (id: string, status: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    categoryName: "Tirs cadrés",
+    homeTeam: "Lyon",
+    awayTeam: "Lens",
+    league: "FR_LIGUE_1",
+    kickoffAt: new Date("2026-10-24T19:00:00Z"),
+    marketLabel: "Tirs cadrés du match",
+    selectionLabel: "Plus de 8,5",
+    line: 8.5,
+    bookmaker: "sportaza",
+    odds: 2.1,
+    consensusOdds: 1.9,
+    interestScore: 0.08,
+    oddsAtSend: null,
+    reasoning: { valueEdge: 0.09 },
+    status,
+    skipReason: null,
+    result: null,
+    createdAt: new Date("2026-10-23T08:00:00Z"),
+    missionId: "m1",
+    screenshot: { id: "s1", mimeType: "image/png", origin: "HUMAN_SITE" },
+    ...extra,
+  });
+  return {
+    loadBetCategories: vi.fn(async () => [category]),
+    loadPicksSince: vi.fn(async () => [
+      pick("p1", "PUBLISHED"),
+      pick("p2", "SKIPPED", { skipReason: "odds_moved", screenshot: { id: "s2", mimeType: "image/png", origin: "TEMPLATE" } }),
+    ]),
+    loadSportsSettings: vi.fn(async () => parseSportsSettings(null)),
+    loadBetSummary: vi.fn(async () => [
+      { key: "cat1", label: "Tirs cadrés", published: 4, won: 3, lost: 1, void: 0, hitRate: 0.75, avgOdds: 2.05, roi: 0.12 },
+    ]),
+    loadBookmakers: vi.fn(async () => [
+      { key: "sportaza", login: { set: true, last4: "x", updatedAt: null }, password: { set: true, last4: "y", updatedAt: null }, lastTest: null },
+      { key: "5gringos", login: { set: false, last4: null, updatedAt: null }, password: { set: false, last4: null, updatedAt: null }, lastTest: null },
+    ]),
+    loadProxySummary: vi.fn(async () => ({ set: false, last4: null, updatedAt: null })),
+    loadOddsCallsThisMonth: vi.fn(async () => 120),
+    loadAssetMime: vi.fn(async () => "image/png"),
+  };
+});
 vi.mock("@/lib/agents/dating-queries", () => ({
   loadDatingPersonas: vi.fn(async () => m.datingPersonas),
   loadDatingSettings: vi.fn(async () => ({ videoProvider: "fal", videoResolution: "580p" })),
@@ -430,6 +503,51 @@ describe("rubrique Agents", () => {
     expect(text).not.toContain("Ajouter le thème");
     expect(html).not.toContain('name="casinoLowStock"');
     expect(text).toContain("Seuil de manque : 3 vidéos, rotation : 30 jours.");
+  });
+
+  it("fiche Paris sportifs : paris du jour, catégories, bilan, bookmakers, réglages", async () => {
+    const html = await render(
+      TeamPage({ params: Promise.resolve({ equipe: "sports" }), searchParams: sp({ capture: "s9", bk: "sportaza" }) } as never),
+    );
+    const text = checks(html);
+    for (const t of [
+      "Paris du jour",
+      "Produire un pari de test",
+      "Lyon – Lens",
+      "Écart de valeur : +9 %.",
+      "Écarté : la cote a bougé au-delà de l'écart toléré.",
+      "Image de repli",
+      "Catégories de paris",
+      "Nouvelle catégorie",
+      "Bilan des paris",
+      "Taux de réussite",
+      "75 %",
+      "Bookmakers",
+      "Identifiants enregistrés",
+      "Aucun identifiant",
+      "Tester la connexion",
+      "Adresse internet de secours",
+      "Passages et cotes",
+      "Appels ce mois : 120 sur 2",
+      "ne peut pas perdre",
+    ])
+      expect(text, t).toContain(t);
+    expect(html).toContain('src="/api/agents/media/s1"');
+    expect(html).toContain('src="/api/agents/media/s9"');
+    expect(html).toContain('name="sportsRunHours"');
+    expect(text).not.toContain("Plan par canal");
+    expect(text).not.toMatch(/\bproxy\b|Playwright/i);
+  });
+
+  it("fiche Paris sportifs pour un manager : pari de test, rien à régler", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "sports" }), searchParams: sp() } as never));
+    const text = checks(html);
+    expect(text).toContain("Produire un pari de test");
+    expect(text).not.toContain("Tester la connexion");
+    expect(text).not.toContain("Nouvelle catégorie");
+    expect(html).not.toContain('name="sportsRunHours"');
+    expect(text).toContain("Passages à 10 h, 15 h et 18 h");
   });
 
   it("Ce qui marche (équipe Algorithme) : classements, heures, tests, propositions, conversations, rapports, réglages", async () => {

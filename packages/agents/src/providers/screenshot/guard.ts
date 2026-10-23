@@ -309,7 +309,9 @@ export class GuardedPage {
           text: (doc.body?.innerText ?? "").slice(0, 6000),
           title: doc.title,
           frames: Array.from(doc.querySelectorAll("iframe")).map((f) => f.getAttribute("src") ?? ""),
+          // Seulement les éléments affichés : un champ de code caché existe sur bien des pages de connexion.
           attributes: Array.from(doc.querySelectorAll("[autocomplete=one-time-code],[class*=captcha],[id*=captcha],[data-sitekey]"))
+            .filter((e) => (e as unknown as { getClientRects(): ArrayLike<unknown> }).getClientRects().length > 0)
             .slice(0, 5)
             .map((e) => e.outerHTML.slice(0, 200)),
         };

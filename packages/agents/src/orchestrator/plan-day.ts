@@ -35,6 +35,8 @@ export async function planDay(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {}
   const teams: TeamKey[] = [];
   for (const t of opts.teamKey ? [opts.teamKey] : TEAM_KEYS) {
     if (!chainOf(t).active) continue;
+    // Paris sportifs : missions créées par les passages du Chef Paris (catégories), jamais par les plans de canaux.
+    if (t === "sports") continue;
     if ((await isTeamHalted(deps, t)).halted) continue;
     teams.push(t);
   }

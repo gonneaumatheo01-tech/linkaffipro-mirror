@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>PSG - Marseille | Sportaza (test)</title>
+<style>body{font-family:sans-serif;margin:0;padding:16px}section{border:1px solid #ccc;margin:12px 0;padding:8px;width:520px}li{display:flex;justify-content:space-between;padding:6px}.hidden{display:none}</style></head>
+<body>
+<h1>Paris Saint-Germain - Olympique de Marseille</h1>
+<nav><button role="tab">Principaux</button><button role="tab" id="tab-corners">Corners</button></nav>
+<section data-testid="market"><h3 data-testid="market-title">Résultat du match</h3>
+  <ul><li data-testid="selection"><span>Paris Saint-Germain</span><button class="odds-button"><span data-testid="odds">1,55</span></button></li>
+  <li data-testid="selection"><span>Match nul</span><button class="odds-button"><span data-testid="odds">4,20</span></button></li></ul>
+</section>
+<section data-testid="market"><h3 data-testid="market-title">Tirs cadrés - total</h3>
+  <ul><li data-testid="selection"><span>Plus de 8,5</span><button class="odds-button"><span data-testid="odds">2,10</span></button><button class="place-bet" id="bet">Parier</button></li>
+  <li data-testid="selection"><span>Moins de 8,5</span><button class="odds-button"><span data-testid="odds">1,70</span></button></li></ul>
+</section>
+<section data-testid="market" id="corners" class="hidden"><h3 data-testid="market-title">Corners - total</h3>
+  <ul><li data-testid="selection"><span>Plus de 9,5</span><button class="odds-button"><span data-testid="odds">1,95</span></button></li></ul>
+</section>
+<script>
+  window.betClicked = false;
+  document.getElementById("bet").onclick = () => (window.betClicked = true);
+  for (const b of document.querySelectorAll(".odds-button")) b.onclick = () => (window.betClicked = true);
+  document.getElementById("tab-corners").onclick = () => document.getElementById("corners").classList.remove("hidden");
+</script>
+</body></html>

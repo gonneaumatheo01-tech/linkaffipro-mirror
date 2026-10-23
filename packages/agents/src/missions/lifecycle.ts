@@ -27,6 +27,12 @@ export type CreateMissionInput = {
   format?: "video" | "photo" | "text";
   /** Persona imposée (post de test de l'équipe Dating, phase 20). */
   personaId?: string | null;
+  /** Phase 23 : mission BET (équipe Paris sportifs), charge utile de départ, étapes déjà faites (pari choisi par une
+   * mission sœur), quota du canal (somme des paris par jour des catégories qui le visent). */
+  kind?: "POST" | "BET";
+  payload?: Record<string, unknown>;
+  skipAgents?: readonly string[];
+  postsPerDay?: number;
 };
 
 export type CreateMissionResult =
@@ -57,21 +63,28 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
     channel,
     teamKey: input.teamKey,
     activeOnChannel: active,
-    postsPerDay: plan?.postsPerDay ?? 3,
+    postsPerDay: input.postsPerDay ?? plan?.postsPerDay ?? 3,
     isTest: input.isTest,
   });
   if (collision) return { ok: false, reason: collision };
 
-  const steps = buildSteps(chain.post);
-  const payload = { ...(input.format ? { format: input.format } : {}), ...(input.personaId ? { personaId: input.personaId } : {}) };
+  const steps = buildSteps(chain.post).map((s) =>
+    input.skipAgents?.includes(s.agent) ? { ...s, status: "SKIPPED" as const, summary: "déjà fait par une mission sœur" } : s,
+  );
+  const payload = {
+    ...(input.payload ?? {}),
+    ...(input.format ? { format: input.format } : {}),
+    ...(input.personaId ? { personaId: input.personaId } : {}),
+  };
   const settings = await loadTeamSettings(deps.prisma, input.teamKey);
   const paid = [...new Set(chain.post.flatMap((a) => PAID_PROVIDERS[a] ?? []))] as ProviderKey[];
   // IA de repli (aucune clé) : aucune dépense, donc aucun plafond à vérifier.
   const llm = (await resolveProviders(deps as EngineDeps)).llm as { fake?: boolean } | null;
-  const budget = await checkBudgets(deps, settings, paid.filter((p) => p === "llm" && !llm?.fake), now);
+  // L'équipe Paris sportifs n'appelle pas l'IA texte (posts écrits par le code) : aucun plafond d'IA ne la bloque.
+  const budget = await checkBudgets(deps, settings, paid.filter((p) => p === "llm" && !llm?.fake && input.teamKey !== "sports"), now);
   const base = {
     teamKey: input.teamKey,
-    kind: "POST" as const,
+    kind: input.kind ?? ("POST" as const),
     channelId: input.channelId,
     steps: json(steps) as never,
     payload: payload as never,
@@ -90,7 +103,7 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
   const first = nextRunnableIndex(steps, 0) ?? 0;
   const mission = await deps.prisma.agentMission.create({ data: { ...base, status: "PENDING", currentStep: first } });
   // Test A/B actif sur le canal (phase 21) : variante tirée une fois, gardée dans la charge utile pour toutes les étapes.
-  if (input.channelId && !input.isTest) {
+  if (input.channelId && !input.isTest && input.kind !== "BET") {
     const running = await deps.prisma.experiment.findMany({
       where: { channelId: input.channelId, status: "RUNNING" },
       select: { id: true, kind: true, variants: true },
@@ -125,6 +138,8 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
  * simulation, `isTest = true`.
  */
 export async function createTestMission(deps: AgentsDeps, teamKey: TeamKey, byUserId: string | null): Promise<CreateMissionResult> {
+  // Équipe Paris sportifs : un pari de test (faux fournisseur de cotes), jamais un post sans pari.
+  if (teamKey === "sports") return (await import("../sports/test-bet")).createTestBet(deps, { byUserId });
   const test = await deps.prisma.channel.findFirst({
     where: { isTest: true, isActive: true },
     orderBy: { createdAt: "asc" },

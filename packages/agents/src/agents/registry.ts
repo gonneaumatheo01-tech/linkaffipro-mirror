@@ -3,7 +3,9 @@
  * l'étape). `PAID_PROVIDERS` : fournisseurs payants appelés par un agent (plafond vérifié avant l'étape).
  */
 import type { AgentDefinition, AgentKey, ProviderKey } from "../types";
+import { agent as capture } from "./capture";
 import { agent as controle } from "./controle";
+import { agent as cotes } from "./cotes";
 import { agent as experimentation } from "./experimentation";
 import { agent as horaires } from "./horaires";
 import { agent as posts } from "./posts";
@@ -18,8 +20,8 @@ export const AGENT_REGISTRY: Record<AgentKey, AgentDefinition | null> = {
   mediatheque,
   "media-ia": mediaIa,
   redaction,
-  cotes: null, // phase 23
-  capture: null, // phase 23
+  cotes,
+  capture, // phase 23 (chantier B)
   planification,
   controle,
   publication,

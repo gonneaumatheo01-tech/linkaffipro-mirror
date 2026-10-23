@@ -9,6 +9,7 @@ import type { AgentDefinition } from "../../types";
 import { findTestChannel, loadChannel, loadPlan } from "../data";
 import { planSlot } from "../planification/plan";
 import { withSimulationHeader } from "./header";
+import { sportsPublication } from "../../sports/steps";
 import { experimentGroupId, missionExperimentOf } from "../experimentation/variants";
 
 /** Délai minimal entre la création du message et son envoi ; au-delà, le créneau est recalculé. */
@@ -17,6 +18,8 @@ const SLOT_MARGIN_MS = 60_000;
 export const agent: AgentDefinition = {
   key: "publication",
   async run(mission, ctx) {
+    // Équipe Paris sportifs (phase 23) : publication immédiate, jamais trop près du coup d'envoi.
+    if (mission.teamKey === "sports") return sportsPublication(mission, ctx);
     if (mission.postId) {
       const existing = await ctx.prisma.post.findUnique({ where: { id: mission.postId }, select: { id: true } });
       if (existing) return { ok: true, output: { publishChannelId: mission.payload.publishChannelId }, summary: `déjà publié (${existing.id})` };

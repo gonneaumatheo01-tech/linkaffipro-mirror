@@ -34,8 +34,8 @@ function toAmerican(d: number): string {
 
 export function createFakeOddsProvider(opts: { now?: () => Date } = {}): FakeOddsProvider {
   const clock = opts.now ?? (() => new Date());
-  const raw = clone((eventsFixture as { data: SgoEvent[] }).data);
-  const results = clone((resultsFixture as { data: SgoEvent[] }).data);
+  const raw = clone((eventsFixture as unknown as { data: SgoEvent[] }).data);
+  const results = clone((resultsFixture as unknown as { data: SgoEvent[] }).data);
   const calls: string[] = [];
   const shift = () => clock().getTime() - FAKE_ODDS_ANCHOR.getTime();
   const rebased = (e: SgoEvent): SgoEvent => {

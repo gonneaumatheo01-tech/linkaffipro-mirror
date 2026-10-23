@@ -111,7 +111,8 @@ export async function runNextStep(deps: EngineDeps, missionId: string, index: nu
 
   const ctx = await buildContext(deps, mission.teamKey);
   const fakeLlm = (ctx.providers.llm as { fake?: boolean } | null)?.fake === true;
-  const paid = (PAID_PROVIDERS[step.agent] ?? []).filter((p) => !(p === "llm" && fakeLlm));
+  // Équipe Paris sportifs : posts écrits par le code, jamais bloqués par le plafond d'IA texte.
+  const paid = (PAID_PROVIDERS[step.agent] ?? []).filter((p) => !(p === "llm" && (fakeLlm || mission.teamKey === "sports")));
   const blocked = SELF_BUDGETED_AGENTS.has(step.agent) ? null : await checkBudgets(deps, ctx.settings, paid, now0);
   if (blocked) {
     steps[index] = { ...step, status: "FAILED", error: blocked.reason, endedAt: now0.toISOString() };
@@ -179,9 +180,15 @@ export async function runNextStep(deps: EngineDeps, missionId: string, index: nu
   }
 
   // Relire la charge utile : une décision humaine a pu l'écrire pendant l'étape.
-  const fresh = await deps.prisma.agentMission.findUnique({ where: { id: mission.id }, select: { payload: true, postId: true } });
+  const fresh = await deps.prisma.agentMission.findUnique({ where: { id: mission.id }, select: { payload: true, postId: true, status: true } });
   const payload = { ...parsePayload(fresh?.payload ?? mission.payload), ...(result.output ?? {}) };
   const stepCost = (step.costCents ?? 0) + spent;
+  // L'agent a lui-même annulé la mission (pari écarté, phase 23) : on garde la trace de l'étape, rien de plus.
+  if (fresh?.status === "CANCELLED") {
+    steps[index] = { ...steps[index]!, status: "DONE", endedAt: now.toISOString(), summary: short(result.summary, 200), costCents: stepCost };
+    await deps.prisma.agentMission.update({ where: { id: mission.id }, data: { steps: json(steps) as never, payload: json(payload) as never, lastActivityAt: now } });
+    return "done";
+  }
 
   if (result.wait) {
     // En attente du fournisseur : l'étape reste « en cours », la même étape est relue plus tard.

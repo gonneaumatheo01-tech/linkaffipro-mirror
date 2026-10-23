@@ -16,6 +16,8 @@ export type EngineDeps = AgentsDeps & {
   frames?: FrameExtractor;
   /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
   fetch?: typeof fetch;
+  /** Cache des cotes (phase 23 : Redis dans le worker). */
+  oddsCache?: import("../providers/odds-cache").OddsCache | null;
 };
 
 export function clockOf(deps: Pick<AgentsDeps, "now">): () => Date {

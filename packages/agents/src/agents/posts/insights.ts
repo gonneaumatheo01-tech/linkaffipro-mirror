@@ -164,6 +164,8 @@ async function computeBatch(deps: AgentsDeps, postIds: string[], now: Date): Pro
       agentMissionId: p.agentMissionId,
       model: str(payload.model),
       experimentId: experimentOf(payload, p.abGroupId),
+      // Phase 23 : résultat du pari publié (réglé par la tâche `settle`), jamais effacé par un recalcul.
+      ...(str(payload.betResult) ? { betResult: str(payload.betResult) } : {}),
       computedAt: now,
     };
     await prisma.postInsight.upsert({ where: { postId: p.id }, create: { postId: p.id, ...data }, update: data });

@@ -69,6 +69,8 @@ export const IMPLEMENTED_AGENT_KEYS = [
   "conversations",
   "experimentation",
   "synthese",
+  // Équipe Paris sportifs (phase 23).
+  "cotes",
 ] as const satisfies readonly AgentKey[];
 
 export const AGENT_LABELS: Record<AgentKey, string> = {
@@ -239,7 +241,8 @@ export type Providers = {
   /** Repli vidéo (Magic Hour) imposé par les tests. */
   videoFallback?: VideoProvider | null;
   image?: ImageProvider | null;
-  odds?: unknown;
+  /** Cotes (phase 23) : imposées par les tests, sinon choisies par `providers/odds-registry.ts`. */
+  odds?: import("./providers/odds").OddsProvider | null;
   screenshot?: unknown;
 };
 
@@ -251,6 +254,8 @@ export type AgentContext = AgentsDeps & {
   frames?: FrameExtractor;
   /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
   fetch?: typeof fetch;
+  /** Cache des cotes (phase 23 : Redis dans le worker, mémoire ailleurs). */
+  oddsCache?: import("./providers/odds-cache").OddsCache | null;
   /** Réglages de l'équipe (`AgentTeamConfig`) et modèles (`Setting` `agents.models`). */
   settings: TeamSettings;
 };

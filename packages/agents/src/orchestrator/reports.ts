@@ -9,6 +9,7 @@ import { FALLBACK_EVENT } from "../agents/media-ia/fallback";
 import { countFallbacks } from "../chiefs/dating-format";
 import { casinoFallbackNotes, CASINO_FALLBACK_EVENT, type CasinoFallback } from "../casino/format";
 import { loadTeamSettings } from "../missions/settings";
+import { sportsReportNotes } from "../sports/summary";
 import { monthUsage, totalCents } from "../missions/usage";
 import { addDaysToDay, parisDay, parisDayStart, parisParts } from "../rules/time";
 import { TEAM_KEYS, TEAM_LABELS, type AgentsDeps } from "../types";
@@ -81,6 +82,8 @@ export async function buildDailyReport(deps: AgentsDeps): Promise<{ day: string;
         ? await deps.prisma.event.findMany({ where: { type: CASINO_FALLBACK_EVENT, occurredAt: { gte: since, lt: until } }, select: { payload: true } })
         : [];
     const notes = casinoFallbackNotes(casinoEvents.map((e) => (e.payload ?? {}) as CasinoFallback));
+    // Équipe Paris sportifs (phase 23) : paris de la veille et bilan de la semaine.
+    if (teamKey === "sports") notes.push(...(await sportsReportNotes(deps.prisma, since, until)));
     const caps = Object.values(settings.monthlyBudgetCents).filter((n): n is number => typeof n === "number");
     lines.push(
       reportLine({

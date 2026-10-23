@@ -15,6 +15,10 @@ export const SECRET_KEYS = [
   "providers.fal.apiKey",
   "providers.magichour.apiKey",
   "providers.odds.apiKey",
+  // Phase 23 : compte bookmaker (identifiant puis mot de passe) et adresse IP résidentielle des captures.
+  "providers.bookmakers.sportaza.login",
+  "providers.bookmakers.sportaza.password",
+  "providers.screenshotProxy",
 ] as const;
 
 export type SecretSummary = { set: boolean; last4: string | null; updatedAt: Date | null };
@@ -36,7 +40,10 @@ export function secretLabel(key: string): string {
   if (key === "providers.magichour.apiKey") return "clé Magic Hour";
   if (key === "providers.odds.apiKey") return "clé des cotes";
   const bk = /^providers\.bookmakers\.([^.]+)\.login$/.exec(key);
-  if (bk) return `identifiants ${bk[1]}`;
+  if (bk) return `identifiant ${bk[1]}`;
+  const pw = /^providers\.bookmakers\.([^.]+)\.password$/.exec(key);
+  if (pw) return `mot de passe ${pw[1]}`;
+  if (key === "providers.screenshotProxy") return "adresse IP résidentielle";
   return `clé ${key}`;
 }
 
@@ -62,6 +69,11 @@ export function registerSecretVerifier(keyOrPrefix: string, verifier: SecretVeri
 /** Retire tous les vérificateurs (tests). */
 export function clearSecretVerifiers(): void {
   verifiers.clear();
+}
+
+/** Un vérificateur est-il prévu pour cette clé (phase 23 : test de connexion du bookmaker) ? */
+export function hasSecretVerifier(key: string): boolean {
+  return verifierFor(key) !== null;
 }
 
 function verifierFor(key: string): SecretVerifier | null {

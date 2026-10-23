@@ -10,10 +10,13 @@ import { buildRedactionUser, parseRedaction, REDACTION_SYSTEM } from "./prompt";
 import { missionExperimentOf } from "../experimentation/variants";
 import { loadCasinoOffer } from "../../casino/offer";
 import { casinoTemplateTexts, inspirationsFor } from "../../casino/templates";
+import { sportsRedaction } from "../../sports/steps";
 
 export const agent: AgentDefinition = {
   key: "redaction",
   async run(mission, ctx) {
+    // Équipe Paris sportifs (phase 23) : texte écrit par le code à partir des chiffres du pari.
+    if (mission.teamKey === "sports") return sportsRedaction(mission, ctx);
     const llm = ctx.providers.llm;
     if (!llm) return { ok: false, error: "Aucun fournisseur d'IA texte.", retryable: false };
     const channel = await loadChannel(ctx.prisma, mission.channelId);
