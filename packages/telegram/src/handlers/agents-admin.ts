@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import { GrammyError } from "grammy";
-import { handleAdminText, handleAgentsCallback } from "@linkaffipro/agents";
+import { handleAdminText, handleAgentsCallback, isAgentsCallbackData } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
 import { htmlToPlain } from "../agents/admin-messenger";
 
@@ -19,7 +19,8 @@ async function replyHtml(ctx: Context, text: string): Promise<void> {
 }
 
 /**
- * Phase 19 : dialogue admin des agents. Boutons des aperçus (`agv:<id>:ok|edit|no`) et messages texte privés de
+ * Phase 19 : dialogue admin des agents. Boutons des aperçus (`agv:<id>:ok|edit|no`), boutons oui / non des questions
+ * (`agh:<id>:oui|non`, phase 22) et messages texte privés de
  * l'admin (`Setting` `admin.telegramUserId`) : réponses aux demandes, correction d'un post, commandes (« agents »,
  * « pause dating », « ok 12 », « clé fal … »…). Un message qui contenait un secret est supprimé aussitôt. Phase 20 :
  * un vocal de l'admin est mis en file pour le worker (transcrit puis traité comme un texte, jamais comme une clé).
@@ -29,7 +30,7 @@ async function replyHtml(ctx: Context, text: string): Promise<void> {
 export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
   bot.on("callback_query:data", async (ctx, next) => {
     const data = ctx.callbackQuery.data;
-    if (!data.startsWith("agv:") || !deps.agentsDeps) return next();
+    if (!isAgentsCallbackData(data) || !deps.agentsDeps) return next();
     try {
       const r = await handleAgentsCallback(deps.agentsDeps(), { data, fromTelegramId: BigInt(ctx.from.id) });
       await ctx.answerCallbackQuery(r.toast ? { text: r.toast } : undefined).catch(() => undefined);

@@ -129,6 +129,8 @@ export interface TelegramDeps {
   agentsAdminState?(telegramUserId: bigint): Promise<{ isAdmin: boolean; secretPending: boolean }>;
   /** Phase 19 : téléchargement d'un fichier Telegram (`getFile`) ; absent : `fetch`. */
   downloadTelegramFile?(url: string): Promise<Uint8Array>;
+  /** Attente avant la confirmation unique d'un album déposé en médiathèque (tests : quelques ms ; défaut 2 s). */
+  mediaAlbumReplyDelayMs?: number;
 }
 
 /** Résultat d'une re-vérification des droits pour le bot (méthode 1). */

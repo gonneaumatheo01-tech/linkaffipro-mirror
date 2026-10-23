@@ -5,7 +5,7 @@
 import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, readSetting } from "../admin/journal";
-import { askHuman, formatQuestion, sendNextHumanRequest } from "./requests";
+import { askHuman, confirmButtonsOf, formatQuestion, sendNextHumanRequest } from "./requests";
 import { respondToRequest, resumeWaitingMissions, skipRequest, type HumanRequestRow } from "./respond";
 
 export type AnswerResult = { ok: boolean; message: string };
@@ -104,6 +104,7 @@ export async function sweepHumanRequests(deps: AgentsDeps): Promise<{ sent: numb
     try {
       sent = await deps.admin.send(formatQuestion(request, { reminder: true }), {
         replyToMessageId: request.telegramMessageId ?? undefined,
+        buttons: confirmButtonsOf(request),
       });
     } catch (err) {
       deps.logger?.warn({ err: (err as Error).message, requestId: request.id }, "[agents] rappel non envoyé");

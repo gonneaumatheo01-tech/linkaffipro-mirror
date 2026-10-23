@@ -2,7 +2,7 @@
  * Demandes au client par Telegram (CONTRAT, propriétaire : chantier B). Une seule question à la fois : la suivante
  * part quand la précédente est répondue ou passée. Les agents appellent `askHuman`.
  */
-import type { AgentsDeps, TeamKey } from "../types";
+import type { AdminButton, AgentsDeps, TeamKey } from "../types";
 import { agentEvent, esc, nowOf } from "../admin/journal";
 
 export type AskHumanInput = {
@@ -58,6 +58,24 @@ export function formatQuestion(req: RequestRow, opts: { reminder?: boolean } = {
   return lines.join("\n");
 }
 
+/** Préfixe des boutons de réponse à une demande (`agh:<id>:oui|non`, admin seulement). */
+export const REQUEST_CALLBACK_PREFIX = "agh:";
+
+/**
+ * Boutons d'une question CONFIRM qui en demande (`onAnswer.buttonYes`, ex. « Créer le thème promo ») : oui / non en
+ * un clic ; la réponse écrite « oui » reste possible.
+ */
+export function confirmButtonsOf(req: { id: string; kind: string; onAnswer?: unknown }): AdminButton[][] | undefined {
+  const yes = onAnswerOf(req.onAnswer).buttonYes;
+  if (req.kind !== "CONFIRM" || typeof yes !== "string" || !yes.trim()) return undefined;
+  return [
+    [
+      { text: yes.slice(0, 60), callbackData: `${REQUEST_CALLBACK_PREFIX}${req.id}:oui` },
+      { text: "Non", callbackData: `${REQUEST_CALLBACK_PREFIX}${req.id}:non` },
+    ],
+  ];
+}
+
 /** Une question est-elle déjà posée et sans réponse ? */
 export async function currentHumanRequest(deps: Pick<AgentsDeps, "prisma">) {
   return deps.prisma.humanRequest.findFirst({ where: { status: "PENDING" }, orderBy: { askedAt: "asc" } });
@@ -79,7 +97,7 @@ export async function sendNextHumanRequest(deps: AgentsDeps): Promise<string | n
   if (claimed.count === 0) return null;
   let sent: { messageId: number } | null = null;
   try {
-    sent = await deps.admin.send(formatQuestion(next));
+    sent = await deps.admin.send(formatQuestion(next), { buttons: confirmButtonsOf(next) });
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, requestId: next.id }, "[agents] question non envoyée");
   }

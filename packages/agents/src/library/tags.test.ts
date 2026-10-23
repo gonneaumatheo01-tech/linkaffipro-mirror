@@ -30,3 +30,25 @@ describe("mots-clés de la médiathèque", () => {
     expect(tagsMatchRequest(["dating", "source"], ["dating", "source", "lea"])).toBe(false);
   });
 });
+
+describe("thèmes casino d'une légende", () => {
+  const known = ["machines-a-sous", "roulette", "bonus", "tournoi"];
+  it("plusieurs thèmes, synonymes, accents, pluriels", async () => {
+    const { parseCasinoThemes } = await import("./tags");
+    const tags = (c: string) => parseLibraryCaption(c)!.tags;
+    expect(parseCasinoThemes(tags("#casino #roulette #Bonus"), known)).toEqual({ themes: ["roulette", "bonus"], unknown: [] });
+    for (const c of ["#casino #machines-a-sous", "#casino #machinesasous", "#casino #Machines_à_sous", "#casino #slots", "#casino #MACHINES-À-SOUS"])
+      expect(parseCasinoThemes(tags(c), known).themes).toEqual(["machines-a-sous"]);
+    expect(parseCasinoThemes(tags("#casino #roulettes #tournois"), known).themes).toEqual(["roulette", "tournoi"]);
+  });
+  it("thème inconnu proposé sous une clé propre ; #casino seul : aucun thème", async () => {
+    const { parseCasinoThemes } = await import("./tags");
+    expect(parseCasinoThemes(parseLibraryCaption("#casino #Crash_Game #roulette")!.tags, known)).toEqual({
+      themes: ["roulette"],
+      unknown: ["crash-game"],
+    });
+    expect(parseCasinoThemes(parseLibraryCaption("#casino")!.tags, known)).toEqual({ themes: [], unknown: [] });
+    // Un synonyme d'un thème de départ retiré par l'équipe se propose sous sa clé canonique.
+    expect(parseCasinoThemes(["casino", "slots"], ["roulette"]).unknown).toEqual(["machines-a-sous"]);
+  });
+});

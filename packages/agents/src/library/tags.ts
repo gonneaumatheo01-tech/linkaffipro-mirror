@@ -116,3 +116,77 @@ export function tagsMatchRequest(tags: string[], expected: string[] | undefined)
   if (want.length === 0) return false;
   return want.every((t) => tags.includes(t));
 }
+
+/**
+ * Mots-clés libres d'une légende (ni équipe, ni nature) : les thèmes candidats d'un dépôt casino, dans l'ordre.
+ * Les personas sont ignorées : l'équipe Casino n'en a pas.
+ */
+export function themeCandidatesOf(tags: string[]): string[] {
+  return tags.filter((t) => !(t in TEAM_TAGS) && !(t in KIND_TAGS));
+}
+
+/**
+ * Synonymes des thèmes casino, sur la forme compacte (sans tirets ni soulignés) : l'admin écrit comme il parle
+ * (`#slots`, `#machinesasous`). Table volontairement courte ; les pluriels en « s » sont tolérés à part.
+ */
+export const CASINO_THEME_SYNONYMS: Record<string, string> = {
+  slot: "machines-a-sous",
+  slots: "machines-a-sous",
+  machine: "machines-a-sous",
+  machines: "machines-a-sous",
+  machineasous: "machines-a-sous",
+  machinesasous: "machines-a-sous",
+  machinesous: "machines-a-sous",
+  bj: "blackjack",
+  livecasino: "live",
+  casinolive: "live",
+  direct: "live",
+  endirect: "live",
+  tournament: "tournoi",
+  tournaments: "tournoi",
+  tournois: "tournoi",
+  vibe: "ambiance",
+  vibes: "ambiance",
+};
+
+const compact = (s: string) => s.replace(/[-_]/g, "");
+
+/** Clé de thème propre (ASCII, tirets) tirée d'un mot-clé normalisé : `machines_a_sous` → `machines-a-sous`. */
+export function themeSlugOf(tag: string): string {
+  return tag
+    .replace(/_/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+/**
+ * Thème connu correspondant à un mot-clé (forme compacte, puis pluriel en « s », puis synonymes), ou null.
+ * `known` : clés des thèmes de l'équipe.
+ */
+export function matchCasinoTheme(tag: string, known: readonly string[]): string | null {
+  const c = compact(tag);
+  const byCompact = (x: string) => known.find((k) => compact(k) === x) ?? null;
+  const direct = byCompact(c) ?? (c.endsWith("s") ? byCompact(c.slice(0, -1)) : null);
+  if (direct) return direct;
+  const syn = CASINO_THEME_SYNONYMS[c];
+  return syn && known.includes(syn) ? syn : null;
+}
+
+/** Thèmes d'un dépôt casino : connus (dans l'ordre, sans doublon) et inconnus (clés proposées à la création). */
+export function parseCasinoThemes(tags: string[], known: readonly string[]): { themes: string[]; unknown: string[] } {
+  const themes: string[] = [];
+  const unknown: string[] = [];
+  for (const t of themeCandidatesOf(tags)) {
+    const k = matchCasinoTheme(t, known);
+    if (k) {
+      if (!themes.includes(k)) themes.push(k);
+      continue;
+    }
+    // Un synonyme d'un thème de départ retiré par l'équipe se propose sous sa clé canonique.
+    const slug = CASINO_THEME_SYNONYMS[compact(t)] ?? themeSlugOf(t);
+    if (slug && !unknown.includes(slug)) unknown.push(slug);
+  }
+  return { themes, unknown };
+}

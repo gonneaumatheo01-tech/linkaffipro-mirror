@@ -33,17 +33,21 @@ export type CasinoStockRow = {
 
 /** Stock par canal casino (plan activé ou non) et par thème du canal. Chantier A. */
 export async function casinoStock(
-  _prisma: PrismaClient,
-  _opts?: { now?: Date; channelId?: string },
+  prisma: PrismaClient,
+  opts?: { now?: Date; channelId?: string },
 ): Promise<CasinoStockRow[]> {
-  throw new Error("casinoStock : à écrire (chantier A)");
+  // Import différé : stock → settings → contracts formerait un cycle au chargement (CASINO_DEFAULT_THEMES).
+  const { computeCasinoStock } = await import("./stock");
+  return computeCasinoStock(prisma, opts);
 }
 
 /** Classe un média « à classer » (ou en change les thèmes) : thèmes connus seulement ; AuditLog. Chantier B. */
 export async function classifyCasinoMedia(
-  _deps: AgentsDeps,
-  _input: { assetId: string; themes: string[] },
-  _actor: ActorRef,
+  deps: AgentsDeps,
+  input: { assetId: string; themes: string[] },
+  actor: ActorRef,
 ): Promise<{ ok: boolean; message: string }> {
-  throw new Error("classifyCasinoMedia : à écrire (chantier B)");
+  // Import différé : classify → settings → contracts formerait un cycle au chargement (CASINO_DEFAULT_THEMES).
+  const { classifyCasinoMediaImpl } = await import("./classify");
+  return classifyCasinoMediaImpl(deps, input, actor);
 }

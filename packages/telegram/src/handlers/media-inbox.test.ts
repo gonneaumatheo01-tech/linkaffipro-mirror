@@ -34,6 +34,7 @@ function setup() {
     auditChannel: vi.fn(async () => undefined),
     agentsDeps: () => kit.deps,
     downloadTelegramFile: vi.fn(async (_url: string) => new Uint8Array([1, 2, 3])),
+    mediaAlbumReplyDelayMs: 5,
   } satisfies TelegramDeps;
   const bot = new Bot("111:TEST", { botInfo: botInfoFromRecord(identity) });
   const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
@@ -76,7 +77,8 @@ describe("dépôt dans la médiathèque par le bot", () => {
     expect(kit.tables("mediaAsset")[0]).toMatchObject({ teamKey: "casino", theme: "roulette", kind: "SOURCE", mimeType: "video/mp4", duration: 8, libraryMessageId: 9 });
     expect(kit.tables("mediaAssetTelegramFile")[0]).toMatchObject({ botId: "bot_1" });
     expect(calls.find((c) => c.method === "copyMessage")?.payload).toMatchObject({ chat_id: "-100777" });
-    expect(replies()).toEqual(["Rangé dans la médiathèque ✅ vidéo · Casino · source · thème roulette"]);
+    expect(kit.tables("mediaAsset")[0]).toMatchObject({ origin: "HUMAN", tags: ["casino", "theme:roulette"] });
+    expect(replies()).toEqual(["Vidéo rangée ✅ roulette (sur aucun canal casino pour l'instant)"]);
   });
 
   it("toute autre personne : ignorée", async () => {
@@ -106,5 +108,77 @@ describe("dépôt dans la médiathèque par le bot", () => {
     await bot.handleUpdate(videoUpdate(ADMIN, undefined, { media_group_id: "g1" }));
     expect(kit.tables("mediaAsset")).toHaveLength(2);
     expect(kit.tables("mediaAsset").every((a) => a.teamKey === "dating" && a.kind === "PHOTO")).toBe(true);
+  });
+});
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function callbackUpdate(fromId: number, data: string): Update {
+  return {
+    update_id: uid++,
+    callback_query: {
+      id: `cb${uid}`,
+      chat_instance: "ci",
+      data,
+      from: { id: fromId, is_bot: false, first_name: "A" },
+      message: { message_id: 50, date: 0, chat: { id: fromId, type: "private", first_name: "A" }, text: "q" },
+    },
+  } as Update;
+}
+
+describe("dépôt casino par le bot (phase 22)", () => {
+  it("album casino : chaque média rangé, une seule ligne de confirmation", async () => {
+    const { kit, deps, bot, replies } = setup();
+    let n = 10;
+    deps.downloadTelegramFile.mockImplementation(async () => new Uint8Array([++n]));
+    await bot.handleUpdate(videoUpdate(ADMIN, "#casino #roulette #bonus", { media_group_id: "g2" }));
+    await bot.handleUpdate(videoUpdate(ADMIN, undefined, { media_group_id: "g2" }));
+    await bot.handleUpdate(videoUpdate(ADMIN, undefined, { media_group_id: "g2" }));
+    expect(replies()).toEqual([]);
+    await wait(30);
+    expect(kit.tables("mediaAsset")).toHaveLength(3);
+    expect(kit.tables("mediaAsset").every((a) => a.theme === "roulette" && a.origin === "HUMAN")).toBe(true);
+    expect(replies()).toEqual(["3 médias rangés ✅ roulette, bonus (sur aucun canal casino pour l'instant)"]);
+  });
+
+  it("document vidéo transféré et animation : rangés", async () => {
+    const { kit, deps, bot } = setup();
+    let n = 20;
+    deps.downloadTelegramFile.mockImplementation(async () => new Uint8Array([++n]));
+    const doc = videoUpdate(ADMIN, "#casino #live", {
+      forward_origin: { type: "channel", chat: channel, message_id: 6, date: 0 },
+    });
+    const m = doc.message as unknown as Record<string, unknown>;
+    delete m.video;
+    m.document = { file_id: "doc1", file_unique_id: "ud1", mime_type: "video/mp4", file_name: "clip.mp4", file_size: 500 };
+    await bot.handleUpdate(doc);
+    const anim = videoUpdate(ADMIN, "#casino #jackpot");
+    const a = anim.message as unknown as Record<string, unknown>;
+    a.animation = a.video;
+    delete a.video;
+    await bot.handleUpdate(anim);
+    expect(kit.tables("mediaAsset").map((x) => [x.theme, x.kind])).toEqual([
+      ["live", "SOURCE"],
+      ["jackpot", "SOURCE"],
+    ]);
+    expect(deps.upsertChannel).not.toHaveBeenCalled();
+  });
+
+  it("thème inconnu : bouton « Créer le thème », admin seulement", async () => {
+    const { kit, bot, calls, replies } = setup();
+    await bot.handleUpdate(videoUpdate(ADMIN, "#casino #crash"));
+    expect(replies()[0]).toContain("thème inconnu : crash");
+    const req = kit.tables("humanRequest")[0]!;
+    expect(kit.sent.at(-1)!.buttons![0]![0]).toEqual({ text: "Créer le thème crash", callbackData: `agh:${req.id}:oui` });
+
+    await bot.handleUpdate(callbackUpdate(31337, `agh:${req.id}:oui`));
+    expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
+    expect(kit.tables("mediaAsset")[0]!.theme).toBeNull();
+
+    await bot.handleUpdate(callbackUpdate(ADMIN, `agh:${req.id}:oui`));
+    expect(kit.tables("humanRequest")[0]!.status).toBe("ANSWERED");
+    expect(kit.tables("mediaAsset")[0]).toMatchObject({ theme: "crash", tags: ["casino", "theme:crash"] });
+    expect(calls.some((c) => c.method === "editMessageReplyMarkup")).toBe(true);
+    expect(replies().at(-1)).toBe("Thème « crash » créé ✅ ; 1 média rangé dedans.");
   });
 });

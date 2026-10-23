@@ -551,3 +551,11 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   live, tournoi, cashback, ambiance), seuil de manque `settings.casino.lowStock` (3), rotation `rotationDays` (30) ;
   thèmes d'un canal avec leur poids dans `ChannelAgentPlan.themes` (`[{ theme, weight }]`). Demandes de vidéos =
   `HumanRequest` MEDIA ; alerte `agents_media_low` dans le système d'alertes existant.
+- **Dépôt Casino par le bot** : synonymes de thèmes (`CASINO_THEME_SYNONYMS`, `library/tags.ts` : `slots` →
+  machines à sous, `bj` → blackjack, `livecasino` / `direct` → live, `tournament` → tournoi, `vibe` → ambiance ;
+  accents, majuscules, séparateurs et pluriel tolérés) ; étiquettes gardées : `casino`, `theme:*`, `a-classer` (pas
+  les mots-clés bruts). Ligne de confirmation : stock du thème tous canaux casino (« 4 médias », ou « 2 à 5 selon le
+  canal »). Thème inconnu : média « à classer » + une question CONFIRM par thème (`casino.theme.<x>`), boutons inline
+  `agh:<id>:oui|non` (admin seulement, retirés après le clic) ; « oui » crée le thème et classe les médias en attente.
+  Album : une seule ligne, 2 s après le dernier média. `contracts.ts` charge `classify.ts` à la demande (évite une
+  boucle de chargement).

@@ -1,11 +1,21 @@
 import type { Bot } from "grammy";
 import type { Message } from "grammy/types";
-import { hasLibraryKeyword, storeLibraryMedia } from "@linkaffipro/agents";
+import { hasLibraryKeyword, libraryAlbumLine, storeLibraryMedia, type StoreLibraryMediaResult } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
 
 /** Limite de téléchargement de l'API Bot (`getFile`). */
 export const BOT_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 const ALBUM_MEMORY_MS = 60_000;
+/** Attente après le dernier média d'un album avant la ligne de confirmation unique. */
+export const ALBUM_REPLY_DELAY_MS = 2_000;
+
+type AlbumBatch = {
+  pending: number;
+  results: StoreLibraryMediaResult[];
+  failed: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  replyTo: number;
+};
 
 export type InboxMedia = {
   fileId: string;
@@ -52,11 +62,14 @@ async function defaultDownload(url: string): Promise<Uint8Array> {
  * Phase 19 : dépôt dans la médiathèque des agents. Un média (photo, vidéo, animation, document vidéo) envoyé ou
  * transféré en privé par l'admin (`Setting` `admin.telegramUserId`) avec une légende à mots-clés (`#casino #roulette`,
  * `#dating #source #lea`, `#photo`) est téléchargé et rangé ; le bot confirme en une ligne. Album : la légende du
- * premier média vaut pour les autres (une minute). Toute autre personne, ou un média sans mot-clé : `next()` (le
+ * premier média vaut pour les autres (une minute) ; une seule ligne de confirmation pour tout l'album, envoyée
+ * `ALBUM_REPLY_DELAY_MS` après le dernier média rangé (phase 22). Toute autre personne, ou un média sans mot-clé : `next()` (le
  * transfert d'un message de canal continue vers handlers/forward.ts).
  */
 export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
   const albumCaptions = new Map<string, { caption: string; until: number }>();
+  const albums = new Map<string, AlbumBatch>();
+  const albumDelay = deps.mediaAlbumReplyDelayMs ?? ALBUM_REPLY_DELAY_MS;
 
   bot.on("message", async (ctx, next) => {
     const from = ctx.from;
@@ -75,12 +88,37 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
     if (!hasLibraryKeyword(caption)) return next();
     if (!(await deps.isAdminDialogPartner(BigInt(from.id)))) return next();
 
-    const replyLine = (text: string) =>
-      ctx.reply(text, { reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true } });
+    const replyLine = (text: string, to = msg.message_id) =>
+      ctx.reply(text, { reply_parameters: { message_id: to, allow_sending_without_reply: true } });
     if (media.size && media.size > BOT_DOWNLOAD_MAX_BYTES) {
       await replyLine("Fichier trop lourd pour le bot (20 Mo au plus) : envoie une version plus légère.");
       return;
     }
+    // Album : les médias sont rangés un par un, la confirmation attend le dernier (une seule ligne).
+    const batchKey = group ? `${ctx.chat.id}:${group}` : null;
+    let batch: AlbumBatch | null = null;
+    if (batchKey) {
+      batch = albums.get(batchKey) ?? { pending: 0, results: [], failed: 0, timer: null, replyTo: msg.message_id };
+      albums.set(batchKey, batch);
+      if (batch.timer) clearTimeout(batch.timer);
+      batch.timer = null;
+      batch.pending++;
+    }
+    const settle = (result: StoreLibraryMediaResult | null) => {
+      if (!batch || !batchKey) return;
+      if (result) batch.results.push(result);
+      else batch.failed++;
+      batch.pending--;
+      if (batch.pending > 0) return;
+      const b = batch;
+      b.timer = setTimeout(() => {
+        albums.delete(batchKey);
+        void (async () => {
+          const line = await libraryAlbumLine(deps.agentsDeps!(), b.results, b.failed);
+          if (line) await replyLine(line, b.replyTo);
+        })().catch((err) => console.error("[agents] confirmation d'album", identity.username, (err as Error).message));
+      }, albumDelay);
+    };
     try {
       const file = await ctx.api.getFile(media.fileId);
       if (!file.file_path) throw new Error("fichier indisponible");
@@ -102,10 +140,12 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
           return { messageId: copied.message_id };
         },
       });
-      await replyLine(r.line);
+      if (batch) settle(r);
+      else await replyLine(r.line);
     } catch (err) {
       console.error("[agents] dépôt dans la médiathèque", identity.username, (err as Error).message);
-      await replyLine("Je n'ai pas pu ranger ce média. Réessaie dans un instant.");
+      if (batch) settle(null);
+      else await replyLine("Je n'ai pas pu ranger ce média. Réessaie dans un instant.");
     }
   });
 }

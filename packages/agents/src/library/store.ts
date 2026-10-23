@@ -9,6 +9,7 @@ import { agentEvent, readSetting } from "../admin/journal";
 import { expectedOf, sendNextHumanRequest } from "../human/requests";
 import { resumeWaitingMissions, type HumanRequestRow } from "../human/respond";
 import { defaultKindFor, parseLibraryCaption, tagsMatchRequest, type LibraryKind } from "./tags";
+import { askCreateCasinoThemes, casinoDepositLine, planCasinoDeposit, type CasinoDepositInfo } from "../casino/deposit";
 
 export const LIBRARY_CHANNEL_KEY = "agents.libraryChannelId";
 
@@ -28,7 +29,17 @@ export type StoreLibraryMediaInput = {
 };
 
 export type StoreLibraryMediaResult =
-  | { ok: true; assetId: string; created: boolean; line: string; requestClosed: boolean }
+  | {
+      ok: true;
+      assetId: string;
+      created: boolean;
+      line: string;
+      requestClosed: boolean;
+      /** Dépôt casino (phase 22) : de quoi refaire une seule ligne pour un album. */
+      casino?: CasinoDepositInfo;
+      /** Avancement d'une demande MEDIA (« 2/3 pour la demande en cours »). */
+      progress?: string | null;
+    }
   | { ok: false; line: string };
 
 const KIND_LABELS: Record<LibraryKind, string> = {
@@ -112,23 +123,26 @@ export async function storeLibraryMedia(
   const personas = await deps.prisma.persona.findMany({ select: { id: true, name: true } });
   const parsed = parseLibraryCaption(input.caption, personas as { id: string; name: string }[]);
   if (!parsed) return { ok: false, line: "Aucun mot-clé de médiathèque (#casino, #dating #source #lea, #photo…)." };
-  const kind = parsed.kind ?? defaultKindFor(input.mimeType);
+  const isCasino = parsed.teamKey === "casino";
+  // Casino (phase 22) : la nature suit le fichier (vidéo → SOURCE, image → PHOTO), jamais de persona.
+  const kind = isCasino ? defaultKindFor(input.mimeType) : (parsed.kind ?? defaultKindFor(input.mimeType));
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const existing = await deps.prisma.mediaAsset.findUnique({ where: { sha256 } });
+  const casinoPlan = isCasino ? await planCasinoDeposit(deps, parsed.tags, existing) : null;
   const classification = {
     teamKey: parsed.teamKey,
-    theme: parsed.theme,
-    personaId: parsed.personaId,
+    theme: casinoPlan ? casinoPlan.theme : parsed.theme,
+    personaId: casinoPlan ? null : parsed.personaId,
     kind,
     origin: "HUMAN" as const,
   };
-
-  const existing = await deps.prisma.mediaAsset.findUnique({ where: { sha256 } });
   let assetId: string;
   let libraryMessageId: number | null;
   if (existing) {
     assetId = existing.id;
     libraryMessageId = existing.libraryMessageId ?? null;
-    const tags = [...new Set([...tagsArray(existing.tags), ...parsed.tags])];
+    // Casino : thèmes fusionnés avec ceux du doublon (`theme:<clé>`) ; autres équipes : mots-clés ajoutés.
+    const tags = casinoPlan ? casinoPlan.tags : [...new Set([...tagsArray(existing.tags), ...parsed.tags])];
     await deps.prisma.mediaAsset.update({ where: { id: existing.id }, data: { ...classification, tags } });
   } else {
     const created = await deps.prisma.mediaAsset.create({
@@ -141,7 +155,7 @@ export async function storeLibraryMedia(
         width: input.width ?? null,
         height: input.height ?? null,
         duration: input.duration ?? null,
-        tags: parsed.tags,
+        tags: casinoPlan ? casinoPlan.tags : parsed.tags,
         ...classification,
       },
     });
@@ -171,21 +185,45 @@ export async function storeLibraryMedia(
   if (kind === "REFERENCE" && parsed.personaId && input.mimeType.startsWith("image/"))
     await addPersonaReferenceImage(deps, parsed.personaId, assetId);
 
-  // Un doublon ne compte pas pour une demande de médias (il faut des médias nouveaux).
-  const advance = existing ? { progress: null, closed: false } : await advanceMediaRequest(deps, parsed.tags);
+  // Thème inconnu : le média reste « à classer » et l'admin reçoit « Créer le thème <x> » (un bouton).
+  if (casinoPlan?.unknownThemes.length) await askCreateCasinoThemes(deps, casinoPlan.unknownThemes, assetId);
+
+  // Un doublon ne compte pas pour une demande de médias (il faut des médias nouveaux). Casino : `#slots` vaut
+  // `#machines-a-sous` pour la demande.
+  const requestTags = casinoPlan ? [...new Set([...parsed.tags, ...casinoPlan.themes])] : parsed.tags;
+  const advance = existing ? { progress: null, closed: false } : await advanceMediaRequest(deps, requestTags);
   await agentEvent(deps, "agents.library.stored", {
     assetId,
     created: !existing,
     teamKey: parsed.teamKey,
     kind,
-    theme: parsed.theme,
-    personaId: parsed.personaId,
+    theme: classification.theme,
+    personaId: classification.personaId,
+    ...(casinoPlan ? { themes: casinoPlan.themes, unknownThemes: casinoPlan.unknownThemes } : {}),
   });
+  if (casinoPlan) {
+    const casino: CasinoDepositInfo = {
+      created: !existing,
+      isVideo: !input.mimeType.startsWith("image/"),
+      themes: casinoPlan.themes,
+      unknownThemes: casinoPlan.unknownThemes,
+    };
+    return {
+      ok: true,
+      assetId,
+      created: !existing,
+      requestClosed: advance.closed,
+      casino,
+      progress: advance.progress,
+      line: await casinoDepositLine(deps, [casino], advance.progress),
+    };
+  }
   return {
     ok: true,
     assetId,
     created: !existing,
     requestClosed: advance.closed,
+    progress: advance.progress,
     line: confirmationLine({
       created: !existing,
       isVideo: !input.mimeType.startsWith("image/"),
@@ -196,4 +234,23 @@ export async function storeLibraryMedia(
       progress: advance.progress,
     }),
   };
+}
+
+/**
+ * Une seule ligne pour un album (phase 22) : tout casino → ligne casino commune (stock relu une fois) ; sinon les
+ * lignes distinctes. `failed` : médias de l'album qui n'ont pas pu être rangés.
+ */
+export async function libraryAlbumLine(
+  deps: AgentsDeps,
+  results: StoreLibraryMediaResult[],
+  failed = 0,
+): Promise<string> {
+  const ok = results.filter((r): r is Extract<StoreLibraryMediaResult, { ok: true }> => r.ok);
+  const lines: string[] = [];
+  if (ok.length > 0 && ok.every((r) => r.casino)) {
+    const progress = [...ok].reverse().find((r) => r.progress)?.progress ?? null;
+    lines.push(await casinoDepositLine(deps, ok.map((r) => r.casino!), progress));
+  } else for (const r of results) if (!lines.includes(r.line)) lines.push(r.line);
+  if (failed > 0) lines.push(`${failed} média${failed > 1 ? "s" : ""} n'${failed > 1 ? "ont" : "a"} pas pu être rangé${failed > 1 ? "s" : ""} : renvoie-le${failed > 1 ? "s" : ""}.`);
+  return lines.join("\n");
 }
