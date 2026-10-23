@@ -1,3 +1,39 @@
+# État du projet : phase 19 (agents IA : fondations) terminée (23 octobre 2026)
+
+Phases 0 à 18 en ligne. Phase 19 = le squelette complet de l'équipe d'agents IA du plan validé le 23 octobre (`docs/AGENTS-ARCHITECTURE.md`, consignes `docs/prompts/21-phase-19-agents-fondations.md`) : un Grand Chef, quatre Chefs d'équipe (Rencontres, Casino, Paris sportifs, Algorithme), les agents communs (Médiathèque, Rédaction, Planification, Contrôle qualité, Publication), la rubrique « Agents », la validation et les demandes par Telegram. **Tout est en simulation** : rien ne part ailleurs que sur le canal Test.
+
+## Fait
+- **Grand Chef** (logique programmée, sans IA ; toutes les 30 minutes) : plan du jour par canal, plafonds mensuels (mission refusée proprement au-delà, alerte à 80 % et 100 %), collisions, niveaux d'autonomie, reprise des missions arrêtées, rapport du matin à 9 h, validations sans réponse (rappel à 24 h, annulation à 72 h), pause automatique d'une équipe après 3 échecs de suite avec alerte.
+- **Chefs d'équipe** : chaîne d'étapes par équipe ; missions reprenables (un redémarrage reprend à l'étape suivante, jamais deux publications) ; Rencontres et Casino actifs, Paris sportifs et Algorithme déclarés pour les phases 21 à 23.
+- **Agents** : Médiathèque (choix du prochain média jamais réutilisé en 30 jours sur un canal ; dépôt en envoyant une photo ou une vidéo au bot avec des mots-clés comme « #casino #roulette »), Rédaction (Claude, légende très courte, sans répéter les 30 derniers posts du canal, jamais de mention d'IA), Planification (quota, fenêtre, espacement de 90 min, heures calmes, meilleurs horaires), Contrôle qualité (règles du code : mention d'IA en 6 langues, liens, longueur 900, mots interdits, mise en forme ; doublons ; avis de l'IA qui ne peut jamais forcer une publication refusée ; « refaire » une fois, sinon validation), Publication (message programmé, envoyé par le système existant).
+- **Validation par Telegram** : aperçu avec ✅ Publier / ✏️ Corriger / ❌ Refuser, numéro court (`ok 2`, `non 2`), seulement depuis votre compte ; aussi depuis le site.
+- **Demandes au client par Telegram** (votre demande du 23 octobre) : une question à la fois, réponse au message, rappel à 24 h, expiration à 7 jours ; clés rangées chiffrées, message supprimé aussitôt, confirmation avec les 4 derniers caractères, jamais dans le journal. Commandes : `agents`, `pause <équipe>`, `reprends <équipe>`, `pause tout`, `demandes`, `plus tard`, `niveau <équipe> <0|1|2>`, `vrai <équipe>` + `OUI`, `clé fal …`, `clé cotes …`, `budget vidéo …`.
+- **Rubrique Agents** : tableau de bord, fiche par équipe (réglages, plan par canal, agents, missions étape par étape), Validations (posts et demandes), Journal (export), Réglages (administrateurs : clés, modèles d'IA, canal Médiathèque, plafonds, pause générale). Carte « Agents » dans État du système, famille « Agents » du Journal, aide et guide à jour.
+- **Correctif trouvé au déploiement** : depuis la phase 18, les « bots fantômes » des comptes réels pouvaient être choisis pour vous écrire (Telegram répondait « introuvable ») : alertes et messages admin pouvaient se perdre. Corrigé.
+
+## Test de 5 minutes
+1. Ouvrez **Agents** → carte « Équipe Rencontres » → **Créer une mission de test**.
+2. Une à deux minutes plus tard, l'aperçu arrive sur Telegram (« À valider n° … »).
+3. Appuyez sur **✅ Publier**.
+4. Le post arrive sur votre canal **Test** dans la minute, avec « [SIMULATION équipe Dating → Test] » en tête.
+5. Agents → Validations : la décision est listée ; Agents → Journal : la mission est « terminée ».
+
+## Vérifications faites
+- 5 150 tests unitaires et 537 tests d'intégration (base réelle) réussis, dont la mission « post texte » de bout en bout : Grand Chef → Chef Rencontres → Rédaction → Planification → Contrôle → validation → Publication → message programmé → envoi par le système existant (bot de test) → mission terminée, journal et rapport du matin. Lint, typage et build verts.
+- Sauvegarde de la base avant déploiement ; site d'abord (migration appliquée), puis service d'arrière-plan ; santé OK, 6 nouvelles files démarrées ; 4 équipes en simulation au niveau 0, aucune mission ni aucun plan en production ; la question « rapport du matin » est partie sur Telegram.
+- Pages Agents : captures (`docs/captures/agents-*.webp`) et contrôle d'accessibilité sans aucune violation, sur la base de démonstration locale avec une vraie mission passée de bout en bout. En production, les 5 adresses répondent (connexion demandée) ; elles n'ont pas été ouvertes connecté (mot de passe du compte de vérification non disponible sur le Mac).
+
+## Reste / limites
+- La mission de test n'a pas été lancée en production (elle vous enverrait un aperçu) : c'est votre test de 5 minutes.
+- Aucun canal n'a de plan : les équipes ne produisent rien seules tant qu'un canal n'est pas activé (fiche d'équipe → Plan par canal).
+- Vidéos et photos IA (phase 20), équipe Algorithme (21), Casino (22), Paris sportifs (23), Ads (24), supervision (25) : lancées par la file d'attente.
+- Next.js a affiché, sur le serveur de développement, un avertissement de faille de sécurité connue dans la version 16.4.0 utilisée : à traiter dans une phase de solidité (mise à jour de Next.js), rien n'a été changé.
+
+## Actions humaines
+Rien d'obligatoire (`docs/A-FAIRE-HUMAIN.md`) : répondre `oui` ou `non` à la question du rapport du matin, et faire le test de 5 minutes.
+
+---
+
 # État du projet : phase 17 (assistante de conversation Rencontres) terminée (18 octobre 2026)
 
 Phases 0 à 16 en ligne. Phase 17 = un bot dédié de l'univers Rencontres qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes, s'adapte à leur ton, présente l'app et envoie au bon moment le lien suivi (`docs/prompts/19-phase-17-assistant-dating.md`, contrat technique `docs/ASSISTANT-CONVERSATION.md`). 4 853 tests unitaires et 533 tests d'intégration (base réelle) réussis, lint, typage et build verts ; tout est déployé (site d'abord, qui applique les deux migrations additives, puis le service d'arrière-plan), sauvegardes faites avant chaque déploiement. **L'assistante est désactivée** : elle ne répond à personne tant que vous ne l'avez pas mise en route (`docs/A-FAIRE-HUMAIN.md`).

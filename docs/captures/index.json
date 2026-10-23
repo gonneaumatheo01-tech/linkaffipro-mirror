@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-18T20:25:42.850Z",
+  "updatedAt": "2026-10-23T15:59:02.743Z",
   "entries": [
     {
       "route": "/",
@@ -1111,6 +1111,96 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-11T02:23:10.512Z"
+    },
+    {
+      "route": "/agents",
+      "path": "/agents",
+      "title": "Agents",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-390.webp",
+        "1440": "agents-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:26.571Z"
+    },
+    {
+      "route": "/agents/casino",
+      "path": "/agents/casino",
+      "title": "Équipe Casino",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-casino-390.webp",
+        "1440": "agents-casino-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:43.616Z"
+    },
+    {
+      "route": "/agents/dating",
+      "path": "/agents/dating",
+      "title": "Équipe Rencontres",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-dating-390.webp",
+        "1440": "agents-dating-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:35.437Z"
+    },
+    {
+      "route": "/agents/journal",
+      "path": "/agents/journal",
+      "title": "Journal des agents",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-journal-390.webp",
+        "1440": "agents-journal-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:53.740Z"
+    },
+    {
+      "route": "/agents/settings",
+      "path": "/agents/settings",
+      "title": "Réglages des agents",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-settings-390.webp",
+        "1440": "agents-settings-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:57.885Z"
+    },
+    {
+      "route": "/agents/validations",
+      "path": "/agents/validations",
+      "title": "Validations",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-validations-390.webp",
+        "1440": "agents-validations-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T15:58:48.077Z"
     },
     {
       "route": "/j/demo-casino-vip?src=tk01",

@@ -1,5 +1,14 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 19 : les agents IA (rien d'obligatoire)
+Rien à fournir pour cette phase. Pour vous repérer :
+1. **Où** : menu **Agents** (après Conversations). Le tableau de bord montre les 4 équipes (Rencontres, Casino, Paris sportifs, Algorithme), leur dépense du mois et les rapports du matin.
+2. **Simulation** : active pour toutes les équipes. Tant qu'elle l'est, tout part sur votre canal **Test**, avec « [SIMULATION …] » en tête. Pour passer une équipe sur les vrais canaux plus tard : Agents → l'équipe → « Simulation » (administrateur), ou écrivez au bot `vrai dating` puis `OUI`.
+3. **Niveaux** : 0 = vous validez tout (réglage actuel), 1 = seulement les nouveautés, 2 = rien (rapport seulement). Sur la fiche de l'équipe, ou au bot : `niveau dating 1`.
+4. **Sur Telegram** : les posts à valider arrivent avec ✅ Publier / ✏️ Corriger / ❌ Refuser. Écrivez `agents` pour l'état, `pause dating` / `reprends dating` (ou `pause tout`), `demandes` pour les questions en attente.
+5. **Une question vous attend déjà** sur Telegram : « Veux-tu recevoir chaque matin le rapport des agents ? » → répondez `oui` ou `non` à ce message.
+6. **Aucun canal n'a encore de plan** : les agents ne produisent rien seuls tant qu'un canal n'est pas activé dans la fiche d'une équipe (« Plan par canal »). Les vidéos et photos IA arrivent avec la phase 20.
+
 ## Phase 17 : l'assistante de conversation Rencontres (15 minutes, quand vous voulez)
 L'assistante est **désactivée** : elle ne répond à personne tant que vous ne l'avez pas mise en route.
 1. **Créer le bot dédié** : dans Telegram, ouvrez @BotFather → envoyez `/newbot` → nom affiché (par exemple « Léa · Assistante ») → identifiant qui finit par « bot » → copiez le jeton (la longue ligne après « Use this token »). Ce bot ne doit être ajouté à **aucun** canal : le site refuse de transformer un bot qui gère des canaux.

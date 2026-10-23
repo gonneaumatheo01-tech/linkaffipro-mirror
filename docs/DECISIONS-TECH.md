@@ -404,3 +404,26 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   pause générale, simulation off et niveau 2 : ADMIN.
 - **Client Prisma partagé** : il masque `Channel.photoSmall`, son type ne colle plus à `PrismaClient` ; il est passé aux
   services des agents avec une conversion de type.
+- **Création des messages des agents** : `packages/db/src/posting.ts` (`publishingBotFor` déplacé depuis le site, qui
+  le réexporte ; `createAgentPost` avec un client passé en paramètre, utilisable dans une transaction). La création des
+  messages du site n'est pas réécrite (trop liée à ses formulaires : A/B, modèles, liens dans le texte).
+- **IA de rédaction** : Claude si une clé est réglée dans Réglages → IA (même en simulation) ; sinon faux fournisseur
+  déterministe (aucune dépense). Plafond absent = 20 € d'IA texte par équipe et par mois ; 0 = aucun appel payant ;
+  une mission refusée reste `BLOCKED_BUDGET` (pas recréée toutes les 30 min).
+- **Reprise** : une tentative BullMQ par tâche, le moteur réessaie l'étape une fois puis la mission échoue ; une tâche
+  du même identifiant déjà finie est retirée puis remise (sinon BullMQ ignorerait la reprise). « Refaire » et « Corriger »
+  ajoutent des étapes à la suite (anciennes marquées sautées) : historique gardé, `<mission>:<index>` toujours unique.
+  Média IA (phase 20) marqué « sauté » à la création. Publication : mission DONE dès le message programmé ; `postId` et
+  `MediaUsage` posés dans la même transaction que le message. En simulation, bouton Offre créé quand même (libellé
+  « (agents, simulation) ») ; texte du bouton par défaut « 🎁 Voir l'offre ». Mission de test : créneau au plus tôt
+  (1 min, sans quota ni heures calmes).
+- **Alerte `agents_team_paused`** : seulement pour une pause automatique (3 échecs de suite), sans interrupteur, comme
+  `assistant_ai_failing` ; le Chef prévient aussi l'admin aussitôt. Rapport du matin marqué envoyé (`Setting`
+  `agents.report.lastDay`) avant l'envoi ; publiés et refusés de la veille, « en attente » à l'instant.
+- **Bot du dialogue admin** (`packages/telegram/src/admin-bot.ts`, correctif trouvé au déploiement) : jamais le bot
+  fantôme d'un compte réel de la phase 18 (faux jeton, Telegram répond 404). Le défaut touchait aussi `notifyAdmin`
+  (alertes) et `pnpm tg:send` depuis la phase 18.
+- **Tests d'intégration réparés** (hors agents, cassés avant la phase) : `gains` (identifiants d'affilié en vrais uuid
+  depuis le correctif de synchro du 22 octobre) et `legacy-gate-links` (lien « récent » daté par rapport à l'heure réelle).
+- **Railway** : le jeton `RAILWAY_API_TOKEN` de `.claude/settings.local.json` est refusé ; la session du Mac
+  (`railway login`) fonctionne : commandes lancées avec `env -u RAILWAY_API_TOKEN railway …`.

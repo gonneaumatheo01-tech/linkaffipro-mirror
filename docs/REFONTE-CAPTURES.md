@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-18 20:25 UTC.
+Dernière mise à jour : 2026-10-23 15:59 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -82,6 +82,12 @@ Dernière mise à jour : 2026-10-18 20:25 UTC.
 | Aide | `/help` : 1440 px coupée à 16000 px (page de 37885 px) ; 390 px coupée à 16000 px (page de 62794 px) | <a href="captures/help-1440.webp"><img src="captures/help-1440.webp" alt="Aide, 1440 px" width="360"></a> | <a href="captures/help-390.webp"><img src="captures/help-390.webp" alt="Aide, 390 px" width="120"></a> |
 | Mon compte | `/account` | <a href="captures/account-1440.webp"><img src="captures/account-1440.webp" alt="Mon compte, 1440 px" width="360"></a> | <a href="captures/account-390.webp"><img src="captures/account-390.webp" alt="Mon compte, 390 px" width="120"></a> |
 | Guide de style | `/styleguide` | <a href="captures/styleguide-1440.webp"><img src="captures/styleguide-1440.webp" alt="Guide de style, 1440 px" width="360"></a> | <a href="captures/styleguide-390.webp"><img src="captures/styleguide-390.webp" alt="Guide de style, 390 px" width="120"></a> |
+| Agents | `/agents` | <a href="captures/agents-1440.webp"><img src="captures/agents-1440.webp" alt="Agents, 1440 px" width="360"></a> | <a href="captures/agents-390.webp"><img src="captures/agents-390.webp" alt="Agents, 390 px" width="120"></a> |
+| Équipe Casino | `/agents/casino` | <a href="captures/agents-casino-1440.webp"><img src="captures/agents-casino-1440.webp" alt="Équipe Casino, 1440 px" width="360"></a> | <a href="captures/agents-casino-390.webp"><img src="captures/agents-casino-390.webp" alt="Équipe Casino, 390 px" width="120"></a> |
+| Équipe Rencontres | `/agents/dating` | <a href="captures/agents-dating-1440.webp"><img src="captures/agents-dating-1440.webp" alt="Équipe Rencontres, 1440 px" width="360"></a> | <a href="captures/agents-dating-390.webp"><img src="captures/agents-dating-390.webp" alt="Équipe Rencontres, 390 px" width="120"></a> |
+| Journal des agents | `/agents/journal` | <a href="captures/agents-journal-1440.webp"><img src="captures/agents-journal-1440.webp" alt="Journal des agents, 1440 px" width="360"></a> | <a href="captures/agents-journal-390.webp"><img src="captures/agents-journal-390.webp" alt="Journal des agents, 390 px" width="120"></a> |
+| Réglages des agents | `/agents/settings` | <a href="captures/agents-settings-1440.webp"><img src="captures/agents-settings-1440.webp" alt="Réglages des agents, 1440 px" width="360"></a> | <a href="captures/agents-settings-390.webp"><img src="captures/agents-settings-390.webp" alt="Réglages des agents, 390 px" width="120"></a> |
+| Validations | `/agents/validations` | <a href="captures/agents-validations-1440.webp"><img src="captures/agents-validations-1440.webp" alt="Validations, 1440 px" width="360"></a> | <a href="captures/agents-validations-390.webp"><img src="captures/agents-validations-390.webp" alt="Validations, 390 px" width="120"></a> |
 | Les meilleurs bonus casino, chaque soir | `/j/demo-casino-vip?src=tk01` | — | <a href="captures/j-demo-casino-vip-src-tk01-390.webp"><img src="captures/j-demo-casino-vip-src-tk01-390.webp" alt="Les meilleurs bonus casino, chaque soir, 390 px" width="120"></a> |
 | Aide « Ouvrir dans le navigateur » (TikTok Android, après l'appui ; phase 16) | `/j/demo-casino-vip?src=tk01#aide-tiktok-android` : capture par `pnpm landing:browser-check --captures` (identifiant de navigateur TikTok émulé) | — | <a href="captures/j-aide-tiktok-android-390.webp"><img src="captures/j-aide-tiktok-android-390.webp" alt="Aide « Ouvrir dans le navigateur » (TikTok Android, après l'appui ; phase 16), 390 px" width="120"></a> |
 | Aide « Ouvrir dans le navigateur » (TikTok iPhone, après l'appui ; phase 16) | `/j/demo-casino-vip?src=tk01#aide-tiktok-iphone` : capture par `pnpm landing:browser-check --captures` (identifiant de navigateur TikTok émulé) | — | <a href="captures/j-aide-tiktok-iphone-390.webp"><img src="captures/j-aide-tiktok-iphone-390.webp" alt="Aide « Ouvrir dans le navigateur » (TikTok iPhone, après l'appui ; phase 16), 390 px" width="120"></a> |
