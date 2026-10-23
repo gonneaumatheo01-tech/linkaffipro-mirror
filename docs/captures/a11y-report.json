@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-23T19:27:22.810Z",
-  "base": "http://localhost:3121",
+  "generatedAt": "2026-10-23T20:37:54.729Z",
+  "base": "http://localhost:3122",
   "width": 1440,
   "tags": [
     "wcag2a",
@@ -15,8 +15,8 @@
   },
   "pages": [
     {
-      "route": "/agents/algo",
-      "path": "/agents/algo",
+      "route": "/agents/casino",
+      "path": "/agents/casino",
       "status": "ok",
       "httpStatus": 200,
       "note": null,

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-23T19:27:10.706Z",
+  "updatedAt": "2026-10-23T20:37:41.027Z",
   "entries": [
     {
       "route": "/",
@@ -1170,7 +1170,7 @@
         "1440": "agents-casino-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-23T15:58:43.616Z"
+      "capturedAt": "2026-10-23T20:37:24.132Z"
     },
     {
       "route": "/agents/dating",
