@@ -122,10 +122,11 @@ describe("révocation des anciens liens des canaux à rejoindre (entrée directe
       createdAt: new Date(t0.getTime() - 30 * DAY),
     });
     // Lien à entrée directe créé après la mise en ligne (canal réactivé depuis) : il vit au moins 7 jours.
+    // Le second passage lit l'heure réelle : le lien doit rester récent par rapport à aujourd'hui aussi.
     await mk("recent", {
       channelId: gate.id,
       createsJoinRequest: false,
-      createdAt: new Date(t0.getTime() + 3 * DAY),
+      createdAt: new Date(Math.max(t0.getTime() + 3 * DAY, Date.now() - DAY)),
     });
     await mk("dejaInactif", {
       channelId: gate.id,

@@ -41,14 +41,14 @@ const tables: Record<string, Row[]> = {
       id: "camp-ours",
       campaign_key: "GAINS001",
       casino_id: "cas-g",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       name: "Notre offre",
     },
     {
       id: "camp-other",
       campaign_key: "GAINS002",
       casino_id: "cas-g",
-      affiliate_id: "aff-other",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a02",
       name: "Offre d'un autre affilié",
     },
   ],
@@ -59,7 +59,7 @@ const tables: Record<string, Row[]> = {
       id: "pl-a",
       casino_id: "cas-g",
       campaign_id: "camp-ours",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       external_player_id: "G1",
       status: "ftd_qualified",
       cpa_status: "approved",
@@ -73,7 +73,7 @@ const tables: Record<string, Row[]> = {
       id: "pl-r",
       casino_id: "cas-g",
       campaign_id: "camp-ours",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       external_player_id: "G2",
       status: "ftd_disqualified",
       cpa_status: "reversed",
@@ -89,7 +89,7 @@ const tables: Record<string, Row[]> = {
       id: "pl-x",
       casino_id: "cas-g",
       campaign_id: "camp-other",
-      affiliate_id: "aff-other",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a02",
       external_player_id: "G3",
       status: "ftd_qualified",
       cpa_status: "approved",
@@ -109,7 +109,7 @@ const tables: Record<string, Row[]> = {
     // Ligne d'hier de notre offre (revshare fractionnaire, comme chez Link Affi).
     {
       id: "st-y",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       casino_id: "cas-g",
       campaign_id: "camp-ours",
       date: yesterdayKey,
@@ -121,7 +121,7 @@ const tables: Record<string, Row[]> = {
     // Correction créée aujourd'hui pour le jour du crédit : comptée aujourd'hui.
     {
       id: "st-c",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       casino_id: "cas-g",
       campaign_id: "camp-ours",
       date: creditKey,
@@ -133,7 +133,7 @@ const tables: Record<string, Row[]> = {
     // Prime manuelle sans offre : copiée, ne compte dans aucune campagne.
     {
       id: "st-b",
-      affiliate_id: "aff-ours",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01",
       casino_id: "cas-g",
       campaign_id: null,
       date: yesterdayKey,
@@ -145,7 +145,7 @@ const tables: Record<string, Row[]> = {
     // Autre affilié : jamais demandé.
     {
       id: "st-o",
-      affiliate_id: "aff-other",
+      affiliate_id: "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a02",
       casino_id: "cas-g",
       campaign_id: "camp-other",
       date: yesterdayKey,
@@ -281,7 +281,7 @@ describe("gains : commissions Link Affi jusqu'aux statistiques journalières (ba
     // stats : uniquement notre affilié, une ligne Link Affi = une ligne, offre retrouvée, revshare à 4 décimales.
     const statsRequests = requests.filter((u) => u.pathname.endsWith("/stats"));
     expect(statsRequests.length).toBeGreaterThan(0);
-    expect(statsRequests.every((u) => u.searchParams.get("eq.affiliate_id") === "aff-ours")).toBe(
+    expect(statsRequests.every((u) => u.searchParams.get("eq.affiliate_id") === "5f0c2a7e-1b3d-4c8e-9a6f-0d2e4b7c1a01")).toBe(
       true,
     );
     const rows = await prisma.affiliateDailyStat.findMany({ orderBy: { externalId: "asc" } });
