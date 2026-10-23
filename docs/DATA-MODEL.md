@@ -410,3 +410,16 @@ Réglages `Setting` : `agents.pausedAll` (pause générale), `agents.models` (mo
 chiffrées (`packages/agents/src/human/secrets.ts`, jamais renvoyées au navigateur ni journalisées). Événements `Event` de
 la famille « Agents » : types `agents.*` (identifiants et résumés, jamais le texte complet d'un post) ; rapport du jour
 `agents.report.daily` (`{ day, lines }`). Conservation : missions et passages de plus de 24 mois purgés la nuit.
+
+## Phase 20 : équipe Dating des agents
+
+Migration additive `20261023180000_phase20_agents_dating`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `Persona.referenceImageIds` (JSON `string[]`), `loraUrl`, `loraTrigger`, `loraScale` (0,8), `mediaNotes` | Médias du personnage : 1 à 3 images de référence (`MediaAsset` REFERENCE ; la première sert au remplacement vidéo), fichier LoRA (adresse) et mot déclencheur pour les photos, consignes de tenue et d'ambiance. |
+| `MediaAsset.sourceAssetId`, `providerJobId`, `providerName`, `resolution` (index `(personaId, kind)`) | Média produit par un fournisseur (vidéo GENERATED ou photo PHOTO, origine AI) : vidéo source d'origine, travail chez le fournisseur, résolution. |
+
+Réglages de l'équipe Dating dans `AgentTeamConfig` : `monthlyBudgetCents.video` (10 000 par défaut), `.image` (1 500),
+`settings.videoProvider` (`fal` / `magichour`), `settings.videoResolution` (580p par défaut). `ChannelAgentPlan.mix`
+Dating par défaut `{ video: 1, photo: 2, text: 1 }`, `personaId` obligatoire.

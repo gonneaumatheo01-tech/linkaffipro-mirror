@@ -427,3 +427,32 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   depuis le correctif de synchro du 22 octobre) et `legacy-gate-links` (lien « récent » daté par rapport à l'heure réelle).
 - **Railway** : le jeton `RAILWAY_API_TOKEN` de `.claude/settings.local.json` est refusé ; la session du Mac
   (`railway login`) fonctionne : commandes lancées avec `env -u RAILWAY_API_TOKEN railway …`.
+
+## Phase 20 — agents IA : équipe Dating (23 octobre 2026)
+
+- **Documentation des fournisseurs relue le 23 octobre** (pages officielles fal.ai et docs.magichour.ai) :
+  - fal.ai, file d'attente REST : `POST https://queue.fal.run/<modèle>` (`Authorization: Key …`) → `request_id`,
+    `status_url`, `response_url` ; états `IN_QUEUE` / `IN_PROGRESS` / `COMPLETED` (avec `error` éventuel). Les
+    adresses d'état et de résultat n'utilisent que propriétaire/app (chemin complet → 405) : on garde celles renvoyées
+    à la soumission.
+  - `fal-ai/wan/v2.2-14b/animate/replace` : `video_url`, `image_url` requis, `resolution` 480p (défaut fal) / 580p /
+    720p ; sortie `video.url`. Facturé par « seconde vidéo » de 16 images : 0,04 $ (480p), 0,06 $ (580p), 0,08 $
+    (720p) ; coût estimé = durée × fps ÷ 16 × tarif. Durée maximale non documentée (borne prudente réglable).
+    Aucun `prompt` en entrée documenté.
+  - `fal-ai/flux-lora` : `prompt`, `image_size`, `loras: [{ path, scale }]`, `num_images`, `output_format` ; sortie
+    `images[].url` ; 0,035 $ par mégapixel (arrondi au supérieur).
+  - Stockage fal : `POST https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3` → `upload_url` +
+    `file_url`, puis `PUT` des octets (repli `rest.alpha.fal.ai`). Fichiers publics par adresse : nos médias sont
+    envoyés chez fal, jamais servis par notre site.
+  - Vérification gratuite des clés : état d'une requête inexistante (401/403 = refusée, 404 = acceptée), pour fal et
+    Magic Hour (`GET /v1/video-projects/<id>`).
+  - Magic Hour (repli, visage seulement) : `Bearer`, `POST /v1/files/upload-urls` puis `PUT`, `POST /v1/face-swap`
+    (`start_seconds`, `end_seconds`, `assets { video_source: "file", video_file_path, image_file_path,
+    face_swap_mode: "all-faces" }`), état `GET /v1/video-projects/<id>` (`complete`, `error`, `downloads[].url`,
+    `credits_charged`). Coût en crédits converti par un taux réglable (estimation).
+- **Pas de webhook public** : l'étape Média IA se ré-enfile (30 s, puis 60 s, 15 min au plus) ; plus simple et
+  robuste qu'une adresse publique à sécuriser.
+- **Clés** : restent dans `Setting` `agents.secret.<clé>` (décision de la phase 19), pas `agents.providers`.
+- **Vocaux de l'admin** : le webhook (site, sans ffmpeg) enfile une tâche `agents-orchestrator` `admin-voice` ; le
+  worker transcrit (même transcription que les comptes réels, extraite dans `packages/userbot`) puis traite le texte
+  comme un message écrit. Un vocal n'est jamais pris pour une clé.
