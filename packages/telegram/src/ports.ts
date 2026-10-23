@@ -1,5 +1,6 @@
 import type { Vertical } from "@linkaffipro/core";
 import type { Chat, ChatMemberAdministrator, ChatMemberOwner, Update, User } from "grammy/types";
+import type { AgentsDeps } from "@linkaffipro/agents";
 import type { CustomEmojiAddOutcome, ExtractedCustomEmoji } from "./custom-emoji/extract";
 
 /** Mode d'un bot (phase 17) : bot normal, ou assistant de conversation (persona liée). */
@@ -116,6 +117,18 @@ export interface TelegramDeps {
     telegramUserId: bigint;
     botId: string;
   }): Promise<CustomEmojiAddOutcome>;
+  /**
+   * Phase 19 : dépendances des agents (base, files, messager admin) pour le dialogue admin, les boutons de validation
+   * et le dépôt dans la médiathèque. Absent : ces handlers laissent passer.
+   */
+  agentsDeps?(): AgentsDeps;
+  /**
+   * Phase 19 : l'expéditeur est-il l'admin, et une demande SECRET est-elle en cours ? Lu AVANT la journalisation pour
+   * retirer un secret du texte journalisé. Absent : seules les commandes « clé … » / « bookmaker … » sont masquées.
+   */
+  agentsAdminState?(telegramUserId: bigint): Promise<{ isAdmin: boolean; secretPending: boolean }>;
+  /** Phase 19 : téléchargement d'un fichier Telegram (`getFile`) ; absent : `fetch`. */
+  downloadTelegramFile?(url: string): Promise<Uint8Array>;
 }
 
 /** Résultat d'une re-vérification des droits pour le bot (méthode 1). */

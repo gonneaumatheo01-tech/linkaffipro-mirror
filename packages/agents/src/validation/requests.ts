@@ -72,6 +72,8 @@ export async function requestValidation(
       previewText: input.previewText,
       mediaAssetId: input.mediaAssetId ?? null,
       reason: input.reason,
+      // Horloge injectée : les délais de 24 h / 72 h se comptent depuis ce moment.
+      createdAt: nowOf(deps),
     },
   });
   await deps.prisma.agentMission.update({

@@ -13,6 +13,9 @@ import {
 } from "./channels";
 import { registerCustomEmojiHandlers } from "./custom-emoji";
 import { RecentKeys, registerForwardHandlers } from "./forward";
+import { registerAgentsAdminHandlers } from "./agents-admin";
+import { registerMediaInboxHandlers } from "./media-inbox";
+import { redactAdminSecretUpdate } from "../agents/redact";
 
 const UPDATE_TYPES = [
   "message",
@@ -115,7 +118,10 @@ export function registerCoreHandlers(
       console.error("[telegram] pré-traitement", err);
     }
     // Bot assistant : le journal ne garde jamais le texte d'une conversation (longueur seulement).
-    const logged = assistantMode ? redactAssistantUpdate(ctx.update) : ctx.update;
+    // Phase 19 : une clé collée par l'admin (« clé fal … », réponse à une demande SECRET) n'est jamais journalisée.
+    const logged = assistantMode
+      ? redactAssistantUpdate(ctx.update)
+      : await redactAdminSecretUpdate(ctx.update, deps);
     await deps.recordUpdate(identity, type, logged, refs);
     await next();
   });
@@ -136,6 +142,11 @@ function registerStandardHandlers(
   // Emojis animés d'un message envoyé par l'équipe (bibliothèque, phase 12) : avant le transfert de canal, qui suit
   // seulement quand le message vient d'un de nos canaux (déjà connu, ou dont l'un de nos bots est administrateur).
   // Mémoire courte partagée : un album d'un canal tiers n'est pas ajouté par ses autres photos.
+  // Phase 19 : dialogue admin des agents (boutons de validation, réponses, commandes) puis dépôt dans la médiathèque,
+  // avant les emojis animés et le transfert de canal (un média sans mot-clé de médiathèque continue vers eux).
+  registerAgentsAdminHandlers(bot, identity, deps);
+  registerMediaInboxHandlers(bot, identity, deps);
+
   const forwardMemory = new RecentKeys();
   registerCustomEmojiHandlers(bot, identity, deps, forwardMemory);
 

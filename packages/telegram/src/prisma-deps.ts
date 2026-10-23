@@ -13,6 +13,7 @@ import { ensureDefaultSequences } from "./sequences/ensure";
 import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
 import { addCustomEmojisToLibrary } from "./custom-emoji/library";
 import { hasStartedBot } from "./join-flow/reachability";
+import { createBotAgentsDeps } from "./agents/deps";
 
 function memberData(from: User) {
   return {
@@ -55,6 +56,16 @@ async function isDialogAdmin(telegramUserId: bigint): Promise<boolean> {
   return (
     !!setting && typeof setting.value === "string" && setting.value === telegramUserId.toString()
   );
+}
+
+/** Identifiant admin gardé une minute : lu pour chaque message privé (masquage des secrets avant journalisation). */
+let adminIdCache: { value: string | null; until: number } | null = null;
+async function cachedAdminId(): Promise<string | null> {
+  if (adminIdCache && adminIdCache.until > Date.now()) return adminIdCache.value;
+  const setting = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
+  const value = setting && typeof setting.value === "string" ? setting.value : null;
+  adminIdCache = { value, until: Date.now() + 60_000 };
+  return value;
 }
 
 /** Implémentation réelle des dépendances des handlers, sur Prisma. */
@@ -407,6 +418,19 @@ export const prismaTelegramDeps: TelegramDeps = {
 
   async addCustomEmojis(input) {
     return addCustomEmojisToLibrary(input);
+  },
+
+  agentsDeps() {
+    return createBotAgentsDeps();
+  },
+
+  async agentsAdminState(telegramUserId) {
+    if ((await cachedAdminId()) !== telegramUserId.toString()) return { isAdmin: false, secretPending: false };
+    const pending = await prisma.humanRequest.findFirst({
+      where: { status: "PENDING", kind: "SECRET" },
+      select: { id: true },
+    });
+    return { isAdmin: true, secretPending: !!pending };
   },
 };
 

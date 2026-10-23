@@ -1,0 +1,208 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Bot } from "grammy";
+import type { Update } from "grammy/types";
+import { askHuman, requestValidation } from "@linkaffipro/agents";
+import { registerHandlers } from "../handlers";
+import { botInfoFromRecord } from "../factory";
+import type { BotIdentity, TelegramDeps } from "../ports";
+import { prismaAgentsAdminState } from "./agents-test-state";
+import { ADMIN_TG_ID, createTestKit, journalText } from "@linkaffipro/agents/test-kit";
+
+const lifecycle = vi.hoisted(() => ({
+  continueMission: vi.fn(async () => undefined),
+  cancelMission: vi.fn(async () => undefined),
+}));
+vi.mock("../../../agents/src/missions/lifecycle", () => lifecycle);
+
+const identity: BotIdentity = { id: "bot_1", name: "CasinoBot", username: "casinobot", telegramBotId: 111n, vertical: "CASINO" };
+const ADMIN = Number(ADMIN_TG_ID);
+
+function makeDeps(kit: ReturnType<typeof createTestKit>) {
+  return {
+    recordUpdate: vi.fn(async (_b: BotIdentity, _t: string, _u: Update) => undefined),
+    memberStarted: vi.fn(async () => ({ memberId: "m1" })),
+    memberSeen: vi.fn(async () => ({ memberId: "m1" })),
+    memberDmStatus: vi.fn(async () => undefined),
+    upsertChannel: vi.fn(async () => ({ channelId: "c1", created: true })),
+    findChannelId: vi.fn(async () => null),
+    setChannelAdmin: vi.fn(async () => undefined),
+    revokeChannelAdmin: vi.fn(async () => undefined),
+    listOurBotTelegramIds: vi.fn(async () => [111n]),
+    linkAdminAccount: vi.fn(async () => null),
+    isPlatformUser: vi.fn(async (id: bigint) => id === ADMIN_TG_ID),
+    isAdminDialogPartner: vi.fn(async (id: bigint) => id === ADMIN_TG_ID),
+    agentsDeps: () => kit.deps,
+    agentsAdminState: (id: bigint) => prismaAgentsAdminState(kit.prisma, id),
+  } satisfies TelegramDeps;
+}
+
+function makeBot(deps: TelegramDeps) {
+  const bot = new Bot("111:TEST", { botInfo: botInfoFromRecord(identity) });
+  const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+  let n = 1000;
+  bot.api.config.use(async (_prev, method, payload) => {
+    calls.push({ method, payload: payload as Record<string, unknown> });
+    if (method === "sendMessage") return { ok: true, result: { message_id: n++, date: 0, chat: { id: ADMIN, type: "private" } } } as never;
+    return { ok: true, result: true } as never;
+  });
+  registerHandlers(bot, identity, deps, { extended: false });
+  return { bot, calls, sent: () => calls.filter((c) => c.method === "sendMessage").map((c) => c.payload.text as string) };
+}
+
+let uid = 1;
+function textUpdate(fromId: number, text: string, replyTo?: number): Update {
+  return {
+    update_id: uid++,
+    message: {
+      message_id: 500 + uid,
+      date: 0,
+      chat: { id: fromId, type: "private", first_name: "A" },
+      from: { id: fromId, is_bot: false, first_name: "A" },
+      text,
+      ...(replyTo ? { reply_to_message: { message_id: replyTo, date: 0, chat: { id: fromId, type: "private", first_name: "A" } } } : {}),
+    },
+  } as Update;
+}
+function callbackUpdate(fromId: number, data: string): Update {
+  return {
+    update_id: uid++,
+    callback_query: {
+      id: `cb${uid}`,
+      chat_instance: "x",
+      from: { id: fromId, is_bot: false, first_name: "A" },
+      message: { message_id: 77, date: 0, chat: { id: fromId, type: "private", first_name: "A" }, text: "aperçu" },
+      data,
+    },
+  } as Update;
+}
+
+beforeEach(() => {
+  lifecycle.continueMission.mockClear();
+  lifecycle.cancelMission.mockClear();
+});
+
+async function withValidation() {
+  const kit = createTestKit();
+  const m = await kit.mission();
+  const v = await requestValidation(kit.deps, { missionId: m.id, teamKey: "dating", previewText: "Texte", reason: "niveau 0" });
+  return { kit, m, v };
+}
+
+describe("boutons de validation (Telegram)", () => {
+  it("✅ par l'admin : validé, boutons retirés ; second clic sans effet", async () => {
+    const { kit, m, v } = await withValidation();
+    const deps = makeDeps(kit);
+    const { bot, calls } = makeBot(deps);
+    await bot.handleUpdate(callbackUpdate(ADMIN, `agv:${v.validationId}:ok`));
+    await bot.handleUpdate(callbackUpdate(ADMIN, `agv:${v.validationId}:ok`));
+    expect(lifecycle.continueMission).toHaveBeenCalledTimes(1);
+    expect(lifecycle.continueMission).toHaveBeenCalledWith(kit.deps, m.id, { reason: "validation accordée" });
+    const answers = calls.filter((c) => c.method === "answerCallbackQuery").map((c) => c.payload.text);
+    expect(answers[0]).toBe("Validé ✅");
+    expect(String(answers[1])).toContain("déjà validé");
+    expect(calls.some((c) => c.method === "editMessageReplyMarkup")).toBe(true);
+  });
+
+  it("une autre personne : ignorée en silence", async () => {
+    const { kit, v } = await withValidation();
+    const { bot, calls } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(callbackUpdate(999, `agv:${v.validationId}:no`));
+    expect(kit.tables("agentValidation")[0]!.status).toBe("PENDING");
+    expect(calls.filter((c) => c.method === "answerCallbackQuery")[0]!.payload.text).toBeUndefined();
+    expect(calls.some((c) => c.method === "sendMessage")).toBe(false);
+  });
+
+  it("✏️ puis message texte : nouveau texte, retour au Contrôle qualité", async () => {
+    const { kit, m, v } = await withValidation();
+    const { bot, sent } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(callbackUpdate(ADMIN, `agv:${v.validationId}:edit`));
+    await bot.handleUpdate(textUpdate(ADMIN, "Texte corrigé 💋"));
+    expect(kit.tables("agentValidation")[0]).toMatchObject({ status: "EDITED", editedText: "Texte corrigé 💋" });
+    expect(lifecycle.continueMission).toHaveBeenCalledWith(kit.deps, m.id, { fromAgent: "controle", reason: "texte corrigé par l'admin" });
+    expect(sent().at(-1)).toContain("repasse au contrôle qualité");
+  });
+});
+
+describe("dialogue admin (Telegram)", () => {
+  it("secret : rangé chiffré, message supprimé, jamais journalisé, vérification KO → demande ouverte", async () => {
+    const kit = createTestKit();
+    const { registerSecretVerifier, clearSecretVerifiers } = await import("@linkaffipro/agents");
+    clearSecretVerifiers();
+    const verify = vi.fn(async (v: string) => (v.endsWith("0000") ? { ok: false, message: "clé refusée" } : { ok: true, message: "ok" }));
+    registerSecretVerifier("providers.fal.apiKey", verify);
+    await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Réponds à ce message avec ta clé fal.ai." });
+    const deps = makeDeps(kit);
+    const { bot, calls, sent } = makeBot(deps);
+    const questionId = kit.sent[0]!.messageId;
+
+    await bot.handleUpdate(textUpdate(ADMIN, "fal-BAD-KEY-0000", questionId));
+    expect(sent().at(-1)).toContain("KO : clé refusée");
+    expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
+
+    await bot.handleUpdate(textUpdate(ADMIN, "fal-GOOD-KEY-ab12", questionId));
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(sent().at(-1)).toBe("Clé fal.ai enregistrée (…ab12). Vérification : OK ✅");
+    expect(kit.tables("humanRequest")[0]!.status).toBe("ANSWERED");
+    expect(calls.filter((c) => c.method === "deleteMessage")).toHaveLength(2);
+
+    const logged = JSON.stringify(deps.recordUpdate.mock.calls.map((c) => c[2]));
+    expect(logged).not.toContain("KEY");
+    expect(logged).toContain("[secret retiré]");
+    expect(journalText(kit)).not.toContain("KEY");
+    expect(JSON.stringify(kit.tables("setting"))).not.toContain("GOOD-KEY");
+    // Aucun message envoyé ne contient la clé.
+    expect(sent().join("\n")).not.toContain("GOOD-KEY");
+  });
+
+  it("commande « clé cotes … » masquée et supprimée même sans demande", async () => {
+    const kit = createTestKit();
+    const deps = makeDeps(kit);
+    const { bot, calls, sent } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, "clé cotes ODDS-SECRET-9z9z"));
+    expect(sent().at(-1)).toBe("Clé des cotes enregistrée (…9z9z) ✅");
+    expect(calls.some((c) => c.method === "deleteMessage")).toBe(true);
+    expect(JSON.stringify(deps.recordUpdate.mock.calls.map((c) => c[2]))).not.toContain("ODDS-SECRET");
+  });
+
+  it("CONFIRM par message suivant, « pause dating », « agents », « vrai casino » + OUI", async () => {
+    const kit = createTestKit();
+    const deps = makeDeps(kit);
+    const { bot, sent } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, "pause dating"));
+    expect(sent().at(-1)).toBe("Équipe Dating en pause ⏸");
+    await bot.handleUpdate(textUpdate(ADMIN, "agents"));
+    expect(sent().at(-1)!.split("\n")).toHaveLength(6);
+    await bot.handleUpdate(textUpdate(ADMIN, "vrai casino"));
+    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Casino en vrai ?");
+    await bot.handleUpdate(textUpdate(ADMIN, "OUI"));
+    expect(kit.tables("agentTeamConfig").find((c) => c.teamKey === "casino")).toMatchObject({ simulation: false });
+    // Les messages ordinaires de l'admin restent journalisés tels quels (pnpm tg:inbox).
+    expect(JSON.stringify(deps.recordUpdate.mock.calls.map((c) => c[2]))).toContain("pause dating");
+  });
+
+  it("« ok <n> » valide par numéro court", async () => {
+    const { kit, v } = await withValidation();
+    const { bot } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(textUpdate(ADMIN, `ok ${v.number}`));
+    expect(kit.tables("agentValidation")[0]!.status).toBe("APPROVED");
+  });
+
+  it("une autre personne qui écrit « agents » : rien côté agents", async () => {
+    const kit = createTestKit();
+    const deps = makeDeps(kit);
+    const { bot, sent } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(31337, "agents"));
+    await bot.handleUpdate(textUpdate(31337, "pause dating"));
+    expect(sent().some((t) => t.includes("Agents") || t.includes("pause"))).toBe(false);
+    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
+  });
+
+  it("message ordinaire de l'admin sans demande : laissé aux autres handlers", async () => {
+    const kit = createTestKit();
+    const deps = makeDeps(kit);
+    const { bot } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, "fait"));
+    expect(JSON.stringify(deps.recordUpdate.mock.calls[0]![2])).toContain('"text":"fait"');
+    expect(kit.tables("auditLog")).toHaveLength(0);
+  });
+});

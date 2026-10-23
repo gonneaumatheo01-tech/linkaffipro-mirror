@@ -241,3 +241,10 @@ export type {
   RetryLandingLinksReport,
 } from "./landing/prisma-links";
 export { createAdminMessenger } from "./agents/admin-messenger";
+// Phase 19 (chantier B) : dialogue admin des agents, dépôt dans la médiathèque, masquage des secrets.
+export { createAdminMessengerWith, htmlToPlain, CAPTION_MAX } from "./agents/admin-messenger";
+export type { MessengerApi, MessengerPort } from "./agents/admin-messenger";
+export { createBotAgentsDeps } from "./agents/deps";
+export { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } from "./agents/redact";
+export { registerAgentsAdminHandlers } from "./handlers/agents-admin";
+export { registerMediaInboxHandlers, inboxMediaOf, BOT_DOWNLOAD_MAX_BYTES } from "./handlers/media-inbox";
