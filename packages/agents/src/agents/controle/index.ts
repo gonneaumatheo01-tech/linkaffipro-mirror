@@ -5,9 +5,14 @@
  */
 import { checkContent } from "../../rules/content";
 import { findDuplicate } from "../../rules/similarity";
-import type { AgentContext, AgentDefinition, Mission } from "../../types";
+import { escapeHtml } from "@linkaffipro/core";
+import type { AgentContext, AgentDefinition, AgentResult, Mission } from "../../types";
 import { parsePayload } from "../../missions/mission";
 import { loadChannel, recentChannelTexts } from "../data";
+import { alwaysValidateReason } from "../../orchestrator/autonomy";
+import { applyFallback } from "../media-ia/fallback";
+import { loadPersonaMedia } from "../data";
+import { checkProducedMedia, storeControlFrame } from "./media-check";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
 async function autonomyFacts(mission: Mission, ctx: AgentContext) {
@@ -15,14 +20,17 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
   const others = { id: { not: mission.id }, status: "DONE" as const };
   const [channelDone, personaDone, themeDone] = await Promise.all([
     mission.channelId ? ctx.prisma.agentMission.count({ where: { ...others, channelId: mission.channelId } }) : Promise.resolve(1),
-    typeof p.personaId === "string" ? ctx.prisma.agentMission.findMany({ where: others, select: { payload: true }, take: 500 }) : Promise.resolve(null),
+    typeof p.personaId === "string" ? ctx.prisma.agentMission.findMany({ where: others, select: { payload: true }, take: 2000 }) : Promise.resolve(null),
     typeof p.theme === "string" && mission.channelId
       ? ctx.prisma.agentMission.findMany({ where: { ...others, channelId: mission.channelId }, select: { payload: true }, take: 500 })
       : Promise.resolve(null),
   ]);
+  const ofPersona = (personaDone ?? []).map((m) => parsePayload(m.payload)).filter((x) => x.personaId === p.personaId);
   return {
     firstPostOfChannel: channelDone === 0,
-    newPersona: personaDone ? !personaDone.some((m) => parsePayload(m.payload).personaId === p.personaId) : false,
+    personaVideosDone: ofPersona.filter((x) => x.format === "video").length,
+    personaPhotosDone: ofPersona.filter((x) => x.format === "photo").length,
+    newPersona: personaDone ? ofPersona.length === 0 : false,
     newTheme: themeDone ? !themeDone.some((m) => parsePayload(m.payload).theme === p.theme) : false,
     newCategory: false,
   };
@@ -51,6 +59,21 @@ export const agent: AgentDefinition = {
     let judgement: Judgement = null;
     let judgementReason: string | null = null;
     let costCents = 0;
+
+    // Média produit par l'IA : regard sur 3 images de la vidéo (ou sur la photo).
+    let mediaDoubt: string | null = null;
+    let doubtFrame: { bytes: Uint8Array; mime: string } | null = null;
+    if (!problems.length && !p.approved) {
+      const mc = await checkProducedMedia(mission, ctx);
+      if (mc.kind === "technical") return technicalFailure(mission, ctx, mc.reason);
+      if (mc.kind === "judged") {
+        costCents += mc.costCents;
+        if (mc.defect !== "non") {
+          mediaDoubt = `${mc.defect === "oui" ? "défaut visible" : "doute"} (${mc.reason})`;
+          if (mc.frame) doubtFrame = { bytes: mc.frame, mime: mc.frameMime };
+        }
+      }
+    }
     const llm = ctx.providers.llm;
     if (!problems.length && !p.approved && llm && ctx.settings.settings.aiReview !== false) {
       const channel = await loadChannel(ctx.prisma, mission.channelId);
@@ -67,10 +90,21 @@ export const agent: AgentDefinition = {
           .join("\n"),
         maxTokens: 300,
       });
-      costCents = res.costCents;
+      costCents += res.costCents;
       ({ judgement, reason: judgementReason } = parseJudgement(res.text));
     }
 
+    const facts = await autonomyFacts(mission, ctx);
+    const persona = typeof p.personaId === "string" ? await loadPersonaMedia(ctx.prisma, p.personaId) : null;
+    const alwaysValidate = alwaysValidateReason({
+      teamKey: mission.teamKey,
+      format: p.format,
+      personaName: persona?.name ?? null,
+      personaVideosDone: facts.personaVideosDone,
+      personaPhotosDone: facts.personaPhotosDone,
+      firstPostOfChannel: facts.firstPostOfChannel,
+      mediaDoubt,
+    });
     const v = decideVerdict({
       ruleProblems: problems,
       judgement,
@@ -78,7 +112,7 @@ export const agent: AgentDefinition = {
       approved: p.approved === true,
       redone: p.redone === true,
       autonomyLevel: ctx.settings.autonomyLevel,
-      facts: await autonomyFacts(mission, ctx),
+      facts: { ...facts, alwaysValidate },
     });
     const judged = judgement ? `, relecture : ${judgement}` : "";
     if (v.verdict === "redo")
@@ -89,6 +123,7 @@ export const agent: AgentDefinition = {
         costCents,
         summary: `à refaire : ${v.reasons.join(" ; ")}`,
       };
+    if (v.verdict === "validate" && doubtFrame) await sendDoubtFrame(mission, ctx, doubtFrame, mediaDoubt!);
     if (v.verdict === "validate")
       return {
         ok: true,
@@ -100,3 +135,31 @@ export const agent: AgentDefinition = {
     return { ok: true, output: { verdict: "publish", reasons: [] }, costCents, summary: `bon pour publication${judged}` };
   },
 };
+
+/** Image du doute envoyée à l'admin juste avant l'aperçu de validation (qui, lui, porte la vidéo ou la photo). */
+async function sendDoubtFrame(mission: Mission, ctx: AgentContext, frame: { bytes: Uint8Array; mime: string }, why: string): Promise<void> {
+  try {
+    const frameId = await storeControlFrame(ctx, mission, frame.bytes, frame.mime);
+    await ctx.admin?.send(`🖼 Image regardée par le contrôle qualité : ${escapeHtml(why)}. La validation suit.`, { mediaAssetId: frameId });
+  } catch (err) {
+    ctx.logger?.warn({ err: (err as Error).message, missionId: mission.id }, "[agents] image du contrôle non envoyée");
+  }
+}
+
+/** Échecs techniques tolérés avant d'abandonner la mission (chaque fois : repli vers le format suivant). */
+const MAX_TECHNICAL_FAILURES = 2;
+
+/** Média illisible ou hors bornes : jamais publié ; repli (vidéo → photo → texte) et reprise de la production. */
+async function technicalFailure(mission: Mission, ctx: AgentContext, reason: string): Promise<AgentResult> {
+  const p = mission.payload;
+  const count = (typeof p.technicalFailures === "number" ? p.technicalFailures : 0) + 1;
+  const format = p.format ?? "text";
+  const fb = format === "text" || count > MAX_TECHNICAL_FAILURES ? null : await applyFallback(ctx, mission, format, `média refusé par le contrôle : ${reason}`);
+  if (!fb) return { ok: false, error: `Média refusé par le contrôle qualité (${reason}) : jamais publié.`, retryable: false };
+  return {
+    ok: true,
+    output: { ...fb.patch, mediaAssetId: null, technicalFailures: count, redone: false },
+    goTo: fb.format === "photo" ? "media-ia" : "redaction",
+    summary: `média refusé (${reason}) → ${fb.format === "photo" ? "post photo" : "post texte"}`,
+  };
+}

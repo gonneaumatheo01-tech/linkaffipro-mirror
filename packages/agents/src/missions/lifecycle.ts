@@ -24,6 +24,8 @@ export type CreateMissionInput = {
   planDay?: string | null;
   /** Format imposé (« Créer une mission de test » : texte). */
   format?: "video" | "photo" | "text";
+  /** Persona imposée (post de test de l'équipe Dating, phase 20). */
+  personaId?: string | null;
 };
 
 export type CreateMissionResult =
@@ -60,7 +62,7 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
   if (collision) return { ok: false, reason: collision };
 
   const steps = buildSteps(chain.post);
-  const payload = input.format ? { format: input.format } : {};
+  const payload = { ...(input.format ? { format: input.format } : {}), ...(input.personaId ? { personaId: input.personaId } : {}) };
   const settings = await loadTeamSettings(deps.prisma, input.teamKey);
   const paid = [...new Set(chain.post.flatMap((a) => PAID_PROVIDERS[a] ?? []))] as ProviderKey[];
   // IA de repli (aucune clé) : aucune dépense, donc aucun plafond à vérifier.

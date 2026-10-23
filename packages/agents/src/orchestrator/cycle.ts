@@ -5,6 +5,7 @@
  * une erreur n'empêche pas les autres.
  */
 import { agentEvent, nowOf } from "../admin/journal";
+import { ensureDatingSetupQuestions } from "../human/dating-setup";
 import { ensureDailyReportQuestion, sweepHumanRequests } from "../human/site";
 import { ensureTeamConfigs, isAgentsPausedAll } from "../missions/settings";
 import type { AgentsDeps, TeamKey } from "../types";
@@ -43,6 +44,8 @@ export async function runCycle(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {
   const out: CycleResult = {};
   await ensureTeamConfigs(deps.prisma);
   await step(deps, "dailyReportQuestion", out, () => askDailyReportOnce(deps));
+  // Questions de mise en route de l'équipe Dating (phase 20) : posées une seule fois (garde dans la fonction).
+  await step(deps, "datingSetup", out, () => ensureDatingSetupQuestions(deps));
   if (await isAgentsPausedAll(deps.prisma)) out.plan = { skipped: "pause générale" };
   else await step(deps, "plan", out, () => planDay(deps, opts));
   await step(deps, "resume", out, () => resumeMissions(deps));

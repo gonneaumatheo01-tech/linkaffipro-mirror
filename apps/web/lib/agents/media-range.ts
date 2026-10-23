@@ -1,4 +1,4 @@
-/** Lecture par morceaux des vidéos servies par `/api/agents/media/[id]` (pur, testé dans media-range.test.ts). */
+/** Lecture par morceaux des vidéos servies par `/api/agents/media/[id]` (pur, testé dans dating.test.ts). */
 
 /** Plage d'octets demandée (`Range: bytes=a-b`, une seule plage) ; null si absente ou illisible. */
 export function parseRange(header: string | null, size: number): { start: number; end: number } | null {

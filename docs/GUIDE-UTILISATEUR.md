@@ -855,7 +855,7 @@ Plus bas sur la fiche, **Ce que l'assistante reçoit comme consignes** (replié)
 **Médias du personnage** (sous le formulaire, enregistrés à part avec **Enregistrer les médias**) : ce qui sert à l'équipe Rencontres des [agents](#equipe-rencontres-videos-photos-et-banc-d-essai) pour fabriquer les vidéos et les photos du personnage, surtout pour une persona « Une fille ».
 
 - **Images de référence** : 1 à 3 photos nettes du personnage, de face et en pied (JPEG, PNG ou WebP, 10 Mo au plus). Cliquez sur **Ajouter une image** ; les flèches changent l'ordre. **La première sert à remplacer la personne dans les vidéos** : mettez la meilleure en premier.
-- **Adresse du fichier du personnage** (le fichier LoRA, expliqué au survol : un petit fichier qui apprend au générateur de photos le visage et le corps du personnage) : collez l'adresse complète qui commence par https://. Facultatif : sans lui, les photos restent celles de la persona.
+- **Adresse du fichier du personnage** (expliqué au survol et dans le [Petit lexique](#petit-lexique) : un petit fichier qui apprend au générateur de photos le visage et le corps du personnage) : collez l'adresse complète qui commence par https://. Facultatif : sans lui, les photos restent celles de la persona.
 - **Mot déclencheur** : le mot donné avec le fichier, obligatoire dès qu'une adresse est collée.
 - **Force du personnage** : de 0,1 à 1,5 (0,8 conseillé ; plus haut, plus ressemblant mais moins naturel).
 - **Tenue et ambiance** : ce qu'elle porte, les lieux, ce qu'il faut éviter. Lu pour chaque photo et chaque vidéo.
@@ -1315,6 +1315,7 @@ Le site emploie des mots simples ; le terme technique s'affiche au survol des mo
 | retour du casino | postback | Le message automatique qu'un casino ou un programme envoie à chaque inscription ou dépôt. |
 | service d'arrière-plan | worker | Le programme qui tourne en continu : il accepte les demandes, envoie les messages à l'heure, lit Link Affi, calcule les statistiques, fait les sauvegardes. |
 | Rencontres | Dating | Un des trois univers, avec Casino et Paris sportifs. |
+| fichier du personnage | LoRA | Petit fichier (souvent en .safetensors) qui apprend au générateur de photos le visage et le corps d'une persona. On colle son adresse dans la fiche persona, section Médias du personnage. |
 
 D'autres mots du site :
 

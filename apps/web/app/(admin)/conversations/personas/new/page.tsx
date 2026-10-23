@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Nouvelle persona (phase 17) : le formulaire unique, désactivée par défaut, avec les textes du profil du bot déjà
- * proposés (ils disent « assistante du canal »). « Créer la persona » ouvre la fiche, où se trouve « Tester ».
+ * proposés (ils disent « assistante du canal »). « Créer la persona » ouvre la fiche, où se trouve « Tester ».
  * ADMIN et MANAGER.
  */
 export default async function NewPersonaPage() {
@@ -25,7 +25,7 @@ export default async function NewPersonaPage() {
         title="Nouvelle persona"
         backHref="/conversations/personas"
         backLabel="Personas"
-        description="Un prénom, une personnalité, l'offre présentée et le moment du lien. Elle est créée désactivée si vous ne cochez pas « Persona activée » : testez-la d'abord sur sa fiche, puis activez-la."
+        description="Un prénom, une personnalité, l'offre présentée et le moment du lien. Elle est créée désactivée si vous ne cochez pas « Persona activée » : testez-la d'abord sur sa fiche, puis activez-la."
       />
       <PersonaForm
         initial={emptyPersonaForm(choices.templates)}
@@ -39,7 +39,7 @@ export default async function NewPersonaPage() {
       />
       <p className="mt-6 max-w-3xl text-note text-muted-foreground">
         Photos et vidéos du personnage : elles s&apos;ajoutent sur sa fiche, une fois la persona créée (section
-        « Médias du personnage »).
+        « Médias du personnage »).
       </p>
     </>
   );

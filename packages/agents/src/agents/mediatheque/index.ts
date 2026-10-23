@@ -6,6 +6,7 @@
 import type { AgentDefinition } from "../../types";
 import { parsePayload } from "../../missions/mission";
 import { loadPlan } from "../data";
+import { runDatingMediatheque } from "./dating";
 import { chooseFormat, pickAsset, type MediaFormat } from "./pick";
 
 const MIME_PREFIX: Record<Exclude<MediaFormat, "text">, string> = { video: "video/", photo: "image/" };
@@ -13,6 +14,7 @@ const MIME_PREFIX: Record<Exclude<MediaFormat, "text">, string> = { video: "vide
 export const agent: AgentDefinition = {
   key: "mediatheque",
   async run(mission, ctx) {
+    if (mission.teamKey === "dating") return runDatingMediatheque(mission, ctx);
     const plan = await loadPlan(ctx.prisma, mission);
     let format: MediaFormat;
     if (mission.payload.format) format = mission.payload.format;

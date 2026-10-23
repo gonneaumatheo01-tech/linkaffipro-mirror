@@ -5,6 +5,8 @@
  */
 import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent, nowOf } from "../admin/journal";
+import { FALLBACK_EVENT } from "../agents/media-ia/fallback";
+import { countFallbacks } from "../chiefs/dating-format";
 import { loadTeamSettings } from "../missions/settings";
 import { monthUsage, totalCents } from "../missions/usage";
 import { addDaysToDay, parisDay, parisDayStart, parisParts } from "../rules/time";
@@ -24,6 +26,8 @@ export type TeamReportFigures = {
   capCents: number | null;
   simulation: boolean;
   paused: boolean;
+  /** Replis Dating de la veille (vidéo → photo, photo → texte). */
+  fallbacks?: { video: number; photo: number };
 };
 
 const eur = (c: number) => `${(c / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -36,6 +40,8 @@ export function reportLine(f: TeamReportFigures): string {
     `${f.refused} refusé${f.refused > 1 ? "s" : ""}`,
   ];
   if (f.failed) parts.push(`${f.failed} en échec`);
+  if (f.fallbacks?.video) parts.push(`${f.fallbacks.video} vidéo${f.fallbacks.video > 1 ? "s" : ""} remplacée${f.fallbacks.video > 1 ? "s" : ""} par une photo`);
+  if (f.fallbacks?.photo) parts.push(`${f.fallbacks.photo} photo${f.fallbacks.photo > 1 ? "s" : ""} remplacée${f.fallbacks.photo > 1 ? "s" : ""} par un texte`);
   const spend = f.capCents ? `${eur(f.spentCents)} / ${eur(f.capCents)} ce mois` : `${eur(f.spentCents)} ce mois`;
   const flags = [f.simulation ? "simulation" : null, f.paused ? "en pause" : null].filter(Boolean).join(", ");
   return `${f.label} : ${parts.join(", ")} ; ${spend}${flags ? ` (${flags})` : ""}`;
@@ -61,6 +67,11 @@ export async function buildDailyReport(deps: AgentsDeps): Promise<{ day: string;
       deps.prisma.agentMission.count({ where: { teamKey, status: { in: ["WAITING_VALIDATION", "WAITING_HUMAN"] } } }),
       monthUsage(deps.prisma, teamKey, now),
     ]);
+    const fallbackEvents =
+      teamKey === "dating"
+        ? await deps.prisma.event.findMany({ where: { type: FALLBACK_EVENT, occurredAt: { gte: since, lt: until } }, select: { payload: true } })
+        : [];
+    const fallbacks = countFallbacks(fallbackEvents.map((e) => ({ from: (e.payload as { from?: string } | null)?.from as "video" | "photo" | "text" })));
     const caps = Object.values(settings.monthlyBudgetCents).filter((n): n is number => typeof n === "number");
     lines.push(
       reportLine({
@@ -73,6 +84,7 @@ export async function buildDailyReport(deps: AgentsDeps): Promise<{ day: string;
         capCents: caps.length ? caps.reduce((a, b) => a + b, 0) : null,
         simulation: settings.simulation,
         paused: settings.paused,
+        fallbacks,
       }),
     );
   }

@@ -16,7 +16,7 @@ export type AgentsEnqueueImpl = {
   step(
     teamKey: TeamKey,
     agent: string,
-    job: { type: "step"; missionId: string; index: number },
+    job: { type: "step"; missionId: string; index: number; poll?: number },
     opts?: { delayMs?: number },
   ): Promise<void>;
 };
@@ -29,8 +29,8 @@ export const TEAM_QUEUE_NAMES: Record<TeamKey, AgentTeamQueue> = {
 };
 
 /** Identifiant de tâche d'une étape (« : » remplacé, BullMQ l'interdit). */
-export function agentStepJobId(missionId: string, index: number): string {
-  return safeJobId(`${missionId}:${index}`)!;
+export function agentStepJobId(missionId: string, index: number, poll?: number): string {
+  return safeJobId(poll ? `${missionId}:${index}:p${poll}` : `${missionId}:${index}`)!;
 }
 
 type MinimalJob = { getState(): Promise<string>; remove(): Promise<void> };
@@ -62,7 +62,7 @@ export function createAgentsEnqueue(
       else await q.add(name, job, opts.delayMs ? { delay: opts.delayMs } : {});
     },
     async step(teamKey, agent, job, opts = {}) {
-      await addIdempotent(queueOf(TEAM_QUEUE_NAMES[teamKey]), agent, job, agentStepJobId(job.missionId, job.index), opts.delayMs);
+      await addIdempotent(queueOf(TEAM_QUEUE_NAMES[teamKey]), agent, job, agentStepJobId(job.missionId, job.index, job.poll), opts.delayMs);
     },
   };
 }

@@ -237,10 +237,15 @@ export type AgentsOrchestratorJob =
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }
+  /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures toutes les 30 s (`benchId`). */
+  | { type: "bench"; personaId?: string; count?: number; benchId?: string }
   | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null };
 
-/** Files d'équipe : une étape de mission ; nom de la tâche = clé de l'agent, identifiant `<missionId>:<index>`. */
-export type AgentStepJob = { type: "step"; missionId: string; index: number };
+/**
+ * Files d'équipe : une étape de mission ; nom de la tâche = clé de l'agent, identifiant `<missionId>:<index>`
+ * (`<missionId>:<index>:p<n>` pour la n-ième relecture d'une étape qui attend un fournisseur, phase 20).
+ */
+export type AgentStepJob = { type: "step"; missionId: string; index: number; poll?: number };
 
 /** File `agents-ads` (phase 24) : vide en phase 19. */
 export type AgentsAdsJob = { type: "tick" };

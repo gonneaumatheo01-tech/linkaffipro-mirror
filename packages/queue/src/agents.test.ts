@@ -36,6 +36,8 @@ describe("files des agents", () => {
     const d = queues.get("agents-dating")!;
     expect(d.added).toEqual([{ name: "redaction", data: { type: "step", missionId: "m1", index: 2 }, opts: { jobId: "m1-2" } }]);
     expect(agentStepJobId("m1", 2)).toBe("m1-2");
+    // Relecture d'une étape en attente du fournisseur : identifiant distinct (la tâche en cours ne bloque pas l'ajout).
+    expect(agentStepJobId("m1", 2, 3)).toBe("m1-2-p3");
     // Même étape encore en attente : jamais doublée.
     await enq.step("dating", "redaction", { type: "step", missionId: "m1", index: 2 });
     expect(d.added).toHaveLength(1);

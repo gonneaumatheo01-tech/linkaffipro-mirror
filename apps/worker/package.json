@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude \"tests/integration/**\"",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "agents:bench-video": "node --env-file-if-exists=../../.env.local --import tsx scripts/bench-video.ts",
+    "agents:upload-lora": "node --env-file-if-exists=../../.env.local --import tsx scripts/upload-lora.ts"
   },
   "dependencies": {
     "@linkaffipro/agents": "workspace:*",

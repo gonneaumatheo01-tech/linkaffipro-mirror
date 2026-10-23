@@ -5,7 +5,7 @@
 import { TELEGRAM_CAPTION_MAX } from "@linkaffipro/core";
 import type { AgentDefinition } from "../../types";
 import { parsePayload } from "../../missions/mission";
-import { loadChannel, loadPersona, loadPlan, recentChannelTexts } from "../data";
+import { loadChannel, loadPersona, loadPlan, personaIdOf, recentChannelTexts } from "../data";
 import { buildRedactionUser, parseRedaction, REDACTION_SYSTEM } from "./prompt";
 
 export const agent: AgentDefinition = {
@@ -17,7 +17,7 @@ export const agent: AgentDefinition = {
     if (!channel) return { ok: false, error: "Canal de la mission introuvable.", retryable: false };
     const plan = await loadPlan(ctx.prisma, mission);
     const [persona, recentPosts] = await Promise.all([
-      loadPersona(ctx.prisma, plan.personaId),
+      loadPersona(ctx.prisma, personaIdOf(mission, plan)),
       recentChannelTexts(ctx.prisma, mission.channelId, mission.id),
     ]);
     const theme = (typeof mission.payload.theme === "string" ? mission.payload.theme : null) ?? (await nextTheme(ctx, mission.channelId, mission.id, plan.themes));
@@ -46,7 +46,7 @@ export const agent: AgentDefinition = {
       const out = parseRedaction(res.text, maxLength);
       return {
         ok: true,
-        output: { text: out.text, hook: out.hook, topic: out.topic, theme, personaId: plan.personaId },
+        output: { text: out.text, hook: out.hook, topic: out.topic, theme, personaId: personaIdOf(mission, plan) },
         costCents: res.costCents,
         summary: `sujet « ${out.topic} », ${out.text.length} caractères`,
       };

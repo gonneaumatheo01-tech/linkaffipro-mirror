@@ -5,12 +5,14 @@
 import { runNextStep, type StepOutcome } from "../chiefs/engine";
 import type { EngineDeps } from "../missions/context";
 import { createFakeLlm, type FakeLlmOptions } from "../providers/fake";
-import type { AgentStepJob, AgentsOrchestratorJob, LlmProvider, TeamKey } from "../types";
+import type { AgentStepJob, AgentsOrchestratorJob, FrameExtractor, LlmProvider, Providers, TeamKey } from "../types";
 import { createFakePrisma, type FakePrisma } from "./fake-prisma";
 
-export type QueuedStep = { teamKey: TeamKey; agent: string; job: AgentStepJob };
+export type QueuedStep = { teamKey: TeamKey; agent: string; job: AgentStepJob; delayMs?: number };
 
-export function createEngineKit(opts: { start?: Date; llm?: LlmProvider | null; fake?: FakeLlmOptions } = {}) {
+export function createEngineKit(
+  opts: { start?: Date; llm?: LlmProvider | null; fake?: FakeLlmOptions; providers?: Partial<Providers>; frames?: FrameExtractor } = {},
+) {
   let now = opts.start ?? new Date("2026-10-23T08:07:00Z");
   const prisma: FakePrisma = createFakePrisma({
     channel: [
@@ -30,9 +32,10 @@ export function createEngineKit(opts: { start?: Date; llm?: LlmProvider | null; 
       async orchestrator(job) {
         orchestrator.push(job);
       },
-      async step(teamKey, agent, job) {
-        // Comme BullMQ : une étape encore en file n'est pas doublée.
-        if (!steps.some((s) => s.job.missionId === job.missionId && s.job.index === job.index)) steps.push({ teamKey, agent, job });
+      async step(teamKey, agent, job, o) {
+        // Comme BullMQ : une étape encore en file n'est pas doublée (même mission, index et relecture).
+        if (!steps.some((s) => s.job.missionId === job.missionId && s.job.index === job.index && (s.job.poll ?? 0) === (job.poll ?? 0)))
+          steps.push({ teamKey, agent, job, ...(o?.delayMs ? { delayMs: o.delayMs } : {}) });
       },
     },
     admin: {
@@ -41,7 +44,8 @@ export function createEngineKit(opts: { start?: Date; llm?: LlmProvider | null; 
         return { messageId: nextMsg++ };
       },
     },
-    providers: { llm },
+    providers: { llm, ...(opts.providers ?? {}) },
+    ...(opts.frames ? { frames: opts.frames } : {}),
   };
   /** Exécute les étapes en file jusqu'à épuisement (ou `max`). */
   async function drain(max = 50): Promise<StepOutcome[]> {

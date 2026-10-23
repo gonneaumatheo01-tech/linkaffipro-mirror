@@ -29,8 +29,8 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: "
 
 /**
  * Production de l'équipe Rencontres (phase 20, fiche `/agents/dating`) : dépense vidéo et photo du mois face aux
- * plafonds, « Produire un post de test » (simulation, canal Test), puis une carte par persona (stock de vidéos
- * sources non utilisées, vidéos et photos produites ce mois, dernières productions avec aperçu, « Banc d'essai » pour
+ * plafonds, « Produire un post de test » (simulation, canal Test), puis une carte par persona (stock de vidéos
+ * sources non utilisées, vidéos et photos produites ce mois, dernières productions avec aperçu, « Banc d'essai » pour
  * les administrateurs) et le dépôt de vidéos sources.
  */
 export function DatingProduction({
@@ -119,7 +119,7 @@ export function DatingProduction({
       {personas.length === 0 ? (
         <p className="text-note text-muted-foreground">
           Aucune persona pour cette équipe : choisissez une persona dans le plan d&apos;un canal ci-dessous, ou créez une
-          persona « Une fille » dans Conversations → Personas.
+          persona « Une fille » dans Conversations → Personas.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -207,7 +207,7 @@ export function DatingProduction({
   );
 }
 
-/** Encart « Conversation » : l'agent Conversation Rencontres, c'est l'assistante des conversations (phases 17-18). */
+/** Encart « Conversation » : l'agent Conversation Rencontres, c'est l'assistante des conversations (phases 17-18). */
 export function DatingConversationCard() {
   return (
     <FormSection

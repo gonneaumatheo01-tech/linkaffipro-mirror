@@ -1,7 +1,8 @@
 import type { Job } from "bullmq";
-import { resumeMissions, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations } from "@linkaffipro/agents";
+import { resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations } from "@linkaffipro/agents";
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
+import { processAdminVoice } from "../agents/admin-voice";
 import { workerAgentsDeps } from "../agents/deps";
 import { logger } from "../logger";
 
@@ -11,7 +12,9 @@ import { logger } from "../logger";
  * - `resume` : toutes les 10 min, missions sans activité depuis 15 min ré-enfilées ;
  * - `human-requests` : toutes les 5 min, demandes au client (envoi de la suivante, rappel 24 h, expiration 7 jours) ;
  * - `validations` : validations sans réponse (24 h : reportée + rappel ; 72 h : annulée) ;
- * - `report` : rapport du jour (forcé depuis le site).
+ * - `report` : rapport du jour (forcé depuis le site) ;
+ * - `bench` (phase 20) : banc d'essai vidéo, un passage court qui se ré-enfile toutes les 30 s (jamais d'attente ici) ;
+ * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit.
  */
 export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>): Promise<unknown> {
   const data = job.data as AgentsOrchestratorJob | undefined;
@@ -27,6 +30,10 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return sweepValidations(deps);
     case "report":
       return sendDailyReport(deps, { force: data.force === true });
+    case "bench":
+      return runBench(deps, data);
+    case "admin-voice":
+      return processAdminVoice(data);
     default:
       logger.warn({ queue: "agents-orchestrator", id: job.id, type: (data as { type?: unknown } | undefined)?.type }, "type de tâche inconnu");
       return { ok: false, reason: "type de tâche inconnu" };

@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   persona: null as Record<string, unknown> | null,
   config: {} as Record<string, unknown>,
   spent: 0,
+  media: null as Record<string, unknown> | null,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -30,6 +31,8 @@ vi.mock("@/lib/session", () => ({ requireUser: vi.fn(async () => m.user) }));
 vi.mock("@/lib/assistant/config", () => ({ loadAssistantConfig: vi.fn(async () => m.config) }));
 vi.mock("@/lib/assistant/usage", () => ({ monthCostEur: vi.fn(async () => m.spent) }));
 vi.mock("./actions", () => ({ savePersonaAction: vi.fn(), deletePersonaAction: vi.fn() }));
+vi.mock("./[id]/media-actions", () => ({ savePersonaMediaAction: vi.fn() }));
+vi.mock("@/lib/personas/media-save", () => ({ loadPersonaMedia: vi.fn(async () => m.media) }));
 vi.mock("@/lib/personas/queries", () => ({
   loadPersonaList: vi.fn(async () => m.list),
   loadPersona: vi.fn(async () => m.persona),
@@ -121,6 +124,17 @@ beforeEach(() => {
   m.persona = { ...persona, bots: [] };
   m.config = { ...DEFAULT_ASSISTANT_CONFIG, apiKeyEncrypted: "chiffrée" };
   m.spent = 0;
+  m.media = {
+    referenceImageIds: ["r1", "r2"],
+    references: [
+      { id: "r1", filename: "face.jpg", mimeType: "image/jpeg" },
+      { id: "r2", filename: "pied.jpg", mimeType: "image/jpeg" },
+    ],
+    loraUrl: "https://v3.fal.media/files/lea.safetensors",
+    loraTrigger: "lea_tok",
+    loraScale: 0.8,
+    mediaNotes: "Tenues décontractées",
+  };
 });
 
 describe("liste des personas", () => {
@@ -211,6 +225,29 @@ describe("fiche d'une persona", () => {
     expect(html).toContain('id="tester"');
     // Le texte des consignes (destiné à l'IA) est hors du contrôle du vocabulaire : retiré avant de chercher le jargon.
     expect(jargonIn(visibleText(html.replace(/<pre[\s\S]*?<\/pre>/g, "")))).toEqual([]);
+  });
+
+  it("médias du personnage : images dans l'ordre, fichier du personnage expliqué au survol, sans « LoRA » en surface", async () => {
+    const html = await renderFiche();
+    const text = visibleText(html);
+    expect(primaryButtonCount(html)).toBe(1);
+    for (const t of [
+      "Médias du personnage",
+      "Images de référence (2 sur 3)",
+      "1re : sert aux vidéos",
+      "Adresse du fichier du personnage",
+      "Mot déclencheur",
+      "Force du personnage",
+      "Tenue et ambiance",
+      "Enregistrer les médias",
+    ])
+      expect(text, t).toContain(t);
+    expect(html).toContain('id="medias"');
+    expect(html).toContain('value="r1,r2"');
+    expect(html).toContain('src="/api/agents/media/r1"');
+    expect(html).toContain('value="0,8"');
+    expect(text).not.toMatch(/\bLoRA\b/);
+    expect(html).toContain("LoRA"); // au survol (lecteurs d'écran)
   });
 
   it("administrateur : « Supprimer la persona » ; responsable : pas de suppression", async () => {

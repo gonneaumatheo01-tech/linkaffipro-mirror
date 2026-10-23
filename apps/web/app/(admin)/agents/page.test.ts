@@ -9,6 +9,8 @@ const m = vi.hoisted(() => ({
   pausedAll: false,
   validations: [] as unknown[],
   requests: [] as unknown[],
+  datingPersonas: [] as unknown[],
+  keys: { fal: false, magichour: false },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -35,7 +37,17 @@ vi.mock("./actions", () => ({
   setAutonomyLevelAction: vi.fn(),
   setSimulationAction: vi.fn(),
 }));
-vi.mock("./[equipe]/actions", () => ({ saveTeamSettingsAction: vi.fn(), saveChannelPlanAction: vi.fn() }));
+vi.mock("./[equipe]/actions", () => ({
+  saveTeamSettingsAction: vi.fn(),
+  saveChannelPlanAction: vi.fn(),
+  createTestPostAction: vi.fn(),
+  startBenchAction: vi.fn(),
+}));
+vi.mock("@/lib/agents/dating-queries", () => ({
+  loadDatingPersonas: vi.fn(async () => m.datingPersonas),
+  loadDatingSettings: vi.fn(async () => ({ videoProvider: "fal", videoResolution: "580p" })),
+  loadMediaKeys: vi.fn(async () => m.keys),
+}));
 vi.mock("./validations/actions", () => ({
   decideValidationAction: vi.fn(),
   answerHumanRequestAction: vi.fn(),
@@ -145,6 +157,24 @@ beforeEach(() => {
   m.pausedAll = false;
   m.validations = [];
   m.requests = [];
+  m.keys = { fal: false, magichour: false };
+  m.datingPersonas = [
+    {
+      id: "p1",
+      name: "Léa",
+      isActive: true,
+      references: 1,
+      hasCharacterFile: false,
+      sourcesUnused: 2,
+      sourcesTotal: 5,
+      videosMonth: 3,
+      photosMonth: 4,
+      latest: [
+        { id: "a1", mimeType: "video/mp4", createdAt: new Date("2026-10-23T08:00:00Z"), providerName: "fal", resolution: "580p" },
+        { id: "a2", mimeType: "image/png", createdAt: new Date("2026-10-22T08:00:00Z"), providerName: "fake", resolution: null },
+      ],
+    },
+  ];
 });
 
 describe("rubrique Agents", () => {
@@ -179,6 +209,52 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Publier sur les vrais canaux");
     expect(text).toContain("Arrive dans une prochaine étape");
     expect(text).toContain("Attend votre validation");
+  });
+
+  it("fiche Rencontres : stock, productions, dépenses, post de test, banc d'essai, dépôt, conversation", async () => {
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never));
+    const text = checks(html);
+    for (const t of [
+      "Vidéos et photos des personas",
+      "Produire un post de test",
+      "Léa",
+      "2 sur 5",
+      "Moins de 3 vidéos sources neuves",
+      "Dernières productions",
+      "Banc d'essai",
+      "Collez d'abord la clé fal.ai",
+      "Déposer des vidéos sources",
+      "Fournisseur des vidéos",
+      "Résolution des vidéos",
+      "Persona du canal (obligatoire)",
+      "Conversation",
+      "Ouvrir Conversations",
+    ])
+      expect(text, t).toContain(t);
+    expect(html).toContain('src="/api/agents/media/a1"');
+    expect(html).toContain("<video");
+    expect(html).toContain('href="/conversations"');
+    // Plafonds par défaut de l'équipe : 100 € de vidéos, 15 € de photos.
+    expect(html).toMatch(/name="budget_video"[^>]*value="100"|value="100"[^>]*name="budget_video"/);
+    expect(text).not.toContain("Créer une mission de test");
+    expect(text).not.toMatch(/\bLoRA\b/);
+    // Une clé : le banc d'essai est proposé.
+    m.keys = { fal: true, magichour: false };
+    const withKey = visibleText(
+      await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never)),
+    );
+    expect(withKey).toContain("chez chaque fournisseur disponible");
+  });
+
+  it("fiche Rencontres pour un manager : post de test et dépôt, ni banc d'essai ni fournisseur ni plafonds", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "dating" }), searchParams: sp() } as never));
+    const text = checks(html);
+    expect(text).toContain("Produire un post de test");
+    expect(text).toContain("Déposer des vidéos sources");
+    expect(text).not.toContain("Banc d'essai");
+    expect(html).not.toContain('name="videoProvider"');
+    expect(html).toMatch(/name="budget_video"[^>]*disabled|disabled[^>]*name="budget_video"/);
   });
 
   it("fiche d'équipe pour un manager : ni vrais canaux ni niveau 2", async () => {

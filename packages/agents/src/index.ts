@@ -28,6 +28,25 @@ export * from "./providers/llm";
 export * from "./providers/fake";
 export type * from "./providers/video";
 export type * from "./providers/image";
+export * from "./providers/costs";
+export { ProviderError } from "./providers/http";
+export { createFalClient, createFalImageProvider, createFalVideoProvider, FAL_IMAGE_MODEL, FAL_VIDEO_MODEL } from "./providers/fal";
+export { createMagicHourVideoProvider } from "./providers/magichour";
+export {
+  MAGICHOUR_SECRET_KEY,
+  VIDEO_RESOLUTIONS,
+  DEFAULT_VIDEO_RESOLUTION,
+  DEFAULT_MAX_VIDEO_SECONDS,
+  mediaSettings,
+  resolveMediaProviders,
+  pickVideoProviderName,
+  type MediaSettings,
+  type MediaProviders,
+} from "./providers/registry";
+export * from "./providers/verifiers";
+export { DATING_DEFAULT_MIX } from "./chiefs/dating-format";
+export { DATING_DEFAULT_BUDGET_CENTS } from "./missions/settings";
+export { LOW_SOURCE_STOCK, unusedSourceCount } from "./agents/mediatheque/stock";
 export type * from "./providers/odds";
 export type * from "./providers/screenshot";
 export * from "./missions/settings";
@@ -53,3 +72,7 @@ export * from "./human/dating-setup";
 // Chantier B (phase 20) : vocaux de l'admin, plafond par poste.
 export * from "./admin/voice";
 export * from "./admin/budget";
+
+// Vérificateurs des clés fal.ai et Magic Hour (bouton « Vérifier », réponse au bot) : enregistrés au chargement.
+import { registerMediaKeyVerifiers } from "./providers/verifiers";
+registerMediaKeyVerifiers();

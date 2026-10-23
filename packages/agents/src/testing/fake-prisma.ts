@@ -67,7 +67,8 @@ let seq = 0;
 const newId = () => `id${(++seq).toString(36).padStart(5, "0")}`;
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date);
+  // Octets (`Bytes` Prisma : Buffer / Uint8Array) : valeur simple, jamais un objet d'opérations.
+  return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date) && !ArrayBuffer.isView(v);
 }
 
 const OPS = new Set(["in", "notIn", "not", "gt", "gte", "lt", "lte", "startsWith", "contains", "equals"]);

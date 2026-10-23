@@ -27,7 +27,7 @@ export type RedactionPromptInput = {
   language: string;
   format: "video" | "photo" | "text";
   maxLength: number;
-  persona?: { name: string; tone: string; personality: string; styleExamples: string | null } | null;
+  persona?: { name: string; tone: string; personality: string; styleExamples: string | null; mediaNotes?: string | null } | null;
   styleGuidelines?: string;
   themes?: readonly string[];
   /** Thème imposé pour ce post (choisi dans le plan du canal). */
@@ -60,9 +60,15 @@ export function buildRedactionUser(i: RedactionPromptInput): string {
     `Format : ${i.format === "text" ? "post texte seul" : i.format === "video" ? "légende d'une vidéo" : "légende d'une photo"}`,
   );
   lines.push(`Longueur : ${i.maxLength} caractères visibles au plus (vise beaucoup moins).`);
+  if (i.format !== "text")
+    lines.push(
+      `Légende très courte sous la ${i.format === "video" ? "vidéo" : "photo"} : une ou deux phrases, comme un message posté à la main ; ne décris pas l'image.`,
+    );
   if (i.persona) {
     lines.push(`Voix : ${i.persona.name}${i.persona.tone ? `, ton ${i.persona.tone}` : ""}${i.persona.personality ? `, ${i.persona.personality}` : ""}`);
     if (i.persona.styleExamples) lines.push(`Exemples de style (à imiter, jamais à recopier) :\n${i.persona.styleExamples.slice(0, 1500)}`);
+    if (i.format !== "text" && i.persona.mediaNotes?.trim())
+      lines.push(`Consignes médias de la fiche du personnage (tenue, ambiance) : ${i.persona.mediaNotes.trim().slice(0, 600)}`);
   }
   if (i.styleGuidelines?.trim()) lines.push(`Consignes de l'équipe :\n${i.styleGuidelines.trim().slice(0, 2000)}`);
   if (i.theme) lines.push(`Thème de ce post : ${i.theme}`);

@@ -33,10 +33,10 @@ async function uploadReference(personaId: string, file: File): Promise<Reference
 }
 
 /**
- * Section « Médias du personnage » de la fiche persona (phase 20) : 1 à 3 images de référence dans l'ordre (la
+ * Section « Médias du personnage » de la fiche persona (phase 20) : 1 à 3 images de référence dans l'ordre (la
  * première sert aux vidéos), le fichier du personnage (adresse https du fichier LoRA, expliqué au survol), son mot
  * déclencheur et son poids, les consignes de tenue et d'ambiance. Formulaire séparé du reste de la fiche (qui ne
- * change pas) : « Enregistrer les médias ». Les images sont envoyées tout de suite, et rangées à l'enregistrement.
+ * change pas) : « Enregistrer les médias ». Les images sont envoyées tout de suite, et rangées à l'enregistrement.
  */
 export function PersonaMediaForm({
   personaId,
@@ -46,7 +46,7 @@ export function PersonaMediaForm({
 }: {
   personaId: string;
   personaName: string;
-  /** Persona « Une fille » : les médias la représentent. Assistante : simple rappel de la règle. */
+  /** Persona « Une fille » : les médias la représentent. Assistante : simple rappel de la règle. */
   isGirl: boolean;
   initial: {
     references: ReferenceImage[];
@@ -95,7 +95,7 @@ export function PersonaMediaForm({
         description={
           isGirl
             ? `Ce qui sert aux agents de l'équipe Rencontres pour fabriquer les vidéos et les photos de ${name}. Rien ne part sans votre validation pour ses 3 premières vidéos et ses 3 premières photos.`
-            : "Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Ils servent surtout aux personas « Une fille » de l'équipe Rencontres."
+            : "Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Ils servent surtout aux personas « Une fille » de l'équipe Rencontres."
         }
       >
         <fieldset className="space-y-3">

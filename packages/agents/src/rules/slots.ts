@@ -41,7 +41,12 @@ export type SlotInput = {
   stepMinutes?: number;
   /** Jours explorés (7 par défaut). */
   horizonDays?: number;
+  /** Espacements supplémentaires (phase 20 : jamais deux vidéos à moins de 6 h sur un canal). */
+  extraSpacing?: ReadonlyArray<{ times: readonly Date[]; minutes: number }>;
 };
+
+/** Écart minimal entre deux vidéos d'un même canal. */
+export const VIDEO_MIN_GAP_MINUTES = 6 * 60;
 
 export type SlotResult = { ok: true; at: Date } | { ok: false; reason: string };
 
@@ -123,6 +128,7 @@ export function pickSlot(input: SlotInput): SlotResult {
       if (t < minAt) continue;
       if (inQuietHours(m, input.quietHours)) continue;
       if (occupied.some((o) => Math.abs(o - t) < spacing)) continue;
+      if (input.extraSpacing?.some((x) => x.times.some((o) => Math.abs(o.getTime() - t) < x.minutes * 60_000))) continue;
       const score = input.preferred?.get(preferredKey(parisWeekday(at), Math.floor(m / 60))) ?? 0;
       if (!best || score > best.score) best = { at: t, score };
     }

@@ -61,6 +61,11 @@ export const agent: AgentDefinition = {
         await tx.mediaUsage.create({
           data: { assetId: mission.payload.mediaAssetId, channelId: publishChannel.id, postId: post.postId, missionId: mission.id, usedAt: now },
         });
+      // Vidéo source d'une vidéo produite : comptée sur le canal VISÉ (même en simulation), jamais réutilisée
+      // sur ce canal avant 30 jours.
+      const source = mission.payload.format === "video" && typeof mission.payload.sourceAssetId === "string" ? mission.payload.sourceAssetId : null;
+      if (source && source !== mission.payload.mediaAssetId)
+        await tx.mediaUsage.create({ data: { assetId: source, channelId: target.id, postId: post.postId, missionId: mission.id, usedAt: now } });
       return { postId: post.postId, created: true, publisher: post.publisher as string | null };
     });
     return {

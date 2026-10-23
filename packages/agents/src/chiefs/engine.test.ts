@@ -36,14 +36,14 @@ type Kit = ReturnType<typeof createEngineKit>;
 
 async function setLevel(kit: Kit, level: 0 | 1 | 2, extra: Record<string, unknown> = {}) {
   await kit.prisma.agentTeamConfig.upsert({
-    where: { teamKey: "dating" },
-    create: { teamKey: "dating", autonomyLevel: level, ...extra },
+    where: { teamKey: "casino" },
+    create: { teamKey: "casino", autonomyLevel: level, ...extra },
     update: { autonomyLevel: level, ...extra },
   });
 }
 
 async function newMission(kit: Kit) {
-  const r = await createMission(kit.deps, { teamKey: "dating", channelId: "real", createdBy: "GRAND_CHEF" });
+  const r = await createMission(kit.deps, { teamKey: "casino", channelId: "real", createdBy: "GRAND_CHEF" });
   if (!r.ok) throw new Error(r.reason);
   return r.missionId;
 }
@@ -58,14 +58,13 @@ describe("mission POST de bout en bout (simulation)", () => {
     await setLevel(kit, 2);
     const id = await newMission(kit);
     const outcomes = await kit.drain();
-    // Média IA (phase 20) est sauté dès la création : Médiathèque enchaîne directement sur Rédaction.
+    // Moteur générique testé sur l'équipe Casino (la chaîne Dating de la phase 20 a ses propres tests).
     expect(outcomes).toEqual(["next", "next", "next", "next", "done"]);
     const m = kit.mission(id);
     expect(m.status).toBe("DONE");
     const steps = m.steps as Array<{ agent: string; status: string }>;
     expect(steps.map((s) => `${s.agent}:${s.status}`)).toEqual([
       "mediatheque:DONE",
-      "media-ia:SKIPPED",
       "redaction:DONE",
       "planification:DONE",
       "controle:DONE",
@@ -74,7 +73,7 @@ describe("mission POST de bout en bout (simulation)", () => {
     const posts = kit.t("post");
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({ channelId: "test", agentMissionId: id, status: "SCHEDULED" });
-    expect(String(posts[0]!.text)).toMatch(/^\[SIMULATION équipe Dating → Rencontres VIP\]\n/);
+    expect(String(posts[0]!.text)).toMatch(/^\[SIMULATION équipe Casino → Rencontres VIP\]\n/);
     expect(m.postId).toBe(posts[0]!.id);
     expect(m.scheduledFor).toEqual(posts[0]!.scheduledAt);
     // Journal : un passage par agent réel, des événements sans texte de post.
@@ -124,7 +123,7 @@ describe("mission POST de bout en bout (simulation)", () => {
   });
 
   it("mission de test : canal Test, format texte, validation au niveau 0", async () => {
-    const r = await createTestMission(kit.deps, "dating", "u1");
+    const r = await createTestMission(kit.deps, "casino", "u1");
     expect(r.ok).toBe(true);
     await kit.drain();
     const m = kit.mission((r as { missionId: string }).missionId);
@@ -173,12 +172,12 @@ describe("missions reprenables et idempotentes", () => {
     const kit = createEngineKit();
     await setLevel(kit, 2);
     const id = await newMission(kit);
-    await kit.drain(1); // médiathèque (Média IA déjà sauté)
+    await kit.drain(1); // médiathèque
     kit.steps.length = 0; // tâche perdue
     kit.advance(16 * 60_000);
     const r = await resumeMissions(kit.deps);
     expect(r.requeued).toBe(1);
-    expect(kit.steps[0]).toMatchObject({ agent: "redaction", job: { missionId: id, index: 2 } });
+    expect(kit.steps[0]).toMatchObject({ agent: "redaction", job: { missionId: id, index: 1 } });
     await kit.drain();
     expect(kit.mission(id).status).toBe("DONE");
   });
@@ -250,24 +249,24 @@ describe("pause", () => {
       await newMission(kit);
       await kit.drain();
     }
-    const team = kit.t("agentTeamConfig").find((t) => t.teamKey === "dating")!;
+    const team = kit.t("agentTeamConfig").find((t) => t.teamKey === "casino")!;
     expect(team).toMatchObject({ paused: true, pausedReason: "3 missions échouées de suite", consecutiveFailures: 3 });
     expect(kit.t("agentMission").filter((m) => m.status === "FAILED")).toHaveLength(3);
     expect(kit.sent.some((s) => s.html.includes("mise en pause"))).toBe(true);
     // Une étape a été réessayée une fois avant l'échec : 2 appels par mission.
     expect(llm.calls).toHaveLength(6);
     // Équipe en pause : plus aucune mission.
-    expect((await createMission(kit.deps, { teamKey: "dating", channelId: "real", createdBy: "GRAND_CHEF" })).ok).toBe(false);
+    expect((await createMission(kit.deps, { teamKey: "casino", channelId: "real", createdBy: "GRAND_CHEF" })).ok).toBe(false);
   });
 
   it("équipe en pause : l'étape attend ; reprise → elle repart", async () => {
     const kit = createEngineKit();
     await setLevel(kit, 2);
     const id = await newMission(kit);
-    await kit.prisma.agentTeamConfig.update({ where: { teamKey: "dating" }, data: { paused: true } });
+    await kit.prisma.agentTeamConfig.update({ where: { teamKey: "casino" }, data: { paused: true } });
     expect(await kit.drain()).toEqual(["halted"]);
     expect(kit.mission(id).status).toBe("PENDING");
-    await kit.prisma.agentTeamConfig.update({ where: { teamKey: "dating" }, data: { paused: false } });
+    await kit.prisma.agentTeamConfig.update({ where: { teamKey: "casino" }, data: { paused: false } });
     kit.advance(16 * 60_000);
     await resumeMissions(kit.deps);
     await kit.drain();
@@ -294,8 +293,8 @@ describe("plafonds", () => {
   it("plafond atteint → BLOCKED_BUDGET avec un motif clair, avant tout appel", async () => {
     const kit = createEngineKit({ llm: paidLlm() });
     await setLevel(kit, 2, { monthlyBudgetCents: { llm: 100 } });
-    await kit.prisma.agentUsage.create({ data: { teamKey: "dating", provider: "llm", month: "2026-10", cents: 100, calls: 3 } });
-    const r = await createMission(kit.deps, { teamKey: "dating", channelId: "real", createdBy: "GRAND_CHEF" });
+    await kit.prisma.agentUsage.create({ data: { teamKey: "casino", provider: "llm", month: "2026-10", cents: 100, calls: 3 } });
+    const r = await createMission(kit.deps, { teamKey: "casino", channelId: "real", createdBy: "GRAND_CHEF" });
     expect(r).toEqual({ ok: false, status: "BLOCKED_BUDGET", reason: expect.stringContaining("Plafond mensuel IA texte") });
     expect(kit.t("agentMission")[0]).toMatchObject({ status: "BLOCKED_BUDGET" });
   });
@@ -311,7 +310,7 @@ describe("plafonds", () => {
     expect(kit.sent.filter((s) => s.html.includes("plafond atteint"))).toHaveLength(1);
     expect(kit.mission(id).costCents).toBe(120);
     // Mission suivante : refusée avant la Rédaction.
-    const r = await createMission(kit.deps, { teamKey: "dating", channelId: "real", createdBy: "GRAND_CHEF" });
+    const r = await createMission(kit.deps, { teamKey: "casino", channelId: "real", createdBy: "GRAND_CHEF" });
     expect(r.ok).toBe(false);
     expect(kit.sent.filter((s) => s.html.includes("plafond atteint"))).toHaveLength(1);
   });

@@ -8,6 +8,7 @@ vi.mock("@linkaffipro/agents", () => ({
   sweepHumanRequests: vi.fn(async () => ({ sent: 0 })),
   sweepValidations: vi.fn(async () => ({ reminded: 0 })),
   sendDailyReport: vi.fn(async () => ({ sent: false })),
+  runBench: vi.fn(async () => ({ ok: true, open: true })),
 }));
 
 import * as agents from "@linkaffipro/agents";
@@ -41,5 +42,7 @@ describe("processeurs des agents (phase 19)", () => {
     expect(agents.resumeMissions).toHaveBeenCalled();
     expect(agents.sweepHumanRequests).toHaveBeenCalled();
     expect(agents.sweepValidations).toHaveBeenCalled();
+    await PROCESSORS["agents-orchestrator"].process(job({ type: "bench", benchId: "b1" }));
+    expect(agents.runBench).toHaveBeenCalledWith({}, { type: "bench", benchId: "b1" });
   });
 });
