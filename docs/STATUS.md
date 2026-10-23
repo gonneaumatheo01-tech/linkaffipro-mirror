@@ -17,7 +17,7 @@ Phases 0 à 21 en ligne. Phase 22 = deuxième équipe de production : les canaux
 
 ## Vérifications faites
 - 5 366 tests unitaires et 552 tests d'intégration (base réelle) réussis, dont **une semaine simulée** jour par jour sur le canal Test : 4 vidéos déposées sur deux thèmes, mélange et rotation respectés, replis quand le stock s'épuise, demande groupée envoyée une seule fois, posts programmés puis envoyés, rapport du matin. Lint, typage, build verts.
-- Sauvegarde avant déploiement ; site puis service d'arrière-plan ; santé vérifiée ; capture de la fiche Casino et contrôle d'accessibilité sans violation (base de démonstration locale).
+- Sauvegarde avant déploiement ; site (un premier envoi resté bloqué chez Railway, relancé avec succès) puis service d'arrière-plan ; santé vérifiée ; capture de la fiche Casino et contrôle d'accessibilité sans violation (base de démonstration locale).
 
 ## Reste / limites
 - La « fiche de l'offre » d'une campagne est celle de la persona qui y est rattachée (les campagnes n'ont pas de fiche à elles) : sans fiche, les textes ne citent que le nom de l'offre, jamais un montant.
