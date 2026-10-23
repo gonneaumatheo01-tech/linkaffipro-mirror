@@ -423,3 +423,16 @@ Migration additive `20261023180000_phase20_agents_dating`.
 Réglages de l'équipe Dating dans `AgentTeamConfig` : `monthlyBudgetCents.video` (10 000 par défaut), `.image` (1 500),
 `settings.videoProvider` (`fal` / `magichour`), `settings.videoResolution` (580p par défaut). `ChannelAgentPlan.mix`
 Dating par défaut `{ video: 1, photo: 2, text: 1 }`, `personaId` obligatoire.
+
+## Phase 21 : équipe Algorithme
+
+Migration additive `20261023200000_phase21_agents_algorithme`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `PostInsight` (`postId` unique, CASCADE) | Fiche de résultats d'un post envoyé, recalculée chaque nuit : vues à 1 h / 2 h / 24 h (interpolées depuis `PostViewSample`, null sans relevé), vues finales, transferts, réactions, clics, clics sur l'offre, inscriptions, premiers dépôts, dépôts ; caractéristiques : format (VIDEO, PHOTO, ALBUM, TEXT), thème, catégorie, persona, univers, longueur, emojis, boutons, heure et jour de Paris, variante A/B, mission d'agent, modèle, test. |
+| `Experiment` (`ExperimentKind` STYLE_LEGENDE / HORAIRE / MELANGE / REGLAGE_PERSONA, `ExperimentStatus` PROPOSED / RUNNING / CLOSED / CANCELLED) | Test de deux versions : équipe, canal ou persona, hypothèse, variantes, mesure, taille minimale, dates, résultat (effectifs, taux, seuil de 5 %), gagnant (A, B ou NONE), recommandation née du test. Un seul actif par canal et par type. |
+| `Recommendation` (`RecommendationStatus` PROPOSED / APPLIED / UNDONE / REJECTED, `RecommendationAppliedBy` GRAND_CHEF / HUMAN) | Réglage proposé : cible (CHANNEL_PLAN, TEAM_CONFIG, PERSONA) et son identifiant, champ, valeur avant (pour l'annulation en un clic) et après, preuves, gain attendu, taille (SMALL : horaires, mélange ; BIG : persona, quota), qui l'a appliqué / annulé / refusé et quand. |
+| `InsightReport` (unique `(teamKey, weekStart)`) | Rapport « Ce qui marche » d'une équipe pour une semaine (lundi, Paris) : texte envoyé, chiffres (dont `stats.conversations`, chiffres par profil de conversation). |
+| `ChannelAgentPlan.suggestedWindows`, `.styleNotes` | Fenêtres suggérées par l'agent Horaires ; consigne « ce qui marche ici » lue par la Rédaction. |
+| `Persona.suggestedFollowUpHours` | Heures de relance conseillées ; lues par le moteur de relances seulement si une recommandation les a appliquées. |
