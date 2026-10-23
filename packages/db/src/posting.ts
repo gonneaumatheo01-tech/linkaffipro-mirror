@@ -61,6 +61,8 @@ export type AgentPostInput = {
   language?: string;
   /** Bouton Offre de notre campagne (lien traqué OFFER créé pour ce message). */
   offer?: { campaignId: string; buttonText: string; labelSuffix?: string } | null;
+  /** Test A/B de l'équipe Algorithme (phase 21) : groupe `exp_<id>` et variante A ou B. */
+  ab?: { groupId: string; variant: "A" | "B" } | null;
 };
 
 export type AgentPostResult = {
@@ -102,6 +104,8 @@ export async function createAgentPost(db: PostingDb, input: AgentPostInput): Pro
       vertical: channel.vertical,
       disableLinkPreview: true,
       agentMissionId: input.agentMissionId,
+      abGroupId: input.ab?.groupId ?? null,
+      abVariant: input.ab?.variant ?? null,
     },
   });
   let trackingLinkId: string | null = null;

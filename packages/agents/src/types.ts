@@ -60,7 +60,16 @@ export const PHASE19_AGENT_KEYS = [
 ] as const satisfies readonly AgentKey[];
 
 /** Agents réellement écrits à ce jour (phase 19 + Média IA de la phase 20) ; les autres arrivent avec leur phase. */
-export const IMPLEMENTED_AGENT_KEYS = [...PHASE19_AGENT_KEYS, "media-ia"] as const satisfies readonly AgentKey[];
+export const IMPLEMENTED_AGENT_KEYS = [
+  ...PHASE19_AGENT_KEYS,
+  "media-ia",
+  // Équipe Algorithme (phase 21) : tournent par le Chef Algorithme (file `agents-algo`), pas dans une mission.
+  "posts",
+  "horaires",
+  "conversations",
+  "experimentation",
+  "synthese",
+] as const satisfies readonly AgentKey[];
 
 export const AGENT_LABELS: Record<AgentKey, string> = {
   mediatheque: "Médiathèque",

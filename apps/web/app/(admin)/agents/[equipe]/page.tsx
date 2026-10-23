@@ -72,7 +72,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
   const team = parseTeamParam((await params).equipe);
   if (!team) notFound();
   const sp = await searchParams;
-  if (team === "algo") return <AlgoView user={user} sp={sp} />;
+  if (team === "algo") return AlgoView({ user, sp });
   const now = new Date();
   const filters = parseMissionFilters(sp);
   const from = `/agents/${team}`;

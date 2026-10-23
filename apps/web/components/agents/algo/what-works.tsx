@@ -105,14 +105,17 @@ export function WindowsCharts({ summary, thresholds }: { summary: Summary; thres
           title="Taux de clic sur l'offre par heure d'envoi"
           unitLabel="Heure"
           valuesSummary="Voir les chiffres heure par heure"
-          items={summary.hours.values.map((v, h) => ({
+          items={summary.hours.values.map((v, h) => {
+            const n = summary.hours.posts[h] ?? 0;
+            return {
             key: String(h),
             label: `${h} h`,
             value: v,
-            valueText: summary.hours.posts[h] ? `${pctText(v)} sur ${fmtNum(summary.hours.posts[h])} posts` : "aucun post",
+            valueText: n ? `${pctText(v)} sur ${fmtNum(n)} posts` : "aucun post",
             emphasis: hourWorks.has(String(h)),
-            muted: summary.hours.posts[h] > 0 && !hourOk.has(String(h)),
-          }))}
+            muted: n > 0 && !hourOk.has(String(h)),
+            };
+          })}
         />
       </div>
       <div className="space-y-2 rounded-xl border border-border bg-card p-4">
@@ -122,21 +125,24 @@ export function WindowsCharts({ summary, thresholds }: { summary: Summary; thres
           title="Taux de clic sur l'offre par jour de la semaine"
           unitLabel="Jour"
           valuesSummary="Voir les chiffres jour par jour"
-          items={summary.weekdays.values.map((v, i) => ({
+          items={summary.weekdays.values.map((v, i) => {
+            const n = summary.weekdays.posts[i] ?? 0;
+            return {
             key: String(i + 1),
-            label: DAY_SHORT[i],
+            label: DAY_SHORT[i] ?? "",
             value: v,
-            valueText: summary.weekdays.posts[i] ? `${pctText(v)} sur ${fmtNum(summary.weekdays.posts[i])} posts` : "aucun post",
+            valueText: n ? `${pctText(v)} sur ${fmtNum(n)} posts` : "aucun post",
             emphasis: dayWorks.has(String(i + 1)),
-            muted: summary.weekdays.posts[i] > 0 && !dayOk.has(String(i + 1)),
-          }))}
+            muted: n > 0 && !dayOk.has(String(i + 1)),
+            };
+          })}
         />
       </div>
     </div>
   );
 }
 
-/** « Ce qui ne marche pas » : les cas sous la valeur du milieu, toutes dimensions confondues. */
+/** « Ce qui ne marche pas » : les cas sous la valeur du milieu, toutes dimensions confondues. */
 export function DoesNotWork({
   items,
 }: {

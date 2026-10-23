@@ -18,6 +18,7 @@ import { parseVariants, shiftMix, type ExperimentKindName, type Mix, type Varian
 
 const DAY = 86_400_000;
 export const OPEN_EXPERIMENT_STATUSES = ["PROPOSED", "RUNNING"] as const;
+export const RETEST_AFTER_DAYS = 60;
 
 type ExperimentRow = {
   id: string;
@@ -243,6 +244,11 @@ export async function proposeExperiments(
       bestHour: hints.bestHour?.get(plan.channelId) ?? null,
       settings,
     })) {
+      // Un test déjà tranché ces 60 derniers jours sur ce canal n'est pas relancé.
+      const recent = await deps.prisma.experiment.findFirst({
+        where: { channelId: plan.channelId, kind: p.kind, status: "CLOSED", closedAt: { gte: new Date(nowOf(deps).getTime() - RETEST_AFTER_DAYS * DAY) } },
+      });
+      if (recent) continue;
       const r = await createExperiment(deps, { ...p, start: level >= 1 });
       if (r.ok && r.id) created.push(r.id);
     }

@@ -35,8 +35,8 @@ const SEVERITY_RANK: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1
 
 /**
  * Réglages → Alertes et rapports → Alertes : les alertes du système en tableau de 4 colonnes (alerte, gravité, date,
- * état) avec le détail et « Marquer résolue » au clic ; les trois alertes sur les chiffres (seuil et case « Alerte
- * activée ») ; la durée de conservation des données, la purge manuelle étant rangée dans « Avancé ».
+ * état) avec le détail et « Marquer résolue » au clic ; les trois alertes sur les chiffres (seuil et case « Alerte
+ * activée ») ; la durée de conservation des données, la purge manuelle étant rangée dans « Avancé ».
  */
 export default async function AlertsPage({ searchParams }: PageProps<"/settings/alerts">) {
   await requireAdminPage();
@@ -162,7 +162,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
 
         <FormSection
           title="Alertes sur vos chiffres"
-          description="Trois alertes se règlent ici : leur seuil, et si elles vous sont envoyées. Une alerte désactivée n'est plus envoyée ; si elle était ouverte, elle se ferme toute seule. Les autres (bot, synchro, sauvegarde, message en échec…) restent toujours actives."
+          description="Cinq alertes se règlent ici : leur seuil, et si elles vous sont envoyées. Une alerte désactivée n'est plus envoyée ; si elle était ouverte, elle se ferme toute seule. Les autres (bot, synchro, sauvegarde, message en échec…) restent toujours actives."
         >
           <form
             action={saveAlertThresholdsAction}
@@ -216,6 +216,27 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 membres sur 100 partent dans la journée.
               </p>
               <AlertSwitch kind="channel_leak" checked={switches.channel_leak} />
+            </div>
+            <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
+              <p className="text-body font-medium text-foreground">Équipe Algorithme</p>
+              <p className="text-note text-muted-foreground">
+                Comparaison des 7 derniers jours aux 7 jours d&apos;avant, seulement quand il y a assez de
+                données ; une alerte au plus par jour et par canal ou par profil.
+              </p>
+              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-body text-foreground">
+                    Canal en baisse : vues ou clics −30 % sur 7 jours
+                  </p>
+                  <AlertSwitch kind="agents_channel_drop" checked={switches.agents_channel_drop} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-body text-foreground">
+                    Profil de conversation en baisse : réponses ou inscriptions −30 % sur 7 jours
+                  </p>
+                  <AlertSwitch kind="agents_persona_drop" checked={switches.agents_persona_drop} />
+                </div>
+              </div>
             </div>
             <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
@@ -279,7 +300,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
 }
 
 /**
- * Case « Alerte activée » d'une alerte sur les chiffres. Le seuil reste toujours envoyé (jamais désactivé) ; le nom de
+ * Case « Alerte activée » d'une alerte sur les chiffres. Le seuil reste toujours envoyé (jamais désactivé) ; le nom de
  * l'alerte est lu par les lecteurs d'écran pour distinguer les trois cases.
  */
 function AlertSwitch({ kind, checked }: { kind: SwitchableAlertKind; checked: boolean }) {

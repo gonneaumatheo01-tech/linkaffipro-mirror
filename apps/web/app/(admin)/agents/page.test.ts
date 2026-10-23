@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   requests: [] as unknown[],
   datingPersonas: [] as unknown[],
   keys: { fal: false, magichour: false },
+  algoEmpty: false,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -48,6 +49,79 @@ vi.mock("@/lib/agents/dating-queries", () => ({
   loadDatingSettings: vi.fn(async () => ({ videoProvider: "fal", videoResolution: "580p" })),
   loadMediaKeys: vi.fn(async () => m.keys),
 }));
+vi.mock("./[equipe]/algo-actions", () => ({
+  recommendationAction: vi.fn(),
+  runAlgoReportNowAction: vi.fn(),
+  saveAlgoSettingsAction: vi.fn(),
+}));
+vi.mock("@/lib/agents/algo/queries", async () => {
+  const { ALGO_DEFAULTS } = await import("@/lib/agents/algo/settings");
+  const ins = (format: string, clicks: number, hour: number, personaId = "p1") => ({
+    channelId: "c1",
+    personaId,
+    format,
+    theme: "soirée",
+    hourParis: hour,
+    weekdayParis: 2,
+    textLength: 120,
+    views24h: 90,
+    viewsFinal: 100,
+    offerClicks: clicks,
+    registrations: 1,
+  });
+  return {
+    loadAlgoSettings: vi.fn(async () => ALGO_DEFAULTS),
+    loadTeamChannels: vi.fn(async () => [{ id: "c1", title: "Canal Test", isTest: true }]),
+    loadInsightRows: vi.fn(async () => (m.algoEmpty ? [] : [
+      ...Array.from({ length: 20 }, () => ins("VIDEO", 5, 21)),
+      ...Array.from({ length: 20 }, () => ins("PHOTO", 3, 19)),
+      ...Array.from({ length: 20 }, () => ins("TEXT", 1, 9, "p2")),
+      ...Array.from({ length: 3 }, () => ins("ALBUM", 0, 12)),
+    ])),
+    loadPersonaNames: vi.fn(async () => ({ p1: "Léa", p2: "Chloé" })),
+    loadSuggestedWindows: vi.fn(async () => ({ windows: [{ day: 2, start: "19:00", end: "22:00", score: 1 }], styleNotes: "Questions courtes" })),
+    loadExperiments: vi.fn(async () => (m.algoEmpty ? [] : [
+      {
+        id: "e1", teamKey: "dating", channelId: "c1", personaId: null, kind: "STYLE_LEGENDE",
+        hypothesis: "Une légende en question fait plus cliquer qu'une affirmation.",
+        variants: { A: { label: "Question" }, B: { label: "Affirmation" } }, metric: "offer_ctr", minSamples: 20,
+        status: "CLOSED", startedAt: new Date("2026-10-01T08:00:00Z"), endsAt: null, closedAt: new Date("2026-10-15T08:00:00Z"),
+        result: { A: { n: 30, rate: 0.04 }, B: { n: 30, rate: 0.02 }, pValue: 0.02 }, winner: "A",
+        createdAt: new Date("2026-10-01T08:00:00Z"), targetLabel: "Canal Test",
+      },
+    ])),
+    loadRecommendations: vi.fn(async () => (m.algoEmpty ? [] : [
+      {
+        id: "r1", teamKey: "dating", target: "CHANNEL_PLAN", targetId: "c1", field: "mix",
+        before: { video: 1, photo: 2, text: 1 }, after: { video: 2, photo: 2, text: 0 },
+        evidence: { summary: "Les vidéos font plus cliquer.", posts: 60 }, expectedGain: "+20 % de clics", size: "SMALL",
+        status: "PROPOSED", appliedAt: null, appliedBy: null, undoneAt: null, rejectedAt: null, weekStart: "2026-10-19",
+        createdAt: new Date("2026-10-19T06:00:00Z"), targetLabel: "Canal Test",
+      },
+      {
+        id: "r2", teamKey: "dating", target: "PERSONA", targetId: "p1", field: "messagesBeforeLink",
+        before: 4, after: 6, evidence: {}, expectedGain: null, size: "BIG",
+        status: "APPLIED", appliedAt: new Date("2026-10-19T07:00:00Z"), appliedBy: "HUMAN", undoneAt: null, rejectedAt: null,
+        weekStart: "2026-10-19", createdAt: new Date("2026-10-19T06:00:00Z"), targetLabel: "Léa",
+      },
+    ])),
+    loadReports: vi.fn(async () => (m.algoEmpty ? [] : [
+      { id: "i1", teamKey: "algo", weekStart: "2026-10-19", content: "Rencontres : la vidéo marche le mieux, 21 h.", sentAt: new Date(), createdAt: new Date() },
+    ])),
+    loadConversationProfiles: vi.fn(async () => ({
+      weekStart: "2026-10-19",
+      profiles: m.algoEmpty ? [] : [
+        {
+          key: "b1:p1:-", botId: "b1", botLabel: "@lea_bot", kind: "BOT", personaId: "p1", personaName: "Léa", source: null,
+          conversations: 42, replyRate: 0.6, medianMessagesBeforeLink: 5, dropStage: null, medianReplyDelaySec: 90,
+          replyHours: [21, 22], linksSent: 10, clicks: 6, registrations: 2, ftds: 1, aiCostEur: 1.2,
+          costPerRegistrationEur: 0.6, enoughData: true,
+        },
+      ],
+      review: m.algoEmpty ? [] : [{ key: "b1:p1:-", label: null, works: ["Question sur sa soirée"], fails: [], drops: [] }],
+    })),
+  };
+});
 vi.mock("./validations/actions", () => ({
   decideValidationAction: vi.fn(),
   answerHumanRequestAction: vi.fn(),
@@ -158,6 +232,7 @@ beforeEach(() => {
   m.validations = [];
   m.requests = [];
   m.keys = { fal: false, magichour: false };
+  m.algoEmpty = false;
   m.datingPersonas = [
     {
       id: "p1",
@@ -267,6 +342,65 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Seul un administrateur peut faire publier");
     expect(text).toContain("Réservé aux administrateurs");
     expect(text).not.toContain("Réglages des agents");
+  });
+
+  it("Ce qui marche (équipe Algorithme) : classements, heures, tests, propositions, conversations, rapports, réglages", async () => {
+    const html = await render(
+      TeamPage({ params: Promise.resolve({ equipe: "algo" }), searchParams: sp({ canal: "c1" }) } as never),
+    );
+    const text = checks(html);
+    for (const t of [
+      "Ce qui marche",
+      "Types de posts",
+      "Vidéo",
+      "Personas",
+      "Léa",
+      "1 cas pas encore concluant",
+      "Taux de clic sur l'offre selon l'heure d'envoi",
+      "Fenêtres conseillées pour ce canal",
+      "mar. 19:00-22:00",
+      "Ce qui ne marche pas",
+      "Tests A/B",
+      "La version A gagne",
+      "Propositions de réglages",
+      "vidéo 50 %, photo 50 %",
+      "Gain attendu : +20 % de clics",
+      "Appliquer",
+      "Refuser",
+      "Annuler",
+      "Gros réglage",
+      "Conversations par profil",
+      "@lea_bot",
+      "Question sur sa soirée",
+      "Rapports de la semaine",
+      "Rencontres : la vidéo marche le mieux, 21 h.",
+      "Rapport maintenant",
+      "Niveau 1 : appliquer les petits réglages seuls (conseillé)",
+      "Points de mélange par semaine au maximum",
+      "Enregistrer les réglages de l'équipe",
+    ])
+      expect(text, t).toContain(t);
+    expect(text).not.toMatch(/médiane|p-?value/i);
+    expect(html).toContain("<svg");
+    expect(text).not.toContain("Plan par canal");
+  });
+
+  it("Ce qui marche pour un responsable : petits réglages oui, persona et rapport non, réglages en lecture seule", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const html = await render(TeamPage({ params: Promise.resolve({ equipe: "algo" }), searchParams: sp() } as never));
+    const text = checks(html);
+    expect(text).toContain("Appliquer");
+    expect(text).toContain("Réservé aux administrateurs (réglage de persona ou quota)");
+    expect(text).not.toContain("Rapport maintenant");
+    expect(text).toContain("Ces réglages sont réservés aux administrateurs.");
+    expect(html).toMatch(/name="maxPostsPerDay"[^>]*disabled|disabled[^>]*name="maxPostsPerDay"/);
+  });
+
+  it("Ce qui marche sans données : phrases claires", async () => {
+    m.algoEmpty = true;
+    const text = checks(await render(TeamPage({ params: Promise.resolve({ equipe: "algo" }), searchParams: sp() } as never)));
+    for (const t of ["Pas encore de fiche de résultats sur cette période", "Aucun test A/B pour l'instant", "Aucune proposition", "Aucun rapport pour l'instant"])
+      expect(text, t).toContain(t);
   });
 
   it("validations : aperçu et trois décisions ; onglet Demandes", async () => {

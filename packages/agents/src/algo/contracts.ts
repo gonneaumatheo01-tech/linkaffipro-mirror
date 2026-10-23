@@ -4,6 +4,8 @@
  */
 import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
+import { applyRecommendationImpl, rejectRecommendationImpl, undoRecommendationImpl } from "../agents/synthese/apply";
+import { runAlgoReportNowImpl } from "../chiefs/algo";
 
 /** Chiffres d'un profil de conversation sur 30 jours (agent Conversations, chantier B), rangés dans
  * `InsightReport.stats.conversations` (tableau) et lus par le site. */
@@ -40,34 +42,34 @@ export type RecommendationActionResult = { ok: boolean; message: string };
 
 /** Applique une recommandation (bornes revérifiées au moment d'appliquer ; persona par la logique du formulaire). Chantier A. */
 export async function applyRecommendation(
-  _deps: AgentsDeps,
-  _id: string,
-  _actor: ActorRef | { by: "GRAND_CHEF" },
+  deps: AgentsDeps,
+  id: string,
+  actor: ActorRef | { by: "GRAND_CHEF" },
 ): Promise<RecommendationActionResult> {
-  throw new Error("applyRecommendation : à écrire (chantier A)");
+  return applyRecommendationImpl(deps, id, actor);
 }
 
 /** Annulation en un clic : remet la valeur « avant », journalisée. Chantier A. */
 export async function undoRecommendation(
-  _deps: AgentsDeps,
-  _id: string,
-  _actor: ActorRef,
+  deps: AgentsDeps,
+  id: string,
+  actor: ActorRef,
 ): Promise<RecommendationActionResult> {
-  throw new Error("undoRecommendation : à écrire (chantier A)");
+  return undoRecommendationImpl(deps, id, actor);
 }
 
 export async function rejectRecommendation(
-  _deps: AgentsDeps,
-  _id: string,
-  _actor: ActorRef,
+  deps: AgentsDeps,
+  id: string,
+  actor: ActorRef,
 ): Promise<RecommendationActionResult> {
-  throw new Error("rejectRecommendation : à écrire (chantier A)");
+  return rejectRecommendationImpl(deps, id, actor);
 }
 
 /** « Rapport maintenant » : recalcule fiches, horaires, conversations, synthèse et envoie le rapport. Chantier A. */
 export async function runAlgoReportNow(
-  _deps: AgentsDeps,
-  _opts?: { send?: boolean },
+  deps: AgentsDeps,
+  opts?: { send?: boolean },
 ): Promise<{ ok: boolean; message: string; reportIds: string[] }> {
-  throw new Error("runAlgoReportNow : à écrire (chantier A)");
+  return runAlgoReportNowImpl(deps, opts);
 }

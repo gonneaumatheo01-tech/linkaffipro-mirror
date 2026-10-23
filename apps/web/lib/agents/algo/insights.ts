@@ -54,7 +54,7 @@ export const LENGTH_BUCKETS: ReadonlyArray<{ key: string; label: string; max: nu
 ];
 
 export function lengthBucket(len: number): string {
-  return (LENGTH_BUCKETS.find((b) => len <= b.max) ?? LENGTH_BUCKETS[LENGTH_BUCKETS.length - 1]).key;
+  return LENGTH_BUCKETS.find((b) => len <= b.max)?.key ?? "l";
 }
 
 export function enoughData(posts: number, views: number, t: Thresholds): boolean {
@@ -115,7 +115,7 @@ export function middleValue(values: readonly number[]): number | null {
   if (values.length === 0) return null;
   const s = [...values].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  return s.length % 2 ? (s[m] ?? null) : ((s[m - 1] ?? 0) + (s[m] ?? 0)) / 2;
 }
 
 export type Ranking = {

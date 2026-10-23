@@ -13,6 +13,7 @@ import { parisDay } from "../rules/time";
 import { isAgentKey, TEAM_LABELS, type AgentsDeps, type ProviderKey, type TeamKey } from "../types";
 import { json, parsePayload, parseSteps, ACTIVE_STATUSES } from "./mission";
 import { loadTeamSettings } from "./settings";
+import { assignExperiment } from "../agents/experimentation/variants";
 import { resolveProviders, type EngineDeps } from "./context";
 
 export type CreateMissionInput = {
@@ -88,6 +89,15 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
   }
   const first = nextRunnableIndex(steps, 0) ?? 0;
   const mission = await deps.prisma.agentMission.create({ data: { ...base, status: "PENDING", currentStep: first } });
+  // Test A/B actif sur le canal (phase 21) : variante tirée une fois, gardée dans la charge utile pour toutes les étapes.
+  if (input.channelId && !input.isTest) {
+    const running = await deps.prisma.experiment.findMany({
+      where: { channelId: input.channelId, status: "RUNNING" },
+      select: { id: true, kind: true, variants: true },
+    });
+    const experiment = assignExperiment(mission.id, running);
+    if (experiment) await deps.prisma.agentMission.update({ where: { id: mission.id }, data: { payload: json({ ...payload, experiment }) as never } });
+  }
   await agentEvent(
     deps,
     "agents.mission.created",

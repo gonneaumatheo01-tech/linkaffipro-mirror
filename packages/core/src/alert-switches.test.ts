@@ -17,12 +17,20 @@ describe("interrupteurs des alertes sur les chiffres", () => {
       "registrations_drop",
       "spend_no_conversion",
       "channel_leak",
+      "agents_channel_drop",
+      "agents_persona_drop",
     ]);
     for (const kind of SWITCHABLE_ALERT_KINDS) expect(ALERT_KIND_LABELS[kind]).toBeTruthy();
   });
 
   it("absent = activée (réglage d'avant les interrupteurs, réglage vide ou abîmé)", () => {
-    const all = { registrations_drop: true, spend_no_conversion: true, channel_leak: true };
+    const all = {
+      registrations_drop: true,
+      spend_no_conversion: true,
+      channel_leak: true,
+      agents_channel_drop: true,
+      agents_persona_drop: true,
+    };
     expect(parseAlertSwitches(null)).toEqual(all);
     expect(parseAlertSwitches(undefined)).toEqual(all);
     expect(parseAlertSwitches("x")).toEqual(all);
@@ -39,12 +47,12 @@ describe("interrupteurs des alertes sur les chiffres", () => {
         registrationsDropPct: 50,
         enabled: { registrations_drop: false, spend_no_conversion: "false", channel_leak: 0 },
       }),
-    ).toEqual({ registrations_drop: false, spend_no_conversion: true, channel_leak: true });
+    ).toEqual({ registrations_drop: false, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true });
     expect(
       parseAlertSwitches({
         enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false },
       }),
-    ).toEqual({ registrations_drop: true, spend_no_conversion: false, channel_leak: false });
+    ).toEqual({ registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: true, agents_persona_drop: true });
   });
 
   it("ne modifie jamais les valeurs par défaut partagées", () => {

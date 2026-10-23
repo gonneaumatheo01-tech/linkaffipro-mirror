@@ -262,6 +262,11 @@ export const PAGE_HELP: readonly PageHelp[] = [
     ],
   },
   {
+    path: "/agents/algo",
+    label: "Ce qui marche",
+    sections: ["Ce qui marche (équipe Algorithme)", "Simulation, niveaux et pause"],
+  },
+  {
     path: "/agents/validations",
     label: "Validations des agents",
     sections: ["Validations et demandes"],

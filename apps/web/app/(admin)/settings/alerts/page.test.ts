@@ -104,11 +104,16 @@ describe("Réglages → Alertes", () => {
     const text = visibleText(html);
     expect(text).toContain("Alertes sur vos chiffres");
     expect(text).toContain("Une alerte désactivée n'est plus envoyée");
-    expect(text.match(/Alerte activée/g)).toHaveLength(3);
+    expect(text.match(/Alerte activée/g)).toHaveLength(5);
+    // Équipe Algorithme (phase 21) : canal en baisse, profil de conversation en baisse.
+    expect(text).toContain("Canal en baisse : vues ou clics −30 % sur 7 jours");
+    expect(text).toContain("Profil de conversation en baisse : réponses ou inscriptions −30 % sur 7 jours");
     for (const name of [
       "registrationsDropEnabled",
       "spendNoConversionEnabled",
       "channelLeakEnabled",
+      "agentsChannelDropEnabled",
+      "agentsPersonaDropEnabled",
     ])
       expect(checkboxInput(html, name)).toMatch(/\bchecked=""/);
     // Les seuils restent toujours envoyés, même alerte désactivée.
@@ -119,7 +124,7 @@ describe("Réglages → Alertes", () => {
       expect(tag).toBeDefined();
       expect(tag).not.toMatch(/\sdisabled=""/);
     }
-    // Les lecteurs d'écran distinguent les trois cases par le nom de l'alerte.
+    // Les lecteurs d'écran distinguent les cases par le nom de l'alerte.
     expect(html).toContain('<span class="sr-only"> : Canal qui perd ses membres</span>');
     expect(primaryButtonCount(html)).toBe(1);
     expect(jargonIn(text)).toEqual([]);
@@ -136,6 +141,7 @@ describe("Réglages → Alertes", () => {
     expect(checkboxInput(html, "registrationsDropEnabled")).toMatch(/\bchecked=""/);
     expect(checkboxInput(html, "spendNoConversionEnabled")).not.toMatch(/\bchecked/);
     expect(checkboxInput(html, "channelLeakEnabled")).not.toMatch(/\bchecked/);
+    expect(checkboxInput(html, "agentsChannelDropEnabled")).toMatch(/\bchecked=""/);
     expect(html).toMatch(
       /name="registrationsDropPct"[^>]*value="30"|value="30"[^>]*name="registrationsDropPct"/,
     );

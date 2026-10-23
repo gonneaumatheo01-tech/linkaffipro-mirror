@@ -3,7 +3,8 @@
  * Publication (créneau dépassé après une validation tardive).
  */
 import { parsePayload } from "../../missions/mission";
-import { pickSlot, preferredFromBestHours, VIDEO_MIN_GAP_MINUTES, type SlotResult } from "../../rules/slots";
+import { pickSlot, preferredFromBestHours, preferredKey, VIDEO_MIN_GAP_MINUTES, type SlotResult } from "../../rules/slots";
+import { missionExperimentOf } from "../experimentation/variants";
 import type { AgentContext, Mission } from "../../types";
 import { loadPlan } from "../data";
 
@@ -53,8 +54,33 @@ export async function planSlot(mission: Mission, ctx: AgentContext): Promise<Slo
     quietHours: ctx.settings.quietHours,
     occupied,
     agentSlots,
-    preferred: preferredFromBestHours(best?.value),
+    preferred: preferredForMission(preferredFromBestHours(best?.value), plan.suggestedWindows, mission),
   });
+}
+
+const FORMAT_OF: Record<string, string> = { video: "VIDEO", photo: "PHOTO", text: "TEXT" };
+
+/**
+ * Préférences horaires d'une mission (pur, phase 21) : meilleurs horaires historiques, plus le score des fenêtres de
+ * l'agent Horaires (toutes confondues ou du type de la mission), et l'heure de la variante d'un test « horaire » en
+ * cours, toujours préférée dans la fenêtre du plan.
+ */
+export function preferredForMission(base: Map<string, number>, windows: readonly unknown[] | undefined, mission: Pick<Mission, "payload">): Map<string, number> {
+  const out = new Map(base);
+  const format = FORMAT_OF[mission.payload.format ?? ""] ?? null;
+  for (const raw of windows ?? []) {
+    const w = raw as { day?: unknown; start?: unknown; end?: unknown; score?: unknown; format?: unknown };
+    if (typeof w.day !== "number" || typeof w.start !== "string" || typeof w.end !== "string") continue;
+    if (w.format !== undefined && w.format !== format) continue;
+    const a = Number(w.start.slice(0, 2));
+    const b = w.end === "24:00" ? 24 : Number(w.end.slice(0, 2));
+    const score = typeof w.score === "number" ? w.score : 0;
+    for (let h = a; h < b; h++) out.set(preferredKey(w.day, h), (out.get(preferredKey(w.day, h)) ?? 0) + score);
+  }
+  const exp = missionExperimentOf(mission.payload as Record<string, unknown>);
+  if (exp?.kind === "HORAIRE" && exp.config.hour !== undefined)
+    for (let d = 1; d <= 7; d++) out.set(preferredKey(d, exp.config.hour), 1000);
+  return out;
 }
 
 /** Heures des vidéos du canal : posts programmés ou envoyés avec une vidéo, et missions vidéo des agents. */

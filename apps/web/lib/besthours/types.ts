@@ -40,7 +40,22 @@ export type ChannelBestHours = {
   posts: number;
   computedAt: string;
   categories: Record<string, CategoryBestHours>;
+  /** Phase 21 : « algo » quand le calcul vient de l'agent Horaires de l'équipe Algorithme (null : ancien calcul). */
+  source?: "algo" | null;
 };
+
+/**
+ * Marqueur de source (phase 21), lu de façon tolérante : `source`, `computedBy` ou `by` du réglage du canal, ou
+ * réglage commun `besthours.source`, valant « algo », « agents-algo », « horaires » ou « algorithme ».
+ */
+export function isAlgoSource(v: unknown): boolean {
+  if (typeof v === "string") return /^(algo|agents[-_.]algo|horaires|algorithme)$/i.test(v.trim());
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return [o.source, o.computedBy, o.by, o.team].some((x) => typeof x === "string" && isAlgoSource(x));
+  }
+  return false;
+}
 
 /** Créneau recommandé, prêt à afficher dans le formulaire de message. */
 export type BestSlot = { day: number; hour: number; posts: number; label: string };
@@ -111,6 +126,7 @@ export function parseChannelBestHours(value: unknown): ChannelBestHours | null {
     posts: isNum(v.posts) ? v.posts : 0,
     computedAt: v.computedAt,
     categories,
+    source: isAlgoSource(v) ? "algo" : null,
   };
 }
 

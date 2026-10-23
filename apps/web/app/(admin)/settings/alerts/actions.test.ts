@@ -73,12 +73,14 @@ beforeEach(() => {
 });
 
 describe("enregistrer les alertes sur les chiffres", () => {
-  it("toutes cochées : seuils et trois alertes activées, administrateur requis", async () => {
+  it("toutes cochées : seuils et cinq alertes activées, administrateur requis", async () => {
     const params = await save({
       ...SEUILS,
       registrationsDropEnabled: "on",
       spendNoConversionEnabled: "on",
       channelLeakEnabled: "on",
+      agentsChannelDropEnabled: "on",
+      agentsPersonaDropEnabled: "on",
     });
     expect(m.requireAdmin).toHaveBeenCalledTimes(1);
     expect(m.upserts).toHaveLength(1);
@@ -87,10 +89,10 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true },
+      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true },
     });
     expect(m.upserts[0]?.create.value).toEqual(m.upserts[0]?.update.value);
-    expect(params.get("ok")).toContain("Les trois alertes sont activées.");
+    expect(params.get("ok")).toContain("Toutes les alertes sont activées.");
     expect(params.get("ok")).toContain("dépense sans inscription 75,5 €");
   });
 
@@ -103,17 +105,19 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false },
     });
     // Même lecture que le worker et la page.
     expect(parseAlertSwitches(value)).toEqual({
       registrations_drop: true,
       spend_no_conversion: false,
       channel_leak: false,
+      agents_channel_drop: false,
+      agents_persona_drop: false,
     });
     expect(parseThresholds(value).channelLeakPct).toBe(12);
     expect(params.get("ok")).toContain(
-      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », elles ne vous seront plus envoyées.",
+      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », elles ne vous seront plus envoyées.",
     );
     // Journal : seuils et interrupteurs.
     expect(m.audits).toEqual([
@@ -124,7 +128,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
           registrationsDropPct: 40,
           spendNoConversionEur: 75.5,
           channelLeakPct: 12,
-          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false },
+          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false },
         },
       },
     ]);
@@ -133,18 +137,22 @@ describe("enregistrer les alertes sur les chiffres", () => {
   it("réactiver une alerte désactivée", async () => {
     m.stored = {
       registrationsDropPct: 40,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true },
     };
     await save({
       ...SEUILS,
       registrationsDropEnabled: "on",
       spendNoConversionEnabled: "on",
       channelLeakEnabled: "on",
+      agentsChannelDropEnabled: "on",
+      agentsPersonaDropEnabled: "on",
     });
     expect(parseAlertSwitches(m.stored)).toEqual({
       registrations_drop: true,
       spend_no_conversion: true,
       channel_leak: true,
+      agents_channel_drop: true,
+      agents_persona_drop: true,
     });
   });
 
@@ -164,6 +172,8 @@ describe("message de retour", () => {
         registrations_drop: true,
         spend_no_conversion: false,
         channel_leak: true,
+        agents_channel_drop: true,
+        agents_persona_drop: true,
       }),
     ).toContain(
       "Alerte désactivée : « Dépense sans inscription », elle ne vous sera plus envoyée.",
@@ -173,7 +183,9 @@ describe("message de retour", () => {
         registrations_drop: false,
         spend_no_conversion: false,
         channel_leak: false,
+        agents_channel_drop: false,
+        agents_persona_drop: false,
       }),
-    ).toContain("Les trois alertes sont désactivées");
+    ).toContain("Toutes les alertes sont désactivées");
   });
 });

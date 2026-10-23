@@ -5,13 +5,13 @@ import { teamName } from "@/lib/agents/teams";
 import { fmtDate } from "@/lib/format";
 import { fmtDayKey } from "@/lib/periods";
 
-/** Rapports « Ce qui marche » archivés : le plus récent ouvert, les autres repliés. */
+/** Rapports « Ce qui marche » archivés : le plus récent ouvert, les autres repliés. */
 export function ReportsList({ reports }: { reports: ReportView[] }) {
   if (reports.length === 0)
     return (
       <EmptyState
         title="Aucun rapport pour l'instant"
-        description="Le premier rapport part le lundi matin sur Telegram et s'archive ici. Un administrateur peut aussi cliquer sur « Rapport maintenant »."
+        description="Le premier rapport part le lundi matin sur Telegram et s'archive ici. Un administrateur peut aussi cliquer sur « Rapport maintenant »."
       />
     );
   return (

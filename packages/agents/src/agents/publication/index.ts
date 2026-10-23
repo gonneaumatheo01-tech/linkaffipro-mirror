@@ -9,6 +9,7 @@ import type { AgentDefinition } from "../../types";
 import { findTestChannel, loadChannel, loadPlan } from "../data";
 import { planSlot } from "../planification/plan";
 import { withSimulationHeader } from "./header";
+import { experimentGroupId, missionExperimentOf } from "../experimentation/variants";
 
 /** Délai minimal entre la création du message et son envoi ; au-delà, le créneau est recalculé. */
 const SLOT_MARGIN_MS = 60_000;
@@ -39,6 +40,7 @@ export const agent: AgentDefinition = {
       slot = re.ok ? re.at : new Date(now.getTime() + 5 * 60_000);
     }
     const plan = await loadPlan(ctx.prisma, mission);
+    const experiment = missionExperimentOf(mission.payload);
     const finalText = simulation ? withSimulationHeader(mission.teamKey, target.title, text) : text;
     const buttonText = typeof ctx.settings.settings.offerButtonText === "string" && ctx.settings.settings.offerButtonText
       ? ctx.settings.settings.offerButtonText
@@ -55,6 +57,7 @@ export const agent: AgentDefinition = {
         agentMissionId: mission.id,
         language: target.language,
         offer: plan.campaignId ? { campaignId: plan.campaignId, buttonText, labelSuffix: simulation ? " (agents, simulation)" : " (agents)" } : null,
+        ab: experiment ? { groupId: experimentGroupId(experiment.id), variant: experiment.variant } : null,
       });
       await tx.agentMission.update({ where: { id: mission.id }, data: { postId: post.postId, scheduledFor: slot } });
       if (mission.payload.mediaAssetId)

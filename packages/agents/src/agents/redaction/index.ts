@@ -7,6 +7,7 @@ import type { AgentDefinition } from "../../types";
 import { parsePayload } from "../../missions/mission";
 import { loadChannel, loadPersona, loadPlan, personaIdOf, recentChannelTexts } from "../data";
 import { buildRedactionUser, parseRedaction, REDACTION_SYSTEM } from "./prompt";
+import { missionExperimentOf } from "../experimentation/variants";
 
 export const agent: AgentDefinition = {
   key: "redaction",
@@ -39,6 +40,8 @@ export const agent: AgentDefinition = {
         theme,
         recentPosts,
         redoReason,
+        channelStyleNotes: plan.styleNotes ?? null,
+        testStyle: testStyleOf(mission.payload),
       }),
       maxTokens: 1200,
     });
@@ -55,6 +58,12 @@ export const agent: AgentDefinition = {
     }
   },
 };
+
+/** Consigne de la variante d'un test A/B « style de légende » tiré pour cette mission. */
+function testStyleOf(payload: Record<string, unknown>): string | null {
+  const e = missionExperimentOf(payload);
+  return e?.kind === "STYLE_LEGENDE" ? (e.config.style ?? null) : null;
+}
 
 /** Thème du plan le moins récemment traité sur ce canal (null si le plan n'en a pas). */
 async function nextTheme(

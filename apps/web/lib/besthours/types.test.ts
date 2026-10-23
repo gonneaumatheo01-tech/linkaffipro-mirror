@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAlgoSource,
   bestSlotFor,
   intensity,
   maxValue,
@@ -106,5 +107,20 @@ describe("meilleurs horaires : lecture et libellés", () => {
     expect(
       maxValue([cell(1, 8, { ctr: 0.2, clicksPerPost: 9 }), cell(1, 9, { clicksPerPost: 50 })]),
     ).toBe(0.2);
+  });
+});
+
+describe("source des meilleurs horaires (phase 21)", () => {
+  it("reconnaît le marqueur de l'équipe Algorithme, sous plusieurs formes", () => {
+    expect(isAlgoSource("algo")).toBe(true);
+    expect(isAlgoSource("agents-algo")).toBe(true);
+    expect(isAlgoSource({ source: "horaires" })).toBe(true);
+    expect(isAlgoSource({ computedBy: "algorithme" })).toBe(true);
+    expect(isAlgoSource({ source: "worker" })).toBe(false);
+    expect(isAlgoSource(null)).toBe(false);
+  });
+  it("la lecture du réglage du canal garde la source", () => {
+    expect(parseChannelBestHours({ ...sample, source: "algo" })?.source).toBe("algo");
+    expect(parseChannelBestHours(sample)?.source).toBeNull();
   });
 });

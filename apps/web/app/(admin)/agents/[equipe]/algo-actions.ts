@@ -39,7 +39,7 @@ function go(path: string, params: Record<string, string>, hash: string): never {
   q.delete("ok");
   q.delete("error");
   for (const [k, v] of Object.entries(params)) q.set(k, v);
-  backTo(base, Object.fromEntries(q.entries()), hash);
+  backTo(base ?? ALGO, Object.fromEntries(q.entries()), hash);
 }
 
 function parseAction(v: unknown): RecommendationAction | null {
@@ -84,7 +84,7 @@ export async function recommendationAction(formData: FormData): Promise<void> {
     go(path, { error: `Impossible pour l'instant : ${errorText(err)}.` }, hash);
   }
   revalidatePath(ALGO);
-  if (path !== ALGO) revalidatePath(path.split("?")[0]);
+  if (path !== ALGO) revalidatePath(path.split("?")[0] ?? ALGO);
   if (!result.ok) go(path, { error: result.message || "Refusé par l'équipe Algorithme." }, hash);
   go(path, { ok: result.message || ACTION_WORDS[action].done }, hash);
 }

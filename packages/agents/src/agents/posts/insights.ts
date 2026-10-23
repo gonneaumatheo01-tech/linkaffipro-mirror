@@ -126,7 +126,7 @@ async function computeBatch(deps: AgentsDeps, postIds: string[], now: Date): Pro
   let n = 0;
   for (const p of posts) {
     if (!p.sentAt) continue;
-    const s = statsBy.get(p.id) ?? {};
+    const s: Record<string, unknown> = statsBy.get(p.id) ?? {};
     const mission = p.agentMissionId ? missionBy.get(p.agentMissionId) : undefined;
     const payload = mission ? (parsePayload(mission.payload) as Record<string, unknown>) : {};
     const sm = samplesBy.get(p.id) ?? [];

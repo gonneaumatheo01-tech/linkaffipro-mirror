@@ -6,6 +6,7 @@ import type { Db as PrismaClient } from "@linkaffipro/db";
 import { parsePayload } from "../missions/mission";
 import { DEFAULT_SLOT_PLAN } from "../rules/slots";
 import type { Mission } from "../types";
+import { missionExperimentOf } from "./experimentation/variants";
 
 export type ChannelInfo = {
   id: string;
@@ -27,6 +28,9 @@ export type PlanInfo = {
   themes: string[];
   /** Mission de test : créneau au plus tôt, sans quota ni heures calmes. */
   test: boolean;
+  /** Phase 21 : consigne « ce qui marche ici » (Rédaction) et fenêtres conseillées (Planification). */
+  styleNotes?: string | null;
+  suggestedWindows?: unknown[];
 };
 
 const channelSelect = { id: true, title: true, vertical: true, language: true, type: true, isTest: true } as const;
@@ -65,7 +69,7 @@ export const TEST_PLAN: PlanInfo = {
 };
 
 /** Plan du canal visé ; mission de test ou canal sans plan : valeurs par défaut (test : créneau au plus tôt). */
-export async function loadPlan(prisma: PrismaClient, mission: Pick<Mission, "channelId" | "isTest">): Promise<PlanInfo> {
+export async function loadPlan(prisma: PrismaClient, mission: Pick<Mission, "channelId" | "isTest"> & { payload?: Mission["payload"] }): Promise<PlanInfo> {
   if (mission.isTest) return TEST_PLAN;
   const row = mission.channelId
     ? await prisma.channelAgentPlan.findUnique({ where: { channelId: mission.channelId } })
@@ -81,7 +85,16 @@ export async function loadPlan(prisma: PrismaClient, mission: Pick<Mission, "cha
     campaignId: row.campaignId,
     themes: Array.isArray(row.themes) ? row.themes.filter((t): t is string => typeof t === "string") : [],
     test: false,
+    styleNotes: row.styleNotes ?? null,
+    suggestedWindows: Array.isArray(row.suggestedWindows) ? row.suggestedWindows : [],
+    // Test A/B « mélange » en cours : la mission suit le mélange de sa variante.
+    ...(experimentMix(mission.payload) ? { mix: experimentMix(mission.payload)! } : {}),
   };
+}
+
+function experimentMix(payload: Mission["payload"] | undefined): PlanInfo["mix"] | null {
+  const e = missionExperimentOf(payload as Record<string, unknown> | undefined);
+  return e?.kind === "MELANGE" && e.config.mix ? e.config.mix : null;
 }
 
 export const RECENT_POSTS_LIMIT = 30;

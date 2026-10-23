@@ -80,3 +80,35 @@ export * from "./algo/contracts";
 export * from "./algo/conversations-contract";
 // Chantier B (phase 21) : agent Conversations de l'équipe Algorithme.
 export * from "./agents/conversations/index";
+// Chantier A (phase 21) : équipe Algorithme.
+export * from "./algo/settings";
+export * from "./algo/week";
+export * from "./algo/alerts";
+export * from "./algo/setup";
+export { algoChain, algoDue, runAlgoNightly, runAlgoTick, runAlgoWeekly, ALGO_NIGHTLY_KEY, ALGO_WEEKLY_KEY } from "./chiefs/algo";
+export * from "./agents/posts/features";
+export * from "./agents/posts/rank";
+export { computePostInsights, loadInsightRows, INSIGHT_HISTORY_DAYS } from "./agents/posts/insights";
+export { runPostsAgent, personaNames, type PostsAgentResult } from "./agents/posts/index";
+export * from "./agents/horaires/besthours";
+export * from "./agents/horaires/windows";
+export { runHorairesAgent, BEST_HOURS_SOURCE, BEST_HOURS_SOURCE_KEY, type HorairesResult } from "./agents/horaires/index";
+export * from "./agents/experimentation/stats";
+export * from "./agents/experimentation/verdict";
+export * from "./agents/experimentation/variants";
+export {
+  createExperiment,
+  startExperiment,
+  cancelExperiment,
+  closeExperiments,
+  proposeExperiments,
+  experimentProposals,
+  experimentsState,
+  OPEN_EXPERIMENT_STATUSES,
+  type NewExperiment,
+} from "./agents/experimentation/index";
+export * from "./agents/synthese/bounds";
+export { currentValue, sameValue } from "./agents/synthese/apply";
+export * from "./agents/synthese/proposals";
+export * from "./agents/synthese/report";
+export { runSynthese, autoApplyPending, type SyntheseResult } from "./agents/synthese/index";

@@ -140,6 +140,8 @@ Chaque alerte est envoyée une seule fois, puis se ferme toute seule quand la ca
 | Compte publicitaire à reconnecter | Meta ou TikTok a retiré l'accès, ou il expire bientôt | **Réglages → Connexions** → Meta ou TikTok → le compte → **Reconnecter** |
 | Assistant de conversation en panne | L'IA (Venice) refuse la clé, le solde Venice est vide, ou l'IA ne répond plus : l'assistante ne répond plus | [Réglages → IA de conversation](#reglages-ia-de-conversation) → **Vérifier** ; rechargez le solde Venice ou recollez la clé |
 | Plafond de l'assistant de conversation atteint | La dépense du mois a atteint le **Plafond mensuel** : l'assistante ne répond plus jusqu'au 1er du mois prochain | [Réglages → IA de conversation](#reglages-ia-de-conversation) → relevez le **Plafond mensuel (€)**, puis **Enregistrer** |
+| Canal qui décroche (vues ou clics) | Les vues ou les clics d'un canal ont baissé de plus de 30 % sur 7 jours par rapport aux 7 jours d'avant | **Agents** → **Ce qui marche** : regarder ce qui a changé sur ce canal (heures, types de posts) |
+| Profil de conversation qui ne convertit plus | Les réponses ou les inscriptions d'une persona ont baissé de plus de 30 % sur 7 jours | **Ce qui marche** → **Conversations par profil**, puis la fiche de la persona |
 
 Les trois seuils (chute des inscriptions, dépense sans inscription, départs d'un canal) se règlent dans **Réglages → Alertes et rapports**.
 
@@ -927,6 +929,23 @@ L'équipe Rencontres fabrique trois sortes de posts pour chaque persona : des **
 
 Sans clé fal.ai, tout tourne en simulation : la vidéo source revient telle quelle et la photo est celle de la persona. Toute vidéo pour laquelle le Contrôle qualité a un doute (mains, visage, membres, texte déformé) vous est montrée avec 3 images extraites, quel que soit le niveau.
 
+### Ce qui marche (équipe Algorithme)
+
+L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.
+
+- **Choisir ce qu'on regarde** : en haut, l'univers (**Rencontres**, **Casino**, **Paris sportifs**), puis le **Canal** (ou tous les canaux) et la **Période** (30 derniers jours au départ). Cliquez sur **Afficher**.
+- **Lire « Ce qui marche »** : pour les types de posts (vidéo, photo, texte), les personas, les canaux, les thèmes et la longueur du texte, une barre par cas, classée par **taux de clic sur l'offre** (clics sur l'offre ÷ vues). En orange vif : ce qui passe au-dessus de la valeur du milieu. Sous chaque barre : le nombre de posts, les vues, les vues à 24 h et les inscriptions pour 1 000 vues. Deux graphiques montrent les **heures** et les **jours** qui font le plus cliquer (heure de Paris) ; **Voir les chiffres** ouvre le tableau.
+- **« Pas encore assez de données »** : un cas n'est jamais conclu avec moins de 20 posts ou 1 000 vues (réglable). L'équipe propose alors plutôt un test A/B.
+- **Ce qui ne marche pas** : les cas avec assez de données qui passent sous la valeur du milieu.
+- **Tests A/B** : deux versions comparées sur un même canal (deux légendes, deux heures, deux mélanges). **En cours** dit combien de cas sont déjà mesurés ; **Clos** donne le verdict : **la version A gagne**, **la version B gagne** ou **pas de différence nette**. Un test gagné devient une proposition de réglage.
+- **Propositions de réglages** : chaque carte dit ce qui change (**Avant** → nouvelle valeur), pourquoi (les chiffres) et le **Gain attendu**. **Appliquer** l'enregistre, **Refuser** l'écarte, **Annuler** remet la valeur d'avant en un clic. Tout est noté dans le journal. Les petits réglages (heures, mélange, consignes de style) sont ouverts à toute l'équipe ; les réglages de persona et les quotas (posts par jour), marqués **Gros réglage**, sont réservés aux administrateurs.
+- **Conversations par profil** : pour chaque bot ou compte réel et chaque persona, sur 30 jours : conversations, taux de réponse, messages avant le lien, étape où les gens décrochent, délai de réponse, heures où ils répondent, liens, clics, inscriptions, premiers dépôts, coût de l'IA et coût par inscription. En dessous, ce que l'IA a relevé sur un échantillon anonymisé (tournures qui obtiennent une réponse, celles qui font fuir) : jamais un message entier. Les propositions pour une persona apparaissent aussi dans sa fiche, encart **Propositions de l'équipe Algorithme**.
+- **Rapports de la semaine** : le rapport « Ce qui marche » part chaque lundi sur Telegram (5 lignes par équipe au plus) et s'archive ici. **Rapport maintenant** (administrateurs) le refait tout de suite.
+- **Niveau de l'équipe** : **Niveau 0 : tout me proposer**, **Niveau 1 : appliquer les petits réglages seuls** (conseillé : heures et mélange s'appliquent seuls, persona et quotas vous sont proposés), **Niveau 2 : tout appliquer dans les bornes** (administrateurs, avec confirmation). Le rapport part dans tous les cas.
+- **Réglages de l'équipe Algorithme** (administrateurs) : les seuils (**Posts minimum par cas** 20, **Ou vues minimum par cas** 1 000, **Conversations minimum par profil** 30), les bornes (**Points de mélange par semaine au maximum** 20, **Posts par jour et par canal au maximum** 6, **Heures autorisées** de début et de fin) et la **Fréquence** des réglages (chaque semaine ou toutes les deux semaines). Cliquez sur **Enregistrer les réglages de l'équipe**. Aucun réglage ne touche jamais aux règles de contenu ni à l'identité des personas.
+
+Quand l'équipe Algorithme calcule les meilleurs horaires, le calendrier des messages l'indique : « Calculés le … par l'équipe Algorithme ».
+
 ### Parler au bot par messages vocaux
 
 Vous pouvez parler au bot par messages vocaux : il répète ce qu'il a compris avant d'agir (« J'ai compris : "pause rencontres". »). Un vocal vaut un message écrit : une commande, une réponse à une question, un chiffre ou un oui. Une commande importante (publier sur les vrais canaux, changer de niveau) demande toujours la confirmation **OUI**. S'il n'a pas compris, il vous demande de l'écrire. Une clé s'envoie toujours par écrit : un vocal n'est jamais pris pour une clé.
@@ -1108,7 +1127,7 @@ Deux onglets : **Alertes** et **Rapports automatiques**.
 
 1. **Vérifier maintenant** force un passage.
 2. **Alertes récentes** : les alertes ouvertes d'abord ; la pastille du titre compte les alertes ouvertes. Cliquez sur une alerte pour son détail, puis **Marquer résolue** si le problème est réglé (elle se rouvre si la cause revient).
-3. **Alertes sur vos chiffres** : trois alertes, chacune avec son seuil et sa case **Alerte activée** : **Chute des inscriptions (%)** (50 par défaut), **Dépense sans inscription (€)** (50 par défaut), **Départs d'un canal (%)** (10 par défaut, alerte « Canal qui perd ses membres »), puis **Enregistrer** (effet au prochain passage, 5 minutes).
+3. **Alertes sur vos chiffres** : trois alertes, chacune avec son seuil et sa case **Alerte activée** : **Chute des inscriptions (%)** (50 par défaut), **Dépense sans inscription (€)** (50 par défaut), **Départs d'un canal (%)** (10 par défaut, alerte « Canal qui perd ses membres »). Puis, sous **Équipe Algorithme**, deux alertes sans seuil à régler : **Canal en baisse : vues ou clics −30 % sur 7 jours** et **Profil de conversation en baisse : réponses ou inscriptions −30 % sur 7 jours** (une fois par jour au plus par canal ou par profil, seulement avec assez de données). Cliquez sur **Enregistrer** (effet au prochain passage, 5 minutes).
    - Pour ne plus recevoir une de ces alertes, décochez sa case **Alerte activée**, puis **Enregistrer**. Elle n'est plus envoyée ; si elle était ouverte, elle se ferme toute seule. Son seuil est gardé : recochez la case pour la réactiver.
    - Les autres alertes (bot, synchro, sauvegarde, message en échec…) restent toujours actives.
 4. **Conservation des données** : **Durée en mois (de 6 à 120)**, puis **Enregistrer la durée**. Règle de l'équipe : 24 mois. Au-delà, les membres inactifs sont anonymisés chaque nuit et leurs événements supprimés (les chiffres des joueurs sont gardés). Les messages des [conversations de l'assistante](#conversations) plus anciens que cette durée sont effacés, et les conversations d'un membre anonymisé sont supprimées.

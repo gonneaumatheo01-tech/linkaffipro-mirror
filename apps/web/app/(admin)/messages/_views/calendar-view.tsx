@@ -16,7 +16,7 @@ import {
   weekLabel,
   type CalendarQuery,
 } from "@/lib/posts/calendar";
-import { loadChannelsBestHours } from "@/lib/posts/calendar-queries";
+import { loadBestHoursFromAlgo, loadChannelsBestHours } from "@/lib/posts/calendar-queries";
 import { fmtDate } from "@/lib/format";
 import { listCalendarPosts, scopeForFilters, type PostListFilters } from "@/lib/posts/queries";
 import { fromParisLocal } from "@/lib/posts/time";
@@ -69,7 +69,12 @@ export async function CalendarView({
     const scope = await scopeForFilters(f);
     bestChannelIds = bestChannelIds.filter((id) => scope?.channelIds.includes(id));
   }
-  const bestData = await loadChannelsBestHours(bestChannelIds);
+  const [bestData, algoGlobal] = await Promise.all([
+    loadChannelsBestHours(bestChannelIds),
+    loadBestHoursFromAlgo(),
+  ]);
+  // Phase 21 : source affichée quand l'agent Horaires de l'équipe Algorithme a fait le calcul.
+  const byAlgo = algoGlobal || bestData.some((d) => d.source === "algo");
   const best = calendarBestSlots(bestData, {
     channelId: query.channelId,
     categoryId: query.categoryId,
@@ -252,7 +257,11 @@ export async function CalendarView({
         items={items}
         slots={slots}
         slotsNote={slotsNote}
-        computedLabel={computedAt ? `Calculés le ${fmtDate(computedAt)}` : undefined}
+        computedLabel={
+          computedAt
+            ? `Calculés le ${fmtDate(computedAt)}${byAlgo ? " par l'équipe Algorithme" : ""}`
+            : undefined
+        }
         recomputeChannelId={query.channelId}
         initialDay={day}
         query={query}

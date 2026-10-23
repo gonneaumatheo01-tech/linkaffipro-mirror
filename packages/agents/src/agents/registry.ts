@@ -4,6 +4,10 @@
  */
 import type { AgentDefinition, AgentKey, ProviderKey } from "../types";
 import { agent as controle } from "./controle";
+import { agent as experimentation } from "./experimentation";
+import { agent as horaires } from "./horaires";
+import { agent as posts } from "./posts";
+import { agent as synthese } from "./synthese";
 import { agent as mediaIa } from "./media-ia";
 import { agent as mediatheque } from "./mediatheque";
 import { agent as planification } from "./planification";
@@ -19,11 +23,11 @@ export const AGENT_REGISTRY: Record<AgentKey, AgentDefinition | null> = {
   planification,
   controle,
   publication,
-  posts: null, // phase 21
-  horaires: null, // phase 21
+  posts,
+  horaires,
   conversations: null, // phase 25
-  experimentation: null, // phase 21
-  synthese: null, // phase 21
+  experimentation,
+  synthese,
   ads: null, // phase 24
 };
 

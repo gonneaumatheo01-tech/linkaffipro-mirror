@@ -1,5 +1,5 @@
 import { prisma } from "@linkaffipro/db";
-import { parseChannelBestHours, type ChannelBestHours } from "@/lib/besthours/types";
+import { isAlgoSource, parseChannelBestHours, type ChannelBestHours } from "@/lib/besthours/types";
 
 /**
  * Meilleurs horaires calculés par le worker (`Setting` `besthours.<channelId>`) pour les canaux donnés : lecture
@@ -27,4 +27,10 @@ export async function postNetRevenue(postId: string): Promise<number> {
     where: { type: "NGR", player: { click: { postId } } },
   });
   return Number(r._sum.amount ?? 0);
+}
+
+/** Phase 21 : le réglage commun `besthours.source` dit-il que les meilleurs horaires viennent de l'équipe Algorithme ? */
+export async function loadBestHoursFromAlgo(): Promise<boolean> {
+  const row = await prisma.setting.findUnique({ where: { key: "besthours.source" }, select: { value: true } });
+  return isAlgoSource(row?.value ?? null);
 }

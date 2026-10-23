@@ -64,7 +64,7 @@ export function algoPeriod(sp: SP, now = new Date()) {
 }
 
 /**
- * Page « Ce qui marche » de l'équipe Algorithme (`/agents/algo`, phase 21) : par univers puis par canal, les
+ * Page « Ce qui marche » de l'équipe Algorithme (`/agents/algo`, phase 21) : par univers puis par canal, les
  * classements lus dans les fiches de résultats, les heures et les jours, ce qui ne marche pas, les tests A/B, les
  * propositions de réglages (Appliquer / Annuler / Refuser), les chiffres des conversations par profil, les rapports
  * archivés, puis le niveau et les réglages de l'équipe. Remplace la fiche d'équipe générique pour `algo`.
@@ -243,7 +243,7 @@ export async function AlgoView({ user, sp }: { user: { id: string; role: string 
         <FormSection
           id="recommandations"
           title="Propositions de réglages"
-          description="Chaque proposition dit ce qui change, pourquoi (les chiffres) et ce qu'elle doit rapporter. « Annuler » remet la valeur d'avant. Les réglages de persona et les quotas sont réservés aux administrateurs."
+          description="Chaque proposition dit ce qui change, pourquoi (les chiffres) et ce qu'elle doit rapporter. « Annuler » remet la valeur d'avant. Les réglages de persona et les quotas sont réservés aux administrateurs."
         >
           <RecommendationsList recs={recs} role={user.role} from={from} />
         </FormSection>
@@ -261,7 +261,7 @@ export async function AlgoView({ user, sp }: { user: { id: string; role: string 
           />
         </FormSection>
 
-        <FormSection id="rapports" title="Rapports de la semaine" description="Le rapport « Ce qui marche » part chaque lundi sur Telegram (5 lignes par équipe) et s'archive ici.">
+        <FormSection id="rapports" title="Rapports de la semaine" description="Le rapport « Ce qui marche » part chaque lundi sur Telegram (5 lignes par équipe) et s'archive ici.">
           <ReportsList reports={reports} />
         </FormSection>
 

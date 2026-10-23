@@ -22,7 +22,7 @@ vi.mock("@linkaffipro/db", () => ({
     messageCategory: {
       findMany: vi.fn(async () => [{ id: "cat1", name: "Promo", color: "#000000" }]),
     },
-    setting: { findMany: mocks.settings },
+    setting: { findMany: mocks.settings, findUnique: vi.fn(async () => null) },
   },
 }));
 vi.mock("@/lib/dashboard/campaign-scope", () => ({ campaignScope: vi.fn() }));
@@ -161,6 +161,12 @@ describe("page Messages : calendrier", () => {
     // Date du calcul et « Recalculer maintenant » (ancien onglet de la fiche canal).
     expect(html).toContain("Calculés le");
     expect(html).toContain("Recalculer maintenant");
+    expect(html).not.toContain("par l&#x27;équipe Algorithme");
+  });
+  it("meilleurs horaires calculés par l'équipe Algorithme : la source est dite (phase 21)", async () => {
+    mocks.settings.mockResolvedValue([{ ...bestHours, value: { ...bestHours.value, source: "algo" } }]);
+    const html = await render({ channelId: "ch1", week: "2026-10-05" });
+    expect(html).toContain("par l&#x27;équipe Algorithme");
   });
   it("sans données : une phrase claire au lieu des créneaux", async () => {
     const html = await render({});

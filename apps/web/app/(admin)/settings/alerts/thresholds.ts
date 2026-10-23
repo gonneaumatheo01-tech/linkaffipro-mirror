@@ -57,6 +57,8 @@ export const ALERT_SWITCH_FIELDS: Record<SwitchableAlertKind, string> = {
   registrations_drop: "registrationsDropEnabled",
   spend_no_conversion: "spendNoConversionEnabled",
   channel_leak: "channelLeakEnabled",
+  agents_channel_drop: "agentsChannelDropEnabled",
+  agents_persona_drop: "agentsPersonaDropEnabled",
 };
 
 /** Interrupteurs envoyés par le formulaire : une case décochée n'est pas envoyée, donc désactivée. */
@@ -90,9 +92,9 @@ export function thresholdsSavedMessage(
   const off = disabledAlertKinds(switches).map((kind) => `« ${ALERT_KIND_LABELS[kind]} »`);
   const state =
     off.length === 0
-      ? "Les trois alertes sont activées."
+      ? "Toutes les alertes sont activées."
       : off.length === SWITCHABLE_ALERT_KINDS.length
-        ? "Les trois alertes sont désactivées : elles ne vous seront plus envoyées."
+        ? "Toutes les alertes sont désactivées : elles ne vous seront plus envoyées."
         : off.length === 1
           ? `Alerte désactivée : ${off[0]}, elle ne vous sera plus envoyée.`
           : `Alertes désactivées : ${off.join(", ")}, elles ne vous seront plus envoyées.`;

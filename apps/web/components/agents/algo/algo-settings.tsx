@@ -106,7 +106,7 @@ export function AlgoSettingsForm({ settings, isAdmin, from }: { settings: AlgoSe
       <input type="hidden" name="from" value={from} />
       <FormSection
         title="Assez de données pour conclure"
-        description="Sous ces seuils, la page dit « pas encore assez de données » et l'équipe propose plutôt un test A/B."
+        description="Sous ces seuils, la page dit « pas encore assez de données » et l'équipe propose plutôt un test A/B."
       >
         <div className="grid gap-4 md:grid-cols-3">
           <NumberField name="minPosts" label="Posts minimum par cas" help="20 conseillé (un type de post, une heure, une persona…)." value={settings.minPosts} disabled={disabled} />

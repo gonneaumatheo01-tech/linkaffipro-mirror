@@ -35,6 +35,9 @@ export type RedactionPromptInput = {
   recentPosts: readonly string[];
   /** Motif du Contrôle qualité quand le texte est à refaire. */
   redoReason?: string | null;
+  /** Phase 21 : « ce qui marche ici » (équipe Algorithme) et consigne de la variante d'un test A/B de style. */
+  channelStyleNotes?: string | null;
+  testStyle?: string | null;
 };
 
 export const REDACTION_SYSTEM = [
@@ -71,6 +74,8 @@ export function buildRedactionUser(i: RedactionPromptInput): string {
       lines.push(`Consignes médias de la fiche du personnage (tenue, ambiance) : ${i.persona.mediaNotes.trim().slice(0, 600)}`);
   }
   if (i.styleGuidelines?.trim()) lines.push(`Consignes de l'équipe :\n${i.styleGuidelines.trim().slice(0, 2000)}`);
+  if (i.channelStyleNotes?.trim()) lines.push(`Ce qui marche sur ce canal (mesuré) : ${i.channelStyleNotes.trim().slice(0, 600)}`);
+  if (i.testStyle?.trim()) lines.push(`Consigne de style pour ce post (test en cours, à suivre) : ${i.testStyle.trim().slice(0, 300)}`);
   if (i.theme) lines.push(`Thème de ce post : ${i.theme}`);
   else if (i.themes?.length) lines.push(`Thèmes possibles : ${i.themes.join(", ")}`);
   if (i.recentPosts.length) {
