@@ -5,7 +5,7 @@
  */
 import type { StyleProfile, VeniceModelInfo } from "@linkaffipro/chat";
 import { selectableModels } from "@linkaffipro/chat";
-import { personaRole } from "./form";
+import { identityLabel } from "./form";
 
 // ------------------------------------------------------------------
 // Liste
@@ -20,6 +20,7 @@ export type PersonaListItem = {
   id: string;
   name: string;
   gender: string;
+  identityKind: string;
   isActive: boolean;
   offer: { name: string; isActive: boolean } | null;
   bots: Array<{ username: string; mode: string }>;
@@ -47,7 +48,7 @@ export function personaListRow(p: PersonaListItem): PersonaListRow {
   return {
     id: p.id,
     name: personaDisplayName(p.name),
-    role: personaRole(p.gender),
+    role: identityLabel(p.identityKind, p.gender),
     isActive: p.isActive,
     stateLabel: p.isActive ? "Active" : "Inactive",
     offerLabel: p.offer ? p.offer.name : "Aucune",

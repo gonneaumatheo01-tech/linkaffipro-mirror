@@ -212,6 +212,8 @@ export default async function AccountsPage({ searchParams }: PageProps<"/setting
                   </form>
                   <form action={toggleAccountAction}>
                     <input type="hidden" name="accountId" value={a.id} />
+                    {/* L'action lit « active » : sans ce champ, « Activer » désactivait le compte. */}
+                    <input type="hidden" name="active" value={a.isActive ? "0" : "1"} />
                     {a.isActive ? (
                       <Button type="submit" variant="outline" className="max-md:h-10">
                         Désactiver

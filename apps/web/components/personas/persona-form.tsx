@@ -37,7 +37,12 @@ import { OfferVisualField, type VisualOption } from "./offer-visual-field";
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Champs qui changent les textes proposés du profil du bot. */
-const PROFILE_KEYS = new Set<keyof PersonaFormState>(["name", "gender", "languages"]);
+const PROFILE_KEYS = new Set<keyof PersonaFormState>([
+  "name",
+  "gender",
+  "languages",
+  "identityKind",
+]);
 
 /**
  * Formulaire unique d'une persona (création et modification, phase 17) en sections : Identité, Parcours, Offre,
@@ -133,7 +138,11 @@ export function PersonaForm({
 
       <FormSection
         title="Identité"
-        description={`Le personnage de ${role} : un prénom, une personnalité, une façon de parler. Jamais une vraie personne.`}
+        description={
+          state.identityKind === "GIRL"
+            ? "Une fille sur un compte Telegram réel : un prénom, un âge, une personnalité, une façon d'écrire. Elle ne dit jamais qu'elle est une IA."
+            : `Le personnage de ${role} : un prénom, une personnalité, une façon de parler. Jamais une vraie personne.`
+        }
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
@@ -168,6 +177,48 @@ export function PersonaForm({
             </div>
           </fieldset>
         </div>
+        <fieldset className="space-y-2" aria-describedby="persona-identity-help">
+          <legend className="text-body font-medium text-foreground">Qui est-elle ?</legend>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
+            {(["ASSISTANT", "GIRL"] as const).map((k) => (
+              <label
+                key={k}
+                className="flex min-h-10 cursor-pointer items-center gap-2 text-body md:min-h-9"
+              >
+                <input
+                  type="radio"
+                  name="persona-identity"
+                  value={k}
+                  checked={state.identityKind === k}
+                  onChange={() => set("identityKind", k)}
+                  className="size-4 accent-brand"
+                />
+                {k === "GIRL" ? "Une fille" : `${personaRole(state.gender)} du canal`}
+              </label>
+            ))}
+          </div>
+          <p id="persona-identity-help" className="text-note text-muted-foreground">
+            {state.identityKind === "GIRL"
+              ? "Une fille sur un compte Telegram réel : elle écrit comme une fille de son âge et ne se démasque jamais, même si on insiste. Ni « assistante », ni « IA », ni « canal »."
+              : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`}
+          </p>
+        </fieldset>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            id="persona-age"
+            label="Âge"
+            value={state.age}
+            onChange={(v) => set("age", v)}
+            max={3}
+            placeholder="23"
+            help={
+              state.identityKind === "GIRL"
+                ? "Obligatoire pour une fille : elle le dit si on le lui demande."
+                : "Facultatif."
+            }
+            error={err("age")}
+          />
+        </div>
         <TextAreaField
           id="persona-personality"
           label="Personnalité"
@@ -188,6 +239,18 @@ export function PersonaForm({
           placeholder="complice, léger, taquin"
           help="Sa façon d'écrire. Le flirt léger est permis, jamais un contenu explicite."
           error={err("tone")}
+        />
+        <TextAreaField
+          id="persona-style-examples"
+          label="Exemples de style (facultatif)"
+          value={state.styleExamples}
+          onChange={(v) => set("styleExamples", v)}
+          max={PERSONA_LIMITS.styleExamples}
+          rows={4}
+          counter
+          placeholder="jsuis, jvais, tkt, mdr, grave…"
+          help="Quelques phrases écrites comme elle : le modèle imite le registre (il ne les recopie pas)."
+          error={err("styleExamples")}
         />
         <fieldset className="space-y-2" aria-describedby="persona-languages-help">
           <legend className="text-body font-medium text-foreground">Langues</legend>
@@ -242,8 +305,9 @@ export function PersonaForm({
           error={err("interests")}
         />
         <p className="rounded-lg bg-info-soft px-3 py-2 text-note text-info">
-          {cap(role)} se présente toujours comme {role} du canal au premier message et répond
-          franchement si on lui demande si c&apos;est une IA. Ce n&apos;est pas réglable.
+          {state.identityKind === "GIRL"
+            ? "Une fille ne se démasque jamais : elle se dit vraie fille, même si la personne insiste. Elle ne dit ni « assistante », ni « IA », ni « canal »."
+            : `${cap(role)} se présente toujours comme ${role} du canal au premier message et répond franchement si on lui demande si c'est une IA.`}
         </p>
       </FormSection>
 
@@ -438,7 +502,11 @@ export function PersonaForm({
 
       <FormSection
         title="Profil du bot"
-        description="Ce que Telegram affiche avant la conversation et sur le profil du bot. Les deux textes doivent dire « assistante » ou « assistant »."
+        description={
+          state.identityKind === "GIRL"
+            ? "Sans objet pour une fille : elle est sur un compte Telegram réel, pas sur un bot. Si vous remplissez ces textes, ils ne doivent pas parler de machine (ni « assistante », ni « IA »)."
+            : "Ce que Telegram affiche avant la conversation et sur le profil du bot. Les deux textes doivent dire « assistante » ou « assistant »."
+        }
         actions={
           proposed && !profileIsProposed ? (
             <Button
@@ -469,9 +537,11 @@ export function PersonaForm({
           rows={3}
           counter
           help={
-            proposed || state.botDescription.trim()
-              ? "Affichée avant le premier message. Les autres langues de la persona reçoivent le texte proposé, traduit."
-              : "Proposée dès que vous tapez un prénom. Affichée avant le premier message."
+            state.identityKind === "GIRL"
+              ? "Sans objet pour une fille (compte réel). Si vous l'écrivez, aucun mot de machine : ni « assistante », ni « IA », ni « bot »."
+              : proposed || state.botDescription.trim()
+                ? "Affichée avant le premier message. Les autres langues de la persona reçoivent le texte proposé, traduit."
+                : "Proposée dès que vous tapez un prénom. Affichée avant le premier message."
           }
           error={err("botDescription")}
         />

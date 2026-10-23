@@ -4,6 +4,12 @@
  * textes proposés pour le profil du bot. Fonctions pures, testées dans form.test.ts ; aucun accès à la base ici (les
  * références — offre, campagne, visuel — sont vérifiées par `save.ts`).
  *
+ * Deux identités (phase 18), choisies par « Qui est-elle ? » :
+ * - l'assistante du canal (ASSISTANT, défaut) : le cadre de la phase 17, sa description de bot doit dire
+ *   « assistant(e) » sans le nier ni laisser croire à une vraie personne ;
+ * - une fille (GIRL, sur un compte Telegram réel) : elle ne se démasque jamais, ne dit ni « assistante », ni « IA », ni
+ *   « canal ». Son âge est obligatoire, et son texte public ne doit contenir aucun mot de machine.
+ *
  * Règles du client (non négociables) tenues ici :
  * - aucune option pour cacher qu'il s'agit d'un assistant : la description du bot doit dire « assistant(e) » sans le
  *   nier ni laisser croire à une vraie personne (`botProfileTextProblem`), et une consigne qui demanderait de se faire
@@ -13,15 +19,25 @@
  * - honnêteté : une offre liée exige sa fiche (« Ce que l'assistante peut dire de l'app ») pour être activée.
  */
 import { z } from "zod";
-import { CHAT_LANGS, assistantRole, deniesBeingAssistant, type ChatLang } from "@linkaffipro/chat";
+import {
+  CHAT_LANGS,
+  assistantRole,
+  deniesBeingAssistant,
+  type ChatLang,
+  type PersonaIdentity,
+} from "@linkaffipro/chat";
+
+export type { PersonaIdentity };
 
 export type PersonaGender = "F" | "M";
 
 /** Bornes des champs (longueurs en caractères, nombres inclus). */
 export const PERSONA_LIMITS = {
   name: 40,
-  personality: 600,
-  tone: 200,
+  personality: 2000,
+  tone: 800,
+  styleExamples: 1500,
+  age: { min: 18, max: 99 },
   interests: 12,
   interest: 40,
   extraPrompt: 1000,
@@ -61,6 +77,16 @@ export function personaRole(gender: string | null | undefined): string {
   return assistantRole("fr", gender);
 }
 
+/** Identité effective d'une persona enregistrée (toute valeur autre que « GIRL » est l'assistante). */
+export function cleanIdentity(identity: string | null | undefined): PersonaIdentity {
+  return identity === "GIRL" ? "GIRL" : "ASSISTANT";
+}
+
+/** Libellé court de l'identité (« Une fille », « l'assistante »), accordé au genre. */
+export function identityLabel(identity: string | null | undefined, gender?: string | null): string {
+  return cleanIdentity(identity) === "GIRL" ? "Une fille" : personaRole(gender);
+}
+
 // ------------------------------------------------------------------
 // État du formulaire (navigateur)
 // ------------------------------------------------------------------
@@ -70,8 +96,14 @@ export type PersonaFormState = {
   id: string | null;
   name: string;
   gender: PersonaGender;
+  /** « Qui est-elle ? » : l'assistante du canal, ou une fille sur un compte Telegram réel. */
+  identityKind: PersonaIdentity;
+  /** "" : aucun âge (obligatoire pour une fille). */
+  age: string;
   personality: string;
   tone: string;
+  /** Exemples d'écriture à imiter (facultatifs), recopiés dans les consignes du modèle. */
+  styleExamples: string;
   /** Langues cochées, la première est la langue par défaut. */
   languages: ChatLang[];
   /** Centres d'intérêt séparés par des virgules. */
@@ -111,14 +143,17 @@ export type ProfileTemplates = Partial<Record<ChatLang, Record<PersonaGender, Pr
 
 /**
  * Textes proposés du profil (description et description courte) pour ce prénom, ce rôle et cette langue ; null tant
- * qu'aucun prénom n'est saisi (jamais un prénom d'exemple dans un texte que Telegram afficherait).
+ * qu'aucun prénom n'est saisi (jamais un prénom d'exemple dans un texte que Telegram afficherait), et null pour une
+ * fille : un compte réel n'a pas de description de bot (celle de l'assistante dit « assistante », ce qu'une fille ne
+ * doit pas dire).
  */
 export function proposedProfileTexts(
   templates: ProfileTemplates,
-  state: Pick<PersonaFormState, "name" | "gender" | "languages">,
+  state: Pick<PersonaFormState, "name" | "gender" | "languages" | "identityKind">,
 ): ProfileTemplate | null {
   const name = state.name.trim();
   if (!name) return null;
+  if (state.identityKind === "GIRL") return null;
   const lang = state.languages[0] ?? "fr";
   const t = templates[lang]?.[state.gender] ?? templates.fr?.[state.gender];
   if (!t) return null;
@@ -129,7 +164,7 @@ export function proposedProfileTexts(
 /**
  * Les textes du profil suivent le prénom, le rôle et la langue tant que l'équipe ne les a pas réécrits : un texte encore
  * égal au texte proposé AVANT la modification (ou vide) est remplacé par le nouveau texte proposé, ou vidé quand il n'y
- * a plus de texte proposé (prénom effacé). Un texte réécrit par l'équipe est toujours gardé.
+ * a plus de texte proposé (prénom effacé, ou persona passée en fille). Un texte réécrit par l'équipe est toujours gardé.
  */
 export function withProfileTexts(
   before: PersonaFormState,
@@ -160,8 +195,11 @@ export function emptyPersonaForm(templates: ProfileTemplates = {}): PersonaFormS
     id: null,
     name: "",
     gender: "F",
+    identityKind: "ASSISTANT",
+    age: "",
     personality: "",
     tone: "",
+    styleExamples: "",
     languages: ["fr"],
     interests: "",
     minExchangesBeforeOffer: String(PERSONA_LIMITS.minExchangesBeforeOffer.def),
@@ -190,8 +228,11 @@ export type PersonaRecord = {
   id: string;
   name: string;
   gender: string;
+  identityKind: string;
+  age: number | null;
   personality: string;
   tone: string;
+  styleExamples: string | null;
   languages: string[];
   interests: string[];
   extraPrompt: string | null;
@@ -224,16 +265,16 @@ export function cleanLanguages(languages: readonly string[]): ChatLang[] {
 }
 
 /** Formulaire pré-rempli depuis une persona enregistrée (description vide : texte proposé). */
-export function personaToForm(
-  p: PersonaRecord,
-  templates: ProfileTemplates = {},
-): PersonaFormState {
+export function personaToForm(p: PersonaRecord, templates: ProfileTemplates = {}): PersonaFormState {
   const state: PersonaFormState = {
     id: p.id,
     name: p.name,
     gender: p.gender === "M" ? "M" : "F",
+    identityKind: cleanIdentity(p.identityKind),
+    age: p.age === null ? "" : String(p.age),
     personality: p.personality,
     tone: p.tone,
+    styleExamples: p.styleExamples ?? "",
     languages: cleanLanguages(p.languages),
     interests: p.interests.join(", "),
     minExchangesBeforeOffer: String(p.minExchangesBeforeOffer),
@@ -280,6 +321,10 @@ export function saysAssistant(text: string | null | undefined): boolean {
   return /assist[ae]nt|asistent/i.test(text ?? "");
 }
 
+/** Un mot de machine (« assistante », « IA », « bot »…) : interdit dans le texte public d'une fille. */
+const MACHINE_WORD =
+  /assist[ae]nt|asistent|intelligence artificielle|\bia\b|\bbot\b|chatbot|robot|virtuel/i;
+
 /*
  * Consignes qui demanderaient de cacher que c'est un assistant (se faire passer pour une vraie personne, nier être une
  * IA, ne jamais l'avouer) : refusées (`hidesAssistant`). Le texte est d'abord replié (minuscules, sans accents,
@@ -295,6 +340,9 @@ export function saysAssistant(text: string | null | undefined): boolean {
  * jamais cacher », « ne pas cacher », « sans jamais cacher », « ne jamais te faire passer pour une vraie personne »,
  * « ne dis jamais que tu es une vraie personne », « never pretend to be human ». Une question rapportée aussi : « si on
  * te demande si tu es une vraie personne, réponds que tu es une IA ».
+ *
+ * Sans objet pour une fille : elle est censée nier être une machine, donc « ne dis jamais que tu es une IA » est une
+ * consigne juste (le contrôle la refuserait).
  */
 
 /** Une IA, un bot, une assistante (français, texte replié). */
@@ -526,13 +574,26 @@ function hidingRefusal(hit: string | null): string {
 }
 
 /**
- * Texte public du bot (description ou description courte, posé tel quel dans Telegram) : refusé s'il nie être une
- * assistante ou laisse croire à une vraie personne (`deniesBeingAssistant` du moteur, `hidesAssistant`), ou s'il ne dit
- * pas « assistante » / « assistant ». Null : texte accepté.
+ * Texte public de la persona (description ou description courte, posé tel quel dans Telegram) :
+ * - assistante (ASSISTANT) : refusé s'il nie être une assistante ou laisse croire à une vraie personne
+ *   (`deniesBeingAssistant` du moteur, `hidesAssistant`), ou s'il ne dit pas « assistante » / « assistant » ;
+ * - fille (GIRL) : refusé s'il contient un mot de machine (« assistante », « IA », « bot »…), elle qui n'en parle jamais.
+ * Null : texte accepté.
  */
-export function botProfileTextProblem(text: string, kind: "long" | "short"): string | null {
+export function botProfileTextProblem(
+  text: string,
+  kind: "long" | "short",
+  identityKind: PersonaIdentity = "ASSISTANT",
+): string | null {
   const t = text.trim();
   if (!t) return null;
+  const label = kind === "long" ? "description" : "description courte";
+  if (identityKind === "GIRL") {
+    const hit = MACHINE_WORD.exec(t);
+    return hit
+      ? `Pour une fille, la ${label} ne doit pas parler de machine : retirez « ${hit[0]} ».`
+      : null;
+  }
   const hit = hidesAssistant(t);
   if (hit || deniesBeingAssistant(t)) return hidingRefusal(hit);
   if (!saysAssistant(t))
@@ -569,8 +630,11 @@ export function activationProblems(p: {
 export type PersonaData = {
   name: string;
   gender: PersonaGender;
+  identityKind: PersonaIdentity;
+  age: number | null;
   personality: string;
   tone: string;
+  styleExamples: string | null;
   languages: ChatLang[];
   interests: string[];
   minExchangesBeforeOffer: number;
@@ -612,8 +676,11 @@ const payloadSchema = z.object({
     .catch(null),
   name: text(400),
   gender: z.enum(["F", "M"]).catch("F"),
+  identityKind: z.enum(["ASSISTANT", "GIRL"]).catch("ASSISTANT"),
+  age: z.union([z.string().max(20), z.number()]).catch(""),
   personality: text(6000),
   tone: text(2000),
+  styleExamples: text(6000),
   languages: z.array(z.string().max(10)).max(20).catch([]),
   interests: text(4000),
   minExchangesBeforeOffer: z.union([z.string().max(20), z.number()]).catch(""),
@@ -679,10 +746,25 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
 
   const name = f.name.replace(/\s+/g, " ").trim();
   if (name.length > L.name) errors.name = tooLong(L.name);
+  const identityKind = cleanIdentity(f.identityKind);
   const personality = f.personality.trim();
   if (personality.length > L.personality) errors.personality = tooLong(L.personality);
   const tone = f.tone.trim();
   if (tone.length > L.tone) errors.tone = tooLong(L.tone);
+  const styleExamples = f.styleExamples.trim();
+  if (styleExamples.length > L.styleExamples) errors.styleExamples = tooLong(L.styleExamples);
+
+  // Âge : obligatoire pour une fille (sans âge, elle n'est pas crédible), facultatif pour une assistante.
+  const ageRaw = String(f.age).trim();
+  let age: number | null = null;
+  if (ageRaw) {
+    const n = Number(ageRaw);
+    if (!Number.isInteger(n) || n < L.age.min || n > L.age.max)
+      errors.age = `Un âge entier de ${L.age.min} à ${L.age.max}.`;
+    else age = n;
+  } else if (identityKind === "GIRL") {
+    errors.age = "Indiquez son âge : une fille qui ne connaît pas son âge n'est pas crédible.";
+  }
 
   const languages = cleanLanguages(f.languages);
   if (f.languages.filter((l) => (CHAT_LANGS as readonly string[]).includes(l)).length === 0)
@@ -714,18 +796,19 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
   else if (offerButtonText.length > L.offerButtonText)
     errors.offerButtonText = tooLong(L.offerButtonText);
 
-  // Texte public du bot : il dit « assistant(e) », sans le nier ni laisser croire à une vraie personne (règle 2).
+  // Texte public de la persona : l'assistante dit « assistant(e) » sans le nier (règle 2) ; une fille ne parle pas de
+  // machine du tout.
   const botDescription = f.botDescription.trim();
   if (botDescription.length > L.botDescription) errors.botDescription = tooLong(L.botDescription);
   else {
-    const problem = botProfileTextProblem(botDescription, "long");
+    const problem = botProfileTextProblem(botDescription, "long", identityKind);
     if (problem) errors.botDescription = problem;
   }
   const botShortDescription = f.botShortDescription.replace(/\s+/g, " ").trim();
   if (botShortDescription.length > L.botShortDescription)
     errors.botShortDescription = tooLong(L.botShortDescription);
   else {
-    const problem = botProfileTextProblem(botShortDescription, "short");
+    const problem = botProfileTextProblem(botShortDescription, "short", identityKind);
     if (problem) errors.botShortDescription = problem;
   }
 
@@ -743,24 +826,31 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
   const extraPrompt = f.extraPrompt.trim();
   if (extraPrompt.length > L.extraPrompt) errors.extraPrompt = tooLong(L.extraPrompt);
 
-  // Aucune option pour cacher qu'il s'agit d'un assistant (règle 2 du client).
-  for (const [field, value] of [
-    ["personality", personality],
-    ["tone", tone],
-    ["extraPrompt", extraPrompt],
-    ["interests", f.interests],
-  ] as const) {
-    if (errors[field]) continue;
-    const hit = hidesAssistant(value);
-    if (hit) errors[field] = hidingRefusal(hit);
+  // Aucune option pour cacher qu'il s'agit d'un assistant (règle 2 du client). Sans objet pour une fille : elle est
+  // censée nier être une machine, donc « ne dis jamais que tu es une IA » est une consigne juste.
+  if (identityKind === "ASSISTANT") {
+    for (const [field, value] of [
+      ["personality", personality],
+      ["tone", tone],
+      ["extraPrompt", extraPrompt],
+      ["styleExamples", styleExamples],
+      ["interests", f.interests],
+    ] as const) {
+      if (errors[field]) continue;
+      const hit = hidesAssistant(value);
+      if (hit) errors[field] = hidingRefusal(hit);
+    }
   }
 
   const affiliateCampaignId = f.affiliateCampaignId || null;
   const data: PersonaData = {
     name,
     gender: f.gender,
+    identityKind,
+    age,
     personality,
     tone,
+    styleExamples: styleExamples || null,
     languages,
     interests,
     minExchangesBeforeOffer: minExchanges ?? L.minExchangesBeforeOffer.def,

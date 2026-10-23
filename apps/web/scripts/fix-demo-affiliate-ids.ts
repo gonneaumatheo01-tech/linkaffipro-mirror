@@ -33,6 +33,7 @@ async function main() {
   for (let i = 0; i < demo.length; i++) {
     const d = demo[i];
     const c = liste[i % liste.length];
+    if (!d || !c) continue;
     const [aff, exemple] = c;
     const raw = {
       ...(d.raw as Record<string, unknown>),

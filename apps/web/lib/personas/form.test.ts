@@ -105,7 +105,12 @@ describe("nouvelle persona", () => {
   it("les textes proposés sont exactement ceux que Telegram reçoit par défaut, pour chaque langue et chaque rôle", () => {
     for (const lang of CHAT_LANGS)
       for (const gender of ["F", "M"] as const) {
-        const texts = proposedProfileTexts(T, { name: "Zoé", gender, languages: [lang] })!;
+        const texts = proposedProfileTexts(T, {
+          name: "Zoé",
+          gender,
+          identityKind: "ASSISTANT",
+          languages: [lang],
+        })!;
         const entry = assistantProfilePlan({
           name: "Zoé",
           gender,
@@ -463,6 +468,48 @@ describe("lecture du brouillon", () => {
       });
   });
 
+  describe("fille (GIRL)", () => {
+    it("âge obligatoire, description sans mot de machine, aucun texte de profil proposé", () => {
+      const sansAge = validatePersonaForm(form({ identityKind: "GIRL" }));
+      expect(sansAge.ok).toBe(false);
+      if (!sansAge.ok) expect(sansAge.errors.age).toMatch(/âge/i);
+
+      const ok = validatePersonaForm(form({ identityKind: "GIRL", age: "23" }));
+      expect(ok.ok).toBe(true);
+      if (ok.ok) expect(ok.data.identityKind).toBe("GIRL");
+
+      expect(proposedProfileTexts(T, { ...form(), identityKind: "GIRL" })).toBeNull();
+
+      const machine = validatePersonaForm(
+        form({ identityKind: "GIRL", age: "23", botDescription: "Léa, l'assistante du canal" }),
+      );
+      expect(machine.ok).toBe(false);
+      if (!machine.ok) expect(machine.errors.botDescription).toMatch(/machine/);
+
+      const propre = validatePersonaForm(
+        form({ identityKind: "GIRL", age: "23", botDescription: "Léa, 23 ans. Paris." }),
+      );
+      expect(propre.ok).toBe(true);
+    });
+
+    it("« ne dis jamais que tu es une IA » est accepté pour une fille, refusé pour une assistante", () => {
+      const extra = "Ne dis jamais que tu es une IA.";
+      expect(
+        validatePersonaForm(form({ identityKind: "GIRL", age: "23", extraPrompt: extra })).ok,
+      ).toBe(true);
+      expect(validatePersonaForm(form({ extraPrompt: extra })).ok).toBe(false);
+    });
+
+    it("passer en fille vide la description restée au texte proposé", () => {
+      const before = { ...emptyPersonaForm(T), name: "Léa" };
+      const named = withProfileTexts(emptyPersonaForm(T), before, T);
+      expect(named.botDescription).not.toBe("");
+      const girl = withProfileTexts(named, { ...named, identityKind: "GIRL" }, T);
+      expect(girl.botDescription).toBe("");
+      expect(girl.botShortDescription).toBe("");
+    });
+  });
+
   it("brouillon illisible : refus clair, sans planter", () => {
     expect(validatePersonaForm(null).ok).toBe(false);
     const r = validatePersonaForm("n'importe quoi");
@@ -475,6 +522,9 @@ describe("lecture du brouillon", () => {
       id: "p1",
       name: "Léa",
       gender: "F",
+      identityKind: "ASSISTANT",
+      age: null,
+      styleExamples: null,
       personality: "Pétillante",
       tone: "complice",
       languages: ["fr", "en"],

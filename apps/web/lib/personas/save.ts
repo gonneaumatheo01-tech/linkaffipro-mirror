@@ -6,7 +6,7 @@
  * - journal : `persona.created`, `persona.updated` (champs modifiés, jamais les textes), `persona.activated`,
  *   `persona.deactivated`, `persona.deleted` ;
  * - après l'enregistrement, profil Telegram de chaque bot assistant qui l'utilise (`setAssistantProfile`) : un refus
- *   de Telegram est rapporté sans bloquer l'enregistrement ;
+ *   de Telegram est rapporté sans bloquer l'enregistrement (sans objet pour une fille, qui est sur un compte réel) ;
  * - campagne ou offre changée : le lien suivi de la persona pour son offre (`TrackingLink`, celui que le worker
  *   réutilise à chaque envoi) passe tout de suite dans la nouvelle campagne, et un recalcul complet des statistiques
  *   journalières est demandé (`refreshCampaignStats`, règle du projet : les jours passés changent de campagne) ;
@@ -18,6 +18,7 @@ import { mentionsAssistant, setAssistantProfile } from "@linkaffipro/telegram";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import {
   OFFER_VISUAL_MIME_TYPES,
+  botProfileTextProblem,
   hidesAssistant,
   validatePersonaForm,
   type PersonaData,
@@ -42,8 +43,11 @@ type SaveUser = { id: string; role: "ADMIN" | "MANAGER" };
 const COMPARED_FIELDS = [
   "name",
   "gender",
+  "identityKind",
+  "age",
   "personality",
   "tone",
+  "styleExamples",
   "languages",
   "interests",
   "minExchangesBeforeOffer",
@@ -150,6 +154,9 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
   const profileErrors: PersonaFormErrors = {};
   const profileProblem = (text: string | null, label: "description" | "description courte") => {
     if (!text) return null;
+    // Une fille ne parle jamais de machine : ni « assistante », ni « IA », ni « bot » dans son texte public.
+    if (data.identityKind === "GIRL")
+      return botProfileTextProblem(text, label === "description" ? "long" : "short", "GIRL");
     if (deniesBeingAssistant(text) || hidesAssistant(text))
       return `Refusé : la ${label} ne doit ni nier que c'est une assistante (une IA), ni laisser croire à une vraie personne.`;
     if (!mentionsAssistant(text)) return `La ${label} doit dire « assistante » ou « assistant ».`;
@@ -167,8 +174,11 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
           id: true,
           name: true,
           gender: true,
+          identityKind: true,
+          age: true,
           personality: true,
           tone: true,
+          styleExamples: true,
           languages: true,
           interests: true,
           minExchangesBeforeOffer: true,
@@ -216,7 +226,12 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
   let created: boolean;
   let recompute = false;
   if (before) {
-    await prisma.persona.update({ where: { id: before.id }, data });
+    // `illusion` garde la trace du verrou « elle ne se démasque jamais » : forcé pour une fille. Le moteur le déduit
+    // déjà de l'identité ; la colonne ne sert qu'à documenter l'intention.
+    await prisma.persona.update({
+      where: { id: before.id },
+      data: { ...data, illusion: data.identityKind === "GIRL" },
+    });
     id = before.id;
     created = false;
     const fields = changedFields(before, data);
@@ -240,7 +255,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
     }
   } else {
     const row = await prisma.persona.create({
-      data: { ...data, createdById: user.id },
+      data: { ...data, illusion: data.identityKind === "GIRL", createdById: user.id },
       select: { id: true },
     });
     id = row.id;

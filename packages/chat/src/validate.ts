@@ -841,8 +841,9 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
 
   const joined = messages.join("\n");
   const girl = ctx.identity === "GIRL";
-  // Illusion : « non, une vraie fille » est la réponse voulue, à la première question comme à l'insistance.
-  const illusion = girl && ctx.illusion === true;
+  // Illusion : une fille ne se démasque jamais — « non, une vraie fille » est la réponse voulue, à la première
+  // question comme à l'insistance. Toujours vrai pour une fille : le moteur le déduit de l'identité, pas de la colonne.
+  const illusion = girl;
   // Illusion : une fille de 23 ans dit « bite », « cul », « baiser » sans se faire rejeter.
   if (hasExplicitContent(joined) && !illusion) reject("explicit", "Contenu explicite.");
   // Une fille parle d'elle comme d'une fille : le déni n'est refusé que si la personne insiste.

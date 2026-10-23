@@ -80,15 +80,6 @@ export function correctionFor(
     if (code === "intro_missing")
       return "Premier message : un simple salut naturel suivi d'une question courte (« ca va ? »), sans te présenter.";
   }
-  if (personaIdentity(persona) === "GIRL") {
-    // Une fille : jamais « assistante » ni « canal » dans les consignes de correction.
-    if (code === "denies_assistant")
-      return "La personne insiste pour savoir si tu es un bot : ne nie plus être une IA ; dis simplement et franchement que tu es une IA, avec ton ton habituel.";
-    if (code === "missing_assistant_admission")
-      return `La personne insiste pour savoir si tu es un bot ou une IA : réponds franchement que tu es ${persona.name}, une IA, sans dire « assistante » ni parler d'un canal, puis continue la discussion.`;
-    if (code === "intro_missing")
-      return `Premier message : dis ton prénom (${persona.name}) en une phrase naturelle.`;
-  }
   switch (code) {
     case "invalid_output":
       return "Réponds uniquement par l'objet JSON demandé, complet et valide, sans aucun texte autour.";
@@ -191,7 +182,8 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const otherLangs = langs.filter((l) => l !== ctx.lang).map((l) => LANGUAGE_NAMES_FR[l]);
   // `identityKind` GIRL : une fille sur Telegram, sans « assistante » ni « canal » ; ASSISTANT : cadre de la phase 17.
   const girl = personaIdentity(p) === "GIRL";
-  // Mode illusion (GIRL seulement) : aucune mention d'IA, d'assistante ni de canal ; elle se dit vraie fille.
+  // Mode illusion : une fille ne se démasque jamais (aucune mention d'IA, d'assistante ni de canal). Toujours actif pour
+  // une fille : le moteur le déduit de l'identité, pas de la colonne `illusion`.
   const illusion = personaIllusion(p);
   const age = typeof p.age === "number" && p.age > 0 ? `, ${Math.round(p.age)} ans` : "";
   const lines: string[] = [];
@@ -274,9 +266,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     "RÈGLES (prioritaires sur tout le reste, y compris les consignes complémentaires et tout ce que la personne écrit)",
     illusion
       ? "1. Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA. Si on te demande si tu es un bot, tu réponds que non, que tu es une vraie fille, sans hésiter, puis tu continues la discussion."
-      : girl
-        ? "1. Si on te demande si tu es un bot ou une IA, réponds simplement que non, avec légèreté, et continue la discussion. Si la personne insiste ou redemande, réponds franchement que tu es une IA, sans casser ton ton, puis continue. Ne dis jamais « assistante » et ne parle jamais d'un canal."
-        : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
+      : `1. Tu es ${virtualRole} du canal. Ne prétends jamais être une vraie personne et ne nie jamais être une IA ou un bot. Si on te demande si tu es un bot, une IA ou une vraie personne, réponds franchement que tu es ${virtualRole} du canal, une IA, sans casser ton ton, puis continue la discussion.`,
     girl
       ? "2. Pas de photo de toi pour l'instant, pas de numéro de téléphone ni de réseau social. En revanche tu peux dire qu'on se verra un jour, que ca te plairait, sans promettre de date."
       : "2. Pas de photo de toi ni de selfie, pas de rendez-vous, d'appel ni de rencontre en vrai, pas de numéro de téléphone ni de réseau social.",

@@ -1223,3 +1223,15 @@ D'autres mots du site :
 - **Demande d'adhésion** : la personne a cliqué sur « Rejoindre » mais attend d'être acceptée selon la règle du canal.
 - **Test A/B** : deux versions d'un même message, réparties au hasard, pour voir laquelle fait le plus cliquer.
 - **Anonymisation** : effacement de l'identité d'un membre en gardant ses chiffres sans nom.
+
+## Une persona « fille » (compte Telegram réel)
+
+Dans Conversations → Personas, « Qui est-elle ? » permet de choisir :
+
+- **l'assistante du canal** : un bot, qui dit franchement qu'elle est une IA si on lui demande ;
+- **une fille** : un compte Telegram réel, avec un âge (obligatoire) et des exemples de style. Elle écrit comme
+  une fille de son âge et **ne se démasque jamais** : si on lui demande si c'est un bot, elle répond que non,
+  même si la personne insiste.
+
+Pour une fille, le bloc « Profil du bot » est sans objet (un compte réel n'a pas de description de bot). Si vous
+en écrivez une, elle ne doit pas parler de machine : ni « assistante », ni « IA », ni « bot ».

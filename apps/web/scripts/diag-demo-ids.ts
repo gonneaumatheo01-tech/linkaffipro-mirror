@@ -6,7 +6,7 @@ async function main() {
     console.log("AFFCAMPAIGN", a.id, "| externalId:", a.externalId, "| name:", a.name, "| raw:", J(a.raw).slice(0, 200));
   }
   for (const c of await prisma.campaign.findMany()) {
-    console.log("CAMPAIGN", c.id, "| externalId:", c.externalId, "| name:", c.name, "| affCampaignIds:", J(c.affiliateCampaignIds));
+    console.log("CAMPAIGN", c.id, "| adExternalIds:", J(c.adExternalIds), "| name:", c.name, "| affCampaignIds:", J(c.affiliateCampaignIds));
   }
 }
 main().then(() => process.exit(0));

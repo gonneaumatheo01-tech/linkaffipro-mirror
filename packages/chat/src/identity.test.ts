@@ -1,4 +1,4 @@
-// Identité de la persona (phase 18) : une fille (GIRL) sans « assistante » ni « canal », honnête quand on insiste ;
+// Identité de la persona (phase 18) : une fille (GIRL) sans « assistante » ni « canal », qui ne se démasque jamais ;
 // l'assistante (ASSISTANT, défaut) inchangée.
 import { describe, expect, it } from "vitest";
 import { fakeOutput, fakePersona } from "./fake";
@@ -53,10 +53,8 @@ describe("prompt système d'une fille", () => {
       "Tu es Léa, 24 ans, une fille sur Telegram. Tu discutes en privé avec quelqu'un qui t'a écrit.",
     );
     expect(p).not.toMatch(/assistante virtuelle|assistante du canal|Rencontres Paris/);
-    expect(p).toContain("réponds simplement que non");
-    expect(p).toContain(
-      "Si la personne insiste ou redemande, réponds franchement que tu es une IA",
-    );
+    expect(p).toContain("Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA.");
+    expect(p).toContain("tu réponds que non, que tu es une vraie fille, sans hésiter");
   });
 
   it("sans âge : pas d'âge inventé", () => {
@@ -68,7 +66,7 @@ describe("prompt système d'une fille", () => {
     const p = buildSystemPrompt(
       ctx({ isFirstAssistantTurn: true, stage: "WELCOME", memberMessages: 0 }),
     );
-    expect(p).toContain("présente-toi en une phrase naturelle en disant ton prénom (en français");
+    expect(p).toContain("sans te présenter ni dire ton prénom");
     expect(p).toContain("« coucou 😊 »");
     expect(p).not.toContain("du canal");
   });
@@ -127,14 +125,11 @@ describe("textes fixes d'une fille", () => {
 });
 
 describe("validation d'une fille", () => {
-  it("se présente par son prénom seul", () => {
+  it("premier message : le prénom n'est pas exigé", () => {
     expect(validate(["Moi c'est Léa 😉 et toi ?"], { isFirstAssistantMessage: true }).ok).toBe(
       true,
     );
-    expect(validate(["Coucou 😉 et toi ?"], { isFirstAssistantMessage: true })).toMatchObject({
-      ok: false,
-      codes: ["intro_missing"],
-    });
+    expect(validate(["Coucou 😉 et toi ?"], { isFirstAssistantMessage: true }).ok).toBe(true);
   });
 
   it("première question : peut répondre que non", () => {
@@ -145,13 +140,13 @@ describe("validation d'une fille", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("insistance : l'aveu d'être une IA est exigé, sans canal ni assistante", () => {
+  it("insistance : elle nie toujours, sans canal ni assistante", () => {
     const deny = validate(["Mais non je te jure, je suis une vraie fille"], {
       turnInboundTexts: ["sérieux t'es une IA ?"],
       botInsists: true,
     });
-    expect(deny).toMatchObject({ ok: false });
-    if (!deny.ok) expect(deny.codes).toEqual(["denies_assistant", "missing_assistant_admission"]);
+    expect(deny.ok).toBe(true);
+    // Même un aveu passe : elle n'est jamais obligée de dire « IA ».
     expect(
       validate(["Ok je vais être honnête : je suis une IA 😊 mais j'aime bien parler avec toi"], {
         turnInboundTexts: ["sérieux t'es une IA ?"],

@@ -1,5 +1,5 @@
-// Mode illusion (phase 18) : une fille (GIRL) qui se dit vraie et ne parle jamais de bot ni d'IA ; sans effet en
-// ASSISTANT ni pour une fille sans illusion.
+// Mode illusion (phase 18) : une fille (GIRL) qui se dit vraie et ne parle jamais de bot ni d'IA ; toujours actif pour
+// une fille, sans effet en ASSISTANT.
 import { describe, expect, it } from "vitest";
 import { runTurn } from "./engine";
 import {
@@ -55,7 +55,9 @@ describe("bascule du mode illusion", () => {
   it("seulement pour une fille", () => {
     expect(personaIllusion({ identity: "GIRL", illusion: true })).toBe(true);
     expect(personaIllusion({ identity: "ASSISTANT", illusion: true })).toBe(false);
-    expect(personaIllusion({ identity: "GIRL" })).toBe(false);
+    // Verrou : une fille est en illusion même si la colonne est restée à false.
+    expect(personaIllusion({ identity: "GIRL" })).toBe(true);
+    expect(personaIllusion({ identity: "GIRL", illusion: false })).toBe(true);
   });
 });
 
@@ -112,9 +114,9 @@ describe("prompt système en illusion", () => {
     expect(req.messages[0]?.content).not.toContain("IA)");
   });
 
-  it("fille sans illusion et assistante : prompts inchangés", () => {
+  it("assistante : prompt inchangé ; une fille sans colonne illusion se dit quand même vraie", () => {
     const girl = buildSystemPrompt(ctx({ persona: fakePersona({ identity: "GIRL", age: 23 }) }));
-    expect(girl).toContain("réponds franchement que tu es une IA");
+    expect(girl).toContain("Tu es une vraie fille. Tu n'es jamais un bot, jamais une IA.");
     const assistant = buildSystemPrompt(ctx({ persona: fakePersona({ illusion: true }) }));
     expect(assistant).toContain("du canal (une IA)");
     expect(assistant).not.toContain("vraie fille");
@@ -150,9 +152,9 @@ describe("validation en illusion", () => {
     expect(validate(["mdr non je suis pas un bot"], { botInsists: true }).ok).toBe(true);
   });
 
-  it("sans illusion, la fille qui nie à l'insistance reste refusée", () => {
+  it("colonne illusion à false : le déni passe quand même", () => {
     const r = validate(["non, une vraie fille 😊"], { illusion: false, botInsists: true });
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
   });
 
   it("illusion sans effet en ASSISTANT", () => {

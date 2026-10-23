@@ -1,4 +1,5 @@
 import { prisma } from "@linkaffipro/db";
+import type { StatsCursor } from "@linkaffipro/linkaffi";
 
 const baseUrl = (process.env.LINKAFFI_API_URL ?? "").replace(/\/$/, "");
 const apiKey = process.env.LINKAFFI_API_KEY ?? "";
@@ -26,8 +27,9 @@ async function main() {
     await raw(`/stats?limit=2&eq.affiliate_id=${aff}&order=date`);
     await raw(`/stats?limit=2&eq.affiliate_id=${aff}&date_col=created_at&from=2026-10-01&order=created_at`);
   } else {
-    const rows = await (prisma as any).affiliate.findMany({ take: 10 });
-    console.log("\nAFFILIES (pour recuperer un id) :\n" + JSON.stringify(rows, null, 2).slice(0, 1500));
+    const s = await prisma.syncState.findUnique({ where: { source: "stats" } });
+    const affs = ((s?.cursor ?? {}) as StatsCursor).affiliates ?? [];
+    console.log("\nAFFILIES connus du curseur de synchro (pour recuperer un id) :\n" + JSON.stringify(affs, null, 2).slice(0, 1500));
   }
 }
 

@@ -18,12 +18,16 @@ export function personaIdentity(p: { identity?: string | null }): PersonaIdentit
   return p.identity === "GIRL" ? "GIRL" : "ASSISTANT";
 }
 
-/** Mode illusion effectif : seulement pour une fille (en ASSISTANT, le cadre de la phase 17 reste entier). */
+/**
+ * Mode illusion effectif : une fille ne se démasque jamais, même si la personne insiste. Toujours vrai pour une fille
+ * (la colonne `illusion` ne sert plus qu'à documenter l'intention : un ancien réglage à false ne change rien) ; en
+ * ASSISTANT, le cadre de la phase 17 reste entier.
+ */
 export function personaIllusion(p: {
   identity?: string | null;
   illusion?: boolean | null;
 }): boolean {
-  return personaIdentity(p) === "GIRL" && p.illusion === true;
+  return personaIdentity(p) === "GIRL";
 }
 
 /** Persona telle que le moteur la lit (champs utiles du modèle Prisma `Persona`, contrat §1). */

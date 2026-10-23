@@ -343,3 +343,27 @@ Journal des choix techniques pris en autonomie, avec leur raison. Mis à jour à
 - `Persona.identityKind` (`ASSISTANT` par défaut, `GIRL`) et `Persona.age` : migration additive, personas existantes inchangées.
 - En `GIRL` : prompt « une fille sur Telegram », jamais « assistante » ni « canal » ; à la première question « t'es un bot ? » elle peut dire non ; quand la personne insiste (`botQuestionInsists` : question à ce tour + déjà posée avant, ou deux fois dans le tour), l'aveu d'être une IA est exigé par la validation (`denies_assistant`, `missing_assistant_admission`). Présentation : prénom seul.
 - Lien d'offre : une fois le seuil de messages atteint et avant tout envoi, le prompt dit explicitement « c'est le moment » et demande `send_offer : true` si le courant passe, avec une note d'intérêt honnête (≥ 6 pour quelqu'un qui discute volontiers) ; avant, le modèle attendait sans fin.
+
+## Phase 18 — service `userbot` sur Railway et vocaux (22 octobre)
+- **Troisième service Railway `userbot`** (comptes Telegram réels, GramJS, aucun port HTTP) : créé vide comme `worker` (`railway add --service userbot`), déployé par `railway up`, variables `DATABASE_URL`, `APP_ENCRYPTION_KEY` (référence `${{worker.APP_ENCRYPTION_KEY}}`, indispensable : les sessions et l'`api_hash` sont chiffrés en base), `RAILWAY_DOCKERFILE_PATH=apps/userbot/Dockerfile`, `TZ`, `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS=0` ; restart policy Always, une seule réplique (deux clients sur une même session Telegram = session révoquée). Le premier service, créé par `railway add --repo`, échouait à l'étape `SNAPSHOT_CODE` (app GitHub de Railway sans accès au dépôt) : supprimé et recréé. Scripts : `scripts/railway-userbot.sh` (création), `scripts/railway-phase18-prod.sh` (`deploy` web+worker avec contrôle typecheck, `check`, `restart`, `activate`, `userbot`).
+- Image : `node` en PID 1 (`CMD ["node","--import","tsx","src/index.ts"]`) pour que SIGTERM atteigne le programme et ferme proprement les sessions ; `ffmpeg` installé (vocaux).
+- Migration `20261022120000_phase18_account_dm_welcome_dm` : objets créés en local par `db push` mais jamais migrés (table `AccountDm`, colonnes `Channel.welcomeDm*`, `Conversation.appRefusedAt`) ; idempotente (`IF NOT EXISTS`) pour passer aussi sur la base locale déjà à jour.
+- Bouton « Activer » de Réglages → Comptes Telegram : l'action lisait un champ `active` que le formulaire n'envoyait pas (le compte restait `isActive=false`) ; champ caché ajouté. Le userbot ne lit les comptes qu'au démarrage : après activation ou ajout d'un compte, redémarrer le service (`bash scripts/railway-phase18-prod.sh restart`) ; la persona, elle, est relue à chaque message.
+- **Vocaux faibles** (`apps/userbot/src/audio.ts`, `transcribe.ts`) : avant Venice (`openai/whisper-large-v3`), le son est nettoyé et amplifié par ffmpeg (`highpass=80 Hz`, `dynaudnorm` jusqu'à +30 dB, `loudnorm` à −16 LUFS, mono 16 kHz FLAC) ; sans ffmpeg (poste de dev), le vocal part tel quel. Deux essais au plus : langue détectée, puis `language=fr` si le premier résultat est vide, trop court pour la durée ou une « hallucination » connue de Whisper sur le silence (« Sous-titres réalisés par… », « Merci d'avoir regardé… », mot répété en boucle) ; un transcript inexploitable vaut `null` et la persona demande de répéter, elle n'invente rien. Vérifié sur un vocal synthétique à −62 dB moyen : −15 dB après traitement, sans saturation. Venice n'accepte ni `temperature` ni `verbose_json` (schéma strict) : le filtrage se fait sur le texte.
+
+## Phase 18 (suite) — Identité de la persona : « l'assistante du canal » ou « une fille »
+
+Décision du 23/10 : une persona peut être réglée en **fille** (GIRL) depuis Conversations → Personas
+(« Qui est-elle ? », champ Âge obligatoire pour une fille, exemples de style). Une fille est sur un **compte
+Telegram réel** (userbot), pas sur un bot : elle ne se démasque **jamais**, même si la personne insiste.
+
+- `personaIllusion()` (packages/chat/src/turn-types.ts) est vrai pour toute identité GIRL : la colonne
+  `Persona.illusion` ne sert plus qu'à documenter l'intention (un ancien réglage à `false` ne change rien).
+- Conséquence moteur : ni déni refusé, ni aveu exigé (`validate.ts`), texte de repli « non, une vraie fille »,
+  vocabulaire sans « assistante », « IA » ni « canal » (`prompt.ts`).
+- Conséquence site : pour une fille, la description de bot est sans objet (un compte réel n'en a pas) et, si elle
+  est remplie, elle ne doit contenir aucun mot de machine (`botProfileTextProblem`). L'âge est obligatoire.
+- `save.ts` force `illusion: true` pour une fille (trace en base).
+
+Connu et assumé : les textes proposés de packages/telegram (`assistantProfilePlan`) disent tous « l'assistante du
+canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille sera servie par un bot.

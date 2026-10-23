@@ -1,4 +1,5 @@
 import { prisma } from "@linkaffipro/db";
+import type { StatsCursor } from "@linkaffipro/linkaffi";
 const base = (process.env.LINKAFFI_API_URL ?? "").replace(/\/$/, "");
 const key = process.env.LINKAFFI_API_KEY ?? "";
 const anon = process.env.LINKAFFI_ANON_KEY ?? "";
@@ -9,9 +10,9 @@ async function raw(label: string, path: string) {
 }
 async function main() {
   const s = await prisma.syncState.findUnique({ where: { source: "stats" } });
-  const cur = (s?.cursor ?? {}) as any;
+  const cur = (s?.cursor ?? {}) as StatsCursor;
   console.log("lastError:", s?.lastError, "| updatedAt:", s?.updatedAt, "| isRunning:", s?.isRunning);
-  const affs = (cur.affiliates ?? []) as string[];
+  const affs = cur.affiliates ?? [];
   console.log("affilies dans le curseur:", affs.length, JSON.stringify(affs).slice(0, 700));
   const a = affs[0] ?? "38281248-09a8-4033-9695-e16866292981";
   console.log("\n-- test du limit --");

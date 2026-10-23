@@ -80,6 +80,9 @@ const saved = {
   id: "p1",
   name: "Léa",
   gender: "F",
+  identityKind: "ASSISTANT",
+  age: null,
+  styleExamples: null,
   personality: "Pétillante",
   tone: "",
   languages: ["fr"],
@@ -247,6 +250,21 @@ describe("modifier une persona", () => {
     expect(r.problem).not.toContain("Network request failed");
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
+  });
+
+  it("une fille : illusion forcée à true et âge enregistré", async () => {
+    m.existing = null;
+    const r = await savePersona(
+      draft({
+        identityKind: "GIRL",
+        age: "23",
+        botDescription: "",
+        botShortDescription: "",
+      }),
+      admin,
+    );
+    expect(r.ok).toBe(true);
+    expect(m.created[0]).toMatchObject({ identityKind: "GIRL", age: 23, illusion: true });
   });
 
   it("désactivation journalisée ; aucun changement : pas de « persona.updated »", async () => {

@@ -39,6 +39,7 @@ describe("liste des personas", () => {
       id: "p1",
       name: "Léa",
       gender: "F",
+      identityKind: "ASSISTANT",
       isActive: true,
       offer: { name: "Offre Rencontres", isActive: true },
       bots: [
@@ -59,11 +60,26 @@ describe("liste des personas", () => {
     });
   });
 
+  it("une fille : la liste dit « Une fille »", () => {
+    const row = personaListRow({
+      id: "p3",
+      name: "Léa",
+      gender: "F",
+      identityKind: "GIRL",
+      isActive: true,
+      offer: null,
+      bots: [],
+      conversations: 0,
+    });
+    expect(row.role).toBe("Une fille");
+  });
+
   it("sans prénom, sans offre, sans bot ; offre devenue inactive signalée", () => {
     const item = {
       id: "p2",
       name: " ",
       gender: "M",
+      identityKind: "ASSISTANT",
       isActive: false,
       offer: null,
       bots: [],
