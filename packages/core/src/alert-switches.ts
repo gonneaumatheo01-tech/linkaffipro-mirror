@@ -18,6 +18,8 @@ export const SWITCHABLE_ALERT_KINDS = [
   // Équipe Algorithme (phase 21) : canal qui décroche, profil de conversation qui ne convertit plus.
   "agents_channel_drop",
   "agents_persona_drop",
+  // Équipe Casino (phase 22) : thème d'un canal sous le seuil de vidéos non utilisées.
+  "agents_media_low",
 ] as const;
 
 export type SwitchableAlertKind = (typeof SWITCHABLE_ALERT_KINDS)[number];
@@ -32,6 +34,7 @@ export const DEFAULT_ALERT_SWITCHES: Readonly<AlertSwitches> = Object.freeze({
   channel_leak: true,
   agents_channel_drop: true,
   agents_persona_drop: true,
+  agents_media_low: true,
 });
 
 /** Ce type d'alerte a-t-il un interrupteur ? */

@@ -6,6 +6,7 @@
 import type { AgentDefinition } from "../../types";
 import { parsePayload } from "../../missions/mission";
 import { loadPlan } from "../data";
+import { runCasinoMediatheque } from "./casino";
 import { runDatingMediatheque } from "./dating";
 import { chooseFormat, pickAsset, type MediaFormat } from "./pick";
 
@@ -15,6 +16,7 @@ export const agent: AgentDefinition = {
   key: "mediatheque",
   async run(mission, ctx) {
     if (mission.teamKey === "dating") return runDatingMediatheque(mission, ctx);
+    if (mission.teamKey === "casino") return runCasinoMediatheque(mission, ctx);
     const plan = await loadPlan(ctx.prisma, mission);
     let format: MediaFormat;
     if (mission.payload.format) format = mission.payload.format;

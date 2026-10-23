@@ -113,3 +113,20 @@ export * from "./agents/synthese/proposals";
 export * from "./agents/synthese/report";
 export { runSynthese, autoApplyPending, type SyntheseResult } from "./agents/synthese/index";
 export * from "./casino/contracts";
+// Chantier B (phase 22) : dépôt casino par le bot, thèmes des médias, classement.
+export { addCasinoTheme, casinoTagsFor, casinoThemesOfAsset, readCasinoThemes } from "./casino/themes";
+export { applyCasinoThemes } from "./casino/classify";
+export { CREATE_THEME_ACTION, casinoDepositLine, stockPhrase, type CasinoDepositInfo } from "./casino/deposit";
+// Chantier A (phase 22) : moteur de l'équipe Casino.
+export * from "./casino/settings";
+export * from "./casino/rotation";
+export * from "./casino/pick";
+export { stockRows, computeCasinoStock } from "./casino/stock";
+export * from "./casino/format";
+export * from "./casino/requests";
+export * from "./casino/offer";
+export * from "./casino/control";
+export * from "./casino/setup";
+export { casinoThemesOf, channelThemes } from "./casino/data";
+export { inventedFigures, offerFiguresIn } from "./rules/figures";
+export { runCasinoMediatheque, casinoFallbacksOf } from "./agents/mediatheque/casino";

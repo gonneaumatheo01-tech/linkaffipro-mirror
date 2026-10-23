@@ -13,7 +13,8 @@ export type AskHumanInput = {
   /** 5 lignes au plus, français simple, dit exactement quoi répondre et comment passer (« plus tard »). */
   question: string;
   options?: string[];
-  expected?: { count?: number; tags?: string[] };
+  /** `channelId` / `channelIds` : canaux concernés par une demande de médias (affichés par le site). */
+  expected?: { count?: number; tags?: string[]; channelId?: string; channelIds?: string[] };
   missionId?: string | null;
   /** Suite à donner : `{ action: "resume-mission" }`, `{ action: "verify-key", provider: "fal" }`… */
   onAnswer?: Record<string, unknown>;

@@ -7,6 +7,8 @@
 import { agentEvent, nowOf } from "../admin/journal";
 import { ensureDatingSetupQuestions } from "../human/dating-setup";
 import { ensureAlgoSetupQuestions } from "../algo/setup";
+import { ensureCasinoSetupQuestions } from "../casino/setup";
+import { runCasinoStockCheck } from "../casino/requests";
 import { ensureDailyReportQuestion, sweepHumanRequests } from "../human/site";
 import { ensureTeamConfigs, isAgentsPausedAll } from "../missions/settings";
 import type { AgentsDeps, TeamKey } from "../types";
@@ -49,6 +51,10 @@ export async function runCycle(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {
   await step(deps, "datingSetup", out, () => ensureDatingSetupQuestions(deps));
   // Équipe Algorithme (phase 21) : niveau et quota maximum, demandés une seule fois.
   await step(deps, "algoSetup", out, () => ensureAlgoSetupQuestions(deps));
+  // Équipe Casino (phase 22) : campagne du bouton Offre et premières vidéos, demandées une seule fois ; puis le stock
+  // (demande groupée une fois par jour au plus, alerte `agents_media_low`).
+  await step(deps, "casinoSetup", out, () => ensureCasinoSetupQuestions(deps));
+  await step(deps, "casinoStock", out, () => runCasinoStockCheck(deps));
   if (await isAgentsPausedAll(deps.prisma)) out.plan = { skipped: "pause générale" };
   else await step(deps, "plan", out, () => planDay(deps, opts));
   await step(deps, "resume", out, () => resumeMissions(deps));

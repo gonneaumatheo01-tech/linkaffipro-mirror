@@ -38,6 +38,10 @@ export type RedactionPromptInput = {
   /** Phase 21 : « ce qui marche ici » (équipe Algorithme) et consigne de la variante d'un test A/B de style. */
   channelStyleNotes?: string | null;
   testStyle?: string | null;
+  /** Phase 22 : offre du moment (campagne du canal) et ce que sa fiche permet de dire (null = le nom seulement). */
+  offer?: { name: string; facts: string | null } | null;
+  /** Phase 22 : modèles de messages de l'univers, à prendre comme inspiration, jamais à recopier. */
+  inspirations?: readonly string[];
 };
 
 export const REDACTION_SYSTEM = [
@@ -78,6 +82,16 @@ export function buildRedactionUser(i: RedactionPromptInput): string {
   if (i.testStyle?.trim()) lines.push(`Consigne de style pour ce post (test en cours, à suivre) : ${i.testStyle.trim().slice(0, 300)}`);
   if (i.theme) lines.push(`Thème de ce post : ${i.theme}`);
   else if (i.themes?.length) lines.push(`Thèmes possibles : ${i.themes.join(", ")}`);
+  if (i.offer) {
+    lines.push(`Offre du moment (le bouton sous le post y mène) : ${i.offer.name}. Donne envie de l'ouvrir, sans la décrire au-delà de sa fiche.`);
+    if (i.offer.facts?.trim())
+      lines.push(`Fiche de l'offre (SEULE source de chiffres, montants, bonus et promesses ; rien d'autre) :\n${i.offer.facts.trim().slice(0, 1500)}`);
+    else lines.push("Aucune fiche pour cette offre : n'écris aucun chiffre, montant, pourcentage, multiplicateur ni nombre de tours ; nomme l'offre, c'est tout.");
+  }
+  if (i.inspirations?.length) {
+    lines.push("Modèles de l'équipe (inspiration de ton et de rythme seulement ; ne reprends ni leurs phrases ni leur structure) :");
+    for (const t of i.inspirations.slice(0, 3)) lines.push(`- ${stripHtml(t).replace(/\s+/g, " ").slice(0, 200)}`);
+  }
   if (i.recentPosts.length) {
     lines.push("Derniers posts du canal (ne pas répéter) :");
     for (const p of i.recentPosts.slice(0, 30)) lines.push(`- ${stripSimulationHeader(stripHtml(p)).replace(/\s+/g, " ").slice(0, 160)}`);

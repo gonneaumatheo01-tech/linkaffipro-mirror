@@ -3,7 +3,7 @@
  * Publication (créneau dépassé après une validation tardive).
  */
 import { parsePayload } from "../../missions/mission";
-import { pickSlot, preferredFromBestHours, preferredKey, VIDEO_MIN_GAP_MINUTES, type SlotResult } from "../../rules/slots";
+import { pickSlot, preferredFromBestHours, preferredKey, videoGapMinutes, type SlotResult } from "../../rules/slots";
 import { missionExperimentOf } from "../experimentation/variants";
 import type { AgentContext, Mission } from "../../types";
 import { loadPlan } from "../data";
@@ -45,7 +45,7 @@ export async function planSlot(mission: Mission, ctx: AgentContext): Promise<Slo
     .map((p) => p.sentAt ?? p.scheduledAt)
     .filter((d): d is Date => d instanceof Date);
   const agentSlots = missions.map((m) => m.scheduledFor).filter((d): d is Date => d instanceof Date);
-  const extraSpacing = mission.payload.format === "video" ? [{ times: await videoTimes(ctx, posts, missions, mission.id), minutes: VIDEO_MIN_GAP_MINUTES }] : [];
+  const extraSpacing = mission.payload.format === "video" ? [{ times: await videoTimes(ctx, posts, missions, mission.id), minutes: videoGapMinutes(mission.teamKey) }] : [];
   return pickSlot({
     extraSpacing,
     now,
@@ -54,8 +54,18 @@ export async function planSlot(mission: Mission, ctx: AgentContext): Promise<Slo
     quietHours: ctx.settings.quietHours,
     occupied,
     agentSlots,
-    preferred: preferredForMission(preferredFromBestHours(best?.value), plan.suggestedWindows, mission),
+    preferred: preferenceFor(mission.teamKey, preferredFromBestHours(best?.value), plan.suggestedWindows, mission),
   });
+}
+
+/**
+ * Équipe Casino (phase 22) : les fenêtres de l'équipe Algorithme quand il y en a pour ce type de post, sinon les
+ * meilleurs horaires existants ; les autres équipes additionnent les deux (phase 21).
+ */
+export function preferenceFor(teamKey: string, base: Map<string, number>, windows: readonly unknown[] | undefined, mission: Pick<Mission, "payload">): Map<string, number> {
+  if (teamKey !== "casino") return preferredForMission(base, windows, mission);
+  const fromWindows = preferredForMission(new Map(), windows, mission);
+  return fromWindows.size ? fromWindows : preferredForMission(base, [], mission);
 }
 
 const FORMAT_OF: Record<string, string> = { video: "VIDEO", photo: "PHOTO", text: "TEXT" };

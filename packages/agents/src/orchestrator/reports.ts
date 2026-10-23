@@ -7,6 +7,7 @@ import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent, nowOf } from "../admin/journal";
 import { FALLBACK_EVENT } from "../agents/media-ia/fallback";
 import { countFallbacks } from "../chiefs/dating-format";
+import { casinoFallbackNotes, CASINO_FALLBACK_EVENT, type CasinoFallback } from "../casino/format";
 import { loadTeamSettings } from "../missions/settings";
 import { monthUsage, totalCents } from "../missions/usage";
 import { addDaysToDay, parisDay, parisDayStart, parisParts } from "../rules/time";
@@ -28,6 +29,8 @@ export type TeamReportFigures = {
   paused: boolean;
   /** Replis Dating de la veille (vidéo → photo, photo → texte). */
   fallbacks?: { video: number; photo: number };
+  /** Lignes libres ajoutées (replis Casino : « 3 posts texte faute de vidéos : roulette »). */
+  notes?: string[];
 };
 
 const eur = (c: number) => `${(c / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -42,6 +45,7 @@ export function reportLine(f: TeamReportFigures): string {
   if (f.failed) parts.push(`${f.failed} en échec`);
   if (f.fallbacks?.video) parts.push(`${f.fallbacks.video} vidéo${f.fallbacks.video > 1 ? "s" : ""} remplacée${f.fallbacks.video > 1 ? "s" : ""} par une photo`);
   if (f.fallbacks?.photo) parts.push(`${f.fallbacks.photo} photo${f.fallbacks.photo > 1 ? "s" : ""} remplacée${f.fallbacks.photo > 1 ? "s" : ""} par un texte`);
+  if (f.notes?.length) parts.push(...f.notes);
   const spend = f.capCents ? `${eur(f.spentCents)} / ${eur(f.capCents)} ce mois` : `${eur(f.spentCents)} ce mois`;
   const flags = [f.simulation ? "simulation" : null, f.paused ? "en pause" : null].filter(Boolean).join(", ");
   return `${f.label} : ${parts.join(", ")} ; ${spend}${flags ? ` (${flags})` : ""}`;
@@ -72,6 +76,11 @@ export async function buildDailyReport(deps: AgentsDeps): Promise<{ day: string;
         ? await deps.prisma.event.findMany({ where: { type: FALLBACK_EVENT, occurredAt: { gte: since, lt: until } }, select: { payload: true } })
         : [];
     const fallbacks = countFallbacks(fallbackEvents.map((e) => ({ from: (e.payload as { from?: string } | null)?.from as "video" | "photo" | "text" })));
+    const casinoEvents =
+      teamKey === "casino"
+        ? await deps.prisma.event.findMany({ where: { type: CASINO_FALLBACK_EVENT, occurredAt: { gte: since, lt: until } }, select: { payload: true } })
+        : [];
+    const notes = casinoFallbackNotes(casinoEvents.map((e) => (e.payload ?? {}) as CasinoFallback));
     const caps = Object.values(settings.monthlyBudgetCents).filter((n): n is number => typeof n === "number");
     lines.push(
       reportLine({
@@ -85,6 +94,7 @@ export async function buildDailyReport(deps: AgentsDeps): Promise<{ day: string;
         simulation: settings.simulation,
         paused: settings.paused,
         fallbacks,
+        notes,
       }),
     );
   }

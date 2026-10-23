@@ -7,6 +7,7 @@ import { parsePayload } from "../missions/mission";
 import { DEFAULT_SLOT_PLAN } from "../rules/slots";
 import type { Mission } from "../types";
 import { missionExperimentOf } from "./experimentation/variants";
+import { parsePlanThemes, type WeightedTheme } from "../casino/rotation";
 
 export type ChannelInfo = {
   id: string;
@@ -26,6 +27,10 @@ export type PlanInfo = {
   personaId: string | null;
   campaignId: string | null;
   themes: string[];
+  /** Thèmes avec leur poids (phase 22 : `[{ theme, weight }]`, ancien `string[]` = poids 1). */
+  themeWeights?: WeightedTheme[];
+  /** Mélange brut du plan (avant le repli « texte seul ») : l'équipe Casino applique son mélange par défaut. */
+  rawMix?: { video: number; photo: number; text: number } | null;
   /** Mission de test : créneau au plus tôt, sans quota ni heures calmes. */
   test: boolean;
   /** Phase 21 : consigne « ce qui marche ici » (Rédaction) et fenêtres conseillées (Planification). */
@@ -56,6 +61,12 @@ function parseMix(v: unknown): PlanInfo["mix"] {
   return mix.video + mix.photo + mix.text > 0 ? mix : { video: 0, photo: 0, text: 1 };
 }
 
+function rawMixOf(v: unknown): PlanInfo["rawMix"] {
+  const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? x : 0);
+  return v && typeof v === "object" ? { video: n(r.video), photo: n(r.photo), text: n(r.text) } : null;
+}
+
 export const TEST_PLAN: PlanInfo = {
   postsPerDay: 1000,
   windowStart: "00:00",
@@ -83,7 +94,9 @@ export async function loadPlan(prisma: PrismaClient, mission: Pick<Mission, "cha
     mix: parseMix(row.mix),
     personaId: row.personaId,
     campaignId: row.campaignId,
-    themes: Array.isArray(row.themes) ? row.themes.filter((t): t is string => typeof t === "string") : [],
+    themes: parsePlanThemes(row.themes).map((t) => t.theme),
+    themeWeights: parsePlanThemes(row.themes),
+    rawMix: rawMixOf(row.mix),
     test: false,
     styleNotes: row.styleNotes ?? null,
     suggestedWindows: Array.isArray(row.suggestedWindows) ? row.suggestedWindows : [],

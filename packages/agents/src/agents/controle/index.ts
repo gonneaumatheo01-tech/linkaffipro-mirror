@@ -13,6 +13,13 @@ import { alwaysValidateReason } from "../../orchestrator/autonomy";
 import { applyFallback } from "../media-ia/fallback";
 import { loadPersonaMedia } from "../data";
 import { checkProducedMedia, storeControlFrame } from "./media-check";
+import { casinoMediaRefusal, isCasinoTarget, offerButtonProblem } from "../../casino/control";
+import { loadCasinoOffer, type CasinoOffer } from "../../casino/offer";
+import { casinoTemplateTexts } from "../../casino/templates";
+import { casinoFallbacksOf, CASINO_FALLBACK_EVENT } from "../mediatheque/casino";
+import { inventedFigures } from "../../rules/figures";
+import { loadPlan } from "../data";
+import { agentEvent } from "../../admin/journal";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
 async function autonomyFacts(mission: Mission, ctx: AgentContext) {
@@ -25,6 +32,13 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
       ? ctx.prisma.agentMission.findMany({ where: { ...others, channelId: mission.channelId }, select: { payload: true }, take: 500 })
       : Promise.resolve(null),
   ]);
+  const offerId = typeof p.offerCampaignId === "string" ? p.offerCampaignId : null;
+  const offerDone =
+    mission.teamKey === "casino" && offerId
+      ? (await ctx.prisma.agentMission.findMany({ where: { ...others, teamKey: "casino" }, select: { payload: true }, take: 2000 })).some(
+          (m) => parsePayload(m.payload).offerCampaignId === offerId,
+        )
+      : true;
   const ofPersona = (personaDone ?? []).map((m) => parsePayload(m.payload)).filter((x) => x.personaId === p.personaId);
   return {
     firstPostOfChannel: channelDone === 0,
@@ -33,6 +47,7 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
     newPersona: personaDone ? ofPersona.length === 0 : false,
     newTheme: themeDone ? !themeDone.some((m) => parsePayload(m.payload).theme === p.theme) : false,
     newCategory: false,
+    newOffer: !offerDone,
   };
 }
 
@@ -54,6 +69,29 @@ export const agent: AgentDefinition = {
       });
       const m = mediaProblem(asset, p.format);
       if (m) problems.push(m);
+    }
+
+    // Équipe Casino : jamais de média non fourni, chiffres seulement ceux de la fiche de l'offre, modèles jamais recopiés.
+    const channel0 = await loadChannel(ctx.prisma, mission.channelId);
+    const casino = isCasinoTarget(mission.teamKey, channel0?.vertical);
+    let offer: CasinoOffer | null = null;
+    let offerProblem: string | null = null;
+    if (casino) {
+      if (p.mediaAssetId) {
+        const asset = await ctx.prisma.mediaAsset.findUnique({ where: { id: p.mediaAssetId }, select: { origin: true } });
+        const refusal = casinoMediaRefusal(asset ? { origin: asset.origin ?? null } : null);
+        if (refusal) return refuseCasinoMedia(mission, ctx, refusal);
+      }
+      const plan = await loadPlan(ctx.prisma, mission);
+      offer = await loadCasinoOffer(ctx.prisma, plan.campaignId);
+      offerProblem = offerButtonProblem({ campaignId: plan.campaignId, offer, text });
+      const invented = inventedFigures(text, offer?.facts ?? null);
+      if (invented.length)
+        problems.push(`chiffre absent de la fiche de l'offre (${invented.join(", ")}) : n'écris que ce que la fiche dit`);
+      if (!dup) {
+        const tdup = findDuplicate(text, await casinoTemplateTexts(ctx.prisma), ctx.settings.similarityThreshold);
+        if (tdup) problems.push(`trop proche d'un modèle de message (${Math.round(tdup.score * 100)} %) : inspire-toi, ne recopie pas`);
+      }
     }
 
     let judgement: Judgement = null;
@@ -104,6 +142,12 @@ export const agent: AgentDefinition = {
       personaPhotosDone: facts.personaPhotosDone,
       firstPostOfChannel: facts.firstPostOfChannel,
       mediaDoubt,
+      theme: typeof p.theme === "string" ? p.theme : null,
+      newTheme: facts.newTheme,
+      newOffer: facts.newOffer,
+      offerName: offer?.name ?? null,
+      offerProblem,
+      casinoChannel: channel0?.vertical === "CASINO",
     });
     const v = decideVerdict({
       ruleProblems: problems,
@@ -144,6 +188,24 @@ async function sendDoubtFrame(mission: Mission, ctx: AgentContext, frame: { byte
   } catch (err) {
     ctx.logger?.warn({ err: (err as Error).message, missionId: mission.id }, "[agents] image du contrôle non envoyée");
   }
+}
+
+/**
+ * Média non fourni sur un canal casino : jamais publié, même validé. La mission repart en post texte (repli
+ * journalisé et compté dans le rapport) ; le média est retiré de la charge utile.
+ */
+async function refuseCasinoMedia(mission: Mission, ctx: AgentContext, reason: string): Promise<AgentResult> {
+  const p = mission.payload;
+  const from = p.format === "video" || p.format === "photo" ? p.format : "photo";
+  const theme = typeof p.theme === "string" ? p.theme : null;
+  const entry = { from, to: "text" as const, fromTheme: theme, toTheme: theme, reason: `média refusé : ${reason}`, at: ctx.now().toISOString() };
+  await agentEvent(ctx, CASINO_FALLBACK_EVENT, { missionId: mission.id, from, to: "text", fromTheme: theme, toTheme: theme, reason: entry.reason }, { channelId: mission.channelId });
+  return {
+    ok: true,
+    output: { format: "text", mediaAssetId: null, approved: false, redone: false, verdict: "redo", reasons: [reason], fallbacks: [...casinoFallbacksOf(p as Record<string, unknown>), entry] },
+    goTo: "redaction",
+    summary: `média refusé (${reason}) → post texte`,
+  };
 }
 
 /** Échecs techniques tolérés avant d'abandonner la mission (chaque fois : repli vers le format suivant). */

@@ -50,13 +50,33 @@ export type AlwaysValidateFacts = {
   firstPostOfChannel: boolean;
   /** Doute ou défaut vu par le contrôle du média. */
   mediaDoubt?: string | null;
+  /** Équipe Casino (phase 22) : thème jamais publié sur ce canal, offre (campagne) jamais utilisée, bouton Offre impossible. */
+  theme?: string | null;
+  newTheme?: boolean;
+  newOffer?: boolean;
+  offerName?: string | null;
+  offerProblem?: string | null;
+  /** Le canal visé est un canal casino (faux pour une mission de test ou un canal d'un autre univers). */
+  casinoChannel?: boolean;
 };
+
+/** Validations imposées de l'équipe Casino : nouveau canal, nouveau thème, offre jamais utilisée, bouton Offre impossible. */
+export function casinoAlwaysValidateReason(f: AlwaysValidateFacts): string | null {
+  const reasons: string[] = [];
+  if (f.offerProblem) reasons.push(f.offerProblem);
+  if (f.casinoChannel === false) return reasons.length ? `toujours validé : ${reasons.join(", ")}` : null;
+  if (f.firstPostOfChannel) reasons.push("nouveau canal");
+  if (f.newTheme) reasons.push(`nouveau thème${f.theme ? ` (${f.theme})` : ""}`);
+  if (f.newOffer) reasons.push(`offre jamais utilisée${f.offerName ? ` (${f.offerName})` : ""}`);
+  return reasons.length ? `toujours validé : ${reasons.join(", ")}` : null;
+}
 
 /**
  * Validations imposées quel que soit le niveau (équipe Dating, phase 20) : les 3 premières vidéos et les 3 premières
  * photos d'une persona, le premier post d'un canal, et tout média dont le contrôle doute (règle pure).
  */
 export function alwaysValidateReason(f: AlwaysValidateFacts): string | null {
+  if (f.teamKey === "casino") return casinoAlwaysValidateReason(f);
   if (f.teamKey !== "dating") return null;
   const reasons: string[] = [];
   const who = f.personaName ? ` de ${f.personaName}` : "";

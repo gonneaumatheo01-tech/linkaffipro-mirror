@@ -60,9 +60,17 @@ export const agent: AgentDefinition = {
         ab: experiment ? { groupId: experimentGroupId(experiment.id), variant: experiment.variant } : null,
       });
       await tx.agentMission.update({ where: { id: mission.id }, data: { postId: post.postId, scheduledFor: slot } });
+      // Équipe Casino : l'utilisation compte sur le canal VISÉ (rotation de 30 jours et « jamais deux canaux le même
+      // jour » restent vraies en simulation, où tout part sur le canal Test).
       if (mission.payload.mediaAssetId)
         await tx.mediaUsage.create({
-          data: { assetId: mission.payload.mediaAssetId, channelId: publishChannel.id, postId: post.postId, missionId: mission.id, usedAt: now },
+          data: {
+            assetId: mission.payload.mediaAssetId,
+            channelId: mission.teamKey === "casino" ? target.id : publishChannel.id,
+            postId: post.postId,
+            missionId: mission.id,
+            usedAt: now,
+          },
         });
       // Vidéo source d'une vidéo produite : comptée sur le canal VISÉ (même en simulation), jamais réutilisée
       // sur ce canal avant 30 jours.

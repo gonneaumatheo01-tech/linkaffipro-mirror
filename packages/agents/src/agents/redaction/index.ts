@@ -8,6 +8,8 @@ import { parsePayload } from "../../missions/mission";
 import { loadChannel, loadPersona, loadPlan, personaIdOf, recentChannelTexts } from "../data";
 import { buildRedactionUser, parseRedaction, REDACTION_SYSTEM } from "./prompt";
 import { missionExperimentOf } from "../experimentation/variants";
+import { loadCasinoOffer } from "../../casino/offer";
+import { casinoTemplateTexts, inspirationsFor } from "../../casino/templates";
 
 export const agent: AgentDefinition = {
   key: "redaction",
@@ -23,6 +25,10 @@ export const agent: AgentDefinition = {
     ]);
     const theme = (typeof mission.payload.theme === "string" ? mission.payload.theme : null) ?? (await nextTheme(ctx, mission.channelId, mission.id, plan.themes));
     const format = mission.payload.format ?? "text";
+    // Équipe Casino : offre du moment (campagne du canal) et modèles de l'univers en inspiration.
+    const casino = mission.teamKey === "casino";
+    const offer = casino ? await loadCasinoOffer(ctx.prisma, plan.campaignId) : null;
+    const inspirations = casino ? inspirationsFor(await casinoTemplateTexts(ctx.prisma), mission.id) : [];
     const maxLength = Math.min(ctx.settings.maxTextLength, format === "text" ? 4096 : TELEGRAM_CAPTION_MAX);
     const redoReason = mission.payload.redone ? (mission.payload.reasons ?? []).join(" ; ") || null : null;
     const res = await llm.complete({
@@ -42,6 +48,8 @@ export const agent: AgentDefinition = {
         redoReason,
         channelStyleNotes: plan.styleNotes ?? null,
         testStyle: testStyleOf(mission.payload),
+        offer: offer ? { name: offer.name, facts: offer.facts } : null,
+        inspirations,
       }),
       maxTokens: 1200,
     });
@@ -49,7 +57,14 @@ export const agent: AgentDefinition = {
       const out = parseRedaction(res.text, maxLength);
       return {
         ok: true,
-        output: { text: out.text, hook: out.hook, topic: out.topic, theme, personaId: personaIdOf(mission, plan) },
+        output: {
+          text: out.text,
+          hook: out.hook,
+          topic: out.topic,
+          theme,
+          personaId: personaIdOf(mission, plan),
+          ...(casino ? { offerCampaignId: offer?.campaignId ?? null } : {}),
+        },
         costCents: res.costCents,
         summary: `sujet « ${out.topic} », ${out.text.length} caractères`,
       };

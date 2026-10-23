@@ -64,7 +64,8 @@ describe("mission POST de bout en bout (simulation)", () => {
     expect(m.status).toBe("DONE");
     const steps = m.steps as Array<{ agent: string; status: string }>;
     expect(steps.map((s) => `${s.agent}:${s.status}`)).toEqual([
-      "mediatheque:DONE",
+      // Équipe Casino (phase 22) : post texte faute de vidéo fournie, la Médiathèque n'a rien à faire.
+      "mediatheque:SKIPPED",
       "redaction:DONE",
       "planification:DONE",
       "controle:DONE",

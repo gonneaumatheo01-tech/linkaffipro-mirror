@@ -31,6 +31,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   agents_team_paused: "Équipe d'agents mise en pause",
   agents_channel_drop: "Canal qui décroche (vues ou clics)",
   agents_persona_drop: "Profil de conversation qui ne convertit plus",
+  agents_media_low: "Vidéos casino en manque",
 };
 
 export function alertKindLabel(kind: string): string {

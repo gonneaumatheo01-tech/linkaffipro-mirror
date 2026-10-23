@@ -47,6 +47,13 @@ export type SlotInput = {
 
 /** Écart minimal entre deux vidéos d'un même canal. */
 export const VIDEO_MIN_GAP_MINUTES = 6 * 60;
+/** Équipe Casino (phase 22) : jamais deux vidéos à moins de 4 h sur un canal. */
+export const CASINO_VIDEO_GAP_MINUTES = 4 * 60;
+
+/** Écart minimal entre deux vidéos d'un canal selon l'équipe. */
+export function videoGapMinutes(teamKey: string): number {
+  return teamKey === "casino" ? CASINO_VIDEO_GAP_MINUTES : VIDEO_MIN_GAP_MINUTES;
+}
 
 export type SlotResult = { ok: true; at: Date } | { ok: false; reason: string };
 
