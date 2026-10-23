@@ -468,3 +468,12 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   ne finit pas par `.safetensors` sur un hôte inconnu est gardée avec un avertissement. Plafond vidéo : « plus tard »
   = 100 €, montant libre accepté. Estimation du banc : 3 vidéos × (580p + 720p) chez fal, 10 s si durée inconnue.
   Une photo `#dating #reference #<prénom>` s'ajoute à `Persona.referenceImageIds` (3 au plus, la plus récente d'abord).
+- **Site (phase 20)** : « Médias du personnage » = formulaire à part sous la fiche persona (le formulaire principal ne
+  porte pas de fichiers), bouton « Enregistrer les médias », journal `persona.media_updated`. Dépôt par
+  `/api/agents/media` (images de référence 10 Mo, vidéos sources 50 Mo ; un même fichier d'une autre persona refusé ;
+  `agents.media_uploaded`), aperçu par `/api/agents/media/<id>` (`apiUser()`, cache privé, lecture par morceaux).
+  `next.config.ts` : `experimental.proxyClientMaxBodySize: "60mb"` (Next coupe sinon à 10 Mo tout envoi qui passe par
+  `proxy.ts`, `/api/media` compris). Plafonds, fournisseur et résolution : ADMIN seulement (lecture seule pour un
+  MANAGER, toutes équipes). Persona obligatoire seulement pour un plan Rencontres activé. « Produire un post de test »
+  remplace « Créer une mission de test » sur la fiche Rencontres. « LoRA » interdit en surface (`Term` au survol :
+  « fichier du personnage »). `pnpm --filter web typecheck` demande `NODE_OPTIONS=--max-old-space-size=8192`.
