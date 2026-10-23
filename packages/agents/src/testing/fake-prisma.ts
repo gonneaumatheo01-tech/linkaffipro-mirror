@@ -4,7 +4,7 @@
  * courants (`in`, `notIn`, `not`, `gt`, `gte`, `lt`, `lte`, `startsWith`, `contains`, `OR`, `AND`, `NOT`), `orderBy`,
  * `take`, `increment`, `upsert`, `$transaction`. `select` est ignoré (la ligne entière est renvoyée).
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 
 type Row = Record<string, unknown>;
 

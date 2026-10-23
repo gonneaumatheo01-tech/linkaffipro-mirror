@@ -367,3 +367,29 @@ Telegram réel** (userbot), pas sur un bot : elle ne se démasque **jamais**, m�
 
 Connu et assumé : les textes proposés de packages/telegram (`assistantProfilePlan`) disent tous « l'assistante du
 canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille sera servie par un bot.
+
+## Phase 19 — agents IA : fondations (23 octobre 2026)
+
+- **Découpage** : schéma et contrats (signatures figées) posés d'abord, puis trois chantiers aux périmètres disjoints :
+  moteur + worker (`packages/agents/src/{rules,providers,agents,chiefs,orchestrator,missions}`, `packages/queue`,
+  `apps/worker`), dialogue admin (`packages/agents/src/{validation,human,admin,library}`, `packages/telegram`), site
+  (`apps/web` rubrique Agents).
+- **Statut `QUEUED` de `HumanRequest`** (en plus de PENDING / ANSWERED / SKIPPED / EXPIRED) : la file « une question à
+  la fois » est tenue en base ; une seule demande PENDING (envoyée) à la fois.
+- **`AgentValidation.number`** (autoincrément) : numéro court pour « ok 12 » / « non 12 » sur Telegram.
+- **Médiathèque** : classement par colonnes sur `MediaAsset` (`teamKey`, `theme`, `personaId`, `kind`, `origin`, `tags`)
+  plutôt qu'une table à part ; `kind` a aussi `REFERENCE` (images de référence des personas, phase 20). Octets toujours
+  en base ; le canal Telegram « Médiathèque » (`Setting` `agents.libraryChannelId`) n'est qu'une copie facultative.
+- **Clés des fournisseurs** : `Setting` `agents.secret.<key>` chiffré (`encrypt` de core) ; les phases suivantes passent
+  par `saveSecret` / `readSecret` (pas par le réglage brut). Identifiants bookmaker : clé `providers.bookmakers.<nom>.login`.
+  Vérification : `registerSecretVerifier(clé ou préfixe*, fn)` ; suites d'une réponse : `registerAnswerAction`
+  (fournies : `setting`, `set-simulation`, `set-autonomy`).
+- **Journal des messages de l'admin** : seuls les messages qui contiennent un secret (commande `clé …` / `bookmaker …`,
+  ou réponse à une demande SECRET en cours) sont masqués avant `recordUpdate` ; les autres restent journalisés tels quels,
+  car `pnpm tg:inbox` lit les réponses de l'admin dans `Event`. Identifiant admin gardé 60 s en mémoire pour ce contrôle.
+- **Demande passée ou expirée** : la mission qui l'attendait reprend aussi (réponse `null` dans `payload.humanAnswers`).
+- **Texte corrigé par l'admin** : marqué approuvé et `humanEdited`, mais repasse au Contrôle qualité (les règles du code
+  peuvent encore le refuser).
+- **Validation sans réponse** : 24 h → rappel unique et mission reportée d'un jour ; 72 h → EXPIRED, mission annulée.
+- **`budget vidéo <euros>`** : plafond vidéo mensuel de l'équipe Dating. Progrès d'une demande MEDIA dans
+  `expected.received` (pas de colonne).

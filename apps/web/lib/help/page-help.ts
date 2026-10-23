@@ -1,22 +1,22 @@
 /**
- * Aide de la page courante (bouton « ? » de l'en-tête) : table adresse → sections du guide
+ * Aide de la page courante (bouton « ? » de l'en-tête) : table adresse → sections du guide
  * (docs/GUIDE-UTILISATEUR.md). Fonctions pures, testées dans page-help.test.ts.
  *
  * Mettre à jour quand le guide ou un écran change : chaque ligne donne l'adresse (elle vaut aussi pour ses sous-pages ;
- * « / » ne vaut que pour l'accueil ; un segment « :id » vaut pour n'importe quel identifiant, comme la fiche d'un canal),
+ * « / » ne vaut que pour l'accueil ; un segment « :id » vaut pour n'importe quel identifiant, comme la fiche d'un canal),
  * le nom de la page dans le volet et les titres des sections à montrer, dans l'ordre (titre exact du guide ; accents et
  * ponctuation ne comptent pas). `{ title, introOnly: true }` : seulement le texte avant la première sous-section (une
  * rubrique entière serait trop longue pour le volet). L'entrée la plus précise gagne : plus de segments d'abord, puis
- * plus de segments fixes (« /channels/import » l'emporte sur « /channels/:id »).
+ * plus de segments fixes (« /channels/import » l'emporte sur « /channels/:id »).
  * Les tests vérifient que chaque titre existe dans le guide et que chaque page de `app/(admin)` a sa ligne.
  */
 import { slugify } from "./markdown";
 import type { SectionRef } from "./sections";
 
 export type PageHelp = {
-  /** Adresse de la page (sans paramètres) ; « :id » = un segment quelconque. */
+  /** Adresse de la page (sans paramètres) ; « :id » = un segment quelconque. */
   path: string;
-  /** Nom de la page dans le volet (« Aide : Campagnes »). */
+  /** Nom de la page dans le volet (« Aide : Campagnes »). */
   label: string;
   sections: readonly SectionRef[];
 };
@@ -108,7 +108,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/channels/:id",
     label: "Fiche du canal",
-    // Phase 11 : « Qui peut entrer et quand » (règle par défaut, exceptions selon la provenance, simulateur) d'abord,
+    // Phase 11 : « Qui peut entrer et quand » (règle par défaut, exceptions selon la provenance, simulateur) d'abord,
     // puis le dépannage d'une demande, puis les autres onglets de la fiche.
     sections: [
       intro("Fiche d'un canal"),
@@ -116,7 +116,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
       "Un membre n'est pas accepté",
       "Ce que dit le bot",
       "Demandes",
-      "Pourquoi des demandes restent sur « Attend les canaux »",
+      "Pourquoi des demandes restent sur « Attend les canaux »",
       "Membres du canal",
       "Le bot ne répond pas",
     ],
@@ -160,7 +160,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
   },
   { path: "/messages/ab", label: "Test A/B", sections: ["Test A/B d'un message de canal"] },
   {
-    // Phase 12 : bibliothèque des emojis animés (section du guide sous « Messages »).
+    // Phase 12 : bibliothèque des emojis animés (section du guide sous « Messages »).
     path: "/messages/emojis",
     label: "Emojis animés",
     sections: ["Ajouter des emojis animés"],
@@ -236,6 +236,25 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Chiffres des conversations",
     sections: ["Chiffres", "Période et comparaison"],
   },
+
+  // Agents (phase 19) : tableau de bord du Grand Chef, fiche d'équipe, validations et demandes, journal, réglages.
+  {
+    path: "/agents",
+    label: "Agents",
+    sections: [intro("Agents"), "Tableau de bord du Grand Chef"],
+  },
+  {
+    path: "/agents/:id",
+    label: "Fiche d'une équipe",
+    sections: ["Fiche d'une équipe", "Simulation, niveaux et pause"],
+  },
+  {
+    path: "/agents/validations",
+    label: "Validations des agents",
+    sections: ["Validations et demandes"],
+  },
+  { path: "/agents/journal", label: "Journal des agents", sections: ["Journal des agents"] },
+  { path: "/agents/settings", label: "Réglages des agents", sections: ["Réglages des agents"] },
 
   // Statistiques
   {
@@ -334,17 +353,17 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Mon compte",
     sections: ["Mon compte", "J'ai perdu mon mot de passe"],
   },
-  { path: "/help", label: "Aide", sections: ["Aide « ? » et visite guidée"] },
+  { path: "/help", label: "Aide", sections: ["Aide « ? » et visite guidée"] },
 ];
 
-/** Réponse de GET /api/help?path=… (volet du bouton « ? »). */
+/** Réponse de GET /api/help?path=… (volet du bouton « ? »). */
 export type HelpResponse = {
   path: string;
-  /** Nom de la page (« Campagnes ») ; « Pour commencer » en repli. */
+  /** Nom de la page (« Campagnes ») ; « Pour commencer » en repli. */
   label: string;
-  /** Pas d'aide propre à cette page : « Les 10 premières minutes ». */
+  /** Pas d'aide propre à cette page : « Les 10 premières minutes ». */
   fallback: boolean;
-  /** Ancre de la première section dans la page /help (lien « Ouvrir le guide complet »). */
+  /** Ancre de la première section dans la page /help (lien « Ouvrir le guide complet »). */
   anchor: string | null;
   /** Sections du guide, déjà rendues en HTML sûr. */
   sections: Array<{ id: string; title: string; html: string }>;
@@ -359,7 +378,7 @@ export const DEFAULT_HELP: PageHelp = {
   sections: ["Les 10 premières minutes"],
 };
 
-/** Adresse sans paramètres ni ancre, sans barre finale (« /campaigns/ » → « /campaigns »). */
+/** Adresse sans paramètres ni ancre, sans barre finale (« /campaigns/ » → « /campaigns »). */
 export function normalizePath(pathname: string): string {
   const bare = (pathname.split(/[?#]/)[0] ?? "").trim();
   if (!bare.startsWith("/")) return "/";
@@ -372,7 +391,7 @@ function segments(path: string): string[] {
 }
 
 /**
- * La page `path` (ou une de ses sous-pages) est-elle l'adresse `pathname` ? « / » : accueil seulement ; « :id » : un
+ * La page `path` (ou une de ses sous-pages) est-elle l'adresse `pathname` ? « / » : accueil seulement ; « :id » : un
  * segment quelconque (jamais vide).
  */
 export function matchesPath(pathname: string, path: string): boolean {
@@ -395,7 +414,7 @@ function morePrecise(a: string, b: string): boolean {
   return la !== lb ? la > lb : fa > fb;
 }
 
-/** Aide de la page : l'entrée la plus précise de la table, sinon « Les 10 premières minutes ». */
+/** Aide de la page : l'entrée la plus précise de la table, sinon « Les 10 premières minutes ». */
 export function pageHelpFor(
   pathname: string,
   table: readonly PageHelp[] = PAGE_HELP,
@@ -412,7 +431,7 @@ export function pageHelpFor(
 }
 
 /**
- * Lien « Ouvrir le guide complet » du volet : la page /help, à l'ancre de la première section de la page (mêmes
+ * Lien « Ouvrir le guide complet » du volet : la page /help, à l'ancre de la première section de la page (mêmes
  * identifiants que le rendu du guide : les titres du guide sont uniques, un test le vérifie).
  */
 export function guideHref(help: PageHelp): string {

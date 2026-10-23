@@ -7,6 +7,15 @@ import type { Api } from "grammy";
 export async function resetDb(): Promise<void> {
   if (!/linkaffipro_test/.test(process.env.DATABASE_URL ?? "")) throw new Error("resetDb refuse de tourner hors de la base de test");
   await prisma.$transaction([
+    // Agents IA (phase 19) : passages, validations, demandes, médiathèque, missions, plans, réglages d'équipe.
+    prisma.agentRun.deleteMany(),
+    prisma.agentValidation.deleteMany(),
+    prisma.humanRequest.deleteMany(),
+    prisma.mediaUsage.deleteMany(),
+    prisma.agentUsage.deleteMany(),
+    prisma.agentMission.deleteMany(),
+    prisma.channelAgentPlan.deleteMany(),
+    prisma.agentTeamConfig.deleteMany(),
     // Assistant de conversation (phase 17) : conversations, liens d'offre, coûts IA, personas.
     prisma.conversationEvent.deleteMany(),
     prisma.conversationMessage.deleteMany(),

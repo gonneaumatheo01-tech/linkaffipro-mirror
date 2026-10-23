@@ -3,7 +3,7 @@
  * avec leurs valeurs par défaut au premier passage (simulation active, niveau 0, aucune pause).
  */
 import { DEFAULT_MODEL, QUALITY_MODEL } from "@linkaffipro/ai";
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 import { DEFAULT_MAX_TEXT_LENGTH } from "../rules/content";
 import { DEFAULT_SIMILARITY_THRESHOLD } from "../rules/similarity";
 import { TEAM_KEYS, type ProviderKey, type TeamKey, type TeamSettings } from "../types";
@@ -101,7 +101,7 @@ export async function loadTeamSettings(prisma: PrismaClient, teamKey: TeamKey): 
 }
 
 /** Pause générale (`Setting` `agents.pausedAll` = true). */
-export async function isPausedAll(prisma: PrismaClient): Promise<boolean> {
+export async function isAgentsPausedAll(prisma: PrismaClient): Promise<boolean> {
   const row = await prisma.setting.findUnique({ where: { key: AGENTS_PAUSED_ALL_KEY } });
   return row?.value === true || (row?.value as { paused?: unknown } | null)?.paused === true;
 }

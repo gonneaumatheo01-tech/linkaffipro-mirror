@@ -125,7 +125,7 @@ export function parseMissionFilters(sp: Record<string, unknown>, defaultRange: M
   };
 }
 
-/** Début (UTC) de la période, en jours de Paris ; `null` pour « Tout ». */
+/** Début (UTC) de la période, en jours de Paris ; `null` pour « Tout ». */
 export function rangeStart(range: MissionRange, now: Date): Date | null {
   const today = parisDayKey(now);
   if (range === "today") return parisMidnightUtc(today);
@@ -152,7 +152,7 @@ export function missionsWhere(
 export const STUCK_RUNNING_MS = 15 * 60 * 1000;
 export const STUCK_WAITING_MS = 24 * 3600 * 1000;
 
-/** Missions bloquées (carte « Agents » d'État du système). */
+/** Missions bloquées (carte « Agents » d'État du système). */
 export function stuckMissionsWhere(now: Date): Prisma.AgentMissionWhereInput {
   return {
     OR: [
@@ -196,7 +196,7 @@ export function parseDailyReport(e: { id: string; occurredAt: Date; payload: unk
   };
 }
 
-/** Mois en cours (Europe/Paris) au format de `AgentUsage.month` (« 2026-10 »). */
+/** Mois en cours (Europe/Paris) au format de `AgentUsage.month` (« 2026-10 »). */
 export function currentMonth(now: Date): string {
   return parisDayKey(now).slice(0, 7);
 }

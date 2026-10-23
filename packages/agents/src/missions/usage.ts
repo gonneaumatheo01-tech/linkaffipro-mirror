@@ -1,7 +1,7 @@
 /**
  * Dépense des équipes chez les fournisseurs (`AgentUsage`, une ligne par équipe, fournisseur et mois de Paris).
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 import { parisMonth } from "../rules/time";
 import type { ProviderKey, TeamKey } from "../types";
 

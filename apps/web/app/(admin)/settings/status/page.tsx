@@ -16,6 +16,7 @@ import {
 } from "@/components/settings/bot-connection";
 import { DetailList, DetailRow } from "@/components/admin/detail-list";
 import { HealthTiles } from "@/components/settings/health-tiles";
+import { SystemAgentsCard } from "@/components/agents/system-agents-card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { fmtDate, fmtNum } from "@/lib/format";
@@ -433,6 +434,8 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
             />
           </FormSection>
         </div>
+
+        <SystemAgentsCard now={now} />
 
         <FormSection
           title="Activité des bots (24 h)"

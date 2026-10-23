@@ -28,7 +28,8 @@ export type AlertKind =
   | "linkaffi_events_stuck"
   | "bot_blocked_rate"
   | "assistant_ai_failing"
-  | "assistant_cap_reached";
+  | "assistant_cap_reached"
+  | "agents_team_paused";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -755,6 +756,28 @@ export function detectAssistantCapReached(s: AssistantSpendSnapshot | null): Det
     severity: "WARNING",
     message: `L'assistant de conversation a atteint son plafond de dépense du mois (${eur(s.spentEur)} pour un plafond de ${eur(s.capEur)}) : il ne répond plus jusqu'au 1er du mois prochain. Pour le relancer, augmentez le plafond dans Réglages → IA de conversation.`,
     payload: { spentEur: Math.round(s.spentEur * 100) / 100, capEur: s.capEur },
+  };
+}
+
+// ------------------------------------------------------------------
+// Agents IA (phase 19)
+// ------------------------------------------------------------------
+
+export type AgentTeamSnapshot = { label: string; paused: boolean; consecutiveFailures: number; pausedReason: string | null };
+
+/**
+ * Équipe d'agents mise en pause automatiquement (3 missions échouées de suite). Une pause demandée par l'équipe n'est
+ * pas une alerte. Résolue d'elle-même quand l'équipe reprend.
+ */
+export function detectAgentsTeamPaused(teams: readonly AgentTeamSnapshot[], threshold = 3): Detected | null {
+  const auto = teams.filter((t) => t.paused && t.consecutiveFailures >= threshold);
+  if (!auto.length) return null;
+  const names = auto.map((t) => t.label).join(", ");
+  return {
+    kind: "agents_team_paused",
+    severity: "WARNING",
+    message: `${auto.length > 1 ? "Les équipes d'agents" : "L'équipe d'agents"} ${names} ${auto.length > 1 ? "sont" : "est"} en pause après ${threshold} missions échouées de suite. Regardez le journal dans Agents, puis relancez l'équipe (bouton Reprendre, ou « reprends <équipe> » au bot).`,
+    payload: { teams: auto.map((t) => t.label) },
   };
 }
 

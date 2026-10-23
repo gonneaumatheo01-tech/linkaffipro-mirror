@@ -17,6 +17,8 @@ const WEB = join(__dirname, "..", "..");
 
 const SCOPE = [
   "app/(admin)/stats",
+  "app/(admin)/agents",
+  "components/agents",
   "app/(admin)/settings",
   "app/(admin)/account",
   "app/(admin)/help",

@@ -18,6 +18,13 @@ export const QUEUE_NAMES = [
   "linkaffi-events",
   "landing-events",
   "chat",
+  // Agents IA (phase 19) : le Grand Chef, une file par équipe (nom de la tâche = clé de l'agent), Ads (phase 24).
+  "agents-orchestrator",
+  "agents-dating",
+  "agents-casino",
+  "agents-sports",
+  "agents-algo",
+  "agents-ads",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -125,6 +132,14 @@ export const JOB_RETRY_OPTIONS: Record<
   "landing-events": { attempts: 3, backoff: { type: "exponential", delay: 5000 } },
   // Assistant de conversation (phase 17) : un seul essai ; la reprise passe par le balayage `sweep` (Postgres fait foi).
   chat: { attempts: 1 },
+  // Agents (phase 19) : un seul essai BullMQ ; le moteur réessaie une fois l'étape et le balayage `resume` reprend
+  // toute mission sans activité depuis 15 minutes (la base fait foi, étape idempotente).
+  "agents-orchestrator": { attempts: 1 },
+  "agents-dating": { attempts: 1 },
+  "agents-casino": { attempts: 1 },
+  "agents-sports": { attempts: 1 },
+  "agents-algo": { attempts: 1 },
+  "agents-ads": { attempts: 1 },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -211,6 +226,26 @@ export type ChatJob =
   | { type: "sweep" }
   | { type: "refresh-models" };
 
+/**
+ * File `agents-orchestrator` (phase 19, Grand Chef) : `cycle` (toutes les 30 min et à la demande), `resume` (missions
+ * sans activité, 10 min), `report` (rapport du jour), `human-requests` (demandes au client, 5 min), `validations`
+ * (validations sans réponse). Copie structurelle de `AgentsOrchestratorJob` (`@linkaffipro/agents`).
+ */
+export type AgentsOrchestratorJob =
+  | { type: "cycle"; teamKey?: "dating" | "casino" | "sports" | "algo" }
+  | { type: "resume" }
+  | { type: "report"; force?: boolean }
+  | { type: "human-requests" }
+  | { type: "validations" };
+
+/** Files d'équipe : une étape de mission ; nom de la tâche = clé de l'agent, identifiant `<missionId>:<index>`. */
+export type AgentStepJob = { type: "step"; missionId: string; index: number };
+
+/** File `agents-ads` (phase 24) : vide en phase 19. */
+export type AgentsAdsJob = { type: "tick" };
+
+export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
+
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
   ? TelegramSendJob
   : Q extends "approvals"
@@ -235,4 +270,10 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                       ? LandingEventsJob
                       : Q extends "chat"
                         ? ChatJob
-                        : StatsJob;
+                        : Q extends "agents-orchestrator"
+                          ? AgentsOrchestratorJob
+                          : Q extends AgentTeamQueue
+                            ? AgentStepJob
+                            : Q extends "agents-ads"
+                              ? AgentsAdsJob
+                              : StatsJob;

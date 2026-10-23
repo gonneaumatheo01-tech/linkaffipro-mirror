@@ -1,7 +1,7 @@
 /**
  * Équipes d'agents à l'écran (phase 19, docs/AGENTS-ARCHITECTURE.md) : libellés du client, chaîne de chaque équipe,
  * fournisseurs, niveaux d'autonomie, droits par rôle. Règles pures (testées dans teams.test.ts).
- * « Dating » ne s'affiche jamais : l'univers s'appelle « Rencontres » pour le client (docs/REFONTE-UX.md).
+ * « Dating » ne s'affiche jamais : l'univers s'appelle « Rencontres » pour le client (docs/REFONTE-UX.md).
  */
 import {
   AGENT_LABELS,
@@ -39,7 +39,7 @@ export const TEAM_VERTICAL: Record<TeamKey, "DATING" | "CASINO" | "SPORTS" | nul
   algo: null,
 };
 
-/** Équipes qui ont un bouton « Créer une mission de test » (un post texte sur le canal Test). */
+/** Équipes qui ont un bouton « Créer une mission de test » (un post texte sur le canal Test). */
 export const TEST_MISSION_TEAMS: readonly TeamKey[] = ["dating", "casino"];
 
 /** Chaîne de production de chaque Chef d'équipe, dans l'ordre (tableau du plan validé). */
@@ -110,7 +110,7 @@ export const AUTONOMY_LEVELS: ReadonlyArray<{
 ];
 
 export function parseLevel(v: unknown): AutonomyLevel | null {
-  const n = typeof v === "string" ? Number(v.trim()) : v;
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v.trim()) : v;
   return n === 0 || n === 1 || n === 2 ? n : null;
 }
 

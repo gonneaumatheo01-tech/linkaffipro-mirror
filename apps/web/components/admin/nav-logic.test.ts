@@ -45,8 +45,11 @@ describe("NAV (liste du menu)", () => {
       ["/messages", "Messages"],
       ["/members", "Membres"],
       ["/conversations", "Conversations"],
+      ["/agents", "Agents"],
       ["/stats", "Statistiques"],
     ]);
+    // Phase 19 : « Agents » après « Conversations ».
+    expect(NAV.find((i) => i.key === "agents")).toMatchObject({ href: "/agents", icon: "Bot", section: "main" });
     expect(NAV.find((i) => i.key === "conversations")).toMatchObject({
       href: "/conversations",
       icon: "MessagesSquare",
@@ -92,6 +95,7 @@ describe("NAV (liste du menu)", () => {
       "nav-messages",
       "nav-members",
       "nav-conversations",
+      "nav-agents",
       "nav-stats",
       "nav-settings",
       "nav-accounts",
@@ -124,10 +128,10 @@ describe("navSections (barre de menu de l'ordinateur)", () => {
     expect(navSections(nav, false).bottom.map((i) => i.href)).toEqual(["/settings"]);
   });
 
-  it("menu réel : 8 entrées (6 + Pages + Conversations) + Réglages, pour un administrateur comme pour un manager", () => {
+  it("menu réel : 9 entrées (6 + Pages + Conversations + Agents) + Réglages, pour un administrateur comme pour un manager", () => {
     for (const isAdmin of [true, false]) {
       const s = navSections(NAV, isAdmin);
-      expect(s.main).toHaveLength(8);
+      expect(s.main).toHaveLength(9);
       expect(s.bottom.map((i) => i.href)).toEqual(["/settings", "/settings/accounts"]);
     }
   });
@@ -182,6 +186,12 @@ describe("activeHref", () => {
       ["/conversations/personas/p1", "/conversations"],
       ["/conversations/stats", "/conversations"],
       ["/conversationsx", null],
+      ["/agents", "/agents"],
+      ["/agents/dating", "/agents"],
+      ["/agents/validations", "/agents"],
+      ["/agents/journal", "/agents"],
+      ["/agents/settings", "/agents"],
+      ["/agentsx", null],
       ["/channels/ch1", "/channels"],
       ["/messages/new", "/messages"],
       ["/stats", "/stats"],
@@ -242,7 +252,7 @@ describe("mobileNav", () => {
     expect(more.map((i) => i.href)).toContain("/messages");
   });
 
-  it("menu réel : « Plus » contient Pages, Canaux, Conversations, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
+  it("menu réel : « Plus » contient Pages, Canaux, Conversations, Agents, Statistiques, Réglages, Guide d'utilisation, Mon compte", () => {
     for (const isAdmin of [true, false]) {
       const { primary, more } = mobileNav(NAV, isAdmin);
       expect(primary.map((i) => i.href)).toEqual([...MOBILE_PRIMARY_HREFS]);
@@ -250,6 +260,7 @@ describe("mobileNav", () => {
         "Pages",
         "Canaux",
         "Conversations",
+        "Agents",
         "Statistiques",
         "Réglages",
         "Comptes Telegram",

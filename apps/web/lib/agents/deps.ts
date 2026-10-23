@@ -4,13 +4,14 @@
  * une page qui ne fait que lire n'ouvre aucune connexion Redis.
  */
 import type { AgentsDeps, AgentsEnqueue } from "@linkaffipro/agents";
-import { prisma } from "@linkaffipro/db";
+import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { createAgentsEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "@linkaffipro/telegram";
 
 export function buildAgentsDeps(): AgentsDeps {
   return {
-    prisma,
+    // Le client partagé omet `Channel.photoSmall` : même base, type plus étroit que `PrismaClient` du contrat.
+    prisma: prisma as unknown as PrismaClient,
     now: () => new Date(),
     // Copie structurelle de `AgentsEnqueue` dans `@linkaffipro/queue` (sans dépendance vers les agents).
     enqueue: createAgentsEnqueue() as unknown as AgentsEnqueue,

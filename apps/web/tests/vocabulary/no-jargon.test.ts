@@ -12,7 +12,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { jargonIn, scanSource } from "./jargon-scan";
+import { AGENTS_JARGON, jargonIn, scanSource } from "./jargon-scan";
 
 const WEB = join(__dirname, "..", "..");
 const ROOTS = ["app", "components", "lib"];
@@ -70,6 +70,31 @@ describe("vocabulaire : aucun terme technique en surface", () => {
   it("aucun mot technique dans le texte visible (le terme passe par Term, `term` ou `title`)", () => {
     expect(offenders()).toEqual([]);
   }, 60_000);
+});
+
+/** Rubrique Agents (phase 19) : en plus du jargon commun, aucun terme du moteur (file, service, réglage brut). */
+const AGENTS_ROOTS = ["app/(admin)/agents/", "components/agents/", "lib/agents/"];
+
+describe("vocabulaire de la rubrique Agents", () => {
+  it("contrôle bien les écrans de la rubrique", () => {
+    expect(files.filter((f) => AGENTS_ROOTS.some((r) => f.rel.startsWith(r))).length).toBeGreaterThan(10);
+  });
+
+  it("ni « BullMQ », ni « worker », ni « API », ni « JSON », ni « prompt » en surface", () => {
+    const out: string[] = [];
+    for (const f of files.filter((x) => AGENTS_ROOTS.some((r) => x.rel.startsWith(r))))
+      for (const h of scanSource(readFileSync(f.path, "utf8"), f.rel, { extraRules: AGENTS_JARGON }))
+        out.push(`${f.rel}:${h.line} [${h.words.join(", ")}] ${h.text}`);
+    expect(out).toEqual([]);
+  }, 60_000);
+
+  it("la règle reconnaît les termes du moteur", () => {
+    const w = (src: string) =>
+      scanSource(src, "x.tsx", { extraRules: AGENTS_JARGON }).flatMap((h) => h.words);
+    expect(w(`<p>La file BullMQ du worker</p>`)).toEqual(["BullMQ", "worker"]);
+    expect(w(`<p>Clé API au format JSON</p>`)).toEqual(["API", "JSON"]);
+    expect(w(`<p>Clé du fournisseur</p>`)).toEqual([]);
+  });
 });
 
 /** Raccourci : mots trouvés dans un extrait de TSX. */

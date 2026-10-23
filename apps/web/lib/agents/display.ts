@@ -34,7 +34,7 @@ export function simulationSentence(c: Pick<TeamConfigView, "simulation">): strin
 
 export type SpendView = { text: string; pct: number; tone: "brand" | "warning" | "danger"; capCents: number | null };
 
-/** Dépense du mois face à la somme des plafonds (« 12,30 € sur 50,00 € ») ; sans plafond saisi, la dépense seule. */
+/** Dépense du mois face à la somme des plafonds (« 12,30 € sur 50,00 € ») ; sans plafond saisi, la dépense seule. */
 export function spendView(spentCents: number, budgets: Partial<Record<string, number>>): SpendView {
   const caps = Object.values(budgets).filter((n): n is number => typeof n === "number");
   const capCents = caps.length ? caps.reduce((a, n) => a + n, 0) : null;

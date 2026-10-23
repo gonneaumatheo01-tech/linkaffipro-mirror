@@ -2,7 +2,7 @@
  * Lectures communes des agents (requêtes à plat, sans relation : même code en base réelle et dans le faux client des
  * tests) : canal visé, plan du canal, canal Test, derniers textes du canal, persona.
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 import { parsePayload } from "../missions/mission";
 import { DEFAULT_SLOT_PLAN } from "../rules/slots";
 import type { Mission } from "../types";

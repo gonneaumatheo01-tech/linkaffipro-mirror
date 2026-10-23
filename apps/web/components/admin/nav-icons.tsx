@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BookOpen,
+  Bot,
   House,
   Megaphone,
   MessageSquare,
@@ -21,6 +22,7 @@ import type { NavIcon } from "./nav-logic";
 export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   BarChart3,
   BookOpen,
+  Bot,
   House,
   Megaphone,
   MessageSquare,

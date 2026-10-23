@@ -13,6 +13,12 @@ import { processCustomEmoji, repeatableCustomEmoji } from "./custom-emoji";
 import { processLinkaffiEvents, repeatableLinkaffiEvents } from "./linkaffi-events";
 import { processLandingEvents, repeatableLandingEvents } from "./landing-events";
 import { processChat, repeatableChat } from "./chat";
+import { processAgentsOrchestrator, repeatableAgentsOrchestrator } from "./agents-orchestrator";
+import { processAgentsDating, repeatableAgentsDating } from "./agents-dating";
+import { processAgentsCasino, repeatableAgentsCasino } from "./agents-casino";
+import { processAgentsSports, repeatableAgentsSports } from "./agents-sports";
+import { processAgentsAlgo, repeatableAgentsAlgo } from "./agents-algo";
+import { processAgentsAds, repeatableAgentsAds } from "./agents-ads";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -37,4 +43,12 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   // Assistant de conversation (phase 17) : plusieurs conversations à la fois, une seule tâche à la fois par conversation
   // (déduplication BullMQ + verrou Redis + réclamation des messages en base).
   chat: { process: (job: Job) => processChat(job), repeatable: repeatableChat, concurrency: 8 },
+  // Agents IA (phase 19) : le Grand Chef un passage à la fois ; 2 étapes à la fois par équipe (une mission n'a jamais
+  // deux étapes en file : identifiant <missionId>:<index>).
+  "agents-orchestrator": { process: (job: Job) => processAgentsOrchestrator(job), repeatable: repeatableAgentsOrchestrator, concurrency: 1 },
+  "agents-dating": { process: (job: Job) => processAgentsDating(job), repeatable: repeatableAgentsDating, concurrency: 2 },
+  "agents-casino": { process: (job: Job) => processAgentsCasino(job), repeatable: repeatableAgentsCasino, concurrency: 2 },
+  "agents-sports": { process: (job: Job) => processAgentsSports(job), repeatable: repeatableAgentsSports, concurrency: 2 },
+  "agents-algo": { process: (job: Job) => processAgentsAlgo(job), repeatable: repeatableAgentsAlgo, concurrency: 2 },
+  "agents-ads": { process: (job: Job) => processAgentsAds(job), repeatable: repeatableAgentsAds, concurrency: 1 },
 };

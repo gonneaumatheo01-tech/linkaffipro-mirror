@@ -7,3 +7,5 @@ export { ourAffiliateCampaignIds, ourPlayers } from "./ours";
 export { landingVisitsByLink } from "./landing-visits";
 export type { LandingVisitsRow } from "./landing-visits";
 export * from "@prisma/client";
+export { publishingBotFor, createAgentPost, PostingError } from "./posting";
+export type { PostingDb, AgentPostInput, AgentPostResult } from "./posting";

@@ -14,9 +14,9 @@ import {
 } from "./tour-logic";
 
 describe("étapes de la visite guidée", () => {
-  it("une étape par entrée du menu, dans son ordre (Pages, phase 15, et Conversations, phase 17, comprises), puis le « ? »", () => {
+  it("une étape par entrée du menu, dans son ordre (Pages, phase 15, Conversations, phase 17, et Agents, phase 19, comprises), puis le « ? »", () => {
     expect(TOUR_STEPS.length).toBeGreaterThanOrEqual(5);
-    expect(TOUR_STEPS.length).toBeLessThanOrEqual(9);
+    expect(TOUR_STEPS.length).toBeLessThanOrEqual(10);
     expect(TOUR_STEPS.map((s) => s.key)).toEqual([
       "home",
       "campaigns",
@@ -25,6 +25,7 @@ describe("étapes de la visite guidée", () => {
       "messages",
       "members",
       "conversations",
+      "agents",
       "stats",
       "help",
     ]);
@@ -41,7 +42,7 @@ describe("étapes de la visite guidée", () => {
   });
 
   it("rubriques rangées sous « Plus » sur téléphone : repli sur nav-more avec une phrase", () => {
-    for (const key of ["pages", "channels", "conversations", "stats"]) {
+    for (const key of ["pages", "channels", "conversations", "agents", "stats"]) {
       const step = TOUR_STEPS.find((s) => s.key === key)!;
       expect(step.anchors.at(-1)).toBe("nav-more");
       expect(step.fallbackNote).toMatch(/«\s?Plus\s?»/);

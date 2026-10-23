@@ -57,7 +57,7 @@ export function splitList(raw: string): string[] {
   return out;
 }
 
-/** Heures calmes : une plage « HH:MM-HH:MM » par ligne (Europe/Paris) ; une plage peut passer minuit. */
+/** Heures calmes : une plage « HH:MM-HH:MM » par ligne (Europe/Paris) ; une plage peut passer minuit. */
 export function parseQuietHoursText(raw: string): FormResult<QuietHours[]> {
   const out: QuietHours[] = [];
   for (const line of raw.split("\n")) {
@@ -69,10 +69,10 @@ export function parseQuietHoursText(raw: string): FormResult<QuietHours[]> {
     if (!m || !HHMM.test(start) || !HHMM.test(end))
       return {
         ok: false,
-        error: `Heures calmes : « ${t} » n'est pas une plage valide. Écrivez par exemple 23:00-08:00, une plage par ligne.`,
+        error: `Heures calmes : « ${t} » n'est pas une plage valide. Écrivez par exemple 23:00-08:00, une plage par ligne.`,
       };
     if (start === end)
-      return { ok: false, error: `Heures calmes : la plage « ${t} » commence et finit à la même heure.` };
+      return { ok: false, error: `Heures calmes : la plage « ${t} » commence et finit à la même heure.` };
     out.push({ start, end });
   }
   if (out.length > 6) return { ok: false, error: "Heures calmes : 6 plages au plus." };
@@ -90,8 +90,8 @@ export function parseBudgetFields(
     const n = num(str(fd, `budget_${p}`));
     if (n === undefined) continue;
     if (Number.isNaN(n) || n < 0)
-      return { ok: false, error: `Plafond « ${labels[p]} » : saisissez un montant en euros (0 ou plus).` };
-    if (n > 100_000) return { ok: false, error: `Plafond « ${labels[p]} » : 100 000 € au plus.` };
+      return { ok: false, error: `Plafond « ${labels[p]} » : saisissez un montant en euros (0 ou plus).` };
+    if (n > 100_000) return { ok: false, error: `Plafond « ${labels[p]} » : 100 000 € au plus.` };
     out[p] = Math.round(n * 100);
   }
   return { ok: true, data: out };
@@ -105,7 +105,7 @@ export type TeamSettingsInput = {
   budgets: Partial<Record<ProviderKey, number>>;
 };
 
-/** Réglages d'une équipe (fiche d'équipe, bloc « Réglages de l'équipe »). */
+/** Réglages d'une équipe (fiche d'équipe, bloc « Réglages de l'équipe »). */
 export function parseTeamSettingsForm(
   fd: FormData,
   providers: readonly ProviderKey[],
@@ -159,7 +159,7 @@ function minutesOf(hhmm: string): number {
   return h! * 60 + m!;
 }
 
-/** Plan d'un canal (fiche d'équipe, bloc « Plan par canal »). */
+/** Plan d'un canal (fiche d'équipe, bloc « Plan par canal »). */
 export function parseChannelPlanForm(fd: FormData): FormResult<ChannelPlanInput> {
   const channelId = str(fd, "channelId").trim();
   if (!channelId) return { ok: false, error: "Canal inconnu : rechargez la page." };
@@ -181,7 +181,7 @@ export function parseChannelPlanForm(fd: FormData): FormResult<ChannelPlanInput>
   ] as const) {
     const raw = str(fd, `mix_${k}`).trim();
     if (!raw) continue;
-    const part = intField(fd, `mix_${k}`, `Part « ${label} »`, { min: 0, max: 100 });
+    const part = intField(fd, `mix_${k}`, `Part « ${label} »`, { min: 0, max: 100 });
     if (!part.ok) return part;
     mix[k] = part.value;
   }

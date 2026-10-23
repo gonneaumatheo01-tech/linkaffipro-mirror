@@ -1,0 +1,45 @@
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../agents/deps", () => ({ workerAgentsDeps: () => ({}) }));
+vi.mock("@linkaffipro/agents", () => ({
+  runNextStep: vi.fn(async () => "next"),
+  runCycle: vi.fn(async () => ({ plan: { created: 0 } })),
+  resumeMissions: vi.fn(async () => ({ requeued: 0 })),
+  sweepHumanRequests: vi.fn(async () => ({ sent: 0 })),
+  sweepValidations: vi.fn(async () => ({ reminded: 0 })),
+  sendDailyReport: vi.fn(async () => ({ sent: false })),
+}));
+
+import * as agents from "@linkaffipro/agents";
+import { PROCESSORS } from "./index";
+import { repeatableAgentsOrchestrator } from "./agents-orchestrator";
+
+const job = (data: unknown, name = "x") => ({ id: "j", name, data }) as never;
+
+describe("processeurs des agents (phase 19)", () => {
+  it("files enregistrées, concurrence 2 par équipe", () => {
+    for (const q of ["agents-dating", "agents-casino", "agents-sports", "agents-algo"] as const) expect(PROCESSORS[q].concurrency).toBe(2);
+    expect(PROCESSORS["agents-orchestrator"].concurrency).toBe(1);
+  });
+  it("Grand Chef : cycle 30 min, resume 10 min, demandes 5 min", () => {
+    const every = Object.fromEntries(repeatableAgentsOrchestrator.map((r) => [r.data.type, r.everyMs]));
+    expect(every).toMatchObject({ cycle: 1_800_000, resume: 600_000, "human-requests": 300_000 });
+  });
+  it("étape : runNextStep(missionId, index) ; type inconnu → { ok: false }", async () => {
+    expect(await PROCESSORS["agents-dating"].process(job({ type: "step", missionId: "m", index: 1 }, "redaction"))).toEqual({ ok: true, outcome: "next" });
+    expect(agents.runNextStep).toHaveBeenCalledWith({}, "m", 1);
+    expect(await PROCESSORS["agents-casino"].process(job({ type: "autre" }))).toMatchObject({ ok: false });
+    expect(await PROCESSORS["agents-ads"].process(job({ type: "tick" }))).toMatchObject({ ok: false });
+    expect(await PROCESSORS["agents-orchestrator"].process(job({ type: "inconnu" }))).toMatchObject({ ok: false });
+  });
+  it("orchestrateur : chaque type appelle sa fonction", async () => {
+    await PROCESSORS["agents-orchestrator"].process(job({ type: "cycle", teamKey: "dating" }));
+    expect(agents.runCycle).toHaveBeenCalledWith({}, { teamKey: "dating" });
+    await PROCESSORS["agents-orchestrator"].process(job({ type: "report", force: true }));
+    expect(agents.sendDailyReport).toHaveBeenCalledWith({}, { force: true });
+    for (const t of ["resume", "human-requests", "validations"]) await PROCESSORS["agents-orchestrator"].process(job({ type: t }));
+    expect(agents.resumeMissions).toHaveBeenCalled();
+    expect(agents.sweepHumanRequests).toHaveBeenCalled();
+    expect(agents.sweepValidations).toHaveBeenCalled();
+  });
+});

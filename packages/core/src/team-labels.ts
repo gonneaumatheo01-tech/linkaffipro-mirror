@@ -28,6 +28,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   bot_blocked_rate: "Personnes qui bloquent le bot après l'accueil",
   assistant_ai_failing: "Assistant de conversation en panne",
   assistant_cap_reached: "Plafond de l'assistant de conversation atteint",
+  agents_team_paused: "Équipe d'agents mise en pause",
 };
 
 export function alertKindLabel(kind: string): string {

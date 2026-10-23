@@ -119,6 +119,13 @@ const ACTION_LABELS: Array<[RegExp, string]> = [
   [/^conversation\.blocked$/, "Conversation bloquée"],
   [/^conversation\.closed$/, "Conversation fermée"],
   [/^conversation\./, "Conversation"],
+  // Agents (phase 19) : réglages d'équipe, plans des canaux, validations, demandes, clés (jamais la valeur).
+  [/^agents\.team_settings_saved$/, "Agents : réglages d'une équipe enregistrés"],
+  [/^agents\.channel_plan_saved$/, "Agents : plan d'un canal enregistré"],
+  [/^agents\.budgets_saved$/, "Agents : plafonds d'une équipe enregistrés"],
+  [/^agents\.models_saved$/, "Agents : modèles d'IA changés"],
+  [/^agents\.library_channel_set$/, "Agents : canal Médiathèque changé"],
+  [/^agents\./, "Agents"],
   [/^settings\./, "Réglage"],
   [/^alert\./, "Alerte"],
   [/^maintenance\./, "Maintenance"],
@@ -162,6 +169,8 @@ export const ACTION_FAMILIES: ReadonlyArray<{
     label: "Adhésions et règles d'adhésion",
     prefixes: ["membership.", "approval_rule."],
   },
+  // Phase 19 : réglages des agents, validations, demandes et clés (jamais la valeur).
+  { value: "agents.", label: "Agents", prefixes: ["agents."] },
   // Phase 17 : réglages de l'IA de conversation, personas et actions de l'équipe dans les conversations.
   {
     value: "assistant.",

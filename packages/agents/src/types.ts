@@ -3,7 +3,10 @@
  * Le Grand Chef et les Chefs sont de la logique programmée ; seuls certains agents appellent une IA, toujours par
  * `ctx.providers` (faux fournisseurs en test et en simulation).
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db } from "@linkaffipro/db";
+
+/** Client Prisma des agents : le client partagé de `@linkaffipro/db` (colonnes omises par défaut comprises). */
+export type AgentsPrisma = Db;
 
 export const TEAM_KEYS = ["dating", "casino", "sports", "algo"] as const;
 export type TeamKey = (typeof TEAM_KEYS)[number];
@@ -190,7 +193,7 @@ export type Logger = {
 
 /** Dépendances communes des services (site, worker, bot) : base, horloge, files, messager admin. */
 export type AgentsDeps = {
-  prisma: PrismaClient;
+  prisma: AgentsPrisma;
   now?: () => Date;
   enqueue: AgentsEnqueue;
   admin?: AdminMessenger;

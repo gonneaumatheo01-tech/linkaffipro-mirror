@@ -4,7 +4,7 @@
  * Rangement : `Setting` `agents.secret.<clé>` = `{ enc, last4, updatedAt }` (`enc` = `encrypt()` de core).
  */
 import { decrypt, encrypt } from "@linkaffipro/core";
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf } from "../admin/journal";

@@ -28,6 +28,10 @@ export type PurgeResult = {
    * anonymisés, ou plus anciennes que la durée de conservation (phase 17).
    */
   assistantTextsCleared: number;
+  /** Missions d'agents terminées plus anciennes que la durée de conservation (passages et validations avec, phase 19). */
+  agentMissionsDeleted: number;
+  /** Passages d'agents plus anciens que la durée de conservation (missions encore gardées, phase 19). */
+  agentRunsDeleted: number;
 };
 
 /**
@@ -173,6 +177,12 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const assistantTexts = {
     count: sentTexts.count + staleQueued.count + staleQueuedAnonymized.count,
   };
+  // Agents (phase 19) : missions terminées de plus de N mois (passages et validations supprimés en cascade), puis
+  // passages restants de plus de N mois.
+  const agentMissions = await prisma.agentMission.deleteMany({
+    where: { createdAt: { lt: cutoff }, status: { in: ["DONE", "FAILED", "CANCELLED", "BLOCKED_BUDGET"] } },
+  });
+  const agentRuns = await prisma.agentRun.deleteMany({ where: { startedAt: { lt: cutoff } } });
   const result: PurgeResult = {
     months,
     cutoff,
@@ -184,6 +194,8 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     conversationsDeleted: conversations.count,
     conversationMessagesDeleted: conversationMessages.count,
     assistantTextsCleared: assistantTexts.count,
+    agentMissionsDeleted: agentMissions.count,
+    agentRunsDeleted: agentRuns.count,
   };
   await audit({
     action: "maintenance.purge",
@@ -198,6 +210,8 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
       conversationsDeleted: conversations.count,
       conversationMessagesDeleted: conversationMessages.count,
       assistantTextsCleared: assistantTexts.count,
+      agentMissionsDeleted: agentMissions.count,
+      agentRunsDeleted: agentRuns.count,
     },
   });
   logger.info(result, "purge de rétention effectuée");

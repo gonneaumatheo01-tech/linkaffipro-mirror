@@ -1,8 +1,8 @@
 /**
  * Clés des fournisseurs à l'écran (`/agents/settings`) : nom affiché, usage, adresse où la créer. La valeur n'est
- * jamais relue par le site : seulement « enregistrée, se termine par …ab12 » (`secretSummary` de `@linkaffipro/agents`).
+ * jamais relue par le site : seulement « enregistrée, se termine par …ab12 » (`secretSummary` de `@linkaffipro/agents`).
  */
-import { prisma } from "@linkaffipro/db";
+import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { SECRET_KEYS, secretSummary, type SecretSummary } from "@linkaffipro/agents";
 
 export type SecretInfo = { label: string; usage: string; createUrl: string | null };
@@ -41,7 +41,7 @@ export async function loadSecretRows(): Promise<SecretRow[]> {
     SECRET_KEYS.map(async (key) => ({
       key,
       info: secretInfo(key),
-      summary: await secretSummary(prisma, key).catch((err: unknown) => {
+      summary: await secretSummary(prisma as unknown as PrismaClient, key).catch((err: unknown) => {
         console.error("[agents] résumé de clé", key, err instanceof Error ? err.message : err);
         return null;
       }),

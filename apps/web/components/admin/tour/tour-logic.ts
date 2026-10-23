@@ -3,10 +3,10 @@
  * navigation au clavier et placement de la bulle. Composant : `guided-tour.tsx`.
  *
  * Les repères sont les attributs `data-tour` posés sur les entrées du menu (`nav-<clé>`, voir `navTourId` dans
- * nav-logic.ts), sur « Plus » de la barre du téléphone (`nav-more`) et sur le bouton « ? » de l'en-tête (`help`).
+ * nav-logic.ts), sur « Plus » de la barre du téléphone (`nav-more`) et sur le bouton « ? » de l'en-tête (`help`).
  * Une entrée existe deux fois (barre de menu de l'ordinateur et barre du bas du téléphone, l'une cachée) : on prend
- * la première visible. Sur téléphone, Pages, Canaux, Conversations et Statistiques sont rangés sous « Plus » : la bulle
- * montre « Plus ».
+ * la première visible. Sur téléphone, Pages, Canaux, Conversations, Agents et Statistiques sont rangés sous « Plus » : la bulle
+ * montre « Plus ».
  */
 
 export type TourStep = {
@@ -15,7 +15,7 @@ export type TourStep = {
   anchors: readonly string[];
   title: string;
   body: string;
-  /** Phrase ajoutée quand le repère trouvé n'est pas le premier (rubrique rangée sous « Plus » sur téléphone). */
+  /** Phrase ajoutée quand le repère trouvé n'est pas le premier (rubrique rangée sous « Plus » sur téléphone). */
   fallbackNote?: string;
 };
 
@@ -44,7 +44,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchors: ["nav-channels", "nav-more"],
     title: "Canaux",
     body: "Vos canaux Telegram : qui peut entrer, quand, et ce que le bot dit aux nouveaux membres.",
-    fallbackNote: "Sur téléphone, vous le trouvez sous « Plus ».",
+    fallbackNote: "Sur téléphone, vous le trouvez sous « Plus ».",
   },
   {
     key: "messages",
@@ -63,14 +63,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchors: ["nav-conversations", "nav-more"],
     title: "Conversations",
     body: "L'assistante répond, sur son propre bot, aux personnes qui lui écrivent ; vous lisez chaque échange et pouvez reprendre la main.",
-    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
+    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
+  },
+  {
+    key: "agents",
+    anchors: ["nav-agents", "nav-more"],
+    title: "Agents",
+    body: "Les équipes d'agents préparent et publient les posts de vos canaux ; vous validez ce qu'elles vous montrent.",
+    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
   },
   {
     key: "stats",
     anchors: ["nav-stats", "nav-more"],
     title: "Statistiques",
     body: "Le détail des chiffres : pubs, parcours des membres, canaux et membres dans le temps.",
-    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
+    fallbackNote: "Sur téléphone, vous les trouvez sous « Plus ».",
   },
   {
     key: "help",
@@ -94,7 +101,7 @@ export function pickAnchor(
   return i < 0 ? null : { anchor: anchors[i]!, fallback: i > 0 };
 }
 
-/** « Étape 2 sur 7 ». */
+/** « Étape 2 sur 7 ». */
 export function stepLabel(index: number, total: number): string {
   return `Étape ${index + 1} sur ${total}`;
 }
@@ -162,9 +169,9 @@ export function spotlightRect(
  * Position de la bulle (coin haut gauche, en pixels de la fenêtre) :
  * - sans repère : au centre ;
  * - téléphone : pleine largeur (marges de 12 px), au-dessus du repère s'il est dans la moitié basse (barre du bas),
- *   sinon en dessous (bouton « ? » de l'en-tête) ;
+ *   sinon en dessous (bouton « ? » de l'en-tête) ;
  * - ordinateur : à droite du repère (barre de menu à gauche), sinon en dessous, au-dessus, à gauche ; un repère dans
- *   la moitié droite de l'écran (bouton « ? ») prend la bulle en dessous d'abord ; toujours gardée dans l'écran.
+ *   la moitié droite de l'écran (bouton « ? ») prend la bulle en dessous d'abord ; toujours gardée dans l'écran.
  */
 export function placeBubble(
   anchor: Rect | null,
@@ -215,7 +222,7 @@ export function placeBubble(
     left: clamp(anchor.left + anchor.width - bubble.width, MARGIN, maxLeft),
     placement: "top" as const,
   };
-  // Repère dans la moitié droite (bouton « ? » de l'en-tête) : en dessous d'abord, sans masquer le menu du compte.
+  // Repère dans la moitié droite (bouton « ? » de l'en-tête) : en dessous d'abord, sans masquer le menu du compte.
   const order = centerX > viewport.width / 2 ? [below, above, right] : [right, below, above];
   const chosen = order.find((o) => o.fits);
   if (chosen) return { top: chosen.top, left: chosen.left, placement: chosen.placement };

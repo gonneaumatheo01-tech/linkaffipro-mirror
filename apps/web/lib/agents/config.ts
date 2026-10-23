@@ -116,12 +116,12 @@ export function teamConfigView(teamKey: TeamKey, row: TeamConfigRow | null): Tea
   };
 }
 
-/** Heures calmes en texte de formulaire : une plage par ligne (« 23:00-08:00 »). */
+/** Heures calmes en texte de formulaire : une plage par ligne (« 23:00-08:00 »). */
 export function quietHoursText(q: readonly QuietHours[]): string {
   return q.map((h) => `${h.start}-${h.end}`).join("\n");
 }
 
-/** Centimes → euros pour un champ de formulaire (« 12,5 ») ; vide si aucun plafond. */
+/** Centimes → euros pour un champ de formulaire (« 12,5 ») ; vide si aucun plafond. */
 export function centsToEurField(cents: number | undefined): string {
   return cents === undefined ? "" : String(cents / 100).replace(".", ",");
 }

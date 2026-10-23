@@ -27,6 +27,7 @@ import {
   alertToReopen,
   detectAssistantAiFailing,
   detectAssistantCapReached,
+  detectAgentsTeamPaused,
   detectBackupFailed,
   detectBotWebhook,
   detectConnectorReconnect,
@@ -59,6 +60,7 @@ import {
   type SpendSnapshot,
 } from "./alert-rules";
 import { syncBotBlockedRateAlerts } from "./blocked-rate";
+import { TEAM_LABELS, type TeamKey } from "@linkaffipro/agents";
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -485,6 +487,19 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     [
       "assistant_cap_reached",
       async () => detectAssistantCapReached(await assistantSpendSnapshot(now)),
+    ],
+    // Agents IA (phase 19) : équipe mise en pause après 3 missions échouées de suite.
+    [
+      "agents_team_paused",
+      async () =>
+        detectAgentsTeamPaused(
+          (
+            await prisma.agentTeamConfig.findMany({
+              where: { paused: true },
+              select: { teamKey: true, paused: true, consecutiveFailures: true, pausedReason: true },
+            })
+          ).map((t) => ({ ...t, label: TEAM_LABELS[t.teamKey as TeamKey] ?? t.teamKey })),
+        ),
     ],
     [
       "connector_reconnect",

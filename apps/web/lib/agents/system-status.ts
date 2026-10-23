@@ -1,5 +1,5 @@
 /**
- * Carte « Agents » de Réglages → État du système : files des agents, dernier passage du Grand Chef (`Event`
+ * Carte « Agents » de Réglages → État du système : files des agents, dernier passage du Grand Chef (`Event`
  * `agents.cycle`), missions bloquées. Chaque bloc tolère une panne (message plutôt qu'erreur de page).
  */
 import { prisma } from "@linkaffipro/db";

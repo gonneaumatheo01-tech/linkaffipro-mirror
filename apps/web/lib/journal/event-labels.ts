@@ -95,6 +95,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   "conversation.converted": "Conversation : inscription obtenue",
   "conversation.reopened": "Conversation reprise : la personne a réécrit après avoir bloqué le bot",
   "conversation.stopped_reply": "Rappel envoyé : la personne avait demandé l'arrêt",
+  // Agents (phase 19) : passages du Grand Chef et rapports ; les autres `agents.*` ont le libellé de la famille.
+  "agents.cycle": "Agents : passage du Grand Chef",
+  "agents.report.daily": "Agents : rapport du matin",
 };
 
 /** Mises à jour Telegram reçues par les bots (`telegram.<type>`). */
@@ -189,6 +192,7 @@ export function eventLabel(type: string, payload?: unknown): string {
   if (type.startsWith("custom_emoji.")) return "Emojis animés";
   if (type.startsWith("linkaffi_event.")) return "Événement pour Link Affi";
   if (type.startsWith("conversation.")) return "Assistant de conversation";
+  if (type.startsWith("agents.")) return "Agents";
   return "Autre événement";
 }
 
@@ -212,4 +216,5 @@ export const EVENT_FAMILIES: Array<{ prefix: string; label: string }> = [
   { prefix: "ads.", label: "Campagnes pub (synchro)" },
   { prefix: "linkaffi_event.", label: "Événements envoyés à Link Affi" },
   { prefix: "conversation.", label: "Assistant de conversation" },
+  { prefix: "agents.", label: "Agents" },
 ];

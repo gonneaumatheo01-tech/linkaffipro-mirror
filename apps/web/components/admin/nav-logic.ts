@@ -11,11 +11,12 @@
  * ordinateur, ils sont dans l'en-tête (bouton « ? » et menu du compte).
  * Les rubriques rangées sous une entrée l'allument : /members/broadcasts et /members/automations → Membres,
  * /campaigns/links → Campagnes, /conversations/personas et /conversations/stats → Conversations, /settings/bots et
- * /settings/journal → Réglages (voir `activeHref`).
+ * /settings/journal → Réglages, /agents/<équipe>, /agents/validations… → Agents (voir `activeHref`).
  */
 
 export type NavIcon =
   | "BarChart3"
+  | "Bot"
   | "BookOpen"
   | "House"
   | "Megaphone"
@@ -63,6 +64,8 @@ export const NAV: NavItem[] = [
     icon: "MessagesSquare",
     section: "main",
   },
+  // Phase 19 : agents IA (Grand Chef, équipes, validations, journal ; sur téléphone, dans « Plus »).
+  { key: "agents", href: "/agents", label: "Agents", icon: "Bot", section: "main" },
   { key: "stats", href: "/stats", label: "Statistiques", icon: "BarChart3", section: "main" },
   { key: "settings", href: "/settings", label: "Réglages", icon: "Settings", section: "bottom" },
   // Phase 18 : comptes Telegram reels (userbot) — ajout, connexion, rattachement bot + persona.

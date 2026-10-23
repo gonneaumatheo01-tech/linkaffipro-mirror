@@ -35,7 +35,7 @@ export function PauseButton({ team, config, from }: { team: TeamKey; config: Tea
           className="max-md:h-10"
           confirmTitle={`Mettre l'équipe ${TEAM_NAMES[team]} en pause ?`}
           confirmLabel="Mettre en pause"
-          message="L'équipe ne crée plus aucune mission et celles en cours attendent, jusqu'à ce que vous cliquiez sur « Reprendre »."
+          message="L'équipe ne crée plus aucune mission et celles en cours attendent, jusqu'à ce que vous cliquiez sur « Reprendre »."
         >
           Pause
         </ConfirmSubmit>

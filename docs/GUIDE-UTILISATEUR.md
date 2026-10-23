@@ -18,9 +18,11 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Fiche d'une équipe](#fiche-d-une-equipe), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
+- [Une persona « fille » (compte Telegram réel)](#une-persona-fille-compte-telegram-reel)
 - [Aide « ? » et visite guidée](#aide-et-visite-guidee)
 - [Mon compte](#mon-compte)
 - [Où sont passées les anciennes pages ?](#ou-sont-passees-les-anciennes-pages)
@@ -870,6 +872,67 @@ Choisissez la période en haut (le même sélecteur que les [Statistiques](#peri
 
 **Exporter** télécharge les chiffres de la période : le total, une ligne par persona et une ligne par source.
 
+## Agents
+
+**À quoi ça sert.** Faire préparer et publier les posts de vos canaux par une équipe d'agents, sous votre contrôle. Le **Grand Chef** répartit chaque jour le travail entre quatre équipes : **Rencontres**, **Casino**, **Paris sportifs** et **Algorithme** (qui ne publie rien : elle mesure ce qui marche et règle les trois autres). Chaque équipe a son **Chef d'équipe**, qui fait passer chaque **mission** (un post à produire) d'un agent à l'autre : **Médiathèque** (choisit le média), **Rédaction** (écrit le texte), **Planification** (choisit l'heure), **Contrôle qualité** (vérifie tout), puis **Publication** (programme le message, qui part comme vos autres messages). Le Grand Chef et les Chefs d'équipe suivent des règles écrites à l'avance : l'IA ne sert qu'à écrire et à juger un texte. Quatre onglets en haut : **Tableau de bord**, **Validations**, **Journal** et, pour les administrateurs, **Réglages**.
+
+**Ce qui protège vos canaux**, quels que soient les réglages :
+
+- **Simulation** (active au départ pour chaque équipe) : tout part sur le canal Test, avec en tête du texte le nom du vrai canal visé. Rien ne part sur un vrai canal tant qu'un administrateur n'a pas choisi **Publier sur les vrais canaux**.
+- **Pause** : une équipe en pause ne crée ni ne poursuit aucune mission. Une équipe se met aussi en pause toute seule après 3 missions échouées de suite, et vous êtes prévenu sur Telegram.
+- **Plafonds du mois** : une mission qui dépasserait le plafond est refusée (statut **Plafond atteint**) ; vous êtes prévenu à 80 % et à 100 %.
+- **Règles de contenu vérifiées avant chaque post** : jamais de mention d'IA, aucun lien autre que vos liens suivis, longueur maximale, mots interdits.
+
+### Tableau de bord du Grand Chef
+
+Une carte par équipe : son état (**Active**, **En pause** ou **Pause générale**, **Simulation** ou **Vrais canaux**, niveau 0, 1 ou 2), les **Missions du jour**, celles **En attente** de vous, les **Publiées aujourd'hui** et **Refusées aujourd'hui**, et la dépense du mois face au plafond. Trois boutons : **Ouvrir l'équipe**, **Pause** (ou **Reprendre**) et, pour Rencontres et Casino, **Créer une mission de test**.
+
+**Créer une mission de test** : un post texte part sur le canal Test, en simulation. Son aperçu arrive sur Telegram et dans **Validations** ; après **Publier**, le message part sur le canal Test. C'est le test à faire en premier.
+
+En bas, **Rapports du matin** : les trois derniers rapports envoyés chaque jour à 9 h sur Telegram (une ligne par équipe : publié, en attente, refusé, dépense du mois).
+
+### Fiche d'une équipe
+
+Cliquez sur **Ouvrir l'équipe**. La fiche se lit de haut en bas :
+
+- **Pilotage** : où partent les posts (simulation ou vrais canaux) et le niveau d'autonomie (voir [Simulation, niveaux et pause](#simulation-niveaux-et-pause)).
+- **Réglages de l'équipe** : les **Consignes de style** lues par la Rédaction (« phrases très courtes, tutoiement… »), les **Mots interdits** (un par ligne), les **Heures calmes** (une plage par ligne, par exemple 23:00-08:00, heure de Paris) et la **Longueur maximale d'un post** (900 caractères conseillés). Puis les **Plafonds du mois** de l'équipe, en euros, avec ce qui est déjà dépensé. Cliquez sur **Enregistrer** : le Grand Chef les applique à son prochain passage (toutes les 30 minutes).
+- **Plan par canal** : un bloc par canal de l'univers (le canal Test en premier). Cochez **Les agents publient sur ce canal**, puis réglez les **Posts par jour**, la fenêtre (**Début** et **Fin**, heure de Paris), l'**Espacement minimal** entre deux posts, le **Mélange** (parts de vidéo, photo et texte), la **Persona** dont le canal reprend la façon de parler, la **Campagne du bouton Offre** et, si vous le souhaitez, des **Thèmes**. Cliquez sur **Enregistrer le plan**. Si tous les posts du jour ne tiennent pas dans la fenêtre avec cet espacement, la fiche vous le dit.
+- **Agents de l'équipe** : chaque agent, dans l'ordre de la chaîne, avec ses trois derniers passages. Ceux qui arrivent plus tard sont marqués **Arrive dans une prochaine étape**.
+- **Missions** : filtrez par **Statut** et **Période**, puis cliquez sur une ligne pour voir la mission **Étape par étape** (ce que chaque agent a fait, son coût, une erreur éventuelle) et, une fois programmé, **Ouvrir le message**.
+
+Changer un réglage ou un plan ne fait jamais travailler l'IA : c'est seulement lu au prochain passage du Grand Chef.
+
+### Simulation, niveaux et pause
+
+**Niveaux d'autonomie**, par équipe :
+
+- **Niveau 0 : je valide tout** : chaque post vous est montré avant de partir (réglage de départ).
+- **Niveau 1 : je valide les nouveautés** : seules les nouveautés vous sont montrées (premier post d'un canal, nouvelle persona, nouveau thème, doute du Contrôle qualité).
+- **Niveau 2 : autonomie totale** : rien à valider, vous recevez le rapport du matin.
+
+Cliquez sur **Choisir** à côté du niveau voulu. Le niveau 2 et **Publier sur les vrais canaux** sont réservés aux administrateurs et demandent une confirmation. **Revenir en simulation** et **Pause** sont ouverts à toute l'équipe. Les mêmes gestes existent sur Telegram : « pause rencontres », « reprends tout », « niveau casino 1 »…
+
+### Validations et demandes
+
+Deux onglets :
+
+- **Posts à valider** : chaque post qui attend votre accord, avec son numéro, l'équipe, le canal visé, **Pourquoi on vous le montre**, le média et l'aperçu tel qu'il paraîtra. **✅ Publier** le laisse partir ; **✏️ Corriger le texte** ouvre l'éditeur (le texte corrigé repasse par le Contrôle qualité) ; **❌ Refuser** annule la mission (motif facultatif, noté pour que l'équipe apprenne). Le même aperçu arrive sur Telegram avec les mêmes boutons : la première réponse compte. Sans réponse depuis 24 heures, la mission est reportée au lendemain avec un rappel ; après 72 heures, elle est annulée.
+- **Demandes** : les questions que le bot vous pose sur Telegram (une clé, un choix, des médias, un oui ou non). Une seule question est posée à la fois ; les autres sont **En file**. Répondez ici avec **Répondre**, ou cliquez sur **Plus tard** pour passer à la suivante. Une demande passée ou **Expirée** (après 7 jours) se relance avec **Relancer**. Une clé collée ici est enregistrée chiffrée et n'est jamais réaffichée. Les médias se déposent en les envoyant au bot sur Telegram avec les mots-clés demandés.
+
+### Journal des agents
+
+Tout ce que les agents ont fait. Onglet **Missions** : chaque mission, avec son détail étape par étape. Onglet **Passages des agents** : chaque passage d'un agent, avec son résultat en une ligne et son coût. Filtres **Équipe**, **Statut** et **Période**, puis **Filtrer**. **Exporter** télécharge la liste filtrée (fichier CSV, sans le texte des posts). Les événements bruts des agents sont aussi dans [Réglages → Journal](#reglages-journal), type **Agents**.
+
+### Réglages des agents
+
+Administrateurs seulement :
+
+- **Pause générale** : **Tout mettre en pause** arrête toutes les équipes d'un coup ; **Tout reprendre** les relance.
+- **Clés des fournisseurs** (fal.ai, Magic Hour, cotes sportives) : collez la clé puis cliquez sur **Enregistrer** ; elle est chiffrée et seuls ses 4 derniers caractères s'affichent. **Vérifier** la teste quand c'est possible ; **Retirer la clé** l'efface. Le bot vous demande lui-même chaque clé sur Telegram au moment voulu : cette page sert de secours.
+- **Modèles d'IA et médiathèque** : l'**IA rapide** (contrôles) et l'**IA d'écriture** (Rédaction), avec la clé de [Réglages → IA](#reglages-ia) ; le **Canal Médiathèque** (facultatif), un canal privé où le bot recopie chaque média rangé.
+- **Plafonds du mois par équipe**, en euros ; puis **Enregistrer les plafonds**.
+
 ## Statistiques
 
 **À quoi ça sert.** Le détail des chiffres. Cinq pages, en onglets sous le titre (sur téléphone, une rangée à faire glisser de côté) : **Vue d'ensemble**, **Pubs**, **Parcours**, **Canaux** et **Membres dans le temps**. Les graphiques viennent avant les tableaux ; les tableaux ont peu de colonnes : cliquez sur une ligne pour tous ses chiffres.
@@ -1136,6 +1199,18 @@ Cette sauvegarde protège contre une erreur humaine ou une corruption, pas contr
 - **Déconnecter** révoque la session chez Telegram : pour revenir, il faut renvoyer un code.
 - La connexion permanente (le compte reste en ligne seul) arrive à l'étape suivante du chantier.
 
+## Une persona « fille » (compte Telegram réel)
+
+Dans Conversations → Personas, « Qui est-elle ? » permet de choisir :
+
+- **l'assistante du canal** : un bot, qui dit franchement qu'elle est une IA si on lui demande ;
+- **une fille** : un compte Telegram réel, avec un âge (obligatoire) et des exemples de style. Elle écrit comme
+  une fille de son âge et **ne se démasque jamais** : si on lui demande si c'est un bot, elle répond que non,
+  même si la personne insiste.
+
+Pour une fille, le bloc « Profil du bot » est sans objet (un compte réel n'a pas de description de bot). Si vous
+en écrivez une, elle ne doit pas parler de machine : ni « assistante », ni « IA », ni « bot ».
+
 ## Aide « ? » et visite guidée
 
 **Le bouton ?** (en haut à droite de chaque page) ouvre, dans un volet, l'aide de la page où vous êtes : les passages de ce guide qui en parlent. En bas du volet, **Ouvrir le guide complet** mène à la bonne section de la page **Aide**, et **Revoir la visite guidée** relance la visite. Sur téléphone, toucher le **?** ou un mot souligné en pointillé affiche l'explication ; toucher ailleurs la referme.
@@ -1223,15 +1298,3 @@ D'autres mots du site :
 - **Demande d'adhésion** : la personne a cliqué sur « Rejoindre » mais attend d'être acceptée selon la règle du canal.
 - **Test A/B** : deux versions d'un même message, réparties au hasard, pour voir laquelle fait le plus cliquer.
 - **Anonymisation** : effacement de l'identité d'un membre en gardant ses chiffres sans nom.
-
-## Une persona « fille » (compte Telegram réel)
-
-Dans Conversations → Personas, « Qui est-elle ? » permet de choisir :
-
-- **l'assistante du canal** : un bot, qui dit franchement qu'elle est une IA si on lui demande ;
-- **une fille** : un compte Telegram réel, avec un âge (obligatoire) et des exemples de style. Elle écrit comme
-  une fille de son âge et **ne se démasque jamais** : si on lui demande si c'est un bot, elle répond que non,
-  même si la personne insiste.
-
-Pour une fille, le bloc « Profil du bot » est sans objet (un compte réel n'a pas de description de bot). Si vous
-en écrivez une, elle ne doit pas parler de machine : ni « assistante », ni « IA », ni « bot ».

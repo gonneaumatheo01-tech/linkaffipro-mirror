@@ -49,7 +49,7 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
       <PageHeader
         title="Agents"
         description="Le Grand Chef répartit chaque jour le travail entre quatre équipes d'agents ; chaque Chef d'équipe fait passer ses missions d'un agent à l'autre jusqu'à la publication."
-        help="Pour essayer : « Créer une mission de test » sur l'équipe Rencontres. L'aperçu arrive sur Telegram et dans Validations ; après « Publier », le post part sur le canal Test."
+        help="Pour essayer : « Créer une mission de test » sur l'équipe Rencontres. L'aperçu arrive sur Telegram et dans Validations ; après « Publier », le post part sur le canal Test."
         meta={
           pausedAll ? (
             <StatusPill tone="danger">Pause générale</StatusPill>

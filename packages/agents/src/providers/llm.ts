@@ -5,7 +5,7 @@
  */
 import { createAnthropicClient, estimateCostEur, type AiClient } from "@linkaffipro/ai";
 import { decrypt } from "@linkaffipro/core";
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 import type { LlmProvider } from "../types";
 
 export const AI_CONFIG_KEY = "ai.config";

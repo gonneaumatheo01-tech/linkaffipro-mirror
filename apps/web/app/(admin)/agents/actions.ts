@@ -29,7 +29,7 @@ function done(path: string, result: { ok: boolean; message: string }): never {
   backTo(path, result.ok ? { ok: result.message } : { error: result.message });
 }
 
-/** « Créer une mission de test » : un post texte sur le canal Test, en simulation (ADMIN et MANAGER). */
+/** « Créer une mission de test » : un post texte sur le canal Test, en simulation (ADMIN et MANAGER). */
 export async function createTestMissionAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);

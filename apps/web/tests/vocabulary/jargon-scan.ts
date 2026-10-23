@@ -164,7 +164,20 @@ const SKIP_CALLS =
 const CODE_TAGS = new Set(["code", "kbd", "pre", "samp"]);
 
 export type JargonHit = { line: number; words: string[]; text: string };
-export type ScanOptions = { parenthesizedTermsAllowed?: boolean };
+export type ScanOptions = {
+  parenthesizedTermsAllowed?: boolean;
+  /** Mots interdits en plus de `JARGON` (rubrique Agents : termes du moteur, voir `AGENTS_JARGON`). */
+  extraRules?: readonly JargonRule[];
+};
+
+/** Termes du moteur des agents (phase 19), jamais en surface dans la rubrique Agents. */
+export const AGENTS_JARGON: JargonRule[] = [
+  { word: "BullMQ", re: word("bullmq"), instead: "file" },
+  { word: "worker", re: word("workers?"), instead: "service d'arrière-plan" },
+  { word: "API", re: word("APIs?", "u"), instead: "connexion" },
+  { word: "JSON", re: word("JSON", "u"), instead: "réglage" },
+  { word: "prompt", re: word("prompts?"), instead: "consignes" },
+];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */
 function withoutParenthesizedTerms(text: string): string {
@@ -211,9 +224,11 @@ export function scanSource(
   const check = (node: ts.Node, text: string, ctx: Ctx) => {
     if (ctx === "skip") return;
     if (ctx === "neutral" && !isProse(text)) return;
-    const words = jargonIn(
-      options.parenthesizedTermsAllowed ? withoutParenthesizedTerms(text) : text,
-    );
+    const shown = options.parenthesizedTermsAllowed ? withoutParenthesizedTerms(text) : text;
+    const words = [
+      ...jargonIn(shown),
+      ...(options.extraRules ?? []).filter((r) => r.re.test(shown)).map((r) => r.word),
+    ];
     if (words.length === 0) return;
     const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
     hits.push({ line, words, text: text.replace(/\s+/g, " ").trim().slice(0, 120) });

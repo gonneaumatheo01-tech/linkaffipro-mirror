@@ -49,5 +49,5 @@ export {
   EXTEND_LOCK_SCRIPT,
 } from "./redis-lock";
 export type { LockRedis, RedisLockOptions } from "./redis-lock";
-export { createAgentsEnqueue } from "./agents";
-export type { AgentsEnqueueImpl } from "./agents";
+export { createAgentsEnqueue, addIdempotent, agentStepJobId, TEAM_QUEUE_NAMES } from "./agents";
+export type { AgentsEnqueueImpl, AgentsQueueLike } from "./agents";

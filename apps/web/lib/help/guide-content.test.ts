@@ -65,6 +65,7 @@ describe("guide d'utilisation : plan", () => {
       "Messages",
       "Membres",
       "Conversations",
+      "Agents",
       "Statistiques",
       "Réglages",
       "Comptes Telegram",

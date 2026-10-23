@@ -478,7 +478,7 @@ export async function loadHumanRequests(): Promise<{ open: HumanRequestView[]; c
     ...r,
     options: Array.isArray(r.options) ? r.options.filter((o): o is string => typeof o === "string") : [],
   });
-  // « PENDING » (question posée) avant « QUEUED » (en file) : l'ordre alphabétique de l'enum ne le garantit pas.
+  // « PENDING » (question posée) avant « QUEUED » (en file) : l'ordre alphabétique de l'enum ne le garantit pas.
   const rank = (s: string) => (s === "PENDING" ? 0 : 1);
   return {
     open: open.map(view).sort((a, b) => rank(a.status) - rank(b.status) || a.createdAt.getTime() - b.createdAt.getTime()),
