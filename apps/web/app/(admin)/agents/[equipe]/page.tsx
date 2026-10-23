@@ -17,6 +17,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTestMissionAction } from "../actions";
 import { saveTeamSettingsAction } from "./actions";
+import { AlgoView } from "./algo-view";
 import { centsToEurField, quietHoursText } from "@/lib/agents/config";
 import {
   DATING_DEFAULT_BUDGETS,
@@ -56,6 +57,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/agents/[equipe]">): Promise<Metadata> {
   const team = parseTeamParam((await params).equipe);
+  if (team === "algo") return { title: "Ce qui marche" };
   return { title: team ? `Équipe ${TEAM_NAMES[team]}` : "Agents" };
 }
 
@@ -63,12 +65,14 @@ export async function generateMetadata({ params }: PageProps<"/agents/[equipe]">
  * Fiche d'une équipe (phase 19) : pilotage (simulation, niveau, pause), réglages lus par la Rédaction et le Contrôle
  * qualité, plan par canal, agents de la chaîne avec leurs derniers passages, missions avec détail étape par étape.
  * Équipes : dating, casino, sports, algo (404 sinon). Les managers font tout sauf arrêter la simulation et le niveau 2.
+ * L'équipe Algorithme (phase 21) a sa propre page, « Ce qui marche » (`./algo-view.tsx`).
  */
 export default async function TeamPage({ params, searchParams }: PageProps<"/agents/[equipe]">) {
   const user = await requireUser();
   const team = parseTeamParam((await params).equipe);
   if (!team) notFound();
   const sp = await searchParams;
+  if (team === "algo") return <AlgoView user={user} sp={sp} />;
   const now = new Date();
   const filters = parseMissionFilters(sp);
   const from = `/agents/${team}`;

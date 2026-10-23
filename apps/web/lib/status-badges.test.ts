@@ -19,6 +19,8 @@ import {
   ConversationStatus,
   CostSource,
   CustomEmojiSource,
+  ExperimentKind,
+  ExperimentStatus,
   ExpireAction,
   GateMode,
   HumanRequestKind,
@@ -33,6 +35,7 @@ import {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  RecommendationStatus,
   Role,
   SequenceTrigger,
   TrackingLinkKind,
@@ -91,6 +94,9 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["agentValidation", AgentValidationStatus],
   ["humanRequest", HumanRequestStatus],
   ["humanRequestKind", HumanRequestKind],
+  ["experiment", ExperimentStatus],
+  ["experimentKind", ExperimentKind],
+  ["recommendation", RecommendationStatus],
 ];
 
 describe("badges de statut", () => {

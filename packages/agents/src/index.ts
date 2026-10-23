@@ -78,3 +78,5 @@ import { registerMediaKeyVerifiers } from "./providers/verifiers";
 registerMediaKeyVerifiers();
 export * from "./algo/contracts";
 export * from "./algo/conversations-contract";
+// Chantier B (phase 21) : agent Conversations de l'équipe Algorithme.
+export * from "./agents/conversations/index";

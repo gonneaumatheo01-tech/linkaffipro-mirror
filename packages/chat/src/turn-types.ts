@@ -58,6 +58,8 @@ export type PersonaInput = {
   maxOfferSends: number;
   followUpAfterHours: number;
   followUpsMax: number;
+  /** Heures de relance conseillées et appliquées (phase 21) ; absent ou vide = calcul habituel. */
+  suggestedFollowUpHours?: readonly number[] | null;
   /** Fiche de l'offre : seuls éléments que l'assistant peut dire de l'app. */
   offerPitch: string;
   offerButtonText: string;

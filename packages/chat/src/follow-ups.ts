@@ -31,7 +31,15 @@ export type FollowUpState = {
   lastAssistantAt: Date | null;
 };
 
-export type FollowUpRules = { followUpAfterHours: number; followUpsMax: number };
+export type FollowUpRules = {
+  followUpAfterHours: number;
+  followUpsMax: number;
+  /**
+   * Heures de Paris conseillées par l'équipe Algorithme (phase 21, `Persona.suggestedFollowUpHours`) : non vide
+   * seulement si une recommandation les a appliquées ; la relance est alors repoussée à la prochaine de ces heures.
+   */
+  suggestedFollowUpHours?: readonly number[] | null;
+};
 
 /** Vrai si cette heure tombe dans les heures calmes de Paris (22 h – 9 h). */
 export function isQuietHour(d: Date): boolean {
@@ -69,5 +77,39 @@ export function nextFollowUpAt(state: FollowUpState, rules: FollowUpRules): Date
     : MIN_FOLLOW_UP_AFTER_HOURS;
   let hours = Math.max(MIN_FOLLOW_UP_AFTER_HOURS, after);
   if (state.followUpCount >= 1) hours = Math.max(hours, MIN_HOURS_BETWEEN_FOLLOW_UPS);
-  return shiftOutOfQuietHours(new Date(state.lastAssistantAt.getTime() + hours * HOUR_MS));
+  const due = new Date(state.lastAssistantAt.getTime() + hours * HOUR_MS);
+  return shiftOutOfQuietHours(shiftToSuggestedHour(due, rules.suggestedFollowUpHours));
+}
+
+/**
+ * Lit `Persona.suggestedFollowUpHours` (JSON) : heures entières 0-23 hors heures calmes, sans doublon, triées ; null
+ * si rien d'utilisable (champ vide = jamais appliqué : le calcul habituel reste en vigueur).
+ */
+export function parseSuggestedFollowUpHours(v: unknown): number[] | null {
+  if (!Array.isArray(v)) return null;
+  const hours = [
+    ...new Set(
+      v.filter(
+        (h): h is number =>
+          typeof h === "number" && Number.isInteger(h) && h >= QUIET_END_HOUR && h < QUIET_START_HOUR,
+      ),
+    ),
+  ].sort((a, b) => a - b);
+  return hours.length > 0 ? hours : null;
+}
+
+/**
+ * Repousse un instant à la prochaine heure conseillée (début de l'heure de Paris), jamais plus tôt : les délais
+ * minimaux (4 h, 24 h entre deux relances) restent tenus. Sans heure conseillée utilisable : inchangé.
+ */
+export function shiftToSuggestedHour(d: Date, suggested: readonly number[] | null | undefined): Date {
+  const hours = parseSuggestedFollowUpHours(suggested);
+  if (!hours) return d;
+  const p = parisWallClock(d);
+  if (hours.includes(p.hour)) return d;
+  for (let k = 1; k <= 24; k++) {
+    const t = parisWallTimeToDate(p.year, p.month, p.day, p.hour + k);
+    if (hours.includes(parisWallClock(t).hour)) return t;
+  }
+  return d;
 }

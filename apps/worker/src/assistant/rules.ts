@@ -11,6 +11,7 @@ import {
   MIN_HOURS_BETWEEN_FOLLOW_UPS,
   canAssistantReply,
   followUpsAllowed,
+  parseSuggestedFollowUpHours,
   isQuietHour,
   shiftOutOfQuietHours,
   type AssistantActivation,
@@ -80,6 +81,8 @@ export type PersonaRow = {
   maxOfferSends: number;
   followUpAfterHours: number;
   followUpsMax: number;
+  /** `Persona.suggestedFollowUpHours` (phase 21) : JSON lu seulement s'il est rempli (recommandation appliquée). */
+  suggestedFollowUpHours?: unknown;
   affiliateCampaignId: string | null;
   offerPitch: string;
   offerButtonText: string;
@@ -113,6 +116,7 @@ export function toPersonaInput(
     maxOfferSends: p.maxOfferSends,
     followUpAfterHours: p.followUpAfterHours,
     followUpsMax: p.followUpsMax,
+    suggestedFollowUpHours: parseSuggestedFollowUpHours(p.suggestedFollowUpHours),
     offerPitch: p.offerPitch,
     offerButtonText: p.offerButtonText,
     hasOffer: Boolean(p.affiliateCampaignId) && extras.offerUsable,

@@ -17,6 +17,7 @@ const m = vi.hoisted(() => ({
   config: {} as Record<string, unknown>,
   spent: 0,
   media: null as Record<string, unknown> | null,
+  algoRecs: [] as unknown[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -32,6 +33,8 @@ vi.mock("@/lib/assistant/config", () => ({ loadAssistantConfig: vi.fn(async () =
 vi.mock("@/lib/assistant/usage", () => ({ monthCostEur: vi.fn(async () => m.spent) }));
 vi.mock("./actions", () => ({ savePersonaAction: vi.fn(), deletePersonaAction: vi.fn() }));
 vi.mock("./[id]/media-actions", () => ({ savePersonaMediaAction: vi.fn() }));
+vi.mock("@/lib/agents/algo/queries", () => ({ loadPersonaRecommendations: vi.fn(async () => m.algoRecs) }));
+vi.mock("@/app/(admin)/agents/[equipe]/algo-actions", () => ({ recommendationAction: vi.fn() }));
 vi.mock("@/lib/personas/media-save", () => ({ loadPersonaMedia: vi.fn(async () => m.media) }));
 vi.mock("@/lib/personas/queries", () => ({
   loadPersonaList: vi.fn(async () => m.list),
@@ -248,6 +251,43 @@ describe("fiche d'une persona", () => {
     expect(html).toContain('value="0,8"');
     expect(text).not.toMatch(/\bLoRA\b/);
     expect(html).toContain("LoRA"); // au survol (lecteurs d'écran)
+  });
+
+  it("propositions de l'équipe Algorithme : encart avec Appliquer et Refuser (administrateurs seulement)", async () => {
+    expect(visibleText(await renderFiche())).not.toContain("Propositions de l'équipe Algorithme");
+    m.algoRecs = [
+      {
+        id: "r1",
+        teamKey: "dating",
+        target: "PERSONA",
+        targetId: "p1",
+        field: "messagesBeforeLink",
+        before: 4,
+        after: 6,
+        evidence: { summary: "Les conversations qui attendent 6 échanges s'inscrivent deux fois plus.", conversations: 42 },
+        expectedGain: "+30 % d'inscriptions",
+        size: "BIG",
+        status: "PROPOSED",
+        appliedAt: null,
+        appliedBy: null,
+        undoneAt: null,
+        rejectedAt: null,
+        weekStart: "2026-10-19",
+        createdAt: new Date("2026-10-19T06:00:00Z"),
+        targetLabel: "Léa",
+      },
+    ];
+    const html = await renderFiche();
+    const text = visibleText(html);
+    for (const t of ["Propositions de l'équipe Algorithme", "Échanges avant le lien", "Gain attendu : +30 % d'inscriptions", "42 conversations", "Appliquer", "Refuser"])
+      expect(text, t).toContain(t);
+    expect(html).toContain('id="propositions-algorithme"');
+    expect(primaryButtonCount(html)).toBe(1);
+    expect(jargonIn(visibleText(html.replace(/<pre[\s\S]*?<\/pre>/g, "")))).toEqual([]);
+    m.user = { id: "u2", role: "MANAGER" };
+    const manager = visibleText(await renderFiche());
+    expect(manager).toContain("Réservé aux administrateurs");
+    expect(manager).not.toMatch(/\bAppliquer\b/);
   });
 
   it("administrateur : « Supprimer la persona » ; responsable : pas de suppression", async () => {

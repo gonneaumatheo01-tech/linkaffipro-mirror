@@ -18,6 +18,8 @@ import type {
   ConversationStatus,
   CostSource,
   CustomEmojiSource,
+  ExperimentKind,
+  ExperimentStatus,
   ExpireAction,
   GateMode,
   HumanRequestKind,
@@ -32,6 +34,7 @@ import type {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  RecommendationStatus,
   Role,
   SequenceTrigger,
   TrackingLinkKind,
@@ -354,6 +357,25 @@ export const STATUS_DICT = {
     ERROR: bad("En échec"),
     SKIPPED: muted("Passé"),
   } satisfies Record<AgentRunStatus, StatusEntry>,
+  // Équipe Algorithme (phase 21) : tests A/B, leur type, propositions de réglages.
+  experiment: {
+    PROPOSED: plain("Proposé"),
+    RUNNING: main("En cours"),
+    CLOSED: ok("Clos"),
+    CANCELLED: muted("Abandonné"),
+  } satisfies Record<ExperimentStatus, StatusEntry>,
+  experimentKind: {
+    STYLE_LEGENDE: plain("Style de légende"),
+    HORAIRE: plain("Heure d'envoi"),
+    MELANGE: plain("Mélange vidéo / photo / texte"),
+    REGLAGE_PERSONA: plain("Réglage de persona"),
+  } satisfies Record<ExperimentKind, StatusEntry>,
+  recommendation: {
+    PROPOSED: warn("À décider"),
+    APPLIED: ok("Appliqué"),
+    UNDONE: muted("Annulé"),
+    REJECTED: muted("Refusé"),
+  } satisfies Record<RecommendationStatus, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

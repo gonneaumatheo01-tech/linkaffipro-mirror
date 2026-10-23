@@ -7,12 +7,14 @@ import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatusPill } from "@/components/admin/status-pill";
+import { PersonaRecommendations } from "@/components/agents/algo/persona-recommendations";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
 import { PersonaForm } from "@/components/personas/persona-form";
 import { PersonaMediaForm } from "@/components/personas/persona-media-form";
 import { PersonaTester } from "@/components/personas/persona-tester";
 import { PromptPreview } from "@/components/personas/prompt-preview";
 import { buttonVariants } from "@/components/ui/button";
+import { loadPersonaRecommendations } from "@/lib/agents/algo/queries";
 import { loadAssistantConfig } from "@/lib/assistant/config";
 import { monthCostEur } from "@/lib/assistant/usage";
 import { fmtNum } from "@/lib/format";
@@ -51,7 +53,7 @@ export default async function PersonaPage({
   const sp = await searchParams;
   const persona = await loadPersona(id);
   if (!persona) notFound();
-  const [choices, turn, config, spent, media] = await Promise.all([
+  const [choices, turn, config, spent, media, algoRecs] = await Promise.all([
     loadPersonaFormChoices({
       affiliateCampaignId: persona.affiliateCampaignId,
       offerMediaAssetId: persona.offerMediaAssetId,
@@ -60,6 +62,7 @@ export default async function PersonaPage({
     loadAssistantConfig(),
     monthCostEur(),
     loadPersonaMedia(persona.id),
+    loadPersonaRecommendations(persona.id),
   ]);
   const role = personaRole(persona.gender);
   const name = personaDisplayName(persona.name);
@@ -151,6 +154,7 @@ export default async function PersonaPage({
               initial={media}
             />
           ) : null}
+          <PersonaRecommendations personaId={persona.id} recs={algoRecs} role={me.role} />
           {prompt ? <PromptPreview prompt={prompt} role={role} /> : null}
 
           {me.role === "ADMIN" ? (
