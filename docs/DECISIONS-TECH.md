@@ -614,3 +614,17 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   `captureWaitMinutes` (20), `bookmakerSites.<clé>` (sélecteurs corrigeables sans déploiement ; sélecteurs Sportaza à
   confirmer en production). Sans identifiants : capture déconnectée (cotes publiques). Délai dépassé : un essai 5 min
   plus tard, puis image de repli (toujours validée).
+- **Moteur Paris (phase 23)** : un appel `/events` par liste (5 pages au plus), cotes de plusieurs matchs lues en un
+  seul appel ; la vérification juste avant l'envoi relit toujours sans cache. Cache Redis : matchs 30 min, cotes 5 min,
+  résultats 10 min, bookmakers 24 h. Chaque appel compté (`AgentUsage` sports / odds) ; plafond mensuel
+  `maxApiCallsPerMonth` (2 000) : appels refusés proprement, alertes 80 % et 100 % une fois par mois. Aucune mission
+  réelle sans clé de cotes. Cote de référence = médiane des autres bookmakers ; probabilité = cote juste du fournisseur,
+  sinon médiane sans marge ; score = cote cible × probabilité − 1, ajusté de ±0,1 au plus par nos paris réglés, borné
+  à [−1, 1] ; score minimal −0,05, 2 bookmakers au moins, un pari par match et par passage. **Texte du post écrit par
+  le code** (match, ligue, heure, marché, sélection, cote, 1-2 phrases chiffrées, ligne de prudence), pas par l'IA. Une
+  mission par pari (les suivants démarrent à l'étape Capture). Passages 10 h / 15 h / 18 h Paris (rattrapés dans les
+  3 h), plus un passage 2 h avant les matchs candidats non retenus. Résultats : match fini 105 min après le coup
+  d'envoi, pari sans résultat 3 jours après = annulé ; bilan daté au match, paris de test exclus, rendement = gain ÷
+  (gagnés + perdus), annulés remboursés. L'écart de cote et le délai avant match les plus stricts (équipe / catégorie)
+  l'emportent. Le contrôle exige une validation pour une image de repli et aussi quand la capture le demande
+  (`payload.capture.mustValidate`).

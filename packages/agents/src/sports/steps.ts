@@ -101,7 +101,11 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
     league: pick.league,
     market: pick.marketLabel,
     oddsOutOfRange: !oddsInRange(drift.current, category),
-    fallbackImage: !asset || asset.origin === "TEMPLATE",
+    // L'agent Capture peut aussi exiger une validation (capture douteuse) sans passer par l'image de repli.
+    fallbackImage:
+      !asset ||
+      asset.origin === "TEMPLATE" ||
+      (typeof p.capture === "object" && p.capture !== null && (p.capture as { mustValidate?: unknown }).mustValidate === true),
     fallbackReason: typeof p.captureError === "string" ? p.captureError : null,
   });
   const checked = { controlCheckedAt: now.toISOString(), oddsAtControl: drift.current };
