@@ -477,3 +477,19 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   MANAGER, toutes équipes). Persona obligatoire seulement pour un plan Rencontres activé. « Produire un post de test »
   remplace « Créer une mission de test » sur la fiche Rencontres. « LoRA » interdit en surface (`Term` au survol :
   « fichier du personnage »). `pnpm --filter web typecheck` demande `NODE_OPTIONS=--max-old-space-size=8192`.
+- **Moteur et médias (phase 20)** : une étape peut « attendre le fournisseur » (ré-enfilée avec un identifiant
+  distinct `<mission>:<index>:p<n>`) ou être « sautée » selon le format ; `poll(jobId, ref?)` + `ReplaceStart.ref`
+  gardent `status_url` / `response_url` de fal dans `payload.mediaJob`. fal vidéo : 2 essais, puis Magic Hour si sa clé
+  existe, sinon post photo ; photo en échec → texte ; replis journalisés (`Event`) et comptés dans le rapport. Coût réel
+  fal vidéo = estimation (fal ne renvoie pas de prix) ; photo comptée 1 mégapixel (1024²) ; Magic Hour : 1 crédit par
+  image × 0,12 c€ (réglable). Les estimations des vidéos en cours ne sont pas réservées sur le budget : deux missions
+  simultanées peuvent dépasser légèrement le plafond (accepté). En simulation, l'empreinte du fichier produit est salée
+  (unique face à la source) et le média porte le repère « simulation ». Plafonds vidéo / photo par défaut (100 € /
+  15 €) : équipe Dating seulement. « Toujours validé » (3 premières vidéos, 3 premières photos d'une persona, nouveau
+  canal, doute du contrôle) : équipe Dating, missions terminées comptées (missions de test comprises). Pour un doute,
+  l'image regardée par le modèle est envoyée à l'admin juste avant l'aperçu. Une vidéo illisible ou hors bornes n'est
+  jamais publiée (repli au format suivant). Banc d'essai : tâche `bench` qui se ré-enfile toutes les 30 s (n'occupe pas
+  la file du Grand Chef), réponse « lequel préfères-tu ? » → `settings.videoProvider` / `videoResolution`. Images de la
+  vidéo par ffmpeg / ffprobe dans le worker (`apps/worker/src/agents/frames.ts`, `ffmpeg` dans l'image). Vérificateurs
+  des clés enregistrés au chargement de `@linkaffipro/agents`. `packages/ai` : champ `images` facultatif (base64, avant
+  le texte).
