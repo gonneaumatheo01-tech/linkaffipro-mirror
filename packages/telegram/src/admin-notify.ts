@@ -2,6 +2,7 @@ import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { splitMessage } from "./admin-chat";
+import { ADMIN_BOT_ORDER, ADMIN_BOT_WHERE } from "./admin-bot";
 
 /**
  * Envoie un message HTML à l'administrateur par Telegram (même mécanisme que `pnpm tg:send`) :
@@ -13,9 +14,7 @@ export async function notifyAdmin(text: string): Promise<boolean> {
   const adminId = setting && typeof setting.value === "string" ? BigInt(setting.value) : null;
   if (!adminId) return false;
   // Jamais un bot assistant de conversation (phase 17).
-  const bot = await prisma.bot.findFirst({
-    where: { vertical: "CASINO", isActive: true, mode: "STANDARD" },
-  });
+  const bot = await prisma.bot.findFirst({ where: ADMIN_BOT_WHERE, orderBy: ADMIN_BOT_ORDER });
   if (!bot) return false;
   const api = new Api(decrypt(bot.tokenEncrypted));
   for (const part of splitMessage(text)) {

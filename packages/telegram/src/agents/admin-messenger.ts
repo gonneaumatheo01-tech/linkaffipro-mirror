@@ -9,6 +9,7 @@ import type { AdminButton, AdminMessenger } from "@linkaffipro/agents";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { splitMessage } from "../admin-chat";
+import { ADMIN_BOT_ORDER, ADMIN_BOT_WHERE } from "../admin-bot";
 
 /** Légende d'une photo ou d'une vidéo : au-delà, le texte part dans un second message. */
 export const CAPTION_MAX = 1024;
@@ -123,7 +124,7 @@ const prismaPort: MessengerPort = {
   },
   async api() {
     // Jamais un bot assistant de conversation (phase 17).
-    const bot = await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true, mode: "STANDARD" } });
+    const bot = await prisma.bot.findFirst({ where: ADMIN_BOT_WHERE, orderBy: ADMIN_BOT_ORDER });
     return bot ? (new Api(decrypt(bot.tokenEncrypted)) as unknown as MessengerApi) : null;
   },
   async media(id) {
