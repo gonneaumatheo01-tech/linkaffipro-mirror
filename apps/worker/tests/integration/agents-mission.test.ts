@@ -77,7 +77,8 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
     const m = await prisma.agentMission.findFirstOrThrow({ where: { channelId } });
     missionId = m.id;
     expect(m).toMatchObject({ teamKey: "dating", createdBy: "GRAND_CHEF", status: "PENDING" });
-    expect(await drain()).toEqual(["next", "next", "next", "validation"]);
+    // Phase 20 : post texte → Médiathèque et Média IA sautées par les agents eux-mêmes.
+    expect(await drain()).toEqual(["next", "next", "next", "next", "validation"]);
     const waiting = await prisma.agentMission.findUniqueOrThrow({ where: { id: missionId } });
     expect(waiting.status).toBe("WAITING_VALIDATION");
     expect(waiting.scheduledFor).toBeInstanceOf(Date);
@@ -120,7 +121,7 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
     for (const t of ["agents.mission.created", "agents.step.done", "agents.validation.requested", "agents.validation.approved", "agents.mission.done"])
       expect(types).toContain(t);
     const runs = await prisma.agentRun.findMany({ where: { missionId }, orderBy: { startedAt: "asc" } });
-    expect(runs.map((r) => r.agentKey)).toEqual(["mediatheque", "redaction", "planification", "controle", "publication"]);
+    expect(runs.map((r) => r.agentKey)).toEqual(["mediatheque", "media-ia", "redaction", "planification", "controle", "publication"]);
     expect(runs.every((r) => r.status === "OK")).toBe(true);
     const v = await prisma.agentValidation.findFirstOrThrow({ where: { missionId } });
     const audit = await prisma.auditLog.findMany({ where: { action: "agents.validation.approved", entityId: v.id } });
