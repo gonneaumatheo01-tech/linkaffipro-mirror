@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   AdPlatform,
   AffiliateSource,
+  AgentMissionKind,
+  AgentMissionStatus,
+  AgentValidationStatus,
   AlertSeverity,
   ApprovalMode,
   AutomationRunStatus,
@@ -18,6 +21,8 @@ import {
   CustomEmojiSource,
   ExpireAction,
   GateMode,
+  HumanRequestKind,
+  HumanRequestStatus,
   ImportKind,
   InviteLinkKind,
   LandingEventType,
@@ -81,6 +86,11 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["conversationStage", ConversationStage],
   ["conversationStatus", ConversationStatus],
   ["conversationAuthor", ConversationAuthor],
+  ["agentMission", AgentMissionStatus],
+  ["agentMissionKind", AgentMissionKind],
+  ["agentValidation", AgentValidationStatus],
+  ["humanRequest", HumanRequestStatus],
+  ["humanRequestKind", HumanRequestKind],
 ];
 
 describe("badges de statut", () => {
@@ -145,6 +155,19 @@ describe("badges de statut", () => {
     expect(statusTone("sync", "late")).toBe("warning");
     expect(statusLabel("webhook", "check")).toBe("À vérifier");
     expect(statusLabel("active", "inactive")).toBe("Inactif");
+    // Passages des agents (phase 19, `AgentRun.status` en texte libre) : chaque valeur a son libellé.
+    expect(Object.keys(STATUS_DICT.agentRun).sort()).toEqual(["ERROR", "OK", "RUNNING", "SKIPPED"]);
+    expect(statusLabel("agentRun", "ERROR")).toBe("En échec");
+    expect(statusTone("agentRun", "OK")).toBe("success");
+  });
+
+  it("agents (phase 19) : une mission bloquée ou en attente se voit, sans jargon", () => {
+    expect(statusLabel("agentMission", "WAITING_VALIDATION")).toBe("Attend votre validation");
+    expect(statusTone("agentMission", "WAITING_VALIDATION")).toBe("warning");
+    expect(statusTone("agentMission", "BLOCKED_BUDGET")).toBe("danger");
+    expect(statusTone("agentMission", "DONE")).toBe("success");
+    expect(statusLabel("humanRequest", "QUEUED")).toBe("En file");
+    expect(statusLabel("agentValidation", "PENDING")).toBe("À valider");
   });
 });
 

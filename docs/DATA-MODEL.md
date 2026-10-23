@@ -385,3 +385,28 @@ plafond mensuel (30 €, 0 = aucun appel), réponses par jour et par conversatio
 date, dernière vérification et dernière erreur. Page Réglages → IA de conversation (`/settings/assistant`, ADMIN). Journal
 d'actions : `assistant.settings_saved`, `assistant.key_verified`, `assistant.key_removed`, `assistant.activation_changed`
 (jamais la clé) ; familles `persona.*` et `conversation.*` pour l'équipe.
+
+## Phase 19 : agents IA (Grand Chef, Chefs d'équipe, agents)
+
+Migration additive `20261023120000_phase19_agents` : nouvelles tables, colonnes nullables (ou avec défaut) sur
+`MediaAsset` et `Post.agentMissionId`. Plan : `docs/AGENTS-ARCHITECTURE.md` ; spécification : `docs/prompts/21-…`.
+Équipes (`teamKey`, texte) : `dating`, `casino`, `sports`, `algo` (`TEAM_KEYS` de `@linkaffipro/agents`).
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `AgentTeamConfig` | Une ligne par équipe (`teamKey` unique, créée par défaut au premier passage) : `enabled`, `simulation` (vrai par défaut : toute publication part sur le canal Test), `paused` + `pausedReason`, `autonomyLevel` (0 je valide tout, 1 les nouveautés, 2 rien), plafonds mensuels en centimes par poste `monthlyBudgetCents` `{ llm, video, image, odds, screenshot }`, consignes de style lues par Rédaction, mots interdits (`string[]`), longueur maximale (900), heures calmes `{ start, end }[]` (Europe/Paris), réglages libres, `consecutiveFailures` (pause automatique à 3), `updatedById`. |
+| `ChannelAgentPlan` | Plan d'un canal (`channelId` unique, CASCADE) : équipe, activé (faux par défaut), posts par jour (3), fenêtre `windowStart`/`windowEnd` (« HH:MM » Paris), espacement minimal (90 min), mélange `{ video, photo, text }`, persona, campagne (bouton Offre), thèmes. |
+| `AgentMission` | Une mission (`AgentMissionKind` POST / BET / REPORT / ANALYSIS) : équipe, canal (SET NULL), statut (`AgentMissionStatus` PENDING, RUNNING, WAITING_VALIDATION, WAITING_HUMAN, DONE, FAILED, CANCELLED, BLOCKED_BUDGET), étape en cours et `steps` (`{ agent, status, startedAt, endedAt, summary, costCents, error }[]` : reprise après un redémarrage), `payload` (texte, média, créneau, verdict, motifs), coût, `postId` (unique, posé AVANT l'envoi : jamais deux publications), validation en cours, `scheduledFor`, jour du plan `planDay` (AAAA-MM-JJ Paris), `isTest` (« Créer une mission de test »), `createdBy` (`AgentMissionCreator` GRAND_CHEF / HUMAN) et `createdById`, essais, dernière erreur, `lastActivityAt` (reprise des missions muettes depuis 15 min). |
+| `AgentRun` | Chaque passage d'un agent : mission (CASCADE), clé de l'agent, index de l'étape, statut (RUNNING / OK / ERROR / SKIPPED), début, fin, durée, coût, résumés d'entrée et de sortie (jamais le texte complet d'un post), erreur. |
+| `AgentValidation` | Élément soumis à une décision humaine : numéro court `number` (« ok 12 » sur Telegram), mission (CASCADE), équipe, aperçu, média, motif, statut (`AgentValidationStatus` PENDING, APPROVED, REJECTED, EDITED, EXPIRED), qui, par où (`AgentDecisionVia` SITE / TELEGRAM), quand, motif du refus, message Telegram de l'aperçu, `awaitingEditAt` (« ✏️ Corriger » : le prochain message texte de l'admin remplace le texte), texte corrigé, rappel envoyé. |
+| `AgentUsage` | Dépense par équipe, fournisseur (`llm`, `video`, `image`, `odds`, `screenshot`) et mois (AAAA-MM Paris), unique `(teamKey, provider, month)` : centimes, appels, alertes 80 % et 100 % déjà envoyées. |
+| `HumanRequest` | Demande au client par le bot du dialogue admin (`HumanRequestKind` SECRET, TEXT, CHOICE, MEDIA, CONFIRM) : ce qui est demandé (`key`), question, options, attendu (MEDIA : nombre, mots-clés), statut (`HumanRequestStatus` QUEUED → PENDING → ANSWERED / SKIPPED / EXPIRED : une seule PENDING à la fois), résumé de la réponse (jamais un secret : « …ab12 »), envoi, message Telegram, rappel, réponse, mission qui attend, suite à donner `onAnswer`. |
+| `MediaUsage` | Utilisation d'un média de la médiathèque : média, canal (CASCADE), post, mission, date (jamais deux fois en 30 jours sur un même canal). |
+| `MediaAsset.teamKey`, `theme`, `personaId`, `kind` (`MediaAssetKind` SOURCE / GENERATED / PHOTO / REFERENCE), `origin` (`MediaAssetOrigin` HUMAN / AI), `tags`, `libraryMessageId` | Classement de la médiathèque (dépôt par le bot avec mots-clés) ; copie facultative dans le canal Telegram « Médiathèque ». Les octets restent dans `MediaAsset.bytes`. |
+| `Post.agentMissionId` (index, SET NULL) | Mission qui a produit ce message. |
+
+Réglages `Setting` : `agents.pausedAll` (pause générale), `agents.models` (modèles rapide et fort), `agents.libraryChannelId`
+(canal Médiathèque), `agents.dailyReport` (rapport du matin oui / non), `agents.dailyReportAsked`, clés des fournisseurs
+chiffrées (`packages/agents/src/human/secrets.ts`, jamais renvoyées au navigateur ni journalisées). Événements `Event` de
+la famille « Agents » : types `agents.*` (identifiants et résumés, jamais le texte complet d'un post) ; rapport du jour
+`agents.report.daily` (`{ day, lines }`). Conservation : missions et passages de plus de 24 mois purgés la nuit.

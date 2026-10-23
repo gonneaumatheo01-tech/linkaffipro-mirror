@@ -1,6 +1,9 @@
 import type {
   AdPlatform,
   AffiliateSource,
+  AgentMissionKind,
+  AgentMissionStatus,
+  AgentValidationStatus,
   AlertSeverity,
   ApprovalMode,
   AutomationRunStatus,
@@ -17,6 +20,8 @@ import type {
   CustomEmojiSource,
   ExpireAction,
   GateMode,
+  HumanRequestKind,
+  HumanRequestStatus,
   ImportKind,
   InviteLinkKind,
   LandingEventType,
@@ -69,6 +74,8 @@ export type ActiveStatus = "active" | "inactive";
 /** Statut du compte Telegram connecté pour les vues (TelegramUserSession.status, chaîne libre en base). */
 export type TelegramSessionStatus =
   "PENDING_CODE" | "PENDING_PASSWORD" | "ACTIVE" | "ERROR" | "DISCONNECTED";
+/** Passage d'un agent sur une mission (`AgentRun.status`, chaîne libre en base, phase 19). */
+export type AgentRunStatus = "RUNNING" | "OK" | "ERROR" | "SKIPPED";
 
 export const STATUS_DICT = {
   membership: {
@@ -303,6 +310,50 @@ export const STATUS_DICT = {
     TEAM: main("Équipe"),
     SYSTEM: muted("Message automatique"),
   } satisfies Record<ConversationAuthor, StatusEntry>,
+  // Agents (phase 19) : missions, validations, demandes faites au client, passages des agents.
+  agentMission: {
+    PENDING: plain("À démarrer"),
+    RUNNING: main("En cours"),
+    WAITING_VALIDATION: warn("Attend votre validation"),
+    WAITING_HUMAN: warn("Attend votre réponse"),
+    DONE: ok("Terminée"),
+    FAILED: bad("En échec"),
+    CANCELLED: muted("Annulée"),
+    BLOCKED_BUDGET: bad("Plafond atteint"),
+  } satisfies Record<AgentMissionStatus, StatusEntry>,
+  agentMissionKind: {
+    POST: plain("Post"),
+    BET: plain("Pari"),
+    REPORT: plain("Rapport"),
+    ANALYSIS: plain("Analyse"),
+  } satisfies Record<AgentMissionKind, StatusEntry>,
+  agentValidation: {
+    PENDING: warn("À valider"),
+    APPROVED: ok("Publication accordée"),
+    REJECTED: muted("Refusée"),
+    EDITED: ok("Corrigée"),
+    EXPIRED: muted("Expirée"),
+  } satisfies Record<AgentValidationStatus, StatusEntry>,
+  humanRequest: {
+    QUEUED: plain("En file"),
+    PENDING: warn("Question posée"),
+    ANSWERED: ok("Répondue"),
+    SKIPPED: muted("Passée"),
+    EXPIRED: muted("Expirée"),
+  } satisfies Record<HumanRequestStatus, StatusEntry>,
+  humanRequestKind: {
+    SECRET: plain("Clé"),
+    TEXT: plain("Texte"),
+    CHOICE: plain("Choix"),
+    MEDIA: plain("Médias"),
+    CONFIRM: plain("Oui ou non"),
+  } satisfies Record<HumanRequestKind, StatusEntry>,
+  agentRun: {
+    RUNNING: main("En cours"),
+    OK: ok("Réussi"),
+    ERROR: bad("En échec"),
+    SKIPPED: muted("Passé"),
+  } satisfies Record<AgentRunStatus, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

@@ -1,0 +1,205 @@
+/**
+ * Réponse à une demande (Telegram ou site) : interprétation, rangement (secret chiffré), suite à donner (`onAnswer`),
+ * reprise des missions en attente, puis envoi de la question suivante. Jamais de secret dans le journal ni la réponse.
+ */
+import * as lifecycle from "../missions/lifecycle";
+import { isTeamKey, type AgentsDeps } from "../types";
+import type { ActorRef } from "../admin/team";
+import { setAutonomyLevel, setSimulation } from "../admin/team";
+import { agentAudit, agentEvent, nowOf, writeSetting } from "../admin/journal";
+import { interpretAnswer, type HumanRequestKindName } from "./answer";
+import { expectedOf, onAnswerOf, optionsOf, sendNextHumanRequest } from "./requests";
+import { saveSecret, secretLabel, verifySecret } from "./secrets";
+
+export type HumanRequestRow = {
+  id: string;
+  kind: string;
+  key: string;
+  status: string;
+  question: string;
+  options: unknown;
+  expected: unknown;
+  onAnswer: unknown;
+  missionId: string | null;
+  teamKey: string | null;
+};
+
+export type RespondResult = {
+  ok: boolean;
+  message: string;
+  /** La demande est close (répondue ou passée). */
+  closed: boolean;
+  /** Le texte reçu était (ou devait être) un secret : le message qui le contient doit être supprimé. */
+  secret: boolean;
+};
+
+/**
+ * `deferNext` : l'appelant enverra lui-même la question suivante (`sendNextHumanRequest`) APRÈS sa confirmation, pour
+ * que la conversation Telegram reste dans l'ordre.
+ */
+export type RespondOptions = { deferNext?: boolean };
+
+/** Suite propre à une action `onAnswer` (enregistrée par les phases suivantes : choix de fournisseur, banc d'essai…). */
+export type AnswerAction = (
+  deps: AgentsDeps,
+  ctx: { request: HumanRequestRow; value: string; actor: ActorRef; onAnswer: Record<string, unknown> },
+) => Promise<string | void>;
+
+const actions = new Map<string, AnswerAction>();
+
+export function registerAnswerAction(name: string, fn: AnswerAction): void {
+  actions.set(name, fn);
+}
+
+/** Actions de base de la phase 19. Rend une phrase de confirmation (ou rien). */
+async function builtinAction(
+  deps: AgentsDeps,
+  name: string,
+  onAnswer: Record<string, unknown>,
+  kind: HumanRequestKindName,
+  value: string,
+  actor: ActorRef,
+): Promise<string | undefined> {
+  if (name === "setting" && typeof onAnswer.settingKey === "string") {
+    await writeSetting(deps, onAnswer.settingKey, kind === "CONFIRM" ? value === "oui" : value);
+    return undefined;
+  }
+  if (name === "set-simulation" && isTeamKey(onAnswer.teamKey)) {
+    if (value !== "oui") return "D'accord, rien ne change : l'équipe reste en simulation.";
+    return (await setSimulation(deps, onAnswer.teamKey, onAnswer.simulation === true, actor)).message;
+  }
+  if (name === "set-autonomy" && isTeamKey(onAnswer.teamKey)) {
+    const level = onAnswer.level;
+    if (value !== "oui" || (level !== 0 && level !== 1 && level !== 2)) return "D'accord, le niveau ne change pas.";
+    return (await setAutonomyLevel(deps, onAnswer.teamKey, level, actor)).message;
+  }
+  return undefined;
+}
+
+/** Missions qui attendent cette demande (la sienne et celles qui ont posé la même question). */
+function waitingMissions(request: HumanRequestRow): string[] {
+  const onAnswer = onAnswerOf(request.onAnswer);
+  const extra = Array.isArray(onAnswer.waitingMissionIds) ? (onAnswer.waitingMissionIds as string[]) : [];
+  return [...new Set([request.missionId, ...extra].filter((x): x is string => typeof x === "string"))];
+}
+
+/** Reprend les missions en WAITING_HUMAN (réponse rangée dans `payload.humanAnswers`, jamais un secret). */
+export async function resumeWaitingMissions(
+  deps: AgentsDeps,
+  request: HumanRequestRow,
+  outcome: { answered: boolean; summary: string | null },
+): Promise<void> {
+  const onAnswer = onAnswerOf(request.onAnswer);
+  if (onAnswer.resume === false) return;
+  for (const missionId of waitingMissions(request)) {
+    const mission = await deps.prisma.agentMission.findUnique({ where: { id: missionId } });
+    if (!mission || mission.status !== "WAITING_HUMAN") continue;
+    const payload = (mission.payload && typeof mission.payload === "object" ? mission.payload : {}) as Record<string, unknown>;
+    const answers = (payload.humanAnswers && typeof payload.humanAnswers === "object" ? payload.humanAnswers : {}) as Record<string, unknown>;
+    answers[request.key] = outcome.answered ? (request.kind === "SECRET" ? "saved" : outcome.summary) : null;
+    await deps.prisma.agentMission.update({
+      where: { id: missionId },
+      data: { payload: JSON.parse(JSON.stringify({ ...payload, humanAnswers: answers })) },
+    });
+    try {
+      await lifecycle.continueMission(deps, missionId, {
+        reason: outcome.answered ? "réponse du client" : "demande passée ou expirée",
+      });
+    } catch (err) {
+      deps.logger?.error({ err: (err as Error).message, missionId }, "[agents] reprise de la mission impossible");
+    }
+  }
+}
+
+async function close(
+  deps: AgentsDeps,
+  request: HumanRequestRow,
+  status: "ANSWERED" | "SKIPPED",
+  summary: string | null,
+  actor: ActorRef,
+): Promise<boolean> {
+  const done = await deps.prisma.humanRequest.updateMany({
+    where: { id: request.id, status: { in: ["QUEUED", "PENDING"] } },
+    data: { status, answerSummary: summary, answeredAt: nowOf(deps) },
+  });
+  if (done.count === 0) return false;
+  const action = status === "ANSWERED" ? "agents.request.answered" : "agents.request.skipped";
+  await agentAudit(deps, {
+    userId: actor.userId ?? null,
+    action,
+    entityType: "HumanRequest",
+    entityId: request.id,
+    metadata: { key: request.key, kind: request.kind, via: actor.via, summary },
+  });
+  await agentEvent(deps, action, { requestId: request.id, key: request.key, kind: request.kind, via: actor.via });
+  return true;
+}
+
+/** « Plus tard » : la demande est passée, les missions qui l'attendaient reprennent sans réponse, la suivante part. */
+export async function skipRequest(
+  deps: AgentsDeps,
+  request: HumanRequestRow,
+  actor: ActorRef,
+  opts: RespondOptions = {},
+): Promise<RespondResult> {
+  const closed = await close(deps, request, "SKIPPED", null, actor);
+  if (!closed) return { ok: false, message: "Cette demande est déjà close.", closed: false, secret: false };
+  await resumeWaitingMissions(deps, request, { answered: false, summary: null });
+  if (!opts.deferNext) await sendNextHumanRequest(deps);
+  return { ok: true, message: "D'accord, je te le redemanderai plus tard. 👍", closed: true, secret: false };
+}
+
+/** Répond à une demande ouverte avec le texte reçu. */
+export async function respondToRequest(
+  deps: AgentsDeps,
+  request: HumanRequestRow,
+  text: string,
+  actor: ActorRef,
+  opts: RespondOptions = {},
+): Promise<RespondResult> {
+  const kind = request.kind as HumanRequestKindName;
+  const secret = kind === "SECRET";
+  if (request.status !== "QUEUED" && request.status !== "PENDING")
+    return { ok: false, message: "Cette demande est déjà close.", closed: false, secret };
+  const interpreted = interpretAnswer(
+    { kind, key: request.key, options: optionsOf(request.options), expected: expectedOf(request.expected) },
+    text,
+  );
+  if (interpreted.type === "skip") return { ...(await skipRequest(deps, request, actor, opts)), secret: false };
+  if (interpreted.type === "invalid") return { ok: false, message: interpreted.message, closed: false, secret };
+
+  const onAnswer = onAnswerOf(request.onAnswer);
+  const notes: string[] = [];
+  if (secret) {
+    const { last4 } = await saveSecret(deps, request.key, interpreted.value, actor);
+    const label = secretLabel(request.key);
+    const check = await verifySecret(deps, request.key);
+    if (check && !check.ok)
+      // Clé refusée par le fournisseur : la demande reste ouverte, il suffit de répondre avec une autre clé.
+      return {
+        ok: false,
+        message: `${capitalize(label)} reçue (…${last4}). Vérification : KO : ${check.message}. Réessaie en répondant avec une autre clé.`,
+        closed: false,
+        secret,
+      };
+    notes.push(`${capitalize(label)} enregistrée (…${last4})${check ? ". Vérification : OK ✅" : " ✅"}`);
+  }
+
+  const name = typeof onAnswer.action === "string" ? onAnswer.action : null;
+  if (name) {
+    const custom = actions.get(name);
+    const note = custom
+      ? await custom(deps, { request, value: interpreted.value, actor, onAnswer })
+      : await builtinAction(deps, name, onAnswer, kind, interpreted.value, actor);
+    if (note) notes.push(note);
+  }
+
+  await close(deps, request, "ANSWERED", interpreted.summary, actor);
+  await resumeWaitingMissions(deps, request, { answered: true, summary: interpreted.summary });
+  if (!opts.deferNext) await sendNextHumanRequest(deps);
+  return { ok: true, message: notes.length ? notes.join("\n") : "Réponse notée ✅", closed: true, secret };
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
