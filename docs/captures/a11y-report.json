@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-23T17:38:30.878Z",
-  "base": "http://localhost:3120",
+  "generatedAt": "2026-10-23T19:27:22.810Z",
+  "base": "http://localhost:3121",
   "width": 1440,
   "tags": [
     "wcag2a",
@@ -15,16 +15,8 @@
   },
   "pages": [
     {
-      "route": "/agents/dating",
-      "path": "/agents/dating",
-      "status": "ok",
-      "httpStatus": 200,
-      "note": null,
-      "violations": []
-    },
-    {
-      "route": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
-      "path": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
+      "route": "/agents/algo",
+      "path": "/agents/algo",
       "status": "ok",
       "httpStatus": 200,
       "note": null,

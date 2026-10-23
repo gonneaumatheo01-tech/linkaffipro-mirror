@@ -1,3 +1,4 @@
+import { stripHtml } from "@linkaffipro/core";
 import { EmptyState } from "@/components/admin/empty-state";
 import { StatusPill } from "@/components/admin/status-pill";
 import type { ReportView } from "@/lib/agents/algo/queries";
@@ -30,7 +31,8 @@ export function ReportsList({ reports }: { reports: ReportView[] }) {
                 <StatusPill tone="muted">Pas encore envoyé</StatusPill>
               )}
             </summary>
-            <div className="mt-3 whitespace-pre-line text-body text-foreground">{r.content}</div>
+            <div className="mt-3 whitespace-pre-line text-body text-foreground">{/* Le rapport est écrit en HTML Telegram : on montre le texte, sans les balises. */}
+              {stripHtml(r.content)}</div>
           </details>
         </li>
       ))}
