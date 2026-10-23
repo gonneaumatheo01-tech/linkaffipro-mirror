@@ -598,3 +598,19 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   du mois lus dans `AgentUsage` (sports, odds). Plan par canal masqué pour cette équipe (les catégories portent les
   canaux et la campagne). Raisonnement d'un pari lu avec tolérance (une phrase n'apparaît que si son chiffre existe).
   Pas de test de connexion automatique à l'enregistrement depuis le site (bouton « Tester la connexion »).
+- **Captures chez le bookmaker (phase 23)** : `playwright-core` 1.64 + Chromium d'Alpine (`apk add chromium`, lancé
+  avec `--no-sandbox --disable-dev-shm-usage`, `CHROMIUM_PATH` pour forcer un autre exécutable,
+  `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`) dans le worker ; service séparé seulement si la mémoire sature. Un seul
+  navigateur à la fois (verrou Redis `capture:lock`, 3 min, session de 150 s au plus). Session (cookies et stockage)
+  chiffrée dans `agents.secret.providers.bookmakers.<nom>.session`, passée en mémoire (`storageState`), jamais en clair
+  sur disque ; proxy `providers.screenshotProxy`. **Garde « jamais de mise »** : l'adaptateur ne voit jamais la page
+  brute, seulement une liste blanche d'actions ; textes / attributs de mise, d'argent et de compte (plusieurs langues),
+  clic sur une cote, pages d'argent ou de compte et autres domaines refusés. File des demandes de capture sans migration
+  (`Setting` `agents.capture.request.<id>`, prise atomique par `updatedAt`, reprise après 10 min, abandon après 24 h,
+  lue toutes les 15 s). Test de connexion : direct dans le worker ; depuis le site par la file (100 s d'attente au
+  plus) ; depuis la question du bot : enfilé, résultat envoyé ensuite par Telegram. Mac du client : passe par
+  `/api/integrations/capture-runner` avec un jeton chiffré `providers.captureRunner.token` (`pnpm agents:capture-token`),
+  commande `pnpm agents:capture-runner [-- --visible]`. Réglages `settings.sports.captureMode` (`server` / `mac`),
+  `captureWaitMinutes` (20), `bookmakerSites.<clé>` (sélecteurs corrigeables sans déploiement ; sélecteurs Sportaza à
+  confirmer en production). Sans identifiants : capture déconnectée (cotes publiques). Délai dépassé : un essai 5 min
+  plus tard, puis image de repli (toujours validée).
