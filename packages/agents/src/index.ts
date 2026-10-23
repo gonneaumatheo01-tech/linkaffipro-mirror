@@ -130,3 +130,4 @@ export * from "./casino/setup";
 export { casinoThemesOf, channelThemes } from "./casino/data";
 export { inventedFigures, offerFiguresIn } from "./rules/figures";
 export { runCasinoMediatheque, casinoFallbacksOf } from "./agents/mediatheque/casino";
+export * from "./sports/contracts";

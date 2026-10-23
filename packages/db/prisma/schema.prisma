@@ -2529,11 +2529,17 @@ enum MediaAssetKind {
   GENERATED
   PHOTO
   REFERENCE
+  /// Capture d'écran d'un site de bookmaker (phase 23).
+  SCREENSHOT
 }
 
 enum MediaAssetOrigin {
   HUMAN
   AI
+  /// Capture du site d'un bookmaker (phase 23) : ni fournie par le client, ni générée.
+  HUMAN_SITE
+  /// Image de repli fabriquée par nous à partir d'un gabarit (capture impossible, phase 23).
+  TEMPLATE
 }
 
 /// Utilisation d'un média de la médiathèque sur un canal (jamais deux fois en 30 jours sur le même canal).
@@ -2591,6 +2597,8 @@ model PostInsight {
   agentMissionId String?
   model          String?
   experimentId   String?
+  /// Phase 23 : résultat du pari publié par ce post (WON | LOST | VOID), null si ce n'est pas un pari.
+  betResult      String?
   computedAt     DateTime @default(now())
 
   @@index([channelId, sentAt])
@@ -2694,4 +2702,87 @@ model InsightReport {
   createdAt DateTime  @default(now())
 
   @@unique([teamKey, weekStart])
+}
+
+// ============================================================
+// Phase 23 : équipe Paris sportifs (cotes, sélection, captures, résultats)
+// ============================================================
+
+/// Catégorie de paris (« tirs cadrés », « corners »…) : marchés chez le fournisseur de cotes, critères, destination.
+model BetCategory {
+  id                      String   @id @default(cuid())
+  key                     String   @unique
+  name                    String
+  sport                   String   @default("SOCCER")
+  /// Identifiants de marchés chez le fournisseur (`oddID` SportsGameOdds, avec PLAYER_ID / statEntityID génériques).
+  marketTypes             Json     @default("[]")
+  /// Ligues (`leagueID` du fournisseur).
+  leagues                 Json     @default("[]")
+  /// Bookmakers cibles (clés : `sportaza`, `5gringos`…).
+  bookmakers              Json     @default("[]")
+  minOdds                 Float    @default(1.5)
+  maxOdds                 Float    @default(3.5)
+  picksPerDay             Int      @default(2)
+  /// Canaux de destination (JSON string[] d'identifiants `Channel`).
+  channelIds              Json     @default("[]")
+  campaignId              String?
+  minMinutesBeforeKickoff Int      @default(30)
+  /// Écart de cote toléré entre la sélection et l'envoi (5 % par défaut).
+  maxOddsDriftPct         Float    @default(5)
+  active                  Boolean  @default(false)
+  sortOrder               Int      @default(0)
+  updatedById             String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  picks BettingPick[]
+}
+
+enum BettingPickStatus {
+  PROPOSED
+  PUBLISHED
+  SKIPPED
+  WON
+  LOST
+  VOID
+}
+
+/// Pari retenu par l'équipe Paris sportifs : match, marché, cotes, raisonnement chiffré, capture, résultat.
+model BettingPick {
+  id                String            @id @default(cuid())
+  missionId         String?
+  categoryId        String
+  category          BetCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  /// Identifiant du match chez le fournisseur de cotes.
+  eventId           String
+  homeTeam          String
+  awayTeam          String
+  league            String
+  kickoffAt         DateTime
+  /// `oddID` du fournisseur et libellés lisibles.
+  marketId          String
+  marketLabel       String
+  selectionLabel    String
+  line              Float?
+  bookmaker         String
+  /// Cotes décimales.
+  odds              Float
+  consensusOdds     Float?
+  interestScore     Float?
+  oddsAtSend        Float?
+  /// Raisonnement chiffré (JSON : écart de valeur, moyennes, probabilité de consensus…).
+  reasoning         Json              @default("{}")
+  screenshotAssetId String?
+  postId            String?
+  status            BettingPickStatus @default(PROPOSED)
+  skipReason        String?
+  /// Statistiques du match après coup (score, tirs cadrés, corners…).
+  result            Json?
+  settledAt         DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status, kickoffAt])
+  @@index([categoryId, createdAt])
+  @@index([eventId, marketId])
 }
