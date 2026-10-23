@@ -236,6 +236,9 @@ importers:
       '@ip-location-db/dbip-country-mmdb':
         specifier: 2.3.2026060120
         version: 2.3.2026060120
+      '@linkaffipro/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@linkaffipro/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -369,6 +372,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@linkaffipro/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@linkaffipro/chat':
         specifier: workspace:*
         version: link:../../packages/chat
@@ -676,6 +682,9 @@ importers:
 
   packages/telegram:
     dependencies:
+      '@linkaffipro/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@linkaffipro/chat':
         specifier: workspace:*
         version: link:../chat

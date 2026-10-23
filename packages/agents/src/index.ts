@@ -7,3 +7,5 @@ export * from "./missions/lifecycle";
 export * from "./validation/requests";
 export * from "./human/requests";
 export * from "./admin/team";
+export * from "./human/secrets";
+export * from "./human/site";

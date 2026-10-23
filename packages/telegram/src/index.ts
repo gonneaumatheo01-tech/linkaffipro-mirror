@@ -240,3 +240,4 @@ export type {
   PrismaLandingOptions,
   RetryLandingLinksReport,
 } from "./landing/prisma-links";
+export { createAdminMessenger } from "./agents/admin-messenger";
