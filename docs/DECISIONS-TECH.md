@@ -542,3 +542,12 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   un `algo` (chiffres des conversations). Alertes de chute : posts des dernières 24 h exclus, mesure = vues à 24 h sur
   7 jours, une par cible et par 24 h. Question du quota posée en TEXT (« 1 / 2 / 3 » = 4 / 6 / 8, ou un chiffre libre).
   Commande `pnpm agents:report-now [--team algo] [--no-send] [--queue]`.
+
+## Phase 22 — agents IA : équipe Casino (23 octobre 2026)
+
+- **Aucune migration** : un média casino porte son thème principal dans `MediaAsset.theme` et tous ses thèmes dans
+  `MediaAsset.tags` (`theme:<clé>`) ; « à classer » = `teamKey = "casino"`, `theme = null`, tag `a-classer`. Thèmes de
+  l'équipe dans `AgentTeamConfig.settings.casino.themes` (départ : machines à sous, roulette, blackjack, bonus, jackpot,
+  live, tournoi, cashback, ambiance), seuil de manque `settings.casino.lowStock` (3), rotation `rotationDays` (30) ;
+  thèmes d'un canal avec leur poids dans `ChannelAgentPlan.themes` (`[{ theme, weight }]`). Demandes de vidéos =
+  `HumanRequest` MEDIA ; alerte `agents_media_low` dans le système d'alertes existant.

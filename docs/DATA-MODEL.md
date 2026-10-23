@@ -436,3 +436,11 @@ Migration additive `20261023200000_phase21_agents_algorithme`.
 | `InsightReport` (unique `(teamKey, weekStart)`) | Rapport « Ce qui marche » d'une équipe pour une semaine (lundi, Paris) : texte envoyé, chiffres (dont `stats.conversations`, chiffres par profil de conversation). |
 | `ChannelAgentPlan.suggestedWindows`, `.styleNotes` | Fenêtres suggérées par l'agent Horaires ; consigne « ce qui marche ici » lue par la Rédaction. |
 | `Persona.suggestedFollowUpHours` | Heures de relance conseillées ; lues par le moteur de relances seulement si une recommandation les a appliquées. |
+
+## Phase 22 : équipe Casino des agents
+
+Aucune migration. Conventions sur les colonnes existantes : `MediaAsset.theme` (thème principal), `MediaAsset.tags`
+(`theme:<clé>` pour chaque thème, `a-classer` pour un média casino sans thème), `origin = HUMAN` obligatoire pour un
+média casino (jamais de média généré) ; `ChannelAgentPlan.themes` = `[{ theme, weight }]` pour un canal casino, mélange
+casino par défaut `{ video: 2, photo: 1, text: 1 }` ; `AgentTeamConfig.settings.casino` = `{ themes, lowStock,
+rotationDays }`.
