@@ -208,11 +208,11 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
       expect(p.settledAt).not.toBeNull();
       expect((p.result as { detail?: string }).detail).toBeTruthy();
     }
-    const summary = await betSummary(prisma, { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z"), by: "category" });
+    const summary = await betSummary(prisma as never, { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z"), by: "category" });
     expect(summary).toHaveLength(1);
     expect(summary[0]).toMatchObject({ key: categoryId, label: "Tirs cadrés (test)", published: 2 });
     expect(summary[0]!.won + summary[0]!.lost + summary[0]!.void).toBe(2);
-    const byLeague = await betSummary(prisma, { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z"), by: "league" });
+    const byLeague = await betSummary(prisma as never, { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z"), by: "league" });
     expect(byLeague.reduce((s, x) => s + x.published, 0)).toBe(2);
     // Un second passage ne règle rien de plus.
     expect((await runSportsSettle(deps)).settled).toBe(0);

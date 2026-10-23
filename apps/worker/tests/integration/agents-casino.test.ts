@@ -87,7 +87,7 @@ describe("équipe Casino : une semaine simulée sur le canal Test (base réelle)
     await prisma.mediaAssetTelegramFile.deleteMany({ where: { assetId: { in: old.map((a) => a.id) } } });
     await prisma.mediaAsset.deleteMany({ where: { id: { in: old.map((a) => a.id) } } });
     // Questions des autres équipes déjà posées : la file des demandes ne contient que celles du casino.
-    for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked"])
+    for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked", "agents.sportsSetupAsked"])
       await prisma.setting.create({ data: { key, value: "2026-10-01T00:00:00.000Z" } });
 
     const { bot, channel } = await createBotAndChannel({ title: "Canal test" });

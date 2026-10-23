@@ -73,6 +73,7 @@ export const IMPLEMENTED_AGENT_KEYS = [
   "synthese",
   // Équipe Paris sportifs (phase 23).
   "cotes",
+  "capture",
 ] as const satisfies readonly AgentKey[];
 
 export const AGENT_LABELS: Record<AgentKey, string> = {
