@@ -868,6 +868,11 @@ model MediaAsset {
   tags             Json              @default("[]")
   /// Copie dans le canal Telegram privé « Médiathèque » (facultative).
   libraryMessageId Int?
+  /// Média produit par un fournisseur (phase 20) : vidéo source d'origine, travail chez le fournisseur, résolution.
+  sourceAssetId    String?
+  providerJobId    String?
+  providerName     String?
+  resolution       String?
 
   telegramFiles    MediaAssetTelegramFile[]
   usages           MediaUsage[]
@@ -877,6 +882,7 @@ model MediaAsset {
   personas         Persona[]
 
   @@index([teamKey, theme])
+  @@index([personaId, kind])
 }
 
 /// Identifiant Telegram d'un média une fois envoyé par un bot (réutilisable sans ré-upload).
@@ -1995,6 +2001,13 @@ model Persona {
   illusion                Boolean            @default(false)
   /// Exemples de registre (échanges courts « lui: / moi: ») imités par le modèle, jamais recopiés.
   styleExamples           String?            @db.Text
+  /// Médias du personnage (phase 20) : 1 à 3 images de référence (`MediaAsset`, la première sert au remplacement
+  /// vidéo), fichier LoRA (adresse), mot déclencheur et poids, consignes de tenue / d'ambiance.
+  referenceImageIds       Json               @default("[]")
+  loraUrl                 String?
+  loraTrigger             String?
+  loraScale               Float              @default(0.8)
+  mediaNotes              String?            @db.Text
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)

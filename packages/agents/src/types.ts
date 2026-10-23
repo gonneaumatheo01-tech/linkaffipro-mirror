@@ -255,3 +255,12 @@ export type AgentDefinition = {
   key: AgentKey;
   run(mission: Mission, ctx: AgentContext): Promise<AgentResult>;
 };
+
+/** Extraction d'images d'une vidéo (phase 20, `ffmpeg` dans le worker) : début, milieu, fin, en JPEG. */
+export type FrameExtractor = (
+  video: { bytes: Uint8Array; mimeType: string },
+  count: number,
+) => Promise<{ frames: Uint8Array[]; durationSec: number | null; width?: number | null; height?: number | null } | null>;
+
+/** Transcription d'un vocal (phase 20, vocaux de l'admin ; même fournisseur que les comptes réels de la phase 18). */
+export type Transcriber = (audio: { bytes: Uint8Array; mimeType: string }) => Promise<string | null>;

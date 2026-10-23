@@ -47,3 +47,6 @@ export * from "./orchestrator/reports";
 export * from "./orchestrator/resume";
 export * from "./orchestrator/cycle";
 export { simulationHeader, withSimulationHeader } from "./agents/publication/header";
+export * from "./missions/test-post";
+export * from "./orchestrator/bench";
+export * from "./human/dating-setup";
