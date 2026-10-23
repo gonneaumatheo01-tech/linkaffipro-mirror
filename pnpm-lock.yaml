@@ -399,6 +399,9 @@ importers:
       '@linkaffipro/telegram':
         specifier: workspace:*
         version: link:../../packages/telegram
+      '@linkaffipro/userbot':
+        specifier: workspace:*
+        version: link:../../packages/userbot
       '@prisma/client':
         specifier: ~6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)

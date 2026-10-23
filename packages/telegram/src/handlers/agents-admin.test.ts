@@ -206,3 +206,46 @@ describe("dialogue admin (Telegram)", () => {
     expect(kit.tables("auditLog")).toHaveLength(0);
   });
 });
+
+function voiceUpdate(fromId: number, size = 5000): Update {
+  return {
+    update_id: uid++,
+    message: {
+      message_id: 700 + uid,
+      date: 0,
+      chat: { id: fromId, type: "private", first_name: "A" },
+      from: { id: fromId, is_bot: false, first_name: "A" },
+      voice: { file_id: "voice_file", file_unique_id: "vu", duration: 3, mime_type: "audio/ogg", file_size: size },
+    },
+  } as Update;
+}
+
+describe("vocaux de l'admin (phase 20)", () => {
+  it("vocal de l'admin : mis en file pour le worker (idempotent), rien d'autre", async () => {
+    const kit = createTestKit();
+    const { bot, calls } = makeBot(makeDeps(kit));
+    const u = voiceUpdate(ADMIN);
+    await bot.handleUpdate(u);
+    const messageId = (u as { message: { message_id: number } }).message.message_id;
+    expect(kit.enqueue.orchestrator).toHaveBeenCalledWith(
+      { type: "admin-voice", botId: "bot_1", fileId: "voice_file", messageId, chatId: ADMIN, replyToMessageId: null, mimeType: "audio/ogg" },
+      { jobId: `admin-voice:bot_1:${messageId}` },
+    );
+    expect(calls.some((c) => c.method === "sendMessage" || c.method === "getFile")).toBe(false);
+  });
+
+  it("vocal d'une autre personne : ignoré", async () => {
+    const kit = createTestKit();
+    const { bot } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(voiceUpdate(999));
+    expect(kit.enqueue.orchestrator).not.toHaveBeenCalled();
+  });
+
+  it("vocal trop lourd : message clair, rien en file", async () => {
+    const kit = createTestKit();
+    const { bot, sent } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(voiceUpdate(ADMIN, 3 * 1024 * 1024));
+    expect(kit.enqueue.orchestrator).not.toHaveBeenCalled();
+    expect(sent()[0]).toContain("Vocal trop long");
+  });
+});
