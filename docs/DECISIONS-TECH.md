@@ -393,3 +393,14 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **Validation sans réponse** : 24 h → rappel unique et mission reportée d'un jour ; 72 h → EXPIRED, mission annulée.
 - **`budget vidéo <euros>`** : plafond vidéo mensuel de l'équipe Dating. Progrès d'une demande MEDIA dans
   `expected.received` (pas de colonne).
+- **Site** : l'équipe Dating s'affiche « Rencontres » (`apps/web/lib/agents/teams.ts`), `TEAM_LABELS` du paquet ne sert
+  pas à l'écran. Noms des files `agents-*` écrits en dur côté site (carte État du système) ; Grand Chef « en retard »
+  après 1 h sans passage. Plafond vide = clé absente de `monthlyBudgetCents` ; saisie en euros, stockage en centimes.
+  « Vérifier » affiché pour toute clé enregistrée (aucun appel réseau à l'ouverture de la page). `agents.models` =
+  `{ fast, strong }` parmi `AI_MODEL_IDS` ; sans canal Médiathèque, `agents.libraryChannelId` est supprimé.
+  Corriger depuis le site = éditeur partagé ; CHOICE répondu par le numéro, CONFIRM par oui / non. Journal d'actions :
+  famille `agents.*` (`agents.team_settings_saved`, `agents.channel_plan_saved`, `agents.budgets_saved`,
+  `agents.models_saved`, `agents.library_channel_set`). Pause d'une équipe ouverte aux MANAGER (geste de sécurité) ;
+  pause générale, simulation off et niveau 2 : ADMIN.
+- **Client Prisma partagé** : il masque `Channel.photoSmall`, son type ne colle plus à `PrismaClient` ; il est passé aux
+  services des agents avec une conversion de type.
