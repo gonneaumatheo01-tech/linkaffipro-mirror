@@ -565,3 +565,13 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   `origin HUMAN`, thème principal = premier coché, 50 Mo par vidéo, 10 Mo par image ; un fichier d'une autre équipe ou
   produit par l'IA est refusé. Demandes de vidéos affichées depuis `HumanRequest.expected` (`{ tags, count, received,
   channelId | channelIds }`). « Dernières publications » = les 12 derniers `MediaUsage` casino.
+- **Moteur Casino (phase 22)** : stock et seuil de manque comptent les vidéos seulement (les images servent de repli) ;
+  thèmes d'un canal ramenés à des clés, canal sans thème = thèmes de l'équipe ; mélange laissé à la valeur de la base
+  (0 / 0 / 1) = « non réglé » → 2 / 1 / 1 ; poids des thèmes corrigés par les vues mesurées (facteur 0,5 à 2 dès 3 posts
+  par thème). Fiche de l'offre = `Persona.offerPitch` d'un profil rattaché à la campagne ou à son offre Link Affi (les
+  campagnes n'ont pas de fiche) ; sans fiche : nom de l'offre seulement, aucun chiffre (montant, %, multiplicateur,
+  tours) — règle codée `rules/figures.ts`. Texte trop proche d'un modèle de message refusé. Média d'origine IA ou
+  inconnue refusé sur un canal casino (la mission repart en texte). « Nouveau thème » = jamais publié sur ce canal.
+  Demande groupée : clé `media.casino.<jour>`, état `Setting` `agents.casino.mediaAsked`, 5 vidéos visées par thème, 3
+  thèmes détaillés au plus, rien tant qu'une demande casino est ouverte. Jour d'une mission casino lu dans `planDay`
+  (horloge des agents) et non `createdAt`.
