@@ -69,6 +69,12 @@ export const QUEUE_LABELS: Record<string, string> = {
   stats: "Statistiques",
   maintenance: "Maintenance",
   automations: "Relances automatiques",
+  "agents-orchestrator": "Grand Chef",
+  "agents-dating": "Équipe Rencontres",
+  "agents-casino": "Équipe Casino",
+  "agents-sports": "Équipe Paris sportifs",
+  "agents-algo": "Équipe Algorithme",
+  "agents-ads": "Agent Ads",
 };
 
 export function queueLabel(name: string): string {

@@ -2,7 +2,7 @@
  * État admin / demande SECRET lu sur une base donnée (même logique que `prismaTelegramDeps.agentsAdminState`, sans
  * cache) : sert aux tests des handlers des agents.
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db as PrismaClient } from "@linkaffipro/db";
 
 export async function prismaAgentsAdminState(
   prisma: PrismaClient,
