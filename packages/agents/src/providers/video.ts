@@ -17,9 +17,16 @@ export type ReplaceInput = {
   /** Durée et images par seconde de la source, pour estimer le coût avant l'appel. */
   durationSec: number;
   fps?: number | null;
+  /** `MediaAsset` de la vidéo source (le faux fournisseur la renvoie telle quelle). */
+  sourceAssetId?: string;
 };
 
-export type ReplaceStart = { jobId: string; estimatedCents: number };
+/**
+ * `ref` : adresses d'état et de résultat renvoyées par le fournisseur (fal : `status_url`, `response_url`), gardées
+ * dans la mission et redonnées à `poll` (fal refuse une adresse reconstruite avec le chemin complet du modèle).
+ */
+export type ReplaceStart = { jobId: string; estimatedCents: number; ref?: VideoJobRef };
+export type VideoJobRef = { statusUrl?: string; responseUrl?: string };
 
 export type VideoPoll = {
   status: "queued" | "running" | "done" | "failed";
@@ -35,7 +42,7 @@ export type VideoProvider = {
   /** Coût estimé en centimes d'euro, AVANT l'appel (plafonds). */
   estimateCents(input: Pick<ReplaceInput, "durationSec" | "fps" | "resolution">): number;
   startReplace(input: ReplaceInput): Promise<ReplaceStart>;
-  poll(jobId: string): Promise<VideoPoll>;
+  poll(jobId: string, ref?: VideoJobRef): Promise<VideoPoll>;
   /** Téléchargement du résultat (adresse temporaire du fournisseur). */
   download(url: string): Promise<ProviderFile>;
 };

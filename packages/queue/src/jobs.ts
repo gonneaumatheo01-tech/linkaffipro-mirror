@@ -236,7 +236,8 @@ export type AgentsOrchestratorJob =
   | { type: "resume" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
-  | { type: "validations" };
+  | { type: "validations" }
+  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null };
 
 /** Files d'équipe : une étape de mission ; nom de la tâche = clé de l'agent, identifiant `<missionId>:<index>`. */
 export type AgentStepJob = { type: "step"; missionId: string; index: number };

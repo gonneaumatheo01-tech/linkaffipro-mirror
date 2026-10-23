@@ -10,10 +10,21 @@ import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/re
 import { bookmakerSecretKey, saveSecret, secretLabel, verifySecret } from "../human/secrets";
 import { normalizeText } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
-import { agentAudit, esc, nowOf, telegramActorUserId } from "./journal";
+import { esc, nowOf, telegramActorUserId } from "./journal";
+import { setTeamBudget } from "./budget";
 import { agentsStatusText, setAutonomyLevel, setTeamPaused, type ActorRef } from "./team";
 
-export type AdminTextInput = { text: string; messageId: number; replyToMessageId?: number | null };
+export type AdminTextInput = {
+  text: string;
+  messageId: number;
+  replyToMessageId?: number | null;
+  /** « voice » : texte transcrit d'un vocal (phase 20) ; jamais pris pour une clé, tout niveau confirmé par OUI. */
+  source?: "text" | "voice";
+};
+
+/** Réponse quand une clé arriverait par un vocal : rien n'est enregistré. */
+export const VOICE_SECRET_REFUSAL =
+  "🔒 Une clé doit arriver par écrit : je n'enregistre jamais une clé dictée. Colle-la en réponse au message de la question.";
 
 export type AdminTextResult = {
   handled: boolean;
@@ -38,7 +49,9 @@ async function answerRequest(
   request: HumanRequestRow,
   text: string,
   actor: ActorRef,
+  voice = false,
 ): Promise<AdminTextResult> {
+  if (voice && request.kind === "SECRET") return { handled: true, reply: VOICE_SECRET_REFUSAL };
   const r = await respondToRequest(deps, request, text, actor, { deferNext: true });
   return {
     handled: true,
@@ -83,7 +96,13 @@ async function listRequests(deps: AgentsDeps): Promise<string> {
   return [`Demandes ouvertes (${open.length}) :`, ...lines].join("\n");
 }
 
-async function runCommand(deps: AgentsDeps, cmd: AdminCommand, actor: ActorRef): Promise<AdminTextResult> {
+async function runCommand(
+  deps: AgentsDeps,
+  cmd: AdminCommand,
+  actor: ActorRef,
+  voice = false,
+): Promise<AdminTextResult> {
+  if (voice && (cmd.type === "secret" || cmd.type === "bookmaker")) return { handled: true, reply: VOICE_SECRET_REFUSAL };
   switch (cmd.type) {
     case "status":
       return { handled: true, reply: await agentsStatusText(deps) };
@@ -127,21 +146,7 @@ async function runCommand(deps: AgentsDeps, cmd: AdminCommand, actor: ActorRef):
       );
     case "budget": {
       // Les vidéos IA sont produites par l'équipe Dating (plan des phases 20 à 25).
-      const cents = Math.round(cmd.euros * 100);
-      const cfg = await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" } });
-      const budgets = { ...((cfg?.monthlyBudgetCents as Record<string, number> | null) ?? {}), video: cents };
-      await deps.prisma.agentTeamConfig.upsert({
-        where: { teamKey: "dating" },
-        create: { teamKey: "dating", monthlyBudgetCents: budgets, updatedById: actor.userId ?? null },
-        update: { monthlyBudgetCents: budgets, updatedById: actor.userId ?? null },
-      });
-      await agentAudit(deps, {
-        userId: actor.userId ?? null,
-        action: "agents.team.budget",
-        entityType: "AgentTeamConfig",
-        entityId: "dating",
-        metadata: { provider: "video", cents, via: actor.via },
-      });
+      await setTeamBudget(deps, "dating", "video", cmd.euros * 100, actor);
       return { handled: true, reply: `Plafond vidéo de l'équipe Dating : ${cmd.euros.toLocaleString("fr-FR")} € par mois ✅` };
     }
     case "live": {
@@ -155,13 +160,18 @@ async function runCommand(deps: AgentsDeps, cmd: AdminCommand, actor: ActorRef):
       return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };
     }
     case "level": {
-      if (cmd.level < 2) return { handled: true, reply: (await setAutonomyLevel(deps, cmd.team, cmd.level, actor)).message };
+      // Par écrit, baisser le niveau est direct ; par vocal (chiffre mal entendu possible), tout niveau est confirmé.
+      if (cmd.level < 2 && !voice)
+        return { handled: true, reply: (await setAutonomyLevel(deps, cmd.team, cmd.level, actor)).message };
       const r = await askHuman(deps, {
         teamKey: cmd.team,
         kind: "CONFIRM",
-        key: `agents.team.${cmd.team}.level2`,
-        question: `Passer l'équipe ${TEAM_LABELS[cmd.team]} en autonomie totale ? Elle publiera sans te demander, tu recevras seulement le rapport. Réponds OUI pour confirmer, « non » pour annuler.`,
-        onAnswer: { action: "set-autonomy", teamKey: cmd.team, level: 2 },
+        key: `agents.team.${cmd.team}.level${cmd.level}`,
+        question:
+          cmd.level === 2
+            ? `Passer l'équipe ${TEAM_LABELS[cmd.team]} en autonomie totale ? Elle publiera sans te demander, tu recevras seulement le rapport. Réponds OUI pour confirmer, « non » pour annuler.`
+            : `Passer l'équipe ${TEAM_LABELS[cmd.team]} au niveau ${cmd.level} (${cmd.level === 0 ? "tu valides tout" : "tu valides les nouveautés"}) ? Réponds OUI pour confirmer, « non » pour annuler.`,
+        onAnswer: { action: "set-autonomy", teamKey: cmd.team, level: cmd.level },
       });
       return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };
     }
@@ -172,13 +182,14 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   const text = input.text.trim();
   if (!text) return { handled: false };
   const actor: ActorRef = { userId: await telegramActorUserId(deps), via: "TELEGRAM" };
+  const voice = input.source === "voice";
 
   // 1. Réponse Telegram au message d'une question.
   if (input.replyToMessageId) {
     const request = (await deps.prisma.humanRequest.findFirst({
       where: { telegramMessageId: input.replyToMessageId, status: { in: ["QUEUED", "PENDING"] } },
     })) as HumanRequestRow | null;
-    if (request) return answerRequest(deps, request, text, actor);
+    if (request) return answerRequest(deps, request, text, actor, voice);
   }
 
   // 2. Correction demandée par « ✏️ Corriger » : ce message est le nouveau texte du post.
@@ -208,10 +219,10 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
 
   // 3. Commande connue.
   const cmd = parseAdminCommand(text);
-  if (cmd) return runCommand(deps, cmd, actor);
+  if (cmd) return runCommand(deps, cmd, actor, voice);
 
   // 4. Réponse à la question en cours.
   const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
-  if (current) return answerRequest(deps, current, text, actor);
+  if (current) return answerRequest(deps, current, text, actor, voice);
   return { handled: false };
 }

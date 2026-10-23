@@ -5,13 +5,17 @@
  */
 import { createFakeLlm } from "../providers/fake";
 import { loadLlmProvider, type LlmClientFactory } from "../providers/llm";
-import type { AgentContext, AgentsDeps, Providers, TeamKey } from "../types";
+import type { AgentContext, AgentsDeps, FrameExtractor, Providers, TeamKey } from "../types";
 import { loadTeamSettings } from "./settings";
 
 /** Dépendances du moteur : celles des services + fournisseurs imposés (tests) ou fabrique du client Claude. */
 export type EngineDeps = AgentsDeps & {
   providers?: Partial<Providers>;
   llmFactory?: LlmClientFactory;
+  /** Extraction d'images d'une vidéo (worker : ffmpeg). */
+  frames?: FrameExtractor;
+  /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
+  fetch?: typeof fetch;
 };
 
 export function clockOf(deps: Pick<AgentsDeps, "now">): () => Date {

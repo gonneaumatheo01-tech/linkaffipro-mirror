@@ -41,6 +41,8 @@ export const JARGON: JargonRule[] = [
   { word: "slug", re: word("slugs?"), instead: "adresse de la page" },
   { word: "pixel ID", re: word("pixel[-_ ]?ids?"), instead: "identifiant du pixel" },
   { word: "landing page", re: word("landing[- ]pages?"), instead: "page d'atterrissage" },
+  // Phase 20 (médias du personnage) : le fichier d'entraînement du générateur de photos, expliqué au survol (`Term`).
+  { word: "LoRA", re: word("loras?"), instead: "fichier du personnage" },
 ];
 
 /** Mots interdits trouvés dans un texte. */

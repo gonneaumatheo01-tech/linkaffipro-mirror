@@ -9,13 +9,15 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
 import { PersonaForm } from "@/components/personas/persona-form";
+import { PersonaMediaForm } from "@/components/personas/persona-media-form";
 import { PersonaTester } from "@/components/personas/persona-tester";
 import { PromptPreview } from "@/components/personas/prompt-preview";
 import { buttonVariants } from "@/components/ui/button";
 import { loadAssistantConfig } from "@/lib/assistant/config";
 import { monthCostEur } from "@/lib/assistant/usage";
 import { fmtNum } from "@/lib/format";
-import { personaRole, personaToForm } from "@/lib/personas/form";
+import { cleanIdentity, personaRole, personaToForm } from "@/lib/personas/form";
+import { loadPersonaMedia } from "@/lib/personas/media-save";
 import { loadPersona, loadPersonaFormChoices, loadPersonaTurnInput } from "@/lib/personas/queries";
 import { personaDisplayName, testBlockedReason } from "@/lib/personas/view";
 import { requireUser } from "@/lib/session";
@@ -36,8 +38,8 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Fiche d'une persona (phase 17) : le formulaire en sections (Identité, Parcours, Offre, Profil du bot, Avancé, Mise
- * en service), « Tester » à côté (conversation simulée avec la vraie IA, sans Telegram, d'après la version enregistrée),
- * l'aperçu replié des consignes envoyées à l'IA et, pour les administrateurs, « Supprimer la persona » (refusé tant
+ * en service), puis « Médias du personnage » (phase 20, formulaire séparé), « Tester » à côté (conversation simulée
+ * avec la vraie IA, sans Telegram, d'après la version enregistrée), l'aperçu replié des consignes envoyées à l'IA et, pour les administrateurs, « Supprimer la persona » (refusé tant
  * qu'un bot l'utilise). ADMIN et MANAGER modifient.
  */
 export default async function PersonaPage({
@@ -49,7 +51,7 @@ export default async function PersonaPage({
   const sp = await searchParams;
   const persona = await loadPersona(id);
   if (!persona) notFound();
-  const [choices, turn, config, spent] = await Promise.all([
+  const [choices, turn, config, spent, media] = await Promise.all([
     loadPersonaFormChoices({
       affiliateCampaignId: persona.affiliateCampaignId,
       offerMediaAssetId: persona.offerMediaAssetId,
@@ -57,6 +59,7 @@ export default async function PersonaPage({
     loadPersonaTurnInput(persona.id),
     loadAssistantConfig(),
     monthCostEur(),
+    loadPersonaMedia(persona.id),
   ]);
   const role = personaRole(persona.gender);
   const name = personaDisplayName(persona.name);
@@ -139,6 +142,15 @@ export default async function PersonaPage({
         </div>
 
         <div className="min-w-0 max-w-3xl space-y-10 xl:col-start-1">
+          {media ? (
+            <PersonaMediaForm
+              key={`media-${persona.id}-${persona.updatedAt.getTime()}`}
+              personaId={persona.id}
+              personaName={persona.name}
+              isGirl={cleanIdentity(persona.identityKind) === "GIRL"}
+              initial={media}
+            />
+          ) : null}
           {prompt ? <PromptPreview prompt={prompt} role={role} /> : null}
 
           {me.role === "ADMIN" ? (

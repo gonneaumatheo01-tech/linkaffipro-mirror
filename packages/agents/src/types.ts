@@ -4,6 +4,8 @@
  * `ctx.providers` (faux fournisseurs en test et en simulation).
  */
 import type { Db } from "@linkaffipro/db";
+import type { ImageProvider } from "./providers/image";
+import type { VideoProvider } from "./providers/video";
 
 /** Client Prisma des agents : le client partagé de `@linkaffipro/db` (colonnes omises par défaut comprises). */
 export type AgentsPrisma = Db;
@@ -112,6 +114,8 @@ export type MissionStep = {
   summary?: string | null;
   costCents?: number;
   error?: string | null;
+  /** Relectures d'un fournisseur déjà faites (étape en attente, phase 20). */
+  waits?: number;
 };
 
 /** Charge utile d'une mission POST (`AgentMission.payload`). */
@@ -163,8 +167,13 @@ export type AgentsOrchestratorJob =
   | { type: "resume" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
-  | { type: "validations" };
-export type AgentStepJob = { type: "step"; missionId: string; index: number };
+  | { type: "validations" }
+  /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures (`benchId`). */
+  | { type: "bench"; personaId?: string; count?: number; benchId?: string }
+  /** Vocal de l'admin (phase 20, chantier B) : téléchargé, transcrit et traité comme un texte par le worker. */
+  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null };
+/** `poll` : numéro de relecture d'une étape qui attend un fournisseur (identifiant de tâche distinct à chaque fois). */
+export type AgentStepJob = { type: "step"; missionId: string; index: number; poll?: number };
 
 /** Mise en file injectée (le worker et le site fournissent la vraie, les tests une fausse). */
 export type AgentsEnqueue = {
@@ -200,16 +209,24 @@ export type AgentsDeps = {
   logger?: Logger;
 };
 
+/** Image jointe à une demande d'IA (contrôle des médias, phase 20) : octets en base64. */
+export type LlmImage = { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; base64: string };
+
 /** Réponse d'un fournisseur d'IA texte (au-dessus de `@linkaffipro/ai`). */
-export type LlmRequest = { model: string; system: string; user: string; maxTokens: number };
+export type LlmRequest = { model: string; system: string; user: string; maxTokens: number; images?: LlmImage[] };
 export type LlmResponse = { text: string; costCents: number };
 export type LlmProvider = { complete(req: LlmRequest): Promise<LlmResponse> };
 
-/** Fournisseurs externes ; seul `llm` a une vraie implémentation en phase 19. */
+/**
+ * Fournisseurs externes. `video` / `image` (phase 20) : imposés par les tests ; sinon choisis par
+ * `providers/registry.ts` selon les clés (fal.ai, Magic Hour, faux fournisseur en simulation sans clé).
+ */
 export type Providers = {
   llm: LlmProvider | null;
-  video?: unknown;
-  image?: unknown;
+  video?: VideoProvider | null;
+  /** Repli vidéo (Magic Hour) imposé par les tests. */
+  videoFallback?: VideoProvider | null;
+  image?: ImageProvider | null;
   odds?: unknown;
   screenshot?: unknown;
 };
@@ -218,6 +235,10 @@ export type Providers = {
 export type AgentContext = AgentsDeps & {
   now: () => Date;
   providers: Providers;
+  /** Extraction d'images d'une vidéo (worker : ffmpeg) ; absente ailleurs. */
+  frames?: FrameExtractor;
+  /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
+  fetch?: typeof fetch;
   /** Réglages de l'équipe (`AgentTeamConfig`) et modèles (`Setting` `agents.models`). */
   settings: TeamSettings;
 };
@@ -249,6 +270,15 @@ export type AgentResult = {
   goTo?: AgentKey;
   retryable?: boolean;
   error?: string;
+  /**
+   * Étape en attente d'un fournisseur (phase 20, travail asynchrone) : ni finie ni échouée ; le moteur enregistre la
+   * charge utile et ré-enfile la même étape après `delayMs`.
+   */
+  wait?: { delayMs: number };
+  /** Rien à faire pour ce format (post texte, par exemple) : l'étape est marquée « sautée ». */
+  skipped?: boolean;
+  /** Poste de dépense du coût de l'étape quand l'agent en a plusieurs (`media-ia` : video ou image). */
+  costProvider?: ProviderKey;
 };
 
 export type AgentDefinition = {

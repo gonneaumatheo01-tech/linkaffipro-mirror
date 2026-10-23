@@ -50,3 +50,6 @@ export { simulationHeader, withSimulationHeader } from "./agents/publication/hea
 export * from "./missions/test-post";
 export * from "./orchestrator/bench";
 export * from "./human/dating-setup";
+// Chantier B (phase 20) : vocaux de l'admin, plafond par poste.
+export * from "./admin/voice";
+export * from "./admin/budget";

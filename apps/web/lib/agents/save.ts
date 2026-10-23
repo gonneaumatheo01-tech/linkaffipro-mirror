@@ -7,17 +7,26 @@
 import { audit, prisma, type Prisma } from "@linkaffipro/db";
 import type { ProviderKey, TeamKey } from "@linkaffipro/agents";
 import type { AgentsSettingsInput, ChannelPlanInput, TeamSettingsInput } from "./forms";
+import { mergeDatingSettings, parseDatingSettings, type DatingMediaSettings } from "./dating";
 import { TEAM_VERTICAL } from "./teams";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
-export async function saveTeamSettings(team: TeamKey, input: TeamSettingsInput, userId: string): Promise<void> {
+/**
+ * Réglages d'une équipe. `budgets: null` : plafonds inchangés (un responsable ne les modifie pas, phase 20 : les
+ * plafonds sont réservés aux administrateurs).
+ */
+export async function saveTeamSettings(
+  team: TeamKey,
+  input: Omit<TeamSettingsInput, "budgets"> & { budgets: TeamSettingsInput["budgets"] | null },
+  userId: string,
+): Promise<void> {
   const data = {
     styleGuidelines: input.styleGuidelines,
     forbiddenWords: json(input.forbiddenWords),
     maxTextLength: input.maxTextLength,
     quietHours: json(input.quietHours),
-    monthlyBudgetCents: json(input.budgets),
+    ...(input.budgets ? { monthlyBudgetCents: json(input.budgets) } : {}),
     updatedById: userId,
   };
   await prisma.agentTeamConfig.upsert({
@@ -35,8 +44,32 @@ export async function saveTeamSettings(team: TeamKey, input: TeamSettingsInput, 
       forbiddenWords: input.forbiddenWords.length,
       maxTextLength: input.maxTextLength,
       quietHours: input.quietHours,
-      budgetsCents: input.budgets,
+      budgetsCents: input.budgets ?? "inchangés",
     },
+  });
+}
+
+/**
+ * Fournisseur et résolution des vidéos de l'équipe Rencontres (ADMIN, vérifié par l'action), rangés dans
+ * `AgentTeamConfig.settings` sans toucher aux autres clés du moteur.
+ */
+export async function saveDatingMediaSettings(input: DatingMediaSettings, userId: string): Promise<void> {
+  const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" }, select: { settings: true } });
+  const before = parseDatingSettings(row?.settings);
+  if (row && before.videoProvider === input.videoProvider && before.videoResolution === input.videoResolution)
+    return;
+  const settings = json(mergeDatingSettings(row?.settings, input));
+  await prisma.agentTeamConfig.upsert({
+    where: { teamKey: "dating" },
+    create: { teamKey: "dating", settings, updatedById: userId },
+    update: { settings, updatedById: userId },
+  });
+  await audit({
+    userId,
+    action: "agents.video_settings_saved",
+    entityType: "AgentTeamConfig",
+    entityId: "dating",
+    metadata: { from: before, to: input },
   });
 }
 
@@ -75,6 +108,9 @@ export async function saveChannelPlan(team: TeamKey, input: ChannelPlanInput, us
   });
   if (!channel || (channel.vertical !== vertical && !channel.isTest))
     return { ok: false, error: "Ce canal n'est pas un canal de cette équipe." };
+  // Rencontres (phase 20) : chaque post est fait pour un personnage, un plan activé exige sa persona.
+  if (team === "dating" && input.enabled && !input.personaId)
+    return { ok: false, error: "Choisissez la persona du canal : elle est obligatoire pour un canal Rencontres." };
   if (input.personaId && !(await prisma.persona.findUnique({ where: { id: input.personaId }, select: { id: true } })))
     return { ok: false, error: "Persona introuvable : rechargez la page." };
   if (input.campaignId && !(await prisma.campaign.findUnique({ where: { id: input.campaignId }, select: { id: true } })))

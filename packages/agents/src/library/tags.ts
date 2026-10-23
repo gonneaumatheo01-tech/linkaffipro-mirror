@@ -42,6 +42,20 @@ const KIND_TAGS: Record<string, LibraryKind> = {
   generated: "GENERATED",
 };
 
+/**
+ * Mot-clé d'une persona dans une légende : son premier prénom, sans accents ni signes (« Léa Martin » → `lea`).
+ * Utilisé par les questions de mise en route (phase 20) ; le nom complet attaché (`#leamartin`) est aussi reconnu.
+ */
+export function personaTagOf(name: string): string {
+  const first = normalizeText(name).split(" ")[0] ?? "";
+  return first.replace(/[^\p{L}\p{N}_-]/gu, "");
+}
+
+function personaMatchesTag(name: string, tag: string): boolean {
+  const n = normalizeText(name);
+  return n === tag || n.replace(/[^\p{L}\p{N}_-]/gu, "") === tag || personaTagOf(name) === tag;
+}
+
 /** Mots-clés `#…` d'un texte, normalisés (minuscules, sans accents). */
 export function hashtagsOf(caption: string | null | undefined): string[] {
   if (!caption) return [];
@@ -81,7 +95,7 @@ export function parseLibraryCaption(
       kind = KIND_TAGS[t]!;
       continue;
     }
-    const p = personas.find((x) => normalizeText(x.name) === t);
+    const p = personas.find((x) => normalizeText(x.name) === t) ?? personas.find((x) => personaMatchesTag(x.name, t));
     if (!persona && p) {
       persona = p;
       continue;

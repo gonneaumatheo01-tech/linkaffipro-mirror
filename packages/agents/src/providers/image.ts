@@ -11,6 +11,8 @@ export type ImageGenerateInput = {
   prompt: string;
   count: number;
   aspect: ImageAspect;
+  /** Première image de référence de la persona (le faux fournisseur la renvoie). */
+  referenceAssetId?: string | null;
 };
 
 export type ImageGenerateResult = { images: { url: string; width?: number; height?: number }[]; cents: number };

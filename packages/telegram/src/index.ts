@@ -246,5 +246,5 @@ export { createAdminMessengerWith, htmlToPlain, CAPTION_MAX } from "./agents/adm
 export type { MessengerApi, MessengerPort } from "./agents/admin-messenger";
 export { createBotAgentsDeps } from "./agents/deps";
 export { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } from "./agents/redact";
-export { registerAgentsAdminHandlers } from "./handlers/agents-admin";
+export { registerAgentsAdminHandlers, ADMIN_VOICE_MAX_BYTES } from "./handlers/agents-admin";
 export { registerMediaInboxHandlers, inboxMediaOf, BOT_DOWNLOAD_MAX_BYTES } from "./handlers/media-inbox";

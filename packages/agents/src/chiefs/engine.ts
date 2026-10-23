@@ -6,10 +6,13 @@
  * - pause d'équipe ou pause générale : l'étape ne s'exécute pas, la mission attend (le balayage `resume` la relance) ;
  * - plafond vérifié avant toute étape payante (`BLOCKED_BUDGET`) ;
  * - une erreur : un nouvel essai immédiat, puis échec de la mission ; 3 missions échouées de suite → pause de l'équipe ;
- * - validation demandée → `requestValidation` (aperçu à l'admin) et arrêt jusqu'à la décision.
+ * - validation demandée → `requestValidation` (aperçu à l'admin) et arrêt jusqu'à la décision ;
+ * - étape en attente d'un fournisseur (`wait`, phase 20) : ni finie ni échouée, la même étape est ré-enfilée avec un
+ *   délai (tâche `<missionId>:<index>:p<n>`, distincte à chaque relecture) ;
+ * - `media-ia` vérifie lui-même ses plafonds (vidéo ou photo selon le format, avec repli) : pas de blocage ici.
  */
 import { agentEvent, nowOf } from "../admin/journal";
-import { agentFor, PAID_PROVIDERS } from "../agents/registry";
+import { agentFor, PAID_PROVIDERS, SELF_BUDGETED_AGENTS } from "../agents/registry";
 import { buildContext, type EngineDeps } from "../missions/context";
 import { json, parsePayload, toMission, type MissionRow } from "../missions/mission";
 import { recordUsage } from "../missions/usage";
@@ -29,7 +32,8 @@ export type StepOutcome =
   | "redo"
   | "validation"
   | "failed"
-  | "blocked_budget";
+  | "blocked_budget"
+  | "waiting";
 
 const TERMINAL = new Set(["DONE", "FAILED", "CANCELLED", "BLOCKED_BUDGET"]);
 
@@ -38,11 +42,18 @@ function short(s: string | null | undefined, n = 300): string | null {
 }
 
 /** Enfile l'étape `index` (ou rien si la chaîne est finie). Erreur de file : journalisée, le balayage `resume` reprendra. */
-export async function enqueueStep(deps: EngineDeps, mission: Pick<Mission, "id" | "teamKey">, steps: readonly MissionStep[], index: number): Promise<void> {
+export async function enqueueStep(
+  deps: EngineDeps,
+  mission: Pick<Mission, "id" | "teamKey">,
+  steps: readonly MissionStep[],
+  index: number,
+  opts: { poll?: number; delayMs?: number } = {},
+): Promise<void> {
   const step = steps[index];
   if (!step) return;
   try {
-    await deps.enqueue.step(mission.teamKey, step.agent, { type: "step", missionId: mission.id, index });
+    const job = { type: "step" as const, missionId: mission.id, index, ...(opts.poll ? { poll: opts.poll } : {}) };
+    await deps.enqueue.step(mission.teamKey, step.agent, job, opts.delayMs ? { delayMs: opts.delayMs } : undefined);
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, missionId: mission.id, index, queue: TEAM_QUEUES[mission.teamKey] }, "[agents] étape non enfilée");
   }
@@ -101,14 +112,14 @@ export async function runNextStep(deps: EngineDeps, missionId: string, index: nu
   const ctx = await buildContext(deps, mission.teamKey);
   const fakeLlm = (ctx.providers.llm as { fake?: boolean } | null)?.fake === true;
   const paid = (PAID_PROVIDERS[step.agent] ?? []).filter((p) => !(p === "llm" && fakeLlm));
-  const blocked = await checkBudgets(deps, ctx.settings, paid, now0);
+  const blocked = SELF_BUDGETED_AGENTS.has(step.agent) ? null : await checkBudgets(deps, ctx.settings, paid, now0);
   if (blocked) {
     steps[index] = { ...step, status: "FAILED", error: blocked.reason, endedAt: now0.toISOString() };
     await failMission(deps, mission, steps, blocked.reason!, now0, "BLOCKED_BUDGET");
     return "blocked_budget";
   }
 
-  steps[index] = { ...step, status: "RUNNING", startedAt: now0.toISOString(), error: null };
+  steps[index] = { ...step, status: "RUNNING", startedAt: step.status === "RUNNING" && step.startedAt ? step.startedAt : now0.toISOString(), error: null };
   await deps.prisma.agentMission.update({
     where: { id: mission.id },
     data: { status: "RUNNING", steps: json(steps) as never, lastActivityAt: now0 },
@@ -141,7 +152,7 @@ export async function runNextStep(deps: EngineDeps, missionId: string, index: nu
 
   const now = nowOf(deps);
   if (spent > 0) {
-    const provider = paid[0] ?? "llm";
+    const provider = result.costProvider ?? paid[0] ?? "llm";
     await recordUsage(deps.prisma, mission.teamKey, provider, spent, now);
     await maybeAlertBudget(deps, ctx.settings, provider, now);
   }
@@ -170,7 +181,27 @@ export async function runNextStep(deps: EngineDeps, missionId: string, index: nu
   // Relire la charge utile : une décision humaine a pu l'écrire pendant l'étape.
   const fresh = await deps.prisma.agentMission.findUnique({ where: { id: mission.id }, select: { payload: true, postId: true } });
   const payload = { ...parsePayload(fresh?.payload ?? mission.payload), ...(result.output ?? {}) };
-  steps[index] = { ...steps[index]!, status: "DONE", endedAt: now.toISOString(), summary: short(result.summary, 200), costCents: spent };
+  const stepCost = (step.costCents ?? 0) + spent;
+
+  if (result.wait) {
+    // En attente du fournisseur : l'étape reste « en cours », la même étape est relue plus tard.
+    const waits = (step.waits ?? 0) + 1;
+    steps[index] = { ...steps[index]!, status: "RUNNING", summary: short(result.summary, 200), costCents: stepCost, waits };
+    await deps.prisma.agentMission.update({
+      where: { id: mission.id },
+      data: { status: "RUNNING", steps: json(steps) as never, payload: json(payload) as never, lastActivityAt: now },
+    });
+    await enqueueStep(deps, mission, steps, index, { poll: waits, delayMs: Math.max(1000, result.wait.delayMs) });
+    return "waiting";
+  }
+
+  steps[index] = {
+    ...steps[index]!,
+    status: result.skipped ? "SKIPPED" : "DONE",
+    endedAt: now.toISOString(),
+    summary: short(result.summary, 200),
+    costCents: stepCost,
+  };
   const scheduledFor = typeof result.output?.slot === "string" ? new Date(result.output.slot) : undefined;
   await agentEvent(
     deps,

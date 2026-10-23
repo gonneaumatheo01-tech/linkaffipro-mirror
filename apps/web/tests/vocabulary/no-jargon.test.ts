@@ -167,6 +167,17 @@ describe("le contrôle reconnaît le texte visible", () => {
     expect(jargonIn("premier dépôt, revenu net, relance automatique, parcours")).toEqual([]);
   });
 
+  it("médias du personnage (phase 20) : « LoRA » seulement au survol, « fichier du personnage » en surface", () => {
+    expect(words(`<Label htmlFor="l">Adresse du LoRA</Label>`)).toEqual(["LoRA"]);
+    expect(words(`<p>Collez l'adresse des loras</p>`)).toEqual(["LoRA"]);
+    expect(
+      words(`<Term term="LoRA : fichier d'entraînement">fichier du personnage</Term>`),
+    ).toEqual([]);
+    expect(words(`<Input name="loraUrl" id="persona-lora-url" />`)).toEqual([]);
+    expect(jargonIn("Fichier du personnage (LoRA)")).toEqual(["LoRA"]);
+    expect(jargonIn("flora, explorateur")).toEqual([]);
+  });
+
   it("pages d'atterrissage (phase 15) : ni « slug » ni « pixel ID » en surface ; « join » reste le mot du client", () => {
     expect(words(`<Label htmlFor="s">Slug de la page</Label>`)).toEqual(["slug"]);
     expect(words(`<p>Votre Pixel ID TikTok</p>`)).toEqual(["pixel ID"]);

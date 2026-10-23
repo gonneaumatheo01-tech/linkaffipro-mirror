@@ -229,7 +229,11 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/conversations/personas/:id",
     label: "Fiche d'une persona",
-    sections: ["Personas", "Réglages → IA de conversation"],
+    sections: [
+      "Personas",
+      "Équipe Rencontres : vidéos, photos et banc d'essai",
+      "Réglages → IA de conversation",
+    ],
   },
   {
     path: "/conversations/stats",
@@ -241,7 +245,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents",
     label: "Agents",
-    sections: [intro("Agents"), "Tableau de bord du Grand Chef"],
+    sections: [intro("Agents"), "Tableau de bord du Grand Chef", "Parler au bot par messages vocaux"],
   },
   {
     path: "/agents/:id",
@@ -249,12 +253,25 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Fiche d'une équipe", "Simulation, niveaux et pause"],
   },
   {
+    path: "/agents/dating",
+    label: "Équipe Rencontres",
+    sections: [
+      "Fiche d'une équipe",
+      "Équipe Rencontres : vidéos, photos et banc d'essai",
+      "Simulation, niveaux et pause",
+    ],
+  },
+  {
     path: "/agents/validations",
     label: "Validations des agents",
     sections: ["Validations et demandes"],
   },
   { path: "/agents/journal", label: "Journal des agents", sections: ["Journal des agents"] },
-  { path: "/agents/settings", label: "Réglages des agents", sections: ["Réglages des agents"] },
+  {
+    path: "/agents/settings",
+    label: "Réglages des agents",
+    sections: ["Réglages des agents", "Parler au bot par messages vocaux"],
+  },
 
   // Statistiques
   {

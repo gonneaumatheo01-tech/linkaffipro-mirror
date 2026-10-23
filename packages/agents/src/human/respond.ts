@@ -7,7 +7,7 @@ import { isTeamKey, type AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { setAutonomyLevel, setSimulation } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, writeSetting } from "../admin/journal";
-import { interpretAnswer, type HumanRequestKindName } from "./answer";
+import { interpretAnswer, isSkipText, type HumanRequestKindName } from "./answer";
 import { expectedOf, onAnswerOf, optionsOf, sendNextHumanRequest } from "./requests";
 import { saveSecret, secretLabel, verifySecret } from "./secrets";
 
@@ -142,6 +142,10 @@ export async function skipRequest(
   actor: ActorRef,
   opts: RespondOptions = {},
 ): Promise<RespondResult> {
+  // Valeur par défaut d'un « plus tard » (`onAnswer.skipAnswer`, ex. plafond vidéo à 100 €) : vaut réponse.
+  const skipAnswer = onAnswerOf(request.onAnswer).skipAnswer;
+  if (typeof skipAnswer === "string" && skipAnswer.trim() && !isSkipText(skipAnswer) && request.kind !== "SECRET")
+    return respondToRequest(deps, request, skipAnswer, actor, opts);
   const closed = await close(deps, request, "SKIPPED", null, actor);
   if (!closed) return { ok: false, message: "Cette demande est déjà close.", closed: false, secret: false };
   await resumeWaitingMissions(deps, request, { answered: false, summary: null });

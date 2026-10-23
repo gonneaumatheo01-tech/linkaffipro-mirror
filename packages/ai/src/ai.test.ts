@@ -489,6 +489,30 @@ describe("client Anthropic réel (fetch simulé, aucun appel réseau)", () => {
       stopReason: "end_turn",
     });
   });
+  it("images jointes : blocs image base64 avant le texte ; sans image, le texte reste une chaîne", async () => {
+    const { requests, fetchImpl } = fakeFetch(message("end_turn"));
+    const client = createAnthropicClient("sk-ant-test", {
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+    await client.createMessage({
+      model: DEFAULT_MODEL,
+      maxTokens: 300,
+      system: [],
+      user: "Défaut visible ?",
+      images: [{ mediaType: "image/jpeg", base64: "AAAA" }],
+    });
+    await client.createMessage({ model: DEFAULT_MODEL, maxTokens: 300, system: [], user: "Texte" });
+    expect(requests[0]!.messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "AAAA" } },
+          { type: "text", text: "Défaut visible ?" },
+        ],
+      },
+    ]);
+    expect(requests[1]!.messages).toEqual([{ role: "user", content: "Texte" }]);
+  });
   it("transmet stop_reason max_tokens au lieu de le masquer", async () => {
     const { fetchImpl } = fakeFetch(message("max_tokens"));
     const client = createAnthropicClient("sk-ant-test", {

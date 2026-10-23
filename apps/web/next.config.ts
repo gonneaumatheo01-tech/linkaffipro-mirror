@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   // Dépendances natives ou volumineuses laissées à Node (non empaquetées).
   serverExternalPackages: ["@prisma/client", "bcryptjs", "grammy", "ioredis", "bullmq", "telegram"],
   poweredByHeader: false,
+  experimental: {
+    // Le proxy (proxy.ts) lit chaque requête : sans ce réglage, Next coupe les envois au-delà de 10 Mo. Les médias
+    // (`/api/media`, vidéos sources des agents `/api/agents/media`) vont jusqu'à 50 Mo (phase 20).
+    proxyClientMaxBodySize: "60mb",
+  },
   // En-têtes de sécurité : posés par proxy.ts (CSP exclue des redirections de tracking et des API), voir docs/SECURITE.md.
   turbopack: {
     rules: {

@@ -125,12 +125,56 @@ export async function recentChannelTexts(
     .map((i) => i.text);
 }
 
-export type PersonaInfo = { id: string; name: string; tone: string; personality: string; styleExamples: string | null };
+export type PersonaInfo = {
+  id: string;
+  name: string;
+  tone: string;
+  personality: string;
+  styleExamples: string | null;
+  mediaNotes?: string | null;
+};
 
 export async function loadPersona(prisma: PrismaClient, id: string | null): Promise<PersonaInfo | null> {
   if (!id) return null;
   return (await prisma.persona.findUnique({
     where: { id },
-    select: { id: true, name: true, tone: true, personality: true, styleExamples: true },
+    select: { id: true, name: true, tone: true, personality: true, styleExamples: true, mediaNotes: true },
   })) as PersonaInfo | null;
+}
+
+/** Médias du personnage (phase 20) : images de référence (la première sert au remplacement), LoRA, consignes. */
+export type PersonaMedia = {
+  id: string;
+  name: string;
+  referenceImageIds: string[];
+  loraUrl: string | null;
+  loraTrigger: string | null;
+  loraScale: number;
+  mediaNotes: string | null;
+};
+
+export async function loadPersonaMedia(prisma: PrismaClient, id: string | null | undefined): Promise<PersonaMedia | null> {
+  if (!id) return null;
+  const p = await prisma.persona.findUnique({
+    where: { id },
+    select: { id: true, name: true, referenceImageIds: true, loraUrl: true, loraTrigger: true, loraScale: true, mediaNotes: true },
+  });
+  if (!p) return null;
+  const refs = Array.isArray(p.referenceImageIds) ? p.referenceImageIds.filter((x): x is string => typeof x === "string" && x !== "") : [];
+  const scale = Number(p.loraScale);
+  return {
+    id: p.id,
+    name: p.name,
+    referenceImageIds: refs,
+    loraUrl: p.loraUrl?.trim() || null,
+    loraTrigger: p.loraTrigger?.trim() || null,
+    loraScale: Number.isFinite(scale) && scale > 0 ? scale : 0.8,
+    mediaNotes: p.mediaNotes?.trim() || null,
+  };
+}
+
+/** Persona d'une mission : celle du plan du canal, sinon celle posée à la création (post de test). */
+export function personaIdOf(mission: Pick<Mission, "payload">, plan: Pick<PlanInfo, "personaId">): string | null {
+  if (plan.personaId) return plan.personaId;
+  return typeof mission.payload.personaId === "string" && mission.payload.personaId ? mission.payload.personaId : null;
 }

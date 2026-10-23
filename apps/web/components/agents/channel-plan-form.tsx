@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { saveChannelPlanAction } from "@/app/(admin)/agents/[equipe]/actions";
+import { DATING_DEFAULT_MIX } from "@/lib/agents/dating";
 import { planFitsWindow } from "@/lib/agents/forms";
 import type { ChannelPlanRow } from "@/lib/agents/queries";
 import type { TeamKey } from "@/lib/agents/teams";
@@ -30,13 +31,16 @@ export function ChannelPlanForm({
   channel,
   personas,
   campaigns,
+  personaRequired = false,
 }: {
   team: TeamKey;
   channel: ChannelPlanRow;
   personas: Array<{ id: string; name: string; isActive: boolean }>;
   campaigns: Array<{ id: string; name: string }>;
+  /** Rencontres (phase 20) : un plan activé exige sa persona ; mélange par défaut 1 vidéo, 2 photos, 1 texte. */
+  personaRequired?: boolean;
 }) {
-  const p = channel.plan ?? DEFAULT_PLAN;
+  const p = channel.plan ?? (personaRequired ? { ...DEFAULT_PLAN, mix: { ...DATING_DEFAULT_MIX } } : DEFAULT_PLAN);
   const id = (k: string) => `plan-${channel.id}-${k}`;
   const fits = planFitsWindow(p);
   return (
@@ -97,9 +101,11 @@ export function ChannelPlanForm({
           </p>
         ) : null}
         <fieldset className="space-y-2">
-          <legend className="text-body font-medium text-foreground">Mélange (parts)</legend>
+          <legend className="text-body font-medium text-foreground">Mélange de la journée (parts)</legend>
           <p className="text-note text-muted-foreground">
-            Par exemple 2 photos pour 1 texte. Une vidéo ou une photo n&apos;est utilisée que si la médiathèque en a.
+            {personaRequired
+              ? "Par exemple 1 vidéo, 2 photos et 1 texte par jour. Sans vidéo source neuve ou plafond atteint, une vidéo devient une photo, puis un texte."
+              : "Par exemple 2 photos pour 1 texte. Une vidéo ou une photo n'est utilisée que si la médiathèque en a."}
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
             {(
@@ -118,9 +124,9 @@ export function ChannelPlanForm({
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={id("persona")}>Persona (ton du canal)</Label>
+            <Label htmlFor={id("persona")}>{personaRequired ? "Persona du canal (obligatoire)" : "Persona (ton du canal)"}</Label>
             <NativeSelect id={id("persona")} name="personaId" defaultValue={p.personaId ?? ""} wrapperClassName="w-full">
-              <option value="">Aucune</option>
+              <option value="">{personaRequired ? "Choisir une persona…" : "Aucune"}</option>
               {personas.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.name}

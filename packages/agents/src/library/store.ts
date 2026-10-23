@@ -92,6 +92,19 @@ async function advanceMediaRequest(
   return { progress: closed ? `demande complète : ${need}/${need} 🎉` : `${received}/${need} pour la demande en cours`, closed };
 }
 
+/** Images de référence gardées par persona (la première sert au remplacement vidéo). */
+export const MAX_REFERENCE_IMAGES = 3;
+
+/** Met l'image en tête des images de référence de la persona (la plus récente d'abord, 3 au plus). */
+export async function addPersonaReferenceImage(deps: AgentsDeps, personaId: string, assetId: string): Promise<string[]> {
+  const persona = await deps.prisma.persona.findUnique({ where: { id: personaId }, select: { referenceImageIds: true } });
+  if (!persona) return [];
+  const current = tagsArray(persona.referenceImageIds).filter((id) => id !== assetId);
+  const next = [assetId, ...current].slice(0, MAX_REFERENCE_IMAGES);
+  await deps.prisma.persona.update({ where: { id: personaId }, data: { referenceImageIds: next } });
+  return next;
+}
+
 export async function storeLibraryMedia(
   deps: AgentsDeps,
   input: StoreLibraryMediaInput,
@@ -153,6 +166,10 @@ export async function storeLibraryMedia(
       deps.logger?.warn({ err: (err as Error).message, assetId }, "[agents] copie dans la médiathèque Telegram impossible");
     }
   }
+
+  // Photo de référence d'une persona (phase 20) : en tête de `Persona.referenceImageIds` (3 au plus).
+  if (kind === "REFERENCE" && parsed.personaId && input.mimeType.startsWith("image/"))
+    await addPersonaReferenceImage(deps, parsed.personaId, assetId);
 
   // Un doublon ne compte pas pour une demande de médias (il faut des médias nouveaux).
   const advance = existing ? { progress: null, closed: false } : await advanceMediaRequest(deps, parsed.tags);

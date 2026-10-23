@@ -852,6 +852,16 @@ Cliquez sur **Créer la persona** (ou **Enregistrer**). Quand un bot l'utilise d
 
 Plus bas sur la fiche, **Ce que l'assistante reçoit comme consignes** (replié) montre le texte exact envoyé à l'IA pour un premier message.
 
+**Médias du personnage** (sous le formulaire, enregistrés à part avec **Enregistrer les médias**) : ce qui sert à l'équipe Rencontres des [agents](#equipe-rencontres-videos-photos-et-banc-d-essai) pour fabriquer les vidéos et les photos du personnage, surtout pour une persona « Une fille ».
+
+- **Images de référence** : 1 à 3 photos nettes du personnage, de face et en pied (JPEG, PNG ou WebP, 10 Mo au plus). Cliquez sur **Ajouter une image** ; les flèches changent l'ordre. **La première sert à remplacer la personne dans les vidéos** : mettez la meilleure en premier.
+- **Adresse du fichier du personnage** (le fichier LoRA, expliqué au survol : un petit fichier qui apprend au générateur de photos le visage et le corps du personnage) : collez l'adresse complète qui commence par https://. Facultatif : sans lui, les photos restent celles de la persona.
+- **Mot déclencheur** : le mot donné avec le fichier, obligatoire dès qu'une adresse est collée.
+- **Force du personnage** : de 0,1 à 1,5 (0,8 conseillé ; plus haut, plus ressemblant mais moins naturel).
+- **Tenue et ambiance** : ce qu'elle porte, les lieux, ce qu'il faut éviter. Lu pour chaque photo et chaque vidéo.
+
+Pour une assistante du canal, ces médias ne sont jamais présentés comme ses photos. Les 3 premières vidéos et les 3 premières photos d'une nouvelle persona vous sont toujours montrées avant de partir, quel que soit le niveau.
+
 **Supprimer la persona** (administrateurs seulement) : impossible tant qu'un bot l'utilise ; liez d'abord une autre persona au bot dans [Réglages → Bots](#reglages-bots), ou repassez-le en bot normal. Pour l'arrêter tout de suite, décochez plutôt **Persona activée**. Ses conversations restent dans la boîte de réception.
 
 ### Chiffres
@@ -896,12 +906,30 @@ En bas, **Rapports du matin** : les trois derniers rapports envoyés chaque jour
 Cliquez sur **Ouvrir l'équipe**. La fiche se lit de haut en bas :
 
 - **Pilotage** : où partent les posts (simulation ou vrais canaux) et le niveau d'autonomie (voir [Simulation, niveaux et pause](#simulation-niveaux-et-pause)).
-- **Réglages de l'équipe** : les **Consignes de style** lues par la Rédaction (« phrases très courtes, tutoiement… »), les **Mots interdits** (un par ligne), les **Heures calmes** (une plage par ligne, par exemple 23:00-08:00, heure de Paris) et la **Longueur maximale d'un post** (900 caractères conseillés). Puis les **Plafonds du mois** de l'équipe, en euros, avec ce qui est déjà dépensé. Cliquez sur **Enregistrer** : le Grand Chef les applique à son prochain passage (toutes les 30 minutes).
+- **Réglages de l'équipe** : les **Consignes de style** lues par la Rédaction (« phrases très courtes, tutoiement… »), les **Mots interdits** (un par ligne), les **Heures calmes** (une plage par ligne, par exemple 23:00-08:00, heure de Paris) et la **Longueur maximale d'un post** (900 caractères conseillés). Pour Rencontres, le bloc **Vidéos** (voir plus bas). Puis les **Plafonds du mois** de l'équipe, en euros, avec ce qui est déjà dépensé (modifiables par les administrateurs seulement). Cliquez sur **Enregistrer** : le Grand Chef les applique à son prochain passage (toutes les 30 minutes).
 - **Plan par canal** : un bloc par canal de l'univers (le canal Test en premier). Cochez **Les agents publient sur ce canal**, puis réglez les **Posts par jour**, la fenêtre (**Début** et **Fin**, heure de Paris), l'**Espacement minimal** entre deux posts, le **Mélange** (parts de vidéo, photo et texte), la **Persona** dont le canal reprend la façon de parler, la **Campagne du bouton Offre** et, si vous le souhaitez, des **Thèmes**. Cliquez sur **Enregistrer le plan**. Si tous les posts du jour ne tiennent pas dans la fenêtre avec cet espacement, la fiche vous le dit.
 - **Agents de l'équipe** : chaque agent, dans l'ordre de la chaîne, avec ses trois derniers passages. Ceux qui arrivent plus tard sont marqués **Arrive dans une prochaine étape**.
 - **Missions** : filtrez par **Statut** et **Période**, puis cliquez sur une ligne pour voir la mission **Étape par étape** (ce que chaque agent a fait, son coût, une erreur éventuelle) et, une fois programmé, **Ouvrir le message**.
 
 Changer un réglage ou un plan ne fait jamais travailler l'IA : c'est seulement lu au prochain passage du Grand Chef.
+
+### Équipe Rencontres : vidéos, photos et banc d'essai
+
+L'équipe Rencontres fabrique trois sortes de posts pour chaque persona : des **vidéos** (une vidéo source dans laquelle la personne entière est remplacée par le personnage), des **photos** neuves du personnage (faites avec son fichier du personnage) et des **textes**, chacun avec une légende très courte dans le style de la persona. Sa fiche a en plus :
+
+- **Vidéos et photos des personas** : la dépense du mois en vidéos et en photos face aux plafonds (100 € et 15 € au départ), puis **Produire un post de test** : choisissez le **Type de post** (vidéo, photo ou texte) et la **Persona**, puis cliquez. Le post part en simulation sur le canal Test, après votre validation. C'est le test de 5 minutes.
+- **Une carte par persona** : les **Vidéos sources non utilisées** (en orange sous 3 : déposez-en), les vidéos et photos produites ce mois, les images de référence, et les **Dernières productions** avec leur aperçu (cliquez sur lecture pour une vidéo). Le prénom ouvre la fiche persona, à la section **Médias du personnage**.
+- **Banc d'essai** (administrateurs) : prend les 3 vidéos sources les plus anciennes de la persona et les fait passer chez chaque fournisseur disponible (fal.ai en 580p et en 720p, Magic Hour si sa clé est collée). Chaque résultat vous arrive sur Telegram avec son coût, puis le bot vous demande lequel vous préférez : votre réponse règle le fournisseur et la résolution de l'équipe. Sans clé, rien ne se lance et la fiche vous le dit.
+- **Déposer des vidéos sources** : choisissez la persona, puis **Déposer des vidéos sources** (MP4, MOV ou WebM, 50 Mo au plus chacune ; une personne entière bien visible, 5 à 15 secondes). Vous pouvez aussi les envoyer au bot sur Telegram avec `#rencontres #source` et le prénom. Une vidéo source n'est jamais réutilisée sur le même canal avant 30 jours.
+- **Vidéos** (dans les réglages, administrateurs) : le **Fournisseur des vidéos** (fal.ai, qui remplace la personne entière, ou Magic Hour, qui remplace seulement le visage et sert aussi de secours) et la **Résolution des vidéos** (480p, 580p conseillé, 720p).
+- **Plan par canal** : la **Persona du canal** est obligatoire pour activer un canal Rencontres ; le **Mélange de la journée** part de 1 vidéo, 2 photos et 1 texte. Sans vidéo source neuve ou quand le plafond vidéo est atteint, une vidéo devient une photo, puis un texte, sans jamais dépasser le plafond.
+- **Conversation** : les messages privés des membres sont traités par les personas de [Conversations](#conversations) : rien à régler ici.
+
+Sans clé fal.ai, tout tourne en simulation : la vidéo source revient telle quelle et la photo est celle de la persona. Toute vidéo pour laquelle le Contrôle qualité a un doute (mains, visage, membres, texte déformé) vous est montrée avec 3 images extraites, quel que soit le niveau.
+
+### Parler au bot par messages vocaux
+
+Vous pouvez parler au bot par messages vocaux : il répète ce qu'il a compris avant d'agir (« J'ai compris : "pause rencontres". »). Un vocal vaut un message écrit : une commande, une réponse à une question, un chiffre ou un oui. Une commande importante (publier sur les vrais canaux, changer de niveau) demande toujours la confirmation **OUI**. S'il n'a pas compris, il vous demande de l'écrire. Une clé s'envoie toujours par écrit : un vocal n'est jamais pris pour une clé.
 
 ### Simulation, niveaux et pause
 
@@ -929,7 +957,7 @@ Tout ce que les agents ont fait. Onglet **Missions** : chaque mission, avec son 
 Administrateurs seulement :
 
 - **Pause générale** : **Tout mettre en pause** arrête toutes les équipes d'un coup ; **Tout reprendre** les relance.
-- **Clés des fournisseurs** (fal.ai, Magic Hour, cotes sportives) : collez la clé puis cliquez sur **Enregistrer** ; elle est chiffrée et seuls ses 4 derniers caractères s'affichent. **Vérifier** la teste quand c'est possible ; **Retirer la clé** l'efface. Le bot vous demande lui-même chaque clé sur Telegram au moment voulu : cette page sert de secours.
+- **Clés des fournisseurs** (fal.ai pour les vidéos et photos, Magic Hour en secours, cotes sportives) : créez la clé sur le site du fournisseur (le lien est sous chaque champ : fal.ai/dashboard/keys, magichour.ai/developer), collez-la puis cliquez sur **Enregistrer** ; elle est chiffrée et seuls ses 4 derniers caractères s'affichent. **Vérifier** la teste quand c'est possible ; **Retirer la clé** l'efface. Le bot vous demande lui-même chaque clé sur Telegram au moment voulu : cette page sert de secours.
 - **Modèles d'IA et médiathèque** : l'**IA rapide** (contrôles) et l'**IA d'écriture** (Rédaction), avec la clé de [Réglages → IA](#reglages-ia) ; le **Canal Médiathèque** (facultatif), un canal privé où le bot recopie chaque média rangé.
 - **Plafonds du mois par équipe**, en euros ; puis **Enregistrer les plafonds**.
 

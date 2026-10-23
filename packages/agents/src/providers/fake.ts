@@ -4,7 +4,9 @@
  * JSON valide ; texte choisi par une empreinte du message, donc stable pour une même demande.
  */
 import type { LlmRequest, LlmResponse } from "../types";
+import type { ImageGenerateInput, ImageProvider } from "./image";
 import type { AgentLlmProvider } from "./llm";
+import type { ProviderFile, ReplaceInput, VideoProvider } from "./video";
 
 const HOOKS = [
   "Ce soir, on ne fait pas les choses à moitié 🔥",
@@ -68,6 +70,8 @@ export function createFakeLlm(opts: FakeLlmOptions = {}): AgentLlmProvider & { c
       if (forced !== undefined) {
         return { text: typeof forced === "function" ? forced(req) : forced, costCents: opts.costCents ?? 0 };
       }
+      if (task === "controle-media")
+        return { text: JSON.stringify({ defect: "non", reason: "Aucun défaut visible (simulation)." }), costCents: opts.costCents ?? 0 };
       if (task === "controle") return { text: JSON.stringify({ verdict: "oui", reason: "Texte naturel." }), costCents: opts.costCents ?? 0 };
       const h = hashOf(req.user);
       const hook = HOOKS[h % HOOKS.length]!;
@@ -76,5 +80,96 @@ export function createFakeLlm(opts: FakeLlmOptions = {}): AgentLlmProvider & { c
       const text = `<b>${hook}</b>\n${body}`;
       return { text: JSON.stringify({ text, hook, topic }), costCents: opts.costCents ?? 0 };
     },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Faux fournisseurs de médias (phase 20) : tests, et simulation tant qu'aucune clé fal.ai n'est réglée.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Petite image de test (PNG 16 × 16 orange) quand la persona n'a pas d'image de référence. */
+export const FAKE_TEST_IMAGE: ProviderFile = {
+  bytes: Uint8Array.from(
+    Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGN4VmFDEmIY1TCqYfhqAACh3JoQLIL4OAAAAABJRU5ErkJggg==", "base64"),
+  ),
+  mimeType: "image/png",
+  filename: "simulation-test.png",
+};
+
+export const FAKE_ASSET_URL = "fake://media-asset/";
+export const FAKE_TEST_IMAGE_URL = "fake://test-image.png";
+
+/** Lecture d'un `MediaAsset` par le faux fournisseur (le registre la branche sur la base). */
+export type FakeAssetLoader = (assetId: string) => Promise<ProviderFile | null>;
+
+export type FakeMediaOptions = {
+  loadAsset?: FakeAssetLoader;
+  /** Délai simulé avant que la vidéo soit « prête » (0 = tout de suite). */
+  delayMs?: number;
+  now?: () => Date;
+  /** Échecs simulés aux N premières soumissions (tests). */
+  failFirst?: number;
+};
+
+async function fakeDownload(url: string, memory: Map<string, ProviderFile>, loadAsset?: FakeAssetLoader): Promise<ProviderFile> {
+  if (url === FAKE_TEST_IMAGE_URL) return FAKE_TEST_IMAGE;
+  const mem = memory.get(url);
+  if (mem) return mem;
+  if (url.startsWith(FAKE_ASSET_URL) && loadAsset) {
+    const file = await loadAsset(url.slice(FAKE_ASSET_URL.length));
+    if (file) return { ...file, filename: `simulation-${file.filename}` };
+  }
+  throw new Error("Faux fournisseur : fichier introuvable");
+}
+
+/** Faux remplacement : renvoie la vidéo source telle quelle (marquée « simulation » au rangement), coût 0. */
+export function createFakeVideoProvider(opts: FakeMediaOptions = {}): VideoProvider & { submitted: ReplaceInput[] } {
+  const memory = new Map<string, ProviderFile>();
+  const submitted: ReplaceInput[] = [];
+  const clock = opts.now ?? (() => new Date());
+  let failures = opts.failFirst ?? 0;
+  let n = 0;
+  return {
+    name: "fake",
+    submitted,
+    estimateCents: () => 0,
+    async startReplace(input) {
+      submitted.push(input);
+      if (failures > 0) {
+        failures--;
+        throw new Error("Panne simulée du faux fournisseur vidéo");
+      }
+      const readyAt = clock().getTime() + (opts.delayMs ?? 0);
+      const url = input.sourceAssetId ? `${FAKE_ASSET_URL}${input.sourceAssetId}` : `fake://memory/${++n}`;
+      if (!input.sourceAssetId) memory.set(url, { ...input.sourceVideo, filename: `simulation-${input.sourceVideo.filename}` });
+      return { jobId: `fake-${readyAt}`, estimatedCents: 0, ref: { responseUrl: url } };
+    },
+    async poll(jobId, ref) {
+      const readyAt = Number(/^fake-(\d+)$/.exec(jobId)?.[1] ?? 0);
+      if (clock().getTime() < readyAt) return { status: "running" };
+      if (!ref?.responseUrl) return { status: "failed", error: "Faux fournisseur : travail inconnu" };
+      return { status: "done", outputUrl: ref.responseUrl, actualCents: 0 };
+    },
+    download: (url) => fakeDownload(url, memory, opts.loadAsset),
+  };
+}
+
+/** Fausse photo : la première image de référence de la persona, sinon une image de test ; coût 0. */
+export function createFakeImageProvider(opts: FakeMediaOptions = {}): ImageProvider & { calls: ImageGenerateInput[] } {
+  const calls: ImageGenerateInput[] = [];
+  let failures = opts.failFirst ?? 0;
+  return {
+    name: "fake",
+    calls,
+    estimateCents: () => 0,
+    async generate(input) {
+      calls.push(input);
+      if (failures > 0) {
+        failures--;
+        throw new Error("Panne simulée du faux fournisseur d'images");
+      }
+      return { images: [{ url: input.referenceAssetId ? `${FAKE_ASSET_URL}${input.referenceAssetId}` : FAKE_TEST_IMAGE_URL }], cents: 0 };
+    },
+    download: (url) => fakeDownload(url, new Map(), opts.loadAsset),
   };
 }

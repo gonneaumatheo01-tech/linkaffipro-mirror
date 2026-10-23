@@ -30,8 +30,15 @@ export function parseQuietHours(v: unknown): { start: string; end: string }[] {
     .map((x) => ({ start: x.start as string, end: x.end as string }));
 }
 
-export function parseBudgets(v: unknown): Partial<Record<ProviderKey, number>> {
-  const out: Partial<Record<ProviderKey, number>> = { ...DEFAULT_MONTHLY_BUDGET_CENTS };
+/** Plafonds par défaut de l'équipe Dating (phase 20) : vidéo 100 €, photo 15 € par mois. */
+export const DATING_DEFAULT_BUDGET_CENTS: Readonly<Partial<Record<ProviderKey, number>>> = Object.freeze({ video: 10_000, image: 1_500 });
+
+export function defaultBudgetsFor(teamKey: string): Partial<Record<ProviderKey, number>> {
+  return teamKey === "dating" ? { ...DEFAULT_MONTHLY_BUDGET_CENTS, ...DATING_DEFAULT_BUDGET_CENTS } : { ...DEFAULT_MONTHLY_BUDGET_CENTS };
+}
+
+export function parseBudgets(v: unknown, defaults: Partial<Record<ProviderKey, number>> = DEFAULT_MONTHLY_BUDGET_CENTS): Partial<Record<ProviderKey, number>> {
+  const out: Partial<Record<ProviderKey, number>> = { ...defaults };
   for (const [k, n] of Object.entries(record(v)))
     if (typeof n === "number" && Number.isFinite(n) && n >= 0) out[k as ProviderKey] = Math.round(n);
   return out;
@@ -68,7 +75,7 @@ export function toTeamSettings(row: ConfigRow, models: unknown): TeamSettings {
     simulation: row.simulation !== false,
     paused: row.paused === true,
     autonomyLevel: (level === 1 || level === 2 ? level : 0) as 0 | 1 | 2,
-    monthlyBudgetCents: parseBudgets(row.monthlyBudgetCents),
+    monthlyBudgetCents: parseBudgets(row.monthlyBudgetCents, defaultBudgetsFor(row.teamKey)),
     styleGuidelines: row.styleGuidelines ?? "",
     forbiddenWords: strings(row.forbiddenWords),
     maxTextLength: row.maxTextLength > 0 ? row.maxTextLength : DEFAULT_MAX_TEXT_LENGTH,

@@ -185,7 +185,11 @@ export type AiMessageRequest = {
   user: string;
   /** Effort de réflexion (`output_config.effort`) ; « low » par défaut : textes courts, réponse rapide. */
   effort?: "low" | "medium" | "high";
+  /** Images jointes au message (contrôle des médias des agents, phase 20), placées avant le texte. */
+  images?: AiImageInput[];
 };
+/** Image en base64 (JPEG, PNG, WebP ou GIF). */
+export type AiImageInput = { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; base64: string };
 export type AiMessageResponse = { text: string; usage: AiUsage; stopReason: string | null };
 /** Client injectable : le vrai appelle l'API Anthropic, le simulé renvoie des réponses préparées. */
 export type AiClient = { createMessage(req: AiMessageRequest): Promise<AiMessageResponse> };

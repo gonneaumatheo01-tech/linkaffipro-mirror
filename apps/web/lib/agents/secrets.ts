@@ -10,12 +10,12 @@ export type SecretInfo = { label: string; usage: string; createUrl: string | nul
 export const SECRET_INFO: Record<string, SecretInfo> = {
   "providers.fal.apiKey": {
     label: "fal.ai",
-    usage: "Vidéos et photos de vos personas (équipe Rencontres).",
+    usage: "Vidéos et photos de vos personas (équipe Rencontres). Quelques dollars de crédit suffisent pour commencer.",
     createUrl: "https://fal.ai/dashboard/keys",
   },
   "providers.magichour.apiKey": {
     label: "Magic Hour",
-    usage: "Vidéos de secours quand fal.ai ne répond pas (équipe Rencontres).",
+    usage: "Vidéos de secours quand fal.ai échoue, ou fournisseur choisi dans la fiche Rencontres (visage seulement).",
     createUrl: "https://magichour.ai/developer",
   },
   "providers.odds.apiKey": {

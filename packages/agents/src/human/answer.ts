@@ -65,12 +65,58 @@ export function isValidUrl(s: string): boolean {
   }
 }
 
+/** Dernier segment d'une clé (`persona.<id>.loraUrl` → `loraurl`) : un identifiant ne doit rien faire deviner. */
+function keyTail(key: string): string {
+  return (key.split(".").pop() ?? key).toLowerCase();
+}
+
 /** La demande ou la réponse porte-t-elle sur une adresse (web ou e-mail) ? */
 function looksLikeAddress(key: string, text: string): "url" | "email" | null {
-  const k = key.toLowerCase();
+  const k = keyTail(key);
   if (/email|mail/.test(k) || (/^[^\s@]+@[^\s@]+$/.test(text) && !k.includes("login"))) return "email";
   if (/url|adresse|link|lien/.test(k) || /^https?:\/\//i.test(text) || /^www\./i.test(text)) return "url";
   return null;
+}
+
+/** Hôtes connus pour héberger des fichiers LoRA (phase 20) ; une autre adresse https est gardée avec un avertissement. */
+export const LORA_KNOWN_HOSTS = [
+  "huggingface.co",
+  "hf.co",
+  "fal.media",
+  "fal.ai",
+  "fal.run",
+  "civitai.com",
+  "storage.googleapis.com",
+  "amazonaws.com",
+  "r2.dev",
+  "r2.cloudflarestorage.com",
+  "replicate.delivery",
+];
+
+/** Adresse d'un fichier LoRA : https obligatoire ; `.safetensors` ou hôte connu = sûre, sinon gardée avec un doute. */
+export function checkLoraUrl(raw: string): { ok: true; url: string; doubtful: boolean } | { ok: false; message: string } {
+  const text = raw.trim().replace(/^<|>$/g, "");
+  const url = /^www\./i.test(text) ? `https://${text}` : text;
+  if (!isValidUrl(url)) return { ok: false, message: "Adresse invalide : envoie l'adresse complète du fichier LoRA (https://…)." };
+  const u = new URL(url);
+  if (u.protocol !== "https:") return { ok: false, message: "L'adresse du fichier LoRA doit commencer par https://." };
+  const host = u.hostname.toLowerCase();
+  const knownHost = LORA_KNOWN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  const safetensors = /\.safetensors$/i.test(u.pathname);
+  return { ok: true, url, doubtful: !knownHost && !safetensors };
+}
+
+/** Choix dont toutes les options sont des montants (« 50 € ») : un autre chiffre est accepté comme montant libre. */
+function amountOptions(options: string[]): boolean {
+  return options.length > 0 && options.every((o) => /^\d+(?:[.,]\d+)?\s?€$/.test(o.trim()));
+}
+
+/** « 75 », « 75 € », « 75 euros », « 75,5 » → 75 (ou 75,5) ; null sinon. */
+export function parseEuroAmount(text: string): { euros: number; explicit: boolean } | null {
+  const m = /^(\d{1,6}(?:[.,]\d{1,2})?)\s*(€|eur|euro|euros)?$/i.exec(normalizeText(text));
+  if (!m) return null;
+  const euros = Number(m[1]!.replace(",", "."));
+  return Number.isFinite(euros) ? { euros, explicit: !!m[2] } : null;
 }
 
 function short(s: string, max = 80): string {
@@ -84,6 +130,12 @@ export function interpretAnswer(target: AnswerTarget, raw: string): InterpretedA
     case "CHOICE": {
       const options = target.options ?? [];
       const n = normalizeText(text);
+      const amount = amountOptions(options) ? parseEuroAmount(text) : null;
+      // Montant libre (« 75 », « 120 € ») ; « 2 » seul reste le numéro d'une option.
+      if (amount && (amount.explicit || amount.euros > options.length)) {
+        const value = `${String(amount.euros).replace(".", ",")} €`;
+        return { type: "answer", value, summary: value };
+      }
       const num = /^(\d{1,2})$/.exec(n.replace(/[).]$/, ""));
       if (num) {
         const i = Number(num[1]);
@@ -114,6 +166,11 @@ export function interpretAnswer(target: AnswerTarget, raw: string): InterpretedA
     }
     case "TEXT": {
       if (!text) return { type: "invalid", message: "Réponse vide : écris ta réponse en un message." };
+      if (keyTail(target.key) === "loraurl") {
+        const lora = checkLoraUrl(text);
+        if (!lora.ok) return { type: "invalid", message: lora.message };
+        return { type: "answer", value: lora.url, summary: short(lora.url) };
+      }
       const addr = looksLikeAddress(target.key, text);
       if (addr === "email" && !EMAIL.test(text))
         return { type: "invalid", message: "Adresse e-mail invalide : vérifie-la et renvoie-la." };

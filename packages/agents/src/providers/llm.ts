@@ -29,6 +29,7 @@ export function llmFromClient(client: AiClient): AgentLlmProvider {
         maxTokens: req.maxTokens,
         system: [{ text: req.system, cache: true }],
         user: req.user,
+        ...(req.images?.length ? { images: req.images } : {}),
       });
       return { text: res.text, costCents: costCentsOf(req.model, res.usage) };
     },

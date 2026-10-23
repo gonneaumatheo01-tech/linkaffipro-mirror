@@ -46,6 +46,18 @@ export function usageOf(u: {
   };
 }
 
+/** Contenu du message : le texte seul, ou les images puis le texte (rétrocompatible : sans image, une chaîne). */
+export function userContent(req: AiMessageRequest) {
+  if (!req.images?.length) return req.user;
+  return [
+    ...req.images.map((img) => ({
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: img.mediaType, data: img.base64 },
+    })),
+    { type: "text" as const, text: req.user },
+  ];
+}
+
 /**
  * Client réel : SDK officiel, un seul appel non streamé par demande (sorties courtes).
  * Effort « low » par défaut (Haiku 5.5 et Sonnet 5.5 réfléchissent d'office ; la réflexion compte dans max_tokens).
@@ -77,7 +89,7 @@ export function createAnthropicClient(
                 }
               : { type: "text" as const, text: b.text },
           ),
-          messages: [{ role: "user", content: req.user }],
+          messages: [{ role: "user", content: userContent(req) }],
         });
         if (res.stop_reason === "refusal")
           throw new AiError(
