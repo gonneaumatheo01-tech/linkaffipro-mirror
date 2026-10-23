@@ -388,7 +388,30 @@ async function runConversationTurn(
         );
         return null;
       }),
-    beforeSend: async () => ({ abort: false, newInbound: [] }),
+    // Messages arrives pendant la preparation : rendus au moteur, qui refait sa reponse UNE fois en les incluant.
+    // Sans ca, le tour suivant les reprend et elle repond deux fois (avec une question repetee).
+    // Ils sont marques avec ce turnId pour que la boucle de `processIncoming` ne les reprenne pas.
+    beforeSend: async () => {
+      const rows = await prisma.conversationMessage.findMany({
+        where: { conversationId: conv.id, direction: "IN", turnId: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, text: true, createdAt: true, media: true },
+      });
+      if (rows.length === 0) return { abort: false, newInbound: [] };
+      await prisma.conversationMessage.updateMany({
+        where: { id: { in: rows.map((r) => r.id) } },
+        data: { turnId },
+      });
+      return {
+        abort: false,
+        newInbound: rows.map((r) => ({
+          id: r.id,
+          text: r.text,
+          at: r.createdAt,
+          media: parseMedia(r.media),
+        })),
+      };
+    },
     recordUsage: async (u) => {
       await prisma.aiConversationUsage.create({
         data: {
