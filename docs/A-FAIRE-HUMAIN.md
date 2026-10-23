@@ -1,5 +1,10 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 21 : l'équipe Algorithme (rien à fournir)
+1. **Lire le premier rapport « Ce qui marche »** : il est arrivé sur Telegram ; le détail est sur le site, Agents → onglet de l'équipe Algorithme (« Ce qui marche »).
+2. **Deux questions du bot** (une à la fois, après les précédentes) : le niveau de l'équipe (conseillé : 2, « appliquer les petits réglages seuls ») et le nombre maximum de posts par jour et par canal que les réglages ne peuvent pas dépasser.
+3. Chaque réglage proposé ou appliqué se trouve dans « Ce qui marche » avec ses preuves, et s'annule en un clic.
+
 ## Phase 20 : l'équipe Rencontres fabrique des vidéos et des photos (quand vous voulez)
 1. **Le bot vous pose les questions une par une sur Telegram** : clé fal.ai, fichier LoRA et mot déclencheur de chaque persona, photos de référence, vidéos sources, plafond vidéo du mois, puis le banc d'essai. Répondez à chaque message (en répondant au message du bot) ; « plus tard » pour passer. Répondez d'abord à la question du rapport du matin, elle est devant dans la file.
 2. **En secours**, tout se fait aussi sur le site : Agents → Réglages (clés, bouton « Vérifier ») et Conversations → Personas → la persona → « Médias du personnage ».

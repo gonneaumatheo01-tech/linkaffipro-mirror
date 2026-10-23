@@ -1,3 +1,38 @@
+# État du projet : phase 21 (agents IA : équipe Algorithme) terminée (23 octobre 2026)
+
+Phases 0 à 20 en ligne. Phase 21 = une équipe qui **ne publie rien** : elle mesure ce qui marche (types de posts, horaires, conversations de chaque profil), monte des tests de deux versions, et en tire des réglages concrets pour les équipes Rencontres, Casino et Paris sportifs, appliqués dans des bornes et annulables en un clic (`docs/prompts/23-phase-21-agents-algorithme.md`).
+
+## Fait
+- **Fiches de résultats des posts** (chaque nuit) : vues à 1 h, 2 h et 24 h, clics sur l'offre, inscriptions, dépôts, et les caractéristiques de chaque post (vidéo / photo / texte, thème, persona, heure, longueur, emojis…) ; classements de ce qui marche et de ce qui ne marche pas, jamais de conclusion sous 20 posts ou 1 000 vues par cas.
+- **Horaires** : fenêtres par canal, jour et heure ; c'est désormais la seule source des meilleurs horaires (le calendrier des Messages affiche « calculés par l'équipe Algorithme »).
+- **Conversations** : chiffres par profil (bot ou compte réel, persona, source) ; relecture chaque semaine par l'IA d'un échantillon anonymisé (sans mineurs ni personnes qui ont demandé l'arrêt) ; propositions de réglages de persona (exemples de style, échanges avant le lien, relances) ; heures de relance conseillées.
+- **Tests de deux versions** (légende, horaire, mélange) : un seul à la fois par canal et par type, clôture au seuil de 5 %, le gagnant devient une proposition.
+- **Réglages** : mélange (au plus 20 points par semaine), fenêtres (dans les heures autorisées), consignes de style ; identité des personas, règles « adultes », /stop, règles de contenu et de rythme jamais touchées ; chaque réglage journalisé et annulable. Niveau 0 par défaut : tout est proposé, rien n'est appliqué sans vous.
+- **Rapport « Ce qui marche »** chaque lundi par Telegram (5 lignes par équipe), écrit par l'IA à partir des chiffres calculés (refusé et remplacé par le texte du code s'il invente un chiffre) ; alertes « canal en baisse » et « profil de conversation en baisse » (−30 % sur 7 jours), avec interrupteur.
+- **Site** : Agents → « Ce qui marche » (classements, graphiques par heure et par jour, tests, propositions avec Appliquer / Annuler / Refuser, conversations par profil, rapports archivés, réglages de l'équipe) ; propositions dans la fiche persona.
+
+## Premier rapport (vraies données, 23 octobre)
+Envoyé sur Telegram et rangé dans la page, calculé sur 40 posts : côté Rencontres, la photo est le type le plus fort mais avec 0 % de clic sur l'offre (encore très peu de données), meilleure fenêtre le mercredi 22 h-23 h ; Casino et Paris sportifs n'ont rien publié cette semaine ; 1 réglage proposé (consignes de style de l'équipe Rencontres), rien d'appliqué.
+
+## Test de 5 minutes
+1. Site → **Agents** → **Ce qui marche** : lisez le rapport de la semaine et les classements.
+2. Section « Propositions de réglages » : ouvrez la proposition, lisez ses preuves, puis **Appliquer**… puis **Annuler** : la valeur d'avant revient.
+3. Répondez aux deux questions du bot (niveau, quota maximum) quand elles arrivent.
+
+## Vérifications faites
+- 5 305 tests unitaires et 545 tests d'intégration (base réelle) réussis, dont la chaîne complète : 48 posts de test → fiches → fenêtres écrites → test de deux versions clos « A gagne » → réglage appliqué puis annulé (valeurs vérifiées) → rapport envoyé. Lint, typage, build verts.
+- Sauvegarde avant déploiement ; site d'abord (migration appliquée), puis service d'arrière-plan ; santé OK ; premier rapport réel produit et envoyé ; capture de « Ce qui marche » et contrôle d'accessibilité sans violation (base de démonstration locale).
+
+## Reste / limites
+- Très peu de données pour l'instant (40 posts, aucun clic sur l'offre) : les conclusions viendront avec les publications des équipes.
+- Les questions du bot partent une à la fois : d'abord le rapport du matin (toujours sans réponse), puis la mise en route de Rencontres, puis les deux questions de l'équipe Algorithme.
+- Avertissement de sécurité de Next.js 16.4.0 en développement : à traiter dans une phase de solidité.
+
+## Actions humaines
+Rien à fournir. Lire le rapport et répondre aux questions du bot (`docs/A-FAIRE-HUMAIN.md`).
+
+---
+
 # État du projet : phase 20 (agents IA : équipe Rencontres) terminée (23 octobre 2026)
 
 Phases 0 à 19 en ligne. Phase 20 = la première équipe de production complète (`docs/prompts/22-phase-20-agents-dating.md`) : pour chaque persona, des posts **vidéo** (la personne d'une vidéo source remplacée par le personnage), **photo** (photos neuves du personnage) et **texte**, aux bons créneaux, avec contrôle qualité, validation et budget plafonné. **Tout reste en simulation** sur le canal Test, et tant qu'aucune clé fal.ai n'est donnée, les vidéos et photos sont simulées (la vidéo source revient telle quelle, la photo est celle de la persona).
