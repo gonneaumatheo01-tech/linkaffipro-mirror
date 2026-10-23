@@ -158,3 +158,4 @@ export { runSportsSettle, type SettleRunResult } from "./sports/settle";
 export { computeBetSummary, sportsReportNotes, weekStart } from "./sports/summary";
 export { ensureSportsSetupQuestions, askCaptureWorkaround, parseNumberList, SPORTS_SETUP_SETTING, WORKAROUND_OPTIONS } from "./sports/setup";
 export { rankCandidates, type Candidate, type PickReasoning } from "./agents/cotes/select";
+export { fallbackPng } from "./sports/pick-image";

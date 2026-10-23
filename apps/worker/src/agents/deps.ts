@@ -8,6 +8,7 @@ import { createAgentsEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { createFrameExtractor } from "./frames";
+import { createRedisOddsCache } from "./odds-cache";
 
 let cached: EngineDeps | null = null;
 
@@ -24,6 +25,8 @@ export function workerAgentsDeps(): EngineDeps {
     },
     // Contrôle qualité des vidéos produites (phase 20) : ffmpeg est dans l'image du worker.
     frames: createFrameExtractor(),
+    // Cotes (phase 23) : cache partagé dans Redis.
+    oddsCache: createRedisOddsCache(),
   };
   cached = deps;
   return deps;

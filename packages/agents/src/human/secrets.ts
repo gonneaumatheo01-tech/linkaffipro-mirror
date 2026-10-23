@@ -29,9 +29,15 @@ export function secretSettingKey(key: string): string {
   return `${SECRET_SETTING_PREFIX}${key}`;
 }
 
-/** Clé d'identifiants d'un bookmaker (valeur chiffrée : `{ login, password }` en JSON). */
+/**
+ * Clés d'identifiants d'un bookmaker (phase 23) : deux clés séparées, `.login` (identifiant) et `.password`
+ * (mot de passe, vérifié par un test de connexion). `bookmakerSecretKey` = clé de l'identifiant.
+ */
 export function bookmakerSecretKey(name: string): string {
   return `providers.bookmakers.${name.toLowerCase().replace(/[^a-z0-9_-]/g, "")}.login`;
+}
+export function bookmakerPasswordSecretKey(name: string): string {
+  return `providers.bookmakers.${name.toLowerCase().replace(/[^a-z0-9_-]/g, "")}.password`;
 }
 
 /** Libellé affiché (« clé fal.ai »), jamais la valeur. */

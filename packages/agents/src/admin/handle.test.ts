@@ -70,7 +70,10 @@ describe("commandes du dialogue admin", () => {
     await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", monthlyBudgetCents: { video: 10000 } });
     const r = await handleAdminText(kit.deps, { text: "bookmaker sportaza moi pass-wd99", messageId: 2 });
-    expect(r).toMatchObject({ deleteMessage: true, reply: "Identifiants sportaza enregistrée (…wd99) ✅" });
+    expect(r).toMatchObject({ deleteMessage: true, reply: "Mot de passe sportaza enregistrée (…wd99) ✅" });
+    // Deux clés séparées : identifiant puis mot de passe.
+    const keys = kit.tables("setting").map((s) => s.key);
+    expect(keys).toEqual(expect.arrayContaining(["agents.secret.providers.bookmakers.sportaza.login", "agents.secret.providers.bookmakers.sportaza.password"]));
   });
 
   it("« demandes » et « plus tard »", async () => {

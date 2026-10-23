@@ -15,8 +15,9 @@ import { json } from "../../missions/mission";
 import { loadCategory, picksToday, recentPickKeys, settledSamples } from "../../sports/data";
 import { createBetMission } from "../../sports/missions";
 import { addKickoffTriggers } from "../../sports/passage-state";
-import { parseSportsSettings } from "../../sports/settings";
+import { parseSportsSettings, withTeamBounds } from "../../sports/settings";
 import { rankCandidates, type Candidate } from "./select";
+import { reasoningSentences } from "../../sports/format";
 
 /** Matchs examinés au plus par passage (un appel groupé couvre 25 matchs). */
 const MAX_EVENTS = 40;
@@ -27,9 +28,10 @@ export const agent: AgentDefinition = {
   key: "cotes",
   async run(mission, ctx) {
     if (typeof mission.payload.pickId === "string") return { ok: true, skipped: true, summary: "pari déjà choisi" };
-    const category = await loadCategory(ctx.prisma, mission.payload.categoryId as string | undefined);
-    if (!category) return { ok: false, error: "Catégorie de paris introuvable.", retryable: false };
+    const raw = await loadCategory(ctx.prisma, mission.payload.categoryId as string | undefined);
+    if (!raw) return { ok: false, error: "Catégorie de paris introuvable.", retryable: false };
     const s = parseSportsSettings(ctx.settings.settings);
+    const category = withTeamBounds(raw, s);
     const now = ctx.now();
     const remaining = mission.isTest ? 1 : category.picksPerDay - (await picksToday(ctx.prisma, category.id, now));
     if (remaining <= 0) return noPick(`quota du jour atteint (${category.picksPerDay} paris)`);
@@ -37,6 +39,9 @@ export const agent: AgentDefinition = {
     const source = mission.payload.oddsSource === "fake" || mission.isTest ? "fake" : "live";
     const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth });
     if (!resolved) return noPick("aucune clé de cotes : rien à chercher");
+    // Faux fournisseur : décalage des fixtures gardé dans le pari (mêmes heures de match aux étapes suivantes).
+    const shift = (resolved.provider as { shiftMs?: unknown }).shiftMs;
+    const fakeShiftMs = typeof shift === "number" ? shift : null;
     try {
       const from = new Date(now.getTime() + category.minMinutesBeforeKickoff * 60_000);
       const to = new Date(now.getTime() + s.lookaheadHours * 3_600_000);
@@ -65,7 +70,7 @@ export const agent: AgentDefinition = {
       if (!chosen.length) return noPick(`${stats}, aucun pari intéressant`, { rejected: ranked.rejected });
 
       const picks = [];
-      for (const c of chosen) picks.push(await createPick(ctx, mission, category.id, c));
+      for (const c of chosen) picks.push(await createPick(ctx, mission, category.id, c, fakeShiftMs));
       // Paris suivants : une mission sœur chacun (même catégorie, même source).
       for (const pick of picks.slice(1)) {
         const r = await createBetMission(ctx, { category, createdBy: mission.isTest ? "HUMAN" : "GRAND_CHEF", isTest: mission.isTest, pickId: pick.id, oddsSource: resolved.source });
@@ -86,7 +91,7 @@ export const agent: AgentDefinition = {
   },
 };
 
-async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: Mission, categoryId: string, c: Candidate) {
+async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: Mission, categoryId: string, c: Candidate, fakeShiftMs: number | null) {
   return ctx.prisma.bettingPick.create({
     data: {
       missionId: mission.id,
@@ -104,7 +109,18 @@ async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: M
       odds: c.odds,
       consensusOdds: c.reasoning.consensusOdds,
       interestScore: c.score,
-      reasoning: json({ ...c.reasoning, eventUrl: c.event.bookmakerLinks?.[c.bookmaker] ?? null }) as never,
+      reasoning: json({
+        ...c.reasoning,
+        // Noms lus par la fiche du site (chantier C).
+        edge: c.reasoning.valueEdge,
+        consensusProb: c.reasoning.consensusProbability,
+        bookmakerCount: c.reasoning.bookmakers,
+        averages: c.reasoning.recentAverage !== null ? { home: null, away: null, total: c.reasoning.recentAverage, matches: c.reasoning.recentSamples, stat: c.selection.marketId.split("-")[0] } : null,
+        lines: reasoningSentences({ bookmaker: c.bookmaker, odds: c.odds, marketId: c.selection.marketId, reasoning: c.reasoning }),
+        summary: reasoningSentences({ bookmaker: c.bookmaker, odds: c.odds, marketId: c.selection.marketId, reasoning: c.reasoning }).join(" "),
+        fakeShiftMs,
+        eventUrl: c.event.bookmakerLinks?.[c.bookmaker] ?? null,
+      }) as never,
       status: "PROPOSED",
     },
   });

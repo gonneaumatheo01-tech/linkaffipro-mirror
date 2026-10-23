@@ -6,6 +6,8 @@
 import type { Db } from "@linkaffipro/db";
 import type { ImageProvider } from "./providers/image";
 import type { VideoProvider } from "./providers/video";
+import type { OddsProvider } from "./providers/odds";
+import type { OddsCache } from "./providers/odds-cache";
 
 /** Client Prisma des agents : le client partagé de `@linkaffipro/db` (colonnes omises par défaut comprises). */
 export type AgentsPrisma = Db;
@@ -242,7 +244,7 @@ export type Providers = {
   videoFallback?: VideoProvider | null;
   image?: ImageProvider | null;
   /** Cotes (phase 23) : imposées par les tests, sinon choisies par `providers/odds-registry.ts`. */
-  odds?: import("./providers/odds").OddsProvider | null;
+  odds?: OddsProvider | null;
   screenshot?: unknown;
 };
 
@@ -255,7 +257,7 @@ export type AgentContext = AgentsDeps & {
   /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
   fetch?: typeof fetch;
   /** Cache des cotes (phase 23 : Redis dans le worker, mémoire ailleurs). */
-  oddsCache?: import("./providers/odds-cache").OddsCache | null;
+  oddsCache?: OddsCache | null;
   /** Réglages de l'équipe (`AgentTeamConfig`) et modèles (`Setting` `agents.models`). */
   settings: TeamSettings;
 };

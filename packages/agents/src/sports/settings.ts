@@ -24,6 +24,9 @@ export type SportsSettings = {
   /** Ligne de prudence en bas du post. */
   disclaimer: string;
   offerButtonText: string;
+  /** Réglages de la fiche d'équipe (site) : appliqués avec ceux de la catégorie, le plus strict gagne. */
+  maxOddsDriftPct: number;
+  minMinutesBeforeKickoff: number;
 };
 
 export const DEFAULT_SPORTS_FORBIDDEN_WORDS = ["sûr", "garanti", "100 %", "ne peut pas perdre"] as const;
@@ -39,6 +42,8 @@ export const DEFAULT_SPORTS_SETTINGS: Readonly<SportsSettings> = Object.freeze({
   recheckAfterMinutes: 10,
   disclaimer: "Aucun pari n'est gagné d'avance : joue avec modération. 18+",
   offerButtonText: "🎯 Parier chez le bookmaker",
+  maxOddsDriftPct: 5,
+  minMinutesBeforeKickoff: 30,
 });
 
 function record(v: unknown): Record<string, unknown> {
@@ -69,6 +74,17 @@ export function parseSportsSettings(teamSettings: unknown): SportsSettings {
     recheckAfterMinutes: num(s.recheckAfterMinutes, DEFAULT_SPORTS_SETTINGS.recheckAfterMinutes, 0, 1440),
     disclaimer: text(s.disclaimer, DEFAULT_SPORTS_SETTINGS.disclaimer),
     offerButtonText: text(s.offerButtonText, DEFAULT_SPORTS_SETTINGS.offerButtonText),
+    maxOddsDriftPct: num(s.maxOddsDriftPct, DEFAULT_SPORTS_SETTINGS.maxOddsDriftPct, 0, 100),
+    minMinutesBeforeKickoff: Math.round(num(s.minMinutesBeforeKickoff, DEFAULT_SPORTS_SETTINGS.minMinutesBeforeKickoff, 0, 1440)),
+  };
+}
+
+/** Catégorie avec les bornes de l'équipe : écart toléré le plus petit, délai avant le match le plus long (pur). */
+export function withTeamBounds<T extends { maxOddsDriftPct: number; minMinutesBeforeKickoff: number }>(category: T, s: Pick<SportsSettings, "maxOddsDriftPct" | "minMinutesBeforeKickoff">): T {
+  return {
+    ...category,
+    maxOddsDriftPct: Math.min(category.maxOddsDriftPct, s.maxOddsDriftPct),
+    minMinutesBeforeKickoff: Math.max(category.minMinutesBeforeKickoff, s.minMinutesBeforeKickoff),
   };
 }
 

@@ -14,7 +14,7 @@ import { createCaptureRequest, waitCaptureRequest, type StoredCaptureRequest } f
 import { loadCaptureSettings } from "../providers/screenshot/settings";
 import { storeCapturePng } from "../providers/screenshot/store";
 import { bookmakerKey, supportedBookmakers } from "../providers/screenshot/adapters";
-import { credentialsFrom, readBookmakerCredentials } from "../providers/screenshot/session";
+import { bookmakerPasswordKey, credentialsFrom, readBookmakerCredentials } from "../providers/screenshot/session";
 
 export const CONNECTION_TEST_WAIT_MS = 100_000;
 
@@ -61,23 +61,17 @@ export async function testBookmakerConnection(deps: AgentsDeps, bookmaker: strin
 }
 
 /**
- * Vérificateur des identifiants (`providers.bookmakers.<nom>.password`, ou `.login` en JSON complet) : enfile le test
+ * Vérificateur du mot de passe (`providers.bookmakers.<nom>.password`) : enfile le test
  * de connexion (le worker répond à l'admin par Telegram) et rend la main tout de suite (webhook du bot : pas d'attente).
  */
 export function registerBookmakerVerifiers(prismaClient: AgentsDeps["prisma"] = sharedPrisma as never): void {
-  registerSecretVerifier("providers.bookmakers.*", async (value) => {
-    // La clé exacte n'est pas transmise au vérificateur : on teste chaque bookmaker dont les identifiants sont complets.
-    void value;
-    const settings = await loadCaptureSettings(prismaClient);
-    const launched: string[] = [];
-    for (const name of supportedBookmakers()) {
-      if (!(await readBookmakerCredentials(prismaClient, name))) continue;
+  for (const name of supportedBookmakers())
+    registerSecretVerifier(bookmakerPasswordKey(name), async () => {
+      if (!(await readBookmakerCredentials(prismaClient, name))) return { ok: false, message: "il manque l'identifiant du compte : envoie-le d'abord" };
+      const settings = await loadCaptureSettings(prismaClient);
       await createCaptureRequest(prismaClient, { kind: "test", target: settings.mode, bookmaker: name, notifyAdmin: true });
-      launched.push(name);
-    }
-    if (!launched.length) return { ok: true, message: "identifiant enregistré ; il manque encore le mot de passe" };
-    return { ok: true, message: `test de connexion lancé (${launched.join(", ")}) : résultat par message dans une minute` };
-  });
+      return { ok: true, message: `test de connexion à ${name} lancé : résultat par message dans une minute` };
+    });
 }
 
 /** Identifiants complets ? (pur, sur les deux valeurs rangées) */

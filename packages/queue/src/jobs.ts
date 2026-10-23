@@ -253,6 +253,11 @@ export type AgentStepJob = { type: "step"; missionId: string; index: number; pol
  */
 export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: boolean };
 
+/**
+ * File `agents-sports` (phase 23) : en plus des étapes, `settle` toutes les 2 h (résultats des paris publiés).
+ */
+export type AgentsSportsJob = { type: "sports"; task: "settle" };
+
 /** File `agents-ads` (phase 24) : vide en phase 19. */
 export type AgentsAdsJob = { type: "tick" };
 
@@ -286,6 +291,8 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                           ? AgentsOrchestratorJob
                           : Q extends "agents-algo"
                             ? AgentStepJob | AgentsAlgoJob
+                            : Q extends "agents-sports"
+                            ? AgentStepJob | AgentsSportsJob
                             : Q extends AgentTeamQueue
                             ? AgentStepJob
                             : Q extends "agents-ads"

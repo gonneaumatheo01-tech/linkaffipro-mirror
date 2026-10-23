@@ -21,9 +21,8 @@ import type { AgentContext, AgentResult, Mission } from "../types";
 import { loadCategory, loadMissionPick, noveltyOf, recentPickKeys, type BetCategoryInfo, type PickRow } from "./data";
 import { betPostText } from "./format";
 import { ensurePickImage } from "./pick-image";
-import { parseSportsSettings, type SportsSettings } from "./settings";
+import { parseSportsSettings, withTeamBounds, type SportsSettings } from "./settings";
 import { skipPick } from "./skip";
-import { askCaptureWorkaround, SPORTS_WORKAROUND_REQUEST_KEY } from "./setup";
 import type { PickReasoning } from "../agents/cotes/select";
 
 type Loaded = { pick: PickRow; category: BetCategoryInfo; s: SportsSettings };
@@ -34,7 +33,8 @@ async function load(mission: Mission, ctx: AgentContext): Promise<Loaded | Agent
   if (!pick) return { ok: false, error: "Pari de la mission introuvable.", retryable: false };
   const category = await loadCategory(ctx.prisma, pick.categoryId);
   if (!category) return { ok: false, error: "Catégorie du pari introuvable.", retryable: false };
-  return { pick, category, s: parseSportsSettings(ctx.settings.settings) };
+  const s = parseSportsSettings(ctx.settings.settings);
+  return { pick, category: withTeamBounds(category, s), s };
 }
 
 const isResult = (x: Loaded | AgentResult): x is AgentResult => "ok" in x;
@@ -49,7 +49,7 @@ export async function sportsRedaction(mission: Mission, ctx: AgentContext): Prom
   // Cote lue sur le site du bookmaker au moment de la capture : écartée si elle a bougé.
   if (image.kind === "screenshot" && image.readOdds !== null) {
     const check = checkOddsDrift(pick.odds, image.readOdds, category.maxOddsDriftPct);
-    if (!check.ok) return skipPick(ctx, mission, pick, `sur le site : ${check.reason}`, { oddsAtSend: image.readOdds });
+    if (!check.ok) return skipPick(ctx, mission, pick, `sur le site : ${check.reason}`, { code: check.code, oddsAtSend: image.readOdds });
   }
   const text = betPostText({ ...pick, reasoning: pick.reasoning as Partial<PickReasoning>, disclaimer: s.disclaimer });
   return {
@@ -62,7 +62,7 @@ export async function sportsRedaction(mission: Mission, ctx: AgentContext): Prom
 /** Cote actuelle chez le bookmaker du pari (relue sans cache). */
 async function currentOdds(mission: Mission, ctx: AgentContext, pick: PickRow, s: SportsSettings): Promise<{ odds: number | null } | { error: string }> {
   const source = (pick.reasoning as { source?: string } | null)?.source === "fake" || mission.payload.oddsSource === "fake" ? "fake" : "live";
-  const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth });
+  const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null });
   if (!resolved) return { error: "aucune clé de cotes pour re-vérifier la cote" };
   try {
     const list = await freshMarkets(resolved.provider, pick.eventId, [pick.marketId]);
@@ -174,6 +174,8 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
 }
 
 async function askWorkaroundOnce(ctx: AgentContext): Promise<void> {
+  // Import différé : `setup` enregistre ses réponses auprès de `human/respond`, qui dépend du moteur (cycle d'imports).
+  const { askCaptureWorkaround, SPORTS_WORKAROUND_REQUEST_KEY } = await import("./setup");
   if (await ctx.prisma.humanRequest.findFirst({ where: { key: SPORTS_WORKAROUND_REQUEST_KEY }, select: { id: true } })) return;
   try {
     await askCaptureWorkaround(ctx);

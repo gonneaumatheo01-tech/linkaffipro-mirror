@@ -7,7 +7,7 @@ import { TEAM_LABELS, type AgentsDeps } from "../types";
 import { decideValidation } from "../validation/requests";
 import { askHuman, currentHumanRequest, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
-import { bookmakerSecretKey, saveSecret, secretLabel, verifySecret } from "../human/secrets";
+import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretLabel, verifySecret } from "../human/secrets";
 import { normalizeText } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
 import { esc, nowOf, telegramActorUserId } from "./journal";
@@ -138,12 +138,9 @@ async function runCommand(
     case "secret":
       return storeSecretCommand(deps, cmd.key, cmd.value, actor);
     case "bookmaker":
-      return storeSecretCommand(
-        deps,
-        bookmakerSecretKey(cmd.name),
-        JSON.stringify({ login: cmd.login, password: cmd.password }),
-        actor,
-      );
+      // Deux clés séparées (comme le site et les questions du bot) ; le mot de passe déclenche le test de connexion.
+      await saveSecret(deps, bookmakerSecretKey(cmd.name), cmd.login, actor);
+      return storeSecretCommand(deps, bookmakerPasswordSecretKey(cmd.name), cmd.password, actor);
     case "budget": {
       // Les vidéos IA sont produites par l'équipe Dating (plan des phases 20 à 25).
       await setTeamBudget(deps, "dating", "video", cmd.euros * 100, actor);

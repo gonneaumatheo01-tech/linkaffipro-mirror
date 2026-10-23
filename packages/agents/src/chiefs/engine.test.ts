@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as Db from "@linkaffipro/db";
+import { planDay } from "../orchestrator/plan-day";
 
 // Création du message programmé : remplacée par une version en mémoire (la vraie est testée en intégration).
 vi.mock("@linkaffipro/db", async (importOriginal) => {
@@ -133,9 +134,10 @@ describe("mission POST de bout en bout (simulation)", () => {
     expect(kit.t("auditLog").map((a) => a.action)).toContain("agents.mission.test_created");
   });
 
-  it("équipe sans agents (sports) : aucune mission", async () => {
-    const r = await createMission(kit.deps, { teamKey: "sports", channelId: "real", createdBy: "GRAND_CHEF" });
-    expect(r.ok).toBe(false);
+  it("équipe Paris sportifs (phase 23) : le plan des canaux ne crée aucune mission (passages du Chef Paris seulement)", async () => {
+    await kit.prisma.channelAgentPlan.create({ data: { channelId: "real", teamKey: "sports", enabled: true, postsPerDay: 3 } });
+    const r = await planDay(kit.deps, { teamKey: "sports" });
+    expect(r.created).toBe(0);
   });
 });
 

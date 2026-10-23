@@ -7,6 +7,7 @@ import { createFakeLlm } from "../providers/fake";
 import { loadLlmProvider, type LlmClientFactory } from "../providers/llm";
 import type { AgentContext, AgentsDeps, FrameExtractor, Providers, TeamKey } from "../types";
 import { loadTeamSettings } from "./settings";
+import type { OddsCache } from "../providers/odds-cache";
 
 /** Dépendances du moteur : celles des services + fournisseurs imposés (tests) ou fabrique du client Claude. */
 export type EngineDeps = AgentsDeps & {
@@ -17,7 +18,7 @@ export type EngineDeps = AgentsDeps & {
   /** `fetch` des fournisseurs de médias (tests : réponses enregistrées). */
   fetch?: typeof fetch;
   /** Cache des cotes (phase 23 : Redis dans le worker). */
-  oddsCache?: import("../providers/odds-cache").OddsCache | null;
+  oddsCache?: OddsCache | null;
 };
 
 export function clockOf(deps: Pick<AgentsDeps, "now">): () => Date {

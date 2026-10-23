@@ -36,6 +36,8 @@ export type PickReasoning = {
   recentAverage: number | null;
   recentSamples: number;
   line: number | null;
+  /** Faux fournisseur : décalage des fixtures, pour relire les mêmes heures de match ensuite. */
+  fakeShiftMs?: number | null;
 };
 
 export type Candidate = {

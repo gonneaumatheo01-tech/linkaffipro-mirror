@@ -42,7 +42,7 @@ export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunR
     const source = (pick.reasoning as { source?: string } | null)?.source === "fake" ? "fake" : "live";
     const cacheKey = `${source}:${pick.eventId}`;
     if (!results.has(cacheKey)) {
-      const resolved = await resolveOddsProvider(deps, { source, maxCalls: s.maxApiCallsPerMonth });
+      const resolved = await resolveOddsProvider(deps, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null });
       try {
         results.set(cacheKey, resolved ? await resolved.provider.getResult(pick.eventId) : null);
       } catch (err) {

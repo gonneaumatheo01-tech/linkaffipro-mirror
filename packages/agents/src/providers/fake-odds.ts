@@ -2,7 +2,8 @@
  * Faux fournisseur de cotes (tests, « Produire un pari de test », simulation sans clé) : rejoue les fixtures
  * `fixtures/odds/*.json`, écrites dans la forme exacte des réponses SportsGameOdds et lues par le MÊME code de lecture
  * que le vrai client. Les dates sont recalées sur l'horloge : un match prévu 30 h après l'ancre des fixtures commence
- * 30 h après « maintenant ». Résultat d'un match : connu 2 h après le coup d'envoi. Aucun réseau.
+ * 30 h après la création du fournisseur. Le décalage est figé (`shiftMs`) et gardé dans le pari : les étapes
+ * suivantes et le règlement voient les mêmes heures de match. Résultat : connu 2 h après le coup d'envoi. Aucun réseau.
  * Les tests modifient une cote (`setOdds`) ou retirent un marché pour simuler un mouvement.
  */
 import eventsFixture from "../../fixtures/odds/events.json";
@@ -21,6 +22,8 @@ export type FakeOddsProvider = BatchOddsProvider & {
   setOdds(eventId: string, marketId: string, bookmaker: string, decimal: number | null): void;
   removeMarket(eventId: string, marketId: string): void;
   calls: string[];
+  /** Décalage appliqué aux dates des fixtures (ms). */
+  shiftMs: number;
 };
 
 function clone<T>(v: T): T {
@@ -32,12 +35,14 @@ function toAmerican(d: number): string {
   return d >= 2 ? `+${Math.round((d - 1) * 100)}` : `${Math.round(-100 / (d - 1))}`;
 }
 
-export function createFakeOddsProvider(opts: { now?: () => Date } = {}): FakeOddsProvider {
+export function createFakeOddsProvider(opts: { now?: () => Date; shiftMs?: number | null } = {}): FakeOddsProvider {
   const clock = opts.now ?? (() => new Date());
+  // Décalage à la minute près, figé à la création.
+  const shiftMs = typeof opts.shiftMs === "number" && Number.isFinite(opts.shiftMs) ? opts.shiftMs : Math.floor((clock().getTime() - FAKE_ODDS_ANCHOR.getTime()) / 60_000) * 60_000;
   const raw = clone((eventsFixture as unknown as { data: SgoEvent[] }).data);
   const results = clone((resultsFixture as unknown as { data: SgoEvent[] }).data);
   const calls: string[] = [];
-  const shift = () => clock().getTime() - FAKE_ODDS_ANCHOR.getTime();
+  const shift = () => shiftMs;
   const rebased = (e: SgoEvent): SgoEvent => {
     const at = e.status?.startsAt ? new Date(new Date(e.status.startsAt).getTime() + shift()).toISOString() : undefined;
     return { ...e, status: { ...e.status, ...(at ? { startsAt: at } : {}) } };
@@ -47,6 +52,7 @@ export function createFakeOddsProvider(opts: { now?: () => Date } = {}): FakeOdd
   return {
     name: "fake",
     calls,
+    shiftMs,
     async listEvents(q): Promise<OddsEvent[]> {
       calls.push("listEvents");
       return raw

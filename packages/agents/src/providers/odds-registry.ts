@@ -31,12 +31,12 @@ export async function hasOddsKey(prisma: AgentsDeps["prisma"]): Promise<boolean>
 
 export async function resolveOddsProvider(
   deps: OddsResolveDeps,
-  opts: { source?: OddsSource | null; maxCalls: number },
+  opts: { source?: OddsSource | null; maxCalls: number; fakeShiftMs?: number | null },
 ): Promise<{ provider: OddsProvider; source: OddsSource } | null> {
   const now = deps.now ?? (() => new Date());
   const forced = deps.providers?.odds as OddsProvider | null | undefined;
   if (forced) return { provider: forced, source: forced.name === "fake" ? "fake" : "live" };
-  if (opts.source === "fake") return { provider: createFakeOddsProvider({ now }), source: "fake" };
+  if (opts.source === "fake") return { provider: createFakeOddsProvider({ now, shiftMs: opts.fakeShiftMs }), source: "fake" };
   const key = await readSecret(deps.prisma, ODDS_SECRET_KEY);
   if (!key) return null;
   const client = createSportsGameOddsProvider({
