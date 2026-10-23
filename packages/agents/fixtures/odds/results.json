@@ -1,0 +1,241 @@
+{
+ "success": true,
+ "data": [
+  {
+   "eventID": "fake-epl-ars-che",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 2,
+      "shots_onGoal": 6,
+      "corners": 5,
+      "cards": 2
+     },
+     "away": {
+      "points": 1,
+      "shots_onGoal": 4,
+      "corners": 3,
+      "cards": 3
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 2,
+      "shots_onGoal": 6,
+      "corners": 5,
+      "cards": 2
+     },
+     "away": {
+      "points": 1,
+      "shots_onGoal": 4,
+      "corners": 3,
+      "cards": 3
+     }
+    }
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "score": 10
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "score": 10
+    }
+   }
+  },
+  {
+   "eventID": "fake-liga-rma-val",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 1,
+      "shots_onGoal": 3,
+      "corners": 6,
+      "cards": 1
+     },
+     "away": {
+      "points": 1,
+      "shots_onGoal": 4,
+      "corners": 4,
+      "cards": 4
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 1,
+      "shots_onGoal": 3,
+      "corners": 6,
+      "cards": 1
+     },
+     "away": {
+      "points": 1,
+      "shots_onGoal": 4,
+      "corners": 4,
+      "cards": 4
+     }
+    }
+   },
+   "odds": {}
+  },
+  {
+   "eventID": "fake-l1-psg-lyo",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": false,
+    "ended": false,
+    "cancelled": true
+   },
+   "results": {},
+   "odds": {}
+  },
+  {
+   "eventID": "fake-bun-bay-dor",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 3,
+      "shots_onGoal": 5,
+      "corners": 7,
+      "cards": 2
+     },
+     "away": {
+      "points": 2,
+      "shots_onGoal": 6,
+      "corners": 4,
+      "cards": 2
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 3,
+      "shots_onGoal": 5,
+      "corners": 7,
+      "cards": 2
+     },
+     "away": {
+      "points": 2,
+      "shots_onGoal": 6,
+      "corners": 4,
+      "cards": 2
+     }
+    }
+   },
+   "odds": {}
+  },
+  {
+   "eventID": "fake-epl-bri-ful",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 0,
+      "shots_onGoal": 3
+     },
+     "away": {
+      "points": 0,
+      "shots_onGoal": 2
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 0,
+      "shots_onGoal": 3
+     },
+     "away": {
+      "points": 0,
+      "shots_onGoal": 2
+     }
+    }
+   },
+   "odds": {}
+  },
+  {
+   "eventID": "fake-mls-lag-mia",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 2,
+      "shots_onGoal": 5
+     },
+     "away": {
+      "points": 2,
+      "shots_onGoal": 5
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 2,
+      "shots_onGoal": 5
+     },
+     "away": {
+      "points": 2,
+      "shots_onGoal": 5
+     }
+    }
+   },
+   "odds": {}
+  },
+  {
+   "eventID": "fake-ita-int-mil",
+   "sportID": "SOCCER",
+   "status": {
+    "finalized": true,
+    "ended": true,
+    "cancelled": false
+   },
+   "results": {
+    "game": {
+     "home": {
+      "points": 1,
+      "shots_onGoal": 4
+     },
+     "away": {
+      "points": 0,
+      "shots_onGoal": 3
+     }
+    },
+    "reg": {
+     "home": {
+      "points": 1,
+      "shots_onGoal": 4
+     },
+     "away": {
+      "points": 0,
+      "shots_onGoal": 3
+     }
+    }
+   },
+   "odds": {}
+  }
+ ]
+}

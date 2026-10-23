@@ -271,6 +271,15 @@ export const PAGE_HELP: readonly PageHelp[] = [
     ],
   },
   {
+    path: "/agents/sports",
+    label: "Équipe Paris sportifs",
+    sections: [
+      "Fiche d'une équipe",
+      "Équipe Paris sportifs : catégories, bookmaker et bilan",
+      "Simulation, niveaux et pause",
+    ],
+  },
+  {
     path: "/agents/algo",
     label: "Ce qui marche",
     sections: ["Ce qui marche (équipe Algorithme)", "Simulation, niveaux et pause"],

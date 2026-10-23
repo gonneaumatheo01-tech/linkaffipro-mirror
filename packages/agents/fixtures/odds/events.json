@@ -1,0 +1,1353 @@
+{
+ "success": true,
+ "anchor": "2026-10-24T08:00:00.000Z",
+ "data": [
+  {
+   "eventID": "fake-epl-ars-che",
+   "sportID": "SOCCER",
+   "leagueID": "EPL",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Arsenal",
+      "medium": "Arsenal",
+      "short": "ARS"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Chelsea",
+      "medium": "Chelsea",
+      "short": "CHE"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T14:00:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {
+     "sportaza": "https://www.sportaza.example/fr/sports/football/arsenal-chelsea"
+    }
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+110",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-105",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "+100",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "williamhill": {
+       "odds": "-115",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-140",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-115",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-120",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "williamhill": {
+       "odds": "-105",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     },
+     "fairOdds": "-108"
+    },
+    "shots_onGoal-home-game-ou-over": {
+     "oddID": "shots_onGoal-home-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "4.5",
+     "fairOverUnder": "4.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+120",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "+100",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "+105",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-102",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-home-game-ou-under": {
+     "oddID": "shots_onGoal-home-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "4.5",
+     "fairOverUnder": "4.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-160",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-130",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-135",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-118",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "corners-all-game-ou-over": {
+     "oddID": "corners-all-game-ou-over",
+     "marketName": "corners Over/Under",
+     "statID": "corners",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-105",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "corners-all-game-ou-under": {
+     "oddID": "corners-all-game-ou-under",
+     "marketName": "corners Over/Under",
+     "statID": "corners",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-120",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-115",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "points-all-game-ou-over": {
+     "oddID": "points-all-game-ou-over",
+     "marketName": "points Over/Under",
+     "statID": "points",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "2.5",
+     "fairOverUnder": "2.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-130",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-125",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-120",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-122",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "points-all-game-ou-under": {
+     "oddID": "points-all-game-ou-under",
+     "marketName": "points Over/Under",
+     "statID": "points",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "2.5",
+     "fairOverUnder": "2.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+100",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "+105",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "+100",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "+108",
+       "overUnder": "2.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "points-home-reg-ml3way-home": {
+     "oddID": "points-home-reg-ml3way-home",
+     "marketName": "Moneyline 3-Way",
+     "statID": "points",
+     "statEntityID": "home",
+     "periodID": "reg",
+     "betTypeID": "ml3way",
+     "sideID": "home",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+105",
+       "available": true
+      },
+      "bet365": {
+       "odds": "+100",
+       "available": true
+      },
+      "unibet": {
+       "odds": "-105",
+       "available": true
+      }
+     }
+    },
+    "points-away-reg-ml3way-away": {
+     "oddID": "points-away-reg-ml3way-away",
+     "marketName": "Moneyline 3-Way",
+     "statID": "points",
+     "statEntityID": "away",
+     "periodID": "reg",
+     "betTypeID": "ml3way",
+     "sideID": "away",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+250",
+       "available": true
+      },
+      "bet365": {
+       "odds": "+240",
+       "available": true
+      },
+      "unibet": {
+       "odds": "+245",
+       "available": true
+      }
+     }
+    },
+    "points-all-reg-ml3way-draw": {
+     "oddID": "points-all-reg-ml3way-draw",
+     "marketName": "Moneyline 3-Way",
+     "statID": "points",
+     "statEntityID": "all",
+     "periodID": "reg",
+     "betTypeID": "ml3way",
+     "sideID": "draw",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+260",
+       "available": true
+      },
+      "bet365": {
+       "odds": "+250",
+       "available": true
+      },
+      "unibet": {
+       "odds": "+255",
+       "available": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-liga-rma-val",
+   "sportID": "SOCCER",
+   "leagueID": "LA_LIGA",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Real Madrid",
+      "medium": "Real Madrid",
+      "short": "RMA"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Valencia CF",
+      "medium": "Valencia CF",
+      "short": "VAL"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T19:00:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {
+     "sportaza": "https://www.sportaza.example/fr/sports/football/real-madrid-valencia"
+    }
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+105",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-108",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-105",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-135",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-112",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-115",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-home-game-ou-over": {
+     "oddID": "shots_onGoal-home-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "5.5",
+     "fairOverUnder": "5.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-105",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-115",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-110",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-112",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-home-game-ou-under": {
+     "oddID": "shots_onGoal-home-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "5.5",
+     "fairOverUnder": "5.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-125",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-105",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-110",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-108",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "corners-all-game-ou-over": {
+     "oddID": "corners-all-game-ou-over",
+     "marketName": "corners Over/Under",
+     "statID": "corners",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "10.5",
+     "fairOverUnder": "10.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+100",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-105",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "corners-all-game-ou-under": {
+     "oddID": "corners-all-game-ou-under",
+     "marketName": "corners Over/Under",
+     "statID": "corners",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "10.5",
+     "fairOverUnder": "10.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-130",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-115",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-l1-psg-lyo",
+   "sportID": "SOCCER",
+   "leagueID": "FR_LIGUE_1",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Paris Saint-Germain",
+      "medium": "Paris Saint-Germain",
+      "short": "PSG"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Olympique Lyonnais",
+      "medium": "Olympique Lyonnais",
+      "short": "OL"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T10:00:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {
+     "sportaza": "https://www.sportaza.example/fr/sports/football/psg-lyon"
+    }
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-105",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-120",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-118",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-115",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-125",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-102",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-105",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-108",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-home-game-ou-over": {
+     "oddID": "shots_onGoal-home-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "5.5",
+     "fairOverUnder": "5.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+115",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "+100",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-102",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "+102",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-home-game-ou-under": {
+     "oddID": "shots_onGoal-home-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "home",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "5.5",
+     "fairOverUnder": "5.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-150",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-120",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-118",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-122",
+       "overUnder": "5.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "cards-all-game-ou-over": {
+     "oddID": "cards-all-game-ou-over",
+     "marketName": "cards Over/Under",
+     "statID": "cards",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "4.5",
+     "fairOverUnder": "4.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-110",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-105",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-108",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "cards-all-game-ou-under": {
+     "oddID": "cards-all-game-ou-under",
+     "marketName": "cards Over/Under",
+     "statID": "cards",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "4.5",
+     "fairOverUnder": "4.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-120",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-115",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-112",
+       "overUnder": "4.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-bun-bay-dor",
+   "sportID": "SOCCER",
+   "leagueID": "BUNDESLIGA",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Bayern Munich",
+      "medium": "Bayern Munich",
+      "short": "FCB"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Borussia Dortmund",
+      "medium": "Borussia Dortmund",
+      "short": "BVB"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T16:30:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {
+     "sportaza": "https://www.sportaza.example/fr/sports/football/bayern-dortmund"
+    }
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "10.5",
+     "fairOverUnder": "10.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-102",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-112",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-108",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "10.5",
+     "fairOverUnder": "10.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-120",
+       "overUnder": "10.5",
+       "available": false,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-108",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-112",
+       "overUnder": "10.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "points-all-game-ou-over": {
+     "oddID": "points-all-game-ou-over",
+     "marketName": "points Over/Under",
+     "statID": "points",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "3.5",
+     "fairOverUnder": "3.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+110",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "+105",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "+100",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "points-all-game-ou-under": {
+     "oddID": "points-all-game-ou-under",
+     "marketName": "points Over/Under",
+     "statID": "points",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "3.5",
+     "fairOverUnder": "3.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-140",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-135",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-130",
+       "overUnder": "3.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-epl-bri-ful",
+   "sportID": "SOCCER",
+   "leagueID": "EPL",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Brighton",
+      "medium": "Brighton",
+      "short": "BHA"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Fulham",
+      "medium": "Fulham",
+      "short": "FUL"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-24T08:20:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {}
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "7.5",
+     "fairOverUnder": "7.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+130",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-105",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "7.5",
+     "fairOverUnder": "7.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-160",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-115",
+       "overUnder": "7.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-mls-lag-mia",
+   "sportID": "SOCCER",
+   "leagueID": "MLS",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "LA Galaxy",
+      "medium": "LA Galaxy",
+      "short": "LAG"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "Inter Miami",
+      "medium": "Inter Miami",
+      "short": "MIA"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T02:30:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {}
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "+140",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-105",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "9.5",
+     "fairOverUnder": "9.5",
+     "byBookmaker": {
+      "sportaza": {
+       "odds": "-170",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "bet365": {
+       "odds": "-110",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-115",
+       "overUnder": "9.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventID": "fake-ita-int-mil",
+   "sportID": "SOCCER",
+   "leagueID": "IT_SERIE_A",
+   "teams": {
+    "home": {
+     "names": {
+      "long": "Inter",
+      "medium": "Inter",
+      "short": "INT"
+     }
+    },
+    "away": {
+     "names": {
+      "long": "AC Milan",
+      "medium": "AC Milan",
+      "short": "MIL"
+     }
+    }
+   },
+   "status": {
+    "startsAt": "2026-10-25T18:45:00.000Z",
+    "started": false,
+    "ended": false,
+    "finalized": false,
+    "cancelled": false
+   },
+   "links": {
+    "bookmakers": {}
+   },
+   "odds": {
+    "shots_onGoal-all-game-ou-over": {
+     "oddID": "shots_onGoal-all-game-ou-over",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "over",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "bet365": {
+       "odds": "+105",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "+100",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "+102",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    },
+    "shots_onGoal-all-game-ou-under": {
+     "oddID": "shots_onGoal-all-game-ou-under",
+     "marketName": "shots_onGoal Over/Under",
+     "statID": "shots_onGoal",
+     "statEntityID": "all",
+     "periodID": "game",
+     "betTypeID": "ou",
+     "sideID": "under",
+     "bookOverUnder": "8.5",
+     "fairOverUnder": "8.5",
+     "byBookmaker": {
+      "bet365": {
+       "odds": "-125",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "unibet": {
+       "odds": "-120",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      },
+      "pinnacle": {
+       "odds": "-122",
+       "overUnder": "8.5",
+       "available": true,
+       "lastUpdatedAt": "2026-10-24T07:55:00Z"
+      }
+     }
+    }
+   }
+  }
+ ]
+}

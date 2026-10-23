@@ -4,6 +4,7 @@
  */
 import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { SECRET_KEYS, secretSummary, type SecretSummary } from "@linkaffipro/agents";
+import { SCREENSHOT_PROXY_KEY, bookmakerLabel, bookmakerSecretKeys } from "./sports";
 
 export type SecretInfo = { label: string; usage: string; createUrl: string | null };
 
@@ -25,12 +26,43 @@ export const SECRET_INFO: Record<string, SecretInfo> = {
   },
 };
 
+/**
+ * Clés de l'équipe Paris sportifs (phase 23) gérées aussi par le site : identifiants du bookmaker partenaire et
+ * adresse de secours des captures. Ajoutées ici tant que la liste du paquet (`SECRET_KEYS`) ne les contient pas.
+ */
+export const SITE_EXTRA_SECRET_KEYS: readonly string[] = [
+  bookmakerSecretKeys("sportaza").login,
+  bookmakerSecretKeys("sportaza").password,
+  SCREENSHOT_PROXY_KEY,
+];
+
+/** Toutes les clés affichées dans les réglages, sans doublon. */
+export const ALL_SECRET_KEYS: readonly string[] = [...new Set<string>([...SECRET_KEYS, ...SITE_EXTRA_SECRET_KEYS])];
+
+function bookmakerInfo(key: string): SecretInfo | null {
+  const m = /^providers\.bookmakers\.([a-z0-9_-]+)\.(login|password)$/.exec(key);
+  if (!m) return null;
+  const name = bookmakerLabel(m[1]!);
+  return m[2] === "login"
+    ? { label: `${name} : identifiant`, usage: `Identifiant du compte ${name} : l'équipe Paris sportifs s'y connecte seulement pour retrouver le pari et faire la capture d'écran (jamais de mise).`, createUrl: null }
+    : { label: `${name} : mot de passe`, usage: `Mot de passe du compte ${name}, chiffré. Testez la connexion depuis la fiche Paris sportifs.`, createUrl: null };
+}
+
 export function secretInfo(key: string): SecretInfo {
-  return SECRET_INFO[key] ?? { label: key.replace(/^providers\./, "").replace(/\.apiKey$/, ""), usage: "", createUrl: null };
+  if (key === SCREENSHOT_PROXY_KEY)
+    return {
+      label: "Adresse internet de secours des captures",
+      usage: "Seulement si le site du bookmaker bloque les captures : adresse fournie par un service d'adresses résidentielles.",
+      createUrl: null,
+    };
+  return (
+    SECRET_INFO[key] ??
+    bookmakerInfo(key) ?? { label: key.replace(/^providers\./, "").replace(/\.apiKey$/, ""), usage: "", createUrl: null }
+  );
 }
 
 export function isKnownSecretKey(key: string): boolean {
-  return (SECRET_KEYS as readonly string[]).includes(key);
+  return ALL_SECRET_KEYS.includes(key);
 }
 
 export type SecretRow = { key: string; info: SecretInfo; summary: SecretSummary | null };
@@ -38,7 +70,7 @@ export type SecretRow = { key: string; info: SecretInfo; summary: SecretSummary 
 /** Résumé de chaque clé connue ; `summary: null` si la lecture a échoué (la page le dit, sans planter). */
 export async function loadSecretRows(): Promise<SecretRow[]> {
   return Promise.all(
-    SECRET_KEYS.map(async (key) => ({
+    ALL_SECRET_KEYS.map(async (key) => ({
       key,
       info: secretInfo(key),
       summary: await secretSummary(prisma as unknown as PrismaClient, key).catch((err: unknown) => {

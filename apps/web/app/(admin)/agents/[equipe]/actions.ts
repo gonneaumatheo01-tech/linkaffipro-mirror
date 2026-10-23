@@ -11,6 +11,8 @@ import { buildAgentsDeps } from "@/lib/agents/deps";
 import { parseChannelPlanForm, parseTeamSettingsForm } from "@/lib/agents/forms";
 import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
 import { saveChannelPlan, saveDatingMediaSettings, saveTeamSettings } from "@/lib/agents/save";
+import { parseSportsSettingsForm } from "@/lib/agents/sports";
+import { writeSportsSettings } from "@/lib/agents/sports-save";
 import { PROVIDER_LABELS, TEAM_PROVIDERS, parseTeamParam } from "@/lib/agents/teams";
 import { requireUser } from "@/lib/session";
 
@@ -31,6 +33,9 @@ export async function saveTeamSettingsAction(formData: FormData): Promise<void> 
   // Casino (phase 22) : seuil de manque et rotation, ADMIN seulement.
   const casino = isAdmin && team === "casino" ? parseCasinoTeamForm(formData) : null;
   if (casino && !casino.ok) backTo(path, { error: casino.error }, "#reglages");
+  // Paris sportifs (phase 23) : heures de passage, écart de cote, délai avant match, plafond d'appels, ADMIN seulement.
+  const sports = isAdmin && team === "sports" ? parseSportsSettingsForm(formData) : null;
+  if (sports && !sports.ok) backTo(path, { error: sports.error }, "#reglages");
   try {
     await saveTeamSettings(team, { ...parsed.data, budgets: isAdmin ? parsed.data.budgets : null }, user.id);
     if (video?.ok) await saveDatingMediaSettings(video.data, user.id);
@@ -42,6 +47,7 @@ export async function saveTeamSettingsAction(formData: FormData): Promise<void> 
           to: casino.data,
         });
     }
+    if (sports?.ok) await writeSportsSettings(sports.data, user.id);
   } catch (err) {
     if (isRedirectError(err)) throw err;
     backTo(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#reglages");

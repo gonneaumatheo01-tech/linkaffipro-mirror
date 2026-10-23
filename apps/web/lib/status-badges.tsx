@@ -8,6 +8,7 @@ import type {
   ApprovalMode,
   AutomationRunStatus,
   AutomationTrigger,
+  BettingPickStatus,
   BotMode,
   BroadcastStatus,
   CampaignStatus,
@@ -376,6 +377,15 @@ export const STATUS_DICT = {
     UNDONE: muted("Annulé"),
     REJECTED: muted("Refusé"),
   } satisfies Record<RecommendationStatus, StatusEntry>,
+  // Équipe Paris sportifs (phase 23) : état d'un pari retenu, puis son résultat après le match.
+  bettingPick: {
+    PROPOSED: warn("Proposé"),
+    PUBLISHED: main("Publié"),
+    SKIPPED: muted("Écarté"),
+    WON: ok("Gagné"),
+    LOST: bad("Perdu"),
+    VOID: muted("Annulé"),
+  } satisfies Record<BettingPickStatus, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

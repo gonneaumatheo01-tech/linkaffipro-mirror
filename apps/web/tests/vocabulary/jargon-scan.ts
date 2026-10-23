@@ -179,6 +179,9 @@ export const AGENTS_JARGON: JargonRule[] = [
   { word: "API", re: word("APIs?", "u"), instead: "connexion" },
   { word: "JSON", re: word("JSON", "u"), instead: "réglage" },
   { word: "prompt", re: word("prompts?"), instead: "consignes" },
+  // Équipe Paris sportifs (phase 23) : « adresse internet de secours » en surface, le terme au survol (`Term`).
+  { word: "Playwright", re: word("playwright"), instead: "capture d'écran" },
+  { word: "proxy", re: word("prox(?:y|ies)"), instead: "adresse internet de secours" },
 ];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */

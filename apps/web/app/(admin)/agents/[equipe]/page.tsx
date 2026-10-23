@@ -11,6 +11,11 @@ import {
 } from "@/components/agents/casino/casino-production";
 import { DatingConversationCard, DatingProduction } from "@/components/agents/dating-production";
 import { MissionFiltersForm, MissionsTable } from "@/components/agents/missions-table";
+import { BetCategories } from "@/components/agents/sports/bet-categories";
+import { BetPicks } from "@/components/agents/sports/bet-picks";
+import { BetSummary } from "@/components/agents/sports/bet-summary";
+import { Bookmakers } from "@/components/agents/sports/bookmakers";
+import { SportsSettingsFields } from "@/components/agents/sports/sports-settings-fields";
 import { LevelPicker, PauseButton, SimulationSwitch } from "@/components/agents/team-controls";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Flash } from "@/components/admin/flash";
@@ -43,6 +48,17 @@ import {
   loadToClassify,
 } from "@/lib/agents/casino-queries";
 import { simulationSentence, teamPills } from "@/lib/agents/display";
+import { SPORTS_DEFAULT_FORBIDDEN_WORDS, isBookmakerKey, parseSportsSettings, parseSummaryBy } from "@/lib/agents/sports";
+import {
+  loadAssetMime,
+  loadBetCategories,
+  loadBetSummary,
+  loadBookmakers,
+  loadOddsCallsThisMonth,
+  loadPicksSince,
+  loadProxySummary,
+  loadSportsSettings,
+} from "@/lib/agents/sports-queries";
 import { parseMissionFilters } from "@/lib/agents/missions";
 import {
   loadAgentsOfTeam,
@@ -66,6 +82,7 @@ import {
   parseTeamParam,
 } from "@/lib/agents/teams";
 import { fmtDate, fmtMoney } from "@/lib/format";
+import { periodDates, periodStart, resolvePeriod } from "@/lib/periods";
 import { StatusBadge } from "@/lib/status-badges";
 import { requireUser } from "@/lib/session";
 
@@ -120,6 +137,35 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
         loadThemeMediaCounts(casinoSettings.themes.map((t) => t.key)),
       ])
     : [null, { rows: [], total: 0 }, [], [], {}];
+  // Équipe Paris sportifs (phase 23) : catégories, paris du jour, bilan sur la période, bookmakers, réglages.
+  const isSports = team === "sports";
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const betPeriod = resolvePeriod(
+    { range: one(sp.range) ?? (one(sp.from) && one(sp.to) ? undefined : "30d"), from: sp.from, to: sp.to },
+    now,
+  );
+  const summaryBy = parseSummaryBy(one(sp.bilan));
+  const captureId = one(sp.capture);
+  const captureBk = one(sp.bk);
+  const sportsData = isSports
+    ? await (async () => {
+        const categories = await loadBetCategories();
+        const { dateFrom, dateTo } = periodDates(betPeriod);
+        const [picks, settings, summary, bookmakers, proxy, calls, captureMime] = await Promise.all([
+          loadPicksSince(periodStart(resolvePeriod({ range: "today" }, now))),
+          loadSportsSettings(),
+          loadBetSummary({ from: dateFrom, to: dateTo, by: summaryBy }),
+          loadBookmakers(categories),
+          loadProxySummary(),
+          loadOddsCallsThisMonth(now),
+          captureId ? loadAssetMime(captureId) : Promise.resolve(null),
+        ]);
+        return { categories, picks, settings, summary, bookmakers, proxy, calls, captureMime };
+      })()
+    : null;
+  const sportsSettings = sportsData?.settings ?? parseSportsSettings(null);
+  const forbiddenDefault =
+    isSports && config.forbiddenWords.length === 0 ? [...SPORTS_DEFAULT_FORBIDDEN_WORDS] : config.forbiddenWords;
   const channelTitles = Object.fromEntries(plans.map((c) => [c.id, c.title]));
   // Plafonds affichés : ceux de l'équipe, sinon (Rencontres) les valeurs par défaut du moteur.
   const shownBudgets: Partial<Record<string, number>> = isDating
@@ -186,7 +232,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
                 <Textarea
                   id="forbiddenWords"
                   name="forbiddenWords"
-                  defaultValue={config.forbiddenWords.join("\n")}
+                  defaultValue={forbiddenDefault.join("\n")}
                   aria-describedby="forbiddenWords-aide"
                 />
                 <p id="forbiddenWords-aide" className="text-note text-muted-foreground">
@@ -319,6 +365,9 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
               )}
             </FormSection>
           ) : null}
+          {isSports ? (
+            <SportsSettingsFields settings={sportsSettings} callsThisMonth={sportsData?.calls ?? 0} isAdmin={isAdmin} />
+          ) : null}
           <FormSection
             title="Plafonds du mois"
             description={
@@ -379,7 +428,31 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/age
           </>
         ) : null}
 
-        {TEAM_VERTICAL[team] ? (
+        {sportsData ? (
+          <>
+            <BetPicks picks={sportsData.picks} categories={sportsData.categories} simulation={config.simulation} now={now} />
+            <BetCategories
+              categories={sportsData.categories}
+              channels={plans.map((c) => ({ id: c.id, title: c.title, isTest: c.isTest }))}
+              campaigns={choices.campaigns}
+              isAdmin={isAdmin}
+            />
+            <BetSummary rows={sportsData.summary} by={summaryBy} period={betPeriod} />
+            <Bookmakers
+              bookmakers={sportsData.bookmakers}
+              proxy={sportsData.proxy}
+              isAdmin={isAdmin}
+              capture={
+                captureId && sportsData.captureMime
+                  ? { bookmaker: isBookmakerKey(captureBk) ? captureBk : null, id: captureId, mimeType: sportsData.captureMime }
+                  : null
+              }
+              now={now}
+            />
+          </>
+        ) : null}
+
+        {TEAM_VERTICAL[team] && !isSports ? (
           <FormSection
             id="plan"
             title="Plan par canal"

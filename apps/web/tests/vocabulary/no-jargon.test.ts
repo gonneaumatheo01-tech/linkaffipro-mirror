@@ -80,7 +80,7 @@ describe("vocabulaire de la rubrique Agents", () => {
     expect(files.filter((f) => AGENTS_ROOTS.some((r) => f.rel.startsWith(r))).length).toBeGreaterThan(10);
   });
 
-  it("ni « BullMQ », ni « worker », ni « API », ni « JSON », ni « prompt » en surface", () => {
+  it("ni « BullMQ », ni « worker », ni « API », ni « JSON », ni « prompt », ni « Playwright », ni « proxy » en surface", () => {
     const out: string[] = [];
     for (const f of files.filter((x) => AGENTS_ROOTS.some((r) => x.rel.startsWith(r))))
       for (const h of scanSource(readFileSync(f.path, "utf8"), f.rel, { extraRules: AGENTS_JARGON }))
@@ -94,6 +94,9 @@ describe("vocabulaire de la rubrique Agents", () => {
     expect(w(`<p>La file BullMQ du worker</p>`)).toEqual(["BullMQ", "worker"]);
     expect(w(`<p>Clé API au format JSON</p>`)).toEqual(["API", "JSON"]);
     expect(w(`<p>Clé du fournisseur</p>`)).toEqual([]);
+    expect(w(`<p>Captures par Playwright via un proxy</p>`)).toEqual(["Playwright", "proxy"]);
+    expect(w(`<Term term="proxy : adresse résidentielle">Adresse internet de secours</Term>`)).toEqual([]);
+    expect(w(`<p>La cote du pari chez le bookmaker</p>`)).toEqual([]);
   });
 });
 

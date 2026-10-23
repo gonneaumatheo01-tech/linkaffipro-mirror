@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BettingPickStatus,
   AdPlatform,
   AffiliateSource,
   AgentMissionKind,
@@ -97,6 +98,7 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["experiment", ExperimentStatus],
   ["experimentKind", ExperimentKind],
   ["recommendation", RecommendationStatus],
+  ["bettingPick", BettingPickStatus],
 ];
 
 describe("badges de statut", () => {
