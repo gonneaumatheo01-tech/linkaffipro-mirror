@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 20 : l'équipe Rencontres fabrique des vidéos et des photos (quand vous voulez)
+1. **Le bot vous pose les questions une par une sur Telegram** : clé fal.ai, fichier LoRA et mot déclencheur de chaque persona, photos de référence, vidéos sources, plafond vidéo du mois, puis le banc d'essai. Répondez à chaque message (en répondant au message du bot) ; « plus tard » pour passer. Répondez d'abord à la question du rapport du matin, elle est devant dans la file.
+2. **En secours**, tout se fait aussi sur le site : Agents → Réglages (clés, bouton « Vérifier ») et Conversations → Personas → la persona → « Médias du personnage ».
+3. **Vous pouvez parler au bot par messages vocaux** : il répète ce qu'il a compris avant d'agir. Une clé s'envoie toujours par écrit.
+4. **Quand les essais vous plaisent** : répondez au bot `vrai dating` puis `OUI` (ou Agents → Rencontres → « Publier sur les vrais canaux »), puis montez le niveau (`niveau dating 1`). Pensez aussi à activer un plan de canal (Agents → Rencontres → Plan par canal, avec la persona).
+
 ## Phase 19 : les agents IA (rien d'obligatoire)
 Rien à fournir pour cette phase. Pour vous repérer :
 1. **Où** : menu **Agents** (après Conversations). Le tableau de bord montre les 4 équipes (Rencontres, Casino, Paris sportifs, Algorithme), leur dépense du mois et les rapports du matin.

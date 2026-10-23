@@ -1,3 +1,37 @@
+# État du projet : phase 20 (agents IA : équipe Rencontres) terminée (23 octobre 2026)
+
+Phases 0 à 19 en ligne. Phase 20 = la première équipe de production complète (`docs/prompts/22-phase-20-agents-dating.md`) : pour chaque persona, des posts **vidéo** (la personne d'une vidéo source remplacée par le personnage), **photo** (photos neuves du personnage) et **texte**, aux bons créneaux, avec contrôle qualité, validation et budget plafonné. **Tout reste en simulation** sur le canal Test, et tant qu'aucune clé fal.ai n'est donnée, les vidéos et photos sont simulées (la vidéo source revient telle quelle, la photo est celle de la persona).
+
+## Fait
+- **Fournisseurs** : fal.ai (remplacement de la personne entière, 480p / 580p / 720p, 580p par défaut ; photos avec le fichier du personnage) et Magic Hour en secours (visage seulement), d'après leur documentation officielle relue le 23 octobre ; coût estimé avant chaque appel ; clés chiffrées, vérifiées gratuitement, jamais réaffichées.
+- **Agent Média IA** : vidéo en arrière-plan (suivi toutes les 30 à 60 s, 15 min au plus), photo, médias rangés dans la médiathèque avec la persona et la source ; secours automatiques : fal deux fois en échec → Magic Hour si sa clé existe → post photo → post texte, pour tenir le quota sans dépasser les plafonds (100 € vidéo, 15 € photo par mois par défaut).
+- **Chaîne Rencontres** : Médiathèque → Média IA → Rédaction (légende très courte dans le style de la persona) → Planification (jamais deux vidéos à moins de 6 h) → Contrôle qualité (3 images de la vidéo regardées par l'IA ; défaut ou doute → vous validez ; vidéo illisible → jamais publiée) → Publication.
+- **Toujours soumis à vous**, quel que soit le niveau : les 3 premières vidéos et les 3 premières photos d'une persona, un nouveau canal, tout doute du contrôle.
+- **Médiathèque par persona** : une vidéo source ne repasse pas sur le même canal avant 30 jours ; sous 3 vidéos sources non utilisées, le bot vous en demande (une fois par jour au plus).
+- **Site** : fiche persona → « Médias du personnage » (1 à 3 images de référence, fichier du personnage, mot déclencheur, tenue et ambiance) ; Agents → Rencontres : stock, productions du mois avec aperçu, dépenses, « Produire un post de test », « Banc d'essai », dépôt de vidéos sources, fournisseur et résolution.
+- **Messages vocaux** : vous pouvez parler au bot ; il répète ce qu'il a compris, puis agit comme pour un message écrit (une clé doit toujours être écrite).
+- **Questions de mise en route** posées par le bot, une à la fois : clé fal.ai, fichier du personnage et mot déclencheur, photos de référence, vidéos sources, plafond vidéo, puis le banc d'essai (3 vidéos comparées, vous choisissez la meilleure).
+
+## Test de 5 minutes
+1. Site → **Agents** → **Équipe Rencontres** → « Produire un post de test » → type **Texte** (ou Photo) → valider.
+2. L'aperçu arrive sur Telegram : appuyez sur ✅.
+3. Le post arrive sur le canal **Test** avec « [SIMULATION …] » en tête.
+4. Envoyez au bot un vocal « agents » : il répond « J'ai compris : "agents". » puis l'état des équipes.
+
+## Vérifications faites
+- 5 196 tests unitaires et 540 tests d'intégration (base réelle) réussis, dont trois missions Rencontres (vidéo, photo, texte) en simulation avec le faux fournisseur : médias rangés, posts programmés puis envoyés, coûts à 0, validation des premières vidéos demandée puis acceptée. Clients fal et Magic Hour testés sur des réponses enregistrées (aucun appel réel). Lint, typage, build verts.
+- Sauvegarde avant déploiement ; site d'abord (migration appliquée), puis service d'arrière-plan (ffmpeg présent) ; santé OK. Captures de la fiche Rencontres, d'une fiche persona et des réglages (`docs/captures`), accessibilité sans violation (base de démonstration locale).
+
+## Reste / limites
+- Rien n'a été essayé avec les vrais fal.ai et Magic Hour : il faut votre clé. Le banc d'essai le fera (environ 4 € pour 3 vidéos en 580p et 720p).
+- Les vidéos en cours de fabrication ne sont pas réservées sur le budget : deux vidéos lancées au même moment peuvent dépasser très légèrement le plafond.
+- Avertissement de sécurité de Next.js 16.4.0 toujours affiché en développement : à traiter dans une phase de solidité.
+
+## Actions humaines
+Répondre aux questions du bot une par une (`docs/A-FAIRE-HUMAIN.md`), puis, quand les essais plaisent, `vrai dating` + `OUI`.
+
+---
+
 # État du projet : phase 19 (agents IA : fondations) terminée (23 octobre 2026)
 
 Phases 0 à 18 en ligne. Phase 19 = le squelette complet de l'équipe d'agents IA du plan validé le 23 octobre (`docs/AGENTS-ARCHITECTURE.md`, consignes `docs/prompts/21-phase-19-agents-fondations.md`) : un Grand Chef, quatre Chefs d'équipe (Rencontres, Casino, Paris sportifs, Algorithme), les agents communs (Médiathèque, Rédaction, Planification, Contrôle qualité, Publication), la rubrique « Agents », la validation et les demandes par Telegram. **Tout est en simulation** : rien ne part ailleurs que sur le canal Test.
