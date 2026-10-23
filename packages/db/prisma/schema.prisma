@@ -374,25 +374,25 @@ model AuditLog {
 
 /// Bot Telegram piloté par la plateforme. Le jeton est chiffré (AES-256-GCM).
 model Bot {
-  userbotAccounts  TelegramUserAccount[]
-  id             String    @id @default(cuid())
-  name           String
-  username       String    @unique
-  telegramBotId  BigInt    @unique
-  tokenEncrypted String
-  vertical       Vertical
-  isActive       Boolean   @default(true)
+  userbotAccounts TelegramUserAccount[]
+  id              String                @id @default(cuid())
+  name            String
+  username        String                @unique
+  telegramBotId   BigInt                @unique
+  tokenEncrypted  String
+  vertical        Vertical
+  isActive        Boolean               @default(true)
   /// Secret attendu dans l'en-tête X-Telegram-Bot-Api-Secret-Token.
-  webhookSecret  String
-  lastWebhookAt  DateTime?
-  lastError      String?
+  webhookSecret   String
+  lastWebhookAt   DateTime?
+  lastError       String?
   /// Phase 17 : bot normal (STANDARD) ou assistant de conversation (ASSISTANT, persona liée). Un bot ASSISTANT n'est
   /// jamais choisi automatiquement (bot principal, liens, relances, envois à un groupe).
-  mode           BotMode   @default(STANDARD)
-  personaId      String?
-  persona        Persona?  @relation(fields: [personaId], references: [id], onDelete: SetNull)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  mode            BotMode               @default(STANDARD)
+  personaId       String?
+  persona         Persona?              @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   channelAdmins      ChannelBotAdmin[]
   memberStates       MemberBotState[]
@@ -414,25 +414,25 @@ model Bot {
 
 /// Canal (ou groupe) Telegram détecté automatiquement.
 model Channel {
-  id                String    @id @default(cuid())
-  telegramChatId    BigInt    @unique
-  title             String
-  username          String?
-  type              ChatType  @default(CHANNEL)
-  vertical          Vertical?
-  language          String    @default("fr")
-  primaryBotId      String?
-  primaryBot        Bot?      @relation("PrimaryBot", fields: [primaryBotId], references: [id])
-  isActive          Boolean   @default(true)
-  isTest            Boolean   @default(false)
-  isMediaLibrary    Boolean   @default(false)
-  settings          Json      @default("{}")
+  id                    String               @id @default(cuid())
+  telegramChatId        BigInt               @unique
+  title                 String
+  username              String?
+  type                  ChatType             @default(CHANNEL)
+  vertical              Vertical?
+  language              String               @default("fr")
+  primaryBotId          String?
+  primaryBot            Bot?                 @relation("PrimaryBot", fields: [primaryBotId], references: [id])
+  isActive              Boolean              @default(true)
+  isTest                Boolean              @default(false)
+  isMediaLibrary        Boolean              @default(false)
+  settings              Json                 @default("{}")
   /// Petite photo du canal (JPEG 160 px de Telegram, `getChat` → `small_file_id`), pour les pages d'atterrissage qui
   /// l'affichent (phase 15). `photoFileUniqueId` : photo actuelle chez Telegram (rien à retélécharger s'il ne change pas).
-  photoSmall        Bytes?
-  photoFileUniqueId String?
+  photoSmall            Bytes?
+  photoFileUniqueId     String?
   /// Dernière relecture du titre et de la photo par `getChat` (phase 15, canaux qui ont une page d'atterrissage).
-  chatCheckedAt     DateTime?
+  chatCheckedAt         DateTime?
   /// DM de bienvenue envoye par un COMPTE REEL (userbot) a l'acceptation d'une demande. Independant du message
   /// d'accueil du bot (`ApprovalRule.sendWelcome`) : les deux coexistent. Le compte doit etre membre du canal.
   welcomeDmEnabled      Boolean              @default(false)
@@ -441,8 +441,8 @@ model Channel {
   /// Minutes d'attente apres l'acceptation avant l'envoi.
   welcomeDmDelayMinutes Int                  @default(30)
   welcomeDmText         String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 
   botAdmins     ChannelBotAdmin[]
   landingPages  LandingPage[]
@@ -455,6 +455,9 @@ model Channel {
   posts         Post[]
   sequences     Sequence[]
   dailyStats    DailyStat[]
+  agentPlan     ChannelAgentPlan?
+  agentMissions AgentMission[]
+  mediaUsages   MediaUsage[]
 }
 
 /// Droits d'administrateur d'un bot sur un canal.
@@ -844,24 +847,36 @@ model MessageCategory {
 
 /// Média réutilisable (photo, vidéo, gif, document) stocké en base (≤ 50 Mo).
 model MediaAsset {
-  id          String   @id @default(cuid())
-  filename    String
-  mimeType    String
-  size        Int
-  sha256      String   @unique
-  bytes       Bytes
-  width       Int?
-  height      Int?
-  duration    Int?
-  createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id               String            @id @default(cuid())
+  filename         String
+  mimeType         String
+  size             Int
+  sha256           String            @unique
+  bytes            Bytes
+  width            Int?
+  height           Int?
+  duration         Int?
+  createdById      String?
+  createdBy        User?             @relation(fields: [createdById], references: [id])
+  createdAt        DateTime          @default(now())
+  /// Médiathèque des agents (phase 19) : équipe, thème, persona, nature, origine, mots-clés du dépôt.
+  teamKey          String?
+  theme            String?
+  personaId        String?
+  kind             MediaAssetKind?
+  origin           MediaAssetOrigin?
+  tags             Json              @default("[]")
+  /// Copie dans le canal Telegram privé « Médiathèque » (facultative).
+  libraryMessageId Int?
 
   telegramFiles    MediaAssetTelegramFile[]
+  usages           MediaUsage[]
   sequenceSteps    SequenceStep[]
   broadcasts       Broadcast[]
   outboundMessages OutboundMessage[]
   personas         Persona[]
+
+  @@index([teamKey, theme])
 }
 
 /// Identifiant Telegram d'un média une fois envoyé par un bot (réutilisable sans ré-upload).
@@ -971,8 +986,12 @@ model Post {
   /// sans boutons). Un message publié par le compte n'est JAMAIS modifié ensuite par le bot (les emojis animés
   /// disparaîtraient) : épingler, désépingler et supprimer passent aussi par le compte.
   publisher        PostPublisher     @default(BOT)
+  /// Mission d'agent qui a produit ce message (phase 19).
+  agentMissionId   String?
+  agentMission     AgentMission?     @relation(fields: [agentMissionId], references: [id], onDelete: SetNull)
 
   @@index([channelId, scheduledAt])
+  @@index([agentMissionId])
   @@index([status, scheduledAt])
   @@index([isTemplate, scheduledAt])
   @@index([categoryId])
@@ -2200,43 +2219,313 @@ enum AccountDmStatus {
 }
 
 model TelegramUserAccount {
-  id               String    @id @default(cuid())
+  id                 String      @id @default(cuid())
   /// Nom interne (« Lea »).
-  label            String
+  label              String
   /// Numero au format international (+33612345678).
-  phone            String    @unique
+  phone              String      @unique
   /// Session GramJS (StringSession) chiffree AES-256-GCM.
-  sessionEncrypted String
+  sessionEncrypted   String
   /// PENDING_CODE | PENDING_PASSWORD | ACTIVE | ERROR | DISCONNECTED
-  status           String    @default("PENDING_CODE")
+  status             String      @default("PENDING_CODE")
   /// Code envoye par Telegram, garde entre l'envoi et la saisie.
-  phoneCodeHash    String?
+  phoneCodeHash      String?
   /// Persona portee par ce compte.
-  personaId        String?
-  persona          Persona?  @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  personaId          String?
+  persona            Persona?    @relation(fields: [personaId], references: [id], onDelete: SetNull)
   /// Identite Telegram, une fois connecte.
-  telegramUserId   BigInt?
-  telegramUsername String?
+  telegramUserId     BigInt?
+  telegramUsername   String?
   /// Proxy SOCKS5 facultatif (hote:port).
-  proxyUrl         String?
-  accountDms        AccountDm[]
-  welcomeDmChannels Channel[]    @relation("WelcomeDmAccount")
+  proxyUrl           String?
+  accountDms         AccountDm[]
+  welcomeDmChannels  Channel[]   @relation("WelcomeDmAccount")
   /// Plafonds anti-bannissement.
-  dailyCap           Int       @default(60)
-  newConversationCap Int       @default(20)
+  dailyCap           Int         @default(60)
+  newConversationCap Int         @default(20)
   /// Paliers de montee en charge (jours depuis la connexion).
-  warmupDay          Int       @default(0)
-  isActive           Boolean   @default(false)
+  warmupDay          Int         @default(0)
+  isActive           Boolean     @default(false)
   lastActiveAt       DateTime?
   lastError          String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   /// Bot fantome qui porte les conversations de ce compte. L'API bot n'est pas utilisee :
   /// la reception et l'envoi passent par la session MTProto tenue par apps/userbot.
-  botId            String?   @unique
-  bot              Bot?      @relation(fields: [botId], references: [id], onDelete: SetNull)
+  botId String? @unique
+  bot   Bot?    @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([isActive])
+}
+
+// ============================================================
+// Phase 19 : agents IA (Grand Chef, Chefs d'équipe, agents) — docs/AGENTS-ARCHITECTURE.md
+// ============================================================
+
+/// Réglages d'une équipe d'agents (`teamKey` : dating, casino, sports, algo). Simulation active par défaut : tant
+/// qu'elle l'est, toute publication part sur le canal Test.
+model AgentTeamConfig {
+  id                  String   @id @default(cuid())
+  teamKey             String   @unique
+  enabled             Boolean  @default(true)
+  simulation          Boolean  @default(true)
+  paused              Boolean  @default(false)
+  /// Motif de la dernière mise en pause (« 3 missions échouées de suite », « pause demandée par Telegram »…).
+  pausedReason        String?
+  /// 0 = je valide tout, 1 = je valide les nouveautés, 2 = autonomie totale.
+  autonomyLevel       Int      @default(0)
+  /// Plafonds mensuels en centimes par poste (JSON `{ llm, video, image, odds, screenshot }`).
+  monthlyBudgetCents  Json     @default("{}")
+  styleGuidelines     String   @default("")
+  /// Mots interdits (JSON string[]).
+  forbiddenWords      Json     @default("[]")
+  maxTextLength       Int      @default(900)
+  /// Heures calmes (JSON `{ start: "HH:MM", end: "HH:MM" }[]`, Europe/Paris).
+  quietHours          Json     @default("[]")
+  settings            Json     @default("{}")
+  /// Échecs consécutifs (mise en pause automatique à 3).
+  consecutiveFailures Int      @default(0)
+  updatedById         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+/// Plan d'un canal pour son équipe : quotas, fenêtre horaire (Europe/Paris), espacement, mélange.
+model ChannelAgentPlan {
+  id                String   @id @default(cuid())
+  channelId         String   @unique
+  channel           Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  teamKey           String
+  enabled           Boolean  @default(false)
+  postsPerDay       Int      @default(3)
+  /// « HH:MM » Europe/Paris.
+  windowStart       String   @default("09:00")
+  windowEnd         String   @default("22:00")
+  minSpacingMinutes Int      @default(90)
+  /// Parts du mélange (JSON `{ video, photo, text }`).
+  mix               Json     @default("{\"video\":0,\"photo\":0,\"text\":1}")
+  personaId         String?
+  /// Campagne dont le bouton Offre est ajouté aux posts.
+  campaignId        String?
+  themes            Json     @default("[]")
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([teamKey, enabled])
+}
+
+enum AgentMissionKind {
+  POST
+  BET
+  REPORT
+  ANALYSIS
+}
+
+enum AgentMissionStatus {
+  PENDING
+  RUNNING
+  WAITING_VALIDATION
+  WAITING_HUMAN
+  DONE
+  FAILED
+  CANCELLED
+  BLOCKED_BUDGET
+}
+
+enum AgentMissionCreator {
+  GRAND_CHEF
+  HUMAN
+}
+
+/// Une mission (une publication à produire), reprenable : `steps` garde l'état de chaque étape.
+model AgentMission {
+  id             String              @id @default(cuid())
+  teamKey        String
+  kind           AgentMissionKind    @default(POST)
+  channelId      String?
+  channel        Channel?            @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  status         AgentMissionStatus  @default(PENDING)
+  currentStep    Int                 @default(0)
+  /// JSON `{ agent, status, startedAt, endedAt, summary, costCents, error }[]`.
+  steps          Json                @default("[]")
+  /// JSON : texte, média, créneau, motifs…
+  payload        Json                @default("{}")
+  costCents      Int                 @default(0)
+  /// Posé AVANT l'envoi : une mission ne publie jamais deux fois.
+  postId         String?             @unique
+  validationId   String?
+  scheduledFor   DateTime?
+  /// Jour du plan (AAAA-MM-JJ, Europe/Paris) pour lequel la mission a été créée.
+  planDay        String?
+  /// Mission de test (bouton « Créer une mission de test »).
+  isTest         Boolean             @default(false)
+  createdBy      AgentMissionCreator @default(GRAND_CHEF)
+  createdById    String?
+  attempts       Int                 @default(0)
+  lastError      String?
+  lastActivityAt DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  runs        AgentRun[]
+  validations AgentValidation[]
+  posts       Post[]
+
+  @@index([teamKey, status])
+  @@index([channelId, scheduledFor])
+  @@index([status, lastActivityAt])
+  @@index([createdAt])
+}
+
+/// Un passage d'un agent sur une mission.
+model AgentRun {
+  id            String       @id @default(cuid())
+  missionId     String
+  mission       AgentMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  agentKey      String
+  stepIndex     Int          @default(0)
+  /// RUNNING | OK | ERROR | SKIPPED
+  status        String
+  startedAt     DateTime     @default(now())
+  endedAt       DateTime?
+  durationMs    Int?
+  costCents     Int          @default(0)
+  inputSummary  String?
+  outputSummary String?
+  error         String?
+
+  @@index([missionId, startedAt])
+  @@index([agentKey, startedAt])
+  @@index([startedAt])
+}
+
+enum AgentValidationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EDITED
+  EXPIRED
+}
+
+enum AgentDecisionVia {
+  SITE
+  TELEGRAM
+}
+
+/// Élément en attente d'une décision humaine (aperçu envoyé sur Telegram, file du site).
+model AgentValidation {
+  id                String                @id @default(cuid())
+  /// Numéro court (« ok 12 » sur Telegram).
+  number            Int                   @unique @default(autoincrement())
+  missionId         String
+  mission           AgentMission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  teamKey           String
+  previewText       String
+  mediaAssetId      String?
+  reason            String
+  status            AgentValidationStatus @default(PENDING)
+  decidedById       String?
+  decidedVia        AgentDecisionVia?
+  decidedAt         DateTime?
+  rejectReason      String?
+  telegramMessageId Int?
+  /// L'admin a appuyé sur « Corriger » : son prochain message texte remplace le texte.
+  awaitingEditAt    DateTime?
+  editedText        String?
+  remindedAt        DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([status, createdAt])
+  @@index([teamKey, status])
+}
+
+/// Dépense d'une équipe chez un fournisseur, par mois (plafonds).
+model AgentUsage {
+  id         String   @id @default(cuid())
+  teamKey    String
+  /// llm | video | image | odds | screenshot
+  provider   String
+  /// AAAA-MM (Europe/Paris)
+  month      String
+  cents      Int      @default(0)
+  calls      Int      @default(0)
+  /// Alertes déjà envoyées ce mois (80, 100).
+  alerted80  Boolean  @default(false)
+  alerted100 Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([teamKey, provider, month])
+}
+
+enum HumanRequestKind {
+  SECRET
+  TEXT
+  CHOICE
+  MEDIA
+  CONFIRM
+}
+
+enum HumanRequestStatus {
+  QUEUED
+  PENDING
+  ANSWERED
+  SKIPPED
+  EXPIRED
+}
+
+/// Demande faite au client par le bot du dialogue admin (une seule question à la fois : QUEUED attend son tour).
+model HumanRequest {
+  id                String             @id @default(cuid())
+  teamKey           String?
+  kind              HumanRequestKind
+  /// Ce qui est demandé (`providers.fal.apiKey`, `agents.dailyReport`…).
+  key               String
+  question          String
+  options           Json               @default("[]")
+  expected          Json               @default("{}")
+  status            HumanRequestStatus @default(QUEUED)
+  /// Jamais un secret (pour une clé : « …ab12 »).
+  answerSummary     String?
+  askedAt           DateTime?
+  telegramMessageId Int?
+  remindedAt        DateTime?
+  answeredAt        DateTime?
+  missionId         String?
+  onAnswer          Json               @default("{}")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([key, status])
+}
+
+enum MediaAssetKind {
+  SOURCE
+  GENERATED
+  PHOTO
+  REFERENCE
+}
+
+enum MediaAssetOrigin {
+  HUMAN
+  AI
+}
+
+/// Utilisation d'un média de la médiathèque sur un canal (jamais deux fois en 30 jours sur le même canal).
+model MediaUsage {
+  id        String     @id @default(cuid())
+  assetId   String
+  asset     MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  postId    String?
+  missionId String?
+  usedAt    DateTime   @default(now())
+
+  @@index([channelId, usedAt])
+  @@index([assetId, usedAt])
 }
