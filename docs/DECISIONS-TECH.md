@@ -456,3 +456,15 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **Vocaux de l'admin** : le webhook (site, sans ffmpeg) enfile une tâche `agents-orchestrator` `admin-voice` ; le
   worker transcrit (même transcription que les comptes réels, extraite dans `packages/userbot`) puis traite le texte
   comme un message écrit. Un vocal n'est jamais pris pour une clé.
+- **Vocaux (détails)** : le bot répond d'abord « J'ai compris : "…". » ; jamais de clé par vocal (« clé … »,
+  « bookmaker … », long code, ou demande de clé en cours : le texte n'est ni répété, ni enregistré, ni journalisé) ;
+  pendant une demande de clé, seules les commandes connues passent. Tout changement de niveau dicté demande OUI (un
+  chiffre peut être mal entendu). Vocal de plus de 2 Mo refusé. Sans clé Venice, le bot dit qu'il ne peut pas écouter.
+  Transcription extraite dans `packages/userbot/src/{audio,transcribe,voice}.ts` (`@linkaffipro/userbot/voice`),
+  réexportée par `apps/userbot` sans changement de comportement.
+- **Personas « Dating »** pour les questions de mise en route : actives, et d'identité fille ou rattachées à Dating
+  (campagne / offre Link Affi Dating, ou persona d'un plan de canal Dating) ; seul ce qui manque est demandé ; posées
+  une seule fois (`Setting` `agents.datingSetupAsked` marqué avant). Adresse LoRA : https obligatoire ; une adresse qui
+  ne finit pas par `.safetensors` sur un hôte inconnu est gardée avec un avertissement. Plafond vidéo : « plus tard »
+  = 100 €, montant libre accepté. Estimation du banc : 3 vidéos × (580p + 720p) chez fal, 10 s si durée inconnue.
+  Une photo `#dating #reference #<prénom>` s'ajoute à `Persona.referenceImageIds` (3 au plus, la plus récente d'abord).
