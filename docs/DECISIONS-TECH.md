@@ -516,3 +516,13 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   à 21 h, 5 relances par heure et 30 au total au moins ; heures ≥ 80 % de la meilleure, la meilleure devant dépasser
   de 10 % la moyenne. Le moteur (`packages/chat` `follow-ups.ts`) décale une relance à la prochaine heure conseillée,
   jamais plus tôt, jamais entre 22 h et 9 h, et seulement si le champ a été rempli par une recommandation appliquée.
+- **Site (phase 21)** : `/agents/algo` = page à part « Ce qui marche » (les autres équipes gardent la fiche générique).
+  MANAGER : appliquer / annuler / refuser les petits réglages (horaires, mélange, notes de style) ; PERSONA, quotas et
+  tout `size: BIG`, « Rapport maintenant » et réglages de l'équipe Algorithme : ADMIN. Journal du site
+  `agents.algo_recommendation_<apply|undo|reject>_requested`, `agents.algo_report_requested`,
+  `agents.algo_settings_saved` (le moteur écrit aussi son avant / après). `settings.algo` = `{ minPosts, minViews,
+  minConversations, maxMixPointsPerWeek, maxPostsPerDay, allowedStart, allowedEnd, frequency: "weekly" | "biweekly" }`
+  (20 / 1000 / 30 / 20 / 6 / 08:00 / 23:00 / weekly). Source des meilleurs horaires affichée dans le calendrier des
+  Messages (l'onglet de la fiche canal n'existe plus) : marqueur `source` (ou `computedBy`, `by`, `team`) dans
+  `besthours.<channelId>`, ou `Setting` `besthours.source`. Jamais « p-value » ni « médiane » en surface (« valeur du
+  milieu », terme technique au survol).
