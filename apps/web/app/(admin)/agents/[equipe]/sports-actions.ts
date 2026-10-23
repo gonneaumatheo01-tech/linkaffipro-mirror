@@ -21,8 +21,8 @@ import { loadCategoryKeys, saveBetCategory } from "@/lib/agents/sports-save";
 import { requireUser } from "@/lib/session";
 
 /**
- * Actions de la fiche Paris sportifs (phase 23). « Produire un pari de test » : ADMIN et MANAGER. Catégories,
- * identifiants du bookmaker, adresse de secours des captures et « Tester la connexion » : ADMIN seulement. Chaque
+ * Actions de la fiche Paris sportifs (phase 23). « Produire un pari de test » : ADMIN et MANAGER. Catégories,
+ * identifiants du bookmaker, adresse de secours des captures et « Tester la connexion » : ADMIN seulement. Chaque
  * action laisse sa trace dans `AuditLog` (les clés par `saveSecret` / `deleteSecret`, sans jamais leur valeur).
  */
 
@@ -53,10 +53,10 @@ export async function saveBetCategoryAction(formData: FormData): Promise<void> {
     const r = await saveBetCategory(parsed.data, userId);
     if (!r.ok) backTo(SPORTS, { error: r.error }, "#categories");
     message = !parsed.data.id
-      ? `Catégorie « ${parsed.data.name} » créée${parsed.data.active ? "" : " (inactive : cochez « Active » pour qu'elle serve)"}.`
+      ? `Catégorie « ${parsed.data.name} » créée${parsed.data.active ? "" : " (inactive : cochez « Active » pour qu'elle serve)"}.`
       : r.changed.length
-        ? `Catégorie « ${parsed.data.name} » enregistrée.`
-        : `Catégorie « ${parsed.data.name} » inchangée.`;
+        ? `Catégorie « ${parsed.data.name} » enregistrée.`
+        : `Catégorie « ${parsed.data.name} » inchangée.`;
   } catch (err) {
     if (isRedirectError(err)) throw err;
     backTo(SPORTS, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#categories");
@@ -65,7 +65,7 @@ export async function saveBetCategoryAction(formData: FormData): Promise<void> {
   backTo(SPORTS, { ok: message }, "#categories");
 }
 
-/** « Produire un pari de test » : faux fournisseur de cotes, page locale, simulation, canal Test. */
+/** « Produire un pari de test » : faux fournisseur de cotes, page locale, simulation, canal Test. */
 export async function createTestBetAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const categories = await loadBetCategories();
@@ -92,7 +92,7 @@ export async function createTestBetAction(formData: FormData): Promise<void> {
   backTo(
     SPORTS,
     {
-      ok: "Pari de test lancé en simulation (cotes d'essai, aucune vraie mise) : il apparaît dans « Paris du jour », puis sur le canal Test.",
+      ok: "Pari de test lancé en simulation (cotes d'essai, aucune vraie mise) : il apparaît dans « Paris du jour », puis sur le canal Test.",
     },
     "#paris",
   );
@@ -122,7 +122,7 @@ export async function saveBookmakerCredentialsAction(formData: FormData): Promis
   revalidatePath(SPORTS);
   backTo(
     SPORTS,
-    { ok: `Identifiants ${bookmakerLabel(bookmaker)} enregistrés (chiffrés). Cliquez sur « Tester la connexion ».` },
+    { ok: `Identifiants ${bookmakerLabel(bookmaker)} enregistrés (chiffrés). Cliquez sur « Tester la connexion ».` },
     "#bookmakers",
   );
 }
@@ -143,7 +143,7 @@ export async function deleteBookmakerCredentialsAction(formData: FormData): Prom
   backTo(SPORTS, { ok: `Identifiants ${bookmakerLabel(bookmaker)} retirés.` }, "#bookmakers");
 }
 
-/** « Tester la connexion » : connexion au compte et capture de la page d'accueil, résultat sans aucun secret. */
+/** « Tester la connexion » : connexion au compte et capture de la page d'accueil, résultat sans aucun secret. */
 export async function testBookmakerConnectionAction(formData: FormData): Promise<void> {
   const userId = await adminOrBack("#bookmakers", "Le test de connexion");
   const bookmaker = bookmakerOf(formData);
@@ -189,7 +189,7 @@ export async function saveScreenshotProxyAction(formData: FormData): Promise<voi
     backTo(SPORTS, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#bookmakers");
   }
   revalidatePath(SPORTS);
-  backTo(SPORTS, { ok: "Adresse de secours enregistrée (chiffrée). Refaites « Tester la connexion »." }, "#bookmakers");
+  backTo(SPORTS, { ok: "Adresse de secours enregistrée (chiffrée). Refaites « Tester la connexion »." }, "#bookmakers");
 }
 
 export async function deleteScreenshotProxyAction(): Promise<void> {

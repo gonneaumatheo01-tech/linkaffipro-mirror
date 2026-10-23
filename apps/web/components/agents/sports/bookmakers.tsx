@@ -18,8 +18,6 @@ import { CREDENTIAL_STATE, bookmakerLabel, credentialState } from "@/lib/agents/
 import type { BookmakerView } from "@/lib/agents/sports-queries";
 import { fmtDateShort } from "@/lib/format";
 
-const PROXY_TERM = "proxy : adresse internet résidentielle par laquelle passent les captures quand le site bloque";
-
 function BookmakerCard({
   b,
   isAdmin,
@@ -137,7 +135,7 @@ export function Bookmakers({
   bookmakers: BookmakerView[];
   proxy: SecretSummary | null;
   isAdmin: boolean;
-  /** Capture renvoyée par le dernier « Tester la connexion » (lue dans l'adresse), pour son bookmaker. */
+  /** Capture renvoyée par le dernier « Tester la connexion » (lue dans l'adresse), pour son bookmaker. */
   capture: { bookmaker: string | null; id: string; mimeType: string } | null;
   now: Date;
 }) {
@@ -161,7 +159,7 @@ export function Bookmakers({
       <div className="space-y-3 rounded-xl border border-border bg-card px-4 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-foreground">
-            <Term term={PROXY_TERM}>Adresse internet de secours</Term> des captures
+            <Term term="proxy : adresse internet résidentielle par laquelle passent les captures quand le site bloque">Adresse internet de secours</Term> des captures
           </span>
           {proxy === null ? (
             <StatusPill tone="warning">État illisible</StatusPill>
@@ -172,7 +170,7 @@ export function Bookmakers({
           )}
         </div>
         <p className="text-note text-muted-foreground">
-          Seulement si le test de connexion dit « bloqué » : soit une adresse internet résidentielle (service à souscrire),
+          Seulement si le test de connexion dit « bloqué » : soit une adresse internet résidentielle (service à souscrire),
           soit la capture depuis votre Mac (voir l&apos;aide de la page). Sans capture possible, l&apos;équipe fabrique une
           image de repli et vous la fait toujours valider.
         </p>

@@ -35,7 +35,7 @@ export const SPORTS_DEFAULTS: SportsSettings = {
   maxApiCallsPerMonth: 2000,
 };
 
-/** Mots interdits proposés au départ (liste réglable dans « Réglages de l'équipe »). */
+/** Mots interdits proposés au départ (liste réglable dans « Réglages de l'équipe »). */
 export const SPORTS_DEFAULT_FORBIDDEN_WORDS = ["sûr", "garanti", "100 %", "ne peut pas perdre"] as const;
 
 function record(v: unknown): Record<string, unknown> {
@@ -73,7 +73,7 @@ export function mergeSportsSettings(raw: unknown, next: SportsSettings): Record<
   return { ...base, sports: { ...record(base.sports), ...next } };
 }
 
-/** « 10 h, 15 h et 18 h ». */
+/** « 10 h, 15 h et 18 h ». */
 export function runHoursText(hours: readonly number[]): string {
   const parts = hours.map((h) => `${h} h`);
   if (parts.length <= 1) return parts.join("");
@@ -107,7 +107,7 @@ function numberField(
   return { ok: true, data: n };
 }
 
-/** Heures de passage saisies « 10, 15, 18 » (ou « 10 h 15 h ») : 1 à 8 heures entières de 0 à 23. */
+/** Heures de passage saisies « 10, 15, 18 » (ou « 10 h 15 h ») : 1 à 8 heures entières de 0 à 23. */
 export function parseRunHours(raw: string): FormResult<number[]> {
   const parts = raw
     .replace(/h/gi, " ")
@@ -118,14 +118,14 @@ export function parseRunHours(raw: string): FormResult<number[]> {
   for (const p of parts) {
     const n = Number(p);
     if (!Number.isInteger(n) || n < 0 || n > 23)
-      return { ok: false, error: `Heures de passage : « ${p} » n'est pas une heure entre 0 et 23.` };
+      return { ok: false, error: `Heures de passage : « ${p} » n'est pas une heure entre 0 et 23.` };
     if (!hours.includes(n)) hours.push(n);
   }
   if (hours.length > 8) return { ok: false, error: "Heures de passage : 8 passages par jour au plus." };
   return { ok: true, data: hours.sort((a, b) => a - b) };
 }
 
-/** Formulaire « Passages et cotes » (ADMIN). */
+/** Formulaire « Passages et cotes » (ADMIN). */
 export function parseSportsSettingsForm(fd: FormData): FormResult<SportsSettings> {
   const hours = parseRunHours(str(fd, "sportsRunHours"));
   if (!hours.ok) return hours;
@@ -291,7 +291,7 @@ const MARKET_RE = /^[A-Za-z0-9_.:-]{1,120}$/;
 const LEAGUE_RE = /^[A-Za-z0-9_.-]{1,60}$/;
 const CATEGORY_KEY_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
-/** Clé ASCII d'une nouvelle catégorie tirée de son nom (« Tirs cadrés » → `tirs-cadres`). */
+/** Clé ASCII d'une nouvelle catégorie tirée de son nom (« Tirs cadrés » → `tirs-cadres`). */
 export function categoryKeyFromName(name: string): string | null {
   const key = name
     .normalize("NFD")
@@ -345,20 +345,20 @@ export function parseBetCategoryForm(
   if (!marketTypes.length) return { ok: false, error: "Marchés : saisissez au moins un identifiant de marché." };
   if (marketTypes.length > 30) return { ok: false, error: "Marchés : 30 au plus." };
   const badMarket = marketTypes.find((m) => !MARKET_RE.test(m));
-  if (badMarket) return { ok: false, error: `Marchés : « ${badMarket} » n'est pas un identifiant (lettres, chiffres, tirets).` };
+  if (badMarket) return { ok: false, error: `Marchés : « ${badMarket} » n'est pas un identifiant (lettres, chiffres, tirets).` };
 
   const leagues = splitList(str(fd, "leagues"));
   if (!leagues.length) return { ok: false, error: "Ligues : saisissez au moins une ligue." };
   if (leagues.length > 40) return { ok: false, error: "Ligues : 40 au plus." };
   const badLeague = leagues.find((l) => !LEAGUE_RE.test(l));
-  if (badLeague) return { ok: false, error: `Ligues : « ${badLeague} » n'est pas un identifiant (lettres, chiffres, tirets).` };
+  if (badLeague) return { ok: false, error: `Ligues : « ${badLeague} » n'est pas un identifiant (lettres, chiffres, tirets).` };
 
   const bookmakers: string[] = [];
   for (const v of fd.getAll("bookmakers")) if (typeof v === "string" && v.trim()) bookmakers.push(v.trim().toLowerCase());
   for (const v of splitList(str(fd, "otherBookmakers"))) bookmakers.push(v.toLowerCase());
   const uniqBookmakers = [...new Set(bookmakers)];
   const badBk = uniqBookmakers.find((b) => !isBookmakerKey(b));
-  if (badBk) return { ok: false, error: `Bookmakers : « ${badBk} » n'est pas un nom valable (lettres minuscules, chiffres, tirets).` };
+  if (badBk) return { ok: false, error: `Bookmakers : « ${badBk} » n'est pas un nom valable (lettres minuscules, chiffres, tirets).` };
   if (!uniqBookmakers.length) return { ok: false, error: "Bookmakers : cochez au moins un bookmaker." };
 
   const minOdds = numberField(fd, "minOdds", "Cote minimale", { min: 1.01, max: 100 });
@@ -448,13 +448,13 @@ export function categoryChanges(
 
 // ——— Paris et raisonnement ———
 
-/** Cote décimale à la française (« 2,10 »). */
+/** Cote décimale à la française (« 2,10 »). */
 export function fmtOdds(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
   return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Ratio signé en pourcentage (« +4,2 % », « −1,5 % »). */
+/** Ratio signé en pourcentage (« +4,2 % », « −1,5 % »). */
 export function fmtSignedPct(ratio: number | null | undefined, digits = 1): string {
   if (ratio === null || ratio === undefined || !Number.isFinite(ratio)) return "—";
   const v = ratio * 100;
@@ -546,7 +546,7 @@ export function oddsDrift(odds: number, oddsAtSend: number | null): number | nul
   return oddsAtSend / odds - 1;
 }
 
-/** Score final lisible tiré de `BettingPick.result` (« 2-1 »), `null` sinon. */
+/** Score final lisible tiré de `BettingPick.result` (« 2-1 »), `null` sinon. */
 export function resultScore(result: unknown): string | null {
   const r = record(result);
   const score = record(r.score);
@@ -581,7 +581,7 @@ export type SummaryRowLike = {
   roi: number | null;
 };
 
-/** Ligne « Total » du bilan (taux et cote moyenne pondérés par le nombre de paris réglés ; rendement recalculé). */
+/** Ligne « Total » du bilan (taux et cote moyenne pondérés par le nombre de paris réglés ; rendement recalculé). */
 export function summaryTotal(rows: readonly SummaryRowLike[]): SummaryRowLike {
   let published = 0;
   let won = 0;

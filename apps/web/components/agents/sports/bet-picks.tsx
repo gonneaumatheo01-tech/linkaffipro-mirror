@@ -87,7 +87,7 @@ function PickCard({ pick, now }: { pick: BettingPickView; now: Date }) {
   );
 }
 
-/** Paris du jour (capture, raisonnement en phrases, état et motif) et « Produire un pari de test ». */
+/** Paris du jour (capture, raisonnement en phrases, état et motif) et « Produire un pari de test ». */
 export function BetPicks({
   picks,
   categories,
@@ -133,7 +133,7 @@ export function BetPicks({
       {picks.length === 0 ? (
         <EmptyState
           title="Aucun pari aujourd'hui"
-          description="L'équipe passe aux heures réglées plus bas. Pour voir le résultat tout de suite, cliquez sur « Produire un pari de test »."
+          description="L'équipe passe aux heures réglées plus bas. Pour voir le résultat tout de suite, cliquez sur « Produire un pari de test »."
         />
       ) : (
         <ul className="space-y-3">

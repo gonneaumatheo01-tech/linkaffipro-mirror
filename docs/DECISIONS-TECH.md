@@ -591,3 +591,10 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **OddsPapi** : pas branché dans cette phase (interface prête), à ajouter si Sportaza manque chez SportsGameOdds.
 - **Données** : `BetCategory`, `BettingPick`, valeurs `MediaAssetKind.SCREENSHOT`, `MediaAssetOrigin.HUMAN_SITE`
   (capture du site du bookmaker) et `TEMPLATE` (image de repli fabriquée), `PostInsight.betResult`.
+- **Site Paris (phase 23)** : identifiants du bookmaker dans deux clés séparées `providers.bookmakers.<nom>.login` et
+  `.password` (deux questions du bot, comme le veut la consigne) ; clés bookmaker et `providers.screenshotProxy`
+  ajoutées par le site à la liste des clés (`SITE_EXTRA_SECRET_KEYS`). Réglages `AgentTeamConfig.settings.sports` =
+  `{ runHours, maxOddsDriftPct, minMinutesBeforeKickoff, maxApiCallsPerMonth }` ([10, 15, 18] / 5 / 30 / 2000), appels
+  du mois lus dans `AgentUsage` (sports, odds). Plan par canal masqué pour cette équipe (les catégories portent les
+  canaux et la campagne). Raisonnement d'un pari lu avec tolérance (une phrase n'apparaît que si son chiffre existe).
+  Pas de test de connexion automatique à l'enregistrement depuis le site (bouton « Tester la connexion »).

@@ -93,7 +93,7 @@ function CategoryForm({
           />
           <p id={p("markets-aide")} className="text-note text-muted-foreground">
             Identifiants des marchés chez le{" "}
-            <Term term="SportsGameOdds : identifiant « oddID » de chaque marché">fournisseur de cotes</Term>, à confirmer
+            <Term term="SportsGameOdds : identifiant « oddID » de chaque marché">fournisseur de cotes</Term>, à confirmer
             avec le fournisseur (ceux de départ sont des suppositions). Une ligne = un marché.
           </p>
         </div>
@@ -256,7 +256,7 @@ export function BetCategories({
     <FormSection
       id="categories"
       title="Catégories de paris"
-      description="Ce que l'équipe cherche chaque jour (par exemple « tirs cadrés ») : marchés, ligues, bookmakers, fourchette de cote, nombre de paris et canaux. Seules les catégories actives servent."
+      description="Ce que l'équipe cherche chaque jour (par exemple « tirs cadrés ») : marchés, ligues, bookmakers, fourchette de cote, nombre de paris et canaux. Seules les catégories actives servent."
       className="scroll-mt-24"
     >
       {categories.length === 0 ? (

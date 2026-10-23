@@ -113,7 +113,7 @@ describe("fiche Paris sportifs : actions", () => {
       ),
     );
     expect(m.saveBetCategory).toHaveBeenCalledWith(expect.objectContaining({ key: "corners", channelIds: ["c1"] }), "u1");
-    expect(url).toContain("Catégorie « Corners » créée (inactive");
+    expect(url).toContain("Catégorie « Corners » créée (inactive");
   });
 
   it("identifiants : deux clés chiffrées par le moteur, jamais dans l'adresse", async () => {

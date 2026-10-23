@@ -5,7 +5,7 @@ import { runHoursText, type SportsSettings } from "@/lib/agents/sports";
 import { fmtNum } from "@/lib/format";
 
 /**
- * Champs « Passages et cotes » du formulaire des réglages de l'équipe Paris sportifs (administrateurs) : heures de
+ * Champs « Passages et cotes » du formulaire des réglages de l'équipe Paris sportifs (administrateurs) : heures de
  * passage, écart de cote toléré, délai avant le match (valeurs par défaut des nouvelles catégories et garde-fous de
  * l'équipe), plafond mensuel d'appels de cotes.
  */
