@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-23T15:59:24.581Z",
-  "base": "http://localhost:3119",
+  "generatedAt": "2026-10-23T17:38:30.878Z",
+  "base": "http://localhost:3120",
   "width": 1440,
   "tags": [
     "wcag2a",
@@ -15,14 +15,6 @@
   },
   "pages": [
     {
-      "route": "/agents",
-      "path": "/agents",
-      "status": "ok",
-      "httpStatus": 200,
-      "note": null,
-      "violations": []
-    },
-    {
       "route": "/agents/dating",
       "path": "/agents/dating",
       "status": "ok",
@@ -31,24 +23,8 @@
       "violations": []
     },
     {
-      "route": "/agents/validations",
-      "path": "/agents/validations",
-      "status": "ok",
-      "httpStatus": 200,
-      "note": null,
-      "violations": []
-    },
-    {
-      "route": "/agents/journal",
-      "path": "/agents/journal",
-      "status": "ok",
-      "httpStatus": 200,
-      "note": null,
-      "violations": []
-    },
-    {
-      "route": "/agents/settings",
-      "path": "/agents/settings",
+      "route": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
+      "path": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
       "status": "ok",
       "httpStatus": 200,
       "note": null,

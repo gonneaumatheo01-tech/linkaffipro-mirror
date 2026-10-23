@@ -207,7 +207,8 @@ describe("rubrique Agents", () => {
     for (const t of ["Pilotage", "Réglages de l'équipe", "Plafonds du mois", "Plan par canal", "Agents de l'équipe", "Missions"])
       expect(text).toContain(t);
     expect(text).toContain("Publier sur les vrais canaux");
-    expect(text).toContain("Arrive dans une prochaine étape");
+    // Phase 20 : Média IA existe, la chaîne Rencontres n'a plus d'agent « à venir ».
+    expect(text).not.toContain("Arrive dans une prochaine étape");
     expect(text).toContain("Attend votre validation");
   });
 

@@ -5,7 +5,7 @@
  */
 import {
   AGENT_LABELS,
-  PHASE19_AGENT_KEYS,
+  IMPLEMENTED_AGENT_KEYS,
   TEAM_KEYS,
   isTeamKey,
   type AgentKey,
@@ -81,7 +81,7 @@ export function agentLabel(key: string): string {
 
 /** L'agent existe-t-il déjà (phase 19) ou arrive-t-il dans une phase suivante ? */
 export function agentAvailable(key: AgentKey): boolean {
-  return (PHASE19_AGENT_KEYS as readonly string[]).includes(key);
+  return (IMPLEMENTED_AGENT_KEYS as readonly string[]).includes(key);
 }
 
 export type AutonomyLevel = 0 | 1 | 2;

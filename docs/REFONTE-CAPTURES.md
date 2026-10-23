@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-23 15:59 UTC.
+Dernière mise à jour : 2026-10-23 17:38 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -52,6 +52,7 @@ Dernière mise à jour : 2026-10-23 15:59 UTC.
 | Louis D. | `/conversations/[id]` | <a href="captures/conversations-id-1440.webp"><img src="captures/conversations-id-1440.webp" alt="Louis D., 1440 px" width="360"></a> | <a href="captures/conversations-id-390.webp"><img src="captures/conversations-id-390.webp" alt="Louis D., 390 px" width="120"></a> |
 | Personas | `/conversations/personas` | <a href="captures/conversations-personas-1440.webp"><img src="captures/conversations-personas-1440.webp" alt="Personas, 1440 px" width="360"></a> | <a href="captures/conversations-personas-390.webp"><img src="captures/conversations-personas-390.webp" alt="Personas, 390 px" width="120"></a> |
 | Léa | `/conversations/personas/[id]` | <a href="captures/conversations-personas-id-1440.webp"><img src="captures/conversations-personas-id-1440.webp" alt="Léa, 1440 px" width="360"></a> | <a href="captures/conversations-personas-id-390.webp"><img src="captures/conversations-personas-id-390.webp" alt="Léa, 390 px" width="120"></a> |
+| Léa | `/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2` | <a href="captures/conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-1440.webp"><img src="captures/conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-1440.webp" alt="Léa, 1440 px" width="360"></a> | <a href="captures/conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-390.webp"><img src="captures/conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-390.webp" alt="Léa, 390 px" width="120"></a> |
 | Nouvelle persona | `/conversations/personas/new` | <a href="captures/conversations-personas-new-1440.webp"><img src="captures/conversations-personas-new-1440.webp" alt="Nouvelle persona, 1440 px" width="360"></a> | <a href="captures/conversations-personas-new-390.webp"><img src="captures/conversations-personas-new-390.webp" alt="Nouvelle persona, 390 px" width="120"></a> |
 | Chiffres des conversations | `/conversations/stats` | <a href="captures/conversations-stats-1440.webp"><img src="captures/conversations-stats-1440.webp" alt="Chiffres des conversations, 1440 px" width="360"></a> | <a href="captures/conversations-stats-390.webp"><img src="captures/conversations-stats-390.webp" alt="Chiffres des conversations, 390 px" width="120"></a> |
 | Statistiques | `/stats` | <a href="captures/stats-1440.webp"><img src="captures/stats-1440.webp" alt="Statistiques, 1440 px" width="360"></a> | <a href="captures/stats-390.webp"><img src="captures/stats-390.webp" alt="Statistiques, 390 px" width="120"></a> |

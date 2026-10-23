@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-23T15:59:02.743Z",
+  "updatedAt": "2026-10-23T17:38:14.382Z",
   "entries": [
     {
       "route": "/",
@@ -663,6 +663,21 @@
       "capturedAt": "2026-10-18T20:25:29.659Z"
     },
     {
+      "route": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
+      "path": "/conversations/personas/c2ygtw2hit56bzwgkwqb8hmp2",
+      "title": "Léa",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-390.webp",
+        "1440": "conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-23T17:38:00.791Z"
+    },
+    {
       "route": "/conversations/personas/new",
       "path": "/conversations/personas/new",
       "title": "Nouvelle persona",
@@ -1155,7 +1170,7 @@
         "1440": "agents-dating-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-23T15:58:35.437Z"
+      "capturedAt": "2026-10-23T17:37:46.237Z"
     },
     {
       "route": "/agents/journal",
@@ -1185,7 +1200,7 @@
         "1440": "agents-settings-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-23T15:58:57.885Z"
+      "capturedAt": "2026-10-23T17:38:09.171Z"
     },
     {
       "route": "/agents/validations",
