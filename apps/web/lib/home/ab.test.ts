@@ -60,3 +60,20 @@ describe("tests A/B à conclure", () => {
     expect(out[0]!.winner).toBe("A");
   });
 });
+
+describe("tests de l'équipe Algorithme", () => {
+  it("un groupe exp_… n'est jamais proposé à conclure", () => {
+    const now = new Date("2026-10-20T12:00:00Z");
+    const row = (variant: string) => ({
+      id: variant,
+      abGroupId: "exp_abc",
+      abVariant: variant,
+      status: "SENT",
+      sentAt: new Date("2026-10-10T12:00:00Z"),
+      channel: { title: "Test" },
+      stats: { views: 5000, clicks: 300, uniqueClickers: 300, reactionsTotal: 10 },
+    });
+    expect(abTestsToConclude([row("A"), row("B")] as never, now)).toEqual([]);
+  });
+});
+

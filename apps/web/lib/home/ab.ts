@@ -27,7 +27,8 @@ export type AbPostRow = {
 export function abTestsToConclude(posts: readonly AbPostRow[], now: Date): TodoInput["abTests"] {
   const groups = new Map<string, AbPostRow[]>();
   for (const p of posts) {
-    if (!p.abGroupId) continue;
+    // Les tests de l'équipe Algorithme (`exp_…`) se concluent tout seuls : jamais « à conclure » sur l'accueil.
+    if (!p.abGroupId || p.abGroupId.startsWith("exp_")) continue;
     groups.set(p.abGroupId, [...(groups.get(p.abGroupId) ?? []), p]);
   }
   const out: Array<TodoInput["abTests"][number] & { lastSentAt: number }> = [];

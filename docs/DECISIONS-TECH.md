@@ -526,3 +526,19 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   Messages (l'onglet de la fiche canal n'existe plus) : marqueur `source` (ou `computedBy`, `by`, `team`) dans
   `besthours.<channelId>`, ou `Setting` `besthours.source`. Jamais « p-value » ni « médiane » en surface (« valeur du
   milieu », terme technique au survol).
+- **Moteur Algorithme (phase 21)** : l'agent Horaires est la seule source des meilleurs horaires (format
+  `besthours.<canal>` inchangé + `source: "algo"` et `windows`, `Setting` `besthours.source` ; la tâche `stats`
+  `best-hours` passe par lui). Rythme : passage `agents-algo` horaire (alertes), nuit à partir de 4 h Paris, lundi à
+  partir de 6 h (marqueurs `agents.algo.lastNightly` / `lastWeekly`, « une semaine sur deux » respecté). Tests A/B des
+  posts : variante tirée à la création de la mission (`payload.experiment`), une mission dans un seul test, post
+  `abGroupId = exp_<id>` (jamais proposé « à conclure » sur l'accueil), test sans assez de données prolongé une fois
+  puis clos « pas de différence », pas relancé avant 60 jours ; au niveau 0 les tests sont seulement proposés. Mélange
+  ±10 points par proposition (borne de 20 points depuis le début de la semaine), quotas jamais proposés d'office,
+  consignes d'équipe dans un bloc `[Équipe Algorithme]` qui garde le texte humain. SMALL : mélange, fenêtre, consignes
+  du canal ; BIG : consignes d'équipe, personas, quotas. Annulation refusée si le réglage a changé depuis (rien
+  n'est écrasé). Réglages de persona validés par `validatePersonaTuning` / `hidesAssistant` (`packages/core`, mêmes
+  bornes que le formulaire). Rapport : rédigé par le modèle rapide ; un texte qui contient un chiffre absent des données
+  est remplacé par les lignes écrites par le code ; sans clé IA, le code assemble tout ; un `InsightReport` par équipe +
+  un `algo` (chiffres des conversations). Alertes de chute : posts des dernières 24 h exclus, mesure = vues à 24 h sur
+  7 jours, une par cible et par 24 h. Question du quota posée en TEXT (« 1 / 2 / 3 » = 4 / 6 / 8, ou un chiffre libre).
+  Commande `pnpm agents:report-now [--team algo] [--no-send] [--queue]`.
