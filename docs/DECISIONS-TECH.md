@@ -575,3 +575,19 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   Demande groupée : clé `media.casino.<jour>`, état `Setting` `agents.casino.mediaAsked`, 5 vidéos visées par thème, 3
   thèmes détaillés au plus, rien tant qu'une demande casino est ouverte. Jour d'une mission casino lu dans `planDay`
   (horloge des agents) et non `createdAt`.
+
+## Phase 23 — agents IA : équipe Paris sportifs (23 octobre 2026)
+
+- **SportsGameOdds, documentation officielle relue le 23 octobre** : base `https://api.sportsgameodds.com/v2`, clé dans
+  l'en-tête `x-api-key` ; réponse `{ success, data, error?, nextCursor? }`. `GET /events` : `leagueID`, `sportID`,
+  `eventID(s)`, `oddsAvailable`, `oddID` (liste), `includeOpposingOdds`, `bookmakerID`, `finalized`, `ended`,
+  `cancelled`, `startsAfter` / `startsBefore`, `expandResults`, `limit`, `cursor`. Événement : `teams.home|away.names`,
+  `status.startsAt` / `finalized` / `cancelled`, `links.bookmakers`, `odds.<oddID>` (`fairOdds`, `bookOdds`, `score`,
+  `byBookmaker.<id>.{ odds, available, overUnder, deeplink }`). `oddID` = `{statID}-{statEntityID}-{periodID}-
+  {betTypeID}-{sideID}`. Cotes au format américain (converties en décimal). `GET /account/usage` sert à vérifier une
+  clé sans dépense. Offre gratuite : 10 requêtes par minute, 2 500 objets par mois. **Non confirmé** : identifiants
+  exacts des marchés du football (tirs cadrés, corners, cartons) et des ligues ; les 6 catégories de départ (migration,
+  seule « tirs cadrés » active) contiennent des suppositions réglables, à vérifier avec la vraie clé (`GET /markets`).
+- **OddsPapi** : pas branché dans cette phase (interface prête), à ajouter si Sportaza manque chez SportsGameOdds.
+- **Données** : `BetCategory`, `BettingPick`, valeurs `MediaAssetKind.SCREENSHOT`, `MediaAssetOrigin.HUMAN_SITE`
+  (capture du site du bookmaker) et `TEMPLATE` (image de repli fabriquée), `PostInsight.betResult`.

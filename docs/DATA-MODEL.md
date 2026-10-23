@@ -444,3 +444,14 @@ Aucune migration. Conventions sur les colonnes existantes : `MediaAsset.theme` (
 média casino (jamais de média généré) ; `ChannelAgentPlan.themes` = `[{ theme, weight }]` pour un canal casino, mélange
 casino par défaut `{ video: 2, photo: 1, text: 1 }` ; `AgentTeamConfig.settings.casino` = `{ themes, lowStock,
 rotationDays }`.
+
+## Phase 23 : équipe Paris sportifs
+
+Migration additive `20261023220000_phase23_agents_paris` (avec 6 catégories de départ, seule « tirs cadrés » active).
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `BetCategory` (`key` unique) | Catégorie de paris : nom, sport, marchés chez le fournisseur (`marketTypes`, identifiants SportsGameOdds), ligues, bookmakers cibles, fourchette de cote, paris par jour, canaux de destination, campagne du bouton Offre, délai minimal avant le coup d'envoi (30 min), écart de cote toléré (5 %), active, ordre. |
+| `BettingPick` (`BettingPickStatus` PROPOSED / PUBLISHED / SKIPPED / WON / LOST / VOID) | Pari retenu : mission, catégorie (CASCADE), match (identifiant fournisseur, équipes, ligue, coup d'envoi), marché, sélection, ligne, bookmaker, cote retenue, cote de consensus, score d'intérêt, cote à l'envoi, raisonnement chiffré, capture, post, motif d'un pari écarté, résultat et statistiques du match, date de règlement. |
+| `MediaAssetKind.SCREENSHOT`, `MediaAssetOrigin.HUMAN_SITE` / `TEMPLATE` | Capture du site du bookmaker ; image de repli fabriquée quand la capture est impossible (toujours validée par le client). |
+| `PostInsight.betResult` | Résultat du pari publié par un post (WON, LOST, VOID), lu par l'équipe Algorithme. |
