@@ -250,6 +250,27 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 <AlertSwitch kind="agents_media_low" checked={switches.agents_media_low} />
               </div>
             </div>
+            <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
+              <p className="text-body font-medium text-foreground">Agent Ads</p>
+              <p className="text-note text-muted-foreground">
+                Les seuils se règlent dans Agents → Agent Ads ; une alerte au plus par jour et par pub ou campagne.
+              </p>
+              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+                {(
+                  [
+                    ["ads_spend_spike", "Dépense pub anormale : nettement au-dessus de la moyenne des 7 jours"],
+                    ["ads_conversion_drop", "Chute des inscriptions d'une pub"],
+                    ["ads_cost_over_threshold", "Pub trop chère par inscription depuis plusieurs jours"],
+                    ["ads_budget_exhausted", "Budget du jour d'une campagne atteint"],
+                  ] as const
+                ).map(([kind, label]) => (
+                  <div key={kind} className="space-y-1">
+                    <p className="text-body text-foreground">{label}</p>
+                    <AlertSwitch kind={kind} checked={switches[kind]} />
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
                 Enregistrer

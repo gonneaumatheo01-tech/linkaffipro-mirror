@@ -650,3 +650,23 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   avec assez de données. Vocabulaire : « parcours » (entonnoir), « ce que rapportent les membres de chaque pub »
   (cohortes) ; ROAS / CPA au survol seulement. « Ce qui marche » n'affiche plus les rapports `ads`. Rapports
   distingués par `InsightReport.stats.kind` (`daily` / `weekly`).
+- **Moteur Ads (phase 24)** : visites = `DailyStat.entryClicks` (clic goolink + visites de page d'atterrissage),
+  entrées Telegram = demandes d'adhésion, membres = entrées ; impressions et clics pub depuis `AdCost` ; un groupe de
+  pubs = somme de ses pubs + coûts saisis au niveau du groupe ; jours complets seulement ; dernière étape du parcours =
+  premier dépôt. Goulot : 3 pubs comparables (même univers) et 20 passages à l'étape d'avant au moins. Cohortes : membres
+  arrivés par une pub dans les 90 jours (première arrivée), commissions CPA nettes à 7 / 14 / 30 jours. Seuils de
+  départ : valeur du milieu × 1,5 (retour sur dépense jamais sous 1,2) ; moins de 3 pubs : 30 € et 1,5 ; 3 jours et 20 €
+  avant toute conclusion. Arrêter : la pub dépense encore et ne rapporte pas au-dessus du minimum ; Augmenter : gains
+  positifs, budget du jour sous 98 %, retour sur dépense en baisse de 10 % au plus sur 7 jours ; Tester : 2 propositions
+  au plus par univers. Une proposition ouverte (même cible, même action) est mise à jour ; une cible marquée Fait /
+  Refusé depuis moins de 7 jours n'est pas re-proposée ; une proposition plus justifiée passe en REJECTED (« Plus
+  d'actualité… »). Rapports : quotidien dès 9 h après celui du Grand Chef (au plus tard 10 h), hebdomadaire le lundi,
+  clé `weekStart` = jour ou `semaine-<lundi>`, texte vérifié par `rules/report-numbers.ts` (partagé avec la phase 21),
+  adresse de la page depuis `APP_BASE_URL`, plafond IA de l'équipe « ads » 20 € par mois. File `agents-ads` toutes les
+  30 min. Pause de l'équipe « ads » : arrête rapports et recommandations (les alertes ont leurs interrupteurs) ; pas de
+  commande Telegram « pause ads » (l'équipe ads n'est pas une équipe de production). Réglages des alertes `Setting`
+  `agents.ads.alerts` (+50 %, −50 %, 10 € par jour, 5 inscriptions minimum). `variationBetween` /
+  `comparableVariation` déplacées dans `packages/core/src/variation.ts` (le site y renvoie). Lecture seule vérifiée par
+  test (`packages/connectors` n'expose que des lectures ; l'agent n'importe ni connecteur ni client HTTP).
+- **Réglages → Alertes** : les 4 interrupteurs de l'Agent Ads sont affichés (une case absente valait « désactivée » à
+  l'enregistrement).
