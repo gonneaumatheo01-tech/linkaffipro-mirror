@@ -1,3 +1,36 @@
+# État du projet : phase 23 (agents IA : équipe Paris sportifs) terminée (24 octobre 2026)
+
+Phases 0 à 22 en ligne. Phase 23 = troisième équipe de production : chaque jour, elle cherche chez les bookmakers les paris des catégories demandées (« tirs cadrés »…), retient les plus intéressants selon une méthode chiffrée et réglable, retrouve le pari sur le site du bookmaker, vérifie la cote, fait la capture d'écran et publie tout de suite un post court ; après le match, elle note le résultat et tient le bilan (`docs/prompts/25-phase-23-agents-paris.md`). **Tout reste en simulation** sur le canal Test.
+
+## Fait
+- **Cotes** : SportsGameOdds (documentation officielle relue), cache, comptage des appels et plafond mensuel (2 000 par défaut, alerte à 80 % et 100 %) ; faux fournisseur pour les essais.
+- **Sélection** : comparaison de la cote du bookmaker à celle des autres (écart de valeur), fourchette de cote par catégorie, un pari par match, pas deux fois le même pari en 48 h, jamais à moins de 30 min du coup d'envoi ; le raisonnement chiffré est gardé et affiché.
+- **Capture d'écran** : navigateur dans le serveur, connexion à votre compte, recherche du match, lecture de la cote, cadre de couleur, capture ; **jamais de mise, de dépôt ni de changement de compte** (règle codée, testée) ; session chiffrée. Si le site bloque : adresse internet de secours, ou capture depuis votre Mac, ou en dernier recours une image fabriquée, toujours soumise à vous.
+- **Publication** : texte écrit par le code (match, marché, cote, 1-2 phrases chiffrées, ligne de prudence ; « sûr », « garanti », « 100 % » interdits), cote re-vérifiée juste avant l'envoi (écartée si elle a bougé de plus de 5 %), publication immédiate avec le bouton Offre.
+- **Toujours soumis à vous** : nouvelle ligue, nouveau marché, cote hors fourchette, image de repli.
+- **Résultats** : réglés toutes les 2 h (gagné, perdu, annulé) ; bilan par catégorie, ligue, bookmaker et semaine (taux de réussite, cote moyenne, rendement).
+- **Site** : Agents → Paris sportifs (paris du jour avec capture et raisonnement, catégories, bilan, bookmakers avec « Tester la connexion », réglages, « Produire un pari de test »).
+- **Correctif** : une question du bot en attente faisait répondre « Réponds oui ou non » à des messages qui n'y répondaient pas (« fait », des emojis animés à ranger) ; corrigé.
+
+## Test de 5 minutes
+1. Site → Agents → **Paris sportifs** → « Produire un pari de test » → valider (✅ sur Telegram si demandé).
+2. Le pari arrive sur le canal **Test** avec sa capture (page d'essai) et « [SIMULATION …] » en tête.
+
+## Vérifications faites
+- 5 460 tests unitaires et 555 tests d'intégration (base réelle) réussis, dont la chaîne complète : 4 paris retenus, 2 publiés sur le canal Test avec capture, 1 écarté car la cote avait bougé, 1 image de repli envoyée en validation (et la question « adresse de secours ou Mac » posée), puis résultats réglés et bilan calculé. Tests du navigateur sur une page qui imite un bookmaker (connexion, recherche, cote, capture, bouton « Parier » refusé). Lint, typage, build verts.
+- Image du serveur construite en local : Chromium démarre et fait une capture.
+- Sauvegarde avant déploiement ; site puis service d'arrière-plan ; santé vérifiée ; capture de la fiche et contrôle d'accessibilité sans violation (base de démonstration locale).
+
+## Reste / limites
+- Rien n'a été essayé avec la vraie clé de cotes ni le vrai site Sportaza : il faut votre clé et votre compte. Les identifiants exacts des marchés de football (tirs cadrés, corners, cartons) et les repères du site Sportaza seront à confirmer au premier essai réel (réglables sans redéploiement).
+- Mémoire prise par le navigateur en production à surveiller ; si elle sature, il faudra un service séparé pour les captures.
+- Avertissement de sécurité de Next.js 16.4.0 en développement : à traiter dans une phase de solidité.
+
+## Actions humaines
+Répondre aux questions du bot (clé de cotes, identifiant et mot de passe du bookmaker, catégories), puis `vrai paris` + `OUI` quand ça plaît (`docs/A-FAIRE-HUMAIN.md`).
+
+---
+
 # État du projet : phase 22 (agents IA : équipe Casino) terminée (23 octobre 2026)
 
 Phases 0 à 21 en ligne. Phase 22 = deuxième équipe de production : les canaux casino publient chaque jour des vidéos **fournies par vous**, des images et des textes, selon le thème de chaque canal et l'offre du moment, aux bons créneaux (`docs/prompts/24-phase-22-agents-casino.md`). **Tout reste en simulation** sur le canal Test.

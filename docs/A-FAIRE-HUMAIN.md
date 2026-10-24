@@ -1,5 +1,15 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 23 : l'équipe Paris sportifs (quand vous voulez)
+1. **Le bot vous demande, une question à la fois** : la clé SportsGameOdds (créez un compte gratuit sur https://sportsgameodds.com, puis une clé ; vérifiée aussitôt), puis l'identifiant et le mot de passe de votre compte bookmaker (Sportaza) : vos messages sont supprimés aussitôt et un test de connexion est fait tout de suite.
+2. **Si le test dit « bloqué »**, le bot vous propose : 1) une adresse internet de secours (service à souscrire, 10 à 30 € par mois : vous lui envoyez l'adresse qu'il vous donne) ou 2) la capture depuis votre Mac :
+   - ouvrez l'application **Terminal** ;
+   - collez `cd ~/Desktop/"Platefome de statistiques" && pnpm agents:capture-runner` puis Entrée (si elle dit « railway login », tapez `railway login`, validez dans le navigateur, puis recommencez) ;
+   - laissez la fenêtre ouverte et le Mac allumé, sans veille ; « en attente des demandes » veut dire que ça marche ; Ctrl+C pour arrêter.
+3. **Catégories** : le bot vous propose les catégories (tirs cadrés, corners, buts, cartons, buteur, résultat) : répondez les numéros à activer. Réglages fins dans Agents → Paris sportifs.
+4. **Jamais de mise** : l'équipe se connecte seulement pour retrouver le pari, lire la cote et faire la capture (règle codée).
+5. **Quand ça vous plaît** : `vrai paris` puis `OUI` au bot.
+
 ## Phase 22 : l'équipe Casino (quand vous voulez)
 1. **Le bot vous demande, une question à la fois** : pour chaque canal casino, quelle offre (campagne) mettre sur le bouton (réponse par numéro), puis 3 à 5 vidéos par thème du canal.
 2. **Envoyer des vidéos** : envoyez ou transférez-les au bot avec en légende `#casino` et le thème (`#casino #roulette`, plusieurs thèmes possibles). Le bot répond « rangée » avec le nombre de vidéos disponibles. Un thème inconnu : il vous propose un bouton pour le créer.
