@@ -11,12 +11,12 @@ import type { BossAction, BossSpeaker } from "./contract";
 import { HIDDEN_BOSS_ACTIONS, TEAM_MEMBER_ACTIONS } from "./catalog-team";
 import { bossRightsAllow, type BossRightsScope } from "./team/rights";
 import { defineAction } from "./catalog-kit";
-import { READ_ACTIONS } from "./catalog-read";
+import { READ_ACTIONS, READ_HIDDEN_ACTIONS } from "./catalog-read";
 import { TEAM_ACTIONS } from "./catalog-teams";
 import { UNIVERSE_ACTIONS } from "./catalog-univers";
 import { bossHelpText } from "./help";
 import { bossStartReply } from "./guide";
-import { clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
+import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
 import { clearClarify } from "./resolve";
 import { readBossName } from "./memory";
 
@@ -58,7 +58,8 @@ export const annule = defineAction<Empty>({
       return { reply: NOTHING_TO_CANCEL };
     }
     await clearBossPending(deps, cur.id);
-    return { reply: PENDING_CANCELLED };
+    const followUp = await bossDeferredFollowUp(deps);
+    return { reply: PENDING_CANCELLED, ...(followUp ? { followUp } : {}) };
   },
 });
 
@@ -67,7 +68,7 @@ export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown 
 export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
-const HIDDEN_BY_KEY = new Map(HIDDEN_BOSS_ACTIONS.map((a) => [a.key, a]));
+const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS].map((a) => [a.key, a]));
 
 /**
  * Entrée du catalogue par sa clé. `includeHidden` : aussi les entrées cachées (changement de groupe), exécutables

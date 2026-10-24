@@ -3,7 +3,12 @@
  * fonctions existantes (`agentsOverview` / `overviewLines`, `dailyReportText`, collecteurs de `facts.ts`), réponses
  * par `respondToRequest` / `skipRequest`, décisions par `decideValidation`.
  */
-import { esc, nowOf } from "../admin/journal";
+import { decrypt } from "@linkaffipro/core";
+import { agentAudit, esc, nowOf } from "../admin/journal";
+import { teamAdminOnlyRequest } from "../human/delivery";
+import { adminOnlyRequest } from "../human/access";
+import { adminFirstName } from "./team/members";
+import { BOSS_TOKEN_SECRET_KEY, bossRegisterPort } from "./register-port";
 import { agentsOverview, overviewLines } from "../orchestrator/overview-contract";
 import { dailyReportText } from "../admin/report-command";
 import { currentHumanRequest, sendNextHumanRequest } from "../human/requests";
@@ -102,6 +107,26 @@ export const demandesOuvertes = defineAction<Empty>({
 
 type AnswerP = { reponse: string };
 
+type RequestRights = { kind: string; teamKey?: string | null; onAnswer?: unknown; assigneeTelegramId?: bigint | null };
+
+/**
+ * Un membre (ou un responsable) ne répond à une demande, ou ne la passe, que si elle LUI est adressée et n'est pas
+ * réservée à l'admin (`teamAdminOnlyRequest`, qui reprend `adminOnlyRequest` hors clés). L'admin : toujours.
+ */
+export function speakerMayAnswerRequest(speaker: BossSpeaker | null | undefined, request: RequestRights): boolean {
+  if (!speaker || speaker.kind === "admin") return true;
+  if (request.assigneeTelegramId == null || request.assigneeTelegramId !== speaker.telegramUserId) return false;
+  if (teamAdminOnlyRequest(request)) return false;
+  return request.kind === "SECRET" || !adminOnlyRequest(request);
+}
+
+async function notYours(deps: BossDeps): Promise<BossReply> {
+  const name = await adminFirstName(deps).catch(() => "l'admin");
+  return { reply: `Ça, c'est ${esc(name)} qui décide.` };
+}
+
+export const SECRET_ANSWER_HINT = "🔒 Pour une clé ou un mot de passe, envoie la valeur dans ton prochain message (je la range sans la lire), ou « plus tard ».";
+
 export const repondreDemande = defineAction<AnswerP>({
   key: "repondre_demande",
   description: "Répondre à la question en cours (texte, numéro d'un choix, oui ou non)",
@@ -109,9 +134,10 @@ export const repondreDemande = defineAction<AnswerP>({
   cls: "immediate",
   spec: { reponse: str("La réponse de l'admin à la question en cours, telle qu'il l'a donnée", { maxLength: 500 }) },
   async execute(deps: BossExecDeps, p, actor) {
-    const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
+    const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
     if (!current) return { reply: "Aucune question en cours." };
-    if (current.kind === "SECRET") return { reply: "🔒 Pour une clé, colle-la seule dans un message (je la range sans la lire)." };
+    if (!speakerMayAnswerRequest(deps.speaker, current)) return notYours(deps);
+    if (current.kind === "SECRET") return { reply: SECRET_ANSWER_HINT };
     if (current.kind === "MEDIA") return { reply: "Pour cette question, envoie-moi directement les vidéos ou photos demandées (ou « plus tard »)." };
     const r = await respondToRequest(deps, current, p.reponse, actorRef(actor), { deferNext: true, confirmText: deps.inputText ?? p.reponse });
     return {
@@ -131,9 +157,10 @@ export const plusTard = defineAction<Empty>({
   theme: "demandes",
   cls: "immediate",
   spec: {},
-  async execute(deps, _p, actor) {
-    const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
+  async execute(deps: BossExecDeps, _p, actor) {
+    const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
     if (!current) return { reply: "Aucune question en cours." };
+    if (!speakerMayAnswerRequest(deps.speaker, current)) return notYours(deps);
     const r = await skipRequest(deps, current, actorRef(actor), { deferNext: true });
     return {
       reply: esc(r.message),
@@ -143,6 +170,75 @@ export const plusTard = defineAction<Empty>({
     };
   },
 });
+
+// ------------------------------------------------------------------- entrées cachées (après un OUI de l'admin)
+
+type ConfirmedAnswerP = { demande: string; reponse: string };
+
+/** « C'est ta réponse à : … ? » → OUI : la réponse est donnée à CETTE demande (si elle est toujours ouverte). */
+export const repondreDemandeConfirmee = defineAction<ConfirmedAnswerP>({
+  key: "repondre_demande_confirmee",
+  description: "Donner à une question précise la réponse confirmée par l'admin",
+  theme: "demandes",
+  cls: "confirm",
+  spec: { demande: str("Identifiant de la demande", { maxLength: 60 }), reponse: str("Réponse", { maxLength: 2000 }) },
+  async execute(deps, p, actor) {
+    const req = (await deps.prisma.humanRequest.findUnique({ where: { id: p.demande } })) as HumanRequestRow | null;
+    if (!req || (req.status !== "QUEUED" && req.status !== "PENDING")) return { reply: "Cette question n'est plus ouverte : rien n'a été changé." };
+    if (req.kind === "SECRET") return { reply: SECRET_ANSWER_HINT };
+    const r = await respondToRequest(deps, req, p.reponse, actorRef(actor), { deferNext: true });
+    return {
+      reply: esc(r.message),
+      followUp: r.closed
+        ? async () => {
+            await sendNextHumanRequest(deps);
+          }
+        : undefined,
+    };
+  },
+});
+
+/** Enregistre le Boss par son jeton (port du chantier A) ; ferme la demande SECRET « jeton boss » si elle est ouverte. */
+export async function registerBossToken(deps: BossDeps, token: string, actorUserId: string | null): Promise<string> {
+  const port = bossRegisterPort();
+  if (!port) return "Je ne peux pas enregistrer le Boss d'ici : colle le jeton dans Réglages → Bots (rôle Boss).";
+  let username: string;
+  try {
+    username = (await port(token)).username;
+  } catch (err) {
+    return `Jeton refusé : ${esc(((err as Error).message || "jeton invalide").slice(0, 160))}. Vérifie-le dans @BotFather et renvoie-le.`;
+  }
+  const closed = await deps.prisma.humanRequest.updateMany({
+    where: { key: BOSS_TOKEN_SECRET_KEY, status: { in: ["QUEUED", "PENDING"] } },
+    data: { status: "ANSWERED", answerSummary: "enregistrée", answeredAt: nowOf(deps) },
+  });
+  if (closed.count)
+    await agentAudit(deps, { userId: actorUserId, action: "agents.request.answered", entityType: "HumanRequest", entityId: BOSS_TOKEN_SECRET_KEY, metadata: { key: BOSS_TOKEN_SECRET_KEY, kind: "SECRET", via: "TELEGRAM", summary: "enregistrée" } });
+  return `Boss enregistré ✅ : @${esc(username)}. Envoie /start à @${esc(username)} depuis ton compte, puis écris « commencer ».`;
+}
+
+type ReplaceBossP = { jeton: string };
+
+/** Remplacer le Boss actif par un nouveau bot : jeton gardé CHIFFRÉ dans la confirmation, déchiffré ici seulement. */
+export const remplacerBoss = defineAction<ReplaceBossP>({
+  key: "remplacer_boss",
+  description: "Remplacer le bot de Kevin par un nouveau bot (jeton chiffré)",
+  theme: "guide",
+  cls: "confirm",
+  spec: { jeton: str("Jeton chiffré", { maxLength: 2000 }) },
+  async execute(deps, p, actor) {
+    let token: string;
+    try {
+      token = decrypt(p.jeton);
+    } catch {
+      return { reply: "Je n'ai pas pu relire ce jeton : renvoie « jeton boss <le jeton> »." };
+    }
+    return { reply: await registerBossToken(deps, token, actor.userId) };
+  },
+});
+
+/** Entrées cachées : jamais proposées à l'IA, exécutées seulement après un OUI de l'admin. */
+export const READ_HIDDEN_ACTIONS: BossAction[] = [repondreDemandeConfirmee, remplacerBoss] as unknown as BossAction[];
 
 export const validationsEnAttente = defineAction<Empty>({
   key: "validations_en_attente",

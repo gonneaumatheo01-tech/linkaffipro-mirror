@@ -11,7 +11,8 @@ import { chatFromFullInfo } from "./handlers/forward";
 import { botPresence, isAdminStatus, isTelegramAccessError } from "./handlers/channels";
 import { parseChannelLink } from "./channels/username";
 import { PROFILE_LANGS, assistantProfilePlan, assistantProfileTextOk } from "./assistant/profile";
-import { webhookTargetRefusal } from "./webhook-health";
+import { freshWebhookError, webhookTargetRefusal } from "./webhook-health";
+import { adminBot } from "./admin-bot";
 
 export function webhookUrlFor(botId: string, baseUrl = process.env.APP_BASE_URL): string {
   if (!baseUrl) throw new Error("APP_BASE_URL manquante");
@@ -96,6 +97,7 @@ export async function setWebhookForBot(botId: string) {
   if (refusal) throw new Error(refusal);
   const { decrypt } = await import("@linkaffipro/core");
   const api = new Api(decrypt(bot.tokenEncrypted));
+  const posedAt = Date.now();
   try {
     await api.setWebhook(url, {
       allowed_updates: [...TELEGRAM_ALLOWED_UPDATES],
@@ -103,9 +105,10 @@ export async function setWebhookForBot(botId: string) {
       drop_pending_updates: false,
     });
     const info = await api.getWebhookInfo();
+    // Seule une erreur survenue APRÈS cette pose compte : Telegram garde l'ancienne (403 du secret d'avant) longtemps.
     await prisma.bot.update({
       where: { id: botId },
-      data: { lastError: info.last_error_message ?? null },
+      data: { lastError: freshWebhookError(info, posedAt) },
     });
     return info;
   } catch (err) {
@@ -134,6 +137,8 @@ export type RegisterBossResult = {
   replaced: string[];
   /** La question en cours a été reposée par le nouveau Boss. */
   reasked: boolean;
+  /** Aperçus en attente reposés par le nouveau Boss (bascule). */
+  resentValidations?: number;
 };
 
 /** Refus d'un jeton pour le Boss (message en français, sans jamais répéter le jeton). */
@@ -151,6 +156,10 @@ export function bossRegisteredText(username: string, name = "Kevin"): string {
  * fois : un autre Boss actif est désactivé (remplacement) ; journal `boss.registered`. Refusé pour un bot qui sert déjà
  * à un canal ou d'assistant de conversation (il cesserait de faire son travail). Puis la question en cours (si elle
  * existe) est reposée une fois par le nouveau Boss. `api` : faux Telegram des tests.
+ * Refusé aussi pour un bot qui écrit déjà en privé aux membres (`botWritesToMembers`). Bascule (le bot du dialogue
+ * change) : les messages des demandes posées par l'ancien bot sont retirés (`retireAdminChatMessageIds` : ils ne valent
+ * plus « réponse » chez Kevin, mais masquent toujours une clé collée chez l'ancien bot), la question en cours et les
+ * aperçus en attente sont reposés par Kevin avec leurs boutons (`resendPendingValidations`, nouveau `telegramMessageId`).
  */
 export async function registerBossFromToken(
   token: string,
@@ -178,7 +187,15 @@ export async function registerBossFromToken(
       throw new BossRegisterError(`@${username} est un assistant de conversation : crée un nouveau bot dans @BotFather pour le Boss.`);
     if (existing._count.channelAdmins > 0)
       throw new BossRegisterError(`@${username} gère déjà des canaux : crée un nouveau bot dans @BotFather pour le Boss.`);
+    // Un bot qui écrit déjà aux membres (démarré par eux, séquences, relances) cesserait de le faire en devenant le Boss.
+    if (await botWritesToMembers(existing.id))
+      throw new BossRegisterError(
+        `@${username} écrit déjà en privé aux membres (accueil, séquences ou relances) : crée un nouveau bot dans @BotFather pour le Boss.`,
+      );
   }
+  // Bot du dialogue admin AVANT la bascule (bot casino de repli ou ancien Boss) : s'il change, ce qui attendait l'admin
+  // dans l'ancienne conversation est reposé par le nouveau.
+  const previousDialog = await adminBot().catch(() => null);
   const webhookSecret = existing?.webhookSecret ?? randomToken(32);
   const data = {
     name: me.first_name,
@@ -215,11 +232,75 @@ export async function registerBossFromToken(
     entityId: bot.id,
     metadata: { username, via: opts.via ?? "SITE", created: !existing, replaced: others.map((o) => o.username) },
   });
+  const switched = previousDialog?.id !== bot.id;
+  if (switched) {
+    // Les numéros de message sont propres à chaque conversation : ceux de l'ancien bot ne valent plus « réponse ».
+    await retireOldDialogMessages().catch((err: unknown) => {
+      console.warn("[boss] anciens messages des demandes non retirés", (err as Error).message);
+    });
+  }
   const reasked = await reaskPendingHumanRequest().catch((err: unknown) => {
     console.warn("[boss] question en cours non reposée", (err as Error).message);
     return false;
   });
-  return { botId: bot.id, username, name: me.first_name, created: !existing, replaced: others.map((o) => o.username), reasked };
+  const resentValidations = switched
+    ? await resendValidationsToBoss().catch((err: unknown) => {
+        console.warn("[boss] aperçus en attente non reposés", (err as Error).message);
+        return 0;
+      })
+    : 0;
+  return {
+    botId: bot.id,
+    username,
+    name: me.first_name,
+    created: !existing,
+    replaced: others.map((o) => o.username),
+    reasked,
+    resentValidations,
+  };
+}
+
+/**
+ * Le bot écrit-il déjà en privé aux membres ? Démarré par au moins un membre qui n'est ni l'admin ni un utilisateur de
+ * la plateforme, séquence active à son nom, ou relance active qui envoie par lui (`botId` dans ses actions ou son
+ * parcours).
+ */
+export async function botWritesToMembers(botId: string): Promise<boolean> {
+  const team = new Set<string>();
+  const admin = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
+  if (typeof admin?.value === "string") team.add(admin.value);
+  for (const u of await prisma.user.findMany({ where: { telegramUserId: { not: null } }, select: { telegramUserId: true } }))
+    if (u.telegramUserId !== null) team.add(u.telegramUserId.toString());
+  const started = await prisma.memberBotState.findFirst({
+    where: {
+      botId,
+      startedAt: { not: null },
+      member: { telegramUserId: { notIn: [...team].filter((t) => /^\d+$/.test(t)).map((t) => BigInt(t)) } },
+    },
+    select: { id: true },
+  });
+  if (started) return true;
+  if (await prisma.sequence.findFirst({ where: { botId, isActive: true }, select: { id: true } })) return true;
+  const rules = await prisma.automationRule.findMany({ where: { isActive: true }, select: { actions: true, graph: true } });
+  const needle = `"botId":"${botId}"`;
+  return rules.some((r) => JSON.stringify(r.actions ?? null).includes(needle) || JSON.stringify(r.graph ?? null).includes(needle));
+}
+
+/** Bascule : messages des demandes posées à l'admin par l'ancien bot retirés (voir `retireAdminChatMessageIds`). */
+async function retireOldDialogMessages(): Promise<number> {
+  const { retireAdminChatMessageIds } = await import("@linkaffipro/agents");
+  return retireAdminChatMessageIds({ prisma: prisma as never });
+}
+
+/** Bascule : aperçus en attente reposés par le nouveau Boss, avec leurs boutons (`resendPendingValidations`). */
+async function resendValidationsToBoss(): Promise<number> {
+  const { resendPendingValidations } = await import("@linkaffipro/agents");
+  const { createAdminMessenger } = await import("./agents/admin-messenger");
+  return resendPendingValidations({
+    prisma: prisma as never,
+    admin: createAdminMessenger(),
+    enqueue: { orchestrator: async () => undefined, step: async () => undefined },
+  });
 }
 
 /**
@@ -230,7 +311,8 @@ export async function reaskPendingHumanRequest(): Promise<boolean> {
   const { confirmButtonsOf, currentHumanRequest, formatQuestion, withAskedMessageId } = await import("@linkaffipro/agents");
   const { createAdminMessenger } = await import("./agents/admin-messenger");
   const req = await currentHumanRequest({ prisma: prisma as never });
-  if (!req) return false;
+  // Question posée dans le groupe de l'équipe ou à un membre : elle n'était pas dans la conversation de l'admin.
+  if (!req || req.chatId !== null || req.assigneeTelegramId !== null) return false;
   const sent = await createAdminMessenger().send(formatQuestion(req), { buttons: confirmButtonsOf(req) });
   if (!sent) return false;
   await prisma.humanRequest.update({ where: { id: req.id }, data: withAskedMessageId(req, sent.messageId) });

@@ -40,15 +40,30 @@ export type AgentsQueueLike = {
 };
 
 /** Ajoute sans doubler : tâche terminée ou échouée → retirée puis remise ; en attente ou en cours → rien. */
-export async function addIdempotent(q: AgentsQueueLike, name: string, data: unknown, jobId: string, delayMs?: number): Promise<boolean> {
+export async function addIdempotent(
+  q: AgentsQueueLike,
+  name: string,
+  data: unknown,
+  jobId: string,
+  delayMs?: number,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
   const existing = await q.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
     if (state !== "completed" && state !== "failed" && state !== "unknown") return false;
     await existing.remove().catch(() => undefined);
   }
-  await q.add(name, data, { jobId, ...(delayMs ? { delay: delayMs } : {}) });
+  await q.add(name, data, { jobId, ...(delayMs ? { delay: delayMs } : {}), ...extra });
   return true;
+}
+
+/**
+ * Phase 26 : une tâche `boss-text` porte le texte de l'admin : rien n'en reste dans Redis une fois traitée (le worker
+ * efface aussi le texte d'une tâche échouée). Un webhook rejoué après coup est arrêté par le repère en base (tour BOSS).
+ */
+export function orchestratorJobOptions(job: { type: string }): Record<string, unknown> {
+  return job.type === "boss-text" ? { removeOnComplete: true } : {};
 }
 
 export function createAgentsEnqueue(
@@ -58,8 +73,9 @@ export function createAgentsEnqueue(
     async orchestrator(job, opts = {}) {
       const q = queueOf("agents-orchestrator");
       const name = `agents-orchestrator:${job.type}`;
-      if (opts.jobId) await addIdempotent(q, name, job, safeJobId(opts.jobId)!, opts.delayMs);
-      else await q.add(name, job, opts.delayMs ? { delay: opts.delayMs } : {});
+      const extra = orchestratorJobOptions(job);
+      if (opts.jobId) await addIdempotent(q, name, job, safeJobId(opts.jobId)!, opts.delayMs, extra);
+      else await q.add(name, job, { ...(opts.delayMs ? { delay: opts.delayMs } : {}), ...extra });
     },
     async step(teamKey, agent, job, opts = {}) {
       await addIdempotent(queueOf(TEAM_QUEUE_NAMES[teamKey]), agent, job, agentStepJobId(job.missionId, job.index, job.poll), opts.delayMs);

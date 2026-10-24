@@ -62,6 +62,13 @@ export function registerCustomEmojiHandlers(
   identity: BotIdentity,
   deps: TelegramDeps,
   memory: RecentKeys = new RecentKeys(),
+  opts: {
+    /**
+     * Phase 26 : le Boss (Kevin) range aussi les emojis animés que l'admin lui envoie, mais n'ajoute jamais de canal
+     * (ni handler de transfert après lui) et n'écoute que l'admin (`isAdminDialogPartner`).
+     */
+    boss?: boolean;
+  } = {},
 ): void {
   bot.on("message", async (ctx, next) => {
     const from = ctx.from;
@@ -70,7 +77,10 @@ export function registerCustomEmojiHandlers(
     if (!msg.forward_origin && (msg.text ?? "").startsWith("/")) return next();
     const emojis = customEmojisOfMessage(msg);
     if (emojis.length === 0) return next();
-    if (!(await deps.isPlatformUser(BigInt(from.id)))) return next();
+    const allowed = opts.boss
+      ? Boolean(await deps.isAdminDialogPartner?.(BigInt(from.id)))
+      : await deps.isPlatformUser(BigInt(from.id));
+    if (!allowed) return next();
 
     let reply: string | null;
     try {
@@ -86,10 +96,10 @@ export function registerCustomEmojiHandlers(
     }
 
     const origin = forwardedChannelOf(msg);
-    const addChannel = origin
+    const addChannel = origin && !opts.boss
       ? await forwardedChannelIsOurs(ctx.api, deps, origin.id, identity.telegramBotId)
       : false;
-    if (origin && !addChannel) {
+    if (origin && !addChannel && !opts.boss) {
       // Album : ses autres photos (sans emoji) ne doivent pas ajouter le canal par handlers/forward.ts.
       if (msg.media_group_id)
         memory.hit(albumKey(identity.id, msg.media_group_id), FORWARD_DEDUP_MS);

@@ -7,7 +7,8 @@
  * - une équipe en pause automatique (3 missions échouées de suite) ;
  * - des missions arrêtées par un plafond (`BLOCKED_BUDGET`) ou un plafond du mois atteint (`AgentUsage.alerted100`),
  *   y compris celui de l'IA du Boss (`Setting` `boss.budget`).
- * Envoyée par `deps.admin.send` (le messager admin passe par le bot du Boss). Appelée par la tâche `human-requests`
+ * Envoyée par `deps.admin.send` (le messager admin passe par le bot du Boss). Signée « Kevin » seulement quand le Boss
+ * existe (avant : bot casino de repli, texte neutre « Agents : … ») ; le menu du site s'appelle « Agents → Kevin ». Appelée par la tâche `human-requests`
  * de la file `agents-orchestrator`, juste après le balayage des demandes. Ne lève jamais.
  */
 import { agentEvent, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
@@ -58,6 +59,16 @@ function agoDays(from: Date, now: Date): string {
   return days === 1 ? "1 jour" : `${days} jours`;
 }
 
+/** Le Boss (Kevin, bot `role: ADMIN` actif) existe-t-il ? Faux sur un doute (texte neutre). */
+async function bossExists(deps: AgentsDeps): Promise<boolean> {
+  try {
+    const row = await deps.prisma.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true } });
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
 export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult> {
   try {
     if (!deps.admin) return { sent: false, reason: "no-messenger" };
@@ -103,10 +114,14 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
         kind: "blocked-budget",
         text: `${n} mission${n > 1 ? "s" : ""} de l'équipe ${teamLabel(teamKey)} arrêtée${n > 1 ? "s" : ""} par un plafond : regarde Agents → Réglages.`,
       });
+    // Avant la création de Kevin (bot casino de repli), la relance ne parle pas en son nom.
+    const hasBoss = await bossExists(deps);
     if (!boss.allowed && boss.capCents > 0)
       bullets.push({
         kind: "boss-cap",
-        text: `Mon plafond d'IA du mois est atteint (${eur(boss.spentCents)} pour ${eur(boss.capCents)}) : je ne comprends plus que les commandes exactes. Monte-le dans Agents → Boss.`,
+        text: hasBoss
+          ? `Mon plafond d'IA du mois est atteint (${eur(boss.spentCents)} pour ${eur(boss.capCents)}) : je ne comprends plus que les commandes exactes. Monte-le dans Agents → Kevin.`
+          : `Plafond d'IA du dialogue du mois atteint (${eur(boss.spentCents)} pour ${eur(boss.capCents)}) : seules les commandes exactes marchent. Monte-le dans Agents → Kevin.`,
       });
     if (staleRequest)
       bullets.push({
@@ -117,10 +132,12 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
 
     // Marqué avant l'envoi : jamais deux relances le même jour, même si l'envoi échoue.
     await writeSetting(deps, BOSS_NUDGE_SETTING, { day, at: now.toISOString() });
-    const name = await readBossName(deps);
     const shown = bullets.slice(0, MAX_BULLETS);
     const more = bullets.length - shown.length;
-    const head = `👋 <b>${esc(name)}</b> : ${bullets.length === 1 ? "une chose bloque" : `${bullets.length} choses bloquent`}.`;
+    const what = bullets.length === 1 ? "une chose bloque" : `${bullets.length} choses bloquent`;
+    const head = hasBoss
+      ? `👋 <b>${esc(await readBossName(deps))}</b> : ${what}.`
+      : `👋 Agents : ${what}.`;
     const lines = [head, ...shown.map((b) => `• ${esc(b.text)}`)];
     if (more > 0) lines[lines.length - 1] += ` (et ${more} autre${more > 1 ? "s" : ""} : écris « agents »)`;
     await deps.admin.send(lines.join("\n"));

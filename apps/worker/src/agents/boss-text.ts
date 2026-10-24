@@ -187,6 +187,24 @@ export async function runBossAiTurn(
   return { ok: outcome === "answered", outcome };
 }
 
+/** Attente au-delà de laquelle le journal signale un message de l'admin resté trop longtemps en file (mesure seule). */
+export const BOSS_TEXT_SLOW_WAIT_MS = 20_000;
+
+/**
+ * Temps passé en file par une tâche `boss-text` (mise en file → début du traitement), délai demandé retiré. La file
+ * `agents-orchestrator` traite une tâche à la fois : un cycle long du Grand Chef retarde la réponse de Kevin.
+ */
+export function bossTextWaitMs(job: { timestamp?: number; processedOn?: number; opts?: { delay?: number } }, now = Date.now()): number | null {
+  if (typeof job.timestamp !== "number" || !Number.isFinite(job.timestamp)) return null;
+  const start = typeof job.processedOn === "number" ? job.processedOn : now;
+  return Math.max(0, start - job.timestamp - (job.opts?.delay ?? 0));
+}
+
+/** Données gardées dans Redis après le traitement : jamais le texte de l'admin (ni ses mises en forme). */
+export function scrubbedBossTextJob(job: BossTextJob): BossTextJob {
+  return { ...job, text: "", entities: null, ...(job.mentions ? { mentions: [] } : {}) };
+}
+
 export async function processBossText(
   job: BossTextJob,
   deps: BossTextDeps = defaultBossTextDeps(),

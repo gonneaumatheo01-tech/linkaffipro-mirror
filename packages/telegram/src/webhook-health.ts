@@ -29,15 +29,45 @@ export function isForbiddenError(message: string | undefined | null): boolean {
   return !!message && /\b403\b|forbidden/i.test(message);
 }
 
-/** Problèmes du webhook d'un bot (vide = tout va bien). */
-export function webhookProblems(info: WebhookInfoLike, expectedUrl: string, now: Date): WebhookProblem[] {
+/**
+ * La dernière erreur rapportée par Telegram est-elle postérieure à ce moment ? (`last_error_date` en secondes : une
+ * erreur de la même seconde que la pose, ou d'avant, est l'ancienne.) Sans date d'erreur : non.
+ */
+export function webhookErrorAfter(info: Pick<WebhookInfoLike, "last_error_date">, at: Date | number | null | undefined): boolean {
+  if (!info.last_error_date) return false;
+  if (at === null || at === undefined) return true;
+  const atSec = Math.floor((typeof at === "number" ? at : at.getTime()) / 1000);
+  return info.last_error_date > atSec;
+}
+
+/**
+ * Message d'erreur à garder dans `Bot.lastError` juste après une pose du webhook (`posedAt`) : seulement une erreur
+ * survenue APRÈS la pose. Telegram garde longtemps l'ancienne erreur (403 du secret d'avant) : la recopier ferait
+ * croire à un « Bot en difficulté » alors que la pose vient de réussir.
+ */
+export function freshWebhookError(info: WebhookInfoLike, posedAt: Date | number): string | null {
+  return info.last_error_message && webhookErrorAfter(info, posedAt) ? info.last_error_message : null;
+}
+
+/**
+ * Problèmes du webhook d'un bot (vide = tout va bien). `lastRepairAt` : dernière réparation réussie (`Setting`
+ * `telegram.webhookCheck`) ; une erreur 403 antérieure ou égale à elle est l'ancienne (Telegram la garde après un
+ * `setWebhook` réussi) et ne relance pas de réparation.
+ */
+export function webhookProblems(
+  info: WebhookInfoLike,
+  expectedUrl: string,
+  now: Date,
+  opts: { lastRepairAt?: Date | null } = {},
+): WebhookProblem[] {
   const out: WebhookProblem[] = [];
   if (!info.url) out.push("no_url");
   else if (info.url !== expectedUrl) out.push("url_mismatch");
   if (
     isForbiddenError(info.last_error_message) &&
     info.last_error_date &&
-    now.getTime() - info.last_error_date * 1000 < WEBHOOK_FORBIDDEN_RECENT_MS
+    now.getTime() - info.last_error_date * 1000 < WEBHOOK_FORBIDDEN_RECENT_MS &&
+    webhookErrorAfter(info, opts.lastRepairAt ?? null)
   )
     out.push("forbidden");
   // Liste vide = types par défaut de Telegram (messages et boutons compris).

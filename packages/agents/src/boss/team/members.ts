@@ -197,7 +197,16 @@ export async function responsibleMention(deps: Pick<AgentsDeps, "prisma">, m: Te
 
 // ------------------------------------------------------------------------------------------- personnes vues
 
-export type SeenPerson = { id: string; firstName: string | null; username: string | null; at: string; unknownDay?: string | null };
+export type SeenPerson = {
+  id: string;
+  firstName: string | null;
+  username: string | null;
+  at: string;
+  /** Jour (Paris) du dernier « je ne te connais pas encore ». */
+  unknownDay?: string | null;
+  /** Jour (Paris) du dernier avertissement « clé effacée » à une personne non présentée. */
+  secretDay?: string | null;
+};
 
 function seenList(v: unknown): SeenPerson[] {
   if (!Array.isArray(v)) return [];
@@ -220,19 +229,42 @@ export async function rememberSeenPerson(
     const list = await readSeenPeople(deps);
     const id = p.id.toString();
     const prev = list.find((x) => x.id === id);
+    // Nom d'utilisateur tel que Telegram le montre MAINTENANT (null s'il n'en a plus) : jamais un ancien nom gardé,
+    // qu'une autre personne aurait pu prendre depuis.
+    const username = p.username === undefined ? (prev?.username ?? null) : p.username?.trim() || null;
     const entry: SeenPerson = {
       id,
       firstName: p.firstName?.trim() || prev?.firstName || null,
-      username: p.username?.trim() || prev?.username || null,
+      username,
       at: nowOf(deps).toISOString(),
       unknownDay: prev?.unknownDay ?? null,
+      secretDay: prev?.secretDay ?? null,
     };
-    const changed = !prev || prev.firstName !== entry.firstName || prev.username !== entry.username || parisDay(new Date(prev.at)) !== parisDay(nowOf(deps));
-    if (changed) await writeSetting(deps, BOSS_GROUP_SEEN_SETTING, [entry, ...list.filter((x) => x.id !== id)].slice(0, SEEN_MAX));
+    const u = username?.toLowerCase() ?? null;
+    // Un nom d'utilisateur n'appartient qu'à une personne : retiré des autres fiches.
+    const clash = !!u && list.some((x) => x.id !== id && x.username?.toLowerCase() === u);
+    const changed = clash || !prev || prev.firstName !== entry.firstName || prev.username !== entry.username || parisDay(new Date(prev.at)) !== parisDay(nowOf(deps));
+    const others = list.filter((x) => x.id !== id).map((x) => (u && x.username?.toLowerCase() === u ? { ...x, username: null } : x));
+    if (changed) await writeSetting(deps, BOSS_GROUP_SEEN_SETTING, [entry, ...others].slice(0, SEEN_MAX));
     return entry;
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message }, "[boss] personne vue non notée");
     return null;
+  }
+}
+
+async function claimDaily(deps: Pick<AgentsDeps, "prisma" | "now" | "logger">, id: bigint, field: "unknownDay" | "secretDay"): Promise<boolean> {
+  try {
+    const day = parisDay(nowOf(deps));
+    const list = await readSeenPeople(deps);
+    const sid = id.toString();
+    const prev = list.find((x) => x.id === sid);
+    if (prev?.[field] === day) return false;
+    const entry: SeenPerson = { ...(prev ?? { id: sid, firstName: null, username: null }), at: nowOf(deps).toISOString(), [field]: day };
+    await writeSetting(deps, BOSS_GROUP_SEEN_SETTING, [entry, ...list.filter((x) => x.id !== sid)].slice(0, SEEN_MAX));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -241,17 +273,47 @@ export async function rememberSeenPerson(
  * le note). Ne lève jamais (faux sur un doute).
  */
 export async function claimUnknownReply(deps: Pick<AgentsDeps, "prisma" | "now" | "logger">, id: bigint): Promise<boolean> {
+  return claimDaily(deps, id, "unknownDay");
+}
+
+/**
+ * Clé collée dans le groupe par une personne non présentée : le message est toujours effacé, mais Kevin ne le dit
+ * qu'une fois par jour et par personne (sinon : silence total). Ne lève jamais (faux sur un doute).
+ */
+export async function claimSecretNotice(deps: Pick<AgentsDeps, "prisma" | "now" | "logger">, id: bigint): Promise<boolean> {
+  return claimDaily(deps, id, "secretDay");
+}
+
+// ------------------------------------------------------------------------------------------- coût : limite par membre
+
+/** Messages d'un membre envoyés à l'IA (interprète) par jour au plus ; l'admin n'a que le plafond mensuel. */
+export const BOSS_MEMBER_AI_DAILY_LIMIT = 30;
+/** `Setting` : `{ day, counts: { <telegramUserId>: n } }` (jour de Paris). */
+export const BOSS_MEMBER_AI_SETTING = "boss.team.aiTurns";
+export const BOSS_MEMBER_AI_LIMIT_REPLY = "On a beaucoup parlé aujourd'hui : je garde les commandes simples jusqu'à demain.";
+
+/**
+ * Compte un message d'un membre envoyé à l'IA ; rend faux si sa limite du jour est atteinte (rien n'est compté). Sur
+ * une erreur de lecture : vrai (la limite mensuelle du Boss s'applique toujours).
+ */
+export async function claimMemberAiTurn(
+  deps: Pick<AgentsDeps, "prisma" | "now" | "logger">,
+  id: bigint,
+  limit = BOSS_MEMBER_AI_DAILY_LIMIT,
+): Promise<boolean> {
   try {
     const day = parisDay(nowOf(deps));
-    const list = await readSeenPeople(deps);
+    const v = (await readSetting(deps, BOSS_MEMBER_AI_SETTING)) as { day?: unknown; counts?: unknown } | undefined;
+    const counts: Record<string, number> = v?.day === day && v.counts && typeof v.counts === "object" ? { ...(v.counts as Record<string, number>) } : {};
     const sid = id.toString();
-    const prev = list.find((x) => x.id === sid);
-    if (prev?.unknownDay === day) return false;
-    const entry: SeenPerson = { ...(prev ?? { id: sid, firstName: null, username: null }), at: nowOf(deps).toISOString(), unknownDay: day };
-    await writeSetting(deps, BOSS_GROUP_SEEN_SETTING, [entry, ...list.filter((x) => x.id !== sid)].slice(0, SEEN_MAX));
+    const n = Number(counts[sid] ?? 0) || 0;
+    if (n >= limit) return false;
+    counts[sid] = n + 1;
+    await writeSetting(deps, BOSS_MEMBER_AI_SETTING, { day, counts });
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[boss] limite du jour d'un membre non lue");
+    return true;
   }
 }
 

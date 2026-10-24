@@ -19,6 +19,7 @@ describe("Kevin : relance quotidienne", () => {
 
   it("équipe en pause automatique et plafond atteint : un seul message, une seule fois par jour", async () => {
     const kit = createTestKit();
+    await push(kit, "bot", { id: "boss_1", role: "ADMIN", isActive: true, username: "kevin_bot" });
     await push(kit, "agentTeamConfig", { teamKey: "casino", paused: true, pausedReason: "3 missions échouées de suite" });
     await push(kit, "agentTeamConfig", { teamKey: "sports", paused: true, pausedReason: "pause demandée par Telegram" });
     await push(kit, "agentUsage", { teamKey: "dating", provider: "video", month: "2026-10", cents: 10_000, alerted100: true });
@@ -77,7 +78,31 @@ describe("Kevin : relance quotidienne", () => {
     await push(kit, "agentUsage", { teamKey: "boss", provider: "llm", month: "2026-10", cents: 520 });
     expect(await bossDailyNudge({ ...kit.deps, admin: undefined })).toEqual({ sent: false, reason: "no-messenger" });
     expect((await bossDailyNudge(kit.deps)).blockers).toEqual(["boss-cap"]);
+    // Sans Boss (bot casino de repli) : texte neutre, jamais signé « Kevin ».
+    expect(kit.sent[0]!.html).toContain("👋 Agents : une chose bloque.");
+    expect(kit.sent[0]!.html).not.toContain("Mon plafond");
+    expect(kit.sent[0]!.html).toContain("Plafond d'IA du dialogue du mois atteint (5,2 € pour 5 €)");
+    expect(kit.sent[0]!.html).toContain("Agents → Kevin");
+    expect(kit.sent[0]!.html).not.toContain("Agents → Boss");
+  });
+
+  it("avec Kevin : signé « Kevin », plafond à la première personne, renvoi vers « Agents → Kevin »", async () => {
+    const kit = createTestKit();
+    await push(kit, "bot", { id: "boss_1", role: "ADMIN", isActive: true, username: "kevin_bot" });
+    await push(kit, "setting", { key: "boss.budget", value: { monthlyCents: 500 } });
+    await push(kit, "agentUsage", { teamKey: "boss", provider: "llm", month: "2026-10", cents: 520 });
+    expect((await bossDailyNudge(kit.deps)).blockers).toEqual(["boss-cap"]);
+    expect(kit.sent[0]!.html).toContain("<b>Kevin</b> : une chose bloque.");
     expect(kit.sent[0]!.html).toContain("Mon plafond d'IA du mois est atteint (5,2 € pour 5 €)");
+    expect(kit.sent[0]!.html).toContain("Agents → Kevin");
+  });
+
+  it("Boss désactivé (remplacé ou arrêté) : texte neutre", async () => {
+    const kit = createTestKit();
+    await push(kit, "bot", { id: "boss_1", role: "ADMIN", isActive: false, username: "kevin_bot" });
+    await push(kit, "agentTeamConfig", { teamKey: "casino", paused: true, pausedReason: "3 missions échouées de suite" });
+    await bossDailyNudge(kit.deps);
+    expect(kit.sent[0]!.html).toContain("👋 Agents : une chose bloque.");
   });
 
   it("une erreur de base ne fait jamais échouer le balayage", async () => {

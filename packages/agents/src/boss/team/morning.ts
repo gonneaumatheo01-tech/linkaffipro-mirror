@@ -1,6 +1,7 @@
 /**
- * Phase 26, section 4 — rapport du matin dans le groupe de l'équipe (9 h Paris, `Setting boss.group.morning`, actif
- * par défaut dès qu'un groupe existe ; il remplace alors l'envoi privé du rapport). 5 lignes : bonjour, ce qui est
+ * Phase 26, section 4 — rapport du matin dans le groupe de l'équipe (9 h Paris ; `Setting boss.group.morning`
+ * explicite, sinon même préférence que le rapport privé `agents.dailyReport` ; il s'ajoute au rapport privé détaillé,
+ * il ne le remplace pas). 5 lignes : bonjour, ce qui est
  * prévu aujourd'hui, la veille, ce qui bloque, et les @ des personnes qui ont quelque chose en attente. Alertes
  * graves (équipe mise en pause, plafond atteint) : le responsable de l'équipe est mentionné dans le groupe, l'admin
  * les reçoit déjà en privé (copie).

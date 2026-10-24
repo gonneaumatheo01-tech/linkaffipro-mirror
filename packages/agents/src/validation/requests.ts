@@ -243,3 +243,42 @@ export async function decideValidation(
     return { ok: true, message: `Décision notée pour ${label} ; la mission reprendra au prochain passage du Grand Chef.` };
   }
 }
+
+/** En tête d'un aperçu reposé par un nouveau bot du dialogue admin (bascule vers Kevin). */
+export const VALIDATION_RESENT_PREFIX = "🔁 Je reprends ici ce qui attendait ta décision :";
+
+/**
+ * Phase 26, bascule vers un nouveau Boss : les aperçus EN ATTENTE envoyés à l'admin en privé par l'ancien bot du
+ * dialogue (bot casino de repli, ou ancien Boss) sont reposés par le nouveau (le messager suit `adminBot()`), avec leurs
+ * boutons ; `telegramMessageId` devient celui du nouveau message (les numéros de message sont propres à chaque
+ * conversation : l'ancien ne vaut plus rien chez le nouveau bot). Une correction attendue (`awaitingEditAt`) est
+ * remise à zéro (l'admin réappuie sur « ✏️ Corriger » chez le nouveau bot). Les aperçus adressés à un membre dans le
+ * groupe de l'équipe ne bougent pas. Aperçu impossible à renvoyer : son ancien numéro est effacé (décidable sur le
+ * site, « ok <n> » marche toujours). Rend le nombre d'aperçus reposés.
+ */
+export async function resendPendingValidations(deps: AgentsDeps): Promise<number> {
+  const rows = await deps.prisma.agentValidation.findMany({
+    where: { status: "PENDING", assigneeTelegramId: null },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+  });
+  let resent = 0;
+  for (const v of rows) {
+    let sent: { messageId: number } | null = null;
+    if (deps.admin) {
+      try {
+        const html = `${VALIDATION_RESENT_PREFIX}\n\n${validationPreviewHtml(v)}`;
+        sent = await deps.admin.send(html, { buttons: validationButtons(v.id), mediaAssetId: v.mediaAssetId ?? null });
+      } catch (err) {
+        deps.logger?.warn({ err: (err as Error).message, validationId: v.id }, "[agents] aperçu non reposé");
+      }
+    }
+    await deps.prisma.agentValidation.update({
+      where: { id: v.id },
+      data: { telegramMessageId: sent?.messageId ?? null, awaitingEditAt: null },
+    });
+    if (sent) resent++;
+  }
+  if (rows.length > 0) await agentEvent(deps, "agents.validation.resent", { count: resent, total: rows.length });
+  return resent;
+}

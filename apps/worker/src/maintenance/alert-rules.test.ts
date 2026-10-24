@@ -54,6 +54,33 @@ describe("alertes bots", () => {
     );
     expect(d?.payload.bots).toEqual(["a"]);
   });
+  it("le Boss (role ADMIN) n'est jamais « silencieux » ni pris comme référence ; seule son erreur compte", () => {
+    // Kevin vient d'être créé (aucune update) alors que les bots de canal reçoivent des updates : pas d'alerte.
+    expect(
+      detectBotWebhook(
+        [
+          { username: "kevin", isActive: true, lastWebhookAt: null, lastError: null, role: "ADMIN" },
+          { username: "b", isActive: true, lastWebhookAt: ago(2), lastError: null, role: "CHANNEL" },
+        ],
+        now,
+      ),
+    ).toBeNull();
+    // Le Boss seul à recevoir des updates ne rend pas un bot de canal « silencieux ».
+    expect(
+      detectBotWebhook(
+        [
+          { username: "kevin", isActive: true, lastWebhookAt: ago(1), lastError: null, role: "ADMIN" },
+          { username: "a", isActive: true, lastWebhookAt: ago(30), lastError: null, role: "CHANNEL" },
+        ],
+        now,
+      ),
+    ).toBeNull();
+    const d = detectBotWebhook(
+      [{ username: "kevin", isActive: true, lastWebhookAt: null, lastError: "Unauthorized", role: "ADMIN" }],
+      now,
+    );
+    expect(d?.payload.bots).toEqual(["kevin"]);
+  });
   it("ignore les bots inactifs", () => {
     expect(
       detectBotWebhook(

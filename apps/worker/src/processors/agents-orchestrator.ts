@@ -3,7 +3,7 @@ import { bossDailyNudge, resumeMissions, runBench, runCycle, sendDailyReport, sw
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
-import { processBossText } from "../agents/boss-text";
+import { BOSS_TEXT_SLOW_WAIT_MS, bossTextWaitMs, processBossText, scrubbedBossTextJob } from "../agents/boss-text";
 import { workerAgentsDeps } from "../agents/deps";
 import { logger } from "../logger";
 
@@ -40,8 +40,21 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return runBench(deps, data);
     case "admin-voice":
       return processAdminVoice(data);
-    case "boss-text":
-      return processBossText(data);
+    case "boss-text": {
+      // Mesure du délai (file traitée une tâche à la fois) : visible dans le journal du worker, rien d'envoyé en plus.
+      const waitMs = bossTextWaitMs(job);
+      if (waitMs !== null) {
+        const line = { queue: "agents-orchestrator", id: job.id, waitMs };
+        if (waitMs > BOSS_TEXT_SLOW_WAIT_MS) logger.warn(line, "[boss] message de l'admin resté longtemps en file");
+        else logger.info(line, "[boss] attente en file avant traitement");
+      }
+      try {
+        return await processBossText(data);
+      } finally {
+        // Le texte de l'admin ne reste jamais dans Redis (tâche échouée gardée pour diagnostic : sans texte).
+        await job.updateData?.(scrubbedBossTextJob(data)).catch(() => undefined);
+      }
+    }
     default:
       logger.warn({ queue: "agents-orchestrator", id: job.id, type: (data as { type?: unknown } | undefined)?.type }, "type de tâche inconnu");
       return { ok: false, reason: "type de tâche inconnu" };

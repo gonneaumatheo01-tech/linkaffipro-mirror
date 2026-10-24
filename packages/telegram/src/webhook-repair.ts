@@ -29,6 +29,8 @@ export type WebhookRepairDeps = {
   expectedUrl(botId: string): string;
   recordRepaired(bot: WebhookRepairBot, payload: Record<string, unknown>): Promise<void>;
   saveCheck(check: WebhookCheck): Promise<void>;
+  /** Dernier contrôle enregistré (dates des dernières réparations par bot). Absent : aucune. */
+  previousCheck?(): Promise<WebhookCheck | null>;
   now?: () => Date;
 };
 
@@ -43,6 +45,11 @@ export type WebhookBotCheck = {
   error?: string;
   /** Cause en français. */
   cause?: string;
+  /**
+   * Dernière réparation réussie de ce bot (ISO), reportée d'un contrôle à l'autre : une erreur 403 de Telegram
+   * antérieure ou égale ne relance pas de réparation (Telegram garde l'ancienne erreur après la pose).
+   */
+  repairedAt?: string;
 };
 
 export type WebhookCheck = { at: string; skipped?: string; bots: WebhookBotCheck[] };
@@ -54,18 +61,24 @@ function errText(err: unknown): string {
 export async function runWebhookRepair(deps: WebhookRepairDeps): Promise<WebhookCheck> {
   const now = deps.now?.() ?? new Date();
   const bots = (await deps.listBots()).filter((b) => !isGhostBotUsername(b.username));
+  const previous = deps.previousCheck ? await deps.previousCheck().catch(() => null) : null;
+  const lastRepair = new Map<string, string>();
+  for (const b of previous?.bots ?? []) if (typeof b.repairedAt === "string") lastRepair.set(b.botId, b.repairedAt);
   const out: WebhookBotCheck[] = [];
   for (const bot of bots) {
+    const prevRepairedAt = lastRepair.get(bot.id);
+    const keep = prevRepairedAt ? { repairedAt: prevRepairedAt } : {};
     let info: WebhookInfoLike;
     try {
       info = await deps.getInfo(bot.id);
     } catch (err) {
-      out.push({ botId: bot.id, username: bot.username, ok: false, problems: [], repaired: false, error: errText(err), cause: "lecture impossible chez Telegram (jeton refusé ou réseau)" });
+      out.push({ botId: bot.id, username: bot.username, ok: false, problems: [], repaired: false, error: errText(err), cause: "lecture impossible chez Telegram (jeton refusé ou réseau)", ...keep });
       continue;
     }
-    const problems = webhookProblems(info, deps.expectedUrl(bot.id), now);
+    const lastRepairAt = prevRepairedAt && !Number.isNaN(Date.parse(prevRepairedAt)) ? new Date(prevRepairedAt) : null;
+    const problems = webhookProblems(info, deps.expectedUrl(bot.id), now, { lastRepairAt });
     if (problems.length === 0) {
-      out.push({ botId: bot.id, username: bot.username, ok: true, problems, repaired: false, pending: info.pending_update_count ?? 0 });
+      out.push({ botId: bot.id, username: bot.username, ok: true, problems, repaired: false, pending: info.pending_update_count ?? 0, ...keep });
       continue;
     }
     const cause = problems.map(webhookProblemText).join(" ; ");
@@ -77,9 +90,9 @@ export async function runWebhookRepair(deps: WebhookRepairDeps): Promise<Webhook
         lastErrorMessage: info.last_error_message ?? null,
         pending: after.pending_update_count ?? 0,
       });
-      out.push({ botId: bot.id, username: bot.username, ok: true, problems, repaired: true, pending: after.pending_update_count ?? 0, cause });
+      out.push({ botId: bot.id, username: bot.username, ok: true, problems, repaired: true, pending: after.pending_update_count ?? 0, cause, repairedAt: now.toISOString() });
     } catch (err) {
-      out.push({ botId: bot.id, username: bot.username, ok: false, problems, repaired: false, error: errText(err), cause });
+      out.push({ botId: bot.id, username: bot.username, ok: false, problems, repaired: false, error: errText(err), cause, ...keep });
     }
   }
   const check: WebhookCheck = { at: now.toISOString(), bots: out };
@@ -125,5 +138,9 @@ export async function runWebhookRepairWithDb(
       await recordEvent({ type: WEBHOOK_REPAIRED_EVENT, botId: bot.id, payload: toJsonValue({ username: bot.username, ...payload }) });
     },
     saveCheck: save,
+    async previousCheck() {
+      const row = await prisma.setting.findUnique({ where: { key: WEBHOOK_CHECK_SETTING } });
+      return parseWebhookCheck(row?.value);
+    },
   });
 }

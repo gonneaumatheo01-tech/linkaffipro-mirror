@@ -3,7 +3,7 @@
  * quand l'admin y ajoute Kevin (ou y écrit « Kevin, c'est ici qu'on bosse »), remplacé seulement après un OUI de
  * l'admin en privé. Kevin ajouté par quelqu'un d'autre, ou dans un autre groupe : silence et une ligne de journal.
  * Réglages : `boss.group.requests` (« group » par défaut, « private » : tout continue en privé avec l'admin) et
- * `boss.group.morning` (rapport du matin dans le groupe, actif par défaut).
+ * `boss.group.morning` (rapport du matin dans le groupe : sans réglage, il suit la préférence du rapport privé).
  */
 import { agentAudit, agentEvent, esc, nowOf, readSetting, writeSetting } from "../../admin/journal";
 import type { AgentsDeps } from "../../types";
@@ -51,13 +51,30 @@ export async function groupForRequests(deps: AgentsDeps): Promise<bigint | null>
   return id;
 }
 
-/** Groupe du rapport du matin (actif par défaut dès qu'un groupe existe), ou null. */
-export async function groupForMorning(deps: AgentsDeps): Promise<bigint | null> {
+/** Valeur explicite d'un réglage oui / non (`true`, « oui », `false`, « non »…), sinon null (pur). */
+export function explicitSwitch(v: unknown): boolean | null {
+  if (v === true || v === false) return v;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (["true", "oui", "yes", "on"].includes(t)) return true;
+    if (["false", "non", "no", "off"].includes(t)) return false;
+  }
+  if (v && typeof v === "object" && typeof (v as { enabled?: unknown }).enabled === "boolean") return (v as { enabled: boolean }).enabled;
+  return null;
+}
+
+/**
+ * Groupe du rapport du matin, ou null. `boss.group.morning` explicitement activé → oui ; explicitement désactivé →
+ * non ; sinon il suit la préférence du rapport privé (`privateEnabled` : l'admin qui a refusé le rapport du matin ne le
+ * reçoit pas non plus dans le groupe).
+ */
+export async function groupForMorning(deps: AgentsDeps, opts: { privateEnabled?: boolean } = {}): Promise<bigint | null> {
   if (!deps.admin?.sendTo) return null;
   const id = await readBossGroupId(deps);
   if (!id || (await bossGroupLeft(deps, id))) return null;
-  const v = await readSetting(deps, BOSS_GROUP_MORNING_SETTING);
-  if (v === false || (typeof v === "string" && ["false", "non", "no", "off"].includes(v.trim().toLowerCase()))) return null;
+  const v = explicitSwitch(await readSetting(deps, BOSS_GROUP_MORNING_SETTING));
+  if (v === false) return null;
+  if (v === null && opts.privateEnabled === false) return null;
   return id;
 }
 

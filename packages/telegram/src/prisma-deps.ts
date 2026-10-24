@@ -1,6 +1,6 @@
 import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
-import { publishLandingInvalidate } from "@linkaffipro/queue";
+import { getRedis, isWorkerDown, publishLandingInvalidate, readHeartbeat } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
 import {
   isAssistantBot,
@@ -78,6 +78,9 @@ let adminBotCache: { value: AdminDialogBot | null; until: number } | null = null
 export function forgetAdminDialogBot(): void {
   adminBotCache = null;
 }
+
+/** Phase 26 : état du service d'arrière-plan (battement Redis) gardé 15 secondes. */
+let workerDownCache: { value: boolean | null; until: number } | null = null;
 
 /** Phase 26 : repère du renvoi « Parle-moi sur @<boss> » déjà fait par un bot de canal (`Setting`). */
 export const BOSS_REDIRECTED_PREFIX = "boss.redirected.";
@@ -465,6 +468,20 @@ export const prismaTelegramDeps: TelegramDeps = {
   async bossName() {
     const row = await prisma.setting.findUnique({ where: { key: BOSS_NAME_SETTING } });
     return typeof row?.value === "string" && row.value.trim() ? row.value.trim() : BOSS_DEFAULT_NAME;
+  },
+
+  async workerDown() {
+    if (workerDownCache && workerDownCache.until > Date.now()) return workerDownCache.value;
+    let value: boolean | null;
+    try {
+      // Lecture courte : Redis injoignable = doute (la mise en file le dira), jamais d'attente dans le webhook.
+      const read = readHeartbeat(getRedis()).then((r) => isWorkerDown(r.heartbeat));
+      value = await Promise.race([read, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref?.())]);
+    } catch {
+      value = null;
+    }
+    workerDownCache = { value, until: Date.now() + 15_000 };
+    return value;
   },
 
   async agentsAdminState(telegramUserId) {

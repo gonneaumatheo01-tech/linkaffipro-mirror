@@ -1,9 +1,13 @@
 import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import {
+  BOSS_MEMBER_AI_LIMIT_REPLY,
+  BOSS_TEAM_ERROR_REPLY,
   bossGroupMembership,
   bossTeamCallback,
+  bossTeamEditedMessage,
   bossTeamIncoming,
+  claimMemberAiTurn,
   findTeamMember,
   readBossGroupId,
   type AgentsDeps,
@@ -44,6 +48,7 @@ export function teamMessageOf(msg: Message, identity: BotIdentity, chatType: "pr
     replyTo: msg.reply_to_message ? { messageId: msg.reply_to_message.message_id, fromId: msg.reply_to_message.from ? BigInt(msg.reply_to_message.from.id) : null } : null,
     forwarded: Boolean(msg.forward_origin),
     hasMedia: inboxMediaOf(msg) !== null,
+    hasVoice: Boolean(msg.voice || msg.audio || msg.video_note),
     bot: { telegramId: identity.telegramBotId, username: identity.username },
   };
 }
@@ -68,7 +73,9 @@ async function act(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg:
         .deleteMessage(chatId, msg.message_id)
         .then(() => true)
         .catch(() => false);
-      await sendBossText(api, chatId, deleted ? out.ifDeleted : out.ifNotDeleted, { replyToMessageId: deleted ? null : msg.message_id });
+      // Texte vide : effacé en silence (personne non présentée déjà prévenue aujourd'hui).
+      const text = deleted ? out.ifDeleted : out.ifNotDeleted;
+      if (text) await sendBossText(api, chatId, text, { replyToMessageId: deleted ? null : msg.message_id });
       if (out.followUp) await out.followUp().catch((err) => console.error("[boss] secret redemandé en privé", (err as Error).message));
       return;
     }
@@ -81,6 +88,12 @@ async function act(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg:
       const fast = await engine.fastPath(agents, out.input);
       if (fast.handled) {
         await deliverBossReply({ api, chatId, messageId: msg.message_id, reply: fast, deps: agents, engine });
+        return;
+      }
+      // Coût : un membre a une limite de messages envoyés à l'IA par jour (l'admin, seulement le plafond mensuel).
+      const speaker = out.input.speaker;
+      if (speaker?.kind === "member" && !(await claimMemberAiTurn(agents, speaker.telegramUserId))) {
+        await sendBossText(api, chatId, BOSS_MEMBER_AI_LIMIT_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
         return;
       }
       await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
@@ -164,13 +177,34 @@ export async function handleBossGroupUpdate(ctx: Context, identity: BotIdentity,
   const agents = deps.agentsDeps();
   if (ctx.myChatMember) return onMembership(ctx, agents);
   if (ctx.callbackQuery) return onGroupCallback(ctx, deps, agents);
+  if (ctx.editedMessage) return onEdited(ctx, identity, agents, "group");
   const msg = ctx.message;
   if (!msg || !msg.from || msg.from.is_bot) return;
   const t = tools ?? { deposit: createLibraryDepositor(identity, deps), captionOf: createAlbumCaptions() };
   const base = teamMessageOf(msg, identity, "group");
   const caption = base.hasMedia ? t.captionOf(msg, msg.forward_origin?.type === "channel" ? "" : base.text) : base.text;
-  const out = await bossTeamIncoming(agents, { ...base, text: caption });
-  await act(ctx, identity, deps, msg, out, t);
+  await decideAndAct(ctx, identity, deps, msg, { ...base, text: caption }, t);
+}
+
+/** Décision puis exécution ; une erreur pendant l'exécution : « Oups… » si le message venait d'une personne connue. */
+async function decideAndAct(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg: Message, input: BossTeamMessage, tools: Tools): Promise<void> {
+  const out = await bossTeamIncoming(deps.agentsDeps!(), input);
+  try {
+    await act(ctx, identity, deps, msg, out, tools);
+  } catch (err) {
+    console.error("[boss] message d'équipe en échec", identity.username, (err as Error).message);
+    // `engine`, `reply`, `media` : décision prise pour l'admin ou un membre présenté (jamais pour un inconnu).
+    if (out.kind === "engine" || out.kind === "reply" || out.kind === "media")
+      await sendBossText(replyApiOf(ctx), msg.chat.id, BOSS_TEAM_ERROR_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
+  }
+}
+
+/** Message modifié : seulement le contrôle des secrets (supprimé s'il en contient un), sans réponse. */
+async function onEdited(ctx: Context, identity: BotIdentity, agents: AgentsDeps, chatType: "private" | "group"): Promise<void> {
+  const msg = ctx.editedMessage!;
+  if (!msg.from || msg.from.is_bot) return;
+  const r = await bossTeamEditedMessage(agents, teamMessageOf(msg, identity, chatType));
+  if (r.delete) await ctx.api.deleteMessage(msg.chat.id, msg.message_id).catch(() => undefined);
 }
 
 /** Privé d'un membre présenté (pas l'admin) : rend vrai si Kevin s'en est occupé (sinon chemin habituel, silence). */
@@ -189,12 +223,15 @@ async function handleMemberPrivate(ctx: Context, identity: BotIdentity, deps: Te
     if (r.reply) await sendBossText(replyApiOf(ctx), from.id, r.reply).catch(() => undefined);
     return true;
   }
+  if (ctx.editedMessage) {
+    await onEdited(ctx, identity, agents, "private");
+    return true;
+  }
   const msg = ctx.message;
   if (!msg) return true;
   const base = teamMessageOf(msg, identity, "private");
   const caption = base.hasMedia ? tools.captionOf(msg, msg.forward_origin?.type === "channel" ? "" : base.text) : base.text;
-  const out = await bossTeamIncoming(agents, { ...base, text: caption });
-  await act(ctx, identity, deps, msg, out, tools);
+  await decideAndAct(ctx, identity, deps, msg, { ...base, text: caption }, tools);
   return true;
 }
 

@@ -43,6 +43,10 @@ describe("files des agents", () => {
     expect(d.added).toHaveLength(1);
     await enq.orchestrator({ type: "cycle" }, { delayMs: 1000 });
     expect(queues.get("agents-orchestrator")!.added[0]).toMatchObject({ name: "agents-orchestrator:cycle", opts: { delay: 1000 } });
+    expect(queues.get("agents-orchestrator")!.added[0]!.opts).not.toHaveProperty("removeOnComplete");
+    // Phase 26 : le texte de l'admin (`boss-text`) ne reste pas dans Redis après traitement.
+    await enq.orchestrator({ type: "boss-text", text: "salut" }, { jobId: "boss-text:b:1" });
+    expect(queues.get("agents-orchestrator")!.added[1]).toMatchObject({ name: "agents-orchestrator:boss-text", opts: { jobId: "boss-text-b-1", removeOnComplete: true } });
   });
 
   it("une tâche terminée ou échouée du même identifiant est remise (reprise)", async () => {

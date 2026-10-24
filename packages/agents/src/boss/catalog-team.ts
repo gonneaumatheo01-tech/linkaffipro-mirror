@@ -1,8 +1,10 @@
 /**
  * Entrées du catalogue du Boss pour l'équipe du groupe (phase 26, section 4) : présenter, modifier, retirer un membre,
  * « qui fait quoi ? », et (cachée, jamais proposée à l'IA) le changement de groupe confirmé par l'admin en privé.
- * L'identifiant Telegram d'une personne vient TOUJOURS de Telegram (mention avec identifiant, nom d'utilisateur déjà
- * vu par Kevin, ou l'auteur qui se présente lui-même), jamais d'un texte inventé par l'IA. Droits : `team/rights.ts`.
+ * L'identifiant Telegram d'une personne vient TOUJOURS de Telegram (mention cliquable avec identifiant, nom
+ * d'utilisateur déjà vu par Kevin, membre déjà noté), jamais d'un texte inventé par l'IA. Un PRÉNOM seul (prénom
+ * Telegram, libre) ou une présentation en attente (« voici @lea » avant que Léa n'écrive) n'enregistre rien sans un OUI
+ * de l'admin, qui voit @nom, prénom et identifiant (`confirmer_membre`, cachée). Droits : `team/rights.ts`.
  */
 import { esc, nowOf } from "../admin/journal";
 import type { BossAction, BossDeps, BossReply, BossSpeaker, TeamMemberKind, TeamMemberTeam } from "./contract";
@@ -13,6 +15,8 @@ import { normName } from "./resolve";
 import type { MentionRef } from "./team/addressed";
 import {
   MEMBER_KIND_LABELS,
+  TEAM_MEMBER_KINDS,
+  TEAM_MEMBER_TEAMS,
   activeTeamMembers,
   addPendingIntro,
   adminFirstName,
@@ -30,12 +34,19 @@ import {
 import { parseKindList, parseReturnDate, parseTeamList } from "./team/parse";
 import { activeBossGroup, claimDeleteRightAsk, claimGroupWelcome, readBossGroupId, setBossGroup } from "./team/group";
 import { adminTelegramId } from "../admin/journal";
+import { createBossPending, rememberBossPendingMessage } from "./confirm";
 
 const PERSON_DESC =
   "La personne : « @nom » tel qu'écrit, son prénom, ou « moi » si la personne parle d'elle-même. Recopie tel quel, n'invente jamais d'identifiant";
 
 type Person = { id: bigint; username: string | null; firstName: string | null };
-type Found = { kind: "found"; person: Person; member: TeamMemberRow | null } | { kind: "unseen"; username: string } | { kind: "unknown"; raw: string } | { kind: "ambiguous"; names: string[] };
+type Found =
+  | { kind: "found"; person: Person; member: TeamMemberRow | null }
+  /** Retrouvée par son prénom Telegram seulement (libre, n'importe qui peut le porter) : rien sans un OUI de l'admin. */
+  | { kind: "uncertain"; person: Person }
+  | { kind: "unseen"; username: string }
+  | { kind: "unknown"; raw: string }
+  | { kind: "ambiguous"; names: string[] };
 
 function speakerOf(deps: BossDeps): BossSpeaker | null {
   return (deps as BossExecDeps).speaker ?? null;
@@ -63,7 +74,8 @@ export async function findPerson(deps: BossDeps, raw: string | undefined): Promi
     const m = mentions.find((x) => x.username?.toLowerCase() === username.toLowerCase());
     return personFromMention(deps, m ?? { username }, members);
   }
-  // Prénom : mention cliquable portant ce prénom, membre (même retiré : on le reprend), personne vue dans le groupe.
+  // Prénom : mention cliquable portant ce prénom (identifiant donné par Telegram), membre déjà noté (même retiré : on
+  // le reprend), sinon personne vue dans le groupe avec ce prénom — INCERTAIN (un prénom Telegram est libre).
   const n = normName(text);
   const byMention = mentions.filter((x) => x.telegramUserId && normName(x.firstName ?? "") === n);
   if (byMention.length === 1) return personFromMention(deps, byMention[0]!, members);
@@ -72,13 +84,10 @@ export async function findPerson(deps: BossDeps, raw: string | undefined): Promi
   if (active.length > 1) return { kind: "ambiguous", names: active.map((m) => `${m.firstName}${m.username ? ` (@${m.username})` : ""}`) };
   const admin = await adminTelegramId(deps);
   const seen = (await readSeenPeople(deps)).filter((p) => (normName(p.firstName ?? "") === n || normName(p.username ?? "") === n) && BigInt(p.id) !== admin);
-  if (seen.length === 1) {
-    const id = BigInt(seen[0]!.id);
-    return { kind: "found", person: { id, username: seen[0]!.username, firstName: seen[0]!.firstName }, member: memberOf(id) };
-  }
-  if (seen.length > 1) return { kind: "ambiguous", names: seen.map((p) => `${p.firstName ?? "?"}${p.username ? ` (@${p.username})` : ""}`) };
   const removed = members.filter((m) => normName(m.firstName) === n);
   if (removed.length === 1) return { kind: "found", person: { id: removed[0]!.telegramUserId, username: removed[0]!.username, firstName: removed[0]!.firstName }, member: removed[0]! };
+  if (seen.length === 1) return { kind: "uncertain", person: { id: BigInt(seen[0]!.id), username: seen[0]!.username, firstName: seen[0]!.firstName } };
+  if (seen.length > 1) return { kind: "ambiguous", names: seen.map((p) => `${p.firstName ?? "?"}${p.username ? ` (@${p.username})` : ""}`) };
   return { kind: "unknown", raw: text };
 }
 
@@ -89,15 +98,23 @@ async function personFromMention(deps: BossDeps, m: MentionRef, members: TeamMem
   }
   const u = (m.username ?? "").toLowerCase();
   if (!u) return { kind: "unknown", raw: "" };
-  const member = members.find((x) => x.username?.toLowerCase() === u);
+  // Nom d'utilisateur (unique chez Telegram) : membre actif, sinon personne vue (nom tel que Telegram l'a montré),
+  // sinon ancien membre ; jamais par prénom.
+  const member = members.find((x) => !x.removedAt && x.username?.toLowerCase() === u);
   if (member) return { kind: "found", person: { id: member.telegramUserId, username: member.username, firstName: member.firstName }, member };
   const seen = (await readSeenPeople(deps)).find((p) => p.username?.toLowerCase() === u);
-  if (seen) return { kind: "found", person: { id: BigInt(seen.id), username: seen.username, firstName: seen.firstName }, member: null };
+  if (seen) {
+    const id = BigInt(seen.id);
+    return { kind: "found", person: { id, username: seen.username, firstName: seen.firstName }, member: members.find((x) => x.telegramUserId === id) ?? null };
+  }
+  const old = members.find((x) => x.username?.toLowerCase() === u);
+  if (old) return { kind: "found", person: { id: old.telegramUserId, username: old.username, firstName: old.firstName }, member: old };
   return { kind: "unseen", username: m.username! };
 }
 
 function notFoundReply(f: Exclude<Found, { kind: "found" }>, bossName = "Kevin"): BossReply {
   if (f.kind === "ambiguous") return lines(`Plusieurs personnes possibles : ${f.names.map(esc).join(", ")}.`, "Mentionne la bonne avec @.");
+  if (f.kind === "uncertain") return { reply: "Mentionne la personne avec @ : je ne me fie pas à un prénom seul." };
   if (f.kind === "unseen") return lines(`Je n'ai encore jamais vu @${esc(f.username)} écrire ici.`, `@${esc(f.username)}, dis-moi juste « ${esc(bossName)}, salut » et c'est réglé.`);
   return { reply: "Je ne vois pas de qui tu parles : mentionne la personne avec @ (« voici @lea »), ou demande-lui de m'écrire un mot ici." };
 }
@@ -162,6 +179,23 @@ export const presenterMembre = defineAction<PresentP>({
     const kinds = parsedKinds.length ? parsedKinds : fromRole.kinds;
     // Seul l'admin nomme un responsable ; un responsable présente des membres.
     const role: TeamMemberRole = p.responsable && (!speaker || speaker.kind === "admin") ? "MANAGER" : "MEMBER";
+    if (f.kind === "uncertain") {
+      const admin = await adminTelegramId(deps);
+      if (admin && f.person.id === admin) return { reply: "Toi, je te connais déjà : tu as tous les droits 🙂" };
+      if (speaker && speaker.kind === "member" && f.person.id === speaker.telegramUserId) return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+      // Prénom seul : l'admin confirme qui c'est (@nom, prénom, identifiant) avant que rien ne soit noté.
+      return askMemberConfirmation(deps, {
+        person: f.person,
+        firstName: (p.prenom ?? f.person.firstName ?? f.person.username ?? "?").slice(0, 40),
+        roleLabel: p.role ?? null,
+        teams,
+        kinds,
+        role,
+        by: speaker?.telegramUserId ?? null,
+        reason: "prenom",
+        said: p.personne,
+      });
+    }
     if (f.kind !== "found") {
       if (f.kind === "unseen")
         await addPendingIntro(deps, {
@@ -281,6 +315,9 @@ export const modifierMembre = defineAction<EditP>({
     if (!m) return { reply: `${esc(f.person.firstName ?? "Cette personne")} ne m'a pas encore été présenté·e. Dis par exemple « voici @${esc(f.person.username ?? "nom")}, elle s'occupe de … ».` };
     const speaker = speakerOf(deps);
     const isAdmin = !speaker || speaker.kind === "admin";
+    // Un simple membre ne touche qu'à SA fiche, et seulement pour une note : comparé par IDENTIFIANT, jamais par prénom.
+    if (speaker && speaker.kind === "member" && speaker.role === "MEMBER" && (m.telegramUserId !== speaker.telegramUserId || !isNoteOnlyEdit(p as Record<string, unknown>)))
+      return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
     const now = nowOf(deps);
     const data: Record<string, unknown> = {};
     const said: string[] = [];
@@ -382,6 +419,116 @@ export const quiFaitQuoi = defineAction<Record<string, never>>({
   },
 });
 
+// ------------------------------------------------------------------------------------------- confirmer_membre (cachée)
+
+export type MemberConfirmInput = {
+  person: Person;
+  firstName: string;
+  roleLabel: string | null;
+  teams: TeamMemberTeam[];
+  kinds: TeamMemberKind[];
+  role: TeamMemberRole;
+  by: bigint | null;
+  /** « prenom » : retrouvée par son prénom seul ; « attente » : présentation en attente, la personne vient d'écrire. */
+  reason: "prenom" | "attente";
+  /** Ce que l'admin a dit (« Léa »), pour la question. */
+  said?: string | null;
+};
+
+/** « @lea, prénom « Léa », identifiant 7001 » (pur). */
+export function personIdentityText(p: Person): string {
+  return `${p.username ? `@${p.username}` : "sans nom d'utilisateur"}, prénom « ${p.firstName?.trim() || "?"} », identifiant ${p.id.toString()}`;
+}
+
+/** Les deux lignes de la question posée à l'admin (pur). */
+export function memberConfirmSummary(input: MemberConfirmInput): string {
+  const who = personIdentityText(input.person);
+  const duty = memberDutyText({ roleLabel: input.roleLabel, responsibilities: { teams: input.teams, kinds: input.kinds } });
+  const first =
+    input.reason === "attente"
+      ? `${input.person.username ? `@${input.person.username}` : input.firstName} vient d'écrire (${who}) : c'est bien la personne que tu m'as présentée ?`
+      : `« ${input.said?.trim() || input.firstName} », c'est bien cette personne (${who}) ?`;
+  return `${first}
+Je la note alors : ${input.firstName}, ${duty}.`;
+}
+
+/**
+ * Fait confirmer par l'admin l'identité d'une personne avant de la noter (OUI / NON, une seule confirmation à la
+ * fois, 10 minutes). L'admin qui parle : la question part dans la même conversation. Sinon (un responsable, ou une
+ * présentation en attente) : en privé chez l'admin.
+ */
+export async function askMemberConfirmation(deps: BossDeps, input: MemberConfirmInput): Promise<BossReply> {
+  const params: Record<string, unknown> = {
+    telegram_id: input.person.id.toString(),
+    prenom: input.firstName.slice(0, 40),
+    ...(input.person.username ? { username: input.person.username.slice(0, 40) } : {}),
+    ...(input.roleLabel ? { role: input.roleLabel.slice(0, 160) } : {}),
+    ...(input.teams.length ? { equipes: input.teams.join(",") } : {}),
+    ...(input.kinds.length ? { natures: input.kinds.join(",") } : {}),
+    ...(input.role === "MANAGER" ? { responsable: true } : {}),
+    ...(input.by ? { par: input.by.toString() } : {}),
+  };
+  const summary = memberConfirmSummary(input);
+  const r = await createBossPending(deps, { actionKey: "confirmer_membre", params, summary });
+  const speaker = speakerOf(deps);
+  if (speaker?.kind === "admin") return r;
+  try {
+    const sent = await deps.admin?.send(r.reply ?? summary, { buttons: r.buttons });
+    if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[boss] confirmation d'une présentation non envoyée");
+  }
+  return { reply: `Je vérifie avec ${esc(await adminFirstName(deps))} avant de noter ${esc(input.firstName)} 👍` };
+}
+
+type ConfirmMemberP = { telegram_id: string; prenom: string; username?: string; role?: string; equipes?: string; natures?: string; responsable?: boolean; par?: string };
+
+const listOf = <T extends string>(raw: string | undefined, allowed: readonly T[]): T[] =>
+  [...new Set((raw ?? "").split(",").map((x) => x.trim()).filter((x): x is T => (allowed as readonly string[]).includes(x)))];
+
+/**
+ * Note une personne dont l'admin vient de confirmer l'identité. Jamais proposée à l'IA (hors catalogue visible) :
+ * créée par Kevin (`askMemberConfirmation`), exécutée seulement après un OUI de l'admin.
+ */
+export const confirmerMembre = defineAction<ConfirmMemberP>({
+  key: "confirmer_membre",
+  description: "Noter une personne de l'équipe dont l'admin a confirmé l'identité",
+  theme: "guide",
+  cls: "confirm",
+  spec: {
+    telegram_id: str("Identifiant Telegram", { maxLength: 20 }),
+    prenom: str("Prénom", { maxLength: 40 }),
+    username: str("Nom d'utilisateur", { optional: true, maxLength: 40 }),
+    role: str("Rôle en une ligne", { optional: true, maxLength: 160 }),
+    equipes: str("Équipes (clés)", { optional: true, maxLength: 60 }),
+    natures: str("Natures (clés)", { optional: true, maxLength: 60 }),
+    responsable: bool("Responsable", true),
+    par: str("Présentée par (identifiant)", { optional: true, maxLength: 20 }),
+  },
+  refine: (p) => (/^\d{3,20}$/.test(p.telegram_id) && (!p.par || /^\d{3,20}$/.test(p.par)) ? null : "identifiant invalide"),
+  async summarize(_deps, p) {
+    return `Noter ${p.prenom} (identifiant ${p.telegram_id}) dans l'équipe ?`;
+  },
+  async execute(deps, p) {
+    const id = BigInt(p.telegram_id);
+    const admin = await adminTelegramId(deps);
+    if (admin && id === admin) return { reply: "Toi, je te connais déjà : tu as tous les droits 🙂" };
+    const member = await upsertMember(deps, {
+      person: { id, username: p.username ?? null, firstName: p.prenom },
+      firstName: p.prenom,
+      roleLabel: p.role ?? null,
+      teams: listOf(p.equipes, TEAM_MEMBER_TEAMS),
+      kinds: listOf(p.natures, TEAM_MEMBER_KINDS),
+      role: p.responsable ? "MANAGER" : "MEMBER",
+      introducedBy: p.par ? BigInt(p.par) : null,
+    });
+    const r = introducedReply(member);
+    const group = await activeBossGroup(deps);
+    if (group && deps.admin?.sendTo) await deps.admin.sendTo(group, `${r.reply} Bienvenue ${esc(member.firstName)} 👋`).catch(() => null);
+    return r;
+  },
+});
+
 // ------------------------------------------------------------------------------------------- groupe_equipe (cachée)
 
 type GroupP = { chat_id: string; titre?: string };
@@ -416,4 +563,4 @@ export const groupeEquipe = defineAction<GroupP>({
 
 export const TEAM_MEMBER_ACTIONS: BossAction[] = [presenterMembre, modifierMembre, retirerMembre, quiFaitQuoi] as unknown as BossAction[];
 /** Entrées cachées : exécutables après un OUI, jamais proposées à l'IA. */
-export const HIDDEN_BOSS_ACTIONS: BossAction[] = [groupeEquipe] as unknown as BossAction[];
+export const HIDDEN_BOSS_ACTIONS: BossAction[] = [groupeEquipe, confirmerMembre] as unknown as BossAction[];

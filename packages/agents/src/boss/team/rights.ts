@@ -1,11 +1,14 @@
 /**
  * Phase 26, section 4 — droits de chacun auprès de Kevin (pur). Admin (`admin.telegramUserId`) : tout. Membre
  * présenté :
- * - MEMBER : lecture (état, chiffres, stock, rapport, « qui fait quoi ? ») et actions immédiates dans les équipes
- *   qu'il couvre (pause, reprise, « plus tard », réponses aux demandes et validations qui lui sont adressées) ; il peut
- *   aussi ajouter une note sur lui-même ;
+ * - MEMBER : liste FERMÉE (`BOSS_MEMBER_TEAM_KEYS`) : lecture (état, chiffres, stock, rapport, paris du jour,
+ *   bilan, « qui fait quoi ? »), pause et reprise de SES équipes, « plus tard » et réponses aux demandes et
+ *   validations qui lui sont adressées, une note sur lui-même. Rien d'autre (ni mode de capture, ni test du
+ *   bookmaker, ni annulation d'un réglage, ni recommandations pubs, ni plafond, ni quota…) : Kevin le transmet à
+ *   l'admin ;
  * - MANAGER (et ADMIN de l'équipe) : présenter, modifier, retirer des membres, et toutes les actions immédiates de
- *   toutes les équipes.
+ *   toutes les équipes, sauf répondre à une demande réservée à l'admin (`teamAdminOnlyRequest`) ou adressée à un
+ *   autre membre, ou posée dans une autre conversation.
  * Une action à confirmer (passage en vrai, hausse, dépense, publication) reste réservée à l'admin : Kevin la lui
  * transmet en le mentionnant. Personne ne se donne un rôle ou des droits par message (le rôle vient de la base).
  */
@@ -44,6 +47,16 @@ export const BOSS_ADMIN_ONLY_KEYS = new Set(["commencer", "annule", "groupe_equi
 /** Réponses aux demandes et décisions sur les validations : permises au membre à qui elles sont adressées. */
 export const BOSS_ASSIGNED_KEYS = new Set(["repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post"]);
 
+/** Réponses à la demande en cours (une `HumanRequest`), par opposition aux validations. */
+export const BOSS_REQUEST_ANSWER_KEYS = new Set(["repondre_demande", "plus_tard"]);
+
+/**
+ * Actions immédiates qu'un simple membre (MEMBER) fait lui-même, dans SES équipes seulement. Liste fermée : toute
+ * autre action (mode de capture, test du bookmaker, annulation d'un réglage, « fait » / « refuser » des pubs,
+ * plafonds, quotas, plan d'un canal…) part chez l'admin.
+ */
+export const BOSS_MEMBER_TEAM_KEYS = new Set(["pause", "reprise"]);
+
 const THEME_TEAM: Record<string, TeamMemberTeam> = {
   rencontres: "dating",
   casino: "casino",
@@ -72,6 +85,11 @@ export type BossRightsScope = {
   assignedToSpeaker?: boolean;
   /** La cible de `modifier_membre` est la personne qui parle et seule une note change. */
   selfNoteOnly?: boolean;
+  /**
+   * Demande en cours (pour `repondre_demande` / `plus_tard` d'un responsable, voir `bossRequestScope`) : réservée à
+   * l'admin, adressée à un autre membre, posée dans une autre conversation. Absent = inconnu = refusé au responsable.
+   */
+  request?: { adminOnly: boolean; assignedToOther: boolean; otherChat: boolean } | null;
 };
 
 /**
@@ -85,9 +103,19 @@ export function bossRightsAllow(action: Pick<BossAction, "key" | "cls" | "theme"
   if (BOSS_READ_KEYS.has(action.key)) return true;
   const manager = speaker.role === "MANAGER" || speaker.role === "ADMIN";
   if (BOSS_TEAM_ADMIN_KEYS.has(action.key)) return manager || (action.key === "modifier_membre" && scope.selfNoteOnly === true);
-  if (BOSS_ASSIGNED_KEYS.has(action.key)) return scope.assignedToSpeaker === true || (manager && cls === "immediate");
+  if (BOSS_ASSIGNED_KEYS.has(action.key)) {
+    if (scope.assignedToSpeaker === true) return true;
+    if (!manager || cls !== "immediate") return false;
+    // Un responsable ne répond pas à une question réservée à l'admin, adressée à quelqu'un d'autre, ou posée ailleurs.
+    if (BOSS_REQUEST_ANSWER_KEYS.has(action.key)) {
+      const r = scope.request;
+      return !!r && !r.adminOnly && !r.assignedToOther && !r.otherChat;
+    }
+    return true;
+  }
   if (cls === "confirm") return false;
   if (manager) return true;
+  if (!BOSS_MEMBER_TEAM_KEYS.has(action.key)) return false;
   const team = actionTeam(action, scope.params);
   if (!team) return false;
   const teams = scope.teams ?? [];

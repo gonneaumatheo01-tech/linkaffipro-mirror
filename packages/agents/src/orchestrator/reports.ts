@@ -1,7 +1,8 @@
 /**
  * Rapport quotidien du Grand Chef (9 h Paris) : une ligne par équipe (publiés et refusés la veille, en attente, dépense
  * du mois et plafond). Enregistré comme `Event` `agents.report.daily` (`{ day, lines }`, le site affiche les 3
- * derniers) et envoyé à l'admin, sauf si `Setting` `agents.dailyReport` vaut « non ». Une fois par jour.
+ * derniers) et envoyé à l'admin, sauf si `Setting` `agents.dailyReport` vaut « non ». Une fois par jour. Phase 26 :
+ * résumé de 5 lignes en plus dans le groupe de l'équipe (même préférence, sauf `boss.group.morning` explicite).
  */
 import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent, nowOf } from "../admin/journal";
@@ -127,17 +128,21 @@ export async function sendDailyReport(deps: AgentsDeps, opts: { force?: boolean 
     update: { value: report.day },
   });
   await agentEvent(deps, "agents.report.daily", { day: report.day, lines: report.lines });
-  // Phase 26 : dès qu'un groupe de l'équipe existe, le rapport du matin part dans le groupe (5 lignes, avec les @) et
-  // remplace l'envoi privé ; s'il ne part pas (groupe injoignable), l'envoi privé habituel suit.
-  const group = await groupForMorning(deps).catch(() => null);
-  if (group && (await sendGroupMorningReport(deps, group))) return { sent: true, recorded: true, day: report.day };
+  // Phase 26 : le rapport détaillé reste envoyé en privé à l'admin s'il le veut (`agents.dailyReport`) ; le groupe de
+  // l'équipe reçoit EN PLUS le résumé de 5 lignes (avec les @), seulement si l'admin veut le rapport du matin, sauf si
+  // `boss.group.morning` a été explicitement activé (ou désactivé). Le groupe ne remplace jamais l'envoi privé.
   const pref = await deps.prisma.setting.findUnique({ where: { key: DAILY_REPORT_SETTING } });
-  if (!deps.admin || !reportEnabled(pref?.value)) return { sent: false, recorded: true, day: report.day };
-  try {
-    await deps.admin.send([`📋 <b>Rapport des agents</b> (${report.day})`, ...report.lines.map((l) => `• ${escapeHtml(l)}`)].join("\n"));
-    return { sent: true, recorded: true, day: report.day };
-  } catch (err) {
-    deps.logger?.warn({ err: (err as Error).message }, "[agents] rapport non envoyé");
-    return { sent: false, recorded: true, day: report.day };
+  const privateEnabled = reportEnabled(pref?.value);
+  let sentPrivate = false;
+  if (deps.admin && privateEnabled) {
+    try {
+      await deps.admin.send([`📋 <b>Rapport des agents</b> (${report.day})`, ...report.lines.map((l) => `• ${escapeHtml(l)}`)].join("\n"));
+      sentPrivate = true;
+    } catch (err) {
+      deps.logger?.warn({ err: (err as Error).message }, "[agents] rapport non envoyé");
+    }
   }
+  const group = await groupForMorning(deps, { privateEnabled }).catch(() => null);
+  const sentGroup = group ? await sendGroupMorningReport(deps, group).catch(() => false) : false;
+  return { sent: sentPrivate || sentGroup, recorded: true, day: report.day };
 }

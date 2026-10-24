@@ -187,7 +187,7 @@ function registerStandardHandlers(
 /**
  * Phase 26 : le Boss (`role: ADMIN`). Journal de toute update (secrets masqués), mais ni canal créé ou suivi, ni membre
  * enregistré. Groupes : point d'accroche du mode équipe (`handlers/boss-group.ts`). Privé : dialogue admin seulement
- * (boutons, vocaux, textes, médiathèque, dernier filet) ; toute autre personne, `/start` compris : silence total.
+ * (boutons, vocaux, textes, médiathèque, emojis animés de l'admin, dernier filet) ; toute autre personne, `/start` compris : silence total.
  */
 function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
   bot.use(async (ctx, next) => {
@@ -200,6 +200,9 @@ function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): 
   registerBossGroupHandlers(bot, identity, deps);
   registerAgentsAdminHandlers(bot, identity, deps);
   registerMediaInboxHandlers(bot, identity, deps);
+  // Emojis animés de l'admin (transférés, ou envoyés seuls) : bibliothèque d'emojis, comme sur les autres bots
+  // (jamais d'ajout de canal par le Boss).
+  registerCustomEmojiHandlers(bot, identity, deps, new RecentKeys(), { boss: true });
   registerAdminDialogFallback(bot, identity, deps);
   bot.catch((err) => {
     console.error("[telegram] erreur handler (Boss)", identity.username, err.error);

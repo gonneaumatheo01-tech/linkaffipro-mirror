@@ -65,13 +65,81 @@ export function looksLikeSecretValue(text: string): boolean {
   return t.length >= 16 && !/\s/.test(t) && /\p{L}/u.test(t) && /\d/.test(t) && !/^https?:\/\//i.test(t);
 }
 
+/** Accusés courts (« fait », « merci », « ok », « c'est bon »…) : jamais une réponse ni un secret. */
+const ACK_WORDS = new Set([
+  "fait", "c'est fait", "cest fait", "merci", "merci beaucoup", "ok", "okay", "oki", "okk", "d'accord", "daccord", "dac",
+  "c'est bon", "cest bon", "super", "parfait", "top", "nickel", "cool", "genial", "bien", "tres bien", "bien recu",
+  "recu", "vu", "yes", "oui", "non", "ouais", "attends", "attend", "une seconde", "2 sec", "je regarde", "je cherche",
+  "bravo", "trop bien", "lol", "mdr", "hello", "salut", "bonjour", "bonsoir", "coucou", "ca marche", "ça marche",
+]);
+
+/** Le texte n'est-il fait que d'emojis (et d'espaces) ? */
+export function isEmojiOnly(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  return t.replace(/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}\s]/gu, "") === "" && /\p{Extended_Pictographic}/u.test(t);
+}
+
+/** Accusé court ou emojis seuls (pur) : « fait », « merci », « ok », « c'est bon », « super », « 👍🎉 ». */
+export function isAckText(text: string): boolean {
+  if (isEmojiOnly(text)) return true;
+  const n = normalizeText(text).replace(/^["«»\s]+|["«»\s]+$/g, "").replace(/[\s\p{Extended_Pictographic}\u{FE0F}!.]+$/gu, "").trim();
+  return ACK_WORDS.has(n);
+}
+
+/** Mots seuls qui sont des commandes du dialogue (jamais pris pour un secret collé). */
+const SINGLE_WORD_COMMANDS = new Set(["agents", "agent", "demandes", "demande", "rapport", "rapports", "aide", "help", "menu", "commencer", "annule", "annuler", "stop", "/start", "/aide", "/help", "?"]);
+
+/** Formes « c'est <valeur> », « voici <valeur> », « le voici : <valeur> » (2 ou 3 mots) : la valeur. */
+const INTRO_VALUE = /^(?:c'est|c’est|voici|voila|voilà|tiens|la voici|le voici|la voila|le voila)\s*:?\s+(\S+)$/iu;
+/** « mot de passe / mdp / password / pass / identifiant / login » puis la valeur (mots de liaison sautés). */
+const HINT_HEAD = /(?<![\p{L}\p{N}])(?:mots?\s+de\s+passe|mdp|passwords?|pass|identifiants?|logins?)(?![\p{L}\p{N}])/giu;
+const HINT_FILLERS = new Set(["c'est", "c’est", "cest", "est", "ce", "sera", "du", "de", "des", "d'", "pour", "le", "la", "les", "mon", "ma", "ton", "ta", "sur", "chez", "fal", "cotes", "odds", "magichour", "sportaza", "bookmaker", "=", ":", "->", "→", "-", "–", "est-ce"]);
+
 /**
- * Une demande SECRET accepte-t-elle ce texte envoyé SANS « répondre » au message de la question ? Identifiant de
- * compte (`.login`) : jamais (seulement en réponse au message). Autre clé : seulement s'il ressemble à une clé.
+ * Valeur d'un secret écrit en phrase (pur) : « le mot de passe c'est Sportaza2024! » → « Sportaza2024! », « mdp :
+ * x » → « x ». Null si aucune valeur ne suit le mot repère.
  */
-export function secretAcceptsUnreplied(key: string, text: string): boolean {
-  if (/\.login$/.test(key)) return false;
-  return looksLikeSecretValue(text);
+export function hintedSecretValue(text: string): string | null {
+  HINT_HEAD.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let found: string | null = null;
+  while ((m = HINT_HEAD.exec(text))) {
+    const rest = text.slice(m.index + m[0].length).trim().split(/\s+/).filter(Boolean);
+    const word = rest.find((w) => !HINT_FILLERS.has(w.toLowerCase().replace(/[:,;]+$/u, "")) && !/^[:;,.!?…=\-–—>→]+$/u.test(w));
+    if (word && !/^(suivi|telegram)$/i.test(word.replace(/[^\p{L}]/gu, ""))) found = word.replace(/^[:=]+/, "");
+  }
+  return found;
+}
+
+/**
+ * Valeur d'un secret envoyé SANS « répondre » pendant une demande SECRET en cours (y compris un identifiant `.login`
+ * ou un mot de passe court) : le message EST le secret s'il tient en un mot (sauf accusé court, emojis seuls,
+ * « plus tard » ou commande d'un mot), ou s'il l'annonce (« c'est X », « le mot de passe c'est X »). Une phrase
+ * ordinaire (« voici des emojis 🎉🎉 », « mets le casino en pause ») n'en est pas un. Null sinon.
+ */
+export function secretValueOf(text: string): string | null {
+  const t = text.trim();
+  if (!t || isSkipText(t) || isAckText(t)) return null;
+  if (!/\s/.test(t)) {
+    if (SINGLE_WORD_COMMANDS.has(normalizeText(t))) return null;
+    return t;
+  }
+  const intro = INTRO_VALUE.exec(t);
+  if (intro && !isAckText(intro[1]!)) return intro[1]!;
+  const hinted = hintedSecretValue(t);
+  if (hinted) return hinted;
+  // « voici la clé fal sk-… » : le seul long mot qui ressemble à une clé.
+  const keys = t.split(/\s+/).filter((w) => looksLikeSecretValue(w));
+  return keys.length === 1 ? keys[0]! : null;
+}
+
+/**
+ * Une demande SECRET accepte-t-elle ce texte envoyé SANS « répondre » au message de la question ? Oui quand
+ * `secretValueOf` y trouve une valeur (identifiant `.login` compris).
+ */
+export function secretAcceptsUnreplied(_key: string, text: string): boolean {
+  return secretValueOf(text) !== null;
 }
 
 /** 4 derniers caractères d'un secret, jamais plus. */

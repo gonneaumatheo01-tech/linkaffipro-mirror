@@ -21,6 +21,13 @@ export type BossClarify = {
   options: ClarifyOption[];
   createdAt: string;
   expiresAt: string;
+  /**
+   * Qui a reçu la question : « admin », ou l'identifiant Telegram du membre (chaîne). Seule cette personne y répond
+   * par le numéro, avec SES droits. Absent (ancienne question) = l'admin.
+   */
+  askedBy?: string | null;
+  /** Conversation de la question (chaîne d'un BigInt) ; absente = n'importe laquelle de l'admin. */
+  chatId?: string | null;
 };
 export const BOSS_CLARIFY_SETTING = "boss.clarify";
 export const BOSS_CLARIFY_TTL_MS = 10 * 60_000;
@@ -130,13 +137,31 @@ export function matchNames<T extends Named>(raw: string, items: readonly T[]): T
   return items.filter((i) => names(i).some((x) => closeEnough(x, n) || x.split(" ").some((y) => y.length >= 4 && closeEnough(y, n))));
 }
 
-/** Mémorise la question numérotée (réponse par le numéro) et rend la réponse à afficher. */
+/** Auteur d'un message pour une question numérotée : « admin » ou l'identifiant du membre (pur). */
+export function clarifyOwnerOf(speaker?: { kind: string; telegramUserId: bigint } | null): string {
+  return speaker && speaker.kind === "member" ? speaker.telegramUserId.toString() : "admin";
+}
+
+/** Cette réponse par numéro vient-elle de la personne et de la conversation de la question (pur) ? */
+export function clarifyIsFor(
+  clarify: Pick<BossClarify, "askedBy" | "chatId">,
+  input: { speaker?: { kind: string; telegramUserId: bigint } | null; chatId?: bigint | null },
+): boolean {
+  if ((clarify.askedBy ?? "admin") !== clarifyOwnerOf(input.speaker)) return false;
+  return !clarify.chatId || input.chatId == null || clarify.chatId === input.chatId.toString();
+}
+
+/**
+ * Mémorise la question numérotée (réponse par le numéro) et rend la réponse à afficher. L'auteur et la conversation
+ * viennent des dépendances d'exécution du Boss (`speaker`, `chat`) quand l'action les a.
+ */
 export async function askToChoose(
   deps: AgentsDeps,
   input: { actionKey: string; params: Record<string, unknown>; field: string; question: string; options: ClarifyOption[] },
 ): Promise<BossReply> {
   const now = nowOf(deps);
   const options = input.options.slice(0, 9);
+  const who = deps as AgentsDeps & { speaker?: { kind: string; telegramUserId: bigint } | null; chat?: { chatId: bigint } | null };
   const clarify: BossClarify = {
     actionKey: input.actionKey,
     params: input.params,
@@ -144,6 +169,8 @@ export async function askToChoose(
     options,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + BOSS_CLARIFY_TTL_MS).toISOString(),
+    askedBy: clarifyOwnerOf(who.speaker),
+    chatId: who.chat?.chatId != null ? who.chat.chatId.toString() : null,
   };
   await writeSetting(deps, BOSS_CLARIFY_SETTING, clarify);
   return {

@@ -62,6 +62,11 @@ export type AgentsAdminState = {
   secretPending: boolean;
   pendingSecret?: { key: string; telegramMessageId: number | null } | null;
   secretMessageIds?: number[];
+  /**
+   * Phase 26 : messages des demandes SECRET posées par l'ancien bot du dialogue admin (avant la bascule vers Kevin).
+   * Masquage du journal des bots de canal seulement ; jamais pour reconnaître une réponse.
+   */
+  retiredSecretMessageIds?: number[];
 };
 
 export interface TelegramDeps {
@@ -173,6 +178,11 @@ export interface TelegramDeps {
   bossEngine?: BossEngine;
   /** Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut, `BOSS_DEFAULT_NAME`). */
   bossName?(): Promise<string>;
+  /**
+   * Phase 26 : le service d'arrière-plan (worker) est-il arrêté ? Vrai si le battement `worker:heartbeat` est absent ou
+   * a plus de 3 minutes ; `null` si la lecture est impossible (doute). Absent : jamais considéré arrêté.
+   */
+  workerDown?(): Promise<boolean | null>;
 }
 
 /** Résultat d'une re-vérification des droits pour le bot (méthode 1). */

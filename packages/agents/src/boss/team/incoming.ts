@@ -10,15 +10,16 @@
  *   médias : le bot le range comme en privé ;
  * - `engine` : message adressé à Kevin par une personne connue → chemin rapide puis interprète (droits vérifiés par
  *   `runBossAction`).
- * Ordre : groupe enregistré → secret → qui parle → réponse à la question ouverte → média → adressé ? → rôle réclamé →
- * moteur.
+ * Ordre : groupe enregistré → secret (même transféré) → qui parle → vocal → réponse à la question ouverte → média →
+ * adressé ? → rôle réclamé → moteur. Une erreur : « Oups… » pour l'admin ou un membre qui s'adressait à Kevin,
+ * silence pour les autres. Un message MODIFIÉ (`bossTeamEditedMessage`) : seulement le contrôle des secrets.
  */
 import { adminTelegramId, agentAudit, agentEvent, esc, nowOf, telegramActorUserId } from "../../admin/journal";
 import { isSecretAdminText, isSecretCommandText, parseAdminCommand, type SecretTextContext } from "../../admin/commands";
 import { askedMessageIdsOf, currentHumanRequest, formatQuestion, sendNextHumanRequest } from "../../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../../human/respond";
 import { interpretAnswer, isSkipText, looksLikeSecretValue, secretAcceptsUnreplied, type HumanRequestKindName } from "../../human/answer";
-import { hasLibraryKeyword } from "../../library/tags";
+import { hasLibraryKeyword, parseLibraryCaption } from "../../library/tags";
 import { decideValidation } from "../../validation/requests";
 import type { AgentsDeps } from "../../types";
 import type { BossChat, BossReply, BossSpeaker, BossTeamInput } from "../contract";
@@ -26,10 +27,12 @@ import { looksLikeBotToken, notYoursReply } from "../execute";
 import { looksLikeOrderOrQuestion } from "../fast";
 import { readBossName, writeBossTurn } from "../memory";
 import { createBossPending, rememberBossPendingMessage } from "../confirm";
-import { introducedReply, upsertMember } from "../catalog-team";
+import { askMemberConfirmation } from "../catalog-team";
 import { addressedToBoss, isHereWeWork, looksLikeRoleClaim, mentionsOf, type GroupEntity, type MentionRef } from "./addressed";
 import {
+  MEMBER_TEAM_LABELS,
   adminFirstName,
+  claimSecretNotice,
   claimUnknownReply,
   findTeamMember,
   readSeenPeople,
@@ -52,6 +55,8 @@ export type BossTeamMessage = {
   forwarded?: boolean;
   /** Photo, vidéo, animation ou document image / vidéo joint. */
   hasMedia?: boolean;
+  /** Message vocal, audio ou vidéo ronde (non écoutés dans le groupe). */
+  hasVoice?: boolean;
   bot: { telegramId: bigint; username: string };
 };
 
@@ -66,6 +71,11 @@ export const MEMBER_PRIVATE_WELCOME = (first: string, name: string) =>
   `Salut ${esc(first)}, c'est ${esc(name)} 👋 Ici, tu peux m'envoyer ce que je te demande (une clé, une réponse) sans que le groupe le voie. Pour le reste, parle-moi normalement ou écris aide.`;
 
 const ignore = (reason: string): BossTeamOutcome => ({ kind: "ignore", reason });
+
+/** Réponse quand le traitement d'un message échoue (admin ou membre qui s'adressait à Kevin). */
+export const BOSS_TEAM_ERROR_REPLY = "Oups, je n'ai pas réussi à traiter ton message. Réessaie dans un instant (ou écris aide).";
+/** Vocal adressé à Kevin dans le groupe (une réponse par message). */
+export const BOSS_GROUP_VOICE_REPLY = "Écris-le-moi ici, je n'écoute les vocaux qu'en privé.";
 const reply = (text: string, extra: Partial<BossReply> = {}): BossTeamOutcome => ({ kind: "reply", reply: { reply: text, ...extra } });
 
 /** Un long mot qui ressemble à une clé (lettres et chiffres, 20 caractères ou plus) dans le texte (pur). */
@@ -114,11 +124,36 @@ async function speakerOf(deps: AgentsDeps, from: BossTeamMessage["from"], adminI
   return { speaker: { kind: "member", telegramUserId: m.telegramUserId, memberId: m.id, role: m.role, firstName: m.firstName }, member: m };
 }
 
-/** Peut-on ranger un média de cette personne ? L'admin, ou un membre qui s'occupe des médias (pur). */
-export function mayDepositMedia(speaker: BossSpeaker, member: TeamMemberRow | null): boolean {
-  if (speaker.kind === "admin") return true;
+export type MediaDepositRight = { ok: true } | { ok: false; reason: "media" | "team"; team?: string | null };
+
+/**
+ * Peut-on ranger ce média de cette personne (pur) ? L'admin : toujours. Un membre : s'il s'occupe des médias, et si
+ * l'équipe de la légende (#casino, #dating, #paris…) est une équipe qu'il couvre (sans équipe dans la légende : il
+ * doit couvrir toutes les équipes).
+ */
+export function mediaDepositRight(speaker: BossSpeaker, member: TeamMemberRow | null, caption: string): MediaDepositRight {
+  if (speaker.kind === "admin") return { ok: true };
   const r = member ? responsibilitiesOf(member.responsibilities) : { teams: [], kinds: [] };
-  return r.kinds.length === 0 ? r.teams.length > 0 : r.kinds.includes("media");
+  const mediaOk = r.kinds.length === 0 ? r.teams.length > 0 : r.kinds.includes("media");
+  if (!mediaOk) return { ok: false, reason: "media" };
+  if (r.teams.length === 0) return { ok: true };
+  const team = parseLibraryCaption(caption)?.teamKey ?? null;
+  if (team && (r.teams as readonly string[]).includes(team)) return { ok: true };
+  return { ok: false, reason: "team", team };
+}
+
+/** Compatibilité : vrai si `mediaDepositRight` accepte (pur). */
+export function mayDepositMedia(speaker: BossSpeaker, member: TeamMemberRow | null, caption = ""): boolean {
+  return mediaDepositRight(speaker, member, caption).ok;
+}
+
+/** Refus poli d'un dépôt (pur). */
+export function mediaRefusalText(right: Exclude<MediaDepositRight, { ok: true }>, member: TeamMemberRow | null, admin: string): string {
+  if (right.reason === "media") return `Je ne range pas ce média : les vidéos et photos, ce n'est pas ce dont tu t'occupes. Demande à ${esc(admin)}.`;
+  const mine = member ? responsibilitiesOf(member.responsibilities).teams.map((t) => MEMBER_TEAM_LABELS[t]).join(", ") : "";
+  const label = right.team && right.team in MEMBER_TEAM_LABELS ? MEMBER_TEAM_LABELS[right.team as keyof typeof MEMBER_TEAM_LABELS] : null;
+  const what = label ? `${label}, ce n'est pas ton équipe` : "il manque l'équipe dans la légende (#casino, #dating, #paris)";
+  return `Je ne range pas ce média : ${what}${mine ? ` (tu t'occupes de ${esc(mine)})` : ""}. Demande à ${esc(admin)}.`;
 }
 
 type CurrentRequest = HumanRequestRow & { telegramMessageId: number | null; askedAt: Date | null; chatId?: bigint | null; assigneeTelegramId?: bigint | null };
@@ -177,8 +212,9 @@ async function maybeAnswer(
     }
     if (!isAssignee || msg.replyTo) return null;
   } else {
-    // Privé d'un membre : seulement une demande qui lui est adressée (posée dans le groupe).
-    if (speaker.kind !== "member" || assignee !== speaker.telegramUserId) return null;
+    // Privé d'un membre : jamais la conversation d'une question (posée dans le groupe) ; une clé passe par
+    // `memberPrivateSecret`. Rien n'est rempli d'ici.
+    return null;
   }
   if (!text.trim()) return null;
   if (isSkipText(text)) return answerRequest(deps, cur, text, speaker, chat, msg.messageId);
@@ -239,7 +275,14 @@ export async function askGroupReplacement(deps: AgentsDeps, input: { chatId: big
 async function secretOutcome(deps: AgentsDeps, msg: BossTeamMessage, speaker: BossSpeaker | null, member: TeamMemberRow | null, group: boolean): Promise<BossTeamOutcome> {
   const who = speaker?.firstName ?? msg.from.firstName ?? null;
   const link = privateLink(await bossUsername(deps));
-  await agentEvent(deps, group ? "boss.group.secret_removed" : "boss.member.secret_removed", { fromTelegramId: msg.from.id.toString() });
+  await agentEvent(deps, group ? "boss.group.secret_removed" : "boss.member.secret_removed", { fromTelegramId: msg.from.id.toString(), ...(msg.forwarded ? { forwarded: true } : {}) });
+  if (group && !speaker) {
+    // Personne non présentée : toujours effacé ; Kevin le dit au plus une fois par jour et par personne.
+    const say = await claimSecretNotice(deps, msg.from.id);
+    return say
+      ? { kind: "secret", ifDeleted: "🔒 J'ai effacé ce message : il ressemblait à une clé. Jamais de clé ici.", ifNotDeleted: "🔒 Efface ce message : il ressemble à une clé. Jamais de clé ici." }
+      : { kind: "secret", ifDeleted: "", ifNotDeleted: "" };
+  }
   if (speaker) {
     await writeBossTurn(deps, { role: "ADMIN", text: "", secret: true, source: "text", telegramMessageId: msg.messageId, chatId: msg.chat.id, fromTelegramId: msg.from.id });
     await writeBossTurn(deps, { role: "BOSS", text: "secret retiré", actionKey: "secret", status: "refused", telegramMessageId: msg.messageId, chatId: msg.chat.id });
@@ -270,6 +313,8 @@ async function secretOutcome(deps: AgentsDeps, msg: BossTeamMessage, speaker: Bo
 
 /** Clé envoyée en privé par le membre à qui la demande SECRET est adressée : rangée, message supprimé. */
 async function memberPrivateSecret(deps: AgentsDeps, msg: BossTeamMessage, speaker: BossSpeaker, text: string): Promise<BossTeamOutcome | null> {
+  // Un message transféré est une donnée : jamais rangé comme clé (il est seulement effacé plus loin).
+  if (msg.forwarded) return null;
   const cur = (await currentHumanRequest(deps)) as CurrentRequest | null;
   if (!cur || cur.kind !== "SECRET" || cur.assigneeTelegramId !== speaker.telegramUserId) return null;
   let value: string | null = null;
@@ -282,20 +327,24 @@ async function memberPrivateSecret(deps: AgentsDeps, msg: BossTeamMessage, speak
 
 /** Message d'une personne qui n'a pas (encore) été présentée : présentation en attente, ou « je ne te connais pas ». */
 async function unknownPerson(deps: AgentsDeps, msg: BossTeamMessage, addressed: boolean, group: boolean): Promise<BossTeamOutcome> {
-  const intro = await takePendingIntro(deps, { username: msg.from.username });
+  const intro = group ? await takePendingIntro(deps, { username: msg.from.username }) : null;
   if (intro) {
-    const member = await upsertMember(deps, {
+    // Le nom d'utilisateur seul ne prouve rien (il a pu être pris par quelqu'un d'autre) : l'admin confirme en privé,
+    // en voyant @nom, prénom et identifiant. Rien n'est noté avant son OUI.
+    const firstName = (intro.firstName ?? msg.from.firstName ?? msg.from.username ?? "?").slice(0, 40);
+    await askMemberConfirmation(deps, {
       person: { id: msg.from.id, username: msg.from.username, firstName: msg.from.firstName },
-      firstName: (intro.firstName ?? msg.from.firstName ?? msg.from.username ?? "?").slice(0, 40),
+      firstName,
       roleLabel: intro.roleLabel,
       teams: intro.teams,
       kinds: intro.kinds,
       role: intro.role,
-      introducedBy: intro.by && /^\d+$/.test(intro.by) ? BigInt(intro.by) : null,
+      by: intro.by && /^\d+$/.test(intro.by) ? BigInt(intro.by) : null,
+      reason: "attente",
     });
-    await agentAudit(deps, { userId: null, action: "boss.presenter_membre", entityType: "TeamMember", entityId: member.id, metadata: { via: "TELEGRAM", telegramActorId: intro.by, pendingIntro: true } });
-    const r = introducedReply(member);
-    return reply(`${r.reply} Bienvenue ${esc(member.firstName)} 👋`);
+    await agentAudit(deps, { userId: null, action: "boss.presenter_membre", entityType: "TeamMember", entityId: msg.from.id.toString(), metadata: { via: "TELEGRAM", telegramActorId: intro.by, pendingIntro: true, status: "confirm" } });
+    if (!addressed) return ignore("présentation à confirmer");
+    return reply(`Salut ${esc(firstName)} 👋 Je vérifie avec ${esc(await adminFirstName(deps))} et je reviens vers toi.`);
   }
   if (!group || !addressed) return ignore("inconnu");
   if (!(await claimUnknownReply(deps, msg.from.id))) return ignore("inconnu déjà prévenu aujourd'hui");
@@ -316,7 +365,48 @@ export async function bossTeamIncoming(deps: AgentsDeps, msg: BossTeamMessage): 
     return await incoming(deps, msg);
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message }, "[boss] message d'équipe en échec");
-    return ignore("erreur");
+    return (await errorOutcomeFor(deps, msg).catch(() => null)) ?? ignore("erreur");
+  }
+}
+
+/**
+ * Après une erreur : « Oups… » si le message venait de l'admin ou d'un membre présenté et s'adressait à Kevin (dans le
+ * groupe enregistré, ou en privé d'un membre) ; sinon silence.
+ */
+export async function errorOutcomeFor(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTeamOutcome | null> {
+  const adminId = await adminTelegramId(deps);
+  const known = (!!adminId && msg.from.id === adminId) || !!(await findTeamMember(deps, msg.from.id));
+  if (!known) return null;
+  if (msg.chat.type === "group") {
+    if ((await readBossGroupId(deps)) !== msg.chat.id) return null;
+    const addr = addressedToBoss({ text: msg.text, entities: msg.entities, replyToFromId: msg.replyTo?.fromId ?? null, botTelegramId: msg.bot.telegramId, botUsername: msg.bot.username, bossName: await readBossName(deps).catch(() => "Kevin") });
+    if (!addr.addressed) return null;
+  } else if (adminId && msg.from.id === adminId) return null;
+  return reply(BOSS_TEAM_ERROR_REPLY);
+}
+
+/**
+ * Message MODIFIÉ (`edited_message`) dans le groupe enregistré, ou en privé d'un membre : seulement le contrôle des
+ * secrets (même règle qu'un nouveau message), sans réponse ni traitement de l'ordre. Rend vrai s'il faut supprimer le
+ * message. Ne lève jamais.
+ */
+export async function bossTeamEditedMessage(deps: AgentsDeps, msg: BossTeamMessage): Promise<{ delete: boolean }> {
+  try {
+    const group = msg.chat.type === "group";
+    if (!msg.text.trim()) return { delete: false };
+    if (group) {
+      if ((await readBossGroupId(deps)) !== msg.chat.id) return { delete: false };
+    } else {
+      const adminId = await adminTelegramId(deps);
+      if ((adminId && msg.from.id === adminId) || !(await findTeamMember(deps, msg.from.id))) return { delete: false };
+    }
+    const ctx = await secretContextFor(deps, group ? msg.chat.id : null, msg.replyTo?.messageId ?? null);
+    if (!isTeamSecretText(msg.text, ctx, { group: true })) return { delete: false };
+    await agentEvent(deps, group ? "boss.group.secret_removed" : "boss.member.secret_removed", { fromTelegramId: msg.from.id.toString(), edited: true });
+    return { delete: true };
+  } catch (err) {
+    deps.logger?.error({ err: (err as Error).message }, "[boss] message modifié non contrôlé");
+    return { delete: false };
   }
 }
 
@@ -346,7 +436,8 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
 
   // 1. Secret : avant tout le reste (même d'une personne inconnue), jamais transmis ni journalisé.
   const resolved = await speakerOf(deps, msg.from, adminId);
-  if (!msg.forwarded && msg.text.trim()) {
+  // Un message transféré est contrôlé aussi : une clé transférée dans le groupe est effacée comme une autre.
+  if (msg.text.trim()) {
     const ctx = await secretContextFor(deps, group ? msg.chat.id : null, msg.replyTo?.messageId ?? null);
     if (!group && resolved?.speaker.kind === "member") {
       const stored = await memberPrivateSecret(deps, msg, resolved.speaker, msg.text);
@@ -370,6 +461,8 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
     if (/^\/start(?:@\w+)?(?:\s|$)/.test(msg.text.trim())) return reply(MEMBER_PRIVATE_WELCOME(member.firstName, name));
   }
   if (msg.forwarded && !addr.addressed) return ignore("message transféré");
+  // Vocal adressé à Kevin dans le groupe (réponse à un de ses messages, ou mention en légende) : pas écouté ici.
+  if (group && msg.hasVoice && addr.addressed) return reply(BOSS_GROUP_VOICE_REPLY);
 
   // 2. Réponse à la question ouverte (de son responsable ou de l'admin).
   const text = addr.addressed ? addr.text : msg.text.trim();
@@ -381,7 +474,11 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
   }
 
   // 3. Média avec mots-clés de la médiathèque, déposé par l'admin ou un membre qui s'occupe des médias.
-  if (msg.hasMedia && !msg.forwarded && hasLibraryKeyword(msg.text) && mayDepositMedia(speaker, member)) return { kind: "media", caption: msg.text, speaker };
+  if (msg.hasMedia && !msg.forwarded && hasLibraryKeyword(msg.text)) {
+    const right = mediaDepositRight(speaker, member, msg.text);
+    if (right.ok) return { kind: "media", caption: msg.text, speaker };
+    return reply(mediaRefusalText(right, member, await adminFirstName(deps)));
+  }
 
   // 4. Seuls les messages adressés à Kevin vont plus loin (jamais à l'IA sinon).
   if (!addr.addressed) return ignore("pas pour Kevin");

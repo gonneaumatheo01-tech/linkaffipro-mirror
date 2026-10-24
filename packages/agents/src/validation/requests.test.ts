@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_TG_ID, createTestKit } from "../human/test-kit";
-import { decideValidation, requestValidation } from "./requests";
+import { decideValidation, requestValidation, resendPendingValidations, VALIDATION_RESENT_PREFIX } from "./requests";
 import { sweepValidations } from "./sweep";
 import { handleAgentsCallback } from "../admin/callbacks";
 import { handleAdminText } from "../admin/handle";
@@ -108,5 +108,30 @@ describe("validation humaine", () => {
     kit.advance(48 * 3600_000);
     expect(await sweepValidations(kit.deps)).toEqual({ reminded: 0, expired: 1 });
     expect(lifecycle.cancelMission).toHaveBeenCalledTimes(1);
+  });
+
+  it("bascule vers Kevin : l'aperçu en attente est reposé avec ses boutons, nouveau numéro de message, correction remise à zéro", async () => {
+    const { kit, v } = await setup();
+    const oldId = kit.sent[0]!.messageId;
+    await handleAgentsCallback(kit.deps, { data: `agv:${v.validationId}:edit`, fromTelegramId: ADMIN_TG_ID });
+    // Une validation déjà tranchée n'est pas reposée.
+    const m2 = await kit.mission({});
+    const v2 = await requestValidation(kit.deps, { missionId: m2.id, teamKey: "casino", previewText: "x", reason: "y" });
+    await decideValidation(kit.deps, { validationId: v2.validationId, decision: "approve", via: "SITE" });
+    const before = kit.sent.length;
+    expect(await resendPendingValidations(kit.deps)).toBe(1);
+    const resent = kit.sent.slice(before);
+    expect(resent).toHaveLength(1);
+    expect(resent[0]!.html).toContain(VALIDATION_RESENT_PREFIX);
+    expect(resent[0]!.html).toContain(`À valider n°${v.number}`);
+    expect(resent[0]!.mediaAssetId).toBe("asset_1");
+    expect(resent[0]!.buttons![0]!.map((b) => b.callbackData)).toEqual([`agv:${v.validationId}:ok`, `agv:${v.validationId}:edit`, `agv:${v.validationId}:no`]);
+    const row = kit.tables("agentValidation").find((x) => x.id === v.validationId)!;
+    expect(row.telegramMessageId).toBe(resent[0]!.messageId);
+    expect(row.telegramMessageId).not.toBe(oldId);
+    expect(row.awaitingEditAt).toBeNull();
+    // Sans messager : l'ancien numéro (de l'autre conversation) est effacé.
+    expect(await resendPendingValidations({ ...kit.deps, admin: undefined })).toBe(0);
+    expect(kit.tables("agentValidation").find((x) => x.id === v.validationId)!.telegramMessageId).toBeNull();
   });
 });

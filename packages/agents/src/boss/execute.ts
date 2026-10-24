@@ -4,10 +4,11 @@
  * worker) : contexte, interprète, exécution ou confirmation, réponse chiffrée, précision, ou « je ne sais pas encore
  * faire ça » ; écrit les `BossTurn` ; ne lève JAMAIS.
  */
-import { agentAudit, esc, telegramActorUserId } from "../admin/journal";
+import { adminTelegramId, agentAudit, esc, telegramActorUserId } from "../admin/journal";
 import { isSecretAdminText, type SecretTextContext } from "../admin/commands";
 import { askedMessageIdsOf, currentHumanRequest } from "../human/requests";
 import { normalizeText } from "../human/answer";
+import { teamAdminOnlyRequest } from "../human/delivery";
 import type { BossAction, BossActionClass, BossActor, BossChat, BossDeps, BossPending, BossReply, BossSpeaker, BossTeamInput } from "./contract";
 import type { MentionRef } from "./team/addressed";
 import { adminFirstName, adminMention, findTeamMember, responsibilitiesOf } from "./team/members";
@@ -15,7 +16,7 @@ import { isNoteOnlyEdit } from "./catalog-team";
 import { normName } from "./resolve";
 import { BOSS_CATALOG, bossAction, bossActionAllowed } from "./catalog";
 import type { BossExecDeps } from "./catalog-read";
-import { createBossPending, rememberBossPendingMessage } from "./confirm";
+import { createBossPending, deferBossPending, readBossPending, rememberBossPendingMessage } from "./confirm";
 import { checkAction } from "./catalog-kit";
 import { answerQuestion } from "./answer";
 import { interpretBossText, type BossDecision } from "./interpret";
@@ -28,7 +29,11 @@ export const NO_AI_REPLY =
   "Je ne comprends que les commandes simples pour le moment (IA non réglée ou plafond du mois atteint). Écris aide.";
 export const UNMET_HEAD = "Je ne sais pas encore faire ça.";
 export const SECRET_REMOVED_REPLY =
-  "🔒 J'ai retiré ce message : il ressemblait à une clé ou à un mot de passe. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou colle-la seule quand je te la demande.";
+  "🔒 J'ai retiré ce message : il ressemblait à une clé ou à un mot de passe (je ne l'ai ni lu ni gardé). Pour l'enregistrer : « clé <fournisseur> <la clé> », « bookmaker <nom> <identifiant> <mot de passe> », ou réponds à ma question quand je te la pose.";
+/** Texte d'un message transféré gardé dans la mémoire (jamais son contenu, qui partirait à l'IA). */
+export function forwardedMemoryText(text: string): string {
+  return `[message transféré : ${(text ?? "").trim().length} caractères]`;
+}
 export const NOT_YOURS_REPLY = "Ça, c'est l'admin qui décide.";
 
 /** « jeton boss <valeur> » (enregistrement du bot Boss) : la valeur, ou null (pur). */
@@ -46,18 +51,38 @@ export function oopsReply(reason: string): string {
   return `Oups, je n'ai pas réussi : ${esc(reason.slice(0, 120))}. Réessaie ou écris aide.`;
 }
 
-/** Contexte du détecteur de secrets : demande SECRET en cours et messages de toutes les demandes SECRET. */
-export async function bossSecretContext(deps: BossDeps, replyToMessageId?: number | null): Promise<SecretTextContext> {
+/**
+ * Contexte du détecteur de secrets pour UNE conversation (comme `secretContextFor` du groupe) : messages des demandes
+ * SECRET posées dans cette conversation (null = privé de l'admin), et demande SECRET en cours adressée à la personne
+ * qui parle (admin : sans responsable ou à lui ; membre : à lui). Dans le groupe, aucune demande « en cours » : une
+ * clé ne s'y demande jamais.
+ */
+export async function bossSecretContext(
+  deps: BossDeps,
+  replyToMessageId?: number | null,
+  where: { chat?: BossChat | null; speaker?: BossSpeaker | null } = {},
+): Promise<SecretTextContext> {
   const rows = (await deps.prisma.humanRequest.findMany({
     where: { kind: "SECRET" },
     orderBy: { createdAt: "desc" },
     take: 500,
-  })) as { key: string; status: string; telegramMessageId: number | null; onAnswer: unknown; askedAt: Date | null }[];
-  const pending = rows.filter((r) => r.status === "PENDING").sort((a, b) => (a.askedAt?.getTime() ?? 0) - (b.askedAt?.getTime() ?? 0))[0];
+  })) as { key: string; status: string; telegramMessageId: number | null; onAnswer: unknown; askedAt: Date | null; chatId?: bigint | null; assigneeTelegramId?: bigint | null }[];
+  const group = where.chat?.type === "group";
+  const member = !!where.speaker && where.speaker.kind === "member";
+  // Conversation des questions : le groupe, le privé de l'admin (null), ou aucune pour le privé d'un membre.
+  const conv: bigint | null | "none" = group ? where.chat!.chatId : member ? "none" : null;
+  const admin = member ? null : await adminTelegramId(deps).catch(() => null);
+  const forSpeaker = (a: bigint | null | undefined) =>
+    member ? a != null && a === where.speaker!.telegramUserId : a == null || (admin != null && a === admin) || (where.speaker != null && a === where.speaker.telegramUserId);
+  const pending = group
+    ? undefined
+    : rows
+        .filter((r) => r.status === "PENDING" && forSpeaker(r.assigneeTelegramId))
+        .sort((a, b) => (a.askedAt?.getTime() ?? 0) - (b.askedAt?.getTime() ?? 0))[0];
   const ids = new Set<number>();
-  for (const r of rows) for (const id of askedMessageIdsOf(r)) ids.add(id);
+  for (const r of rows) if (conv !== "none" && (r.chatId ?? null) === conv) for (const id of askedMessageIdsOf(r)) ids.add(id);
   return {
-    pending: pending ? { key: pending.key, telegramMessageId: pending.telegramMessageId ?? null } : null,
+    pending: pending ? { key: pending.key, telegramMessageId: conv !== "none" && (pending.chatId ?? null) === conv ? (pending.telegramMessageId ?? null) : null } : null,
     replyToMessageId: replyToMessageId ?? null,
     secretMessageIds: [...ids],
   };
@@ -82,10 +107,16 @@ async function audit(deps: BossDeps, key: string, actor: BossActor, metadata: Re
   });
 }
 
-/** Paramètres sans texte libre long (journal). */
-function safeParams(params: Record<string, unknown>): Record<string, unknown> {
+/** Paramètres jamais journalisés : texte libre d'une réponse à une demande, jeton (même chiffré). */
+const UNLOGGED_PARAMS = new Set(["reponse", "jeton", "valeur", "cle", "mot_de_passe", "identifiant"]);
+
+/** Paramètres pour le journal : jamais une réponse à une demande ni un jeton ; un texte qui ressemble à un secret masqué. */
+export function safeParams(params: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(params)) out[k] = typeof v === "string" ? v.slice(0, 80) : v;
+  for (const [k, v] of Object.entries(params)) {
+    if (UNLOGGED_PARAMS.has(k)) continue;
+    out[k] = typeof v === "string" ? (isSecretAdminText(v) || looksLikeBotToken(v) ? "[secret]" : v.slice(0, 80)) : v;
+  }
   return out;
 }
 
@@ -114,8 +145,9 @@ async function rightsScopeFor(deps: BossDeps, action: BossAction, params: Record
   const teams = member ? responsibilitiesOf(member.responsibilities).teams : [];
   let assignedToSpeaker = false;
   if (action.key === "repondre_demande" || action.key === "plus_tard") {
-    const cur = (await currentHumanRequest(deps)) as { assigneeTelegramId?: bigint | null } | null;
-    assignedToSpeaker = cur?.assigneeTelegramId === speaker.telegramUserId;
+    // Adressée à lui ET jamais une demande réservée à l'admin (même pour un responsable).
+    const cur = (await currentHumanRequest(deps)) as { kind: string; teamKey?: string | null; onAnswer?: unknown; assigneeTelegramId?: bigint | null } | null;
+    assignedToSpeaker = !!cur && cur.assigneeTelegramId === speaker.telegramUserId && !teamAdminOnlyRequest(cur);
   } else if (["valider_post", "refuser_post", "corriger_post"].includes(action.key) && typeof params.numero === "number") {
     const v = (await deps.prisma.agentValidation.findUnique({ where: { number: params.numero } })) as { assigneeTelegramId?: bigint | null } | null;
     assignedToSpeaker = v?.assigneeTelegramId === speaker.telegramUserId;
@@ -130,21 +162,34 @@ async function rightsScopeFor(deps: BossDeps, action: BossAction, params: Record
 
 /**
  * Un membre demande une action qui n'est pas de son ressort : Kevin résume et mentionne l'admin, qui seul confirme
- * (boutons OUI / NON ou « OUI »). Dans le groupe, le message part dans le groupe ; en privé, chez l'admin.
+ * (boutons OUI / NON ou « OUI »). Dans le groupe, le message part dans le groupe ; en privé, chez l'admin. Une
+ * confirmation de l'admin encore valable n'est JAMAIS remplacée : la demande est mise de côté et lui sera montrée
+ * juste après (« Mathéo a déjà une décision en attente, je lui transmets après »).
  */
 async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Record<string, unknown>, ctx: RunContext): Promise<RunResult> {
-  const blocked = await checkAction(deps, action, params);
+  const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
+  const blocked = await checkAction(execDeps, action, params);
   if (blocked) return { ...blocked, status: "clarify" };
   const summary = action.summarize ? await action.summarize(deps, params) : `${action.description} ?`;
-  const r = await createBossPending(deps, { actionKey: action.key, params, summary });
   const who = ctx.speaker && ctx.speaker.kind === "member" ? ctx.speaker.firstName : "Quelqu'un de l'équipe";
   const [first, ...rest] = summary.split("\n");
   // Première phrase du résumé (jusqu'au « ? »), la suite en seconde ligne.
   const ask = (first ?? "").split("?")[0]!.trim();
   const head = `${await adminMention(deps)} ${esc(who)} demande : ${esc(ask.charAt(0).toLowerCase() + ask.slice(1))}. OUI ?`;
   const text = [head, ...rest.slice(0, 1).map(esc)].join("\n");
+  const group = ctx.chat?.type === "group";
+  const requestedBy = { telegramUserId: (ctx.speaker?.telegramUserId ?? 0n).toString(), firstName: who };
+  const adminName = esc(await adminFirstName(deps));
+  const current = await readBossPending(deps);
+  if (current && !current.expired) {
+    await deferBossPending(deps, { actionKey: action.key, params, summary, text, chatId: group ? ctx.chat!.chatId.toString() : null, requestedBy });
+    await audit(deps, action.key, ctx.actor, { status: "deferred", params: safeParams(params) }, ctx.speaker);
+    return { reply: `${adminName} a déjà une décision en attente : je lui transmets ta demande juste après.`, status: "confirm" };
+  }
+  const chatId = group ? ctx.chat!.chatId : await adminTelegramId(deps);
+  const r = await createBossPending(deps, { actionKey: action.key, params, summary, chatId, requestedBy });
   await audit(deps, action.key, ctx.actor, { status: "escalated", params: safeParams(params) }, ctx.speaker);
-  if (ctx.chat?.type === "group") return { reply: text, buttons: r.buttons, pendingId: r.pendingId, status: "confirm" };
+  if (group) return { reply: text, buttons: r.buttons, pendingId: r.pendingId, status: "confirm" };
   let sent: { messageId: number } | null = null;
   try {
     sent = (await deps.admin?.send(text, { buttons: r.buttons })) ?? null;
@@ -152,7 +197,7 @@ async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Recor
     deps.logger?.warn({ err: (err as Error).message }, "[boss] demande transmise à l'admin non envoyée");
   }
   if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
-  return { reply: `C'est ${esc(await adminFirstName(deps))} qui décide : je lui ai transmis ta demande.`, status: "confirm" };
+  return { reply: `C'est ${adminName} qui décide : je lui ai transmis ta demande.`, status: "confirm" };
 }
 
 /** Exécute (immédiate) ou fait confirmer (à confirmer) une entrée du catalogue. */
@@ -168,8 +213,9 @@ export async function runBossAction(
   if (member) {
     const scope = await rightsScopeFor(deps, action, params, ctx.speaker, cls);
     if (!bossActionAllowed(action, ctx.speaker, scope)) {
-      // Lecture interdite, démarrage guidé, annulation : réponse simple ; tout le reste part chez l'admin.
-      if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre"].includes(action.key)) {
+      // Lecture interdite, démarrage guidé, annulation, demande qui ne lui est pas adressée : réponse simple ; tout le
+      // reste part chez l'admin.
+      if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre", "repondre_demande", "plus_tard"].includes(action.key)) {
         await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
         return { reply: await notYoursReply(deps), status: "refused" };
       }
@@ -180,18 +226,18 @@ export async function runBossAction(
     return { reply: NOT_YOURS_REPLY, status: "refused" };
   }
   // Un membre autorisé n'a pas de confirmation à donner (validation qui lui est adressée) : l'action se fait.
+  const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
   if (cls === "confirm" && !member) {
-    const blocked = await checkAction(deps, action, params);
+    const blocked = await checkAction(execDeps, action, params);
     if (blocked) {
       await audit(deps, action.key, ctx.actor, { status: "clarify", params: safeParams(params) }, ctx.speaker);
       return { ...blocked, status: "clarify" };
     }
     const summary = action.summarize ? await action.summarize(deps, params) : `${action.description} ?`;
-    const r = await createBossPending(deps, { actionKey: action.key, params, summary });
+    const r = await createBossPending(deps, { actionKey: action.key, params, summary, chatId: ctx.chat?.chatId ?? null });
     await audit(deps, action.key, ctx.actor, { status: "confirm", params: safeParams(params) }, ctx.speaker);
     return { ...r, status: "confirm" };
   }
-  const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
   const r = await action.execute(execDeps, params, ctx.actor);
   // Nom ambigu : l'entrée a posé une question numérotée au lieu d'agir.
   const after = await readClarify(deps);
@@ -305,7 +351,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
   try {
     if (await bossTurnForMessage(deps, input.messageId, input.chat?.chatId ?? null)) return {};
     const actor = await bossActorOf(deps, input.speaker);
-    const secretContext = await bossSecretContext(deps, input.replyToMessageId);
+    const secretContext = await bossSecretContext(deps, input.replyToMessageId, { chat: input.chat, speaker: input.speaker });
     const chatId = input.chat?.chatId ?? null;
     const fromId = input.speaker?.telegramUserId ?? null;
     // Filet : un secret n'atteint JAMAIS l'IA (le chemin rapide l'a déjà traité ; un vocal n'en est jamais un).
@@ -316,7 +362,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     }
     if (input.forwarded) {
       const reply = "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
-      await writeBossTurn(deps, { role: "ADMIN", text: `[message transféré] ${text}`, source: input.source, telegramMessageId: input.messageId, chatId, fromTelegramId: fromId });
+      await writeBossTurn(deps, { role: "ADMIN", text: forwardedMemoryText(text), source: input.source, telegramMessageId: input.messageId, chatId, fromTelegramId: fromId });
       await writeBossTurn(deps, { role: "BOSS", text: reply, status: "refused", actionKey: "transfere", telegramMessageId: input.messageId, chatId });
       return { reply };
     }

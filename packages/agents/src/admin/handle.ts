@@ -8,20 +8,22 @@
  */
 import { TEAM_LABELS, type AgentsDeps } from "../types";
 import { decideValidation } from "../validation/requests";
-import { askHuman, currentHumanRequest, humanRequestByMessageId, sendNextHumanRequest } from "../human/requests";
+import { currentHumanRequest, humanRequestByMessageId, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
 import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretSavedHead, verifySecret } from "../human/secrets";
-import { interpretAnswer, looksLikeSecretValue, normalizeText, secretAcceptsUnreplied } from "../human/answer";
+import { interpretAnswer, looksLikeSecretValue, normalizeText, secretValueOf } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
-import { esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "./journal";
+import { adminTelegramId, esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "./journal";
+import type { AdminButton } from "../types";
+import type { BossChat, BossDeps } from "../boss/contract";
+import { confirmWordOf, pendingTargeted, readBossPending, resolveBossPending } from "../boss/confirm";
 import { telegramEntitiesToHtml, type TelegramTextEntity } from "./entities-html";
 
 export { telegramEntitiesToHtml, escapeTelegramHtml, type TelegramTextEntity } from "./entities-html";
-import { setTeamBudget } from "./budget";
 import { setTeamPaused, type ActorRef } from "./team";
 import { agentsOverview, overviewLines } from "../orchestrator/overview-contract";
 import { dailyReportText } from "./report-command";
-import { levelQuestion, liveQuestion, teamPlanSummary } from "./confirm-summary";
+import { teamPlanSummary } from "./confirm-summary";
 
 export type AdminTextInput = {
   text: string;
@@ -33,6 +35,8 @@ export type AdminTextInput = {
   entities?: readonly TelegramTextEntity[] | null;
   /** Vocal : transcription nettoyée AVANT la remise en forme (« Oui, vas-y » reste tel quel) pour un « oui » strict. */
   spokenText?: string;
+  /** Conversation du message (un « OUI » ne vaut que pour la confirmation montrée dans cette conversation). */
+  chat?: BossChat | null;
 };
 
 /** Réponse quand une clé arriverait par un vocal : rien n'est enregistré. */
@@ -47,6 +51,10 @@ export type AdminTextResult = {
   secret?: boolean;
   /** À appeler APRÈS la réponse : envoie la question suivante (ordre de la conversation). */
   followUp?: () => Promise<void>;
+  /** Confirmation du Boss (hausse du plafond vidéo, passage en vrai, niveau) : boutons OUI / NON. */
+  buttons?: AdminButton[][];
+  /** Le bot mémorise le message envoyé (`rememberBossPendingMessage`). */
+  pendingId?: string;
 };
 
 /** Sans « répondre » au message « envoie le nouveau texte », une correction n'est prise que dans ce délai après ✏️. */
@@ -84,6 +92,33 @@ async function answerRequest(
     // Supprimé seulement si le secret a vraiment été enregistré.
     deleteMessage: !!r.secretSaved,
     followUp: r.closed ? nextQuestion(deps) : undefined,
+  };
+}
+
+/**
+ * Commande exacte qui change un réglage sensible (plafond vidéo, passage en vrai, niveau) : même chemin que le Boss
+ * (`runBossAction`) : une hausse passe par la confirmation du Boss (10 minutes, OUI / NON, une seule à la fois), une
+ * baisse est immédiate. Import différé : `boss/execute` → catalogue → … ne doit pas se charger avec ce fichier.
+ */
+async function viaBossAction(
+  deps: AgentsDeps,
+  key: string,
+  params: Record<string, unknown>,
+  actor: ActorRef,
+  chat: BossChat | null | undefined,
+): Promise<AdminTextResult> {
+  const [{ bossAction }, { runBossAction }] = await Promise.all([import("../boss/catalog"), import("../boss/execute")]);
+  const action = bossAction(key);
+  if (!action) return { handled: true, reply: "Oups, action inconnue." };
+  const parsed = action.parse(params);
+  if (!parsed.ok) return { handled: true, reply: esc(parsed.error) };
+  const r = await runBossAction(deps as BossDeps, action, parsed.params as Record<string, unknown>, { actor: { userId: actor.userId ?? null, via: "TELEGRAM" }, chat: chat ?? null });
+  return {
+    handled: true,
+    reply: r.reply,
+    ...(r.buttons ? { buttons: r.buttons } : {}),
+    ...(r.pendingId ? { pendingId: r.pendingId } : {}),
+    ...(r.followUp ? { followUp: r.followUp } : {}),
   };
 }
 
@@ -127,6 +162,7 @@ async function runCommand(
   cmd: AdminCommand,
   actor: ActorRef,
   voice = false,
+  chat?: BossChat | null,
 ): Promise<AdminTextResult> {
   if (voice && (cmd.type === "secret" || cmd.type === "bookmaker")) return { handled: true, reply: VOICE_SECRET_REFUSAL };
   switch (cmd.type) {
@@ -171,36 +207,18 @@ async function runCommand(
       // Deux clés séparées (comme le site et les questions du bot) ; le mot de passe déclenche le test de connexion.
       await saveSecret(deps, bookmakerSecretKey(cmd.name), cmd.login, actor);
       return storeSecretCommand(deps, bookmakerPasswordSecretKey(cmd.name), cmd.password, actor);
-    case "budget": {
-      // Les vidéos IA sont produites par l'équipe Dating (plan des phases 20 à 25).
-      await setTeamBudget(deps, "dating", "video", cmd.euros * 100, actor);
-      return { handled: true, reply: `Plafond vidéo de l'équipe ${TEAM_LABELS.dating} : ${cmd.euros.toLocaleString("fr-FR")} € par mois ✅` };
-    }
+    case "budget":
+      // Les vidéos IA sont produites par l'équipe Dating : hausse → confirmation du Boss, baisse → immédiate.
+      return viaBossAction(deps, "plafond", { equipe: "dating", poste: "video", euros: cmd.euros }, actor, chat);
     case "live": {
-      // Le bot résume d'abord ce qui va se passer (canaux, quota, niveau, plafonds), puis attend OUI.
       const summary = await teamPlanSummary(deps, cmd.team);
       if (!summary.simulation) return { handled: true, reply: `L'équipe ${TEAM_LABELS[cmd.team]} est déjà en vrai.` };
-      const r = await askHuman(deps, {
-        teamKey: cmd.team,
-        kind: "CONFIRM",
-        key: `agents.team.${cmd.team}.live`,
-        question: liveQuestion(cmd.team, summary),
-        onAnswer: { action: "set-simulation", teamKey: cmd.team, simulation: false },
-      });
-      return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };
+      return viaBossAction(deps, "simulation", { equipe: cmd.team, mode: "vrai" }, actor, chat);
     }
     case "level": {
-      // Tout changement de niveau est résumé puis confirmé par OUI (par écrit comme par vocal).
       const summary = await teamPlanSummary(deps, cmd.team);
       if (summary.level === cmd.level) return { handled: true, reply: `L'équipe ${TEAM_LABELS[cmd.team]} est déjà au niveau ${cmd.level}.` };
-      const r = await askHuman(deps, {
-        teamKey: cmd.team,
-        kind: "CONFIRM",
-        key: `agents.team.${cmd.team}.level${cmd.level}`,
-        question: levelQuestion(cmd.team, cmd.level, summary),
-        onAnswer: { action: "set-autonomy", teamKey: cmd.team, level: cmd.level },
-      });
-      return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };
+      return viaBossAction(deps, "niveau", { equipe: cmd.team, niveau: cmd.level }, actor, chat);
     }
   }
 }
@@ -217,13 +235,13 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   if (replyTo) {
     const target = (await humanRequestByMessageId(deps, replyTo)) as HumanRequestRow | null;
     if (target && (target.status === "QUEUED" || target.status === "PENDING"))
-      return answerRequest(deps, target, text, actor, voice, confirmText);
+      return answerRequest(deps, target, target.kind === "SECRET" ? (secretValueOf(text) ?? text) : text, actor, voice, confirmText);
     if (target) {
       // Ancienne question (répondue, passée, expirée) : jamais reportée sur la question en cours. Une clé collée en
       // réponse à une ancienne demande de clé est retirée de la conversation (le journal la masque déjà).
       // « plus tard » en réponse à une ancienne question ne passe pas la question en cours.
       const cmd = target.kind === "SECRET" ? null : parseAdminCommand(text);
-      if (cmd && cmd.type !== "later") return runCommand(deps, cmd, actor, voice);
+      if (cmd && cmd.type !== "later") return runCommand(deps, cmd, actor, voice, input.chat);
       const secret = target.kind === "SECRET" && !voice;
       return { handled: true, reply: NOT_OPEN_QUESTION, secret, deleteMessage: secret };
     }
@@ -231,9 +249,27 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
 
   // 2. Commande connue (« ok 1 », « pause tout », « clé fal … ») : jamais prise pour le texte d'une correction.
   const cmd = parseAdminCommand(text);
-  if (cmd) return runCommand(deps, cmd, actor, voice);
+  if (cmd) return runCommand(deps, cmd, actor, voice, input.chat);
 
-  const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
+  const current = (await currentHumanRequest(deps)) as (HumanRequestRow & { askedAt?: Date | null; assigneeTelegramId?: bigint | null }) | null;
+
+  // 2 bis. OUI / NON / annule de la confirmation du Boss montrée dans cette conversation (même règle que le chemin
+  // rapide, pour l'ancien dialogue qui n'y passe pas).
+  const word = confirmWordOf(confirmText);
+  if (word) {
+    const pending = await readBossPending(deps);
+    if (pending && pendingTargeted(pending, { replyTo, chatId: input.chat?.chatId ?? null, current }) === "target") {
+      const r = await resolveBossPending(deps as BossDeps, word);
+      if (r.handled)
+        return {
+          handled: true,
+          reply: r.reply,
+          ...(r.buttons ? { buttons: r.buttons } : {}),
+          ...(r.pendingId ? { pendingId: r.pendingId } : {}),
+          ...(r.followUp ? { followUp: r.followUp } : {}),
+        };
+    }
+  }
 
   // 3. Correction demandée par « ✏️ Corriger » : ce message est le nouveau texte du post. Jamais pendant une demande
   // de clé, jamais une clé collée ; seulement en réponse au message « envoie le nouveau texte » (ou à l'aperçu), ou
@@ -272,8 +308,13 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   if (current.kind === "MEDIA") return { handled: false };
   if (current.kind === "TEXT") return { handled: false };
   if (current.kind === "SECRET") {
-    if (replyTo !== null || !secretAcceptsUnreplied(current.key, text)) return { handled: false };
-    return answerRequest(deps, current, text, actor, voice, confirmText);
+    // Demande adressée à un membre : jamais remplie par un message de l'admin sans « Répondre ».
+    const admin = await adminTelegramId(deps);
+    if (current.assigneeTelegramId != null && current.assigneeTelegramId !== admin) return { handled: false };
+    // Le message suivant EST le secret (un mot, « c'est X », « le mot de passe c'est X »), identifiant compris.
+    const value = replyTo === null ? secretValueOf(text) : null;
+    if (value === null) return { handled: false };
+    return answerRequest(deps, current, value, actor, voice, confirmText);
   }
   const options = Array.isArray(current.options) ? (current.options as unknown[]).map(String) : [];
   // Un chiffre hors liste reste une tentative de réponse (on la signale) ; le reste continue son chemin.

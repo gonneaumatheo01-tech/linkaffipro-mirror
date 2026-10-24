@@ -84,6 +84,45 @@ export function withAskedMessageId(req: { telegramMessageId?: number | null; onA
 }
 
 /**
+ * Phase 26, bascule vers un nouveau bot du dialogue admin : les messages déjà envoyés à l'admin en privé par l'ancien
+ * bot ne valent plus « réponse » (les numéros de message sont propres à chaque conversation : le n°120 du bot casino
+ * n'est pas le n°120 de Kevin). Ils sont rangés dans `onAnswer.retiredMessageIds` : plus jamais utilisés pour
+ * retrouver une demande, mais toujours pour MASQUER une clé collée en réponse à une ancienne question SECRET sur
+ * l'ancien bot (journal, `readSecretRequestsState`).
+ */
+export const RETIRED_MESSAGE_IDS_FIELD = "retiredMessageIds";
+
+export function retiredMessageIdsOf(req: { onAnswer?: unknown }): number[] {
+  const list = onAnswerOf(req.onAnswer)[RETIRED_MESSAGE_IDS_FIELD];
+  return Array.isArray(list) ? list.filter((x): x is number => typeof x === "number") : [];
+}
+
+/** Données qui retirent les messages actuels d'une demande (voir `RETIRED_MESSAGE_IDS_FIELD`). */
+export function withRetiredMessageIds(req: { telegramMessageId?: number | null; onAnswer?: unknown }) {
+  const onAnswer = onAnswerOf(req.onAnswer);
+  const retired = [...new Set([...retiredMessageIdsOf(req), ...askedMessageIdsOf(req)])];
+  onAnswer[RETIRED_MESSAGE_IDS_FIELD] = retired.slice(-40);
+  onAnswer[ASKED_MESSAGE_IDS_FIELD] = [];
+  return { telegramMessageId: null, onAnswer: JSON.parse(JSON.stringify(onAnswer)) as object };
+}
+
+/**
+ * Bascule vers un nouveau bot du dialogue admin : retire les messages de TOUTES les demandes posées à l'admin en
+ * privé (`chatId` null ; le groupe de l'équipe n'est pas concerné). À appeler AVANT de reposer la question en cours.
+ * Rend le nombre de demandes touchées.
+ */
+export async function retireAdminChatMessageIds(deps: Pick<AgentsDeps, "prisma">): Promise<number> {
+  const rows = await deps.prisma.humanRequest.findMany({ where: { chatId: null }, orderBy: { createdAt: "desc" }, take: 1000 });
+  let n = 0;
+  for (const r of rows) {
+    if (askedMessageIdsOf(r).length === 0) continue;
+    await deps.prisma.humanRequest.update({ where: { id: r.id }, data: withRetiredMessageIds(r) });
+    n++;
+  }
+  return n;
+}
+
+/**
  * Demande dont un message (question ou rappel) porte cet identifiant Telegram, quel que soit son statut. Les numéros
  * de message sont propres à chaque conversation : `chatId` absent ou null = conversation privée avec l'admin
  * (demandes sans groupe) ; sinon le groupe de l'équipe (phase 26).

@@ -382,7 +382,7 @@ async function assistantSpendSnapshot(now: Date) {
 export async function detectAlerts(now = new Date()): Promise<Detected[]> {
   const detected: Detected[] = [];
   const bots = await prisma.bot.findMany({
-    select: { username: true, isActive: true, lastWebhookAt: true, lastError: true, mode: true },
+    select: { username: true, isActive: true, lastWebhookAt: true, lastError: true, mode: true, role: true },
   });
   const d1 = detectBotWebhook(bots, now);
   if (d1) detected.push(d1);

@@ -65,16 +65,18 @@ export type BotSnapshot = {
   lastError: string | null;
   /** Phase 17 : « ASSISTANT » = assistant de conversation (il ne reçoit que les messages privés qu'on lui écrit). */
   mode?: string;
+  /** Phase 26 : « ADMIN » = le Boss (Kevin), qui ne reçoit que les messages de l'admin et de l'équipe. */
+  role?: string;
 };
 
 /**
  * Bots en erreur, ou silencieux depuis 10 min alors qu'un autre bot normal reçoit des updates. Un bot assistant de
- * conversation n'est jamais « silencieux » (il peut rester des heures sans message) et ne sert pas de référence : seule
- * la règle « en erreur » s'applique à lui.
+ * conversation et le Boss (phase 26, `role: ADMIN`) ne sont jamais « silencieux » (ils peuvent rester des heures sans
+ * message) et ne servent pas de référence : seule la règle « en erreur » s'applique à eux.
  */
 export function detectBotWebhook(bots: BotSnapshot[], now: Date): Detected | null {
   const active = bots.filter((b) => b.isActive);
-  const isAssistant = (b: BotSnapshot) => b.mode === "ASSISTANT";
+  const isAssistant = (b: BotSnapshot) => b.mode === "ASSISTANT" || b.role === "ADMIN";
   const recent = active.some(
     (b) =>
       !isAssistant(b) &&

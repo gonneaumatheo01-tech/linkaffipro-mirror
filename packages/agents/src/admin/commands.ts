@@ -3,7 +3,7 @@
  * les valeurs (clés, identifiants, mots de passe) sont gardées telles quelles.
  */
 import type { TeamKey } from "../types";
-import { isSkipText, normalizeText, secretAcceptsUnreplied } from "../human/answer";
+import { hintedSecretValue, isSkipText, normalizeText, secretAcceptsUnreplied } from "../human/answer";
 
 export type AdminCommand =
   | { type: "status" }
@@ -139,28 +139,59 @@ export function hasSecretHint(text: string): boolean {
   return SECRET_HINT.test(text);
 }
 
+/**
+ * « mot de passe / mdp / password / pass / identifiant / login » suivi d'un mot, quelle que soit sa longueur (« le mot de
+ * passe c'est Sportaza2024! ») (pur).
+ */
+export function hasSecretWordHint(text: string): boolean {
+  return hintedSecretValue(text) !== null;
+}
+
+/** « jeton boss <valeur> » (enregistrement du Boss). */
+const BOSS_TOKEN_COMMAND = /^\s*(?:jeton|token)\s+(?:du\s+)?(?:boss|kevin)\s*:?\s+\S+\s*$/iu;
+
+/**
+ * Un mot qui ressemble à un jeton ou à une clé (pur) : 20 caractères ou plus mêlant lettres et chiffres, `sk-…`
+ * (`sk-ant-…`), ou `xxx:yyy` (jeton de bot Telegram `123456:AAE…`, clé fal `uuid:hex`). Les adresses web, mots-dièse et
+ * mentions n'en sont pas.
+ */
+export function hasKeyLikeToken(text: string): boolean {
+  return text.split(/\s+/).some((raw) => {
+    const w = raw.replace(/^[<>"'«»()[\]{},;.!?]+|[<>"'«»()[\]{},;.!?]+$/gu, "");
+    if (!w || /^https?:\/\//i.test(w) || /^www\./i.test(w) || /^[#@]/.test(w)) return false;
+    if (/^sk-[A-Za-z0-9_-]{16,}$/.test(w)) return true;
+    if (/^[A-Za-z0-9_-]{6,}:[A-Za-z0-9_-]{16,}$/.test(w)) return true;
+    return w.length >= 20 && /\p{L}/u.test(w) && /\d/.test(w) && !w.includes("/");
+  });
+}
+
 /** Contexte du dialogue admin pour reconnaître un secret (lu avant la journalisation, voir `agentsAdminState`). */
 export type SecretTextContext = {
-  /** Demande SECRET en cours (PENDING) : sa clé et le message de la question. */
+  /** Demande SECRET en cours (PENDING) adressée à cette personne : sa clé et le message de la question. */
   pending?: { key: string; telegramMessageId?: number | null } | null;
   /** Le message est une réponse Telegram à ce message. */
   replyToMessageId?: number | null;
-  /** Messages (questions, rappels) de TOUTES les demandes SECRET, quel que soit leur statut. */
+  /** Messages (questions, rappels) des demandes SECRET de CETTE conversation, quel que soit leur statut. */
   secretMessageIds?: readonly number[];
 };
 
 /**
- * Le texte de l'admin contient-il un secret à ne jamais journaliser ? Oui pour « clé … » / « bookmaker … », pour le
- * filet `hasSecretHint`, pour une réponse au message d'une demande SECRET (même close, passée, expirée ou en file),
- * et, sans « répondre », pour un texte qui ressemble à une clé pendant une demande SECRET en cours (même règle que
- * `handleAdminText` : « fait », « Parfait! » restent lisibles par `pnpm tg:inbox`).
+ * DÉTECTEUR PARTAGÉ des secrets (chemin rapide du Boss, filet du worker, `BossUnmet`, mémoire, journal du bot, groupe).
+ * Vrai pour :
+ * - « clé … » / « bookmaker … » / « jeton boss … », et le filet `hasSecretHint` (« voici la clé fal sk-… ») ;
+ * - « mot de passe / mdp / password / pass / identifiant / login » suivi d'un mot, quelle que soit sa longueur ;
+ * - un mot de 20 caractères ou plus mêlant lettres et chiffres, `sk-…`, `xxx:yyy` (jetons) ;
+ * - une réponse au message d'une demande SECRET de la conversation (même close, passée, expirée ou en file) ;
+ * - avec une demande SECRET en cours (identifiant `.login` et mot de passe compris), le message suivant EST le secret
+ *   (`secretValueOf` : un mot, ou « c'est X ») sauf commande exacte, « plus tard », accusé court ou emojis seuls
+ *   (« fait », « Parfait! » restent lisibles par `pnpm tg:inbox`).
  * Ancienne forme acceptée : `true` ou `{ kind: "SECRET" }` (demande SECRET en cours, clé inconnue).
  */
 export function isSecretAdminText(
   text: string,
   context?: boolean | { kind?: string | null } | SecretTextContext | null,
 ): boolean {
-  if (isSecretCommandText(text) || hasSecretHint(text)) return true;
+  if (isSecretCommandText(text) || hasSecretHint(text) || hasSecretWordHint(text) || hasKeyLikeToken(text) || BOSS_TOKEN_COMMAND.test(text)) return true;
   let ctx: SecretTextContext = {};
   if (context === true) ctx = { pending: { key: "" } };
   else if (context && typeof context === "object") {
@@ -176,3 +207,6 @@ export function isSecretAdminText(
   if (parseAdminCommand(text) !== null) return false;
   return secretAcceptsUnreplied(ctx.pending.key, text.trim());
 }
+
+/** Même détecteur, nom court (voir `isSecretAdminText`). */
+export const isSecretText = isSecretAdminText;

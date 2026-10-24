@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit, journalText } from "./test-kit";
-import { askHuman } from "./requests";
+import { askHuman, askedMessageIdsOf, humanRequestByMessageId, retireAdminChatMessageIds, retiredMessageIdsOf, withAskedMessageId } from "./requests";
 import { handleAdminText } from "../admin/handle";
 import { answerHumanRequestFromSite, ensureDailyReportQuestion, relaunchHumanRequest, skipHumanRequest, sweepHumanRequests } from "./site";
 import { clearSecretVerifiers, readSecret, registerSecretVerifier, secretSummary } from "./secrets";
@@ -152,5 +152,29 @@ describe("message de l'admin qui n'est pas une réponse", () => {
     expect(await handleAdminText(kit.deps, { text: "voici des emojis 🎉", messageId: 901 })).toEqual({ handled: false });
     const yes = await handleAdminText(kit.deps, { text: "oui", messageId: 902 });
     expect(yes.handled).toBe(true);
+  });
+});
+
+describe("bascule vers Kevin : les numéros de message de l'ancien bot ne valent plus « réponse »", () => {
+  it("messages retirés (plus de correspondance), gardés à part ; la question reposée ne porte que le nouveau numéro", async () => {
+    const kit = createTestKit();
+    const a = await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé fal ?" });
+    const oldId = kit.sent[0]!.messageId;
+    // Une demande du groupe de l'équipe (autre conversation) n'est pas touchée.
+    const g = await kit.prisma.humanRequest.create({ data: { key: "g", kind: "TEXT", status: "ANSWERED", question: "?", chatId: -100n, telegramMessageId: 7 } as never }) as { id: string };
+    expect((await humanRequestByMessageId(kit.deps, oldId))?.id).toBe(a.requestId);
+    expect(await retireAdminChatMessageIds(kit.deps)).toBe(1);
+    expect(await humanRequestByMessageId(kit.deps, oldId)).toBeNull();
+    const row = kit.tables("humanRequest").find((r) => r.id === a.requestId)!;
+    expect(row.telegramMessageId).toBeNull();
+    expect(askedMessageIdsOf(row)).toEqual([]);
+    expect(retiredMessageIdsOf(row)).toEqual([oldId]);
+    expect(kit.tables("humanRequest").find((r) => r.id === g.id)!.telegramMessageId).toBe(7);
+    // Kevin repose la question : seul son numéro vaut réponse.
+    await kit.prisma.humanRequest.update({ where: { id: a.requestId }, data: withAskedMessageId(row, 5) });
+    const after = kit.tables("humanRequest").find((r) => r.id === a.requestId)!;
+    expect(askedMessageIdsOf(after)).toEqual([5]);
+    expect(retiredMessageIdsOf(after)).toEqual([oldId]);
+    expect((await humanRequestByMessageId(kit.deps, 5))?.id).toBe(a.requestId);
   });
 });

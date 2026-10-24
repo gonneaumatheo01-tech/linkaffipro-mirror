@@ -26,6 +26,75 @@ import {
   type BossReplyApi,
 } from "../boss/reply";
 
+/**
+ * Service d'arrière-plan (worker) muet depuis plus de 3 minutes (battement `worker:heartbeat`) : réponse immédiate,
+ * la tâche est quand même mise en file (elle se fera au redémarrage, sans double réponse : le worker vérifie le tour).
+ */
+export const BOSS_WORKER_DOWN_REPLY =
+  "Mon service d'arrière-plan est arrêté : je ne comprends que les commandes simples pour l'instant (écris aide). L'équipe technique est prévenue.";
+/** Même cas pour un vocal (il sera écouté au redémarrage). */
+export const BOSS_VOICE_WORKER_DOWN_REPLY =
+  "Mon service d'arrière-plan est arrêté : je t'écouterai dès qu'il repart. En attendant, les commandes simples écrites marchent (écris aide). L'équipe technique est prévenue.";
+/** Dernier recours quand la réponse ne part pas (même en texte brut) : l'admin sait que son message est arrivé. */
+export const BOSS_RECEIVED_REPLY = "Bien reçu ✅";
+
+/**
+ * Le service d'arrière-plan est-il arrêté (battement absent ou de plus de 3 minutes) ? Faux sur un doute (lecture
+ * impossible, dépendance absente) : la mise en file dira elle-même si Redis est injoignable. Ne lève jamais.
+ */
+export async function workerLooksDown(deps: Pick<TelegramDeps, "workerDown">): Promise<boolean> {
+  if (!deps.workerDown) return false;
+  try {
+    return (await deps.workerDown()) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Texte dont tout le contenu visible est fait d'emojis animés (espaces mis à part). */
+export function onlyCustomEmojis(msg: Pick<Message, "text" | "entities">): boolean {
+  const text = msg.text ?? "";
+  const covered = new Array<boolean>(text.length).fill(false);
+  let any = false;
+  for (const e of msg.entities ?? []) {
+    if (e.type !== "custom_emoji") continue;
+    any = true;
+    for (let i = e.offset; i < Math.min(text.length, e.offset + e.length); i++) covered[i] = true;
+  }
+  if (!any) return false;
+  for (let i = 0; i < text.length; i++) if (!covered[i] && !/\s/.test(text[i]!)) return false;
+  return true;
+}
+
+/** Une validation attend-elle le texte corrigé de l'admin (« ✏️ Corriger ») ? Faux sur un doute. */
+async function awaitingPostEdit(deps: TelegramDeps): Promise<boolean> {
+  try {
+    const row = await deps.agentsDeps!().prisma.agentValidation.findFirst({
+      where: { status: "PENDING", awaitingEditAt: { not: null } },
+      select: { id: true },
+    });
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Phase 12 + 26 : un message de l'admin à emojis animés remplit-il la bibliothèque d'emojis plutôt que d'aller au Boss ?
+ * - transféré (d'un canal, d'une personne ou d'un groupe) : oui, toujours ;
+ * - réponse à un message (correction d'un post, réponse à une question) ou correction attendue : non, chemin du Boss
+ *   (les emojis restent dans le texte corrigé) ;
+ * - sinon : oui sur un bot de canal (dont le bot casino qui fait office de Boss) ; sur le vrai Boss, seulement si le
+ *   message ne contient que des emojis animés (une phrase avec un emoji animé reste une phrase pour Kevin).
+ */
+export async function wantsEmojiLibrary(identity: BotIdentity, deps: TelegramDeps, msg: Message & { text: string }): Promise<boolean> {
+  if (!messageHasCustomEmoji(msg)) return false;
+  if (msg.forward_origin) return true;
+  if (msg.reply_to_message) return false;
+  if (deps.agentsDeps && (await awaitingPostEdit(deps))) return false;
+  return isBossBot(identity) ? onlyCustomEmojis(msg) : true;
+}
+
 /** Taille maximale d'un vocal de l'admin (la transcription refuse au-delà de 2 Mo, environ 2 minutes). */
 export const ADMIN_VOICE_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -160,6 +229,18 @@ async function handleDialogText(
     const m = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?/.exec(text);
     if (m) {
       const payload = m[1];
+      // Bot casino qui fait office de Boss : `/start <paramètre>` (lien du compte, offre, canal à rejoindre…) suit le
+      // chemin habituel ; `/start` seul garde l'état du membre (`memberStarted`) puis reçoit l'accueil de Kevin.
+      if (!isBossBot(identity)) {
+        if (payload) return next();
+        try {
+          await deps.memberStarted(identity, ctx.from!, undefined);
+        } catch (err) {
+          console.error("[boss] /start de l'admin non enregistré", identity.username, (err as Error).message);
+        }
+        await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps)));
+        return;
+      }
       // Lien du compte du site (« Mon compte » → Lier Telegram) : inchangé.
       if (payload?.startsWith("admin_")) {
         const linked = await deps.linkAdminAccount(payload.slice("admin_".length), BigInt(fromId));
@@ -199,14 +280,23 @@ async function handleDialogText(
       await deliverBossReply({ api: replyApiOf(ctx), chatId, messageId: msg.message_id, reply: fast, deps: agents, engine });
     } catch (err) {
       console.error("[boss] réponse non envoyée", identity.username, (err as Error).message);
+      // Jamais de silence (surtout après la suppression d'un secret) : texte brut, puis une courte phrase.
+      await sendReplyFallback(ctx, chatId, fast.reply);
     }
     return;
   }
-  // Bot de canal qui fait office de Boss : un texte à emojis animés que le chemin rapide ne prend pas (ni correction
-  // d'un post, ni réponse, ni commande) sert à remplir la bibliothèque d'emojis (phase 12), jamais à l'IA.
-  if (!isBossBot(identity) && !forwarded && messageHasCustomEmoji(msg)) return next();
-  // Interprète IA : le worker répond dans quelques secondes (« écrit… » en attendant).
-  await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
+  // Filet : un texte qui ressemble à un secret n'est jamais mis en file (Redis garde le contenu des tâches). Le chemin
+  // rapide les prend avant ; s'il ne l'a pas fait, le message est effacé et rien d'autre ne se passe.
+  if (!forwarded && (await looksSecret(deps, fromId, msg.text, msg.reply_to_message?.message_id))) {
+    await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => undefined);
+    await ctx.reply(BOSS_SECRET_NOT_QUEUED_REPLY).catch(() => undefined);
+    return;
+  }
+  // Interprète IA : le worker répond dans quelques secondes (« écrit… » en attendant). Worker arrêté : réponse de
+  // secours tout de suite, la tâche part quand même en file (traitée au redémarrage).
+  const down = await workerLooksDown(deps);
+  if (down) await ctx.reply(BOSS_WORKER_DOWN_REPLY).catch(() => undefined);
+  else await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
   try {
     await agents.enqueue.orchestrator(
       {
@@ -225,8 +315,26 @@ async function handleDialogText(
     );
   } catch (err) {
     console.error("[boss] message de l'admin non mis en file", identity.username, (err as Error).message);
-    await ctx.reply(BOSS_QUEUE_DOWN_REPLY).catch(() => undefined);
+    if (!down) await ctx.reply(BOSS_QUEUE_DOWN_REPLY).catch(() => undefined);
   }
+}
+
+/** Texte qui ressemble à une clé mais que le chemin rapide n'a pas pris : effacé, jamais envoyé à l'interprète. */
+export const BOSS_SECRET_NOT_QUEUED_REPLY =
+  "🔒 Ce message ressemblait à une clé : je l'ai effacé sans le garder. Pour enregistrer une clé, écris « clé <nom> <valeur> » ou réponds à ma question.";
+
+/** Réponse de secours quand l'envoi normal a échoué : texte brut sans « Répondre », puis « Bien reçu ✅ ». */
+async function sendReplyFallback(ctx: Context, chatId: number, html: string | undefined): Promise<void> {
+  const plain = html?.trim() ? htmlToPlain(html).slice(0, 4000) : "";
+  if (plain) {
+    try {
+      await ctx.api.sendMessage(chatId, plain, { link_preview_options: { is_disabled: true } });
+      return;
+    } catch (err) {
+      console.error("[boss] réponse en texte brut non envoyée", (err as Error).message);
+    }
+  }
+  await ctx.api.sendMessage(chatId, BOSS_RECEIVED_REPLY).catch(() => undefined);
 }
 
 /**
@@ -256,7 +364,9 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
         return;
       }
     }
-    if (route.kind === "redirect") {
+    // Bouton de confirmation du Boss sur un autre bot : renvoi. Un bouton d'aperçu (`agv:`) ou de question (`agh:`)
+    // déjà envoyé par ce bot (avant la bascule vers Kevin) agit sur la base : il continue de marcher ici.
+    if (route.kind === "redirect" && isBoss) {
       await ctx
         .answerCallbackQuery({ text: bossRedirectText(route.target.username, await bossNameOf(deps)) })
         .catch(() => undefined);
@@ -296,9 +406,16 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       await ctx.answerCallbackQuery(r.toast ? { text: r.toast } : undefined).catch(() => undefined);
       if (r.removeButtons) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
       if (r.reply) {
-        const messageId = await replyHtml(ctx, r.reply);
-        // « ✏️ Corriger » : une réponse à CE message sera le nouveau texte du post.
-        if (r.editPromptFor && messageId) await rememberEditPrompt(agents, r.editPromptFor, messageId);
+        if (route.kind === "redirect") {
+          // Bot de canal après la bascule : la conversation continue chez Kevin (le texte corrigé s'écrit là-bas).
+          const name = await bossNameOf(deps);
+          const tail = r.editPromptFor ? `\n\nÉcris le nouveau texte à @${route.target.username} (${name}).` : "";
+          await replyHtml(ctx, `${r.reply}${tail}`);
+        } else {
+          const messageId = await replyHtml(ctx, r.reply);
+          // « ✏️ Corriger » : une réponse à CE message sera le nouveau texte du post.
+          if (r.editPromptFor && messageId) await rememberEditPrompt(agents, r.editPromptFor, messageId);
+        }
       }
     } catch (err) {
       console.error("[agents] bouton de validation", identity.username, (err as Error).message);
@@ -333,7 +450,10 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       await replyLine(BOSS_VOICE_TOO_LONG_REPLY);
       return;
     }
-    if (route.kind === "dialog") await ctx.api.sendChatAction(ctx.chat.id, "typing").catch(() => undefined);
+    // Worker arrêté : réponse tout de suite, le vocal part quand même en file (écouté au redémarrage).
+    const down = route.kind === "dialog" && (await workerLooksDown(deps));
+    if (down) await replyLine(BOSS_VOICE_WORKER_DOWN_REPLY).catch(() => undefined);
+    else if (route.kind === "dialog") await ctx.api.sendChatAction(ctx.chat.id, "typing").catch(() => undefined);
     try {
       await deps.agentsDeps!().enqueue.orchestrator(
         {
@@ -350,7 +470,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       );
     } catch (err) {
       console.error("[agents] vocal de l'admin non mis en file", identity.username, (err as Error).message);
-      await replyLine(BOSS_VOICE_QUEUE_DOWN_REPLY);
+      if (!down) await replyLine(BOSS_VOICE_QUEUE_DOWN_REPLY);
     }
   });
 
@@ -361,16 +481,18 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
     const route = await adminRouteFor(identity, deps, from.id, ctx.chat.type);
     if (route.kind === "other") return next();
     if (route.kind === "redirect") {
-      // Bot de canal : commandes, transferts (ajout d'un canal, emojis animés) et liens de canal gardent leur chemin.
-      if (msg.text.startsWith("/") || msg.forward_origin || findChannelLinkInText(msg.text)) return next();
+      // Bot de canal : commandes, transferts (ajout d'un canal, emojis animés), liens de canal et textes à emojis animés
+      // (bibliothèque, phase 12) gardent leur chemin.
+      if (msg.text.startsWith("/") || msg.forward_origin || findChannelLinkInText(msg.text) || messageHasCustomEmoji(msg))
+        return next();
       return redirectOnce(ctx, identity, deps, route.target);
     }
     if (route.kind === "legacy") return legacyAdminText(ctx, identity, deps, msg, next);
+    // Emojis animés (transférés, ou envoyés seuls) : bibliothèque d'emojis AVANT le chemin rapide (voir `wantsEmojiLibrary`).
+    if (await wantsEmojiLibrary(identity, deps, msg)) return next();
     // Bot de canal qui fait office de Boss : un transfert de canal ou un lien de canal sert toujours à ajouter le canal.
     if (!isBossBot(identity) && (msg.forward_origin?.type === "channel" || (!msg.forward_origin && findChannelLinkInText(msg.text))))
       return next();
-    // `/start` d'un membre (lien d'offre, canal à rejoindre…) sur le bot de repli : chemin habituel.
-    if (!isBossBot(identity) && /^\/start\s+[go][A-Za-z0-9_-]/.test(msg.text)) return next();
     await handleDialogText(ctx, identity, deps, msg, next);
   });
 }

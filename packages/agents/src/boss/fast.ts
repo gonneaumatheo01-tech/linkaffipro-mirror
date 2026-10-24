@@ -1,31 +1,56 @@
 /**
  * Chemin rapide du Boss (phase 26, appelé dans le webhook : instantané, gratuit, sans IA). Ordre :
- * 1. secret (`isSecretAdminText` avec le contexte des demandes SECRET ; « jeton boss <valeur> ») : rangé par
- *    `handleAdminText`, message supprimé, `[secret]` dans la mémoire ; jamais envoyé à l'IA ;
+ * 1. secret (détecteur partagé `isSecretAdminText` avec le contexte des demandes SECRET de CETTE conversation ;
+ *    « jeton boss <valeur> ») : rangé par `handleAdminText` (admin seulement), message supprimé, `[secret]` dans la
+ *    mémoire ; jamais envoyé à l'IA. Un jeton qui remplacerait un Boss actif demande d'abord OUI / NON (jeton gardé
+ *    chiffré) ;
  * 2. message transféré : une donnée, rien n'est fait ;
- * 3. OUI / NON / annule de la confirmation en attente (« OUI » sans rien → « Rien à confirmer. ») ;
- * 4. numéro d'une question de précision (liste numérotée) ;
- * 5. commandes exactes d'aujourd'hui et réponses aux questions ouvertes (`handleAdminText`), plus `aide`,
- *    `commencer`, `annule` ;
- * 6. le message suivant de l'admin répond à une question TEXT ouverte, sauf s'il ressemble clairement à un ordre ou à
- *    une question (l'interprète décide alors : `repondre_demande` ou autre action) ;
+ * 3. OUI / NON / annule de la confirmation en attente montrée dans cette conversation (« OUI » sans rien → « Rien à
+ *    confirmer. ») ;
+ * 4. numéro d'une question de précision : seulement de la personne qui l'a reçue, dans sa conversation, avec SES droits ;
+ * 5. commandes exactes d'aujourd'hui et réponses aux questions ouvertes (`handleAdminText`, admin SEULEMENT), plus
+ *    `aide`, `commencer`, `annule` ; un membre ne passe que par le catalogue (droits vérifiés) ;
+ * 6. le message suivant de l'admin répond à une question TEXT ouverte qui lui est adressée dans cette conversation,
+ *    sauf accusé court (« fait », « merci »…), emojis animés, ordre ou question ; si la question n'est plus le dernier
+ *    message de Kevin et date de plus de 6 heures, Kevin demande d'abord « C'est ta réponse à : … ? » (OUI / NON) ;
  * 7. sinon : `{ handled: false, needsAi: true }` (tâche `boss-text` du worker).
  */
 import { handleAdminText, type AdminTextResult } from "../admin/handle";
 import { isSecretAdminText, parseAdminCommand } from "../admin/commands";
 import { currentHumanRequest, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, type HumanRequestRow } from "../human/respond";
-import { isSkipText, looksLikeSecretValue, normalizeText, parseYesNo } from "../human/answer";
-import { agentAudit, esc, nowOf } from "../admin/journal";
-import { BOSS_TOKEN_SECRET_KEY, bossRegisterPort } from "./register-port";
+import { encrypt } from "@linkaffipro/core";
+import { isAckText, isSkipText, looksLikeSecretValue, normalizeText, parseYesNo } from "../human/answer";
+import { adminTelegramId, esc, nowOf } from "../admin/journal";
+import { BOSS_TOKEN_SECRET_KEY } from "./register-port";
 import type { BossDeps, BossFastResult, BossReply, BossTeamInput } from "./contract";
 import { bossAction } from "./catalog";
-import { NOTHING_TO_CANCEL, NOTHING_TO_CONFIRM, confirmWordOf, readBossPending, resolveBossPending } from "./confirm";
-import { bossActorOf, bossSecretContext, bossTokenCommand, looksLikeBotToken, notYoursReply, oopsReply, runBossAction, SECRET_REMOVED_REPLY } from "./execute";
+import {
+  NOTHING_TO_CANCEL,
+  NOTHING_TO_CONFIRM,
+  PENDING_OTHER_CHAT,
+  confirmWordOf,
+  createBossPending,
+  pendingTargeted,
+  readBossPending,
+  resolveBossPending,
+} from "./confirm";
+import {
+  bossActorOf,
+  bossSecretContext,
+  bossTokenCommand,
+  forwardedMemoryText,
+  looksLikeBotToken,
+  notYoursReply,
+  oopsReply,
+  runBossAction,
+  SECRET_REMOVED_REPLY,
+} from "./execute";
 import type { AdminCommand } from "../admin/commands";
 import { writeBossTurn, type BossTurnStatus } from "./memory";
-import { clearClarify, readClarify } from "./resolve";
+import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
+import { registerBossToken } from "./catalog-read";
 
 export const FORWARDED_REPLY =
   "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
@@ -54,7 +79,7 @@ async function remember(
   const chatId = input.chat?.chatId ?? null;
   await writeBossTurn(deps, {
     role: "ADMIN",
-    text: opts.secret ? "" : input.forwarded ? `[message transféré] ${input.text}` : input.text,
+    text: opts.secret ? "" : input.forwarded ? forwardedMemoryText(input.text) : input.text,
     secret: opts.secret,
     source: input.source,
     telegramMessageId: input.messageId,
@@ -76,26 +101,41 @@ function fromAdmin(r: AdminTextResult): BossReply {
     reply: r.reply ?? "C'est noté ✅",
     ...(r.deleteMessage ? { deleteMessage: true } : {}),
     ...(r.followUp ? { followUp: r.followUp } : {}),
+    ...(r.buttons ? { buttons: r.buttons } : {}),
+    ...(r.pendingId ? { pendingId: r.pendingId } : {}),
   };
 }
 
-/** Enregistre le Boss par son jeton (port du chantier A) ; ferme la demande SECRET « jeton boss » si elle est ouverte. */
-async function registerBossToken(deps: BossDeps, token: string, actorUserId: string | null): Promise<string> {
-  const port = bossRegisterPort();
-  if (!port) return "Je ne peux pas enregistrer le Boss d'ici : colle le jeton dans Réglages → Bots (rôle Boss).";
-  let username: string;
-  try {
-    username = (await port(token)).username;
-  } catch (err) {
-    return `Jeton refusé : ${esc(((err as Error).message || "jeton invalide").slice(0, 160))}. Vérifie-le dans @BotFather et renvoie-le.`;
+/**
+ * « jeton boss <valeur> » : enregistre le Boss ; s'il existe déjà un Boss actif, demande d'abord OUI / NON (« Kevin
+ * existe déjà (@x) : le remplacer ? »), jeton gardé CHIFFRÉ dans la confirmation.
+ */
+async function bossTokenStep(deps: BossDeps, input: BossTeamInput, token: string): Promise<BossReply> {
+  const active = (await deps.prisma.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { username: true } }).catch(() => null)) as { username: string } | null;
+  if (active) {
+    const r = await createBossPending(deps, {
+      actionKey: "remplacer_boss",
+      params: { jeton: encrypt(token) },
+      summary: `Kevin existe déjà (@${active.username}) : le remplacer par ce nouveau bot ?\nL'ancien ne répondra plus à l'équipe.`,
+      chatId: input.chat?.chatId ?? null,
+    });
+    return { ...r, deleteMessage: true };
   }
-  const closed = await deps.prisma.humanRequest.updateMany({
-    where: { key: BOSS_TOKEN_SECRET_KEY, status: { in: ["QUEUED", "PENDING"] } },
-    data: { status: "ANSWERED", answerSummary: "enregistrée", answeredAt: nowOf(deps) },
-  });
-  if (closed.count)
-    await agentAudit(deps, { userId: actorUserId, action: "agents.request.answered", entityType: "HumanRequest", entityId: BOSS_TOKEN_SECRET_KEY, metadata: { key: BOSS_TOKEN_SECRET_KEY, kind: "SECRET", via: "TELEGRAM", summary: "enregistrée" } });
-  return `Boss enregistré ✅ : @${esc(username)}. Envoie /start à @${esc(username)} depuis ton compte, puis écris « commencer ».`;
+  const actor = await bossActorOf(deps, input.speaker);
+  return { reply: await registerBossToken(deps, token, actor.userId), deleteMessage: true };
+}
+
+/** Le message porte-t-il des emojis animés (entités `custom_emoji`) ? */
+function hasCustomEmoji(input: BossTeamInput): boolean {
+  return (input.entities ?? []).some((e) => e.type === "custom_emoji");
+}
+
+/** Une question TEXT n'est prise sans « Répondre » que dans les 6 heures, ou si c'est encore le dernier message de Kevin. */
+export const TEXT_ANSWER_WINDOW_MS = 6 * 3600_000;
+
+function shortQuestion(q: string): string {
+  const l = (q.split("\n")[0] ?? "").replace(/<[^>]+>/g, "").trim();
+  return l.length > 80 ? `${l.slice(0, 79)}…` : l;
 }
 
 async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<BossFastResult> {
@@ -107,24 +147,29 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     return { handled: true, ...r };
   }
 
-  // 1. Secret : jamais envoyé à l'IA, jamais journalisé en clair.
+  // 1. Secret : jamais envoyé à l'IA, jamais journalisé en clair. Seul l'admin range un secret ou enregistre le Boss
+  // ici ; un membre (privé : `memberPrivateSecret` du groupe) n'a que le retrait du message.
+  const isMember = !!input.speaker && input.speaker.kind !== "admin";
   if (!voice) {
-    const ctx = await bossSecretContext(deps, replyTo);
-    const tokenAnswer =
-      ctx.pending?.key === BOSS_TOKEN_SECRET_KEY &&
-      (replyTo === null ? looksLikeSecretValue(text) : replyTo === ctx.pending.telegramMessageId || (ctx.secretMessageIds ?? []).includes(replyTo));
-    // Un message transféré est une donnée : jamais un enregistrement du Boss, même s'il contient « jeton boss … ».
-    const token = input.forwarded ? null : (bossTokenCommand(text) ?? (tokenAnswer ? text : null));
-    if (token) {
-      const actor = await bossActorOf(deps, input.speaker);
-      const reply = await registerBossToken(deps, token, actor.userId);
-      const r: BossReply = { reply, deleteMessage: true };
-      await remember(deps, input, r, { secret: true, actionKey: "jeton_boss", status: "done" });
-      return { handled: true, ...r };
+    const ctx = await bossSecretContext(deps, replyTo, { chat: input.chat, speaker: input.speaker });
+    if (!isMember && !input.forwarded) {
+      const tokenAnswer =
+        ctx.pending?.key === BOSS_TOKEN_SECRET_KEY &&
+        (replyTo === null ? looksLikeSecretValue(text) : replyTo === ctx.pending.telegramMessageId || (ctx.secretMessageIds ?? []).includes(replyTo));
+      // Un message transféré est une donnée : jamais un enregistrement du Boss, même s'il contient « jeton boss … ».
+      const token = bossTokenCommand(text) ?? (tokenAnswer ? text : null);
+      if (token) {
+        const r = await bossTokenStep(deps, input, token);
+        await remember(deps, input, r, { secret: true, actionKey: "jeton_boss", status: r.pendingId ? "confirm" : "done" });
+        return { handled: true, ...r };
+      }
     }
     if (isSecretAdminText(text, ctx) || looksLikeBotToken(text)) {
       // Un message transféré qui contient une clé : retiré, jamais rangé (c'est une donnée).
-      const handled = input.forwarded ? null : await handleAdminText(deps, { text, messageId: input.messageId, replyToMessageId: replyTo, source: "text", entities: input.entities });
+      const handled =
+        input.forwarded || isMember
+          ? null
+          : await handleAdminText(deps, { text, messageId: input.messageId, replyToMessageId: replyTo, source: "text", entities: input.entities, chat: input.chat });
       const r: BossReply = handled?.handled ? { ...fromAdmin(handled), deleteMessage: true } : { reply: SECRET_REMOVED_REPLY, deleteMessage: true };
       await remember(deps, input, r, { secret: true, actionKey: "secret", status: handled?.handled ? "done" : "refused" });
       return { handled: true, ...r };
@@ -142,17 +187,19 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   const pending = await readBossPending(deps);
   const word = confirmWordOf(voice ? (input.spokenText ?? text) : text);
 
-  // 3. OUI / NON / annule de la confirmation du Boss. Une question CONFIRM / CHOICE posée APRÈS la confirmation (ou
-  // une réponse au message de la question) garde la priorité.
+  // 3. OUI / NON / annule de la confirmation du Boss, montrée dans CETTE conversation. Une question CONFIRM / CHOICE
+  // posée APRÈS la confirmation (ou une réponse au message de la question) garde la priorité.
   if (word && pending) {
-    const questionFirst =
-      current &&
-      (current.kind === "CONFIRM" || current.kind === "CHOICE") &&
-      ((replyTo !== null && replyTo !== pending.messageId) || (replyTo === null && (current.askedAt?.getTime() ?? 0) > new Date(pending.createdAt).getTime()));
-    if (!questionFirst && (replyTo === null || replyTo === pending.messageId || pending.expired)) {
+    const target = pendingTargeted(pending, { replyTo, chatId: input.chat?.chatId ?? null, current });
+    if (target === "target" || (target === "other-chat" && word === "yes" && replyTo === null && !pending.expired)) {
       const speaker = input.speaker;
       if (speaker && speaker.kind !== "admin") {
         const r = { reply: await notYoursReply(deps) };
+        await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
+        return { handled: true, ...r };
+      }
+      if (target === "other-chat") {
+        const r = { reply: PENDING_OTHER_CHAT };
         await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
         return { handled: true, ...r };
       }
@@ -167,7 +214,9 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
 
   // 4. Numéro d'une question de précision du Boss.
   if (/^\s*\d{1,2}\s*[).]?\s*$/.test(text) && !(current && (current.kind === "CHOICE" || current.kind === "CONFIRM") && replyTo !== null)) {
-    const clarify = await readClarify(deps);
+    const found = await readClarify(deps);
+    // Seulement la personne qui a reçu la question, dans sa conversation (jamais le numéro d'un autre).
+    const clarify = found && clarifyIsFor(found, { speaker: input.speaker, chatId: input.chat?.chatId ?? null }) ? found : null;
     const choiceFirst = current?.kind === "CHOICE" && clarify && (current.askedAt?.getTime() ?? 0) > new Date(clarify.createdAt).getTime();
     if (clarify && !choiceFirst) {
       const n = Number(text.replace(/\D/g, ""));
@@ -229,6 +278,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     source: voice ? "voice" : "text",
     entities: input.entities,
     spokenText: input.spokenText,
+    chat: input.chat,
   });
   if (admin.handled) {
     const r = fromAdmin(admin);
@@ -242,25 +292,56 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     return { handled: true, ...r };
   }
   if (word === "yes" || parseYesNo(text) === "oui") {
-    const r = { reply: NOTHING_TO_CONFIRM };
+    // « ok », « 👍 » ne confirment jamais une action : Kevin le dit s'il y en a une en attente.
+    const r = { reply: !word && pending && !pending.expired ? "Pour confirmer, réponds OUI (ou appuie sur le bouton ✅ OUI)." : NOTHING_TO_CONFIRM };
     await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
     return { handled: true, ...r };
   }
 
-  // 6. Question TEXT ouverte : le message suivant est la réponse (le client n'arrive pas à utiliser « Répondre »).
-  if (current && current.kind === "TEXT" && replyTo === null && !isSkipText(text) && !looksLikeOrderOrQuestion(text)) {
-    const actor = await bossActorOf(deps, input.speaker);
-    const res = await respondToRequest(deps, current, text, { userId: actor.userId, via: "TELEGRAM" }, { deferNext: true, confirmText: input.spokenText ?? text });
-    const r: BossReply = {
-      reply: esc(res.message),
-      followUp: res.closed
-        ? async () => {
-            await sendNextHumanRequest(deps);
-          }
-        : undefined,
-    };
-    await remember(deps, input, r, { actionKey: "repondre_demande", status: res.ok ? "done" : "refused" });
-    return { handled: true, ...r };
+  // 6. Question TEXT ouverte : le message suivant est la réponse (le client n'arrive pas à utiliser « Répondre »),
+  // seulement pour une question adressée à l'admin et posée dans cette conversation ; jamais un accusé court ni un
+  // message à emojis animés.
+  if (current && current.kind === "TEXT" && replyTo === null && !isSkipText(text) && !isAckText(text) && !hasCustomEmoji(input) && !looksLikeOrderOrQuestion(text)) {
+    const req = current as typeof current & { assigneeTelegramId?: bigint | null; chatId?: bigint | null; remindedAt?: Date | null };
+    const adminId = await adminTelegramId(deps);
+    const forAdmin = req.assigneeTelegramId == null || (adminId != null && req.assigneeTelegramId === adminId);
+    const conv = input.chat?.type === "group" ? input.chat.chatId : null;
+    const sameConv = (req.chatId ?? null) === conv;
+    if (forAdmin && sameConv) {
+      const askedMs = Math.max(req.askedAt?.getTime() ?? 0, req.remindedAt?.getTime() ?? 0);
+      const recent = askedMs > 0 && nowOf(deps).getTime() - askedMs < TEXT_ANSWER_WINDOW_MS;
+      const lastFromKevin = askedMs > 0 && !(await deps.prisma.bossTurn.findFirst({
+        where: {
+          role: "BOSS",
+          createdAt: { gt: new Date(askedMs) },
+          ...(input.chat ? { OR: [{ chatId: input.chat.chatId }, { chatId: null }] } : {}),
+        },
+      }));
+      if (!recent && !lastFromKevin) {
+        // Doute : Kevin demande d'abord si c'est bien la réponse (confirmation du Boss, OUI / NON).
+        const short = text.length > 80 ? `${text.slice(0, 79)}…` : text;
+        const r = await createBossPending(deps, {
+          actionKey: "repondre_demande_confirmee",
+          params: { demande: req.id, reponse: text.slice(0, 2000) },
+          summary: `C'est ta réponse à : « ${shortQuestion(req.question)} » ?\nRéponse : « ${short} »`,
+          chatId: input.chat?.chatId ?? null,
+        });
+        await remember(deps, input, r, { actionKey: "repondre_demande", status: "confirm" });
+        return { handled: true, ...r };
+      }
+      const actor = await bossActorOf(deps, input.speaker);
+      const res = await respondToRequest(deps, current, text, { userId: actor.userId, via: "TELEGRAM" }, { deferNext: true, confirmText: input.spokenText ?? text });
+      const r: BossReply = {
+        reply: esc(res.message),
+        followUp: res.closed
+          ? async () => {
+              await sendNextHumanRequest(deps);
+            }
+          : undefined,
+      };
+      await remember(deps, input, r, { actionKey: "repondre_demande", status: res.ok ? "done" : "refused" });
+      return { handled: true, ...r };
+    }
   }
 
   return { handled: false, needsAi: true };

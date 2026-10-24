@@ -133,6 +133,13 @@ export type BossPending = {
   createdAt: string;
   expiresAt: string;
   messageId?: number | null;
+  /**
+   * Conversation où la confirmation a été montrée (chaîne d'un BigInt ; absente = ancienne confirmation, valable
+   * partout). Un « OUI » sans « Répondre » ne vaut que dans cette conversation.
+   */
+  chatId?: string | null;
+  /** Demande d'un membre transmise à l'admin (qui seul confirme). */
+  requestedBy?: { telegramUserId: string; firstName: string } | null;
 };
 
 /** Une étape du démarrage guidé (ordre de `docs/A-FAIRE-HUMAIN.md`). */

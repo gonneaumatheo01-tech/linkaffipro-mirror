@@ -218,10 +218,17 @@ describe("le groupe de l'équipe", () => {
     const chat = { type: "group", chatId: GROUP } as const;
     const pending = await runBossAction(kit.deps, by, { personne: "@lea", role: "vidéos casino et posts roulette" }, { actor: { userId: null, via: "TELEGRAM" }, speaker: admin, chat, mentions: [{ username: "lea" }] });
     expect(pending.reply).toContain("jamais vu @lea");
-    // Léa écrit à Kevin : la présentation en attente s'applique.
+    // Léa écrit à Kevin : rien n'est noté avant que l'admin confirme en privé (il voit @nom, prénom, identifiant).
     const hello = await bossTeamIncoming(kit.deps, kit.msg(LEA, "Kevin, salut"));
-    expect(hello.kind).toBe("reply");
-    expect((hello as { reply: { reply: string } }).reply.reply).toContain("Noté : Léa, vidéos casino et posts roulette. Je lui demanderai les vidéos et photos directement.");
+    expect(hello).toMatchObject({ kind: "reply", reply: { reply: "Salut Léa 👋 Je vérifie avec Mathéo et je reviens vers toi." } });
+    expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: LEA } })).toBeNull();
+    const ask = kit.sent.at(-1)!;
+    expect(ask.html).toContain("@lea vient d'écrire (@lea, prénom « Léa », identifiant 777) : c'est bien la personne que tu m'as présentée ?");
+    expect(ask.buttons?.[0]?.[0]?.callbackData).toMatch(/^bsc:/);
+    const yes = await bossFastPath(kit.deps, { text: "OUI", messageId: 90, source: "text", speaker: admin, chat: { type: "private", chatId: ADMIN } });
+    expect((yes as { reply?: string }).reply).toContain("Noté : Léa, vidéos casino et posts roulette. Je lui demanderai les vidéos et photos directement.");
+    expect(kit.groupSent.at(-1)).toMatchObject({ chatId: GROUP });
+    expect(kit.groupSent.at(-1)!.html).toContain("Bienvenue Léa");
     const lea = (await kit.prisma.teamMember.findUnique({ where: { telegramUserId: LEA } })) as TeamMemberRow;
     expect(lea.responsibilities).toEqual({ teams: ["casino"], kinds: ["media"] });
     // Marc a déjà écrit : présentation directe.
