@@ -18,7 +18,7 @@ import { adminTelegramId, agentAudit, agentEvent, esc, nowOf, telegramActorUserI
 import { hasKeyLikeToken, isSecretAdminText, isSecretCommandText, parseAdminCommand, type SecretTextContext } from "../../admin/commands";
 import { askedMessageIdsOf, currentHumanRequest, formatQuestion, sendNextHumanRequest } from "../../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../../human/respond";
-import { interpretAnswer, isSkipText, looksLikeSecretValue, secretAcceptsUnreplied, type HumanRequestKindName } from "../../human/answer";
+import { interpretAnswer, isSkipText, looksLikeSecretValue, secretAcceptsUnreplied, secretValueOf, type HumanRequestKindName } from "../../human/answer";
 import { hasLibraryKeyword, parseLibraryCaption } from "../../library/tags";
 import { decideValidation } from "../../validation/requests";
 import type { AgentsDeps } from "../../types";
@@ -320,7 +320,7 @@ async function memberPrivateSecret(deps: AgentsDeps, msg: BossTeamMessage, speak
   let value: string | null = null;
   const cmd = isSecretCommandText(text) ? parseAdminCommand(text) : null;
   if (cmd?.type === "secret" && cmd.key === cur.key) value = cmd.value;
-  else if (!cmd && (secretAcceptsUnreplied(cur.key, text.trim()) || (msg.replyTo && msg.replyTo.fromId === msg.bot.telegramId))) value = text.trim();
+  else if (!cmd && (secretAcceptsUnreplied(cur.key, text.trim()) || (msg.replyTo && msg.replyTo.fromId === msg.bot.telegramId))) value = secretValueOf(text);
   if (value === null) return null;
   return answerRequest(deps, cur, value, speaker, { type: "private", chatId: msg.chat.id }, msg.messageId);
 }

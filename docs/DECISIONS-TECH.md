@@ -833,3 +833,37 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **Validation adressée à un membre** : son bouton ou « ok n » publie sans OUI de l'admin (règle « réponses aux
   validations qui lui sont adressées ») ; tout autre à-confirmer d'un membre part chez l'admin (OUI / NON).
 - **Vocaux dans le groupe** : non traités (seuls les textes adressés à Kevin le sont).
+
+## Phase 26 — relecture adverse (autorisation, secrets / injection / coût, non-régression)
+Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un test (`packages/agents/src/boss/relecture-c1.test.ts`,
+`boss/team/team.test.ts`, `packages/telegram/src/handlers/{boss,boss-group}.test.ts`, `webhook-health.test.ts`,
+`alert-rules.test.ts`…). Principaux choix :
+- **Un seul détecteur de secrets** `isSecretAdminText` / `isSecretText` (`admin/commands.ts`) pour le chemin rapide, le
+  filet du worker, la mémoire, `BossUnmet` et le masquage du journal (légendes comprises) : mot de passe / mdp /
+  identifiant suivi d'un mot, mot de 20 caractères mêlant lettres et chiffres, `sk-…`, `xxx:yyy`, `jeton boss …` ;
+  pendant une demande SECRET, le message suivant est le secret (`secretValueOf`) sauf commande, « plus tard » ou accusé
+  court. Jamais de `reponse` / `jeton` dans `AuditLog`. Une tâche `boss-text` n'est jamais créée pour un texte qui
+  ressemble à un secret ; son texte est effacé de Redis après traitement.
+- **Confirmations** : une seule, liée à sa conversation (`BossPending.chatId`, `requestedBy`) ; la demande d'un membre ne
+  remplace jamais celle de l'admin (mise de côté `boss.pending.deferred`) ; remplacement toujours annoncé ; « ok », « go »,
+  👍 ne confirment plus ; `budget vidéo`, `vrai <équipe>`, `niveau …` en commande exacte passent par la confirmation de
+  Kevin (10 min) au lieu d'une `HumanRequest` CONFIRM ; remplacer un Boss actif par `jeton boss` demande OUI (jeton
+  chiffré dans la confirmation).
+- **Droits** : commandes exactes d'admin et `jeton boss` seulement pour l'admin ; un membre ne répond qu'aux demandes qui
+  lui sont adressées dans sa conversation, jamais aux demandes réservées à l'admin (même un responsable) ; liste fermée
+  des actions d'un simple membre ; question numérotée liée à son auteur et à sa conversation ; présentation sans
+  mention cliquable ni nom d'utilisateur vu = confirmation de l'admin (jamais par prénom seul) ; limite de 30 messages
+  à l'IA par jour et par membre.
+- **Question TEXT ouverte** : le message suivant de l'admin n'y répond plus si c'est un accusé court ou des emojis
+  animés ; au-delà de 6 h, Kevin demande « C'est ta réponse à … ? ».
+- **Non-régression** : Kevin (`role: ADMIN`) jamais « silencieux » dans l'alerte des bots ; emojis animés de l'admin
+  rangés avant le chemin rapide (transférés ou non, sur tout bot) ; `/start` à paramètre sur le bot de repli suit le
+  chemin habituel ; boutons `agv:` / `agh:` encore valables sur l'ancien bot ; à la bascule, aperçus et question en
+  cours reposés par Kevin, anciens numéros de message retirés (`onAnswer.retiredMessageIds`) ; rapport du matin : le
+  groupe reçoit un résumé EN PLUS du rapport privé, rien si l'admin l'a refusé ; réparation de webhook : 403 antérieur
+  à la dernière réparation ignoré ; réponse de secours immédiate si le battement du worker a plus de 3 min ; build du
+  worker : jamais `await import("@linkaffipro/db")` dans du code empaqueté (casse le ré-export de Prisma).
+- **Limites gardées** : le contexte de masquage du journal n'est pas encore calculé par conversation (le détecteur
+  renforcé couvre les cas) ; le privé d'un membre partage `chatId = null` avec celui de l'admin pour le contexte de
+  secret (effet : un texte peut être traité comme secret et effacé, jamais l'inverse) ; l'ancien chemin
+  `legacyAdminText` (tests de la phase 19 seulement) n'affiche pas les boutons de confirmation.

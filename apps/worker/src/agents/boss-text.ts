@@ -66,7 +66,11 @@ export function defaultBossTextDeps(): BossTextDeps {
   return {
     agents: workerAgentsDeps(),
     engine: realBossEngine,
-    loadLlm: () => realBossEngine.loadLlm(prisma),
+    // Messager et journal : les alertes 80 / 100 % du plafond de Kevin partent depuis le worker.
+    loadLlm: () => {
+      const agents = workerAgentsDeps();
+      return realBossEngine.loadLlm(prisma, { admin: agents.admin, logger: agents.logger });
+    },
     botApi: prismaBotApi,
     async adminTelegramId() {
       const s = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
