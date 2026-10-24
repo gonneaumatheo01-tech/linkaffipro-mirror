@@ -462,3 +462,13 @@ Migration additive `20261024010000_phase24_agent_ads` : valeur `RecommendationSt
 chez Meta / TikTok) et colonnes `Recommendation.action` (STOP / SCALE / TEST / WATCH), `comment`, `doneAt`, `doneById`.
 Recommandations et rapports de l'agent : `teamKey = "ads"` ; seuils `Setting` `agents.ads.thresholds` (par univers :
 coût par inscription cible, retour sur dépense minimal, jours d'observation, dépense minimale).
+
+## Phase 25 : supervision et conversation Casino / Paris sportifs
+
+Migration additive `20261024030000_phase25_supervision_conversations`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `Persona.universe` (`dating` par défaut, `casino`, `sports`) | Univers de la persona. Casino et Paris sportifs : identité assistante imposée (jamais « fille » ni mode illusion), règle codée dans le formulaire et le moteur (`packages/core/src/persona-universe.ts`). |
+| `Persona.faq` (JSON `{ q, a }[]`, 40 au plus) | Fiche d'informations : seule source de ce que l'assistante peut affirmer (bonus, dépôt minimum, pays, délais de retrait, VIP), avec la fiche de l'offre ; le reste est transmis à l'équipe. |
+| `Conversation.needsHumanAt` (index), `needsHumanReason` | Conversation « à traiter » par l'équipe (question hors fiche, réclamation, demande d'argent, mineur suspecté, insulte) ; remis à zéro quand l'équipe reprend la main. |

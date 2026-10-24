@@ -670,3 +670,12 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   test (`packages/connectors` n'expose que des lectures ; l'agent n'importe ni connecteur ni client HTTP).
 - **Réglages → Alertes** : les 4 interrupteurs de l'Agent Ads sont affichés (une case absente valait « désactivée » à
   l'enregistrement).
+
+## Phase 25 — supervision complète et conversation Casino / Paris (24 octobre 2026)
+
+- **Une seule source pour la supervision** : `agentsOverview` (`packages/agents/src/orchestrator/overview-contract.ts`)
+  alimente la page `/agents`, la carte « Agents » de l'État du système, la commande « agents » du bot et
+  `pnpm agents:status`.
+- **Univers des personas** (`Persona.universe`) et **fiche d'informations** (`Persona.faq`) ; « à traiter » sur la
+  conversation (`needsHumanAt`, `needsHumanReason`). Règle « identité assistante imposée » pour Casino et Paris
+  sportifs dans `packages/core/src/persona-universe.ts`, appliquée par le formulaire et par le moteur.
