@@ -227,3 +227,5 @@ export * from "./boss/team/incoming";
 export * from "./boss/team/morning";
 export * from "./boss/team/callbacks";
 export * from "./human/delivery";
+export * from "./inspiration/contract";
+export * from "./inspiration/copy-check";

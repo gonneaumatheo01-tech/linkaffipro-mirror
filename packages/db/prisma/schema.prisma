@@ -2343,6 +2343,8 @@ model ChannelAgentPlan {
   /// consignes « ce qui marche ici » lues par la Rédaction.
   suggestedWindows  Json     @default("[]")
   styleNotes        String?  @db.Text
+  /// Phase 27 : profil de style (canal d'inspiration) lu par la Rédaction pour ce canal.
+  styleProfileId    String?
   updatedById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -2781,12 +2783,120 @@ model Recommendation {
   doneAt       DateTime?
   doneById     String?
   weekStart    String?
+  /// Phase 27 : origine de la proposition (`algo` par défaut, `inspiration` = canal de référence).
+  source       String                   @default("algo")
+  referenceChannelId String?
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
 
   @@index([status, teamKey])
   @@index([target, targetId])
+  @@index([source, referenceChannelId])
 }
+
+enum ReferenceVia {
+  WEB
+  ACCOUNT
+  FORWARDED
+}
+
+enum ReferenceStatus {
+  READING
+  READY
+  UNAVAILABLE
+}
+
+/// Phase 27 : canal de référence (« canal d'inspiration ») lu par Kevin. Jamais rejoint de force ; aucun membre lu.
+model ReferenceChannel {
+  id                String          @id @default(cuid())
+  /// Nom public (sans @), si connu.
+  username          String?
+  /// Identifiant Telegram du canal (voie compte réel ou posts transférés), si connu.
+  telegramChatId    BigInt?
+  title             String?
+  via               ReferenceVia
+  /// dating | casino | sports
+  universe          String
+  /// Canaux du client (`Channel.id`) qui s'en inspirent (même univers obligatoire).
+  targetChannelIds  Json            @default("[]")
+  status            ReferenceStatus @default(READING)
+  unavailableReason String?
+  /// Compte réel (phase 18) qui lit le canal, voie ACCOUNT.
+  accountId         String?
+  addedByTelegramId BigInt?
+  postCount         Int             @default(0)
+  lastReadAt        DateTime?
+  nextReadAt        DateTime?
+  removedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  posts             ReferencePost[]
+  styleProfiles     StyleProfile[]
+
+  @@index([status])
+  @@index([username])
+  @@index([telegramChatId])
+}
+
+/// Phase 27 : caractéristiques d'un post du canal de référence. Le texte brut est effacé après 30 jours ; aucun média
+/// n'est téléchargé.
+model ReferencePost {
+  id                 String           @id @default(cuid())
+  referenceChannelId String
+  referenceChannel   ReferenceChannel @relation(fields: [referenceChannelId], references: [id], onDelete: Cascade)
+  /// Numéro du message dans le canal de référence.
+  externalId         Int
+  postedAt           DateTime
+  via                ReferenceVia
+  /// Texte brut (30 jours au plus, voir `textPurgedAt`).
+  text               String?          @db.Text
+  textPurgedAt       DateTime?
+  /// Empreinte du texte (contrôle « jamais de copie » après la purge).
+  textHash           String?
+  /// Empreintes des suites de 8 mots (JSON `string[]`, hachées) : contrôle de copie sans garder le texte.
+  shingles           Json             @default("[]")
+  length             Int              @default(0)
+  lines              Int              @default(0)
+  emojiCount         Int              @default(0)
+  /// text | photo | video | poll | document | other
+  mediaKind          String           @default("text")
+  views              Int?
+  hasLink            Boolean          @default(false)
+  hasButton          Boolean          @default(false)
+  hasPrice           Boolean          @default(false)
+  hasOdds            Boolean          @default(false)
+  hasVipCall         Boolean          @default(false)
+  keywords           Json             @default("[]")
+  /// Autres mesures (hashtags, mentions, questions, majuscules, série pari → résultat…).
+  features           Json             @default("{}")
+  createdAt          DateTime         @default(now())
+
+  @@unique([referenceChannelId, externalId])
+  @@index([referenceChannelId, postedAt])
+  @@index([textPurgedAt, createdAt])
+}
+
+/// Phase 27 : profil de style tiré d'un canal de référence (règles, description, exemples écrits à neuf), versionné.
+model StyleProfile {
+  id                 String           @id @default(cuid())
+  referenceChannelId String
+  referenceChannel   ReferenceChannel @relation(fields: [referenceChannelId], references: [id], onDelete: Cascade)
+  version            Int              @default(1)
+  universe           String
+  /// Chiffres du code (rythme, forme, fond, résultats) au moment du profil.
+  stats              Json             @default("{}")
+  /// Règles de style (5 à 10), description (ton, structure, accroches, offre), exemples écrits à neuf.
+  rules              Json             @default("[]")
+  description        String?          @db.Text
+  examples           Json             @default("[]")
+  /// Règles du client que le style de référence violerait (signalées, jamais reproduites).
+  flagged            Json             @default("[]")
+  costCents          Int              @default(0)
+  createdAt          DateTime         @default(now())
+
+  @@unique([referenceChannelId, version])
+}
+
 
 /// Rapport « Ce qui marche » (par équipe et par semaine).
 model InsightReport {
