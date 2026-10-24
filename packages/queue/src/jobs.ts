@@ -253,6 +253,10 @@ export type AgentsOrchestratorJob =
       source?: "text" | "voice";
       forwarded?: boolean;
       entities?: Array<{ type: string; offset: number; length: number; url?: string; language?: string; custom_emoji_id?: string }> | null;
+      /** Phase 26 (Kevin en équipe) : auteur, type de conversation, mentions (voir `@linkaffipro/agents`). */
+      fromTelegramId?: string;
+      chatType?: "private" | "group";
+      mentions?: Array<{ telegramUserId?: string | null; username?: string | null; firstName?: string | null }>;
     };
 
 /**

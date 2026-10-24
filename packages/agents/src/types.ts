@@ -203,6 +203,14 @@ export type AgentsOrchestratorJob =
       source?: "text" | "voice";
       forwarded?: boolean;
       entities?: Array<{ type: string; offset: number; length: number; url?: string; language?: string; custom_emoji_id?: string }> | null;
+      /**
+       * Phase 26 (Kevin en équipe) : auteur du message (identifiant Telegram en texte) et type de conversation. Absents =
+       * l'admin en privé (chemin historique). Le worker revérifie toujours qui parle (admin ou membre présenté) et que le
+       * groupe est bien celui enregistré.
+       */
+      fromTelegramId?: string;
+      chatType?: "private" | "group";
+      mentions?: Array<{ telegramUserId?: string | null; username?: string | null; firstName?: string | null }>;
     };
 /** `poll` : numéro de relecture d'une étape qui attend un fournisseur (identifiant de tâche distinct à chaque fois). */
 export type AgentStepJob = { type: "step"; missionId: string; index: number; poll?: number };
@@ -224,6 +232,17 @@ export type AdminMessenger = {
     opts?: { buttons?: AdminButton[][]; mediaAssetId?: string | null; replyToMessageId?: number },
   ): Promise<{ messageId: number } | null>;
   deleteMessage?(messageId: number): Promise<void>;
+  /**
+   * Phase 26 (Kevin en équipe) : envoi par le même bot dans une autre conversation (le groupe de l'équipe, ou le privé
+   * d'un membre présenté qui a fait /start). Absent : seul l'envoi à l'admin existe (le groupe n'est jamais utilisé).
+   */
+  sendTo?(
+    chatId: bigint,
+    html: string,
+    opts?: { buttons?: AdminButton[][]; mediaAssetId?: string | null; replyToMessageId?: number },
+  ): Promise<{ messageId: number } | null>;
+  /** Phase 26 : suppression d'un message dans une autre conversation (secret collé dans le groupe). */
+  deleteIn?(chatId: bigint, messageId: number): Promise<boolean>;
 };
 
 export type Logger = {
