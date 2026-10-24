@@ -62,6 +62,7 @@ const KEY = "sgoKEYabcdef1234567890XYZ";
 const hooked: Array<{ method: string; payload: Record<string, unknown> }> = [];
 const enqueued: Array<{ job: AgentsOrchestratorJob; jobId?: string }> = [];
 const ids = { boss: "", secret: "" };
+const started = new Date();
 let canDelete = true;
 
 let uid = 1;
@@ -154,7 +155,7 @@ async function cleanup() {
   await resetDb();
   await prisma.bossTurn.deleteMany();
   await prisma.teamMember.deleteMany();
-  await prisma.mediaAsset.deleteMany({ where: { tags: { has: "roulette" } } });
+  await prisma.mediaAsset.deleteMany({ where: { theme: "roulette", createdAt: { gte: started } } });
   await prisma.agentTeamConfig.deleteMany();
   await prisma.setting.deleteMany({ where: { OR: [{ key: { startsWith: "boss." } }, { key: { startsWith: "agents.secret." } }, { key: "agents.report.lastDay" }] } });
   await prisma.bot.deleteMany({ where: { telegramBotId: 222n } });
@@ -178,7 +179,7 @@ beforeAll(async () => {
     if (method === "copyMessage") return { ok: true, result: { message_id: n++ } } as never;
     return { ok: true, result: true } as never;
   });
-  (prismaTelegramDeps as { downloadTelegramFile?: (url: string) => Promise<Uint8Array> }).downloadTelegramFile = async () => new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
+  (prismaTelegramDeps as { downloadTelegramFile?: (url: string) => Promise<Uint8Array> }).downloadTelegramFile = async () => new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, ...Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))]);
   (prismaTelegramDeps as { mediaAlbumReplyDelayMs?: number }).mediaAlbumReplyDelayMs = 1;
   agents().enqueue = { orchestrator: async (job, opts) => void enqueued.push({ job, jobId: opts?.jobId }), step: async () => undefined };
 });
@@ -215,7 +216,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     const req = await prisma.humanRequest.findFirstOrThrow({ where: { key: "casino.media.roulette" } });
     expect(req).toMatchObject({ chatId: BigInt(GROUP), assigneeTelegramId: BigInt(LEA), status: "PENDING" });
     await toBoss(groupMsg(LEA, "", { text: undefined, caption: "#casino #roulette", video: { file_id: "vid1", file_unique_id: "vu1", width: 720, height: 1280, duration: 8, mime_type: "video/mp4", file_size: 1000 } }));
-    expect(await prisma.mediaAsset.count({ where: { tags: { has: "roulette" } } })).toBe(1);
+    expect(await prisma.mediaAsset.count({ where: { theme: "roulette", createdAt: { gte: started } } })).toBe(1);
     expect((await prisma.humanRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("ANSWERED");
   });
 

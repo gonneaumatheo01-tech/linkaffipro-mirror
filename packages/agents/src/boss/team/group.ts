@@ -128,7 +128,13 @@ export async function markGroupLeft(deps: AgentsDeps, chatId: bigint): Promise<v
 /** Nom d'utilisateur du Boss (lien privé « t.me/<boss> »), ou null. */
 export async function bossUsername(deps: Pick<AgentsDeps, "prisma">): Promise<string | null> {
   try {
-    const bot = (await deps.prisma.bot.findFirst({ where: { role: "ADMIN", isActive: true }, orderBy: { createdAt: "asc" } })) as { username?: string } | null;
+    // Même règle que `adminBot()` (`packages/telegram/src/admin-bot.ts`) : Boss actif, en mode normal, jamais un bot
+    // fantôme, le plus récent d'abord.
+    const bots = (await deps.prisma.bot.findMany({ where: { role: "ADMIN", isActive: true }, orderBy: { createdAt: "desc" }, take: 10 })) as {
+      username?: string;
+      mode?: string | null;
+    }[];
+    const bot = bots.find((b) => (b.mode ?? "STANDARD") === "STANDARD" && !(b.username ?? "").startsWith("userbot_"));
     return bot?.username ?? null;
   } catch {
     return null;

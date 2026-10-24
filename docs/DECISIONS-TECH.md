@@ -810,3 +810,26 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **File `agents-orchestrator`** (une tâche à la fois) : `boss-text` et `admin-voice` y restent. Les cycles du Grand
   Chef ne font que répartir le travail (quelques secondes) ; un retard serait visible dans `pnpm tg:diag` et l'État du
   système (« Kevin ne répond plus » au-delà de 2 minutes d'attente). À revoir seulement si cela se produit.
+
+### Phase 26, chantier D — Kevin dans le groupe de l'équipe
+- **Où vit la logique** : `packages/agents/src/boss/team/*` (qui parle, message adressé ou non, droits, responsable,
+  groupe, rapport du matin, boutons) et `catalog-team.ts` ; le bot (`handlers/boss-group.ts`) ne fait que les appels
+  Telegram. Membres en privé : pris par le même point d'accroche (l'admin et les inconnus gardent le chemin habituel).
+- **Identifiant d'une personne** : toujours venu de Telegram (mention cliquable, nom d'utilisateur déjà vu dans le
+  groupe — `Setting boss.group.seen`, identifiant / prénom / nom d'utilisateur, jamais le texte). « voici @lea » alors
+  que Léa n'a jamais écrit : présentation en attente (`boss.group.pendingIntros`, 30 jours), appliquée dès qu'elle
+  écrit dans le groupe.
+- **Journal** : sur le Boss, un message de groupe n'est jamais journalisé avec son texte (`redactBossUpdate` :
+  « [message de groupe : N caractères] ») ; ce que Kevin retient est dans `BossTurn` (secrets « [secret] »).
+- **Où partent les questions** quand un groupe existe (et `boss.group.requests` ≠ `private`) : toutes dans le groupe
+  avec la mention du responsable (membre, sinon l'admin), sauf une clé destinée à l'admin (privé, comme avant) ; une clé
+  pour un membre : « envoie-la-moi en privé » + la question complète en privé s'il a fait /start. Les validations ne
+  vont dans le groupe que si un membre en est responsable (sinon en privé à l'admin, comme avant).
+- **Questions réservées à l'admin** (jamais à un membre) : niveau, passage en vrai, réglages, plafond vidéo, seuils pubs,
+  catégories de paris, offre d'un canal, banc d'essai, et toute question sans équipe.
+- **Numéros de message** propres à chaque conversation : `HumanRequest.chatId` / `BossTurn.chatId` filtrent les
+  recherches ; identifiant de tâche `boss-text:<bot>:<conversation>:<message>` pour le groupe et le privé des membres.
+- **Rôle ADMIN d'un membre** : mêmes droits qu'un responsable (seul l'admin `admin.telegramUserId` confirme).
+- **Validation adressée à un membre** : son bouton ou « ok n » publie sans OUI de l'admin (règle « réponses aux
+  validations qui lui sont adressées ») ; tout autre à-confirmer d'un membre part chez l'admin (OUI / NON).
+- **Vocaux dans le groupe** : non traités (seuls les textes adressés à Kevin le sont).

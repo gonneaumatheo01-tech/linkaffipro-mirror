@@ -80,4 +80,19 @@ describe("tâche boss-text (phase 26)", () => {
     expect((await processBossText(job({ chatId: 999 }), t.deps)).outcome).toBe("not-admin");
     expect(t.sent).toHaveLength(0);
   });
+
+  it("groupe de l'équipe (phase 26) : personne revérifiée ; inconnu ou autre groupe → rien ; membre → l'interprète, avec mentions", async () => {
+    const GROUP = -100777;
+    const t = setup();
+    const speakers = new Map<string, unknown>([[`${GROUP}:777`, { kind: "member", telegramUserId: 777n, memberId: "m1", role: "MEMBER", firstName: "Léa" }]]);
+    const deps = { ...t.deps, teamSpeaker: vi.fn(async (chat: { chatId: bigint }, from: bigint) => (speakers.get(`${chat.chatId}:${from}`) as never) ?? null) };
+    const g = (from: string, chatId = GROUP) => job({ chatId, messageId: Number(from), fromTelegramId: from, chatType: "group", mentions: [{ username: "marc" }] });
+    expect(await processBossText(g("999"), deps)).toEqual({ ok: false, outcome: "not-admin" });
+    expect(await processBossText(g("777", -100555), deps)).toEqual({ ok: false, outcome: "not-admin" });
+    expect(t.aiTurn).not.toHaveBeenCalled();
+    expect((await processBossText(g("777"), deps)).outcome).toBe("answered");
+    expect(t.aiTurn.mock.calls[0]![1]).toMatchObject({ speaker: { kind: "member", firstName: "Léa" }, chat: { type: "group", chatId: BigInt(GROUP) }, mentions: [{ username: "marc", telegramUserId: null }] });
+    expect(t.sent[0]).toBeTruthy();
+  });
 });
+
