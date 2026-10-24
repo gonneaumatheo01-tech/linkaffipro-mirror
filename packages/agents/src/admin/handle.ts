@@ -1,16 +1,22 @@
 /**
- * Message texte privé de l'admin au bot du dialogue admin. Ordre : réponse à une demande (`reply_to_message`) →
- * correction en attente (« ✏️ ») → commande connue → réponse à la demande en cours. Rien de cela : `handled: false`
- * (le message reste pour `pnpm tg:inbox` et les autres handlers).
+ * Message texte privé de l'admin au bot du dialogue admin. Ordre : réponse au message d'une demande
+ * (`reply_to_message`) → commande connue → correction en attente (« ✏️ », en réponse au message « envoie le nouveau
+ * texte » ou dans les 15 minutes) → réponse à la demande en cours (sans « répondre » : jamais pour une demande TEXT,
+ * seulement un texte qui ressemble à une clé pour une demande SECRET). Un message en réponse à un AUTRE message ne
+ * répond jamais à la demande en cours. Rien de cela : `handled: false` (le message reste pour `pnpm tg:inbox` et les
+ * autres handlers).
  */
 import { TEAM_LABELS, type AgentsDeps } from "../types";
 import { decideValidation } from "../validation/requests";
-import { askHuman, currentHumanRequest, sendNextHumanRequest } from "../human/requests";
+import { askHuman, currentHumanRequest, humanRequestByMessageId, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
-import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretLabel, verifySecret } from "../human/secrets";
-import { interpretAnswer, normalizeText } from "../human/answer";
+import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretSavedHead, verifySecret } from "../human/secrets";
+import { interpretAnswer, looksLikeSecretValue, normalizeText, secretAcceptsUnreplied } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
-import { esc, nowOf, telegramActorUserId } from "./journal";
+import { esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "./journal";
+import { telegramEntitiesToHtml, type TelegramTextEntity } from "./entities-html";
+
+export { telegramEntitiesToHtml, escapeTelegramHtml, type TelegramTextEntity } from "./entities-html";
 import { setTeamBudget } from "./budget";
 import { setTeamPaused, type ActorRef } from "./team";
 import { agentsOverview, overviewLines } from "../orchestrator/overview-contract";
@@ -23,6 +29,10 @@ export type AdminTextInput = {
   replyToMessageId?: number | null;
   /** « voice » : texte transcrit d'un vocal (phase 20) ; jamais pris pour une clé, tout niveau confirmé par OUI. */
   source?: "text" | "voice";
+  /** Mises en forme du message (gras, liens, emojis animés) : gardées dans un texte corrigé. */
+  entities?: readonly TelegramTextEntity[] | null;
+  /** Vocal : transcription nettoyée AVANT la remise en forme (« Oui, vas-y » reste tel quel) pour un « oui » strict. */
+  spokenText?: string;
 };
 
 /** Réponse quand une clé arriverait par un vocal : rien n'est enregistré. */
@@ -39,7 +49,17 @@ export type AdminTextResult = {
   followUp?: () => Promise<void>;
 };
 
-const EDIT_WINDOW_MS = 24 * 3600_000;
+/** Sans « répondre » au message « envoie le nouveau texte », une correction n'est prise que dans ce délai après ✏️. */
+export const EDIT_WINDOW_MS = 15 * 60_000;
+/** `Setting` : message « ✏️ Envoie-moi le nouveau texte… » de la correction en cours (`{ validationId, messageId }`). */
+export const EDIT_PROMPT_SETTING = "agents.validation.editPrompt";
+
+/** Mémorise le message « envoie le nouveau texte » (appelé par le bot après l'envoi de la réponse au bouton ✏️). */
+export async function rememberEditPrompt(deps: AgentsDeps, validationId: string, messageId: number): Promise<void> {
+  await writeSetting(deps, EDIT_PROMPT_SETTING, { validationId, messageId });
+}
+
+export const NOT_OPEN_QUESTION = "Ce message n'est plus une question ouverte : rien n'a été changé.";
 
 function nextQuestion(deps: AgentsDeps): () => Promise<void> {
   return async () => {
@@ -53,14 +73,16 @@ async function answerRequest(
   text: string,
   actor: ActorRef,
   voice = false,
+  confirmText?: string,
 ): Promise<AdminTextResult> {
   if (voice && request.kind === "SECRET") return { handled: true, reply: VOICE_SECRET_REFUSAL };
-  const r = await respondToRequest(deps, request, text, actor, { deferNext: true });
+  const r = await respondToRequest(deps, request, text, actor, { deferNext: true, confirmText });
   return {
     handled: true,
     reply: r.message,
     secret: r.secret,
-    deleteMessage: r.secret,
+    // Supprimé seulement si le secret a vraiment été enregistré.
+    deleteMessage: !!r.secretSaved,
     followUp: r.closed ? nextQuestion(deps) : undefined,
   };
 }
@@ -78,8 +100,7 @@ async function storeSecretCommand(
   if (open) return { ...(await answerRequest(deps, open, value, actor)), secret: true, deleteMessage: true };
   const { last4 } = await saveSecret(deps, key, value, actor);
   const check = await verifySecret(deps, key);
-  const label = secretLabel(key);
-  const head = `${label.charAt(0).toUpperCase()}${label.slice(1)} enregistrée (…${last4})`;
+  const head = secretSavedHead(key, last4);
   const reply = !check ? `${head} ✅` : check.ok ? `${head}. Vérification : OK ✅` : `${head}. Vérification : KO : ${check.message}. Réessaie avec une autre clé.`;
   return { handled: true, reply, secret: true, deleteMessage: true };
 }
@@ -153,7 +174,7 @@ async function runCommand(
     case "budget": {
       // Les vidéos IA sont produites par l'équipe Dating (plan des phases 20 à 25).
       await setTeamBudget(deps, "dating", "video", cmd.euros * 100, actor);
-      return { handled: true, reply: `Plafond vidéo de l'équipe Dating : ${cmd.euros.toLocaleString("fr-FR")} € par mois ✅` };
+      return { handled: true, reply: `Plafond vidéo de l'équipe ${TEAM_LABELS.dating} : ${cmd.euros.toLocaleString("fr-FR")} € par mois ✅` };
     }
     case "live": {
       // Le bot résume d'abord ce qui va se passer (canaux, quota, niveau, plafonds), puis attend OUI.
@@ -189,58 +210,84 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   if (!text) return { handled: false };
   const actor: ActorRef = { userId: await telegramActorUserId(deps), via: "TELEGRAM" };
   const voice = input.source === "voice";
+  const confirmText = voice ? (input.spokenText ?? text) : text;
+  const replyTo = input.replyToMessageId ?? null;
 
-  // 1. Réponse Telegram au message d'une question.
-  if (input.replyToMessageId) {
-    const request = (await deps.prisma.humanRequest.findFirst({
-      where: { telegramMessageId: input.replyToMessageId, status: { in: ["QUEUED", "PENDING"] } },
-    })) as HumanRequestRow | null;
-    if (request) return answerRequest(deps, request, text, actor, voice);
+  // 1. Réponse Telegram au message d'une question (question ou rappel, quel que soit son statut).
+  if (replyTo) {
+    const target = (await humanRequestByMessageId(deps, replyTo)) as HumanRequestRow | null;
+    if (target && (target.status === "QUEUED" || target.status === "PENDING"))
+      return answerRequest(deps, target, text, actor, voice, confirmText);
+    if (target) {
+      // Ancienne question (répondue, passée, expirée) : jamais reportée sur la question en cours. Une clé collée en
+      // réponse à une ancienne demande de clé est retirée de la conversation (le journal la masque déjà).
+      // « plus tard » en réponse à une ancienne question ne passe pas la question en cours.
+      const cmd = target.kind === "SECRET" ? null : parseAdminCommand(text);
+      if (cmd && cmd.type !== "later") return runCommand(deps, cmd, actor, voice);
+      const secret = target.kind === "SECRET" && !voice;
+      return { handled: true, reply: NOT_OPEN_QUESTION, secret, deleteMessage: secret };
+    }
   }
 
-  // 2. Correction demandée par « ✏️ Corriger » : ce message est le nouveau texte du post.
+  // 2. Commande connue (« ok 1 », « pause tout », « clé fal … ») : jamais prise pour le texte d'une correction.
+  const cmd = parseAdminCommand(text);
+  if (cmd) return runCommand(deps, cmd, actor, voice);
+
+  const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
+
+  // 3. Correction demandée par « ✏️ Corriger » : ce message est le nouveau texte du post. Jamais pendant une demande
+  // de clé, jamais une clé collée ; seulement en réponse au message « envoie le nouveau texte » (ou à l'aperçu), ou
+  // sans « répondre » dans les 15 minutes après ✏️.
   const editing = await deps.prisma.agentValidation.findFirst({
     where: { status: "PENDING", awaitingEditAt: { not: null } },
     orderBy: { awaitingEditAt: "desc" },
   });
-  // Une clé collée pendant une correction n'est jamais prise pour le texte d'un post.
-  if (
-    editing?.awaitingEditAt &&
-    !isSecretCommandText(text) &&
-    nowOf(deps).getTime() - editing.awaitingEditAt.getTime() < EDIT_WINDOW_MS
-  ) {
-    if (["annule", "annuler", "stop"].includes(normalizeText(text))) {
-      await deps.prisma.agentValidation.update({ where: { id: editing.id }, data: { awaitingEditAt: null } });
-      return { handled: true, reply: `Correction annulée : le post n°${editing.number} attend toujours ta décision.` };
+  if (editing?.awaitingEditAt && current?.kind !== "SECRET" && !isSecretCommandText(text) && !looksLikeSecretValue(text)) {
+    const prompt = (await readSetting(deps, EDIT_PROMPT_SETTING)) as { validationId?: unknown; messageId?: unknown } | undefined;
+    const inReply =
+      replyTo !== null &&
+      ((prompt?.validationId === editing.id && prompt?.messageId === replyTo) || editing.telegramMessageId === replyTo);
+    const recent = replyTo === null && nowOf(deps).getTime() - editing.awaitingEditAt.getTime() < EDIT_WINDOW_MS;
+    if (inReply || recent) {
+      if (["annule", "annuler", "stop"].includes(normalizeText(text))) {
+        await deps.prisma.agentValidation.update({ where: { id: editing.id }, data: { awaitingEditAt: null } });
+        return { handled: true, reply: `Correction annulée : le post n°${editing.number} attend toujours ta décision.` };
+      }
+      const r = await decideValidation(deps, {
+        validationId: editing.id,
+        decision: "edit",
+        // Texte + mises en forme → HTML Telegram échappé (« <3 » reste un texte, le gras et les liens restent).
+        editedText: voice ? esc(input.text) : telegramEntitiesToHtml(input.text, input.entities),
+        via: "TELEGRAM",
+        byUserId: actor.userId,
+      });
+      return { handled: true, reply: r.message };
     }
-    const r = await decideValidation(deps, {
-      validationId: editing.id,
-      decision: "edit",
-      editedText: input.text,
-      via: "TELEGRAM",
-      byUserId: actor.userId,
-    });
-    return { handled: true, reply: r.message };
   }
 
-  // 3. Commande connue.
-  const cmd = parseAdminCommand(text);
-  if (cmd) return runCommand(deps, cmd, actor, voice);
-
-  // 4. Réponse à la question en cours. Sans « répondre » au message de la question, un texte qui n'est pas une réponse
-  // valable à une question fermée (choix, oui / non, médias) continue son chemin : « fait », des emojis animés à
-  // ranger… ne doivent pas recevoir « Réponds oui ou non ».
-  const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
-  if (current) {
-    if (current.kind === "MEDIA") return { handled: false };
-    if (current.kind === "CHOICE" || current.kind === "CONFIRM") {
-      const options = Array.isArray(current.options) ? (current.options as unknown[]).map(String) : [];
-      // Un chiffre hors liste reste une tentative de réponse (on la signale) ; le reste continue son chemin.
-      const attempt = /^\s*\d{1,4}\s*[).€]?\s*$/.test(text);
-      if (!attempt && interpretAnswer({ kind: current.kind, key: current.key, options }, text).type === "invalid")
-        return { handled: false };
-    }
-    return answerRequest(deps, current, text, actor, voice);
+  // 4. Réponse à la question en cours. Un message en réponse à un AUTRE message (aperçu, rapport…) n'y répond
+  // jamais. Sans « répondre » au message de la question, un texte qui n'est pas une réponse valable continue son
+  // chemin : « fait », des emojis animés à ranger… ne reçoivent pas « Réponds oui ou non » et ne sont pas avalés.
+  if (!current) return { handled: false };
+  if (current.kind === "MEDIA") return { handled: false };
+  if (current.kind === "TEXT") return { handled: false };
+  if (current.kind === "SECRET") {
+    if (replyTo !== null || !secretAcceptsUnreplied(current.key, text)) return { handled: false };
+    return answerRequest(deps, current, text, actor, voice, confirmText);
   }
-  return { handled: false };
+  const options = Array.isArray(current.options) ? (current.options as unknown[]).map(String) : [];
+  // Un chiffre hors liste reste une tentative de réponse (on la signale) ; le reste continue son chemin.
+  const attempt = /^\s*\d{1,4}\s*[).€]?\s*$/.test(text);
+  const valid = interpretAnswer({ kind: current.kind as "CHOICE" | "CONFIRM", key: current.key, options }, text).type !== "invalid";
+  if (!attempt && !valid) return { handled: false };
+  if (replyTo !== null) {
+    const preview = await deps.prisma.agentValidation.findFirst({ where: { telegramMessageId: replyTo } });
+    return {
+      handled: true,
+      reply: preview
+        ? `Ce message est l'aperçu du post n°${preview.number} : utilise ses boutons, ou écris « ok ${preview.number} ». La question en cours n'a pas changé.`
+        : `${NOT_OPEN_QUESTION} Pour la question en cours, réponds à son message.`,
+    };
+  }
+  return answerRequest(deps, current, text, actor, voice, confirmText);
 }

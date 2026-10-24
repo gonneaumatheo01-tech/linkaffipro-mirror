@@ -36,6 +36,17 @@ export type OurBotAdmin = { telegramBotId: bigint; username: string };
  * Dépendances des handlers (accès base). Abstraites pour pouvoir tester les handlers
  * avec des updates simulées sans base de données.
  */
+/**
+ * État du dialogue admin lu avant la journalisation (masquage des secrets) : l'expéditeur est-il l'admin, la demande
+ * SECRET en cours (clé et message de la question) et les messages de TOUTES les demandes SECRET (tout statut).
+ */
+export type AgentsAdminState = {
+  isAdmin: boolean;
+  secretPending: boolean;
+  pendingSecret?: { key: string; telegramMessageId: number | null } | null;
+  secretMessageIds?: number[];
+};
+
 export interface TelegramDeps {
   /** Journalise une update brute (type `telegram.<update_type>`). */
   recordUpdate(
@@ -126,7 +137,7 @@ export interface TelegramDeps {
    * Phase 19 : l'expéditeur est-il l'admin, et une demande SECRET est-elle en cours ? Lu AVANT la journalisation pour
    * retirer un secret du texte journalisé. Absent : seules les commandes « clé … » / « bookmaker … » sont masquées.
    */
-  agentsAdminState?(telegramUserId: bigint): Promise<{ isAdmin: boolean; secretPending: boolean }>;
+  agentsAdminState?(telegramUserId: bigint): Promise<AgentsAdminState>;
   /** Phase 19 : téléchargement d'un fichier Telegram (`getFile`) ; absent : `fetch`. */
   downloadTelegramFile?(url: string): Promise<Uint8Array>;
   /** Attente avant la confirmation unique d'un album déposé en médiathèque (tests : quelques ms ; défaut 2 s). */

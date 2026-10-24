@@ -70,7 +70,7 @@ describe("demandes au client", () => {
     expect(stored).not.toContain("fal-SECRET-VALUE");
     expect(journalText(kit)).not.toContain("SECRET-VALUE");
     expect(kit.tables("auditLog").some((a) => (a.metadata as { label?: string })?.label === "clé fal.ai enregistrée")).toBe(true);
-    expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "ANSWERED", answerSummary: "…ab12" });
+    expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "ANSWERED", answerSummary: "enregistrée" });
   });
 
   it("secret refusé par la vérification : la demande reste ouverte", async () => {
@@ -97,7 +97,9 @@ describe("demandes au client", () => {
     const m = await kit.mission();
     await askHuman(kit.deps, { kind: "TEXT", key: "persona.x.name", question: "Prénom ?", missionId: m.id });
     expect(kit.tables("agentMission")[0]!.status).toBe("WAITING_HUMAN");
-    await handleAdminText(kit.deps, { text: "Léa", messageId: 5 });
+    // Demande TEXT : seule une réponse au message de la question est prise.
+    expect(await handleAdminText(kit.deps, { text: "Léa", messageId: 5 })).toEqual({ handled: false });
+    await handleAdminText(kit.deps, { text: "Léa", messageId: 6, replyToMessageId: kit.sent[0]!.messageId });
     expect(lifecycle.continueMission).toHaveBeenCalledWith(kit.deps, m.id, { reason: "réponse du client" });
     expect((kit.tables("agentMission")[0]!.payload as { humanAnswers: unknown }).humanAnswers).toEqual({ "persona.x.name": "Léa" });
   });

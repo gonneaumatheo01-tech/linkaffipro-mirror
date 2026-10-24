@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { CheckCheck, MessageCircleQuestion } from "lucide-react";
+import { adminOnlyRequest } from "@linkaffipro/agents";
+import { prisma } from "@linkaffipro/db";
 import { AgentsNav } from "@/components/agents/agents-nav";
 import { EditValidationForm } from "@/components/agents/edit-validation-form";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
@@ -141,7 +143,17 @@ function RequestAnswerForm({ r }: { r: HumanRequestView }) {
   );
 }
 
-function RequestCard({ r }: { r: HumanRequestView }) {
+/** Demandes ouvertes réservées aux ADMIN (clé, passage en vrai, niveau 2, réglages d'équipe, budget, banc d'essai). */
+async function adminOnlyIds(open: HumanRequestView[]): Promise<Set<string>> {
+  if (open.length === 0) return new Set();
+  const rows = await prisma.humanRequest.findMany({
+    where: { id: { in: open.map((r) => r.id) } },
+    select: { id: true, kind: true, onAnswer: true },
+  });
+  return new Set(rows.filter((r) => adminOnlyRequest(r)).map((r) => r.id));
+}
+
+function RequestCard({ r, reserved = false }: { r: HumanRequestView; reserved?: boolean }) {
   const open = r.status === "PENDING" || r.status === "QUEUED";
   return (
     <li className="space-y-3 px-4 py-3">
@@ -159,8 +171,12 @@ function RequestCard({ r }: { r: HumanRequestView }) {
         </p>
       ) : null}
       <div className="flex flex-wrap items-end gap-2">
-        {open && r.kind !== "MEDIA" ? <RequestAnswerForm r={r} /> : null}
-        {open ? (
+        {open && reserved ? (
+          <p className="text-note text-muted-foreground">Réservé aux administrateurs.</p>
+        ) : open && r.kind !== "MEDIA" ? (
+          <RequestAnswerForm r={r} />
+        ) : null}
+        {open && reserved ? null : open ? (
           <form action={skipHumanRequestAction}>
             <input type="hidden" name="requestId" value={r.id} />
             <Button type="submit" variant="ghost" className="max-md:h-10">
@@ -194,6 +210,8 @@ export default async function ValidationsPage({ searchParams }: PageProps<"/agen
     tab === "validations" ? loadValidations() : null,
     tab === "requests" ? loadHumanRequests() : null,
   ]);
+  // Un MANAGER voit les demandes réservées sans pouvoir y répondre (le moteur le refuse aussi).
+  const reserved = requests && user.role !== "ADMIN" ? await adminOnlyIds(requests.open) : new Set<string>();
 
   return (
     <>
@@ -281,7 +299,7 @@ export default async function ValidationsPage({ searchParams }: PageProps<"/agen
             >
               <ul className="divide-y divide-border rounded-xl border border-border bg-card">
                 {requests.open.map((r) => (
-                  <RequestCard key={r.id} r={r} />
+                  <RequestCard key={r.id} r={r} reserved={reserved.has(r.id)} />
                 ))}
               </ul>
             </FormSection>

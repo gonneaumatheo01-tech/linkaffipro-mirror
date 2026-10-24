@@ -5,8 +5,14 @@
 import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, readSetting } from "../admin/journal";
-import { askHuman, confirmButtonsOf, formatQuestion, sendNextHumanRequest } from "./requests";
+import { askHuman, confirmButtonsOf, formatQuestion, sendNextHumanRequest, withAskedMessageId } from "./requests";
 import { respondToRequest, resumeWaitingMissions, skipRequest, type HumanRequestRow } from "./respond";
+import { ADMIN_ONLY_REQUEST_MESSAGE, adminOnlyRequest } from "./access";
+
+export { adminOnlyRequest, ADMIN_ONLY_REQUEST_MESSAGE } from "./access";
+
+/** Rôle de l'utilisateur du site (ADMIN : tout ; MANAGER : pas les demandes réservées, voir `adminOnlyRequest`). */
+export type SiteRole = "ADMIN" | "MANAGER" | (string & {});
 
 export type AnswerResult = { ok: boolean; message: string };
 
@@ -20,25 +26,41 @@ async function findRequest(deps: AgentsDeps, id: string): Promise<HumanRequestRo
   return (await deps.prisma.humanRequest.findUnique({ where: { id } })) as HumanRequestRow | null;
 }
 
-/** Réponse donnée depuis le site (texte, numéro d'option, oui / non, clé). */
+/**
+ * Réponse donnée depuis le site (texte, numéro d'option, oui / non, clé). `role` (facultatif, rétrocompatible) : un
+ * non-ADMIN ne répond jamais à une demande réservée (`adminOnlyRequest`). Sans rôle : appel interne, permis.
+ */
 export async function answerHumanRequestFromSite(
   deps: AgentsDeps,
   requestId: string,
   answer: string,
   actor: ActorRef,
+  role?: SiteRole,
 ): Promise<AnswerResult> {
   const request = await findRequest(deps, requestId);
   if (!request) return { ok: false, message: "Demande introuvable." };
+  if (role !== undefined && role !== "ADMIN" && adminOnlyRequest(request))
+    return { ok: false, message: ADMIN_ONLY_REQUEST_MESSAGE };
   if (request.kind === "MEDIA")
     return { ok: false, message: "Les médias s'envoient au bot sur Telegram, avec les mots-clés demandés." };
   const r = await respondToRequest(deps, request, answer, actor);
   return { ok: r.ok, message: r.message };
 }
 
-/** « Plus tard » : la demande est passée, la suivante part. */
-export async function skipHumanRequest(deps: AgentsDeps, requestId: string, actor: ActorRef): Promise<AnswerResult> {
+/**
+ * « Plus tard » : la demande est passée, la suivante part. Une demande réservée n'est pas passée par un non-ADMIN : son
+ * « plus tard » peut valoir réponse (`onAnswer.skipAnswer`, ex. plafond vidéo à 100 €).
+ */
+export async function skipHumanRequest(
+  deps: AgentsDeps,
+  requestId: string,
+  actor: ActorRef,
+  role?: SiteRole,
+): Promise<AnswerResult> {
   const request = await findRequest(deps, requestId);
   if (!request) return { ok: false, message: "Demande introuvable." };
+  if (role !== undefined && role !== "ADMIN" && adminOnlyRequest(request))
+    return { ok: false, message: ADMIN_ONLY_REQUEST_MESSAGE };
   const r = await skipRequest(deps, request, actor);
   return { ok: r.ok, message: r.message };
 }
@@ -112,7 +134,7 @@ export async function sweepHumanRequests(deps: AgentsDeps): Promise<{ sent: numb
     // Un seul rappel, même si l'envoi échoue (jamais de relance en boucle).
     await deps.prisma.humanRequest.update({
       where: { id: request.id },
-      data: { remindedAt: now, ...(sent ? { telegramMessageId: sent.messageId } : {}) },
+      data: { remindedAt: now, ...(sent ? withAskedMessageId(request, sent.messageId) : {}) },
     });
     if (sent) {
       reminded++;

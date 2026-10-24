@@ -710,3 +710,17 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   `pnpm agents:status [--json]`. **Correctif** : la Médiathèque Dating compte les posts « du jour » par le jour du plan
   (comme le Casino), plus par la date de création en base. Index ajoutés : `PostInsight(sentAt)`,
   `AgentMission(updatedAt)`, `AgentMission(channelId, planDay)` (migration `20261024060000_phase25_index_agents`).
+- **Relecture (phase 25) — dialogue admin** : demandes réservées aux ADMIN centralisées (`human/access.ts`
+  `adminOnlyRequest` : SECRET, passage en vrai, niveau 2, niveau de l'équipe Algorithme, plafond vidéo, seuils Ads,
+  banc d'essai), « Plus tard » aussi réservé ; une réponse à un autre message ne touche jamais la demande en cours
+  (messages d'une demande retrouvés par `onAnswer.askedMessageIds`) ; passage en vrai et niveau : seul un « oui »
+  exact confirme (vocal compris). « Corriger » : commandes d'abord, jamais pendant une demande de clé, accepté en
+  réponse au message « envoie le nouveau texte » (`Setting` `agents.validation.editPrompt`) ou dans les 15 min ; texte
+  + entités Telegram convertis en HTML échappé. Demande de clé : sans réponse au message, seul un mot de 16 caractères
+  ou plus (lettres et chiffres) est pris ; identifiant bookmaker et texte : seulement en réponse au message ; message
+  supprimé seulement si le secret est enregistré ; masquage du journal par les messages de toutes les demandes de clé
+  et par un filet (« clé / key / bookmaker / mot de passe » + mot de 16 caractères). Réservation avant l'action
+  (jamais deux exécutions) ; index unique « une seule demande en cours » ; compteur des médias par écriture
+  conditionnelle avec nouvel essai ; résumé d'une clé = « enregistrée » ; un média transféré d'un canal repart vers
+  l'ajout du canal (sauf légende écrite par l'admin). Limite : un mot de passe court doit être envoyé en réponse au
+  message du bot.

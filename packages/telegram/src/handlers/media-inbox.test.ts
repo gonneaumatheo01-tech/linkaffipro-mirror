@@ -141,12 +141,39 @@ describe("dépôt casino par le bot (phase 22)", () => {
     expect(replies()).toEqual(["3 médias rangés ✅ roulette, bonus (sur aucun canal casino pour l'instant)"]);
   });
 
-  it("document vidéo transféré et animation : rangés", async () => {
+  it("média transféré d'un canal avec #casino dans SA légende : jamais rangé, le canal est ajouté", async () => {
+    const { kit, deps, bot } = setup();
+    await bot.handleUpdate(
+      videoUpdate(ADMIN, "Ce soir #casino #roulette", {
+        forward_origin: { type: "channel", chat: channel, message_id: 6, date: 0 },
+      }),
+    );
+    expect(deps.downloadTelegramFile).not.toHaveBeenCalled();
+    expect(kit.tables("mediaAsset")).toHaveLength(0);
+    expect(deps.upsertChannel).toHaveBeenCalled();
+  });
+
+  it("album : légende de l'admin rangée, même si un média de l'album vient d'un canal", async () => {
+    const { kit, deps, bot } = setup();
+    let n = 40;
+    deps.downloadTelegramFile.mockImplementation(async () => new Uint8Array([++n]));
+    await bot.handleUpdate(videoUpdate(ADMIN, "#casino #roulette", { media_group_id: "g9" }));
+    await bot.handleUpdate(
+      videoUpdate(ADMIN, "#paris légende du canal", {
+        media_group_id: "g9",
+        forward_origin: { type: "channel", chat: channel, message_id: 7, date: 0 },
+      }),
+    );
+    expect(kit.tables("mediaAsset")).toHaveLength(2);
+    expect(kit.tables("mediaAsset").every((a) => a.teamKey === "casino")).toBe(true);
+  });
+
+  it("document vidéo transféré d'une personne et animation : rangés", async () => {
     const { kit, deps, bot } = setup();
     let n = 20;
     deps.downloadTelegramFile.mockImplementation(async () => new Uint8Array([++n]));
     const doc = videoUpdate(ADMIN, "#casino #live", {
-      forward_origin: { type: "channel", chat: channel, message_id: 6, date: 0 },
+      forward_origin: { type: "hidden_user", sender_user_name: "Jean", date: 0 },
     });
     const m = doc.message as unknown as Record<string, unknown>;
     delete m.video;

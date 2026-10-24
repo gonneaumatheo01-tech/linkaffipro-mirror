@@ -24,9 +24,9 @@ describe("interprétation des réponses", () => {
     expect(interpretAnswer({ kind: "TEXT", key: "persona.x.loraUrl" }, "https://fal.ai/lora.safetensors")).toMatchObject({ type: "answer" });
     expect(interpretAnswer({ kind: "TEXT", key: "contact.email" }, "a@b")).toMatchObject({ type: "invalid" });
   });
-  it("SECRET : résumé limité aux 4 derniers caractères", () => {
+  it("SECRET : résumé sans aucun morceau de la clé", () => {
     const r = interpretAnswer({ kind: "SECRET", key: "providers.fal.apiKey" }, "abcd-1234-efgh-9876");
-    expect(r).toEqual({ type: "answer", value: "abcd-1234-efgh-9876", summary: "…9876" });
+    expect(r).toEqual({ type: "answer", value: "abcd-1234-efgh-9876", summary: "enregistrée" });
     expect(interpretAnswer({ kind: "SECRET", key: "k" }, "deux mots")).toMatchObject({ type: "invalid" });
   });
   it("MEDIA : un texte ne répond pas, il rappelle quoi envoyer", () => {

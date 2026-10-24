@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Bot } from "grammy";
 import type { Update } from "grammy/types";
-import { askHuman, requestValidation } from "@linkaffipro/agents";
+import { askHuman, requestValidation, TEAM_LABELS } from "@linkaffipro/agents";
 import { registerHandlers } from "../handlers";
 import { botInfoFromRecord } from "../factory";
 import type { BotIdentity, TelegramDeps } from "../ports";
@@ -169,7 +169,7 @@ describe("dialogue admin (Telegram)", () => {
     const deps = makeDeps(kit);
     const { bot, sent } = makeBot(deps);
     await bot.handleUpdate(textUpdate(ADMIN, "pause dating"));
-    expect(sent().at(-1)).toBe("Équipe Dating en pause ⏸");
+    expect(sent().at(-1)).toBe(`Équipe ${TEAM_LABELS.dating} en pause ⏸`);
     await bot.handleUpdate(textUpdate(ADMIN, "agents"));
     // Résumé de supervision (phase 25) : 8 lignes, une par équipe, Ads, Algorithme, santé.
     const lines = sent().at(-1)!.split("\n");
@@ -207,6 +207,78 @@ describe("dialogue admin (Telegram)", () => {
     await bot.handleUpdate(textUpdate(ADMIN, "fait"));
     expect(JSON.stringify(deps.recordUpdate.mock.calls[0]![2])).toContain('"text":"fait"');
     expect(kit.tables("auditLog")).toHaveLength(0);
+  });
+});
+
+describe("relecture de la phase 25 (dialogue admin)", () => {
+  const KEY = "fal-AbCdEf0123456789";
+  const logged = (deps: ReturnType<typeof makeDeps>) => JSON.stringify(deps.recordUpdate.mock.calls.map((c) => c[2]));
+
+  it("✏️ : réponse au message « envoie le nouveau texte » (même après 15 min), entités → HTML échappé", async () => {
+    const { kit, v } = await withValidation();
+    const { bot, calls } = makeBot(makeDeps(kit));
+    await bot.handleUpdate(callbackUpdate(ADMIN, `agv:${v.validationId}:edit`));
+    const promptIdx = calls.findIndex((c) => c.method === "sendMessage");
+    const promptId = 1000 + calls.slice(0, promptIdx).filter((c) => c.method === "sendMessage").length;
+    kit.advance(20 * 60_000);
+    const late = textUpdate(ADMIN, "Je t'aime <3 vraiment");
+    await bot.handleUpdate(late);
+    expect(kit.tables("agentValidation")[0]!.status).toBe("PENDING");
+    const u = textUpdate(ADMIN, "Je t'aime <3 vraiment", promptId);
+    (u.message as unknown as Record<string, unknown>).entities = [{ type: "bold", offset: 13, length: 8 }];
+    await bot.handleUpdate(u);
+    expect(kit.tables("agentValidation")[0]).toMatchObject({ status: "EDITED", editedText: "Je t'aime &lt;3 <b>vraiment</b>" });
+  });
+
+  it("demande SECRET en cours : « Parfait! » reste lisible (journal en clair, message gardé)", async () => {
+    const kit = createTestKit();
+    await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé ?" });
+    const deps = makeDeps(kit);
+    const { bot, calls } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, "Parfait!"));
+    expect(logged(deps)).toContain('"text":"Parfait!"');
+    expect(calls.some((c) => c.method === "deleteMessage")).toBe(false);
+    expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
+    // Une clé seule, sans « répondre » : prise, masquée et supprimée.
+    await bot.handleUpdate(textUpdate(ADMIN, KEY));
+    expect(logged(deps)).not.toContain("AbCdEf");
+    expect(calls.some((c) => c.method === "deleteMessage")).toBe(true);
+  });
+
+  it("clé collée en réponse à une demande SECRET expirée : masquée dans le journal et supprimée", async () => {
+    const kit = createTestKit();
+    await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé ?" });
+    const q = kit.sent[0]!.messageId;
+    await kit.prisma.humanRequest.update({ where: { id: kit.tables("humanRequest")[0]!.id as string }, data: { status: "EXPIRED" } });
+    const deps = makeDeps(kit);
+    const { bot, calls, sent } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, "abc", q));
+    expect(logged(deps)).not.toContain('"text":"abc"');
+    expect(logged(deps)).toContain("[secret retiré]");
+    expect(calls.some((c) => c.method === "deleteMessage")).toBe(true);
+    expect(sent().at(-1)).toContain("plus une question ouverte");
+  });
+
+  it("« Clé: fal … » et « voici la clé fal … » : masqués", async () => {
+    const kit = createTestKit();
+    const deps = makeDeps(kit);
+    const { bot } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, `Clé: fal ${KEY}`));
+    await bot.handleUpdate(textUpdate(ADMIN, `voici la clé fal ${KEY}`));
+    expect(logged(deps)).not.toContain("AbCdEf");
+  });
+
+  it("traitement en erreur : un message qui contenait un secret est quand même supprimé", async () => {
+    const kit = createTestKit();
+    const model = kit.prisma._model("setting");
+    model.upsert = (async () => {
+      throw new Error("base indisponible");
+    }) as typeof model.upsert;
+    const deps = makeDeps(kit);
+    const { bot, calls, sent } = makeBot(deps);
+    await bot.handleUpdate(textUpdate(ADMIN, `clé fal ${KEY}`));
+    expect(sent().at(-1)).toContain("je n'ai pas pu traiter");
+    expect(calls.some((c) => c.method === "deleteMessage")).toBe(true);
   });
 });
 

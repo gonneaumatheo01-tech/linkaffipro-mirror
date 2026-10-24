@@ -7,9 +7,9 @@ import { isTeamKey, type AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { setAutonomyLevel, setSimulation } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, writeSetting } from "../admin/journal";
-import { interpretAnswer, isSkipText, type HumanRequestKindName } from "./answer";
+import { interpretAnswer, isSkipText, isStrictYes, type HumanRequestKindName } from "./answer";
 import { expectedOf, onAnswerOf, optionsOf, sendNextHumanRequest } from "./requests";
-import { saveSecret, secretLabel, verifySecret } from "./secrets";
+import { saveSecret, secretSavedHead, verifySecret } from "./secrets";
 
 export type HumanRequestRow = {
   id: string;
@@ -29,15 +29,28 @@ export type RespondResult = {
   message: string;
   /** La demande est close (répondue ou passée). */
   closed: boolean;
-  /** Le texte reçu était (ou devait être) un secret : le message qui le contient doit être supprimé. */
+  /** Le texte reçu était (ou devait être) un secret. */
   secret: boolean;
+  /** Un secret a vraiment été enregistré (même refusé ensuite par la vérification) : supprimer le message. */
+  secretSaved?: boolean;
 };
 
 /**
  * `deferNext` : l'appelant enverra lui-même la question suivante (`sendNextHumanRequest`) APRÈS sa confirmation, pour
  * que la conversation Telegram reste dans l'ordre.
  */
-export type RespondOptions = { deferNext?: boolean };
+export type RespondOptions = {
+  deferNext?: boolean;
+  /**
+   * Texte tel que reçu, pour la confirmation stricte (« vrai <équipe> », niveau) : un vocal « Oui, vas-y » est remis à
+   * « oui » par `voiceToAdminText`, mais seul un « oui » exact confirme.
+   */
+  confirmText?: string;
+};
+
+/** Actions qui exigent exactement « oui » (ni « ok », ni « o », ni emoji, ni « d'accord »), par écrit comme par vocal. */
+export const STRICT_CONFIRM_ACTIONS = new Set(["set-simulation", "set-autonomy"]);
+export const STRICT_CONFIRM_MESSAGE = "Pour confirmer, réponds exactement « oui » (ou « non », ou « plus tard »).";
 
 /** Suite propre à une action `onAnswer` (enregistrée par les phases suivantes : choix de fournisseur, banc d'essai…). */
 export type AnswerAction = (
@@ -123,6 +136,18 @@ async function close(
     data: { status, answerSummary: summary, answeredAt: nowOf(deps) },
   });
   if (done.count === 0) return false;
+  await journalClose(deps, request, status, summary, actor);
+  return true;
+}
+
+/** `AuditLog` + `Event` d'une demande close (jamais un secret : le résumé d'une clé est « enregistrée »). */
+async function journalClose(
+  deps: AgentsDeps,
+  request: HumanRequestRow,
+  status: "ANSWERED" | "SKIPPED",
+  summary: string | null,
+  actor: ActorRef,
+): Promise<void> {
   const action = status === "ANSWERED" ? "agents.request.answered" : "agents.request.skipped";
   await agentAudit(deps, {
     userId: actor.userId ?? null,
@@ -132,7 +157,6 @@ async function close(
     metadata: { key: request.key, kind: request.kind, via: actor.via, summary },
   });
   await agentEvent(deps, action, { requestId: request.id, key: request.key, kind: request.kind, via: actor.via });
-  return true;
 }
 
 /** « Plus tard » : la demande est passée, les missions qui l'attendaient reprennent sans réponse, la suivante part. */
@@ -173,37 +197,61 @@ export async function respondToRequest(
   if (interpreted.type === "invalid") return { ok: false, message: interpreted.message, closed: false, secret };
 
   const onAnswer = onAnswerOf(request.onAnswer);
-  const notes: string[] = [];
-  if (secret) {
-    const { last4 } = await saveSecret(deps, request.key, interpreted.value, actor);
-    const label = secretLabel(request.key);
-    const check = await verifySecret(deps, request.key);
-    if (check && !check.ok)
-      // Clé refusée par le fournisseur : la demande reste ouverte, il suffit de répondre avec une autre clé.
-      return {
-        ok: false,
-        message: `${capitalize(label)} reçue (…${last4}). Vérification : KO : ${check.message}. Réessaie en répondant avec une autre clé.`,
-        closed: false,
-        secret,
-      };
-    notes.push(`${capitalize(label)} enregistrée (…${last4})${check ? ". Vérification : OK ✅" : " ✅"}`);
-  }
-
   const name = typeof onAnswer.action === "string" ? onAnswer.action : null;
-  if (name) {
-    const custom = actions.get(name);
-    const note = custom
-      ? await custom(deps, { request, value: interpreted.value, actor, onAnswer })
-      : await builtinAction(deps, name, onAnswer, kind, interpreted.value, actor);
-    if (note) notes.push(note);
+  if (name && STRICT_CONFIRM_ACTIONS.has(name) && interpreted.value === "oui" && !isStrictYes(opts.confirmText ?? text))
+    return { ok: false, message: STRICT_CONFIRM_MESSAGE, closed: false, secret };
+
+  // Réservation d'abord (QUEUED / PENDING → ANSWERED, conditionnelle) : deux appuis simultanés, ou une réponse qui
+  // croise l'expiration, n'exécutent jamais l'action deux fois.
+  const reserved = await deps.prisma.humanRequest.updateMany({
+    where: { id: request.id, status: { in: ["QUEUED", "PENDING"] } },
+    data: { status: "ANSWERED", answerSummary: interpreted.summary, answeredAt: nowOf(deps) },
+  });
+  if (reserved.count === 0) return { ok: false, message: "Cette demande est déjà traitée.", closed: false, secret };
+  const previousStatus = request.status as "QUEUED" | "PENDING";
+  const reopen = () =>
+    deps.prisma.humanRequest.updateMany({
+      where: { id: request.id, status: "ANSWERED" },
+      data: { status: previousStatus, answerSummary: null, answeredAt: null },
+    });
+
+  const notes: string[] = [];
+  let secretSaved = false;
+  try {
+    if (secret) {
+      const { last4 } = await saveSecret(deps, request.key, interpreted.value, actor);
+      secretSaved = true;
+      const check = await verifySecret(deps, request.key);
+      if (check && !check.ok) {
+        // Clé refusée par le fournisseur : la demande est rouverte, il suffit de répondre avec une autre clé.
+        await reopen();
+        return {
+          ok: false,
+          message: `${secretSavedHead(request.key, last4, "reçu")}. Vérification : KO : ${check.message}. Réessaie en répondant avec une autre clé.`,
+          closed: false,
+          secret,
+          secretSaved,
+        };
+      }
+      notes.push(`${secretSavedHead(request.key, last4)}${check ? ". Vérification : OK ✅" : " ✅"}`);
+    }
+
+    if (name) {
+      const custom = actions.get(name);
+      const note = custom
+        ? await custom(deps, { request, value: interpreted.value, actor, onAnswer })
+        : await builtinAction(deps, name, onAnswer, kind, interpreted.value, actor);
+      if (note) notes.push(note);
+    }
+  } catch (err) {
+    // Action impossible : la demande redevient ouverte (aucune réponse perdue).
+    await reopen().catch(() => undefined);
+    throw err;
   }
 
-  await close(deps, request, "ANSWERED", interpreted.summary, actor);
+  await journalClose(deps, request, "ANSWERED", interpreted.summary, actor);
   await resumeWaitingMissions(deps, request, { answered: true, summary: interpreted.summary });
   if (!opts.deferNext) await sendNextHumanRequest(deps);
-  return { ok: true, message: notes.length ? notes.join("\n") : "Réponse notée ✅", closed: true, secret };
+  return { ok: true, message: notes.length ? notes.join("\n") : "Réponse notée ✅", closed: true, secret, secretSaved };
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

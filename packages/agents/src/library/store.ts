@@ -72,35 +72,54 @@ function confirmationLine(o: {
   return `${head} ${parts.join(" · ")}${o.progress ? ` (${o.progress})` : ""}`;
 }
 
-/** Fait avancer la plus ancienne demande MEDIA ouverte qui attend ces mots-clés ; la clôt au nombre atteint. */
+/** Essais de l'incrément du compteur quand des médias d'un même album arrivent en même temps. */
+const ADVANCE_ATTEMPTS = 8;
+
+/**
+ * Fait avancer la plus ancienne demande MEDIA ouverte qui attend ces mots-clés ; la clôt au nombre atteint.
+ * Incrément sans perte : écriture conditionnelle (« compare puis échange ») sur le résumé (`answerSummary`, qui porte
+ * le compteur), la date de mise à jour et le statut ouvert ; si un autre média de l'album est passé entre la lecture
+ * et l'écriture, on relit et on recommence. La clôture ne rouvre jamais une demande expirée ou passée (statut lu dans
+ * la même condition).
+ */
 async function advanceMediaRequest(
   deps: AgentsDeps,
   tags: string[],
 ): Promise<{ progress: string | null; closed: boolean }> {
-  const open = (await deps.prisma.humanRequest.findMany({
-    where: { kind: "MEDIA", status: { in: ["PENDING", "QUEUED"] } },
-    orderBy: { createdAt: "asc" },
-  })) as HumanRequestRow[];
-  const request = open.find((r) => tagsMatchRequest(tags, expectedOf(r.expected).tags));
-  if (!request) return { progress: null, closed: false };
-  const expected = expectedOf(request.expected);
-  const need = Math.max(1, expected.count ?? 1);
-  const received = (expected.received ?? 0) + 1;
-  const closed = received >= need;
-  await deps.prisma.humanRequest.update({
-    where: { id: request.id },
-    data: {
-      expected: { ...(request.expected as Record<string, unknown>), received },
-      answerSummary: `${Math.min(received, need)}/${need} reçus`,
-      ...(closed ? { status: "ANSWERED", answeredAt: deps.now ? deps.now() : new Date() } : {}),
-    },
-  });
-  if (closed) {
-    await agentEvent(deps, "agents.request.answered", { requestId: request.id, key: request.key, kind: "MEDIA" });
-    await resumeWaitingMissions(deps, request, { answered: true, summary: `${need}/${need} reçus` });
-    await sendNextHumanRequest(deps);
+  for (let attempt = 0; attempt < ADVANCE_ATTEMPTS; attempt++) {
+    const open = (await deps.prisma.humanRequest.findMany({
+      where: { kind: "MEDIA", status: { in: ["PENDING", "QUEUED"] } },
+      orderBy: { createdAt: "asc" },
+    })) as (HumanRequestRow & { answerSummary?: string | null; updatedAt?: Date })[];
+    const request = open.find((r) => tagsMatchRequest(tags, expectedOf(r.expected).tags));
+    if (!request) return { progress: null, closed: false };
+    const expected = expectedOf(request.expected);
+    const need = Math.max(1, expected.count ?? 1);
+    const received = (expected.received ?? 0) + 1;
+    const closed = received >= need;
+    const done = await deps.prisma.humanRequest.updateMany({
+      where: {
+        id: request.id,
+        status: { in: ["PENDING", "QUEUED"] },
+        answerSummary: request.answerSummary ?? null,
+        ...(request.updatedAt ? { updatedAt: request.updatedAt } : {}),
+      },
+      data: {
+        expected: { ...(request.expected as Record<string, unknown>), received },
+        answerSummary: `${Math.min(received, need)}/${need} reçus`,
+        ...(closed ? { status: "ANSWERED", answeredAt: deps.now ? deps.now() : new Date() } : {}),
+      },
+    });
+    if (done.count === 0) continue;
+    if (closed) {
+      await agentEvent(deps, "agents.request.answered", { requestId: request.id, key: request.key, kind: "MEDIA" });
+      await resumeWaitingMissions(deps, request, { answered: true, summary: `${need}/${need} reçus` });
+      await sendNextHumanRequest(deps);
+    }
+    return { progress: closed ? `demande complète : ${need}/${need} 🎉` : `${received}/${need} pour la demande en cours`, closed };
   }
-  return { progress: closed ? `demande complète : ${need}/${need} 🎉` : `${received}/${need} pour la demande en cours`, closed };
+  deps.logger?.warn({ tags }, "[agents] demande de médias : compteur non avancé (trop d'envois simultanés)");
+  return { progress: null, closed: false };
 }
 
 /** Images de référence gardées par persona (la première sert au remplacement vidéo). */

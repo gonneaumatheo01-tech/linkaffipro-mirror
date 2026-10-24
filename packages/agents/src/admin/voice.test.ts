@@ -37,7 +37,7 @@ describe("vocaux de l'admin", () => {
     const kit = createTestKit();
     const r = await run(kit, "Pause dating.");
     expect(r.outcome).toBe("handled");
-    expect(r.said).toEqual(['🎧 J\'ai compris : "Pause dating".', "Équipe Dating en pause ⏸"]);
+    expect(r.said).toEqual(['🎧 J\'ai compris : "Pause dating".', "Équipe Rencontres en pause ⏸"]);
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", paused: true });
   });
 
@@ -57,7 +57,7 @@ describe("vocaux de l'admin", () => {
   it("« vrai dating » par vocal demande OUI ; un niveau aussi, même pour baisser", async () => {
     const kit = createTestKit();
     await run(kit, "Vrai dating");
-    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Dating en vrai ?");
+    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Rencontres en vrai ?");
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
     await run(kit, "non");
     await run(kit, "Niveau casino un");

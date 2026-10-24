@@ -170,7 +170,7 @@ export async function ensureDatingSetupQuestions(deps: AgentsDeps): Promise<{ qu
   await ask({
     kind: "CHOICE",
     key: "agents.team.dating.videoBudget",
-    question: `Plafond des vidéos IA par mois pour l'équipe Dating : réponds 1, 2 ou 3, ou écris un montant (ex. 75). « plus tard » = ${DEFAULT_VIDEO_BUDGET_EUROS} €.`,
+    question: `Plafond des vidéos IA par mois pour l'équipe Rencontres : réponds 1, 2 ou 3, ou écris un montant (ex. 75). « plus tard » = ${DEFAULT_VIDEO_BUDGET_EUROS} €.`,
     options: BUDGET_OPTIONS,
     onAnswer: { action: "dating-video-budget", skipAnswer: `${DEFAULT_VIDEO_BUDGET_EUROS} €`, resume: false },
   });
@@ -240,19 +240,19 @@ registerAnswerAction("dating-video-budget", async (deps, { value, actor }) => {
   const amount = parseEuroAmount(value);
   const euros = amount && amount.euros <= 100_000 ? amount.euros : DEFAULT_VIDEO_BUDGET_EUROS;
   await setTeamBudget(deps, "dating", "video", euros * 100, actor);
-  return `Plafond vidéo de l'équipe Dating : ${euros.toLocaleString("fr-FR")} € par mois ✅`;
+  return `Plafond vidéo de l'équipe Rencontres : ${euros.toLocaleString("fr-FR")} € par mois ✅`;
 });
 
 registerAnswerAction("dating-bench", async (deps, { value, actor, onAnswer }) => {
   const personaId = typeof onAnswer.personaId === "string" ? onAnswer.personaId : null;
   if (!personaId) return "Persona introuvable : banc d'essai non lancé.";
   if (value !== "oui")
-    return "D'accord, pas de banc d'essai pour l'instant. Tu pourras le lancer depuis la fiche de l'équipe Dating.";
+    return "D'accord, pas de banc d'essai pour l'instant. Tu pourras le lancer depuis la fiche de l'équipe Rencontres.";
   try {
     const r = await startBench(deps, { personaId, count: BENCH_COUNT, byUserId: actor.userId ?? null });
     return r.message;
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message, personaId }, "[agents] banc d'essai non lancé");
-    return "Le banc d'essai n'a pas pu démarrer : réessaie depuis la fiche de l'équipe Dating.";
+    return "Le banc d'essai n'a pas pu démarrer : réessaie depuis la fiche de l'équipe Rencontres.";
   }
 });

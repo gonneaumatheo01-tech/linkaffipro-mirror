@@ -38,7 +38,7 @@ describe("dépôt dans la médiathèque", () => {
     const copy = vi.fn(async () => ({ messageId: 77 }));
     const a = await storeLibraryMedia(kit.deps, { ...input([1], "#dating #source #lea"), copyToLibrary: copy });
     expect(a).toMatchObject({ ok: true, created: true });
-    expect((a as { line: string }).line).toBe("Rangé dans la médiathèque ✅ vidéo · Dating · source · Léa (1/2 pour la demande en cours)");
+    expect((a as { line: string }).line).toBe("Rangé dans la médiathèque ✅ vidéo · Rencontres · source · Léa (1/2 pour la demande en cours)");
     expect(copy).toHaveBeenCalledWith("-1001");
     expect(kit.tables("mediaAsset")[0]).toMatchObject({ teamKey: "dating", kind: "SOURCE", origin: "HUMAN", libraryMessageId: 77 });
 

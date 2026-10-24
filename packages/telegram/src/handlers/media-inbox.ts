@@ -59,8 +59,8 @@ async function defaultDownload(url: string): Promise<Uint8Array> {
 }
 
 /**
- * Phase 19 : dépôt dans la médiathèque des agents. Un média (photo, vidéo, animation, document vidéo) envoyé ou
- * transféré en privé par l'admin (`Setting` `admin.telegramUserId`) avec une légende à mots-clés (`#casino #roulette`,
+ * Phase 19 : dépôt dans la médiathèque des agents. Un média (photo, vidéo, animation, document vidéo) envoyé (ou
+ * transféré d'une personne, sans être transféré d'un canal) en privé par l'admin (`Setting` `admin.telegramUserId`) avec une légende à mots-clés (`#casino #roulette`,
  * `#dating #source #lea`, `#photo`) est téléchargé et rangé ; le bot confirme en une ligne. Album : la légende du
  * premier média vaut pour les autres (une minute) ; une seule ligne de confirmation pour tout l'album, envoyée
  * `ALBUM_REPLY_DELAY_MS` après le dernier média rangé (phase 22). Toute autre personne, ou un média sans mot-clé : `next()` (le
@@ -78,7 +78,11 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
     const media = inboxMediaOf(msg);
     if (!media) return next();
     const now = Date.now();
-    let caption = msg.caption ?? "";
+    // Un message transféré d'un canal garde la légende du CANAL (« #casino », « #paris »… y sont courants) : elle ne
+    // vaut jamais rangement, le transfert sert à ajouter le canal (handlers/forward.ts). Seule une légende écrite par
+    // l'admin (message non transféré d'un canal, ou légende de l'admin sur le même album) range le média.
+    const fromChannel = msg.forward_origin?.type === "channel";
+    let caption = fromChannel ? "" : (msg.caption ?? "");
     const group = msg.media_group_id;
     if (group) {
       for (const [k, v] of albumCaptions) if (v.until < now) albumCaptions.delete(k);

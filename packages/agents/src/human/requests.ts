@@ -55,8 +55,55 @@ export function formatQuestion(req: RequestRow, opts: { reminder?: boolean } = {
   const options = optionsOf(req.options);
   if (req.kind === "CHOICE" && options.length > 0)
     lines.push(options.map((o, i) => `${i + 1}. ${esc(o)}`).join("\n"));
+  // Clé, identifiant, texte libre : seule une RÉPONSE au message de la question est prise à coup sûr (un message
+  // ordinaire de l'admin n'est jamais avalé, voir `handleAdminText`).
+  if ((req.kind === "SECRET" || req.kind === "TEXT") && !/en réponse|réponds à ce message|répondre à ce message/i.test(req.question))
+    lines.push("↩️ Réponds à CE message (appui long → Répondre).");
   if (!/plus tard/i.test(req.question)) lines.push("Pour passer : réponds « plus tard ».");
   return lines.join("\n");
+}
+
+/** Identifiants des messages Telegram déjà envoyés pour une demande (question, rappels), rangés dans `onAnswer`. */
+export const ASKED_MESSAGE_IDS_FIELD = "askedMessageIds";
+
+export function askedMessageIdsOf(req: { telegramMessageId?: number | null; onAnswer?: unknown }): number[] {
+  const list = onAnswerOf(req.onAnswer)[ASKED_MESSAGE_IDS_FIELD];
+  const ids = Array.isArray(list) ? list.filter((x): x is number => typeof x === "number") : [];
+  if (typeof req.telegramMessageId === "number" && !ids.includes(req.telegramMessageId)) ids.push(req.telegramMessageId);
+  return ids;
+}
+
+/** Données à écrire quand un nouveau message (question ou rappel) part pour la demande. */
+export function withAskedMessageId(req: { telegramMessageId?: number | null; onAnswer?: unknown }, messageId: number) {
+  const onAnswer = onAnswerOf(req.onAnswer);
+  const ids = askedMessageIdsOf(req);
+  if (!ids.includes(messageId)) ids.push(messageId);
+  onAnswer[ASKED_MESSAGE_IDS_FIELD] = ids.slice(-20);
+  return { telegramMessageId: messageId, onAnswer: JSON.parse(JSON.stringify(onAnswer)) as object };
+}
+
+/** Demande dont un message (question ou rappel) porte cet identifiant Telegram, quel que soit son statut. */
+export async function humanRequestByMessageId(deps: Pick<AgentsDeps, "prisma">, messageId: number) {
+  const direct = await deps.prisma.humanRequest.findFirst({
+    where: { telegramMessageId: messageId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (direct) return direct;
+  const recent = await deps.prisma.humanRequest.findMany({
+    where: { askedAt: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+  });
+  const found = recent.find((r) => askedMessageIdsOf(r).includes(messageId));
+  if (found) return found;
+  // Demande relancée (remise en file : `askedAt` vidé) : ses anciens messages restent les siens.
+  const queued = await deps.prisma.humanRequest.findMany({ where: { status: "QUEUED" }, take: 100 });
+  return queued.find((r) => askedMessageIdsOf(r).includes(messageId)) ?? null;
+}
+
+/** Erreur d'unicité Prisma (P2002) : ici, l'index partiel `HumanRequest_one_pending` (une seule question posée). */
+export function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
 }
 
 /** Préfixe des boutons de réponse à une demande (`agh:<id>:oui|non`, admin seulement). */
@@ -90,11 +137,19 @@ export async function sendNextHumanRequest(deps: AgentsDeps): Promise<string | n
   if (await currentHumanRequest(deps)) return null;
   const next = await deps.prisma.humanRequest.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" } });
   if (!next || !deps.admin) return null;
-  // Réservation avant l'envoi : deux appels simultanés n'envoient pas deux fois la même question.
-  const claimed = await deps.prisma.humanRequest.updateMany({
-    where: { id: next.id, status: "QUEUED" },
-    data: { status: "PENDING", askedAt: nowOf(deps) },
-  });
+  // Réservation avant l'envoi : deux appels simultanés n'envoient pas deux fois la même question. Entre le site et
+  // le worker, l'index unique partiel `HumanRequest_one_pending` garantit une seule question posée : une seconde
+  // réservation lève P2002 et la demande reste en file (QUEUED).
+  let claimed: { count: number };
+  try {
+    claimed = await deps.prisma.humanRequest.updateMany({
+      where: { id: next.id, status: "QUEUED" },
+      data: { status: "PENDING", askedAt: nowOf(deps) },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
   if (claimed.count === 0) return null;
   let sent: { messageId: number } | null = null;
   try {
@@ -106,7 +161,7 @@ export async function sendNextHumanRequest(deps: AgentsDeps): Promise<string | n
     await deps.prisma.humanRequest.update({ where: { id: next.id }, data: { status: "QUEUED", askedAt: null } });
     return null;
   }
-  await deps.prisma.humanRequest.update({ where: { id: next.id }, data: { telegramMessageId: sent.messageId } });
+  await deps.prisma.humanRequest.update({ where: { id: next.id }, data: withAskedMessageId(next, sent.messageId) });
   await agentEvent(deps, "agents.request.sent", { requestId: next.id, key: next.key, kind: next.kind });
   return next.id;
 }

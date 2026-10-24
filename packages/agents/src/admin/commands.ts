@@ -3,7 +3,7 @@
  * les valeurs (clés, identifiants, mots de passe) sont gardées telles quelles.
  */
 import type { TeamKey } from "../types";
-import { isSkipText, normalizeText } from "../human/answer";
+import { isSkipText, normalizeText, secretAcceptsUnreplied } from "../human/answer";
 
 export type AdminCommand =
   | { type: "status" }
@@ -51,8 +51,16 @@ const SECRET_PROVIDERS: Record<string, string> = {
   "magic-hour": "providers.magichour.apiKey",
 };
 
+const TRAILING_PUNCT = /[:;,.!?…]+$/u;
+
+/**
+ * Mots du message. Les mots de pure ponctuation (« clé : fal … ») sont retirés et la ponctuation finale des DEUX
+ * premiers mots (mot-clé et fournisseur : « Clé: fal », « clé fal, … ») aussi ; les valeurs (clé, identifiant, mot de
+ * passe) restent telles quelles (un mot de passe peut finir par « ! »).
+ */
 function tokens(text: string): string[] {
-  return text.trim().split(/\s+/).filter(Boolean);
+  const raw = text.trim().split(/\s+/).filter((w) => w && !/^[:;,.!?…\-–—]+$/u.test(w));
+  return raw.map((w, i) => (i < 2 ? w.replace(TRAILING_PUNCT, "") || w : w));
 }
 
 /** La commande transporte-t-elle un secret (« clé … », « bookmaker … ») ? Utilisé pour ne rien journaliser. */
@@ -121,17 +129,50 @@ export function parseAdminCommand(text: string): AdminCommand | null {
 }
 
 /**
- * Le texte de l'admin contient-il un secret à ne jamais journaliser ? Oui pour « clé … » / « bookmaker … », et pour
- * toute réponse (autre qu'une commande connue) pendant qu'une demande SECRET est en cours.
+ * Filet : « clé », « key », « bookmaker », « mot de passe », « password » suivis (plus loin dans le message) d'un mot
+ * de 16 caractères ou plus (« voici la clé fal sk-… ») : masqué dans le journal même si ce n'est pas une commande.
+ */
+const SECRET_HINT =
+  /(?<![\p{L}\p{N}])(?:cl[eé]s?|keys?|bookmakers?|mots? de passe|passwords?)(?![\p{L}\p{N}])[\s\S]*?(?<!\S)\S{16,}/iu;
+
+export function hasSecretHint(text: string): boolean {
+  return SECRET_HINT.test(text);
+}
+
+/** Contexte du dialogue admin pour reconnaître un secret (lu avant la journalisation, voir `agentsAdminState`). */
+export type SecretTextContext = {
+  /** Demande SECRET en cours (PENDING) : sa clé et le message de la question. */
+  pending?: { key: string; telegramMessageId?: number | null } | null;
+  /** Le message est une réponse Telegram à ce message. */
+  replyToMessageId?: number | null;
+  /** Messages (questions, rappels) de TOUTES les demandes SECRET, quel que soit leur statut. */
+  secretMessageIds?: readonly number[];
+};
+
+/**
+ * Le texte de l'admin contient-il un secret à ne jamais journaliser ? Oui pour « clé … » / « bookmaker … », pour le
+ * filet `hasSecretHint`, pour une réponse au message d'une demande SECRET (même close, passée, expirée ou en file),
+ * et, sans « répondre », pour un texte qui ressemble à une clé pendant une demande SECRET en cours (même règle que
+ * `handleAdminText` : « fait », « Parfait! » restent lisibles par `pnpm tg:inbox`).
+ * Ancienne forme acceptée : `true` ou `{ kind: "SECRET" }` (demande SECRET en cours, clé inconnue).
  */
 export function isSecretAdminText(
   text: string,
-  pendingSecretRequest?: boolean | { kind?: string | null } | null,
+  context?: boolean | { kind?: string | null } | SecretTextContext | null,
 ): boolean {
-  if (isSecretCommandText(text)) return true;
-  const pending =
-    pendingSecretRequest === true ||
-    (typeof pendingSecretRequest === "object" && pendingSecretRequest !== null && pendingSecretRequest.kind === "SECRET");
-  if (!pending) return false;
-  return parseAdminCommand(text) === null;
+  if (isSecretCommandText(text) || hasSecretHint(text)) return true;
+  let ctx: SecretTextContext = {};
+  if (context === true) ctx = { pending: { key: "" } };
+  else if (context && typeof context === "object") {
+    if ("kind" in context) ctx = context.kind === "SECRET" ? { pending: { key: "" } } : {};
+    else ctx = context as SecretTextContext;
+  }
+  const reply = ctx.replyToMessageId ?? null;
+  if (reply !== null) {
+    if (ctx.secretMessageIds?.includes(reply)) return true;
+    if (ctx.pending?.telegramMessageId != null && ctx.pending.telegramMessageId === reply) return true;
+  }
+  if (!ctx.pending) return false;
+  if (parseAdminCommand(text) !== null) return false;
+  return secretAcceptsUnreplied(ctx.pending.key, text.trim());
 }

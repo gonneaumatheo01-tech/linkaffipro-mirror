@@ -155,8 +155,9 @@ export async function transcribe(
       {
         duree: first?.durationSec ?? second?.durationSec ?? null,
         nettoye: prepared,
-        essai1: first?.text.slice(0, 80) ?? null,
-        essai2: second?.text.slice(0, 80) ?? null,
+        // Jamais le texte (il peut contenir un secret dicté) : seulement sa longueur et son nombre de mots.
+        essai1: first ? { caracteres: first.text.length, mots: wordCount(first.text) } : null,
+        essai2: second ? { caracteres: second.text.length, mots: wordCount(second.text) } : null,
       },
       "vocal non compris",
     );

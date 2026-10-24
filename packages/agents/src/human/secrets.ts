@@ -53,6 +53,24 @@ export function secretLabel(key: string): string {
   return `clé ${key}`;
 }
 
+/** Une clé de fournisseur (`.apiKey`) : seule elle peut voir ses 4 derniers caractères rappelés à l'admin. */
+export function isProviderApiKey(key: string): boolean {
+  return /\.apiKey$/.test(key);
+}
+
+/**
+ * Début de la confirmation envoyée à l'admin sur Telegram : « Clé fal.ai enregistrée (…ab12) » pour une clé de
+ * fournisseur, « Mot de passe sportaza enregistré » (jamais aucun caractère) pour un identifiant, un mot de passe ou
+ * une adresse de proxy.
+ */
+export function secretSavedHead(key: string, tail: string | null, verb: "enregistré" | "reçu" = "enregistré"): string {
+  const label = secretLabel(key);
+  const feminine = /^(clé|adresse)/.test(label);
+  const word = feminine ? `${verb}e` : verb;
+  const head = `${label.charAt(0).toUpperCase()}${label.slice(1)} ${word}`;
+  return isProviderApiKey(key) && tail ? `${head} (…${tail})` : head;
+}
+
 type StoredSecret = { enc: string; last4: string; updatedAt: string };
 
 function asStored(v: unknown): StoredSecret | null {

@@ -98,6 +98,16 @@ export function voiceToAdminText(transcript: string): string {
   return t;
 }
 
+/** Transcription sans guillemets ni ponctuation d'élocution, SANS la remise à « oui » (confirmation stricte). */
+function spokenForConfirm(transcript: string): string {
+  return transcript
+    .trim()
+    .replace(/^[\s"«»“”'’]+|[\s"«»“”'’]+$/g, "")
+    .replace(/[,;:](?=\s|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Au moins deux lettres : sinon le vocal n'a rien donné d'exploitable. */
 function hasWords(text: string): boolean {
   return text.replace(/[^\p{L}\p{N}]/gu, "").length >= 2 || /^\d$/.test(text);
@@ -160,6 +170,8 @@ export async function handleAdminVoice(
     messageId: input.messageId,
     replyToMessageId: input.replyToMessageId ?? null,
     source: "voice",
+    // « Oui, vas-y » est remis à « oui » ci-dessus, mais un passage en vrai ou un niveau exige un « oui » dit seul.
+    spokenText: spokenForConfirm(input.transcript ?? ""),
   });
   if (!r.handled) {
     await say(VOICE_UNHANDLED);

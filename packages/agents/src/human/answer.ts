@@ -48,6 +48,32 @@ export function parseYesNo(text: string): "oui" | "non" | null {
   return null;
 }
 
+/**
+ * Confirmation stricte (« vrai <équipe> », changement de niveau) : exactement « oui » (casse, accents et ponctuation
+ * finale ignorés). « ok », « o », « d'accord », un emoji ne suffisent pas.
+ */
+export function isStrictYes(text: string): boolean {
+  return normalizeText(text).replace(/^["«»\s]+|["«»\s]+$/g, "") === "oui";
+}
+
+/**
+ * Un texte ressemble-t-il à une clé (un seul mot de 16 caractères ou plus, lettres et chiffres mêlés) ? Sert à
+ * reconnaître une clé collée SANS « répondre » au message de la question : « fait », « Parfait! » n'en sont pas.
+ */
+export function looksLikeSecretValue(text: string): boolean {
+  const t = text.trim();
+  return t.length >= 16 && !/\s/.test(t) && /\p{L}/u.test(t) && /\d/.test(t) && !/^https?:\/\//i.test(t);
+}
+
+/**
+ * Une demande SECRET accepte-t-elle ce texte envoyé SANS « répondre » au message de la question ? Identifiant de
+ * compte (`.login`) : jamais (seulement en réponse au message). Autre clé : seulement s'il ressemble à une clé.
+ */
+export function secretAcceptsUnreplied(key: string, text: string): boolean {
+  if (/\.login$/.test(key)) return false;
+  return looksLikeSecretValue(text);
+}
+
 /** 4 derniers caractères d'un secret, jamais plus. */
 export function last4(value: string): string {
   return value.slice(-4);
@@ -154,7 +180,8 @@ export function interpretAnswer(target: AnswerTarget, raw: string): InterpretedA
       // Un identifiant de compte peut être court (« jean75 ») ; une clé ou un mot de passe, non.
       if (text.length < (/\.login$/.test(target.key) ? 3 : 8) || /\s/.test(text))
         return { type: "invalid", message: "Ça ne ressemble pas à une clé : colle-la en un seul morceau, sans espace." };
-      return { type: "answer", value: text, summary: `…${last4(text)}` };
+      // Jamais un morceau du secret dans le résumé (`HumanRequest.answerSummary`, `AuditLog`).
+      return { type: "answer", value: text, summary: "enregistrée" };
     }
     case "MEDIA": {
       const need = target.expected?.count ?? 1;

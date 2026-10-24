@@ -18,6 +18,11 @@ export type AgentsCallbackResult = {
   reply?: string;
   /** Retirer les boutons de l'aperçu (décision prise). */
   removeButtons?: boolean;
+  /**
+   * « ✏️ Corriger » : identifiant de la validation dont `reply` est le message « envoie le nouveau texte ». Le bot
+   * mémorise l'identifiant du message envoyé (`rememberEditPrompt`) : une réponse à ce message est la correction.
+   */
+  editPromptFor?: string;
 };
 
 const DATA = /^agv:([A-Za-z0-9_-]{1,40}):(ok|edit|no)$/;
@@ -67,5 +72,6 @@ export async function handleAgentsCallback(
     reply: r.message,
     // « Corriger » garde les boutons : l'admin peut encore publier ou refuser sans corriger.
     removeButtons: decision !== "edit",
+    ...(decision === "edit" ? { editPromptFor: parsed.validationId } : {}),
   };
 }

@@ -14,7 +14,7 @@ describe("commandes du dialogue admin", () => {
   it("« pause dating » puis « reprends dating » (échecs remis à zéro, cycle enfilé)", async () => {
     const kit = createTestKit();
     await kit.prisma.agentTeamConfig.create({ data: { teamKey: "dating", consecutiveFailures: 3 } as never });
-    expect((await handleAdminText(kit.deps, { text: "pause dating", messageId: 1 })).reply).toBe("Équipe Dating en pause ⏸");
+    expect((await handleAdminText(kit.deps, { text: "pause dating", messageId: 1 })).reply).toBe("Équipe Rencontres en pause ⏸");
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ paused: true });
     await handleAdminText(kit.deps, { text: "Reprends Dating", messageId: 2 });
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ paused: false, consecutiveFailures: 0 });
@@ -34,7 +34,7 @@ describe("commandes du dialogue admin", () => {
     const lines = r.reply!.split("\n");
     expect(lines.length).toBeLessThanOrEqual(8);
     expect(lines[0]).toContain("à valider : 0");
-    expect(lines[1]).toContain("Dating : ▶️ active · simulation · niveau 0");
+    expect(lines[1]).toContain("Rencontres : ▶️ active · simulation · niveau 0");
     expect(lines.at(-1)).toContain("Santé : Grand Chef jamais");
     // Lecture seule : aucune équipe créée par la commande.
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
@@ -44,7 +44,7 @@ describe("commandes du dialogue admin", () => {
     const kit = createTestKit();
     const r = await handleAdminText(kit.deps, { text: "Rapport", messageId: 1 });
     expect(r.reply).toContain("Rapport des agents</b> (2026-10-23, calculé maintenant)");
-    expect(r.reply).toContain("• Dating : 0 publié");
+    expect(r.reply).toContain("• Rencontres : 0 publié");
     expect(r.reply).toContain("Pubs : aucun rapport encore");
     await kit.prisma.event.create({ data: { type: "agents.report.daily", occurredAt: new Date(), payload: { day: "2026-10-23", lines: ["Casino : 2 publiés <ok>"] } } as never });
     await kit.prisma.insightReport.create({ data: { teamKey: "ads", weekStart: "2026-10-23", content: "Dépense 12 €\nGains 30 €" } as never });
@@ -100,7 +100,7 @@ describe("commandes du dialogue admin", () => {
   it("« vrai » sur une équipe déjà en vrai : rien n'est demandé", async () => {
     const kit = createTestKit();
     await kit.prisma.agentTeamConfig.create({ data: { teamKey: "dating", simulation: false } as never });
-    expect((await handleAdminText(kit.deps, { text: "vrai dating", messageId: 1 })).reply).toBe("L'équipe Dating est déjà en vrai.");
+    expect((await handleAdminText(kit.deps, { text: "vrai dating", messageId: 1 })).reply).toBe("L'équipe Rencontres est déjà en vrai.");
     expect(kit.sent).toHaveLength(0);
   });
 
@@ -109,7 +109,7 @@ describe("commandes du dialogue admin", () => {
     await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "dating", monthlyBudgetCents: { video: 10000 } });
     const r = await handleAdminText(kit.deps, { text: "bookmaker sportaza moi pass-wd99", messageId: 2 });
-    expect(r).toMatchObject({ deleteMessage: true, reply: "Mot de passe sportaza enregistrée (…wd99) ✅" });
+    expect(r).toMatchObject({ deleteMessage: true, reply: "Mot de passe sportaza enregistré ✅" });
     // Deux clés séparées : identifiant puis mot de passe.
     const keys = kit.tables("setting").map((s) => s.key);
     expect(keys).toEqual(expect.arrayContaining(["agents.secret.providers.bookmakers.sportaza.login", "agents.secret.providers.bookmakers.sportaza.password"]));

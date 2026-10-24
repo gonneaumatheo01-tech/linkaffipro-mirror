@@ -37,7 +37,7 @@ describe("commandes du dialogue admin", () => {
     expect(isSecretAdminText("clé fal abcdef123")).toBe(true);
     expect(isSecretAdminText("bookmaker x y z")).toBe(true);
     expect(isSecretAdminText("fait")).toBe(false);
-    expect(isSecretAdminText("sk-123456789", { kind: "SECRET" })).toBe(true);
+    expect(isSecretAdminText("sk-1234567890abcdef", { kind: "SECRET" })).toBe(true);
     expect(isSecretAdminText("agents", { kind: "SECRET" })).toBe(false);
     expect(isSecretAdminText("sk-123456789", { kind: "CONFIRM" })).toBe(false);
   });

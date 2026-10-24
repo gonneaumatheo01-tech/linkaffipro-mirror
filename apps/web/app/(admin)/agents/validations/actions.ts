@@ -57,7 +57,11 @@ export async function answerHumanRequestAction(formData: FormData): Promise<void
   if (!id) backTo(PAGE, { ...REQUESTS, error: "Demande inconnue : rechargez la page." });
   if (!answer) backTo(PAGE, { ...REQUESTS, error: "Écrivez ou choisissez une réponse." });
   try {
-    finish(await answerHumanRequestFromSite(buildAgentsDeps(), id, answer, { userId: user.id, via: "SITE" }), REQUESTS);
+    // Le rôle est passé au moteur : un MANAGER ne répond jamais à une demande réservée (clé, passage en vrai…).
+    finish(
+      await answerHumanRequestFromSite(buildAgentsDeps(), id, answer, { userId: user.id, via: "SITE" }, user.role),
+      REQUESTS,
+    );
   } catch (err) {
     if (isRedirectError(err)) throw err;
     backTo(PAGE, { ...REQUESTS, error: `Réponse impossible : ${errorText(err)}.` });
@@ -69,7 +73,7 @@ export async function skipHumanRequestAction(formData: FormData): Promise<void> 
   const id = field(formData, "requestId");
   if (!id) backTo(PAGE, { ...REQUESTS, error: "Demande inconnue : rechargez la page." });
   try {
-    finish(await skipHumanRequest(buildAgentsDeps(), id, { userId: user.id, via: "SITE" }), REQUESTS);
+    finish(await skipHumanRequest(buildAgentsDeps(), id, { userId: user.id, via: "SITE" }, user.role), REQUESTS);
   } catch (err) {
     if (isRedirectError(err)) throw err;
     backTo(PAGE, { ...REQUESTS, error: `Impossible de passer la demande : ${errorText(err)}.` });

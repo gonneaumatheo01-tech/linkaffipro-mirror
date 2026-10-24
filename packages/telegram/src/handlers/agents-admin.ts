@@ -1,20 +1,40 @@
 import type { Bot, Context } from "grammy";
 import { GrammyError } from "grammy";
-import { handleAdminText, handleAgentsCallback, isAgentsCallbackData } from "@linkaffipro/agents";
+import {
+  handleAdminText,
+  handleAgentsCallback,
+  isAgentsCallbackData,
+  isSecretAdminText,
+  rememberEditPrompt,
+} from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
 import { htmlToPlain } from "../agents/admin-messenger";
+import { secretContextOf } from "../agents/redact";
 
 /** Taille maximale d'un vocal de l'admin (la transcription refuse au-delà de 2 Mo, environ 2 minutes). */
 export const ADMIN_VOICE_MAX_BYTES = 2 * 1024 * 1024;
 
-/** Réponse en HTML, repli en texte brut si Telegram refuse le HTML. */
-async function replyHtml(ctx: Context, text: string): Promise<void> {
+/** Réponse en HTML, repli en texte brut si Telegram refuse le HTML. Rend l'identifiant du message envoyé. */
+async function replyHtml(ctx: Context, text: string): Promise<number | null> {
   try {
-    await ctx.reply(text, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+    const sent = await ctx.reply(text, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+    return sent?.message_id ?? null;
   } catch (err) {
-    if (err instanceof GrammyError && /parse entities/i.test(err.description))
-      await ctx.reply(htmlToPlain(text), { link_preview_options: { is_disabled: true } });
-    else throw err;
+    if (err instanceof GrammyError && /parse entities/i.test(err.description)) {
+      const sent = await ctx.reply(htmlToPlain(text), { link_preview_options: { is_disabled: true } });
+      return sent?.message_id ?? null;
+    }
+    throw err;
+  }
+}
+
+/** Même règle que le masquage du journal (`redactAdminSecretUpdate`) ; ne lève jamais. */
+async function looksSecret(deps: TelegramDeps, fromId: number, text: string, replyTo?: number): Promise<boolean> {
+  try {
+    const state = deps.agentsAdminState ? await deps.agentsAdminState(BigInt(fromId)) : null;
+    return isSecretAdminText(text, state ? secretContextOf(state, replyTo) : null);
+  } catch {
+    return isSecretAdminText(text, null);
   }
 }
 
@@ -35,7 +55,11 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       const r = await handleAgentsCallback(deps.agentsDeps(), { data, fromTelegramId: BigInt(ctx.from.id) });
       await ctx.answerCallbackQuery(r.toast ? { text: r.toast } : undefined).catch(() => undefined);
       if (r.removeButtons) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
-      if (r.reply) await replyHtml(ctx, r.reply);
+      if (r.reply) {
+        const messageId = await replyHtml(ctx, r.reply);
+        // « ✏️ Corriger » : une réponse à CE message sera le nouveau texte du post.
+        if (r.editPromptFor && messageId) await rememberEditPrompt(deps.agentsDeps(), r.editPromptFor, messageId);
+      }
     } catch (err) {
       console.error("[agents] bouton de validation", identity.username, (err as Error).message);
       await ctx.answerCallbackQuery({ text: "Erreur : réessaie dans un instant." }).catch(() => undefined);
@@ -91,9 +115,14 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
         text: msg.text,
         messageId: msg.message_id,
         replyToMessageId: msg.reply_to_message?.message_id ?? null,
+        // Mises en forme (gras, liens, emojis animés) : gardées dans un texte corrigé (« ✏️ Corriger »).
+        entities: msg.entities ?? null,
       });
     } catch (err) {
       console.error("[agents] dialogue admin", identity.username, (err as Error).message);
+      // Un message qui contenait un secret ne reste jamais dans la conversation, même si le traitement a échoué.
+      if (await looksSecret(deps, from.id, msg.text, msg.reply_to_message?.message_id))
+        await ctx.api.deleteMessage(ctx.chat.id, msg.message_id).catch(() => undefined);
       await ctx.reply("Oups, je n'ai pas pu traiter ce message. Réessaie dans un instant.");
       return;
     }

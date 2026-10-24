@@ -14,6 +14,7 @@ import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
 import { addCustomEmojisToLibrary } from "./custom-emoji/library";
 import { hasStartedBot } from "./join-flow/reachability";
 import { createBotAgentsDeps } from "./agents/deps";
+import { readSecretRequestsState } from "./agents/admin-state";
 
 function memberData(from: User) {
   return {
@@ -426,11 +427,8 @@ export const prismaTelegramDeps: TelegramDeps = {
 
   async agentsAdminState(telegramUserId) {
     if ((await cachedAdminId()) !== telegramUserId.toString()) return { isAdmin: false, secretPending: false };
-    const pending = await prisma.humanRequest.findFirst({
-      where: { status: "PENDING", kind: "SECRET" },
-      select: { id: true },
-    });
-    return { isAdmin: true, secretPending: !!pending };
+    // Demande de clé en cours + messages de toutes les demandes de clé (masquage avant journalisation).
+    return readSecretRequestsState(prisma);
   },
 };
 

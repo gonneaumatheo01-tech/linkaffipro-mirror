@@ -36,7 +36,7 @@ describe("validation humaine", () => {
     expect(kit.tables("agentMission")[0]).toMatchObject({ status: "WAITING_VALIDATION", validationId: v.validationId });
     const msg = kit.sent[0]!;
     expect(msg.html).toContain(`À valider n°${v.number}`);
-    expect(msg.html).toContain("équipe Dating");
+    expect(msg.html).toContain("équipe Rencontres");
     expect(msg.html).toContain("Canal : Canal Léa");
     expect(msg.html).toContain("Motif : premier post du canal");
     expect(msg.mediaAssetId).toBe("asset_1");
