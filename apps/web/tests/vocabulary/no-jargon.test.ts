@@ -69,7 +69,7 @@ describe("vocabulaire : aucun terme technique en surface", () => {
   // Analyse syntaxique de tous les écrans : quelques secondes seul, bien plus pendant la suite complète.
   it("aucun mot technique dans le texte visible (le terme passe par Term, `term` ou `title`)", () => {
     expect(offenders()).toEqual([]);
-  }, 60_000);
+  }, 180_000);
 });
 
 /** Rubrique Agents (phase 19) : en plus du jargon commun, aucun terme du moteur (file, service, réglage brut). */
@@ -86,7 +86,7 @@ describe("vocabulaire de la rubrique Agents", () => {
       for (const h of scanSource(readFileSync(f.path, "utf8"), f.rel, { extraRules: AGENTS_JARGON }))
         out.push(`${f.rel}:${h.line} [${h.words.join(", ")}] ${h.text}`);
     expect(out).toEqual([]);
-  }, 60_000);
+  }, 180_000);
 
   it("la règle reconnaît les termes du moteur", () => {
     const w = (src: string) =>
