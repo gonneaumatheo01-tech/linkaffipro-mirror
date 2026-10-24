@@ -77,7 +77,9 @@ const ACK_WORDS = new Set([
 export function isEmojiOnly(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
-  return t.replace(/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}\s]/gu, "") === "" && /\p{Extended_Pictographic}/u.test(t);
+  // Alternatives (et non une classe) : les modificateurs et liants d'emojis ne se combinent pas dans une classe.
+  const rest = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\uFE0F|\u200D|\u20E3|\s/gu, "");
+  return rest === "" && /\p{Extended_Pictographic}/u.test(t);
 }
 
 /** Accusé court ou emojis seuls (pur) : « fait », « merci », « ok », « c'est bon », « super », « 👍🎉 ». */

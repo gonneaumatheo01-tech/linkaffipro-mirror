@@ -17,7 +17,7 @@ import { memoryLines } from "./memory";
 import { plusTard, repondreDemande } from "./catalog-read";
 import { recordBossUsage } from "./llm";
 import { bossSystemPrompt, decisionOf } from "./interpret";
-import type { BossFastResult, BossSpeaker } from "./contract";
+import type { BossDeps, BossFastResult, BossSpeaker } from "./contract";
 
 vi.mock("../missions/lifecycle", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -32,6 +32,7 @@ const LEA: BossSpeaker = { kind: "member", telegramUserId: 77n, memberId: "m1", 
 const MANAGER: BossSpeaker = { kind: "member", telegramUserId: 78n, memberId: "m2", role: "MANAGER", firstName: "Marc" };
 const VRAI = { name: "simulation", input: { equipe: "casino", mode: "vrai" } };
 const QUOTA = { name: "quota_posts", input: { cible: "Léa", posts_par_jour: 5 } };
+const json = (v: unknown) => JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x));
 const casinoLive = (kit: BossKit) => kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.simulation === false;
 
 describe("1. détecteur de secrets partagé", () => {
@@ -62,7 +63,7 @@ describe("1. détecteur de secrets partagé", () => {
     expect(r).toMatchObject({ handled: true, deleteMessage: true });
     expect(reply(r)).toContain("enregistré");
     expect(kit.tables("setting").some((s) => s.key === "agents.secret.providers.bookmakers.sportaza.password")).toBe(true);
-    expect(JSON.stringify(kit.tables("bossTurn"))).not.toContain("Sportaza2024");
+    expect(json(kit.tables("bossTurn"))).not.toContain("Sportaza2024");
     expect(journalText(kit)).not.toContain("Sportaza2024");
     expect(kit.llm.calls.interpret).toHaveLength(0);
   });
@@ -78,7 +79,7 @@ describe("1. détecteur de secrets partagé", () => {
     }
     expect(kit.llm.calls.interpret).toHaveLength(0);
     expect(kit.tables("bossUnmet")).toHaveLength(0);
-    const all = JSON.stringify([kit.tables("bossTurn"), kit.tables("auditLog")]);
+    const all = json([kit.tables("bossTurn"), kit.tables("auditLog")]);
     for (const s of ["Sportaza2024", "sk-ant-api03", "0123456789abcdef0123", "jean75"]) expect(all).not.toContain(s);
   });
 
@@ -88,7 +89,7 @@ describe("1. détecteur de secrets partagé", () => {
     await bossAiTurn(kit.deps, kit.input("c'est pour lundi"));
     const audit = kit.tables("auditLog").find((a) => a.action === "boss.repondre_demande");
     expect(audit).toBeTruthy();
-    expect(JSON.stringify(audit)).not.toContain("reponse");
+    expect(json(audit)).not.toContain("reponse");
   });
 });
 
@@ -170,11 +171,11 @@ describe("4. demandes réservées à l'admin : ni un membre ni un responsable n'
     const live = await askHuman(kit.deps, { teamKey: "casino", kind: "CONFIRM", key: "agents.team.casino.live", question: "Passer en vrai ?", onAnswer: { action: "set-simulation", teamKey: "casino", simulation: false } });
     const actor = { userId: null, via: "TELEGRAM" as const };
     // Non adressée au responsable.
-    expect((await repondreDemande.execute({ ...kit.deps, speaker: MANAGER }, { reponse: "oui" }, actor)).reply).toContain("qui décide");
-    expect((await plusTard.execute({ ...kit.deps, speaker: MANAGER }, {}, actor)).reply).toContain("qui décide");
+    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toContain("qui décide");
+    expect((await plusTard.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), {}, actor)).reply).toContain("qui décide");
     // Adressée à lui, mais réservée à l'admin.
     await kit.prisma.humanRequest.update({ where: { id: live.requestId }, data: { assigneeTelegramId: 78n } as never });
-    expect((await repondreDemande.execute({ ...kit.deps, speaker: MANAGER }, { reponse: "oui" }, actor)).reply).toContain("qui décide");
+    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toContain("qui décide");
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
     expect(casinoLive(kit)).toBe(false);
   });
@@ -183,7 +184,7 @@ describe("4. demandes réservées à l'admin : ni un membre ni un responsable n'
     const kit = await createBossKit();
     const q = await askHuman(kit.deps, { teamKey: "casino", kind: "TEXT", key: "casino.theme", question: "Quel thème demain ?" });
     await kit.prisma.humanRequest.update({ where: { id: q.requestId }, data: { assigneeTelegramId: 77n } as never });
-    const r = await repondreDemande.execute({ ...kit.deps, speaker: LEA }, { reponse: "roulette" }, { userId: null, via: "TELEGRAM" });
+    const r = await repondreDemande.execute(({ ...kit.deps, speaker: LEA } as BossDeps), { reponse: "roulette" }, { userId: null, via: "TELEGRAM" });
     expect(r.reply).toContain("Réponse notée");
   });
 });
@@ -293,7 +294,7 @@ describe("10. mots qui confirment, remplacement du Boss", () => {
     expect(reply(r)).toContain("Kevin existe déjà (@kevin_bot)");
     expect(r).toMatchObject({ handled: true, deleteMessage: true });
     expect(port).not.toHaveBeenCalled();
-    expect(JSON.stringify(kit.tables("setting"))).not.toContain("AAEhBOweik6ad9r");
+    expect(json(kit.tables("setting"))).not.toContain("AAEhBOweik6ad9r");
     const yes = await bossFastPath(kit.deps, kit.input("oui"));
     expect(port).toHaveBeenCalledWith(token);
     expect(reply(yes)).toContain("@kevin2_bot");
