@@ -1,5 +1,11 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## Phase 24 : l'Agent Ads (rien à fournir)
+1. **Où** : Agents → **Agent Ads**. Chaque matin, un résumé arrive sur Telegram ; le lundi, le bilan de la semaine.
+2. **Ce qu'il fait** : il conseille d'arrêter, d'augmenter, de tester ou de surveiller une pub, chiffres à l'appui. **Il ne change jamais rien chez Meta ou TikTok** : c'est vous qui le faites dans le gestionnaire de pubs, puis vous cliquez « Fait » (ou « Refuser »).
+3. **Deux questions du bot** (après les précédentes) : le coût par inscription au-dessus duquel il conseille d'arrêter une pub, et le retour sur dépense minimal. Répondez 1, 2 ou un chiffre ; « plus tard » garde les valeurs automatiques.
+4. **Meta / TikTok pas encore branchés** : l'agent travaille avec les coûts importés ou saisis. Pour brancher : Réglages → Connexions → Meta / TikTok (le guide est dans la page).
+
 ## Phase 23 : l'équipe Paris sportifs (quand vous voulez)
 1. **Le bot vous demande, une question à la fois** : la clé SportsGameOdds (créez un compte gratuit sur https://sportsgameodds.com, puis une clé ; vérifiée aussitôt), puis l'identifiant et le mot de passe de votre compte bookmaker (Sportaza) : vos messages sont supprimés aussitôt et un test de connexion est fait tout de suite.
 2. **Si le test dit « bloqué »**, le bot vous propose : 1) une adresse internet de secours (service à souscrire, 10 à 30 € par mois : vous lui envoyez l'adresse qu'il vous donne) ou 2) la capture depuis votre Mac :
