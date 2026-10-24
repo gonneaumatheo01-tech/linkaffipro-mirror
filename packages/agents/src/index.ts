@@ -229,3 +229,25 @@ export * from "./boss/team/callbacks";
 export * from "./human/delivery";
 export * from "./inspiration/contract";
 export * from "./inspiration/copy-check";
+// Chantier B (phase 27) : analyse d'un canal d'inspiration, comparaison « eux / nous », profil de style.
+export { UNIVERSE_OF_VERTICAL as INSPIRATION_UNIVERSE_OF_VERTICAL, UNIVERSE_LABELS as INSPIRATION_UNIVERSE_LABELS, type AnalysisPost } from "./inspiration/analysis/types";
+export { textSignals, hasGainClaim, type TextSignals } from "./inspiration/analysis/patterns";
+export { fromReferencePost, fromClientPost, type ReferencePostRow } from "./inspiration/analysis/normalize";
+export { rhythmMeasures, peakSlotsOf, slotOf as inspirationSlotOf, PEAK_SLOT_COUNT, WEEKDAY_LABELS as INSPIRATION_WEEKDAY_LABELS } from "./inspiration/analysis/rhythm";
+export { formMeasures, MEDIA_LABELS as INSPIRATION_MEDIA_LABELS } from "./inspiration/analysis/form";
+export { contentMeasures, flaggedOf, betSeriesOf, BET_SERIES_MAX_HOURS, type BetSeries } from "./inspiration/analysis/content";
+export { resultsMeasures, describePost, MIN_CORRELATION_POSTS, MIN_GROUP_POSTS, DAY_PERIODS } from "./inspiration/analysis/results";
+export { analyzeReference, computeAnalysis, isInspirationUniverse, loadReference, loadReferencePosts, quotesOf, type ComputeOptions } from "./inspiration/analysis/analyze";
+export {
+  compareWithChannel,
+  compareAnalyses,
+  gapMatters,
+  parseGapThresholds,
+  loadGapThresholds,
+  loadClientPosts,
+  COMPARE_WINDOW_DAYS,
+  DEFAULT_GAP_THRESHOLDS,
+  INSPIRATION_THRESHOLDS_KEY,
+  type GapThresholds,
+} from "./inspiration/analysis/compare";
+export * from "./inspiration/style";

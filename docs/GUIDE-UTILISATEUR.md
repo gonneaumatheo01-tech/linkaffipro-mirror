@@ -1092,6 +1092,36 @@ Les anciennes commandes (« agents », « pause casino », « ok 12 », « deman
 - **En privé avec un membre** : chaque personne présentée peut écrire /start à Kevin en privé ; c'est là qu'elle lui envoie une clé ou un mot de passe quand il le lui demande. Si quelqu'un est absent (« Léa est en vacances jusqu'à lundi »), Kevin passe à la personne suivante qui s'occupe du sujet, sinon à vous, et le dit.
 - **Le rapport du matin** part dans le groupe à 9 h (5 lignes, avec les @ des personnes qui ont quelque chose en attente) dès qu'un groupe existe.
 
+#### S'inspirer d'un canal
+
+Vous connaissez un canal Telegram qui marche ? Kevin peut le lire et s'inspirer de **sa méthode** (son rythme, ses heures, la longueur de ses posts, ses médias, sa façon d'annoncer une cote ou de pousser le VIP) pour un ou plusieurs de vos canaux du même univers (casino pour casino, paris pour paris, rencontres pour rencontres).
+
+**Trois façons de lui donner un canal :**
+
+1. **Un lien public** : écrivez à Kevin « inspire-toi de t.me/nomducanal pour le canal Roulette ». Il lit la page publique du canal, sans compte et sans le rejoindre.
+2. **Un canal privé, avec un compte réel déjà membre** : si un de vos comptes réels (Réglages → Comptes Telegram) est déjà dans le canal, dites à Kevin « inspire-toi de <nom du canal> pour Roulette » : il le lit avec ce compte, lentement. Pour ajouter le compte au canal, voir la liste des actions à faire à la main (« Canal d'inspiration privé »). Un compte qui discute avec des membres n'est jamais utilisé pour lire.
+3. **Des posts transférés** : transférez à Kevin **10 à 30 posts** du canal (20 à 30, c'est mieux), en privé ou dans le groupe de l'équipe, puis dites « c'est pour le canal Roulette ». Si le transfert cache le nom du canal, Kevin vous le demande une fois.
+
+**Ce que Kevin fait :**
+
+- Il **lit** le canal (200 posts au plus, 3 derniers mois) et répond « Je lis @…, je reviens dans 5 minutes ».
+- Il **mesure** : posts par jour, heures (heure de Paris), longueur, mélange photo / vidéo / texte, liens et boutons, appels au VIP, cotes, séries pari puis résultat, vues quand elles sont visibles. Tous les chiffres sont calculés, jamais inventés ; il lui faut au moins 20 posts, sinon il en demande d'autres.
+- Il **résume** en 6 lignes au plus, avec les 2 plus grands écarts entre eux et votre canal, puis **répond à vos questions** (« c'est quoi leurs heures ? », « ils postent combien par jour ? », « montre-moi un exemple de post à leur façon »).
+- Il **propose par numéros** 3 à 6 réglages (heures, posts par jour, mélange, longueur, fréquence de l'offre, profil de style pour la Rédaction), chacun avec sa preuve.
+- Il **applique avec votre accord** : répondez « applique 1 et 3 ». Les réglages restent dans les bornes de l'équipe Algorithme (le mélange ne bouge pas de plus de 20 points par semaine).
+- Il **mesure l'effet** : un test A/B de 14 jours quand le canal a assez de vues ; le bilan arrive par Kevin et dans « Ce qui marche ».
+- Il **annule** : « Kevin, annule l'inspiration », ou **Annuler** dans Agents → **Inspiration** (administrateurs), pendant 30 jours.
+
+**Ce que Kevin ne fait JAMAIS :**
+
+- copier un texte ou une image du canal lu : ses exemples sont écrits à neuf, et un post qui reprendrait 8 mots à la suite d'un post du canal est refusé ; aucune image ni vidéo n'est récupérée ;
+- rejoindre un canal de lui-même ;
+- lire ou garder les membres du canal ;
+- changer un réglage sans votre accord ;
+- reprendre une pratique qui va contre vos règles (promesse de gain, lien hors plateforme…) : il la signale, sans la reproduire.
+
+**Dans le site** : Agents → **Inspiration** liste les canaux lus (état **En lecture**, **Prête** ou **Illisible** avec la raison ; lu par **Aperçu public**, **Compte réel** ou **Posts transférés** ; posts lus ; vos canaux concernés ; dernière lecture). Cliquez sur une ligne pour sa fiche : **Eux / nous** (leurs chiffres face aux vôtres, les écarts qui comptent), **Profil de style** (règles, description, exemples écrits à neuf, ce qu'on ne reproduit pas), **Propositions** (avec **Annuler** pour une proposition appliquée), **Historique** et **Retirer** (administrateurs : efface les posts lus et le profil). La fiche d'un canal affiche **Inspiré de @…** avec le lien. Le texte des posts lus est effacé au bout de 30 jours ; les références sont relues chaque semaine.
+
 #### Où voir ce que Kevin a fait et combien il coûte
 
 Agents → **Kevin** : le bot (ou les 3 étapes pour le créer), l'équipe et le groupe, ce qu'il ne sait pas encore faire (avec **Exporter**), ses 50 derniers échanges (une clé y apparaît toujours « [secret] ») et la dépense de son IA ce mois. Seules les phrases libres coûtent (quelques centimes) ; le plafond est de **10 € par mois** par défaut, modifiable par un administrateur ; une alerte part à 80 % ; au plafond, Kevin garde les commandes exactes et le dit. Chaque action faite par Kevin est aussi dans Réglages → Journal. Au plus une fois par jour, s'il y a un blocage (question sans réponse depuis plus d'un jour, équipe en pause automatique, plafond atteint), Kevin vous relance.

@@ -38,6 +38,8 @@ export type RedactionPromptInput = {
   /** Phase 21 : « ce qui marche ici » (équipe Algorithme) et consigne de la variante d'un test A/B de style. */
   channelStyleNotes?: string | null;
   testStyle?: string | null;
+  /** Phase 27 : profil de style d'un canal d'inspiration lié au canal (règles et description, jamais ses textes). */
+  styleProfile?: string | null;
   /** Phase 22 : offre du moment (campagne du canal) et ce que sa fiche permet de dire (null = le nom seulement). */
   offer?: { name: string; facts: string | null } | null;
   /** Phase 22 : modèles de messages de l'univers, à prendre comme inspiration, jamais à recopier. */
@@ -79,6 +81,8 @@ export function buildRedactionUser(i: RedactionPromptInput): string {
   }
   if (i.styleGuidelines?.trim()) lines.push(`Consignes de l'équipe :\n${i.styleGuidelines.trim().slice(0, 2000)}`);
   if (i.channelStyleNotes?.trim()) lines.push(`Ce qui marche sur ce canal (mesuré) : ${i.channelStyleNotes.trim().slice(0, 600)}`);
+  if (i.styleProfile?.trim())
+    lines.push(`Profil de style à suivre (méthode d'un canal exemple : reprends la façon de faire, jamais ses phrases) :\n${i.styleProfile.trim().slice(0, 900)}`);
   if (i.testStyle?.trim()) lines.push(`Consigne de style pour ce post (test en cours, à suivre) : ${i.testStyle.trim().slice(0, 300)}`);
   if (i.theme) lines.push(`Thème de ce post : ${i.theme}`);
   else if (i.themes?.length) lines.push(`Thèmes possibles : ${i.themes.join(", ")}`);

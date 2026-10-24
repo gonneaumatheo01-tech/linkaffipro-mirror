@@ -21,6 +21,8 @@ import { inventedFigures } from "../../rules/figures";
 import { loadPlan } from "../data";
 import { agentEvent } from "../../admin/journal";
 import { sportsControl } from "../../sports/steps";
+import { referenceShinglesForChannel } from "../../inspiration/style";
+import { copiedSequence } from "../../inspiration/copy-check";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
 async function autonomyFacts(mission: Mission, ctx: AgentContext) {
@@ -65,6 +67,9 @@ export const agent: AgentDefinition = {
     const recent = await recentChannelTexts(ctx.prisma, mission.channelId, mission.id);
     const dup = findDuplicate(text, recent, ctx.settings.similarityThreshold);
     if (dup) problems.push(`trop proche d'un post récent du canal (${Math.round(dup.score * 100)} %)`);
+    // Phase 27 : jamais 8 mots consécutifs repris d'un post d'un canal d'inspiration lié à ce canal.
+    const copied = copiedSequence(text, await referenceShinglesForChannel(ctx, mission.channelId));
+    if (copied) problems.push(`reprend 8 mots d'un post du canal exemple (« ${copied} ») : inspire-toi de la méthode, ne recopie jamais`);
     if (p.mediaAssetId) {
       const asset = await ctx.prisma.mediaAsset.findUnique({
         where: { id: p.mediaAssetId },

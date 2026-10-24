@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlgoLevelPicker, AlgoSettingsForm } from "@/components/agents/algo/algo-settings";
 import { ConversationProfiles } from "@/components/agents/algo/conversation-profiles";
 import { ExperimentsList } from "@/components/agents/algo/experiments-list";
@@ -246,6 +247,13 @@ export async function AlgoView({ user, sp }: { user: { id: string; role: string 
           description="Chaque proposition dit ce qui change, pourquoi (les chiffres) et ce qu'elle doit rapporter. « Annuler » remet la valeur d'avant. Les réglages de persona et les quotas sont réservés aux administrateurs."
         >
           <RecommendationsList recs={recs} role={user.role} from={from} />
+          <p className="text-note text-muted-foreground">
+            Les propositions tirées d&apos;un canal d&apos;inspiration lu par Kevin se retrouvent avec leurs preuves dans{" "}
+            <Link href="/agents/inspiration" className="text-info underline">
+              Inspiration
+            </Link>
+            .
+          </p>
         </FormSection>
 
         <FormSection

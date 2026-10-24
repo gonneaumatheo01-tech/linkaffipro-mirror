@@ -53,6 +53,14 @@ Kevin est le bot à qui vous parlez de tout, en français ordinaire (texte ou vo
 
 **Coûts à prévoir** : vidéos IA 50 à 200 € par mois selon le plafond choisi, photos IA 5 à 15 €, IA d'écriture et de contrôle 10 à 30 €, cotes 0 € au départ (offre gratuite), adresse internet de secours 0 à 30 € seulement si le bookmaker bloque, assistante de conversation 30 € par mois au plus (plafond réglé).
 
+### 7. Canal d'inspiration privé : ajouter un compte réel (3 minutes, seulement pour un canal privé)
+Un canal public se lit tout seul : écrivez simplement à Kevin « inspire-toi de t.me/nomducanal pour Roulette ». Pour un canal **privé**, Kevin ne rejoint jamais rien de lui-même :
+1. Prenez le téléphone d'un de vos comptes réels (Réglages → Comptes Telegram, état **Connecté**), de préférence un compte qui ne discute avec personne.
+2. Ouvrez Telegram sur ce téléphone → touchez le lien d'invitation du canal (`t.me/+…`) → **Rejoindre** (ou **Demander à rejoindre**, puis attendez d'être accepté).
+3. Écrivez à Kevin : « inspire-toi de <nom du canal> pour <votre canal> ». Il lit le canal avec ce compte, lentement, et vous répond.
+
+**Sans compte réel** : ouvrez le canal dans votre Telegram → appui long sur un post → **Sélectionner** → cochez 20 à 30 posts → **Transférer** → choisissez Kevin → puis écrivez-lui « c'est pour le canal <votre canal> ».
+
 ---
 
 ## Avant les agents (rappel des phases 7 à 17, toujours valable)

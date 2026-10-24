@@ -36,6 +36,8 @@ import type {
   PostPublisher,
   PostStatus,
   RecommendationStatus,
+  ReferenceStatus,
+  ReferenceVia,
   Role,
   SequenceTrigger,
   TrackingLinkKind,
@@ -397,6 +399,17 @@ export const STATUS_DICT = {
     LOST: bad("Perdu"),
     VOID: muted("Annulé"),
   } satisfies Record<BettingPickStatus, StatusEntry>,
+  // Canal d'inspiration (phase 27) : état de la lecture et voie par laquelle Kevin lit le canal.
+  referenceStatus: {
+    READING: main("En lecture"),
+    READY: ok("Prête"),
+    UNAVAILABLE: bad("Illisible"),
+  } satisfies Record<ReferenceStatus, StatusEntry>,
+  referenceVia: {
+    WEB: plain("Aperçu public"),
+    ACCOUNT: plain("Compte réel"),
+    FORWARDED: plain("Posts transférés"),
+  } satisfies Record<ReferenceVia, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

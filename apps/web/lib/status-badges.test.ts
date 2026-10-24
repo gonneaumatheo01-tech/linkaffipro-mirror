@@ -37,6 +37,8 @@ import {
   PostPublisher,
   PostStatus,
   RecommendationStatus,
+  ReferenceStatus,
+  ReferenceVia,
   Role,
   SequenceTrigger,
   TrackingLinkKind,
@@ -99,6 +101,8 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["experimentKind", ExperimentKind],
   ["recommendation", RecommendationStatus],
   ["bettingPick", BettingPickStatus],
+  ["referenceStatus", ReferenceStatus],
+  ["referenceVia", ReferenceVia],
 ];
 
 describe("badges de statut", () => {
