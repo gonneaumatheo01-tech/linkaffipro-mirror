@@ -24,7 +24,6 @@ import { sameValue } from "../agents/synthese/apply";
 import { createExperiment } from "../agents/experimentation";
 import { experimentVerdict, verdictSentence, type VariantData } from "../agents/experimentation/verdict";
 import { askHuman } from "../human/requests";
-import { registerAnswerAction } from "../human/respond";
 import { hhmmToMinutes } from "../rules/time";
 import type { AgentsDeps } from "../types";
 import { fr } from "./kevin";
@@ -410,14 +409,3 @@ export async function inspirationReviews(deps: AgentsDeps): Promise<{ closed: nu
   }
   return { closed, reported };
 }
-
-// Réponse au bilan : oui = on garde, non = réglages d'avant remis.
-registerAnswerAction(INSPIRATION_KEEP_ACTION, async (deps, { value, actor, onAnswer }) => {
-  const ids = Array.isArray(onAnswer.recommendationIds) ? onAnswer.recommendationIds.filter((x): x is string => typeof x === "string") : [];
-  if (value === "oui") {
-    await agentAudit(deps, { userId: actor.userId ?? null, action: "inspiration.kept", entityType: "Experiment", entityId: String(onAnswer.experimentId ?? ""), metadata: { via: actor.via, recommendationIds: ids } });
-    return "D'accord, je garde ces réglages 👍";
-  }
-  const r = await undoInspiration(deps, ids, actor);
-  return r.message;
-});

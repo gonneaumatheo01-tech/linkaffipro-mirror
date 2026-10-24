@@ -1,5 +1,6 @@
 /** Phase 27 : tâches `inspiration-read` / `inspiration-reread` de la file `agents-algo` (aucun réseau, aucune base). */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as Queue from "@linkaffipro/queue";
 
 const added: Array<{ name: string; data: unknown; opts: Record<string, unknown> }> = [];
 vi.mock("../agents/deps", () => ({ workerAgentsDeps: () => ({}) }));
@@ -11,7 +12,7 @@ vi.mock("@linkaffipro/agents", () => ({
   runWeeklyRereads: vi.fn(async () => ({ reread: 1, resumed: 0, skipped: 0, stoppedBy: null })),
 }));
 vi.mock("@linkaffipro/queue", async (orig) => {
-  const real = await orig<typeof import("@linkaffipro/queue")>();
+  const real = await orig<typeof Queue>();
   return {
     ...real,
     getQueue: () => ({

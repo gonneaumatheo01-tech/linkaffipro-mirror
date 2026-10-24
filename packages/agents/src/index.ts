@@ -315,3 +315,4 @@ export {
   choiceIsOpen,
   INSPIRATION_CHOICE_SETTING,
 } from "./boss/catalog-inspiration";
+import "./inspiration/keep-action";

@@ -10,7 +10,7 @@
  *   sans compter deux fois dans le quota ;
  * - à la fin : `afterReferenceRead` (Kevin, chantier C) — y compris quand le canal est indisponible, pour que Kevin
  *   demande des posts transférés ; relecture : `afterReferenceReread` (chantier C), qui décide s'il faut dire quelque
- *   chose (branchées par `setReferenceReadHooks`). Jamais d'application automatique ici.
+ *   chose. Jamais d'application automatique ici.
  */
 import type { AgentsDeps } from "../types";
 import { addDaysToDay, parisDay, parisDayStart } from "../rules/time";
@@ -23,9 +23,9 @@ export type ReferenceReadIo = {
   fetch?: InspirationFetch;
   accountReader?: AccountHistoryReader | null;
   sleep?: (ms: number) => Promise<void>;
-  /** Kevin, chantier C (par défaut : la suite branchée par `setReferenceReadHooks`). */
+  /** Kevin, chantier C (par défaut : celle de `./kevin`). */
   afterRead?: (deps: AgentsDeps, referenceChannelId: string) => Promise<void>;
-  /** Kevin, chantier C (par défaut : la suite branchée par `setReferenceReadHooks`). */
+  /** Kevin, chantier C (par défaut : celle de `./kevin`). */
   afterReread?: (deps: AgentsDeps, referenceChannelId: string) => Promise<void>;
 };
 
@@ -54,10 +54,8 @@ const ERROR_RETRY_MS = 10 * 60_000;
 const nowOf = (deps: Pick<AgentsDeps, "now">) => deps.now?.() ?? new Date();
 
 /**
- * Suites de lecture de Kevin (chantier C, `inspiration/kevin.ts`) : branchées au chargement de son module par
- * `setReferenceReadHooks({ afterRead: afterReferenceRead, afterReread: afterReferenceReread })` (pas d'import direct :
- * Kevin importe déjà la lecture, et le paquet reste empaquetable). Non branchées : rien n'est envoyé, un avertissement
- * est journalisé.
+ * Suites de lecture de Kevin (chantier C) : par défaut `afterReferenceRead` / `afterReferenceReread` de `./kevin`
+ * (import différé : Kevin importe déjà la lecture). `setReferenceReadHooks` permet de les remplacer (tests, outils).
  */
 export type ReferenceReadHooks = {
   afterRead?: (deps: AgentsDeps, referenceChannelId: string) => Promise<void>;
@@ -72,12 +70,14 @@ export function setReferenceReadHooks(next: ReferenceReadHooks): void {
 
 async function defaultAfterRead(deps: AgentsDeps, id: string): Promise<void> {
   if (hooks.afterRead) return hooks.afterRead(deps, id);
-  deps.logger?.warn({ referenceChannelId: id }, "[inspiration] suite de lecture de Kevin non branchée");
+  const kevin = await import("./kevin");
+  await kevin.afterReferenceRead(deps, id);
 }
 
 async function defaultAfterReread(deps: AgentsDeps, id: string): Promise<void> {
   if (hooks.afterReread) return hooks.afterReread(deps, id);
-  deps.logger?.warn({ referenceChannelId: id }, "[inspiration] suite de relecture de Kevin non branchée");
+  const kevin = await import("./kevin");
+  await kevin.afterReferenceReread(deps, id);
 }
 
 // ——— Verrou : une lecture à la fois ———

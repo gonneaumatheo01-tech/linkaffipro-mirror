@@ -122,7 +122,8 @@ export function inspirationSummaryLines(refLabel: string, a: InspirationAnalysis
 
 /** Faits (seule source des chiffres) d'un résumé : sert au contrôle « aucun chiffre inventé ». */
 export function summaryFacts(a: InspirationAnalysis, comparison: ChannelComparison | null): Record<string, unknown> {
-  return { analysis: a, comparison, flaggedCount: a.flagged.length };
+  const best = measureOf(a, "best.1");
+  return { analysis: a, comparison, flaggedCount: a.flagged.length, bestPost: best ? best.label.replace(/^Meilleur post n°1 : /, "") : null };
 }
 
 // ------------------------------------------------------------------------------------------ collectes de transferts
