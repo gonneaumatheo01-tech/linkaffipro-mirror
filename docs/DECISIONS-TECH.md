@@ -724,3 +724,13 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   conditionnelle avec nouvel essai ; résumé d'une clé = « enregistrée » ; un média transféré d'un canal repart vers
   l'ajout du canal (sauf légende écrite par l'admin). Limite : un mot de passe court doit être envoyé en réponse au
   message du bot.
+- **Relecture (phase 25) — médias et contenu** : une vidéo est relue chez son propre fournisseur (préférence = nouvelles
+  soumissions seulement) avant tout test de délai ; temps de pause retiré des 15 min (écart entre deux lectures > délai
+  + 2 min) ; au dépassement : annulation chez fal, estimation comptée sauf annulation confirmée, jamais de
+  resoumission (passage à la photo) ; repère `videoSubmitting` écrit avant l'appel payant (reprise après plantage =
+  pas de resoumission). Photo : `payload.photoJob` gardé dès la soumission, coût compté une seule fois, photo filtrée
+  par fal comptée. Banc d'essai : état écrit après chaque soumission, pause respectée. Magic Hour : coût d'un échec
+  compté. Chiffres de l'offre : couples (nombre, unité) stricts, symbole avant ou après, « 1,000 » = 1000. Liens : toute
+  terminaison de domaine de 2 à 24 lettres (exceptions « etc. », « p.ex. », deux phrases collées). Mention d'IA en
+  minuscules et noms d'outils (« dalle » seul permis, « DALL-E » refusé). Casino : `MediaUsage.usedAt` = heure d'envoi
+  prévue.

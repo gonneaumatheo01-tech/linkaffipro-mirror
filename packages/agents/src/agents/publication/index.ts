@@ -64,7 +64,8 @@ export const agent: AgentDefinition = {
       });
       await tx.agentMission.update({ where: { id: mission.id }, data: { postId: post.postId, scheduledFor: slot } });
       // Équipe Casino : l'utilisation compte sur le canal VISÉ (rotation de 30 jours et « jamais deux canaux le même
-      // jour » restent vraies en simulation, où tout part sur le canal Test).
+      // jour » restent vraies en simulation, où tout part sur le canal Test). Datée à l'heure d'envoi prévue (`slot`),
+      // pas à la création : un message préparé la veille pour le lendemain compte pour le jour où il part.
       if (mission.payload.mediaAssetId)
         await tx.mediaUsage.create({
           data: {
@@ -72,14 +73,14 @@ export const agent: AgentDefinition = {
             channelId: mission.teamKey === "casino" ? target.id : publishChannel.id,
             postId: post.postId,
             missionId: mission.id,
-            usedAt: now,
+            usedAt: slot!,
           },
         });
       // Vidéo source d'une vidéo produite : comptée sur le canal VISÉ (même en simulation), jamais réutilisée
       // sur ce canal avant 30 jours.
       const source = mission.payload.format === "video" && typeof mission.payload.sourceAssetId === "string" ? mission.payload.sourceAssetId : null;
       if (source && source !== mission.payload.mediaAssetId)
-        await tx.mediaUsage.create({ data: { assetId: source, channelId: target.id, postId: post.postId, missionId: mission.id, usedAt: now } });
+        await tx.mediaUsage.create({ data: { assetId: source, channelId: target.id, postId: post.postId, missionId: mission.id, usedAt: slot! } });
       return { postId: post.postId, created: true, publisher: post.publisher as string | null };
     });
     return {

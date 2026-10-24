@@ -9,7 +9,7 @@
  */
 import { falImageCents, falVideoCents, FAL_IMAGE_SIZES } from "./costs";
 import { downloadBytes, ProviderError, requestJson, type HttpDeps } from "./http";
-import type { ImageGenerateInput, ImageProvider } from "./image";
+import type { ImageGenerateInput, ImageGenerateOptions, ImageJobRef, ImageProvider } from "./image";
 import type { ProviderFile, VideoJobRef, VideoPoll, VideoProvider, VideoResolution } from "./video";
 
 export const FAL_QUEUE_BASE = "https://queue.fal.run";
@@ -25,7 +25,28 @@ export function falAppPath(modelId: string): string {
 
 export type FalClientOptions = { apiKey: string; fetch?: typeof fetch };
 
-export type FalSubmission = { requestId: string; statusUrl: string; responseUrl: string };
+export type FalSubmission = { requestId: string; statusUrl: string; responseUrl: string; cancelUrl: string };
+
+/**
+ * Erreur APRÈS une génération payée (photo écartée par le filtre de contenu de fal, par exemple) : le coût est rendu
+ * avec l'erreur pour être compté une fois, jamais perdu.
+ */
+export class PaidProviderError extends ProviderError {
+  constructor(
+    message: string,
+    transient: boolean,
+    readonly costCents: number,
+  ) {
+    super(message, transient);
+    this.name = "PaidProviderError";
+  }
+}
+
+/** Coût déjà engagé porté par une erreur (0 sinon). */
+export function paidCentsOf(err: unknown): number {
+  const c = (err as { costCents?: unknown } | null)?.costCents;
+  return typeof c === "number" && Number.isFinite(c) && c > 0 ? c : 0;
+}
 export type FalStatus = { status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED"; error?: string | null };
 
 export function createFalClient(opts: FalClientOptions) {
@@ -71,14 +92,29 @@ export function createFalClient(opts: FalClientOptions) {
     },
 
     async submit(modelId: string, input: Record<string, unknown>): Promise<FalSubmission> {
-      const r = await requestJson<{ request_id?: string; status_url?: string; response_url?: string }>(http, `${FAL_QUEUE_BASE}/${modelId}`, {
+      const r = await requestJson<{ request_id?: string; status_url?: string; response_url?: string; cancel_url?: string }>(http, `${FAL_QUEUE_BASE}/${modelId}`, {
         method: "POST",
         headers: { ...auth, "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
       if (!r.request_id) throw new ProviderError(`${LABEL} : soumission sans identifiant`, true);
       const base = `${FAL_QUEUE_BASE}/${falAppPath(modelId)}/requests/${r.request_id}`;
-      return { requestId: r.request_id, statusUrl: r.status_url || `${base}/status`, responseUrl: r.response_url || base };
+      return { requestId: r.request_id, statusUrl: r.status_url || `${base}/status`, responseUrl: r.response_url || base, cancelUrl: r.cancel_url || `${base}/cancel` };
+    },
+
+    /**
+     * Annulation (`PUT …/requests/<id>/cancel`) : vrai seulement si fal confirme (`CANCELLATION_REQUESTED`) ; travail
+     * déjà fini (400 `ALREADY_COMPLETED`), erreur ou réseau → faux (le coût est alors compté).
+     */
+    async cancel(cancelUrl: string): Promise<{ cancelled: boolean }> {
+      try {
+        const res = await fetchImpl(cancelUrl, { method: "PUT", headers: auth });
+        if (!res.ok) return { cancelled: false };
+        const body = (await res.json().catch(() => null)) as { status?: unknown } | null;
+        return { cancelled: body?.status === "CANCELLATION_REQUESTED" };
+      } catch {
+        return { cancelled: false };
+      }
     },
 
     async status(statusUrl: string): Promise<FalStatus> {
@@ -137,9 +173,10 @@ export function createFalVideoProvider(opts: FalVideoOptions): VideoProvider {
       return {
         jobId: sub.requestId,
         estimatedCents: falVideoCents(input.durationSec, input.fps, input.resolution),
-        ref: { statusUrl: sub.statusUrl, responseUrl: sub.responseUrl },
+        ref: { statusUrl: sub.statusUrl, responseUrl: sub.responseUrl, cancelUrl: sub.cancelUrl },
       };
     },
+    cancel: (jobId, ref) => client.cancel(ref?.cancelUrl || `${FAL_QUEUE_BASE}/${falAppPath(FAL_VIDEO_MODEL)}/requests/${jobId}/cancel`),
     poll: (jobId, ref) =>
       pollFal<{ video?: { url?: string } }>(client, jobId, ref, FAL_VIDEO_MODEL, (out) => (typeof out.video?.url === "string" ? out.video.url : null)),
     download: (url) => client.download(url),
@@ -164,19 +201,28 @@ export function createFalImageProvider(opts: FalImageOptions): ImageProvider {
   return {
     name: "fal",
     estimateCents: ({ count, aspect }) => falImageCents(count, aspect),
-    async generate(input: ImageGenerateInput) {
+    async generate(input: ImageGenerateInput, gen: ImageGenerateOptions = {}) {
       const count = Math.min(4, Math.max(1, Math.round(input.count)));
       const size = FAL_IMAGE_SIZES[input.aspect];
-      const sub = await client.submit(FAL_IMAGE_MODEL, {
-        prompt: input.prompt,
-        image_size: size.name,
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: count,
-        loras: [{ path: input.loraUrl, scale: input.loraScale ?? 0.8 }],
-        enable_safety_checker: true,
-        output_format: "jpeg",
-      });
+      const cents = falImageCents(count, input.aspect);
+      const submitImage = async (): Promise<ImageJobRef> => {
+        const s = await client.submit(FAL_IMAGE_MODEL, {
+          prompt: input.prompt,
+          image_size: size.name,
+          num_inference_steps: 28,
+          guidance_scale: 3.5,
+          num_images: count,
+          loras: [{ path: input.loraUrl, scale: input.loraScale ?? 0.8 }],
+          enable_safety_checker: true,
+          output_format: "jpeg",
+        });
+        const job: ImageJobRef = { requestId: s.requestId, statusUrl: s.statusUrl, responseUrl: s.responseUrl, cents };
+        // Repère gardé dans la mission AVANT toute attente : une reprise relit ce travail au lieu d'en payer un autre.
+        await gen.onSubmitted?.(job);
+        return job;
+      };
+      // Travail déjà soumis (étape reprise) : relu, jamais resoumis.
+      const sub: ImageJobRef = gen.resume ?? (await submitImage());
       for (let waited = 0; ; waited += pollMs) {
         const st = await client.status(sub.statusUrl).catch((err: unknown) => {
           if (err instanceof ProviderError && err.transient) return null;
@@ -196,8 +242,9 @@ export function createFalImageProvider(opts: FalImageOptions): ImageProvider {
         .map((img, i) => ({ img, flagged: flags[i] === true }))
         .filter((x) => !x.flagged && typeof x.img.url === "string")
         .map(({ img }) => ({ url: img.url!, width: img.width, height: img.height }));
-      if (!images.length) throw new ProviderError(`${LABEL} : aucune photo utilisable (filtre de contenu ou résultat vide)`, false);
-      return { images, cents: falImageCents(count, input.aspect) };
+      // Génération faite (et payée) même si le filtre l'a écartée : le coût part avec l'erreur.
+      if (!images.length) throw new PaidProviderError(`${LABEL} : aucune photo utilisable (filtre de contenu ou résultat vide)`, false, sub.cents);
+      return { images, cents: sub.cents };
     },
     download: (url) => client.download(url),
   };

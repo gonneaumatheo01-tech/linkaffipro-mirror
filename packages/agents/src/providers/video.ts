@@ -26,7 +26,8 @@ export type ReplaceInput = {
  * dans la mission et redonnées à `poll` (fal refuse une adresse reconstruite avec le chemin complet du modèle).
  */
 export type ReplaceStart = { jobId: string; estimatedCents: number; ref?: VideoJobRef };
-export type VideoJobRef = { statusUrl?: string; responseUrl?: string };
+/** `cancelUrl` : adresse d'annulation renvoyée à la soumission (fal `cancel_url`), gardée pour un abandon. */
+export type VideoJobRef = { statusUrl?: string; responseUrl?: string; cancelUrl?: string };
 
 export type VideoPoll = {
   status: "queued" | "running" | "done" | "failed";
@@ -45,4 +46,9 @@ export type VideoProvider = {
   poll(jobId: string, ref?: VideoJobRef): Promise<VideoPoll>;
   /** Téléchargement du résultat (adresse temporaire du fournisseur). */
   download(url: string): Promise<ProviderFile>;
+  /**
+   * Annulation d'un travail abandonné (fal : `PUT …/requests/<id>/cancel`). `cancelled` vrai seulement si le fournisseur
+   * a confirmé l'annulation (sinon le coût estimé est compté). Absente : rien à annuler, le coût est compté.
+   */
+  cancel?(jobId: string, ref?: VideoJobRef): Promise<{ cancelled: boolean }>;
 };

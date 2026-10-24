@@ -4,7 +4,9 @@
  *   quelle, la photo est l'image de référence de la persona) ;
  * - Magic Hour (visage seulement) si l'équipe l'a choisi (`settings.videoProvider = "magichour"`) ou si fal a échoué
  *   deux fois pour la mission, à condition que sa clé soit là ;
- * - résolution `settings.videoResolution` (480p / 580p / 720p, 580p par défaut).
+ * - résolution `settings.videoResolution` (480p / 580p / 720p, 580p par défaut) ;
+ * - un travail déjà soumis est TOUJOURS relu chez son propre fournisseur (`byName`) dès que sa clé existe, quelle que
+ *   soit la préférence du moment : la préférence ne sert qu'aux nouvelles soumissions.
  * Les tests imposent leurs fournisseurs par `providers.video` / `videoFallback` / `image`.
  */
 import type { Db as PrismaClient } from "@linkaffipro/db";
@@ -52,6 +54,8 @@ export type MediaProviders = {
   /** Repli vidéo pour la même mission (Magic Hour quand le principal est fal), ou null. */
   fallbackVideo: VideoProvider | null;
   image: ImageProvider;
+  /** Tous les fournisseurs vidéo utilisables (clé présente ; faux fournisseur toujours) : relecture d'un travail en cours. */
+  byName: Partial<Record<VideoProvider["name"], VideoProvider>>;
   settings: MediaSettings;
   keys: { fal: boolean; magichour: boolean };
 };
@@ -93,8 +97,11 @@ export async function resolveMediaProviders(i: ResolveMediaInput): Promise<Media
   const mh = mhKey ? createMagicHourVideoProvider({ apiKey: mhKey, fetch: i.fetch, centsPerCredit: settings.magicHourCentsPerCredit }) : null;
 
   const name = pickVideoProviderName({ falKey: !!fal, magicHourKey: !!mh, preferred: settings.videoProvider, falFailures: i.falFailures ?? 0 });
-  let video: VideoProvider = name === "magichour" ? mh! : name === "fal" ? createFalVideoProvider({ client: fal! }) : createFakeVideoProvider({ loadAsset, now: i.now });
+  const falVideo = fal ? createFalVideoProvider({ client: fal }) : null;
+  const fakeVideo = createFakeVideoProvider({ loadAsset, now: i.now });
+  let video: VideoProvider = name === "magichour" ? mh! : name === "fal" ? falVideo! : fakeVideo;
   let fallbackVideo: VideoProvider | null = name === "fal" ? mh : null;
+  const byName: MediaProviders["byName"] = { fake: fakeVideo, ...(falVideo ? { fal: falVideo } : {}), ...(mh ? { magichour: mh } : {}) };
   let image: ImageProvider = fal ? createFalImageProvider({ client: fal }) : createFakeImageProvider({ loadAsset });
 
   // Fournisseurs imposés (tests) : la même règle de repli s'applique.
@@ -103,7 +110,9 @@ export async function resolveMediaProviders(i: ResolveMediaInput): Promise<Media
     const useFallback = forcedFallback && (i.falFailures ?? 0) >= FAL_FAILURES_BEFORE_FALLBACK;
     video = useFallback ? forcedFallback : i.providers.video;
     fallbackVideo = useFallback ? null : forcedFallback;
+    byName[i.providers.video.name] = i.providers.video;
+    if (forcedFallback) byName[forcedFallback.name] = forcedFallback;
   }
   if (i.providers?.image) image = i.providers.image;
-  return { video, fallbackVideo, image, settings, keys };
+  return { video, fallbackVideo, image, byName, settings, keys };
 }

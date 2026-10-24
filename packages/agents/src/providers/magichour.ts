@@ -87,7 +87,8 @@ export function createMagicHourVideoProvider(opts: MagicHourOptions): VideoProvi
             return { status: "running" };
           case "complete": {
             const url = r.downloads?.find((d) => typeof d.url === "string")?.url;
-            return url ? { status: "done", outputUrl: url, actualCents } : { status: "failed", error: `${LABEL} : résultat sans fichier` };
+            // Sans fichier : les crédits débités restent comptés (rendus avec l'échec).
+            return url ? { status: "done", outputUrl: url, actualCents } : { status: "failed", error: `${LABEL} : résultat sans fichier`, actualCents };
           }
           case "error":
           case "canceled":

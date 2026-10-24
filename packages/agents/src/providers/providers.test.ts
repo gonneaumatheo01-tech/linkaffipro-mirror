@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { USD_TO_EUR } from "@linkaffipro/ai";
 import { billedMegapixels, falImageCents, falVideoCents, magicHourCents, magicHourCredits } from "./costs";
-import { createFalClient, createFalImageProvider, createFalVideoProvider, falAppPath } from "./fal";
+import { createFalClient, createFalImageProvider, createFalVideoProvider, falAppPath, paidCentsOf } from "./fal";
 import { createMagicHourVideoProvider } from "./magichour";
 import { pickVideoProviderName, mediaSettings } from "./registry";
 import { falKeyVerifier, magicHourKeyVerifier } from "./verifiers";
@@ -54,7 +54,7 @@ describe("client fal.ai (réponses enregistrées)", () => {
       resolution: "580p",
       durationSec: 12,
     });
-    expect(start).toEqual({ jobId: REQ_ID, estimatedCents: falVideoCents(12, null, "580p"), ref: { statusUrl: fal.submit.status_url, responseUrl: fal.submit.response_url } });
+    expect(start).toEqual({ jobId: REQ_ID, estimatedCents: falVideoCents(12, null, "580p"), ref: { statusUrl: fal.submit.status_url, responseUrl: fal.submit.response_url, cancelUrl: fal.submit.cancel_url } });
     const submit = f.calls.find((c) => c.url.endsWith("/animate/replace"))!;
     expect(submit.headers.Authorization).toBe(`Key ${KEY}`);
     expect(submit.body).toMatchObject({ video_url: fal.initiate.file_url, image_url: fal.initiate.file_url, resolution: "580p", video_quality: "high" });
@@ -62,6 +62,41 @@ describe("client fal.ai (réponses enregistrées)", () => {
     expect(await video.poll(REQ_ID, start.ref)).toEqual({ status: "queued" });
     expect(await video.poll(REQ_ID, start.ref)).toEqual({ status: "running" });
     expect(await video.poll(REQ_ID, start.ref)).toEqual({ status: "done", outputUrl: fal.videoResult.video.url });
+  });
+  it("annulation : confirmée seulement par CANCELLATION_REQUESTED ; déjà fini ou réseau coupé = non annulé", async () => {
+    const cancelWith = (status: number, body: unknown) => {
+      const f = fixtureFetch([{ method: "PUT", match: fal.submit.cancel_url, status, body }]);
+      return { f, video: createFalVideoProvider({ client: createFalClient({ apiKey: KEY, fetch: f.fetch }) }) };
+    };
+    const ok = cancelWith(202, { status: "CANCELLATION_REQUESTED" });
+    expect(await ok.video.cancel!(REQ_ID, { cancelUrl: fal.submit.cancel_url })).toEqual({ cancelled: true });
+    expect(ok.f.calls[0]).toMatchObject({ method: "PUT", url: fal.submit.cancel_url });
+    // Sans adresse gardée : propriétaire/app.
+    const rebuilt = cancelWith(202, { status: "CANCELLATION_REQUESTED" });
+    expect(await rebuilt.video.cancel!(REQ_ID)).toEqual({ cancelled: true });
+    expect(await cancelWith(400, { status: "ALREADY_COMPLETED" }).video.cancel!(REQ_ID, { cancelUrl: fal.submit.cancel_url })).toEqual({ cancelled: false });
+    const down = createFalVideoProvider({ client: createFalClient({ apiKey: KEY, fetch: (async () => { throw new Error("réseau"); }) as unknown as typeof fetch }) });
+    expect(await down.cancel!(REQ_ID)).toEqual({ cancelled: false });
+  });
+  it("photo écartée par le filtre : l'erreur porte le coût de la génération ; reprise d'un travail soumis sans nouvelle soumission", async () => {
+    const routes = (result: unknown) =>
+      fixtureFetch([
+        { method: "POST", match: "https://queue.fal.run/fal-ai/flux-lora", body: fal.imageSubmit },
+        { match: fal.imageSubmit.status_url, body: fal.completed },
+        { match: fal.imageSubmit.response_url, body: result },
+      ]);
+    const nsfw = createFalImageProvider({ client: createFalClient({ apiKey: KEY, fetch: routes(fal.imageNsfw).fetch }), sleep: async () => {} });
+    const err = await nsfw.generate({ loraUrl: "u", triggerWord: "t", prompt: "t", count: 1, aspect: "portrait" }).catch((e: unknown) => e);
+    expect(paidCentsOf(err)).toBe(falImageCents(1, "portrait"));
+    const f = routes(fal.imageResult);
+    const image = createFalImageProvider({ client: createFalClient({ apiKey: KEY, fetch: f.fetch }), sleep: async () => {} });
+    const submitted: unknown[] = [];
+    await image.generate({ loraUrl: "u", triggerWord: "t", prompt: "t", count: 1, aspect: "portrait" }, { onSubmitted: async (j) => void submitted.push(j) });
+    expect(submitted).toEqual([{ requestId: fal.imageSubmit.request_id, statusUrl: fal.imageSubmit.status_url, responseUrl: fal.imageSubmit.response_url, cents: falImageCents(1, "portrait") }]);
+    const before = f.calls.filter((c) => c.method === "POST").length;
+    const res = await image.generate({ loraUrl: "u", triggerWord: "t", prompt: "t", count: 1, aspect: "portrait" }, { resume: submitted[0] as never });
+    expect(res.images).toHaveLength(1);
+    expect(f.calls.filter((c) => c.method === "POST").length).toBe(before);
   });
   it("sans adresses gardées, l'état est relu chez propriétaire/app (jamais le chemin complet du modèle)", async () => {
     expect(falAppPath("fal-ai/wan/v2.2-14b/animate/replace")).toBe("fal-ai/wan");

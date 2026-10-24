@@ -65,6 +65,13 @@ const AI_WORD_PATTERNS: readonly RegExp[] = [
   /\b(?:chat ?bot|chatbots|bots?|robots?|roboter|robo)\b/,
   // assistant(e) : fr en es pt de it
   /\b(?:assistante?s?|asistentes?|assistentes?|assistentin(?:nen)?|assistenten?|assistent)\b/,
+  // tournures en minuscules : « faite par une ia », « c'est une ia », « ia générée », « ai generated / made »
+  /\b(?:une|l|par|avec|en) ia\b/,
+  /\bia (?:generee?s?|genere)\b/,
+  /\bai (?:generated|made)\b/,
+  // outils de génération d'images (« flux » est un mot courant : seulement dans une tournure explicite)
+  /\b(?:midjourney|stable diffusion|dall e(?: ?\d)?|dalle ?\d|deep ?fakes?|face ?swap(?:s|e|ed|ping)?)\b/,
+  /\b(?:avec|with|par|by|using|via) flux(?: (?:ai|lora|pro|dev|schnell|\d))?\b|\bflux (?:lora|schnell)\b/,
   /\b(?:virtuel(?:le)?|virtual|virtuell(?:e|er)?|virtuale) (?:girl|fille|chica|garota|madchen|ragazza|amie|freundin|amica|amiga)\b/,
   /\b(?:fille|amie|copine|chica|novia|garota|namorada|ragazza|amica|amiga) virtu(?:el|elle|al|ale)\b/,
 ];
@@ -85,6 +92,25 @@ export function mentionsAi(html: string): string | null {
   return null;
 }
 
+/**
+ * Domaine nu : une ou plusieurs étiquettes puis une terminaison de 2 à 24 lettres, quelle qu'elle soit (`.top`,
+ * `.ag`, `.mobi`, `.ai`, `.nl`, `.fun`, `.dog`…) : la liste des terminaisons change trop vite pour être tenue à jour.
+ */
+const BARE_DOMAIN_RE = /(?<![\p{L}\p{N}_.-])((?:[\p{L}\p{N}-]+\.)+[a-z]{2,24})(?![\p{L}\p{N}_-])/giu;
+/** Abréviations courantes qui ressemblent à un domaine (« p.ex. »). */
+const ABBREVIATIONS: ReadonlySet<string> = new Set(["p.ex"]);
+
+/**
+ * Faux domaines : « etc. », abréviations, et deux phrases collées sans espace (« fin.Merci » : terminaison qui
+ * commence par une majuscule suivie de minuscules). Un domaine écrit tout en majuscules (« STAKE.AG ») reste un domaine.
+ */
+function isAbbreviation(raw: string): boolean {
+  const host = raw.toLowerCase();
+  if (host.startsWith("etc.") || ABBREVIATIONS.has(host)) return true;
+  const tld = raw.slice(raw.lastIndexOf(".") + 1);
+  return /^\p{Lu}\p{Ll}+$/u.test(tld);
+}
+
 /** Hôtes trouvés dans le texte : liens `<a href>`, adresses en clair, domaines nus, liens t.me. */
 export function linkHostsOf(html: string): string[] {
   const hosts = new Set<string>();
@@ -99,8 +125,11 @@ export function linkHostsOf(html: string): string[] {
   }
   const visible = stripHtml(html);
   for (const m of visible.matchAll(/\b(?:https?:\/\/|www\.)([^\s/?#:<>"']+)/gi)) add(m[1]!);
-  for (const m of visible.matchAll(/\b((?:[a-z0-9-]+\.)+(?:com|net|org|fr|io|bet|casino|app|me|ly|gg|co|eu|xyz|info|biz|tv|link|club|vip|win|online|site|live|pro|be|ch|es|pt|de|it|uk|us|ru|to|ws|cc|gl))\b(?![\p{L}])/giu))
-    add(m[1]!);
+  for (const m of visible.matchAll(BARE_DOMAIN_RE)) {
+    const host = m[1]!;
+    if (isAbbreviation(host)) continue;
+    add(host);
+  }
   if (/\bt\.me\b|@[a-z0-9_]{5,}\b/i.test(visible)) {
     for (const m of visible.matchAll(/\bt\.me\/?/gi)) add(m[0].replace(/\/$/, ""));
     for (const m of visible.matchAll(/@([a-z0-9_]{5,})\b/gi)) add(`@${m[1]}`);

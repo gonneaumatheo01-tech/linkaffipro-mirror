@@ -6,15 +6,17 @@ import { saveSecret } from "../human/secrets";
 import { respondToRequest, type HumanRequestRow } from "../human/respond";
 import { createFakeVideoProvider } from "../providers/fake";
 import { assetLoader } from "../providers/registry";
+import type { VideoProvider } from "../providers/video";
 import { benchConfigs, benchEstimate, runBench, startBench } from "./bench";
 
 beforeAll(() => {
   process.env.APP_ENCRYPTION_KEY ??= randomBytes(32).toString("base64");
 });
 
-function setup() {
+function setup(wrap?: (v: VideoProvider) => VideoProvider) {
   const holder: { kit?: ReturnType<typeof createEngineKit> } = {};
-  const video = createFakeVideoProvider({ loadAsset: (id) => assetLoader(holder.kit!.prisma)(id) });
+  const fake = createFakeVideoProvider({ loadAsset: (id) => assetLoader(holder.kit!.prisma)(id) });
+  const video = wrap ? wrap(fake) : fake;
   const kit = createEngineKit({ providers: { video } });
   holder.kit = kit;
   const t = kit.prisma._model;
@@ -60,5 +62,77 @@ describe("banc d'essai vidéo", () => {
     const answer = await respondToRequest(kit.deps, req as unknown as HumanRequestRow, "2", { via: "TELEGRAM" });
     expect(answer.message).toMatch(/fal\.ai 720p par défaut/);
     expect(kit.t("agentTeamConfig").find((c) => c.teamKey === "dating")!.settings).toMatchObject({ videoProvider: "fal", videoResolution: "720p" });
+  });
+
+  type BenchItemView = { status: string; jobId?: string; error?: string };
+  const benchState = (kit: ReturnType<typeof createEngineKit>, id: string) =>
+    kit.t("setting").find((x) => x.key === `agents.bench.${id}`)!.value as { items: BenchItemView[]; finishedAt?: string };
+
+  it("redémarrage au milieu d'un passage : les essais déjà soumis ne sont jamais repayés", async () => {
+    let calls = 0;
+    let reached!: () => void;
+    const third = new Promise<void>((r) => (reached = r));
+    const kit = setup((v) => ({
+      ...v,
+      async startReplace(input) {
+        calls++;
+        // 3e soumission : le worker s'arrête net (promesse jamais tenue).
+        if (calls === 3) {
+          reached();
+          return new Promise(() => {});
+        }
+        return v.startReplace(input);
+      },
+    }));
+    await saveSecret(kit.deps, "providers.fal.apiKey", "fal-key-abcdefgh", { via: "SITE" });
+    expect((await startBench(kit.deps, { personaId: "p1", count: 2 })).ok).toBe(true);
+    const id = (kit.orchestrator[0] as { benchId: string }).benchId;
+    void runBench(kit.deps, { benchId: id });
+    await third;
+    expect(benchState(kit, id).items.filter((i) => i.status === "running")).toHaveLength(2);
+    // Relance après le redémarrage : seuls les 2 essais restants sont soumis.
+    await runBench(kit.deps, { benchId: id });
+    expect(calls).toBe(5);
+    await runBench(kit.deps, { benchId: id });
+    expect(benchState(kit, id).items.every((i) => i.status === "done")).toBe(true);
+    expect(calls).toBe(5);
+  });
+
+  it("une erreur sur un essai n'arrête pas les autres", async () => {
+    let calls = 0;
+    const kit = setup((v) => ({
+      ...v,
+      async startReplace(input) {
+        calls++;
+        if (calls === 3) throw new Error("fal.ai : demande refusée (422)");
+        return v.startReplace(input);
+      },
+    }));
+    await saveSecret(kit.deps, "providers.fal.apiKey", "fal-key-abcdefgh", { via: "SITE" });
+    await startBench(kit.deps, { personaId: "p1", count: 2 });
+    const id = (kit.orchestrator[0] as { benchId: string }).benchId;
+    await runBench(kit.deps, { benchId: id });
+    expect(calls).toBe(4);
+    expect(benchState(kit, id).items.map((i) => i.status)).toEqual(["running", "running", "failed", "running"]);
+    await runBench(kit.deps, { benchId: id });
+    expect(calls).toBe(4);
+  });
+
+  it("pause de l'équipe Rencontres : banc refusé au lancement, aucune soumission pendant la pause", async () => {
+    let calls = 0;
+    const kit = setup((v) => ({ ...v, startReplace: (input) => (calls++, v.startReplace(input)) }));
+    await saveSecret(kit.deps, "providers.fal.apiKey", "fal-key-abcdefgh", { via: "SITE" });
+    kit.prisma._model("agentTeamConfig").rows.push({ id: "cfg", teamKey: "dating", paused: true, enabled: true, settings: {}, monthlyBudgetCents: {} });
+    const refused = await startBench(kit.deps, { personaId: "p1", count: 2 });
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(/pause/);
+    kit.t("agentTeamConfig")[0]!.paused = false;
+    await startBench(kit.deps, { personaId: "p1", count: 2 });
+    const id = (kit.orchestrator[0] as { benchId: string }).benchId;
+    kit.t("agentTeamConfig")[0]!.paused = true;
+    const r = await runBench(kit.deps, { benchId: id });
+    expect(r).toMatchObject({ halted: true });
+    expect(calls).toBe(0);
+    expect(kit.orchestrator).toHaveLength(1);
   });
 });
