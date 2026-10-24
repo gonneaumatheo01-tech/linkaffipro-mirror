@@ -1,46 +1,53 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
-## Phase 24 : l'Agent Ads (rien à fournir)
-1. **Où** : Agents → **Agent Ads**. Chaque matin, un résumé arrive sur Telegram ; le lundi, le bilan de la semaine.
-2. **Ce qu'il fait** : il conseille d'arrêter, d'augmenter, de tester ou de surveiller une pub, chiffres à l'appui. **Il ne change jamais rien chez Meta ou TikTok** : c'est vous qui le faites dans le gestionnaire de pubs, puis vous cliquez « Fait » (ou « Refuser »).
-3. **Deux questions du bot** (après les précédentes) : le coût par inscription au-dessus duquel il conseille d'arrêter une pub, et le retour sur dépense minimal. Répondez 1, 2 ou un chiffre ; « plus tard » garde les valeurs automatiques.
-4. **Meta / TikTok pas encore branchés** : l'agent travaille avec les coûts importés ou saisis. Pour brancher : Réglages → Connexions → Meta / TikTok (le guide est dans la page).
+## Mettre les agents en route : la liste complète, dans l'ordre (mise à jour le 24 octobre, fin des phases 19 à 25)
 
-## Phase 23 : l'équipe Paris sportifs (quand vous voulez)
-1. **Le bot vous demande, une question à la fois** : la clé SportsGameOdds (créez un compte gratuit sur https://sportsgameodds.com, puis une clé ; vérifiée aussitôt), puis l'identifiant et le mot de passe de votre compte bookmaker (Sportaza) : vos messages sont supprimés aussitôt et un test de connexion est fait tout de suite.
-2. **Si le test dit « bloqué »**, le bot vous propose : 1) une adresse internet de secours (service à souscrire, 10 à 30 € par mois : vous lui envoyez l'adresse qu'il vous donne) ou 2) la capture depuis votre Mac :
-   - ouvrez l'application **Terminal** ;
-   - collez `cd ~/Desktop/"Platefome de statistiques" && pnpm agents:capture-runner` puis Entrée (si elle dit « railway login », tapez `railway login`, validez dans le navigateur, puis recommencez) ;
-   - laissez la fenêtre ouverte et le Mac allumé, sans veille ; « en attente des demandes » veut dire que ça marche ; Ctrl+C pour arrêter.
-3. **Catégories** : le bot vous propose les catégories (tirs cadrés, corners, buts, cartons, buteur, résultat) : répondez les numéros à activer. Réglages fins dans Agents → Paris sportifs.
-4. **Jamais de mise** : l'équipe se connecte seulement pour retrouver le pari, lire la cote et faire la capture (règle codée).
-5. **Quand ça vous plaît** : `vrai paris` puis `OUI` au bot.
+Rien ne part sur un vrai canal tant que vous ne l'avez pas décidé : toutes les équipes sont **en simulation** (tout va sur le canal Test) et **au niveau 0** (vous validez tout). Presque tout se fait **en répondant au bot sur Telegram** (@casinogamblingoobot), une question à la fois ; écrivez `demandes` pour voir celles qui attendent, `plus tard` pour en passer une. Les clés s'envoient **par écrit** (jamais en vocal) : le bot efface aussitôt votre message.
 
-## Phase 22 : l'équipe Casino (quand vous voulez)
-1. **Le bot vous demande, une question à la fois** : pour chaque canal casino, quelle offre (campagne) mettre sur le bouton (réponse par numéro), puis 3 à 5 vidéos par thème du canal.
-2. **Envoyer des vidéos** : envoyez ou transférez-les au bot avec en légende `#casino` et le thème (`#casino #roulette`, plusieurs thèmes possibles). Le bot répond « rangée » avec le nombre de vidéos disponibles. Un thème inconnu : il vous propose un bouton pour le créer.
-3. **Aucune vidéo n'est inventée** : l'équipe Casino n'utilise que ce que vous fournissez ; sans vidéo, elle publie une image ou un texte.
-4. **Quand ça vous plaît** : répondez au bot `vrai casino` puis `OUI`, et activez le plan des canaux dans Agents → Casino.
+### 0. Tout de suite (2 minutes)
+1. Répondez `oui` ou `non` à la question du bot « Veux-tu recevoir chaque matin le rapport des agents ? ».
+2. Ouvrez https://app.linkaffipro.com/agents : le tableau de bord montre les 4 équipes, l'Agent Ads, les dépenses et ce qui attend votre décision.
+3. Test de 5 minutes : Agents → **Équipe Rencontres** → « Produire un post de test » (Texte) → appuyez sur ✅ dans Telegram → le post arrive sur le canal **Test** avec « [SIMULATION …] » en tête.
 
-## Phase 21 : l'équipe Algorithme (rien à fournir)
-1. **Lire le premier rapport « Ce qui marche »** : il est arrivé sur Telegram ; le détail est sur le site, Agents → onglet de l'équipe Algorithme (« Ce qui marche »).
-2. **Deux questions du bot** (une à la fois, après les précédentes) : le niveau de l'équipe (conseillé : 2, « appliquer les petits réglages seuls ») et le nombre maximum de posts par jour et par canal que les réglages ne peuvent pas dépasser.
-3. Chaque réglage proposé ou appliqué se trouve dans « Ce qui marche » avec ses preuves, et s'annule en un clic.
+### 1. Équipe Rencontres : vidéos et photos du personnage (15 minutes)
+1. **Clé fal.ai** (le bot la demande) : https://fal.ai → créer un compte → ajouter quelques dollars de crédit → https://fal.ai/dashboard/keys → **Add key** → copiez la clé → **répondez au message du bot** avec la clé. Il vérifie et répond OK.
+2. **Pour chaque persona** (le bot demande) : l'adresse du fichier du personnage (LoRA) et son mot déclencheur (réponse au message, ou « plus tard ») ; 1 à 3 photos de référence envoyées au bot avec la légende `#dating #reference #<prénom>` ; 5 à 10 vidéos sources avec `#dating #source #<prénom>`.
+3. **Plafond vidéo du mois** : répondez 1, 2, 3 ou un chiffre (100 € si « plus tard »).
+4. **Banc d'essai** : répondez `oui` → 3 vidéos sont fabriquées (environ 4 €), vous recevez les résultats et choisissez la meilleure (1, 2 ou 3).
+5. **Plan des canaux** : Agents → Équipe Rencontres → **Plan par canal** → pour chaque canal, cochez « Activé », choisissez la persona → Enregistrer.
 
-## Phase 20 : l'équipe Rencontres fabrique des vidéos et des photos (quand vous voulez)
-1. **Le bot vous pose les questions une par une sur Telegram** : clé fal.ai, fichier LoRA et mot déclencheur de chaque persona, photos de référence, vidéos sources, plafond vidéo du mois, puis le banc d'essai. Répondez à chaque message (en répondant au message du bot) ; « plus tard » pour passer. Répondez d'abord à la question du rapport du matin, elle est devant dans la file.
-2. **En secours**, tout se fait aussi sur le site : Agents → Réglages (clés, bouton « Vérifier ») et Conversations → Personas → la persona → « Médias du personnage ».
-3. **Vous pouvez parler au bot par messages vocaux** : il répète ce qu'il a compris avant d'agir. Une clé s'envoie toujours par écrit.
-4. **Quand les essais vous plaisent** : répondez au bot `vrai dating` puis `OUI` (ou Agents → Rencontres → « Publier sur les vrais canaux »), puis montez le niveau (`niveau dating 1`). Pensez aussi à activer un plan de canal (Agents → Rencontres → Plan par canal, avec la persona).
+### 2. Équipe Casino : vos vidéos (10 minutes)
+1. Le bot demande, pour chaque canal casino, **l'offre (campagne) du bouton** : répondez le numéro.
+2. Envoyez au bot **3 à 5 vidéos par thème** avec la légende `#casino #<thème>` (exemple `#casino #roulette`) ; il répond « rangée » avec le stock. Un thème inconnu : il propose un bouton « Créer le thème ».
+3. Agents → **Équipe Casino** → **Plan par canal** → cochez « Activé » pour chaque canal → Enregistrer.
 
-## Phase 19 : les agents IA (rien d'obligatoire)
-Rien à fournir pour cette phase. Pour vous repérer :
-1. **Où** : menu **Agents** (après Conversations). Le tableau de bord montre les 4 équipes (Rencontres, Casino, Paris sportifs, Algorithme), leur dépense du mois et les rapports du matin.
-2. **Simulation** : active pour toutes les équipes. Tant qu'elle l'est, tout part sur votre canal **Test**, avec « [SIMULATION …] » en tête. Pour passer une équipe sur les vrais canaux plus tard : Agents → l'équipe → « Simulation » (administrateur), ou écrivez au bot `vrai dating` puis `OUI`.
-3. **Niveaux** : 0 = vous validez tout (réglage actuel), 1 = seulement les nouveautés, 2 = rien (rapport seulement). Sur la fiche de l'équipe, ou au bot : `niveau dating 1`.
-4. **Sur Telegram** : les posts à valider arrivent avec ✅ Publier / ✏️ Corriger / ❌ Refuser. Écrivez `agents` pour l'état, `pause dating` / `reprends dating` (ou `pause tout`), `demandes` pour les questions en attente.
-5. **Une question vous attend déjà** sur Telegram : « Veux-tu recevoir chaque matin le rapport des agents ? » → répondez `oui` ou `non` à ce message.
-6. **Aucun canal n'a encore de plan** : les agents ne produisent rien seuls tant qu'un canal n'est pas activé dans la fiche d'une équipe (« Plan par canal »). Les vidéos et photos IA arrivent avec la phase 20.
+### 3. Équipe Paris sportifs : cotes et bookmaker (15 minutes)
+1. **Clé SportsGameOdds** (le bot la demande) : https://sportsgameodds.com → créer un compte (offre gratuite) → copier la clé → répondre au message du bot.
+2. **Compte bookmaker** (Sportaza) : le bot demande l'identifiant, puis le mot de passe (messages effacés aussitôt) et fait un test de connexion. S'il dit « bloqué », il propose : 1) une adresse internet de secours (service à souscrire, 10 à 30 € par mois) ou 2) la capture depuis votre Mac — dans l'application **Terminal**, collez `cd ~/Desktop/"Platefome de statistiques" && pnpm agents:capture-runner` puis Entrée, et laissez le Mac allumé.
+3. **Catégories** : répondez les numéros à activer (tirs cadrés, corners, buts, cartons, buteur, résultat). Réglages fins : Agents → Paris sportifs → Catégories (canaux et campagne de chaque catégorie).
+4. L'équipe ne mise **jamais** : elle se connecte seulement pour retrouver le pari, lire la cote et faire la capture.
+
+### 4. Équipe Algorithme et Agent Ads (5 minutes)
+1. Le bot demande le **niveau de l'équipe Algorithme** (conseillé : 2, « appliquer les petits réglages seuls ») et le **quota maximum de posts par jour et par canal**.
+2. Pour l'Agent Ads, il demande deux seuils (coût par inscription, retour sur dépense) : « plus tard » garde les valeurs automatiques. Il lui faut des dépenses pub : branchez Meta / TikTok (Réglages → Connexions, voir « Phase 7 » plus bas) ou importez vos coûts (Campagnes → la campagne → Pubs → importer).
+3. Lisez le rapport « Ce qui marche » chaque lundi (Agents → Ce qui marche) ; chaque réglage s'annule en un clic.
+
+### 5. Assistante de conversation Casino et Paris sportifs (15 minutes par univers, facultatif)
+1. **Un bot dédié par univers** : dans Telegram, @BotFather → `/newbot` → nom (« Assistante VIP Casino ») → identifiant finissant par « bot » → copiez le jeton. Ne l'ajoutez à **aucun** canal.
+2. https://app.linkaffipro.com/settings/bots → **Ajouter un bot** → collez le jeton, univers Casino (ou Paris sportifs).
+3. Conversations → Personas → **Nouvelle persona** → Univers **Casino** (l'identité « assistante » est imposée) → remplissez la **fiche d'informations** (questions courantes et réponses : bonus, dépôt minimum, pays, retraits, VIP — c'est tout ce qu'elle a le droit d'affirmer) et l'offre → **Tester** → cochez Activée → Enregistrer.
+4. Réglages → Bots → le nouveau bot → Mode « Assistant de conversation », persona liée → Enregistrer. L'activation générale se règle dans Réglages → IA de conversation (comme pour Rencontres, ci-dessous).
+5. Les conversations à reprendre par l'équipe (question hors fiche, réclamation, argent, mineur, insulte) apparaissent « À traiter » dans Conversations, et le bot vous prévient (un message groupé toutes les 30 minutes au plus).
+
+### 6. Passer une équipe pour de vrai (2 minutes, quand les essais vous plaisent)
+1. Écrivez au bot `vrai dating` (ou `vrai casino`, `vrai paris`) : il résume ce qui va se passer (canaux, quota, niveau) → répondez `OUI`.
+2. Puis montez le niveau : `niveau dating 1` (seules les nouveautés vous sont soumises) → `OUI`. Pour tout arrêter à tout moment : `pause tout` (ou le bouton Pause générale du tableau de bord).
+
+**Coûts à prévoir** : vidéos IA 50 à 200 € par mois selon le plafond choisi, photos IA 5 à 15 €, IA d'écriture et de contrôle 10 à 30 €, cotes 0 € au départ (offre gratuite), adresse internet de secours 0 à 30 € seulement si le bookmaker bloque, assistante de conversation 30 € par mois au plus (plafond réglé).
+
+---
+
+## Avant les agents (rappel des phases 7 à 17, toujours valable)
 
 ## Phase 17 : l'assistante de conversation Rencontres (15 minutes, quand vous voulez)
 L'assistante est **désactivée** : elle ne répond à personne tant que vous ne l'avez pas mise en route.
