@@ -15,7 +15,8 @@
 import type { AgentsDeps } from "../types";
 import { addDaysToDay, parisDay, parisDayStart } from "../rules/time";
 import { INSPIRATION_LIMITS, type AccountHistoryReader, type InspirationFetch, type ReferenceReadResult, type ReferenceViaName } from "./contract";
-import { prismaAccountHistoryReader, readWithAccount } from "./sources/account";
+import { readWithAccount } from "./sources/account";
+import { createDefaultAccountReader } from "./sources/userbot-mailbox";
 import { createInspirationFetch, readWebPreview } from "./sources/web-preview";
 import { storeReferencePosts } from "./store";
 
@@ -181,7 +182,7 @@ async function attemptRead(
     if (web.reason === "error" || web.reason === "rate_limited") return { kind: "retry", message: web.message };
     messages.push(web.message);
   }
-  const reader = io.accountReader === undefined ? prismaAccountHistoryReader(deps.prisma) : io.accountReader;
+  const reader = io.accountReader === undefined ? await createDefaultAccountReader(deps.prisma, { now: () => nowOf(deps) }) : io.accountReader;
   if (reader) {
     const acc = await readWithAccount(
       reader,

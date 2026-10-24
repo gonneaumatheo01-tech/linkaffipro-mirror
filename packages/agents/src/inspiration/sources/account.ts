@@ -7,9 +7,9 @@
  *
  * Lecteur réel (`prismaAccountHistoryReader`) : les sessions des comptes réels sont tenues EN PERMANENCE par le service
  * `apps/userbot` (une connexion GramJS persistante par compte actif). Ouvrir la même session depuis le worker ferait
- * deux connexions simultanées (`AUTH_KEY_DUPLICATED` : session révoquée, risque de bannissement). Tant qu'aucun
- * transport passant par le service userbot n'est branché (`transport`), le lecteur réel se déclare indisponible :
- * aucun compte n'est proposé, et Kevin demande des posts transférés.
+ * deux connexions simultanées (`AUTH_KEY_DUPLICATED` : session révoquée, risque de bannissement) : le worker ne se
+ * connecte JAMAIS. Le transport passe par le userbot (`./userbot-mailbox`, `createDefaultAccountReader`) ; sans lui
+ * (userbot arrêté ou ancien), le lecteur réel se déclare indisponible et Kevin demande des posts transférés.
  */
 import type { AgentsPrisma } from "../../types";
 import { INSPIRATION_LIMITS, type AccountHistoryReader, type ReferencePostInput, type ReferenceReadResult } from "../contract";
@@ -161,13 +161,13 @@ export async function joinWithInviteOnce(
   }
 }
 
-/** Raison affichée tant que la lecture par compte réel n'a pas de transport sûr. */
+/** Raison affichée quand la lecture par compte réel n'a pas de transport sûr (service des comptes arrêté). */
 export const ACCOUNT_READER_UNAVAILABLE =
-  "La lecture par compte réel n'est pas encore branchée : les comptes réels sont tenus par le service des comptes, et une seconde connexion ferait révoquer leur session. Transfère-moi plutôt 10 à 30 posts.";
+  "La lecture par compte réel est indisponible pour l'instant : le service des comptes réels ne répond pas, et je ne me connecte jamais à leur place. Transfère-moi plutôt 10 à 30 posts.";
 
 /**
- * Transport sûr vers les sessions des comptes réels (à brancher dans le service `apps/userbot`, seul détenteur des
- * sessions). Absent : le lecteur réel est indisponible.
+ * Transport sûr vers les sessions des comptes réels (par le service `apps/userbot`, seul détenteur des sessions,
+ * voir `./userbot-mailbox`). Absent : le lecteur réel est indisponible.
  */
 export type AccountHistoryTransport = {
   isMember(accountId: string, channel: AccountChannelRef): Promise<boolean>;
