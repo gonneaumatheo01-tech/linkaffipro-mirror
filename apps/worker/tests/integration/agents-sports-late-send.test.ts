@@ -77,3 +77,39 @@ describe("post de pari envoyé trop tard", () => {
     expect(await prisma.bettingPick.findUniqueOrThrow({ where: { id: pick.id } })).toMatchObject({ status: "PUBLISHED" });
   });
 });
+
+describe("message d'agent déjà programmé : pause et retour en simulation (relecture phase 25)", () => {
+  async function agentPost(real: boolean) {
+    const target = real
+      ? await prisma.channel.create({ data: { telegramChatId: -1009988776655n, title: "Vrai canal", type: "CHANNEL", language: "fr", primaryBotId: botId, isTest: false } })
+      : { id: channelId };
+    const mission = await prisma.agentMission.create({ data: { teamKey: "casino", kind: "POST", channelId: target.id, status: "DONE" } });
+    return prisma.post.create({
+      data: { code: `A${Math.random().toString(36).slice(2, 9)}`, channelId: target.id, botId, status: "SCHEDULED", scheduledAt: new Date(Date.now() - 60_000), text: "Agent", agentMissionId: mission.id, buttons: [] },
+    });
+  }
+
+  it("équipe en pause à l'échéance : aucun envoi, message retenu 30 min ; message humain envoyé", async () => {
+    await prisma.agentTeamConfig.create({ data: { teamKey: "casino", simulation: false, paused: true } });
+    const post = await agentPost(true);
+    const human = await prisma.post.create({ data: { code: `H${Math.random().toString(36).slice(2, 9)}`, channelId, botId, status: "SCHEDULED", scheduledAt: new Date(Date.now() - 60_000), text: "Humain", buttons: [] } });
+    await processScheduler(fakeJob({ type: "tick" as const }));
+    await processTelegramSend(fakeJob({ type: "post" as const, postId: post.id }));
+    await processTelegramSend(fakeJob({ type: "post" as const, postId: human.id }));
+    const held = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
+    expect(held).toMatchObject({ status: "SCHEDULED", attempts: 0 });
+    expect(held.scheduledAt!.getTime()).toBeGreaterThan(Date.now() + 25 * 60_000);
+    expect(calls.filter((c) => c.method === "sendMessage")).toHaveLength(1);
+    expect(await prisma.post.findUniqueOrThrow({ where: { id: human.id } })).toMatchObject({ status: "SENT" });
+  });
+
+  it("équipe repassée en simulation : message vers un vrai canal annulé, rien n'est envoyé", async () => {
+    await prisma.agentTeamConfig.create({ data: { teamKey: "casino", simulation: true } });
+    const post = await agentPost(true);
+    await processScheduler(fakeJob({ type: "tick" as const }));
+    await processTelegramSend(fakeJob({ type: "post" as const, postId: post.id }));
+    expect(calls.filter((c) => /^send/.test(c.method))).toHaveLength(0);
+    expect(await prisma.post.findUniqueOrThrow({ where: { id: post.id } })).toMatchObject({ status: "CANCELLED" });
+    expect(await prisma.event.count({ where: { type: "agents.post.cancelled_simulation" } })).toBe(1);
+  });
+});

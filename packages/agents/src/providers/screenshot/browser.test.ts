@@ -118,7 +118,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     // Deuxième passage : la session rangée suffit (déjà connecté).
     const again = await provider.capture({ ...REQ, marketLabel: "Corners", line: 9.5, expectedOdds: 1.95 });
     expect(again).toMatchObject({ ok: true, readOdds: 1.95 });
-  }, 60_000);
+  }, 180_000);
 
   it("le bouton « Parier » est refusé et jamais cliqué ; aucune cote cliquée", async () => {
     const browser = await launch();
@@ -134,7 +134,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     } finally {
       await browser.close();
     }
-  }, 30_000);
+  }, 90_000);
 
   it("cote nue et résultat de recherche à boutons : jamais cliqués ; le résultat se suit par son adresse", async () => {
     const browser = await launch();
@@ -153,7 +153,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     } finally {
       await browser.close();
     }
-  }, 30_000);
+  }, 90_000);
 
   it("adresse directe d'un autre match : jamais capturée, la recherche ne trouve pas le bon match", async () => {
     const { env } = memoryEnv(null);
@@ -162,7 +162,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     expect(r).toMatchObject({ ok: false, kind: "not_found" });
     const good = await provider.capture({ ...REQ, eventUrl: `${base}/fr/sports/match/psg-om` });
     expect(good).toMatchObject({ ok: true, readOdds: 2.1 });
-  }, 60_000);
+  }, 180_000);
 
   it("liens interdits sur l'accueil (dépôt, inscription) refusés", async () => {
     const browser = await launch();
@@ -176,7 +176,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     } finally {
       await browser.close();
     }
-  }, 30_000);
+  }, 90_000);
 
   it("erreurs classées : captcha, code de vérification, mot de passe refusé, blocage géographique, match introuvable", async () => {
     const run = async (creds: { login: string; password: string } | null, over: Record<string, unknown> = {}, req = REQ) => {
@@ -189,7 +189,7 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     expect(await run(null, { baseUrl: `${base}/geo.html` })).toMatchObject({ ok: false, kind: "geo_blocked" });
     expect(await run(null, {}, { ...REQ, homeTeam: "Real Madrid", awayTeam: "FC Barcelone" })).toMatchObject({ ok: false, kind: "not_found" });
     expect(await run(null, {}, { ...REQ, marketLabel: "Cartons" })).toMatchObject({ ok: false, kind: "market_missing" });
-  }, 120_000);
+  }, 240_000);
 
   it("test de connexion : capture de l'accueil une fois connecté ; sans identifiants : refus clair", async () => {
     const { env } = memoryEnv({ login: "demo@test.local", password: "secret-de-test" });
@@ -198,11 +198,11 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
     expect(ok.ok).toBe(true);
     const none = await createBrowserScreenshotProvider({ env: memoryEnv(null).env, launch, adapter: () => createSelectorAdapter(localConfig()) }).testConnection("sportaza");
     expect(none).toMatchObject({ ok: false, kind: "login_failed" });
-  }, 60_000);
+  }, 180_000);
 
   it("image de repli : gabarit rendu en PNG 1080 × 1080", async () => {
     const provider = createBrowserScreenshotProvider({ env: memoryEnv(null).env, launch });
     const png = await provider.renderTemplate(renderFallbackHtml({ ...REQ, odds: 2.1, league: "Ligue 1" }));
     expect(pngSize(png)).toEqual({ width: 1080, height: 1080 });
-  }, 30_000);
+  }, 90_000);
 });

@@ -1,5 +1,6 @@
 import { prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
+import { agentPostDecision } from "./agent-hold";
 
 /**
  * Réclame atomiquement les messages programmés échus (SCHEDULED → SENDING, `FOR UPDATE SKIP LOCKED`)
@@ -9,7 +10,7 @@ import { enqueue } from "@linkaffipro/queue";
  * ajout (même identifiant), laissant le message « en cours d'envoi » pour toujours.
  */
 export async function claimDuePosts(now: Date = new Date(), limit = 50): Promise<string[]> {
-  const rows = await prisma.$queryRaw<Array<{ id: string; attempts?: number | null }>>`
+  const rows = await prisma.$queryRaw<Array<{ id: string; attempts?: number | null; agentMissionId?: string | null; channelId: string; botId?: string | null }>>`
     UPDATE "Post" SET status = 'SENDING', "updatedAt" = now()
     WHERE id IN (
       SELECT id FROM "Post"
@@ -18,10 +19,14 @@ export async function claimDuePosts(now: Date = new Date(), limit = 50): Promise
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, attempts`;
+    RETURNING id, attempts, "agentMissionId", "channelId", "botId"`;
+  const claimed: string[] = [];
   for (const r of rows) {
+    // Message d'agent : équipe en pause → retenu ; équipe repassée en simulation → annulé (jamais envoyé).
+    if ((await agentPostDecision(r, now)) !== "send") continue;
+    claimed.push(r.id);
     const jobId = r.attempts && r.attempts > 0 ? `post:${r.id}:${r.attempts}` : `post:${r.id}`;
     await enqueue("telegram-send", { type: "post", postId: r.id }, { jobId, attempts: 1 });
   }
-  return rows.map((r) => r.id);
+  return claimed;
 }
