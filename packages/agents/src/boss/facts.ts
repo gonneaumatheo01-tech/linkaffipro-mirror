@@ -200,7 +200,7 @@ export async function stockFacts(deps: BossDeps, team?: TeamKey | null): Promise
     );
   }
   if (!team || team === "casino") {
-    const rows = await casinoStock(deps.prisma, { now: nowOf(deps) });
+    const rows = await casinoStock(deps.prisma as never, { now: nowOf(deps) });
     const low = rows.filter((r) => r.state !== "ok");
     out.casino = {
       lignes: rows.length,
@@ -244,7 +244,7 @@ export async function betsTodayFacts(deps: BossDeps): Promise<Facts> {
 export async function betSummaryFacts(deps: BossDeps, period: "7j" | "28j"): Promise<Facts> {
   const now = nowOf(deps);
   const days = period === "7j" ? 7 : 28;
-  const rows = await betSummary(deps.prisma, { from: new Date(now.getTime() - days * 86_400_000), to: now, by: "category" });
+  const rows = await betSummary(deps.prisma as never, { from: new Date(now.getTime() - days * 86_400_000), to: now, by: "category" });
   const facts = {
     periode: period === "7j" ? "7 derniers jours" : "28 derniers jours",
     categories: rows.map((r) => ({ categorie: r.label, publies: r.published, gagnes: r.won, perdus: r.lost, reussitePct: pct(r.hitRate), coteMoyenne: r.avgOdds, rendementPct: pct(r.roi) })),

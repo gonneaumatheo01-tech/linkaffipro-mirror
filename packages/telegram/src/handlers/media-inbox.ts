@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import type { Message } from "grammy/types";
 import { hasLibraryKeyword, libraryAlbumLine, storeLibraryMedia, type StoreLibraryMediaResult } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
+import { adminRouteFor } from "./agents-admin";
 
 /** Limite de téléchargement de l'API Bot (`getFile`). */
 export const BOT_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;

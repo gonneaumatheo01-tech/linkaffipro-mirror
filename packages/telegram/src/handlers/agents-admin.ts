@@ -7,6 +7,7 @@ import {
   isAgentsCallbackData,
   isSecretAdminText,
   rememberEditPrompt,
+  BOSS_DEFAULT_NAME,
   type BossInput,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
@@ -27,21 +28,28 @@ import {
 /** Taille maximale d'un vocal de l'admin (la transcription refuse au-delà de 2 Mo, environ 2 minutes). */
 export const ADMIN_VOICE_MAX_BYTES = 2 * 1024 * 1024;
 
-/** Nom affiché du Boss par défaut (`Setting` `boss.name`). */
-export const DEFAULT_BOSS_NAME = "Kevin";
+/** Nom affiché du Boss (`Setting` `boss.name`) : « Kevin » si absent ; ne lève jamais. */
+export async function bossNameOf(deps: TelegramDeps): Promise<string> {
+  if (!deps.bossName) return BOSS_DEFAULT_NAME;
+  try {
+    return (await deps.bossName()).trim() || BOSS_DEFAULT_NAME;
+  } catch {
+    return BOSS_DEFAULT_NAME;
+  }
+}
 
 /** `/start` de l'admin sur le bot du dialogue admin (phase 26). */
 export function bossWelcomeText(name: string): string {
   return [
-    `Salut, c'est ${name}, ton Boss : je pilote les agents pour toi.`,
+    `Salut, moi c'est ${name} : je pilote les agents pour toi.`,
     "Parle-moi normalement, par écrit ou en vocal : je réponds toujours, et je te demande confirmation avant tout ce qui dépense ou publie.",
     "Écris <b>commencer</b> pour qu'on démarre ensemble, ou <b>aide</b> pour voir ce que je sais faire.",
   ].join("\n");
 }
 
 /** Un bot de canal renvoie l'admin vers le bot du dialogue admin (une seule fois par bot, puis silence). */
-export function bossRedirectText(username: string): string {
-  return `Parle-moi sur @${username} 👉`;
+export function bossRedirectText(username: string, name: string = BOSS_DEFAULT_NAME): string {
+  return `Parle-moi sur @${username} (${name}) 👉`;
 }
 
 /** Réponse en HTML, repli en texte brut si Telegram refuse le HTML. Rend l'identifiant du message envoyé. */
@@ -100,7 +108,7 @@ export async function adminRouteFor(
 async function redirectOnce(ctx: Context, identity: BotIdentity, deps: TelegramDeps, target: AdminDialogBot): Promise<void> {
   try {
     const first = deps.claimBossRedirect ? await deps.claimBossRedirect(identity.id, target.id) : false;
-    if (first) await ctx.reply(bossRedirectText(target.username));
+    if (first) await ctx.reply(bossRedirectText(target.username, await bossNameOf(deps)));
   } catch (err) {
     console.error("[boss] renvoi vers le bot du dialogue admin", identity.username, (err as Error).message);
   }
@@ -151,8 +159,7 @@ async function handleDialogText(ctx: Context, identity: BotIdentity, deps: Teleg
         await ctx.reply(linked ? `Compte lié : ${linked.name}.` : "Ce lien n'est plus valable : recréez-le dans « Mon compte ».");
         return;
       }
-      const name = deps.bossName ? await deps.bossName().catch(() => DEFAULT_BOSS_NAME) : DEFAULT_BOSS_NAME;
-      await replyHtml(ctx, bossWelcomeText(name));
+      await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps)));
       return;
     }
     text = commandAsText(text);
@@ -238,7 +245,9 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       }
     }
     if (route.kind === "redirect") {
-      await ctx.answerCallbackQuery({ text: bossRedirectText(route.target.username) }).catch(() => undefined);
+      await ctx
+        .answerCallbackQuery({ text: bossRedirectText(route.target.username, await bossNameOf(deps)) })
+        .catch(() => undefined);
       await redirectOnce(ctx, identity, deps, route.target);
       return;
     }

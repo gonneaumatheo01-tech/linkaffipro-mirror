@@ -2,9 +2,17 @@
 
 ## Mettre les agents en route : la liste complète, dans l'ordre (mise à jour le 24 octobre, fin des phases 19 à 25)
 
-Rien ne part sur un vrai canal tant que vous ne l'avez pas décidé : toutes les équipes sont **en simulation** (tout va sur le canal Test) et **au niveau 0** (vous validez tout). Presque tout se fait **en répondant au bot sur Telegram** (@casinogamblingoobot), une question à la fois ; écrivez `demandes` pour voir celles qui attendent, `plus tard` pour en passer une. Les clés s'envoient **par écrit** (jamais en vocal) : le bot efface aussitôt votre message.
+Rien ne part sur un vrai canal tant que vous ne l'avez pas décidé : toutes les équipes sont **en simulation** (tout va sur le canal Test) et **au niveau 0** (vous validez tout). Presque tout se fait **en répondant à Kevin sur Telegram** (voir 0 ; avant sa création, au bot @casinogamblingoobot), une question à la fois ; écrivez `demandes` pour voir celles qui attendent, `plus tard` pour en passer une. Les clés s'envoient **par écrit** (jamais en vocal) : le bot efface aussitôt votre message.
 
-### 0. Tout de suite (2 minutes)
+### 0. Créer Kevin, votre bot à vous (3 minutes)
+Kevin est le bot à qui vous parlez de tout, en français ordinaire (texte ou vocal) ; les bots des canaux ne prennent plus d'ordres.
+1. Dans Telegram, ouvrez **@BotFather** → envoyez `/newbot` → nom : **Kevin** → identifiant qui finit par « bot » (par exemple `kevin_linkaffi_bot`) → copiez le jeton (la longue ligne après « Use this token »).
+2. Envoyez au bot actuel (@casinogamblingoobot) : `jeton boss ` suivi du jeton (il efface votre message aussitôt). **Ou** : https://app.linkaffipro.com/settings/bots → **Ajouter un bot** → collez le jeton → Rôle **Boss (administration)** → **Ajouter le bot**.
+3. Ouvrez Kevin dans Telegram → **Démarrer** (`/start`) → écrivez `commencer` : il vous dit ce qui manque et pose les questions une par une (répondez par le message suivant, ou « plus tard »).
+4. Ajoutez Kevin au **groupe Telegram de l'équipe** (Infos du groupe → Ajouter des membres → Kevin), puis présentez chacun en une phrase : « Kevin, voici @lea, elle s'occupe des vidéos casino ».
+5. Facultatif, pour qu'il réagisse aussi à « Kevin, … » sans @ : dans @BotFather → `/setprivacy` → choisissez Kevin → **Disable**, puis retirez Kevin du groupe et remettez-le.
+
+### 0 bis. Tout de suite (2 minutes)
 1. Répondez `oui` ou `non` à la question du bot « Veux-tu recevoir chaque matin le rapport des agents ? ».
 2. Ouvrez https://app.linkaffipro.com/agents : le tableau de bord montre les 4 équipes, l'Agent Ads, les dépenses et ce qui attend votre décision.
 3. Test de 5 minutes : Agents → **Équipe Rencontres** → « Produire un post de test » (Texte) → appuyez sur ✅ dans Telegram → le post arrive sur le canal **Test** avec « [SIMULATION …] » en tête.

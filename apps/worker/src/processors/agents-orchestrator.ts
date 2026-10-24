@@ -3,6 +3,7 @@ import { bossDailyNudge, resumeMissions, runBench, runCycle, sendDailyReport, sw
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
+import { processBossText } from "../agents/boss-text";
 import { workerAgentsDeps } from "../agents/deps";
 import { logger } from "../logger";
 
@@ -15,7 +16,8 @@ import { logger } from "../logger";
  * - `validations` : validations sans réponse (24 h : reportée + rappel ; 72 h : annulée) ;
  * - `report` : rapport du jour (forcé depuis le site) ;
  * - `bench` (phase 20) : banc d'essai vidéo, un passage court qui se ré-enfile toutes les 30 s (jamais d'attente ici) ;
- * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit.
+ * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit ;
+ * - `boss-text` (phase 26) : message de l'admin au Boss qui demande l'interprète IA (`../agents/boss-text.ts`).
  */
 export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>): Promise<unknown> {
   const data = job.data as AgentsOrchestratorJob | undefined;
@@ -38,6 +40,8 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return runBench(deps, data);
     case "admin-voice":
       return processAdminVoice(data);
+    case "boss-text":
+      return processBossText(data);
     default:
       logger.warn({ queue: "agents-orchestrator", id: job.id, type: (data as { type?: unknown } | undefined)?.type }, "type de tâche inconnu");
       return { ok: false, reason: "type de tâche inconnu" };

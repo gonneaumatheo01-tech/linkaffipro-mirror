@@ -192,8 +192,27 @@ export {
 } from "./agents/ads/run";
 export * from "./orchestrator/overview-contract";
 export * from "./boss/contract";
+export * from "./boss/register-port";
 // Chantier C (phase 26) : démarrage guidé, aide, carnet des besoins non couverts, relance quotidienne du Boss.
 export * from "./boss/guide";
 export * from "./boss/help";
 export * from "./boss/unmet";
 export * from "./boss/nudge";
+// Chantier B (phase 26) : cerveau du Boss (catalogue fermé, interprète, réponses chiffrées, mémoire, confirmations).
+export * from "./boss/params";
+export * from "./boss/catalog-kit";
+export * from "./boss/catalog";
+export * from "./boss/catalog-read";
+export * from "./boss/catalog-teams";
+export * from "./boss/catalog-univers";
+export * from "./boss/facts";
+export * from "./boss/answer";
+export * from "./boss/memory";
+export * from "./boss/llm";
+export * from "./boss/resolve";
+export * from "./boss/confirm";
+export * from "./boss/interpret";
+export * from "./boss/execute";
+export * from "./boss/fast";
+export * from "./control/channel-plan";
+export * from "./control/bet-category";

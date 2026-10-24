@@ -127,6 +127,9 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
               <Link href="/agents/ads" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}>
                 Rapports pubs
               </Link>
+              <Link href="/agents/boss" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}>
+                Parler à Kevin
+              </Link>
             </div>
           }
         >

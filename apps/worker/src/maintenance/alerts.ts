@@ -47,6 +47,7 @@ import {
   detectSyncFailed,
   detectTelegramAccountReconnect,
   detectWorkerDown,
+  detectWebhookRepaired,
   DEDUP_WINDOW_MS,
   formatAlert,
   parseThresholds,
@@ -487,6 +488,27 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
     [
       "assistant_cap_reached",
       async () => detectAssistantCapReached(await assistantSpendSnapshot(now)),
+    ],
+    // Phase 26 : connexion Telegram d'un bot réparée plus de 2 fois en 24 h par la maintenance.
+    [
+      "webhook_repaired",
+      async () => {
+        const rows = await prisma.event.groupBy({
+          by: ["botId"],
+          where: { type: "telegram.webhook_repaired", occurredAt: { gte: new Date(now.getTime() - DAY_MS) } },
+          _count: { _all: true },
+        });
+        const ids = rows.map((r) => r.botId).filter((id): id is string => !!id);
+        const names = new Map(
+          (ids.length
+            ? await prisma.bot.findMany({ where: { id: { in: ids } }, select: { id: true, username: true } })
+            : []
+          ).map((b) => [b.id, b.username]),
+        );
+        return detectWebhookRepaired(
+          rows.map((r) => ({ botUsername: names.get(r.botId ?? "") ?? "bot inconnu", repairs: r._count._all })),
+        );
+      },
     ],
     // Agents IA (phase 19) : équipe mise en pause après 3 missions échouées de suite.
     [

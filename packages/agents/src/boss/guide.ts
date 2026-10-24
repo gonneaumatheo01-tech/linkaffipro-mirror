@@ -31,6 +31,7 @@ import { SPORTS_CATEGORIES_REQUEST_KEY } from "../sports/setup";
 import { ADS_THRESHOLDS_KEY } from "../agents/ads/thresholds";
 import { TEAM_KEYS, TEAM_LABELS, type AgentsDeps, type TeamKey } from "../types";
 import type { BossReply, BossSetupStep } from "./contract";
+import { readBossName } from "./memory";
 
 /** Étape enrichie (reste un `BossSetupStep` du contrat). */
 export type BossGuideStep = BossSetupStep & {
@@ -147,6 +148,7 @@ async function adsAsks(deps: BossGuideDeps): Promise<AskHumanInput[] | null> {
  */
 export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep[]> {
   const p = deps.prisma;
+  const name = await readBossName(deps);
   const [bossBot, dailyReport, falKey, personas, datingConfig, datingPlans, casinoChannels, casinoPlans, oddsKey, bookmaker] =
     await Promise.all([
       p.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { id: true, username: true } }),
@@ -165,13 +167,12 @@ export async function bossSetupSteps(deps: BossGuideDeps): Promise<BossGuideStep
   // 0. Le Boss lui-même, puis le rapport du matin.
   steps.push({
     key: "boss",
-    label: "créer ton bot Boss",
+    label: `créer ${name}, ton bot`,
     team: null,
-    short: "Boss",
+    short: name,
     done: !!bossBot,
-    why: "C'est à lui que tu parles : un bot rien que pour toi, qui ne gère aucun canal.",
-    howTo:
-      "Dans Telegram : ouvre @BotFather → /newbot → choisis un nom → un identifiant qui finit par « bot » → copie le jeton → envoie-moi « jeton boss » suivi du jeton.",
+    why: `C'est à ${name} que tu parleras : un bot rien que pour toi et ton équipe, qui ne gère aucun canal.`,
+    howTo: `Dans Telegram : ouvre @BotFather → /newbot → nom « ${name} » → un identifiant qui finit par « bot » → copie le jeton → envoie-moi « jeton boss » suivi du jeton.`,
   });
   steps.push({
     key: "dailyReport",

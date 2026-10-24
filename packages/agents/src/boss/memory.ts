@@ -2,7 +2,7 @@
  * Mémoire courte du Boss (phase 26) : table `BossTurn` (un tour = un message de l'admin ou une réponse du Boss). Un
  * secret n'y est jamais écrit : il devient « [secret] ». Contexte de l'interprète : 20 tours ET 24 heures au plus.
  */
-import { BOSS_MEMORY_HOURS, BOSS_MEMORY_TURNS, type BossSource } from "./contract";
+import { BOSS_DEFAULT_NAME, BOSS_MEMORY_HOURS, BOSS_MEMORY_TURNS, BOSS_NAME_SETTING, type BossSource } from "./contract";
 import { nowOf } from "../admin/journal";
 import type { AgentsDeps } from "../types";
 
@@ -22,6 +22,9 @@ export type BossTurnInput = {
   source?: BossSource | null;
   telegramMessageId?: number | null;
   costCents?: number;
+  /** Conversation (privée ou groupe) et auteur du message (null pour un tour de Kevin). */
+  chatId?: bigint | null;
+  fromTelegramId?: bigint | null;
 };
 
 export type BossTurnRow = {
@@ -34,6 +37,8 @@ export type BossTurnRow = {
   source: string | null;
   telegramMessageId: number | null;
   costCents: number;
+  chatId?: bigint | null;
+  fromTelegramId?: bigint | null;
 };
 
 /** Texte gardé : `[secret]` pour un secret, balises HTML retirées, longueur bornée. */
@@ -56,6 +61,8 @@ export async function writeBossTurn(deps: AgentsDeps, input: BossTurnInput): Pro
         source: input.source ?? null,
         telegramMessageId: input.telegramMessageId ?? null,
         costCents: Math.max(0, Math.round(input.costCents ?? 0)),
+        chatId: input.chatId ?? null,
+        fromTelegramId: input.fromTelegramId ?? null,
       },
     });
     return row.id;
@@ -90,13 +97,13 @@ export async function updateBossTurn(
 /** Derniers tours (du plus ancien au plus récent) : 20 au plus, des dernières 24 heures seulement. */
 export async function recentBossTurns(
   deps: Pick<AgentsDeps, "prisma" | "now">,
-  opts: { turns?: number; hours?: number } = {},
+  opts: { turns?: number; hours?: number; chatId?: bigint | null } = {},
 ): Promise<BossTurnRow[]> {
   const turns = Math.min(opts.turns ?? BOSS_MEMORY_TURNS, BOSS_MEMORY_TURNS);
   const hours = Math.min(opts.hours ?? BOSS_MEMORY_HOURS, BOSS_MEMORY_HOURS);
   const since = new Date(nowOf(deps).getTime() - hours * 3600_000);
   const rows = (await deps.prisma.bossTurn.findMany({
-    where: { createdAt: { gte: since } },
+    where: { createdAt: { gte: since }, ...(opts.chatId != null ? { chatId: opts.chatId } : {}) },
     orderBy: { createdAt: "desc" },
     take: turns,
   })) as BossTurnRow[];
@@ -115,9 +122,6 @@ export async function bossTurnForMessage(deps: Pick<AgentsDeps, "prisma">, messa
 export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin"): string[] {
   return turns.map((t) => `${t.role === "ADMIN" ? "Admin" : bossName} : ${t.text.replace(/\s+/g, " ").slice(0, 300)}`);
 }
-
-export const BOSS_NAME_SETTING = "boss.name";
-export const BOSS_DEFAULT_NAME = "Kevin";
 
 /** Prénom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut). */
 export async function readBossName(deps: Pick<AgentsDeps, "prisma">): Promise<string> {

@@ -893,7 +893,7 @@ Choisissez la période en haut (le même sélecteur que les [Statistiques](#peri
 
 ## Agents
 
-**À quoi ça sert.** Faire préparer et publier les posts de vos canaux par une équipe d'agents, sous votre contrôle. Le **Grand Chef** répartit chaque jour le travail entre quatre équipes : **Rencontres**, **Casino**, **Paris sportifs** et **Algorithme** (qui ne publie rien : elle mesure ce qui marche et règle les trois autres). Chaque équipe a son **Chef d'équipe**, qui fait passer chaque **mission** (un post à produire) d'un agent à l'autre : **Médiathèque** (choisit le média), **Rédaction** (écrit le texte), **Planification** (choisit l'heure), **Contrôle qualité** (vérifie tout), puis **Publication** (programme le message, qui part comme vos autres messages). Le Grand Chef et les Chefs d'équipe suivent des règles écrites à l'avance : l'IA ne sert qu'à écrire et à juger un texte. Cinq onglets en haut : **Tableau de bord**, **Agent Ads**, **Validations**, **Journal** et, pour les administrateurs, **Réglages**.
+**À quoi ça sert.** Faire préparer et publier les posts de vos canaux par une équipe d'agents, sous votre contrôle. Le **Grand Chef** répartit chaque jour le travail entre quatre équipes : **Rencontres**, **Casino**, **Paris sportifs** et **Algorithme** (qui ne publie rien : elle mesure ce qui marche et règle les trois autres). Chaque équipe a son **Chef d'équipe**, qui fait passer chaque **mission** (un post à produire) d'un agent à l'autre : **Médiathèque** (choisit le média), **Rédaction** (écrit le texte), **Planification** (choisit l'heure), **Contrôle qualité** (vérifie tout), puis **Publication** (programme le message, qui part comme vos autres messages). Le Grand Chef et les Chefs d'équipe suivent des règles écrites à l'avance : l'IA ne sert qu'à écrire et à juger un texte. Six onglets en haut : **Tableau de bord**, **Agent Ads**, **Kevin**, **Validations**, **Journal** et, pour les administrateurs, **Réglages**. Pour tout piloter sans chercher dans le site, parlez à **Kevin** sur Telegram (voir « Kevin » plus bas).
 
 **Ce qui protège vos canaux**, quels que soient les réglages :
 
@@ -1051,6 +1051,48 @@ L'Agent Ads dépend directement du Grand Chef. Chaque jour, il regarde ce que co
 ### Parler au bot par messages vocaux
 
 Vous pouvez parler au bot par messages vocaux : il répète ce qu'il a compris avant d'agir (« J'ai compris : "pause rencontres". »). Un vocal vaut un message écrit : une commande, une réponse à une question, un chiffre ou un oui. Une commande importante (publier sur les vrais canaux, changer de niveau) demande toujours la confirmation **OUI**. S'il n'a pas compris, il vous demande de l'écrire. Une clé s'envoie toujours par écrit : un vocal n'est jamais pris pour une clé.
+
+### Kevin
+
+**Kevin** est votre bot à vous sur Telegram (dans le site : Agents → **Kevin**). Vous lui parlez comme à un collègue, par écrit ou par message vocal, sans apprendre de commande : il répond toujours, en quelques lignes, avec les vrais chiffres de la plateforme. Il ne fait rien de nouveau par lui-même : il pilote les équipes d'agents (pause, niveaux, plafonds, passage en vrai, réponses aux questions). Les bots de vos canaux ne prennent plus d'ordres : si vous leur écrivez, ils vous renvoient vers Kevin. Son prénom se change dans Agents → Kevin (administrateurs).
+
+#### Parler à Kevin
+
+Pour démarrer, écrivez **commencer** : il vous dit en 3 lignes où en sont les équipes (simulation, niveau, ce qui manque), l'avancement (« 3/14 ») et pose la première question. Il pose ses questions **une à la fois** ; répondez simplement par le message suivant (inutile d'appuyer sur « Répondre »), ou **plus tard** pour passer. Écrivez **aide** pour la liste de ce qu'il sait faire. Une clé ou un mot de passe s'envoie par écrit : Kevin efface aussitôt votre message et ne l'écrit nulle part.
+
+Dix exemples de phrases :
+
+1. « commencer » (ou « par où je commence ? »)
+2. « où on en est ? »
+3. « combien j'ai dépensé ce mois ? »
+4. « qu'est-ce qui attend ma réponse ? »
+5. « mets le casino en pause » / « reprends le casino »
+6. « passe le dating en vrai »
+7. « passe à cinq posts par jour sur Léa »
+8. « active les corners »
+9. « t'as réussi à te connecter à Sportaza ? »
+10. « annule le dernier réglage »
+
+Les anciennes commandes (« agents », « pause casino », « ok 12 », « demandes », « rapport », « plus tard ») marchent toujours, tout de suite et gratuitement. S'il ne sait pas faire ce que vous demandez, il le dit et propose 2 ou 3 choses proches ; la demande est notée dans Agents → Kevin → « Ce qu'il ne sait pas encore faire ».
+
+#### Ce que Kevin fait tout de suite et ce qu'il confirme
+
+- **Tout de suite** : lire (état, chiffres, rapport, demandes), mettre en pause et reprendre, tout arrêter, refuser une validation, « plus tard », **baisser** un quota, un plafond ou un niveau, revenir en simulation.
+- **Après votre OUI** : passer une équipe en vrai, **monter** un quota, un plafond ou un niveau, activer un canal ou une catégorie de paris, appliquer un réglage de l'équipe Algorithme, produire un post ou un pari d'essai, tout ce qui dépense ou publie. Kevin résume en 2 lignes avec deux boutons **OUI** / **NON** (écrire « OUI » marche aussi). Une seule confirmation à la fois ; sans réponse, elle s'annule au bout de 10 minutes. « annule » l'annule tout de suite.
+- Un message **transféré** n'est jamais un ordre : Kevin le lit comme une information. Personne ne peut se donner des droits par message.
+
+#### Kevin dans le groupe de l'équipe
+
+- **Le groupe** : ajoutez Kevin au groupe Telegram de l'équipe (comme simple membre). S'il est ajouté par vous, il retient ce groupe (un seul) et se présente ; ajouté par quelqu'un d'autre ou dans un autre groupe, il se tait.
+- **Les présentations** : présentez chacun en une phrase, par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino », « Marc gère les cotes et le compte Sportaza », « Léa est en vacances jusqu'à lundi », « Marc ne travaille plus avec nous ». Il s'en souvient, répond à « qui fait quoi ? », et la liste apparaît dans Agents → Kevin → **Équipe**.
+- **La bonne personne** : quand il lui manque quelque chose (des vidéos, un choix, une validation), il le demande dans le groupe en mentionnant la personne qui s'en occupe (@Léa), sinon vous. Une clé ou un mot de passe ne se demande **jamais** dans le groupe : il écrit « envoie-moi la clé en privé » ; une clé collée dans le groupe est effacée aussitôt.
+- **Les droits** : **vous (administrateur)** : tout. **Responsable** : présente des membres et fait les actions immédiates de toutes les équipes. **Membre** : lit l'état et les chiffres, et fait les actions immédiates des équipes dont il s'occupe (pause, « plus tard », réponses aux questions qui lui sont adressées). Tout ce qui demande un OUI vous revient : Kevin vous mentionne (« @vous, Léa demande de passer le casino en vrai. OUI ? »). Une personne non présentée qui lui parle reçoit au plus une fois par jour « Je ne te connais pas encore ».
+- **Ce qu'il voit** : par défaut, Telegram ne montre à un bot que les messages qui le mentionnent (@Kevin), les réponses à ses messages et les commandes. Pour qu'il réagisse aussi à « Kevin, … » sans @, dans @BotFather : `/setprivacy` → choisissez Kevin → **Disable**, puis retirez Kevin du groupe et remettez-le. Dans les deux cas, il ne commente jamais les conversations des autres et ne les envoie jamais à l'IA.
+- **Le rapport du matin** part dans le groupe à 9 h (5 lignes, avec les @ des personnes qui ont quelque chose en attente) dès qu'un groupe existe.
+
+#### Où voir ce que Kevin a fait et combien il coûte
+
+Agents → **Kevin** : le bot (ou les 3 étapes pour le créer), l'équipe et le groupe, ce qu'il ne sait pas encore faire (avec **Exporter**), ses 50 derniers échanges (une clé y apparaît toujours « [secret] ») et la dépense de son IA ce mois. Seules les phrases libres coûtent (quelques centimes) ; le plafond est de **10 € par mois** par défaut, modifiable par un administrateur ; une alerte part à 80 % ; au plafond, Kevin garde les commandes exactes et le dit. Chaque action faite par Kevin est aussi dans Réglages → Journal. Au plus une fois par jour, s'il y a un blocage (question sans réponse depuis plus d'un jour, équipe en pause automatique, plafond atteint), Kevin vous relance.
 
 ### Simulation, niveaux et pause
 

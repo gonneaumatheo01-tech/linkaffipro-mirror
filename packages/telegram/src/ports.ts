@@ -170,7 +170,7 @@ export interface TelegramDeps {
   claimBossRedirect?(botId: string, targetBotId: string): Promise<boolean>;
   /** Phase 26 : moteur du Boss (chemin rapide, boutons de confirmation). Absent : le moteur réel de `@linkaffipro/agents`. */
   bossEngine?: import("./boss/engine").BossEngine;
-  /** Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut). */
+  /** Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut, `BOSS_DEFAULT_NAME`). */
   bossName?(): Promise<string>;
 }
 

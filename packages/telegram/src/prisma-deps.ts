@@ -3,6 +3,7 @@ import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
 import {
   isAssistantBot,
+  type AdminDialogBot,
   type AdminRights,
   type BotIdentity,
   type LinkImportOutcome,
@@ -15,6 +16,8 @@ import { addCustomEmojisToLibrary } from "./custom-emoji/library";
 import { hasStartedBot } from "./join-flow/reachability";
 import { createBotAgentsDeps } from "./agents/deps";
 import { readSecretRequestsState } from "./agents/admin-state";
+import { adminBot } from "./admin-bot";
+import { BOSS_DEFAULT_NAME, BOSS_NAME_SETTING } from "@linkaffipro/agents";
 
 function memberData(from: User) {
   return {
@@ -68,6 +71,15 @@ async function cachedAdminId(): Promise<string | null> {
   adminIdCache = { value, until: Date.now() + 60_000 };
   return value;
 }
+
+/** Bot du dialogue admin gardé 5 secondes (lu pour chaque message privé de l'admin) ; `forgetAdminDialogBot` le vide. */
+let adminBotCache: { value: AdminDialogBot | null; until: number } | null = null;
+export function forgetAdminDialogBot(): void {
+  adminBotCache = null;
+}
+
+/** Phase 26 : repère du renvoi « Parle-moi sur @<boss> » déjà fait par un bot de canal (`Setting`). */
+export const BOSS_REDIRECTED_PREFIX = "boss.redirected.";
 
 /** Implémentation réelle des dépendances des handlers, sur Prisma. */
 export const prismaTelegramDeps: TelegramDeps = {
@@ -425,6 +437,33 @@ export const prismaTelegramDeps: TelegramDeps = {
 
   agentsDeps() {
     return createBotAgentsDeps();
+  },
+
+  async adminDialogBot() {
+    if (adminBotCache && adminBotCache.until > Date.now()) return adminBotCache.value;
+    const bot = await adminBot();
+    const value = bot ? { id: bot.id, username: bot.username, isBoss: bot.isBoss } : null;
+    adminBotCache = { value, until: Date.now() + 5_000 };
+    return value;
+  },
+
+  async claimBossRedirect(botId, targetBotId) {
+    // Une fois par bot ET par bot du dialogue : un nouveau Boss vaut un nouveau renvoi.
+    const key = `${BOSS_REDIRECTED_PREFIX}${botId}`;
+    const row = await prisma.setting.findUnique({ where: { key } });
+    const prev = row?.value as { targetBotId?: string } | null | undefined;
+    if (prev && typeof prev === "object" && prev.targetBotId === targetBotId) return false;
+    await prisma.setting.upsert({
+      where: { key },
+      create: { key, value: { targetBotId, at: new Date().toISOString() } },
+      update: { value: { targetBotId, at: new Date().toISOString() } },
+    });
+    return true;
+  },
+
+  async bossName() {
+    const row = await prisma.setting.findUnique({ where: { key: BOSS_NAME_SETTING } });
+    return typeof row?.value === "string" && row.value.trim() ? row.value.trim() : BOSS_DEFAULT_NAME;
   },
 
   async agentsAdminState(telegramUserId) {

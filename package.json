@@ -32,6 +32,7 @@
     "linkaffi:inspect": "node --env-file-if-exists=.env.local --import tsx packages/linkaffi/scripts/inspect.ts",
     "tg:send": "node scripts/tg-remote.mjs send",
     "tg:inbox": "node scripts/tg-remote.mjs inbox",
+    "tg:diag": "node scripts/tg-remote.mjs diag",
     "sequences:backfill": "node --env-file-if-exists=.env.local --import tsx packages/telegram/scripts/backfill-sequences.ts",
     "db:restore": "node scripts/db-restore.mjs",
     "db:backup:now": "railway ssh --service worker -- su-exec node node apps/worker/dist/backup-now.js",
@@ -45,6 +46,7 @@
     "agents:bench-video": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/bench-video.ts",
     "agents:upload-lora": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/upload-lora.ts",
     "agents:report-now": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/report-now.ts",
+    "boss:unmet": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/boss-unmet.ts",
     "agents:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/agents-status.ts",
     "agents:capture-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-runner.ts",
     "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts"

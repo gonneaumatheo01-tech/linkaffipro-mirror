@@ -1,16 +1,18 @@
 import { TabNav, type TabNavItem } from "@/components/admin/tab-nav";
 
-export type AgentsSection = "dashboard" | "ads" | "validations" | "journal" | "settings";
+export type AgentsSection = "dashboard" | "ads" | "boss" | "validations" | "journal" | "settings";
 
 /**
  * Rubriques de Agents (phase 19) : tableau de bord du Grand Chef (et fiches d'équipe), validations et demandes,
  * journal, réglages (administrateurs seulement). Phase 24 : « Agent Ads » (`/agents/ads`), rattaché au Grand Chef,
- * n'est pas une équipe : il a son entrée à lui. `pending` : validations à faire + demandes ouvertes (pastille).
+ * n'est pas une équipe : il a son entrée à lui. Phase 26 : « Kevin » (`/agents/boss`), le bot à qui l'on parle.
+ * `pending` : validations à faire + demandes ouvertes (pastille).
  */
 export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
   const items: TabNavItem[] = [
     { key: "dashboard", href: "/agents", label: "Tableau de bord", short: "Équipes" },
     { key: "ads", href: "/agents/ads", label: "Agent Ads", short: "Pubs" },
+    { key: "boss", href: "/agents/boss", label: "Kevin" },
     {
       key: "validations",
       href: "/agents/validations",

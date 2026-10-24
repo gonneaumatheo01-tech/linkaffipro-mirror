@@ -7,6 +7,7 @@ import { cleanOldFailedJobs } from "../maintenance/clean-failed";
 import { runBackupIfDue } from "../backups/run";
 import { runLegacyGateRevocation } from "../maintenance/legacy-gate-links";
 import { runLandingChatRefresh, runLandingLinkRepair } from "../maintenance/landing";
+import { runWebhookRepairWithDb } from "@linkaffipro/telegram";
 
 /**
  * Processeur de la file `maintenance` : purge de rétention (nocturne), alertes (toutes les 5 minutes)
@@ -14,6 +15,8 @@ import { runLandingChatRefresh, runLandingLinkRepair } from "../maintenance/land
  * et révocation des anciens liens des canaux à rejoindre à entrée directe (toutes les heures, 7 jours après la phase 11).
  * Pages d'atterrissage (phase 15) : relecture des titres et photos des canaux (toutes les 5 minutes) et reprise des
  * liens d'invitation des sources (toutes les 10 minutes), voir `../maintenance/landing.ts`.
+ * Phase 26 : contrôle des connexions Telegram (webhooks) de nos bots et réparation automatique (toutes les 10 minutes,
+ * production seulement), voir `runWebhookRepairWithDb` (`@linkaffipro/telegram`).
  */
 export async function processMaintenance(job: Job<MaintenanceJob>): Promise<unknown> {
   const data = job.data;
@@ -32,6 +35,8 @@ export async function processMaintenance(job: Job<MaintenanceJob>): Promise<unkn
       return runLandingChatRefresh();
     case "landing-links":
       return runLandingLinkRepair();
+    case "webhook-repair":
+      return runWebhookRepairWithDb();
     case "tick":
     default:
       logger.info({ queue: "maintenance", id: job.id }, "tick");
@@ -59,4 +64,5 @@ export const repeatableMaintenance: Array<{
   },
   { data: { type: "landing-chats" }, everyMs: 5 * 60 * 1000, jobId: "maintenance-landing-chats" },
   { data: { type: "landing-links" }, everyMs: 10 * 60 * 1000, jobId: "maintenance-landing-links" },
+  { data: { type: "webhook-repair" }, everyMs: 10 * 60 * 1000, jobId: "maintenance-webhook-repair" },
 ];

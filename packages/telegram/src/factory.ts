@@ -1,7 +1,7 @@
 import { Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
 import { decrypt } from "@linkaffipro/core";
-import type { BotIdentity, BotMode, TelegramDeps } from "./ports";
+import type { BotIdentity, BotMode, BotRoleName, TelegramDeps } from "./ports";
 import { registerHandlers } from "./handlers";
 
 export type BotRecordLike = BotIdentity & { tokenEncrypted: string };
@@ -33,7 +33,7 @@ export function createBot(rec: BotRecordLike, deps: TelegramDeps): Bot {
   return bot;
 }
 
-type CachedBot = { bot: Bot; tokenEncrypted: string; mode: BotMode; personaId: string | null };
+type CachedBot = { bot: Bot; tokenEncrypted: string; mode: BotMode; personaId: string | null; role: BotRoleName };
 
 /**
  * Cache d'instances par id de bot, invalidé si le jeton chiffré, le mode ou la persona changent (phase 17 : un bot passé
@@ -44,10 +44,12 @@ const cache = new Map<string, CachedBot>();
 
 /** L'instance en cache convient-elle à cet enregistrement ? (fonction pure, testée) */
 export function cachedBotMatches(
-  hit: Pick<CachedBot, "tokenEncrypted" | "mode" | "personaId">,
-  rec: Pick<BotRecordLike, "tokenEncrypted" | "mode" | "personaId">,
+  hit: Pick<CachedBot, "tokenEncrypted" | "mode" | "personaId"> & { role?: BotRoleName },
+  rec: Pick<BotRecordLike, "tokenEncrypted" | "mode" | "personaId" | "role">,
 ): boolean {
   if (hit.tokenEncrypted !== rec.tokenEncrypted) return false;
+  // Phase 26 : un bot devenu Boss (ou redevenu bot de canal) n'a plus les mêmes handlers.
+  if (rec.role !== undefined && (hit.role ?? "CHANNEL") !== rec.role) return false;
   if (rec.mode !== undefined && hit.mode !== rec.mode) return false;
   if (rec.personaId !== undefined && hit.personaId !== (rec.personaId ?? null)) return false;
   return true;
@@ -62,6 +64,7 @@ export function getOrCreateBot(rec: BotRecordLike, deps: TelegramDeps): Bot {
     tokenEncrypted: rec.tokenEncrypted,
     mode: rec.mode ?? "STANDARD",
     personaId: rec.personaId ?? null,
+    role: rec.role ?? "CHANNEL",
   });
   return bot;
 }

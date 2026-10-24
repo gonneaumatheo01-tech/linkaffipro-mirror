@@ -36,6 +36,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   ads_conversion_drop: "Chute des inscriptions d'une campagne",
   ads_cost_over_threshold: "Pub trop chère par inscription",
   ads_budget_exhausted: "Budget du jour d'une campagne atteint",
+  webhook_repaired: "Connexion Telegram d'un bot réparée plusieurs fois",
 };
 
 export function alertKindLabel(kind: string): string {

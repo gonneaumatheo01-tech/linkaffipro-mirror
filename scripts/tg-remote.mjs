@@ -1,14 +1,20 @@
 #!/usr/bin/env node
-// Exécute tg-send / tg-inbox dans le conteneur Railway `web` (accès à la base de production sans
+// Exécute tg-send / tg-inbox / tg-diag dans le conteneur Railway `web` (accès à la base de production sans
 // exposer celle-ci ni stocker son mot de passe sur le Mac). Avec TG_LOCAL=1, exécute en local (.env.local).
 import { spawnSync } from "node:child_process";
 
 const [mode, ...rest] = process.argv.slice(2);
-if (mode !== "send" && mode !== "inbox") {
-  console.error('Usage : pnpm tg:send "message" [--confirm <id>] | pnpm tg:inbox [--since <ISO>]');
+if (mode !== "send" && mode !== "inbox" && mode !== "diag") {
+  console.error('Usage : pnpm tg:send "message" [--confirm <id>] | pnpm tg:inbox [--since <ISO>] | pnpm tg:diag');
   process.exit(2);
 }
-const script = mode === "send" ? "packages/telegram/scripts/tg-send.ts" : "packages/telegram/scripts/tg-inbox.ts";
+const SCRIPTS = {
+  send: "packages/telegram/scripts/tg-send.ts",
+  inbox: "packages/telegram/scripts/tg-inbox.ts",
+  // Phase 26 : diagnostic du dialogue admin, lecture seule.
+  diag: "packages/telegram/scripts/tg-diag.ts",
+};
+const script = SCRIPTS[mode];
 const confirmIdx = rest.indexOf("--confirm");
 const confirm = confirmIdx >= 0 ? rest[confirmIdx + 1] : undefined;
 const sinceIdx = rest.indexOf("--since");

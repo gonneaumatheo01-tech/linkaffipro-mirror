@@ -5,11 +5,12 @@ import { CHANNEL_BOT_WHERE, prisma, audit, toJsonValue } from "@linkaffipro/db";
 import type { ChatLang } from "@linkaffipro/chat";
 import { evictBot, getOrCreateBot } from "./factory";
 import { extractAdminRights, type BotMode } from "./ports";
-import { prismaTelegramDeps } from "./prisma-deps";
+import { forgetAdminDialogBot, prismaTelegramDeps } from "./prisma-deps";
 import { chatFromFullInfo } from "./handlers/forward";
 import { botPresence, isAdminStatus, isTelegramAccessError } from "./handlers/channels";
 import { parseChannelLink } from "./channels/username";
 import { PROFILE_LANGS, assistantProfilePlan, assistantProfileTextOk } from "./assistant/profile";
+import { webhookTargetRefusal } from "./webhook-health";
 
 export function webhookUrlFor(botId: string, baseUrl = process.env.APP_BASE_URL): string {
   if (!baseUrl) throw new Error("APP_BASE_URL manquante");
@@ -34,7 +35,7 @@ export async function registerBotFromToken(
   opts: { userId?: string | null } = {},
 ): Promise<RegisterResult> {
   const trimmed = token.trim();
-  if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(trimmed)) throw new Error("Format de jeton invalide");
+  if (!BOT_TOKEN_PATTERN.test(trimmed)) throw new Error("Format de jeton invalide");
   const api = new Api(trimmed);
   let me;
   try {
@@ -46,6 +47,9 @@ export async function registerBotFromToken(
   }
   const username = me.username ?? String(me.id);
   const existing = await prisma.bot.findUnique({ where: { telegramBotId: BigInt(me.id) } });
+  // Phase 26 : le Boss ne devient jamais un bot de canal par ce chemin (il ne parle qu'à l'admin).
+  if (existing?.role === "ADMIN")
+    throw new Error(`@${username} est le Boss (dialogue avec l'administrateur) : utilisez un autre bot pour les canaux.`);
   const webhookSecret = existing?.webhookSecret ?? randomToken(32);
   const bot = await prisma.bot.upsert({
     where: { telegramBotId: BigInt(me.id) },
@@ -79,12 +83,18 @@ export async function registerBotFromToken(
   return { botId: bot.id, username, name: me.first_name, created: !existing, webhook };
 }
 
-/** (Re)pose le webhook d'un bot à partir de APP_BASE_URL et renvoie getWebhookInfo. */
+/**
+ * (Re)pose le webhook d'un bot à partir de APP_BASE_URL et renvoie getWebhookInfo. SEULE fonction du dépôt qui pose un
+ * webhook (phase 26 : toujours avec le secret de la base courante ; refusée depuis une base locale vers une adresse
+ * publique, `webhookTargetRefusal`).
+ */
 export async function setWebhookForBot(botId: string) {
   const bot = await prisma.bot.findUniqueOrThrow({ where: { id: botId } });
+  const url = webhookUrlFor(bot.id);
+  const refusal = webhookTargetRefusal(url);
+  if (refusal) throw new Error(refusal);
   const { decrypt } = await import("@linkaffipro/core");
   const api = new Api(decrypt(bot.tokenEncrypted));
-  const url = webhookUrlFor(bot.id);
   try {
     await api.setWebhook(url, {
       allowed_updates: [...TELEGRAM_ALLOWED_UPDATES],
@@ -109,6 +119,121 @@ export async function getWebhookInfoForBot(botId: string) {
   const { decrypt } = await import("@linkaffipro/core");
   const api = new Api(decrypt(bot.tokenEncrypted));
   return api.getWebhookInfo();
+}
+
+/** Jeton d'un bot Telegram (format de @BotFather). */
+export const BOT_TOKEN_PATTERN = /^\d+:[A-Za-z0-9_-]{30,}$/;
+
+export type RegisterBossResult = {
+  botId: string;
+  username: string;
+  name: string;
+  created: boolean;
+  /** Anciens Boss désactivés (un seul Boss à la fois). */
+  replaced: string[];
+  /** La question en cours a été reposée par le nouveau Boss. */
+  reasked: boolean;
+};
+
+/** Refus d'un jeton pour le Boss (message en français, sans jamais répéter le jeton). */
+export class BossRegisterError extends Error {}
+
+/** Message à envoyer à l'admin une fois le Boss enregistré. */
+export function bossRegisteredText(username: string, name = "Kevin"): string {
+  return `${name} est prêt : envoie /start à @${username} depuis ton compte, puis écris « commencer ».`;
+}
+
+/**
+ * Phase 26 : enregistre le Boss (bot du dialogue admin) à partir de son jeton — même code pour les trois voies
+ * (commande `jeton boss <valeur>`, demande SECRET « jeton boss », Réglages → Bots). `getMe`, jeton chiffré,
+ * `role: ADMIN`, `vertical: CASINO` (jamais utilisé), `mode: STANDARD`, webhook posé avec son secret ; un seul Boss à la
+ * fois : un autre Boss actif est désactivé (remplacement) ; journal `boss.registered`. Refusé pour un bot qui sert déjà
+ * à un canal ou d'assistant de conversation (il cesserait de faire son travail). Puis la question en cours (si elle
+ * existe) est reposée une fois par le nouveau Boss. `api` : faux Telegram des tests.
+ */
+export async function registerBossFromToken(
+  token: string,
+  opts: { userId?: string | null; via?: "TELEGRAM" | "SITE"; api?: Pick<Api, "getMe"> } = {},
+): Promise<RegisterBossResult> {
+  const trimmed = token.trim();
+  if (!BOT_TOKEN_PATTERN.test(trimmed))
+    throw new BossRegisterError("Ce n'est pas un jeton de bot : copie-le en entier depuis @BotFather (chiffres, deux-points, lettres).");
+  const api = opts.api ?? new Api(trimmed);
+  let me;
+  try {
+    me = await api.getMe();
+  } catch (err) {
+    if (err instanceof GrammyError && err.error_code === 401)
+      throw new BossRegisterError("Telegram refuse ce jeton : vérifie-le dans @BotFather (/token).");
+    throw err;
+  }
+  const username = me.username ?? String(me.id);
+  const existing = await prisma.bot.findUnique({
+    where: { telegramBotId: BigInt(me.id) },
+    select: { id: true, role: true, mode: true, webhookSecret: true, _count: { select: { channelAdmins: { where: { revokedAt: null } } } } },
+  });
+  if (existing && existing.role !== "ADMIN") {
+    if (existing.mode === "ASSISTANT")
+      throw new BossRegisterError(`@${username} est un assistant de conversation : crée un nouveau bot dans @BotFather pour le Boss.`);
+    if (existing._count.channelAdmins > 0)
+      throw new BossRegisterError(`@${username} gère déjà des canaux : crée un nouveau bot dans @BotFather pour le Boss.`);
+  }
+  const webhookSecret = existing?.webhookSecret ?? randomToken(32);
+  const data = {
+    name: me.first_name,
+    username,
+    tokenEncrypted: encrypt(trimmed),
+    vertical: "CASINO" as const,
+    mode: "STANDARD" as const,
+    personaId: null,
+    role: "ADMIN" as const,
+    isActive: true,
+    lastError: null,
+  };
+  const bot = await prisma.bot.upsert({
+    where: { telegramBotId: BigInt(me.id) },
+    create: { telegramBotId: BigInt(me.id), webhookSecret, ...data },
+    update: data,
+  });
+  // Un seul Boss à la fois : l'ancien est désactivé (il ne reçoit plus rien ; réactivable dans Réglages → Bots).
+  const others = await prisma.bot.findMany({
+    where: { role: "ADMIN", isActive: true, id: { not: bot.id } },
+    select: { id: true, username: true },
+  });
+  if (others.length > 0) {
+    await prisma.bot.updateMany({ where: { id: { in: others.map((o) => o.id) } }, data: { isActive: false } });
+    for (const o of others) evictBot(o.id);
+  }
+  evictBot(bot.id);
+  forgetAdminDialogBot();
+  await setWebhookForBot(bot.id);
+  await audit({
+    userId: opts.userId ?? null,
+    action: "boss.registered",
+    entityType: "Bot",
+    entityId: bot.id,
+    metadata: { username, via: opts.via ?? "SITE", created: !existing, replaced: others.map((o) => o.username) },
+  });
+  const reasked = await reaskPendingHumanRequest().catch((err: unknown) => {
+    console.warn("[boss] question en cours non reposée", (err as Error).message);
+    return false;
+  });
+  return { botId: bot.id, username, name: me.first_name, created: !existing, replaced: others.map((o) => o.username), reasked };
+}
+
+/**
+ * À la bascule vers un nouveau Boss : la question en cours (`HumanRequest` PENDING) est reposée une fois par lui (le
+ * messager suit `adminBot()`), son nouveau message s'ajoute à ceux qui valent « réponse ». Rend `true` si reposée.
+ */
+export async function reaskPendingHumanRequest(): Promise<boolean> {
+  const { confirmButtonsOf, currentHumanRequest, formatQuestion, withAskedMessageId } = await import("@linkaffipro/agents");
+  const { createAdminMessenger } = await import("./agents/admin-messenger");
+  const req = await currentHumanRequest({ prisma: prisma as never });
+  if (!req) return false;
+  const sent = await createAdminMessenger().send(formatQuestion(req), { buttons: confirmButtonsOf(req) });
+  if (!sent) return false;
+  await prisma.humanRequest.update({ where: { id: req.id }, data: withAskedMessageId(req, sent.messageId) });
+  return true;
 }
 
 /** Repose les webhooks de tous les bots actifs. */

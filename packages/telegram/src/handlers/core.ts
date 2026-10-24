@@ -1,7 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { Update } from "grammy/types";
 import { pickLang, t } from "../i18n";
-import { extractAdminRights, isAssistantBot, type BotIdentity, type TelegramDeps } from "../ports";
+import { extractAdminRights, isAssistantBot, isBossBot, type BotIdentity, type TelegramDeps } from "../ports";
 import { redactAssistantUpdate } from "../assistant/logic";
 import {
   ensureChannelKnown,
@@ -13,7 +13,8 @@ import {
 } from "./channels";
 import { registerCustomEmojiHandlers } from "./custom-emoji";
 import { RecentKeys, registerForwardHandlers } from "./forward";
-import { registerAgentsAdminHandlers } from "./agents-admin";
+import { registerAdminDialogFallback, registerAgentsAdminHandlers } from "./agents-admin";
+import { registerBossGroupHandlers } from "./boss-group";
 import { registerMediaInboxHandlers } from "./media-inbox";
 import { redactAdminSecretUpdate } from "../agents/redact";
 
@@ -81,6 +82,8 @@ export function registerCoreHandlers(
     assistant?: (bot: Bot) => void;
   } = {},
 ): void {
+  // Phase 26 : le Boss a son propre jeu de handlers (dialogue admin seulement, silence pour tout le reste).
+  if (isBossBot(identity)) return registerBossCore(bot, identity, deps);
   const assistantMode = isAssistantBot(identity);
   // Journalisation de toute update reçue (append-only) et connaissance du canal :
   // toute mise à jour venant d'un canal inconnu (channel_post, chat_join_request, chat_member, réactions, my_chat_member…)
@@ -156,9 +159,9 @@ function registerStandardHandlers(
   // Handlers spécialisés (adhésion, offres, réactions) : ils doivent passer avant le /start générique.
   beforeStart?.(bot);
 
-  bot.command("start", async (ctx: Context) => {
+  bot.command("start", async (ctx: Context, next) => {
     const from = ctx.from;
-    if (!from || ctx.chat?.type !== "private") return;
+    if (!from || ctx.chat?.type !== "private") return next();
     const payload = typeof ctx.match === "string" && ctx.match.length > 0 ? ctx.match : undefined;
     // Charges utiles réservées aux handlers spécialisés (déjà traitées en amont si implémentées).
     if (payload && /^[go][A-Za-z0-9_-]/.test(payload) && !payload.startsWith("admin_")) return;
@@ -175,6 +178,30 @@ function registerStandardHandlers(
 
     await deps.memberStarted(identity, from, payload);
     await ctx.reply(t(lang, "welcome", { botName: identity.name, vertical: identity.vertical }));
+  });
+
+  // Phase 26 : dernier filet du dialogue admin (un message de l'admin au bot du dialogue n'est jamais sans réponse).
+  registerAdminDialogFallback(bot, identity, deps);
+}
+
+/**
+ * Phase 26 : le Boss (`role: ADMIN`). Journal de toute update (secrets masqués), mais ni canal créé ou suivi, ni membre
+ * enregistré. Groupes : point d'accroche du mode équipe (`handlers/boss-group.ts`). Privé : dialogue admin seulement
+ * (boutons, vocaux, textes, médiathèque, dernier filet) ; toute autre personne, `/start` compris : silence total.
+ */
+function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
+  bot.use(async (ctx, next) => {
+    const type = updateTypeOf(ctx.update);
+    const logged = await redactAdminSecretUpdate(ctx.update, deps);
+    await deps.recordUpdate(identity, type, logged, {});
+    await next();
+  });
+  registerBossGroupHandlers(bot, identity, deps);
+  registerAgentsAdminHandlers(bot, identity, deps);
+  registerMediaInboxHandlers(bot, identity, deps);
+  registerAdminDialogFallback(bot, identity, deps);
+  bot.catch((err) => {
+    console.error("[telegram] erreur handler (Boss)", identity.username, err.error);
   });
 }
 

@@ -307,6 +307,11 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Agent Ads : vos pubs à arrêter, augmenter ou tester"],
   },
   {
+    path: "/agents/boss",
+    label: "Kevin",
+    sections: [intro("Kevin"), "Parler à Kevin", "Ce que Kevin fait tout de suite et ce qu'il confirme", "Kevin dans le groupe de l'équipe", "Où voir ce que Kevin a fait et combien il coûte"],
+  },
+  {
     path: "/agents/validations",
     label: "Validations des agents",
     sections: ["Validations et demandes"],

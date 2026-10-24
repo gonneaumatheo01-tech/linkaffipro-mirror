@@ -248,3 +248,55 @@ export { createBotAgentsDeps } from "./agents/deps";
 export { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } from "./agents/redact";
 export { registerAgentsAdminHandlers, ADMIN_VOICE_MAX_BYTES } from "./handlers/agents-admin";
 export { registerMediaInboxHandlers, inboxMediaOf, BOT_DOWNLOAD_MAX_BYTES } from "./handlers/media-inbox";
+// Phase 26 : le Boss (bot du dialogue admin) — choix du bot, filtres partagés, réception, réponse, enregistrement,
+// santé et réparation des connexions Telegram, diagnostic.
+export { CHANNEL_BOT_WHERE, ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db";
+export { adminBot, ADMIN_BOT_WHERE, ADMIN_BOT_ORDER, BOSS_BOT_WHERE, BOSS_BOT_ORDER } from "./admin-bot";
+export type { AdminBotChoice, AdminBotDb } from "./admin-bot";
+export { isBossBot } from "./ports";
+export type { AdminDialogBot, BotRoleName } from "./ports";
+export { realBossEngine } from "./boss/engine";
+export type { BossEngine, BossCallbackInput, BossCallbackResult } from "./boss/engine";
+export {
+  deliverBossReply,
+  sendBossText,
+  bossKeyboard,
+  BOSS_QUEUE_DOWN_REPLY,
+  BOSS_ERROR_REPLY,
+  BOSS_EMPTY_REPLY,
+  BOSS_OTHER_MESSAGE_REPLY,
+} from "./boss/reply";
+export type { BossReplyApi, DeliverBossReplyInput } from "./boss/reply";
+export { adminRouteFor, bossRedirectText, bossWelcomeText, bossNameOf, commandAsText, registerAdminDialogFallback } from "./handlers/agents-admin";
+export type { AdminRoute } from "./handlers/agents-admin";
+export { handleBossGroupUpdate, isBossGroupChat } from "./handlers/boss-group";
+export {
+  registerBossFromToken,
+  reaskPendingHumanRequest,
+  bossRegisteredText,
+  BossRegisterError,
+  BOT_TOKEN_PATTERN,
+} from "./service";
+export type { RegisterBossResult } from "./service";
+export { installBossRegisterPort } from "./agents/deps";
+export { forgetAdminDialogBot, BOSS_REDIRECTED_PREFIX } from "./prisma-deps";
+export {
+  webhookProblems,
+  webhookProblemText,
+  webhookTargetRefusal,
+  webhookRepairRefusal,
+  isForbiddenError,
+  isGhostBotUsername,
+  WEBHOOK_FORBIDDEN_RECENT_MS,
+} from "./webhook-health";
+export type { WebhookInfoLike, WebhookProblem } from "./webhook-health";
+export {
+  runWebhookRepair,
+  runWebhookRepairWithDb,
+  parseWebhookCheck,
+  WEBHOOK_CHECK_SETTING,
+  WEBHOOK_REPAIRED_EVENT,
+} from "./webhook-repair";
+export type { WebhookCheck, WebhookBotCheck, WebhookRepairDeps } from "./webhook-repair";
+export { diagLines, formatDiag, BOSS_QUEUE_LATE_MS } from "./diag";
+export type { DiagSnapshot, DiagLine, DiagBot, DiagQueue } from "./diag";

@@ -36,7 +36,8 @@ export type AlertKind =
   | "ads_spend_spike"
   | "ads_conversion_drop"
   | "ads_cost_over_threshold"
-  | "ads_budget_exhausted";
+  | "ads_budget_exhausted"
+  | "webhook_repaired";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -831,6 +832,7 @@ export function shouldCreate(
  * rouverte en silence au lieu d'une nouvelle alerte notifiée : une notification Telegram par 24 h au plus.
  */
 export const REOPEN_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
+  "webhook_repaired",
   "gate_links_missing",
   "custom_emoji_refused",
   "linkaffi_events_stuck",
@@ -855,6 +857,25 @@ export function alertToReopen(
     if (!best || a.createdAt.getTime() > best.createdAt.getTime()) best = a;
   }
   return best?.id ?? null;
+}
+
+/** Phase 26 : au-delà de 2 réparations en 24 h, la connexion Telegram d'un bot est cassée par quelque chose. */
+export const WEBHOOK_REPAIRS_ALERT_THRESHOLD = 2;
+
+/**
+ * Connexion Telegram (webhook) d'un bot reposée automatiquement plus de 2 fois en 24 h (`telegram.webhook_repaired`) :
+ * quelque chose la casse de façon répétée (script lancé depuis une autre base, autre service qui utilise le même jeton).
+ */
+export function detectWebhookRepaired(rows: Array<{ botUsername: string; repairs: number }>): Detected | null {
+  const bad = rows.filter((r) => r.repairs > WEBHOOK_REPAIRS_ALERT_THRESHOLD);
+  if (bad.length === 0) return null;
+  const list = bad.map((r) => `@${r.botUsername} (${r.repairs} fois)`).join(", ");
+  return {
+    kind: "webhook_repaired",
+    severity: "WARNING",
+    message: `La connexion Telegram de ${list} a dû être réparée plusieurs fois en 24 h : un autre programme la modifie (script lancé depuis un autre ordinateur, ou même bot utilisé ailleurs). Les messages ont pu être perdus entre deux réparations.`,
+    payload: { bots: bad },
+  };
 }
 
 /** Formate l'alerte pour Telegram (HTML) : titre en français (`alertKindLabel`), jamais le code technique. */
