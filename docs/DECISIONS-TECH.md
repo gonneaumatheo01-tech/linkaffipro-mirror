@@ -792,3 +792,21 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - Pas de double exécution : un tour BOSS « running » est écrit avant l'action. Un message déjà traité (même `telegramMessageId`) rend une réponse vide.
 - Une demande SECRET de clé `.login` n'est toujours acceptée qu'en réponse au message de la question. La règle n'a pas changé, pour que le masquage du journal reste sûr.
 - Les alertes 80 / 100 % du plafond de Kevin utilisent les drapeaux `alerted80` / `alerted100` d'`AgentUsage` (équipe `boss`), comme les plafonds des équipes. Un jeton de bot Telegram (`123456:AAE…`) est toujours traité comme un secret.
+
+## Phase 26 — chantier A (réception, choix des bots, diagnostic)
+- **Pose d'un webhook depuis une base locale vers une adresse publique refusée** (sauf `ALLOW_REMOTE_WEBHOOK=1`) : un
+  `pnpm telegram:webhooks` lancé sur le Mac referait la panne du 21 octobre. La réparation automatique (`maintenance`
+  `webhook-repair`, 10 min) ne tourne qu'en production (adresse https publique et base distante) ; dernier contrôle dans
+  `Setting telegram.webhookCheck`, événement `telegram.webhook_repaired`, alerte `webhook_repaired` au-delà de 2
+  réparations en 24 h. Un test de garde refuse toute pose de webhook hors `setWebhookForBot`.
+- **Filtres des bots** `CHANNEL_BOT_WHERE` / `ACTIVE_CHANNEL_BOT_WHERE` dans le sous-chemin `@linkaffipro/db/bot-selectors`
+  (les nombreux tests qui simulent `@linkaffipro/db` ne cassent pas) ; test de garde avec liste blanche par fichier.
+- **`adminBot()`** = le bot `role: ADMIN` actif, sinon l'ancien repli ; tous les envois vers l'admin passent par lui.
+  Un seul Boss : en enregistrer un nouveau désactive l'ancien et repose la question en cours. Jeton refusé pour le Boss
+  si le bot gère déjà des canaux ou est un assistant ; le jeton du Boss est refusé comme bot de canal.
+- **Bots de canal quand un Boss existe** : pour l'admin, transferts de canal, liens de canal, `/start g…` / `o…` et
+  emojis animés restent traités ; seuls les ordres sont renvoyés vers Kevin, une fois par bot et par Boss
+  (`Setting boss.redirected.<botId>`).
+- **File `agents-orchestrator`** (une tâche à la fois) : `boss-text` et `admin-voice` y restent. Les cycles du Grand
+  Chef ne font que répartir le travail (quelques secondes) ; un retard serait visible dans `pnpm tg:diag` et l'État du
+  système (« Kevin ne répond plus » au-delà de 2 minutes d'attente). À revoir seulement si cela se produit.
