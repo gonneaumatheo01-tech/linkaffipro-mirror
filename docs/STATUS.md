@@ -29,6 +29,9 @@ Phases 0 à 26 en ligne. Phase 26 (`docs/prompts/28-phase-26-boss-telegram.md`) 
 - Sauvegarde de la production avant déploiement ; site (2 migrations appliquées) puis service d'arrière-plan ; santé OK (base 17 ms, worker à l'heure) ; webhooks reposés ; `pnpm tg:diag` en production : identifiant admin, dialogue branché, connexion Telegram correcte pour tous les bots (0 message en attente), files et service d'arrière-plan en vie. Captures de la page Kevin et de Réglages → Bots ; contrôle d'accessibilité sans violation (base de démonstration locale).
 - Next.js signale toujours une faille de sécurité connue dans la version 16.4.0 : la mise à jour reste à faire (pas lancée sans votre accord).
 
+## Premier essai réel (24 octobre, 19 h)
+Le client a créé Kevin (@kevcanauxbot) en envoyant `jeton boss …` : jeton effacé et masqué dans le journal, Kevin enregistré, `pnpm tg:diag` vert sur Kevin. À « ca va », Kevin a donné l'état des agents ; à « ça va », il a répondu « Je ne sais pas encore faire ça » : les phrases de politesse (« salut », « ça va », « merci ») ont maintenant une réponse simple, fixe et gratuite (redéployé à 19 h 17).
+
 ## Relecture adverse (compte-rendu)
 Trois relecteurs indépendants (autorisation ; secrets, injection et coût ; non-régression des phases 0 à 25) : une trentaine de défauts confirmés, tous corrigés avec un test. Les plus importants : un mot de passe court pouvait partir à l'IA ; la demande d'un membre pouvait remplacer la confirmation de l'admin ; un membre pouvait, dans un cas précis, agir avec les droits de l'admin ; un responsable pouvait répondre aux questions réservées à l'admin ; Kevin aurait déclenché une fausse alerte « bot silencieux » ; les emojis animés de l'admin n'étaient plus rangés ; le build du worker était cassé. Détail dans `docs/DECISIONS-TECH.md` (« Phase 26 — relecture adverse »).
 

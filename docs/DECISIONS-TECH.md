@@ -867,3 +867,5 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
   renforcé couvre les cas) ; le privé d'un membre partage `chatId = null` avec celui de l'admin pour le contexte de
   secret (effet : un texte peut être traité comme secret et effacé, jamais l'inverse) ; l'ancien chemin
   `legacyAdminText` (tests de la phase 19 seulement) n'affiche pas les boutons de confirmation.
+- **Politesse** (après le premier échange réel) : « salut », « ça va », « merci »… reçoivent une réponse fixe dans le
+  chemin rapide (`smallTalkReply`, jamais l'IA) ; une phrase qui contient une demande n'est pas de la politesse.
