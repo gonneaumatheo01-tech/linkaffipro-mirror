@@ -433,7 +433,8 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     const fallbacks = await prisma.event.findMany({ where: { type: "agents.dating.fallback", occurredAt: { gte: start } } });
     expect(fallbacks.map((e) => (e.payload as { from: string; to: string }).from)).toContain("video");
     expect(dating.map((m) => (m.payload as { format?: string }).format).sort()).toEqual(["photo", "photo", "text"]);
-    expect(await prisma.agentUsage.aggregate({ where: { teamKey: "dating", provider: "video" }, _sum: { cents: true } })).toMatchObject({ _sum: { cents: 0 } });
+    // Aucun centime dépensé au-delà du plafond (aucune vidéo lancée).
+    expect((await prisma.agentUsage.aggregate({ where: { teamKey: "dating", provider: "video" }, _sum: { cents: true } }))._sum.cents ?? 0).toBe(0);
     // Fenêtre d'origine remise : la Planification peut reprendre dès 10 h.
     expect(dating.some((m) => parisMinutes(m.scheduledFor!) < 18 * 60)).toBe(true);
     await sendScheduled();

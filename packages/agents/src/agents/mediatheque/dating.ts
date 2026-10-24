@@ -22,7 +22,8 @@ async function plannedToday(ctx: AgentContext, mission: Mission): Promise<MediaF
       channelId: mission.channelId,
       id: { not: mission.id },
       status: { notIn: ["CANCELLED", "FAILED"] },
-      createdAt: { gte: parisDayStart(parisDay(ctx.now())) },
+      // Jour du plan (comme le Casino) ; une mission créée à la main n'en a pas : sa date de création compte.
+      OR: [{ planDay: parisDay(ctx.now()) }, { planDay: null, createdAt: { gte: parisDayStart(parisDay(ctx.now())) } }],
     },
     select: { payload: true },
   });

@@ -171,7 +171,10 @@ describe("dialogue admin (Telegram)", () => {
     await bot.handleUpdate(textUpdate(ADMIN, "pause dating"));
     expect(sent().at(-1)).toBe("Équipe Dating en pause ⏸");
     await bot.handleUpdate(textUpdate(ADMIN, "agents"));
-    expect(sent().at(-1)!.split("\n")).toHaveLength(6);
+    // Résumé de supervision (phase 25) : 8 lignes, une par équipe, Ads, Algorithme, santé.
+    const lines = sent().at(-1)!.split("\n");
+    expect(lines).toHaveLength(8);
+    expect(lines.at(-1)).toMatch(/^Santé : /);
     await bot.handleUpdate(textUpdate(ADMIN, "vrai casino"));
     expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Casino en vrai ?");
     await bot.handleUpdate(textUpdate(ADMIN, "OUI"));
