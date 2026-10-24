@@ -7,6 +7,14 @@ export async function resetDb(): Promise<void> {
   if (!/linkaffipro_test/.test(process.env.DATABASE_URL ?? ""))
     throw new Error("resetDb refuse de tourner hors de la base de test");
   await prisma.$transaction([
+    // Tables des agents (phases 19-23) : la base de test est partagée avec le worker, dont les tests laissent des
+    // questions en attente qui capteraient ensuite les messages de l'admin (« Réponds oui ou non »).
+    prisma.humanRequest.deleteMany(),
+    prisma.agentValidation.deleteMany(),
+    prisma.agentRun.deleteMany(),
+    prisma.bettingPick.deleteMany(),
+    prisma.agentMission.deleteMany(),
+    prisma.setting.deleteMany({ where: { key: { startsWith: "agents." } } }),
     prisma.postbackLog.deleteMany(),
     prisma.playerEvent.deleteMany(),
     prisma.player.deleteMany(),

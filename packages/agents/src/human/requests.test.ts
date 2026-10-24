@@ -141,3 +141,14 @@ describe("demandes au client", () => {
     expect(kit.tables("setting").find((s) => s.key === "agents.dailyReport")?.value).toBe(true);
   });
 });
+
+describe("message de l'admin qui n'est pas une réponse", () => {
+  it("question fermée en cours : « fait » ou un texte quelconque continue son chemin, sans « Réponds oui ou non »", async () => {
+    const kit = createTestKit();
+    await askHuman(kit.deps, { kind: "CONFIRM", key: "test.confirm", question: "On y va ?" });
+    expect(await handleAdminText(kit.deps, { text: "fait", messageId: 900 })).toEqual({ handled: false });
+    expect(await handleAdminText(kit.deps, { text: "voici des emojis 🎉", messageId: 901 })).toEqual({ handled: false });
+    const yes = await handleAdminText(kit.deps, { text: "oui", messageId: 902 });
+    expect(yes.handled).toBe(true);
+  });
+});

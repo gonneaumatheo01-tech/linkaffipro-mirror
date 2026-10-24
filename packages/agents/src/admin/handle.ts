@@ -8,7 +8,7 @@ import { decideValidation } from "../validation/requests";
 import { askHuman, currentHumanRequest, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
 import { bookmakerPasswordSecretKey, bookmakerSecretKey, saveSecret, secretLabel, verifySecret } from "../human/secrets";
-import { normalizeText } from "../human/answer";
+import { interpretAnswer, normalizeText } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
 import { esc, nowOf, telegramActorUserId } from "./journal";
 import { setTeamBudget } from "./budget";
@@ -218,8 +218,20 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   const cmd = parseAdminCommand(text);
   if (cmd) return runCommand(deps, cmd, actor, voice);
 
-  // 4. Réponse à la question en cours.
+  // 4. Réponse à la question en cours. Sans « répondre » au message de la question, un texte qui n'est pas une réponse
+  // valable à une question fermée (choix, oui / non, médias) continue son chemin : « fait », des emojis animés à
+  // ranger… ne doivent pas recevoir « Réponds oui ou non ».
   const current = (await currentHumanRequest(deps)) as HumanRequestRow | null;
-  if (current) return answerRequest(deps, current, text, actor, voice);
+  if (current) {
+    if (current.kind === "MEDIA") return { handled: false };
+    if (current.kind === "CHOICE" || current.kind === "CONFIRM") {
+      const options = Array.isArray(current.options) ? (current.options as unknown[]).map(String) : [];
+      // Un chiffre hors liste reste une tentative de réponse (on la signale) ; le reste continue son chemin.
+      const attempt = /^\s*\d{1,4}\s*[).€]?\s*$/.test(text);
+      if (!attempt && interpretAnswer({ kind: current.kind, key: current.key, options }, text).type === "invalid")
+        return { handled: false };
+    }
+    return answerRequest(deps, current, text, actor, voice);
+  }
   return { handled: false };
 }

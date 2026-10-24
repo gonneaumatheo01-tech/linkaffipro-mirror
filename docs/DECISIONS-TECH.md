@@ -628,3 +628,9 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   (gagnés + perdus), annulés remboursés. L'écart de cote et le délai avant match les plus stricts (équipe / catégorie)
   l'emportent. Le contrôle exige une validation pour une image de repli et aussi quand la capture le demande
   (`payload.capture.mustValidate`).
+- **Correctif (phase 23, présent depuis la phase 19)** : avec une question fermée en attente (choix, oui / non,
+  médias), un message de l'admin qui n'y répond pas directement (« fait », un texte avec des emojis animés à ranger…)
+  recevait « Réponds oui ou non ». Désormais, sans « répondre » au message de la question, seul un texte qui ressemble
+  à une réponse (un chiffre, oui / non, une option) est pris comme réponse ; le reste continue vers les autres
+  traitements. Les tests d'intégration du site vident aussi les tables des agents (base de test partagée avec le
+  worker).
