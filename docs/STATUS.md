@@ -1,3 +1,54 @@
+# État du projet : phases 19 à 25 (agents IA) terminées (24 octobre 2026)
+
+Phases 0 à 25 en ligne. La phase 25 clôt la chaîne des agents IA (`docs/prompts/27-phase-25-agents-supervision.md`) : supervision en un écran, conversation Casino et Paris sportifs, scénario complet sur 3 jours simulés, relecture adverse de tout ce qui a été construit depuis la phase 19, documentation et bilan. **Toutes les équipes restent en simulation** (tout part sur le canal Test) tant que vous ne les passez pas « en vrai ».
+
+## Ce qui existe maintenant (phases 19 à 25)
+- **Grand Chef et Chefs** (phase 19) : plan du jour, missions reprenables, budgets mensuels, niveaux d'autonomie 0 / 1 / 2, pause par équipe et pause générale, validation et questions par le bot (une question à la fois), simulation par défaut.
+- **Rencontres** (phase 20) : vidéos et photos fabriquées pour chaque persona (fal.ai, Magic Hour en secours), médiathèque, contrôle des images, premières productions toujours soumises à vous.
+- **Algorithme** (phase 21) : lit les résultats, propose ou applique des réglages (horaires, mélange, relances), tests A/B, rapports ; ne publie rien.
+- **Casino** (phase 22) : publie seulement vos médias, classés par thème, rotation sur 30 jours, demande groupée quand le stock baisse.
+- **Paris sportifs** (phase 23) : choisit les paris par une méthode chiffrée, capture la cote chez le bookmaker (jamais de mise), publie, note les résultats et tient le bilan.
+- **Agent Ads** (phase 24) : conseille (Arrêter, Augmenter, Tester, Surveiller) avec preuves ; n'agit jamais chez Meta ou TikTok.
+- **Supervision** (phase 25) : page Agents (état de chaque équipe, missions du jour, dépense et projection de fin de mois, résultats des posts sur 7 et 28 jours, réglages de la semaine avec Annuler, tests A/B, alertes, rapports, Pause générale) ; carte Agents dans l'État du système (files, Grand Chef, missions bloquées à relancer, fournisseurs) ; commandes du bot `agents`, `rapport`, `demandes`, `vrai <équipe>` et `niveau <équipe> <n>` (résumé puis OUI) ; `pnpm agents:status`.
+- **Conversation Casino / Paris** (phase 25) : même assistante que Rencontres, univers par persona, identité « assistante » imposée (jamais « fille » ni illusion), fiche d'informations (40 questions au plus, import CSV) seule source des chiffres, lien VIP jamais au premier message, passage à l'équipe (question hors fiche, réclamation, argent, mineur, insulte) avec « À traiter » dans la boîte de réception et alerte groupée. Désactivée par défaut ; il faut un bot dédié par univers.
+
+## Test de 5 minutes
+1. Site → **Agents** : les 4 équipes et l'Agent Ads apparaissent, « simulation » partout.
+2. Sur Telegram, écrivez **agents** au bot : le même résumé arrive en quelques lignes.
+3. Agents → Rencontres (ou Casino) → « Produire un post de test » → validez par ✅ : le post arrive sur le canal **Test** avec « [SIMULATION …] » en tête.
+
+## Vérifications faites
+- 5 807 tests unitaires et 570 tests d'intégration (base réelle) réussis. Scénario complet sur 3 jours simulés (Rencontres, Casino, Paris, Algorithme avec réglage appliqué puis annulé, Ads, validations par Telegram et par le site, pause en cours de mission, redémarrage au milieu d'une chaîne sans double publication, plafond atteint, rapports) : aucun post hors canal Test en simulation (vérifié sur tous les posts créés).
+- Lint, typage, build verts ; contrôle d'accessibilité de toutes les pages : aucune violation ; captures de référence refaites.
+- Sauvegarde de la production avant déploiement ; site (3 migrations appliquées) puis service d'arrière-plan ; santé OK (base 18 ms, worker à l'heure) ; `pnpm agents:status` en production : 4 équipes actives en simulation, aucune mission bloquée, aucune erreur fournisseur.
+
+## Relecture adverse (compte-rendu)
+Six dimensions relues (règles du client, robustesse, données personnelles, chiffres, interface, non-régression des phases 0 à 18). Environ 45 défauts confirmés, tous corrigés avec un test. Principaux :
+- **Dialogue admin** : actions sensibles (clés, passage en vrai, niveau 2, plafonds, seuils) réservées aux ADMIN ; une réponse à un autre message ne touche plus la question en cours ; seul un « oui » exact confirme ; une clé n'est prise qu'en réponse ou si elle ressemble à une clé, message supprimé seulement une fois enregistrée ; jamais deux exécutions d'une même réponse ; une seule question en cours garantie par la base.
+- **Coûts des médias** : une vidéo n'est jamais payée deux fois (reprise après plantage, dépassement de délai, annulation chez le fournisseur) ; coût d'une photo compté une seule fois.
+- **Paris sportifs** : cote du texte = cote réellement lue ; un pari trop proche du coup d'envoi est annulé à l'envoi ; garde « jamais de mise » renforcée ; clé absente ou plafond atteint = pari écarté sans mettre l'équipe en pause.
+- **Pause** : un post d'agent déjà programmé est retenu tant que l'équipe est en pause, et annulé s'il visait un vrai canal alors que l'équipe est en simulation.
+- **Chiffres et rapports** : contrôle « aucun chiffre inventé » durci ; libellés de l'Agent Ads alignés sur Statistiques seulement quand la valeur est la même.
+- **Données personnelles** : anonymisation renforcée des extraits relus par l'IA ; suppression d'un membre et purge nocturne effacent aussi les messages des comptes réels.
+- **Interface** : libellés « À traiter », « Rencontres » partout, accessibilité (lien souligné, cases nommées, zones de texte lisibles au clavier).
+
+## Reste / limites connues
+- Rien n'a été essayé avec les vraies clés (fal.ai, Magic Hour, cotes, Anthropic des agents) ni le vrai site Sportaza : il faut vos clés et votre compte. Les identifiants des marchés de football et les repères du site Sportaza seront à confirmer au premier essai (réglables sans redéploiement).
+- Mémoire du navigateur de captures en production à surveiller (sinon : service séparé).
+- L'index « une seule question en cours » est posé par une migration écrite à la main (hors schéma Prisma) : à garder si une future migration le propose à la suppression.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour à faire dans une phase de solidité.
+- 14 demandes du bot attendent vos réponses (questions de mise en route des équipes).
+
+## Suites possibles (non lancées, à décider par vous)
+- Passer une première équipe en vrai (Casino est la plus simple : vos médias suffisent).
+- Phase de solidité : mise à jour de Next.js, service séparé pour les captures.
+- Brancher Meta / TikTok pour que l'Agent Ads ait des dépenses à analyser.
+
+## Actions humaines
+Liste complète et ordonnée en tête de `docs/A-FAIRE-HUMAIN.md` (« Mettre les agents en route »). Les 3 premières : (1) répondre aux questions du bot sur Telegram (`demandes`) ; (2) envoyer au bot la clé fal.ai pour Rencontres et quelques médias #casino ; (3) quand une équipe vous plaît en simulation, écrire `vrai <équipe>` puis OUI.
+
+---
+
 # État du projet : phase 24 (agents IA : Agent Ads) terminée (24 octobre 2026)
 
 Phases 0 à 23 en ligne. Phase 24 = un agent rattaché au Grand Chef qui lit chaque jour ce que coûtent les pubs (Meta, TikTok, coûts importés ou saisis) et ce qu'elles rapportent vraiment dans la plateforme (membres, inscriptions, dépôts, commissions), puis conseille quoi faire, chiffres à l'appui (`docs/prompts/26-phase-24-agents-ads.md`). **Il recommande, il n'agit jamais** chez Meta ou TikTok.

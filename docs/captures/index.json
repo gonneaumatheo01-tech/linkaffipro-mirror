@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-24T02:26:07.073Z",
+  "updatedAt": "2026-10-24T06:40:03.904Z",
   "entries": [
     {
       "route": "/",
@@ -615,7 +615,7 @@
         "1440": "conversations-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-18T20:13:24.393Z"
+      "capturedAt": "2026-10-24T06:39:07.666Z"
     },
     {
       "route": "/conversations/[id]",
@@ -675,7 +675,7 @@
         "1440": "conversations-personas-c2ygtw2hit56bzwgkwqb8hmp2-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-23T17:38:00.791Z"
+      "capturedAt": "2026-10-24T06:39:16.488Z"
     },
     {
       "route": "/conversations/personas/new",
@@ -1050,7 +1050,7 @@
         "1440": "settings-status-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:22:22.610Z"
+      "capturedAt": "2026-10-24T06:38:51.793Z"
     },
     {
       "route": "/settings/tags",
@@ -1140,7 +1140,7 @@
         "1440": "agents-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-23T15:58:26.571Z"
+      "capturedAt": "2026-10-24T06:38:36.966Z"
     },
     {
       "route": "/agents/ads",
@@ -1155,7 +1155,7 @@
         "1440": "agents-ads-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-24T02:25:46.745Z"
+      "capturedAt": "2026-10-24T06:39:42.530Z"
     },
     {
       "route": "/agents/algo",

@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-24 02:26 UTC.
+Dernière mise à jour : 2026-10-24 06:40 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
