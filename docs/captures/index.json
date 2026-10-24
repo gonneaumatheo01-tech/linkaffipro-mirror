@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-23T20:37:41.027Z",
+  "updatedAt": "2026-10-24T00:09:13.089Z",
   "entries": [
     {
       "route": "/",
@@ -1216,6 +1216,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T17:38:09.171Z"
+    },
+    {
+      "route": "/agents/sports",
+      "path": "/agents/sports",
+      "title": "Équipe Paris sportifs",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": "déborde à droite à 390 px (contenu de 454 px de large)",
+      "files": {
+        "390": "agents-sports-390.webp",
+        "1440": "agents-sports-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-24T00:08:54.556Z"
     },
     {
       "route": "/agents/validations",
