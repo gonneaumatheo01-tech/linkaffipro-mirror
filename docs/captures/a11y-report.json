@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-24T00:09:26.679Z",
-  "base": "http://localhost:3123",
+  "generatedAt": "2026-10-24T02:26:19.244Z",
+  "base": "http://localhost:3124",
   "width": 1440,
   "tags": [
     "wcag2a",
@@ -15,8 +15,8 @@
   },
   "pages": [
     {
-      "route": "/agents/sports",
-      "path": "/agents/sports",
+      "route": "/agents/ads",
+      "path": "/agents/ads",
       "status": "ok",
       "httpStatus": 200,
       "note": null,

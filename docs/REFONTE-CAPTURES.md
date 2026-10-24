@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-24 00:09 UTC.
+Dernière mise à jour : 2026-10-24 02:26 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -84,6 +84,7 @@ Dernière mise à jour : 2026-10-24 00:09 UTC.
 | Mon compte | `/account` | <a href="captures/account-1440.webp"><img src="captures/account-1440.webp" alt="Mon compte, 1440 px" width="360"></a> | <a href="captures/account-390.webp"><img src="captures/account-390.webp" alt="Mon compte, 390 px" width="120"></a> |
 | Guide de style | `/styleguide` | <a href="captures/styleguide-1440.webp"><img src="captures/styleguide-1440.webp" alt="Guide de style, 1440 px" width="360"></a> | <a href="captures/styleguide-390.webp"><img src="captures/styleguide-390.webp" alt="Guide de style, 390 px" width="120"></a> |
 | Agents | `/agents` | <a href="captures/agents-1440.webp"><img src="captures/agents-1440.webp" alt="Agents, 1440 px" width="360"></a> | <a href="captures/agents-390.webp"><img src="captures/agents-390.webp" alt="Agents, 390 px" width="120"></a> |
+| Agent Ads | `/agents/ads` | <a href="captures/agents-ads-1440.webp"><img src="captures/agents-ads-1440.webp" alt="Agent Ads, 1440 px" width="360"></a> | <a href="captures/agents-ads-390.webp"><img src="captures/agents-ads-390.webp" alt="Agent Ads, 390 px" width="120"></a> |
 | Ce qui marche | `/agents/algo` : déborde à droite à 1440 px (contenu de 2151 px de large) ; déborde à droite à 390 px (contenu de 878 px de large) | <a href="captures/agents-algo-1440.webp"><img src="captures/agents-algo-1440.webp" alt="Ce qui marche, 1440 px" width="360"></a> | <a href="captures/agents-algo-390.webp"><img src="captures/agents-algo-390.webp" alt="Ce qui marche, 390 px" width="120"></a> |
 | Équipe Casino | `/agents/casino` | <a href="captures/agents-casino-1440.webp"><img src="captures/agents-casino-1440.webp" alt="Équipe Casino, 1440 px" width="360"></a> | <a href="captures/agents-casino-390.webp"><img src="captures/agents-casino-390.webp" alt="Équipe Casino, 390 px" width="120"></a> |
 | Équipe Rencontres | `/agents/dating` | <a href="captures/agents-dating-1440.webp"><img src="captures/agents-dating-1440.webp" alt="Équipe Rencontres, 1440 px" width="360"></a> | <a href="captures/agents-dating-390.webp"><img src="captures/agents-dating-390.webp" alt="Équipe Rencontres, 390 px" width="120"></a> |

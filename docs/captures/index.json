@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-24T00:09:13.089Z",
+  "updatedAt": "2026-10-24T02:26:07.073Z",
   "entries": [
     {
       "route": "/",
@@ -825,7 +825,7 @@
         "1440": "settings-alerts-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-11T02:21:16.172Z"
+      "capturedAt": "2026-10-24T02:26:00.550Z"
     },
     {
       "route": "/settings/assistant",
@@ -1141,6 +1141,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T15:58:26.571Z"
+    },
+    {
+      "route": "/agents/ads",
+      "path": "/agents/ads",
+      "title": "Agent Ads",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-ads-390.webp",
+        "1440": "agents-ads-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-24T02:25:46.745Z"
     },
     {
       "route": "/agents/algo",
