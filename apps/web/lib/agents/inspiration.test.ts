@@ -271,3 +271,13 @@ describe("divers", () => {
     expect(safeId(null)).toBeNull();
   });
 });
+
+describe("noms des réglages écrits par Kevin", () => {
+  it("fenêtre horaire lisible", async () => {
+    const { inspirationFieldLabel, inspirationValueText } = await import("./inspiration");
+    expect(inspirationFieldLabel("window")).toBe("Fenêtre horaire des posts");
+    expect(inspirationValueText("window", { windowStart: "18:00", windowEnd: "22:30" })).toBe("18:00-22:30");
+    expect(inspirationFieldLabel("postsPerDay")).not.toMatch(/Réglage «/);
+    expect(inspirationFieldLabel("mix")).not.toMatch(/Réglage «/);
+  });
+});

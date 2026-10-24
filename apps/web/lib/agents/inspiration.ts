@@ -389,6 +389,8 @@ export function rawMeasureRows(m: RawMeasures): Array<{ label: string; value: st
 /** Réglages propres à l'inspiration, en plus de ceux de l'équipe Algorithme. */
 const INSPIRATION_FIELDS: Record<string, string> = {
   styleProfileId: "Profil de style pour la Rédaction",
+  // Noms écrits par Kevin (chantier C) : fenêtre `{ windowStart, windowEnd }` ; longueur et offre dans `styleNotes`.
+  window: "Fenêtre horaire des posts",
   targetLength: "Longueur visée des posts",
   postLength: "Longueur visée des posts",
   offerFrequency: "Fréquence des appels à l'offre",
@@ -413,6 +415,10 @@ export function inspirationValueText(
       const ver = profileVersions.get(v);
       return ver ? `profil de style v${ver}` : "un autre profil de style";
     }
+  }
+  if (field === "window" && v && typeof v === "object") {
+    const w = v as { windowStart?: unknown; windowEnd?: unknown };
+    if (typeof w.windowStart === "string" && typeof w.windowEnd === "string") return `${w.windowStart}-${w.windowEnd}`;
   }
   return valueText(field, v);
 }

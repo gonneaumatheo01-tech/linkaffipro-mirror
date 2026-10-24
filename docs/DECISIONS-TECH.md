@@ -869,3 +869,31 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
   `legacyAdminText` (tests de la phase 19 seulement) n'affiche pas les boutons de confirmation.
 - **Politesse** (après le premier échange réel) : « salut », « ça va », « merci »… reçoivent une réponse fixe dans le
   chemin rapide (`smallTalkReply`, jamais l'IA) ; une phrase qui contient une demande n'est pas de la politesse.
+
+## Phase 27 — canal d'inspiration (24 octobre 2026)
+- **Jamais de copie** : `packages/agents/src/inspiration/copy-check.ts` (suites de 8 mots hachées dans `ReferencePost.shingles`,
+  contrôle encore possible après l'effacement du texte à 30 jours) ; Contrôle qualité refuse 8 mots consécutifs d'une
+  référence liée au canal ; citations de 10 mots au plus ; aucun média téléchargé ; liens comptés, jamais suivis.
+- **Lecture** : aperçu public `t.me/s/<nom>` (1 requête / 3 s, 200 posts ou 90 jours, aucune redirection suivie) ;
+  verrou `Setting inspiration.readLock` (une lecture à la fois, repris après 15 min), 5 lectures par jour de Paris
+  (`inspiration.readsToday`) ; relecture quotidienne des références dont la date de relecture est passée (7 jours).
+  **Lecture par compte réel désactivée** : le service `apps/userbot` tient la session de chaque compte ; une seconde
+  connexion depuis le worker ferait révoquer la session (risque de bannissement). Sans transport par le userbot,
+  aucun compte n'est proposé et Kevin demande des posts transférés.
+- **Analyse** (code seulement) : posts par jour = posts ÷ jours couverts (chez nous fenêtre fixe de 28 jours) ;
+  régularité = écart-type / moyenne par jour ; heures de pointe = 3 tranches de 30 min ; quartiles par interpolation
+  linéaire ; corrélations (Pearson) à partir de 10 posts avec vues ; série pari → résultat = cote suivie d'un résultat
+  dans les 48 h ; seuils des écarts : 30 % et 0,5, 15 points pour une part, 0,3 pour une corrélation (`Setting
+  inspiration.thresholds`). Profil de style : 40 posts au plus (moitié les plus vus), IA de l'équipe Algorithme
+  (plafond et `AgentUsage`), contenu neutralisé, chiffres inventés → description écrite par le code, exemples qui
+  copient / promettent / parlent d'IA / contiennent un lien → retirés.
+- **Kevin** : choix numéroté gardé dans `Setting inspiration.choice` (24 h ; « 1 3 » sans confirmation pendant ce
+  délai, avec confirmation sinon) car une `HumanRequest` CHOICE n'accepte qu'un numéro ; posts transférés d'un canal
+  tiers rangés comme références (jamais envoyés à l'interprète), réponse groupée par lot (tâche
+  `inspiration-forward-ack`) ; propositions `Recommendation.source = "inspiration"` exclues des réglages de l'équipe
+  Algorithme ; champs `window`, `postsPerDay`, `mix` (deux pas de 10 points), `styleProfileId`, longueur et offre dans
+  `styleNotes` ; « avant / après » = `Experiment` `REGLAGE_PERSONA` jamais tirée par les missions ; bilan dans un
+  `InsightReport` `teamKey = "inspiration"` ; série pari → résultat non proposée (l'équipe Paris ne publie pas de post
+  de résultat) → `BossUnmet`. Membres présentés : `analyser_canal` et `voir_inspiration` permis (aucun réglage touché).
+- **Site** : fonctions des chantiers chargées à la demande (`lib/agents/inspiration-engine.ts`), repli sur les chiffres
+  bruts ; « Annuler » / « Retirer » ADMIN avec AuditLog ; aucun texte de post lu affiché.
