@@ -5,7 +5,7 @@
 
 /** Nombres d'un texte (« 1 234,5 » → « 1234.5 » : séparateurs de milliers français retirés). */
 export function numbersIn(s: string): string[] {
-  const joined = s.replace(/(\d)[\s  ](?=\d{3}(?!\d))/g, "$1");
+  const joined = s.replace(/(\d)[\s\u00a0\u202f](?=\d{3}(?!\d))/g, "$1");
   return (joined.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => x.replace(",", "."));
 }
 

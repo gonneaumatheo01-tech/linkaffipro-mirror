@@ -76,7 +76,7 @@ describe("Agent Ads : recommandations, rapport, « Fait », alertes (base réell
   });
 
   it("analyse : chiffres de la pub depuis DailyStat, gains = commissions − dépense", async () => {
-    const a = await computeAdsAnalysis(prisma, { period: "7d", now: NOW });
+    const a = await computeAdsAnalysis(prisma as never, { period: "7d", now: NOW });
     const row = a.rows.find((r) => r.id === good)!;
     expect(row.current).toMatchObject({ spend: 140, commissions: 560, gains: 420, roas: 4, costPerRegistration: 20, impressions: 14_000, adClicks: 350 });
     expect(row.enoughData).toBe(true);
