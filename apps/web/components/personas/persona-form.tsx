@@ -311,6 +311,7 @@ export function PersonaForm({
                 className="flex min-h-10 cursor-pointer items-center gap-2 text-body md:min-h-8"
               >
                 <Checkbox
+                  aria-label={l.label}
                   checked={state.languages.includes(l.code)}
                   disabled={state.languages.length === 1 && state.languages[0] === l.code}
                   onCheckedChange={(v) => toggleLanguage(l.code, v === true)}
@@ -678,6 +679,7 @@ export function PersonaForm({
         <div className="space-y-1">
           <label className="flex min-h-10 cursor-pointer items-center gap-3 text-body font-medium md:min-h-8">
             <Checkbox
+              aria-label="Persona activée"
               checked={state.isActive}
               disabled={!state.isActive && problems.length > 0}
               onCheckedChange={(v) => set("isActive", v === true)}
@@ -940,6 +942,7 @@ function CheckField({
     <div className="space-y-1">
       <label className="flex min-h-10 cursor-pointer items-center gap-3 text-body md:min-h-8">
         <Checkbox
+          aria-label={label}
           checked={checked}
           onCheckedChange={(v) => onChange(v === true)}
           aria-describedby={`${id}-help`}

@@ -40,7 +40,11 @@ function ReportPreview({
     <section aria-label={title} className="space-y-2">
       <h3 className="text-body font-semibold text-foreground">{title}</h3>
       {text ? (
-        <pre className="max-h-96 overflow-auto rounded-xl border border-border bg-muted/40 p-4 font-sans text-note whitespace-pre-wrap text-foreground">
+        <pre
+          tabIndex={0}
+          aria-label={title}
+          className="max-h-96 overflow-auto rounded-xl border border-border bg-muted/40 p-4 font-sans text-note whitespace-pre-wrap text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        >
           {telegramToText(text)}
         </pre>
       ) : (

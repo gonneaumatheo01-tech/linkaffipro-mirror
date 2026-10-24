@@ -31,7 +31,8 @@ export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
   const lastCycleAt = health?.lastGrandChefAt ? new Date(health.lastGrandChefAt) : s.lastCycleAt;
   const late = cycleLate(lastCycleAt, now);
   const failed = s.queues?.reduce((a, q) => a + q.failed, 0) ?? 0;
-  const providerErrors = health?.providers.reduce((a, p) => a + (p.keyPresent ? p.errors24h : 0), 0) ?? 0;
+  const providerErrors =
+    health?.providers.reduce((a, p) => a + (p.keyPresent ? p.errors24h : 0), 0) ?? 0;
   return (
     <FormSection
       title="Agents"
@@ -59,7 +60,9 @@ export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
                 <span className="block font-medium text-foreground">{q.label}</span>
                 <span className="text-muted-foreground">
                   {fmtNum(q.waiting + q.delayed)} en attente · {fmtNum(q.active)} en cours
-                  {q.failed ? <span className="text-danger"> · {fmtNum(q.failed)} en échec</span> : null}
+                  {q.failed ? (
+                    <span className="text-danger"> · {fmtNum(q.failed)} en échec</span>
+                  ) : null}
                 </span>
               </li>
             ))}
@@ -71,7 +74,8 @@ export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-body font-medium text-foreground">
-                {fmtNum(s.stuckTotal)} mission{s.stuckTotal > 1 ? "s" : ""} bloquée{s.stuckTotal > 1 ? "s" : ""}
+                {fmtNum(s.stuckTotal)} mission{s.stuckTotal > 1 ? "s" : ""} bloquée
+                {s.stuckTotal > 1 ? "s" : ""}
               </p>
               <form action={resumeAgentMissionsAction}>
                 <Button type="submit" variant="outline" size="sm" className="max-md:h-10">
@@ -80,14 +84,18 @@ export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
               </form>
             </div>
             <p className="text-note text-muted-foreground">
-              « Relancer » reprend l&apos;étape en cours sans jamais publier deux fois. Un plafond atteint se règle dans la
-              fiche de l&apos;équipe ; une validation, dans Agents → Validations.
+              « Relancer » reprend l&apos;étape en cours sans jamais publier deux fois. Un plafond
+              atteint se règle dans la fiche de l&apos;équipe ; une validation, dans Agents →
+              Validations.
             </p>
             <ul className="divide-y divide-border rounded-xl border border-border bg-card">
               {s.stuck.map((m) => (
                 <li key={m.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-note">
                   <StatusBadge kind="agentMission" value={m.status} />
-                  <Link href={`/agents/${m.teamKey}#missions`} className="text-foreground underline-offset-4 hover:underline">
+                  <Link
+                    href={`/agents/${m.teamKey}#missions`}
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
                     Équipe {teamName(m.teamKey)}
                     {m.channelTitle ? ` · ${m.channelTitle}` : ""}
                   </Link>
@@ -107,25 +115,33 @@ export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
                 {health.providers.map((p) => {
                   const st = providerState(p);
                   return (
-                    <li key={p.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-note">
+                    <li
+                      key={p.key}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-note"
+                    >
                       <span className="min-w-0 flex-1 font-medium text-foreground">{p.label}</span>
                       <StatusPill tone={st.tone}>{st.label}</StatusPill>
                       <span className="text-muted-foreground">
-                        Dernier appel réussi : {p.lastOkAt ? fmtDate(new Date(p.lastOkAt)) : "aucun"}
+                        Dernier appel réussi :{" "}
+                        {p.lastOkAt ? fmtDate(new Date(p.lastOkAt)) : "aucun"}
                       </span>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="text-note text-muted-foreground">Aucun fournisseur payant n&apos;est utilisé pour l&apos;instant.</p>
+              <p className="text-note text-muted-foreground">
+                Aucun fournisseur payant n&apos;est utilisé pour l&apos;instant.
+              </p>
             )
           ) : (
-            <p className="text-note text-danger">État des fournisseurs illisible : {ov.ok ? "" : ov.error}</p>
+            <p className="text-note text-danger">
+              État des fournisseurs illisible : {ov.ok ? "" : ov.error}
+            </p>
           )}
           <p className="text-note text-muted-foreground">
             Les clés se collent dans{" "}
-            <Link href="/agents/settings" className="text-foreground underline-offset-4 hover:underline">
+            <Link href="/agents/settings" className="text-foreground underline underline-offset-4">
               Agents → Réglages
             </Link>
             .
