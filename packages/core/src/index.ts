@@ -26,3 +26,4 @@ export * from "./landing-escape";
 export * from "./persona-honesty";
 export * from "./persona-tuning";
 export * from "./variation";
+export * from "./persona-universe";

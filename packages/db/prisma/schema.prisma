@@ -2012,6 +2012,11 @@ model Persona {
   /// Phase 21 : heures de relance conseillées par l'équipe Algorithme (JSON number[], heure de Paris) ; lues par le
   /// moteur de relances seulement si une recommandation les a appliquées.
   suggestedFollowUpHours  Json?
+  /// Phase 25 : univers de la persona (dating, casino, sports). Casino et Paris sportifs : identité assistante imposée.
+  universe                String             @default("dating")
+  /// Phase 25 : fiche d'informations (JSON `{ q, a }[]`, 40 entrées au plus) : seule source de ce que l'assistante
+  /// peut affirmer (bonus, dépôt minimum, pays, délais de retrait, VIP) ; le reste est transmis à l'équipe.
+  faq                     Json               @default("[]")
   isActive                Boolean            @default(false)
   createdById             String?
   createdBy               User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -2029,50 +2034,53 @@ model Persona {
 /// Conversation privée entre un bot ASSISTANT et une personne qui lui a écrit d'elle-même (une par bot et par membre).
 /// Supprimée avec le membre ou le bot ; `/reset` efface les messages, le résumé, les faits et le style.
 model Conversation {
-  id              String             @id @default(cuid())
-  botId           String
-  bot             Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)
-  memberId        String
-  member          Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id               String             @id @default(cuid())
+  botId            String
+  bot              Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)
+  memberId         String
+  member           Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
   /// Persona du bot au premier message.
-  personaId       String?
-  persona         Persona?           @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  personaId        String?
+  persona          Persona?           @relation(fields: [personaId], references: [id], onDelete: SetNull)
   /// Paramètre du /start (nettoyé : [A-Za-z0-9_-]{1,64}), premier reçu, jamais écrasé.
-  source          String?
-  stage           ConversationStage  @default(WELCOME)
-  status          ConversationStatus @default(BOT)
+  source           String?
+  stage            ConversationStage  @default(WELCOME)
+  status           ConversationStatus @default(BOT)
   /// Profil de style de la personne (longueur, emojis, registre, langue, ton, intérêt), fusionné à chaque tour.
-  styleProfile    Json               @default("{}")
+  styleProfile     Json               @default("{}")
   /// Résumé roulant des messages anciens.
-  summary         String?
+  summary          String?
   /// Faits dits par la personne elle-même (JSON : string[], 20 au plus).
-  facts           Json               @default("[]")
+  facts            Json               @default("[]")
   /// Langue de réponse courante.
-  language        String?
-  isMinor         Boolean            @default(false)
+  language         String?
+  isMinor          Boolean            @default(false)
   /// /stop (définitif : plus aucune réponse ni relance).
-  stoppedAt       DateTime?
-  closedAt        DateTime?
+  stoppedAt        DateTime?
+  closedAt         DateTime?
   /// STOP | MINOR | TEAM | BLOCKED (bot bloqué) | UNREACHABLE.
-  closedReason    String?
-  takenOverById   String?
-  takenOverBy     User?              @relation(fields: [takenOverById], references: [id], onDelete: SetNull)
-  takenOverAt     DateTime?
+  closedReason     String?
+  takenOverById    String?
+  takenOverBy      User?              @relation(fields: [takenOverById], references: [id], onDelete: SetNull)
+  takenOverAt      DateTime?
+  /// Phase 25 : conversation « à traiter » par l'équipe (question hors fiche, réclamation, argent, mineur, insulte).
+  needsHumanAt     DateTime?
+  needsHumanReason String?
   /// Messages de la personne (échanges).
-  memberMessages  Int                @default(0)
-  assistantTurns  Int                @default(0)
-  offerSends      Int                @default(0)
-  lastInboundAt   DateTime?
-  lastAssistantAt DateTime?
-  followUpCount   Int                @default(0)
-  nextFollowUpAt  DateTime?
+  memberMessages   Int                @default(0)
+  assistantTurns   Int                @default(0)
+  offerSends       Int                @default(0)
+  lastInboundAt    DateTime?
+  lastAssistantAt  DateTime?
+  followUpCount    Int                @default(0)
+  nextFollowUpAt   DateTime?
   /// Nouvel essai après une panne de l'IA.
-  retryAt         DateTime?
-  convertedAt     DateTime?
+  retryAt          DateTime?
+  convertedAt      DateTime?
   /// La personne a refuse l'app (refus de l'appli, « on reste sur Telegram ») : plus de discussion ici.
-  appRefusedAt    DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  appRefusedAt     DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   messages   ConversationMessage[]
   events     ConversationEvent[]
@@ -2082,6 +2090,7 @@ model Conversation {
 
   @@unique([botId, memberId])
   @@index([status, nextFollowUpAt])
+  @@index([needsHumanAt])
   @@index([status, retryAt])
   @@index([personaId, createdAt])
   @@index([source])
