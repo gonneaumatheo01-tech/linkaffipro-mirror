@@ -752,3 +752,16 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   et purge : `AccountDm` en attente annulés, textes et identifiants effacés, anciens supprimés ; événements
   `telegram.*` → `{ redacted: true }` ; journaux de l'userbot sans identifiant Telegram ni texte. Libellé de l'équipe :
   « Rencontres » partout.
+- **Relecture (phase 25) — Paris sportifs et envois** : cote du texte = cote lue sur le site, puis dernière cote
+  vérifiée, puis cote retenue ; texte réécrit à chaque nouvelle lecture (une correction du client garde son texte, seule
+  la cote change). Marge de publication 2 min (`PUBLISH_MARGIN_MINUTES`) ; à l'envoi réel, un post de pari trop tard est
+  annulé (`apps/worker/src/sending/bet-kickoff.ts`). Lignes en quart exclues à la sélection. Clé de cotes absente ou
+  plafond atteint = pari écarté, jamais un échec (pas de pause automatique) ; compteur d'appels atomique. Garde « jamais
+  de mise » : adresse décodée (chemin, paramètres, fragment, sous-domaines d'argent) ; tout élément cliquable qui
+  n'affiche qu'une cote refusé ; résultats de recherche ouverts par leur adresse, jamais cliqués. Pause : règlement et
+  captures arrêtés (tests de connexion seulement). Paris de test hors quota. Annulation et résultats sur tous les posts
+  d'une mission. Match sans noms d'équipes ignoré. « Nouvelle ligue / nouveau marché » compté sur les vrais canaux
+  seulement. Test de connexion lancé par le bot : OK / KO sans capture. **Posts d'agents déjà programmés**
+  (`apps/worker/src/sending/agent-hold.ts`, appelé à la réclamation) : équipe en pause, désactivée ou pause générale →
+  post reporté de 30 min sans échec (`agents.post.held`) ; équipe en simulation et post vers un vrai canal → annulé
+  (`agents.post.cancelled_simulation`) ; un post sans mission n'est jamais touché.
