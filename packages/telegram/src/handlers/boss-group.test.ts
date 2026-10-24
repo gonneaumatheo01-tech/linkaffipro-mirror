@@ -12,6 +12,7 @@ import type { AgentsDeps } from "@linkaffipro/agents";
 import { registerHandlers } from "../handlers";
 import { botInfoFromRecord } from "../factory";
 import type { BotIdentity, TelegramDeps } from "../ports";
+import { BOSS_WORKER_DOWN_REPLY } from "./agents-admin";
 
 const ADMIN = 4242;
 const LEA = 777;
@@ -64,6 +65,13 @@ async function setup() {
   return { kit, bot, calls, sent, enqueued, recorded, deps, setCanDelete: (v: boolean) => void (canDelete = v) };
 }
 
+/** Variante : service d'arrière-plan arrêté (battement trop vieux). */
+async function setupWorkerDown() {
+  const t = await setup();
+  (t.deps as TelegramDeps & { workerDown?: () => Promise<boolean | null> }).workerDown = async () => true;
+  return t;
+}
+
 let uid = 1;
 let mid = 500;
 const person = (id: number) => ({ id, is_bot: false, first_name: id === ADMIN ? "Mathéo" : id === LEA ? "Léa" : "Inconnu", ...(id === LEA ? { username: "lea" } : {}) });
@@ -85,6 +93,18 @@ function added(by: number, chat = groupChat(), status = "member"): Update {
 }
 
 describe("Kevin dans le groupe (faux Telegram)", () => {
+  it("relecture : service d'arrière-plan arrêté → réponse de secours tout de suite, tâche quand même en file", async () => {
+    const t = await setupWorkerDown();
+    await t.bot.handleUpdate(added(ADMIN));
+    const before = t.sent().length;
+    const queued = t.enqueued.length;
+    await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, c'est quoi la dépense ce mois ?"));
+    const out = t.sent().slice(before);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.text).toBe(BOSS_WORKER_DOWN_REPLY);
+    expect(t.enqueued.length).toBe(queued + 1);
+  });
+
   it("ajouté par un inconnu : silence ; ajouté par l'admin : groupe enregistré et accueil une fois", async () => {
     const t = await setup();
     await t.bot.handleUpdate(added(STRANGER, groupChat(-100555)));

@@ -17,6 +17,7 @@ import {
 } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
 import { realBossEngine, type BossEngine } from "../boss/engine";
+import { BOSS_WORKER_DOWN_REPLY, workerLooksDown } from "./agents-admin";
 import { BOSS_QUEUE_DOWN_REPLY, deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
 import { createAlbumCaptions, createLibraryDepositor, inboxMediaOf, type LibraryDepositor } from "./media-inbox";
 
@@ -96,7 +97,11 @@ async function act(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg:
         await sendBossText(api, chatId, BOSS_MEMBER_AI_LIMIT_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
         return;
       }
-      await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
+      // Service d'arrière-plan arrêté : réponse de secours tout de suite ; la tâche reste en file (faite au redémarrage,
+      // jamais deux réponses : le worker vérifie le tour déjà écrit).
+      if (await workerLooksDown(deps))
+        await sendBossText(api, chatId, BOSS_WORKER_DOWN_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
+      else await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
       try {
         await agents.enqueue.orchestrator(
           {
