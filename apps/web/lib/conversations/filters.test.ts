@@ -26,6 +26,8 @@ describe("filtres de la boîte de réception", () => {
       source: "tk01",
       persona: "clpersona0001",
       unread: true,
+      toHandle: false,
+      universe: "",
       page: 3,
     });
     expect(
@@ -67,5 +69,22 @@ describe("filtres de la boîte de réception", () => {
     const f = parseInboxFilters({ status: "HUMAN", page: "5" });
     expect(inboxExportHref(f)).toBe("/api/conversations/export?status=HUMAN");
     expect(inboxExportHref(clearedInboxFilters())).toBe("/api/conversations/export");
+  });
+});
+
+describe("filtres « À traiter » et « Univers » (phase 25)", () => {
+  it("lecture : todo=1 et univers connus seulement", () => {
+    const f = parseInboxFilters({ todo: "1", universe: "Casino" });
+    expect(f.toHandle).toBe(true);
+    expect(f.universe).toBe("casino");
+    expect(parseInboxFilters({ todo: "0", universe: "poker" })).toEqual(clearedInboxFilters());
+    expect(activeInboxFilterCount(f)).toBe(2);
+  });
+
+  it("liens et export : todo et universe gardés", () => {
+    const f = parseInboxFilters({ todo: "1", universe: "sports", page: "2" });
+    expect(inboxHref(f)).toBe("/conversations?todo=1&universe=sports");
+    expect(inboxHref(f, { toHandle: false })).toBe("/conversations?universe=sports");
+    expect(inboxExportHref(f)).toBe("/api/conversations/export?todo=1&universe=sports");
   });
 });

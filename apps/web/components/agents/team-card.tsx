@@ -16,7 +16,9 @@ import {
   type TeamKey,
 } from "@/lib/agents/teams";
 import { fmtNum } from "@/lib/format";
+import type { TeamOverview } from "@/lib/agents/overview-view";
 import { PauseButton } from "./team-controls";
+import { TeamOverviewFigures } from "./team-overview";
 
 const BAR_TONES = { brand: "bg-brand-ink", warning: "bg-warning", danger: "bg-danger" } as const;
 
@@ -39,12 +41,15 @@ export function TeamCard({
   figures,
   spentCents,
   pausedAll,
+  overview,
 }: {
   team: TeamKey;
   config: TeamConfigView;
   figures: TeamDayFigures;
   spentCents: number;
   pausedAll: boolean;
+  /** Phase 25 : résumé complet du moteur (chiffres du jour, dépense par poste, résultats) ; sans lui, l'ancien résumé. */
+  overview?: TeamOverview | null;
 }) {
   const spend = spendView(spentCents, config.budgets);
   const vertical = TEAM_VERTICAL[team];
@@ -69,6 +74,13 @@ export function TeamCard({
         </h2>
         <p className="text-note text-muted-foreground">{TEAM_PURPOSE[team]}</p>
       </div>
+      {overview ? (
+        <>
+          <TeamOverviewFigures team={team} overview={overview} />
+          <p className="text-note text-muted-foreground">{levelLabel(config.autonomyLevel)}</p>
+        </>
+      ) : (
+        <>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         <Figure label="Missions du jour" value={figures.missionsToday} />
         <Figure label="En attente" value={figures.waiting} />
@@ -93,6 +105,8 @@ export function TeamCard({
         ) : null}
         <p className="text-note text-muted-foreground">{levelLabel(config.autonomyLevel)}</p>
       </div>
+        </>
+      )}
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3">
         <Link href={`/agents/${team}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}>
           Ouvrir l&apos;équipe

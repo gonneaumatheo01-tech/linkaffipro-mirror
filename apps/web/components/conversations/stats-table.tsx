@@ -23,6 +23,7 @@ export function FigureDetail({ r }: { r: FigureRow }) {
           </span>
         ) : null}
       </DetailRow>
+      <DetailRow label="Encore à traiter par l'équipe">{fmtNum(r.toHandle)}</DetailRow>
       <DetailRow label="Liens de l'offre envoyés">{fmtNum(r.linksSent)}</DetailRow>
       <DetailRow label="Liens ouverts">{fmtNum(r.linksOpened)}</DetailRow>
       <DetailRow label="Inscriptions">{fmtNum(r.registrations)}</DetailRow>
@@ -38,7 +39,7 @@ export function FigureDetail({ r }: { r: FigureRow }) {
 }
 
 /**
- * Tableau des chiffres par persona ou par source (5 colonnes ; le reste au clic, dans le volet) : conversations (avec
+ * Tableau des chiffres par univers, par persona ou par source (5 colonnes ; le reste au clic, dans le volet) : conversations (avec
  * le taux de réponse), liens ouverts (sur les liens envoyés), inscriptions (avec les premiers dépôts), coût de l'IA
  * (avec le coût par inscription). Composant serveur (cellules rendues, `DataTable` client).
  */

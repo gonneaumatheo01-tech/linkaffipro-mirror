@@ -11,7 +11,12 @@ import {
   type InboxFilters as Filters,
 } from "@/lib/conversations/filters";
 import type { InboxOptions } from "@/lib/conversations/inbox";
-import { NONE_KEY } from "@/lib/conversations/labels";
+import {
+  CONVERSATION_UNIVERSE_LABELS,
+  CONVERSATION_UNIVERSES,
+  NEEDS_HUMAN_LABEL,
+  NONE_KEY,
+} from "@/lib/conversations/labels";
 import { statusLabels } from "@/lib/status-badges";
 
 const STAGE_OPTIONS = statusLabels("conversationStage");
@@ -26,9 +31,18 @@ export function statusChoices(current: string): Array<[string, string]> {
   return Object.entries(STATUS_OPTIONS).filter(([k]) => k !== "PAUSED" || current === "PAUSED");
 }
 
+/** Pastille rapide choisie : « à traiter » d'abord, puis « non lues », « l'équipe a la main », sinon « toutes ». */
+export function quickChoice(f: Filters): "todo" | "unread" | "human" | "all" {
+  if (f.toHandle) return "todo";
+  if (f.unread) return "unread";
+  if (f.status === "HUMAN") return "human";
+  return "all";
+}
+
 /**
- * Filtres de la boîte de réception : pastilles « Toutes », « Non lues » (dernier message de la personne, sans
- * réponse), « L'équipe a la main » (avec leur nombre), puis étape, qui répond, source et persona (formulaire GET,
+ * Filtres de la boîte de réception : pastilles « À traiter » (en tête, phase 25 : l'assistante a passé la main à
+ * l'équipe ; nombre affiché dès qu'il y en a une), « Toutes », « Non lues » (dernier message de la personne, sans
+ * réponse), « L'équipe a la main » (avec leur nombre), puis univers, étape, qui répond, source et persona (formulaire GET,
  * replié sur téléphone). Mémorisés sur l'appareil (`RememberFilters`, clé « conversations »). Composant serveur.
  */
 export function InboxFilters({
@@ -38,40 +52,72 @@ export function InboxFilters({
 }: {
   filters: Filters;
   options: InboxOptions;
-  counts: { all: number; unread: number; human: number };
+  counts: { all: number; unread: number; human: number; toHandle: number };
 }) {
-  const quick = !f.unread && f.status !== "HUMAN" ? "all" : f.unread ? "unread" : "human";
+  const quick = quickChoice(f);
+  const statusWithoutHuman = f.status === "HUMAN" ? "" : f.status;
   return (
     <div className="mb-4 space-y-3">
       <FilterChips
         label="Afficher"
         chips={[
           {
+            key: "todo",
+            label: NEEDS_HUMAN_LABEL,
+            href: inboxHref(f, { toHandle: true, unread: false, status: statusWithoutHuman }),
+            ...(counts.toHandle > 0
+              ? {
+                  count: counts.toHandle,
+                  icon: <span aria-hidden className="size-2 rounded-full bg-danger" />,
+                }
+              : {}),
+            selected: quick === "todo",
+          },
+          {
             key: "all",
             label: "Toutes",
-            href: inboxHref(f, { unread: false, status: f.status === "HUMAN" ? "" : f.status }),
+            href: inboxHref(f, { unread: false, toHandle: false, status: statusWithoutHuman }),
             count: counts.all,
             selected: quick === "all",
           },
           {
             key: "unread",
             label: "Non lues",
-            href: inboxHref(f, { unread: true }),
+            href: inboxHref(f, { unread: true, toHandle: false }),
             count: counts.unread,
-            selected: f.unread,
+            selected: quick === "unread",
           },
           {
             key: "human",
             label: "L'équipe a la main",
-            href: inboxHref(f, { status: "HUMAN", unread: false }),
+            href: inboxHref(f, { status: "HUMAN", unread: false, toHandle: false }),
             count: counts.human,
-            selected: f.status === "HUMAN" && !f.unread,
+            selected: quick === "human",
           },
         ]}
       />
       <CollapsibleFilters activeCount={activeInboxFilterCount(f)}>
         <form method="get" className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
           {f.unread ? <input type="hidden" name="unread" value="1" /> : null}
+          {f.toHandle ? <input type="hidden" name="todo" value="1" /> : null}
+          <div className="min-w-0 space-y-1 sm:w-44">
+            <Label htmlFor="inbox-universe" className="text-note text-muted-foreground">
+              Univers
+            </Label>
+            <NativeSelect
+              id="inbox-universe"
+              name="universe"
+              defaultValue={f.universe}
+              wrapperClassName="w-full"
+            >
+              <option value="">Tous</option>
+              {CONVERSATION_UNIVERSES.map((u) => (
+                <option key={u} value={u}>
+                  {CONVERSATION_UNIVERSE_LABELS[u]}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
           <div className="min-w-0 space-y-1 sm:w-44">
             <Label htmlFor="inbox-stage" className="text-note text-muted-foreground">
               Étape

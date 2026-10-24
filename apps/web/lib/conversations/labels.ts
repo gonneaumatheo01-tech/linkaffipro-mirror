@@ -161,3 +161,49 @@ export function aiCostText(eur: number): string {
 export function pctText(ratio: number | null | undefined, digits = 1): string {
   return fmtPct(ratio, digits).replace(/ %$/, "\u00a0%");
 }
+
+/**
+ * Conversation « à traiter » (phase 25) : le moteur a passé la main à l'équipe (`Conversation.needsHumanAt`) avec un
+ * motif (`needsHumanReason`). Libellé de la pastille, du filtre et du bandeau de la fiche.
+ */
+export const NEEDS_HUMAN_LABEL = "À traiter";
+
+/** Motif affiché quand le motif est absent ou inconnu (nouveau motif du moteur pas encore traduit ici). */
+export const NEEDS_HUMAN_FALLBACK = "À reprendre par l'équipe";
+
+/** Motifs connus du passage à l'équipe, en clair. */
+export const NEEDS_HUMAN_REASON_LABELS: Readonly<Record<string, string>> = {
+  hors_fiche: "Question hors de la fiche d'informations",
+  reclamation: "Réclamation",
+  argent: "Demande d'argent",
+  mineur: "Mineur possible",
+  insulte: "Insulte",
+};
+
+/** Motif lisible d'une conversation à traiter ; repli générique pour toute autre valeur (ou aucune). */
+export function needsHumanReasonLabel(reason: string | null | undefined): string {
+  const key = (reason ?? "").trim().toLowerCase();
+  return Object.hasOwn(NEEDS_HUMAN_REASON_LABELS, key)
+    ? NEEDS_HUMAN_REASON_LABELS[key]!
+    : NEEDS_HUMAN_FALLBACK;
+}
+
+/** Valeurs du filtre Univers (celles de `Persona.universe`), dans l'ordre affiché. */
+export const CONVERSATION_UNIVERSES = ["dating", "casino", "sports"] as const;
+export type ConversationUniverse = (typeof CONVERSATION_UNIVERSES)[number];
+
+/** Libellés des univers d'une persona (mêmes mots que le reste du site : `lib/universe.ts`). */
+export const CONVERSATION_UNIVERSE_LABELS: Readonly<Record<ConversationUniverse, string>> = {
+  dating: "Rencontres",
+  casino: "Casino",
+  sports: "Paris sportifs",
+};
+
+export function isConversationUniverse(v: unknown): v is ConversationUniverse {
+  return typeof v === "string" && (CONVERSATION_UNIVERSES as readonly string[]).includes(v);
+}
+
+/** Univers affiché ; « Sans univers » quand la conversation n'a plus de persona. */
+export function conversationUniverseLabel(u: string | null | undefined): string {
+  return isConversationUniverse(u) ? CONVERSATION_UNIVERSE_LABELS[u] : "Sans univers";
+}

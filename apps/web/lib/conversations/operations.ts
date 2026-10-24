@@ -11,6 +11,8 @@
  *   par `enqueueDm` (texte échappé en HTML, même file d'envoi : 1 message/s, 429, blocages) ; l'équipe prend la main
  *   AVANT que le message parte. Refusé après /stop, pour un mineur, une conversation bloquée ou une personne qui a
  *   bloqué le bot.
+ * - Phase 25 : prendre la main ou écrire efface « à traiter » (`needsHumanAt`, `needsHumanReason`) ; « Marquer comme
+ *   traitée » l'efface sans rien changer d'autre (`clearNeedsHuman`). Le motif effacé est gardé dans le journal.
  * - Chaque événement de conversation (sans texte) est doublé d'un `Event` `conversation.<type>` ; chaque action est
  *   journalisée dans `AuditLog` (`conversation.*`) par l'appelant.
  */
@@ -69,6 +71,8 @@ type Locked = {
   followUpCount: number;
   lastAssistantAt: Date | null;
   convertedAt: Date | null;
+  needsHumanAt: Date | null;
+  needsHumanReason: string | null;
   persona: { gender: string; followUpAfterHours: number; followUpsMax: number } | null;
   bot: { isActive: boolean };
 };
@@ -96,6 +100,8 @@ async function lock(tx: Prisma.TransactionClient, id: string): Promise<Locked | 
       followUpCount: true,
       lastAssistantAt: true,
       convertedAt: true,
+      needsHumanAt: true,
+      needsHumanReason: true,
       persona: { select: { gender: true, followUpAfterHours: true, followUpsMax: true } },
       bot: { select: { isActive: true } },
     },
@@ -184,7 +190,32 @@ async function journal(
     });
 }
 
-/** Passage à l'équipe (statut HUMAN), en rouvrant une conversation fermée par l'équipe. */
+/** Données qui effacent « à traiter » (rien si la conversation n'était pas à traiter). */
+function clearNeedsHumanData(c: Pick<Locked, "needsHumanAt">) {
+  return c.needsHumanAt ? { needsHumanAt: null, needsHumanReason: null } : {};
+}
+
+/** Événement « à traiter » effacé (motif gardé, aucun texte de la conversation). */
+function needsHumanClearedEvent(
+  c: Pick<Locked, "needsHumanAt" | "needsHumanReason">,
+  user: TeamUser,
+  via: "button" | "message" | "mark",
+): PendingEvent[] {
+  if (!c.needsHumanAt) return [];
+  return [
+    {
+      type: "needs_human_cleared",
+      payload: {
+        reason: c.needsHumanReason,
+        since: c.needsHumanAt.toISOString(),
+        via,
+        teamUserId: user.id,
+      },
+    },
+  ];
+}
+
+/** Passage à l'équipe (statut HUMAN), en rouvrant une conversation fermée par l'équipe ; « à traiter » effacé. */
 async function becomeHuman(
   tx: Prisma.TransactionClient,
   c: Locked,
@@ -204,12 +235,14 @@ async function becomeHuman(
       retryAt: null,
       ...(reopen ? { closedAt: null, closedReason: null } : {}),
       ...(stage !== c.stage ? { stage } : {}),
+      ...clearNeedsHumanData(c),
     },
   });
   const events: PendingEvent[] = [
     { type: "taken_over", payload: { fromStatus: c.status, via, teamUserId: user.id } },
   ];
   if (stage !== c.stage) events.push({ type: "stage_changed", fromStage: c.stage, toStage: stage });
+  events.push(...needsHumanClearedEvent(c, user, via));
   return events;
 }
 
@@ -255,7 +288,10 @@ export async function takeOverConversation(
     action: "conversation.taken_over",
     entityType: "Conversation",
     entityId: id,
-    metadata: { fromStatus: r.conv.status },
+    metadata: {
+      fromStatus: r.conv.status,
+      ...(r.conv.needsHumanAt ? { needsHumanCleared: r.conv.needsHumanReason ?? true } : {}),
+    },
   });
   return {
     ok: true,
@@ -451,7 +487,14 @@ export async function sendTeamMessage(
   const r = await decide(id, now, async (tx, c, rules) => {
     if (!conversationActions(rules).send)
       return { ok: false, error: refusalFor("send", rules, assistantWord(c.persona?.gender)) };
-    const events = c.status === "HUMAN" ? [] : await becomeHuman(tx, c, user, now, "message");
+    let events: PendingEvent[];
+    if (c.status !== "HUMAN") events = await becomeHuman(tx, c, user, now, "message");
+    else {
+      // L'équipe a déjà la main : écrire efface quand même « à traiter ».
+      if (c.needsHumanAt)
+        await tx.conversation.update({ where: { id: c.id }, data: clearNeedsHumanData(c) });
+      events = needsHumanClearedEvent(c, user, "message");
+    }
     return { ok: true, events, extra: { tookOver: c.status !== "HUMAN" } };
   });
   if (!r.ok) return r;
@@ -494,7 +537,12 @@ export async function sendTeamMessage(
     action: "conversation.message_sent",
     entityType: "Conversation",
     entityId: id,
-    metadata: { length: [...text].length, outboundMessageId, tookOver: r.extra.tookOver },
+    metadata: {
+      length: [...text].length,
+      outboundMessageId,
+      tookOver: r.extra.tookOver,
+      ...(r.conv.needsHumanAt ? { needsHumanCleared: r.conv.needsHumanReason ?? true } : {}),
+    },
   });
   return {
     ok: true,
@@ -503,4 +551,36 @@ export async function sendTeamMessage(
       ? `Message envoyé. Vous avez maintenant la main : ${assistantWord(r.conv.persona?.gender)} ne répond plus dans cette conversation.`
       : "Message envoyé.",
   };
+}
+
+/**
+ * « Marquer comme traitée » (phase 25) : efface « à traiter » sans rien changer d'autre (qui répond, étape) ; possible
+ * même dans une conversation définitive (/stop, mineur, bloquée), où l'équipe ne peut plus écrire. Journalisé
+ * (`conversation.needs_human_cleared`, motif gardé). Rien à faire si la conversation n'est plus à traiter.
+ */
+export async function clearNeedsHuman(
+  id: string,
+  user: TeamUser,
+  now = new Date(),
+): Promise<OperationResult> {
+  const r = await decide(id, now, async (tx, c) => {
+    if (!c.needsHumanAt) return { ok: true, events: [], extra: { cleared: false } };
+    await tx.conversation.update({ where: { id: c.id }, data: clearNeedsHumanData(c) });
+    return { ok: true, events: needsHumanClearedEvent(c, user, "mark"), extra: { cleared: true } };
+  });
+  if (!r.ok) return r;
+  if (!r.extra.cleared)
+    return { ok: true, message: "Cette conversation n'était plus à traiter." };
+  await journal(r.conv, r.events, now);
+  await audit({
+    userId: user.id,
+    action: "conversation.needs_human_cleared",
+    entityType: "Conversation",
+    entityId: id,
+    metadata: {
+      reason: r.conv.needsHumanReason,
+      since: r.conv.needsHumanAt?.toISOString() ?? null,
+    },
+  });
+  return { ok: true, message: "Conversation marquée comme traitée." };
 }

@@ -39,6 +39,7 @@ vi.mock("@linkaffipro/db", () => {
     prisma: {
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
       conversation: { findUnique: vi.fn(async () => null) },
+      conversationMessage: { create: vi.fn(async () => ({})) },
     },
     audit: vi.fn(async () => undefined),
     recordEvent: vi.fn(async () => undefined),
@@ -52,7 +53,15 @@ vi.mock("@linkaffipro/queue", () => ({
   RedisLockBusy: class RedisLockBusy extends Error {},
 }));
 
-import { releaseConversation, stageOnReopen, takeOverConversation } from "./operations";
+import { audit } from "@linkaffipro/db";
+import { enqueueDm } from "@linkaffipro/queue";
+import {
+  clearNeedsHuman,
+  releaseConversation,
+  sendTeamMessage,
+  stageOnReopen,
+  takeOverConversation,
+} from "./operations";
 
 const USER = { id: "u1", name: "Marie" };
 const NOW = new Date("2026-10-18T10:00:00Z");
@@ -87,6 +96,7 @@ const txWith = (fromStage: string | null) => ({
 });
 
 beforeEach(() => {
+  vi.mocked(audit).mockClear();
   m.conv = closedConversation();
   m.lastClose = { fromStage: "LINK_SENT" };
   m.updates.length = 0;
@@ -136,5 +146,83 @@ describe("étape à la réouverture par l'équipe", () => {
     const r = await takeOverConversation("c1", USER, NOW);
     expect(r.ok).toBe(true);
     expect(m.updates[0]).toMatchObject({ status: "HUMAN", stage: "LINK_SENT" });
+  });
+});
+
+describe("« à traiter » (phase 25)", () => {
+  const SINCE = new Date("2026-10-18T09:00:00Z");
+  const toHandle = (over: Record<string, unknown> = {}) =>
+    closedConversation({
+      status: "BOT",
+      stage: "CHAT",
+      closedReason: null,
+      needsHumanAt: SINCE,
+      needsHumanReason: "reclamation",
+      ...over,
+    });
+
+  it("« Prendre la main » efface le repère, motif gardé dans le journal de la conversation", async () => {
+    m.conv = toHandle();
+    const r = await takeOverConversation("c1", USER, NOW);
+    expect(r.ok).toBe(true);
+    expect(m.updates[0]).toMatchObject({
+      status: "HUMAN",
+      needsHumanAt: null,
+      needsHumanReason: null,
+    });
+    expect(m.events).toContainEqual(
+      expect.objectContaining({
+        type: "needs_human_cleared",
+        payload: expect.objectContaining({ reason: "reclamation", via: "button" }),
+      }),
+    );
+    expect(vi.mocked(audit).mock.calls[0]?.[0]).toMatchObject({
+      action: "conversation.taken_over",
+      metadata: { needsHumanCleared: "reclamation" },
+    });
+  });
+
+  it("« Prendre la main » sans repère : rien d'autre n'est effacé", async () => {
+    m.conv = toHandle({ needsHumanAt: null, needsHumanReason: null });
+    await takeOverConversation("c1", USER, NOW);
+    expect(m.updates[0]).not.toHaveProperty("needsHumanAt");
+    expect(m.events.map((e) => e.type)).toEqual(["taken_over"]);
+  });
+
+  it("écrire alors que l'équipe a déjà la main efface aussi le repère", async () => {
+    m.conv = toHandle({ status: "HUMAN" });
+    vi.mocked(enqueueDm).mockResolvedValueOnce({ outboundMessageId: "o1" } as never);
+    const r = await sendTeamMessage("c1", USER, "Bonjour, je regarde ça.", NOW);
+    expect(r.ok).toBe(true);
+    expect(m.updates).toEqual([{ needsHumanAt: null, needsHumanReason: null }]);
+    expect(m.events.map((e) => e.type)).toEqual(["needs_human_cleared"]);
+  });
+
+  it("« Marquer comme traitée » : seulement le repère, journalisé (conversation.needs_human_cleared)", async () => {
+    m.conv = toHandle({ status: "CLOSED", stage: "CLOSED", closedReason: "MINOR", isMinor: true });
+    const r = await clearNeedsHuman("c1", USER, NOW);
+    expect(r).toEqual({ ok: true, message: "Conversation marquée comme traitée." });
+    expect(m.updates).toEqual([{ needsHumanAt: null, needsHumanReason: null }]);
+    expect(vi.mocked(audit)).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "conversation.needs_human_cleared",
+      entityType: "Conversation",
+      entityId: "c1",
+      metadata: { reason: "reclamation", since: SINCE.toISOString() },
+    });
+  });
+
+  it("« Marquer comme traitée » déjà traitée : aucune écriture ni journal", async () => {
+    m.conv = toHandle({ needsHumanAt: null, needsHumanReason: null });
+    const r = await clearNeedsHuman("c1", USER, NOW);
+    expect(r).toEqual({ ok: true, message: "Cette conversation n'était plus à traiter." });
+    expect(m.updates).toEqual([]);
+    expect(vi.mocked(audit)).not.toHaveBeenCalled();
+  });
+
+  it("conversation disparue : refus", async () => {
+    m.conv = null;
+    const r = await clearNeedsHuman("c1", USER, NOW);
+    expect(r.ok).toBe(false);
   });
 });

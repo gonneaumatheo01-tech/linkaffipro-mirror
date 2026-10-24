@@ -4,6 +4,7 @@ import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
+import { StatusPill } from "@/components/admin/status-pill";
 import { Pagination } from "@/components/admin/pagination";
 import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
@@ -21,6 +22,7 @@ import {
   inboxCounts,
   listConversations,
   loadInboxOptions,
+  toHandleCount,
   type InboxListRow,
   type InboxRow,
 } from "@/lib/conversations/inbox";
@@ -28,6 +30,8 @@ import {
   excerpt,
   lastAuthorPrefix,
   messageText,
+  NEEDS_HUMAN_LABEL,
+  needsHumanReasonLabel,
   personName,
   personaLabel,
   sourceLabel,
@@ -60,7 +64,25 @@ function WhoAnswersBadge({ r }: { r: InboxListRow }) {
   );
 }
 
-/** Première cellule : nom (en gras si non lue), persona et source ; sur téléphone, tout le reste de la ligne. */
+/** Pastille « À traiter » et son motif en clair (phase 25), depuis quand au survol. */
+function ToHandleTag({ r, now }: { r: InboxListRow; now: Date }) {
+  if (!r.needsHumanAt) return null;
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-normal">
+      <StatusPill tone="danger" title={`Depuis le ${fmtDate(r.needsHumanAt)}`}>
+        {NEEDS_HUMAN_LABEL}
+      </StatusPill>
+      <span className="text-note text-foreground">
+        {needsHumanReasonLabel(r.needsHumanReason)} · {fmtRelative(r.needsHumanAt, now)}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Première cellule : nom (en gras si non lue), persona et source, pastille « À traiter » ; sur téléphone, tout le
+ * reste de la ligne.
+ */
 function PersonCell({ r, now }: { r: InboxListRow; now: Date }) {
   const name = personName(r.member);
   const sub = [
@@ -82,6 +104,7 @@ function PersonCell({ r, now }: { r: InboxListRow; now: Date }) {
         {r.unread ? <span className="sr-only"> (non lue)</span> : null}
       </span>
       <span className="block text-note font-normal text-muted-foreground">{sub}</span>
+      <ToHandleTag r={r} now={now} />
       {/* Téléphone : la ligne devient une carte (dernier message, étape, qui répond, date). */}
       <span className="mt-2 block space-y-1 font-normal md:hidden">
         <span className="line-clamp-2 block text-note text-foreground">{lastMessageText(r)}</span>
@@ -97,8 +120,9 @@ function PersonCell({ r, now }: { r: InboxListRow; now: Date }) {
 
 /**
  * Boîte de réception de l'assistant de conversation (phase 17, contrat docs/ASSISTANT-CONVERSATION.md § 6) : les
- * conversations, la plus récemment active d'abord (personne, dernier message, étape, qui répond, mis à jour),
- * pastilles « Non lues » et « L'équipe a la main », filtres mémorisés (étape, qui répond, source, persona),
+ * conversations « à traiter » d'abord (phase 25 : pastille et motif), puis la plus récemment active (personne, dernier message, étape, qui répond, mis à jour),
+ * pastilles « À traiter », « Non lues » et « L'équipe a la main », filtres mémorisés (univers, étape, qui répond,
+ * source, persona),
  * pagination, export CSV. « Qui répond » dit « Personne ne répond » quand la conversation est laissée à l'assistante
  * mais qu'elle ne répondra pas (essai réservé à l'équipe, persona désactivée, bot repassé en bot normal). Clic sur une ligne : le fil de la conversation. Administrateurs et managers.
  */
@@ -109,12 +133,14 @@ export default async function ConversationsInboxPage({
   const sp = await searchParams;
   const f = parseInboxFilters(sp);
   const now = new Date();
-  const [{ rows, total, pages, page }, options, counts, config] = await Promise.all([
+  const [{ rows, total, pages, page }, options, baseCounts, toHandle, config] = await Promise.all([
     listConversations(f),
     loadInboxOptions(),
     inboxCounts(),
+    toHandleCount(),
     loadAssistantConfig(),
   ]);
+  const counts = { ...baseCounts, toHandle };
   const filtered = hasInboxFilters(f);
   const off = config.activation === "off";
 

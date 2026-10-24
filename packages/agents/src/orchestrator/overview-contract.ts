@@ -2,7 +2,9 @@
  * Résumé de supervision (phase 25, CONTRAT ; propriétaire : chantier A). Une seule source pour la page /agents, la
  * carte « Agents » de l'État du système, la commande « agents » du bot et `pnpm agents:status`.
  */
-import type { PrismaClient } from "@linkaffipro/db";
+import type { Db, PrismaClient } from "@linkaffipro/db";
+import { agentsOverviewImpl } from "./overview";
+import { overviewLinesImpl } from "./overview-lines";
 
 export type TeamOverview = {
   teamKey: string;
@@ -35,11 +37,12 @@ export type AgentsOverview = {
   };
 };
 
-export async function agentsOverview(_prisma: PrismaClient, _opts?: { now?: Date }): Promise<AgentsOverview> {
-  throw new Error("agentsOverview : à écrire (chantier A)");
+/** `prisma` : le client partagé (`Db`) ou un client Prisma brut. */
+export async function agentsOverview(prisma: PrismaClient | Db, opts?: { now?: Date }): Promise<AgentsOverview> {
+  return agentsOverviewImpl(prisma, opts);
 }
 
 /** Résumé en 8 lignes au plus (commande « agents », `pnpm agents:status`). */
-export function overviewLines(_o: AgentsOverview): string[] {
-  throw new Error("overviewLines : à écrire (chantier A)");
+export function overviewLines(o: AgentsOverview): string[] {
+  return overviewLinesImpl(o);
 }

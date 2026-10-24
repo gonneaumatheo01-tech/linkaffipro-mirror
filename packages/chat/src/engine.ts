@@ -3,10 +3,13 @@
 // sûr (aveu ou présentation) ou « je reviens vers toi » et nouvel essai (3 passages au plus) ; relecture avant le
 // premier envoi (reprise par l'équipe, messages regroupés, âge déclaré) ; envoi dans l'ordre avec le bouton d'offre sur
 // le dernier message quand le lien part. Aucune persistance ici : l'appelant enregistre le résultat.
+import { isAssistantOnlyUniverse, offerButtonTextFor } from "@linkaffipro/core";
+import { detectHandoffIn } from "./handoff";
 import { canSendOffer, decideStage } from "./journey";
 import { nextFollowUpAt } from "./follow-ups";
 import { mergeFacts } from "./memory";
 import { detectMinorIn } from "./minor";
+import { asksForOfferAccess } from "./offer-request";
 import { mentionsStopRequest } from "./stop-request";
 import { parseTurnOutput } from "./parse";
 import { buildSummaryRequest, buildSystemPrompt, buildTurnMessages, cleanSummary } from "./prompt";
@@ -17,6 +20,7 @@ import { fixedText, type FixedTextKey } from "./texts";
 import { personaIdentity, personaIllusion } from "./turn-types";
 import type {
   ChatButton,
+  NeedsHumanSignal,
   SendResult,
   SentPart,
   StageChange,
@@ -61,7 +65,6 @@ const FATAL_CODES = new Set<string>(["auth", "balance", "no_key"]);
  * modèle de repli : échec définitif tout de suite, sans nouvel essai ni message.
  */
 const PERMANENT_CODES = new Set<string>(["bad_request", "content_policy", "bad_model"]);
-const DEFAULT_OFFER_BUTTON = "Découvrir l'app";
 
 type CallResult =
   | { ok: true; res: LlmResponse; model: string; attempt: number }
@@ -169,6 +172,25 @@ async function completeWithRecovery(
   return r;
 }
 
+/** Casino / Paris sportifs (phase 25) : fiche d'informations, lien VIP, passage à un humain. */
+function universeAssistant(input: TurnInput): boolean {
+  return isAssistantOnlyUniverse(input.persona.universe);
+}
+
+/** La personne demande l'accès VIP, le lien ou l'inscription dans ce tour (Casino / Paris seulement). */
+function memberAskedOffer(run: Run, inbound: readonly TurnInbound[]): boolean {
+  return (
+    universeAssistant(run.input) &&
+    run.input.kind === "reply" &&
+    inbound.some((m) => asksForOfferAccess(m.text))
+  );
+}
+
+/** Textes de la fiche d'informations (questions et réponses), sources permises des chiffres. */
+function faqTexts(input: TurnInput): string[] {
+  return (input.persona.faq ?? []).flatMap((e) => [e.q, e.a]);
+}
+
 function memberMessagesNow(run: Run): number {
   return run.input.conversation.memberMessages + run.extraMemberMessages;
 }
@@ -199,13 +221,14 @@ function buildRequest(
       ? (run.deps.now().getTime() - silenceFrom.getTime()) / 3_600_000
       : null,
     retryCodes,
+    memberAskedOffer: memberAskedOffer(run, inbound),
   });
   return {
     model,
     messages: buildTurnMessages({ system, history: input.history, inbound }),
     temperature: input.persona.temperature ?? input.settings.temperature,
     maxTokens: input.settings.maxTokens,
-    jsonSchema: turnOutputJsonSchema(),
+    jsonSchema: turnOutputJsonSchema(input.persona.universe),
     reasoning: input.settings.modelSupportsReasoning(model),
   };
 }
@@ -240,7 +263,8 @@ async function checkResponse(
     run.rejected.push(parsed.code);
     return { kind: "rejected", codes: [parsed.code] };
   }
-  if (parsed.output.minor_suspected) {
+  const handoff = universeAssistant(input) ? parsed.output.handoff : undefined;
+  if (parsed.output.minor_suspected || (handoff?.needed && handoff.reason === "minor")) {
     await recordUsage(run, {
       model: call.model,
       res: call.res,
@@ -249,6 +273,18 @@ async function checkResponse(
       attempt: call.attempt,
     });
     return { kind: "minor" };
+  }
+  // Passage à un humain demandé par le modèle : ses messages ne partiront pas (réponse neutre fixe), inutile de les
+  // contrôler ni de les refaire.
+  if (handoff?.needed) {
+    await recordUsage(run, {
+      model: call.model,
+      res: call.res,
+      ok: true,
+      error: null,
+      attempt: call.attempt,
+    });
+    return { kind: "ok", output: parsed.output, messages: [], model: call.res.model || call.model };
   }
   const memberTexts = [
     ...(input.summaryMessages ?? []).filter((m) => m.direction === "IN").map((m) => m.text),
@@ -268,6 +304,8 @@ async function checkResponse(
       input.persona.extraPrompt,
     ],
     facts: conv.facts,
+    universe: input.persona.universe ?? null,
+    faqTexts: faqTexts(input),
     isFirstAssistantMessage: conv.isFirstAssistantTurn,
     privateTexts: [input.persona.extraPrompt, input.persona.personality, input.persona.tone],
     identity: personaIdentity(input.persona),
@@ -410,6 +448,10 @@ async function stopForMinor(
   const text = fixedText(run.lang, "minorStop");
   const r = await safeSend(() => run.deps.sender.sendText(text, { fixedKey: "minorStop" }));
   const stage = stageEvents(conv.stage, "CLOSED");
+  // Casino / Paris : la conversation est aussi signalée à l'équipe (« à traiter »), en plus de l'arrêt.
+  const needsHuman: NeedsHumanSignal | null = universeAssistant(run.input)
+    ? { reason: "minor", source }
+    : null;
   return {
     ...baseResult(run, inbound),
     outcome: "minor",
@@ -427,11 +469,20 @@ async function stopForMinor(
       : [],
     newStage: "CLOSED",
     stageChanges: stage.changes,
-    events: [{ type: "minor", payload: { source, age } }, ...stage.events],
+    events: [
+      { type: "minor", payload: { source, age } },
+      ...(needsHuman ? [needsHumanEvent(needsHuman)] : []),
+      ...stage.events,
+    ],
     deferredInbound: deferred,
     closeReason: "MINOR",
+    needsHuman,
     sendError: r.ok ? null : { blocked: r.blocked, unreachable: r.unreachable, error: r.error },
   };
+}
+
+function needsHumanEvent(signal: NeedsHumanSignal): TurnEvent {
+  return { type: "needs_human", payload: { reason: signal.reason, source: signal.source } };
 }
 
 function capResult(run: Run, inbound: TurnInbound[], deferred: TurnInbound[] = []): TurnResult {
@@ -448,9 +499,15 @@ function capResult(run: Run, inbound: TurnInbound[], deferred: TurnInbound[] = [
  * c'est un bot (il contient aussi le prénom et « assistante », donc vaut présentation au premier message), la
  * présentation fixe au premier message ; sinon rien (nouvel essai plus tard). Jamais pour une relance.
  */
-function safeFallbackKey(run: Run, inbound: TurnInbound[]): FixedTextKey | null {
+function safeFallbackKey(
+  run: Run,
+  inbound: TurnInbound[],
+  rejectedCodes: readonly string[] = [],
+): FixedTextKey | null {
   if (run.input.kind !== "reply") return null;
   if (botQuestionTexts(run.input, inbound).some((t) => asksIfBot(t))) return "isAssistant";
+  // Casino / Paris : un chiffre hors des fiches refusé deux fois → la question est transmise à l'équipe.
+  if (universeAssistant(run.input) && rejectedCodes.includes("invented_number")) return "handoff";
   if (run.input.conversation.isFirstAssistantTurn) return "intro";
   return null;
 }
@@ -581,7 +638,7 @@ async function sendParts(
     const canButtons = deps.sender.capabilities.canSendButtons;
     const buttons: ChatButton[][] | undefined =
       link && canButtons
-        ? [[{ text: persona.offerButtonText?.trim() || DEFAULT_OFFER_BUTTON, url: link.url }]]
+        ? [[{ text: offerButtonTextFor(persona.universe, persona.offerButtonText), url: link.url }]]
         : undefined;
     const outgoing = link && !canButtons ? `${text}\n\n${link.url}` : text;
     const sendOpts = { buttons, fixedKey: opts.fixedKey, offerSubId: link?.subId ?? null };
@@ -699,6 +756,13 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const minor = detectMinorIn(inbound.map((m) => m.text));
   if (minor.minor) return stopForMinor(run, inbound, "code", minor.age);
 
+  // 1 bis. Casino / Paris : demande d'argent, réclamation ou insulte repérée par le code → réponse neutre fixe et
+  // passage à l'équipe, sans appel au modèle (aucun coût, aucune réponse risquée).
+  if (universeAssistant(input) && input.kind === "reply") {
+    const reason = detectHandoffIn(inbound.map((m) => m.text));
+    if (reason) return handoffByCode(run, inbound, { reason, source: "code" });
+  }
+
   // 2. Plafond mensuel : aucun appel, aucun message.
   if (await deps.capReached()) return capResult(run, inbound);
 
@@ -752,15 +816,24 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   let output: TurnOutput | null = null;
   let fixedKey: FixedTextKey | null = null;
   let model: string | null = null;
+  let needsHuman: NeedsHumanSignal | null = null;
   const events: TurnEvent[] = [];
-  if (gen.kind === "ok") {
+  if (gen.kind === "ok" && gen.output.handoff?.needed && universeAssistant(input)) {
+    // Passage à un humain demandé par le modèle : réponse neutre fixe, jamais de lien.
+    output = gen.output;
+    fixedKey = "handoff";
+    texts = [fixedText(run.lang, "handoff")];
+    const reason = gen.output.handoff.reason === "none" ? "off_faq" : gen.output.handoff.reason;
+    needsHuman = { reason, source: "model" };
+  } else if (gen.kind === "ok") {
     output = gen.output;
     texts = gen.messages;
     model = gen.model;
   } else {
     const code = gen.kind === "error" ? gen.code : "invalid_output";
-    fixedKey = safeFallbackKey(run, inbound);
+    fixedKey = safeFallbackKey(run, inbound, gen.kind === "rejected" ? gen.codes : []);
     if (!fixedKey) return retryLater(run, inbound, deferred, code);
+    if (fixedKey === "handoff") needsHuman = { reason: "off_faq", source: "check" };
     texts = [
       fixedText(run.lang, fixedKey, {
         name: input.persona.name,
@@ -780,8 +853,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     offerSends: conv.offerSends,
     isMinor: conv.isMinor,
     isFirstAssistantTurn: conv.isFirstAssistantTurn,
+    memberAskedOffer: memberAskedOffer(run, inbound),
   };
-  const withOffer = output ? canSendOffer(offerConv, input.persona, output, input.kind) : false;
+  const withOffer =
+    output && !needsHuman ? canSendOffer(offerConv, input.persona, output, input.kind) : false;
   const sending = await sendParts(run, texts, { withOffer, fixedKey });
   const anySent = sending.sent.length > 0;
 
@@ -798,6 +873,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     : conv.stage;
   const stage = stageEvents(conv.stage, newStage);
   events.push(...stage.events);
+  if (needsHuman && anySent) events.push(needsHumanEvent(needsHuman));
   if (sending.offerSent)
     events.push({
       type: "offer_sent",
@@ -817,8 +893,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       : null;
   // « Arrête de m'écrire », « unsubscribe »… au milieu d'un message : réponse polie, puis aucune relance.
   const stopAsked = input.kind === "reply" && inbound.some((m) => mentionsStopRequest(m.text));
+  // Conversation passée à l'équipe : aucune relance de l'assistante.
   const next =
-    anySent && !closeReason && !stopAsked
+    anySent && !closeReason && !stopAsked && !needsHuman
       ? nextFollowUpAt(
           {
             status: "BOT",
@@ -854,5 +931,60 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     closeReason,
     sendError: sending.sendError,
     unsentOfferSubId: sending.unsentOfferSubId,
+    needsHuman: needsHuman && anySent ? needsHuman : null,
+  };
+}
+
+/**
+ * Passage à un humain repéré par le code (Casino / Paris) : relecture avant l'envoi (reprise par l'équipe, /stop, âge
+ * déclaré arrivé entre-temps), puis la réponse neutre fixe, sans lien ni relance. Les messages arrivés pendant la
+ * relecture sont couverts par ce même passage.
+ */
+async function handoffByCode(
+  run: Run,
+  inbound: TurnInbound[],
+  signal: NeedsHumanSignal,
+): Promise<TurnResult> {
+  const { input, deps } = run;
+  const conv = input.conversation;
+  const check = await deps.beforeSend();
+  if (check.abort)
+    return { ...baseResult(run, inbound), outcome: "aborted", deferredInbound: check.newInbound };
+  const all = [...inbound, ...check.newInbound];
+  run.extraMemberMessages += check.newInbound.length;
+  const lateMinor = detectMinorIn(check.newInbound.map((m) => m.text));
+  if (lateMinor.minor) return stopForMinor(run, all, "code", lateMinor.age);
+  const sending = await sendParts(run, [fixedText(run.lang, "handoff")], {
+    withOffer: false,
+    fixedKey: "handoff",
+  });
+  const anySent = sending.sent.length > 0;
+  const newStage = anySent
+    ? decideStage({
+        current: conv.stage,
+        proposed: null,
+        offerSent: false,
+        kind: "reply",
+        isFirstAssistantTurn: conv.isFirstAssistantTurn,
+        offerSendsBefore: conv.offerSends,
+      })
+    : conv.stage;
+  const stage = stageEvents(conv.stage, newStage);
+  return {
+    ...baseResult(run, all),
+    outcome: anySent ? "replied" : "failed",
+    sent: sending.sent,
+    newStage,
+    stageChanges: stage.changes,
+    events: [...stage.events, ...(anySent ? [needsHumanEvent(signal)] : [])],
+    followUpCount: anySent ? 0 : conv.followUpCount,
+    nextFollowUpAt: null,
+    closeReason: sending.sendError?.blocked
+      ? "BLOCKED"
+      : sending.sendError?.unreachable
+        ? "UNREACHABLE"
+        : null,
+    sendError: sending.sendError,
+    needsHuman: anySent ? signal : null,
   };
 }

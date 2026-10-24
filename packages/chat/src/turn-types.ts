@@ -1,5 +1,6 @@
 // Types d'un tour de l'assistant (contrat §3.10) : entrée, dépendances injectées, résultat. La persistance est faite
 // par l'appelant (worker, ou bouton « Tester » du site) : le moteur ne lit ni la base ni les réglages.
+import { effectiveIdentityKind, type NeedsHumanReason, type PersonaFaqEntry } from "@linkaffipro/core";
 import type { StyleProfile } from "./style";
 import type {
   ChatLang,
@@ -13,9 +14,15 @@ import type {
 /** Identité présentée : l'assistante du canal (phase 17) ou une fille (userbots, phase 18). */
 export type PersonaIdentity = "ASSISTANT" | "GIRL";
 
-/** Identité effective : toute valeur autre que « GIRL » reste l'assistante (comportement de la phase 17). */
-export function personaIdentity(p: { identity?: string | null }): PersonaIdentity {
-  return p.identity === "GIRL" ? "GIRL" : "ASSISTANT";
+/**
+ * Identité effective : toute valeur autre que « GIRL » reste l'assistante (comportement de la phase 17) ; en Casino ou
+ * Paris sportifs (phase 25), toujours l'assistante, quelle que soit la valeur enregistrée.
+ */
+export function personaIdentity(p: {
+  identity?: string | null;
+  universe?: string | null;
+}): PersonaIdentity {
+  return effectiveIdentityKind(p.universe, p.identity);
 }
 
 /**
@@ -26,6 +33,7 @@ export function personaIdentity(p: { identity?: string | null }): PersonaIdentit
 export function personaIllusion(p: {
   identity?: string | null;
   illusion?: boolean | null;
+  universe?: string | null;
 }): boolean {
   return personaIdentity(p) === "GIRL";
 }
@@ -71,6 +79,13 @@ export type PersonaInput = {
   channelTitle?: string | null;
   /** Nom du bot (facultatif). */
   botName?: string | null;
+  /**
+   * `Persona.universe` (phase 25) : dating (défaut), casino, sports. Casino et Paris sportifs : identité assistante
+   * imposée, fiche d'informations, lien VIP, passage à un humain.
+   */
+  universe?: string | null;
+  /** `Persona.faq` (phase 25) : questions courantes et réponses, seule source de ce que l'assistante peut affirmer. */
+  faq?: readonly PersonaFaqEntry[] | null;
 };
 
 /** Réglages utiles au tour (lus par l'appelant dans `Setting` `assistant.venice`). */
@@ -228,7 +243,13 @@ export type SentPart = {
   fixedKey: string | null;
 };
 
-export type TurnEventType = "stage_changed" | "offer_sent" | "minor" | "ai_failed" | "cap_reached";
+export type TurnEventType =
+  | "stage_changed"
+  | "offer_sent"
+  | "minor"
+  | "ai_failed"
+  | "cap_reached"
+  | "needs_human";
 /** Événement à enregistrer (ConversationEvent + Event), jamais de texte dedans. */
 export type TurnEvent = { type: TurnEventType; payload: Record<string, unknown> };
 
@@ -280,4 +301,11 @@ export type TurnResult = {
   sendError: { blocked: boolean; unreachable: boolean; error: string } | null;
   /** Lien d'offre créé mais pas parti (envoi du dernier message en échec). */
   unsentOfferSubId: string | null;
+  /**
+   * Passage à un humain (Casino / Paris sportifs, phase 25) : motif et origine (règle codée, sortie du modèle, ou
+   * contrôle : chiffre hors fiche refusé deux fois). L'appelant pose `Conversation.needsHumanAt` / `needsHumanReason`.
+   */
+  needsHuman?: NeedsHumanSignal | null;
 };
+
+export type NeedsHumanSignal = { reason: NeedsHumanReason; source: "code" | "model" | "check" };

@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
 /**
  * Nouvelle persona (phase 17) : le formulaire unique, désactivée par défaut, avec les textes du profil du bot déjà
  * proposés (ils disent « assistante du canal »). « Créer la persona » ouvre la fiche, où se trouve « Tester ».
- * ADMIN et MANAGER.
+ * ADMIN et MANAGER (fiche d'informations : ADMIN seulement, lecture seule pour un MANAGER).
  */
 export default async function NewPersonaPage() {
-  await requireUser();
+  const me = await requireUser();
   const choices = await loadPersonaFormChoices();
   return (
     <>
@@ -36,6 +36,7 @@ export default async function NewPersonaPage() {
         defaultModel={choices.defaultModel}
         templates={choices.templates}
         action={savePersonaAction}
+        canEditFaq={me.role === "ADMIN"}
       />
       <p className="mt-6 max-w-3xl text-note text-muted-foreground">
         Photos et vidéos du personnage : elles s&apos;ajoutent sur sa fiche, une fois la persona créée (section

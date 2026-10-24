@@ -5,7 +5,7 @@
  */
 import type { StyleProfile, VeniceModelInfo } from "@linkaffipro/chat";
 import { selectableModels } from "@linkaffipro/chat";
-import { identityLabel } from "./form";
+import { cleanUniverse, identityLabel, universeLabelFr, type PersonaUniverse } from "./form";
 
 // ------------------------------------------------------------------
 // Liste
@@ -21,6 +21,9 @@ export type PersonaListItem = {
   name: string;
   gender: string;
   identityKind: string;
+  /** Phase 25 : univers et nombre d'entrées de la fiche d'informations. */
+  universe?: string | null;
+  faqCount?: number;
   isActive: boolean;
   offer: { name: string; isActive: boolean } | null;
   bots: Array<{ username: string; mode: string }>;
@@ -31,6 +34,13 @@ export type PersonaListRow = {
   id: string;
   name: string;
   role: string;
+  universe: PersonaUniverse;
+  /** « Rencontres », « Casino », « Paris sportifs ». */
+  universeLabel: string;
+  /** Entrées de la fiche d'informations ; null pour Rencontres (non affiché). */
+  faqCount: number | null;
+  /** « Fiche d'informations : 12 questions », « Fiche d'informations vide » ; null pour Rencontres. */
+  faqLabel: string | null;
   isActive: boolean;
   stateLabel: "Active" | "Inactive";
   offerLabel: string;
@@ -49,6 +59,7 @@ export function personaListRow(p: PersonaListItem): PersonaListRow {
     id: p.id,
     name: personaDisplayName(p.name),
     role: identityLabel(p.identityKind, p.gender),
+    ...listUniverse(p),
     isActive: p.isActive,
     stateLabel: p.isActive ? "Active" : "Inactive",
     offerLabel: p.offer ? p.offer.name : "Aucune",
@@ -56,6 +67,23 @@ export function personaListRow(p: PersonaListItem): PersonaListRow {
     botsLabel: assistantBots.length ? assistantBots.map((b) => `@${b.username}`).join(", ") : "—",
     assistantBots: assistantBots.length,
     conversations: p.conversations,
+  };
+}
+
+function listUniverse(p: PersonaListItem) {
+  const universe = cleanUniverse(p.universe);
+  const n = p.faqCount ?? 0;
+  const faqCount = universe === "dating" ? null : n;
+  return {
+    universe,
+    universeLabel: universeLabelFr(universe),
+    faqCount,
+    faqLabel:
+      faqCount === null
+        ? null
+        : faqCount === 0
+          ? "Fiche d'informations vide"
+          : `Fiche d'informations : ${faqCount} question${faqCount > 1 ? "s" : ""}`,
   };
 }
 
@@ -74,7 +102,7 @@ export type OfferChoice = {
 export type ChoiceGroup = { label: string; options: Array<{ value: string; label: string }> };
 
 /**
- * Offres Link Affi proposées : celles de l'univers Rencontres d'abord, puis les autres ; l'offre déjà liée reste
+ * Offres Link Affi proposées : celles de l'univers de la persona d'abord (Rencontres par défaut), puis les autres ; l'offre déjà liée reste
  * proposée même si elle n'est plus active (signalée).
  */
 /** Nom complet d'une offre dans la liste (« Offre · Programme », « (inactive) ») : repris sous la liste, en entier. */
@@ -82,15 +110,19 @@ export function offerChoiceLabel(o: OfferChoice): string {
   return `${o.name}${o.programName && o.programName !== o.name ? ` · ${o.programName}` : ""}${o.isActive ? "" : " (inactive)"}`;
 }
 
-export function offerChoiceGroups(offers: readonly OfferChoice[]): ChoiceGroup[] {
+export function offerChoiceGroups(
+  offers: readonly OfferChoice[],
+  universe: PersonaUniverse = "dating",
+): ChoiceGroup[] {
   const label = offerChoiceLabel;
+  const vertical = universe.toUpperCase();
   const sorted = [...offers].sort((a, b) => a.name.localeCompare(b.name, "fr"));
-  const dating = sorted.filter((o) => o.vertical === "DATING");
-  const others = sorted.filter((o) => o.vertical !== "DATING");
+  const dating = sorted.filter((o) => o.vertical === vertical);
+  const others = sorted.filter((o) => o.vertical !== vertical);
   const groups: ChoiceGroup[] = [];
   if (dating.length)
     groups.push({
-      label: "Rencontres",
+      label: universeLabelFr(universe),
       options: dating.map((o) => ({ value: o.id, label: label(o) })),
     });
   if (others.length)

@@ -5,7 +5,10 @@ import {
   capShare,
   costPerRegistration,
   journeySteps,
+  parseStatsUniverse,
   reachedStage,
+  statsParams,
+  universeKeyOf,
   replyRate,
   type StatsConversation,
 } from "./stats";
@@ -152,5 +155,70 @@ describe("règles des chiffres", () => {
     expect(capShare(6, 30)).toBe(0.2);
     expect(capShare(45, 30)).toBe(1);
     expect(capShare(1, 0)).toBeNull();
+  });
+});
+
+describe("univers et « encore à traiter » (phase 25)", () => {
+  const input = {
+    conversations: [
+      conv({ personaId: "p1", replied: true, needsHuman: true }),
+      conv({ personaId: "p1" }),
+      conv({ personaId: "p2", source: "fb01", needsHuman: true }),
+      conv({ personaId: "p3", source: null }),
+      conv({ personaId: null, source: null }),
+    ],
+    linksSent: [
+      { personaId: "p1", source: "tk01" },
+      { personaId: "p2", source: "fb01" },
+    ],
+    linksOpened: [],
+    players: [{ personaId: "p2", source: "fb01", registered: true, ftd: false }],
+    costs: [
+      { personaId: "p1", source: "tk01", costEur: 0.2 },
+      { personaId: "p3", source: null, costEur: 0.1 },
+    ],
+    personaNames: { p1: "Léa", p2: "Max", p3: "Tom" },
+    personaUniverses: { p1: "dating", p2: "casino", p3: "sports" },
+  };
+
+  it("par univers : ordre fixe Rencontres, Casino, Paris sportifs, « Sans univers » en dernier", () => {
+    const stats = aggregateConversationStats(input);
+    expect(stats.byUniverse.map((r) => [r.key, r.label, r.conversations, r.toHandle])).toEqual([
+      ["dating", "Rencontres", 2, 1],
+      ["casino", "Casino", 1, 1],
+      ["sports", "Paris sportifs", 1, 0],
+      [NONE_KEY, "Sans univers", 1, 0],
+    ]);
+    expect(stats.total.toHandle).toBe(2);
+  });
+
+  it("filtre par univers : tout le reste est écarté, total et parcours compris", () => {
+    const casino = aggregateConversationStats(input, { universe: "casino" });
+    expect(casino.total).toMatchObject({
+      conversations: 1,
+      linksSent: 1,
+      registrations: 1,
+      costEur: 0,
+      toHandle: 1,
+    });
+    expect(casino.byPersona.map((r) => r.label)).toEqual(["Max"]);
+    expect(casino.journey[0]?.count).toBe(1);
+    const sports = aggregateConversationStats(input, { universe: "sports" });
+    expect(sports.total).toMatchObject({ conversations: 1, costEur: 0.1, linksSent: 0 });
+  });
+
+  it("univers inconnu ou persona absente : « Sans univers »", () => {
+    expect(universeKeyOf({ personaId: "px", source: null }, { px: "poker" })).toBe(NONE_KEY);
+    expect(universeKeyOf({ personaId: null, source: null }, {})).toBe(NONE_KEY);
+    expect(universeKeyOf({ personaId: "p1", source: null }, { p1: "dating" })).toBe("dating");
+  });
+
+  it("paramètre d'adresse : lecture tolérante, gardé avec la période", () => {
+    expect(parseStatsUniverse("Casino")).toBe("casino");
+    expect(parseStatsUniverse(["sports", "dating"])).toBe("sports");
+    expect(parseStatsUniverse("poker")).toBe("");
+    expect(parseStatsUniverse(undefined)).toBe("");
+    expect(statsParams({ range: "7d" }, "dating").toString()).toBe("range=7d&universe=dating");
+    expect(statsParams({ range: "7d" }, "").toString()).toBe("range=7d");
   });
 });

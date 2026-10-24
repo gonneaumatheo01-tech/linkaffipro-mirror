@@ -15,6 +15,9 @@ const row = (over: Partial<InboxExportRow> = {}): InboxExportRow => ({
   closedReason: null,
   stoppedAt: null,
   isMinor: false,
+  needsHumanAt: null,
+  needsHumanReason: null,
+  universe: "dating",
   member: { id: "m1", firstName: "Jean", lastName: null, username: "jean_m", anonymizedAt: null },
   last: {
     direction: "IN",
@@ -54,8 +57,10 @@ describe("export CSV de la boîte de réception", () => {
       "L'équipe a la main",
       "",
     ]);
-    expect(cells.at(-2)).toBe("La personne");
-    expect(cells.at(-1)).toBe("oui");
+    expect(cells.at(-4)).toBe("La personne");
+    expect(cells.at(-3)).toBe("oui");
+    expect(cells.at(-2)).toBe("Rencontres");
+    expect(cells.at(-1)).toBe("");
     expect(csv).toContain("0,0123");
     expect(csv).toContain("18/10/2026 12:00");
     expect(csv).not.toContain("secret");
@@ -81,7 +86,22 @@ describe("export CSV de la boîte de réception", () => {
     expect(cells[3]).toBe("Sans persona");
     expect(cells[4]).toBe("Sans source");
     expect(cells[7]).toContain("/stop");
-    expect(cells.at(-1)).toBe("non");
+    expect(cells.at(-3)).toBe("non");
+  });
+
+  it("conversation à traiter : le motif en clair ; univers de la persona", () => {
+    const cells = inboxCsv([
+      row({
+        needsHumanAt: new Date("2026-10-18T09:31:00Z"),
+        needsHumanReason: "argent",
+        universe: "casino",
+      }),
+    ])
+      .trim()
+      .split("\r\n")[1]!
+      .split(";");
+    expect(cells.at(-2)).toBe("Casino");
+    expect(cells.at(-1)).toBe("Demande d'argent");
   });
 
   it("« Qui répond » et « Dernier message de » accordés à la persona, comme sur la fiche", () => {
@@ -96,14 +116,14 @@ describe("export CSV de la boîte de réception", () => {
     const cellsOf = (csv: string) => csv.trim().split("\r\n")[1]!.split(";");
     const lea = cellsOf(inboxCsv([row({ status: "BOT", last, unread: false })]));
     expect(lea[6]).toBe("L'assistante répond");
-    expect(lea.at(-2)).toBe("L'assistante");
+    expect(lea.at(-4)).toBe("L'assistante");
     const hugo = cellsOf(
       inboxCsv([
         row({ status: "BOT", personaName: "Hugo", personaGender: "M", last, unread: false }),
       ]),
     );
     expect(hugo[6]).toBe("L'assistant répond");
-    expect(hugo.at(-2)).toBe("L'assistant");
+    expect(hugo.at(-4)).toBe("L'assistant");
   });
 });
 
@@ -144,6 +164,43 @@ describe("export CSV des chiffres", () => {
       "Source;Sans source;1",
     ]);
     expect(lines[1]).toContain(";50,0;");
-    expect(lines[1]!.endsWith(";0,5000;0,50")).toBe(true);
+    expect(lines[1]!.endsWith(";0,5000;0,50;0")).toBe(true);
+  });
+
+  it("univers connus : une ligne par univers après le total ; « encore à traiter » en dernière colonne", () => {
+    const stats = aggregateConversationStats({
+      conversations: [
+        {
+          personaId: "p1",
+          source: "tk01",
+          stage: "CHAT",
+          replied: true,
+          reached: ["CHAT"],
+          converted: false,
+          needsHuman: true,
+        },
+        {
+          personaId: "p2",
+          source: null,
+          stage: "WELCOME",
+          replied: false,
+          reached: [],
+          converted: false,
+        },
+      ],
+      linksSent: [],
+      linksOpened: [],
+      players: [],
+      costs: [],
+      personaNames: { p1: "Léa", p2: "Max" },
+      personaUniverses: { p1: "dating", p2: "casino" },
+    });
+    const lines = statsCsv(stats, "Hier").replace(/^\uFEFF/, "").trim().split("\r\n");
+    const heads = lines.map((l) => l.split(";").slice(0, 2).join(";"));
+    expect(heads.slice(1, 4)).toEqual(["Total (Hier);Toutes les conversations", "Univers;Rencontres", "Univers;Casino"]);
+    expect(lines[0]!.endsWith(";Encore à traiter")).toBe(true);
+    expect(lines[1]!.endsWith(";1")).toBe(true);
+    expect(lines[2]!.endsWith(";1")).toBe(true);
+    expect(lines[3]!.endsWith(";0")).toBe(true);
   });
 });

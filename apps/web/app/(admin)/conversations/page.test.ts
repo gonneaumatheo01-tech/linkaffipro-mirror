@@ -58,6 +58,9 @@ const row = (over: Partial<InboxListRow> = {}): InboxListRow => ({
   closedReason: null,
   stoppedAt: null,
   isMinor: false,
+  needsHumanAt: null,
+  needsHumanReason: null,
+  universe: "dating",
   member: { id: "m1", firstName: null, lastName: null, username: null, anonymizedAt: null },
   last: {
     direction: "IN",

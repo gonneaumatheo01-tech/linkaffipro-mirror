@@ -10,7 +10,11 @@
  * - campagne ou offre changée : le lien suivi de la persona pour son offre (`TrackingLink`, celui que le worker
  *   réutilise à chaque envoi) passe tout de suite dans la nouvelle campagne, et un recalcul complet des statistiques
  *   journalières est demandé (`refreshCampaignStats`, règle du projet : les jours passés changent de campagne) ;
- * - suppression : ADMIN seulement, refusée tant qu'un bot utilise la persona.
+ * - suppression : ADMIN seulement, refusée tant qu'un bot utilise la persona ;
+ * - univers (phase 25) : hors Rencontres, toujours l'assistante (refus serveur dans `validatePersonaForm`), et le
+ *   mode illusion n'est jamais posé pour une assistante ;
+ * - fiche d'informations (phase 25) : ADMIN seulement ; un MANAGER qui l'envoie modifiée est refusé (la fiche reste
+ *   inchangée) ; journal `persona.faq_updated` (nombres d'entrées, jamais les textes).
  */
 import { deniesBeingAssistant } from "@linkaffipro/chat";
 import { audit, prisma } from "@linkaffipro/db";
@@ -24,6 +28,7 @@ import {
   type PersonaData,
   type PersonaFormErrors,
 } from "./form";
+import { cleanFaq, sameFaq, type PersonaFaqEntry } from "./faq";
 import { profileErrorMessage } from "./profile-error";
 
 export type PersonaSaveResult =
@@ -44,6 +49,7 @@ const COMPARED_FIELDS = [
   "name",
   "gender",
   "identityKind",
+  "universe",
   "age",
   "personality",
   "tone",
@@ -68,7 +74,10 @@ const COMPARED_FIELDS = [
   "isActive",
 ] as const satisfies ReadonlyArray<keyof PersonaData>;
 
-/** Champs modifiés entre l'enregistrement précédent et le nouveau (pour le journal, sans les textes). */
+/**
+ * Champs modifiés entre l'enregistrement précédent et le nouveau (pour le journal, sans les textes). La fiche
+ * d'informations a son propre journal (`persona.faq_updated`).
+ */
 export function changedFields(
   before: Partial<Record<keyof PersonaData, unknown>>,
   after: PersonaData,
@@ -196,6 +205,8 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
           model: true,
           temperature: true,
           extraPrompt: true,
+          universe: true,
+          faq: true,
           isActive: true,
         },
       })
@@ -206,6 +217,14 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       error:
         "Cette persona n'existe plus (supprimée entre-temps) : revenez à la liste des personas.",
     };
+
+  // Fiche d'informations : ADMIN seulement. Brouillon sans fiche → fiche enregistrée gardée telle quelle.
+  const beforeFaq: PersonaFaqEntry[] = cleanFaq(before?.faq);
+  const faq: PersonaFaqEntry[] = data.faq ?? beforeFaq;
+  const faqChanged = !sameFaq(beforeFaq, faq);
+  if (faqChanged && user.role !== "ADMIN")
+    profileErrors.faq =
+      "Seul un administrateur peut modifier la fiche d'informations : elle reste inchangée.";
 
   const errors = {
     ...profileErrors,
@@ -222,16 +241,16 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       errors,
     };
 
+  // `illusion` jamais posé pour une assistante (ni donc hors Rencontres, où « une fille » est refusée).
+  const row = { ...data, faq, illusion: data.identityKind === "GIRL" };
+  const faqMeta = { universe: data.universe, faqEntries: faq.length };
   let id: string;
   let created: boolean;
   let recompute = false;
   if (before) {
     // `illusion` garde la trace du verrou « elle ne se démasque jamais » : forcé pour une fille. Le moteur le déduit
     // déjà de l'identité ; la colonne ne sert qu'à documenter l'intention.
-    await prisma.persona.update({
-      where: { id: before.id },
-      data: { ...data, illusion: data.identityKind === "GIRL" },
-    });
+    await prisma.persona.update({ where: { id: before.id }, data: row });
     id = before.id;
     created = false;
     const fields = changedFields(before, data);
@@ -241,7 +260,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
         action: "persona.updated",
         entityType: "Persona",
         entityId: id,
-        metadata: { fields },
+        metadata: { fields, ...faqMeta },
       });
     if (fields.includes("campaignId") || fields.includes("affiliateCampaignId")) {
       // Même règle que le worker (apps/worker/src/assistant/offer-link.ts) : le lien de la persona pour son offre
@@ -254,20 +273,29 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       recompute = true;
     }
   } else {
-    const row = await prisma.persona.create({
-      data: { ...data, illusion: data.identityKind === "GIRL", createdById: user.id },
+    const createdRow = await prisma.persona.create({
+      data: { ...row, createdById: user.id },
       select: { id: true },
     });
-    id = row.id;
+    id = createdRow.id;
     created = true;
     await audit({
       userId: user.id,
       action: "persona.created",
       entityType: "Persona",
       entityId: id,
-      metadata: { name: data.name, isActive: data.isActive },
+      metadata: { name: data.name, isActive: data.isActive, ...faqMeta },
     });
   }
+  if (faqChanged)
+    await audit({
+      userId: user.id,
+      action: "persona.faq_updated",
+      entityType: "Persona",
+      entityId: id,
+      // Nombres seulement : jamais le texte des questions ni des réponses dans le journal.
+      metadata: { universe: data.universe, before: beforeFaq.length, after: faq.length },
+    });
   const wasActive = before?.isActive ?? false;
   if (data.isActive !== wasActive && (before || data.isActive))
     await audit({

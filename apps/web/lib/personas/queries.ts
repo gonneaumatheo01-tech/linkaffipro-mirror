@@ -10,6 +10,7 @@ import { loadAssistantConfig } from "@/lib/assistant/config";
 import { listOfferCandidates } from "@/lib/campaigns/queries";
 import { visibleOffers } from "@/lib/campaigns/wizard";
 import { OFFER_VISUAL_MIME_TYPES, type PersonaRecord, type ProfileTemplates } from "./form";
+import { cleanFaq } from "./faq";
 import { personaTurnInput } from "./test-turn";
 import type { CampaignChoice, OfferChoice, PersonaListItem } from "./view";
 
@@ -22,6 +23,8 @@ export async function loadPersonaList(): Promise<PersonaListItem[]> {
       name: true,
       gender: true,
       identityKind: true,
+      universe: true,
+      faq: true,
       isActive: true,
       affiliateCampaign: { select: { name: true, isActive: true } },
       bots: { select: { username: true, mode: true }, orderBy: { username: "asc" } },
@@ -33,6 +36,8 @@ export async function loadPersonaList(): Promise<PersonaListItem[]> {
     name: r.name,
     gender: r.gender,
     identityKind: r.identityKind,
+    universe: r.universe,
+    faqCount: cleanFaq(r.faq).length,
     isActive: r.isActive,
     offer: r.affiliateCampaign,
     bots: r.bots,

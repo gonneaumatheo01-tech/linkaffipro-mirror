@@ -18,7 +18,7 @@ import { loadPersonaRecommendations } from "@/lib/agents/algo/queries";
 import { loadAssistantConfig } from "@/lib/assistant/config";
 import { monthCostEur } from "@/lib/assistant/usage";
 import { fmtNum } from "@/lib/format";
-import { cleanIdentity, personaRole, personaToForm } from "@/lib/personas/form";
+import { cleanIdentity, personaRole, personaToForm, universeLabelFr } from "@/lib/personas/form";
 import { loadPersonaMedia } from "@/lib/personas/media-save";
 import { loadPersona, loadPersonaFormChoices, loadPersonaTurnInput } from "@/lib/personas/queries";
 import { personaDisplayName, testBlockedReason } from "@/lib/personas/view";
@@ -95,7 +95,7 @@ export default async function PersonaPage({
             <StatusPill tone="muted">Inactive</StatusPill>
           )
         }
-        description={`${cap(role)} du canal · ${fmtNum(persona.conversations)} conversation${persona.conversations > 1 ? "s" : ""}${
+        description={`${universeLabelFr(persona.universe)} · ${cap(role)} du canal · ${fmtNum(persona.conversations)} conversation${persona.conversations > 1 ? "s" : ""}${
           assistantBots.length
             ? ` · ${assistantBots.length > 1 ? "bots" : "bot"} ${assistantBots.map((b) => `@${b.username}`).join(", ")}`
             : ""
@@ -129,6 +129,7 @@ export default async function PersonaPage({
             defaultModel={choices.defaultModel}
             templates={choices.templates}
             action={savePersonaAction}
+            canEditFaq={me.role === "ADMIN"}
           />
         </div>
 

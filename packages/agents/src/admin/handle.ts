@@ -12,7 +12,10 @@ import { interpretAnswer, normalizeText } from "../human/answer";
 import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./commands";
 import { esc, nowOf, telegramActorUserId } from "./journal";
 import { setTeamBudget } from "./budget";
-import { agentsStatusText, setAutonomyLevel, setTeamPaused, type ActorRef } from "./team";
+import { setTeamPaused, type ActorRef } from "./team";
+import { agentsOverview, overviewLines } from "../orchestrator/overview-contract";
+import { dailyReportText } from "./report-command";
+import { levelQuestion, liveQuestion, teamPlanSummary } from "./confirm-summary";
 
 export type AdminTextInput = {
   text: string;
@@ -104,8 +107,12 @@ async function runCommand(
 ): Promise<AdminTextResult> {
   if (voice && (cmd.type === "secret" || cmd.type === "bookmaker")) return { handled: true, reply: VOICE_SECRET_REFUSAL };
   switch (cmd.type) {
-    case "status":
-      return { handled: true, reply: await agentsStatusText(deps) };
+    case "status": {
+      const lines = overviewLines(await agentsOverview(deps.prisma, { now: nowOf(deps) }));
+      return { handled: true, reply: lines.map(esc).join("\n") };
+    }
+    case "report":
+      return { handled: true, reply: await dailyReportText(deps) };
     case "pause":
     case "resume":
       return { handled: true, reply: (await setTeamPaused(deps, cmd.team, cmd.type === "pause", actor)).message };
@@ -147,27 +154,27 @@ async function runCommand(
       return { handled: true, reply: `Plafond vidéo de l'équipe Dating : ${cmd.euros.toLocaleString("fr-FR")} € par mois ✅` };
     }
     case "live": {
+      // Le bot résume d'abord ce qui va se passer (canaux, quota, niveau, plafonds), puis attend OUI.
+      const summary = await teamPlanSummary(deps, cmd.team);
+      if (!summary.simulation) return { handled: true, reply: `L'équipe ${TEAM_LABELS[cmd.team]} est déjà en vrai.` };
       const r = await askHuman(deps, {
         teamKey: cmd.team,
         kind: "CONFIRM",
         key: `agents.team.${cmd.team}.live`,
-        question: `Passer l'équipe ${TEAM_LABELS[cmd.team]} en vrai ? Ses posts partiront sur les vrais canaux. Réponds OUI pour confirmer, « non » pour annuler.`,
+        question: liveQuestion(cmd.team, summary),
         onAnswer: { action: "set-simulation", teamKey: cmd.team, simulation: false },
       });
       return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };
     }
     case "level": {
-      // Par écrit, baisser le niveau est direct ; par vocal (chiffre mal entendu possible), tout niveau est confirmé.
-      if (cmd.level < 2 && !voice)
-        return { handled: true, reply: (await setAutonomyLevel(deps, cmd.team, cmd.level, actor)).message };
+      // Tout changement de niveau est résumé puis confirmé par OUI (par écrit comme par vocal).
+      const summary = await teamPlanSummary(deps, cmd.team);
+      if (summary.level === cmd.level) return { handled: true, reply: `L'équipe ${TEAM_LABELS[cmd.team]} est déjà au niveau ${cmd.level}.` };
       const r = await askHuman(deps, {
         teamKey: cmd.team,
         kind: "CONFIRM",
         key: `agents.team.${cmd.team}.level${cmd.level}`,
-        question:
-          cmd.level === 2
-            ? `Passer l'équipe ${TEAM_LABELS[cmd.team]} en autonomie totale ? Elle publiera sans te demander, tu recevras seulement le rapport. Réponds OUI pour confirmer, « non » pour annuler.`
-            : `Passer l'équipe ${TEAM_LABELS[cmd.team]} au niveau ${cmd.level} (${cmd.level === 0 ? "tu valides tout" : "tu valides les nouveautés"}) ? Réponds OUI pour confirmer, « non » pour annuler.`,
+        question: levelQuestion(cmd.team, cmd.level, summary),
         onAnswer: { action: "set-autonomy", teamKey: cmd.team, level: cmd.level },
       });
       return { handled: true, reply: r.sent ? undefined : "Noté : je te pose la question juste après celle en cours." };

@@ -9,6 +9,7 @@ import { ConversationFacts } from "@/components/conversations/conversation-facts
 import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge";
 import { ConversationThread } from "@/components/conversations/conversation-thread";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
+import { NeedsHumanBanner } from "@/components/conversations/needs-human-banner";
 import { TeamReplyForm } from "@/components/conversations/team-reply-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { StatusBadge } from "@/lib/status-badges";
 import { cn } from "@/lib/utils";
 import {
   blockAction,
+  clearNeedsHumanAction,
   closeAction,
   releaseAction,
   sendTeamMessageAction,
@@ -59,6 +61,8 @@ function whoAnswersSentence(status: string, word: string, block: ReplyBlock | nu
  * « Écrire à cette personne » (« Envoyer », seul bouton orange), les boutons de reprise en main (Prendre la main,
  * Rendre à l'assistante, Fermer, Bloquer), et à droite la conversation (personne, persona, source, étape, langue) et
  * ses résultats (liens de l'offre, inscription, premier dépôt, coût de l'IA), puis ce que l'assistante retient.
+ * Phase 25 : bandeau « À traiter : <motif> » (depuis quand, « Marquer comme traitée ») quand l'assistante a passé la
+ * main à l'équipe ; prendre la main ou écrire l'efface aussi.
  * Administrateurs et managers (`requireUser`).
  */
 export default async function ConversationPage({
@@ -120,6 +124,14 @@ export default async function ConversationPage({
           <h2 id="conv-thread" className="sr-only">
             Messages
           </h2>
+          <NeedsHumanBanner
+            conversationId={c.id}
+            since={c.needsHumanAt}
+            reason={c.needsHumanReason}
+            canWrite={c.actions.send}
+            assistant={word}
+            action={clearNeedsHumanAction}
+          />
           <div className="space-y-2">
             <ConversationActionButtons
               conversationId={c.id}

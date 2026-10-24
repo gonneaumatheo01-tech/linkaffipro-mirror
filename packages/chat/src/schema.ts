@@ -1,5 +1,11 @@
 // Sortie JSON stricte d'un tour de l'assistant (contrat §3.2) : schéma envoyé au modèle (`response_format: json_schema`,
 // strict) et contrôle de forme fait par le code (sans dépendance : erreurs lisibles en français).
+import {
+  isAssistantOnlyUniverse,
+  isNeedsHumanReason,
+  NEEDS_HUMAN_REASONS,
+  type NeedsHumanReason,
+} from "@linkaffipro/core";
 import { CHAT_LANGS, CONVERSATION_STAGES, type ChatLang, type ConversationStage } from "./types";
 
 export const STYLE_LENGTHS = ["short", "medium", "long"] as const;
@@ -33,7 +39,14 @@ export type TurnOutput = {
   minor_suspected: boolean;
   app_refused: boolean;
   note_interne: string;
+  /**
+   * Passage à un humain demandé par le modèle (Casino / Paris sportifs, phase 25 ; absent ailleurs). Le motif est
+   * vérifié par le code : un motif inconnu avec `needed` vrai devient « question hors fiche ».
+   */
+  handoff?: TurnHandoff;
 };
+
+export type TurnHandoff = { needed: boolean; reason: NeedsHumanReason | "none" };
 
 export const TURN_OUTPUT_SCHEMA_NAME = "assistant_turn";
 export const MIN_TURN_MESSAGES = 1;
@@ -97,9 +110,53 @@ export const TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
   },
 };
 
-/** Paramètre `jsonSchema` d'une requête au modèle. */
-export function turnOutputJsonSchema(): { name: string; schema: Record<string, unknown> } {
-  return { name: TURN_OUTPUT_SCHEMA_NAME, schema: TURN_OUTPUT_JSON_SCHEMA };
+/** Valeurs permises de `handoff.reason` (« none » quand aucun passage n'est demandé). */
+export const HANDOFF_REASON_VALUES = ["none", ...NEEDS_HUMAN_REASONS] as const;
+
+/**
+ * Schéma des univers Casino et Paris sportifs : celui de Rencontres + `handoff` (requis en mode strict). Rencontres garde
+ * exactement son schéma d'avant.
+ */
+export const UNIVERSE_TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
+  ...TURN_OUTPUT_JSON_SCHEMA,
+  required: [...TURN_OUTPUT_FIELDS, "handoff"],
+  properties: {
+    ...(TURN_OUTPUT_JSON_SCHEMA.properties as Record<string, unknown>),
+    handoff: {
+      type: "object",
+      additionalProperties: false,
+      required: ["needed", "reason"],
+      properties: { needed: { type: "boolean" }, reason: stringEnum(HANDOFF_REASON_VALUES) },
+    },
+  },
+};
+
+/** Paramètre `jsonSchema` d'une requête au modèle (selon l'univers de la persona ; absent = Rencontres). */
+export function turnOutputJsonSchema(universe?: string | null): {
+  name: string;
+  schema: Record<string, unknown>;
+} {
+  return {
+    name: TURN_OUTPUT_SCHEMA_NAME,
+    schema: isAssistantOnlyUniverse(universe)
+      ? UNIVERSE_TURN_OUTPUT_JSON_SCHEMA
+      : TURN_OUTPUT_JSON_SCHEMA,
+  };
+}
+
+/**
+ * `handoff` de la sortie : absent → aucun champ ; `needed` non booléen → erreur ; motif inconnu avec `needed` vrai →
+ * « off_faq » (prudence : la conversation passe à l'équipe) ; `needed` faux → motif « none ».
+ */
+function handoffValue(raw: unknown, errors: string[]): TurnHandoff | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isRecord(raw) || typeof raw.needed !== "boolean") {
+    errors.push("handoff : objet { needed, reason } attendu.");
+    return undefined;
+  }
+  if (!raw.needed) return { needed: false, reason: "none" };
+  const reason = typeof raw.reason === "string" ? raw.reason.trim().toLowerCase() : "";
+  return { needed: true, reason: isNeedsHumanReason(reason) ? reason : "off_faq" };
 }
 
 export type TurnOutputCheck = { ok: true; value: TurnOutput } | { ok: false; errors: string[] };
@@ -183,6 +240,7 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
     errors.push("app_refused : vrai ou faux attendu.");
 
   const note = typeof value.note_interne === "string" ? value.note_interne : "";
+  const handoff = handoffValue(value.handoff, errors);
 
   if (errors.length > 0 || !style || !stage) return { ok: false, errors };
   return {
@@ -196,6 +254,7 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
       minor_suspected: value.minor_suspected === true,
       app_refused: value.app_refused === true,
       note_interne: note,
+      ...(handoff ? { handoff } : {}),
     },
   };
 }

@@ -45,6 +45,7 @@ export function fakeOutput(over: FakeOutputInput = {}): TurnOutput {
     minor_suspected: over.minor_suspected ?? false,
     app_refused: over.app_refused ?? false,
     note_interne: over.note_interne ?? "",
+    ...(over.handoff ? { handoff: over.handoff } : {}),
   };
 }
 

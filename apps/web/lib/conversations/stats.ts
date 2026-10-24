@@ -1,6 +1,6 @@
 /**
  * Chiffres de l'assistant de conversation (`/conversations/stats`, contrat docs/ASSISTANT-CONVERSATION.md § 6) :
- * par persona et par source du /start, et parcours par étape. Règles pures (testées) ; la lecture en base est dans
+ * par univers de la persona (phase 25), par persona et par source du /start, et parcours par étape ; filtre par univers. Règles pures (testées) ; la lecture en base est dans
  * `stats-queries.ts`.
  *
  * Définitions (période en jours de Paris) :
@@ -11,10 +11,24 @@
  *   réelles de Link Affi (date d'inscription, date du premier dépôt), comme le reste des Statistiques ;
  * - coût de l'IA : appels de la période, hors « Tester » ;
  * - parcours : conversations commencées dans la période arrivées à chaque étape (étape actuelle ou passage enregistré ;
- *   « Inscrit » aussi pour toute conversation dont une inscription est rattachée, même fermée entre-temps).
+ *   « Inscrit » aussi pour toute conversation dont une inscription est rattachée, même fermée entre-temps) ;
+ * - encore à traiter (phase 25) : conversations commencées dans la période que l'assistante a passées à l'équipe et que
+ *   personne n'a encore traitées (le repère s'efface dès que l'équipe reprend la main : un compte du moment, pas un
+ *   historique) ;
+ * - univers : celui de la persona (`Persona.universe`) ; sans persona (supprimée depuis) : « Sans univers », exclu
+ *   d'un filtre par univers.
  */
 import type { ConversationStage } from "@linkaffipro/db";
-import { JOURNEY_STAGES, NONE_KEY, personaLabel, sourceLabel } from "./labels";
+import {
+  conversationUniverseLabel,
+  CONVERSATION_UNIVERSES,
+  isConversationUniverse,
+  JOURNEY_STAGES,
+  NONE_KEY,
+  personaLabel,
+  sourceLabel,
+  type ConversationUniverse,
+} from "./labels";
 
 /** Conversation commencée dans la période. */
 export type StatsConversation = {
@@ -30,6 +44,8 @@ export type StatsConversation = {
    * d'étape : une conversation fermée (/stop, « Fermer », bot bloqué) puis convertie garde l'étape « Fermée ».
    */
   converted: boolean;
+  /** Encore « à traiter » (`needsHumanAt` posé). Absent : non. */
+  needsHuman?: boolean;
 };
 
 /** Événement rattaché à une persona et une source (lien envoyé, lien ouvert, coût). */
@@ -45,6 +61,8 @@ export type StatsInput = {
   costs: readonly StatsCost[];
   /** Nom des personas, par identifiant. */
   personaNames: Readonly<Record<string, string>>;
+  /** Univers des personas (`Persona.universe`), par identifiant. Absent : regroupement par univers vide. */
+  personaUniverses?: Readonly<Record<string, string>>;
 };
 
 export type Figures = {
@@ -55,6 +73,8 @@ export type Figures = {
   registrations: number;
   ftds: number;
   costEur: number;
+  /** Conversations commencées dans la période et encore « à traiter ». */
+  toHandle: number;
 };
 
 export type FigureRow = Figures & {
@@ -76,6 +96,8 @@ export type JourneyStep = {
 
 export type ConversationStats = {
   total: FigureRow;
+  /** Par univers de la persona (clé : dating / casino / sports, NONE_KEY sans persona). */
+  byUniverse: FigureRow[];
   byPersona: FigureRow[];
   bySource: FigureRow[];
   journey: JourneyStep[];
@@ -90,6 +112,7 @@ export function emptyFigures(): Figures {
     registrations: 0,
     ftds: 0,
     costEur: 0,
+    toHandle: 0,
   };
 }
 
@@ -165,29 +188,61 @@ export function journeySteps(conversations: readonly StatsConversation[]): Journ
   });
 }
 
-/** Tous les chiffres de la période : total, par persona, par source et parcours. */
-export function aggregateConversationStats(input: StatsInput): ConversationStats {
+/** Univers d'un élément (celui de sa persona), NONE_KEY sans persona ou univers inconnu. */
+export function universeKeyOf(
+  k: StatsKeyed,
+  personaUniverses: Readonly<Record<string, string>> = {},
+): ConversationUniverse | typeof NONE_KEY {
+  const u = k.personaId ? personaUniverses[k.personaId] : undefined;
+  return isConversationUniverse(u) ? u : NONE_KEY;
+}
+
+/** Ordre fixe des univers (Rencontres, Casino, Paris sportifs), « Sans univers » en dernier. */
+function universeOrder(key: string): number {
+  const i = (CONVERSATION_UNIVERSES as readonly string[]).indexOf(key);
+  return i < 0 ? CONVERSATION_UNIVERSES.length : i;
+}
+
+/**
+ * Tous les chiffres de la période : total, par univers, par persona, par source et parcours. `universe` : seulement
+ * ce qui se rattache à une persona de cet univers (tout le reste est écarté, total et parcours compris).
+ */
+export function aggregateConversationStats(
+  input: StatsInput,
+  opts: { universe?: ConversationUniverse | "" } = {},
+): ConversationStats {
+  const universes = input.personaUniverses ?? {};
+  const keep = <T extends StatsKeyed>(rows: readonly T[]): readonly T[] =>
+    opts.universe ? rows.filter((r) => universeKeyOf(r, universes) === opts.universe) : rows;
+  const conversations = keep(input.conversations);
   const total = emptyFigures();
+  const universe: Bucket = new Map();
   const persona: Bucket = new Map();
   const source: Bucket = new Map();
   const each = (k: StatsKeyed, apply: (f: Figures) => void) => {
     apply(total);
+    bump(universe, universeKeyOf(k, universes), apply);
     bump(persona, personaKey(k), apply);
     bump(source, sourceKey(k), apply);
   };
-  for (const c of input.conversations)
+  for (const c of conversations)
     each(c, (f) => {
       f.conversations += 1;
       if (c.replied) f.replies += 1;
+      if (c.needsHuman) f.toHandle += 1;
     });
-  for (const l of input.linksSent) each(l, (f) => void (f.linksSent += 1));
-  for (const l of input.linksOpened) each(l, (f) => void (f.linksOpened += 1));
-  for (const p of input.players)
+  for (const l of keep(input.linksSent)) each(l, (f) => void (f.linksSent += 1));
+  for (const l of keep(input.linksOpened)) each(l, (f) => void (f.linksOpened += 1));
+  for (const p of keep(input.players))
     each(p, (f) => {
       if (p.registered) f.registrations += 1;
       if (p.ftd) f.ftds += 1;
     });
-  for (const c of input.costs) each(c, (f) => void (f.costEur += c.costEur));
+  for (const c of keep(input.costs)) each(c, (f) => void (f.costEur += c.costEur));
+
+  const byUniverse = [...universe.entries()]
+    .map(([key, f]) => finish(key, conversationUniverseLabel(key === NONE_KEY ? null : key), f))
+    .sort((a, b) => universeOrder(a.key) - universeOrder(b.key));
 
   const byPersona = sortRows(
     [...persona.entries()].map(([key, f]) =>
@@ -201,9 +256,10 @@ export function aggregateConversationStats(input: StatsInput): ConversationStats
   );
   return {
     total: finish("total", "Toutes les conversations", total),
+    byUniverse,
     byPersona,
     bySource,
-    journey: journeySteps(input.conversations),
+    journey: journeySteps(conversations),
   };
 }
 
@@ -211,4 +267,21 @@ export function aggregateConversationStats(input: StatsInput): ConversationStats
 export function capShare(spentEur: number, capEur: number): number | null {
   if (!(capEur > 0)) return null;
   return Math.min(1, Math.max(0, spentEur / capEur));
+}
+
+/** Filtre Univers des Chiffres (`?universe=`), lecture tolérante : "" (tous) pour toute valeur inconnue. */
+export function parseStatsUniverse(v: string | string[] | undefined): ConversationUniverse | "" {
+  const s = (Array.isArray(v) ? v[0] : v)?.trim().toLowerCase() ?? "";
+  return isConversationUniverse(s) ? s : "";
+}
+
+/** Paramètres d'adresse des Chiffres : la période, puis l'univers s'il est choisi. */
+export function statsParams(
+  period: Record<string, string>,
+  universe: ConversationUniverse | "",
+): URLSearchParams {
+  const p = new URLSearchParams(period);
+  if (universe) p.set("universe", universe);
+  else p.delete("universe");
+  return p;
 }

@@ -1,10 +1,11 @@
 /**
- * Filtres de la boîte de réception (`/conversations`) : étape, qui répond, source du /start, persona, « non lues »
+ * Filtres de la boîte de réception (`/conversations`) : « à traiter » (phase 25 : `needsHumanAt` posé), univers de la
+ * persona (phase 25), étape, qui répond, source du /start, persona, « non lues »
  * (dernier message de la personne, sans réponse, hors conversations définitives : voir `inbox.ts`), page. Lecture tolérante des paramètres d'adresse et liens qui
  * gardent les autres filtres (mémorisés par `RememberFilters`). Règles pures (testées).
  */
 import type { ConversationStage, ConversationStatus } from "@linkaffipro/db";
-import { NONE_KEY } from "./labels";
+import { isConversationUniverse, NONE_KEY, type ConversationUniverse } from "./labels";
 
 const STAGES: readonly ConversationStage[] = [
   "WELCOME",
@@ -31,8 +32,14 @@ export type InboxFilters = {
   persona: string;
   /** Seulement les conversations dont le dernier message est celui de la personne (sans réponse). */
   unread: boolean;
+  /** Seulement les conversations « à traiter » (l'assistante a passé la main à l'équipe). */
+  toHandle: boolean;
+  /** "" (tous) ou l'univers de la persona de la conversation (sinon celle du bot). */
+  universe: ConversationUniverse | "";
   page: number;
 };
+
+const yes = (v: string) => v === "1" || v === "true" || v === "on";
 
 type Param = string | string[] | undefined;
 
@@ -48,19 +55,30 @@ export function parseInboxFilters(sp: Record<string, Param>): InboxFilters {
   const persona = one(sp.persona);
   const page = Number(one(sp.page));
   const unread = one(sp.unread);
+  const universe = one(sp.universe).toLowerCase();
   return {
     stage: (STAGES as readonly string[]).includes(stage) ? (stage as ConversationStage) : "",
     status: (STATUSES as readonly string[]).includes(status) ? (status as ConversationStatus) : "",
     source: source === NONE_KEY || SOURCE_RE.test(source) ? source : "",
     persona: persona === NONE_KEY || ID_RE.test(persona) ? persona : "",
-    unread: unread === "1" || unread === "true" || unread === "on",
+    unread: yes(unread),
+    toHandle: yes(one(sp.todo)),
+    universe: isConversationUniverse(universe) ? universe : "",
     page: Number.isInteger(page) && page > 0 ? page : 1,
   };
 }
 
 /** Nombre de filtres posés (la page n'en est pas un). */
 export function activeInboxFilterCount(f: InboxFilters): number {
-  return [f.stage, f.status, f.source, f.persona, f.unread ? "1" : ""].filter(Boolean).length;
+  return [
+    f.stage,
+    f.status,
+    f.source,
+    f.persona,
+    f.unread ? "1" : "",
+    f.toHandle ? "1" : "",
+    f.universe,
+  ].filter(Boolean).length;
 }
 
 export function hasInboxFilters(f: InboxFilters): boolean {
@@ -75,6 +93,8 @@ export function inboxParams(f: InboxFilters, opts: { withPage?: boolean } = {}):
   if (f.source) p.set("source", f.source);
   if (f.persona) p.set("persona", f.persona);
   if (f.unread) p.set("unread", "1");
+  if (f.toHandle) p.set("todo", "1");
+  if (f.universe) p.set("universe", f.universe);
   if (opts.withPage !== false && f.page > 1) p.set("page", String(f.page));
   return p;
 }
@@ -95,7 +115,16 @@ export function inboxHref(f: InboxFilters, patch: Partial<InboxFilters> = {}): s
 
 /** Filtres vides (« Voir toutes les conversations »). */
 export function clearedInboxFilters(): InboxFilters {
-  return { stage: "", status: "", source: "", persona: "", unread: false, page: 1 };
+  return {
+    stage: "",
+    status: "",
+    source: "",
+    persona: "",
+    unread: false,
+    toHandle: false,
+    universe: "",
+    page: 1,
+  };
 }
 
 /** Adresse de l'export CSV de la liste (mêmes filtres, sans la page). */

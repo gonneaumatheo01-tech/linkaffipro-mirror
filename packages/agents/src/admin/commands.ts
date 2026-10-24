@@ -7,6 +7,7 @@ import { isSkipText, normalizeText } from "../human/answer";
 
 export type AdminCommand =
   | { type: "status" }
+  | { type: "report" }
   | { type: "pause"; team: TeamKey | "all" }
   | { type: "resume"; team: TeamKey | "all" }
   | { type: "approve"; number: number }
@@ -70,6 +71,7 @@ export function parseAdminCommand(text: string): AdminCommand | null {
 
   if (all === "agents" || all === "agent") return { type: "status" };
   if (all === "demandes" || all === "demande") return { type: "requests" };
+  if (all === "rapport" || all === "rapports" || all === "rapport du jour") return { type: "report" };
   if (isSkipText(text)) return { type: "later" };
 
   if ((head === "pause" || head === "reprends" || head === "reprendre" || head === "reprise") && raw.length >= 2) {

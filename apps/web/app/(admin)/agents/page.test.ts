@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   algoEmpty: false,
   adsConnectorsMissing: true,
   adsFailing: false,
+  overviewFails: false,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -431,6 +432,48 @@ vi.mock("@/lib/agents/queries", async (orig) => {
   };
 });
 
+vi.mock("@/lib/agents/overview", () => {
+  const team = (teamKey: string, label: string, posts: number) => ({
+    teamKey,
+    label,
+    enabled: true,
+    simulation: true,
+    paused: false,
+    autonomyLevel: 1,
+    today: { created: 4, published: 2, waiting: 1, rejected: 0, failed: 1, fallbacks: 1 },
+    spend: teamKey === "dating"
+      ? [
+          { provider: "llm", cents: 1230, capCents: 5000, projectedCents: 3000 },
+          { provider: "video", cents: 8500, capCents: 10000, projectedCents: 12000 },
+        ]
+      : [],
+    results: {
+      d7: { posts, views: 1200, clicks: 40, registrations: 5, ftds: 2, commissions: 150 },
+      d28: { posts: posts * 4, views: 5000, clicks: 160, registrations: 20, ftds: 8, commissions: 600 },
+    },
+  });
+  const overview = {
+    at: "2026-10-24T08:00:00Z",
+    pausedAll: false,
+    teams: [team("dating", "Rencontres", 7), team("casino", "Casino", 0), team("sports", "Paris sportifs", 3), team("algo", "Algorithme", 0)],
+    ads: { paused: false, openRecommendations: 1, lastReportAt: "2026-10-24T07:00:00Z" },
+    algoAppliedThisWeek: [
+      { id: "r1", teamKey: "dating", field: "mix", targetLabel: "Canal Test", appliedAt: "2026-10-21T07:00:00Z" },
+      { id: "r2", teamKey: "dating", field: "messagesBeforeLink", targetLabel: "Léa", appliedAt: "2026-10-22T07:00:00Z" },
+    ],
+    experimentsRunning: 2,
+    openAlerts: 3,
+    openHumanRequests: 1,
+    pendingValidations: 4,
+    health: { lastGrandChefAt: "2026-10-24T07:30:00Z", stuckMissions: 0, providers: [] },
+  };
+  return {
+    loadAgentsOverview: vi.fn(async () => (m.overviewFails ? { ok: false, error: "moteur muet" } : { ok: true, overview })),
+    loadAppliedDetails: vi.fn(async (rows: typeof overview.algoAppliedThisWeek) =>
+      rows.map((r) => ({ ...r, size: r.id === "r2" ? "BIG" : "SMALL", target: r.id === "r2" ? "PERSONA" : "CHANNEL_PLAN", status: "APPLIED" })),
+    ),
+  };
+});
 import AgentsPage from "./page";
 import TeamPage from "./[equipe]/page";
 import ValidationsPage from "./validations/page";
@@ -454,6 +497,7 @@ beforeEach(() => {
   m.user = { id: "u1", role: "ADMIN" };
   m.adsConnectorsMissing = true;
   m.adsFailing = false;
+  m.overviewFails = false;
   m.pausedAll = false;
   m.validations = [];
   m.requests = [];
@@ -487,6 +531,55 @@ describe("rubrique Agents", () => {
     expect(text.match(/Créer une mission de test/g)?.length).toBe(3); // 2 cartes + l'aide de la page
     expect(text).toContain("Rencontres : 1 publié, 1 en attente");
     expect(text).toContain("Simulation");
+  });
+
+  it("tableau de bord complet : à faire, missions du jour, dépense par poste, résultats, réglages appliqués", async () => {
+    const html = await render(AgentsPage({ searchParams: sp() } as never));
+    const text = checks(html);
+    for (const t of [
+      "Validations à faire",
+      "Demandes du bot",
+      "Alertes ouvertes",
+      "Tests A/B en cours",
+      "Missions du jour",
+      "Échouées",
+      "Replis",
+      "Dépense du mois",
+      "IA d'écriture",
+      "Vidéos IA",
+      "prévus à la fin du mois : au-dessus du plafond",
+      "Résultats des posts de l'équipe",
+      "Premiers dépôts",
+      "Aucun post publié sur les 28 derniers jours",
+      "Cette équipe ne publie rien",
+      "Réglages appliqués cette semaine",
+      "Gros réglage",
+      "Pause générale",
+      "Derniers rapports",
+    ])
+      expect(text, t).toContain(t);
+    expect(text.match(/Annuler/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain('href="/agents/validations"');
+    expect(html).toContain('href="/settings/alerts"');
+    expect(html).toContain('href="/agents/algo#tests"');
+    expect(html).toContain('value="/agents"');
+  });
+
+  it("tableau de bord pour un manager : ni pause générale ni annulation d'un gros réglage", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const html = await render(AgentsPage({ searchParams: sp() } as never));
+    const text = checks(html);
+    expect(text).not.toContain("Pause générale");
+    expect(text).toContain("Annulation réservée aux administrateurs");
+    expect(html).not.toContain('href="/settings/alerts"');
+  });
+
+  it("tableau de bord : résumé du moteur indisponible, la page garde l'ancien résumé", async () => {
+    m.overviewFails = true;
+    const text = checks(await render(AgentsPage({ searchParams: sp() } as never)));
+    expect(text).toContain("Résumé détaillé indisponible");
+    expect(text).toContain("Missions du jour");
+    expect(text).not.toContain("Réglages appliqués cette semaine");
   });
 
   it("pause générale : bandeau sur le tableau de bord", async () => {

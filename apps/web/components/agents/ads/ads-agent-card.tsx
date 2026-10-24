@@ -9,11 +9,12 @@ import { fmtDate, fmtNum } from "@/lib/format";
  * Carte « Agent Ads » du tableau de bord du Grand Chef : il n'est pas une équipe (il ne publie rien et n'agit jamais
  * chez Meta ou TikTok), il conseille. Recommandations à décider, faites sur 30 jours, dernier rapport.
  */
-export function AdsAgentCard({ figures }: { figures: AdsCardFigures }) {
+export function AdsAgentCard({ figures, paused = false }: { figures: AdsCardFigures; paused?: boolean }) {
   return (
     <article data-slot="ads-agent-card" className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card p-4">
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
+          {paused ? <StatusPill tone="danger">En pause</StatusPill> : null}
           <StatusPill tone="neutral">Conseille seulement</StatusPill>
           {figures.toDecide > 0 ? <StatusPill tone="warning">{figures.toDecide} à décider</StatusPill> : null}
         </div>

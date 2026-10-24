@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/admin/empty-state";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatusPill } from "@/components/admin/status-pill";
+import { UniverseDot } from "@/components/admin/universe-dot";
 import { ConversationsNav } from "@/components/conversations/conversations-nav";
 import { fmtNum } from "@/lib/format";
 import { loadPersonaList } from "@/lib/personas/queries";
@@ -15,8 +16,9 @@ export const metadata: Metadata = { title: "Personas" };
 export const dynamic = "force-dynamic";
 
 /**
- * Personas de l'assistant de conversation (phase 17) : une ligne par persona (prénom et rôle, état, offre liée, bots
- * qui l'utilisent, conversations) ; un clic ouvre la fiche (formulaire, « Tester », aperçu des consignes). ADMIN et
+ * Personas de l'assistant de conversation (phase 17) : une ligne par persona (prénom et rôle, univers avec, pour
+ * Casino et Paris sportifs, le nombre de questions de la fiche d'informations (phase 25), état, offre liée, bots qui
+ * l'utilisent, conversations) ; un clic ouvre la fiche (formulaire, « Tester », aperçu des consignes). ADMIN et
  * MANAGER créent et modifient ; seule la suppression est réservée aux administrateurs (sur la fiche).
  */
 export default async function PersonasPage({ searchParams }: PageProps<"/conversations/personas">) {
@@ -32,6 +34,16 @@ export default async function PersonasPage({ searchParams }: PageProps<"/convers
         <span className="flex flex-col items-start gap-0.5">
           <span>{p.name}</span>
           <span className="text-note font-normal text-muted-foreground">{p.role} du canal</span>
+        </span>
+      ),
+      universe: (
+        <span className="flex flex-col items-start gap-0.5">
+          <UniverseDot universe={p.universe} withLabel label={p.universeLabel} />
+          {p.faqLabel ? (
+            <span className="text-note font-normal text-muted-foreground">
+              {p.faqLabel}
+            </span>
+          ) : null}
         </span>
       ),
       state: p.isActive ? (
@@ -52,6 +64,7 @@ export default async function PersonasPage({ searchParams }: PageProps<"/convers
     },
     sortValues: {
       name: p.name,
+      universe: p.universeLabel,
       state: p.isActive ? 1 : 0,
       offer: p.offerLabel,
       bots: p.assistantBots,
@@ -88,6 +101,7 @@ export default async function PersonasPage({ searchParams }: PageProps<"/convers
           label="Personas"
           columns={[
             { key: "name", header: "Prénom", className: "whitespace-normal" },
+            { key: "universe", header: "Univers", className: "whitespace-normal" },
             { key: "state", header: "État" },
             {
               key: "offer",

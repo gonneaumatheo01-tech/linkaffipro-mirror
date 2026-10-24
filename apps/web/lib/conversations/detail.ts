@@ -127,6 +127,9 @@ export type ConversationDetail = {
   stoppedAt: Date | null;
   isMinor: boolean;
   convertedAt: Date | null;
+  /** Phase 25 : « à traiter » depuis (null : rien à traiter) et motif brut du moteur (`needsHumanReasonLabel`). */
+  needsHumanAt: Date | null;
+  needsHumanReason: string | null;
   takenOverAt: Date | null;
   takenOverBy: { id: string; name: string } | null;
   memberMessages: number;
@@ -181,6 +184,8 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
       convertedAt: true,
       takenOverAt: true,
       memberMessages: true,
+      needsHumanAt: true,
+      needsHumanReason: true,
       takenOverBy: { select: { id: true, name: true } },
       member: {
         select: {
@@ -263,6 +268,8 @@ export async function loadConversationDetail(id: string): Promise<ConversationDe
     stoppedAt: c.stoppedAt,
     isMinor: c.isMinor,
     convertedAt: c.convertedAt,
+    needsHumanAt: c.needsHumanAt,
+    needsHumanReason: c.needsHumanReason,
     takenOverAt: c.takenOverAt,
     takenOverBy: c.takenOverBy,
     memberMessages: c.memberMessages,

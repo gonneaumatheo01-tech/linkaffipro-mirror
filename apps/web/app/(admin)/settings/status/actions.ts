@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { audit } from "@linkaffipro/db";
 import { QUEUE_NAMES, cleanFailedOlderThan, retryFailedJob } from "@linkaffipro/queue";
+import { resumeMissions } from "@linkaffipro/agents";
+import { buildAgentsDeps } from "@/lib/agents/deps";
 import { requireAdmin } from "@/lib/session";
 
 const FAILED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -69,5 +71,30 @@ export async function cleanFailedJobsAction(): Promise<void> {
       total === 0
         ? "Aucune tâche échouée de plus de 7 jours."
         : `${total} tâche${total > 1 ? "s" : ""} échouée${total > 1 ? "s" : ""} de plus de 7 jours supprimée${total > 1 ? "s" : ""}.`,
+  });
+}
+
+/**
+ * « Relancer les missions bloquées » (carte Agents, phase 25) : le même balayage que celui du Grand Chef toutes les
+ * 10 minutes (`resumeMissions`) : étape en cours ré-enfilée (étapes idempotentes, jamais de double publication),
+ * validations déjà décidées reprises, aperçus jamais partis redemandés. Une équipe en pause n'est pas relancée.
+ */
+export async function resumeAgentMissionsAction(): Promise<void> {
+  const admin = await requireAdmin();
+  let r: Awaited<ReturnType<typeof resumeMissions>>;
+  try {
+    r = await resumeMissions(buildAgentsDeps());
+  } catch (err) {
+    back({ error: `Relance impossible pour le moment : ${err instanceof Error ? err.message : "erreur"}` });
+  }
+  await audit({ userId: admin.id, action: "agents.missions_resumed", metadata: r });
+  revalidatePath("/settings/status");
+  revalidatePath("/agents", "layout");
+  const total = r.requeued + r.continued + r.revalidated;
+  back({
+    ok:
+      total === 0
+        ? "Rien à relancer : les missions bloquées attendent un plafond plus haut, une validation ou une équipe sortie de pause."
+        : `${r.requeued} étape${r.requeued > 1 ? "s" : ""} relancée${r.requeued > 1 ? "s" : ""}, ${r.continued} mission${r.continued > 1 ? "s" : ""} reprise${r.continued > 1 ? "s" : ""} après validation, ${r.revalidated} aperçu${r.revalidated > 1 ? "s" : ""} redemandé${r.revalidated > 1 ? "s" : ""}.`,
   });
 }

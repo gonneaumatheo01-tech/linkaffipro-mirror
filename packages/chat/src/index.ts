@@ -19,6 +19,11 @@ export * from "./minor";
 // Demande d'arrêt écrite sans /stop (relecture du moteur).
 export * from "./stop-request";
 export * from "./texts";
+// Casino et Paris sportifs (phase 25) : passage à un humain, promesses interdites, demande d'accès, prompt propre.
+export * from "./handoff";
+export * from "./promises";
+export * from "./offer-request";
+export * from "./prompt-universe";
 export * from "./turn-types";
 export * from "./engine";
 export * from "./fake";

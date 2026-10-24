@@ -18,7 +18,17 @@ import {
   sourceLabel,
   TEAM_CLOSED_REASON,
 } from "./labels";
+import {
+  CONVERSATION_UNIVERSES,
+  conversationUniverseLabel,
+  isConversationUniverse,
+  NEEDS_HUMAN_FALLBACK,
+  NEEDS_HUMAN_LABEL,
+  needsHumanReasonLabel,
+} from "./labels";
+import { PERSONA_UNIVERSES } from "@linkaffipro/core";
 import { statusLabel } from "@/lib/status-badges";
+import { UNIVERSE_LABELS } from "@/lib/universe";
 
 const m = (over: Partial<Parameters<typeof personName>[0]> = {}) => ({
   firstName: null,
@@ -124,5 +134,31 @@ describe("« Qui répond » quand l'assistante a la main", () => {
     expect(botStatusLabel(null)).toBe(statusLabel("conversationStatus", "BOT"));
     expect(botStatusLabel("F")).toBe("L'assistante répond");
     expect(botStatusLabel("M")).toBe("L'assistant répond");
+  });
+});
+
+describe("conversations à traiter (phase 25)", () => {
+  it("motifs connus en clair, repli générique pour toute autre valeur", () => {
+    expect(NEEDS_HUMAN_LABEL).toBe("À traiter");
+    expect(needsHumanReasonLabel("hors_fiche")).toBe("Question hors de la fiche d'informations");
+    expect(needsHumanReasonLabel("reclamation")).toBe("Réclamation");
+    expect(needsHumanReasonLabel("argent")).toBe("Demande d'argent");
+    expect(needsHumanReasonLabel("mineur")).toBe("Mineur possible");
+    expect(needsHumanReasonLabel("insulte")).toBe("Insulte");
+    expect(needsHumanReasonLabel(" ARGENT ")).toBe("Demande d'argent");
+    for (const v of [null, undefined, "", "autre", "toString", "__proto__", "constructor"])
+      expect(needsHumanReasonLabel(v)).toBe(NEEDS_HUMAN_FALLBACK);
+    expect(NEEDS_HUMAN_FALLBACK).toBe("À reprendre par l'équipe");
+  });
+
+  it("univers : mêmes valeurs que le contrat des personas, libellés du site", () => {
+    expect([...CONVERSATION_UNIVERSES]).toEqual([...PERSONA_UNIVERSES]);
+    expect(conversationUniverseLabel("dating")).toBe(UNIVERSE_LABELS.DATING);
+    expect(conversationUniverseLabel("casino")).toBe(UNIVERSE_LABELS.CASINO);
+    expect(conversationUniverseLabel("sports")).toBe(UNIVERSE_LABELS.SPORTS);
+    expect(conversationUniverseLabel(null)).toBe("Sans univers");
+    expect(conversationUniverseLabel("DATING")).toBe("Sans univers");
+    expect(isConversationUniverse("casino")).toBe(true);
+    expect(isConversationUniverse("autre")).toBe(false);
   });
 });

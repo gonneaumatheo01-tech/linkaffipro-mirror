@@ -108,6 +108,8 @@ export async function saveAllBudgetsAction(formData: FormData): Promise<void> {
 export async function setPausedAllAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const paused = formData.get("paused") === "1";
+  // Phase 25 : le bouton existe aussi sur le tableau de bord ; retour sur la page d'où vient le clic.
+  const back = formData.get("from") === "/agents" ? "/agents" : PAGE;
   try {
     const r = await setTeamPaused(
       buildAgentsDeps(),
@@ -117,9 +119,9 @@ export async function setPausedAllAction(formData: FormData): Promise<void> {
       paused ? "Pause générale demandée depuis le site" : undefined,
     );
     revalidatePath("/agents", "layout");
-    backTo(PAGE, r.ok ? { ok: r.message } : { error: r.message });
+    backTo(back, r.ok ? { ok: r.message } : { error: r.message });
   } catch (err) {
     if (isRedirectError(err)) throw err;
-    backTo(PAGE, { error: `Changement impossible : ${errorText(err)}.` });
+    backTo(back, { error: `Changement impossible : ${errorText(err)}.` });
   }
 }

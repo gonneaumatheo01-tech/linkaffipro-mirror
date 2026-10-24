@@ -12,6 +12,11 @@ export type OfferConversation = {
   offerSends: number;
   isMinor: boolean;
   isFirstAssistantTurn: boolean;
+  /**
+   * Casino / Paris sportifs (phase 25) : la personne demande l'accès VIP, le lien ou l'inscription à ce tour. Le nombre
+   * d'échanges et l'intérêt exigés ne s'appliquent plus ; le premier message et le nombre d'envois, toujours.
+   */
+  memberAskedOffer?: boolean;
 };
 
 export type OfferPersona = {
@@ -40,7 +45,11 @@ export function offerAllowedNow(
 ): boolean {
   if (!persona.hasOffer || conv.isMinor || conv.isFirstAssistantTurn || kind !== "reply")
     return false;
-  if (conv.memberMessages < Math.max(1, Math.round(persona.minExchangesBeforeOffer))) return false;
+  if (
+    !conv.memberAskedOffer &&
+    conv.memberMessages < Math.max(1, Math.round(persona.minExchangesBeforeOffer))
+  )
+    return false;
   return conv.offerSends < offerSendsAllowed(persona);
 }
 
@@ -55,7 +64,11 @@ export function canSendOffer(
   kind: "reply" | "follow_up" = "reply",
 ): boolean {
   if (!output.send_offer) return false;
-  if (persona.requireInterest && output.style_update.interest < OFFER_INTEREST_THRESHOLD)
+  if (
+    persona.requireInterest &&
+    !conv.memberAskedOffer &&
+    output.style_update.interest < OFFER_INTEREST_THRESHOLD
+  )
     return false;
   return offerAllowedNow(conv, persona, kind);
 }

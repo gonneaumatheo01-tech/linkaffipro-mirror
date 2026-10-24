@@ -15,9 +15,12 @@ import type { PersonaSaveState } from "@/app/(admin)/conversations/personas/acti
 import {
   PERSONA_LANGUAGES,
   PERSONA_LIMITS,
+  PERSONA_UNIVERSE_OPTIONS,
   activationProblems,
   advancedModifiedCount,
+  girlAllowed,
   personaRole,
+  universeLabelFr,
   proposedProfileTexts,
   withProfileTexts,
   type PersonaFormField,
@@ -33,6 +36,7 @@ import {
   type OfferChoice,
 } from "@/lib/personas/view";
 import { OfferVisualField, type VisualOption } from "./offer-visual-field";
+import { PersonaFaqField } from "./persona-faq-field";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -42,6 +46,7 @@ const PROFILE_KEYS = new Set<keyof PersonaFormState>([
   "gender",
   "languages",
   "identityKind",
+  "universe",
 ]);
 
 /**
@@ -60,6 +65,7 @@ export function PersonaForm({
   defaultModel,
   templates,
   action,
+  canEditFaq,
 }: {
   initial: PersonaFormState;
   offers: OfferChoice[];
@@ -69,6 +75,8 @@ export function PersonaForm({
   defaultModel: string;
   templates: ProfileTemplates;
   action: (prev: PersonaSaveState, formData: FormData) => Promise<PersonaSaveState>;
+  /** Fiche d'informations modifiable (administrateurs) ; sinon lecture seule. */
+  canEditFaq: boolean;
 }) {
   const [state, setState] = useState<PersonaFormState>(initial);
   const [images, setImages] = useState<VisualOption[]>(initialImages);
@@ -84,8 +92,14 @@ export function PersonaForm({
   const set = <K extends keyof PersonaFormState>(k: K, v: PersonaFormState[K]) =>
     setState((s) => {
       const next = { ...s, [k]: v };
+      // Casino et Paris sportifs : toujours l'assistante (la règle du serveur reste la vraie garde).
+      if (k === "universe" && !girlAllowed(next.universe)) next.identityKind = "ASSISTANT";
       return PROFILE_KEYS.has(k) ? withProfileTexts(s, next, templates) : next;
     });
+  const canBeGirl = girlAllowed(state.universe);
+  const identityChoices: ReadonlyArray<"ASSISTANT" | "GIRL"> = canBeGirl
+    ? ["ASSISTANT", "GIRL"]
+    : ["ASSISTANT"];
 
   const dirty = useMemo(() => JSON.stringify(state) !== JSON.stringify(initial), [state, initial]);
   useEffect(() => {
@@ -98,7 +112,8 @@ export function PersonaForm({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, pending]);
 
-  const offerGroups = offerChoiceGroups(offers);
+  const offerGroups = offerChoiceGroups(offers, state.universe);
+  const universeName = universeLabelFr(state.universe);
   const campaign = campaigns.find((c) => c.id === state.campaignId) ?? null;
   const offerNote = campaignOfferNote(campaign, state.affiliateCampaignId);
   const selectedOffer = offers.find((o) => o.id === state.affiliateCampaignId) ?? null;
@@ -177,10 +192,37 @@ export function PersonaForm({
             </div>
           </fieldset>
         </div>
+        <div className="max-w-xs space-y-1.5">
+          <Label htmlFor="persona-universe">Univers</Label>
+          <NativeSelect
+            id="persona-universe"
+            value={state.universe}
+            onChange={(e) =>
+              set(
+                "universe",
+                PERSONA_UNIVERSE_OPTIONS.find((o) => o.value === e.target.value)?.value ??
+                  "dating",
+              )
+            }
+            wrapperClassName="w-full"
+            aria-describedby="persona-universe-help"
+          >
+            {PERSONA_UNIVERSE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <p id="persona-universe-help" className="text-note text-muted-foreground">
+            {canBeGirl
+              ? "L'univers du bot qui l'utilise."
+              : `${universeName} : toujours ${role} du canal, qui dit franchement être une IA.`}
+          </p>
+        </div>
         <fieldset className="space-y-2" aria-describedby="persona-identity-help">
           <legend className="text-body font-medium text-foreground">Qui est-elle ?</legend>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
-            {(["ASSISTANT", "GIRL"] as const).map((k) => (
+            {identityChoices.map((k) => (
               <label
                 key={k}
                 className="flex min-h-10 cursor-pointer items-center gap-2 text-body md:min-h-9"
@@ -197,10 +239,16 @@ export function PersonaForm({
               </label>
             ))}
           </div>
-          <p id="persona-identity-help" className="text-note text-muted-foreground">
-            {state.identityKind === "GIRL"
+          <p
+            id="persona-identity-help"
+            className={cn("text-note", err("identityKind") ? "text-danger" : "text-muted-foreground")}
+          >
+            {err("identityKind") ??
+              (state.identityKind === "GIRL"
               ? "Une fille sur un compte Telegram réel : elle écrit comme une fille de son âge et ne se démasque jamais, même si on insiste. Ni « assistante », ni « IA », ni « canal »."
-              : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`}
+              : canBeGirl
+                ? `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`
+                : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande. « Une fille » n'existe qu'en Rencontres.`)}
           </p>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -412,8 +460,8 @@ export function PersonaForm({
                 (selectedOffer && !selectedOffer.isActive
                   ? "Cette offre n'est plus active chez Link Affi : aucun lien ne partira. Choisissez-en une autre."
                   : selectedOffer
-                    ? `Offre choisie : ${offerChoiceLabel(selectedOffer)}. Les offres de l'univers Rencontres sont en premier.`
-                    : "Les offres de l'univers Rencontres sont en premier.")}
+                    ? `Offre choisie : ${offerChoiceLabel(selectedOffer)}. Les offres de l'univers ${universeName} sont en premier.`
+                    : `Les offres de l'univers ${universeName} sont en premier.`)}
             </p>
           </div>
           <div className="space-y-1.5">
@@ -499,6 +547,13 @@ export function PersonaForm({
           </div>
         </div>
       </FormSection>
+
+      <PersonaFaqField
+        value={state.faq}
+        onChange={(v) => set("faq", v)}
+        canEdit={canEditFaq}
+        error={err("faq")}
+      />
 
       <FormSection
         title="Profil du bot"

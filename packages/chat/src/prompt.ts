@@ -1,7 +1,10 @@
 // Prompt de l'assistant (contrat §3.5) : prompt système (persona, règles 2 à 4 du client, forme, langue, style, faits,
 // résumé, parcours, fiche de l'offre, consignes du premier message, d'une relance ou d'un nouvel essai) puis les 20
 // derniers messages et les messages entrants du tour. Fonctions pures.
+import { isAssistantOnlyUniverse } from "@linkaffipro/core";
 import { offerAllowedNow, offerSendsAllowed, OFFER_INTEREST_THRESHOLD } from "./journey";
+import { LANGUAGE_NAMES_FR } from "./lang-names";
+import { buildUniverseSystemPrompt } from "./prompt-universe";
 import { removeThinkBlocks } from "./parse";
 import { describeStyle, personaLanguages, type StyleProfile } from "./style";
 import { assistantRole, fixedText } from "./texts";
@@ -31,14 +34,7 @@ export const MAX_MESSAGE_CHARS_TO_MODEL = 1000;
 export const MAX_TURN_INBOUND_TO_MODEL = 10;
 export const MAX_TURN_INBOUND_CHARS_TO_MODEL = 4000;
 
-export const LANGUAGE_NAMES_FR: Record<ChatLang, string> = {
-  fr: "français",
-  en: "anglais",
-  es: "espagnol",
-  pt: "portugais",
-  de: "allemand",
-  it: "italien",
-};
+export { LANGUAGE_NAMES_FR };
 
 const STAGE_GUIDE: Record<ConversationStage, string> = {
   WELCOME: "accueil (premier contact)",
@@ -68,9 +64,16 @@ function virtualRoleFr(gender: string | null | undefined): string {
 /** Consignes de correction pour un nouvel essai, une par code de rejet. */
 export function correctionFor(
   code: RejectCode | string,
-  persona: Pick<PersonaInput, "name" | "gender" | "identity" | "illusion">,
+  persona: Pick<PersonaInput, "name" | "gender" | "identity" | "illusion" | "universe">,
 ): string {
   const role = assistantRole("fr", persona.gender);
+  // Casino / Paris sportifs : les deux fiches font foi, et jamais de promesse de gain.
+  if (isAssistantOnlyUniverse(persona.universe)) {
+    if (code === "invented_number")
+      return "N'écris aucun chiffre ni montant absent de la fiche d'informations et de la fiche de l'offre (pas même un chiffre écrit par la personne). Si la fiche ne répond pas à sa question, mets handoff : { needed : true, reason : off_faq }.";
+    if (code === "promise")
+      return "Aucune promesse : jamais « gain garanti », « sûr à 100 % », « argent facile », « sans risque », « tu vas gagner ». Parier comporte toujours un risque de perte.";
+  }
   const virtualRole = virtualRoleFr(persona.gender);
   if (personaIllusion(persona)) {
     // Illusion : ces refus ne sont plus émis, mais une consigne de secours ne doit jamais pousser à un aveu.
@@ -129,6 +132,8 @@ export type SystemPromptContext = {
   silenceHours?: number | null;
   /** Nouvel essai : codes de rejet de la réponse précédente. */
   retryCodes?: readonly string[];
+  /** Casino / Paris sportifs : la personne demande l'accès VIP, le lien ou l'inscription à ce tour. */
+  memberAskedOffer?: boolean;
 };
 
 function offerSection(ctx: SystemPromptContext): string {
@@ -172,9 +177,13 @@ function offerSection(ctx: SystemPromptContext): string {
   );
 }
 
-/** Prompt système d'un tour. */
+/** Prompt système d'un tour (Casino et Paris sportifs : prompt propre, `prompt-universe.ts`). */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const p = ctx.persona;
+  if (isAssistantOnlyUniverse(p.universe))
+    return buildUniverseSystemPrompt(ctx, {
+      corrections: [...new Set(ctx.retryCodes ?? [])].map((code) => correctionFor(code, p)),
+    });
   const role = assistantRole("fr", p.gender);
   const virtualRole = virtualRoleFr(p.gender);
   const channel = p.channelTitle?.trim() ? ` « ${p.channelTitle.trim()} »` : "";

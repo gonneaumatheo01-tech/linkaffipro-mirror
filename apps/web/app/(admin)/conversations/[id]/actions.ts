@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
   blockConversation,
+  clearNeedsHuman,
   closeConversation,
   releaseConversation,
   sendTeamMessage,
@@ -14,7 +15,7 @@ import { requireUser } from "@/lib/session";
 
 /**
  * Actions de l'équipe sur une conversation de l'assistant (fiche /conversations/[id]) : prendre la main, la rendre,
- * fermer, bloquer, écrire. Ouvertes aux administrateurs et aux managers (`requireUser`, vérifié côté serveur) ; chaque
+ * fermer, bloquer, écrire, marquer comme traitée (phase 25). Ouvertes aux administrateurs et aux managers (`requireUser`, vérifié côté serveur) ; chaque
  * action est journalisée (`conversation.*`) par `lib/conversations/operations.ts`.
  */
 
@@ -62,6 +63,11 @@ export async function closeAction(formData: FormData): Promise<void> {
 /** « Bloquer » : plus aucun message ne part vers cette personne. */
 export async function blockAction(formData: FormData): Promise<void> {
   await run(formData, (id, user) => blockConversation(id, user));
+}
+
+/** « Marquer comme traitée » : la conversation n'est plus « à traiter » (rien d'autre ne change). */
+export async function clearNeedsHumanAction(formData: FormData): Promise<void> {
+  await run(formData, (id, user) => clearNeedsHuman(id, user));
 }
 
 /** Retour de « Envoyer » (formulaire du fil, `useActionState`). */

@@ -30,6 +30,8 @@ function returnPath(fd: FormData): string {
   if (typeof v !== "string") return ALGO;
   if (/^\/conversations\/personas\/[A-Za-z0-9_-]{1,64}$/.test(v)) return v;
   if (/^\/agents\/algo(\?[A-Za-z0-9_=&%.-]*)?$/.test(v)) return v;
+  // Phase 25 : « Annuler » depuis le tableau de bord des agents.
+  if (v === "/agents") return v;
   return ALGO;
 }
 
@@ -49,7 +51,11 @@ function parseAction(v: unknown): RecommendationAction | null {
 export async function recommendationAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  const hash = path.startsWith("/conversations") ? "#propositions-algorithme" : "#recommandations";
+  const hash = path.startsWith("/conversations")
+    ? "#propositions-algorithme"
+    : path === "/agents"
+      ? "#reglages-appliques"
+      : "#recommandations";
   const action = parseAction(formData.get("action"));
   const id = String(formData.get("id") ?? "");
   if (!action || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) go(path, { error: "Proposition inconnue." }, hash);

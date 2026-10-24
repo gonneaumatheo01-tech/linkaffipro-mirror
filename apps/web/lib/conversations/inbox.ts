@@ -1,6 +1,7 @@
 /**
- * Lecture de la boîte de réception (`/conversations`) : conversations triées par dernier message (le plus récent
- * d'abord), filtres (étape, qui répond, source, persona, non lues), pagination, compteurs des pastilles, choix des
+ * Lecture de la boîte de réception (`/conversations`) : les conversations « à traiter » d'abord (phase 25 :
+ * l'assistante a passé la main à l'équipe, `needsHumanAt`), puis par dernier message (le plus récent d'abord),
+ * filtres (à traiter, univers, étape, qui répond, source, persona, non lues), pagination, compteurs des pastilles, choix des
  * filtres, et lignes de l'export CSV (sans aucun texte de conversation). Une seule requête SQL par liste : le dernier
  * message de chaque conversation est lu par une jointure latérale (index `conversationId, createdAt`).
  *
@@ -30,6 +31,11 @@ export type InboxRow = {
   closedReason: string | null;
   stoppedAt: Date | null;
   isMinor: boolean;
+  /** Phase 25 : « à traiter » depuis (null : rien à traiter) et motif brut du moteur (`needsHumanReasonLabel`). */
+  needsHumanAt: Date | null;
+  needsHumanReason: string | null;
+  /** Univers de la persona de la conversation (sinon de celle du bot) ; null sans persona. */
+  universe: string | null;
   member: {
     id: string;
     firstName: string | null;
@@ -63,6 +69,9 @@ type RawRow = {
   closedReason: string | null;
   stoppedAt: Date | null;
   isMinor: boolean;
+  needsHumanAt: Date | null;
+  needsHumanReason: string | null;
+  universe: string | null;
   memberId: string;
   memberTelegramId: string;
   botActive: boolean;
@@ -87,6 +96,9 @@ type RawRow = {
 const UNREAD = Prisma.sql`(lm."direction" = 'IN' AND c."stoppedAt" IS NULL AND NOT c."isMinor"
   AND (c."status" <> 'CLOSED' OR c."closedReason" IS DISTINCT FROM 'TEAM'))`;
 
+/** « À traiter » en SQL : l'assistante a passé la main à l'équipe et personne ne l'a encore traitée. */
+const TO_HANDLE = Prisma.sql`c."needsHumanAt" IS NOT NULL`;
+
 /** Conditions SQL des filtres (sur `c` : conversation, `lm` : dernier message). */
 export function inboxWhere(f: InboxFilters): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
@@ -97,6 +109,8 @@ export function inboxWhere(f: InboxFilters): Prisma.Sql {
   if (f.persona === NONE_KEY) parts.push(Prisma.sql`c."personaId" IS NULL`);
   else if (f.persona) parts.push(Prisma.sql`c."personaId" = ${f.persona}`);
   if (f.unread) parts.push(UNREAD);
+  if (f.toHandle) parts.push(TO_HANDLE);
+  if (f.universe) parts.push(Prisma.sql`COALESCE(p."universe", bp."universe") = ${f.universe}`);
   return parts.length ? Prisma.sql`WHERE ${Prisma.join(parts, " AND ")}` : Prisma.empty;
 }
 
@@ -138,6 +152,9 @@ function toRow(r: RawRow): InboxRow {
     closedReason: r.closedReason,
     stoppedAt: r.stoppedAt ? new Date(r.stoppedAt) : null,
     isMinor: Boolean(r.isMinor),
+    needsHumanAt: r.needsHumanAt ? new Date(r.needsHumanAt) : null,
+    needsHumanReason: r.needsHumanReason,
+    universe: r.universe,
     member: {
       id: r.memberId,
       firstName: r.firstName,
@@ -161,7 +178,8 @@ function toRow(r: RawRow): InboxRow {
 const SELECT = Prisma.sql`
   SELECT c."id", c."createdAt", c."stage"::text AS "stage", c."status"::text AS "status", c."source",
          c."personaId", p."name" AS "personaName", p."gender" AS "personaGender", c."closedReason",
-         c."stoppedAt", c."isMinor",
+         c."stoppedAt", c."isMinor", c."needsHumanAt", c."needsHumanReason",
+         COALESCE(p."universe", bp."universe") AS "universe",
          m."id" AS "memberId", m."telegramUserId"::text AS "memberTelegramId", m."firstName", m."lastName",
          m."username", m."anonymizedAt",
          b."isActive" AS "botActive", b."mode"::text AS "botMode",
@@ -169,7 +187,11 @@ const SELECT = Prisma.sql`
          lm."direction"::text AS "lastDirection", lm."author"::text AS "lastAuthor", lm."text" AS "lastText",
          lm."media" AS "lastMedia", lm."meta" AS "lastMeta", lm."createdAt" AS "lastAt"`;
 
-const ORDER = Prisma.sql`ORDER BY COALESCE(lm."createdAt", c."createdAt") DESC, c."id" DESC`;
+/**
+ * Tri : les conversations « à traiter » d'abord (rares, et retirées dès que l'équipe reprend la main ou les marque
+ * traitées : elles ne restent jamais longtemps en tête), puis la plus récemment active.
+ */
+const ORDER = Prisma.sql`ORDER BY (c."needsHumanAt" IS NULL), COALESCE(lm."createdAt", c."createdAt") DESC, c."id" DESC`;
 
 /** Ligne affichée de la boîte de réception : avec « l'assistante répondra-t-elle à cette personne ? ». */
 export type InboxListRow = InboxRow & {
@@ -204,7 +226,7 @@ async function withReplyBlocks(raw: RawRow[]): Promise<InboxListRow[]> {
   }));
 }
 
-/** Une page de la boîte de réception (50 conversations), triée par dernier message. */
+/** Une page de la boîte de réception (50 conversations), « à traiter » d'abord, puis par dernier message. */
 export async function listConversations(
   f: InboxFilters,
   opts: { pageSize?: number } = {},
@@ -233,6 +255,11 @@ export async function inboxCounts(): Promise<{ all: number; unread: number; huma
     ${FROM}`;
   const r = rows[0];
   return { all: Number(r?.all ?? 0), unread: Number(r?.unread ?? 0), human: Number(r?.human ?? 0) };
+}
+
+/** Conversations « à traiter » (toutes, sans filtre) : compteur de la pastille. */
+export async function toHandleCount(): Promise<number> {
+  return prisma.conversation.count({ where: { needsHumanAt: { not: null } } });
 }
 
 export type InboxOptions = {

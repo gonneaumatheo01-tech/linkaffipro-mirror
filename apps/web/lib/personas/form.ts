@@ -27,9 +27,48 @@ import {
   type PersonaIdentity,
 } from "@linkaffipro/chat";
 // Honnêteté des textes : règle partagée avec l'équipe Algorithme (réglages de persona appliqués, phase 21).
-import { hidesAssistant, saysAssistant } from "@linkaffipro/core";
+import {
+  PERSONA_UNIVERSES,
+  allowedIdentities,
+  hidesAssistant,
+  isPersonaUniverse,
+  saysAssistant,
+  type PersonaFaqEntry,
+  type PersonaUniverse,
+} from "@linkaffipro/core";
+import { cleanFaq, validateFaq } from "./faq";
 
 export { hidesAssistant, saysAssistant };
+export type { PersonaFaqEntry, PersonaUniverse };
+
+/**
+ * Univers de la persona (phase 25) : libellés du client, valeurs ASCII. Sur un bot Casino ou Paris sportifs,
+ * l'identité assistante est imposée (`allowedIdentities`) : jamais « une fille », jamais le mode illusion.
+ */
+export const PERSONA_UNIVERSE_OPTIONS: ReadonlyArray<{ value: PersonaUniverse; label: string }> = [
+  { value: "dating", label: "Rencontres" },
+  { value: "casino", label: "Casino" },
+  { value: "sports", label: "Paris sportifs" },
+];
+
+/** Univers lu d'une valeur quelconque (Rencontres par défaut, comme la colonne). */
+export function cleanUniverse(v: unknown): PersonaUniverse {
+  return isPersonaUniverse(v) ? v : "dating";
+}
+
+export function universeLabelFr(v: unknown): string {
+  const u = cleanUniverse(v);
+  return PERSONA_UNIVERSE_OPTIONS.find((o) => o.value === u)!.label;
+}
+
+/** « Une fille » est-elle permise dans cet univers ? (Rencontres seulement.) */
+export function girlAllowed(universe: unknown): boolean {
+  return allowedIdentities(cleanUniverse(universe)).includes("GIRL");
+}
+
+/** Refus serveur d'une fille (ou du mode illusion) hors Rencontres. */
+export const GIRL_NOT_ALLOWED =
+  "Sur un bot Casino ou Paris sportifs, la persona est toujours l'assistante du canal : « Une fille » n'est pas possible.";
 
 export type { PersonaIdentity };
 
@@ -102,6 +141,8 @@ export type PersonaFormState = {
   gender: PersonaGender;
   /** « Qui est-elle ? » : l'assistante du canal, ou une fille sur un compte Telegram réel. */
   identityKind: PersonaIdentity;
+  /** Univers du bot (Rencontres, Casino, Paris sportifs) : hors Rencontres, toujours l'assistante. */
+  universe: PersonaUniverse;
   /** "" : aucun âge (obligatoire pour une fille). */
   age: string;
   personality: string;
@@ -132,6 +173,8 @@ export type PersonaFormState = {
   /** "" : créativité des réglages. */
   temperature: string;
   extraPrompt: string;
+  /** Fiche d'informations (questions / réponses, 40 au plus) : modifiable par un administrateur seulement. */
+  faq: PersonaFaqEntry[];
   isActive: boolean;
 };
 
@@ -200,6 +243,7 @@ export function emptyPersonaForm(templates: ProfileTemplates = {}): PersonaFormS
     name: "",
     gender: "F",
     identityKind: "ASSISTANT",
+    universe: "dating",
     age: "",
     personality: "",
     tone: "",
@@ -221,6 +265,7 @@ export function emptyPersonaForm(templates: ProfileTemplates = {}): PersonaFormS
     model: "",
     temperature: "",
     extraPrompt: "",
+    faq: [],
     isActive: false,
   };
   const texts = proposedProfileTexts(templates, base);
@@ -233,6 +278,9 @@ export type PersonaRecord = {
   name: string;
   gender: string;
   identityKind: string;
+  /** Phase 25 (colonnes facultatives pour les lectures plus anciennes : Rencontres, fiche vide). */
+  universe?: string | null;
+  faq?: unknown;
   age: number | null;
   personality: string;
   tone: string;
@@ -270,11 +318,14 @@ export function cleanLanguages(languages: readonly string[]): ChatLang[] {
 
 /** Formulaire pré-rempli depuis une persona enregistrée (description vide : texte proposé). */
 export function personaToForm(p: PersonaRecord, templates: ProfileTemplates = {}): PersonaFormState {
+  const universe = cleanUniverse(p.universe);
   const state: PersonaFormState = {
     id: p.id,
     name: p.name,
     gender: p.gender === "M" ? "M" : "F",
-    identityKind: cleanIdentity(p.identityKind),
+    // Une ancienne fille hors Rencontres (impossible depuis la phase 25) repasse en assistante dans le formulaire.
+    identityKind: girlAllowed(universe) ? cleanIdentity(p.identityKind) : "ASSISTANT",
+    universe,
     age: p.age === null ? "" : String(p.age),
     personality: p.personality,
     tone: p.tone,
@@ -296,6 +347,7 @@ export function personaToForm(p: PersonaRecord, templates: ProfileTemplates = {}
     model: p.model ?? "",
     temperature: p.temperature === null ? "" : String(p.temperature),
     extraPrompt: p.extraPrompt ?? "",
+    faq: cleanFaq(p.faq),
     isActive: p.isActive,
   };
   const texts = proposedProfileTexts(templates, state);
@@ -386,6 +438,7 @@ export type PersonaData = {
   name: string;
   gender: PersonaGender;
   identityKind: PersonaIdentity;
+  universe: PersonaUniverse;
   age: number | null;
   personality: string;
   tone: string;
@@ -407,6 +460,11 @@ export type PersonaData = {
   model: string | null;
   temperature: number | null;
   extraPrompt: string | null;
+  /**
+   * Fiche d'informations lue et vérifiée (`validateFaq` de ./faq) ; null si le brouillon n'en porte pas (la fiche
+   * enregistrée reste alors inchangée). Le droit de la modifier (ADMIN) est vérifié par l'enregistrement.
+   */
+  faq: PersonaFaqEntry[] | null;
   isActive: boolean;
 };
 
@@ -432,6 +490,9 @@ const payloadSchema = z.object({
   name: text(400),
   gender: z.enum(["F", "M"]).catch("F"),
   identityKind: z.enum(["ASSISTANT", "GIRL"]).catch("ASSISTANT"),
+  universe: z.enum(PERSONA_UNIVERSES).catch("dating"),
+  /** Le formulaire ne l'envoie pas (déduit de l'identité) ; refusé hors Rencontres s'il arrive à true. */
+  illusion: z.boolean().optional().catch(undefined),
   age: z.union([z.string().max(20), z.number()]).catch(""),
   personality: text(6000),
   tone: text(2000),
@@ -453,6 +514,13 @@ const payloadSchema = z.object({
   model: text(400),
   temperature: z.union([z.string().max(20), z.number()]).catch(""),
   extraPrompt: text(10000),
+  // Fiche d'informations : absente ou illisible → null (inchangée). Les bornes fines sont vérifiées par validateFaq.
+  faq: z
+    .array(z.object({ q: z.string().max(5000), a: z.string().max(10000) }))
+    .max(200)
+    .nullable()
+    .optional()
+    .catch(undefined),
   isActive: z.boolean().catch(false),
 });
 
@@ -502,6 +570,17 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
   const name = f.name.replace(/\s+/g, " ").trim();
   if (name.length > L.name) errors.name = tooLong(L.name);
   const identityKind = cleanIdentity(f.identityKind);
+  const universe = cleanUniverse(f.universe);
+  // Casino et Paris sportifs : identité assistante imposée (ni « une fille », ni mode illusion).
+  if (!girlAllowed(universe) && (identityKind === "GIRL" || f.illusion === true))
+    errors.identityKind = GIRL_NOT_ALLOWED;
+  let faq: PersonaFaqEntry[] | null = null;
+  if (Array.isArray(f.faq)) {
+    const fv = validateFaq(f.faq);
+    if (fv.ok) faq = fv.faq;
+    else errors.faq = fv.error;
+  } else if (raw && typeof raw === "object" && "faq" in raw && (raw as { faq: unknown }).faq != null)
+    errors.faq = "La fiche d'informations n'a pas pu être lue : rechargez la page, puis recommencez.";
   const personality = f.personality.trim();
   if (personality.length > L.personality) errors.personality = tooLong(L.personality);
   const tone = f.tone.trim();
@@ -602,6 +681,7 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
     name,
     gender: f.gender,
     identityKind,
+    universe,
     age,
     personality,
     tone,
@@ -623,6 +703,7 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
     model: model || null,
     temperature,
     extraPrompt: extraPrompt || null,
+    faq,
     isActive: f.isActive,
   };
 

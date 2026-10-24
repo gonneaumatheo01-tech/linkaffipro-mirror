@@ -1,5 +1,7 @@
 // Contrôles faits par le code après chaque réponse du modèle (contrat §3.3, règles 2 à 4 du client). Une réponse non
 // conforme est rejetée avec des codes stables ; le moteur la refait une fois avec une consigne de correction.
+import { isAssistantOnlyUniverse } from "@linkaffipro/core";
+import { hasForbiddenPromise } from "./promises";
 import type { TurnOutput } from "./schema";
 import type { PersonaIdentity } from "./turn-types";
 import { MAX_TURN_MESSAGES, MIN_TURN_MESSAGES } from "./schema";
@@ -23,6 +25,8 @@ export const REJECT_CODES = [
   "intro_missing",
   "invented_number",
   "leak",
+  // Casino / Paris sportifs (phase 25) : promesse de gain, de certitude ou d'argent facile.
+  "promise",
 ] as const;
 export type RejectCode = (typeof REJECT_CODES)[number];
 
@@ -59,6 +63,13 @@ export type ValidationContext = {
    * pas repondre a « t'as quel age ? » (le validateur refusait « 23 ans »).
    */
   selfTexts?: readonly (string | null | undefined)[];
+  /** Univers de la persona (phase 25) : Casino et Paris sportifs refusent les promesses de gain. Absent = Rencontres. */
+  universe?: string | null;
+  /**
+   * Fiche d'informations (questions et réponses, phase 25) : ses chiffres et pourcentages sont permis, comme ceux de la
+   * fiche de l'offre ; tout autre chiffre ou montant est refusé.
+   */
+  faqTexts?: readonly string[];
 };
 
 export type ValidationResult =
@@ -878,16 +889,26 @@ export function validateTurnOutput(output: TurnOutput, ctx: ValidationContext): 
     );
 
   const selfTexts = (ctx.selfTexts ?? []).filter((t): t is string => Boolean(t && t.trim()));
+  const faqTexts = (ctx.faqTexts ?? []).filter((t) => Boolean(t && t.trim()));
+  // Casino / Paris : seules les deux fiches font foi (un montant écrit par la personne, « bonus de 500 € ? », ne doit
+  // jamais pouvoir être confirmé).
+  const strict = isAssistantOnlyUniverse(ctx.universe);
   const invented = inventedNumbers(
     joined,
-    [ctx.offerPitch, ...ctx.memberTexts, ...(ctx.facts ?? []), ...selfTexts],
-    { percentSources: [ctx.offerPitch] },
+    strict
+      ? [ctx.offerPitch, ...faqTexts]
+      : [ctx.offerPitch, ...faqTexts, ...ctx.memberTexts, ...(ctx.facts ?? []), ...selfTexts],
+    { percentSources: [ctx.offerPitch, ...faqTexts] },
   );
   if (invented.length > 0)
     reject(
       "invented_number",
-      `Chiffre(s) absent(s) de la fiche de l'offre : ${invented.join(", ")}.`,
+      faqTexts.length > 0 || strict
+        ? `Chiffre(s) absent(s) de la fiche d'informations et de la fiche de l'offre : ${invented.join(", ")}.`
+        : `Chiffre(s) absent(s) de la fiche de l'offre : ${invented.join(", ")}.`,
     );
+  if (strict && hasForbiddenPromise(joined))
+    reject("promise", "Promesse de gain, de certitude ou d'argent facile.");
 
   if (codes.size > 0) return { ok: false, codes: orderCodes(codes), details, messages };
   return { ok: true, messages };

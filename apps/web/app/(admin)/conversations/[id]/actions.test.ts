@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
     releaseConversation: vi.fn(),
     closeConversation: vi.fn(),
     blockConversation: vi.fn(),
+    clearNeedsHuman: vi.fn(),
     sendTeamMessage: vi.fn(),
   },
   revalidated: [] as string[],
@@ -36,6 +37,7 @@ vi.mock("@/lib/conversations/operations", () => m.ops);
 
 import {
   blockAction,
+  clearNeedsHumanAction,
   closeAction,
   releaseAction,
   sendTeamMessageAction,
@@ -70,12 +72,13 @@ beforeEach(() => {
   m.revalidated.length = 0;
 });
 
-describe("prendre la main, rendre, fermer, bloquer", () => {
+describe("prendre la main, rendre, fermer, bloquer, marquer comme traitée", () => {
   it.each([
     ["takeOverAction", takeOverAction, "takeOverConversation"],
     ["releaseAction", releaseAction, "releaseConversation"],
     ["closeAction", closeAction, "closeConversation"],
     ["blockAction", blockAction, "blockConversation"],
+    ["clearNeedsHumanAction", clearNeedsHumanAction, "clearNeedsHuman"],
   ] as const)(
     "%s : utilisateur exigé, opération appelée, retour vert sur la fiche",
     async (_n, action, op) => {
@@ -97,6 +100,15 @@ describe("prendre la main, rendre, fermer, bloquer", () => {
     });
     const r = await redirected(takeOverAction(form({ id: ID })));
     expect(r.params.get("error")).toContain("/stop");
+  });
+
+  it("« Marquer comme traitée » : ouvert aux managers, identifiant invalide refusé sans écriture", async () => {
+    m.ops.clearNeedsHuman.mockResolvedValue({ ok: true, message: "Conversation marquée comme traitée." });
+    const ok = await redirected(clearNeedsHumanAction(form({ id: ID })));
+    expect(ok.params.get("ok")).toBe("Conversation marquée comme traitée.");
+    const bad = await redirected(clearNeedsHumanAction(form({ id: "x;DROP" })));
+    expect(bad.params.get("error")).toBe("Conversation introuvable.");
+    expect(m.ops.clearNeedsHuman).toHaveBeenCalledTimes(1);
   });
 
   it("identifiant invalide : rien n'est écrit", async () => {

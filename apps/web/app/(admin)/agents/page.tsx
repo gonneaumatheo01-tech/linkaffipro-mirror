@@ -19,7 +19,12 @@ import {
   sumCents,
 } from "@/lib/agents/queries";
 import { loadAdsCardFigures } from "@/lib/agents/ads/queries";
-import { TEAM_KEYS } from "@/lib/agents/teams";
+import { AppliedSettings, AttentionStrip, PausedAllButton } from "@/components/agents/overview-sections";
+import { loadAgentsOverview, loadAppliedDetails } from "@/lib/agents/overview";
+import { TEAM_KEYS, type TeamKey } from "@/lib/agents/teams";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { fmtDayKey } from "@/lib/periods";
 import { requireUser } from "@/lib/session";
 
@@ -27,9 +32,11 @@ export const metadata: Metadata = { title: "Agents" };
 export const dynamic = "force-dynamic";
 
 /**
- * Tableau de bord du Grand Chef (phase 19) : une carte par équipe (état, chiffres du jour, dépense du mois, pause,
- * mission de test), la carte de l'Agent Ads (phase 24, il conseille sur les pubs), puis les trois derniers rapports du matin. Rien ici n'appelle une IA : le Grand Chef est de la
- * logique programmée, qui passe toutes les 30 minutes.
+ * Tableau de bord du Grand Chef (phase 19, complété en phase 25) : ce qui vous attend (validations, demandes, alertes,
+ * tests A/B), une carte par équipe (état, missions du jour, dépense du mois par poste avec plafond et projection,
+ * résultats des posts sur 7 et 28 jours), la carte de l'Agent Ads, les réglages appliqués cette semaine par l'équipe
+ * Algorithme (avec « Annuler »), puis les derniers rapports. Les chiffres viennent d'une seule source,
+ * `agentsOverview` du moteur ; s'il ne répond pas, la page garde l'ancien résumé. Rien ici n'appelle une IA.
  */
 export default async function AgentsPage({ searchParams }: PageProps<"/agents">) {
   const user = await requireUser();
@@ -44,15 +51,21 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
     loadPendingCounts(),
     loadAdsCardFigures(now),
   ]);
+  const overviewResult = await loadAgentsOverview(now);
+  const overview = overviewResult.ok ? overviewResult.overview : null;
+  const applied = overview ? await loadAppliedDetails(overview.algoAppliedThisWeek).catch(() => []) : [];
+  const teamOverview = (t: TeamKey) => overview?.teams.find((x) => x.teamKey === t) ?? null;
+  const isAdmin = user.role === "ADMIN";
   const waiting = pending.validations + pending.requests;
 
   return (
     <>
-      <AgentsNav current="dashboard" isAdmin={user.role === "ADMIN"} pending={waiting} />
+      <AgentsNav current="dashboard" isAdmin={isAdmin} pending={waiting} />
       <PageHeader
         title="Agents"
         description="Le Grand Chef répartit chaque jour le travail entre quatre équipes d'agents ; chaque Chef d'équipe fait passer ses missions d'un agent à l'autre jusqu'à la publication."
         help="Pour essayer : « Créer une mission de test » sur l'équipe Rencontres. L'aperçu arrive sur Telegram et dans Validations ; après « Publier », le post part sur le canal Test."
+        secondaryActions={isAdmin ? <PausedAllButton pausedAll={pausedAll} /> : undefined}
         meta={
           pausedAll ? (
             <StatusPill tone="danger">Pause générale</StatusPill>
@@ -68,10 +81,23 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
           <Alert variant="warning" role="status">
             <AlertTitle>Toutes les équipes sont en pause</AlertTitle>
             <AlertDescription>
-              Aucune mission ne démarre ni ne continue. Un administrateur la lève dans Agents → Réglages.
+              Aucune mission ne démarre ni ne continue. Un administrateur la lève par « Tout reprendre », en haut de
+              cette page ou dans Agents → Réglages.
             </AlertDescription>
           </Alert>
         ) : null}
+
+        {overview ? (
+          <AttentionStrip overview={overview} isAdmin={isAdmin} />
+        ) : (
+          <Alert variant="warning" role="status">
+            <AlertTitle>Résumé détaillé indisponible pour l&apos;instant</AlertTitle>
+            <AlertDescription>
+              Les chiffres ci-dessous sont ceux du jour seulement. Rechargez la page dans une minute ; si cela dure,
+              regardez Réglages → État du système.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <section aria-label="Équipes" className="grid gap-4 lg:grid-cols-2">
           {TEAM_KEYS.map((t) => (
@@ -82,14 +108,27 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
               figures={figures[t]}
               spentCents={sumCents(usage[t])}
               pausedAll={pausedAll}
+              overview={teamOverview(t)}
             />
           ))}
-          <AdsAgentCard figures={adsFigures} />
+          <AdsAgentCard figures={adsFigures} paused={overview?.ads.paused ?? false} />
         </section>
 
+        {overview ? <AppliedSettings rows={applied} role={user.role} /> : null}
+
         <FormSection
-          title="Rapports du matin"
+          title="Derniers rapports"
           description="Chaque matin à 9 h, le Grand Chef envoie sur Telegram une ligne par équipe : publié, en attente, refusé, dépense du mois. Les trois derniers :"
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Link href="/agents/algo#rapports" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}>
+                Rapports de la semaine
+              </Link>
+              <Link href="/agents/ads" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-md:h-10")}>
+                Rapports pubs
+              </Link>
+            </div>
+          }
         >
           {reports.length === 0 ? (
             <EmptyState

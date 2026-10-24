@@ -10,6 +10,9 @@ import {
   assistantNoun,
   botStatusLabel,
   closedReasonLabel,
+  conversationUniverseLabel,
+  NONE_KEY,
+  needsHumanReasonLabel,
   personName,
   personaLabel,
   sourceLabel,
@@ -47,6 +50,8 @@ export const INBOX_CSV_HEADERS = [
   "Dernier message le (Paris)",
   "Dernier message de",
   "Sans réponse",
+  "Univers",
+  "À traiter (motif)",
 ];
 
 /** Contenu du fichier de la boîte de réception. */
@@ -76,6 +81,8 @@ export function inboxCsv(rows: readonly InboxExportRow[]): string {
       csvDate(r.last?.at ?? null),
       r.last ? authorLabel(r.last.author, r.personaGender) : "",
       r.unread ? "oui" : "non",
+      conversationUniverseLabel(r.universe),
+      r.needsHumanAt ? needsHumanReasonLabel(r.needsHumanReason) : "",
     ]),
   );
 }
@@ -92,6 +99,7 @@ export const STATS_CSV_HEADERS = [
   "Premiers dépôts",
   "Coût de l'IA (€)",
   "Coût de l'IA par inscription (€)",
+  "Encore à traiter",
 ];
 
 function statsLine(group: string, r: FigureRow): unknown[] {
@@ -107,13 +115,19 @@ function statsLine(group: string, r: FigureRow): unknown[] {
     r.ftds,
     csvNumber(r.costEur, 4),
     r.costPerRegistration === null ? "" : csvNumber(r.costPerRegistration, 2),
+    r.toHandle,
   ];
 }
 
-/** Contenu du fichier des chiffres : le total, puis une ligne par persona et une ligne par source. */
+/**
+ * Contenu du fichier des chiffres : le total, puis une ligne par univers (quand l'univers d'au moins une persona est
+ * connu), une ligne par persona et une ligne par source.
+ */
 export function statsCsv(stats: ConversationStats, periodText: string): string {
+  const universes = stats.byUniverse.some((r) => r.key !== NONE_KEY) ? stats.byUniverse : [];
   return toCsv(STATS_CSV_HEADERS, [
     statsLine(`Total (${periodText})`, stats.total),
+    ...universes.map((r) => statsLine("Univers", r)),
     ...stats.byPersona.map((r) => statsLine("Persona", r)),
     ...stats.bySource.map((r) => statsLine("Source", r)),
   ]);

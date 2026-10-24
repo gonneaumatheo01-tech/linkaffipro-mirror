@@ -8,6 +8,7 @@
  */
 import { Prisma, ourPlayers, prisma, type ConversationStage } from "@linkaffipro/db";
 import { periodEnd, periodStart, type Period } from "@/lib/periods";
+import type { ConversationUniverse } from "./labels";
 import {
   aggregateConversationStats,
   type ConversationStats,
@@ -27,6 +28,7 @@ type ConversationRaw = {
   replied: boolean;
   reached: string[] | null;
   converted: boolean;
+  needsHuman: boolean;
 };
 
 /**
@@ -59,7 +61,8 @@ async function conversationsBetween(start: Date, end: Date): Promise<StatsConver
              SELECT DISTINCT e2."toStage"::text FROM "ConversationEvent" e2
               WHERE e2."conversationId" = c."id" AND e2."type" = 'stage_changed' AND e2."toStage" IS NOT NULL
            ) AS "reached",
-           (c."convertedAt" IS NOT NULL) AS "converted"
+           (c."convertedAt" IS NOT NULL) AS "converted",
+           (c."needsHumanAt" IS NOT NULL) AS "needsHuman"
       FROM "Conversation" c
      WHERE c."createdAt" >= ${start} AND c."createdAt" < ${end}`;
   return rows.map((r) => ({
@@ -69,6 +72,7 @@ async function conversationsBetween(start: Date, end: Date): Promise<StatsConver
     replied: Boolean(r.replied),
     reached: (r.reached ?? []) as ConversationStage[],
     converted: Boolean(r.converted),
+    needsHuman: Boolean(r.needsHuman),
   }));
 }
 
@@ -151,8 +155,14 @@ export async function costsBetween(start: Date, end: Date): Promise<StatsCost[]>
   }));
 }
 
-/** Tous les chiffres de la période (total, par persona, par source, parcours). */
-export async function loadConversationStats(period: Period): Promise<ConversationStats> {
+/**
+ * Tous les chiffres de la période (total, par univers, par persona, par source, parcours) ; `universe` : seulement
+ * les personas de cet univers (Rencontres, Casino, Paris sportifs).
+ */
+export async function loadConversationStats(
+  period: Period,
+  opts: { universe?: ConversationUniverse | "" } = {},
+): Promise<ConversationStats> {
   const start = periodStart(period);
   const end = periodEnd(period);
   const [conversations, linksSent, linksOpened, players, costs, personas] = await Promise.all([
@@ -161,7 +171,7 @@ export async function loadConversationStats(period: Period): Promise<Conversatio
     offerLinksBetween("firstOpenedAt", start, end),
     playersBetween(start, end),
     costsBetween(start, end),
-    prisma.persona.findMany({ select: { id: true, name: true } }),
+    prisma.persona.findMany({ select: { id: true, name: true, universe: true } }),
   ]);
   return aggregateConversationStats({
     conversations,
@@ -170,7 +180,8 @@ export async function loadConversationStats(period: Period): Promise<Conversatio
     players,
     costs,
     personaNames: Object.fromEntries(personas.map((p) => [p.id, p.name])),
-  });
+    personaUniverses: Object.fromEntries(personas.map((p) => [p.id, p.universe])),
+  }, opts);
 }
 
 /** Au moins une conversation a-t-elle déjà eu lieu (sinon la page explique comment démarrer) ? */
