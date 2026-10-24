@@ -8,6 +8,7 @@ import { prisma, type PrismaClient } from "@linkaffipro/db";
 import { errorText } from "../redirect";
 import type { AdsRecommendationView } from "./display";
 import { ADS_THRESHOLDS_KEY, parseAdsThresholds } from "./thresholds";
+import { ADS_ALERTS_KEY, parseAdsAlertSettingsValue, type AdsAlertSettingsValues } from "./alert-settings";
 
 export const ADS_TEAM_KEY = "ads";
 
@@ -103,6 +104,11 @@ export async function loadAdsReports(take = 20): Promise<AdsReportView[]> {
 export async function loadAdsThresholds(): Promise<AdsThresholds> {
   const row = await prisma.setting.findUnique({ where: { key: ADS_THRESHOLDS_KEY }, select: { value: true } });
   return parseAdsThresholds(row?.value);
+}
+
+export async function loadAdsAlertSettings(): Promise<AdsAlertSettingsValues> {
+  const row = await prisma.setting.findUnique({ where: { key: ADS_ALERTS_KEY }, select: { value: true } });
+  return parseAdsAlertSettingsValue(row?.value);
 }
 
 export type AdsCardFigures = { toDecide: number; done30d: number; lastReportAt: Date | null };

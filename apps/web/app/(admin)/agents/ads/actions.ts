@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { markAdsRecommendation } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
 import { ADS_PATH, MARK_WORDS, canMarkRecommendation, cleanComment } from "@/lib/agents/ads/display";
-import { saveAdsThresholds } from "@/lib/agents/ads/save";
+import { parseAdsAlertSettingsForm } from "@/lib/agents/ads/alert-settings";
+import { saveAdsAlertSettings, saveAdsThresholds } from "@/lib/agents/ads/save";
 import { parseAdsThresholdsForm } from "@/lib/agents/ads/thresholds";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
@@ -15,7 +16,7 @@ import { requireUser } from "@/lib/session";
  * - « Fait » / « Refuser » (avec commentaire) : managers compris. Le client dit ce qu'il a fait lui-même chez Meta ou
  *   TikTok : rien n'est jamais changé sur les plateformes (le moteur n'a aucune fonction d'écriture). Le moteur
  *   (`markAdsRecommendation`) écrit l'état et l'`AuditLog`.
- * - Seuils par univers : administrateurs, `AuditLog` avant / après.
+ * - Seuils par univers et réglages des alertes (`agents.ads.alerts`) : administrateurs, `AuditLog` avant / après.
  */
 
 /** Retour : la page avec ses filtres (période, campagne). */
@@ -78,4 +79,23 @@ export async function saveAdsThresholdsAction(formData: FormData): Promise<void>
   }
   revalidatePath(ADS_PATH);
   go(path, { ok: "Seuils enregistrés : ils comptent dès le prochain passage de l'Agent Ads." }, hash);
+}
+
+/** Réglages des alertes de l'Agent Ads (ADMIN) : `Setting` `agents.ads.alerts`. */
+export async function saveAdsAlertSettingsAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const path = returnPath(formData);
+  const hash = "#seuils";
+  if (user.role !== "ADMIN") go(path, { error: "Les réglages des alertes de l'Agent Ads sont réservés aux administrateurs." }, hash);
+  const parsed = parseAdsAlertSettingsForm(formData);
+  if (!parsed.ok) go(path, { error: parsed.error }, hash);
+  try {
+    await saveAdsAlertSettings(parsed.data, user.id);
+  } catch (err) {
+    if (isRedirectError(err)) throw err;
+    go(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, hash);
+  }
+  revalidatePath(ADS_PATH);
+  revalidatePath("/settings/alerts");
+  go(path, { ok: "Réglages des alertes enregistrés : ils comptent dès le prochain passage de l'Agent Ads (30 minutes au plus)." }, hash);
 }

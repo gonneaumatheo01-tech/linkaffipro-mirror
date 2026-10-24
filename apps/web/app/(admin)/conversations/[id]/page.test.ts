@@ -300,7 +300,7 @@ describe("Conversations → fiche d'une conversation", () => {
     m.detail = detail({ needsHumanAt: AT, needsHumanReason: "hors_fiche", status: "BOT" });
     const html = await render();
     const text = visibleText(html);
-    expect(text).toContain("À traiter : Question hors de la fiche d'informations");
+    expect(text).toContain("À traiter : Question hors fiche");
     expect(text).toContain("Depuis le");
     expect(text).toContain("Marquer comme traitée");
     expect(text).toContain("Prenez la main ou écrivez à cette personne");

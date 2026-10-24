@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { fmtDate } from "@/lib/format";
+import { accountPersonaWhere } from "@/lib/accounts/persona-choice";
 import { requireUser } from "@/lib/session";
 import { ActiveBadge } from "@/lib/status-badges";
 import {
@@ -48,7 +49,12 @@ export default async function AccountsPage({ searchParams }: PageProps<"/setting
       orderBy: { createdAt: "asc" },
       include: { persona: { select: { name: true, isActive: true } } },
     }),
-    prisma.persona.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
+    // Rencontres seulement : une persona Casino / Paris ne parle jamais depuis un vrai compte (refusé aussi par l'action).
+    prisma.persona.findMany({
+      where: accountPersonaWhere,
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, isActive: true },
+    }),
   ]);
   const isAdmin = user.role === "ADMIN";
   const connected = accounts.filter((a) => a.status === "ACTIVE").length;
@@ -195,6 +201,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/setting
                         </option>
                       ))}
                     </NativeSelect>
+                    <p className="text-note text-muted-foreground">Personas Rencontres seulement.</p>
                   </div>
                   <Button type="submit" variant="outline" className="max-md:h-10">
                     Enregistrer

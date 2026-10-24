@@ -23,7 +23,8 @@ export const maxDuration = 120;
  * et vidéos sources de l'équipe Rencontres (`purpose=source`). Multipart : `purpose`, `personaId`, un ou plusieurs
  * `files`. Chaque fichier devient un `MediaAsset` rangé (persona, nature, origine humaine, équipe Rencontres) ; même
  * empreinte qu'un fichier existant : il est rangé à son tour, sauf s'il l'est déjà pour une autre persona.
- * Réponse : `{ files: [{ id, filename, mimeType, size, error? }] }`. Journal `agents.media_uploaded`.
+ * Réponse : `{ files: [{ id, filename, mimeType, size, error? }] }`. Journal `agents.media_uploaded` (nouveau
+ * fichier) ou `agents.media_reclassified` (fichier déjà en base rangé à son tour : `from` / `to`).
  * Équipe Casino (phase 22, `purpose=casino`) : vidéos et images déposées par l'équipe avec un ou plusieurs `themes`
  * (thèmes connus de l'équipe) ; voir `casinoUpload`.
  */
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
     const classify = { personaId, kind: rule.kind, origin: "HUMAN" as const, teamKey: "dating" };
     const existing = await prisma.mediaAsset.findUnique({
       where: { sha256 },
-      select: { id: true, personaId: true, kind: true },
+      select: { id: true, personaId: true, kind: true, origin: true, teamKey: true },
     });
     if (existing) {
       const conflict = existingAssetProblem(existing, { personaId, kind: rule.kind });
@@ -75,6 +76,23 @@ export async function POST(req: Request) {
         continue;
       }
       await prisma.mediaAsset.update({ where: { id: existing.id }, data: classify });
+      await audit({
+        userId: user.id,
+        action: "agents.media_reclassified",
+        entityType: "MediaAsset",
+        entityId: existing.id,
+        metadata: {
+          purpose,
+          from: {
+            personaId: existing.personaId ?? null,
+            kind: existing.kind ?? null,
+            origin: existing.origin ?? null,
+            teamKey: existing.teamKey ?? null,
+          },
+          to: classify,
+          via: "dépôt sur la fiche",
+        },
+      });
       out.push({ id: existing.id, filename, mimeType: mime, size: buf.length });
       continue;
     }
@@ -129,7 +147,7 @@ async function casinoUpload(form: FormData, userId: string): Promise<Response> {
     const sha256 = createHash("sha256").update(buf).digest("hex");
     const existing = await prisma.mediaAsset.findUnique({
       where: { sha256 },
-      select: { id: true, teamKey: true, origin: true, theme: true, tags: true },
+      select: { id: true, teamKey: true, origin: true, kind: true, theme: true, tags: true },
     });
     if (existing) {
       const conflict = casinoExistingProblem(existing);
@@ -143,10 +161,22 @@ async function casinoUpload(form: FormData, userId: string): Promise<Response> {
       await prisma.mediaAsset.update({ where: { id: existing.id }, data });
       await audit({
         userId,
-        action: "agents.media_classified",
+        action: "agents.media_reclassified",
         entityType: "MediaAsset",
         entityId: existing.id,
-        metadata: { purpose: "casino", themes: merged, via: "dépôt sur la fiche" },
+        metadata: {
+          purpose: "casino",
+          themes: merged,
+          from: {
+            teamKey: existing.teamKey ?? null,
+            origin: existing.origin ?? null,
+            kind: existing.kind ?? null,
+            theme: existing.theme ?? null,
+            tags: existing.tags ?? [],
+          },
+          to: data,
+          via: "dépôt sur la fiche",
+        },
       });
       out.push({ id: existing.id, filename, mimeType: mime, size: buf.length });
       continue;

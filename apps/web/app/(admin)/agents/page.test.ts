@@ -269,6 +269,7 @@ vi.mock("@/lib/agents/secrets", async (orig) => ({
 vi.mock("./ads/actions", () => ({
   markAdsRecommendationAction: vi.fn(),
   saveAdsThresholdsAction: vi.fn(),
+  saveAdsAlertSettingsAction: vi.fn(),
 }));
 vi.mock("@/lib/agents/ads/queries", async () => {
   const { parseAdsThresholds } = await import("@/lib/agents/ads/thresholds");
@@ -367,6 +368,7 @@ vi.mock("@/lib/agents/ads/queries", async () => {
       },
     ]),
     loadAdsThresholds: vi.fn(async () => parseAdsThresholds({ CASINO: { targetCostPerRegistration: 12, minRoas: 1.5, observationDays: 4, minSpend: 30 } })),
+    loadAdsAlertSettings: vi.fn(async () => ({ spikePct: 70, dropPct: 50, minDailySpend: 10, minRegistrations: 5 })),
     loadAdsCardFigures: vi.fn(async () => ({ toDecide: 1, done30d: 1, lastReportAt: new Date("2026-10-24T07:00:00Z") })),
   };
 });
@@ -902,6 +904,10 @@ describe("Agent Ads (/agents/ads)", () => {
       "Ce que rapportent les membres de chaque pub",
       "Seuils par univers",
       "Enregistrer les seuils",
+      "Alertes sur les campagnes",
+      "Hausse de dépense qui déclenche l'alerte",
+      "Inscriptions minimales avant de comparer",
+      "Enregistrer les réglages des alertes",
       "Rapports archivés",
       "Rapport du jour",
       "Pubs hier : 300 € dépensés",
@@ -929,6 +935,8 @@ describe("Agent Ads (/agents/ads)", () => {
     expect(text).toContain("Refuser");
     expect(text).not.toContain("Enregistrer les seuils");
     expect(text).toContain("Seuls les administrateurs peuvent changer les seuils.");
+    expect(text).not.toContain("Enregistrer les réglages des alertes");
+    expect(text).toContain("Seuls les administrateurs peuvent changer ces réglages.");
   });
 
   it("analyse en panne : la page reste lisible avec un message", async () => {

@@ -45,14 +45,38 @@ export function statsHref(path: string, a: Pick<AdsAnalysis, "period" | "from" |
 
 export type AdsMetricKey = keyof AdsMetrics;
 
+/**
+ * Chiffre des pages Statistiques qui porte la même valeur qu'un chiffre de l'Agent Ads (le moteur lit `DailyStat` :
+ * `landingVisits` = `entryClicks`, `telegramJoins` = `requests`, `members` = `joined`) : même mot des deux côtés.
+ * Un chiffre absent d'ici n'a pas d'équivalent dans Statistiques et porte un mot à lui (règle : un mot = un chiffre).
+ */
+export const ADS_STATS_EQUIVALENT: Partial<Record<AdsMetricKey, keyof typeof METRIC_VIEWS>> = {
+  spend: "spend",
+  landingVisits: "entryClicks",
+  telegramJoins: "requests",
+  members: "joined",
+  offerClicks: "offerClicks",
+  registrations: "registrations",
+  ftds: "ftds",
+  deposits: "deposits",
+  commissions: "commissions",
+  gains: "gains",
+  roas: "roas",
+  costPerMember: "cpl",
+  costPerRegistration: "cpa",
+  costPerFtd: "costPerFtd",
+};
+
 /** Mot du client, terme au survol, sens favorable et format de chaque chiffre (mêmes mots que Statistiques). */
 export const ADS_METRIC_VIEWS: Record<AdsMetricKey, MetricView> = {
   spend: METRIC_VIEWS.spend,
   impressions: { label: "Affichages de la pub", term: "impressions", favorable: "up", format: "number", integer: true },
-  adClicks: METRIC_VIEWS.entryClicks,
-  landingVisits: { label: "Visites de la page", favorable: "up", format: "number", integer: true },
-  telegramJoins: { label: "Entrées sur Telegram", favorable: "up", format: "number", integer: true },
-  members: { label: "Membres", favorable: "up", format: "number", integer: true },
+  // Clics comptés par la régie (Meta / TikTok) : pas le même chiffre que « Clics sur les pubs » de Statistiques
+  // (passages par nos liens, `entryClicks`, ici `landingVisits`).
+  adClicks: { label: "Clics comptés par Meta / TikTok", term: "clics de la régie", favorable: "up", format: "number", integer: true },
+  landingVisits: METRIC_VIEWS.entryClicks,
+  telegramJoins: METRIC_VIEWS.requests,
+  members: METRIC_VIEWS.joined,
   offerClicks: METRIC_VIEWS.offerClicks,
   registrations: METRIC_VIEWS.registrations,
   ftds: METRIC_VIEWS.ftds,
@@ -71,7 +95,11 @@ export function fmtAds(key: AdsMetricKey, v: number | null | undefined): string 
 
 // ---------------------------------------------------------------- parcours
 
-/** Étapes du parcours, de l'affichage de la pub au dépôt. */
+/**
+ * Étapes du parcours, de l'affichage de la pub au premier dépôt : celles du moteur (`FUNNEL_STEPS` de
+ * `@linkaffipro/agents`, goulot compris), dans son ordre. Recopiées (pas importées) pour que les pages qui simulent le
+ * moteur dans leurs tests restent simples ; ads.test.ts vérifie qu'elles sont identiques.
+ */
 export const FUNNEL_STEPS: AdsMetricKey[] = [
   "impressions",
   "adClicks",
@@ -79,7 +107,7 @@ export const FUNNEL_STEPS: AdsMetricKey[] = [
   "telegramJoins",
   "offerClicks",
   "registrations",
-  "deposits",
+  "ftds",
 ];
 
 /** Noms possibles du goulot écrits par le moteur (clé du chiffre ou de l'étape). */
@@ -99,9 +127,9 @@ const BOTTLENECK_ALIASES: Record<string, AdsMetricKey> = {
   offer: "offerClicks",
   offerclick: "offerClicks",
   registration: "registrations",
-  ftd: "deposits",
-  ftds: "deposits",
-  deposit: "deposits",
+  ftd: "ftds",
+  ftds: "ftds",
+  firstdeposit: "ftds",
 };
 
 /** Étape visée par le goulot (`AdsRow.bottleneck`), ou null si inconnue. */

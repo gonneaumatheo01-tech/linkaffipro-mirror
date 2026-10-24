@@ -13,6 +13,7 @@ import {
   submitCode,
   submitPassword,
 } from "@linkaffipro/userbot";
+import { ACCOUNT_PERSONA_REFUSED, isAccountPersonaAllowed } from "@/lib/accounts/persona-choice";
 import { requireAdmin } from "@/lib/session";
 
 const PAGE = "/settings/accounts";
@@ -103,10 +104,17 @@ export async function toggleAccountAction(formData: FormData): Promise<void> {
   back({ ok: "Mis a jour. Redemarrez le userbot pour appliquer." });
 }
 
+/** Persona d'un compte : Rencontres seulement (refus côté serveur, quelle que soit la liste affichée). */
 export async function setAccountPersonaAction(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = String(formData.get("accountId") ?? "");
-  await setPersona(id, String(formData.get("personaId") ?? "") || null);
+  const personaId = String(formData.get("personaId") ?? "") || null;
+  if (personaId) {
+    const persona = await prisma.persona.findUnique({ where: { id: personaId }, select: { universe: true } });
+    if (!persona) back({ error: "Persona introuvable : rechargez la page." });
+    if (!isAccountPersonaAllowed(persona)) back({ error: ACCOUNT_PERSONA_REFUSED });
+  }
+  await setPersona(id, personaId);
   revalidatePath(PAGE);
   back({ ok: "Persona mise a jour." });
 }

@@ -23,6 +23,7 @@ import {
   conversationUniverseLabel,
   isConversationUniverse,
   NEEDS_HUMAN_FALLBACK,
+  NEEDS_HUMAN_REASON_ALIASES,
   NEEDS_HUMAN_LABEL,
   needsHumanReasonLabel,
 } from "./labels";
@@ -140,10 +141,10 @@ describe("« Qui répond » quand l'assistante a la main", () => {
 describe("conversations à traiter (phase 25)", () => {
   it("motifs connus en clair, repli générique pour toute autre valeur", () => {
     expect(NEEDS_HUMAN_LABEL).toBe("À traiter");
-    expect(needsHumanReasonLabel("hors_fiche")).toBe("Question hors de la fiche d'informations");
+    expect(needsHumanReasonLabel("hors_fiche")).toBe(needsHumanReasonLabel("off_faq"));
     expect(needsHumanReasonLabel("reclamation")).toBe("Réclamation");
     expect(needsHumanReasonLabel("argent")).toBe("Demande d'argent");
-    expect(needsHumanReasonLabel("mineur")).toBe("Mineur possible");
+    expect(needsHumanReasonLabel("mineur")).toBe(needsHumanReasonLabel("minor"));
     expect(needsHumanReasonLabel("insulte")).toBe("Insulte");
     expect(needsHumanReasonLabel(" ARGENT ")).toBe("Demande d'argent");
     for (const v of [null, undefined, "", "autre", "toString", "__proto__", "constructor"])
@@ -168,5 +169,13 @@ describe("motifs du moteur (phase 25)", () => {
     const { NEEDS_HUMAN_REASONS } = await import("@linkaffipro/core");
     for (const r of NEEDS_HUMAN_REASONS)
       expect(needsHumanReasonLabel(r), r).not.toBe(NEEDS_HUMAN_FALLBACK);
+  });
+  it("une seule table : pour chaque motif (et chaque ancien nom), libellé du site = libellé du cœur", async () => {
+    const core = await import("@linkaffipro/core");
+    for (const r of core.NEEDS_HUMAN_REASONS) expect(needsHumanReasonLabel(r), r).toBe(core.needsHumanReasonLabel(r));
+    for (const [alias, r] of Object.entries(NEEDS_HUMAN_REASON_ALIASES)) {
+      expect(core.NEEDS_HUMAN_REASONS as readonly string[], alias).toContain(r);
+      expect(needsHumanReasonLabel(alias), alias).toBe(core.needsHumanReasonLabel(r));
+    }
   });
 });

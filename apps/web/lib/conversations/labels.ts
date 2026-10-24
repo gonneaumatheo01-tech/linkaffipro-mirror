@@ -6,6 +6,11 @@
  * `statusLabel("conversationStage" | "conversationStatus", …)` de `lib/status-badges` (« L'assistante répond » par
  * défaut), accordé à la persona quand elle est connue (`botStatusLabel`).
  */
+import {
+  isNeedsHumanReason,
+  needsHumanReasonLabel as coreNeedsHumanReasonLabel,
+  type NeedsHumanReason,
+} from "@linkaffipro/core";
 import type { ConversationStage } from "@linkaffipro/db";
 import { fmtMoney, fmtPct } from "@/lib/format";
 
@@ -172,28 +177,27 @@ export const NEEDS_HUMAN_LABEL = "À traiter";
 export const NEEDS_HUMAN_FALLBACK = "À reprendre par l'équipe";
 
 /**
- * Motifs connus du passage à l'équipe, en clair. Valeurs du moteur (`NEEDS_HUMAN_REASONS` de `@linkaffipro/core` :
- * off_faq, complaint, money, minor, insult), plus les noms français prévus avant le contrat (tolérés).
+ * Noms français des motifs prévus avant le contrat (tolérés) → motif du moteur (`NEEDS_HUMAN_REASONS` de
+ * `@linkaffipro/core` : off_faq, complaint, money, minor, insult). Le libellé lui-même vient TOUJOURS du cœur
+ * (`needsHumanReasonLabel`, une seule table pour le site, Telegram et les résumés).
  */
-export const NEEDS_HUMAN_REASON_LABELS: Readonly<Record<string, string>> = {
-  off_faq: "Question hors de la fiche d'informations",
-  complaint: "Réclamation",
-  money: "Demande d'argent",
-  minor: "Mineur possible",
-  insult: "Insulte",
-  hors_fiche: "Question hors de la fiche d'informations",
-  reclamation: "Réclamation",
-  argent: "Demande d'argent",
-  mineur: "Mineur possible",
-  insulte: "Insulte",
+export const NEEDS_HUMAN_REASON_ALIASES: Readonly<Record<string, NeedsHumanReason>> = {
+  hors_fiche: "off_faq",
+  reclamation: "complaint",
+  argent: "money",
+  mineur: "minor",
+  insulte: "insult",
 };
 
-/** Motif lisible d'une conversation à traiter ; repli générique pour toute autre valeur (ou aucune). */
+/** Motif lisible d'une conversation à traiter (libellé du cœur) ; repli générique pour toute autre valeur (ou aucune). */
 export function needsHumanReasonLabel(reason: string | null | undefined): string {
   const key = (reason ?? "").trim().toLowerCase();
-  return Object.hasOwn(NEEDS_HUMAN_REASON_LABELS, key)
-    ? NEEDS_HUMAN_REASON_LABELS[key]!
-    : NEEDS_HUMAN_FALLBACK;
+  const motive = isNeedsHumanReason(key)
+    ? key
+    : Object.hasOwn(NEEDS_HUMAN_REASON_ALIASES, key)
+      ? NEEDS_HUMAN_REASON_ALIASES[key]!
+      : null;
+  return motive ? coreNeedsHumanReasonLabel(motive) : NEEDS_HUMAN_FALLBACK;
 }
 
 /** Valeurs du filtre Univers (celles de `Persona.universe`), dans l'ordre affiché. */

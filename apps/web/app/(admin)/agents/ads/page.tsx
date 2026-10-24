@@ -4,6 +4,7 @@ import type { AdsAnalysis, AdsMetrics, AdsRow } from "@linkaffipro/agents";
 import { AgentsNav } from "@/components/agents/agents-nav";
 import { AdsRecommendationsList } from "@/components/agents/ads/ads-recommendations";
 import { AdsReportsList } from "@/components/agents/ads/ads-reports";
+import { AdsAlertsForm } from "@/components/agents/ads/ads-alerts-form";
 import { AdsThresholdsForm } from "@/components/agents/ads/ads-thresholds-form";
 import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/admin/data-table";
 import { EmptyState } from "@/components/admin/empty-state";
@@ -39,6 +40,7 @@ import {
   type AdsMetricKey,
 } from "@/lib/agents/ads/display";
 import {
+  loadAdsAlertSettings,
   loadAdsAnalysis,
   loadAdsRecommendations,
   loadAdsReports,
@@ -121,13 +123,14 @@ export default async function AdsAgentPage({ searchParams }: PageProps<"/agents/
   const sp: SP = await searchParams;
   const period = parseAdsPeriod(one(sp.periode));
   const now = new Date();
-  const [main, yesterday, recs, reports, thresholds, pending] = await Promise.all([
+  const [main, yesterday, recs, reports, thresholds, pending, alertSettings] = await Promise.all([
     loadAdsAnalysis(period, now),
     period === "yesterday" ? Promise.resolve(null) : loadAdsAnalysis("yesterday", now),
     loadAdsRecommendations(),
     loadAdsReports(),
     loadAdsThresholds(),
     loadPendingCounts(),
+    loadAdsAlertSettings(),
   ]);
   const day = yesterday ?? main;
   const a = main.ok ? main.analysis : null;
@@ -464,6 +467,9 @@ export default async function AdsAgentPage({ searchParams }: PageProps<"/agents/
           description="Ce qui déclenche un conseil. Au départ : au moins 3 jours et 20 € de dépense par pub, coût par inscription et retour sur dépense pub automatiques (valeur du milieu de vos pubs comparables). Ils ne changent que les conseils, jamais vos pubs."
         >
           <AdsThresholdsForm thresholds={thresholds} isAdmin={isAdmin} from={from} />
+          <div className="mt-6">
+            <AdsAlertsForm settings={alertSettings} isAdmin={isAdmin} from={from} />
+          </div>
         </FormSection>
 
         <FormSection

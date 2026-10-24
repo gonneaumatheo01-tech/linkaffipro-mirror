@@ -90,9 +90,21 @@ describe("POST /api/agents/media", () => {
     expect(m.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "old1" }, data: expect.objectContaining({ kind: "REFERENCE", personaId: "p1" }) }),
     );
+    expect(m.audit).toHaveBeenCalledWith({
+      userId: "u1",
+      action: "agents.media_reclassified",
+      entityType: "MediaAsset",
+      entityId: "old1",
+      metadata: expect.objectContaining({
+        from: { personaId: null, kind: null, origin: null, teamKey: null },
+        to: { personaId: "p1", kind: "REFERENCE", origin: "HUMAN", teamKey: "dating" },
+      }),
+    });
+    m.audit.mockClear();
     m.existing = { id: "old1", personaId: "p2", kind: "SOURCE" };
     body = (await (await POST(upload({ purpose: "source", personaId: "p1" }, [video()]))).json()) as typeof body;
     expect(body.files[0]!.error).toContain("autre persona");
+    expect(m.audit).not.toHaveBeenCalled();
   });
 });
 
@@ -163,6 +175,16 @@ describe("POST /api/agents/media (équipe Casino, phase 22)", () => {
       where: { id: "old" },
       data: expect.objectContaining({ theme: "live", tags: ["casino", "theme:live"] }),
     });
+    expect(m.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "agents.media_reclassified",
+        entityId: "old",
+        metadata: expect.objectContaining({
+          from: expect.objectContaining({ theme: null, tags: ["casino", "a-classer"] }),
+          to: expect.objectContaining({ theme: "live", tags: ["casino", "theme:live"] }),
+        }),
+      }),
+    );
     m.update.mockClear();
     m.existing = { id: "ai", teamKey: "casino", origin: "AI", theme: "live", tags: [] };
     const body = (await (await POST(casino(["live"], [video()]))).json()) as { files: Array<{ error?: string }> };

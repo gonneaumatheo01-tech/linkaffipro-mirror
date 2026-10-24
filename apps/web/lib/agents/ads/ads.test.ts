@@ -1,9 +1,28 @@
 import { describe, expect, it } from "vitest";
-import type { AdsMetrics, AdsRow } from "@linkaffipro/agents";
+import {
+  ADS_ALERT_SETTINGS_KEY,
+  DEFAULT_ADS_ALERT_SETTINGS,
+  FUNNEL_STEPS as ENGINE_FUNNEL_STEPS,
+  parseAdsAlertSettings,
+  type AdsMetrics,
+  type AdsRow,
+} from "@linkaffipro/agents";
+import {
+  ADS_ALERTS_KEY,
+  ADS_ALERT_BOUNDS,
+  ADS_ALERT_DEFAULTS,
+  ADS_ALERT_FIELDS,
+  alertField,
+  parseAdsAlertSettingsForm,
+  parseAdsAlertSettingsValue,
+} from "./alert-settings";
+import { METRIC_VIEWS } from "@/lib/dashboard/display";
 import { jargonIn } from "@/tests/vocabulary/jargon-scan";
 import { statusLabel } from "@/lib/status-badges";
 import {
   ADS_METRIC_VIEWS,
+  ADS_STATS_EQUIVALENT,
+  FUNNEL_STEPS,
   adsEvidenceLines,
   bestAndWorst,
   bottleneckStep,
@@ -76,6 +95,19 @@ describe("chiffres affichés", () => {
     expect(ADS_METRIC_VIEWS.roas).toMatchObject({ label: "Retour sur dépense pub", term: "ROAS" });
     expect(ADS_METRIC_VIEWS.costPerRegistration.label).toBe("Coût par inscription");
   });
+  it("un mot = un seul chiffre, ici et dans Statistiques", () => {
+    const labels = Object.values(ADS_METRIC_VIEWS).map((v) => v.label);
+    expect(new Set(labels).size).toBe(labels.length);
+    const statsByLabel = new Map(Object.entries(METRIC_VIEWS).map(([k, v]) => [v.label, k]));
+    for (const [key, v] of Object.entries(ADS_METRIC_VIEWS)) {
+      const statsKey = statsByLabel.get(v.label);
+      // même mot que Statistiques seulement pour la même valeur
+      expect(statsKey, `${key} : « ${v.label} »`).toBe(ADS_STATS_EQUIVALENT[key as keyof typeof ADS_STATS_EQUIVALENT]);
+    }
+    expect(ADS_METRIC_VIEWS.adClicks.label).toBe("Clics comptés par Meta / TikTok");
+    expect(ADS_METRIC_VIEWS.adClicks.term).toBeTruthy();
+    expect(ADS_METRIC_VIEWS.landingVisits.label).toBe(METRIC_VIEWS.entryClicks.label);
+  });
 });
 
 describe("parcours", () => {
@@ -83,17 +115,22 @@ describe("parcours", () => {
     const steps = funnelSteps(
       row("c", { bottleneck: "offerClicks", cur: { adClicks: 200, landingVisits: 100, telegramJoins: 50, offerClicks: 5, registrations: 2 } }),
     );
-    expect(steps.map((s) => s.key)).toEqual(["adClicks", "landingVisits", "telegramJoins", "offerClicks", "registrations", "deposits"]);
+    expect(steps.map((s) => s.key)).toEqual(["adClicks", "landingVisits", "telegramJoins", "offerClicks", "registrations", "ftds"]);
     expect(steps[0]!.rate).toBeNull();
     expect(steps[1]!.rate).toBe(0.5);
     expect(steps.find((s) => s.weakest)?.key).toBe("offerClicks");
     expect(steps.at(-1)!.rate).toBe(0);
     expect(funnelSteps(row("v"))).toEqual([]);
   });
+  it("mêmes étapes que le moteur, dans le même ordre ; chaque goulot du moteur est reconnu", () => {
+    expect(FUNNEL_STEPS).toEqual(ENGINE_FUNNEL_STEPS.map((s) => s.key));
+    for (const s of ENGINE_FUNNEL_STEPS) expect(bottleneckStep(s.key)).toBe(s.key);
+  });
   it("goulot lu de façon tolérante", () => {
     expect(bottleneckStep("landingVisits")).toBe("landingVisits");
     expect(bottleneckStep("visit→join")).toBe("landingVisits");
     expect(bottleneckStep("registration")).toBe("registrations");
+    expect(bottleneckStep("ftds")).toBe("ftds");
     expect(bottleneckStep("inconnu")).toBeNull();
     expect(bottleneckStep(null)).toBeNull();
   });
@@ -233,8 +270,43 @@ describe("exports", () => {
     expect(lines).toHaveLength(3);
     expect(lines[0]).toContain("Retour sur dépense pub (×)");
     expect(lines[1]).toContain("Campagne;c");
-    expect(lines[1]).toContain("Visites de la page");
+    expect(lines[1]).toContain("Clics sur les pubs");
     expect(lines[2]).toContain("Pub;a;Casino;12,50");
     expect(jargonIn(lines[0]!)).toEqual([]);
+  });
+});
+
+describe("réglages des alertes de l'Agent Ads (agents.ads.alerts)", () => {
+  const form = (o: Record<string, string>) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(alertField(k as keyof typeof ADS_ALERT_DEFAULTS), v);
+    return f;
+  };
+  it("même clé, mêmes valeurs de départ et mêmes champs que le moteur", () => {
+    expect(ADS_ALERTS_KEY).toBe(ADS_ALERT_SETTINGS_KEY);
+    expect(ADS_ALERT_DEFAULTS).toEqual(DEFAULT_ADS_ALERT_SETTINGS);
+    expect(ADS_ALERT_FIELDS.map((f) => f.key).sort()).toEqual(Object.keys(DEFAULT_ADS_ALERT_SETTINGS).sort());
+    for (const f of ADS_ALERT_FIELDS) expect(jargonIn(`${f.label} ${f.hint}`)).toEqual([]);
+  });
+  it("chaque valeur acceptée par le formulaire est gardée telle quelle par le moteur ; bornes identiques", () => {
+    for (const [key, b] of Object.entries(ADS_ALERT_BOUNDS)) {
+      for (const v of [b.min, b.max]) {
+        const over = { ...ADS_ALERT_DEFAULTS, [key]: v };
+        expect(parseAdsAlertSettings(over)).toEqual(over);
+        expect(parseAdsAlertSettingsValue(over)).toEqual(over);
+      }
+      const out = { ...ADS_ALERT_DEFAULTS, [key]: b.max + 1 };
+      expect(parseAdsAlertSettings(out)).toEqual(ADS_ALERT_DEFAULTS);
+      expect(parseAdsAlertSettingsValue(out)).toEqual(ADS_ALERT_DEFAULTS);
+    }
+  });
+  it("lecture du formulaire : virgule, entiers, bornes", () => {
+    expect(parseAdsAlertSettingsForm(form({ spikePct: "80", dropPct: "40", minDailySpend: "12,5", minRegistrations: "3" }))).toEqual({
+      ok: true,
+      data: { spikePct: 80, dropPct: 40, minDailySpend: 12.5, minRegistrations: 3 },
+    });
+    expect(parseAdsAlertSettingsForm(form({ spikePct: "80", dropPct: "140", minDailySpend: "10", minRegistrations: "3" })).ok).toBe(false);
+    expect(parseAdsAlertSettingsForm(form({ spikePct: "80,5", dropPct: "40", minDailySpend: "10", minRegistrations: "3" })).ok).toBe(false);
+    expect(parseAdsAlertSettingsForm(form({ spikePct: "", dropPct: "40", minDailySpend: "10", minRegistrations: "3" })).ok).toBe(false);
   });
 });

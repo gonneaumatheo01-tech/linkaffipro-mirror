@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   rec: { teamKey: "ads", status: "PROPOSED" } as Record<string, string> | null,
   mark: vi.fn(async (..._a: unknown[]) => ({ ok: true, message: "" })),
   save: vi.fn(async (..._a: unknown[]) => {}),
+  saveAlerts: vi.fn(async (..._a: unknown[]) => {}),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -22,9 +23,9 @@ vi.mock("@linkaffipro/db", () => ({
   prisma: { recommendation: { findUnique: vi.fn(async () => m.rec) } },
 }));
 vi.mock("@/lib/agents/deps", () => ({ buildAgentsDeps: () => ({}) }));
-vi.mock("@/lib/agents/ads/save", () => ({ saveAdsThresholds: m.save }));
+vi.mock("@/lib/agents/ads/save", () => ({ saveAdsThresholds: m.save, saveAdsAlertSettings: m.saveAlerts }));
 
-import { markAdsRecommendationAction, saveAdsThresholdsAction } from "./actions";
+import { markAdsRecommendationAction, saveAdsAlertSettingsAction, saveAdsThresholdsAction } from "./actions";
 
 const fd = (o: Record<string, string>) => {
   const f = new FormData();
@@ -56,6 +57,7 @@ beforeEach(() => {
   m.rec = { teamKey: "ads", status: "PROPOSED" };
   m.mark.mockClear();
   m.save.mockClear();
+  m.saveAlerts.mockClear();
 });
 
 describe("Fait / Refuser", () => {
@@ -117,5 +119,23 @@ describe("seuils", () => {
     const url = await redirectOf(saveAdsThresholdsAction(thresholdsForm({ "SPORTS.observationDays": "0" })));
     expect(url).toContain("Paris sportifs : jours d'observation");
     expect(m.save).not.toHaveBeenCalled();
+  });
+});
+
+describe("réglages des alertes de l'Agent Ads", () => {
+  const alertsForm = (o: Record<string, string> = {}) =>
+    fd({ "alerts.spikePct": "80", "alerts.dropPct": "40", "alerts.minDailySpend": "12,5", "alerts.minRegistrations": "3", ...o });
+  it("un administrateur enregistre les 4 réglages", async () => {
+    const url = await redirectOf(saveAdsAlertSettingsAction(alertsForm()));
+    expect(m.saveAlerts).toHaveBeenCalledWith({ spikePct: 80, dropPct: 40, minDailySpend: 12.5, minRegistrations: 3 }, "u1");
+    expect(url).toContain("ok=");
+    expect(url).toContain("#seuils");
+  });
+  it("un responsable ne peut pas ; une valeur hors bornes est refusée", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    expect(await redirectOf(saveAdsAlertSettingsAction(alertsForm()))).toContain("error=");
+    m.user = { id: "u1", role: "ADMIN" };
+    expect(await redirectOf(saveAdsAlertSettingsAction(alertsForm({ "alerts.dropPct": "150" })))).toContain("error=");
+    expect(m.saveAlerts).not.toHaveBeenCalled();
   });
 });

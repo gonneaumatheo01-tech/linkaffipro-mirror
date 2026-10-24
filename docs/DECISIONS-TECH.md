@@ -734,3 +734,10 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   terminaison de domaine de 2 à 24 lettres (exceptions « etc. », « p.ex. », deux phrases collées). Mention d'IA en
   minuscules et noms d'outils (« dalle » seul permis, « DALL-E » refusé). Casino : `MediaUsage.usedAt` = heure d'envoi
   prévue.
+- **Relecture (phase 25) — site** : l'Agent Ads n'emprunte un libellé de Statistiques que pour la même valeur
+  (`ADS_STATS_EQUIVALENT`) ; « Clics comptés par Meta / TikTok » a son propre libellé ; étapes du parcours copiées
+  côté site et vérifiées identiques au moteur par un test (dernière étape = premiers dépôts). Seuils des alertes Ads
+  (`agents.ads.alerts`) réglés dans « Seuils » de `/agents/ads` (ADMIN, `agents.ads_alerts_saved`), interrupteurs dans
+  Réglages → Alertes. Libellés « À traiter » uniquement depuis core (anciens noms en alias). Un compte Telegram réel
+  ne porte qu'une persona Rencontres (page et serveur, `lib/accounts/persona-choice.ts`). Redépôt d'un média connu :
+  `agents.media_reclassified` `{ from, to }`.
