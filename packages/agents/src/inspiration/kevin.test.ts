@@ -79,6 +79,7 @@ const TABLE = [
   ["applique 1 et 3", { name: "appliquer_inspiration", input: { numeros: "1 et 3" } }],
   ["retire @roulette_pro", { name: "retirer_reference", input: { reference: "@roulette_pro" } }],
   ["Kevin, annule l'inspiration", { name: "annuler_inspiration", input: {} }],
+  ["entre dans t.me/+AbCdEf123 pour Casino VIP", { name: "analyser_canal", input: { canal: "https://t.me/+AbCdEf123", canal_cible: "Casino VIP" } }],
 ] as const;
 
 async function say(text: string, extra: Partial<BossTeamInput> = {}) {
@@ -158,6 +159,31 @@ describe("analyser un canal par Kevin", () => {
     expect(ports.enqueueReferenceRead).toHaveBeenCalledWith(expect.anything(), refs[0]!.id);
     // L'analyse ne touche à aucun réglage.
     expect(kit.tables("recommendation")).toHaveLength(0);
+  });
+
+  it("lien d'invitation privé : sans compte libre → transfert demandé ; avec compte → « Entrer avec le compte Lea ? », une seule tentative après OUI", async () => {
+    const none = await say("entre dans t.me/+AbCdEf123 pour Casino VIP");
+    expect(none).toContain("transfère-moi 10 à 30 de ses posts");
+    expect(none).not.toContain("OUI pour confirmer");
+    const joins: string[] = [];
+    (kit.deps as Record<string, unknown>).inspirationReader = {
+      available: true,
+      memberAccounts: async () => [],
+      history: async () => ({ posts: [], title: null, chatId: null }),
+      joinWithInvite: async (_a: string, link: string) => {
+        joins.push(link);
+        return { ok: true, chatId: -100888n, title: "Club privé" };
+      },
+    };
+    (kit.deps as Record<string, unknown>).inspirationSleep = async () => undefined;
+    await kit.prisma.telegramUserAccount.create({ data: { label: "Lea", phone: "+33600000000", sessionEncrypted: "x", status: "ACTIVE", isActive: true, personaId: null, botId: null } } as never);
+    const ask = await say("entre dans t.me/+AbCdEf123 pour Casino VIP");
+    expect(ask).toContain("Entrer avec le compte Lea par ce lien ?");
+    expect(joins).toHaveLength(0);
+    const done = await say("OUI");
+    expect(done).toContain("Le compte Lea est entré");
+    expect(joins).toEqual(["https://t.me/+AbCdEf123"]);
+    expect(ports.enqueueReferenceRead).toHaveBeenCalledTimes(1);
   });
 
   it("même univers obligatoire : refus en une ligne", async () => {

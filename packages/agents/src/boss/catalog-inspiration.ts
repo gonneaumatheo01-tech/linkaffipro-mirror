@@ -16,7 +16,7 @@
 import { adminTelegramId, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { INSPIRATION_LIMITS, type InspirationAnalysis, type Measure } from "../inspiration/contract";
 import { inspirationSummaryLines, measureOf, fr } from "../inspiration/kevin";
-import { analyzeReference, compareWithChannel, enqueueReferenceRead, freeReaderAccounts, isInviteLink, joinWithInviteOnce, normalizeChannelUsername, prismaAccountHistoryReader, storeReferencePosts, type AccountJoinReader } from "../inspiration/kevin-ports";
+import { analyzeReference, compareWithChannel, enqueueReferenceRead, freeReaderAccounts, isInviteLink, joinWithInviteOnce, normalizeChannelUsername, createDefaultAccountReader, storeReferencePosts, type AccountJoinReader } from "../inspiration/kevin-ports";
 import {
   activeReferences,
   askerOf,
@@ -180,14 +180,15 @@ async function attachTarget(deps: BossExecDeps, ref: ReferenceRow, channelId: st
 
 type AnalyserParams = { canal?: string; canal_cible?: string };
 
-type InspirationDeps = BossExecDeps & { inspirationReader?: AccountJoinReader | null };
+type InspirationDeps = BossExecDeps & { inspirationReader?: AccountJoinReader | null; inspirationSleep?: (ms: number) => Promise<void> };
 
-function readerOf(deps: InspirationDeps): AccountJoinReader {
-  return deps.inspirationReader ?? prismaAccountHistoryReader(deps.prisma);
+/** Lecteur par compte réel : le service userbot (voie ouverte seulement s'il a donné signe de vie depuis une minute). */
+async function readerOf(deps: InspirationDeps): Promise<AccountJoinReader> {
+  return deps.inspirationReader ?? (await createDefaultAccountReader(deps.prisma, { now: () => nowOf(deps) }));
 }
 
 async function freeAccount(deps: InspirationDeps): Promise<{ id: string; label: string } | null> {
-  const reader = readerOf(deps) as AccountJoinReader & { available?: boolean };
+  const reader = (await readerOf(deps)) as AccountJoinReader & { available?: boolean };
   if (reader.available === false || !reader.joinWithInvite) return null;
   const ids = await freeReaderAccounts(deps.prisma, nowOf(deps));
   if (!ids.length) return null;
@@ -252,7 +253,7 @@ export const analyserCanal = defineAction<AnalyserParams>({
     if (isInviteLink(p.canal)) {
       const acc = await freeAccount(deps);
       if (!acc || !targetId) return { reply: `Aucun compte réel libre ne peut entrer par ce lien : ${FORWARD_ASK}` };
-      const joined = await joinWithInviteOnce(readerOf(deps), acc.id, p.canal);
+      const joined = await joinWithInviteOnce(await readerOf(deps), acc.id, p.canal, deps.inspirationSleep ? { sleep: deps.inspirationSleep } : {});
       if (!joined.ok) return { reply: `${esc(joined.message)} Sinon, ${FORWARD_ASK}` };
       const ref =
         (joined.chatId != null ? await findReference(deps, { chatId: joined.chatId }) : null) ??

@@ -8,6 +8,7 @@ export { compareWithChannel } from "./analysis/compare";
 export { buildStyleProfile } from "./style";
 export { forwardedToReferencePost, type ForwardedMessage, type ForwardedOrigin } from "./sources/forwarded";
 export { normalizeChannelUsername, isInviteLink } from "./sources/web-preview";
-export { freeReaderAccounts, joinWithInviteOnce, prismaAccountHistoryReader, type AccountJoinReader } from "./sources/account";
+export { freeReaderAccounts, joinWithInviteOnce, type AccountJoinReader } from "./sources/account";
+export { createDefaultAccountReader } from "./sources/userbot-mailbox";
 export { storeReferencePosts } from "./store";
 export { enqueueReferenceRead } from "./read";
