@@ -110,17 +110,54 @@ export async function recentBossTurns(
   return rows.reverse();
 }
 
-/** Tour du Boss déjà écrit pour ce message de l'admin (le worker évite ainsi une double exécution). */
-export async function bossTurnForMessage(deps: Pick<AgentsDeps, "prisma">, messageId: number): Promise<BossTurnRow | null> {
-  return (await deps.prisma.bossTurn.findFirst({
-    where: { role: "BOSS", telegramMessageId: messageId },
+/**
+ * Tour du Boss déjà écrit pour ce message (le worker évite ainsi une double exécution). Les numéros de message sont
+ * propres à chaque conversation : dans le groupe (identifiant négatif), seule la conversation du groupe compte ; en
+ * privé, la conversation privée ou un tour ancien sans conversation notée.
+ */
+export async function bossTurnForMessage(deps: Pick<AgentsDeps, "prisma">, messageId: number, chatId?: bigint | null): Promise<BossTurnRow | null> {
+  const where =
+    chatId == null
+      ? { role: "BOSS", telegramMessageId: messageId }
+      : chatId < 0n
+        ? { role: "BOSS", telegramMessageId: messageId, chatId }
+        : { role: "BOSS", telegramMessageId: messageId, OR: [{ chatId }, { chatId: null }] };
+  return (await deps.prisma.bossTurn.findFirst({ where, orderBy: { createdAt: "desc" } })) as BossTurnRow | null;
+}
+
+/**
+ * Mémoire d'une personne (phase 26, section 4) : 20 tours ou 24 heures au plus, de CETTE conversation. Groupe : les
+ * messages de cette personne à Kevin et ses réponses (jamais les conversations des autres). Privé d'un membre : sa
+ * conversation. Privé de l'admin : sa conversation (et les tours anciens sans conversation notée).
+ */
+export async function bossTurnsForSpeaker(
+  deps: Pick<AgentsDeps, "prisma" | "now">,
+  input: { chatId: bigint; fromTelegramId?: bigint | null },
+): Promise<BossTurnRow[]> {
+  const since = new Date(nowOf(deps).getTime() - BOSS_MEMORY_HOURS * 3600_000);
+  if (input.chatId >= 0n) {
+    const rows = (await deps.prisma.bossTurn.findMany({
+      where: { createdAt: { gte: since }, OR: [{ chatId: input.chatId }, { chatId: null }] },
+      orderBy: { createdAt: "desc" },
+      take: BOSS_MEMORY_TURNS,
+    })) as BossTurnRow[];
+    return rows.reverse();
+  }
+  const rows = (await deps.prisma.bossTurn.findMany({
+    where: { createdAt: { gte: since }, chatId: input.chatId },
     orderBy: { createdAt: "desc" },
-  })) as BossTurnRow | null;
+    take: BOSS_MEMORY_TURNS * 4,
+  })) as BossTurnRow[];
+  const mine = new Set(rows.filter((r) => r.role === "ADMIN" && input.fromTelegramId != null && r.fromTelegramId === input.fromTelegramId).map((r) => r.telegramMessageId));
+  return rows
+    .filter((r) => r.telegramMessageId !== null && mine.has(r.telegramMessageId))
+    .slice(0, BOSS_MEMORY_TURNS)
+    .reverse();
 }
 
 /** Mémoire en texte pour l'interprète (une ligne par tour, « Admin : … » / « Kevin : … »). */
-export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin"): string[] {
-  return turns.map((t) => `${t.role === "ADMIN" ? "Admin" : bossName} : ${t.text.replace(/\s+/g, " ").slice(0, 300)}`);
+export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin", personName = "Admin"): string[] {
+  return turns.map((t) => `${t.role === "ADMIN" ? personName : bossName} : ${t.text.replace(/\s+/g, " ").slice(0, 300)}`);
 }
 
 /** Prénom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut). */

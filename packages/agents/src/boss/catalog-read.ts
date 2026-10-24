@@ -10,14 +10,21 @@ import { currentHumanRequest, sendNextHumanRequest } from "../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../human/respond";
 import { decideValidation } from "../validation/requests";
 import { TEAM_LABELS, type TeamKey } from "../types";
-import type { BossAction, BossDeps, BossReply } from "./contract";
+import type { BossAction, BossChat, BossDeps, BossReply, BossSpeaker } from "./contract";
+import type { MentionRef } from "./team/addressed";
 import { actorRef, defineAction, escLines } from "./catalog-kit";
 import { int, oneOf, str } from "./params";
 import { resolveTeam } from "./resolve";
 import { requestsFacts, resultsFacts, spendFacts, validationsFacts } from "./facts";
 
 /** Dépendances d'exécution : le texte reçu tel quel (confirmation stricte d'une demande, jamais inventé par l'IA). */
-export type BossExecDeps = BossDeps & { inputText?: string };
+export type BossExecDeps = BossDeps & {
+  inputText?: string;
+  /** Phase 26, section 4 : qui parle, où, et les personnes mentionnées (identifiants venus de Telegram). */
+  speaker?: BossSpeaker | null;
+  chat?: BossChat | null;
+  mentions?: MentionRef[];
+};
 
 type Empty = Record<string, never>;
 

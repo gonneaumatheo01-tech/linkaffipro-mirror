@@ -21,7 +21,8 @@ import { BOSS_TOKEN_SECRET_KEY, bossRegisterPort } from "./register-port";
 import type { BossDeps, BossFastResult, BossReply, BossTeamInput } from "./contract";
 import { bossAction } from "./catalog";
 import { NOTHING_TO_CANCEL, NOTHING_TO_CONFIRM, confirmWordOf, readBossPending, resolveBossPending } from "./confirm";
-import { bossActorOf, bossSecretContext, bossTokenCommand, looksLikeBotToken, oopsReply, runBossAction, SECRET_REMOVED_REPLY, NOT_YOURS_REPLY } from "./execute";
+import { bossActorOf, bossSecretContext, bossTokenCommand, looksLikeBotToken, notYoursReply, oopsReply, runBossAction, SECRET_REMOVED_REPLY } from "./execute";
+import type { AdminCommand } from "../admin/commands";
 import { writeBossTurn, type BossTurnStatus } from "./memory";
 import { clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
@@ -111,7 +112,8 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     const tokenAnswer =
       ctx.pending?.key === BOSS_TOKEN_SECRET_KEY &&
       (replyTo === null ? looksLikeSecretValue(text) : replyTo === ctx.pending.telegramMessageId || (ctx.secretMessageIds ?? []).includes(replyTo));
-    const token = bossTokenCommand(text) ?? (tokenAnswer && !input.forwarded ? text : null);
+    // Un message transféré est une donnée : jamais un enregistrement du Boss, même s'il contient « jeton boss … ».
+    const token = input.forwarded ? null : (bossTokenCommand(text) ?? (tokenAnswer ? text : null));
     if (token) {
       const actor = await bossActorOf(deps, input.speaker);
       const reply = await registerBossToken(deps, token, actor.userId);
@@ -149,7 +151,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     if (!questionFirst && (replyTo === null || replyTo === pending.messageId || pending.expired)) {
       const speaker = input.speaker;
       if (speaker && speaker.kind !== "admin") {
-        const r = { reply: NOT_YOURS_REPLY };
+        const r = { reply: await notYoursReply(deps) };
         await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
         return { handled: true, ...r };
       }
@@ -179,7 +181,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       const parsed = action.parse(params);
       if (!parsed.ok) return { handled: true, reply: oopsReply(parsed.error) };
       const actor = await bossActorOf(deps, input.speaker);
-      const r = await runBossAction(deps, action, parsed.params as Record<string, unknown>, { actor, inputText: text, speaker: input.speaker });
+      const r = await runBossAction(deps, action, parsed.params as Record<string, unknown>, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
       const { status, ...reply } = r;
       await remember(deps, input, reply, { actionKey: action.key, status });
       return { handled: true, ...reply };
@@ -195,13 +197,29 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     if (set.has(n)) {
       const action = bossAction(key)!;
       const actor = await bossActorOf(deps, input.speaker);
-      if (!bossActionAllowed(action, input.speaker)) return { handled: true, reply: NOT_YOURS_REPLY };
+      if (!bossActionAllowed(action, input.speaker)) return { handled: true, reply: await notYoursReply(deps) };
       const r = await action.execute(deps, {}, actor);
       await remember(deps, input, r, { actionKey: key, status: "done" });
       return { handled: true, ...r };
     }
   }
-  if (input.speaker && input.speaker.kind !== "admin") return { handled: false, needsAi: true };
+  if (input.speaker && input.speaker.kind !== "admin") {
+    // Membre de l'équipe : les commandes exactes passent par le catalogue (droits vérifiés), sans IA.
+    const cmd = parseAdminCommand(text);
+    const mapped = cmd ? memberCommandAction(cmd) : null;
+    const action = mapped ? bossAction(mapped.key) : null;
+    if (mapped && action) {
+      const parsed = action.parse(mapped.params);
+      if (parsed.ok) {
+        const actor = await bossActorOf(deps, input.speaker);
+        const r = await runBossAction(deps, action, parsed.params as Record<string, unknown>, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
+        const { status, ...reply } = r;
+        await remember(deps, input, reply, { actionKey: action.key, status });
+        return { handled: true, ...reply };
+      }
+    }
+    return { handled: false, needsAi: true };
+  }
   const admin = await handleAdminText(deps, {
     text: input.text,
     messageId: input.messageId,
@@ -244,6 +262,35 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   }
 
   return { handled: false, needsAi: true };
+}
+
+/** Commande exacte d'un membre → entrée du catalogue (jamais les secrets ni le plafond vidéo de l'ancien dialogue) (pur). */
+export function memberCommandAction(cmd: AdminCommand): { key: string; params: Record<string, unknown> } | null {
+  const team = (t: string) => (t === "all" ? "tout" : t);
+  switch (cmd.type) {
+    case "status":
+      return { key: "etat_general", params: {} };
+    case "report":
+      return { key: "rapport_du_jour", params: {} };
+    case "requests":
+      return { key: "demandes_ouvertes", params: {} };
+    case "later":
+      return { key: "plus_tard", params: {} };
+    case "pause":
+      return { key: "pause", params: { equipe: team(cmd.team) } };
+    case "resume":
+      return { key: "reprise", params: { equipe: team(cmd.team) } };
+    case "approve":
+      return { key: "valider_post", params: { numero: cmd.number } };
+    case "reject":
+      return { key: "refuser_post", params: { numero: cmd.number, ...(cmd.reason ? { raison: cmd.reason } : {}) } };
+    case "live":
+      return { key: "simulation", params: { equipe: cmd.team, mode: "vrai" } };
+    case "level":
+      return { key: "niveau", params: { equipe: cmd.team, niveau: cmd.level } };
+    default:
+      return null;
+  }
 }
 
 /** Chemin rapide (webhook) : réponse immédiate, ou passage à l'interprète. Ne lève jamais. */

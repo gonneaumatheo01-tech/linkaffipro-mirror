@@ -4,10 +4,12 @@
  * existantes. Une action absente de ce catalogue n'existe pas pour le Boss. Outils spéciaux de l'interprète (hors
  * catalogue) : `preciser`, `repondre_question`, `pas_prevu`.
  *
- * Droits : `bossActionAllowed(action, speaker)` rend vrai pour l'admin (speaker absent ou `kind: "admin"`) ; le mode
- * groupe (section 4) l'étendra aux membres présentés.
+ * Droits : `bossActionAllowed(action, speaker, scope)` : l'admin (speaker absent ou `kind: "admin"`) peut tout ; un membre
+ * présenté selon son rôle et ses équipes (`team/rights.ts`).
  */
 import type { BossAction, BossSpeaker } from "./contract";
+import { HIDDEN_BOSS_ACTIONS, TEAM_MEMBER_ACTIONS } from "./catalog-team";
+import { bossRightsAllow, type BossRightsScope } from "./team/rights";
 import { defineAction } from "./catalog-kit";
 import { READ_ACTIONS } from "./catalog-read";
 import { TEAM_ACTIONS } from "./catalog-teams";
@@ -62,23 +64,31 @@ export const annule = defineAction<Empty>({
 
 export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown as BossAction[];
 
-export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...GUIDE_ACTIONS];
+export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
+const HIDDEN_BY_KEY = new Map(HIDDEN_BOSS_ACTIONS.map((a) => [a.key, a]));
 
-export function bossAction(key: string): BossAction | null {
-  return BY_KEY.get(key) ?? null;
+/**
+ * Entrée du catalogue par sa clé. `includeHidden` : aussi les entrées cachées (changement de groupe), exécutables
+ * seulement après un OUI de l'admin ; l'IA ne les voit jamais et ne peut pas les choisir.
+ */
+export function bossAction(key: string, opts: { includeHidden?: boolean } = {}): BossAction | null {
+  return BY_KEY.get(key) ?? (opts.includeHidden ? (HIDDEN_BY_KEY.get(key) ?? null) : null);
 }
 
 /** Outils spéciaux de l'interprète (jamais exécutés comme des actions). */
 export const BOSS_SPECIAL_TOOLS = ["preciser", "repondre_question", "pas_prevu"] as const;
 
 /**
- * La personne qui parle peut-elle demander cette action ? Admin : tout. Membre (mode groupe, à venir) : refusé
- * pour l'instant ; l'équipier du groupe étendra ici (lecture et actions immédiates des équipes couvertes).
+ * La personne qui parle peut-elle faire cette action elle-même ? Admin : tout. Membre présenté : selon son rôle et ses
+ * équipes (`team/rights.ts` : lecture, actions immédiates des équipes couvertes, demandes et validations qui lui sont
+ * adressées ; un responsable présente des membres). Une action à confirmer reste à l'admin.
  */
-export function bossActionAllowed(action: Pick<BossAction, "key" | "cls">, speaker?: BossSpeaker | null): boolean {
-  if (!speaker || speaker.kind === "admin") return true;
-  void action;
-  return false;
+export function bossActionAllowed(
+  action: Pick<BossAction, "key" | "cls"> & { theme?: BossAction["theme"] },
+  speaker?: BossSpeaker | null,
+  scope: BossRightsScope = {},
+): boolean {
+  return bossRightsAllow({ key: action.key, cls: action.cls, theme: action.theme ?? "guide" }, speaker, scope);
 }

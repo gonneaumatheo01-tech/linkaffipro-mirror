@@ -4,6 +4,7 @@
  */
 import type { AdminButton, AgentsDeps, TeamKey } from "../types";
 import { agentEvent, esc, nowOf } from "../admin/journal";
+import { deliverHumanRequest, type RequestDelivery } from "./delivery";
 
 export type AskHumanInput = {
   teamKey?: TeamKey | null;
@@ -82,22 +83,26 @@ export function withAskedMessageId(req: { telegramMessageId?: number | null; onA
   return { telegramMessageId: messageId, onAnswer: JSON.parse(JSON.stringify(onAnswer)) as object };
 }
 
-/** Demande dont un message (question ou rappel) porte cet identifiant Telegram, quel que soit son statut. */
-export async function humanRequestByMessageId(deps: Pick<AgentsDeps, "prisma">, messageId: number) {
+/**
+ * Demande dont un message (question ou rappel) porte cet identifiant Telegram, quel que soit son statut. Les numéros
+ * de message sont propres à chaque conversation : `chatId` absent ou null = conversation privée avec l'admin
+ * (demandes sans groupe) ; sinon le groupe de l'équipe (phase 26).
+ */
+export async function humanRequestByMessageId(deps: Pick<AgentsDeps, "prisma">, messageId: number, chatId: bigint | null = null) {
   const direct = await deps.prisma.humanRequest.findFirst({
-    where: { telegramMessageId: messageId },
+    where: { telegramMessageId: messageId, chatId },
     orderBy: { createdAt: "desc" },
   });
   if (direct) return direct;
   const recent = await deps.prisma.humanRequest.findMany({
-    where: { askedAt: { not: null } },
+    where: { askedAt: { not: null }, chatId },
     orderBy: { createdAt: "desc" },
     take: 300,
   });
   const found = recent.find((r) => askedMessageIdsOf(r).includes(messageId));
   if (found) return found;
   // Demande relancée (remise en file : `askedAt` vidé) : ses anciens messages restent les siens.
-  const queued = await deps.prisma.humanRequest.findMany({ where: { status: "QUEUED" }, take: 100 });
+  const queued = await deps.prisma.humanRequest.findMany({ where: { status: "QUEUED", chatId }, take: 100 });
   return queued.find((r) => askedMessageIdsOf(r).includes(messageId)) ?? null;
 }
 
@@ -151,9 +156,10 @@ export async function sendNextHumanRequest(deps: AgentsDeps): Promise<string | n
     throw err;
   }
   if (claimed.count === 0) return null;
-  let sent: { messageId: number } | null = null;
+  // Phase 26 : un responsable (membre de l'équipe ou l'admin) ; dans le groupe de l'équipe s'il existe, sinon en privé.
+  let sent: RequestDelivery | null = null;
   try {
-    sent = await deps.admin.send(formatQuestion(next), { buttons: confirmButtonsOf(next) });
+    sent = await deliverHumanRequest(deps, next, formatQuestion(next), { buttons: confirmButtonsOf(next) });
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, requestId: next.id }, "[agents] question non envoyée");
   }
@@ -161,8 +167,19 @@ export async function sendNextHumanRequest(deps: AgentsDeps): Promise<string | n
     await deps.prisma.humanRequest.update({ where: { id: next.id }, data: { status: "QUEUED", askedAt: null } });
     return null;
   }
-  await deps.prisma.humanRequest.update({ where: { id: next.id }, data: withAskedMessageId(next, sent.messageId) });
-  await agentEvent(deps, "agents.request.sent", { requestId: next.id, key: next.key, kind: next.kind });
+  // Une demande reposée ailleurs (privé ↔ groupe) repart de zéro : les anciens numéros de message étaient d'une autre conversation.
+  const sameChat = (next.chatId ?? null) === sent.chatId;
+  const base = sameChat ? next : { ...next, telegramMessageId: null, onAnswer: { ...onAnswerOf(next.onAnswer), [ASKED_MESSAGE_IDS_FIELD]: [] } };
+  await deps.prisma.humanRequest.update({
+    where: { id: next.id },
+    data: { ...withAskedMessageId(base, sent.messageId), chatId: sent.chatId, assigneeTelegramId: sent.assigneeTelegramId },
+  });
+  await agentEvent(deps, "agents.request.sent", {
+    requestId: next.id,
+    key: next.key,
+    kind: next.kind,
+    ...(sent.chatId ? { inGroup: true, assigneeTelegramId: sent.assigneeTelegramId?.toString() ?? null } : {}),
+  });
   return next.id;
 }
 

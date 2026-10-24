@@ -5,6 +5,8 @@
 import * as lifecycle from "../missions/lifecycle";
 import { TEAM_LABELS, isTeamKey, type AdminButton, type AgentsDeps, type TeamKey } from "../types";
 import { agentAudit, agentEvent, esc, nowOf } from "../admin/journal";
+import { groupForRequests } from "../boss/team/group";
+import { mentionHtml, pickResponsible } from "../boss/team/members";
 
 export type RequestValidationInput = {
   missionId: string;
@@ -90,14 +92,23 @@ export async function requestValidation(
 
   if (deps.admin) {
     try {
-      const sent = await deps.admin.send(validationPreviewHtml({ ...input, number: validation.number }), {
-        buttons: validationButtons(validation.id),
-        mediaAssetId: input.mediaAssetId ?? null,
-      });
+      // Phase 26 : responsable = le membre disponible qui couvre les validations de l'équipe, sinon l'admin. Un membre
+      // la reçoit dans le groupe de l'équipe (mentionné) ; l'admin, en privé comme avant.
+      const html = validationPreviewHtml({ ...input, number: validation.number });
+      const opts = { buttons: validationButtons(validation.id), mediaAssetId: input.mediaAssetId ?? null };
+      const group = await groupForRequests(deps).catch(() => null);
+      const pick = group ? await pickResponsible(deps, { teamKey: input.teamKey, kind: "validation" }) : { assignee: null };
+      let sent: { messageId: number } | null = null;
+      let inGroup = false;
+      if (group && pick.assignee && deps.admin.sendTo) {
+        sent = await deps.admin.sendTo(group, `${mentionHtml(pick.assignee)} ${html}`, opts).catch(() => null);
+        inGroup = sent !== null;
+      }
+      if (!sent) sent = await deps.admin.send(html, opts);
       if (sent)
         await deps.prisma.agentValidation.update({
           where: { id: validation.id },
-          data: { telegramMessageId: sent.messageId },
+          data: { telegramMessageId: sent.messageId, ...(inGroup ? { assigneeTelegramId: pick.assignee!.telegramUserId } : {}) },
         });
     } catch (err) {
       // L'aperçu reste visible et décidable sur le site.

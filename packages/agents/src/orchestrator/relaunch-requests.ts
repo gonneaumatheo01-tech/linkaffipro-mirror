@@ -6,6 +6,7 @@
  */
 import { agentEvent, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { confirmButtonsOf, currentHumanRequest, formatQuestion, sendNextHumanRequest } from "../human/requests";
+import { sendRequestFollowUp } from "../human/delivery";
 import type { AgentsDeps } from "../types";
 
 export const REQUESTS_RELAUNCHED_KEY = "agents.phase25.requestsRelaunched";
@@ -21,7 +22,7 @@ export async function relaunchOpenRequestsOnce(deps: AgentsDeps): Promise<{ rela
   if (current) {
     const head = open > 1 ? `🔁 ${open} questions encore ouvertes : je les reprends une par une.\n` : "";
     try {
-      const sent = await deps.admin.send(`${head}${formatQuestion(current, { reminder: true })}`, {
+      const sent = await sendRequestFollowUp(deps, current, `${head}${formatQuestion(current, { reminder: true })}`, {
         replyToMessageId: current.telegramMessageId ?? undefined,
         buttons: confirmButtonsOf(current),
       });

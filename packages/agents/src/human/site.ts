@@ -6,6 +6,7 @@ import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, readSetting } from "../admin/journal";
 import { askHuman, confirmButtonsOf, formatQuestion, sendNextHumanRequest, withAskedMessageId } from "./requests";
+import { sendRequestFollowUp } from "./delivery";
 import { respondToRequest, resumeWaitingMissions, skipRequest, type HumanRequestRow } from "./respond";
 import { ADMIN_ONLY_REQUEST_MESSAGE, adminOnlyRequest } from "./access";
 
@@ -124,7 +125,7 @@ export async function sweepHumanRequests(deps: AgentsDeps): Promise<{ sent: numb
     if (!deps.admin) break;
     let sent: { messageId: number } | null = null;
     try {
-      sent = await deps.admin.send(formatQuestion(request, { reminder: true }), {
+      sent = await sendRequestFollowUp(deps, request, formatQuestion(request, { reminder: true }), {
         replyToMessageId: request.telegramMessageId ?? undefined,
         buttons: confirmButtonsOf(request),
       });

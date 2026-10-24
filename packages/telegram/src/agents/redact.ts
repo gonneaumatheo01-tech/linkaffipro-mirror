@@ -1,11 +1,11 @@
 /**
  * Masquage d'un secret dans une update AVANT sa journalisation (`Event`) : clé collée par l'admin (« clé fal … »,
- * « bookmaker … », filet « voici la clé … <mot de 16 caractères ou plus> », réponse au message de N'IMPORTE QUELLE
+ * « bookmaker … », « jeton boss … » et tout jeton de bot (phase 26), filet « voici la clé … <mot de 16 caractères ou plus> », réponse au message de N'IMPORTE QUELLE
  * demande SECRET, même close, ou texte qui ressemble à une clé pendant une demande SECRET en cours). Mêmes règles que
  * `handleAdminText` : les messages ordinaires de l'admin (« fait », « Parfait! ») restent journalisés tels quels,
  * `pnpm tg:inbox` les lit dans `Event`.
  */
-import { isSecretAdminText, isSecretCommandText } from "@linkaffipro/agents";
+import { isSecretAdminText, isSecretCommandText, looksLikeBotToken } from "@linkaffipro/agents";
 import type { AgentsAdminState } from "../ports";
 import type { Message, Update } from "grammy/types";
 import type { TelegramDeps } from "../ports";
@@ -38,7 +38,8 @@ export async function redactAdminSecretUpdate(
   const found = privateText(update);
   if (!found) return update;
   const { key, msg } = found;
-  let secret = isSecretCommandText(msg.text!);
+  // Phase 26 : « jeton boss <valeur> » et tout jeton de bot collé (même transféré) ne sont jamais journalisés.
+  let secret = isSecretCommandText(msg.text!) || looksLikeBotToken(msg.text!);
   if (!secret && deps.agentsAdminState) {
     try {
       const state = await deps.agentsAdminState(BigInt(msg.from!.id));

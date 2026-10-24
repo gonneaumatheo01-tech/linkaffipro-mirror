@@ -5,6 +5,8 @@
 import * as lifecycle from "../missions/lifecycle";
 import type { AgentsDeps } from "../types";
 import { agentEvent, nowOf } from "../admin/journal";
+import { groupForRequests } from "../boss/team/group";
+import { findTeamMember, mentionHtml } from "../boss/team/members";
 
 export const VALIDATION_REMIND_AFTER_MS = 24 * 3600_000;
 export const VALIDATION_EXPIRE_AFTER_MS = 72 * 3600_000;
@@ -51,10 +53,12 @@ export async function sweepValidations(deps: AgentsDeps): Promise<{ reminded: nu
     }
     if (deps.admin) {
       try {
-        await deps.admin.send(
-          `⏰ Rappel : le post n°${v.number} attend ta décision depuis 24 h. Il est reporté à demain ; sans réponse sous 48 h, il sera abandonné.`,
-          { replyToMessageId: v.telegramMessageId ?? undefined },
-        );
+        const text = `⏰ Rappel : le post n°${v.number} attend ta décision depuis 24 h. Il est reporté à demain ; sans réponse sous 48 h, il sera abandonné.`;
+        // Phase 26 : validation adressée à un membre (dans le groupe) → rappel dans le groupe avec sa mention.
+        const member = v.assigneeTelegramId ? await findTeamMember(deps, v.assigneeTelegramId) : null;
+        const group = member ? await groupForRequests(deps).catch(() => null) : null;
+        const inGroup = group && member && deps.admin.sendTo ? await deps.admin.sendTo(group, `${mentionHtml(member)} ${text}`, { replyToMessageId: v.telegramMessageId ?? undefined }).catch(() => null) : null;
+        if (!inGroup) await deps.admin.send(text, { replyToMessageId: member ? undefined : (v.telegramMessageId ?? undefined) });
       } catch (err) {
         deps.logger?.warn({ err: (err as Error).message, validationId: v.id }, "[agents] rappel non envoyé");
       }

@@ -55,19 +55,21 @@ export function defaultBossTextDeps(): BossTextDeps {
       const s = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
       return s && typeof s.value === "string" && /^\d+$/.test(s.value) ? BigInt(s.value) : null;
     },
-    async bossTurnFor(messageId, chatId) {
-      return prisma.bossTurn.findFirst({
-        where: {
-          role: "BOSS",
-          telegramMessageId: messageId,
-          OR: [{ chatId: BigInt(chatId) }, { chatId: null }],
-        },
-        orderBy: { createdAt: "desc" },
-        select: { status: true },
-      });
-    },
+    bossTurnFor: prismaBossTurnFor,
   };
 }
+
+/** Repère en base : tour BOSS déjà écrit pour ce message de l'admin (dans cette conversation, ou sans conversation). */
+export const prismaBossTurnFor: BossTurnLookup = (messageId, chatId) =>
+  prisma.bossTurn.findFirst({
+    where: {
+      role: "BOSS",
+      telegramMessageId: messageId,
+      OR: [{ chatId: BigInt(chatId) }, { chatId: null }],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { status: true },
+  });
 
 /** Envoi par le bot reçu ; sans lui (désactivé entre-temps), par le messager du dialogue admin. */
 function fallbackApi(agents: AgentsDeps): BossReplyApi | null {

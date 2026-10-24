@@ -253,3 +253,32 @@ describe("bots de canal quand un Boss existe", () => {
     expect(t.sent()[1]).toContain("moi c'est Kevin");
   });
 });
+
+describe("bot casino de repli : emojis animés de l'admin (régression trouvée par l'intégration)", () => {
+  it("texte à emojis animés que le chemin rapide ne prend pas : bibliothèque d'emojis, jamais l'IA", async () => {
+    const t = setup({ identity: channelBot, dialogBot: { id: channelBot.id, username: channelBot.username, isBoss: false } });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "5361" }] }));
+    expect(t.fastCalls).toHaveLength(1);
+    expect(t.enqueued).toHaveLength(0);
+  });
+  it("sur le Boss, le même message part à l'interprète", async () => {
+    const t = setup({ identity: boss });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "5361" }] }));
+    expect(t.enqueued).toHaveLength(1);
+  });
+});
+
+describe("journal : le jeton du Boss n'est jamais gardé en clair (défaut du scénario privé)", () => {
+  it("« jeton boss … » et un jeton de bot collé, même transféré : masqués avant journalisation", async () => {
+    const { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } = await import("../agents/redact");
+    const token = `123456789:BOSS-TOKEN-${"y".repeat(30)}`;
+    for (const extra of [{ text: `jeton boss ${token}` }, { text: `voilà ${token}`, forward_origin: { type: "hidden_user", sender_user_name: "X", date: 0 } }]) {
+      const u = msgUpdate(STRANGER, extra);
+      const logged = await redactAdminSecretUpdate(u, {});
+      expect(JSON.stringify(logged)).not.toContain("BOSS-TOKEN");
+      expect(logged.message!.text).toBe(SECRET_REDACTED_TEXT);
+    }
+    const plain = msgUpdate(ADMIN, { text: "agents" });
+    expect(await redactAdminSecretUpdate(plain, {})).toBe(plain);
+  });
+});

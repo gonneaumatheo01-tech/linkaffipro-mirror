@@ -6,12 +6,16 @@
  */
 import { agentAudit, esc, telegramActorUserId } from "../admin/journal";
 import { isSecretAdminText, type SecretTextContext } from "../admin/commands";
-import { askedMessageIdsOf } from "../human/requests";
+import { askedMessageIdsOf, currentHumanRequest } from "../human/requests";
 import { normalizeText } from "../human/answer";
-import type { BossAction, BossActor, BossDeps, BossPending, BossReply, BossSpeaker, BossTeamInput } from "./contract";
+import type { BossAction, BossActionClass, BossActor, BossChat, BossDeps, BossPending, BossReply, BossSpeaker, BossTeamInput } from "./contract";
+import type { MentionRef } from "./team/addressed";
+import { adminFirstName, adminMention, findTeamMember, responsibilitiesOf } from "./team/members";
+import { isNoteOnlyEdit } from "./catalog-team";
+import { normName } from "./resolve";
 import { BOSS_CATALOG, bossAction, bossActionAllowed } from "./catalog";
 import type { BossExecDeps } from "./catalog-read";
-import { createBossPending } from "./confirm";
+import { createBossPending, rememberBossPendingMessage } from "./confirm";
 import { checkAction } from "./catalog-kit";
 import { answerQuestion } from "./answer";
 import { interpretBossText, type BossDecision } from "./interpret";
@@ -87,20 +91,95 @@ function safeParams(params: Record<string, unknown>): Record<string, unknown> {
 
 export type RunResult = BossReply & { status: BossTurnStatus };
 
+/** « Ça, c'est <prénom de l'admin> qui décide. » (« l'admin » si son prénom est inconnu). */
+export async function notYoursReply(deps: BossDeps): Promise<string> {
+  const name = await adminFirstName(deps).catch(() => "l'admin");
+  return `Ça, c'est ${esc(name)} qui décide.`;
+}
+
+export type RunContext = {
+  actor: BossActor;
+  inputText?: string;
+  speaker?: BossSpeaker | null;
+  chat?: BossChat | null;
+  mentions?: MentionRef[];
+};
+
+const SELF_WORDS = new Set(["moi", "me", "je", "moi meme"]);
+
+/** Ce qu'il faut savoir pour juger les droits d'un membre sur cette action (équipes, demande qui lui est adressée…). */
+async function rightsScopeFor(deps: BossDeps, action: BossAction, params: Record<string, unknown>, speaker: BossSpeaker | null | undefined, cls: BossActionClass) {
+  if (!speaker || speaker.kind === "admin") return { cls, params };
+  const member = await findTeamMember(deps, speaker.telegramUserId);
+  const teams = member ? responsibilitiesOf(member.responsibilities).teams : [];
+  let assignedToSpeaker = false;
+  if (action.key === "repondre_demande" || action.key === "plus_tard") {
+    const cur = (await currentHumanRequest(deps)) as { assigneeTelegramId?: bigint | null } | null;
+    assignedToSpeaker = cur?.assigneeTelegramId === speaker.telegramUserId;
+  } else if (["valider_post", "refuser_post", "corriger_post"].includes(action.key) && typeof params.numero === "number") {
+    const v = (await deps.prisma.agentValidation.findUnique({ where: { number: params.numero } })) as { assigneeTelegramId?: bigint | null } | null;
+    assignedToSpeaker = v?.assigneeTelegramId === speaker.telegramUserId;
+  }
+  let selfNoteOnly = false;
+  if (action.key === "modifier_membre" && isNoteOnlyEdit(params) && member) {
+    const who = normName(String(params.personne ?? ""));
+    selfNoteOnly = SELF_WORDS.has(who) || who === normName(member.firstName) || (!!member.username && who.replace(/^@/, "") === member.username.toLowerCase());
+  }
+  return { cls, params, teams, assignedToSpeaker, selfNoteOnly };
+}
+
+/**
+ * Un membre demande une action qui n'est pas de son ressort : Kevin résume et mentionne l'admin, qui seul confirme
+ * (boutons OUI / NON ou « OUI »). Dans le groupe, le message part dans le groupe ; en privé, chez l'admin.
+ */
+async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Record<string, unknown>, ctx: RunContext): Promise<RunResult> {
+  const blocked = await checkAction(deps, action, params);
+  if (blocked) return { ...blocked, status: "clarify" };
+  const summary = action.summarize ? await action.summarize(deps, params) : `${action.description} ?`;
+  const r = await createBossPending(deps, { actionKey: action.key, params, summary });
+  const who = ctx.speaker && ctx.speaker.kind === "member" ? ctx.speaker.firstName : "Quelqu'un de l'équipe";
+  const [first, ...rest] = summary.split("\n");
+  const ask = (first ?? "").trim().replace(/\s*\?$/, "");
+  const head = `${await adminMention(deps)} ${esc(who)} demande : ${esc(ask.charAt(0).toLowerCase() + ask.slice(1))}. OUI ?`;
+  const text = [head, ...rest.slice(0, 1).map(esc)].join("\n");
+  await audit(deps, action.key, ctx.actor, { status: "escalated", params: safeParams(params) }, ctx.speaker);
+  if (ctx.chat?.type === "group") return { reply: text, buttons: r.buttons, pendingId: r.pendingId, status: "confirm" };
+  let sent: { messageId: number } | null = null;
+  try {
+    sent = (await deps.admin?.send(text, { buttons: r.buttons })) ?? null;
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[boss] demande transmise à l'admin non envoyée");
+  }
+  if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
+  return { reply: `C'est ${esc(await adminFirstName(deps))} qui décide : je lui ai transmis ta demande.`, status: "confirm" };
+}
+
 /** Exécute (immédiate) ou fait confirmer (à confirmer) une entrée du catalogue. */
 export async function runBossAction(
   deps: BossDeps,
   action: BossAction,
   params: Record<string, unknown>,
-  ctx: { actor: BossActor; inputText?: string; speaker?: BossSpeaker | null },
+  ctx: RunContext,
 ): Promise<RunResult> {
-  if (!bossActionAllowed(action, ctx.speaker)) {
+  const before = await readClarify(deps);
+  const cls = action.classify ? await action.classify(deps, params) : action.cls;
+  const member = !!ctx.speaker && ctx.speaker.kind === "member";
+  if (member) {
+    const scope = await rightsScopeFor(deps, action, params, ctx.speaker, cls);
+    if (!bossActionAllowed(action, ctx.speaker, scope)) {
+      // Lecture interdite, démarrage guidé, annulation : réponse simple ; tout le reste part chez l'admin.
+      if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre"].includes(action.key)) {
+        await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
+        return { reply: await notYoursReply(deps), status: "refused" };
+      }
+      return escalateToAdmin(deps, action, params, ctx);
+    }
+  } else if (!bossActionAllowed(action, ctx.speaker)) {
     await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
     return { reply: NOT_YOURS_REPLY, status: "refused" };
   }
-  const before = await readClarify(deps);
-  const cls = action.classify ? await action.classify(deps, params) : action.cls;
-  if (cls === "confirm") {
+  // Un membre autorisé n'a pas de confirmation à donner (validation qui lui est adressée) : l'action se fait.
+  if (cls === "confirm" && !member) {
     const blocked = await checkAction(deps, action, params);
     if (blocked) {
       await audit(deps, action.key, ctx.actor, { status: "clarify", params: safeParams(params) }, ctx.speaker);
@@ -111,7 +190,7 @@ export async function runBossAction(
     await audit(deps, action.key, ctx.actor, { status: "confirm", params: safeParams(params) }, ctx.speaker);
     return { ...r, status: "confirm" };
   }
-  const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText };
+  const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
   const r = await action.execute(execDeps, params, ctx.actor);
   // Nom ambigu : l'entrée a posé une question numérotée au lieu d'agir.
   const after = await readClarify(deps);
@@ -122,7 +201,7 @@ export async function runBossAction(
 
 /** Action confirmée par OUI : revalidée par le code, puis exécutée (bornes revérifiées par l'entrée). */
 export async function runConfirmedAction(deps: BossDeps, pending: BossPending, actor: BossActor): Promise<BossReply> {
-  const action = bossAction(pending.actionKey);
+  const action = bossAction(pending.actionKey, { includeHidden: true });
   if (!action) return { reply: oopsReply("action inconnue") };
   const parsed = action.parse(pending.params);
   if (!parsed.ok) return { reply: oopsReply(parsed.error) };
@@ -189,7 +268,13 @@ async function handleDecision(
 ): Promise<RunResult & { costCents?: number; actionKey: string }> {
   switch (decision.type) {
     case "action": {
-      const r = await runBossAction(deps, decision.action, decision.params, { actor, inputText: input.spokenText ?? input.text, speaker: input.speaker });
+      const r = await runBossAction(deps, decision.action, decision.params, {
+        actor,
+        inputText: input.spokenText ?? input.text,
+        speaker: input.speaker,
+        chat: input.chat,
+        mentions: input.mentions,
+      });
       return { ...r, actionKey: decision.action.key };
     }
     case "preciser": {
@@ -217,7 +302,7 @@ async function handleDecision(
 export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<BossReply> {
   const text = (input.text ?? "").trim();
   try {
-    if (await bossTurnForMessage(deps, input.messageId)) return {};
+    if (await bossTurnForMessage(deps, input.messageId, input.chat?.chatId ?? null)) return {};
     const actor = await bossActorOf(deps, input.speaker);
     const secretContext = await bossSecretContext(deps, input.replyToMessageId);
     const chatId = input.chat?.chatId ?? null;
@@ -243,7 +328,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     if (!deps.llm || !text) return finish({ reply: text ? NO_AI_REPLY : "Je n'ai rien lu dans ce message. Écris-moi ce que tu veux en quelques mots (ou aide)." }, "error", "sans_ia");
     let interpreted: Awaited<ReturnType<typeof interpretBossText>>;
     try {
-      interpreted = await interpretBossText(deps, text, { source: input.source });
+      interpreted = await interpretBossText(deps, text, { source: input.source, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
     } catch (err) {
       if (err instanceof BossBudgetError) return finish({ reply: NO_AI_REPLY }, "error", "plafond");
       deps.logger?.warn({ err: (err as Error).message }, "[boss] interprète en échec");

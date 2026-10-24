@@ -14,6 +14,7 @@ import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } f
 import { htmlToPlain } from "../agents/admin-messenger";
 import { secretContextOf } from "../agents/redact";
 import { findChannelLinkInText } from "../channels/username";
+import { messageHasCustomEmoji } from "../custom-emoji/extract";
 import { realBossEngine, type BossEngine } from "../boss/engine";
 import {
   BOSS_ERROR_REPLY,
@@ -144,7 +145,13 @@ function isForwarded(msg: Message): boolean {
  * Texte (ou commande) de l'admin au bot du dialogue : chemin rapide du Boss, sinon tâche `boss-text` du worker. Jamais
  * de silence : erreur → « Oups… », file indisponible → réponse de secours.
  */
-async function handleDialogText(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg: Message & { text: string }): Promise<void> {
+async function handleDialogText(
+  ctx: Context,
+  identity: BotIdentity,
+  deps: TelegramDeps,
+  msg: Message & { text: string },
+  next: () => Promise<void>,
+): Promise<void> {
   const chatId = ctx.chat!.id;
   const fromId = ctx.from!.id;
   const forwarded = isForwarded(msg);
@@ -195,6 +202,9 @@ async function handleDialogText(ctx: Context, identity: BotIdentity, deps: Teleg
     }
     return;
   }
+  // Bot de canal qui fait office de Boss : un texte à emojis animés que le chemin rapide ne prend pas (ni correction
+  // d'un post, ni réponse, ni commande) sert à remplir la bibliothèque d'emojis (phase 12), jamais à l'IA.
+  if (!isBossBot(identity) && !forwarded && messageHasCustomEmoji(msg)) return next();
   // Interprète IA : le worker répond dans quelques secondes (« écrit… » en attendant).
   await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
   try {
@@ -361,7 +371,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       return next();
     // `/start` d'un membre (lien d'offre, canal à rejoindre…) sur le bot de repli : chemin habituel.
     if (!isBossBot(identity) && /^\/start\s+[go][A-Za-z0-9_-]/.test(msg.text)) return next();
-    await handleDialogText(ctx, identity, deps, msg);
+    await handleDialogText(ctx, identity, deps, msg, next);
   });
 }
 

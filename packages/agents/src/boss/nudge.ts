@@ -12,6 +12,7 @@
  */
 import { agentEvent, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { confirmButtonsOf, formatQuestion, withAskedMessageId } from "../human/requests";
+import { sendRequestFollowUp } from "../human/delivery";
 import { PROVIDER_LABELS } from "../orchestrator/budgets";
 import { AUTO_PAUSE_REASON } from "../orchestrator/pause";
 import { parisDay, parisMonth, parisParts } from "../rules/time";
@@ -125,7 +126,8 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
     await deps.admin.send(lines.join("\n"));
 
     if (staleRequest) {
-      const sent = await deps.admin.send(formatQuestion(staleRequest, { reminder: true }), {
+      // Phase 26 : dans la conversation de la question (le groupe, avec la mention du responsable), sinon chez l'admin.
+      const sent = await sendRequestFollowUp(deps, staleRequest, formatQuestion(staleRequest, { reminder: true }), {
         replyToMessageId: staleRequest.telegramMessageId ?? undefined,
         buttons: confirmButtonsOf(staleRequest),
       });
