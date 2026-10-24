@@ -1,3 +1,36 @@
+# État du projet : phase 24 (agents IA : Agent Ads) terminée (24 octobre 2026)
+
+Phases 0 à 23 en ligne. Phase 24 = un agent rattaché au Grand Chef qui lit chaque jour ce que coûtent les pubs (Meta, TikTok, coûts importés ou saisis) et ce qu'elles rapportent vraiment dans la plateforme (membres, inscriptions, dépôts, commissions), puis conseille quoi faire, chiffres à l'appui (`docs/prompts/26-phase-24-agents-ads.md`). **Il recommande, il n'agit jamais** chez Meta ou TikTok.
+
+## Fait
+- **Analyse** par campagne, groupe de pubs et pub, sur hier, 7 jours et 28 jours, comparée à la période d'avant : dépense, clics, visites, entrées Telegram, membres, clics sur l'offre, inscriptions, premiers dépôts, commissions, gains, retour sur dépense, coûts par membre / inscription / premier dépôt (toujours avec les règles existantes : gains = commissions − dépense) ; parcours de la pub jusqu'au dépôt et étape la plus faible ; ce que rapportent les membres de chaque pub après 7, 14 et 30 jours.
+- **Conseils** : Arrêter, Augmenter, Tester, Surveiller, chacun avec ses preuves et le seuil visible ; jamais de conseil sous 3 jours et 20 € de dépense ; seuils par univers réglables (automatiques au départ). Vous marquez « Fait » ou « Refuser » ; rien n'est appliqué par le code (vérifié par un test : aucune fonction d'écriture vers Meta / TikTok).
+- **Rapports** : chaque matin (5 lignes) et chaque lundi (par univers), texte écrit par l'IA à partir des chiffres et refusé s'il contient un chiffre absent des données (remplacé par le texte du code) ; archivés dans la page.
+- **Alertes** (interrupteurs dans Réglages → Alertes) : dépense anormale, chute des inscriptions d'une pub, pub trop chère par inscription, budget du jour d'une campagne atteint.
+- **Site** : Agents → **Agent Ads** (résumé d'hier, conseils, parcours, pubs en détail, seuils, rapports, exports) et carte sur le tableau de bord des agents.
+- **Correctif** : les 4 nouvelles alertes manquaient sur la page Réglages → Alertes (un enregistrement les aurait coupées) ; ajoutées.
+
+## Premier rapport (vraies données, 24 octobre)
+Envoyé sur Telegram : aucune dépense pub enregistrée (aucun compte Meta ou TikTok branché, aucun coût importé), donc aucune recommandation pour l'instant. L'agent conseillera dès que des dépenses existeront.
+
+## Test de 5 minutes
+1. Site → Agents → **Agent Ads** : lisez le résumé et les seuils.
+2. Importez un fichier de coûts (Campagnes → la campagne → Pubs → importer) ou branchez Meta / TikTok : le lendemain, les chiffres et les premiers conseils apparaissent.
+
+## Vérifications faites
+- 5 530 tests unitaires et 560 tests d'intégration (base réelle) réussis, dont une campagne de test avec ses pubs et leurs chiffres → conseils attendus → rapport du jour envoyé → un conseil marqué « Fait ». Lint, typage, build verts.
+- Sauvegarde avant déploiement ; site (migration appliquée) puis service d'arrière-plan ; santé OK ; premier rapport réel envoyé ; capture de la page et contrôle d'accessibilité sans violation (base de démonstration locale).
+
+## Reste / limites
+- Sans dépense pub enregistrée, l'agent n'a rien à conseiller : il faut brancher Meta / TikTok ou importer les coûts.
+- Pas de commande Telegram « pause ads » (l'Agent Ads n'est pas une équipe de production) : la pause se fait sur le site.
+- Avertissement de sécurité de Next.js 16.4.0 en développement : à traiter dans une phase de solidité.
+
+## Actions humaines
+Rien d'obligatoire. Répondre aux deux questions du bot sur les seuils ; brancher Meta / TikTok quand vous voulez (`docs/A-FAIRE-HUMAIN.md`).
+
+---
+
 # État du projet : phase 23 (agents IA : équipe Paris sportifs) terminée (24 octobre 2026)
 
 Phases 0 à 22 en ligne. Phase 23 = troisième équipe de production : chaque jour, elle cherche chez les bookmakers les paris des catégories demandées (« tirs cadrés »…), retient les plus intéressants selon une méthode chiffrée et réglable, retrouve le pari sur le site du bookmaker, vérifie la cote, fait la capture d'écran et publie tout de suite un post court ; après le match, elle note le résultat et tient le bilan (`docs/prompts/25-phase-23-agents-paris.md`). **Tout reste en simulation** sur le canal Test.
