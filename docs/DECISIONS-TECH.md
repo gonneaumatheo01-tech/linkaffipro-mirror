@@ -679,3 +679,16 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **Univers des personas** (`Persona.universe`) et **fiche d'informations** (`Persona.faq`) ; « à traiter » sur la
   conversation (`needsHumanAt`, `needsHumanReason`). Règle « identité assistante imposée » pour Casino et Paris
   sportifs dans `packages/core/src/persona-universe.ts`, appliquée par le formulaire et par le moteur.
+- **Conversation Casino / Paris (phase 25)** : identité assistante imposée par `effectiveIdentityKind` (core) dans le
+  moteur et le worker (une persona casino / sports réglée « fille » est traitée en assistante, illusion ignorée). Seuls
+  les chiffres de la fiche d'informations et de la fiche de l'offre sont permis (pas ceux écrits par la personne :
+  plus strict que Rencontres) ; chiffre hors fiche refusé deux fois → « je transmets à l'équipe » + « à traiter »
+  (`off_faq`). Promesses interdites (`promise` : gain garanti, sûr à 100 %, argent facile, sans risque… en 6 langues).
+  Lien VIP jamais au premier message, permis plus tôt si la personne le demande (dans la limite des envois). Passage
+  à un humain : motifs `off_faq`, `complaint`, `money`, `minor`, `insult` (libellés `needsHumanReasonLabel`) ; argent,
+  réclamation et insulte repérés par le code → réponse neutre fixe sans appel à l'IA ; mineur → arrêt habituel +
+  « à traiter » ; seul `off_faq` laisse l'assistante continuer, les autres la font taire jusqu'à la reprise par
+  l'équipe ; champ `handoff` du format de réponse Casino / Paris seulement. Alerte groupée au plus toutes les 30 min
+  par le dialogue admin depuis le balayage `chat` (une ligne par conversation, jamais de texte). Bouton par défaut par
+  univers (« 🎁 Accès VIP et bonus », « 🏆 Groupe VIP pronostics ») si le texte est vide ou resté « Découvrir l'app ».
+  Comptes réels (userbot) : univers non lu (Rencontres seulement).
