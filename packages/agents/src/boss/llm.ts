@@ -83,6 +83,8 @@ export async function recordBossUsage(
   const cap = await bossMonthlyCapCents(prisma);
   const level = budgetAlertLevel(row.cents, cap, row);
   if (!level) return;
+  // Sans messager, l'alerte n'est pas « donnée » : le drapeau reste à poser par un appel qui pourra l'envoyer.
+  if (!opts.admin) return;
   const claimed = await prisma.agentUsage.updateMany({
     where: { id: row.id, [level === 100 ? "alerted100" : "alerted80"]: false },
     data: level === 100 ? { alerted100: true, alerted80: true } : { alerted80: true },

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { webhookProblems, webhookRepairRefusal, webhookTargetRefusal } from "./webhook-health";
+import { freshWebhookError, webhookProblems, webhookRepairRefusal, webhookTargetRefusal } from "./webhook-health";
 import { runWebhookRepair, type WebhookRepairDeps } from "./webhook-repair";
 import { diagLines, formatDiag, type DiagSnapshot } from "./diag";
 import { adminBot, type AdminBotDb } from "./admin-bot";
@@ -72,6 +72,33 @@ describe("réparation des webhooks (faux Telegram)", () => {
       ["b3", true, true],
     ]);
     expect(f.saved()).toEqual(check);
+  });
+
+  it("ancien 403 que Telegram garde après une réparation réussie : pas de nouvelle réparation, date reportée", async () => {
+    const forbidden = { url: "https://app.linkaffipro.com/api/telegram/b2", last_error_message: "403 Forbidden", last_error_date: sec(NOW) - 900 };
+    // 1er passage : réparé, date de la réparation gardée.
+    const f1 = fakeRepair({ b2: forbidden });
+    const c1 = await runWebhookRepair(f1.deps);
+    expect(c1.bots[0]).toMatchObject({ repaired: true, repairedAt: NOW.toISOString() });
+    // 10 min plus tard, même erreur (antérieure à la réparation) : rien à faire, aucun événement, date reportée.
+    const later = new Date(NOW.getTime() + 10 * 60_000);
+    const f2 = fakeRepair({ b2: forbidden });
+    const c2 = await runWebhookRepair({ ...f2.deps, now: () => later, previousCheck: async () => c1 });
+    expect(f2.repaired).toEqual([]);
+    expect(f2.events).toEqual([]);
+    expect(c2.bots[0]).toMatchObject({ ok: true, repaired: false, repairedAt: NOW.toISOString() });
+    // Un NOUVEAU 403, postérieur à la réparation : réparé.
+    const f3 = fakeRepair({ b2: { ...forbidden, last_error_date: sec(NOW) + 120 } });
+    await runWebhookRepair({ ...f3.deps, now: () => later, previousCheck: async () => c2 });
+    expect(f3.repaired).toEqual(["b2"]);
+  });
+
+  it("pose du webhook : l'ancien message d'erreur n'est pas recopié dans Bot.lastError", () => {
+    const posedAt = NOW.getTime();
+    expect(freshWebhookError({ last_error_message: "403 Forbidden", last_error_date: sec(NOW) - 600 }, posedAt)).toBeNull();
+    expect(freshWebhookError({ last_error_message: "403 Forbidden", last_error_date: sec(NOW) }, posedAt)).toBeNull();
+    expect(freshWebhookError({ last_error_message: "Connection timed out", last_error_date: sec(NOW) + 5 }, posedAt)).toBe("Connection timed out");
+    expect(freshWebhookError({}, posedAt)).toBeNull();
   });
 
   it("réparation impossible : notée, sans événement, sans lever", async () => {

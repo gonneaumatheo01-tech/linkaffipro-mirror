@@ -19,7 +19,7 @@ import {
   type BossReply,
 } from "./contract";
 import { adminTelegramId, agentAudit, esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "../admin/journal";
-import { normalizeText } from "../human/answer";
+import { isStrictYes, normalizeText } from "../human/answer";
 import type { AdminButton } from "../types";
 
 export const NOTHING_TO_CONFIRM = "Rien à confirmer.";
@@ -142,6 +142,16 @@ export function pendingTargeted(
   if (!sameChat) return "other-chat";
   if (input.replyTo === null || input.replyTo === pending.messageId || pending.expired) return "target";
   return "other-message";
+}
+
+/** Par vocal, un passage en vrai, un niveau ou un plafond ne se confirme que par exactement « oui » (« Oui, vas-y » non). */
+const VOICE_STRICT_ACTIONS = new Set(["simulation", "niveau", "plafond"]);
+export const VOICE_STRICT_YES = "Pour confirmer à la voix, dis exactement « oui » (ou réponds OUI par écrit, ou appuie sur le bouton).";
+
+/** Refus d'un « oui » vocal pas assez net pour cette confirmation (pur), ou null. */
+export function voiceStrictRefusal(pending: Pick<BossPending, "actionKey">, word: string, voice: boolean, spoken: string): string | null {
+  if (!voice || word !== "yes" || !VOICE_STRICT_ACTIONS.has(pending.actionKey)) return null;
+  return isStrictYes(spoken) ? null : VOICE_STRICT_YES;
 }
 
 export const PENDING_OTHER_CHAT =

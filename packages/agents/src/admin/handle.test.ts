@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit } from "../human/test-kit";
 import { handleAdminText } from "./handle";
 
@@ -7,6 +7,12 @@ const lifecycle = vi.hoisted(() => ({
   cancelMission: vi.fn(async () => undefined),
 }));
 vi.mock("../missions/lifecycle", () => lifecycle);
+
+// Le catalogue du Boss (confirmations de « vrai », « niveau », « budget vidéo ») se charge à la demande : préchargé ici.
+beforeAll(async () => {
+  await import("../boss/catalog");
+  await import("../boss/execute");
+}, 60_000);
 
 beforeEach(() => lifecycle.continueMission.mockClear());
 
@@ -54,7 +60,9 @@ describe("commandes du dialogue admin", () => {
     expect(again.reply).toContain("📣 <b>Pubs</b>\n• Dépense 12 €\n• Gains 30 €");
   });
 
-  it("« vrai casino » : résumé (canaux, quota, niveau) puis confirmation OUI", async () => {
+  // Phase 26 (relecture, défaut 6) : « vrai », « niveau » et la hausse du plafond vidéo passent par la confirmation du
+  // Boss (10 minutes, OUI / NON, une seule à la fois) au lieu d'une demande CONFIRM sans expiration.
+  it("« vrai casino » : résumé (canaux, niveau) avec OUI / NON, puis confirmation OUI", async () => {
     const kit = createTestKit();
     const ch = await kit.prisma.channel.create({ data: { title: "Casino VIP", vertical: "CASINO" } as never });
     const test = await kit.prisma.channel.create({ data: { title: "Test", isTest: true } as never });
@@ -62,15 +70,15 @@ describe("commandes du dialogue admin", () => {
     await kit.prisma.channelAgentPlan.create({ data: { channelId: test.id, teamKey: "casino", enabled: true, postsPerDay: 9 } as never });
     const r = await handleAdminText(kit.deps, { text: "vrai casino", messageId: 1 });
     expect(r.handled).toBe(true);
-    const q = kit.sent[0]!.html;
-    expect(q).toContain("Passer l'équipe Casino en vrai ?");
-    expect(q).toContain("4 posts par jour au plus sur 1 canal : Casino VIP.");
-    expect(q).toContain("Niveau 0 : tu valides chaque post");
-    expect(q).toContain("Réponds OUI pour confirmer");
-    expect(q.split("\n").length).toBeLessThanOrEqual(5);
+    expect(r.reply).toContain("Passer l'équipe Casino en vrai ?");
+    expect(r.reply).toContain("Casino VIP");
+    expect(r.reply).toContain("OUI pour confirmer");
+    expect(r.pendingId).toBeTruthy();
+    expect(r.buttons?.[0]?.map((b) => b.text)).toEqual(["✅ OUI", "❌ NON"]);
+    expect(kit.tables("humanRequest")).toHaveLength(0);
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
-    const ok = await handleAdminText(kit.deps, { text: "OUI", messageId: 2, replyToMessageId: kit.sent[0]!.messageId });
-    expect(ok.reply).toContain("Équipe Casino en vrai ✅");
+    const ok = await handleAdminText(kit.deps, { text: "OUI", messageId: 2 });
+    expect(ok.reply).toContain("en vrai");
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ teamKey: "casino", simulation: false });
   });
 
@@ -78,23 +86,40 @@ describe("commandes du dialogue admin", () => {
     const kit = createTestKit();
     await handleAdminText(kit.deps, { text: "vrai dating", messageId: 1 });
     const r = await handleAdminText(kit.deps, { text: "non", messageId: 2 });
-    expect(r.reply).toContain("reste en simulation");
+    expect(r.reply).toContain("rien n'a changé");
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });
 
-  it("« niveau casino 1 » puis « niveau casino 2 » : résumés et confirmés par OUI", async () => {
+  it("« niveau casino 1 » puis « niveau casino 2 » : résumés et confirmés par OUI ; une baisse est immédiate", async () => {
     const kit = createTestKit();
-    await handleAdminText(kit.deps, { text: "niveau casino 1", messageId: 1 });
-    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Casino au niveau 1 (je valide les nouveautés) ? Elle est aujourd'hui au niveau 0, en simulation");
-    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
+    const one = await handleAdminText(kit.deps, { text: "niveau casino 1", messageId: 1 });
+    expect(one.reply).toContain("Passer l'équipe Casino du niveau 0 au niveau 1");
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
     await handleAdminText(kit.deps, { text: "oui", messageId: 2 });
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ autonomyLevel: 1 });
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 1 });
     expect((await handleAdminText(kit.deps, { text: "niveau casino 1", messageId: 3 })).reply).toBe("L'équipe Casino est déjà au niveau 1.");
-    await handleAdminText(kit.deps, { text: "niveau casino 2", messageId: 4 });
-    expect(kit.sent.at(-1)!.html).toContain("Niveau 2 : autonomie totale");
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ autonomyLevel: 1 });
+    const two = await handleAdminText(kit.deps, { text: "niveau casino 2", messageId: 4 });
+    expect(two.reply).toContain("au niveau 2");
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 1 });
     await handleAdminText(kit.deps, { text: "oui", messageId: 5 });
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ autonomyLevel: 2 });
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 2 });
+    await handleAdminText(kit.deps, { text: "niveau casino 0", messageId: 6 });
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 0 });
+  });
+
+  it("« budget vidéo N » : une hausse demande OUI, une baisse est immédiate", async () => {
+    const kit = createTestKit();
+    await handleAdminText(kit.deps, { text: "budget vidéo 100", messageId: 1 });
+    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
+    const up = await handleAdminText(kit.deps, { text: "budget vidéo 500", messageId: 2 });
+    expect(up.pendingId).toBeTruthy();
+    expect(up.reply).toContain("Monter le plafond");
+    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
+    await handleAdminText(kit.deps, { text: "oui", messageId: 3 });
+    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 50000 } });
+    const down = await handleAdminText(kit.deps, { text: "budget vidéo 20", messageId: 4 });
+    expect(down.pendingId).toBeUndefined();
+    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 2000 } });
   });
 
   it("« vrai » sur une équipe déjà en vrai : rien n'est demandé", async () => {

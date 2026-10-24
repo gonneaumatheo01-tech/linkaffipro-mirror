@@ -15,7 +15,7 @@
  * silence pour les autres. Un message MODIFIÉ (`bossTeamEditedMessage`) : seulement le contrôle des secrets.
  */
 import { adminTelegramId, agentAudit, agentEvent, esc, nowOf, telegramActorUserId } from "../../admin/journal";
-import { isSecretAdminText, isSecretCommandText, parseAdminCommand, type SecretTextContext } from "../../admin/commands";
+import { hasKeyLikeToken, isSecretAdminText, isSecretCommandText, parseAdminCommand, type SecretTextContext } from "../../admin/commands";
 import { askedMessageIdsOf, currentHumanRequest, formatQuestion, sendNextHumanRequest } from "../../human/requests";
 import { respondToRequest, skipRequest, type HumanRequestRow } from "../../human/respond";
 import { interpretAnswer, isSkipText, looksLikeSecretValue, secretAcceptsUnreplied, type HumanRequestKindName } from "../../human/answer";
@@ -78,9 +78,9 @@ export const BOSS_TEAM_ERROR_REPLY = "Oups, je n'ai pas réussi à traiter ton m
 export const BOSS_GROUP_VOICE_REPLY = "Écris-le-moi ici, je n'écoute les vocaux qu'en privé.";
 const reply = (text: string, extra: Partial<BossReply> = {}): BossTeamOutcome => ({ kind: "reply", reply: { reply: text, ...extra } });
 
-/** Un long mot qui ressemble à une clé (lettres et chiffres, 20 caractères ou plus) dans le texte (pur). */
+/** Un mot qui ressemble à une clé ou à un jeton dans le texte (pur) : détecteur partagé `hasKeyLikeToken`. */
 export function containsKeyLikeWord(text: string): boolean {
-  return text.split(/\s+/).some((w) => w.length >= 20 && /\p{L}/u.test(w) && /\d/.test(w) && !/^https?:\/\//i.test(w) && !/^[#@]/.test(w));
+  return hasKeyLikeToken(text);
 }
 
 /** Contexte du détecteur de secrets pour une conversation : demande SECRET en cours + messages des demandes de cette conversation. */

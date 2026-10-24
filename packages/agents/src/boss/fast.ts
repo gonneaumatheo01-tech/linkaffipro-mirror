@@ -34,6 +34,7 @@ import {
   pendingTargeted,
   readBossPending,
   resolveBossPending,
+  voiceStrictRefusal,
 } from "./confirm";
 import {
   bossActorOf,
@@ -203,6 +204,8 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
         return { handled: true, ...r };
       }
+      const strict = pending.expired ? null : voiceStrictRefusal(pending, word, voice, input.spokenText ?? text);
+      if (strict) return { handled: true, reply: strict };
       const r = await resolveBossPending(deps, word);
       if (r.handled) {
         const { handled: _h, ...reply } = r;
@@ -293,7 +296,14 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   }
   if (word === "yes" || parseYesNo(text) === "oui") {
     // « ok », « 👍 » ne confirment jamais une action : Kevin le dit s'il y en a une en attente.
-    const r = { reply: !word && pending && !pending.expired ? "Pour confirmer, réponds OUI (ou appuie sur le bouton ✅ OUI)." : NOTHING_TO_CONFIRM };
+    const r = {
+      reply:
+        pending && !pending.expired
+          ? word
+            ? "Pour confirmer, réponds OUI sans « Répondre » à un autre message, ou appuie sur le bouton ✅ OUI."
+            : "Pour confirmer, réponds OUI (ou appuie sur le bouton ✅ OUI)."
+          : NOTHING_TO_CONFIRM,
+    };
     await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
     return { handled: true, ...r };
   }

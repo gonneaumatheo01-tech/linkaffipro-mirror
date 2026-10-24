@@ -4,6 +4,7 @@
  */
 import { BOSS_DEFAULT_NAME, BOSS_MEMORY_HOURS, BOSS_MEMORY_TURNS, BOSS_NAME_SETTING, type BossSource } from "./contract";
 import { nowOf } from "../admin/journal";
+import { isSecretAdminText } from "../admin/commands";
 import type { AgentsDeps } from "../types";
 
 export const SECRET_PLACEHOLDER = "[secret]";
@@ -55,7 +56,8 @@ export async function writeBossTurn(deps: AgentsDeps, input: BossTurnInput): Pro
       data: {
         createdAt: nowOf(deps),
         role: input.role,
-        text: memoryText(input.text, input.secret),
+        // Filet : un message de l'admin qui ressemble à un secret (détecteur partagé) devient « [secret] ».
+        text: memoryText(input.text, input.secret || (input.role === "ADMIN" && isSecretAdminText(input.text ?? ""))),
         actionKey: input.actionKey ?? null,
         status: input.status ?? null,
         source: input.source ?? null,
@@ -157,7 +159,12 @@ export async function bossTurnsForSpeaker(
 
 /** Mémoire en texte pour l'interprète (une ligne par tour, « Admin : … » / « Kevin : … »). */
 export function memoryLines(turns: readonly BossTurnRow[], bossName = "Kevin", personName = "Admin"): string[] {
-  return turns.map((t) => `${t.role === "ADMIN" ? personName : bossName} : ${t.text.replace(/\s+/g, " ").slice(0, 300)}`);
+  return turns.map((t) => {
+    // Ancien format « [message transféré] <contenu> » : le contenu ne part jamais à l'IA.
+    const fwd = /^\[message transféré\]\s*([\s\S]*)$/.exec(t.text);
+    const text = fwd ? `[message transféré : ${fwd[1]!.trim().length} caractères]` : t.text;
+    return `${t.role === "ADMIN" ? personName : bossName} : ${text.replace(/\s+/g, " ").slice(0, 300)}`;
+  });
 }
 
 /** Prénom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut). */

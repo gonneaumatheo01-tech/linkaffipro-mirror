@@ -176,7 +176,8 @@ describe("dialogue admin (Telegram)", () => {
     expect(lines).toHaveLength(8);
     expect(lines.at(-1)).toMatch(/^Santé : /);
     await bot.handleUpdate(textUpdate(ADMIN, "vrai casino"));
-    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Casino en vrai ?");
+    // Résumé et OUI / NON : en réponse directe (chemin d'aujourd'hui) ou par le messager admin (ancien chemin).
+    expect([sent().at(-1) ?? "", kit.sent.at(-1)?.html ?? ""].join("\n")).toContain("Passer l'équipe Casino en vrai ?");
     await bot.handleUpdate(textUpdate(ADMIN, "OUI"));
     expect(kit.tables("agentTeamConfig").find((c) => c.teamKey === "casino")).toMatchObject({ simulation: false });
     // Les messages ordinaires de l'admin restent journalisés tels quels (pnpm tg:inbox).

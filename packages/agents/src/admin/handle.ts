@@ -16,7 +16,7 @@ import { isSecretCommandText, parseAdminCommand, type AdminCommand } from "./com
 import { adminTelegramId, esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "./journal";
 import type { AdminButton } from "../types";
 import type { BossChat, BossDeps } from "../boss/contract";
-import { confirmWordOf, pendingTargeted, readBossPending, resolveBossPending } from "../boss/confirm";
+import { confirmWordOf, pendingTargeted, readBossPending, resolveBossPending, voiceStrictRefusal } from "../boss/confirm";
 import { telegramEntitiesToHtml, type TelegramTextEntity } from "./entities-html";
 
 export { telegramEntitiesToHtml, escapeTelegramHtml, type TelegramTextEntity } from "./entities-html";
@@ -259,6 +259,8 @@ export async function handleAdminText(deps: AgentsDeps, input: AdminTextInput): 
   if (word) {
     const pending = await readBossPending(deps);
     if (pending && pendingTargeted(pending, { replyTo, chatId: input.chat?.chatId ?? null, current }) === "target") {
+      const strict = pending.expired ? null : voiceStrictRefusal(pending, word, voice, confirmText);
+      if (strict) return { handled: true, reply: strict };
       const r = await resolveBossPending(deps as BossDeps, word);
       if (r.handled)
         return {

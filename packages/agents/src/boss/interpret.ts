@@ -72,7 +72,7 @@ export function bossSystemPrompt(name: string): string {
     "Ta seule tâche : choisir UN outil parmi ceux proposés, avec ses paramètres, pour le MESSAGE DE L'ADMIN. Tu ne réponds jamais en texte libre.",
     "Règles :",
     "- Langue : français. L'admin écrit comme il parle, avec des fautes ; un message peut être la transcription d'un vocal.",
-    "- Choisis exactement un outil. Une action absente des outils n'existe pas : utilise pas_prevu.",
+    "- Appelle toujours exactement un outil ; si rien ne convient, appelle pas_prevu. Une action absente des outils n'existe pas : utilise pas_prevu.",
     "- Si la demande est ambiguë (plusieurs équipes, canaux ou chiffres possibles), utilise preciser. Ne devine jamais.",
     "- Une question sur des chiffres ou un état → repondre_question (ou l'outil de lecture correspondant).",
     "- Si une question est en cours et que le message y répond, utilise repondre_demande avec la réponse telle quelle.",

@@ -10,7 +10,19 @@ import { addressedToBoss, looksLikeRoleClaim, mentionsOf, isHereWeWork } from ".
 import { bossRightsAllow } from "./rights";
 import { pickResponsibleFrom, type TeamMemberRow } from "./members";
 import { parseKindList, parseReturnDate, parseTeamList } from "./parse";
-import { bossGroupMembership, bossTeamIncoming, type BossTeamMessage } from "./incoming";
+import {
+  BOSS_GROUP_VOICE_REPLY,
+  BOSS_TEAM_ERROR_REPLY,
+  bossGroupMembership,
+  bossTeamEditedMessage,
+  bossTeamIncoming,
+  mediaDepositRight,
+  type BossTeamMessage,
+} from "./incoming";
+import { BOSS_MEMBER_AI_DAILY_LIMIT, claimMemberAiTurn } from "./members";
+import { requestScopeOf } from "./request-scope";
+import { modifierMembre } from "../catalog-team";
+import { sendDailyReport } from "../../orchestrator/reports";
 import { morningLines } from "./morning";
 import { bossTeamCallback } from "./callbacks";
 import { BOSS_CATALOG } from "../catalog";
@@ -361,5 +373,198 @@ describe("le groupe de l'équipe", () => {
     expect(lines[1]).toBe("Prévu aujourd'hui : 7 posts (Casino 4 · Rencontres 3)");
     expect(lines[3]).toBe("Ce qui bloque : Paris sportifs en pause");
     expect(lines[4]).toBe("En attente : @lea 1 question · @matheo 2 posts à valider");
+  });
+});
+
+describe("relecture adverse : corrections du correcteur 2", () => {
+  const adminSpeaker = { kind: "admin", telegramUserId: ADMIN, firstName: "Mathéo" } as const;
+  const chat = { type: "group", chatId: GROUP } as const;
+  const actor = { userId: null, via: "TELEGRAM" } as const;
+  const by = (k: string) => BOSS_CATALOG.find((a) => a.key === k)!;
+
+  it("1. prénom seul : rien n'est noté sans le OUI de l'admin (@nom, prénom, identifiant) ; NON → rien", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    // Un inconnu « Sam » (sans nom d'utilisateur) a écrit dans le groupe.
+    await bossTeamIncoming(kit.deps, { ...kit.msg(STRANGER, "salut"), from: { id: STRANGER, firstName: "Sam", username: null } });
+    const r = await runBossAction(kit.deps, by("presenter_membre"), { personne: "Sam", role: "vidéos casino" }, { actor, speaker: adminSpeaker, chat, mentions: [] });
+    expect(r.reply).toContain("« Sam », c'est bien cette personne (sans nom d'utilisateur, prénom « Sam », identifiant 999) ?");
+    expect(r.buttons?.[0]?.[0]?.callbackData).toMatch(/^bsc:/);
+    expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: STRANGER } })).toBeNull();
+    // Un membre ne peut pas confirmer à la place de l'admin ; NON : rien.
+    await addLea(kit);
+    const lea = { kind: "member", telegramUserId: LEA, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
+    expect(await bossFastPath(kit.deps, { text: "OUI", messageId: 1, source: "text", speaker: lea, chat })).toMatchObject({ reply: "Ça, c'est Mathéo qui décide." });
+    await bossFastPath(kit.deps, { text: "NON", messageId: 2, source: "text", speaker: adminSpeaker, chat });
+    expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: STRANGER } })).toBeNull();
+    // Nouvelle présentation puis OUI de l'admin : notée avec l'identifiant vu.
+    await runBossAction(kit.deps, by("presenter_membre"), { personne: "Sam", role: "vidéos casino" }, { actor, speaker: adminSpeaker, chat, mentions: [] });
+    await bossFastPath(kit.deps, { text: "OUI", messageId: 3, source: "text", speaker: adminSpeaker, chat });
+    expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: STRANGER } })).toMatchObject({ firstName: "Sam", responsibilities: { teams: ["casino"], kinds: ["media"] } });
+  });
+
+  it("1. mention cliquable (identifiant donné par Telegram) : notée directement ; une présentation en attente refusée par l'admin : rien", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    const r = await runBossAction(kit.deps, by("presenter_membre"), { personne: "Marc", role: "les cotes" }, { actor, speaker: adminSpeaker, chat, mentions: [{ telegramUserId: MARC, firstName: "Marc", username: null }] });
+    expect(r.reply).toContain("Noté : Marc, les cotes.");
+    await runBossAction(kit.deps, by("presenter_membre"), { personne: "@lea", role: "vidéos casino" }, { actor, speaker: adminSpeaker, chat, mentions: [{ username: "lea" }] });
+    await bossTeamIncoming(kit.deps, kit.msg(LEA, "coucou"));
+    expect(kit.sent.at(-1)!.html).toContain("identifiant 777");
+    await bossFastPath(kit.deps, { text: "NON", messageId: 4, source: "text", speaker: adminSpeaker, chat: { type: "private", chatId: ADMIN } });
+    expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: LEA } })).toBeNull();
+    // La présentation en attente est consommée : réécrire ne repose pas la question.
+    const before = kit.sent.length;
+    await bossTeamIncoming(kit.deps, kit.msg(LEA, "re"));
+    expect(kit.sent.length).toBe(before);
+  });
+
+  it("2. média déposé pour une équipe que le membre ne couvre pas : refus poli ; la sienne : rangé ; l'admin : toujours", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit);
+    const out = await bossTeamIncoming(kit.deps, kit.msg(LEA, "#dating #lea", { hasMedia: true }));
+    expect(out).toMatchObject({ kind: "reply" });
+    expect((out as { reply: { reply: string } }).reply.reply).toBe("Je ne range pas ce média : Rencontres, ce n'est pas ton équipe (tu t'occupes de Casino). Demande à Mathéo.");
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "#casino #roulette", { hasMedia: true }))).toMatchObject({ kind: "media" });
+    const noTeam = await bossTeamIncoming(kit.deps, kit.msg(LEA, "#photo", { hasMedia: true }));
+    expect((noTeam as { reply: { reply: string } }).reply.reply).toContain("il manque l'équipe");
+    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "#dating #photo", { hasMedia: true }))).toMatchObject({ kind: "media" });
+    expect(mediaDepositRight({ kind: "admin", telegramUserId: ADMIN, firstName: null }, null, "#paris").ok).toBe(true);
+  });
+
+  it("3. simple membre : liste fermée ; responsable : pas les demandes réservées, adressées à un autre, ou posées ailleurs", () => {
+    const lea = { kind: "member", telegramUserId: LEA, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
+    const scope = { params: { equipe: "sports" }, teams: ["sports"] as const };
+    for (const k of ["mode_capture", "test_bookmaker", "annuler_reglage", "ads_fait", "ads_refuser", "plan_canal", "persona_canal", "melange_canal", "connexion_bookmaker"])
+      if (BOSS_CATALOG.some((a) => a.key === k)) expect(bossRightsAllow(by(k), lea, { ...scope, teams: [...scope.teams], cls: "immediate" }), k).toBe(false);
+    for (const k of ["plafond", "quota_posts", "niveau"]) expect(bossRightsAllow(by(k), lea, { ...scope, teams: [...scope.teams], cls: "immediate" }), k).toBe(false);
+    for (const k of ["paris_du_jour", "bilan_paris", "stock_medias", "rapport_du_jour", "etat_general", "qui_fait_quoi"]) expect(bossRightsAllow(by(k), lea), k).toBe(true);
+    expect(bossRightsAllow(by("reprise"), lea, { params: { equipe: "sports" }, teams: ["sports"] })).toBe(true);
+    const boss = { kind: "member", telegramUserId: MARC, memberId: "m2", role: "MANAGER", firstName: "Marc" } as const;
+    expect(bossRightsAllow(by("mode_capture"), boss, { cls: "immediate" })).toBe(true);
+    expect(bossRightsAllow(by("plus_tard"), boss)).toBe(false);
+    expect(bossRightsAllow(by("plus_tard"), boss, { request: { adminOnly: false, assignedToOther: false, otherChat: false } })).toBe(true);
+    expect(bossRightsAllow(by("repondre_demande"), boss, { request: { adminOnly: true, assignedToOther: false, otherChat: false } })).toBe(false);
+    expect(bossRightsAllow(by("repondre_demande"), boss, { request: { adminOnly: false, assignedToOther: true, otherChat: false } })).toBe(false);
+    expect(bossRightsAllow(by("repondre_demande"), boss, { request: { adminOnly: false, assignedToOther: false, otherChat: true } })).toBe(false);
+    expect(bossRightsAllow(by("valider_post"), boss, { cls: "immediate" })).toBe(true);
+    // Portée pure de la demande en cours.
+    const groupReq = { kind: "TEXT", teamKey: "casino", chatId: GROUP, assigneeTelegramId: LEA };
+    expect(requestScopeOf(groupReq, LEA, chat)).toEqual({ assignedToSpeaker: true, request: { adminOnly: false, assignedToOther: false, otherChat: false } });
+    expect(requestScopeOf(groupReq, LEA, { type: "private", chatId: LEA }).assignedToSpeaker).toBe(false);
+    expect(requestScopeOf(groupReq, MARC, chat).request).toMatchObject({ assignedToOther: true });
+    expect(requestScopeOf({ kind: "CONFIRM", teamKey: "casino", onAnswer: { action: "set-simulation", simulation: false }, chatId: GROUP, assigneeTelegramId: null }, MARC, chat).request?.adminOnly).toBe(true);
+  });
+
+  it("4. inconnu qui colle une clé : effacée à chaque fois, Kevin ne le dit qu'une fois par jour", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    const KEY = "zzKEY1234567890abcdefQQ";
+    const a = await bossTeamIncoming(kit.deps, kit.msg(STRANGER, KEY));
+    const b = await bossTeamIncoming(kit.deps, kit.msg(STRANGER, `encore ${KEY}`));
+    expect(a).toMatchObject({ kind: "secret" });
+    expect((a as { ifDeleted: string }).ifDeleted).toContain("J'ai effacé ce message");
+    expect(b).toMatchObject({ kind: "secret", ifDeleted: "", ifNotDeleted: "" });
+    kit.advance(86_400_000);
+    expect(((await bossTeamIncoming(kit.deps, kit.msg(STRANGER, KEY))) as { ifDeleted: string }).ifDeleted).not.toBe("");
+    expect(journalText(kit)).not.toContain(KEY);
+  });
+
+  it("4. note sur soi-même : comparée par identifiant ; un simple membre ne touche pas la fiche d'un autre", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit);
+    await kit.prisma.teamMember.create({ data: { telegramUserId: MARC, username: "marc", firstName: "Léa", responsibilities: { teams: ["sports"] } } as never });
+    const lea = { kind: "member", telegramUserId: LEA, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
+    const deps = { ...kit.deps, speaker: lea, chat, mentions: [{ username: "marc" }] };
+    const other = await modifierMembre.execute(deps as never, { personne: "@marc", note: "absent demain" }, actor);
+    expect(other.reply).toBe("Ça, c'est Mathéo qui décide.");
+    const self = await modifierMembre.execute({ ...deps, mentions: [] } as never, { personne: "moi", note: "préviens-moi le matin" }, actor);
+    expect(self.reply).toContain("note : « préviens-moi le matin »");
+    const tasks = await modifierMembre.execute({ ...deps, mentions: [] } as never, { personne: "moi", equipes: "dating" }, actor);
+    expect(tasks.reply).toBe("Ça, c'est Mathéo qui décide.");
+  });
+
+  it("5. erreur : « Oups… » pour l'admin ou un membre qui s'adressait à Kevin ; silence pour les autres", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit);
+    const orig = kit.prisma.humanRequest.findMany;
+    (kit.prisma.humanRequest as { findMany: unknown }).findMany = vi.fn(async () => {
+      throw new Error("panne");
+    });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: BOSS_TEAM_ERROR_REPLY } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: BOSS_TEAM_ERROR_REPLY } });
+    expect((await bossTeamIncoming(kit.deps, kit.msg(LEA, "on mange où ?"))).kind).toBe("ignore");
+    expect((await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "Kevin, état"))).kind).toBe("ignore");
+    (kit.prisma.humanRequest as { findMany: unknown }).findMany = orig;
+  });
+
+  it("6. message modifié avec une clé : à supprimer (sans réponse) ; message transféré avec une clé : effacé aussi", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit);
+    const KEY = "sk-live-1234567890ABCDEFGHIJ";
+    expect(await bossTeamEditedMessage(kit.deps, kit.msg(LEA, `oups ${KEY}`))).toEqual({ delete: true });
+    expect(await bossTeamEditedMessage(kit.deps, kit.msg(STRANGER, KEY))).toEqual({ delete: true });
+    expect(await bossTeamEditedMessage(kit.deps, kit.msg(LEA, "on mange où ?"))).toEqual({ delete: false });
+    expect(await bossTeamEditedMessage(kit.deps, kit.msg(LEA, KEY, { chat: { id: -100777n, type: "group" } }))).toEqual({ delete: false });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, KEY, { forwarded: true }))).toMatchObject({ kind: "secret" });
+    expect(journalText(kit)).not.toContain(KEY);
+    expect(kit.tables("event").some((e) => (e.payload as { edited?: boolean } | null)?.edited === true)).toBe(true);
+  });
+
+  it("7. question TEXT adressée à Léa : seule sa réponse (ou celle de l'admin en réponse au message) la remplit, dans le groupe", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit, { responsibilities: { teams: ["casino"], kinds: ["choice"] } });
+    await kit.prisma.teamMember.create({ data: { telegramUserId: MARC, username: "marc", firstName: "Marc", role: "MANAGER", responsibilities: { teams: ["sports"] } } as never });
+    await askHuman(kit.deps, { teamKey: "casino", kind: "TEXT", key: "casino.slogan", question: "Quel slogan pour le canal Casino VIP ?" });
+    const cur = (await currentHumanRequest(kit.deps)) as { id: string; assigneeTelegramId: bigint; telegramMessageId: number };
+    expect(cur.assigneeTelegramId).toBe(LEA);
+    await bossTeamIncoming(kit.deps, kit.msg(MARC, "Le jackpot t'attend"));
+    await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Le jackpot t'attend"));
+    await bossTeamIncoming(kit.deps, kit.msg(LEA, "Le jackpot t'attend", { chat: { id: LEA, type: "private" } }));
+    expect((await kit.prisma.humanRequest.findUnique({ where: { id: cur.id } }))?.status).toBe("PENDING");
+    const ok = await bossTeamIncoming(kit.deps, kit.msg(LEA, "Le jackpot t'attend"));
+    expect(ok.kind).toBe("reply");
+    expect((await kit.prisma.humanRequest.findUnique({ where: { id: cur.id } }))?.status).toBe("ANSWERED");
+  });
+
+  it("8. limite par membre : 30 messages à l'IA par jour, puis non jusqu'au lendemain", async () => {
+    const kit = await teamKit();
+    for (let i = 0; i < BOSS_MEMBER_AI_DAILY_LIMIT; i++) expect(await claimMemberAiTurn(kit.deps, LEA)).toBe(true);
+    expect(await claimMemberAiTurn(kit.deps, LEA)).toBe(false);
+    expect(await claimMemberAiTurn(kit.deps, MARC)).toBe(true);
+    kit.advance(86_400_000);
+    expect(await claimMemberAiTurn(kit.deps, LEA)).toBe(true);
+  });
+
+  it("9. rapport du matin : privé détaillé + résumé dans le groupe ; refusé en privé → rien dans le groupe, sauf réglage explicite", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    const groupCount = () => kit.groupSent.filter((m) => m.chatId === GROUP && m.html.includes("Bonjour l'équipe")).length;
+    const privCount = () => kit.sent.filter((m) => m.html.includes("Rapport des agents")).length;
+    expect((await sendDailyReport(kit.deps, { force: true })).sent).toBe(true);
+    expect([privCount(), groupCount()]).toEqual([1, 1]);
+    await kit.prisma.setting.create({ data: { key: "agents.dailyReport", value: "non" } as never });
+    expect((await sendDailyReport(kit.deps, { force: true })).sent).toBe(false);
+    expect([privCount(), groupCount()]).toEqual([1, 1]);
+    await kit.prisma.setting.create({ data: { key: "boss.group.morning", value: true } as never });
+    expect((await sendDailyReport(kit.deps, { force: true })).sent).toBe(true);
+    expect([privCount(), groupCount()]).toEqual([1, 2]);
+  });
+
+  it("10. vocal adressé à Kevin dans le groupe : « écris-le-moi » ; vocal entre collègues : rien", async () => {
+    const kit = await teamKit();
+    await withGroup(kit);
+    await addLea(kit);
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: BOSS_GROUP_VOICE_REPLY } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: BOSS_GROUP_VOICE_REPLY } });
+    expect((await bossTeamIncoming(kit.deps, kit.msg(LEA, "", { hasVoice: true }))).kind).toBe("ignore");
+    // Un inconnu : au plus « je ne te connais pas encore », jamais le traitement du vocal.
+    expect(await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).not.toMatchObject({ reply: { reply: BOSS_GROUP_VOICE_REPLY } });
+    expect(kit.llm.calls.interpret).toHaveLength(0);
   });
 });

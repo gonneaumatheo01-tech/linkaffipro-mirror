@@ -16,6 +16,8 @@ import {
   type BossLlm,
   type BossReply,
   type BossTeamInput,
+  type AdminMessenger,
+  type Logger,
 } from "@linkaffipro/agents";
 
 export type BossCallbackInput = { data: string; fromTelegramId: bigint; messageId?: number | null };
@@ -31,7 +33,8 @@ export type BossEngine = {
   isCallbackData(data: string): boolean;
   callback(deps: BossDeps, input: BossCallbackInput): Promise<BossCallbackResult>;
   rememberPendingMessage(deps: BossDeps, pendingId: string, messageId: number): Promise<void>;
-  loadLlm(prisma: unknown): Promise<BossLlm | null>;
+  /** `admin` et `logger` : sans messager, les alertes 80 % / 100 % du plafond de l'IA du Boss ne partent jamais. */
+  loadLlm(prisma: unknown, opts?: { admin?: AdminMessenger; logger?: Logger }): Promise<BossLlm | null>;
 };
 
 /** Moteur réel (`@linkaffipro/agents`, chantier B). */
@@ -41,5 +44,5 @@ export const realBossEngine: BossEngine = {
   isCallbackData: (data) => isBossCallbackData(data),
   callback: (deps, input) => handleBossCallback(deps, input) as Promise<BossCallbackResult>,
   rememberPendingMessage: (deps, pendingId, messageId) => rememberBossPendingMessage(deps, pendingId, messageId),
-  loadLlm: (prisma) => loadBossLlm(prisma as Parameters<typeof loadBossLlm>[0]),
+  loadLlm: (prisma, opts) => loadBossLlm(prisma as Parameters<typeof loadBossLlm>[0], { admin: opts?.admin, logger: opts?.logger }),
 };

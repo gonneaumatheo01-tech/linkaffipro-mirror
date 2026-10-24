@@ -12,7 +12,15 @@ import { botInfoFromRecord } from "../factory";
 import type { AdminDialogBot, BotIdentity, TelegramDeps } from "../ports";
 import type { BossEngine } from "../boss/engine";
 import { BOSS_OTHER_MESSAGE_REPLY, BOSS_QUEUE_DOWN_REPLY } from "../boss/reply";
-import { bossRedirectText, commandAsText } from "./agents-admin";
+import {
+  BOSS_RECEIVED_REPLY,
+  BOSS_SECRET_NOT_QUEUED_REPLY,
+  BOSS_VOICE_WORKER_DOWN_REPLY,
+  BOSS_WORKER_DOWN_REPLY,
+  bossRedirectText,
+  commandAsText,
+  onlyCustomEmojis,
+} from "./agents-admin";
 
 const ADMIN = 4242;
 const STRANGER = 999;
@@ -27,6 +35,9 @@ function setup(opts: {
   fast?: (text: string) => BossFastResult;
   enqueueFails?: boolean;
   fastThrows?: boolean;
+  workerDown?: boolean | null;
+  /** Nombre d'envois (sendMessage) qui échouent d'abord (erreur réseau, pas une erreur de HTML). */
+  sendFailures?: number;
 }) {
   const enqueued: Enqueued[] = [];
   const fastCalls: Array<Record<string, unknown>> = [];
@@ -77,12 +88,19 @@ function setup(opts: {
     }),
     bossEngine: engine,
     bossName: async () => "Kevin",
+    addCustomEmojis: vi.fn(async (input: { emojis: Array<{ customEmojiId: string }> }) => ({ added: input.emojis.map((e) => e.customEmojiId), restored: [], already: [] })),
+    ...(opts.workerDown !== undefined ? { workerDown: async () => opts.workerDown ?? null } : {}),
   };
   const bot = new Bot(`${opts.identity.telegramBotId}:TEST`, { botInfo: botInfoFromRecord(opts.identity) });
   const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
   let n = 1000;
+  let failures = opts.sendFailures ?? 0;
   bot.api.config.use(async (_prev, method, payload) => {
     calls.push({ method, payload: payload as Record<string, unknown> });
+    if (method === "sendMessage" && failures > 0) {
+      failures--;
+      throw new Error("réseau coupé");
+    }
     if (method === "sendMessage") return { ok: true, result: { message_id: n++, date: 0, chat: { id: ADMIN, type: "private" } } } as never;
     return { ok: true, result: true } as never;
   });
@@ -254,17 +272,138 @@ describe("bots de canal quand un Boss existe", () => {
   });
 });
 
-describe("bot casino de repli : emojis animés de l'admin (régression trouvée par l'intégration)", () => {
-  it("texte à emojis animés que le chemin rapide ne prend pas : bibliothèque d'emojis, jamais l'IA", async () => {
-    const t = setup({ identity: channelBot, dialogBot: { id: channelBot.id, username: channelBot.username, isBoss: false } });
-    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "5361" }] }));
-    expect(t.fastCalls).toHaveLength(1);
+const EMOJI = { type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "5361" };
+const fallbackBot = { id: channelBot.id, username: channelBot.username, isBoss: false };
+const FROM_PERSON = { type: "user", sender_user: { id: 5, is_bot: false, first_name: "Léa" }, date: 0 };
+
+describe("emojis animés de l'admin (phase 12) : bibliothèque avant le chemin rapide", () => {
+  it("bot casino de repli : texte à emojis animés → bibliothèque, ni chemin rapide ni IA", async () => {
+    const t = setup({ identity: channelBot, dialogBot: fallbackBot, fast: () => ({ handled: true, reply: "J'ai bien reçu ce message transféré" }) });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁 cadeau", entities: [EMOJI] }));
+    expect(t.fastCalls).toHaveLength(0);
     expect(t.enqueued).toHaveLength(0);
+    expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(1);
+    expect(t.sent()[0]).toMatch(/emoji/i);
   });
-  it("sur le Boss, le même message part à l'interprète", async () => {
+  it("bot casino de repli : texte TRANSFÉRÉ d'une personne avec emojis animés → bibliothèque (plus « J'ai bien reçu… »)", async () => {
+    const t = setup({ identity: channelBot, dialogBot: fallbackBot, fast: () => ({ handled: true, reply: "J'ai bien reçu ce message transféré" }) });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [EMOJI], forward_origin: FROM_PERSON }));
+    expect(t.fastCalls).toHaveLength(0);
+    expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(1);
+    expect(t.sent().join("\n")).not.toContain("J'ai bien reçu");
+  });
+  it("réponse à un message (correction d'un post, réponse à une question) : chemin du Boss, emojis gardés dans le texte", async () => {
+    const t = setup({ identity: channelBot, dialogBot: fallbackBot, fast: () => ({ handled: true, reply: "Texte remplacé ✏️" }) });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁 nouveau texte", entities: [EMOJI], reply_to_message: { message_id: 42, date: 0, chat: chatOf(ADMIN), text: "?" } }));
+    expect(t.fastCalls).toHaveLength(1);
+    expect(t.fastCalls[0]!.entities).toEqual([EMOJI]);
+    expect(t.deps.addCustomEmojis).not.toHaveBeenCalled();
+  });
+  it("autre bot de canal (Kevin existe) : texte à emojis animés → bibliothèque, aucun renvoi vers Kevin", async () => {
+    const t = setup({ identity: channelBot });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [EMOJI] }));
+    expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(1);
+    expect(t.sent().join("\n")).not.toContain("Parle-moi");
+  });
+  it("vrai Boss : emojis seuls ou transférés → bibliothèque ; une phrase avec un emoji animé → interprète", async () => {
     const t = setup({ identity: boss });
-    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "5361" }] }));
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [EMOJI] }));
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁 regarde", entities: [EMOJI], forward_origin: FROM_PERSON }));
+    expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(2);
+    expect(t.fastCalls).toHaveLength(0);
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁 passe le casino en vrai", entities: [EMOJI] }));
+    expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(2);
     expect(t.enqueued).toHaveLength(1);
+  });
+  it("vrai Boss : un inconnu qui envoie des emojis animés → silence, rien d'ajouté", async () => {
+    const t = setup({ identity: boss });
+    await t.bot.handleUpdate(msgUpdate(STRANGER, { text: "🎁", entities: [EMOJI] }));
+    expect(t.deps.addCustomEmojis).not.toHaveBeenCalled();
+    expect(t.sent()).toEqual([]);
+  });
+  it("onlyCustomEmojis : espaces permis, tout autre caractère non", () => {
+    expect(onlyCustomEmojis({ text: "🎁 🎁", entities: [EMOJI, { ...EMOJI, offset: 3 }] as never })).toBe(true);
+    expect(onlyCustomEmojis({ text: "🎁 ok", entities: [EMOJI] as never })).toBe(false);
+    expect(onlyCustomEmojis({ text: "ok" })).toBe(false);
+  });
+});
+
+describe("service d'arrière-plan arrêté (battement de plus de 3 min)", () => {
+  it("réponse de secours tout de suite, tâche quand même en file, pas de « écrit… »", async () => {
+    const t = setup({ identity: boss, workerDown: true });
+    await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
+    expect(t.sent()).toEqual([BOSS_WORKER_DOWN_REPLY]);
+    expect(t.enqueued).toHaveLength(1);
+    expect(t.calls.some((c) => c.method === "sendChatAction")).toBe(false);
+  });
+  it("arrêté ET file injoignable : une seule réponse", async () => {
+    const t = setup({ identity: boss, workerDown: true, enqueueFails: true });
+    await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
+    expect(t.sent()).toEqual([BOSS_WORKER_DOWN_REPLY]);
+  });
+  it("doute (lecture impossible) ou worker vivant : chemin normal", async () => {
+    for (const workerDown of [null, false]) {
+      const t = setup({ identity: boss, workerDown });
+      await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
+      expect(t.sent()).toEqual([]);
+      expect(t.enqueued).toHaveLength(1);
+    }
+  });
+  it("vocal : réponse de secours, vocal quand même en file", async () => {
+    const t = setup({ identity: boss, workerDown: true });
+    await t.bot.handleUpdate(msgUpdate(ADMIN, { voice: { file_id: "v1", file_unique_id: "u1", duration: 3, file_size: 1000 } }));
+    expect(t.sent()).toEqual([BOSS_VOICE_WORKER_DOWN_REPLY]);
+    expect(t.enqueued[0]!.job).toMatchObject({ type: "admin-voice" });
+  });
+});
+
+describe("réponse qui ne part pas (après la suppression d'un secret)", () => {
+  it("1er envoi refusé : texte brut ; tout refusé sauf le dernier : « Bien reçu ✅ »", async () => {
+    const reply = { handled: true as const, reply: "🔒 Clé <b>enregistrée</b> (…1234).", deleteMessage: true };
+    let t = setup({ identity: boss, fast: () => reply, sendFailures: 1 });
+    await t.bot.handleUpdate(text(ADMIN, "clé fal abcdefghijklmnopqrstuvwxyz1234"));
+    expect(t.calls.some((c) => c.method === "deleteMessage")).toBe(true);
+    expect(t.sent().at(-1)).toBe("🔒 Clé enregistrée (…1234).");
+    t = setup({ identity: boss, fast: () => reply, sendFailures: 2 });
+    await t.bot.handleUpdate(text(ADMIN, "clé fal abcdefghijklmnopqrstuvwxyz1234"));
+    expect(t.sent().at(-1)).toBe(BOSS_RECEIVED_REPLY);
+  });
+  it("texte qui ressemble à une clé non pris par le chemin rapide : effacé, jamais mis en file", async () => {
+    const t = setup({ identity: boss });
+    await t.bot.handleUpdate(text(ADMIN, "sk-ant-abcdefghijklmnopqrstuvwxyz0123"));
+    expect(t.enqueued).toHaveLength(0);
+    expect(t.calls.some((c) => c.method === "deleteMessage")).toBe(true);
+    expect(t.sent()).toEqual([BOSS_SECRET_NOT_QUEUED_REPLY]);
+  });
+});
+
+describe("/start de l'admin sur le bot casino de repli", () => {
+  it("/start seul : état du membre gardé (memberStarted) puis accueil de Kevin", async () => {
+    const t = setup({ identity: channelBot, dialogBot: fallbackBot });
+    await t.bot.handleUpdate(text(ADMIN, "/start"));
+    expect(t.deps.memberStarted).toHaveBeenCalledTimes(1);
+    expect(t.sent()[0]).toContain("moi c'est Kevin");
+  });
+  it("/start admin_… : chemin habituel (lien du compte + memberStarted)", async () => {
+    const t = setup({ identity: channelBot, dialogBot: fallbackBot });
+    await t.bot.handleUpdate(text(ADMIN, "/start admin_tok123"));
+    expect(t.deps.linkAdminAccount).toHaveBeenCalledWith("tok123", BigInt(ADMIN));
+    expect(t.deps.memberStarted).toHaveBeenCalledTimes(1);
+    expect(t.fastCalls).toHaveLength(0);
+    expect(t.sent()[0]).not.toContain("moi c'est Kevin");
+  });
+});
+
+describe("boutons des agents sur un bot de canal après la bascule vers Kevin", () => {
+  it("agv: / agh: de l'admin : traités (ils agissent sur la base), pas de renvoi ; bsc: : renvoi", async () => {
+    const t = setup({ identity: channelBot });
+    await t.bot.handleUpdate(callback(ADMIN, "agv:x:ok"));
+    const answers = t.calls.filter((c) => c.method === "answerCallbackQuery").map((c) => String(c.payload.text ?? ""));
+    expect(answers.join("\n")).not.toContain("Parle-moi");
+    expect(t.sent().join("\n")).not.toContain("Parle-moi");
+    await t.bot.handleUpdate(callback(ADMIN, "bsc:p1:yes"));
+    expect(t.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.payload.text).toContain("Parle-moi");
+    expect(t.engine.callback).not.toHaveBeenCalled();
   });
 });
 
@@ -280,5 +419,32 @@ describe("journal : le jeton du Boss n'est jamais gardé en clair (défaut du sc
     }
     const plain = msgUpdate(ADMIN, { text: "agents" });
     expect(await redactAdminSecretUpdate(plain, {})).toBe(plain);
+  });
+});
+
+describe("journal : légendes et détecteur partagé (défaut 9)", () => {
+  it("légende d'un média avec une clé : masquée (bot de canal et Boss) ; légende ordinaire gardée", async () => {
+    const { redactAdminSecretUpdate, redactBossUpdate, SECRET_REDACTED_TEXT } = await import("../agents/redact");
+    const photo = [{ file_id: "p", file_unique_id: "p", width: 1, height: 1 }];
+    const admin = { agentsAdminState: async () => ({ isAdmin: true, secretPending: false }) };
+    const u = msgUpdate(ADMIN, { photo, caption: "ma clé sk-ant-abcdefghijklmnopqrstuvwxyz0123", caption_entities: [{ type: "bold", offset: 0, length: 2 }] });
+    for (const logged of [await redactAdminSecretUpdate(u, admin), await redactBossUpdate(u, admin)]) {
+      expect(JSON.stringify(logged)).not.toContain("sk-ant");
+      expect(logged.message!.caption).toBe(SECRET_REDACTED_TEXT);
+      expect(logged.message!.caption_entities).toBeUndefined();
+    }
+    const plain = msgUpdate(ADMIN, { photo, caption: "#casino #roulette" });
+    expect(await redactAdminSecretUpdate(plain, admin)).toBe(plain);
+  });
+  it("bot de canal de repli : mot de passe court pendant une demande SECRET, et clé collée en réponse à une question posée avant la bascule", async () => {
+    const { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } = await import("../agents/redact");
+    const pending = { agentsAdminState: async () => ({ isAdmin: true, secretPending: true, pendingSecret: { key: "providers.bookmakers.x.password", telegramMessageId: 10 } }) };
+    expect((await redactAdminSecretUpdate(msgUpdate(ADMIN, { text: "Abc12!" }), pending)).message!.text).toBe(SECRET_REDACTED_TEXT);
+    const retired = { agentsAdminState: async () => ({ isAdmin: true, secretPending: false, secretMessageIds: [], retiredSecretMessageIds: [300] }) };
+    const reply = msgUpdate(ADMIN, { text: "blabla1", reply_to_message: { message_id: 300, date: 0, chat: chatOf(ADMIN), text: "?" } });
+    expect((await redactAdminSecretUpdate(reply, retired)).message!.text).toBe(SECRET_REDACTED_TEXT);
+    // Les anciens numéros ne servent qu'au masquage du journal : un « fait » ordinaire reste lisible.
+    const ok = msgUpdate(ADMIN, { text: "fait" });
+    expect(await redactAdminSecretUpdate(ok, retired)).toBe(ok);
   });
 });

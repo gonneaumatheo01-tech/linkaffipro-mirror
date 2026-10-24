@@ -3,7 +3,8 @@
  * aucun réseau. Webhook réel, chemin rapide réel, interprète réel (`processBossText` comme le worker).
  *
  * Kevin ajouté par l'admin → groupe enregistré, accueil → « Kevin, voici @lea, vidéos casino » → mémorisée (Léa n'avait
- * jamais écrit : présentation en attente, appliquée quand elle dit bonjour) → demande MEDIA casino dans le groupe avec
+ * jamais écrit : présentation en attente ; quand elle dit bonjour, l'admin confirme en privé — @nom, prénom,
+ * identifiant — puis elle est notée) → demande MEDIA casino dans le groupe avec
  * @lea → Léa envoie une vidéo #casino #roulette (message suivant) → rangée → « Léa est en vacances jusqu'à lundi » → la
  * demande suivante va à l'admin, Kevin le dit → demande SECRET : mention + lien privé ; clé collée dans le groupe
  * supprimée et jamais journalisée ; refusée en privé de Léa ; acceptée en privé de Marc → Léa « passe le casino en
@@ -197,13 +198,20 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     expect(out[0]).toMatchObject({ chat: GROUP, text: "Salut, moi c'est Kevin. Mathéo, présente-moi l'équipe : qui fait quoi ?" });
   });
 
-  it("2. « Kevin, voici @lea, vidéos casino » : présentation en attente puis appliquée quand Léa dit bonjour", async () => {
+  it("2. « Kevin, voici @lea, vidéos casino » : présentation en attente, confirmée par l'admin en privé quand Léa dit bonjour", async () => {
     let m = mark();
     await say(groupMsg(ADMIN, "Kevin, voici @lea, vidéos casino", { entities: [{ type: "mention", offset: 13, length: 4 }] }));
     expect(sentSince(m).map((s) => s.text).join("\n")).toContain("jamais vu @lea");
     m = mark();
     await say(groupMsg(LEA, "Kevin, salut !"));
+    const out = sentSince(m);
+    expect(out.find((s) => s.chat === GROUP)?.text).toBe("Salut Léa 👋 Je vérifie avec Mathéo et je reviens vers toi.");
+    expect(out.find((s) => s.chat === ADMIN)?.text).toContain(`@lea vient d'écrire (@lea, prénom « Léa », identifiant ${LEA})`);
+    expect(await prisma.teamMember.findUnique({ where: { telegramUserId: BigInt(LEA) } })).toBeNull();
+    m = mark();
+    await say(privateMsg(ADMIN, "OUI"));
     expect(sentSince(m).map((s) => s.text).join("\n")).toContain("Noté : Léa, vidéos casino. Je lui demanderai les vidéos et photos directement.");
+    expect(sentSince(m).some((s) => s.chat === GROUP && s.text.includes("Bienvenue Léa"))).toBe(true);
     const lea = await prisma.teamMember.findUniqueOrThrow({ where: { telegramUserId: BigInt(LEA) } });
     expect(lea).toMatchObject({ firstName: "Léa", username: "lea", role: "MEMBER", responsibilities: { teams: ["casino"], kinds: ["media"] } });
   });
@@ -332,8 +340,8 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     expect(lines).toHaveLength(5);
     expect(lines[0]).toContain("Bonjour l'équipe");
     expect(lines[4]).toContain("@lea 1 question");
-    // Rien en privé : le rapport du groupe remplace le rapport privé.
-    expect(sentSince(m).filter((s) => s.chat === ADMIN)).toEqual([]);
+    // Le rapport détaillé part aussi en privé à l'admin (préférence par défaut) : le groupe ne le remplace pas.
+    expect(sentSince(m).filter((s) => s.chat === ADMIN && s.text.includes("Rapport des agents"))).toHaveLength(1);
   });
 
   it("10. mode confidentialité : mention seule (activé) ou « Kevin, … » (désactivé) ; le reste est ignoré et jamais journalisé en texte", async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit, journalText } from "../human/test-kit";
 import { askHuman } from "../human/requests";
 import { handleAdminVoice, VOICE_NOT_UNDERSTOOD, voiceToAdminText } from "./voice";
@@ -9,6 +9,12 @@ const lifecycle = vi.hoisted(() => ({
   cancelMission: vi.fn(async () => undefined),
 }));
 vi.mock("../missions/lifecycle", () => lifecycle);
+
+// Le catalogue du Boss (confirmations de « vrai », « niveau », « budget vidéo ») se charge à la demande : préchargé ici.
+beforeAll(async () => {
+  await import("../boss/catalog");
+  await import("../boss/execute");
+}, 60_000);
 beforeEach(() => lifecycle.continueMission.mockClear());
 
 function run(kit: ReturnType<typeof createTestKit>, transcript: string | null, replyToMessageId?: number) {
@@ -56,13 +62,11 @@ describe("vocaux de l'admin", () => {
 
   it("« vrai dating » par vocal demande OUI ; un niveau aussi, même pour baisser", async () => {
     const kit = createTestKit();
-    await run(kit, "Vrai dating");
-    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Rencontres en vrai ?");
-    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
+    expect((await run(kit, "Vrai dating")).said.join("\n")).toContain("Passer l'équipe Rencontres en vrai ?");
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "dating")?.simulation ?? true).toBe(true);
     await run(kit, "non");
-    await run(kit, "Niveau casino un");
-    expect(kit.sent.at(-1)!.html).toContain("Passer l'équipe Casino au niveau 1");
-    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
+    expect((await run(kit, "Niveau casino un")).said.join("\n")).toContain("Passer l'équipe Casino du niveau 0 au niveau 1");
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
   });
 
   it("vocal incompréhensible → « je n'ai pas compris, réécris-le »", async () => {

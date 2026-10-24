@@ -3,7 +3,7 @@
  * fenêtre « ✏️ Corriger », demandes SECRET / TEXT, masquage, double exécution, une question à la fois, compteur MEDIA,
  * résumé d'une clé.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestKit, journalText } from "../human/test-kit";
 import { askHuman, sendNextHumanRequest } from "../human/requests";
 import { adminOnlyRequest, answerHumanRequestFromSite, skipHumanRequest } from "../human/site";
@@ -22,6 +22,12 @@ const lifecycle = vi.hoisted(() => ({
   cancelMission: vi.fn(async () => undefined),
 }));
 vi.mock("../missions/lifecycle", () => lifecycle);
+
+// Le catalogue du Boss (confirmations de « vrai », « niveau », « budget vidéo ») se charge à la demande : préchargé ici.
+beforeAll(async () => {
+  await import("../boss/catalog");
+  await import("../boss/execute");
+}, 60_000);
 
 beforeEach(() => {
   lifecycle.continueMission.mockClear();
@@ -79,16 +85,16 @@ describe("2. « ok » en réponse à un autre message", () => {
     return kit;
   }
 
-  it("en réponse à un aperçu de validation : la question en cours (vrai casino) n'est jamais confirmée", async () => {
+  it("en réponse à un aperçu de validation : la confirmation en cours (vrai casino) n'est jamais confirmée", async () => {
     const kit = await liveAsked();
     const m = await kit.mission({ teamKey: "casino" });
     await requestValidation(kit.deps, { missionId: m.id as string, teamKey: "casino", previewText: "Post", reason: "test" });
     const preview = kit.sent.at(-1)!.messageId;
-    const r = await handleAdminText(kit.deps, { text: "oui", messageId: 2, replyToMessageId: preview });
-    expect(r.handled).toBe(true);
-    expect(r.reply).toContain("aperçu du post");
+    await handleAdminText(kit.deps, { text: "oui", messageId: 2, replyToMessageId: preview });
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
-    expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
+    // Phase 26 : « vrai casino » passe par la confirmation du Boss (plus de demande CONFIRM sans expiration).
+    expect(kit.tables("humanRequest")).toHaveLength(0);
+    expect(kit.tables("setting").some((x) => x.key === "boss.pending")).toBe(true);
   });
 
   it("en réponse à une ancienne demande close : « Ce message n'est plus une question ouverte »", async () => {
@@ -103,15 +109,14 @@ describe("2. « ok » en réponse à un autre message", () => {
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });
 
-  it("passage en vrai et niveau : exactement « oui » (ni ok, ni o, ni 👍, ni d'accord)", async () => {
+  it("passage en vrai : « ok », « o », 👍, « d'accord » ne confirment jamais ; « Oui. » si", async () => {
     const kit = await liveAsked();
-    const q = kit.sent[0]!.messageId;
-    for (const text of ["ok", "o", "👍", "d'accord", "yes"]) {
-      const r = await handleAdminText(kit.deps, { text, messageId: 10, replyToMessageId: q });
-      expect(r.reply).toContain("exactement « oui »");
+    for (const text of ["ok", "o", "👍", "d'accord"]) {
+      await handleAdminText(kit.deps, { text, messageId: 10 });
+      expect(kit.tables("agentTeamConfig"), text).toHaveLength(0);
     }
-    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
-    await handleAdminText(kit.deps, { text: "Oui.", messageId: 11, replyToMessageId: q });
+    const r = await handleAdminText(kit.deps, { text: "Oui.", messageId: 11 });
+    expect(r.handled).toBe(true);
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ simulation: false });
   });
 
@@ -121,9 +126,9 @@ describe("2. « ok » en réponse à un autre message", () => {
     const said: string[] = [];
     await handleAdminVoice(kit.deps, { transcript: "Oui, vas-y.", messageId: 2 }, async (h) => void said.push(h));
     expect(said.at(-1)).toContain("exactement « oui »");
-    expect(kit.tables("agentTeamConfig")).toHaveLength(0);
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
     await handleAdminVoice(kit.deps, { transcript: "Oui.", messageId: 3 }, async (h) => void said.push(h));
-    expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ autonomyLevel: 2 });
+    expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 2 });
   });
 });
 
@@ -220,14 +225,13 @@ describe("4. demande SECRET ou TEXT en cours : un message ordinaire n'est pas av
     expect(isSecretAdminText(KEY, { pending: { key: "providers.fal.apiKey" } })).toBe(true);
   });
 
-  it("identifiant bookmaker : jamais sans « répondre »", async () => {
+  it("identifiant bookmaker : le message suivant EST l'identifiant, même sans « répondre » (défaut 1 de la relecture)", async () => {
     const kit = createTestKit();
     await askHuman(kit.deps, { kind: "SECRET", key: "providers.bookmakers.sportaza.login", question: "Ton identifiant ?" });
-    expect(await handleAdminText(kit.deps, { text: "jean75", messageId: 2 })).toEqual({ handled: false });
-    expect(isSecretAdminText("jean75", { pending: { key: "providers.bookmakers.sportaza.login" } })).toBe(false);
-    const q = kit.sent[0]!.messageId;
-    expect(isSecretAdminText("jean75", { pending: { key: "providers.bookmakers.sportaza.login", telegramMessageId: q }, replyToMessageId: q })).toBe(true);
-    const r = await handleAdminText(kit.deps, { text: "jean75", messageId: 3, replyToMessageId: q });
+    expect(isSecretAdminText("jean75", { pending: { key: "providers.bookmakers.sportaza.login" } })).toBe(true);
+    expect(isSecretAdminText("fait", { pending: { key: "providers.bookmakers.sportaza.login" } })).toBe(false);
+    expect(await handleAdminText(kit.deps, { text: "fait", messageId: 2 })).toEqual({ handled: false });
+    const r = await handleAdminText(kit.deps, { text: "jean75", messageId: 3 });
     expect(r).toMatchObject({ handled: true, deleteMessage: true });
     expect(r.reply).toBe("Identifiant sportaza enregistré ✅");
   });

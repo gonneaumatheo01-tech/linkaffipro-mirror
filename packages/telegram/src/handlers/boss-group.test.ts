@@ -61,7 +61,7 @@ async function setup() {
   });
   registerHandlers(bot, boss, deps, { extended: false });
   const sent = () => calls.filter((c) => c.method === "sendMessage").map((c) => ({ chat: c.payload.chat_id, text: String(c.payload.text) }));
-  return { kit, bot, calls, sent, enqueued, recorded, setCanDelete: (v: boolean) => void (canDelete = v) };
+  return { kit, bot, calls, sent, enqueued, recorded, deps, setCanDelete: (v: boolean) => void (canDelete = v) };
 }
 
 let uid = 1;
@@ -154,5 +154,52 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     expect(t.kit.tables("teamMember")[0]?.startedPrivateAt).toBeInstanceOf(Date);
     await t.bot.handleUpdate(priv(STRANGER, "/start"));
     expect(t.sent()).toHaveLength(1);
+  });
+
+  it("relecture : message modifié avec une clé supprimé sans réponse ; clé d'un inconnu effacée, dite une fois par jour", async () => {
+    const t = await setup();
+    await t.bot.handleUpdate(added(ADMIN));
+    await t.kit.prisma.teamMember.create({ data: { telegramUserId: BigInt(LEA), username: "lea", firstName: "Léa", responsibilities: { teams: ["casino"], kinds: ["media"] } } as never });
+    const KEY = "sk-live-1234567890ABCDEFGHIJKLMNOP";
+    let before = t.sent().length;
+    const orig = groupMsg(LEA, "texte anodin");
+    await t.bot.handleUpdate(orig);
+    await t.bot.handleUpdate({ update_id: uid++, edited_message: { ...orig.message!, text: `texte anodin ${KEY}`, edit_date: 1 } } as Update);
+    expect(t.calls.some((c) => c.method === "deleteMessage" && c.payload.message_id === orig.message!.message_id)).toBe(true);
+    expect(t.sent().slice(before)).toEqual([]);
+    before = t.sent().length;
+    await t.bot.handleUpdate(groupMsg(STRANGER, KEY));
+    await t.bot.handleUpdate(groupMsg(STRANGER, KEY));
+    expect(t.calls.filter((c) => c.method === "deleteMessage")).toHaveLength(3);
+    expect(t.sent().slice(before)).toHaveLength(1);
+    expect(JSON.stringify(t.recorded.map((r) => r.update))).not.toContain(KEY);
+  });
+
+  it("relecture : vocal adressé à Kevin → « écris-le-moi » ; limite du jour d'un membre ; erreur → « Oups » pour l'admin", async () => {
+    const t = await setup();
+    await t.bot.handleUpdate(added(ADMIN));
+    await t.kit.prisma.teamMember.create({ data: { telegramUserId: BigInt(LEA), username: "lea", firstName: "Léa", responsibilities: { teams: ["casino"], kinds: ["media"] } } as never });
+    let before = t.sent().length;
+    const kevinMsg = { message_id: 1, date: 0, chat: groupChat(), from: { id: 222, is_bot: true, first_name: "Kevin" }, text: "?" };
+    await t.bot.handleUpdate({ update_id: uid++, message: { message_id: mid++, date: 0, chat: groupChat(), from: person(LEA), voice: { file_id: "v", file_unique_id: "vu", duration: 3 }, reply_to_message: kevinMsg } } as Update);
+    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["Écris-le-moi ici, je n'écoute les vocaux qu'en privé."]);
+    // Limite atteinte pour Léa : pas d'IA, une phrase ; l'admin, lui, passe.
+    await t.kit.prisma.setting.create({ data: { key: "boss.team.aiTurns", value: { day: "2026-10-23", counts: { [String(LEA)]: 30 } } } as never });
+    before = t.sent().length;
+    await t.bot.handleUpdate(groupMsg(LEA, "Kevin, raconte-moi comment ça marche les cotes"));
+    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["On a beaucoup parlé aujourd'hui : je garde les commandes simples jusqu'à demain."]);
+    expect(t.enqueued).toEqual([]);
+    await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, raconte-moi comment ça marche les cotes"));
+    expect(t.enqueued).toHaveLength(1);
+    // Moteur en panne : « Oups » à l'admin, silence pour un inconnu.
+    (t.deps as { bossEngine?: unknown }).bossEngine = {
+      fastPath: async () => {
+        throw new Error("panne");
+      },
+      isCallbackData: () => false,
+    };
+    before = t.sent().length;
+    await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, état"));
+    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["Oups, je n'ai pas réussi à traiter ton message. Réessaie dans un instant (ou écris aide)."]);
   });
 });
