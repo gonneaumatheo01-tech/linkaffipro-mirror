@@ -6,6 +6,7 @@
  * `telegram.webhook_repaired`. Résultat du dernier contrôle dans `Setting` `telegram.webhookCheck` (État du système).
  * Jamais hors production (`webhookRepairRefusal` : un worker de développement ne repointe pas les bots vers sa machine).
  */
+import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import {
   isGhostBotUsername,
   webhookProblems,
@@ -98,7 +99,6 @@ export function parseWebhookCheck(value: unknown): WebhookCheck | null {
 export async function runWebhookRepairWithDb(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<WebhookCheck> {
-  const { prisma, recordEvent, toJsonValue } = await import("@linkaffipro/db");
   const save = async (check: WebhookCheck) => {
     await prisma.setting.upsert({
       where: { key: WEBHOOK_CHECK_SETTING },

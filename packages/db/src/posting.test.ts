@@ -93,7 +93,7 @@ describe("bot qui publie dans un canal (phase 17 : jamais un assistant de conver
     expect(args.where).toEqual({ id: "ch1" });
     expect(args.select.botAdmins.where).toEqual({
       revokedAt: null,
-      bot: { isActive: true, mode: "STANDARD" },
+      bot: { isActive: true, mode: "STANDARD", role: "CHANNEL" },
     });
     expect(args.select.botAdmins.orderBy).toEqual([{ detectedAt: "asc" }, { id: "asc" }]);
     // Jamais le jeton du bot.

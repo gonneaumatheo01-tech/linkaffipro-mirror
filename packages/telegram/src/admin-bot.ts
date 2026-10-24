@@ -6,7 +6,7 @@
  *    assistant de conversation (phase 17) ni le bot fantôme d'un compte réel (phase 18 : faux jeton, Telegram répond
  *    404). Le plus ancien d'abord, pour que l'admin parle toujours au même bot avant la création du Boss.
  */
-import type { Bot as BotRow } from "@linkaffipro/db";
+import { prisma as sharedPrisma, type Bot as BotRow } from "@linkaffipro/db";
 
 /** Repli (avant tout Boss) : bot casino de canal, actif, normal, jamais un bot fantôme. */
 export const ADMIN_BOT_WHERE = {
@@ -45,8 +45,7 @@ export type AdminBotChoice = BotRow & {
 };
 
 async function sharedDb(): Promise<AdminBotDb> {
-  const { prisma } = await import("@linkaffipro/db");
-  return prisma as unknown as AdminBotDb;
+  return sharedPrisma as unknown as AdminBotDb;
 }
 
 /** Bot du dialogue admin (voir l'en-tête). Ne lève pas pour une base vide : `null`. */

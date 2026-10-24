@@ -25,7 +25,7 @@ function lazyEnqueue(): AgentsEnqueue {
 export function installBossRegisterPort(): void {
   setBossRegisterPort(async (token) => {
     const { registerBossFromToken } = await import("../service");
-    const { prisma: db } = await import("@linkaffipro/db");
+    const db = prisma;
     const admin = await db.setting.findUnique({ where: { key: "admin.telegramUserId" } });
     const user =
       typeof admin?.value === "string" && /^\d+$/.test(admin.value)
