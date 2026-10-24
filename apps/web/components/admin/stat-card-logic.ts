@@ -66,49 +66,11 @@ export function variationSummary(pct: number | null | undefined, comparison: str
 }
 
 /**
- * Variation prête à afficher, d'après la valeur ET sa base (hier, période précédente). Règle unique des cartes de
- * chiffres (accueil, campagnes, statistiques) :
- * - base non nulle : pourcentage (`pct`), affiché plafonné à ±999 % (`formatVariation`) ;
- * - base nulle, valeur non nulle : « nouveau » (`new`) : un pourcentage depuis 0 n'a pas de sens (« > +999 % ») ;
- * - les deux nulles : rien à afficher (`none`) ;
- * - valeur ou base inconnue, ou pourcentage écarté par la page : « Pas de comparaison possible » (`unknown`).
+ * Variation prête à afficher, d'après la valeur ET sa base : règle unique, dans `@linkaffipro/core` (variation.ts,
+ * phase 24 : partagée avec l'Agent Ads). Affichage plafonné à ±999 % par `formatVariation`.
  */
-export type Variation =
-  | { kind: "pct"; pct: number }
-  | { kind: "new"; direction: "up" | "down" }
-  | { kind: "none" }
-  | { kind: "unknown" };
-
-/**
- * En dessous d'un demi-centime, une valeur compte comme nulle : elle s'affiche « 0 € » (ou « 0 ») et un pourcentage
- * calculé dessus serait énorme. Sans effet sur les nombres entiers (membres, premiers dépôts…).
- */
-export const ZERO_EPSILON = 0.005;
-
-function isZero(v: number): boolean {
-  return Math.abs(v) < ZERO_EPSILON;
-}
-
-/**
- * Variation de `previous` à `current`. `pct` : pourcentage déjà calculé par la page (ex. `deltaPct`, ou null quand
- * la page l'écarte, comme une base négative) ; absent, il est calculé ici sur la valeur absolue de la base (des gains
- * qui passent de −50 € à +20 € montent : +140 %), à une décimale. La base nulle prime toujours sur `pct`.
- */
-export function variationBetween(
-  current: number | null | undefined,
-  previous: number | null | undefined,
-  pct?: number | null,
-): Variation {
-  if (!valid(current) || !valid(previous)) return { kind: "unknown" };
-  if (isZero(previous)) {
-    if (isZero(current)) return { kind: "none" };
-    return { kind: "new", direction: current > 0 ? "up" : "down" };
-  }
-  const p =
-    pct === undefined ? Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10 : pct;
-  if (!valid(p)) return { kind: "unknown" };
-  return { kind: "pct", pct: p };
-}
+export { variationBetween, ZERO_EPSILON, type Variation } from "@linkaffipro/core";
+import type { Variation } from "@linkaffipro/core";
 
 /** Texte visible : « +12,5 % », « > +999 % », « nouveau », « — » (pas de comparaison), « » (rien à afficher). */
 export function variationLabel(v: Variation): string {

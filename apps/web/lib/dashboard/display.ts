@@ -4,11 +4,8 @@
  * (FTD, NGR, CPL, CPA, ROAS, LTV) passe au survol (`term`). Les chiffres eux-mêmes viennent de
  * `lib/dashboard/queries.ts` et `daily.ts` : rien n'est recalculé ici.
  */
-import {
-  variationBetween,
-  type Favorable,
-  type Variation,
-} from "@/components/admin/stat-card-logic";
+import { comparableVariation } from "@linkaffipro/core";
+import { type Favorable, type Variation } from "@/components/admin/stat-card-logic";
 import { fmtTimes, formatValue, type ChartFormat } from "@/components/charts/chart-logic";
 import { exactMoney, groupMoney, groupMoneyDigits } from "@/lib/campaigns/cards";
 import { fmtNum } from "@/lib/format";
@@ -134,21 +131,10 @@ export function comparableDelta(
 }
 
 /**
- * Variation affichée d'un chiffre, RÈGLE UNIQUE du site (accueil, campagnes, statistiques ; les rapports Telegram
- * suivent la même) par la règle commune des cartes (`variationBetween`) : « nouveau » quand la période précédente
- * valait 0, rien quand les deux valent 0 ; pas de pourcentage sur une base négative (même règle que `comparableDelta`
- * et docs/DESIGN-SYSTEM.md) ; valeur absente : pas de comparaison.
+ * Variation affichée d'un chiffre, RÈGLE UNIQUE du site (accueil, campagnes, statistiques ; les rapports Telegram et
+ * l'Agent Ads suivent la même) : dans `@linkaffipro/core` (variation.ts, phase 24).
  */
-export function comparableVariation(
-  current: number | null | undefined,
-  previous: number | null | undefined,
-): Variation {
-  return variationBetween(
-    current,
-    previous,
-    typeof previous === "number" && previous < 0 ? null : undefined,
-  );
-}
+export { comparableVariation } from "@linkaffipro/core";
 
 /**
  * Ligne « Avant : X » sous un chiffre comparé (cartes des Statistiques) : avec un pourcentage, rien à comparer ou pas de

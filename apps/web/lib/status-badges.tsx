@@ -80,6 +80,8 @@ export type TelegramSessionStatus =
   "PENDING_CODE" | "PENDING_PASSWORD" | "ACTIVE" | "ERROR" | "DISCONNECTED";
 /** Passage d'un agent sur une mission (`AgentRun.status`, chaîne libre en base, phase 19). */
 export type AgentRunStatus = "RUNNING" | "OK" | "ERROR" | "SKIPPED";
+/** Action conseillée par l'Agent Ads (`Recommendation.action`, chaîne libre en base, phase 24). */
+export type AdsActionKind = "STOP" | "SCALE" | "TEST" | "WATCH";
 
 export const STATUS_DICT = {
   membership: {
@@ -376,7 +378,16 @@ export const STATUS_DICT = {
     APPLIED: ok("Appliqué"),
     UNDONE: muted("Annulé"),
     REJECTED: muted("Refusé"),
+    // Phase 24 (Agent Ads) : le client dit l'avoir fait lui-même chez Meta / TikTok.
+    DONE: ok("Fait"),
   } satisfies Record<RecommendationStatus, StatusEntry>,
+  // Agent Ads (phase 24) : action conseillée sur une campagne, un groupe ou une pub (jamais appliquée par le code).
+  adsAction: {
+    STOP: bad("Arrêter"),
+    SCALE: ok("Augmenter"),
+    TEST: main("Tester"),
+    WATCH: plain("Surveiller"),
+  } satisfies Record<AdsActionKind, StatusEntry>,
   // Équipe Paris sportifs (phase 23) : état d'un pari retenu, puis son résultat après le match.
   bettingPick: {
     PROPOSED: warn("Proposé"),

@@ -12,6 +12,8 @@ const m = vi.hoisted(() => ({
   datingPersonas: [] as unknown[],
   keys: { fal: false, magichour: false },
   algoEmpty: false,
+  adsConnectorsMissing: true,
+  adsFailing: false,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -263,6 +265,110 @@ vi.mock("@/lib/agents/secrets", async (orig) => ({
     },
   ]),
 }));
+vi.mock("./ads/actions", () => ({
+  markAdsRecommendationAction: vi.fn(),
+  saveAdsThresholdsAction: vi.fn(),
+}));
+vi.mock("@/lib/agents/ads/queries", async () => {
+  const { parseAdsThresholds } = await import("@/lib/agents/ads/thresholds");
+  const metrics = (spend: number, commissions: number, registrations: number, extra: Record<string, number> = {}) => ({
+    spend,
+    impressions: 10_000,
+    adClicks: 400,
+    landingVisits: 300,
+    telegramJoins: 120,
+    members: 110,
+    offerClicks: 60,
+    registrations,
+    ftds: 4,
+    deposits: 5,
+    commissions,
+    gains: commissions - spend,
+    roas: spend > 0 ? commissions / spend : null,
+    costPerMember: 1,
+    costPerRegistration: registrations > 0 ? spend / registrations : null,
+    costPerFtd: 25,
+    ...extra,
+  });
+  const row = (level: "campaign" | "ad", id: string, name: string, spend: number, commissions: number, enough = true) => ({
+    level,
+    id,
+    name,
+    vertical: "CASINO",
+    campaignId: "cp1",
+    current: metrics(spend, commissions, 10),
+    previous: metrics(spend / 2, commissions / 2, 5),
+    variations: {},
+    bottleneck: level === "campaign" ? "offerClicks" : null,
+    enoughData: enough,
+  });
+  const analysis = {
+    period: "7d",
+    from: "2026-10-17",
+    to: "2026-10-23",
+    connectorsMissing: m.adsConnectorsMissing,
+    totals: metrics(300, 450, 30),
+    rows: [
+      row("campaign", "cp1", "Casino octobre", 300, 450),
+      row("ad", "ad1", "Vidéo roulette", 100, 300),
+      row("ad", "ad2", "Image bonus", 150, 50),
+      row("ad", "ad3", "Nouvelle vidéo", 5, 0, false),
+    ],
+    cohorts: [{ adId: "ad1", name: "Vidéo roulette", d7: 120, d14: 180, d30: 260, members: 40 }],
+  };
+  return {
+    ADS_TEAM_KEY: "ads",
+    loadAdsAnalysis: vi.fn(async (period: string) =>
+      m.adsFailing ? { ok: false, error: "base injoignable" } : { ok: true, analysis: { ...analysis, period, connectorsMissing: m.adsConnectorsMissing } },
+    ),
+    loadAdsRecommendations: vi.fn(async () => [
+      {
+        id: "r1",
+        target: "AD",
+        targetId: "ad2",
+        action: "STOP",
+        evidence: { summary: "Coût par inscription au-dessus du seuil depuis 4 jours.", spend: 150, costPerRegistration: 15, threshold: 10 },
+        expectedGain: "≈ 100 € économisés par semaine",
+        status: "PROPOSED",
+        comment: null,
+        doneAt: null,
+        rejectedAt: null,
+        createdAt: new Date("2026-10-24T07:00:00Z"),
+        targetLabel: "Image bonus (Groupe A)",
+        campaignId: "cp1",
+        vertical: "CASINO",
+      },
+      {
+        id: "r2",
+        target: "AD",
+        targetId: "ad1",
+        action: "SCALE",
+        evidence: { roas: 3 },
+        expectedGain: null,
+        status: "DONE",
+        comment: "Budget monté à 25 €",
+        doneAt: new Date("2026-10-23T10:00:00Z"),
+        rejectedAt: null,
+        createdAt: new Date("2026-10-22T07:00:00Z"),
+        targetLabel: "Vidéo roulette (Groupe A)",
+        campaignId: "cp1",
+        vertical: "CASINO",
+      },
+    ]),
+    loadAdsReports: vi.fn(async () => [
+      {
+        id: "ir1",
+        weekStart: "2026-10-24",
+        content: "<b>Pubs hier</b> : 300 € dépensés, gains 150 €.",
+        stats: { kind: "daily" },
+        sentAt: new Date("2026-10-24T07:05:00Z"),
+        createdAt: new Date("2026-10-24T07:00:00Z"),
+      },
+    ]),
+    loadAdsThresholds: vi.fn(async () => parseAdsThresholds({ CASINO: { targetCostPerRegistration: 12, minRoas: 1.5, observationDays: 4, minSpend: 30 } })),
+    loadAdsCardFigures: vi.fn(async () => ({ toDecide: 1, done30d: 1, lastReportAt: new Date("2026-10-24T07:00:00Z") })),
+  };
+});
 vi.mock("@/lib/agents/queries", async (orig) => {
   const real = await orig<typeof import("@/lib/agents/queries")>();
   const { teamConfigView } = await import("@/lib/agents/config");
@@ -330,6 +436,7 @@ import TeamPage from "./[equipe]/page";
 import ValidationsPage from "./validations/page";
 import JournalPage from "./journal/page";
 import SettingsPage from "./settings/page";
+import AdsPage from "./ads/page";
 
 const sp = (v: Record<string, string> = {}) => Promise.resolve(v);
 const render = async (el: Promise<React.ReactElement>) => renderToStaticMarkup(await el);
@@ -345,6 +452,8 @@ function checks(html: string) {
 
 beforeEach(() => {
   m.user = { id: "u1", role: "ADMIN" };
+  m.adsConnectorsMissing = true;
+  m.adsFailing = false;
   m.pausedAll = false;
   m.validations = [];
   m.requests = [];
@@ -667,5 +776,73 @@ describe("rubrique Agents", () => {
     expect(text).toContain("Tout mettre en pause");
     m.user = { id: "u2", role: "MANAGER" };
     await expect(SettingsPage({ searchParams: sp() } as never)).rejects.toThrow("NEXT_REDIRECT");
+  });
+});
+
+describe("Agent Ads (/agents/ads)", () => {
+  it("tableau de bord : la carte de l'Agent Ads, à côté des équipes", async () => {
+    const text = checks(await render(AgentsPage({ searchParams: sp() } as never)));
+    expect(text).toContain("Agent Ads");
+    expect(text).toContain("Il ne change jamais rien chez Meta ou TikTok");
+    expect(text).toContain("1 à décider");
+  });
+
+  it("résumé, recommandations avec preuves, parcours, pubs, membres, seuils, rapports, exports", async () => {
+    const html = await render(AdsPage({ searchParams: sp() } as never));
+    const text = checks(html);
+    for (const t of [
+      "Résumé d'hier",
+      "Recommandations",
+      "Arrêter",
+      "Coût par inscription au-dessus du seuil depuis 4 jours.",
+      "À faire vous-même",
+      "Fait",
+      "Refuser",
+      "Faites ou refusées",
+      "Votre commentaire : Budget monté à 25 €",
+      "Campagnes",
+      "Parcours : Casino octobre",
+      "Étape la plus faible : Clics sur les offres",
+      "Meilleures et pires pubs",
+      "Vidéo roulette",
+      "À surveiller : 1 pub trop jeune",
+      "Ce que rapportent les membres de chaque pub",
+      "Seuils par univers",
+      "Enregistrer les seuils",
+      "Rapports archivés",
+      "Rapport du jour",
+      "Pubs hier : 300 € dépensés",
+      "Exporter les recommandations",
+      "Exporter les chiffres",
+      "c'est vous qui le faites",
+    ])
+      expect(text).toContain(t);
+    expect(text).toContain("Aucun connecteur Meta ou TikTok branché");
+    expect(html).toContain('href="/settings/connectors"');
+    expect(html).toContain("/stats/funnel?range=custom&amp;from=2026-10-17&amp;to=2026-10-23&amp;campaignId=cp1");
+    expect(text).not.toMatch(/\bROAS\b|\bCPA\b|cohorte|entonnoir/i);
+  });
+
+  it("connecteur branché : pas de phrase sur les coûts importés", async () => {
+    m.adsConnectorsMissing = false;
+    const text = checks(await render(AdsPage({ searchParams: sp({ periode: "28d" }) } as never)));
+    expect(text).not.toContain("Aucun connecteur Meta ou TikTok branché");
+    expect(text).toContain("28 derniers jours");
+  });
+
+  it("manager : lit et marque « Fait » / « Refuser », mais ne change pas les seuils", async () => {
+    m.user = { id: "u2", role: "MANAGER" };
+    const text = checks(await render(AdsPage({ searchParams: sp() } as never)));
+    expect(text).toContain("Refuser");
+    expect(text).not.toContain("Enregistrer les seuils");
+    expect(text).toContain("Seuls les administrateurs peuvent changer les seuils.");
+  });
+
+  it("analyse en panne : la page reste lisible avec un message", async () => {
+    m.adsFailing = true;
+    const text = checks(await render(AdsPage({ searchParams: sp() } as never)));
+    expect(text).toContain("Chiffres indisponibles pour l'instant");
+    expect(text).toContain("Recommandations");
+    expect(text).not.toContain("Exporter les chiffres");
   });
 });

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bot } from "lucide-react";
 import { AgentsNav } from "@/components/agents/agents-nav";
 import { TeamCard } from "@/components/agents/team-card";
+import { AdsAgentCard } from "@/components/agents/ads/ads-agent-card";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Flash } from "@/components/admin/flash";
 import { FormSection } from "@/components/admin/form-section";
@@ -17,6 +18,7 @@ import {
   loadTeamConfigs,
   sumCents,
 } from "@/lib/agents/queries";
+import { loadAdsCardFigures } from "@/lib/agents/ads/queries";
 import { TEAM_KEYS } from "@/lib/agents/teams";
 import { fmtDayKey } from "@/lib/periods";
 import { requireUser } from "@/lib/session";
@@ -26,20 +28,21 @@ export const dynamic = "force-dynamic";
 
 /**
  * Tableau de bord du Grand Chef (phase 19) : une carte par équipe (état, chiffres du jour, dépense du mois, pause,
- * mission de test), puis les trois derniers rapports du matin. Rien ici n'appelle une IA : le Grand Chef est de la
+ * mission de test), la carte de l'Agent Ads (phase 24, il conseille sur les pubs), puis les trois derniers rapports du matin. Rien ici n'appelle une IA : le Grand Chef est de la
  * logique programmée, qui passe toutes les 30 minutes.
  */
 export default async function AgentsPage({ searchParams }: PageProps<"/agents">) {
   const user = await requireUser();
   const sp = await searchParams;
   const now = new Date();
-  const [configs, figures, usage, reports, pausedAll, pending] = await Promise.all([
+  const [configs, figures, usage, reports, pausedAll, pending, adsFigures] = await Promise.all([
     loadTeamConfigs(),
     loadDayFigures(now),
     loadMonthUsage(now),
     loadDailyReports(3),
     loadPausedAll(),
     loadPendingCounts(),
+    loadAdsCardFigures(now),
   ]);
   const waiting = pending.validations + pending.requests;
 
@@ -81,6 +84,7 @@ export default async function AgentsPage({ searchParams }: PageProps<"/agents">)
               pausedAll={pausedAll}
             />
           ))}
+          <AdsAgentCard figures={adsFigures} />
         </section>
 
         <FormSection

@@ -6,6 +6,7 @@
  */
 import { escapeHtml } from "@linkaffipro/core";
 import type { LlmProvider } from "../../types";
+import { allowedNumbers, inventedNumbers } from "../../rules/report-numbers";
 
 export const REPORT_TEAMS = ["dating", "casino", "sports"] as const;
 export type ReportTeam = (typeof REPORT_TEAMS)[number];
@@ -57,10 +58,6 @@ export function buildReportUser(facts: readonly TeamFacts[]): string {
   return ["Tâche : rapport-algo", "Chiffres de la semaine (JSON) :", JSON.stringify(facts)].join("\n");
 }
 
-function numbersOf(s: string): string[] {
-  return (s.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => x.replace(",", "."));
-}
-
 /** Rédaction du modèle (validée) pour chaque équipe ; une équipe invalide est absente du résultat. */
 export function parseReportOutput(raw: string, facts: readonly TeamFacts[]): Partial<Record<ReportTeam, string[]>> {
   const t = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -79,11 +76,9 @@ export function parseReportOutput(raw: string, facts: readonly TeamFacts[]): Par
     const lines = teams[f.team];
     if (!Array.isArray(lines) || !lines.length || lines.length > REPORT_MAX_LINES) continue;
     if (!lines.every((l) => typeof l === "string" && l.trim() && l.length <= REPORT_LINE_MAX && !/[<>]/.test(l))) continue;
-    const allowed = new Set(numbersOf(JSON.stringify(f)).flatMap((n) => [n, String(Math.round(Number(n))), String(Number(n))]));
-    for (const n of numbersOf(JSON.stringify(f))) allowed.add(Number(n).toFixed(1)).add(Number(n).toFixed(2));
-    // « 7 jours », « 5 lignes » : petits nombres de contexte permis.
-    for (let i = 0; i <= 7; i++) allowed.add(String(i));
-    if (!(lines as string[]).every((l) => numbersOf(l).every((n) => allowed.has(n) || allowed.has(String(Number(n)))))) continue;
+    // Contrôle partagé avec l'Agent Ads (rules/report-numbers.ts).
+    const allowed = allowedNumbers(f);
+    if (!(lines as string[]).every((l) => inventedNumbers(l, allowed).length === 0)) continue;
     out[f.team] = (lines as string[]).map((l) => l.trim());
   }
   return out;
