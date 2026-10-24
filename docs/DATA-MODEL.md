@@ -472,3 +472,21 @@ Migration additive `20261024030000_phase25_supervision_conversations`.
 | `Persona.universe` (`dating` par défaut, `casino`, `sports`) | Univers de la persona. Casino et Paris sportifs : identité assistante imposée (jamais « fille » ni mode illusion), règle codée dans le formulaire et le moteur (`packages/core/src/persona-universe.ts`). |
 | `Persona.faq` (JSON `{ q, a }[]`, 40 au plus) | Fiche d'informations : seule source de ce que l'assistante peut affirmer (bonus, dépôt minimum, pays, délais de retrait, VIP), avec la fiche de l'offre ; le reste est transmis à l'équipe. |
 | `Conversation.needsHumanAt` (index), `needsHumanReason` | Conversation « à traiter » par l'équipe (question hors fiche, réclamation, demande d'argent, mineur suspecté, insulte) ; remis à zéro quand l'équipe reprend la main. |
+
+## Phase 26 : Kevin (le Boss) et l'équipe
+
+Migrations additives `20261024114623_phase26_boss` et `20261024121802_phase26_kevin_equipe`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `enum BotRole` (`CHANNEL`, `ADMIN`), `Bot.role` (`CHANNEL` par défaut) | `ADMIN` = Kevin, le bot du dialogue avec l'admin et l'équipe. Jamais choisi pour un canal, un lien, une séquence, un envoi, une page, un compte réel, ni mis en assistant (filtres `CHANNEL_BOT_WHERE` / `ACTIVE_CHANNEL_BOT_WHERE`, `@linkaffipro/db/bot-selectors`). Un seul actif. |
+| `BossTurn` (`role` ADMIN / BOSS, `text` avec `[secret]`, `actionKey`, `status`, `source`, `telegramMessageId`, `costCents`, `chatId`, `fromTelegramId`) | Mémoire de Kevin (20 tours / 24 h envoyés à l'IA) et repère « déjà traité » (pas de double exécution d'une tâche `boss-text` rejouée). |
+| `BossUnmet` (`key` normalisée unique, `text`, `count`, `firstAt`, `lastAt`) | Besoins que Kevin ne sait pas encore couvrir (`pnpm boss:unmet`, page Agents → Kevin). Jamais un secret. |
+| `enum TeamMemberRole` (`ADMIN`, `MANAGER`, `MEMBER`), `TeamMember` (`telegramUserId` unique, `username`, `firstName`, `roleLabel`, `responsibilities` `{ teams, kinds }`, `available`, `awayUntil`, `notes` datées, `startedPrivateAt`, `introducedByTelegramId`, `removedAt`) | Personnes de l'équipe présentées à Kevin ; droits par rôle ; responsable d'une demande selon l'équipe et la nature. |
+| `HumanRequest.assigneeTelegramId`, `HumanRequest.chatId` | À qui la question est adressée (null = l'admin) et où elle a été posée (null = privé de l'admin, sinon le groupe). Le message posé reste `telegramMessageId`. |
+| `AgentValidation.assigneeTelegramId` | Membre à qui la validation est adressée (null = l'admin). |
+
+`Setting` : `boss.name` (« Kevin »), `boss.budget` (`{ monthlyCents }`, 1 000 par défaut), `boss.pending` (confirmation en
+attente, 10 min), `boss.clarify` (liste numérotée d'une précision), `boss.groupChatId`, `boss.group.morning`,
+`boss.group.requests`, `boss.redirected.<botId>`, `boss.nudge.lastDay`, `telegram.webhookCheck`. `AgentUsage` équipe
+`boss`, poste `llm`.
