@@ -455,3 +455,10 @@ Migration additive `20261023220000_phase23_agents_paris` (avec 6 catégories de 
 | `BettingPick` (`BettingPickStatus` PROPOSED / PUBLISHED / SKIPPED / WON / LOST / VOID) | Pari retenu : mission, catégorie (CASCADE), match (identifiant fournisseur, équipes, ligue, coup d'envoi), marché, sélection, ligne, bookmaker, cote retenue, cote de consensus, score d'intérêt, cote à l'envoi, raisonnement chiffré, capture, post, motif d'un pari écarté, résultat et statistiques du match, date de règlement. |
 | `MediaAssetKind.SCREENSHOT`, `MediaAssetOrigin.HUMAN_SITE` / `TEMPLATE` | Capture du site du bookmaker ; image de repli fabriquée quand la capture est impossible (toujours validée par le client). |
 | `PostInsight.betResult` | Résultat du pari publié par un post (WON, LOST, VOID), lu par l'équipe Algorithme. |
+
+## Phase 24 : Agent Ads
+
+Migration additive `20261024010000_phase24_agent_ads` : valeur `RecommendationStatus.DONE` (action faite par le client
+chez Meta / TikTok) et colonnes `Recommendation.action` (STOP / SCALE / TEST / WATCH), `comment`, `doneAt`, `doneById`.
+Recommandations et rapports de l'agent : `teamKey = "ads"` ; seuils `Setting` `agents.ads.thresholds` (par univers :
+coût par inscription cible, retour sur dépense minimal, jours d'observation, dépense minimale).

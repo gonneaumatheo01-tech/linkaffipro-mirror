@@ -634,3 +634,11 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   à une réponse (un chiffre, oui / non, une option) est pris comme réponse ; le reste continue vers les autres
   traitements. Les tests d'intégration du site vident aussi les tables des agents (base de test partagée avec le
   worker).
+
+## Phase 24 — agents IA : Agent Ads (24 octobre 2026)
+
+- **Pas une équipe de production** : l'Agent Ads recommande seulement (aucune fonction d'écriture vers Meta / TikTok
+  n'existe ni n'est accessible) ; ses recommandations sont des `Recommendation` `teamKey = "ads"`, jamais appliquées
+  par le code : le client les marque « Fait » (nouveau statut DONE, `doneAt`, `comment`) ou « Refusé ». Action
+  conseillée dans `Recommendation.action` (STOP, SCALE, TEST, WATCH). Seuils par univers dans `Setting`
+  `agents.ads.thresholds`. Rapports archivés dans `InsightReport` `teamKey = "ads"`.
