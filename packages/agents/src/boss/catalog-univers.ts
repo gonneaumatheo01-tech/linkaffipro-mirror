@@ -78,6 +78,7 @@ type PersonaP = { persona: string };
 
 export const bancEssai = defineAction<PersonaP>({
   key: "banc_essai",
+  check: async (deps, p) => { const r = await resolvePersona(deps, { actionKey: "banc_essai", params: p, field: "persona" }, p.persona); return r.ok ? null : r.reply; },
   description: "Lancer le banc d'essai vidéo d'une persona (compare les réglages, dépense quelques euros)",
   theme: "rencontres",
   cls: "confirm",
@@ -152,6 +153,7 @@ type CategoryP = { categorie: string; active: boolean };
 
 export const categorieParis = defineAction<CategoryP>({
   key: "categorie_paris",
+  check: async (deps, p) => { const r = await resolveBetCategory(deps, { actionKey: "categorie_paris", params: p, field: "categorie" }, p.categorie); return r.ok ? null : r.reply; },
   description: "Activer ou désactiver une catégorie de paris (« active les corners »)",
   theme: "paris",
   cls: "confirm",
@@ -295,6 +297,7 @@ async function nth<T>(list: readonly T[], n: number, empty: string): Promise<{ o
 
 export const appliquerReglage = defineAction<RecoP>({
   key: "appliquer_reglage",
+  check: async (deps, p) => { const r = await nth(await algoProposed(deps), p.numero, "Aucun réglage proposé en attente."); return r.ok ? null : r.reply; },
   description: "Appliquer un réglage proposé par l'équipe Algorithme (numéro de la liste des réglages de la semaine)",
   theme: "algorithme",
   cls: "confirm",
@@ -410,6 +413,7 @@ type TestPostP = { equipe: string; format?: "video" | "photo" | "texte"; persona
 
 export const postTest = defineAction<TestPostP>({
   key: "post_test",
+  check: async (deps, p) => { const t = resolveTeam(p.equipe); if (!t.ok) return t.reply; if (t.value !== "dating" && t.value !== "casino") return { reply: "Post de test : équipe Rencontres ou Casino." }; if (!p.persona) return null; const pe = await resolvePersona(deps, { actionKey: "post_test", params: p, field: "persona" }, p.persona); return pe.ok ? null : pe.reply; },
   description: "Produire un post de test en simulation sur le canal Test (rencontres ou casino ; vidéo, photo ou texte)",
   theme: "tests",
   cls: "confirm",
@@ -442,6 +446,7 @@ type TestBetP = { categorie?: string };
 
 export const pariTest = defineAction<TestBetP>({
   key: "pari_test",
+  check: async (deps, p) => { if (!p.categorie) return null; const c = await resolveBetCategory(deps, { actionKey: "pari_test", params: p, field: "categorie" }, p.categorie); return c.ok ? null : c.reply; },
   description: "Produire un pari de test en simulation (cotes d'essai, aucune vraie mise, canal Test)",
   theme: "tests",
   cls: "confirm",

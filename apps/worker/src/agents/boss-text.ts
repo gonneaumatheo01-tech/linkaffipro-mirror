@@ -10,7 +10,7 @@
  * - Seul l'admin (`Setting` `admin.telegramUserId`) est écouté, en privé.
  */
 import { Api } from "grammy";
-import type { AgentsDeps, AgentsOrchestratorJob, BossDeps, BossInput, BossLlm, BossReply } from "@linkaffipro/agents";
+import type { AgentsDeps, AgentsOrchestratorJob, BossDeps, BossLlm, BossReply, BossTeamInput } from "@linkaffipro/agents";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { BOSS_ERROR_REPLY, deliverBossReply, realBossEngine, type BossEngine, type BossReplyApi } from "@linkaffipro/telegram";
@@ -98,7 +98,7 @@ export type BossTextOutcome = "not-admin" | "already-done" | "interrupted" | "an
 /** Commun au texte (tâche `boss-text`) et au vocal transcrit (`admin-voice`, `source: "voice"`). */
 export async function runBossAiTurn(
   deps: BossTextDeps,
-  job: { botId: string; chatId: number; input: BossInput },
+  job: { botId: string; chatId: number; input: BossTeamInput },
 ): Promise<{ ok: boolean; outcome: BossTextOutcome }> {
   const adminId = await deps.adminTelegramId();
   // Conversation privée : l'identifiant du chat est celui de la personne. Seul l'admin est écouté.
@@ -137,7 +137,12 @@ export async function runBossAiTurn(
   let reply: BossReply;
   let outcome: BossTextOutcome = "answered";
   try {
-    reply = await deps.engine.aiTurn(bossDeps, job.input);
+    // Conversation privée avec l'admin (le chat porte son identifiant).
+    reply = await deps.engine.aiTurn(bossDeps, {
+      ...job.input,
+      speaker: job.input.speaker ?? { kind: "admin", telegramUserId: adminId, firstName: null },
+      chat: job.input.chat ?? { type: "private", chatId: BigInt(job.chatId) },
+    });
   } catch (err) {
     logger.error({ err: (err as Error).message, messageId: job.input.messageId }, "[boss] interprète en erreur");
     reply = { reply: BOSS_ERROR_REPLY };

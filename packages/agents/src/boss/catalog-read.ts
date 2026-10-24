@@ -157,6 +157,7 @@ async function validationLine(deps: BossDeps, n: number): Promise<string> {
 
 export const validerPost = defineAction<NumP>({
   key: "valider_post",
+  check: async (deps, p) => { const v = (await deps.prisma.agentValidation.findUnique({ where: { number: p.numero } })) as { status: string } | null; if (!v) return { reply: `Aucune validation n°${p.numero}.` }; return v.status === "PENDING" ? null : { reply: `Le post n°${p.numero} est déjà traité.` }; },
   description: "Valider un post en attente (il sera publié) par son numéro",
   theme: "demandes",
   cls: "confirm",

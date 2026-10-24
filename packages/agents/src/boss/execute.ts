@@ -12,11 +12,12 @@ import type { BossAction, BossActor, BossDeps, BossPending, BossReply, BossSpeak
 import { BOSS_CATALOG, bossAction, bossActionAllowed } from "./catalog";
 import type { BossExecDeps } from "./catalog-read";
 import { createBossPending } from "./confirm";
+import { checkAction } from "./catalog-kit";
 import { answerQuestion } from "./answer";
 import { interpretBossText, type BossDecision } from "./interpret";
 import { BossBudgetError } from "./llm";
 import { bossTurnForMessage, updateBossTurn, writeBossTurn, type BossTurnStatus } from "./memory";
-import { resolveTeam } from "./resolve";
+import { readClarify, resolveTeam } from "./resolve";
 import { recordBossUnmet } from "./unmet";
 
 export const NO_AI_REPLY =
@@ -25,6 +26,17 @@ export const UNMET_HEAD = "Je ne sais pas encore faire ça.";
 export const SECRET_REMOVED_REPLY =
   "🔒 J'ai retiré ce message : il ressemblait à une clé ou à un mot de passe. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou colle-la seule quand je te la demande.";
 export const NOT_YOURS_REPLY = "Ça, c'est l'admin qui décide.";
+
+/** « jeton boss <valeur> » (enregistrement du bot Boss) : la valeur, ou null (pur). */
+export function bossTokenCommand(text: string): string | null {
+  const m = /^\s*(?:jeton|token)\s+(?:du\s+)?(?:boss|kevin)\s*:?\s+(\S+)\s*$/iu.exec(text);
+  return m ? m[1]! : null;
+}
+
+/** Un jeton de bot Telegram (« 123456789:AAE… ») dans le texte : traité comme un secret (pur). */
+export function looksLikeBotToken(text: string): boolean {
+  return bossTokenCommand(text) !== null || /(?<![\w])\d{6,12}:[A-Za-z0-9_-]{30,}/.test(text);
+}
 
 export function oopsReply(reason: string): string {
   return `Oups, je n'ai pas réussi : ${esc(reason.slice(0, 120))}. Réessaie ou écris aide.`;
@@ -86,8 +98,14 @@ export async function runBossAction(
     await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
     return { reply: NOT_YOURS_REPLY, status: "refused" };
   }
+  const before = await readClarify(deps);
   const cls = action.classify ? await action.classify(deps, params) : action.cls;
   if (cls === "confirm") {
+    const blocked = await checkAction(deps, action, params);
+    if (blocked) {
+      await audit(deps, action.key, ctx.actor, { status: "clarify", params: safeParams(params) }, ctx.speaker);
+      return { ...blocked, status: "clarify" };
+    }
     const summary = action.summarize ? await action.summarize(deps, params) : `${action.description} ?`;
     const r = await createBossPending(deps, { actionKey: action.key, params, summary });
     await audit(deps, action.key, ctx.actor, { status: "confirm", params: safeParams(params) }, ctx.speaker);
@@ -95,8 +113,11 @@ export async function runBossAction(
   }
   const execDeps: BossExecDeps = { ...deps, inputText: ctx.inputText };
   const r = await action.execute(execDeps, params, ctx.actor);
-  await audit(deps, action.key, ctx.actor, { status: "done", params: safeParams(params) }, ctx.speaker);
-  return { ...r, status: "done" };
+  // Nom ambigu : l'entrée a posé une question numérotée au lieu d'agir.
+  const after = await readClarify(deps);
+  const status: BossTurnStatus = after && after.createdAt !== before?.createdAt ? "clarify" : "done";
+  await audit(deps, action.key, ctx.actor, { status, params: safeParams(params) }, ctx.speaker);
+  return { ...r, status };
 }
 
 /** Action confirmée par OUI : revalidée par le code, puis exécutée (bornes revérifiées par l'entrée). */
@@ -202,7 +223,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     const chatId = input.chat?.chatId ?? null;
     const fromId = input.speaker?.telegramUserId ?? null;
     // Filet : un secret n'atteint JAMAIS l'IA (le chemin rapide l'a déjà traité ; un vocal n'en est jamais un).
-    if (input.source !== "voice" && isSecretAdminText(text, secretContext)) {
+    if (input.source !== "voice" && (isSecretAdminText(text, secretContext) || looksLikeBotToken(text))) {
       await writeBossTurn(deps, { role: "ADMIN", text, secret: true, source: input.source, telegramMessageId: input.messageId, chatId, fromTelegramId: fromId });
       await writeBossTurn(deps, { role: "BOSS", text: SECRET_REMOVED_REPLY, status: "refused", actionKey: "secret", telegramMessageId: input.messageId, chatId });
       return { reply: SECRET_REMOVED_REPLY, deleteMessage: true };

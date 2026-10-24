@@ -56,8 +56,8 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
       <AgentsNav current="boss" isAdmin={isAdmin} pending={pending.validations + pending.requests} />
       <PageHeader
         title={name}
-        description={`${name} est votre bot sur Telegram : parlez-lui comme à un collègue. Il répond avec les vrais chiffres, fait ce que vous demandez et vous demande « OUI » avant tout ce qui dépense ou publie.`}
-        help={`Pour démarrer, écrivez « commencer » à ${name} : il dit ce qui manque et pose les questions une par une. « aide » liste tout ce qu'il sait faire.`}
+        description={`${name} est votre bot sur Telegram : parlez-lui comme à un collègue. Il répond avec les vrais chiffres, fait ce que vous demandez et vous demande « OUI » avant tout ce qui dépense ou publie.`}
+        help={`Pour démarrer, écrivez « commencer » à ${name} : il dit ce qui manque et pose les questions une par une. « aide » liste tout ce qu'il sait faire.`}
         meta={
           bot ? (
             <StatusPill tone={bot.isActive ? "success" : "muted"}>{bot.isActive ? "En service" : "Désactivé"}</StatusPill>
@@ -91,15 +91,15 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
           ) : (
             <ol className="list-decimal space-y-2 pl-5 text-body text-foreground">
               <li>
-                Dans Telegram, ouvrez <span className="font-medium">@BotFather</span>, envoyez <code>/newbot</code>, nommez-le « {name} »
-                puis choisissez un identifiant qui finit par « bot ». Copiez le jeton.
+                Dans Telegram, ouvrez <span className="font-medium">@BotFather</span>, envoyez <code>/newbot</code>, nommez-le « {name} »
+                puis choisissez un identifiant qui finit par « bot ». Copiez le jeton.
               </li>
               <li>
                 Envoyez au bot actuel <code>jeton boss</code> suivi du jeton (il efface votre message), ou collez-le dans{" "}
                 <Link href="/settings/bots" className="text-info underline">
                   Réglages → Bots
                 </Link>{" "}
-                → Ajouter un bot → Rôle « Boss ».
+                → Ajouter un bot → Rôle « Boss ».
               </li>
               <li>
                 Ouvrez le nouveau bot, appuyez sur <span className="font-medium">Démarrer</span>, puis écrivez <code>commencer</code>.
@@ -124,7 +124,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
 
         <FormSection
           title="Ce que coûte son intelligence ce mois"
-          description="Les commandes exactes (« agents », « pause casino », « ok 12 ») sont gratuites ; seules les phrases libres font appel à l'IA."
+          description="Les commandes exactes (« agents », « pause casino », « ok 12 ») sont gratuites ; seules les phrases libres font appel à l'IA."
         >
           <div className="space-y-2">
             <p className="text-body text-foreground">
@@ -182,7 +182,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
             <EmptyState
               icon={<Users />}
               title="Personne n'est encore présenté"
-              description={`Ajoutez ${name} au groupe Telegram de l'équipe, puis présentez chacun en une phrase : « ${name}, voici @lea, elle s'occupe des vidéos casino ».`}
+              description={`Ajoutez ${name} au groupe Telegram de l'équipe, puis présentez chacun en une phrase : « ${name}, voici @lea, elle s'occupe des vidéos casino ».`}
             />
           ) : (
             <DataTable
@@ -259,7 +259,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
 
         <FormSection
           title="Derniers échanges"
-          description="Les 50 derniers messages, les plus récents d'abord. Une clé ou un mot de passe n'y apparaît jamais : il est remplacé par « [secret] »."
+          description="Les 50 derniers messages, les plus récents d'abord. Une clé ou un mot de passe n'y apparaît jamais : il est remplacé par « [secret] »."
         >
           <DataTable
             label="Derniers échanges"
@@ -287,7 +287,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
             empty={{
               icon: <MessageCircle />,
               title: "Aucun échange encore",
-              description: `Écrivez « commencer » à ${name} sur Telegram.`,
+              description: `Écrivez « commencer » à ${name} sur Telegram.`,
             }}
           />
         </FormSection>

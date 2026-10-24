@@ -22,6 +22,7 @@ import { cn } from "@/components/ui/cn";
 import { fmtDate, fmtNum } from "@/lib/format";
 import { requireAdminPage } from "@/lib/session";
 import { getSystemStatus } from "@/lib/status/queries";
+import { bossHealthView, webhookCheckLine } from "@/lib/status/boss";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 import { botCheck, healthSummary, healthTiles, syncRowState } from "@/lib/status/health";
 import {
@@ -287,6 +288,20 @@ export default async function StatusPage({ searchParams }: PageProps<"/settings/
               </Link>
             }
           >
+            {(() => {
+              const v = bossHealthView(s.boss, now);
+              return (
+                <div className="mb-4 space-y-1">
+                  <p className="flex flex-wrap items-center gap-2 text-body">
+                    <StatusPill tone={v.tone}>{v.label}</StatusPill>
+                    <span className="text-muted-foreground">{v.detail}</span>
+                  </p>
+                  <p className="text-note text-muted-foreground">
+                    {webhookCheckLine(s.boss.webhookCheck, (d) => fmtDate(d))}
+                  </p>
+                </div>
+              );
+            })()}
             <DataTable
               label="Connexion Telegram des bots"
               columns={[

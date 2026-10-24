@@ -14,7 +14,7 @@ import {
   voiceToAdminText,
   type AgentsDeps,
   type AgentsOrchestratorJob,
-  type BossInput,
+  type BossTeamInput,
   type Transcriber,
 } from "@linkaffipro/agents";
 import { BOSS_ERROR_REPLY, deliverBossReply, realBossEngine, type BossEngine } from "@linkaffipro/telegram";
@@ -154,12 +154,14 @@ async function bossVoiceTurn(
     return { ok: false, outcome: "secret-refused" };
   }
   await say(`🎧 J'ai compris : "${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}".`);
-  const input: BossInput = {
+  const input: BossTeamInput = {
     text,
     spokenText: spokenForConfirm(transcript ?? ""),
     messageId: job.messageId,
     replyToMessageId: job.replyToMessageId ?? null,
     source: "voice",
+    speaker: { kind: "admin", telegramUserId: BigInt(job.chatId), firstName: null },
+    chat: { type: "private", chatId: BigInt(job.chatId) },
   };
   let fast: Awaited<ReturnType<BossEngine["fastPath"]>>;
   try {

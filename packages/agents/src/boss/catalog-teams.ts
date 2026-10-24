@@ -19,6 +19,21 @@ import { bool, int, num, oneOf, str } from "./params";
 import { checkCap, checkLevel, checkQuota, resolveChannel, resolvePersona, resolveTeam, teamOf, type ChannelRef } from "./resolve";
 import { stateFacts } from "./facts";
 
+/** Contrôles avant confirmation : nom retrouvé (sinon question ou « je ne trouve pas »). */
+async function teamCheck(raw: string): Promise<BossReply | null> {
+  const r = resolveTeam(raw);
+  if (!r.ok) return r.reply;
+  return r.value === "all" ? { reply: "Une seule équipe à la fois, s'il te plaît." } : null;
+}
+async function channelCheck(deps: BossDeps, actionKey: string, params: object, field: string, raw: string): Promise<BossReply | null> {
+  const r = await resolveChannel(deps, { actionKey, params: params as Record<string, unknown>, field }, raw);
+  return r.ok ? null : r.reply;
+}
+async function personaCheck(deps: BossDeps, actionKey: string, params: object, raw: string): Promise<BossReply | null> {
+  const r = await resolvePersona(deps, { actionKey, params: params as Record<string, unknown>, field: "persona" }, raw);
+  return r.ok ? null : r.reply;
+}
+
 const TEAM_DESC = "Équipe nommée par l'admin : rencontres (dating), casino, paris sportifs, algorithme";
 
 type TeamP = { equipe: string };
@@ -113,6 +128,7 @@ async function currentLevel(deps: BossDeps, t: TeamKey): Promise<0 | 1 | 2> {
 
 export const niveau = defineAction<LevelP>({
   key: "niveau",
+  check: (_d, p) => teamCheck(p.equipe),
   description: "Changer le niveau d'autonomie d'une équipe : 0 je valide tout, 1 je valide les nouveautés, 2 autonomie totale",
   theme: "equipes",
   cls: "confirm",
@@ -121,7 +137,7 @@ export const niveau = defineAction<LevelP>({
   async classify(deps, p): Promise<BossActionClass> {
     const t = teamOf(p.equipe);
     if (!t || t === "all") return "immediate";
-    return p.niveau < (await currentLevel(deps, t)) ? "immediate" : "confirm";
+    return p.niveau <= (await currentLevel(deps, t)) ? "immediate" : "confirm";
   },
   async summarize(deps, p) {
     const t = teamOf(p.equipe) as TeamKey;
@@ -142,6 +158,7 @@ type SimP = { equipe: string; mode: "simulation" | "vrai" };
 
 export const simulation = defineAction<SimP>({
   key: "simulation",
+  check: (_d, p) => teamCheck(p.equipe),
   description: "Passer une équipe en vrai (posts sur les vrais canaux) ou la remettre en simulation (canal Test)",
   theme: "equipes",
   cls: "confirm",
@@ -174,6 +191,7 @@ async function currentCap(deps: BossDeps, t: TeamKey, provider: ProviderKey): Pr
 
 export const plafond = defineAction<CapP>({
   key: "plafond",
+  check: (_d, p) => teamCheck(p.equipe),
   description: "Changer le plafond mensuel d'une équipe pour un poste (vidéo, image, IA, cotes, captures), en euros",
   theme: "equipes",
   cls: "confirm",
@@ -223,6 +241,7 @@ async function maxPosts(deps: BossDeps): Promise<number> {
 
 export const quotaPosts = defineAction<QuotaP>({
   key: "quota_posts",
+  check: async (deps, p) => { const err = checkQuota(p.posts_par_jour, await maxPosts(deps)); if (err) return { reply: err }; const t = await quotaTarget(deps, p); return t.ok ? null : t.reply; },
   description: "Changer le nombre de posts par jour d'un canal (ou de tous les canaux d'une équipe)",
   theme: "canaux",
   cls: "confirm",
@@ -270,6 +289,7 @@ type PlanP = { canal: string; actif: boolean };
 
 export const planCanal = defineAction<PlanP>({
   key: "plan_canal",
+  check: (deps, p) => channelCheck(deps, "plan_canal", p, "canal", p.canal),
   description: "Activer ou désactiver le travail des agents sur un canal",
   theme: "canaux",
   cls: "confirm",
@@ -298,6 +318,7 @@ type PersonaP = { canal: string; persona: string };
 
 export const personaCanal = defineAction<PersonaP>({
   key: "persona_canal",
+  check: async (deps, p) => (await channelCheck(deps, "persona_canal", p, "canal", p.canal)) ?? personaCheck(deps, "persona_canal", p, p.persona),
   description: "Choisir la persona (le personnage) d'un canal Rencontres",
   theme: "canaux",
   cls: "confirm",
@@ -320,6 +341,7 @@ type MixP = { canal: string; video: number; photo: number; texte: number };
 
 export const melangeCanal = defineAction<MixP>({
   key: "melange_canal",
+  check: (deps, p) => channelCheck(deps, "melange_canal", p, "canal", p.canal),
   description: "Changer le mélange vidéo / photo / texte des posts d'un canal (parts relatives)",
   theme: "canaux",
   cls: "confirm",

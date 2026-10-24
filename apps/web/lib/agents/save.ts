@@ -5,10 +5,9 @@
  * Pause, niveau, simulation, validations, demandes et clés passent par `@linkaffipro/agents` (qui journalise).
  */
 import { audit, prisma, type Prisma } from "@linkaffipro/db";
-import type { ProviderKey, TeamKey } from "@linkaffipro/agents";
+import { saveChannelPlanFor, type AgentsDeps, type ProviderKey, type TeamKey } from "@linkaffipro/agents";
 import type { AgentsSettingsInput, ChannelPlanInput, TeamSettingsInput } from "./forms";
 import { mergeDatingSettings, parseDatingSettings, type DatingMediaSettings } from "./dating";
-import { TEAM_VERTICAL } from "./teams";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -97,51 +96,19 @@ export type PlanSaveResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Plan d'un canal : le canal doit être de l'univers de l'équipe (ou le canal Test) ; persona et campagne doivent
- * exister. Un canal n'a qu'un plan (`ChannelAgentPlan.channelId` unique).
+ * exister. Un canal n'a qu'un plan (`ChannelAgentPlan.channelId` unique). Une seule logique avec le Boss (phase 26) :
+ * `saveChannelPlanFor` de `@linkaffipro/agents` (contrôles, enregistrement et `AuditLog`).
  */
 export async function saveChannelPlan(team: TeamKey, input: ChannelPlanInput, userId: string): Promise<PlanSaveResult> {
-  const vertical = TEAM_VERTICAL[team];
-  if (!vertical) return { ok: false, error: "L'équipe Algorithme ne publie sur aucun canal." };
-  const channel = await prisma.channel.findUnique({
-    where: { id: input.channelId },
-    select: { id: true, vertical: true, isTest: true },
-  });
-  if (!channel || (channel.vertical !== vertical && !channel.isTest))
-    return { ok: false, error: "Ce canal n'est pas un canal de cette équipe." };
-  // Rencontres (phase 20) : chaque post est fait pour un personnage, un plan activé exige sa persona.
-  if (team === "dating" && input.enabled && !input.personaId)
-    return { ok: false, error: "Choisissez la persona du canal : elle est obligatoire pour un canal Rencontres." };
-  if (input.personaId && !(await prisma.persona.findUnique({ where: { id: input.personaId }, select: { id: true } })))
-    return { ok: false, error: "Persona introuvable : rechargez la page." };
-  if (input.campaignId && !(await prisma.campaign.findUnique({ where: { id: input.campaignId }, select: { id: true } })))
-    return { ok: false, error: "Campagne introuvable : rechargez la page." };
-  const data = {
-    teamKey: team,
-    enabled: input.enabled,
-    postsPerDay: input.postsPerDay,
-    windowStart: input.windowStart,
-    windowEnd: input.windowEnd,
-    minSpacingMinutes: input.minSpacingMinutes,
-    mix: json(input.mix),
-    personaId: input.personaId,
-    campaignId: input.campaignId,
-    themes: json(input.themes),
-    updatedById: userId,
-  };
-  await prisma.channelAgentPlan.upsert({
-    where: { channelId: input.channelId },
-    create: { channelId: input.channelId, ...data },
-    update: data,
-  });
-  await audit({
-    userId,
-    action: "agents.channel_plan_saved",
-    entityType: "ChannelAgentPlan",
-    entityId: input.channelId,
-    metadata: { teamKey: team, ...input, channelId: undefined },
-  });
-  return { ok: true };
+  const deps = { prisma: prisma as unknown as AgentsDeps["prisma"], enqueue: NO_ENQUEUE };
+  return saveChannelPlanFor(deps, team, input, { userId, via: "SITE" });
 }
+
+/** L'enregistrement d'un plan ne met rien en file (le Grand Chef relit les plans à son passage). */
+const NO_ENQUEUE: AgentsDeps["enqueue"] = {
+  async orchestrator() {},
+  async step() {},
+};
 
 async function putSetting(key: string, value: unknown): Promise<void> {
   await prisma.setting.upsert({ where: { key }, create: { key, value: json(value) }, update: { value: json(value) } });

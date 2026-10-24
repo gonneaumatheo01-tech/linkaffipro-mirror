@@ -8,7 +8,7 @@ import {
   isSecretAdminText,
   rememberEditPrompt,
   BOSS_DEFAULT_NAME,
-  type BossInput,
+  type BossTeamInput,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
 import { htmlToPlain } from "../agents/admin-messenger";
@@ -166,13 +166,15 @@ async function handleDialogText(ctx: Context, identity: BotIdentity, deps: Teleg
   }
   const agents = deps.agentsDeps!();
   const engine = engineOf(deps);
-  const input: BossInput = {
+  const input: BossTeamInput = {
     text,
     messageId: msg.message_id,
     replyToMessageId: msg.reply_to_message?.message_id ?? null,
     source: "text",
     entities: msg.entities ?? null,
     ...(forwarded ? { forwarded: true } : {}),
+    speaker: { kind: "admin", telegramUserId: BigInt(fromId), firstName: ctx.from?.first_name ?? null },
+    chat: { type: "private", chatId: BigInt(chatId) },
   };
   let fast: Awaited<ReturnType<BossEngine["fastPath"]>>;
   try {

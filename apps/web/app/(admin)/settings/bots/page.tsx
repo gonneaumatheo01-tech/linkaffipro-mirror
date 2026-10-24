@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import { VERTICALS } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
+import { BOSS_DEFAULT_NAME, BOSS_NAME_SETTING } from "@linkaffipro/agents";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
@@ -58,6 +59,10 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
       select: { id: true, name: true, isActive: true },
     }),
   ]);
+  // Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut).
+  const bossSetting = await prisma.setting.findUnique({ where: { key: BOSS_NAME_SETTING } });
+  const bossName =
+    typeof bossSetting?.value === "string" && bossSetting.value.trim() ? bossSetting.value.trim() : BOSS_DEFAULT_NAME;
   const webhooks = await Promise.all(
     bots.map((b) => (b.isActive ? liveWebhook(b.id) : Promise.resolve(null))),
   );
@@ -96,7 +101,17 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vertical">Univers</Label>
+          <Label htmlFor="role">Rôle</Label>
+          <NativeSelect id="role" name="role" defaultValue="CHANNEL" wrapperClassName="w-full">
+            <option value="CHANNEL">Bot de canal (accueille les membres, publie)</option>
+            <option value="ADMIN">{`Boss (administration) : ${bossName}, qui parle seulement avec vous`}</option>
+          </NativeSelect>
+          <p className="text-note text-muted-foreground">
+            {`Le Boss est un bot à part, créé exprès dans @BotFather : ${bossName} répond à vos messages, ne publie rien et ne parle à personne d'autre. Un seul à la fois.`}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vertical">Univers (bot de canal)</Label>
           <NativeSelect id="vertical" name="vertical" required wrapperClassName="w-full">
             {VERTICALS.map((v) => (
               <option key={v} value={v}>
@@ -158,6 +173,9 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                 <span className="flex flex-col items-start gap-1">
                   <span>{b.name}</span>
                   <span className="text-note font-normal text-muted-foreground">@{b.username}</span>
+                  {b.role === "ADMIN" ? (
+                    <StatusPill tone="info">{`Boss (${bossName})`}</StatusPill>
+                  ) : null}
                   {b.mode === "ASSISTANT" ? (
                     <span className="flex flex-wrap items-center gap-1">
                       <StatusBadge kind="botMode" value={b.mode} />
@@ -215,7 +233,14 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                   <DetailRow label="Univers">
                     <UniverseDot universe={b.vertical} withLabel />
                   </DetailRow>
-                  <DetailRow label="Mode">{botModeSummary(b.mode, b.persona)}</DetailRow>
+                  <DetailRow label="Rôle">
+                    {b.role === "ADMIN"
+                      ? `Boss (${bossName}) : parle seulement avec l'administrateur`
+                      : "Bot de canal"}
+                  </DetailRow>
+                  {b.role === "ADMIN" ? null : (
+                    <DetailRow label="Mode">{botModeSummary(b.mode, b.persona)}</DetailRow>
+                  )}
                   <DetailRow label="Canaux administrés">{fmtNum(b._count.channelAdmins)}</DetailRow>
                   <DetailRow label="Membres">{fmtNum(b._count.memberStates)}</DetailRow>
                   <DetailRow label="Dernier signal">{fmtDate(b.lastWebhookAt)}</DetailRow>
@@ -255,7 +280,7 @@ export default async function BotsPage({ searchParams }: PageProps<"/settings/bo
                   ) : null}
                 </div>
 
-                {isAdmin ? (
+                {isAdmin && b.role !== "ADMIN" ? (
                   <div className="border-t border-border pt-4">
                     <BotModeForm
                       bot={{

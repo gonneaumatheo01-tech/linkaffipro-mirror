@@ -11,7 +11,9 @@ import {
   type Heartbeat,
   type QueueCounts,
 } from "@linkaffipro/queue";
-import { getWebhookInfoForBot, webhookUrlFor } from "@linkaffipro/telegram";
+import { WEBHOOK_CHECK_SETTING, getWebhookInfoForBot, webhookUrlFor } from "@linkaffipro/telegram";
+import { getQueue } from "@linkaffipro/queue";
+import { BOSS_TEXT_JOB_NAME, parseWebhookCheck, type BossHealth } from "@/lib/status/boss";
 import { withRedis } from "@/lib/redis";
 import { eventLabel } from "@/lib/journal/event-labels";
 import { VISIBLE_EVENT_WHERE } from "@/lib/journal/events";
@@ -79,7 +81,31 @@ export type SystemStatus = {
   }>;
   backup: BackupInfo;
   botActivity: BotActivity;
+  /** Phase 26 : le Boss répond-il encore, dernier contrôle des connexions Telegram. */
+  boss: BossHealth;
 };
+
+/** Phase 26 : tâches `boss-text` en attente et en échec (24 h), dernier contrôle des webhooks. Ne lève jamais. */
+export async function bossHealth(now = new Date()): Promise<BossHealth> {
+  const checkRow = await prisma.setting.findUnique({ where: { key: WEBHOOK_CHECK_SETTING } }).catch(() => null);
+  const webhookCheck = parseWebhookCheck(checkRow?.value);
+  try {
+    const q = getQueue("agents-orchestrator");
+    const [waiting, failed] = await Promise.all([
+      q.getJobs(["waiting", "prioritized", "delayed"], 0, 200, true),
+      q.getJobs(["failed"], 0, 200, false),
+    ]);
+    return {
+      waiting: waiting.filter((j) => j?.name === BOSS_TEXT_JOB_NAME).map((j) => new Date(j.timestamp)),
+      failed24h: failed.filter(
+        (j) => j?.name === BOSS_TEXT_JOB_NAME && (j.finishedOn ?? 0) > now.getTime() - 86_400_000,
+      ).length,
+      webhookCheck,
+    };
+  } catch (err) {
+    return { waiting: [], failed24h: 0, webhookCheck, error: (err as Error).message };
+  }
+}
 
 /** Course contre la montre : les files BullMQ utilisent la connexion partagée, qui attend indéfiniment si Redis est absent. */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -235,7 +261,7 @@ export async function getHealthInput(now = new Date()): Promise<HealthInput> {
 }
 
 export async function getSystemStatus(now = new Date()): Promise<SystemStatus> {
-  const [health, queues, failedJobs, activity] = await Promise.all([
+  const [health, queues, failedJobs, activity, boss] = await Promise.all([
     getHealthInput(now),
     withTimeout(queueCounts(), 5000, "Files")
       .then((counts) => ({ counts }))
@@ -257,6 +283,9 @@ export async function getSystemStatus(now = new Date()): Promise<SystemStatus> {
       byType: [],
       error: e.message,
     })),
+    withTimeout(bossHealth(now), 5000, "Files").catch(
+      (e: Error): BossHealth => ({ waiting: [], failed24h: 0, webhookCheck: null, error: e.message }),
+    ),
   ]);
-  return { ...health, queues, failedJobs, botActivity: activity };
+  return { ...health, queues, failedJobs, botActivity: activity, boss };
 }

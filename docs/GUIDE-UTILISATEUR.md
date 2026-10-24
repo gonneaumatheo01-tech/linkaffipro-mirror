@@ -1067,7 +1067,7 @@ Dix exemples de phrases :
 3. « combien j'ai dépensé ce mois ? »
 4. « qu'est-ce qui attend ma réponse ? »
 5. « mets le casino en pause » / « reprends le casino »
-6. « passe le dating en vrai »
+6. « passe les rencontres en vrai »
 7. « passe à cinq posts par jour sur Léa »
 8. « active les corners »
 9. « t'as réussi à te connecter à Sportaza ? »

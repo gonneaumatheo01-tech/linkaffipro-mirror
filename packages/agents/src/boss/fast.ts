@@ -21,19 +21,13 @@ import { BOSS_TOKEN_SECRET_KEY, bossRegisterPort } from "./register-port";
 import type { BossDeps, BossFastResult, BossReply, BossTeamInput } from "./contract";
 import { bossAction } from "./catalog";
 import { NOTHING_TO_CANCEL, NOTHING_TO_CONFIRM, confirmWordOf, readBossPending, resolveBossPending } from "./confirm";
-import { bossActorOf, bossSecretContext, oopsReply, runBossAction, SECRET_REMOVED_REPLY, NOT_YOURS_REPLY } from "./execute";
+import { bossActorOf, bossSecretContext, bossTokenCommand, looksLikeBotToken, oopsReply, runBossAction, SECRET_REMOVED_REPLY, NOT_YOURS_REPLY } from "./execute";
 import { writeBossTurn, type BossTurnStatus } from "./memory";
 import { clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
 
 export const FORWARDED_REPLY =
   "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
-
-/** « jeton boss <valeur> » (enregistrement du bot Boss) : la valeur, ou null. */
-export function bossTokenCommand(text: string): string | null {
-  const m = /^\s*(?:jeton|token)\s+(?:du\s+)?(?:boss|kevin)\s*:?\s+(\S+)\s*$/iu.exec(text);
-  return m ? m[1]! : null;
-}
 
 const ORDER_VERBS =
   /^(mets?|met|passe|passer|active|activer|desactive|desactiver|arrete|arreter|stop|pause|reprends?|reprendre|lance|lancer|change|changer|monte|baisse|augmente|diminue|annule|annuler|supprime|envoie|envoyer|montre|donne|dis|fais|fait|produis|teste|tester|valide|refuse|corrige|ajoute|retire|enleve|coupe|relance|applique|appliquer|cree|creer|liste|affiche|explique|combien|c'est quoi|quel|quelle|quels|quelles|est-ce|pourquoi|comment|ou en|t'as|tu as|tu peux|peux-tu|kevin)\b/u;
@@ -125,7 +119,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       await remember(deps, input, r, { secret: true, actionKey: "jeton_boss", status: "done" });
       return { handled: true, ...r };
     }
-    if (isSecretAdminText(text, ctx) || bossTokenCommand(text)) {
+    if (isSecretAdminText(text, ctx) || looksLikeBotToken(text)) {
       // Un message transféré qui contient une clé : retiré, jamais rangé (c'est une donnée).
       const handled = input.forwarded ? null : await handleAdminText(deps, { text, messageId: input.messageId, replyToMessageId: replyTo, source: "text", entities: input.entities });
       const r: BossReply = handled?.handled ? { ...fromAdmin(handled), deleteMessage: true } : { reply: SECRET_REMOVED_REPLY, deleteMessage: true };
@@ -261,3 +255,4 @@ export async function bossFastPath(deps: BossDeps, input: BossTeamInput): Promis
     return { handled: true, reply: oopsReply((err as Error).message || "erreur interne") };
   }
 }
+

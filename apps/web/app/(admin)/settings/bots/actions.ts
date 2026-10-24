@@ -6,7 +6,10 @@ import { z } from "zod";
 import { isVertical } from "@linkaffipro/core";
 import { prisma, audit } from "@linkaffipro/db";
 import {
+  BossRegisterError,
+  bossRegisteredText,
   evictBot,
+  registerBossFromToken,
   registerBotFromToken,
   setAssistantProfile,
   setWebhookForBot,
@@ -20,10 +23,30 @@ function back(params: Record<string, string>): never {
   redirect(`/settings/bots?${new URLSearchParams(params).toString()}`);
 }
 
-/** Ajouter un bot en collant son jeton (ADMIN seulement : les jetons sont sensibles). */
+/**
+ * Ajouter un bot en collant son jeton (ADMIN seulement : les jetons sont sensibles). Phase 26 : rôle « Boss
+ * (administration) » → `registerBossFromToken` (même code que « jeton boss » par Telegram ; un seul Boss à la fois).
+ */
 export async function addBotAction(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const token = String(formData.get("token") ?? "").trim();
+  const role = String(formData.get("role") ?? "CHANNEL");
+  if (role === "ADMIN") {
+    try {
+      const r = await registerBossFromToken(token, { userId: user.id, via: "SITE" });
+      revalidatePath("/settings/bots");
+      const replaced = r.replaced.length ? ` L'ancien Boss (@${r.replaced.join(", @")}) est désactivé.` : "";
+      back({ ok: `${bossRegisteredText(r.username)}${replaced}` });
+    } catch (err) {
+      if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+      back({
+        error:
+          err instanceof BossRegisterError || err instanceof Error
+            ? err.message
+            : "Échec de l'enregistrement du Boss.",
+      });
+    }
+  }
   const vertical = String(formData.get("vertical") ?? "");
   if (!isVertical(vertical))
     back({ error: "Choisissez un univers (casino, paris sportifs ou rencontres)." });
@@ -124,9 +147,12 @@ export async function setBotModeAction(formData: FormData): Promise<void> {
   const personaId = mode === "ASSISTANT" ? parsed.data.personaId : null;
   const bot = await prisma.bot.findUnique({
     where: { id: botId },
-    select: { id: true, username: true, mode: true, personaId: true },
+    select: { id: true, username: true, mode: true, personaId: true, role: true },
   });
   if (!bot) back({ error: "Bot introuvable." });
+  // Phase 26 : le Boss ne parle qu'à l'administrateur, jamais en assistant de conversation.
+  if (bot.role === "ADMIN" && mode === "ASSISTANT")
+    back({ error: "Ce bot est le Boss : il parle seulement avec l'administrateur et ne peut pas devenir assistant de conversation." });
   // Garde-fou : un bot qui gère des canaux n'en deviendrait pas moins absent pour eux (accueil, demandes d'adhésion).
   if (mode === "ASSISTANT" && bot.mode !== "ASSISTANT") {
     const channelCount = await prisma.channelBotAdmin.count({

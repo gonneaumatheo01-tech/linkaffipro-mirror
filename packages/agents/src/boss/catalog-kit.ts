@@ -17,12 +17,25 @@ export type ActionDef<P> = {
   refine?: (p: P) => string | null;
   classify?(deps: BossDeps, params: P): Promise<BossActionClass>;
   summarize?(deps: BossDeps, params: P): Promise<string>;
+  /**
+   * Contrôle avant une confirmation : noms à retrouver (question numérotée si ambigus), bornes. Rend une réponse si
+   * l'action ne peut pas être proposée telle quelle, sinon null.
+   */
+  check?(deps: BossDeps, params: P): Promise<BossReply | null>;
   execute(deps: BossDeps, params: P, actor: BossActor): Promise<BossReply>;
 };
 
 /** Entrée du catalogue : `params` (schéma envoyé à l'IA) et `parse` viennent de la même spécification. */
+const CHECKS = new WeakMap<object, (deps: BossDeps, params: never) => Promise<BossReply | null>>();
+
+/** Contrôle avant confirmation d'une entrée (voir `ActionDef.check`), ou null. */
+export async function checkAction(deps: BossDeps, action: BossAction, params: Record<string, unknown>): Promise<BossReply | null> {
+  const fn = CHECKS.get(action);
+  return fn ? fn(deps, params as never) : null;
+}
+
 export function defineAction<P>(def: ActionDef<P>): BossAction<P> {
-  return {
+  const action: BossAction<P> = {
     key: def.key,
     description: def.description,
     theme: def.theme,
@@ -38,6 +51,8 @@ export function defineAction<P>(def: ActionDef<P>): BossAction<P> {
     ...(def.summarize ? { summarize: def.summarize } : {}),
     execute: def.execute,
   };
+  if (def.check) CHECKS.set(action, def.check as (deps: BossDeps, params: never) => Promise<BossReply | null>);
+  return action;
 }
 
 export function actorRef(actor: BossActor): ActorRef {
