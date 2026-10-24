@@ -1,3 +1,48 @@
+# État du projet : phase 26 (Kevin, le Boss) terminée (24 octobre 2026)
+
+Phases 0 à 26 en ligne. Phase 26 (`docs/prompts/28-phase-26-boss-telegram.md`) : un seul bot, **Kevin**, à qui l'on parle en français ordinaire (texte ou vocal). Il répond toujours, donne les vrais chiffres, exécute les ordres en demandant confirmation quand il faut, guide le démarrage, et travaille dans le groupe Telegram de l'équipe. Il ne fait rien de nouveau par lui-même : il pilote ce qui existe (phases 19 à 25). **Les équipes restent en simulation.**
+
+## La panne du dialogue (cause et réparation)
+- Depuis le 21 octobre, Telegram recevait « 403 » de notre site pour @casinogamblingoobot : le secret d'accès posé chez Telegram ne correspondait plus à celui de la base (cause la plus probable : un script local relancé contre la production). Les messages de l'admin n'arrivaient plus (« Oui », « Comment ça ? Ça marche pas ? »).
+- Réparé le 24 octobre ; le script dangereux est supprimé ; la pose d'un webhook depuis une base locale vers la production est refusée ; le worker contrôle les webhooks toutes les 10 minutes et les répare seul (alerte si cela se répète).
+- Second défaut corrigé : un message que le bot ne comprenait pas ne recevait aucune réponse. Désormais, chaque message de l'admin reçoit une réponse.
+- `pnpm tg:diag` (local, et `railway ssh --service web -- pnpm tg:diag`) affiche tout le circuit ligne par ligne.
+
+## Fait
+- **Kevin** (`Bot.role = ADMIN`) : créé en envoyant son jeton au bot actuel (`jeton boss …`) ou dans Réglages → Bots (rôle « Boss »). Tant qu'il n'existe pas, le bot casino fait office de Kevin. Une fois créé, les bots de canal renvoient l'admin vers lui une seule fois et n'obéissent plus.
+- **Comprendre et agir** : catalogue fermé de 51 actions (état, rapport, dépenses et projection, résultats, demandes, validations, pause, niveau, simulation / vrai, plafonds, quotas, plan des canaux, personas, stocks, thèmes, catégories de paris, bookmaker, réglages de l'Algorithme, recommandations Ads, posts et paris de test, équipe…). L'IA ne fait que choisir une action ; le code vérifie et exécute par les fonctions existantes ; tout est journalisé.
+- **Confirmations** : ce qui publie, dépense, passe en vrai ou monte un plafond / niveau / quota → résumé en 2 lignes + OUI / NON (10 minutes, une seule à la fois). Les commandes d'avant (`agents`, `pause casino`, `ok 12`, `clé fal …`, `demandes`, `rapport`…) marchent toujours, sans IA.
+- **Chiffres vrais** : tirés des fonctions existantes ; un chiffre absent des données est refusé (le code envoie alors les chiffres lui-même).
+- **Secrets** : une clé, un jeton ou un mot de passe n'atteint jamais l'IA ni les journaux ; il est enregistré chiffré puis effacé de la conversation ; jamais demandé dans le groupe.
+- **Guide** : `commencer` (état, avancement « 3/14 », une question à la fois), `aide`, besoins non couverts notés (`pnpm boss:unmet`), une relance par jour au plus quand quelque chose bloque.
+- **Groupe de l'équipe** : Kevin ajouté par l'admin enregistre le groupe ; on lui présente chacun (« Kevin, voici @lea, vidéos casino ») ; il pose les questions à la bonne personne avec @ ; droits admin / responsable / membre ; un inconnu n'obtient rien ; rapport du matin résumé dans le groupe.
+- **Site** : Agents → **Kevin** (bot, prénom, dépense IA et plafond, équipe, besoins non couverts, derniers échanges) ; Réglages → Bots (rôle) ; État du système (Kevin qui ne répond plus, contrôle des webhooks).
+
+## Test de 5 minutes
+1. Dans @BotFather : `/newbot` → nom « Kevin » → identifiant finissant par « bot » → copiez le jeton.
+2. Écrivez au bot actuel (@casinogamblingoobot) : `jeton boss ` suivi du jeton. Il répond « Envoie /start à @… ».
+3. Envoyez `/start` à Kevin, puis `commencer`. Essayez « combien j'ai dépensé ce mois ? » et « mets le casino en pause » puis « reprends le casino ».
+
+## Vérifications faites
+- Tests unitaires : 6 014 réussis (dont 666 agents, 545 Telegram, 463 worker, 2 933 site) ; tests d'intégration sur base réelle : 592 réussis (368 site, 224 worker), dont le scénario privé de Kevin (enregistrement par jeton → `/start` → `commencer` → réponse sans « Répondre » → pause → passage en vrai confirmé puis retour → dépenses égales à la vue d'ensemble → message transféré piégé ignoré → inconnu ignoré → renvoi de l'ancien bot → vocal → tâche rejouée sans double exécution → service d'arrière-plan arrêté) et le scénario du groupe (ajout par l'admin, présentation confirmée, demande à Léa par @, vidéo rangée, absence, clé jamais dans le groupe, Léa ne peut pas confirmer, inconnus ignorés, rapport du matin, mode confidentialité dans les deux sens).
+- Lint, typage, build verts (le build du site demande plus de mémoire : réglé dans l'image Railway).
+- Sauvegarde de la production avant déploiement ; site (2 migrations appliquées) puis service d'arrière-plan ; santé OK (base 17 ms, worker à l'heure) ; webhooks reposés ; `pnpm tg:diag` en production : identifiant admin, dialogue branché, connexion Telegram correcte pour tous les bots (0 message en attente), files et service d'arrière-plan en vie. Captures de la page Kevin et de Réglages → Bots ; contrôle d'accessibilité sans violation (base de démonstration locale).
+- Next.js signale toujours une faille de sécurité connue dans la version 16.4.0 : la mise à jour reste à faire (pas lancée sans votre accord).
+
+## Relecture adverse (compte-rendu)
+Trois relecteurs indépendants (autorisation ; secrets, injection et coût ; non-régression des phases 0 à 25) : une trentaine de défauts confirmés, tous corrigés avec un test. Les plus importants : un mot de passe court pouvait partir à l'IA ; la demande d'un membre pouvait remplacer la confirmation de l'admin ; un membre pouvait, dans un cas précis, agir avec les droits de l'admin ; un responsable pouvait répondre aux questions réservées à l'admin ; Kevin aurait déclenché une fausse alerte « bot silencieux » ; les emojis animés de l'admin n'étaient plus rangés ; le build du worker était cassé. Détail dans `docs/DECISIONS-TECH.md` (« Phase 26 — relecture adverse »).
+
+## Reste / limites
+- Rien n'a été essayé avec un vrai Telegram ni la vraie IA (faux Telegram et fausse IA en test) : il faut créer Kevin. Sans clé IA (Réglages → IA), Kevin ne comprend que les commandes simples et le dit.
+- Vocaux dans le groupe : Kevin demande d'écrire (il n'écoute les vocaux qu'en privé).
+- La file du service d'arrière-plan traite une tâche à la fois : une réponse de Kevin peut attendre quelques secondes derrière un passage du Grand Chef (durée d'attente journalisée).
+- Avertissement de sécurité de Next.js 16.4.0 : toujours à traiter.
+
+## Actions humaines
+Section 0 de `docs/A-FAIRE-HUMAIN.md` (« Créer Kevin ») : 5 clics, puis l'ajouter au groupe de l'équipe et présenter chacun en une phrase.
+
+---
+
 > **Note du 24/10 à 13 h 50 (phase 26)** : docs/prompts/28-phase-26-boss-telegram.md a été complété après ton départ (Kevin en groupe Telegram : section 4, règles 1, 4, 7 et 8). Relis ce fichier en entier avant de continuer, puis retire cette note.
 
 # État du projet : phases 19 à 25 (agents IA) terminées (24 octobre 2026)
