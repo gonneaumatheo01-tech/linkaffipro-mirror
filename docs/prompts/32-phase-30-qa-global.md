@@ -4,6 +4,9 @@ Si `docs/STATUS.md` indique déjà « phase 30 terminée », vérifie le déploi
 
 Lis `CLAUDE.md`, `docs/STATUS.md` (phases 19 à 29), `docs/DECISIONS-TECH.md`, `docs/AGENTS-ARCHITECTURE.md` (toutes les équipes : Dating, Casino, Sports, Algorithme, Ads, Montage, Analystes), `docs/prompts/28-phase-26-boss-telegram.md` (Kevin), `packages/agents/src/boss/*`, `packages/agents/src/agents/*` (tous les agents existants, notamment Contrôle qualité de l'Algorithme, QC Montage, Supervision), `packages/agents/src/montage/*` (phase 28), `packages/agents/src/analysts/*` (phase 29), `packages/ai/` (providers, modèles disponibles), les règles par canal (`packages/agents/src/rules/*`), la config des modèles IA. Décisions courantes : prends-les, note-les, continue. Livre par étapes, un commit par étape.
 
+## Ordres de Kevin (phase 33, déjà en place avant cette phase)
+La phase 33 (`docs/prompts/35-phase-33-kevin-ordres-equipes.md`) a construit le registre des capacités (`packages/agents/src/orders/`) : toute demande libre de l'admin devient un `TeamOrder` planifié, récapitulé, confirmé si nécessaire, exécuté et suivi. **Cette équipe s'y branche** : déclare ses capacités dans le registre (`capabilities/<equipe>.ts` : description, schéma, limites, `check` avec raisons et replis, `plan`, `run` idempotent, `report`), de sorte que « Kevin, … » en français courant lui parvienne sans entrée de catalogue dédiée. Les entrées de catalogue listées plus bas restent des raccourcis instantanés. `docs/STATUS.md` contient donc la phase 33 en plus des phases citées ci-dessus.
+
 ## Étapes
 1. Configuration du modèle Fable 5 dans le provider IA, dédié au QA.
 2. Schéma : `QaCheck`, `QaVerdict`, historique, métriques.

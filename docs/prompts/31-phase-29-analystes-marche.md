@@ -4,6 +4,9 @@ Si `docs/STATUS.md` indique déjà « phase 29 terminée », vérifie le déploi
 
 Lis `CLAUDE.md`, `docs/STATUS.md` (phases 19 à 28), `docs/DECISIONS-TECH.md`, `docs/AGENTS-ARCHITECTURE.md` (toutes les équipes, dont Montage phase 28), `docs/prompts/28-phase-26-boss-telegram.md` (Kevin : catalogue, interprète, `BossUnmet`, `answer.ts`), `packages/agents/src/boss/*`, `packages/agents/src/agents/ads/*` (agent Ads existant : scraping, analyse de performance interne, métriques, rapports — à ne pas confondre avec la veille externe), `packages/agents/src/inspiration/*` (phase 27 : lecture de canaux Telegram, `ReferenceChannel`, `StyleProfile`), le worker BullMQ, et les providers AI (`packages/ai`). Décisions courantes : prends-les, note-les, continue. Livre par étapes, un commit par étape.
 
+## Ordres de Kevin (phase 33, déjà en place avant cette phase)
+La phase 33 (`docs/prompts/35-phase-33-kevin-ordres-equipes.md`) a construit le registre des capacités (`packages/agents/src/orders/`) : toute demande libre de l'admin devient un `TeamOrder` planifié, récapitulé, confirmé si nécessaire, exécuté et suivi. **Cette équipe s'y branche** : déclare ses capacités dans le registre (`capabilities/<equipe>.ts` : description, schéma, limites, `check` avec raisons et replis, `plan`, `run` idempotent, `report`), de sorte que « Kevin, … » en français courant lui parvienne sans entrée de catalogue dédiée. Les entrées de catalogue listées plus bas restent des raccourcis instantanés. `docs/STATUS.md` contient donc la phase 33 en plus des phases citées ci-dessus.
+
 ## Étapes
 1. Schéma et queue : `TrendSource`, `TrendEntry`, `ComplianceRule`, `StrategyReport`, `MarketBrief`, queue `agents-analystes`.
 2. Agent Veille Web : sources, scraping, collecte, classification.
