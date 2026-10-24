@@ -741,3 +741,14 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   Réglages → Alertes. Libellés « À traiter » uniquement depuis core (anciens noms en alias). Un compte Telegram réel
   ne porte qu'une persona Rencontres (page et serveur, `lib/accounts/persona-choice.ts`). Redépôt d'un média connu :
   `agents.media_reclassified` `{ from, to }`.
+- **Relecture (phase 25) — Algorithme, Ads, données** : contrôle « aucun chiffre inventé » = valeurs numériques
+  signées des faits (+ heures des « HH:MM »), textes des faits recopiables mais sans donner de nombre, aucun petit
+  nombre dispensé, multiplicateurs et nombres en lettres refusés (repli sur le texte du code). `effectiveMix` est la
+  seule lecture du mélange par l'équipe Algorithme (Casino non réglé = 2 / 1 / 1). Mélange : 10 points au plus par
+  proposition ou test. « Rapport maintenant » pendant une pause = rapport seul. Plafond IA de l'Agent Ads par
+  `budgetState` (0 = aucun appel). Citation partielle = 25 caractères ou 6 mots en commun. Anonymisation renforcée
+  (pseudos après snap / insta…, « je suis / c'est » + nom, « j'habite … », lettres suivies de chiffres, nombres en
+  lettres, « at … point com »). Compte réel : persona Rencontres seulement (tour sauté sinon). Suppression d'un membre
+  et purge : `AccountDm` en attente annulés, textes et identifiants effacés, anciens supprimés ; événements
+  `telegram.*` → `{ redacted: true }` ; journaux de l'userbot sans identifiant Telegram ni texte. Libellé de l'équipe :
+  « Rencontres » partout.

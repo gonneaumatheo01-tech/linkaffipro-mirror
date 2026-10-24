@@ -98,7 +98,7 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
     expect(m.status).toBe("DONE");
     const post = await prisma.post.findUniqueOrThrow({ where: { id: m.postId! } });
     expect(post).toMatchObject({ channelId, botId, status: "SCHEDULED", agentMissionId: missionId, publisher: "BOT" });
-    expect(post.text.startsWith("[SIMULATION équipe Dating → Canal test]\n")).toBe(true);
+    expect(post.text.startsWith("[SIMULATION équipe Rencontres → Canal test]\n")).toBe(true);
     // Rejouer l'étape ne crée jamais un second message.
     await runNextStep(deps, missionId, 5);
     expect(await prisma.post.count({ where: { agentMissionId: missionId } })).toBe(1);
@@ -112,7 +112,7 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
     expect(job).toBeDefined();
     await processTelegramSend(fakeJob({ type: "post" as const, postId: m.postId! }));
     const sent = calls.find((c) => c.method === "sendMessage");
-    expect(String(sent?.payload.text)).toContain("[SIMULATION équipe Dating → Canal test]");
+    expect(String(sent?.payload.text)).toContain("[SIMULATION équipe Rencontres → Canal test]");
     expect((await prisma.post.findUniqueOrThrow({ where: { id: m.postId! } })).status).toBe("SENT");
   });
 
@@ -131,6 +131,6 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
     const ev = await prisma.event.findFirstOrThrow({ where: { type: "agents.report.daily" }, orderBy: { occurredAt: "desc" } });
     const lines = (ev.payload as { lines: string[] }).lines;
     expect(lines).toHaveLength(4);
-    expect(lines[0]).toMatch(/^Dating : /);
+    expect(lines[0]).toMatch(/^Rencontres : /);
   });
 });

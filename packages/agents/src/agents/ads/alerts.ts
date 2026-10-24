@@ -60,7 +60,8 @@ export type CampaignAlertFigures = {
 export function spendSpikes(rows: readonly CampaignAlertFigures[], s: AdsAlertSettings): DropCandidate[] {
   const out: DropCandidate[] = [];
   for (const r of rows) {
-    if (r.avg7 < s.minDailySpend) continue;
+    // Moyenne nulle (« seuil minimal » réglé à 0) : pas de base de comparaison, jamais « Infinity % ».
+    if (!(r.avg7 > 0) || r.avg7 < s.minDailySpend) continue;
     const limit = r.avg7 * (1 + s.spikePct / 100);
     const [which, spend] = r.spendToday > limit ? (["aujourd'hui", r.spendToday] as const) : r.spendYesterday > limit ? (["hier", r.spendYesterday] as const) : [null, 0];
     if (!which) continue;

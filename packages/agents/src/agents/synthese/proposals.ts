@@ -12,7 +12,8 @@ import { hhmmToMinutes } from "../../rules/time";
 import { mixKeyOf } from "../posts/features";
 import { bestCase, FORMAT_LABELS, type ScopeRanking } from "../posts/rank";
 import type { ExperimentVerdict } from "../experimentation/verdict";
-import { shiftMix, type Mix, type Variants } from "../experimentation/variants";
+import { shiftMix, type Variants } from "../experimentation/variants";
+import { effectiveMix, MAX_MIX_POINTS_PER_PROPOSAL } from "../../algo/mix";
 import { dailyRange, type WindowCell } from "../horaires/windows";
 import { sameValue } from "./apply";
 
@@ -58,14 +59,8 @@ export async function proposeRecommendation(deps: AgentsDeps, r: RecommendationI
 const pct = (x: number | null) => (x === null ? "?" : `${(x * 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`);
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
-function planMix(v: unknown): Mix {
-  const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-  const n = (x: unknown) => (typeof x === "number" && x > 0 ? x : 0);
-  const m = { video: n(r.video), photo: n(r.photo), text: n(r.text) };
-  return m.video + m.photo + m.text > 0 ? m : { video: 0, photo: 0, text: 1 };
-}
 
-/** Fenêtre de même durée centrée sur `hour`, ramenée dans les heures autorisées (pur). */
+/** Fenêtre de même durée centrée sur la case horaire `hour` (de h à h+1 ; `hour` peut être fractionnaire), ramenée dans les heures autorisées (pur). */
 export function windowAround(hour: number, length: number, allowed: { start: string; end: string }): { windowStart: string; windowEnd: string } {
   const lo = Math.ceil((hhmmToMinutes(allowed.start) ?? 0) / 60);
   const hi = Math.floor((hhmmToMinutes(allowed.end) ?? 1440) / 60);
@@ -98,7 +93,7 @@ export async function recommendationFromExperiment(
   const plan = (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId: exp.channelId } })) as PlanRow | null;
   if (!plan) return null;
   const base = { teamKey: exp.teamKey, target: "CHANNEL_PLAN" as const, targetId: exp.channelId, evidence, expectedGain: gain, size: "SMALL" as const };
-  if (exp.kind === "MELANGE" && win.mix) return { ...base, field: "mix", before: plan.mix, after: win.mix };
+  if (exp.kind === "MELANGE" && win.mix) return { ...base, field: "mix", before: effectiveMix(plan.teamKey, plan.mix), after: win.mix };
   if (exp.kind === "HORAIRE" && win.hour !== undefined) {
     const { settings } = await loadAlgoTeam(deps.prisma);
     const len = Math.round(((hhmmToMinutes(plan.windowEnd) ?? 1320) - (hhmmToMinutes(plan.windowStart) ?? 540)) / 60);
@@ -151,13 +146,14 @@ export function channelProposals(
     const best = bestCase(fmt);
     const worst = [...fmt.cases].reverse().find((c) => fmt.weak.includes(c.key)) ?? null;
     if (best && worst && mixKeyOf(best.key) !== mixKeyOf(worst.key)) {
-      const mix = planMix(plan.mix);
-      const after = shiftMix(mix, mixKeyOf(best.key), Math.min(WEEKLY_MIX_STEP, settings.maxMixShiftPoints));
+      // Mélange effectif (Casino non réglé = 2 / 1 / 1), jamais la valeur brute de la base.
+      const mix = effectiveMix(plan.teamKey, plan.mix);
+      const after = shiftMix(mix, mixKeyOf(best.key), Math.min(WEEKLY_MIX_STEP, MAX_MIX_POINTS_PER_PROPOSAL, settings.maxMixShiftPoints));
       if (!sameValue(after, mix))
         out.push({
           ...base,
           field: "mix",
-          before: plan.mix,
+          before: mix,
           after,
           evidence: { agent: "posts", metric: fmt.metric, best: { key: best.key, posts: best.posts, ctr: best.ctr, views24h: best.views24hMedian }, worst: { key: worst.key, posts: worst.posts, ctr: worst.ctr, views24h: worst.views24hMedian } },
           expectedGain: `${FORMAT_LABELS[best.key] ?? best.key} : ${pct(best.ctr)} de clic offre contre ${pct(worst.ctr)} pour ${FORMAT_LABELS[worst.key] ?? worst.key}`,
@@ -172,8 +168,10 @@ export function channelProposals(
   if (range && enough) {
     // Assez large pour le quota et l'espacement du plan.
     const need = Math.ceil((plan.postsPerDay * plan.minSpacingMinutes) / 60) + 1;
-    const center = (range.start + range.end) / 2;
-    const after = windowAround(Math.floor(center), Math.max(need, range.end - range.start), allowedHoursFor(settings, plan.channelId));
+    // `windowAround` centre sur la case horaire [h, h+1) : le milieu de la plage moins une demi-heure
+    // (18 h-20 h → 18:00-20:00, jamais décalée d'une heure pour une durée paire).
+    const center = (range.start + range.end) / 2 - 0.5;
+    const after = windowAround(center, Math.max(need, range.end - range.start), allowedHoursFor(settings, plan.channelId));
     if (after.windowStart !== plan.windowStart || after.windowEnd !== plan.windowEnd)
       out.push({
         ...base,

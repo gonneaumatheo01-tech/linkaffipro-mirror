@@ -128,6 +128,8 @@ export async function deleteNoteAction(formData: FormData): Promise<void> {
  * donnée personnelle. Le telegramUserId est remplacé par un
  * entier négatif aléatoire (jamais attribué par Telegram) pour préserver l'unicité et les relations.
  * Événements destinés à Link Affi (phase 13) : en attente supprimés, les autres sans l'identité du membre.
+ * DM des comptes réels (phase 18) : en attente annulés, texte et identifiant Telegram effacés. Événements `telegram.*`
+ * (prénom, pseudo, identifiant, textes reçus) : contenu remplacé par `{ redacted: true }`.
  */
 export async function anonymizeMemberAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
@@ -142,8 +144,24 @@ export async function anonymizeMemberAction(formData: FormData): Promise<void> {
   if (member.anonymizedAt)
     redirect(`/members/${memberId}?ok=${encodeURIComponent("Ce membre est déjà anonymisé.")}`);
   const fake = -BigInt(`0x${randomBytes(6).toString("hex")}`);
+  const memberships = await prisma.membership.findMany({ where: { memberId }, select: { id: true } });
+  // DM des comptes réels (phase 18, `AccountDm`) : rattachés par l'identifiant Telegram ou par l'adhésion.
+  const accountDmsOfMember = {
+    OR: [{ telegramUserId: member.telegramUserId }, { membershipId: { in: memberships.map((m) => m.id) } }],
+  };
   await prisma.$transaction([
     prisma.memberNote.deleteMany({ where: { memberId } }),
+    // DM de bienvenue encore à envoyer : annulés ; tous perdent leur texte et l'identifiant Telegram.
+    prisma.accountDm.updateMany({
+      where: { ...accountDmsOfMember, status: "PENDING" },
+      data: { status: "CANCELLED", text: "", lastError: "Non envoyé : membre supprimé à sa demande." },
+    }),
+    prisma.accountDm.updateMany({ where: accountDmsOfMember, data: { text: "", telegramUserId: fake } }),
+    // Événements Telegram (`telegram.*`) : prénom, pseudo, identifiant et textes retirés ; type, date et liens gardés.
+    prisma.event.updateMany({
+      where: { memberId, type: { startsWith: "telegram." } },
+      data: { payload: { redacted: true } },
+    }),
     // Conversations avec l'assistant (phase 17) : supprimées avec leurs messages et leurs événements (cascade) ; les
     // liens d'offre envoyés et les clics restent, sans conversation.
     prisma.conversation.deleteMany({ where: { memberId } }),

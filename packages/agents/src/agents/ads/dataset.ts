@@ -11,6 +11,7 @@ import type { AdsRaw } from "./metrics";
 import type { CohortCommission, CohortMember } from "./cohorts";
 import { COHORT_WINDOW_DAYS } from "./cohorts";
 import { dateKey, dayDate } from "./periods";
+import { ADS_VERTICALS } from "./thresholds";
 
 export type AdsCampaignRef = { id: string; name: string; vertical: string | null; budgetDaily: number | null; status: string };
 export type AdsAdSetRef = { id: string; name: string; campaignId: string };
@@ -36,6 +37,8 @@ export type AdsDataset = {
 
 /** Dimension `DailyStat` sans doublon « toutes campagnes » (écrite par le worker depuis la phase 8). */
 export const UNION_DIMENSION = "campaigns";
+/** Même ligne sans doublon, par univers (`campaigns:CASINO`…). */
+export const verticalUnionDimension = (vertical: string) => `campaigns:${vertical}`;
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -50,7 +53,9 @@ export async function loadAdsDataset(prisma: AgentsPrisma, now: Date, days: numb
     prisma.ad.findMany({ select: { id: true, name: true, adSetId: true } }),
     prisma.adAccountConnection.count({ where: { status: "ACTIVE" } }),
   ]);
-  const dims = [UNION_DIMENSION, ...campaigns.map((c) => `campaign:${c.id}`), ...ads.map((a) => `ad:${a.id}`)];
+  // `campaigns:<univers>` : total sans doublon par univers (la part du revenu d'une offre partagée par deux campagnes
+  // du même univers n'y compte qu'une fois).
+  const dims = [UNION_DIMENSION, ...ADS_VERTICALS.map(verticalUnionDimension), ...campaigns.map((c) => `campaign:${c.id}`), ...ads.map((a) => `ad:${a.id}`)];
   const range = { gte: dayDate(from), lte: dayDate(to) };
   const [statRows, costRows, firstRows] = await Promise.all([
     prisma.dailyStat.findMany({

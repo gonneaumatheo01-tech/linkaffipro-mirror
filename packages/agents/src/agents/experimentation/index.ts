@@ -14,7 +14,8 @@ import { agentAudit, agentEvent, nowOf } from "../../admin/journal";
 import { loadAlgoTeam, type AlgoSettings } from "../../algo/settings";
 import { proposeRecommendation, recommendationFromExperiment } from "../synthese/proposals";
 import { experimentVerdict, verdictSentence, type VariantData } from "./verdict";
-import { parseVariants, shiftMix, type ExperimentKindName, type Mix, type Variants } from "./variants";
+import { parseVariants, shiftMix, type ExperimentKindName, type Variants } from "./variants";
+import { effectiveMix, MAX_MIX_POINTS_PER_PROPOSAL } from "../../algo/mix";
 
 const DAY = 86_400_000;
 export const OPEN_EXPERIMENT_STATUSES = ["PROPOSED", "RUNNING"] as const;
@@ -174,13 +175,6 @@ export async function closeExperiments(deps: AgentsDeps, opts: { force?: boolean
 
 type PlanRow = { channelId: string; teamKey: string; mix: unknown; windowStart: string; windowEnd: string };
 
-function mixOf(v: unknown): Mix {
-  const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-  const n = (x: unknown) => (typeof x === "number" && x > 0 ? x : 0);
-  const m = { video: n(r.video), photo: n(r.photo), text: n(r.text) };
-  return m.video + m.photo + m.text > 0 ? m : { video: 0, photo: 0, text: 1 };
-}
-
 /** Tests proposés pour un canal (pur) : style, horaire (2 heures du plan), mélange quand les formats manquent de données. */
 export function experimentProposals(plan: PlanRow, opts: { formatsInsufficient: boolean; bestHour: number | null; settings: AlgoSettings }): Array<Omit<NewExperiment, "start">> {
   const out: Array<Omit<NewExperiment, "start">> = [];
@@ -211,9 +205,10 @@ export function experimentProposals(plan: PlanRow, opts: { formatsInsufficient: 
       });
   }
   if (opts.formatsInsufficient) {
-    const mix = mixOf(plan.mix);
+    // Mélange effectif de l'équipe (Casino non réglé = 2 / 1 / 1) ; 10 points au plus par test.
+    const mix = effectiveMix(plan.teamKey, plan.mix);
     const toward = plan.teamKey === "dating" ? "video" : "photo";
-    const shifted = shiftMix(mix, toward, opts.settings.maxMixShiftPoints);
+    const shifted = shiftMix(mix, toward, Math.min(MAX_MIX_POINTS_PER_PROPOSAL, opts.settings.maxMixShiftPoints));
     if (JSON.stringify(shifted) !== JSON.stringify(mix))
       out.push({
         teamKey: plan.teamKey,

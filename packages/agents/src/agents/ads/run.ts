@@ -14,6 +14,7 @@ import { resolveProviders, type EngineDeps } from "../../missions/context";
 import { AGENTS_MODELS_KEY, DEFAULT_MONTHLY_BUDGET_CENTS, isAgentsPausedAll, parseBudgets, parseModels } from "../../missions/settings";
 import { monthUsage, recordUsage, totalCents } from "../../missions/usage";
 import { REPORT_LAST_DAY_KEY } from "../../orchestrator/reports";
+import { budgetState } from "../../orchestrator/budgets";
 import { ADS_ACTION_LABELS, adsRecommendations, type AdsAction, type AdsProposal } from "../../rules/ads";
 import { parisDay, parisParts, parisWeekday } from "../../rules/time";
 import type { TeamKey } from "../../types";
@@ -25,7 +26,9 @@ import { ADS_TEAM_KEY, saveAdsRecommendations, type SavedAdsRecommendations } fr
 import { writeAdsReport, type AdsDailyFacts, type AdsFacts, type AdsPubFact, type AdsWeeklyFacts } from "./report";
 import { comparableVariation } from "@linkaffipro/core";
 import { ADS_VERTICALS, ADS_VERTICAL_LABELS } from "./thresholds";
-import { toMetrics, sumRaw } from "./metrics";
+import { addRaw, EMPTY_RAW, toMetrics, sumRaw, type AdsRaw } from "./metrics";
+import { verticalUnionDimension, type AdsDataset } from "./dataset";
+import { daysBetween } from "./periods";
 
 export const ADS_REPORT_HOUR = 9;
 /** Sans rapport du Grand Chef, le rapport Ads part quand même dès 10 h. */
@@ -106,14 +109,27 @@ export function dailyFacts(ctx: AdsContext, proposals: readonly AdsProposal[]): 
   };
 }
 
+/** Compteurs d'un univers sur des jours : ligne `campaigns:<univers>` du jour, sinon somme de ses campagnes (pur). */
+export function verticalRaw(ds: AdsDataset, vertical: string, days: readonly string[]): AdsRaw {
+  const ids = new Set(ds.campaigns.filter((c) => c.vertical === vertical).map((c) => c.id));
+  const union = new Map<string, Partial<AdsRaw>>();
+  const byCampaigns = new Map<string, AdsRaw>();
+  const dim = verticalUnionDimension(vertical);
+  for (const st of ds.stats) {
+    if (st.dimension === dim) union.set(st.day, st.raw);
+    else if (st.dimension.startsWith("campaign:") && ids.has(st.dimension.slice("campaign:".length)))
+      byCampaigns.set(st.day, addRaw(byCampaigns.get(st.day) ?? { ...EMPTY_RAW }, st.raw));
+  }
+  return sumRaw(days.map((d) => union.get(d) ?? byCampaigns.get(d) ?? {}));
+}
+
 /** Faits du rapport de la semaine (pur sauf les recommandations ouvertes, passées en argument). */
 export function weeklyFacts(ctx: AdsContext, open: ReadonlyArray<{ action: string | null; evidence: unknown }>): AdsWeeklyFacts {
   const w = analysisOf(ctx, "7d");
-  const campaigns = w.rows.filter((r) => r.level === "campaign");
   const verticals = ADS_VERTICALS.map((v) => {
-    const rows = campaigns.filter((r) => r.vertical === v);
-    const cur = toMetrics(sumRaw(rows.map((r) => r.current)));
-    const prev = toMetrics(sumRaw(rows.map((r) => r.previous)));
+    // Ligne sans doublon de l'univers (`campaigns:<univers>`) les jours où elle existe, sinon somme de ses campagnes.
+    const cur = toMetrics(verticalRaw(ctx.dataset, v, daysBetween(w.range.from, w.range.to)));
+    const prev = toMetrics(verticalRaw(ctx.dataset, v, daysBetween(w.range.prevFrom, w.range.prevTo)));
     const change = (a: number, b: number) => {
       const x = comparableVariation(a, b);
       return x.kind === "pct" ? Math.round(x.pct) : null;
@@ -151,6 +167,11 @@ export function weeklyFacts(ctx: AdsContext, open: ReadonlyArray<{ action: strin
   };
 }
 
+/** Plafond IA de l'équipe « ads » (règle commune `budgetState`) : absent = sans limite, 0 € = aucun appel (pur). */
+export function adsLlmAllowed(capCents: number | undefined, spentCents: number): boolean {
+  return budgetState(ADS_TEAM_KEY as TeamKey, "llm", spentCents, capCents).allowed;
+}
+
 /** Modèle rapide, si une vraie clé existe et que le plafond IA de l'équipe « ads » n'est pas atteint. */
 async function reportLlm(deps: AgentsDeps): Promise<{ llm: (LlmProvider & { fake?: boolean }) | null; model: string }> {
   const now = nowOf(deps);
@@ -160,8 +181,10 @@ async function reportLlm(deps: AgentsDeps): Promise<{ llm: (LlmProvider & { fake
     deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: ADS_TEAM_KEY } }),
     monthUsage(deps.prisma, ADS_TEAM_KEY as TeamKey, now),
   ]);
-  const cap = parseBudgets(team?.monthlyBudgetCents, DEFAULT_MONTHLY_BUDGET_CENTS).llm ?? 0;
-  const llm = cap > 0 && totalCents(usage.filter((u) => u.provider === "llm")) >= cap ? null : (providers.llm as (LlmProvider & { fake?: boolean }) | null);
+  // Règle commune des plafonds (`budgetState`) : absent = sans limite, 0 € = aucun appel, sinon refus dès qu'il est atteint.
+  const cap = parseBudgets(team?.monthlyBudgetCents, DEFAULT_MONTHLY_BUDGET_CENTS).llm;
+  const spent = totalCents(usage.filter((u) => u.provider === "llm"));
+  const llm = adsLlmAllowed(cap, spent) ? (providers.llm as (LlmProvider & { fake?: boolean }) | null) : null;
   return { llm, model: parseModels(models?.value).fast };
 }
 

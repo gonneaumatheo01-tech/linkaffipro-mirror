@@ -126,7 +126,7 @@ describe("agents Dating : vidéo, photo et texte en simulation (base réelle)", 
     expect(posts).toHaveLength(3);
     for (const post of posts) {
       expect(post).toMatchObject({ channelId: testChannelId, status: "SCHEDULED" });
-      expect(post.text.startsWith("[SIMULATION équipe Dating → Rencontres Léa]\n")).toBe(true);
+      expect(post.text.startsWith("[SIMULATION équipe Rencontres → Rencontres Léa]\n")).toBe(true);
     }
     const byMission = Object.fromEntries(posts.map((x) => [x.agentMissionId, x]));
     expect((byMission[missions.video]!.mediaAssetIds as string[]).length).toBe(1);

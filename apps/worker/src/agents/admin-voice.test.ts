@@ -41,7 +41,7 @@ describe("vocal de l'admin dans le worker", () => {
     expect(transcribe).toHaveBeenCalledWith({ bytes: new Uint8Array([1, 2, 3]), mimeType: "audio/ogg" });
     expect(sent).toEqual([
       { html: '🎧 J\'ai compris : "Pause dating".', replyTo: 55 },
-      { html: "Équipe Dating en pause ⏸", replyTo: undefined },
+      { html: "Équipe Rencontres en pause ⏸", replyTo: undefined },
     ]);
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ paused: true });
   });

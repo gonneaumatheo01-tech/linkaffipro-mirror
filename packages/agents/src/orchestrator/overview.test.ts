@@ -136,7 +136,7 @@ describe("supervision des agents", () => {
     const lines = overviewLines(o);
     expect(lines.length).toBeLessThanOrEqual(8);
     expect(lines[0]).toBe("🤖 Agents · à valider : 1 · demandes : 1 · alertes : 2");
-    expect(lines[1]).toContain("Dating : ▶️ active · en vrai · niveau 1 · aujourd'hui 2 créés, 1 publié, 0 en attente, 1 repli");
+    expect(lines[1]).toContain("Rencontres : ▶️ active · en vrai · niveau 1 · aujourd'hui 2 créés, 1 publié, 0 en attente, 1 repli");
     expect(lines[1]).toContain("7 j : 1 post, 2 inscriptions, 50 €");
     expect(lines[2]).toContain("Casino : ⏸ pause");
     expect(lines[5]).toContain("Ads : ▶️ active · 1 recommandation ouverte · dernier rapport il y a 1 h");

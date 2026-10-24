@@ -10,7 +10,8 @@ import { agentAudit, agentEvent, nowOf } from "../../admin/journal";
 import { allowedHoursFor, loadAlgoTeam } from "../../algo/settings";
 import { weekStartDate } from "../../algo/week";
 import type { RecommendationActionResult } from "../../algo/contracts";
-import { checkBounds, parseMixValue } from "./bounds";
+import { checkBounds } from "./bounds";
+import { effectiveMix } from "../../algo/mix";
 import { ADS_NEVER_APPLIED, ADS_TEAM_KEY } from "../ads/recommendations";
 
 export type RecommendationRow = {
@@ -78,13 +79,13 @@ async function writeValue(deps: Pick<AgentsDeps, "prisma">, target: string, targ
 }
 
 /** Mélange du début de semaine : « avant » de la première recommandation de mélange appliquée cette semaine. */
-async function weekBaseMix(deps: AgentsDeps, channelId: string, current: unknown) {
+async function weekBaseMix(deps: AgentsDeps, teamKey: string, channelId: string, current: unknown) {
   const since = weekStartDate(nowOf(deps));
   const first = (await deps.prisma.recommendation.findFirst({
     where: { target: "CHANNEL_PLAN", targetId: channelId, field: "mix", status: "APPLIED", appliedAt: { gte: since } },
     orderBy: { appliedAt: "asc" },
   })) as RecommendationRow | null;
-  return parseMixValue(first ? first.before : current);
+  return effectiveMix(teamKey, first ? first.before : current);
 }
 
 /** Valeur à écrire : exemples de style ajoutés (B) réappliqués sur le registre actuel s'il a changé. */
@@ -112,7 +113,8 @@ export async function applyRecommendationImpl(deps: AgentsDeps, id: string, acto
     { target: rec.target, field: rec.field, after: wanted },
     {
       settings,
-      weekBaseMix: rec.field === "mix" ? await weekBaseMix(deps, rec.targetId, cur.value) : null,
+      weekBaseMix: rec.field === "mix" ? await weekBaseMix(deps, rec.teamKey, rec.targetId, cur.value) : null,
+      currentMix: rec.field === "mix" ? effectiveMix(rec.teamKey, cur.value) : null,
       allowedHours: rec.target === "CHANNEL_PLAN" ? allowedHoursFor(settings, rec.targetId) : undefined,
       personaIdentity: cur.identity,
     },

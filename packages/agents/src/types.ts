@@ -21,7 +21,7 @@ export function isTeamKey(v: unknown): v is TeamKey {
 
 /** Libellés affichés (site, Telegram). */
 export const TEAM_LABELS: Record<TeamKey, string> = {
-  dating: "Dating",
+  dating: "Rencontres",
   casino: "Casino",
   sports: "Paris sportifs",
   algo: "Algorithme",

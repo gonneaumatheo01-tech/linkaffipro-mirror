@@ -68,9 +68,31 @@ export async function runAlgoNightly(deps: AgentsDeps, opts: { full?: boolean } 
 
 export type WeeklyResult = { out: Out; synthese: SyntheseResult | null; closed: ClosedExperiment[] };
 
-export async function runAlgoWeekly(deps: AgentsDeps, nightly: NightlyResult, opts: { send?: boolean } = {}): Promise<WeeklyResult> {
+/**
+ * `reportOnly` (« Rapport maintenant » pendant une pause de l'équipe ou une pause générale) : rapport produit SANS
+ * clôture ni lancement de test, sans relecture IA des conversations et sans application automatique ; le passage du
+ * lundi n'est pas marqué fait.
+ */
+export async function runAlgoWeekly(deps: AgentsDeps, nightly: NightlyResult, opts: { send?: boolean; reportOnly?: boolean } = {}): Promise<WeeklyResult> {
   const out: Out = {};
   const weekStart = parisWeekStart(nowOf(deps));
+  if (opts.reportOnly) {
+    const synthese = await part(deps, "synthese", out, () =>
+      runSynthese(
+        deps,
+        {
+          channels: nightly.posts?.channels ?? [],
+          verticals: nightly.posts?.verticals ?? [],
+          windows: nightly.horaires?.windows ?? {},
+          conversations: nightly.conversations,
+          conversationReview: null,
+          closedTests: [],
+        },
+        { send: opts.send, reportOnly: true },
+      ),
+    );
+    return { out, synthese, closed: [] };
+  }
   const closed = (await part(deps, "closeExperiments", out, () => closeExperiments(deps))) ?? [];
   const insufficient = new Set((nightly.posts?.channels ?? []).filter((c) => c.dimensions.format.note === NOT_ENOUGH_DATA).map((c) => c.id));
   const bestHour = new Map<string, number>();
@@ -94,7 +116,8 @@ export async function runAlgoWeekly(deps: AgentsDeps, nightly: NightlyResult, op
       opts,
     ),
   );
-  await writeSetting(deps, ALGO_WEEKLY_KEY, weekStart);
+  // Passage du lundi marqué fait seulement si la synthèse a abouti (sinon le prochain passage horaire la refait).
+  if (synthese) await writeSetting(deps, ALGO_WEEKLY_KEY, weekStart);
   return { out, synthese, closed };
 }
 
@@ -136,13 +159,16 @@ export async function runAlgoTick(deps: AgentsDeps): Promise<Out> {
 
 /** « Rapport maintenant » : tout recalculer et envoyer le rapport de la semaine en cours. */
 export async function runAlgoReportNowImpl(deps: AgentsDeps, opts: { send?: boolean } = {}): Promise<{ ok: boolean; message: string; reportIds: string[] }> {
+  // Pause de l'équipe Algorithme ou pause générale : le rapport est produit, sans test ni réglage appliqué.
+  const team = await loadAlgoTeam(deps.prisma);
+  const paused = team.paused || (await isAgentsPausedAll(deps.prisma));
   const nightly = await runAlgoNightly(deps);
-  const weekly = await runAlgoWeekly(deps, nightly, { send: opts.send !== false });
+  const weekly = await runAlgoWeekly(deps, nightly, { send: opts.send !== false, reportOnly: paused });
   const s = weekly.synthese;
   if (!s) return { ok: false, message: `Rapport impossible : ${String((weekly.out.synthese as { error?: string } | undefined)?.error ?? "erreur inconnue")}`, reportIds: [] };
   return {
     ok: true,
-    message: `Rapport « Ce qui marche » ${s.sent ? "envoyé" : "enregistré"} (${s.writtenBy === "ai" ? "rédigé par l'IA" : "assemblé par le code"}) ; ${s.recommendations.length} recommandation(s), ${s.applied.length} appliquée(s).`,
+    message: `Rapport « Ce qui marche » ${s.sent ? "envoyé" : "enregistré"} (${s.writtenBy === "ai" ? "rédigé par l'IA" : "assemblé par le code"}) ; ${s.recommendations.length} recommandation(s), ${s.applied.length} appliquée(s)${paused ? " ; équipe en pause : aucun test ni réglage appliqué" : ""}.`,
     reportIds: s.reportIds,
   };
 }

@@ -84,6 +84,7 @@ export const ADS_REPORT_SYSTEM = [
   "Tu rédiges le rapport des publicités (Meta, TikTok) d'une équipe d'affiliation, pour un patron non technique.",
   "Règles : français simple, phrases courtes, aucun jargon, une idée par ligne, pas de HTML, pas de lien.",
   "Utilise UNIQUEMENT les chiffres fournis, sans en inventer, sans en calculer de nouveaux, sans les arrondir autrement.",
+  "Écris les nombres en chiffres, jamais en lettres ; jamais de « x fois », « double » ou « moitié » ; un nombre négatif est une baisse ou une perte.",
   'Réponds UNIQUEMENT par un objet JSON : {"lines": ["ligne", …]}',
 ].join("\n");
 

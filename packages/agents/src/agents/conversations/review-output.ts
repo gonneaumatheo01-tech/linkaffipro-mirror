@@ -2,7 +2,7 @@
  * Sortie JSON STRICTE de la relecture par l'IA, validée par le code (pur, testé) :
  * `{ "hooks": string[], "repellents": string[], "dropReasons": string[], "proposals": [{ "field", "value", "reason" }] }`.
  * JSON invalide, clé manquante ou en trop, mauvais type → toute la sortie est rejetée. Un élément de 80 caractères ou
- * plus, qui reprend un message entier ou qui contient encore une donnée personnelle → cet élément est rejeté. Une
+ * plus, qui reprend un message (en entier ou en partie : 25 caractères ou 6 mots consécutifs) ou qui contient encore une donnée personnelle → cet élément est rejeté. Une
  * proposition sur un champ non autorisé (identité, illusion, âge, règles adultes, /stop…) → rejetée.
  */
 import { containsPersonalData } from "./anonymize";
@@ -44,11 +44,39 @@ function exactKeys(o: Record<string, unknown>, keys: readonly string[]): boolean
   return have.length === keys.length && keys.every((k) => k in o);
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/\s+/gu, " ").trim();
+/** Normalisation des citations : minuscules, sans accents, ponctuation et espaces ramenés à une espace. */
+const norm = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 
-/** Messages de l'échantillon assez longs pour qu'une copie soit une citation (les « coucou » ne comptent pas). */
+/** Citation partielle : 25 caractères consécutifs (normalisés) ou 6 mots consécutifs en commun avec un message. */
+export const QUOTE_MIN_CHARS = 25;
+export const QUOTE_MIN_WORDS = 6;
+
+/** Messages de l'échantillon, normalisés (les plus courts qu'une citation partielle ne comptent pas). */
 function quotedMessages(sample: readonly SampleConversation[]): string[] {
-  return sample.flatMap((c) => c.messages.map((m) => norm(m.text))).filter((t) => t.length >= 15);
+  return sample
+    .flatMap((c) => c.messages.map((m) => norm(m.text)))
+    .filter((t) => t.length >= QUOTE_MIN_CHARS || t.split(" ").length >= QUOTE_MIN_WORDS);
+}
+
+/** Vrai si `n` (normalisé) reprend un morceau d'un message (pur). */
+export function quotesMessage(n: string, quotes: readonly string[]): boolean {
+  if (!n) return false;
+  for (let i = 0; i + QUOTE_MIN_CHARS <= n.length; i++) {
+    const part = n.slice(i, i + QUOTE_MIN_CHARS);
+    if (quotes.some((q) => q.includes(part))) return true;
+  }
+  const words = n.split(" ");
+  for (let i = 0; i + QUOTE_MIN_WORDS <= words.length; i++) {
+    const part = ` ${words.slice(i, i + QUOTE_MIN_WORDS).join(" ")} `;
+    if (quotes.some((q) => ` ${q} `.includes(part))) return true;
+  }
+  return quotes.some((q) => q === n);
 }
 
 /** Motif court acceptable : moins de 80 caractères, sans donnée personnelle, jamais un message entier. */
@@ -59,7 +87,7 @@ export function checkPattern(item: unknown, quotes: readonly string[]): { ok: tr
   if (value.length > MAX_PATTERN_LENGTH) return { ok: false, why: "trop long" };
   if (containsPersonalData(value)) return { ok: false, why: "donnée personnelle" };
   const n = norm(value);
-  if (quotes.some((q) => q === n || (q.length >= 15 && n.includes(q)))) return { ok: false, why: "message entier" };
+  if (quotesMessage(n, quotes)) return { ok: false, why: "citation d'un message" };
   return { ok: true, value };
 }
 

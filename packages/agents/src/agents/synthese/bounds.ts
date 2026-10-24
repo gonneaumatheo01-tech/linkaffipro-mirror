@@ -1,6 +1,7 @@
 /**
  * Bornes des recommandations (règles pures, revérifiées au moment d'appliquer) :
- * - mélange : ne bouge pas de plus de `maxMixShiftPoints` points (parts en %) par rapport au mélange du début de semaine ;
+ * - mélange : ne bouge pas de plus de `maxMixShiftPoints` points (parts en %) par rapport au mélange du début de semaine,
+ *   ni de plus de 10 points par proposition (mélange effectif : Casino non réglé = 2 / 1 / 1) ;
  * - fenêtre : dans les heures autorisées du canal ;
  * - quota : de 1 au maximum fixé par le client ;
  * - consignes de style : texte court ;
@@ -12,6 +13,7 @@ import { PERSONA_TUNING_FIELDS, validatePersonaTuning } from "@linkaffipro/core"
 import { hhmmToMinutes } from "../../rules/time";
 import type { AlgoSettings, HourRange } from "../../algo/settings";
 import type { Mix } from "../experimentation/variants";
+import { MAX_MIX_POINTS_PER_PROPOSAL } from "../../algo/mix";
 
 export const RECOMMENDATION_TARGETS = ["CHANNEL_PLAN", "TEAM_CONFIG", "PERSONA"] as const;
 export type RecommendationTarget = (typeof RECOMMENDATION_TARGETS)[number];
@@ -52,6 +54,8 @@ export type BoundsContext = {
   settings: AlgoSettings;
   /** Mélange du début de semaine (avant toute recommandation appliquée cette semaine), sinon le mélange actuel. */
   weekBaseMix?: Mix | null;
+  /** Mélange effectif actuel : une proposition ne le déplace pas de plus de 10 points d'un coup. */
+  currentMix?: Mix | null;
   allowedHours?: HourRange;
   personaIdentity?: string;
 };
@@ -95,6 +99,11 @@ export function checkBounds(rec: BoundsInput, ctx: BoundsContext): BoundsResult 
     case "mix": {
       const m = parseMixValue(rec.after);
       if (!m) return { ok: false, reason: "Mélange invalide." };
+      if (ctx.currentMix) {
+        const step = mixShiftPoints(ctx.currentMix, m);
+        if (step > MAX_MIX_POINTS_PER_PROPOSAL + 0.5)
+          return { ok: false, reason: `Le mélange bougerait de ${Math.round(step)} points d'un coup (${MAX_MIX_POINTS_PER_PROPOSAL} au plus par proposition).` };
+      }
       if (ctx.weekBaseMix) {
         const shift = mixShiftPoints(ctx.weekBaseMix, m);
         if (shift > s.maxMixShiftPoints + 0.5)

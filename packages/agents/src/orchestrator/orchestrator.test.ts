@@ -116,7 +116,7 @@ describe("Rédaction : sortie stricte et prompt", () => {
     expect(u).toContain("trop long");
   });
   it("en-tête de simulation", () => {
-    expect(simulationHeader("dating", "Rencontres <VIP>")).toBe("[SIMULATION équipe Dating → Rencontres &lt;VIP&gt;]");
+    expect(simulationHeader("dating", "Rencontres <VIP>")).toBe("[SIMULATION équipe Rencontres → Rencontres &lt;VIP&gt;]");
   });
 });
 
@@ -202,7 +202,7 @@ describe("rapport quotidien", () => {
     kit.advance(86_400_000);
     await kit.prisma.setting.create({ data: { key: "agents.dailyReport", value: false } });
     expect(await sendDailyReport(kit.deps)).toMatchObject({ sent: false, recorded: true });
-    expect((await buildDailyReport(kit.deps)).lines[0]).toMatch(/^Dating : /);
+    expect((await buildDailyReport(kit.deps)).lines[0]).toMatch(/^Rencontres : /);
   });
 });
 

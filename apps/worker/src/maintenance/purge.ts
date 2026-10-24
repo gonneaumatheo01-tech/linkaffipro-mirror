@@ -32,6 +32,10 @@ export type PurgeResult = {
   agentMissionsDeleted: number;
   /** Passages d'agents plus anciens que la durée de conservation (missions encore gardées, phase 19). */
   agentRunsDeleted: number;
+  /** Événements `telegram.*` des membres anonymisés dont le contenu a été retiré. */
+  telegramEventsRedacted: number;
+  /** DM des comptes réels (phase 18) plus anciens que la durée de conservation, supprimés. */
+  accountDmsDeleted: number;
 };
 
 /**
@@ -45,9 +49,15 @@ export type PurgeResult = {
  * supprimées (messages et événements avec) ; les messages de conversation de plus de N mois sont supprimés ; la copie
  * du texte gardée par l'envoi (`OutboundMessage` ASSISTANT, qui reprend souvent le prénom ou la ville de la personne) est
  * vidée pour les membres anonymisés et au-delà de N mois (l'envoi lui-même reste, pour les chiffres).
+ * Comptes réels (phase 18, `AccountDm`) : DM d'un membre anonymisé ici annulés s'ils attendaient, texte et identifiant
+ * Telegram effacés ; DM de plus de N mois supprimés. Événements `telegram.*` des membres anonymisés : contenu remplacé
+ * par `{ redacted: true }` (type, date et liens gardés).
  */
 /** Message de conversation resté « en file » plus de 10 minutes : envoi interrompu (jamais un envoi en cours). */
 const STALE_QUEUED_MS = 10 * 60_000;
+const PURGED_ACCOUNT_DM_ERROR = "Non envoyé : membre anonymisé par la purge.";
+/** Contenu d'un événement Telegram d'un membre anonymisé. */
+export const REDACTED_PAYLOAD = { redacted: true } as const;
 const PURGED_QUEUED_ERROR =
   "Non envoyé : resté en file (envoi interrompu ou personne supprimée), texte effacé par la purge.";
 
@@ -59,7 +69,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   // Candidats : membres non anonymisés vus avant le seuil (les autres sont actifs par définition).
   const candidates = await prisma.member.findMany({
     where: { anonymizedAt: null, lastSeenAt: { lt: cutoff } },
-    select: { id: true, lastSeenAt: true, anonymizedAt: true },
+    select: { id: true, lastSeenAt: true, anonymizedAt: true, telegramUserId: true },
     take: 5000,
   });
   let membersAnonymized = 0;
@@ -109,8 +119,18 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     )
       continue;
     const fake = -BigInt(`0x${randomBytes(6).toString("hex")}`);
+    const memberships = await prisma.membership.findMany({ where: { memberId: m.id }, select: { id: true } });
+    const accountDmsOfMember = {
+      OR: [{ telegramUserId: m.telegramUserId }, { membershipId: { in: memberships.map((x) => x.id) } }],
+    };
     await prisma.$transaction([
       prisma.memberNote.deleteMany({ where: { memberId: m.id } }),
+      // DM des comptes réels (phase 18) : en attente annulés ; texte et identifiant Telegram effacés.
+      prisma.accountDm.updateMany({
+        where: { ...accountDmsOfMember, status: "PENDING" },
+        data: { status: "CANCELLED", text: "", lastError: PURGED_ACCOUNT_DM_ERROR },
+      }),
+      prisma.accountDm.updateMany({ where: accountDmsOfMember, data: { text: "", telegramUserId: fake } }),
       prisma.memberBotState.updateMany({
         where: { memberId: m.id },
         data: { canDm: false, blockedAt: now },
@@ -140,6 +160,17 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
   const deleted = await prisma.event.deleteMany({
     where: { occurredAt: { lt: cutoff }, NOT: { type: { startsWith: "player." } } },
   });
+  // Événements Telegram des membres anonymisés (ici ou à leur demande) : contenu retiré, type, date et liens gardés.
+  const redacted = await prisma.event.updateMany({
+    where: {
+      type: { startsWith: "telegram." },
+      member: { anonymizedAt: { not: null } },
+      NOT: { payload: { equals: REDACTED_PAYLOAD } },
+    },
+    data: { payload: REDACTED_PAYLOAD },
+  });
+  // DM des comptes réels (phase 18) plus anciens que la durée de conservation : supprimés.
+  const accountDms = await prisma.accountDm.deleteMany({ where: { createdAt: { lt: cutoff } } });
   const linkaffiEventsScrubbed = await scrubDeletedMembersLinkaffiEvents();
   const linkaffiEventsDeleted = await deleteLinkaffiEventsBefore(cutoff);
   const landingEventsDeleted = await deleteLandingEventsBefore(cutoff);
@@ -196,6 +227,8 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     assistantTextsCleared: assistantTexts.count,
     agentMissionsDeleted: agentMissions.count,
     agentRunsDeleted: agentRuns.count,
+    telegramEventsRedacted: redacted.count,
+    accountDmsDeleted: accountDms.count,
   };
   await audit({
     action: "maintenance.purge",
@@ -212,6 +245,8 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
       assistantTextsCleared: assistantTexts.count,
       agentMissionsDeleted: agentMissions.count,
       agentRunsDeleted: agentRuns.count,
+      telegramEventsRedacted: redacted.count,
+      accountDmsDeleted: accountDms.count,
     },
   });
   logger.info(result, "purge de rétention effectuée");

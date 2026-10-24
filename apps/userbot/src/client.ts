@@ -106,11 +106,8 @@ export async function startAccount(account: AccountToStart): Promise<LiveAccount
         const incoming = await toIncomingPrivate(client, event);
         if (!incoming) return;
         logger.info(
-          {
-            compte: account.label,
-            de: String(incoming.telegramUserId),
-            texte: incoming.text.slice(0, 160),
-          },
+          // Jamais l'identifiant Telegram ni le texte de la personne dans les journaux.
+          { compte: account.label, longueur: incoming.text.length, media: incoming.media?.kind ?? null },
           "message recu",
         );
         await handleIncomingPrivate(turnAccount, incoming);

@@ -10,6 +10,8 @@ import { loadAlgoTeam, type AlgoSettings } from "../../algo/settings";
 import { parisWeekStart, weekStartDate } from "../../algo/week";
 import { resolveProviders, type EngineDeps } from "../../missions/context";
 import { loadTeamSettings } from "../../missions/settings";
+import { recordUsage } from "../../missions/usage";
+import { checkBudgets, maybeAlertBudget } from "../../orchestrator/budgets";
 import { bestCase, FORMAT_LABELS, type ScopeRanking } from "../posts/rank";
 import type { ChannelWindows, SuggestedWindow } from "../horaires/windows";
 import { applyRecommendationImpl } from "./apply";
@@ -95,14 +97,15 @@ async function teamFacts(deps: AgentsDeps, team: ReportTeam, input: SyntheseInpu
 
 export type SyntheseResult = { recommendations: string[]; applied: string[]; refused: string[]; reportIds: string[]; sent: boolean; writtenBy: "ai" | "code" };
 
-export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: { send?: boolean; settings?: AlgoSettings } = {}): Promise<SyntheseResult> {
+/** `reportOnly` : équipe en pause, aucune application automatique (les propositions restent proposées). */
+export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: { send?: boolean; settings?: AlgoSettings; reportOnly?: boolean } = {}): Promise<SyntheseResult> {
   const now = nowOf(deps);
   const team = await loadAlgoTeam(deps.prisma);
   const settings = opts.settings ?? team.settings;
   const cells: Record<string, ChannelWindows["cells"]> = {};
   for (const [id, w] of Object.entries(input.windows)) cells[id] = w.cells;
   const recommendations = await generateWeeklyRecommendations(deps, { channels: input.channels, verticals: input.verticals, cells, settings });
-  const { applied, refused } = await autoApplyPending(deps, team.level);
+  const { applied, refused } = opts.reportOnly ? { applied: [] as string[], refused: [] as string[] } : await autoApplyPending(deps, team.level);
 
   const weekStart = parisWeekStart(now);
   const since = weekStartDate(now);
@@ -110,11 +113,18 @@ export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: 
   for (const t of REPORT_TEAMS) facts.push(await teamFacts(deps, t, input, since));
   const providers = await resolveProviders(deps as EngineDeps);
   const algoSettings = await loadTeamSettings(deps.prisma, "algo");
+  // Plafond IA de l'équipe Algorithme vérifié avant l'appel (atteint ou 0 € : rapport assemblé par le code),
+  // dépense comptée et alerte 80 / 100 % après.
+  const budget = await checkBudgets(deps, algoSettings, ["llm"], now);
   const written = await writeReport(facts, {
     weekLabel: new Date(`${weekStart}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" }),
-    llm: providers.llm as (LlmProvider & { fake?: boolean }) | null,
+    llm: budget ? null : (providers.llm as (LlmProvider & { fake?: boolean }) | null),
     model: algoSettings.models.fast,
   });
+  if (written.costCents > 0) {
+    await recordUsage(deps.prisma, "algo", "llm", written.costCents, now);
+    await maybeAlertBudget(deps, algoSettings, "llm", now);
+  }
   const reportIds: string[] = [];
   const upsert = async (teamKey: string, content: string, stats: Record<string, unknown>) => {
     const value = { content, stats: JSON.parse(JSON.stringify(stats)) };

@@ -190,3 +190,46 @@ describe("rapport hebdomadaire", () => {
     expect(r.html).toContain("Rencontres");
   });
 });
+
+describe("relecture adverse (phase 25)", () => {
+  it("mélange Casino non réglé lu comme 2 / 1 / 1, jamais comme « texte seul »", async () => {
+    const { effectiveMix } = await import("../../algo/mix");
+    const { channelProposals } = await import("./proposals");
+    const { experimentProposals } = await import("../experimentation/index");
+    expect(effectiveMix("casino", { video: 0, photo: 0, text: 1 })).toEqual({ video: 2, photo: 1, text: 1 });
+    expect(effectiveMix("dating", { video: 0, photo: 0, text: 0 })).toEqual({ video: 1, photo: 2, text: 1 });
+    const plan = { channelId: "c9", teamKey: "casino", mix: { video: 0, photo: 0, text: 1 }, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 3, minSpacingMinutes: 60, styleNotes: null };
+    const exp = experimentProposals(plan, { formatsInsufficient: true, bestHour: null, settings: S }).find((p) => p.kind === "MELANGE")!;
+    expect(exp.variants.A.mix).toEqual({ video: 2, photo: 1, text: 1 });
+    const e = { cases: [], weak: [], works: [] };
+    const ranking = { dimensions: { format: { metric: "offer_ctr", works: ["PHOTO"], weak: ["TEXT"], cases: [{ key: "PHOTO", label: "photo", posts: 30, ctr: 0.05 }, { key: "TEXT", label: "texte", posts: 30, ctr: 0.01 }] }, length: e, theme: e, hour: e } };
+    const mix = channelProposals(plan, ranking as never, [], S).find((p) => p.field === "mix")!;
+    expect(mix.before).toEqual({ video: 2, photo: 1, text: 1 });
+    // 2 / 1 / 1 → +10 points d'image, et non « texte seul » → 10 % d'image.
+    expect(mix.after).toEqual({ video: 43.3, photo: 35, text: 21.7 });
+  });
+  it("test A/B « mélange » : 10 points au plus d'un coup, même si la borne de la semaine en permet 20", async () => {
+    const { experimentProposals } = await import("../experimentation/index");
+    const plan = { channelId: "c", teamKey: "dating", mix: { video: 1, photo: 2, text: 1 }, windowStart: "09:00", windowEnd: "22:00" };
+    const m = experimentProposals(plan, { formatsInsufficient: true, bestHour: null, settings: S }).find((p) => p.kind === "MELANGE")!;
+    expect(mixShiftPoints(m.variants.A.mix!, m.variants.B.mix!)).toBeCloseTo(10, 0);
+    const base = { video: 1, photo: 2, text: 1 };
+    const big = { video: 45, photo: 36.7, text: 18.3 };
+    expect(checkBounds({ target: "CHANNEL_PLAN", field: "mix", after: big }, { settings: S, weekBaseMix: base, currentMix: base })).toMatchObject({ ok: false });
+    expect(checkBounds({ target: "CHANNEL_PLAN", field: "mix", after: { video: 35, photo: 43.3, text: 21.7 } }, { settings: S, weekBaseMix: base, currentMix: base }).ok).toBe(true);
+  });
+  it("application : un mélange qui bouge de 20 points d'un coup est refusé", async () => {
+    const k = setup();
+    const r = await k.rec({ target: "CHANNEL_PLAN", targetId: "c1", field: "mix", after: { video: 45, photo: 36.7, text: 18.3 } });
+    expect((await applyRecommendation(k.deps, r.id, human)).ok).toBe(false);
+    expect(k.plan().mix).toEqual({ video: 1, photo: 2, text: 1 });
+  });
+  it("fenêtre proposée : la plage 18 h-20 h reste 18:00-20:00 (durée paire)", async () => {
+    const { channelProposals } = await import("./proposals");
+    const cells = [18, 19].flatMap((hour) => Array.from({ length: 4 }, (_, day) => ({ day, hour, posts: 4, medianViews2h: 100, ctr: 0.02, score: 10 })));
+    cells.push(...[12, 15].map((hour) => ({ day: 0, hour, posts: 4, medianViews2h: 10, ctr: 0.001, score: 1 })));
+    const plan = { channelId: "c1", teamKey: "dating", mix: null, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 1, minSpacingMinutes: 60, styleNotes: null };
+    const w = channelProposals(plan, null, cells, S).find((p) => p.field === "window")!;
+    expect(w.after).toEqual({ windowStart: "18:00", windowEnd: "20:00" });
+  });
+});

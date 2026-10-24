@@ -91,3 +91,24 @@ describe("échantillon", () => {
     expect(sample.every((s) => s.messages.length === 12)).toBe(true);
   });
 });
+
+describe("anonymisation : cas de la relecture adverse (phase 25)", () => {
+  it.each([
+    ["mon snap c'est bgdu93x", "bgdu93x"],
+    ["ajoute moi sur snap julie_75", "julie_75"],
+    ["insta : fredo.du.75 si tu veux", "fredo.du.75"],
+    ["Je suis Fred, j'habite Montreuil", "Fred"],
+    ["Je suis Fred, j'habite Montreuil", "Montreuil"],
+    ["je vis à Saint-Denis depuis 2 ans", "Saint-Denis"],
+    ["zero six douze trente quatre cinquante six", "douze trente"],
+    ["fred at gmail point com", "gmail"],
+    ["c'est fred93 sur tiktok", "fred93"],
+  ])("« %s » : « %s » masqué", (text, secret) => {
+    expect(anonymizeText(text)).not.toContain(secret);
+    expect(containsPersonalData(text)).toBe(true);
+  });
+  it("sans excès : phrases ordinaires gardées", () => {
+    for (const t of ["Je suis fatigué ce soir", "c'est trop bien", "j'habite pas loin", "j'ai deux chats", "je regarde une série à la télé", "Je suis sur snap"])
+      expect(anonymizeText(t), t).toBe(t);
+  });
+});

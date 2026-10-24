@@ -19,7 +19,6 @@ import {
   runTurn,
   type ChatMedia,
   type HistoryMessage,
-  type PersonaInput,
   type TurnDeps,
   type TurnInput,
   type TurnResult,
@@ -28,8 +27,9 @@ import { prisma, toJsonValue, type Prisma } from "@linkaffipro/db";
 import type { TelegramClient } from "telegram";
 import { logger } from "./logger";
 import { loadUserbotSettings } from "./settings";
-import { createOfferLink, dropUnsentOfferLink, offerUsable } from "./offer-link";
+import { createOfferLink, dropUnsentOfferLink } from "./offer-link";
 import { createMtprotoTransport, type TransportPeer } from "./transport";
+import { personaSkipReason, toPersonaInput } from "./persona";
 
 export type TurnAccount = {
   id: string;
@@ -174,36 +174,6 @@ const personaInclude = {
 
 type PersonaRow = Prisma.PersonaGetPayload<{ include: typeof personaInclude }>;
 
-function toPersonaInput(p: PersonaRow, botName: string): PersonaInput {
-  return {
-    name: p.name,
-    identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
-    illusion: p.illusion,
-    age: p.age,
-    gender: p.gender,
-    personality: p.personality,
-    tone: p.tone,
-    languages: p.languages,
-    interests: p.interests,
-    extraPrompt: p.extraPrompt,
-    styleExamples: p.styleExamples ?? null,
-    model: p.model,
-    temperature: p.temperature,
-    minExchangesBeforeOffer: p.minExchangesBeforeOffer,
-    requireInterest: p.requireInterest,
-    maxOfferSends: p.maxOfferSends,
-    followUpAfterHours: p.followUpAfterHours,
-    followUpsMax: p.followUpsMax,
-    offerPitch: p.offerPitch,
-    offerButtonText: p.offerButtonText,
-    // Comme le worker : sans offre exploitable le moteur ne parle jamais du lien (aucun ne pourrait partir).
-    hasOffer: Boolean(p.affiliateCampaignId) && offerUsable(p.affiliateCampaign),
-    offerMediaAssetId: offerUsable(p.affiliateCampaign) ? p.offerMediaAssetId : null,
-    channelTitle: null,
-    botName,
-  };
-}
-
 async function monthSpendEur(now: Date): Promise<number> {
   const agg = await prisma.aiConversationUsage.aggregate({
     _sum: { costEur: true },
@@ -232,7 +202,6 @@ export async function handleIncomingPrivate(
     logger.error(
       {
         compte: account.label,
-        de: String(msg.telegramUserId),
         err: err instanceof Error ? err.message : String(err),
       },
       "tour de conversation en erreur",
@@ -314,8 +283,9 @@ async function runConversationTurn(
     logger.info({ compte: account.label, conversation: conv.id, reason }, "pas de reponse");
   // Jamais de reponse apres un /stop, a un mineur, ni dans une conversation reprise ou fermee.
   if (conv.status !== "BOT" || conv.stoppedAt || conv.isMinor) return skip("conversation_fermee");
-  if (!persona) return skip("no_persona");
-  if (!persona.isActive) return skip("persona_inactive");
+  // Persona absente, inactive, ou d'un autre univers que Rencontres (un compte réel ne parle qu'en Rencontres).
+  const blocked = personaSkipReason(persona);
+  if (blocked || !persona) return skip(blocked ?? "no_persona");
   const { config: cfg, apiKey } = await loadUserbotSettings();
   if (!apiKey) return skip("no_api_key");
 

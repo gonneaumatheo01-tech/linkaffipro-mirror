@@ -61,7 +61,7 @@ describe("sortie stricte de la relecture", () => {
     expect(r.output.hooks).toEqual(["Court et bon"]);
     expect(r.rejected).toEqual([
       "accroche : trop long",
-      "accroche : message entier",
+      "accroche : citation d'un message",
       "accroche : donnée personnelle",
       "accroche : donnée personnelle",
     ]);
@@ -161,5 +161,34 @@ describe("recommandations PERSONA", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ status: "PROPOSED", target: "PERSONA", field: "followUpsMax", after: 0, size: "BIG" });
     await expect(savePersonaRecommendation(prisma, { ...d, field: "identityKind" as never })).rejects.toThrow(/non autorisé/);
+  });
+});
+
+describe("citations partielles (relecture adverse, phase 25)", () => {
+  const long: SampleConversation[] = [
+    {
+      n: "c2",
+      replied: true,
+      linkSent: false,
+      converted: false,
+      stage: "CHAT",
+      messages: [{ who: "personne", text: "Franchement je suis crevé après le boulot, j'ai juste envie de me poser devant une série ce soir" }],
+    },
+  ];
+  it("25 caractères consécutifs (normalisés) ou 6 mots en commun avec un message : élément rejeté", () => {
+    const r = parseReviewOutput(
+      ok({
+        hooks: [
+          "Il dit « crevé après le boulot, j'ai juste envie » : fatigue",
+          "ENVIE DE ME POSER DEVANT une série",
+          "Crevé apres le boulot j ai juste",
+          "Fatigue du soir évoquée",
+        ],
+      }),
+      long,
+    );
+    if (!r.ok) throw new Error(r.error);
+    expect(r.output.hooks).toEqual(["Fatigue du soir évoquée"]);
+    expect(r.rejected.filter((x) => x.includes("citation"))).toHaveLength(3);
   });
 });
