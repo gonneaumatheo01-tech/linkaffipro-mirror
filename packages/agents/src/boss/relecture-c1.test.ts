@@ -183,9 +183,30 @@ describe("4. demandes réservées à l'admin : ni un membre ni un responsable n'
   it("une demande d'équipe adressée au membre : il y répond", async () => {
     const kit = await createBossKit();
     const q = await askHuman(kit.deps, { teamKey: "casino", kind: "TEXT", key: "casino.theme", question: "Quel thème demain ?" });
-    await kit.prisma.humanRequest.update({ where: { id: q.requestId }, data: { assigneeTelegramId: 77n } as never });
-    const r = await repondreDemande.execute(({ ...kit.deps, speaker: LEA } as BossDeps), { reponse: "roulette" }, { userId: null, via: "TELEGRAM" });
+    await kit.prisma.humanRequest.update({ where: { id: q.requestId }, data: { assigneeTelegramId: 77n, chatId: -100n } as never });
+    const actor = { userId: null, via: "TELEGRAM" as const };
+    // Depuis son privé (question posée dans le groupe) : refusé.
+    expect((await repondreDemande.execute({ ...kit.deps, speaker: LEA, chat: { type: "private", chatId: 77n } } as BossDeps, { reponse: "roulette" }, actor)).reply).toContain("qui décide");
+    const r = await repondreDemande.execute({ ...kit.deps, speaker: LEA, chat: { type: "group", chatId: -100n } } as BossDeps, { reponse: "roulette" }, actor);
     expect(r.reply).toContain("Réponse notée");
+  });
+});
+
+describe("4 bis. responsable et membre par l'IA (règle du groupe)", () => {
+  it("un responsable passe une question d'équipe posée dans le groupe ; un membre non désigné reçoit « Cette question est pour … »", async () => {
+    const kit = await createBossKit([
+      ["plus tard", { name: "plus_tard", input: {} }],
+      ["passe cette question", { name: "plus_tard", input: {} }],
+    ]);
+    const q = await askHuman(kit.deps, { teamKey: "casino", kind: "TEXT", key: "casino.theme", question: "Quel thème demain ?" });
+    await kit.prisma.humanRequest.update({ where: { id: q.requestId }, data: { chatId: -100n } as never });
+    const group = { type: "group" as const, chatId: -100n };
+    const lea = await bossAiTurn(kit.deps, kit.input("passe cette question", { speaker: LEA, chat: group }));
+    expect(lea.reply).toMatch(/^Cette question est pour /);
+    expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
+    const marc = await bossAiTurn(kit.deps, kit.input("passe cette question", { speaker: MANAGER, chat: group }));
+    expect(marc.reply).toContain("plus tard");
+    expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "SKIPPED" });
   });
 });
 
@@ -286,7 +307,7 @@ describe("10. mots qui confirment, remplacement du Boss", () => {
 
   it("« jeton boss » avec un Boss actif : OUI / NON d'abord, jeton jamais en clair dans la confirmation", async () => {
     const kit = await createBossKit();
-    await kit.prisma.bot.create({ data: { username: "kevin_bot", role: "ADMIN", isActive: true, tokenEncrypted: "x", vertical: "DATING" } as never });
+    await kit.prisma.bot.create({ data: { username: "kevin_bot", role: "ADMIN", isActive: true, mode: "STANDARD", tokenEncrypted: "x", vertical: "DATING", createdAt: new Date() } as never });
     const port = vi.fn(async () => ({ username: "kevin2_bot" }));
     setBossRegisterPort(port);
     const token = "123456789:AAEhBOweik6ad9r_QXMENQjcrGbqCr4K-ra";

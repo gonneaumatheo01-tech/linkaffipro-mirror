@@ -6,14 +6,13 @@
  */
 import { adminTelegramId, agentAudit, esc, telegramActorUserId } from "../admin/journal";
 import { isSecretAdminText, type SecretTextContext } from "../admin/commands";
-import { askedMessageIdsOf, currentHumanRequest } from "../human/requests";
+import { askedMessageIdsOf } from "../human/requests";
 import { normalizeText } from "../human/answer";
-import { teamAdminOnlyRequest } from "../human/delivery";
 import type { BossAction, BossActionClass, BossActor, BossChat, BossDeps, BossPending, BossReply, BossSpeaker, BossTeamInput } from "./contract";
 import type { MentionRef } from "./team/addressed";
 import { adminFirstName, adminMention, findTeamMember, responsibilitiesOf } from "./team/members";
-import { isNoteOnlyEdit } from "./catalog-team";
-import { normName } from "./resolve";
+import { findPerson, isNoteOnlyEdit } from "./catalog-team";
+import { bossRequestScope, type BossRequestScope } from "./team/request-scope";
 import { BOSS_CATALOG, bossAction, bossActionAllowed } from "./catalog";
 import type { BossExecDeps } from "./catalog-read";
 import { createBossPending, deferBossPending, readBossPending, rememberBossPendingMessage } from "./confirm";
@@ -136,28 +135,31 @@ export type RunContext = {
   mentions?: MentionRef[];
 };
 
-const SELF_WORDS = new Set(["moi", "me", "je", "moi meme"]);
-
 /** Ce qu'il faut savoir pour juger les droits d'un membre sur cette action (équipes, demande qui lui est adressée…). */
-async function rightsScopeFor(deps: BossDeps, action: BossAction, params: Record<string, unknown>, speaker: BossSpeaker | null | undefined, cls: BossActionClass) {
+async function rightsScopeFor(deps: BossDeps, action: BossAction, params: Record<string, unknown>, ctx: RunContext, cls: BossActionClass) {
+  const speaker = ctx.speaker;
   if (!speaker || speaker.kind === "admin") return { cls, params };
   const member = await findTeamMember(deps, speaker.telegramUserId);
   const teams = member ? responsibilitiesOf(member.responsibilities).teams : [];
   let assignedToSpeaker = false;
+  let request: BossRequestScope["request"] = null;
   if (action.key === "repondre_demande" || action.key === "plus_tard") {
-    // Adressée à lui ET jamais une demande réservée à l'admin (même pour un responsable).
-    const cur = (await currentHumanRequest(deps)) as { kind: string; teamKey?: string | null; onAnswer?: unknown; assigneeTelegramId?: bigint | null } | null;
-    assignedToSpeaker = !!cur && cur.assigneeTelegramId === speaker.telegramUserId && !teamAdminOnlyRequest(cur);
+    // Adressée à lui dans cette conversation, réservée à l'admin, à un autre, ailleurs (règle du groupe).
+    const scope = await bossRequestScope(deps, speaker.telegramUserId, ctx.chat);
+    assignedToSpeaker = scope.assignedToSpeaker;
+    request = scope.request;
   } else if (["valider_post", "refuser_post", "corriger_post"].includes(action.key) && typeof params.numero === "number") {
     const v = (await deps.prisma.agentValidation.findUnique({ where: { number: params.numero } })) as { assigneeTelegramId?: bigint | null } | null;
     assignedToSpeaker = v?.assigneeTelegramId === speaker.telegramUserId;
   }
   let selfNoteOnly = false;
   if (action.key === "modifier_membre" && isNoteOnlyEdit(params) && member) {
-    const who = normName(String(params.personne ?? ""));
-    selfNoteOnly = SELF_WORDS.has(who) || who === normName(member.firstName) || (!!member.username && who.replace(/^@/, "") === member.username.toLowerCase());
+    // Par l'identifiant de la personne retrouvée, jamais par le prénom (un prénom Telegram est libre).
+    const execDeps: BossExecDeps = { ...deps, speaker, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
+    const found = await findPerson(execDeps, typeof params.personne === "string" ? params.personne : undefined).catch(() => null);
+    selfNoteOnly = !!found && found.kind === "found" && found.person.id === speaker.telegramUserId;
   }
-  return { cls, params, teams, assignedToSpeaker, selfNoteOnly };
+  return { cls, params, teams, assignedToSpeaker, request, selfNoteOnly };
 }
 
 /**
@@ -211,11 +213,15 @@ export async function runBossAction(
   const cls = action.classify ? await action.classify(deps, params) : action.cls;
   const member = !!ctx.speaker && ctx.speaker.kind === "member";
   if (member) {
-    const scope = await rightsScopeFor(deps, action, params, ctx.speaker, cls);
+    const scope = await rightsScopeFor(deps, action, params, ctx, cls);
     if (!bossActionAllowed(action, ctx.speaker, scope)) {
       // Lecture interdite, démarrage guidé, annulation, demande qui ne lui est pas adressée : réponse simple ; tout le
       // reste part chez l'admin.
-      if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre", "repondre_demande", "plus_tard"].includes(action.key)) {
+      if (action.key === "repondre_demande" || action.key === "plus_tard") {
+        await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
+        return { reply: `Cette question est pour ${esc(await adminFirstName(deps).catch(() => "l'admin"))}.`, status: "refused" };
+      }
+      if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre"].includes(action.key)) {
         await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
         return { reply: await notYoursReply(deps), status: "refused" };
       }

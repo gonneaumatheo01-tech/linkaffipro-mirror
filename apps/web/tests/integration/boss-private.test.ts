@@ -182,6 +182,8 @@ beforeAll(async () => {
   // Dépense du mois (Paris) : la réponse chiffrée doit reprendre la vue d'ensemble.
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
   await prisma.agentUsage.create({ data: { teamKey: "casino", provider: "llm", month, cents: 1234, calls: 3 } });
+  // Service d'arrière-plan considéré vivant (aucun Redis ici) ; le cas « arrêté » est vérifié à l'étape 12.
+  prismaTelegramDeps.workerDown = async () => false;
   // Mise en file des agents : capturée (aucun Redis), même objet de dépendances que le webhook.
   agents().enqueue = {
     orchestrator: async (job, opts) => void enqueued.push({ job, jobId: opts?.jobId }),
@@ -367,5 +369,18 @@ describe("Kevin en privé : scénario complet (base réelle, faux Telegram, faus
     expect((await teamCasino())?.paused).toBe(false);
     expect(await prisma.auditLog.count({ where: { action: "boss.pause" } })).toBe(audits);
     expect(bossSentSince(m)).toEqual([]);
+  });
+
+  it("12. service d'arrière-plan arrêté : réponse de secours tout de suite, tâche quand même en file", async () => {
+    prismaTelegramDeps.workerDown = async () => true;
+    try {
+      const before = enqueued.length;
+      const m = mark();
+      await toBoss(text(ADMIN, "raconte-moi la semaine du casino"));
+      expect(bossSentSince(m).join("\n")).toContain("Mon service d'arrière-plan est arrêté");
+      expect(enqueued.slice(before).filter((e) => e.job.type === "boss-text")).toHaveLength(1);
+    } finally {
+      prismaTelegramDeps.workerDown = async () => false;
+    }
   });
 });

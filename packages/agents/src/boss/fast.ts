@@ -112,7 +112,7 @@ function fromAdmin(r: AdminTextResult): BossReply {
  * existe déjà (@x) : le remplacer ? »), jeton gardé CHIFFRÉ dans la confirmation.
  */
 async function bossTokenStep(deps: BossDeps, input: BossTeamInput, token: string): Promise<BossReply> {
-  const active = (await deps.prisma.bot.findFirst({ where: { role: "ADMIN", isActive: true }, select: { username: true } }).catch(() => null)) as { username: string } | null;
+  const active = (await deps.prisma.bot.findFirst({ where: BOSS_BOT_WHERE, orderBy: { createdAt: "desc" }, select: { username: true } }).catch(() => null)) as { username: string } | null;
   if (active) {
     const r = await createBossPending(deps, {
       actionKey: "remplacer_boss",
@@ -125,6 +125,15 @@ async function bossTokenStep(deps: BossDeps, input: BossTeamInput, token: string
   const actor = await bossActorOf(deps, input.speaker);
   return { reply: await registerBossToken(deps, token, actor.userId), deleteMessage: true };
 }
+
+/** Le Boss actif (même filtre que `BOSS_BOT_WHERE` de `@linkaffipro/telegram/admin-bot`, que ce paquet n'importe pas). */
+const BOSS_BOT_WHERE = {
+  role: "ADMIN" as const,
+  isActive: true,
+  mode: "STANDARD" as const,
+  userbotAccounts: { none: {} },
+  NOT: { username: { startsWith: "userbot_" } },
+};
 
 /** Le message porte-t-il des emojis animés (entités `custom_emoji`) ? */
 function hasCustomEmoji(input: BossTeamInput): boolean {

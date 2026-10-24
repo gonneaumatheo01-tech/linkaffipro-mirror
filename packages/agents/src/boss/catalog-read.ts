@@ -8,6 +8,7 @@ import { agentAudit, esc, nowOf } from "../admin/journal";
 import { teamAdminOnlyRequest } from "../human/delivery";
 import { adminOnlyRequest } from "../human/access";
 import { adminFirstName } from "./team/members";
+import { requestScopeOf } from "./team/request-scope";
 import { BOSS_TOKEN_SECRET_KEY, bossRegisterPort } from "./register-port";
 import { agentsOverview, overviewLines } from "../orchestrator/overview-contract";
 import { dailyReportText } from "../admin/report-command";
@@ -107,17 +108,23 @@ export const demandesOuvertes = defineAction<Empty>({
 
 type AnswerP = { reponse: string };
 
-type RequestRights = { kind: string; teamKey?: string | null; onAnswer?: unknown; assigneeTelegramId?: bigint | null };
+type RequestRights = { kind: string; teamKey?: string | null; onAnswer?: unknown; assigneeTelegramId?: bigint | null; chatId?: bigint | null };
 
 /**
- * Un membre (ou un responsable) ne répond à une demande, ou ne la passe, que si elle LUI est adressée et n'est pas
- * réservée à l'admin (`teamAdminOnlyRequest`, qui reprend `adminOnlyRequest` hors clés). L'admin : toujours.
+ * Un membre ne répond à une demande, ou ne la passe, que si elle LUI est adressée dans cette conversation ; un
+ * responsable aussi pour une demande de son équipe sans responsable désigné posée là (même règle que `team/rights.ts`).
+ * Jamais une demande réservée à l'admin (`teamAdminOnlyRequest`, qui reprend `adminOnlyRequest` hors clés), même
+ * adressée. L'admin : toujours.
  */
-export function speakerMayAnswerRequest(speaker: BossSpeaker | null | undefined, request: RequestRights): boolean {
+export function speakerMayAnswerRequest(speaker: BossSpeaker | null | undefined, request: RequestRights, chat?: BossChat | null): boolean {
   if (!speaker || speaker.kind === "admin") return true;
-  if (request.assigneeTelegramId == null || request.assigneeTelegramId !== speaker.telegramUserId) return false;
   if (teamAdminOnlyRequest(request)) return false;
-  return request.kind === "SECRET" || !adminOnlyRequest(request);
+  if (request.kind !== "SECRET" && adminOnlyRequest(request)) return false;
+  const scope = requestScopeOf(request, speaker.telegramUserId, chat);
+  if (scope.assignedToSpeaker) return true;
+  const manager = speaker.role === "MANAGER" || speaker.role === "ADMIN";
+  const r = scope.request;
+  return manager && !!r && !r.adminOnly && !r.assignedToOther && !r.otherChat;
 }
 
 async function notYours(deps: BossDeps): Promise<BossReply> {
@@ -136,7 +143,7 @@ export const repondreDemande = defineAction<AnswerP>({
   async execute(deps: BossExecDeps, p, actor) {
     const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
     if (!current) return { reply: "Aucune question en cours." };
-    if (!speakerMayAnswerRequest(deps.speaker, current)) return notYours(deps);
+    if (!speakerMayAnswerRequest(deps.speaker, current, deps.chat)) return notYours(deps);
     if (current.kind === "SECRET") return { reply: SECRET_ANSWER_HINT };
     if (current.kind === "MEDIA") return { reply: "Pour cette question, envoie-moi directement les vidéos ou photos demandées (ou « plus tard »)." };
     const r = await respondToRequest(deps, current, p.reponse, actorRef(actor), { deferNext: true, confirmText: deps.inputText ?? p.reponse });
@@ -160,7 +167,7 @@ export const plusTard = defineAction<Empty>({
   async execute(deps: BossExecDeps, _p, actor) {
     const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
     if (!current) return { reply: "Aucune question en cours." };
-    if (!speakerMayAnswerRequest(deps.speaker, current)) return notYours(deps);
+    if (!speakerMayAnswerRequest(deps.speaker, current, deps.chat)) return notYours(deps);
     const r = await skipRequest(deps, current, actorRef(actor), { deferNext: true });
     return {
       reply: esc(r.message),
