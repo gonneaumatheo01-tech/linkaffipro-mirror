@@ -45,7 +45,15 @@ export const BOSS_READ_KEYS = new Set([
 export const BOSS_TEAM_ADMIN_KEYS = new Set(["presenter_membre", "modifier_membre", "retirer_membre"]);
 
 /** Réservées à l'admin, quelle que soit la classe (démarrage guidé, annulation de SA confirmation, groupe). */
-export const BOSS_ADMIN_ONLY_KEYS = new Set(["commencer", "annule", "groupe_equipe"]);
+export const BOSS_ADMIN_ONLY_KEYS = new Set([
+  "commencer",
+  "annule",
+  "groupe_equipe",
+  // Phase 27 : appliquer, annuler ou retirer une inspiration change les réglages : l'admin seul.
+  "appliquer_inspiration",
+  "annuler_inspiration",
+  "retirer_reference",
+]);
 
 /** Réponses aux demandes et décisions sur les validations : permises au membre à qui elles sont adressées. */
 export const BOSS_ASSIGNED_KEYS = new Set(["repondre_demande", "plus_tard", "valider_post", "refuser_post", "corriger_post"]);
@@ -103,6 +111,9 @@ export function bossRightsAllow(action: Pick<BossAction, "key" | "cls" | "theme"
   if (!speaker || speaker.kind === "admin") return true;
   const cls = scope.cls ?? action.cls;
   if (BOSS_ADMIN_ONLY_KEYS.has(action.key)) return false;
+  // Une action à confirmer (entrée par un lien d'invitation, par exemple) n'est jamais celle d'un membre, même
+  // rangée parmi les lectures : elle part chez l'admin, qui seul confirme.
+  if (cls === "confirm" && !BOSS_ASSIGNED_KEYS.has(action.key)) return false;
   if (BOSS_READ_KEYS.has(action.key)) return true;
   const manager = speaker.role === "MANAGER" || speaker.role === "ADMIN";
   if (BOSS_TEAM_ADMIN_KEYS.has(action.key)) return manager || (action.key === "modifier_membre" && scope.selfNoteOnly === true);

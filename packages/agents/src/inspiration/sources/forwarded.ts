@@ -15,6 +15,9 @@ type Chat = { id: number | bigint; type?: string; title?: string; username?: str
 export type ForwardedMessage = {
   message_id: number;
   date: number;
+  /** Album (plusieurs photos ou vidéos envoyées ensemble) : même valeur pour chaque élément. */
+  media_group_id?: string;
+  chat?: { id: number | bigint };
   text?: string;
   caption?: string;
   entities?: Entity[];
@@ -107,4 +110,57 @@ export function forwardedToReferencePost(message: ForwardedMessage): { origin: F
       linkCount,
     },
   };
+}
+
+/**
+ * Clé d'album d'un message transféré (`media_group_id`, par conversation) : null hors album. Sert à reconnaître une
+ * photo d'un album déjà rangé quand les éléments arrivent dans des updates séparées.
+ */
+export function forwardedAlbumKey(message: ForwardedMessage): string | null {
+  if (!message.media_group_id) return null;
+  return `${message.chat ? String(message.chat.id) : "?"}:${message.media_group_id}`;
+}
+
+const MEDIA_RANK: Record<ReferenceMediaKind, number> = { video: 5, photo: 4, document: 3, poll: 2, other: 1, text: 0 };
+
+/**
+ * Messages transférés → posts au format commun, un album (`media_group_id`) = UN post : numéro et date du premier
+ * élément (plus petit numéro d'origine), texte = la légende non vide (Telegram la porte sur un seul élément), média le
+ * plus parlant (vidéo avant photo), boutons et liens réunis. Messages non transférés ignorés ; ordre d'arrivée gardé.
+ */
+export function groupForwardedAlbums(messages: readonly ForwardedMessage[]): { origin: ForwardedOrigin | null; post: ReferencePostInput }[] {
+  type Item = { origin: ForwardedOrigin | null; post: ReferencePostInput; album: string | null };
+  const out: Item[] = [];
+  const byAlbum = new Map<string, Item>();
+  for (const m of messages) {
+    const r = forwardedToReferencePost(m);
+    if (!r) continue;
+    const key = forwardedAlbumKey(m);
+    const prev = key ? byAlbum.get(key) : undefined;
+    if (!key || !prev) {
+      const item: Item = { ...r, album: key };
+      out.push(item);
+      if (key) byAlbum.set(key, item);
+      continue;
+    }
+    const a = prev.post;
+    const b = r.post;
+    const first = b.externalId > 0 && (a.externalId < 0 || b.externalId < a.externalId) ? b : a;
+    const text = a.text ?? b.text;
+    prev.post = {
+      externalId: first.externalId,
+      postedAt: first.postedAt,
+      text,
+      mediaKind: MEDIA_RANK[b.mediaKind] > MEDIA_RANK[a.mediaKind] ? b.mediaKind : a.mediaKind,
+      views: a.views ?? b.views,
+      hasButton: a.hasButton || b.hasButton,
+      linkCount: Math.max(a.linkCount, b.linkCount),
+    };
+    prev.origin ??= r.origin;
+  }
+  // Album sans numéro d'origine (transfert masqué) : numéro stable tiré de la légende, comme un post seul.
+  return out.map(({ origin, post }) => ({
+    origin,
+    post: post.externalId < 0 ? { ...post, externalId: syntheticExternalId(post.text, Math.round(post.postedAt.getTime() / 1000), post.mediaKind) } : post,
+  }));
 }

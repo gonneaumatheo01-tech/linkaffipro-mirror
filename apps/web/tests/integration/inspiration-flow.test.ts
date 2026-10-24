@@ -257,6 +257,7 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
   });
 
   it("4. propositions numérotées, puis « applique 1 et 2 » : appliquées dans les bornes, Experiment créée", async () => {
+    const stepStart = new Date(Date.now() - 1000);
     const list = await say("tes propositions ?");
     expect(list).toContain("Mes propositions pour Roulette");
     expect(list).toMatch(/^1\. /m);
@@ -276,7 +277,7 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
     const exp = await prisma.experiment.findMany({ where: { channelId: ids.roulette } });
     expect(exp).toHaveLength(1);
     expect(exp[0]!.status).toBe("RUNNING");
-    expect(await prisma.auditLog.count({ where: { action: "inspiration.applied" } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { action: "inspiration.applied", createdAt: { gte: stepStart } } })).toBe(1);
   });
 
   it("5. profil de style appliqué (choix déjà répondu : à confirmer, puis OUI) → la Rédaction le reçoit", async () => {
@@ -293,7 +294,7 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
     const r = await redactionAgent.run(mission, ctxAgent);
     expect(r.ok).toBe(true);
     const user = agentLlm.calls.slice(before).map((c) => c.user).join("\n");
-    expect(user).toContain(`Méthode inspirée de @${REF_PUBLIC}`);
+    expect(user).toMatch(new RegExp(`Méthode inspirée[^\\n]*@${REF_PUBLIC}`));
   });
 
   it("6. Contrôle qualité : un post qui reprend 8 mots d'un post de référence est refusé", async () => {

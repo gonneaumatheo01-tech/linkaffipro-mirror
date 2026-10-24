@@ -43,6 +43,7 @@ import {
   type TeamMemberRow,
 } from "./members";
 import { kevinForwardedPost } from "../../inspiration/kevin-forward";
+import { readCollect } from "../../inspiration/kevin";
 import type { ForwardedMessage } from "../../inspiration/sources/forwarded";
 import { bossUsername, claimDeleteRightAsk, claimGroupWelcome, privateLink, readBossGroupId, setBossGroup } from "./group";
 
@@ -468,7 +469,8 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
     if (/^\/start(?:@\w+)?(?:\s|$)/.test(msg.text.trim())) return reply(MEMBER_PRIVATE_WELCOME(member.firstName, name));
   }
   // Phase 27 : post transféré d'un canal tiers → rangé comme post de référence (une réponse par lot, une minute après).
-  if (msg.forwarded && msg.raw) {
+  // Dans le groupe, seulement s'il s'adresse à Kevin, ou si Kevin a demandé des transferts à cette personne ici.
+  if (msg.forwarded && msg.raw && (!group || addr.addressed || (await collectAskedTo(deps, msg.chat.id, msg.from.id)))) {
     const stored = await kevinForwardedPost(deps, { message: msg.raw as ForwardedMessage, chat, speaker });
     if (stored.handled) return stored.reply ? { kind: "reply", reply: stored.reply } : ignore("post de référence rangé");
   }
@@ -580,4 +582,10 @@ export async function bossGroupMembership(deps: AgentsDeps, ev: BossMembershipEv
     deps.logger?.error({ err: (err as Error).message }, "[boss] arrivée dans un groupe en échec");
     return { say: [], reason: "erreur" };
   }
+}
+
+/** Kevin a-t-il demandé des posts transférés à cette personne dans cette conversation (collecte ouverte) ? */
+async function collectAskedTo(deps: AgentsDeps, chatId: bigint, fromId: bigint): Promise<boolean> {
+  const c = await readCollect(deps, chatId.toString()).catch(() => null);
+  return !!c && c.telegramUserId === fromId.toString();
 }

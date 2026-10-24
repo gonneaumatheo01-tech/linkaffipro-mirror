@@ -51,6 +51,8 @@ export const ADMIN_ONLY_ANSWER_ACTIONS = new Set([
   "algo-level",
   "algo-max-posts",
   "dating-video-budget",
+  // Phase 27 : garder ou annuler les réglages d'une inspiration.
+  "inspiration-keep",
   "ads-cpr",
   "ads-roas",
   "sports-categories",

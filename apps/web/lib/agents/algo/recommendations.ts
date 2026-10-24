@@ -77,6 +77,13 @@ export function canActOnRecommendation(
   return role === "ADMIN" || !isBigRecommendation(r);
 }
 
+/** Proposition venue d'un canal d'inspiration (phase 27) : jamais par la voie générique (réservée à l'admin, sur la page Inspiration). */
+export const INSPIRATION_ONLY_MESSAGE = "Cette proposition vient d'un canal d'inspiration : elle se gère dans Agents → Inspiration (administrateurs).";
+
+export function genericRecommendationRefusal(r: { source?: string | null }): string | null {
+  return r.source === "inspiration" ? INSPIRATION_ONLY_MESSAGE : null;
+}
+
 /** Gestes possibles selon l'état : proposé → appliquer ou refuser ; appliqué → annuler. */
 export function actionsFor(status: string): RecommendationAction[] {
   if (status === "PROPOSED") return ["apply", "reject"];

@@ -26,6 +26,8 @@ export type AccountReadOptions = {
   sinceId?: number;
   /** Compte imposé (doit être dans la liste des comptes membres libres). */
   accountId?: string;
+  /** Appelée après chaque lot (renouvellement du verrou de lecture). */
+  onBatch?: () => Promise<void>;
 };
 
 export type AccountReadResult = ReferenceReadResult & {
@@ -98,6 +100,7 @@ export async function readWithAccount(reader: AccountHistoryReader, channel: Acc
       res = null;
     }
     batches++;
+    await opts.onBatch?.();
     if (!res || "floodWaitSeconds" in res) break;
     title ??= res.title;
     chatId ??= res.chatId;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forwardedToReferencePost, type ForwardedMessage } from "./forwarded";
+import { forwardedAlbumKey, forwardedToReferencePost, groupForwardedAlbums, type ForwardedMessage } from "./forwarded";
 
 const base = { message_id: 77, date: 1_792_000_000 };
 
@@ -40,5 +40,41 @@ describe("posts transférés à Kevin", () => {
     expect(forwardedToReferencePost({ ...base, document: {}, forward_origin: { type: "hidden_user", date: 1 } })!.post.mediaKind).toBe("document");
     expect(forwardedToReferencePost({ ...base, sticker: {}, forward_origin: { type: "hidden_user", date: 1 } })!.post.mediaKind).toBe("other");
     expect(forwardedToReferencePost({ ...base, text: "bonjour" })).toBeNull();
+  });
+});
+
+describe("albums transférés (media_group_id) : un seul post", () => {
+  const origin = (id: number) => ({ type: "channel" as const, date: 1_791_000_000, chat: { id: -1001234, type: "channel", title: "Casino Exemple", username: "casino_exemple" }, message_id: id });
+  const chat = { id: 4242 };
+  it("trois photos d'un album → un post (premier numéro, légende non vide, média le plus parlant) ; post seul gardé", () => {
+    const album: ForwardedMessage[] = [
+      { message_id: 10, date: 1_792_000_000, chat, media_group_id: "g1", photo: [{}], forward_origin: origin(501) },
+      { message_id: 11, date: 1_792_000_000, chat, media_group_id: "g1", photo: [{}], caption: "Trois tables ouvertes ce soir", forward_origin: origin(502) },
+      { message_id: 12, date: 1_792_000_000, chat, media_group_id: "g1", video: {}, forward_origin: origin(500) },
+      { message_id: 13, date: 1_792_000_100, chat, text: "Post seul", forward_origin: origin(510) },
+    ];
+    const r = groupForwardedAlbums(album);
+    expect(r).toHaveLength(2);
+    expect(r[0]!.post).toMatchObject({ externalId: 500, text: "Trois tables ouvertes ce soir", mediaKind: "video" });
+    expect(r[0]!.origin).toMatchObject({ username: "casino_exemple" });
+    expect(r[1]!.post).toMatchObject({ externalId: 510, text: "Post seul" });
+    expect(forwardedAlbumKey(album[0]!)).toBe("4242:g1");
+    expect(forwardedAlbumKey(album[3]!)).toBeNull();
+  });
+  it("album masqué : un post, numéro stable tiré de la légende ; deux albums distincts restent distincts", () => {
+    const hidden = (id: number, group: string, caption?: string): ForwardedMessage => ({
+      message_id: id,
+      date: 1_792_000_000,
+      chat,
+      media_group_id: group,
+      photo: [{}],
+      ...(caption ? { caption } : {}),
+      forward_origin: { type: "hidden_user", date: 1_790_000_000 },
+    });
+    const r = groupForwardedAlbums([hidden(1, "a"), hidden(2, "a", "Légende de l'album A"), hidden(3, "b", "Album B")]);
+    expect(r).toHaveLength(2);
+    expect(r[0]!.post.text).toBe("Légende de l'album A");
+    expect(r[0]!.post.externalId).toBeLessThan(0);
+    expect(groupForwardedAlbums([hidden(2, "a", "Légende de l'album A"), hidden(1, "a")])[0]!.post.externalId).toBe(r[0]!.post.externalId);
   });
 });

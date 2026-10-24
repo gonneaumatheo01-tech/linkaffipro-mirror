@@ -12,6 +12,8 @@
  */
 import { adminTelegramId, agentEvent, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import type { AgentsDeps } from "../types";
+import { loadAlgoTeam } from "../algo/settings";
+import { isAgentsPausedAll } from "../missions/settings";
 import { INSPIRATION_LIMITS, type ChannelComparison, type InspirationAnalysis, type InspirationGap, type Measure } from "./contract";
 import { analyzeReference, buildStyleProfile, compareWithChannel } from "./kevin-ports";
 import { loadReferenceRow, readAsker, referenceLabel, referencePostCount, sendToAsker, targetIdsOf, type ReferenceRow } from "./kevin-refs";
@@ -128,11 +130,14 @@ export function summaryFacts(a: InspirationAnalysis, comparison: ChannelComparis
 
 // ------------------------------------------------------------------------------------------ collectes de transferts
 
-export type InspirationCollect = { referenceChannelId: string; at: string };
+export type InspirationCollect = { referenceChannelId: string; at: string; telegramUserId?: string | null };
 
-/** Ouvre une collecte : les prochains posts transférés à origine masquée dans cette conversation vont à cette référence. */
-export async function openCollect(deps: AgentsDeps, chatKey: string, referenceChannelId: string): Promise<void> {
-  await writeSetting(deps, `${INSPIRATION_COLLECT_PREFIX}${chatKey}`, { referenceChannelId, at: nowOf(deps).toISOString() });
+/**
+ * Ouvre une collecte : les prochains posts transférés par cette personne, dans cette conversation, d'un canal encore
+ * inconnu vont à cette référence (dans un groupe, seuls ces transferts-là sont rangés sans mention de Kevin).
+ */
+export async function openCollect(deps: AgentsDeps, chatKey: string, referenceChannelId: string, telegramUserId: string | null = null): Promise<void> {
+  await writeSetting(deps, `${INSPIRATION_COLLECT_PREFIX}${chatKey}`, { referenceChannelId, at: nowOf(deps).toISOString(), telegramUserId });
 }
 
 export async function readCollect(deps: AgentsDeps, chatKey: string): Promise<InspirationCollect | null> {
@@ -158,11 +163,24 @@ export async function askForForwards(deps: AgentsDeps, ref: ReferenceRow, reason
       ? `J'ai lu ${count} post${count > 1 ? "s" : ""} de ${label}, il m'en faut ${INSPIRATION_LIMITS.minPostsForAnalysis} : transfère-m'en d'autres.`
       : `Je ne peux pas lire ${label}${reason ? ` (${esc(reason.slice(0, 160))})` : ""}.`;
   const tail = count > 0 ? "" : `\nTransfère-moi ${INSPIRATION_LIMITS.forwardMin} à ${INSPIRATION_LIMITS.forwardMax} de ses posts ici : je les range et je l'analyse.`;
-  await openCollect(deps, await askerChatKey(deps, ref.id), ref.id);
+  await openCollect(deps, await askerChatKey(deps, ref.id), ref.id, (await readAsker(deps, ref.id))?.telegramUserId ?? null);
   await sendToAsker(deps, ref.id, `${head}${tail}`, { actionKey: "inspiration_transfert" });
 }
 
 // ------------------------------------------------------------------------------------------ après une lecture
+
+/** Le profil de style se refait au plus une fois par jour, seulement si de nouveaux posts sont arrivés depuis, et jamais
+ * quand l'équipe Algorithme (qui paie l'IA) ou tous les agents sont en pause. */
+export const STYLE_PROFILE_MIN_INTERVAL_MS = 24 * 3600_000;
+
+export async function shouldRebuildProfile(deps: AgentsDeps, refId: string): Promise<boolean> {
+  const team = await loadAlgoTeam(deps.prisma);
+  if (team.paused || (await isAgentsPausedAll(deps.prisma))) return false;
+  const latest = (await deps.prisma.styleProfile.findFirst({ where: { referenceChannelId: refId }, orderBy: { version: "desc" } })) as { createdAt: Date } | null;
+  if (!latest) return true;
+  if (nowOf(deps).getTime() - new Date(latest.createdAt).getTime() < STYLE_PROFILE_MIN_INTERVAL_MS) return false;
+  return (await deps.prisma.referencePost.count({ where: { referenceChannelId: refId, createdAt: { gt: latest.createdAt } } })) > 0;
+}
 
 /** Canal cible dont on parle : celui de la demande, sinon le premier rattaché. */
 async function primaryTarget(deps: AgentsDeps, ref: ReferenceRow): Promise<string | null> {
@@ -196,10 +214,11 @@ export async function afterReferenceRead(deps: AgentsDeps, referenceChannelId: s
       await agentEvent(deps, "agents.inspiration.forwards_asked", { referenceChannelId, reason: "too_few", count: analysis.count });
       return;
     }
-    await buildStyleProfile(deps, ref.id, analysis).catch((err) => {
-      deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] profil de style impossible");
-      return null;
-    });
+    if (await shouldRebuildProfile(deps, ref.id))
+      await buildStyleProfile(deps, ref.id, analysis).catch((err) => {
+        deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] profil de style impossible");
+        return null;
+      });
     const target = await primaryTarget(deps, ref);
     const comparison = target
       ? await compareWithChannel(deps, analysis, target).catch((err) => {
@@ -214,6 +233,9 @@ export async function afterReferenceRead(deps: AgentsDeps, referenceChannelId: s
     await agentEvent(deps, "agents.inspiration.summary_sent", { referenceChannelId, posts: analysis.sampleSize, target });
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message, referenceChannelId }, "[inspiration] suite de la lecture (Kevin) en échec");
+    // Jamais de silence : la personne sait que l'analyse n'a pas abouti.
+    const ref = await loadReferenceRow(deps, referenceChannelId).catch(() => null);
+    if (ref) await sendToAsker(deps, ref.id, `Je n'ai pas réussi à analyser ${esc(referenceLabel(ref))} (${esc(String((err as Error).message ?? err).slice(0, 120))}). Redemande-moi dans un moment.`, { actionKey: "inspiration_resume" });
   }
 }
 
@@ -287,5 +309,54 @@ export async function afterReferenceReread(deps: AgentsDeps, referenceChannelId:
     await agentEvent(deps, "agents.inspiration.method_changed", { referenceChannelId, changes: changes.length });
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message, referenceChannelId }, "[inspiration] suite de la relecture (Kevin) en échec");
+  }
+}
+
+// ------------------------------------------------------------------------------------------ lecture reportée ou en échec
+
+const NOTICE_PREFIX = "inspiration.notice.";
+
+/** Un message par référence et par motif et par jour au plus (pas de répétition à chaque nouvel essai). */
+async function noticeOnce(deps: AgentsDeps, refId: string, motive: string): Promise<boolean> {
+  const key = `${NOTICE_PREFIX}${refId}`;
+  const day = nowOf(deps).toISOString().slice(0, 10);
+  const v = (await readSetting(deps, key)) as Record<string, string> | undefined;
+  if (v && v[motive] === day) return false;
+  await writeSetting(deps, key, { ...(v ?? {}), [motive]: day });
+  return true;
+}
+
+/**
+ * Lecture reportée (quota de 5 par jour, autre lecture en cours, Telegram indisponible) : la personne est prévenue
+ * (« Déjà 5 lectures aujourd'hui, je lis @x demain »). À appeler par la lecture (chantier A) et le worker.
+ */
+export async function notifyReadPostponed(deps: AgentsDeps, referenceChannelId: string, reason: string): Promise<void> {
+  try {
+    const ref = await loadReferenceRow(deps, referenceChannelId);
+    if (!ref || !(await noticeOnce(deps, ref.id, "postponed"))) return;
+    const label = esc(referenceLabel(ref));
+    const text = /5 lectures|quota/i.test(reason)
+      ? `Déjà 5 lectures aujourd'hui : je lis ${label} demain.`
+      : `Je ne peux pas lire ${label} tout de suite (${esc(reason.slice(0, 160))}) : je réessaie un peu plus tard.`;
+    await sendToAsker(deps, ref.id, text, { actionKey: "inspiration_lecture" });
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] report de lecture non signalé");
+  }
+}
+
+/** Lecture abandonnée (essais épuisés, erreur) : la personne est prévenue, avec la voie des posts transférés. */
+export async function notifyReadFailed(deps: AgentsDeps, referenceChannelId: string, reason: string): Promise<void> {
+  try {
+    const ref = await loadReferenceRow(deps, referenceChannelId);
+    if (!ref || !(await noticeOnce(deps, ref.id, "failed"))) return;
+    await openCollect(deps, await askerChatKey(deps, ref.id), ref.id, (await readAsker(deps, ref.id))?.telegramUserId ?? null);
+    await sendToAsker(
+      deps,
+      ref.id,
+      `Lecture impossible de ${esc(referenceLabel(ref))} : ${esc(reason.slice(0, 160))}.\nTransfère-moi ${INSPIRATION_LIMITS.forwardMin} à ${INSPIRATION_LIMITS.forwardMax} de ses posts ici : je les range et je l'analyse.`,
+      { actionKey: "inspiration_lecture" },
+    );
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] échec de lecture non signalé");
   }
 }

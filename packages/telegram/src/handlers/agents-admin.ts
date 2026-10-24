@@ -139,6 +139,13 @@ async function replyHtml(ctx: Context, text: string): Promise<number | null> {
 }
 
 /** Même règle que le masquage du journal (`redactAdminSecretUpdate`) ; ne lève jamais. */
+/** Un post transféré ressemble-t-il à une clé ou à un jeton de bot (jamais rangé comme post de référence) ? */
+export async function forwardedLooksSecret(deps: TelegramDeps, fromId: number, text: string): Promise<boolean> {
+  if (!text.trim()) return false;
+  if (/(?<![\w])\d{6,12}:[A-Za-z0-9_-]{30,}/.test(text)) return true;
+  return looksSecret(deps, fromId, text);
+}
+
 async function looksSecret(deps: TelegramDeps, fromId: number, text: string, replyTo?: number): Promise<boolean> {
   try {
     const state = deps.agentsAdminState ? await deps.agentsAdminState(BigInt(fromId)) : null;
@@ -357,6 +364,9 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
     if (!msg.forward_origin || ctx.from.is_bot || !isBossBot(identity) || !deps.agentsDeps) return next();
     const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.chat.type);
     if (route.kind !== "dialog") return next();
+    // Les secrets d'abord : un post transféré qui contient une clé n'est jamais rangé ; le chemin habituel l'efface
+    // sans le journaliser.
+    if (await forwardedLooksSecret(deps, ctx.from.id, msg.text ?? msg.caption ?? "")) return next();
     const agents = deps.agentsDeps();
     let out: Awaited<ReturnType<typeof kevinForwardedPost>>;
     try {

@@ -38,7 +38,10 @@ export function isUniverse(v: unknown): v is InspirationUniverse {
 /** « @nom », sinon le titre, sinon « ce canal » (pur). */
 export function referenceLabel(ref: Pick<ReferenceRow, "username" | "title">): string {
   if (ref.username) return `@${ref.username}`;
-  if (ref.title) return ref.title;
+  // Titre choisi par le propriétaire du canal : coupé à 40 caractères, entre guillemets (il entre dans la mémoire de
+  // Kevin, jamais comme une consigne).
+  const t = (ref.title ?? "").replace(/[\r\n]+/g, " ").trim();
+  if (t) return `« ${t.length > 40 ? `${t.slice(0, 39)}…` : t} »`;
   return "ce canal";
 }
 
@@ -175,18 +178,27 @@ export async function sendToAsker(
   opts: { buttons?: AdminButton[][]; actionKey?: string } = {},
 ): Promise<boolean> {
   const asker = await readAsker(deps, refId);
-  const toAdmin = !asker || !asker.chatId || (asker.chatType === "private" && asker.kind === "admin");
+  const adminId = await adminTelegramId(deps).catch(() => null);
+  const toAdmin = !asker || !asker.chatId || (adminId !== null && asker.chatId === adminId.toString()) || (asker.chatType === "private" && asker.kind === "admin");
+  const extra = opts.buttons ? { buttons: opts.buttons } : undefined;
+  let sent: { messageId: number } | null | undefined = null;
+  let chatId: bigint | null = toAdmin ? adminId : BigInt(asker!.chatId);
   try {
-    const sent = toAdmin
-      ? await deps.admin?.send(html, opts.buttons ? { buttons: opts.buttons } : undefined)
-      : await deps.admin?.sendTo?.(BigInt(asker!.chatId), html, opts.buttons ? { buttons: opts.buttons } : undefined);
-    const chatId = toAdmin ? (asker?.chatId ? BigInt(asker.chatId) : await adminTelegramId(deps)) : BigInt(asker!.chatId);
-    await writeBossTurn(deps, { role: "BOSS", text: html.replace(/<[^>]+>/g, ""), actionKey: opts.actionKey ?? "inspiration", status: "done", chatId });
-    return !!sent;
+    sent = toAdmin ? await deps.admin?.send(html, extra) : await deps.admin?.sendTo?.(BigInt(asker!.chatId), html, extra);
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, refId }, "[inspiration] message de Kevin non envoyé");
-    return false;
   }
+  if (!sent && !toAdmin) {
+    // Groupe ou membre injoignable : l'admin reçoit le message (jamais de silence).
+    try {
+      sent = await deps.admin?.send(html, extra);
+      chatId = adminId;
+    } catch (err) {
+      deps.logger?.warn({ err: (err as Error).message, refId }, "[inspiration] message de Kevin non envoyé à l'admin");
+    }
+  }
+  if (sent) await writeBossTurn(deps, { role: "BOSS", text: html.replace(/<[^>]+>/g, ""), actionKey: opts.actionKey ?? "inspiration", status: "done", chatId });
+  return !!sent;
 }
 
 /** Phrase courte d'une référence (« @nom (12 posts lus) »), échappée. */

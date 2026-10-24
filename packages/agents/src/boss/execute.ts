@@ -210,7 +210,9 @@ export async function runBossAction(
   ctx: RunContext,
 ): Promise<RunResult> {
   const before = await readClarify(deps);
-  const cls = action.classify ? await action.classify(deps, params) : action.cls;
+  // Classe jugée avec qui parle et où (phase 27 : un choix numéroté ne vaut accord que pour l'admin qui l'a reçu).
+  const classifyDeps: BossExecDeps = { ...deps, inputText: ctx.inputText, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null, mentions: ctx.mentions ?? [] };
+  const cls = action.classify ? await action.classify(classifyDeps, params) : action.cls;
   const member = !!ctx.speaker && ctx.speaker.kind === "member";
   if (member) {
     const scope = await rightsScopeFor(deps, action, params, ctx, cls);

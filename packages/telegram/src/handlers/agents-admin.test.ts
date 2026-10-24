@@ -325,3 +325,13 @@ describe("vocaux de l'admin (phase 20)", () => {
     expect(sent()[0]).toContain("Vocal trop long");
   });
 });
+
+describe("phase 27 : post transféré au Boss qui contient un secret", () => {
+  it("un jeton ou une clé dans un post transféré n'est jamais rangé comme post de référence", async () => {
+    const { forwardedLooksSecret } = await import("./agents-admin");
+    const deps = {} as TelegramDeps;
+    expect(await forwardedLooksSecret(deps, ADMIN, `jeton 123456789:${"A".repeat(35)}`)).toBe(true);
+    expect(await forwardedLooksSecret(deps, ADMIN, "clé fal sk-abcdefghijklmnop1234567890")).toBe(true);
+    expect(await forwardedLooksSecret(deps, ADMIN, "Ce soir la roulette tourne, rejoins le VIP")).toBe(false);
+  });
+});

@@ -144,6 +144,9 @@ export async function closeExperiments(deps: AgentsDeps, opts: { force?: boolean
   })) as ExperimentRow[];
   const out: ClosedExperiment[] = [];
   for (const exp of due) {
+    // Phase 27 : un « avant / après » d'inspiration est clos par son propre bilan de nuit (jamais prolongé ici).
+    const insp = (exp.result as { inspiration?: { mode?: unknown } } | null)?.inspiration;
+    if (insp && insp.mode === "avant_apres") continue;
     const data = await experimentData(deps, exp);
     const v = experimentVerdict(exp.metric, data.A, data.B, { minSamples: exp.minSamples || settings.experimentMinSamples, alpha: settings.alpha });
     const prev = (exp.result && typeof exp.result === "object" ? exp.result : {}) as Record<string, unknown>;

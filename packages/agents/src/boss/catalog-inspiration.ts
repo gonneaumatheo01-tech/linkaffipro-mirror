@@ -8,8 +8,8 @@
  *   accord) ; « 1 3 », « 1 et 3 », « tout » ;
  * - `annuler_inspiration` (immédiate) : toutes les propositions appliquées d'une référence, ou une seule par numéro ;
  * - `retirer_reference` (à confirmer) : efface posts et profils, détache les plans.
- * Et le chemin rapide (`inspirationFastPath`, sans IA) : numéros en réponse au choix, nom d'un canal demandé après des
- * transferts masqués, « annule » juste après une application.
+ * Et le chemin rapide (`inspirationFastPath`, sans IA, admin seulement) : numéros en réponse au choix, « annule » juste
+ * après une application.
  * Les chiffres viennent du code (analyse du chantier B) ; une rédaction de l'IA n'est gardée que si elle n'invente aucun
  * chiffre (`checkedAnswer`).
  */
@@ -17,8 +17,10 @@ import { adminTelegramId, esc, nowOf, readSetting, writeSetting } from "../admin
 import { INSPIRATION_LIMITS, type InspirationAnalysis, type Measure } from "../inspiration/contract";
 import { inspirationSummaryLines, measureOf, fr } from "../inspiration/kevin";
 import { analyzeReference, compareWithChannel, enqueueReferenceRead, freeReaderAccounts, isInviteLink, joinWithInviteOnce, normalizeChannelUsername, createDefaultAccountReader, storeReferencePosts, type AccountJoinReader } from "../inspiration/kevin-ports";
+import { createHash } from "node:crypto";
 import {
   activeReferences,
+  channelUniverse,
   askerOf,
   createReference,
   findReference,
@@ -30,16 +32,16 @@ import {
   targetIdsOf,
   type ReferenceRow,
 } from "../inspiration/kevin-refs";
-import { inspirationNameAnswer, readForwardBatch } from "../inspiration/kevin-forward";
+import { readForwardBatch } from "../inspiration/kevin-forward";
 import { inspirationProposals, proposalsText } from "../inspiration/proposals";
 import { applyInspiration, removeReference, undoInspiration } from "../inspiration/apply";
 import { afterReferenceRead } from "../inspiration/kevin";
-import type { BossAction, BossDeps, BossReply, BossTeamInput } from "./contract";
+import type { BossAction, BossDeps, BossReply, BossSpeaker, BossTeamInput } from "./contract";
 import { actorRef, defineAction } from "./catalog-kit";
 import type { BossExecDeps } from "./catalog-read";
 import { ANSWER_MAX_LINES, ANSWER_SYSTEM, checkedAnswer } from "./answer";
 import { BossBudgetError } from "./llm";
-import { int, oneOf, str } from "./params";
+import { bool, int, oneOf, str } from "./params";
 import { askToChoose, matchNames, resolveChannel } from "./resolve";
 
 // ------------------------------------------------------------------------------------------ choix numéroté
@@ -63,9 +65,20 @@ export type InspirationChoice = {
 
 type LastApplied = { referenceChannelId: string; ids: string[]; chatId: string | null; at: string };
 
-export async function readInspirationChoice(deps: BossDeps): Promise<InspirationChoice | null> {
-  const v = (await readSetting(deps, INSPIRATION_CHOICE_SETTING)) as InspirationChoice | undefined;
+/** Clé du choix d'une conversation (`inspiration.choice.<conversation>`) : un choix par conversation. */
+export function choiceKey(chatKey: string | null): string {
+  return `${INSPIRATION_CHOICE_SETTING}.${chatKey ?? "admin"}`;
+}
+
+export async function readInspirationChoice(deps: BossDeps, chatKey: string | null): Promise<InspirationChoice | null> {
+  const v = (await readSetting(deps, choiceKey(chatKey))) as InspirationChoice | undefined;
   return v && typeof v === "object" && Array.isArray(v.items) ? v : null;
+}
+
+/** Le choix vaut accord pour cette personne : posé à l'admin, dans cette conversation, encore ouvert (pur). */
+export function choiceIsForAdmin(c: InspirationChoice | null, now: Date, speaker?: BossSpeaker | null): c is InspirationChoice {
+  if (speaker && speaker.kind === "member") return false;
+  return choiceIsOpen(c, now) && c.askedBy === "admin";
 }
 
 /** Choix ouvert (posé, sans réponse, de moins de 24 h) : une réponse par numéros vaut accord. */
@@ -98,7 +111,7 @@ async function storeChoice(deps: BossExecDeps, refId: string, channelId: string,
     createdAt: nowOf(deps).toISOString(),
     answeredAt: null,
   };
-  await writeSetting(deps, INSPIRATION_CHOICE_SETTING, choice);
+  await writeSetting(deps, choiceKey(choice.chatId), choice);
 }
 
 // ------------------------------------------------------------------------------------------ références
@@ -116,12 +129,20 @@ async function chatKeyOf(deps: BossExecDeps): Promise<string | null> {
 type RefCtx = { actionKey: string; params: Record<string, unknown>; field: string };
 
 /** Référence nommée (« @x », lien, titre) ou, sans nom, la dernière dont on a parlé. */
-async function resolveReference(deps: BossExecDeps, raw: string | undefined, ctx: RefCtx): Promise<{ ok: true; ref: ReferenceRow } | { ok: false; reply: BossReply }> {
-  const refs = await activeReferences(deps);
+async function resolveReference(
+  deps: BossExecDeps,
+  raw: string | undefined,
+  ctx: RefCtx,
+  opts: { includeRemoved?: boolean } = {},
+): Promise<{ ok: true; ref: ReferenceRow } | { ok: false; reply: BossReply }> {
+  // Annuler reste possible après un retrait (les réglages appliqués restent annulables 30 jours).
+  const refs = opts.includeRemoved
+    ? ((await deps.prisma.referenceChannel.findMany({ orderBy: { createdAt: "desc" }, take: 100 })) as ReferenceRow[])
+    : await activeReferences(deps);
   if (!refs.length) return { ok: false, reply: { reply: "Aucun canal d'inspiration pour le moment : envoie-moi son lien (t.me/…) ou transfère-moi ses posts." } };
   if (!raw) {
-    const choice = await readInspirationChoice(deps);
     const chatKey = await chatKeyOf(deps);
+    const choice = await readInspirationChoice(deps, chatKey);
     const batch = chatKey ? await readForwardBatch(deps, chatKey) : null;
     const pick = [choice?.referenceChannelId, batch?.lastRefId].map((id) => refs.find((r) => r.id === id)).find(Boolean) ?? refs[0]!;
     return { ok: true, ref: pick };
@@ -196,6 +217,36 @@ async function freeAccount(deps: InspirationDeps): Promise<{ id: string; label: 
   return acc ? { id: acc.id, label: acc.label } : null;
 }
 
+export const INSPIRATION_INVITES_TRIED_SETTING = "inspiration.invitesTried";
+
+function inviteHash(link: string): string {
+  return createHash("sha256").update(link.trim().replace(/^https?:\/\//i, "").toLowerCase()).digest("hex").slice(0, 16);
+}
+
+/** Ce lien d'invitation a-t-il déjà été essayé (une seule tentative par lien, même après un échec) ? */
+async function inviteTried(deps: BossDeps, link: string): Promise<boolean> {
+  const v = await readSetting(deps, INSPIRATION_INVITES_TRIED_SETTING);
+  return Array.isArray(v) && v.includes(inviteHash(link));
+}
+
+async function markInviteTried(deps: BossDeps, link: string): Promise<void> {
+  const v = await readSetting(deps, INSPIRATION_INVITES_TRIED_SETTING);
+  const list = Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  await writeSetting(deps, INSPIRATION_INVITES_TRIED_SETTING, [...list, inviteHash(link)].slice(-200));
+}
+
+/** Contrôles d'une entrée par lien AVANT toute tentative : déjà essayé, canal cible d'un univers connu, compte libre. */
+async function inviteBlocked(deps: InspirationDeps, link: string, targetRaw: string | undefined): Promise<BossReply | null> {
+  if (await inviteTried(deps, link)) return { reply: `J'ai déjà essayé ce lien une fois : je n'insiste jamais. ${FORWARD_ASK.charAt(0).toUpperCase()}${FORWARD_ASK.slice(1)}` };
+  if (!targetRaw) return { reply: "Pour quel de nos canaux ? Redis-moi la phrase avec le canal (par exemple « … pour Roulette »)." };
+  const t = await resolveChannel(deps, { actionKey: "analyser_canal", params: { canal: link, canal_cible: targetRaw }, field: "canal_cible" }, targetRaw);
+  if (!t.ok) return t.reply;
+  const ch = await channelUniverse(deps, t.value.id);
+  if (!ch?.universe) return { reply: `Je ne sais pas de quel univers est ${esc(t.value.name)} : règle-le dans sa fiche d'abord.` };
+  if (!(await freeAccount(deps))) return { reply: `Aucun compte réel libre ne peut entrer par ce lien (et je ne rejoins jamais un canal de moi-même) : ${FORWARD_ASK}` };
+  return null;
+}
+
 const FORWARD_ASK = `transfère-moi ${INSPIRATION_LIMITS.forwardMin} à ${INSPIRATION_LIMITS.forwardMax} de ses posts ici, je les range et je l'analyse.`;
 
 export const analyserCanal = defineAction<AnalyserParams>({
@@ -216,10 +267,7 @@ export const analyserCanal = defineAction<AnalyserParams>({
   },
   async check(deps, p) {
     if (!p.canal || !isInviteLink(p.canal)) return null;
-    const acc = await freeAccount(deps as InspirationDeps);
-    if (!acc) return { reply: `Aucun compte réel libre ne peut entrer par ce lien (et je ne rejoins jamais un canal de moi-même) : ${FORWARD_ASK}` };
-    if (!p.canal_cible) return { reply: "Pour quel de nos canaux ? Redis-moi la phrase avec le canal (par exemple « … pour Roulette »)." };
-    return null;
+    return inviteBlocked(deps as InspirationDeps, p.canal, p.canal_cible);
   },
   async execute(d, p) {
     const deps = d as InspirationDeps;
@@ -251,8 +299,13 @@ export const analyserCanal = defineAction<AnalyserParams>({
     }
     // Lien d'invitation privé : seulement après le OUI (cette entrée est « à confirmer »).
     if (isInviteLink(p.canal)) {
+      // Seul l'admin confirme une entrée (cette entrée est « à confirmer », jamais d'un membre) ; contrôles refaits.
+      if (deps.speaker && deps.speaker.kind === "member") return { reply: "Entrer dans un canal par un lien, c'est l'admin qui le confirme." };
+      const blocked = await inviteBlocked(deps, p.canal, p.canal_cible);
+      if (blocked) return blocked;
       const acc = await freeAccount(deps);
       if (!acc || !targetId) return { reply: `Aucun compte réel libre ne peut entrer par ce lien : ${FORWARD_ASK}` };
+      await markInviteTried(deps, p.canal);
       const joined = await joinWithInviteOnce(await readerOf(deps), acc.id, p.canal, deps.inspirationSleep ? { sleep: deps.inspirationSleep } : {});
       if (!joined.ok) return { reply: `${esc(joined.message)} Sinon, ${FORWARD_ASK}` };
       const ref =
@@ -401,6 +454,9 @@ export const voirInspiration = defineAction<VoirParams>({
     const target = await targetFor(deps, ref, p.canal_cible, params);
     if (!target.ok) return target.reply;
     if (p.sujet === "propositions") {
+      // Un membre qui regarde ne change rien (les propositions se décident avec l'admin).
+      if (deps.speaker && deps.speaker.kind === "member")
+        return { reply: "Les propositions de réglages se décident avec l'admin : je les lui présente quand il me les demande." };
       if (!target.id) return { reply: `Pour quel de nos canaux ? Dis-moi par exemple « inspire-toi de ${esc(label)} pour Roulette ».` };
       const res = await inspirationProposals(deps, ref.id, target.id);
       if (!res.ok) return { reply: esc(res.message) };
@@ -430,8 +486,8 @@ export const voirInspiration = defineAction<VoirParams>({
 
 type ApplyParams = { numeros: string; reference?: string };
 
-async function choiceFor(deps: BossDeps, reference?: string): Promise<InspirationChoice | null> {
-  const c = await readInspirationChoice(deps);
+async function choiceFor(deps: BossExecDeps, reference?: string): Promise<InspirationChoice | null> {
+  const c = await readInspirationChoice(deps, await chatKeyOf(deps));
   if (!c) return null;
   if (reference) {
     const ref = await loadReferenceRow(deps, c.referenceChannelId);
@@ -451,8 +507,9 @@ export const appliquerInspiration = defineAction<ApplyParams>({
     reference: str("Canal d'inspiration (facultatif)", { optional: true }),
   },
   async classify(deps) {
-    // Réponse au choix numéroté posé par Kevin : le choix vaut accord.
-    return choiceIsOpen(await readInspirationChoice(deps), nowOf(deps)) ? "immediate" : "confirm";
+    // Réponse au choix numéroté posé par Kevin à l'admin, dans cette conversation : le choix vaut accord.
+    const d = deps as BossExecDeps;
+    return choiceIsForAdmin(await readInspirationChoice(d, await chatKeyOf(d)), nowOf(d), d.speaker) ? "immediate" : "confirm";
   },
   async summarize(deps, p) {
     const c = await choiceFor(deps, p.reference);
@@ -462,6 +519,9 @@ export const appliquerInspiration = defineAction<ApplyParams>({
     return `Appliquer ${nums && nums.length > 1 ? "les propositions" : "la proposition"} ${nums?.join(", ") ?? p.numeros} d'après ${ref ? referenceLabel(ref) : "l'inspiration"} ?\n${labels.join(" ; ").slice(0, 200)}`;
   },
   async check(deps, p) {
+    // Demande d'un membre : transmise à l'admin, qui confirme sur SES propositions.
+    const d = deps as BossExecDeps;
+    if (d.speaker && d.speaker.kind === "member") return null;
     const c = await choiceFor(deps, p.reference);
     if (!c?.items.length) return { reply: "Je n'ai pas de propositions en cours : demande-moi « tes propositions pour @nom »." };
     if (!parseProposalNumbers(p.numeros, c.items.length)) return { reply: `Donne-moi des numéros de 1 à ${c.items.length} (par exemple « 1 3 ») ou « tout ».` };
@@ -476,7 +536,7 @@ export const appliquerInspiration = defineAction<ApplyParams>({
     const chosen = nums.map((n) => c.items.find((i) => i.n === n)!).filter(Boolean);
     const ids = chosen.flatMap((i) => i.ids);
     const r = await applyInspiration(deps, ids, actorRef(actor));
-    await writeSetting(deps, INSPIRATION_CHOICE_SETTING, { ...c, answeredAt: nowOf(deps).toISOString() });
+    await writeSetting(deps, choiceKey(c.chatId), { ...c, answeredAt: nowOf(deps).toISOString() });
     if (r.applied.length)
       await writeSetting(deps, INSPIRATION_LAST_APPLIED_SETTING, { referenceChannelId: c.referenceChannelId, ids: r.applied, chatId: await chatKeyOf(deps), at: nowOf(deps).toISOString() } satisfies LastApplied);
     const lines = chosen.map((i) => {
@@ -492,7 +552,7 @@ export const appliquerInspiration = defineAction<ApplyParams>({
 
 // ------------------------------------------------------------------------------------------ annuler / retirer
 
-type UndoParams = { reference?: string; numero?: number };
+type UndoParams = { reference?: string; numero?: number; derniere?: boolean };
 
 export const annulerInspiration = defineAction<UndoParams>({
   key: "annuler_inspiration",
@@ -502,23 +562,30 @@ export const annulerInspiration = defineAction<UndoParams>({
   spec: {
     reference: str("Canal d'inspiration (facultatif)", { optional: true }),
     numero: int("Numéro d'une seule proposition (facultatif)", 1, 9, true),
+    derniere: bool("Seulement la dernière application (« annule » juste après)", true),
   },
   async execute(d, p, actor) {
     const deps = d as BossExecDeps;
+    if (p.derniere) {
+      const last = (await readSetting(deps, INSPIRATION_LAST_APPLIED_SETTING)) as LastApplied | undefined;
+      if (!last?.ids?.length) return { reply: "Aucun réglage d'inspiration appliqué à annuler." };
+      await deps.prisma.setting.deleteMany({ where: { key: INSPIRATION_LAST_APPLIED_SETTING } });
+      return { reply: esc((await undoInspiration(deps, last.ids, actorRef(actor))).message) };
+    }
     if (p.numero) {
-      const c = await readInspirationChoice(deps);
+      const c = await readInspirationChoice(deps, await chatKeyOf(deps));
       const item = c?.items.find((i) => i.n === p.numero);
       if (!item) return { reply: `Je ne trouve pas de proposition n°${p.numero}.` };
       return { reply: esc((await undoInspiration(deps, item.ids, actorRef(actor))).message) };
     }
     let refId: string | null = null;
     if (p.reference) {
-      const r = await resolveReference(deps, p.reference, { actionKey: "annuler_inspiration", params: p as Record<string, unknown>, field: "reference" });
+      const r = await resolveReference(deps, p.reference, { actionKey: "annuler_inspiration", params: p as Record<string, unknown>, field: "reference" }, { includeRemoved: true });
       if (!r.ok) return r.reply;
       refId = r.ref.id;
     } else {
       const last = (await readSetting(deps, INSPIRATION_LAST_APPLIED_SETTING)) as LastApplied | undefined;
-      refId = last?.referenceChannelId ?? (await readInspirationChoice(deps))?.referenceChannelId ?? null;
+      refId = last?.referenceChannelId ?? (await readInspirationChoice(deps, await chatKeyOf(deps)))?.referenceChannelId ?? null;
       if (!refId) {
         const any = (await deps.prisma.recommendation.findFirst({ where: { source: "inspiration", status: "APPLIED" }, orderBy: { appliedAt: "desc" } })) as { referenceChannelId: string | null } | null;
         refId = any?.referenceChannelId ?? null;
@@ -563,10 +630,11 @@ export const INSPIRATION_MEMBER_KEYS = ["analyser_canal", "voir_inspiration"] as
 const NUMBERS_ONLY = /^\s*(?:\d{1,2}(?:\s*(?:,|;|et|&|\+|\s)\s*\d{1,2})*|tout|tous|toutes)\s*[.!]?\s*$/i;
 
 /**
- * Chemin rapide (sans IA) de l'inspiration. Rend la réponse, ou null pour laisser la suite :
- * - nom du canal demandé après des transferts masqués (« @nomducanal ») ;
- * - numéros (« 1 3 », « tout ») en réponse au choix numéroté ouvert de Kevin, plus récent que toute autre question ;
- * - « annule » (sans confirmation en attente) dans les 30 minutes qui suivent une application.
+ * Chemin rapide (sans IA) de l'inspiration, pour l'admin seulement. Rend la réponse, ou null pour laisser la suite :
+ * - numéros (« 1 3 », « tout ») en réponse au choix numéroté posé à l'admin dans cette conversation, plus récent que
+ *   toute autre question ouverte (de n'importe quel type) et jamais en « Répondre » à un autre message ;
+ * - « annule » (sans confirmation en attente) dans les 30 minutes qui suivent une application, sans question posée
+ *   depuis : annule CETTE application seulement.
  * `run` : exécute une entrée du catalogue (droits, journal), fourni par le chemin rapide.
  */
 export async function inspirationFastPath(
@@ -575,30 +643,28 @@ export async function inspirationFastPath(
   ctx: {
     word: "yes" | "no" | "cancel" | null;
     pendingOpen: boolean;
+    /** Instant (ms) de la question ouverte la plus récente (demande au client, précision du Boss), 0 sinon. */
     otherQuestionAt: number;
     run: (action: BossAction, params: Record<string, unknown>) => Promise<BossReply>;
   },
 ): Promise<{ reply: BossReply; actionKey: string } | null> {
   const text = (input.text ?? "").trim();
   if (!text || input.forwarded) return null;
-  const named = await inspirationNameAnswer(deps, { text, chat: input.chat ?? null, speaker: input.speaker ?? null }).catch(() => null);
-  if (named) return { reply: named, actionKey: "inspiration_nom" };
   if (input.speaker && input.speaker.kind === "member") return null;
+  // Une réponse à un autre message (« Répondre ») vise ce message, jamais l'inspiration.
+  if (input.replyToMessageId != null) return null;
   const now = nowOf(deps);
-  const chatKey = input.chat ? input.chat.chatId.toString() : null;
+  const chatKey = input.chat ? input.chat.chatId.toString() : ((await adminTelegramId(deps))?.toString() ?? null);
   if (NUMBERS_ONLY.test(text)) {
-    const c = await readInspirationChoice(deps);
-    if (choiceIsOpen(c, now) && (!c.chatId || !chatKey || c.chatId === chatKey) && new Date(c.createdAt).getTime() > ctx.otherQuestionAt) {
+    const c = await readInspirationChoice(deps, chatKey);
+    if (choiceIsForAdmin(c, now, input.speaker) && new Date(c.createdAt).getTime() > ctx.otherQuestionAt)
       return { reply: await ctx.run(appliquerInspiration as unknown as BossAction, { numeros: text }), actionKey: "appliquer_inspiration" };
-    }
   }
   if (ctx.word === "cancel" && !ctx.pendingOpen) {
     const last = (await readSetting(deps, INSPIRATION_LAST_APPLIED_SETTING)) as LastApplied | undefined;
-    if (last && now.getTime() - new Date(last.at).getTime() < INSPIRATION_QUICK_UNDO_MS && (!last.chatId || !chatKey || last.chatId === chatKey)) {
-      const r = await ctx.run(annulerInspiration as unknown as BossAction, {});
-      await deps.prisma.setting.deleteMany({ where: { key: INSPIRATION_LAST_APPLIED_SETTING } });
-      return { reply: r, actionKey: "annuler_inspiration" };
-    }
+    const at = last ? new Date(last.at).getTime() : 0;
+    if (last && now.getTime() - at < INSPIRATION_QUICK_UNDO_MS && at > ctx.otherQuestionAt && (!last.chatId || !chatKey || last.chatId === chatKey))
+      return { reply: await ctx.run(annulerInspiration as unknown as BossAction, { derniere: true }), actionKey: "annuler_inspiration" };
   }
   return null;
 }

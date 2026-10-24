@@ -267,6 +267,9 @@ export {
   methodChanges,
   snapshotOf,
   askForForwards,
+  notifyReadPostponed,
+  notifyReadFailed,
+  shouldRebuildProfile,
   REREAD_THRESHOLDS,
   SUMMARY_MAX_LINES,
   SUMMARY_QUESTION,
@@ -300,7 +303,7 @@ export {
 export {
   kevinForwardedPost,
   inspirationForwardAck,
-  inspirationNameAnswer,
+  isChannelForward,
   forwardAckLine,
   FORWARD_ACK_JOB,
   FORWARD_BATCH_MS,
@@ -313,6 +316,7 @@ export {
   inspirationFastPath,
   parseProposalNumbers,
   choiceIsOpen,
+  choiceIsForAdmin,
   INSPIRATION_CHOICE_SETTING,
 } from "./boss/catalog-inspiration";
 import "./inspiration/keep-action";

@@ -6,6 +6,7 @@
  */
 import type { AgentsDeps } from "../types";
 import { INSPIRATION_LIMITS, type InspirationUniverse, type ReferencePostInput, type ReferenceViaName } from "./contract";
+import { COPY_NORMALIZATION_VERSION, shingleHashes, textHash } from "./copy-check";
 import { postFeatures } from "./features";
 
 export type StoreResult = { created: number; updated: number; postCount: number };
@@ -91,4 +92,41 @@ export async function purgeReferenceTexts(deps: Pick<AgentsDeps, "prisma">, now:
     data: { text: null, textPurgedAt: now },
   });
   return { purged: r.count };
+}
+
+/** Repère du recalcul des empreintes avec la normalisation 2 du contrôle de copie (une fois). */
+export const SHINGLES_V2_SETTING = "inspiration.shinglesV2";
+const REHASH_BATCH = 200;
+
+/**
+ * Recalcule une fois (`Setting inspiration.shinglesV2`) `shingles` et `textHash` des posts de référence dont le texte
+ * n'est pas encore effacé, avec la normalisation résistante aux contournements (`copy-check`). Les posts déjà effacés
+ * gardent leurs empreintes d'avant (le découpage de base n'a pas changé pour un texte ordinaire). Ne lève pas si le
+ * repère est déjà posé ; appelée par la purge et au premier passage de `agents-algo`.
+ */
+export async function rehashReferenceShingles(
+  deps: Pick<AgentsDeps, "prisma" | "now">,
+): Promise<{ done: boolean; rehashed: number }> {
+  const marker = await deps.prisma.setting.findUnique({ where: { key: SHINGLES_V2_SETTING } });
+  if (marker) return { done: false, rehashed: 0 };
+  let rehashed = 0;
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await deps.prisma.referencePost.findMany({
+      where: { textPurgedAt: null, text: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) },
+      orderBy: { id: "asc" },
+      select: { id: true, text: true },
+      take: REHASH_BATCH,
+    });
+    for (const r of rows) {
+      if (!r.text) continue;
+      await deps.prisma.referencePost.update({ where: { id: r.id }, data: { shingles: shingleHashes(r.text), textHash: textHash(r.text) } });
+      rehashed++;
+    }
+    if (rows.length < REHASH_BATCH) break;
+    cursor = rows[rows.length - 1]!.id;
+  }
+  const value = { at: (deps.now?.() ?? new Date()).toISOString(), rehashed, version: COPY_NORMALIZATION_VERSION };
+  await deps.prisma.setting.upsert({ where: { key: SHINGLES_V2_SETTING }, create: { key: SHINGLES_V2_SETTING, value }, update: { value } });
+  return { done: true, rehashed };
 }

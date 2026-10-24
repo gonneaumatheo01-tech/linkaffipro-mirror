@@ -222,3 +222,12 @@ describe("rapports et conversations", () => {
     expect(delayText(null)).toBe("—");
   });
 });
+
+describe("phase 27 : propositions d'inspiration hors de la voie générique", () => {
+  it("une proposition `source = inspiration` est refusée par la voie générique (renvoi vers la page Inspiration)", async () => {
+    const { genericRecommendationRefusal, INSPIRATION_ONLY_MESSAGE } = await import("./recommendations");
+    expect(genericRecommendationRefusal({ source: "inspiration" })).toBe(INSPIRATION_ONLY_MESSAGE);
+    expect(genericRecommendationRefusal({ source: "algo" })).toBeNull();
+    expect(genericRecommendationRefusal({})).toBeNull();
+  });
+});

@@ -16,7 +16,38 @@ export type WebPreviewOptions = {
   sinceId?: number;
   /** Pages lues au plus (garde-fou). */
   maxPages?: number;
+  /**
+   * Heure de la dernière requête vers t.me, partagée entre les lectures (une requête toutes les 3 secondes, même d'une
+   * lecture à la suivante). Absente : seul le rythme entre les pages d'une même lecture est tenu.
+   */
+  throttle?: TmeThrottle;
+  /** Horloge en millisecondes (tests). */
+  clock?: () => number;
+  /** Appelée après chaque page lue (renouvellement du verrou de lecture). */
+  onPage?: () => Promise<void>;
 };
+
+/** Heure de la dernière requête vers t.me (mémoire du processus, ou Redis côté worker). */
+export type TmeThrottle = {
+  lastRequestAt(): Promise<number | null>;
+  markRequest(atMs: number): Promise<void>;
+};
+
+/** Rythme gardé en mémoire (un seul processus lit t.me : le worker). */
+export function memoryTmeThrottle(): TmeThrottle {
+  let last: number | null = null;
+  return {
+    async lastRequestAt() {
+      return last;
+    },
+    async markRequest(at) {
+      last = at;
+    },
+  };
+}
+
+/** Rythme partagé par défaut du processus. */
+export const processTmeThrottle: TmeThrottle = memoryTmeThrottle();
 
 export type WebPreviewResult = ReferenceReadResult & { pages?: number };
 
@@ -218,6 +249,18 @@ export async function readWebPreview(fetchPage: InspirationFetch, usernameInput:
   const maxAgeDays = Math.min(opts.maxAgeDays ?? INSPIRATION_LIMITS.maxAgeDays, INSPIRATION_LIMITS.maxAgeDays);
   const oldest = now.getTime() - maxAgeDays * 86_400_000;
   const maxPages = opts.maxPages ?? Math.ceil(INSPIRATION_LIMITS.maxPostsPerRead / 10) + 2;
+  const clock = opts.clock ?? Date.now;
+  const delay = INSPIRATION_LIMITS.webDelayMs;
+  /** Attend son tour : 3 s depuis la page précédente de cette lecture ET depuis la dernière requête vers t.me. */
+  const waitTurn = async (pagesDone: number) => {
+    let wait = pagesDone > 0 ? delay : 0;
+    if (opts.throttle) {
+      const last = await opts.throttle.lastRequestAt().catch(() => null);
+      if (last !== null) wait = Math.max(wait, last + delay - clock());
+    }
+    if (wait > 0) await sleep(Math.min(wait, delay));
+    await opts.throttle?.markRequest(clock()).catch(() => undefined);
+  };
 
   const byId = new Map<number, ReferencePostInput>();
   let title: string | null = null;
@@ -225,7 +268,7 @@ export async function readWebPreview(fetchPage: InspirationFetch, usernameInput:
   let pages = 0;
   let done = false;
   while (!done && pages < maxPages) {
-    if (pages > 0) await sleep(INSPIRATION_LIMITS.webDelayMs);
+    await waitTurn(pages);
     const url = `${PREVIEW_BASE}${username}${before ? `?before=${before}` : ""}`;
     let res: { status: number; body: string };
     try {
@@ -235,6 +278,7 @@ export async function readWebPreview(fetchPage: InspirationFetch, usernameInput:
       break;
     }
     pages++;
+    await opts.onPage?.();
     const page = res.status === 200 ? parsePreviewPage(res.body, username) : null;
     if (!page || !page.isPreview) {
       if (pages === 1) return unavailableOf(res.status, res.body, username);
@@ -272,9 +316,36 @@ export async function readWebPreview(fetchPage: InspirationFetch, usernameInput:
   return { ok: true, title, username, chatId: null, posts, pages };
 }
 
+/** Taille maximale lue d'une page de l'aperçu (au-delà : coupée, le reste n'est jamais chargé). */
+export const PREVIEW_MAX_BYTES = 2_000_000;
+
+/** Lit un corps de réponse en flux et s'arrête à `maxBytes` (le reste n'est ni chargé ni gardé). */
+export async function readBodyCapped(res: Pick<Response, "body" | "text">, maxBytes = PREVIEW_MAX_BYTES): Promise<string> {
+  if (!res.body) return (await res.text()).slice(0, maxBytes);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let out = "";
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const room = maxBytes - size;
+      const chunk = value.byteLength > room ? value.subarray(0, room) : value;
+      size += chunk.byteLength;
+      out += decoder.decode(chunk, { stream: true });
+      if (size >= maxBytes) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  return out + decoder.decode();
+}
+
 /**
  * Accès réseau réel de l'aperçu (worker) : GET sans suivre les redirections (une redirection vers `t.me/<nom>` =
- * pas d'aperçu), 15 s au plus, agent utilisateur de navigateur ordinaire. Jamais appelé dans les tests.
+ * pas d'aperçu), 15 s au plus, agent utilisateur de navigateur ordinaire, corps lu en flux et coupé à 2 Mo. Jamais
+ * appelé dans les tests.
  */
 export function createInspirationFetch(fetchImpl: typeof fetch = fetch): InspirationFetch {
   return async (url) => {
@@ -289,7 +360,10 @@ export function createInspirationFetch(fetchImpl: typeof fetch = fetch): Inspira
         accept: "text/html",
       },
     });
-    const body = res.status >= 200 && res.status < 300 ? await res.text() : "";
-    return { status: res.status, body: body.slice(0, 2_000_000) };
+    if (!(res.status >= 200 && res.status < 300)) {
+      await res.body?.cancel().catch(() => undefined);
+      return { status: res.status, body: "" };
+    }
+    return { status: res.status, body: await readBodyCapped(res) };
   };
 }

@@ -10,7 +10,7 @@ import {
 import { audit, prisma } from "@linkaffipro/db";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
-import { ACTION_WORDS, actionsFor, canActOnRecommendation, type RecommendationAction } from "@/lib/agents/algo/recommendations";
+import { ACTION_WORDS, actionsFor, canActOnRecommendation, genericRecommendationRefusal, type RecommendationAction } from "@/lib/agents/algo/recommendations";
 import { saveAlgoSettings } from "@/lib/agents/algo/save";
 import { parseAlgoSettingsForm } from "@/lib/agents/algo/settings";
 import { requireUser } from "@/lib/session";
@@ -61,9 +61,11 @@ export async function recommendationAction(formData: FormData): Promise<void> {
   if (!action || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) go(path, { error: "Proposition inconnue." }, hash);
   const rec = await prisma.recommendation.findUnique({
     where: { id },
-    select: { id: true, status: true, size: true, target: true, field: true },
+    select: { id: true, status: true, size: true, target: true, field: true, source: true },
   });
   if (!rec) go(path, { error: "Proposition introuvable." }, hash);
+  const inspiration = genericRecommendationRefusal(rec);
+  if (inspiration) go(path, { error: inspiration }, hash);
   if (!actionsFor(rec.status).includes(action))
     go(path, { error: "Cette proposition a déjà changé d'état : rechargez la page." }, hash);
   if (!canActOnRecommendation(user.role, rec))

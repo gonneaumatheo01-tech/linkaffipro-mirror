@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFakePrisma } from "../testing/fake-prisma";
 import type { ReferencePostInput } from "./contract";
 import { copiedSequence } from "./copy-check";
-import { purgeReferenceTexts, storeReferencePosts } from "./store";
+import { purgeReferenceTexts, rehashReferenceShingles, SHINGLES_V2_SETTING, storeReferencePosts } from "./store";
 
 const now = new Date("2026-10-24T12:00:00Z");
 const p = (id: number, text: string | null, views: number | null = 100): ReferencePostInput => ({
@@ -54,5 +54,25 @@ describe("rangement des posts de référence", () => {
     // Relu plus tard : le texte effacé ne revient pas.
     await storeReferencePosts(k.deps, "ref1", [p(1, text, 5000)], "WEB");
     expect(rows[0]).toMatchObject({ text: null, views: 5000 });
+  });
+
+  it("recalcul unique des empreintes (normalisation 2) : textes encore présents seulement, repère posé", async () => {
+    const k = kit();
+    const text = "Les places sont <b>limi-tées</b> ce soir, écris-moi vite en DM";
+    await storeReferencePosts(k.deps, "ref1", [p(1, text), p(2, "Ancien post effacé depuis longtemps déjà")], "WEB");
+    const rows = k.posts();
+    // Empreintes « d'avant » simulées : vides ; le second post a déjà perdu son texte.
+    rows[0]!.shingles = [];
+    rows[0]!.textHash = "ancien";
+    Object.assign(rows[1]!, { text: null, textPurgedAt: now, shingles: ["gardee"], textHash: "garde" });
+    expect(await rehashReferenceShingles(k.deps)).toEqual({ done: true, rehashed: 1 });
+    expect(copiedSequence("Les places sont limitées ce soir écris moi vite en DM", rows[0]!.shingles as string[])).toBeTruthy();
+    expect(rows[0]!.textHash).not.toBe("ancien");
+    expect(rows[1]).toMatchObject({ shingles: ["gardee"], textHash: "garde" });
+    expect(k.prisma._tables.setting!.some((r) => r.key === SHINGLES_V2_SETTING)).toBe(true);
+    // Une seule fois.
+    rows[0]!.shingles = [];
+    expect(await rehashReferenceShingles(k.deps)).toEqual({ done: false, rehashed: 0 });
+    expect(rows[0]!.shingles).toEqual([]);
   });
 });

@@ -19,7 +19,7 @@ import { agentAudit, agentEvent, nowOf } from "../admin/journal";
 import type { ActorRef } from "../admin/team";
 import { applyRecommendation, undoRecommendation } from "../algo/contracts";
 import { loadAlgoTeam } from "../algo/settings";
-import { parisWeekStart } from "../algo/week";
+import { parisWeekStart, weekStartDate } from "../algo/week";
 import { sameValue } from "../agents/synthese/apply";
 import { createExperiment } from "../agents/experimentation";
 import { experimentVerdict, verdictSentence, type VariantData } from "../agents/experimentation/verdict";
@@ -29,6 +29,9 @@ import type { AgentsDeps } from "../types";
 import { fr } from "./kevin";
 import { channelUniverse, loadReferenceRow, referenceLabel } from "./kevin-refs";
 import { INSPIRATION_SOURCE, mergeTaggedLine } from "./proposals";
+import { INSPIRATION_LIMITS } from "./contract";
+import { mixShiftPoints, parseMixValue } from "../agents/synthese/bounds";
+import { effectiveMix } from "../algo/mix";
 
 const DAY = 86_400_000;
 /** « Annuler » reste possible 30 jours après l'application. */
@@ -107,7 +110,28 @@ async function applyOne(deps: AgentsDeps, rec: RecRow, actor: ActorRef): Promise
       await deps.prisma.recommendation.update({ where: { id: rec.id }, data: { after: json(after) ?? "" } });
     }
   }
+  if (rec.field === "mix" && rec.status === "PROPOSED") {
+    // Borne propre à l'inspiration, en plus de celle de l'équipe : 20 points par semaine au plus.
+    const refusal = await weeklyMixRefusal(deps, rec);
+    if (refusal) return { ok: false, message: refusal };
+  }
   return applyRecommendation(deps, rec.id, actor);
+}
+
+/** Le mélange proposé dépasserait-il 20 points depuis le début de la semaine ? Rend la raison, ou null. */
+async function weeklyMixRefusal(deps: AgentsDeps, rec: RecRow): Promise<string | null> {
+  const plan = (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId: rec.targetId } })) as { teamKey: string; mix: unknown } | null;
+  const after = parseMixValue(rec.after);
+  if (!plan || !after) return null;
+  const first = (await deps.prisma.recommendation.findFirst({
+    where: { target: "CHANNEL_PLAN", targetId: rec.targetId, field: "mix", status: "APPLIED", appliedAt: { gte: weekStartDate(nowOf(deps)) } },
+    orderBy: { appliedAt: "asc" },
+  })) as { before: unknown } | null;
+  const base = effectiveMix(plan.teamKey, first ? first.before : plan.mix);
+  const shift = mixShiftPoints(base, after);
+  return shift > INSPIRATION_LIMITS.maxMixShiftPerWeek + 0.5
+    ? `Le mélange bougerait de ${Math.round(shift)} points cette semaine (${INSPIRATION_LIMITS.maxMixShiftPerWeek} au plus pour une inspiration).`
+    : null;
 }
 
 /** Le canal a-t-il assez de trafic pour un A/B de 14 jours (règle de l'équipe Algorithme : effectif minimal par variante) ? */
@@ -321,6 +345,11 @@ export async function removeReference(deps: AgentsDeps, id: string, actor: Actor
   const posts = await deps.prisma.referencePost.deleteMany({ where: { referenceChannelId: id } });
   await deps.prisma.styleProfile.deleteMany({ where: { referenceChannelId: id } });
   await deps.prisma.recommendation.updateMany({ where: { source: INSPIRATION_SOURCE, referenceChannelId: id, status: "PROPOSED" }, data: { status: "REJECTED", rejectedAt: nowOf(deps) } });
+  // Profil effacé et détaché : la proposition de style appliquée n'a plus rien à annuler (close comme annulée).
+  await deps.prisma.recommendation.updateMany({
+    where: { source: INSPIRATION_SOURCE, referenceChannelId: id, status: "APPLIED", field: "styleProfileId" },
+    data: { status: "UNDONE", undoneAt: nowOf(deps), undoneById: actor.userId ?? null },
+  });
   await deps.prisma.referenceChannel.update({ where: { id }, data: { removedAt: nowOf(deps), postCount: 0, targetChannelIds: [], nextReadAt: null } });
   await agentAudit(deps, { userId: actor.userId ?? null, action: "inspiration.reference_removed", entityType: "ReferenceChannel", entityId: id, metadata: { via: actor.via, posts: posts.count, profiles: profileIds.length, detached: detached.count } });
   await agentEvent(deps, "agents.inspiration.reference_removed", { referenceChannelId: id, posts: posts.count });

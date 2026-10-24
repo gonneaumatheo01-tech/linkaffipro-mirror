@@ -225,11 +225,12 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // Phase 27 : nom du canal demandé après des transferts masqués ; numéros en réponse au choix d'inspiration (plus
-  // récent que toute autre question) ; « annule » juste après une application. Sans IA.
+  // Phase 27 : numéros en réponse au choix d'inspiration (plus récent que toute autre question, jamais en « Répondre »
+  // à un autre message) ; « annule » juste après une application. Sans IA, admin seulement.
   {
     const clarifyNow = await readClarify(deps);
-    const otherQuestionAt = Math.max(current && (current.kind === "CHOICE" || current.kind === "CONFIRM") ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
+    // Toute question ouverte compte (texte, choix, confirmation), et la précision du Boss.
+    const otherQuestionAt = Math.max(current ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
     const insp = await inspirationFastPath(deps, input, {
       word,
       pendingOpen: !!pending && !pending.expired,

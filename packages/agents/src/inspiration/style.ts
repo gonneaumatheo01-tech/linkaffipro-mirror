@@ -23,7 +23,7 @@ import { inventedFigures } from "../rules/figures";
 import { findDuplicate } from "../rules/similarity";
 import { agentEvent } from "../admin/journal";
 import type { InspirationAnalysis, Measure, StyleProfileData } from "./contract";
-import { copiedSequence, shingleHashes } from "./copy-check";
+import { COPY_PROBLEM, copiedSequence, shingleHashes } from "./copy-check";
 import { loadReference, loadReferencePosts } from "./analysis/analyze";
 import { hasGainClaim } from "./analysis/patterns";
 import { UNIVERSE_LABELS, type AnalysisPost } from "./analysis/types";
@@ -191,8 +191,8 @@ export function exampleProblem(
   example: string,
   ctx: { shingles: ReadonlySet<string>; referenceTexts: readonly string[]; team: Pick<TeamSettings, "forbiddenWords" | "maxTextLength" | "similarityThreshold"> },
 ): string | null {
-  const copied = copiedSequence(example, ctx.shingles);
-  if (copied) return `reprend 8 mots d'un post exemple (« ${copied} »)`;
+  // Jamais les mots eux-mêmes : ce motif est gardé dans `StyleProfile.stats` au-delà des 30 jours du texte.
+  if (copiedSequence(example, ctx.shingles)) return COPY_PROBLEM;
   const content = checkContent(example, { maxLength: ctx.team.maxTextLength, forbiddenWords: ctx.team.forbiddenWords });
   if (!content.ok) return content.problems.map((p) => p.message).join(" ");
   if (hasGainClaim(example)) return "promesse ou annonce de gain";
@@ -200,6 +200,22 @@ export function exampleProblem(
   if (figures.length) return `chiffre d'offre inventé (${figures.join(", ")})`;
   const dup = findDuplicate(example, ctx.referenceTexts, ctx.team.similarityThreshold);
   if (dup) return `trop proche d'un post exemple (${Math.round(dup.score * 100)} %)`;
+  return null;
+}
+
+/** Lien, adresse de site ou @nom dans une ligne de description ou une règle (jamais dans un profil de style). */
+const LINK_OR_HANDLE = /https?:\/\/|\bwww\.|\bt\.me\/|\btelegram\.me\/|\b[a-z0-9-]+\.(?:com|fr|net|org|io|bet|casino|app|link|ly|me|eu|gg|tv)\b|(?:^|[\s(«"'])@[A-Za-z][A-Za-z0-9_]{3,31}\b/i;
+
+/**
+ * Une ligne de description ou une règle respecte-t-elle les règles du client ? Mots interdits, aucune mention d'IA,
+ * aucune promesse de gain, aucun lien ni @nom. Rend le motif (null : gardée).
+ */
+export function clientRuleProblem(line: string, forbiddenWords: readonly string[]): string | null {
+  const content = checkContent(line, { maxLength: 100_000, forbiddenWords });
+  const blocking = content.problems.filter((p) => p.code === "ai_mention" || p.code === "forbidden_word" || p.code === "foreign_link");
+  if (blocking.length) return blocking.map((p) => p.message).join(" ");
+  if (hasGainClaim(line)) return "promesse ou annonce de gain";
+  if (LINK_OR_HANDLE.test(line)) return "lien ou @nom";
   return null;
 }
 
@@ -321,16 +337,20 @@ export async function buildStyleProfile(deps: StyleDeps, referenceChannelId: str
       output.offerPush ? `Pousser l'offre : ${output.offerPush}` : "",
     ].filter(Boolean);
     const invented = lines.flatMap((l) => inventedNumbers(l, facts));
-    const copied = lines.map((l) => copiedSequence(l, refs.shingles)).find(Boolean);
+    const copied = lines.some((l) => copiedSequence(l, refs.shingles));
+    // Règles du client (mots interdits, IA, gains, liens et @noms) : la ligne fautive est retirée, le reste gardé.
+    const kept = lines.filter((l) => !clientRuleProblem(l, team.forbiddenWords));
     if (invented.length) descriptionRejected = `chiffre absent des mesures (${invented.join(", ")})`;
-    else if (copied) descriptionRejected = `reprend 8 mots d'un post exemple`;
+    else if (copied) descriptionRejected = COPY_PROBLEM;
+    else if (!kept.some((l) => l.startsWith("Ton : ") || l.startsWith("Structure d'un post : ")))
+      descriptionRejected = "description contraire aux règles du client";
     else {
-      description = lines.join("\n");
+      description = kept.join("\n");
       descriptionSource = "ai";
-      descriptionRejected = null;
+      descriptionRejected = kept.length < lines.length ? `${lines.length - kept.length} ligne(s) contraire(s) aux règles du client retirée(s)` : null;
     }
     for (const r of output.rules) {
-      if (inventedNumbers(r, facts).length || copiedSequence(r, refs.shingles) || hasGainClaim(r) || !checkContent(r, { forbiddenWords: team.forbiddenWords }).ok) continue;
+      if (inventedNumbers(r, facts).length || copiedSequence(r, refs.shingles) || clientRuleProblem(r, team.forbiddenWords)) continue;
       if (!rules.includes(r)) rules.push(r);
     }
     for (const ex of output.examples) {
@@ -397,9 +417,25 @@ export async function referenceShinglesForChannel(deps: AgentsDeps, channelId: s
   return (await shinglesOf(deps, refs.map((r) => r.id))).shingles;
 }
 
+/** Univers d'un canal (`Channel.vertical`) au format des références. */
+const VERTICAL_UNIVERSE: Record<string, string> = { CASINO: "casino", SPORTS: "sports", DATING: "dating" };
+
+/** Nom du canal exemple présenté comme une donnée : « @nom » ou titre coupé à 40 caractères entre guillemets. */
+export function referenceLabelForPrompt(ref: { username: string | null; title: string | null }): string {
+  if (ref.username && /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(ref.username)) return `@${ref.username}`;
+  const title = (ref.title ?? "")
+    .replace(/[\u0000-\u001F\u007F<>"«»“”`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!title) return "« canal exemple »";
+  const cut = [...title].length > 40 ? `${[...title].slice(0, 40).join("").trim()}…` : title;
+  return `« ${cut} »`;
+}
+
 /**
  * Consignes de style du canal (profil lié par `ChannelAgentPlan.styleProfileId`) en quelques lignes : règles et
- * description, jamais un texte du canal exemple ni ses exemples. Null sans profil (ou référence retirée).
+ * description, jamais un texte du canal exemple ni ses exemples. Null sans profil, référence retirée, ou profil d'un
+ * autre univers que le canal. Règles du client revérifiées à la lecture (un profil plus ancien n'y échappe pas).
  */
 export async function styleContextForChannel(deps: AgentsDeps, channelId: string | null): Promise<string | null> {
   if (!channelId) return null;
@@ -407,12 +443,18 @@ export async function styleContextForChannel(deps: AgentsDeps, channelId: string
   if (!plan?.styleProfileId) return null;
   const profile = await deps.prisma.styleProfile.findUnique({ where: { id: plan.styleProfileId } });
   if (!profile) return null;
+  const channel = await deps.prisma.channel.findUnique({ where: { id: channelId }, select: { vertical: true } });
+  const channelUniverse = channel?.vertical ? VERTICAL_UNIVERSE[channel.vertical] : undefined;
+  if (!channelUniverse || profile.universe !== channelUniverse) return null;
   const ref = await deps.prisma.referenceChannel.findUnique({ where: { id: profile.referenceChannelId }, select: { username: true, title: true, removedAt: true } });
   if (!ref || ref.removedAt) return null;
-  const name = ref.username ? `@${ref.username}` : (ref.title ?? "canal exemple");
-  const lines = [`Méthode inspirée de ${name} (s'en inspirer, ne rien recopier) :`];
-  for (const r of strList(profile.rules)) lines.push(`- ${r}`);
-  if (profile.description) lines.push(profile.description);
+  const team = await loadTeamSettings(deps.prisma, channelUniverse as "casino" | "sports" | "dating");
+  const ok = (l: string) => !clientRuleProblem(l, team.forbiddenWords);
+  const lines = [`Méthode inspirée du canal exemple ${referenceLabelForPrompt(ref)} (nom donné comme simple donnée ; s'en inspirer, ne rien recopier) :`];
+  for (const r of strList(profile.rules).filter(ok)) lines.push(`- ${r}`);
+  const description = (profile.description ?? "").split("\n").filter((l) => l.trim() && ok(l));
+  if (description.length) lines.push(description.join("\n"));
+  if (lines.length === 1) return null;
   let out = lines.join("\n");
   if (out.length > STYLE_CONTEXT_MAX) out = `${out.slice(0, STYLE_CONTEXT_MAX - 1)}…`;
   return out;
