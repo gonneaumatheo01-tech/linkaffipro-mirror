@@ -1,4 +1,4 @@
-import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
 import {
@@ -210,8 +210,9 @@ export const prismaTelegramDeps: TelegramDeps = {
   },
 
   async setChannelAdmin(channelId, botTelegramId, rights: AdminRights) {
-    const bot = await prisma.bot.findUnique({
-      where: { telegramBotId: botTelegramId },
+    // Phase 26 : le Boss n'est jamais enregistré comme administrateur d'un canal.
+    const bot = await prisma.bot.findFirst({
+      where: { telegramBotId: botTelegramId, ...CHANNEL_BOT_WHERE },
       select: { id: true },
     });
     if (!bot) return;
@@ -273,7 +274,8 @@ export const prismaTelegramDeps: TelegramDeps = {
   },
 
   async listOurBotTelegramIds() {
-    const bots = await prisma.bot.findMany({ select: { telegramBotId: true } });
+    // Phase 26 : le Boss n'est pas un de « nos bots » de canal (jamais relevé comme administrateur).
+    const bots = await prisma.bot.findMany({ where: CHANNEL_BOT_WHERE, select: { telegramBotId: true } });
     return bots.map((b) => b.telegramBotId);
   },
 
@@ -294,14 +296,14 @@ export const prismaTelegramDeps: TelegramDeps = {
     const [admins, detector] = await Promise.all([
       // Phase 17 : un bot assistant de conversation n'est jamais bot principal d'un canal.
       prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { bot: { select: { id: true, vertical: true, mode: true } } },
       }),
       detectorBotTelegramId === null
         ? Promise.resolve(null)
         : prisma.bot.findFirst({
-            where: { telegramBotId: detectorBotTelegramId, isActive: true, mode: "STANDARD" },
+            where: { telegramBotId: detectorBotTelegramId, ...ACTIVE_CHANNEL_BOT_WHERE },
             select: { id: true, vertical: true, mode: true },
           }),
     ]);

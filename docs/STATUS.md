@@ -1,3 +1,5 @@
+> **Note du 24/10 à 13 h 50 (phase 26)** : docs/prompts/28-phase-26-boss-telegram.md a été complété après ton départ (Kevin en groupe Telegram : section 4, règles 1, 4, 7 et 8). Relis ce fichier en entier avant de continuer, puis retire cette note.
+
 # État du projet : phases 19 à 25 (agents IA) terminées (24 octobre 2026)
 
 Phases 0 à 25 en ligne. La phase 25 clôt la chaîne des agents IA (`docs/prompts/27-phase-25-agents-supervision.md`) : supervision en un écran, conversation Casino et Paris sportifs, scénario complet sur 3 jours simulés, relecture adverse de tout ce qui a été construit depuis la phase 19, documentation et bilan. **Toutes les équipes restent en simulation** (tout part sur le canal Test) tant que vous ne les passez pas « en vrai ».

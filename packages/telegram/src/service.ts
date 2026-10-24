@@ -1,7 +1,7 @@
 import { Api, GrammyError } from "grammy";
 import type { Chat } from "grammy/types";
 import { TELEGRAM_ALLOWED_UPDATES, encrypt, randomToken, type Vertical } from "@linkaffipro/core";
-import { prisma, audit, toJsonValue } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE, prisma, audit, toJsonValue } from "@linkaffipro/db";
 import type { ChatLang } from "@linkaffipro/chat";
 import { evictBot, getOrCreateBot } from "./factory";
 import { extractAdminRights, type BotMode } from "./ports";
@@ -272,8 +272,9 @@ function apiFor(bot: ActiveBot): Api {
 
 /** Nos bots actifs, du plus ancien au plus récent (ordre stable des essais). */
 export async function listActiveBots(): Promise<ActiveBot[]> {
+  // Phase 26 : jamais le Boss (il n'administre aucun canal).
   return prisma.bot.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...CHANNEL_BOT_WHERE },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,

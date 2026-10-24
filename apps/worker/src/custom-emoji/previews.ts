@@ -11,7 +11,7 @@
  * Le jeton du bot n'apparaît jamais dans les journaux ni en base (adresse de téléchargement construite en mémoire).
  */
 import { decrypt, isValidCustomEmojiId } from "@linkaffipro/core";
-import { prisma, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import type { File as TelegramFile, Sticker, StickerSet } from "grammy/types";
 import { logger } from "../logger";
@@ -95,7 +95,7 @@ export async function activePreviewClients(
   fetchImpl: typeof fetch = (...args) => globalThis.fetch(...args),
 ): Promise<PreviewBotClient[]> {
   const bots = await prisma.bot.findMany({
-    where: { isActive: true, mode: "STANDARD" },
+    where: ACTIVE_CHANNEL_BOT_WHERE,
     orderBy: { createdAt: "asc" },
     select: { id: true, username: true, tokenEncrypted: true },
   });

@@ -1,4 +1,4 @@
-import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   dueReminderIndex,
@@ -61,7 +61,7 @@ async function ruleOf(m: {
 const gateLinkDeps: GateLinkDeps = createPrismaGateLinkDeps({
   apiFor: async (botId) => {
     const bot = await prisma.bot.findFirst({
-      where: { id: botId, isActive: true, mode: "STANDARD" },
+      where: { id: botId, ...ACTIVE_CHANNEL_BOT_WHERE },
       select: { id: true, tokenEncrypted: true },
     });
     return bot ? apiForBot(bot) : null;
@@ -104,7 +104,7 @@ export async function refreshReminderGates(
     .map((id) => rows.find((r) => r.id === id))
     .filter((c): c is ChannelInfo => !!c);
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true, mode: "STANDARD" },
+    where: { id: botId, ...ACTIVE_CHANNEL_BOT_WHERE },
     select: { id: true, username: true, tokenEncrypted: true },
   });
   const first = bot ? { botId: bot.id, username: bot.username, api: apiForBot(bot) } : null;
@@ -180,7 +180,7 @@ export async function reminderBotId(
   channelId: string,
 ): Promise<string | null> {
   const own = await prisma.bot.findFirst({
-    where: { id: sourceBotId, isActive: true, mode: "STANDARD" },
+    where: { id: sourceBotId, ...ACTIVE_CHANNEL_BOT_WHERE },
     select: { id: true },
   });
   if (own) return own.id;

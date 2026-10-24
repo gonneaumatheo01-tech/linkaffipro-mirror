@@ -143,3 +143,42 @@ export type BossSetupStep = {
   /** Pourquoi et quoi répondre (une ligne). */
   why: string;
 };
+
+/**
+ * Phase 26, section 4 — Kevin en équipe (ajout au contrat). Nom affiché : `Setting boss.name` (« Kevin » par défaut) ;
+ * dans le code, les identifiants restent `boss`.
+ */
+export const BOSS_NAME_SETTING = "boss.name";
+export const BOSS_DEFAULT_NAME = "Kevin";
+/** `Setting` : identifiant du groupe de l'équipe (chaîne d'un BigInt), un seul groupe. */
+export const BOSS_GROUP_SETTING = "boss.groupChatId";
+/** `Setting` : rapport du matin dans le groupe (`true` par défaut dès qu'un groupe existe). */
+export const BOSS_GROUP_MORNING_SETTING = "boss.group.morning";
+/** `Setting` : `"group"` (défaut) ou `"private"` : où Kevin pose les questions quand un groupe existe. */
+export const BOSS_GROUP_REQUESTS_SETTING = "boss.group.requests";
+
+export type TeamMemberTeam = "dating" | "casino" | "sports" | "algo" | "ads";
+export type TeamMemberKind = "media" | "secret" | "choice" | "validation";
+export type TeamResponsibilities = { teams: TeamMemberTeam[]; kinds: TeamMemberKind[] };
+
+/** Qui parle à Kevin (résolu par le bot avant tout traitement). Personne d'autre n'est jamais traité. */
+export type BossSpeaker =
+  | { kind: "admin"; telegramUserId: bigint; firstName: string | null }
+  | { kind: "member"; telegramUserId: bigint; memberId: string; role: "ADMIN" | "MANAGER" | "MEMBER"; firstName: string };
+
+/** Où se passe la conversation. */
+export type BossChat = { type: "private"; chatId: bigint } | { type: "group"; chatId: bigint };
+
+/**
+ * Entrée enrichie pour le groupe et les membres : `BossInput` + qui parle + où. Absents = l'admin en privé (chemin
+ * historique). Dans le groupe, seuls les messages qui s'adressent à Kevin arrivent ici (mention, réponse à un de ses
+ * messages, son prénom en tête, commande) ; les autres ne quittent jamais la base et ne sont jamais envoyés à l'IA.
+ */
+export type BossTeamInput = BossInput & {
+  speaker?: BossSpeaker;
+  chat?: BossChat;
+  /** Mentions du message (`@username` ou `text_mention` avec identifiant), pour « voici @lea ». */
+  mentions?: { telegramUserId?: bigint | null; username?: string | null; firstName?: string | null }[];
+  /** Médias joints (déposés dans le groupe par le responsable : rangés comme en privé par le bot). */
+  hasMedia?: boolean;
+};

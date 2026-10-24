@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Download, RefreshCw } from "lucide-react";
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { Flash } from "@/components/admin/flash";
 import { HelpTip } from "@/components/admin/help-tip";
@@ -117,7 +117,7 @@ export default async function ChannelsPage({ searchParams }: PageProps<"/channel
     // Bots proposés (bot principal, bot à qui transférer un message, exemple de l'aide) : jamais un assistant de
     // conversation (phase 17). Les bots administrateurs d'un canal restent tous affichés.
     prisma.bot.findMany({
-      where: { isActive: true, mode: "STANDARD" },
+      where: ACTIVE_CHANNEL_BOT_WHERE,
       orderBy: { name: "asc" },
       select: { id: true, username: true, name: true, vertical: true },
     }),

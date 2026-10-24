@@ -1,4 +1,4 @@
-import { prisma, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type Prisma } from "@linkaffipro/db";
 import {
   aggregatePlayers,
   buildMemberWhere,
@@ -72,7 +72,7 @@ export async function loadBroadcastOptions(): Promise<{
     await Promise.all([
       // Jamais un bot assistant de conversation (phase 17) : il n'écrit qu'aux personnes qui lui parlent.
       prisma.bot.findMany({
-        where: { isActive: true, mode: "STANDARD" },
+        where: ACTIVE_CHANNEL_BOT_WHERE,
         orderBy: { name: "asc" },
         select: { id: true, name: true, username: true, vertical: true },
       }),

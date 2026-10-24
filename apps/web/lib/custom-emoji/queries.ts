@@ -2,7 +2,7 @@
  * Lectures de la bibliothèque des emojis animés (phase 12) : sélecteur de l'éditeur, page Messages → Emojis animés,
  * état de l'import des packs du compte Telegram connecté.
  */
-import { prisma, type CustomEmojiSource } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type CustomEmojiSource } from "@linkaffipro/db";
 import { TELEGRAM_SESSION_ID } from "@linkaffipro/mtproto";
 import type { PickerEmoji } from "./library";
 
@@ -108,7 +108,7 @@ export async function loadLibrary(opts: { hidden: boolean }): Promise<LibraryDat
  */
 export async function activeBotUsernames(): Promise<Array<{ username: string; name: string }>> {
   return prisma.bot.findMany({
-    where: { isActive: true, mode: "STANDARD" },
+    where: ACTIVE_CHANNEL_BOT_WHERE,
     orderBy: { createdAt: "asc" },
     select: { username: true, name: true },
   });

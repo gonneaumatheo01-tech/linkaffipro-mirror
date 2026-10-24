@@ -4,7 +4,7 @@
  * `custom-emoji` `fetch-previews` pour leurs aperçus. Le client Telegram est injectable (tests, aucun appel réseau).
  */
 import { parseEmojiPackLink } from "@linkaffipro/core";
-import { audit, prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, audit, prisma, recordEvent } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
 import { GrammyError, HttpError } from "grammy";
@@ -51,7 +51,7 @@ function isNotFound(err: unknown): boolean {
 export const fetchWithOurBots: FetchStickerSet = async (name) => {
   // Bots normaux seulement (phase 17 : un bot assistant de conversation ne sert qu'à ses conversations).
   const bots = await prisma.bot.findMany({
-    where: { isActive: true, mode: "STANDARD" },
+    where: ACTIVE_CHANNEL_BOT_WHERE,
     orderBy: { createdAt: "asc" },
   });
   if (bots.length === 0)

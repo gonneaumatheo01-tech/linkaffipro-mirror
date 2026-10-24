@@ -98,6 +98,8 @@ export type MaintenanceJob =
   | { type: "legacy-gate-links" }
   | { type: "landing-chats" }
   | { type: "landing-links" }
+  /** Phase 26 : contrôle et réparation des connexions Telegram (webhooks) de nos bots, toutes les 10 minutes. */
+  | { type: "webhook-repair" }
   | { type: "tick" };
 
 /**
@@ -239,7 +241,19 @@ export type AgentsOrchestratorJob =
   | { type: "validations" }
   /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures toutes les 30 s (`benchId`). */
   | { type: "bench"; personaId?: string; count?: number; benchId?: string }
-  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null };
+  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null }
+  /** Message de l'admin au Boss qui demande l'interprète IA (phase 26), traité par `apps/worker/src/agents/boss-text.ts`. */
+  | {
+      type: "boss-text";
+      botId: string;
+      chatId: number;
+      messageId: number;
+      text: string;
+      replyToMessageId?: number | null;
+      source?: "text" | "voice";
+      forwarded?: boolean;
+      entities?: Array<{ type: string; offset: number; length: number; url?: string; language?: string; custom_emoji_id?: string }> | null;
+    };
 
 /**
  * Files d'équipe : une étape de mission ; nom de la tâche = clé de l'agent, identifiant `<missionId>:<index>`

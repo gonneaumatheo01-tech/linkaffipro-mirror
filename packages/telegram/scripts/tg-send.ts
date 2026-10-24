@@ -1,16 +1,16 @@
-// Envoie un message privé HTML à l'administrateur via le bot casino.
+// Envoie un message privé HTML à l'administrateur via le bot du dialogue admin (`adminBot()` : le Boss, sinon le bot casino).
 // Usage : tsx tg-send.ts "message"   (ou TG_MESSAGE_B64=<base64>)   [--confirm <telegramUserId>]
 import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { chooseAdminTelegramId, splitMessage } from "../src/admin-chat";
-import { ADMIN_BOT_ORDER, ADMIN_BOT_WHERE } from "../src/admin-bot";
+import { adminBot } from "../src/admin-bot";
 
 async function resolveAdminId(confirm: string | undefined): Promise<bigint> {
   const setting = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
   const settingId = setting && typeof setting.value === "string" ? BigInt(setting.value) : null;
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN", isActive: true }, orderBy: { createdAt: "asc" }, select: { telegramUserId: true } });
-  const casino = await prisma.bot.findFirst({ where: ADMIN_BOT_WHERE, orderBy: ADMIN_BOT_ORDER });
+  const casino = await adminBot();
   const states = casino
     ? await prisma.memberBotState.findMany({ where: { botId: casino.id, startedAt: { not: null } }, orderBy: { startedAt: "desc" }, take: 20, include: { member: true } })
     : [];
@@ -45,8 +45,9 @@ async function main() {
   if (!text.trim()) throw new Error("Message vide.");
 
   const adminId = await resolveAdminId(confirm);
-  const bot = await prisma.bot.findFirst({ where: ADMIN_BOT_WHERE, orderBy: ADMIN_BOT_ORDER });
-  if (!bot) throw new Error("Aucun bot casino actif.");
+  // Phase 26 : le Boss s'il existe, sinon le bot casino de repli (même choix que les alertes et les agents).
+  const bot = await adminBot();
+  if (!bot) throw new Error("Aucun bot du dialogue admin actif (ni Boss, ni bot casino).");
   const api = new Api(decrypt(bot.tokenEncrypted));
   const parts = splitMessage(text);
   for (const part of parts) {

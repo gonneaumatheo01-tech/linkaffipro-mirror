@@ -1,4 +1,4 @@
-import { prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { decrypt } from "@linkaffipro/core";
 
 async function main() {
@@ -13,7 +13,7 @@ async function main() {
   }
   const botId =
     canal.primaryBotId ??
-    (await prisma.bot.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }))?.id;
+    (await prisma.bot.findFirst({ where: CHANNEL_BOT_WHERE, orderBy: { createdAt: "asc" }, select: { id: true } }))?.id;
   if (!botId) {
     console.log("aucun bot");
     return;

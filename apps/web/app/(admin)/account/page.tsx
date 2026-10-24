@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Compass } from "lucide-react";
 import { ROLE_LABELS } from "@linkaffipro/core";
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
@@ -37,7 +37,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
     // Liens « Lier votre Telegram » : bots normaux seulement (phase 17 : un bot assistant de conversation est réservé
     // à ses conversations privées).
     prisma.bot.findMany({
-      where: { isActive: true, mode: "STANDARD" },
+      where: ACTIVE_CHANNEL_BOT_WHERE,
       orderBy: { createdAt: "asc" },
       select: { username: true, name: true },
     }),

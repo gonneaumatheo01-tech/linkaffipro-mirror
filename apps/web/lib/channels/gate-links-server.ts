@@ -1,4 +1,4 @@
-import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import {
   canInviteFromRights,
   createPrismaGateLinkDeps,
@@ -142,7 +142,7 @@ export async function loadGateLinkView(
         channelId: { in: ids },
         isActive: true,
         // Même règle que le bot (`findGateLink`) : jamais le lien d'un bot assistant de conversation (phase 17).
-        bot: { isActive: true, mode: "STANDARD" },
+        bot: ACTIVE_CHANNEL_BOT_WHERE,
       },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       select: {
@@ -153,7 +153,7 @@ export async function loadGateLinkView(
       },
     }),
     prisma.channelBotAdmin.findMany({
-      where: { channelId: { in: ids }, bot: { isActive: true, mode: "STANDARD" } },
+      where: { channelId: { in: ids }, bot: ACTIVE_CHANNEL_BOT_WHERE },
       select: {
         channelId: true,
         botId: true,

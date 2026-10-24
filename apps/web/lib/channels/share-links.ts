@@ -5,7 +5,7 @@ import {
   provenanceOfLink,
   type ScopedRule,
 } from "@linkaffipro/core";
-import { audit, prisma, type ApprovalRule } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, audit, prisma, type ApprovalRule } from "@linkaffipro/db";
 import { canInviteFromRights, getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
 import { actingStandardBotFor } from "./acting-bot";
 import { fmtDate } from "@/lib/format";
@@ -114,7 +114,7 @@ async function candidateBots(channelId: string): Promise<BotRow[]> {
     actingStandardBotFor(channelId),
     prisma.channelBotAdmin.findMany({
       // Jamais un bot assistant de conversation (phase 17).
-      where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+      where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
       orderBy: { detectedAt: "asc" },
       include: { bot: true },
     }),

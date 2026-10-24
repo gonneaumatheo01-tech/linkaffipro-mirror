@@ -2,7 +2,7 @@
  * Accès base des liens des canaux à rejoindre (gate-links.ts), partagés par le webhook, le site (vérification d'une
  * règle, renvoi de l'accueil, point « À faire ») et le worker (rappels, alerte).
  */
-import { prisma, type MembershipStatus } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, prisma, type MembershipStatus } from "@linkaffipro/db";
 import type { GateBot, GateLinkApi, GateLinkDeps, GateLinkProblem } from "./gate-links";
 import { gateCheckProblemsOf, gateProblemsOf } from "./gate-links";
 
@@ -21,7 +21,7 @@ export function canInviteFromRights(rights: unknown): boolean | null {
  */
 export async function webBotApi(botId: string): Promise<GateLinkApi | null> {
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true },
+    where: { id: botId, isActive: true, ...CHANNEL_BOT_WHERE },
     // Mode et persona : l'instance en cache reste celle du webhook (handlers du bon mode, phase 17).
     select: {
       id: true,
@@ -78,8 +78,7 @@ export function createPrismaGateLinkDeps(
           ...(opts.botId ? { botId: opts.botId } : {}),
           // Phase 17 : jamais un lien d'un bot assistant de conversation (il ne traite pas les demandes).
           bot: {
-            isActive: true,
-            mode: "STANDARD",
+            ...ACTIVE_CHANNEL_BOT_WHERE,
             channelAdmins: { none: { channelId: gateChannelId, revokedAt: { not: null } } },
           },
         },
@@ -112,7 +111,7 @@ export function createPrismaGateLinkDeps(
     async adminBots(channelId) {
       // Phase 17 : un bot assistant de conversation ne crée jamais de lien de canal à rejoindre.
       const rows = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true, rights: true, bot: { select: { username: true } } },
       });

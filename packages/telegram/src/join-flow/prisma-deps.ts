@@ -1,4 +1,4 @@
-import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { emitAutomationEvent, emitLinkaffiEvent, enqueue, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { PendingGateRow } from "./auto-gate";
@@ -148,7 +148,7 @@ export function createPrismaJoinFlowDeps(
       });
       // Phase 17 : un bot assistant de conversation n'agit jamais pour un canal.
       const admins = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true },
       });
@@ -288,7 +288,7 @@ export function createPrismaJoinFlowDeps(
     async getBotIdentity(botId) {
       // Phase 17 : jamais un bot assistant de conversation (il n'écrit pas pour les demandes d'adhésion).
       return prisma.bot.findFirst({
-        where: { id: botId, isActive: true, mode: "STANDARD" },
+        where: { id: botId, ...ACTIVE_CHANNEL_BOT_WHERE },
         select: { id: true, name: true, username: true, telegramBotId: true, vertical: true },
       });
     },

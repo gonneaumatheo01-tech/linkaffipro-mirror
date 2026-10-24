@@ -6,15 +6,16 @@
 import { hasCustomEmoji, jsonIds, shortId } from "@linkaffipro/core";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as sharedPrisma, type Db } from "./client";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "./bot-selectors";
 
 export type PostingDb = Db | PrismaClient | Prisma.TransactionClient;
 
 /** Champs d'un bot lus pour choisir celui qui publie (jamais le jeton). */
-const publishingBotSelect = { id: true, username: true, isActive: true, mode: true } as const;
+const publishingBotSelect = { id: true, username: true, isActive: true, mode: true, role: true } as const;
 
 /** Un bot peut-il publier dans un canal ? Actif et normal : jamais un assistant de conversation (phase 17). */
-function canPublish(bot: { isActive: boolean; mode: string } | null | undefined): boolean {
-  return Boolean(bot?.isActive && bot.mode === "STANDARD");
+function canPublish(bot: { isActive: boolean; mode: string; role?: string } | null | undefined): boolean {
+  return Boolean(bot?.isActive && bot.mode === "STANDARD" && bot.role !== "ADMIN");
 }
 
 /**
@@ -34,7 +35,7 @@ export async function publishingBotFor(
     select: {
       primaryBot: { select: publishingBotSelect },
       botAdmins: {
-        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { bot: { select: publishingBotSelect } },
       },

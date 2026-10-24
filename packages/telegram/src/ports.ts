@@ -6,6 +6,9 @@ import type { CustomEmojiAddOutcome, ExtractedCustomEmoji } from "./custom-emoji
 /** Mode d'un bot (phase 17) : bot normal, ou assistant de conversation (persona liée). */
 export type BotMode = "STANDARD" | "ASSISTANT";
 
+/** Rôle d'un bot (phase 26) : bot de canal, ou Boss (dialogue avec l'admin seulement). */
+export type BotRoleName = "CHANNEL" | "ADMIN";
+
 /** Identité d'un bot telle que connue en base (jamais le jeton). */
 export type BotIdentity = {
   id: string;
@@ -20,7 +23,20 @@ export type BotIdentity = {
   mode?: BotMode;
   /** Phase 17 : persona liée au bot en mode assistant (absent = inconnue de l'appelant). */
   personaId?: string | null;
+  /**
+   * Phase 26 : rôle du bot (absent = bot de canal). Un Boss (`ADMIN`) ne parle qu'à l'admin : aucun canal créé ni
+   * suivi, aucun membre enregistré, silence total pour toute autre personne (`handlers/boss.ts`).
+   */
+  role?: BotRoleName;
 };
+
+/** Le bot est-il le Boss (phase 26) ? */
+export function isBossBot(identity: Pick<BotIdentity, "role">): boolean {
+  return identity.role === "ADMIN";
+}
+
+/** Bot du dialogue admin tel que vu par les handlers (phase 26, `adminBot()`), jamais le jeton. */
+export type AdminDialogBot = { id: string; username: string; isBoss: boolean };
 
 /** Le bot est-il en mode assistant de conversation ? */
 export function isAssistantBot(identity: Pick<BotIdentity, "mode">): boolean {
@@ -142,6 +158,20 @@ export interface TelegramDeps {
   downloadTelegramFile?(url: string): Promise<Uint8Array>;
   /** Attente avant la confirmation unique d'un album déposé en médiathèque (tests : quelques ms ; défaut 2 s). */
   mediaAlbumReplyDelayMs?: number;
+  /**
+   * Phase 26 : bot du dialogue admin (`adminBot()` : le Boss, sinon le bot casino de repli). Seul ce bot traite les
+   * messages de l'admin ; les autres le renvoient vers lui une fois. Absent : chaque bot garde l'ancien dialogue.
+   */
+  adminDialogBot?(): Promise<AdminDialogBot | null>;
+  /**
+   * Phase 26 : renvoi « Parle-moi sur @<boss> » déjà fait par ce bot vers ce bot du dialogue ? Rend `true` la première
+   * fois (et le mémorise), `false` ensuite. Absent : jamais de renvoi (silence).
+   */
+  claimBossRedirect?(botId: string, targetBotId: string): Promise<boolean>;
+  /** Phase 26 : moteur du Boss (chemin rapide, boutons de confirmation). Absent : le moteur réel de `@linkaffipro/agents`. */
+  bossEngine?: import("./boss/engine").BossEngine;
+  /** Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut). */
+  bossName?(): Promise<string>;
 }
 
 /** Résultat d'une re-vérification des droits pour le bot (méthode 1). */

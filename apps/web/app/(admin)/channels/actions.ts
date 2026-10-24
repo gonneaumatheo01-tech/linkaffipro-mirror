@@ -50,10 +50,17 @@ export async function updateChannelAction(formData: FormData): Promise<void> {
   if (d.primaryBotId !== "") {
     const bot = await prisma.bot.findUnique({
       where: { id: d.primaryBotId },
-      select: { mode: true },
+      select: { mode: true, role: true },
     });
     if (!bot)
       redirect(withFlash(returnTo, { error: "Ce bot est introuvable : choisissez-en un autre." }));
+    // Phase 26 : le Boss (dialogue avec l'admin) ne publie jamais dans un canal.
+    if (bot.role === "ADMIN")
+      redirect(
+        withFlash(returnTo, {
+          error: "Ce bot sert seulement à parler avec l'administrateur : choisissez un bot de canal.",
+        }),
+      );
     if (bot.mode !== "STANDARD")
       redirect(withFlash(returnTo, { error: PRIMARY_BOT_ASSISTANT_ERROR }));
   }

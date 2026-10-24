@@ -90,7 +90,9 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
       else caption = albumCaptions.get(group)?.caption ?? caption;
     }
     if (!hasLibraryKeyword(caption)) return next();
-    if (!(await deps.isAdminDialogPartner(BigInt(from.id)))) return next();
+    // Phase 26 : seul le bot du dialogue admin range les médias de l'admin (les autres le renvoient vers lui).
+    const route = await adminRouteFor(identity, deps, from.id, ctx.chat.type);
+    if (route.kind !== "dialog" && route.kind !== "legacy") return next();
 
     const replyLine = (text: string, to = msg.message_id) =>
       ctx.reply(text, { reply_parameters: { message_id: to, allow_sending_without_reply: true } });

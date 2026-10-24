@@ -4,7 +4,7 @@
  */
 import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
-import { prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent } from "@linkaffipro/db";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   baseLang,
@@ -38,7 +38,7 @@ export async function actingBotFor(channelId: string) {
     select: { primaryBotId: true, title: true },
   });
   const admins = await prisma.channelBotAdmin.findMany({
-    where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+    where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
     orderBy: { detectedAt: "asc" },
     include: { bot: true },
   });

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma, audit, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, audit, type Prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
 import { recheckChannelRights } from "@linkaffipro/telegram";
@@ -797,7 +797,7 @@ export async function approveAllRequestsAction(formData: FormData): Promise<void
       isActive: true,
       // Un bot qui peut accepter : actif et normal, jamais un assistant de conversation (phase 17).
       botAdmins: {
-        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         select: { botId: true },
         take: 1,
       },

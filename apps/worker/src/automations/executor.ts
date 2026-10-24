@@ -1,5 +1,5 @@
 import { GRAPH_SEQUENCE_LABELS, escapeHtml, renderActionText, type AutomationAction } from "@linkaffipro/core";
-import { prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent } from "@linkaffipro/db";
 import { enqueueDm, type DmButton, type EnqueueDmInput } from "@linkaffipro/queue";
 import { notifyAdmin, pickText, renderText } from "@linkaffipro/telegram";
 import { actingBotFor, apiForBot } from "../approvals/telegram-actions";
@@ -13,7 +13,7 @@ import { resolveAutomationButtons } from "./offer-links";
  */
 async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
   if (botId) {
-    const b = await prisma.bot.findFirst({ where: { id: botId, isActive: true, mode: "STANDARD" } });
+    const b = await prisma.bot.findFirst({ where: { id: botId, ...ACTIVE_CHANNEL_BOT_WHERE } });
     if (b) return b;
   }
   if (snapshot.channelId) {
@@ -21,8 +21,8 @@ async function pickBot(snapshot: MemberSnapshot, botId?: string | null) {
     if (b) return b;
   }
   return (
-    (await prisma.bot.findFirst({ where: { vertical: "CASINO", isActive: true, mode: "STANDARD" } })) ??
-    (await prisma.bot.findFirst({ where: { isActive: true, mode: "STANDARD" } }))
+    (await prisma.bot.findFirst({ where: { vertical: "CASINO", ...ACTIVE_CHANNEL_BOT_WHERE } })) ??
+    (await prisma.bot.findFirst({ where: ACTIVE_CHANNEL_BOT_WHERE }))
   );
 }
 

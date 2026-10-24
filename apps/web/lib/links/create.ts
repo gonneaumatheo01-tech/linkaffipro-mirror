@@ -1,6 +1,6 @@
 import { Api, GrammyError } from "grammy";
 import { decrypt, shortId } from "@linkaffipro/core";
-import { prisma, audit, recordEvent, type AdPlatform } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, audit, recordEvent, type AdPlatform } from "@linkaffipro/db";
 
 export class LinkError extends Error {}
 
@@ -19,7 +19,7 @@ export async function actingBotForChannel(channelId: string) {
     include: {
       primaryBot: true,
       botAdmins: {
-        where: { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         include: { bot: true },
       },

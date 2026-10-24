@@ -4,7 +4,7 @@
  * des liens actuels) et le script de la page de test. Règles dans `links.ts` et `chat.ts`.
  */
 import { decrypt, landingLinkCampaignFixes } from "@linkaffipro/core";
-import { Prisma, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, Prisma, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Api } from "grammy";
 import { canInviteFromRights } from "../join-flow/prisma-gate-links";
@@ -42,7 +42,7 @@ export type LandingBotApi = LandingLinkApi & {
  */
 export async function webLandingApi(botId: string): Promise<LandingBotApi | null> {
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true },
+    where: { id: botId, isActive: true, ...CHANNEL_BOT_WHERE },
     // Mode et persona : l'instance en cache reste celle du webhook (handlers du bon mode, phase 17).
     select: {
       id: true,
@@ -88,7 +88,7 @@ export type PrismaLandingOptions = {
 async function channelAdmins(channelId: string, primaryBotId: string | null) {
   // Phase 17 : jamais un bot assistant de conversation.
   const rows = await prisma.channelBotAdmin.findMany({
-    where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+    where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
     orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
     select: { botId: true, rights: true, bot: { select: { username: true, vertical: true } } },
   });
@@ -214,7 +214,7 @@ export function createPrismaLandingDeps(
       // Ordre de détection (le bot qui agit pour le canal est retrouvé par `landingLinkCandidates`). Jamais un bot
       // assistant de conversation (phase 17).
       const rows = await prisma.channelBotAdmin.findMany({
-        where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+        where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
         orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
         select: { botId: true, rights: true, bot: { select: { username: true, vertical: true } } },
       });
@@ -336,7 +336,7 @@ export function createPrismaLandingDeps(
     },
     async clientFor(botId): Promise<LandingChatClient | null> {
       const bot = await prisma.bot.findFirst({
-        where: { id: botId, isActive: true },
+        where: { id: botId, isActive: true, ...CHANNEL_BOT_WHERE },
         select: { tokenEncrypted: true },
       });
       if (!bot) return null;

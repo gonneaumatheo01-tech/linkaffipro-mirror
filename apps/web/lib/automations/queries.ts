@@ -2,7 +2,7 @@
  * Lectures en base des écrans Relances automatiques (lecture seule). Le compteur des cartes suit la définition de
  * `counter.ts` ; les clics d'offre suivent la règle du moteur (identifiant de suivi, hors robots).
  */
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { groupLanguages } from "@/lib/members/query";
 import { getTagRegistry } from "@/lib/members/tags";
 import { counterSince, weeklyCounters, type RuleCounter } from "./counter";
@@ -201,7 +201,7 @@ export async function loadEditorOptions(): Promise<EditorOptions> {
     }),
     // Jamais un bot assistant de conversation (phase 17) : il n'écrit qu'aux personnes qui lui parlent.
     prisma.bot.findMany({
-      where: { isActive: true, mode: "STANDARD" },
+      where: ACTIVE_CHANNEL_BOT_WHERE,
       orderBy: { name: "asc" },
       select: { id: true, username: true, vertical: true },
     }),

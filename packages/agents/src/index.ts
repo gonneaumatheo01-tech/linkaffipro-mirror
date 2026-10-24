@@ -192,3 +192,8 @@ export {
 } from "./agents/ads/run";
 export * from "./orchestrator/overview-contract";
 export * from "./boss/contract";
+// Chantier C (phase 26) : démarrage guidé, aide, carnet des besoins non couverts, relance quotidienne du Boss.
+export * from "./boss/guide";
+export * from "./boss/help";
+export * from "./boss/unmet";
+export * from "./boss/nudge";

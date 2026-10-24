@@ -36,13 +36,16 @@ function isRedirect(err: unknown): boolean {
 /** Refus d'un bot en mode assistant de conversation (phase 17) : il ne répond qu'aux personnes qui lui parlent. */
 const ASSISTANT_BOT_ERROR =
   "Ce bot est un assistant de conversation : il n'écrit pas à un groupe. Choisissez un autre bot.";
+/** Phase 26 : le Boss ne parle qu'à l'admin, jamais aux membres. */
+const BOSS_BOT_ERROR = "Ce bot sert seulement à parler avec l'administrateur : choisissez un bot de canal.";
 
 /**
  * Un envoi existant ne part jamais par un bot passé en mode assistant de conversation depuis sa création (phase 17).
  * Le service d'arrière-plan l'annule aussi ; ici, le refus est affiché tout de suite.
  */
 async function refuseAssistantBot(botId: string, backTo: string): Promise<void> {
-  const bot = await prisma.bot.findUnique({ where: { id: botId }, select: { mode: true } });
+  const bot = await prisma.bot.findUnique({ where: { id: botId }, select: { mode: true, role: true } });
+  if (bot && bot.role === "ADMIN") back(backTo, { error: BOSS_BOT_ERROR });
   if (bot && bot.mode !== "STANDARD") back(backTo, { error: ASSISTANT_BOT_ERROR });
 }
 
@@ -240,10 +243,11 @@ async function createFromForm(formData: FormData, user: CurrentUser): Promise<Cr
   }
   const bot = await prisma.bot.findUnique({
     where: { id: d.botId },
-    select: { isActive: true, mode: true },
+    select: { isActive: true, mode: true, role: true },
   });
   if (!bot || !bot.isActive)
     back("/members/broadcasts/new", { error: "Ce bot est introuvable ou désactivé." });
+  if (bot.role === "ADMIN") back("/members/broadcasts/new", { error: BOSS_BOT_ERROR });
   // Jamais un bot assistant de conversation (phase 17) : le formulaire ne le propose pas, refusé ici aussi.
   if (bot.mode !== "STANDARD") back("/members/broadcasts/new", { error: ASSISTANT_BOT_ERROR });
   const status = d.intent === "now" ? "SENDING" : d.intent === "schedule" ? "SCHEDULED" : "DRAFT";
@@ -569,6 +573,7 @@ export async function cancelBroadcastAction(formData: FormData): Promise<void> {
  */
 async function sendTestToUser(user: CurrentUser, id: string): Promise<string | null> {
   const b = await prisma.broadcast.findUniqueOrThrow({ where: { id }, include: { bot: true } });
+  if (b.bot.role === "ADMIN") return BOSS_BOT_ERROR;
   if (b.bot.mode !== "STANDARD") return ASSISTANT_BOT_ERROR;
   if (!user.telegramUserId)
     return "Liez d'abord votre compte Telegram dans « Mon compte » (menu en haut à droite).";

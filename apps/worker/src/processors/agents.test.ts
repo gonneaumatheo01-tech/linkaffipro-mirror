@@ -6,6 +6,7 @@ vi.mock("@linkaffipro/agents", () => ({
   runCycle: vi.fn(async () => ({ plan: { created: 0 } })),
   resumeMissions: vi.fn(async () => ({ requeued: 0 })),
   sweepHumanRequests: vi.fn(async () => ({ sent: 0 })),
+  bossDailyNudge: vi.fn(async () => ({ sent: false, reason: "nothing" })),
   sweepValidations: vi.fn(async () => ({ reminded: 0 })),
   sendDailyReport: vi.fn(async () => ({ sent: false })),
   runBench: vi.fn(async () => ({ ok: true, open: true })),
@@ -54,6 +55,8 @@ describe("processeurs des agents (phase 19)", () => {
     for (const t of ["resume", "human-requests", "validations"]) await PROCESSORS["agents-orchestrator"].process(job({ type: t }));
     expect(agents.resumeMissions).toHaveBeenCalled();
     expect(agents.sweepHumanRequests).toHaveBeenCalled();
+    // Phase 26 : la relance quotidienne du Boss part du même balayage, juste après.
+    expect(agents.bossDailyNudge).toHaveBeenCalledWith({});
     expect(agents.sweepValidations).toHaveBeenCalled();
     await PROCESSORS["agents-orchestrator"].process(job({ type: "bench", benchId: "b1" }));
     expect(agents.runBench).toHaveBeenCalledWith({}, { type: "bench", benchId: "b1" });

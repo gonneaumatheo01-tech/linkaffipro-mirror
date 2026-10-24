@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarClock, RefreshCw, Settings2, TriangleAlert } from "lucide-react";
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { Flash } from "@/components/admin/flash";
 import { HelpTip } from "@/components/admin/help-tip";
 import { PageHeader } from "@/components/admin/page-header";
@@ -57,7 +57,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
     loadChannelCounts(channel.id),
     // « Bot principal » : jamais un bot assistant de conversation (phase 17).
     prisma.bot.findMany({
-      where: { isActive: true, mode: "STANDARD" },
+      where: ACTIVE_CHANNEL_BOT_WHERE,
       orderBy: { name: "asc" },
       select: { id: true, username: true },
     }),

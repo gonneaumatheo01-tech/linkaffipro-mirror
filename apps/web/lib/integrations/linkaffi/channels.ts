@@ -1,4 +1,4 @@
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { canInviteFromRights } from "@linkaffipro/telegram";
 
 /**
@@ -26,7 +26,7 @@ export function canProposeChannel(admins: ReadonlyArray<{ rights: unknown }>): b
  */
 export const PROPOSABLE_ADMIN_WHERE = {
   revokedAt: null,
-  bot: { isActive: true, mode: "STANDARD" },
+  bot: ACTIVE_CHANNEL_BOT_WHERE,
 } as const;
 
 export async function listProposableChannels(): Promise<ProposableChannel[]> {

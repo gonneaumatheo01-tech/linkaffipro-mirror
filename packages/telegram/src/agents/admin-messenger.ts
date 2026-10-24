@@ -9,7 +9,7 @@ import type { AdminButton, AdminMessenger } from "@linkaffipro/agents";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { splitMessage } from "../admin-chat";
-import { ADMIN_BOT_ORDER, ADMIN_BOT_WHERE } from "../admin-bot";
+import { adminBot } from "../admin-bot";
 
 /** Légende d'une photo ou d'une vidéo : au-delà, le texte part dans un second message. */
 export const CAPTION_MAX = 1024;
@@ -116,15 +116,15 @@ export function createAdminMessengerWith(port: MessengerPort): AdminMessenger {
   };
 }
 
-/** Port réel : `Setting` `admin.telegramUserId`, bot casino STANDARD actif (comme `notifyAdmin`), octets `MediaAsset`. */
+/** Port réel : `Setting` `admin.telegramUserId`, bot du dialogue admin (`adminBot()`, comme `notifyAdmin`), octets `MediaAsset`. */
 const prismaPort: MessengerPort = {
   async adminId() {
     const s = await prisma.setting.findUnique({ where: { key: "admin.telegramUserId" } });
     return s && typeof s.value === "string" && /^\d+$/.test(s.value) ? BigInt(s.value) : null;
   },
   async api() {
-    // Jamais un bot assistant de conversation (phase 17).
-    const bot = await prisma.bot.findFirst({ where: ADMIN_BOT_WHERE, orderBy: ADMIN_BOT_ORDER });
+    // Phase 26 : le Boss s'il existe, sinon le repli (jamais un assistant de conversation ni un bot fantôme).
+    const bot = await adminBot();
     return bot ? (new Api(decrypt(bot.tokenEncrypted)) as unknown as MessengerApi) : null;
   },
   async media(id) {

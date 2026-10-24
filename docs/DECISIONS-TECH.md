@@ -765,3 +765,17 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   (`apps/worker/src/sending/agent-hold.ts`, appelé à la réclamation) : équipe en pause, désactivée ou pause générale →
   post reporté de 30 min sans échec (`agents.post.held`) ; équipe en simulation et post vers un vrai canal → annulé
   (`agents.post.cancelled_simulation`) ; un post sans mission n'est jamais touché.
+
+## Phase 26 — le Boss (24 octobre 2026)
+
+- **Panne du dialogue admin (cause trouvée le 24 octobre)** : depuis le 21 octobre, Telegram recevait `403 Forbidden`
+  de notre webhook pour @casinogamblingoobot (8 messages en attente, dont « Oui » ×2 et « Comment ça ? Ça marche
+  pas ? ») : le secret d'en-tête posé chez Telegram ne correspondait plus à `Bot.webhookSecret`. Cause la plus
+  probable : un script local ad hoc (`apps/web/scripts/set-webhook.ts`, identifiant de base locale codé en dur, secret
+  de la base locale) lancé contre l'adresse de production. Réparé par `pnpm telegram:webhooks` en production ; le
+  script est supprimé et le worker contrôle désormais les webhooks toutes les 10 minutes (réparation automatique,
+  alerte si cela se répète). Second défaut, dans le code : un texte non reconnu de l'admin ne recevait aucune réponse
+  (`handled: false` → `next()`), ce qui donnait l'impression d'un bot mort même quand il recevait.
+- **IA de l'interprète** : modèle le moins cher de `packages/ai` (`DEFAULT_MODEL`), outils en `tool_choice: auto`
+  avec un seul appel (les modèles 5.5 refusent l'outil imposé `any` et la `temperature`) ; pas d'outil ou outil
+  invalide = « pas prévu ». Client `@linkaffipro/ai` étendu (`tools`, `toolUses`).

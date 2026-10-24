@@ -2471,6 +2471,8 @@ model AgentValidation {
   awaitingEditAt    DateTime?
   editedText        String?
   remindedAt        DateTime?
+  /// Phase 26 : membre de l'équipe (identifiant Telegram) à qui la validation est adressée ; null = l'admin.
+  assigneeTelegramId BigInt?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -2499,8 +2501,42 @@ model BossTurn {
   source            String?
   telegramMessageId Int?
   costCents         Int      @default(0)
+  /// Phase 26 : conversation (privée ou groupe de l'équipe) et auteur du message (null pour un tour de Kevin).
+  chatId            BigInt?
+  fromTelegramId    BigInt?
 
   @@index([createdAt])
+  @@index([chatId, createdAt])
+  @@index([fromTelegramId, createdAt])
+}
+
+enum TeamMemberRole {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+/// Phase 26 : personne de l'équipe présentée à Kevin (le Boss) par l'admin ou un manager.
+model TeamMember {
+  id             String         @id @default(cuid())
+  telegramUserId BigInt         @unique
+  username       String?
+  firstName      String
+  role           TeamMemberRole @default(MEMBER)
+  /// Une ligne : « vidéos casino et posts roulette ».
+  roleLabel      String?
+  /// `{ teams: ("dating"|"casino"|"sports"|"algo"|"ads")[], kinds: ("media"|"secret"|"choice"|"validation")[] }`
+  responsibilities Json         @default("{}")
+  available      Boolean        @default(true)
+  awayUntil      DateTime?
+  /// Notes datées `[{ at, text, by }]` (ce qu'elle a dit d'elle-même ou ce que l'admin a dit d'elle).
+  notes          Json           @default("[]")
+  /// A fait /start en privé avec Kevin (peut recevoir un message privé, y envoyer un secret).
+  startedPrivateAt DateTime?
+  introducedByTelegramId BigInt?
+  removedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 /// Phase 26 : besoin de l'admin que le Boss ne sait pas encore couvrir (carnet de la phase suivante).
@@ -2566,6 +2602,11 @@ model HumanRequest {
   answeredAt        DateTime?
   missionId         String?
   onAnswer          Json               @default("{}")
+  /// Phase 26 : membre de l'équipe à qui la question est adressée (null = l'admin) et conversation où elle a été
+  /// posée (null = conversation privée avec l'admin ; sinon le groupe de l'équipe). Le message posé reste
+  /// `telegramMessageId`.
+  assigneeTelegramId BigInt?
+  chatId            BigInt?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 

@@ -188,7 +188,22 @@ export type AgentsOrchestratorJob =
   /** Banc d'essai vidéo (phase 20) : lancement (`personaId`, `count`) puis relectures (`benchId`). */
   | { type: "bench"; personaId?: string; count?: number; benchId?: string }
   /** Vocal de l'admin (phase 20, chantier B) : téléchargé, transcrit et traité comme un texte par le worker. */
-  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null };
+  | { type: "admin-voice"; botId: string; fileId: string; messageId: number; chatId: number; replyToMessageId?: number | null; mimeType?: string | null }
+  /**
+   * Message de l'admin au Boss qui demande l'interprète IA (phase 26) : traité par `bossAiTurn` dans le worker, réponse
+   * dans la même conversation par le même bot. Jamais un secret (le chemin rapide du webhook les retient avant).
+   */
+  | {
+      type: "boss-text";
+      botId: string;
+      chatId: number;
+      messageId: number;
+      text: string;
+      replyToMessageId?: number | null;
+      source?: "text" | "voice";
+      forwarded?: boolean;
+      entities?: Array<{ type: string; offset: number; length: number; url?: string; language?: string; custom_emoji_id?: string }> | null;
+    };
 /** `poll` : numéro de relecture d'une étape qui attend un fournisseur (identifiant de tâche distinct à chaque fois). */
 export type AgentStepJob = { type: "step"; missionId: string; index: number; poll?: number };
 

@@ -17,7 +17,7 @@
  *   inchangée) ; journal `persona.faq_updated` (nombres d'entrées, jamais les textes).
  */
 import { deniesBeingAssistant } from "@linkaffipro/chat";
-import { audit, prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE, audit, prisma } from "@linkaffipro/db";
 import { mentionsAssistant, setAssistantProfile } from "@linkaffipro/telegram";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import {
@@ -131,7 +131,7 @@ export async function refreshPersonaBotProfiles(
   personaId: string,
 ): Promise<{ notes: string[]; problems: string[] }> {
   const bots = await prisma.bot.findMany({
-    where: { personaId, mode: "ASSISTANT" },
+    where: { personaId, mode: "ASSISTANT", ...CHANNEL_BOT_WHERE },
     select: { id: true, username: true },
     orderBy: { username: "asc" },
   });

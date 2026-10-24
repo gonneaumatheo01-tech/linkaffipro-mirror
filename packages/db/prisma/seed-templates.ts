@@ -457,10 +457,10 @@ async function carrierChannel(db: TemplateDb, vertical: Vertical) {
     (channel.primaryBot?.isActive ? channel.primaryBot : null) ??
     channel.botAdmins.find((a) => a.bot.isActive)?.bot ??
     (await db.bot.findFirst({
-      where: { isActive: true, vertical },
+      where: { isActive: true, vertical, role: "CHANNEL" },
       orderBy: { createdAt: "asc" },
     })) ??
-    (await db.bot.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } }));
+    (await db.bot.findFirst({ where: { isActive: true, role: "CHANNEL" }, orderBy: { createdAt: "asc" } }));
   if (!bot) return null;
   return { channelId: channel.id, channelTitle: channel.title, botId: bot.id };
 }

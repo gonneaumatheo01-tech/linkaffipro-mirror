@@ -9,3 +9,4 @@ export type { LandingVisitsRow } from "./landing-visits";
 export * from "@prisma/client";
 export { publishingBotFor, createAgentPost, PostingError } from "./posting";
 export type { PostingDb, AgentPostInput, AgentPostResult } from "./posting";
+export { CHANNEL_BOT_WHERE, ACTIVE_CHANNEL_BOT_WHERE } from "./bot-selectors";

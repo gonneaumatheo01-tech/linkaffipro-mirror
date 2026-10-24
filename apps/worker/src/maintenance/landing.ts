@@ -16,7 +16,7 @@
  * - Purge (`purge.ts`) : visites, clics et ouvertures (`LandingEvent`) plus anciens que la conservation des données
  *   personnelles (Réglages → Alertes, 24 mois par défaut), par lots.
  */
-import { prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 import { enqueue } from "@linkaffipro/queue";
 import {
   createPrismaLandingDeps,
@@ -47,7 +47,7 @@ type Deps = ReturnType<typeof createPrismaLandingDeps>;
  */
 export async function workerLandingApi(botId: string) {
   const bot = await prisma.bot.findFirst({
-    where: { id: botId, isActive: true },
+    where: { id: botId, isActive: true, ...CHANNEL_BOT_WHERE },
     select: { id: true, tokenEncrypted: true },
   });
   return bot ? landingApiOf(apiForBot(bot)) : null;

@@ -1,4 +1,4 @@
-import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
 
 /**
  * Bot qui agit pour un canal dans les écrans des canaux (liens des canaux à rejoindre, liens de partage) : le bot
@@ -9,7 +9,7 @@ export async function actingStandardBotFor(channelId: string) {
   const [channel, admins] = await Promise.all([
     prisma.channel.findUnique({ where: { id: channelId }, select: { primaryBotId: true } }),
     prisma.channelBotAdmin.findMany({
-      where: { channelId, revokedAt: null, bot: { isActive: true, mode: "STANDARD" } },
+      where: { channelId, revokedAt: null, bot: ACTIVE_CHANNEL_BOT_WHERE },
       // Même ordre que le webhook (`actingBotIdFor`) : à date égale, le même bot est choisi partout.
       orderBy: [{ detectedAt: "asc" }, { id: "asc" }],
       include: { bot: true },

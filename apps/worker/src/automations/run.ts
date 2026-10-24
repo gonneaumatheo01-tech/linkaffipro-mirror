@@ -1,4 +1,4 @@
-import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
 import type { AutomationsJob } from "@linkaffipro/queue";
 import { logger } from "../logger";
 import { buildMemberContext, graphConditionEvaluator } from "./context";
@@ -154,7 +154,7 @@ export function inactiveCandidatesWhere(ruleId: string, cutoff: Date) {
         canDm: true,
         startedAt: { not: null },
         blockedAt: null,
-        bot: { mode: "STANDARD" as const, isActive: true },
+        bot: ACTIVE_CHANNEL_BOT_WHERE,
       },
     },
   };
