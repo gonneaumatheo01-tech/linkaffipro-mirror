@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-24T06:40:03.904Z",
+  "updatedAt": "2026-10-24T16:34:08.709Z",
   "entries": [
     {
       "route": "/",
@@ -855,7 +855,7 @@
         "1440": "settings-bots-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-18T20:13:55.356Z"
+      "capturedAt": "2026-10-24T16:23:09.356Z"
     },
     {
       "route": "/settings/categories",
@@ -1171,6 +1171,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T19:26:55.626Z"
+    },
+    {
+      "route": "/agents/boss",
+      "path": "/agents/boss",
+      "title": "Kevin",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-boss-390.webp",
+        "1440": "agents-boss-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-24T16:33:58.540Z"
     },
     {
       "route": "/agents/casino",
