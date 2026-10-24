@@ -6,8 +6,10 @@ RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
 COPY --chown=node:node . .
 USER node
-# Toutes les dépendances (dev comprises) sont nécessaires pour construire.
-RUN pnpm install --frozen-lockfile --prod=false \
+# Toutes les dépendances (dev comprises) sont nécessaires pour construire. Phase 26 : la vérification des types du
+# site dépasse la mémoire par défaut de Node (manque de mémoire constaté en local) : 4 Go pour le build seulement.
+RUN export NODE_OPTIONS=--max-old-space-size=4096 \
+  && pnpm install --frozen-lockfile --prod=false \
   && pnpm db:generate \
   && pnpm exec turbo run build --filter=web \
   && pnpm store prune
