@@ -2408,6 +2408,8 @@ model AgentMission {
   @@index([channelId, scheduledFor])
   @@index([status, lastActivityAt])
   @@index([createdAt])
+  @@index([updatedAt])
+  @@index([channelId, planDay])
 }
 
 /// Un passage d'un agent sur une mission.
@@ -2613,6 +2615,7 @@ model PostInsight {
   @@index([channelId, sentAt])
   @@index([vertical, sentAt])
   @@index([format])
+  @@index([sentAt])
 }
 
 enum ExperimentKind {
