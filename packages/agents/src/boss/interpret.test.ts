@@ -7,7 +7,7 @@ import { BOSS_CATALOG } from "./catalog";
 import type { FakeBossTable } from "./llm";
 
 vi.mock("../missions/lifecycle", async (orig) => ({
-  ...(await orig<typeof import("../missions/lifecycle")>()),
+  ...(await orig<Record<string, unknown>>()),
   continueMission: vi.fn(async () => undefined),
 }));
 

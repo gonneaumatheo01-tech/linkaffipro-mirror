@@ -28,6 +28,21 @@ Le montage est **100 % ffmpeg côté serveur** (aucun outil externe, aucune API 
 7. **Taille Telegram.** Un short > 50 Mo est ré-encodé avec un CRF plus élevé avant envoi. Kevin indique au client que le fichier a été compressé et propose le fichier original par lien de téléchargement.
 8. **Aucun appel réseau dans les tests.** Faux ffmpeg (commandes mockées, fixtures vidéo de 5 secondes), fausse IA (transcription et vision), faux Telegram (envoi de preview).
 
+## Modèles IA par agent (allocation validée)
+| Agent / Tâche | Modèle | API model string | Pourquoi |
+|---|---|---|---|
+| Kevin — parser les instructions vidéo (« cam en haut, 15 sec ») | **Haiku 5.5** | `claude-haiku-5-5` | Extraction de mots-clés, classification d'intention — pas besoin de raisonnement |
+| Kevin — accusés de réception (« j'ai reçu ta vidéo ») | **Haiku 5.5** | `claude-haiku-5-5` | Messages templates avec variables |
+| Réception — extraire métadonnées, créer le MontageJob | **Haiku 5.5** | `claude-haiku-5-5` | Parsing + création d'objet structuré |
+| Découpe IA — analyse frames, plan de coupe | **Opus 5.5** | `claude-opus-5-5` | Vision + raisonnement sur 200+ frames, comprendre ce qui est « intéressant » |
+| Monteur — commandes ffmpeg | _(pas d'IA)_ | — | 100 % ffmpeg, pas d'appel IA |
+| Habillage — vérification sous-titres | **Opus 5.5** | `claude-opus-5-5` | Tâche critique zéro erreur : comparer SRT à l'audio segment par segment |
+| QC Montage — vérifier durée/résolution/frames noires | **Haiku 5.5** | `claude-haiku-5-5` | Comparaison de chiffres ffprobe à des seuils |
+| QC Montage — vérifier lisibilité sous-titres (Vision) | **Opus 5.5** | `claude-opus-5-5` | Vision sur frames avec sous-titres — besoin de précision |
+| Kevin — envoi preview, gestion validations | **Haiku 5.5** | `claude-haiku-5-5` | Routage de réponses, mise à jour de statuts |
+
+Configuration dans `packages/ai/` : chaque agent de montage utilise le profil correspondant. Le profil détermine le modèle, la température et le max tokens. Ne jamais fallback un appel Opus vers Haiku — mieux vaut échouer et signaler.
+
 ## 0. Diagnostic montage (`pnpm montage:diag`)
 Script `packages/agents/scripts/montage-diag.ts` : vérifie ffmpeg (version, codecs h264/h265/aac, filtres drawtext/overlay/scale/pad/subtitles), espace disque tmp, queue `agents-montage` (taille, workers), dernier `MontageJob` (état, erreurs). Sortie : tableau en français, 0 ou 1.
 
@@ -151,7 +166,7 @@ enum ShortClipStatus {
 
 ## 4. Découpe IA (`packages/agents/src/montage/analyze.ts`)
 - Extraction de frames : une frame toutes les 5 secondes via ffmpeg (`-vf fps=1/5`), stockées en tmp.
-- Envoi des frames par lots de 20 à Claude Vision (Anthropic, modèle le plus capable disponible) avec le prompt :
+- Envoi des frames par lots de 20 à Claude Vision (**Opus 5.5** — `claude-opus-5-5`, voir tableau « Modèles IA par agent ») avec le prompt :
   ```
   Tu es un monteur vidéo expert en contenu casino/gambling pour les réseaux sociaux.
   Voici {n} frames extraites d'une vidéo de {duration} minutes, espacées de 5 secondes.
@@ -207,7 +222,7 @@ Le Monteur enchaîne : trim → pip → reformat → speed (si demandé) → un 
 ### Sous-titres (le plus critique — zéro erreur)
 1. **Extraction audio** : `ffmpeg -i {short} -vn -acodec pcm_s16le -ar 16000 {wav}`
 2. **Speech-to-text** : provider dans `packages/ai` (Whisper API ou équivalent configuré). Résultat : SRT avec timestamps et scores de confiance par segment.
-3. **Vérification** : Claude reçoit l'audio (ou sa transcription phonétique) + le SRT et vérifie segment par segment. Prompt :
+3. **Vérification** : **Opus 5.5** (`claude-opus-5-5`) reçoit l'audio (ou sa transcription phonétique) + le SRT et vérifie segment par segment. Prompt :
    ```
    Voici une transcription SRT avec timestamps. Vérifie chaque segment :
    - Le texte correspond-il exactement à ce qui est dit ?
@@ -234,7 +249,7 @@ Vérifications automatiques (toutes par ffprobe + Claude Vision) :
 - **Résolution** : ≥ 1080p dans la dimension principale. Sous le seuil → `QC_FAILED`.
 - **Frames noires** : détection via `ffmpeg -vf blackdetect`. Plus de 0,5 seconde de noir → `QC_FAILED`.
 - **Audio** : pas de silence total (loudness via `ffmpeg -af loudnorm`), pas de clipping.
-- **Sous-titres** : si activés, vérifier qu'ils sont lisibles (Claude Vision sur 3 frames avec sous-titres visibles).
+- **Sous-titres** : si activés, vérifier qu'ils sont lisibles (**Opus 5.5** Vision sur 3 frames avec sous-titres visibles).
 - **Taille fichier** : si > 50 Mo, ré-encoder avec CRF+4 et prévenir.
 
 Si tout passe → status `PREVIEW_SENT`, envoi au client via Kevin.

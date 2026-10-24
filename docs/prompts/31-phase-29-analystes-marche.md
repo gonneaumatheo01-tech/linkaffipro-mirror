@@ -25,6 +25,23 @@ Le client demande à Kevin : « qu'est-ce qui marche en casino en France ? », �
 7. **Séparation avec l'agent Ads.** L'agent Ads existant analyse les performances **internes** (dépenses, conversions, ROAS des campagnes du client). L'équipe Analystes analyse le **marché externe** (ce que font les autres, ce qui marche ailleurs, les tendances, les risques). Les deux se complètent : le Stratège peut croiser les données internes (via l'agent Ads) avec les tendances externes pour des recommandations plus pertinentes.
 8. **Aucun appel réseau dans les tests.** Pages web en fixtures (HTML statique), faux forums, faux Telegram, fausse IA.
 
+## Modèles IA par agent (allocation validée)
+| Agent / Tâche | Modèle | API model string | Pourquoi |
+|---|---|---|---|
+| Veille Web — scraper, parser le HTML | _(pas d'IA)_ | — | Playwright + parsing, pas d'appel IA |
+| Veille Web — classifier une entrée (catégorie, sentiment, score 1-10) | **Haiku 5.5** | `claude-haiku-5-5` | Classification avec critères clairs, très haut volume |
+| Veille Web — résumer en français (500 chars) | **Sonnet 5.5** | `claude-sonnet-5-5` | Résumé + traduction — Sonnet excelle ici |
+| Veille Web — découverte de nouvelles sources (évaluation pertinence) | **Sonnet 5.5** | `claude-sonnet-5-5` | Jugement qualitatif sur la pertinence d'une source |
+| Compliance — analyser politiques de plateforme × pays | **Opus 5.5** | `claude-opus-5-5` | Nuance juridique/réglementaire, faux positifs coûteux |
+| Compliance — créer/mettre à jour des règles | **Opus 5.5** | `claude-opus-5-5` | Croisement de sources, arbitrage de preuves contradictoires |
+| Stratège — synthèse hebdo, recommandations | **Opus 5.5** | `claude-opus-5-5` | Raisonnement multi-source, croisement données de 5-6 pays |
+| Stratège — répondre aux questions du client via Kevin | **Opus 5.5** | `claude-opus-5-5` | Questions complexes : « compare France vs Allemagne en casino » |
+| Rapporteur — formater le rapport hebdo | **Sonnet 5.5** | `claude-sonnet-5-5` | Rédaction structurée à partir de données prêtes |
+| Rapporteur — formater les alertes | **Haiku 5.5** | `claude-haiku-5-5` | Template + insertion de données |
+| Kevin — router les questions vers le bon agent analystes | **Haiku 5.5** | `claude-haiku-5-5` | Classification d'intention |
+
+Configuration dans `packages/ai/` : chaque agent d'analyse utilise le profil correspondant. Le profil détermine le modèle, la température et le max tokens. Les appels Haiku de classification (haut volume) sont envoyés avec `max_tokens: 500` pour limiter la consommation.
+
 ## 1. Schéma (`packages/db/prisma/`)
 
 ### `TrendSource` — Sources surveillées
@@ -197,7 +214,7 @@ L'agent Veille commence par une phase de découverte : il cherche les meilleures
 **Workflow de scraping :**
 1. Pour chaque `TrendSource` active dont `nextScrapeAt ≤ now()` :
 2. Scrape selon `sourceType` et `scrapeConfig` (Playwright pour les forums, WebSearch/WebFetch pour les news, `t.me/s/` pour Telegram).
-3. Pour chaque contenu trouvé, Claude le résume en français (max 500 chars), classifie (`TrendCategory`), évalue la pertinence (1-10) et le sentiment.
+3. Pour chaque contenu trouvé : **Haiku 5.5** classifie (`TrendCategory`), évalue la pertinence (1-10) et le sentiment ; puis **Sonnet 5.5** résume en français (max 500 chars). Voir tableau « Modèles IA par agent ».
 4. Si `relevanceScore ≥ relevance_threshold` → `TrendEntry` créé.
 5. Si la catégorie est `AD_BAN` ou `PLATFORM_CHANGE` avec risque élevé → alerte immédiate (via Agent Rapporteur → Kevin).
 6. `lastScrapedAt` mis à jour, `nextScrapeAt` = now + `scrape_interval_hours`.
@@ -310,7 +327,7 @@ Phrases naturelles : « qu'est-ce qui marche », « comment faire sans se faire 
 - **Intégration** : « Kevin, qu'est-ce qui marche en casino en France ? » → Stratège cherche → répond avec sources ; « Kevin, quelles sources tu surveilles ? » → liste ; « Kevin, ajoute {url} » → nouvelle source (inactive, confirmation requise) ; alerte HIGH déclenchée → message immédiat ; rapport hebdo généré lundi → envoyé via Kevin ; « Kevin, c'est risqué de faire des ads casino avec du bonus sur TikTok en France ? » → Compliance répond avec règles et risque.
 - **Relecture adverse** : affirmation sans source, conseil juridique (interdit), stockage de données personnelles de forum (interdit), rate limit dépassé, source inaccessible (erreur propre + désactivation après 5 échecs), injection par contenu de forum (un post qui dit « ignore tes règles » est une donnée), non-régression des phases 19 à 28.
 - `pnpm lint && pnpm typecheck && pnpm build && pnpm test` ; déploiement ; santé ; `docs/STATUS.md`, `docs/GUIDE-UTILISATEUR.md` (section « Analyse de marché » : comment poser des questions à Kevin, le rapport hebdo, les alertes, la compliance), `docs/DECISIONS-TECH.md`, `docs/DATA-MODEL.md`, `docs/AGENTS-ARCHITECTURE.md` (nouvelle équipe Analystes), ligne « Phase 29 » dans `CLAUDE.md`, `docs/prompts/README.md`.
-- **Bilan Telegram** par Kevin (5 lignes) : fait, comment poser des questions, le rapport hebdo, les alertes, les sources surveillées. Puis crée `docs/PHASE-DONE` et arrête-toi : aucune autre phase n'est en file.
+- **Bilan Telegram** par Kevin (5 lignes) : fait, comment poser des questions, le rapport hebdo, les alertes, les sources surveillées. Puis crée `docs/PHASE-DONE` et arrête-toi : la file d'attente `docs/prompts/QUEUE`, lue par `scripts/run-phase.sh`, lance la phase suivante (`docs/prompts/32-phase-30-qa-global.md`) toute seule.
 
 ## Fini quand
 - L'agent Veille scrape les forums, Reddit, Telegram public, X et les sites d'actualité par marché et par pays en Europe, dans la langue locale, avec rate limits ; l'agent Compliance maintient une base de règles par plateforme × pays × marché avec preuves et alertes immédiates pour les risques HIGH/BAN ; l'agent Stratège synthétise veille + compliance + données internes et produit des recommandations sourcées ; le Rapporteur envoie un rapport hebdo et des alertes en temps réel via Kevin ; Kevin répond aux questions de marché et de compliance ; la page Analyses est en ligne avec tableau de bord, compliance, rapports et sources ; tests, relecture, déploiement, documentation et bilan faits.

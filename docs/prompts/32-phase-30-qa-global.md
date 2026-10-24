@@ -33,6 +33,13 @@ L'agent QA Global vérifie :
 6. **Pas de modification.** Le QA Global ne modifie jamais le contenu. Il approuve ou refuse avec un motif. C'est l'équipe qui corrige.
 7. **Aucun appel réseau dans les tests.** Fausse IA (réponses QA simulées), faux contenus à vérifier, fixtures.
 
+## Modèle IA (allocation validée)
+| Agent / Tâche | Modèle | API model string | Pourquoi |
+|---|---|---|---|
+| QA Global — toutes les vérifications | **Fable 5.1** | `claude-fable-5-1` | Dernier verrou — doit être infaillible, vérifie ce qu'Opus et Sonnet ont produit |
+
+**Aucun fallback.** Si Fable 5 est indisponible, tout est bloqué. C'est voulu.
+
 ## 0. Configuration Fable 5 (`packages/ai/`)
 
 ### Provider QA

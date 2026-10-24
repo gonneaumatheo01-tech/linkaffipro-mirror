@@ -557,3 +557,14 @@ describe("compte Telegram connecté à reconnecter (phase 12)", () => {
     expect(urgent?.message).toContain(" 1 message programmé avec emojis animés ne partira pas. ");
   });
 });
+
+describe("connexion Telegram réparée plusieurs fois (phase 26)", async () => {
+  const { detectWebhookRepaired } = await import("./alert-rules");
+  it("au-delà de 2 réparations en 24 h pour un bot", () => {
+    expect(detectWebhookRepaired([{ botUsername: "kevin_bot", repairs: 2 }])).toBeNull();
+    const d = detectWebhookRepaired([{ botUsername: "kevin_bot", repairs: 3 }, { botUsername: "casino", repairs: 1 }]);
+    expect(d).toMatchObject({ kind: "webhook_repaired", severity: "WARNING" });
+    expect(d!.message).toContain("@kevin_bot (3 fois)");
+    expect(d!.message).not.toMatch(/webhook/i);
+  });
+});

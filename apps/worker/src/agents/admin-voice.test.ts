@@ -65,3 +65,41 @@ describe("vocal de l'admin dans le worker", () => {
     expect(c.sent[0]!.html).toBe(NO_KEY);
   });
 });
+
+describe("vocal de l'admin par le Boss (phase 26)", () => {
+  function bossDeps(fastHandled: boolean) {
+    const { deps, sent } = setup("Mets le dating en pause, s'il te plaît.");
+    const bossSent: string[] = [];
+    const fastPath = vi.fn(async () => (fastHandled ? { handled: true as const, reply: "Équipe Rencontres en pause ⏸" } : { handled: false as const, needsAi: true as const }));
+    const aiTurn = vi.fn(async () => ({ reply: "Équipe Rencontres en pause ⏸ (IA)" }));
+    const api = {
+      sendMessage: vi.fn(async (_c: number, text: string) => {
+        bossSent.push(text);
+        return { message_id: 1 };
+      }),
+      deleteMessage: vi.fn(async () => true),
+    };
+    const boss = {
+      agents: deps.agents,
+      engine: { fastPath, aiTurn, rememberPendingMessage: vi.fn(async () => undefined) },
+      loadLlm: vi.fn(async () => null),
+      botApi: vi.fn(async () => api),
+      adminTelegramId: async () => ADMIN_TG_ID,
+      bossTurnFor: async () => null,
+    };
+    return { deps: { ...deps, boss } as never, sent, bossSent, fastPath, aiTurn };
+  }
+
+  it("même chemin que le texte : chemin rapide (source voice), sinon interprète", async () => {
+    const a = bossDeps(false);
+    expect((await processAdminVoice(job(), a.deps)).outcome).toBe("handled");
+    expect(a.sent[0]!.html).toContain("J'ai compris");
+    expect(a.fastPath.mock.calls[0]![1]).toMatchObject({ source: "voice", messageId: 55 });
+    expect(a.aiTurn).toHaveBeenCalledTimes(1);
+    expect(a.bossSent).toEqual(["Équipe Rencontres en pause ⏸ (IA)"]);
+    const b = bossDeps(true);
+    await processAdminVoice(job(), b.deps);
+    expect(b.aiTurn).not.toHaveBeenCalled();
+    expect(b.bossSent).toEqual(["Équipe Rencontres en pause ⏸"]);
+  });
+});

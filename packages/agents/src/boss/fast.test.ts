@@ -9,7 +9,7 @@ import { journalText } from "../human/test-kit";
 import type { BossFastResult } from "./contract";
 
 vi.mock("../missions/lifecycle", async (orig) => ({
-  ...(await orig<typeof import("../missions/lifecycle")>()),
+  ...(await orig<Record<string, unknown>>()),
   continueMission: vi.fn(async () => undefined),
 }));
 

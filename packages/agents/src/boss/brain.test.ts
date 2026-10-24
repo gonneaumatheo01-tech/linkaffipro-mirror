@@ -9,7 +9,7 @@ import { editDistance, matchNames, resolveBookmaker, teamOf, checkQuota, checkCa
 import type { AiClient } from "@linkaffipro/ai";
 
 vi.mock("../missions/lifecycle", async (orig) => ({
-  ...(await orig<typeof import("../missions/lifecycle")>()),
+  ...(await orig<Record<string, unknown>>()),
   continueMission: vi.fn(async () => undefined),
 }));
 
