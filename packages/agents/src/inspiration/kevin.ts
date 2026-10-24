@@ -10,7 +10,7 @@
  *   revoir les réglages ; sinon SILENCE. Jamais d'application automatique.
  * Ne lève jamais (une erreur est journalisée).
  */
-import { agentEvent, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
+import { adminTelegramId, agentEvent, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import type { AgentsDeps } from "../types";
 import { INSPIRATION_LIMITS, type ChannelComparison, type InspirationAnalysis, type InspirationGap, type Measure } from "./contract";
 import { analyzeReference, buildStyleProfile, compareWithChannel } from "./kevin-ports";
@@ -145,7 +145,9 @@ export async function readCollect(deps: AgentsDeps, chatKey: string): Promise<In
 
 async function askerChatKey(deps: AgentsDeps, refId: string): Promise<string> {
   const a = await readAsker(deps, refId);
-  return a?.chatId ? a.chatId : "admin";
+  if (a?.chatId) return a.chatId;
+  // Privé de l'admin : la conversation a l'identifiant Telegram de l'admin (clé des transferts qu'il fera).
+  return (await adminTelegramId(deps))?.toString() ?? "admin";
 }
 
 /** « Transfère-moi 10 à 30 posts » (canal illisible ou trop peu de posts) : message à la personne qui a demandé. */

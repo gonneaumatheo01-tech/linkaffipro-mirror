@@ -897,3 +897,11 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
   de résultat) → `BossUnmet`. Membres présentés : `analyser_canal` et `voir_inspiration` permis (aucun réglage touché).
 - **Site** : fonctions des chantiers chargées à la demande (`lib/agents/inspiration-engine.ts`), repli sur les chiffres
   bruts ; « Annuler » / « Retirer » ADMIN avec AuditLog ; aucun texte de post lu affiché.
+- **Lecture par compte réel (mise à jour)** : par le service `apps/userbot`, seul détenteur de la session de chaque
+  compte. Boîte aux lettres en base, sans changement de schéma (`Setting userbot.request.<id>`, même modèle que les
+  `AccountDm` relevés toutes les 15 s) : le worker dépose « voir le canal », « lire un lot de 50 » ou « rejoindre par
+  un lien d'invitation » (après CONFIRM seulement, une tentative), relit chaque seconde, efface ; 5 min sans réponse →
+  `rate_limited`. Voie ouverte seulement si le userbot a battu depuis moins d'une minute
+  (`userbot.mailbox.heartbeat`). Le userbot lit sur SA session, une demande à la fois, 5 s entre deux lots d'un compte,
+  renvoie un `FLOOD_WAIT` sans l'attendre, refuse un compte qui converse (persona ou bot fantôme), ne télécharge aucun
+  média, ne lit aucun membre, ne journalise ni texte ni nom de canal. À déployer : service `userbot` après le worker.

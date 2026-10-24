@@ -13,7 +13,7 @@
  * Les chiffres viennent du code (analyse du chantier B) ; une rédaction de l'IA n'est gardée que si elle n'invente aucun
  * chiffre (`checkedAnswer`).
  */
-import { esc, nowOf, readSetting, writeSetting } from "../admin/journal";
+import { adminTelegramId, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { INSPIRATION_LIMITS, type InspirationAnalysis, type Measure } from "../inspiration/contract";
 import { inspirationSummaryLines, measureOf, fr } from "../inspiration/kevin";
 import { analyzeReference, compareWithChannel, enqueueReferenceRead, freeReaderAccounts, isInviteLink, joinWithInviteOnce, normalizeChannelUsername, prismaAccountHistoryReader, storeReferencePosts, type AccountJoinReader } from "../inspiration/kevin-ports";
@@ -93,7 +93,7 @@ async function storeChoice(deps: BossExecDeps, refId: string, channelId: string,
     referenceChannelId: refId,
     channelId,
     items,
-    chatId: deps.chat ? deps.chat.chatId.toString() : null,
+    chatId: await chatKeyOf(deps),
     askedBy: deps.speaker && deps.speaker.kind === "member" ? deps.speaker.telegramUserId.toString() : "admin",
     createdAt: nowOf(deps).toISOString(),
     answeredAt: null,
@@ -103,6 +103,16 @@ async function storeChoice(deps: BossExecDeps, refId: string, channelId: string,
 
 // ------------------------------------------------------------------------------------------ références
 
+/**
+ * Conversation de la demande : celle du message, sinon (admin en privé : la tâche `boss-text` du privé ne porte pas la
+ * conversation) le privé de l'admin, dont l'identifiant est celui de l'admin.
+ */
+async function chatKeyOf(deps: BossExecDeps): Promise<string | null> {
+  if (deps.chat) return deps.chat.chatId.toString();
+  if (deps.speaker && deps.speaker.kind === "member") return null;
+  return (await adminTelegramId(deps))?.toString() ?? null;
+}
+
 type RefCtx = { actionKey: string; params: Record<string, unknown>; field: string };
 
 /** Référence nommée (« @x », lien, titre) ou, sans nom, la dernière dont on a parlé. */
@@ -111,7 +121,7 @@ async function resolveReference(deps: BossExecDeps, raw: string | undefined, ctx
   if (!refs.length) return { ok: false, reply: { reply: "Aucun canal d'inspiration pour le moment : envoie-moi son lien (t.me/…) ou transfère-moi ses posts." } };
   if (!raw) {
     const choice = await readInspirationChoice(deps);
-    const chatKey = deps.chat?.chatId.toString();
+    const chatKey = await chatKeyOf(deps);
     const batch = chatKey ? await readForwardBatch(deps, chatKey) : null;
     const pick = [choice?.referenceChannelId, batch?.lastRefId].map((id) => refs.find((r) => r.id === id)).find(Boolean) ?? refs[0]!;
     return { ok: true, ref: pick };
@@ -222,7 +232,7 @@ export const analyserCanal = defineAction<AnalyserParams>({
     }
     // « ces posts » : la dernière référence alimentée par des transferts dans cette conversation.
     if (!p.canal) {
-      const chatKey = deps.chat?.chatId.toString();
+      const chatKey = await chatKeyOf(deps);
       const batch = chatKey ? await readForwardBatch(deps, chatKey) : null;
       const ref = batch?.lastRefId ? await loadReferenceRow(deps, batch.lastRefId) : null;
       if (!ref) return { reply: `Donne-moi le lien du canal (t.me/…) ou son @nom, ou ${FORWARD_ASK}` };
@@ -467,7 +477,7 @@ export const appliquerInspiration = defineAction<ApplyParams>({
     const r = await applyInspiration(deps, ids, actorRef(actor));
     await writeSetting(deps, INSPIRATION_CHOICE_SETTING, { ...c, answeredAt: nowOf(deps).toISOString() });
     if (r.applied.length)
-      await writeSetting(deps, INSPIRATION_LAST_APPLIED_SETTING, { referenceChannelId: c.referenceChannelId, ids: r.applied, chatId: deps.chat ? deps.chat.chatId.toString() : null, at: nowOf(deps).toISOString() } satisfies LastApplied);
+      await writeSetting(deps, INSPIRATION_LAST_APPLIED_SETTING, { referenceChannelId: c.referenceChannelId, ids: r.applied, chatId: await chatKeyOf(deps), at: nowOf(deps).toISOString() } satisfies LastApplied);
     const lines = chosen.map((i) => {
       const ok = i.ids.every((id) => r.applied.includes(id));
       const err = r.failed.find((f) => i.ids.includes(f.id));

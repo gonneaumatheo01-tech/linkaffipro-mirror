@@ -91,6 +91,13 @@ export async function kevinForwardedPost(deps: AgentsDeps, input: ForwardInput):
   let ref: ReferenceRow | null = null;
   if (parsed.origin) {
     ref = await findReference(deps, { username: parsed.origin.username, chatId: parsed.origin.chatId });
+    if (!ref) {
+      // Kevin a demandé des posts d'un canal précis (canal privé, illisible) : un canal encore inconnu (sans nom public le
+      // plus souvent) est celui-là, tant que la référence demandée n'a pas déjà un autre identifiant Telegram.
+      const collect = await readCollect(deps, chatKey);
+      const asked = collect ? await loadReferenceRow(deps, collect.referenceChannelId) : null;
+      if (asked && (asked.telegramChatId === null || asked.telegramChatId === parsed.origin.chatId) && (!asked.username || !parsed.origin.username)) ref = asked;
+    }
     ref ??= await createReference(deps, { username: parsed.origin.username, chatId: parsed.origin.chatId, title: parsed.origin.title, via: "FORWARDED", universe: "", addedBy: input.speaker.telegramUserId });
   } else {
     const collect = await readCollect(deps, chatKey);

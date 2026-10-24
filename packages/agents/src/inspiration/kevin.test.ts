@@ -233,6 +233,12 @@ describe("posts transférés à Kevin", () => {
     expect(kit.tables("referenceChannel")[0]).toMatchObject({ universe: "casino", targetChannelIds: [kit.ids.casino] });
   });
 
+  it("admin en privé par l'interprète (tâche sans conversation) : « ça c'est pour le canal … » retrouve ses transferts", async () => {
+    for (let i = 0; i < 2; i++) await kevinForwardedPost(kit.deps, { message: fwd(i) as never, ...adminCtx });
+    const r = await bossAiTurn(kit.deps, kit.input("Kevin, ça c'est pour le canal Casino VIP"));
+    expect(r.reply).toContain("@roulette_pro inspire Casino VIP");
+  });
+
   it("à 20 posts avec une cible : l'analyse est lancée par la réponse groupée", async () => {
     const ref = await readyReference();
     for (let i = 0; i < 21; i++) await kevinForwardedPost(kit.deps, { message: fwd(i) as never, ...adminCtx });
@@ -262,6 +268,17 @@ describe("posts transférés à Kevin", () => {
     const named = await say("@roulette_cachee");
     expect(named).toContain("5 posts rangés sous @roulette_cachee");
     expect(kit.tables("referenceChannel").find((r) => r.username === "roulette_cachee")).toBeTruthy();
+  });
+
+  it("posts d'un canal privé demandés par Kevin : rangés sous la référence demandée, même sans nom public", async () => {
+    const ref = await readyReference("prive_demande");
+    await kit.prisma.referenceChannel.update({ where: { id: ref.id }, data: { status: "UNAVAILABLE", unavailableReason: "canal privé" } } as never);
+    await afterReferenceRead(kit.deps, ref.id);
+    const priv = (i: number) => ({ ...fwd(i), forward_origin: { type: "channel", date: 1_791_000_000 + i, chat: { id: -100555, type: "channel", title: "Canal privé" }, message_id: 40 + i } });
+    for (let i = 0; i < 3; i++) await kevinForwardedPost(kit.deps, { message: priv(i) as never, ...adminCtx });
+    expect(kit.tables("referenceChannel")).toHaveLength(1);
+    expect(kit.tables("referencePost").every((p) => p.referenceChannelId === ref.id)).toBe(true);
+    expect(kit.tables("referenceChannel")[0]).toMatchObject({ telegramChatId: -100555n, status: "READY" });
   });
 
   it("un transfert d'une personne (pas d'un canal) garde le traitement habituel", async () => {
