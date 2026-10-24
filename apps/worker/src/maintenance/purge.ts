@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { purgeReferenceTexts } from "@linkaffipro/agents";
 import { prisma, audit, recordEvent } from "@linkaffipro/db";
 import { logger } from "../logger";
 import {
@@ -36,6 +37,8 @@ export type PurgeResult = {
   telegramEventsRedacted: number;
   /** DM des comptes réels (phase 18) plus anciens que la durée de conservation, supprimés. */
   accountDmsDeleted: number;
+  /** Textes des posts des canaux de référence effacés après 30 jours (empreintes gardées, phase 27). */
+  referenceTextsPurged: number;
 };
 
 /**
@@ -214,6 +217,9 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     where: { createdAt: { lt: cutoff }, status: { in: ["DONE", "FAILED", "CANCELLED", "BLOCKED_BUDGET"] } },
   });
   const agentRuns = await prisma.agentRun.deleteMany({ where: { startedAt: { lt: cutoff } } });
+  // Canal d'inspiration (phase 27) : texte brut des posts de référence effacé après 30 jours (pas N mois) ; les
+  // empreintes restent pour le contrôle « jamais de copie ».
+  const referenceTexts = await purgeReferenceTexts({ prisma }, now);
   const result: PurgeResult = {
     months,
     cutoff,
@@ -229,6 +235,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     agentRunsDeleted: agentRuns.count,
     telegramEventsRedacted: redacted.count,
     accountDmsDeleted: accountDms.count,
+    referenceTextsPurged: referenceTexts.purged,
   };
   await audit({
     action: "maintenance.purge",
@@ -247,6 +254,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
       agentRunsDeleted: agentRuns.count,
       telegramEventsRedacted: redacted.count,
       accountDmsDeleted: accountDms.count,
+      referenceTextsPurged: referenceTexts.purged,
     },
   });
   logger.info(result, "purge de rétention effectuée");

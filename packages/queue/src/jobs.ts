@@ -235,6 +235,8 @@ export type ChatJob =
  */
 export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: "dating" | "casino" | "sports" | "algo" }
+  /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (`inspiration-read`, même identifiant). */
+  | { type: "inspiration-read"; referenceChannelId: string }
   | { type: "resume" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
@@ -270,6 +272,13 @@ export type AgentStepJob = { type: "step"; missionId: string; index: number; pol
  * lundi) et « Rapport maintenant » (`report-now`).
  */
 export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: boolean };
+
+/**
+ * File `agents-algo` (phase 27, canal d'inspiration) : `inspiration-read` lit un canal de référence (identifiant
+ * `inspiration-read:<id>`, `attempt` pour les nouveaux essais différés) ; `inspiration-reread` (chaque jour) relit les
+ * références vivantes dont la relecture hebdomadaire est due.
+ */
+export type AgentsInspirationJob = { type: "inspiration-read"; referenceChannelId: string; attempt?: number } | { type: "inspiration-reread" };
 
 /**
  * File `agents-sports` (phase 23) : en plus des étapes, `settle` toutes les 2 h (résultats des paris publiés).
@@ -311,7 +320,7 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                         : Q extends "agents-orchestrator"
                           ? AgentsOrchestratorJob
                           : Q extends "agents-algo"
-                            ? AgentStepJob | AgentsAlgoJob
+                            ? AgentStepJob | AgentsAlgoJob | AgentsInspirationJob
                             : Q extends "agents-sports"
                             ? AgentStepJob | AgentsSportsJob
                             : Q extends AgentTeamQueue

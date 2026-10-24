@@ -251,3 +251,10 @@ export {
   type GapThresholds,
 } from "./inspiration/analysis/compare";
 export * from "./inspiration/style";
+// Chantier A (phase 27) : lecture d'un canal d'inspiration (aperçu web, compte réel membre, posts transférés).
+export * from "./inspiration/sources/web-preview";
+export * from "./inspiration/sources/account";
+export * from "./inspiration/sources/forwarded";
+export * from "./inspiration/features";
+export * from "./inspiration/store";
+export * from "./inspiration/read";

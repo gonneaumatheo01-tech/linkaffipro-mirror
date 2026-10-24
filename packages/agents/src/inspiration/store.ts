@@ -10,7 +10,7 @@ import { postFeatures } from "./features";
 
 export type StoreResult = { created: number; updated: number; postCount: number };
 
-export function isInspirationUniverse(v: unknown): v is InspirationUniverse {
+function isUniverseKey(v: unknown): v is InspirationUniverse {
   return v === "dating" || v === "casino" || v === "sports";
 }
 
@@ -25,7 +25,7 @@ export async function storeReferencePosts(
   const now = deps.now?.() ?? new Date();
   const ref = await deps.prisma.referenceChannel.findUnique({ where: { id: referenceChannelId }, select: { id: true, universe: true } });
   if (!ref) throw new Error("Référence introuvable");
-  const universe: InspirationUniverse = isInspirationUniverse(ref.universe) ? ref.universe : "dating";
+  const universe: InspirationUniverse = isUniverseKey(ref.universe) ? ref.universe : "dating";
   let created = 0;
   let updated = 0;
   const seen = new Set<number>();

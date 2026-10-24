@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFakePrisma } from "../../testing/fake-prisma";
 import type { AgentsDeps, AgentsEnqueue } from "../../types";
 import type { InspirationAnalysis, Measure } from "../contract";
-import { shingleHashes } from "../copy-check";
+import { postFeatures } from "../features";
 import { analyzeReference, computeAnalysis, quotesOf } from "./analyze";
 import { compareAnalyses, compareWithChannel, gapMatters, DEFAULT_GAP_THRESHOLDS } from "./compare";
 import { betSeriesOf, contentMeasures, flaggedOf } from "./content";
@@ -239,28 +239,18 @@ describe("résultats et corrélations (avec effectifs)", () => {
 
 function refRow(i: number, over: Record<string, unknown> = {}) {
   const at = new Date(Date.UTC(2026, 10, 1 + Math.floor(i / 3), 8 + (i % 3) * 5));
-  const text = `Ce soir roulette live numéro ${i}, viens tenter ta chance avec nous ${i % 2 ? "😍" : ""}`;
+  const text = `Ce soir roulette LIVE numéro ${i}, viens tenter ta chance avec nous ${i % 2 ? "😍" : ""}`;
+  // Colonnes écrites par la lecture (chantier A), comme en vrai.
+  const cols = postFeatures(
+    { externalId: 100 + i, postedAt: at, text, mediaKind: i % 3 === 0 ? "photo" : "text", views: 1000 + i * 10, hasButton: i % 2 === 0, linkCount: 0 },
+    "casino",
+  );
   return {
     referenceChannelId: "ref1",
-    externalId: 100 + i,
-    postedAt: at,
     via: "WEB",
-    text,
     textPurgedAt: null,
-    textHash: null,
-    shingles: shingleHashes(text),
-    length: text.length,
-    lines: 1,
-    emojiCount: i % 2,
-    mediaKind: i % 3 === 0 ? "photo" : "text",
-    views: 1000 + i * 10,
-    hasLink: false,
-    hasButton: i % 2 === 0,
-    hasPrice: false,
-    hasOdds: false,
+    ...cols,
     hasVipCall: i % 4 === 0,
-    keywords: [],
-    features: {},
     ...over,
   };
 }
@@ -333,7 +323,7 @@ describe("comparaison eux / nous", () => {
   it("canal du client : posts envoyés des 28 derniers jours, vues de PostInsight, seuils du réglage", async () => {
     const prisma = seed(24);
     const now = new Date("2026-11-20T12:00:00Z");
-    const sent = (id: string, at: string, text: string) => ({ id, channelId: "c1", status: "SENT", sentAt: new Date(at), text, mediaAssetIds: [], buttons: [] });
+    const sent = (id: string, at: string, text: string) => ({ id, channelId: "c1", status: "SENT", sentAt: new Date(at), text, mediaAssetIds: [], buttons: [], isTemplate: false });
     prisma._model("post").rows.push(
       sent("p1", "2026-11-10T19:00:00Z", "Roulette ce soir 🔥"),
       sent("p2", "2026-11-12T19:00:00Z", "Live à 21 h ?"),

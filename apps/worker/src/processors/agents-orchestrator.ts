@@ -5,6 +5,7 @@ import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
 import { BOSS_TEXT_SLOW_WAIT_MS, bossTextWaitMs, processBossText, scrubbedBossTextJob } from "../agents/boss-text";
 import { workerAgentsDeps } from "../agents/deps";
+import { enqueueInspirationRead } from "./agents-algo";
 import { logger } from "../logger";
 
 /**
@@ -17,7 +18,8 @@ import { logger } from "../logger";
  * - `report` : rapport du jour (forcé depuis le site) ;
  * - `bench` (phase 20) : banc d'essai vidéo, un passage court qui se ré-enfile toutes les 30 s (jamais d'attente ici) ;
  * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit ;
- * - `boss-text` (phase 26) : message de l'admin au Boss qui demande l'interprète IA (`../agents/boss-text.ts`).
+ * - `boss-text` (phase 26) : message de l'admin au Boss qui demande l'interprète IA (`../agents/boss-text.ts`) ;
+ * - `inspiration-read` (phase 27) : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (même identifiant).
  */
 export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>): Promise<unknown> {
   const data = job.data as AgentsOrchestratorJob | undefined;
@@ -25,6 +27,8 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
   switch (data?.type) {
     case "cycle":
       return runCycle(deps, data.teamKey ? { teamKey: data.teamKey } : {});
+    case "inspiration-read":
+      return { forwarded: await enqueueInspirationRead(data.referenceChannelId) };
     case "resume":
       return resumeMissions(deps);
     case "human-requests": {
