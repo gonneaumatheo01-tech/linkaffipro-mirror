@@ -40,9 +40,7 @@ export default async function PersonasPage({ searchParams }: PageProps<"/convers
         <span className="flex flex-col items-start gap-0.5">
           <UniverseDot universe={p.universe} withLabel label={p.universeLabel} />
           {p.faqLabel ? (
-            <span className="text-note font-normal text-muted-foreground">
-              {p.faqLabel}
-            </span>
+            <span className="text-note font-normal text-muted-foreground">{p.faqLabel}</span>
           ) : null}
         </span>
       ),

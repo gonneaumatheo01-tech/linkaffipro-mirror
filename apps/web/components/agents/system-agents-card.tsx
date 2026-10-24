@@ -11,12 +11,16 @@ import { fmtDate, fmtNum } from "@/lib/format";
 import { StatusBadge } from "@/lib/status-badges";
 
 /**
- * Carte « Agents » de Réglages → État du système (phase 19) : files du Grand Chef et des équipes, dernier passage du
- * Grand Chef (toutes les 30 minutes), missions bloquées. Composant serveur qui lit lui-même ses données ; une panne
- * s'affiche dans la carte, jamais en erreur de page.
+ * Carte « Agents » de Réglages → État du système (phase 19, complétée en phase 25) : files du Grand Chef et des
+ * équipes, dernier passage du Grand Chef (toutes les 30 minutes), missions bloquées avec « Relancer », fournisseurs
+ * (clé présente, dernier appel réussi, erreurs sur 24 h, depuis `agentsOverview().health`). Composant serveur qui lit
+ * lui-même ses données ; une panne s'affiche dans la carte, jamais en erreur de page.
  */
 export async function SystemAgentsCard({ now = new Date() }: { now?: Date }) {
-  const s = await loadAgentsSystemStatus(now).catch((e: Error) => ({ error: e.message }) as const);
+  const [s, ov] = await Promise.all([
+    loadAgentsSystemStatus(now).catch((e: Error) => ({ error: e.message }) as const),
+    loadAgentsOverview(now),
+  ]);
   if ("error" in s)
     return (
       <FormSection title="Agents" description="Le Grand Chef, les équipes et leurs missions.">

@@ -245,12 +245,23 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents",
     label: "Agents",
-    sections: [intro("Agents"), "Tableau de bord du Grand Chef", "Parler au bot par messages vocaux"],
+    sections: [
+      "Tableau de bord du Grand Chef",
+      "Lancer une équipe pour de vrai en 3 clics",
+      "Mettre en pause une équipe ou tout arrêter",
+      "Annuler un réglage de l'équipe Algorithme",
+      "Où voir les coûts",
+      intro("Agents"),
+    ],
   },
   {
     path: "/agents/:id",
     label: "Fiche d'une équipe",
-    sections: ["Fiche d'une équipe", "Simulation, niveaux et pause"],
+    sections: [
+      "Fiche d'une équipe",
+      "Lancer une équipe pour de vrai en 3 clics",
+      "Simulation, niveaux et pause",
+    ],
   },
   {
     path: "/agents/dating",
@@ -258,6 +269,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: [
       "Fiche d'une équipe",
       "Équipe Rencontres : vidéos, photos et banc d'essai",
+      "Envoyer des médias au bot",
       "Simulation, niveaux et pause",
     ],
   },
@@ -267,6 +279,7 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: [
       "Fiche d'une équipe",
       "Équipe Casino : vos vidéos, images et thèmes",
+      "Envoyer des médias au bot",
       "Simulation, niveaux et pause",
     ],
   },
@@ -282,7 +295,11 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents/algo",
     label: "Ce qui marche",
-    sections: ["Ce qui marche (équipe Algorithme)", "Simulation, niveaux et pause"],
+    sections: [
+      "Ce qui marche (équipe Algorithme)",
+      "Annuler un réglage de l'équipe Algorithme",
+      "Simulation, niveaux et pause",
+    ],
   },
   {
     path: "/agents/ads",
@@ -298,7 +315,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents/settings",
     label: "Réglages des agents",
-    sections: ["Réglages des agents", "Parler au bot par messages vocaux"],
+    sections: [
+      "Réglages des agents",
+      "Mettre en pause une équipe ou tout arrêter",
+      "Où voir les coûts",
+      "Parler au bot par messages vocaux",
+    ],
   },
 
   // Statistiques

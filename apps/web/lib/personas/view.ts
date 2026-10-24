@@ -242,6 +242,7 @@ const REJECT_LABELS: Record<string, string> = {
   markdown: "mise en forme interdite",
   link: "lien ou pseudo dans le texte",
   explicit: "contenu explicite",
+  promise: "promesse de gain ou d'argent facile",
   missing_assistant_admission: "n'a pas dit franchement être une IA",
   invented_number: "chiffre inventé",
   leak: "a dévoilé ses consignes internes",

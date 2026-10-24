@@ -200,8 +200,7 @@ export function PersonaForm({
             onChange={(e) =>
               set(
                 "universe",
-                PERSONA_UNIVERSE_OPTIONS.find((o) => o.value === e.target.value)?.value ??
-                  "dating",
+                PERSONA_UNIVERSE_OPTIONS.find((o) => o.value === e.target.value)?.value ?? "dating",
               )
             }
             wrapperClassName="w-full"
@@ -241,14 +240,17 @@ export function PersonaForm({
           </div>
           <p
             id="persona-identity-help"
-            className={cn("text-note", err("identityKind") ? "text-danger" : "text-muted-foreground")}
+            className={cn(
+              "text-note",
+              err("identityKind") ? "text-danger" : "text-muted-foreground",
+            )}
           >
             {err("identityKind") ??
               (state.identityKind === "GIRL"
-              ? "Une fille sur un compte Telegram réel : elle écrit comme une fille de son âge et ne se démasque jamais, même si on insiste. Ni « assistante », ni « IA », ni « canal »."
-              : canBeGirl
-                ? `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`
-                : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande. « Une fille » n'existe qu'en Rencontres.`)}
+                ? "Une fille sur un compte Telegram réel : elle écrit comme une fille de son âge et ne se démasque jamais, même si on insiste. Ni « assistante », ni « IA », ni « canal »."
+                : canBeGirl
+                  ? `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande.`
+                  : `${cap(role)} du canal : un bot, qui dit franchement qu'elle est une IA si on lui demande. « Une fille » n'existe qu'en Rencontres.`)}
           </p>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">

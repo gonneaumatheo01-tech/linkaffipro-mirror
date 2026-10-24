@@ -102,6 +102,8 @@ const saved = {
   model: null,
   temperature: null,
   extraPrompt: null,
+  universe: "dating",
+  faq: [] as Array<{ q: string; a: string }>,
   isActive: false,
 };
 
@@ -394,5 +396,53 @@ describe("phrases de retour", () => {
     expect(saveMessage({ created: false, name: "", isActive: false, wasActive: false })).toBe(
       "Modifications enregistrées.",
     );
+  });
+});
+
+describe("univers et fiche d'informations (phase 25)", () => {
+  const faq = [{ q: "Dépôt minimum ?", a: "10 €" }];
+
+  it("administrateur : fiche enregistrée, journal sans les textes ; assistante → illusion false", async () => {
+    m.existing = { ...saved };
+    const r = await savePersona(draft({ id: "p1", universe: "casino", faq }), admin);
+    expect(r.ok).toBe(true);
+    expect(m.updated[0]).toMatchObject({ universe: "casino", faq, illusion: false });
+    const faqAudit = m.audits.find((a) => a.action === "persona.faq_updated");
+    expect(faqAudit?.metadata).toEqual({ universe: "casino", before: 0, after: 1 });
+    expect(JSON.stringify(m.audits)).not.toContain("10 €");
+    expect(m.audits.find((a) => a.action === "persona.updated")?.metadata).toMatchObject({
+      fields: ["universe"],
+      universe: "casino",
+      faqEntries: 1,
+    });
+  });
+
+  it("responsable : fiche modifiée refusée (inchangée) ; fiche identique acceptée", async () => {
+    m.existing = { ...saved, faq };
+    const refused = await savePersona(draft({ id: "p1", faq: [] }), manager);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.errors?.faq).toMatch(/administrateur/);
+    expect(m.updated).toHaveLength(0);
+    const ok = await savePersona(draft({ id: "p1", faq, tone: "léger" }), manager);
+    expect(ok.ok).toBe(true);
+    expect(m.updated[0]).toMatchObject({ faq });
+    expect(m.audits.map((a) => a.action)).not.toContain("persona.faq_updated");
+  });
+
+  it("responsable qui crée : fiche vide seulement ; Casino « une fille » refusée", async () => {
+    expect((await savePersona(draft({ faq }), manager)).ok).toBe(false);
+    expect(m.created).toHaveLength(0);
+    const girl = await savePersona(
+      draft({
+        universe: "sports",
+        identityKind: "GIRL",
+        age: "23",
+        botDescription: "",
+        botShortDescription: "",
+      }),
+      admin,
+    );
+    expect(girl.ok).toBe(false);
+    expect(m.created).toHaveLength(0);
   });
 });

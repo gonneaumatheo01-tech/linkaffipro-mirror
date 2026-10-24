@@ -5,6 +5,13 @@
  */
 import { createHash } from "node:crypto";
 import {
+  effectiveIdentityKind,
+  needsHumanSilencesAssistant,
+  parsePersonaFaq,
+  parsePersonaUniverse,
+  type NeedsHumanReason,
+} from "@linkaffipro/core";
+import {
   HISTORY_LIMIT,
   MAX_FOLLOW_UPS,
   MAX_TURN_ATTEMPTS,
@@ -87,6 +94,10 @@ export type PersonaRow = {
   offerPitch: string;
   offerButtonText: string;
   offerMediaAssetId: string | null;
+  /** `Persona.universe` (phase 25) : dating (défaut), casino, sports. */
+  universe?: string | null;
+  /** `Persona.faq` (phase 25) : JSON `{ q, a }[]`. */
+  faq?: unknown;
 };
 
 /**
@@ -99,7 +110,8 @@ export function toPersonaInput(
 ): PersonaInput {
   return {
     name: p.name,
-    identity: p.identityKind === "GIRL" ? "GIRL" : "ASSISTANT",
+    // Casino / Paris sportifs : assistante imposée, quelle que soit la valeur enregistrée.
+    identity: effectiveIdentityKind(p.universe, p.identityKind),
     illusion: p.illusion === true,
     age: p.age ?? null,
     gender: p.gender,
@@ -123,6 +135,8 @@ export function toPersonaInput(
     offerMediaAssetId: extras.offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,
     botName: extras.botName,
+    universe: parsePersonaUniverse(p.universe),
+    faq: parsePersonaFaq(p.faq),
   };
 }
 
@@ -135,7 +149,14 @@ export type PrecheckInput = {
   persona: { isActive: boolean } | null;
   activation: AssistantActivation;
   isTeamMember: boolean;
-  conversation: { status: string; stoppedAt: Date | null; isMinor: boolean };
+  conversation: {
+    status: string;
+    stoppedAt: Date | null;
+    isMinor: boolean;
+    /** Phase 25 : conversation « à traiter » par l'équipe (Casino / Paris). */
+    needsHumanAt?: Date | null;
+    needsHumanReason?: string | null;
+  };
   /** La personne a bloqué le bot (`MemberBotState.blockedAt`). */
   blocked: boolean;
   /** Messages de l'assistant envoyés aujourd'hui (Paris). */
@@ -158,6 +179,7 @@ export type PrecheckReason =
   | "stopped"
   | "minor"
   | "blocked"
+  | "needs_human"
   | "daily_limit"
   | "daily_cost"
   | "cap_reached";
@@ -200,6 +222,10 @@ export function precheck(s: PrecheckInput): PrecheckResult {
   if (s.conversation.stoppedAt) return fail("stopped");
   if (s.conversation.isMinor) return fail("minor");
   if (s.blocked) return fail("blocked");
+  // Passée à l'équipe (argent, réclamation, insulte, mineur) : l'assistante se tait jusqu'à la reprise, qui remet
+  // `needsHumanAt` à null. Une simple question hors fiche ne la fait pas taire.
+  if (s.conversation.needsHumanAt && needsHumanSilencesAssistant(s.conversation.needsHumanReason))
+    return fail("needs_human");
   if (s.assistantMessagesToday >= s.dailyLimit)
     return fail("daily_limit", { event: "daily_limit" });
   if (
@@ -401,6 +427,8 @@ export type ConversationPatch = {
   nextFollowUpAt?: Date | null;
   retryAt?: Date | null;
   isMinor?: boolean;
+  /** Passage à un humain (Casino / Paris) : motif à fusionner avec l'état relu sous verrou (`mergeNeedsHuman`). */
+  needsHuman?: NeedsHumanReason;
   status?: "CLOSED";
   closedAt?: Date;
   closedReason?: string;
@@ -489,6 +517,13 @@ export function planTurnPersistence(input: {
     patch.followUpCount = before.followUpCount;
     const retryAllowed = Boolean(r.retryAt) && (r.retryCount ?? 0) < MAX_TURN_ATTEMPTS;
     patch.nextFollowUpAt = retryAllowed && r.retryAt ? shiftOutOfQuietHours(r.retryAt) : null;
+  }
+
+  if (r.needsHuman) {
+    patch.needsHuman = r.needsHuman.reason;
+    // L'équipe va répondre : aucune relance ni nouvel essai de l'assistante.
+    patch.nextFollowUpAt = null;
+    patch.retryAt = null;
   }
 
   const closeReason = r.outcome === "minor" ? "MINOR" : r.closeReason;
@@ -603,6 +638,8 @@ export function reconcileTurnPlan(
     delete patch.nextFollowUpAt;
     delete patch.retryAt;
   }
+  // L'équipe a déjà la main (reprise pendant le tour) : rien à lui signaler.
+  if (cur.status === "HUMAN" || cur.handedOver) delete patch.needsHuman;
   const events = plan.events.filter(
     (e) => !(e.type === "stage_changed" && !stageOurs) && !(e.type === "closed" && alreadyClosed),
   );

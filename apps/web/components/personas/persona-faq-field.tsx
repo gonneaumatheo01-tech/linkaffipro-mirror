@@ -344,8 +344,8 @@ function FaqImportPanel({
           </p>
           {preview.overflow > 0 ? (
             <p className="text-note text-warning">
-              {preview.overflow} ligne{preview.overflow > 1 ? "s" : ""} en trop :{" "}
-              {FAQ_LIMITS.max} questions au plus dans la fiche.
+              {preview.overflow} ligne{preview.overflow > 1 ? "s" : ""} en trop : {FAQ_LIMITS.max}{" "}
+              questions au plus dans la fiche.
             </p>
           ) : null}
           {preview.accepted.length > 0 ? (

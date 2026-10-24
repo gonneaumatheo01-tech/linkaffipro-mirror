@@ -73,7 +73,7 @@ export function liveQuestion(team: TeamKey, s: TeamPlanSummary): string {
     workLine(team, s),
     levelLine(s.level),
     s.caps ? `Plafonds du mois : ${s.caps}.` : "Aucun plafond de dépense réglé.",
-    "Réponds OUI pour confirmer, « non » pour annuler.",
+    "Réponds OUI pour confirmer, « non » pour annuler (ou « plus tard »).",
   ].join("\n");
 }
 
@@ -83,6 +83,6 @@ export function levelQuestion(team: TeamKey, level: 0 | 1 | 2, s: TeamPlanSummar
     `Passer l'équipe ${TEAM_LABELS[team]} au niveau ${level} (${AUTONOMY_LABELS[level]}) ? Elle est aujourd'hui au niveau ${s.level}, ${where}.`,
     levelLine(level),
     workLine(team, s),
-    "Réponds OUI pour confirmer, « non » pour annuler.",
+    "Réponds OUI pour confirmer, « non » pour annuler (ou « plus tard »).",
   ].join("\n");
 }

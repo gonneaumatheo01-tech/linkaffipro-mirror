@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   rows: [] as unknown[],
   counts: { all: 0, unread: 0, human: 0 },
   activation: "all" as "off" | "team" | "all",
+  toHandle: 0,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -35,6 +36,7 @@ vi.mock("@/lib/conversations/inbox", () => ({
     page: 1,
   })),
   inboxCounts: vi.fn(async () => m.counts),
+  toHandleCount: vi.fn(async () => m.toHandle),
   loadInboxOptions: vi.fn(async () => ({
     personas: [{ id: "clpersona0001", name: "Léa" }],
     sources: ["tk01"],
@@ -87,6 +89,7 @@ beforeEach(() => {
   m.rows = [];
   m.counts = { all: 0, unread: 0, human: 0 };
   m.activation = "all";
+  m.toHandle = 0;
 });
 
 describe("Conversations → Boîte de réception", () => {
@@ -198,5 +201,27 @@ describe("Conversations → Boîte de réception", () => {
     const text = visibleText(await render({ stage: "CONVERTED" }));
     expect(text).toContain("Aucune conversation ne correspond à ces filtres");
     expect(text).toContain("Voir toutes les conversations");
+  });
+
+  it("à traiter : pastille « À traiter » en tête avec son nombre, motif lisible sur la ligne, filtre Univers", async () => {
+    m.rows = [
+      row({ needsHumanAt: NOW, needsHumanReason: "argent" }),
+      row({ id: "clconversation0003" }),
+    ];
+    m.counts = { all: 2, unread: 2, human: 2 };
+    m.toHandle = 1;
+    const html = await render();
+    const text = visibleText(html);
+    expect(text).toContain("À traiter");
+    expect(text).toContain("Demande d'argent");
+    expect(html).toContain('href="/conversations?todo=1"');
+    expect(text.indexOf("À traiter")).toBeLessThan(text.indexOf("Toutes"));
+    expect(text).toContain("Univers");
+    for (const u of ["Rencontres", "Casino", "Paris sportifs"]) expect(text).toContain(u);
+    expect(jargonIn(text)).toEqual([]);
+    expect(html).not.toMatch(/hors_fiche|needsHuman/);
+    m.toHandle = 0;
+    const none = visibleText(await render());
+    expect(none).toContain("À traiter");
   });
 });

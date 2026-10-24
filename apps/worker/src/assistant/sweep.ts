@@ -12,6 +12,8 @@
  *   de nouveau, réclame la relance par comparaison-échange et respecte les heures calmes). Activation « équipe » : le
  *   filtre des comptes de l'équipe est fait par la base (jamais 50 prospects lus puis écartés à chaque passage), les plus
  *   anciennes d'abord.
+ * - conversations à traiter (Casino / Paris, phase 25) : alerte Telegram groupée, au plus toutes les 30 minutes
+ *   (`needs-human-digest.ts`).
  * Chaque règle traite au plus 50 conversations par passage.
  */
 import { prisma } from "@linkaffipro/db";
@@ -29,6 +31,7 @@ import {
   chatLockKey,
 } from "./rules";
 import { chatRuntime } from "./runtime";
+import { runNeedsHumanDigest } from "./needs-human-digest";
 import { loadAssistantSettings } from "./settings";
 import { INTERRUPTED_PART_ERROR, markTurnDone, releaseCrashedTurn, settleTurnParts } from "./claim";
 
@@ -175,6 +178,10 @@ export async function runChatSweep(now: Date = chatRuntime().now()): Promise<Cha
   report.stuckReleased = await releaseStuckTurns(now);
   report.interruptedParts = await settleInterruptedParts(now);
   report.converted = await markConversions(now);
+  // Conversations à traiter (Casino / Paris, phase 25) : alerte groupée, au plus toutes les 30 min. Jamais bloquante.
+  await runNeedsHumanDigest(now).catch((err: Error) =>
+    logger.warn({ err: err.message }, "assistant : alerte des conversations à traiter en échec"),
+  );
 
   const { config } = await loadAssistantSettings();
   if (config.activation !== "off") {

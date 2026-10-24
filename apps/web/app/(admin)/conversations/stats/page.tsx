@@ -56,9 +56,7 @@ export default async function ConversationsStatsPage({
   const universe = parseStatsUniverse(sp.universe);
   const [stats, previous, any, config, monthCost] = await Promise.all([
     loadConversationStats(period, { universe }),
-    compare
-      ? loadConversationStats(previousPeriod(period), { universe })
-      : Promise.resolve(null),
+    compare ? loadConversationStats(previousPeriod(period), { universe }) : Promise.resolve(null),
     hasAnyConversation(),
     loadAssistantConfig(),
     monthCostEur(),
@@ -79,9 +77,7 @@ export default async function ConversationsStatsPage({
       label: CONVERSATION_UNIVERSE_LABELS[u],
       href: universeHref(u),
       selected: universe === u,
-      icon: (
-        <span aria-hidden className={cn("size-2 rounded-full", universeClasses(u).dot)} />
-      ),
+      icon: <span aria-hidden className={cn("size-2 rounded-full", universeClasses(u).dot)} />,
     })),
   ];
   // Par univers : seulement sans filtre d'univers, et s'il y a plus d'un regroupement à comparer.

@@ -43,7 +43,7 @@ import {
   type TurnOutcome,
   type TurnResult,
 } from "@linkaffipro/chat";
-import { jsonIds } from "@linkaffipro/core";
+import { isAssistantOnlyUniverse, jsonIds, mergeNeedsHuman } from "@linkaffipro/core";
 import { prisma, toJsonValue, type Prisma } from "@linkaffipro/db";
 import { enqueueChatTurn, getRedis, RedisLockBusy, withRedisLock } from "@linkaffipro/queue";
 import { isAssistantTeamMember } from "@linkaffipro/telegram";
@@ -592,10 +592,23 @@ async function closeForMinor(ctx: TurnContext, age: number | null, now: Date): P
     await tx.$queryRaw`SELECT id FROM "Conversation" WHERE id = ${ctx.conv.id} FOR UPDATE`;
     const cur = await tx.conversation.findUnique({
       where: { id: ctx.conv.id },
-      select: { status: true, stage: true, isMinor: true, closedAt: true, closedReason: true },
+      select: {
+        status: true,
+        stage: true,
+        isMinor: true,
+        closedAt: true,
+        closedReason: true,
+        needsHumanAt: true,
+        needsHumanReason: true,
+      },
     });
     if (!cur || cur.isMinor) return null;
     const alreadyClosed = cur.status === "CLOSED";
+    // Casino / Paris : la conversation est aussi signalée à l'équipe (phase 25).
+    const flag =
+      isAssistantOnlyUniverse(ctx.persona?.universe) && cur.status !== "HUMAN"
+        ? mergeNeedsHuman({ at: cur.needsHumanAt, reason: cur.needsHumanReason }, "minor", now)
+        : null;
     await tx.conversation.update({
       where: { id: ctx.conv.id },
       data: {
@@ -608,9 +621,10 @@ async function closeForMinor(ctx: TurnContext, age: number | null, now: Date): P
         retryAt: null,
         takenOverById: null,
         takenOverAt: null,
+        ...(flag ? { needsHumanAt: flag.at, needsHumanReason: flag.reason } : {}),
       },
     });
-    return { stage: cur.stage as ConversationStage };
+    return { stage: cur.stage as ConversationStage, flagged: Boolean(flag) };
   });
   if (!fromStage) return;
   await recordConversationEvent(ctx.ref, {
@@ -618,6 +632,12 @@ async function closeForMinor(ctx: TurnContext, age: number | null, now: Date): P
     payload: { source: "worker", age },
     at: now,
   });
+  if (fromStage.flagged)
+    await recordConversationEvent(ctx.ref, {
+      type: "needs_human",
+      payload: { reason: "minor", source: "code" },
+      at: now,
+    });
   if (fromStage.stage !== "CLOSED")
     await recordConversationEvent(ctx.ref, {
       type: "stage_changed",
@@ -930,7 +950,14 @@ async function persistTurn(
     await tx.$queryRaw`SELECT id FROM "Conversation" WHERE id = ${conv.id} FOR UPDATE`;
     const cur = await tx.conversation.findUnique({
       where: { id: conv.id },
-      select: { status: true, stoppedAt: true, stage: true, lastInboundAt: true },
+      select: {
+        status: true,
+        stoppedAt: true,
+        stage: true,
+        lastInboundAt: true,
+        needsHumanAt: true,
+        needsHumanReason: true,
+      },
     });
     if (!cur) return null;
     const [resets, handovers] = await Promise.all([
@@ -956,10 +983,18 @@ async function persistTurn(
       },
       args.kind,
     );
-    await tx.conversation.update({
-      where: { id: conv.id },
-      data: toConversationUpdate(plan.patch),
-    });
+    const data = toConversationUpdate(plan.patch);
+    // Passage à un humain : heure du premier passage gardée, motif le plus grave retenu (relus sous verrou).
+    if (plan.patch.needsHuman) {
+      const merged = mergeNeedsHuman(
+        { at: cur.needsHumanAt, reason: cur.needsHumanReason },
+        plan.patch.needsHuman,
+        now,
+      );
+      data.needsHumanAt = merged.at;
+      data.needsHumanReason = merged.reason;
+    }
+    await tx.conversation.update({ where: { id: conv.id }, data });
     return { plan, reset };
   });
   // Conversation supprimée pendant le tour (membre supprimé à sa demande) : plus rien à écrire.

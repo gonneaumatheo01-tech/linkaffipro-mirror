@@ -85,18 +85,20 @@ async function storeSecretCommand(
 }
 
 async function listRequests(deps: AgentsDeps): Promise<string> {
-  const open = await deps.prisma.humanRequest.findMany({
-    where: { status: { in: ["QUEUED", "PENDING"] } },
-    orderBy: { createdAt: "asc" },
-    take: 5,
-  });
+  const where = { status: { in: ["QUEUED", "PENDING"] as ("QUEUED" | "PENDING")[] } };
+  const [open, total] = await Promise.all([
+    // La question en cours d'abord, puis la file dans son ordre d'envoi.
+    deps.prisma.humanRequest.findMany({ where, orderBy: [{ askedAt: "asc" }, { createdAt: "asc" }], take: 5 }),
+    deps.prisma.humanRequest.count({ where }),
+  ]);
   if (open.length === 0) return "Aucune demande ouverte 👍";
+  open.sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1));
   const lines = open.map((r, i) => {
     const first = r.question.split("\n")[0]!;
     const q = first.length > 70 ? `${first.slice(0, 69)}…` : first;
     return `${i + 1}. ${r.status === "PENDING" ? "[en cours] " : ""}${esc(q)}`;
   });
-  return [`Demandes ouvertes (${open.length}) :`, ...lines].join("\n");
+  return [`Demandes ouvertes (${total}) :`, ...lines, ...(total > open.length ? [`… et ${total - open.length} autre${total - open.length > 1 ? "s" : ""} (Agents → Validations → Demandes).`] : [])].join("\n");
 }
 
 async function runCommand(

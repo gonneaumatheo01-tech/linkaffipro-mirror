@@ -317,7 +317,10 @@ export function cleanLanguages(languages: readonly string[]): ChatLang[] {
 }
 
 /** Formulaire pré-rempli depuis une persona enregistrée (description vide : texte proposé). */
-export function personaToForm(p: PersonaRecord, templates: ProfileTemplates = {}): PersonaFormState {
+export function personaToForm(
+  p: PersonaRecord,
+  templates: ProfileTemplates = {},
+): PersonaFormState {
   const universe = cleanUniverse(p.universe);
   const state: PersonaFormState = {
     id: p.id,
@@ -579,8 +582,14 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
     const fv = validateFaq(f.faq);
     if (fv.ok) faq = fv.faq;
     else errors.faq = fv.error;
-  } else if (raw && typeof raw === "object" && "faq" in raw && (raw as { faq: unknown }).faq != null)
-    errors.faq = "La fiche d'informations n'a pas pu être lue : rechargez la page, puis recommencez.";
+  } else if (
+    raw &&
+    typeof raw === "object" &&
+    "faq" in raw &&
+    (raw as { faq: unknown }).faq != null
+  )
+    errors.faq =
+      "La fiche d'informations n'a pas pu être lue : rechargez la page, puis recommencez.";
   const personality = f.personality.trim();
   if (personality.length > L.personality) errors.personality = tooLong(L.personality);
   const tone = f.tone.trim();

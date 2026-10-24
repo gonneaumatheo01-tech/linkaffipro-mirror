@@ -195,9 +195,16 @@ describe("export CSV des chiffres", () => {
       personaNames: { p1: "Léa", p2: "Max" },
       personaUniverses: { p1: "dating", p2: "casino" },
     });
-    const lines = statsCsv(stats, "Hier").replace(/^\uFEFF/, "").trim().split("\r\n");
+    const lines = statsCsv(stats, "Hier")
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .split("\r\n");
     const heads = lines.map((l) => l.split(";").slice(0, 2).join(";"));
-    expect(heads.slice(1, 4)).toEqual(["Total (Hier);Toutes les conversations", "Univers;Rencontres", "Univers;Casino"]);
+    expect(heads.slice(1, 4)).toEqual([
+      "Total (Hier);Toutes les conversations",
+      "Univers;Rencontres",
+      "Univers;Casino",
+    ]);
     expect(lines[0]!.endsWith(";Encore à traiter")).toBe(true);
     expect(lines[1]!.endsWith(";1")).toBe(true);
     expect(lines[2]!.endsWith(";1")).toBe(true);

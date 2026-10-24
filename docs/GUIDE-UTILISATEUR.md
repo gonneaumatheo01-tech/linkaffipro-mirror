@@ -18,7 +18,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
-- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Fiche d'une équipe](#fiche-d-une-equipe), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
@@ -789,7 +789,7 @@ Ce qui a été envoyé cette semaine, le parcours avec, dans chaque bloc, le nom
 
 ## Conversations
 
-**À quoi ça sert.** Suivre l'**assistant de conversation** : le bot dédié à l'univers Rencontres qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes (après **Démarrer**, depuis un canal, une page ou une pub), présente l'app et envoie le lien de l'offre au bon moment. Il se présente toujours comme l'assistante ou l'assistant du canal, jamais comme une vraie personne. Vous lisez chaque conversation et pouvez reprendre la main à tout moment. Trois onglets en haut : **Boîte de réception**, **Personas** et **Chiffres**.
+**À quoi ça sert.** Suivre l'**assistant de conversation** : un bot dédié, un par univers (Rencontres, Casino, Paris sportifs), qui discute en privé avec les personnes qui lui écrivent d'elles-mêmes (après **Démarrer**, depuis un canal, une page ou une pub), présente l'app et envoie le lien de l'offre au bon moment. Il se présente toujours comme l'assistante ou l'assistant du canal, jamais comme une vraie personne. Vous lisez chaque conversation et pouvez reprendre la main à tout moment. Trois onglets en haut : **Boîte de réception**, **Personas** et **Chiffres**.
 
 **Avant la première réponse**, trois réglages (administrateurs) :
 
@@ -799,13 +799,15 @@ Ce qui a été envoyé cette semaine, le parcours avec, dans chaque bloc, le nom
 
 **Ce que l'assistant ne fait jamais.** Il n'écrit jamais le premier : il répond seulement aux personnes qui lui ont écrit. Après un silence, il relance au plus deux fois, à 24 heures d'écart au moins, puis plus rien. Une personne qui envoie `/stop` n'est plus jamais contactée. Une personne qui dit avoir moins de 18 ans reçoit un message poli, aucun lien, et la conversation est fermée. Il n'invente ni chiffres ni promesses : il ne parle de l'offre qu'avec ce qui est écrit dans la fiche de l'offre de la persona.
 
+**Casino et Paris sportifs.** Le même assistant existe pour ces deux univers, avec un bot dédié par univers (créé dans @BotFather, comme pour Rencontres ; les bots de vos canaux ne changent pas). Il se présente toujours comme l'assistante ou l'assistant du canal : le choix « Une fille » n'existe pas pour ces univers. Il ne dit que ce qui est écrit dans la **Fiche d'informations** de la persona (bonus, dépôt minimum, pays, délais de retrait, accès VIP). Il envoie le lien de l'offre ou de l'accès VIP quand la personne le demande, ou selon le parcours de la persona, jamais au premier message. Pour une question hors de la fiche, une réclamation, une demande d'argent, un mineur possible ou une insulte, il répond de façon neutre (« je transmets à l'équipe ») et la conversation passe **À traiter** ; vous recevez une alerte Telegram groupée (une toutes les 30 minutes au plus). Comme pour Rencontres, il est désactivé au départ.
+
 ### Boîte de réception
 
 La liste des conversations, la plus récemment active d'abord : la personne (son prénom ou son pseudo, avec la persona et la source), le début du dernier message, l'étape du parcours, qui répond (**L'assistante répond**, ou **L'assistant répond** pour une persona masculine ; **L'équipe a la main** ; **Fermée** ; **Personne ne répond**) et depuis quand. Une conversation **non lue** (point orange, nom en gras) attend une réponse que l'équipe ou l'assistante peut encore donner : le dernier message est celui de la personne. Une conversation où plus rien ne peut partir (`/stop`, moins de 18 ans, bloquée par l'équipe) n'est jamais comptée comme non lue, même si la personne continue d'écrire.
 
 **Personne ne répond** : la conversation est laissée à l'assistante, mais elle ne répondra pas à cette personne. La raison s'affiche au survol de la pastille et en toutes lettres dans le fil : l'assistant est **Désactivé**, l'essai est réservé à l'équipe (**Seulement l'équipe (essai)**) et la personne n'en fait pas partie, la persona est désactivée, aucune persona n'est liée au bot, ou le bot n'est plus en mode assistant. Prenez la main pour lui répondre vous-même, ou corrigez le réglage indiqué. Pendant l'essai réservé à l'équipe, la page le rappelle au-dessus de la liste.
 
-En haut, trois pastilles avec leur nombre : **Toutes**, **Non lues** et **L'équipe a la main**. Puis les filtres **Étape**, **Qui répond**, **Source** (d'où vient la personne) et **Persona** : cliquez sur **Filtrer**. Les filtres sont mémorisés sur cet appareil ; **Effacer les filtres** repart de toute la liste. **Exporter** télécharge la liste filtrée (fichier CSV, sans le texte des messages). Tant que l'assistant est **Désactivé**, la page le dit ; un administrateur l'active dans [Réglages → IA de conversation](#reglages-ia-de-conversation).
+En haut, les pastilles avec leur nombre : **À traiter** (en premier), **Toutes**, **Non lues** et **L'équipe a la main**. Puis les filtres **Univers**, **Étape**, **Qui répond**, **Source** (d'où vient la personne) et **Persona** : cliquez sur **Filtrer**. Les filtres sont mémorisés sur cet appareil ; **Effacer les filtres** repart de toute la liste. **Exporter** télécharge la liste filtrée (fichier CSV, sans le texte des messages). Tant que l'assistant est **Désactivé**, la page le dit ; un administrateur l'active dans [Réglages → IA de conversation](#reglages-ia-de-conversation).
 
 **Ce que veut dire chaque étape** :
 
@@ -818,6 +820,8 @@ En haut, trois pastilles avec leur nombre : **Toutes**, **Non lues** et **L'équ
 - **Fermée** : la personne a envoyé `/stop`, a dit avoir moins de 18 ans ou a bloqué le bot, ou l'équipe a fermé ou bloqué la conversation.
 
 **Le fil d'une conversation.** Cliquez sur une conversation pour ouvrir son fil, mis à jour en direct (toutes les quelques secondes, tant que la page est ouverte et visible). Les messages de la personne sont à gauche, ceux de l'assistante et de l'équipe à droite (avec le prénom du membre de l'équipe qui a écrit), les messages automatiques au centre. Une photo, un message vocal ou un autocollant est décrit entre crochets, par exemple « [photo] ». Sous un message qui portait le bouton de l'offre : **Lien de l'offre envoyé**, avec **Ouvert le …** ou **Pas encore ouvert**. Sous un message de l'assistante dont l'envoi a été coupé en route : **Envoi interrompu** (la personne ne l'a peut-être pas reçu ; l'assistante n'en tient pas compte pour la suite). À droite : la personne (lien vers sa fiche), la persona, la source, l'étape, qui répond, la langue, puis les résultats (liens de l'offre envoyés et ouverts, inscription, premier dépôt, coût de l'IA) et ce que l'assistante retient de ce que la personne a dit d'elle-même. Depuis la [fiche d'un membre](#fiche-d-un-membre), **Conversation avec l'assistante** ouvre ce fil.
+
+**À traiter.** Une conversation que l'assistante a passée à l'équipe porte la pastille **À traiter** avec son motif : **Question hors de la fiche d'informations**, **Réclamation**, **Demande d'argent**, **Mineur possible**, **Insulte**, ou **À reprendre par l'équipe**. Ouvrez-la : un bandeau rappelle le motif et depuis quand. Prenez la main ou répondez (la pastille disparaît), ou cliquez sur **Marquer comme traitée** si rien n'est à faire. Pour un mineur possible, ne répondez pas avec un lien : fermez ou bloquez la conversation.
 
 **Reprendre la main** :
 
@@ -832,11 +836,14 @@ Vos messages partent par le bot, au même rythme que les autres messages privés
 
 Une persona, c'est le personnage de l'assistant : un prénom, une personnalité, une façon de parler, ses langues, l'offre qu'il présente et le moment où il envoie le lien. La liste montre pour chacune son état (**Active** ou **Inactive**), l'offre liée, les bots qui l'utilisent et le nombre de conversations. Cliquez sur **Nouvelle persona** pour en créer une, ou sur une ligne pour ouvrir sa fiche.
 
-La fiche se remplit en six blocs :
+Dans **Identité**, choisissez d'abord l'**Univers** de la persona : **Rencontres**, **Casino** ou **Paris sportifs**. Pour Casino et Paris sportifs, la persona est toujours l'assistante du canal, qui dit franchement être une IA : le choix « Une fille » disparaît (et changer d'univers repasse la persona en assistante). La liste des personas montre l'univers de chacune et, pour Casino et Paris sportifs, le nombre de questions de sa fiche d'informations.
+
+La fiche se remplit ensuite en blocs :
 
 - **Identité** : le **Prénom**, **Se présente comme** (l'assistante ou l'assistant du canal), la **Personnalité**, le **Ton**, les **Langues** (avec la **Langue par défaut** quand plusieurs sont cochées) et les **Centres d'intérêt**, séparés par des virgules. L'assistante répond dans la langue de la personne quand elle la parle, sinon dans la langue par défaut.
 - **Parcours** : combien de **Messages de la personne avant le lien** (1 au moins, 4 conseillé : jamais de lien au premier message), **Attendre que la personne semble intéressée**, combien d'**Envois du lien au plus** (1 à 3), **Relancer après (heures de silence)** (4 heures au moins) et combien de **Relances au plus** (2 au maximum, jamais la nuit).
 - **Offre** : l'**Offre Link Affi** présentée (celles de l'univers Rencontres sont en premier) et la **Campagne (facultatif)** où retrouver les liens envoyés et leurs inscriptions. Puis **Ce que l'assistante peut dire de l'app** : la fiche de l'offre, les seuls éléments qu'elle peut en dire. Rien d'autre ne sera dit : pas de chiffres, pas de promesses. Ajoutez le **Texte du bouton** et, si vous le souhaitez, un **Visuel de l'app** : une image de l'app ou de l'offre, jamais une photo présentée comme celle de l'assistante.
+- **Fiche d'informations** (surtout pour Casino et Paris sportifs ; modifiable par les administrateurs, en lecture pour les managers) : les questions courantes et leurs réponses exactes, 40 au plus. C'est la seule source de ce que l'assistante peut affirmer (bonus, dépôt minimum, pays, délais de retrait, VIP, texte exact à dire pour un accès « gratuit via inscription chez le bookmaker ») ; tout le reste, elle le transmet à l'équipe. Le compteur dit où vous en êtes (« 12 / 40 questions »). **Ajouter une question**, remplissez **Question** et **Réponse** (300 et 1000 caractères au plus, jamais deux fois la même question), changez l'ordre avec **Monter** et **Descendre**, ou **Supprimer**. Pour en ajouter beaucoup d'un coup : **Importer un fichier tableur (.csv)**, avec une question et sa réponse par ligne, séparées par un point-virgule (un export d'Excel convient ; une ligne d'en-tête est reconnue). **Choisir un fichier (.csv)** ou **Ou coller les lignes**, puis **Que faire des lignes ?** : **Les ajouter aux questions actuelles** ou **Remplacer toute la fiche**. L'aperçu dit combien de lignes sont retenues ou refusées, et pourquoi. Cliquez sur **Ajouter à la fiche** (ou **Remplacer la fiche**), puis enregistrez la persona avec le bouton du bas de la page.
 - **Profil du bot** : la **Description** et la **Description courte** que Telegram affiche avant la conversation. Elles sont déjà remplies avec un texte qui dit « assistante du canal ». Un texte qui ne dit pas « assistante » ou « assistant », ou qui le nie ou laisse croire à une vraie personne, est refusé ; **Remettre le texte proposé** revient au texte de départ.
 - **Avancé** (replié) : le **Modèle** de l'IA, la **Créativité des réponses** et une **Consigne supplémentaire**. Laissés vides, ils suivent [Réglages → IA de conversation](#reglages-ia-de-conversation).
 - **Mise en service** : la case **Persona activée**. Une persona est créée désactivée si vous ne cochez pas cette case : testez-la d'abord sur sa fiche, puis activez-la. L'activation est refusée sans prénom, ou quand une offre est liée alors que « Ce que l'assistante peut dire de l'app » est vide.
@@ -868,7 +875,7 @@ Pour une assistante du canal, ces médias ne sont jamais présentés comme ses p
 
 ### Chiffres
 
-Choisissez la période en haut (le même sélecteur que les [Statistiques](#periode-et-comparaison), avec **Comparer à la période précédente**), puis cliquez sur **Appliquer**. Cinq chiffres en tête :
+Choisissez la période en haut (le même sélecteur que les [Statistiques](#periode-et-comparaison), avec **Comparer à la période précédente**) et, si vous voulez, l'**Univers** (Rencontres, Casino, Paris sportifs ou tous), puis cliquez sur **Appliquer**. Cinq chiffres en tête :
 
 - **Conversations** : les conversations commencées sur la période ;
 - **Taux de réponse** : la part de ces conversations où la personne a répondu au moins une fois après le premier message de l'assistante (ou de l'équipe) ;
@@ -886,7 +893,7 @@ Choisissez la période en haut (le même sélecteur que les [Statistiques](#peri
 
 ## Agents
 
-**À quoi ça sert.** Faire préparer et publier les posts de vos canaux par une équipe d'agents, sous votre contrôle. Le **Grand Chef** répartit chaque jour le travail entre quatre équipes : **Rencontres**, **Casino**, **Paris sportifs** et **Algorithme** (qui ne publie rien : elle mesure ce qui marche et règle les trois autres). Chaque équipe a son **Chef d'équipe**, qui fait passer chaque **mission** (un post à produire) d'un agent à l'autre : **Médiathèque** (choisit le média), **Rédaction** (écrit le texte), **Planification** (choisit l'heure), **Contrôle qualité** (vérifie tout), puis **Publication** (programme le message, qui part comme vos autres messages). Le Grand Chef et les Chefs d'équipe suivent des règles écrites à l'avance : l'IA ne sert qu'à écrire et à juger un texte. Quatre onglets en haut : **Tableau de bord**, **Validations**, **Journal** et, pour les administrateurs, **Réglages**.
+**À quoi ça sert.** Faire préparer et publier les posts de vos canaux par une équipe d'agents, sous votre contrôle. Le **Grand Chef** répartit chaque jour le travail entre quatre équipes : **Rencontres**, **Casino**, **Paris sportifs** et **Algorithme** (qui ne publie rien : elle mesure ce qui marche et règle les trois autres). Chaque équipe a son **Chef d'équipe**, qui fait passer chaque **mission** (un post à produire) d'un agent à l'autre : **Médiathèque** (choisit le média), **Rédaction** (écrit le texte), **Planification** (choisit l'heure), **Contrôle qualité** (vérifie tout), puis **Publication** (programme le message, qui part comme vos autres messages). Le Grand Chef et les Chefs d'équipe suivent des règles écrites à l'avance : l'IA ne sert qu'à écrire et à juger un texte. Cinq onglets en haut : **Tableau de bord**, **Agent Ads**, **Validations**, **Journal** et, pour les administrateurs, **Réglages**.
 
 **Ce qui protège vos canaux**, quels que soient les réglages :
 
@@ -897,11 +904,58 @@ Choisissez la période en haut (le même sélecteur que les [Statistiques](#peri
 
 ### Tableau de bord du Grand Chef
 
-Une carte par équipe : son état (**Active**, **En pause** ou **Pause générale**, **Simulation** ou **Vrais canaux**, niveau 0, 1 ou 2), les **Missions du jour**, celles **En attente** de vous, les **Publiées aujourd'hui** et **Refusées aujourd'hui**, et la dépense du mois face au plafond. Trois boutons : **Ouvrir l'équipe**, **Pause** (ou **Reprendre**) et, pour Rencontres et Casino, **Créer une mission de test**.
+Le premier onglet de **Agents** montre tout sur un seul écran, de haut en bas :
+
+- **Ce qui vous attend** : quatre cases cliquables. **Validations à faire** (les posts qui attendent **Publier** ou **Refuser**), **Demandes du bot** (les questions posées sur Telegram), **Alertes ouvertes** (équipe en pause, plafond proche, canal en baisse… ; la case ouvre Réglages → Alertes pour les administrateurs) et **Tests A/B en cours** (ceux de l'équipe Algorithme).
+- **Une carte par équipe** (Rencontres, Casino, Paris sportifs, Algorithme) : son état (**Active**, **En pause** ou **Pause générale**, **Simulation** ou **Vrais canaux**, niveau 0, 1 ou 2), puis les **Missions du jour** (**Créées**, **Publiées**, **En attente**, **Refusées**, **Échouées**, **Replis** : un post fait autrement que prévu, par exemple une photo au lieu d'une vidéo), la **Dépense du mois** poste par poste (IA d'écriture, vidéos, photos, cotes, captures) face au plafond, avec ce qui est **prévu à la fin du mois** à ce rythme (en orange si cela dépasserait le plafond), et les **Résultats des posts de l'équipe** sur 7 et 28 jours : posts, vues, clics, inscriptions, premiers dépôts et commissions, comptés comme dans les [Statistiques](#statistiques). Trois boutons : **Ouvrir l'équipe**, **Pause** (ou **Reprendre**) et, pour Rencontres et Casino, **Créer une mission de test**.
+- **La carte de l'Agent Ads** : les recommandations à décider, celles faites sur 30 jours et la date du dernier rapport ; **Ouvrir l'Agent Ads**.
+- **Réglages appliqués cette semaine** : ce que l'équipe Algorithme a changé chez les autres équipes depuis lundi (quel réglage, sur quel canal ou quelle persona, quel jour), avec **Annuler** (voir [Annuler un réglage de l'équipe Algorithme](#annuler-un-reglage-de-l-equipe-algorithme)).
+- **Derniers rapports** : les trois derniers rapports envoyés chaque matin à 9 h sur Telegram (une ligne par équipe : publié, en attente, refusé, dépense du mois), et les liens **Rapports de la semaine** (équipe Algorithme) et **Rapports pubs** (Agent Ads).
+
+En haut à droite, les administrateurs ont le bouton **Pause générale** (voir [Mettre en pause une équipe ou tout arrêter](#mettre-en-pause-une-equipe-ou-tout-arreter)). Si le résumé détaillé ne répond pas, un encadré orange le dit et la page garde les chiffres du jour : rechargez dans une minute.
 
 **Créer une mission de test** : un post texte part sur le canal Test, en simulation. Son aperçu arrive sur Telegram et dans **Validations** ; après **Publier**, le message part sur le canal Test. C'est le test à faire en premier.
 
-En bas, **Rapports du matin** : les trois derniers rapports envoyés chaque jour à 9 h sur Telegram (une ligne par équipe : publié, en attente, refusé, dépense du mois).
+Sur Telegram, écrivez `agents` au bot : il répond avec le même résumé, en 8 lignes au plus. `rapport` renvoie le rapport du jour, `demandes` la liste des questions encore ouvertes.
+
+### Lancer une équipe pour de vrai en 3 clics
+
+Au départ, chaque équipe est en **Simulation** : tout part sur le canal Test. Quand les posts de test vous plaisent (administrateurs) :
+
+1. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte de l'équipe.
+2. Dans **Pilotage**, cliquez sur **Publier sur les vrais canaux**.
+3. Lisez la fenêtre qui dit ce qui va se passer, puis confirmez.
+
+Vérifiez avant, dans **Plan par canal**, que la case **Les agents publient sur ce canal** est cochée seulement sur les canaux voulus. Gardez le **Niveau 0** (tout valider) les premiers jours, puis passez au niveau 1. Sur Telegram, la même chose : écrivez `vrai casino` (ou `vrai rencontres`, `vrai paris sportifs`) ; le bot résume les canaux concernés, le nombre de posts par jour et le niveau, puis demande **OUI** pour confirmer. `niveau casino 1` change le niveau de la même façon. Pour revenir en arrière, **Revenir en simulation** (ouvert à toute l'équipe).
+
+### Mettre en pause une équipe ou tout arrêter
+
+- **Une équipe** : bouton **Pause** sur sa carte ou dans sa fiche, puis confirmez. L'équipe ne crée plus de mission et celles en cours attendent. **Reprendre** la relance. Toute l'équipe peut le faire. Sur Telegram : `pause casino`, `reprends casino`.
+- **Tout arrêter** (administrateurs) : **Pause générale** en haut du tableau de bord (ou dans Agents → Réglages), puis **Tout mettre en pause**. **Tout reprendre** relance tout. Sur Telegram : `pause tout`, `reprends tout`.
+
+Une équipe se met aussi en pause toute seule après 3 missions échouées de suite ; le bot vous prévient.
+
+### Annuler un réglage de l'équipe Algorithme
+
+Dans **Réglages appliqués cette semaine** (tableau de bord) ou dans **Propositions de réglages** ([Ce qui marche](#ce-qui-marche-equipe-algorithme)), cliquez sur **Annuler** à côté du réglage : la valeur d'avant est remise tout de suite, et c'est noté dans le journal. Les petits réglages (heures, mélange, consignes de style) s'annulent par toute l'équipe ; les **Gros réglages** (persona, nombre de posts par jour) seulement par un administrateur. Un réglage déjà annulé affiche **Déjà annulé**.
+
+### Envoyer des médias au bot
+
+Dans Telegram, envoyez (ou transférez) la photo ou la vidéo au bot du dialogue, avec en légende les mots-clés :
+
+- **Rencontres** : `#rencontres #source` puis le prénom de la persona, par exemple `#rencontres #source #lea` (vidéos sources, une personne entière bien visible).
+- **Casino** : `#casino` puis le thème, par exemple `#casino #roulette` (voir [Équipe Casino](#equipe-casino-vos-videos-images-et-themes)).
+
+Le bot répond en une ligne pour dire où le média est rangé. Un album se range avec la légende de son premier élément. Le même fichier envoyé deux fois n'est rangé qu'une fois. Depuis l'ordinateur, les fiches des équipes Rencontres et Casino ont aussi un bouton de dépôt.
+
+### Où voir les coûts
+
+- **Tableau de bord** : la dépense du mois de chaque équipe, poste par poste, face au plafond, avec la projection à la fin du mois.
+- **Fiche d'une équipe** : **Plafonds du mois**, avec ce qui est déjà dépensé ; les administrateurs les changent là ou dans [Réglages des agents](#reglages-des-agents).
+- **Journal des agents** : le coût de chaque mission et de chaque passage d'agent.
+- **Réglages → État du système**, carte **Agents** : l'état de chaque fournisseur payant.
+
+Vous êtes prévenu sur Telegram à 80 % et à 100 % d'un plafond ; au plafond, l'équipe fait un post moins cher (photo ou texte) ou s'arrête, sans jamais le dépasser. L'assistante de conversation a son propre plafond, dans [Réglages → IA de conversation](#reglages-ia-de-conversation).
 
 ### Fiche d'une équipe
 
@@ -1248,7 +1302,8 @@ Les filtres sont mémorisés sur l'appareil. Les refus de connexion et les mots 
 2. **Alertes ouvertes**, puis **Tâches en échec** : **Relancer** sur chaque ligne ; **Effacer les échecs de plus de 7 jours**.
 3. **Files de tâches** : ce que le service d'arrière-plan a à faire. Si « En attente » grimpe sans redescendre, il est arrêté ou trop lent.
 4. **Bots** (connexion Telegram de chaque bot), **Synchro Link Affi** et **Activité des bots (24 h)** (lien **Voir le détail dans le Journal**). **Actualiser** recharge la page.
-5. **Avancé : détail technique** : base de données, version du service d'arrière-plan, dernier signe de vie (toutes les 30 secondes ; rouge au-delà de 3 minutes), fichier de sauvegarde.
+5. **Agents** : les files du Grand Chef et des équipes, le dernier passage du Grand Chef (toutes les 30 minutes ; signalé au-delà d'une heure), les missions bloquées avec **Relancer les missions bloquées** (l'étape en cours reprend, sans jamais publier deux fois ; un plafond atteint se règle dans la fiche de l'équipe), puis les **Fournisseurs** : clé présente ou absente, dernier appel réussi et erreurs des 24 dernières heures.
+6. **Avancé : détail technique** : base de données, version du service d'arrière-plan, dernier signe de vie (toutes les 30 secondes ; rouge au-delà de 3 minutes), fichier de sauvegarde.
 
 **Pièges.** Une tâche d'envoi Telegram en échec est souvent un membre qui a bloqué le bot : rien à faire. « Aucun signe de vie connu » juste après une mise à jour est normal pendant une minute. Latence élevée : le service n'est probablement pas dans la même région que la base (action technique).
 

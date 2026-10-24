@@ -32,6 +32,7 @@ vi.mock("./actions", () => ({
   releaseAction: vi.fn(),
   closeAction: vi.fn(),
   blockAction: vi.fn(),
+  clearNeedsHumanAction: vi.fn(),
   sendTeamMessageAction: vi.fn(),
 }));
 
@@ -113,6 +114,8 @@ function detail(over: Partial<ConversationDetail> = {}): ConversationDetail {
     stoppedAt: null,
     isMinor: false,
     convertedAt: null,
+    needsHumanAt: null,
+    needsHumanReason: null,
     takenOverAt: AT,
     takenOverBy: { id: "u1", name: "Marie" },
     memberMessages: 4,
@@ -291,5 +294,21 @@ describe("Conversations → fiche d'une conversation", () => {
       persona: { id: "clpersona0002", name: "Hugo", gender: "M", isActive: true },
     });
     expect(visibleText(await render())).toContain("Rendre à l'assistant ");
+  });
+
+  it("à traiter : bandeau « À traiter : <motif> », depuis quand, « Marquer comme traitée » (pas orange)", async () => {
+    m.detail = detail({ needsHumanAt: AT, needsHumanReason: "hors_fiche", status: "BOT" });
+    const html = await render();
+    const text = visibleText(html);
+    expect(text).toContain("À traiter : Question hors de la fiche d'informations");
+    expect(text).toContain("Depuis le");
+    expect(text).toContain("Marquer comme traitée");
+    expect(text).toContain("Prenez la main ou écrivez à cette personne");
+    expect(primaryButtonCount(html)).toBe(1);
+    expect(jargonIn(text)).toEqual([]);
+    m.detail = detail({ needsHumanAt: AT, needsHumanReason: "nouveau_motif" });
+    expect(visibleText(await render())).toContain("À traiter : À reprendre par l'équipe");
+    m.detail = detail();
+    expect(visibleText(await render())).not.toContain("Marquer comme traitée");
   });
 });

@@ -39,8 +39,8 @@ export default async function NewPersonaPage() {
         canEditFaq={me.role === "ADMIN"}
       />
       <p className="mt-6 max-w-3xl text-note text-muted-foreground">
-        Photos et vidéos du personnage : elles s&apos;ajoutent sur sa fiche, une fois la persona créée (section
-        « Médias du personnage »).
+        Photos et vidéos du personnage : elles s&apos;ajoutent sur sa fiche, une fois la persona
+        créée (section « Médias du personnage »).
       </p>
     </>
   );

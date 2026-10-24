@@ -173,15 +173,18 @@ export async function loadConversationStats(
     costsBetween(start, end),
     prisma.persona.findMany({ select: { id: true, name: true, universe: true } }),
   ]);
-  return aggregateConversationStats({
-    conversations,
-    linksSent,
-    linksOpened,
-    players,
-    costs,
-    personaNames: Object.fromEntries(personas.map((p) => [p.id, p.name])),
-    personaUniverses: Object.fromEntries(personas.map((p) => [p.id, p.universe])),
-  }, opts);
+  return aggregateConversationStats(
+    {
+      conversations,
+      linksSent,
+      linksOpened,
+      players,
+      costs,
+      personaNames: Object.fromEntries(personas.map((p) => [p.id, p.name])),
+      personaUniverses: Object.fromEntries(personas.map((p) => [p.id, p.universe])),
+    },
+    opts,
+  );
 }
 
 /** Au moins une conversation a-t-elle déjà eu lieu (sinon la page explique comment démarrer) ? */

@@ -19,6 +19,7 @@ import { sweepValidations } from "../validation/sweep";
 import { planDay } from "./plan-day";
 import { sendDailyReport } from "./reports";
 import { resumeMissions } from "./resume";
+import { relaunchOpenRequestsOnce } from "./relaunch-requests";
 
 export const DAILY_REPORT_ASKED_KEY = "agents.dailyReportAsked";
 
@@ -70,6 +71,8 @@ export async function runCycle(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {
   }
   await step(deps, "resume", out, () => resumeMissions(deps));
   await step(deps, "validations", out, () => sweepValidations(deps));
+  // Phase 25 : les demandes encore ouvertes sont relancées une seule fois, dans l'ordre (avant le balayage habituel).
+  await step(deps, "requestsRelaunch", out, () => relaunchOpenRequestsOnce(deps));
   await step(deps, "humanRequests", out, () => sweepHumanRequests(deps));
   await step(deps, "report", out, () => sendDailyReport(deps));
   await agentEvent(deps, "agents.cycle", { teamKey: opts.teamKey ?? null, created: (out.plan as { created?: number } | undefined)?.created ?? 0 });

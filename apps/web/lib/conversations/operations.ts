@@ -569,8 +569,7 @@ export async function clearNeedsHuman(
     return { ok: true, events: needsHumanClearedEvent(c, user, "mark"), extra: { cleared: true } };
   });
   if (!r.ok) return r;
-  if (!r.extra.cleared)
-    return { ok: true, message: "Cette conversation n'était plus à traiter." };
+  if (!r.extra.cleared) return { ok: true, message: "Cette conversation n'était plus à traiter." };
   await journal(r.conv, r.events, now);
   await audit({
     userId: user.id,

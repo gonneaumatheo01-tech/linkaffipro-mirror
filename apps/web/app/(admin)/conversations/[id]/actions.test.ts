@@ -103,7 +103,10 @@ describe("prendre la main, rendre, fermer, bloquer, marquer comme traitée", () 
   });
 
   it("« Marquer comme traitée » : ouvert aux managers, identifiant invalide refusé sans écriture", async () => {
-    m.ops.clearNeedsHuman.mockResolvedValue({ ok: true, message: "Conversation marquée comme traitée." });
+    m.ops.clearNeedsHuman.mockResolvedValue({
+      ok: true,
+      message: "Conversation marquée comme traitée.",
+    });
     const ok = await redirected(clearNeedsHumanAction(form({ id: ID })));
     expect(ok.params.get("ok")).toBe("Conversation marquée comme traitée.");
     const bad = await redirected(clearNeedsHumanAction(form({ id: "x;DROP" })));

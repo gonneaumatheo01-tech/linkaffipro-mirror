@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   activation: "all" as "off" | "all",
   role: "ADMIN" as "ADMIN" | "MANAGER",
   periods: [] as unknown[],
+  universes: [] as string[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -29,8 +30,9 @@ vi.mock("@/lib/assistant/config", () => ({
 vi.mock("@/lib/assistant/usage", () => ({ monthCostEur: vi.fn(async () => 6) }));
 vi.mock("@/lib/conversations/stats-queries", () => ({
   hasAnyConversation: vi.fn(async () => m.any),
-  loadConversationStats: vi.fn(async (period: unknown) => {
+  loadConversationStats: vi.fn(async (period: unknown, opts?: { universe?: string }) => {
     m.periods.push(period);
+    m.universes.push(opts?.universe ?? "");
     return aggregateConversationStats({
       conversations: [
         {
@@ -72,6 +74,7 @@ beforeEach(() => {
   m.activation = "all";
   m.role = "ADMIN";
   m.periods = [];
+  m.universes = [];
 });
 
 describe("Conversations → Chiffres", () => {
@@ -120,5 +123,17 @@ describe("Conversations → Chiffres", () => {
     expect(html).toContain('href="/settings/assistant"');
     m.role = "MANAGER";
     expect(await render()).not.toContain('href="/settings/assistant"');
+  });
+
+  it("filtre Univers : Tous, Rencontres, Casino, Paris sportifs ; gardé dans l'export", async () => {
+    const html = await render({ range: "7d", universe: "casino" });
+    const text = visibleText(html);
+    for (const t of ["Univers", "Tous", "Rencontres", "Casino", "Paris sportifs"])
+      expect(text).toContain(t);
+    expect(m.universes).toEqual(["casino"]);
+    expect(html).toContain('href="/conversations/stats/export?range=7d&amp;universe=casino"');
+    expect(html).toContain('href="/conversations/stats?range=7d&amp;universe=sports"');
+    await render({ universe: "poker" });
+    expect(m.universes.at(-1)).toBe("");
   });
 });

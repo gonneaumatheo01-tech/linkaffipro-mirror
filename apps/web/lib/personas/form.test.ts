@@ -581,3 +581,29 @@ describe("affichage", () => {
     expect(advancedModifiedCount(form({ model: "m", extraPrompt: "x" }))).toBe(2);
   });
 });
+
+describe("univers et fiche d'informations (phase 25)", () => {
+  it("Casino et Paris sportifs : « une fille » et le mode illusion refusés côté serveur", () => {
+    for (const universe of ["casino", "sports"] as const) {
+      const girl = validatePersonaForm(form({ universe, identityKind: "GIRL", age: "23" }));
+      expect(girl.ok).toBe(false);
+      if (!girl.ok) expect(girl.errors.identityKind).toMatch(/toujours l'assistante/);
+      const illusion = validatePersonaForm({ ...form({ universe }), illusion: true });
+      expect(illusion.ok).toBe(false);
+      const ok = validatePersonaForm(form({ universe }));
+      expect(ok.ok && ok.data.universe).toBe(universe);
+    }
+    expect(validatePersonaForm(form({ identityKind: "GIRL", age: "23" })).ok).toBe(true);
+  });
+
+  it("univers inconnu → Rencontres ; fiche lue et vérifiée ; absente → null (inchangée)", () => {
+    const r = validatePersonaForm({ ...form(), universe: "poker", faq: undefined });
+    expect(r.ok && r.data.universe).toBe("dating");
+    expect(r.ok && r.data.faq).toBeNull();
+    const f = validatePersonaForm(form({ universe: "casino", faq: [{ q: " VIP ? ", a: "Oui" }] }));
+    expect(f.ok && f.data.faq).toEqual([{ q: "VIP ?", a: "Oui" }]);
+    const bad = validatePersonaForm(form({ faq: [{ q: "VIP ?", a: "" }] }));
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.faq).toMatch(/réponse est vide/);
+  });
+});
