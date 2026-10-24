@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type * as BossTextModule from "../agents/boss-text";
 
 // Phase 26 : la tâche `boss-text` mesure son attente en file et ne laisse jamais le texte de l'admin dans Redis.
 vi.mock("../agents/deps", () => ({ workerAgentsDeps: () => ({}) }));
@@ -6,7 +7,7 @@ vi.mock("../agents/admin-voice", () => ({ processAdminVoice: vi.fn() }));
 vi.mock("@linkaffipro/agents", () => ({}));
 const processBossText = vi.hoisted(() => vi.fn(async () => ({ ok: true, outcome: "answered" })));
 vi.mock("../agents/boss-text", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../agents/boss-text")>()),
+  ...(await importOriginal<typeof BossTextModule>()),
   processBossText,
 }));
 const logged = vi.hoisted(() => ({ info: [] as unknown[], warn: [] as unknown[] }));

@@ -128,8 +128,8 @@ async function bossTokenStep(deps: BossDeps, input: BossTeamInput, token: string
 
 /** Le Boss actif (même filtre que `BOSS_BOT_WHERE` de `@linkaffipro/telegram/admin-bot`, que ce paquet n'importe pas). */
 const BOSS_BOT_WHERE = {
-  role: "ADMIN" as const,
   isActive: true,
+  role: "ADMIN" as const,
   mode: "STANDARD" as const,
   userbotAccounts: { none: {} },
   NOT: { username: { startsWith: "userbot_" } },
