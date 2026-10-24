@@ -99,5 +99,6 @@ describe("la vraie page publique n'est jamais ouverte depuis l'administration", 
       ),
     );
     expect(found).toEqual([]);
-  });
+    // Analyse de tous les écrans : rapide seule, plus lente sous la charge de la suite complète.
+  }, 60_000);
 });

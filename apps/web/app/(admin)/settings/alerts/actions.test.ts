@@ -127,7 +127,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
     });
     expect(parseThresholds(value).channelLeakPct).toBe(12);
     expect(params.get("ok")).toContain(
-      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », « Dépense pub anormale », « Chute des inscriptions d'une pub », « Pub trop chère par inscription », « Budget du jour d'une campagne atteint », elles ne vous seront plus envoyées.",
+      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », « Dépense pub anormale », « Chute des inscriptions d'une campagne », « Pub trop chère par inscription », « Budget du jour d'une campagne atteint », elles ne vous seront plus envoyées.",
     );
     // Journal : seuils et interrupteurs.
     expect(m.audits).toEqual([
