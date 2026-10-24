@@ -363,7 +363,42 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
+  // Politesse (« salut », « ça va ? », « merci ») : réponse simple, gratuite et toujours la même (jamais l'IA).
+  const small = smallTalkReply(text);
+  if (small) {
+    const r: BossReply = { reply: small };
+    await remember(deps, input, r, { actionKey: "politesse", status: "done" });
+    return { handled: true, ...r };
+  }
+
   return { handled: false, needsAi: true };
+}
+
+const GREETINGS = new Set(["salut", "bonjour", "bonsoir", "coucou", "hello", "hey", "yo", "slt", "cc", "wesh"]);
+const HOW_ARE_YOU = new Set(["ca va", "ca va ?", "comment ca va", "ca va bien", "tu vas bien", "comment tu vas", "quoi de neuf", "la forme"]);
+const THANKS = new Set(["merci", "merci beaucoup", "merci bien", "top merci", "super merci", "parfait merci", "thanks", "merci kevin"]);
+
+/**
+ * Petites phrases de politesse (pur) : « salut », « ça va ? », « bonjour Kevin », « merci ». Rend la réponse, ou null.
+ * Une phrase qui contient une demande (« salut, combien j'ai dépensé ? ») n'est pas de la politesse : null.
+ */
+export function smallTalkReply(text: string): string | null {
+  const n = normalizeText(text)
+    .replace(/[\p{Extended_Pictographic}\uFE0F!.,…]+/gu, " ")
+    .replace(/\bkevin\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!n) return null;
+  const words = n.replace(/\s*\?$/, "").trim();
+  const hint = "Écris « commencer » pour la mise en route, ou demande-moi par exemple « combien j'ai dépensé ce mois ? ». « aide » liste tout ce que je sais faire.";
+  if (GREETINGS.has(words)) return `Salut 👋 ${hint}`;
+  const tail = words.split(" ");
+  // « salut ça va », « bonjour, comment ça va ».
+  const withoutGreeting = GREETINGS.has(tail[0]!) ? tail.slice(1).join(" ") : words;
+  if (HOW_ARE_YOU.has(withoutGreeting) || HOW_ARE_YOU.has(`${withoutGreeting} ?`))
+    return `Ça roule de mon côté 👍 Écris « agents » pour l'état des équipes, ou « commencer » pour la mise en route.`;
+  if (THANKS.has(words)) return "Avec plaisir 👍";
+  return null;
 }
 
 /** Commande exacte d'un membre → entrée du catalogue (jamais les secrets ni le plafond vidéo de l'ancien dialogue) (pur). */

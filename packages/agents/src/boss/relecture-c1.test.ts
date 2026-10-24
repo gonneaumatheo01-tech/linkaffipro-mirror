@@ -264,7 +264,9 @@ describe("9. le message suivant répond à la question TEXT : seulement si c'est
   it("accusés courts et emojis animés : jamais pris pour la réponse", async () => {
     const kit = await createBossKit();
     await askHuman(kit.deps, { kind: "TEXT", key: "persona.x.mediaNotes", question: "Quelle tenue pour Léa ?" });
-    for (const t of ["merci", "fait", "c'est bon", "super", "👍🎉"]) expect((await bossFastPath(kit.deps, kit.input(t))).handled, t).toBe(false);
+    for (const t of ["fait", "c'est bon", "super", "👍🎉"]) expect((await bossFastPath(kit.deps, kit.input(t))).handled, t).toBe(false);
+    // « merci » reçoit la réponse de politesse, sans remplir la question.
+    expect(reply(await bossFastPath(kit.deps, kit.input("merci")))).toBe("Avec plaisir 👍");
     const emoji = await bossFastPath(kit.deps, kit.input("🔥 robe", { entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "1" } as never] }));
     expect(emoji.handled).toBe(false);
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
