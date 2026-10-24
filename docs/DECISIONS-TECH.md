@@ -779,3 +779,16 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
 - **IA de l'interprète** : modèle le moins cher de `packages/ai` (`DEFAULT_MODEL`), outils en `tool_choice: auto`
   avec un seul appel (les modèles 5.5 refusent l'outil imposé `any` et la `temperature`) ; pas d'outil ou outil
   invalide = « pas prévu ». Client `@linkaffipro/ai` étendu (`tools`, `toolUses`).
+
+## Phase 26 — chantier B (cerveau de Kevin, `packages/agents/src/boss/`)
+- Paramètres des actions décrits une seule fois (`boss/params.ts`) : le schéma JSON strict envoyé à l'IA et la validation par le code en sortent tous les deux. Le paquet n'a pas zod ; une petite validation à la main suffit.
+- Outils envoyés sans `strict: true` (l'API pourrait refuser certains schémas) ; le code revalide tout de toute façon. Un outil inconnu, des paramètres en trop ou hors bornes donnent `pas_prevu`.
+- Le « maximum réglé » d'un quota est `maxPostsPerDay` des réglages de l'équipe Algorithme (6 par défaut) ; le plan d'un canal reste borné à 24 (formulaire du site).
+- Plan par canal : une seule logique, `saveChannelPlanFor` / `updateChannelPlan` / `setTeamPostsPerDay` (`packages/agents/src/control/channel-plan.ts`), utilisée par le site (`apps/web/lib/agents/save.ts`) et par Kevin. Activation d'une catégorie de paris : `setBetCategoryActive` (Kevin seulement : le site enregistre la fiche complète, et son comportement n'a pas changé).
+- Valider un post (« publie le 12 ») passe par une confirmation en langage naturel (ça publie) ; la commande exacte `ok 12` reste immédiate, comme avant.
+- Annuler un réglage de l'équipe Algorithme est immédiat (retour à la valeur d'avant) ; l'appliquer est à confirmer.
+- Le test de connexion au bookmaker part en file (`createCaptureRequest`, `notifyAdmin`) sans attendre ; « t'as réussi à te connecter ? » lit le résultat du dernier test.
+- Ambiguïté de nom : liste numérotée gardée dans `Setting boss.clarify` (10 min). La réponse « 2 » relance l'action sans IA.
+- Pas de double exécution : un tour BOSS « running » est écrit avant l'action. Un message déjà traité (même `telegramMessageId`) rend une réponse vide.
+- Une demande SECRET de clé `.login` n'est toujours acceptée qu'en réponse au message de la question. La règle n'a pas changé, pour que le masquage du journal reste sûr.
+- Les alertes 80 / 100 % du plafond de Kevin utilisent les drapeaux `alerted80` / `alerted100` d'`AgentUsage` (équipe `boss`), comme les plafonds des équipes. Un jeton de bot Telegram (`123456:AAE…`) est toujours traité comme un secret.

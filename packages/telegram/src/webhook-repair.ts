@@ -96,7 +96,7 @@ export function parseWebhookCheck(value: unknown): WebhookCheck | null {
 
 /** Version branchée sur la base et l'API Telegram réelles (worker). */
 export async function runWebhookRepairWithDb(
-  env: { APP_BASE_URL?: string; DATABASE_URL?: string } = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<WebhookCheck> {
   const { prisma, recordEvent, toJsonValue } = await import("@linkaffipro/db");
   const save = async (check: WebhookCheck) => {

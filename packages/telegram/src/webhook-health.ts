@@ -79,7 +79,7 @@ export function isLocalHost(host: string | null): boolean {
  */
 export function webhookTargetRefusal(
   url: string,
-  env: { DATABASE_URL?: string; ALLOW_REMOTE_WEBHOOK?: string } = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): string | null {
   if (env.ALLOW_REMOTE_WEBHOOK === "1") return null;
   const dbHost = hostOf(env.DATABASE_URL);
@@ -93,7 +93,7 @@ export function webhookTargetRefusal(
  * Réparation automatique permise ? Seulement en production : adresse publique en https et base distante. Un worker de
  * développement (APP_BASE_URL sur localhost) ne doit jamais « réparer » les bots de production vers sa machine.
  */
-export function webhookRepairRefusal(env: { APP_BASE_URL?: string; DATABASE_URL?: string } = process.env): string | null {
+export function webhookRepairRefusal(env: Readonly<Record<string, string | undefined>> = process.env): string | null {
   const base = env.APP_BASE_URL;
   if (!base) return "APP_BASE_URL manquante";
   if (!/^https:\/\//i.test(base)) return "adresse du site non publique (pas en https)";
