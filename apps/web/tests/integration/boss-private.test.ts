@@ -349,7 +349,7 @@ describe("Kevin en privé : scénario complet (base réelle, faux Telegram, faus
       transcribe: async () => "Reprends le casino.",
       botApi: async () => ({ download: async () => new Uint8Array([1, 2, 3]), send: async (_c, html) => void said.push(html) }),
       adminTelegramId: async () => BigInt(ADMIN),
-      boss: deps,
+      boss: { ...deps, engine: realBossEngine },
     });
     expect(r.outcome).toBe("handled");
     expect(said[0]).toContain("J'ai compris");

@@ -113,7 +113,7 @@ const KIND_WORDS: ReadonlyArray<readonly [RegExp, TeamMemberKind]> = [
   [/\b(videos?|photos?|medias?|images?|visuels?|rushs?|contenus?)\b/u, "media"],
   [/\b(cles?|mots? de passe|mdp|identifiants?|comptes?|jetons?|acces)\b/u, "secret"],
   [/\b(choix|decisions?|cotes?|reglages?)\b/u, "choice"],
-  [/\b(validations?|valider|relecture|relit|relire|posts?)\b/u, "validation"],
+  [/\b(validations?|valider|relecture|relit|relire|posts? a valider)\b/u, "validation"],
 ];
 
 /** Équipes et natures déduites d'une phrase de rôle (« vidéos casino et posts roulette ») (pur). */

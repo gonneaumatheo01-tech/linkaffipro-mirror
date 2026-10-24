@@ -139,7 +139,8 @@ async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Recor
   const r = await createBossPending(deps, { actionKey: action.key, params, summary });
   const who = ctx.speaker && ctx.speaker.kind === "member" ? ctx.speaker.firstName : "Quelqu'un de l'équipe";
   const [first, ...rest] = summary.split("\n");
-  const ask = (first ?? "").trim().replace(/\s*\?$/, "");
+  // Première phrase du résumé (jusqu'au « ? »), la suite en seconde ligne.
+  const ask = (first ?? "").split("?")[0]!.trim();
   const head = `${await adminMention(deps)} ${esc(who)} demande : ${esc(ask.charAt(0).toLowerCase() + ask.slice(1))}. OUI ?`;
   const text = [head, ...rest.slice(0, 1).map(esc)].join("\n");
   await audit(deps, action.key, ctx.actor, { status: "escalated", params: safeParams(params) }, ctx.speaker);

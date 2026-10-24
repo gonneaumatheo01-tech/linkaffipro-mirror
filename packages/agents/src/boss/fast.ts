@@ -41,6 +41,7 @@ export function looksLikeOrderOrQuestion(text: string): boolean {
 }
 
 const AIDE = new Set(["aide", "help", "/aide", "/help", "menu", "?"]);
+const QUI = new Set(["qui fait quoi", "qui fait quoi ?", "l'equipe", "equipe", "l'equipe ?", "qui s'occupe de quoi"]);
 const COMMENCER = new Set(["commencer", "commence", "/commencer", "demarrer", "on commence", "par ou je commence", "/start"]);
 
 /** Ordre d'écriture : tour de l'admin puis tour du Boss, même identifiant de message. */
@@ -193,6 +194,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   for (const [set, key] of [
     [AIDE, "aide"],
     [COMMENCER, "commencer"],
+    [QUI, "qui_fait_quoi"],
   ] as const) {
     if (set.has(n)) {
       const action = bossAction(key)!;

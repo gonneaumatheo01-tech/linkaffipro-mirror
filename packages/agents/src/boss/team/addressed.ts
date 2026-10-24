@@ -32,7 +32,6 @@ function tidy(text: string): string {
   return text
     .replace(/^[\s,;:!.\-–—]+/u, "")
     .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,;:!?.])/g, "$1")
     .trim();
 }
 
