@@ -159,3 +159,4 @@ export { computeBetSummary, sportsReportNotes, weekStart } from "./sports/summar
 export { ensureSportsSetupQuestions, askCaptureWorkaround, parseNumberList, SPORTS_SETUP_SETTING, WORKAROUND_OPTIONS } from "./sports/setup";
 export { rankCandidates, type Candidate, type PickReasoning } from "./agents/cotes/select";
 export { fallbackPng } from "./sports/pick-image";
+export * from "./ads/contracts";

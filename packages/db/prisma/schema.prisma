@@ -2654,6 +2654,8 @@ enum RecommendationStatus {
   APPLIED
   UNDONE
   REJECTED
+  /// Phase 24 (Agent Ads) : le client dit avoir fait l'action lui-même chez Meta / TikTok (jamais appliquée par le code).
+  DONE
 }
 
 enum RecommendationAppliedBy {
@@ -2682,6 +2684,11 @@ model Recommendation {
   undoneAt     DateTime?
   undoneById   String?
   rejectedAt   DateTime?
+  /// Phase 24 : action conseillée par l'Agent Ads (STOP | SCALE | TEST | WATCH), commentaire du client, fait le.
+  action       String?
+  comment      String?
+  doneAt       DateTime?
+  doneById     String?
   weekStart    String?
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
