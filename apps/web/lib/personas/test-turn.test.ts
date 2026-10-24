@@ -175,6 +175,25 @@ describe("persona du moteur (même règle que le worker)", () => {
       ).hasOffer,
     ).toBe(false);
   });
+
+  it("phase 25 : univers, fiche d'informations, identité imposée hors Rencontres, bouton par défaut de l'univers", () => {
+    const x = { offerUsable: true, channelTitle: null, botName: null };
+    const casino = personaTurnInput(
+      {
+        ...row,
+        universe: "casino",
+        identityKind: "GIRL",
+        illusion: true,
+        faq: [{ q: "Bonus ?", a: "100 %" }, { q: 3 }],
+      },
+      x,
+    );
+    expect(casino).toMatchObject({ universe: "casino", identity: "ASSISTANT", illusion: false });
+    expect(casino.faq).toEqual([{ q: "Bonus ?", a: "100 %" }]);
+    const dating = personaTurnInput({ ...row, identityKind: "GIRL", illusion: true }, x);
+    expect(dating).toMatchObject({ universe: "dating", identity: "GIRL", illusion: true, faq: [] });
+    expect(personaTurnInput({ ...row, universe: "inconnu" }, x).universe).toBe("dating");
+  });
 });
 
 describe("entrée du tour d'essai", () => {

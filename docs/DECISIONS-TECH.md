@@ -692,3 +692,11 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   par le dialogue admin depuis le balayage `chat` (une ligne par conversation, jamais de texte). Bouton par défaut par
   univers (« 🎁 Accès VIP et bonus », « 🏆 Groupe VIP pronostics ») si le texte est vide ou resté « Découvrir l'app ».
   Comptes réels (userbot) : univers non lu (Rencontres seulement).
+- **Site (phase 25)** : `/agents` ne dépend jamais seulement de `agentsOverview` (en cas de panne, encadré orange et
+  ancien résumé du jour). Annuler un réglage : droit relu en base (taille et cible ; gros réglages ADMIN). « Relancer
+  les missions bloquées » (État du système, ADMIN) = même balayage `resumeMissions` que le Grand Chef (pause respectée,
+  jamais deux publications). `results.commissions` en euros, `spend` en centimes. Motifs « À traiter » : valeurs du
+  moteur + anciens noms français, autre = « À reprendre par l'équipe ». Le bouton « Tester » simule l'identité réelle
+  (une persona Rencontres « fille » est testée comme une fille). Fiche d'informations : MANAGER refusé, journal
+  `persona.faq_updated` sans texte, import CSV séparé par « ; » (UTF-8 sinon Windows-1252, 1 Mo au plus) ; changer
+  d'univers repasse la persona en assistante.

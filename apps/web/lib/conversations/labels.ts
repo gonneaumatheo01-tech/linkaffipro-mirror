@@ -171,8 +171,16 @@ export const NEEDS_HUMAN_LABEL = "À traiter";
 /** Motif affiché quand le motif est absent ou inconnu (nouveau motif du moteur pas encore traduit ici). */
 export const NEEDS_HUMAN_FALLBACK = "À reprendre par l'équipe";
 
-/** Motifs connus du passage à l'équipe, en clair. */
+/**
+ * Motifs connus du passage à l'équipe, en clair. Valeurs du moteur (`NEEDS_HUMAN_REASONS` de `@linkaffipro/core` :
+ * off_faq, complaint, money, minor, insult), plus les noms français prévus avant le contrat (tolérés).
+ */
 export const NEEDS_HUMAN_REASON_LABELS: Readonly<Record<string, string>> = {
+  off_faq: "Question hors de la fiche d'informations",
+  complaint: "Réclamation",
+  money: "Demande d'argent",
+  minor: "Mineur possible",
+  insult: "Insulte",
   hors_fiche: "Question hors de la fiche d'informations",
   reclamation: "Réclamation",
   argent: "Demande d'argent",

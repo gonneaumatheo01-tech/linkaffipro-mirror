@@ -24,6 +24,12 @@ import {
   type TurnResult,
   type UsageRecord,
 } from "@linkaffipro/chat";
+import {
+  effectiveIdentityKind,
+  offerButtonTextFor,
+  parsePersonaFaq,
+  parsePersonaUniverse,
+} from "@linkaffipro/core";
 import { personaRole } from "./form";
 import { aiFailureText, rejectLabels } from "./view";
 
@@ -142,6 +148,11 @@ export type PersonaTurnRow = {
   offerPitch: string;
   offerButtonText: string;
   offerMediaAssetId: string | null;
+  /** Phase 25 : univers, fiche d'informations, identité (absents : persona Rencontres d'avant, assistante). */
+  universe?: string | null;
+  faq?: unknown;
+  identityKind?: string | null;
+  illusion?: boolean | null;
 };
 
 /**
@@ -152,7 +163,15 @@ export function personaTurnInput(
   p: PersonaTurnRow,
   extras: { offerUsable: boolean; channelTitle: string | null; botName: string | null },
 ): PersonaInput {
+  // Même lecture que le worker (phase 25) : univers inconnu = Rencontres ; Casino et Paris sportifs = assistante
+  // imposée, jamais d'illusion ; fiche d'informations relue et bornée ; texte du bouton par défaut selon l'univers.
+  const universe = parsePersonaUniverse(p.universe);
+  const identity = effectiveIdentityKind(universe, p.identityKind);
   return {
+    universe,
+    faq: parsePersonaFaq(p.faq),
+    identity,
+    illusion: identity === "GIRL" && p.illusion === true,
     name: p.name,
     gender: p.gender,
     personality: p.personality,
@@ -168,7 +187,7 @@ export function personaTurnInput(
     followUpAfterHours: p.followUpAfterHours,
     followUpsMax: p.followUpsMax,
     offerPitch: p.offerPitch,
-    offerButtonText: p.offerButtonText,
+    offerButtonText: offerButtonTextFor(universe, p.offerButtonText),
     hasOffer: Boolean(p.affiliateCampaignId) && extras.offerUsable,
     offerMediaAssetId: extras.offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,

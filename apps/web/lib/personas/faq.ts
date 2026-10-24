@@ -10,11 +10,20 @@
  *   standard (« "" » pour un guillemet, point-virgule et retour à la ligne permis entre guillemets), ligne d'en-tête
  *   facultative reconnue, marque d'encodage (BOM) tolérée, lignes vides ignorées.
  */
-import { PERSONA_FAQ_MAX, type PersonaFaqEntry } from "@linkaffipro/core";
+import {
+  PERSONA_FAQ_A_MAX,
+  PERSONA_FAQ_MAX,
+  PERSONA_FAQ_Q_MAX,
+  type PersonaFaqEntry,
+} from "@linkaffipro/core";
 
 export type { PersonaFaqEntry };
 
-export const FAQ_LIMITS = { max: PERSONA_FAQ_MAX, question: 300, answer: 1000 } as const;
+export const FAQ_LIMITS = {
+  max: PERSONA_FAQ_MAX,
+  question: PERSONA_FAQ_Q_MAX,
+  answer: PERSONA_FAQ_A_MAX,
+} as const;
 
 /** Question : espaces regroupés sur une ligne. Réponse : retours à la ligne gardés, espaces en trop retirés. */
 export function cleanQuestion(q: string): string {

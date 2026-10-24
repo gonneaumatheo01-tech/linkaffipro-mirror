@@ -875,7 +875,7 @@ Pour une assistante du canal, ces médias ne sont jamais présentés comme ses p
 
 ### Chiffres
 
-Choisissez la période en haut (le même sélecteur que les [Statistiques](#periode-et-comparaison), avec **Comparer à la période précédente**) et, si vous voulez, l'**Univers** (Rencontres, Casino, Paris sportifs ou tous), puis cliquez sur **Appliquer**. Cinq chiffres en tête :
+Choisissez la période en haut (le même sélecteur que les [Statistiques](#periode-et-comparaison), avec **Comparer à la période précédente**), puis cliquez sur **Appliquer**. Les pastilles **Univers** (Rencontres, Casino, Paris sportifs) limitent tous les chiffres à un univers ; sans univers choisi, un tableau **Par univers** les compare. Cinq chiffres en tête :
 
 - **Conversations** : les conversations commencées sur la période ;
 - **Taux de réponse** : la part de ces conversations où la personne a répondu au moins une fois après le premier message de l'assistante (ou de l'équipe) ;

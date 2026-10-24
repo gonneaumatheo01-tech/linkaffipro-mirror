@@ -162,3 +162,11 @@ describe("conversations à traiter (phase 25)", () => {
     expect(isConversationUniverse("autre")).toBe(false);
   });
 });
+
+describe("motifs du moteur (phase 25)", () => {
+  it("chaque motif du moteur a son libellé, jamais le repli", async () => {
+    const { NEEDS_HUMAN_REASONS } = await import("@linkaffipro/core");
+    for (const r of NEEDS_HUMAN_REASONS)
+      expect(needsHumanReasonLabel(r), r).not.toBe(NEEDS_HUMAN_FALLBACK);
+  });
+});
