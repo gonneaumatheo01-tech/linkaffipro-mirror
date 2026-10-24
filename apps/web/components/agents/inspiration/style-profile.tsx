@@ -31,7 +31,7 @@ export function StyleProfileBlock({ profile, usedBy }: { profile: StyleProfileVi
             .
           </>
         ) : (
-          "Pas encore utilisé par la Rédaction : il le sera si vous acceptez la proposition « Profil de style »."
+          "Pas encore utilisé par la Rédaction : il le sera si vous acceptez la proposition « Profil de style »."
         )}
       </p>
       {profile.description ? <p className="whitespace-pre-line text-body text-foreground">{profile.description}</p> : null}

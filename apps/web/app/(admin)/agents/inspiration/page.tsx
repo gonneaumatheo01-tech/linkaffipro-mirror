@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 /**
  * Agents → Inspiration (phase 27) : les canaux exemples que Kevin lit pour s'inspirer de leur méthode (rythme, heures,
  * forme, façon de pousser l'offre), jamais de leur contenu. Liste des références ; le détail (profil de style,
- * « eux / nous », propositions, historique, Retirer) est sur la fiche de chacune. Tout le monde lit.
+ * « eux / nous », propositions, historique, Retirer) est sur la fiche de chacune. Tout le monde lit.
  */
 export default async function AgentsInspirationPage({ searchParams }: PageProps<"/agents/inspiration">) {
   const user = await requireUser();

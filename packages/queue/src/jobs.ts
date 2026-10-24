@@ -237,6 +237,8 @@ export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: "dating" | "casino" | "sports" | "algo" }
   /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (`inspiration-read`, même identifiant). */
   | { type: "inspiration-read"; referenceChannelId: string }
+  /** Phase 27 (Kevin) : réponse groupée aux posts transférés (une minute après le premier), puis analyse éventuelle. */
+  | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }

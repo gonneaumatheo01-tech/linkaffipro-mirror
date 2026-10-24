@@ -8,7 +8,9 @@ import {
   isSecretAdminText,
   rememberEditPrompt,
   BOSS_DEFAULT_NAME,
+  kevinForwardedPost,
   type BossTeamInput,
+  type ForwardedMessage,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
 import { htmlToPlain } from "../agents/admin-messenger";
@@ -347,6 +349,31 @@ async function sendReplyFallback(ctx: Context, chatId: number, html: string | un
  * canal, emojis animés). Toute autre personne : traitement habituel (`next()`) ; sur le Boss, rien ne suit (silence).
  */
 export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
+  // Phase 27 : sur le Boss, un post transféré d'un canal tiers par l'admin est rangé comme post de référence (canal
+  // d'inspiration) : une DONNÉE, jamais envoyée à l'interprète ; une seule réponse par lot, une minute après. Un post à
+  // emojis animés continue aussi vers la bibliothèque d'emojis (phase 12).
+  bot.on("message", async (ctx, next) => {
+    const msg = ctx.message;
+    if (!msg.forward_origin || ctx.from.is_bot || !isBossBot(identity) || !deps.agentsDeps) return next();
+    const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.chat.type);
+    if (route.kind !== "dialog") return next();
+    const agents = deps.agentsDeps();
+    let out: Awaited<ReturnType<typeof kevinForwardedPost>>;
+    try {
+      out = await kevinForwardedPost(agents, {
+        message: msg as unknown as ForwardedMessage,
+        chat: { type: "private", chatId: BigInt(ctx.chat.id) },
+        speaker: { kind: "admin", telegramUserId: BigInt(ctx.from.id), firstName: ctx.from.first_name ?? null },
+      });
+    } catch (err) {
+      console.error("[boss] post transféré non rangé", identity.username, (err as Error).message);
+      return next();
+    }
+    if (!out.handled) return next();
+    if (out.reply?.reply) await replyHtml(ctx, out.reply.reply).catch(() => undefined);
+    if (messageHasCustomEmoji(msg as Message & { text: string })) return next();
+  });
+
   bot.on("callback_query:data", async (ctx, next) => {
     const data = ctx.callbackQuery.data;
     const engine = engineOf(deps);

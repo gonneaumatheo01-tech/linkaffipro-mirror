@@ -183,6 +183,8 @@ export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: TeamKey }
   /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à la file `agents-algo` (`inspiration-read`). */
   | { type: "inspiration-read"; referenceChannelId: string }
+  /** Phase 27 (Kevin) : une réponse pour un lot de posts transférés, une minute après le premier ; `analyzeRefId` : analyse à lancer. */
+  | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }

@@ -36,8 +36,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Fiche d'un canal d'inspiration (phase 27) : la référence (état, voie de lecture, posts lus, cibles, lectures), son
- * profil de style, la comparaison « eux / nous », les propositions (Annuler pour une appliquée), l'historique, et
- * « Retirer » (efface posts et profil). Annuler et Retirer : administrateurs ; les responsables lisent.
+ * profil de style, la comparaison « eux / nous », les propositions (Annuler pour une appliquée), l'historique, et
+ * « Retirer » (efface posts et profil). Annuler et Retirer : administrateurs ; les responsables lisent.
  */
 export default async function InspirationReferencePage({ params, searchParams }: PageProps<"/agents/inspiration/[id]">) {
   const user = await requireUser();
@@ -113,7 +113,7 @@ export default async function InspirationReferencePage({ params, searchParams }:
               {state.detail ? <span className="block text-note text-danger">{state.detail}</span> : null}
             </DetailRow>
             <DetailRow label="Lu par">
-              {ref.via === "ACCOUNT" && detail.ref.accountLabel ? `compte réel « ${detail.ref.accountLabel} »` : null}
+              {ref.via === "ACCOUNT" && detail.ref.accountLabel ? `compte réel « ${detail.ref.accountLabel} »` : null}
               {ref.via === "ACCOUNT" && !detail.ref.accountLabel ? "compte réel déjà membre" : null}
               {ref.via === "WEB" ? "aperçu public du canal (sans compte)" : null}
               {ref.via === "FORWARDED" ? "posts transférés à Kevin" : null}
@@ -137,7 +137,7 @@ export default async function InspirationReferencePage({ params, searchParams }:
                   </span>
                 ))
               ) : (
-                <span className="text-muted-foreground">aucun : dites à Kevin « c&apos;est pour le canal … »</span>
+                <span className="text-muted-foreground">aucun : dites à Kevin « c&apos;est pour le canal … »</span>
               )}
             </DetailRow>
             <DetailRow label="Dernière lecture">{fmtDate(ref.lastReadAt)}</DetailRow>
@@ -179,7 +179,7 @@ export default async function InspirationReferencePage({ params, searchParams }:
           <InspirationRecs recs={detail.recs} referenceId={ref.id} isAdmin={isAdmin} now={now} profileVersions={detail.profileVersions} />
         </FormSection>
 
-        <FormSection id="historique" title="Historique" description="Lectures, réglages appliqués ou annulés, tests A/B et leurs bilans (aussi dans « Ce qui marche »).">
+        <FormSection id="historique" title="Historique" description="Lectures, réglages appliqués ou annulés, tests A/B et leurs bilans (aussi dans « Ce qui marche »).">
           <HistoryList entries={history} />
         </FormSection>
       </div>

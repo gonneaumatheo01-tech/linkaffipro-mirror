@@ -36,6 +36,9 @@ export const BOSS_READ_KEYS = new Set([
   "recommandations_ads",
   "qui_fait_quoi",
   "aide",
+  // Phase 27 : lire un canal d'inspiration et en parler ne touche à aucun réglage.
+  "analyser_canal",
+  "voir_inspiration",
 ]);
 
 /** Gestion de l'équipe : admin et responsables seulement. */

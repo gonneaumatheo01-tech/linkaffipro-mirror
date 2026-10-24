@@ -46,6 +46,12 @@ describe("caractéristiques d'un post de référence", () => {
     expect(postFeatures(post("✅ WON! cashed"), "sports").features.betResult).toBe("won");
     expect(postFeatures(post("❌ Perdu ce soir, on repart demain"), "sports").features.betResult).toBe("lost");
     expect(postFeatures(post("❌ Lost tonight"), "sports").features.betResult).toBe("lost");
+    expect(pick.features.match).toBe(true);
+    expect(postFeatures(post("Arsenal vs Chelsea tonight"), "sports").features.match).toBe(true);
+    expect(postFeatures(post("Bilan de la semaine"), "sports").features.match).toBe(false);
+    // Mention d'IA : signalée (interdite chez nous).
+    expect(postFeatures(post("Nos pronos sont faits par une IA 🤖"), "sports").features.aiMention).toBe(true);
+    expect(postFeatures(post("J'ai gagné hier"), "sports").features.aiMention).toBe(false);
     // Hors Paris sportifs, un « ✅ » de liste n'est pas un résultat.
     expect(postFeatures(post("✅ Bonus actif"), "casino").features.betResult).toBeNull();
   });

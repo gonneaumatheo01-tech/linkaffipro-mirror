@@ -296,7 +296,7 @@ export function recommendationLabel(r: Pick<RecoRow, "teamKey" | "field" | "afte
 /** Recommandations Algorithme proposées (ordre stable : la plus ancienne d'abord) — numéros de la liste affichée. */
 export async function algoProposed(deps: BossDeps): Promise<RecoRow[]> {
   return (await deps.prisma.recommendation.findMany({
-    where: { status: "PROPOSED", NOT: { teamKey: "ads" } },
+    where: { status: "PROPOSED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }] },
     orderBy: [{ createdAt: "asc" }],
     take: 9,
   })) as RecoRow[];
@@ -305,7 +305,7 @@ export async function algoProposed(deps: BossDeps): Promise<RecoRow[]> {
 /** Réglages Algorithme appliqués (le plus récent d'abord). */
 export async function algoApplied(deps: BossDeps): Promise<RecoRow[]> {
   return (await deps.prisma.recommendation.findMany({
-    where: { status: "APPLIED", NOT: { teamKey: "ads" } },
+    where: { status: "APPLIED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }] },
     orderBy: [{ appliedAt: "desc" }],
     take: 9,
   })) as RecoRow[];

@@ -57,7 +57,7 @@ function RecCard({
         {rec.rejectedAt ? ` · refusé le ${fmtDate(rec.rejectedAt)}` : ""}
       </p>
       {rec.status === "PROPOSED" ? (
-        <p className="text-note text-muted-foreground">Pour l&apos;appliquer, répondez à Kevin par son numéro (« applique 1 et 3 »).</p>
+        <p className="text-note text-muted-foreground">Pour l&apos;appliquer, répondez à Kevin par son numéro (« applique 1 et 3 »).</p>
       ) : null}
       {rec.status === "APPLIED" ? (
         undoable ? (

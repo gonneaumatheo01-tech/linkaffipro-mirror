@@ -258,3 +258,60 @@ export * from "./inspiration/sources/forwarded";
 export * from "./inspiration/features";
 export * from "./inspiration/store";
 export * from "./inspiration/read";
+// Chantier C (phase 27) : Kevin et le canal d'inspiration (résumé, propositions, application, posts transférés).
+export {
+  afterReferenceRead,
+  afterReferenceReread,
+  inspirationSummaryLines,
+  summaryFacts,
+  methodChanges,
+  snapshotOf,
+  askForForwards,
+  REREAD_THRESHOLDS,
+  SUMMARY_MAX_LINES,
+  SUMMARY_QUESTION,
+} from "./inspiration/kevin";
+export {
+  inspirationProposals,
+  proposalsText,
+  mixSteps,
+  proposedWindow,
+  theirMixShares,
+  mergeTaggedLine,
+  INSPIRATION_SOURCE,
+  SPORTS_RESULT_POSTS_SUPPORTED,
+  type InspirationProposal,
+  type ProposalsResult,
+} from "./inspiration/proposals";
+export {
+  applyInspiration,
+  undoInspiration,
+  removeReference,
+  inspirationReviews,
+  enoughTrafficForAb,
+  changePct,
+  reviewSentence,
+  INSPIRATION_UNDO_DAYS,
+  INSPIRATION_TEST_DAYS,
+  INSPIRATION_REPORT_TEAM,
+  type ApplyInspirationResult,
+  type UndoInspirationResult,
+} from "./inspiration/apply";
+export {
+  kevinForwardedPost,
+  inspirationForwardAck,
+  inspirationNameAnswer,
+  forwardAckLine,
+  FORWARD_ACK_JOB,
+  FORWARD_BATCH_MS,
+  type ForwardInput,
+  type ForwardOutcome,
+} from "./inspiration/kevin-forward";
+export { referenceLabel, linkTarget, universeRefusal, type ReferenceRow } from "./inspiration/kevin-refs";
+export {
+  INSPIRATION_ACTIONS,
+  inspirationFastPath,
+  parseProposalNumbers,
+  choiceIsOpen,
+  INSPIRATION_CHOICE_SETTING,
+} from "./boss/catalog-inspiration";

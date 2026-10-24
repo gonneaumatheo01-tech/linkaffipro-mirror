@@ -6,6 +6,8 @@
  * consigne. Fonctions pures.
  */
 import { countEmojis } from "../agents/posts/features";
+import { mentionsAi } from "../rules/content";
+import { MATCH_RE } from "./analysis/patterns";
 import { shingleHashes, textHash } from "./copy-check";
 import type { InspirationUniverse, ReferenceMediaKind, ReferencePostInput } from "./contract";
 
@@ -29,6 +31,10 @@ export type ReferencePostExtra = {
   paid: boolean;
   /** Appel à l'urgence (« places limitées », « aujourd'hui seulement »). */
   urgency: boolean;
+  /** Annonce de match (« PSG vs OM », « Lyon – Nantes », « coup d'envoi »), même règle que l'analyse. */
+  match: boolean;
+  /** Mention d'IA (interdite chez nous) : signalée, jamais reproduite. */
+  aiMention: boolean;
 };
 
 /** Colonnes de `ReferencePost` tirées d'un post (hors identifiants, voie et dates de la ligne). */
@@ -202,6 +208,9 @@ export function postFeatures(input: ReferencePostInput, universe: InspirationUni
       free,
       paid,
       urgency: URGENCY.test(norm),
+      // Tiret demi-cadratin (« Lyon – Nantes ») ramené au tiret simple de la règle de l'analyse.
+      match: MATCH_RE.test(t.replace(/\s[–—]\s/g, " - ")) || MATCH_RE.test(norm),
+      aiMention: t ? mentionsAi(t) !== null : false,
     },
     textHash: text ? textHash(text) : null,
     shingles: text ? shingleHashes(text) : [],

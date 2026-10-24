@@ -48,6 +48,8 @@ export function teamMessageOf(msg: Message, identity: BotIdentity, chatType: "pr
     entities,
     replyTo: msg.reply_to_message ? { messageId: msg.reply_to_message.message_id, fromId: msg.reply_to_message.from ? BigInt(msg.reply_to_message.from.id) : null } : null,
     forwarded: Boolean(msg.forward_origin),
+    // Phase 27 : message brut d'un transfert (post de canal tiers rangé comme post de référence, jamais un ordre).
+    ...(msg.forward_origin ? { raw: msg } : {}),
     hasMedia: inboxMediaOf(msg) !== null,
     hasVoice: Boolean(msg.voice || msg.audio || msg.video_note),
     bot: { telegramId: identity.telegramBotId, username: identity.username },

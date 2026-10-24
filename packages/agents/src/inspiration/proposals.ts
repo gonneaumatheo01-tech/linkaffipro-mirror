@@ -72,10 +72,6 @@ export function mergeTaggedLine(current: string | null, tag: string, line: strin
   return text || null;
 }
 
-function hh(h: number): string {
-  return `${String(h).padStart(2, "0")}:00`;
-}
-
 /**
  * Fenêtre proposée (pur) : couvre leurs heures de pointe (de la première à la dernière tranche, + 30 min), assez large
  * pour le quota et l'espacement du plan, ramenée dans les heures autorisées.

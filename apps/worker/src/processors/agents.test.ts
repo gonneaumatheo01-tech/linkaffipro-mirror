@@ -62,7 +62,7 @@ describe("processeurs des agents (phase 19)", () => {
     expect(agents.runBench).toHaveBeenCalledWith({}, { type: "bench", benchId: "b1" });
   });
   it("équipe Algorithme (phase 21) : passage horaire et rapport maintenant", async () => {
-    expect(repeatableAgentsAlgo).toEqual([{ data: { type: "algo", task: "tick" }, everyMs: 3_600_000, jobId: "agents-algo-tick" }]);
+    expect(repeatableAgentsAlgo).toContainEqual({ data: { type: "algo", task: "tick" }, everyMs: 3_600_000, jobId: "agents-algo-tick" });
     await PROCESSORS["agents-algo"].process(job({ type: "algo", task: "tick" }));
     expect(agents.runAlgoTick).toHaveBeenCalledWith({});
     await PROCESSORS["agents-algo"].process(job({ type: "algo", task: "report-now", send: false }));

@@ -14,6 +14,7 @@ import { defineAction } from "./catalog-kit";
 import { READ_ACTIONS, READ_HIDDEN_ACTIONS } from "./catalog-read";
 import { TEAM_ACTIONS } from "./catalog-teams";
 import { UNIVERSE_ACTIONS } from "./catalog-univers";
+import { INSPIRATION_ACTIONS } from "./catalog-inspiration";
 import { bossHelpText } from "./help";
 import { bossStartReply } from "./guide";
 import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
@@ -65,7 +66,7 @@ export const annule = defineAction<Empty>({
 
 export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown as BossAction[];
 
-export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
+export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
 const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS].map((a) => [a.key, a]));

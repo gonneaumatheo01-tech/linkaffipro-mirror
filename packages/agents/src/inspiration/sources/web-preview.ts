@@ -52,7 +52,7 @@ export function isInviteLink(input: string): boolean {
 /** « 1.2K » → 1200, « 15K » → 15000, « 1.5M » → 1500000, « 987 » → 987 ; illisible → null. */
 export function parsePreviewViews(raw: string | null | undefined): number | null {
   if (!raw) return null;
-  const m = raw.trim().replace(/\s| /g, "").replace(",", ".").match(/^(\d+(?:\.\d+)?)([KMB])?$/i);
+  const m = raw.trim().replace(/\s|\u00a0/g, "").replace(",", ".").match(/^(\d+(?:\.\d+)?)([KMB])?$/i);
   if (!m) return null;
   const mult = { K: 1e3, M: 1e6, B: 1e9 }[(m[2] ?? "").toUpperCase() as "K" | "M" | "B"] ?? 1;
   return Math.round(Number(m[1]) * mult);

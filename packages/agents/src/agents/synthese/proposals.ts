@@ -36,7 +36,9 @@ const json = (v: unknown) => JSON.parse(JSON.stringify(v ?? null));
 export async function proposeRecommendation(deps: AgentsDeps, r: RecommendationInput): Promise<{ id: string; created: boolean; skipped?: boolean }> {
   const weekStart = r.weekStart ?? parisWeekStart(nowOf(deps));
   const where = { target: r.target, targetId: r.targetId, field: r.field };
-  const applied = await deps.prisma.recommendation.findFirst({ where: { ...where, status: "APPLIED" }, orderBy: { appliedAt: "desc" } });
+  // Phase 27 : une proposition d'inspiration (canal de référence) n'est jamais reprise ni écrasée par l'équipe Algorithme.
+  const notInspiration = { NOT: { source: "inspiration" } };
+  const applied = await deps.prisma.recommendation.findFirst({ where: { ...where, ...notInspiration, status: "APPLIED" }, orderBy: { appliedAt: "desc" } });
   if (applied && sameValue(applied.after, r.after)) return { id: applied.id, created: false, skipped: true };
   const data = {
     teamKey: r.teamKey,
@@ -47,7 +49,7 @@ export async function proposeRecommendation(deps: AgentsDeps, r: RecommendationI
     size: r.size,
     weekStart,
   };
-  const pending = await deps.prisma.recommendation.findFirst({ where: { ...where, status: "PROPOSED" }, orderBy: { createdAt: "desc" } });
+  const pending = await deps.prisma.recommendation.findFirst({ where: { ...where, ...notInspiration, status: "PROPOSED" }, orderBy: { createdAt: "desc" } });
   if (pending) {
     await deps.prisma.recommendation.update({ where: { id: pending.id }, data });
     return { id: pending.id, created: false };

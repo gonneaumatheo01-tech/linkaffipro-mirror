@@ -50,7 +50,7 @@ function AnalysisMeasures({ analysis }: { analysis: AnalysisView }) {
           <p className="text-note text-muted-foreground">Pour illustrer (10 mots au plus, jamais repris) :</p>
           <ul className="list-disc space-y-0.5 pl-5 text-note text-foreground">
             {analysis.quotes.map((q, i) => (
-              <li key={i}>« {q} »</li>
+              <li key={i}>« {q} »</li>
             ))}
           </ul>
         </div>
@@ -59,7 +59,7 @@ function AnalysisMeasures({ analysis }: { analysis: AnalysisView }) {
   );
 }
 
-/** Bloc « eux / nous / écart » : analyse (gardée ou calculée à l'affichage), sinon mesures brutes des posts lus. */
+/** Bloc « eux / nous / écart » : analyse (gardée ou calculée à l'affichage), sinon mesures brutes des posts lus. */
 export function ComparisonBlock({ block }: { block: Block }) {
   if (block.kind === "raw") {
     if (block.raw.count === 0)
@@ -92,7 +92,7 @@ export function ComparisonBlock({ block }: { block: Block }) {
     <div className="space-y-6">
       {block.comparisons.length === 0 ? (
         <p className="text-note text-muted-foreground">
-          Pas encore de comparaison avec vos canaux : choisissez un canal cible en écrivant à Kevin « c&apos;est pour le canal … ».
+          Pas encore de comparaison avec vos canaux : choisissez un canal cible en écrivant à Kevin « c&apos;est pour le canal … ».
         </p>
       ) : (
         block.comparisons.map((c) => (

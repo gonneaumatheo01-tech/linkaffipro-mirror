@@ -52,6 +52,7 @@ import { writeBossTurn, type BossTurnStatus } from "./memory";
 import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
+import { inspirationFastPath } from "./catalog-inspiration";
 
 export const FORWARDED_REPLY =
   "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
@@ -221,6 +222,27 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         await remember(deps, input, reply, { actionKey: `confirmation:${pending.actionKey}`, status: word === "yes" ? "done" : "refused" });
         return { handled: true, ...reply };
       }
+    }
+  }
+
+  // Phase 27 : nom du canal demandé après des transferts masqués ; numéros en réponse au choix d'inspiration (plus
+  // récent que toute autre question) ; « annule » juste après une application. Sans IA.
+  {
+    const clarifyNow = await readClarify(deps);
+    const otherQuestionAt = Math.max(current && (current.kind === "CHOICE" || current.kind === "CONFIRM") ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
+    const insp = await inspirationFastPath(deps, input, {
+      word,
+      pendingOpen: !!pending && !pending.expired,
+      otherQuestionAt,
+      run: async (action, params) => {
+        const actor = await bossActorOf(deps, input.speaker);
+        const { status: _s, ...reply } = await runBossAction(deps, action, params, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
+        return reply;
+      },
+    });
+    if (insp) {
+      await remember(deps, input, insp.reply, { actionKey: insp.actionKey, status: "done" });
+      return { handled: true, ...insp.reply };
     }
   }
 

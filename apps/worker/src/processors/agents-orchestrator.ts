@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { bossDailyNudge, resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations } from "@linkaffipro/agents";
+import { bossDailyNudge, inspirationForwardAck, resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations } from "@linkaffipro/agents";
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
@@ -19,7 +19,8 @@ import { logger } from "../logger";
  * - `bench` (phase 20) : banc d'essai vidéo, un passage court qui se ré-enfile toutes les 30 s (jamais d'attente ici) ;
  * - `admin-voice` (phase 20) : vocal de l'admin transcrit puis traité comme un message écrit ;
  * - `boss-text` (phase 26) : message de l'admin au Boss qui demande l'interprète IA (`../agents/boss-text.ts`) ;
- * - `inspiration-read` (phase 27) : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (même identifiant).
+ * - `inspiration-read` (phase 27) : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (même identifiant) ;
+ * - `inspiration-forward-ack` (phase 27) : réponse groupée de Kevin aux posts transférés (une minute après le premier).
  */
 export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>): Promise<unknown> {
   const data = job.data as AgentsOrchestratorJob | undefined;
@@ -29,6 +30,9 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return runCycle(deps, data.teamKey ? { teamKey: data.teamKey } : {});
     case "inspiration-read":
       return { forwarded: await enqueueInspirationRead(data.referenceChannelId) };
+    case "inspiration-forward-ack":
+      // Phase 27 (Kevin) : une seule réponse pour un lot de posts transférés, puis l'analyse s'il y a assez de posts.
+      return inspirationForwardAck(deps, data);
     case "resume":
       return resumeMissions(deps);
     case "human-requests": {

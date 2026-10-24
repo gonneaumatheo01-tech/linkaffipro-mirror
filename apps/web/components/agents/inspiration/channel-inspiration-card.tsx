@@ -4,7 +4,7 @@ import { loadChannelInspiration } from "@/lib/agents/inspiration-queries";
 import { StatusBadge } from "@/lib/status-badges";
 
 /**
- * Encart « Inspiré de @xxx » de la fiche d'un canal (phase 27) : le canal d'inspiration dont la Rédaction lit le
+ * Encart « Inspiré de @xxx » de la fiche d'un canal (phase 27) : le canal d'inspiration dont la Rédaction lit le
  * profil de style pour ce canal, ou les références qui visent ce canal. Rien n'est affiché s'il n'y en a pas.
  */
 export async function ChannelInspirationCard({ channelId }: { channelId: string }) {
