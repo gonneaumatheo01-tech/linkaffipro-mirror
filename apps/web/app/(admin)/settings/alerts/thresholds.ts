@@ -60,6 +60,10 @@ export const ALERT_SWITCH_FIELDS: Record<SwitchableAlertKind, string> = {
   agents_channel_drop: "agentsChannelDropEnabled",
   agents_persona_drop: "agentsPersonaDropEnabled",
   agents_media_low: "agentsMediaLowEnabled",
+  ads_spend_spike: "adsSpendSpikeEnabled",
+  ads_conversion_drop: "adsConversionDropEnabled",
+  ads_cost_over_threshold: "adsCostOverThresholdEnabled",
+  ads_budget_exhausted: "adsBudgetExhaustedEnabled",
 };
 
 /** Interrupteurs envoyés par le formulaire : une case décochée n'est pas envoyée, donc désactivée. */

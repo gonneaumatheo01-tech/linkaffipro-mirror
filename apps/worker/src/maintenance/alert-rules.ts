@@ -32,7 +32,11 @@ export type AlertKind =
   | "agents_team_paused"
   | "agents_channel_drop"
   | "agents_persona_drop"
-  | "agents_media_low";
+  | "agents_media_low"
+  | "ads_spend_spike"
+  | "ads_conversion_drop"
+  | "ads_cost_over_threshold"
+  | "ads_budget_exhausted";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -803,6 +807,11 @@ export const PER_CHANNEL_KINDS: ReadonlySet<AlertKind> = new Set<AlertKind>([
   "agents_persona_drop",
   // Équipe Casino (phase 22) : vidéos en manque, créées et résolues canal par canal par le cycle des agents.
   "agents_media_low",
+  // Agent Ads (phase 24) : créées et résolues cible par cible par la file `agents-ads`, notifiées ici.
+  "ads_spend_spike",
+  "ads_conversion_drop",
+  "ads_cost_over_threshold",
+  "ads_budget_exhausted",
 ]);
 
 /** Faut-il créer une nouvelle alerte ? Non si une alerte du même type est ouverte et récente. */

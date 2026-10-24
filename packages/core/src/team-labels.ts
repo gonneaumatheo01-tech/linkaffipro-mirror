@@ -32,6 +32,10 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   agents_channel_drop: "Canal qui décroche (vues ou clics)",
   agents_persona_drop: "Profil de conversation qui ne convertit plus",
   agents_media_low: "Vidéos casino en manque",
+  ads_spend_spike: "Dépense pub anormale",
+  ads_conversion_drop: "Chute des inscriptions d'une pub",
+  ads_cost_over_threshold: "Pub trop chère par inscription",
+  ads_budget_exhausted: "Budget du jour d'une campagne atteint",
 };
 
 export function alertKindLabel(kind: string): string {

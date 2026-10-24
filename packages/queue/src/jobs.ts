@@ -258,8 +258,11 @@ export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: 
  */
 export type AgentsSportsJob = { type: "sports"; task: "settle" };
 
-/** File `agents-ads` (phase 24) : vide en phase 19. */
-export type AgentsAdsJob = { type: "tick" };
+/**
+ * File `agents-ads` (phase 24) : `tick` toutes les 30 minutes (alertes, rapport du jour à 9 h, rapport de la semaine le
+ * lundi) ; `report-now` : rapport tout de suite (quotidien par défaut, ou de la semaine).
+ */
+export type AgentsAdsJob = { type: "tick" } | { type: "report-now"; kind?: "daily" | "weekly"; send?: boolean };
 
 export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
 

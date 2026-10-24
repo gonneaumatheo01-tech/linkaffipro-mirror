@@ -20,6 +20,11 @@ export const SWITCHABLE_ALERT_KINDS = [
   "agents_persona_drop",
   // Équipe Casino (phase 22) : thème d'un canal sous le seuil de vidéos non utilisées.
   "agents_media_low",
+  // Agent Ads (phase 24) : dépense anormale, chute des inscriptions, coût trop élevé, budget du jour atteint.
+  "ads_spend_spike",
+  "ads_conversion_drop",
+  "ads_cost_over_threshold",
+  "ads_budget_exhausted",
 ] as const;
 
 export type SwitchableAlertKind = (typeof SWITCHABLE_ALERT_KINDS)[number];
@@ -35,6 +40,10 @@ export const DEFAULT_ALERT_SWITCHES: Readonly<AlertSwitches> = Object.freeze({
   agents_channel_drop: true,
   agents_persona_drop: true,
   agents_media_low: true,
+  ads_spend_spike: true,
+  ads_conversion_drop: true,
+  ads_cost_over_threshold: true,
+  ads_budget_exhausted: true,
 });
 
 /** Ce type d'alerte a-t-il un interrupteur ? */

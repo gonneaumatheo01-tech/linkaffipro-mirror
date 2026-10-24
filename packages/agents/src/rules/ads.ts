@@ -51,10 +51,21 @@ export type AdsRuleInput = {
 
 export type AdsEvidence = {
   sentence: string;
+  /** Même phrase (nom lu par la page Ads). */
+  summary: string;
   period: { from: string; to: string; days: number };
+  from: string;
+  to: string;
+  days: number;
+  /** Chiffres complets de la fenêtre d'observation. */
+  current: AdsMetrics;
   figures: Pick<AdsMetrics, "spend" | "registrations" | "costPerRegistration" | "commissions" | "gains" | "roas">;
   comparison: { last7: Pick<AdsMetrics, "spend" | "gains" | "roas" | "registrations">; previous7: Pick<AdsMetrics, "spend" | "gains" | "roas" | "registrations">; roasVariation: ReturnType<typeof comparableVariation> };
-  threshold: { name: "targetCostPerRegistration" | "minRoas" | "observation"; value: number | null; observationDays: number; minSpend: number };
+  /** Valeur du seuil appliqué (null pour « surveiller »), son nom, et les seuils de données. */
+  threshold: number | null;
+  thresholdName: "targetCostPerRegistration" | "minRoas" | "observation";
+  observationDays: number;
+  minSpend: number;
   priority: number;
   level: AdsTargetLevel;
   name: string;
@@ -96,13 +107,21 @@ export function overCostThreshold(w: AdsMetrics, target: number | null): boolean
   return w.registrations === 0 ? w.spend > target : (w.costPerRegistration ?? 0) > target;
 }
 
-function evidence(i: AdsRuleInput, t: AdsVerticalThresholds, name: AdsEvidence["threshold"]["name"], sentence: string, priority: number): AdsEvidence {
+function evidence(i: AdsRuleInput, t: AdsVerticalThresholds, name: AdsEvidence["thresholdName"], sentence: string, priority: number): AdsEvidence {
   return {
     sentence,
+    summary: sentence,
     period: { from: i.windowFrom, to: i.windowTo, days: t.observationDays },
+    from: i.windowFrom,
+    to: i.windowTo,
+    days: t.observationDays,
+    current: i.window,
     figures: pick(i.window, FIG),
     comparison: { last7: pick(i.last7, CMP), previous7: pick(i.prev7, CMP), roasVariation: comparableVariation(i.last7.roas, i.prev7.roas) },
-    threshold: { name, value: name === "targetCostPerRegistration" ? t.targetCostPerRegistration : name === "minRoas" ? t.minRoas : null, observationDays: t.observationDays, minSpend: t.minSpend },
+    threshold: name === "targetCostPerRegistration" ? t.targetCostPerRegistration : name === "minRoas" ? t.minRoas : null,
+    thresholdName: name,
+    observationDays: t.observationDays,
+    minSpend: t.minSpend,
     priority: Math.round(priority * 100) / 100,
     level: i.level,
     name: i.name,

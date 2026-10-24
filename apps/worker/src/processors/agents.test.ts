@@ -11,12 +11,15 @@ vi.mock("@linkaffipro/agents", () => ({
   runBench: vi.fn(async () => ({ ok: true, open: true })),
   runAlgoTick: vi.fn(async () => ({ alerts: {} })),
   runAlgoReportNow: vi.fn(async () => ({ ok: true, message: "ok", reportIds: [] })),
+  runAdsTick: vi.fn(async () => ({ alerts: {} })),
+  runAdsReportNow: vi.fn(async () => ({ ok: true, message: "ok", reportId: "r" })),
 }));
 
 import * as agents from "@linkaffipro/agents";
 import { PROCESSORS } from "./index";
 import { repeatableAgentsOrchestrator } from "./agents-orchestrator";
 import { repeatableAgentsAlgo } from "./agents-algo";
+import { repeatableAgentsAds } from "./agents-ads";
 
 const job = (data: unknown, name = "x") => ({ id: "j", name, data }) as never;
 
@@ -33,8 +36,15 @@ describe("processeurs des agents (phase 19)", () => {
     expect(await PROCESSORS["agents-dating"].process(job({ type: "step", missionId: "m", index: 1 }, "redaction"))).toEqual({ ok: true, outcome: "next" });
     expect(agents.runNextStep).toHaveBeenCalledWith({}, "m", 1);
     expect(await PROCESSORS["agents-casino"].process(job({ type: "autre" }))).toMatchObject({ ok: false });
-    expect(await PROCESSORS["agents-ads"].process(job({ type: "tick" }))).toMatchObject({ ok: false });
+    expect(await PROCESSORS["agents-ads"].process(job({ type: "autre" }))).toMatchObject({ ok: false });
     expect(await PROCESSORS["agents-orchestrator"].process(job({ type: "inconnu" }))).toMatchObject({ ok: false });
+  });
+  it("Agent Ads : passage toutes les 30 minutes et rapport à la demande", async () => {
+    expect(repeatableAgentsAds).toEqual([{ data: { type: "tick" }, everyMs: 1_800_000, jobId: "agents-ads-tick" }]);
+    await PROCESSORS["agents-ads"].process(job({ type: "tick" }));
+    expect(agents.runAdsTick).toHaveBeenCalledWith({});
+    await PROCESSORS["agents-ads"].process(job({ type: "report-now", kind: "weekly", send: false }));
+    expect(agents.runAdsReportNow).toHaveBeenCalledWith({}, { kind: "weekly", send: false });
   });
   it("orchestrateur : chaque type appelle sa fonction", async () => {
     await PROCESSORS["agents-orchestrator"].process(job({ type: "cycle", teamKey: "dating" }));

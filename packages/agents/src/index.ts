@@ -160,3 +160,33 @@ export { ensureSportsSetupQuestions, askCaptureWorkaround, parseNumberList, SPOR
 export { rankCandidates, type Candidate, type PickReasoning } from "./agents/cotes/select";
 export { fallbackPng } from "./sports/pick-image";
 export * from "./ads/contracts";
+// Chantier A (phase 24) : Agent Ads (analyse, règles, recommandations jamais appliquées, rapports, alertes).
+export * from "./rules/report-numbers";
+export * from "./rules/ads";
+export { FUNNEL_STEPS, FUNNEL_LABELS, funnelRates, bottleneckOf, type FunnelRate, type FunnelStepKey } from "./agents/ads/funnel";
+export { COHORT_DAYS, COHORT_WINDOW_DAYS, adCohorts } from "./agents/ads/cohorts";
+export { adsRange, type AdsRange } from "./agents/ads/periods";
+export type { AdsRowDetail, AdsAnalysisDetail } from "./agents/ads/build";
+export { toMetrics as adsMetricsOf, EMPTY_METRICS as EMPTY_ADS_METRICS } from "./agents/ads/metrics";
+export * from "./agents/ads/thresholds";
+export { computeAdsAnalysisImpl, loadAdsContext, loadAdsThresholdsView, analysisOf as adsAnalysisOf, type AdsContext } from "./agents/ads/analysis";
+export { ADS_TEAM_KEY, ADS_NEVER_APPLIED, ADS_OUTDATED_COMMENT, saveAdsRecommendations } from "./agents/ads/recommendations";
+export * from "./agents/ads/report";
+export * from "./agents/ads/alerts";
+export * from "./agents/ads/setup";
+export {
+  ADS_LAST_DAILY_KEY,
+  ADS_LAST_WEEKLY_KEY,
+  ADS_PAGE_PATH,
+  adsPageUrl,
+  adsReportKey,
+  adsReportsDue,
+  adsProposalsOf,
+  dailyFacts as adsDailyFacts,
+  weeklyFacts as adsWeeklyFacts,
+  isAdsPaused,
+  runAdsDaily,
+  runAdsWeekly,
+  runAdsTick,
+  runAdsReportNowImpl as runAdsReportNow,
+} from "./agents/ads/run";

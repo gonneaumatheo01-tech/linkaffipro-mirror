@@ -3,7 +3,9 @@
  * L'agent RECOMMANDE, il n'agit jamais chez Meta / TikTok (aucune fonction d'écriture n'existe).
  */
 import type { PrismaClient } from "@linkaffipro/db";
-import type { AgentsDeps } from "../types";
+import type { AgentsDeps, AgentsPrisma } from "../types";
+import { computeAdsAnalysisImpl } from "../agents/ads/analysis";
+import { markAdsRecommendationImpl } from "../agents/ads/recommendations";
 import type { ActorRef } from "../admin/team";
 
 export type AdsPeriod = "yesterday" | "7d" | "28d";
@@ -59,19 +61,19 @@ export type AdsAnalysis = {
 
 /** Analyse complète (logique programmée, chiffres des fonctions existantes). Chantier A. */
 export async function computeAdsAnalysis(
-  _prisma: PrismaClient,
-  _q: { period: AdsPeriod; now?: Date },
+  prisma: PrismaClient,
+  q: { period: AdsPeriod; now?: Date },
 ): Promise<AdsAnalysis> {
-  throw new Error("computeAdsAnalysis : à écrire (chantier A)");
+  return computeAdsAnalysisImpl(prisma as unknown as AgentsPrisma, q);
 }
 
 /** Le client marque une recommandation « Fait » ou « Refusé » (avec commentaire) ; AuditLog. Chantier A. */
 export async function markAdsRecommendation(
-  _deps: AgentsDeps,
-  _input: { id: string; status: "DONE" | "REJECTED"; comment?: string | null },
-  _actor: ActorRef,
+  deps: AgentsDeps,
+  input: { id: string; status: "DONE" | "REJECTED"; comment?: string | null },
+  actor: ActorRef,
 ): Promise<{ ok: boolean; message: string }> {
-  throw new Error("markAdsRecommendation : à écrire (chantier A)");
+  return markAdsRecommendationImpl(deps, input, actor);
 }
 
 /** Seuils par univers (`Setting` `agents.ads.thresholds`). */

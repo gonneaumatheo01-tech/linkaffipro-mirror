@@ -11,6 +11,7 @@ import { allowedHoursFor, loadAlgoTeam } from "../../algo/settings";
 import { weekStartDate } from "../../algo/week";
 import type { RecommendationActionResult } from "../../algo/contracts";
 import { checkBounds, parseMixValue } from "./bounds";
+import { ADS_NEVER_APPLIED, ADS_TEAM_KEY } from "../ads/recommendations";
 
 export type RecommendationRow = {
   id: string;
@@ -100,6 +101,8 @@ function valueToWrite(rec: RecommendationRow, current: unknown): unknown {
 export async function applyRecommendationImpl(deps: AgentsDeps, id: string, actor: Actor): Promise<RecommendationActionResult> {
   const rec = (await deps.prisma.recommendation.findUnique({ where: { id } })) as RecommendationRow | null;
   if (!rec) return { ok: false, message: "Recommandation introuvable." };
+  // Agent Ads (phase 24) : il recommande, il n'agit jamais chez Meta / TikTok ; rien n'est écrit.
+  if (rec.teamKey === ADS_TEAM_KEY) return { ok: false, message: ADS_NEVER_APPLIED };
   if (rec.status !== "PROPOSED") return { ok: false, message: rec.status === "APPLIED" ? "Déjà appliquée." : "Cette recommandation n'est plus proposée." };
   const cur = await currentValue(deps, rec.target, rec.targetId, rec.field);
   if (cur === undefined) return { ok: false, message: "La cible de ce réglage n'existe plus." };

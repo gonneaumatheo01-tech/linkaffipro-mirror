@@ -94,8 +94,9 @@ export function parseAdsThresholds(value: unknown, medians?: AdsMedians | null):
   for (const v of ADS_VERTICALS) {
     const s = saved[v] && typeof saved[v] === "object" ? (saved[v] as Record<string, unknown>) : {};
     const d = defaults[v];
-    const cpr = s.targetCostPerRegistration === null ? null : num(s.targetCostPerRegistration, 0.01, 100_000);
-    const roas = s.minRoas === null ? null : num(s.minRoas, 0.01, 1000);
+    // null ou absent = automatique (valeur de départ tirée des chiffres).
+    const cpr = num(s.targetCostPerRegistration, 0.01, 100_000);
+    const roas = num(s.minRoas, 0.01, 1000);
     const obs = num(s.observationDays, 1, 28);
     const spend = num(s.minSpend, 0, 100_000);
     const dataSrc: ThresholdSource = medians ? "data" : "default";

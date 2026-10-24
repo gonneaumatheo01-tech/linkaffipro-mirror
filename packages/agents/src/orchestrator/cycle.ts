@@ -10,6 +10,7 @@ import { ensureAlgoSetupQuestions } from "../algo/setup";
 import { ensureCasinoSetupQuestions } from "../casino/setup";
 import { runCasinoStockCheck } from "../casino/requests";
 import { ensureSportsSetupQuestions } from "../sports/setup";
+import { ensureAdsSetupQuestions } from "../agents/ads/setup";
 import { runSportsPassage } from "../sports/passage";
 import { ensureDailyReportQuestion, sweepHumanRequests } from "../human/site";
 import { ensureTeamConfigs, isAgentsPausedAll } from "../missions/settings";
@@ -59,6 +60,8 @@ export async function runCycle(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {
   await step(deps, "casinoStock", out, () => runCasinoStockCheck(deps));
   // Équipe Paris sportifs (phase 23) : clé de cotes, compte bookmaker et catégories, demandés une seule fois.
   await step(deps, "sportsSetup", out, () => ensureSportsSetupQuestions(deps));
+  // Agent Ads (phase 24) : coût par inscription maximal et retour sur dépense minimal, demandés une seule fois.
+  await step(deps, "adsSetup", out, () => ensureAdsSetupQuestions(deps));
   if (await isAgentsPausedAll(deps.prisma)) out.plan = { skipped: "pause générale" };
   else {
     await step(deps, "plan", out, () => planDay(deps, opts));

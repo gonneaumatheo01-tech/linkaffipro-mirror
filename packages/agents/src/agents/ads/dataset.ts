@@ -74,7 +74,12 @@ export async function loadAdsDataset(prisma: AgentsPrisma, now: Date, days: numb
       select: { date: true, adId: true, adSetId: true, campaignId: true, spend: true, impressions: true, clicks: true },
     }),
     // Âge d'une pub : premier jour avec une dépense (tout l'historique, une ligne par niveau).
-    prisma.adCost.groupBy({ by: ["levelKey", "adId", "adSetId", "campaignId"], where: { spend: { gt: 0 } }, _min: { date: true } }),
+    prisma.adCost.findMany({
+      where: { spend: { gt: 0 } },
+      orderBy: { date: "asc" },
+      distinct: ["levelKey"],
+      select: { adId: true, adSetId: true, campaignId: true, date: true },
+    }),
   ]);
   return {
     today,
@@ -99,9 +104,7 @@ export async function loadAdsDataset(prisma: AgentsPrisma, now: Date, days: numb
       },
     })),
     costs: costRows.map((c) => ({ day: dateKey(c.date), adId: c.adId, adSetId: c.adSetId, campaignId: c.campaignId, spend: n(c.spend), impressions: c.impressions, clicks: c.clicks })),
-    firstSpend: firstRows
-      .filter((r) => r._min.date)
-      .map((r) => ({ adId: r.adId, adSetId: r.adSetId, campaignId: r.campaignId, day: dateKey(r._min.date!) })),
+    firstSpend: firstRows.map((r) => ({ adId: r.adId, adSetId: r.adSetId, campaignId: r.campaignId, day: dateKey(r.date) })),
     activeConnections,
   };
 }

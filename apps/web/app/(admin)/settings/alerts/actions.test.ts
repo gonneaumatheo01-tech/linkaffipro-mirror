@@ -73,7 +73,7 @@ beforeEach(() => {
 });
 
 describe("enregistrer les alertes sur les chiffres", () => {
-  it("toutes cochées : seuils et cinq alertes activées, administrateur requis", async () => {
+  it("toutes cochées : seuils et toutes les alertes activées, administrateur requis", async () => {
     const params = await save({
       ...SEUILS,
       registrationsDropEnabled: "on",
@@ -82,6 +82,10 @@ describe("enregistrer les alertes sur les chiffres", () => {
       agentsChannelDropEnabled: "on",
       agentsPersonaDropEnabled: "on",
       agentsMediaLowEnabled: "on",
+      adsSpendSpikeEnabled: "on",
+      adsConversionDropEnabled: "on",
+      adsCostOverThresholdEnabled: "on",
+      adsBudgetExhaustedEnabled: "on",
     });
     expect(m.requireAdmin).toHaveBeenCalledTimes(1);
     expect(m.upserts).toHaveLength(1);
@@ -90,7 +94,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true },
+      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true },
     });
     expect(m.upserts[0]?.create.value).toEqual(m.upserts[0]?.update.value);
     expect(params.get("ok")).toContain("Toutes les alertes sont activées.");
@@ -106,7 +110,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false },
     });
     // Même lecture que le worker et la page.
     expect(parseAlertSwitches(value)).toEqual({
@@ -116,10 +120,14 @@ describe("enregistrer les alertes sur les chiffres", () => {
       agents_channel_drop: false,
       agents_persona_drop: false,
       agents_media_low: false,
+      ads_spend_spike: false,
+      ads_conversion_drop: false,
+      ads_cost_over_threshold: false,
+      ads_budget_exhausted: false,
     });
     expect(parseThresholds(value).channelLeakPct).toBe(12);
     expect(params.get("ok")).toContain(
-      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », elles ne vous seront plus envoyées.",
+      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », « Dépense pub anormale », « Chute des inscriptions d'une pub », « Pub trop chère par inscription », « Budget du jour d'une campagne atteint », elles ne vous seront plus envoyées.",
     );
     // Journal : seuils et interrupteurs.
     expect(m.audits).toEqual([
@@ -130,7 +138,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
           registrationsDropPct: 40,
           spendNoConversionEur: 75.5,
           channelLeakPct: 12,
-          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false },
+          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false },
         },
       },
     ]);
@@ -139,7 +147,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
   it("réactiver une alerte désactivée", async () => {
     m.stored = {
       registrationsDropPct: 40,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true },
     };
     await save({
       ...SEUILS,
@@ -149,6 +157,10 @@ describe("enregistrer les alertes sur les chiffres", () => {
       agentsChannelDropEnabled: "on",
       agentsPersonaDropEnabled: "on",
       agentsMediaLowEnabled: "on",
+      adsSpendSpikeEnabled: "on",
+      adsConversionDropEnabled: "on",
+      adsCostOverThresholdEnabled: "on",
+      adsBudgetExhaustedEnabled: "on",
     });
     expect(parseAlertSwitches(m.stored)).toEqual({
       registrations_drop: true,
@@ -157,6 +169,10 @@ describe("enregistrer les alertes sur les chiffres", () => {
       agents_channel_drop: true,
       agents_persona_drop: true,
       agents_media_low: true,
+      ads_spend_spike: true,
+      ads_conversion_drop: true,
+      ads_cost_over_threshold: true,
+      ads_budget_exhausted: true,
     });
   });
 
@@ -179,6 +195,10 @@ describe("message de retour", () => {
         agents_channel_drop: true,
         agents_persona_drop: true,
         agents_media_low: true,
+        ads_spend_spike: true,
+        ads_conversion_drop: true,
+        ads_cost_over_threshold: true,
+        ads_budget_exhausted: true,
       }),
     ).toContain(
       "Alerte désactivée : « Dépense sans inscription », elle ne vous sera plus envoyée.",
@@ -191,6 +211,10 @@ describe("message de retour", () => {
         agents_channel_drop: false,
         agents_persona_drop: false,
         agents_media_low: false,
+        ads_spend_spike: false,
+        ads_conversion_drop: false,
+        ads_cost_over_threshold: false,
+        ads_budget_exhausted: false,
       }),
     ).toContain("Toutes les alertes sont désactivées");
   });
