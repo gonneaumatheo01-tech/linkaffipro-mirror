@@ -5,6 +5,7 @@
  */
 import {
   claimNextCaptureRequest,
+  claimableCaptureKinds,
   completeCaptureRequest,
   connectionMessage,
   purgeCaptureRequests,
@@ -32,10 +33,10 @@ export async function handleCaptureRequest(
     result = req ? await provider.capture(req) : { ok: false, kind: "unknown", message: "demande de capture vide" };
   }
   const done = await completeCaptureRequest(prisma, s.id, result);
-  if (s.notifyAdmin) {
-    const assetId = done?.result?.ok ? done.result.assetId : null;
-    await notify(connectionMessage(s.bookmaker, result), assetId).catch((err) => logger.warn({ err: (err as Error).message }, "[capture] message admin non envoyé"));
-  }
+  // Test de connexion lancé par le bot : seulement le résultat OK / KO, jamais la capture (page d'accueil connectée,
+  // solde possible).
+  if (s.notifyAdmin)
+    await notify(connectionMessage(s.bookmaker, result), null).catch((err) => logger.warn({ err: (err as Error).message }, "[capture] message admin non envoyé"));
   return done;
 }
 
@@ -47,7 +48,8 @@ export function startCapturePoller(provider: BrowserScreenshotProvider): { stop(
     if (busy) return;
     busy = true;
     try {
-      const s = await claimNextCaptureRequest(prisma, "server", "worker");
+      // Équipe Paris en pause : les captures de paris attendent, les tests de connexion passent.
+      const s = await claimNextCaptureRequest(prisma, "server", "worker", new Date(), { kinds: await claimableCaptureKinds(prisma) });
       if (s) await handleCaptureRequest(provider, s, async (html, assetId) => void (await admin.send(html, { mediaAssetId: assetId })));
       if (Date.now() - lastPurge > 6 * 3600_000) {
         lastPurge = Date.now();

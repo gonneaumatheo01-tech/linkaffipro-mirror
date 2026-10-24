@@ -10,6 +10,8 @@ import { randomUUID } from "node:crypto";
 import type { Db as PrismaClient } from "@linkaffipro/db";
 import type { CaptureErrorKind, CaptureRequest, CaptureResult } from "../screenshot";
 import { storeCapturePng } from "./store";
+import { isTeamHalted } from "../../orchestrator/pause";
+import type { AgentsDeps } from "../../types";
 
 export const CAPTURE_REQUEST_PREFIX = "agents.capture.request.";
 /** Une demande prise mais sans résultat depuis 10 min est rendue (le preneur s'est arrêté). */
@@ -93,17 +95,28 @@ async function swap(prisma: PrismaClient, row: Row, next: StoredCaptureRequest):
   return r.count === 1;
 }
 
-/** Prend la plus ancienne demande en attente pour cette cible (ou une prise abandonnée). */
+/**
+ * Sortes de demandes à prendre : équipe Paris en pause (ou pause générale) → tests de connexion seulement, les captures
+ * de paris attendent la reprise.
+ */
+export async function claimableCaptureKinds(prisma: PrismaClient): Promise<Array<StoredCaptureRequest["kind"]>> {
+  const halt = await isTeamHalted({ prisma } as AgentsDeps, "sports");
+  return halt.halted ? ["test"] : ["capture", "test"];
+}
+
+/** Prend la plus ancienne demande en attente pour cette cible (ou une prise abandonnée), parmi les sortes permises. */
 export async function claimNextCaptureRequest(
   prisma: PrismaClient,
   target: CaptureTarget,
   by: string,
   now = new Date(),
+  opts: { kinds?: ReadonlyArray<StoredCaptureRequest["kind"]> } = {},
 ): Promise<StoredCaptureRequest | null> {
   const rows = (await prisma.setting.findMany({ where: { key: { startsWith: CAPTURE_REQUEST_PREFIX } }, orderBy: { updatedAt: "asc" }, take: 200 })) as Row[];
   for (const row of rows) {
     const s = parse(row.value);
     if (!s || s.target !== target || s.status === "DONE") continue;
+    if (opts.kinds && !opts.kinds.includes(s.kind)) continue;
     const age = now.getTime() - new Date(s.createdAt).getTime();
     if (age > CAPTURE_REQUEST_MAX_AGE_MS) {
       await swap(prisma, row, { ...s, status: "DONE", doneAt: now.toISOString(), result: { ok: false, kind: "timeout", message: "demande de capture restée sans preneur" } });
@@ -128,7 +141,11 @@ export async function completeCaptureRequest(
   const s = parse(row?.value);
   if (!row || !s || s.status === "DONE") return s;
   let stored: CaptureRequestResult;
-  if (result.ok) {
+  if (result.ok && s.kind === "test" && s.notifyAdmin) {
+    // Test lancé par le bot : la page d'accueil connectée (solde possible) n'est ni rangée ni envoyée, seul le
+    // résultat compte. Le test lancé par le site garde son aperçu (fiche Paris sportifs).
+    stored = { ok: true, assetId: "", readOdds: result.readOdds, pageUrl: result.pageUrl };
+  } else if (result.ok) {
     const asset = await storeCapturePng(prisma, {
       png: result.png,
       bookmaker: s.bookmaker,

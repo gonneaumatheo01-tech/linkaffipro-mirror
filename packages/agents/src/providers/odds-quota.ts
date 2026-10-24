@@ -54,21 +54,31 @@ async function maybeAlert(deps: OddsQuotaDeps, teamKey: TeamKey, max: number): P
   }
 }
 
-/** Fonction à appeler avant chaque appel HTTP : refuse au plafond, sinon compte l'appel. */
+/**
+ * Fonction à appeler avant chaque appel HTTP : refuse au plafond, sinon compte l'appel. Comptage ATOMIQUE : la ligne
+ * du mois est créée à part (à 0), puis l'appel n'est compté que si `calls < max` dans la même écriture
+ * (`updateMany`) : deux appels simultanés à `max − 1` n'en laissent passer qu'un.
+ */
 export function createOddsQuota(deps: OddsQuotaDeps, max: number, teamKey: TeamKey = "sports"): () => Promise<void> {
   return async () => {
     const now = deps.now();
-    const used = await oddsCallsThisMonth(deps.prisma, now, teamKey);
-    if (used >= max) {
-      await maybeAlert(deps, teamKey, max);
-      throw new OddsQuotaError(used, max);
-    }
     const month = parisMonth(now);
-    await deps.prisma.agentUsage.upsert({
-      where: { teamKey_provider_month: { teamKey, provider: "odds", month } },
-      create: { teamKey, provider: "odds", month, cents: 0, calls: 1 },
-      update: { calls: { increment: 1 } },
+    const where = { teamKey_provider_month: { teamKey, provider: "odds", month } };
+    if (!(await deps.prisma.agentUsage.findUnique({ where }))) {
+      try {
+        await deps.prisma.agentUsage.create({ data: { teamKey, provider: "odds", month, cents: 0, calls: 0 } });
+      } catch {
+        // Créée en même temps par un autre appel : on continue avec la sienne.
+      }
+    }
+    const claimed = await deps.prisma.agentUsage.updateMany({
+      where: { teamKey, provider: "odds", month, calls: { lt: max } },
+      data: { calls: { increment: 1 } },
     });
+    if (claimed.count === 0) {
+      await maybeAlert(deps, teamKey, max);
+      throw new OddsQuotaError(await oddsCallsThisMonth(deps.prisma, now, teamKey), max);
+    }
     await maybeAlert(deps, teamKey, max);
   };
 }

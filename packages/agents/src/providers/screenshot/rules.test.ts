@@ -6,7 +6,7 @@ import { mergeBookmakerConfig } from "./adapters";
 import { captureBlocked, captureParade, classifyCaptureError, CaptureError, detectPageObstacle, looksLikeLoginFailure } from "./errors";
 import { forbiddenClickReason, forbiddenFillReason, forbiddenUrlReason } from "./guard";
 import { marketCandidates, oddsWithinTolerance, parseOddsText, textMatchesSelection, textMentionsMatch } from "./match";
-import { claimNextCaptureRequest, completeCaptureRequest, createCaptureRequest, readCaptureRequest } from "./requests";
+import { claimableCaptureKinds, claimNextCaptureRequest, completeCaptureRequest, createCaptureRequest, readCaptureRequest } from "./requests";
 import { credentialsFrom, parseProxyUrl } from "./session";
 import { parseCaptureSettings } from "./settings";
 import { SPORTAZA_CONFIG } from "./sportaza";
@@ -43,6 +43,34 @@ describe("garde « jamais de mise »", () => {
     expect(forbiddenFillReason(d("", ["name=stake"], "text"), "search")).not.toBeNull();
     expect(forbiddenFillReason(d("", ["name=amount"], "number"), "login")).not.toBeNull();
     expect(forbiddenFillReason(d("", ["type=search", "name=q"], "search"), "search")).toBeNull();
+  });
+  it("cote cliquable reconnue par son texte et par d'autres noms d'attributs", () => {
+    expect(forbiddenClickReason({ text: "2,10", ownText: "2,10", attributes: ["class=sb-price"] }, "market_tab")).not.toBeNull();
+    expect(forbiddenClickReason({ text: "1.85", ownText: "1.85", attributes: [] }, "market_tab")).toBe("texte d'une cote");
+    expect(forbiddenClickReason(d("Plus de 8,5", ["data-outcome=123"]), "market_tab")).not.toBeNull();
+    expect(forbiddenClickReason(d("Plus de 8,5", ["class=outcome"]), "market_tab")).not.toBeNull();
+    expect(forbiddenClickReason({ text: "PSG - OM 2,10 3,40", ownText: "PSG - OM 2,10 3,40", attributes: [], nestedTexts: ["2,10", "3,40"] }, "search_result")).not.toBeNull();
+    // Lien de recherche contenant des boutons (même sans cote affichée) : jamais cliqué, suivi par son adresse.
+    expect(forbiddenClickReason({ text: "PSG - OM", ownText: "PSG - OM", attributes: [], nestedTexts: ["Favori"] }, "search_result")).not.toBeNull();
+    expect(forbiddenClickReason({ text: "Tirs cadrés", ownText: "Tirs cadrés", attributes: ["role=tab"], nestedTexts: [] }, "market_tab")).toBeNull();
+  });
+  it("adresses décodées : paramètres, fragment, sous-domaines et encodage refusés", () => {
+    const hosts = ["sportaza.com"];
+    for (const url of [
+      "https://sportaza.com/fr?modal=deposit",
+      "https://sportaza.com/fr/sports#/cashier/deposit",
+      "https://cashier.sportaza.com/",
+      "https://pay-eu.sportaza.com/fr",
+      "https://sportaza.com/fr/%64eposit",
+      "https://sportaza.com/fr/%2564eposit",
+      "https://sportaza.com/fr/sports?tab=withdraw",
+      "https://sportaza.com/fr/sports?deposit=1",
+      "https://sportaza.com/fr/sports#betslip",
+      "https://sportaza.com/fr/%E0%A4%A",
+    ])
+      expect(forbiddenUrlReason(url, hosts), url).not.toBeNull();
+    expect(forbiddenUrlReason("https://sportaza.com/fr/sports?q=Paris%20Saint-Germain#/event/123", hosts)).toBeNull();
+    expect(forbiddenUrlReason("https://www.sportaza.com/fr/sports/match/psg-om?lang=fr", hosts)).toBeNull();
   });
   it("adresses : domaine du bookmaker seulement, jamais une page d'argent ou de compte", () => {
     const hosts = ["sportaza.com"];
@@ -154,6 +182,25 @@ describe("file des demandes de capture (base)", () => {
     const asset = (prisma as unknown as { _tables: Record<string, Array<Record<string, unknown>>> })._tables.mediaAsset!.find((a) => a.id === assetId);
     expect(asset).toMatchObject({ kind: "SCREENSHOT", origin: "HUMAN_SITE", teamKey: "sports", mimeType: "image/png" });
     expect((await readCaptureRequest(prisma, req.id))?.status).toBe("DONE");
+  });
+  it("équipe Paris en pause : les captures de paris attendent, les tests de connexion passent", async () => {
+    const prisma = createFakePrisma({ agentTeamConfig: [{ id: "c", teamKey: "sports", paused: true, enabled: true }] });
+    const t0 = new Date("2026-10-24T10:00:00Z");
+    const cap = await createCaptureRequest(prisma, { kind: "capture", target: "server", bookmaker: "sportaza", now: t0 });
+    const test = await createCaptureRequest(prisma, { kind: "test", target: "server", bookmaker: "sportaza", now: t0 });
+    expect(await claimableCaptureKinds(prisma)).toEqual(["test"]);
+    const first = await claimNextCaptureRequest(prisma, "server", "w", t0, { kinds: await claimableCaptureKinds(prisma) });
+    expect(first?.id).toBe(test.id);
+    expect(await claimNextCaptureRequest(prisma, "server", "w", t0, { kinds: await claimableCaptureKinds(prisma) })).toBeNull();
+    prisma._tables.agentTeamConfig![0]!.paused = false;
+    expect((await claimNextCaptureRequest(prisma, "server", "w", t0, { kinds: await claimableCaptureKinds(prisma) }))?.id).toBe(cap.id);
+  });
+  it("test de connexion lancé par le bot : résultat seulement, aucune capture rangée", async () => {
+    const prisma = createFakePrisma();
+    const req = await createCaptureRequest(prisma, { kind: "test", target: "server", bookmaker: "sportaza", notifyAdmin: true });
+    const done = await completeCaptureRequest(prisma, req.id, { ok: true, png: TINY_PNG, readOdds: 0, pageUrl: "https://sportaza.com/" });
+    expect(done?.result?.ok).toBe(true);
+    expect(prisma._tables.mediaAsset ?? []).toHaveLength(0);
   });
   it("une prise abandonnée depuis 10 min est reprise", async () => {
     const prisma = createFakePrisma();

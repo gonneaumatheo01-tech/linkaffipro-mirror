@@ -176,6 +176,17 @@ export function isDuplicatePick(candidate: PickKey, recent: ReadonlyArray<PickKe
   return recent.some((r) => pickKey(r) === key && now.getTime() - r.at.getTime() < DUPLICATE_WINDOW_MS);
 }
 
+/**
+ * Ligne asiatique « en quart » (2,25 ; 2,75 ; −0,25…) : la mise est coupée en deux paris (demi-gain, demi-perte) que
+ * le règlement ne sait pas représenter. Écartée à la sélection : seules les lignes entières ou en demi sont retenues.
+ */
+export function isQuarterLine(line: number | null | undefined): boolean {
+  return typeof line === "number" && Number.isFinite(line) && Math.abs(line * 2 - Math.round(line * 2)) > 1e-9;
+}
+
+/** Marge ajoutée au délai minimal au moment de publier (le post part dans les 30 s qui suivent, par le scheduler). */
+export const PUBLISH_MARGIN_MINUTES = 2;
+
 export type KickoffVerdict = { ok: true; minutesLeft: number } | { ok: false; minutesLeft: number; reason: string };
 
 /** Jamais de publication à moins de `minMinutes` du coup d'envoi, ni après. */

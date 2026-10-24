@@ -22,7 +22,7 @@ export type ConnectionTestOutcome = { result: CaptureResult; assetId: string | n
 
 /** Pur : phrase affichée au client après un test. */
 export function connectionMessage(bookmaker: string, result: CaptureResult): string {
-  if (result.ok) return `connexion à ${bookmaker} réussie ✅ (capture de la page d'accueil jointe)`;
+  if (result.ok) return `connexion à ${bookmaker} réussie ✅`;
   const base = `connexion à ${bookmaker} impossible : ${captureResultText(result)}`;
   return captureBlocked(result) ? `${base}. Le site bloque le serveur : il faudra une adresse IP résidentielle ou la capture depuis le Mac.` : base;
 }
@@ -35,7 +35,7 @@ function fromStored(bookmaker: string, s: StoredCaptureRequest | null): Connecti
   if (s.result.ok) {
     // Les octets restent en base (MediaAsset) : le résultat rendu porte une image vide.
     const result: CaptureResult = { ok: true, png: new Uint8Array(), readOdds: 0, pageUrl: s.result.pageUrl };
-    return { result, assetId: s.result.assetId, message: connectionMessage(bookmaker, result) };
+    return { result, assetId: s.result.assetId || null, message: connectionMessage(bookmaker, result) };
   }
   const result: CaptureResult = { ok: false, kind: s.result.kind, message: s.result.message };
   return { result, assetId: null, message: connectionMessage(bookmaker, result) };

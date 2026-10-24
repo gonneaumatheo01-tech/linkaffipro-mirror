@@ -61,14 +61,21 @@ function teamName(n: Names | undefined, fallback: string): string {
   return n?.long || n?.medium || n?.short || fallback;
 }
 
+/**
+ * Match du fournisseur → `OddsEvent`. Sans les noms des deux équipes : `null` (un pari « Domicile – Extérieur » ne se
+ * retrouve pas chez le bookmaker et ne se publie pas).
+ */
 export function mapEvent(e: SgoEvent): OddsEvent | null {
   const startsAt = e.status?.startsAt ? new Date(e.status.startsAt) : null;
   if (!e.eventID || !startsAt || Number.isNaN(startsAt.getTime())) return null;
+  const homeTeam = teamName(e.teams?.home?.names, "").trim();
+  const awayTeam = teamName(e.teams?.away?.names, "").trim();
+  if (!homeTeam || !awayTeam) return null;
   return {
     eventId: e.eventID,
     leagueId: e.leagueID ?? "",
-    homeTeam: teamName(e.teams?.home?.names, "Domicile"),
-    awayTeam: teamName(e.teams?.away?.names, "Extérieur"),
+    homeTeam,
+    awayTeam,
     startsAt,
     ...(e.links?.bookmakers ? { bookmakerLinks: { ...e.links.bookmakers } } : {}),
   };
@@ -91,8 +98,7 @@ function playerName(e: SgoEvent, id: string): string | null {
  * (`overUnder` / `spread`) : une sélection par ligne, la cote « juste » ne vaut que pour la ligne principale.
  */
 export function mapSelections(e: SgoEvent, marketTypes: readonly string[]): OddsSelection[] {
-  const event = mapEvent(e);
-  const teams = { homeTeam: event?.homeTeam ?? "Domicile", awayTeam: event?.awayTeam ?? "Extérieur" };
+  const teams = { homeTeam: teamName(e.teams?.home?.names, "Domicile"), awayTeam: teamName(e.teams?.away?.names, "Extérieur") };
   const out: OddsSelection[] = [];
   for (const [key, o] of Object.entries(e.odds ?? {})) {
     const marketId = oddIdOf(key, o);

@@ -10,7 +10,7 @@
 import { createAgentPost, type PrismaClient } from "@linkaffipro/db";
 import { TELEGRAM_CAPTION_MAX } from "@linkaffipro/core";
 import { checkContent } from "../rules/content";
-import { checkOddsDrift, findSelection, isDuplicatePick, kickoffCheck, oddsInRange } from "../rules/bets";
+import { checkOddsDrift, findSelection, isDuplicatePick, kickoffCheck, oddsInRange, PUBLISH_MARGIN_MINUTES } from "../rules/bets";
 import { autonomyDecision, sportsAlwaysValidateReason } from "../orchestrator/autonomy";
 import { freshMarkets } from "../providers/odds-batch";
 import { OddsQuotaError } from "../providers/odds-quota";
@@ -20,6 +20,7 @@ import { simulationHeader } from "../agents/publication/header";
 import type { AgentContext, AgentResult, Mission } from "../types";
 import { loadCategory, loadMissionPick, noveltyOf, recentPickKeys, type BetCategoryInfo, type PickRow } from "./data";
 import { betPostText } from "./format";
+import { frOdds } from "./labels";
 import { ensurePickImage } from "./pick-image";
 import { parseSportsSettings, withTeamBounds, type SportsSettings } from "./settings";
 import { skipPick } from "./skip";
@@ -51,24 +52,63 @@ export async function sportsRedaction(mission: Mission, ctx: AgentContext): Prom
     const check = checkOddsDrift(pick.odds, image.readOdds, category.maxOddsDriftPct);
     if (!check.ok) return skipPick(ctx, mission, pick, `sur le site : ${check.reason}`, { code: check.code, oddsAtSend: image.readOdds });
   }
-  const text = betPostText({ ...pick, reasoning: pick.reasoning as Partial<PickReasoning>, disclaimer: s.disclaimer });
+  // Cote affichée = cote constatée sur le site (capture), sinon la dernière cote vérifiée, sinon la cote retenue.
+  const textOdds = (image.kind === "screenshot" ? image.readOdds : null) ?? pick.oddsAtSend ?? pick.odds;
+  const text = writeText(pick, s, textOdds);
   return {
     ok: true,
-    output: { text, format: "photo", mediaAssetId: image.assetId, screenshotAssetId: image.assetId, fallbackImage: image.kind === "fallback", ...(image.kind === "fallback" ? { captureError: image.reason } : {}) },
-    summary: `${pick.homeTeam} – ${pick.awayTeam}, ${pick.selectionLabel} à ${pick.odds}${image.kind === "fallback" ? ", image de repli" : ", capture jointe"}`,
+    output: {
+      text,
+      textOdds,
+      format: "photo",
+      mediaAssetId: image.assetId,
+      screenshotAssetId: image.assetId,
+      fallbackImage: image.kind === "fallback",
+      ...(image.kind === "fallback" ? { captureError: image.reason } : {}),
+    },
+    summary: `${pick.homeTeam} – ${pick.awayTeam}, ${pick.selectionLabel} à ${textOdds}${image.kind === "fallback" ? ", image de repli" : ", capture jointe"}`,
   };
 }
 
+function writeText(pick: PickRow, s: SportsSettings, odds: number): string {
+  return betPostText({ ...pick, odds, reasoning: pick.reasoning as Partial<PickReasoning>, disclaimer: s.disclaimer });
+}
+
+const sameOdds = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
+
+/**
+ * Texte remis à la cote vérifiée (règle : la cote publiée est celle relue chez le bookmaker). Texte écrit par le code
+ * → réécrit ; texte corrigé par le client → seule la cote affichée est remplacée. `changed` = faux si rien à faire.
+ */
+export function textWithOdds(p: Record<string, unknown>, pick: PickRow, s: SportsSettings, odds: number): { text: string; changed: boolean } {
+  const current = typeof p.text === "string" ? p.text : "";
+  const shown = typeof p.textOdds === "number" ? p.textOdds : pick.odds;
+  if (current && sameOdds(shown, odds)) return { text: current, changed: false };
+  if (!current || current === writeText(pick, s, shown)) return { text: writeText(pick, s, odds), changed: true };
+  return { text: current.split(frOdds(shown)).join(frOdds(odds)), changed: true };
+}
+
+function contentProblems(ctx: AgentContext, s: SportsSettings, text: string): string[] {
+  return checkContent(text, {
+    maxLength: Math.min(ctx.settings.maxTextLength, TELEGRAM_CAPTION_MAX),
+    forbiddenWords: [...new Set([...ctx.settings.forbiddenWords, ...s.forbiddenWords])],
+  }).problems.map((x) => x.message);
+}
+
 /** Cote actuelle chez le bookmaker du pari (relue sans cache). */
-async function currentOdds(mission: Mission, ctx: AgentContext, pick: PickRow, s: SportsSettings): Promise<{ odds: number | null } | { error: string }> {
+/**
+ * Cote actuelle chez le bookmaker du pari (relue sans cache). Clé absente ou plafond d'appels atteint : `skip` (le pari
+ * est écarté, la mission annulée SANS compter d'échec : ce n'est pas une panne, l'équipe ne se met pas en pause).
+ */
+async function currentOdds(mission: Mission, ctx: AgentContext, pick: PickRow, s: SportsSettings): Promise<{ odds: number | null } | { skip: string }> {
   const source = (pick.reasoning as { source?: string } | null)?.source === "fake" || mission.payload.oddsSource === "fake" ? "fake" : "live";
   const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null });
-  if (!resolved) return { error: "aucune clé de cotes pour re-vérifier la cote" };
+  if (!resolved) return { skip: "clé de cotes absente" };
   try {
     const list = await freshMarkets(resolved.provider, pick.eventId, [pick.marketId]);
     return { odds: findSelection(list, pick.marketId, pick.line)?.byBookmaker[pick.bookmaker] ?? null };
   } catch (err) {
-    if (err instanceof OddsQuotaError) return { error: err.message };
+    if (err instanceof OddsQuotaError) return { skip: "plafond d'appels atteint" };
     throw err;
   }
 }
@@ -83,15 +123,15 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
   if (!ko.ok) return skipPick(ctx, mission, pick, ko.reason);
   if (isDuplicatePick(pick, await recentPickKeys(ctx.prisma, now, pick.id), now)) return skipPick(ctx, mission, pick, "pari identique publié dans les 48 h");
   const cur = await currentOdds(mission, ctx, pick, s);
-  if ("error" in cur) return { ok: false, error: cur.error, retryable: false };
+  if ("skip" in cur) return skipPick(ctx, mission, pick, cur.skip);
   const drift = checkOddsDrift(pick.odds, cur.odds, category.maxOddsDriftPct);
   if (!drift.ok) return skipPick(ctx, mission, pick, drift.reason, { code: drift.code, oddsAtSend: drift.current });
   await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { oddsAtSend: drift.current } });
+  // Cote relue différente de celle du texte : texte remis à la cote vérifiée, puis contrôlé (jamais une vieille cote).
+  const fresh = textWithOdds(p, pick, s, drift.current);
+  const rewritten = fresh.changed ? { text: fresh.text, textOdds: drift.current } : {};
 
-  const problems = checkContent(p.text ?? "", {
-    maxLength: Math.min(ctx.settings.maxTextLength, TELEGRAM_CAPTION_MAX),
-    forbiddenWords: [...new Set([...ctx.settings.forbiddenWords, ...s.forbiddenWords])],
-  }).problems.map((x) => x.message);
+  const problems = contentProblems(ctx, s, fresh.text);
   const asset = p.mediaAssetId ? await ctx.prisma.mediaAsset.findUnique({ where: { id: p.mediaAssetId }, select: { id: true, origin: true } }) : null;
   if (!asset) problems.push("image du pari absente");
   // Texte écrit par le code : une règle non respectée ne se « refait » pas, elle part en validation (texte corrigé).
@@ -108,7 +148,7 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
       (typeof p.capture === "object" && p.capture !== null && (p.capture as { mustValidate?: unknown }).mustValidate === true),
     fallbackReason: typeof p.captureError === "string" ? p.captureError : null,
   });
-  const checked = { controlCheckedAt: now.toISOString(), oddsAtControl: drift.current };
+  const checked = { controlCheckedAt: now.toISOString(), oddsAtControl: drift.current, ...rewritten };
   if (problems.length)
     return { ok: true, output: { ...checked, verdict: "validate", reasons: problems }, needsValidation: { reason: `à corriger : ${problems.join(" ; ")}` }, summary: `validation demandée : ${problems.join(" ; ")}` };
   // Validation déjà accordée (texte corrigé par l'admin qui repasse ici) : rien de plus à demander.
@@ -131,20 +171,27 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
   const { pick, category, s } = l;
   const p = mission.payload;
   const now = ctx.now();
-  const ko = kickoffCheck(pick.kickoffAt, now, category.minMinutesBeforeKickoff);
+  // Marge : le post part par le scheduler dans les instants qui suivent, jamais sous le délai minimal.
+  const ko = kickoffCheck(pick.kickoffAt, now, category.minMinutesBeforeKickoff + PUBLISH_MARGIN_MINUTES);
   if (!ko.ok) return skipPick(ctx, mission, pick, `au moment de publier : ${ko.reason}`);
   let oddsAtSend = typeof p.oddsAtControl === "number" ? p.oddsAtControl : pick.oddsAtSend;
   const checkedAt = typeof p.controlCheckedAt === "string" ? new Date(p.controlCheckedAt).getTime() : 0;
   // Validation longue : la cote est relue avant l'envoi (jamais une vieille cote).
   if (!oddsAtSend || now.getTime() - checkedAt > s.recheckAfterMinutes * 60_000) {
     const cur = await currentOdds(mission, ctx, pick, s);
-    if ("error" in cur) return { ok: false, error: cur.error, retryable: false };
+    if ("skip" in cur) return skipPick(ctx, mission, pick, `au moment de publier : ${cur.skip}`);
     const drift = checkOddsDrift(pick.odds, cur.odds, category.maxOddsDriftPct);
     if (!drift.ok) return skipPick(ctx, mission, pick, `au moment de publier : ${drift.reason}`, { code: drift.code, oddsAtSend: drift.current });
     oddsAtSend = drift.current;
   }
-  const text = p.text;
-  if (!text) return { ok: false, error: "Aucun texte à publier.", retryable: false };
+  if (!p.text) return { ok: false, error: "Aucun texte à publier.", retryable: false };
+  // Texte remis à la cote vérifiée si elle a bougé depuis la rédaction, puis recontrôlé.
+  const fresh = textWithOdds(p, pick, s, oddsAtSend);
+  const text = fresh.text;
+  if (fresh.changed) {
+    const problems = contentProblems(ctx, s, text);
+    if (problems.length) return skipPick(ctx, mission, pick, `au moment de publier : texte non conforme après mise à jour de la cote (${problems.join(" ; ")})`);
+  }
   const simulation = ctx.settings.simulation || mission.isTest;
   const targetIds = Array.isArray(p.targetChannelIds) ? (p.targetChannelIds as string[]) : mission.channelId ? [mission.channelId] : [];
   const targets = (await Promise.all(targetIds.map((id) => loadChannel(ctx.prisma, id)))).filter((c): c is NonNullable<typeof c> => !!c);

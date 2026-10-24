@@ -195,7 +195,8 @@ export function createSelectorAdapter(config: BookmakerConfig): BookmakerAdapter
           await s.page.goto(req.eventUrl);
           await throwIfObstacle(s.page);
           if (sel.sportsbookFrame) s.page.useFrame(sel.sportsbookFrame);
-          if (await s.page.waitFor(sel.marketBlock, t)) return;
+          // Adresse du fournisseur : la page doit bien nommer les deux équipes, sinon on passe par la recherche.
+          if ((await s.page.waitFor(sel.marketBlock, t)) && textMentionsMatch(await s.page.find("body").text(), req.homeTeam, req.awayTeam)) return;
         } catch (err) {
           // Adresse directe refusée par la garde ou périmée : on passe par la recherche.
           if ((err as CaptureError).kind && !["forbidden_action", "timeout"].includes((err as CaptureError).kind)) throw err;
@@ -225,7 +226,9 @@ export function createSelectorAdapter(config: BookmakerConfig): BookmakerAdapter
         for (let i = 0; i < n; i++) {
           const r = results.nth(i);
           if (!textMentionsMatch(await r.text(), req.homeTeam, req.awayTeam)) continue;
-          await s.page.click(r, "search_result");
+          // Jamais de clic sur un résultat (il peut contenir des boutons de cote) : adresse vérifiée puis ouverte.
+          // Site de paris dans une iframe : clic gardé (refusé si le résultat contient des boutons).
+          if (sel.sportsbookFrame || !(await s.page.follow(r, "search_result"))) await s.page.click(r, "search_result");
           await throwIfObstacle(s.page);
           if (sel.sportsbookFrame) s.page.useFrame(sel.sportsbookFrame);
           if (!(await s.page.waitFor(sel.marketBlock, t))) throw new CaptureError("market_missing", "page du match sans marché affiché");

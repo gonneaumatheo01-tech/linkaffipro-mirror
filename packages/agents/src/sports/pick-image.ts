@@ -93,9 +93,9 @@ export async function ensurePickImage(ctx: AgentContext, mission: Mission, pick:
   if (given) {
     const a = await ctx.prisma.mediaAsset.findUnique({ where: { id: given }, select: { id: true, origin: true } });
     if (a) {
-      const readOdds = typeof mission.payload.readOdds === "number" ? mission.payload.readOdds : null;
       // Agent Capture (chantier B) : `payload.capture` = { status, reason, readOdds… } ; il a déjà comparé la cote.
-      const cap = (mission.payload.capture ?? {}) as { reason?: unknown };
+      const cap = (mission.payload.capture ?? {}) as { reason?: unknown; readOdds?: unknown };
+      const readOdds = typeof cap.readOdds === "number" && cap.readOdds > 1 ? cap.readOdds : typeof mission.payload.readOdds === "number" ? mission.payload.readOdds : null;
       const why = typeof cap.reason === "string" && cap.reason ? cap.reason : String(mission.payload.captureError ?? "capture impossible");
       return a.origin === "TEMPLATE" ? { kind: "fallback", assetId: a.id, reason: why } : { kind: "screenshot", assetId: a.id, readOdds };
     }

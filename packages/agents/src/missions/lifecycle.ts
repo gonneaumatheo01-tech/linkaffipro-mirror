@@ -189,8 +189,12 @@ export async function cancelMission(deps: AgentsDeps, missionId: string, opts: {
     where: { id: missionId },
     data: { status: "CANCELLED", lastError: opts.reason.slice(0, 500), lastActivityAt: now, payload: json({ ...parsePayload(row.payload), cancelReason: opts.reason }) as never },
   });
-  // Un message déjà programmé par la mission (cas rare : annulation après Publication) n'est pas envoyé.
-  if (row.postId) await deps.prisma.post.updateMany({ where: { id: row.postId, status: "SCHEDULED" }, data: { status: "CANCELLED" } });
+  // Les messages déjà programmés par la mission (cas rare : annulation après Publication) ne sont pas envoyés : tous,
+  // un par canal de destination (`Post.agentMissionId`), pas seulement le premier (`AgentMission.postId`).
+  await deps.prisma.post.updateMany({
+    where: { status: "SCHEDULED", OR: [...(row.postId ? [{ id: row.postId }] : []), { agentMissionId: missionId }] },
+    data: { status: "CANCELLED" },
+  });
   await agentEvent(deps, "agents.mission.cancelled", { missionId, teamKey: row.teamKey, reason: opts.reason.slice(0, 200) }, { channelId: row.channelId });
   if (opts.asFailure) await recordMissionFailure(deps, row.teamKey as TeamKey, opts.reason);
 }

@@ -29,6 +29,15 @@ const ROUTES: Record<string, string> = {
   "/fr/deposit": "deposit.html",
 };
 
+// Pages écrites ici (relecture de la phase 25) : résultat de recherche qui contient des boutons de cote, cote nue.
+const INLINE: Record<string, string> = {
+  "/fr/sports/search-odds": `<!doctype html><html><body>
+    <ul><li data-testid="search-result"><a href="/fr/sports/match/psg-om" id="res">Paris Saint-Germain - Olympique de Marseille
+      <button class="sel" onclick="event.preventDefault();window.betClicked=true">2,10</button><button onclick="event.preventDefault();window.betClicked=true">3,40</button></a></li></ul>
+    <button class="sb-price" id="price" onclick="window.betClicked=true">2,10</button>
+    <script>window.betClicked=false</script></body></html>`,
+};
+
 let chromiumPath: string | null = null;
 try {
   chromiumPath = chromium.executablePath();
@@ -44,6 +53,10 @@ beforeAll(async () => {
   if (!hasChromium) return;
   server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (INLINE[path]) {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(INLINE[path]);
+      return;
+    }
     const file = ROUTES[path];
     if (!file) {
       res.writeHead(404).end("introuvable");
@@ -122,6 +135,34 @@ describe.skipIf(!hasChromium)("capture sur la page locale", () => {
       await browser.close();
     }
   }, 30_000);
+
+  it("cote nue et résultat de recherche à boutons : jamais cliqués ; le résultat se suit par son adresse", async () => {
+    const browser = await launch();
+    try {
+      const page = await browser.newPage();
+      const guarded = new GuardedPage(page, ["localhost"]);
+      await guarded.goto(`${base}/fr/sports/search-odds`);
+      await expect(guarded.click(guarded.find("#price"), "market_tab")).rejects.toMatchObject({ kind: "forbidden_action" });
+      await expect(guarded.click(guarded.find("[data-testid=search-result] a"), "search_result")).rejects.toMatchObject({ kind: "forbidden_action" });
+      await expect(guarded.click(guarded.find("button.sel"), "search_result")).rejects.toMatchObject({ kind: "forbidden_action" });
+      expect(await page.evaluate(() => (globalThis as unknown as { betClicked: boolean }).betClicked)).toBe(false);
+      expect(await guarded.follow(guarded.find("[data-testid=search-result] a"), "search_result")).toBe(true);
+      expect(page.url()).toContain("/fr/sports/match/psg-om");
+      await expect(guarded.goto(`${base}/fr/sports?modal=deposit`)).rejects.toMatchObject({ kind: "forbidden_action" });
+      await expect(guarded.goto(`${base}/fr/%64eposit`)).rejects.toMatchObject({ kind: "forbidden_action" });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("adresse directe d'un autre match : jamais capturée, la recherche ne trouve pas le bon match", async () => {
+    const { env } = memoryEnv(null);
+    const provider = createBrowserScreenshotProvider({ env, launch, adapter: () => createSelectorAdapter(localConfig()) });
+    const r = await provider.capture({ ...REQ, homeTeam: "Real Madrid", awayTeam: "FC Barcelone", eventUrl: `${base}/fr/sports/match/psg-om` });
+    expect(r).toMatchObject({ ok: false, kind: "not_found" });
+    const good = await provider.capture({ ...REQ, eventUrl: `${base}/fr/sports/match/psg-om` });
+    expect(good).toMatchObject({ ok: true, readOdds: 2.1 });
+  }, 60_000);
 
   it("liens interdits sur l'accueil (dépôt, inscription) refusés", async () => {
     const browser = await launch();

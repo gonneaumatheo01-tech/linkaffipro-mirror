@@ -17,6 +17,7 @@ import type { BrowserScreenshotProvider } from "../../providers/screenshot/provi
 import { createCaptureRequest, readCaptureRequest, type CaptureRequestResult } from "../../providers/screenshot/requests";
 import { parseCaptureSettings } from "../../providers/screenshot/settings";
 import { storeCapturePng } from "../../providers/screenshot/store";
+import { parseSportsSettings } from "../../sports/settings";
 
 /** Relecture d'une capture demandée au worker ou au Mac. */
 export const CAPTURE_POLL_MS = 30_000;
@@ -84,10 +85,12 @@ export function captureRequestOf(pick: PickRow): CaptureRequest {
   };
 }
 
+/** Écart toléré : le plus strict de la catégorie et de l'équipe (même règle que le Contrôle, `withTeamBounds`). */
 async function tolerancePct(ctx: AgentContext, categoryId: string): Promise<number> {
   const cat = await ctx.prisma.betCategory.findUnique({ where: { id: categoryId }, select: { maxOddsDriftPct: true } });
   const v = Number(cat?.maxOddsDriftPct);
-  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_ODDS_TOLERANCE_PCT;
+  const category = Number.isFinite(v) && v >= 0 ? v : DEFAULT_ODDS_TOLERANCE_PCT;
+  return Math.min(category, parseSportsSettings(ctx.settings.settings).maxOddsDriftPct);
 }
 
 function providerOf(ctx: AgentContext): (ScreenshotProvider & Partial<Pick<BrowserScreenshotProvider, "renderTemplate">>) | null {

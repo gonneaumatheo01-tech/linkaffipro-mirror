@@ -11,6 +11,7 @@ import {
   impliedProbability,
   interestScore,
   isDuplicatePick,
+  isQuarterLine,
   kickoffCheck,
   recentAverageFor,
   type CategoryCriteria,
@@ -78,6 +79,10 @@ export function rankCandidates(i: RankInput): RankResult {
     for (const sel of group) {
       considered++;
       const key: PickKey = { eventId: event.eventId, marketId: sel.marketId, selectionLabel: sel.selectionLabel, line: sel.line };
+      if (isQuarterLine(sel.line)) {
+        reject("ligne asiatique en quart");
+        continue;
+      }
       if (isDuplicatePick(key, i.recent, i.now)) {
         reject("déjà publié dans les 48 h");
         continue;

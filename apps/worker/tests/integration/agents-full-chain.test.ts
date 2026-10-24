@@ -351,7 +351,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     await markDay();
     // Une étape seulement, puis « pause dating » sur Telegram : plus aucune étape Dating ne tourne.
     await drain(1);
-    expect((await admin("pause dating")).reply).toBe("Équipe Dating en pause ⏸");
+    expect((await admin("pause dating")).reply).toBe("Équipe Rencontres en pause ⏸");
     const out = await drain();
     expect(out).toContain("halted");
     const paused = await missionsOf("dating", 1);
@@ -363,7 +363,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     await runCycle(deps);
     expect(steps.filter((s) => paused.some((m) => m.id === s.missionId))).toHaveLength(0);
 
-    expect((await admin("reprends dating")).reply).toBe("Équipe Dating reprend ▶️");
+    expect((await admin("reprends dating")).reply).toBe("Équipe Rencontres reprend ▶️");
     now = new Date(now.getTime() + 20 * MIN);
     await runCycle(deps);
     await drain();
@@ -449,7 +449,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     const reports = await prisma.event.findMany({ where: { type: "agents.report.daily" }, orderBy: { occurredAt: "asc" } });
     expect(reports.map((r) => (r.payload as { day: string }).day)).toEqual([DAY1, addDays(DAY1, 1), addDays(DAY1, 2)]);
     expect(await prisma.insightReport.count({ where: { teamKey: "ads", weekStart: { in: [DAY1, addDays(DAY1, 1), addDays(DAY1, 2)] } } })).toBe(3);
-    expect((reports[1]!.payload as { lines: string[] }).lines.map((l) => l.split(" :")[0])).toEqual(["Dating", "Casino", "Paris sportifs", "Algorithme"]);
+    expect((reports[1]!.payload as { lines: string[] }).lines.map((l) => l.split(" :")[0])).toEqual(["Rencontres", "Casino", "Paris sportifs", "Algorithme"]);
   });
 
   it("supervision cohérente, « rapport » et « agents » sur Telegram ; aucun post hors canal Test", async () => {
@@ -469,7 +469,7 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     expect(o.health.stuckMissions).toBe(0);
     expect(o.ads.lastReportAt).not.toBeNull();
     expect(overviewLines(o).length).toBeLessThanOrEqual(8);
-    expect((await admin("agents")).reply).toContain("Dating : ▶️ active · simulation · niveau 0");
+    expect((await admin("agents")).reply).toContain("Rencontres : ▶️ active · simulation · niveau 0");
     expect((await admin("rapport")).reply).toContain(`Rapport des agents</b> (${addDays(DAY1, 2)})`);
 
     // Durées des étapes mesurées (performance) ; 3 jours de missions distincts.

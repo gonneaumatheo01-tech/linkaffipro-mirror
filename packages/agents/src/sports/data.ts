@@ -102,9 +102,14 @@ export async function recentPickKeys(prisma: PrismaClient, now: Date, excludeId?
   return rows.map((r) => ({ eventId: r.eventId, marketId: r.marketId, selectionLabel: r.selectionLabel, line: r.line, at: r.createdAt }));
 }
 
-/** Paris du jour de Paris d'une catégorie (hors écartés) : publiés ou en cours. */
+/** Paris du jour de Paris d'une catégorie (hors écartés, hors paris de test) : publiés ou en cours. */
 export async function picksToday(prisma: PrismaClient, categoryId: string, now: Date): Promise<number> {
-  return prisma.bettingPick.count({ where: { categoryId, status: { in: [...LIVE_PICK_STATUSES] }, createdAt: { gte: parisDayStart(parisDay(now)) } } });
+  const rows = (await prisma.bettingPick.findMany({
+    where: { categoryId, status: { in: [...LIVE_PICK_STATUSES] }, createdAt: { gte: parisDayStart(parisDay(now)) } },
+    select: { missionId: true },
+  })) as Array<{ missionId: string | null }>;
+  const tests = await testMissionIds(prisma, rows.map((r) => r.missionId));
+  return rows.filter((r) => !r.missionId || !tests.has(r.missionId)).length;
 }
 
 /** Identifiants des missions de test (leurs paris ne comptent ni dans les nouveautés ni dans le bilan). */
@@ -115,15 +120,26 @@ export async function testMissionIds(prisma: PrismaClient, missionIds: readonly 
   return new Set(rows.map((r) => r.id));
 }
 
-/** Ligue et marché déjà publiés (hors tests, hors ce pari) : sinon « toujours validé ». */
+/**
+ * Ligue et marché déjà publiés sur un VRAI canal (hors tests, hors simulation : un post parti sur le canal Test ne
+ * compte pas, hors ce pari) : sinon « toujours validé ».
+ */
 export async function noveltyOf(prisma: PrismaClient, pick: Pick<PickRow, "id" | "league" | "marketId">): Promise<{ newLeague: boolean; newMarket: boolean }> {
   const rows = (await prisma.bettingPick.findMany({
-    where: { id: { not: pick.id }, status: { in: [...PUBLISHED_PICK_STATUSES] }, OR: [{ league: pick.league }, { marketId: pick.marketId }] },
-    select: { league: true, marketId: true, missionId: true },
+    where: { id: { not: pick.id }, status: { in: [...PUBLISHED_PICK_STATUSES] }, postId: { not: null }, OR: [{ league: pick.league }, { marketId: pick.marketId }] },
+    select: { league: true, marketId: true, missionId: true, postId: true },
     take: 500,
-  })) as Array<{ league: string; marketId: string; missionId: string | null }>;
+  })) as Array<{ league: string; marketId: string; missionId: string | null; postId: string | null }>;
   const tests = await testMissionIds(prisma, rows.map((r) => r.missionId));
-  const real = rows.filter((r) => !r.missionId || !tests.has(r.missionId));
+  const candidates = rows.filter((r) => r.postId && (!r.missionId || !tests.has(r.missionId)));
+  const postIds = [...new Set(candidates.map((r) => r.postId!))];
+  const posts = postIds.length ? ((await prisma.post.findMany({ where: { id: { in: postIds } }, select: { id: true, channelId: true } })) as Array<{ id: string; channelId: string }>) : [];
+  const channelIds = [...new Set(posts.map((p) => p.channelId))];
+  const realChannels = channelIds.length
+    ? new Set(((await prisma.channel.findMany({ where: { id: { in: channelIds }, isTest: false }, select: { id: true } })) as Array<{ id: string }>).map((c) => c.id))
+    : new Set<string>();
+  const realPosts = new Set(posts.filter((p) => realChannels.has(p.channelId)).map((p) => p.id));
+  const real = candidates.filter((r) => realPosts.has(r.postId!));
   return { newLeague: !real.some((r) => r.league === pick.league), newMarket: !real.some((r) => r.marketId === pick.marketId) };
 }
 

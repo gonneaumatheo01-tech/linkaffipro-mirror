@@ -34,10 +34,36 @@ const FORBIDDEN_ATTR: RegExp[] = [
   /deposit|withdraw|cashier|payment|checkout|wallet|purchase|\/pay\b|bonus|promo/,
   /\/(account|profile|settings|preferences|limits|kyc|documents|register|signup|logout)\b|account-?settings|my-?account|edit-?profile|change-?password|self-?exclusion/,
   /\b(odds?|outcome|selection|price)[-_]?(button|btn|cell|box|clickable)\b|data-(odd|odds|outcome|selection|price)[-_]?id\b|\bodd\b/,
+  // Cotes cliquables sous d'autres noms (« sb-price », « outcome », « data-outcome », « coefficient »…).
+  /\b(odds|outcomes?|prices?|coefficients?|coef|quotes?)\b|data-(odds?|outcomes?|selections?|prices?|market-?outcome)\b/,
 ];
+
+/** Texte d'une cote (« 2,10 », « 1.85 ») : un élément cliquable qui n'affiche que ça ajoute la cote au ticket. */
+export const ODDS_LIKE_TEXT = /^\s*\d{1,3}[.,]\d{1,3}\s*$/;
 
 // Adresses refusées même sur le domaine du bookmaker.
 const FORBIDDEN_PATH = /\/(deposit|withdraw|cashier|payment|checkout|wallet|account|profile|settings|preferences|limits|kyc|documents|register|signup|logout|bonus|promotions?)(\/|\?|#|$)/i;
+// Mêmes mots dans les paramètres (noms et valeurs) ou le fragment (`?modal=deposit`, `#/cashier/deposit`).
+const FORBIDDEN_URL_WORD =
+  /(^|[^a-z0-9])(deposits?|withdraw(al)?s?|cashier|payments?|pay|checkout|wallet|accounts?|profile|settings|preferences|limits|kyc|documents|register|signup|sign-up|logout|bonus(es)?|promotions?|betslip|bet-?slip|place-?bet|bank(ing)?)([^a-z0-9]|$)/;
+// Sous-domaines d'argent ou de compte (`cashier.sportaza.com`, `pay-eu.sportaza.com`).
+const FORBIDDEN_SUBDOMAIN = /(^|[-_])(cashier|pay|payments?|wallet|accounts?|deposits?|withdraw(al)?s?|bank(ing)?|checkout|billing|kyc|my)([-_]|$)/;
+
+/** Décodage répété (« %2564 » → « %64 » → « d ») ; une adresse mal encodée est refusée. */
+function decodeAll(v: string): string | null {
+  let cur = v;
+  for (let i = 0; i < 4; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(cur.replace(/\+/g, " "));
+    } catch {
+      return null;
+    }
+    if (next === cur) return cur;
+    cur = next;
+  }
+  return cur;
+}
 
 // Champs interdits à remplir : montants et mises.
 const FORBIDDEN_FIELD = /stake|amount|montant|\bmise\b|einsatz|importe|valor|deposit|withdraw|\bbet\b|betslip|card|carte|iban|cvv|cvc|phone|telephone/;
@@ -48,7 +74,16 @@ export type ClickPurpose = "open_login" | "login_submit" | "cookie_accept" | "op
 export type FillPurpose = "login" | "password" | "search";
 
 /** Description d'un élément visé (texte et attributs de l'élément, de son bouton ou lien et de ses descendants). */
-export type TargetDescription = { text: string; attributes: string[]; tag?: string; type?: string | null };
+export type TargetDescription = {
+  text: string;
+  attributes: string[];
+  tag?: string;
+  type?: string | null;
+  /** Texte affiché par l'élément cliquable lui-même. */
+  ownText?: string;
+  /** Boutons ou liens contenus dans l'élément cliquable (leur texte). */
+  nestedTexts?: string[];
+};
 
 /**
  * Pur : un clic sur cet élément est-il interdit ? Le bouton de connexion a droit au mot « connexion » ; aucun motif
@@ -68,6 +103,12 @@ export function forbiddenClickReason(d: TargetDescription, purpose: ClickPurpose
     const m = r.exec(attrs);
     if (m) return `attribut « ${m[0].slice(0, 40)} »`;
   }
+  // Un élément (ou un bouton qu'il contient) qui n'affiche qu'une cote : un clic l'ajouterait au ticket.
+  if (ODDS_LIKE_TEXT.test(d.ownText ?? d.text)) return "texte d'une cote";
+  const nested = d.nestedTexts ?? [];
+  if (nested.some((t) => ODDS_LIKE_TEXT.test(t))) return "contient une cote cliquable";
+  // Un résultat de recherche se suit par son adresse (`GuardedPage.follow`), jamais par un clic sur un bloc à boutons.
+  if (purpose === "search_result" && nested.length > 0) return "résultat de recherche contenant des boutons";
   if (purpose !== "login_submit" && d.type && /submit/i.test(d.type) && purpose !== "open_search") {
     // Un bouton d'envoi de formulaire hors connexion peut valider un ticket : refusé.
     return "bouton d'envoi hors connexion";
@@ -97,10 +138,28 @@ export function forbiddenUrlReason(url: string, allowedHosts: readonly string[])
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return `protocole ${u.protocol}`;
   const host = u.hostname.toLowerCase();
-  if (!allowedHosts.some((h) => host === h || host.endsWith(`.${h}`))) return `domaine ${host} hors du bookmaker`;
+  const base = allowedHosts.map((h) => h.toLowerCase()).find((h) => host === h || host.endsWith(`.${h}`));
+  if (!base) return `domaine ${host} hors du bookmaker`;
+  const sub = host === base ? "" : host.slice(0, -(base.length + 1));
+  const badSub = sub.split(".").find((label) => FORBIDDEN_SUBDOMAIN.test(label));
+  if (badSub) return `sous-domaine ${badSub}`;
+  // Règle appliquée à l'adresse DÉCODÉE : chemin, paramètres (noms et valeurs) et fragment.
+  const path = decodeAll(u.pathname);
+  if (path === null) return "adresse mal encodée";
   // Une page de connexion rangée sous /account/ reste permise ; jamais une page d'argent.
-  const loginPage = /\/(login|signin|sign-in|connexion|connect)(\/|$)/i.test(u.pathname) && !/deposit|withdraw|cashier|payment|wallet/i.test(u.pathname);
-  if (FORBIDDEN_PATH.test(u.pathname) && !loginPage) return `page ${u.pathname}`;
+  const loginPage = /\/(login|signin|sign-in|connexion|connect)(\/|$)/i.test(path) && !/deposit|withdraw|cashier|payment|wallet/i.test(path);
+  if (!loginPage && (FORBIDDEN_PATH.test(path) || FORBIDDEN_URL_WORD.test(path.toLowerCase()))) return `page ${path}`;
+  const parts: string[] = [];
+  for (const [k, v] of u.searchParams) parts.push(k, v);
+  if (u.hash) parts.push(u.hash.slice(1));
+  for (const raw of parts) {
+    const t = decodeAll(raw);
+    if (t === null) return "adresse mal encodée";
+    const low = t.toLowerCase();
+    if (FORBIDDEN_PATH.test(low) && !/\/(login|signin|sign-in|connexion|connect)(\/|$)/i.test(low)) return `paramètre « ${t.slice(0, 60)} »`;
+    const m = FORBIDDEN_URL_WORD.exec(low);
+    if (m) return `paramètre « ${m[2]} »`;
+  }
   return null;
 }
 
@@ -140,8 +199,13 @@ async function describe(target: Locator): Promise<TargetDescription> {
     const clickable = el.closest("a,button,[role=button],[onclick],label") ?? el;
     const attributes = [...attrsOf(el), ...(clickable !== el ? attrsOf(clickable) : [])];
     for (const child of Array.from(clickable.querySelectorAll("*")).slice(0, 40)) attributes.push(...attrsOf(child));
-    const text = [clickable.innerText ?? clickable.textContent ?? "", el.getAttribute("aria-label") ?? "", el.getAttribute("title") ?? "", el.getAttribute("value") ?? ""].join(" ");
-    return { text, attributes, tag: clickable.tagName.toLowerCase(), type: clickable.getAttribute("type") };
+    const ownText = (clickable.innerText ?? clickable.textContent ?? "").trim();
+    const text = [ownText, el.getAttribute("aria-label") ?? "", el.getAttribute("title") ?? "", el.getAttribute("value") ?? ""].join(" ");
+    const nestedTexts = Array.from(clickable.querySelectorAll("a,button,[role=button],[onclick],input[type=button],input[type=submit]"))
+      .filter((e) => e !== clickable)
+      .slice(0, 40)
+      .map((e) => (e.innerText ?? e.textContent ?? e.getAttribute("value") ?? "").trim().slice(0, 60));
+    return { text, attributes, tag: clickable.tagName.toLowerCase(), type: clickable.getAttribute("type"), ownText, nestedTexts };
   });
 }
 
@@ -263,6 +327,25 @@ export class GuardedPage {
     await loc.click({ timeout: timeoutMs });
     await this.#page.waitForLoadState("domcontentloaded", { timeout: timeoutMs }).catch(() => undefined);
     await this.#checkUrl();
+  }
+
+  /**
+   * Résultat de recherche : jamais cliqué (un bloc de résultat peut contenir des boutons de cote) ; on lit l'adresse
+   * du lien, la garde la vérifie, puis on y va. Renvoie faux si l'élément n'a pas d'adresse.
+   */
+  async follow(target: ReadonlyLocator, purpose: "search_result", timeoutMs = 30_000): Promise<boolean> {
+    const loc = rawOf(target).first();
+    const href = await loc.evaluate((node) => {
+      const el = node as unknown as DomEl & { querySelector(sel: string): DomEl | null };
+      const a = el.closest("a") ?? el.querySelector("a");
+      return a ? (a.href ?? null) : null;
+    });
+    if (!href || !/^https?:/i.test(href)) return false;
+    const bad = forbiddenUrlReason(href, this.#hosts);
+    if (bad) throw new CaptureError("forbidden_action", `lien refusé : ${bad}`);
+    this.#log("follow", purpose);
+    await this.goto(href, timeoutMs);
+    return true;
   }
 
   async fill(target: ReadonlyLocator, value: string, purpose: FillPurpose, timeoutMs = 10_000): Promise<void> {

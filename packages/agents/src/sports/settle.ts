@@ -11,6 +11,7 @@ import { agentEvent, nowOf } from "../admin/journal";
 import { cancelMission } from "../missions/lifecycle";
 import { json, parsePayload } from "../missions/mission";
 import { loadTeamSettings } from "../missions/settings";
+import { isTeamHalted } from "../orchestrator/pause";
 import { OddsQuotaError } from "../providers/odds-quota";
 import { resolveOddsProvider, type OddsResolveDeps } from "../providers/odds-registry";
 import type { OddsResult } from "../providers/odds";
@@ -22,11 +23,14 @@ import { parseSportsSettings } from "./settings";
 export const MATCH_DURATION_MS = 105 * 60_000;
 export const RESULT_GIVE_UP_MS = 3 * 86_400_000;
 
-export type SettleRunResult = { checked: number; settled: number; voidedLate: number; expired: number; orphaned: number; error?: string };
+export type SettleRunResult = { checked: number; settled: number; voidedLate: number; expired: number; orphaned: number; error?: string; halted?: string };
 
 export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunResult> {
   const now = nowOf(deps);
   const out: SettleRunResult = { checked: 0, settled: 0, voidedLate: 0, expired: 0, orphaned: 0 };
+  // Équipe en pause (ou pause générale) : rien n'est lu chez le fournisseur ni modifié, on reprendra au passage suivant.
+  const halt = await isTeamHalted(deps, "sports");
+  if (halt.halted) return { ...out, halted: halt.reason ?? "pause" };
   const s = parseSportsSettings((await loadTeamSettings(deps.prisma, "sports")).settings);
   out.expired = await expireLateValidations(deps, now);
   out.orphaned = await skipOrphanPicks(deps);
@@ -66,7 +70,9 @@ export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunR
         result: json({ outcome: settlement.outcome, value: settlement.value, detail: settlement.detail, homeScore: result?.homeScore ?? null, awayScore: result?.awayScore ?? null, stats: result?.stats ?? {} }) as never,
       },
     });
-    if (pick.postId) await deps.prisma.postInsight.updateMany({ where: { postId: pick.postId }, data: { betResult: settlement.outcome } });
+    // Tous les posts du pari (un par canal de destination) : rattachés par leur mission, pas seulement le premier.
+    const postIds = await pickPostIds(deps, pick);
+    if (postIds.length) await deps.prisma.postInsight.updateMany({ where: { postId: { in: postIds } }, data: { betResult: settlement.outcome } });
     if (pick.missionId) {
       const m = await deps.prisma.agentMission.findUnique({ where: { id: pick.missionId }, select: { payload: true } });
       if (m) await deps.prisma.agentMission.update({ where: { id: pick.missionId }, data: { payload: json({ ...parsePayload(m.payload), betResult: settlement.outcome }) as never } });
@@ -75,6 +81,13 @@ export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunR
     out.settled++;
   }
   return out;
+}
+
+/** Posts d'un pari : `BettingPick.postId` et tous les posts de sa mission (`Post.agentMissionId`). */
+export async function pickPostIds(deps: AgentsDeps, pick: Pick<PickRow, "postId" | "missionId">): Promise<string[]> {
+  const ids = new Set<string>(pick.postId ? [pick.postId] : []);
+  if (pick.missionId) for (const p of await deps.prisma.post.findMany({ where: { agentMissionId: pick.missionId }, select: { id: true } })) ids.add(p.id);
+  return [...ids];
 }
 
 /** Validation trop tardive : le coup d'envoi est trop proche, le pari n'est plus publiable. */

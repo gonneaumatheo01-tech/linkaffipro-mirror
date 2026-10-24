@@ -11,7 +11,7 @@ import type { Db as PrismaClient } from "@linkaffipro/db";
 import { readSecret, secretSettingKey } from "../../human/secrets";
 import type { CaptureErrorKind, CaptureResult } from "../screenshot";
 import type { BookmakerCredentials } from "./adapter";
-import { claimNextCaptureRequest, completeCaptureRequest, readCaptureRequest, type StoredCaptureRequest } from "./requests";
+import { claimNextCaptureRequest, claimableCaptureKinds, completeCaptureRequest, readCaptureRequest, type StoredCaptureRequest } from "./requests";
 import { isStorageState, readBookmakerCredentials, readBookmakerSession, saveBookmakerSession, type BrowserStorageState } from "./session";
 import { loadCaptureSettings } from "./settings";
 
@@ -46,7 +46,7 @@ export type RunnerJob = {
 };
 
 export async function runnerNext(prisma: PrismaClient, by = "mac"): Promise<RunnerJob | null> {
-  const request = await claimNextCaptureRequest(prisma, "mac", by);
+  const request = await claimNextCaptureRequest(prisma, "mac", by, new Date(), { kinds: await claimableCaptureKinds(prisma) });
   if (!request) return null;
   const [credentials, session, settings] = await Promise.all([
     readBookmakerCredentials(prisma, request.bookmaker),

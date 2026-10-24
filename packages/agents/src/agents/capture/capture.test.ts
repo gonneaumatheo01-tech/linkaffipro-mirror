@@ -14,7 +14,7 @@ import { agent } from "./index";
 
 const NOW = new Date("2026-10-24T10:00:00Z");
 
-function setup(o: { screenshot?: FakeScreenshotOptions | null; mode?: "server" | "mac"; tolerance?: number } = {}) {
+function setup(o: { screenshot?: FakeScreenshotOptions | null; mode?: "server" | "mac"; tolerance?: number; teamTolerance?: number } = {}) {
   const prisma: FakePrisma = createFakePrisma({
     betCategory: [{ id: "cat1", key: "tirs", name: "Tirs cadrés", maxOddsDriftPct: o.tolerance ?? 5 }],
     agentMission: [{ id: "m1", teamKey: "sports", kind: "BET", status: "RUNNING", payload: { pickId: "p1" }, steps: [] }],
@@ -43,7 +43,7 @@ function setup(o: { screenshot?: FakeScreenshotOptions | null; mode?: "server" |
     ],
   });
   const provider = o.screenshot === null ? null : createFakeScreenshotProvider(o.screenshot ?? {});
-  const settings = { teamKey: "sports", simulation: true, settings: { sports: { captureMode: o.mode ?? "server" } } } as unknown as TeamSettings;
+  const settings = { teamKey: "sports", simulation: true, settings: { sports: { captureMode: o.mode ?? "server", ...(o.teamTolerance !== undefined ? { maxOddsDriftPct: o.teamTolerance } : {}) } } } as unknown as TeamSettings;
   let now = NOW;
   const ctx = {
     prisma,
@@ -79,6 +79,14 @@ describe("agent Capture écran", () => {
     expect(String(table("bettingPick")[0]!.skipReason)).toMatch(/2,10 → 1,93/);
     expect(table("agentMission")[0]).toMatchObject({ status: "CANCELLED" });
     expect(table("agentTeamConfig").length).toBe(0); // aucun échec compté
+  });
+
+  it("écart toléré = le plus strict de la catégorie (5 %) et de l'équipe (2 %) : cote lue +4 % → pari écarté", async () => {
+    const { ctx, mission, table } = setup({ screenshot: { driftPct: 4 }, tolerance: 5, teamTolerance: 2 });
+    const r = await agent.run(mission(), ctx);
+    expect(r.summary).toMatch(/cote bougée/);
+    expect(String(table("bettingPick")[0]!.skipReason)).toMatch(/écart toléré 2 %/);
+    expect(table("bettingPick")[0]).toMatchObject({ status: "SKIPPED" });
   });
 
   it("marché disparu : pari écarté", async () => {
