@@ -700,3 +700,13 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   (une persona Rencontres « fille » est testée comme une fille). Fiche d'informations : MANAGER refusé, journal
   `persona.faq_updated` sans texte, import CSV séparé par « ; » (UTF-8 sinon Windows-1252, 1 Mo au plus) ; changer
   d'univers repasse la persona en assistante.
+- **Supervision (phase 25)** : `agentsOverview` (`orchestrator/overview*.ts`) en requêtes groupées ; résultats des posts
+  d'agents = mêmes règles que Statistiques (CPA nette des joueurs venus d'un clic sur le post), canal Test exclu ;
+  paramètre élargi à `PrismaClient | Db`. Mission « bloquée » après 30 min sans activité. Projection de fin de mois =
+  rythme moyen depuis le 1er (Paris), un jour compté au moins. Commande `rapport` (rapport du Grand Chef du jour, ou
+  calculé sur place, + dernier rapport Ads ; sans IA). « vrai <équipe> » et « niveau <équipe> <n> » : résumé (canaux
+  réels, quota, niveau, plafonds) puis OUI ; tout changement de niveau demande OUI. `demandes` affiche le vrai total
+  et la question en cours d'abord. Relance unique des demandes ouvertes (`agents.phase25.requestsRelaunched`).
+  `pnpm agents:status [--json]`. **Correctif** : la Médiathèque Dating compte les posts « du jour » par le jour du plan
+  (comme le Casino), plus par la date de création en base. Index ajoutés : `PostInsight(sentAt)`,
+  `AgentMission(updatedAt)`, `AgentMission(channelId, planDay)` (migration `20261024060000_phase25_index_agents`).
