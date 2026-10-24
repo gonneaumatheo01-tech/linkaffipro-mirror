@@ -5,6 +5,7 @@
  */
 import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent } from "../admin/journal";
+import { copyAlertToGroup } from "../boss/team/morning";
 import { isAgentsPausedAll } from "../missions/settings";
 import { TEAM_LABELS, type AgentsDeps, type TeamKey } from "../types";
 
@@ -36,6 +37,8 @@ export async function recordMissionFailure(deps: AgentsDeps, teamKey: TeamKey, l
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message }, "[agents] message de pause non envoyé");
   }
+  // Phase 26 : copie dans le groupe de l'équipe, au membre qui s'occupe de cette équipe.
+  await copyAlertToGroup(deps, teamKey, `⏸ L'équipe ${escapeHtml(TEAM_LABELS[teamKey])} est en pause : ${AUTO_PAUSE_REASON}. Dis-moi « reprends ${teamKey} » quand c'est réglé.`);
   return true;
 }
 

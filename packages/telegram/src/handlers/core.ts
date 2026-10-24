@@ -16,7 +16,7 @@ import { RecentKeys, registerForwardHandlers } from "./forward";
 import { registerAdminDialogFallback, registerAgentsAdminHandlers } from "./agents-admin";
 import { registerBossGroupHandlers } from "./boss-group";
 import { registerMediaInboxHandlers } from "./media-inbox";
-import { redactAdminSecretUpdate } from "../agents/redact";
+import { redactAdminSecretUpdate, redactBossUpdate } from "../agents/redact";
 
 const UPDATE_TYPES = [
   "message",
@@ -192,7 +192,8 @@ function registerStandardHandlers(
 function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
   bot.use(async (ctx, next) => {
     const type = updateTypeOf(ctx.update);
-    const logged = await redactAdminSecretUpdate(ctx.update, deps);
+    // Groupe : jamais de texte au journal ; privé : secrets masqués pour toute personne (phase 26, section 4).
+    const logged = await redactBossUpdate(ctx.update, deps);
     await deps.recordUpdate(identity, type, logged, {});
     await next();
   });

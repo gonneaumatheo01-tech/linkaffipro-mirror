@@ -8,6 +8,7 @@ import { agentEvent } from "../admin/journal";
 import { monthUsage } from "../missions/usage";
 import { parisMonth } from "../rules/time";
 import { TEAM_LABELS, type AgentsDeps, type ProviderKey, type TeamKey, type TeamSettings } from "../types";
+import { copyAlertToGroup } from "../boss/team/morning";
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   llm: "IA texte",
@@ -84,5 +85,8 @@ export async function maybeAlertBudget(deps: AgentsDeps, settings: TeamSettings,
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message }, "[agents] alerte de plafond non envoyée");
   }
+  // Phase 26 : plafond atteint → copie dans le groupe de l'équipe, au membre qui s'occupe de cette équipe.
+  if (level === 100)
+    await copyAlertToGroup(deps, settings.teamKey, `🔴 Plafond ${PROVIDER_LABELS[provider]} atteint pour l'équipe ${escapeHtml(team)} : les missions qui en ont besoin attendent le mois prochain (ou un plafond plus haut).`);
   return level;
 }

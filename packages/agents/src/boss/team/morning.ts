@@ -117,8 +117,7 @@ export async function copyAlertToGroup(deps: AgentsDeps, teamKey: TeamKey, html:
     if (!group || !deps.admin?.sendTo) return false;
     const members = await activeTeamMembers(deps);
     const now = nowOf(deps);
-    const pick = pickResponsibleFrom(members, teamKey, null as never, now);
-    const who = pick.assignee ?? pickResponsibleFrom(members, teamKey, "choice", now).assignee;
+    const who = pickResponsibleFrom(members, teamKey, null, now).assignee;
     if (!who) return false;
     return (await deps.admin.sendTo(group, `${mentionHtml(who)} ${html}\n(${await adminMention(deps)} en copie)`)) !== null;
   } catch (err) {

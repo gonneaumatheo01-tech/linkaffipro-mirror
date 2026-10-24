@@ -20,6 +20,7 @@ import {
   type TeamMemberRow,
 } from "../boss/team/members";
 import { secretLabel } from "./secrets";
+import { adminOnlyRequest } from "./access";
 
 type RequestLike = {
   id: string;
@@ -38,6 +39,32 @@ export type RequestDelivery = {
   chatId: bigint | null;
   assigneeTelegramId: bigint | null;
 };
+
+/**
+ * Suites réservées à l'admin : niveau, passage en vrai, réglages, plafonds, seuils, catégories de paris, offre d'un
+ * canal (tout ce qui change le comportement ou la dépense). Ces questions ne vont jamais à un membre.
+ */
+export const ADMIN_ONLY_ANSWER_ACTIONS = new Set([
+  "set-autonomy",
+  "set-simulation",
+  "setting",
+  "algo-level",
+  "algo-max-posts",
+  "dating-video-budget",
+  "ads-cpr",
+  "ads-roas",
+  "sports-categories",
+  "casino-channel-campaign",
+]);
+
+/** La demande doit-elle rester à l'admin (pur) ? Toute question sans équipe aussi. */
+export function teamAdminOnlyRequest(req: { kind: string; teamKey?: string | null; onAnswer?: unknown }): boolean {
+  const action = req.onAnswer && typeof req.onAnswer === "object" ? (req.onAnswer as Record<string, unknown>).action : undefined;
+  if (typeof action === "string" && ADMIN_ONLY_ANSWER_ACTIONS.has(action)) return true;
+  // Mêmes réservations que sur le site (banc d'essai, seuils pubs…), sauf les clés : un membre peut s'en occuper.
+  if (req.kind !== "SECRET" && adminOnlyRequest(req)) return true;
+  return !req.teamKey;
+}
 
 /** « Léa est absente jusqu'au lundi 26 octobre : » (pur). */
 export function awayNote(unavailable: readonly TeamMemberRow[], now: Date): string | null {
@@ -71,7 +98,9 @@ export async function deliverHumanRequest(
     const sent = await deps.admin!.send(html, { buttons: opts.buttons });
     return sent ? { messageId: sent.messageId, chatId: null, assigneeTelegramId: null } : null;
   }
-  const pick = await pickResponsible(deps, { teamKey: req.teamKey ?? null, kind: kindForRequest(req.kind) });
+  const pick = teamAdminOnlyRequest(req)
+    ? { assignee: null, unavailable: [] }
+    : await pickResponsible(deps, { teamKey: req.teamKey ?? null, kind: kindForRequest(req.kind) });
   const assignee = pick.assignee;
   const note = awayNote(pick.unavailable, now);
   if (req.kind === "SECRET" && !assignee) {

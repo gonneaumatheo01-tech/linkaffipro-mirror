@@ -65,48 +65,26 @@ async function withHtmlFallback(
 
 export function createAdminMessengerWith(port: MessengerPort): AdminMessenger {
   return {
+    /** Phase 26 (Kevin en équipe) : même bot, autre conversation (le groupe de l'équipe, le privé d'un membre). */
+    async sendTo(chatId, html, opts = {}) {
+      const api = await port.api();
+      if (!api) return null;
+      return sendWith(port, api, Number(chatId), html, opts);
+    },
+    async deleteIn(chatId, messageId) {
+      const api = await port.api();
+      if (!api) return false;
+      try {
+        await api.deleteMessage(Number(chatId), messageId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async send(html, opts = {}) {
       const [adminId, api] = await Promise.all([port.adminId(), port.api()]);
       if (!adminId || !api) return null;
-      const chatId = Number(adminId);
-      const reply_markup = keyboard(opts.buttons);
-      const reply_parameters = opts.replyToMessageId
-        ? { message_id: opts.replyToMessageId, allow_sending_without_reply: true }
-        : undefined;
-
-      const media = opts.mediaAssetId ? await port.media(opts.mediaAssetId) : null;
-      if (media) {
-        const file = new InputFile(Buffer.from(media.bytes), media.filename);
-        const method = media.mimeType.startsWith("image/") ? "sendPhoto" : media.mimeType.startsWith("video/") ? "sendVideo" : "sendDocument";
-        const fits = html.length <= CAPTION_MAX;
-        const sentMedia = await withHtmlFallback(
-          (caption, isHtml) =>
-            api[method](chatId, file, {
-              ...(fits ? { caption, ...(isHtml ? { parse_mode: "HTML" as const } : {}), reply_markup } : {}),
-              reply_parameters,
-            }),
-          fits ? html : "",
-        );
-        if (fits) return { messageId: sentMedia.message_id };
-      }
-
-      // Texte long : découpé ; les boutons vont avec le dernier morceau (celui qu'on garde).
-      const parts = splitMessage(html);
-      let last: { message_id: number } | null = null;
-      for (let i = 0; i < parts.length; i++) {
-        const isLast = i === parts.length - 1;
-        last = await withHtmlFallback(
-          (text, isHtml) =>
-            api.sendMessage(chatId, text, {
-              ...(isHtml ? { parse_mode: "HTML" as const } : {}),
-              link_preview_options: { is_disabled: true },
-              ...(isLast && reply_markup ? { reply_markup } : {}),
-              ...(i === 0 && reply_parameters && !media ? { reply_parameters } : {}),
-            }),
-          parts[i]!,
-        );
-      }
-      return last ? { messageId: last.message_id } : null;
+      return sendWith(port, api, Number(adminId), html, opts);
     },
     async deleteMessage(messageId) {
       const [adminId, api] = await Promise.all([port.adminId(), port.api()]);
@@ -114,6 +92,54 @@ export function createAdminMessengerWith(port: MessengerPort): AdminMessenger {
       await api.deleteMessage(Number(adminId), messageId);
     },
   };
+}
+
+/** Corps commun de l'envoi (inchangé depuis la phase 19 : média joint, texte découpé, boutons sur le dernier morceau). */
+async function sendWith(
+  port: MessengerPort,
+  api: MessengerApi,
+  chatId: number,
+  html: string,
+  opts: { buttons?: AdminButton[][]; mediaAssetId?: string | null; replyToMessageId?: number },
+): Promise<{ messageId: number } | null> {
+  const reply_markup = keyboard(opts.buttons);
+  const reply_parameters = opts.replyToMessageId
+    ? { message_id: opts.replyToMessageId, allow_sending_without_reply: true }
+    : undefined;
+
+  const media = opts.mediaAssetId ? await port.media(opts.mediaAssetId) : null;
+  if (media) {
+    const file = new InputFile(Buffer.from(media.bytes), media.filename);
+    const method = media.mimeType.startsWith("image/") ? "sendPhoto" : media.mimeType.startsWith("video/") ? "sendVideo" : "sendDocument";
+    const fits = html.length <= CAPTION_MAX;
+    const sentMedia = await withHtmlFallback(
+      (caption, isHtml) =>
+        api[method](chatId, file, {
+          ...(fits ? { caption, ...(isHtml ? { parse_mode: "HTML" as const } : {}), reply_markup } : {}),
+          reply_parameters,
+        }),
+      fits ? html : "",
+    );
+    if (fits) return { messageId: sentMedia.message_id };
+  }
+
+  // Texte long : découpé ; les boutons vont avec le dernier morceau (celui qu'on garde).
+  const parts = splitMessage(html);
+  let last: { message_id: number } | null = null;
+  for (let i = 0; i < parts.length; i++) {
+    const isLast = i === parts.length - 1;
+    last = await withHtmlFallback(
+      (text, isHtml) =>
+        api.sendMessage(chatId, text, {
+          ...(isHtml ? { parse_mode: "HTML" as const } : {}),
+          link_preview_options: { is_disabled: true },
+          ...(isLast && reply_markup ? { reply_markup } : {}),
+          ...(i === 0 && reply_parameters && !media ? { reply_parameters } : {}),
+        }),
+      parts[i]!,
+    );
+  }
+  return last ? { messageId: last.message_id } : null;
 }
 
 /** Port réel : `Setting` `admin.telegramUserId`, bot du dialogue admin (`adminBot()`, comme `notifyAdmin`), octets `MediaAsset`. */

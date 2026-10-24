@@ -52,3 +52,45 @@ export async function redactAdminSecretUpdate(
   const { entities: _entities, ...rest } = msg;
   return { ...update, [key]: { ...rest, text: SECRET_REDACTED_TEXT } } as Update;
 }
+
+export const GROUP_TEXT_REDACTED = (n: number) => `[message de groupe : ${n} caractères]`;
+
+/**
+ * Phase 26, section 4 — journal du Boss (`Event`) : un message du GROUPE n'y garde JAMAIS son texte (ni légende, ni
+ * entités) : les conversations de l'équipe ne quittent pas la conversation (ce que Kevin en retient est dans
+ * `BossTurn`, secrets en « [secret] »). En privé : les mêmes règles que le dialogue admin, appliquées à TOUTE personne
+ * (un membre présenté qui envoie sa clé à Kevin est masqué comme l'admin). Ne lève jamais.
+ */
+export async function redactBossUpdate(update: Update, deps: Pick<TelegramDeps, "agentsAdminState">): Promise<Update> {
+  for (const key of ["message", "edited_message"] as const) {
+    const msg = update[key];
+    if (!msg || (msg.chat.type !== "group" && msg.chat.type !== "supergroup")) continue;
+    const { entities: _e, caption_entities: _ce, text, caption, ...rest } = msg;
+    const kept: Record<string, unknown> = { ...rest };
+    if (typeof text === "string") kept.text = GROUP_TEXT_REDACTED(text.length);
+    if (typeof caption === "string") kept.caption = GROUP_TEXT_REDACTED(caption.length);
+    // Message auquel il répond : texte retiré aussi.
+    if (rest.reply_to_message) {
+      const { text: rt, caption: rc, entities: _re, caption_entities: _rce, ...r } = rest.reply_to_message;
+      kept.reply_to_message = { ...r, ...(typeof rt === "string" ? { text: GROUP_TEXT_REDACTED(rt.length) } : {}), ...(typeof rc === "string" ? { caption: GROUP_TEXT_REDACTED(rc.length) } : {}) };
+    }
+    return { ...update, [key]: kept } as Update;
+  }
+  const found = privateText(update);
+  if (!found) return update;
+  const { key, msg } = found;
+  let secret = isSecretCommandText(msg.text!) || isSecretAdminText(msg.text!, null);
+  if (!secret && deps.agentsAdminState) {
+    try {
+      const state = await deps.agentsAdminState(BigInt(msg.from!.id));
+      secret = isSecretAdminText(msg.text!, secretContextOf(state, msg.reply_to_message?.message_id));
+    } catch (err) {
+      console.warn("[telegram] état des demandes non lu", (err as Error).message);
+    }
+  }
+  // Un long mot qui ressemble à une clé envoyé en privé au Boss (membre qui répond à sa demande) : masqué aussi.
+  if (!secret) secret = msg.text!.split(/\s+/).some((w) => w.length >= 20 && /\p{L}/u.test(w) && /\d/.test(w) && !/^https?:\/\//i.test(w));
+  if (!secret) return update;
+  const { entities: _entities, ...rest } = msg;
+  return { ...update, [key]: { ...rest, text: SECRET_REDACTED_TEXT } } as Update;
+}

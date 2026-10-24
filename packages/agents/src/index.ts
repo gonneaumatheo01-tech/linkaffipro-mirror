@@ -216,3 +216,14 @@ export * from "./boss/execute";
 export * from "./boss/fast";
 export * from "./control/channel-plan";
 export * from "./control/bet-category";
+// Phase 26, section 4 : Kevin en équipe (groupe Telegram, membres présentés, droits, demandes adressées).
+export * from "./boss/catalog-team";
+export * from "./boss/team/addressed";
+export * from "./boss/team/members";
+export * from "./boss/team/rights";
+export * from "./boss/team/parse";
+export * from "./boss/team/group";
+export * from "./boss/team/incoming";
+export * from "./boss/team/morning";
+export * from "./boss/team/callbacks";
+export * from "./human/delivery";

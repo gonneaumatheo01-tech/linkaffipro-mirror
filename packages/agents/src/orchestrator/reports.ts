@@ -5,6 +5,8 @@
  */
 import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent, nowOf } from "../admin/journal";
+import { groupForMorning } from "../boss/team/group";
+import { sendGroupMorningReport } from "../boss/team/morning";
 import { FALLBACK_EVENT } from "../agents/media-ia/fallback";
 import { countFallbacks } from "../chiefs/dating-format";
 import { casinoFallbackNotes, CASINO_FALLBACK_EVENT, type CasinoFallback } from "../casino/format";
@@ -125,6 +127,10 @@ export async function sendDailyReport(deps: AgentsDeps, opts: { force?: boolean 
     update: { value: report.day },
   });
   await agentEvent(deps, "agents.report.daily", { day: report.day, lines: report.lines });
+  // Phase 26 : dès qu'un groupe de l'équipe existe, le rapport du matin part dans le groupe (5 lignes, avec les @) et
+  // remplace l'envoi privé ; s'il ne part pas (groupe injoignable), l'envoi privé habituel suit.
+  const group = await groupForMorning(deps).catch(() => null);
+  if (group && (await sendGroupMorningReport(deps, group))) return { sent: true, recorded: true, day: report.day };
   const pref = await deps.prisma.setting.findUnique({ where: { key: DAILY_REPORT_SETTING } });
   if (!deps.admin || !reportEnabled(pref?.value)) return { sent: false, recorded: true, day: report.day };
   try {

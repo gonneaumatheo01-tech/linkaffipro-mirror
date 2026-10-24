@@ -123,7 +123,7 @@ export type ResponsiblePick = {
  * « MEMBER » passe avant un responsable, plus général) dont les responsabilités couvrent l'équipe et la nature, sinon
  * l'admin (null).
  */
-export function pickResponsibleFrom(members: readonly TeamMemberRow[], team: TeamMemberTeam | null, kind: TeamMemberKind, now: Date): ResponsiblePick {
+export function pickResponsibleFrom(members: readonly TeamMemberRow[], team: TeamMemberTeam | null, kind: TeamMemberKind | null, now: Date): ResponsiblePick {
   const candidates = members
     .filter((m) => !m.removedAt && covers(responsibilitiesOf(m.responsibilities), team, kind))
     .sort((a, b) => {
