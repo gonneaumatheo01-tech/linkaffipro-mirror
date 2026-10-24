@@ -37,6 +37,7 @@ const ALLOWED: Record<string, [number, string]> = {
   "packages/agents/src/agents/conversations/load.ts": [1, "noms des bots (rapport)"],
   "packages/agents/src/agents/conversations/review.ts": [1, "univers d'un bot précis"],
   "packages/agents/src/boss/guide.ts": [1, "démarrage guidé : le Boss existe-t-il ?"],
+  "packages/agents/src/boss/team/group.ts": [1, "nom du Boss pour le lien vers la conversation privée (mode groupe)"],
   "packages/db/prisma/demo-seed.ts": [1, "données de démonstration"],
   "packages/telegram/scripts/tg-diag.ts": [1, "diagnostic (tous les bots)"],
   "packages/telegram/src/prisma-deps.ts": [1, "retrait des droits d'un bot précis"],

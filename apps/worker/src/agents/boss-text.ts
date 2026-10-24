@@ -10,7 +10,8 @@
  * - Seul l'admin (`Setting` `admin.telegramUserId`) est écouté, en privé.
  */
 import { Api } from "grammy";
-import type { AgentsDeps, AgentsOrchestratorJob, BossDeps, BossLlm, BossReply, BossTeamInput } from "@linkaffipro/agents";
+import { findTeamMember, readBossGroupId } from "@linkaffipro/agents";
+import type { AgentsDeps, AgentsOrchestratorJob, BossChat, BossDeps, BossLlm, BossReply, BossSpeaker, BossTeamInput } from "@linkaffipro/agents";
 import { decrypt } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { BOSS_ERROR_REPLY, deliverBossReply, realBossEngine, type BossEngine, type BossReplyApi } from "@linkaffipro/telegram";
@@ -32,7 +33,23 @@ export type BossTextDeps = {
   botApi(botId: string): Promise<BossReplyApi | null>;
   adminTelegramId(): Promise<bigint | null>;
   bossTurnFor: BossTurnLookup;
+  /**
+   * Phase 26 (Kevin en équipe) : qui parle dans cette conversation ? Le groupe doit être celui enregistré ; en privé,
+   * un membre présenté. Rend null pour toute autre personne (rien n'est fait).
+   */
+  teamSpeaker?(chat: BossChat, fromTelegramId: bigint): Promise<BossSpeaker | null>;
 };
+
+/** Revérifie en base qui parle (jamais la seule parole de la tâche) : admin ou membre présenté, groupe enregistré. */
+export async function resolveTeamSpeaker(agents: AgentsDeps, chat: BossChat, fromTelegramId: bigint, adminId: bigint | null): Promise<BossSpeaker | null> {
+  if (chat.type === "group") {
+    const group = await readBossGroupId(agents);
+    if (group === null || group !== chat.chatId) return null;
+  } else if (chat.chatId !== fromTelegramId) return null;
+  if (adminId && fromTelegramId === adminId) return { kind: "admin", telegramUserId: adminId, firstName: null };
+  const m = await findTeamMember(agents, fromTelegramId);
+  return m ? { kind: "member", telegramUserId: m.telegramUserId, memberId: m.id, role: m.role, firstName: m.firstName } : null;
+}
 
 /** API du bot qui a reçu le message (jeton déchiffré en mémoire). */
 async function prismaBotApi(botId: string): Promise<BossReplyApi | null> {
@@ -65,7 +82,8 @@ export const prismaBossTurnFor: BossTurnLookup = (messageId, chatId) =>
     where: {
       role: "BOSS",
       telegramMessageId: messageId,
-      OR: [{ chatId: BigInt(chatId) }, { chatId: null }],
+      // Groupe (identifiant négatif) : seulement ses tours ; privé : aussi les tours anciens sans conversation notée.
+      ...(chatId < 0 ? { chatId: BigInt(chatId) } : { OR: [{ chatId: BigInt(chatId) }, { chatId: null }] }),
     },
     orderBy: { createdAt: "desc" },
     select: { status: true },
@@ -103,8 +121,18 @@ export async function runBossAiTurn(
   job: { botId: string; chatId: number; input: BossTeamInput },
 ): Promise<{ ok: boolean; outcome: BossTextOutcome }> {
   const adminId = await deps.adminTelegramId();
-  // Conversation privée : l'identifiant du chat est celui de la personne. Seul l'admin est écouté.
-  if (!adminId || BigInt(job.chatId) !== adminId) {
+  const team = job.input.chat?.type === "group" || job.input.speaker?.kind === "member";
+  if (team) {
+    // Groupe de l'équipe ou privé d'un membre : la personne est revérifiée en base.
+    const from = job.input.speaker?.telegramUserId ?? null;
+    const speaker = from !== null && job.input.chat ? await (deps.teamSpeaker ?? ((c, f) => resolveTeamSpeaker(deps.agents, c, f, adminId)))(job.input.chat, from).catch(() => null) : null;
+    if (!speaker) {
+      logger.warn({ botId: job.botId, messageId: job.input.messageId }, "[boss] message d'équipe ignoré : personne ou groupe inconnu");
+      return { ok: false, outcome: "not-admin" };
+    }
+    job = { ...job, input: { ...job.input, speaker } };
+  } else if (!adminId || BigInt(job.chatId) !== adminId) {
+    // Conversation privée : l'identifiant du chat est celui de la personne. Seul l'admin est écouté.
     logger.warn({ botId: job.botId, messageId: job.input.messageId }, "[boss] message ignoré : pas l'admin");
     return { ok: false, outcome: "not-admin" };
   }
@@ -142,7 +170,7 @@ export async function runBossAiTurn(
     // Conversation privée avec l'admin (le chat porte son identifiant).
     reply = await deps.engine.aiTurn(bossDeps, {
       ...job.input,
-      speaker: job.input.speaker ?? { kind: "admin", telegramUserId: adminId, firstName: null },
+      speaker: job.input.speaker ?? { kind: "admin", telegramUserId: adminId!, firstName: null },
       chat: job.input.chat ?? { type: "private", chatId: BigInt(job.chatId) },
     });
   } catch (err) {
@@ -173,6 +201,25 @@ export async function processBossText(
       source: job.source ?? "text",
       entities: job.entities ?? null,
       ...(job.forwarded ? { forwarded: true } : {}),
+      ...teamInputOf(job),
     },
   });
+}
+
+/** Champs du mode équipe (phase 26) d'une tâche `boss-text` : qui parle (à revérifier), où, mentions. */
+export function teamInputOf(job: BossTextJob): Partial<BossTeamInput> {
+  if (!job.fromTelegramId || !/^\d+$/.test(job.fromTelegramId)) return {};
+  const from = BigInt(job.fromTelegramId);
+  const group = job.chatType === "group";
+  const chat: BossChat = group ? { type: "group", chatId: BigInt(job.chatId) } : { type: "private", chatId: BigInt(job.chatId) };
+  return {
+    chat,
+    // Provisoire : remplacé par la personne revérifiée en base (`resolveTeamSpeaker`).
+    speaker: { kind: "member", telegramUserId: from, memberId: "", role: "MEMBER", firstName: "" },
+    mentions: (job.mentions ?? []).map((m) => ({
+      telegramUserId: m.telegramUserId && /^\d+$/.test(m.telegramUserId) ? BigInt(m.telegramUserId) : null,
+      username: m.username ?? null,
+      firstName: m.firstName ?? null,
+    })),
+  };
 }

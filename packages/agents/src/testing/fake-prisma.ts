@@ -61,6 +61,18 @@ const DEFAULTS: Record<string, () => Row> = {
   event: () => ({ memberId: null, channelId: null, botId: null, payload: {} }),
   mediaAsset: () => ({ teamKey: null, theme: null, personaId: null, kind: null, origin: null, tags: [], duration: null }),
   mediaUsage: () => ({ postId: null, missionId: null }),
+  teamMember: () => ({
+    username: null,
+    role: "MEMBER",
+    roleLabel: null,
+    responsibilities: {},
+    available: true,
+    awayUntil: null,
+    notes: [],
+    startedPrivateAt: null,
+    introducedByTelegramId: null,
+    removedAt: null,
+  }),
 };
 
 let seq = 0;

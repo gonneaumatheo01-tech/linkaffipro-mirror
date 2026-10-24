@@ -1,4 +1,4 @@
-import type { Bot } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import { hasLibraryKeyword, libraryAlbumLine, storeLibraryMedia, type StoreLibraryMediaResult } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
@@ -60,49 +60,25 @@ async function defaultDownload(url: string): Promise<Uint8Array> {
 }
 
 /**
- * Phase 19 : dépôt dans la médiathèque des agents. Un média (photo, vidéo, animation, document vidéo) envoyé (ou
- * transféré d'une personne, sans être transféré d'un canal) en privé par l'admin (`Setting` `admin.telegramUserId`) avec une légende à mots-clés (`#casino #roulette`,
- * `#dating #source #lea`, `#photo`) est téléchargé et rangé ; le bot confirme en une ligne. Album : la légende du
- * premier média vaut pour les autres (une minute) ; une seule ligne de confirmation pour tout l'album, envoyée
- * `ALBUM_REPLY_DELAY_MS` après le dernier média rangé (phase 22). Toute autre personne, ou un média sans mot-clé : `next()` (le
- * transfert d'un message de canal continue vers handlers/forward.ts).
+ * Dépôt d'un média dans la médiathèque (rangement + ligne de confirmation, album confirmé en une seule ligne). Partagé
+ * par le privé de l'admin (ci-dessous) et le groupe de l'équipe de Kevin (phase 26, `handlers/boss-group.ts`).
  */
-export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
-  const albumCaptions = new Map<string, { caption: string; until: number }>();
+export type LibraryDepositor = (ctx: Context, msg: Message, media: InboxMedia, caption: string) => Promise<void>;
+
+export function createLibraryDepositor(identity: BotIdentity, deps: TelegramDeps): LibraryDepositor {
   const albums = new Map<string, AlbumBatch>();
   const albumDelay = deps.mediaAlbumReplyDelayMs ?? ALBUM_REPLY_DELAY_MS;
-
-  bot.on("message", async (ctx, next) => {
-    const from = ctx.from;
-    if (ctx.chat.type !== "private" || from.is_bot || !deps.agentsDeps || !deps.isAdminDialogPartner) return next();
-    const msg = ctx.message;
-    const media = inboxMediaOf(msg);
-    if (!media) return next();
-    const now = Date.now();
-    // Un message transféré d'un canal garde la légende du CANAL (« #casino », « #paris »… y sont courants) : elle ne
-    // vaut jamais rangement, le transfert sert à ajouter le canal (handlers/forward.ts). Seule une légende écrite par
-    // l'admin (message non transféré d'un canal, ou légende de l'admin sur le même album) range le média.
-    const fromChannel = msg.forward_origin?.type === "channel";
-    let caption = fromChannel ? "" : (msg.caption ?? "");
+  return async (ctx, msg, media, caption) => {
+    const chatId = ctx.chat!.id;
     const group = msg.media_group_id;
-    if (group) {
-      for (const [k, v] of albumCaptions) if (v.until < now) albumCaptions.delete(k);
-      if (hasLibraryKeyword(caption)) albumCaptions.set(group, { caption, until: now + ALBUM_MEMORY_MS });
-      else caption = albumCaptions.get(group)?.caption ?? caption;
-    }
-    if (!hasLibraryKeyword(caption)) return next();
-    // Phase 26 : seul le bot du dialogue admin range les médias de l'admin (les autres le renvoient vers lui).
-    const route = await adminRouteFor(identity, deps, from.id, ctx.chat.type);
-    if (route.kind !== "dialog" && route.kind !== "legacy") return next();
-
     const replyLine = (text: string, to = msg.message_id) =>
-      ctx.reply(text, { reply_parameters: { message_id: to, allow_sending_without_reply: true } });
+      ctx.api.sendMessage(chatId, text, { reply_parameters: { message_id: to, allow_sending_without_reply: true } });
     if (media.size && media.size > BOT_DOWNLOAD_MAX_BYTES) {
       await replyLine("Fichier trop lourd pour le bot (20 Mo au plus) : envoie une version plus légère.");
       return;
     }
     // Album : les médias sont rangés un par un, la confirmation attend le dernier (une seule ligne).
-    const batchKey = group ? `${ctx.chat.id}:${group}` : null;
+    const batchKey = group ? `${chatId}:${group}` : null;
     let batch: AlbumBatch | null = null;
     if (batchKey) {
       batch = albums.get(batchKey) ?? { pending: 0, results: [], failed: 0, timer: null, replyTo: msg.message_id };
@@ -131,7 +107,7 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
       if (!file.file_path) throw new Error("fichier indisponible");
       const url = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
       const bytes = await (deps.downloadTelegramFile ?? defaultDownload)(url);
-      const r = await storeLibraryMedia(deps.agentsDeps(), {
+      const r = await storeLibraryMedia(deps.agentsDeps!(), {
         bytes,
         mimeType: media.mimeType,
         filename: media.filename,
@@ -143,7 +119,7 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
         telegramFileId: media.fileId,
         fileUniqueId: media.fileUniqueId,
         copyToLibrary: async (channelId) => {
-          const copied = await ctx.api.copyMessage(channelId, ctx.chat.id, msg.message_id);
+          const copied = await ctx.api.copyMessage(channelId, chatId, msg.message_id);
           return { messageId: copied.message_id };
         },
       });
@@ -154,5 +130,52 @@ export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps
       if (batch) settle(null);
       else await replyLine("Je n'ai pas pu ranger ce média. Réessaie dans un instant.");
     }
+  };
+}
+
+/** Légendes d'album gardées une minute : la légende du premier média vaut pour les autres. */
+export function createAlbumCaptions(): (msg: Message, caption: string) => string {
+  const albumCaptions = new Map<string, { caption: string; until: number }>();
+  return (msg, caption) => {
+    const group = msg.media_group_id;
+    if (!group) return caption;
+    const now = Date.now();
+    for (const [k, v] of albumCaptions) if (v.until < now) albumCaptions.delete(k);
+    if (hasLibraryKeyword(caption)) {
+      albumCaptions.set(group, { caption, until: now + ALBUM_MEMORY_MS });
+      return caption;
+    }
+    return albumCaptions.get(group)?.caption ?? caption;
+  };
+}
+
+/**
+ * Phase 19 : dépôt dans la médiathèque des agents. Un média (photo, vidéo, animation, document vidéo) envoyé (ou
+ * transféré d'une personne, sans être transféré d'un canal) en privé par l'admin (`Setting` `admin.telegramUserId`) avec une légende à mots-clés (`#casino #roulette`,
+ * `#dating #source #lea`, `#photo`) est téléchargé et rangé ; le bot confirme en une ligne. Album : la légende du
+ * premier média vaut pour les autres (une minute) ; une seule ligne de confirmation pour tout l'album, envoyée
+ * `ALBUM_REPLY_DELAY_MS` après le dernier média rangé (phase 22). Toute autre personne, ou un média sans mot-clé : `next()` (le
+ * transfert d'un message de canal continue vers handlers/forward.ts).
+ */
+export function registerMediaInboxHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
+  const captionOf = createAlbumCaptions();
+  const deposit = createLibraryDepositor(identity, deps);
+
+  bot.on("message", async (ctx, next) => {
+    const from = ctx.from;
+    if (ctx.chat.type !== "private" || from.is_bot || !deps.agentsDeps || !deps.isAdminDialogPartner) return next();
+    const msg = ctx.message;
+    const media = inboxMediaOf(msg);
+    if (!media) return next();
+    // Un message transféré d'un canal garde la légende du CANAL (« #casino », « #paris »… y sont courants) : elle ne
+    // vaut jamais rangement, le transfert sert à ajouter le canal (handlers/forward.ts). Seule une légende écrite par
+    // l'admin (message non transféré d'un canal, ou légende de l'admin sur le même album) range le média.
+    const fromChannel = msg.forward_origin?.type === "channel";
+    const caption = captionOf(msg, fromChannel ? "" : (msg.caption ?? ""));
+    if (!hasLibraryKeyword(caption)) return next();
+    // Phase 26 : seul le bot du dialogue admin range les médias de l'admin (les autres le renvoient vers lui).
+    const route = await adminRouteFor(identity, deps, from.id, ctx.chat.type);
+    if (route.kind !== "dialog" && route.kind !== "legacy") return next();
+    await deposit(ctx, msg, media, caption);
   });
 }

@@ -48,11 +48,13 @@ describe("catalogue fermé", () => {
     expect(await by("plafond").classify!(kit.deps, { equipe: "dating", poste: "video", euros: 80 })).toBe("confirm");
   });
 
-  it("droits : l'admin peut tout ; un membre rien pour l'instant (mode groupe à venir)", () => {
-    const a = BOSS_CATALOG[0]!;
-    expect(bossActionAllowed(a)).toBe(true);
-    expect(bossActionAllowed(a, { kind: "admin", telegramUserId: 1n, firstName: null })).toBe(true);
-    expect(bossActionAllowed(a, { kind: "member", telegramUserId: 2n, memberId: "m", role: "MEMBER", firstName: "Léa" })).toBe(false);
+  it("droits : l'admin peut tout ; un membre lit, mais ne passe rien en vrai (détail : team/team.test.ts)", () => {
+    const by = (k: string) => BOSS_CATALOG.find((x) => x.key === k)!;
+    const lea = { kind: "member", telegramUserId: 2n, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
+    expect(bossActionAllowed(by("simulation"))).toBe(true);
+    expect(bossActionAllowed(by("simulation"), { kind: "admin", telegramUserId: 1n, firstName: null })).toBe(true);
+    expect(bossActionAllowed(by("etat_general"), lea)).toBe(true);
+    expect(bossActionAllowed(by("simulation"), lea, { cls: "confirm", params: { equipe: "casino", mode: "vrai" }, teams: ["casino"] })).toBe(false);
   });
 
   it("actions proches d'une demande non couverte", () => {
