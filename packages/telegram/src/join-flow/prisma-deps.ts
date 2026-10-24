@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { emitAutomationEvent, emitLinkaffiEvent, enqueue, enqueueDm } from "@linkaffipro/queue";
 import type { User } from "grammy/types";
 import type { PendingGateRow } from "./auto-gate";

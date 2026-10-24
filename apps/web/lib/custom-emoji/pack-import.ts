@@ -4,7 +4,8 @@
  * `custom-emoji` `fetch-previews` pour leurs aperçus. Le client Telegram est injectable (tests, aucun appel réseau).
  */
 import { parseEmojiPackLink } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, audit, prisma, recordEvent } from "@linkaffipro/db";
+import { audit, prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { enqueue } from "@linkaffipro/queue";
 import { getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
 import { GrammyError, HttpError } from "grammy";

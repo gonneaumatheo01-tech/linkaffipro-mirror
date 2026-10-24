@@ -33,7 +33,7 @@ describe("relance INACTIVE : candidats", () => {
       canDm: true,
       startedAt: { not: null },
       blockedAt: null,
-      bot: { mode: "STANDARD", isActive: true },
+      bot: { mode: "STANDARD", isActive: true, role: "CHANNEL" },
     });
   });
 });

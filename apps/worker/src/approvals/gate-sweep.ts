@@ -8,7 +8,8 @@
  *   fait automatiquement au premier passage du filet si la marque `phase14.gateBackfill` manque.
  * La logique est dans @linkaffipro/telegram (auto-gate.ts) ; ici l'API des bots du worker et son journal.
  */
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import {
   GATE_BACKFILL_KEY,
   runGateBackfillOnce,

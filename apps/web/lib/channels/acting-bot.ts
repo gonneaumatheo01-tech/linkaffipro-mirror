@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 
 /**
  * Bot qui agit pour un canal dans les écrans des canaux (liens des canaux à rejoindre, liens de partage) : le bot

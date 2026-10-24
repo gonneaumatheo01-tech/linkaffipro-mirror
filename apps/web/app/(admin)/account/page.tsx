@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Compass } from "lucide-react";
 import { ROLE_LABELS } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { PageHeader } from "@/components/admin/page-header";
 import { Flash } from "@/components/admin/flash";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";

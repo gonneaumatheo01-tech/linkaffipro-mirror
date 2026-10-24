@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type Prisma } from "@linkaffipro/db";
+import { prisma, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import {
   aggregatePlayers,
   buildMemberWhere,

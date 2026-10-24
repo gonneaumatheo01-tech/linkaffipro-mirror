@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { audit, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Chat, User } from "grammy/types";
 import {

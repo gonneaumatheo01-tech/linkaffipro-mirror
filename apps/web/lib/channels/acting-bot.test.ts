@@ -43,7 +43,7 @@ describe("bot qui agit pour un canal (site)", () => {
     expect(args.where).toEqual({
       channelId: "c1",
       revokedAt: null,
-      bot: { isActive: true, mode: "STANDARD" },
+      bot: { isActive: true, mode: "STANDARD", role: "CHANNEL" },
     });
     expect(args.orderBy).toEqual([{ detectedAt: "asc" }, { id: "asc" }]);
   });

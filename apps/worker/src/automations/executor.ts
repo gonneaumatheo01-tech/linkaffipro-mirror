@@ -1,5 +1,6 @@
 import { GRAPH_SEQUENCE_LABELS, escapeHtml, renderActionText, type AutomationAction } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent } from "@linkaffipro/db";
+import { prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { enqueueDm, type DmButton, type EnqueueDmInput } from "@linkaffipro/queue";
 import { notifyAdmin, pickText, renderText } from "@linkaffipro/telegram";
 import { actingBotFor, apiForBot } from "../approvals/telegram-actions";

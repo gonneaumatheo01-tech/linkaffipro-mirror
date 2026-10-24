@@ -2,7 +2,8 @@
  * Lectures en base des écrans Relances automatiques (lecture seule). Le compteur des cartes suit la définition de
  * `counter.ts` ; les clics d'offre suivent la règle du moteur (identifiant de suivi, hors robots).
  */
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { groupLanguages } from "@/lib/members/query";
 import { getTagRegistry } from "@/lib/members/tags";
 import { counterSince, weeklyCounters, type RuleCounter } from "./counter";

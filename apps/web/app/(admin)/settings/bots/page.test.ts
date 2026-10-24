@@ -23,6 +23,8 @@ vi.mock("@linkaffipro/db", () => ({
   prisma: {
     bot: { findMany: vi.fn(async () => m.bots) },
     persona: { findMany: vi.fn(async () => m.personas) },
+    // Phase 26 : nom affiché du Boss (absent = « Kevin »).
+    setting: { findUnique: vi.fn(async () => null) },
   },
 }));
 vi.mock("@/lib/status/queries", () => ({

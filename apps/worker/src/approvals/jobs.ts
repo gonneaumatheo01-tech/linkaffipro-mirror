@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { prisma, recordEvent, toJsonValue, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   dueReminderIndex,

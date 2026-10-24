@@ -17,7 +17,8 @@
  *   inchangée) ; journal `persona.faq_updated` (nombres d'entrées, jamais les textes).
  */
 import { deniesBeingAssistant } from "@linkaffipro/chat";
-import { CHANNEL_BOT_WHERE, audit, prisma } from "@linkaffipro/db";
+import { audit, prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { mentionsAssistant, setAssistantProfile } from "@linkaffipro/telegram";
 import { refreshCampaignStats } from "@/lib/campaigns/refresh";
 import {

@@ -16,7 +16,8 @@
  * - Purge (`purge.ts`) : visites, clics et ouvertures (`LandingEvent`) plus anciens que la conservation des données
  *   personnelles (Réglages → Alertes, 24 mois par défaut), par lots.
  */
-import { CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { enqueue } from "@linkaffipro/queue";
 import {
   createPrismaLandingDeps,

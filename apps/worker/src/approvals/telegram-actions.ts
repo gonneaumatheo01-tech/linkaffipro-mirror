@@ -4,7 +4,8 @@
  */
 import { Api, GrammyError } from "grammy";
 import { decrypt } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent } from "@linkaffipro/db";
+import { prisma, recordEvent } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { emitLinkaffiEvent, enqueueDm } from "@linkaffipro/queue";
 import {
   baseLang,

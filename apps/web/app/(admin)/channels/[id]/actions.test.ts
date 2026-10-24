@@ -1033,7 +1033,7 @@ describe("Demandes → « Tout accepter » (phase 14)", () => {
     };
     expect(args.select.botAdmins.where).toEqual({
       revokedAt: null,
-      bot: { isActive: true, mode: "STANDARD" },
+      bot: { isActive: true, mode: "STANDARD", role: "CHANNEL" },
     });
   });
 

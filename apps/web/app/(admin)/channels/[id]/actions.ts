@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, audit, type Prisma } from "@linkaffipro/db";
+import { prisma, audit, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { enqueue } from "@linkaffipro/queue";
 import { requireUser } from "@/lib/session";
 import { recheckChannelRights } from "@linkaffipro/telegram";

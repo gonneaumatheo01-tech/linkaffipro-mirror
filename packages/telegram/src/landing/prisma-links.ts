@@ -4,7 +4,8 @@
  * des liens actuels) et le script de la page de test. Règles dans `links.ts` et `chat.ts`.
  */
 import { decrypt, landingLinkCampaignFixes } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, Prisma, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { Prisma, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { publishLandingInvalidate } from "@linkaffipro/queue";
 import type { Api } from "grammy";
 import { canInviteFromRights } from "../join-flow/prisma-gate-links";

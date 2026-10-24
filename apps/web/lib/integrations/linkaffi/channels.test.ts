@@ -51,7 +51,7 @@ describe("canaux proposables : jamais par un assistant de conversation", () => {
       where: { botAdmins: { some: unknown } };
       select: { botAdmins: { where: unknown } };
     };
-    const standard = { revokedAt: null, bot: { isActive: true, mode: "STANDARD" } };
+    const standard = { revokedAt: null, bot: { isActive: true, mode: "STANDARD", role: "CHANNEL" } };
     expect(args.where.botAdmins.some).toEqual(standard);
     expect(args.select.botAdmins.where).toEqual(standard);
   });

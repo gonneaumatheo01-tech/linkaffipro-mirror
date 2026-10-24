@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Download, RefreshCw } from "lucide-react";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { DataTable, type DataTableRow } from "@/components/admin/data-table";
 import { Flash } from "@/components/admin/flash";
 import { HelpTip } from "@/components/admin/help-tip";

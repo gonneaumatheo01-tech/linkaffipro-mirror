@@ -1,4 +1,5 @@
-import { CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { decrypt } from "@linkaffipro/core";
 
 async function main() {

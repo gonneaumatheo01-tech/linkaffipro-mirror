@@ -2,7 +2,8 @@
  * Lectures de la bibliothèque des emojis animés (phase 12) : sélecteur de l'éditeur, page Messages → Emojis animés,
  * état de l'import des packs du compte Telegram connecté.
  */
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type CustomEmojiSource } from "@linkaffipro/db";
+import { prisma, type CustomEmojiSource } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { TELEGRAM_SESSION_ID } from "@linkaffipro/mtproto";
 import type { PickerEmoji } from "./library";
 

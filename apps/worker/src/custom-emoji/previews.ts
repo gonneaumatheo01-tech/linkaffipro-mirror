@@ -11,7 +11,8 @@
  * Le jeton du bot n'apparaît jamais dans les journaux ni en base (adresse de téléchargement construite en mémoire).
  */
 import { decrypt, isValidCustomEmojiId } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, type Prisma } from "@linkaffipro/db";
+import { prisma, type Prisma } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { enqueue } from "@linkaffipro/queue";
 import type { File as TelegramFile, Sticker, StickerSet } from "grammy/types";
 import { logger } from "../logger";

@@ -61,7 +61,7 @@ describe("bot qui crée les liens d'entrée", () => {
     };
     expect(args.include.botAdmins.where).toEqual({
       revokedAt: null,
-      bot: { isActive: true, mode: "STANDARD" },
+      bot: { isActive: true, mode: "STANDARD", role: "CHANNEL" },
     });
     expect(args.include.botAdmins.orderBy).toEqual([{ detectedAt: "asc" }, { id: "asc" }]);
   });

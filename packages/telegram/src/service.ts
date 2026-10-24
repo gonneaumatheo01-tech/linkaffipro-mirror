@@ -1,7 +1,8 @@
 import { Api, GrammyError } from "grammy";
 import type { Chat } from "grammy/types";
 import { TELEGRAM_ALLOWED_UPDATES, encrypt, randomToken, type Vertical } from "@linkaffipro/core";
-import { CHANNEL_BOT_WHERE, prisma, audit, toJsonValue } from "@linkaffipro/db";
+import { prisma, audit, toJsonValue } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import type { ChatLang } from "@linkaffipro/chat";
 import { evictBot, getOrCreateBot } from "./factory";
 import { extractAdminRights, type BotMode } from "./ports";

@@ -32,7 +32,7 @@ describe("bot qui ouvre l'API pour les liens des pages", () => {
     m.findFirst.mockResolvedValue({ id: "lea", tokenEncrypted: "x" });
     expect(await workerLandingApi("lea")).toEqual({ wrapped: { botId: "lea" } });
     expect(m.findFirst.mock.calls[0]![0]).toEqual({
-      where: { id: "lea", isActive: true },
+      where: { id: "lea", isActive: true, role: "CHANNEL" },
       select: { id: true, tokenEncrypted: true },
     });
   });

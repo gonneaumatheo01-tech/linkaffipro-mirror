@@ -64,7 +64,7 @@ describe("Mon compte", () => {
     const { prisma } = await import("@linkaffipro/db");
     await render();
     const args = vi.mocked(prisma.bot.findMany).mock.calls.at(-1)![0] as { where: unknown };
-    expect(args.where).toEqual({ isActive: true, mode: "STANDARD" });
+    expect(args.where).toEqual({ isActive: true, mode: "STANDARD", role: "CHANNEL" });
   });
 
   it("Telegram lié : bouton « Délier », toujours un seul bouton orange", async () => {

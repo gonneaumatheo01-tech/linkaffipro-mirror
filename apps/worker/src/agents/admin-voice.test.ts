@@ -94,7 +94,7 @@ describe("vocal de l'admin par le Boss (phase 26)", () => {
     const a = bossDeps(false);
     expect((await processAdminVoice(job(), a.deps)).outcome).toBe("handled");
     expect(a.sent[0]!.html).toContain("J'ai compris");
-    expect(a.fastPath.mock.calls[0]![1]).toMatchObject({ source: "voice", messageId: 55 });
+    expect((a.fastPath.mock.calls[0] as unknown[])[1]).toMatchObject({ source: "voice", messageId: 55 });
     expect(a.aiTurn).toHaveBeenCalledTimes(1);
     expect(a.bossSent).toEqual(["Équipe Rencontres en pause ⏸ (IA)"]);
     const b = bossDeps(true);

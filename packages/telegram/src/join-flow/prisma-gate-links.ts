@@ -2,7 +2,8 @@
  * Accès base des liens des canaux à rejoindre (gate-links.ts), partagés par le webhook, le site (vérification d'une
  * règle, renvoi de l'accueil, point « À faire ») et le worker (rappels, alerte).
  */
-import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE, prisma, type MembershipStatus } from "@linkaffipro/db";
+import { prisma, type MembershipStatus } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE, CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import type { GateBot, GateLinkApi, GateLinkDeps, GateLinkProblem } from "./gate-links";
 import { gateCheckProblemsOf, gateProblemsOf } from "./gate-links";
 

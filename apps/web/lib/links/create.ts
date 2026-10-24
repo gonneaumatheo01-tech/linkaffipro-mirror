@@ -1,6 +1,7 @@
 import { Api, GrammyError } from "grammy";
 import { decrypt, shortId } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, audit, recordEvent, type AdPlatform } from "@linkaffipro/db";
+import { prisma, audit, recordEvent, type AdPlatform } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 
 export class LinkError extends Error {}
 

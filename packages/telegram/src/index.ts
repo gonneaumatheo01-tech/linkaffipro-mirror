@@ -250,7 +250,7 @@ export { registerAgentsAdminHandlers, ADMIN_VOICE_MAX_BYTES } from "./handlers/a
 export { registerMediaInboxHandlers, inboxMediaOf, BOT_DOWNLOAD_MAX_BYTES } from "./handlers/media-inbox";
 // Phase 26 : le Boss (bot du dialogue admin) — choix du bot, filtres partagés, réception, réponse, enregistrement,
 // santé et réparation des connexions Telegram, diagnostic.
-export { CHANNEL_BOT_WHERE, ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db";
+export { CHANNEL_BOT_WHERE, ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 export { adminBot, ADMIN_BOT_WHERE, ADMIN_BOT_ORDER, BOSS_BOT_WHERE, BOSS_BOT_ORDER } from "./admin-bot";
 export type { AdminBotChoice, AdminBotDb } from "./admin-bot";
 export { isBossBot } from "./ports";

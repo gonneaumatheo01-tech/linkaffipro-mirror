@@ -7,7 +7,8 @@
  * Son `mode` reste STANDARD : le worker (qui n'agit que sur les bots ASSISTANT) ne touche pas ces conversations.
  */
 import { encrypt, randomToken } from "@linkaffipro/core";
-import { CHANNEL_BOT_WHERE, prisma } from "@linkaffipro/db";
+import { prisma } from "@linkaffipro/db";
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 
 /** Prefixe du pseudo du bot fantome (le pseudo d'un Bot est unique). */
 export const SHADOW_BOT_USERNAME_PREFIX = "userbot_";

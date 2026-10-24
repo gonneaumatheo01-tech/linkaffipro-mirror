@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
     username: "lea_bot",
     mode: "STANDARD" as "STANDARD" | "ASSISTANT",
     personaId: null as string | null,
+    role: "CHANNEL" as "CHANNEL" | "ADMIN",
   },
   personas: new Map<string, { id: string; name: string; isActive: boolean }>([
     ["p1", { id: "p1", name: "Léa", isActive: true }],
@@ -29,6 +30,7 @@ const m = vi.hoisted(() => ({
   channelCountWhere: [] as unknown[],
   loadAssistantHandover: vi.fn(),
   applyAssistantHandover: vi.fn(),
+  registerBoss: vi.fn(async () => ({ botId: "boss1", username: "kevin_bot", name: "Kevin", created: true, replaced: ["old_boss"], reasked: false })),
 }));
 
 class Redirect extends Error {
@@ -80,6 +82,9 @@ vi.mock("@linkaffipro/telegram", () => ({
   setAssistantProfile: m.setAssistantProfile,
   registerBotFromToken: vi.fn(),
   setWebhookForBot: vi.fn(),
+  registerBossFromToken: m.registerBoss,
+  BossRegisterError: class extends Error {},
+  bossRegisteredText: (u: string) => `Kevin est prêt : envoie /start à @${u} depuis ton compte, puis écris « commencer ».`,
 }));
 
 vi.mock("./assistant-handover", () => ({
@@ -87,7 +92,7 @@ vi.mock("./assistant-handover", () => ({
   applyAssistantHandover: m.applyAssistantHandover,
 }));
 
-import { setBotModeAction } from "./actions";
+import { addBotAction, setBotModeAction } from "./actions";
 
 async function redirected(p: Promise<unknown>): Promise<URLSearchParams> {
   try {
@@ -109,7 +114,7 @@ function form(values: Record<string, string>): FormData {
 }
 
 beforeEach(() => {
-  Object.assign(m.bot, { mode: "STANDARD", personaId: null });
+  Object.assign(m.bot, { mode: "STANDARD", personaId: null, role: "CHANNEL" });
   m.updates.length = 0;
   m.audits.length = 0;
   m.evictBot.mockClear();
@@ -364,6 +369,22 @@ describe("mode du bot", () => {
     await expect(
       setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })),
     ).rejects.toThrow("Action réservée aux administrateurs");
+    expect(m.updates).toEqual([]);
+  });
+});
+
+describe("Réglages → Bots : le Boss (phase 26)", () => {
+  it("« Ajouter un bot » avec le rôle Boss : même enregistrement que par Telegram, message « /start »", async () => {
+    const q = await redirected(addBotAction(form({ token: "123:ABC", role: "ADMIN" })));
+    expect(m.registerBoss).toHaveBeenCalledWith("123:ABC", { userId: "admin1", via: "SITE" });
+    expect(q.get("ok")).toContain("envoie /start à @kevin_bot");
+    expect(q.get("ok")).toContain("@old_boss");
+  });
+
+  it("le Boss ne peut jamais devenir assistant de conversation (refus du serveur)", async () => {
+    m.bot.role = "ADMIN";
+    const q = await redirected(setBotModeAction(form({ botId: "bot1", mode: "ASSISTANT", personaId: "p1" })));
+    expect(q.get("error")).toContain("Boss");
     expect(m.updates).toEqual([]);
   });
 });

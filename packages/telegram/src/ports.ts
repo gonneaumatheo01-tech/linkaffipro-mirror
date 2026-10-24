@@ -2,6 +2,7 @@ import type { Vertical } from "@linkaffipro/core";
 import type { Chat, ChatMemberAdministrator, ChatMemberOwner, Update, User } from "grammy/types";
 import type { AgentsDeps } from "@linkaffipro/agents";
 import type { CustomEmojiAddOutcome, ExtractedCustomEmoji } from "./custom-emoji/extract";
+import type { BossEngine } from "./boss/engine";
 
 /** Mode d'un bot (phase 17) : bot normal, ou assistant de conversation (persona liée). */
 export type BotMode = "STANDARD" | "ASSISTANT";
@@ -169,7 +170,7 @@ export interface TelegramDeps {
    */
   claimBossRedirect?(botId: string, targetBotId: string): Promise<boolean>;
   /** Phase 26 : moteur du Boss (chemin rapide, boutons de confirmation). Absent : le moteur réel de `@linkaffipro/agents`. */
-  bossEngine?: import("./boss/engine").BossEngine;
+  bossEngine?: BossEngine;
   /** Phase 26 : nom affiché du Boss (`Setting` `boss.name`, « Kevin » par défaut, `BOSS_DEFAULT_NAME`). */
   bossName?(): Promise<string>;
 }

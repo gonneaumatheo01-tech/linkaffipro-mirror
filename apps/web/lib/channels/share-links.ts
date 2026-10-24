@@ -5,7 +5,8 @@ import {
   provenanceOfLink,
   type ScopedRule,
 } from "@linkaffipro/core";
-import { ACTIVE_CHANNEL_BOT_WHERE, audit, prisma, type ApprovalRule } from "@linkaffipro/db";
+import { audit, prisma, type ApprovalRule } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { canInviteFromRights, getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
 import { actingStandardBotFor } from "./acting-bot";
 import { fmtDate } from "@/lib/format";

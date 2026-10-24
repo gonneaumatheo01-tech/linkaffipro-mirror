@@ -1,4 +1,5 @@
-import { ACTIVE_CHANNEL_BOT_WHERE, prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { prisma, recordEvent, toJsonValue } from "@linkaffipro/db";
+import { ACTIVE_CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import type { AutomationsJob } from "@linkaffipro/queue";
 import { logger } from "../logger";
 import { buildMemberContext, graphConditionEvaluator } from "./context";
