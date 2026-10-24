@@ -642,3 +642,11 @@ canal » ; une fille n'en reçoit donc aucun. À reprendre le jour où une fille
   par le code : le client les marque « Fait » (nouveau statut DONE, `doneAt`, `comment`) ou « Refusé ». Action
   conseillée dans `Recommendation.action` (STOP, SCALE, TEST, WATCH). Seuils par univers dans `Setting`
   `agents.ads.thresholds`. Rapports archivés dans `InsightReport` `teamKey = "ads"`.
+- **Site Ads (phase 24)** : `/agents/ads` est une page à part (« ads » n'est pas une équipe), onglet « Agent Ads » dans
+  la navigation et carte sur `/agents` (qui ne lance pas l'analyse). Seuils `agents.ads.thresholds` écrits par le site
+  (`AuditLog` `agents.ads_thresholds_saved`) ; coût par inscription visé et retour sur dépense minimal vides = calcul
+  automatique par la médiane ; départ : 3 jours d'observation, 20 € de dépense minimale. « Fait » / « Refuser »
+  journalisés par le moteur seulement. Meilleures / pires pubs classées par gains puis retour sur dépense, seulement
+  avec assez de données. Vocabulaire : « parcours » (entonnoir), « ce que rapportent les membres de chaque pub »
+  (cohortes) ; ROAS / CPA au survol seulement. « Ce qui marche » n'affiche plus les rapports `ads`. Rapports
+  distingués par `InsightReport.stats.kind` (`daily` / `weekly`).

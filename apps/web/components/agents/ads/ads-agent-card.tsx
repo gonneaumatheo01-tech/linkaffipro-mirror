@@ -6,7 +6,7 @@ import type { AdsCardFigures } from "@/lib/agents/ads/queries";
 import { fmtDate, fmtNum } from "@/lib/format";
 
 /**
- * Carte « Agent Ads » du tableau de bord du Grand Chef : il n'est pas une équipe (il ne publie rien et n'agit jamais
+ * Carte « Agent Ads » du tableau de bord du Grand Chef : il n'est pas une équipe (il ne publie rien et n'agit jamais
  * chez Meta ou TikTok), il conseille. Recommandations à décider, faites sur 30 jours, dernier rapport.
  */
 export function AdsAgentCard({ figures }: { figures: AdsCardFigures }) {

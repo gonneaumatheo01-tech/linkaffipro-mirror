@@ -19,7 +19,7 @@ import {
 import { fmtDate } from "@/lib/format";
 import { StatusBadge } from "@/lib/status-badges";
 
-/** Une recommandation : action conseillée, cible, preuves, ce qu'il faut faire soi-même, puis « Fait » / « Refuser ». */
+/** Une recommandation : action conseillée, cible, preuves, ce qu'il faut faire soi-même, puis « Fait » / « Refuser ». */
 export function AdsRecommendationCard({ rec, from }: { rec: AdsRecommendationView; from: string }) {
   const action = parseAdsAction(rec.action);
   const evidence = adsEvidenceLines(rec.evidence);

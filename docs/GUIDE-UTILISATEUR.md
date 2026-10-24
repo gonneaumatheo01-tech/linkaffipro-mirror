@@ -981,6 +981,19 @@ L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos pos
 
 Quand l'équipe Algorithme calcule les meilleurs horaires, le calendrier des messages l'indique : « Calculés le … par l'équipe Algorithme ».
 
+### Agent Ads : vos pubs à arrêter, augmenter ou tester
+
+L'Agent Ads dépend directement du Grand Chef. Chaque jour, il regarde ce que coûtent vos pubs (Meta, TikTok, ou les coûts que vous avez importés ou saisis) et ce qu'elles ont vraiment rapporté sur la plateforme (membres, inscriptions, dépôts, commissions). Puis il vous conseille. **Il ne change jamais rien chez Meta ou TikTok** : c'est vous qui faites l'action dans le gestionnaire de pubs. Ouvrez **Agents**, puis **Agent Ads** (onglet en haut, ou **Ouvrir l'Agent Ads** sur sa carte).
+
+- **Résumé d'hier** : dépense pub, gains (commissions moins dépense pub), retour sur dépense pub, nombre de recommandations à décider, meilleure et pire pub d'hier.
+- **Lire une recommandation** : la pastille dit l'action conseillée : **Arrêter** (le coût par inscription dépasse votre seuil depuis plusieurs jours), **Augmenter** (le retour sur dépense pub dépasse votre seuil et le budget n'est pas épuisé), **Tester** (une variante de ce qui marche : autre visuel, autre audience, autre horaire) ou **Surveiller** (pub trop jeune ou trop peu de dépense pour conclure). En dessous : les preuves (chiffres, période, comparaison, seuil), le gain attendu et ce qu'il faut faire vous-même.
+- **« Fait » ou « Refuser »** : après avoir fait l'action chez Meta ou TikTok, cliquez sur **Fait** ; si vous n'êtes pas d'accord, **Refuser**. Le commentaire est facultatif (« budget monté de 20 € à 25 € ») ; il est gardé dans le journal. Toute l'équipe peut le faire. Les recommandations traitées passent dans **Faites ou refusées**.
+- **Vos pubs en détail** : choisissez **Hier**, **7 derniers jours** ou **28 derniers jours** (comparés à la période d'avant). Vous voyez les **Campagnes** (cliquez sur une ligne pour son parcours), le **Parcours** d'une campagne (de l'affichage de la pub au dépôt, avec l'étape la plus faible), les **meilleures et pires pubs** (classées par gains ; les pubs trop jeunes sont à part, **À surveiller**) et **Ce que rapportent les membres de chaque pub** après 7, 14 et 30 jours. Les liens **Détail dans Statistiques** ouvrent les mêmes jours dans Statistiques.
+- **Sans Meta ni TikTok branché** : la page le dit en une phrase ; l'agent travaille alors avec les coûts importés ou saisis. Le lien **Brancher Meta ou TikTok** ouvre Réglages → Connexions.
+- **Seuils par univers** (administrateurs) : pour Casino, Paris sportifs et Rencontres, le **coût par inscription visé**, le **retour sur dépense pub minimal**, les **jours d'observation** (3 au départ) et la **dépense minimale par pub** (20 € au départ). Laissez les deux premiers vides pour « automatique » : l'agent prend alors la valeur du milieu de vos pubs comparables. Cliquez sur **Enregistrer les seuils**. Les seuils ne changent que les conseils, jamais vos pubs.
+- **Rapports archivés** : le rapport du jour part chaque matin sur Telegram (5 lignes au plus), celui de la semaine le lundi ; ils s'archivent ici.
+- **Exporter** : **Exporter les recommandations** et **Exporter les chiffres** (une ligne par campagne, groupe et pub, période choisie) donnent un fichier pour Excel.
+
 ### Parler au bot par messages vocaux
 
 Vous pouvez parler au bot par messages vocaux : il répète ce qu'il a compris avant d'agir (« J'ai compris : "pause rencontres". »). Un vocal vaut un message écrit : une commande, une réponse à une question, un chiffre ou un oui. Une commande importante (publier sur les vrais canaux, changer de niveau) demande toujours la confirmation **OUI**. S'il n'a pas compris, il vous demande de l'écrire. Une clé s'envoie toujours par écrit : un vocal n'est jamais pris pour une clé.

@@ -111,7 +111,7 @@ const COHORT_COLUMNS: DataTableColumn[] = [
  * Agent Ads (`/agents/ads`, phase 24), rattaché au Grand Chef : il lit chaque jour les dépenses et les résultats des
  * pubs (Meta, TikTok, coûts importés ou saisis) et ce qu'elles ont vraiment rapporté, puis RECOMMANDE (arrêter,
  * augmenter, tester, surveiller), preuves à l'appui. Il n'agit jamais chez Meta ou TikTok : le client fait l'action
- * lui-même puis clique « Fait » (ou « Refuser »). Page : résumé d'hier, recommandations, campagnes, parcours d'une
+ * lui-même puis clique « Fait » (ou « Refuser »). Page : résumé d'hier, recommandations, campagnes, parcours d'une
  * campagne, meilleures et pires pubs, ce que rapportent les membres après 7 / 14 / 30 jours, seuils (ADMIN),
  * rapports archivés, exports. Le détail reste dans Statistiques (liens), sans doublon.
  */
@@ -191,7 +191,7 @@ export default async function AdsAgentPage({ searchParams }: PageProps<"/agents/
         backLabel="Agents"
         title="Agent Ads"
         description="Il lit chaque jour ce que coûtent vos pubs et ce qu'elles rapportent vraiment (membres, inscriptions, dépôts, commissions), puis vous conseille : arrêter, augmenter, tester ou surveiller, chiffres à l'appui."
-        help="L'agent ne change jamais rien chez Meta ou TikTok : c'est vous qui le faites dans le gestionnaire de pubs, puis vous cliquez « Fait »."
+        help="L'agent ne change jamais rien chez Meta ou TikTok : c'est vous qui le faites dans le gestionnaire de pubs, puis vous cliquez « Fait »."
         meta={toDecide > 0 ? <StatusPill tone="warning">{toDecide} à décider</StatusPill> : null}
         secondaryActions={
           <>
@@ -278,7 +278,7 @@ export default async function AdsAgentPage({ searchParams }: PageProps<"/agents/
         <FormSection
           id="recommandations"
           title="Recommandations"
-          description="Chaque conseil porte ses preuves (chiffres, période, comparaison, seuil). L'agent ne change rien chez Meta ou TikTok : faites-le vous-même, puis cliquez « Fait » ; « Refuser » l'écarte. Un commentaire aide l'agent à comprendre votre choix."
+          description="Chaque conseil porte ses preuves (chiffres, période, comparaison, seuil). L'agent ne change rien chez Meta ou TikTok : faites-le vous-même, puis cliquez « Fait » ; « Refuser » l'écarte. Un commentaire aide l'agent à comprendre votre choix."
         >
           <AdsRecommendationsList recs={recs} from={from} />
         </FormSection>

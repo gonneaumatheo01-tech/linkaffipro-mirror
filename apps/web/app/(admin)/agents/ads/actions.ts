@@ -12,7 +12,7 @@ import { requireUser } from "@/lib/session";
 
 /**
  * Actions de la page Agent Ads (`/agents/ads`, phase 24).
- * - « Fait » / « Refuser » (avec commentaire) : managers compris. Le client dit ce qu'il a fait lui-même chez Meta ou
+ * - « Fait » / « Refuser » (avec commentaire) : managers compris. Le client dit ce qu'il a fait lui-même chez Meta ou
  *   TikTok : rien n'est jamais changé sur les plateformes (le moteur n'a aucune fonction d'écriture). Le moteur
  *   (`markAdsRecommendation`) écrit l'état et l'`AuditLog`.
  * - Seuils par univers : administrateurs, `AuditLog` avant / après.

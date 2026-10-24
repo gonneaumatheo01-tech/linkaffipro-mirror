@@ -2,9 +2,9 @@
  * Seuils de l'Agent Ads par univers (`Setting` `agents.ads.thresholds`, type `AdsThresholds` du contrat) : lecture
  * tolérante, valeurs de départ, lecture du formulaire. Fonctions pures, testées (ads.test.ts).
  *
- * Coût par inscription visé et retour sur dépense pub minimal laissés vides = « automatique » : le moteur prend la
+ * Coût par inscription visé et retour sur dépense pub minimal laissés vides = « automatique » : le moteur prend la
  * valeur du milieu de vos pubs comparables (médiane). Jours d'observation et dépense minimale ont toujours une
- * valeur : en dessous, une pub est seulement « à surveiller ».
+ * valeur : en dessous, une pub est seulement « à surveiller ».
  */
 import type { AdsThresholds } from "@linkaffipro/agents";
 
@@ -60,7 +60,7 @@ export function parseAdsThresholds(v: unknown): AdsThresholds {
   };
 }
 
-/** « 12,5 » ou « 12.5 » → 12,5 ; vide → null ; texte illisible → NaN. */
+/** « 12,5 » ou « 12.5 » → 12,5 ; vide → null ; texte illisible → NaN. */
 function readNumber(v: FormDataEntryValue | null): number | null {
   if (typeof v !== "string") return null;
   const s = v.replace(/\s|€|×|x/gi, "").replace(",", ".");
@@ -100,7 +100,7 @@ export function parseAdsThresholdsForm(
   return { ok: true, data: out };
 }
 
-/** Valeur d'un champ (« 12,5 » ; vide pour « automatique »). */
+/** Valeur d'un champ (« 12,5 » ; vide pour « automatique »). */
 export function fieldValue(v: number | null): string {
   return v === null ? "" : String(v).replace(".", ",");
 }

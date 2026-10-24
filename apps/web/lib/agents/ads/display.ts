@@ -4,7 +4,7 @@
  *
  * Les chiffres viennent tous de `computeAdsAnalysis` (moteur, `@linkaffipro/agents`) : rien n'est recalculé ici,
  * sauf les taux d'une étape à l'autre du parcours (simple division des chiffres reçus, pour l'affichage).
- * L'agent ne change jamais rien chez Meta ou TikTok : « Fait » veut dire « je l'ai fait moi-même ».
+ * L'agent ne change jamais rien chez Meta ou TikTok : « Fait » veut dire « je l'ai fait moi-même ».
  */
 import type { AdsAnalysis, AdsMetrics, AdsPeriod, AdsRow } from "@linkaffipro/agents";
 import { METRIC_VIEWS, type MetricView } from "@/lib/dashboard/display";
@@ -29,7 +29,7 @@ export function parseAdsPeriod(v: unknown): AdsPeriod {
   return (ADS_PERIODS as readonly string[]).includes(s as string) ? (s as AdsPeriod) : "7d";
 }
 
-/** Filtres des pages Statistiques pour les mêmes jours (lien « Voir le détail ») ; repli sur la période la plus proche. */
+/** Filtres des pages Statistiques pour les mêmes jours (lien « Voir le détail ») ; repli sur la période la plus proche. */
 export function statsPeriodParams(a: Pick<AdsAnalysis, "period" | "from" | "to">): Record<string, string> {
   const from = a.from.slice(0, 10);
   const to = a.to.slice(0, 10);
@@ -156,8 +156,8 @@ export function funnelSteps(row: Pick<AdsRow, "current" | "bottleneck">): Funnel
 
 
 /**
- * Meilleures et pires pubs de la période : seulement celles qui ont assez de données (les autres sont « à
- * surveiller »), classées par gains, puis par retour sur dépense. Une pub n'est jamais à la fois dans les deux listes.
+ * Meilleures et pires pubs de la période : seulement celles qui ont assez de données (les autres sont « à
+ * surveiller »), classées par gains, puis par retour sur dépense. Une pub n'est jamais à la fois dans les deux listes.
  */
 export function rankAds(rows: readonly AdsRow[], n = 5): { best: AdsRow[]; worst: AdsRow[]; young: AdsRow[] } {
   const ads = rows.filter((r) => r.level === "ad");
@@ -192,7 +192,7 @@ export function pickCampaign(rows: readonly AdsRow[], id: unknown): AdsRow | nul
   return list.find((r) => r.id === id) ?? list[0] ?? null;
 }
 
-/** Une phrase sous une pub : « 120 € dépensés, 3 inscriptions, gains 45 € ». */
+/** Une phrase sous une pub : « 120 € dépensés, 3 inscriptions, gains 45 € ». */
 export function adLine(r: Pick<AdsRow, "current">): string {
   const c = r.current;
   const parts = [`${fmtAds("spend", c.spend)} dépensés`, `${c.registrations.toLocaleString("fr-FR")} inscription${c.registrations > 1 ? "s" : ""}`];
@@ -254,7 +254,7 @@ export function adsTargetLabel(target: string): string {
   return TARGET_LABELS[target] ?? "Pub";
 }
 
-/** « Fait » et « Refuser » : seulement sur une recommandation à décider ; managers compris. */
+/** « Fait » et « Refuser » : seulement sur une recommandation à décider ; managers compris. */
 export function canMarkRecommendation(status: string): boolean {
   return status === "PROPOSED";
 }
@@ -357,8 +357,8 @@ export const NO_CONNECTOR_SENTENCE =
 export const CONNECTORS_HREF = "/settings/connectors";
 
 /**
- * Rapport archivé quotidien ou hebdomadaire : `stats.kind` du moteur (« weekly » / « daily »), sinon d'après la clé
- * (`weekStart` « AAAA-MM-JJ » seul = semaine, avec un suffixe « :daily » ou « d: » = jour).
+ * Rapport archivé quotidien ou hebdomadaire : `stats.kind` du moteur (« weekly » / « daily »), sinon d'après la clé
+ * (`weekStart` « AAAA-MM-JJ » seul = semaine, avec un suffixe « :daily » ou « d: » = jour).
  */
 export function reportKind(r: { weekStart: string; stats: unknown }): "daily" | "weekly" {
   const k = isObj(r.stats) ? r.stats.kind : null;

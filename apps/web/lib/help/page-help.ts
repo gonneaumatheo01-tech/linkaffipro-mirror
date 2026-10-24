@@ -285,6 +285,11 @@ export const PAGE_HELP: readonly PageHelp[] = [
     sections: ["Ce qui marche (équipe Algorithme)", "Simulation, niveaux et pause"],
   },
   {
+    path: "/agents/ads",
+    label: "Agent Ads",
+    sections: ["Agent Ads : vos pubs à arrêter, augmenter ou tester"],
+  },
+  {
     path: "/agents/validations",
     label: "Validations des agents",
     sections: ["Validations et demandes"],

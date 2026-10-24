@@ -23,7 +23,7 @@ const FIELDS: Array<{
   {
     key: "targetCostPerRegistration",
     label: "Coût par inscription visé",
-    hint: "Au-dessus, depuis les jours d'observation : « Arrêter ». Vide = automatique (valeur du milieu de vos pubs).",
+    hint: "Au-dessus, depuis les jours d'observation : « Arrêter ». Vide = automatique (valeur du milieu de vos pubs).",
     unit: "€",
     step: "0.5",
     optional: true,
@@ -31,7 +31,7 @@ const FIELDS: Array<{
   {
     key: "minRoas",
     label: "Retour sur dépense pub minimal",
-    hint: "Au-dessus (commissions ÷ dépense), budget non épuisé : « Augmenter ». Vide = automatique.",
+    hint: "Au-dessus (commissions ÷ dépense), budget non épuisé : « Augmenter ». Vide = automatique.",
     unit: "×",
     step: "0.1",
     optional: true,
@@ -39,7 +39,7 @@ const FIELDS: Array<{
   {
     key: "observationDays",
     label: "Jours d'observation",
-    hint: "Une pub plus jeune est seulement « à surveiller ».",
+    hint: "Une pub plus jeune est seulement « à surveiller ».",
     unit: "jours",
     step: "1",
     optional: false,
@@ -47,7 +47,7 @@ const FIELDS: Array<{
   {
     key: "minSpend",
     label: "Dépense minimale par pub",
-    hint: "En dessous, l'agent ne conclut rien (« à surveiller »).",
+    hint: "En dessous, l'agent ne conclut rien (« à surveiller »).",
     unit: "€",
     step: "1",
     optional: false,

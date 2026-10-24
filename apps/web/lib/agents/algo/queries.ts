@@ -202,7 +202,9 @@ export type ReportView = { id: string; teamKey: string; weekStart: string; conte
 
 /** Rapports hebdomadaires archivés (toutes équipes), les plus récents d'abord. */
 export async function loadReports(take = 12): Promise<ReportView[]> {
+  // Les rapports de l'Agent Ads (phase 24) ont leur page (`/agents/ads`).
   return prisma.insightReport.findMany({
+    where: { teamKey: { not: "ads" } },
     orderBy: [{ weekStart: "desc" }, { createdAt: "desc" }],
     take,
     select: { id: true, teamKey: true, weekStart: true, content: true, sentAt: true, createdAt: true },
@@ -216,6 +218,7 @@ export async function loadConversationProfiles(): Promise<{
   review: ReviewNotes[];
 }> {
   const rows = await prisma.insightReport.findMany({
+    where: { teamKey: { not: "ads" } },
     orderBy: [{ weekStart: "desc" }, { createdAt: "desc" }],
     take: 10,
     select: { weekStart: true, stats: true },
