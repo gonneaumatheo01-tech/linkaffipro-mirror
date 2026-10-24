@@ -187,9 +187,19 @@ export type AiMessageRequest = {
   effort?: "low" | "medium" | "high";
   /** Images jointes au message (contrôle des médias des agents, phase 20), placées avant le texte. */
   images?: AiImageInput[];
+  /**
+   * Outils proposés (phase 26, interprète du Boss) : un seul appel au plus (`tool_choice: auto`, pas d'appels
+   * parallèles ; les modèles 5.5 refusent l'outil imposé). Schémas stricts : l'API garantit des paramètres valides,
+   * le code les revalide quand même.
+   */
+  tools?: AiToolDef[];
 };
+/** Définition d'un outil (schéma JSON des paramètres, `additionalProperties: false` et `required` si `strict`). */
+export type AiToolDef = { name: string; description: string; inputSchema: Record<string, unknown>; strict?: boolean };
+/** Appel d'outil rendu par le modèle (paramètres déjà analysés par le SDK, à valider par l'appelant). */
+export type AiToolUse = { name: string; input: unknown };
 /** Image en base64 (JPEG, PNG, WebP ou GIF). */
 export type AiImageInput = { mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; base64: string };
-export type AiMessageResponse = { text: string; usage: AiUsage; stopReason: string | null };
+export type AiMessageResponse = { text: string; usage: AiUsage; stopReason: string | null; toolUses?: AiToolUse[] };
 /** Client injectable : le vrai appelle l'API Anthropic, le simulé renvoie des réponses préparées. */
 export type AiClient = { createMessage(req: AiMessageRequest): Promise<AiMessageResponse> };

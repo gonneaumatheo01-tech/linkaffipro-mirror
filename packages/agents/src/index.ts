@@ -191,3 +191,4 @@ export {
   runAdsReportNowImpl as runAdsReportNow,
 } from "./agents/ads/run";
 export * from "./orchestrator/overview-contract";
+export * from "./boss/contract";

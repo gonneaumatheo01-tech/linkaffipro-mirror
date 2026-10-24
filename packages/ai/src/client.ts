@@ -90,6 +90,17 @@ export function createAnthropicClient(
               : { type: "text" as const, text: b.text },
           ),
           messages: [{ role: "user", content: userContent(req) }],
+          ...(req.tools?.length
+            ? {
+                tools: req.tools.map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+                  ...(t.strict ? { strict: true } : {}),
+                })),
+                tool_choice: { type: "auto" as const, disable_parallel_tool_use: true },
+              }
+            : {}),
         });
         if (res.stop_reason === "refusal")
           throw new AiError(
@@ -100,7 +111,15 @@ export function createAnthropicClient(
           .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
           .map((b) => b.text)
           .join("\n");
-        return { text, usage: usageOf(res.usage), stopReason: res.stop_reason };
+        const toolUses = res.content
+          .filter((b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use")
+          .map((b) => ({ name: b.name, input: b.input }));
+        return {
+          text,
+          usage: usageOf(res.usage),
+          stopReason: res.stop_reason,
+          ...(toolUses.length ? { toolUses } : {}),
+        };
       } catch (err) {
         throw toAiError(err);
       }

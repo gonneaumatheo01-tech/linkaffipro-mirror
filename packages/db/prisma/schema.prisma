@@ -391,6 +391,9 @@ model Bot {
   mode            BotMode               @default(STANDARD)
   personaId       String?
   persona         Persona?              @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  /// Phase 26 : bot de canal (CHANNEL) ou Boss (ADMIN, dialogue avec l'admin seulement). Un bot ADMIN n'est jamais
+  /// choisi pour un canal, un lien, une séquence, un envoi, une page, un compte réel, ni mis en mode ASSISTANT.
+  role            BotRole               @default(CHANNEL)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
@@ -2476,6 +2479,41 @@ model AgentValidation {
 }
 
 /// Dépense d'une équipe chez un fournisseur, par mois (plafonds).
+enum BotRole {
+  CHANNEL
+  ADMIN
+}
+
+/// Phase 26 : un tour du dialogue avec le Boss (message de l'admin ou réponse du Boss). Un secret y devient « [secret] ».
+model BossTurn {
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  /// ADMIN | BOSS
+  role              String
+  text              String
+  /// Clé de l'action du catalogue choisie (ou « question », « pas_prevu », « preciser », commande exacte…).
+  actionKey         String?
+  /// done | confirm | refused | error | unmet | clarify | answered
+  status            String?
+  /// text | voice | button
+  source            String?
+  telegramMessageId Int?
+  costCents         Int      @default(0)
+
+  @@index([createdAt])
+}
+
+/// Phase 26 : besoin de l'admin que le Boss ne sait pas encore couvrir (carnet de la phase suivante).
+model BossUnmet {
+  id      String   @id @default(cuid())
+  /// Texte normalisé (minuscules, sans accents ni ponctuation) : un même besoin compte une fois.
+  key     String   @unique
+  text    String
+  count   Int      @default(1)
+  firstAt DateTime @default(now())
+  lastAt  DateTime @default(now())
+}
+
 model AgentUsage {
   id         String   @id @default(cuid())
   teamKey    String
