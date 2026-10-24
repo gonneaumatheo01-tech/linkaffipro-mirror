@@ -1,9 +1,19 @@
 import type { Job } from "bullmq";
-import { runAlgoReportNow, runAlgoTick, runReferenceRead, runWeeklyRereads } from "@linkaffipro/agents";
+import {
+  rehashReferenceShingles,
+  reportReadFailed,
+  reportReadPostponed,
+  runAlgoReportNow,
+  runAlgoTick,
+  runReferenceRead,
+  runWeeklyRereads,
+  type ReferenceReadIo,
+} from "@linkaffipro/agents";
 import { addIdempotent, getQueue, safeJobId, type AgentsAlgoJob, type AgentsInspirationJob, type AgentsQueueLike, type AgentStepJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAgentStep } from "../agents/step";
 import { workerAgentsDeps } from "../agents/deps";
+import { createRedisTmeThrottle } from "../agents/tme-throttle";
 import { logger } from "../logger";
 
 /** Nouveaux essais différés d'une lecture (verrou pris, quota du jour, Telegram indisponible) au plus. */
@@ -18,15 +28,43 @@ export async function enqueueInspirationRead(referenceChannelId: string, opts: {
   return addIdempotent(q, "inspiration-read", job, id, opts.delayMs);
 }
 
-/** Lecture d'un canal de référence ; nouvel essai différé si la lecture le demande (`retryInMs`). */
+/** Entrées de lecture du worker : rythme vers t.me partagé dans Redis. */
+function inspirationIo(): ReferenceReadIo {
+  return { tmeThrottle: createRedisTmeThrottle() };
+}
+
+/**
+ * Lecture d'un canal de référence ; nouvel essai différé si la lecture le demande (`retryInMs`) et Kevin prévient du
+ * report (une fois par référence et par jour) ; après 8 essais, abandon et Kevin prévient de l'échec.
+ */
 export async function processInspirationRead(data: Extract<AgentsInspirationJob, { type: "inspiration-read" }>): Promise<unknown> {
-  const out = await runReferenceRead(workerAgentsDeps(), data.referenceChannelId);
+  const deps = workerAgentsDeps();
+  const out = await runReferenceRead(deps, data.referenceChannelId, inspirationIo());
   if (out.retryInMs) {
     const attempt = (data.attempt ?? 0) + 1;
-    if (attempt <= INSPIRATION_MAX_ATTEMPTS) await enqueueInspirationRead(data.referenceChannelId, { attempt, delayMs: out.retryInMs });
-    else logger.warn({ referenceChannelId: data.referenceChannelId, message: out.message }, "[inspiration] lecture abandonnée après plusieurs essais");
+    if (attempt <= INSPIRATION_MAX_ATTEMPTS) {
+      await enqueueInspirationRead(data.referenceChannelId, { attempt, delayMs: out.retryInMs });
+      await reportReadPostponed(deps, data.referenceChannelId, out.message);
+    } else {
+      logger.warn({ referenceChannelId: data.referenceChannelId, message: out.message }, "[inspiration] lecture abandonnée après plusieurs essais");
+      await reportReadFailed(deps, data.referenceChannelId, out.message);
+    }
   }
   return out;
+}
+
+/** Recalcul unique des empreintes de copie (normalisation 2), au premier passage du processus ; ne bloque jamais. */
+let shinglesChecked = false;
+async function ensureShinglesV2(): Promise<void> {
+  if (shinglesChecked) return;
+  shinglesChecked = true;
+  try {
+    const r = await rehashReferenceShingles(workerAgentsDeps());
+    if (r.done) logger.info({ rehashed: r.rehashed }, "[inspiration] empreintes de copie recalculées");
+  } catch (err) {
+    shinglesChecked = false;
+    logger.error({ err: String((err as Error)?.message ?? err) }, "[inspiration] recalcul des empreintes en échec");
+  }
 }
 
 /**
@@ -40,12 +78,13 @@ export async function processInspirationRead(data: Extract<AgentsInspirationJob,
  */
 export async function processAgentsAlgo(job: Job<AgentStepJob | AgentsAlgoJob | AgentsInspirationJob>): Promise<unknown> {
   const data = job.data as AgentStepJob | AgentsAlgoJob | AgentsInspirationJob | undefined;
+  await ensureShinglesV2();
   if (data?.type === "algo") {
     if (data.task === "report-now") return runAlgoReportNow(workerAgentsDeps(), { send: data.send !== false });
     return runAlgoTick(workerAgentsDeps());
   }
   if (data?.type === "inspiration-read") return processInspirationRead(data);
-  if (data?.type === "inspiration-reread") return runWeeklyRereads(workerAgentsDeps());
+  if (data?.type === "inspiration-reread") return runWeeklyRereads(workerAgentsDeps(), inspirationIo());
   return processAgentStep("agents-algo", job as Job<AgentStepJob>);
 }
 

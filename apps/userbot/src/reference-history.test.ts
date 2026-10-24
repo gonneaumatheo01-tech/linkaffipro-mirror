@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TelegramClient } from "telegram";
 
 vi.mock("./logger", () => ({ logger: { info: () => undefined, warn: () => undefined, error: () => undefined } }));
-const { handleRequest, inviteHashOf, mailboxTick, toWirePosts, USERBOT_HEARTBEAT_KEY, USERBOT_REQUEST_PREFIX } = await import("./reference-history");
+const { createEntityCache, handleRequest, inviteHashOf, mailboxTick, toWirePosts, USERBOT_HEARTBEAT_KEY, USERBOT_REQUEST_PREFIX, waitAfterResolution } = await import("./reference-history");
 type Ops = NonNullable<Parameters<typeof handleRequest>[0]["ops"]>;
 
 const msg = (id: number, extra: Record<string, unknown> = {}) => ({ className: "Message", id, date: 1_792_000_000 + id, message: "", ...extra });
@@ -90,5 +90,37 @@ describe("demandes du worker", () => {
     expect(k.rows.get(USERBOT_HEARTBEAT_KEY)).toEqual({ at: k.now().toISOString() });
     expect(k.rows.get(`${USERBOT_REQUEST_PREFIX}a`)).toMatchObject({ status: "DONE", response: { ok: true, member: true } });
     expect(k.rows.has(`${USERBOT_REQUEST_PREFIX}vieux`)).toBe(false);
+  });
+});
+
+describe("nom public résolu une fois par lecture", () => {
+  it("entité gardée 30 min par compte et par canal ; autre compte ou cache expiré → nouvelle résolution", async () => {
+    let clock = 1_000_000;
+    const resolve = vi.fn(async (_c: object, ch: { username: string | null }) => ({ name: ch.username }));
+    const cache = createEntityCache(resolve, { now: () => clock });
+    const a = {};
+    const b = {};
+    const ch = { username: "Exemple", chatId: null };
+    const first = await cache.get(a, ch);
+    clock += 60_000;
+    await cache.get(a, { username: "exemple", chatId: null });
+    await cache.get(a, ch);
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect((await cache.get(a, ch)).resolvedAt).toBe(first.resolvedAt);
+    await cache.get(b, ch);
+    expect(resolve).toHaveBeenCalledTimes(2);
+    clock += 31 * 60_000;
+    await cache.get(a, ch);
+    expect(resolve).toHaveBeenCalledTimes(3);
+    cache.forget(a, ch);
+    await cache.get(a, ch);
+    expect(resolve).toHaveBeenCalledTimes(4);
+  });
+  it("5 s entre la résolution et le premier GetHistory (reste seulement)", async () => {
+    const calls: number[] = [];
+    const sleep = async (ms: number) => void calls.push(ms);
+    await waitAfterResolution(10_000, () => 11_500, sleep);
+    await waitAfterResolution(10_000, () => 20_000, sleep);
+    expect(calls).toEqual([3_500]);
   });
 });

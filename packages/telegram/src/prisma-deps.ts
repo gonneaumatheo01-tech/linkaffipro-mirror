@@ -11,6 +11,7 @@ import {
   type TelegramDeps,
 } from "./ports";
 import { redactAssistantUpdate } from "./assistant/logic";
+import { redactForwardedUpdate } from "./agents/redact";
 import { ensureDefaultSequences } from "./sequences/ensure";
 import { choosePrimaryBot, sameRights } from "./channels/primary-bot";
 import { addCustomEmojisToLibrary } from "./custom-emoji/library";
@@ -94,8 +95,9 @@ export const prismaTelegramDeps: TelegramDeps = {
       memberId: refs.memberId,
       channelId: refs.channelId,
       // Bot assistant (phase 17) : jamais le texte d'une conversation dans le journal (déjà retiré par le middleware ;
-      // second filet ici).
-      payload: toJsonValue(isAssistantBot(bot) ? redactAssistantUpdate(update) : update),
+      // second filet ici). Phase 27 : un post transféré (canal d'inspiration, à Kevin, au bot du dialogue admin ou dans
+      // le groupe de l'équipe) n'y garde ni texte, ni boutons, ni auteur : longueur et type de média seulement.
+      payload: toJsonValue(isAssistantBot(bot) ? redactAssistantUpdate(update) : redactForwardedUpdate(update)),
     });
     await prisma.bot
       .update({ where: { id: bot.id }, data: { lastWebhookAt: new Date() } })

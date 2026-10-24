@@ -17,6 +17,26 @@ describe("lecture par compte réel membre (faux MTProto)", () => {
     expect(r).toMatchObject({ ok: true, accountId: "acc1", chatId: -100777n, title: "Canal privé (exemple)" });
   });
 
+  it("verrou de lecture renouvelé après chaque lot ; verrou perdu → la lecture s'arrête", async () => {
+    let batches = 0;
+    const r = await readWithAccount(fakeAccountReader({ posts: fakePosts(900, 300, FIXTURE_NOW, 1) }), channel, {
+      now: FIXTURE_NOW,
+      sleep: fakeSleep(),
+      onBatch: async () => {
+        batches++;
+      },
+    });
+    expect(r.ok).toBe(true);
+    expect(batches).toBe(4);
+    await expect(
+      readWithAccount(fakeAccountReader({ posts: fakePosts(900, 300, FIXTURE_NOW, 1) }), channel, {
+        now: FIXTURE_NOW,
+        sleep: fakeSleep(),
+        onBatch: async () => Promise.reject(new Error("verrou perdu")),
+      }),
+    ).rejects.toThrow("verrou perdu");
+  });
+
   it("arrêt au bout de l'historique, à 90 jours et au dernier post connu", async () => {
     const short = fakeAccountReader({ posts: fakePosts(60, 60) });
     expect((await readWithAccount(short, channel, { now: FIXTURE_NOW, sleep: fakeSleep() })).ok).toBe(true);

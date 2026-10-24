@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 type Call = { model: string; method: string; args: unknown };
 const calls: Call[] = [];
+const failures = vi.hoisted(() => ({ memberFindMany: false }));
 const old = new Date("2023-01-01T00:00:00Z");
 
 vi.mock("@linkaffipro/db", () => {
@@ -12,6 +13,7 @@ vi.mock("@linkaffipro/db", () => {
       {
         get: (_t, method: string) => (args: unknown) => {
           calls.push({ model: name, method, args });
+          if (name === "member" && method === "findMany" && failures.memberFindMany) return Promise.reject(new Error("base indisponible"));
           if (name === "member" && method === "findMany") return Promise.resolve([{ id: "m1", lastSeenAt: old, anonymizedAt: null, telegramUserId: 555n }]);
           if (name === "membership" && method === "findMany") return Promise.resolve([{ id: "ms1" }]);
           if (method === "findMany") return Promise.resolve([]);
@@ -29,9 +31,12 @@ vi.mock("@linkaffipro/db", () => {
 });
 vi.mock("../linkaffi-events/privacy", () => ({ deleteLinkaffiEventsBefore: async () => 0, scrubDeletedMembersLinkaffiEvents: async () => 0 }));
 vi.mock("./landing", () => ({ deleteLandingEventsBefore: async () => 0 }));
+const inspiration = vi.hoisted(() => ({ purge: vi.fn(async () => ({ purged: 2 })), rehash: vi.fn(async () => ({ done: true, rehashed: 0 })), redact: vi.fn(async () => ({ done: true, redacted: 0 })) }));
+vi.mock("@linkaffipro/agents", () => ({ purgeReferenceTexts: inspiration.purge, rehashReferenceShingles: inspiration.rehash }));
+vi.mock("./inspiration-privacy", () => ({ redactForwardedEventsOnce: inspiration.redact }));
 vi.mock("../logger", () => ({ logger: { info: () => undefined, warn: () => undefined, error: () => undefined } }));
 
-const { runPurge, REDACTED_PAYLOAD } = await import("./purge");
+const { runPurge, runInspirationPurge, REDACTED_PAYLOAD } = await import("./purge");
 
 describe("purge de rétention", () => {
   it("membre anonymisé : DM en attente annulés et vidés ; DM anciens supprimés ; événements telegram.* sans contenu", async () => {
@@ -45,5 +50,20 @@ describe("purge de rétention", () => {
     expect(ev.data).toEqual({ payload: REDACTED_PAYLOAD });
     expect(ev.where).toMatchObject({ type: { startsWith: "telegram." }, member: { anonymizedAt: { not: null } } });
     expect(r).toMatchObject({ membersAnonymized: 1, telegramEventsRedacted: 1, accountDmsDeleted: 1 });
+  });
+
+  it("canal d'inspiration isolé : tourne même si la rétention échoue (erreur relancée après), et une erreur chez lui ne casse pas la purge", async () => {
+    inspiration.purge.mockClear();
+    failures.memberFindMany = true;
+    await expect(runPurge(new Date("2026-10-24T03:00:00Z"))).rejects.toThrow("base indisponible");
+    expect(inspiration.purge).toHaveBeenCalledTimes(1);
+    expect(inspiration.rehash).toHaveBeenCalled();
+    expect(inspiration.redact).toHaveBeenCalled();
+    failures.memberFindMany = false;
+    inspiration.purge.mockRejectedValueOnce(new Error("panne"));
+    inspiration.redact.mockRejectedValueOnce(new Error("panne"));
+    const r = await runPurge(new Date("2026-10-24T03:00:00Z"));
+    expect(r).toMatchObject({ referenceTextsPurged: 0, membersAnonymized: 1 });
+    expect((await runInspirationPurge(new Date())).referenceTextsPurged).toBe(2);
   });
 });

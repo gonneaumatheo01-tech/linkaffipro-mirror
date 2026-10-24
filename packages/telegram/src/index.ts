@@ -245,7 +245,7 @@ export { createAdminMessenger } from "./agents/admin-messenger";
 export { createAdminMessengerWith, htmlToPlain, CAPTION_MAX } from "./agents/admin-messenger";
 export type { MessengerApi, MessengerPort } from "./agents/admin-messenger";
 export { createBotAgentsDeps } from "./agents/deps";
-export { redactAdminSecretUpdate, SECRET_REDACTED_TEXT } from "./agents/redact";
+export { FORWARDED_TEXT_REDACTED, isForwardedMessage, redactAdminSecretUpdate, redactForwardedMessage, redactForwardedUpdate, SECRET_REDACTED_TEXT } from "./agents/redact";
 export { registerAgentsAdminHandlers, ADMIN_VOICE_MAX_BYTES } from "./handlers/agents-admin";
 export { registerMediaInboxHandlers, inboxMediaOf, BOT_DOWNLOAD_MAX_BYTES } from "./handlers/media-inbox";
 // Phase 26 : le Boss (bot du dialogue admin) — choix du bot, filtres partagés, réception, réponse, enregistrement,

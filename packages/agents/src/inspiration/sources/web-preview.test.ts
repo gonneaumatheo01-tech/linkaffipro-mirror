@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { INSPIRATION_LIMITS } from "../contract";
 import { fakeSleep, FIXTURE_CHANNELS, FIXTURE_NOW, fixtureFetch } from "../testing/fixtures";
-import { isInviteLink, normalizeChannelUsername, parsePreviewPage, parsePreviewViews, previewHtmlToText, readWebPreview } from "./web-preview";
+import {
+  createInspirationFetch,
+  isInviteLink,
+  memoryTmeThrottle,
+  normalizeChannelUsername,
+  parsePreviewPage,
+  parsePreviewViews,
+  previewHtmlToText,
+  readBodyCapped,
+  readWebPreview,
+} from "./web-preview";
 
 const opts = () => ({ now: FIXTURE_NOW, sleep: fakeSleep() });
 
@@ -146,5 +156,49 @@ describe("aperçu web : règles pures", () => {
   it("HTML → texte et page sans posts", () => {
     expect(previewHtmlToText("a<br/>b &amp; c&#39;d <b>gras</b> &#x1F525;")).toBe("a\nb & c'd gras 🔥");
     expect(parsePreviewPage("<html></html>", "x")).toMatchObject({ isPreview: false, posts: [] });
+  });
+});
+
+describe("aperçu web : rythme partagé et taille lue", () => {
+  it("une requête toutes les 3 s d'une lecture à l'autre : attente du reste seulement", async () => {
+    let clock = 1_000_000;
+    const calls: number[] = [];
+    const sleep = async (ms: number) => {
+      calls.push(ms);
+      clock += ms;
+    };
+    const throttle = memoryTmeThrottle();
+    const o = { now: FIXTURE_NOW, sleep, throttle, clock: () => clock };
+    const f1 = fixtureFetch();
+    await readWebPreview(f1, FIXTURE_CHANNELS.casino, o);
+    // Première lecture : rien avant la première page, 3 s pleines entre ses deux pages.
+    expect(calls).toEqual([3_000]);
+    clock += 1_200; // 1,2 s après sa dernière requête, une autre lecture commence : attente du reste.
+    calls.length = 0;
+    await readWebPreview(fixtureFetch(), FIXTURE_CHANNELS.casino, o);
+    expect(calls).toEqual([1_800, 3_000]);
+    clock += 10_000; // Assez attendu : aucune attente avant la première page.
+    calls.length = 0;
+    await readWebPreview(fixtureFetch(), FIXTURE_CHANNELS.casino, o);
+    expect(calls).toEqual([3_000]);
+  });
+
+  it("corps lu en flux et coupé à la taille maximale, sans tout charger", async () => {
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(1000));
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled++;
+        if (pulled > 1000) c.close();
+        else c.enqueue(chunk);
+      },
+    });
+    const text = await readBodyCapped({ body, text: async () => "" } as unknown as Response, 2_500);
+    expect(text.length).toBe(2_500);
+    expect(pulled).toBeLessThan(10);
+    const fetchImpl = (async () => new Response("<html>ok</html>", { status: 200 })) as typeof fetch;
+    expect(await createInspirationFetch(fetchImpl)("https://t.me/s/exemple")).toEqual({ status: 200, body: "<html>ok</html>" });
+    const redirect = (async () => new Response(null, { status: 302 })) as typeof fetch;
+    expect(await createInspirationFetch(redirect)("https://t.me/s/exemple")).toEqual({ status: 302, body: "" });
   });
 });

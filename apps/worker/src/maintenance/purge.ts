@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { purgeReferenceTexts } from "@linkaffipro/agents";
+import { purgeReferenceTexts, rehashReferenceShingles } from "@linkaffipro/agents";
 import { prisma, audit, recordEvent } from "@linkaffipro/db";
 import { logger } from "../logger";
 import {
@@ -7,6 +7,7 @@ import {
   scrubDeletedMembersLinkaffiEvents,
 } from "../linkaffi-events/privacy";
 import { deleteLandingEventsBefore } from "./landing";
+import { redactForwardedEventsOnce } from "./inspiration-privacy";
 import { isPurgeable, parseRetentionMonths, retentionCutoff } from "./retention";
 
 export type PurgeResult = {
@@ -64,7 +65,53 @@ export const REDACTED_PAYLOAD = { redacted: true } as const;
 const PURGED_QUEUED_ERROR =
   "Non envoyé : resté en file (envoi interrompu ou personne supprimée), texte effacé par la purge.";
 
+/**
+ * Canal d'inspiration (phase 27), isolé du reste de la purge (une erreur de l'un n'empêche jamais l'autre) : textes des
+ * posts de référence effacés après 30 jours, puis, une seule fois, empreintes de copie recalculées et anciens
+ * événements de posts transférés masqués. Ne lève jamais.
+ */
+export async function runInspirationPurge(now = new Date()): Promise<{ referenceTextsPurged: number }> {
+  let referenceTextsPurged = 0;
+  try {
+    referenceTextsPurged = (await purgeReferenceTexts({ prisma }, now)).purged;
+  } catch (err) {
+    logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] textes des posts de référence : échec");
+  }
+  try {
+    await rehashReferenceShingles({ prisma, now: () => now });
+  } catch (err) {
+    logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] recalcul des empreintes de copie : échec");
+  }
+  try {
+    await redactForwardedEventsOnce(prisma, now);
+  } catch (err) {
+    logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] masquage des anciens posts transférés : échec");
+  }
+  return { referenceTextsPurged };
+}
+
+/** Purge complète : rétention, puis canal d'inspiration même si la rétention a échoué (l'erreur est relancée après). */
 export async function runPurge(now = new Date()): Promise<PurgeResult> {
+  let retention: Omit<PurgeResult, "referenceTextsPurged"> | null = null;
+  let failure: unknown = null;
+  try {
+    retention = await runRetentionPurge(now);
+  } catch (err) {
+    failure = err;
+    logger.error({ err: String((err as Error)?.message ?? err) }, "[purge] rétention en échec");
+  }
+  const inspiration = await runInspirationPurge(now);
+  if (failure || !retention) throw failure ?? new Error("purge de rétention en échec");
+  const result: PurgeResult = { ...retention, referenceTextsPurged: inspiration.referenceTextsPurged };
+  await audit({
+    action: "maintenance.purge",
+    metadata: { ...result, cutoff: result.cutoff.toISOString() },
+  });
+  logger.info(result, "purge de rétention effectuée");
+  return result;
+}
+
+async function runRetentionPurge(now: Date): Promise<Omit<PurgeResult, "referenceTextsPurged">> {
   const setting = await prisma.setting.findUnique({ where: { key: "retention.months" } });
   const months = parseRetentionMonths(setting?.value);
   const cutoff = retentionCutoff(months, now);
@@ -217,10 +264,7 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     where: { createdAt: { lt: cutoff }, status: { in: ["DONE", "FAILED", "CANCELLED", "BLOCKED_BUDGET"] } },
   });
   const agentRuns = await prisma.agentRun.deleteMany({ where: { startedAt: { lt: cutoff } } });
-  // Canal d'inspiration (phase 27) : texte brut des posts de référence effacé après 30 jours (pas N mois) ; les
-  // empreintes restent pour le contrôle « jamais de copie ».
-  const referenceTexts = await purgeReferenceTexts({ prisma }, now);
-  const result: PurgeResult = {
+  return {
     months,
     cutoff,
     membersAnonymized,
@@ -235,28 +279,5 @@ export async function runPurge(now = new Date()): Promise<PurgeResult> {
     agentRunsDeleted: agentRuns.count,
     telegramEventsRedacted: redacted.count,
     accountDmsDeleted: accountDms.count,
-    referenceTextsPurged: referenceTexts.purged,
   };
-  await audit({
-    action: "maintenance.purge",
-    metadata: {
-      months,
-      cutoff: cutoff.toISOString(),
-      membersAnonymized,
-      eventsDeleted: deleted.count,
-      linkaffiEventsScrubbed,
-      linkaffiEventsDeleted,
-      landingEventsDeleted,
-      conversationsDeleted: conversations.count,
-      conversationMessagesDeleted: conversationMessages.count,
-      assistantTextsCleared: assistantTexts.count,
-      agentMissionsDeleted: agentMissions.count,
-      agentRunsDeleted: agentRuns.count,
-      telegramEventsRedacted: redacted.count,
-      accountDmsDeleted: accountDms.count,
-      referenceTextsPurged: referenceTexts.purged,
-    },
-  });
-  logger.info(result, "purge de rétention effectuée");
-  return result;
 }

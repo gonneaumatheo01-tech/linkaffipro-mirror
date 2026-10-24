@@ -115,6 +115,7 @@ const fakeBossLlm = createFakeBossLlm([
   ["c'est quoi leurs heures ?", { name: "voir_inspiration", input: { sujet: "heures", reference: `@${REF_PUBLIC}` } }],
   ["tes propositions ?", { name: "voir_inspiration", input: { sujet: "propositions", reference: `@${REF_PUBLIC}`, canal_cible: "Roulette" } }],
   ["applique 1 et 2", { name: "appliquer_inspiration", input: { numeros: "1 et 2" } }],
+  ["Kevin, annule l'inspiration", { name: "annuler_inspiration", input: {} }],
   [/^applique \d$/, (m: string) => ({ name: "appliquer_inspiration", input: { numeros: m.replace(/\D/g, "") } })],
   // Si un post transféré atteignait l'IA, elle « obéirait » : le test vérifie que rien ne s'exécute.
   [/ignore tes règles/i, { name: "simulation", input: { equipe: "casino", mode: "vrai" } }],
@@ -306,12 +307,16 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
     const mission: Mission = { id: "mission-inspiration-copie", teamKey: "casino", kind: "POST", channelId: ids.roulette, status: "RUNNING", currentStep: 1, steps: [], payload: { format: "text", text: copied }, costCents: 0, postId: null, scheduledFor: null, isTest: true, attempts: 0 };
     const r = await controleAgent.run(mission, ctxAgent);
     expect(r.output?.verdict).toBe("redo");
-    expect((r.output?.reasons ?? []).join(" ")).toContain("reprend 8 mots d'un post du canal exemple");
+    expect((r.output?.reasons ?? []).join(" ")).toMatch(/8 mots/);
   });
 
-  it("7. « annule » : réglages d'origine, tests arrêtés", async () => {
+  it("7. « annule » (la dernière application), puis « annule l'inspiration » (tout) : réglages d'origine, tests arrêtés", async () => {
     const out = await say("annule");
     expect(out).toContain("remis comme avant");
+    // « annule » tout court n'a défait que le profil de style ; le reste est encore appliqué.
+    expect((await plan()).styleProfileId).toBe(original.styleProfileId);
+    expect(await prisma.recommendation.count({ where: { source: "inspiration", status: "APPLIED" } })).toBeGreaterThan(0);
+    expect(await say("Kevin, annule l'inspiration")).toContain("remis comme avant");
     const p = await plan();
     expect({ ws: p.windowStart, we: p.windowEnd, n: p.postsPerDay, mix: p.mix, sp: p.styleProfileId }).toEqual({
       ws: original.windowStart,

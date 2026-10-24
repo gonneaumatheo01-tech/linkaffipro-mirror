@@ -117,3 +117,79 @@ export async function redactBossUpdate(update: Update, deps: Pick<TelegramDeps, 
   if (!secret) return update;
   return { ...update, [key]: redactedMessage(msg) } as Update;
 }
+
+// ——— Phase 27 : posts transférés (canal d'inspiration) ———
+
+export const FORWARDED_TEXT_REDACTED = (n: number) => `[post transféré : ${n} caractères]`;
+
+type Json = Record<string, unknown>;
+const isObj = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Champs média d'un message (remplacés par le seul type de média). */
+const MEDIA_FIELDS = ["photo", "video", "animation", "video_note", "document", "poll", "audio", "voice", "sticker", "location", "venue", "contact", "dice", "story", "paid_media"] as const;
+
+/** Le message est-il un transfert (`forward_origin`, ou anciens champs `forward_from_chat` / `forward_from` …) ? */
+export function isForwardedMessage(msg: unknown): boolean {
+  if (!isObj(msg)) return false;
+  return ["forward_origin", "forward_from_chat", "forward_from", "forward_date", "forward_sender_name", "forward_signature"].some((k) => msg[k] !== undefined && msg[k] !== null);
+}
+
+/** Origine gardée : type, date, canal ou groupe d'origine et numéro ; jamais une personne ni une signature. */
+function safeOrigin(o: unknown): Json | undefined {
+  if (!isObj(o)) return undefined;
+  const out: Json = { type: o.type, date: o.date };
+  if (isObj(o.chat)) out.chat = { id: o.chat.id, type: o.chat.type, title: o.chat.title, username: o.chat.username };
+  if (isObj(o.sender_chat)) out.sender_chat = { id: o.sender_chat.id, type: o.sender_chat.type, title: o.sender_chat.title, username: o.sender_chat.username };
+  if (o.message_id !== undefined) out.message_id = o.message_id;
+  return out;
+}
+
+/**
+ * Copie d'un message transféré pour le journal : ni texte, ni légende, ni mises en forme, ni boutons, ni citation, ni
+ * auteur d'origine (signature, nom, personne) ; seulement la longueur du texte et le type de média. Pure.
+ */
+export function redactForwardedMessage(msg: Json): Json {
+  const out: Json = {};
+  for (const [k, v] of Object.entries(msg)) {
+    if (["text", "caption", "entities", "caption_entities", "reply_markup", "forward_signature", "forward_sender_name", "forward_from", "quote", "external_reply", "media_group_id"].includes(k)) continue;
+    if ((MEDIA_FIELDS as readonly string[]).includes(k)) continue;
+    if (k === "forward_origin") {
+      const o = safeOrigin(v);
+      if (o) out.forward_origin = o;
+      continue;
+    }
+    if (k === "forward_from_chat" && isObj(v)) {
+      out.forward_from_chat = { id: v.id, type: v.type, title: v.title, username: v.username };
+      continue;
+    }
+    if (k === "reply_to_message" && isObj(v)) {
+      out.reply_to_message = isForwardedMessage(v) ? redactForwardedMessage(v) : v;
+      continue;
+    }
+    out[k] = v;
+  }
+  if (typeof msg.text === "string") out.text = FORWARDED_TEXT_REDACTED([...msg.text].length);
+  if (typeof msg.caption === "string") out.caption = FORWARDED_TEXT_REDACTED([...msg.caption].length);
+  const media = MEDIA_FIELDS.find((k) => msg[k] !== undefined && msg[k] !== null);
+  if (media) out.media_kind = media;
+  out.forwarded_redacted = true;
+  return out;
+}
+
+/**
+ * Update à journaliser sans le contenu d'un post transféré (privé ou groupe) : la même update si rien n'est transféré.
+ * Appliquée à tout bot de travail (le Boss, le bot du dialogue admin et le groupe de l'équipe compris) : les posts
+ * d'un canal de référence ne sont gardés que dans `ReferencePost` (30 jours), jamais dans `Event`. Ne lève jamais.
+ */
+export function redactForwardedUpdate<T>(update: T): T {
+  if (!isObj(update)) return update;
+  let changed = false;
+  const out: Json = { ...update };
+  for (const key of ["message", "edited_message"] as const) {
+    const msg = update[key];
+    if (!isObj(msg) || !isForwardedMessage(msg) || msg.forwarded_redacted === true) continue;
+    out[key] = redactForwardedMessage(msg);
+    changed = true;
+  }
+  return (changed ? out : update) as T;
+}

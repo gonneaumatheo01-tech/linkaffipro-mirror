@@ -130,7 +130,7 @@ export type ReaderOps = {
   joinInvite(client: TelegramClient, hash: string): Promise<{ title: string | null; chatId: string | null }>;
 };
 
-async function channelEntity(client: TelegramClient, channel: WireChannel): Promise<Api.Channel> {
+async function resolveChannelEntity(client: TelegramClient, channel: WireChannel): Promise<Api.Channel> {
   // Nom public : résolu (sans rejoindre). Identifiant : seulement si le compte connaît déjà le canal.
   const target = channel.username ?? (channel.chatId ? helpers.returnBigInt(channel.chatId) : null);
   if (target === null) throw new Error("canal sans nom ni identifiant");
@@ -139,40 +139,90 @@ async function channelEntity(client: TelegramClient, channel: WireChannel): Prom
   return entity;
 }
 
+/** Entité résolue gardée 30 minutes par compte et par canal (durée d'une lecture : 4 lots et plus). */
+export const ENTITY_CACHE_MS = 30 * 60_000;
+/** 5 s au moins entre la résolution du nom et le premier `GetHistory` (débit lent). */
+export const RESOLVE_TO_HISTORY_GAP_MS = 5_000;
+
+export type ResolvedEntity<T> = { entity: T; resolvedAt: number };
+
+/**
+ * Cache des entités résolues : un nom public n'est résolu (`getEntity`, donc `contacts.ResolveUsername`) qu'une fois par
+ * lecture, pas à chaque lot. Clé : client (un par compte) + nom ou identifiant. Générique pour les tests.
+ */
+export function createEntityCache<C extends object, T>(resolve: (client: C, channel: WireChannel) => Promise<T>, opts: { now?: () => number; ttlMs?: number } = {}) {
+  const now = opts.now ?? Date.now;
+  const ttl = opts.ttlMs ?? ENTITY_CACHE_MS;
+  const byClient = new WeakMap<C, Map<string, ResolvedEntity<T>>>();
+  const keyOf = (c: WireChannel) => (c.username ? `@${c.username.toLowerCase()}` : `#${c.chatId ?? ""}`);
+  return {
+    async get(client: C, channel: WireChannel): Promise<ResolvedEntity<T>> {
+      let map = byClient.get(client);
+      if (!map) byClient.set(client, (map = new Map()));
+      const key = keyOf(channel);
+      const hit = map.get(key);
+      if (hit && now() - hit.resolvedAt < ttl) return hit;
+      const fresh = { entity: await resolve(client, channel), resolvedAt: now() };
+      map.set(key, fresh);
+      return fresh;
+    },
+    forget(client: C, channel: WireChannel): void {
+      byClient.get(client)?.delete(keyOf(channel));
+    },
+  };
+}
+
+/** Attend le reste des 5 s depuis la résolution avant un `GetHistory`. */
+export async function waitAfterResolution(resolvedAt: number, now: () => number, sleep: (ms: number) => Promise<void>): Promise<void> {
+  const wait = resolvedAt + RESOLVE_TO_HISTORY_GAP_MS - now();
+  if (wait > 0) await sleep(Math.min(wait, RESOLVE_TO_HISTORY_GAP_MS));
+}
+
 const fullChatId = (c: Api.Channel) => `-100${c.id.toString()}`;
 
-export const gramjsReaderOps: ReaderOps = {
-  async isMember(client, channel) {
-    const c = await channelEntity(client, channel);
-    return { member: !c.left, title: c.title ?? null, chatId: fullChatId(c) };
-  },
-  async history(client, channel, limit, beforeId) {
-    const c = await channelEntity(client, channel);
-    if (c.left) throw new Error("le compte n'est pas membre de ce canal");
-    const res = await client.invoke(
-      new Api.messages.GetHistory({
-        peer: c,
-        offsetId: beforeId ?? 0,
-        offsetDate: 0,
-        addOffset: 0,
-        limit: Math.min(HISTORY_MAX_LIMIT, Math.max(1, limit)),
-        maxId: 0,
-        minId: 0,
-        hash: helpers.returnBigInt(0),
-      }),
-    );
-    const list =
-      res instanceof Api.messages.Messages || res instanceof Api.messages.MessagesSlice || res instanceof Api.messages.ChannelMessages
-        ? (res.messages as unknown as AnyObj[])
-        : [];
-    return { posts: toWirePosts(list), title: c.title ?? null, chatId: fullChatId(c) };
-  },
-  async joinInvite(client, hash) {
-    const res = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
-    const chat = "chats" in res ? (res.chats as unknown as AnyObj[]).find((x) => x.className === "Channel") : undefined;
-    return { title: typeof chat?.title === "string" ? chat.title : null, chatId: chat?.id ? `-100${String(chat.id)}` : null };
-  },
-};
+/** Appels GramJS réels ; `sleep` / `now` injectables. */
+export function createGramjsReaderOps(opts: { sleep?: (ms: number) => Promise<void>; now?: () => number } = {}): ReaderOps {
+  const now = opts.now ?? Date.now;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const entities = createEntityCache<TelegramClient, Api.Channel>(resolveChannelEntity, { now });
+  return {
+    async isMember(client, channel) {
+      // Toujours relue : l'état « membre » doit être frais (le cache resservira aux lots qui suivent).
+      entities.forget(client, channel);
+      const { entity: c } = await entities.get(client, channel);
+      return { member: !c.left, title: c.title ?? null, chatId: fullChatId(c) };
+    },
+    async history(client, channel, limit, beforeId) {
+      const { entity: c, resolvedAt } = await entities.get(client, channel);
+      if (c.left) throw new Error("le compte n'est pas membre de ce canal");
+      await waitAfterResolution(resolvedAt, now, sleep);
+      const res = await client.invoke(
+        new Api.messages.GetHistory({
+          peer: c,
+          offsetId: beforeId ?? 0,
+          offsetDate: 0,
+          addOffset: 0,
+          limit: Math.min(HISTORY_MAX_LIMIT, Math.max(1, limit)),
+          maxId: 0,
+          minId: 0,
+          hash: helpers.returnBigInt(0),
+        }),
+      );
+      const list =
+        res instanceof Api.messages.Messages || res instanceof Api.messages.MessagesSlice || res instanceof Api.messages.ChannelMessages
+          ? (res.messages as unknown as AnyObj[])
+          : [];
+      return { posts: toWirePosts(list), title: c.title ?? null, chatId: fullChatId(c) };
+    },
+    async joinInvite(client, hash) {
+      const res = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+      const chat = "chats" in res ? (res.chats as unknown as AnyObj[]).find((x) => x.className === "Channel") : undefined;
+      return { title: typeof chat?.title === "string" ? chat.title : null, chatId: chat?.id ? `-100${String(chat.id)}` : null };
+    },
+  };
+}
+
+export const gramjsReaderOps: ReaderOps = createGramjsReaderOps();
 
 // ——— Boucle ———
 
