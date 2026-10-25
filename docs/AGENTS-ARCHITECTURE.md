@@ -516,6 +516,11 @@ Rien n'est bloquant pour le développement : tout se construit et se teste en si
 - `packages/agents/src/montage/` : `ffmpeg/*` (moteur), `instructions`, `analyze`, `subtitles`, `qc-vision` (IA), `pipeline`, `storage`, `source`, `cleanup`, `diag` (chaîne reprenable, stockage dans Telegram), `reception`, `plan-message`, `preview`, `feedback`, `hooks` (Kevin) ; file `agents-montage` (une tâche à la fois) ; `boss/catalog-montage.ts`, `orders/capabilities/montage.ts`.
 - Chaque short part en aperçu chez le client (✅ / ✏️ / ❌) ; rien n'est publié sans ✅. Site : Agents → Montage.
 
+### Phase 29 — Équipe Analystes (veille marché, règles publicitaires, stratégie)
+
+- Agents nommables : Chef Analystes, Veille (forums, Reddit, Telegram public, X, actualités, dans la langue locale ; Haiku classe, Sonnet résume), Compliance (règles par plateforme × pays × marché, preuves, alertes HIGH / BAN ; Opus), Stratège (réponses aux questions et synthèse hebdomadaire, croisée avec les chiffres internes de l'Agent Ads ; Opus), Rapporteur (rapport du lundi 8 h, briefings, alertes).
+- `packages/agents/src/analysts/` : `watch/*`, `compliance`, `strategist`, `reporter`, `kevin-*` ; file `agents-analystes` (2 tâches à la fois, planification horaire) ; `boss/catalog-analysts.ts`, `orders/capabilities/analystes.ts`. L'équipe recommande, ne touche à rien ; tout est sourcé ; jamais d'avis juridique. Distincte de l'Agent Ads (performances internes). Site : Agents → Analyses.
+
 ### Durée
 
 Environ 3 semaines de travail autonome (1 à 3 jours par phase, comme les phases précédentes), le Mac restant allumé. Chaque phase est déployée et vérifiée avant la suivante ; tu peux basculer une équipe sur les vrais canaux dès que sa phase est livrée, sans attendre la fin.

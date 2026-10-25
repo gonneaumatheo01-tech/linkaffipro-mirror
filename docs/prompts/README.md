@@ -32,7 +32,8 @@ Lis CLAUDE.md puis docs/prompts/<fichier de la phase> et exécute la phase en en
 | `37-phase-35-cotes-bookmakers.md` | Fait le 25 octobre 2026 | Matchs et cotes lus directement chez Celsius, Sportaza et Bet Portal (apprentissage du site, lecture API → page → image, double lecture, jamais de mise), lecteur du Mac en service, Kevin et page Agents → Bookmakers |
 | `36-phase-34-tout-par-kevin.md` | Fait le 25 octobre 2026 (après les phases 33 et 35) | Chaque action du site faisable en parlant à Kevin (mêmes fonctions, droits et journal), confirmations OUI / SUPPRIMER / aperçu d'envoi, entrées Telegram (messages transférés, fichiers, liens d'autorisation), garde-fou de parité permanent |
 | `30-phase-28-montage-video.md` | Fait le 26 octobre 2026 | Équipe Montage : vidéo longue envoyée à Kevin → plan de coupe par l'IA → shorts en un seul passage (1080p, sous-titres vérifiés, caméra, texte) → aperçus validés par le client ; page Agents → Montage |
-| `31-phase-29-…` et suivantes | En file (`QUEUE`) | Lancées automatiquement |
+| `31-phase-29-analystes-marche.md` | Fait le 26 octobre 2026 | Équipe Analystes : veille marché sourcée (forums, Reddit, Telegram public, X, actualités, toute l'Europe), règles publicitaires par plateforme et pays, réponses de Kevin, rapport du lundi, alertes ; page Agents → Analyses |
+| `32-phase-30-…` et suivantes | En file (`QUEUE`) | Lancées automatiquement |
 | `90-nouvelle-machine.md` | Quand un second ordinateur ou un équipier arrive | Prépare la machine à partir de GitHub |
 
 Les phases 2, 3 et 4 seront ajoutées ici au fur et à mesure. À la fin de chaque phase, Claude Code écrit `docs/STATUS.md` : lisez-le, faites le test de 5 minutes, puis dites « phase X OK ».

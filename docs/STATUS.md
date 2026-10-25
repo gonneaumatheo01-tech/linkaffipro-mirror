@@ -1,3 +1,37 @@
+# État du projet : phase 29 (équipe Analystes) terminée (26 octobre 2026)
+
+Phases 0 à 29, 33, 34 et 35 en ligne. Phase 29 (`docs/prompts/31-phase-29-analystes-marche.md`) : une équipe d'analystes surveille le marché (casino, paris sportifs, rencontres) dans toute l'Europe, dans la langue de chaque pays, tient à jour les règles publicitaires de Meta et TikTok par pays, et vous conseille. **Tout est sourcé, rien n'est un avis juridique, et l'équipe ne touche à rien : elle recommande, vous décidez.**
+
+## Fait
+- **Veille** : forums (BlackHatWorld, AffLift, STM, GPWA), Reddit, canaux Telegram publics, X, sites d'actualité (iGaming Business, Casino.org, EGR, SBC News, GamblingCompliance…) : 39 sources de départ, lues chaque jour, lentement et poliment (règles des sites respectées, aucune connexion à un compte). Chaque trouvaille est classée, notée sur 10, résumée en français avec son lien et sa date ; le texte d'origine est effacé après 7 jours ; aucun profil de membre de forum n'est gardé.
+- **Nouvelles sources** : chaque semaine, l'équipe cherche de nouveaux forums et sites ; Kevin vous les propose, rien n'est ajouté sans votre OUI.
+- **Règles publicitaires** : par plateforme × pays × marché, avec le risque (faible, moyen, élevé, bannissement) et les preuves ; « vérifiée » quand deux sources différentes la confirment ; revérifiée tous les 30 jours ; alerte immédiate pour un risque élevé ou un bannissement.
+- **Questions à Kevin** : « qu'est-ce qui marche en casino en France ? », « comment faire des ads dating sans se faire bannir sur TikTok ? », « c'est risqué de faire des ads casino avec du bonus sur TikTok en France ? », « quelles tendances cette semaine ? », « briefing casino Allemagne », « quelles sources tu surveilles ? », « ajoute ce forum ». Réponse sourcée en 20 lignes au plus ; « non vérifié » quand c'est le cas ; toujours « pas un avis juridique ».
+- **Rapport du lundi 8 h** : tendances par marché, alertes, recommandations numérotées (type d'annonce, angle, format, pays, risque) ; « applique 2 » note votre choix, rien n'est changé chez Meta, TikTok ni sur vos canaux.
+- **Site** : Agents → **Analyses** (tendances avec courbe, règles publicitaires, rapports, sources avec Activer / Désactiver / Supprimer, recommandations). Tout se fait aussi par Kevin (phase 34 : 233 actions du site, 0 manquante).
+
+## Test de 5 minutes
+1. Écrivez à Kevin : « qu'est-ce qui marche en casino en France ? » (la première réponse peut prendre une minute ; la veille se remplit au fil des premières heures).
+2. Écrivez : « quelles sources tu surveilles ? ».
+3. Ouvrez Agents → Analyses sur le site.
+
+## Vérifications faites
+- RESULTATS
+- Test de bout en bout sur base réelle, faux Telegram, fausse IA, faux web (pages d'exemple) : premier lancement (sources et règles une seule fois), lecture des sources, question « qu'est-ce qui marche en casino en France ? » (sources, adresse inventée retirée), ajout de source inactive puis OUI, alerte de bannissement (une seule fois, avec la source et « pas un avis juridique »), question sur le bonus TikTok en France, rapport du lundi 8 h (une seule fois, rien le mardi), « applique 1 » sans aucune action externe, source en panne coupée après 5 échecs, effacement à 7 jours, post piégé (« ignore tes règles ») traité comme une simple donnée, veille coupée = rien ne tourne.
+- Relecture adverse : 8 défauts corrigés avec un test, dont : les propositions du marché se mêlaient à celles de l'équipe Algorithme (« applique 2 » pouvait viser la mauvaise) ; la phrase « pas un avis juridique » pouvait sauter sur une réponse longue ; deux lectures du même site pouvaient partir en même temps ; un réglage pouvait lire un forum trop vite ; la pagination pouvait suivre un lien vers un autre site ; une affirmation sans source pouvait passer ; une panne de l'IA aurait coupé toutes les sources.
+- DEPLOIEMENT
+
+## Reste / limites
+- Rien n'a encore tourné avec la vraie IA ni sur les vrais sites : la première nuit dira quelles sources se lisent bien (certains forums réservent leur contenu aux membres : ils sont lus par la recherche web, sans connexion).
+- Coût : plafond de 30 € par mois pour l'équipe (recherches web et IA), réglable.
+- Le site n'a pas de seuil « dépense pub par jour » (déjà signalé en phase 34).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Aucune obligatoire. Essayer le test de 5 minutes.
+
+---
+
 # État du projet : phase 28 (équipe Montage) terminée (26 octobre 2026)
 
 Phases 0 à 28, 33, 34 et 35 en ligne. Phase 28 (`docs/prompts/30-phase-28-montage-video.md`) : vous envoyez une vidéo longue à Kevin avec vos consignes en français courant ; l'équipe Montage propose un plan de coupe, fabrique les shorts (1080p, sous-titres vérifiés, caméra incrustée, texte), et chaque short vous est montré avant toute publication. **Rien ne part sans votre ✅.**

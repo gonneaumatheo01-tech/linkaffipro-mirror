@@ -536,3 +536,11 @@ Migration additive `*_phase28_montage`.
 - `MontageJob` : source, consignes comprises (`instructions`), conversation d'origine, statut PENDING → ANALYZING → PLAN_SENT → CUTTING → DRESSING → QC → PREVIEW → DONE / FAILED / CANCELLED, `currentStep` (reprise), `attempts`, métadonnées de la source, plan envoyé et accepté.
 - `ShortClip` : moment (début, fin, durée, description, note), format, caméra, vitesse, sous-titres (`subtitlesSrt` vérifié, `subtitlesPending` = doutes en attente du client), texte incrusté, statut PLANNED → CUTTING → DRESSING → QC → PREVIEW_SENT → APPROVED / REJECTED / QC_FAILED / REDO / CANCELLED, contrôle qualité, `compressed`, `previewMsgId`, retour du client, `redoCount` (version).
 - Réglages `montage.*` : format et durée par défaut, nombre de shorts maximum, seuil de confiance des sous-titres, qualité, style des sous-titres, plafond IA mensuel.
+
+## Phase 29 : équipe Analystes
+Migration additive `*_phase29_analystes`.
+- `TrendSource` (nom, adresse unique, type FORUM / REDDIT / TELEGRAM / TWITTER / NEWS / OTHER, marché `Vertical`, pays, langues, réglages de lecture, active, origine seed / discovered / client, dernière et prochaine lecture, échecs, dernière erreur).
+- `TrendEntry` (source, marché, pays, langue, titre, résumé français ≤ 500 et résumé d'origine, adresse + empreinte unique, pseudonyme, date, catégorie `TrendCategory`, étiquettes dont `platform:` / `risk:`, sentiment, pertinence 1-10, vérifiée, texte brut effacé à 7 jours).
+- `ComplianceRule` (plateforme `CompliancePlatform` META / TIKTOK / GOOGLE / SNAP / X / TELEGRAM / OTHER — distincte de `AdPlatform` des connecteurs —, marché, pays ou « ALL », règle, risque `RiskLevel` LOW / MEDIUM / HIGH / BAN, preuves, vérifiée, contournement, active, dernière vérification, entrée d'origine).
+- `StrategyReport` (marché ou tous, pays, période, type `StrategyReportType` WEEKLY / MONTHLY / ON_DEMAND, titre, résumé, contenu, recommandations, demandeur, question, envoyé le).
+- Réglages `analysts.*` : actif, jour et heure du rapport, intervalle de lecture, entrées par lecture, seuil de pertinence, niveau d'alerte, plafond mensuel ; `analysts.bootstrapped`.
