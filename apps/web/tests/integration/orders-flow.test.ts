@@ -117,10 +117,10 @@ function oddsFrom(from: Date, offsides: boolean): OddsProvider {
     },
     getMarkets: (id: string, t: string[]) => raw.getMarkets(strip(id), t),
     async getMarketsMany(ids: string[], t: string[]) {
-      const m = await raw.getMarketsMany(ids.map(strip), t);
+      const m = await raw.getMarketsMany!(ids.map(strip), t);
       return new Map(ids.map((id) => [id, m.get(strip(id)) ?? []]));
     },
-    getMarketsFresh: (id: string, t: string[]) => raw.getMarketsFresh(strip(id), t),
+    getMarketsFresh: (id: string, t: string[]) => raw.getMarketsFresh!(strip(id), t),
     async getResult(id: string) {
       const r = await raw.getResult(strip(id));
       return r ? { ...r, eventId: id } : r;
@@ -393,7 +393,7 @@ async function approveAll(): Promise<void> {
 /** Une journée de l'ordre : plan du jour du Grand Chef, passage de l'équipe Paris, chaîne des agents. */
 async function productionDay(offset: number, offsides = true): Promise<void> {
   now = at(offset, 10 * 60);
-  agents().providers = { llm: agentLlm, odds: oddsFrom(now, offsides), screenshot } as never;
+  (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, offsides), screenshot } as never;
   await planDay(agents());
   await runSportsPassage(agents());
   await drain();
@@ -469,7 +469,7 @@ beforeAll(async () => {
   prismaTelegramDeps.workerDown = async () => false;
   const deps = agents();
   deps.now = () => now;
-  deps.providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
+  (deps as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
   deps.enqueue = {
     orchestrator: async (job, opts) => void enqueued.push({ job, jobId: opts?.jobId }),
     step: async (_team, _agent, job) => {
@@ -516,7 +516,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     expect(ov).toMatchObject({ channelId: ids.test, teamKey: "sports", fromDay: DAY1, toDay: addDays(DAY1, 2), picksPerDay: 2, isTest: true, closedAt: null });
     const cat = await prisma.betCategory.findUniqueOrThrow({ where: { id: ov!.betCategoryId! } });
     expect(cat).toMatchObject({ createdByOrderId: o.id, active: false, bookmakers: ["sportaza"] });
-    expect(cat.marketTypes.every((m) => m.startsWith("offsides-"))).toBe(true);
+    expect((cat.marketTypes as string[]).every((m: string) => m.startsWith("offsides-"))).toBe(true);
     // Kevin ne crée aucune mission : seul le Grand Chef le fera, au plan du jour.
     expect(await prisma.agentMission.count({ where: { orderId: o.id } })).toBe(0);
     expect(await prisma.auditLog.count({ where: { action: "agents.order.started", entityId: o.id } })).toBe(1);
@@ -574,7 +574,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("4. variante : aucun marché hors-jeux chez le fournisseur → raison précise, replis numérotés, « N » → ordre sur corners", async () => {
     now = at(3, 9 * 60);
-    agents().providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
     const out = await say(CLIENT_PHRASE);
     // Même demande plus de 24 h après : le plan n'est plus en cache, le planificateur est rappelé une fois.
     expect(fakeBossLlm.calls.plan).toHaveLength(2);
@@ -589,7 +589,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     expect(out2).toMatch(/corners/i);
     const [ov] = await orderOverrides(o.id);
     const cat = await prisma.betCategory.findUniqueOrThrow({ where: { id: ov!.betCategoryId! } });
-    expect(cat.marketTypes.every((m) => m.startsWith("corners-"))).toBe(true);
+    expect((cat.marketTypes as string[]).every((m: string) => m.startsWith("corners-"))).toBe(true);
     expect(ov).toMatchObject({ channelId: ids.test, picksPerDay: 2, isTest: true });
     // Noté pour le bilan hebdomadaire des demandes impossibles.
     expect(await prisma.bossUnmet.count()).toBeGreaterThanOrEqual(1);
@@ -620,7 +620,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("7. « arrête » : les missions pas encore commencées sont annulées, la dérogation se ferme", async () => {
     now = at(3, 10 * 60);
-    agents().providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
     await planDay(agents());
     steps.length = 0; // la sélection n'a pas commencé
     const pending = await prisma.agentMission.findMany({ where: { orderId: ids.cornersOrder } });
@@ -723,7 +723,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("16. relecture (cas 3) : équipe Paris en vrai + ordre « pour de faux » sur un vrai canal → rien ne part en vrai, le récap le dit", async () => {
     now = at(4, 11 * 60);
-    agents().providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
     const channelBot = await prisma.bot.findFirstOrThrow({ where: { role: { not: "ADMIN" } } });
     ids.footReal = (await prisma.channel.create({ data: { telegramChatId: -1007770003n, title: "Foot Réel", type: "CHANNEL", language: "fr", vertical: "SPORTS", primaryBotId: channelBot.id } })).id;
     await prisma.agentTeamConfig.update({ where: { teamKey: "sports" }, data: { simulation: false } });
