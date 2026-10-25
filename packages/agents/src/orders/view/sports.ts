@@ -80,7 +80,7 @@ export async function viewSportsChannel(deps: AgentsDeps, channelId: string, day
   const lines = planLines(plan.entries, [], now, { channelId }).filter((l) => !l.startsWith("Équipe "));
   const facts = {
     ...plan.facts,
-    paris: picks.map((p) => ({ match: `${p.homeTeam} - ${p.awayTeam}`, ligue: leagueLabel(p.league), coupDEnvoi: p.kickoffAt.toISOString(), pari: `${p.marketLabel} : ${p.selectionLabel}`, cote: p.odds, bookmaker: p.bookmaker, etat: PICK_STATE[p.status] ?? p.status })),
+    paris: picks.map((p) => ({ match: `${p.homeTeam} - ${p.awayTeam}`, ligue: leagueLabel(p.league), coupDEnvoi: p.kickoffAt.toISOString(), pari: `${p.marketLabel} : ${p.selectionLabel}`, selection: p.selectionLabel, cote: p.odds, bookmaker: p.bookmaker, etat: PICK_STATE[p.status] ?? p.status })),
   };
   if (picks.length) {
     lines.push(`Déjà ${picks.length} ${picks.length > 1 ? "paris choisis" : "pari choisi"} ${dayLabel(d, now)} :`);

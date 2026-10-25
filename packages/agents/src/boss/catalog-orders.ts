@@ -37,7 +37,7 @@ import {
   ORDER_OVERLAP_ACTION,
 } from "../orders/recap";
 import { groupUnmet, unmetGroupLine } from "../orders/unmet";
-import { DAYS_KEYS, PER_DAY_KEYS, validatePlan, type ValidatedPlan } from "../orders/validate";
+import { PER_DAY_KEYS, validatePlan, type ValidatedPlan } from "../orders/validate";
 import { allowedNumbers, inventedNumbers } from "../rules/report-numbers";
 import type { BossAction, BossActor, BossDeps, BossReply } from "./contract";
 import type { BossExecDeps } from "./catalog-read";
