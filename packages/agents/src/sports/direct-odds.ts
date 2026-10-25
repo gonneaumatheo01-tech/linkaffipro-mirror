@@ -13,7 +13,6 @@
 import { agentEvent } from "../admin/journal";
 import { readOddsTwice, type OddsTwiceResult } from "../bookmakers/read";
 import { emitHook, type BookmakerReadDeps } from "../bookmakers/read/deps";
-import { sameOddsExact } from "../bookmakers/read/odds-format";
 import { askHuman } from "../human/requests";
 import { checkOddsDrift } from "../rules/bets";
 import type { AgentContext, AgentResult, Mission } from "../types";
@@ -21,6 +20,14 @@ import type { BetCategoryInfo, PickRow } from "./data";
 import { skipPick } from "./skip";
 
 /** Sélections refaites au plus pour une même mission (cote qui bouge sans cesse : pari écarté). */
+/**
+ * La capture (phase 23) lit la cote au centième (« 5/6 » → 1,83) ; la double lecture la garde à 4 décimales (1,8333).
+ * Même cote affichée = même centième (une cote fractionnaire ou américaine n'est jamais écartée pour un arrondi). Pur.
+ */
+export function sameCapturedOdds(captured: number, verified: number): boolean {
+  return Math.round(captured * 100) === Math.round(verified * 100);
+}
+
 export const MAX_RESELECTIONS = 2;
 export const MAX_RECAPTURES = 2;
 /** Attentes humaines au plus pour une même mission (cote jamais vérifiée deux fois : pari écarté ensuite). */
@@ -131,7 +138,7 @@ export async function verifyDirectOdds(
   }
   // La capture doit afficher EXACTEMENT la cote vérifiée (image de repli : validée par le client, pas de cote lue).
   const cap = mission.payload.capture as { status?: unknown; readOdds?: unknown } | null | undefined;
-  if (cap && cap.status === "captured" && typeof cap.readOdds === "number" && !sameOddsExact(cap.readOdds, r.odds)) {
+  if (cap && cap.status === "captured" && typeof cap.readOdds === "number" && !sameCapturedOdds(cap.readOdds, r.odds)) {
     const redo = await recapture(ctx, mission, pick, cap.readOdds, r.odds);
     if (redo) return { result: redo };
     return { result: await holdForHuman(ctx, mission, pick, { ok: false, code: "mismatch", reason: `la capture affiche ${cap.readOdds}, la cote vérifiée est ${r.odds}`, reads: [] }, step) };

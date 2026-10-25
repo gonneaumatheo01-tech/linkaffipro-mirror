@@ -57,6 +57,10 @@ export const ADMIN_ONLY_ANSWER_ACTIONS = new Set([
   "ads-roas",
   "sports-categories",
   "casino-channel-campaign",
+  // Phase 35 : identifiants des comptes bookmakers du client et test de tous les sites (connexion de chaque compte).
+  "bookmakers-default-login",
+  "bookmakers-default-credentials",
+  "bookmakers-test-all",
 ]);
 
 /** La demande doit-elle rester à l'admin (pur) ? Toute question sans équipe aussi. */

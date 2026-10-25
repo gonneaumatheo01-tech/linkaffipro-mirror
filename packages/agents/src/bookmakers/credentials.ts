@@ -113,7 +113,8 @@ export async function askBookmakerCredentials(
     kind: "SECRET",
     key: DEFAULT_LOGIN_REQUEST_KEY,
     question: pick(V.askLogin, "bookmakers.askLogin"),
-    onAnswer: { resume: false },
+    // Repère (sans effet) : la demande reste à l'admin (`ADMIN_ONLY_ANSWER_ACTIONS`), jamais à un membre.
+    onAnswer: { action: "bookmakers-default-login", resume: false },
   });
   await askHuman(deps, {
     teamKey: "sports",
@@ -166,6 +167,8 @@ let testAllSites: TestAll | null = null;
 export function registerTestAllSites(fn: TestAll | null): void {
   testAllSites = fn;
 }
+
+registerAnswerAction("bookmakers-default-login", async () => undefined);
 
 registerAnswerAction("bookmakers-default-credentials", async (deps, { actor }) => {
   if (!(await combineDefaultCredentials(deps, actor)))

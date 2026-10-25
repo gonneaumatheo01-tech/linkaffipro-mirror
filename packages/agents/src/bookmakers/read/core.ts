@@ -329,7 +329,7 @@ async function handleFailure(c: Ctx, f: LevelFailure, what: "events" | "markets"
   const d = f.forced
     ? { diagnosis: f.forced, source: "rules" as const, action: f.forced === "site_changed" ? ("relearn" as const) : f.forced === "logged_out" ? ("ask_human" as const) : ("none" as const), gesture: gestureOf(f.forced), costCents: 0 }
     : f.page
-      ? await diagnosePage(c.deps, f.page, { target: c.transport.target })
+      ? await diagnosePage(c.deps, f.page, { target: c.transport.target, siteKey: c.site.key })
       : null;
   let action = d?.action ?? "none";
   // Session déjà rafraîchie une fois : c'est à l'humain (mot de passe, code).

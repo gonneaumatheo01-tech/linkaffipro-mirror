@@ -351,6 +351,15 @@ describe("transport serveur : appels d'API", () => {
     expect(h).toMatchObject({ "x-csrf-token": "abc", origin: "https://celsius.games" });
     expect(h.host).toBeUndefined();
   });
+
+  it("relecture adverse : jamais la session du site vers un domaine d'une autre marque", () => {
+    const state = { cookies: [{ name: "csrf-token", value: "abc" }], origins: [{ origin: "https://celsius.games", localStorage: [{ name: "token", value: "tok123" }] }] };
+    const foreign = sessionHeaders(["x-csrf-token", "authorization"], state, "https://odds-engine.example/api", SITE, false);
+    expect(foreign["x-csrf-token"]).toBeUndefined();
+    expect(foreign.authorization).toBeUndefined();
+    const own = sessionHeaders(["x-csrf-token", "authorization"], state, "https://api.celsius.games/api", SITE, false);
+    expect(own).toMatchObject({ "x-csrf-token": "abc", authorization: "Bearer tok123" });
+  });
 });
 
 describe("exécution d'un travail par le worker", () => {
@@ -386,5 +395,50 @@ describe("exécution d'un travail par le worker", () => {
     expect(await executeReadJob(deps, j, { server, mac: createMacTransport(deps) })).toBe("done");
     expect(spy).not.toHaveBeenCalled();
     expect((await readReadJob(deps, job.id))?.result).toMatchObject({ value: { ok: false, obstacle: "mac_absent" }, target: "mac" });
+  });
+});
+
+describe("relecture adverse : travaux pris directement par le Mac", () => {
+  it("test ou navigateur visible : verrou du site pris à la remise, rendu avec le résultat ; site occupé → travail rendu", async () => {
+    const { bookmakerRunnerNext, bookmakerRunnerResult } = await import("../../providers/screenshot/runner-api");
+    const { siteLocked } = await import("./lock");
+    const prisma = createFakePrisma({
+      setting: [{ key: `${SITE_LOCK_PREFIX}celsius`, value: { token: "worker:1", owner: "worker", expiresAt: new Date(Date.now() + 60_000).toISOString() } }],
+    });
+    const deps = { prisma } as never;
+    const job = await enqueueReadJob(deps, { siteKey: "celsius", kind: "visible", target: "mac", params: { url: "https://celsius.games/" } });
+    // Le serveur lit Celsius : le Mac ne prend pas le travail.
+    expect(await bookmakerRunnerNext(prisma as never, { kinds: ["visible"] })).toBeNull();
+    expect((await readReadJob(deps, job.id))?.status).toBe("PENDING");
+    // Lecture du serveur finie : le Mac prend le travail ET le verrou.
+    await prisma.setting.deleteMany({ where: { key: `${SITE_LOCK_PREFIX}celsius` } });
+    const got = await bookmakerRunnerNext(prisma as never, { kinds: ["visible"] });
+    expect(got?.id).toBe(job.id);
+    expect(await siteLocked(deps, "celsius")).toBe(true);
+    await expect(withSiteLock(deps, "celsius", async () => "x", { waitMs: 0 })).rejects.toBeInstanceOf(SiteLockBusy);
+    expect(await bookmakerRunnerResult(prisma as never, { readJobId: job.id, ok: true, value: { ok: true, url: "https://celsius.games/" } })).toEqual({ ok: true });
+    expect(await siteLocked(deps, "celsius")).toBe(false);
+  });
+
+  it("enregistrement rendu par le Mac : masqué avant d'être rangé", async () => {
+    const { bookmakerRunnerResult } = await import("../../providers/screenshot/runner-api");
+    const prisma = createFakePrisma();
+    const deps = { prisma } as never;
+    const job = await enqueueReadJob(deps, { siteKey: "celsius", kind: "record", target: "mac", params: { baseUrl: "https://celsius.games" } });
+    await claimReadJob(deps, { target: "mac" });
+    const value = {
+      siteKey: "celsius",
+      baseUrl: "https://celsius.games",
+      responses: [{ url: "https://celsius.games/api/login", method: "POST", requestBody: '{"email":"moi@exemple.fr","password":"S3cret!pw"}', requestHeaders: { authorization: "Bearer abcdefghijkl" }, status: 200, contentType: "application/json", kind: "json", body: '{"token":"tok-123456789"}', at: "x" }],
+      pages: [],
+      domains: ["celsius.games"],
+      pageOdds: [],
+    };
+    await bookmakerRunnerResult(prisma as never, { readJobId: job.id, ok: true, value });
+    const stored = JSON.stringify((await readReadJob(deps, job.id))?.result);
+    expect(stored).not.toContain("S3cret!pw");
+    expect(stored).not.toContain("moi@exemple.fr");
+    expect(stored).not.toContain("tok-123456789");
+    expect(stored).not.toContain("abcdefghijkl");
   });
 });

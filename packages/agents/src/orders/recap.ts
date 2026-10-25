@@ -193,6 +193,8 @@ export const ADMIN_ONLY_CAPABILITIES = new Set([
   "mode",
   "appliquer_inspiration",
   "annuler_inspiration",
+  // Phase 35 : tester un bookmaker connecte le compte du client (même la nuit) : l'admin seul, comme la commande directe.
+  "tester_site",
 ]);
 
 /** Un des réglages de l'ordre est réservé à l'admin (pur). */

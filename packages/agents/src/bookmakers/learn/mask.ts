@@ -240,6 +240,11 @@ export function maskRecording(
   };
 }
 
+/** Texte libre (page lue, titre, adresse) sans secret : valeurs connues, jetons, e-mails, solde et compte affichés. Pur. */
+export function maskText(s: string, secrets: readonly string[] = []): string {
+  return createMasker(secrets).text(s);
+}
+
 /** Contrôle : un des secrets connus ou un motif de jeton survit-il dans ce texte ? (tests, relecture). Pur. */
 export function leakedSecrets(serialized: string, secrets: readonly string[]): string[] {
   const out: string[] = [];

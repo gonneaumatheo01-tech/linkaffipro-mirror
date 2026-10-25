@@ -115,6 +115,17 @@ describe("registre des fournisseurs", () => {
     expect((await resolveOddsProvider({ ...kit.deps, bookmakers }, { maxCalls: 100, siteKey: "celsius" }))?.provider.name).toBe("bookmaker-direct");
   });
 
+  it("relecture adverse : catégorie mêlant un site du client et un bookmaker de SportsGameOdds → les deux sont lus", async () => {
+    const { kit, bookmakers } = await celsius();
+    const { sgo, calls } = fakeSgo({ events: [sgoEvent({ eventId: "sgo-9", homeTeam: "Équipe X", awayTeam: "Équipe Y" })] });
+    const cat = await kit.prisma.betCategory.create({ data: { key: "mix", name: "Résultat", sport: "SOCCER", marketTypes: ["points-home-reg-ml3way-home"], leagues: [], bookmakers: ["celsius", "bet365"], minOdds: 1.2, maxOdds: 5, maxOddsDriftPct: 5, minMinutesBeforeKickoff: 30, picksPerDay: 1, channelIds: ["real"], active: true } as never });
+    const { agent } = await import("../agents/cotes/index");
+    const mission = { id: "m1", teamKey: "sports", isTest: false, channelId: "real", payload: { categoryId: cat.id }, steps: [] } as never;
+    const ctx = { ...kit.deps, now: kit.deps.now!, providers: { sgo, llm: null }, settings: { settings: {} }, bookmakers } as never;
+    await agent.run(mission, ctx).catch(() => undefined);
+    expect(calls.some((c) => c.startsWith("getMarkets:sgo-9:"))).toBe(true);
+  });
+
   it("cote du site à plus de 15 % du consensus : « cote inhabituelle » (signalée, pas bloquée)", () => {
     expect(unusualOddsOf(2.4, 2.0)).toMatchObject({ gapPct: 20 });
     expect(unusualOddsOf(2.2, 2.0)).toBeNull();

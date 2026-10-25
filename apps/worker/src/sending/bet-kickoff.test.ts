@@ -10,6 +10,7 @@ const db = vi.hoisted(() => {
     category: { minMinutesBeforeKickoff: 30 } as Row | null,
     team: null as Row | null,
     sent: 0,
+    reads: [] as Row[],
     postUpdates: [] as Row[],
     pickUpdates: [] as Row[],
   };
@@ -22,6 +23,7 @@ const db = vi.hoisted(() => {
       }),
     },
     betCategory: { findUnique: vi.fn(async () => state.category) },
+    bookmakerOdds: { findMany: vi.fn(async () => state.reads) },
     agentTeamConfig: { findUnique: vi.fn(async () => state.team) },
     post: {
       update: vi.fn(async ({ data }: { data: Row }) => {
@@ -37,7 +39,7 @@ const db = vi.hoisted(() => {
 vi.mock("@linkaffipro/db", () => ({ prisma: db.prisma, recordEvent: vi.fn(async () => undefined), toJsonValue: (v: unknown) => v }));
 
 import { recordEvent } from "@linkaffipro/db";
-import { BET_TOO_LATE_REASON, betStillOnTime, cancelLateBetPost } from "./bet-kickoff";
+import { BET_STALE_ODDS_REASON, BET_TOO_LATE_REASON, betStillOnTime, cancelLateBetPost } from "./bet-kickoff";
 
 const NOW = new Date("2026-10-24T18:00:00Z");
 const post = { id: "post1", agentMissionId: "m1", channelId: "c1", botId: "b1" };
@@ -48,6 +50,7 @@ beforeEach(() => {
   db.state.category = { minMinutesBeforeKickoff: 30 };
   db.state.team = null;
   db.state.sent = 0;
+  db.state.reads = [];
   db.state.postUpdates = [];
   db.state.pickUpdates = [];
   vi.clearAllMocks();
@@ -91,5 +94,20 @@ describe("post de pari au moment de l'envoi", () => {
     expect(betStillOnTime(kickoffIn(30), NOW, 30)).toBe(true);
     expect(betStillOnTime(new Date(kickoffIn(30).getTime() - 1), NOW, 30)).toBe(false);
     expect(betStillOnTime(kickoffIn(0), NOW, 0)).toBe(false);
+  });
+});
+
+describe("relecture adverse : pari lu sur un site du client", () => {
+  it("lecture de la cote de plus de 5 min au moment réel de l'envoi (post retenu) : annulé, jamais envoyé", async () => {
+    db.state.pick = { id: "p1", status: "PUBLISHED", kickoffAt: kickoffIn(120), categoryId: "cat", siteKey: "celsius", oddsReadIds: ["r1", "r2"] };
+    db.state.reads = [{ readAt: new Date(NOW.getTime() - 40 * 60_000) }, { readAt: new Date(NOW.getTime() - 39 * 60_000) }];
+    expect(await cancelLateBetPost(post, NOW)).toBe(true);
+    expect(db.state.pickUpdates[0]).toMatchObject({ status: "SKIPPED", skipReason: BET_STALE_ODDS_REASON });
+  });
+
+  it("lecture fraîche : envoyé", async () => {
+    db.state.pick = { id: "p1", status: "PUBLISHED", kickoffAt: kickoffIn(120), categoryId: "cat", siteKey: "celsius", oddsReadIds: ["r1", "r2"] };
+    db.state.reads = [{ readAt: new Date(NOW.getTime() - 60_000) }, { readAt: new Date(NOW.getTime() - 30_000) }];
+    expect(await cancelLateBetPost(post, NOW)).toBe(false);
   });
 });

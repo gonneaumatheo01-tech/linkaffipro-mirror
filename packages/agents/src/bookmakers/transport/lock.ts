@@ -46,8 +46,8 @@ function parse(v: unknown): LockValue | null {
   return o && typeof o.token === "string" && typeof o.expiresAt === "string" ? o : null;
 }
 
-async function tryAcquire(prisma: AgentsPrisma, key: string, token: string, owner: string, now: Date): Promise<boolean> {
-  const value: LockValue = { token, owner, expiresAt: new Date(now.getTime() + SITE_LOCK_TTL_MS).toISOString() };
+async function tryAcquire(prisma: AgentsPrisma, key: string, token: string, owner: string, now: Date, ttlMs = SITE_LOCK_TTL_MS): Promise<boolean> {
+  const value: LockValue = { token, owner, expiresAt: new Date(now.getTime() + ttlMs).toISOString() };
   const row = (await prisma.setting.findUnique({ where: { key } })) as Row | null;
   if (!row) {
     try {
@@ -58,7 +58,8 @@ async function tryAcquire(prisma: AgentsPrisma, key: string, token: string, owne
     }
   }
   const cur = parse(row.value);
-  if (cur && new Date(cur.expiresAt).getTime() > now.getTime()) return false;
+  // Même jeton (travail du Mac repris après une coupure) : le verrou est le sien, il est prolongé.
+  if (cur && cur.token !== token && new Date(cur.expiresAt).getTime() > now.getTime()) return false;
   const r = await prisma.setting.updateMany({ where: { key, updatedAt: row.updatedAt }, data: { value: value as never } });
   return r.count === 1;
 }
@@ -75,6 +76,21 @@ async function release(prisma: AgentsPrisma, key: string, token: string): Promis
   const row = (await prisma.setting.findUnique({ where: { key } })) as Row | null;
   if (!row || parse(row.value)?.token !== token) return;
   await prisma.setting.deleteMany({ where: { key, updatedAt: row.updatedAt } });
+}
+
+/**
+ * Verrou tenu HORS d'une chaîne d'appels (travail pris directement par le runner du Mac : test, navigateur visible) :
+ * pris à la remise du travail, rendu avec son résultat (`releaseSiteLockToken`), sinon abandonné à l'échéance.
+ * Rend vrai si le verrou est pris avec ce jeton.
+ */
+export async function acquireSiteLockToken(deps: { prisma: AgentsPrisma; now?: () => Date }, siteKey: string, token: string, ttlMs: number): Promise<boolean> {
+  const now = deps.now?.() ?? new Date();
+  return tryAcquire(deps.prisma, `${SITE_LOCK_PREFIX}${siteKey}`, token, token.split(":")[0] ?? "mac", now, ttlMs);
+}
+
+/** Rend un verrou pris par `acquireSiteLockToken` (seulement si ce jeton le tient encore). */
+export async function releaseSiteLockToken(deps: { prisma: AgentsPrisma }, siteKey: string, token: string): Promise<void> {
+  await release(deps.prisma, `${SITE_LOCK_PREFIX}${siteKey}`, token);
 }
 
 /** Ce site est-il en lecture (verrou valide) ? */

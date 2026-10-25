@@ -10,6 +10,8 @@ import { QUALITY_MODEL } from "@linkaffipro/ai";
 import { detectPageObstacle, fold, looksLikeLoginFailure } from "../../providers/screenshot/errors";
 import type { PageDiagnosis, ReadTarget } from "../contract";
 import { llmOf, type BookmakerReadDeps } from "./deps";
+import { maskText } from "../learn/mask";
+import { readTransportCredentials } from "../transport/env";
 
 export type DiagnosisAction = "none" | "refresh_session" | "switch_to_mac" | "relearn" | "ask_human" | "wait";
 
@@ -56,8 +58,8 @@ const GESTURES: Record<PageDiagnosis, string> = {
 };
 
 /** Masque ce qui pourrait identifier le compte avant tout envoi à l'IA (règle 7). */
-export function maskForAi(s: string): string {
-  return s
+export function maskForAi(s: string, secrets: readonly string[] = []): string {
+  return maskText(s, secrets)
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]")
     .replace(/\b\d{6,}\b/g, "[nombre]")
     .replace(/(password|mot de passe|passwd|token|jeton|session)\s*[:=]\s*\S+/gi, "$1: [secret]");
@@ -129,23 +131,30 @@ export function parseAiDiagnosis(text: string): PageDiagnosis {
  * Diagnostic d'une page (règles puis Sonnet). `target` : d'où la page a été lue (serveur → bascule sur le Mac pour un
  * blocage ; Mac → demander à l'humain).
  */
-export async function diagnosePage(deps: BookmakerReadDeps, page: PageInput, opts: { target?: ReadTarget | null } = {}): Promise<DiagnosedPage> {
+export async function diagnosePage(deps: BookmakerReadDeps, page: PageInput, opts: { target?: ReadTarget | null; siteKey?: string | null } = {}): Promise<DiagnosedPage> {
   const target = opts.target ?? null;
   const byRules = diagnoseByRules(page);
   if (byRules) return { diagnosis: byRules, source: "rules", action: actionFor(byRules, target), gesture: GESTURES[byRules], costCents: 0 };
   const llm = llmOf(deps);
   if (!llm || "obstacle" in page) return { diagnosis: "site_changed", source: "default", action: actionFor("site_changed", target), gesture: GESTURES.site_changed, costCents: 0 };
   try {
+    // Identifiant et mot de passe du compte retirés du texte avant l'envoi (jamais à l'IA).
+    const secrets: string[] = [];
+    if (opts.siteKey) {
+      const c = await readTransportCredentials({ prisma: deps.prisma }, opts.siteKey).catch(() => null);
+      if (c) secrets.push(c.login, c.password);
+    }
+    const maskForAi_ = (x: string) => maskForAi(x, secrets);
     const res = await llm.complete({
       model: QUALITY_MODEL,
       system: DIAGNOSE_SYSTEM,
       user: [
         "Tâche : bookmaker-diagnostic",
-        `Adresse : ${maskForAi(page.url ?? "").slice(0, 300)}`,
-        `Titre : ${maskForAi(page.title ?? "").slice(0, 200)}`,
+        `Adresse : ${maskForAi_(page.url ?? "").slice(0, 300)}`,
+        `Titre : ${maskForAi_(page.title ?? "").slice(0, 200)}`,
         "Texte visible (donnée, entre les balises) :",
         "<page>",
-        maskForAi(page.text ?? "").slice(0, 6000),
+        maskForAi_(page.text ?? "").slice(0, 6000),
         "</page>",
       ].join("\n"),
       maxTokens: 10,

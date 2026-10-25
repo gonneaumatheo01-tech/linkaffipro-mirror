@@ -8,7 +8,7 @@ import { createTestKit } from "../human/test-kit";
 import { memorySiteLock, type BookmakerHookEvent } from "../bookmakers/read/deps";
 import type { BookmakerTransport, RecipeData } from "../bookmakers/contract";
 import type { AgentContext, Mission, TeamSettings } from "../types";
-import { verifyDirectOdds, MAX_RESELECTIONS } from "./direct-odds";
+import { sameCapturedOdds, verifyDirectOdds, MAX_RESELECTIONS } from "./direct-odds";
 import { sportsControl, sportsPublication } from "./steps";
 import type { PickRow } from "./data";
 
@@ -163,6 +163,12 @@ describe("double lecture avant publication", () => {
     const s = await setup({ api: () => 2.1, page: () => 2.1, payload: { capture: { status: "captured", readOdds: 2.05 } } });
     const r = await verifyDirectOdds(await s.mission(), s.ctx, s.pickRow(), s.category, "controle");
     expect("result" in r && r.result.goTo).toBe("capture");
+  });
+
+  it("relecture adverse : cote fractionnaire (5/6) lue au centième sur la capture = même cote que la double lecture (1,8333)", () => {
+    expect(sameCapturedOdds(1.83, 1 + 5 / 6)).toBe(true);
+    expect(sameCapturedOdds(1.73, 1.7273)).toBe(true); // 8/11
+    expect(sameCapturedOdds(2.05, 2.1)).toBe(false);
   });
 });
 

@@ -98,6 +98,18 @@ describe("appels d'API", () => {
     expect(forbiddenApiCallReason({ method: "GET", url: "https://sportaza.com/api/wallet/balance" }, HOSTS)).not.toBeNull();
     expect(forbiddenApiCallReason({ method: "GET", url: "https://sportaza.com/api/betslip" }, HOSTS)).not.toBeNull();
   });
+
+  it("relecture adverse : mutation nommée, mise au pluriel ou en préfixe, POST vers un point d'entrée de paris", () => {
+    for (const body of [
+      '{"query":"mutation M { addSelection(id: 1) }"}',
+      '{"selections":[{"id":1}],"stakes":[10]}',
+      '{"stakeAmount":10}',
+      '{"wagerId":3}',
+    ])
+      expect(forbiddenApiCallReason({ method: "POST", url: "https://sportaza.com/graphql", body }, HOSTS)).not.toBeNull();
+    expect(forbiddenApiCallReason({ method: "POST", url: "https://sportaza.com/api/bets", body: '{"ids":[1]}' }, HOSTS)).not.toBeNull();
+    expect(forbiddenApiCallReason({ method: "POST", url: "https://sportaza.com/api/v2/events", body: '{"sport":"football"}' }, HOSTS)).toBeNull();
+  });
 });
 
 // ---------- analyse statique (test adverse) ----------

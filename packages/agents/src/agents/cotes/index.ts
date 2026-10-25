@@ -9,7 +9,8 @@
 import { agentEvent } from "../../admin/journal";
 import { marketsForEvents } from "../../providers/odds-batch";
 import { OddsQuotaError } from "../../providers/odds-quota";
-import { resolveOddsProvider } from "../../providers/odds-registry";
+import { resolveOddsProvider, resolveSgoProvider } from "../../providers/odds-registry";
+import type { OddsProvider, OddsSelection } from "../../providers/odds";
 import type { AgentDefinition, AgentResult, Mission } from "../../types";
 import { json } from "../../missions/mission";
 import { loadCategory, picksToday, recentPickKeys, settledSamples } from "../../sports/data";
@@ -18,7 +19,7 @@ import { addKickoffTriggers } from "../../sports/passage-state";
 import { parseSportsSettings, withTeamBounds } from "../../sports/settings";
 import { rankCandidates, type Candidate } from "./select";
 import { reasoningSentences } from "../../sports/format";
-import { BOOKMAKER_DIRECT, parseDirectEventId } from "../../providers/bookmaker-direct";
+import { BOOKMAKER_DIRECT, parseDirectEventId, type BookmakerDirectProvider } from "../../providers/bookmaker-direct";
 
 /** Matchs examinés au plus par passage (un appel groupé couvre 25 matchs). */
 const MAX_EVENTS = 40;
@@ -57,8 +58,25 @@ export const agent: AgentDefinition = {
         .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
         // Lecture directe d'un site : une fiche de match par lecture, au rythme humain (moins de matchs examinés).
         .slice(0, resolved.provider.name === BOOKMAKER_DIRECT ? MAX_DIRECT_EVENTS : MAX_EVENTS);
+      const markets = events.length ? await marketsForEvents(resolved.provider, events.map((e) => e.eventId), category.marketTypes) : new Map<string, OddsSelection[]>();
+      // Catégorie mêlant un site du client et des bookmakers de SportsGameOdds : ces derniers restent lus par
+      // SportsGameOdds (phase 23), candidats classés ensemble.
+      if (resolved.provider.name === BOOKMAKER_DIRECT && resolved.source === "live") {
+        const sites = new Set((await (resolved.provider as BookmakerDirectProvider).sites()).map((x) => x.toLowerCase()));
+        const others = category.bookmakers.filter((b) => !sites.has(b.toLowerCase()));
+        const forcedSgo = (ctx.providers as { sgo?: unknown } | undefined)?.sgo as OddsProvider | null | undefined;
+        const sgo = others.length ? (forcedSgo ?? (await resolveSgoProvider(ctx, s.maxApiCallsPerMonth))) : null;
+        if (sgo && sgo.name !== BOOKMAKER_DIRECT) {
+          const more = (await sgo.listEvents({ sport: category.sport, leagues: category.leagues, from, to }))
+            .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+            .slice(0, MAX_EVENTS);
+          if (more.length) {
+            for (const [k, v] of await marketsForEvents(sgo, more.map((e) => e.eventId), category.marketTypes)) markets.set(k, v);
+            events.push(...more);
+          }
+        }
+      }
       if (!events.length) return noPick("aucun match à venir dans les ligues de la catégorie");
-      const markets = await marketsForEvents(resolved.provider, events.map((e) => e.eventId), category.marketTypes);
       const [recent, samples] = await Promise.all([recentPickKeys(ctx.prisma, now), settledSamples(ctx.prisma, now)]);
       const ranked = rankCandidates({
         events,

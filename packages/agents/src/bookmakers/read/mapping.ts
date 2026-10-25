@@ -57,6 +57,8 @@ export type Teams = { homeTeam: string; awayTeam: string };
 export function sideOf(selectionSite: string, mapping: Pick<Mapping, "selectionMap">, teams: Teams): string | null {
   const mapped = lookup(mapping.selectionMap, selectionSite);
   if (typeof mapped === "string" && mapped) return mapped;
+  // « 9+ » = au moins 9 (soit « plus de 8,5 »), pas « plus de 9 » : sans traduction de la recette, jamais deviné.
+  if (/^\d+(?:[.,]\d+)?\s*\+$/.test(selectionSite.trim())) return null;
   const n = norm(selectionSite.replace(/[-+]?\d+(?:[.,]\d+)?/g, " ")).trim();
   const raw = norm(selectionSite);
   for (const [re, side] of SIDE_WORDS) if (re.test(raw) || (n && re.test(n))) return side;

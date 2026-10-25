@@ -41,8 +41,12 @@ const LOGIN_PURPOSES: ReadonlySet<ClickPurpose> = new Set(["cookie_accept", "log
 const DECIMAL_IN_TEXT = /(^|[^\d])\d{1,3}[.,]\d{1,3}([^\d]|$)/;
 
 // Corps d'un POST de lecture : jamais une mise, jamais l'argent ni le compte.
+// Toute mutation GraphQL est refusée (une lecture n'en a jamais besoin, et son nom peut cacher une mise :
+// `mutation M { addSelection… }`) ; mise et montant aussi en préfixe de nom (`stakes`, `stakeAmount`, `wagerId`).
 const FORBIDDEN_POST_BODY =
-  /place-?bet|placebet|betslip|bet-?slip|\bstake\b|\bwager\b|\bamount\b|deposit|withdraw|cashier|payment|checkout|wallet|coupon|addtoslip|add_to_slip|cashout|cash_out|password|mutation\s*\{?\s*(place|create|add|submit|make|accept|update|delete)/i;
+  /place-?bet|placebet|betslip|bet-?slip|stake|wager|amount|deposit|withdraw|cashier|payment|checkout|wallet|coupon|addtoslip|add_to_slip|cashout|cash_out|password|\bmutation\b/i;
+// Chemin d'un POST : jamais un point d'entrée de paris (`/api/bets`, `/v1/bet`, `/selections`), même au corps anodin.
+const FORBIDDEN_POST_PATH = /\/(bets?|wagers?|selections?|tickets?|orders?)(\/|$)/i;
 
 /** Pur : une adresse de lecture est-elle permise (règles de base + lecture) ? */
 export function forbiddenReadUrlReason(url: string, allowedHosts: readonly string[]): string | null {
@@ -133,6 +137,15 @@ export function forbiddenApiCallReason(req: { method: string; url: string; body?
   const why = forbiddenReadUrlReason(req.url, allowedHosts);
   if (why) return why;
   if (method === "POST" && req.body && FORBIDDEN_POST_BODY.test(req.body)) return "corps de requête refusé (mise, argent ou compte)";
+  if (method === "POST") {
+    let path = "";
+    try {
+      path = decodeURIComponent(new URL(req.url).pathname);
+    } catch {
+      return "adresse mal encodée";
+    }
+    if (FORBIDDEN_POST_PATH.test(path)) return `POST vers ${path.slice(0, 80)} refusé (point d'entrée de paris)`;
+  }
   return null;
 }
 

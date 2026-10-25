@@ -14,8 +14,10 @@ import type { BookmakerCredentials } from "./adapter";
 import { claimNextCaptureRequest, claimableCaptureKinds, completeCaptureRequest, readCaptureRequest, type StoredCaptureRequest } from "./requests";
 import { isStorageState, readBookmakerCredentials, readBookmakerSession, saveBookmakerSession, type BrowserStorageState } from "./session";
 import { loadCaptureSettings } from "./settings";
-import { claimReadJob, finishReadJob, macHeartbeatFresh, readMacHeartbeat, readReadJob, writeMacHeartbeat, type MacHeartbeat } from "../../bookmakers/jobs";
+import { claimReadJob, finishReadJob, macHeartbeatFresh, readMacHeartbeat, readReadJob, releaseReadJob, writeMacHeartbeat, type MacHeartbeat } from "../../bookmakers/jobs";
 import { loadSiteAccess, readTransportCredentials, type SiteAccess } from "../../bookmakers/transport/env";
+import { acquireSiteLockToken, releaseSiteLockToken } from "../../bookmakers/transport/lock";
+import { maskRecording } from "../../bookmakers/learn/mask";
 import { statusOfValue } from "../../bookmakers/transport/execute";
 
 export const CAPTURE_RUNNER_TOKEN_KEY = "providers.captureRunner.token";
@@ -112,6 +114,16 @@ export type BookmakerRunnerJob = {
   session: BrowserStorageState | null;
 };
 
+/**
+ * Primitives déposées par le worker qui tient déjà le verrou du site (transport Mac) ; toute autre sorte prise
+ * directement par le Mac (test, navigateur visible, travail complet) prend le verrou du site à la remise et le rend avec
+ * le résultat : jamais le Mac et le serveur sur le même compte en même temps.
+ */
+const UNDER_WORKER_LOCK = new Set(["fetch-api", "page", "record"]);
+/** Verrou d'un travail du Mac : 12 min (navigateur visible : 10 min au plus), abandonné ensuite si le Mac se tait. */
+export const MAC_JOB_LOCK_TTL_MS = 12 * 60_000;
+export const macJobLockToken = (jobId: string) => `mac:${jobId}`;
+
 /** Sortes qu'un runner peut annoncer (le reste est orchestré par le worker). */
 const RUNNER_KINDS = new Set(["fetch-api", "page", "record", "visible", "test", "capture", "learn", "events", "markets", "verify"]);
 
@@ -129,12 +141,19 @@ export async function bookmakerRunnerNext(
   if (!kinds.length) return null;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const deadline = Date.now() + Math.min(Math.max(o.waitMs ?? 0, 0), 25_000);
+  const busySites: string[] = [];
   for (;;) {
-    const job = await claimReadJob(deps, { target: "mac", kinds });
+    const job = await claimReadJob(deps, { target: "mac", kinds, excludeSites: busySites });
     if (job) {
       const site = await loadSiteAccess(deps, job.siteKey);
       if (!site) {
         await finishReadJob(deps, job.id, "FAILED", { obstacle: "unknown_site", message: "site inconnu ou sans adresse" });
+        continue;
+      }
+      if (!UNDER_WORKER_LOCK.has(job.kind) && !(await acquireSiteLockToken(deps, job.siteKey, macJobLockToken(job.id), MAC_JOB_LOCK_TTL_MS))) {
+        // Site en lecture ailleurs (serveur) : travail rendu, repris plus tard.
+        await releaseReadJob(deps, job.id);
+        busySites.push(job.siteKey);
         continue;
       }
       const [credentials, session] = await Promise.all([
@@ -158,6 +177,15 @@ export async function bookmakerRunnerResult(prisma: PrismaClient, body: Bookmake
   const deps = { prisma };
   const job = await readReadJob(deps, body.readJobId);
   if (!job || job.target !== "mac" || job.status !== "CLAIMED") return { ok: false, error: "travail inconnu ou déjà rendu" };
+  try {
+    return await storeRunnerResult(deps, job, body);
+  } finally {
+    if (!UNDER_WORKER_LOCK.has(job.kind)) await releaseSiteLockToken(deps, job.siteKey, macJobLockToken(job.id)).catch(() => undefined);
+  }
+}
+
+async function storeRunnerResult(deps: { prisma: PrismaClient }, job: NonNullable<Awaited<ReturnType<typeof readReadJob>>>, body: BookmakerRunnerResultBody): Promise<{ ok: boolean; error?: string }> {
+  const prisma = deps.prisma;
   if (isStorageState(body.session)) await saveBookmakerSession(prisma, job.siteKey, body.session);
   const durationMs = Number.isFinite(Number(body.durationMs)) ? Number(body.durationMs) : null;
   if (body.ok !== true) {
@@ -169,7 +197,13 @@ export async function bookmakerRunnerResult(prisma: PrismaClient, body: Bookmake
     await finishReadJob(deps, job.id, "FAILED", { obstacle: "too_large", message: `résultat de ${Math.round(size / 1e6)} Mo`, target: "mac" });
     return { ok: false, error: "résultat trop gros" };
   }
-  await finishReadJob(deps, job.id, statusOfValue(body.value), { value: body.value ?? null, durationMs, target: "mac" });
+  let value = body.value ?? null;
+  // Enregistrement d'un site : masqué de nouveau avant d'être rangé (jamais un identifiant ni un jeton en base).
+  if (job.kind === "record" && value && typeof value === "object" && Array.isArray((value as { responses?: unknown }).responses)) {
+    const c = await readTransportCredentials(deps, job.siteKey).catch(() => null);
+    value = maskRecording({ pages: [], pageOdds: [], ...(value as object) } as never, c ? [c.login, c.password] : []);
+  }
+  await finishReadJob(deps, job.id, statusOfValue(value), { value, durationMs, target: "mac" });
   return { ok: true };
 }
 

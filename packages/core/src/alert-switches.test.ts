@@ -24,6 +24,8 @@ describe("interrupteurs des alertes sur les chiffres", () => {
       "ads_conversion_drop",
       "ads_cost_over_threshold",
       "ads_budget_exhausted",
+      "bookmaker_blocked",
+      "bookmaker_degraded",
     ]);
     for (const kind of SWITCHABLE_ALERT_KINDS) expect(ALERT_KIND_LABELS[kind]).toBeTruthy();
   });
@@ -40,6 +42,8 @@ describe("interrupteurs des alertes sur les chiffres", () => {
       ads_conversion_drop: true,
       ads_cost_over_threshold: true,
       ads_budget_exhausted: true,
+      bookmaker_blocked: true,
+      bookmaker_degraded: true,
     };
     expect(parseAlertSwitches(null)).toEqual(all);
     expect(parseAlertSwitches(undefined)).toEqual(all);
@@ -57,12 +61,12 @@ describe("interrupteurs des alertes sur les chiffres", () => {
         registrationsDropPct: 50,
         enabled: { registrations_drop: false, spend_no_conversion: "false", channel_leak: 0 },
       }),
-    ).toEqual({ registrations_drop: false, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true });
+    ).toEqual({ registrations_drop: false, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true });
     expect(
       parseAlertSwitches({
         enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false },
       }),
-    ).toEqual({ registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true });
+    ).toEqual({ registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true });
   });
 
   it("ne modifie jamais les valeurs par défaut partagées", () => {

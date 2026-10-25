@@ -33,6 +33,7 @@ function wallDate(at: Date, tz: string): { y: number; m: number; d: number } {
   return { y: w.getUTCFullYear(), m: w.getUTCMonth() + 1, d: w.getUTCDate() };
 }
 
+const TODAY = /\b(aujourd['’ ]?hui|auj|today|hoy|heute|oggi|hoje)\b/gi;
 const TOMORROW = /\b(demain|tomorrow|manana|mañana|morgen|domani|amanha|amanhã)\b/i;
 
 export function parseSiteDate(raw: string | null | undefined, tz: string, now: Date): Date | null {
@@ -66,7 +67,13 @@ export function parseSiteDate(raw: string | null | undefined, tz: string, now: D
   } else if (TOMORROW.test(t)) {
     const w = wallDate(new Date(now.getTime() + 86_400_000), tz);
     [y, mo, d] = [w.y, w.m, w.d];
-  } else [y, mo, d] = [today.y, today.m, today.d];
+  } else {
+    // Heure seule : aujourd'hui, mais seulement si rien d'autre n'est écrit (« Sam. 26 oct. 21:00 », « Samedi 21:00 » :
+    // jour illisible → null, jamais « aujourd'hui » inventé).
+    const rest = t.replace(/\d{1,2}[:h]\d{2}(:\d{2})?/i, " ").replace(TODAY, " ").replace(/[\s,.;·|–—-]+/g, "");
+    if (rest) return null;
+    [y, mo, d] = [today.y, today.m, today.d];
+  }
   if (!y || !mo || !d || mo > 12 || d > 31) return null;
   return zonedToUtc(y, mo, d, hh, mm, tz);
 }

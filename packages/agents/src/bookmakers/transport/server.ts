@@ -24,6 +24,7 @@ import { forbiddenApiCallReason, forbiddenFrameUrlReason, forbiddenReadUrlReason
 import { dbTransportEnv, type SiteAccess, type TransportEnv } from "./env";
 import { registeredBrowserLauncher, registeredRecordSite, type BookmakerBrowserLauncher, type ObservedFrame, type ObservedResponse, type RecordIo, type RecordSiteFn } from "./hooks";
 import { recordSite as learnRecordSite } from "../learn/record";
+import { maskRecording } from "../learn/mask";
 import { detectReadObstacle } from "./obstacles";
 import { paceSite, type PaceKind } from "./pace";
 
@@ -99,6 +100,18 @@ export function sessionHeaders(names: readonly string[], state: BrowserStorageSt
       return origin;
     }
   })();
+  // Jetons et cookies du site : seulement vers un domaine de la même marque que le site (`api.x.com` pour `x.com`).
+  // Un moteur tiers (autre domaine vu pendant l'enregistrement) ne reçoit jamais la session du client.
+  const brand = (h: string) => (/^\d+(\.\d+){3}$/.test(h) ? h : h.split(".").slice(-2).join("."));
+  const hostOfUrl = (u: string) => {
+    try {
+      return new URL(u).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  };
+  const reqHost = hostOfUrl(url);
+  const sameBrand = !!reqHost && brand(reqHost) === brand(hostOfUrl(site.baseUrl));
   for (const raw of names) {
     const name = raw.toLowerCase().trim();
     if (!/^[a-z0-9-]{1,60}$/.test(name) || name === "cookie" || name === "host" || name === "content-length") continue;
@@ -119,6 +132,7 @@ export function sessionHeaders(names: readonly string[], state: BrowserStorageSt
       out[name] = "XMLHttpRequest";
       continue;
     }
+    if (!sameBrand) continue;
     if (name === "authorization") {
       const t = storageFor(state, origin, (n) => TOKEN_NAME.test(n)) ?? storageFor(state, origin, (n) => /token|jwt/i.test(n)) ?? cookieFor(state, "token");
       if (t) out[name] = /^bearer\s/i.test(t) ? t : `Bearer ${t}`;
@@ -557,7 +571,9 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
       try {
         const out = await withDeadline(fn(io), opts.recordTimeoutMs ?? RECORD_TIMEOUT_MS, () => void opened.browser.close().catch(() => undefined));
         ok = !("obstacle" in out);
-        return out as SiteRecording | { obstacle: string };
+        // Masqué dès la source : l'enregistrement brut (corps de la requête de connexion, jetons des en-têtes) ne
+        // quitte jamais ce processus (résultat d'un travail du Mac rangé en base, journal…).
+        return ok ? maskRecording(out as SiteRecording, io.secrets) : (out as { obstacle: string });
       } catch (err) {
         return obstacleOf(err);
       } finally {
