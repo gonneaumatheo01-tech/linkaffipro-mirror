@@ -1,3 +1,45 @@
+# État du projet : phase 33 (Kevin donne des ordres aux équipes) terminée (25 octobre 2026)
+
+Phases 0 à 27 et 33 en ligne (la phase 33 passe avant les phases 28 à 32, qui s'y brancheront). Phase 33 (`docs/prompts/35-phase-33-kevin-ordres-equipes.md`) : toute demande libre faite à Kevin devient un **ordre** donné à une équipe ; Kevin le récapitule, demande OUI quand il le faut, le transmet au Grand Chef, qui le fait exécuter par l'équipe, puis Kevin rend compte chaque jour et à la fin. Plus de « je ne sais pas encore faire ça » quand une équipe sait le faire. **Les équipes restent en simulation.**
+
+## Fait
+- **Ce que chaque équipe sait faire** (registre des capacités, 32 au total) : Paris sportifs (programmer des paris sur N jours par thème, pari unique, catégories, bilan, questions), Rencontres et Casino (programmer des posts, post unique, réglages du canal, questions ; Casino seulement avec vos médias), Algorithme, Ads, Inspiration, et « faire comme si » (le canal Test traité comme un canal d'une autre équipe). Thèmes de paris (corners, cartons, hors-jeux, buteurs…) reliés aux marchés du fournisseur de cotes.
+- **Kevin comprend l'ordre** : il le planifie (IA Opus), le code revérifie tout (bornes : quotas, fenêtres, mélange, 30 jours au plus), il le récapitule en 3 lignes. Il lance tout de suite sur le canal Test pour de faux ; il demande OUI pour un vrai canal, un passage en vrai, une dépense ou plus de 7 jours. « annule » dans la minute arrête un ordre lancé.
+- **Jamais un refus sec** : ce qui bloque est dit précisément (« le fournisseur n'a pas de marché hors-jeux »), avec des solutions de repli par numéros ; ce qui n'existe pas encore (« programme des shorts ») est noté pour plus tard.
+- **Exécution** : le Grand Chef pose un **réglage temporaire** sur le canal (le plan habituel du canal ne bouge jamais et reprend à la fin), crée les productions chaque jour, l'équipe les fait passer par ses agents ; reprise sans doublon après un redémarrage.
+- **Suivi** : « mes ordres », « où en est l'ordre sur Test ? », « passe à 3 par jour », « prolonge de 2 jours », « arrête », « demande à l'équipe Paris pourquoi il n'y a pas eu de pari hier » ; un message par jour et par ordre, bilan à la fin, bilan des demandes impossibles le lundi.
+- **Voir et parler aux agents** : « qu'est-ce que l'agent des paris va poster aujourd'hui sur … ? », « montre-moi les matchs qu'il regarde » (sans rien publier), « quels matchs sont sur … ce soir ? », « pourquoi rien n'est sorti ce matin ? », « qu'est-ce qui attend ma validation ? », « dis à l'agent Rédaction d'écrire plus court sur Roulette ».
+- **La voix de Kevin** : il parle comme un collègue (tutoiement, phrases courtes, pas de jargon, plusieurs façons de dire la même chose) ; près de 300 textes réécrits ; contrôle automatique de chaque texte (`docs/KEVIN-VOIX.md`) ; il répond franchement s'il est un bot.
+- **Site** : Agents → **Ordres** (liste, fiche d'un ordre, Arrêter, Prolonger), encart « Réglage temporaire » sur la fiche d'un canal, page Kevin « Pas encore possible ».
+
+## Test de 5 minutes
+1. Écrivez à Kevin : « Sur le canal de test faisons comme si c'était un canal Paris sportifs, programme les paris pour 3 jours, avec comme thème les hors-jeux. »
+2. Il récapitule et lance (canal Test, pour de faux). Écrivez « mes ordres », puis « passe à 3 par jour ».
+3. Écrivez « arrête » quand vous voulez. Tout est visible dans Agents → Ordres.
+
+## Vérifications faites
+- Tests unitaires : environ 6 500 réussis (dont 1 025 agents, 571 Telegram, 469 worker, 3 017 site) ; tests d'intégration sur base réelle : 618 réussis (394 site, 224 worker), dont le scénario des ordres en 16 étapes avec le vrai registre : la phrase du client telle quelle → récapitulatif → lancement immédiat → 3 jours simulés, 2 paris hors-jeux par jour sur le canal Test → messages quotidiens → bilan → réglage temporaire éteint, plan du canal intact ; variante sans marché hors-jeux → replis → corners ; « passe à 3 par jour », « arrête », chevauchement, Casino sur un vrai canal (OUI, stock insuffisant → repli), persona Léa, question à l'équipe, « programme des shorts » noté, plan de l'agent des paris, consigne à l'agent Rédaction, texte transféré ignoré, aucune production créée par Kevin directement, réglage sans canal précisé → OUI, « pour de faux » jamais publié en vrai.
+- Lint, typage, build verts ; contrôle d'accessibilité des pages Ordres, Kevin et Agents sans violation ; captures.
+- Sauvegarde de la production avant déploiement ; site (migration appliquée) puis service d'arrière-plan ; santé OK ; `pnpm tg:diag` vert sur Kevin.
+
+## Premier essai réel (nuit du 24 au 25 octobre)
+Le client a demandé à Kevin de s'inspirer d'un canal privé (lien d'invitation) pour 🚩𝑪𝑶𝑹𝑵𝑬𝑹 puis pour le canal Test : six messages sans résultat. Corrigé et testé en rejouant cette conversation : une réponse « 3 » ou « Test » à une liste de Kevin est comprise (par numéro ou par nom, 30 minutes) ; les noms de canaux en lettres stylisées sont reconnus ; le canal Test prend l'univers de la demande (« tir cadré » → paris) ou Kevin le demande une fois ; sans compte réel libre, Kevin explique pourquoi (le seul compte relié est celui de Léa, qui discute avec des membres : jamais utilisé pour lire un canal) et propose les deux solutions ; un lien sans canal cible reçoit directement la liste des canaux.
+
+## Relecture adverse (compte-rendu)
+Deux relecteurs (bornes, confirmations, « comme si », catégories ; injection, secrets, coût, reprise, non-régression) : une trentaine de défauts confirmés, tous corrigés avec un test. Les plus importants touchaient tous la même chose : un OUI (ou son absence) qui ne correspondait pas à ce qui serait exécuté — un réglage de vrai canal parti sans OUI quand l'IA oubliait la portée, un « pour de faux » annoncé alors qu'une équipe passée en vrai aurait publié, un OUI qui confirmait une ancienne question, une durée de 30 jours contournable en modifiant l'ordre, des paris d'ordre ajoutés au quota d'un canal, un membre qui pouvait faire tourner l'IA coûteuse sans limite, des erreurs techniques brutes envoyées à l'admin.
+
+## Reste / limites
+- Rien n'a été essayé avec la vraie IA ni le vrai fournisseur de cotes (fausse IA et faux fournisseur en test) : le premier vrai ordre dira si le planificateur comprend bien.
+- Quelques marchés (les deux équipes marquent, score exact, double chance, cartons jaunes / rouges) restent à confirmer chez le fournisseur réel ; s'ils manquent, Kevin le dit précisément.
+- Matchs d'un bookmaker non couvert par le fournisseur (Sportaza, Celsius) : pas encore lus sur leur site (phase 35).
+- Pas de liste de mots interdits par canal : un mot interdit vaut pour toute l'équipe du canal (Kevin le dit).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Aucune obligatoire. Essayer la phrase du test de 5 minutes.
+
+---
+
 # État du projet : phase 27 (canal d'inspiration) terminée (25 octobre 2026)
 
 Phases 0 à 27 en ligne. Phase 27 (`docs/prompts/29-phase-27-canal-inspiration.md`) : vous donnez à Kevin un canal Telegram qui marche ; il le lit, mesure sa méthode, vous la résume, répond à vos questions et propose des réglages numérotés. Vous dites oui : il applique dans les bornes de l'équipe Algorithme, avec annulation, et mesure l'effet. **Il s'inspire de la méthode, il ne copie jamais le contenu.** Les équipes restent en simulation.
