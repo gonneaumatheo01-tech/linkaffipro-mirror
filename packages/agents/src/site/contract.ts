@@ -144,3 +144,39 @@ export const SITE_OPS_KEY_CONTEXT = "linkaffipro:site-ops:v1";
 export const DELETE_CONFIRM_WORD = "SUPPRIMER";
 /** Liens d'autorisation (connexion, OAuth, invitation) : usage unique, 15 minutes. */
 export const AUTH_LINK_TTL_MS = 15 * 60_000;
+
+/**
+ * Entrées Telegram (chantier F, `packages/agents/src/boss/inputs/`) lues par le déroulé de Kevin (chantier A) :
+ * un message transféré ou un document reçu est GARDÉ 30 minutes pour la conversation (`Setting`
+ * `boss.input.<chatId>`), puis consommé par l'opération qui le demande (`inputs` de `SiteOpMeta`).
+ */
+export type ForwardedContent = {
+  /** Texte en HTML Telegram, entités gardées (gras, liens, `<tg-emoji emoji-id>` des emojis animés). */
+  html: string;
+  /** Médias du message (identifiants de fichiers Telegram, jamais téléchargés sans besoin). */
+  media: Array<{ kind: "photo" | "video" | "animation" | "document" | "audio"; fileId: string }>;
+  /** Origine affichée (« transféré de @canal »), jamais exécutée. */
+  from?: string | null;
+  receivedAt: string;
+};
+
+export type ReceivedDocument = { fileName: string; mimeType: string | null; sizeBytes: number; text: string; receivedAt: string };
+
+/** Signatures attendues du chantier F (le chantier A les importe par ces noms). */
+export type BossInputsApi = {
+  peekForwarded(deps: unknown, chatId: string): Promise<ForwardedContent | null>;
+  takeForwarded(deps: unknown, chatId: string): Promise<ForwardedContent | null>;
+  peekDocument(deps: unknown, chatId: string): Promise<ReceivedDocument | null>;
+  takeDocument(deps: unknown, chatId: string): Promise<ReceivedDocument | null>;
+  /** Lien signé à usage unique (15 min) vers `/k/<jeton>` ; `purpose` dit où il mène. */
+  createAuthLink(
+    deps: unknown,
+    req: { purpose: "login" | "oauth_meta" | "oauth_tiktok" | "invite" | "page"; userId: string | null; chatId: string; payload?: Record<string, unknown> },
+  ): Promise<{ url: string; expiresAt: string }>;
+};
+
+/** Clé du `Setting` qui garde l'entrée reçue d'une conversation. */
+export const BOSS_INPUT_SETTING_PREFIX = "boss.input.";
+export const BOSS_INPUT_TTL_MS = 30 * 60_000;
+/** Route publique des liens d'autorisation (`apps/web/app/k/[token]/route.ts`). */
+export const AUTH_LINK_PATH = "/k/";
