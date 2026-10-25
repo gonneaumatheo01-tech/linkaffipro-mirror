@@ -113,7 +113,7 @@ export default async function MontageJobPage({ params, searchParams }: PageProps
           <div className="space-y-1">
             <p className="text-body font-medium text-foreground">Vos consignes</p>
             {rawText ? (
-              <blockquote className="rounded-xl border border-border bg-card px-4 py-3 text-body text-foreground">« {rawText} »</blockquote>
+              <blockquote className="rounded-xl border border-border bg-card px-4 py-3 text-body text-foreground">« {rawText} »</blockquote>
             ) : null}
             <ul className="space-y-0.5 text-note text-muted-foreground">
               {lines.map((l) => (
@@ -130,7 +130,7 @@ export default async function MontageJobPage({ params, searchParams }: PageProps
           description={
             job.planApprovedAt
               ? `Les moments retenus par l'équipe, placés sur la durée de la vidéo. Plan validé le ${fmtDate(job.planApprovedAt)}.`
-              : "Les moments retenus par l'équipe, placés sur la durée de la vidéo. Kevin vous l'a envoyé : répondez-lui « ok », « enlève le 3 » ou « le 2, commence 2 secondes plus tôt »."
+              : "Les moments retenus par l'équipe, placés sur la durée de la vidéo. Kevin vous l'a envoyé : répondez-lui « ok », « enlève le 3 » ou « le 2, commence 2 secondes plus tôt »."
           }
         >
           {job.shorts.length === 0 ? (

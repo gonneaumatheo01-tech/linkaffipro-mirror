@@ -120,7 +120,7 @@ export function ShortCard({
               formatLabel(clip.format),
               pipLabel(clip.pipPosition),
               clip.subtitles ? "avec sous-titres" : "sans sous-titres",
-              clip.overlayText ? `texte « ${clip.overlayText} »` : null,
+              clip.overlayText ? `texte « ${clip.overlayText} »` : null,
               clip.asset ? `${fmtResolution(clip.asset.width, clip.asset.height)}, ${fmtSize(clip.asset.size)}` : null,
             ]
               .filter(Boolean)
@@ -138,7 +138,7 @@ export function ShortCard({
           </div>
           {clip.clientFeedback ? (
             <p className="text-note text-foreground">
-              <span className="font-medium">Votre retour :</span> « {clip.clientFeedback} »
+              <span className="font-medium">Votre retour :</span> « {clip.clientFeedback} »
             </p>
           ) : null}
           {clip.redoCount > 0 ? (

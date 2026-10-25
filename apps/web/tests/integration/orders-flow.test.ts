@@ -84,7 +84,8 @@ const CASINO_PHRASE = "fais 5 posts casino par jour sur Roulette pendant une sem
 const LEA_PHRASE = "sur le canal Test, 3 jours de posts rencontres avec Léa";
 const OVERLAP_PHRASE = "programme 2 paris par jour sur le canal Test pendant 2 jours, thème corners";
 const ASK_PHRASE = "demande à l'équipe Paris pourquoi il n'y a pas eu de pari hier";
-const SHORTS_PHRASE = "programme des shorts";
+// Phase 28 : l'équipe Montage existe ; une équipe encore absente (Prospection, phase 31) sert de demande impossible.
+const SHORTS_PHRASE = "trouve-moi de nouveaux affiliés";
 const VIEW_PHRASE = "qu'est-ce que l'agent des paris sportifs va poster aujourd'hui sur le canal Test ?";
 const REDACTION_PHRASE = "dis à l'agent Rédaction d'écrire plus court sur Roulette";
 const BUTEURS_PHRASE = "active la catégorie Buteurs à 10 paris par jour";
@@ -237,14 +238,14 @@ function planner(message: string): Record<string, unknown> | null {
     };
   if (message === SHORTS_PHRASE)
     return {
-      teamKey: "montage",
+      teamKey: "prospection",
       scope: { teamWide: true },
       kind: "PROGRAM",
       mode: "simulation",
       steps: [],
       resolved: {},
       questions: [],
-      impossible: [{ part: "programmer des shorts", reason: "il faudrait une équipe qui monte des vidéos courtes", suggestedCapability: "monter et programmer des shorts" }],
+      impossible: [{ part: "trouver de nouveaux affiliés", reason: "il faudrait une équipe qui cherche des affiliés", suggestedCapability: "chercher des affiliés" }],
     };
   if (message === REDACTION_PHRASE)
     return {
@@ -667,11 +668,11 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     expect(ask).toMatchObject({ teamKey: "sports", status: "DONE" });
   });
 
-  it("11. « programme des shorts » : pas encore d'équipe Montage, noté pour le bilan", async () => {
+  it("11. « trouve-moi de nouveaux affiliés » : pas encore d'équipe Prospection, noté pour le bilan", async () => {
     const out = await say(SHORTS_PHRASE);
-    expect(out).toMatch(/Montage/);
+    expect(out).toMatch(/affiliés/i);
     expect(out).not.toMatch(/je ne sais pas encore faire ça\.?$/i);
-    expect(await prisma.bossUnmet.count({ where: { teamKey: "montage" } })).toBe(1);
+    expect(await prisma.bossUnmet.count({ where: { teamKey: "prospection" } })).toBe(1);
   });
 
   it("12. « dis à l'agent Rédaction d'écrire plus court sur Roulette » : consigne passée par le registre, OUI, posée", async () => {

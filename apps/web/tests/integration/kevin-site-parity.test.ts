@@ -352,6 +352,8 @@ beforeAll(async () => {
   linkaffiKey = await prisma.integrationKey.findUnique({ where: { provider: "linkaffi" } });
   await cleanup();
   await prisma.setting.upsert({ where: { key: "admin.telegramUserId" }, create: { key: "admin.telegramUserId", value: String(ADMIN) }, update: { value: String(ADMIN) } });
+  // Un compte laissé par un autre fichier de tests peut porter le même identifiant Telegram (unique).
+  await prisma.user.updateMany({ where: { telegramUserId: BigInt(ADMIN) }, data: { telegramUserId: null } });
   ids.admin = (
     await prisma.user.create({ data: { email: "kevin-parity@linkaffipro.internal", name: "Mathéo", passwordHash: "x", role: "ADMIN", telegramUserId: BigInt(ADMIN) } })
   ).id;

@@ -35,7 +35,7 @@ export const metadata: Metadata = { title: "Agents · Montage" };
 export const dynamic = "force-dynamic";
 
 const SEND_HINT =
-  "Envoyez une vidéo à Kevin en privé, depuis votre compte Telegram (2 Go au plus), avec une phrase comme « découpe ça en shorts de 15 secondes, cam en haut à droite, thème roulette ».";
+  "Envoyez une vidéo à Kevin en privé, depuis votre compte Telegram (2 Go au plus), avec une phrase comme « découpe ça en shorts de 15 secondes, cam en haut à droite, thème roulette ».";
 
 function Thumb({ id, label }: { id: string | null; label: string }) {
   if (id)
@@ -53,8 +53,8 @@ function Thumb({ id, label }: { id: string | null; label: string }) {
 
 /**
  * Agents → Montage (phase 28) : les vidéos longues envoyées à Kevin et les shorts que l'équipe Montage en tire.
- * Vue « Travaux » (par défaut) : un travail par vidéo (miniature, statut, shorts validés sur le total, date) ; le
- * détail est sur la fiche du travail. Vue « Médiathèque » : vidéos longues et shorts, filtrés par type et par thème.
+ * Vue « Travaux » (par défaut) : un travail par vidéo (miniature, statut, shorts validés sur le total, date) ; le
+ * détail est sur la fiche du travail. Vue « Médiathèque » : vidéos longues et shorts, filtrés par type et par thème.
  * Tout le monde lit ; les gestes (valider, modifier, refuser, annuler) sont sur la fiche, pour les administrateurs.
  */
 export default async function AgentsMontagePage({ searchParams }: PageProps<"/agents/montage">) {
@@ -182,8 +182,8 @@ export default async function AgentsMontagePage({ searchParams }: PageProps<"/ag
           {!lib || lib.items.length === 0 ? (
             <EmptyState
               icon={<Film />}
-              title={theme ? `Rien pour le thème « ${theme} »` : "La médiathèque est vide"}
-              description={theme ? "Choisissez un autre thème, ou « Tous »." : SEND_HINT}
+              title={theme ? `Rien pour le thème « ${theme} »` : "La médiathèque est vide"}
+              description={theme ? "Choisissez un autre thème, ou « Tous »." : SEND_HINT}
             />
           ) : (
             <DataTable
