@@ -53,7 +53,7 @@ export default async function AgentsOrdersPage({ searchParams }: PageProps<"/age
       <PageHeader
         title="Ordres"
         description="Ce que vous avez demandé aux équipes par Kevin : il le récapitule, demande votre OUI quand il le faut, le fait faire par l'équipe dans ses limites et vous en rend compte chaque jour."
-        help="Écrivez à Kevin « mes ordres » pour la liste, « où en est l'ordre sur Test ? », « passe à 3 par jour », « prolonge de 2 jours » ou « arrête »."
+        help="Écrivez à Kevin « mes ordres » pour la liste, « où en est l'ordre sur Test ? », « passe à 3 par jour », « prolonge de 2 jours » ou « arrête »."
         secondaryActions={
           <Link href="/agents/boss" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}>
             Parler à Kevin
@@ -132,7 +132,7 @@ export default async function AgentsOrdersPage({ searchParams }: PageProps<"/age
                 order: (
                   <span className="flex flex-col items-start gap-0.5">
                     <span className="font-medium">{orderTitle(r.number)}</span>
-                    <span className="line-clamp-2 text-note text-muted-foreground">« {r.requestText} »</span>
+                    <span className="line-clamp-2 text-note text-muted-foreground">« {r.requestText} »</span>
                     <span className="text-note text-muted-foreground">{fmtDate(r.createdAt)}</span>
                   </span>
                 ),
@@ -170,7 +170,7 @@ export default async function AgentsOrdersPage({ searchParams }: PageProps<"/age
             }))}
             empty={{
               title: "Aucun ordre ne correspond à ces filtres",
-              description: "Changez l'équipe ou le statut, ou choisissez « Toutes les équipes » et « Tous les statuts ».",
+              description: "Changez l'équipe ou le statut, ou choisissez « Toutes les équipes » et « Tous les statuts ».",
             }}
           />
         )}

@@ -28,7 +28,7 @@ export function canManageOrders(role: string): boolean {
 
 /** Exemple montré quand il n'y a pas encore d'ordre (la phrase du client du 24 octobre). */
 export const ORDER_EXAMPLE =
-  "Demandez à Kevin : « Sur le canal de test faisons comme si c'était un canal Paris sportifs, programme les paris pour 3 jours, avec comme thème les hors-jeux »";
+  "Demandez à Kevin : « Sur le canal de test faisons comme si c'était un canal Paris sportifs, programme les paris pour 3 jours, avec comme thème les hors-jeux »";
 
 // ── Équipes et statuts ─────────────────────────────────────────────────────────────────────────────────────────────
 

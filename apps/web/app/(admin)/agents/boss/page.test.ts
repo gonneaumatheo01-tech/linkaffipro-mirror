@@ -28,7 +28,10 @@ const base = (): BossPageData => ({
   capCents: 1000,
   spentCents: 850,
   calls: 42,
-  unmet: [{ id: "u1", text: "fais moi un export des dépôts", count: 3, firstAt: new Date("2026-10-20T08:00:00Z"), lastAt: new Date("2026-10-24T08:00:00Z") }],
+  unmet: [
+    { id: "u1", text: "fais moi un export des dépôts", count: 3, firstAt: new Date("2026-10-20T08:00:00Z"), lastAt: new Date("2026-10-24T08:00:00Z") },
+    { id: "u2", text: "programme des shorts", count: 2, firstAt: new Date("2026-10-20T08:00:00Z"), lastAt: new Date("2026-10-24T08:00:00Z"), teamKey: "montage", suggestedCapability: "programmer des shorts" },
+  ],
   unmetTotal: 1,
   turns: [
     { id: "t1", createdAt: new Date("2026-10-24T08:00:00Z"), role: "ADMIN", text: "clé fal [secret]", actionKey: null, status: "done", source: "text", costCents: 0 },
@@ -82,8 +85,16 @@ describe("Agents → Kevin (/agents/boss)", () => {
       "Vous",
       "vocal",
       "Répondu",
+      // Phase 33 : « Pas encore possible », regroupé par équipe et capacité suggérée, et lien vers les ordres.
+      "Pas encore possible",
+      "Montage",
+      "programmer des shorts",
+      "À classer",
+      "Aucune équipe",
+      "Ses ordres aux équipes",
     ])
       expect(text).toContain(t);
+    expect(html).toContain('href="/agents/orders"');
     expect(html).toContain('href="https://t.me/kevin_lap_bot"');
     expect(html).toContain('href="/agents/boss/export"');
     expect(html).toContain('aria-current="page"');
@@ -111,6 +122,7 @@ describe("Agents → Kevin (/agents/boss)", () => {
     expect(text).toContain("Aucun");
     expect(text).toContain("Rien pour l'instant");
     expect(text).toContain("Aucun échange encore");
+    expect(text).toContain("Rien à apprendre pour l'instant");
     expect(text).toContain("Plafond atteint");
     expect(text).not.toContain("Exporter");
   });

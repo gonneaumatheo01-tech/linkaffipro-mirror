@@ -282,7 +282,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
                 team: g.team,
                 capability: g.capability,
                 count: fmtNum(g.count),
-                examples: g.examples.map((t) => `« ${t} »`).join(" · "),
+                examples: g.examples.map((t) => `« ${t} »`).join(" · "),
               },
               sortValues: { team: g.team, capability: g.capability, count: g.count },
             }))}

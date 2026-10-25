@@ -156,10 +156,16 @@ export const voirProgramme = defineAction<ProgP>({
     if (r.items.length) return viewReply(deps, "voir_programme", r, p.detail);
     // Rien de créé : ce que le Grand Chef ferait (plan joué à blanc).
     const plan = await viewPlan(deps, { channelId: s.channel?.id ?? null, teamKey: s.channel ? null : s.team, all: !s.channel && !s.team, day });
-    const entries = personaName ? plan.entries.filter((e) => e.persona === personaName) : plan.entries;
-    const keep = new Set(entries.map((e) => e.channel));
-    const planLines = personaName ? plan.lines.filter((l) => [...keep].some((c) => l.startsWith(c)) || l.startsWith("Équipe ")) : plan.lines;
-    const lines = [r.lines[0]!, ...(entries.length ? planLines : [])];
+    let planLines = plan.lines;
+    let shown = plan.entries.length;
+    if (personaName) {
+      // Plan des seuls canaux de cette persona (un plan par canal : en-tête avec le jour, équipe du canal seulement).
+      const ids = [...new Set(plan.entries.filter((e) => e.persona === personaName).map((e) => e.channelId))];
+      planLines = [];
+      for (const id of ids) planLines.push(...(await viewPlan(deps, { channelId: id, day })).lines);
+      shown = ids.length;
+    }
+    const lines = [r.lines[0]!, ...(shown ? planLines : [])];
     return viewReply(deps, "voir_programme", { facts: { ...r.facts, plan: plan.facts }, lines }, p.detail);
   },
 });

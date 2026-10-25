@@ -141,7 +141,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ag
 
       <div className="space-y-10">
         <FormSection title="La demande" description={order.fromTelegram ? "Votre phrase telle que Kevin l'a reçue sur Telegram." : "La phrase telle que Kevin l'a reçue."}>
-          <blockquote className="rounded-xl border border-border bg-card px-4 py-3 text-body text-foreground">« {order.requestText} »</blockquote>
+          <blockquote className="rounded-xl border border-border bg-card px-4 py-3 text-body text-foreground">« {order.requestText} »</blockquote>
           {recap.length ? (
             <div className="space-y-1">
               <p className="text-body font-medium text-foreground">Récapitulatif de Kevin</p>
