@@ -4,6 +4,7 @@
  * (même règle que `normName` de Kevin, `packages/agents/src/boss/resolve.ts`). Jamais de devinette : plusieurs
  * correspondances → erreur `invalid` avec la liste ; aucune → `not_found` avec quelques noms connus.
  */
+import { CHANNEL_BOT_WHERE } from "@linkaffipro/db/bot-selectors";
 import { prisma } from "@linkaffipro/db";
 
 /** Minuscules, sans accents ni ponctuation ni emojis ; lettres stylisées ramenées aux lettres ordinaires (NFKD). */
@@ -104,7 +105,8 @@ export async function offerCandidates(): Promise<Candidate[]> {
 }
 
 export async function botCandidates(): Promise<Candidate[]> {
-  const rows = await prisma.bot.findMany({ select: { id: true, name: true, username: true } });
+  // Bots de canal seulement (jamais Kevin, un assistant ou un bot fantôme) : ce sont les seuls qui envoient.
+  const rows = await prisma.bot.findMany({ where: CHANNEL_BOT_WHERE, select: { id: true, name: true, username: true } });
   return rows.map((r) => ({ id: r.id, label: `${r.name} (@${r.username})`, names: [r.name, r.username] }));
 }
 

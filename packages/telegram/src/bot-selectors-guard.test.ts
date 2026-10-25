@@ -15,9 +15,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 /** fichier → nombre d'appels sans filtre permis (et pourquoi). */
 const ALLOWED: Record<string, [number, string]> = {
-  "apps/web/app/(admin)/channels/actions.ts": [1, "bot principal choisi par l'équipe, Boss refusé juste après"],
-  "apps/web/app/(admin)/members/broadcasts/actions.ts": [2, "bot choisi par l'équipe, Boss refusé juste après"],
-  "apps/web/app/(admin)/settings/bots/actions.ts": [2, "réglages des bots (tous les bots)"],
+  // Phase 34 : la logique des actions du site est passée dans les cœurs partagés avec Kevin (`apps/web/lib/site-ops`).
+  "apps/web/lib/site-ops/ops/lot-b/channel-settings.ts": [2, "bot principal choisi par l'équipe (par nom ou par id), Boss et assistant refusés juste après"],
+  "apps/web/lib/site-ops/ops/lot-c/broadcasts.ts": [3, "bot choisi par l'équipe, Boss et assistant refusés ; nom du bot pour l'aperçu"],
+  "apps/web/lib/site-ops/ops/lot-e/bots.ts": [4, "réglages des bots (tous les bots)"],
   "apps/web/app/(admin)/settings/bots/page.tsx": [1, "réglages des bots (liste complète)"],
   "apps/web/app/(admin)/settings/journal/events/page.tsx": [1, "filtre du journal (affichage)"],
   "apps/web/app/(admin)/stats/page.tsx": [1, "compteur affiché"],

@@ -226,7 +226,7 @@ describe("analyse statique : aucun chemin vers une mise", () => {
     // Chaque redirection repasse par la garde avant d'être suivie.
     expect(server.slice(iFetch)).toMatch(/forbiddenReadUrlReason\(next/);
     // Navigations du navigateur : garde avant l'envoi et à chaque redirection.
-    expect(server).toMatch(/context\.route\("\*\*\/\*", \(route: Route, req: PwRequest\) => guardNavigation\(/);
+    expect(server).toMatch(/context\.route\("\*\*\/\*",\s*\(route: Route, req: PwRequest\) =>\s*guardNavigation\(/);
     expect(server).toMatch(/maxRedirects: 0/);
   });
 });
