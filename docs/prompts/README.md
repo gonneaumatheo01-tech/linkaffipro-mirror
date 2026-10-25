@@ -28,7 +28,8 @@ Lis CLAUDE.md puis docs/prompts/<fichier de la phase> et exécute la phase en en
 | `27-phase-25-agents-supervision.md` | Fait le 24 octobre 2026 (fin de la chaîne) | Supervision complète, conversation Casino et Paris, relecture générale |
 | `28-phase-26-boss-telegram.md` | Fait le 24 octobre 2026 | Kevin (le Boss) : un bot à qui parler en français ordinaire, qui répond toujours, agit, confirme, guide le démarrage et travaille dans le groupe de l'équipe |
 | `29-phase-27-canal-inspiration.md` | Fait le 25 octobre 2026 | Canal d'inspiration : Kevin lit un canal qui marche, le mesure, résume, propose par numéros et applique avec votre accord, sans jamais copier |
-| `30-phase-28-…` et suivantes | En file (`QUEUE`) | Lancées automatiquement après la phase 27 |
+| `35-phase-33-kevin-ordres-equipes.md` | Fait le 25 octobre 2026 (avant les phases 28 à 32) | Kevin donne des ordres aux équipes : registre des capacités, planificateur, récapitulatif, confirmation, réglages temporaires des canaux, suivi et rapports ; voir et parler à chaque agent ; voix de collègue |
+| `30-phase-28-…`, `36-phase-34-…`, `37-phase-35-…` et suivantes | En file (`QUEUE`) | Lancées automatiquement |
 | `90-nouvelle-machine.md` | Quand un second ordinateur ou un équipier arrive | Prépare la machine à partir de GitHub |
 
 Les phases 2, 3 et 4 seront ajoutées ici au fur et à mesure. À la fin de chaque phase, Claude Code écrit `docs/STATUS.md` : lisez-le, faites le test de 5 minutes, puis dites « phase X OK ».

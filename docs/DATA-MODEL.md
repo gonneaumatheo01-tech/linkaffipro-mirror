@@ -507,3 +507,16 @@ Migration additive `20261024172011_phase27_inspiration`.
 `Setting` : `inspiration.readLock`, `inspiration.readsToday`, `inspiration.choice.<chatId>`, `inspiration.thresholds`,
 `inspiration.shinglesV2`, `inspiration.eventsRedacted`, `userbot.request.<id>` et `userbot.mailbox.heartbeat` (boîte aux
 lettres de la lecture par compte réel). Bilans : `InsightReport` `teamKey = "inspiration"`.
+
+## Phase 33 : ordres de Kevin aux équipes
+
+Migration additive `20261025034001_phase33_ordres_equipes`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `enum TeamOrderKind` (`PROGRAM`, `ONE_SHOT`, `ADJUST`, `ASK`, `WHAT_IF`), `enum TeamOrderStatus` (`DRAFT`, `WAITING_CONFIRM`, `RUNNING`, `DONE`, `CANCELLED`, `BLOCKED`, `FAILED`) | Genre et état d'un ordre. |
+| `TeamOrder` (`number` court, `requestText`, `interpretation` (plan validé), `recap`, `kind`, `teamKey`, `status`, `startsAt`, `endsAt`, `progress`, `impossible`, `createdById`, `chatId`, `pendingId`, `planCacheKey`, `costCents`) | Ordre donné par l'admin à une équipe, par Kevin : interprété, validé par le code, récapitulé, exécuté par le Grand Chef et le Chef, suivi et rapporté. |
+| `ChannelPlanOverride` (`channelId`, `orderId`, `teamKey`, `fromDay` / `toDay` (Paris), `postsPerDay`, `picksPerDay`, `betCategoryId`, `themes`, `mix`, `format`, `windowStart` / `windowEnd`, `personaId`, `isTest`, `closedAt`) | Réglage temporaire d'un canal posé par un ordre, lu par le Grand Chef avant `ChannelAgentPlan` ; s'éteint seul (le plan de base ne bouge jamais). |
+| `AgentMission.orderId` | Ordre qui a fait créer la mission (toujours par le Grand Chef). |
+| `BetCategory.createdByOrderId`, `BetCategory.expiresAt` | Catégorie de paris créée pour un ordre : jamais active hors de l'ordre, jamais supprimée. |
+| `BossUnmet.suggestedCapability`, `teamKey`, `lastOrderId` | Demandes impossibles enrichies (bilan du lundi, page Kevin « Pas encore possible »). |

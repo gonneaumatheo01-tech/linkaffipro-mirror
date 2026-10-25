@@ -905,3 +905,39 @@ Trois relecteurs, une trentaine de défauts confirmés, tous corrigés avec un t
   (`userbot.mailbox.heartbeat`). Le userbot lit sur SA session, une demande à la fois, 5 s entre deux lots d'un compte,
   renvoie un `FLOOD_WAIT` sans l'attendre, refuse un compte qui converse (persona ou bot fantôme), ne télécharge aucun
   média, ne lit aucun membre, ne journalise ni texte ni nom de canal. À déployer : service `userbot` après le worker.
+
+## Phase 33 — Kevin donne des ordres aux équipes (25 octobre 2026)
+- **Ordre d'exécution** : la phase 33 passe avant les phases 28 à 32 (file réordonnée par le client) ; ces phases
+  déclareront leurs capacités dans le registre (`registerCapabilities`).
+- **Modèles** : choix d'outil Haiku 5.5 (inchangé) ; planificateur Opus 5.5 (`PLANNER_MODEL`, hors de la liste de
+  Réglages → IA, connu du calcul de coût ; modèle inconnu = tarif d'Opus par prudence ; sans outil ni température,
+  effort « medium », sortie JSON) ; réponses d'équipe (`demander_equipe`) Sonnet 5.5 ; réécriture de voix Haiku.
+  `BossLlm` figé : étendu localement (`BossLlmExt`) avec le même plafond et le même comptage. Budget de Kevin relevé à
+  3 000 centimes par mois.
+- **Capacités** : seule vérité de ce que Kevin peut promettre ; `plan` n'écrit rien et ramène dans les bornes
+  (30 jours, quota de l'équipe Algorithme, fenêtre autorisée, mélange 20 points) ; étapes calculées une fois et gardées
+  dans la progression (reprise sans doublon, idempotence par `(orderId, stepKey)`) ; « faire comme si » rend les étapes
+  de l'équipe imitée (son Chef produit) et n'existe que sur le canal Test ; Casino ajoute `demander_medias` (repli
+  rejouable) ; consigne d'écriture posée comme une recommandation appliquée (annulable) ; mots interdits : pas de liste
+  par canal, le mot vaut pour l'équipe du canal et Kevin le dit.
+- **Paris d'un ordre** : catégorie créée pour l'ordre toujours inactive (servie seulement par la dérogation, remise
+  inactive par le suivi si quelqu'un l'active) ; une sélection par jour, par ordre et par canal vers les canaux de
+  l'ordre, jamais ceux de la catégorie ; canal Test : vraies cotes s'il y a une clé, sinon cotes d'essai ; valeurs de la
+  dérogation passées aux agents par la charge utile de la mission (`withOrderPlan`).
+- **Kevin** : récapitulatif écrit par le code (Haiku ne lisse que la première ligne, gardée seulement si chiffres et
+  voix passent) ; rapports de suivi sans IA ; le rapport de lancement n'est pas doublé (le récapitulatif l'annonce) ;
+  une demande impossible propose une seule chose confirmable par OUI (si aucune autre confirmation n'attend) ;
+  `BossUnmet` compté une fois par demande ; bilan du lundi regroupé par le code ; `TeamOrder.createdAt` posé avec
+  l'horloge du code (cache 24 h juste) ; signature unique `stopOrder(deps, orderId, actor?, reason?)` (site, Kevin).
+- **Vue** : plan à blanc par la règle pure `missingMissions` et les mêmes lectures que le Grand Chef (aucune écriture) ;
+  dérogation la plus récente du jour ; cause « pour de faux » ajoutée à « pourquoi rien n'est sorti » ; couverture des
+  bookmakers lue par `listBookmakers()` de chaque fournisseur (24 h en mémoire), jamais d'appel pour un bookmaker non
+  couvert ; Sportaza lu sur son site seulement si `settings.sports.bookmakers.sportaza.selectorsValidated` et un
+  lecteur enregistré (`registerBookmakerMatchLister`, prévu pour la phase 35) ; cotes d'essai gratuites pour l'aperçu
+  si l'équipe Paris est en simulation sans clé ; textes écrits par le code (aucun chiffre inventé).
+- **Voix** : tables `*_VARIANTS` par fichier, rassemblées par le test (`boss/voice.test.ts`, un fichier qui ne charge
+  pas = échec) et parcours des textes du code par le compilateur ; constantes historiques gardées (première variante) ;
+  questions stockées en base en une seule version ; « OUI pour confirmer » gardé dans toutes les confirmations ;
+  « t'es un bot ? » → réponse franche (`isAreYouABotQuestion`).
+- **Site** : « dérogation » affichée « réglage temporaire » ; chronologie lue sur la fenêtre de l'ordre ; progression =
+  le plus grand du chiffre de l'ordre et du compte des missions.
