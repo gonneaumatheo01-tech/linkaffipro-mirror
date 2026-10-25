@@ -1,3 +1,40 @@
+# État du projet : phase 27 (canal d'inspiration) terminée (25 octobre 2026)
+
+Phases 0 à 27 en ligne. Phase 27 (`docs/prompts/29-phase-27-canal-inspiration.md`) : vous donnez à Kevin un canal Telegram qui marche ; il le lit, mesure sa méthode, vous la résume, répond à vos questions et propose des réglages numérotés. Vous dites oui : il applique dans les bornes de l'équipe Algorithme, avec annulation, et mesure l'effet. **Il s'inspire de la méthode, il ne copie jamais le contenu.** Les équipes restent en simulation.
+
+## Fait
+- **Trois façons de donner un canal** : un lien public (`t.me/…`, lecture de l'aperçu public, lente : 1 requête toutes les 3 secondes, 200 posts au plus) ; un canal privé lu par un de vos comptes réels **déjà membre** et sans persona (lecture faite par le service des comptes réels, une seule connexion, lentement ; entrée par un lien d'invitation seulement si vous confirmez) ; ou 20 à 30 posts transférés à Kevin.
+- **Mesures par le code** : rythme (posts par jour, heures de pointe, jours), forme (longueur, emojis, mélange photo / vidéo / texte, liens, boutons), fond (appels au VIP, cotes, séries pari → résultat, bonus, promesses de gain signalées), résultats (vues, meilleurs posts, liens heure / longueur / média ↔ vues, toujours avec le nombre de posts derrière). Au moins 20 posts.
+- **Profil de style** écrit par l'IA à partir des chiffres et vérifié (aucun chiffre inventé, aucune copie, règles du client), lu par la Rédaction ; exemples écrits à neuf.
+- **Jamais de copie** : un post ne peut pas reprendre 8 mots à la suite d'un post de référence (contrôle qui résiste à la mise en forme, aux lettres stylisées et aux caractères invisibles) ; aucune image ni vidéo reprise ; liens jamais suivis ; citations de 10 mots au plus.
+- **Vie privée** : aucun membre du canal lu ; texte des posts effacé après 30 jours ; texte des messages transférés retiré du journal.
+- **Kevin** : « inspire-toi de t.me/xxx pour Roulette », « c'est quoi leurs heures ? », « montre-moi un exemple », « applique 1 et 3 », « annule ». Résumé en 6 lignes, propositions numérotées (fenêtre horaire, posts par jour, mélange au plus 20 points par semaine, longueur, appels à l'offre, profil de style), application seulement avec votre accord, test de 14 jours, bilan « je garde ? ».
+- **Site** : Agents → **Inspiration** (références, profil de style, eux / nous, propositions avec Annuler, historique, Retirer) ; encart « Inspiré de @… » sur la fiche d'un canal.
+
+## Test de 5 minutes
+1. Écrivez à Kevin : « inspire-toi de t.me/<un canal public casino> pour <votre canal casino> ».
+2. Quelques minutes plus tard, il vous envoie le résumé : répondez « tes propositions ».
+3. Répondez par exemple « 1 », puis « annule » pour revenir en arrière. Tout est visible dans Agents → Inspiration.
+
+## Vérifications faites
+- Tests unitaires : 6 135 réussis (dont 831 agents, 549 Telegram, 469 worker, 24 comptes réels, 2 976 site) ; tests d'intégration sur base réelle : 602 réussis (378 site, 224 worker), dont le scénario complet : lien public → lecture sur page enregistrée → résumé → « c'est quoi leurs heures ? » → réponse chiffrée → propositions → « applique 1 et 2 » → réglages dans les bornes et test créé → la Rédaction reçoit le profil → un post qui copie 8 mots est refusé → « annule » → réglages d'origine ; canal privé sans compte → demande de transfert → 25 posts transférés → même chaîne ; relecture hebdomadaire sans changement → silence.
+- Lint, typage, build verts ; contrôle d'accessibilité de la nouvelle page sans violation ; capture de référence.
+- Sauvegarde de la production avant déploiement ; site (migration appliquée), service d'arrière-plan, puis service des comptes réels (redémarré avec son compte connecté, boîte aux lettres de lecture active) ; santé OK ; `pnpm tg:diag` vert sur Kevin.
+
+## Relecture adverse (compte-rendu)
+Deux relecteurs (copie, vie privée, injection et débit ; bornes, droits, règles du client et non-régression) : environ 25 défauts confirmés, corrigés avec un test. Principaux : l'équipe Algorithme aurait pu appliquer seule des propositions d'inspiration ; un membre aurait pu faire entrer un compte réel dans un canal privé sans votre confirmation ; « 1, 3 » répondu à une autre question aurait appliqué des propositions ; un responsable aurait pu appliquer ou annuler à votre place ; le contrôle de copie se contournait avec du gras ou des lettres stylisées ; le texte des messages transférés restait dans le journal ; deux lectures pouvaient se chevaucher.
+
+## Reste / limites
+- Rien n'a été essayé sur un vrai canal ni avec la vraie IA (pages enregistrées et fausse IA en test). La lecture par compte réel demande un compte connecté, sans persona, déjà membre du canal privé.
+- Série « pari → résultat » : pas proposée (l'équipe Paris sportifs ne publie pas encore de post de résultat) ; Kevin le note comme besoin.
+- Le journal propre à l'inspiration n'indique pas quel membre a agi (le journal de Kevin, lui, le note).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+`docs/A-FAIRE-HUMAIN.md`, section 7 (canal d'inspiration privé : ajouter un compte réel, ou transférer 20 à 30 posts).
+
+---
+
 # État du projet : phase 26 (Kevin, le Boss) terminée (24 octobre 2026)
 
 Phases 0 à 26 en ligne. Phase 26 (`docs/prompts/28-phase-26-boss-telegram.md`) : un seul bot, **Kevin**, à qui l'on parle en français ordinaire (texte ou vocal). Il répond toujours, donne les vrais chiffres, exécute les ordres en demandant confirmation quand il faut, guide le démarrage, et travaille dans le groupe Telegram de l'équipe. Il ne fait rien de nouveau par lui-même : il pilote ce qui existe (phases 19 à 25). **Les équipes restent en simulation.**
