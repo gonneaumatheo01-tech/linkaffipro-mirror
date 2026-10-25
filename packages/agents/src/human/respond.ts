@@ -227,7 +227,7 @@ export async function respondToRequest(
         await reopen();
         return {
           ok: false,
-          message: `${secretSavedHead(request.key, last4, "reçu")}. La vérification a échoué (${check.message}). Réessaie en répondant avec une autre clé.`,
+          message: `${secretSavedHead(request.key, last4, "reçu")}. Vérification : KO : ${check.message}. Réessaie en répondant avec une autre clé.`,
           closed: false,
           secret,
           secretSaved,

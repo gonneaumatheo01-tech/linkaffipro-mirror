@@ -136,7 +136,7 @@ async function storeSecretCommand(
   const { last4 } = await saveSecret(deps, key, value, actor);
   const check = await verifySecret(deps, key);
   const head = secretSavedHead(key, last4);
-  const reply = !check ? `${head} ✅` : check.ok ? `${head}. Vérification : OK ✅` : `${head}. La vérification a échoué (${check.message}). Réessaie avec une autre clé.`;
+  const reply = !check ? `${head} ✅` : check.ok ? `${head}. Vérification : OK ✅` : `${head}. Vérification : KO : ${check.message}. Réessaie avec une autre clé.`;
   return { handled: true, reply, secret: true, deleteMessage: true };
 }
 

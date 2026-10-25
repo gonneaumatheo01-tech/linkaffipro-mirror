@@ -377,22 +377,49 @@ describe("commandes sur l'ordre en cours sans le nommer", () => {
 });
 
 describe("planificateur : coût, cache, plafond, sécurité", () => {
-  it("demande identique dans les 24 h → plan réutilisé ; même canal et même période → « lequel garder ? »", async () => {
+  it("même canal et même période → « lequel garder ? » ; « 1 » : l'ancien n'est arrêté qu'au lancement du nouveau", async () => {
     const kit = await kitWith(() => parisPlan());
     await bossAiTurn(kit.deps, kit.input(CLIENT));
     const again = await bossAiTurn(kit.deps, kit.input(CLIENT));
-    expect(kit.llm.calls.plan).toHaveLength(1);
     expect(reply(again)).toMatch(/Lequel|lequel/);
     expect(reply(again)).toMatch(/1\. le nouveau/);
     expectVoice(again);
     const pick1 = await bossFastPath(kit.deps, kit.input("1"));
     expect(pick1.handled).toBe(true);
     const orders = kit.tables("teamOrder");
-    expect(orders[0]!.status).toBe("CANCELLED");
+    // Le Grand Chef (ici simulé) arrête l'ancien au lancement effectif du nouveau (`interpretation.replaces`).
+    expect((orders[1]!.interpretation as { replaces?: string }).replaces).toBe(orders[0]!.id);
+    expect(state.calls.stop).toHaveLength(0);
     expect(orders[1]!.status).toBe("RUNNING");
-    kit.advance(25 * 3600_000);
+    // « 1 » une seconde fois : le choix est fermé, rien n'est rejoué.
+    await bossFastPath(kit.deps, kit.input("1"));
+    expect(state.calls.run).toHaveLength(2);
+  });
+
+  it("cache du plan : même texte, même conversation, même dernier tour ; jamais sous 6 mots ; échec mémorisé 10 min", async () => {
+    const { planOrder } = await import("./planner");
+    const kit = await kitWith(() => parisPlan());
+    const mem = [{ id: "t1", createdAt: new Date(), role: "assistant", text: "Salut", actionKey: null, status: null, source: null, telegramMessageId: null, costCents: 0 }];
+    expect(planCacheKeyOf("3 jours")).toBe("");
+    expect(planCacheKeyOf(CLIENT, { chatId: 1n, lastTurn: "a" })).not.toBe(planCacheKeyOf(CLIENT, { chatId: 2n, lastTurn: "a" }));
+    expect(planCacheKeyOf(CLIENT, { chatId: 1n, lastTurn: "a" })).not.toBe(planCacheKeyOf(CLIENT, { chatId: 1n, lastTurn: "b" }));
     await bossAiTurn(kit.deps, kit.input(CLIENT));
-    expect(kit.llm.calls.plan).toHaveLength(2);
+    const stored = kit.tables("teamOrder")[0]!.planCacheKey as string;
+    expect(stored.startsWith(planCacheKeyOf(CLIENT).split("|")[0]!)).toBe(true);
+    // Demande courte : jamais de plan réutilisé.
+    const before = kit.llm.calls.plan.length;
+    await planOrder(kit.deps, { text: "sur test", memory: mem });
+    await planOrder(kit.deps, { text: "sur test", memory: mem });
+    expect(kit.llm.calls.plan.length).toBe(before + 2);
+    // Sortie inexploitable : pas de relance du même texte pendant 10 min.
+    const bad = await createBossKit([], { planner: () => "pas du json" });
+    const r1 = await planOrder(bad.deps, { text: CLIENT });
+    const r2 = await planOrder(bad.deps, { text: CLIENT });
+    expect([r1.ok, r2.ok]).toEqual([false, false]);
+    expect(bad.llm.calls.plan).toHaveLength(1);
+    bad.advance(11 * 60_000);
+    await planOrder(bad.deps, { text: CLIENT });
+    expect(bad.llm.calls.plan).toHaveLength(2);
   });
 
   it("plafond atteint : Kevin le dit et ne planifie plus", async () => {

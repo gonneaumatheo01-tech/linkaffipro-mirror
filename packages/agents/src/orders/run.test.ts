@@ -57,7 +57,7 @@ const DATING_REAL: OrderPlan = {
   scope: { channelIds: ["real"] },
   kind: "PROGRAM",
   period: { start: "2026-10-24", days: 2 },
-  mode: "simulation",
+  mode: "real",
   steps: [{ capability: "programmer_posts", teamKey: "dating", params: { canaux: ["Rencontres VIP"], jours: 2, posts_par_jour: 2, persona: "Léa", debut: "2026-10-24", themes: ["café", "voyage"] } }],
   resolved: {},
   questions: [],

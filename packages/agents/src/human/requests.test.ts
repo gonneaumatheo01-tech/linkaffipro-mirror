@@ -78,7 +78,7 @@ describe("demandes au client", () => {
     registerSecretVerifier("providers.fal.apiKey", async () => ({ ok: false, message: "clé inconnue" }));
     await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé fal.ai ?" });
     const r = await handleAdminText(kit.deps, { text: "mauvaise-cle-0000", messageId: 9 });
-    expect(r.reply).toContain("La vérification a échoué (clé inconnue)");
+    expect(r.reply).toContain("Vérification : KO : clé inconnue");
     expect(r.deleteMessage).toBe(true);
     expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
   });

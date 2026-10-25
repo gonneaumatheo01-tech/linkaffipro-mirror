@@ -312,7 +312,7 @@ describe("6. double exécution", () => {
     registerSecretVerifier("providers.fal.apiKey", async () => ({ ok: false, message: "clé inconnue" }));
     await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé ?" });
     const r = await handleAdminText(kit.deps, { text: KEY, messageId: 2 });
-    expect(r.reply).toBe("Clé fal.ai reçue (…6789). La vérification a échoué (clé inconnue). Réessaie en répondant avec une autre clé.");
+    expect(r.reply).toBe("Clé fal.ai reçue (…6789). Vérification : KO : clé inconnue. Réessaie en répondant avec une autre clé.");
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING", answerSummary: null });
   });
 });

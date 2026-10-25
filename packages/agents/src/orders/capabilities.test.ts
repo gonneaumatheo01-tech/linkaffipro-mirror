@@ -29,7 +29,7 @@ const ctx = (): CapabilityPlanContext => ({ now: START, mode: "simulation", peri
 
 /** Nombre de lignes par table (pour vérifier que `plan` n'écrit rien). */
 function snapshot(kit: Awaited<ReturnType<typeof setup>>): string {
-  return JSON.stringify(Object.fromEntries(Object.entries(kit.prisma._tables).map(([k, v]) => [k, v.length])));
+  return JSON.stringify(Object.fromEntries(Object.entries(kit.prisma._tables).filter(([, v]) => v.length).map(([k, v]) => [k, v.length])));
 }
 
 async function checkOf(kit: Awaited<ReturnType<typeof setup>>, team: string, key: string, params: Record<string, unknown>) {
@@ -227,7 +227,11 @@ describe("Rencontres et Casino", () => {
     const before = snapshot(kit);
     const steps = await cap.plan(kit.deps, p, ctx());
     expect(snapshot(kit)).toBe(before);
-    expect(steps[0]!.overrides![0]).toMatchObject({ channelId: "real", postsPerDay: 6, personaId: "p1", isTest: false });
+    // Pour de faux (mode de l'ordre) : dérogation de test, publiée sur le canal Test ; en vrai : dérogation réelle.
+    expect(steps[0]!.overrides![0]).toMatchObject({ channelId: "real", postsPerDay: 6, personaId: "p1", isTest: true });
+    expect(steps[0]!.touches).toMatchObject({ channelIds: ["real"], testOnly: false });
+    const real = await cap.plan(kit.deps, { ...p, mode: "vrai" }, { ...ctx(), mode: "real" });
+    expect(real[0]!.overrides![0]).toMatchObject({ isTest: false });
     expect(steps[0]!.clamped!.join(" ")).toMatch(/50 posts par jour → 6, le maximum du canal/);
     expect(steps[0]!.costCents).toBeGreaterThan(0);
   });
@@ -292,7 +296,9 @@ describe("transverse", () => {
     const { cap, p, check } = await checkOf(kit, "transverse", "mot_interdit_canal", { mot: "gratuit", canal: "Rencontres VIP" });
     expect(check).toEqual({ ok: true });
     const steps = await cap.plan(kit.deps, p, ctx());
-    expect(steps[0]!.params).toMatchObject({ team: "dating", after: ["gratuit"] });
+    // Seulement le mot : la liste est relue au moment d'écrire ; réglage de toute l'équipe (OUI, admin).
+    expect(steps[0]!.params).toMatchObject({ team: "dating", word: "gratuit", remove: false });
+    expect(steps[0]!.touches).toMatchObject({ teamWide: true, setting: true });
     expect((await checkOf(kit, "transverse", "mot_interdit_canal", { mot: "gratuit", canal: "Nulle Part" })).check.ok).toBe(false);
   });
 
