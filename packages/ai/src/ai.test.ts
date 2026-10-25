@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AiError } from "./errors";
-import { AI_MODELS, DEFAULT_MODEL, QUALITY_MODEL, USD_TO_EUR, estimateCostEur } from "./models";
+import { AI_MODELS, DEFAULT_MODEL, PLANNER_MODEL, USD_TO_EUR, estimateCostEur } from "./models";
 import { extractJson, parseTranslations, parseVersions } from "./parse";
 import {
   buildExamplesBlock,
@@ -293,21 +293,10 @@ describe("coût estimé", () => {
       cacheWriteTokens: 1_000_000,
     });
     expect(cached).toBe(Math.round(0.1 * (0.1 + 1.25) * 0.92 * 10_000) / 10_000);
-    expect(
-      estimateCostEur("inconnu", {
-        inputTokens: 1_000_000,
-        outputTokens: 0,
-        cachedTokens: 0,
-        cacheWriteTokens: 0,
-      }),
-    ).toBe(
-      estimateCostEur(QUALITY_MODEL, {
-        inputTokens: 1_000_000,
-        outputTokens: 0,
-        cachedTokens: 0,
-        cacheWriteTokens: 0,
-      }),
-    );
+    // Modèle inconnu : tarif le plus élevé connu (Opus 5.5, planificateur des ordres de Kevin), par prudence.
+    const unit = { inputTokens: 1_000_000, outputTokens: 0, cachedTokens: 0, cacheWriteTokens: 0 };
+    expect(estimateCostEur("inconnu", unit)).toBe(estimateCostEur(PLANNER_MODEL, unit));
+    expect(estimateCostEur(PLANNER_MODEL, unit)).toBe(Math.round(4 * 0.92 * 10_000) / 10_000);
     expect(Object.keys(AI_MODELS)).toContain(DEFAULT_MODEL);
   });
 });

@@ -2399,6 +2399,9 @@ model AgentMission {
   isTest         Boolean             @default(false)
   createdBy      AgentMissionCreator @default(GRAND_CHEF)
   createdById    String?
+  /// Phase 33 : ordre de Kevin qui a fait créer la mission.
+  orderId        String?
+  order          TeamOrder?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
   attempts       Int                 @default(0)
   lastError      String?
   lastActivityAt DateTime            @default(now())
@@ -2415,6 +2418,7 @@ model AgentMission {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([channelId, planDay])
+  @@index([orderId])
 }
 
 /// Un passage d'un agent sur une mission.
@@ -2550,6 +2554,93 @@ model BossUnmet {
   count   Int      @default(1)
   firstAt DateTime @default(now())
   lastAt  DateTime @default(now())
+  /// Phase 33 : capacité qui manque (« programmer des shorts »), équipe concernée, dernier ordre lié.
+  suggestedCapability String?
+  teamKey             String?
+  lastOrderId         String?
+}
+
+enum TeamOrderKind {
+  PROGRAM
+  ONE_SHOT
+  ADJUST
+  ASK
+  WHAT_IF
+}
+
+enum TeamOrderStatus {
+  DRAFT
+  WAITING_CONFIRM
+  RUNNING
+  DONE
+  CANCELLED
+  BLOCKED
+  FAILED
+}
+
+/// Phase 33 : ordre donné par l'admin à une équipe, par Kevin (interprété, planifié, récapitulé, exécuté par le Grand
+/// Chef et le Chef de l'équipe, suivi et rapporté).
+model TeamOrder {
+  id             String                @id @default(cuid())
+  /// Numéro court (« ordre n°12 »).
+  number         Int                   @unique @default(autoincrement())
+  requestText    String
+  /// Plan validé par le code : `{ teamKey, asIfTeamKey?, scope, kind, period, perDay?, theme?, categoryId?, format?, mode, steps[], resolved }`.
+  interpretation Json                  @default("{}")
+  recap          String                @default("")
+  kind           TeamOrderKind
+  teamKey        String
+  status         TeamOrderStatus       @default(DRAFT)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  /// `{ missionsPlanned, missionsDone, missionsFailed, lastReportAt, lastReportDay, perDay: [{ day, done, failed, postIds[] }] }`
+  progress       Json                  @default("{}")
+  /// `[{ part, reason, alternatives[] }]`
+  impossible     Json?
+  createdById    String?
+  /// Conversation Telegram d'origine (rapports au même endroit).
+  chatId         String?
+  pendingId      String?
+  /// Texte normalisé de la demande (plan réutilisé 24 h).
+  planCacheKey   String?
+  costCents      Int                   @default(0)
+  missions       AgentMission[]
+  overrides      ChannelPlanOverride[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([status, teamKey])
+  @@index([planCacheKey, createdAt])
+}
+
+/// Phase 33 : dérogation datée au plan d'un canal, posée par un ordre, lue par le Grand Chef avant `ChannelAgentPlan` ;
+/// s'éteint seule après `toDay` (le plan de base ne bouge jamais).
+model ChannelPlanOverride {
+  id            String    @id @default(cuid())
+  channelId     String
+  orderId       String
+  order         TeamOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Équipe qui travaille le canal pendant la période (peut différer du plan : « faire comme si »).
+  teamKey       String
+  /// AAAA-MM-JJ Europe/Paris, bornes comprises.
+  fromDay       String
+  toDay         String
+  postsPerDay   Int?
+  picksPerDay   Int?
+  betCategoryId String?
+  themes        Json?
+  mix           Json?
+  format        String?
+  windowStart   String?
+  windowEnd     String?
+  personaId     String?
+  isTest        Boolean   @default(false)
+  /// Fermée avant terme (ordre arrêté).
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([channelId, fromDay, toDay])
+  @@index([orderId])
 }
 
 model AgentUsage {
@@ -2938,6 +3029,9 @@ model BetCategory {
   /// Écart de cote toléré entre la sélection et l'envoi (5 % par défaut).
   maxOddsDriftPct         Float    @default(5)
   active                  Boolean  @default(false)
+  /// Phase 33 : catégorie créée pour un ordre de Kevin (inactive après `expiresAt`, jamais supprimée).
+  createdByOrderId        String?
+  expiresAt               DateTime?
   sortOrder               Int      @default(0)
   updatedById             String?
   createdAt               DateTime @default(now())
