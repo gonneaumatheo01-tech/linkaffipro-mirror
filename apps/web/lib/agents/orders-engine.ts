@@ -3,8 +3,9 @@
  * chargées à la demande et tolérantes : la page marche avant comme après leur livraison. Une fonction absente vaut
  * `undefined` ; les boutons répondent alors « pas encore disponible » et le plan affiche la clé de chaque capacité.
  *
- * - `stopOrder(deps, orderId, actor)` : annule les missions non commencées, clôt le réglage temporaire, ordre arrêté.
- * - `extendOrder(deps, orderId, days)` : repousse la fin de l'ordre (et de son réglage temporaire) de N jours.
+ * - `stopOrder(deps, orderId, actor, reason?)` : annule les missions non commencées, clôt le réglage temporaire, ordre
+ *   arrêté ; l'acteur est journalisé par le Grand Chef.
+ * - `extendOrder(deps, orderId, days, actor?)` : repousse la fin de l'ordre (et de son réglage temporaire) de N jours.
  * - `listCapabilities()` : capacités du registre (équipe, clé, description en français).
  */
 import type { ActorRef, AgentsDeps } from "@linkaffipro/agents";
@@ -12,8 +13,8 @@ import type { ActorRef, AgentsDeps } from "@linkaffipro/agents";
 export type CapabilitySummary = { teamKey: string; key: string; description: string };
 
 export type OrdersEngine = {
-  stopOrder?: (deps: AgentsDeps, orderId: string, actor: ActorRef) => Promise<unknown>;
-  extendOrder?: (deps: AgentsDeps, orderId: string, days: number) => Promise<unknown>;
+  stopOrder?: (deps: AgentsDeps, orderId: string, actor: ActorRef | null, reason?: string | null) => Promise<unknown>;
+  extendOrder?: (deps: AgentsDeps, orderId: string, days: number, actor?: ActorRef | null) => Promise<unknown>;
   listCapabilities?: () => readonly CapabilitySummary[] | Promise<readonly CapabilitySummary[]>;
 };
 

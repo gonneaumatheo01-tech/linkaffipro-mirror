@@ -48,7 +48,7 @@ export async function stopOrderAction(formData: FormData): Promise<void> {
     const engine = await loadOrdersEngine();
     if (!engine.stopOrder) backTo(back, { error: NOT_YET });
     result = orderEngineResult(
-      await engine.stopOrder(buildAgentsDeps(), orderId, { userId: user.id, via: "SITE" }),
+      await engine.stopOrder(buildAgentsDeps(), orderId, { userId: user.id, via: "SITE" }, "arrêté depuis le site"),
       `${title} arrêté : les missions pas encore commencées sont annulées, le canal reprend son plan habituel.`,
     );
     await audit({
@@ -86,7 +86,7 @@ export async function extendOrderAction(formData: FormData): Promise<void> {
     const engine = await loadOrdersEngine();
     if (!engine.extendOrder) backTo(back, { error: NOT_YET });
     result = orderEngineResult(
-      await engine.extendOrder(buildAgentsDeps(), orderId, days),
+      await engine.extendOrder(buildAgentsDeps(), orderId, days, { userId: user.id, via: "SITE" }),
       `${title} prolongé de ${days} jour${days > 1 ? "s" : ""}.`,
     );
     await audit({

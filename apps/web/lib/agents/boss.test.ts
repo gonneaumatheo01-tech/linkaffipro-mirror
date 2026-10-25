@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { BOSS_ORDERS_DEFAULT_MONTHLY_CENTS } from "@linkaffipro/agents";
 import {
+  DEFAULT_BOSS_BUDGET_CENTS,
   availabilityOf,
   bossBudgetGauge,
   parseBossBudget,
@@ -23,9 +25,11 @@ describe("page Kevin : règles pures", () => {
     expect(parseBossName(undefined)).toBe("Kevin");
     expect(parseBossName("  Bob ")).toBe("Bob");
     expect(parseBossName({ x: 1 })).toBe("Kevin");
-    expect(parseBossBudget(undefined)).toBe(1000);
+    expect(parseBossBudget(undefined)).toBe(3000);
     expect(parseBossBudget({ monthlyCents: 0 })).toBe(0);
-    expect(parseBossBudget({ monthlyCents: -3 })).toBe(1000);
+    expect(parseBossBudget({ monthlyCents: -3 })).toBe(3000);
+    // Même défaut que le moteur de Kevin (phase 33).
+    expect(DEFAULT_BOSS_BUDGET_CENTS).toBe(BOSS_ORDERS_DEFAULT_MONTHLY_CENTS);
   });
 
   it("formulaire du plafond : euros → centimes, bornes", () => {

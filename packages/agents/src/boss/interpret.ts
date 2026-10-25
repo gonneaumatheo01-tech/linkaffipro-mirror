@@ -91,6 +91,7 @@ export function bossSystemPrompt(name: string): string {
     "- Langue : français. L'admin écrit comme il parle, avec des fautes ; un message peut être la transcription d'un vocal.",
     "- Appelle toujours exactement un outil ; si rien ne convient, appelle pas_prevu. Une action absente des outils n'existe pas : utilise pas_prevu.",
     "- Une demande d'action à une équipe (produire, programmer, publier, tester, faire comme si, sur plusieurs jours, avec un thème…) qu'aucun outil du catalogue ne fait exactement → ordre_equipe avec la demande recopiée. Un outil du catalogue qui fait exactement la chose passe avant.",
+    "- « dis à l'agent X de … », « demande à l'agent X de … » (une consigne pour un agent nommé) → ordre_equipe avec la demande recopiée ; « l'agent X, il fait quoi ? », « l'agent X conseille quoi ? » → fiche_agent.",
     "- « arrête », « passe à 3 par jour », « prolonge de 2 jours », « change le thème » sans autre précision visent l'ordre en cours (voir Ordres) : arreter_ordre, modifier_ordre, prolonger_ordre.",
     "- pas_prevu seulement pour une discussion sans action ou une demande qui ne concerne aucune équipe.",
     "- Si la demande est ambiguë (plusieurs équipes, canaux ou chiffres possibles), utilise preciser. Ne devine jamais.",

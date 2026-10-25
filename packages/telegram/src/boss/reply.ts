@@ -17,9 +17,9 @@ import type { BossEngine } from "./engine";
 export const BOSS_REPLY_VARIANTS = {
   /** Le worker n'a pas pu être joint : les commandes simples marchent quand même. */
   queueDown: [
-    "Je n'arrive pas à réfléchir pour le moment, mon service d'arrière-plan est arrêté. Les commandes simples marchent quand même : écris aide.",
+    "Je suis en panne de mon côté, réessaie dans quelques minutes. Les commandes simples marchent quand même : écris aide.",
     "Ma partie réflexion est en panne pour l'instant. Les commandes simples marchent toujours, écris aide pour les voir.",
-    "Je ne peux pas réfléchir là, le service d'arrière-plan est à l'arrêt. Écris aide : les commandes simples passent.",
+    "Petite panne chez moi, retente dans quelques minutes. Écris aide : les commandes simples passent.",
   ],
   /** Erreur pendant le traitement : jamais de silence. */
   error: [
@@ -43,7 +43,7 @@ export const BOSS_REPLY_VARIANTS = {
   ],
   /** Vocal impossible à mettre en file. */
   voiceQueueDown: [
-    "Je n'arrive pas à écouter ce vocal pour le moment, mon service d'arrière-plan est arrêté. Écris-le-moi : les commandes simples marchent.",
+    "Je suis en panne de mon côté, je ne peux pas écouter ce vocal. Réessaie dans quelques minutes, ou écris-le-moi : les commandes simples marchent.",
     "Impossible d'écouter ton vocal là, ma partie réflexion est en panne. Tu me l'écris ? Les commandes simples passent.",
   ],
 } as const satisfies VoiceTable;

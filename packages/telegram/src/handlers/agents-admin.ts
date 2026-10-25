@@ -10,9 +10,9 @@ import {
   BOSS_DEFAULT_NAME,
   kevinForwardedPost,
   pick,
-  voiceTemplate,
   type BossTeamInput,
   type VoiceTable,
+  type VoiceTemplate,
   type ForwardedMessage,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
@@ -26,6 +26,16 @@ import { bossReplyText, deliverBossReply, type BossReplyApi } from "../boss/repl
 type NameSample = { name: string };
 type BotSample = { username: string; name: string };
 const NAME_SAMPLES: NameSample[] = [{ name: "Kevin" }, { name: "Léa" }];
+
+/**
+ * Même forme que `voiceTemplate` de `@linkaffipro/agents` (rendu + valeurs d'exemple), construite ICI : le chargement
+ * de ce module n'appelle aucune fonction du paquet des agents (les tests du worker le remplacent par un faux module).
+ */
+function voiceTemplate<P>(samples: readonly P[], render: (p: P) => readonly string[]): VoiceTemplate<P> {
+  const fn = ((p: P) => render(p)) as VoiceTemplate<P>;
+  Object.defineProperty(fn, "samples", { value: samples });
+  return fn;
+}
 const BOT_SAMPLES: BotSample[] = [
   { username: "kevin_boss_bot", name: "Kevin" },
   { username: "kevcanauxbot", name: "Léa" },
@@ -38,14 +48,14 @@ const BOT_SAMPLES: BotSample[] = [
 export const AGENTS_ADMIN_VARIANTS = {
   /** Service d'arrière-plan muet depuis plus de 3 minutes (texte). */
   workerDown: [
-    "Mon service d'arrière-plan est arrêté, je ne comprends que les commandes simples pour l'instant. L'équipe technique est prévenue. Écris aide pour les voir.",
-    "Je tourne au ralenti : mon service d'arrière-plan est à l'arrêt, l'équipe technique est prévenue. En attendant, écris aide pour les commandes simples.",
-    "Petit souci chez moi, le service d'arrière-plan est arrêté. L'équipe technique est au courant. Les commandes simples marchent : écris aide.",
+    "Je suis en panne de mon côté, réessaie dans quelques minutes. L'équipe technique est prévenue. Les commandes simples marchent quand même : écris aide.",
+    "Petite panne chez moi, réessaie dans quelques minutes. L'équipe technique est au courant. En attendant, écris aide pour les commandes simples.",
+    "Je suis en panne pour l'instant, retente dans quelques minutes. L'équipe technique est prévenue. Les commandes simples marchent : écris aide.",
   ],
   /** Même cas pour un vocal (il sera écouté au redémarrage). */
   voiceWorkerDown: [
-    "Mon service d'arrière-plan est arrêté, je t'écoute dès qu'il repart. L'équipe technique est prévenue. En attendant, les commandes simples écrites marchent : écris aide.",
-    "Je ne peux pas t'écouter tout de suite, le service d'arrière-plan est à l'arrêt. Ton vocal passera dès qu'il repart, l'équipe technique est prévenue. Écris aide pour les commandes simples.",
+    "Je suis en panne de mon côté, je t'écoute dès que ça repart. L'équipe technique est prévenue. En attendant, les commandes simples écrites marchent : écris aide.",
+    "Petite panne chez moi : ton vocal passera dès que ça repart, d'ici quelques minutes. L'équipe technique est prévenue. Écris aide pour les commandes simples.",
   ],
   /** Dernier recours quand la réponse ne part pas. */
   received: ["Bien reçu ✅", "Reçu ✅", "C'est arrivé ✅"],

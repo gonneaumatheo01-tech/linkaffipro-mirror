@@ -251,32 +251,34 @@ function notStarted(m: { status: string; steps: unknown }): boolean {
 
 /**
  * Arrête un ordre : missions non commencées annulées, celle(s) en cours laissées finir, dérogations fermées
- * (`closedAt`), ordre annulé. `actor` : l'admin (ou un motif en texte).
+ * (`closedAt`), ordre annulé. Forme unique (site, Kevin, Grand Chef) : `actor` = qui arrête (journalisé dans
+ * l'`AuditLog` ; absent = l'admin qui a donné l'ordre), `reason` = motif facultatif (« annulé dans la minute »).
  */
 export async function stopOrder(
   deps: AgentsDeps,
   orderId: string,
-  actor?: ActorRef | string | null,
+  actor?: ActorRef | null,
+  reason?: string | null,
 ): Promise<{ ok: boolean; message: string; cancelled: number; running: number }> {
   const row = await loadOrder(deps, orderId);
   if (!row) return { ok: false, message: "Ordre introuvable.", cancelled: 0, running: 0 };
   if ((TERMINAL_ORDER_STATUSES as readonly string[]).includes(row.status)) return { ok: false, message: "Cet ordre est déjà terminé.", cancelled: 0, running: 0 };
   const now = nowOf(deps);
-  const reason = typeof actor === "string" && actor ? actor : `ordre n°${row.number} arrêté`;
-  const userId = actor && typeof actor === "object" ? (actor.userId ?? null) : row.createdById;
+  const why = reason?.trim() ? reason.trim().slice(0, 200) : `ordre n°${row.number} arrêté`;
+  const userId = actor ? (actor.userId ?? null) : row.createdById;
   const missions = (await deps.prisma.agentMission.findMany({ where: { orderId, status: { in: [...ACTIVE_STATUSES] } }, select: { id: true, status: true, steps: true } })) as Array<{ id: string; status: string; steps: unknown }>;
   let cancelled = 0;
   let running = 0;
   for (const m of missions) {
     if (notStarted(m)) {
-      await cancelMission(deps, m.id, { reason });
+      await cancelMission(deps, m.id, { reason: why });
       cancelled++;
     } else running++;
   }
   await deps.prisma.channelPlanOverride.updateMany({ where: { orderId, closedAt: null }, data: { closedAt: now } });
   await deps.prisma.betCategory.updateMany({ where: { createdByOrderId: orderId, active: true }, data: { active: false } });
   await patchProgress(deps, orderId, { stoppedAt: now.toISOString() }, { status: "CANCELLED" });
-  await agentAudit(deps, { userId, action: "agents.order.stopped", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, cancelled, running, reason } });
+  await agentAudit(deps, { userId, action: "agents.order.stopped", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, cancelled, running, reason: why, via: actor?.via ?? null } });
   await agentEvent(deps, "agents.order.stopped", { orderId, number: row.number, cancelled, running });
   return {
     ok: true,
@@ -314,7 +316,7 @@ export async function extendOrder(deps: AgentsDeps, orderId: string, days: numbe
     endsAt: parisDayStart(addDaysToDay(toDay, 1)),
     ...(plan ? { interpretation: json({ ...(row.interpretation as object), period: { start: plan.period?.start ?? fromDay, days: totalDays } }) as never } : {}),
   });
-  await agentAudit(deps, { userId: actor?.userId ?? row.createdById, action: "agents.order.extended", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, from: curTo, to: toDay } });
+  await agentAudit(deps, { userId: actor?.userId ?? row.createdById, action: "agents.order.extended", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, from: curTo, to: toDay, via: actor?.via ?? null } });
   return { ok: true, toDay, message: `Ordre n°${row.number} prolongé jusqu'au ${frDay(toDay)}${note}.` };
 }
 

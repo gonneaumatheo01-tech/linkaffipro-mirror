@@ -567,7 +567,7 @@ describe("rapports de Kevin (début, jour, fin)", () => {
     const msgs = kit.sent.slice(sentBefore).map((m) => m.html);
     // Le départ est déjà annoncé par le récapitulatif (« première production vers 10 h ») : pas de doublon.
     expect(msgs).toHaveLength(2);
-    expect(msgs[0]).toBe("Jour 2/3 sur Test : 2 paris publiés (cartons, corners), 1 attend ta validation.");
+    expect(msgs[0]).toMatch(/^(Jour 2\/3 sur Test|Test, jour 2\/3) : 2 paris publiés \(cartons, corners\), 1 attend ta validation\.$/);
     expect(msgs[1]).toContain("6 paris sur Test, 4 gagnés, 2 perdus, cote moyenne 1,9");
     const started = orderReportText({ type: "started", number: 4, teamKey: "sports", chatId: null }, {}, { where: "le canal Test", unit: "paris", firstAt: "10 h" })!;
     expect(started).toContain("10 h");

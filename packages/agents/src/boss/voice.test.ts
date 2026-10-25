@@ -200,8 +200,29 @@ function tsFiles(dir: string, filter: (f: string) => boolean = () => true): stri
   return out.sort();
 }
 
-/** Modules de Kevin : tout `boss/` et les textes de Kevin de l'inspiration. */
-const KEVIN_FILES = [...tsFiles(BOSS_DIR), ...tsFiles(join(SRC_DIR, "inspiration"), (f) => /\/kevin[^/]*\.ts$/.test(f))];
+/** Ordres de Kevin (`orders/`) : textes envoyés par Kevin (récapitulatif, demandes, rapports, vues). */
+const KEVIN_ORDER_FILES = ["recap.ts", "request.ts", "reports.ts", "agent-order.ts", "current.ts"].map((f) => join(SRC_DIR, "orders", f));
+
+/** Autres textes envoyés par Kevin : commande « agents », rapport, questions au client, propositions d'inspiration. */
+const KEVIN_SHARED_FILES = [
+  "orchestrator/overview.ts",
+  "orchestrator/overview-contract.ts",
+  "orchestrator/overview-lines.ts",
+  "orchestrator/overview-results.ts",
+  "admin/report-command.ts",
+  "human/requests.ts",
+  "inspiration/proposals.ts",
+  "inspiration/apply.ts",
+].map((f) => join(SRC_DIR, f));
+
+/** Modules de Kevin : tout `boss/`, les textes de Kevin de l'inspiration, ses ordres et ses textes partagés. */
+const KEVIN_FILES = [
+  ...tsFiles(BOSS_DIR),
+  ...tsFiles(join(SRC_DIR, "inspiration"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
+  ...KEVIN_ORDER_FILES,
+  ...tsFiles(join(SRC_DIR, "orders", "view")),
+  ...KEVIN_SHARED_FILES,
+];
 
 describe("textes fixes de Kevin : toutes les tables *_VARIANTS", () => {
   beforeEach(() => resetVoiceRotation());

@@ -30,12 +30,12 @@ import { createAlbumCaptions, createLibraryDepositor, inboxMediaOf, type Library
 export const BOSS_GROUP_VARIANTS = {
   /** Service d'arrière-plan muet depuis plus de 3 minutes : la tâche reste en file. */
   workerDown: [
-    "Je tourne au ralenti, mon service d'arrière-plan est arrêté. Commandes simples seulement (écris aide), l'équipe technique est prévenue.",
-    "Service d'arrière-plan à l'arrêt, l'équipe technique est prévenue. En attendant, commandes simples seulement : écris aide.",
+    "Je suis en panne de mon côté, retour dans quelques minutes. Commandes simples seulement (aide), l'équipe technique est prévenue.",
+    "Petite panne chez moi, l'équipe technique est prévenue. Ça repart dans quelques minutes ; en attendant, aide pour les commandes simples.",
   ],
   /** Mise en file impossible. */
   queueDown: [
-    "Je ne peux pas réfléchir là, mon service d'arrière-plan est arrêté. Les commandes simples marchent : écris aide.",
+    "Je suis en panne de mon côté, réessaie dans quelques minutes. Les commandes simples marchent : écris aide.",
     "Ma partie réflexion est en panne. Écris aide pour les commandes simples.",
   ],
 } as const satisfies VoiceTable;

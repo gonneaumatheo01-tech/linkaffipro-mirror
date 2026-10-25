@@ -161,7 +161,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
                   aria-describedby="boss-budget-aide"
                 />
                 <p id="boss-budget-aide" className="text-note text-muted-foreground">
-                  De 0 à {MAX_BOSS_BUDGET_EUROS} € ; 10 € suffisent en général.
+                  De 0 à {MAX_BOSS_BUDGET_EUROS} € ; 30 € suffisent en général.
                 </p>
               </div>
               <Button type="submit" variant="outline" className="max-md:h-10">

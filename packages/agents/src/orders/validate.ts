@@ -49,9 +49,13 @@ export type ValidatedPlan = {
   missingTeam: string | null;
 };
 
-/** Clés de paramètres reconnues comme « nombre de jours » et « par jour » (bornes générales). */
-export const DAYS_KEYS = ["days", "jours", "nbJours", "duree"];
-export const PER_DAY_KEYS = ["perDay", "parJour", "par_jour", "picksPerDay", "postsPerDay", "quantite"];
+/**
+ * Clés de paramètres reconnues comme « nombre de jours » et « par jour » (bornes générales). Les noms des schémas du
+ * registre viennent en premier (`jours`, `paris_par_jour`, `posts_par_jour` : `orders/capabilities/*`) ; les autres
+ * restent tolérés pour un plan d'IA approximatif.
+ */
+export const DAYS_KEYS = ["jours", "days", "nbJours", "duree"];
+export const PER_DAY_KEYS = ["paris_par_jour", "posts_par_jour", "perDay", "parJour", "par_jour", "picksPerDay", "postsPerDay", "quantite"];
 
 function clampNumber(v: unknown, max: number): { value: number; clamped: boolean } | null {
   if (typeof v !== "number" || !Number.isFinite(v)) return null;

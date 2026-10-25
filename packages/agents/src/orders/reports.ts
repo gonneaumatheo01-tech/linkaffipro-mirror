@@ -7,7 +7,7 @@
  * être inventé) ; chaque texte passe `voiceCheck`.
  */
 import { esc } from "../admin/journal";
-import { pick } from "../boss/voice";
+import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { AgentsDeps } from "../types";
 import type { OrderFacts } from "./contract";
 import { channelNames, interpretationOf, orderById, periodLabel, type StoredInterpretation } from "./current";
@@ -24,7 +24,8 @@ function plural(n: number, one: string, many: string): string {
 function labelsOf(facts: OrderFacts, day?: string | null): string[] {
   const perDay = Array.isArray(facts.perDay) ? (facts.perDay as Array<Record<string, unknown>>) : [];
   const d = day ? perDay.find((x) => x.day === day) : null;
-  const raw = (d?.labels ?? facts.labels ?? facts.themes) as unknown;
+  // Clés du Grand Chef (`orderPicksFacts` : `marches`) ou des capacités de posts (`labels`, `themes`).
+  const raw = (d?.labels ?? facts.labels ?? facts.marches ?? facts.themes) as unknown;
   return Array.isArray(raw) ? [...new Set(raw.filter((x): x is string => typeof x === "string" && x.trim() !== ""))].slice(0, 4) : [];
 }
 
@@ -45,6 +46,51 @@ async function whereOf(deps: AgentsDeps, interp: StoredInterpretation | null): P
   return ids.map((id) => names.get(id)?.name ?? "un canal").slice(0, 2).join(" et ");
 }
 
+/** Textes fixes des rapports (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
+export const ORDER_REPORTS_VARIANTS = {
+  firstAt: voiceTemplate<{ at: string }>([{ at: "10 h" }], (p) => [`Première production vers ${p.at}.`, `Ça démarre vers ${p.at}.`]),
+  started: voiceTemplate<{ n: number; first: string }>(
+    [
+      { n: 4, first: "" },
+      { n: 4, first: " Première production vers 10 h." },
+    ],
+    (p) => [`C'est lancé, ordre n°${p.n}.${p.first}`, `Ordre n°${p.n} parti.${p.first}`, `Ça tourne, ordre n°${p.n}.${p.first}`],
+  ),
+  dayHead: voiceTemplate<{ index: number; days: number; where: string }>([{ index: 1, days: 3, where: "Test" }], (p) => [`Jour ${p.index}/${p.days} sur ${p.where}`, `${p.where}, jour ${p.index}/${p.days}`]),
+  dayHeadPlain: voiceTemplate<{ where: string }>([{ where: "Roulette Pro" }], (p) => [`Point du jour sur ${p.where}`, `Aujourd'hui sur ${p.where}`]),
+  day: voiceTemplate<{ head: string; parts: string }>(
+    [
+      { head: "Jour 1/3 sur Test", parts: "2 paris publiés (Hors-jeux)" },
+      { head: "Point du jour sur Roulette Pro", parts: "aucun post publié, 1 attend ta validation, 2 ratés" },
+    ],
+    (p) => [`${p.head} : ${p.parts}.`],
+  ),
+  finished: voiceTemplate<{ n: number; bits: string }>([{ n: 7, bits: "6 paris sur Test, 4 gagnés, 2 perdus, cote moyenne 1,9" }], (p) => [
+    `Ordre n°${p.n} terminé : ${p.bits}.`,
+    `C'est fini pour l'ordre n°${p.n} : ${p.bits}.`,
+  ]),
+  failures: voiceTemplate<{ n: number; count: string; where: string; why: string }>(
+    [
+      { n: 3, count: "3 ratés", where: "Test", why: " Dernière erreur : aucune cote." },
+      { n: 3, count: "1 raté", where: "Roulette Pro", why: "" },
+    ],
+    (p) => [
+      `⚠️ Ordre n°${p.n} : ${p.count} sur ${p.where}.${p.why} Je continue, dis-moi « arrête l'ordre » si tu préfères couper.`,
+      `⚠️ ${p.count} sur ${p.where} pour l'ordre n°${p.n}.${p.why} Je continue ; écris « arrête l'ordre » pour couper.`,
+    ],
+  ),
+  lastError: voiceTemplate<{ reason: string }>([{ reason: "aucune cote" }], (p) => [` Dernière erreur : ${p.reason}.`, ` Dernier souci : ${p.reason}.`]),
+  blocked: voiceTemplate<{ n: number; why: string }>(
+    [
+      { n: 3, why: " : plafond vidéo atteint" },
+      { n: 3, why: "" },
+    ],
+    (p) => [`⚠️ L'ordre n°${p.n} est bloqué${p.why}. Rien ne part tant que ce n'est pas réglé.`, `⚠️ L'ordre n°${p.n} est bloqué${p.why}. Rien ne sort avant que ce soit réglé.`],
+  ),
+} satisfies VoiceTable;
+
+const V = ORDER_REPORTS_VARIANTS;
+
 /** « sur Test » plutôt que « sur le canal Test » dans les lignes courtes. */
 const shortWhere = (w: string) => (w === "le canal Test" ? "Test" : w);
 
@@ -60,45 +106,49 @@ export function orderReportText(
   const w = shortWhere(ctx.where);
   switch (event.type) {
     case "started": {
-      const first = ctx.firstAt ? ` Première production vers ${ctx.firstAt}.` : "";
-      return pick(
-        [`C'est lancé, ordre n°${event.number}.${first}`, `Ordre n°${event.number} parti.${first}`, `Ça tourne, ordre n°${event.number}.${first}`],
-        "order.report.started",
-        chat,
-      );
+      const first = ctx.firstAt ? ` ${pick(V.firstAt({ at: ctx.firstAt }), "order.report.first", chat)}` : "";
+      return pick(V.started({ n: event.number, first }), "order.report.started", chat);
     }
     case "day_done": {
       const f = dayFacts(facts, event.day);
       const labels = labelsOf(facts, event.day);
-      const head = event.dayIndex && event.days ? `Jour ${event.dayIndex}/${event.days} sur ${w}` : `Point du jour sur ${w}`;
+      const head =
+        event.dayIndex && event.days
+          ? pick(V.dayHead({ index: event.dayIndex, days: event.days, where: w }), "order.report.dayhead", chat)
+          : pick(V.dayHeadPlain({ where: w }), "order.report.dayhead", chat);
       const parts = [
         f.done ? `${plural(f.done, `${one} publié`, `${many} publiés`)}${labels.length ? ` (${labels.join(", ")})` : ""}` : `aucun ${one} publié`,
         f.waiting ? `${f.waiting} attend${f.waiting > 1 ? "ent" : ""} ta validation` : null,
         f.failed ? `${plural(f.failed, "raté", "ratés")}` : null,
       ].filter(Boolean);
-      return `${head} : ${parts.join(", ")}.`;
+      return pick(V.day({ head, parts: parts.join(", ") }), "order.report.day", chat);
     }
     case "finished": {
       const done = num(facts.done) ?? 0;
-      const won = num(facts.won);
-      const lost = num(facts.lost);
-      const avg = num(facts.avgOdds) ?? num(facts.averageOdds);
+      // Faits du Grand Chef pour les paris (`orderPicksFacts`) : `parisGagnes`, `parisPerdus`, `coteMoyenne`. Gagnés et
+      // perdus seulement s'il y a au moins un pari réglé (sinon « 0 gagné, 0 perdu » ferait croire à un résultat).
+      const wonRaw = num(facts.won) ?? num(facts.parisGagnes);
+      const lostRaw = num(facts.lost) ?? num(facts.parisPerdus);
+      const settled = (wonRaw ?? 0) + (lostRaw ?? 0) > 0;
+      const won = settled ? wonRaw : null;
+      const lost = settled ? lostRaw : null;
+      const avg = num(facts.avgOdds) ?? num(facts.averageOdds) ?? num(facts.coteMoyenne);
       const bits = [
         `${plural(done, one, many)} sur ${w}`,
         won !== null ? plural(won, "gagné", "gagnés") : null,
         lost !== null ? plural(lost, "perdu", "perdus") : null,
         avg !== null ? `cote moyenne ${fr(avg)}` : null,
       ].filter(Boolean);
-      return pick([`Ordre n°${event.number} terminé : ${bits.join(", ")}.`, `C'est fini pour l'ordre n°${event.number} : ${bits.join(", ")}.`], "order.report.finished", chat);
+      return pick(V.finished({ n: event.number, bits: bits.join(", ") }), "order.report.finished", chat);
     }
     case "failures": {
       const n = num(event.failures) ?? num(facts.failed) ?? 0;
-      const why = event.reason ? ` Dernière erreur : ${event.reason.slice(0, 120)}.` : "";
-      return `⚠️ Ordre n°${event.number} : ${plural(n, "raté", "ratés")} sur ${w}.${why} Je continue, dis-moi « arrête l'ordre » si tu préfères couper.`;
+      const why = event.reason ? pick(V.lastError({ reason: event.reason.slice(0, 120) }), "order.report.lasterror", chat) : "";
+      return pick(V.failures({ n: event.number, count: plural(n, "raté", "ratés"), where: w, why }), "order.report.failures", chat);
     }
     case "blocked": {
       const why = event.reason ? ` : ${event.reason.slice(0, 140)}` : "";
-      return `⚠️ L'ordre n°${event.number} est bloqué${why}. Rien ne part tant que ce n'est pas réglé.`;
+      return pick(V.blocked({ n: event.number, why }), "order.report.blocked", chat);
     }
   }
 }

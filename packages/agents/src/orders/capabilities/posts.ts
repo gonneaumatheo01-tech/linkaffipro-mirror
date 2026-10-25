@@ -253,7 +253,7 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
   let photos = 0;
   for (const ch of scope.channels) {
     let mix: Mix | null = wanted;
-    let format: string | null = p.format ? FORMAT_OF[p.format]! : null;
+    const format: string | null = p.format ? FORMAT_OF[p.format]! : null;
     if (mix && !p.format && !ch.isTest) {
       const base = effectiveMix(T, (await currentChannelPlan(deps, ch.id)).plan.mix);
       const m = clampMix(mix, base, bounds.maxMixShiftPoints);

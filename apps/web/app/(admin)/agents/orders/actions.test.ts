@@ -53,9 +53,9 @@ beforeEach(() => {
 });
 
 describe("Arrêter un ordre", () => {
-  it("administrateur : `stopOrder(deps, id, acteur)`, journal écrit, retour sur la fiche", async () => {
+  it("administrateur : `stopOrder(deps, id, acteur, raison)`, journal écrit, retour sur la fiche", async () => {
     const url = await redirectOf(stopOrderAction(fd({ orderId: "o1" })));
-    expect(m.stop).toHaveBeenCalledWith({ deps: true }, "o1", { userId: "u1", via: "SITE" });
+    expect(m.stop).toHaveBeenCalledWith({ deps: true }, "o1", { userId: "u1", via: "SITE" }, "arrêté depuis le site");
     expect(m.audit).toHaveBeenCalledWith({
       userId: "u1",
       action: "agents.order_stopped",
@@ -96,9 +96,9 @@ describe("Arrêter un ordre", () => {
 });
 
 describe("Prolonger un ordre", () => {
-  it("administrateur : `extendOrder(deps, id, jours)`, journal écrit", async () => {
+  it("administrateur : `extendOrder(deps, id, jours, acteur)`, journal écrit", async () => {
     const url = await redirectOf(extendOrderAction(fd({ orderId: "o1", days: "2" })));
-    expect(m.extend).toHaveBeenCalledWith({ deps: true }, "o1", 2);
+    expect(m.extend).toHaveBeenCalledWith({ deps: true }, "o1", 2, { userId: "u1", via: "SITE" });
     expect(m.audit).toHaveBeenCalledWith({
       userId: "u1",
       action: "agents.order_extended",

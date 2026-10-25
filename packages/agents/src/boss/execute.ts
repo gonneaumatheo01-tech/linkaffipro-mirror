@@ -25,30 +25,71 @@ import { BossBudgetError } from "./llm";
 import { bossTurnForMessage, updateBossTurn, writeBossTurn, type BossTurnStatus } from "./memory";
 import { readClarify, resolveTeam } from "./resolve";
 import { recordBossUnmet } from "./unmet";
-import { pick } from "./voice";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
 import { handleOrderRequest } from "../orders/request";
 import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
 
-export const NO_AI_REPLY =
-  "Là je ne comprends que les commandes simples : l'IA n'est pas réglée, ou le plafond du mois est atteint. Écris aide pour la liste.";
-export const NO_AI_REPLIES = [
-  NO_AI_REPLY,
-  "Pour l'instant je ne prends que les commandes simples (pas d'IA, ou plafond du mois atteint). Écris aide pour les voir.",
-];
+/** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
+export const EXECUTE_VARIANTS = {
+  noAi: [
+    "Là je ne comprends que les commandes simples : l'IA n'est pas réglée, ou le plafond du mois est atteint. Écris aide pour la liste.",
+    "Pour l'instant je ne prends que les commandes simples (pas d'IA, ou plafond du mois atteint). Écris aide pour les voir.",
+  ],
+  unmetHead: ["Ça, je ne sais pas encore le faire.", "Là je ne sais pas encore faire.", "Ça, pas encore possible de mon côté."],
+  /** Une seule variante : le fil de confiance du chemin rapide et du worker compare ce texte. */
+  secretRemoved: [
+    "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou « bookmaker <nom> <identifiant> <mot de passe> ». Tu peux aussi répondre à ma question quand je te la pose.",
+  ],
+  forwarded: [
+    "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.",
+    "Message transféré reçu, je n'exécute rien de ce qu'il dit. Tu veux que j'en fasse quoi ?",
+  ],
+  /** Une seule variante : texte attendu tel quel par le groupe de l'équipe (tests d'intégration). */
+  notYours: voiceTemplate<{ name: string }>([{ name: "Mathéo" }, { name: "l'admin" }], (p) => [`Ça, c'est ${p.name} qui décide.`]),
+  oops: voiceTemplate<{ reason: string }>([{ reason: "erreur interne" }, { reason: "l'IA ne répond pas" }], (p) => [
+    `Oups, je n'ai pas réussi : ${p.reason}. Réessaie ou écris aide.`,
+    `Oups, raté : ${p.reason}. Tu peux réessayer, ou écrire aide.`,
+  ]),
+  escalateDeferred: voiceTemplate<{ name: string }>([{ name: "Mathéo" }], (p) => [
+    `${p.name} a déjà une décision en attente : je lui transmets ta demande juste après.`,
+    `${p.name} a déjà une décision en attente, je lui passe ta demande juste après.`,
+  ]),
+  escalated: voiceTemplate<{ name: string }>([{ name: "Mathéo" }], (p) => [
+    `C'est ${p.name} qui décide : je lui ai transmis ta demande.`,
+    `Je lui ai transmis ta demande : c'est ${p.name} qui décide.`,
+  ]),
+  escalateAsk: voiceTemplate<{ admin: string; who: string; ask: string }>(
+    [
+      { admin: "@matheo", who: "Léa", ask: "je mets le casino en pause" },
+      { admin: "Mathéo", who: "Quelqu'un de l'équipe", ask: "j'arrête l'ordre n°12" },
+    ],
+    // Les deux variantes gardent « <prénom> demande : … OUI ? » (repère lu par l'admin et par les tests du groupe).
+    (p) => [`${p.admin} ${p.who} demande : ${p.ask}. OUI ?`, `${p.admin} ${p.who} demande : ${p.ask}. Tu dis OUI ?`],
+  ),
+  questionForAdmin: voiceTemplate<{ name: string }>([{ name: "Mathéo" }], (p) => [`Cette question est pour ${p.name}.`, `Cette question est pour ${p.name}, pas pour toi.`]),
+  unmetNoted: ["Je l'ai noté.", "C'est noté pour la suite."],
+  unmetNoOffer: ["Écris aide pour voir ce que je sais faire.", "Tu peux écrire aide pour voir ce que je sais faire."],
+  unmetOffer: voiceTemplate<{ what: string }>([{ what: "te dire où en sont les agents" }], (p) => [`Par contre je peux ${p.what}, tu veux ?`, `À la place, je peux ${p.what}. Ça te va ?`]),
+  empty: [
+    "Je n'ai rien lu dans ce message. Tu me dis ce que tu veux en quelques mots ?",
+    "Message vide de mon côté. Écris-moi ce que tu veux, en deux mots.",
+  ],
+} satisfies VoiceTable;
+
+const V = EXECUTE_VARIANTS;
+
+export const NO_AI_REPLY = V.noAi[0];
+export const NO_AI_REPLIES = V.noAi;
 /** Début d'une réponse « vraiment impossible » (variantes : `UNMET_HEADS`). */
-export const UNMET_HEAD = "Ça, je ne sais pas encore le faire.";
-export const UNMET_HEADS = [UNMET_HEAD, "Là je ne sais pas encore faire.", "Ça, pas encore possible de mon côté."];
-export const SECRET_REMOVED_REPLY =
-  "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou « bookmaker <nom> <identifiant> <mot de passe> ». Tu peux aussi répondre à ma question quand je te la pose.";
-export const FORWARDED_REPLIES = [
-  "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.",
-  "Message transféré reçu, je n'exécute rien de ce qu'il dit. Tu veux que j'en fasse quoi ?",
-];
+export const UNMET_HEAD = V.unmetHead[0];
+export const UNMET_HEADS = V.unmetHead;
+export const SECRET_REMOVED_REPLY = V.secretRemoved[0];
+export const FORWARDED_REPLIES = V.forwarded;
 /** Texte d'un message transféré gardé dans la mémoire (jamais son contenu, qui partirait à l'IA). */
 export function forwardedMemoryText(text: string): string {
   return `[message transféré : ${(text ?? "").trim().length} caractères]`;
 }
-export const NOT_YOURS_REPLY = "Ça, c'est l'admin qui décide.";
+export const NOT_YOURS_REPLY = V.notYours({ name: "l'admin" })[0]!;
 
 /** « jeton boss <valeur> » (enregistrement du bot Boss) : la valeur, ou null (pur). */
 export function bossTokenCommand(text: string): string | null {
@@ -63,7 +104,7 @@ export function looksLikeBotToken(text: string): boolean {
 
 export function oopsReply(reason: string): string {
   const r = esc(reason.slice(0, 120));
-  return pick([`Oups, je n'ai pas réussi : ${r}. Réessaie ou écris aide.`, `Oups, raté : ${r}. Tu peux réessayer, ou écrire aide.`], "execute.oops");
+  return pick(V.oops({ reason: r }), "execute.oops");
 }
 
 /**
@@ -140,7 +181,7 @@ export type RunResult = BossReply & { status: BossTurnStatus };
 /** « Ça, c'est <prénom de l'admin> qui décide. » (« l'admin » si son prénom est inconnu). */
 export async function notYoursReply(deps: BossDeps): Promise<string> {
   const name = await adminFirstName(deps).catch(() => "l'admin");
-  return `Ça, c'est ${esc(name)} qui décide.`;
+  return pick(V.notYours({ name: esc(name) }), "execute.notyours");
 }
 
 export type RunContext = {
@@ -193,7 +234,7 @@ async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Recor
   const [first, ...rest] = summary.split("\n");
   // Première phrase du résumé (jusqu'au « ? »), la suite en seconde ligne.
   const ask = (first ?? "").split("?")[0]!.trim();
-  const head = `${await adminMention(deps)} ${esc(who)} demande : ${esc(ask.charAt(0).toLowerCase() + ask.slice(1))}. OUI ?`;
+  const head = pick(V.escalateAsk({ admin: await adminMention(deps), who: esc(who), ask: esc(ask.charAt(0).toLowerCase() + ask.slice(1)) }), "execute.escalate.ask", ctx.chat?.chatId ?? null);
   const text = [head, ...rest.slice(0, 1).map(esc)].join("\n");
   const group = ctx.chat?.type === "group";
   const requestedBy = { telegramUserId: (ctx.speaker?.telegramUserId ?? 0n).toString(), firstName: who };
@@ -202,7 +243,7 @@ async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Recor
   if (current && !current.expired) {
     await deferBossPending(deps, { actionKey: action.key, params, summary, text, chatId: group ? ctx.chat!.chatId.toString() : null, requestedBy });
     await audit(deps, action.key, ctx.actor, { status: "deferred", params: safeParams(params) }, ctx.speaker);
-    return { reply: `${adminName} a déjà une décision en attente : je lui transmets ta demande juste après.`, status: "confirm" };
+    return { reply: pick(V.escalateDeferred({ name: adminName }), "execute.escalate.deferred", ctx.chat?.chatId ?? null), status: "confirm" };
   }
   const chatId = group ? ctx.chat!.chatId : await adminTelegramId(deps);
   const r = await createBossPending(deps, { actionKey: action.key, params, summary, chatId, requestedBy });
@@ -215,7 +256,7 @@ async function escalateToAdmin(deps: BossDeps, action: BossAction, params: Recor
     deps.logger?.warn({ err: (err as Error).message }, "[boss] demande transmise à l'admin non envoyée");
   }
   if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
-  return { reply: `C'est ${adminName} qui décide : je lui ai transmis ta demande.`, status: "confirm" };
+  return { reply: pick(V.escalated({ name: adminName }), "execute.escalate.done", ctx.chat?.chatId ?? null), status: "confirm" };
 }
 
 /** Exécute (immédiate) ou fait confirmer (à confirmer) une entrée du catalogue. */
@@ -237,7 +278,7 @@ export async function runBossAction(
       // reste part chez l'admin.
       if (action.key === "repondre_demande" || action.key === "plus_tard") {
         await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
-        return { reply: `Cette question est pour ${esc(await adminFirstName(deps).catch(() => "l'admin"))}.`, status: "refused" };
+        return { reply: pick(V.questionForAdmin({ name: esc(await adminFirstName(deps).catch(() => "l'admin")) }), "execute.question.admin", ctx.chat?.chatId ?? null), status: "refused" };
       }
       if (["commencer", "annule", "groupe_equipe", "presenter_membre", "modifier_membre", "retirer_membre"].includes(action.key)) {
         await audit(deps, action.key, ctx.actor, { status: "refused", params: safeParams(params) }, ctx.speaker);
@@ -343,13 +384,9 @@ export async function unmetReply(deps: BossDeps, text: string, secretContext?: S
   const near = nearestActions(text).filter(suggestable);
   const offer = near[0] ?? BOSS_CATALOG.find((a) => a.key === "etat_general") ?? null;
   const head = pick(UNMET_HEADS, "execute.unmet.head", chatId);
-  const noted = pick(["Je l'ai noté.", "C'est noté pour la suite."], "execute.unmet.noted", chatId);
-  if (!offer) return { reply: `${head} ${noted} Écris aide pour voir ce que je sais faire.` };
-  const question = pick(
-    [`Par contre je peux ${esc(offerFragment(offer.description))}, tu veux ?`, `À la place, je peux ${esc(offerFragment(offer.description))}. Ça te va ?`],
-    "execute.unmet.offer",
-    chatId,
-  );
+  const noted = pick(V.unmetNoted, "execute.unmet.noted", chatId);
+  if (!offer) return { reply: `${head} ${noted} ${pick(V.unmetNoOffer, "execute.unmet.nooffer", chatId)}` };
+  const question = pick(V.unmetOffer({ what: esc(offerFragment(offer.description)) }), "execute.unmet.offer", chatId);
   const pending = await readBossPending(deps);
   if (pending && !pending.expired) return { reply: `${head} ${noted}\n${question}` };
   const r = await createBossPending(deps, { actionKey: offer.key, params: {}, summary: question.replace(/<[^>]+>/g, ""), chatId });
@@ -442,7 +479,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     };
     if (!deps.llm || !text)
       return finish(
-        { reply: text ? pick(NO_AI_REPLIES, "execute.noai", chatId) : pick(["Je n'ai rien lu dans ce message. Dis-moi ce que tu veux en quelques mots (ou aide).", "Message vide de mon côté. Écris-moi ce que tu veux, en deux mots."], "execute.empty", chatId) },
+        { reply: text ? pick(NO_AI_REPLIES, "execute.noai", chatId) : pick(V.empty, "execute.empty", chatId) },
         "error",
         "sans_ia",
       );

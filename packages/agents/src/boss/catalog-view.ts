@@ -22,7 +22,7 @@ import type { BossExecDeps } from "./catalog-read";
 import { bool, int, oneOf, str } from "./params";
 import { askToChoose, channelRefs, resolveChannel, resolvePersona, resolveTeam, type ChannelRef } from "./resolve";
 import { BOSS_READ_KEYS } from "./team/rights";
-import { pick } from "./voice";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
 
 const JOURS = ["aujourdhui", "demain", "apres_demain", "hier"] as const;
 const MOMENTS = ["matin", "midi", "apres-midi", "soir", "nuit"] as const;
@@ -34,7 +34,23 @@ const detailField = bool("Vrai si l'admin a demandé le détail complet (« oui,
 
 type DayP = { jour?: (typeof JOURS)[number]; date?: string; moment?: (typeof MOMENTS)[number]; detail?: boolean };
 
-const MORE = ["Tu veux le détail ?", "Je t'envoie le reste ?", "Tu veux la suite ?"];
+/** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
+export const CATALOG_VIEW_VARIANTS = {
+  more: ["Tu veux le détail ?", "Je t'envoie le reste ?", "Tu veux la suite ?"],
+  mediaCaption: ["Média prévu", "Le média prévu"],
+  noSports: ["Je n'ai aucun canal paris pour le moment.", "Aucun canal paris n'est réglé pour l'instant."],
+  whichChannel: ["Quel canal ?", "Sur quel canal ?"],
+  whyNone: ["Rien de bloqué : tout ce qui est prévu est en route.", "Je ne vois aucun blocage, tout suit son cours."],
+  agentAmbiguous: voiceTemplate<{ name: string }>([{ name: "celui des heures" }], (p) => [`Plusieurs agents peuvent être « ${p.name} » :`, `« ${p.name} », ça peut être plusieurs agents :`]),
+  agentUnknown: voiceTemplate<{ known: string }>([{ known: "Rédaction, Horaires, Cotes" }], (p) => [
+    `Je ne connais pas cet agent. Par exemple : ${p.known}.`,
+    `Je ne vois pas de qui tu parles. Par exemple : ${p.known}.`,
+  ]),
+  validationNone: ["Rien n'attend ta validation.", "Rien à valider pour l'instant.", "Tout est validé, rien en attente."],
+} satisfies VoiceTable;
+
+const V = CATALOG_VIEW_VARIANTS;
+const MORE = V.more;
 
 function chatKey(deps: BossDeps): string | null {
   const c = (deps as BossExecDeps).chat;
@@ -60,8 +76,8 @@ export function viewReply(deps: BossDeps, key: string, r: ViewResult, detail = f
     reply.followUp = async () => {
       for (const id of media) {
         try {
-          if (chat && chat.type === "group" && deps.admin?.sendTo) await deps.admin.sendTo(chat.chatId, "Média prévu", { mediaAssetId: id });
-          else await deps.admin?.send("Média prévu", { mediaAssetId: id });
+          if (chat && chat.type === "group" && deps.admin?.sendTo) await deps.admin.sendTo(chat.chatId, pick(V.mediaCaption, "view.media", chatKey(deps)), { mediaAssetId: id });
+          else await deps.admin?.send(pick(V.mediaCaption, "view.media", chatKey(deps)), { mediaAssetId: id });
         } catch (err) {
           deps.logger?.warn({ err: (err as Error).message }, "[boss] vignette non envoyée");
         }
@@ -196,8 +212,8 @@ async function sportsChannel(deps: BossDeps, actionKey: string, p: { canal?: str
   const refs = await channelRefs(deps, "sports");
   const real = refs.filter((c) => c.team === "sports");
   if (real.length === 1) return real[0]!;
-  if (!refs.length) return { reply: { reply: pick(["Je n'ai aucun canal paris pour le moment.", "Aucun canal paris n'est réglé pour l'instant."], "view.nosports", chatKey(deps)) } };
-  return { reply: await askToChoose(deps, { actionKey, params: p, field: "canal", question: "Quel canal ?", options: refs.slice(0, 9).map((c) => ({ label: c.name, value: `id:${c.id}` })) }) };
+  if (!refs.length) return { reply: { reply: pick(V.noSports, "view.nosports", chatKey(deps)) } };
+  return { reply: await askToChoose(deps, { actionKey, params: p, field: "canal", question: pick(V.whichChannel, "view.which", chatKey(deps)), options: refs.slice(0, 9).map((c) => ({ label: c.name, value: `id:${c.id}` })) }) };
 }
 
 // ------------------------------------------------------------------------------------------- apercu_matchs
@@ -282,7 +298,7 @@ export const pourquoiRien = defineAction<WhyP>({
       if (w.cause !== "a_venir") found.push(w);
     }
     if (!found.length)
-      return { reply: pick(["Rien de bloqué : tout ce qui est prévu est en route.", "Je ne vois aucun blocage, tout suit son cours."], "view.why.none", chatKey(deps)) };
+      return { reply: pick(V.whyNone, "view.why.none", chatKey(deps)) };
     const lines = found.slice(0, 4).map((w) => `${String(w.facts.canal)} : ${w.lines[0]}`);
     const lever = found[0]!.findings[0]?.lever;
     if (lever) lines.push(lever);
@@ -312,9 +328,9 @@ export const ficheAgent = defineAction<AgentP>({
     if (!agent) {
       const f = findAgent(p.agent);
       if (f.status === "ambiguous")
-        return askToChoose(deps, { actionKey: "fiche_agent", params: p, field: "agent", question: `Plusieurs agents peuvent être « ${p.agent} » :`, options: f.candidates.map((c) => ({ label: c.label, value: `id:${c.key}` })) });
+        return askToChoose(deps, { actionKey: "fiche_agent", params: p, field: "agent", question: pick(V.agentAmbiguous({ name: p.agent }), "view.agent.ambiguous", chatKey(deps)), options: f.candidates.map((c) => ({ label: c.label, value: `id:${c.key}` })) });
       if (f.status === "unknown")
-        return { reply: esc(`${pick(["Je ne connais pas cet agent.", "Je ne vois pas de qui tu parles."], "view.agent.unknown", chatKey(deps))} Par exemple : ${f.known.slice(5, 12).join(", ")}.`) };
+        return { reply: esc(pick(V.agentUnknown({ known: f.known.slice(5, 12).join(", ") }), "view.agent.unknown", chatKey(deps))) };
       agent = f.agent;
     }
     let channelId: string | null = null;
@@ -340,7 +356,7 @@ export const quAttendMaValidation = defineAction<Empty>({
   spec: {},
   async execute(deps) {
     const { rows, buttons } = await pendingValidations(deps);
-    if (!rows.length) return { reply: pick(["Rien n'attend ta validation.", "Rien à valider pour l'instant.", "Tout est validé, rien en attente."], "view.validation.none", chatKey(deps)) };
+    if (!rows.length) return { reply: pick(V.validationNone, "view.validation.none", chatKey(deps)) };
     return viewReply(deps, "qu_attend_ma_validation", { facts: { total: rows.length, numeros: rows.map((r) => r.number) }, lines: validationLines(rows), buttons });
   },
 });

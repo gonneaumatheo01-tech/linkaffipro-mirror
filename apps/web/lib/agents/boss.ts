@@ -10,8 +10,11 @@ export const BOSS_NAME_KEY = "boss.name";
 export const BOSS_BUDGET_KEY = "boss.budget";
 export const BOSS_GROUP_KEY = "boss.groupChatId";
 export const DEFAULT_BOSS_NAME = "Kevin";
-/** 10 € par mois par défaut. */
-export const DEFAULT_BOSS_BUDGET_CENTS = 1000;
+/**
+ * 30 € par mois par défaut depuis la phase 33 (planificateur des ordres) : même valeur que
+ * `BOSS_ORDERS_DEFAULT_MONTHLY_CENTS` de `@linkaffipro/agents` (un test le vérifie ; pas d'import ici, module pur).
+ */
+export const DEFAULT_BOSS_BUDGET_CENTS = 3000;
 /** Plafond saisissable : 0 à 500 € par mois. */
 export const MAX_BOSS_BUDGET_EUROS = 500;
 export const BOSS_TURNS_SHOWN = 50;
@@ -23,7 +26,7 @@ export function parseBossName(v: unknown): string {
   return typeof v === "string" && v.trim() ? v.trim().slice(0, 40) : DEFAULT_BOSS_NAME;
 }
 
-/** Plafond mensuel (`Setting` `boss.budget` = `{ monthlyCents }`) ; absent ou illisible → 10 €. */
+/** Plafond mensuel (`Setting` `boss.budget` = `{ monthlyCents }`) ; absent ou illisible → 30 €. */
 export function parseBossBudget(v: unknown): number {
   const c = (v as { monthlyCents?: unknown } | null | undefined)?.monthlyCents;
   return typeof c === "number" && Number.isFinite(c) && c >= 0 ? Math.round(c) : DEFAULT_BOSS_BUDGET_CENTS;

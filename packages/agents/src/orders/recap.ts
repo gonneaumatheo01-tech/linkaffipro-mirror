@@ -12,12 +12,12 @@
  */
 import { esc, nowOf, readSetting, writeSetting, adminTelegramId } from "../admin/journal";
 import { allowedNumbers, inventedNumbers } from "../rules/report-numbers";
-import { addDaysToDay } from "../rules/time";
+import { addDaysToDay, parisDayStart } from "../rules/time";
 import type { BossActor, BossChat, BossDeps, BossReply, BossSpeaker, BossTeamInput } from "../boss/contract";
 import { createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
 import { askToChoose } from "../boss/resolve";
 import { adminFirstName, findTeamMember } from "../boss/team/members";
-import { KEVIN_VOICE, pick, voiceCheck } from "../boss/voice";
+import { KEVIN_VOICE, pick, voiceCheck, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { BossTurnStatus } from "../boss/memory";
 import { ORDER_LIMITS, type Alternative, type OrderPlan, type OrderStep } from "./contract";
 import {
@@ -56,6 +56,99 @@ export type OrderSubmitContext = {
 
 export type OrderReply = BossReply & { status: BossTurnStatus; orderId?: string | null };
 
+// ------------------------------------------------------------------------------------------- textes de Kevin
+
+const capFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. Les morceaux de phrase
+ * (`reason*`, `adjust*`, `option*`) prennent la première variante : ils entrent dans une phrase déjà tirée au sort.
+ */
+export const ORDER_RECAP_VARIANTS = {
+  reasonReal: ["ça touche un vrai canal", "ça touche un canal en vrai"],
+  reasonGoesReal: ["ça passe en vrai", "ça bascule en vrai"],
+  reasonCost: voiceTemplate<{ amount: string }>([{ amount: "3,50 €" }], (p) => [`ça coûte environ ${p.amount} chez un fournisseur`, `ça coûte à peu près ${p.amount} chez un fournisseur`]),
+  reasonMedia: ["ça fait produire des photos ou des vidéos payantes", "ça fait produire des photos ou des vidéos qui coûtent"],
+  reasonDays: voiceTemplate<{ days: number }>([{ days: 10 }], (p) => [`ça dure ${p.days} jours`, `ça court sur ${p.days} jours`]),
+  whatGeneric: voiceTemplate<{ body: string; mode: string }>(
+    [
+      { body: "l'équipe Casino teste 2 posts sur le canal Test", mode: "pour de faux" },
+      { body: "Paris sportifs s'en occupe", mode: "en vrai" },
+    ],
+    (p) => [`Je m'en occupe : ${p.body}, ${p.mode}.`, `Ok, je lance : ${p.body}, ${p.mode}.`, `C'est noté : ${p.body}, ${p.mode}.`],
+  ),
+  whatAsIf: voiceTemplate<{ where: string; as: string; duration: string; qty: string; onTheme: string; mode: string }>(
+    [
+      { where: "le canal Test", as: "un canal paris", duration: "pendant 3 jours, du 25 au 27 octobre", qty: "2 paris par jour", onTheme: " sur les hors-jeux", mode: "pour de faux" },
+      { where: "le canal Test", as: "un canal casino", duration: "le 25 octobre", qty: "1 post par jour", onTheme: "", mode: "en vrai" },
+    ],
+    (p) => [
+      `Je fais tourner ${p.where} comme ${p.as} ${p.duration} : ${p.qty}${p.onTheme}, ${p.mode}.`,
+      `${capFirst(p.where)} passe en mode ${p.as.replace(/^un /, "")} ${p.duration} : ${p.qty}${p.onTheme}, ${p.mode}.`,
+    ],
+  ),
+  what: voiceTemplate<{ where: string; duration: string; qty: string; onTheme: string; mode: string }>(
+    [
+      { where: "Roulette Pro", duration: "pendant 3 jours, du 25 au 27 octobre", qty: "3 posts par jour", onTheme: " sur la roulette", mode: "en vrai" },
+      { where: "le canal Test", duration: "le 25 octobre", qty: "1 pari par jour", onTheme: "", mode: "pour de faux" },
+    ],
+    (p) => [`Je lance ${p.qty} sur ${p.where} ${p.duration}${p.onTheme}, ${p.mode}.`, `${capFirst(p.where)} : ${p.qty} ${p.duration}${p.onTheme}, ${p.mode}.`],
+  ),
+  adjustClamped: voiceTemplate<{ list: string }>([{ list: "10 paris par jour ramenés à 5" }], (p) => [`J'ai ramené dans les limites : ${p.list}.`, `J'ai dû ramener dans les limites : ${p.list}.`]),
+  adjustImpossible: voiceTemplate<{ list: string }>([{ list: "les vidéos (pas de vidéo sur un canal casino)" }], (p) => [`Pas possible : ${p.list}.`, `Ça, pas possible : ${p.list}.`]),
+  optionLaunchPossible: ["lancer ce qui est possible", "lancer la partie possible"],
+  altNone: ["Je n'ai rien d'autre à te proposer pour l'instant. Je l'ai noté pour la suite.", "Pas de solution de rechange pour le moment, c'est noté pour plus tard."],
+  altPartial: ["Je lance le reste quand même ?", "Je fais déjà ce qui est possible ?", "On part sur le reste en attendant ?"],
+  altOne: voiceTemplate<{ label: string }>([{ label: "les corners" }], (p) => [`Je te le fais avec ${p.label} à la place ?`, `On part sur ${p.label} à la place ?`, `Je te propose ${p.label}, ça te va ?`]),
+  altHow: ["Réponds par le numéro, ou OUI pour le premier.", "Dis-moi le numéro (OUI = le premier)."],
+  waitYes: voiceTemplate<{ reasons: string }>([{ reasons: "ça touche un vrai canal" }, { reasons: "ça touche un vrai canal et ça dure 10 jours" }], (p) => [
+    `${capFirst(p.reasons)}, j'attends ton OUI.`,
+    `${capFirst(p.reasons)} : il me faut ton OUI.`,
+  ]),
+  waitYesNone: ["J'attends ton OUI.", "Il me faut ton OUI."],
+  memberAsksGroup: voiceTemplate<{ admin: string; who: string; body: string }>([{ admin: "Mathéo", who: "Léa", body: "Je lance 2 posts sur Roulette Pro le 25 octobre, en vrai." }], (p) => [
+    `${p.admin}, ${p.who} demande ça :\n${p.body}`,
+    `${p.admin}, ${p.who} voudrait ça :\n${p.body}`,
+  ]),
+  memberAsksPrivate: voiceTemplate<{ who: string; body: string }>([{ who: "Léa", body: "Je lance 2 posts sur Roulette Pro le 25 octobre, en vrai." }], (p) => [
+    `${p.who} demande ça :\n${p.body}`,
+    `${p.who} voudrait ça :\n${p.body}`,
+  ]),
+  memberHandedOver: voiceTemplate<{ name: string }>([{ name: "Mathéo" }], (p) => [`C'est ${p.name} qui décide : je lui ai transmis.`, `Je passe la main à ${p.name}, c'est lui qui valide.`]),
+  tailConfirmed: ["Je te fais un point chaque soir.", "Je te tiens au courant chaque soir."],
+  tailImmediate: ["Je te fais un point chaque soir. Tu changes d'avis ? Écris « annule » dans la minute.", "Point chaque soir. « annule » dans la minute si tu changes d'avis."],
+  tailFirst: voiceTemplate<{ at: string }>([{ at: "10 h" }, { at: "18 h 30" }], (p) => [`Première production vers ${p.at}.`, `Ça démarre vers ${p.at}.`]),
+  startFailed: voiceTemplate<{ reason: string }>([{ reason: "erreur interne" }], (p) => [
+    `Ça n'a pas pu démarrer : ${p.reason}. Je réessaie si tu me le redemandes.`,
+    `Raté au démarrage (${p.reason}). Redemande-moi et je relance.`,
+  ]),
+  overlap: voiceTemplate<{ n: number; where: string }>([{ n: 12, where: "le canal Test" }], (p) => [
+    `Il y a déjà l'ordre n°${p.n} sur ${p.where} pour la même période. Lequel je garde ?`,
+    `${capFirst(p.where)} a déjà l'ordre n°${p.n} sur ces jours-là. On garde lequel ?`,
+  ]),
+  overlapNew: voiceTemplate<{ n: number }>([{ n: 12 }], (p) => [`le nouveau (j'arrête le n°${p.n})`, `le nouveau (je coupe le n°${p.n})`]),
+  overlapOld: ["l'ancien (je laisse tomber le nouveau)", "l'ancien (le nouveau tombe)"],
+  overlapHow: ["Réponds par le numéro.", "Réponds par le numéro, 1 ou 2."],
+  orderLost: ["Je ne retrouve plus cet ordre.", "Cet ordre a disparu de mon côté."],
+  already: ["Celui-là est déjà parti, rien de plus à faire.", "Déjà traité de mon côté."],
+  revalidateFailed: ["Entre-temps ce n'est plus possible, j'ai laissé tomber.", "Ça ne passe plus les vérifications, je ne lance rien."],
+  choiceUnknown: ["Je n'ai pas compris ce choix.", "Ce choix ne me dit rien, tu me redonnes le numéro ?"],
+  choiceStale: ["Ce choix n'est plus valable, redemande-moi.", "Ce choix a expiré, tu me redemandes ?"],
+  nothingLeft: ["Plus rien de possible dans cet ordre, je laisse tomber.", "Il ne reste rien de faisable dans cet ordre, je laisse tomber."],
+  altFree: voiceTemplate<{ label: string }>([{ label: "un post sur la roulette" }], (p) => [
+    `Pour « ${p.label} », dis-le moi en une phrase et je m'en occupe.`,
+    `Ok pour « ${p.label} » : redis-le moi en une phrase, je lance.`,
+  ]),
+  overlapKeptOld: ["Ok, je garde l'ancien et je laisse tomber le nouveau.", "D'accord, rien ne change : l'ancien continue."],
+  quickLate: [
+    "Trop tard pour l'annuler d'un mot : un premier post est déjà parti. Dis-moi « arrête l'ordre » et je stoppe la suite.",
+    "Le premier est déjà sorti. Écris « arrête l'ordre » et je coupe le reste.",
+  ],
+  quickDone: ["C'est annulé, rien n'est parti.", "Annulé avant le départ, rien n'a été publié.", "Ok, j'annule : rien n'est sorti."],
+} satisfies VoiceTable;
+
+const RV = ORDER_RECAP_VARIANTS;
+
 // ------------------------------------------------------------------------------------------------ classe
 
 export type OrderClass = { cls: "immediate" | "confirm"; reasons: string[]; days: number };
@@ -76,18 +169,18 @@ export async function classifyOrder(deps: BossDeps, v: Pick<ValidatedPlan, "plan
   const names = await channelNames(deps, v.channelIds);
   const scope = v.plan.scope as { test?: boolean; teamWide?: boolean; channelIds?: string[] };
   const realChannel = scope.teamWide === true || v.channelIds.some((id) => !names.get(id)?.isTest) || (!scope.test && !v.channelIds.length && v.steps.length > 0);
-  if (realChannel) reasons.push("ça touche un vrai canal");
+  if (realChannel) reasons.push(RV.reasonReal[0]!);
   const goesReal = v.plan.mode === "real" || v.steps.some((s) => s.capability.key === "mode");
-  if (goesReal) reasons.push("ça passe en vrai");
+  if (goesReal) reasons.push(RV.reasonGoesReal[0]!);
   const team = workingTeam(v.plan);
   const mediaSpend =
     team === "dating" &&
     (v.plan.format === "video" ||
       v.plan.format === "photo" ||
       v.plannedSteps.some((p) => (p.overrides ?? []).some((o) => o.format === "video" || o.format === "photo" || (o.mix && ((o.mix.video ?? 0) > 0 || (o.mix.photo ?? 0) > 0)))));
-  if (v.costCents > 0 || mediaSpend) reasons.push(v.costCents > 0 ? `ça coûte environ ${eur(v.costCents)} chez un fournisseur` : "ça fait produire des photos ou des vidéos payantes");
+  if (v.costCents > 0 || mediaSpend) reasons.push(v.costCents > 0 ? RV.reasonCost({ amount: eur(v.costCents) })[0]! : RV.reasonMedia[0]!);
   const days = daysBetween(v.fromDay, v.toDay);
-  if (days > ORDER_LIMITS.confirmOverDays) reasons.push(`ça dure ${days} jours`);
+  if (days > ORDER_LIMITS.confirmOverDays) reasons.push(RV.reasonDays({ days })[0]!);
   return { cls: reasons.length ? "confirm" : "immediate", reasons, days };
 }
 
@@ -131,38 +224,23 @@ export function recapWhatLine(
   if (!period || !qty) {
     const summaries = v.plannedSteps.map((p) => p.summary.trim().replace(/[.;\s]+$/, "")).filter(Boolean);
     const body = summaries.length ? summaries.join(" ; ") : `${orderTeamLabel(team)} s'en occupe`;
-    return `${pick(["Je m'en occupe", "Ok, je lance", "C'est noté"], "order.what.generic", chatId)} : ${body}, ${mode}.`;
+    return pick(RV.whatGeneric({ body, mode }), "order.what.generic", chatId);
   }
   const duration = days > 1 ? `pendant ${days} jours, ${period}` : period;
   const onTheme = theme ? ` sur ${theme}` : "";
   if (v.plan.asIfTeamKey) {
     const as = AS_IF_LABEL[v.plan.asIfTeamKey] ?? `un canal ${orderTeamLabel(v.plan.asIfTeamKey)}`;
-    return pick(
-      [
-        `Je fais tourner ${where} comme ${as} ${duration} : ${qty}${onTheme}, ${mode}.`,
-        `${cap(where)} passe en mode ${as.replace(/^un /, "")} ${duration} : ${qty}${onTheme}, ${mode}.`,
-      ],
-      "order.what.asif",
-      chatId,
-    );
+    return pick(RV.whatAsIf({ where, as, duration, qty, onTheme, mode }), "order.what.asif", chatId);
   }
-  return pick(
-    [`Je lance ${qty} sur ${where} ${duration}${onTheme}, ${mode}.`, `${cap(where)} : ${qty} ${duration}${onTheme}, ${mode}.`],
-    "order.what",
-    chatId,
-  );
-}
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return pick(RV.what({ where, duration, qty, onTheme, mode }), "order.what", chatId);
 }
 
 /** Ligne des bornes et des impossibles (pur), ou null. */
 export function recapAdjustLine(v: Pick<ValidatedPlan, "clamped" | "impossible">): string | null {
   const parts: string[] = [];
-  if (v.clamped.length) parts.push(`J'ai ramené dans les limites : ${v.clamped.slice(0, 2).join(" ; ")}.`);
+  if (v.clamped.length) parts.push(RV.adjustClamped({ list: v.clamped.slice(0, 2).join(" ; ") })[0]!);
   const imp = v.impossible.slice(0, 2).map((i) => `${i.part} (${i.reason})`);
-  if (imp.length) parts.push(`Pas possible : ${imp.join(" ; ")}.`);
+  if (imp.length) parts.push(RV.adjustImpossible({ list: imp.join(" ; ") })[0]!);
   return parts.length ? parts.join(" ") : null;
 }
 
@@ -253,8 +331,8 @@ async function writeOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSubmitCont
     kind: v.plan.kind,
     teamKey: workingTeam(v.plan),
     status: data.status as never,
-    startsAt: fromDay ? new Date(`${fromDay}T00:00:00Z`) : null,
-    endsAt: toDay ? new Date(`${addDaysToDay(toDay, 1)}T00:00:00Z`) : null,
+    startsAt: fromDay ? parisDayStart(fromDay) : null,
+    endsAt: toDay ? parisDayStart(addDaysToDay(toDay, 1)) : null,
     impossible: impossibleJson(v.impossible) as never,
     createdById: ctx.actor.userId,
     chatId: ctx.chat?.chatId != null ? ctx.chat.chatId.toString() : null,
@@ -307,7 +385,7 @@ async function offerAlternatives(
   const first = v.impossible[0];
   const reason = first ? sentence(`${first.part === "cette demande" ? "" : `${first.part} : `}${first.reason}`) : "";
   const options: { label: string; value: string }[] = [];
-  if (opts.launchPossible) options.push({ label: "lancer ce qui est possible", value: `${order.id}:go` });
+  if (opts.launchPossible) options.push({ label: RV.optionLaunchPossible[0]!, value: `${order.id}:go` });
   alts.forEach((a, i) => options.push({ label: a.label, value: `${order.id}:${i}` }));
   const shown = options.slice(0, 4);
   // Interprétation gardée avec les replis (le numéro rejoue sans IA).
@@ -315,21 +393,14 @@ async function offerAlternatives(
   await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { interpretation: JSON.parse(JSON.stringify(interp)) as never } });
   const execDeps = { ...deps, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null };
   if (!shown.length) {
-    const none = pick(
-      [
-        "Je n'ai rien d'autre à te proposer pour l'instant. Je l'ai noté pour la suite.",
-        "Pas de solution de rechange pour le moment, c'est noté pour plus tard.",
-      ],
-      "order.alt.none",
-      ctx.chat?.chatId,
-    );
+    const none = pick(RV.altNone, "order.alt.none", ctx.chat?.chatId);
     return { reply: [opts.head, reason, none].filter(Boolean).map((l) => esc(l!)).join("\n"), status: "unmet", orderId: order.id };
   }
   await askToChoose(execDeps, { actionKey: ORDER_ALTERNATIVE_ACTION, params: {}, field: "choix", question: reason, options: shown });
   const top = shown[0]!;
   const question = opts.launchPossible
-    ? pick(["Je lance le reste quand même ?", "Je fais déjà ce qui est possible ?", "On part sur le reste en attendant ?"], "order.alt.partial", ctx.chat?.chatId)
-    : pick([`Je te le fais avec ${top.label} à la place ?`, `On part sur ${top.label} à la place ?`, `Je te propose ${top.label}, ça te va ?`], "order.alt.one", ctx.chat?.chatId);
+    ? pick(RV.altPartial, "order.alt.partial", ctx.chat?.chatId)
+    : pick(RV.altOne({ label: top.label }), "order.alt.one", ctx.chat?.chatId);
   // Une seule confirmation à la fois : la proposition principale se confirme par OUI seulement si rien d'autre n'attend.
   const pending = await readBossPending(deps);
   let buttons: BossReply["buttons"];
@@ -349,7 +420,7 @@ async function offerAlternatives(
     `${reason} ${question}`.trim(),
     ...(shown.length > 1 ? shown.map((o, i) => `${i + 1}. ${o.label}`) : []),
     shown.length > 1
-      ? pick(["Réponds par le numéro, ou OUI pour le premier.", "Dis-moi le numéro (OUI = le premier)."], "order.alt.how", ctx.chat?.chatId)
+      ? pick(RV.altHow, "order.alt.how", ctx.chat?.chatId)
       : null,
   ].filter((l): l is string => !!l);
   return { reply: lines.map(esc).join("\n"), ...(buttons ? { buttons } : {}), ...(pendingId ? { pendingId } : {}), status: "clarify", orderId: order.id };
@@ -372,7 +443,7 @@ async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: Validated
   const allowed = await memberMayLaunch(deps, ctx.speaker, cls);
   if (cls.cls === "confirm" || !allowed) {
     const recap = await orderRecap(deps, v, { chatId });
-    const why = cls.reasons.length ? `${cap(cls.reasons.slice(0, 2).join(" et "))}, j'attends ton OUI.` : "J'attends ton OUI.";
+    const why = cls.reasons.length ? pick(RV.waitYes({ reasons: cls.reasons.slice(0, 2).join(" et ") }), "order.wait.yes", chatId) : pick(RV.waitYesNone, "order.wait.yes", chatId);
     const summaryLines = [recap.lines[0]!, [recap.lines[1], why].filter(Boolean).join(" ")];
     const summary = summaryLines.join("\n");
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "WAITING_CONFIRM", recap: summary, costCents: order.costCents + recap.costCents } });
@@ -390,14 +461,15 @@ async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: Validated
       await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { pendingId: r.pendingId ?? null } });
       await auditOrder(deps, "escalated", order, ctx.actor, { by: ctx.speaker.telegramUserId.toString() });
       const name = esc(await adminFirstName(deps).catch(() => "l'admin"));
-      if (ctx.chat?.type === "group") return { reply: `${name}, ${esc(who)} demande ça :\n${r.reply ?? ""}`, buttons: r.buttons, pendingId: r.pendingId, status: "confirm", orderId: order.id };
+      if (ctx.chat?.type === "group")
+        return { reply: pick(RV.memberAsksGroup({ admin: name, who: esc(who), body: r.reply ?? "" }), "order.member.asks", chatId), buttons: r.buttons, pendingId: r.pendingId, status: "confirm", orderId: order.id };
       try {
-        const sent = await deps.admin?.send(`${esc(who)} demande ça :\n${r.reply ?? ""}`, { buttons: r.buttons });
+        const sent = await deps.admin?.send(pick(RV.memberAsksPrivate({ who: esc(who), body: r.reply ?? "" }), "order.member.asks"), { buttons: r.buttons });
         if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
       } catch (err) {
         deps.logger?.warn({ err: (err as Error).message }, "[orders] demande transmise non envoyée");
       }
-      return { reply: pick([`C'est ${name} qui décide : je lui ai transmis.`, `Je passe la main à ${name}, c'est lui qui valide.`], "order.member", chatId), status: "confirm", orderId: order.id };
+      return { reply: pick(RV.memberHandedOver({ name }), "order.member", chatId), status: "confirm", orderId: order.id };
     }
     const r = await createBossPending(deps, { actionKey: ORDER_CONFIRM_ACTION, params: { ordre: order.id, op: "launch" }, summary, chatId });
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { pendingId: r.pendingId ?? null } });
@@ -411,16 +483,12 @@ async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: Validated
 export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: ValidatedPlan | null, ctx: { actor: BossActor; chat?: BossChat | null; confirmed?: boolean }): Promise<OrderReply> {
   const chatId = ctx.chat?.chatId ?? null;
   const tail = ctx.confirmed
-    ? pick(["Je te fais un point chaque soir.", "Je te tiens au courant chaque soir."], "order.tail.confirmed", chatId)
-    : pick(
-        ["Je te fais un point chaque soir. Tu changes d'avis ? Écris « annule » dans la minute.", "Point chaque soir. « annule » dans la minute si tu changes d'avis."],
-        "order.tail.immediate",
-        chatId,
-      );
+    ? pick(RV.tailConfirmed, "order.tail.confirmed", chatId)
+    : pick(RV.tailImmediate, "order.tail.immediate", chatId);
   let lines: string[];
   let cost = 0;
   const firstAt = v ? firstWindow(v.plannedSteps) : null;
-  const fullTail = firstAt ? `${pick([`Première production vers ${firstAt}.`, `Ça démarre vers ${firstAt}.`], "order.tail.first", chatId)} ${tail}` : tail;
+  const fullTail = firstAt ? `${pick(RV.tailFirst({ at: firstAt }), "order.tail.first", chatId)} ${tail}` : tail;
   if (v) {
     const recap = await orderRecap(deps, v, { chatId, tail: fullTail });
     lines = recap.lines;
@@ -436,7 +504,7 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
     await auditOrder(deps, "failed", order, ctx.actor, { message: (r.message ?? "").slice(0, 160) });
     return {
-      reply: esc(pick([`Ça n'a pas pu démarrer : ${r.message ?? "erreur interne"}. Je réessaie si tu me le redemandes.`, `Raté au démarrage (${r.message ?? "erreur interne"}). Redemande-moi et je relance.`], "order.start.failed", chatId)),
+      reply: esc(pick(RV.startFailed({ reason: r.message ?? "erreur interne" }), "order.start.failed", chatId)),
       status: "error",
       orderId: order.id,
     };
@@ -479,18 +547,14 @@ export async function submitOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSu
   if (v.status === "overlap" && v.overlap) {
     const names = await channelNames(deps, [v.overlap.channelId]);
     const where = names.get(v.overlap.channelId)?.name ?? "ce canal";
-    const question = pick(
-      [`Il y a déjà l'ordre n°${v.overlap.number} sur ${where} pour la même période. Lequel je garde ?`, `${cap(where)} a déjà l'ordre n°${v.overlap.number} sur ces jours-là. On garde lequel ?`],
-      "order.overlap",
-      chatId,
-    );
+    const question = pick(RV.overlap({ n: v.overlap.number, where }), "order.overlap", chatId);
     const options = [
-      { label: `le nouveau (j'arrête le n°${v.overlap.number})`, value: `new:${order.id}:${v.overlap.orderId}` },
-      { label: `l'ancien (je laisse tomber le nouveau)`, value: `old:${order.id}` },
+      { label: RV.overlapNew({ n: v.overlap.number })[0]!, value: `new:${order.id}:${v.overlap.orderId}` },
+      { label: RV.overlapOld[0]!, value: `old:${order.id}` },
     ];
     await askToChoose({ ...deps, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null } as BossDeps, { actionKey: ORDER_OVERLAP_ACTION, params: {}, field: "choix", question, options });
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { recap: question } });
-    return { reply: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`), "Réponds par le numéro."].map(esc).join("\n"), status: "clarify", orderId: order.id };
+    return { reply: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`), pick(RV.overlapHow, "order.overlap.how", chatId)].map(esc).join("\n"), status: "clarify", orderId: order.id };
   }
   if (v.status === "question") {
     const q = v.plan.questions[0]!;
@@ -524,13 +588,13 @@ export async function revalidateStored(deps: BossDeps, order: TeamOrderRow, muta
 /** OUI à un ordre en attente (`confirmer_ordre` op « launch ») : revalidé puis transmis. */
 export async function confirmOrderLaunch(deps: BossDeps, orderId: string, actor: BossActor): Promise<BossReply> {
   const order = await orderById(deps, orderId);
-  if (!order) return { reply: "Je ne retrouve plus cet ordre." };
+  if (!order) return { reply: pick(RV.orderLost, "order.lost") };
   if (order.status !== "WAITING_CONFIRM" && order.status !== "DRAFT")
-    return { reply: pick(["Celui-là est déjà parti, rien de plus à faire.", "Déjà traité de mon côté."], "order.already", order.chatId) };
+    return { reply: pick(RV.already, "order.already", order.chatId) };
   const v = await revalidateStored(deps, order);
   if (!v || !v.steps.length) {
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
-    return { reply: esc(pick(["Entre-temps ce n'est plus possible, j'ai laissé tomber.", "Ça ne passe plus les vérifications, je ne lance rien."], "order.revalidate.failed", order.chatId)) };
+    return { reply: esc(pick(RV.revalidateFailed, "order.revalidate.failed", order.chatId)) };
   }
   const chat: BossChat | null = order.chatId ? { type: BigInt(order.chatId) < 0n ? "group" : "private", chatId: BigInt(order.chatId) } : null;
   const { status: _s, orderId: _o, ...reply } = await startOrder(deps, order, v, { actor, chat, confirmed: true });
@@ -544,21 +608,21 @@ export async function replayAlternative(
   ctx: { actor: BossActor; speaker?: BossSpeaker | null; chat?: BossChat | null },
 ): Promise<OrderReply> {
   const m = /^([^:]+):(go|\d+)$/.exec(choice.trim());
-  if (!m) return { reply: "Je n'ai pas compris ce choix.", status: "clarify" };
+  if (!m) return { reply: pick(RV.choiceUnknown, "order.choice.unknown", ctx.chat?.chatId), status: "clarify" };
   const order = await orderById(deps, m[1]!);
   const interp = order ? (interpretationOf(order) as (StoredInterpretation & { alternatives?: Alternative[] }) | null) : null;
-  if (!order || !interp) return { reply: "Ce choix n'est plus valable, redemande-moi.", status: "clarify" };
+  if (!order || !interp) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
   const sub: OrderSubmitContext = { requestText: order.requestText, actor: ctx.actor, speaker: ctx.speaker, chat: ctx.chat, orderId: order.id, raw: interp.raw ?? null, cacheKey: order.planCacheKey };
   if (m[2] === "go") {
     const v = await revalidateStored(deps, order, (p) => ({ ...p, impossible: [] }));
-    if (!v || !v.steps.length) return { reply: "Plus rien de possible dans cet ordre, je laisse tomber.", status: "unmet" };
+    if (!v || !v.steps.length) return { reply: pick(RV.nothingLeft, "order.nothing.left", ctx.chat?.chatId), status: "unmet" };
     return submitOrder(deps, { ...v, impossible: [], status: v.status === "partial" ? "ok" : v.status }, sub);
   }
   const alt = interp.alternatives?.[Number(m[2])];
-  if (!alt) return { reply: "Ce choix n'est plus valable, redemande-moi.", status: "clarify" };
+  if (!alt) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
   if (!alt.capability)
     return {
-      reply: esc(pick([`Pour « ${alt.label} », dis-le moi en une phrase et je m'en occupe.`, `Ok pour « ${alt.label} » : redis-le moi en une phrase, je lance.`], "order.alt.free", ctx.chat?.chatId)),
+      reply: esc(pick(RV.altFree({ label: alt.label }), "order.alt.free", ctx.chat?.chatId)),
       status: "clarify",
     };
   const altCap = alt.capability;
@@ -568,7 +632,7 @@ export async function replayAlternative(
     theme: typeof altCap.params.theme === "string" ? altCap.params.theme : p.theme,
     impossible: [],
   }));
-  if (!v) return { reply: "Ce choix n'est plus valable, redemande-moi.", status: "clarify" };
+  if (!v) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
   return submitOrder(deps, v, sub);
 }
 
@@ -576,19 +640,19 @@ export async function replayAlternative(
 export async function resolveOverlapChoice(deps: BossDeps, choice: string, ctx: { actor: BossActor; speaker?: BossSpeaker | null; chat?: BossChat | null }): Promise<OrderReply> {
   const parts = choice.split(":");
   const order = parts[1] ? await orderById(deps, parts[1]) : null;
-  if (!order) return { reply: "Ce choix n'est plus valable, redemande-moi.", status: "clarify" };
+  if (!order) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
   if (parts[0] === "old") {
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
     await auditOrder(deps, "dropped", order, ctx.actor);
-    return { reply: pick(["Ok, je garde l'ancien et je laisse tomber le nouveau.", "D'accord, rien ne change : l'ancien continue."], "order.overlap.old", ctx.chat?.chatId), status: "done" };
+    return { reply: pick(RV.overlapKeptOld, "order.overlap.old", ctx.chat?.chatId), status: "done" };
   }
   const old = parts[2] ? await orderById(deps, parts[2]) : null;
   if (old) {
-    await stopOrder(deps, old.id, "remplacé par un nouvel ordre").catch(() => undefined);
+    await stopOrder(deps, old.id, ctx.actor, "remplacé par un nouvel ordre").catch(() => undefined);
     await auditOrder(deps, "replaced", old, ctx.actor, { by: order.id });
   }
   const v = await revalidateStored(deps, order);
-  if (!v) return { reply: "Ce choix n'est plus valable, redemande-moi.", status: "clarify" };
+  if (!v) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
   return launchOrConfirm(deps, order, { ...v, overlap: null, status: v.steps.length ? (v.impossible.length ? "partial" : "ok") : "empty" }, {
     requestText: order.requestText,
     actor: ctx.actor,
@@ -627,14 +691,14 @@ export async function orderQuickCancel(
   })) as number;
   if (started > 0)
     return {
-      reply: { reply: pick(["Trop tard pour l'annuler d'un mot : un premier post est déjà parti. Dis-moi « arrête l'ordre » et je stoppe la suite.", "Le premier est déjà sorti. Écris « arrête l'ordre » et je coupe le reste."], "order.quick.late", chat) },
+      reply: { reply: pick(RV.quickLate, "order.quick.late", chat) },
       actionKey: "annuler_ordre",
     };
-  await stopOrder(deps, order.id, "annulé dans la minute");
+  await stopOrder(deps, order.id, { userId: order.createdById, via: "TELEGRAM" }, "annulé dans la minute");
   await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
   await auditOrder(deps, "cancelled", order, { userId: null, via: "TELEGRAM" }, { quick: true });
   return {
-    reply: { reply: pick(["C'est annulé, rien n'est parti.", "Annulé avant le départ, rien n'a été publié.", "Ok, j'annule : rien n'est sorti."], "order.quick.done", chat) },
+    reply: { reply: pick(RV.quickDone, "order.quick.done", chat) },
     actionKey: "annuler_ordre",
   };
 }

@@ -377,7 +377,7 @@ describe("Kevin en privé : scénario complet (base réelle, faux Telegram, faus
       const before = enqueued.length;
       const m = mark();
       await toBoss(text(ADMIN, "raconte-moi la semaine du casino"));
-      expect(bossSentSince(m).join("\n")).toContain("Mon service d'arrière-plan est arrêté");
+      expect(bossSentSince(m).join("\n")).toMatch(/en panne (de mon côté|chez moi|pour l'instant)/);
       expect(enqueued.slice(before).filter((e) => e.job.type === "boss-text")).toHaveLength(1);
     } finally {
       prismaTelegramDeps.workerDown = async () => false;
