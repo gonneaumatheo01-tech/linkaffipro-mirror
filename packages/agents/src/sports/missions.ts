@@ -19,6 +19,11 @@ export type BetMissionInput = {
   oddsSource?: "fake" | "live";
   planDay?: string | null;
   reason?: string;
+  /** Phase 33 (ordre de Kevin) : canaux de destination de l'ordre, à la place de `BetCategory.channelIds`. */
+  channelIds?: string[] | null;
+  orderId?: string | null;
+  /** Phase 33 : paris voulus par cette sélection (manquants du jour de l'ordre). */
+  picksWanted?: number | null;
 };
 
 /** Quota d'un canal pour les paris : somme des paris par jour des catégories actives qui le visent. */
@@ -30,10 +35,11 @@ export async function betChannelQuota(deps: AgentsDeps, channelId: string): Prom
 
 export async function createBetMission(deps: AgentsDeps, i: BetMissionInput): Promise<CreateMissionResult> {
   let channelId: string | null = null;
+  const destinations = i.channelIds?.length ? i.channelIds : i.category.channelIds;
   if (i.isTest) channelId = (await findTestChannel(deps.prisma))?.id ?? null;
   else {
-    const channels = await deps.prisma.channel.findMany({ where: { id: { in: i.category.channelIds }, isActive: true }, select: { id: true } });
-    channelId = i.category.channelIds.find((id) => channels.some((c) => c.id === id)) ?? null;
+    const channels = await deps.prisma.channel.findMany({ where: { id: { in: destinations }, isActive: true }, select: { id: true } });
+    channelId = destinations.find((id) => channels.some((c) => c.id === id)) ?? null;
   }
   if (!channelId)
     return { ok: false, reason: i.isTest ? "Aucun canal Test : cochez « canal de test » sur un canal (page Canaux)." : `La catégorie « ${i.category.name} » n'a aucun canal de destination actif.` };
@@ -46,12 +52,14 @@ export async function createBetMission(deps: AgentsDeps, i: BetMissionInput): Pr
     isTest: i.isTest === true,
     planDay: i.planDay ?? null,
     format: "photo",
-    postsPerDay: i.isTest ? undefined : await betChannelQuota(deps, channelId),
+    postsPerDay: i.isTest ? undefined : i.orderId ? Math.max(1, i.picksWanted ?? 1) + (await betChannelQuota(deps, channelId)) : await betChannelQuota(deps, channelId),
     skipAgents: i.pickId ? ["cotes"] : [],
+    orderId: i.orderId ?? null,
     payload: {
       categoryId: i.category.id,
       oddsSource: i.oddsSource ?? "live",
-      targetChannelIds: i.isTest ? [channelId] : i.category.channelIds,
+      targetChannelIds: i.isTest ? [channelId] : destinations,
+      ...(i.picksWanted ? { picksWanted: i.picksWanted } : {}),
       ...(i.pickId ? { pickId: i.pickId } : {}),
       ...(i.reason ? { passage: i.reason } : {}),
     },

@@ -34,7 +34,8 @@ export function casinoFallbacksOf(payload: Record<string, unknown>): CasinoFallb
 
 /** Mélange d'une mission casino : celui d'un test A/B « mélange » en cours, sinon celui du plan (défaut casino). */
 function missionMix(plan: PlanInfo, mission: Mission) {
-  if (plan.test) return CASINO_DEFAULT_MIX;
+  // Phase 33 : un ordre de Kevin sur le canal Test donne son mélange (`orderPlan.mix`, déjà dans le plan).
+  if (plan.test && !(mission.payload.orderPlan as { mix?: unknown } | undefined)?.mix) return CASINO_DEFAULT_MIX;
   const e = missionExperimentOf(mission.payload as Record<string, unknown>);
   return e?.kind === "MELANGE" && e.config.mix ? plan.mix : casinoMix(plan.rawMix ?? null);
 }
@@ -96,7 +97,7 @@ export async function runCasinoMediatheque(mission: Mission, ctx: AgentContext):
     return { ok: true, skipped: p.format === "text", output: {}, summary: p.mediaAssetId ? `média ${p.mediaAssetId} déjà choisi` : "post texte" };
   const settings = parseCasinoSettings(ctx.settings.settings);
   const plan = await loadPlan(ctx.prisma, mission);
-  const planThemes = plan.test ? [] : casinoThemesOf(plan.themeWeights ?? plan.themes);
+  const planThemes = plan.test && !(p.orderPlan as { themes?: unknown } | undefined)?.themes ? [] : casinoThemesOf(plan.themeWeights ?? plan.themes);
   const themes = planThemes.length ? planThemes : settings.themes.map((theme) => ({ theme, weight: 1 }));
   const planned: MediaFormat = isFormat(p.plannedFormat) ? p.plannedFormat : isFormat(p.format) ? p.format : casinoDayFormat(missionMix(plan, mission), await plannedToday(ctx, mission));
   const forced = typeof p.theme === "string" && p.theme ? p.theme : null;

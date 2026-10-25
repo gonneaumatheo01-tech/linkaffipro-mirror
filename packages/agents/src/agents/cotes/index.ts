@@ -33,10 +33,14 @@ export const agent: AgentDefinition = {
     const s = parseSportsSettings(ctx.settings.settings);
     const category = withTeamBounds(raw, s);
     const now = ctx.now();
-    const remaining = mission.isTest ? 1 : category.picksPerDay - (await picksToday(ctx.prisma, category.id, now));
+    // Phase 33 : une sélection d'un ordre de Kevin cherche les paris manquants du jour de l'ordre (`picksWanted`).
+    const orderId = typeof mission.payload.orderId === "string" ? mission.payload.orderId : null;
+    const wanted = orderId && typeof mission.payload.picksWanted === "number" ? Math.max(1, Math.round(mission.payload.picksWanted)) : null;
+    const remaining = wanted ?? (mission.isTest ? 1 : category.picksPerDay - (await picksToday(ctx.prisma, category.id, now)));
     if (remaining <= 0) return noPick(`quota du jour atteint (${category.picksPerDay} paris)`);
 
-    const source = mission.payload.oddsSource === "fake" || mission.isTest ? "fake" : "live";
+    // Pari de test : faux fournisseur ; un ordre sur le canal Test lit les vraies cotes si la clé existe (`oddsSource: live`).
+    const source = mission.payload.oddsSource === "fake" || (mission.isTest && !(orderId && mission.payload.oddsSource === "live")) ? "fake" : "live";
     const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth });
     if (!resolved) return noPick("aucune clé de cotes : rien à chercher");
     // Faux fournisseur : décalage des fixtures gardé dans le pari (mêmes heures de match aux étapes suivantes).
@@ -64,7 +68,7 @@ export const agent: AgentDefinition = {
         source: resolved.source,
       });
       const chosen = ranked.candidates.slice(0, remaining);
-      if (!mission.isTest)
+      if (!mission.isTest && !orderId)
         await addKickoffTriggers(ctx, category.id, ranked.candidates.slice(remaining, remaining + 5).map((c) => c.event.startsAt), s.kickoffTriggerHours);
       const stats = `${events.length} matchs, ${ranked.considered} sélections`;
       if (!chosen.length) return noPick(`${stats}, aucun pari intéressant`, { rejected: ranked.rejected });
@@ -73,7 +77,15 @@ export const agent: AgentDefinition = {
       for (const c of chosen) picks.push(await createPick(ctx, mission, category.id, c, fakeShiftMs));
       // Paris suivants : une mission sœur chacun (même catégorie, même source).
       for (const pick of picks.slice(1)) {
-        const r = await createBetMission(ctx, { category, createdBy: mission.isTest ? "HUMAN" : "GRAND_CHEF", isTest: mission.isTest, pickId: pick.id, oddsSource: resolved.source });
+        const targets = Array.isArray(mission.payload.targetChannelIds) ? (mission.payload.targetChannelIds as string[]) : null;
+        const r = await createBetMission(ctx, {
+          category,
+          createdBy: mission.isTest || orderId ? "HUMAN" : "GRAND_CHEF",
+          isTest: mission.isTest,
+          pickId: pick.id,
+          oddsSource: resolved.source,
+          ...(orderId ? { orderId, channelIds: targets, createdById: await missionCreator(ctx, mission.id), planDay: await missionPlanDay(ctx, mission.id) } : {}),
+        });
         if (r.ok) await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { missionId: r.missionId } });
         else await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { status: "SKIPPED", skipReason: `mission non créée : ${r.reason}`.slice(0, 300) } });
       }
@@ -90,6 +102,14 @@ export const agent: AgentDefinition = {
     }
   },
 };
+
+async function missionCreator(ctx: Parameters<AgentDefinition["run"]>[1], missionId: string): Promise<string | null> {
+  return ((await ctx.prisma.agentMission.findUnique({ where: { id: missionId }, select: { createdById: true } })) as { createdById: string | null } | null)?.createdById ?? null;
+}
+
+async function missionPlanDay(ctx: Parameters<AgentDefinition["run"]>[1], missionId: string): Promise<string | null> {
+  return ((await ctx.prisma.agentMission.findUnique({ where: { id: missionId }, select: { planDay: true } })) as { planDay: string | null } | null)?.planDay ?? null;
+}
 
 async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: Mission, categoryId: string, c: Candidate, fakeShiftMs: number | null) {
   return ctx.prisma.bettingPick.create({

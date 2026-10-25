@@ -9,6 +9,37 @@ import { agentAudit, agentEvent, esc, nowOf, readSetting, writeSetting } from ".
 import type { AgentsDeps } from "../../types";
 import { BOSS_GROUP_MORNING_SETTING, BOSS_GROUP_REQUESTS_SETTING, BOSS_GROUP_SETTING } from "../contract";
 import { readBossName } from "../memory";
+import { pick, voiceTemplate, type VoiceTable } from "../voice";
+
+/** Textes de Kevin pour le groupe (charte `docs/KEVIN-VOIX.md`, contrôlés par `voice.test.ts`). Valeurs déjà échappées. */
+export const TEAM_GROUP_VARIANTS = {
+  welcome: voiceTemplate(
+    [
+      { boss: "Kevin", admin: "Mathéo" },
+      { boss: "Kevin", admin: "Chef" },
+    ],
+    (p) => [
+      `Salut, moi c'est ${p.boss}. ${p.admin}, présente-moi l'équipe : qui fait quoi ?`,
+      `Salut tout le monde, moi c'est ${p.boss}. ${p.admin}, tu me dis qui fait quoi ici ?`,
+      `Hello, moi c'est ${p.boss}, le bot de l'équipe. ${p.admin}, présente-moi tout le monde : qui fait quoi ?`,
+    ],
+  ),
+  deleteRight: voiceTemplate([{ boss: "Kevin" }], (p) => [
+    `Petit service : nomme-moi administrateur du groupe avec le seul droit « Supprimer des messages ». Si quelqu'un colle une clé ici par erreur, je l'efface aussitôt. — ${p.boss}`,
+    `Un truc à régler : mets-moi administrateur du groupe, avec juste le droit « Supprimer des messages ». Comme ça, une clé collée ici par erreur, je l'efface tout de suite. — ${p.boss}`,
+  ]),
+  /** Question OUI / NON (texte brut : `createBossPending` échappe et garde 2 lignes). */
+  replaceGroup: voiceTemplate(
+    [
+      { title: "Équipe Casino", hadOld: true },
+      { title: "-1001234567890", hadOld: false },
+    ],
+    (p) => [
+      `Je passe sur le groupe « ${p.title} » pour l'équipe${p.hadOld ? ", à la place de l'ancien" : ""} ?\nJe n'écrirai plus que dans celui-là.`,
+      `On bosse maintenant dans « ${p.title} »${p.hadOld ? " plutôt que dans l'ancien groupe" : ""} ?\nJe n'écrirai plus que là-bas.`,
+    ],
+  ),
+} satisfies VoiceTable;
 
 /** `Setting` : `{ chatId, title }` du groupe d'où Kevin a été retiré (il n'y écrit plus jusqu'à ce que l'admin le remette). */
 export const BOSS_GROUP_LEFT_SETTING = "boss.group.left";
@@ -87,13 +118,18 @@ export async function activeBossGroup(deps: AgentsDeps): Promise<bigint | null> 
 }
 
 /** Accueil dit une fois dans le groupe (pur). */
-export function groupWelcomeText(bossName: string, adminFirstName: string | null): string {
-  return `Salut, moi c'est ${esc(bossName)}. ${esc(adminFirstName?.trim() || "Chef")}, présente-moi l'équipe : qui fait quoi ?`;
+export function groupWelcomeText(bossName: string, adminFirstName: string | null, chatId: bigint | null = null): string {
+  return pick(TEAM_GROUP_VARIANTS.welcome({ boss: esc(bossName), admin: esc(adminFirstName?.trim() || "Chef") }), "group.welcome", chatId);
 }
 
 /** Demande du droit de supprimer des messages (une fois, pur). */
-export function deleteRightText(bossName: string): string {
-  return `Petit service : nomme-moi administrateur du groupe avec le seul droit « Supprimer des messages ». Si quelqu'un colle une clé ici par erreur, je l'efface aussitôt. — ${esc(bossName)}`;
+export function deleteRightText(bossName: string, chatId: bigint | null = null): string {
+  return pick(TEAM_GROUP_VARIANTS.deleteRight({ boss: esc(bossName) }), "group.deleteRight", chatId);
+}
+
+/** Question du changement de groupe (texte brut, deux lignes ; échappée par `createBossPending`). */
+export function groupReplacementSummary(title: string, hadOld: boolean, chatId: bigint | null = null): string {
+  return pick(TEAM_GROUP_VARIANTS.replaceGroup({ title, hadOld }), "group.replaceGroup", chatId);
 }
 
 /** Enregistre le groupe (journal + audit, l'ancien est oublié). */
@@ -121,7 +157,7 @@ export async function claimGroupWelcome(deps: AgentsDeps, chatId: bigint, adminF
   const done = await readSetting(deps, BOSS_GROUP_WELCOMED_SETTING);
   if (asChatId(done) === chatId) return null;
   await writeSetting(deps, BOSS_GROUP_WELCOMED_SETTING, chatId.toString());
-  return groupWelcomeText(await readBossName(deps), adminFirstName);
+  return groupWelcomeText(await readBossName(deps), adminFirstName, chatId);
 }
 
 /** Demande du droit de supprimer, une seule fois (et seulement si Kevin ne l'a pas déjà), ou null. */
@@ -129,7 +165,7 @@ export async function claimDeleteRightAsk(deps: AgentsDeps): Promise<string | nu
   if ((await readSetting(deps, BOSS_GROUP_CAN_DELETE_SETTING)) === true) return null;
   if ((await readSetting(deps, BOSS_GROUP_DELETE_ASKED_SETTING)) !== undefined) return null;
   await writeSetting(deps, BOSS_GROUP_DELETE_ASKED_SETTING, nowOf(deps).toISOString());
-  return deleteRightText(await readBossName(deps));
+  return deleteRightText(await readBossName(deps), await readBossGroupId(deps));
 }
 
 /** Droit de supprimer des messages dans le groupe enregistré (statut de Kevin vu par `my_chat_member`). */

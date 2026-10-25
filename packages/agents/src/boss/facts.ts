@@ -16,6 +16,54 @@ import { TEAM_LABELS, type ProviderKey, type TeamKey } from "../types";
 import type { BossDeps } from "./contract";
 import { bossMonthSpend, bossMonthlyCapCents } from "./llm";
 import { eur, plural } from "./catalog-kit";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
+
+/** Textes fixes des réponses chiffrées écrites par le code (charte `docs/KEVIN-VOIX.md`). */
+export const FACTS_VARIANTS = {
+  stateHead: voiceTemplate(
+    [
+      { pausedAll: true, validations: 2, requests: 1, alerts: 0 },
+      { pausedAll: false, validations: 0, requests: 3, alerts: 1 },
+    ],
+    (p: { pausedAll: boolean; validations: number; requests: number; alerts: number }) => {
+      const pause = p.pausedAll ? "Tout est en pause générale. " : "";
+      const what = `${plural(p.validations, "post")} à valider, ${plural(p.requests, "question")} pour toi, ${plural(p.alerts, "alerte")}`;
+      return [`${pause}En ce moment : ${what}.`, `${pause}Côté agents : ${what}.`];
+    },
+  ),
+  spendHead: voiceTemplate([{ total: "12,50 €", projected: "40 €" }], (p: { total: string; projected: string }) => [
+    `Ce mois-ci : ${p.total} dépensés, environ ${p.projected} pour les équipes d'ici la fin du mois.`,
+    `${p.total} dépensés ce mois-ci. À ce rythme, les équipes finiront vers ${p.projected}.`,
+  ]),
+  resultsHead: voiceTemplate([{ periode: "7 derniers jours" }], (p: { periode: string }) => [
+    `Résultats des agents sur les ${p.periode} :`,
+    `Sur les ${p.periode}, côté agents :`,
+  ]),
+  requestsHead: voiceTemplate([{ n: 1 }, { n: 3 }], (p: { n: number }) => [
+    `${p.n > 1 ? `${p.n} questions attendent` : "1 question attend"} ta réponse :`,
+    `Tu as ${plural(p.n, "question")} en attente :`,
+  ]),
+  requestsNone: ["Aucune question en attente ✅", "Rien à te demander pour l'instant ✅", "Pas de question ouverte, tout est répondu ✅"],
+  validationsHead: voiceTemplate([{ n: 1 }, { n: 4 }], (p: { n: number }) => [
+    `${plural(p.n, "post")} à valider :`,
+    `${p.n > 1 ? `${p.n} posts attendent` : "1 post attend"} ton feu vert :`,
+  ]),
+  validationsHow: voiceTemplate([{ n: 12 }], (p: { n: number }) => [
+    `Réponds « ok ${p.n} » pour publier, « non ${p.n} » pour refuser.`,
+    `« ok ${p.n} » pour publier, « non ${p.n} » pour refuser.`,
+  ]),
+  validationsNone: ["Aucun post à valider ✅", "Rien à valider pour l'instant ✅", "Tout est validé, rien n'attend ✅"],
+  betsHead: voiceTemplate([{ n: 1 }, { n: 3 }], (p: { n: number }) => [`${plural(p.n, "pari")} aujourd'hui :`, `Aujourd'hui, ${plural(p.n, "pari")} :`]),
+  betsNone: ["Aucun pari aujourd'hui pour l'instant.", "Pas encore de pari aujourd'hui."],
+  summaryHead: voiceTemplate([{ periode: "7 derniers jours" }], (p: { periode: string }) => [
+    `Bilan des paris sur les ${p.periode} :`,
+    `Sur les ${p.periode}, les paris donnent :`,
+  ]),
+  summaryNone: voiceTemplate([{ days: 7 }], (p: { days: number }) => [
+    `Aucun pari terminé sur les ${p.days} derniers jours.`,
+    `Pas de pari terminé ces ${p.days} derniers jours.`,
+  ]),
+} satisfies VoiceTable;
 
 export type Facts = { facts: Record<string, unknown>; lines: string[] };
 
@@ -63,10 +111,10 @@ export async function stateFacts(deps: BossDeps, team?: TeamKey | null): Promise
     })),
   };
   const ls = [
-    `${o.pausedAll ? "⏸ Pause générale. " : ""}À valider : ${o.pendingValidations} · demandes : ${o.openHumanRequests} · alertes : ${o.openAlerts}`,
+    pick(FACTS_VARIANTS.stateHead({ pausedAll: o.pausedAll, validations: o.pendingValidations, requests: o.openHumanRequests, alerts: o.openAlerts }), "facts.stateHead"),
     ...teams.map(
       (t) =>
-        `${t.label} : ${t.paused ? "⏸ pause" : "▶️ active"}, ${t.simulation ? "simulation" : "en vrai"}, niveau ${t.autonomyLevel} · aujourd'hui ${t.today.created} créé${t.today.created > 1 ? "s" : ""}, ${t.today.published} publié${t.today.published > 1 ? "s" : ""}, ${t.today.waiting} en attente`,
+        `${t.label} : ${t.paused ? "en pause" : "active"}, ${t.simulation ? "pour de faux" : "en vrai"}, niveau ${t.autonomyLevel}. Aujourd'hui ${t.today.created} créé${t.today.created > 1 ? "s" : ""}, ${t.today.published} publié${t.today.published > 1 ? "s" : ""}, ${t.today.waiting} en attente.`,
     ),
   ];
   return { facts, lines: ls };
@@ -98,12 +146,12 @@ export async function spendFacts(deps: BossDeps, team?: TeamKey | null): Promise
     ...(team ? {} : { iaDuBoss: { euros: euros(boss.cents), plafondEuros: euros(bossCap) } }),
   };
   const ls = [
-    `💶 Dépensé ce mois : ${eur(totalCents)} (projection équipes à fin de mois : ${eur(projected)})`,
+    pick(FACTS_VARIANTS.spendHead({ total: eur(totalCents), projected: eur(projected) }), "facts.spendHead"),
     ...teams.map((t) => {
       const parts = t.spend.map((p) => `${PROVIDER_LABELS[p.provider as ProviderKey] ?? p.provider} ${eur(p.cents)}${p.capCents !== null ? ` / ${eur(p.capCents)}` : ""}`);
       return `${t.label} : ${parts.length ? parts.join(", ") : "rien"}`;
     }),
-    ...(team ? [] : [`IA du Boss : ${eur(boss.cents)} / ${eur(bossCap)}`]),
+    ...(team ? [] : [`Mon IA : ${eur(boss.cents)} sur ${eur(bossCap)} permis.`]),
   ];
   return { facts, lines: ls };
 }
@@ -118,12 +166,12 @@ export async function resultsFacts(deps: BossDeps, period: "7j" | "28j", team?: 
     equipes: teams.map((t) => ({ equipe: t.label, ...t.results[key] })),
   };
   const ls = [
-    `📈 Résultats des agents (${facts.periode})`,
+    pick(FACTS_VARIANTS.resultsHead({ periode: facts.periode }), "facts.resultsHead"),
     ...teams.map((t) => {
       const r = t.results[key];
       return r.posts
         ? `${t.label} : ${plural(r.posts, "post")}, ${plural(r.views, "vue")}, ${plural(r.clicks, "clic")}, ${plural(r.registrations, "inscription")}, ${plural(r.ftds, "premier dépôt", "premiers dépôts")}, ${eur(Math.round(r.commissions * 100))} de commissions`
-        : `${t.label} : aucun post sur la période`;
+        : `${t.label} : aucun post sur la période.`;
     }),
   ];
   return { facts, lines: ls };
@@ -148,8 +196,11 @@ export async function requestsFacts(deps: BossDeps): Promise<Facts> {
     liste: rows.slice(0, 5).map((r) => ({ question: first(r.question), enCours: r.status === "PENDING" })),
   };
   const ls = rows.length
-    ? [`Demandes ouvertes (${rows.length}) :`, ...rows.slice(0, 5).map((r, i) => `${i + 1}. ${r.status === "PENDING" ? "[en cours] " : ""}${first(r.question)}`)]
-    : ["Aucune demande ouverte 👍"];
+    ? [
+        pick(FACTS_VARIANTS.requestsHead({ n: rows.length }), "facts.requestsHead"),
+        ...rows.slice(0, 5).map((r, i) => `${i + 1}. ${r.status === "PENDING" ? "(posée) " : ""}${first(r.question)}`),
+      ]
+    : [pick(FACTS_VARIANTS.requestsNone, "facts.requestsNone")];
   return { facts, lines: ls };
 }
 
@@ -167,11 +218,12 @@ export async function validationsFacts(deps: BossDeps): Promise<Facts> {
   };
   const ls = rows.length
     ? [
-        `À valider (${rows.length}) :`,
-        ...rows.map((r) => `n°${r.number} · ${TEAM_LABELS[r.teamKey as TeamKey] ?? r.teamKey} · ${r.reason.slice(0, 60)}`),
-        "Écris « ok <n> » pour publier, « non <n> » pour refuser.",
+        pick(FACTS_VARIANTS.validationsHead({ n: rows.length }), "facts.validationsHead"),
+        ...rows.slice(0, 5).map((r) => `n°${r.number} · ${TEAM_LABELS[r.teamKey as TeamKey] ?? r.teamKey} · ${r.reason.slice(0, 60)}`),
+        ...(rows.length > 5 ? [`Et ${rows.length - 5} de plus sur le site (Agents → Validations).`] : []),
+        pick(FACTS_VARIANTS.validationsHow({ n: rows[0]!.number }), "facts.validationsHow"),
       ]
-    : ["Aucun post à valider 👍"];
+    : [pick(FACTS_VARIANTS.validationsNone, "facts.validationsNone")];
   return { facts, lines: ls };
 }
 
@@ -195,8 +247,8 @@ export async function stockFacts(deps: BossDeps, team?: TeamKey | null): Promise
     out.rencontres = rows;
     ls.push(
       rows.length
-        ? `🎬 Rencontres : ${rows.map((r) => `${r.persona} ${plural(r.videosSourcesNonUtilisees, "vidéo source", "vidéos sources")} non utilisée${r.videosSourcesNonUtilisees > 1 ? "s" : ""}, ${plural(r.photos, "photo")}`).join(" · ")}`
-        : "🎬 Rencontres : aucune persona active.",
+        ? `Rencontres : ${rows.map((r) => `${r.persona} ${plural(r.videosSourcesNonUtilisees, "vidéo source", "vidéos sources")} non utilisée${r.videosSourcesNonUtilisees > 1 ? "s" : ""}, ${plural(r.photos, "photo")}`).join(" · ")}`
+        : "Rencontres : aucune persona active.",
     );
   }
   if (!team || team === "casino") {
@@ -208,13 +260,13 @@ export async function stockFacts(deps: BossDeps, team?: TeamKey | null): Promise
     };
     ls.push(
       rows.length === 0
-        ? "🎰 Casino : aucun canal avec des thèmes."
+        ? "Casino : aucun canal avec des thèmes."
         : low.length
-          ? `🎰 Casino : ${plural(low.length, "thème en manque", "thèmes en manque")} : ${low
+          ? `Casino : ${plural(low.length, "thème en manque", "thèmes en manque")} : ${low
               .slice(0, 6)
               .map((r) => `${r.channelTitle} / ${r.theme} (${r.unused})`)
               .join(", ")}${low.length > 6 ? "…" : ""}`
-          : "🎰 Casino : stock suffisant sur tous les thèmes.",
+          : "Casino : assez de médias sur tous les thèmes.",
     );
   }
   return { facts: out, lines: ls };
@@ -234,10 +286,15 @@ export async function betsTodayFacts(deps: BossDeps): Promise<Facts> {
     total: rows.length,
     paris: rows.map((r) => ({ match: `${r.homeTeam} - ${r.awayTeam}`, pari: `${r.marketLabel} : ${r.selectionLabel}`, cote: r.odds, statut: r.status })),
   };
-  const STATUS: Record<string, string> = { PROPOSED: "prévu", PUBLISHED: "publié", WON: "gagné ✅", LOST: "perdu ❌", VOID: "annulé" };
+  const STATUS: Record<string, string> = { PROPOSED: "prévu", PUBLISHED: "publié", WON: "gagné", LOST: "perdu", VOID: "annulé" };
+  const MARK: Record<string, string> = { WON: "✅ ", LOST: "❌ " };
   const ls = rows.length
-    ? [`⚽ Paris du jour (${rows.length}) :`, ...rows.slice(0, 8).map((r) => `${r.homeTeam} - ${r.awayTeam} · ${r.selectionLabel} à ${r.odds.toLocaleString("fr-FR")} · ${STATUS[r.status] ?? r.status}`)]
-    : ["⚽ Aucun pari aujourd'hui pour le moment."];
+    ? [
+        pick(FACTS_VARIANTS.betsHead({ n: rows.length }), "facts.betsHead"),
+        ...rows.slice(0, 5).map((r) => `${MARK[r.status] ?? ""}${r.homeTeam} - ${r.awayTeam} · ${r.selectionLabel} à ${r.odds.toLocaleString("fr-FR")} · ${STATUS[r.status] ?? "en cours"}`),
+        ...(rows.length > 5 ? [`Et ${rows.length - 5} de plus sur le site (Agents → Paris sportifs).`] : []),
+      ]
+    : [pick(FACTS_VARIANTS.betsNone, "facts.betsNone")];
   return { facts, lines: ls };
 }
 
@@ -251,10 +308,10 @@ export async function betSummaryFacts(deps: BossDeps, period: "7j" | "28j"): Pro
   };
   const ls = rows.length
     ? [
-        `📊 Bilan des paris (${facts.periode})`,
+        pick(FACTS_VARIANTS.summaryHead({ periode: facts.periode }), "facts.summaryHead"),
         ...rows.map((r) => `${r.label} : ${r.published} publié${r.published > 1 ? "s" : ""}, ${r.won} gagné${r.won > 1 ? "s" : ""}, ${r.lost} perdu${r.lost > 1 ? "s" : ""}${r.hitRate !== null ? `, ${pct(r.hitRate)} % de réussite` : ""}`),
       ]
-    : [`📊 Aucun pari terminé sur les ${days} derniers jours.`];
+    : [pick(FACTS_VARIANTS.summaryNone({ days }), "facts.summaryNone")];
   return { facts, lines: ls };
 }
 
@@ -344,10 +401,10 @@ export async function recommendationsFacts(deps: BossDeps): Promise<Facts> {
   };
   const ls = [
     proposed.length
-      ? `🧠 Réglages proposés : ${proposed.map((r, i) => `${i + 1}. ${recommendationLabel(r, names, r.targetId)}`).join(" · ")}`
-      : "🧠 Aucun réglage proposé par l'équipe Algorithme.",
+      ? `Réglages proposés : ${proposed.map((r, i) => `${i + 1}. ${recommendationLabel(r, names, r.targetId)}`).join(" · ")}`
+      : "Aucun réglage proposé par l'équipe Algorithme.",
     applied.length ? `Derniers appliqués : ${applied.slice(0, 3).map((r) => recommendationLabel(r, names, r.targetId)).join(" · ")}` : null,
-    ads.length ? `📣 Pubs : ${ads.map((r, i) => `${i + 1}. ${recommendationLabel(r)}`).join(" · ")}` : "📣 Aucune recommandation pubs ouverte.",
+    ads.length ? `Pubs : ${ads.map((r, i) => `${i + 1}. ${recommendationLabel(r)}`).join(" · ")}` : "Aucun conseil pubs en attente.",
   ].filter((l): l is string => !!l);
   return { facts, lines: ls };
 }

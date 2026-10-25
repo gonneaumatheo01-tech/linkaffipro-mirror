@@ -41,6 +41,8 @@ import {
   ReferenceVia,
   Role,
   SequenceTrigger,
+  TeamOrderKind,
+  TeamOrderStatus,
   TrackingLinkKind,
   Vertical,
 } from "@linkaffipro/db";
@@ -103,6 +105,8 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["bettingPick", BettingPickStatus],
   ["referenceStatus", ReferenceStatus],
   ["referenceVia", ReferenceVia],
+  ["teamOrder", TeamOrderStatus],
+  ["teamOrderKind", TeamOrderKind],
 ];
 
 describe("badges de statut", () => {

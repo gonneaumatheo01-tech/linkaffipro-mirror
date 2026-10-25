@@ -32,9 +32,137 @@ import {
   type TeamMemberRow,
 } from "./team/members";
 import { parseKindList, parseReturnDate, parseTeamList } from "./team/parse";
-import { activeBossGroup, claimDeleteRightAsk, claimGroupWelcome, readBossGroupId, setBossGroup } from "./team/group";
+import { activeBossGroup, claimDeleteRightAsk, claimGroupWelcome, groupReplacementSummary, readBossGroupId, setBossGroup } from "./team/group";
 import { adminTelegramId } from "../admin/journal";
 import { createBossPending, rememberBossPendingMessage } from "./confirm";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
+
+type Who = { name: string };
+const LEA: Who = { name: "Léa" };
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
+
+/**
+ * Textes de Kevin pour l'équipe (charte `docs/KEVIN-VOIX.md`, contrôlés par `voice.test.ts`). Les valeurs passées aux
+ * modèles sont déjà échappées, sauf les questions OUI / NON (`confirm*`, `groupe`) : `createBossPending` les échappe.
+ */
+export const CATALOG_TEAM_VARIANTS = {
+  ambiguous: voiceTemplate([{ names: "Léa (@lea), Léa (@lea_casino)" }], (p) => [
+    `Plusieurs personnes possibles : ${p.names}. Mentionne la bonne avec @.`,
+    `J'en vois plusieurs : ${p.names}. Tu mentionnes la bonne avec @ ?`,
+  ]),
+  uncertain: ["Mentionne la personne avec @ : je ne me fie pas à un prénom seul.", "Un prénom seul ne me suffit pas : mentionne la personne avec @."],
+  unseen: voiceTemplate([{ user: "lea", boss: "Kevin" }], (p) => [
+    `Je n'ai encore jamais vu @${p.user} écrire ici.\n@${p.user}, dis-moi juste « ${p.boss}, salut » et c'est réglé.`,
+    `Je n'ai jamais vu @${p.user} écrire ici pour l'instant.\n@${p.user}, écris juste « ${p.boss}, salut » et c'est bon.`,
+  ]),
+  unknown: [
+    "Je ne vois pas de qui tu parles : mentionne la personne avec @ (« voici @lea »), ou demande-lui de m'écrire un mot ici.",
+    "Je ne vois pas qui c'est. Tu la mentionnes avec @ (« voici @lea ») ? Sinon, demande-lui de m'écrire un mot ici.",
+  ],
+  teamUnknownFull: voiceTemplate([{ team: "cuisine" }], (p) => [
+    `Je ne connais pas cette équipe (${p.team}). Équipes : Rencontres, Casino, Paris sportifs, Algorithme, Pubs.`,
+    `« ${p.team} », je ne connais pas comme équipe. J'ai Rencontres, Casino, Paris sportifs, Algorithme et Pubs.`,
+  ]),
+  teamUnknownShort: voiceTemplate([{ team: "cuisine" }], (p) => [`Je ne connais pas cette équipe : ${p.team}.`, `Équipe inconnue pour moi : ${p.team}.`]),
+  self: ["Toi, je te connais déjà : tu as tous les droits 🙂", "Toi, pas besoin : tu as déjà tous les droits."],
+  adminDecides: voiceTemplate([{ name: "Mathéo" }, { name: "l'admin" }], (p: Who) => [
+    `Ça, c'est ${p.name} qui décide.`,
+    `C'est ${p.name} qui décide pour ça.`,
+    `Ça, il faut voir avec ${p.name}.`,
+  ]),
+  introduced: voiceTemplate(
+    [
+      { first: "Léa", duty: "vidéos casino et posts roulette", asks: "les vidéos et photos", manager: false },
+      { first: "Marc", duty: "Paris sportifs · les clés et mots de passe", asks: "", manager: true },
+    ],
+    (p: { first: string; duty: string; asks: string; manager: boolean }) => [
+      `Noté : ${p.first}, ${p.duty}.${p.asks ? ` Je lui demanderai ${p.asks} directement.` : ""}${p.manager ? ` ${p.first} peut aussi me présenter des gens.` : ""}`,
+      `C'est noté : ${p.first}, ${p.duty}.${p.asks ? ` Pour ${p.asks}, je passerai par ${p.first}.` : ""}${p.manager ? ` ${p.first} pourra aussi me présenter des gens.` : ""}`,
+    ],
+  ),
+  notPresented: voiceTemplate([{ name: "Léa", user: "lea" }, { name: "Cette personne", user: "nom" }], (p) => [
+    `${p.name} ne m'a pas encore été présenté·e. Dis par exemple « voici @${p.user}, elle s'occupe de … ».`,
+    `Je ne connais pas encore ${p.name} dans l'équipe. Présente-moi la personne d'abord, par exemple « voici @${p.user}, elle s'occupe de … ».`,
+  ]),
+  askDate: [
+    "Absente jusqu'à quand ? Dis par exemple « jusqu'à lundi » ou « jusqu'au 26/10 ».",
+    "Jusqu'à quand ? Dis-moi par exemple « jusqu'à lundi » ou « jusqu'au 26/10 ».",
+  ],
+  nothingChanges: voiceTemplate([LEA], (p: Who) => [
+    `Qu'est-ce qui change pour ${p.name} ? (tâches, absente jusqu'au…, de retour, une note)`,
+    `Je change quoi pour ${p.name} ? Ses tâches, une absence, son retour ou une note ?`,
+  ]),
+  edited: voiceTemplate(
+    [
+      { name: "Léa", said: "absent·e jusqu'au lundi 26 octobre", extra: " En attendant, je passe par Marc." },
+      { name: "Léa", said: "note : « préviens-moi le matin »", extra: "" },
+    ],
+    (p) => [`Noté : ${p.name}, ${p.said}.${p.extra}`, `C'est fait : ${p.name}, ${p.said}.${p.extra}`],
+  ),
+  replacedBy: voiceTemplate([{ name: "Marc" }], (p: Who) => [` En attendant, je passe par ${p.name}.`, ` D'ici là, je passe par ${p.name}.`]),
+  replacedByAdmin: voiceTemplate([{ name: "Mathéo" }], (p: Who) => [` En attendant, je demande à ${p.name}.`, ` D'ici là, je demande à ${p.name}.`]),
+  alreadyOut: voiceTemplate([LEA], (p: Who) => [`${p.name} ne fait déjà pas partie de l'équipe.`, `${p.name} n'est déjà plus dans l'équipe.`]),
+  removed: voiceTemplate([LEA], (p: Who) => [
+    `Noté : ${p.name} ne fait plus partie de l'équipe. Je ne lui demanderai plus rien.`,
+    `Fait : ${p.name} n'est plus dans l'équipe, je ne lui demande plus rien.`,
+  ]),
+  whoEmpty: [
+    "Personne ne m'a encore été présenté.\nDis-moi par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino ».",
+    "On ne m'a encore présenté personne.\nDis-moi par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino ».",
+  ],
+  /** « qui fait quoi ? » : une liste demandée (une ligne par personne, 16 au plus). */
+  whoList: voiceTemplate(
+    [
+      { n: 1, lines: "• Léa (@lea) : vidéos casino et posts roulette", admin: "Mathéo" },
+      {
+        n: 9,
+        lines: Array.from({ length: 9 }, (_, i) => `• Personne ${i + 1} (@p${i + 1}) (responsable) : Casino · les vidéos et photos — absent·e jusqu'au lundi 26 octobre`).join("\n"),
+        admin: "l'admin",
+      },
+    ],
+    (p) => [
+      `${plural(p.n, "personne")} dans l'équipe :\n${p.lines}\n• ${p.admin} : tout le reste, et c'est lui qui confirme.`,
+      `Dans l'équipe, on est ${p.n} :\n${p.lines}\n• ${p.admin} : tout le reste, c'est lui qui confirme.`,
+    ],
+    { allowList: true, allowLong: true },
+  ),
+  checking: voiceTemplate([{ admin: "Mathéo", first: "Léa" }], (p) => [
+    `Je vérifie avec ${p.admin} avant de noter ${p.first} 👍`,
+    `Je vois avec ${p.admin} avant de noter ${p.first}.`,
+  ]),
+  /** Question OUI / NON (2 lignes, texte brut). */
+  confirmWaiting: voiceTemplate(
+    [{ who: "@lea", identity: "@lea, prénom « Léa », identifiant 777", first: "Léa", duty: "vidéos casino" }],
+    (p) => [
+      `${p.who} vient d'écrire (${p.identity}) : c'est bien la personne que tu m'as présentée ?\nJe la note alors : ${p.first}, ${p.duty}.`,
+      `${p.who} vient d'écrire (${p.identity}). C'est bien la personne que tu m'as présentée ?\nSi oui, je note : ${p.first}, ${p.duty}.`,
+    ],
+  ),
+  /** Question OUI / NON (2 lignes, texte brut). */
+  confirmFirstName: voiceTemplate(
+    [{ said: "Sam", identity: "sans nom d'utilisateur, prénom « Sam », identifiant 999", first: "Sam", duty: "vidéos casino" }],
+    (p) => [
+      `« ${p.said} », c'est bien cette personne (${p.identity}) ?\nJe la note alors : ${p.first}, ${p.duty}.`,
+      `Quand tu dis « ${p.said} », c'est bien cette personne : ${p.identity} ?\nSi oui, je note : ${p.first}, ${p.duty}.`,
+    ],
+  ),
+  confirmSummarize: voiceTemplate([{ first: "Sam", id: "999" }], (p) => [`Noter ${p.first} (identifiant ${p.id}) dans l'équipe ?`, `J'ajoute ${p.first} (identifiant ${p.id}) à l'équipe ?`]),
+  welcomeMember: voiceTemplate([LEA], (p: Who) => [`Bienvenue ${p.name} 👋`, `Bienvenue dans l'équipe, ${p.name} !`]),
+  groupSet: voiceTemplate([{ title: "Équipe Casino" }], (p) => [`C'est noté : je travaille maintenant dans « ${p.title} ».`, `Fait : je bosse maintenant dans « ${p.title} ».`]),
+} satisfies VoiceTable;
+
+/** Conversation en cours (rotation des tournures), ou null. */
+function chatOf(deps: BossDeps): bigint | null {
+  return (deps as BossExecDeps).chat?.chatId ?? null;
+}
+
+async function adminDecides(deps: BossDeps): Promise<BossReply> {
+  return { reply: pick(CATALOG_TEAM_VARIANTS.adminDecides({ name: esc(await adminFirstName(deps)) }), "team.adminDecides", chatOf(deps)) };
+}
+
+function selfReply(deps: BossDeps): BossReply {
+  return { reply: pick(CATALOG_TEAM_VARIANTS.self, "team.self", chatOf(deps)) };
+}
 
 const PERSON_DESC =
   "La personne : « @nom » tel qu'écrit, son prénom, ou « moi » si la personne parle d'elle-même. Recopie tel quel, n'invente jamais d'identifiant";
@@ -112,11 +240,11 @@ async function personFromMention(deps: BossDeps, m: MentionRef, members: TeamMem
   return { kind: "unseen", username: m.username! };
 }
 
-function notFoundReply(f: Exclude<Found, { kind: "found" }>, bossName = "Kevin"): BossReply {
-  if (f.kind === "ambiguous") return lines(`Plusieurs personnes possibles : ${f.names.map(esc).join(", ")}.`, "Mentionne la bonne avec @.");
-  if (f.kind === "uncertain") return { reply: "Mentionne la personne avec @ : je ne me fie pas à un prénom seul." };
-  if (f.kind === "unseen") return lines(`Je n'ai encore jamais vu @${esc(f.username)} écrire ici.`, `@${esc(f.username)}, dis-moi juste « ${esc(bossName)}, salut » et c'est réglé.`);
-  return { reply: "Je ne vois pas de qui tu parles : mentionne la personne avec @ (« voici @lea »), ou demande-lui de m'écrire un mot ici." };
+function notFoundReply(f: Exclude<Found, { kind: "found" }>, chatId: bigint | null, bossName = "Kevin"): BossReply {
+  if (f.kind === "ambiguous") return { reply: pick(CATALOG_TEAM_VARIANTS.ambiguous({ names: f.names.map(esc).join(", ") }), "team.ambiguous", chatId) };
+  if (f.kind === "uncertain") return { reply: pick(CATALOG_TEAM_VARIANTS.uncertain, "team.uncertain", chatId) };
+  if (f.kind === "unseen") return { reply: pick(CATALOG_TEAM_VARIANTS.unseen({ user: esc(f.username), boss: esc(bossName) }), "team.unseen", chatId) };
+  return { reply: pick(CATALOG_TEAM_VARIANTS.unknown, "team.unknown", chatId) };
 }
 
 const TEAM_WORDS: ReadonlyArray<readonly [RegExp, TeamMemberTeam]> = [
@@ -172,7 +300,8 @@ export const presenterMembre = defineAction<PresentP>({
     const f = await findPerson(deps, p.personne);
     const speaker = speakerOf(deps);
     const teamsParsed = parseTeamList(p.equipes);
-    if (!teamsParsed.ok) return { reply: `Je ne connais pas cette équipe (${esc(teamsParsed.error.replace("équipe inconnue : ", ""))}). Équipes : Rencontres, Casino, Paris sportifs, Algorithme, Pubs.` };
+    if (!teamsParsed.ok)
+      return { reply: pick(CATALOG_TEAM_VARIANTS.teamUnknownFull({ team: esc(teamsParsed.error.replace("équipe inconnue : ", "")) }), "team.teamUnknown", chatOf(deps)) };
     const fromRole = dutiesFromText(`${p.role ?? ""} ${p.equipes ?? ""} ${p.natures ?? ""}`);
     const teams = teamsParsed.teams.length ? teamsParsed.teams : fromRole.teams;
     const parsedKinds = parseKindList(p.natures);
@@ -181,8 +310,8 @@ export const presenterMembre = defineAction<PresentP>({
     const role: TeamMemberRole = p.responsable && (!speaker || speaker.kind === "admin") ? "MANAGER" : "MEMBER";
     if (f.kind === "uncertain") {
       const admin = await adminTelegramId(deps);
-      if (admin && f.person.id === admin) return { reply: "Toi, je te connais déjà : tu as tous les droits 🙂" };
-      if (speaker && speaker.kind === "member" && f.person.id === speaker.telegramUserId) return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+      if (admin && f.person.id === admin) return selfReply(deps);
+      if (speaker && speaker.kind === "member" && f.person.id === speaker.telegramUserId) return adminDecides(deps);
       // Prénom seul : l'admin confirme qui c'est (@nom, prénom, identifiant) avant que rien ne soit noté.
       return askMemberConfirmation(deps, {
         person: f.person,
@@ -208,11 +337,11 @@ export const presenterMembre = defineAction<PresentP>({
           by: speaker?.telegramUserId.toString() ?? null,
           at: nowOf(deps).toISOString(),
         });
-      return notFoundReply(f);
+      return notFoundReply(f, chatOf(deps));
     }
     const admin = await adminTelegramId(deps);
-    if (admin && f.person.id === admin) return { reply: "Toi, je te connais déjà : tu as tous les droits 🙂" };
-    if (speaker && speaker.kind === "member" && f.person.id === speaker.telegramUserId) return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+    if (admin && f.person.id === admin) return selfReply(deps);
+    if (speaker && speaker.kind === "member" && f.person.id === speaker.telegramUserId) return adminDecides(deps);
     const firstName = (p.prenom ?? f.person.firstName ?? f.member?.firstName ?? f.person.username ?? "?").slice(0, 40);
     const member = await upsertMember(deps, {
       person: f.person,
@@ -224,16 +353,15 @@ export const presenterMembre = defineAction<PresentP>({
       introducedBy: speaker?.telegramUserId ?? null,
     });
     void actor;
-    return introducedReply(member);
+    return introducedReply(member, chatOf(deps));
   },
 });
 
 /** « Noté : Léa, vidéos casino et posts roulette. Je lui demanderai les vidéos et photos directement. » (pur) */
-export function introducedReply(m: Pick<TeamMemberRow, "firstName" | "roleLabel" | "responsibilities" | "role">): BossReply {
+export function introducedReply(m: Pick<TeamMemberRow, "firstName" | "roleLabel" | "responsibilities" | "role">, chatId: bigint | null = null): BossReply {
   const kinds = responsibilitiesOf(m.responsibilities).kinds;
-  const asks = kinds.length ? ` Je lui demanderai ${kindsPhrase(kinds)} directement.` : "";
-  const manager = m.role === "MANAGER" ? " Elle ou il peut aussi me présenter des gens." : "";
-  return { reply: `Noté : ${esc(m.firstName)}, ${esc(memberDutyText(m))}.${asks}${manager}` };
+  const variants = CATALOG_TEAM_VARIANTS.introduced({ first: esc(m.firstName), duty: esc(memberDutyText(m)), asks: kinds.length ? kindsPhrase(kinds) : "", manager: m.role === "MANAGER" });
+  return { reply: pick(variants, "team.introduced", chatId) };
 }
 
 export async function upsertMember(
@@ -310,14 +438,16 @@ export const modifierMembre = defineAction<EditP>({
   },
   async execute(deps, p) {
     const f = await findPerson(deps, p.personne);
-    if (f.kind !== "found") return notFoundReply(f);
+    const chatId = chatOf(deps);
+    if (f.kind !== "found") return notFoundReply(f, chatId);
     const m = f.member && !f.member.removedAt ? f.member : null;
-    if (!m) return { reply: `${esc(f.person.firstName ?? "Cette personne")} ne m'a pas encore été présenté·e. Dis par exemple « voici @${esc(f.person.username ?? "nom")}, elle s'occupe de … ».` };
+    if (!m)
+      return { reply: pick(CATALOG_TEAM_VARIANTS.notPresented({ name: esc(f.person.firstName ?? "Cette personne"), user: esc(f.person.username ?? "nom") }), "team.notPresented", chatId) };
     const speaker = speakerOf(deps);
     const isAdmin = !speaker || speaker.kind === "admin";
     // Un simple membre ne touche qu'à SA fiche, et seulement pour une note : comparé par IDENTIFIANT, jamais par prénom.
     if (speaker && speaker.kind === "member" && speaker.role === "MEMBER" && (m.telegramUserId !== speaker.telegramUserId || !isNoteOnlyEdit(p as Record<string, unknown>)))
-      return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+      return adminDecides(deps);
     const now = nowOf(deps);
     const data: Record<string, unknown> = {};
     const said: string[] = [];
@@ -332,12 +462,12 @@ export const modifierMembre = defineAction<EditP>({
     if (p.equipes !== undefined || p.natures !== undefined) {
       const cur = responsibilitiesOf(m.responsibilities);
       const t = parseTeamList(p.equipes);
-      if (!t.ok) return { reply: `Je ne connais pas cette équipe : ${esc(t.error.replace("équipe inconnue : ", ""))}.` };
+      if (!t.ok) return { reply: pick(CATALOG_TEAM_VARIANTS.teamUnknownShort({ team: esc(t.error.replace("équipe inconnue : ", "")) }), "team.teamUnknownShort", chatId) };
       data.responsibilities = { teams: p.equipes !== undefined ? t.teams : cur.teams, kinds: p.natures !== undefined ? parseKindList(p.natures) : cur.kinds };
     }
     if (p.absent_jusqu_au) {
       const until = parseReturnDate(p.absent_jusqu_au, now);
-      if (!until) return { reply: `Absente jusqu'à quand ? Dis par exemple « jusqu'à lundi » ou « jusqu'au 26/10 ».` };
+      if (!until) return { reply: pick(CATALOG_TEAM_VARIANTS.askDate, "team.askDate", chatId) };
       data.awayUntil = until;
       said.push(`absent·e jusqu'au ${parisDateLabel(until)}`);
     }
@@ -350,7 +480,7 @@ export const modifierMembre = defineAction<EditP>({
       said.push("indisponible pour le moment");
     }
     if (p.responsable !== undefined) {
-      if (!isAdmin) return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+      if (!isAdmin) return adminDecides(deps);
       data.role = p.responsable ? "MANAGER" : "MEMBER";
       said.push(p.responsable ? "responsable" : "simple membre");
     }
@@ -359,21 +489,23 @@ export const modifierMembre = defineAction<EditP>({
       data.notes = [...notesOf(m.notes), { at: now.toISOString(), text: p.note.slice(0, 200), by }].slice(-30);
       said.push(`note : « ${p.note.slice(0, 80)} »`);
     }
-    if (!Object.keys(data).length) return { reply: `Qu'est-ce qui change pour ${esc(m.firstName)} ? (tâches, absente jusqu'au…, de retour, une note)` };
+    if (!Object.keys(data).length) return { reply: pick(CATALOG_TEAM_VARIANTS.nothingChanges({ name: esc(m.firstName) }), "team.nothingChanges", chatId) };
     const updated = (await deps.prisma.teamMember.update({ where: { telegramUserId: m.telegramUserId }, data })) as TeamMemberRow;
-    const extra = isMemberAvailable(updated, now) ? "" : await replacementLine(deps, updated, now);
-    return { reply: `Noté : ${esc(updated.firstName)}, ${esc(said.join(", "))}.${extra}` };
+    const extra = isMemberAvailable(updated, now) ? "" : await replacementLine(deps, updated, now, chatId);
+    return { reply: pick(CATALOG_TEAM_VARIANTS.edited({ name: esc(updated.firstName), said: esc(said.join(", ")), extra }), "team.edited", chatId) };
   },
 });
 
 /** « En attendant, je passe par Marc. » / « … je te demande à toi. » quand la personne n'est plus disponible. */
-async function replacementLine(deps: BossDeps, away: TeamMemberRow, now: Date): Promise<string> {
+async function replacementLine(deps: BossDeps, away: TeamMemberRow, now: Date, chatId: bigint | null): Promise<string> {
   const r = responsibilitiesOf(away.responsibilities);
   const others = (await activeTeamMembers(deps)).filter((m) => m.id !== away.id);
   const team = r.teams[0] ?? null;
   const kind = r.kinds[0] ?? "choice";
   const next = pickResponsibleFrom(others, team, kind, now).assignee;
-  return next ? ` En attendant, je passe par ${esc(next.firstName)}.` : ` En attendant, je demande à ${esc(await adminFirstName(deps))}.`;
+  return next
+    ? pick(CATALOG_TEAM_VARIANTS.replacedBy({ name: esc(next.firstName) }), "team.replacedBy", chatId)
+    : pick(CATALOG_TEAM_VARIANTS.replacedByAdmin({ name: esc(await adminFirstName(deps)) }), "team.replacedByAdmin", chatId);
 }
 
 // ------------------------------------------------------------------------------------------- retirer_membre
@@ -388,16 +520,17 @@ export const retirerMembre = defineAction<RemoveP>({
   spec: { personne: str(PERSON_DESC, { maxLength: 60 }) },
   async execute(deps, p) {
     const f = await findPerson(deps, p.personne);
-    if (f.kind !== "found") return notFoundReply(f);
+    const chatId = chatOf(deps);
+    if (f.kind !== "found") return notFoundReply(f, chatId);
     const m = f.member && !f.member.removedAt ? f.member : null;
-    if (!m) return { reply: `${esc(f.person.firstName ?? "Cette personne")} ne fait déjà pas partie de l'équipe.` };
+    if (!m) return { reply: pick(CATALOG_TEAM_VARIANTS.alreadyOut({ name: esc(f.person.firstName ?? "Cette personne") }), "team.alreadyOut", chatId) };
     const speaker = speakerOf(deps);
-    if (m.role !== "MEMBER" && speaker && speaker.kind !== "admin") return { reply: `Ça, c'est ${esc(await adminFirstName(deps))} qui décide.` };
+    if (m.role !== "MEMBER" && speaker && speaker.kind !== "admin") return adminDecides(deps);
     await deps.prisma.teamMember.update({ where: { telegramUserId: m.telegramUserId }, data: { removedAt: nowOf(deps) } });
     // Ses demandes en file reviendront au bon responsable (calculé à l'envoi) ; celle posée revient à l'admin.
     await deps.prisma.humanRequest.updateMany({ where: { assigneeTelegramId: m.telegramUserId, status: { in: ["QUEUED", "PENDING"] } }, data: { assigneeTelegramId: null } });
     await deps.prisma.agentValidation.updateMany({ where: { assigneeTelegramId: m.telegramUserId, status: "PENDING" }, data: { assigneeTelegramId: null } });
-    return { reply: `Noté : ${esc(m.firstName)} ne fait plus partie de l'équipe. Je ne lui demanderai plus rien.` };
+    return { reply: pick(CATALOG_TEAM_VARIANTS.removed({ name: esc(m.firstName) }), "team.removed", chatId) };
   },
 });
 
@@ -412,10 +545,14 @@ export const quiFaitQuoi = defineAction<Record<string, never>>({
   async execute(deps) {
     const members = await activeTeamMembers(deps);
     const admin = await adminFirstName(deps);
-    if (!members.length)
-      return lines("Personne ne m'a encore été présenté.", "Dis-moi par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino ».");
+    const chatId = chatOf(deps);
+    if (!members.length) return { reply: pick(CATALOG_TEAM_VARIANTS.whoEmpty, "team.whoEmpty", chatId) };
     const now = nowOf(deps);
-    return lines(`👥 L'équipe (${members.length}) :`, ...members.slice(0, 15).map((m) => memberLine(m, now)), `• ${esc(admin)} : tout le reste, et c'est lui qui confirme.`);
+    const list = members
+      .slice(0, 15)
+      .map((m) => memberLine(m, now))
+      .join("\n");
+    return lines(pick(CATALOG_TEAM_VARIANTS.whoList({ n: members.length, lines: list, admin: esc(admin) }), "team.whoList", chatId));
   },
 });
 
@@ -441,15 +578,16 @@ export function personIdentityText(p: Person): string {
 }
 
 /** Les deux lignes de la question posée à l'admin (pur). */
-export function memberConfirmSummary(input: MemberConfirmInput): string {
-  const who = personIdentityText(input.person);
+export function memberConfirmSummary(input: MemberConfirmInput, chatId: bigint | null = null): string {
+  const identity = personIdentityText(input.person);
   const duty = memberDutyText({ roleLabel: input.roleLabel, responsibilities: { teams: input.teams, kinds: input.kinds } });
-  const first =
-    input.reason === "attente"
-      ? `${input.person.username ? `@${input.person.username}` : input.firstName} vient d'écrire (${who}) : c'est bien la personne que tu m'as présentée ?`
-      : `« ${input.said?.trim() || input.firstName} », c'est bien cette personne (${who}) ?`;
-  return `${first}
-Je la note alors : ${input.firstName}, ${duty}.`;
+  return input.reason === "attente"
+    ? pick(
+        CATALOG_TEAM_VARIANTS.confirmWaiting({ who: input.person.username ? `@${input.person.username}` : input.firstName, identity, first: input.firstName, duty }),
+        "team.confirmWaiting",
+        chatId,
+      )
+    : pick(CATALOG_TEAM_VARIANTS.confirmFirstName({ said: input.said?.trim() || input.firstName, identity, first: input.firstName, duty }), "team.confirmFirstName", chatId);
 }
 
 /**
@@ -468,7 +606,7 @@ export async function askMemberConfirmation(deps: BossDeps, input: MemberConfirm
     ...(input.role === "MANAGER" ? { responsable: true } : {}),
     ...(input.by ? { par: input.by.toString() } : {}),
   };
-  const summary = memberConfirmSummary(input);
+  const summary = memberConfirmSummary(input, chatOf(deps));
   const r = await createBossPending(deps, { actionKey: "confirmer_membre", params, summary });
   const speaker = speakerOf(deps);
   if (speaker?.kind === "admin") return r;
@@ -478,7 +616,7 @@ export async function askMemberConfirmation(deps: BossDeps, input: MemberConfirm
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message }, "[boss] confirmation d'une présentation non envoyée");
   }
-  return { reply: `Je vérifie avec ${esc(await adminFirstName(deps))} avant de noter ${esc(input.firstName)} 👍` };
+  return { reply: pick(CATALOG_TEAM_VARIANTS.checking({ admin: esc(await adminFirstName(deps)), first: esc(input.firstName) }), "team.checking", chatOf(deps)) };
 }
 
 type ConfirmMemberP = { telegram_id: string; prenom: string; username?: string; role?: string; equipes?: string; natures?: string; responsable?: boolean; par?: string };
@@ -507,12 +645,12 @@ export const confirmerMembre = defineAction<ConfirmMemberP>({
   },
   refine: (p) => (/^\d{3,20}$/.test(p.telegram_id) && (!p.par || /^\d{3,20}$/.test(p.par)) ? null : "identifiant invalide"),
   async summarize(_deps, p) {
-    return `Noter ${p.prenom} (identifiant ${p.telegram_id}) dans l'équipe ?`;
+    return pick(CATALOG_TEAM_VARIANTS.confirmSummarize({ first: p.prenom, id: p.telegram_id }), "team.confirmSummarize", null);
   },
   async execute(deps, p) {
     const id = BigInt(p.telegram_id);
     const admin = await adminTelegramId(deps);
-    if (admin && id === admin) return { reply: "Toi, je te connais déjà : tu as tous les droits 🙂" };
+    if (admin && id === admin) return selfReply(deps);
     const member = await upsertMember(deps, {
       person: { id, username: p.username ?? null, firstName: p.prenom },
       firstName: p.prenom,
@@ -522,9 +660,12 @@ export const confirmerMembre = defineAction<ConfirmMemberP>({
       role: p.responsable ? "MANAGER" : "MEMBER",
       introducedBy: p.par ? BigInt(p.par) : null,
     });
-    const r = introducedReply(member);
+    const r = introducedReply(member, chatOf(deps));
     const group = await activeBossGroup(deps);
-    if (group && deps.admin?.sendTo) await deps.admin.sendTo(group, `${r.reply} Bienvenue ${esc(member.firstName)} 👋`).catch(() => null);
+    if (group && deps.admin?.sendTo) {
+      const welcome = pick(CATALOG_TEAM_VARIANTS.welcomeMember({ name: esc(member.firstName) }), "team.welcomeMember", group);
+      await deps.admin.sendTo(group, `${introducedReply(member, group).reply} ${welcome}`).catch(() => null);
+    }
     return r;
   },
 });
@@ -546,7 +687,7 @@ export const groupeEquipe = defineAction<GroupP>({
   refine: (p) => (/^-\d{5,20}$/.test(p.chat_id) ? null : "identifiant de groupe invalide"),
   async summarize(deps, p) {
     const old = await readBossGroupId(deps);
-    return `Faire du groupe « ${p.titre ?? p.chat_id} » le groupe de l'équipe${old ? " (à la place de l'ancien)" : ""} ?\nJe n'écrirai plus que dans celui-là.`;
+    return groupReplacementSummary(p.titre ?? p.chat_id, !!old);
   },
   async execute(deps, p, actor) {
     const chatId = BigInt(p.chat_id);
@@ -557,7 +698,7 @@ export const groupeEquipe = defineAction<GroupP>({
       const ask = await claimDeleteRightAsk(deps);
       for (const t of [welcome, ask]) if (t) await deps.admin.sendTo(chatId, t).catch(() => null);
     }
-    return { reply: `C'est noté : je travaille maintenant dans « ${esc(p.titre ?? p.chat_id)} ».` };
+    return { reply: pick(CATALOG_TEAM_VARIANTS.groupSet({ title: esc(p.titre ?? p.chat_id) }), "team.groupSet", chatOf(deps)) };
   },
 });
 

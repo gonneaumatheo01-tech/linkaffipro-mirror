@@ -24,6 +24,7 @@ import {
   turnAuthor,
 } from "@/lib/agents/boss";
 import { loadBossPage } from "@/lib/agents/boss-queries";
+import { ORDERS_PATH, groupUnmet } from "@/lib/agents/orders";
 import { centsToEurField } from "@/lib/agents/config";
 import { loadPendingCounts } from "@/lib/agents/queries";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum } from "@/lib/format";
@@ -50,6 +51,7 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
   const [data, pending] = await Promise.all([loadBossPage(now), loadPendingCounts()]);
   const { name, bot } = data;
   const gauge = bossBudgetGauge(data.spentCents, data.capCents);
+  const unmetGroups = groupUnmet(data.unmet);
 
   return (
     <>
@@ -58,6 +60,11 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
         title={name}
         description={`${name} est votre bot sur Telegram : parlez-lui comme à un collègue. Il répond avec les vrais chiffres, fait ce que vous demandez et vous demande « OUI » avant tout ce qui dépense ou publie.`}
         help={`Pour démarrer, écrivez « commencer » à ${name} : il dit ce qui manque et pose les questions une par une. « aide » liste tout ce qu'il sait faire.`}
+        secondaryActions={
+          <Link href={ORDERS_PATH} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-10")}>
+            Ses ordres aux équipes
+          </Link>
+        }
         meta={
           bot ? (
             <StatusPill tone={bot.isActive ? "success" : "muted"}>{bot.isActive ? "En service" : "Désactivé"}</StatusPill>
@@ -255,6 +262,32 @@ export default async function AgentsBossPage({ searchParams }: PageProps<"/agent
               Les {data.unmet.length} plus fréquentes sur {fmtNum(data.unmetTotal)} : l&apos;export les contient toutes.
             </p>
           ) : null}
+        </FormSection>
+
+        <FormSection
+          title="Pas encore possible"
+          description="Les mêmes demandes regroupées par équipe et par ce qu'il faudrait apprendre à Kevin : la liste de travail du développeur. Une demande qui vise une équipe à venir (Montage, Prospection…) y est rangée."
+        >
+          <DataTable
+            label="Pas encore possible, par équipe"
+            columns={[
+              { key: "team", header: "Équipe" },
+              { key: "capability", header: "Ce qu'il faudrait savoir faire", className: "whitespace-normal" },
+              { key: "count", header: "Nombre de fois", align: "right" },
+              { key: "examples", header: "Exemples de demandes", className: "whitespace-normal", hideOnMobile: true },
+            ]}
+            rows={unmetGroups.map((g) => ({
+              id: g.key,
+              cells: {
+                team: g.team,
+                capability: g.capability,
+                count: fmtNum(g.count),
+                examples: g.examples.map((t) => `« ${t} »`).join(" · "),
+              },
+              sortValues: { team: g.team, capability: g.capability, count: g.count },
+            }))}
+            empty={{ title: "Rien à apprendre pour l'instant", description: `Aucune demande à ${name} n'est restée sans solution.` }}
+          />
         </FormSection>
 
         <FormSection

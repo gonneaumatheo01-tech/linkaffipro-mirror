@@ -28,9 +28,14 @@ describe("Kevin : relance quotidienne", () => {
     expect(r).toEqual({ sent: true, blockers: ["auto-pause", "cap"] });
     expect(kit.sent).toHaveLength(1);
     const html = kit.sent[0]!.html;
-    expect(html).toContain("<b>Kevin</b> : 2 choses bloquent.");
-    expect(html).toContain("Équipe Casino en pause automatique");
-    expect(html).toContain("Plafond vidéo de l'équipe Rencontres atteint (100 €), 1 mission arrêtée");
+    expect(html).toMatch(/<b>Kevin<\/b>/);
+    expect(html).toMatch(/2 choses bloquent/i);
+    expect(html).toMatch(/Casino.*pause/);
+    expect(html).toContain("reprends casino");
+    expect(html).toMatch(/plafond vidéo/i);
+    expect(html).toContain("Rencontres");
+    expect(html).toContain("(100 €), 1 post arrêté");
+    expect(html).not.toMatch(/mission/i);
     expect(html).not.toContain("Paris sportifs");
     expect(html.split("\n").length).toBeLessThanOrEqual(5);
     kit.advance(5 * 60_000);
@@ -64,7 +69,7 @@ describe("Kevin : relance quotidienne", () => {
     await kit.prisma.humanRequest.update({ where: { id: req.id }, data: { remindedAt: new Date(now - 26 * H) } });
     const r = await bossDailyNudge(kit.deps);
     expect(r).toEqual({ sent: true, blockers: ["request"] });
-    expect(kit.sent[0]!.html).toContain("Une question attend ta réponse depuis 1 jour");
+    expect(kit.sent[0]!.html).toMatch(/question (attend ta réponse|t'attend) depuis 1 jour/);
     expect(kit.sent[1]!.html).toContain("⏰ <b>Rappel</b> — Ton prénom ?");
     expect(kit.sent[1]!.replyToMessageId).toBe(50);
     const after = kit.tables("humanRequest")[0]!;
@@ -79,7 +84,7 @@ describe("Kevin : relance quotidienne", () => {
     expect(await bossDailyNudge({ ...kit.deps, admin: undefined })).toEqual({ sent: false, reason: "no-messenger" });
     expect((await bossDailyNudge(kit.deps)).blockers).toEqual(["boss-cap"]);
     // Sans Boss (bot casino de repli) : texte neutre, jamais signé « Kevin ».
-    expect(kit.sent[0]!.html).toContain("👋 Agents : une chose bloque.");
+    expect(kit.sent[0]!.html).toContain("Agents : une chose bloque.");
     expect(kit.sent[0]!.html).not.toContain("Mon plafond");
     expect(kit.sent[0]!.html).toContain("Plafond d'IA du dialogue du mois atteint (5,2 € pour 5 €)");
     expect(kit.sent[0]!.html).toContain("Agents → Kevin");
@@ -92,7 +97,8 @@ describe("Kevin : relance quotidienne", () => {
     await push(kit, "setting", { key: "boss.budget", value: { monthlyCents: 500 } });
     await push(kit, "agentUsage", { teamKey: "boss", provider: "llm", month: "2026-10", cents: 520 });
     expect((await bossDailyNudge(kit.deps)).blockers).toEqual(["boss-cap"]);
-    expect(kit.sent[0]!.html).toContain("<b>Kevin</b> : une chose bloque.");
+    expect(kit.sent[0]!.html).toMatch(/<b>Kevin<\/b>/);
+    expect(kit.sent[0]!.html).toMatch(/une chose bloque/i);
     expect(kit.sent[0]!.html).toContain("Mon plafond d'IA du mois est atteint (5,2 € pour 5 €)");
     expect(kit.sent[0]!.html).toContain("Agents → Kevin");
   });
@@ -102,7 +108,7 @@ describe("Kevin : relance quotidienne", () => {
     await push(kit, "bot", { id: "boss_1", role: "ADMIN", isActive: false, username: "kevin_bot" });
     await push(kit, "agentTeamConfig", { teamKey: "casino", paused: true, pausedReason: "3 missions échouées de suite" });
     await bossDailyNudge(kit.deps);
-    expect(kit.sent[0]!.html).toContain("👋 Agents : une chose bloque.");
+    expect(kit.sent[0]!.html).toContain("Agents : une chose bloque.");
   });
 
   it("une erreur de base ne fait jamais échouer le balayage", async () => {

@@ -169,7 +169,8 @@ describe("dialogue admin (Telegram)", () => {
     const deps = makeDeps(kit);
     const { bot, sent } = makeBot(deps);
     await bot.handleUpdate(textUpdate(ADMIN, "pause dating"));
-    expect(sent().at(-1)).toBe(`Équipe ${TEAM_LABELS.dating} en pause ⏸`);
+    expect(sent().at(-1)).toContain(TEAM_LABELS.dating);
+    expect(sent().at(-1)).toMatch(/pause/i);
     await bot.handleUpdate(textUpdate(ADMIN, "agents"));
     // Résumé de supervision (phase 25) : 8 lignes, une par équipe, Ads, Algorithme, santé.
     const lines = sent().at(-1)!.split("\n");
@@ -177,7 +178,7 @@ describe("dialogue admin (Telegram)", () => {
     expect(lines.at(-1)).toMatch(/^Santé : /);
     await bot.handleUpdate(textUpdate(ADMIN, "vrai casino"));
     // Résumé et OUI / NON : en réponse directe (chemin d'aujourd'hui) ou par le messager admin (ancien chemin).
-    expect([sent().at(-1) ?? "", kit.sent.at(-1)?.html ?? ""].join("\n")).toContain("Passer l'équipe Casino en vrai ?");
+    expect([sent().at(-1) ?? "", kit.sent.at(-1)?.html ?? ""].join("\n")).toMatch(/Casino en vrai \?/);
     await bot.handleUpdate(textUpdate(ADMIN, "OUI"));
     expect(kit.tables("agentTeamConfig").find((c) => c.teamKey === "casino")).toMatchObject({ simulation: false });
     // Les messages ordinaires de l'admin restent journalisés tels quels (pnpm tg:inbox).
@@ -278,7 +279,7 @@ describe("relecture de la phase 25 (dialogue admin)", () => {
     const deps = makeDeps(kit);
     const { bot, calls, sent } = makeBot(deps);
     await bot.handleUpdate(textUpdate(ADMIN, `clé fal ${KEY}`));
-    expect(sent().at(-1)).toContain("je n'ai pas pu traiter");
+    expect(sent().at(-1)).toMatch(/pas pu traiter|coincé|pas passé/);
     expect(calls.some((c) => c.method === "deleteMessage")).toBe(true);
   });
 });
@@ -322,7 +323,7 @@ describe("vocaux de l'admin (phase 20)", () => {
     const { bot, sent } = makeBot(makeDeps(kit));
     await bot.handleUpdate(voiceUpdate(ADMIN, 3 * 1024 * 1024));
     expect(kit.enqueue.orchestrator).not.toHaveBeenCalled();
-    expect(sent()[0]).toContain("Vocal trop long");
+    expect(sent()[0]).toMatch(/trop long/i);
   });
 });
 

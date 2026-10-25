@@ -40,6 +40,8 @@ import type {
   ReferenceVia,
   Role,
   SequenceTrigger,
+  TeamOrderKind,
+  TeamOrderStatus,
   TrackingLinkKind,
   Vertical,
 } from "@linkaffipro/db";
@@ -410,6 +412,23 @@ export const STATUS_DICT = {
     ACCOUNT: plain("Compte réel"),
     FORWARDED: plain("Posts transférés"),
   } satisfies Record<ReferenceVia, StatusEntry>,
+  // Ordres de Kevin aux équipes (phase 33) : état d'un ordre et son genre.
+  teamOrder: {
+    DRAFT: plain("En préparation"),
+    WAITING_CONFIRM: warn("Attend votre OUI"),
+    RUNNING: main("En cours"),
+    DONE: ok("Fini"),
+    CANCELLED: muted("Arrêté"),
+    BLOCKED: bad("Bloqué"),
+    FAILED: bad("En échec"),
+  } satisfies Record<TeamOrderStatus, StatusEntry>,
+  teamOrderKind: {
+    PROGRAM: plain("Programme sur plusieurs jours"),
+    ONE_SHOT: plain("Une seule fois"),
+    ADJUST: plain("Réglage"),
+    ASK: plain("Question"),
+    WHAT_IF: plain("Faire comme si"),
+  } satisfies Record<TeamOrderKind, StatusEntry>,
 } as const;
 
 export type StatusKind = keyof typeof STATUS_DICT;

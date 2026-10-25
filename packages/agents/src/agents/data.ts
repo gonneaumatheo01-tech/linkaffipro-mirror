@@ -81,6 +81,44 @@ export const TEST_PLAN: PlanInfo = {
 
 /** Plan du canal visé ; mission de test ou canal sans plan : valeurs par défaut (test : créneau au plus tôt). */
 export async function loadPlan(prisma: PrismaClient, mission: Pick<Mission, "channelId" | "isTest"> & { payload?: Mission["payload"] }): Promise<PlanInfo> {
+  return withOrderPlan(await loadBasePlan(prisma, mission), mission.payload);
+}
+
+/** Phase 33 : valeurs de la dérogation d'un ordre de Kevin, posées par le Grand Chef dans la charge utile (`orderPlan`). */
+export type MissionOrderPlan = {
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  mix?: { video: number; photo: number; text: number } | null;
+  themes?: string[] | null;
+  personaId?: string | null;
+  campaignId?: string | null;
+  postsPerDay?: number | null;
+};
+
+/** Plan du canal corrigé par la dérogation d'un ordre (pur) : fenêtre, mélange, thèmes, persona, campagne, quota. */
+export function withOrderPlan(plan: PlanInfo, payload: Mission["payload"] | undefined): PlanInfo {
+  const o = payload && typeof payload.orderPlan === "object" && payload.orderPlan ? (payload.orderPlan as MissionOrderPlan) : null;
+  if (!o) return plan;
+  const out: PlanInfo = { ...plan };
+  if (typeof o.windowStart === "string" && typeof o.windowEnd === "string") {
+    out.windowStart = o.windowStart;
+    out.windowEnd = o.windowEnd;
+  }
+  if (o.mix && o.mix.video + o.mix.photo + o.mix.text > 0) {
+    out.mix = { video: o.mix.video, photo: o.mix.photo, text: o.mix.text };
+    out.rawMix = { ...out.mix };
+  }
+  if (Array.isArray(o.themes) && o.themes.length) {
+    out.themes = [...o.themes];
+    out.themeWeights = o.themes.map((theme) => ({ theme, weight: 1 }));
+  }
+  if (typeof o.personaId === "string" && o.personaId) out.personaId = o.personaId;
+  if (typeof o.campaignId === "string" && o.campaignId) out.campaignId = o.campaignId;
+  if (typeof o.postsPerDay === "number" && o.postsPerDay > 0 && !plan.test) out.postsPerDay = o.postsPerDay;
+  return out;
+}
+
+async function loadBasePlan(prisma: PrismaClient, mission: Pick<Mission, "channelId" | "isTest"> & { payload?: Mission["payload"] }): Promise<PlanInfo> {
   if (mission.isTest) return TEST_PLAN;
   const row = mission.channelId
     ? await prisma.channelAgentPlan.findUnique({ where: { channelId: mission.channelId } })

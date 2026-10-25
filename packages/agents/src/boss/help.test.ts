@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { BossAction, BossTheme } from "./contract";
-import { BOSS_HELP_EXAMPLES, BOSS_HELP_MAX_LINES, bossHelpText } from "./help";
+import { BOSS_HELP_MAX_LINES, BOSS_THEME_EXAMPLES, HELP_VARIANTS, bossHelpText } from "./help";
+import { resetVoiceRotation, voiceCheck } from "./voice";
 
 /** Petit catalogue factice (le vrai est celui du chantier B). */
 const action = (key: string, theme: BossTheme, description: string) => ({ key, theme, description }) as Pick<BossAction, "key" | "theme" | "description">;
@@ -16,31 +17,43 @@ const CATALOG = [
 ];
 
 describe("Kevin : aide", () => {
-  it("groupée par thème, dans l'ordre, puis les 5 exemples", () => {
+  beforeEach(() => resetVoiceRotation());
+
+  it("phrase d'introduction, une ligne d'exemples par thème présent (dans l'ordre), phrase de fin", () => {
     const text = bossHelpText(CATALOG as BossAction[]);
     const lines = text.split("\n");
     expect(lines.length).toBeLessThanOrEqual(BOSS_HELP_MAX_LINES);
-    expect(lines[1]).toBe("<b>Démarrer</b> : guide la mise en route");
-    expect(text).toContain("<b>Équipes</b> : met une équipe en pause ou la relance · change le niveau d'une équipe (0 à 2)");
-    expect(text.indexOf("<b>État</b>")).toBeLessThan(text.indexOf("<b>Chiffres</b>"));
-    expect(text).not.toContain("<b>Essais</b>");
-    for (const e of BOSS_HELP_EXAMPLES) expect(text).toContain(`« ${e.replace("'", "'")} »`);
-    expect(lines.slice(-5).every((l) => l.startsWith("• « "))).toBe(true);
+    expect(HELP_VARIANTS.intro({ name: "Kevin" })).toContain(lines[0]);
+    expect(lines[1]).toBe(`• Démarrer : ${BOSS_THEME_EXAMPLES.guide.map((e) => `« ${e.replace("'", "&#39;")} »`).join(", ")}`.replace(/&#39;/g, "'"));
+    expect(text).toContain("• Équipes : « mets le casino en pause », « passe le dating en vrai »");
+    expect(text.indexOf("• État")).toBeLessThan(text.indexOf("• Chiffres"));
+    expect(text).not.toContain("Essais");
+    expect(HELP_VARIANTS.outro).toContain(lines[lines.length - 1]);
+    // Des exemples de phrases, plus des descriptions.
+    expect(text).not.toContain("met une équipe en pause ou la relance");
+    expect(voiceCheck(text, { allowList: true, allowLong: true }).problems).toEqual([]);
   });
 
-  it("HTML échappé, nom de Kevin repris", () => {
-    const text = bossHelpText(CATALOG as BossAction[], "Kev <in>");
-    expect(text).toContain("active une catégorie &lt;corners&gt; &amp; co");
-    expect(text).toContain("Kev &lt;in&gt;");
-    expect(text).not.toMatch(/<(?!\/?b>)/);
+  it("HTML échappé, nom de Kevin repris quand la variante le cite", () => {
+    const texts = new Set<string>();
+    for (let i = 0; i < 3; i++) texts.add(bossHelpText(CATALOG as BossAction[], "Kev <in>", 1n));
+    const all = [...texts].join("\n");
+    expect(all).toContain("Kev &lt;in&gt;");
+    expect(all).not.toMatch(/<(?!\/?b>)/);
   });
 
-  it("très gros catalogue : 25 lignes au plus, lignes raccourcies", () => {
+  it("deux « aide » de suite dans la même conversation : pas la même phrase d'introduction", () => {
+    const a = bossHelpText(CATALOG as BossAction[], "Kevin", 7n).split("\n")[0];
+    const b = bossHelpText(CATALOG as BossAction[], "Kevin", 7n).split("\n")[0];
+    expect(a).not.toBe(b);
+  });
+
+  it("très gros catalogue : 25 lignes au plus, une ligne par thème", () => {
     const themes: BossTheme[] = ["etat", "chiffres", "demandes", "equipes", "canaux", "rencontres", "casino", "paris", "algorithme", "ads", "tests", "guide"];
     const big = themes.flatMap((t) => Array.from({ length: 30 }, (_, i) => action(`${t}${i}`, t, `Action numéro ${i} du thème ${t} avec une description assez longue`)));
     const lines = bossHelpText(big as BossAction[]).split("\n");
     expect(lines.length).toBeLessThanOrEqual(BOSS_HELP_MAX_LINES);
-    expect(lines.filter((l) => l.endsWith("…")).length).toBeGreaterThan(0);
+    expect(lines.length).toBe(themes.length + 2);
     expect(lines.every((l) => l.length < 400)).toBe(true);
   });
 });

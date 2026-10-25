@@ -9,7 +9,10 @@ import {
   rememberEditPrompt,
   BOSS_DEFAULT_NAME,
   kevinForwardedPost,
+  pick,
+  voiceTemplate,
   type BossTeamInput,
+  type VoiceTable,
   type ForwardedMessage,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
@@ -18,27 +21,108 @@ import { secretContextOf } from "../agents/redact";
 import { findChannelLinkInText } from "../channels/username";
 import { messageHasCustomEmoji } from "../custom-emoji/extract";
 import { realBossEngine, type BossEngine } from "../boss/engine";
-import {
-  BOSS_ERROR_REPLY,
-  BOSS_OTHER_MESSAGE_REPLY,
-  BOSS_QUEUE_DOWN_REPLY,
-  BOSS_VOICE_QUEUE_DOWN_REPLY,
-  BOSS_VOICE_TOO_LONG_REPLY,
-  deliverBossReply,
-  type BossReplyApi,
-} from "../boss/reply";
+import { bossReplyText, deliverBossReply, type BossReplyApi } from "../boss/reply";
+
+type NameSample = { name: string };
+type BotSample = { username: string; name: string };
+const NAME_SAMPLES: NameSample[] = [{ name: "Kevin" }, { name: "Léa" }];
+const BOT_SAMPLES: BotSample[] = [
+  { username: "kevin_boss_bot", name: "Kevin" },
+  { username: "kevcanauxbot", name: "Léa" },
+];
+
+/**
+ * Phase 33 : textes fixes envoyés par Kevin depuis ce handler (charte `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun,
+ * choisies par `pick` (jamais deux fois de suite la même dans une conversation).
+ */
+export const AGENTS_ADMIN_VARIANTS = {
+  /** Service d'arrière-plan muet depuis plus de 3 minutes (texte). */
+  workerDown: [
+    "Mon service d'arrière-plan est arrêté, je ne comprends que les commandes simples pour l'instant. L'équipe technique est prévenue. Écris aide pour les voir.",
+    "Je tourne au ralenti : mon service d'arrière-plan est à l'arrêt, l'équipe technique est prévenue. En attendant, écris aide pour les commandes simples.",
+    "Petit souci chez moi, le service d'arrière-plan est arrêté. L'équipe technique est au courant. Les commandes simples marchent : écris aide.",
+  ],
+  /** Même cas pour un vocal (il sera écouté au redémarrage). */
+  voiceWorkerDown: [
+    "Mon service d'arrière-plan est arrêté, je t'écoute dès qu'il repart. L'équipe technique est prévenue. En attendant, les commandes simples écrites marchent : écris aide.",
+    "Je ne peux pas t'écouter tout de suite, le service d'arrière-plan est à l'arrêt. Ton vocal passera dès qu'il repart, l'équipe technique est prévenue. Écris aide pour les commandes simples.",
+  ],
+  /** Dernier recours quand la réponse ne part pas. */
+  received: ["Bien reçu ✅", "Reçu ✅", "C'est arrivé ✅"],
+  /** Texte qui ressemble à une clé, effacé sans être mis en file. */
+  secretNotQueued: [
+    "🔒 Ce message ressemblait à une clé : je l'ai effacé sans le garder. Pour enregistrer une clé, écris « clé <nom> <valeur> » ou réponds à ma question.",
+    "🔒 J'ai effacé ton message sans le garder, il ressemblait à une clé. Pour en enregistrer une, écris « clé <nom> <valeur> » ou réponds à ma question.",
+  ],
+  /** `/start` de l'admin (HTML). */
+  welcome: voiceTemplate(NAME_SAMPLES, (p) => [
+    [
+      `Salut, moi c'est ${p.name}, je pilote les agents pour toi.`,
+      "Parle-moi normalement, par écrit ou en vocal : je réponds toujours. Avant tout ce qui dépense ou publie, je te demande ton accord.",
+      "Écris <b>commencer</b> et on démarre ensemble, ou <b>aide</b> pour voir ce que je sais faire.",
+    ].join("\n"),
+    [
+      `Salut, moi c'est ${p.name}. Je m'occupe des agents pour toi.`,
+      "Écris-moi ou envoie un vocal, comme à un collègue, je réponds toujours. Rien ne dépense ni ne publie sans ton accord.",
+      "Tape <b>commencer</b> pour qu'on démarre, ou <b>aide</b> pour voir ce que je sais faire.",
+    ].join("\n"),
+    [
+      `Hey, moi c'est ${p.name}, je gère les agents pour toi.`,
+      "Tu peux m'écrire ou m'envoyer un vocal, je réponds toujours. Je te demande ton accord avant de dépenser ou de publier quoi que ce soit.",
+      "On commence ? Écris <b>commencer</b>, ou <b>aide</b> pour voir ce que je sais faire.",
+    ].join("\n"),
+  ]),
+  /** Un bot de canal renvoie l'admin vers Kevin. */
+  redirect: voiceTemplate(BOT_SAMPLES, (p) => [
+    `Parle-moi sur @${p.username} (${p.name}) 👉`,
+    `Pour me parler, c'est sur @${p.username} (${p.name}) 👉`,
+    `Écris-moi plutôt sur @${p.username} (${p.name}) 👉`,
+  ]),
+  /** Lien du compte du site accepté. */
+  accountLinked: voiceTemplate(NAME_SAMPLES, (p) => [
+    `Fait, ton compte ${p.name} est lié.`,
+    `C'est bon, compte ${p.name} lié.`,
+  ]),
+  /** Lien du compte du site périmé. */
+  linkExpired: [
+    "Ce lien n'est plus valable. Recrée-le dans « Mon compte » sur le site.",
+    "Lien périmé. Tu en refais un dans « Mon compte » sur le site ?",
+  ],
+  /** « Corriger » appuyé sur un bot de canal après la bascule vers Kevin. */
+  editTail: voiceTemplate(BOT_SAMPLES, (p) => [
+    `Écris le nouveau texte à @${p.username} (${p.name}).`,
+    `Envoie le nouveau texte sur @${p.username} (${p.name}).`,
+  ]),
+  /** Vocal transféré : une donnée, jamais une consigne. */
+  forwardedVoice: [
+    "C'est un vocal transféré : je ne suis que les vocaux que tu enregistres toi-même.",
+    "Vocal transféré, je ne le prends pas comme une consigne. Je ne suis que ceux que tu enregistres toi-même.",
+  ],
+  /** Petit message d'un bouton en erreur. */
+  buttonError: ["Ça n'a pas marché, réessaie dans un instant.", "Raté, réessaie dans un instant."],
+  /** Ancien dialogue (phase 19) en erreur. */
+  legacyError: [
+    "Oups, je n'ai pas pu traiter ce message. Réessaie dans un instant.",
+    "Ça a coincé de mon côté, je n'ai pas pu traiter ce message. Tu réessaies dans un instant ?",
+  ],
+} as const satisfies VoiceTable;
+
+type ChatKey = number | bigint | null;
 
 /**
  * Service d'arrière-plan (worker) muet depuis plus de 3 minutes (battement `worker:heartbeat`) : réponse immédiate,
  * la tâche est quand même mise en file (elle se fera au redémarrage, sans double réponse : le worker vérifie le tour).
  */
-export const BOSS_WORKER_DOWN_REPLY =
-  "Mon service d'arrière-plan est arrêté : je ne comprends que les commandes simples pour l'instant (écris aide). L'équipe technique est prévenue.";
+export const BOSS_WORKER_DOWN_REPLY = AGENTS_ADMIN_VARIANTS.workerDown[0];
 /** Même cas pour un vocal (il sera écouté au redémarrage). */
-export const BOSS_VOICE_WORKER_DOWN_REPLY =
-  "Mon service d'arrière-plan est arrêté : je t'écouterai dès qu'il repart. En attendant, les commandes simples écrites marchent (écris aide). L'équipe technique est prévenue.";
+export const BOSS_VOICE_WORKER_DOWN_REPLY = AGENTS_ADMIN_VARIANTS.voiceWorkerDown[0];
 /** Dernier recours quand la réponse ne part pas (même en texte brut) : l'admin sait que son message est arrivé. */
-export const BOSS_RECEIVED_REPLY = "Bien reçu ✅";
+export const BOSS_RECEIVED_REPLY = AGENTS_ADMIN_VARIANTS.received[0];
+
+/** Une variante d'un texte fixe de ce handler pour cette conversation. */
+function say(key: Exclude<keyof typeof AGENTS_ADMIN_VARIANTS, "welcome" | "redirect" | "accountLinked" | "editTail">, chatId: ChatKey): string {
+  return pick(AGENTS_ADMIN_VARIANTS[key], `agents-admin.${key}`, chatId);
+}
 
 /**
  * Le service d'arrière-plan est-il arrêté (battement absent ou de plus de 3 minutes) ? Faux sur un doute (lecture
@@ -111,17 +195,13 @@ export async function bossNameOf(deps: TelegramDeps): Promise<string> {
 }
 
 /** `/start` de l'admin sur le bot du dialogue admin (phase 26). */
-export function bossWelcomeText(name: string): string {
-  return [
-    `Salut, moi c'est ${name} : je pilote les agents pour toi.`,
-    "Parle-moi normalement, par écrit ou en vocal : je réponds toujours, et je te demande confirmation avant tout ce qui dépense ou publie.",
-    "Écris <b>commencer</b> pour qu'on démarre ensemble, ou <b>aide</b> pour voir ce que je sais faire.",
-  ].join("\n");
+export function bossWelcomeText(name: string, chatId: ChatKey = null): string {
+  return pick(AGENTS_ADMIN_VARIANTS.welcome({ name }), "agents-admin.welcome", chatId);
 }
 
 /** Un bot de canal renvoie l'admin vers le bot du dialogue admin (une seule fois par bot, puis silence). */
-export function bossRedirectText(username: string, name: string = BOSS_DEFAULT_NAME): string {
-  return `Parle-moi sur @${username} (${name}) 👉`;
+export function bossRedirectText(username: string, name: string = BOSS_DEFAULT_NAME, chatId: ChatKey = null): string {
+  return pick(AGENTS_ADMIN_VARIANTS.redirect({ username, name }), "agents-admin.redirect", chatId);
 }
 
 /** Réponse en HTML, repli en texte brut si Telegram refuse le HTML. Rend l'identifiant du message envoyé. */
@@ -187,7 +267,7 @@ export async function adminRouteFor(
 async function redirectOnce(ctx: Context, identity: BotIdentity, deps: TelegramDeps, target: AdminDialogBot): Promise<void> {
   try {
     const first = deps.claimBossRedirect ? await deps.claimBossRedirect(identity.id, target.id) : false;
-    if (first) await ctx.reply(bossRedirectText(target.username, await bossNameOf(deps)));
+    if (first) await ctx.reply(bossRedirectText(target.username, await bossNameOf(deps), ctx.chat?.id ?? null));
   } catch (err) {
     console.error("[boss] renvoi vers le bot du dialogue admin", identity.username, (err as Error).message);
   }
@@ -247,16 +327,20 @@ async function handleDialogText(
         } catch (err) {
           console.error("[boss] /start de l'admin non enregistré", identity.username, (err as Error).message);
         }
-        await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps)));
+        await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps), chatId));
         return;
       }
       // Lien du compte du site (« Mon compte » → Lier Telegram) : inchangé.
       if (payload?.startsWith("admin_")) {
         const linked = await deps.linkAdminAccount(payload.slice("admin_".length), BigInt(fromId));
-        await ctx.reply(linked ? `Compte lié : ${linked.name}.` : "Ce lien n'est plus valable : recréez-le dans « Mon compte ».");
+        await ctx.reply(
+          linked
+            ? pick(AGENTS_ADMIN_VARIANTS.accountLinked({ name: linked.name }), "agents-admin.accountLinked", chatId)
+            : say("linkExpired", chatId),
+        );
         return;
       }
-      await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps)));
+      await replyHtml(ctx, bossWelcomeText(await bossNameOf(deps), chatId));
       return;
     }
     text = commandAsText(text);
@@ -281,7 +365,7 @@ async function handleDialogText(
     // Un message qui contenait un secret ne reste jamais dans la conversation, même si le traitement a échoué.
     if (!forwarded && (await looksSecret(deps, fromId, msg.text, msg.reply_to_message?.message_id)))
       await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => undefined);
-    await ctx.reply(BOSS_ERROR_REPLY).catch(() => undefined);
+    await ctx.reply(bossReplyText("error", chatId)).catch(() => undefined);
     return;
   }
   if (fast.handled) {
@@ -298,13 +382,13 @@ async function handleDialogText(
   // rapide les prend avant ; s'il ne l'a pas fait, le message est effacé et rien d'autre ne se passe.
   if (!forwarded && (await looksSecret(deps, fromId, msg.text, msg.reply_to_message?.message_id))) {
     await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => undefined);
-    await ctx.reply(BOSS_SECRET_NOT_QUEUED_REPLY).catch(() => undefined);
+    await ctx.reply(say("secretNotQueued", chatId)).catch(() => undefined);
     return;
   }
   // Interprète IA : le worker répond dans quelques secondes (« écrit… » en attendant). Worker arrêté : réponse de
   // secours tout de suite, la tâche part quand même en file (traitée au redémarrage).
   const down = await workerLooksDown(deps);
-  if (down) await ctx.reply(BOSS_WORKER_DOWN_REPLY).catch(() => undefined);
+  if (down) await ctx.reply(say("workerDown", chatId)).catch(() => undefined);
   else await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
   try {
     await agents.enqueue.orchestrator(
@@ -324,13 +408,12 @@ async function handleDialogText(
     );
   } catch (err) {
     console.error("[boss] message de l'admin non mis en file", identity.username, (err as Error).message);
-    if (!down) await ctx.reply(BOSS_QUEUE_DOWN_REPLY).catch(() => undefined);
+    if (!down) await ctx.reply(bossReplyText("queueDown", chatId)).catch(() => undefined);
   }
 }
 
 /** Texte qui ressemble à une clé mais que le chemin rapide n'a pas pris : effacé, jamais envoyé à l'interprète. */
-export const BOSS_SECRET_NOT_QUEUED_REPLY =
-  "🔒 Ce message ressemblait à une clé : je l'ai effacé sans le garder. Pour enregistrer une clé, écris « clé <nom> <valeur> » ou réponds à ma question.";
+export const BOSS_SECRET_NOT_QUEUED_REPLY = AGENTS_ADMIN_VARIANTS.secretNotQueued[0];
 
 /** Réponse de secours quand l'envoi normal a échoué : texte brut sans « Répondre », puis « Bien reçu ✅ ». */
 async function sendReplyFallback(ctx: Context, chatId: number, html: string | undefined): Promise<void> {
@@ -343,7 +426,7 @@ async function sendReplyFallback(ctx: Context, chatId: number, html: string | un
       console.error("[boss] réponse en texte brut non envoyée", (err as Error).message);
     }
   }
-  await ctx.api.sendMessage(chatId, BOSS_RECEIVED_REPLY).catch(() => undefined);
+  await ctx.api.sendMessage(chatId, say("received", chatId)).catch(() => undefined);
 }
 
 /**
@@ -405,7 +488,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
     // déjà envoyé par ce bot (avant la bascule vers Kevin) agit sur la base : il continue de marcher ici.
     if (route.kind === "redirect" && isBoss) {
       await ctx
-        .answerCallbackQuery({ text: bossRedirectText(route.target.username, await bossNameOf(deps)) })
+        .answerCallbackQuery({ text: bossRedirectText(route.target.username, await bossNameOf(deps), ctx.from.id) })
         .catch(() => undefined);
       await redirectOnce(ctx, identity, deps, route.target);
       return;
@@ -434,7 +517,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
         }
       } catch (err) {
         console.error("[boss] bouton de confirmation", identity.username, (err as Error).message);
-        await ctx.answerCallbackQuery({ text: "Erreur : réessaie dans un instant." }).catch(() => undefined);
+        await ctx.answerCallbackQuery({ text: say("buttonError", ctx.from.id) }).catch(() => undefined);
       }
       return;
     }
@@ -446,7 +529,9 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
         if (route.kind === "redirect") {
           // Bot de canal après la bascule : la conversation continue chez Kevin (le texte corrigé s'écrit là-bas).
           const name = await bossNameOf(deps);
-          const tail = r.editPromptFor ? `\n\nÉcris le nouveau texte à @${route.target.username} (${name}).` : "";
+          const tail = r.editPromptFor
+            ? `\n\n${pick(AGENTS_ADMIN_VARIANTS.editTail({ username: route.target.username, name }), "agents-admin.editTail", ctx.from.id)}`
+            : "";
           await replyHtml(ctx, `${r.reply}${tail}`);
         } else {
           const messageId = await replyHtml(ctx, r.reply);
@@ -456,7 +541,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       }
     } catch (err) {
       console.error("[agents] bouton de validation", identity.username, (err as Error).message);
-      await ctx.answerCallbackQuery({ text: "Erreur : réessaie dans un instant." }).catch(() => undefined);
+      await ctx.answerCallbackQuery({ text: say("buttonError", ctx.from.id) }).catch(() => undefined);
     }
   });
 
@@ -480,16 +565,16 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       ctx.reply(text, { reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true } });
     if (msg.forward_origin) {
       // Boss : un vocal transféré est une donnée, jamais un ordre ; il reçoit quand même une réponse.
-      await replyLine("C'est un vocal transféré : je ne suis que les vocaux que tu enregistres toi-même.").catch(() => undefined);
+      await replyLine(say("forwardedVoice", ctx.chat.id)).catch(() => undefined);
       return;
     }
     if (audio.file_size && audio.file_size > ADMIN_VOICE_MAX_BYTES) {
-      await replyLine(BOSS_VOICE_TOO_LONG_REPLY);
+      await replyLine(bossReplyText("voiceTooLong", ctx.chat.id));
       return;
     }
     // Worker arrêté : réponse tout de suite, le vocal part quand même en file (écouté au redémarrage).
     const down = route.kind === "dialog" && (await workerLooksDown(deps));
-    if (down) await replyLine(BOSS_VOICE_WORKER_DOWN_REPLY).catch(() => undefined);
+    if (down) await replyLine(say("voiceWorkerDown", ctx.chat.id)).catch(() => undefined);
     else if (route.kind === "dialog") await ctx.api.sendChatAction(ctx.chat.id, "typing").catch(() => undefined);
     try {
       await deps.agentsDeps!().enqueue.orchestrator(
@@ -507,7 +592,7 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       );
     } catch (err) {
       console.error("[agents] vocal de l'admin non mis en file", identity.username, (err as Error).message);
-      if (!down) await replyLine(BOSS_VOICE_QUEUE_DOWN_REPLY);
+      if (!down) await replyLine(bossReplyText("voiceQueueDown", ctx.chat.id));
     }
   });
 
@@ -558,7 +643,7 @@ async function legacyAdminText(
     console.error("[agents] dialogue admin", identity.username, (err as Error).message);
     if (await looksSecret(deps, ctx.from!.id, msg.text, msg.reply_to_message?.message_id))
       await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => undefined);
-    await ctx.reply("Oups, je n'ai pas pu traiter ce message. Réessaie dans un instant.");
+    await ctx.reply(say("legacyError", chatId));
     return;
   }
   if (!r.handled) return next();
@@ -578,7 +663,7 @@ export function registerAdminDialogFallback(bot: Bot, identity: BotIdentity, dep
     const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.chat.type);
     if (route.kind === "dialog") {
       await ctx
-        .reply(BOSS_OTHER_MESSAGE_REPLY, {
+        .reply(bossReplyText("otherMessage", ctx.chat.id), {
           reply_parameters: { message_id: ctx.message.message_id, allow_sending_without_reply: true },
         })
         .catch(() => undefined);

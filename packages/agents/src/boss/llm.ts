@@ -6,9 +6,10 @@
  * drapeaux que les plafonds des équipes). Au plafond, l'IA est considérée absente : le Boss garde les commandes
  * exactes et le dit. `createFakeBossLlm` : table phrase → appel d'outil (aucun réseau, tests).
  */
-import { createAnthropicClient, DEFAULT_MODEL, type AiClient, type AiToolDef, type AiToolUse } from "@linkaffipro/ai";
+import { createAnthropicClient, DEFAULT_MODEL, PLANNER_MODEL, QUALITY_MODEL, type AiClient, type AiToolDef, type AiToolUse } from "@linkaffipro/ai";
 import type { Db as PrismaClient } from "@linkaffipro/db";
-import { BOSS_BUDGET_SETTING, BOSS_DEFAULT_MONTHLY_CENTS, BOSS_TEAM_KEY, type BossLlm } from "./contract";
+import { BOSS_BUDGET_SETTING, BOSS_TEAM_KEY, type BossLlm } from "./contract";
+import { BOSS_ORDERS_DEFAULT_MONTHLY_CENTS } from "../orders/contract";
 import { costCentsOf, readAiApiKey } from "../providers/llm";
 import { budgetAlertLevel } from "../orchestrator/budgets";
 import { parisMonth } from "../rules/time";
@@ -25,14 +26,29 @@ export class BossBudgetError extends Error {
 
 export const BOSS_INTERPRET_MAX_TOKENS = 1200;
 export const BOSS_WRITE_MAX_TOKENS = 700;
+/** Phase 33 : planificateur des ordres (Opus 5.5, réflexion comprise dans le plafond de sortie). */
+export const BOSS_PLAN_MAX_TOKENS = 8000;
+
+/**
+ * Phase 33 — IA du Boss étendue (le type `BossLlm` du contrat est figé) : planificateur des ordres (Opus 5.5, sortie
+ * JSON stricte, sans outil ni température, effort « medium ») et rédaction soignée (Sonnet 5.5) pour les réponses
+ * des équipes. Absents (ancienne IA injectée) : l'appelant se replie sur `write` ou sur le code.
+ */
+export type BossLlmExt = BossLlm & {
+  plan?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
+  writeQuality?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
+};
 
 const eur = (cents: number) => `${(cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
-/** Plafond mensuel du Boss en centimes (`{ monthlyCents }`, 1 000 par défaut ; 0 = aucun appel). */
+/**
+ * Plafond mensuel du Boss en centimes (`{ monthlyCents }`, 3 000 par défaut depuis la phase 33 : le planificateur des
+ * ordres compte dans le même budget ; 0 = aucun appel).
+ */
 export async function bossMonthlyCapCents(prisma: Pick<PrismaClient, "setting">): Promise<number> {
   const row = await prisma.setting.findUnique({ where: { key: BOSS_BUDGET_SETTING } });
   const v = (row?.value as { monthlyCents?: unknown } | null)?.monthlyCents;
-  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : BOSS_DEFAULT_MONTHLY_CENTS;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : BOSS_ORDERS_DEFAULT_MONTHLY_CENTS;
 }
 
 /** Dépense IA du Boss ce mois-ci (centimes) et nombre d'appels. */
@@ -113,7 +129,7 @@ export async function recordBossUsage(
 }
 
 /** Interprète et rédacteur au-dessus d'un client IA, avec contrôle du plafond avant chaque appel. */
-export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: BossLlmOptions = {}): BossLlm {
+export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: BossLlmOptions = {}): BossLlmExt {
   const model = opts.model ?? DEFAULT_MODEL;
   const now = () => (opts.now ? opts.now() : new Date());
   const guard = async () => {
@@ -153,6 +169,31 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
       await count(costCents);
       return { text: res.text, costCents };
     },
+    async plan(req) {
+      await guard();
+      const res = await client.createMessage({
+        model: PLANNER_MODEL,
+        maxTokens: BOSS_PLAN_MAX_TOKENS,
+        effort: "medium",
+        system: [{ text: req.system, cache: true }],
+        user: req.user,
+      });
+      const costCents = costCentsOf(PLANNER_MODEL, res.usage);
+      await count(costCents);
+      return { text: res.text, costCents };
+    },
+    async writeQuality(req) {
+      await guard();
+      const res = await client.createMessage({
+        model: QUALITY_MODEL,
+        maxTokens: BOSS_WRITE_MAX_TOKENS,
+        system: [{ text: req.system, cache: true }],
+        user: req.user,
+      });
+      const costCents = costCentsOf(QUALITY_MODEL, res.usage);
+      await count(costCents);
+      return { text: res.text, costCents };
+    },
   };
 }
 
@@ -160,7 +201,7 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
  * IA du Boss si une clé est réglée et le plafond du mois pas atteint ; sinon null (le Boss ne garde que les
  * commandes exactes et le dit).
  */
-export async function loadBossLlm(prisma: PrismaClient, opts: BossLlmOptions = {}): Promise<BossLlm | null> {
+export async function loadBossLlm(prisma: PrismaClient, opts: BossLlmOptions = {}): Promise<BossLlmExt | null> {
   const state = await bossBudgetState(prisma, opts.now ? opts.now() : new Date());
   if (!state.allowed) return null;
   if (opts.client) return bossLlmFromClient(prisma, opts.client, opts);
@@ -185,9 +226,17 @@ export function bossMessageOf(user: string): string {
 export type FakeBossCall = AiToolUse | null | ((message: string, user: string) => AiToolUse | null);
 export type FakeBossTable = ReadonlyArray<readonly [string | RegExp, FakeBossCall]>;
 
-export type FakeBossLlm = BossLlm & {
-  calls: { interpret: { system: string; user: string; tools: AiToolDef[] }[]; write: { system: string; user: string }[] };
+export type FakeBossLlm = BossLlmExt & {
+  calls: {
+    interpret: { system: string; user: string; tools: AiToolDef[] }[];
+    write: { system: string; user: string }[];
+    plan: { system: string; user: string }[];
+    writeQuality: { system: string; user: string }[];
+  };
 };
+
+/** Faux planificateur : rend le texte (JSON) du plan pour la demande (`user`), ou un objet sérialisé. */
+export type FakePlanner = (message: string, user: string) => string | Record<string, unknown> | null;
 
 /**
  * Fausse IA : table phrase (exacte après normalisation, ou expression) → appel d'outil attendu. Phrase inconnue :
@@ -195,9 +244,9 @@ export type FakeBossLlm = BossLlm & {
  */
 export function createFakeBossLlm(
   table: FakeBossTable,
-  opts: { writer?: (user: string) => string; costCents?: number } = {},
+  opts: { writer?: (user: string) => string; costCents?: number; planner?: FakePlanner; quality?: (user: string) => string; planCostCents?: number } = {},
 ): FakeBossLlm {
-  const calls: FakeBossLlm["calls"] = { interpret: [], write: [] };
+  const calls: FakeBossLlm["calls"] = { interpret: [], write: [], plan: [], writeQuality: [] };
   return {
     calls,
     async interpret(req) {
@@ -215,6 +264,15 @@ export function createFakeBossLlm(
     async write(req) {
       calls.write.push(req);
       return { text: opts.writer ? opts.writer(req.user) : "", costCents: opts.costCents ?? 0 };
+    },
+    async plan(req) {
+      calls.plan.push(req);
+      const out = opts.planner ? opts.planner(bossMessageOf(req.user), req.user) : null;
+      return { text: out === null ? "" : typeof out === "string" ? out : JSON.stringify(out), costCents: opts.planCostCents ?? opts.costCents ?? 0 };
+    },
+    async writeQuality(req) {
+      calls.writeQuality.push(req);
+      return { text: opts.quality ? opts.quality(req.user) : opts.writer ? opts.writer(req.user) : "", costCents: opts.costCents ?? 0 };
     },
   };
 }

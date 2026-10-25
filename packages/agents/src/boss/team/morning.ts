@@ -1,7 +1,7 @@
 /**
  * Phase 26, section 4 — rapport du matin dans le groupe de l'équipe (9 h Paris ; `Setting boss.group.morning`
  * explicite, sinon même préférence que le rapport privé `agents.dailyReport` ; il s'ajoute au rapport privé détaillé,
- * il ne le remplace pas). 5 lignes : bonjour, ce qui est
+ * il ne le remplace pas). 5 lignes sans titre ni série d'emojis (charte de Kevin) : bonjour, ce qui est
  * prévu aujourd'hui, la veille, ce qui bloque, et les @ des personnes qui ont quelque chose en attente. Alertes
  * graves (équipe mise en pause, plafond atteint) : le responsable de l'équipe est mentionné dans le groupe, l'admin
  * les reçoit déjà en privé (copie).
@@ -11,7 +11,8 @@ import { isAgentsPausedAll } from "../../missions/settings";
 import { addDaysToDay, parisDay, parisDayStart, parisMonth } from "../../rules/time";
 import { TEAM_KEYS, TEAM_LABELS, isTeamKey, type AgentsDeps, type TeamKey } from "../../types";
 import { activeBossGroup } from "./group";
-import { activeTeamMembers, adminMention, kindForRequest, mentionHtml, pickResponsibleFrom, teamForKey, type TeamMemberRow } from "./members";
+import { activeTeamMembers, adminMention, kindForRequest, mentionHtml, parisDateLabel, pickResponsibleFrom, teamForKey, type TeamMemberRow } from "./members";
+import { pick, voiceTemplate, type VoiceTable } from "../voice";
 
 export type MorningFigures = {
   day: string;
@@ -24,23 +25,92 @@ export type MorningFigures = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
 
-/** Les 5 lignes du rapport du matin (pur sauf les mentions, données en paramètre). */
-export function morningLines(f: MorningFigures, mentionOf: (m: TeamMemberRow | null) => string): string[] {
+/** Rapport du matin déjà mis en mots (valeurs échappées, mentions HTML prêtes) : base des variantes. */
+export type MorningParts = {
+  dayLabel: string;
+  /** « Casino 4, Rencontres 3 » (vide : aucun post prévu). */
+  planned: { total: number; detail: string };
+  yesterday: { published: number; refused: number; failed: number };
+  /** « Paris sportifs en pause, plafond IA atteint (Casino) » (vide : rien ne bloque). */
+  blockers: string;
+  /** « @lea 1 question, @matheo 2 posts à valider » (vide : rien en attente). */
+  waiting: string;
+};
+
+const yesterdayFigures = (y: MorningParts["yesterday"]) =>
+  `${plural(y.published, "publié")}, ${plural(y.refused, "refusé")}${y.failed ? `, ${y.failed} en échec` : ""}`;
+
+/** Les 5 lignes, chacune avec 2 à 4 tournures (même ordre : bonjour, prévu, hier, ce qui bloque, en attente). */
+function morningLineVariants(p: MorningParts): string[][] {
+  const y = yesterdayFigures(p.yesterday);
+  return [
+    [`Bonjour l'équipe, le point du ${p.dayLabel}.`, `Salut l'équipe, point rapide du ${p.dayLabel}.`, `Hello l'équipe, petit point du ${p.dayLabel}.`],
+    p.planned.total
+      ? [
+          `Aujourd'hui, ${plural(p.planned.total, "post prévu", "posts prévus")} : ${p.planned.detail}.`,
+          `Au programme aujourd'hui : ${plural(p.planned.total, "post")} (${p.planned.detail}).`,
+        ]
+      : [
+          "Aujourd'hui, aucun post prévu : aucun canal n'a son plan activé, ou les équipes sont en pause.",
+          "Rien de prévu aujourd'hui : pas de canal au plan activé, ou les équipes sont en pause.",
+        ],
+    [`Hier : ${y}.`, `Bilan d'hier : ${y}.`],
+    p.blockers ? [`Ce qui bloque : ${p.blockers}.`, `Ça bloque sur : ${p.blockers}.`] : ["Rien ne bloque.", "Aucun blocage en ce moment."],
+    p.waiting ? [`En attente : ${p.waiting}.`, `À voir : ${p.waiting}.`] : ["Rien en attente, merci à tous.", "Personne n'a rien en attente, merci à tous."],
+  ];
+}
+
+const MORNING_SAMPLES: MorningParts[] = [
+  {
+    dayLabel: "samedi 24 octobre",
+    planned: { total: 7, detail: "Casino 4, Rencontres 3" },
+    yesterday: { published: 5, refused: 1, failed: 2 },
+    blockers: "Paris sportifs en pause, plafond IA atteint (Casino), 3 posts arrêtés par un plafond",
+    waiting: "@lea 1 question, @marc 2 questions et 1 post à valider, @matheo 2 posts à valider",
+  },
+  { dayLabel: "lundi 26 octobre", planned: { total: 0, detail: "" }, yesterday: { published: 1, refused: 0, failed: 0 }, blockers: "", waiting: "" },
+];
+
+/** Textes de Kevin du rapport du matin (charte `docs/KEVIN-VOIX.md`, contrôlés par `voice.test.ts`). */
+export const TEAM_MORNING_VARIANTS = {
+  /** Le message entier (5 lignes), une tournure par ligne. */
+  report: voiceTemplate(MORNING_SAMPLES, (p) => {
+    const lines = morningLineVariants(p);
+    return [0, 1, 2].map((i) => lines.map((l) => l[i % l.length]!).join("\n"));
+  }),
+} satisfies VoiceTable;
+
+/** « samedi 24 octobre » depuis « 2026-10-24 » (jour de Paris) (pur). */
+function dayLabelOf(day: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? parisDateLabel(parisDayStart(day)) : day;
+}
+
+/**
+ * Les 5 lignes du rapport du matin (pur sauf les mentions, données en paramètre ; `chatId` : rotation des tournures).
+ * Sans titre ni série d'emojis : bonjour, prévu, hier, ce qui bloque, en attente avec les @.
+ */
+export function morningLines(f: MorningFigures, mentionOf: (m: TeamMemberRow | null) => string, chatId: bigint | null = null): string[] {
   const total = f.planned.reduce((s, p) => s + p.posts, 0);
-  const planned = total
-    ? `Prévu aujourd'hui : ${plural(total, "post")} (${f.planned.filter((p) => p.posts > 0).map((p) => `${TEAM_LABELS[p.team]} ${p.posts}`).join(" · ")})`
-    : "Prévu aujourd'hui : aucun post (aucun canal au plan activé, ou équipes en pause)";
-  const y = f.yesterday;
-  const yesterday = `Hier : ${plural(y.published, "publié")}, ${plural(y.refused, "refusé")}${y.failed ? `, ${y.failed} en échec` : ""}`;
-  const blocks = f.blockers.length ? `Ce qui bloque : ${f.blockers.slice(0, 3).map(esc).join(" · ")}` : "Ce qui bloque : rien 👍";
   const waiting = f.waiting.filter((w) => w.questions + w.validations > 0);
-  const wait = waiting.length
-    ? `En attente : ${waiting
-        .slice(0, 4)
-        .map((w) => `${mentionOf(w.member)} ${[w.questions ? plural(w.questions, "question") : null, w.validations ? `${plural(w.validations, "post")} à valider` : null].filter(Boolean).join(" et ")}`)
-        .join(" · ")}`
-    : "En attente : rien, merci à tous.";
-  return [`☀️ <b>Bonjour l'équipe</b> (${f.day})`, esc(planned), esc(yesterday), blocks, wait];
+  const parts: MorningParts = {
+    dayLabel: esc(dayLabelOf(f.day)),
+    planned: {
+      total,
+      detail: esc(
+        f.planned
+          .filter((p) => p.posts > 0)
+          .map((p) => `${TEAM_LABELS[p.team]} ${p.posts}`)
+          .join(", "),
+      ),
+    },
+    yesterday: f.yesterday,
+    blockers: f.blockers.slice(0, 3).map(esc).join(", "),
+    waiting: waiting
+      .slice(0, 4)
+      .map((w) => `${mentionOf(w.member)} ${[w.questions ? plural(w.questions, "question") : null, w.validations ? `${plural(w.validations, "post")} à valider` : null].filter(Boolean).join(" et ")}`)
+      .join(", "),
+  };
+  return morningLineVariants(parts).map((variants, i) => pick(variants, `morning.line${i}`, chatId));
 }
 
 /** Chiffres du rapport du matin, depuis la base (mêmes comptes que le rapport du Grand Chef). */
@@ -99,7 +169,7 @@ export async function sendGroupMorningReport(deps: AgentsDeps, groupId: bigint):
   if (!deps.admin?.sendTo) return false;
   const f = await morningFigures(deps);
   const admin = await adminMention(deps);
-  const lines = morningLines(f, (m) => (m ? mentionHtml(m) : admin));
+  const lines = morningLines(f, (m) => (m ? mentionHtml(m) : admin), groupId);
   try {
     return (await deps.admin.sendTo(groupId, lines.join("\n"))) !== null;
   } catch (err) {

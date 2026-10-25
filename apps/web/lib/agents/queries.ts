@@ -292,7 +292,7 @@ export type MissionView = {
   createdAt: Date;
 };
 
-const MISSION_SELECT = {
+export const MISSION_SELECT = {
   id: true,
   teamKey: true,
   kind: true,
@@ -315,7 +315,7 @@ const MISSION_SELECT = {
 
 type MissionRow = Prisma.AgentMissionGetPayload<{ select: typeof MISSION_SELECT }>;
 
-function missionView(m: MissionRow): MissionView {
+export function missionView(m: MissionRow): MissionView {
   const { channel, steps, ...rest } = m;
   return { ...rest, channelTitle: channel?.title ?? null, steps: parseSteps(steps) };
 }

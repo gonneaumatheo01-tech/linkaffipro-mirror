@@ -33,6 +33,8 @@ export type CreateMissionInput = {
   payload?: Record<string, unknown>;
   skipAgents?: readonly string[];
   postsPerDay?: number;
+  /** Phase 33 : ordre de Kevin qui fait créer la mission (Grand Chef), gardé aussi dans la charge utile. */
+  orderId?: string | null;
 };
 
 export type CreateMissionResult =
@@ -73,6 +75,7 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
   );
   const payload = {
     ...(input.payload ?? {}),
+    ...(input.orderId ? { orderId: input.orderId } : {}),
     ...(input.format ? { format: input.format } : {}),
     ...(input.personaId ? { personaId: input.personaId } : {}),
   };
@@ -92,6 +95,7 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
     isTest: input.isTest === true,
     createdBy: input.createdBy,
     createdById: input.createdById ?? null,
+    ...(input.orderId ? { orderId: input.orderId } : {}),
     lastActivityAt: now,
   };
   if (budget) {
@@ -114,7 +118,7 @@ export async function createMission(deps: AgentsDeps, input: CreateMissionInput)
   await agentEvent(
     deps,
     "agents.mission.created",
-    { missionId: mission.id, teamKey: input.teamKey, by: input.createdBy, isTest: input.isTest === true },
+    { missionId: mission.id, teamKey: input.teamKey, by: input.createdBy, isTest: input.isTest === true, ...(input.orderId ? { orderId: input.orderId } : {}) },
     { channelId: input.channelId },
   );
   if (input.createdBy === "HUMAN")

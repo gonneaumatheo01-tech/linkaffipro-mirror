@@ -21,11 +21,66 @@ import {
 import { adminTelegramId, agentAudit, esc, nowOf, readSetting, telegramActorUserId, writeSetting } from "../admin/journal";
 import { isStrictYes, normalizeText } from "../human/answer";
 import type { AdminButton } from "../types";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
 
-export const NOTHING_TO_CONFIRM = "Rien à confirmer.";
-export const NOTHING_TO_CANCEL = "Rien à annuler.";
-export const PENDING_EXPIRED = "Trop tard : la confirmation a expiré (10 minutes). Redemande-moi si tu veux toujours.";
-export const PENDING_CANCELLED = "D'accord, j'annule : rien n'a changé.";
+/** Textes fixes des confirmations (charte `docs/KEVIN-VOIX.md`) ; la première variante est aussi la constante exportée. */
+export const CONFIRM_VARIANTS = {
+  nothingToConfirm: ["Rien à confirmer.", "Je n'ai rien en attente de ton OUI.", "Il n'y a rien à confirmer là."],
+  nothingToCancel: ["Rien à annuler.", "Il n'y a rien en cours à annuler.", "Rien à annuler, tout est calme."],
+  expired: [
+    "Trop tard, ça a expiré (10 minutes). Tu me redemandes si tu veux toujours ?",
+    "La confirmation a expiré au bout de 10 minutes. Tu veux que je la repropose ?",
+    "Ça a expiré (10 minutes sans réponse), je n'ai rien fait. Tu me le redemandes ?",
+  ],
+  cancelled: ["D'accord, j'annule. Rien n'a changé.", "Ok, je laisse tomber, rien n'a bougé.", "Annulé, je n'ai rien touché."],
+  noLongerExists: ["Cette confirmation n'existe plus, rien n'a changé.", "Trop tard pour ce bouton, rien n'a changé."],
+  alreadyHandled: ["Déjà fait, rien de plus à faire.", "C'est déjà réglé."],
+  tail: [
+    "Réponds OUI pour confirmer ou NON pour annuler (tu as 10 minutes).",
+    "OUI pour confirmer, NON pour laisser tomber. Ça reste ouvert 10 minutes.",
+    "Dis-moi OUI pour confirmer ou NON (10 minutes pour répondre).",
+  ],
+  replaced: voiceTemplate(
+    [
+      { by: "", what: "Passer l'équipe Casino en vrai ?" },
+      { by: "Léa", what: "Mettre le casino en pause ?" },
+    ],
+    (p: { by: string; what: string }) =>
+      p.by
+        ? [`Ça remplace la demande de ${p.by} (« ${p.what} »), elle est annulée.`, `J'annule la demande de ${p.by} (« ${p.what} ») pour passer à celle-ci.`]
+        : [`Ça remplace ta demande d'avant (« ${p.what} »), elle est annulée.`, `J'oublie la demande d'avant (« ${p.what} »).`],
+  ),
+  voiceStrictYes: [
+    "À la voix, dis exactement « oui » pour confirmer. Sinon réponds OUI par écrit ou appuie sur le bouton.",
+    "Pour ça, il me faut un « oui » tout seul au vocal, ou OUI par écrit, ou le bouton.",
+  ],
+  otherChat: [
+    "Cette confirmation est dans une autre conversation. Appuie sur son bouton OUI, ou réponds « OUI » à ce message-là.",
+    "Je t'ai demandé ça ailleurs : réponds « OUI » au message de là-bas, ou appuie sur son bouton.",
+  ],
+  toastYes: ["C'est parti", "C'est lancé"],
+  toastNo: ["Annulé", "Laissé tomber"],
+  unknownButton: ["Bouton inconnu.", "Ce bouton ne sert plus."],
+  callbackError: [
+    "Oups, ça n'a pas marché de mon côté. Tu réessaies ?",
+    "Raté, une erreur chez moi. Tu peux réessayer ?",
+  ],
+} satisfies VoiceTable;
+
+export const NOTHING_TO_CONFIRM = CONFIRM_VARIANTS.nothingToConfirm[0]!;
+export const NOTHING_TO_CANCEL = CONFIRM_VARIANTS.nothingToCancel[0]!;
+export const PENDING_EXPIRED = CONFIRM_VARIANTS.expired[0]!;
+export const PENDING_CANCELLED = CONFIRM_VARIANTS.cancelled[0]!;
+
+/** Variante d'un texte des confirmations pour une conversation (rotation sans répétition). */
+export function confirmText(key: Exclude<keyof typeof CONFIRM_VARIANTS, "replaced">, chatId?: bigint | string | null): string {
+  return pick(CONFIRM_VARIANTS[key], `confirm.${key}`, chatId ?? null);
+}
+
+/** Dernière ligne d'un message de confirmation (OUI / NON, 10 minutes). */
+export function confirmTail(chatId?: bigint | string | null): string {
+  return confirmText("tail", chatId);
+}
 
 /** Mots qui confirment. Jamais « ok », « go », « d'accord » ni un emoji : trop faciles à écrire sans y penser. */
 const YES_WORDS = new Set(["oui", "ouais", "ouai", "yes", "oui oui", "oui vas y", "oui vas-y", "vas y", "vas-y", "confirme", "je confirme", "oui je confirme"]);
@@ -112,11 +167,11 @@ export async function createBossPending(
   await writeSetting(deps, BOSS_PENDING_SETTING, pending);
   const replaced =
     previous && !previous.expired
-      ? `(La confirmation précédente${previous.requestedBy ? ` demandée par ${esc(previous.requestedBy.firstName)}` : ""} est annulée : « ${esc(firstLine(previous.summary))} ».)\n`
+      ? `${pick(CONFIRM_VARIANTS.replaced({ by: previous.requestedBy ? esc(previous.requestedBy.firstName) : "", what: esc(firstLine(previous.summary)) }), "confirm.replaced", pending.chatId)}\n`
       : "";
   const summary = input.summary.split("\n").slice(0, 2).map(esc).join("\n");
   return {
-    reply: `${replaced}${summary}\nOUI pour confirmer, NON pour annuler (10 minutes).`,
+    reply: `${replaced}${summary}\n${confirmTail(pending.chatId)}`,
     buttons: confirmButtons(pending.id),
     pendingId: pending.id,
   };
@@ -146,16 +201,15 @@ export function pendingTargeted(
 
 /** Par vocal, un passage en vrai, un niveau ou un plafond ne se confirme que par exactement « oui » (« Oui, vas-y » non). */
 const VOICE_STRICT_ACTIONS = new Set(["simulation", "niveau", "plafond"]);
-export const VOICE_STRICT_YES = "Pour confirmer à la voix, dis exactement « oui » (ou réponds OUI par écrit, ou appuie sur le bouton).";
+export const VOICE_STRICT_YES = CONFIRM_VARIANTS.voiceStrictYes[0]!;
 
 /** Refus d'un « oui » vocal pas assez net pour cette confirmation (pur), ou null. */
 export function voiceStrictRefusal(pending: Pick<BossPending, "actionKey">, word: string, voice: boolean, spoken: string): string | null {
   if (!voice || word !== "yes" || !VOICE_STRICT_ACTIONS.has(pending.actionKey)) return null;
-  return isStrictYes(spoken) ? null : VOICE_STRICT_YES;
+  return isStrictYes(spoken) ? null : confirmText("voiceStrictYes");
 }
 
-export const PENDING_OTHER_CHAT =
-  "La confirmation en attente a été montrée dans une autre conversation : appuie sur son bouton OUI, ou réponds « OUI » à ce message-là.";
+export const PENDING_OTHER_CHAT = CONFIRM_VARIANTS.otherChat[0]!;
 
 // ------------------------------------------------------------------------------------- demandes de membres en attente
 
@@ -205,7 +259,7 @@ export async function sendNextDeferredBossPending(deps: BossDeps): Promise<boole
   const admin = await adminTelegramId(deps);
   const chatId = next.chatId ?? (admin ? admin.toString() : null);
   const r = await createBossPending(deps, { actionKey: next.actionKey, params: next.params, summary: next.summary, chatId, requestedBy: next.requestedBy });
-  const text = `${next.text}\nOUI pour confirmer, NON pour annuler (10 minutes).`;
+  const text = `${next.text}\n${confirmTail(chatId)}`;
   try {
     const sent = next.chatId ? ((await deps.admin?.sendTo?.(BigInt(next.chatId), text, { buttons: r.buttons })) ?? null) : ((await deps.admin?.send(text, { buttons: r.buttons })) ?? null);
     if (sent && r.pendingId) await rememberBossPendingMessage(deps, r.pendingId, sent.messageId);
@@ -242,15 +296,15 @@ export async function resolveBossPending(
 ): Promise<BossReply & { handled: boolean }> {
   const cur = await readBossPending(deps);
   if (!cur || (opts.pendingId && cur.id !== opts.pendingId)) {
-    if (opts.pendingId) return { handled: true, reply: "Cette confirmation n'existe plus : rien n'a changé." };
+    if (opts.pendingId) return { handled: true, reply: confirmText("noLongerExists", cur?.chatId) };
     return { handled: false };
   }
   if (cur.expired) {
     await clearBossPending(deps, cur.id);
-    return { handled: true, reply: word === "yes" ? PENDING_EXPIRED : NOTHING_TO_CANCEL, followUp: await bossDeferredFollowUp(deps) };
+    return { handled: true, reply: confirmText(word === "yes" ? "expired" : "nothingToCancel", cur.chatId), followUp: await bossDeferredFollowUp(deps) };
   }
   const claimed = await clearBossPending(deps, cur.id);
-  if (!claimed) return { handled: true, reply: "Déjà traité : rien de plus à faire." };
+  if (!claimed) return { handled: true, reply: confirmText("alreadyHandled", cur.chatId) };
   const actor: BossActor = { userId: await telegramActorUserId(deps), via: "TELEGRAM" };
   if (word !== "yes") {
     await agentAudit(deps, {
@@ -260,7 +314,7 @@ export async function resolveBossPending(
       entityId: cur.id,
       metadata: { status: "refused", via: "TELEGRAM" },
     });
-    return { handled: true, reply: PENDING_CANCELLED, followUp: await bossDeferredFollowUp(deps) };
+    return { handled: true, reply: confirmText("cancelled", cur.chatId), followUp: await bossDeferredFollowUp(deps) };
   }
   const { expired: _e, ...pending } = cur;
   // Import différé : execute → catalog → confirm formerait un cycle au chargement.
@@ -302,12 +356,12 @@ export async function handleBossCallback(
   const admin = await adminTelegramId(deps);
   if (!admin || String(admin) !== String(input.fromTelegramId)) return { handled: true };
   const m = CALLBACK.exec(input.data);
-  if (!m) return { handled: true, toast: "Bouton inconnu.", removeButtons: true };
+  if (!m) return { handled: true, toast: confirmText("unknownButton"), removeButtons: true };
   try {
     const r = await resolveBossPending(deps, m[2] === "yes" ? "yes" : "no", { pendingId: m[1]! });
     return {
       handled: true,
-      toast: m[2] === "yes" ? "C'est parti" : "Annulé",
+      toast: confirmText(m[2] === "yes" ? "toastYes" : "toastNo"),
       reply: r.reply,
       buttons: r.buttons,
       removeButtons: true,
@@ -315,6 +369,6 @@ export async function handleBossCallback(
     };
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message }, "[boss] bouton de confirmation");
-    return { handled: true, toast: "Oups", reply: "Oups, je n'ai pas réussi : erreur interne. Réessaie ou écris aide.", removeButtons: true };
+    return { handled: true, toast: "Oups", reply: confirmText("callbackError"), removeButtons: true };
   }
 }

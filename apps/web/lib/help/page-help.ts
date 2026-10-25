@@ -309,7 +309,18 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents/boss",
     label: "Kevin",
-    sections: [intro("Kevin"), "Parler à Kevin", "Ce que Kevin fait tout de suite et ce qu'il confirme", "Kevin dans le groupe de l'équipe", "Où voir ce que Kevin a fait et combien il coûte"],
+    sections: [intro("Kevin"), "Parler à Kevin", "Ce que Kevin fait tout de suite et ce qu'il confirme", "Donner un ordre à une équipe", "Kevin dans le groupe de l'équipe", "Où voir ce que Kevin a fait et combien il coûte"],
+  },
+  // Phase 33 : ordres donnés aux équipes par Kevin (liste et fiche d'un ordre).
+  {
+    path: "/agents/orders",
+    label: "Ordres",
+    sections: ["Donner un ordre à une équipe", "Ce que Kevin fait tout de suite et ce qu'il confirme"],
+  },
+  {
+    path: "/agents/orders/:id",
+    label: "Fiche d'un ordre",
+    sections: ["Donner un ordre à une équipe", "Simulation, niveaux et pause"],
   },
   // Phase 27 : canaux d'inspiration lus par Kevin (liste et fiche d'une référence).
   {

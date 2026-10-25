@@ -112,10 +112,10 @@ describe("Kevin : étapes de mise en route calculées depuis les données", () =
       { key: "e", label: "", why: "", done: false, team: null, short: "vrai", optional: true },
     ] as BossGuideStep[];
     const [l1, l2, l3] = bossSetupStateLines([{ teamKey: "casino", simulation: false, autonomyLevel: 1 }], steps);
-    expect(l1).toBe("En vrai : Casino · en simulation : Rencontres, Paris sportifs.");
+    expect(l1).toBe("En vrai : Casino. Encore en test : Rencontres, Paris sportifs.");
     expect(l2).toBe("Niveaux : Rencontres 0 · Casino 1 · Paris sportifs 0 · Algorithme 0.");
     expect(l3).toBe("Il manque : Rencontres (clé, médias) · Paris sportifs (bookmaker).");
-    expect(bossSetupStateLines([], [], true)[0]).toBe("⏸ Pause générale. Simulation partout : tout part sur le canal Test.");
+    expect(bossSetupStateLines([], [], true)[0]).toBe("Tout est en pause générale. Tout est encore en test : tout part sur le canal Test.");
   });
 });
 
@@ -124,9 +124,9 @@ describe("Kevin : « commencer »", () => {
     const kit = createTestKit();
     await bossAndReport(kit);
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toContain("Simulation partout");
-    expect(r.reply).toContain("Avancement : 2/12");
-    expect(r.reply).toContain("On commence par la clé fal.ai ?");
+    expect(r.reply).toContain("Tout est encore en test");
+    expect(r.reply).toMatch(/2\/12/);
+    expect(r.reply).toMatch(/(On commence par|On s'attaque à) la clé fal\.ai \?/);
     expect(kit.sent).toHaveLength(0);
     await r.followUp!();
     expect(kit.sent).toHaveLength(1);
@@ -143,7 +143,7 @@ describe("Kevin : « commencer »", () => {
     await (await bossStartReply(kit.deps)).followUp!();
     const again = await bossStartReply(kit.deps);
     expect(again.followUp).toBeUndefined();
-    expect(again.reply).toContain("Je te l'ai déjà demandé");
+    expect(again.reply).toMatch(/Je te l'ai déjà demandé|Je t'ai déjà posé la question/);
     expect(again.reply).toContain("https://fal.ai");
     expect(kit.tables("humanRequest")).toHaveLength(1);
   });
@@ -153,7 +153,7 @@ describe("Kevin : « commencer »", () => {
     await bossAndReport(kit);
     await push(kit, "humanRequest", { key: "autre", kind: "TEXT", status: "PENDING", question: "Quel est le nom ?", askedAt: new Date("2026-10-23T07:00:00Z") });
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toContain("D'abord, la question en cours");
+    expect(r.reply).toMatch(/D'abord, la question en cours|Finissons d'abord celle-ci/);
     expect(r.reply).toContain("Quel est le nom ?");
     await r.followUp!();
     expect(kit.sent).toHaveLength(0);
@@ -163,9 +163,9 @@ describe("Kevin : « commencer »", () => {
   it("pas encore de Kevin : les clics exacts, et en attendant la prochaine question par Telegram", async () => {
     const kit = createTestKit();
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toContain("On commence par créer Kevin, ton bot ?");
+    expect(r.reply).toMatch(/(On commence par|On s'attaque à) créer Kevin, ton bot \?/);
     expect(r.reply).toContain("@BotFather → /newbot");
-    expect(r.reply).toContain("En attendant : le rapport du matin.");
+    expect(r.reply).toMatch(/(En attendant, on peut régler|Pendant ce temps, voyons) le rapport du matin\./);
     await r.followUp!();
     expect(kit.tables("humanRequest")[0]).toMatchObject({ key: "agents.dailyReport", kind: "CONFIRM" });
   });
@@ -175,9 +175,9 @@ describe("Kevin : « commencer »", () => {
     await bossAndReport(kit);
     await push(kit, "humanRequest", { key: "providers.fal.apiKey", kind: "SECRET", status: "SKIPPED", question: "?", answeredAt: new Date("2026-10-23T07:30:00Z") });
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toContain("On commence par une persona Rencontres ?");
+    expect(r.reply).toMatch(/(On commence par|On s'attaque à) une persona Rencontres \?/);
     expect(r.reply).toContain("Conversations → Personas");
-    expect(r.reply).toContain("En attendant : le plafond vidéo du mois.");
+    expect(r.reply).toMatch(/(En attendant, on peut régler|Pendant ce temps, voyons) le plafond vidéo du mois\./);
   });
 
   it("tout est fait : « Tout est prêt 👍 » et la suite (passer une équipe en vrai)", async () => {
@@ -186,7 +186,7 @@ describe("Kevin : « commencer »", () => {
     const steps = await bossSetupSteps(kit.deps);
     expect(steps.filter((s) => !s.done).map((s) => s.key)).toEqual(["real"]);
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toContain("Tout est prêt 👍 (12/12)");
+    expect(r.reply).toMatch(/\(12\/12\) ✅/);
     expect(r.reply).toContain("passe le casino en vrai");
     expect(r.followUp).toBeUndefined();
   });

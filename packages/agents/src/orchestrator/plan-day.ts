@@ -1,6 +1,9 @@
 /**
  * Plan du jour du Grand Chef : pour chaque équipe active et non en pause, les missions manquantes du jour par canal
  * (plans `ChannelAgentPlan` activés moins les missions déjà créées pour ce jour de Paris). Logique programmée.
+ * Phase 33 : les dérogations datées des ordres de Kevin (`ChannelPlanOverride`) sont lues AVANT les plans : un canal
+ * qui a une dérogation active ce jour-là suit la dérogation (missions liées à l'ordre), pas son plan de base, qui ne
+ * change jamais ; après `toDay` ou la fermeture de l'ordre, le plan de base reprend tout seul.
  */
 import { nowOf } from "../admin/journal";
 import { chainOf } from "../chiefs/index";
@@ -9,6 +12,8 @@ import { ensureTeamConfigs } from "../missions/settings";
 import { parisDay } from "../rules/time";
 import { TEAM_KEYS, isTeamKey, type AgentsDeps, type TeamKey } from "../types";
 import { isTeamHalted } from "./pause";
+import { activeOverridesOn } from "../orders/overrides";
+import { planOrderMissions } from "../orders/day-missions";
 
 export type PlanRow = { channelId: string; teamKey: string; postsPerDay: number };
 export type MissingMission = { channelId: string; teamKey: TeamKey; count: number };
@@ -26,7 +31,13 @@ export function missingMissions(plans: readonly PlanRow[], existing: ReadonlyArr
   return out;
 }
 
-export type PlanDayResult = { day: string; created: number; refused: Array<{ channelId: string; reason: string }> };
+export type PlanDayResult = {
+  day: string;
+  created: number;
+  refused: Array<{ channelId: string; reason: string }>;
+  /** Phase 33 : missions des ordres de Kevin créées ce passage. */
+  orders?: { created: number; refused: number };
+};
 
 export async function planDay(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {}): Promise<PlanDayResult> {
   const now = nowOf(deps);
@@ -41,11 +52,22 @@ export async function planDay(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {}
     teams.push(t);
   }
   const result: PlanDayResult = { day, created: 0, refused: [] };
+  // Dérogations des ordres d'abord (toutes équipes, Paris sportifs compris : le Chef de l'équipe ne voit pas les ordres).
+  const overrides = (await activeOverridesOn(deps, day)).filter((o) => !opts.teamKey || o.teamKey === opts.teamKey);
+  if (overrides.length) {
+    const r = await planOrderMissions(deps, day, overrides);
+    result.created += r.created;
+    result.refused.push(...r.refused.map((x) => ({ channelId: x.channelId, reason: x.reason })));
+    result.orders = { created: r.created, refused: r.refused.length };
+  }
+  const overridden = new Set(overrides.map((o) => o.channelId));
   if (!teams.length) return result;
-  const plans = await deps.prisma.channelAgentPlan.findMany({
-    where: { enabled: true, teamKey: { in: teams } },
-    select: { channelId: true, teamKey: true, postsPerDay: true },
-  });
+  const plans = (
+    await deps.prisma.channelAgentPlan.findMany({
+      where: { enabled: true, teamKey: { in: teams } },
+      select: { channelId: true, teamKey: true, postsPerDay: true },
+    })
+  ).filter((p) => !overridden.has(p.channelId));
   if (!plans.length) return result;
   const existing = await deps.prisma.agentMission.findMany({
     where: { planDay: day, isTest: false, createdBy: "GRAND_CHEF", channelId: { in: plans.map((p) => p.channelId) } },

@@ -16,10 +16,12 @@ import { loadAlgoTeam } from "../algo/settings";
 import { isAgentsPausedAll } from "../missions/settings";
 import { INSPIRATION_LIMITS, type ChannelComparison, type InspirationAnalysis, type InspirationGap, type Measure } from "./contract";
 import { analyzeReference, buildStyleProfile, compareWithChannel } from "./kevin-ports";
+import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
 import { loadReferenceRow, readAsker, referenceLabel, referencePostCount, sendToAsker, targetIdsOf, type ReferenceRow } from "./kevin-refs";
 
 export const SUMMARY_MAX_LINES = 6;
 export const SUMMARY_QUESTION = "Tu veux voir le détail ou mes propositions ?";
+const SUMMARY_QUESTIONS = [SUMMARY_QUESTION, "Je te montre le détail, ou plutôt mes propositions ?", "On regarde le détail, ou mes propositions ?"];
 /** `Setting` : réglage d'une collecte de posts transférés ouverte pour une référence (par conversation). */
 export const INSPIRATION_COLLECT_PREFIX = "inspiration.collect.";
 /** `Setting` : chiffres clés gardés à chaque analyse (comparaison de la relecture suivante). */
@@ -86,16 +88,16 @@ export function inspirationSummaryLines(refLabel: string, a: InspirationAnalysis
   const perDay = numberOf(a, "postsPerDay");
   const gap = numberOf(a, "medianGapMinutes");
   if (perDay !== null)
-    out.push(`📅 Rythme : ${fr(perDay)} posts par jour${gap !== null ? `, un toutes les ${fr(gap)} min en médiane` : ""} (${a.sampleSize} posts lus).`);
+    out.push(`Rythme : ${fr(perDay)} posts par jour${gap !== null ? `, un toutes les ${fr(gap)} min en médiane` : ""} (${a.sampleSize} posts lus).`);
   if (a.peakSlots.length) {
     const share = numberOf(a, "peakShare");
-    out.push(`🕘 Heures de pointe (Paris) : ${a.peakSlots.join(", ")}${share !== null ? ` (${fr(share)} % des posts)` : ""}.`);
+    out.push(`Heures de pointe (Paris) : ${a.peakSlots.join(", ")}${share !== null ? ` (${fr(share)} % des posts)` : ""}.`);
   }
   const len = numberOf(a, "lengthMedian");
   const media = mediaShares(a)
     .slice(0, 3)
     .map((m) => `${MEDIA_WORDS[m.kind]} ${fr(m.share)} %`);
-  if (len !== null || media.length) out.push(`✍️ Forme : ${[len !== null ? `${fr(len)} caractères en médiane` : null, media.join(", ") || null].filter(Boolean).join(" ; ")}.`);
+  if (len !== null || media.length) out.push(`Forme : ${[len !== null ? `${fr(len)} caractères en médiane` : null, media.join(", ") || null].filter(Boolean).join(" ; ")}.`);
   const fond: string[] = [];
   const vip = numberOf(a, "vipCallShare");
   if (vip !== null) fond.push(`appel au VIP dans ${fr(vip)} % des posts`);
@@ -110,16 +112,25 @@ export function inspirationSummaryLines(refLabel: string, a: InspirationAnalysis
     if (bonus !== null) fond.push(`bonus dans ${fr(bonus)} %`);
   }
   const flagged = a.flagged.length ? ` ⚠️ ${a.flagged.length} pratique${a.flagged.length > 1 ? "s" : ""} interdite${a.flagged.length > 1 ? "s" : ""} chez nous, que je ne reprends pas.` : "";
-  if (fond.length || flagged) out.push(`🎯 Fond : ${fond.join(" ; ") || "rien de marquant"}.${flagged}`);
+  if (fond.length || flagged) out.push(`Fond : ${fond.join(" ; ") || "rien de marquant"}.${flagged}`);
   const best = measureOf(a, "best.1");
   const views = numberOf(a, "viewsMedian");
   if (best && typeof best.value === "number") {
     const what = best.label.replace(/^Meilleur post n°1 : /, "");
-    out.push(`📈 Ce qui marche chez eux : ${what} (${fr(best.value)} vues${views !== null ? `, médiane ${fr(views)}` : ""}).`);
-  } else out.push("📈 Leurs vues ne sont pas visibles : je ne peux pas dire quel post marche le mieux.");
+    out.push(`Ce qui marche chez eux : ${what} (${fr(best.value)} vues${views !== null ? `, médiane ${fr(views)}` : ""}).`);
+  } else out.push("Leurs vues ne sont pas visibles, je ne peux pas dire quel post marche le mieux.");
   const gaps = biggestGaps(comparison);
-  if (comparison) out.push(gaps.length ? `↔️ Écarts avec ${comparison.channelTitle} : ${gaps.map(gapText).join(" ; ")}.` : `↔️ Pas d'écart net avec ${comparison.channelTitle}.`);
+  if (comparison) out.push(gaps.length ? `Écarts avec ${comparison.channelTitle} : ${gaps.map(gapText).join(" ; ")}.` : `Pas d'écart net avec ${comparison.channelTitle}.`);
   return out.slice(0, SUMMARY_MAX_LINES);
+}
+
+/**
+ * Message du résumé (HTML) : une phrase d'entrée, les lignes du code (échappées ici), puis la question (si `question`).
+ * `label` : nom affiché de la référence, déjà échappé.
+ */
+export function summaryHtml(label: string, lines: readonly string[], chatId: bigint | string | null, question = true): string {
+  const head = pick(INSPIRATION_KEVIN_VARIANTS.summaryHead({ label }), "inspiration.summaryHead", chatId);
+  return [head, ...lines.map(esc), ...(question ? [pick(INSPIRATION_KEVIN_VARIANTS.summaryQuestion, "inspiration.summaryQuestion", chatId)] : [])].join("\n");
 }
 
 /** Faits (seule source des chiffres) d'un résumé : sert au contrôle « aucun chiffre inventé ». */
@@ -158,13 +169,17 @@ async function askerChatKey(deps: AgentsDeps, refId: string): Promise<string> {
 /** « Transfère-moi 10 à 30 posts » (canal illisible ou trop peu de posts) : message à la personne qui a demandé. */
 export async function askForForwards(deps: AgentsDeps, ref: ReferenceRow, reason: string | null, count: number): Promise<void> {
   const label = esc(referenceLabel(ref));
-  const head =
+  const chatKey = await askerChatKey(deps, ref.id);
+  const text =
     count > 0
-      ? `J'ai lu ${count} post${count > 1 ? "s" : ""} de ${label}, il m'en faut ${INSPIRATION_LIMITS.minPostsForAnalysis} : transfère-m'en d'autres.`
-      : `Je ne peux pas lire ${label}${reason ? ` (${esc(reason.slice(0, 160))})` : ""}.`;
-  const tail = count > 0 ? "" : `\nTransfère-moi ${INSPIRATION_LIMITS.forwardMin} à ${INSPIRATION_LIMITS.forwardMax} de ses posts ici : je les range et je l'analyse.`;
-  await openCollect(deps, await askerChatKey(deps, ref.id), ref.id, (await readAsker(deps, ref.id))?.telegramUserId ?? null);
-  await sendToAsker(deps, ref.id, `${head}${tail}`, { actionKey: "inspiration_transfert" });
+      ? pick(INSPIRATION_KEVIN_VARIANTS.tooFew({ label, count, min: INSPIRATION_LIMITS.minPostsForAnalysis }), "inspiration.tooFew", chatKey)
+      : pick(
+          INSPIRATION_KEVIN_VARIANTS.unreadable({ label, reason: reason ? esc(reason.slice(0, 160)) : "", fMin: INSPIRATION_LIMITS.forwardMin, fMax: INSPIRATION_LIMITS.forwardMax }),
+          "inspiration.unreadable",
+          chatKey,
+        );
+  await openCollect(deps, chatKey, ref.id, (await readAsker(deps, ref.id))?.telegramUserId ?? null);
+  await sendToAsker(deps, ref.id, text, { actionKey: "inspiration_transfert" });
 }
 
 // ------------------------------------------------------------------------------------------ après une lecture
@@ -227,7 +242,7 @@ export async function afterReferenceRead(deps: AgentsDeps, referenceChannelId: s
         })
       : null;
     const lines = inspirationSummaryLines(referenceLabel(ref), analysis, comparison);
-    const html = [`🔎 <b>${esc(referenceLabel(ref))}</b>`, ...lines.map(esc), SUMMARY_QUESTION].join("\n");
+    const html = summaryHtml(esc(referenceLabel(ref)), lines, (await readAsker(deps, ref.id))?.chatId ?? null);
     await sendToAsker(deps, ref.id, html, { actionKey: "inspiration_resume" });
     await writeSetting(deps, `${INSPIRATION_SNAPSHOT_PREFIX}${ref.id}`, snapshotOf(analysis, nowOf(deps)));
     await agentEvent(deps, "agents.inspiration.summary_sent", { referenceChannelId, posts: analysis.sampleSize, target });
@@ -235,7 +250,17 @@ export async function afterReferenceRead(deps: AgentsDeps, referenceChannelId: s
     deps.logger?.error({ err: (err as Error).message, referenceChannelId }, "[inspiration] suite de la lecture (Kevin) en échec");
     // Jamais de silence : la personne sait que l'analyse n'a pas abouti.
     const ref = await loadReferenceRow(deps, referenceChannelId).catch(() => null);
-    if (ref) await sendToAsker(deps, ref.id, `Je n'ai pas réussi à analyser ${esc(referenceLabel(ref))} (${esc(String((err as Error).message ?? err).slice(0, 120))}). Redemande-moi dans un moment.`, { actionKey: "inspiration_resume" });
+    if (ref)
+      await sendToAsker(
+        deps,
+        ref.id,
+        pick(
+          INSPIRATION_KEVIN_VARIANTS.analysisFailed({ label: esc(referenceLabel(ref)), reason: esc(String((err as Error).message ?? err).slice(0, 120)) }),
+          "inspiration.analysisFailed",
+          null,
+        ),
+        { actionKey: "inspiration_resume" },
+      );
   }
 }
 
@@ -301,10 +326,7 @@ export async function afterReferenceReread(deps: AgentsDeps, referenceChannelId:
     if (!changes.length) return;
     // Changement net : 2 lignes à l'admin et une proposition (jamais d'application automatique).
     const label = esc(referenceLabel(ref));
-    const html = [
-      `🔁 ${label} a changé de méthode : ${esc(changes.slice(0, 2).join(" ; "))}.`,
-      `Je peux revoir mes propositions pour suivre ce changement : écris « propositions ${label} » (rien ne change sans ton accord).`,
-    ].join("\n");
+    const html = pick(INSPIRATION_KEVIN_VARIANTS.methodChanged({ label, changes: esc(changes.slice(0, 2).join(" ; ")) }), "inspiration.methodChanged", null);
     await deps.admin?.send(html).catch(() => null);
     await agentEvent(deps, "agents.inspiration.method_changed", { referenceChannelId, changes: changes.length });
   } catch (err) {
@@ -336,8 +358,8 @@ export async function notifyReadPostponed(deps: AgentsDeps, referenceChannelId: 
     if (!ref || !(await noticeOnce(deps, ref.id, "postponed"))) return;
     const label = esc(referenceLabel(ref));
     const text = /5 lectures|quota/i.test(reason)
-      ? `Déjà 5 lectures aujourd'hui : je lis ${label} demain.`
-      : `Je ne peux pas lire ${label} tout de suite (${esc(reason.slice(0, 160))}) : je réessaie un peu plus tard.`;
+      ? pick(INSPIRATION_KEVIN_VARIANTS.quotaReached({ label }), "inspiration.quotaReached", null)
+      : pick(INSPIRATION_KEVIN_VARIANTS.postponed({ label, reason: esc(reason.slice(0, 160)) }), "inspiration.postponed", null);
     await sendToAsker(deps, ref.id, text, { actionKey: "inspiration_lecture" });
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] report de lecture non signalé");
@@ -353,10 +375,130 @@ export async function notifyReadFailed(deps: AgentsDeps, referenceChannelId: str
     await sendToAsker(
       deps,
       ref.id,
-      `Lecture impossible de ${esc(referenceLabel(ref))} : ${esc(reason.slice(0, 160))}.\nTransfère-moi ${INSPIRATION_LIMITS.forwardMin} à ${INSPIRATION_LIMITS.forwardMax} de ses posts ici : je les range et je l'analyse.`,
+      pick(
+        INSPIRATION_KEVIN_VARIANTS.readFailed({ label: esc(referenceLabel(ref)), reason: esc(reason.slice(0, 160)), fMin: INSPIRATION_LIMITS.forwardMin, fMax: INSPIRATION_LIMITS.forwardMax }),
+        "inspiration.readFailed",
+        null,
+      ),
       { actionKey: "inspiration_lecture" },
     );
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, referenceChannelId }, "[inspiration] échec de lecture non signalé");
   }
 }
+
+// ------------------------------------------------------------------------------------------ textes de Kevin
+
+const m = (key: string, label: string, value: number | string | null, unit?: string): Measure => ({ key, label, value, ...(unit ? { unit } : {}), sampleSize: 25 });
+/** Analyse d'exemple : rend les lignes réelles du résumé pour le contrôle de la voix. */
+const SAMPLE_ANALYSIS: InspirationAnalysis = {
+  referenceChannelId: "exemple",
+  universe: "casino",
+  sampleSize: 25,
+  rhythm: [m("postsPerDay", "Posts par jour", 6, "posts"), m("medianGapMinutes", "Délai médian entre deux posts", 95, "min"), m("peakShare", "Part des posts dans les 3 heures de pointe", 45, "%")],
+  form: [m("lengthMedian", "Longueur médiane", 180, "caractères"), m("media.video", "Posts vidéo", 40, "%"), m("media.text", "Posts texte seul", 60, "%")],
+  content: [m("vipCallShare", "Posts avec un appel au VIP", 35, "%"), m("bonusShare", "Posts avec un bonus", 20, "%")],
+  results: [m("viewsMedian", "Vues médianes par post", 800, "vues"), m("best.1", "Meilleur post n°1 : vendredi 18:30, vidéo, 150 caractères, appel au VIP", 1200, "vues")],
+  peakSlots: ["18:30", "21:00", "20:00"],
+  quotes: [],
+  flagged: ["2 posts annoncent des gains (interdit chez nous)"],
+};
+const SAMPLE_COMPARISON: ChannelComparison = {
+  channelId: "exemple",
+  channelTitle: "Casino VIP",
+  ourSampleSize: 10,
+  gaps: [
+    { key: "postsPerDay", label: "Posts par jour", theirs: 6, ours: 1, unit: "posts", matters: true },
+    { key: "media.video", label: "Posts vidéo", theirs: 40, ours: 0, unit: "%", matters: true },
+  ],
+};
+
+const summaryHeads = (label: string) => [`J'ai lu ${label}, en bref :`, `${label} en quelques lignes :`, `Ce que j'ai vu chez ${label} :`];
+
+type ForwardAskSample = { label: string; reason: string; fMin: number; fMax: number };
+
+/** Textes de Kevin (charte `docs/KEVIN-VOIX.md`), vérifiés par `boss/voice.test.ts`. */
+export const INSPIRATION_KEVIN_VARIANTS = {
+  summaryHead: voiceTemplate([{ label: "@roulette_pro" }, { label: "« Club privé »" }], (p: { label: string }) => summaryHeads(p.label)),
+  summaryQuestion: SUMMARY_QUESTIONS,
+  /** Résumé complet tel qu'envoyé (entrée + lignes du code + question). */
+  summary: voiceTemplate(
+    [
+      { label: "@roulette_pro", lines: inspirationSummaryLines("@roulette_pro", SAMPLE_ANALYSIS, SAMPLE_COMPARISON) },
+      { label: "@roulette_pro", lines: inspirationSummaryLines("@roulette_pro", { ...SAMPLE_ANALYSIS, results: [], flagged: [] }, { ...SAMPLE_COMPARISON, gaps: [] }) },
+      { label: "« Club privé »", lines: inspirationSummaryLines("« Club privé »", SAMPLE_ANALYSIS, null) },
+    ],
+    (p: { label: string; lines: string[] }) =>
+      summaryHeads(p.label).flatMap((head) => SUMMARY_QUESTIONS.map((q) => [head, ...p.lines.map(esc), q].join("\n"))),
+  ),
+  tooFew: voiceTemplate(
+    [
+      { label: "@roulette_pro", count: 12, min: 20 },
+      { label: "@roulette_pro", count: 1, min: 20 },
+    ],
+    (p: { label: string; count: number; min: number }) => {
+      const posts = `${p.count} post${p.count > 1 ? "s" : ""}`;
+      return [
+        `J'ai lu ${posts} de ${p.label}, il m'en faut ${p.min} : transfère-m'en d'autres.`,
+        `Seulement ${posts} lu${p.count > 1 ? "s" : ""} chez ${p.label}, il m'en faut ${p.min}. Tu m'en transfères d'autres ?`,
+      ];
+    },
+  ),
+  unreadable: voiceTemplate<ForwardAskSample>(
+    [
+      { label: "@roulette_pro", reason: "canal privé", fMin: 10, fMax: 30 },
+      { label: "@roulette_pro", reason: "", fMin: 10, fMax: 30 },
+    ],
+    (p) => {
+      const why = p.reason ? ` (${p.reason})` : "";
+      return [
+        `Je ne peux pas lire ${p.label}${why}. Tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici ? Je les range et je l'analyse.`,
+        `${p.label}, je n'arrive pas à le lire${why}. Transfère-moi ${p.fMin} à ${p.fMax} de ses posts ici, je les range et je l'analyse.`,
+      ];
+    },
+  ),
+  analysisFailed: voiceTemplate(
+    [
+      { label: "@roulette_pro", reason: "base indisponible" },
+      { label: "« Club privé »", reason: "délai dépassé" },
+    ],
+    (p: { label: string; reason: string }) => [
+      `Je n'ai pas réussi à analyser ${p.label} (${p.reason}). Tu me redemandes dans un moment ?`,
+      `⚠️ L'analyse de ${p.label} a raté (${p.reason}). Redemande-moi dans un moment.`,
+    ],
+  ),
+  methodChanged: voiceTemplate(
+    [
+      { label: "@roulette_pro", changes: "12 posts par jour au lieu de 6 ; vidéo 60 % au lieu de 40 %" },
+      { label: "« Club privé »", changes: "heures de pointe 10:00, 12:00, 14:00 au lieu de 18:30, 21:00, 20:00" },
+    ],
+    (p: { label: string; changes: string }) => [
+      `${p.label} a changé sa façon de poster : ${p.changes}.\nJe revois mes propositions pour suivre ? Écris « propositions ${p.label} », rien ne change sans ton accord.`,
+      `${p.label} ne poste plus pareil : ${p.changes}.\nSi tu veux que je revoie mes propositions, écris « propositions ${p.label} ». Rien ne change sans ton accord.`,
+    ],
+  ),
+  quotaReached: voiceTemplate([{ label: "@roulette_pro" }, { label: "« Club privé »" }], (p: { label: string }) => [
+    `Déjà 5 lectures aujourd'hui : je lis ${p.label} demain.`,
+    `J'ai fait mes 5 lectures du jour, je lis ${p.label} demain.`,
+  ]),
+  postponed: voiceTemplate(
+    [
+      { label: "@roulette_pro", reason: "Telegram ne répond pas" },
+      { label: "@roulette_pro", reason: "une autre lecture est en cours" },
+    ],
+    (p: { label: string; reason: string }) => [
+      `Je ne peux pas lire ${p.label} tout de suite (${p.reason}) : je réessaie un peu plus tard.`,
+      `${p.label} attendra un peu (${p.reason}), je réessaie plus tard.`,
+    ],
+  ),
+  readFailed: voiceTemplate<ForwardAskSample>(
+    [
+      { label: "@roulette_pro", reason: "canal introuvable", fMin: 10, fMax: 30 },
+      { label: "« Club privé »", reason: "trop d'essais", fMin: 10, fMax: 30 },
+    ],
+    (p) => [
+      `Je n'arrive pas à lire ${p.label} : ${p.reason}.\nTu me transfères ${p.fMin} à ${p.fMax} de ses posts ici ? Je les range et je l'analyse.`,
+      `Lecture impossible de ${p.label} : ${p.reason}.\nTransfère-moi ${p.fMin} à ${p.fMax} de ses posts ici, je les range et je l'analyse.`,
+    ],
+  ),
+} satisfies VoiceTable;

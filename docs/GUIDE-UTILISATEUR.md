@@ -1081,6 +1081,44 @@ Les anciennes commandes (« agents », « pause casino », « ok 12 », « deman
 - **Après votre OUI** : passer une équipe en vrai, **monter** un quota, un plafond ou un niveau, activer un canal ou une catégorie de paris, appliquer un réglage de l'équipe Algorithme, produire un post ou un pari d'essai, tout ce qui dépense ou publie. Kevin résume en 2 lignes avec deux boutons **OUI** / **NON** (écrire « OUI » marche aussi). Une seule confirmation à la fois ; sans réponse, elle s'annule au bout de 10 minutes. « annule » l'annule tout de suite.
 - Un message **transféré** n'est jamais un ordre : Kevin le lit comme une information. Personne ne peut se donner des droits par message.
 
+#### Donner un ordre à une équipe
+
+Vous pouvez demander à Kevin, en une phrase, un travail précis à une équipe : programmer des paris ou des posts sur plusieurs jours, faire une seule publication, changer un réglage, poser une question à l'équipe. Kevin en fait un **ordre** : il le prépare avec ce que l'équipe sait vraiment faire, vous le récapitule, le fait exécuter par l'équipe dans ses limites et vous en rend compte chaque jour. Chaque ordre a un numéro (« ordre n°12 ») et sa fiche dans Agents → **Ordres**.
+
+**Exemples de phrases :**
+
+1. « Sur le canal de test faisons comme si c'était un canal Paris sportifs, programme les paris pour 3 jours, avec comme thème les hors-jeux »
+2. « Sur le canal Test, 3 jours de posts rencontres avec Léa »
+3. « Fais 5 posts casino par jour sur Roulette pendant une semaine, thème martingale »
+4. « Un pari de test maintenant sur le canal Test »
+5. « Demande à l'équipe Paris pourquoi il n'y a pas eu de pari hier »
+6. « L'équipe Casino a encore combien de vidéos roulette ? »
+
+**Ce que Kevin récapitule** (3 lignes) : l'équipe, le canal, la période (« du 25 au 27 octobre »), la quantité par jour, le thème ou la catégorie, pour de faux ou en vrai. Il dit aussi ce qu'il a compris tout seul (début aujourd'hui avant 20 h, sinon demain ; quantité de la catégorie ou du plan du canal ; pour de faux si vous ne dites rien), ce qu'il a ramené dans une limite (« 50 posts par jour → 12, le maximum du canal ») et ce qui n'est pas possible, avec la raison et 2 à 4 solutions proches numérotées : répondez par le numéro (« 2 »). Si une valeur manque vraiment, il pose **une** question.
+
+**Quand il lance tout de suite** : un ordre sur le **canal Test**, **pour de faux**, sans dépense, sur 7 jours au plus. Il écrit « C'est parti » et vous avez 1 minute pour répondre « annule ».
+
+**Quand il demande OUI** : un **vrai canal**, un passage **en vrai**, une **dépense** (vidéos, photos, cotes), ou **plus de 7 jours** (30 jours au plus). Boutons **OUI** / **NON**, comme pour les autres confirmations. « Faire comme si » ne marche que sur le canal Test : un vrai canal garde toujours son univers (Kevin propose alors de créer un canal). Un canal au niveau 0 continue de vous demander de valider chaque post : Kevin le rappelle dans le récapitulatif.
+
+**Pendant l'ordre** : le canal suit un **réglage temporaire** (l'équipe, la quantité, le thème, la fenêtre de l'ordre) ; son plan habituel n'est jamais modifié et reprend tout seul à la fin. La fiche du canal affiche « Réglage temporaire en cours jusqu'au … (ordre n°…) » avec le lien vers l'ordre. Kevin vous écrit au lancement, une fois par jour (« Jour 2/3 sur Test : 2 paris publiés · 1 en attente de validation ») et à la fin avec le bilan ; il prévient tout de suite après 2 échecs.
+
+**Suivre, modifier, prolonger, arrêter** (sans redonner le numéro : Kevin sait de quel ordre vous parlez) :
+
+- « mes ordres » ou « ordres en cours » : la liste ;
+- « où en est l'ordre sur Test ? » : la progression, avec les vrais chiffres ;
+- « passe à 3 par jour », « change le thème en corners », « mets la fenêtre 18 h - 23 h » : Kevin refait le récapitulatif, avec la même règle pour le OUI ;
+- « prolonge de 2 jours » ;
+- « arrête » (ou « arrête l'ordre sur Roulette ») : les missions pas encore commencées sont annulées, le canal reprend son plan ; ce qui est publié reste publié.
+
+**Voir ce que font les agents et leur parler** :
+
+- « qu'est-ce que l'agent des paris va poster aujourd'hui sur le canal Test ? » : ce qui est prévu, ce qui est déjà choisi, et un aperçu à blanc si vous le demandez ;
+- « pourquoi rien n'est sorti ? » : la vraie raison (pause, validation en attente, pas de cote, plafond atteint, fenêtre pas encore ouverte…) ;
+- « l'agent Rédaction, il fait quoi ? » : son rôle, ce qu'il a fait aujourd'hui et ce qu'il va faire ;
+- « dis à l'agent Rédaction d'écrire plus court sur Roulette » : la demande passe par le Chef de son équipe, dans les limites habituelles.
+
+**Dans le site** : Agents → **Ordres** liste les ordres (numéro, statut, équipe, canal, période, progression, coût), filtrables par équipe et par statut. La fiche d'un ordre montre votre phrase, le récapitulatif de Kevin, le plan validé, ce qui était impossible et les solutions proposées, les missions et leurs posts, le réglage temporaire du canal et la chronologie (demandé, confirmé, lancé, rapports, arrêté ou fini). **Arrêter** et **Prolonger** (1, 2, 3 ou 7 jours) : administrateurs, avec confirmation ; chaque geste est noté dans Réglages → Journal. Une équipe qui n'existe pas encore (« programme des shorts ») : Kevin le dit et note la demande dans Agents → Kevin → **Pas encore possible**, rangée par équipe et par ce qu'il faudrait lui apprendre.
+
 #### Kevin dans le groupe de l'équipe
 
 - **Le groupe** : ajoutez Kevin au groupe Telegram de l'équipe (comme simple membre). S'il est ajouté par vous, il retient ce groupe (un seul) et se présente ; ajouté par quelqu'un d'autre ou dans un autre groupe, il se tait.
@@ -1124,7 +1162,7 @@ Vous connaissez un canal Telegram qui marche ? Kevin peut le lire et s'inspirer 
 
 #### Où voir ce que Kevin a fait et combien il coûte
 
-Agents → **Kevin** : le bot (ou les 3 étapes pour le créer), l'équipe et le groupe, ce qu'il ne sait pas encore faire (avec **Exporter**), ses 50 derniers échanges (une clé y apparaît toujours « [secret] ») et la dépense de son IA ce mois. Seules les phrases libres coûtent (quelques centimes) ; le plafond est de **10 € par mois** par défaut, modifiable par un administrateur ; une alerte part à 80 % ; au plafond, Kevin garde les commandes exactes et le dit. Chaque action faite par Kevin est aussi dans Réglages → Journal. Au plus une fois par jour, s'il y a un blocage (question sans réponse depuis plus d'un jour, équipe en pause automatique, plafond atteint), Kevin vous relance.
+Agents → **Kevin** : le bot (ou les 3 étapes pour le créer), l'équipe et le groupe, ce qu'il ne sait pas encore faire (avec **Exporter**) et la même liste rangée par équipe (**Pas encore possible**), ses 50 derniers échanges (une clé y apparaît toujours « [secret] ») et la dépense de son IA ce mois. Seules les phrases libres coûtent (quelques centimes) ; le plafond est de **10 € par mois** par défaut, modifiable par un administrateur ; une alerte part à 80 % ; au plafond, Kevin garde les commandes exactes et le dit. Ses ordres aux équipes sont dans Agents → **Ordres** (bouton « Ses ordres aux équipes »). Chaque action faite par Kevin est aussi dans Réglages → Journal. Au plus une fois par jour, s'il y a un blocage (question sans réponse depuis plus d'un jour, équipe en pause automatique, plafond atteint), Kevin vous relance.
 
 ### Simulation, niveaux et pause
 

@@ -6,7 +6,7 @@ import { createTestKit } from "../human/test-kit";
 import { createFakeBossLlm, type FakeBossTable } from "./llm";
 import type { BossDeps, BossTeamInput } from "./contract";
 
-export async function createBossKit(table: FakeBossTable = [], opts: { writer?: (user: string) => string } = {}) {
+export async function createBossKit(table: FakeBossTable = [], opts: Parameters<typeof createFakeBossLlm>[1] = {}) {
   const kit = createTestKit();
   const p = kit.prisma;
   const lea = await p.persona.create({ data: { name: "Léa", isActive: true, universe: "dating" } as never });

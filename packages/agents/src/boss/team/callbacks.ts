@@ -10,6 +10,17 @@ import { respondToRequest, type HumanRequestRow } from "../../human/respond";
 import { decideValidation } from "../../validation/requests";
 import { teamAdminOnlyRequest } from "../../human/delivery";
 import type { AgentsDeps } from "../../types";
+import { pick, type VoiceTable } from "../voice";
+
+/** Textes de Kevin des boutons appuyés dans le groupe (charte `docs/KEVIN-VOIX.md`, contrôlés par `voice.test.ts`). */
+export const TEAM_CALLBACKS_VARIANTS = {
+  approved: ["Validé ✅", "C'est validé ✅"],
+  rejected: ["Refusé ❌", "C'est refusé ❌"],
+  editAsk: ["Envoie le nouveau texte ✏️", "J'attends le nouveau texte ✏️"],
+  editHint: ["↩️ Réponds à ce message avec le nouveau texte.", "↩️ Réponds à ce message avec ta version corrigée."],
+  requestYes: ["C'est fait ✅", "Fait ✅"],
+  requestNo: ["D'accord", "Ok, c'est noté"],
+} satisfies VoiceTable;
 
 const REQUEST_DATA = /^agh:([A-Za-z0-9_-]{1,40}):(oui|non)$/;
 
@@ -26,10 +37,12 @@ export async function bossTeamCallback(deps: AgentsDeps, input: { data: string; 
     const r = await decideValidation(deps, { validationId: row.id, decision, via: "TELEGRAM", byUserId: null });
     await audit(`boss.${decision === "approve" ? "valider_post" : decision === "reject" ? "refuser_post" : "corriger_post"}`, "AgentValidation", row.id, { ok: r.ok });
     if (!r.ok) return { handled: true, toast: r.message.slice(0, 190), removeButtons: true };
+    const who = input.fromTelegramId;
+    const toastKey = decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "editAsk";
     return {
       handled: true,
-      toast: decision === "approve" ? "Validé ✅" : decision === "reject" ? "Refusé ❌" : "Envoie le nouveau texte ✏️",
-      reply: decision === "edit" ? `${r.message}\n↩️ Réponds à CE message avec le nouveau texte.` : r.message,
+      toast: pick(TEAM_CALLBACKS_VARIANTS[toastKey], `callbacks.${toastKey}`, who),
+      reply: decision === "edit" ? `${r.message}\n${pick(TEAM_CALLBACKS_VARIANTS.editHint, "callbacks.editHint", who)}` : r.message,
       removeButtons: decision !== "edit",
     };
   }
@@ -41,7 +54,7 @@ export async function bossTeamCallback(deps: AgentsDeps, input: { data: string; 
     const r = await respondToRequest(deps, request, m[2]!, { userId: null, via: "TELEGRAM" });
     await audit("boss.repondre_demande", "HumanRequest", request.id, { key: request.key, ok: r.ok });
     if (!r.ok) return { handled: true, toast: r.message.slice(0, 190), removeButtons: true };
-    return { handled: true, toast: m[2] === "oui" ? "C'est fait ✅" : "D'accord", reply: r.message, removeButtons: true };
+    return { handled: true, toast: m[2] === "oui" ? pick(TEAM_CALLBACKS_VARIANTS.requestYes, "callbacks.requestYes", input.fromTelegramId) : pick(TEAM_CALLBACKS_VARIANTS.requestNo, "callbacks.requestNo", input.fromTelegramId), reply: r.message, removeButtons: true };
   }
   return { handled: false };
 }

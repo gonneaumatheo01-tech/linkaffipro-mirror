@@ -1,0 +1,95 @@
+{
+  "source": "Identifiants `oddID` SportsGameOdds v2 (football) relevés sur packages/agents/fixtures/odds/events.json (shots_onGoal, corners, points ou / ml3way, cards) et sur la documentation du fournisseur pour les autres statistiques. Un marché absent chez le fournisseur ne renvoie simplement aucune cote : la vérification de l'ordre le dit alors précisément.",
+  "themes": [
+    {
+      "key": "corners",
+      "label": "corners",
+      "synonyms": ["corner", "corners", "coup de pied de coin", "coups de pied de coin", "corner kicks"],
+      "marketTypes": ["corners-all-game-ou-over", "corners-all-game-ou-under", "corners-home-game-ou-over", "corners-away-game-ou-over"]
+    },
+    {
+      "key": "cartons",
+      "label": "cartons",
+      "synonyms": ["carton", "cartons", "cartons total", "total cartons", "cards", "bookings", "card"],
+      "marketTypes": ["cards-all-game-ou-over", "cards-all-game-ou-under"]
+    },
+    {
+      "key": "cartons-jaunes",
+      "label": "cartons jaunes",
+      "synonyms": ["carton jaune", "cartons jaunes", "jaunes", "yellow card", "yellow cards"],
+      "marketTypes": ["yellowCards-all-game-ou-over", "yellowCards-all-game-ou-under"]
+    },
+    {
+      "key": "cartons-rouges",
+      "label": "cartons rouges",
+      "synonyms": ["carton rouge", "cartons rouges", "rouges", "expulsion", "expulsions", "red card", "red cards"],
+      "marketTypes": ["redCards-all-game-ou-over", "redCards-all-game-ou-under"]
+    },
+    {
+      "key": "tirs-cadres",
+      "label": "tirs cadrés",
+      "synonyms": ["tir cadre", "tirs cadres", "tirs cadrés", "tir cadré", "frappes cadrees", "shots on target", "shots on goal", "tirs"],
+      "marketTypes": ["shots_onGoal-all-game-ou-over", "shots_onGoal-all-game-ou-under", "shots_onGoal-home-game-ou-over", "shots_onGoal-away-game-ou-over"]
+    },
+    {
+      "key": "buteurs",
+      "label": "buteurs",
+      "synonyms": ["buteur", "buteurs", "marqueur", "marqueurs", "joueur qui marque", "goalscorer", "goal scorer", "anytime scorer", "scorer"],
+      "marketTypes": ["points-PLAYER_ID-game-yn-yes"]
+    },
+    {
+      "key": "hors-jeux",
+      "label": "hors-jeux",
+      "synonyms": ["hors jeu", "hors jeux", "hors-jeu", "hors-jeux", "horsjeu", "offside", "offsides"],
+      "marketTypes": ["offsides-all-game-ou-over", "offsides-all-game-ou-under", "offsides-home-game-ou-over", "offsides-away-game-ou-over"]
+    },
+    {
+      "key": "buts",
+      "label": "buts (plus / moins)",
+      "synonyms": ["but", "buts", "plus moins", "plus ou moins", "over under", "nombre de buts", "total de buts", "goals", "over", "under"],
+      "marketTypes": ["points-all-game-ou-over", "points-all-game-ou-under"]
+    },
+    {
+      "key": "les-deux-equipes-marquent",
+      "label": "les deux équipes marquent",
+      "synonyms": ["les deux equipes marquent", "deux equipes marquent", "les 2 equipes marquent", "btts", "both teams to score", "both teams score"],
+      "marketTypes": ["bothTeamsScored-all-game-yn-yes", "bothTeamsScored-all-game-yn-no"]
+    },
+    {
+      "key": "mi-temps",
+      "label": "mi-temps",
+      "synonyms": ["mi temps", "mi-temps", "premiere mi temps", "1re mi temps", "1ere mi temps", "half time", "first half", "halftime"],
+      "marketTypes": ["points-all-1h-ou-over", "points-all-1h-ou-under", "points-home-1h-ml3way-home", "points-away-1h-ml3way-away", "points-all-1h-ml3way-draw"]
+    },
+    {
+      "key": "fin-de-match",
+      "label": "fin de match",
+      "synonyms": ["fin de match", "match entier", "temps reglementaire", "full time", "fulltime"],
+      "marketTypes": ["points-all-game-ou-over", "points-all-game-ou-under", "points-home-reg-ml3way-home", "points-away-reg-ml3way-away", "points-all-reg-ml3way-draw"]
+    },
+    {
+      "key": "handicap",
+      "label": "handicap",
+      "synonyms": ["handicap", "handicaps", "handicap asiatique", "asian handicap", "spread"],
+      "marketTypes": ["points-home-game-sp-home", "points-away-game-sp-away"]
+    },
+    {
+      "key": "double-chance",
+      "label": "double chance",
+      "synonyms": ["double chance", "double-chance", "1x", "x2"],
+      "marketTypes": ["points-home-reg-ml3way-home+draw", "points-away-reg-ml3way-away+draw", "points-all-reg-ml3way-not_draw"]
+    },
+    {
+      "key": "score-exact",
+      "label": "score exact",
+      "synonyms": ["score exact", "resultat exact", "correct score", "exact score"],
+      "marketTypes": ["correctScore-all-reg-eo-any"]
+    },
+    {
+      "key": "resultat",
+      "label": "résultat du match",
+      "synonyms": ["resultat", "résultat", "resultat du match", "vainqueur", "gagnant", "1n2", "1x2", "victoire", "match result", "winner", "moneyline"],
+      "marketTypes": ["points-home-reg-ml3way-home", "points-away-reg-ml3way-away", "points-all-reg-ml3way-draw"]
+    }
+  ]
+}

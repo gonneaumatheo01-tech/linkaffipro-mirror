@@ -32,6 +32,38 @@ import { ADS_THRESHOLDS_KEY } from "../agents/ads/thresholds";
 import { TEAM_KEYS, TEAM_LABELS, type AgentsDeps, type TeamKey } from "../types";
 import type { BossReply, BossSetupStep } from "./contract";
 import { readBossName } from "./memory";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
+
+/** Textes fixes de la mise en route (charte `docs/KEVIN-VOIX.md`). */
+export const GUIDE_VARIANTS = {
+  allReady: voiceTemplate([{ progress: "14/14" }], (p: { progress: string }) => [
+    `Tout est prêt (${p.progress}) ✅`,
+    `C'est bon, tout est en place (${p.progress}) ✅`,
+    `Rien ne manque (${p.progress}) ✅`,
+  ]),
+  nextReal: voiceTemplate([{ howTo: "Écris-moi « passe le casino en vrai »." }], (p: { howTo: string }) => [`La suite : ${p.howTo}`, `Prochaine étape si tu veux : ${p.howTo}`]),
+  nextLevel: ["Tu peux monter un niveau : écris « niveau casino 1 ».", "Prochaine étape possible : « niveau casino 1 » pour lui laisser plus de marge."],
+  progress: voiceTemplate([{ progress: "3/14" }], (p: { progress: string }) => [`Tu en es à ${p.progress}.`, `Avancement : ${p.progress}.`, `On en est à ${p.progress}.`]),
+  startWith: voiceTemplate([{ label: "la clé fal.ai", why: "Elle sert à fabriquer les vidéos." }], (p: { label: string; why: string }) => [
+    `On commence par ${p.label} ? ${p.why}`,
+    `On s'attaque à ${p.label} ? ${p.why}`,
+  ]),
+  howTo: voiceTemplate([{ howTo: "Sur le site : Agents → Équipe Casino → Plan par canal → Enregistrer." }], (p: { howTo: string }) => [`Comment faire : ${p.howTo}`, `Pour ça : ${p.howTo}`]),
+  howToDefault: ["Regarde la page Agents du site.", "Ça se fait sur la page Agents du site."],
+  meanwhile: voiceTemplate([{ label: "le plafond vidéo du mois" }], (p: { label: string }) => [`En attendant, on peut régler ${p.label}.`, `Pendant ce temps, voyons ${p.label}.`]),
+  alreadyAsked: ["Je te l'ai déjà demandé, je te la remets :", "Je t'ai déjà posé la question, la revoilà :"],
+  currentFirst: [
+    "D'abord, la question en cours (je pose la suivante juste après) :",
+    "Finissons d'abord celle-ci, je pose la suivante juste après :",
+  ],
+  askBelow: ["Je te pose la question juste en dessous.", "Ma question arrive juste en dessous.", "Je t'envoie la question juste après."],
+  realAll: voiceTemplate([{ real: "Casino", sim: "Rencontres, Paris sportifs", pause: "" }, { real: "Casino", sim: "", pause: "Tout est en pause générale. " }], (p: { real: string; sim: string; pause: string }) => [
+    `${p.pause}En vrai : ${p.real}${p.sim ? `. Encore en test : ${p.sim}` : ""}.`,
+  ]),
+  simAll: voiceTemplate([{ pause: "" }, { pause: "Tout est en pause générale. " }], (p: { pause: string }) => [
+    `${p.pause}Tout est encore en test : tout part sur le canal Test.`,
+  ]),
+} satisfies VoiceTable;
 
 /** Étape enrichie (reste un `BossSetupStep` du contrat). */
 export type BossGuideStep = BossSetupStep & {
@@ -470,10 +502,10 @@ export function bossSetupStateLines(
   const publishing = rows.filter((r) => r.key !== "algo");
   const real = publishing.filter((r) => !r.simulation).map((r) => r.label);
   const sim = publishing.filter((r) => r.simulation).map((r) => r.label);
-  const pause = pausedAll ? "⏸ Pause générale. " : "";
+  const pause = pausedAll ? "Tout est en pause générale. " : "";
   const line1 = real.length
-    ? `${pause}En vrai : ${real.join(", ")}${sim.length ? ` · en simulation : ${sim.join(", ")}` : ""}.`
-    : `${pause}Simulation partout : tout part sur le canal Test.`;
+    ? GUIDE_VARIANTS.realAll({ real: real.join(", "), sim: sim.join(", "), pause })[0]!
+    : GUIDE_VARIANTS.simAll({ pause })[0]!;
   const line2 = `Niveaux : ${rows.map((r) => `${r.label} ${r.level}`).join(" · ")}.`;
   const missing = new Map<string, string[]>();
   for (const s of steps) {
@@ -504,38 +536,48 @@ export async function bossStartReply(deps: BossGuideDeps): Promise<BossReply> {
   const next = firstMissingBossStep(steps);
   if (!next) {
     const real = steps.find((s) => s.key === "real");
-    const tail = real && !real.done ? `La suite : ${esc(real.howTo ?? "")}` : "Tu peux monter un niveau : écris « niveau casino 1 ».";
-    return { reply: [`Tout est prêt 👍 (${progress.label})`, ...lines, tail].join("\n") };
+    const tail =
+      real && !real.done ? pick(GUIDE_VARIANTS.nextReal({ howTo: esc(real.howTo ?? "") }), "guide.nextReal") : pick(GUIDE_VARIANTS.nextLevel, "guide.nextLevel");
+    return { reply: [pick(GUIDE_VARIANTS.allReady({ progress: progress.label }), "guide.allReady"), ...lines, tail].join("\n") };
   }
   // Une étape « passée » (« plus tard » depuis moins de 24 h) laisse la place à la suivante.
   const skipped = await recentlySkippedKeys(deps);
-  const pick = steps.find((s) => !s.optional && !s.done && !(s.asks ?? []).some((a) => skipped.has(a.key))) ?? next;
-  const head = [...lines, `Avancement : ${progress.label}`, `On commence par ${esc(pick.label)} ? ${esc(pick.why)}`];
+  const step = steps.find((s) => !s.optional && !s.done && !(s.asks ?? []).some((a) => skipped.has(a.key))) ?? next;
+  const head = [
+    ...lines,
+    pick(GUIDE_VARIANTS.progress({ progress: progress.label }), "guide.progress"),
+    pick(GUIDE_VARIANTS.startWith({ label: esc(step.label), why: esc(step.why) }), "guide.startWith"),
+  ];
 
-  let asks = await asksOf(deps, pick);
+  let asks = await asksOf(deps, step);
   const out = [...head];
   if (!asks.length) {
-    out.push(`👉 ${esc(pick.howTo ?? "Regarde la page Agents du site.")}`);
+    out.push(
+      step.howTo
+        ? pick(GUIDE_VARIANTS.howTo({ howTo: esc(step.howTo) }), "guide.howTo")
+        : pick(GUIDE_VARIANTS.howToDefault, "guide.howToDefault"),
+    );
     // Étape à faire hors de Telegram : en attendant, la prochaine question qui se fait par une réponse.
-    const index = steps.indexOf(pick);
+    const index = steps.indexOf(step);
     const later = steps.find(
       (s, i) => i > index && !s.optional && !s.done && (s.asks?.length || s.key === "ads.thresholds") && !(s.asks ?? []).some((a) => skipped.has(a.key)),
     );
     asks = later ? await asksOf(deps, later) : [];
     if (!asks.length) return { reply: out.join("\n") };
-    out.push(`En attendant : ${esc(later!.label)}.`);
+    out.push(pick(GUIDE_VARIANTS.meanwhile({ label: esc(later!.label) }), "guide.meanwhile"));
   }
 
   const first = asks[0]!;
   // Une question est déjà posée : la même (rappelée ici, jamais doublée) ou une autre (à finir d'abord).
   const current = await currentHumanRequest(deps);
-  if (current && current.key === first.key) return { reply: [...out, "Je te l'ai déjà demandé, la voici :", formatQuestion(current)].join("\n") };
+  if (current && current.key === first.key)
+    return { reply: [...out, pick(GUIDE_VARIANTS.alreadyAsked, "guide.alreadyAsked"), formatQuestion(current)].join("\n") };
   if (current)
     return {
-      reply: [...out, "D'abord, la question en cours (je pose la suivante juste après) :", formatQuestion(current)].join("\n"),
+      reply: [...out, pick(GUIDE_VARIANTS.currentFirst, "guide.currentFirst"), formatQuestion(current)].join("\n"),
       followUp: () => queueAsks(deps, asks),
     };
-  return { reply: [...out, "Je te pose la question juste en dessous 👇"].join("\n"), followUp: () => queueAsks(deps, asks) };
+  return { reply: [...out, pick(GUIDE_VARIANTS.askBelow, "guide.askBelow")].join("\n"), followUp: () => queueAsks(deps, asks) };
 }
 
 async function asksOf(deps: BossGuideDeps, step: BossGuideStep): Promise<AskHumanInput[]> {

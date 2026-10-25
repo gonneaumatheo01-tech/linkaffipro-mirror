@@ -11,12 +11,9 @@ import { registerHandlers } from "../handlers";
 import { botInfoFromRecord } from "../factory";
 import type { AdminDialogBot, BotIdentity, TelegramDeps } from "../ports";
 import type { BossEngine } from "../boss/engine";
-import { BOSS_OTHER_MESSAGE_REPLY, BOSS_QUEUE_DOWN_REPLY } from "../boss/reply";
+import { BOSS_REPLY_VARIANTS } from "../boss/reply";
 import {
-  BOSS_RECEIVED_REPLY,
-  BOSS_SECRET_NOT_QUEUED_REPLY,
-  BOSS_VOICE_WORKER_DOWN_REPLY,
-  BOSS_WORKER_DOWN_REPLY,
+  AGENTS_ADMIN_VARIANTS,
   bossRedirectText,
   commandAsText,
   onlyCustomEmojis,
@@ -148,13 +145,14 @@ describe("Boss : l'admin reçoit toujours une réponse", () => {
   it("mise en file impossible : réponse de secours quand même", async () => {
     const t = setup({ identity: boss, enqueueFails: true });
     await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
-    expect(t.sent()).toEqual([BOSS_QUEUE_DOWN_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(BOSS_REPLY_VARIANTS.queueDown).toContain(t.sent()[0]);
   });
 
   it("chemin rapide en panne : « Oups… », jamais de silence", async () => {
     const t = setup({ identity: boss, fastThrows: true });
     await t.bot.handleUpdate(text(ADMIN, "agents"));
-    expect(t.sent()[0]).toMatch(/^Oups/);
+    expect(BOSS_REPLY_VARIANTS.error).toContain(t.sent()[0]);
   });
 
   it("/start : accueil de Kevin et « commencer » ; /aide passe au chemin rapide comme « aide »", async () => {
@@ -202,7 +200,8 @@ describe("Boss : l'admin reçoit toujours une réponse", () => {
     expect(t.enqueued[0]!.job).toMatchObject({ type: "admin-voice", botId: boss.id, fileId: "v1" });
     expect(t.enqueued[0]!.opts?.jobId).toMatch(/^admin-voice:boss_1:/);
     await t.bot.handleUpdate(msgUpdate(ADMIN, { sticker: { file_id: "s", file_unique_id: "s", type: "regular", width: 1, height: 1, is_animated: false, is_video: false } }));
-    expect(t.sent()).toEqual([BOSS_OTHER_MESSAGE_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(BOSS_REPLY_VARIANTS.otherMessage).toContain(t.sent()[0]);
   });
 
   it("bouton de confirmation bsc: : moteur du Boss, petit message, boutons retirés, réponse", async () => {
@@ -246,8 +245,10 @@ describe("bots de canal quand un Boss existe", () => {
     await t.bot.handleUpdate(text(ADMIN, "pause casino"));
     await t.bot.handleUpdate(msgUpdate(ADMIN, { voice: { file_id: "v1", file_unique_id: "u1", duration: 3 } }));
     await t.bot.handleUpdate(callback(ADMIN, "agv:x:ok"));
-    expect(t.sent()).toEqual([bossRedirectText("kevin_boss_bot", "Kevin")]);
-    expect(t.sent()[0]).toBe("Parle-moi sur @kevin_boss_bot (Kevin) 👉");
+    expect(t.sent()).toHaveLength(1);
+    expect(AGENTS_ADMIN_VARIANTS.redirect({ username: "kevin_boss_bot", name: "Kevin" })).toContain(t.sent()[0]);
+    expect(t.sent()[0]).toContain("@kevin_boss_bot (Kevin)");
+    expect(bossRedirectText("kevin_boss_bot", "Kevin")).toMatch(/@kevin_boss_bot \(Kevin\)/);
     expect(t.fastCalls).toHaveLength(0);
     expect(t.enqueued).toHaveLength(0);
   });
@@ -256,7 +257,7 @@ describe("bots de canal quand un Boss existe", () => {
     const t = setup({ identity: channelBot });
     await t.bot.handleUpdate(text(STRANGER, "/start"));
     expect(t.sent()).toHaveLength(1);
-    expect(t.sent()[0]).not.toContain("Parle-moi");
+    expect(t.sent()[0]).not.toContain("@kevin_boss_bot");
   });
 
   it("avant tout Boss, le bot casino de repli fait office de Boss (même handler)", async () => {
@@ -303,7 +304,7 @@ describe("emojis animés de l'admin (phase 12) : bibliothèque avant le chemin r
     const t = setup({ identity: channelBot });
     await t.bot.handleUpdate(msgUpdate(ADMIN, { text: "🎁", entities: [EMOJI] }));
     expect(t.deps.addCustomEmojis).toHaveBeenCalledTimes(1);
-    expect(t.sent().join("\n")).not.toContain("Parle-moi");
+    expect(t.sent().join("\n")).not.toContain("@kevin_boss_bot");
   });
   it("vrai Boss : emojis seuls ou transférés → bibliothèque ; une phrase avec un emoji animé → interprète", async () => {
     const t = setup({ identity: boss });
@@ -332,14 +333,16 @@ describe("service d'arrière-plan arrêté (battement de plus de 3 min)", () => 
   it("réponse de secours tout de suite, tâche quand même en file, pas de « écrit… »", async () => {
     const t = setup({ identity: boss, workerDown: true });
     await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
-    expect(t.sent()).toEqual([BOSS_WORKER_DOWN_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(AGENTS_ADMIN_VARIANTS.workerDown).toContain(t.sent()[0]);
     expect(t.enqueued).toHaveLength(1);
     expect(t.calls.some((c) => c.method === "sendChatAction")).toBe(false);
   });
   it("arrêté ET file injoignable : une seule réponse", async () => {
     const t = setup({ identity: boss, workerDown: true, enqueueFails: true });
     await t.bot.handleUpdate(text(ADMIN, "fais un truc compliqué"));
-    expect(t.sent()).toEqual([BOSS_WORKER_DOWN_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(AGENTS_ADMIN_VARIANTS.workerDown).toContain(t.sent()[0]);
   });
   it("doute (lecture impossible) ou worker vivant : chemin normal", async () => {
     for (const workerDown of [null, false]) {
@@ -352,7 +355,8 @@ describe("service d'arrière-plan arrêté (battement de plus de 3 min)", () => 
   it("vocal : réponse de secours, vocal quand même en file", async () => {
     const t = setup({ identity: boss, workerDown: true });
     await t.bot.handleUpdate(msgUpdate(ADMIN, { voice: { file_id: "v1", file_unique_id: "u1", duration: 3, file_size: 1000 } }));
-    expect(t.sent()).toEqual([BOSS_VOICE_WORKER_DOWN_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(AGENTS_ADMIN_VARIANTS.voiceWorkerDown).toContain(t.sent()[0]);
     expect(t.enqueued[0]!.job).toMatchObject({ type: "admin-voice" });
   });
 });
@@ -366,14 +370,15 @@ describe("réponse qui ne part pas (après la suppression d'un secret)", () => {
     expect(t.sent().at(-1)).toBe("🔒 Clé enregistrée (…1234).");
     t = setup({ identity: boss, fast: () => reply, sendFailures: 2 });
     await t.bot.handleUpdate(text(ADMIN, "clé fal abcdefghijklmnopqrstuvwxyz1234"));
-    expect(t.sent().at(-1)).toBe(BOSS_RECEIVED_REPLY);
+    expect(AGENTS_ADMIN_VARIANTS.received).toContain(t.sent().at(-1));
   });
   it("texte qui ressemble à une clé non pris par le chemin rapide : effacé, jamais mis en file", async () => {
     const t = setup({ identity: boss });
     await t.bot.handleUpdate(text(ADMIN, "sk-ant-abcdefghijklmnopqrstuvwxyz0123"));
     expect(t.enqueued).toHaveLength(0);
     expect(t.calls.some((c) => c.method === "deleteMessage")).toBe(true);
-    expect(t.sent()).toEqual([BOSS_SECRET_NOT_QUEUED_REPLY]);
+    expect(t.sent()).toHaveLength(1);
+    expect(AGENTS_ADMIN_VARIANTS.secretNotQueued).toContain(t.sent()[0]);
   });
 });
 
@@ -399,10 +404,10 @@ describe("boutons des agents sur un bot de canal après la bascule vers Kevin", 
     const t = setup({ identity: channelBot });
     await t.bot.handleUpdate(callback(ADMIN, "agv:x:ok"));
     const answers = t.calls.filter((c) => c.method === "answerCallbackQuery").map((c) => String(c.payload.text ?? ""));
-    expect(answers.join("\n")).not.toContain("Parle-moi");
-    expect(t.sent().join("\n")).not.toContain("Parle-moi");
+    expect(answers.join("\n")).not.toContain("@kevin_boss_bot");
+    expect(t.sent().join("\n")).not.toContain("@kevin_boss_bot");
     await t.bot.handleUpdate(callback(ADMIN, "bsc:p1:yes"));
-    expect(t.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.payload.text).toContain("Parle-moi");
+    expect(t.calls.filter((c) => c.method === "answerCallbackQuery").at(-1)!.payload.text).toContain("@kevin_boss_bot");
     expect(t.engine.callback).not.toHaveBeenCalled();
   });
 });

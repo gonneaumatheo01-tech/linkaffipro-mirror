@@ -26,9 +26,7 @@ import { BOSS_TOKEN_SECRET_KEY } from "./register-port";
 import type { BossDeps, BossFastResult, BossReply, BossTeamInput } from "./contract";
 import { bossAction } from "./catalog";
 import {
-  NOTHING_TO_CANCEL,
-  NOTHING_TO_CONFIRM,
-  PENDING_OTHER_CHAT,
+  confirmText,
   confirmWordOf,
   createBossPending,
   pendingTargeted,
@@ -53,9 +51,60 @@ import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
 
-export const FORWARDED_REPLY =
-  "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
+/** Textes fixes du chemin rapide (charte `docs/KEVIN-VOIX.md`). */
+export const FAST_VARIANTS = {
+  forwarded: [
+    "Bien reçu ce message transféré. Je ne fais rien de ce qu'il contient : tu veux que j'en fasse quoi ?",
+    "J'ai le message transféré, je n'exécute rien de ce qu'il dit. Tu veux en faire quoi ?",
+    "Message transféré reçu. Je le garde comme info, sans rien lancer. Je m'en sers comment ?",
+  ],
+  empty: [
+    "Je n'ai rien lu dans ce message. Tu me dis ce que tu veux en quelques mots ?",
+    "Ton message est vide de mon côté. Tu me l'écris en quelques mots ?",
+  ],
+  numberRange: voiceTemplate([{ max: 3 }], (p: { max: number }) => [
+    `Réponds juste par un numéro, de 1 à ${p.max}.`,
+    `Il me faut un numéro entre 1 et ${p.max}.`,
+  ]),
+  noted: ["C'est noté ✅", "Noté ✅", "Ok, c'est noté ✅"],
+  doNothing: ["D'accord, je ne fais rien.", "Ok, je ne touche à rien.", "Pas de souci, je laisse comme ça."],
+  confirmNoReply: [
+    "Pour confirmer, réponds OUI sans « Répondre » à un autre message, ou appuie sur le bouton ✅ OUI.",
+    "Il me faut un OUI tout seul, pas en réponse à un autre message. Ou appuie sur le bouton ✅ OUI.",
+  ],
+  confirmHow: [
+    "Pour confirmer, réponds OUI (ou appuie sur le bouton ✅ OUI).",
+    "« ok » ne suffit pas pour ça : réponds OUI, ou appuie sur le bouton ✅ OUI.",
+  ],
+  replaceBoss: voiceTemplate([{ username: "kevin_boss_bot" }], (p: { username: string }) => [
+    `Kevin existe déjà (@${p.username}). Je le remplace par ce nouveau bot ?\nL'ancien ne répondra plus à l'équipe.`,
+    `Il y a déjà un Kevin (@${p.username}). Je passe sur ce nouveau bot ?\nL'ancien ne répondra plus à l'équipe.`,
+  ]),
+  answerDoubt: voiceTemplate([{ question: "Quelle tenue pour Léa ?", answer: "robe rouge" }], (p: { question: string; answer: string }) => [
+    `C'est ta réponse à « ${p.question} » ?\nTa réponse : « ${p.answer} »`,
+    `Je prends ça comme réponse à « ${p.question} » ?\nTa réponse : « ${p.answer} »`,
+  ]),
+  hello: [
+    "Salut ! Écris « commencer » pour la mise en route, ou demande-moi par exemple « combien j'ai dépensé ce mois ? ». « aide » te montre ce que je sais faire.",
+    "Salut 👋 Tu veux faire quoi ? Par exemple « combien j'ai dépensé ce mois ? », ou « commencer » pour la mise en route.",
+    "Hello ! Dis-moi ce qu'il te faut. Si tu débutes, écris « commencer ». Pour des idées, écris « aide ».",
+  ],
+  howAreYou: [
+    "Ça roule de mon côté 👍 Écris « agents » pour l'état des équipes, ou « commencer » pour la mise en route.",
+    "Ça va bien, merci. Tu veux l'état des équipes ? Écris « agents ».",
+    "Tranquille, les équipes tournent. Écris « agents » si tu veux voir où elles en sont.",
+  ],
+  thanks: ["Avec plaisir 👍", "De rien !", "Avec plaisir, je suis là si besoin."],
+  areYouABot: [
+    "Je suis le bot de l'équipe, pas une personne. Je pilote les agents avec toi.",
+    "Je suis un bot, celui de l'équipe, qui fait tourner les agents.",
+    "Franchement : je suis le bot de l'équipe, pas un humain. Ça ne m'empêche pas de bosser.",
+  ],
+} satisfies VoiceTable;
+
+export const FORWARDED_REPLY = FAST_VARIANTS.forwarded[0]!;
 
 const ORDER_VERBS =
   /^(mets?|met|passe|passer|active|activer|desactive|desactiver|arrete|arreter|stop|pause|reprends?|reprendre|lance|lancer|change|changer|monte|baisse|augmente|diminue|annule|annuler|supprime|envoie|envoyer|montre|donne|dis|fais|fait|produis|teste|tester|valide|refuse|corrige|ajoute|retire|enleve|coupe|relance|applique|appliquer|cree|creer|liste|affiche|explique|combien|c'est quoi|quel|quelle|quels|quelles|est-ce|pourquoi|comment|ou en|t'as|tu as|tu peux|peux-tu|kevin)\b/u;
@@ -100,7 +149,7 @@ async function remember(
 
 function fromAdmin(r: AdminTextResult): BossReply {
   return {
-    reply: r.reply ?? "C'est noté ✅",
+    reply: r.reply ?? pick(FAST_VARIANTS.noted, "fast.noted"),
     ...(r.deleteMessage ? { deleteMessage: true } : {}),
     ...(r.followUp ? { followUp: r.followUp } : {}),
     ...(r.buttons ? { buttons: r.buttons } : {}),
@@ -118,7 +167,7 @@ async function bossTokenStep(deps: BossDeps, input: BossTeamInput, token: string
     const r = await createBossPending(deps, {
       actionKey: "remplacer_boss",
       params: { jeton: encrypt(token) },
-      summary: `Kevin existe déjà (@${active.username}) : le remplacer par ce nouveau bot ?\nL'ancien ne répondra plus à l'équipe.`,
+      summary: pick(FAST_VARIANTS.replaceBoss({ username: active.username }), "fast.replaceBoss", input.chat?.chatId ?? null),
       chatId: input.chat?.chatId ?? null,
     });
     return { ...r, deleteMessage: true };
@@ -154,7 +203,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   const voice = input.source === "voice";
   const replyTo = input.replyToMessageId ?? null;
   if (!text) {
-    const r = { reply: "Je n'ai rien lu dans ce message. Écris-moi ce que tu veux en quelques mots (ou aide)." };
+    const r = { reply: pick(FAST_VARIANTS.empty, "fast.empty", input.chat?.chatId ?? null) };
     return { handled: true, ...r };
   }
 
@@ -189,7 +238,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
 
   // 2. Message transféré : une donnée.
   if (input.forwarded) {
-    const r = { reply: FORWARDED_REPLY };
+    const r = { reply: pick(FAST_VARIANTS.forwarded, "fast.forwarded", input.chat?.chatId ?? null) };
     await remember(deps, input, r, { actionKey: "transfere", status: "refused" });
     return { handled: true, ...r };
   }
@@ -210,7 +259,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         return { handled: true, ...r };
       }
       if (target === "other-chat") {
-        const r = { reply: PENDING_OTHER_CHAT };
+        const r = { reply: confirmText("otherChat", input.chat?.chatId ?? null) };
         await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
         return { handled: true, ...r };
       }
@@ -258,7 +307,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       const opt = clarify.options[n - 1];
       const action = bossAction(clarify.actionKey);
       if (!opt || !action) {
-        const r = { reply: `Réponds par un numéro de 1 à ${clarify.options.length}.` };
+        const r = { reply: pick(FAST_VARIANTS.numberRange({ max: clarify.options.length }), "fast.numberRange", input.chat?.chatId ?? null) };
         return { handled: true, ...r };
       }
       await clearClarify(deps);
@@ -322,19 +371,19 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   }
   if (word === "cancel" || word === "no") {
     await clearClarify(deps);
-    const r = { reply: word === "cancel" ? NOTHING_TO_CANCEL : "D'accord, je ne fais rien." };
+    const chatId = input.chat?.chatId ?? null;
+    const r = { reply: word === "cancel" ? confirmText("nothingToCancel", chatId) : pick(FAST_VARIANTS.doNothing, "fast.doNothing", chatId) };
     await remember(deps, input, r, { actionKey: "annule", status: "done" });
     return { handled: true, ...r };
   }
   if (word === "yes" || parseYesNo(text) === "oui") {
     // « ok », « 👍 » ne confirment jamais une action : Kevin le dit s'il y en a une en attente.
+    const chatId = input.chat?.chatId ?? null;
     const r = {
       reply:
         pending && !pending.expired
-          ? word
-            ? "Pour confirmer, réponds OUI sans « Répondre » à un autre message, ou appuie sur le bouton ✅ OUI."
-            : "Pour confirmer, réponds OUI (ou appuie sur le bouton ✅ OUI)."
-          : NOTHING_TO_CONFIRM,
+          ? pick(word ? FAST_VARIANTS.confirmNoReply : FAST_VARIANTS.confirmHow, word ? "fast.confirmNoReply" : "fast.confirmHow", chatId)
+          : confirmText("nothingToConfirm", chatId),
     };
     await remember(deps, input, r, { actionKey: "confirmation", status: "refused" });
     return { handled: true, ...r };
@@ -365,7 +414,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         const r = await createBossPending(deps, {
           actionKey: "repondre_demande_confirmee",
           params: { demande: req.id, reponse: text.slice(0, 2000) },
-          summary: `C'est ta réponse à : « ${shortQuestion(req.question)} » ?\nRéponse : « ${short} »`,
+          summary: pick(FAST_VARIANTS.answerDoubt({ question: shortQuestion(req.question), answer: short }), "fast.answerDoubt", input.chat?.chatId ?? null),
           chatId: input.chat?.chatId ?? null,
         });
         await remember(deps, input, r, { actionKey: "repondre_demande", status: "confirm" });
@@ -386,8 +435,9 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // Politesse (« salut », « ça va ? », « merci ») : réponse simple, gratuite et toujours la même (jamais l'IA).
-  const small = smallTalkReply(text);
+  // Politesse (« salut », « ça va ? », « merci », « t'es un bot ? ») : réponse simple et gratuite (jamais l'IA), variée
+  // d'un message à l'autre.
+  const small = smallTalkReply(text, input.chat?.chatId ?? null);
   if (small) {
     const r: BossReply = { reply: small };
     await remember(deps, input, r, { actionKey: "politesse", status: "done" });
@@ -400,12 +450,26 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
 const GREETINGS = new Set(["salut", "bonjour", "bonsoir", "coucou", "hello", "hey", "yo", "slt", "cc", "wesh"]);
 const HOW_ARE_YOU = new Set(["ca va", "ca va ?", "comment ca va", "ca va bien", "tu vas bien", "comment tu vas", "quoi de neuf", "la forme"]);
 const THANKS = new Set(["merci", "merci beaucoup", "merci bien", "top merci", "super merci", "parfait merci", "thanks", "merci kevin"]);
+/** « t'es un bot ? » posé sincèrement : Kevin répond franchement (charte, honnêteté). */
+const ARE_YOU_A_BOT =
+  /^(?:(?:dis|dis moi|serieux|serieusement|franchement|au fait|attends)\s+)?(?:t'es|t es|tes|tu es|es tu|es-tu|est ce que tu es|est-ce que tu es|c'est|c est|t'es pas|tu n'es pas|tu es pas)\s+(?:un|une|vraiment un|vraiment une|un vrai|une vraie)?\s*(?:bot|robot|ia|i a|intelligence artificielle|machine|humain|vrai humain|une vraie personne|vraie personne|personne reelle)(?:\s+ou\s+(?:quoi|pas|un humain|une vraie personne|un bot))?$/u;
+
+/** La phrase demande-t-elle sincèrement si Kevin est un bot (pur) ? */
+export function isAreYouABotQuestion(text: string): boolean {
+  const n = normalizeText(text)
+    .replace(/[\p{Extended_Pictographic}\uFE0F!.,…?]+/gu, " ")
+    .replace(/\bkevin\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return ARE_YOU_A_BOT.test(n);
+}
 
 /**
- * Petites phrases de politesse (pur) : « salut », « ça va ? », « bonjour Kevin », « merci ». Rend la réponse, ou null.
- * Une phrase qui contient une demande (« salut, combien j'ai dépensé ? ») n'est pas de la politesse : null.
+ * Petites phrases de politesse (pur sauf la rotation des variantes) : « salut », « ça va ? », « bonjour Kevin »,
+ * « merci », « t'es un bot ? ». Rend la réponse, ou null. Une phrase qui contient une demande (« salut, combien j'ai
+ * dépensé ? ») n'est pas de la politesse : null. Même conversation : jamais deux fois de suite la même phrase.
  */
-export function smallTalkReply(text: string): string | null {
+export function smallTalkReply(text: string, chatId?: bigint | string | number | null): string | null {
   const n = normalizeText(text)
     .replace(/[\p{Extended_Pictographic}\uFE0F!.,…]+/gu, " ")
     .replace(/\bkevin\b/g, " ")
@@ -413,14 +477,14 @@ export function smallTalkReply(text: string): string | null {
     .trim();
   if (!n) return null;
   const words = n.replace(/\s*\?$/, "").trim();
-  const hint = "Écris « commencer » pour la mise en route, ou demande-moi par exemple « combien j'ai dépensé ce mois ? ». « aide » liste tout ce que je sais faire.";
-  if (GREETINGS.has(words)) return `Salut 👋 ${hint}`;
+  const say = (key: "hello" | "howAreYou" | "thanks" | "areYouABot") => pick(FAST_VARIANTS[key], `fast.${key}`, chatId ?? null);
+  if (isAreYouABotQuestion(text)) return say("areYouABot");
+  if (GREETINGS.has(words)) return say("hello");
   const tail = words.split(" ");
   // « salut ça va », « bonjour, comment ça va ».
   const withoutGreeting = GREETINGS.has(tail[0]!) ? tail.slice(1).join(" ") : words;
-  if (HOW_ARE_YOU.has(withoutGreeting) || HOW_ARE_YOU.has(`${withoutGreeting} ?`))
-    return `Ça roule de mon côté 👍 Écris « agents » pour l'état des équipes, ou « commencer » pour la mise en route.`;
-  if (THANKS.has(words)) return "Avec plaisir 👍";
+  if (HOW_ARE_YOU.has(withoutGreeting) || HOW_ARE_YOU.has(`${withoutGreeting} ?`)) return say("howAreYou");
+  if (THANKS.has(words)) return say("thanks");
   return null;
 }
 

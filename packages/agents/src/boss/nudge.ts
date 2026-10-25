@@ -21,6 +21,64 @@ import { isTeamKey, TEAM_LABELS, type AgentsDeps, type ProviderKey } from "../ty
 import { BOSS_TEAM_KEY } from "./contract";
 import { bossBudgetState } from "./llm";
 import { readBossName } from "./memory";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
+
+const posts = (n: number) => `${n} post${n > 1 ? "s" : ""} arrêté${n > 1 ? "s" : ""}`;
+
+/** Textes fixes de la relance du jour (charte `docs/KEVIN-VOIX.md`). */
+export const NUDGE_VARIANTS = {
+  autoPause: voiceTemplate([{ team: "Casino", key: "casino" }], (p: { team: string; key: string }) => [
+    `L'équipe ${p.team} s'est mise en pause toute seule après 3 posts ratés de suite. Écris « reprends ${p.key} » quand c'est réglé.`,
+    `${p.team} est en pause automatique (3 posts ratés d'affilée). Dès que c'est réglé, écris « reprends ${p.key} ».`,
+  ]),
+  cap: voiceTemplate(
+    [
+      { provider: "vidéo", team: "Rencontres", spent: "100 €", stopped: 1 },
+      { provider: "IA", team: "Casino", spent: "20 €", stopped: 0 },
+    ],
+    (p: { provider: string; team: string; spent: string; stopped: number }) => {
+      const stop = p.stopped ? `, ${posts(p.stopped)}` : "";
+      return [
+        `Plafond ${p.provider} de l'équipe ${p.team} atteint (${p.spent})${stop}. Monte-le dans Agents → Réglages, ou on attend le mois prochain ?`,
+        `L'équipe ${p.team} a atteint son plafond ${p.provider} (${p.spent})${stop}. Tu le montes dans Agents → Réglages ou on attend le mois prochain ?`,
+      ];
+    },
+  ),
+  blocked: voiceTemplate(
+    [
+      { team: "Casino", n: 1 },
+      { team: "Rencontres", n: 3 },
+    ],
+    (p: { team: string; n: number }) => [
+      `Équipe ${p.team} : ${posts(p.n)} par un plafond. Regarde Agents → Réglages.`,
+      `${posts(p.n).replace(/^./, (c) => c.toUpperCase())} chez ${p.team} à cause d'un plafond. Ça se règle dans Agents → Réglages.`,
+    ],
+  ),
+  bossCap: voiceTemplate([{ spent: "5,2 €", cap: "5 €" }], (p: { spent: string; cap: string }) => [
+    `Mon plafond d'IA du mois est atteint (${p.spent} pour ${p.cap}) : je ne comprends plus que les commandes exactes. Monte-le dans Agents → Kevin.`,
+    `Mon plafond d'IA du mois est atteint (${p.spent} pour ${p.cap}). D'ici là je ne suis que les commandes exactes ; tu peux le monter dans Agents → Kevin.`,
+  ]),
+  dialogCap: voiceTemplate([{ spent: "5,2 €", cap: "5 €" }], (p: { spent: string; cap: string }) => [
+    `Plafond d'IA du dialogue du mois atteint (${p.spent} pour ${p.cap}) : seules les commandes exactes marchent. Monte-le dans Agents → Kevin.`,
+  ]),
+  request: voiceTemplate([{ ago: "1 jour" }, { ago: "3 jours" }], (p: { ago: string }) => [
+    `Une question attend ta réponse depuis ${p.ago}. Je te la remets juste en dessous.`,
+    `Une question t'attend depuis ${p.ago}, je te la renvoie juste après.`,
+  ]),
+  head: voiceTemplate(
+    [
+      { name: "Kevin", n: 1 },
+      { name: "Kevin", n: 3 },
+    ],
+    (p: { name: string; n: number }) => {
+      const what = p.n === 1 ? "une chose bloque" : `${p.n} choses bloquent`;
+      const What = what.charAt(0).toUpperCase() + what.slice(1);
+      return [`<b>${p.name}</b> : ${what}.`, `Petit point de <b>${p.name}</b> : ${what}.`, `${What}, je te fais le point (<b>${p.name}</b>).`];
+    },
+  ),
+  headNeutral: voiceTemplate([{ n: 1 }, { n: 2 }], (p: { n: number }) => [`Agents : ${p.n === 1 ? "une chose bloque" : `${p.n} choses bloquent`}.`]),
+  more: voiceTemplate([{ n: 1 }, { n: 2 }], (p: { n: number }) => [`(et ${p.n} autre${p.n > 1 ? "s" : ""} : écris « agents »)`]),
+} satisfies VoiceTable;
 
 export const BOSS_NUDGE_SETTING = "boss.nudge.lastDay";
 /** Pas de relance avant 10 h (Paris) : le rapport du matin part à 9 h. */
@@ -97,7 +155,7 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
     for (const t of autoPaused)
       bullets.push({
         kind: "auto-pause",
-        text: `Équipe ${teamLabel(t.teamKey)} en pause automatique (${AUTO_PAUSE_REASON}) : écris « reprends ${t.teamKey} » quand c'est réglé.`,
+        text: pick(NUDGE_VARIANTS.autoPause({ team: teamLabel(t.teamKey), key: t.teamKey }), "nudge.autoPause"),
       });
     const blockedByTeam = new Map<string, number>();
     for (const m of blocked) blockedByTeam.set(m.teamKey, (blockedByTeam.get(m.teamKey) ?? 0) + 1);
@@ -106,27 +164,25 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
       blockedByTeam.delete(u.teamKey);
       bullets.push({
         kind: "cap",
-        text: `Plafond ${providerLabel(u.provider)} de l'équipe ${teamLabel(u.teamKey)} atteint (${eur(u.cents)})${n ? `, ${n} mission${n > 1 ? "s" : ""} arrêtée${n > 1 ? "s" : ""}` : ""} : monte-le dans Agents → Réglages ou attends le mois prochain.`,
+        text: pick(NUDGE_VARIANTS.cap({ provider: providerLabel(u.provider), team: teamLabel(u.teamKey), spent: eur(u.cents), stopped: n }), "nudge.cap"),
       });
     }
     for (const [teamKey, n] of blockedByTeam)
       bullets.push({
         kind: "blocked-budget",
-        text: `${n} mission${n > 1 ? "s" : ""} de l'équipe ${teamLabel(teamKey)} arrêtée${n > 1 ? "s" : ""} par un plafond : regarde Agents → Réglages.`,
+        text: pick(NUDGE_VARIANTS.blocked({ team: teamLabel(teamKey), n }), "nudge.blocked"),
       });
     // Avant la création de Kevin (bot casino de repli), la relance ne parle pas en son nom.
     const hasBoss = await bossExists(deps);
     if (!boss.allowed && boss.capCents > 0)
       bullets.push({
         kind: "boss-cap",
-        text: hasBoss
-          ? `Mon plafond d'IA du mois est atteint (${eur(boss.spentCents)} pour ${eur(boss.capCents)}) : je ne comprends plus que les commandes exactes. Monte-le dans Agents → Kevin.`
-          : `Plafond d'IA du dialogue du mois atteint (${eur(boss.spentCents)} pour ${eur(boss.capCents)}) : seules les commandes exactes marchent. Monte-le dans Agents → Kevin.`,
+        text: pick((hasBoss ? NUDGE_VARIANTS.bossCap : NUDGE_VARIANTS.dialogCap)({ spent: eur(boss.spentCents), cap: eur(boss.capCents) }), "nudge.bossCap"),
       });
     if (staleRequest)
       bullets.push({
         kind: "request",
-        text: `Une question attend ta réponse depuis ${agoDays(staleRequest.askedAt ?? now, now)} : je la remets juste en dessous.`,
+        text: pick(NUDGE_VARIANTS.request({ ago: agoDays(staleRequest.askedAt ?? now, now) }), "nudge.request"),
       });
     if (!bullets.length) return { sent: false, reason: "nothing" };
 
@@ -134,12 +190,12 @@ export async function bossDailyNudge(deps: AgentsDeps): Promise<BossNudgeResult>
     await writeSetting(deps, BOSS_NUDGE_SETTING, { day, at: now.toISOString() });
     const shown = bullets.slice(0, MAX_BULLETS);
     const more = bullets.length - shown.length;
-    const what = bullets.length === 1 ? "une chose bloque" : `${bullets.length} choses bloquent`;
     const head = hasBoss
-      ? `👋 <b>${esc(await readBossName(deps))}</b> : ${what}.`
-      : `👋 Agents : ${what}.`;
-    const lines = [head, ...shown.map((b) => `• ${esc(b.text)}`)];
-    if (more > 0) lines[lines.length - 1] += ` (et ${more} autre${more > 1 ? "s" : ""} : écris « agents »)`;
+      ? pick(NUDGE_VARIANTS.head({ name: esc(await readBossName(deps)), n: bullets.length }), "nudge.head")
+      : pick(NUDGE_VARIANTS.headNeutral({ n: bullets.length }), "nudge.head");
+    // Une seule chose : une phrase, pas de puce.
+    const lines = shown.length === 1 ? [head, esc(shown[0]!.text)] : [head, ...shown.map((b) => `• ${esc(b.text)}`)];
+    if (more > 0) lines[lines.length - 1] += ` ${pick(NUDGE_VARIANTS.more({ n: more }), "nudge.more")}`;
     await deps.admin.send(lines.join("\n"));
 
     if (staleRequest) {

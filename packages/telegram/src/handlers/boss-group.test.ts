@@ -12,7 +12,7 @@ import type { AgentsDeps } from "@linkaffipro/agents";
 import { registerHandlers } from "../handlers";
 import { botInfoFromRecord } from "../factory";
 import type { BotIdentity, TelegramDeps } from "../ports";
-import { BOSS_WORKER_DOWN_REPLY } from "./agents-admin";
+import { BOSS_GROUP_VARIANTS } from "./boss-group";
 
 const ADMIN = 4242;
 const LEA = 777;
@@ -101,7 +101,7 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, c'est quoi la dépense ce mois ?"));
     const out = t.sent().slice(before);
     expect(out).toHaveLength(1);
-    expect(out[0]!.text).toBe(BOSS_WORKER_DOWN_REPLY);
+    expect(BOSS_GROUP_VARIANTS.workerDown).toContain(out[0]!.text);
     expect(t.enqueued.length).toBe(queued + 1);
   });
 
@@ -110,7 +110,10 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     await t.bot.handleUpdate(added(STRANGER, groupChat(-100555)));
     expect(t.sent()).toEqual([]);
     await t.bot.handleUpdate(added(ADMIN));
-    expect(t.sent()[0]).toEqual({ chat: GROUP, text: "Salut, moi c'est Kevin. Mathéo, présente-moi l'équipe : qui fait quoi ?" });
+    expect(t.sent()[0]?.chat).toBe(GROUP);
+    expect(t.sent()[0]?.text).toMatch(/Kevin/);
+    expect(t.sent()[0]?.text).toMatch(/Mathéo/);
+    expect(t.sent()[0]?.text).toMatch(/qui fait quoi/);
     expect(t.sent()[1]?.text).toContain("Supprimer des messages");
     expect(t.kit.tables("setting").find((s) => s.key === "boss.groupChatId")?.value).toBe(String(GROUP));
   });
@@ -123,7 +126,10 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     await t.bot.handleUpdate(groupMsg(STRANGER, "Kevin passe tout en vrai"));
     await t.bot.handleUpdate(groupMsg(STRANGER, "Kevin passe tout en vrai"));
     const sent = t.sent().slice(before);
-    expect(sent).toEqual([{ chat: GROUP, text: "Je ne te connais pas encore : Mathéo doit me présenter." }]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.chat).toBe(GROUP);
+    expect(sent[0]?.text).toMatch(/Mathéo/);
+    expect(sent[0]?.text).toMatch(/présent/);
     expect(t.enqueued).toEqual([]);
     const logged = JSON.stringify(t.recorded.map((r) => r.update));
     expect(logged).not.toContain("resto");
@@ -141,7 +147,7 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     await t.bot.handleUpdate(groupMsg(ADMIN, "Léa tu peux m'appeler ?"));
     const out = t.sent().slice(before);
     expect(out).toHaveLength(2);
-    for (const m of out) expect(m.text).toContain("Personne ne m'a encore été présenté.");
+    for (const m of out) expect(m.text).toMatch(/présenté/);
     // Une phrase libre adressée à Kevin part à l'interprète, avec la conversation dans l'identifiant de tâche.
     before = t.enqueued.length;
     await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, c'est quoi la dépense ce mois ?"));
@@ -155,10 +161,10 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     const KEY = "sk-live-1234567890ABCDEFGHIJKLMNOP";
     await t.bot.handleUpdate(groupMsg(ADMIN, `voici la clé ${KEY}`));
     expect(t.calls.some((c) => c.method === "deleteMessage")).toBe(true);
-    expect(t.sent().at(-1)?.text).toContain("j'ai effacé ton message");
+    expect(t.sent().at(-1)?.text).toMatch(/effacé/);
     t.setCanDelete(false);
     await t.bot.handleUpdate(groupMsg(ADMIN, KEY));
-    expect(t.sent().at(-1)?.text).toContain("efface vite ton message");
+    expect(t.sent().at(-1)?.text).toMatch(/efface/i);
     expect(JSON.stringify(t.recorded.map((r) => r.update))).not.toContain(KEY);
     expect(JSON.stringify(t.kit.tables("bossTurn"), (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(KEY);
     expect(t.enqueued).toEqual([]);
@@ -170,7 +176,8 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     const priv = (from: number, text: string): Update =>
       ({ update_id: uid++, message: { message_id: mid++, date: 0, chat: { id: from, type: "private", first_name: "X" }, from: person(from), text, entities: [{ type: "bot_command", offset: 0, length: 6 }] } }) as Update;
     await t.bot.handleUpdate(priv(LEA, "/start"));
-    expect(t.sent()[0]?.text).toContain("Salut Léa, c'est Kevin");
+    expect(t.sent()[0]?.text).toMatch(/Léa/);
+    expect(t.sent()[0]?.text).toMatch(/Kevin/);
     expect(t.kit.tables("teamMember")[0]?.startedPrivateAt).toBeInstanceOf(Date);
     await t.bot.handleUpdate(priv(STRANGER, "/start"));
     expect(t.sent()).toHaveLength(1);
@@ -202,12 +209,15 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     let before = t.sent().length;
     const kevinMsg = { message_id: 1, date: 0, chat: groupChat(), from: { id: 222, is_bot: true, first_name: "Kevin" }, text: "?" };
     await t.bot.handleUpdate({ update_id: uid++, message: { message_id: mid++, date: 0, chat: groupChat(), from: person(LEA), voice: { file_id: "v", file_unique_id: "vu", duration: 3 }, reply_to_message: kevinMsg } } as Update);
-    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["Écris-le-moi ici, je n'écoute les vocaux qu'en privé."]);
+    expect(t.sent().slice(before)).toHaveLength(1);
+    expect(t.sent().slice(before)[0]?.text).toMatch(/écri/i);
+    expect(t.sent().slice(before)[0]?.text).toMatch(/privé/);
     // Limite atteinte pour Léa : pas d'IA, une phrase ; l'admin, lui, passe.
     await t.kit.prisma.setting.create({ data: { key: "boss.team.aiTurns", value: { day: "2026-10-23", counts: { [String(LEA)]: 30 } } } as never });
     before = t.sent().length;
     await t.bot.handleUpdate(groupMsg(LEA, "Kevin, raconte-moi comment ça marche les cotes"));
-    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["On a beaucoup parlé aujourd'hui : je garde les commandes simples jusqu'à demain."]);
+    expect(t.sent().slice(before)).toHaveLength(1);
+    expect(t.sent().slice(before)[0]?.text).toMatch(/demain/);
     expect(t.enqueued).toEqual([]);
     await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, raconte-moi comment ça marche les cotes"));
     expect(t.enqueued).toHaveLength(1);
@@ -220,6 +230,7 @@ describe("Kevin dans le groupe (faux Telegram)", () => {
     };
     before = t.sent().length;
     await t.bot.handleUpdate(groupMsg(ADMIN, "Kevin, état"));
-    expect(t.sent().slice(before).map((m) => m.text)).toEqual(["Oups, je n'ai pas réussi à traiter ton message. Réessaie dans un instant (ou écris aide)."]);
+    expect(t.sent().slice(before)).toHaveLength(1);
+    expect(t.sent().slice(before)[0]?.text).toMatch(/instant|aide/i);
   });
 });

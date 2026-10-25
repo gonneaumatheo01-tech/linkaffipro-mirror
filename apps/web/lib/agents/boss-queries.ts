@@ -17,7 +17,8 @@ import {
 
 export type BossBotView = { id: string; name: string; username: string; isActive: boolean; lastWebhookAt: Date | null; lastError: string | null };
 export type BossTurnView = { id: string; createdAt: Date; role: string; text: string; actionKey: string | null; status: string | null; source: string | null; costCents: number };
-export type BossUnmetView = UnmetCsvRow & { id: string };
+/** Phase 33 : équipe et capacité suggérée (ce qu'il faudrait apprendre à Kevin), pour « Pas encore possible ». */
+export type BossUnmetView = UnmetCsvRow & { id: string; teamKey?: string | null; suggestedCapability?: string | null };
 export type TeamMemberView = {
   id: string;
   firstName: string;
@@ -49,7 +50,7 @@ export async function loadBossUnmet(take = 100): Promise<BossUnmetView[]> {
   return prisma.bossUnmet.findMany({
     orderBy: [{ count: "desc" }, { lastAt: "desc" }],
     take,
-    select: { id: true, text: true, count: true, firstAt: true, lastAt: true },
+    select: { id: true, text: true, count: true, firstAt: true, lastAt: true, teamKey: true, suggestedCapability: true },
   });
 }
 

@@ -16,6 +16,7 @@ import type { AgentsDeps } from "../types";
 import { INSPIRATION_LIMITS } from "./contract";
 import { afterReferenceRead, readCollect } from "./kevin";
 import { forwardedToReferencePost, storeReferencePosts, type ForwardedMessage } from "./kevin-ports";
+import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
 import { askerOf, createReference, findReference, loadReferenceRow, readAsker, referenceLabel, referencePostCount, rememberAsker, targetIdsOf, type ReferenceRow } from "./kevin-refs";
 
 export const INSPIRATION_FORWARD_PREFIX = "inspiration.forward.";
@@ -112,13 +113,50 @@ export async function kevinForwardedPost(deps: AgentsDeps, input: ForwardInput):
   }
 }
 
+type AckSample = { n: string; total: number; min: number; added: number };
+
+/** Textes de Kevin (charte `docs/KEVIN-VOIX.md`), vérifiés par `boss/voice.test.ts`. */
+export const INSPIRATION_FORWARD_VARIANTS = {
+  ackNoTarget: voiceTemplate<AckSample>(
+    [
+      { n: "12 posts de @roulette_pro rangés", total: 12, min: 20, added: 12 },
+      { n: "1 post de « Club privé » rangé", total: 5, min: 20, added: 1 },
+    ],
+    (p) => [
+      `${p.n} (${p.total} en tout). C'est pour quel canal ? Écris par exemple « c'est pour le canal Roulette ».`,
+      `${p.n}, ${p.total} en tout. Ils vont avec lequel de nos canaux ? Dis-moi par exemple « c'est pour le canal Roulette ».`,
+    ],
+  ),
+  ackTooFew: voiceTemplate<AckSample>(
+    [
+      { n: "12 posts de @roulette_pro rangés", total: 12, min: 20, added: 12 },
+      { n: "1 post de @roulette_pro rangé", total: 8, min: 20, added: 1 },
+    ],
+    (p) => {
+      const have = p.total !== p.added ? `, j'en ai ${p.total}` : "";
+      return [`${p.n} (il en faut ${p.min} pour l'analyse${have}).`, `${p.n}. Il m'en faut ${p.min} pour l'analyse${have}.`];
+    },
+  ),
+  ackAnalyze: voiceTemplate<AckSample>(
+    [
+      { n: "20 posts de @roulette_pro rangés", total: 20, min: 20, added: 20 },
+      { n: "1 post de @roulette_pro rangé", total: 21, min: 20, added: 1 },
+    ],
+    (p) => [
+      `${p.n} (${p.total} en tout) : je lance l'analyse, je reviens dans quelques minutes.`,
+      `${p.n}, ${p.total} en tout. C'est lancé, je reviens dans quelques minutes avec l'analyse.`,
+    ],
+  ),
+} satisfies VoiceTable;
+
 /** Ligne de réponse pour une référence du lot (pure, HTML échappé). */
-export function forwardAckLine(ref: Pick<ReferenceRow, "username" | "title">, added: number, total: number, hasTarget: boolean): string {
+export function forwardAckLine(ref: Pick<ReferenceRow, "username" | "title">, added: number, total: number, hasTarget: boolean, chatId: string | null = null): string {
   const label = esc(referenceLabel(ref));
   const n = `${added} post${added > 1 ? "s" : ""} de ${label} rangé${added > 1 ? "s" : ""}`;
-  if (!hasTarget) return `${n} (${total} en tout). C'est pour quel canal ? Écris par exemple « c'est pour le canal Roulette ».`;
-  if (total < INSPIRATION_LIMITS.minPostsForAnalysis) return `${n} (il en faut ${INSPIRATION_LIMITS.minPostsForAnalysis} pour l'analyse${total !== added ? `, j'en ai ${total}` : ""}).`;
-  return `${n} (${total} en tout) : je lance l'analyse, je reviens dans quelques minutes.`;
+  const p: AckSample = { n, total, min: INSPIRATION_LIMITS.minPostsForAnalysis, added };
+  if (!hasTarget) return pick(INSPIRATION_FORWARD_VARIANTS.ackNoTarget(p), "inspiration.ackNoTarget", chatId);
+  if (total < INSPIRATION_LIMITS.minPostsForAnalysis) return pick(INSPIRATION_FORWARD_VARIANTS.ackTooFew(p), "inspiration.ackTooFew", chatId);
+  return pick(INSPIRATION_FORWARD_VARIANTS.ackAnalyze(p), "inspiration.ackAnalyze", chatId);
 }
 
 /** Réponse du lot ; rend le texte et les références à analyser, ou null s'il n'y a rien à dire. */
@@ -132,7 +170,7 @@ async function flushBatch(deps: AgentsDeps, chatKey: string): Promise<{ text: st
     if (!ref) continue;
     const total = await referencePostCount(deps, refId);
     const hasTarget = targetIdsOf(ref).length > 0;
-    lines.push(forwardAckLine(ref, added, total, hasTarget));
+    lines.push(forwardAckLine(ref, added, total, hasTarget, chatKey));
     if (hasTarget && total >= INSPIRATION_LIMITS.minPostsForAnalysis) toAnalyze.push(refId);
   }
   await writeBatch(deps, chatKey, { ...batch, counts: {}, ackPending: false });

@@ -8,6 +8,27 @@ import type { BossChat, BossSpeaker } from "../boss/contract";
 import { writeBossTurn } from "../boss/memory";
 import type { AdminButton, AgentsDeps } from "../types";
 import type { InspirationUniverse, ReferenceViaName } from "./contract";
+import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
+
+/** Textes de Kevin (charte `docs/KEVIN-VOIX.md`), vérifiés par `boss/voice.test.ts`. */
+export const INSPIRATION_REFS_VARIANTS = {
+  universeRefusal: voiceTemplate(
+    [
+      { ref: "@foot_pro", refU: "Paris sportifs", channel: "Casino VIP", channelU: "Casino" },
+      { ref: "« Club Love »", refU: "Rencontres", channel: "Roulette Pro", channelU: "Casino" },
+    ],
+    (p: { ref: string; refU: string; channel: string; channelU: string }) => [
+      `Je ne mélange pas les univers : ${p.ref} est un canal ${p.refU}, ${p.channel} est un canal ${p.channelU}.`,
+      `Pas possible : ${p.ref} est un canal ${p.refU} et ${p.channel} un canal ${p.channelU}, je ne mélange pas les univers.`,
+      `${p.ref} est un canal ${p.refU}, ${p.channel} un canal ${p.channelU} : je ne mélange pas les univers.`,
+    ],
+  ),
+  channelNotFound: ["Je ne trouve pas ce canal.", "Ce canal, je ne le trouve pas chez nous."],
+  universeUnknown: voiceTemplate([{ channel: "Canal Test" }, { channel: "Roulette Pro" }], (p: { channel: string }) => [
+    `Je ne sais pas si ${p.channel} est un canal rencontres, casino ou paris. Tu le règles dans sa fiche ?`,
+    `Il me manque l'univers de ${p.channel} (rencontres, casino ou paris). Tu le choisis dans sa fiche ?`,
+  ]),
+} satisfies VoiceTable;
 
 export type ReferenceRow = {
   id: string;
@@ -72,8 +93,18 @@ export async function channelUniverse(deps: Pick<AgentsDeps, "prisma">, channelI
 }
 
 /** Refus en une ligne (règle 6, pur). */
-export function universeRefusal(refLabel: string, refUniverse: InspirationUniverse, channelTitle: string, channelUniverse: InspirationUniverse): string {
-  return `Je ne mélange pas les univers : ${refLabel} est un canal ${UNIVERSE_LABELS[refUniverse]}, ${channelTitle} est un canal ${UNIVERSE_LABELS[channelUniverse]}.`;
+export function universeRefusal(
+  refLabel: string,
+  refUniverse: InspirationUniverse,
+  channelTitle: string,
+  channelUniverse: InspirationUniverse,
+  chatId: bigint | string | null = null,
+): string {
+  return pick(
+    INSPIRATION_REFS_VARIANTS.universeRefusal({ ref: refLabel, refU: UNIVERSE_LABELS[refUniverse], channel: channelTitle, channelU: UNIVERSE_LABELS[channelUniverse] }),
+    "inspiration.universeRefusal",
+    chatId,
+  );
 }
 
 export type LinkResult = { ok: true; ref: ReferenceRow; added: boolean; channel: ChannelUniverse } | { ok: false; message: string };
@@ -84,8 +115,8 @@ export type LinkResult = { ok: true; ref: ReferenceRow; added: boolean; channel:
  */
 export async function linkTarget(deps: Pick<AgentsDeps, "prisma">, ref: ReferenceRow, channelId: string): Promise<LinkResult> {
   const ch = await channelUniverse(deps, channelId);
-  if (!ch) return { ok: false, message: "Je ne trouve pas ce canal." };
-  if (!ch.universe) return { ok: false, message: `Je ne sais pas de quel univers est ${ch.title} (rencontres, casino ou paris) : règle-le dans sa fiche d'abord.` };
+  if (!ch) return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.channelNotFound, "inspiration.channelNotFound", null) };
+  if (!ch.universe) return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.universeUnknown({ channel: ch.title }), "inspiration.universeUnknown", null) };
   if (isUniverse(ref.universe) && ref.universe !== ch.universe)
     return { ok: false, message: universeRefusal(referenceLabel(ref), ref.universe, ch.title, ch.universe) };
   const ids = targetIdsOf(ref);

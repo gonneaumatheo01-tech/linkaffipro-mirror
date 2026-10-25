@@ -22,6 +22,57 @@ import { actorRef, defineAction, escLines } from "./catalog-kit";
 import { int, oneOf, str } from "./params";
 import { resolveTeam } from "./resolve";
 import { requestsFacts, resultsFacts, spendFacts, validationsFacts } from "./facts";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
+
+// ------------------------------------------------------------------------------------------- textes de Kevin
+
+/** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
+export const CATALOG_READ_VARIANTS = {
+  notYours: voiceTemplate<{ name: string }>([{ name: "Matheo" }, { name: "l'admin" }], (p) => [
+    `Ça, c'est ${p.name} qui décide.`,
+    `Celle-là, je la laisse à ${p.name}.`,
+    `Là, c'est à ${p.name} de trancher.`,
+  ]),
+  secretHint: [
+    "🔒 Envoie la clé ou le mot de passe dans ton prochain message : je le range sans le lire. Sinon, dis « plus tard ».",
+    "🔒 Mets la valeur seule dans ton prochain message, je la range sans la lire. Ou réponds « plus tard ».",
+  ],
+  noQuestion: ["Je n'ai aucune question pour toi en ce moment.", "Pas de question en cours de mon côté.", "Rien en attente : aucune question ouverte."],
+  mediaHint: [
+    "Pour celle-là, envoie-moi directement les vidéos ou les photos demandées. Ou dis « plus tard ».",
+    "Ici il me faut les vidéos ou les photos elles-mêmes : envoie-les directement, ou réponds « plus tard ».",
+  ],
+  notOpen: ["Cette question est déjà réglée, je n'ai rien changé.", "Trop tard, la question est fermée : rien n'a bougé."],
+  bossNoPort: [
+    "Je ne peux pas m'enregistrer d'ici. Colle le jeton dans Réglages → Bots, avec le rôle Boss.",
+    "D'ici, je ne peux pas enregistrer le jeton. Va dans Réglages → Bots et colle-le avec le rôle Boss.",
+  ],
+  tokenRefused: voiceTemplate<{ reason: string }>([{ reason: "jeton invalide" }, { reason: "Unauthorized" }], (p) => [
+    `Telegram refuse ce jeton (${p.reason}). Vérifie-le dans @BotFather et renvoie-le.`,
+    `Ce jeton ne passe pas : ${p.reason}. Tu peux le revérifier dans @BotFather et me le renvoyer ?`,
+  ]),
+  bossRegistered: voiceTemplate<{ username: string }>([{ username: "kevcanauxbot" }], (p) => [
+    `✅ C'est bon, @${p.username} est enregistré. Envoie-lui /start depuis ton compte, puis écris « commencer ».`,
+    `C'est fait, le Boss est @${p.username}. Envoie /start à @${p.username} depuis ton compte, puis écris « commencer ».`,
+  ]),
+  tokenUnreadable: [
+    "Je n'arrive pas à relire ce jeton. Renvoie « jeton boss » suivi du jeton.",
+    "Ce jeton est illisible de mon côté : renvoie-le avec « jeton boss » devant.",
+  ],
+  noValidation: voiceTemplate<{ n: number }>([{ n: 12 }], (p) => [`Je ne trouve aucun post n°${p.n} à valider.`, `Pas de post n°${p.n} en attente chez moi.`]),
+  validationDone: voiceTemplate<{ n: number }>([{ n: 12 }], (p) => [`Le post n°${p.n} est déjà réglé.`, `Déjà fait : le post n°${p.n} a été traité.`]),
+  publishSummary: voiceTemplate<{ n: number; line: string }>(
+    [
+      { n: 12, line: "Rencontres · première vidéo de Léa" },
+      { n: 3, line: "post introuvable" },
+    ],
+    (p) => [`Je publie le post n°${p.n} ?\n${p.line}`, `On publie le post n°${p.n} ?\n${p.line}`],
+  ),
+} satisfies VoiceTable;
+
+const V = CATALOG_READ_VARIANTS;
+/** Conversation en cours (rotation des variantes), si le bot l'a donnée. */
+const chatOf = (deps: BossDeps) => (deps as { chat?: BossChat | null }).chat?.chatId ?? null;
 
 /** Dépendances d'exécution : le texte reçu tel quel (confirmation stricte d'une demande, jamais inventé par l'IA). */
 export type BossExecDeps = BossDeps & {
@@ -129,10 +180,11 @@ export function speakerMayAnswerRequest(speaker: BossSpeaker | null | undefined,
 
 async function notYours(deps: BossDeps): Promise<BossReply> {
   const name = await adminFirstName(deps).catch(() => "l'admin");
-  return { reply: `Ça, c'est ${esc(name)} qui décide.` };
+  return { reply: pick(V.notYours({ name: esc(name) }), "read.notYours", chatOf(deps)) };
 }
 
-export const SECRET_ANSWER_HINT = "🔒 Pour une clé ou un mot de passe, envoie la valeur dans ton prochain message (je la range sans la lire), ou « plus tard ».";
+export const SECRET_ANSWER_HINT = CATALOG_READ_VARIANTS.secretHint[0];
+const secretHint = (deps: BossDeps) => pick(V.secretHint, "read.secretHint", chatOf(deps));
 
 export const repondreDemande = defineAction<AnswerP>({
   key: "repondre_demande",
@@ -142,10 +194,10 @@ export const repondreDemande = defineAction<AnswerP>({
   spec: { reponse: str("La réponse de l'admin à la question en cours, telle qu'il l'a donnée", { maxLength: 500 }) },
   async execute(deps: BossExecDeps, p, actor) {
     const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
-    if (!current) return { reply: "Aucune question en cours." };
+    if (!current) return { reply: pick(V.noQuestion, "read.noQuestion", chatOf(deps)) };
     if (!speakerMayAnswerRequest(deps.speaker, current, deps.chat)) return notYours(deps);
-    if (current.kind === "SECRET") return { reply: SECRET_ANSWER_HINT };
-    if (current.kind === "MEDIA") return { reply: "Pour cette question, envoie-moi directement les vidéos ou photos demandées (ou « plus tard »)." };
+    if (current.kind === "SECRET") return { reply: secretHint(deps) };
+    if (current.kind === "MEDIA") return { reply: pick(V.mediaHint, "read.mediaHint", chatOf(deps)) };
     const r = await respondToRequest(deps, current, p.reponse, actorRef(actor), { deferNext: true, confirmText: deps.inputText ?? p.reponse });
     return {
       reply: esc(r.message),
@@ -166,7 +218,7 @@ export const plusTard = defineAction<Empty>({
   spec: {},
   async execute(deps: BossExecDeps, _p, actor) {
     const current = (await currentHumanRequest(deps)) as (HumanRequestRow & RequestRights) | null;
-    if (!current) return { reply: "Aucune question en cours." };
+    if (!current) return { reply: pick(V.noQuestion, "read.noQuestion", chatOf(deps)) };
     if (!speakerMayAnswerRequest(deps.speaker, current, deps.chat)) return notYours(deps);
     const r = await skipRequest(deps, current, actorRef(actor), { deferNext: true });
     return {
@@ -191,8 +243,8 @@ export const repondreDemandeConfirmee = defineAction<ConfirmedAnswerP>({
   spec: { demande: str("Identifiant de la demande", { maxLength: 60 }), reponse: str("Réponse", { maxLength: 2000 }) },
   async execute(deps, p, actor) {
     const req = (await deps.prisma.humanRequest.findUnique({ where: { id: p.demande } })) as HumanRequestRow | null;
-    if (!req || (req.status !== "QUEUED" && req.status !== "PENDING")) return { reply: "Cette question n'est plus ouverte : rien n'a été changé." };
-    if (req.kind === "SECRET") return { reply: SECRET_ANSWER_HINT };
+    if (!req || (req.status !== "QUEUED" && req.status !== "PENDING")) return { reply: pick(V.notOpen, "read.notOpen", chatOf(deps)) };
+    if (req.kind === "SECRET") return { reply: secretHint(deps) };
     const r = await respondToRequest(deps, req, p.reponse, actorRef(actor), { deferNext: true });
     return {
       reply: esc(r.message),
@@ -208,12 +260,12 @@ export const repondreDemandeConfirmee = defineAction<ConfirmedAnswerP>({
 /** Enregistre le Boss par son jeton (port du chantier A) ; ferme la demande SECRET « jeton boss » si elle est ouverte. */
 export async function registerBossToken(deps: BossDeps, token: string, actorUserId: string | null): Promise<string> {
   const port = bossRegisterPort();
-  if (!port) return "Je ne peux pas enregistrer le Boss d'ici : colle le jeton dans Réglages → Bots (rôle Boss).";
+  if (!port) return pick(V.bossNoPort, "read.bossNoPort", chatOf(deps));
   let username: string;
   try {
     username = (await port(token)).username;
   } catch (err) {
-    return `Jeton refusé : ${esc(((err as Error).message || "jeton invalide").slice(0, 160))}. Vérifie-le dans @BotFather et renvoie-le.`;
+    return pick(V.tokenRefused({ reason: esc(((err as Error).message || "jeton invalide").slice(0, 160)) }), "read.tokenRefused", chatOf(deps));
   }
   const closed = await deps.prisma.humanRequest.updateMany({
     where: { key: BOSS_TOKEN_SECRET_KEY, status: { in: ["QUEUED", "PENDING"] } },
@@ -221,7 +273,7 @@ export async function registerBossToken(deps: BossDeps, token: string, actorUser
   });
   if (closed.count)
     await agentAudit(deps, { userId: actorUserId, action: "agents.request.answered", entityType: "HumanRequest", entityId: BOSS_TOKEN_SECRET_KEY, metadata: { key: BOSS_TOKEN_SECRET_KEY, kind: "SECRET", via: "TELEGRAM", summary: "enregistrée" } });
-  return `Boss enregistré ✅ : @${esc(username)}. Envoie /start à @${esc(username)} depuis ton compte, puis écris « commencer ».`;
+  return pick(V.bossRegistered({ username: esc(username) }), "read.bossRegistered", chatOf(deps));
 }
 
 type ReplaceBossP = { jeton: string };
@@ -238,7 +290,7 @@ export const remplacerBoss = defineAction<ReplaceBossP>({
     try {
       token = decrypt(p.jeton);
     } catch {
-      return { reply: "Je n'ai pas pu relire ce jeton : renvoie « jeton boss <le jeton> »." };
+      return { reply: pick(V.tokenUnreadable, "read.tokenUnreadable", chatOf(deps)) };
     }
     return { reply: await registerBossToken(deps, token, actor.userId) };
   },
@@ -267,13 +319,13 @@ async function validationLine(deps: BossDeps, n: number): Promise<string> {
 
 export const validerPost = defineAction<NumP>({
   key: "valider_post",
-  check: async (deps, p) => { const v = (await deps.prisma.agentValidation.findUnique({ where: { number: p.numero } })) as { status: string } | null; if (!v) return { reply: `Aucune validation n°${p.numero}.` }; return v.status === "PENDING" ? null : { reply: `Le post n°${p.numero} est déjà traité.` }; },
+  check: async (deps, p) => { const v = (await deps.prisma.agentValidation.findUnique({ where: { number: p.numero } })) as { status: string } | null; if (!v) return { reply: pick(V.noValidation({ n: p.numero }), "read.noValidation", chatOf(deps)) }; return v.status === "PENDING" ? null : { reply: pick(V.validationDone({ n: p.numero }), "read.validationDone", chatOf(deps)) }; },
   description: "Valider un post en attente (il sera publié) par son numéro",
   theme: "demandes",
   cls: "confirm",
   spec: { numero: int("Numéro du post à valider", 1, 10_000_000) },
   async summarize(deps, p) {
-    return `Publier le post n°${p.numero} ?\n${await validationLine(deps, p.numero)}`;
+    return pick(V.publishSummary({ n: p.numero, line: await validationLine(deps, p.numero) }), "read.publishSummary", chatOf(deps));
   },
   async execute(deps, p, actor) {
     return { reply: esc((await decideValidation(deps, { number: p.numero, decision: "approve", via: "TELEGRAM", byUserId: actor.userId })).message) };

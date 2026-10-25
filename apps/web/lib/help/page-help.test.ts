@@ -53,6 +53,10 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/agents/inspiration").help.label).toBe("Inspiration");
     expect(pageHelpFor("/agents/inspiration/r1").help.label).toBe("Canal d'inspiration");
     expect(pageHelpFor("/agents/inspiration/r1").help.sections[0]).toBe("S'inspirer d'un canal");
+    // Phase 33 : ordres de Kevin (la fiche d'un ordre n'est pas une fiche d'équipe).
+    expect(pageHelpFor("/agents/orders").help.label).toBe("Ordres");
+    expect(pageHelpFor("/agents/orders/o1?ok=x").help.label).toBe("Fiche d'un ordre");
+    expect(pageHelpFor("/agents/orders/o1").help.sections[0]).toBe("Donner un ordre à une équipe");
     // Phase 15 : rubrique « Pages » (liste, nouvelle page, fiche d'une page et ses chiffres).
     expect(pageHelpFor("/pages").help.label).toBe("Pages");
     expect(pageHelpFor("/pages/new").help.label).toBe("Nouvelle page");

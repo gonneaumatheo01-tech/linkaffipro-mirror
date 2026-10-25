@@ -9,17 +9,36 @@ import {
   bossTeamIncoming,
   claimMemberAiTurn,
   findTeamMember,
+  pick,
   readBossGroupId,
   type AgentsDeps,
   type BossTeamMessage,
   type BossTeamOutcome,
   type GroupEntity,
+  type VoiceTable,
 } from "@linkaffipro/agents";
 import type { BotIdentity, TelegramDeps } from "../ports";
 import { realBossEngine, type BossEngine } from "../boss/engine";
-import { BOSS_WORKER_DOWN_REPLY, workerLooksDown } from "./agents-admin";
-import { BOSS_QUEUE_DOWN_REPLY, deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
+import { workerLooksDown } from "./agents-admin";
+import { deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
 import { createAlbumCaptions, createLibraryDepositor, inboxMediaOf, type LibraryDepositor } from "./media-inbox";
+
+/**
+ * Phase 33 : textes de secours de Kevin dans le groupe de l'équipe et en privé d'un membre (charte
+ * `docs/KEVIN-VOIX.md` : dans le groupe, encore plus court), 2 variantes chacun, choisies par `pick`.
+ */
+export const BOSS_GROUP_VARIANTS = {
+  /** Service d'arrière-plan muet depuis plus de 3 minutes : la tâche reste en file. */
+  workerDown: [
+    "Je tourne au ralenti, mon service d'arrière-plan est arrêté. Commandes simples seulement (écris aide), l'équipe technique est prévenue.",
+    "Service d'arrière-plan à l'arrêt, l'équipe technique est prévenue. En attendant, commandes simples seulement : écris aide.",
+  ],
+  /** Mise en file impossible. */
+  queueDown: [
+    "Je ne peux pas réfléchir là, mon service d'arrière-plan est arrêté. Les commandes simples marchent : écris aide.",
+    "Ma partie réflexion est en panne. Écris aide pour les commandes simples.",
+  ],
+} as const satisfies VoiceTable;
 
 /** Types de chat traités par le mode groupe du Boss (section 4 de la phase 26). */
 export function isBossGroupChat(chatType: string | undefined): boolean {
@@ -102,7 +121,7 @@ async function act(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg:
       // Service d'arrière-plan arrêté : réponse de secours tout de suite ; la tâche reste en file (faite au redémarrage,
       // jamais deux réponses : le worker vérifie le tour déjà écrit).
       if (await workerLooksDown(deps))
-        await sendBossText(api, chatId, BOSS_WORKER_DOWN_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
+        await sendBossText(api, chatId, pick(BOSS_GROUP_VARIANTS.workerDown, "boss-group.workerDown", chatId), { replyToMessageId: msg.message_id }).catch(() => undefined);
       else await ctx.api.sendChatAction(chatId, "typing").catch(() => undefined);
       try {
         await agents.enqueue.orchestrator(
@@ -129,7 +148,7 @@ async function act(ctx: Context, identity: BotIdentity, deps: TelegramDeps, msg:
         );
       } catch (err) {
         console.error("[boss] message d'équipe non mis en file", identity.username, (err as Error).message);
-        await sendBossText(api, chatId, BOSS_QUEUE_DOWN_REPLY, { replyToMessageId: msg.message_id }).catch(() => undefined);
+        await sendBossText(api, chatId, pick(BOSS_GROUP_VARIANTS.queueDown, "boss-group.queueDown", chatId), { replyToMessageId: msg.message_id }).catch(() => undefined);
       }
       return;
     }

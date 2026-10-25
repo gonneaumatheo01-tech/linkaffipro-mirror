@@ -12,6 +12,7 @@ import { SidePanel } from "@/components/admin/side-panel";
 import { UniverseDot } from "@/components/admin/universe-dot";
 import { ChannelCasinoCard } from "@/components/agents/casino/channel-casino-card";
 import { ChannelInspirationCard } from "@/components/agents/inspiration/channel-inspiration-card";
+import { ChannelOrderCard } from "@/components/agents/orders/channel-order-card";
 import { ChannelSettingsForm } from "@/components/channels/channel-settings-form";
 import { ChannelStatePills } from "@/components/channels/channel-state";
 import { ChannelTabs } from "@/components/channels/channel-tabs";
@@ -189,6 +190,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
         </Alert>
       ) : null}
       {channel.vertical === "CASINO" ? <ChannelCasinoCard channelId={channel.id} /> : null}
+      <ChannelOrderCard channelId={channel.id} now={now} />
       <ChannelInspirationCard channelId={channel.id} />
       <ChannelTabs channelId={channel.id} current={tab} pending={counts.pending} />
       <Flash ok={sp.ok} error={sp.error} />

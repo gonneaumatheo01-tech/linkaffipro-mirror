@@ -8,6 +8,16 @@ import { esc, nowOf, readSetting, writeSetting, adminTelegramId } from "../../ad
 import type { AgentsDeps } from "../../types";
 import type { TeamMemberKind, TeamMemberTeam, TeamResponsibilities } from "../contract";
 import { parisDay } from "../../rules/time";
+import type { VoiceTable } from "../voice";
+
+/** Textes de Kevin de ce module (charte `docs/KEVIN-VOIX.md`, contrôlés par `voice.test.ts`). */
+export const TEAM_MEMBERS_VARIANTS = {
+  aiLimit: [
+    "On a beaucoup parlé aujourd'hui : je garde les commandes simples jusqu'à demain.",
+    "On a beaucoup échangé aujourd'hui. Jusqu'à demain, je ne prends plus que les commandes simples.",
+    "Grosse journée de messages : d'ici demain, je ne réponds plus qu'aux commandes simples.",
+  ],
+} satisfies VoiceTable;
 
 export const TEAM_MEMBER_TEAMS: readonly TeamMemberTeam[] = ["dating", "casino", "sports", "algo", "ads"];
 export const TEAM_MEMBER_KINDS: readonly TeamMemberKind[] = ["media", "secret", "choice", "validation"];
@@ -290,7 +300,7 @@ export async function claimSecretNotice(deps: Pick<AgentsDeps, "prisma" | "now" 
 export const BOSS_MEMBER_AI_DAILY_LIMIT = 30;
 /** `Setting` : `{ day, counts: { <telegramUserId>: n } }` (jour de Paris). */
 export const BOSS_MEMBER_AI_SETTING = "boss.team.aiTurns";
-export const BOSS_MEMBER_AI_LIMIT_REPLY = "On a beaucoup parlé aujourd'hui : je garde les commandes simples jusqu'à demain.";
+export const BOSS_MEMBER_AI_LIMIT_REPLY = TEAM_MEMBERS_VARIANTS.aiLimit[0]!;
 
 /**
  * Compte un message d'un membre envoyé à l'IA ; rend faux si sa limite du jour est atteinte (rien n'est compté). Sur
