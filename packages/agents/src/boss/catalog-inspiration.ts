@@ -14,13 +14,15 @@
  * chiffre (`checkedAnswer`).
  */
 import { adminTelegramId, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
-import { INSPIRATION_LIMITS, type InspirationAnalysis, type Measure } from "../inspiration/contract";
+import { INSPIRATION_LIMITS, type InspirationAnalysis, type InspirationUniverse, type Measure } from "../inspiration/contract";
 import { inspirationSummaryLines, measureOf, fr, summaryHtml } from "../inspiration/kevin";
 import { analyzeReference, compareWithChannel, enqueueReferenceRead, freeReaderAccounts, isInviteLink, joinWithInviteOnce, normalizeChannelUsername, createDefaultAccountReader, storeReferencePosts, type AccountJoinReader } from "../inspiration/kevin-ports";
 import { createHash } from "node:crypto";
 import {
   activeReferences,
   channelUniverse,
+  isUniverse,
+  universeFromText,
   askerOf,
   createReference,
   findReference,
@@ -35,14 +37,15 @@ import {
 import { readForwardBatch } from "../inspiration/kevin-forward";
 import { inspirationProposals, proposalsText } from "../inspiration/proposals";
 import { applyInspiration, removeReference, undoInspiration } from "../inspiration/apply";
-import { afterReferenceRead } from "../inspiration/kevin";
+import { afterReferenceRead, openCollect } from "../inspiration/kevin";
 import type { BossAction, BossDeps, BossReply, BossSpeaker, BossTeamInput } from "./contract";
 import { actorRef, defineAction } from "./catalog-kit";
 import type { BossExecDeps } from "./catalog-read";
 import { ANSWER_MAX_LINES, ANSWER_SYSTEM_WITH_VOICE, checkedAnswer } from "./answer";
 import { BossBudgetError } from "./llm";
 import { bool, int, oneOf, str } from "./params";
-import { askToChoose, matchNames, resolveChannel } from "./resolve";
+import { askToChoose, channelRefs, matchNames, resolveChannel } from "./resolve";
+import { rememberKevinList } from "./choices";
 import { kevinText, pick, voiceTemplate, type VoiceTable } from "./voice";
 
 // ------------------------------------------------------------------------------------------ textes de Kevin
@@ -77,15 +80,58 @@ export const CATALOG_INSPIRATION_VARIANTS = {
     ],
   ),
   inviteTried: voiceTemplate(FWD, (p: FwdP) => forwardAsk(p).map((a) => `J'ai déjà essayé ce lien une fois, je n'insiste jamais. ${a}`)),
-  whichChannelForLink: [
-    "C'est pour lequel de nos canaux ? Redis-moi la phrase avec le canal, par exemple « … pour Roulette ».",
-    "Il me manque le canal : redis-moi la phrase avec, par exemple « … pour Roulette ».",
-  ],
-  universeUnknown: voiceTemplate([{ channel: "Canal Test" }, { channel: "Roulette" }], (p: { channel: string }) => [
+  whichChannelList: ["C'est pour lequel de nos canaux ?", "Je m'en inspire pour lequel de nos canaux ?"],
+  universeQuestion: ["C'est pour quel univers ?", "Ce test, c'est pour quel univers ?"],
+  universeUnknown: voiceTemplate([{ channel: "Casino VIP" }, { channel: "Roulette" }], (p: { channel: string }) => [
     `Je ne sais pas de quel univers est ${p.channel}. Tu le règles dans sa fiche d'abord ?`,
     `Il me manque l'univers de ${p.channel}. Tu le choisis dans sa fiche ?`,
   ]),
-  noFreeAccount: voiceTemplate(FWD, (p: FwdP) => forwardAsk(p).map((a) => `Aucun compte réel libre ne peut entrer par ce lien, et je ne rejoins jamais un canal de moi-même. ${a}`)),
+  /** Canal privé, aucun compte relié (correctif du 25 octobre : dire pourquoi et quoi faire). */
+  noAccountNone: voiceTemplate(
+    [{ fMin: 20, fMax: 30, target: "Test" }],
+    (p: { fMin: number; fMax: number; target: string }) => [
+      `Je n'ai aucun compte Telegram relié pour entrer dans un canal privé, et je n'en rejoins jamais un de moi-même. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un compte Telegram sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Aucun compte Telegram n'est relié, et je ne rejoins jamais un canal privé de moi-même. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un compte Telegram sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+    ],
+  ),
+  /** Un seul compte relié, qui discute avec des membres (persona, bot ou conversations en cours). */
+  noAccountOne: voiceTemplate(
+    [{ who: "Lea, numéro finissant par 78, celui de Léa", fMin: 20, fMax: 30, target: "Test" }],
+    (p: { who: string; fMin: number; fMax: number; target: string }) => [
+      `Ton seul compte Telegram relié (${p.who}) discute avec des membres : je ne m'en sers jamais pour lire un autre canal, ça pourrait le faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Ton compte Telegram relié (${p.who}) est le seul, et il discute avec des membres : je ne l'utilise jamais pour lire un autre canal, il risquerait d'être bloqué. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+    ],
+  ),
+  noAccountMany: voiceTemplate(
+    [{ n: 2, who: "Lea, numéro finissant par 78, celui de Léa ; Max, numéro finissant par 12", fMin: 20, fMax: 30, target: "Test" }],
+    (p: { n: number; who: string; fMin: number; fMax: number; target: string }) => [
+      `Tes ${p.n} comptes Telegram reliés discutent tous avec des membres (${p.who}) : je ne m'en sers jamais pour lire un autre canal, ça pourrait les faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Tes ${p.n} comptes Telegram reliés sont tous en conversation avec des membres (${p.who}) : je ne les utilise jamais pour lire un autre canal, ils risqueraient d'être bloqués. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+    ],
+  ),
+  /** Un compte libre existe, mais le service qui fait tourner les comptes ne répond pas. */
+  noAccountReaderDown: voiceTemplate(
+    [{ who: "Max, numéro finissant par 12", fMin: 20, fMax: 30, target: "Test" }],
+    (p: { who: string; fMin: number; fMax: number; target: string }) => [
+      `Ton compte ${p.who} est libre, mais le service qui le fait tourner ne répond pas en ce moment. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu me redis la phrase dans quelques minutes.`,
+      `Le service qui fait tourner ton compte ${p.who} ne répond pas pour l'instant. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu me redis la phrase dans quelques minutes.`,
+    ],
+  ),
+  /** Réponse « 1 » après l'explication : les posts transférés. */
+  blockerForward: voiceTemplate([{ fMin: 20, fMax: 30, target: "Test" }], (p: { fMin: number; fMax: number; target: string }) => [
+    `Vas-y, transfère-moi ${p.fMin} à ${p.fMax} de ses posts ici. Je les range pour ${p.target} et je lance l'analyse dès que j'en ai ${p.fMin}.`,
+    `Ok, transfère-moi ${p.fMin} à ${p.fMax} de ses posts ici. Je les range pour ${p.target}, l'analyse part dès que j'en ai ${p.fMin}.`,
+  ]),
+  /** Réponse « 2 » après l'explication : relier un compte. */
+  blockerLinkAccount: voiceTemplate([{ target: "Test" }], (p: { target: string }) => [
+    `Va dans Réglages → Comptes Telegram et relie un compte qui n'a pas de persona. Ensuite redis-moi « inspire-toi de ce lien pour ${p.target} » : je te demande ton OUI avant d'entrer.`,
+    `Dans Réglages → Comptes Telegram, relie un compte sans persona. Puis redis-moi « inspire-toi de ce lien pour ${p.target} », je te demande ton OUI avant d'entrer.`,
+  ]),
+  blockerRetryLater: voiceTemplate([{ target: "Test" }], (p: { target: string }) => [
+    `D'accord. Redis-moi « inspire-toi de ce lien pour ${p.target} » dans quelques minutes, je te demande ton OUI avant d'entrer.`,
+    `Ok, redis-moi la phrase pour ${p.target} dans quelques minutes : je te demande ton OUI avant d'entrer.`,
+  ]),
+  noChannel: ["Aucun canal actif chez nous pour le moment.", "Je n'ai aucun de nos canaux actif pour l'instant."],
   noFreeAccountShort: voiceTemplate(FWD, (p: FwdP) => forwardAsk(p).map((a) => `Aucun compte réel libre ne peut entrer par ce lien. ${a}`)),
   confirmJoin: voiceTemplate(
     [
@@ -412,19 +458,73 @@ async function refreshFeatures(deps: BossDeps, refId: string): Promise<void> {
   );
 }
 
-/** Rattache le canal cible ; univers fixé à cette occasion → caractéristiques recalculées. */
-async function attachTarget(deps: BossExecDeps, ref: ReferenceRow, channelId: string): Promise<{ ok: true; ref: ReferenceRow; title: string } | { ok: false; reply: BossReply }> {
+/**
+ * Rattache le canal cible ; univers fixé à cette occasion → caractéristiques recalculées. `universe` : univers choisi
+ * pour le canal Test (qui n'en a pas par nature).
+ */
+async function attachTarget(
+  deps: BossExecDeps,
+  ref: ReferenceRow,
+  channelId: string,
+  universe: InspirationUniverse | null = null,
+): Promise<{ ok: true; ref: ReferenceRow; title: string } | { ok: false; reply: BossReply }> {
   const hadUniverse = ["dating", "casino", "sports"].includes(ref.universe);
-  const r = await linkTarget(deps, ref, channelId);
+  const r = await linkTarget(deps, ref, channelId, { universe });
   if (!r.ok) return { ok: false, reply: { reply: esc(r.message) } };
   if (!hadUniverse) await refreshFeatures(deps, ref.id).catch(() => undefined);
   await rememberAsker(deps, ref.id, askerOf(deps.speaker, deps.chat, channelId), channelId);
   return { ok: true, ref: r.ref, title: r.channel.title };
 }
 
+const UNIVERSE_CHOICES = [
+  { label: "Paris sportifs", value: "sports" },
+  { label: "Casino", value: "casino" },
+  { label: "Rencontres", value: "dating" },
+];
+
+type UniverseOutcome = { ok: true; universe: InspirationUniverse | null } | { ok: false; reply: BossReply };
+
+/**
+ * Univers du canal cible. Un vrai canal garde le sien (sans univers : « règle-le dans sa fiche »). Le canal Test n'en a
+ * pas par nature : celui de la demande (`univers`, ou les mots « tir cadré », « roulette », « rencontre »…), sinon celui
+ * de la référence, sinon UNE question numérotée « C'est pour quel univers ? » (réponse par numéro ou par nom).
+ */
+async function targetUniverse(
+  deps: BossExecDeps,
+  channelId: string,
+  p: AnalyserParams,
+  ref: Pick<ReferenceRow, "universe"> | null,
+  askParams: Record<string, unknown>,
+): Promise<UniverseOutcome> {
+  const ch = await channelUniverse(deps, channelId);
+  if (!ch) return { ok: true, universe: null };
+  if (ch.universe) return { ok: true, universe: ch.universe };
+  if (!ch.isTest) return { ok: false, reply: { reply: pick(V.universeUnknown({ channel: esc(ch.title) }), "inspiration.universeUnknown", cid(deps)) } };
+  const u = p.univers ?? universeFromText(deps.inputText) ?? (ref && isUniverse(ref.universe) ? ref.universe : null);
+  if (u) return { ok: true, universe: u };
+  return {
+    ok: false,
+    reply: await askToChoose(deps, {
+      actionKey: "analyser_canal",
+      params: { ...askParams, canal_cible: `id:${ch.id}` },
+      field: "univers",
+      question: pick(V.universeQuestion, "inspiration.universeQuestion", cid(deps)),
+      options: UNIVERSE_CHOICES,
+    }),
+  };
+}
+
+/** Nom affiché du canal cible (« id:… » d'un choix numéroté → son titre). */
+async function targetName(deps: BossDeps, raw: string | undefined): Promise<string> {
+  if (!raw) return "";
+  if (!raw.startsWith("id:")) return raw;
+  const ch = (await deps.prisma.channel.findUnique({ where: { id: raw.slice(3) } })) as { title: string } | null;
+  return ch?.title ?? "";
+}
+
 // ------------------------------------------------------------------------------------------ analyser_canal
 
-type AnalyserParams = { canal?: string; canal_cible?: string };
+type AnalyserParams = { canal?: string; canal_cible?: string; univers?: InspirationUniverse };
 
 type InspirationDeps = BossExecDeps & { inspirationReader?: AccountJoinReader | null; inspirationSleep?: (ms: number) => Promise<void> };
 
@@ -460,15 +560,108 @@ async function markInviteTried(deps: BossDeps, link: string): Promise<void> {
   await writeSetting(deps, INSPIRATION_INVITES_TRIED_SETTING, [...list, inviteHash(link)].slice(-200));
 }
 
-/** Contrôles d'une entrée par lien AVANT toute tentative : déjà essayé, canal cible d'un univers connu, compte libre. */
-async function inviteBlocked(deps: InspirationDeps, link: string, targetRaw: string | undefined): Promise<BossReply | null> {
+export const INSPIRATION_INVITE_REF_PREFIX = "inspiration.inviteRef.";
+export const INSPIRATION_INVITE_UNIVERSE_PREFIX = "inspiration.inviteUniverse.";
+
+/** Référence déjà préparée pour ce lien d'invitation (posts transférés attendus), non retirée. */
+async function inviteReference(deps: BossDeps, link: string): Promise<ReferenceRow | null> {
+  const id = await readSetting(deps, `${INSPIRATION_INVITE_REF_PREFIX}${inviteHash(link)}`);
+  return typeof id === "string" ? loadReferenceRow(deps, id) : null;
+}
+
+type AccountRow = { id: string; label: string; phone: string; personaId: string | null; botId?: string | null };
+
+/** « Lea, numéro finissant par 78, celui de Léa » : jamais le numéro complet (2 derniers chiffres seulement). */
+function accountWho(a: AccountRow, personaName: string | null): string {
+  const tail = a.phone.replace(/\D/g, "").slice(-2);
+  return [a.label, tail ? `numéro finissant par ${tail}` : null, personaName ? `celui de ${personaName}` : null].filter(Boolean).join(", ");
+}
+
+/**
+ * Pourquoi aucun compte ne peut entrer par ce lien, et quoi faire (voix de Kevin, sans jargon) : nombre réel de comptes
+ * reliés, leur nom (et la persona qu'ils portent), jamais le numéro complet.
+ */
+async function noAccountExplanation(deps: InspirationDeps, target: string): Promise<string> {
+  const accounts = (await deps.prisma.telegramUserAccount.findMany({
+    where: { isActive: true, status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+  })) as AccountRow[];
+  const personas = new Map(((await deps.prisma.persona.findMany({ select: { id: true, name: true } })) as { id: string; name: string }[]).map((x) => [x.id, x.name]));
+  const free = new Set(await freeReaderAccounts(deps.prisma, nowOf(deps)));
+  const fwd = { fMin: INSPIRATION_LIMITS.minPostsForAnalysis, fMax: INSPIRATION_LIMITS.forwardMax, target: esc(target || "notre canal") };
+  const who = (a: AccountRow) => esc(accountWho(a, a.personaId ? (personas.get(a.personaId) ?? null) : null));
+  if (!accounts.length) return pick(V.noAccountNone(fwd), "inspiration.noAccountNone", cid(deps));
+  const freeOne = accounts.find((a) => free.has(a.id));
+  if (freeOne) return pick(V.noAccountReaderDown({ ...fwd, who: who(freeOne) }), "inspiration.noAccountReaderDown", cid(deps));
+  if (accounts.length === 1) return pick(V.noAccountOne({ ...fwd, who: who(accounts[0]!) }), "inspiration.noAccountOne", cid(deps));
+  return pick(V.noAccountMany({ ...fwd, n: accounts.length, who: accounts.slice(0, 4).map(who).join(" ; ") }), "inspiration.noAccountMany", cid(deps));
+}
+
+/**
+ * Canal privé sans compte libre : la référence attend les posts transférés (cible et univers posés, collecte ouverte
+ * dans cette conversation : les posts transférés y vont tout seuls), et Kevin explique pourquoi et quoi faire. Le
+ * blocage est mémorisé 30 minutes (« comment ça ? » → la même explication ; « 1 » / « 2 » → la marche à suivre).
+ */
+async function noFreeAccountReply(deps: InspirationDeps, link: string, channelId: string, universe: InspirationUniverse | null): Promise<BossReply> {
+  let ref = await inviteReference(deps, link);
+  if (!ref) {
+    ref = await createReference(deps, { via: "FORWARDED", universe: "", addedBy: deps.speaker?.telegramUserId ?? null });
+    await writeSetting(deps, `${INSPIRATION_INVITE_REF_PREFIX}${inviteHash(link)}`, ref.id);
+  }
+  const a = await attachTarget(deps, ref, channelId, universe);
+  if (!a.ok) return a.reply;
+  if (a.ref.status === "READING")
+    await deps.prisma.referenceChannel.update({ where: { id: ref.id }, data: { status: "UNAVAILABLE", unavailableReason: "Canal privé : posts transférés attendus." } });
+  const chatKey = await chatKeyOf(deps);
+  if (chatKey) await openCollect(deps, chatKey, ref.id, deps.speaker && deps.speaker.kind === "member" ? deps.speaker.telegramUserId.toString() : null);
+  const explanation = await noAccountExplanation(deps, a.title);
+  const fwd = { fMin: INSPIRATION_LIMITS.minPostsForAnalysis, fMax: INSPIRATION_LIMITS.forwardMax, target: esc(a.title) };
+  const readerDown = explanation.includes("ne répond pas");
+  await rememberKevinList(deps, {
+    kind: "blocker",
+    question: explanation,
+    explanation,
+    originalText: "",
+    options: [
+      { label: "transférer les posts", answer: pick(V.blockerForward(fwd), "inspiration.blockerForward", cid(deps)) },
+      readerDown
+        ? { label: "réessayer plus tard", answer: pick(V.blockerRetryLater({ target: esc(a.title) }), "inspiration.blockerRetryLater", cid(deps)) }
+        : { label: "relier un compte", answer: pick(V.blockerLinkAccount({ target: esc(a.title) }), "inspiration.blockerLinkAccount", cid(deps)) },
+    ],
+    speaker: deps.speaker ?? null,
+    chatId: deps.chat?.chatId ?? null,
+  });
+  return { reply: explanation };
+}
+
+/**
+ * Contrôles d'une entrée par lien AVANT toute tentative : déjà essayé ; canal cible (absent → liste numérotée de nos
+ * canaux) ; univers connu (canal Test : celui de la demande ou de la référence, sinon la question) ; compte libre
+ * (sinon : pourquoi et quoi faire).
+ */
+async function inviteBlocked(deps: InspirationDeps, link: string, p: AnalyserParams): Promise<BossReply | null> {
   if (await inviteTried(deps, link)) return { reply: pick(V.inviteTried(F), "inspiration.inviteTried", cid(deps)) };
-  if (!targetRaw) return { reply: pick(V.whichChannelForLink, "inspiration.whichChannelForLink", cid(deps)) };
-  const t = await resolveChannel(deps, { actionKey: "analyser_canal", params: { canal: link, canal_cible: targetRaw }, field: "canal_cible" }, targetRaw);
+  const hint = p.univers ?? universeFromText(deps.inputText);
+  const askParams: Record<string, unknown> = { canal: link, ...(hint ? { univers: hint } : {}) };
+  if (!p.canal_cible) {
+    const refs = await channelRefs(deps);
+    if (!refs.length) return { reply: pick(V.noChannel, "inspiration.noChannel", cid(deps)) };
+    return askToChoose(deps, {
+      actionKey: "analyser_canal",
+      params: askParams,
+      field: "canal_cible",
+      question: pick(V.whichChannelList, "inspiration.whichChannelList", cid(deps)),
+      options: refs.slice(0, 9).map((c) => ({ label: c.name, value: `id:${c.id}` })),
+    });
+  }
+  const t = await resolveChannel(deps, { actionKey: "analyser_canal", params: { ...askParams, canal_cible: p.canal_cible }, field: "canal_cible" }, p.canal_cible);
   if (!t.ok) return t.reply;
-  const ch = await channelUniverse(deps, t.value.id);
-  if (!ch?.universe) return { reply: pick(V.universeUnknown({ channel: esc(t.value.name) }), "inspiration.universeUnknown", cid(deps)) };
-  if (!(await freeAccount(deps))) return { reply: pick(V.noFreeAccount(F), "inspiration.noFreeAccount", cid(deps)) };
+  const known = await inviteReference(deps, link);
+  const u = await targetUniverse(deps, t.value.id, { ...p, ...(hint ? { univers: hint } : {}) }, known, askParams);
+  if (!u.ok) return u.reply;
+  // Univers retrouvé dans la phrase (pas dans les paramètres) : gardé pour l'entrée après le OUI.
+  if (u.universe && t.value.isTest) await writeSetting(deps, `${INSPIRATION_INVITE_UNIVERSE_PREFIX}${inviteHash(link)}`, u.universe);
+  if (!(await freeAccount(deps))) return noFreeAccountReply(deps, link, t.value.id, u.universe);
   return null;
 }
 
@@ -480,17 +673,18 @@ export const analyserCanal = defineAction<AnalyserParams>({
   spec: {
     canal: str("Canal à analyser : lien t.me/…, @nom ou nom (absent = les posts que je viens de recevoir en transfert)", { optional: true }),
     canal_cible: str("Notre canal qui doit s'en inspirer, tel que dit (« Roulette »)", { optional: true }),
+    univers: oneOf("Univers si la demande le dit (surtout pour le canal Test) : sports (paris, tirs cadrés, corners), casino (roulette…), dating (rencontres)", ["sports", "casino", "dating"], true),
   },
   async classify(_deps, p) {
     return p.canal && isInviteLink(p.canal) ? "confirm" : "immediate";
   },
   async summarize(deps, p) {
     const acc = await freeAccount(deps as InspirationDeps);
-    return pick(V.confirmJoin({ account: acc?.label ?? "réel", target: p.canal_cible ?? "" }), "inspiration.confirmJoin", cid(deps));
+    return pick(V.confirmJoin({ account: acc?.label ?? "réel", target: await targetName(deps, p.canal_cible) }), "inspiration.confirmJoin", cid(deps));
   },
   async check(deps, p) {
     if (!p.canal || !isInviteLink(p.canal)) return null;
-    return inviteBlocked(deps as InspirationDeps, p.canal, p.canal_cible);
+    return inviteBlocked(deps as InspirationDeps, p.canal, p);
   },
   async execute(d, p) {
     const deps = d as InspirationDeps;
@@ -513,7 +707,9 @@ export const analyserCanal = defineAction<AnalyserParams>({
         const t = await resolveChannel(deps, { actionKey: "analyser_canal", params, field: "canal_cible" }, undefined);
         return t.ok ? { reply: "?" } : t.reply;
       }
-      const a = await attachTarget(deps, ref, targetId);
+      const u = await targetUniverse(deps, targetId, p, ref, { canal_cible: `id:${targetId}` });
+      if (!u.ok) return u.reply;
+      const a = await attachTarget(deps, ref, targetId, u.universe);
       if (!a.ok) return a.reply;
       const n = await referencePostCount(deps, ref.id);
       const label = esc(referenceLabel(a.ref));
@@ -525,7 +721,7 @@ export const analyserCanal = defineAction<AnalyserParams>({
     if (isInviteLink(p.canal)) {
       // Seul l'admin confirme une entrée (cette entrée est « à confirmer », jamais d'un membre) ; contrôles refaits.
       if (deps.speaker && deps.speaker.kind === "member") return { reply: pick(V.memberCannotJoin, "inspiration.memberCannotJoin", cid(deps)) };
-      const blocked = await inviteBlocked(deps, p.canal, p.canal_cible);
+      const blocked = await inviteBlocked(deps, p.canal, p);
       if (blocked) return blocked;
       const acc = await freeAccount(deps);
       if (!acc || !targetId) return { reply: pick(V.noFreeAccountShort(F), "inspiration.noFreeAccountShort", cid(deps)) };
@@ -535,7 +731,10 @@ export const analyserCanal = defineAction<AnalyserParams>({
       const ref =
         (joined.chatId != null ? await findReference(deps, { chatId: joined.chatId }) : null) ??
         (await createReference(deps, { chatId: joined.chatId, title: joined.title, via: "ACCOUNT", universe: "", addedBy: deps.speaker?.telegramUserId ?? null, accountId: acc.id }));
-      const a = await attachTarget(deps, ref, targetId);
+      // Canal Test : l'univers choisi avant le OUI (paramètre, ou retrouvé dans la phrase et gardé par le contrôle).
+      const saved = await readSetting(deps, `${INSPIRATION_INVITE_UNIVERSE_PREFIX}${inviteHash(p.canal)}`);
+      const universe = p.univers ?? (isUniverse(saved) ? saved : null);
+      const a = await attachTarget(deps, ref, targetId, universe);
       if (!a.ok) return a.reply;
       await enqueueReferenceRead(deps, ref.id);
       return { reply: pick(V.joined({ account: esc(acc.label), label: esc(referenceLabel(a.ref)) }), "inspiration.joined", cid(deps)) };
@@ -555,9 +754,12 @@ export const analyserCanal = defineAction<AnalyserParams>({
         return t.ok ? { reply: "?" } : t.reply;
       }
     }
+    // Canal Test sans univers : celui de la demande ou de la référence, sinon la question (avant toute création).
+    const u = await targetUniverse(deps, targetId, p, ref, { canal: p.canal, canal_cible: `id:${targetId}` });
+    if (!u.ok) return u.reply;
     // Même univers obligatoire : vérifié avant toute création.
     ref ??= await createReference(deps, { username, via: "WEB", universe: "", addedBy: deps.speaker?.telegramUserId ?? null });
-    const a = await attachTarget(deps, ref, targetId);
+    const a = await attachTarget(deps, ref, targetId, u.universe);
     if (!a.ok) {
       if (!targetIdsOf(ref).length && ref.postCount === 0 && !["dating", "casino", "sports"].includes(ref.universe))
         await deps.prisma.referenceChannel.update({ where: { id: ref.id }, data: { removedAt: nowOf(deps) } });

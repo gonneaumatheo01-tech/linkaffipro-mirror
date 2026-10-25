@@ -95,6 +95,8 @@ export function bossSystemPrompt(name: string): string {
     "- « arrête », « passe à 3 par jour », « prolonge de 2 jours », « change le thème » sans autre précision visent l'ordre en cours (voir Ordres) : arreter_ordre, modifier_ordre, prolonger_ordre.",
     "- pas_prevu seulement pour une discussion sans action ou une demande qui ne concerne aucune équipe.",
     "- Si la demande est ambiguë (plusieurs équipes, canaux ou chiffres possibles), utilise preciser. Ne devine jamais.",
+    "- Un message qui finit par « (réponse à ta question « … » : X) » est ta demande d'avant, complétée par le choix X de l'admin : X lève l'ambiguïté, choisis l'outil avec X (jamais preciser à nouveau pour la même chose, jamais pas_prevu).",
+    "- Un lien t.me/+… ou t.me/… dont il faut « s'inspirer » → analyser_canal (canal = le lien, canal_cible = notre canal s'il est dit, univers si la demande le dit : paris / tirs cadrés / corners → sports, casino / roulette → casino, rencontres → dating).",
     "- Une question sur des chiffres ou un état → repondre_question (ou l'outil de lecture correspondant).",
     "- Si une question est en cours et que le message y répond, utilise repondre_demande avec la réponse telle quelle.",
     "- « oui » / « non » ne sont jamais à transformer en action : si rien n'attend de confirmation, utilise pas_prevu.",

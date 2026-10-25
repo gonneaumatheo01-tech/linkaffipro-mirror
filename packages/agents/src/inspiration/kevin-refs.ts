@@ -24,7 +24,11 @@ export const INSPIRATION_REFS_VARIANTS = {
     ],
   ),
   channelNotFound: ["Je ne trouve pas ce canal.", "Ce canal, je ne le trouve pas chez nous."],
-  universeUnknown: voiceTemplate([{ channel: "Canal Test" }, { channel: "Roulette Pro" }], (p: { channel: string }) => [
+  testUniverse: [
+    "C'est pour quel univers, ce test ? Paris sportifs, casino ou rencontres ?",
+    "Ce test, c'est pour quel univers : paris sportifs, casino ou rencontres ?",
+  ],
+  universeUnknown: voiceTemplate([{ channel: "Casino VIP" }, { channel: "Roulette Pro" }], (p: { channel: string }) => [
     `Je ne sais pas si ${p.channel} est un canal rencontres, casino ou paris. Tu le règles dans sa fiche ?`,
     `Il me manque l'univers de ${p.channel} (rencontres, casino ou paris). Tu le choisis dans sa fiche ?`,
   ]),
@@ -81,15 +85,43 @@ export async function activeReferences(deps: Pick<AgentsDeps, "prisma">): Promis
   return (await deps.prisma.referenceChannel.findMany({ where: { removedAt: null }, orderBy: { createdAt: "desc" }, take: 100 })) as ReferenceRow[];
 }
 
-export type ChannelUniverse = { id: string; title: string; universe: InspirationUniverse | null; teamKey: string | null };
+export type ChannelUniverse = { id: string; title: string; universe: InspirationUniverse | null; teamKey: string | null; isTest?: boolean };
+
+const SPORTS_WORDS = /\b(?:paris?|pari sportif|paris sportifs|sport|sports|foot|football|tirs? cadres?|corners?|buteurs?|cotes?|matchs?|bets?|pronos?|pronostics?)\b/;
+const CASINO_WORDS = /\b(?:casinos?|roulettes?|machines? a sous|slots?|blackjack|poker|jackpots?|bonus casino)\b/;
+const DATING_WORDS = /\b(?:rencontres?|dating|celibataires?|drague|coquine?s?|seduction)\b/;
+
+/**
+ * Univers dit dans une demande (pur) : « tir cadré », « paris », « corners » → sports ; « casino », « roulette » →
+ * casino ; « rencontre », « dating » → dating. Plusieurs univers ou aucun → null. Les liens et @noms sont ignorés.
+ */
+export function universeFromText(text: string | null | undefined): InspirationUniverse | null {
+  if (!text) return null;
+  const n = text
+    .replace(/(?:https?:\/\/)?t\.me\/\S+|@\w+/gi, " ")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[’']/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ");
+  const hits = (["sports", "casino", "dating"] as const).filter((u) => (u === "sports" ? SPORTS_WORDS : u === "casino" ? CASINO_WORDS : DATING_WORDS).test(n));
+  return hits.length === 1 ? hits[0]! : null;
+}
 
 /** Univers d'un canal du client : équipe de son plan d'agents, sinon son univers (`Channel.vertical`). */
 export async function channelUniverse(deps: Pick<AgentsDeps, "prisma">, channelId: string): Promise<ChannelUniverse | null> {
-  const ch = (await deps.prisma.channel.findUnique({ where: { id: channelId } })) as { id: string; title: string; vertical: string | null } | null;
+  const ch = (await deps.prisma.channel.findUnique({ where: { id: channelId } })) as { id: string; title: string; vertical: string | null; isTest?: boolean } | null;
   if (!ch) return null;
   const plan = (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId } })) as { teamKey: string } | null;
   const fromPlan = plan && isUniverse(plan.teamKey) ? plan.teamKey : null;
-  return { id: ch.id, title: ch.title, universe: fromPlan ?? (ch.vertical ? (VERTICAL_UNIVERSE[ch.vertical] ?? null) : null), teamKey: plan?.teamKey ?? null };
+  return {
+    id: ch.id,
+    title: ch.title,
+    universe: fromPlan ?? (ch.vertical ? (VERTICAL_UNIVERSE[ch.vertical] ?? null) : null),
+    teamKey: plan?.teamKey ?? null,
+    isTest: ch.isTest === true,
+  };
 }
 
 /** Refus en une ligne (règle 6, pur). */
@@ -107,24 +139,38 @@ export function universeRefusal(
   );
 }
 
-export type LinkResult = { ok: true; ref: ReferenceRow; added: boolean; channel: ChannelUniverse } | { ok: false; message: string };
+export type LinkResult =
+  | { ok: true; ref: ReferenceRow; added: boolean; channel: ChannelUniverse }
+  | { ok: false; message: string; /** Canal Test sans univers connu : l'appelant demande l'univers. */ needUniverse?: boolean };
 
 /**
  * Rattache un canal cible à la référence (même univers obligatoire). Une référence sans univers encore (posts transférés
- * avant de dire pour quel canal) prend celui du canal.
+ * avant de dire pour quel canal) prend celui du canal. Le canal Test n'a pas d'univers par nature : il prend celui de
+ * la demande (`opts.universe`), sinon celui de la référence ; sans l'un ni l'autre, `needUniverse` (jamais « règle-le
+ * dans sa fiche » pour le canal Test).
  */
-export async function linkTarget(deps: Pick<AgentsDeps, "prisma">, ref: ReferenceRow, channelId: string): Promise<LinkResult> {
-  const ch = await channelUniverse(deps, channelId);
-  if (!ch) return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.channelNotFound, "inspiration.channelNotFound", null) };
-  if (!ch.universe) return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.universeUnknown({ channel: ch.title }), "inspiration.universeUnknown", null) };
-  if (isUniverse(ref.universe) && ref.universe !== ch.universe)
-    return { ok: false, message: universeRefusal(referenceLabel(ref), ref.universe, ch.title, ch.universe) };
+export async function linkTarget(
+  deps: Pick<AgentsDeps, "prisma">,
+  ref: ReferenceRow,
+  channelId: string,
+  opts: { universe?: InspirationUniverse | null } = {},
+): Promise<LinkResult> {
+  const found = await channelUniverse(deps, channelId);
+  if (!found) return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.channelNotFound, "inspiration.channelNotFound", null) };
+  const universe = found.universe ?? (found.isTest ? (opts.universe ?? (isUniverse(ref.universe) ? ref.universe : null)) : null);
+  if (!universe) {
+    if (found.isTest) return { ok: false, needUniverse: true, message: pick(INSPIRATION_REFS_VARIANTS.testUniverse, "inspiration.testUniverse", null) };
+    return { ok: false, message: pick(INSPIRATION_REFS_VARIANTS.universeUnknown({ channel: found.title }), "inspiration.universeUnknown", null) };
+  }
+  const ch: ChannelUniverse = { ...found, universe };
+  if (isUniverse(ref.universe) && ref.universe !== universe)
+    return { ok: false, message: universeRefusal(referenceLabel(ref), ref.universe, ch.title, universe) };
   const ids = targetIdsOf(ref);
   const added = !ids.includes(channelId);
   const next = added ? [...ids, channelId] : ids;
   const updated = (await deps.prisma.referenceChannel.update({
     where: { id: ref.id },
-    data: { targetChannelIds: next, ...(isUniverse(ref.universe) ? {} : { universe: ch.universe }) },
+    data: { targetChannelIds: next, ...(isUniverse(ref.universe) ? {} : { universe }) },
   })) as ReferenceRow;
   return { ok: true, ref: updated, added, channel: ch };
 }

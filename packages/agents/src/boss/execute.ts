@@ -30,6 +30,7 @@ import { pick, varyAgainst, voiceTemplate, type VoiceTable } from "./voice";
 import { handleOrderRequest } from "../orders/request";
 import { planCacheKeyOf } from "../orders/planner";
 import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
+import { CHOICES_VARIANTS, clearKevinList, pickOption, readKevinList, rememberKevinList, replayText } from "./choices";
 
 /** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
 export const EXECUTE_VARIANTS = {
@@ -530,6 +531,16 @@ async function handleDecision(
     }
     case "preciser": {
       const list = decision.choix.length ? ["", ...decision.choix.map((c, i) => `${i + 1}. ${esc(c)}`)] : [];
+      // Liste mémorisée (30 min) : la réponse « 3 » ou « Test » rejoue la demande d'origine complétée par l'option.
+      if (decision.choix.length)
+        await rememberKevinList(deps, {
+          kind: "replay",
+          question: decision.question,
+          options: decision.choix.map((label) => ({ label })),
+          originalText: input.spokenText ?? input.text,
+          speaker: input.speaker ?? null,
+          chatId: input.chat?.chatId ?? null,
+        });
       return { reply: [esc(decision.question), ...list].join("\n").replace("\n\n", "\n"), status: "clarify", actionKey: "preciser" };
     }
     case "question": {
@@ -605,15 +616,34 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
         "error",
         "sans_ia",
       );
+    // Réponse à la dernière liste de Kevin (« 3 », « Test », « le 3 ») : la demande d'origine est rejouée, complétée par
+    // l'option choisie. Tout autre message ferme la liste (un « 3 » tardif ne rejoue plus une vieille demande).
+    let effective: BossTeamInput = input;
+    let replayed = false;
+    const list = await readKevinList(deps, { speaker: input.speaker ?? null, chatId }).catch(() => null);
+    if (list) {
+      const index = list.kind === "replay" && input.replyToMessageId == null ? pickOption(text, list.options.map((o) => o.label)) : null;
+      const clarify = await readClarify(deps);
+      const newerClarify = !!clarify && new Date(clarify.createdAt).getTime() > new Date(list.createdAt).getTime();
+      if (index !== null && !newerClarify) {
+        effective = { ...input, text: replayText(list.originalText, list.question, list.options[index]!.label), spokenText: undefined };
+        replayed = true;
+      }
+      await clearKevinList(deps, input.speaker ?? null);
+    }
+    const aiText = (effective.text ?? "").trim();
     let interpreted: Awaited<ReturnType<typeof interpretBossText>>;
     try {
-      interpreted = await interpretBossText(deps, text, { source: input.source, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
+      interpreted = await interpretBossText(deps, aiText, { source: input.source, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
     } catch (err) {
       if (err instanceof BossBudgetError) return finish({ reply: pick(NO_AI_REPLIES, "execute.noai", chatId) }, "error", "plafond");
       deps.logger?.warn({ err: (err as Error).message }, "[boss] interprète en échec");
       return finish({ reply: oopsReply(undefined, chatId) }, "error", "erreur");
     }
-    const r = await handleDecision(deps, interpreted.decision, input, actor, secretContext, turnId);
+    if (replayed && interpreted.decision.type === "pas_prevu")
+      // Jamais « pas prévu » pour un choix valide : Kevin redemande la phrase.
+      return finish({ reply: pick(CHOICES_VARIANTS.replayLost, "choices.replayLost", chatId) }, "clarify", "preciser", interpreted.costCents);
+    const r = await handleDecision(deps, interpreted.decision, effective, actor, secretContext, turnId);
     const { status, actionKey, costCents, ...reply } = r;
     return finish(reply, status, actionKey, interpreted.costCents + (costCents ?? 0));
   } catch (err) {

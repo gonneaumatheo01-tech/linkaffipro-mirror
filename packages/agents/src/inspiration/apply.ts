@@ -83,7 +83,9 @@ async function applyStyleProfile(deps: AgentsDeps, rec: RecRow, actor: ActorRef)
   const plan = (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId: rec.targetId } })) as { styleProfileId?: string | null } | null;
   if (!plan) return { ok: false, message: "La cible de ce réglage n'existe plus." };
   const ch = await channelUniverse(deps, rec.targetId);
-  if (!ch?.universe || (profile.universe && profile.universe !== ch.universe)) return { ok: false, message: "Ce profil n'est pas du même univers que le canal." };
+  // Canal Test : pas d'univers par nature, il prend celui du profil (choisi à la demande d'inspiration).
+  const universe = ch?.universe ?? (ch?.isTest ? profile.universe || null : null);
+  if (!universe || (profile.universe && profile.universe !== universe)) return { ok: false, message: "Ce profil n'est pas du même univers que le canal." };
   const before = plan.styleProfileId ?? null;
   if (before === profile.id) {
     await deps.prisma.recommendation.update({ where: { id: rec.id }, data: { status: "REJECTED", rejectedAt: nowOf(deps) } });

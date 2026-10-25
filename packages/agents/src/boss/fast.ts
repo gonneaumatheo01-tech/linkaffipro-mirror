@@ -52,6 +52,7 @@ import {
 import type { AdminCommand } from "../admin/commands";
 import { writeBossTurn, type BossTurnStatus } from "./memory";
 import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
+import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinList } from "./choices";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
@@ -295,8 +296,13 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   // à un autre message) ; « annule » juste après une application. Sans IA, admin seulement.
   {
     const clarifyNow = await readClarify(deps);
-    // Toute question ouverte compte (texte, choix, confirmation), et la précision du Boss.
-    const otherQuestionAt = Math.max(current ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
+    const listNow = await readKevinList(deps, { speaker: input.speaker ?? null, chatId: input.chat?.chatId ?? null });
+    // Toute question ouverte compte (texte, choix, confirmation), la précision du Boss et la dernière liste de Kevin.
+    const otherQuestionAt = Math.max(
+      current ? (current.askedAt?.getTime() ?? 0) : 0,
+      clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0,
+      listNow ? new Date(listNow.createdAt).getTime() : 0,
+    );
     // Phase 33 : « annule » dans la minute qui suit un ordre lancé sans confirmation (chantier B, `orders/recap.ts`).
     const insp = (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ?? await inspirationFastPath(deps, input, {
       word,
@@ -314,14 +320,49 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // 4. Numéro d'une question de précision du Boss.
-  if (/^\s*\d{1,2}\s*[).]?\s*$/.test(text) && !(current && (current.kind === "CHOICE" || current.kind === "CONFIRM") && replyTo !== null)) {
-    const found = await readClarify(deps);
+  // 3 bis. Dernière liste de Kevin (précision de l'IA, blocage expliqué), plus récente que toute autre question :
+  // un numéro ou le nom d'une option rejoue la demande d'origine (tâche `boss-text`) ; après un blocage, « comment
+  // ça ? » redit l'explication et « 1 » / « 2 » donnent la marche à suivre.
+  {
+    const list = replyTo === null ? await readKevinList(deps, { speaker: input.speaker ?? null, chatId: input.chat?.chatId ?? null }) : null;
+    const clarifyNow = list ? await readClarify(deps) : null;
+    const listAt = list ? new Date(list.createdAt).getTime() : 0;
+    const newer =
+      !!list &&
+      listAt >= (current?.askedAt?.getTime() ?? 0) &&
+      !(clarifyNow && clarifyIsFor(clarifyNow, { speaker: input.speaker, chatId: input.chat?.chatId ?? null }) && new Date(clarifyNow.createdAt).getTime() > listAt);
+    if (list && newer) {
+      const chatId = input.chat?.chatId ?? null;
+      const index = pickOption(text, list.options.map((o) => o.label));
+      if (index !== null && list.kind === "replay") return { handled: false, needsAi: true };
+      if (index !== null && list.kind === "blocker" && list.options[index]!.answer) {
+        const r: BossReply = { reply: list.options[index]!.answer };
+        await remember(deps, input, r, { actionKey: "blocage", status: "done" });
+        return { handled: true, ...r };
+      }
+      if (index === null && isBareNumber(text)) {
+        const r = { reply: pick(FAST_VARIANTS.numberRange({ max: list.options.length }), "fast.numberRange", chatId) };
+        await remember(deps, input, r, { actionKey: "preciser", status: "clarify" });
+        return { handled: true, ...r };
+      }
+      if (list.kind === "blocker" && isWhyFollowUp(text)) {
+        const r: BossReply = { reply: explainAgainText(list, chatId) };
+        await remember(deps, input, r, { actionKey: "blocage", status: "answered" });
+        return { handled: true, ...r };
+      }
+    }
+  }
+
+  // 4. Numéro (ou nom d'une option) d'une question de précision du Boss.
+  const clarifyFound = !(current && (current.kind === "CHOICE" || current.kind === "CONFIRM") && replyTo !== null) ? await readClarify(deps) : null;
+  const clarifyIndex = clarifyFound ? pickOption(text, clarifyFound.options.map((o) => o.label)) : null;
+  if (clarifyFound && (clarifyIndex !== null || /^\s*\d{1,2}\s*[).]?\s*$/.test(text))) {
+    const found = clarifyFound;
     // Seulement la personne qui a reçu la question, dans sa conversation (jamais le numéro d'un autre).
     const clarify = found && clarifyIsFor(found, { speaker: input.speaker, chatId: input.chat?.chatId ?? null }) ? found : null;
     const choiceFirst = current?.kind === "CHOICE" && clarify && (current.askedAt?.getTime() ?? 0) > new Date(clarify.createdAt).getTime();
     if (clarify && !choiceFirst) {
-      const n = Number(text.replace(/\D/g, ""));
+      const n = clarifyIndex !== null ? clarifyIndex + 1 : Number(text.replace(/\D/g, ""));
       const opt = clarify.options[n - 1];
       const action = bossAction(clarify.actionKey);
       if (!opt || !action) {

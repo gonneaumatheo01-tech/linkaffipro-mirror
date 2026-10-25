@@ -30,11 +30,15 @@ export type BossClarify = {
   chatId?: string | null;
 };
 export const BOSS_CLARIFY_SETTING = "boss.clarify";
-export const BOSS_CLARIFY_TTL_MS = 10 * 60_000;
+/** Une question numérotée reste valable 30 minutes (correctif du 25 octobre : 10 minutes, c'était trop court). */
+export const BOSS_CLARIFY_TTL_MS = 30 * 60_000;
 
-/** Minuscules, sans accents ni ponctuation, espaces réduits ; emojis retirés. */
+/**
+ * Minuscules, sans accents ni ponctuation, espaces réduits ; emojis retirés. NFKD d'abord : les lettres stylisées
+ * d'un titre de canal (« 🚩𝑪𝑶𝑹𝑵𝑬𝑹 ») redeviennent des lettres ordinaires (« corner »).
+ */
 export function normName(s: string): string {
-  return normalizeText(s)
+  return normalizeText(s.normalize("NFKD"))
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
