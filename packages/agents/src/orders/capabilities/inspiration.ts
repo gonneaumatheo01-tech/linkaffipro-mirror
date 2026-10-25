@@ -53,7 +53,7 @@ export const analyserCanal = defineCapability<AnalyseP>({
     if (!parsed.ok) return failed(parsed.error);
     const r = await action.execute(deps as never, parsed.params, { userId: order.createdById, via: "TELEGRAM" });
     if (r.followUp) await r.followUp();
-    return done(r.reply);
+    return done(r.reply ?? "Analyse lancée.");
   },
   async report(_deps, order) {
     return { ordre: order.number };

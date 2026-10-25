@@ -344,14 +344,30 @@ export function findAgent(text: string): FindAgentResult {
     }
   const r2 = done(hits);
   if (r2) return r2;
-  // 3. Fautes : chaque mot (significatif) d'une forme retrouvé dans la phrase à une faute près.
+  // 3. Fautes : chaque mot (significatif) d'une forme retrouvé dans la phrase à une faute près ; la plus petite
+  // distance totale gagne (« corecteur » → correcteur à 1, pas directeur à 2).
   const words = core.split(" ").filter(Boolean);
-  const fuzzy = AGENT_DIRECTORY.filter((a) =>
-    forms(a).some((f) => {
-      const fw = f.split(" ").filter((w) => !FILLER.has(w));
-      return fw.length > 0 && fw.every((w) => words.some((x) => x === w || (w.length >= 4 && close(x, w))));
-    }),
-  );
+  const scoreOf = (f: string): number | null => {
+    const fw = f.split(" ").filter((w) => !FILLER.has(w));
+    if (!fw.length) return null;
+    let total = 0;
+    for (const w of fw) {
+      const d = Math.min(...words.map((x) => (x === w ? 0 : w.length >= 4 && close(x, w) ? editDistance(x, w) : Infinity)));
+      if (!Number.isFinite(d)) return null;
+      total += d;
+    }
+    return total;
+  };
+  let bestScore = Infinity;
+  let fuzzy: AgentEntry[] = [];
+  for (const a of AGENT_DIRECTORY) {
+    const sc = Math.min(...forms(a).map((f) => scoreOf(f) ?? Infinity));
+    if (!Number.isFinite(sc)) continue;
+    if (sc < bestScore) {
+      bestScore = sc;
+      fuzzy = [a];
+    } else if (sc === bestScore) fuzzy.push(a);
+  }
   return done(fuzzy) ?? { status: "unknown", known };
 }
 
@@ -366,7 +382,8 @@ export function orderTeamLabel(t: OrderTeamKey): string {
 /** Ce qu'on peut demander à cet agent (registre des capacités, chantier A) ; vide si le registre n'en a pas. */
 export function agentAbilities(agentKey: string): Capability[] {
   try {
-    return capabilitiesForAgent(agentKey) as Capability[];
+    // Les plus propres à cet agent d'abord (une capacité de toute une équipe le concerne moins).
+    return [...(capabilitiesForAgent(agentKey) as Capability[])].sort((a, b) => a.agents.length - b.agents.length);
   } catch {
     return [];
   }
@@ -452,12 +469,18 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
   // Ce qu'on peut lui demander (registre des capacités).
   const abilities = agentAbilities(agent.key).map((c) => c.description);
   facts.peutFaire = abilities;
-  if (abilities.length) lines.push(`Tu peux lui demander : ${abilities.slice(0, 3).map(lowerFirst).join(" ; ")}.`);
+  if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
   return { agent, facts, lines };
 }
 
 function slotWord(s: DaySlot): string {
   return s === "apres-midi" ? "après-midi" : s;
+}
+/** Début d'une description de capacité (avant « : » ou « ( »), 12 mots au plus. */
+function shortAbility(d: string): string {
+  const head = d.split(/\s*[:(;]\s*/)[0]!.trim();
+  const words = head.split(/\s+/);
+  return words.length > 12 ? words.slice(0, 12).join(" ") : head;
 }
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);

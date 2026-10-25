@@ -70,7 +70,7 @@ describe("commandes du dialogue admin", () => {
     await kit.prisma.channelAgentPlan.create({ data: { channelId: test.id, teamKey: "casino", enabled: true, postsPerDay: 9 } as never });
     const r = await handleAdminText(kit.deps, { text: "vrai casino", messageId: 1 });
     expect(r.handled).toBe(true);
-    expect(r.reply).toContain("Passer l'équipe Casino en vrai ?");
+    expect(r.reply).toMatch(/Casino en vrai \?/);
     expect(r.reply).toContain("Casino VIP");
     expect(r.reply).toContain("OUI pour confirmer");
     expect(r.pendingId).toBeTruthy();
@@ -86,14 +86,14 @@ describe("commandes du dialogue admin", () => {
     const kit = createTestKit();
     await handleAdminText(kit.deps, { text: "vrai dating", messageId: 1 });
     const r = await handleAdminText(kit.deps, { text: "non", messageId: 2 });
-    expect(r.reply).toContain("rien n'a changé");
+    expect(r.reply).toMatch(/rien n'a changé|rien n'a bougé|rien touché/i);
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });
 
   it("« niveau casino 1 » puis « niveau casino 2 » : résumés et confirmés par OUI ; une baisse est immédiate", async () => {
     const kit = createTestKit();
     const one = await handleAdminText(kit.deps, { text: "niveau casino 1", messageId: 1 });
-    expect(one.reply).toContain("Passer l'équipe Casino du niveau 0 au niveau 1");
+    expect(one.reply).toMatch(/Casino.*niveau 1/);
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
     await handleAdminText(kit.deps, { text: "oui", messageId: 2 });
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 1 });
@@ -113,7 +113,7 @@ describe("commandes du dialogue admin", () => {
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
     const up = await handleAdminText(kit.deps, { text: "budget vidéo 500", messageId: 2 });
     expect(up.pendingId).toBeTruthy();
-    expect(up.reply).toContain("Monter le plafond");
+    expect(up.reply).toMatch(/plafond vidéo/i);
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 10000 } });
     await handleAdminText(kit.deps, { text: "oui", messageId: 3 });
     expect(kit.tables("agentTeamConfig")[0]).toMatchObject({ monthlyBudgetCents: { video: 50000 } });

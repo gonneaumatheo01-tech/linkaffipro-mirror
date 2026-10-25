@@ -62,10 +62,10 @@ describe("vocaux de l'admin", () => {
 
   it("« vrai dating » par vocal demande OUI ; un niveau aussi, même pour baisser", async () => {
     const kit = createTestKit();
-    expect((await run(kit, "Vrai dating")).said.join("\n")).toContain("Passer l'équipe Rencontres en vrai ?");
+    expect((await run(kit, "Vrai dating")).said.join("\n")).toMatch(/Rencontres en vrai \?/);
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "dating")?.simulation ?? true).toBe(true);
     await run(kit, "non");
-    expect((await run(kit, "Niveau casino un")).said.join("\n")).toContain("Passer l'équipe Casino du niveau 0 au niveau 1");
+    expect((await run(kit, "Niveau casino un")).said.join("\n")).toMatch(/Casino.*niveau 1/);
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
   });
 

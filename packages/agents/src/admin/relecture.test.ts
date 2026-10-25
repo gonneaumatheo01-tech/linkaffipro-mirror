@@ -125,7 +125,7 @@ describe("2. « ok » en réponse à un autre message", () => {
     await handleAdminText(kit.deps, { text: "niveau casino 2", messageId: 1 });
     const said: string[] = [];
     await handleAdminVoice(kit.deps, { transcript: "Oui, vas-y.", messageId: 2 }, async (h) => void said.push(h));
-    expect(said.at(-1)).toContain("exactement « oui »");
+    expect(said.at(-1)).toMatch(/exactement « oui »|« oui » tout seul/);
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.autonomyLevel ?? 0).toBe(0);
     await handleAdminVoice(kit.deps, { transcript: "Oui.", messageId: 3 }, async (h) => void said.push(h));
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ autonomyLevel: 2 });

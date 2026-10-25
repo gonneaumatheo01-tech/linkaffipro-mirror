@@ -113,7 +113,7 @@ export function interpretationOf(row: Pick<TeamOrderRow, "interpretation">): Sto
 /** Ordres ouverts, du plus récent au plus ancien (conversation donnée en premier si connue). */
 export async function openOrders(deps: Pick<AgentsDeps, "prisma">, opts: { statuses?: readonly string[]; take?: number } = {}): Promise<TeamOrderRow[]> {
   return (await deps.prisma.teamOrder.findMany({
-    where: { status: { in: [...(opts.statuses ?? LIVE_ORDER_STATUSES)] } },
+    where: { status: { in: [...(opts.statuses ?? LIVE_ORDER_STATUSES)] as never } },
     orderBy: { createdAt: "desc" },
     take: opts.take ?? 20,
   })) as unknown as TeamOrderRow[];

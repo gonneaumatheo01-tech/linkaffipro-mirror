@@ -209,8 +209,9 @@ async function kitWith(planner: PlanFn, table: Parameters<typeof createBossKit>[
   return kit;
 }
 
-function reply(r: { reply?: string }): string {
-  return (r.reply ?? "").replace(/<[^>]+>/g, "");
+function reply(r: { reply?: string } | object): string {
+  const x = r as { reply?: string };
+  return (x.reply ?? "").replace(/<[^>]+>/g, "");
 }
 
 function expectVoice(r: { reply?: string }, allowList = false) {
@@ -237,6 +238,7 @@ describe("la phrase du client du 24 octobre", () => {
     expect(t).toContain("hors-jeux");
     expect(t).toContain("pour de faux");
     expect(t).toContain("annule");
+    expect(t).toContain("10 h");
     expect(r.buttons).toBeUndefined();
     expectVoice(r);
     expect(state.calls.run).toHaveLength(1);
@@ -433,7 +435,7 @@ describe("validation par le code (plans simulés)", () => {
     const kit = await kitWith(() => ({ ...parisPlan(), steps: [{ teamKey: "sports", capability: "faire_le_cafe", params: {} }] }));
     const r = await bossAiTurn(kit.deps, kit.input("fais le café de l'équipe paris"));
     expect(state.calls.run).toHaveLength(0);
-    expect(reply(r)).toMatch(/faire le cafe/);
+    expect(reply(r)).toMatch(/faire le cafe/i);
     expectVoice(r, true);
   });
 
@@ -554,7 +556,7 @@ describe("rapports de Kevin (début, jour, fin)", () => {
     await bossAiTurn(kit.deps, kit.input(CLIENT));
     const order = kit.tables("teamOrder")[0]!;
     expect(state.hook).toBeTruthy();
-    const base = { orderId: order.id as string, number: order.number as number, teamKey: "sports", chatId: null };
+    const base = { order: {} as never, orderId: order.id as string, number: order.number as number, teamKey: "sports", chatId: null };
     const sentBefore = kit.sent.length;
     await state.hook!(kit.deps, { ...base, type: "started", facts: {} });
     await state.hook!(kit.deps, { ...base, type: "started", facts: {} });
@@ -563,10 +565,12 @@ describe("rapports de Kevin (début, jour, fin)", () => {
     await state.hook!(kit.deps, day);
     await state.hook!(kit.deps, { ...base, type: "finished", facts: { done: 6, won: 4, lost: 2, avgOdds: 1.9 } });
     const msgs = kit.sent.slice(sentBefore).map((m) => m.html);
-    expect(msgs).toHaveLength(3);
-    expect(msgs[0]).toContain("10 h");
-    expect(msgs[1]).toBe("Jour 2/3 sur Test : 2 paris publiés (cartons, corners), 1 attend ta validation.");
-    expect(msgs[2]).toContain("6 paris sur Test, 4 gagnés, 2 perdus, cote moyenne 1,9");
+    // Le départ est déjà annoncé par le récapitulatif (« première production vers 10 h ») : pas de doublon.
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]).toBe("Jour 2/3 sur Test : 2 paris publiés (cartons, corners), 1 attend ta validation.");
+    expect(msgs[1]).toContain("6 paris sur Test, 4 gagnés, 2 perdus, cote moyenne 1,9");
+    const started = orderReportText({ type: "started", number: 4, teamKey: "sports", chatId: null }, {}, { where: "le canal Test", unit: "paris", firstAt: "10 h" })!;
+    expect(started).toContain("10 h");
     for (const m of msgs) expect(voiceCheck(m).problems).toEqual([]);
   });
 
@@ -581,7 +585,7 @@ describe("rapports de Kevin (début, jour, fin)", () => {
 
   it("ordre inconnu : rien n'est envoyé, rien ne lève", async () => {
     const kit = await kitWith(() => null);
-    expect(await sendOrderReport(kit.deps, { type: "started", orderId: "x", number: 1, teamKey: "sports", chatId: null, facts: {} })).toBe(false);
+    expect(await sendOrderReport(kit.deps, { type: "started", order: {} as never, orderId: "x", number: 1, teamKey: "sports", chatId: null, facts: {} })).toBe(false);
   });
 });
 

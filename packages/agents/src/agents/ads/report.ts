@@ -7,6 +7,7 @@
 import { escapeHtml } from "@linkaffipro/core";
 import type { LlmProvider } from "../../types";
 import { allowedNumbers, inventedNumbers } from "../../rules/report-numbers";
+import { KEVIN_REPORT_TONE } from "../../boss/voice";
 
 export const ADS_DAILY_MAX_LINES = 4;
 export const ADS_WEEKLY_MAX_LINES = 12;
@@ -86,6 +87,7 @@ export const ADS_REPORT_SYSTEM = [
   "Utilise UNIQUEMENT les chiffres fournis, sans en inventer, sans en calculer de nouveaux, sans les arrondir autrement.",
   "Écris les nombres en chiffres, jamais en lettres ; jamais de « x fois », « double » ou « moitié » ; un nombre négatif est une baisse ou une perte.",
   'Réponds UNIQUEMENT par un objet JSON : {"lines": ["ligne", …]}',
+  KEVIN_REPORT_TONE,
 ].join("\n");
 
 export function adsReportUser(f: AdsFacts): string {

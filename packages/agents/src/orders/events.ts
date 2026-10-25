@@ -12,7 +12,7 @@ export type OrderEventType = "started" | "day_done" | "finished" | "failures" | 
 export type OrderEvent = {
   type: OrderEventType;
   /** Ordre tel que lu en base au moment de l'événement. */
-  order: OrderRow;
+  order?: OrderRow;
   orderId: string;
   number: number;
   teamKey: string;

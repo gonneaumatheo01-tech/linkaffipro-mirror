@@ -7,6 +7,7 @@
 import { escapeHtml } from "@linkaffipro/core";
 import type { LlmProvider } from "../../types";
 import { allowedNumbers, inventedNumbers } from "../../rules/report-numbers";
+import { KEVIN_REPORT_TONE } from "../../boss/voice";
 
 export const REPORT_TEAMS = ["dating", "casino", "sports"] as const;
 export type ReportTeam = (typeof REPORT_TEAMS)[number];
@@ -53,6 +54,7 @@ export const REPORT_SYSTEM = [
   "Utilise UNIQUEMENT les chiffres fournis, sans en inventer, sans en calculer de nouveaux.",
   "Écris les nombres en chiffres, jamais en lettres ; jamais de « x fois », « double » ou « moitié » ; un nombre négatif est une baisse ou une perte.",
   'Réponds UNIQUEMENT par un objet JSON : {"teams": {"dating": ["ligne", …], "casino": […], "sports": […]}}',
+  KEVIN_REPORT_TONE,
 ].join("\n");
 
 export function buildReportUser(facts: readonly TeamFacts[]): string {

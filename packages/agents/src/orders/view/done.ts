@@ -12,7 +12,7 @@ import { dayLabel, hourLabel, plainPreview, type ViewResult } from "./common";
 
 export type ViewDoneInput = { channelId?: string | null; teamKey?: TeamKey | null; day?: string | null };
 
-type MissionRow = { id: string; teamKey: string; channelId: string | null; status: string; currentStep: number; steps: unknown; postId: string | null; lastError: string | null; payload: unknown; updatedAt: Date };
+type MissionRow = { id: string; planDay: string | null; teamKey: string; channelId: string | null; status: string; currentStep: number; steps: unknown; postId: string | null; lastError: string | null; payload: unknown; updatedAt: Date };
 type PostRow = { id: string; channelId: string; status: string; sentAt: Date | null; text: string; agentMissionId: string | null };
 type ValidationRow = { id: string; number: number; missionId: string; teamKey: string; reason: string; previewText: string; createdAt: Date };
 
@@ -73,7 +73,7 @@ export async function viewDone(deps: AgentsDeps, input: ViewDoneInput = {}): Pro
   const chIds = [...new Set([...missions.map((m) => m.channelId), ...sent.map((p) => p.channelId)].filter((x): x is string => !!x))];
   const channels = chIds.length ? ((await deps.prisma.channel.findMany({ where: { id: { in: chIds } }, select: { id: true, title: true } })) as Array<{ id: string; title: string }>) : [];
   const title = new Map(channels.map((c) => [c.id, c.title]));
-  const failed = missions.filter((m) => m.status === "FAILED" && m.updatedAt >= from && m.updatedAt < to);
+  const failed = missions.filter((m) => m.status === "FAILED" && (m.planDay === day || (m.updatedAt >= from && m.updatedAt < to)));
   const { rows: waiting, buttons } = await pendingValidations(deps, { missionIds: missions.map((m) => m.id) });
 
   const when = dayLabel(day, now);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBossKit, type BossKit } from "./testing";
 import { bossFastPath, looksLikeOrderOrQuestion } from "./fast";
 import { bossAiTurn } from "./execute";
-import { handleBossCallback, isBossCallbackData, rememberBossPendingMessage } from "./confirm";
+import { CONFIRM_VARIANTS, handleBossCallback, isBossCallbackData, rememberBossPendingMessage } from "./confirm";
 import { askHuman } from "../human/requests";
 import { setBossRegisterPort } from "./register-port";
 import { journalText } from "../human/test-kit";
@@ -124,7 +124,7 @@ describe("cycle d'une confirmation", () => {
     const kit = await createBossKit([["passe le casino en vrai", VRAI]]);
     const r = await askVrai(kit);
     await rememberBossPendingMessage(kit.deps, r.pendingId!, 555);
-    expect(r.reply).toContain("Passer l'équipe Casino en vrai");
+    expect(r.reply).toMatch(/Casino en vrai/);
     const yes = await bossFastPath(kit.deps, kit.input("OUI"));
     expect(reply(yes)).toContain("en vrai ✅");
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ simulation: false });
@@ -201,8 +201,9 @@ describe("tour avec l'IA", () => {
   it("non couvert : « Je ne sais pas encore faire ça » + actions proches + besoin noté", async () => {
     const kit = await createBossKit([["commande une pizza", { name: "pas_prevu", input: {} }]]);
     const r = await bossAiTurn(kit.deps, kit.input("commande une pizza"));
-    expect(r.reply).toMatch(/^Je ne sais pas encore faire ça\./);
-    expect(r.reply!.split("\n").filter((l) => l.startsWith("• ")).length).toBeGreaterThanOrEqual(2);
+    // Voix de Kevin : ce qui bloque en une phrase, puis une proposition (plus de liste de puces).
+    expect(r.reply).toMatch(/ne sais pas encore/i);
+    expect(r.reply).toMatch(/\?/);
     expect(kit.tables("bossUnmet")).toHaveLength(1);
   });
 

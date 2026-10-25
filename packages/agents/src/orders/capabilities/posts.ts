@@ -187,7 +187,7 @@ export function programPosts(team: PostsTeam): Capability<ProgramPostsP> {
       const th = await team.themes(deps, p);
       if (!th.ok) return th.check;
       // Plafonds de dépense (Rencontres : vidéo et photo générées).
-      if (T === "dating" && needsMedia) {
+      if (T === "dating" && needsMedia && (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: T } }))) {
         const settings = await loadTeamSettings(deps.prisma, T);
         const providers: ProviderKey[] = [...(mix.video ? (["video"] as const) : []), ...(mix.photo ? (["image"] as const) : [])];
         const over = await checkBudgets(deps, settings, providers, nowOf(deps));
@@ -243,7 +243,9 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
   const c = await resolveCampaign(deps, p.campagne);
   const campaignId = c.ok ? c.id : null;
   const mode = modeOf(p, ctx);
-  const settings = await loadTeamSettings(deps.prisma, T);
+  // Lecture seule (`loadTeamSettings` créerait la ligne de l'équipe si elle manquait).
+  const row = (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: T } })) as { simulation?: boolean; autonomyLevel?: number } | null;
+  const settings = { simulation: row?.simulation !== false, autonomyLevel: Number(row?.autonomyLevel ?? 0) };
   if (!scope.test && mode === "real" && settings.simulation) clamped.push(`l'équipe ${TEAM_LABELS[T]} est en simulation : les posts iront sur le canal Test tant qu'elle n'est pas passée en vrai`);
   if (!scope.test && settings.autonomyLevel === 0) clamped.push("niveau 0 : chaque post attend ta validation avant de partir");
   const overrides: NonNullable<OrderStep["overrides"]> = [];

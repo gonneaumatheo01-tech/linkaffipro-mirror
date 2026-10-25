@@ -268,7 +268,7 @@ describe("textes fixes de Kevin : toutes les tables *_VARIANTS", () => {
 // ------------------------------------------------------------------------------------- parcours des littéraux
 
 /** Consignes envoyées à l'IA (pas des textes de Kevin) : variables ou fonctions dont le nom le dit. */
-const PROMPT_NAME = /(SYSTEM|PROMPT|KEVIN_VOICE|FORBIDDEN_PHRASES|JARGON_WORDS|_RULES$|_GUIDE$|system|Prompt|prompt|Instructions?)/;
+const PROMPT_NAME = /(SYSTEM|PROMPT|KEVIN_VOICE|KEVIN_REPORT_TONE|FORBIDDEN_PHRASES|JARGON_WORDS|_RULES$|_GUIDE$|system|Prompt|prompt|Instructions?)/;
 
 type Literal = { file: string; line: number; text: string };
 

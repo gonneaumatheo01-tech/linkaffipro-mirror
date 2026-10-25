@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBossKit, type BossKit } from "./testing";
-import { bossFastPath } from "./fast";
+import { FAST_VARIANTS, bossFastPath } from "./fast";
 import { bossAiTurn } from "./execute";
 import { confirmWordOf, readBossPending } from "./confirm";
 import { askHuman } from "../human/requests";
@@ -131,7 +131,7 @@ describe("2. une demande de membre ne remplace jamais la confirmation de l'admin
     ]);
     await bossAiTurn(kit.deps, kit.input("passe le casino en vrai"));
     const r = await bossAiTurn(kit.deps, kit.input("passe à cinq posts par jour sur Léa"));
-    expect(r.reply).toContain("La confirmation précédente est annulée : « Passer l'équipe Casino en vrai");
+    expect(r.reply).toMatch(/(remplace ta demande d'avant|J'oublie la demande d'avant) \(« .*Casino en vrai/);
   });
 });
 
@@ -171,11 +171,11 @@ describe("4. demandes réservées à l'admin : ni un membre ni un responsable n'
     const live = await askHuman(kit.deps, { teamKey: "casino", kind: "CONFIRM", key: "agents.team.casino.live", question: "Passer en vrai ?", onAnswer: { action: "set-simulation", teamKey: "casino", simulation: false } });
     const actor = { userId: null, via: "TELEGRAM" as const };
     // Non adressée au responsable.
-    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toContain("qui décide");
-    expect((await plusTard.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), {}, actor)).reply).toContain("qui décide");
+    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toMatch(/qui décide|je la laisse à|de trancher/);
+    expect((await plusTard.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), {}, actor)).reply).toMatch(/qui décide|je la laisse à|de trancher/);
     // Adressée à lui, mais réservée à l'admin.
     await kit.prisma.humanRequest.update({ where: { id: live.requestId }, data: { assigneeTelegramId: 78n } as never });
-    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toContain("qui décide");
+    expect((await repondreDemande.execute(({ ...kit.deps, speaker: MANAGER } as BossDeps), { reponse: "oui" }, actor)).reply).toMatch(/qui décide|je la laisse à|de trancher/);
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
     expect(casinoLive(kit)).toBe(false);
   });
@@ -186,7 +186,7 @@ describe("4. demandes réservées à l'admin : ni un membre ni un responsable n'
     await kit.prisma.humanRequest.update({ where: { id: q.requestId }, data: { assigneeTelegramId: 77n, chatId: -100n } as never });
     const actor = { userId: null, via: "TELEGRAM" as const };
     // Depuis son privé (question posée dans le groupe) : refusé.
-    expect((await repondreDemande.execute({ ...kit.deps, speaker: LEA, chat: { type: "private", chatId: 77n } } as BossDeps, { reponse: "roulette" }, actor)).reply).toContain("qui décide");
+    expect((await repondreDemande.execute({ ...kit.deps, speaker: LEA, chat: { type: "private", chatId: 77n } } as BossDeps, { reponse: "roulette" }, actor)).reply).toMatch(/qui décide|je la laisse à|de trancher/);
     const r = await repondreDemande.execute({ ...kit.deps, speaker: LEA, chat: { type: "group", chatId: -100n } } as BossDeps, { reponse: "roulette" }, actor);
     expect(r.reply).toContain("Réponse notée");
   });
@@ -251,7 +251,7 @@ describe("8. alertes du plafond IA du Boss", () => {
   it("sans messager : drapeau non posé ; avec messager : envoyée puis posée", async () => {
     const kit = await createBossKit();
     const prisma = kit.prisma as never;
-    await recordBossUsage(prisma, 850, { now: new Date("2026-10-23T08:00:00Z") });
+    await recordBossUsage(prisma, 2450, { now: new Date("2026-10-23T08:00:00Z") });
     expect(kit.tables("agentUsage")[0]).toMatchObject({ alerted80: false });
     const send = vi.fn(async () => ({ messageId: 1 }));
     await recordBossUsage(prisma, 1, { now: new Date("2026-10-23T08:00:00Z"), admin: { send } });
@@ -266,7 +266,7 @@ describe("9. le message suivant répond à la question TEXT : seulement si c'est
     await askHuman(kit.deps, { kind: "TEXT", key: "persona.x.mediaNotes", question: "Quelle tenue pour Léa ?" });
     for (const t of ["fait", "c'est bon", "super", "👍🎉"]) expect((await bossFastPath(kit.deps, kit.input(t))).handled, t).toBe(false);
     // « merci » reçoit la réponse de politesse, sans remplir la question.
-    expect(reply(await bossFastPath(kit.deps, kit.input("merci")))).toBe("Avec plaisir 👍");
+    expect(FAST_VARIANTS.thanks).toContain(reply(await bossFastPath(kit.deps, kit.input("merci"))));
     const emoji = await bossFastPath(kit.deps, kit.input("🔥 robe", { entities: [{ type: "custom_emoji", offset: 0, length: 2, custom_emoji_id: "1" } as never] }));
     expect(emoji.handled).toBe(false);
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
@@ -288,7 +288,7 @@ describe("9. le message suivant répond à la question TEXT : seulement si c'est
     kit.advance(7 * 3600_000);
     await bossFastPath(kit.deps, kit.input("aide"));
     const r = await bossFastPath(kit.deps, kit.input("robe rouge"));
-    expect(reply(r)).toContain("C'est ta réponse à : « Quelle tenue pour Léa ? »");
+    expect(reply(r)).toMatch(/(C'est ta réponse à|Je prends ça comme réponse à) « Quelle tenue pour Léa \? »/);
     expect(r.handled && r.pendingId).toBeTruthy();
     expect(kit.tables("humanRequest")[0]).toMatchObject({ status: "PENDING" });
     await bossFastPath(kit.deps, kit.input("oui"));
@@ -331,6 +331,6 @@ describe("11. toujours exactement un outil", () => {
     expect(decisionOf(null)).toMatchObject({ type: "pas_prevu" });
     const kit = await createBossKit();
     const r = await bossAiTurn(kit.deps, kit.input("raconte-moi une blague"));
-    expect(r.reply).toMatch(/^Je ne sais pas encore faire ça\./);
+    expect(r.reply).toMatch(/ne sais pas encore/i);
   });
 });

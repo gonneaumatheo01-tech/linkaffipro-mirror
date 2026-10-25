@@ -372,3 +372,14 @@ export { sendOrderReport, orderReportText, installOrderReports } from "./orders/
 export { recordOrderUnmet, weeklyUnmetLines, groupUnmet, unmetGroupLine, isUnmetDigestDay, type UnmetGroup } from "./orders/unmet";
 export { ORDER_ACTIONS, ORDER_INTERNAL_KEYS, orderStatusLines, applyModification, orderTeamOf } from "./boss/catalog-orders";
 export type { BossLlmExt, FakePlanner } from "./boss/llm";
+// Phase 33, chantier A : registre des capacités, thèmes de paris, Grand Chef (exécution, dérogations, suivi des ordres).
+export { listCapabilities, capability, capabilitiesForAgent, capabilitiesOf, registerCapabilities, orderableTeams, isOrderableTeam, BUILTIN_CAPABILITIES, type AnyCapability } from "./orders/registry";
+export { runOrder, stopOrder, extendOrder, modifyOrder, planSteps, type RunOrderResult } from "./orders/run";
+export { tickOrders, type TickResult } from "./orders/tick";
+export { setOrderEventHook, emitOrderEvent, type OrderEvent, type OrderEventHook, type OrderEventType } from "./orders/events";
+export { activeOverridesFor, activeOverridesOn, overrideConflicts, overrideActiveOn, type OverrideRow, type OverrideConflict } from "./orders/overrides";
+export { planOrderMissions } from "./orders/day-missions";
+export { orderFacts } from "./orders/facts";
+export { parseOrderPlan, type OrderProgress } from "./orders/store";
+export { orderMissionFacts, resolvePeriod, frRange, type OrderMissionFacts } from "./orders/capabilities/kit";
+export { SPORTS_THEMES, resolveTheme, themeByKey, themeOfMarkets, marketsAvailable, themeOddsCounts, themesWithOdds, listBetThemes, DEFAULT_THEME_LEAGUES, type SportsTheme, type ThemeAvailability } from "./sports/themes";

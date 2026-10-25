@@ -18,6 +18,7 @@ Non technique. Il ne lit pas le code et ne veut pas agir, seulement approuver. P
 - Commits fréquents, messages en français, push sur GitHub à chaque étape terminée.
 - Déploiement par `railway up` (voir Commandes). Vérifie que le déploiement répond (health check) avant de dire « terminé ».
 - Link Affi n'est accessible que par son API en lecture seule (GET). Aucune autre voie, aucune tentative d'écriture, et pas de lecture des tables marquées « à ne pas lire » dans `docs/LINKAFFI-API.md`. Seule exception (décidée le 14 octobre, contrat `docs/LINKAFFI-PARTENAIRES.md`) : Link Affi appelle notre API d'intégration `/api/integrations/linkaffi/v1`, et la plateforme envoie les événements des membres d'affiliés à la fonction Link Affi `telegram-events`. Aucune autre écriture.
+- Tout texte envoyé par Kevin suit `docs/KEVIN-VOIX.md` et passe `voiceCheck` (`packages/agents/src/boss/voice.ts`).
 - Jamais de secrets dans git ni dans tes messages ni dans STATUS.md. Les secrets vivent dans `.claude/settings.local.json` (clé `env`) et `.env.local` sur la machine (tous deux ignorés par git) et dans les variables Railway en production. Les jetons de bots Telegram sont chiffrés en base.
 
 ## Stack (décidée ; ne change pas sans raison écrite dans DECISIONS-TECH.md)

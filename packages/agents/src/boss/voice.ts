@@ -27,6 +27,15 @@ export const KEVIN_VOICE = [
   "Chiffres exacts, seulement ceux des données ; français correct, pas d'argot forcé. Si on te demande sincèrement si tu es un bot, dis franchement en une phrase que tu es le bot de l'équipe.",
 ].join("\n");
 
+/**
+ * Ton de Kevin pour les rapports rédigés par l'IA et envoyés par lui (rapport « Ce qui marche », rapport des pubs) :
+ * la voix sans les règles de longueur (le format du rapport fixe le nombre de lignes).
+ */
+export const KEVIN_REPORT_TONE = [
+  "Ton : c'est Kevin, le collègue de l'équipe, qui envoie ce rapport. Tu tutoies, mots de tous les jours, la réponse d'abord.",
+  "Aucune formule (« Voici », « Bien sûr », « N'hésite pas », « J'espère que »), aucun emoji en série, aucun mot technique (« mission », « capacité », « dérogation », statut en anglais, identifiant).",
+].join("\n");
+
 /** Dernière variante choisie par (clé, conversation) — en mémoire du processus (rotation sans répétition). */
 const lastPicked = new Map<string, number>();
 /** Garde-fou mémoire : au-delà, la plus ancienne entrée est oubliée. */
@@ -245,7 +254,7 @@ export function voiceProblemsText(problems: readonly VoiceProblem[]): string {
 /** Nombres d'un texte avec leur signe éventuel, comme valeurs (les deux signes s'il n'est pas écrit). */
 function signedNumbersOf(text: string): number[] {
   const out: number[] = [];
-  const joined = voicePlainText(text).replace(/(\d)[\s  ](?=\d{3}(?!\d))/g, "$1");
+  const joined = voicePlainText(text).replace(/(\d)[\s\u00a0\u202f](?=\d{3}(?!\d))/g, "$1");
   for (const m of joined.matchAll(/([+\-−]\s?)?(\d+(?:[.,]\d+)?)/g)) {
     const v = Number(m[2]!.replace(",", "."));
     if (!Number.isFinite(v)) continue;

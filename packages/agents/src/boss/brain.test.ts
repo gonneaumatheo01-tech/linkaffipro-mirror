@@ -4,7 +4,8 @@ import { BOSS_CATALOG, bossActionAllowed } from "./catalog";
 import { recentBossTurns, writeBossTurn, memoryText } from "./memory";
 import { answerQuestion, checkedAnswer } from "./answer";
 import { bossBudgetState, bossLlmFromClient, loadBossLlm, recordBossUsage } from "./llm";
-import { bossAiTurn, nearestActions, NO_AI_REPLY } from "./execute";
+import { bossAiTurn, nearestActions, NO_AI_REPLIES } from "./execute";
+import { ORDER_INTERNAL_KEYS } from "./catalog-orders";
 import { editDistance, matchNames, resolveBookmaker, teamOf, checkQuota, checkCap, checkLevel } from "./resolve";
 import type { AiClient } from "@linkaffipro/ai";
 
@@ -19,6 +20,8 @@ describe("catalogue fermé", () => {
     for (const a of BOSS_CATALOG) {
       expect(keys.has(a.key), a.key).toBe(false);
       keys.add(a.key);
+      // Phase 33 : entrées internes des ordres (OUI, numéros) sans description, jamais montrées à l'IA ni dans l'aide.
+      if (ORDER_INTERNAL_KEYS.has(a.key)) continue;
       expect(a.description.length, a.key).toBeGreaterThan(10);
       expect(a.description, a.key).not.toContain("\n");
       expect(a.theme, a.key).toBeTruthy();
@@ -158,16 +161,17 @@ describe("coût borné", () => {
     expect(await loadBossLlm(kit.prisma, { client: client(), now: () => new Date("2026-10-23T08:00:00Z") })).toBeNull();
     const llm = bossLlmFromClient(kit.prisma, client(), { now: () => new Date("2026-10-23T08:00:00Z") });
     const r = await bossAiTurn({ ...kit.deps, llm }, kit.input("où en est tout le monde"));
-    expect(r.reply).toBe(NO_AI_REPLY);
+    expect(NO_AI_REPLIES).toContain(r.reply);
   });
 
   it("dépense comptée (équipe boss, poste llm), alerte à 80 % une fois", async () => {
     const kit = await createBossKit();
     const now = new Date("2026-10-23T08:00:00Z");
-    await recordBossUsage(kit.prisma, 850, { now, admin: kit.deps.admin });
+    // Phase 33 : plafond par défaut relevé à 3 000 centimes (30 €).
+    await recordBossUsage(kit.prisma, 2450, { now, admin: kit.deps.admin });
     await recordBossUsage(kit.prisma, 10, { now, admin: kit.deps.admin });
     expect(kit.sent.filter((m) => m.html.includes("80 %"))).toHaveLength(1);
-    expect(await bossBudgetState(kit.prisma, now)).toMatchObject({ allowed: true, spentCents: 860, capCents: 1000 });
+    expect(await bossBudgetState(kit.prisma, now)).toMatchObject({ allowed: true, spentCents: 2460, capCents: 3000 });
     const llm = bossLlmFromClient(kit.prisma, client(), { now: () => now });
     const out = await llm.interpret({ system: "s", user: "u", tools: [] });
     expect(out.costCents).toBeGreaterThan(0);

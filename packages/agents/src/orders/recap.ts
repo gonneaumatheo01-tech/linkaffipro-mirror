@@ -252,7 +252,7 @@ async function writeOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSubmitCont
     recap: data.recap,
     kind: v.plan.kind,
     teamKey: workingTeam(v.plan),
-    status: data.status,
+    status: data.status as never,
     startsAt: fromDay ? new Date(`${fromDay}T00:00:00Z`) : null,
     endsAt: toDay ? new Date(`${addDaysToDay(toDay, 1)}T00:00:00Z`) : null,
     impossible: impossibleJson(v.impossible) as never,
@@ -268,7 +268,7 @@ async function writeOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSubmitCont
     })) as unknown as TeamOrderRow;
   }
   return (await deps.prisma.teamOrder.create({
-    data: { ...fields, costCents: Math.max(0, Math.round(ctx.plannerCostCents ?? 0)) },
+    data: { ...fields, createdAt: nowOf(deps), costCents: Math.max(0, Math.round(ctx.plannerCostCents ?? 0)) },
   })) as unknown as TeamOrderRow;
 }
 
@@ -419,11 +419,18 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
       );
   let lines: string[];
   let cost = 0;
+  const firstAt = v ? firstWindow(v.plannedSteps) : null;
+  const fullTail = firstAt ? `${pick([`Première production vers ${firstAt}.`, `Ça démarre vers ${firstAt}.`], "order.tail.first", chatId)} ${tail}` : tail;
   if (v) {
-    const recap = await orderRecap(deps, v, { chatId, tail });
+    const recap = await orderRecap(deps, v, { chatId, tail: fullTail });
     lines = recap.lines;
     cost = recap.costCents;
-  } else lines = [order.recap.split("\n")[0] ?? "", tail].filter(Boolean);
+  } else lines = [order.recap.split("\n")[0] ?? "", fullTail].filter(Boolean);
+  // Le récapitulatif annonce déjà le départ : le rapport « started » du Grand Chef n'est pas renvoyé en double.
+  const before = await orderById(deps, order.id);
+  const prog = (before?.progress && typeof before.progress === "object" ? before.progress : {}) as Record<string, unknown>;
+  const reported = Array.isArray(prog.kevinReportedDays) ? (prog.kevinReportedDays as string[]) : [];
+  await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { progress: JSON.parse(JSON.stringify({ ...prog, kevinReportedDays: [...reported, "started"] })) as never } });
   const r = await runOrder(deps, order.id).catch((err: Error) => ({ ok: false, message: err.message }));
   if (!r.ok) {
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
@@ -437,11 +444,19 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
   const fresh = await orderById(deps, order.id);
   await deps.prisma.teamOrder.update({
     where: { id: order.id },
-    data: { status: fresh && fresh.status !== "DRAFT" && fresh.status !== "WAITING_CONFIRM" ? fresh.status : "RUNNING", recap: lines.slice(0, 2).join("\n"), costCents: (fresh?.costCents ?? order.costCents) + cost },
+    data: { status: (fresh && fresh.status !== "DRAFT" && fresh.status !== "WAITING_CONFIRM" ? fresh.status : "RUNNING") as never, recap: lines.slice(0, 2).join("\n"), costCents: (fresh?.costCents ?? order.costCents) + cost },
   });
   if (!ctx.confirmed) await writeSetting(deps, ORDER_QUICK_CANCEL_SETTING, { orderId: order.id, at: nowOf(deps).toISOString(), chatId: chatId != null ? chatId.toString() : null });
   await auditOrder(deps, "started", order, ctx.actor, { confirmed: !!ctx.confirmed });
   return { reply: lines.map(esc).join("\n"), status: "done", orderId: order.id };
+}
+
+/** Heure de début de la première fenêtre prévue (« 10 h »), ou null. */
+function firstWindow(steps: readonly OrderStep[]): string | null {
+  const starts = steps.flatMap((s) => (s.overrides ?? []).map((o) => o.windowStart)).filter((x): x is string => typeof x === "string" && /^\d{1,2}:\d{2}$/.test(x));
+  if (!starts.length) return null;
+  const [h, m] = starts.sort()[0]!.split(":").map(Number);
+  return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
 }
 
 /**

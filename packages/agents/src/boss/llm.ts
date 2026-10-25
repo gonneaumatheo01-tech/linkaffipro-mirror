@@ -12,6 +12,7 @@ import { BOSS_BUDGET_SETTING, BOSS_TEAM_KEY, type BossLlm } from "./contract";
 import { BOSS_ORDERS_DEFAULT_MONTHLY_CENTS } from "../orders/contract";
 import { costCentsOf, readAiApiKey } from "../providers/llm";
 import { budgetAlertLevel } from "../orchestrator/budgets";
+import { pick, voiceTemplate, type VoiceTable } from "./voice";
 import { parisMonth } from "../rules/time";
 import { normalizeText } from "../human/answer";
 import type { AdminMessenger, Logger } from "../types";
@@ -23,6 +24,18 @@ export class BossBudgetError extends Error {
     this.name = "BossBudgetError";
   }
 }
+
+/** Alertes de plafond de l'IA de Kevin (charte `docs/KEVIN-VOIX.md`). */
+export const LLM_VARIANTS = {
+  cap100: voiceTemplate([{ spent: "10,02 €", cap: "10,00 €" }], (p: { spent: string; cap: string }) => [
+    `⚠️ Mon plafond d'IA est atteint : ${p.spent} pour ${p.cap} ce mois-ci. Je ne suis plus que les commandes simples (écris « aide ») jusqu'au mois prochain, ou jusqu'à ce que tu montes le plafond.`,
+    `⚠️ J'ai atteint mon plafond d'IA du mois (${p.spent} pour ${p.cap}). D'ici le mois prochain, ou une hausse du plafond, je ne comprends que les commandes simples.`,
+  ]),
+  cap80: voiceTemplate([{ spent: "8,50 €", cap: "10,00 €" }], (p: { spent: string; cap: string }) => [
+    `Mon IA a déjà coûté ${p.spent} sur les ${p.cap} permis ce mois-ci (80 % du plafond).`,
+    `J'ai utilisé 80 % de mon plafond d'IA du mois : ${p.spent} sur ${p.cap}.`,
+  ]),
+} satisfies VoiceTable;
 
 export const BOSS_INTERPRET_MAX_TOKENS = 1200;
 export const BOSS_WRITE_MAX_TOKENS = 700;
@@ -119,8 +132,8 @@ export async function recordBossUsage(
   }
   const text =
     level === 100
-      ? `🔴 <b>IA du Boss : plafond atteint</b>\n${eur(row.cents)} pour un plafond de ${eur(cap)} ce mois-ci. Je ne comprends plus que les commandes simples (écris aide) jusqu'au mois prochain ou à une hausse du plafond.`
-      : `🟠 <b>IA du Boss : 80 % du plafond</b>\n${eur(row.cents)} sur ${eur(cap)} ce mois-ci.`;
+      ? pick(LLM_VARIANTS.cap100({ spent: eur(row.cents), cap: eur(cap) }), "llm.cap100")
+      : pick(LLM_VARIANTS.cap80({ spent: eur(row.cents), cap: eur(cap) }), "llm.cap80");
   try {
     await opts.admin?.send(text);
   } catch (err) {
