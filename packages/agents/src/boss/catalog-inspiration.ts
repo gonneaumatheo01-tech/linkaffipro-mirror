@@ -90,7 +90,7 @@ export const CATALOG_INSPIRATION_VARIANTS = {
   noAccountNone: voiceTemplate(
     [{ fMin: 20, fMax: 30, target: "Test" }],
     (p: { fMin: number; fMax: number; target: string }) => [
-      `Je n'ai aucun compte Telegram relié pour entrer dans un canal privé, et je n'en rejoins jamais un de moi-même. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un compte Telegram sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Je n'ai aucun compte Telegram relié pour entrer dans un canal privé. Et je n'en rejoins jamais un de moi-même. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un compte Telegram sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
       `Aucun compte Telegram n'est relié, et je ne rejoins jamais un canal privé de moi-même. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un compte Telegram sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
     ],
   ),
@@ -98,15 +98,15 @@ export const CATALOG_INSPIRATION_VARIANTS = {
   noAccountOne: voiceTemplate(
     [{ who: "Lea, numéro finissant par 78, celui de Léa", fMin: 20, fMax: 30, target: "Test" }],
     (p: { who: string; fMin: number; fMax: number; target: string }) => [
-      `Ton seul compte Telegram relié (${p.who}) discute avec des membres : je ne m'en sers jamais pour lire un autre canal, ça pourrait le faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
-      `Ton compte Telegram relié (${p.who}) est le seul, et il discute avec des membres : je ne l'utilise jamais pour lire un autre canal, il risquerait d'être bloqué. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Ton seul compte Telegram relié (${p.who}) discute avec des membres. Je ne m'en sers jamais pour lire un autre canal : ça pourrait le faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Ton compte Telegram relié (${p.who}) est le seul, et il discute avec des membres. Je ne l'utilise jamais pour lire un autre canal : il risquerait d'être bloqué. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un second compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
     ],
   ),
   noAccountMany: voiceTemplate(
     [{ n: 2, who: "Lea, numéro finissant par 78, celui de Léa ; Max, numéro finissant par 12", fMin: 20, fMax: 30, target: "Test" }],
     (p: { n: number; who: string; fMin: number; fMax: number; target: string }) => [
-      `Tes ${p.n} comptes Telegram reliés discutent tous avec des membres (${p.who}) : je ne m'en sers jamais pour lire un autre canal, ça pourrait les faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
-      `Tes ${p.n} comptes Telegram reliés sont tous en conversation avec des membres (${p.who}) : je ne les utilise jamais pour lire un autre canal, ils risqueraient d'être bloqués. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Tes ${p.n} comptes Telegram reliés discutent tous avec des membres (${p.who}). Je ne m'en sers jamais pour lire un autre canal : ça pourrait les faire bloquer. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
+      `Tes ${p.n} comptes Telegram reliés sont tous en conversation avec des membres (${p.who}). Je ne les utilise jamais pour lire un autre canal : ils risqueraient d'être bloqués. Deux façons :\n1. tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici, je les range pour ${p.target} ;\n2. tu relies un autre compte sans persona (Réglages → Comptes Telegram), puis tu me redis la phrase.`,
     ],
   ),
   /** Un compte libre existe, mais le service qui fait tourner les comptes ne répond pas. */
@@ -641,7 +641,9 @@ async function noFreeAccountReply(deps: InspirationDeps, link: string, channelId
  */
 async function inviteBlocked(deps: InspirationDeps, link: string, p: AnalyserParams): Promise<BossReply | null> {
   if (await inviteTried(deps, link)) return { reply: pick(V.inviteTried(F), "inspiration.inviteTried", cid(deps)) };
-  const hint = p.univers ?? universeFromText(deps.inputText);
+  const saved = await readSetting(deps, `${INSPIRATION_INVITE_UNIVERSE_PREFIX}${inviteHash(link)}`);
+  // Univers : paramètre, mots de la phrase, sinon celui gardé avant le OUI (la phrase du OUI n'en dit rien).
+  const hint = p.univers ?? universeFromText(deps.inputText) ?? (isUniverse(saved) ? saved : null);
   const askParams: Record<string, unknown> = { canal: link, ...(hint ? { univers: hint } : {}) };
   if (!p.canal_cible) {
     const refs = await channelRefs(deps);

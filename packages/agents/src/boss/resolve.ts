@@ -267,6 +267,9 @@ export async function resolveChannel(
         : { reply: "Aucun canal actif pour le moment." },
     };
   const items = refs.map((c) => ({ ...c, extra: c.personaName ? [c.personaName] : [] }));
+  // « le canal Test », « notre canal Corner » : le mot « canal » n'est pas dans le titre.
+  const cleaned = raw.replace(/^\s*(?:le|la|les|l'|l’|notre|nos|mon|ma)?\s*(?:canal|canaux|chaîne|chaine|groupe)\s+/iu, "").trim();
+  if (cleaned && cleaned !== raw && !matchNames(raw, items).length) raw = cleaned;
   return pickOne(deps, ctx, raw, items, { one: "de canal", question: "Plusieurs canaux correspondent à « {x} » :", known: "Canaux" });
 }
 

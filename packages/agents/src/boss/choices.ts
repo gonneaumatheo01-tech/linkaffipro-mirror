@@ -95,20 +95,24 @@ export function pickOption(text: string, labels: readonly string[]): number | nu
   if (t === "dernier" || t === "derniere") return labels.length - 1;
   if (t.length < 3) return null;
   const want = digitsOf(t);
-  let best: number[] = [];
-  let bestD = Infinity;
-  names.forEach((n, i) => {
-    if (want && digitsOf(n) !== want) return;
-    const len = Math.max(n.length, t.length);
-    const max = len < 4 ? 0 : len <= 6 ? 1 : 2;
-    const d = editDistance(n, t);
-    if (d > max) return;
-    if (d < bestD) {
-      bestD = d;
-      best = [i];
-    } else if (d === bestD) best.push(i);
-  });
-  return best.length === 1 ? best[0]! : null;
+  // Distance de chaque option (sans chiffre dans la réponse : les chiffres des options sont ignorés, « paris sportif »
+  // reste ambigu entre « paris sportif 1 » et « Paris sportifs 2 »).
+  const scored = names
+    .map((n, i) => {
+      if (want && digitsOf(n) !== want) return null;
+      const name = want ? n : n.replace(/\d+/g, " ").replace(/\s+/g, " ").trim();
+      const len = Math.max(name.length, t.length);
+      const max = len < 4 ? 0 : len <= 6 ? 1 : 2;
+      const d = editDistance(name, t);
+      return { i, d, ok: d <= max };
+    })
+    .filter((x): x is { i: number; d: number; ok: boolean } => !!x)
+    .sort((a, b) => a.d - b.d);
+  const best = scored[0];
+  if (!best || !best.ok) return null;
+  // La plus proche, nettement : la suivante a au moins deux fautes de plus.
+  const second = scored[1];
+  return second && second.d < best.d + 2 ? null : best.i;
 }
 
 /** Le texte n'est qu'un numéro (« 3 », « 3. », « n°3 », « le 3 ») ? (pur) */

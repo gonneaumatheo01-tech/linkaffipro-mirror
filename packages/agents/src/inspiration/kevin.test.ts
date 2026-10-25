@@ -179,7 +179,7 @@ describe("analyser un canal par Kevin", () => {
 
   it("lien d'invitation privé : sans compte libre → transfert demandé ; avec compte → « Entrer avec le compte Lea ? », une seule tentative après OUI", async () => {
     const none = await say("entre dans t.me/+AbCdEf123 pour Casino VIP");
-    expect(none).toMatch(/10 à 30 de ses posts/);
+    expect(none).toMatch(/20 à 30 de ses posts/);
     expect(none).not.toContain("OUI pour confirmer");
     const joins: string[] = [];
     (kit.deps as Record<string, unknown>).inspirationReader = {

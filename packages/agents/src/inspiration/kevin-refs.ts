@@ -87,7 +87,7 @@ export async function activeReferences(deps: Pick<AgentsDeps, "prisma">): Promis
 
 export type ChannelUniverse = { id: string; title: string; universe: InspirationUniverse | null; teamKey: string | null; isTest?: boolean };
 
-const SPORTS_WORDS = /\b(?:paris?|pari sportif|paris sportifs|sport|sports|foot|football|tirs? cadres?|corners?|buteurs?|cotes?|matchs?|bets?|pronos?|pronostics?)\b/;
+const SPORTS_WORDS = /\b(?:paris?|pari sportif|paris sportifs|sport|sports|foot|football|tirs? cadres?|corners?|buteurs?|matchs?|bets?|pronos?|pronostics?)\b/;
 const CASINO_WORDS = /\b(?:casinos?|roulettes?|machines? a sous|slots?|blackjack|poker|jackpots?|bonus casino)\b/;
 const DATING_WORDS = /\b(?:rencontres?|dating|celibataires?|drague|coquine?s?|seduction)\b/;
 
