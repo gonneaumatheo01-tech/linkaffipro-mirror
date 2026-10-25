@@ -25,7 +25,7 @@ const PAGES: Record<string, string> = {
   "/fr/sports/football": `<!doctype html><html><head><title>Football</title></head><body>${FILLER}<h1>Liste des matchs</h1><div id="list">PSG - OM 21:00</div></body></html>`,
   "/fr/deposit": DEPOSIT.replace("</h1>", `</h1>${FILLER}`),
 };
-const REDIRECTS: Record<string, string> = { "/go": "/fr/deposit", "/ok-redirect": "/fr/sports/football", "/sneaky": "/fr/sports?modal=cashier" };
+const REDIRECTS: Record<string, string> = { "/elsewhere": "http://autre-bookmaker.example/", "/go": "/fr/deposit", "/ok-redirect": "/fr/sports/football", "/sneaky": "/fr/sports?modal=cashier" };
 
 let chromiumPath: string | null = null;
 try {
@@ -129,5 +129,10 @@ describe.skipIf(!hasChromium)("garde « jamais de mise » dans un vrai navigateu
     expect(r2).toHaveProperty("obstacle");
     expect(forbidden("/fr/deposit")).toBe(false);
     expect(hits.some((h) => /cashier/.test(h))).toBe(false);
+  }, 60_000);
+
+  it("redirection vers un autre domaine (essai réel : celsius.games → celsiuscasino.com) : « le site a changé d'adresse », avec le domaine", async () => {
+    const r = await transport().page("local", { url: `${base}/elsewhere` });
+    expect(r).toEqual({ obstacle: "moved", message: "le site renvoie vers autre-bookmaker.example" });
   }, 60_000);
 });

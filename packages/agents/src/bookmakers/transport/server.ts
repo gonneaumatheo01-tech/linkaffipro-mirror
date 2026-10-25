@@ -355,7 +355,12 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
       // Toute navigation vers une adresse interdite est coupée AVANT d'atteindre le site : page principale (domaines du
       // site + mots de lecture), cadres (mots interdits : un moteur de paris tiers reste permis, sa caisse non), et
       // chaque redirection de la page principale vérifiée avant d'être suivie (le navigateur ne suit pas seul).
-      await context.route("**/*", (route: Route, req: PwRequest) => guardNavigation(route, req, site, (why) => log(site.key, "blocked", why)));
+      await context.route("**/*", (route: Route, req: PwRequest) =>
+        guardNavigation(route, req, site, (why) => {
+          lastBlocked.set(site.key, why);
+          log(site.key, "blocked", why);
+        }),
+      );
       const page = await context.newPage();
       // Aucune fenêtre surgissante : un clic imprévu n'ouvre rien d'autre.
       context.on("page", (p) => {
@@ -397,6 +402,23 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
     await gp.settle(8_000);
     return pageObstacle(gp, url);
   }
+
+  /** Dernière navigation coupée par la garde, par site (pour dire POURQUOI la page n'a pas pu s'ouvrir). */
+  const lastBlocked = new Map<string, string>();
+  /**
+   * Erreur → obstacle ; une page coupée par notre garde (`ERR_BLOCKED_BY_CLIENT`) dit la vraie raison : une redirection
+   * vers un autre domaine (essai réel du 25 octobre : celsius.games → celsiuscasino.com) devient « le site a changé
+   * d'adresse » (Kevin demande la bonne adresse), jamais un « injoignable » muet.
+   */
+  const explain = (siteKey: string, err: unknown): Obstacle => {
+    const o = obstacleOf(err);
+    const why = lastBlocked.get(siteKey);
+    lastBlocked.delete(siteKey);
+    if (!why || !/ERR_BLOCKED_BY_CLIENT/.test(o.message ?? "")) return o;
+    const host = /domaine (\S+) hors du bookmaker/.exec(why)?.[1];
+    if (host) return { obstacle: "moved", message: `le site renvoie vers ${host}` };
+    return { obstacle: "forbidden_action", message: why.slice(0, 200) };
+  };
 
   const transport: ServerTransport = {
     target: opts.target ?? "server",
@@ -449,7 +471,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
         if (next && JSON.stringify(next.cookies) !== JSON.stringify(state?.cookies ?? [])) await env!.saveSession(siteKey, { cookies: next.cookies, origins: state?.origins ?? next.origins ?? [] }).catch(() => undefined);
         return { status, body };
       } catch (err) {
-        return obstacleOf(err);
+        return explain(site.key, err);
       } finally {
         await ctx?.dispose().catch(() => undefined);
       }
@@ -511,7 +533,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
       try {
         return await withDeadline(run(), opts.pageTimeoutMs ?? PAGE_TIMEOUT_MS, () => void opened.browser.close().catch(() => undefined));
       } catch (err) {
-        return obstacleOf(err);
+        return explain(site.key, err);
       } finally {
         await closeAll(opened, site, ok);
       }
@@ -575,7 +597,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
         // quitte jamais ce processus (résultat d'un travail du Mac rangé en base, journal…).
         return ok ? maskRecording(out as SiteRecording, io.secrets) : (out as { obstacle: string });
       } catch (err) {
-        return obstacleOf(err);
+        return explain(site.key, err);
       } finally {
         await closeAll(opened, site, ok);
       }
@@ -607,7 +629,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
           await opened.gp.pause(poll);
         }
       } catch (err) {
-        return obstacleOf(err);
+        return explain(site.key, err);
       } finally {
         await closeAll(opened, site, ok);
       }
