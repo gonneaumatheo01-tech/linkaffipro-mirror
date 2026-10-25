@@ -1,8 +1,10 @@
 /**
  * Exécution des actions du Boss et tour avec l'IA (phase 26). `runBossAction` : droits, classe (immédiate / à
  * confirmer), exécution par l'entrée du catalogue, `AuditLog` `boss.<clé>`. `bossAiTurn` (tâche `boss-text` du
- * worker) : contexte, interprète, exécution ou confirmation, réponse chiffrée, précision, ou « je ne sais pas encore
- * faire ça » ; écrit les `BossTurn` ; ne lève JAMAIS.
+ * worker) : contexte, interprète, exécution ou confirmation, réponse chiffrée, précision, ordre à une équipe (phase 33 :
+ * `ordre_equipe` → planificateur → récapitulatif → OUI ou lancement), ou demande vraiment impossible (règle 3 de la
+ * phase 33 : ce qui bloque, puis UNE chose faisable tout de suite, en question) ; écrit les `BossTurn` ; ne lève JAMAIS.
+ * Textes : voix de Kevin (`voice.ts`), 2 à 4 variantes par texte fixe.
  */
 import { adminTelegramId, agentAudit, esc, telegramActorUserId } from "../admin/journal";
 import { isSecretAdminText, type SecretTextContext } from "../admin/commands";
@@ -23,12 +25,25 @@ import { BossBudgetError } from "./llm";
 import { bossTurnForMessage, updateBossTurn, writeBossTurn, type BossTurnStatus } from "./memory";
 import { readClarify, resolveTeam } from "./resolve";
 import { recordBossUnmet } from "./unmet";
+import { pick } from "./voice";
+import { handleOrderRequest } from "../orders/request";
+import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
 
 export const NO_AI_REPLY =
-  "Je ne comprends que les commandes simples pour le moment (IA non réglée ou plafond du mois atteint). Écris aide.";
-export const UNMET_HEAD = "Je ne sais pas encore faire ça.";
+  "Là je ne comprends que les commandes simples : l'IA n'est pas réglée, ou le plafond du mois est atteint. Écris aide pour la liste.";
+export const NO_AI_REPLIES = [
+  NO_AI_REPLY,
+  "Pour l'instant je ne prends que les commandes simples (pas d'IA, ou plafond du mois atteint). Écris aide pour les voir.",
+];
+/** Début d'une réponse « vraiment impossible » (variantes : `UNMET_HEADS`). */
+export const UNMET_HEAD = "Ça, je ne sais pas encore le faire.";
+export const UNMET_HEADS = [UNMET_HEAD, "Là je ne sais pas encore faire.", "Ça, pas encore possible de mon côté."];
 export const SECRET_REMOVED_REPLY =
-  "🔒 J'ai retiré ce message : il ressemblait à une clé ou à un mot de passe (je ne l'ai ni lu ni gardé). Pour l'enregistrer : « clé <fournisseur> <la clé> », « bookmaker <nom> <identifiant> <mot de passe> », ou réponds à ma question quand je te la pose.";
+  "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou « bookmaker <nom> <identifiant> <mot de passe> ». Tu peux aussi répondre à ma question quand je te la pose.";
+export const FORWARDED_REPLIES = [
+  "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.",
+  "Message transféré reçu, je n'exécute rien de ce qu'il dit. Tu veux que j'en fasse quoi ?",
+];
 /** Texte d'un message transféré gardé dans la mémoire (jamais son contenu, qui partirait à l'IA). */
 export function forwardedMemoryText(text: string): string {
   return `[message transféré : ${(text ?? "").trim().length} caractères]`;
@@ -47,7 +62,8 @@ export function looksLikeBotToken(text: string): boolean {
 }
 
 export function oopsReply(reason: string): string {
-  return `Oups, je n'ai pas réussi : ${esc(reason.slice(0, 120))}. Réessaie ou écris aide.`;
+  const r = esc(reason.slice(0, 120));
+  return pick([`Oups, je n'ai pas réussi : ${r}. Réessaie ou écris aide.`, `Oups, raté : ${r}. Tu peux réessayer, ou écrire aide.`], "execute.oops");
 }
 
 /**
@@ -304,12 +320,40 @@ export function nearestActions(text: string, catalog: readonly BossAction[] = BO
   return out.slice(0, n);
 }
 
-export async function unmetReply(deps: BossDeps, text: string, secretContext?: SecretTextContext | null): Promise<BossReply> {
+/** Une action proposée en question : sans paramètre requis (rejouable telle quelle par OUI). */
+function suggestable(a: BossAction): boolean {
+  return a.parse({}).ok && !ORDER_INTERNAL.has(a.key) && a.key !== "aide";
+}
+const ORDER_INTERNAL = new Set(["confirmer_ordre", "ordre_repli", "ordre_choix", "annule", "commencer"]);
+
+/** Fragment d'une description (« Dire où en sont… » → « te dire où en sont… »), pur. */
+function offerFragment(description: string): string {
+  const d = description.trim().replace(/[.;:!\s]+$/u, "").replace(/\s*\(.*$/, "");
+  const low = d.charAt(0).toLocaleLowerCase("fr-FR") + d.slice(1);
+  return /^(dire|donner|montrer|envoyer|lister)\b/.test(low) ? `te ${low}` : low;
+}
+
+/**
+ * Demande vraiment impossible (règle 3) : ce qui bloque en une phrase, puis UNE chose faisable tout de suite en
+ * question (OUI / NON quand aucune autre confirmation n'attend) ; la demande est notée. Plus jamais de refus sec.
+ */
+export async function unmetReply(deps: BossDeps, text: string, secretContext?: SecretTextContext | null, chat?: BossChat | null): Promise<BossReply> {
   await recordBossUnmet(deps, text, secretContext ?? null);
-  const near = nearestActions(text);
-  return {
-    reply: [UNMET_HEAD, "Je sais par exemple :", ...near.map((a) => `• ${esc(a.description)}`), "Écris aide pour tout voir."].join("\n"),
-  };
+  const chatId = chat?.chatId ?? null;
+  const near = nearestActions(text).filter(suggestable);
+  const offer = near[0] ?? BOSS_CATALOG.find((a) => a.key === "etat_general") ?? null;
+  const head = pick(UNMET_HEADS, "execute.unmet.head", chatId);
+  const noted = pick(["Je l'ai noté.", "C'est noté pour la suite."], "execute.unmet.noted", chatId);
+  if (!offer) return { reply: `${head} ${noted} Écris aide pour voir ce que je sais faire.` };
+  const question = pick(
+    [`Par contre je peux ${esc(offerFragment(offer.description))}, tu veux ?`, `À la place, je peux ${esc(offerFragment(offer.description))}. Ça te va ?`],
+    "execute.unmet.offer",
+    chatId,
+  );
+  const pending = await readBossPending(deps);
+  if (pending && !pending.expired) return { reply: `${head} ${noted}\n${question}` };
+  const r = await createBossPending(deps, { actionKey: offer.key, params: {}, summary: question.replace(/<[^>]+>/g, ""), chatId });
+  return { reply: `${head} ${noted}\n${question}`, buttons: r.buttons, pendingId: r.pendingId };
 }
 
 // ------------------------------------------------------------------------------------------- tour avec l'IA
@@ -345,8 +389,24 @@ async function handleDecision(
       const a = await answerQuestion(deps, { topic: decision.topic, question: decision.question, team, period: decision.period });
       return { reply: a.reply, status: "answered", costCents: a.costCents, actionKey: "repondre_question" };
     }
+    case "ordre": {
+      // Temps 2 : le planificateur reçoit le message de l'admin tel quel (jamais la reformulation de l'IA seule).
+      const memory = input.chat
+        ? await turnsForSpeaker(deps, { chatId: input.chat.chatId, fromTelegramId: input.speaker?.telegramUserId ?? null }).catch(() => [])
+        : [];
+      const r = await handleOrderRequest(deps, {
+        text: input.spokenText ?? input.text,
+        hints: { equipe: decision.equipe ?? null, canal: decision.canal ?? null },
+        memory,
+        speaker: input.speaker ?? null,
+        chat: input.chat ?? null,
+        actor,
+      });
+      const { status, costCents, orderId: _o, ...reply } = r;
+      return { ...reply, status, costCents, actionKey: "ordre_equipe" };
+    }
     case "pas_prevu":
-      return { ...(await unmetReply(deps, input.text, secretContext)), status: "unmet", actionKey: "pas_prevu" };
+      return { ...(await unmetReply(deps, input.text, secretContext, input.chat)), status: "unmet", actionKey: "pas_prevu" };
   }
 }
 
@@ -369,7 +429,7 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
       return { reply: SECRET_REMOVED_REPLY, deleteMessage: true };
     }
     if (input.forwarded) {
-      const reply = "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.";
+      const reply = pick(FORWARDED_REPLIES, "execute.forwarded", chatId);
       await writeBossTurn(deps, { role: "ADMIN", text: forwardedMemoryText(text), source: input.source, telegramMessageId: input.messageId, chatId, fromTelegramId: fromId });
       await writeBossTurn(deps, { role: "BOSS", text: reply, status: "refused", actionKey: "transfere", telegramMessageId: input.messageId, chatId });
       return { reply };
@@ -380,12 +440,17 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
       await updateBossTurn(deps, turnId, { text: r.reply ?? "", status, actionKey, costCents });
       return r;
     };
-    if (!deps.llm || !text) return finish({ reply: text ? NO_AI_REPLY : "Je n'ai rien lu dans ce message. Écris-moi ce que tu veux en quelques mots (ou aide)." }, "error", "sans_ia");
+    if (!deps.llm || !text)
+      return finish(
+        { reply: text ? pick(NO_AI_REPLIES, "execute.noai", chatId) : pick(["Je n'ai rien lu dans ce message. Dis-moi ce que tu veux en quelques mots (ou aide).", "Message vide de mon côté. Écris-moi ce que tu veux, en deux mots."], "execute.empty", chatId) },
+        "error",
+        "sans_ia",
+      );
     let interpreted: Awaited<ReturnType<typeof interpretBossText>>;
     try {
       interpreted = await interpretBossText(deps, text, { source: input.source, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
     } catch (err) {
-      if (err instanceof BossBudgetError) return finish({ reply: NO_AI_REPLY }, "error", "plafond");
+      if (err instanceof BossBudgetError) return finish({ reply: pick(NO_AI_REPLIES, "execute.noai", chatId) }, "error", "plafond");
       deps.logger?.warn({ err: (err as Error).message }, "[boss] interprète en échec");
       return finish({ reply: oopsReply("l'IA ne répond pas") }, "error", "erreur");
     }

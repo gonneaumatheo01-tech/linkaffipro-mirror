@@ -24,6 +24,11 @@ import { inspirationProposals, mixSteps } from "./proposals";
 import { applyInspiration, inspirationReviews, removeReference, undoInspiration } from "./apply";
 import { createReference, linkTarget, referenceLabel, rememberAsker, sendToAsker } from "./kevin-refs";
 import "./keep-action";
+import { resetVoiceRotation, voiceCheck, voiceEntryTexts, type VoiceTable } from "../boss/voice";
+import { CATALOG_INSPIRATION_VARIANTS } from "../boss/catalog-inspiration";
+import { INSPIRATION_KEVIN_VARIANTS } from "./kevin";
+import { INSPIRATION_FORWARD_VARIANTS } from "./kevin-forward";
+import { INSPIRATION_REFS_VARIANTS } from "./kevin-refs";
 
 vi.mock("./kevin-ports", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -119,6 +124,7 @@ function fwd(i: number, extra: Record<string, unknown> = {}) {
 }
 
 beforeEach(async () => {
+  resetVoiceRotation();
   vi.mocked(ports.analyzeReference).mockReset();
   vi.mocked(ports.compareWithChannel).mockReset();
   vi.mocked(ports.enqueueReferenceRead).mockClear();
@@ -162,7 +168,7 @@ describe("catalogue de Kevin : entrées d'inspiration", () => {
 describe("analyser un canal par Kevin", () => {
   it("« inspire-toi de t.me/xxx pour … » : référence créée, cible liée, accusé, lecture en file", async () => {
     const reply = await say("inspire-toi de t.me/roulette_pro pour Casino VIP");
-    expect(reply).toBe("Je lis @roulette_pro, je reviens dans quelques minutes.");
+    expect(reply).toMatch(/(lis|lire) @roulette_pro.*quelques minutes/s);
     const refs = kit.tables("referenceChannel");
     expect(refs).toHaveLength(1);
     expect(refs[0]).toMatchObject({ username: "roulette_pro", universe: "casino", targetChannelIds: [kit.ids.casino] });
@@ -173,7 +179,7 @@ describe("analyser un canal par Kevin", () => {
 
   it("lien d'invitation privé : sans compte libre → transfert demandé ; avec compte → « Entrer avec le compte Lea ? », une seule tentative après OUI", async () => {
     const none = await say("entre dans t.me/+AbCdEf123 pour Casino VIP");
-    expect(none).toContain("transfère-moi 10 à 30 de ses posts");
+    expect(none).toMatch(/10 à 30 de ses posts/);
     expect(none).not.toContain("OUI pour confirmer");
     const joins: string[] = [];
     (kit.deps as Record<string, unknown>).inspirationReader = {
@@ -188,10 +194,10 @@ describe("analyser un canal par Kevin", () => {
     (kit.deps as Record<string, unknown>).inspirationSleep = async () => undefined;
     await kit.prisma.telegramUserAccount.create({ data: { label: "Lea", phone: "+33600000000", sessionEncrypted: "x", status: "ACTIVE", isActive: true, personaId: null, botId: null } } as never);
     const ask = await say("entre dans t.me/+AbCdEf123 pour Casino VIP");
-    expect(ask).toContain("Entrer avec le compte Lea par ce lien ?");
+    expect(ask).toMatch(/compte Lea par ce lien \?/);
     expect(joins).toHaveLength(0);
     const done = await say("OUI");
-    expect(done).toContain("Le compte Lea est entré");
+    expect(done).toMatch(/compte Lea est entré/);
     expect(joins).toEqual(["https://t.me/+AbCdEf123"]);
     expect(ports.enqueueReferenceRead).toHaveBeenCalledTimes(1);
   });
@@ -200,7 +206,8 @@ describe("analyser un canal par Kevin", () => {
     const ref = await createReference(kit.deps, { username: "foot_pro", via: "WEB", universe: "" });
     await linkTarget(kit.deps, ref, kit.ids.sports);
     const reply = await say("inspire-toi de t.me/foot_pro pour Casino VIP");
-    expect(reply).toBe("Je ne mélange pas les univers : @foot_pro est un canal Paris sportifs, Casino VIP est un canal Casino.");
+    expect(reply).toMatch(/@foot_pro est un canal Paris sportifs.*Casino VIP (est )?un canal Casino/);
+    expect(reply).toMatch(/je ne mélange pas les univers/i);
     expect(reply.split("\n")).toHaveLength(1);
     expect(ports.enqueueReferenceRead).not.toHaveBeenCalled();
   });
@@ -210,7 +217,7 @@ describe("analyser un canal par Kevin", () => {
     await afterReferenceRead(kit.deps, ref.id);
     expect(kit.sent).toHaveLength(1);
     const lines = kit.sent[0]!.html.split("\n");
-    expect(lines.at(-1)).toBe("Tu veux voir le détail ou mes propositions ?");
+    expect(lines.at(-1)).toMatch(/détail.*propositions \?$/);
     const summary = inspirationSummaryLines("@roulette_pro", analysisFor(ref.id), comparisonFor(kit.ids.casino));
     expect(summary.length).toBeLessThanOrEqual(SUMMARY_MAX_LINES);
     expect(lines.slice(1, -1)).toHaveLength(summary.length);
@@ -224,15 +231,15 @@ describe("analyser un canal par Kevin", () => {
     const ref = await readyReference();
     vi.mocked(ports.analyzeReference).mockResolvedValue({ tooFew: true, count: 12 });
     await afterReferenceRead(kit.deps, ref.id);
-    expect(kit.sent[0]!.html).toBe("J'ai lu 12 posts de @roulette_pro, il m'en faut 20 : transfère-m'en d'autres.");
+    expect(kit.sent[0]!.html).toMatch(/12 posts.*@roulette_pro.*il m'en faut 20/);
   });
 
   it("canal illisible : demande de 10 à 30 posts transférés", async () => {
     const ref = await readyReference();
     await kit.prisma.referenceChannel.update({ where: { id: ref.id }, data: { status: "UNAVAILABLE", unavailableReason: "canal privé" } } as never);
     await afterReferenceRead(kit.deps, ref.id);
-    expect(kit.sent[0]!.html).toContain("Je ne peux pas lire @roulette_pro (canal privé)");
-    expect(kit.sent[0]!.html).toContain("Transfère-moi 10 à 30 de ses posts");
+    expect(kit.sent[0]!.html).toMatch(/@roulette_pro.*\(canal privé\)/);
+    expect(kit.sent[0]!.html).toMatch(/10 à 30 de ses posts/);
   });
 
   it("questions chiffrées répondues depuis l'analyse (heures, rythme), exemples du profil", async () => {
@@ -244,7 +251,7 @@ describe("analyser un canal par Kevin", () => {
     const ref = kit.tables("referenceChannel")[0]!;
     await kit.prisma.styleProfile.create({ data: { referenceChannelId: ref.id, version: 1, universe: "casino", rules: ["phrases courtes"], examples: ["🎰 Ce soir, la roue tourne pour toi : on se retrouve à 21 h ?"], flagged: [] } } as never);
     const ex = await say("montre-moi un exemple de post à leur façon");
-    expect(ex).toContain("écrit à neuf");
+    expect(ex).toMatch(/écrit à neuf/i);
     expect(ex).toContain("la roue tourne pour toi");
   });
 });
@@ -265,7 +272,7 @@ describe("posts transférés à Kevin", () => {
     // Liaison à la cible : « ça c'est pour le canal Casino VIP » → même univers, mémorisé.
     const linked = await say("Kevin, ça c'est pour le canal Casino VIP");
     expect(linked).toContain("@roulette_pro inspire Casino VIP");
-    expect(linked).toContain("il m'en faut 20");
+    expect(linked).toMatch(/il m'en faut 20/i);
     expect(kit.tables("referenceChannel")[0]).toMatchObject({ universe: "casino", targetChannelIds: [kit.ids.casino] });
   });
 
@@ -279,9 +286,9 @@ describe("posts transférés à Kevin", () => {
     const ref = await readyReference();
     for (let i = 0; i < 21; i++) await kevinForwardedPost(kit.deps, { message: fwd(i) as never, ...adminCtx });
     await inspirationForwardAck(kit.deps, { chatKey: ADMIN.toString() });
-    expect(kit.sent[0]!.html).toContain("je lance l'analyse");
+    expect(kit.sent[0]!.html).toMatch(/lance l'analyse|lancé.*analyse/);
     expect(ports.analyzeReference).toHaveBeenCalledWith(expect.anything(), ref.id);
-    expect(kit.sent.at(-1)!.html).toContain("Tu veux voir le détail ou mes propositions ?");
+    expect(kit.sent.at(-1)!.html).toMatch(/détail.*propositions \?$/);
   });
 
   it("injection dans un post transféré : rangée comme donnée, rien d'exécuté", async () => {
@@ -396,7 +403,7 @@ describe("propositions, application, annulation", () => {
     expect(after).toMatchObject({ windowStart: planBefore.windowStart, windowEnd: planBefore.windowEnd, mix: planBefore.mix });
     expect(kit.tables("experiment")[0]).toMatchObject({ status: "CANCELLED" });
     // « Kevin, annule l'inspiration » plus tard : plus rien d'appliqué.
-    expect(await say("Kevin, annule l'inspiration")).toBe("Aucun réglage d'inspiration appliqué à annuler.");
+    expect(await say("Kevin, annule l'inspiration")).toMatch(/aucun réglage d'inspiration/i);
   });
 
   it("« applique 1 et 3 » sans choix ouvert : à confirmer", async () => {
@@ -440,7 +447,7 @@ describe("propositions, application, annulation", () => {
   it("retirer par Kevin : à confirmer", async () => {
     await readyReference();
     const reply = await say("retire @roulette_pro");
-    expect(reply).toContain("Retirer @roulette_pro des canaux d'inspiration ?");
+    expect(reply).toMatch(/@roulette_pro des canaux d'inspiration \?/);
     expect(reply).toContain("OUI pour confirmer");
     const done = await say("OUI");
     expect(done).toContain("@roulette_pro retiré");
@@ -522,7 +529,7 @@ describe("relecture adverse : défauts corrigés", () => {
     expect(byMember).toContain("je lui ai transmis");
     expect(joins).toHaveLength(0);
     // Canal cible sans univers : refus avant toute tentative.
-    expect(await say("entre dans t.me/+AbCdEf123 pour le canal test")).toContain("Je ne sais pas de quel univers");
+    expect(await say("entre dans t.me/+AbCdEf123 pour le canal test")).toMatch(/univers/);
     expect(joins).toHaveLength(0);
     // L'admin confirme : une seule tentative ; le même lien n'est jamais réessayé.
     expect(await say("entre dans t.me/+AbCdEf123 pour Casino VIP")).toContain("OUI pour confirmer");
@@ -561,7 +568,7 @@ describe("relecture adverse : défauts corrigés", () => {
     await say("tes propositions ?");
     const before = JSON.stringify(kit.tables("recommendation").map((r) => [r.id, r.status]));
     const seen = await say("tes propositions ?", memberCtx);
-    expect(seen).toContain("se décident avec l'admin");
+    expect(seen).toMatch(/l'admin/);
     expect(JSON.stringify(kit.tables("recommendation").map((r) => [r.id, r.status]))).toBe(before);
     expect(kit.tables("setting").some((x) => x.key === "inspiration.choice.4242")).toBe(true);
     expect(kit.tables("setting").some((x) => x.key === `inspiration.choice.${LEA}`)).toBe(false);
@@ -583,7 +590,8 @@ describe("relecture adverse : défauts corrigés", () => {
     const ref = await readyReference();
     await notifyReadPostponed(kit.deps, ref.id, "Déjà 5 lectures aujourd'hui");
     await notifyReadPostponed(kit.deps, ref.id, "Déjà 5 lectures aujourd'hui");
-    expect(kit.sent.map((m) => m.html)).toEqual(["Déjà 5 lectures aujourd'hui : je lis @roulette_pro demain."]);
+    expect(kit.sent).toHaveLength(1);
+    expect(kit.sent[0]!.html).toMatch(/5 lectures.*@roulette_pro demain/);
     await kevinForwardedPost(kit.deps, { message: fwd(1) as never, ...adminCtx });
     kit.advance(FORWARD_ACK_STALE_MS + 1000);
     await kevinForwardedPost(kit.deps, { message: fwd(2) as never, ...adminCtx });
@@ -662,5 +670,24 @@ describe("relecture adverse : défauts corrigés", () => {
     const out = await closeExperiments(kit.deps);
     expect(out).toEqual([]);
     expect(kit.tables("experiment").find((x) => x.id === (e as { id: string }).id)!.endsAt).toEqual(new Date(kit.deps.now!().getTime() - 1000));
+  });
+});
+
+describe("voix de Kevin : textes de l'inspiration", () => {
+  const tables: Record<string, VoiceTable> = { CATALOG_INSPIRATION_VARIANTS, INSPIRATION_KEVIN_VARIANTS, INSPIRATION_FORWARD_VARIANTS, INSPIRATION_REFS_VARIANTS };
+  for (const [name, table] of Object.entries(tables))
+    it(`${name} : chaque variante passe le contrôle de la voix`, () => {
+      for (const [key, entry] of Object.entries(table)) {
+        const { texts, rules } = voiceEntryTexts(entry);
+        expect(texts.length, `${name}.${key}`).toBeGreaterThan(0);
+        for (const t of texts) expect(voiceCheck(t, rules).problems, `${name}.${key} : ${t}`).toEqual([]);
+      }
+    });
+
+  it("la réponse rédigée par l'IA passe par la voix (charte dans la consigne)", async () => {
+    await readyReference();
+    await say("c'est quoi leurs heures ?");
+    const calls = (kit.deps.llm as unknown as { calls?: { write: { system: string }[] } }).calls;
+    if (calls?.write.length) expect(calls.write[0]!.system).toContain("Tu es Kevin, le collègue");
   });
 });

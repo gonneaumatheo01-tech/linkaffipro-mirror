@@ -56,8 +56,8 @@ export const CATALOG_TEAM_VARIANTS = {
     `Je n'ai jamais vu @${p.user} écrire ici pour l'instant.\n@${p.user}, écris juste « ${p.boss}, salut » et c'est bon.`,
   ]),
   unknown: [
-    "Je ne vois pas de qui tu parles : mentionne la personne avec @ (« voici @lea »), ou demande-lui de m'écrire un mot ici.",
-    "Je ne vois pas qui c'est. Tu la mentionnes avec @ (« voici @lea ») ? Sinon, demande-lui de m'écrire un mot ici.",
+    "Je ne vois pas de qui tu parles : mentionne la personne avec @ (« je te présente @lea »), ou demande-lui de m'écrire un mot ici.",
+    "Je ne vois pas qui c'est. Tu la mentionnes avec @ (« je te présente @lea ») ? Sinon, demande-lui de m'écrire un mot ici.",
   ],
   teamUnknownFull: voiceTemplate([{ team: "cuisine" }], (p) => [
     `Je ne connais pas cette équipe (${p.team}). Équipes : Rencontres, Casino, Paris sportifs, Algorithme, Pubs.`,
@@ -81,8 +81,8 @@ export const CATALOG_TEAM_VARIANTS = {
     ],
   ),
   notPresented: voiceTemplate([{ name: "Léa", user: "lea" }, { name: "Cette personne", user: "nom" }], (p) => [
-    `${p.name} ne m'a pas encore été présenté·e. Dis par exemple « voici @${p.user}, elle s'occupe de … ».`,
-    `Je ne connais pas encore ${p.name} dans l'équipe. Présente-moi la personne d'abord, par exemple « voici @${p.user}, elle s'occupe de … ».`,
+    `${p.name} ne m'a pas encore été présenté·e. Dis par exemple « je te présente @${p.user}, elle s'occupe de … ».`,
+    `Je ne connais pas encore ${p.name} dans l'équipe. Présente-moi la personne d'abord, par exemple « je te présente @${p.user}, elle s'occupe de … ».`,
   ]),
   askDate: [
     "Absente jusqu'à quand ? Dis par exemple « jusqu'à lundi » ou « jusqu'au 26/10 ».",
@@ -107,8 +107,8 @@ export const CATALOG_TEAM_VARIANTS = {
     `Fait : ${p.name} n'est plus dans l'équipe, je ne lui demande plus rien.`,
   ]),
   whoEmpty: [
-    "Personne ne m'a encore été présenté.\nDis-moi par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino ».",
-    "On ne m'a encore présenté personne.\nDis-moi par exemple « Kevin, voici @lea, elle s'occupe des vidéos casino ».",
+    "Personne ne m'a encore été présenté.\nDis-moi par exemple « Kevin, je te présente @lea, elle s'occupe des vidéos casino ».",
+    "On ne m'a encore présenté personne.\nDis-moi par exemple « Kevin, je te présente @lea, elle s'occupe des vidéos casino ».",
   ],
   /** « qui fait quoi ? » : une liste demandée (une ligne par personne, 16 au plus). */
   whoList: voiceTemplate(

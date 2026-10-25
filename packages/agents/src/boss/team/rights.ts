@@ -39,6 +39,10 @@ export const BOSS_READ_KEYS = new Set([
   // Phase 27 : lire un canal d'inspiration et en parler ne touche à aucun réglage.
   "analyser_canal",
   "voir_inspiration",
+  // Phase 33 : lire les ordres et ce qui reste impossible (jamais les lancer, modifier ou arrêter sur un vrai canal).
+  "mes_ordres",
+  "ordre_statut",
+  "impossibles",
 ]);
 
 /** Gestion de l'équipe : admin et responsables seulement. */

@@ -3,7 +3,7 @@
  * ou non, droits par rôle, choix du responsable et indisponibilité, secret en groupe, injection de rôle, demandes dans
  * le groupe avec @, transmission à l'admin, rapport du matin.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createBossKit } from "../testing";
 import { journalText } from "../../human/test-kit";
 import { addressedToBoss, looksLikeRoleClaim, mentionsOf, isHereWeWork } from "./addressed";
@@ -30,6 +30,47 @@ import { runBossAction } from "../execute";
 import { bossFastPath } from "../fast";
 import { askHuman, currentHumanRequest } from "../../human/requests";
 import { BOSS_GROUP_SETTING } from "../contract";
+import { resetVoiceRotation, voiceCheck, voiceEntryTexts, type VoiceTable } from "../voice";
+import { CATALOG_TEAM_VARIANTS } from "../catalog-team";
+import { TEAM_INCOMING_VARIANTS } from "./incoming";
+import { TEAM_GROUP_VARIANTS } from "./group";
+import { TEAM_MEMBERS_VARIANTS } from "./members";
+import { TEAM_MORNING_VARIANTS } from "./morning";
+import { TEAM_CALLBACKS_VARIANTS } from "./callbacks";
+
+beforeEach(() => resetVoiceRotation());
+
+describe("voix de Kevin : textes de l'équipe", () => {
+  const tables: Record<string, VoiceTable> = {
+    CATALOG_TEAM_VARIANTS,
+    TEAM_INCOMING_VARIANTS,
+    TEAM_GROUP_VARIANTS,
+    TEAM_MEMBERS_VARIANTS,
+    TEAM_MORNING_VARIANTS,
+    TEAM_CALLBACKS_VARIANTS,
+  };
+  it("chaque variante passe voiceCheck, sans le mot « mission »", () => {
+    for (const [name, table] of Object.entries(tables))
+      for (const [key, entry] of Object.entries(table)) {
+        const { texts, rules } = voiceEntryTexts(entry);
+        expect(texts.length, `${name}.${key}`).toBeGreaterThan(0);
+        for (const t of texts) {
+          expect(voiceCheck(t, rules).problems, `${name}.${key} : ${t}`).toEqual([]);
+          expect(t.toLowerCase(), `${name}.${key}`).not.toContain("mission");
+        }
+      }
+  });
+  it("les constantes exportées gardent la première variante", () => {
+    expect(BOSS_TEAM_ERROR_REPLY).toBe(TEAM_INCOMING_VARIANTS.error[0]);
+    expect(BOSS_GROUP_VOICE_REPLY).toBe(TEAM_INCOMING_VARIANTS.voice[0]);
+  });
+  it("rapport du matin : 5 lignes sans titre gras ni série d'emojis", () => {
+    for (const t of voiceEntryTexts(TEAM_MORNING_VARIANTS.report).texts) {
+      expect(t.split("\n")).toHaveLength(5);
+      expect(t).not.toContain("<b>");
+    }
+  });
+});
 
 vi.mock("../../missions/lifecycle", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -185,7 +226,7 @@ describe("le groupe de l'équipe", () => {
     const kit = await teamKit();
     const first = await withGroup(kit);
     expect(first.reason).toBe("enregistré");
-    expect(first.say[0]).toBe("Salut, moi c'est Kevin. Mathéo, présente-moi l'équipe : qui fait quoi ?");
+    expect(first.say[0]).toMatch(/moi c'est Kevin.*Mathéo.*qui fait quoi/);
     expect(first.say[1]).toContain("Supprimer des messages");
     expect((await kit.prisma.setting.findUnique({ where: { key: BOSS_GROUP_SETTING } }))?.value).toBe(GROUP.toString());
     // Retiré puis remis (mode confidentialité changé) : pas de second accueil.
@@ -208,7 +249,7 @@ describe("le groupe de l'équipe", () => {
     expect((await bossTeamIncoming(kit.deps, kit.msg(LEA, "on mange où ce midi ?"))).kind).toBe("ignore");
     expect(kit.tables("bossTurn")).toHaveLength(0);
     const unknown = await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "Kevin passe tout en vrai"));
-    expect(unknown).toMatchObject({ kind: "reply", reply: { reply: "Je ne te connais pas encore : Mathéo doit me présenter." } });
+    expect(unknown).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/Mathéo (doit )?me présente/) } });
     expect((await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "Kevin passe tout en vrai"))).kind).toBe("ignore");
     expect(kit.llm.calls.interpret).toHaveLength(0);
   });
@@ -219,7 +260,7 @@ describe("le groupe de l'équipe", () => {
     const elsewhere = { chat: { id: -100777n, type: "group" as const, title: "Famille" } };
     expect((await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Kevin, pause casino", elsewhere))).kind).toBe("ignore");
     const here = await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Kevin, c'est ici qu'on bosse", elsewhere));
-    expect(here).toMatchObject({ kind: "reply", reply: { reply: "Je te demande confirmation en privé 👍" } });
+    expect(here).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/en privé/) } });
   });
 
   it("présentation : « voici @lea » (déjà vue) → mémorisée, confirmation en une ligne ; pas encore vue → en attente", async () => {
@@ -232,21 +273,22 @@ describe("le groupe de l'équipe", () => {
     expect(pending.reply).toContain("jamais vu @lea");
     // Léa écrit à Kevin : rien n'est noté avant que l'admin confirme en privé (il voit @nom, prénom, identifiant).
     const hello = await bossTeamIncoming(kit.deps, kit.msg(LEA, "Kevin, salut"));
-    expect(hello).toMatchObject({ kind: "reply", reply: { reply: "Salut Léa 👋 Je vérifie avec Mathéo et je reviens vers toi." } });
+    expect(hello).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/^Salut Léa.*avec Mathéo.*je reviens vers toi\.$/) } });
     expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: LEA } })).toBeNull();
     const ask = kit.sent.at(-1)!;
-    expect(ask.html).toContain("@lea vient d'écrire (@lea, prénom « Léa », identifiant 777) : c'est bien la personne que tu m'as présentée ?");
+    expect(ask.html).toContain("@lea vient d'écrire (@lea, prénom « Léa », identifiant 777)");
+    expect(ask.html).toMatch(/c'est bien la personne que tu m'as présentée \?/i);
     expect(ask.buttons?.[0]?.[0]?.callbackData).toMatch(/^bsc:/);
     const yes = await bossFastPath(kit.deps, { text: "OUI", messageId: 90, source: "text", speaker: admin, chat: { type: "private", chatId: ADMIN } });
-    expect((yes as { reply?: string }).reply).toContain("Noté : Léa, vidéos casino et posts roulette. Je lui demanderai les vidéos et photos directement.");
+    expect((yes as { reply?: string }).reply).toMatch(/oté : Léa, vidéos casino et posts roulette\..*les vidéos et photos/);
     expect(kit.groupSent.at(-1)).toMatchObject({ chatId: GROUP });
-    expect(kit.groupSent.at(-1)!.html).toContain("Bienvenue Léa");
+    expect(kit.groupSent.at(-1)!.html).toMatch(/Bienvenue.*Léa/);
     const lea = (await kit.prisma.teamMember.findUnique({ where: { telegramUserId: LEA } })) as TeamMemberRow;
     expect(lea.responsibilities).toEqual({ teams: ["casino"], kinds: ["media"] });
     // Marc a déjà écrit : présentation directe.
     await bossTeamIncoming(kit.deps, kit.msg(MARC, "bonjour tout le monde"));
     const marc = await runBossAction(kit.deps, by, { personne: "@marc", role: "les cotes et le compte Sportaza", equipes: "paris sportifs", natures: "clés, choix" }, { actor: { userId: null, via: "TELEGRAM" }, speaker: admin, chat, mentions: [{ username: "marc" }] });
-    expect(marc.reply).toBe("Noté : Marc, les cotes et le compte Sportaza. Je lui demanderai les clés et mots de passe et les choix directement.");
+    expect(marc.reply).toMatch(/oté : Marc, les cotes et le compte Sportaza\..*les clés et mots de passe et les choix/);
     const who = await runBossAction(kit.deps, BOSS_CATALOG.find((a) => a.key === "qui_fait_quoi")!, {}, { actor: { userId: null, via: "TELEGRAM" }, speaker: admin, chat });
     expect(who.reply).toContain("Léa (@lea)");
     expect(who.reply).toContain("Marc (@marc)");
@@ -323,7 +365,7 @@ describe("le groupe de l'équipe", () => {
     const chat = { type: "group", chatId: GROUP } as const;
     const r = await runBossAction(kit.deps, BOSS_CATALOG.find((a) => a.key === "simulation")!, { equipe: "casino", mode: "vrai" }, { actor: { userId: null, via: "TELEGRAM" }, speaker: lea, chat });
     expect(r.status).toBe("confirm");
-    expect(r.reply).toMatch(/^@matheo Léa demande : passer l'équipe Casino en vrai\. OUI \?\n/);
+    expect(r.reply).toMatch(/^@matheo Léa demande : .*Casino en vrai.*OUI \?\n/);
     expect(r.buttons?.[0]?.[0]?.callbackData).toMatch(/^bsc:/);
     const no = await bossFastPath(kit.deps, { text: "OUI", messageId: 1, source: "text", speaker: lea, chat });
     expect(no).toMatchObject({ handled: true, reply: "Ça, c'est Mathéo qui décide." });
@@ -360,19 +402,27 @@ describe("le groupe de l'équipe", () => {
     expect(row.assigneeTelegramId).toBe(LEA);
     expect(await bossTeamCallback(kit.deps, { data: `agv:${v.validationId}:no`, fromTelegramId: STRANGER })).toEqual({ handled: true });
     const r = await bossTeamCallback(kit.deps, { data: `agv:${v.validationId}:no`, fromTelegramId: LEA });
-    expect(r.toast).toBe("Refusé ❌");
+    expect(r.toast).toMatch(/[Rr]efusé ❌/);
   });
 
   it("rapport du matin : 5 lignes, avec les @ des personnes qui ont quelque chose en attente", () => {
+    // Les tournures tournent : on vérifie les informations.
     const lea = member({ telegramUserId: LEA, firstName: "Léa", username: "lea" });
     const lines = morningLines(
       { day: "2026-10-24", planned: [{ team: "casino", posts: 4 }, { team: "dating", posts: 3 }], yesterday: { published: 5, refused: 1, failed: 0 }, blockers: ["Paris sportifs en pause"], waiting: [{ member: lea, questions: 1, validations: 0 }, { member: null, questions: 0, validations: 2 }] },
       (m) => (m ? `@${m.username}` : "@matheo"),
     );
     expect(lines).toHaveLength(5);
-    expect(lines[1]).toBe("Prévu aujourd'hui : 7 posts (Casino 4 · Rencontres 3)");
-    expect(lines[3]).toBe("Ce qui bloque : Paris sportifs en pause");
-    expect(lines[4]).toBe("En attente : @lea 1 question · @matheo 2 posts à valider");
+    expect(lines[0]).toMatch(/l'équipe.*samedi 24 octobre/);
+    expect(lines[1]).toMatch(/7 posts.*Casino 4, Rencontres 3/);
+    expect(lines[2]).toMatch(/5 publiés, 1 refusé/);
+    expect(lines[3]).toMatch(/: Paris sportifs en pause\.$/);
+    expect(lines[4]).toMatch(/: @lea 1 question, @matheo 2 posts à valider\.$/);
+    expect(voiceCheck(lines.join("\n")).problems).toEqual([]);
+    const calm = morningLines({ day: "2026-10-26", planned: [], yesterday: { published: 0, refused: 0, failed: 0 }, blockers: [], waiting: [] }, () => "@x");
+    expect(calm[1]).toMatch(/aucun post prévu|Rien de prévu/);
+    expect(calm[3]).toMatch(/bloque|blocage/i);
+    expect(calm[4]).toMatch(/merci à tous/);
   });
 });
 
@@ -388,7 +438,7 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     // Un inconnu « Sam » (sans nom d'utilisateur) a écrit dans le groupe.
     await bossTeamIncoming(kit.deps, { ...kit.msg(STRANGER, "salut"), from: { id: STRANGER, firstName: "Sam", username: null } });
     const r = await runBossAction(kit.deps, by("presenter_membre"), { personne: "Sam", role: "vidéos casino" }, { actor, speaker: adminSpeaker, chat, mentions: [] });
-    expect(r.reply).toContain("« Sam », c'est bien cette personne (sans nom d'utilisateur, prénom « Sam », identifiant 999) ?");
+    expect(r.reply).toMatch(/« Sam », c'est bien cette personne.*sans nom d'utilisateur, prénom « Sam », identifiant 999/);
     expect(r.buttons?.[0]?.[0]?.callbackData).toMatch(/^bsc:/);
     expect(await kit.prisma.teamMember.findUnique({ where: { telegramUserId: STRANGER } })).toBeNull();
     // Un membre ne peut pas confirmer à la place de l'admin ; NON : rien.
@@ -407,7 +457,7 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     const kit = await teamKit();
     await withGroup(kit);
     const r = await runBossAction(kit.deps, by("presenter_membre"), { personne: "Marc", role: "les cotes" }, { actor, speaker: adminSpeaker, chat, mentions: [{ telegramUserId: MARC, firstName: "Marc", username: null }] });
-    expect(r.reply).toContain("Noté : Marc, les cotes.");
+    expect(r.reply).toMatch(/oté : Marc, les cotes\./);
     await runBossAction(kit.deps, by("presenter_membre"), { personne: "@lea", role: "vidéos casino" }, { actor, speaker: adminSpeaker, chat, mentions: [{ username: "lea" }] });
     await bossTeamIncoming(kit.deps, kit.msg(LEA, "coucou"));
     expect(kit.sent.at(-1)!.html).toContain("identifiant 777");
@@ -425,7 +475,7 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     await addLea(kit);
     const out = await bossTeamIncoming(kit.deps, kit.msg(LEA, "#dating #lea", { hasMedia: true }));
     expect(out).toMatchObject({ kind: "reply" });
-    expect((out as { reply: { reply: string } }).reply.reply).toBe("Je ne range pas ce média : Rencontres, ce n'est pas ton équipe (tu t'occupes de Casino). Demande à Mathéo.");
+    expect((out as { reply: { reply: string } }).reply.reply).toMatch(/ne (le )?range pas.*Rencontres, ce n'est pas ton équipe \(tu t'occupes de Casino\)\. (Demande à|Tu vois avec) Mathéo/);
     expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "#casino #roulette", { hasMedia: true }))).toMatchObject({ kind: "media" });
     const noTeam = await bossTeamIncoming(kit.deps, kit.msg(LEA, "#photo", { hasMedia: true }));
     expect((noTeam as { reply: { reply: string } }).reply.reply).toContain("il manque l'équipe");
@@ -464,7 +514,7 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     const a = await bossTeamIncoming(kit.deps, kit.msg(STRANGER, KEY));
     const b = await bossTeamIncoming(kit.deps, kit.msg(STRANGER, `encore ${KEY}`));
     expect(a).toMatchObject({ kind: "secret" });
-    expect((a as { ifDeleted: string }).ifDeleted).toContain("J'ai effacé ce message");
+    expect((a as { ifDeleted: string }).ifDeleted).toMatch(/effacé/);
     expect(b).toMatchObject({ kind: "secret", ifDeleted: "", ifNotDeleted: "" });
     kit.advance(86_400_000);
     expect(((await bossTeamIncoming(kit.deps, kit.msg(STRANGER, KEY))) as { ifDeleted: string }).ifDeleted).not.toBe("");
@@ -479,11 +529,11 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     const lea = { kind: "member", telegramUserId: LEA, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
     const deps = { ...kit.deps, speaker: lea, chat, mentions: [{ username: "marc" }] };
     const other = await modifierMembre.execute(deps as never, { personne: "@marc", note: "absent demain" }, actor);
-    expect(other.reply).toBe("Ça, c'est Mathéo qui décide.");
+    expect(CATALOG_TEAM_VARIANTS.adminDecides({ name: "Mathéo" })).toContain(other.reply);
     const self = await modifierMembre.execute({ ...deps, mentions: [] } as never, { personne: "moi", note: "préviens-moi le matin" }, actor);
     expect(self.reply).toContain("note : « préviens-moi le matin »");
     const tasks = await modifierMembre.execute({ ...deps, mentions: [] } as never, { personne: "moi", equipes: "dating" }, actor);
-    expect(tasks.reply).toBe("Ça, c'est Mathéo qui décide.");
+    expect(CATALOG_TEAM_VARIANTS.adminDecides({ name: "Mathéo" })).toContain(tasks.reply);
   });
 
   it("5. erreur : « Oups… » pour l'admin ou un membre qui s'adressait à Kevin ; silence pour les autres", async () => {
@@ -494,8 +544,8 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     (kit.prisma.humanRequest as { findMany: unknown }).findMany = vi.fn(async () => {
       throw new Error("panne");
     });
-    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: BOSS_TEAM_ERROR_REPLY } });
-    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: BOSS_TEAM_ERROR_REPLY } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/ton message/) } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "Kevin, état"))).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/ton message/) } });
     expect((await bossTeamIncoming(kit.deps, kit.msg(LEA, "on mange où ?"))).kind).toBe("ignore");
     expect((await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "Kevin, état"))).kind).toBe("ignore");
     (kit.prisma.humanRequest as { findMany: unknown }).findMany = orig;
@@ -544,7 +594,7 @@ describe("relecture adverse : corrections du correcteur 2", () => {
   it("9. rapport du matin : privé détaillé + résumé dans le groupe ; refusé en privé → rien dans le groupe, sauf réglage explicite", async () => {
     const kit = await teamKit();
     await withGroup(kit);
-    const groupCount = () => kit.groupSent.filter((m) => m.chatId === GROUP && m.html.includes("Bonjour l'équipe")).length;
+    const groupCount = () => kit.groupSent.filter((m) => m.chatId === GROUP && /^(Bonjour|Salut|Hello) l'équipe/.test(m.html)).length;
     const privCount = () => kit.sent.filter((m) => m.html.includes("Rapport des agents")).length;
     expect((await sendDailyReport(kit.deps, { force: true })).sent).toBe(true);
     expect([privCount(), groupCount()]).toEqual([1, 1]);
@@ -560,11 +610,11 @@ describe("relecture adverse : corrections du correcteur 2", () => {
     const kit = await teamKit();
     await withGroup(kit);
     await addLea(kit);
-    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: BOSS_GROUP_VOICE_REPLY } });
-    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: BOSS_GROUP_VOICE_REPLY } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(LEA, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/vocaux/) } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(ADMIN, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).toMatchObject({ kind: "reply", reply: { reply: expect.stringMatching(/vocaux/) } });
     expect((await bossTeamIncoming(kit.deps, kit.msg(LEA, "", { hasVoice: true }))).kind).toBe("ignore");
     // Un inconnu : au plus « je ne te connais pas encore », jamais le traitement du vocal.
-    expect(await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).not.toMatchObject({ reply: { reply: BOSS_GROUP_VOICE_REPLY } });
+    expect(await bossTeamIncoming(kit.deps, kit.msg(STRANGER, "", { hasVoice: true, replyTo: { messageId: 5000, fromId: BOT.telegramId } }))).not.toMatchObject({ reply: { reply: expect.stringMatching(/vocaux/) } });
     expect(kit.llm.calls.interpret).toHaveLength(0);
   });
 });

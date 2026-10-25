@@ -6,7 +6,7 @@
 import { addDaysToDay, fromParis, parisDay, parisParts } from "../../rules/time";
 import { isAgentsPausedAll, toTeamSettings } from "../../missions/settings";
 import { TEAM_LABELS, type AdminButton, type AgentsDeps, type TeamKey, type TeamSettings } from "../../types";
-import { activeOverridesFor } from "../run";
+import { activeOverridesFor } from "../overrides";
 
 /** Résultat d'une vue : faits structurés (seule source des chiffres) et lignes écrites par le code à partir d'eux. */
 export type ViewResult = {

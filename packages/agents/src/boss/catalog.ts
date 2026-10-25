@@ -15,6 +15,8 @@ import { READ_ACTIONS, READ_HIDDEN_ACTIONS } from "./catalog-read";
 import { TEAM_ACTIONS } from "./catalog-teams";
 import { UNIVERSE_ACTIONS } from "./catalog-univers";
 import { INSPIRATION_ACTIONS } from "./catalog-inspiration";
+import { VIEW_ACTIONS } from "./catalog-view";
+import { ORDER_ACTIONS } from "./catalog-orders";
 import { bossHelpText } from "./help";
 import { bossStartReply } from "./guide";
 import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
@@ -66,7 +68,7 @@ export const annule = defineAction<Empty>({
 
 export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown as BossAction[];
 
-export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
+export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...VIEW_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
 const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS].map((a) => [a.key, a]));
@@ -80,7 +82,7 @@ export function bossAction(key: string, opts: { includeHidden?: boolean } = {}):
 }
 
 /** Outils spéciaux de l'interprète (jamais exécutés comme des actions). */
-export const BOSS_SPECIAL_TOOLS = ["preciser", "repondre_question", "pas_prevu"] as const;
+export const BOSS_SPECIAL_TOOLS = ["preciser", "repondre_question", "ordre_equipe", "pas_prevu"] as const;
 
 /**
  * La personne qui parle peut-elle faire cette action elle-même ? Admin : tout. Membre présenté : selon son rôle et ses

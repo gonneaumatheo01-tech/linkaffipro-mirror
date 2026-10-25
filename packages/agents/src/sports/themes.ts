@@ -182,3 +182,8 @@ export async function marketsAvailable(
     };
   return { ok: true, theme: t, events: counts.events, withOdds: n, source: counts.source };
 }
+
+/** Thèmes de paris connus (clé, libellé, synonymes, marchés), dans l'ordre du dictionnaire. */
+export function listBetThemes(): SportsTheme[] {
+  return SPORTS_THEMES.map((t) => ({ ...t, synonyms: [...t.synonyms], marketTypes: [...t.marketTypes] }));
+}

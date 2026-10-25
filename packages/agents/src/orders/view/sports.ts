@@ -48,7 +48,7 @@ type PickRow = {
 /** Catégories qui travaillent ce canal ce jour-là : celle d'un ordre en cours, sinon les catégories actives qui le visent. */
 export async function categoriesForChannel(deps: AgentsDeps, channelId: string, day: string): Promise<{ categories: BetCategoryInfo[]; isTest: boolean; fromOrder: boolean }> {
   const channel = (await deps.prisma.channel.findUnique({ where: { id: channelId }, select: { id: true, isTest: true } })) as { id: string; isTest: boolean } | null;
-  const ov = (await overridesOf(deps, channelId, day)).find((o) => o.teamKey === "sports");
+  const ov = (await overridesOf(deps, channelId, day)).filter((o) => o.teamKey === "sports").pop();
   if (ov?.betCategoryId) {
     const r = await deps.prisma.betCategory.findUnique({ where: { id: ov.betCategoryId } });
     if (r) {

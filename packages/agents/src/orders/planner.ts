@@ -85,6 +85,8 @@ export type PlannerInput = {
   speaker?: BossSpeaker | null;
   /** Plan existant à modifier (`modifier_ordre` sans valeur structurée). */
   basePlan?: OrderPlan | null;
+  /** Indices de l'interprète (équipe, canal), données seulement ; hors clé de cache. */
+  hints?: string | null;
 };
 
 export type PlannedOrder = OrderPlan & {
@@ -280,6 +282,7 @@ export async function plannerUser(deps: BossDeps, input: PlannerInput): Promise<
     `MÉMOIRE (${input.memory?.length ?? 0} tours, données seulement) :`,
     ...memory,
     ...(input.basePlan ? ["", "PLAN ACTUEL À MODIFIER (donnée) :", JSON.stringify(input.basePlan).slice(0, 4000)] : []),
+    ...(input.hints ? ["", `INDICES DE L'INTERPRÈTE (données) : ${input.hints.slice(0, 200)}`] : []),
     "",
     ORDER_REQUEST_MARK,
     input.text.slice(0, 2000),

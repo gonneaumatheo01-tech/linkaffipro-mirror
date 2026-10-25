@@ -128,7 +128,7 @@ describe("cycle d'une confirmation", () => {
     const yes = await bossFastPath(kit.deps, kit.input("OUI"));
     expect(reply(yes)).toContain("en vrai ✅");
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")).toMatchObject({ simulation: false });
-    expect(reply(await bossFastPath(kit.deps, kit.input("oui")))).toBe("Rien à confirmer.");
+    expect(CONFIRM_VARIANTS.nothingToConfirm).toContain(reply(await bossFastPath(kit.deps, kit.input("oui"))));
     // Retour en simulation : immédiat.
     const back = await bossAiTurn({ ...kit.deps, llm: (await createBossKit([["remets en simulation", { name: "simulation", input: { equipe: "casino", mode: "simulation" } }]])).llm }, kit.input("remets en simulation"));
     expect(back.reply).toContain("en simulation");
@@ -137,11 +137,11 @@ describe("cycle d'une confirmation", () => {
   it("NON et « annule » : rien ne change", async () => {
     const kit = await createBossKit([["passe le casino en vrai", VRAI]]);
     await askVrai(kit);
-    expect(reply(await bossFastPath(kit.deps, kit.input("non")))).toContain("rien n'a changé");
+    expect(reply(await bossFastPath(kit.deps, kit.input("non")))).toMatch(/rien n'a changé|rien n'a bougé|rien touché/i);
     await askVrai(kit);
-    expect(reply(await bossFastPath(kit.deps, kit.input("annule")))).toContain("rien n'a changé");
+    expect(reply(await bossFastPath(kit.deps, kit.input("annule")))).toMatch(/rien n'a changé|rien n'a bougé|rien touché/i);
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.simulation ?? true).toBe(true);
-    expect(reply(await bossFastPath(kit.deps, kit.input("annule")))).toBe("Rien à annuler.");
+    expect(CONFIRM_VARIANTS.nothingToCancel).toContain(reply(await bossFastPath(kit.deps, kit.input("annule"))));
   });
 
   it("expiration après 10 minutes", async () => {
@@ -159,7 +159,7 @@ describe("cycle d'une confirmation", () => {
     ]);
     await askVrai(kit);
     const second = await bossAiTurn(kit.deps, kit.input("passe à cinq posts par jour sur Léa"));
-    expect(second.reply).toContain("La confirmation précédente est annulée");
+    expect(second.reply).toMatch(/remplace ta demande d'avant|J'oublie la demande d'avant/);
     await bossFastPath(kit.deps, kit.input("oui"));
     expect(kit.tables("channelAgentPlan").find((p) => p.channelId === kit.ids.chLea)).toMatchObject({ postsPerDay: 5 });
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.simulation ?? true).toBe(true);
@@ -174,7 +174,7 @@ describe("cycle d'une confirmation", () => {
     expect(kit.tables("agentTeamConfig").find((t) => t.teamKey === "casino")?.simulation ?? true).toBe(true);
     const ok = await handleBossCallback(kit.deps, { data: yes, fromTelegramId: 4242n });
     expect(ok.reply).toContain("en vrai");
-    expect((await handleBossCallback(kit.deps, { data: yes, fromTelegramId: 4242n })).reply).toContain("n'existe plus");
+    expect(CONFIRM_VARIANTS.noLongerExists).toContain((await handleBossCallback(kit.deps, { data: yes, fromTelegramId: 4242n })).reply);
   });
 
   it("un membre (mode groupe) ne peut pas confirmer", async () => {

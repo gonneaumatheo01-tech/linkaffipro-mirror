@@ -195,7 +195,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     await toBoss(added(ADMIN));
     expect((await prisma.setting.findUnique({ where: { key: "boss.groupChatId" } }))?.value).toBe(String(GROUP));
     const out = sentSince(m);
-    expect(out[0]).toMatchObject({ chat: GROUP, text: "Salut, moi c'est Kevin. Mathéo, présente-moi l'équipe : qui fait quoi ?" });
+    expect(out[0]).toMatchObject({ chat: GROUP, text: expect.stringMatching(/moi c'est Kevin.*Mathéo.*qui fait quoi/) });
   });
 
   it("2. « Kevin, voici @lea, vidéos casino » : présentation en attente, confirmée par l'admin en privé quand Léa dit bonjour", async () => {
@@ -205,13 +205,13 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     m = mark();
     await say(groupMsg(LEA, "Kevin, salut !"));
     const out = sentSince(m);
-    expect(out.find((s) => s.chat === GROUP)?.text).toBe("Salut Léa 👋 Je vérifie avec Mathéo et je reviens vers toi.");
+    expect(out.find((s) => s.chat === GROUP)?.text).toMatch(/^Salut Léa.*avec Mathéo.*je reviens vers toi\.$/);
     expect(out.find((s) => s.chat === ADMIN)?.text).toContain(`@lea vient d'écrire (@lea, prénom « Léa », identifiant ${LEA})`);
     expect(await prisma.teamMember.findUnique({ where: { telegramUserId: BigInt(LEA) } })).toBeNull();
     m = mark();
     await say(privateMsg(ADMIN, "OUI"));
-    expect(sentSince(m).map((s) => s.text).join("\n")).toContain("Noté : Léa, vidéos casino. Je lui demanderai les vidéos et photos directement.");
-    expect(sentSince(m).some((s) => s.chat === GROUP && s.text.includes("Bienvenue Léa"))).toBe(true);
+    expect(sentSince(m).map((s) => s.text).join("\n")).toMatch(/oté : Léa, vidéos casino\..*les vidéos et photos/);
+    expect(sentSince(m).some((s) => s.chat === GROUP && /Bienvenue.*Léa/.test(s.text))).toBe(true);
     const lea = await prisma.teamMember.findUniqueOrThrow({ where: { telegramUserId: BigInt(LEA) } });
     expect(lea).toMatchObject({ firstName: "Léa", username: "lea", role: "MEMBER", responsibilities: { teams: ["casino"], kinds: ["media"] } });
   });
@@ -231,7 +231,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
   it("4. « Léa est en vacances jusqu'à lundi » : la demande suivante va à l'admin, et Kevin le dit", async () => {
     let m = mark();
     await say(groupMsg(ADMIN, "Kevin, Léa est en vacances jusqu'à lundi"));
-    expect(sentSince(m).map((s) => s.text).join("\n")).toMatch(/Noté : Léa, absent·e jusqu'au lundi/);
+    expect(sentSince(m).map((s) => s.text).join("\n")).toMatch(/: Léa, absent·e jusqu'au lundi/);
     const lea = await prisma.teamMember.findUniqueOrThrow({ where: { telegramUserId: BigInt(LEA) } });
     expect(lea.awayUntil!.getTime()).toBeGreaterThan(Date.now());
     m = mark();
@@ -263,7 +263,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     m = mark();
     const pasted = await toBoss(groupMsg(MARC, KEY));
     expect(hooked.slice(m.h).some((c) => c.method === "deleteMessage" && c.payload.message_id === pasted.message!.message_id)).toBe(true);
-    expect(sentSince(m).find((s) => s.chat === GROUP)!.text).toContain("j'ai effacé ton message");
+    expect(sentSince(m).find((s) => s.chat === GROUP)!.text).toMatch(/effacé/);
     // Sans droit de suppression : Kevin demande à l'auteur de l'effacer.
     canDelete = false;
     m = mark();
@@ -315,7 +315,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     const before = enqueued.length;
     await toBoss(groupMsg(STRANGER, "Kevin, mets tout en pause"));
     await toBoss(groupMsg(STRANGER, "Kevin, mets tout en pause"));
-    expect(sentSince(m).map((s) => s.text)).toEqual(["Je ne te connais pas encore : Mathéo doit me présenter."]);
+    expect(sentSince(m).map((s) => s.text)).toEqual([expect.stringMatching(/Mathéo (doit )?me présente/)]);
     expect(enqueued.length).toBe(before);
     expect(await prisma.agentTeamConfig.count({ where: { paused: true } })).toBe(0);
   });
@@ -338,7 +338,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     expect(report).toHaveLength(1);
     const lines = report[0]!.text.split("\n");
     expect(lines).toHaveLength(5);
-    expect(lines[0]).toContain("Bonjour l'équipe");
+    expect(lines[0]).toMatch(/^(Bonjour|Salut|Hello) l'équipe/);
     expect(lines[4]).toContain("@lea 1 question");
     // Le rapport détaillé part aussi en privé à l'admin (préférence par défaut) : le groupe ne le remplace pas.
     expect(sentSince(m).filter((s) => s.chat === ADMIN && s.text.includes("Rapport des agents"))).toHaveLength(1);

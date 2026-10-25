@@ -5,42 +5,28 @@
  * tests de B remplacent ce module (`vi.mock("./ports")`).
  */
 import type { AgentsDeps } from "../types";
-import type { Capability, OrderFacts, OrderPlan, OrderRow, OrderStep } from "./contract";
+import type { Capability, OrderPlan, OrderStep } from "./contract";
 import { capability as registryCapability, listCapabilities as registryList } from "./registry";
 import { extendOrder as aExtend, modifyOrder as aModify, runOrder as aRun, stopOrder as aStop } from "./run";
-import { setOrderEventHook as aSetHook } from "./tick";
-import { listBetThemes } from "../sports/themes";
+import { setOrderEventHook as aSetHook, type OrderEvent } from "./events";
+import { SPORTS_THEMES } from "../sports/themes";
+
+export type { OrderEvent, OrderEventType } from "./events";
 
 export type AnyCapability = Capability<Record<string, unknown>>;
 
-/** Événements du suivi d'un ordre (tâche `orders-tick` du chantier A). */
-export type OrderEventType = "started" | "day_done" | "finished" | "failures" | "blocked";
-export type OrderEvent = {
-  type: OrderEventType;
-  order: OrderRow;
-  /** Jour concerné (AAAA-MM-JJ Paris) pour `day_done`. */
-  day?: string | null;
-  /** Chiffres déjà rassemblés par la capacité (`report`), sinon Kevin les demande. */
-  facts?: OrderFacts | null;
-  /** Motif (incident) en français. */
-  reason?: string | null;
-};
 
 export function listCapabilities(): AnyCapability[] {
   return registryList() as unknown as AnyCapability[];
 }
 
 export function capability(teamKey: string, key: string): AnyCapability | null {
-  return (registryCapability(teamKey as never, key) as unknown as AnyCapability | null | undefined) ?? null;
+  return (registryCapability(teamKey, key) as unknown as AnyCapability | null | undefined) ?? null;
 }
 
 /** Thèmes de paris connus (clé, libellé, synonymes) : `sports/themes.ts`. */
 export function knownBetThemes(): { key: string; label: string }[] {
-  try {
-    return (listBetThemes() as { key: string; label?: string; name?: string }[]).map((t) => ({ key: t.key, label: t.label ?? t.name ?? t.key }));
-  } catch {
-    return [];
-  }
+  return SPORTS_THEMES.map((t) => ({ key: t.key, label: t.label }));
 }
 
 /** Lance un ordre validé (`TeamOrder` existant) : dérogations, missions, réglages posés par le Grand Chef. */
@@ -71,8 +57,8 @@ export async function modifyOrder(
   return normalizeResult(r);
 }
 
-export function setOrderEventHook(hook: (deps: AgentsDeps, event: OrderEvent) => Promise<void>): void {
-  aSetHook(hook as never);
+export function setOrderEventHook(hook: ((deps: AgentsDeps, event: OrderEvent) => Promise<void>) | null): void {
+  aSetHook(hook);
 }
 
 function normalizeResult(r: unknown): { ok: boolean; message?: string } {

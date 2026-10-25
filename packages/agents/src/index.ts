@@ -323,3 +323,52 @@ import "./inspiration/keep-action";
 export * from "./inspiration/sources/userbot-mailbox";
 export * from "./orders/contract";
 export * from "./boss/voice";
+// Chantier C (phase 33) : annuaire des agents, vues en lecture seule de Kevin (plan, programmé, paris, matchs, fait, pourquoi).
+export { AGENT_DIRECTORY, agentDirectory, agentEntry, findAgent, agentCard, agentAbilities, orderTeamLabel, type AgentEntry, type AgentKind, type FindAgentResult, type AgentCardOptions } from "./orders/agents-dict";
+export { viewPlan, planLines, mixLabel, nextPassageOf, type ViewPlanInput, type PlanEntry } from "./orders/view/plan";
+export { viewScheduled, scheduledLines, type ViewScheduledInput, type ScheduledItem } from "./orders/view/scheduled";
+export { viewSportsChannel, previewSportsPicks, categoriesForChannel, type PreviewCandidate } from "./orders/view/sports";
+export { viewMatches, matchLines, registerBookmakerMatchLister, sportIdOf, bookKey, type ViewMatchesInput, type MatchesResult, type BookmakerMatch, type BookmakerMatchLister, type MatchesDeps } from "./orders/view/matches";
+export { viewDone, pendingValidations, validationLines, failureText, type ViewDoneInput } from "./orders/view/done";
+export { whyNothing, WHY_CAUSES, type WhyCause, type WhyFinding } from "./orders/view/why";
+export { slotRange, resolveDay, fitLines, VIEW_MAX_LINES, DAY_SLOTS, type DaySlot, type ViewResult } from "./orders/view/common";
+export { VIEW_ACTIONS, VIEW_ACTION_KEYS, viewReply } from "./boss/catalog-view";
+// Phase 33, chantier B : Kevin comprend, planifie, récapitule, fait confirmer, suit les ordres.
+export {
+  openOrders,
+  orderById,
+  findOrderRef,
+  ordersMemoryLines,
+  orderShortLine,
+  periodLabel,
+  ORDER_STATUS_LABELS,
+  FUTURE_TEAMS,
+  type TeamOrderRow,
+  type StoredInterpretation,
+} from "./orders/current";
+export { planOrder, plannerContext, plannerUser, normalizePlannerOutput, defaultStartDay as defaultOrderStartDay, planCacheKeyOf, PLANNER_SYSTEM, type PlanResult, type PlannedOrder, type PlannerInput } from "./orders/planner";
+export { validatePlan, findOverlap, clampParams, type ValidatedPlan, type ValidatedStep, type ImpossibleOut, type ValidationStatus } from "./orders/validate";
+export {
+  orderRecap,
+  submitOrder,
+  classifyOrder,
+  recapWhatLine,
+  recapAdjustLine,
+  startOrder,
+  confirmOrderLaunch,
+  replayAlternative,
+  resolveOverlapChoice,
+  orderQuickCancel,
+  ORDER_CONFIRM_ACTION,
+  ORDER_ALTERNATIVE_ACTION,
+  ORDER_OVERLAP_ACTION,
+  ORDER_QUICK_CANCEL_SETTING,
+  type OrderClass,
+  type OrderReply,
+  type OrderSubmitContext,
+} from "./orders/recap";
+export { handleOrderRequest, sweepStaleOrderConfirmations } from "./orders/request";
+export { sendOrderReport, orderReportText, installOrderReports } from "./orders/reports";
+export { recordOrderUnmet, weeklyUnmetLines, groupUnmet, unmetGroupLine, isUnmetDigestDay, type UnmetGroup } from "./orders/unmet";
+export { ORDER_ACTIONS, ORDER_INTERNAL_KEYS, orderStatusLines, applyModification, orderTeamOf } from "./boss/catalog-orders";
+export type { BossLlmExt, FakePlanner } from "./boss/llm";

@@ -451,9 +451,16 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
 export async function submitOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSubmitContext): Promise<OrderReply> {
   const chatId = ctx.chat?.chatId ?? null;
   const order = await writeOrder(deps, v, ctx, { status: "DRAFT", recap: "" });
-  // Ce qui n'a pas pu être pris est noté (bilan hebdomadaire).
-  for (const i of v.impossible)
-    await recordOrderUnmet(deps, { text: ctx.requestText, part: i.part, teamKey: i.teamKey ?? null, suggestedCapability: i.suggestedCapability ?? null, orderId: order.id });
+  // Ce qui n'a pas pu être pris est noté une fois par demande (bilan hebdomadaire).
+  const firstImpossible = v.impossible[0];
+  if (firstImpossible && !ctx.orderId)
+    await recordOrderUnmet(deps, {
+      text: ctx.requestText,
+      part: firstImpossible.part,
+      teamKey: firstImpossible.teamKey ?? null,
+      suggestedCapability: firstImpossible.suggestedCapability ?? null,
+      orderId: order.id,
+    });
   if (v.status === "overlap" && v.overlap) {
     const names = await channelNames(deps, [v.overlap.channelId]);
     const where = names.get(v.overlap.channelId)?.name ?? "ce canal";

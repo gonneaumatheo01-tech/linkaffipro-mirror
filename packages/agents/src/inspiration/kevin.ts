@@ -72,7 +72,9 @@ export function biggestGaps(c: ChannelComparison | null, n = 2): InspirationGap[
 function valueText(v: number | string | null, unit?: string): string {
   if (v === null) return "?";
   if (typeof v === "string") return v;
-  return unit === "%" ? `${fr(v)} %` : unit ? `${fr(v)} ${unit}` : fr(v);
+  // « 1 post », jamais « 1 posts ».
+  const u = unit === "posts" && Math.abs(v) <= 1 ? "post" : unit;
+  return u === "%" ? `${fr(v)} %` : u ? `${fr(v)} ${u}` : fr(v);
 }
 
 /** « Posts par jour : 4,2 chez eux contre 1 chez nous » (pur). */

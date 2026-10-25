@@ -13,6 +13,7 @@ import { TEAM_KEYS, TEAM_LABELS, isTeamKey, type AgentsDeps, type TeamKey } from
 import { activeBossGroup } from "./group";
 import { activeTeamMembers, adminMention, kindForRequest, mentionHtml, parisDateLabel, pickResponsibleFrom, teamForKey, type TeamMemberRow } from "./members";
 import { pick, voiceTemplate, type VoiceTable } from "../voice";
+import { AUTO_PAUSE_REASON } from "../../orchestrator/pause";
 
 export type MorningFigures = {
   day: string;
@@ -141,7 +142,9 @@ export async function morningFigures(deps: AgentsDeps): Promise<MorningFigures> 
   if (pausedAll) blockers.push("pause générale");
   for (const t of TEAM_KEYS) {
     const c = cfg.get(t);
-    if (c?.paused) blockers.push(`${TEAM_LABELS[t]} en pause${c.pausedReason ? ` (${c.pausedReason})` : ""}`);
+    // La raison de la pause automatique parle de « missions » : jamais ce mot dans un texte envoyé.
+    const reason = c?.pausedReason === AUTO_PAUSE_REASON ? "3 posts ratés de suite" : c?.pausedReason;
+    if (c?.paused) blockers.push(`${TEAM_LABELS[t]} en pause${reason ? ` (${reason})` : ""}`);
   }
   for (const u of usage as { teamKey: string; provider: string }[])
     if (isTeamKey(u.teamKey)) blockers.push(`plafond ${u.provider === "video" ? "vidéo" : u.provider === "llm" ? "IA" : u.provider} atteint (${TEAM_LABELS[u.teamKey]})`);

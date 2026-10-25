@@ -51,6 +51,7 @@ import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
+import { orderQuickCancel } from "../orders/recap";
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
 
 /** Textes fixes du chemin rapide (charte `docs/KEVIN-VOIX.md`). */
@@ -280,7 +281,8 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     const clarifyNow = await readClarify(deps);
     // Toute question ouverte compte (texte, choix, confirmation), et la précision du Boss.
     const otherQuestionAt = Math.max(current ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
-    const insp = await inspirationFastPath(deps, input, {
+    // Phase 33 : « annule » dans la minute qui suit un ordre lancé sans confirmation (chantier B, `orders/recap.ts`).
+    const insp = (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired })) ?? await inspirationFastPath(deps, input, {
       word,
       pendingOpen: !!pending && !pending.expired,
       otherQuestionAt,

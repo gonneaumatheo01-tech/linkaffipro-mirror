@@ -394,7 +394,7 @@ const ID_KEYS: Record<string, keyof NameLookup> = {
 export function valueText(value: unknown, key = "", names: NameLookup = {}): string {
   const lookup = ID_KEYS[key] ? names[ID_KEYS[key]] : undefined;
   const named = (v: unknown) => {
-    if (typeof v === "string" && lookup && "get" in lookup) return (lookup as ReadonlyMap<string, string>).get(v) ?? v;
+    if (typeof v === "string") return lookup && "get" in lookup ? ((lookup as ReadonlyMap<string, string>).get(v) ?? v) : v;
     return valueText(v, "", names);
   };
   if (value === null || value === undefined || value === "") return "—";

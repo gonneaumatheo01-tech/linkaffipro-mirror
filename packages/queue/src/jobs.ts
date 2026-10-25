@@ -240,6 +240,8 @@ export type AgentsOrchestratorJob =
   /** Phase 27 (Kevin) : réponse groupée aux posts transférés (une minute après le premier), puis analyse éventuelle. */
   | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
+  /** Phase 33 : suivi des ordres de Kevin (`tickOrders` : progression, fin, reprise après redémarrage), toutes les 10 min. */
+  | { type: "orders-tick" }
   | { type: "report"; force?: boolean }
   | { type: "human-requests" }
   | { type: "validations" }

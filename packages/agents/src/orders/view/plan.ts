@@ -139,7 +139,8 @@ async function planEntry(deps: AgentsDeps, ctx: Ctx, c: ChannelRow, day: string,
   const now = nowOf(deps);
   const plan = ctx.plans.get(c.id);
   const overrides: OverrideView[] = await overridesOf(deps, c.id, day);
-  const ov = overrides[0] ?? null;
+  // Même règle que le Grand Chef : la dérogation la plus récente du jour l'emporte.
+  const ov = overrides[overrides.length - 1] ?? null;
   const team = ov && isTeamKey(ov.teamKey) ? ov.teamKey : baseTeamOf(c, plan);
   const entry: PlanEntry = {
     channelId: c.id,
@@ -181,8 +182,8 @@ async function planEntry(deps: AgentsDeps, ctx: Ctx, c: ChannelRow, day: string,
     entry.perDay = ov?.picksPerDay ?? cats.reduce((n, k) => n + k.picksPerDay, 0);
     entry.source = ov ? "ordre" : cats.length ? "categories" : "aucun";
     entry.enabled = cats.length > 0;
-    entry.windowStart = null;
-    entry.windowEnd = null;
+    entry.windowStart = ov?.windowStart ?? null;
+    entry.windowEnd = ov?.windowEnd ?? null;
     entry.format = null;
     const picks = cats.length
       ? ((await deps.prisma.bettingPick.findMany({
@@ -196,11 +197,11 @@ async function planEntry(deps: AgentsDeps, ctx: Ctx, c: ChannelRow, day: string,
     return entry;
   }
 
-  entry.perDay = ov?.postsPerDay ?? plan?.postsPerDay ?? 0;
+  entry.perDay = ov ? Math.max(0, ov.postsPerDay ?? 0) : (plan?.postsPerDay ?? 0);
   if (team && !chainOf(team).active) entry.blocked = entry.blocked ?? "équipe sans agents de production";
   if (team === "algo") entry.blocked = entry.blocked ?? "l'équipe Algorithme ne publie rien";
   const existing = (await deps.prisma.agentMission.findMany({
-    where: ov?.isTest || c.isTest ? { channelId: c.id, planDay: day, status: { not: "CANCELLED" } } : { channelId: c.id, planDay: day, isTest: false, createdBy: "GRAND_CHEF" },
+    where: ov ? { orderId: ov.orderId, channelId: c.id, planDay: day } : { channelId: c.id, planDay: day, isTest: false, createdBy: "GRAND_CHEF" },
     select: { channelId: true },
   })) as Array<{ channelId: string | null }>;
   entry.created = existing.length;
@@ -217,7 +218,8 @@ async function channelsFor(deps: AgentsDeps, ctx: Ctx, input: ViewPlanInput, day
   const out: ChannelRow[] = [];
   for (const c of ctx.channels) {
     const plan = ctx.plans.get(c.id);
-    const ov = (await overridesOf(deps, c.id, day))[0];
+    const ovs = await overridesOf(deps, c.id, day);
+    const ov = ovs[ovs.length - 1];
     const team = ov && isTeamKey(ov.teamKey) ? ov.teamKey : baseTeamOf(c, plan);
     const concerned = !!plan || !!ov || (team === "sports" && ctx.sportsCats.some((k) => k.channelIds.includes(c.id)));
     if (!concerned) continue;

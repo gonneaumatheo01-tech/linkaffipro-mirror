@@ -183,7 +183,7 @@ async function notYours(deps: BossDeps): Promise<BossReply> {
   return { reply: pick(V.notYours({ name: esc(name) }), "read.notYours", chatOf(deps)) };
 }
 
-export const SECRET_ANSWER_HINT = CATALOG_READ_VARIANTS.secretHint[0];
+export const SECRET_ANSWER_HINT = CATALOG_READ_VARIANTS.secretHint[0]!;
 const secretHint = (deps: BossDeps) => pick(V.secretHint, "read.secretHint", chatOf(deps));
 
 export const repondreDemande = defineAction<AnswerP>({

@@ -263,6 +263,30 @@ Les rapports sont envoyés par Telegram (résumé + lien vers le détail sur la 
 
 L'agent recommande, il n'agit pas sur les plateformes publicitaires (pas de modification de budget ou d'arrêt automatique de pub). Chaque recommandation est un conseil que l'équipe applique ou non.
 
+## Ordres de Kevin (phase 33)
+
+Depuis la phase 33, une demande libre de l'admin à une équipe (« sur le canal de test faisons comme si c'était un canal Paris sportifs, programme les paris pour 3 jours, avec comme thème les hors-jeux ») devient un **ordre** (`TeamOrder`, numéro court « ordre n°12 ») au lieu d'un « je ne sais pas encore faire ça ». Contrat figé : `packages/agents/src/orders/contract.ts`.
+
+### La chaîne (aucun raccourci)
+
+admin → **Kevin** (`boss/`, outil `ordre_equipe`) → **planificateur** (`orders/planner.ts` : plan JSON strict à partir du contexte réel fourni par le code) → **validation par le code** (`orders/validate.ts` : chaque étape ↔ une capacité du registre, `parse` + `check` + bornes + chevauchement) → **récapitulatif** (`orders/recap.ts`, 3 lignes) et confirmation (OUI pour un vrai canal, le mode vrai, une dépense ou plus de 7 jours ; lancement immédiat avec « annule » pendant 60 s pour le canal Test en simulation) → **Grand Chef** (`orders/run.ts`) → **Chef de l'équipe** (capacité) → **agents** → Chef → Grand Chef (tâche `orders-tick`, événements `agents.order.<started|day_done|finished|failures|blocked>`) → **Kevin** (rapports au lancement, un par jour, bilan de fin). Aucun agent ne reçoit d'ordre directement : « dis à l'agent Rédaction d'écrire plus court » passe par son Chef (annuaire `orders/agents-dict.ts`).
+
+### Registre des capacités
+
+Une capacité = ce qu'une équipe sait faire, **déclaré en code** (`orders/capabilities/<équipe>.ts`, registre `orders/registry.ts` : `listCapabilities()`, `capability(équipe, clé)`) : `teamKey`, `key`, une description en français (montrée à l'IA et à l'écran), les agents concernés, un schéma strict des paramètres + `parse`, des bornes (`maxDays`, `maxPerDay`, canaux `any` / `team` / `test`, modes), puis `check` (le réel : thème ↔ marché, persona, stock de médias), `plan` (ce qui sera créé, **sans rien écrire**), `run` (écrit, idempotent par `(orderId, stepKey)`, reprenable après un arrêt) et `report` (les chiffres des messages de Kevin, seule source de chiffres). Une équipe absente du registre n'est pas « ordonnable » : Kevin le dit et note la demande (`BossUnmet.teamKey`, `suggestedCapability`), visible dans Agents → Kevin → « Pas encore possible ». Ce qui est impossible est toujours nommé avec sa raison et 2 à 4 replis numérotés (`ImpossiblePart`, gardés dans `TeamOrder.impossible`).
+
+### Dérogations datées
+
+Un ordre ne modifie jamais le plan d'un canal (`ChannelAgentPlan`) : il pose une **dérogation** (`ChannelPlanOverride` : équipe, jours de Paris `fromDay` → `toDay`, quantité, catégorie de paris, thèmes, mélange, format, fenêtre, persona, `isTest`), lue par `orchestrator/plan-day.ts` **avant** le plan. Elle s'éteint seule après `toDay` ou est close (`closedAt`) quand l'ordre est arrêté ; le plan de base reprend. « Faire comme si » n'existe que sur le canal Test (simulation forcée). Les missions créées portent `AgentMission.orderId` ; une catégorie de paris créée pour un ordre (`BetCategory.createdByOrderId`, `expiresAt`) redevient inactive à la fin. Site : Agents → **Ordres** (`/agents/orders`, fiche `/agents/orders/<id>` : demande, récapitulatif, plan en mots, impossibles, missions, dérogation appelée « réglage temporaire » à l'écran, chronologie, Arrêter / Prolonger pour les ADMIN, `AuditLog` `agents.order_stopped` / `agents.order_extended`) et encart « Réglage temporaire en cours jusqu'au … (ordre n°…) » sur la fiche du canal.
+
+### Brancher une nouvelle équipe (phases 28 à 32)
+
+1. Ajouter la clé d'équipe à `OrderTeamKey` (contrat) et son nom affiché (site : `ORDER_TEAMS` / `orderTeamName` dans `apps/web/lib/agents/orders.ts`).
+2. Déclarer ses capacités dans `orders/capabilities/<équipe>.ts` à partir de fonctions **existantes** de l'équipe (aucune production cachée dans une capacité), avec leurs bornes et leurs agents, et les inscrire au registre.
+3. Ajouter ses agents à l'annuaire (`orders/agents-dict.ts`) avec leurs synonymes en français courant.
+4. Tests : un test par branche de `check` (ok, raison, replis), un test de `plan` sans écriture, `run` idempotent ; le test du registre vérifie que chaque capacité a description, schéma, `check`, `plan`, `run` et `report`.
+5. Kevin, le planificateur, la validation, les rapports, la page Ordres et la fiche canal n'ont rien à changer : ils lisent le registre. Les demandes déjà notées dans « Pas encore possible » pour cette équipe disent quelles capacités déclarer d'abord.
+
 ## Niveaux d'autonomie et garde-fous
 
 Le niveau se règle par équipe, dans Réglages → Agents, et se change à tout moment.

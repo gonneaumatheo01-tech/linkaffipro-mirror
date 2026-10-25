@@ -5,12 +5,14 @@
  */
 import { agentEvent } from "../admin/journal";
 import type { AgentsDeps } from "../types";
-import type { OrderFacts } from "./contract";
+import type { OrderFacts, OrderRow } from "./contract";
 
 export type OrderEventType = "started" | "day_done" | "finished" | "failures" | "blocked";
 
 export type OrderEvent = {
   type: OrderEventType;
+  /** Ordre tel que lu en base au moment de l'événement. */
+  order: OrderRow;
   orderId: string;
   number: number;
   teamKey: string;

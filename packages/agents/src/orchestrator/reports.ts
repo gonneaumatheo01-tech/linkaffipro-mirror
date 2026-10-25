@@ -8,6 +8,7 @@ import { escapeHtml } from "@linkaffipro/core";
 import { agentEvent, nowOf } from "../admin/journal";
 import { groupForMorning } from "../boss/team/group";
 import { sendGroupMorningReport } from "../boss/team/morning";
+import { isUnmetDigestDay, weeklyUnmetLines } from "../orders/unmet";
 import { FALLBACK_EVENT } from "../agents/media-ia/fallback";
 import { countFallbacks } from "../chiefs/dating-format";
 import { casinoFallbackNotes, CASINO_FALLBACK_EVENT, type CasinoFallback } from "../casino/format";
@@ -136,7 +137,11 @@ export async function sendDailyReport(deps: AgentsDeps, opts: { force?: boolean 
   let sentPrivate = false;
   if (deps.admin && privateEnabled) {
     try {
-      await deps.admin.send([`📋 <b>Rapport des agents</b> (${report.day})`, ...report.lines.map((l) => `• ${escapeHtml(l)}`)].join("\n"));
+      // Phase 33 : le lundi, bilan des demandes impossibles de la semaine (5 lignes au plus), par ajout.
+      const unmet = isUnmetDigestDay(now) ? await weeklyUnmetLines(deps).catch(() => [] as string[]) : [];
+      await deps.admin.send(
+        [`📋 <b>Rapport des agents</b> (${report.day})`, ...report.lines.map((l) => `• ${escapeHtml(l)}`), ...(unmet.length ? ["", ...unmet.slice(0, 5).map(escapeHtml)] : [])].join("\n"),
+      );
       sentPrivate = true;
     } catch (err) {
       deps.logger?.warn({ err: (err as Error).message }, "[agents] rapport non envoyé");

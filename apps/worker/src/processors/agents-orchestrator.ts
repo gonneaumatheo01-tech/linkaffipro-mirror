@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { bossDailyNudge, inspirationForwardAck, resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations } from "@linkaffipro/agents";
+import { bossDailyNudge, inspirationForwardAck, resumeMissions, runBench, runCycle, sendDailyReport, sweepHumanRequests, sweepValidations, tickOrders } from "@linkaffipro/agents";
 import type { AgentsOrchestratorJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { processAdminVoice } from "../agents/admin-voice";
@@ -12,6 +12,7 @@ import { logger } from "../logger";
  * File `agents-orchestrator` (phase 19, Grand Chef, logique programmée sans IA) :
  * - `cycle` : toutes les 30 min et à la demande (plan du jour, reprise, validations sans réponse, demandes, rapport de 9 h) ;
  * - `resume` : toutes les 10 min, missions sans activité depuis 15 min ré-enfilées ;
+ * - `orders-tick` (phase 33) : toutes les 10 min, suivi des ordres de Kevin (progression, fin, reprise après redémarrage) ;
  * - `human-requests` : toutes les 5 min, demandes au client (envoi de la suivante, rappel 24 h, expiration 7 jours),
  *   puis la relance quotidienne du Boss (phase 26, une par jour au plus, seulement si quelque chose bloque) ;
  * - `validations` : validations sans réponse (24 h : reportée + rappel ; 72 h : annulée) ;
@@ -35,6 +36,8 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
       return inspirationForwardAck(deps, data);
     case "resume":
       return resumeMissions(deps);
+    case "orders-tick":
+      return tickOrders(deps);
     case "human-requests": {
       const swept = await sweepHumanRequests(deps);
       // Phase 26 : relance quotidienne du Boss (une par jour au plus, seulement si quelque chose bloque ; ne lève jamais).
@@ -72,6 +75,7 @@ export async function processAgentsOrchestrator(job: Job<AgentsOrchestratorJob>)
 export const repeatableAgentsOrchestrator: Repeatable[] = [
   { data: { type: "cycle" }, everyMs: 30 * 60_000, jobId: "agents-cycle" },
   { data: { type: "resume" }, everyMs: 10 * 60_000, jobId: "agents-resume" },
+  { data: { type: "orders-tick" }, everyMs: 10 * 60_000, jobId: "agents-orders-tick" },
   { data: { type: "human-requests" }, everyMs: 5 * 60_000, jobId: "agents-human-requests" },
   { data: { type: "validations" }, everyMs: 15 * 60_000, jobId: "agents-validations" },
 ];

@@ -266,7 +266,7 @@ export const CATALOG_INSPIRATION_VARIANTS = {
 
 const V = CATALOG_INSPIRATION_VARIANTS;
 /** Conversation de la demande pour la rotation des variantes. */
-const cid = (deps: BossDeps) => deps.chat?.chatId ?? null;
+const cid = (deps: BossDeps) => (deps as { chat?: { chatId: bigint } | null }).chat?.chatId ?? null;
 
 // ------------------------------------------------------------------------------------------ choix numéroté
 
