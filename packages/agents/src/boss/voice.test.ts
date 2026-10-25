@@ -201,7 +201,9 @@ function tsFiles(dir: string, filter: (f: string) => boolean = () => true): stri
 }
 
 /** Ordres de Kevin (`orders/`) : textes envoyés par Kevin (récapitulatif, demandes, rapports, vues). */
-const KEVIN_ORDER_FILES = ["recap.ts", "request.ts", "reports.ts", "agent-order.ts", "current.ts"].map((f) => join(SRC_DIR, "orders", f));
+const KEVIN_ORDER_FILES = ["recap.ts", "request.ts", "reports.ts", "agent-order.ts", "current.ts", "run.ts", "tick.ts", "unmet.ts", "validate.ts", "ask.ts"].map((f) =>
+  join(SRC_DIR, "orders", f),
+);
 
 /** Autres textes envoyés par Kevin : commande « agents », rapport, questions au client, propositions d'inspiration. */
 const KEVIN_SHARED_FILES = [
@@ -222,7 +224,11 @@ const KEVIN_FILES = [
   ...KEVIN_ORDER_FILES,
   ...tsFiles(join(SRC_DIR, "orders", "view")),
   ...KEVIN_SHARED_FILES,
-];
+  // Relecture : textes envoyés par Kevin depuis les validations, les demandes au client et l'ancien dialogue admin.
+  ...tsFiles(join(SRC_DIR, "validation")),
+  ...tsFiles(join(SRC_DIR, "human"), (f) => !f.endsWith("test-kit.ts")),
+  ...tsFiles(join(SRC_DIR, "admin")),
+].filter((f, i, all) => all.indexOf(f) === i);
 
 describe("textes fixes de Kevin : toutes les tables *_VARIANTS", () => {
   beforeEach(() => resetVoiceRotation());
@@ -291,7 +297,7 @@ describe("textes fixes de Kevin : toutes les tables *_VARIANTS", () => {
 /** Consignes envoyées à l'IA (pas des textes de Kevin) : variables ou fonctions dont le nom le dit. */
 const PROMPT_NAME = /(SYSTEM|PROMPT|KEVIN_VOICE|KEVIN_REPORT_TONE|FORBIDDEN_PHRASES|JARGON_WORDS|_RULES$|_GUIDE$|system|Prompt|prompt|Instructions?)/;
 
-type Literal = { file: string; line: number; text: string };
+type Literal = { file: string; line: number; text: string; short?: boolean };
 
 function literalsOf(file: string): Literal[] {
   const src = readFileSync(file, "utf8");
@@ -327,7 +333,10 @@ function literalsOf(file: string): Literal[] {
     if (text !== null) {
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
       const words = text.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w));
-      if (words.length >= 4 && !text.trim().startsWith("[") && !exempt.has(line) && !skipped(node)) out.push({ file, line, text });
+      // Textes de moins de 4 mots aussi (« mission annulée », « Oups ») : seulement s'ils ressemblent à du français
+      // écrit (une espace, un accent ou une ponctuation finale), jamais une clé ou un identifiant du code.
+      const prose = words.length >= 4 || (words.length >= 1 && (/\s/.test(text.trim()) || /[à-ÿÀ-Ÿ]/u.test(text) || /[.!?…]$/.test(text.trim())));
+      if (prose && !text.trim().startsWith("[") && !exempt.has(line) && !skipped(node)) out.push({ file, line, text, short: words.length < 4 });
       if (ts.isTemplateExpression(node)) node.templateSpans.forEach((s) => visit(s.expression));
       return;
     }
@@ -342,7 +351,11 @@ describe("parcours des modules de Kevin : aucun littéral hors charte", () => {
     const failures: string[] = [];
     for (const file of KEVIN_FILES) {
       for (const lit of literalsOf(file)) {
-        const bad = voiceCheck(lit.text, { allowList: true, allowLong: true }).problems.filter((p) => ["formule", "vouvoiement", "jargon", "identifiant"].includes(p.code));
+        // Texte court : formules et mots de jargon seulement (un statut anglais isolé y est souvent du code).
+        const codes = lit.short ? ["formule", "vouvoiement"] : ["formule", "vouvoiement", "jargon", "identifiant"];
+        const bad = voiceCheck(lit.text, { allowList: true, allowLong: true }).problems.filter(
+          (p) => codes.includes(p.code) || (lit.short && p.code === "jargon" && JARGON_WORDS.includes(p.detail)),
+        );
         if (bad.length) failures.push(`${relative(SRC_DIR, lit.file)}:${lit.line} ${bad.map((p) => `${p.code} (${p.detail})`).join(", ")} « ${lit.text.slice(0, 120)} »`);
       }
     }

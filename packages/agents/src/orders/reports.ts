@@ -7,7 +7,7 @@
  * être inventé) ; chaque texte passe `voiceCheck`.
  */
 import { esc } from "../admin/journal";
-import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
+import { pick, voiceCheck, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { AgentsDeps } from "../types";
 import type { OrderFacts } from "./contract";
 import { channelNames, interpretationOf, orderById, periodLabel, type StoredInterpretation } from "./current";
@@ -143,14 +143,31 @@ export function orderReportText(
     }
     case "failures": {
       const n = num(event.failures) ?? num(facts.failed) ?? 0;
-      const why = event.reason ? pick(V.lastError({ reason: event.reason.slice(0, 120) }), "order.report.lasterror", chat) : "";
+      const why = event.reason ? pick(V.lastError({ reason: friendlyReason(event.reason, 120) }), "order.report.lasterror", chat) : "";
       return pick(V.failures({ n: event.number, count: plural(n, "raté", "ratés"), where: w, why }), "order.report.failures", chat);
     }
     case "blocked": {
-      const why = event.reason ? ` : ${event.reason.slice(0, 140)}` : "";
+      const why = event.reason ? ` : ${friendlyReason(event.reason, 140)}` : "";
       return pick(V.blocked({ n: event.number, why }), "order.report.blocked", chat);
     }
   }
+}
+
+/**
+ * Motif d'un incident en français simple : une erreur technique brute (anglais, code d'état, identifiant) n'est jamais
+ * montrée à l'admin ; elle reste dans le journal (pur).
+ */
+export function friendlyReason(raw: string, max = 140): string {
+  const t = raw.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  if (/BLOCKED_BUDGET/.test(t)) return "plafond de dépense atteint";
+  const technical =
+    !t ||
+    /[A-Z]{2,}_[A-Z_]{2,}/.test(t) ||
+    /\b(error|failed|invalid|undefined|null|timeout|prisma|exception|cannot|unexpected|status code|fetch)\b/i.test(t) ||
+    /https?:\/\//.test(t) ||
+    !voiceCheck(t).ok;
+  if (technical) return "un souci technique";
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 type ProgressLite = Record<string, unknown> & { kevinReportedDays?: string[] };
@@ -178,6 +195,11 @@ export async function sendOrderReport(deps: AgentsDeps, event: OrderEvent): Prom
       period: interp?.fromDay && interp.toDay ? periodLabel(interp.fromDay, interp.toDay) : null,
     });
     if (!text) return false;
+    const html = esc(text);
+    const chat = order.chatId ? BigInt(order.chatId) : null;
+    const sent = chat !== null && deps.admin?.sendTo ? await deps.admin.sendTo(chat, html) : await deps.admin?.send(html);
+    if (!sent) return false;
+    // Jour marqué « rapporté » seulement une fois le message parti (un envoi raté sera retenté au passage suivant).
     if (dayKey) {
       const fresh = await orderById(deps, order.id);
       const p = (fresh?.progress && typeof fresh.progress === "object" ? fresh.progress : {}) as ProgressLite;
@@ -186,10 +208,6 @@ export async function sendOrderReport(deps: AgentsDeps, event: OrderEvent): Prom
         data: { progress: JSON.parse(JSON.stringify({ ...p, kevinReportedDays: [...(p.kevinReportedDays ?? []), dayKey].slice(-60) })) as never },
       });
     }
-    const html = esc(text);
-    const chat = order.chatId ? BigInt(order.chatId) : null;
-    if (chat !== null && deps.admin?.sendTo) await deps.admin.sendTo(chat, html);
-    else await deps.admin?.send(html);
     return true;
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, orderId: event.orderId }, "[orders] rapport de Kevin non envoyé");
@@ -212,9 +230,7 @@ function hourLabel(hhmm: string): string {
 
 /** Branche les rapports de Kevin sur les événements des ordres (appelé au chargement du paquet). */
 export function installOrderReports(): void {
-  setOrderEventHook(async (deps, event) => {
-    await sendOrderReport(deps, event);
-  });
+  setOrderEventHook(async (deps, event) => sendOrderReport(deps, event));
 }
 
 installOrderReports();

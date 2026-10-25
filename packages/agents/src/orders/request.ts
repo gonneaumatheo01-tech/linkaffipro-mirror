@@ -5,13 +5,13 @@
  */
 import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { BossActor, BossChat, BossDeps, BossSpeaker } from "../boss/contract";
-import { readBossPending } from "../boss/confirm";
+import { deferredOrderIds, readBossPending } from "../boss/confirm";
 import type { BossTurnRow } from "../boss/memory";
 import { esc } from "../admin/journal";
 import { agentHint, agentTargetOf, restrictPlanToAgent } from "./agent-order";
 import { planOrder } from "./planner";
 import { recordOrderUnmet } from "./unmet";
-import { submitOrder, type OrderReply } from "./recap";
+import { closeOrderChoices, submitOrder, type OrderReply } from "./recap";
 import { validatePlan } from "./validate";
 import type { TeamOrderRow } from "./current";
 
@@ -30,10 +30,15 @@ export async function sweepStaleOrderConfirmations(deps: BossDeps): Promise<numb
   if (!rows.length) return 0;
   const pending = await readBossPending(deps);
   const live = pending && !pending.expired ? pending.id : null;
+  // Demandes de membres mises de côté (une confirmation de l'admin attendait) : pas encore montrées, jamais annulées.
+  const deferred = await deferredOrderIds(deps).catch(() => new Set<string>());
   let n = 0;
   for (const r of rows) {
     if (r.pendingId && r.pendingId === live) continue;
+    if (deferred.has(r.id)) continue;
     await deps.prisma.teamOrder.update({ where: { id: r.id }, data: { status: "CANCELLED" } });
+    // Plus aucun choix ni OUI tardif ne le relance.
+    await closeOrderChoices(deps, r.id);
     n++;
   }
   return n;

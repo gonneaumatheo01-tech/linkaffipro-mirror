@@ -36,8 +36,12 @@ export function knownBetThemes(): { key: string; label: string }[] {
 }
 
 /** Lance un ordre validé (`TeamOrder` existant) : dérogations, missions, réglages posés par le Grand Chef. */
-export async function runOrder(deps: AgentsDeps, orderId: string): Promise<{ ok: boolean; message?: string }> {
-  return normalizeResult(await aRun(deps, orderId));
+export async function runOrder(
+  deps: AgentsDeps,
+  orderId: string,
+): Promise<{ ok: boolean; message?: string; status?: string; conflicts?: Array<{ orderId: string; number: number | null; channelId: string }> }> {
+  const r = await aRun(deps, orderId);
+  return { ...normalizeResult(r), status: r.status, ...(r.conflicts?.length ? { conflicts: r.conflicts.map((c) => ({ orderId: c.orderId, number: c.number, channelId: c.channelId })) } : {}) };
 }
 
 /**
@@ -63,7 +67,7 @@ export async function modifyOrder(
   return normalizeResult(await aModify(deps, orderId, change, actor ?? null));
 }
 
-export function setOrderEventHook(hook: ((deps: AgentsDeps, event: OrderEvent) => Promise<void>) | null): void {
+export function setOrderEventHook(hook: ((deps: AgentsDeps, event: OrderEvent) => Promise<void | boolean>) | null): void {
   aSetHook(hook);
 }
 

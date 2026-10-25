@@ -157,7 +157,7 @@ export async function decideValidation(
     if (input.decision === "reject" && v.status === "REJECTED" && input.rejectReason && !v.rejectReason) {
       await deps.prisma.agentValidation.update({ where: { id: v.id }, data: { rejectReason: input.rejectReason } });
       await agentAudit(deps, { ...auditBase, action: "agents.validation.reject_reason", metadata: { number: v.number, reason: input.rejectReason, via: input.via } });
-      return { ok: true, message: `Motif noté pour ${label} 👍` };
+      return { ok: true, message: `Motif noté pour le post ${label} 👍` };
     }
     return { ok: false, message: `Post ${label} ${STATUS_DONE_LABEL[v.status] ?? "déjà traité"} : rien de plus à faire.` };
   }
@@ -219,7 +219,7 @@ export async function decideValidation(
       await lifecycle.cancelMission(deps, v.missionId, {
         reason: `refusé par l'admin${input.rejectReason?.trim() ? ` : ${input.rejectReason.trim()}` : ""}`,
       });
-      return { ok: true, message: `Post ${label} refusé ❌ : mission annulée. Motif possible : « non ${v.number} <motif> ».` };
+      return { ok: true, message: `Post ${label} refusé ❌, il ne partira pas. Tu peux ajouter un motif : « non ${v.number} <motif> ».` };
     }
     const mission = await deps.prisma.agentMission.findUnique({ where: { id: v.missionId } });
     const payload = (mission?.payload && typeof mission.payload === "object" ? mission.payload : {}) as Record<string, unknown>;
@@ -240,7 +240,7 @@ export async function decideValidation(
     return { ok: true, message: `Post ${label} validé ✅ : il part à son heure.` };
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message, missionId: v.missionId }, "[agents] suite de la validation impossible");
-    return { ok: true, message: `Décision notée pour ${label} ; la mission reprendra au prochain passage du Grand Chef.` };
+    return { ok: true, message: `Décision notée pour le post ${label}. L'équipe s'en occupe au prochain passage, d'ici une demi-heure.` };
   }
 }
 

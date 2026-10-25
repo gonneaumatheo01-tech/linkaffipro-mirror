@@ -52,15 +52,15 @@ export function onAnswerOf(v: unknown): Record<string, unknown> {
 
 /** Texte HTML envoyé : la question, les options numérotées, et comment passer si la question ne le dit pas. */
 export function formatQuestion(req: RequestRow, opts: { reminder?: boolean } = {}): string {
-  const lines = [opts.reminder ? `⏰ <b>Rappel</b> — ${esc(req.question)}` : `❓ ${esc(req.question)}`];
+  const lines = [opts.reminder ? `⏰ Petit rappel : ${esc(req.question)}` : `❓ ${esc(req.question)}`];
   const options = optionsOf(req.options);
   if (req.kind === "CHOICE" && options.length > 0)
     lines.push(options.map((o, i) => `${i + 1}. ${esc(o)}`).join("\n"));
   // Clé, identifiant, texte libre : seule une RÉPONSE au message de la question est prise à coup sûr (un message
   // ordinaire de l'admin n'est jamais avalé, voir `handleAdminText`).
   if ((req.kind === "SECRET" || req.kind === "TEXT") && !/en réponse|réponds à ce message|répondre à ce message/i.test(req.question))
-    lines.push("↩️ Réponds à CE message (appui long → Répondre).");
-  if (!/plus tard/i.test(req.question)) lines.push("Pour passer : réponds « plus tard ».");
+    lines.push("Réponds à ce message (appui long, puis Répondre).");
+  if (!/plus tard/i.test(req.question)) lines.push("Pour passer, réponds « plus tard ».");
   return lines.join("\n");
 }
 

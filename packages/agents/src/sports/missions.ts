@@ -4,7 +4,9 @@
  * missions sœurs qui commencent à la Capture). Canal de la mission = 1er canal de destination de la catégorie (canal
  * Test pour un pari de test) ; tous les canaux de destination sont gardés dans la charge utile.
  */
+import { nowOf } from "../admin/journal";
 import { createMission, type CreateMissionResult } from "../missions/lifecycle";
+import { parisDay } from "../rules/time";
 import type { AgentsDeps } from "../types";
 import { findTestChannel } from "../agents/data";
 import type { BetCategoryInfo } from "./data";
@@ -35,7 +37,17 @@ export async function betChannelQuota(deps: AgentsDeps, channelId: string): Prom
 
 export async function createBetMission(deps: AgentsDeps, i: BetMissionInput): Promise<CreateMissionResult> {
   let channelId: string | null = null;
-  const destinations = i.channelIds?.length ? i.channelIds : i.category.channelIds;
+  let destinations = i.channelIds?.length ? i.channelIds : i.category.channelIds;
+  // Hors ordre (passage habituel et missions sœurs) : un canal remplacé par un ordre de Kevin en vrai ce jour-là n'est
+  // jamais une destination (les paris de l'ordre le remplacent).
+  if (!i.orderId && !i.isTest && destinations.length) {
+    const { replacedChannels } = await import("./passage");
+    const replaced = await replacedChannels(deps, i.planDay ?? parisDay(nowOf(deps)));
+    if (replaced.size) {
+      destinations = destinations.filter((id) => !replaced.has(id));
+      if (!destinations.length) return { ok: false, reason: `Les canaux de la catégorie « ${i.category.name} » sont remplacés par un ordre en cours.` };
+    }
+  }
   if (i.isTest) channelId = (await findTestChannel(deps.prisma))?.id ?? null;
   else {
     const channels = await deps.prisma.channel.findMany({ where: { id: { in: destinations }, isActive: true }, select: { id: true } });
@@ -52,13 +64,16 @@ export async function createBetMission(deps: AgentsDeps, i: BetMissionInput): Pr
     isTest: i.isTest === true,
     planDay: i.planDay ?? null,
     format: "photo",
-    postsPerDay: i.isTest ? undefined : i.orderId ? Math.max(1, i.picksWanted ?? 1) + (await betChannelQuota(deps, channelId)) : await betChannelQuota(deps, channelId),
+    // Ordre de Kevin : ses paris REMPLACENT ceux des catégories du client sur ce canal pendant la dérogation (le passage
+    // habituel retire le canal de ses destinations) : quota = les paris de l'ordre, jamais une somme.
+    postsPerDay: i.isTest ? undefined : i.orderId ? Math.max(1, i.picksWanted ?? 1) : await betChannelQuota(deps, channelId),
     skipAgents: i.pickId ? ["cotes"] : [],
     orderId: i.orderId ?? null,
     payload: {
       categoryId: i.category.id,
       oddsSource: i.oddsSource ?? "live",
-      targetChannelIds: i.isTest ? [channelId] : destinations,
+      // Ordre « pour de faux » sur un vrai canal : publié sur le canal Test, l'en-tête nomme le vrai canal visé.
+      targetChannelIds: i.isTest ? (i.orderId && i.channelIds?.length ? i.channelIds : [channelId]) : destinations,
       ...(i.picksWanted ? { picksWanted: i.picksWanted } : {}),
       ...(i.pickId ? { pickId: i.pickId } : {}),
       ...(i.reason ? { passage: i.reason } : {}),

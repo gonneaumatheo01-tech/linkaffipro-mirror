@@ -109,7 +109,7 @@ async function viaBossAction(
 ): Promise<AdminTextResult> {
   const [{ bossAction }, { runBossAction }] = await Promise.all([import("../boss/catalog"), import("../boss/execute")]);
   const action = bossAction(key);
-  if (!action) return { handled: true, reply: "Oups, action inconnue." };
+  if (!action) return { handled: true, reply: "Oups, ça a raté de mon côté. Réessaie dans une minute." };
   const parsed = action.parse(params);
   if (!parsed.ok) return { handled: true, reply: esc(parsed.error) };
   const r = await runBossAction(deps as BossDeps, action, parsed.params as Record<string, unknown>, { actor: { userId: actor.userId ?? null, via: "TELEGRAM" }, chat: chat ?? null });
@@ -136,7 +136,7 @@ async function storeSecretCommand(
   const { last4 } = await saveSecret(deps, key, value, actor);
   const check = await verifySecret(deps, key);
   const head = secretSavedHead(key, last4);
-  const reply = !check ? `${head} ✅` : check.ok ? `${head}. Vérification : OK ✅` : `${head}. Vérification : KO : ${check.message}. Réessaie avec une autre clé.`;
+  const reply = !check ? `${head} ✅` : check.ok ? `${head}. Vérification : OK ✅` : `${head}. La vérification a échoué (${check.message}). Réessaie avec une autre clé.`;
   return { handled: true, reply, secret: true, deleteMessage: true };
 }
 

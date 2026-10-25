@@ -70,7 +70,7 @@ describe("Kevin : relance quotidienne", () => {
     const r = await bossDailyNudge(kit.deps);
     expect(r).toEqual({ sent: true, blockers: ["request"] });
     expect(kit.sent[0]!.html).toMatch(/question (attend ta réponse|t'attend) depuis 1 jour/);
-    expect(kit.sent[1]!.html).toContain("⏰ <b>Rappel</b> — Ton prénom ?");
+    expect(kit.sent[1]!.html).toContain("⏰ Petit rappel : Ton prénom ?");
     expect(kit.sent[1]!.replyToMessageId).toBe(50);
     const after = kit.tables("humanRequest")[0]!;
     expect(after.telegramMessageId).toBe(kit.sent[1]!.messageId);

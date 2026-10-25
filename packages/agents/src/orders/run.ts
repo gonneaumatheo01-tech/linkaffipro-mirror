@@ -20,7 +20,7 @@ import type { CapabilityPlanContext, OrderPlan, OrderStep, StepResult } from "./
 import { emitOrderEvent } from "./events";
 import { overrideConflicts, type OverrideConflict } from "./overrides";
 import { capability } from "./registry";
-import { loadOrder, parseOrderPlan, patchProgress, progressOf, toOrderRow, TERMINAL_ORDER_STATUSES, type OrderProgress, type StepState, type TeamOrderDbRow } from "./store";
+import { loadOrder, parseOrderPlan, patchProgress, progressOf, stepPending, toOrderRow, TERMINAL_ORDER_STATUSES, withOrderLock, type OrderProgress, type StepState, type TeamOrderDbRow } from "./store";
 import { orderFacts } from "./facts";
 import { frDay, MAX_ORDER_DAYS } from "./capabilities/kit";
 
@@ -110,10 +110,26 @@ function paidProviders(team: TeamKey, steps: readonly OrderStep[]): ProviderKey[
   return [...out];
 }
 
+/**
+ * Plafond de dépense qui bloque encore un ordre (vidéo, photo, IA texte de l'équipe), ou null quand il s'est libéré
+ * (nouveau mois, plafond relevé). Lecture seule.
+ */
+export async function orderBudgetOver(deps: AgentsDeps, row: TeamOrderDbRow): Promise<string | null> {
+  const plan = parseOrderPlan(row.interpretation);
+  const steps = progressOf(row.progress).plannedSteps ?? [];
+  const team = workingTeam(plan, row, steps);
+  if (!team) return null;
+  const providers = [...new Set<ProviderKey>([...paidProviders(team, steps), ...(team !== "sports" ? (["llm"] as ProviderKey[]) : [])])];
+  const over = await checkBudgets(deps, await loadTeamSettings(deps.prisma, team), providers, nowOf(deps));
+  return over ? (over.reason ?? "Plafond de dépense atteint.") : null;
+}
+
 /** Pose les dérogations d'une étape (une seule ouverte par ordre, canal et équipe : jamais de doublon à la reprise). */
-async function postOverrides(deps: AgentsDeps, orderId: string, step: OrderStep): Promise<number> {
+async function postOverrides(deps: AgentsDeps, orderId: string, step: OrderStep, mode: "simulation" | "real" = "simulation"): Promise<number> {
   let created = 0;
   for (const o of step.overrides ?? []) {
+    // Garde-fou : un ordre « pour de faux » ne pose jamais de dérogation réelle (missions de test, canal Test).
+    const isTest = o.isTest === true || mode !== "real";
     const existing = await deps.prisma.channelPlanOverride.findFirst({ where: { orderId, channelId: o.channelId, teamKey: o.teamKey, closedAt: null } });
     if (existing) continue;
     await deps.prisma.channelPlanOverride.create({
@@ -132,7 +148,7 @@ async function postOverrides(deps: AgentsDeps, orderId: string, step: OrderStep)
         windowStart: o.windowStart ?? null,
         windowEnd: o.windowEnd ?? null,
         personaId: o.personaId ?? null,
-        isTest: o.isTest === true,
+        isTest,
       },
     });
     created++;
@@ -141,21 +157,36 @@ async function postOverrides(deps: AgentsDeps, orderId: string, step: OrderStep)
 }
 
 /** Exécute les étapes pas encore faites (idempotent) ; rend l'état de chaque étape. */
-async function executeSteps(deps: AgentsDeps, row: TeamOrderDbRow, steps: readonly OrderStep[]): Promise<Record<string, StepState>> {
+async function executeSteps(deps: AgentsDeps, row: TeamOrderDbRow, steps: readonly OrderStep[], mode: "simulation" | "real"): Promise<Record<string, StepState>> {
   const now = nowOf(deps);
   const state: Record<string, StepState> = { ...(progressOf(row.progress).steps ?? {}) };
   for (const step of steps) {
-    if (state[step.stepKey]?.ok) continue;
+    // Faite, ou en échec pour de bon (refus, ou 3 essais déjà) : jamais rejouée.
+    if (!stepPending(state[step.stepKey])) continue;
     let result: StepResult;
     try {
-      await postOverrides(deps, row.id, step);
+      await postOverrides(deps, row.id, step, mode);
       const cap = capability(step.teamKey, step.capability);
-      result = cap ? await cap.run(deps, toOrderRow((await loadOrder(deps, row.id)) ?? row), step) : { ok: false, message: `Capacité inconnue : ${step.capability}.` };
+      if (cap) result = await cap.run(deps, toOrderRow((await loadOrder(deps, row.id)) ?? row), step);
+      else {
+        deps.logger?.warn({ orderId: row.id, capability: step.capability, teamKey: step.teamKey }, "[orders] capacité inconnue");
+        result = { ok: false, message: "Cette partie de l'ordre n'est plus faisable par l'équipe.", retryable: false };
+      }
     } catch (err) {
-      result = { ok: false, message: (err as Error).message.slice(0, 300), retryable: true };
+      // Détail technique au journal seulement ; l'état garde une phrase simple.
       deps.logger?.warn({ err: (err as Error).message, orderId: row.id, step: step.stepKey }, "[orders] étape en erreur");
+      result = { ok: false, message: "Un souci technique a empêché cette étape, je réessaie plus tard.", retryable: true };
     }
-    state[step.stepKey] = { ok: result.ok, message: result.message.slice(0, 500), at: now.toISOString(), ...(result.missionIds ? { missionIds: result.missionIds } : {}), ...(result.postIds ? { postIds: result.postIds } : {}) };
+    const attempts = (state[step.stepKey]?.attempts ?? 0) + 1;
+    state[step.stepKey] = {
+      ok: result.ok,
+      message: result.message.slice(0, 500),
+      at: now.toISOString(),
+      attempts,
+      ...(result.ok ? {} : { retryable: result.retryable === true }),
+      ...(result.missionIds ? { missionIds: result.missionIds } : {}),
+      ...(result.postIds ? { postIds: result.postIds } : {}),
+    };
     // Écrit après chaque étape : un arrêt au milieu reprend à l'étape suivante.
     await patchProgress(deps, row.id, { steps: state });
   }
@@ -172,8 +203,26 @@ async function block(deps: AgentsDeps, row: TeamOrderDbRow, reason: string): Pro
   return { ok: false, status: "BLOCKED", message: reason, steps: [] };
 }
 
-/** Lance (ou reprend) un ordre validé. */
+/**
+ * Lance (ou reprend) un ordre validé, sous le verrou de l'ordre (le départ par Kevin et le suivi `orders-tick` ne
+ * tournent jamais en même temps : rien n'est doublé, pari ou post de test compris).
+ */
 export async function runOrder(deps: AgentsDeps, orderId: string): Promise<RunOrderResult> {
+  const r = await withOrderLock(deps, orderId, () => runOrderLocked(deps, orderId));
+  if (r.busy) {
+    const row = await loadOrder(deps, orderId);
+    return { ok: !!row && !(TERMINAL_ORDER_STATUSES as readonly string[]).includes(row.status), status: row?.status ?? "MISSING", message: "Ordre déjà en cours de lancement.", steps: [] };
+  }
+  return r.value;
+}
+
+/** Ordre remplacé par celui-ci (chevauchement : « garde le nouveau »), arrêté seulement au lancement effectif. */
+function replacedOrderId(row: Pick<TeamOrderDbRow, "interpretation">): string | null {
+  const v = (row.interpretation as { replaces?: unknown } | null)?.replaces;
+  return typeof v === "string" ? v : null;
+}
+
+async function runOrderLocked(deps: AgentsDeps, orderId: string): Promise<RunOrderResult> {
   const row = await loadOrder(deps, orderId);
   if (!row) return { ok: false, status: "MISSING", message: "Ordre introuvable.", steps: [] };
   if ((TERMINAL_ORDER_STATUSES as readonly string[]).includes(row.status)) return { ok: false, status: row.status, message: "Cet ordre est déjà terminé.", steps: [] };
@@ -205,7 +254,8 @@ export async function runOrder(deps: AgentsDeps, orderId: string): Promise<RunOr
     }
   }
   const wanted = steps.flatMap((s) => s.overrides ?? []);
-  const conflicts = await overrideConflicts(deps, wanted, orderId);
+  const replaces = replacedOrderId(row);
+  const conflicts = (await overrideConflicts(deps, wanted, orderId)).filter((c) => c.orderId !== replaces);
   if (conflicts.length) {
     const c = conflicts[0]!;
     return { ok: false, status: row.status, message: `Ce canal a déjà l'ordre n°${c.number ?? "?"} du ${frDay(c.fromDay)} au ${frDay(c.toDay)} : lequel garder ?`, steps: [], conflicts };
@@ -222,25 +272,32 @@ export async function runOrder(deps: AgentsDeps, orderId: string): Promise<RunOr
     },
   );
   const fresh = (await loadOrder(deps, orderId))!;
-  const state = await executeSteps(deps, fresh, steps);
+  const state = await executeSteps(deps, fresh, steps, plan.mode === "real" ? "real" : "simulation");
   const results = steps.map((s) => ({ stepKey: s.stepKey, ok: state[s.stepKey]?.ok === true, message: state[s.stepKey]?.message ?? "" }));
   const allOk = results.every((r) => r.ok);
   const anyOk = results.some((r) => r.ok);
   const hasProduction = steps.some((s) => s.overrides?.length) || plan.kind === "ONE_SHOT" || steps.some((s) => state[s.stepKey]?.missionIds?.length);
   let status = "RUNNING";
-  if (!anyOk) status = "FAILED";
+  // Rien de réussi : en échec, sauf s'il reste un essai à faire (souci passager : le suivi rejoue, 3 fois au plus).
+  const retrying = steps.some((s) => stepPending(state[s.stepKey]));
+  if (!anyOk) status = retrying ? "RUNNING" : "FAILED";
   else if (!hasProduction && allOk) status = "DONE";
   const after = (await loadOrder(deps, orderId))!;
   const p2 = progressOf(after.progress);
   await patchProgress(deps, orderId, status === "DONE" ? { finishedAt: now.toISOString() } : {}, { status });
   const final = toOrderRow((await loadOrder(deps, orderId))!);
+  // « Garde le nouveau » : l'ancien ordre n'est arrêté qu'une fois le nouveau vraiment lancé.
+  if (replaces && status !== "FAILED") {
+    const old = await loadOrder(deps, replaces);
+    if (old && !(TERMINAL_ORDER_STATUSES as readonly string[]).includes(old.status)) await stopOrder(deps, replaces, { userId: row.createdById, via: "TELEGRAM" }, `remplacé par l'ordre n°${row.number}`);
+  }
   if (!p2.startedNotified && status !== "FAILED") {
     await patchProgress(deps, orderId, { startedNotified: true });
     await agentAudit(deps, { userId: row.createdById, action: "agents.order.started", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, teamKey: row.teamKey, steps: steps.map((s) => s.stepKey) } });
     const facts = await orderFacts(deps, final);
     await emitOrderEvent(deps, { type: status === "DONE" ? "finished" : "started", order: final, orderId, number: row.number, teamKey: row.teamKey, chatId: row.chatId, facts });
   }
-  return { ok: anyOk, status, message: results.map((r) => r.message).filter(Boolean).join(" ") || "Ordre lancé.", steps: results };
+  return { ok: status !== "FAILED", status, message: results.map((r) => r.message).filter(Boolean).join(" ") || "Ordre lancé.", steps: results };
 }
 
 /** Une mission pas encore commencée : en attente, aucune étape lancée. */
@@ -288,7 +345,24 @@ export async function stopOrder(
   };
 }
 
-/** Prolonge un ordre de `days` jours (30 jours au plus au total ; ramené à la borne). */
+/** Premier jour d'un ordre : son début réel (`startsAt`), sinon son interprétation, sinon ses dérogations. */
+function orderFirstDay(row: TeamOrderDbRow, overrides: ReadonlyArray<{ fromDay: string }>): string | null {
+  const interp = row.interpretation as { fromDay?: unknown; period?: { start?: unknown } } | null;
+  const cands = [
+    row.startsAt ? parisDay(row.startsAt) : null,
+    typeof interp?.fromDay === "string" ? interp.fromDay : null,
+    typeof interp?.period?.start === "string" ? interp.period.start : null,
+    ...overrides.map((o) => o.fromDay),
+  ].filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d));
+  return cands.length ? cands.sort()[0]! : null;
+}
+
+const dayCount = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000) + 1;
+
+/**
+ * Prolonge un ordre de `days` jours : 30 jours au plus depuis le DÉBUT de l'ordre (`startsAt`), jamais depuis une
+ * dérogation reposée par une modification ; l'interprétation suit (`toDay`, `period.days`, lus par le chevauchement).
+ */
 export async function extendOrder(deps: AgentsDeps, orderId: string, days: number, actor?: ActorRef | null): Promise<{ ok: boolean; message: string; toDay?: string }> {
   const row = await loadOrder(deps, orderId);
   if (!row) return { ok: false, message: "Ordre introuvable." };
@@ -296,7 +370,7 @@ export async function extendOrder(deps: AgentsDeps, orderId: string, days: numbe
   const add = Math.max(1, Math.round(days));
   const open = (await deps.prisma.channelPlanOverride.findMany({ where: { orderId, closedAt: null } })) as Array<{ id: string; fromDay: string; toDay: string }>;
   if (!open.length) return { ok: false, message: "Cet ordre n'a pas de période à prolonger." };
-  const fromDay = open.map((o) => o.fromDay).sort()[0]!;
+  const fromDay = orderFirstDay(row, open) ?? open.map((o) => o.fromDay).sort()[0]!;
   const curTo = open.map((o) => o.toDay).sort().reverse()[0]!;
   const maxTo = addDaysToDay(fromDay, MAX_ORDER_DAYS - 1);
   let toDay = addDaysToDay(curTo, add);
@@ -308,22 +382,31 @@ export async function extendOrder(deps: AgentsDeps, orderId: string, days: numbe
   if (toDay <= curTo) return { ok: false, message: `L'ordre dure déjà ${MAX_ORDER_DAYS} jours, le maximum.` };
   await deps.prisma.channelPlanOverride.updateMany({ where: { orderId, closedAt: null }, data: { toDay } });
   await deps.prisma.betCategory.updateMany({ where: { createdByOrderId: orderId }, data: { expiresAt: parisDayStart(addDaysToDay(toDay, 1)) } });
-  const plan = parseOrderPlan(row.interpretation);
-  const totalDays = Math.round((Date.parse(`${toDay}T12:00:00Z`) - Date.parse(`${fromDay}T12:00:00Z`)) / 86_400_000) + 1;
+  const totalDays = dayCount(fromDay, toDay);
   const p = progressOf(row.progress);
   const planned = (p.plannedSteps ?? []).map((s) => ({ ...s, overrides: s.overrides?.map((o) => ({ ...o, toDay })) }));
+  const interp = (row.interpretation && typeof row.interpretation === "object" ? row.interpretation : {}) as Record<string, unknown>;
+  const period = interp.period && typeof interp.period === "object" ? { ...(interp.period as object), start: fromDay, days: totalDays } : { start: fromDay, days: totalDays };
+  const storedSteps = Array.isArray(interp.plannedSteps) ? (interp.plannedSteps as OrderStep[]).map((s) => ({ ...s, overrides: s.overrides?.map((o) => ({ ...o, toDay })) })) : interp.plannedSteps;
   await patchProgress(deps, orderId, { plannedSteps: planned, finishedAt: null }, {
     endsAt: parisDayStart(addDaysToDay(toDay, 1)),
-    ...(plan ? { interpretation: json({ ...(row.interpretation as object), period: { start: plan.period?.start ?? fromDay, days: totalDays } }) as never } : {}),
+    interpretation: json({ ...interp, period, fromDay: typeof interp.fromDay === "string" ? interp.fromDay : fromDay, toDay, ...(storedSteps ? { plannedSteps: storedSteps } : {}) }) as never,
   });
   await agentAudit(deps, { userId: actor?.userId ?? row.createdById, action: "agents.order.extended", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, from: curTo, to: toDay, via: actor?.via ?? null } });
   return { ok: true, toDay, message: `Ordre n°${row.number} prolongé jusqu'au ${frDay(toDay)}${note}.` };
 }
 
+/** Une étape sans ses dates (comparaison « a-t-elle changé ? », pur). */
+function stepShape(s: OrderStep): string {
+  return JSON.stringify({ c: s.capability, t: s.teamKey, p: s.params, o: (s.overrides ?? []).map((o) => ({ ...o, fromDay: undefined })) });
+}
+
 /**
- * Modifie un ordre en cours : nouveau plan (revalidé par le chantier B) ; les dérogations ouvertes sont fermées et
- * remplacées par celles du nouveau plan (à partir d'aujourd'hui), les étapes refaites. Accepte le plan seul ou
- * `{ plan, steps }` (étapes déjà planifiées).
+ * Modifie un ordre en cours : nouveau plan (revalidé par le chantier B). Les clés d'étape ne changent pas ; seules les
+ * étapes dont les paramètres ont changé sont rejouées (leurs dérogations fermées puis reposées à partir d'aujourd'hui),
+ * les autres gardent leur état et leurs dérogations (aucun nouveau pari de test, aucun plan réécrit). La période
+ * d'origine est gardée : premier jour et dernier jour d'origine, 30 jours au plus depuis le début de l'ordre.
+ * Accepte le plan seul ou `{ plan, steps }` (étapes déjà planifiées).
  */
 export async function modifyOrder(
   deps: AgentsDeps,
@@ -339,17 +422,55 @@ export async function modifyOrder(
   const planned = given?.length ? { steps: given.map(boundStep), impossible: [] } : await planSteps(deps, plan, orderId);
   if (!planned.steps.length) return { ok: false, status: row.status, message: planned.impossible.map((i) => i.reason).join(" ; ") || "Nouveau plan vide.", steps: [], impossible: planned.impossible };
   const today = parisDay(nowOf(deps));
-  const steps = planned.steps.map((s) => ({ ...s, stepKey: `${s.stepKey}#m${Date.now().toString(36)}`, overrides: s.overrides?.map((o) => ({ ...o, fromDay: o.fromDay < today ? today : o.fromDay })) }));
-  const conflicts = await overrideConflicts(deps, steps.flatMap((s) => s.overrides ?? []), orderId);
+  const before = progressOf(row.progress);
+  const oldSteps = before.plannedSteps ?? [];
+  const oldOverrides = oldSteps.flatMap((s) => s.overrides ?? []);
+  // Période d'origine : premier jour (début réel) et dernier jour d'origine ; une nouvelle durée se compte depuis le
+  // premier jour, jamais depuis aujourd'hui.
+  const first = orderFirstDay(row, oldOverrides);
+  const oldTo = oldOverrides.length ? oldOverrides.map((o) => o.toDay).sort().reverse()[0]! : null;
+  const oldDays = (row.interpretation as { period?: { days?: unknown } } | null)?.period?.days;
+  const newDays = plan.period?.days;
+  const maxTo = first ? addDaysToDay(first, MAX_ORDER_DAYS - 1) : null;
+  const pinTo = (o: { fromDay: string; toDay: string }): string => {
+    let to = oldTo ?? o.toDay;
+    if (first && typeof newDays === "number" && typeof oldDays === "number" && newDays !== oldDays) to = addDaysToDay(first, newDays - 1);
+    if (!oldTo && o.toDay) to = o.toDay;
+    return maxTo && to > maxTo ? maxTo : to;
+  };
+  const steps = planned.steps.map((s) => ({
+    ...s,
+    overrides: s.overrides?.map((o) => {
+      const from = first ?? o.fromDay;
+      return { ...o, fromDay: from < today ? today : from, toDay: pinTo(o) };
+    }),
+  }));
+  const oldByKey = new Map(oldSteps.map((s) => [s.stepKey, s]));
+  const changed = new Set(steps.filter((s) => { const o = oldByKey.get(s.stepKey); return !o || stepShape(o) !== stepShape(s); }).map((s) => s.stepKey));
+  const removed = oldSteps.filter((s) => !steps.some((n) => n.stepKey === s.stepKey)).map((s) => s.stepKey);
+  // Dérogations à refaire : celles des étapes changées ou retirées (les autres restent ouvertes, telles quelles).
+  const redo = [...changed, ...removed].flatMap((k) => (oldByKey.get(k)?.overrides ?? []).concat(steps.find((x) => x.stepKey === k)?.overrides ?? []));
+  // Une étape inchangée qui partage un canal (et une équipe) avec une étape refaite est refaite aussi (même dérogation).
+  const pair = (o: { channelId: string; teamKey: string }) => `${o.channelId}|${o.teamKey}`;
+  const redoPairs = new Set(redo.map(pair));
+  for (const st of steps) if (!changed.has(st.stepKey) && (st.overrides ?? []).some((o) => redoPairs.has(pair(o)))) changed.add(st.stepKey);
+  const conflicts = await overrideConflicts(deps, steps.filter((s) => changed.has(s.stepKey)).flatMap((s) => s.overrides ?? []), orderId);
   if (conflicts.length) return { ok: false, status: row.status, message: `Ce canal a déjà l'ordre n°${conflicts[0]!.number ?? "?"} sur cette période : lequel garder ?`, steps: [], conflicts };
   const now = nowOf(deps);
-  await deps.prisma.channelPlanOverride.updateMany({ where: { orderId, closedAt: null }, data: { closedAt: now } });
-  const before = progressOf(row.progress);
+  for (const o of redo) await deps.prisma.channelPlanOverride.updateMany({ where: { orderId, channelId: o.channelId, teamKey: o.teamKey, closedAt: null }, data: { closedAt: now } });
+  // Étapes inchangées : même clé, même état (rien n'est rejoué) ; étapes changées : état remis à zéro.
+  const keptSteps = Object.fromEntries(Object.entries(before.steps ?? {}).filter(([k]) => !changed.has(k) && !removed.includes(k)));
+  // Une étape inchangée garde ses dérogations d'origine (dates comprises) dans les étapes prévues.
+  const finalSteps = steps.map((s) => (changed.has(s.stepKey) ? s : (oldByKey.get(s.stepKey) ?? s)));
   await deps.prisma.teamOrder.update({
     where: { id: orderId },
-    data: { interpretation: json(plan) as never, progress: json({ ...before, plannedSteps: steps, steps: {}, modifiedAt: now.toISOString(), finishedAt: null } satisfies OrderProgress) as never, status: "RUNNING" },
+    data: {
+      interpretation: json({ ...(row.interpretation as object), ...plan }) as never,
+      progress: json({ ...before, plannedSteps: finalSteps, steps: keptSteps, modifiedAt: now.toISOString(), finishedAt: null } satisfies OrderProgress) as never,
+      status: "RUNNING",
+    },
   });
-  await agentAudit(deps, { userId: actor?.userId ?? row.createdById, action: "agents.order.modified", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, steps: steps.map((s) => s.stepKey) } });
+  await agentAudit(deps, { userId: actor?.userId ?? row.createdById, action: "agents.order.modified", entityType: "TeamOrder", entityId: orderId, metadata: { number: row.number, changed: [...changed], removed } });
   const r = await runOrder(deps, orderId);
   return { ...r, message: r.ok ? `Ordre n°${row.number} modifié. ${r.message}` : r.message };
 }

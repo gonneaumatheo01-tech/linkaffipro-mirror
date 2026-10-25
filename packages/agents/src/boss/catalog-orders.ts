@@ -10,7 +10,7 @@
 import { esc, nowOf, readSetting, writeSetting } from "../admin/journal";
 import { claimMemberPlanTurn } from "./team/members";
 import { TEAM_LABELS, type TeamKey } from "../types";
-import { ORDER_LIMITS, type OrderPlan, type OrderRow } from "../orders/contract";
+import { ORDER_LIMITS, type OrderPlan } from "../orders/contract";
 import {
   findOrderRef,
   interpretationOf,

@@ -14,8 +14,8 @@ import { esc, nowOf, readSetting, writeSetting, adminTelegramId } from "../admin
 import { allowedNumbers, inventedNumbers } from "../rules/report-numbers";
 import { addDaysToDay, parisDayStart } from "../rules/time";
 import type { BossActor, BossChat, BossDeps, BossReply, BossSpeaker, BossTeamInput } from "../boss/contract";
-import { createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
-import { askToChoose } from "../boss/resolve";
+import { clearBossPending, createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
+import { askToChoose, clearClarify, readClarify } from "../boss/resolve";
 import { adminFirstName, findTeamMember } from "../boss/team/members";
 import { KEVIN_VOICE, pick, voiceCheck, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { BossTurnStatus } from "../boss/memory";
@@ -29,7 +29,7 @@ import {
   type StoredInterpretation,
   type TeamOrderRow,
 } from "./current";
-import { runOrder, stopOrder } from "./ports";
+import { capability, runOrder, stopOrder } from "./ports";
 import type { PlannedOrder } from "./planner";
 import { recordOrderUnmet } from "./unmet";
 import { stepsPerDay, stepsTheme, validatePlan, workingTeam, type ImpossibleOut, type OverlapInfo, type ValidatedPlan } from "./validate";
@@ -304,7 +304,7 @@ export function recapWhatLine(
 /** Ligne des bornes et des impossibles (pur), ou null. */
 export function recapAdjustLine(v: Pick<ValidatedPlan, "clamped" | "impossible">): string | null {
   const parts: string[] = [];
-  if (v.clamped.length) parts.push(RV.adjustClamped({ list: v.clamped.slice(0, 2).join(" ; ") })[0]!);
+  if (v.clamped.length) parts.push(RV.adjustClamped({ list: v.clamped.slice(0, 3).join(" ; ") })[0]!);
   const imp = v.impossible.slice(0, 2).map((i) => `${i.part} (${i.reason})`);
   if (imp.length) parts.push(RV.adjustImpossible({ list: imp.join(" ; ") })[0]!);
   return parts.length ? parts.join(" ") : null;
@@ -423,6 +423,52 @@ async function auditOrder(deps: BossDeps, action: string, order: Pick<TeamOrderR
   }
 }
 
+// ------------------------------------------------------------------------------------------------ choix ouverts
+
+/** Choix ouvert d'un ordre (replis numérotés ou « lequel garder ? ») : jeton à usage unique. */
+type OpenChoice = { token: string; kind: "alt" | "overlap"; at: string };
+
+const newToken = () => Math.random().toString(36).slice(2, 10);
+
+async function writeInterp(deps: BossDeps, orderId: string, patch: Record<string, unknown>): Promise<void> {
+  const row = await orderById(deps, orderId);
+  const interp = (row ? (interpretationOf(row) ?? {}) : {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...interp, ...patch };
+  for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+  await deps.prisma.teamOrder.update({ where: { id: orderId }, data: { interpretation: JSON.parse(JSON.stringify(next)) as never } });
+}
+
+async function openChoice(deps: BossDeps, orderId: string, kind: OpenChoice["kind"]): Promise<string> {
+  const token = newToken();
+  await writeInterp(deps, orderId, { choice: { token, kind, at: nowOf(deps).toISOString() } satisfies OpenChoice });
+  return token;
+}
+
+function choiceOf(order: TeamOrderRow): OpenChoice | null {
+  const c = (interpretationOf(order) as { choice?: unknown } | null)?.choice as OpenChoice | undefined;
+  return c && typeof c.token === "string" ? c : null;
+}
+
+/**
+ * Ferme tout ce qui reste ouvert pour un ordre dès qu'un choix est fait (OUI, « 2 », « 1 » du chevauchement) : jeton
+ * du choix, question numérotée et confirmation OUI / NON qui le visent. Un OUI ou un numéro tardif ne rejoue plus rien.
+ */
+export async function closeOrderChoices(deps: BossDeps, orderId: string): Promise<void> {
+  try {
+    const row = await orderById(deps, orderId);
+    if (row && choiceOf(row)) await writeInterp(deps, orderId, { choice: undefined });
+    const clarify = await readClarify(deps);
+    if (clarify && [ORDER_ALTERNATIVE_ACTION, ORDER_OVERLAP_ACTION].includes(clarify.actionKey) && clarify.options.some((o) => o.value.includes(orderId))) await clearClarify(deps);
+    const pending = await readBossPending(deps);
+    if (pending && pending.actionKey === ORDER_CONFIRM_ACTION && pending.params.ordre === orderId) await clearBossPending(deps, pending.id);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message, orderId }, "[orders] choix non fermés");
+  }
+}
+
+/** Statuts d'un ordre dont un choix peut encore être fait (un ordre en cours, fini ou arrêté : jamais). */
+const CHOOSABLE = ["DRAFT", "WAITING_CONFIRM", "CANCELLED"];
+
 // ------------------------------------------------------------------------------------------------ replis
 
 /** Phrase d'une raison (majuscule, point final). */
@@ -431,10 +477,34 @@ function sentence(s: string): string {
   return `${t.charAt(0).toUpperCase()}${t.slice(1)}.`;
 }
 
+/** Nombres du contexte réel d'un ordre (demande, période, étapes, bornes) : seuls permis dans un texte de l'IA. */
+function contextNumbers(v: ValidatedPlan, requestText: string): ReturnType<typeof allowedNumbers> {
+  const fromText = (requestText.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => Number(x.replace(",", ".")));
+  const days = [v.fromDay, v.toDay, v.plan.period?.start].filter((d): d is string => !!d).flatMap((d) => d.split("-").map(Number));
+  return allowedNumbers({
+    fromText,
+    days,
+    period: v.plan.period?.days ?? null,
+    steps: v.plannedSteps.map((p) => ({ o: p.overrides ?? [], params: p.params })),
+    clamped: v.clamped.flatMap((c) => (c.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => Number(x.replace(",", ".")))),
+    limits: [ORDER_LIMITS.maxDays, ORDER_LIMITS.confirmOverDays],
+  });
+}
+
+/** Texte écrit par l'IA (planificateur) : gardé seulement s'il passe la voix de Kevin et n'invente aucun chiffre. */
+function safeAiText(text: string, allowed: ReturnType<typeof allowedNumbers>, fallback: string): string {
+  const t = text.trim();
+  if (!t || t.length > 240) return fallback;
+  if (inventedNumbers(t, allowed).length) return fallback;
+  if (!voiceCheck(t).ok) return fallback;
+  return t;
+}
+
 /**
- * Replis numérotés d'un ordre : la raison en une phrase, UNE proposition en question (OUI / NON quand aucune autre
- * confirmation n'attend), les autres par numéros (« 2 » rejoue sans IA). `launchPossible` : plan partiel, le choix 1
- * lance la partie possible.
+ * Replis numérotés d'un ordre : la raison en une phrase, UNE proposition en question (OUI / NON) SEULEMENT si aucune
+ * autre confirmation n'attend (sinon un OUI confirmerait l'ancienne : choix par numéro uniquement), les autres par
+ * numéros (« 2 » rejoue sans IA). `launchPossible` : plan partiel, le choix 1 lance la partie possible. Les textes du
+ * planificateur (partie, raison, libellés des replis) passent la voix et le contrôle « aucun chiffre inventé ».
  */
 async function offerAlternatives(
   deps: BossDeps,
@@ -443,32 +513,47 @@ async function offerAlternatives(
   ctx: OrderSubmitContext,
   opts: { launchPossible: boolean; head?: string | null },
 ): Promise<OrderReply> {
+  const chatId = ctx.chat?.chatId ?? null;
+  const nums = contextNumbers(v, ctx.requestText);
   const alts: Alternative[] = [];
-  for (const i of v.impossible) for (const a of i.alternatives) if (alts.length < 4 && !alts.some((x) => x.label === a.label)) alts.push(a);
+  for (const i of v.impossible)
+    for (const a of i.alternatives) {
+      if (alts.length >= 4) break;
+      const label = i.fromAi
+        ? safeAiText(a.label, nums, a.capability ? (capabilityLabel(a.capability.teamKey, a.capability.key) ?? pick(RV.aiAlt, "order.ai.alt", chatId)) : pick(RV.aiAlt, "order.ai.alt", chatId))
+        : a.label;
+      if (!alts.some((x) => x.label === label)) alts.push({ ...a, label });
+    }
   const first = v.impossible[0];
-  const reason = first ? sentence(`${first.part === "cette demande" ? "" : `${first.part} : `}${first.reason}`) : "";
+  let reason = "";
+  if (first) {
+    const part = first.part === "cette demande" ? "" : first.fromAi ? safeAiText(first.part, nums, pick(RV.aiPart, "order.ai.part", chatId)) : first.part;
+    const why = first.fromAi ? safeAiText(first.reason, nums, pick(RV.aiReason, "order.ai.reason", chatId)) : first.reason;
+    reason = sentence(`${part ? `${part} : ` : ""}${why}`);
+  }
+  const token = await openChoice(deps, order.id, "alt");
   const options: { label: string; value: string }[] = [];
-  if (opts.launchPossible) options.push({ label: RV.optionLaunchPossible[0]!, value: `${order.id}:go` });
-  alts.forEach((a, i) => options.push({ label: a.label, value: `${order.id}:${i}` }));
+  if (opts.launchPossible) options.push({ label: RV.optionLaunchPossible[0]!, value: `${order.id}:go:${token}` });
+  alts.forEach((a, i) => options.push({ label: a.label, value: `${order.id}:${i}:${token}` }));
   const shown = options.slice(0, 4);
   // Interprétation gardée avec les replis (le numéro rejoue sans IA).
-  const interp = { ...(interpretationOf(order) ?? storedOf(v)), alternatives: alts } as StoredInterpretation & { alternatives: Alternative[] };
-  await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { interpretation: JSON.parse(JSON.stringify(interp)) as never } });
+  await writeInterp(deps, order.id, { alternatives: JSON.parse(JSON.stringify(alts)) });
   const execDeps = { ...deps, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null };
   if (!shown.length) {
-    const none = pick(RV.altNone, "order.alt.none", ctx.chat?.chatId);
+    await writeInterp(deps, order.id, { choice: undefined });
+    const none = pick(RV.altNone, "order.alt.none", chatId);
     return { reply: [opts.head, reason, none].filter(Boolean).map((l) => esc(l!)).join("\n"), status: "unmet", orderId: order.id };
   }
   await askToChoose(execDeps, { actionKey: ORDER_ALTERNATIVE_ACTION, params: {}, field: "choix", question: reason, options: shown });
   const top = shown[0]!;
-  const question = opts.launchPossible
-    ? pick(RV.altPartial, "order.alt.partial", ctx.chat?.chatId)
-    : pick(RV.altOne({ label: top.label }), "order.alt.one", ctx.chat?.chatId);
-  // Une seule confirmation à la fois : la proposition principale se confirme par OUI seulement si rien d'autre n'attend.
+  // Une seule confirmation à la fois : avec une confirmation déjà ouverte, AUCUNE question en OUI (choix par numéro).
   const pending = await readBossPending(deps);
+  const pendingOpen = !!pending && !pending.expired;
   let buttons: BossReply["buttons"];
   let pendingId: string | undefined;
-  if (!(pending && !pending.expired)) {
+  let question: string | null = null;
+  if (!pendingOpen) {
+    question = opts.launchPossible ? pick(RV.altPartial, "order.alt.partial", chatId) : pick(RV.altOne({ label: top.label }), "order.alt.one", chatId);
     const r = await createBossPending(deps, {
       actionKey: ORDER_CONFIRM_ACTION,
       params: { ordre: order.id, op: "alt", choix: top.value },
@@ -478,23 +563,33 @@ async function offerAlternatives(
     buttons = r.buttons;
     pendingId = r.pendingId;
   }
+  const listed = pendingOpen || shown.length > 1;
   const lines = [
     opts.head ?? null,
-    `${reason} ${question}`.trim(),
-    ...(shown.length > 1 ? shown.map((o, i) => `${i + 1}. ${o.label}`) : []),
-    shown.length > 1
-      ? pick(RV.altHow, "order.alt.how", ctx.chat?.chatId)
-      : null,
+    `${reason} ${question ?? ""}`.trim(),
+    ...(listed ? shown.map((o, i) => `${i + 1}. ${o.label}`) : []),
+    listed ? (pendingOpen ? pick(RV.altHowNumbers, "order.alt.how", chatId) : pick(RV.altHow, "order.alt.how", chatId)) : null,
   ].filter((l): l is string => !!l);
   return { reply: lines.map(esc).join("\n"), ...(buttons ? { buttons } : {}), ...(pendingId ? { pendingId } : {}), status: "clarify", orderId: order.id };
 }
 
+/** Libellé d'une capacité du registre (repli de l'IA dont le libellé n'a pas passé le contrôle). */
+function capabilityLabel(teamKey: string, key: string): string | null {
+  const c = capability(teamKey, key);
+  return c ? `${c.description.charAt(0).toLowerCase()}${c.description.slice(1)}`.slice(0, 100) : null;
+}
+
 // ------------------------------------------------------------------------------------------------ transmission
 
-/** Un membre qui n'est pas responsable ne lance rien lui-même (règles de la phase 26). */
-async function memberMayLaunch(deps: BossDeps, speaker: BossSpeaker | null | undefined, cls: OrderClass): Promise<boolean> {
+/**
+ * Un membre qui n'est pas responsable ne lance rien lui-même (règles de la phase 26) ; les réglages (plan d'un canal,
+ * catégorie, consignes, mots interdits, réglages de l'Algorithme, test A/B, reprise, mode, inspiration) sont réservés
+ * à l'admin : un membre les lui transmet.
+ */
+async function memberMayLaunch(deps: BossDeps, speaker: BossSpeaker | null | undefined, cls: OrderClass, v?: Pick<ValidatedPlan, "plannedSteps">): Promise<boolean> {
   if (!speaker || speaker.kind === "admin") return true;
   if (cls.cls === "confirm") return false;
+  if (v && adminOnlyOrder(v)) return false;
   const m = await findTeamMember(deps, speaker.telegramUserId).catch(() => null);
   return !!m && (speaker.role === "MANAGER" || speaker.role === "ADMIN");
 }
@@ -503,7 +598,7 @@ async function memberMayLaunch(deps: BossDeps, speaker: BossSpeaker | null | und
 async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: ValidatedPlan, ctx: OrderSubmitContext): Promise<OrderReply> {
   const chatId = ctx.chat?.chatId ?? null;
   const cls = await classifyOrder(deps, v);
-  const allowed = await memberMayLaunch(deps, ctx.speaker, cls);
+  const allowed = await memberMayLaunch(deps, ctx.speaker, cls, v);
   if (cls.cls === "confirm" || !allowed) {
     const recap = await orderRecap(deps, v, { chatId });
     const why = cls.reasons.length ? pick(RV.waitYes({ reasons: cls.reasons.slice(0, 2).join(" et ") }), "order.wait.yes", chatId) : pick(RV.waitYesNone, "order.wait.yes", chatId);
@@ -542,9 +637,31 @@ async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: Validated
   return startOrder(deps, order, v, ctx);
 }
 
-/** Transmet au Grand Chef (`runOrder`) et répond avec le récapitulatif (« annule » pendant 60 s si immédiat). */
-export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: ValidatedPlan | null, ctx: { actor: BossActor; chat?: BossChat | null; confirmed?: boolean }): Promise<OrderReply> {
+/** Question « lequel garder ? » (chevauchement), choix numérotés à usage unique. */
+async function askOverlap(deps: BossDeps, order: TeamOrderRow, overlap: OverlapInfo, ctx: { speaker?: BossSpeaker | null; chat?: BossChat | null }): Promise<OrderReply> {
   const chatId = ctx.chat?.chatId ?? null;
+  const names = await channelNames(deps, [overlap.channelId]);
+  const where = names.get(overlap.channelId)?.name ?? "ce canal";
+  const question = pick(RV.overlap({ n: overlap.number, where }), "order.overlap", chatId);
+  const token = await openChoice(deps, order.id, "overlap");
+  const options = [
+    { label: RV.overlapNew({ n: overlap.number })[0]!, value: `new:${order.id}:${overlap.orderId}:${token}` },
+    { label: RV.overlapOld[0]!, value: `old:${order.id}:${token}` },
+  ];
+  await askToChoose({ ...deps, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null } as BossDeps, { actionKey: ORDER_OVERLAP_ACTION, params: {}, field: "choix", question, options });
+  await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "DRAFT", recap: question } });
+  return { reply: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`), pick(RV.overlapHow, "order.overlap.how", chatId)].map(esc).join("\n"), status: "clarify", orderId: order.id };
+}
+
+/**
+ * Transmet au Grand Chef (`runOrder`) et répond avec le récapitulatif (« annule » pendant 60 s si immédiat). Refusé si
+ * l'ordre n'attend plus de départ (déjà en cours, fini, arrêté) ; ferme confirmation et choix encore ouverts.
+ */
+export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: ValidatedPlan | null, ctx: { actor: BossActor; chat?: BossChat | null; speaker?: BossSpeaker | null; confirmed?: boolean }): Promise<OrderReply> {
+  const chatId = ctx.chat?.chatId ?? null;
+  const current = await orderById(deps, order.id);
+  if (!current || !["DRAFT", "WAITING_CONFIRM"].includes(current.status)) return { reply: pick(RV.already, "order.already", chatId), status: "done", orderId: order.id };
+  await closeOrderChoices(deps, order.id);
   const tail = ctx.confirmed
     ? pick(RV.tailConfirmed, "order.tail.confirmed", chatId)
     : pick(RV.tailImmediate, "order.tail.immediate", chatId);
@@ -562,15 +679,24 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
   const prog = (before?.progress && typeof before.progress === "object" ? before.progress : {}) as Record<string, unknown>;
   const reported = Array.isArray(prog.kevinReportedDays) ? (prog.kevinReportedDays as string[]) : [];
   await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { progress: JSON.parse(JSON.stringify({ ...prog, kevinReportedDays: [...reported, "started"] })) as never } });
-  const r = await runOrder(deps, order.id).catch((err: Error) => ({ ok: false, message: err.message }));
+  const r = await runOrder(deps, order.id).catch((err: Error) => ({ ok: false, message: err.message, status: undefined, conflicts: undefined }));
   if (!r.ok) {
+    // Un autre ordre a pris le même canal entre-temps : la même question « lequel garder ? », jamais un échec.
+    const c = r.conflicts?.[0];
+    if (c) {
+      const other = await orderById(deps, c.orderId);
+      return askOverlap(deps, order, { orderId: c.orderId, number: c.number ?? other?.number ?? 0, recap: other?.recap ?? "", channelId: c.channelId }, ctx);
+    }
+    // Bloqué (équipe en pause, plafond) : l'ordre attend, il repartira tout seul.
+    if (r.status === "BLOCKED") {
+      await auditOrder(deps, "blocked", order, ctx.actor, { message: (r.message ?? "").slice(0, 160) });
+      return { reply: esc(pick(RV.startBlocked, "order.start.blocked", chatId)), status: "done", orderId: order.id };
+    }
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
-    await auditOrder(deps, "failed", order, ctx.actor, { message: (r.message ?? "").slice(0, 160) });
-    return {
-      reply: esc(pick(RV.startFailed({ reason: r.message ?? "erreur interne" }), "order.start.failed", chatId)),
-      status: "error",
-      orderId: order.id,
-    };
+    // Détail technique au journal seulement ; à l'admin, une phrase simple.
+    await auditOrder(deps, "failed", order, ctx.actor, { message: (r.message ?? "").slice(0, 300) });
+    deps.logger?.warn({ orderId: order.id, err: r.message }, "[orders] départ impossible");
+    return { reply: esc(pick(RV.startFailed, "order.start.failed", chatId)), status: "error", orderId: order.id };
   }
   const fresh = await orderById(deps, order.id);
   await deps.prisma.teamOrder.update({
@@ -593,9 +719,14 @@ function firstWindow(steps: readonly OrderStep[]): string | null {
 /**
  * Soumet un plan validé (temps 2 → récapitulatif → OUI ou lancement). Crée (ou met à jour) le `TeamOrder` : DRAFT →
  * WAITING_CONFIRM ou RUNNING ; CANCELLED pour une demande sans rien de possible (gardée pour le journal et le cache).
+ * Un ordre déjà en cours, fini ou arrêté n'est jamais remis en préparation (OUI ou numéro tardif).
  */
 export async function submitOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSubmitContext): Promise<OrderReply> {
   const chatId = ctx.chat?.chatId ?? null;
+  if (ctx.orderId) {
+    const prev = await orderById(deps, ctx.orderId);
+    if (!prev || !CHOOSABLE.includes(prev.status)) return { reply: pick(RV.already, "order.already", chatId), status: "done", orderId: ctx.orderId };
+  }
   const order = await writeOrder(deps, v, ctx, { status: "DRAFT", recap: "" });
   // Ce qui n'a pas pu être pris est noté une fois par demande (bilan hebdomadaire).
   const firstImpossible = v.impossible[0];
@@ -607,20 +738,10 @@ export async function submitOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSu
       suggestedCapability: firstImpossible.suggestedCapability ?? null,
       orderId: order.id,
     });
-  if (v.status === "overlap" && v.overlap) {
-    const names = await channelNames(deps, [v.overlap.channelId]);
-    const where = names.get(v.overlap.channelId)?.name ?? "ce canal";
-    const question = pick(RV.overlap({ n: v.overlap.number, where }), "order.overlap", chatId);
-    const options = [
-      { label: RV.overlapNew({ n: v.overlap.number })[0]!, value: `new:${order.id}:${v.overlap.orderId}` },
-      { label: RV.overlapOld[0]!, value: `old:${order.id}` },
-    ];
-    await askToChoose({ ...deps, speaker: ctx.speaker ?? null, chat: ctx.chat ?? null } as BossDeps, { actionKey: ORDER_OVERLAP_ACTION, params: {}, field: "choix", question, options });
-    await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { recap: question } });
-    return { reply: [question, ...options.map((o, i) => `${i + 1}. ${o.label}`), pick(RV.overlapHow, "order.overlap.how", chatId)].map(esc).join("\n"), status: "clarify", orderId: order.id };
-  }
+  if (v.status === "overlap" && v.overlap) return askOverlap(deps, order, v.overlap, ctx);
   if (v.status === "question") {
-    const q = v.plan.questions[0]!;
+    // Question écrite par le planificateur : voix de Kevin et aucun chiffre inventé, sinon la question du code.
+    const q = safeAiText(v.plan.questions[0] ?? "", contextNumbers(v, ctx.requestText), pick(RV.aiQuestion, "order.ai.question", chatId));
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED", recap: q } });
     return { reply: esc(q), status: "clarify", orderId: order.id };
   }
@@ -644,6 +765,7 @@ export async function revalidateStored(deps: BossDeps, order: TeamOrderRow, muta
   if (!interp) return null;
   const { channelIds: _c, fromDay: _f, toDay: _t, plannedSteps: _p, clamped: _cl, raw: _r, pendingChange: _pc, replaces: _rep, ...plan } = interp as StoredInterpretation & { alternatives?: unknown };
   delete (plan as { alternatives?: unknown }).alternatives;
+  delete (plan as { choice?: unknown }).choice;
   const base = JSON.parse(JSON.stringify(plan)) as OrderPlan;
   return validatePlan(deps, mutate ? mutate(base) : base, { excludeOrderId: order.id });
 }
@@ -657,6 +779,7 @@ export async function confirmOrderLaunch(deps: BossDeps, orderId: string, actor:
   const v = await revalidateStored(deps, order);
   if (!v || !v.steps.length) {
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
+    await closeOrderChoices(deps, order.id);
     return { reply: esc(pick(RV.revalidateFailed, "order.revalidate.failed", order.chatId)) };
   }
   const chat: BossChat | null = order.chatId ? { type: BigInt(order.chatId) < 0n ? "group" : "private", chatId: BigInt(order.chatId) } : null;
@@ -664,20 +787,29 @@ export async function confirmOrderLaunch(deps: BossDeps, orderId: string, actor:
   return reply;
 }
 
-/** Rejoue un repli choisi (« 2 » ou OUI) sans IA : la capacité de l'`Alternative` remplace la partie impossible. */
+/**
+ * Rejoue un repli choisi (« 2 » ou OUI) sans IA : la capacité de l'`Alternative` remplace la partie impossible. Valable
+ * une seule fois (jeton du choix) et seulement tant que l'ordre n'est pas parti.
+ */
 export async function replayAlternative(
   deps: BossDeps,
   choice: string,
   ctx: { actor: BossActor; speaker?: BossSpeaker | null; chat?: BossChat | null },
 ): Promise<OrderReply> {
-  const m = /^([^:]+):(go|\d+)$/.exec(choice.trim());
+  const m = /^([^:]+):(go|\d+)(?::([a-z0-9]+))?$/.exec(choice.trim());
   if (!m) return { reply: pick(RV.choiceUnknown, "order.choice.unknown", ctx.chat?.chatId), status: "clarify" };
   const order = await orderById(deps, m[1]!);
   const interp = order ? (interpretationOf(order) as (StoredInterpretation & { alternatives?: Alternative[] }) | null) : null;
   if (!order || !interp) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
+  const open = choiceOf(order);
+  if (!CHOOSABLE.includes(order.status) || !open || open.kind !== "alt" || open.token !== m[3])
+    return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
+  // Le choix est fait : la question numérotée et la proposition en OUI se ferment tout de suite.
+  await closeOrderChoices(deps, order.id);
+  const fresh = (await orderById(deps, order.id)) ?? order;
   const sub: OrderSubmitContext = { requestText: order.requestText, actor: ctx.actor, speaker: ctx.speaker, chat: ctx.chat, orderId: order.id, raw: interp.raw ?? null, cacheKey: order.planCacheKey };
   if (m[2] === "go") {
-    const v = await revalidateStored(deps, order, (p) => ({ ...p, impossible: [] }));
+    const v = await revalidateStored(deps, fresh, (p) => ({ ...p, impossible: [] }));
     if (!v || !v.steps.length) return { reply: pick(RV.nothingLeft, "order.nothing.left", ctx.chat?.chatId), status: "unmet" };
     return submitOrder(deps, { ...v, impossible: [], status: v.status === "partial" ? "ok" : v.status }, sub);
   }
@@ -689,7 +821,7 @@ export async function replayAlternative(
       status: "clarify",
     };
   const altCap = alt.capability;
-  const v = await revalidateStored(deps, order, (p) => ({
+  const v = await revalidateStored(deps, fresh, (p) => ({
     ...p,
     steps: [...p.steps.filter((s) => !(s.teamKey === altCap.teamKey && s.capability === altCap.key)), { teamKey: altCap.teamKey, capability: altCap.key, params: altCap.params }],
     theme: typeof altCap.params.theme === "string" ? altCap.params.theme : p.theme,
@@ -699,24 +831,38 @@ export async function replayAlternative(
   return submitOrder(deps, v, sub);
 }
 
-/** Choix après un chevauchement : garder le nouveau (l'ancien est arrêté) ou l'ancien (le nouveau est abandonné). */
+/**
+ * Choix après un chevauchement : garder le nouveau ou l'ancien. L'ancien n'est arrêté qu'au LANCEMENT effectif du
+ * nouveau (`TeamOrder.interpretation.replaces`, arrêté par le Grand Chef), jamais avant le OUI. Sur un vrai canal,
+ * seul l'admin choisit.
+ */
 export async function resolveOverlapChoice(deps: BossDeps, choice: string, ctx: { actor: BossActor; speaker?: BossSpeaker | null; chat?: BossChat | null }): Promise<OrderReply> {
   const parts = choice.split(":");
   const order = parts[1] ? await orderById(deps, parts[1]) : null;
-  if (!order) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
+  const token = parts[0] === "new" ? parts[3] : parts[2];
+  const open = order ? choiceOf(order) : null;
+  if (!order || order.status !== "DRAFT" || !open || open.kind !== "overlap" || open.token !== token)
+    return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
+  const v = await revalidateStored(deps, order);
+  if (!v) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
+  if (ctx.speaker && ctx.speaker.kind === "member") {
+    const ids = [...new Set([...v.channelIds, ...(v.overlap ? [v.overlap.channelId] : [])])];
+    const names = await channelNames(deps, ids);
+    if (!ids.length || ids.some((id) => names.get(id)?.isTest !== true)) {
+      const admin = await adminFirstName(deps).catch(() => "l'admin");
+      return { reply: esc(pick(RV.overlapAdmin({ admin }), "order.overlap.admin", ctx.chat?.chatId)), status: "clarify", orderId: order.id };
+    }
+  }
+  await closeOrderChoices(deps, order.id);
   if (parts[0] === "old") {
     await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
     await auditOrder(deps, "dropped", order, ctx.actor);
     return { reply: pick(RV.overlapKeptOld, "order.overlap.old", ctx.chat?.chatId), status: "done" };
   }
   const old = parts[2] ? await orderById(deps, parts[2]) : null;
-  if (old) {
-    await stopOrder(deps, old.id, ctx.actor, "remplacé par un nouvel ordre").catch(() => undefined);
-    await auditOrder(deps, "replaced", old, ctx.actor, { by: order.id });
-  }
-  const v = await revalidateStored(deps, order);
-  if (!v) return { reply: pick(RV.choiceStale, "order.choice.stale", ctx.chat?.chatId), status: "clarify" };
-  return launchOrConfirm(deps, order, { ...v, overlap: null, status: v.steps.length ? (v.impossible.length ? "partial" : "ok") : "empty" }, {
+  if (old) await writeInterp(deps, order.id, { replaces: old.id });
+  const fresh = (await orderById(deps, order.id)) ?? order;
+  return launchOrConfirm(deps, fresh, { ...v, overlap: null, status: v.steps.length ? (v.impossible.length ? "partial" : "ok") : "empty" }, {
     requestText: order.requestText,
     actor: ctx.actor,
     speaker: ctx.speaker,
@@ -729,41 +875,70 @@ export async function resolveOverlapChoice(deps: BossDeps, choice: string, ctx: 
 
 type QuickCancel = { orderId: string; at: string; chatId: string | null };
 
+/** Mission pas encore commencée : en attente, aucune étape lancée (pur). */
+function missionNotStarted(m: { status: string; steps: unknown }): boolean {
+  if (m.status !== "PENDING") return false;
+  const steps = Array.isArray(m.steps) ? (m.steps as Array<{ status?: string; startedAt?: unknown }>) : [];
+  return steps.every((x) => (x.status === "PENDING" || x.status === "SKIPPED" || !x.status) && !x.startedAt);
+}
+
 /**
- * « annule » dans la minute qui suit un ordre lancé sans confirmation (règle 4) : l'ordre est arrêté avant sa première
- * production. Rend la réponse, ou null pour laisser la suite du chemin rapide. Admin seulement, sans IA.
+ * « annule » dans la minute qui suit un ordre lancé sans confirmation (règle 4) : l'ordre est arrêté s'il n'a encore
+ * rien commencé ; dès qu'une production a démarré, Kevin le dit honnêtement (« déjà en route »). Ignoré pour un message
+ * en « Répondre » à un autre, ou quand une question a été posée APRÈS l'ordre (elle a la priorité). Admin seulement,
+ * sans IA ; journal au nom de la personne qui annule.
  */
 export async function orderQuickCancel(
   deps: BossDeps,
   input: Pick<BossTeamInput, "speaker" | "chat" | "replyToMessageId">,
-  ctx: { word: "yes" | "no" | "cancel" | null; pendingOpen: boolean },
+  ctx: { word: "yes" | "no" | "cancel" | null; pendingOpen: boolean; otherQuestionAt?: number },
 ): Promise<{ reply: BossReply; actionKey: string } | null> {
   if (ctx.word !== "cancel" || ctx.pendingOpen) return null;
   if (input.speaker && input.speaker.kind === "member") return null;
+  if (input.replyToMessageId != null) return null;
   const q = (await readSetting(deps, ORDER_QUICK_CANCEL_SETTING)) as QuickCancel | undefined;
   if (!q || typeof q.orderId !== "string") return null;
   const now = nowOf(deps).getTime();
-  if (now - new Date(q.at).getTime() > ORDER_LIMITS.immediateCancelMs) return null;
+  const at = new Date(q.at).getTime();
+  if (now - at > ORDER_LIMITS.immediateCancelMs) return null;
   const chat = input.chat?.chatId != null ? input.chat.chatId.toString() : null;
   if (q.chatId && chat && q.chatId !== chat) return null;
+  // Une question posée après l'ordre (précision, choix, demande au client) a la priorité sur « annule ».
+  if ((ctx.otherQuestionAt ?? 0) > at) return null;
+  const clarify = await readClarify(deps).catch(() => null);
+  if (clarify && new Date(clarify.createdAt).getTime() > at) return null;
+  const asked = (await deps.prisma.humanRequest.findFirst({ where: { status: "PENDING", askedAt: { gt: new Date(at) } } }).catch(() => null)) as unknown;
+  if (asked) return null;
   await deps.prisma.setting.deleteMany({ where: { key: ORDER_QUICK_CANCEL_SETTING } });
   const order = await orderById(deps, q.orderId);
   if (!order) return null;
-  const started = (await deps.prisma.agentMission.count({
-    where: { orderId: order.id, OR: [{ postId: { not: null } }, { status: { in: ["DONE", "WAITING_VALIDATION"] } }] },
-  })) as number;
-  if (started > 0)
+  const missions = (await deps.prisma.agentMission.findMany({ where: { orderId: order.id }, select: { status: true, steps: true, postId: true } })) as Array<{ status: string; steps: unknown; postId: string | null }>;
+  const started = missions.filter((m) => m.status !== "CANCELLED" && (m.postId || !missionNotStarted(m)));
+  if (started.length > 0)
     return {
-      reply: { reply: pick(RV.quickLate, "order.quick.late", chat) },
+      reply: { reply: pick(started.some((m) => m.postId || m.status === "DONE") ? RV.quickLate : RV.quickOnTheWay, "order.quick.late", chat) },
       actionKey: "annuler_ordre",
     };
-  await stopOrder(deps, order.id, { userId: order.createdById, via: "TELEGRAM" }, "annulé dans la minute");
+  const actor = await speakerActor(deps, input.speaker ?? null);
+  await stopOrder(deps, order.id, actor, "annulé dans la minute");
   await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
-  await auditOrder(deps, "cancelled", order, { userId: null, via: "TELEGRAM" }, { quick: true });
+  await auditOrder(deps, "cancelled", order, actor, { quick: true });
   return {
     reply: { reply: pick(RV.quickDone, "order.quick.done", chat) },
     actionKey: "annuler_ordre",
   };
+}
+
+/** Utilisateur du site lié à la personne qui parle (journal), sinon l'admin enregistré. */
+async function speakerActor(deps: BossDeps, speaker: BossSpeaker | null): Promise<BossActor> {
+  try {
+    const tid = speaker?.telegramUserId ?? (await adminTelegramId(deps));
+    if (tid == null) return { userId: null, via: "TELEGRAM" };
+    const u = (await deps.prisma.user.findFirst({ where: { telegramUserId: BigInt(tid) }, select: { id: true } })) as { id: string } | null;
+    return { userId: u?.id ?? null, via: "TELEGRAM" };
+  } catch {
+    return { userId: null, via: "TELEGRAM" };
+  }
 }
 
 export { workingTeam };

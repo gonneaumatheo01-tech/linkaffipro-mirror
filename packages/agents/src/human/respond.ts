@@ -78,7 +78,7 @@ async function builtinAction(
     return undefined;
   }
   if (name === "set-simulation" && isTeamKey(onAnswer.teamKey)) {
-    if (value !== "oui") return "D'accord, rien ne change : l'équipe reste en simulation.";
+    if (value !== "oui") return "D'accord, rien ne change : l'équipe reste pour de faux, sur le canal Test.";
     return (await setSimulation(deps, onAnswer.teamKey, onAnswer.simulation === true, actor)).message;
   }
   if (name === "set-autonomy" && isTeamKey(onAnswer.teamKey)) {
@@ -227,7 +227,7 @@ export async function respondToRequest(
         await reopen();
         return {
           ok: false,
-          message: `${secretSavedHead(request.key, last4, "reçu")}. Vérification : KO : ${check.message}. Réessaie en répondant avec une autre clé.`,
+          message: `${secretSavedHead(request.key, last4, "reçu")}. La vérification a échoué (${check.message}). Réessaie en répondant avec une autre clé.`,
           closed: false,
           secret,
           secretSaved,

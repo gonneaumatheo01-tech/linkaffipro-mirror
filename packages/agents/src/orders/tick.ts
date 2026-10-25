@@ -13,8 +13,8 @@ import { ORDER_LIMITS } from "./contract";
 import { orderMissionFacts } from "./capabilities/kit";
 import { emitOrderEvent } from "./events";
 import { orderFacts } from "./facts";
-import { runOrder } from "./run";
-import { loadOrder, parseOrderPlan, patchProgress, progressOf, toOrderRow, type TeamOrderDbRow } from "./store";
+import { orderBudgetOver, runOrder } from "./run";
+import { loadOrder, parseOrderPlan, patchProgress, progressOf, stepPending, toOrderRow, type TeamOrderDbRow } from "./store";
 
 export { setOrderEventHook, emitOrderEvent, type OrderEvent, type OrderEventHook, type OrderEventType } from "./events";
 
@@ -45,20 +45,32 @@ export async function tickOrders(deps: AgentsDeps, now: Date = nowOf(deps)): Pro
 async function tickOne(deps: AgentsDeps, row: TeamOrderDbRow, now: Date, out: TickResult): Promise<void> {
   const progress = progressOf(row.progress);
   const planned = progress.plannedSteps ?? [];
-  // Ordre bloqué par une pause : il repart quand l'équipe reprend (le plafond, lui, attend le mois suivant ou une hausse).
+  // Ordre bloqué : il repart quand l'équipe reprend ET que le plafond s'est libéré (nouveau mois, plafond relevé) ; il
+  // se termine à la fin de sa période même s'il est resté bloqué.
   if (row.status === "BLOCKED") {
     const plan = parseOrderPlan(row.interpretation);
     const team = plan?.asIfTeamKey ?? planned.find((s) => isTeamKey(s.teamKey))?.teamKey ?? row.teamKey;
-    const budget = (await deps.prisma.agentMission.count({ where: { orderId: row.id, status: "BLOCKED_BUDGET" } })) > 0;
-    if (!budget && isTeamKey(team) && !(await isTeamHalted(deps, team)).halted) {
-      const r = await runOrder(deps, row.id);
-      if (r.status === "RUNNING") out.resumed++;
+    const ovs = (await deps.prisma.channelPlanOverride.findMany({ where: { orderId: row.id } })) as OverrideLite[];
+    const lastDay = ovs.map((o) => o.toDay).sort().reverse()[0] ?? null;
+    if (lastDay && parisDay(now) > lastDay) {
+      await deps.prisma.betCategory.updateMany({ where: { createdByOrderId: row.id, active: true }, data: { active: false } });
+      await patchProgress(deps, row.id, { finishedAt: now.toISOString(), blockedReason: null }, { status: "DONE" });
+      const o = toOrderRow((await loadOrder(deps, row.id)) ?? row);
+      await emitOrderEvent(deps, { type: "finished", order: o, orderId: row.id, number: row.number, teamKey: row.teamKey, chatId: row.chatId, facts: await orderFacts(deps, o) });
+      out.finished++;
+      out.events++;
+      return;
     }
+    if (isTeamKey(team) && (await isTeamHalted(deps, team)).halted) return;
+    if (await orderBudgetOver(deps, row)) return;
+    await patchProgress(deps, row.id, { blockedReason: null, blockedNotified: null, unblockedAt: now.toISOString() }, { status: "RUNNING" });
+    const r = await runOrder(deps, row.id);
+    if (r.status === "RUNNING") out.resumed++;
     return;
   }
-  // Reprise après un arrêt : une étape pas faite (ou échouée et rejouable) est relancée, jamais doublée.
+  // Reprise après un arrêt : une étape jamais faite, ou en échec rejouable (3 essais au plus), est relancée, jamais doublée.
   const state = progress.steps ?? {};
-  if (!planned.length || planned.some((s) => !state[s.stepKey]?.ok)) {
+  if (!planned.length || planned.some((s) => stepPending(state[s.stepKey]))) {
     const r = await runOrder(deps, row.id);
     if (r.ok) out.resumed++;
     const again = await loadOrder(deps, row.id);
@@ -85,7 +97,7 @@ async function tickOne(deps: AgentsDeps, row: TeamOrderDbRow, now: Date, out: Ti
   const order = () => loadOrder(deps, row.id).then((r) => toOrderRow(r ?? row));
   const event = async (type: "day_done" | "finished" | "failures" | "blocked", extra: { day?: string; reason?: string; failures?: number } = {}) => {
     const o = await order();
-    await emitOrderEvent(deps, {
+    const sent = await emitOrderEvent(deps, {
       type,
       order: o,
       orderId: row.id,
@@ -99,9 +111,15 @@ async function tickOne(deps: AgentsDeps, row: TeamOrderDbRow, now: Date, out: Ti
       facts: await orderFacts(deps, o),
     });
     out.events++;
+    return sent;
   };
-  // Plafond atteint : ordre bloqué, Kevin prévient une fois.
-  if (facts.blockedBudget > 0) {
+  // Plafond atteint : ordre bloqué, Kevin prévient une fois. Après un déblocage (plafond libéré), seules les missions
+  // bloquées DEPUIS comptent (les anciennes restent visibles, elles ne rebloquent pas l'ordre).
+  const unblockedAt = typeof p.unblockedAt === "string" ? new Date(p.unblockedAt) : null;
+  const blockedSince = unblockedAt
+    ? ((await deps.prisma.agentMission.count({ where: { orderId: row.id, status: "BLOCKED_BUDGET", createdAt: { gte: unblockedAt } } })) as number)
+    : facts.blockedBudget;
+  if (blockedSince > 0) {
     const reason = facts.errors[0] ?? "Plafond de dépense atteint.";
     await patchProgress(deps, row.id, { blockedReason: reason, blockedNotified: reason }, { status: "BLOCKED" });
     if (p.blockedNotified !== reason) await event("blocked", { reason });
@@ -123,9 +141,10 @@ async function tickOne(deps: AgentsDeps, row: TeamOrderDbRow, now: Date, out: Ti
     const over = day < today || parisMinutes(now) >= end;
     if (!over || (dd && dd.inProgress > 0)) continue;
     if (day === toDay) continue; // le dernier jour est couvert par le bilan de fin
+    // Jour marqué « rapporté » seulement après l'envoi réussi (sinon retenté au passage suivant).
+    if (!(await event("day_done", { day }))) continue;
     notified.add(day);
     await patchProgress(deps, row.id, { daysNotified: [...notified] });
-    await event("day_done", { day });
   }
   // Fin : période passée (ou dérogations toutes fermées) et plus rien en cours.
   const allClosed = overrides.length > 0 && overrides.every((o) => o.closedAt);

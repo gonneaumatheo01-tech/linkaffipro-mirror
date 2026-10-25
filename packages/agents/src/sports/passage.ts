@@ -16,6 +16,7 @@ import { activeCategories, picksToday } from "./data";
 import { createBetMission } from "./missions";
 import { duePassage, readPassageState, writePassageState } from "./passage-state";
 import { parseSportsSettings } from "./settings";
+import { activeOverridesOn } from "../orders/overrides";
 
 export type SportsPassageResult = { due: boolean; reason: string | null; created: number; refused: Array<{ categoryId: string; reason: string }>; skipped?: string };
 
@@ -40,7 +41,16 @@ export async function runSportsPassage(deps: AgentsDeps & { providers?: { odds?:
     where: { teamKey: "sports", isTest: false, status: { in: [...ACTIVE_STATUSES] } },
     select: { payload: true, steps: true },
   });
+  // Canaux remplacés par un ordre de Kevin en vrai ce jour-là (dérogation Paris sportifs réelle) : retirés des
+  // destinations du passage habituel, l'ordre les remplace (jamais une somme des deux). Un ordre « pour de faux » ne
+  // remplace rien (il publie sur le canal Test).
+  const replaced = await replacedChannels(deps, parisDay(now));
   for (const c of categories) {
+    const destinations = c.channelIds.filter((id) => !replaced.has(id));
+    if (c.channelIds.length && !destinations.length) {
+      out.refused.push({ categoryId: c.id, reason: "canaux remplacés par un ordre en cours" });
+      continue;
+    }
     if (c.picksPerDay - (await picksToday(deps.prisma, c.id, now)) <= 0) continue;
     // Une sélection en cours pour la catégorie (étape Cotes pas encore faite) : on ne la double pas.
     const selecting = running.some((m) => {
@@ -49,9 +59,26 @@ export async function runSportsPassage(deps: AgentsDeps & { providers?: { odds?:
       return p.categoryId === c.id && !p.pickId && first?.agent === "cotes" && first.status !== "DONE";
     });
     if (selecting) continue;
-    const r = await createBetMission(deps, { category: c, createdBy: "GRAND_CHEF", planDay: parisDay(now), reason: due.reason ?? undefined });
+    const r = await createBetMission(deps, {
+      category: c,
+      createdBy: "GRAND_CHEF",
+      planDay: parisDay(now),
+      reason: due.reason ?? undefined,
+      ...(destinations.length !== c.channelIds.length ? { channelIds: destinations } : {}),
+    });
     if (r.ok) out.created++;
     else out.refused.push({ categoryId: c.id, reason: r.reason });
   }
   return out;
+}
+
+/** Canaux sous une dérogation Paris sportifs RÉELLE d'un ordre en cours ce jour-là (lecture seule, ne lève jamais). */
+export async function replacedChannels(deps: AgentsDeps, day: string): Promise<Set<string>> {
+  try {
+    const rows = await activeOverridesOn(deps, day);
+    return new Set(rows.filter((o) => o.teamKey === "sports" && !o.isTest).map((o) => o.channelId));
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[sports] dérogations des ordres illisibles");
+    return new Set();
+  }
 }

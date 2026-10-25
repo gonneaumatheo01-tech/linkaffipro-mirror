@@ -30,7 +30,8 @@ export type OrderEvent = {
   facts: OrderFacts;
 };
 
-export type OrderEventHook = (deps: AgentsDeps, event: OrderEvent) => Promise<void> | void;
+/** Crochet des rapports : `false` = message pas parti (le Grand Chef ne marque alors pas le jour comme rapporté). */
+export type OrderEventHook = (deps: AgentsDeps, event: OrderEvent) => Promise<void | boolean> | void | boolean;
 
 let hook: OrderEventHook | null = null;
 
@@ -39,7 +40,8 @@ export function setOrderEventHook(fn: OrderEventHook | null): void {
   hook = fn;
 }
 
-export async function emitOrderEvent(deps: AgentsDeps, event: OrderEvent): Promise<void> {
+/** Journalise l'événement et appelle le crochet ; vrai si le rapport est parti (ou s'il n'y a pas de crochet). */
+export async function emitOrderEvent(deps: AgentsDeps, event: OrderEvent): Promise<boolean> {
   await agentEvent(deps, `agents.order.${event.type}`, {
     orderId: event.orderId,
     number: event.number,
@@ -48,10 +50,11 @@ export async function emitOrderEvent(deps: AgentsDeps, event: OrderEvent): Promi
     ...(event.failures !== undefined ? { failures: event.failures } : {}),
     ...(event.reason ? { reason: event.reason.slice(0, 300) } : {}),
   });
-  if (!hook) return;
+  if (!hook) return true;
   try {
-    await hook(deps, event);
+    return (await hook(deps, event)) !== false;
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message, orderId: event.orderId, type: event.type }, "[orders] crochet des rapports en erreur");
+    return false;
   }
 }

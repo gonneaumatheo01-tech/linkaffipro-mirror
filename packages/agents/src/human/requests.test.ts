@@ -78,7 +78,7 @@ describe("demandes au client", () => {
     registerSecretVerifier("providers.fal.apiKey", async () => ({ ok: false, message: "clé inconnue" }));
     await askHuman(kit.deps, { kind: "SECRET", key: "providers.fal.apiKey", question: "Ta clé fal.ai ?" });
     const r = await handleAdminText(kit.deps, { text: "mauvaise-cle-0000", messageId: 9 });
-    expect(r.reply).toContain("Vérification : KO : clé inconnue");
+    expect(r.reply).toContain("La vérification a échoué (clé inconnue)");
     expect(r.deleteMessage).toBe(true);
     expect(kit.tables("humanRequest")[0]!.status).toBe("PENDING");
   });
@@ -112,7 +112,7 @@ describe("demandes au client", () => {
     kit.advance(2 * HOUR);
     expect(await sweepHumanRequests(kit.deps)).toEqual({ sent: 0, reminded: 1, expired: 0 });
     expect(kit.sent[1]).toMatchObject({ replyToMessageId: kit.sent[0]!.messageId });
-    expect(kit.sent[1]!.html).toContain("Rappel");
+    expect(kit.sent[1]!.html).toContain("rappel");
     kit.advance(24 * HOUR);
     expect((await sweepHumanRequests(kit.deps)).reminded).toBe(0);
     kit.advance(6 * 24 * HOUR);

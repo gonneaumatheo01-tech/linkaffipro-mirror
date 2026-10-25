@@ -53,14 +53,33 @@ export async function planDay(deps: AgentsDeps, opts: { teamKey?: TeamKey } = {}
   }
   const result: PlanDayResult = { day, created: 0, refused: [] };
   // Dérogations des ordres d'abord (toutes équipes, Paris sportifs compris : le Chef de l'équipe ne voit pas les ordres).
-  const overrides = (await activeOverridesOn(deps, day)).filter((o) => !opts.teamKey || o.teamKey === opts.teamKey);
-  if (overrides.length) {
-    const r = await planOrderMissions(deps, day, overrides);
-    result.created += r.created;
-    result.refused.push(...r.refused.map((x) => ({ channelId: x.channelId, reason: x.reason })));
-    result.orders = { created: r.created, refused: r.refused.length };
+  // Une erreur de lecture des dérogations n'empêche jamais le plan du jour (journalisée, plans de base seulement).
+  let overrides: Awaited<ReturnType<typeof activeOverridesOn>> = [];
+  try {
+    overrides = (await activeOverridesOn(deps, day)).filter((o) => !opts.teamKey || o.teamKey === opts.teamKey);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message, day }, "[agents] dérogations des ordres illisibles : plan du jour sans elles");
   }
-  const overridden = new Set(overrides.map((o) => o.channelId));
+  if (overrides.length) {
+    try {
+      const r = await planOrderMissions(deps, day, overrides);
+      result.created += r.created;
+      result.refused.push(...r.refused.map((x) => ({ channelId: x.channelId, reason: x.reason })));
+      result.orders = { created: r.created, refused: r.refused.length };
+    } catch (err) {
+      deps.logger?.warn({ err: (err as Error).message, day }, "[agents] missions des ordres non créées");
+    }
+  }
+  // Un ordre « pour de faux » sur un vrai canal (dérogation de test) ne remplace pas son plan de base : il publie sur
+  // le canal Test, le canal garde sa production habituelle. Une dérogation réelle (ou celle du canal Test) remplace.
+  let testChannels = new Set<string>();
+  try {
+    const ids = [...new Set(overrides.filter((o) => o.isTest).map((o) => o.channelId))];
+    if (ids.length) testChannels = new Set(((await deps.prisma.channel.findMany({ where: { id: { in: ids }, isTest: true }, select: { id: true } })) as Array<{ id: string }>).map((c) => c.id));
+  } catch {
+    testChannels = new Set();
+  }
+  const overridden = new Set(overrides.filter((o) => !o.isTest || testChannels.has(o.channelId)).map((o) => o.channelId));
   if (!teams.length) return result;
   const plans = (
     await deps.prisma.channelAgentPlan.findMany({

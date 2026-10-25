@@ -59,8 +59,8 @@ export function overviewLinesImpl(o: AgentsOverview): string[] {
     o.health.lastGrandChefAt ? `dernier tour des équipes ${agoLabel(o.health.lastGrandChefAt, now)}` : "aucun tour des équipes encore",
     plural(o.health.stuckMissions, "post bloqué", "posts bloqués"),
     `${plural(errors, "erreur")} chez les fournisseurs (24 h)`,
-    ...(missing.length ? [`sans clé : ${missing.join(", ")}`] : []),
+    ...(missing.length ? [`Sans clé : ${missing.join(", ")}`] : []),
   ];
-  lines.push(`Santé : ${health.join(", ")}.`);
+  lines.push(`Santé : ${health.join(". ")}.`);
   return lines.slice(0, OVERVIEW_MAX_LINES);
 }

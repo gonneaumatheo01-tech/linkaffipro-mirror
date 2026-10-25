@@ -142,7 +142,7 @@ describe("supervision des agents", () => {
     expect(lines[2]).toContain("Casino : en pause");
     expect(lines[5]).toContain("Ads : active, 1 recommandation ouverte, dernier rapport il y a 1 h.");
     expect(lines[6]).toBe("Algorithme cette semaine : 1 réglage appliqué, 1 test A/B en cours.");
-    expect(lines[7]).toContain("Santé : dernier tour des équipes il y a 12 min, 1 post bloqué, 1 erreur chez les fournisseurs (24 h), sans clé : IA texte.");
+    expect(lines[7]).toContain("Santé : dernier tour des équipes il y a 12 min. 1 post bloqué. 1 erreur chez les fournisseurs (24 h). Sans clé : IA texte");
     // Texte envoyé par Kevin : voix contrôlée (un emoji au plus, ni « mission », ni « simulation », ni « Grand Chef »).
     expect(voiceCheck(lines.join("\n")).problems).toEqual([]);
     expect(lines.join("\n")).not.toMatch(/mission|simulation|Grand Chef/i);

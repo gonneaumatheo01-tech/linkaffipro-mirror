@@ -175,7 +175,7 @@ export const ENGLISH_STATUS_WORDS = [
 ];
 
 /** « avec plaisir » : seule formule de fin permise, et seulement en réponse à un « merci » (`allowThanks`). */
-const THANKS_PHRASES = new Set(["avec plaisir"]);
+const THANKS_PHRASES = new Set(["avec plaisir"]); // voix-hors-charte (liste du contrôle)
 
 export type VoiceProblem = { code: string; detail: string };
 
