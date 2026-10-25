@@ -316,3 +316,19 @@ describe("15, 16. messages simples, catégorie d'ordre, cotes, plan du jour prot
     expect(r.message).not.toMatch(/Capacité inconnue|programmer_rien/);
   });
 });
+
+describe("demandes de membres (raccords avec le correcteur 2)", () => {
+  it("ordre annulé faute de OUI : jamais une demande mise de côté ; le membre est prévenu", async () => {
+    const kit = await createBossKit();
+    const { sweepStaleOrderConfirmations } = await import("./request");
+    const { deferBossPending } = await import("../boss/confirm");
+    const kept = (await kit.prisma.teamOrder.create({ data: { number: 21, requestText: "x", interpretation: { steps: [] }, kind: "PROGRAM", teamKey: "sports", status: "WAITING_CONFIRM" } as never })) as { id: string };
+    await deferBossPending(kit.deps, { actionKey: "confirmer_ordre", params: { ordre: kept.id, op: "launch" }, summary: "s", text: "t", chatId: null, requestedBy: { telegramUserId: "777", firstName: "Léa" } });
+    const gone = (await kit.prisma.teamOrder.create({ data: { number: 22, requestText: "x", interpretation: { steps: [], requestedBy: { telegramUserId: "777", firstName: "Léa" } }, kind: "PROGRAM", teamKey: "sports", status: "WAITING_CONFIRM" } as never })) as { id: string };
+    const sentBefore = kit.sent.length;
+    expect(await sweepStaleOrderConfirmations(kit.deps)).toBe(1);
+    expect(kit.tables("teamOrder").find((o) => o.id === kept.id)!.status).toBe("WAITING_CONFIRM");
+    expect(kit.tables("teamOrder").find((o) => o.id === gone.id)!.status).toBe("CANCELLED");
+    expect(kit.sent.slice(sentBefore).some((m) => /Léa/.test(m.html))).toBe(true);
+  });
+});

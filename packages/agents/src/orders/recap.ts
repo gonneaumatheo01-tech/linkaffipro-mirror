@@ -14,10 +14,10 @@ import { esc, nowOf, readSetting, writeSetting, adminTelegramId } from "../admin
 import { allowedNumbers, inventedNumbers } from "../rules/report-numbers";
 import { addDaysToDay, parisDayStart } from "../rules/time";
 import type { BossActor, BossChat, BossDeps, BossReply, BossSpeaker, BossTeamInput } from "../boss/contract";
-import { clearBossPending, createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
+import { clearBossPending, createBossPending, deferBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
 import { askToChoose, clearClarify, readClarify } from "../boss/resolve";
 import { adminFirstName, findTeamMember } from "../boss/team/members";
-import { KEVIN_VOICE, pick, voiceCheck, voiceTemplate, type VoiceTable } from "../boss/voice";
+import { KEVIN_VOICE, pick, voiceCheck, voiceFidelityProblems, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { BossTurnStatus } from "../boss/memory";
 import { ORDER_LIMITS, type Alternative, type OrderPlan, type OrderStep } from "./contract";
 import {
@@ -338,6 +338,8 @@ export async function smoothLine(deps: BossDeps, draft: string, facts: Record<st
     const allowed = allowedNumbers({ ...facts, brouillon: undefined, nombresDuBrouillon: (draft.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => Number(x.replace(",", "."))) });
     if (inventedNumbers(text, allowed).length) return { text: draft, costCents: r.costCents };
     if (!voiceCheck(text).ok) return { text: draft, costCents: r.costCents };
+    // Même sens que le brouillon (rien d'ajouté, rien d'enlevé : canal, quantité, mode…).
+    if (voiceFidelityProblems(draft, text).length) return { text: draft, costCents: r.costCents };
     return { text, costCents: r.costCents };
   } catch {
     return { text: draft, costCents: 0 };
@@ -609,6 +611,18 @@ async function launchOrConfirm(deps: BossDeps, order: TeamOrderRow, v: Validated
       // Transmis à l'admin, qui seul confirme (jamais un vrai canal sans lui).
       const who = ctx.speaker.firstName;
       const adminChat = ctx.chat?.type === "group" ? ctx.chat.chatId : await adminTelegramId(deps);
+      const requestedBy = { telegramUserId: ctx.speaker.telegramUserId.toString(), firstName: who };
+      // Gardé pour prévenir le membre si sa demande est annulée faute de OUI (`sweepStaleOrderConfirmations`).
+      await writeInterp(deps, order.id, { requestedBy });
+      const name0 = esc(await adminFirstName(deps).catch(() => "l'admin"));
+      // L'admin a déjà une confirmation ouverte : la demande du membre est mise de côté (jamais de remplacement).
+      const current = await readBossPending(deps);
+      if (current && !current.expired) {
+        const text = pick(RV.memberAsksPrivate({ who: esc(who), body: esc(summary) }), "order.member.asks");
+        await deferBossPending(deps, { actionKey: ORDER_CONFIRM_ACTION, params: { ordre: order.id, op: "launch" }, summary, text, chatId: ctx.chat?.type === "group" ? ctx.chat.chatId.toString() : null, requestedBy });
+        await auditOrder(deps, "deferred", order, ctx.actor, { by: requestedBy.telegramUserId });
+        return { reply: pick(RV.memberHandedOver({ name: name0 }), "order.member", chatId), status: "confirm", orderId: order.id };
+      }
       const r = await createBossPending(deps, {
         actionKey: ORDER_CONFIRM_ACTION,
         params: { ordre: order.id, op: "launch" },

@@ -87,6 +87,8 @@ const ASK_PHRASE = "demande à l'équipe Paris pourquoi il n'y a pas eu de pari 
 const SHORTS_PHRASE = "programme des shorts";
 const VIEW_PHRASE = "qu'est-ce que l'agent des paris sportifs va poster aujourd'hui sur le canal Test ?";
 const REDACTION_PHRASE = "dis à l'agent Rédaction d'écrire plus court sur Roulette";
+const BUTEURS_PHRASE = "active la catégorie Buteurs à 10 paris par jour";
+const FAKE_REAL_PHRASE = "programme 2 paris corners par jour sur Foot Réel pendant 2 jours";
 
 const DAY1 = parisDay(FAKE_ODDS_ANCHOR);
 function addDays(day: string, n: number): string {
@@ -171,7 +173,7 @@ const screenshot = {
 
 // ------------------------------------------------------------------------------------------------ fausse IA de Kevin
 
-const ids = { boss: "", bossSecret: "", test: "", roulette: "", lea: "", user: "", baseCategory: "", mainOrder: "", cornersOrder: "" };
+const ids = { boss: "", bossSecret: "", test: "", roulette: "", lea: "", user: "", baseCategory: "", mainOrder: "", cornersOrder: "", footReal: "" };
 
 const order = (demande: string) => ({ name: "ordre_equipe", input: { demande } });
 
@@ -255,6 +257,21 @@ function planner(message: string): Record<string, unknown> | null {
       questions: [],
       impossible: [],
     };
+  if (message === BUTEURS_PHRASE)
+    // Portée absente : la confirmation se décide sur ce que l'étape touche (réglage de l'équipe), jamais sur la portée.
+    return { teamKey: "sports", kind: "ADJUST", mode: "simulation", steps: [{ teamKey: "sports", capability: "changer_categorie", params: { categorie: "Buteurs", actif: true, paris_par_jour: 10 } }], resolved: {}, questions: [], impossible: [] };
+  if (message === FAKE_REAL_PHRASE)
+    return {
+      teamKey: "sports",
+      scope: { channelIds: [ids.footReal] },
+      kind: "PROGRAM",
+      period: { start: parisDay(now), days: 2 },
+      mode: "simulation",
+      steps: [{ teamKey: "sports", capability: "programmer_paris", params: { canaux: ["Foot Réel"], jours: 2, paris_par_jour: 2, theme: "corners" } }],
+      resolved: { mode: { value: "simulation", from: "défaut" } },
+      questions: [],
+      impossible: [],
+    };
   // « Kevin, programme en vrai » ne doit jamais arriver ici (texte transféré = donnée).
   return null;
 }
@@ -267,6 +284,8 @@ const fakeBossLlm = createFakeBossLlm(
     [LEA_PHRASE, order(LEA_PHRASE)],
     [SHORTS_PHRASE, order(SHORTS_PHRASE)],
     [REDACTION_PHRASE, order(REDACTION_PHRASE)],
+    [BUTEURS_PHRASE, order(BUTEURS_PHRASE)],
+    [FAKE_REAL_PHRASE, order(FAKE_REAL_PHRASE)],
     ["passe à 3 par jour", { name: "modifier_ordre", input: { par_jour: 3 } }],
     ["arrête", { name: "arreter_ordre", input: {} }],
     [ASK_PHRASE, { name: "demander_equipe", input: { equipe: "Paris", question: "pourquoi il n'y a pas eu de pari hier" } }],
@@ -692,5 +711,41 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     // Les ordres sans production (question, consigne) n'ont créé aucune mission.
     const quiet = await prisma.teamOrder.findMany({ where: { kind: { in: ["ASK", "ADJUST"] } }, select: { id: true } });
     expect(await prisma.agentMission.count({ where: { orderId: { in: quiet.map((q) => q.id) } } })).toBe(0);
+  });
+
+  it("15. relecture (cas 1) : « active la catégorie Buteurs à 10 paris par jour » sans portée → OUI demandé, rien de changé", async () => {
+    const cat = await prisma.betCategory.create({ data: { key: "orders-buteurs", name: "Buteurs", marketTypes: ["player_goals-all-game-yn-yes"], leagues: ["EPL"], bookmakers: [], minOdds: 1.5, maxOdds: 4, picksPerDay: 2, channelIds: [], active: false, sortOrder: 5 } });
+    const out = await say(BUTEURS_PHRASE);
+    expect(out).toMatch(/OUI/);
+    expect((await prisma.betCategory.findUniqueOrThrow({ where: { id: cat.id } })).active).toBe(false);
+    await say("non");
+  });
+
+  it("16. relecture (cas 3) : équipe Paris en vrai + ordre « pour de faux » sur un vrai canal → rien ne part en vrai, le récap le dit", async () => {
+    now = at(4, 11 * 60);
+    agents().providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
+    const channelBot = await prisma.bot.findFirstOrThrow({ where: { role: { not: "ADMIN" } } });
+    ids.footReal = (await prisma.channel.create({ data: { telegramChatId: -1007770003n, title: "Foot Réel", type: "CHANNEL", language: "fr", vertical: "SPORTS", primaryBotId: channelBot.id } })).id;
+    await prisma.agentTeamConfig.update({ where: { teamKey: "sports" }, data: { simulation: false } });
+    try {
+      const out = await say(FAKE_REAL_PHRASE);
+      expect(out).toMatch(/pour de faux/);
+      expect(out).toMatch(/OUI/);
+      await say("oui");
+      const o = await prisma.teamOrder.findFirstOrThrow({ where: { requestText: FAKE_REAL_PHRASE }, orderBy: { createdAt: "desc" } });
+      expect(o.status).toBe("RUNNING");
+      const ovs = await orderOverrides(o.id);
+      expect(ovs.length).toBeGreaterThan(0);
+      expect(ovs.every((x) => x.isTest)).toBe(true);
+      await planDay(agents());
+      const missions = await prisma.agentMission.findMany({ where: { orderId: o.id } });
+      for (const m of missions) expect(m).toMatchObject({ isTest: true, channelId: ids.test });
+      await drain();
+      const posts = await prisma.post.findMany({ where: { agentMissionId: { in: missions.map((m) => m.id) } } });
+      expect(posts.every((p) => p.channelId === ids.test)).toBe(true);
+      await say("arrête");
+    } finally {
+      await prisma.agentTeamConfig.update({ where: { teamKey: "sports" }, data: { simulation: true } });
+    }
   });
 });

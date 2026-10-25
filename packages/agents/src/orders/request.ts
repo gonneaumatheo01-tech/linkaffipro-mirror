@@ -5,7 +5,7 @@
  */
 import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
 import type { BossActor, BossChat, BossDeps, BossSpeaker } from "../boss/contract";
-import { deferredOrderIds, readBossPending } from "../boss/confirm";
+import { deferredOrderIds, noticeStaleMemberOrder, readBossPending } from "../boss/confirm";
 import type { BossTurnRow } from "../boss/memory";
 import { esc } from "../admin/journal";
 import { agentHint, agentTargetOf, restrictPlanToAgent } from "./agent-order";
@@ -39,6 +39,10 @@ export async function sweepStaleOrderConfirmations(deps: BossDeps): Promise<numb
     await deps.prisma.teamOrder.update({ where: { id: r.id }, data: { status: "CANCELLED" } });
     // Plus aucun choix ni OUI tardif ne le relance.
     await closeOrderChoices(deps, r.id);
+    // Demande d'un membre : il est prévenu (et l'admin), une ligne chacun.
+    const by = (r.interpretation as { requestedBy?: { telegramUserId?: unknown; firstName?: unknown } } | null)?.requestedBy;
+    if (by && typeof by.telegramUserId === "string" && typeof by.firstName === "string")
+      await noticeStaleMemberOrder(deps, { number: r.number, chatId: r.chatId }, { telegramUserId: by.telegramUserId, firstName: by.firstName });
     n++;
   }
   return n;
