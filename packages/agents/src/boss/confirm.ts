@@ -395,6 +395,12 @@ export async function resolveBossPending(
       entityId: cur.id,
       metadata: { status: "refused", via: "TELEGRAM" },
     });
+    // NON à un ordre : ses choix numérotés se ferment aussi (un « 2 » tardif ne relance rien). Import différé : pas de
+    // cycle boss/confirm → orders/recap → boss/confirm.
+    if (cur.actionKey === "confirmer_ordre" && typeof cur.params.ordre === "string") {
+      const { closeOrderChoices } = await import("../orders/recap");
+      await closeOrderChoices(deps, cur.params.ordre).catch(() => undefined);
+    }
     return { handled: true, reply: confirmText("cancelled", cur.chatId), followUp: await bossDeferredFollowUp(deps) };
   }
   const { expired: _e, ...pending } = cur;

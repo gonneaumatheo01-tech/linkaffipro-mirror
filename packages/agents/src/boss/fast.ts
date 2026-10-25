@@ -298,7 +298,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     // Toute question ouverte compte (texte, choix, confirmation), et la précision du Boss.
     const otherQuestionAt = Math.max(current ? (current.askedAt?.getTime() ?? 0) : 0, clarifyNow ? new Date(clarifyNow.createdAt).getTime() : 0);
     // Phase 33 : « annule » dans la minute qui suit un ordre lancé sans confirmation (chantier B, `orders/recap.ts`).
-    const insp = (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired })) ?? await inspirationFastPath(deps, input, {
+    const insp = (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ?? await inspirationFastPath(deps, input, {
       word,
       pendingOpen: !!pending && !pending.expired,
       otherQuestionAt,

@@ -510,23 +510,9 @@ export async function extendReply(deps: BossDeps, order: TeamOrderRow, jours: nu
   if (add <= 0) return { reply: pick(V.extendMax({ n: order.number, current, max: ORDER_LIMITS.maxDays }), "orders.extend.max", chat) };
   const r = await extendOrder(deps, order.id, add, actor).catch((err: Error) => ({ ok: false, message: err.message }));
   if (!r.ok) return { reply: esc(pick(V.extendFailed({ n: order.number, reason: r.message ?? "erreur interne" }), "orders.extend.failed", chat)) };
-  const interp = interpretationOf(order);
-  if (interp) {
-    const toDay = interp.toDay ? addDays(interp.toDay, add) : null;
-    const period = interp.period ? { ...interp.period, days: interp.period.days + add } : interp.period;
-    await deps.prisma.teamOrder.update({
-      where: { id: order.id },
-      // Fin de l'ordre déjà repoussée par le Grand Chef (`extendOrder`) : seule l'interprétation de Kevin suit.
-      data: { interpretation: JSON.parse(JSON.stringify({ ...interp, toDay, period })) as never },
-    });
-  }
+  // Fin de l'ordre repoussée par le Grand Chef (`extendOrder`), interprétation comprise : rien à réécrire ici.
   const clamp = add < jours ? ` ${pick(V.extendClamp({ add, max: ORDER_LIMITS.maxDays }), "orders.extend.clamp", chat)}` : "";
   return { reply: `${pick(V.extendDone({ add, n: order.number }), "orders.extend.done", chat)}${clamp}` };
-}
-
-function addDays(day: string, n: number): string {
-  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
 // ------------------------------------------------------------------------------------------------ question à une équipe
