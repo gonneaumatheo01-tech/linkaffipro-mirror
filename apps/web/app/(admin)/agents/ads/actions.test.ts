@@ -104,6 +104,7 @@ describe("seuils", () => {
     expect(m.save).toHaveBeenCalledWith(
       expect.objectContaining({ CASINO: { targetCostPerRegistration: 12.5, minRoas: null, observationDays: 3, minSpend: 20 } }),
       "u1",
+      "WEB",
     );
     expect(url).toContain("ok=Seuils enregistrés");
     expect(url).toContain("#seuils");
@@ -127,7 +128,7 @@ describe("réglages des alertes de l'Agent Ads", () => {
     fd({ "alerts.spikePct": "80", "alerts.dropPct": "40", "alerts.minDailySpend": "12,5", "alerts.minRegistrations": "3", ...o });
   it("un administrateur enregistre les 4 réglages", async () => {
     const url = await redirectOf(saveAdsAlertSettingsAction(alertsForm()));
-    expect(m.saveAlerts).toHaveBeenCalledWith({ spikePct: 80, dropPct: 40, minDailySpend: 12.5, minRegistrations: 3 }, "u1");
+    expect(m.saveAlerts).toHaveBeenCalledWith({ spikePct: 80, dropPct: 40, minDailySpend: 12.5, minRegistrations: 3 }, "u1", "WEB");
     expect(url).toContain("ok=");
     expect(url).toContain("#seuils");
   });

@@ -22,6 +22,7 @@ import { adminTelegramId, agentAudit, esc, nowOf, readSetting, telegramActorUser
 import { isStrictYes, normalizeText } from "../human/answer";
 import type { AdminButton } from "../types";
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import { SITE_CHOICE_PREFIX } from "../site/keys";
 
 /** Textes fixes des confirmations (charte `docs/KEVIN-VOIX.md`) ; la première variante est aussi la constante exportée. */
 export const CONFIRM_VARIANTS = {
@@ -418,8 +419,9 @@ export async function resolveBossPending(
   return { handled: true, ...r, ...(followUp ? { followUp } : {}) };
 }
 
+/** Boutons du Boss : OUI / NON (`bsc:`) et, phase 34, choix d'une valeur d'une opération du site (`bsk:`). */
 export function isBossCallbackData(data: string): boolean {
-  return data.startsWith(BOSS_CALLBACK_PREFIX);
+  return data.startsWith(BOSS_CALLBACK_PREFIX) || data.startsWith(SITE_CHOICE_PREFIX);
 }
 
 const CALLBACK = /^bsc:([A-Za-z0-9_-]{1,40}):(yes|no)$/;
@@ -432,6 +434,8 @@ export type BossCallbackResult = {
   buttons?: AdminButton[][];
   /** À appeler après la réponse (demande d'un membre mise de côté, question suivante). */
   followUp?: () => Promise<void>;
+  /** Phase 34 : un choix par bouton a mené à une confirmation (le bot mémorise le message envoyé). */
+  pendingId?: string;
 };
 
 /** Bouton OUI / NON : seul l'admin est écouté (toute autre personne : silence). */
@@ -440,6 +444,16 @@ export async function handleBossCallback(
   input: { data: string; fromTelegramId: bigint | number | string },
 ): Promise<BossCallbackResult> {
   if (!isBossCallbackData(input.data)) return { handled: false };
+  if (input.data.startsWith(SITE_CHOICE_PREFIX)) {
+    // Import différé : site/flow → boss/confirm formerait un cycle au chargement.
+    try {
+      const { handleSiteChoiceCallback } = await import("../site/flow");
+      return await handleSiteChoiceCallback(deps, input);
+    } catch (err) {
+      deps.logger?.error({ err: (err as Error).message }, "[boss] bouton de choix");
+      return { handled: true, toast: "Oups", reply: confirmText("callbackError"), removeButtons: true };
+    }
+  }
   const admin = await adminTelegramId(deps);
   if (!admin || String(admin) !== String(input.fromTelegramId)) return { handled: true };
   const m = CALLBACK.exec(input.data);

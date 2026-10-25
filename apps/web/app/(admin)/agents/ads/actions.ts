@@ -1,14 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { markAdsRecommendation } from "@linkaffipro/agents";
-import { prisma } from "@linkaffipro/db";
-import { ADS_PATH, MARK_WORDS, canMarkRecommendation, cleanComment } from "@/lib/agents/ads/display";
-import { parseAdsAlertSettingsForm } from "@/lib/agents/ads/alert-settings";
-import { saveAdsAlertSettings, saveAdsThresholds } from "@/lib/agents/ads/save";
-import { parseAdsThresholdsForm } from "@/lib/agents/ads/thresholds";
-import { buildAgentsDeps } from "@/lib/agents/deps";
-import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
+import { ADS_PATH } from "@/lib/agents/ads/display";
+import { backTo } from "@/lib/agents/redirect";
+import { runMarkAdsRecommendation, runSaveAdsAlertSettings, runSaveAdsThresholds } from "@/lib/site-ops/ops/lot-d/ads";
+import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
 import { requireUser } from "@/lib/session";
 
 /**
@@ -38,64 +34,28 @@ function go(path: string, params: Record<string, string>, hash: string): never {
 export async function markAdsRecommendationAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  const hash = "#recommandations";
-  const status = formData.get("status");
-  const id = String(formData.get("id") ?? "");
-  if ((status !== "DONE" && status !== "REJECTED") || !/^[A-Za-z0-9_-]{1,64}$/.test(id))
-    go(path, { error: "Recommandation inconnue." }, hash);
-  const rec = await prisma.recommendation.findUnique({ where: { id }, select: { teamKey: true, status: true } });
-  if (!rec || rec.teamKey !== "ads") go(path, { error: "Recommandation introuvable." }, hash);
-  if (!canMarkRecommendation(rec.status))
-    go(path, { error: "Cette recommandation a déjà changé d'état : rechargez la page." }, hash);
-  let result: { ok: boolean; message: string };
-  try {
-    result = await markAdsRecommendation(
-      buildAgentsDeps(),
-      { id, status, comment: cleanComment(formData.get("comment")) },
-      { userId: user.id, via: "SITE" },
-    );
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Impossible pour l'instant : ${errorText(err)}.` }, hash);
-  }
-  revalidatePath(ADS_PATH);
-  if (!result.ok) go(path, { error: result.message || "Refusé par l'Agent Ads." }, hash);
-  go(path, { ok: result.message || MARK_WORDS[status].done }, hash);
+  const r = await runMarkAdsRecommendation(formData, siteActor(user));
+  if (r.ok || r.code === "conflict") revalidatePath(ADS_PATH);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, "#recommandations");
 }
 
 /** Seuils par univers (ADMIN). */
 export async function saveAdsThresholdsAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  const hash = "#seuils";
-  if (user.role !== "ADMIN") go(path, { error: "Les seuils de l'Agent Ads sont réservés aux administrateurs." }, hash);
-  const parsed = parseAdsThresholdsForm(formData);
-  if (!parsed.ok) go(path, { error: parsed.error }, hash);
-  try {
-    await saveAdsThresholds(parsed.data, user.id);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, hash);
-  }
-  revalidatePath(ADS_PATH);
-  go(path, { ok: "Seuils enregistrés : ils comptent dès le prochain passage de l'Agent Ads." }, hash);
+  const r = await runSaveAdsThresholds(formData, siteActor(user));
+  if (r.ok) revalidatePath(ADS_PATH);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, "#seuils");
 }
 
 /** Réglages des alertes de l'Agent Ads (ADMIN) : `Setting` `agents.ads.alerts`. */
 export async function saveAdsAlertSettingsAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  const hash = "#seuils";
-  if (user.role !== "ADMIN") go(path, { error: "Les réglages des alertes de l'Agent Ads sont réservés aux administrateurs." }, hash);
-  const parsed = parseAdsAlertSettingsForm(formData);
-  if (!parsed.ok) go(path, { error: parsed.error }, hash);
-  try {
-    await saveAdsAlertSettings(parsed.data, user.id);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, hash);
+  const r = await runSaveAdsAlertSettings(formData, siteActor(user));
+  if (r.ok) {
+    revalidatePath(ADS_PATH);
+    revalidatePath("/settings/alerts");
   }
-  revalidatePath(ADS_PATH);
-  revalidatePath("/settings/alerts");
-  go(path, { ok: "Réglages des alertes enregistrés : ils comptent dès le prochain passage de l'Agent Ads (30 minutes au plus)." }, hash);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, "#seuils");
 }

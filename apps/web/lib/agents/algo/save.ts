@@ -5,7 +5,7 @@
 import { audit, prisma, type Prisma } from "@linkaffipro/db";
 import { mergeAlgoSettings, parseAlgoSettings, type AlgoSettings } from "./settings";
 
-export async function saveAlgoSettings(input: AlgoSettings, userId: string): Promise<void> {
+export async function saveAlgoSettings(input: AlgoSettings, userId: string, via?: "WEB" | "TELEGRAM"): Promise<void> {
   const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "algo" }, select: { settings: true } });
   const before = parseAlgoSettings(row?.settings);
   const settings = mergeAlgoSettings(row?.settings, input) as Prisma.InputJsonValue;
@@ -19,6 +19,6 @@ export async function saveAlgoSettings(input: AlgoSettings, userId: string): Pro
     action: "agents.algo_settings_saved",
     entityType: "AgentTeamConfig",
     entityId: "algo",
-    metadata: { before, after: input },
+    metadata: { before, after: input, ...(via ? { via } : {}) },
   });
 }

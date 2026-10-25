@@ -16,13 +16,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const inactive = sp.error === "inactive";
   const expired = sp.error === "expired";
   const reset = sp.reset === "1";
+  // Phase 34 : lien de connexion envoyé par Kevin (`/k/<jeton>`) : e-mail pré-rempli, rien d'autre.
+  const email = typeof sp.email === "string" && sp.email.length <= 254 && /^[^\s@<>"]+@[^\s@<>"]+$/.test(sp.email) ? sp.email : "";
   return (
     <BrandScreen>
       <div className="space-y-1 text-center">
         <h1 className="text-title text-night-foreground">LinkAffi Pro</h1>
         <p className="text-body text-night-muted">Accès réservé à l&apos;équipe.</p>
       </div>
-      <LoginForm callbackUrl={callbackUrl} notice={reset ? "Mot de passe enregistré : connectez-vous avec votre nouveau mot de passe." : null} initialError={inactive ? "Votre compte est désactivé." : expired ? "Votre session a expiré (mot de passe ou droits modifiés) : reconnectez-vous." : null} />
+      <LoginForm callbackUrl={callbackUrl} initialEmail={email} notice={reset ? "Mot de passe enregistré : connectez-vous avec votre nouveau mot de passe." : null} initialError={inactive ? "Votre compte est désactivé." : expired ? "Votre session a expiré (mot de passe ou droits modifiés) : reconnectez-vous." : null} />
     </BrandScreen>
   );
 }

@@ -103,7 +103,7 @@ describe("réglages de l'équipe Rencontres", () => {
   it("administrateur : plafonds, fournisseur et résolution enregistrés", async () => {
     await redirectOf(saveTeamSettingsAction(fd(form)));
     expect(m.saveTeamSettings.mock.calls[0]![1]).toMatchObject({ budgets: { video: 5000, image: 1000 } });
-    expect(m.saveDatingMediaSettings).toHaveBeenCalledWith({ videoProvider: "magichour", videoResolution: "720p" }, "u1");
+    expect(m.saveDatingMediaSettings).toHaveBeenCalledWith({ videoProvider: "magichour", videoResolution: "720p" }, "u1", "WEB");
   });
 
   it("responsable : plafonds et fournisseur ignorés (inchangés)", async () => {

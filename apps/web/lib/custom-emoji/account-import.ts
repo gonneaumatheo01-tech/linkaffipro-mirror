@@ -9,6 +9,7 @@ import { enqueue } from "@linkaffipro/queue";
  */
 export async function requestAccountImport(
   userId: string,
+  opts: { via?: "WEB" | "TELEGRAM"; dryRun?: boolean } = {},
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   const session = await prisma.telegramUserSession.findUnique({
     where: { id: TELEGRAM_SESSION_ID },
@@ -22,6 +23,8 @@ export async function requestAccountImport(
           ? "Le compte Telegram connecté est à reconnecter (Réglages → Connexions → Telegram)."
           : "Aucun compte Telegram connecté : connectez-le d'abord dans Réglages → Connexions → Telegram.",
     };
+  if (opts.dryRun)
+    return { ok: true, message: "Import des packs d'emojis animés du compte Telegram connecté." };
   try {
     // Une demande par minute au plus (un double clic ne lance pas deux imports).
     await enqueue(
@@ -40,6 +43,7 @@ export async function requestAccountImport(
     userId,
     action: "custom_emoji.account_import_requested",
     entityType: "CustomEmoji",
+    ...(opts.via ? { metadata: { via: opts.via } } : {}),
   });
   return {
     ok: true,

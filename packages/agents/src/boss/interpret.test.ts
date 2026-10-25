@@ -1,5 +1,6 @@
 import { ORDER_INTERNAL_KEYS } from "./catalog-orders";
 import { describe, expect, it, vi } from "vitest";
+import { siteTools } from "../site/tools";
 import { createBossKit } from "./testing";
 import { bossAiTurn } from "./execute";
 import { bossFastPath } from "./fast";
@@ -111,7 +112,9 @@ describe("interprète du Boss sur fausse IA", () => {
 
   it("chaque outil proposé à l'IA a un schéma strict (objet, additionalProperties false, required)", () => {
     const tools = bossTools();
-    expect(tools.map((t) => t.name)).toEqual([...BOSS_CATALOG.filter((a) => !ORDER_INTERNAL_KEYS.has(a.key)).map((a) => a.key), "preciser", "repondre_question", "ordre_equipe", "pas_prevu"]);
+    // Phase 34 : un outil par domaine du site (`site_<domaine>`), juste avant pas_prevu.
+    const siteNames = siteTools().map((t) => t.name);
+    expect(tools.map((t) => t.name)).toEqual([...BOSS_CATALOG.filter((a) => !ORDER_INTERNAL_KEYS.has(a.key)).map((a) => a.key), "preciser", "repondre_question", "ordre_equipe", ...siteNames, "pas_prevu"]);
     for (const t of tools) {
       expect(t.inputSchema).toMatchObject({ type: "object", additionalProperties: false });
       expect(Array.isArray((t.inputSchema as { required: unknown }).required)).toBe(true);

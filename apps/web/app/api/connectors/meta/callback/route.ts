@@ -9,6 +9,7 @@ import {
   verifyOAuthState,
 } from "@/lib/connectors/common";
 import { env } from "@/lib/env";
+import { kevinOAuthResume } from "@/lib/boss-inputs/oauth-resume";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,10 @@ export async function GET(req: Request) {
         "Connexion réussie, mais ce profil Facebook ne voit aucun compte publicitaire. Vérifiez qu'il a un rôle sur le compte (Business Manager → Personnes) et que la permission ads_read a été acceptée.",
       );
     }
-    return NextResponse.redirect(new URL(CHOOSE_URL, env.appBaseUrl));
+    const res = NextResponse.redirect(new URL(CHOOSE_URL, env.appBaseUrl));
+    // Phase 34 : autorisation ouverte par un lien de Kevin → il reprend la conversation (boutons des comptes).
+    await kevinOAuthResume(req, res, { platform: "META", userId: user.id, accounts });
+    return res;
   } catch (err) {
     const message = describeConnectorError(err);
     await audit({

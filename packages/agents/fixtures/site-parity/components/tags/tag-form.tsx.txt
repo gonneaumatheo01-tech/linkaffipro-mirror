@@ -1,0 +1,5 @@
+"use client";
+import { renameTagAction } from "@/app/(admin)/settings/tags/actions";
+export function TagForm() {
+  return renameTagAction;
+}

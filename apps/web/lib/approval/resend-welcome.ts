@@ -74,9 +74,12 @@ export function resendSummary(outcomes: readonly ResendWelcomeOutcome[]): {
 /** Renvoie l'accueil avec les liens aux demandes concernées d'un canal ; audit `membership.gate_welcome_resent`. */
 export async function resendGateWelcomeForChannel(
   channelId: string,
-  userId: string,
-): Promise<{ ok?: string; error?: string; outcomes: ResendWelcomeOutcome[] }> {
+  userId: string | null,
+  opts: { via?: "WEB" | "TELEGRAM"; dryRun?: boolean } = {},
+): Promise<{ ok?: string; error?: string; outcomes: ResendWelcomeOutcome[]; requests?: number }> {
   const rows = await listGateLinksMissing({ channelId, limit: 200 });
+  // Phase 34 (Kevin) : essai à blanc, rien n'est envoyé ; le nombre de demandes concernées revient.
+  if (opts.dryRun) return { outcomes: [], requests: rows.length };
   const outcomes: ResendWelcomeOutcome[] = [];
   for (const r of rows)
     outcomes.push(await resendGateWelcomeWithDb(r.membershipId, { byUserId: userId }));
@@ -94,6 +97,7 @@ export async function resendGateWelcomeForChannel(
       stillMissing: count("still_missing"),
       notPending: count("not_pending") + count("not_found"),
       membershipIds: rows.map((r) => r.membershipId),
+      ...(opts.via ? { via: opts.via } : {}),
     },
   });
   return { ...resendSummary(outcomes), outcomes };

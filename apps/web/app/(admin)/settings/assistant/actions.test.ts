@@ -157,7 +157,7 @@ describe("enregistrer les réglages", () => {
       "assistant.settings_saved",
       "assistant.activation_changed",
     ]);
-    expect(m.audits[1]!.metadata).toEqual({ from: "off", to: "team" });
+    expect(m.audits[1]!.metadata).toEqual({ from: "off", to: "team", via: "WEB" });
     expect(JSON.stringify(m.audits)).not.toContain("VENICE_cle_toute_neuve");
     expect(m.audits[0]!.metadata).toMatchObject({ keyChanged: true });
   });

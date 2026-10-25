@@ -228,6 +228,9 @@ const KEVIN_FILES = [
   ...tsFiles(join(SRC_DIR, "validation")),
   ...tsFiles(join(SRC_DIR, "human"), (f) => !f.endsWith("test-kit.ts")),
   ...tsFiles(join(SRC_DIR, "admin")),
+  // Phase 34 : déroulé « tout par Kevin » (questions, confirmations, erreurs traduites) ; les lots d'opérations
+  // (`site/ops`, `site/parity`) sont des données des domaines, contrôlées par leurs propres tests.
+  ...tsFiles(join(SRC_DIR, "site"), (f) => !/\/site\/(ops|parity)\//.test(f) && !/parity-(scan|real)\.ts$/.test(f)),
 ].filter((f, i, all) => all.indexOf(f) === i);
 
 describe("textes fixes de Kevin : toutes les tables *_VARIANTS", () => {

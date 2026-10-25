@@ -53,7 +53,9 @@ export type EntryLinkInput = {
   adName?: string | null;
   language: string;
   approvalRuleId?: string | null;
-  userId: string;
+  userId: string | null;
+  /** Provenance de l'action (phase 34) : notée dans le journal. */
+  via?: "WEB" | "TELEGRAM";
 };
 
 /**
@@ -140,7 +142,13 @@ export async function createEntryLink(input: EntryLinkInput) {
     action: "link.entry_created",
     entityType: "TrackingLink",
     entityId: result.trackingLink.id,
-    metadata: { name: input.name, channelId: channel.id, platform: input.platform, slug },
+    metadata: {
+      name: input.name,
+      channelId: channel.id,
+      platform: input.platform,
+      slug,
+      ...(input.via ? { via: input.via } : {}),
+    },
   });
   await recordEvent({
     type: "link.created",
@@ -154,7 +162,8 @@ export async function createEntryLink(input: EntryLinkInput) {
 export async function createGenericLink(input: {
   label: string;
   url: string;
-  userId: string;
+  userId: string | null;
+  via?: "WEB" | "TELEGRAM";
   kind?: "GENERIC" | "BUTTON";
   postId?: string | null;
 }) {
@@ -182,7 +191,7 @@ export async function createGenericLink(input: {
     action: "link.generic_created",
     entityType: "TrackingLink",
     entityId: link.id,
-    metadata: { label: input.label, slug },
+    metadata: { label: input.label, slug, ...(input.via ? { via: input.via } : {}) },
   });
   return link;
 }

@@ -1,73 +1,60 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { requireUser, type CurrentUser } from "@/lib/session";
+import { backUrl, formInput, webActorOf, type Core } from "@/lib/site-ops/ops/lot-c/common";
+import type { TeamActor } from "@/lib/site-ops/ops/lot-c/conversations";
 import {
-  blockConversation,
-  clearNeedsHuman,
-  closeConversation,
-  releaseConversation,
-  sendTeamMessage,
-  takeOverConversation,
-  type OperationResult,
-} from "@/lib/conversations/operations";
-import { requireUser } from "@/lib/session";
+  block,
+  close,
+  markHandled,
+  release,
+  sendTeam,
+  takeOver,
+} from "@/lib/site-ops/ops/lot-c/conversations";
 
 /**
  * Actions de l'équipe sur une conversation de l'assistant (fiche /conversations/[id]) : prendre la main, la rendre,
- * fermer, bloquer, écrire, marquer comme traitée (phase 25). Ouvertes aux administrateurs et aux managers (`requireUser`, vérifié côté serveur) ; chaque
- * action est journalisée (`conversation.*`) par `lib/conversations/operations.ts`.
+ * fermer, bloquer, écrire, marquer comme traitée (phase 25). Ouvertes aux administrateurs et aux managers (`requireUser`,
+ * vérifié côté serveur) ; chaque action est journalisée (`conversation.*`) par `lib/conversations/operations.ts`,
+ * appelé par les cœurs de la phase 34 (`lib/site-ops/ops/lot-c/conversations.ts`, aussi utilisés par Kevin).
  */
-
-const ID_RE = /^[a-z0-9]{8,40}$/;
-
-function idOf(formData: FormData): string | null {
-  const id = String(formData.get("id") ?? "");
-  return ID_RE.test(id) ? id : null;
+function teamActor(user: CurrentUser): TeamActor {
+  return { ...webActorOf(user), name: user.name };
 }
 
-function back(id: string | null, result: OperationResult): never {
-  const path = id ? `/conversations/${id}` : "/conversations";
-  const params = new URLSearchParams(result.ok ? { ok: result.message } : { error: result.error });
-  redirect(`${path}?${params.toString()}`);
-}
-
-async function run(
-  formData: FormData,
-  op: (id: string, user: { id: string; name: string }) => Promise<OperationResult>,
-): Promise<void> {
+async function run(formData: FormData, core: Core): Promise<void> {
   const user = await requireUser();
-  const id = idOf(formData);
-  if (!id) back(null, { ok: false, error: "Conversation introuvable." });
-  const result = await op(id, { id: user.id, name: user.name });
-  revalidatePath(`/conversations/${id}`);
-  revalidatePath("/conversations");
-  back(id, result);
+  const r = await core(
+    { id: String(formData.get("id") ?? "") },
+    teamActor(user),
+  );
+  redirect(r.back ? backUrl(r.back) : "/conversations");
 }
 
 /** « Prendre la main » : l'assistante se tait pour cette conversation. */
 export async function takeOverAction(formData: FormData): Promise<void> {
-  await run(formData, (id, user) => takeOverConversation(id, user));
+  await run(formData, takeOver);
 }
 
 /** « Rendre à l'assistante » : elle répond de nouveau (pas aux messages reçus pendant la reprise). */
 export async function releaseAction(formData: FormData): Promise<void> {
-  await run(formData, (id, user) => releaseConversation(id, user));
+  await run(formData, release);
 }
 
 /** « Fermer » : conversation terminée, ni réponse ni relance (rouvrable par l'équipe). */
 export async function closeAction(formData: FormData): Promise<void> {
-  await run(formData, (id, user) => closeConversation(id, user));
+  await run(formData, close);
 }
 
 /** « Bloquer » : plus aucun message ne part vers cette personne. */
 export async function blockAction(formData: FormData): Promise<void> {
-  await run(formData, (id, user) => blockConversation(id, user));
+  await run(formData, block);
 }
 
 /** « Marquer comme traitée » : la conversation n'est plus « à traiter » (rien d'autre ne change). */
 export async function clearNeedsHumanAction(formData: FormData): Promise<void> {
-  await run(formData, (id, user) => clearNeedsHuman(id, user));
+  await run(formData, markHandled);
 }
 
 /** Retour de « Envoyer » (formulaire du fil, `useActionState`). */
@@ -82,16 +69,15 @@ export async function sendTeamMessageAction(
   formData: FormData,
 ): Promise<TeamReplyState> {
   const user = await requireUser();
-  const id = idOf(formData);
-  if (!id) return { status: "error", error: "Conversation introuvable.", at: Date.now() };
-  const result = await sendTeamMessage(id, { id: user.id, name: user.name }, formData.get("text"));
-  revalidatePath(`/conversations/${id}`);
-  revalidatePath("/conversations");
-  if (!result.ok) return { status: "error", error: result.error, at: Date.now() };
+  const r = await sendTeam(
+    { ...formInput(formData), id: String(formData.get("id") ?? "") },
+    teamActor(user),
+  );
+  if (!r.ok) return { status: "error", error: r.error, at: Date.now() };
   return {
     status: "sent",
-    message: result.message,
-    tookOver: Boolean(result.tookOver),
+    message: r.message,
+    tookOver: Boolean(r.data?.tookOver),
     at: Date.now(),
   };
 }

@@ -3,6 +3,7 @@
  * Le Grand Chef et les Chefs sont de la logique programmée ; seuls certains agents appellent une IA, toujours par
  * `ctx.providers` (faux fournisseurs en test et en simulation).
  */
+import type { SiteOpsClient } from "./site/contract";
 import type { Db } from "@linkaffipro/db";
 import type { ImageProvider } from "./providers/image";
 import type { VideoProvider } from "./providers/video";
@@ -264,6 +265,11 @@ export type AgentsDeps = {
   enqueue: AgentsEnqueue;
   admin?: AdminMessenger;
   logger?: Logger;
+  /**
+   * Phase 34 : opérations du site (« tout par Kevin »). Worker : client signé de `POST /api/internal/site-ops` ; site
+   * (chemin rapide du webhook) : appel direct du registre, sans réseau. Absent : Kevin dit que le site est injoignable.
+   */
+  siteOps?: SiteOpsClient;
 };
 
 /** Image jointe à une demande d'IA (contrôle des médias, phase 20) : octets en base64. */

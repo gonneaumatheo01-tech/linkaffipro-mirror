@@ -23,6 +23,7 @@ import { bossStartReply } from "./guide";
 import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
 import { clearClarify } from "./resolve";
 import { readBossName } from "./memory";
+import { SITE_HIDDEN_ACTIONS } from "../site/actions";
 
 type Empty = Record<string, never>;
 
@@ -72,7 +73,8 @@ export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown 
 export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...VIEW_ACTIONS, ...BOOKMAKER_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
-const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS].map((a) => [a.key, a]));
+// Phase 34 : opérations du site confirmées (OUI ; SUPPRIMER passe par le chemin rapide), jamais vues par l'IA.
+const HIDDEN_BY_KEY = new Map([...HIDDEN_BOSS_ACTIONS, ...READ_HIDDEN_ACTIONS, ...SITE_HIDDEN_ACTIONS].map((a) => [a.key, a]));
 
 /**
  * Entrée du catalogue par sa clé. `includeHidden` : aussi les entrées cachées (changement de groupe), exécutables

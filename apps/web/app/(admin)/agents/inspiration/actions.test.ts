@@ -75,7 +75,7 @@ describe("Annuler une inspiration", () => {
         action: "agents.inspiration_undo_requested",
         entityType: "Recommendation",
         entityId: "rec1",
-        metadata: { referenceChannelId: "ref1", recommendationIds: ["rec1"], ok: true },
+        metadata: { referenceChannelId: "ref1", recommendationIds: ["rec1"], ok: true, via: "WEB" },
       }),
     );
     expect(url).toContain("/agents/inspiration/ref1?ok=Réglage annulé");
@@ -123,7 +123,7 @@ describe("Retirer une référence", () => {
         action: "agents.inspiration_reference_removed",
         entityType: "ReferenceChannel",
         entityId: "ref1",
-        metadata: { name: "@roulette_pro", ok: true },
+        metadata: { name: "@roulette_pro", ok: true, via: "WEB" },
       }),
     );
     expect(url).toContain("/agents/inspiration?ok=@roulette_pro est retirée");

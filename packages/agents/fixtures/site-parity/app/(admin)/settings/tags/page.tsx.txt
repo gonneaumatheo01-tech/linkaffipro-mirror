@@ -1,0 +1,4 @@
+import { TagForm } from "@/components/tags/tag-form";
+export default function Page() {
+  return TagForm;
+}

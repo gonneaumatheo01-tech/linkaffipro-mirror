@@ -58,6 +58,10 @@ import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
 import { orderQuickCancel } from "../orders/recap";
 import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
+import { siteDeleteWordReply } from "../site/flow";
+import { siteDomainOf } from "../site/registry";
+import { bossDomainHelpText } from "./help";
+import { bossHowToReply } from "./guide";
 
 /** Textes fixes du chemin rapide (charte `docs/KEVIN-VOIX.md`). */
 export const FAST_VARIANTS = {
@@ -257,6 +261,16 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   const pending = await readBossPending(deps);
   const word = confirmWordOf(voice ? (input.spokenText ?? text) : text);
 
+  // 3 avant. Phase 34 : suppression du site en attente : seul le mot exact SUPPRIMER exécute, un « oui » ne suffit pas.
+  if (pending && !pending.expired) {
+    const del = await siteDeleteWordReply(deps, input);
+    if (del) {
+      const { status, ...reply } = del;
+      await remember(deps, input, reply, { actionKey: `confirmation:${pending.actionKey}`, status });
+      return { handled: true, ...reply };
+    }
+  }
+
   // 3. OUI / NON / annule de la confirmation du Boss, montrée dans CETTE conversation. Une question CONFIRM / CHOICE
   // posée APRÈS la confirmation (ou une réponse au message de la question) garde la priorité.
   if (word && pending) {
@@ -405,6 +419,23 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       if (!bossActionAllowed(action, input.speaker)) return { handled: true, reply: await notYoursReply(deps) };
       const r = await action.execute(deps, {}, actor);
       await remember(deps, input, r, { actionKey: key, status: "done" });
+      return { handled: true, ...r };
+    }
+  }
+  // Phase 34 : « aide campagnes » (détail d'un domaine) et « comment je fais pour … ? » (la phrase à dire), sans IA.
+  {
+    const chatId = input.chat?.chatId ?? null;
+    const m = /^(?:aide|help|\/aide)\s+(.{3,40})$/.exec(n);
+    const domain = m ? siteDomainOf(m[1]!) : null;
+    if (domain) {
+      const r: BossReply = { reply: bossDomainHelpText(domain, chatId) };
+      await remember(deps, input, r, { actionKey: "aide", status: "done" });
+      return { handled: true, ...r };
+    }
+    const howTo = bossHowToReply(text, chatId);
+    if (howTo) {
+      const r: BossReply = { reply: howTo };
+      await remember(deps, input, r, { actionKey: "aide", status: "answered" });
       return { handled: true, ...r };
     }
   }

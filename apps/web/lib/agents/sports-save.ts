@@ -18,7 +18,7 @@ import {
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
 /** Enregistre les réglages s'ils ont changé ; `false` si rien n'a changé. */
-export async function writeSportsSettings(next: SportsSettings, userId: string): Promise<boolean> {
+export async function writeSportsSettings(next: SportsSettings, userId: string, via?: "WEB" | "TELEGRAM"): Promise<boolean> {
   const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "sports" }, select: { settings: true } });
   const before = parseSportsSettings(row?.settings);
   if (sameSportsSettings(before, next)) return false;
@@ -33,7 +33,7 @@ export async function writeSportsSettings(next: SportsSettings, userId: string):
     action: "agents.sports_settings_saved",
     entityType: "AgentTeamConfig",
     entityId: "sports",
-    metadata: json({ from: before, to: next }),
+    metadata: json({ from: before, to: next, ...(via ? { via } : {}) }),
   });
   return true;
 }
@@ -47,6 +47,7 @@ export async function loadCategoryKeys(): Promise<string[]> {
 export async function saveBetCategory(
   input: BetCategoryInput,
   userId: string,
+  via?: "WEB" | "TELEGRAM",
 ): Promise<{ ok: true; id: string; changed: string[] } | { ok: false; error: string }> {
   const data = {
     name: input.name,
@@ -85,7 +86,7 @@ export async function saveBetCategory(
       action: "agents.bet_category_saved",
       entityType: "BetCategory",
       entityId: before.id,
-      metadata: json({ key: before.key, name: input.name, changed, active: input.active }),
+      metadata: json({ key: before.key, name: input.name, changed, active: input.active, ...(via ? { via } : {}) }),
     });
     return { ok: true, id: before.id, changed };
   }
@@ -95,7 +96,7 @@ export async function saveBetCategory(
     action: "agents.bet_category_created",
     entityType: "BetCategory",
     entityId: created.id,
-    metadata: json({ key: input.key, name: input.name, active: input.active }),
+    metadata: json({ key: input.key, name: input.name, active: input.active, ...(via ? { via } : {}) }),
   });
   return { ok: true, id: created.id, changed: ["création"] };
 }

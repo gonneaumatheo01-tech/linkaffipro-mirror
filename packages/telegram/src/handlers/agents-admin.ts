@@ -14,6 +14,10 @@ import {
   type VoiceTable,
   type VoiceTemplate,
   type ForwardedMessage,
+  hasLibraryKeyword,
+  isBossInputCallbackData,
+  refersToReceivedInput,
+  INPUT_REFERENCE_DELAY_MS,
 } from "@linkaffipro/agents";
 import { isBossBot, type AdminDialogBot, type BotIdentity, type TelegramDeps } from "../ports";
 import { htmlToPlain } from "../agents/admin-messenger";
@@ -22,6 +26,7 @@ import { findChannelLinkInText } from "../channels/username";
 import { messageHasCustomEmoji } from "../custom-emoji/extract";
 import { realBossEngine, type BossEngine } from "../boss/engine";
 import { bossReplyText, deliverBossReply, type BossReplyApi } from "../boss/reply";
+import { ackForwarded, bumpAlbumAck, isPlainDocument, keepForwarded, noteBossPhrase, onBossInputCallback, receiveBossDocument } from "./boss-inputs";
 
 type NameSample = { name: string };
 type BotSample = { username: string; name: string };
@@ -355,6 +360,9 @@ async function handleDialogText(
     }
     text = commandAsText(text);
   }
+  // Phase 34 : une phrase de l'admin juste avant un transfert (son commentaire) est la demande ; le transfert qui suit
+  // n'a pas d'accusé en plus.
+  if (!forwarded) noteBossPhrase(chatId);
   const agents = deps.agentsDeps!();
   const engine = engineOf(deps);
   const input: BossTeamInput = {
@@ -413,8 +421,12 @@ async function handleDialogText(
         ...(forwarded ? { forwarded: true } : {}),
         entities: msg.entities ? msg.entities.map((e) => ({ ...e })) : null,
       },
-      // Idempotent : un webhook rejoué n'interprète pas deux fois le même message.
-      { jobId: `boss-text:${identity.id}:${msg.message_id}` },
+      // Idempotent : un webhook rejoué n'interprète pas deux fois le même message. Phase 34 : une phrase qui parle de
+      // « ça », « ce fichier »… attend 2 s (Telegram envoie le commentaire avant les messages transférés).
+      {
+        jobId: `boss-text:${identity.id}:${msg.message_id}`,
+        ...(!forwarded && refersToReceivedInput(text) ? { delayMs: INPUT_REFERENCE_DELAY_MS } : {}),
+      },
     );
   } catch (err) {
     console.error("[boss] message de l'admin non mis en file", identity.username, (err as Error).message);
@@ -461,6 +473,10 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
     // sans le journaliser.
     if (await forwardedLooksSecret(deps, ctx.from.id, msg.text ?? msg.caption ?? "")) return next();
     const agents = deps.agentsDeps();
+    // Phase 34 : le message est gardé 30 min comme contenu possible d'un post ou d'un envoi (une donnée, jamais
+    // exécutée). Un fichier CSV / TXT transféré suit le chemin des fichiers.
+    const plainDoc = isPlainDocument(msg);
+    const kept = plainDoc ? null : await keepForwarded(identity, deps, msg);
     let out: Awaited<ReturnType<typeof kevinForwardedPost>>;
     try {
       out = await kevinForwardedPost(agents, {
@@ -472,13 +488,58 @@ export function registerAgentsAdminHandlers(bot: Bot, identity: BotIdentity, dep
       console.error("[boss] post transféré non rangé", identity.username, (err as Error).message);
       return next();
     }
-    if (!out.handled) return next();
+    if (!out.handled) {
+      if (plainDoc || !kept || messageHasCustomEmoji(msg as Message & { text: string })) return next();
+      // Média de l'admin avec mots-clés de la médiathèque (transféré d'une personne) : rangé comme avant.
+      if (msg.forward_origin.type !== "channel" && hasLibraryKeyword(msg.caption ?? "")) return next();
+      // Suite d'un album ou d'une rafale, ou commentaire écrit juste avant : un seul contenu, pas d'accusé de plus.
+      if (!kept.ack) return bumpAlbumAck(deps, msg);
+      // Transfert sans texte (photo, vidéo, album) : accusé ici (le chemin du texte n'en verrait rien).
+      if (msg.text === undefined) return ackForwarded(ctx, deps, msg, kept);
+      return next();
+    }
     if (out.reply?.reply) await replyHtml(ctx, out.reply.reply).catch(() => undefined);
     if (messageHasCustomEmoji(msg as Message & { text: string })) return next();
   });
 
+  // Phase 34 : fichier (CSV, TXT…) envoyé ou transféré par l'admin à Kevin : lu et gardé 30 min ; sa légende est la
+  // demande (chemin d'un texte). Une image ou une vidéo envoyée comme fichier garde le chemin de la médiathèque.
+  bot.on("message:document", async (ctx, next) => {
+    const msg = ctx.message;
+    if (ctx.from.is_bot || !isBossBot(identity) || !deps.agentsDeps || !isPlainDocument(msg)) return next();
+    const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.chat.type);
+    if (route.kind !== "dialog") return next();
+    if (msg.caption && (await looksSecret(deps, ctx.from.id, msg.caption, msg.reply_to_message?.message_id))) {
+      await ctx.api.deleteMessage(ctx.chat.id, msg.message_id).catch(() => undefined);
+      await ctx.reply(say("secretNotQueued", ctx.chat.id)).catch(() => undefined);
+      return;
+    }
+    let caption: string | null = null;
+    try {
+      caption = (await receiveBossDocument(ctx, identity, deps, msg)).caption;
+    } catch (err) {
+      console.error("[boss] fichier de l'admin", identity.username, (err as Error).message);
+      await ctx.reply(bossReplyText("error", ctx.chat.id)).catch(() => undefined);
+      return;
+    }
+    if (caption) {
+      const asText = { ...msg, text: caption, entities: msg.caption_entities } as Message & { text: string };
+      await handleDialogText(ctx, identity, deps, asText, next);
+    }
+  });
+
   bot.on("callback_query:data", async (ctx, next) => {
     const data = ctx.callbackQuery.data;
+    // Phase 34 : choix des comptes publicitaires après une autorisation Meta / TikTok (admin seulement).
+    if (isBossInputCallbackData(data)) {
+      if (!deps.agentsDeps || !isBossBot(identity)) return next();
+      const route = await adminRouteFor(identity, deps, ctx.from.id, ctx.callbackQuery.message?.chat.type ?? "private");
+      if (route.kind !== "dialog") {
+        await ctx.answerCallbackQuery().catch(() => undefined);
+        return;
+      }
+      return onBossInputCallback(ctx, deps);
+    }
     const engine = engineOf(deps);
     const isBoss = engine.isCallbackData(data);
     if (!isBoss && !isAgentsCallbackData(data)) return next();

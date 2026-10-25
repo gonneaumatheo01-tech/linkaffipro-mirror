@@ -1,14 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  answerHumanRequestFromSite,
-  decideValidation,
-  relaunchHumanRequest,
-  skipHumanRequest,
-} from "@linkaffipro/agents";
+import { decideValidation } from "@linkaffipro/agents";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
+import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
+import { runAnswerHumanRequest, runRelaunchHumanRequest, runSkipHumanRequest } from "@/lib/site-ops/ops/lot-d/validations";
 import { requireUser } from "@/lib/session";
 
 const PAGE = "/agents/validations";
@@ -17,6 +14,12 @@ const REQUESTS = { tab: "demandes" };
 function field(fd: FormData, key: string): string {
   const v = fd.get(key);
   return typeof v === "string" ? v.trim() : "";
+}
+
+/** Demandes (phase 34) : cœurs uniques `@/lib/site-ops/ops/lot-d/validations`, appelés aussi par Kevin. */
+function request(r: { ok: true; message: string } | { ok: false; error: string; code?: string }): never {
+  if (r.ok || r.code === "conflict") revalidatePath("/agents", "layout");
+  backTo(PAGE, { ...REQUESTS, ...(r.ok ? { ok: r.message } : { error: r.error }) });
 }
 
 function finish(result: { ok: boolean; message: string }, extra: Record<string, string> = {}): never {
@@ -52,42 +55,15 @@ export async function decideValidationAction(formData: FormData): Promise<void> 
 /** Réponse à une demande depuis le site (mêmes règles que par Telegram ; une clé n'est jamais réaffichée). */
 export async function answerHumanRequestAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const id = field(formData, "requestId");
-  const answer = field(formData, "answer");
-  if (!id) backTo(PAGE, { ...REQUESTS, error: "Demande inconnue : rechargez la page." });
-  if (!answer) backTo(PAGE, { ...REQUESTS, error: "Écrivez ou choisissez une réponse." });
-  try {
-    // Le rôle est passé au moteur : un MANAGER ne répond jamais à une demande réservée (clé, passage en vrai…).
-    finish(
-      await answerHumanRequestFromSite(buildAgentsDeps(), id, answer, { userId: user.id, via: "SITE" }, user.role),
-      REQUESTS,
-    );
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(PAGE, { ...REQUESTS, error: `Réponse impossible : ${errorText(err)}.` });
-  }
+  request(await runAnswerHumanRequest(formData, siteActor(user)));
 }
 
 export async function skipHumanRequestAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const id = field(formData, "requestId");
-  if (!id) backTo(PAGE, { ...REQUESTS, error: "Demande inconnue : rechargez la page." });
-  try {
-    finish(await skipHumanRequest(buildAgentsDeps(), id, { userId: user.id, via: "SITE" }, user.role), REQUESTS);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(PAGE, { ...REQUESTS, error: `Impossible de passer la demande : ${errorText(err)}.` });
-  }
+  request(await runSkipHumanRequest(formData, siteActor(user)));
 }
 
 export async function relaunchHumanRequestAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const id = field(formData, "requestId");
-  if (!id) backTo(PAGE, { ...REQUESTS, error: "Demande inconnue : rechargez la page." });
-  try {
-    finish(await relaunchHumanRequest(buildAgentsDeps(), id, { userId: user.id, via: "SITE" }), REQUESTS);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(PAGE, { ...REQUESTS, error: `Relance impossible : ${errorText(err)}.` });
-  }
+  request(await runRelaunchHumanRequest(formData, siteActor(user)));
 }

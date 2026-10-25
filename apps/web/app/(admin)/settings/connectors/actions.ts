@@ -2,11 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { prisma, audit } from "@linkaffipro/db";
-import { enqueue } from "@linkaffipro/queue";
+import { linkaffiSyncNow, ratesSave, spendThresholdsSave } from "@/lib/site-ops/ops/lot-e/connectors-linkaffi";
+import { backParams, webActor } from "@/lib/site-ops/ops/lot-e/common";
 import { requireAdmin } from "@/lib/session";
 
+/** Phase 34 : chaque action appelle le cœur unique (`lib/site-ops/ops/lot-e/connectors-linkaffi.ts`), comme Kevin. */
 function back(params: Record<string, string>): never {
   redirect(`/settings/connectors?${new URLSearchParams(params).toString()}`);
 }
@@ -14,72 +14,26 @@ function back(params: Record<string, string>): never {
 /** Enfile un passage de synchronisation Link Affi (incrémental ou complet). */
 export async function syncNowAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  const full = formData.get("full") === "1";
-  try {
-    await enqueue(
-      "sync-linkaffi",
-      { type: "tick", full },
-      { jobId: `sync-linkaffi:manual:${Date.now()}` },
-    );
-    await audit({
-      userId: admin.id,
-      action: full ? "linkaffi.sync_full_requested" : "linkaffi.sync_requested",
-    });
-  } catch (err) {
-    if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    back({
-      error: `Impossible de lancer la synchronisation pour le moment (${err instanceof Error ? err.message : "erreur"}). Réessayez dans une minute.`,
-    });
-  }
-  revalidatePath("/settings/connectors");
-  back({
-    ok: full
-      ? "Resynchronisation complète lancée : comptez plusieurs minutes, puis rechargez la page."
-      : "Synchronisation lancée : rechargez la page dans une minute.",
-  });
+  const r = await linkaffiSyncNow({ full: formData.get("full") === "1" }, webActor(admin));
+  if (r.ok) revalidatePath("/settings/connectors");
+  back(backParams(r));
 }
-
-const thresholdsSchema = z.object({
-  vip: z.coerce.number().min(0).max(1_000_000),
-  regularDeposits: z.coerce.number().int().min(1).max(1000),
-});
 
 /** Seuils du niveau de dépense (Setting `spend.thresholds`). */
 export async function saveSpendThresholdsAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  const parsed = thresholdsSchema.safeParse({
-    vip: formData.get("vip"),
-    regularDeposits: formData.get("regularDeposits"),
-  });
-  if (!parsed.success)
-    back({
-      error:
-        "Seuils invalides : le seuil VIP doit être un montant positif et le nombre de dépôts un entier d'au moins 1.",
-    });
-  await prisma.setting.upsert({
-    where: { key: "spend.thresholds" },
-    create: { key: "spend.thresholds", value: parsed.data },
-    update: { value: parsed.data },
-  });
-  await audit({ userId: admin.id, action: "settings.spend_thresholds", metadata: parsed.data });
-  revalidatePath("/settings/connectors");
-  back({ ok: "Seuils enregistrés." });
+  const r = await spendThresholdsSave(
+    { vip: formData.get("vip"), regularDeposits: formData.get("regularDeposits") },
+    webActor(admin),
+  );
+  if (r.ok) revalidatePath("/settings/connectors");
+  back(backParams(r));
 }
 
 /** Taux de change saisis (« USD=1.08, GBP=0.85 » : unités pour 1 €), prioritaires sur ceux de Link Affi. */
 export async function saveRatesAction(formData: FormData): Promise<void> {
   const user = await requireAdmin();
-  const raw = String(formData.get("rates") ?? "");
-  const rates: Record<string, number> = {};
-  for (const part of raw.split(/[,;\n]+/)) {
-    const [k, v] = part.split("=").map((x) => x?.trim());
-    if (!k) continue;
-    const rate = Number((v ?? "").replace(",", "."));
-    if (!/^[A-Za-z]{3}$/.test(k) || !Number.isFinite(rate) || rate <= 0) back({ error: `Taux illisible : « ${part.trim()} » (attendu : USD=1.08).` });
-    rates[k.toUpperCase()] = rate;
-  }
-  await prisma.setting.upsert({ where: { key: "currency.rates.manual" }, create: { key: "currency.rates.manual", value: rates }, update: { value: rates } });
-  await audit({ userId: user.id, action: "settings.currency_rates_updated", metadata: { rates } });
-  revalidatePath("/settings/connectors");
-  back({ ok: Object.keys(rates).length ? `Taux enregistrés : ${Object.entries(rates).map(([k, v]) => `${k} ${v}`).join(", ")}.` : "Taux saisis effacés : les taux Link Affi s'appliquent." });
+  const r = await ratesSave({ rates: String(formData.get("rates") ?? "") }, webActor(user));
+  if (r.ok) revalidatePath("/settings/connectors");
+  back(backParams(r));
 }

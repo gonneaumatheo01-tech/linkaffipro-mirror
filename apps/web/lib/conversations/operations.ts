@@ -42,7 +42,10 @@ import {
   type ConversationRuleInput,
 } from "./rules";
 
-export type TeamUser = { id: string; name: string };
+/** Membre de l'équipe qui agit (`via` : site ou Kevin, phase 34, noté au journal ; absent = site). */
+export type TeamUser = { id: string | null; name: string; via?: "WEB" | "TELEGRAM" };
+
+const viaOf = (user: TeamUser) => (user.via ? { via: user.via } : {});
 /** Verrou du tour de l'assistante (remplaçable dans les tests). */
 export type TurnLock = <T>(
   conversationId: string,
@@ -289,6 +292,7 @@ export async function takeOverConversation(
     entityType: "Conversation",
     entityId: id,
     metadata: {
+      ...viaOf(user),
       fromStatus: r.conv.status,
       ...(r.conv.needsHumanAt ? { needsHumanCleared: r.conv.needsHumanReason ?? true } : {}),
     },
@@ -399,7 +403,7 @@ async function releaseUnderLock(id: string, user: TeamUser, now: Date): Promise<
     action: "conversation.released",
     entityType: "Conversation",
     entityId: id,
-    metadata: { fromStatus: r.conv.status, markedInbound: r.extra.marked },
+    metadata: { ...viaOf(user), fromStatus: r.conv.status, markedInbound: r.extra.marked },
   });
   const { word, pronoun } = r.extra;
   return {
@@ -450,7 +454,7 @@ async function closeAs(
     action: kind === "block" ? "conversation.blocked" : "conversation.closed",
     entityType: "Conversation",
     entityId: id,
-    metadata: { fromStatus: r.conv.status, fromStage: r.conv.stage },
+    metadata: { ...viaOf(user), fromStatus: r.conv.status, fromStage: r.conv.stage },
   });
   return {
     ok: true,
@@ -538,6 +542,7 @@ export async function sendTeamMessage(
     entityType: "Conversation",
     entityId: id,
     metadata: {
+      ...viaOf(user),
       length: [...text].length,
       outboundMessageId,
       tookOver: r.extra.tookOver,
@@ -577,9 +582,80 @@ export async function clearNeedsHuman(
     entityType: "Conversation",
     entityId: id,
     metadata: {
+      ...viaOf(user),
       reason: r.conv.needsHumanReason,
       since: r.conv.needsHumanAt?.toISOString() ?? null,
     },
   });
   return { ok: true, message: "Conversation marquée comme traitée." };
+}
+
+/** Action de l'équipe sur une conversation, pour l'essai à blanc de Kevin (phase 34). */
+export type TeamActionKind = "takeOver" | "release" | "close" | "block" | "send" | "clearNeedsHuman";
+
+/**
+ * Essai à blanc (phase 34) : mêmes refus que l'action réelle (conversation introuvable, /stop, mineur, bloquée…),
+ * sans verrou ni écriture. Message = ce qui serait fait.
+ */
+export async function previewTeamAction(
+  id: string,
+  kind: TeamActionKind,
+  rawText?: unknown,
+): Promise<OperationResult & { text?: string }> {
+  let text: string | undefined;
+  if (kind === "send") {
+    const checked = checkTeamText(rawText);
+    if (!checked.ok) return checked;
+    text = checked.text;
+  }
+  const c = await prisma.conversation.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      botId: true,
+      memberId: true,
+      status: true,
+      stoppedAt: true,
+      isMinor: true,
+      closedReason: true,
+      needsHumanAt: true,
+      persona: { select: { gender: true } },
+      bot: { select: { isActive: true } },
+    },
+  });
+  if (!c) return { ok: false, error: NOT_FOUND };
+  const word = assistantWord(c.persona?.gender);
+  if (kind === "clearNeedsHuman")
+    return {
+      ok: true,
+      message: c.needsHumanAt
+        ? "La conversation sera marquée comme traitée."
+        : "Cette conversation n'était plus à traiter.",
+    };
+  const state = await prisma.memberBotState.findUnique({
+    where: { memberId_botId: { memberId: c.memberId, botId: c.botId } },
+    select: { blockedAt: true },
+  });
+  const rules: ConversationRuleInput = {
+    status: c.status,
+    stoppedAt: c.stoppedAt,
+    isMinor: c.isMinor,
+    closedReason: c.closedReason,
+    memberBlocked: Boolean(state?.blockedAt),
+    botActive: c.bot.isActive,
+  };
+  if (!conversationActions(rules)[kind]) return { ok: false, error: refusalFor(kind, rules, word) };
+  const message =
+    kind === "takeOver"
+      ? `Vous aurez la main : ${word} ne répondra plus dans cette conversation.`
+      : kind === "release"
+        ? `Conversation rendue à ${word}.`
+        : kind === "close"
+          ? "Conversation fermée (réouvrable)."
+          : kind === "block"
+            ? "Conversation bloquée : plus aucun message ne partira vers cette personne."
+            : c.status !== "HUMAN"
+              ? `Message envoyé à la personne ; vous prendrez la main (${word} ne répondra plus).`
+              : "Message envoyé à la personne.";
+  return { ok: true, message, ...(text !== undefined ? { text } : {}) };
 }

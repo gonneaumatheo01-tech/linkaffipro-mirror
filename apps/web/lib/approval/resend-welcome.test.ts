@@ -125,6 +125,7 @@ describe("bouton « Renvoyer l'accueil avec les liens »", () => {
         stillMissing: 0,
         notPending: 1,
         membershipIds: ["ms1", "ms2"],
+        via: "WEB",
       },
     });
     // Adresse externe refusée : retour sur l'accueil.

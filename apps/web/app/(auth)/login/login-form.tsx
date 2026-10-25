@@ -12,9 +12,9 @@ import { Card, CardContent } from "@/components/ui/card";
  * l'adresse disparaissait après un mauvais mot de passe (à retaper sur téléphone). Après une erreur, le focus va au
  * mot de passe (le seul champ vidé, celui à retaper).
  */
-export function LoginForm({ callbackUrl, initialError, notice = null }: { callbackUrl: string; initialError: string | null; notice?: string | null }) {
+export function LoginForm({ callbackUrl, initialError, notice = null, initialEmail = "" }: { callbackUrl: string; initialError: string | null; notice?: string | null; initialEmail?: string }) {
   const [state, action, pending] = useActionState(loginAction, { error: initialError });
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const passwordRef = useRef<HTMLInputElement>(null);
   const initialState = useRef(state);
   useEffect(() => {

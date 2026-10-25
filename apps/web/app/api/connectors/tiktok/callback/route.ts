@@ -9,6 +9,7 @@ import {
 } from "@/lib/connectors/common";
 import { requireUser } from "@/lib/session";
 import { env } from "@/lib/env";
+import { kevinOAuthResume } from "@/lib/boss-inputs/oauth-resume";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,10 @@ export async function GET(req: Request) {
       entityId: "TIKTOK",
       metadata: { platform: "TIKTOK", accounts: accounts.length },
     });
-    return NextResponse.redirect(new URL("/settings/connectors/tiktok/choose", env.appBaseUrl));
+    const res = NextResponse.redirect(new URL("/settings/connectors/tiktok/choose", env.appBaseUrl));
+    // Phase 34 : autorisation ouverte par un lien de Kevin → il reprend la conversation (boutons des comptes).
+    await kevinOAuthResume(req, res, { platform: "TIKTOK", userId: user.id, accounts });
+    return res;
   } catch (err) {
     return fail(`Connexion TikTok impossible : ${describeConnectorError(err).slice(0, 300)}`);
   }

@@ -8,8 +8,13 @@
 import { esc } from "../admin/journal";
 import type { BossAction, BossTheme } from "./contract";
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import type { SiteDomain, SiteOpMeta } from "../site/contract";
+import { SITE_DOMAIN_LABELS, listSiteOps, siteOpsByDomain } from "../site/registry";
 
-export const BOSS_HELP_MAX_LINES = 25;
+/** Phase 34 : thèmes du catalogue + un domaine du site par ligne (tout se fait par Kevin). */
+export const BOSS_HELP_MAX_LINES = 40;
+/** Détail d'un domaine (« aide campagnes ») : une ligne par opération, 20 au plus. */
+export const BOSS_DOMAIN_HELP_MAX = 20;
 
 /** Titres des thèmes, dans l'ordre d'affichage. */
 export const BOSS_THEME_LABELS: Record<BossTheme, string> = {
@@ -64,6 +69,19 @@ export const HELP_VARIANTS = {
     ],
     LIST_RULES,
   ),
+  domainIntro: voiceTemplate(
+    [{ label: "Campagnes" }],
+    (p: { label: string }) => [`${p.label} : dis-moi par exemple`, `Pour ${p.label.toLowerCase()}, des phrases qui marchent :`],
+    LIST_RULES,
+  ),
+  domainEmpty: voiceTemplate([{ label: "Campagnes" }], (p: { label: string }) => [
+    `${p.label}, je ne sais encore rien y faire. Écris aide pour la liste.`,
+    `Rien encore côté ${p.label.toLowerCase()}. Écris aide pour voir le reste.`,
+  ]),
+  domainOutro: [
+    "Dis-le avec tes mots, je comprends aussi les variantes.",
+    "Pas besoin de la phrase exacte, je m'adapte.",
+  ],
   outro: [
     "Si je ne sais pas faire, je te le dis et je le note pour la suite.",
     "Un truc que je ne sais pas faire ? Je te le dis franchement et je le note.",
@@ -77,18 +95,39 @@ function themeLine(theme: BossTheme): string {
   return `• ${BOSS_THEME_LABELS[theme]} : ${ex}`;
 }
 
+/** Ligne d'un domaine du site : « • Campagnes : « … », « … » » (2 exemples, d'opérations différentes si possible). */
+export function domainLine(domain: SiteDomain, ops: readonly Pick<SiteOpMeta, "examples">[]): string | null {
+  const firsts = ops.map((o) => o.examples[0]).filter((e): e is string => !!e?.trim());
+  const pickEx = [...new Set(firsts.length >= 2 ? firsts : ops.flatMap((o) => o.examples))].slice(0, 2);
+  if (!pickEx.length) return null;
+  return `• ${SITE_DOMAIN_LABELS[domain]} : ${pickEx.map((e) => `« ${e} »`).join(", ")}`;
+}
+
 export function bossHelpText(
   catalog: readonly Pick<BossAction, "key" | "description" | "theme">[],
   name = "Kevin",
   chatId?: bigint | string | null,
+  siteOps: readonly SiteOpMeta[] = listSiteOps(),
 ): string {
   const present = new Set<BossTheme>();
   for (const a of catalog) if (a.description?.trim()) present.add(a.theme);
   const themes = (Object.keys(BOSS_THEME_LABELS) as BossTheme[]).filter((t) => present.has(t));
   const head = pick(HELP_VARIANTS.intro({ name: esc(name) }), "help.intro", chatId ?? null);
   const body = themes.map((t) => esc(themeLine(t)));
+  // Phase 34 : un domaine du site par ligne, 2 exemples chacun (« aide campagnes » détaille).
+  const domains = [...siteOpsByDomain(siteOps)].map(([d, ops]) => domainLine(d, ops)).filter((l): l is string => !!l).map(esc);
   const tail = pick(HELP_VARIANTS.outro, "help.outro", chatId ?? null);
-  return [head, ...body.slice(0, BOSS_HELP_MAX_LINES - 2), tail].join("\n");
+  return [head, ...[...body, ...domains].slice(0, BOSS_HELP_MAX_LINES - 2), tail].join("\n");
+}
+
+/** « aide campagnes » : une ligne par opération du domaine (description et première phrase type). */
+export function bossDomainHelpText(domain: SiteDomain, chatId?: bigint | string | null, siteOps: readonly SiteOpMeta[] = listSiteOps()): string {
+  const label = SITE_DOMAIN_LABELS[domain];
+  const ops = siteOps.filter((o) => o.domain === domain);
+  if (!ops.length) return pick(HELP_VARIANTS.domainEmpty({ label: esc(label) }), "help.domain.empty", chatId ?? null);
+  const head = pick(HELP_VARIANTS.domainIntro({ label: esc(label) }), "help.domain.intro", chatId ?? null);
+  const body = ops.slice(0, BOSS_DOMAIN_HELP_MAX).map((o) => esc(`• ${o.description.replace(/[.\s]+$/, "")} : « ${o.examples[0] ?? o.description} »`));
+  return [head, ...body, pick(HELP_VARIANTS.domainOutro, "help.domain.outro", chatId ?? null)].join("\n");
 }
 
 /** Toutes les formes de l'aide (tests de la voix) : catalogue complet de tous les thèmes. */

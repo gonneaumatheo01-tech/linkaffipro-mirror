@@ -465,3 +465,35 @@ export { unusualOddsOf, UNUSUAL_ODDS_GAP_PCT } from "./agents/cotes/select";
 export * from "./site/contract";
 export { SITE_OPS } from "./site/ops";
 export { SITE_PARITY } from "./site/parity";
+// Phase 34, chantier A (socle) : registre, signature de l'entrée interne, outils de l'IA, déroulé, erreurs en phrases
+// de collègue, capacités du planificateur, client en processus du site.
+export { siteOp, listSiteOps, siteOpsByDomain, siteDomainOf, indexSiteOps, SITE_DOMAIN_LABELS, SITE_DOMAINS } from "./site/registry";
+export { siteOpsKeyFrom, signSiteOpsBody, verifySiteOpsSignature, type SiteOpsSignatureCheck } from "./site/signing";
+export { siteTools, siteToolDecision, siteToolName, publicParamsOf, SITE_TOOL_PREFIX } from "./site/tools";
+export {
+  runSiteFlow,
+  proceedSiteFlow,
+  executeSiteFlow,
+  siteRightsOf,
+  siteOpAllowed,
+  siteConfirmOf,
+  registerSiteOpClassifier,
+  siteDeleteWordReply,
+  handleSiteChoiceCallback,
+  isSiteChoiceData,
+  readSiteFlowState,
+  SITE_FLOW_VARIANTS,
+  type SiteFlowState,
+  type SiteFlowReply,
+  type SiteRights,
+  type SiteRightsLevel,
+} from "./site/flow";
+export { choicesFor } from "./site/choices";
+export { colleagueError, colleagueMessage, colleagueRules, missingFieldOf, SITE_ERRORS_VARIANTS } from "./site/errors";
+export { siteCapabilities, siteCapability, isOrderableSiteOp, SITE_CAPABILITY_TEAM } from "./site/capabilities";
+export { SITE_OP_ACTION, SITE_OP_DELETE_ACTION, SITE_CHOICE_PREFIX, SITE_SELF_AUDITED_ACTIONS } from "./site/keys";
+export { setInProcessSiteOps, inProcessSiteOpsPort, portSiteOps } from "./site/port";
+export { scanServerActions, checkParity, parityMarkdown, parityTable, parityOk, isUseServerFile, type ServerActionEntry, type ServerActionFile, type ParityReport } from "./site/parity-scan";
+
+// Phase 34, chantier F : entrées Telegram (message transféré, fichier, liens d'autorisation, reprise après OAuth).
+export * from "./boss/inputs";

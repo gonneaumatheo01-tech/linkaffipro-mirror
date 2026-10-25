@@ -31,6 +31,8 @@ import { handleOrderRequest } from "../orders/request";
 import { planCacheKeyOf } from "../orders/planner";
 import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
 import { CHOICES_VARIANTS, clearKevinList, pickOption, readKevinList, rememberKevinList, replayText } from "./choices";
+import { SITE_SELF_AUDITED_ACTIONS } from "../site/keys";
+import { runSiteFlow } from "../site/flow";
 
 /** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
 export const EXECUTE_VARIANTS = {
@@ -357,7 +359,9 @@ export async function runConfirmedAction(deps: BossDeps, pending: BossPending, a
   }
   try {
     const r = await action.execute(deps, parsed.params as Record<string, unknown>, actor);
-    await audit(deps, action.key, actor, { status: "done", confirmed: true, params: safeParams(parsed.params as Record<string, unknown>) });
+    // Opérations du site (phase 34) : le cœur du site écrit l'`AuditLog` (`via: "TELEGRAM"`), jamais un second ici.
+    if (!SITE_SELF_AUDITED_ACTIONS.has(action.key))
+      await audit(deps, action.key, actor, { status: "done", confirmed: true, params: safeParams(parsed.params as Record<string, unknown>) });
     await writeBossTurn(deps, { role: "BOSS", text: r.reply ?? "", actionKey: action.key, status: "done", source: "button" });
     return r;
   } catch (err) {
@@ -572,6 +576,11 @@ async function handleDecision(
       });
       const { status, costCents, orderId: _o, ...reply } = r;
       return { ...reply, status, costCents, actionKey: "ordre_equipe" };
+    }
+    case "site": {
+      // Phase 34 : opération du site (droits, secret, essai à blanc, confirmation, exécution : `site/flow.ts`).
+      const r = await runSiteFlow(deps, { op: decision.op, params: decision.params, input });
+      return { ...r, actionKey: decision.op.key };
     }
     case "pas_prevu":
       return { ...(await unmetReply(deps, input.text, secretContext, input.chat, input.speaker)), status: "unmet", actionKey: "pas_prevu" };

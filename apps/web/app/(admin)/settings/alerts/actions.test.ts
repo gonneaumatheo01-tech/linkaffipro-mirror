@@ -143,6 +143,8 @@ describe("enregistrer les alertes sur les chiffres", () => {
           spendNoConversionEur: 75.5,
           channelLeakPct: 12,
           enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false, bookmaker_blocked: false, bookmaker_degraded: false },
+          // Phase 34 : même cœur que Kevin, journal avec la provenance (`via`).
+          via: "WEB",
         },
       },
     ]);

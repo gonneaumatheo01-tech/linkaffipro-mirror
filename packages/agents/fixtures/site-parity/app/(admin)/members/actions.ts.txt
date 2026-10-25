@@ -1,0 +1,7 @@
+"use server";
+import { requireUser } from "@/lib/session";
+
+export async function sendBroadcastAction(id: string) {
+  await requireUser();
+  return id;
+}

@@ -13,7 +13,8 @@ export type CampaignEntryLinkInput = {
   /** Groupe de pubs ; par défaut « Groupe 1 » (créé s'il manque). */
   adSetName?: string;
   language?: string;
-  userId: string;
+  userId: string | null;
+  via?: "WEB" | "TELEGRAM";
 };
 
 /**
@@ -40,12 +41,13 @@ export async function createCampaignEntryLink(input: CampaignEntryLinkInput) {
     adName,
     language: input.language ?? channel?.language ?? "fr",
     userId: input.userId,
+    via: input.via,
   });
   const [, , ad] = await prisma.$transaction([
     prisma.inviteLink.update({ where: { id: inviteLink.id }, data: { campaignId: input.campaignId } }),
     prisma.trackingLink.update({ where: { id: trackingLink.id }, data: { campaignId: input.campaignId } }),
     prisma.ad.create({ data: { adSetId: adSet.id, name: adName, inviteLinkId: inviteLink.id, trackingLinkId: trackingLink.id }, select: { id: true } }),
   ]);
-  await audit({ userId: input.userId, action: "ad.created", entityType: "Ad", entityId: ad.id, metadata: { name: adName, campaignId: input.campaignId, inviteLinkId: inviteLink.id, trackingLinkId: trackingLink.id, viaCampaign: true } });
+  await audit({ userId: input.userId, action: "ad.created", entityType: "Ad", entityId: ad.id, metadata: { name: adName, campaignId: input.campaignId, inviteLinkId: inviteLink.id, trackingLinkId: trackingLink.id, viaCampaign: true, ...(input.via ? { via: input.via } : {}) } });
   return { ad, adSetId: adSet.id, inviteLink, trackingLink };
 }

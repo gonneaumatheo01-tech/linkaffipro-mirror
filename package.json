@@ -48,6 +48,7 @@
     "agents:report-now": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/report-now.ts",
     "boss:unmet": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/boss-unmet.ts",
     "agents:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/agents-status.ts",
+    "kevin:parity": "node --env-file-if-exists=.env.local --import tsx packages/agents/scripts/kevin-parity.ts",
     "agents:capture-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-runner.ts",
     "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts",
     "agents:migrate-bet-categories": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/migrate-bet-categories.ts",

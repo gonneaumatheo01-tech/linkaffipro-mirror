@@ -20,7 +20,7 @@ describe("Kevin : aide", () => {
   beforeEach(() => resetVoiceRotation());
 
   it("phrase d'introduction, une ligne d'exemples par thème présent (dans l'ordre), phrase de fin", () => {
-    const text = bossHelpText(CATALOG as BossAction[]);
+    const text = bossHelpText(CATALOG as BossAction[], "Kevin", null, []);
     const lines = text.split("\n");
     expect(lines.length).toBeLessThanOrEqual(BOSS_HELP_MAX_LINES);
     expect(HELP_VARIANTS.intro({ name: "Kevin" })).toContain(lines[0]);
@@ -51,9 +51,30 @@ describe("Kevin : aide", () => {
   it("très gros catalogue : 25 lignes au plus, une ligne par thème", () => {
     const themes: BossTheme[] = ["etat", "chiffres", "demandes", "equipes", "canaux", "rencontres", "casino", "paris", "algorithme", "ads", "tests", "guide"];
     const big = themes.flatMap((t) => Array.from({ length: 30 }, (_, i) => action(`${t}${i}`, t, `Action numéro ${i} du thème ${t} avec une description assez longue`)));
-    const lines = bossHelpText(big as BossAction[]).split("\n");
+    const lines = bossHelpText(big as BossAction[], "Kevin", null, []).split("\n");
     expect(lines.length).toBeLessThanOrEqual(BOSS_HELP_MAX_LINES);
     expect(lines.length).toBe(themes.length + 2);
     expect(lines.every((l) => l.length < 400)).toBe(true);
+  });
+});
+
+describe("Kevin : aide par domaine du site (phase 34)", () => {
+  const ops = [
+    { key: "campagnes.creer", domain: "campagnes", description: "Créer une campagne", examples: ["crée une campagne Celsius"], kind: "create", role: "MANAGER", confirm: "none", params: {}, serverActions: [] },
+    { key: "campagnes.supprimer", domain: "campagnes", description: "Supprimer une campagne", examples: ["supprime la campagne test"], kind: "delete", role: "ADMIN", confirm: "delete", params: {}, serverActions: [] },
+    { key: "reglages.etiquette_creer", domain: "reglages", description: "Créer une étiquette", examples: ["crée l'étiquette VIP"], kind: "create", role: "MANAGER", confirm: "none", params: {}, serverActions: [] },
+  ] as const;
+
+  it("« aide » : une ligne par domaine avec 2 exemples ; « aide campagnes » détaille", async () => {
+    const { bossDomainHelpText } = await import("./help");
+    const text = bossHelpText(CATALOG as BossAction[], "Kevin", null, ops as never);
+    expect(text).toContain("• Campagnes : « crée une campagne Celsius », « supprime la campagne test »");
+    expect(text).toContain("• Réglages : « crée l'étiquette VIP »");
+    expect(voiceCheck(text, { allowList: true, allowLong: true }).problems).toEqual([]);
+    const detail = bossDomainHelpText("campagnes", null, ops as never);
+    expect(detail).toContain("• Créer une campagne : « crée une campagne Celsius »");
+    expect(detail).toContain("• Supprimer une campagne : « supprime la campagne test »");
+    expect(voiceCheck(detail, { allowList: true, allowLong: true }).problems).toEqual([]);
+    expect(voiceCheck(bossDomainHelpText("pages", null, ops as never)).problems).toEqual([]);
   });
 });

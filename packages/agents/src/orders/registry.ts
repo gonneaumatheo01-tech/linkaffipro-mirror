@@ -15,6 +15,7 @@ import { INSPIRATION_CAPABILITIES } from "./capabilities/inspiration";
 import { REDACTION_CAPABILITIES } from "./capabilities/redaction";
 import { SPORTS_CAPABILITIES } from "./capabilities/sports";
 import { TRANSVERSE_CAPABILITIES } from "./capabilities/transverse";
+import { siteCapabilities } from "../site/capabilities";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyCapability = Capability<any>;
@@ -73,3 +74,6 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
 ];
 
 registerCapabilities(BUILTIN_CAPABILITIES);
+// Phase 34 : les opérations du site (lectures, réglages, créations) enchaînables par le planificateur, équipe
+// « transverse ». Suppressions, envois, secrets et connexions restent au déroulé de Kevin (`site/flow.ts`).
+registerCapabilities(siteCapabilities());

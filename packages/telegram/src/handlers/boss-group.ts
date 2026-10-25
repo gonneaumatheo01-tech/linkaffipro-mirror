@@ -9,6 +9,7 @@ import {
   bossTeamIncoming,
   claimMemberAiTurn,
   findTeamMember,
+  isBossInputCallbackData,
   pick,
   readBossGroupId,
   type AgentsDeps,
@@ -22,6 +23,7 @@ import { realBossEngine, type BossEngine } from "../boss/engine";
 import { workerLooksDown } from "./agents-admin";
 import { deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
 import { createAlbumCaptions, createLibraryDepositor, inboxMediaOf, type LibraryDepositor } from "./media-inbox";
+import { onBossInputCallback } from "./boss-inputs";
 
 /**
  * Phase 33 : textes de secours de Kevin dans le groupe de l'équipe et en privé d'un membre (charte
@@ -181,6 +183,8 @@ async function onGroupCallback(ctx: Context, deps: TelegramDeps, agents: AgentsD
     await ctx.answerCallbackQuery().catch(() => undefined);
     return;
   }
+  // Phase 34 : choix des comptes publicitaires après une autorisation (admin seulement, vérifié par le moteur).
+  if (isBossInputCallbackData(data)) return onBossInputCallback(ctx, deps);
   const engine = engineOf(deps);
   const r = engine.isCallbackData(data)
     ? await engine.callback(agents, { data, fromTelegramId: BigInt(cq.from.id), messageId: cq.message?.message_id ?? null })

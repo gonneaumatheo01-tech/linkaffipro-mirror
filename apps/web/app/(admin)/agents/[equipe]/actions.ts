@@ -1,20 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createTestPostMission, startBench } from "@linkaffipro/agents";
-import { audit } from "@linkaffipro/db";
-import { parseCasinoPlanThemesForm, parseCasinoTeamForm } from "@/lib/agents/casino";
-import { readCasinoSettingsRaw, writeCasinoSettings } from "@/lib/agents/casino-save";
-import { parseDatingSettingsForm, parseTestPostForm } from "@/lib/agents/dating";
-import { loadMediaKeys } from "@/lib/agents/dating-queries";
-import { buildAgentsDeps } from "@/lib/agents/deps";
-import { parseChannelPlanForm, parseTeamSettingsForm } from "@/lib/agents/forms";
-import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
-import { saveChannelPlan, saveDatingMediaSettings, saveTeamSettings } from "@/lib/agents/save";
-import { parseSportsSettingsForm } from "@/lib/agents/sports";
-import { writeSportsSettings } from "@/lib/agents/sports-save";
-import { PROVIDER_LABELS, TEAM_PROVIDERS, parseTeamParam } from "@/lib/agents/teams";
+import { backTo } from "@/lib/agents/redirect";
+import { parseTeamParam } from "@/lib/agents/teams";
+import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
+import {
+  runCreateTestPost,
+  runSaveChannelPlan,
+  runSaveTeamSettings,
+  runStartBench,
+} from "@/lib/site-ops/ops/lot-d/teams";
 import { requireUser } from "@/lib/session";
+
+/*
+ * Phase 34 : chaque action lit le formulaire et appelle le cœur unique (`@/lib/site-ops/ops/lot-d/teams`), que Kevin
+ * appelle aussi : mêmes validations, mêmes textes, même journal (`via`). L'action garde l'adresse de retour.
+ */
 
 /**
  * Réglages d'une équipe : consignes, mots interdits, longueur, heures calmes (ADMIN et MANAGER) ; plafonds et, pour
@@ -25,35 +26,10 @@ export async function saveTeamSettingsAction(formData: FormData): Promise<void> 
   const team = parseTeamParam(formData.get("team"));
   if (!team) backTo("/agents", { error: "Équipe inconnue." });
   const path = `/agents/${team}`;
-  const isAdmin = user.role === "ADMIN";
-  const parsed = parseTeamSettingsForm(formData, isAdmin ? TEAM_PROVIDERS[team] : [], PROVIDER_LABELS);
-  if (!parsed.ok) backTo(path, { error: parsed.error }, "#reglages");
-  const video = isAdmin && team === "dating" ? parseDatingSettingsForm(formData) : null;
-  if (video && !video.ok) backTo(path, { error: video.error }, "#reglages");
-  // Casino (phase 22) : seuil de manque et rotation, ADMIN seulement.
-  const casino = isAdmin && team === "casino" ? parseCasinoTeamForm(formData) : null;
-  if (casino && !casino.ok) backTo(path, { error: casino.error }, "#reglages");
-  // Paris sportifs (phase 23) : heures de passage, écart de cote, délai avant match, plafond d'appels, ADMIN seulement.
-  const sports = isAdmin && team === "sports" ? parseSportsSettingsForm(formData) : null;
-  if (sports && !sports.ok) backTo(path, { error: sports.error }, "#reglages");
-  try {
-    await saveTeamSettings(team, { ...parsed.data, budgets: isAdmin ? parsed.data.budgets : null }, user.id);
-    if (video?.ok) await saveDatingMediaSettings(video.data, user.id);
-    if (casino?.ok) {
-      const { settings } = await readCasinoSettingsRaw();
-      if (settings.lowStock !== casino.data.lowStock || settings.rotationDays !== casino.data.rotationDays)
-        await writeCasinoSettings({ ...settings, ...casino.data }, user.id, "agents.casino_settings_saved", {
-          from: { lowStock: settings.lowStock, rotationDays: settings.rotationDays },
-          to: casino.data,
-        });
-    }
-    if (sports?.ok) await writeSportsSettings(sports.data, user.id);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#reglages");
-  }
+  const r = await runSaveTeamSettings(formData, siteActor(user));
+  if (!r.ok) backTo(path, { error: r.error }, "#reglages");
   revalidatePath(path);
-  backTo(path, { ok: "Réglages de l'équipe enregistrés : le Grand Chef les applique à son prochain passage." }, "#reglages");
+  backTo(path, { ok: r.message }, "#reglages");
 }
 
 /** Plan d'un canal (ADMIN et MANAGER). */
@@ -62,95 +38,31 @@ export async function saveChannelPlanAction(formData: FormData): Promise<void> {
   const team = parseTeamParam(formData.get("team"));
   if (!team) backTo("/agents", { error: "Équipe inconnue." });
   const path = `/agents/${team}`;
-  const parsed = parseChannelPlanForm(formData);
-  if (!parsed.ok) backTo(path, { error: parsed.error }, "#plan");
-  // Casino (phase 22) : thèmes de l'équipe cochés, chacun avec son poids (`[{ theme, weight }]`).
-  if (team === "casino") {
-    const { settings } = await readCasinoSettingsRaw();
-    const themes = parseCasinoPlanThemesForm(formData, settings.themes);
-    if (!themes.ok) backTo(path, { error: themes.error }, "#plan");
-    parsed.data.themes = themes.data;
-  }
-  try {
-    const r = await saveChannelPlan(team, parsed.data, user.id);
-    if (!r.ok) backTo(path, { error: r.error }, "#plan");
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#plan");
-  }
+  const r = await runSaveChannelPlan(formData, siteActor(user));
+  if (!r.ok) backTo(path, { error: r.error }, "#plan");
   revalidatePath(path);
-  backTo(path, { ok: "Plan du canal enregistré." }, "#plan");
+  backTo(path, { ok: r.message }, "#plan");
 }
 
 const DATING = "/agents/dating";
-const FORMAT_WORDS = { video: "vidéo", photo: "photo", text: "texte" } as const;
 
 /**
  * « Produire un post de test » (équipe Rencontres, ADMIN et MANAGER) : une mission en simulation vers le canal Test,
- * du type choisi, pour la persona choisie. Le moteur journalise la mission ; l'action laisse sa trace dans le journal
+ * du type choisi, pour la persona choisie. Le moteur journalise la mission ; le cœur laisse sa trace dans le journal
  * des actions.
  */
 export async function createTestPostAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  const parsed = parseTestPostForm(formData);
-  if (!parsed.ok) backTo(DATING, { error: parsed.error }, "#production");
-  const { format, personaId } = parsed.data;
-  try {
-    const r = await createTestPostMission(buildAgentsDeps(), { teamKey: "dating", byUserId: user.id, format, personaId });
-    await audit({
-      userId: user.id,
-      action: "agents.test_post_requested",
-      entityType: "AgentMission",
-      entityId: r.ok ? r.missionId : undefined,
-      metadata: { teamKey: "dating", format, personaId, ok: r.ok, reason: r.ok ? null : r.reason },
-    });
-    revalidatePath("/agents", "layout");
-    if (!r.ok) backTo(DATING, { error: `Post de test refusé : ${r.reason}` }, "#production");
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(DATING, { error: `Post de test impossible : ${errorText(err)}.` }, "#production");
-  }
-  backTo(
-    DATING,
-    {
-      ok: `Post de test (${FORMAT_WORDS[format]}) lancé en simulation : l'aperçu arrivera sur Telegram et dans Validations, puis sur le canal Test.`,
-    },
-    "#production",
-  );
+  const r = await runCreateTestPost(formData, siteActor(user));
+  if (r.ok || r.code !== "invalid") revalidatePath("/agents", "layout");
+  backTo(DATING, r.ok ? { ok: r.message } : { error: r.error }, "#production");
 }
 
 /** « Banc d'essai » d'une persona (ADMIN) : rien ne part sans clé fal.ai ou Magic Hour (message clair). */
 export async function startBenchAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") backTo(DATING, { error: "Le banc d'essai est réservé aux administrateurs." }, "#production");
-  const personaId = String(formData.get("personaId") ?? "");
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(personaId)) backTo(DATING, { error: "Choisissez la persona." }, "#production");
-  const keys = await loadMediaKeys();
-  if (!keys.fal && !keys.magichour)
-    backTo(
-      DATING,
-      {
-        error:
-          "Banc d'essai impossible sans clé : collez d'abord la clé fal.ai (ou Magic Hour) dans Réglages des agents, puis cliquez sur « Vérifier ».",
-      },
-      "#production",
-    );
-  let message = "";
-  try {
-    const r = await startBench(buildAgentsDeps(), { personaId, byUserId: user.id });
-    await audit({
-      userId: user.id,
-      action: "agents.bench_requested",
-      entityType: "Persona",
-      entityId: personaId,
-      metadata: { ok: r.ok, keys },
-    });
-    if (!r.ok) backTo(DATING, { error: r.message }, "#production");
-    message = r.message;
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(DATING, { error: `Banc d'essai impossible : ${errorText(err)}.` }, "#production");
-  }
+  const r = await runStartBench(formData, siteActor(user));
+  if (!r.ok) backTo(DATING, { error: r.error }, "#production");
   revalidatePath(DATING);
-  backTo(DATING, { ok: message || "Banc d'essai lancé : les résultats arrivent sur Telegram." }, "#production");
+  backTo(DATING, { ok: r.message }, "#production");
 }

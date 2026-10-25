@@ -113,7 +113,7 @@ describe("Rapport maintenant et réglages", () => {
       frequency: "weekly",
     };
     expect(await redirectOf(saveAlgoSettingsAction(fd(ok)))).toContain("#reglages-algo");
-    expect(m.save).toHaveBeenCalledWith(expect.objectContaining({ maxPostsPerDay: 6 }), "u1");
+    expect(m.save).toHaveBeenCalledWith(expect.objectContaining({ maxPostsPerDay: 6 }), "u1", "WEB");
     expect(await redirectOf(saveAlgoSettingsAction(fd({ ...ok, maxPostsPerDay: "0" })))).toContain("Posts par jour au maximum");
     m.user = { id: "u2", role: "MANAGER" };
     m.save.mockClear();

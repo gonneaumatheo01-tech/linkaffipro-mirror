@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createTestMission, setAutonomyLevel, setSimulation, setTeamPaused } from "@linkaffipro/agents";
+import { setAutonomyLevel, setSimulation, setTeamPaused } from "@linkaffipro/agents";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
 import {
@@ -10,8 +10,9 @@ import {
   canSetSimulation,
   parseLevel,
   parseTeamParam,
-  teamName,
 } from "@/lib/agents/teams";
+import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
+import { runCreateTestMission } from "@/lib/site-ops/ops/lot-d/teams";
 import { requireUser } from "@/lib/session";
 
 /** Page de retour : le tableau de bord ou une fiche d'équipe, jamais une adresse venue d'ailleurs. */
@@ -35,21 +36,9 @@ export async function createTestMissionAction(formData: FormData): Promise<void>
   const path = returnPath(formData);
   const team = teamOf(formData);
   if (!team || !TEST_MISSION_TEAMS.includes(team)) backTo(path, { error: "Équipe inconnue." });
-  try {
-    const r = await createTestMission(buildAgentsDeps(), team, user.id);
-    done(
-      path,
-      r.ok
-        ? {
-            ok: true,
-            message: `Mission de test créée pour l'équipe ${teamName(team)} : l'aperçu arrivera sur Telegram et dans Validations.`,
-          }
-        : { ok: false, message: `Mission de test refusée : ${r.reason}` },
-    );
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    backTo(path, { error: `Mission de test impossible : ${errorText(err)}.` });
-  }
+  // Cœur unique (phase 34) : même fonction pour le site et pour Kevin (`agents.mission_test`).
+  const r = await runCreateTestMission(formData, siteActor(user));
+  done(path, r.ok ? { ok: true, message: r.message } : { ok: false, message: r.error });
 }
 
 /** Pause ou reprise d'une équipe (tout le monde : c'est un geste de sécurité). */

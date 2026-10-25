@@ -33,6 +33,11 @@ import { TEAM_KEYS, TEAM_LABELS, type AgentsDeps, type TeamKey } from "../types"
 import type { BossReply, BossSetupStep } from "./contract";
 import { readBossName } from "./memory";
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import { normalizeText } from "../human/answer";
+import type { SiteOpMeta, SiteParityEntry } from "../site/contract";
+import { listSiteOps } from "../site/registry";
+import { SITE_PARITY } from "../site/parity";
+import { BOSS_THEME_EXAMPLES, BOSS_THEME_LABELS } from "./help";
 
 /** Textes fixes de la mise en route (charte `docs/KEVIN-VOIX.md`). */
 export const GUIDE_VARIANTS = {
@@ -599,4 +604,84 @@ async function recentlySkippedKeys(deps: BossGuideDeps): Promise<Set<string>> {
 async function queueAsks(deps: BossGuideDeps, asks: readonly AskHumanInput[]): Promise<void> {
   for (const a of asks) await askHuman(deps, a);
   await agentEvent(deps, "boss.guide.asked", { keys: asks.map((a) => a.key) });
+}
+
+// ------------------------------------------------------------------------- « comment je fais pour … ? » (phase 34)
+
+/** Textes de l'aide « comment je fais … ? » : toujours la phrase à dire à Kevin, jamais « va sur le site ». */
+export const HOWTO_VARIANTS = {
+  one: voiceTemplate([{ phrase: "crée une campagne pour Celsius en France" }], (p: { phrase: string }) => [
+    `Dis-moi simplement : « ${p.phrase} ».`,
+    `Écris-moi « ${p.phrase} », je m'occupe du reste.`,
+  ]),
+  many: voiceTemplate(
+    [{ lines: "• « ajoute le canal t.me/xxx »\n• « mets le canal en paris sportifs »" }],
+    (p: { lines: string }) => [`Tu peux me dire par exemple :\n${p.lines}`, `Des phrases qui marchent :\n${p.lines}`],
+    { allowList: true, allowLong: true },
+  ),
+  excluded: voiceTemplate([{ replacement: "je t'envoie le lien de connexion, valable 15 minutes" }], (p: { replacement: string }) => [
+    `Ça ne se fait pas dans Telegram. À la place : ${p.replacement}.`,
+    `Ça, Telegram ne le permet pas. Ce que je fais à la place : ${p.replacement}.`,
+  ]),
+} satisfies VoiceTable;
+
+const HOWTO_STOP = new Set(
+  "comment je tu on fait fais faire pour est que ce qui quoi le la les un une des de du d l a au aux et ou en sur par avec mon ma mes ton ta tes son sa ses il faut peux peut veux dois site kevin".split(" "),
+);
+
+function howToWords(s: string): string[] {
+  return normalizeText(s)
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !HOWTO_STOP.has(w))
+    .map((w) => w.replace(/(s|x)$/, ""));
+}
+
+/** La phrase est-elle une demande « comment je fais pour … ? » (pur) ? Rend ce qui est cherché, ou null. */
+export function howToQuery(text: string): string | null {
+  const n = normalizeText(text).replace(/[?!.…]+\s*$/u, "").trim();
+  const m = /^(?:comment (?:je fais|on fait|faire|je peux|on peut|est-ce que je|est ce que je|je dois faire|je dois|tu fais)|je fais comment|on fait comment)\s*(?:pour\s+)?(.+)$/u.exec(n);
+  const q = m?.[1]?.trim();
+  return q && q.length >= 3 ? q : null;
+}
+
+type HowToSources = {
+  ops?: readonly Pick<SiteOpMeta, "key" | "description" | "examples">[];
+  exclusions?: Record<string, SiteParityEntry>;
+};
+
+/**
+ * « comment je fais pour … ? » → la phrase à dire à Kevin (exemples des opérations, recherche par mots), ou le
+ * remplacement d'une exclusion documentée. null si rien ne correspond (l'interprète prend la suite). Pur.
+ */
+export function bossHowToReply(text: string, chatId?: bigint | string | null, src: HowToSources = {}): string | null {
+  const q = howToQuery(text);
+  if (!q) return null;
+  const want = new Set(howToWords(q));
+  if (!want.size) return null;
+  // Opérations du site, puis les phrases du catalogue de Kevin (une par exemple de thème de l'aide).
+  const catalogPhrases = (Object.keys(BOSS_THEME_EXAMPLES) as (keyof typeof BOSS_THEME_EXAMPLES)[]).flatMap((t) =>
+    BOSS_THEME_EXAMPLES[t].map((ex) => ({ key: `aide.${t}`, description: BOSS_THEME_LABELS[t], examples: [ex] })),
+  );
+  const ops = [...(src.ops ?? listSiteOps()), ...catalogPhrases];
+  const score = (words: string[]) => new Set(words.filter((w) => want.has(w))).size;
+  // Un seul mot en commun ne suffit pas quand la demande en a plusieurs (« casino » seul ne dit rien).
+  const minScore = Math.min(2, want.size);
+  const scored = ops
+    .map((o) => ({ o, s: score(howToWords(`${o.description} ${o.examples.join(" ")} ${o.key.replace(/[._]/g, " ")}`)) }))
+    .filter((x) => x.s >= minScore && x.o.examples.length > 0)
+    .sort((a, b) => b.s - a.s);
+  const parity = src.exclusions ?? SITE_PARITY;
+  const excluded = Object.entries(parity)
+    .flatMap(([action, e]) => ("excluded" in e ? [{ action, ...e.excluded }] : []))
+    .map((x) => ({ x, s: score(howToWords(`${x.reason} ${x.replacement} ${x.action.split("#")[1] ?? ""}`)) }))
+    .filter((y) => y.s >= minScore)
+    .sort((a, b) => b.s - a.s);
+  const best = scored[0]?.s ?? 0;
+  if (excluded[0] && excluded[0].s > best)
+    return pick(HOWTO_VARIANTS.excluded({ replacement: esc(excluded[0].x.replacement.trim().replace(/[.\s]+$/, "")) }), "guide.howto.excluded", chatId ?? null);
+  if (!best) return null;
+  const top = scored.filter((x) => x.s === best).slice(0, 3);
+  if (top.length === 1) return pick(HOWTO_VARIANTS.one({ phrase: esc(top[0]!.o.examples[0]!) }), "guide.howto.one", chatId ?? null);
+  return pick(HOWTO_VARIANTS.many({ lines: top.map((x) => `• « ${esc(x.o.examples[0]!)} »`).join("\n") }), "guide.howto.many", chatId ?? null);
 }

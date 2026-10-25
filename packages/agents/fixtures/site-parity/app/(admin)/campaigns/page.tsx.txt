@@ -1,0 +1,4 @@
+import { createCampaignAction, deleteCampaignAction } from "./actions";
+export default function Page() {
+  return [createCampaignAction, deleteCampaignAction];
+}

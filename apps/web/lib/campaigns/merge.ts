@@ -74,7 +74,8 @@ export async function findImportedShellByName(
 export async function mergeImportedCampaign(input: {
   targetId: string;
   shellId: string;
-  userId: string;
+  userId: string | null;
+  via?: "WEB" | "TELEGRAM";
   /** Rattachement fait par le rapprochement des noms (assistant, fiche), pas par un choix explicite. */
   matchedByName?: boolean;
 }): Promise<MergeResult> {
@@ -187,6 +188,7 @@ export async function mergeImportedCampaign(input: {
       replacedByApiSpend: overriddenSpend,
       replacedByApiSources: [...new Set(overridden.map((c) => c.source))],
       ...(input.matchedByName ? { matchedByName: true } : {}),
+      ...(input.via ? { via: input.via } : {}),
     },
   });
   return { adSets: adSets.length, costs: shellCampaignCosts.length, platformName: shell.name };

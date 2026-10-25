@@ -211,7 +211,7 @@ export type MaterializedOfferButton = {
  */
 export async function materializeOfferButton(
   b: OfferButtonInput,
-  ctx: { channelId: string; postId: string; userId: string; labelSuffix?: string; copy?: boolean },
+  ctx: { channelId: string; postId: string; userId: string | null; labelSuffix?: string; copy?: boolean },
 ): Promise<MaterializedOfferButton> {
   const { existingLink, offer, campaignId } = await resolveOfferButton(b, { copy: ctx.copy });
   const link = existingLink

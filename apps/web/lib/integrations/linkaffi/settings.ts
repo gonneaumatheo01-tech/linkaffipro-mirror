@@ -69,7 +69,10 @@ export async function releaseWaitingLinkaffiEvents(now = new Date()): Promise<nu
 }
 
 /** Nouvelle clé de connexion pour Link Affi : l'ancienne ne marche plus. Renvoie la clé (à montrer une seule fois). */
-export async function generateLinkaffiApiKey(userId: string): Promise<GeneratedValue> {
+export async function generateLinkaffiApiKey(
+  userId: string,
+  auditMeta: Record<string, unknown> = {},
+): Promise<GeneratedValue> {
   const key = generateIntegrationApiKey();
   const prefix = integrationApiKeyPrefix(key);
   const before = await prisma.integrationKey.findUnique({
@@ -93,13 +96,16 @@ export async function generateLinkaffiApiKey(userId: string): Promise<GeneratedV
     action: "integration.linkaffi_key_generated",
     entityType: "IntegrationKey",
     entityId: LINKAFFI_PROVIDER,
-    metadata: { prefix, regenerated },
+    metadata: { prefix, regenerated, ...auditMeta },
   });
   return { value: key, prefix, regenerated };
 }
 
 /** Nouveau secret de signature des événements (stocké chiffré). Renvoie le secret (à montrer une seule fois). */
-export async function generateLinkaffiWebhookSecret(userId: string): Promise<GeneratedValue> {
+export async function generateLinkaffiWebhookSecret(
+  userId: string,
+  auditMeta: Record<string, unknown> = {},
+): Promise<GeneratedValue> {
   const secret = generateWebhookSecret();
   const before = await prisma.integrationKey.findUnique({
     where: { provider: LINKAFFI_PROVIDER },
@@ -118,7 +124,7 @@ export async function generateLinkaffiWebhookSecret(userId: string): Promise<Gen
     action: "integration.linkaffi_secret_generated",
     entityType: "IntegrationKey",
     entityId: LINKAFFI_PROVIDER,
-    metadata: { regenerated, released },
+    metadata: { regenerated, released, ...auditMeta },
   });
   return { value: secret, prefix: `${secret.slice(0, 14)}…`, regenerated };
 }
@@ -157,6 +163,7 @@ export function parseEventsUrl(
 export async function saveLinkaffiEventsUrl(
   userId: string,
   raw: unknown,
+  auditMeta: Record<string, unknown> = {},
 ): Promise<{ ok: true; url: string; isDefault: boolean } | { ok: false; error: string }> {
   const parsed = parseEventsUrl(raw, { production: process.env.NODE_ENV === "production" });
   if ("error" in parsed) return { ok: false, error: parsed.error };
@@ -181,6 +188,7 @@ export async function saveLinkaffiEventsUrl(
         from: from ?? LINKAFFI_EVENTS_URL_DEFAULT,
         to: parsed.url ?? LINKAFFI_EVENTS_URL_DEFAULT,
         released,
+        ...auditMeta,
       },
     });
   }
@@ -285,15 +293,11 @@ export function releasedSentence(n: number): string {
     : "1 événement en attente repart maintenant.";
 }
 
-export type LinkaffiTestRun =
+/** Prérequis de l'événement de test (secret généré, clé publique connue), sans rien envoyer : sert aussi à l'essai à blanc. */
+export async function linkaffiTestPrerequisites(): Promise<
   | { ok: false; error: string }
-  | ({ ok: true } & Pick<LinkaffiTestResult, "outcome" | "status" | "durationMs" | "message">);
-
-/** « Envoyer un événement de test » : prérequis, envoi signé immédiat, journal. */
-export async function runLinkaffiTestEvent(
-  userId: string,
-  opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
-): Promise<LinkaffiTestRun> {
+  | { ok: true; row: { webhookSecretEncrypted: string; eventsUrl: string | null }; anonKey: string }
+> {
   const row = await prisma.integrationKey.findUnique({
     where: { provider: LINKAFFI_PROVIDER },
     select: { webhookSecretEncrypted: true, eventsUrl: true },
@@ -311,6 +315,22 @@ export async function runLinkaffiTestEvent(
       error:
         "Le site ne connaît pas encore la clé d'accès publique de Link Affi : l'administrateur technique doit l'ajouter au site. Les vrais événements, eux, partent quand même.",
     };
+  return { ok: true, row: { webhookSecretEncrypted: row.webhookSecretEncrypted, eventsUrl: row.eventsUrl }, anonKey };
+}
+
+export type LinkaffiTestRun =
+  | { ok: false; error: string }
+  | ({ ok: true } & Pick<LinkaffiTestResult, "outcome" | "status" | "durationMs" | "message">);
+
+/** « Envoyer un événement de test » : prérequis, envoi signé immédiat, journal. */
+export async function runLinkaffiTestEvent(
+  userId: string,
+  opts: { fetchImpl?: typeof fetch; timeoutMs?: number; auditMeta?: Record<string, unknown> } = {},
+): Promise<LinkaffiTestRun> {
+  const { auditMeta = {}, ...sendOpts } = opts;
+  const pre = await linkaffiTestPrerequisites();
+  if (!pre.ok) return pre;
+  const { row, anonKey } = pre;
   let secret: string;
   try {
     secret = decrypt(row.webhookSecretEncrypted);
@@ -322,7 +342,7 @@ export async function runLinkaffiTestEvent(
     };
   }
   const url = row.eventsUrl ?? LINKAFFI_EVENTS_URL_DEFAULT;
-  const r = await sendLinkaffiTestEvent({ url, secret, anonKey, ...opts });
+  const r = await sendLinkaffiTestEvent({ url, secret, anonKey, ...sendOpts });
   // Link Affi accepte la signature : ce qui attendait un nouvel essai repart tout de suite.
   const released = r.outcome === "received" ? await releaseWaitingLinkaffiEvents() : 0;
   await audit({
@@ -337,6 +357,7 @@ export async function runLinkaffiTestEvent(
       eventId: r.eventId,
       url,
       released,
+      ...auditMeta,
     },
   });
   return {

@@ -15,6 +15,12 @@ import { isTrackingHost } from "@linkaffipro/core";
  *   canal) ; servies sur go.goolink.eu ; sur l'hôte du site seulement en développement et en local (en production,
  *   jamais : les scripts des pixels s'exécuteraient sur l'adresse de l'administration, avec la session de l'équipe —
  *   voir `landingAllowedOnHost`) ;
+ * - `/api/internal/site-ops` : opérations du site demandées à Kevin par le worker (phase 34), protégées par une
+ *   signature HMAC dérivée de `APP_ENCRYPTION_KEY` (fenêtre d'une minute, anti-rejeu) et par la relecture du rôle en
+ *   base, jamais par la session ;
+ * - `/k/<jeton>` : liens d'autorisation envoyés par Kevin (phase 34 : jeton aléatoire à usage unique, 15 minutes,
+ *   seule son empreinte est gardée ; aucune session créée, il redirige vers la connexion, une invitation, une page
+ *   interne ou le démarrage OAuth qui exigent eux-mêmes ce qu'il faut) ;
  * - `/privacy` et `/terms` : politique de confidentialité et conditions d'utilisation (exigées par Meta / TikTok
  *   pour les apps développeur ; pages en lecture seule, aucune donnée).
  * Tout le reste (pages du site, `/api/media`, exports CSV…) exige une session : le proxy redirige vers /login,
@@ -28,9 +34,11 @@ const PUBLIC_PREFIXES = [
   "/api/auth/",
   "/api/postback/",
   "/api/integrations/",
+  "/api/internal/site-ops",
   "/r/",
   "/r",
   "/j/",
+  "/k/",
   "/privacy",
   "/terms",
   // Icônes du site (onglet de la page de connexion, écran d'accueil iPhone) : lisibles sans session.

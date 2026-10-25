@@ -1,18 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  applyRecommendation,
-  rejectRecommendation,
-  runAlgoReportNow,
-  undoRecommendation,
-} from "@linkaffipro/agents";
-import { audit, prisma } from "@linkaffipro/db";
-import { buildAgentsDeps } from "@/lib/agents/deps";
-import { backTo, errorText, isRedirectError } from "@/lib/agents/redirect";
-import { ACTION_WORDS, actionsFor, canActOnRecommendation, genericRecommendationRefusal, type RecommendationAction } from "@/lib/agents/algo/recommendations";
-import { saveAlgoSettings } from "@/lib/agents/algo/save";
-import { parseAlgoSettingsForm } from "@/lib/agents/algo/settings";
+import { backTo } from "@/lib/agents/redirect";
+import { runAlgoReport, runRecommendation, runSaveAlgoSettings } from "@/lib/site-ops/ops/lot-d/algo";
+import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
 import { requireUser } from "@/lib/session";
 
 /**
@@ -44,10 +35,6 @@ function go(path: string, params: Record<string, string>, hash: string): never {
   backTo(base ?? ALGO, Object.fromEntries(q.entries()), hash);
 }
 
-function parseAction(v: unknown): RecommendationAction | null {
-  return v === "apply" || v === "undo" || v === "reject" ? v : null;
-}
-
 export async function recommendationAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
@@ -56,85 +43,29 @@ export async function recommendationAction(formData: FormData): Promise<void> {
     : path === "/agents"
       ? "#reglages-appliques"
       : "#recommandations";
-  const action = parseAction(formData.get("action"));
-  const id = String(formData.get("id") ?? "");
-  if (!action || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) go(path, { error: "Proposition inconnue." }, hash);
-  const rec = await prisma.recommendation.findUnique({
-    where: { id },
-    select: { id: true, status: true, size: true, target: true, field: true, source: true },
-  });
-  if (!rec) go(path, { error: "Proposition introuvable." }, hash);
-  const inspiration = genericRecommendationRefusal(rec);
-  if (inspiration) go(path, { error: inspiration }, hash);
-  if (!actionsFor(rec.status).includes(action))
-    go(path, { error: "Cette proposition a déjà changé d'état : rechargez la page." }, hash);
-  if (!canActOnRecommendation(user.role, rec))
-    go(path, { error: "Les réglages de persona et les quotas sont réservés aux administrateurs." }, hash);
-  const actor = { userId: user.id, via: "SITE" as const };
-  let result: { ok: boolean; message: string };
-  try {
-    const deps = buildAgentsDeps();
-    result =
-      action === "apply"
-        ? await applyRecommendation(deps, id, actor)
-        : action === "undo"
-          ? await undoRecommendation(deps, id, actor)
-          : await rejectRecommendation(deps, id, actor);
-    await audit({
-      userId: user.id,
-      action: `agents.algo_recommendation_${action}_requested`,
-      entityType: "Recommendation",
-      entityId: id,
-      metadata: { target: rec.target, field: rec.field, ok: result.ok },
-    });
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Impossible pour l'instant : ${errorText(err)}.` }, hash);
+  // Cœur unique (phase 34) : mêmes contrôles et même journal que Kevin (`agents.algo_proposition`).
+  const r = await runRecommendation(formData, siteActor(user));
+  if (r.ok || r.code === "conflict") {
+    revalidatePath(ALGO);
+    if (path !== ALGO) revalidatePath(path.split("?")[0] ?? ALGO);
   }
-  revalidatePath(ALGO);
-  if (path !== ALGO) revalidatePath(path.split("?")[0] ?? ALGO);
-  if (!result.ok) go(path, { error: result.message || "Refusé par l'équipe Algorithme." }, hash);
-  go(path, { ok: result.message || ACTION_WORDS[action].done }, hash);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, hash);
 }
 
 /** « Rapport maintenant » (ADMIN) : recalcule fiches, horaires, conversations et synthèse, puis envoie le rapport. */
 export async function runAlgoReportNowAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  if (user.role !== "ADMIN") go(path, { error: "Le rapport immédiat est réservé aux administrateurs." }, "#rapports");
-  let message = "";
-  try {
-    const r = await runAlgoReportNow(buildAgentsDeps(), { send: true });
-    await audit({
-      userId: user.id,
-      action: "agents.algo_report_requested",
-      entityType: "InsightReport",
-      metadata: { ok: r.ok, reports: r.reportIds.length },
-    });
-    if (!r.ok) go(path, { error: r.message || "Rapport impossible pour l'instant." }, "#rapports");
-    message = r.message;
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Rapport impossible : ${errorText(err)}.` }, "#rapports");
-  }
-  revalidatePath(ALGO);
-  go(path, { ok: message || "Rapport lancé : il arrive sur Telegram et dans « Rapports de la semaine »." }, "#rapports");
+  const r = await runAlgoReport(formData, siteActor(user));
+  if (r.ok) revalidatePath(ALGO);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, "#rapports");
 }
 
 /** Réglages de l'équipe Algorithme (ADMIN) : seuils, bornes, fréquence. */
 export async function saveAlgoSettingsAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   const path = returnPath(formData);
-  if (user.role !== "ADMIN")
-    go(path, { error: "Les réglages de l'équipe Algorithme sont réservés aux administrateurs." }, "#reglages-algo");
-  const parsed = parseAlgoSettingsForm(formData);
-  if (!parsed.ok) go(path, { error: parsed.error }, "#reglages-algo");
-  try {
-    await saveAlgoSettings(parsed.data, user.id);
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    go(path, { error: `Enregistrement impossible : ${errorText(err)}.` }, "#reglages-algo");
-  }
-  revalidatePath(ALGO);
-  go(path, { ok: "Réglages de l'équipe Algorithme enregistrés : ils comptent dès son prochain calcul." }, "#reglages-algo");
+  const r = await runSaveAlgoSettings(formData, siteActor(user));
+  if (r.ok) revalidatePath(ALGO);
+  go(path, r.ok ? { ok: r.message } : { error: r.error }, "#reglages-algo");
 }

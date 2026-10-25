@@ -66,6 +66,14 @@ export type PostFormInput = z.infer<typeof postFormSchema>;
 
 /** Lit le formulaire (champs cachés JSON + cases à cocher). */
 export function parsePostForm(fd: FormData) {
+  return postFormSchema.safeParse(postFormRaw(fd));
+}
+
+/**
+ * Valeurs brutes du formulaire, avant validation (phase 34 : le cœur partagé avec Kevin valide lui-même par
+ * `postFormSchema`).
+ */
+export function postFormRaw(fd: FormData): Record<string, unknown> {
   const json = (k: string, fallback: unknown) => {
     const raw = fd.get(k);
     if (typeof raw !== "string" || raw === "") return fallback;
@@ -76,7 +84,7 @@ export function parsePostForm(fd: FormData) {
     }
   };
   const del = String(fd.get("deleteAfterMinutes") ?? "").trim();
-  return postFormSchema.safeParse({
+  return {
     channelIds: fd.getAll("channelIds").map(String),
     scheduledAt: String(fd.get("scheduledAt") ?? ""),
     categoryId: String(fd.get("categoryId") ?? "") || undefined,
@@ -101,5 +109,5 @@ export function parsePostForm(fd: FormData) {
     mediaAssetIdsB: json("mediaAssetIdsB", []),
     buttonsB: json("buttonsB", []),
     emojiButtonsChoice: String(fd.get("emojiButtonsChoice") ?? "") || undefined,
-  });
+  };
 }

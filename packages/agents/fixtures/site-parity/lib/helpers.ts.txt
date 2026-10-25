@@ -1,0 +1,6 @@
+// Pas un fichier d'actions : la directive n'est pas la première instruction.
+import { x } from "./x";
+"use server";
+export async function notAnAction() {
+  return x;
+}

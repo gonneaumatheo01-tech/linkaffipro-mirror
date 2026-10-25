@@ -61,7 +61,7 @@ describe("Arrêter un ordre", () => {
       action: "agents.order_stopped",
       entityType: "TeamOrder",
       entityId: "o1",
-      metadata: { number: 12, previousStatus: "RUNNING", ok: true },
+      metadata: { number: 12, previousStatus: "RUNNING", ok: true, via: "WEB" },
     });
     expect(url).toContain("/agents/orders/o1?ok=Ordre n°12 arrêté");
   });
@@ -104,7 +104,7 @@ describe("Prolonger un ordre", () => {
       action: "agents.order_extended",
       entityType: "TeamOrder",
       entityId: "o1",
-      metadata: { number: 12, days: 2, ok: true },
+      metadata: { number: 12, days: 2, ok: true, via: "WEB" },
     });
     expect(url).toContain("ok=Ordre n°12 prolongé de 2 jours.");
   });

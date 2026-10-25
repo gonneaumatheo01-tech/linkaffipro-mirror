@@ -67,6 +67,7 @@ describe("créer un lien de partage", () => {
       name: "Post Tir Cadré",
       sourceChannelId: "tir",
       userId: "u1",
+      via: "WEB",
     });
     expect(state.revalidated).toEqual(["/channels/zone"]);
 
@@ -128,7 +129,12 @@ describe("désactiver un lien de partage", () => {
     expect(r).toEqual({
       ok: "Lien « Post » désactivé : il ne fonctionne plus dans Telegram. Les demandes déjà reçues restent.",
     });
-    expect(logic.disable).toHaveBeenCalledWith({ channelId: "zone", linkId: "l1", userId: "u1" });
+    expect(logic.disable).toHaveBeenCalledWith({
+      channelId: "zone",
+      linkId: "l1",
+      userId: "u1",
+      via: "WEB",
+    });
     expect(state.revalidated).toEqual(["/channels/zone"]);
   });
 

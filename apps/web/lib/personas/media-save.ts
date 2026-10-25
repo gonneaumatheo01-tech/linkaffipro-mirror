@@ -48,7 +48,9 @@ export type PersonaMediaSaveResult = { ok: true; message: string } | { ok: false
 export async function savePersonaMedia(
   personaId: string,
   input: PersonaMediaInput,
-  userId: string,
+  userId: string | null,
+  /** Phase 34 : essai à blanc (tout vérifié, rien d'écrit) et provenance notée au journal. */
+  opts: { dryRun?: boolean; via?: "WEB" | "TELEGRAM" } = {},
 ): Promise<PersonaMediaSaveResult> {
   const before = await loadPersonaMedia(personaId);
   if (!before) return { ok: false, error: "Persona introuvable : rechargez la page." };
@@ -63,6 +65,15 @@ export async function savePersonaMedia(
       return { ok: false, error: "Les images de référence doivent être des images JPEG, PNG ou WebP." };
     if (assets.some((a) => a.personaId && a.personaId !== personaId))
       return { ok: false, error: "Une de ces images est rangée pour une autre persona." };
+  }
+  if (opts.dryRun) {
+    const changed = changedMediaFields(before, input);
+    return {
+      ok: true,
+      message: changed.length
+        ? `Médias du personnage modifiés (${input.referenceImageIds.length} image(s) de référence).`
+        : "Aucun changement dans les médias du personnage.",
+    };
   }
   await prisma.$transaction([
     prisma.persona.update({
@@ -87,6 +98,7 @@ export async function savePersonaMedia(
     entityType: "Persona",
     entityId: personaId,
     metadata: {
+      ...(opts.via ? { via: opts.via } : {}),
       changed,
       references: input.referenceImageIds.length,
       loraHost: urlHost(input.loraUrl),

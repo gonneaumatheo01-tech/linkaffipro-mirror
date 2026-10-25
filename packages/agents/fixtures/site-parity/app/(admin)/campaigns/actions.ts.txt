@@ -1,0 +1,12 @@
+"use server";
+import { requireUser, requireAdmin } from "@/lib/session";
+
+export async function createCampaignAction(form: FormData) {
+  await requireUser();
+  return form;
+}
+
+export async function deleteCampaignAction(id: string) {
+  await requireAdmin();
+  return id;
+}

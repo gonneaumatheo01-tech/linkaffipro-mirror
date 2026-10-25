@@ -11,6 +11,10 @@ import { mergeDatingSettings, parseDatingSettings, type DatingMediaSettings } fr
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
+/** Origine de l'écriture (phase 34) : site ou Kevin, notée dans l'`AuditLog` quand elle est donnée. */
+export type Via = "WEB" | "TELEGRAM";
+export const viaMeta = (via?: Via): { via?: Via } => (via ? { via } : {});
+
 /**
  * Réglages d'une équipe. `budgets: null` : plafonds inchangés (un responsable ne les modifie pas, phase 20 : les
  * plafonds sont réservés aux administrateurs).
@@ -19,6 +23,7 @@ export async function saveTeamSettings(
   team: TeamKey,
   input: Omit<TeamSettingsInput, "budgets"> & { budgets: TeamSettingsInput["budgets"] | null },
   userId: string,
+  via?: Via,
 ): Promise<void> {
   const data = {
     styleGuidelines: input.styleGuidelines,
@@ -44,6 +49,7 @@ export async function saveTeamSettings(
       maxTextLength: input.maxTextLength,
       quietHours: input.quietHours,
       budgetsCents: input.budgets ?? "inchangés",
+      ...viaMeta(via),
     },
   });
 }
@@ -52,7 +58,7 @@ export async function saveTeamSettings(
  * Fournisseur et résolution des vidéos de l'équipe Rencontres (ADMIN, vérifié par l'action), rangés dans
  * `AgentTeamConfig.settings` sans toucher aux autres clés du moteur.
  */
-export async function saveDatingMediaSettings(input: DatingMediaSettings, userId: string): Promise<void> {
+export async function saveDatingMediaSettings(input: DatingMediaSettings, userId: string, via?: Via): Promise<void> {
   const row = await prisma.agentTeamConfig.findUnique({ where: { teamKey: "dating" }, select: { settings: true } });
   const before = parseDatingSettings(row?.settings);
   if (row && before.videoProvider === input.videoProvider && before.videoResolution === input.videoResolution)
@@ -68,7 +74,7 @@ export async function saveDatingMediaSettings(input: DatingMediaSettings, userId
     action: "agents.video_settings_saved",
     entityType: "AgentTeamConfig",
     entityId: "dating",
-    metadata: { from: before, to: input },
+    metadata: { from: before, to: input, ...viaMeta(via) },
   });
 }
 
@@ -77,6 +83,7 @@ export async function saveTeamBudgets(
   team: TeamKey,
   budgets: Partial<Record<ProviderKey, number>>,
   userId: string,
+  via?: Via,
 ): Promise<void> {
   await prisma.agentTeamConfig.upsert({
     where: { teamKey: team },
@@ -88,7 +95,7 @@ export async function saveTeamBudgets(
     action: "agents.budgets_saved",
     entityType: "AgentTeamConfig",
     entityId: team,
-    metadata: { budgetsCents: budgets },
+    metadata: { budgetsCents: budgets, ...viaMeta(via) },
   });
 }
 
@@ -99,9 +106,9 @@ export type PlanSaveResult = { ok: true } | { ok: false; error: string };
  * exister. Un canal n'a qu'un plan (`ChannelAgentPlan.channelId` unique). Une seule logique avec le Boss (phase 26) :
  * `saveChannelPlanFor` de `@linkaffipro/agents` (contrôles, enregistrement et `AuditLog`).
  */
-export async function saveChannelPlan(team: TeamKey, input: ChannelPlanInput, userId: string): Promise<PlanSaveResult> {
+export async function saveChannelPlan(team: TeamKey, input: ChannelPlanInput, userId: string, via?: Via): Promise<PlanSaveResult> {
   const deps = { prisma: prisma as unknown as AgentsDeps["prisma"], enqueue: NO_ENQUEUE };
-  return saveChannelPlanFor(deps, team, input, { userId, via: "SITE" });
+  return saveChannelPlanFor(deps, team, input, { userId, via: via === "TELEGRAM" ? "TELEGRAM" : "SITE" });
 }
 
 /** L'enregistrement d'un plan ne met rien en file (le Grand Chef relit les plans à son passage). */
@@ -118,6 +125,7 @@ export async function saveAgentsGeneralSettings(
   input: AgentsSettingsInput,
   before: { models: { fast: string; strong: string }; libraryChannelId: string | null },
   userId: string,
+  via?: Via,
 ): Promise<PlanSaveResult> {
   if (input.libraryChannelId) {
     const ch = await prisma.channel.findUnique({ where: { id: input.libraryChannelId }, select: { id: true } });
@@ -130,7 +138,7 @@ export async function saveAgentsGeneralSettings(
       action: "agents.models_saved",
       entityType: "Setting",
       entityId: "agents.models",
-      metadata: { from: before.models, to: { fast: input.fast, strong: input.strong } },
+      metadata: { from: before.models, to: { fast: input.fast, strong: input.strong }, ...viaMeta(via) },
     });
   }
   if (before.libraryChannelId !== input.libraryChannelId) {
@@ -142,7 +150,7 @@ export async function saveAgentsGeneralSettings(
       action: "agents.library_channel_set",
       entityType: "Setting",
       entityId: "agents.libraryChannelId",
-      metadata: { from: before.libraryChannelId, to: input.libraryChannelId },
+      metadata: { from: before.libraryChannelId, to: input.libraryChannelId, ...viaMeta(via) },
     });
   }
   return { ok: true };

@@ -29,7 +29,7 @@ import { existingAdIds, freeLandingSlug, otherPageNames, slugTaken } from "./que
  */
 
 export type SaveLandingResult =
-  | { ok: true; pageId: string; created: boolean; message: string }
+  | { ok: true; pageId: string; created: boolean; message: string; dryRun?: boolean }
   | { ok: false; error: string; errors?: LandingFormErrors };
 
 /** Message de retour après l'enregistrement : « Page enregistrée. 3 liens Telegram créés. » */
@@ -52,10 +52,21 @@ function auditPage(v: CleanLandingPage & { slug: string }) {
   };
 }
 
+/**
+ * Options des cœurs partagés avec Kevin (phase 34) : `via` part dans le journal ; `dryRun` valide tout et rend le
+ * résumé sans rien écrire (ni page, ni lien Telegram).
+ */
+export type LandingOpOptions = { via?: "WEB" | "TELEGRAM"; dryRun?: boolean };
+
+function viaOf(opts: LandingOpOptions): { via?: "WEB" | "TELEGRAM" } {
+  return opts.via ? { via: opts.via } : {};
+}
+
 /** Crée ou modifie une page depuis le brouillon du formulaire (voir l'en-tête). */
 export async function saveLandingPage(
   raw: unknown,
   userId: string | null,
+  opts: LandingOpOptions = {},
 ): Promise<SaveLandingResult> {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const pageId = typeof r.pageId === "string" && r.pageId ? r.pageId : null;
@@ -112,6 +123,15 @@ export async function saveLandingPage(
       };
     slug = value.slug;
   } else slug = existing ? existing.slug : await freeLandingSlug(value.name, null);
+
+  if (opts.dryRun)
+    return {
+      ok: true,
+      dryRun: true,
+      pageId: existing?.id ?? "",
+      created: !existing,
+      message: `${existing ? "Page modifiée" : "Nouvelle page"} « ${value.name} » (/j/${slug}) sur « ${channel?.title ?? "ce canal"} » : « ${value.headline} »${value.buttonText ? `, bouton « ${value.buttonText} »` : ""}, ${value.sources.length} source${value.sources.length > 1 ? "s" : ""}${value.isActive ? "" : ", en pause"}.`,
+    };
 
   const fields = {
     name: value.name,
@@ -197,6 +217,7 @@ export async function saveLandingPage(
             adsChanged: plan.adsChanged,
           }
         : {}),
+      ...viaOf(opts),
     },
   });
   await publishLandingInvalidate({ pageId: id });
@@ -221,7 +242,14 @@ export async function saveLandingPage(
 export async function retryLandingLinks(
   pageId: string,
   userId: string | null,
+  opts: LandingOpOptions = {},
 ): Promise<{ ok: boolean; message: string }> {
+  if (opts.dryRun) {
+    const page = await prisma.landingPage.findUnique({ where: { id: pageId }, select: { name: true } });
+    return page
+      ? { ok: true, message: `Nouvel essai des liens Telegram de la page « ${page.name} ».` }
+      : { ok: false, message: "Cette page n'existe plus." };
+  }
   const r = await syncLandingPageLinks(pageId, { userId });
   if (!r.found) return { ok: false, message: "Cette page n'existe plus." };
   const waiting = r.sources.filter((s) => s.status === "error" || s.status === "pending");
@@ -244,12 +272,24 @@ export async function retryLandingLinks(
 export async function deleteLandingPage(
   pageId: string,
   userId: string | null,
-): Promise<{ ok: boolean; message: string }> {
+  opts: LandingOpOptions = {},
+): Promise<{ ok: boolean; message: string; impact?: string }> {
   const page = await prisma.landingPage.findUnique({
     where: { id: pageId },
     select: { id: true, name: true, slug: true, channelId: true },
   });
   if (!page) return { ok: false, message: "Cette page n'existe plus." };
+  if (opts.dryRun) {
+    const [sources, visits] = await Promise.all([
+      prisma.landingSource.count({ where: { landingPageId: pageId, isActive: true } }),
+      prisma.landingEvent.count({ where: { landingPageId: pageId } }),
+    ]);
+    return {
+      ok: true,
+      message: `Supprimer la page « ${page.name} » (/j/${page.slug}).`,
+      impact: `${sources} lien${sources > 1 ? "s" : ""} Telegram révoqué${sources > 1 ? "s" : ""}, ${visits} visite${visits > 1 ? "s" : ""} effacée${visits > 1 ? "s" : ""} ; les demandes déjà arrivées restent.`,
+    };
+  }
   const revoked = await revokeLandingSourceLinks({ pageId, userId }).catch((err: unknown) => {
     console.error("[pages] liens non révoqués avant la suppression", pageId, err);
     return null;
@@ -260,7 +300,7 @@ export async function deleteLandingPage(
     action: "landing.page_deleted",
     entityType: "LandingPage",
     entityId: pageId,
-    metadata: { name: page.name, slug: page.slug, channelId: page.channelId, revoked },
+    metadata: { name: page.name, slug: page.slug, channelId: page.channelId, revoked, ...viaOf(opts) },
   });
   await publishLandingInvalidate({ pageId });
   try {

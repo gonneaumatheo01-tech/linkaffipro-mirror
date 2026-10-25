@@ -108,7 +108,7 @@ export type PackImportResult =
 /** Ajoute (ou complète) tous les emojis d'un pack ; jamais de doublon (unicité de `customEmojiId`). */
 export async function importEmojiPack(
   input: string,
-  opts: { userId: string; fetchStickerSet?: FetchStickerSet },
+  opts: { userId: string; fetchStickerSet?: FetchStickerSet; via?: "WEB" | "TELEGRAM" },
 ): Promise<PackImportResult> {
   const raw = input.trim();
   if (/(^|\/)addstickers\//i.test(raw) || /^tg:\/\/addstickers/i.test(raw))
@@ -205,6 +205,7 @@ export async function importEmojiPack(
       added: addedIds.length,
       already,
       total: rows.length,
+      ...(opts.via ? { via: opts.via } : {}),
     },
   });
   if (addedIds.length > 0)

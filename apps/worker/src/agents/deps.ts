@@ -9,6 +9,7 @@ import { createAdminMessenger } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { createFrameExtractor } from "./frames";
 import { createRedisOddsCache } from "./odds-cache";
+import { siteOpsClientFromEnv } from "./site-ops-client";
 
 let cached: EngineDeps | null = null;
 
@@ -28,6 +29,9 @@ export function workerAgentsDeps(): EngineDeps {
     // Cotes (phase 23) : cache partagé dans Redis.
     oddsCache: createRedisOddsCache(),
   };
+  // Phase 34 : opérations du site pour Kevin (entrée interne signée du site ; absente sans APP_BASE_URL ou sans clé).
+  const siteOps = siteOpsClientFromEnv(process.env, { warn: (o, m) => logger.warn(o, m) });
+  if (siteOps) deps.siteOps = siteOps;
   // Bookmakers lus directement (phase 35) : transport choisi par site, verrou, rythme et messages de Kevin, pour
   // l'équipe Paris (double lecture au Contrôle) comme pour Kevin (« la cote de … chez Sportaza ? »).
   (deps as BookmakerReadDeps).bookmakers = { ...bookmakerTransportHooks(deps), onBookmakerEvent: bookmakerKevinHook(deps) };

@@ -1,11 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { audit } from "@linkaffipro/db";
-import { enqueue } from "@linkaffipro/queue";
 import { requireAdmin } from "@/lib/session";
-import { invalidateDashboards } from "@/lib/dashboard/cache";
 import { statsParamsFromForm } from "@/lib/dashboard/stats-pages";
+import { webActorOf } from "@/lib/site-ops/ops/lot-c/common";
+import { recomputeStats } from "@/lib/site-ops/ops/lot-c/dashboard";
 
 /** Retour vers la page Pubs des statistiques, avec la période et les filtres du formulaire. */
 function backToAds(
@@ -17,23 +16,12 @@ function backToAds(
   return `/stats/ads?${p.toString()}`;
 }
 
-/** Recalcul complet des statistiques journalières (ADMIN). Le formulaire peut porter le sélecteur des statistiques. */
+/**
+ * Recalcul complet des statistiques journalières (ADMIN). Le formulaire peut porter le sélecteur des statistiques.
+ * Règle dans le cœur de la phase 34 (`lib/site-ops/ops/lot-c/dashboard.ts`), aussi utilisé par Kevin.
+ */
 export async function recomputeStatsAction(formData?: FormData): Promise<void> {
   const admin = await requireAdmin();
-  try {
-    await enqueue("stats", { type: "daily", full: true }, { jobId: `stats-daily-full-${Date.now()}` });
-    await audit({ userId: admin.id, action: "stats.recompute_requested" });
-    invalidateDashboards();
-  } catch (err) {
-    redirect(
-      backToAds(formData, {
-        error: `Impossible de lancer le recalcul : ${err instanceof Error ? err.message : "erreur"}`,
-      }),
-    );
-  }
-  redirect(
-    backToAds(formData, {
-      ok: "Recalcul lancé : les chiffres se mettent à jour dans une minute.",
-    }),
-  );
+  const r = await recomputeStats({}, { ...webActorOf(admin), role: "ADMIN" });
+  redirect(backToAds(formData, r.ok ? { ok: r.message } : { error: r.error }));
 }

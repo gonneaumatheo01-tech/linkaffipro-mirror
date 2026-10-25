@@ -1,0 +1,13 @@
+/**
+ * Étiquettes (commentaire d'en-tête avant la directive).
+ */
+// encore un commentaire
+"use server";
+import { requireAdmin } from "@/lib/session";
+
+export const renameTagAction = async (id: string, name: string) => {
+  await requireAdmin();
+  return { id, name };
+};
+
+export type TagState = { ok: boolean };

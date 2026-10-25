@@ -35,7 +35,7 @@ export async function loadAppState(platform: ConnectorPlatform) {
   return { clientId: app.clientId, extra: (app.extra ?? {}) as Record<string, unknown>, verifiedAt: app.verifiedAt, lastError: app.lastError, updatedAt: app.updatedAt, hasSecret: app.secretEncrypted.length > 0 };
 }
 
-export async function saveAppCredentials(platform: ConnectorPlatform, input: { clientId: string; secret?: string | null; extra?: Record<string, unknown> }, userId: string): Promise<void> {
+export async function saveAppCredentials(platform: ConnectorPlatform, input: { clientId: string; secret?: string | null; extra?: Record<string, unknown> }, userId: string, auditMeta: Record<string, unknown> = {}): Promise<void> {
   const existing = await prisma.connectorApp.findUnique({ where: { platform } });
   const secretEncrypted = input.secret ? encrypt(input.secret) : existing?.secretEncrypted;
   if (!secretEncrypted) throw new Error("Le secret de l'application est obligatoire la première fois.");
@@ -45,7 +45,7 @@ export async function saveAppCredentials(platform: ConnectorPlatform, input: { c
     create: { platform, clientId: input.clientId.trim(), secretEncrypted, extra: toJsonValue(extra), updatedById: userId, verifiedAt: null, lastError: null },
     update: { clientId: input.clientId.trim(), secretEncrypted, extra: toJsonValue(extra), updatedById: userId, verifiedAt: null, lastError: null },
   });
-  await audit({ userId, action: "connector.app_saved", entityType: "ConnectorApp", entityId: platform, metadata: { platform, clientId: input.clientId.trim(), secretChanged: Boolean(input.secret) } });
+  await audit({ userId, action: "connector.app_saved", entityType: "ConnectorApp", entityId: platform, metadata: { platform, clientId: input.clientId.trim(), secretChanged: Boolean(input.secret), ...auditMeta } });
 }
 
 export async function markAppVerified(platform: ConnectorPlatform, result: { ok: true } | { ok: false; error: string }): Promise<void> {
@@ -124,7 +124,7 @@ export async function clearPending(platform: ConnectorPlatform, userId: string):
 // ---------- Connexions ----------
 
 /** Enregistre (ou réactive) les comptes cochés avec les jetons, puis lance l'historique de 90 jours. */
-export async function saveConnections(platform: ConnectorPlatform, userId: string, tokens: TokenSet, accounts: ExternalAdAccount[]): Promise<string[]> {
+export async function saveConnections(platform: ConnectorPlatform, userId: string, tokens: TokenSet, accounts: ExternalAdAccount[], auditMeta: Record<string, unknown> = {}): Promise<string[]> {
   const ids: string[] = [];
   for (const a of accounts) {
     const data = {
@@ -147,21 +147,21 @@ export async function saveConnections(platform: ConnectorPlatform, userId: strin
       select: { id: true, backfilledAt: true },
     });
     ids.push(row.id);
-    await audit({ userId, action: "connector.account_connected", entityType: "AdAccountConnection", entityId: row.id, metadata: { platform, externalId: a.externalId, name: a.name } });
+    await audit({ userId, action: "connector.account_connected", entityType: "AdAccountConnection", entityId: row.id, metadata: { platform, externalId: a.externalId, name: a.name, ...auditMeta } });
     await enqueue("sync-ads", { type: "connection", connectionId: row.id, mode: row.backfilledAt ? "recent" : "backfill" }, { jobId: `sync-ads-${row.id}-connect-${Date.now()}` }).catch(() => undefined);
   }
   return ids;
 }
 
-export async function disconnectConnection(connectionId: string, userId: string): Promise<void> {
+export async function disconnectConnection(connectionId: string, userId: string, auditMeta: Record<string, unknown> = {}): Promise<void> {
   const conn = await prisma.adAccountConnection.findUnique({ where: { id: connectionId } });
   if (!conn) throw new Error("Connexion introuvable.");
   // Le jeton est effacé ; les campagnes et coûts déjà importés restent (la connexion n'est pas supprimée, pour l'historique).
   await prisma.adAccountConnection.update({ where: { id: connectionId }, data: { status: "DISABLED", tokenEncrypted: "", refreshTokenEncrypted: null, tokenExpiresAt: null, lastError: null } });
-  await audit({ userId, action: "connector.account_disconnected", entityType: "AdAccountConnection", entityId: connectionId, metadata: { platform: conn.platform, externalId: conn.externalId } });
+  await audit({ userId, action: "connector.account_disconnected", entityType: "AdAccountConnection", entityId: connectionId, metadata: { platform: conn.platform, externalId: conn.externalId, ...auditMeta } });
 }
 
-export async function requestSyncNow(connectionId: string, userId: string, mode: "recent" | "full" = "recent"): Promise<void> {
+export async function requestSyncNow(connectionId: string, userId: string, mode: "recent" | "full" = "recent", auditMeta: Record<string, unknown> = {}): Promise<void> {
   await enqueue("sync-ads", { type: "connection", connectionId, mode }, { jobId: `sync-ads-${connectionId}-manual-${Date.now()}` });
-  await audit({ userId, action: "connector.sync_requested", entityType: "AdAccountConnection", entityId: connectionId, metadata: { mode } });
+  await audit({ userId, action: "connector.sync_requested", entityType: "AdAccountConnection", entityId: connectionId, metadata: { mode, ...auditMeta } });
 }

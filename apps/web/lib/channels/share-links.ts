@@ -198,7 +198,10 @@ export async function createShareLink(input: {
   channelId: string;
   name: string;
   sourceChannelId: string | null;
-  userId: string;
+  userId: string | null;
+  /** Phase 34 : site ou Kevin (journal) ; `dryRun` : tout vérifier sans créer le lien. */
+  via?: "WEB" | "TELEGRAM";
+  dryRun?: boolean;
 }): Promise<CreatedShareLink> {
   const parsed = parseShareName(input.name);
   if ("error" in parsed) throw new ShareLinkError(parsed.error);
@@ -233,6 +236,7 @@ export async function createShareLink(input: {
       `Un lien de partage actif s'appelle déjà « ${name} » dans ce canal : choisissez un autre nom.`,
     );
 
+  if (input.dryRun) return { id: "", name, url: "" };
   const created = await createJoinRequestLink(channel, telegramLinkName(name));
 
   const link = await prisma.inviteLink.create({
@@ -259,6 +263,7 @@ export async function createShareLink(input: {
       name,
       sourceChannelId: input.sourceChannelId,
       botId: created.botId,
+      ...(input.via ? { via: input.via } : {}),
     },
   });
   return { id: link.id, name: link.name, url: link.telegramInviteLink };
@@ -277,7 +282,9 @@ export type DisabledShareLink = {
 export async function disableShareLink(input: {
   channelId: string;
   linkId: string;
-  userId: string;
+  userId: string | null;
+  via?: "WEB" | "TELEGRAM";
+  dryRun?: boolean;
 }): Promise<DisabledShareLink> {
   const link = await prisma.inviteLink.findFirst({
     where: { id: input.linkId, channelId: input.channelId, kind: "SHARE" },
@@ -292,6 +299,8 @@ export async function disableShareLink(input: {
       bot: link.bot.username,
       alreadyDisabled: true,
     };
+  if (input.dryRun)
+    return { name: link.name, revokedOnTelegram: true, error: null, bot: link.bot.username, alreadyDisabled: false };
   const error = await revokeOnTelegram(link);
   await prisma.inviteLink.update({ where: { id: link.id }, data: { isActive: false } });
   await audit({
@@ -304,6 +313,7 @@ export async function disableShareLink(input: {
       name: link.name,
       revokedOnTelegram: error === null,
       error,
+      ...(input.via ? { via: input.via } : {}),
     },
   });
   return {

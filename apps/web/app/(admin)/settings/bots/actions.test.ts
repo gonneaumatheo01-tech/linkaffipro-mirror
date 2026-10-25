@@ -150,7 +150,8 @@ describe("mode du bot", () => {
         action: "assistant.bot_mode_changed",
         entityType: "Bot",
         entityId: "bot1",
-        metadata: { from: "STANDARD", to: "ASSISTANT", fromPersonaId: null, personaId: "p1" },
+        // Phase 34 : même cœur que Kevin, journal avec la provenance (`via`).
+        metadata: { from: "STANDARD", to: "ASSISTANT", fromPersonaId: null, personaId: "p1", via: "WEB" },
       }),
     ]);
     expect(sp.get("ok")).toBe(

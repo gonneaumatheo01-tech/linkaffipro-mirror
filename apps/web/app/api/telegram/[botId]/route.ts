@@ -2,6 +2,12 @@ import { safeEqual } from "@linkaffipro/core";
 import { prisma } from "@linkaffipro/db";
 import { getOrCreateBot, prismaTelegramDeps } from "@linkaffipro/telegram";
 import type { Update } from "grammy/types";
+// Phase 34 : boutons de choix des comptes publicitaires chez Kevin → fonctions du site.
+import "@/lib/boss-inputs/register";
+import { installInProcessSiteOps } from "@/lib/site-ops/in-process";
+
+// Phase 34 : le chemin rapide de Kevin (dans ce webhook) appelle les opérations du site en direct, sans réseau.
+installInProcessSiteOps();
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;

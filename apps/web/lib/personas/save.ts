@@ -44,7 +44,12 @@ export type PersonaSaveResult =
     }
   | { ok: false; error: string; errors?: PersonaFormErrors };
 
-type SaveUser = { id: string; role: "ADMIN" | "MANAGER" };
+/** Qui enregistre (`via` : site ou Kevin, phase 34, noté au journal ; absent = site). */
+type SaveUser = { id: string | null; role: "ADMIN" | "MANAGER"; via?: "WEB" | "TELEGRAM" };
+/** Phase 34 : essai à blanc (tout vérifié, rien d'écrit, aucun profil Telegram posé). */
+type SaveOptions = { dryRun?: boolean };
+
+const viaOf = (user: SaveUser) => (user.via ? { via: user.via } : {});
 
 const COMPARED_FIELDS = [
   "name",
@@ -155,7 +160,11 @@ export async function refreshPersonaBotProfiles(
 }
 
 /** Crée ou modifie une persona à partir du brouillon du formulaire. */
-export async function savePersona(raw: unknown, user: SaveUser): Promise<PersonaSaveResult> {
+export async function savePersona(
+  raw: unknown,
+  user: SaveUser,
+  opts: SaveOptions = {},
+): Promise<PersonaSaveResult> {
   const v = validatePersonaForm(raw);
   if (!v.ok) return { ok: false, error: v.error, errors: v.errors };
   const { data } = v;
@@ -242,6 +251,20 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       errors,
     };
 
+  if (opts.dryRun)
+    return {
+      ok: true,
+      id: before?.id ?? "",
+      created: !before,
+      message: saveMessage({
+        created: !before,
+        name: data.name,
+        isActive: data.isActive,
+        wasActive: before?.isActive ?? false,
+      }),
+      problem: null,
+    };
+
   // `illusion` jamais posé pour une assistante (ni donc hors Rencontres, où « une fille » est refusée).
   const row = { ...data, faq, illusion: data.identityKind === "GIRL" };
   const faqMeta = { universe: data.universe, faqEntries: faq.length };
@@ -261,7 +284,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
         action: "persona.updated",
         entityType: "Persona",
         entityId: id,
-        metadata: { fields, ...faqMeta },
+        metadata: { ...viaOf(user), fields, ...faqMeta },
       });
     if (fields.includes("campaignId") || fields.includes("affiliateCampaignId")) {
       // Même règle que le worker (apps/worker/src/assistant/offer-link.ts) : le lien de la persona pour son offre
@@ -285,7 +308,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       action: "persona.created",
       entityType: "Persona",
       entityId: id,
-      metadata: { name: data.name, isActive: data.isActive, ...faqMeta },
+      metadata: { ...viaOf(user), name: data.name, isActive: data.isActive, ...faqMeta },
     });
   }
   if (faqChanged)
@@ -295,7 +318,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       entityType: "Persona",
       entityId: id,
       // Nombres seulement : jamais le texte des questions ni des réponses dans le journal.
-      metadata: { universe: data.universe, before: beforeFaq.length, after: faq.length },
+      metadata: { ...viaOf(user), universe: data.universe, before: beforeFaq.length, after: faq.length },
     });
   const wasActive = before?.isActive ?? false;
   if (data.isActive !== wasActive && (before || data.isActive))
@@ -304,6 +327,7 @@ export async function savePersona(raw: unknown, user: SaveUser): Promise<Persona
       action: data.isActive ? "persona.activated" : "persona.deactivated",
       entityType: "Persona",
       entityId: id,
+      ...(user.via ? { metadata: viaOf(user) } : {}),
     });
 
   // Recalcul complet des statistiques (regroupé, attente bornée : n'empêche jamais l'enregistrement).
@@ -348,7 +372,11 @@ export function saveMessage(p: {
 export type PersonaDeleteResult = { ok: true; message: string } | { ok: false; error: string };
 
 /** Supprime une persona (ADMIN) ; refusé tant qu'un bot l'utilise. Les conversations gardent leur historique. */
-export async function deletePersona(id: string, user: SaveUser): Promise<PersonaDeleteResult> {
+export async function deletePersona(
+  id: string,
+  user: SaveUser,
+  opts: SaveOptions = {},
+): Promise<PersonaDeleteResult> {
   if (user.role !== "ADMIN")
     return {
       ok: false,
@@ -371,13 +399,18 @@ export async function deletePersona(id: string, user: SaveUser): Promise<Persona
       error: `Suppression impossible : ${persona.bots.length > 1 ? "les bots" : "le bot"} ${names} ${persona.bots.length > 1 ? "l'utilisent" : "l'utilise"}. Dans Réglages → Bots, liez une autre persona (ou repassez le bot en bot normal), puis supprimez-la.`,
     };
   }
+  if (opts.dryRun)
+    return {
+      ok: true,
+      message: `Suppression de la persona ${persona.name ? `« ${persona.name} » ` : ""}: ses conversations restent dans la boîte de réception.`,
+    };
   await prisma.persona.delete({ where: { id } });
   await audit({
     userId: user.id,
     action: "persona.deleted",
     entityType: "Persona",
     entityId: id,
-    metadata: { name: persona.name },
+    metadata: { ...viaOf(user), name: persona.name },
   });
   return {
     ok: true,

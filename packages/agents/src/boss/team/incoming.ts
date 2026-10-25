@@ -43,6 +43,7 @@ import {
   type TeamMemberRow,
 } from "./members";
 import { kevinForwardedPost } from "../../inspiration/kevin-forward";
+import { rememberForwarded, type TelegramForwardMessage } from "../inputs/forwarded";
 import { readCollect } from "../../inspiration/kevin";
 import type { ForwardedMessage } from "../../inspiration/sources/forwarded";
 import { bossUsername, claimDeleteRightAsk, claimGroupWelcome, groupReplacementSummary, readBossGroupId, setBossGroup } from "./group";
@@ -561,6 +562,12 @@ async function incoming(deps: AgentsDeps, msg: BossTeamMessage): Promise<BossTea
       await deps.prisma.teamMember.update({ where: { telegramUserId: member.telegramUserId }, data: { startedPrivateAt: nowOf(deps) } }).catch(() => undefined);
     if (/^\/start(?:@\w+)?(?:\s|$)/.test(msg.text.trim())) return reply(MEMBER_PRIVATE_WELCOME(member.firstName, name, msg.chat.id));
   }
+  // Phase 34 : tout message transféré par une personne connue est gardé 30 min comme contenu possible (une donnée,
+  // jamais exécutée ni envoyée à l'IA), avant le rangement d'inspiration ci-dessous qui reste inchangé.
+  if (msg.forwarded && msg.raw)
+    await rememberForwarded(deps, { chatId: msg.chat.id.toString(), message: msg.raw as TelegramForwardMessage }).catch((err: Error) =>
+      deps.logger?.warn({ err: err.message }, "[boss] message transféré non gardé"),
+    );
   // Phase 27 : post transféré d'un canal tiers → rangé comme post de référence (une réponse par lot, une minute après).
   // Dans le groupe, seulement s'il s'adresse à Kevin, ou si Kevin a demandé des transferts à cette personne ici.
   if (msg.forwarded && msg.raw && (!group || addr.addressed || (await collectAskedTo(deps, msg.chat.id, msg.from.id)))) {

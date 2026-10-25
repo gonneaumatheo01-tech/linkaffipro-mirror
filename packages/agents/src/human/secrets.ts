@@ -54,7 +54,21 @@ export function secretLabel(key: string): string {
   const pw = /^providers\.bookmakers\.([^.]+)\.password$/.exec(key);
   if (pw) return `mot de passe ${pw[1]}`;
   if (key === "providers.screenshotProxy") return "adresse IP résidentielle";
+  // Phase 34 : champ secret d'une opération du site (`site.<domaine>.<verbe>.<champ>.<déroulé>`), demandé en privé par Kevin.
+  const site = /^site\.[a-z_]+\.[a-z0-9_-]+\.([a-zA-Z0-9_]+)(?:\.[A-Za-z0-9_-]+)?$/.exec(key);
+  if (site) return siteSecretFieldLabel(site[1]!);
   return `clé ${key}`;
+}
+
+/** Libellé d'un champ secret d'une opération du site (« mot_de_passe » → « mot de passe »). */
+export function siteSecretFieldLabel(field: string): string {
+  const f = field.toLowerCase();
+  if (/^(cle|cle_api|api_key|apikey|key)$/.test(f)) return "clé";
+  if (/^(jeton|token|bot_token)$/.test(f)) return "jeton";
+  if (/^(mot_de_passe|password|mdp)$/.test(f)) return "mot de passe";
+  if (/^(identifiant|login|email|e_mail)$/.test(f)) return "identifiant";
+  if (/^(secret|client_secret|app_secret)$/.test(f)) return "clé secrète";
+  return f.replace(/_/g, " ");
 }
 
 /** Une clé de fournisseur (`.apiKey`) : seule elle peut voir ses 4 derniers caractères rappelés à l'admin. */

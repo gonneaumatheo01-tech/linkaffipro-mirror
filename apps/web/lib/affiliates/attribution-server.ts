@@ -41,8 +41,11 @@ export async function changeMemberAffiliate(input: {
   memberId: string;
   inviteLinkId: string;
   reason: unknown;
-  userId: string;
+  userId: string | null;
   now?: Date;
+  /** Phase 34 : essai à blanc (tout vérifié, rien d'écrit) et provenance notée au journal. */
+  dryRun?: boolean;
+  via?: "WEB" | "TELEGRAM";
 }): Promise<AttributionResult> {
   const reason = parseReason(input.reason);
   if (!reason.ok) return reason;
@@ -74,16 +77,22 @@ export async function changeMemberAffiliate(input: {
     { ...link, linkaffiCampaignKey: link.linkaffiCampaignKey },
     input.now ?? new Date(),
   );
-  await prisma.member.update({ where: { id: member.id }, data: after });
   const who = affiliateLabel(link.linkaffiAffiliateId, link.linkaffiAffiliateName);
   const campaign = campaignLabel({
     campaignName: link.linkaffiCampaignName,
     campaignKey: link.linkaffiCampaignKey,
   });
+  if (input.dryRun)
+    return {
+      ok: true,
+      message: `Le membre sera rattaché à ${who} (campagne ${campaign}, canal ${link.channel.title}).`,
+    };
+  await prisma.member.update({ where: { id: member.id }, data: after });
   const metadata = toJsonValue({
     from: attributionSnapshot(before),
     to: attributionSnapshot(after),
     reason: reason.reason,
+    ...(input.via ? { via: input.via } : {}),
   });
   await recordEvent({
     type: "member.affiliate_changed",
@@ -112,7 +121,9 @@ export async function changeMemberAffiliate(input: {
 export async function removeMemberAffiliate(input: {
   memberId: string;
   reason: unknown;
-  userId: string;
+  userId: string | null;
+  dryRun?: boolean;
+  via?: "WEB" | "TELEGRAM";
 }): Promise<AttributionResult> {
   const reason = parseReason(input.reason);
   if (!reason.ok) return reason;
@@ -124,6 +135,8 @@ export async function removeMemberAffiliate(input: {
   if (!member.linkaffiCampaignKey && !member.linkaffiAffiliateId)
     return { ok: false, error: "Ce membre n'est rattaché à aucun affilié." };
   const before = fieldsOf(member);
+  if (input.dryRun)
+    return { ok: true, message: "L'affilié sera retiré : ce membre ne sera plus rattaché à un affilié." };
   await prisma.member.update({ where: { id: member.id }, data: NO_AFFILIATE });
   await recordEvent({
     type: "member.affiliate_removed",
@@ -139,7 +152,11 @@ export async function removeMemberAffiliate(input: {
     action: "member.affiliate_removed",
     entityType: "Member",
     entityId: member.id,
-    metadata: toJsonValue({ from: attributionSnapshot(before), reason: reason.reason }),
+    metadata: toJsonValue({
+      from: attributionSnapshot(before),
+      reason: reason.reason,
+      ...(input.via ? { via: input.via } : {}),
+    }),
   });
   return { ok: true, message: "Affilié retiré : ce membre n'est plus rattaché à un affilié." };
 }

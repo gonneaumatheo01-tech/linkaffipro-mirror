@@ -2,7 +2,7 @@
  * Dépendances des agents côté bot (phase 19) : base, mise en file (`@linkaffipro/queue`) et messager admin. La file
  * est créée à la première utilisation : un bot démarre même si la mise en file n'est pas encore disponible.
  */
-import { setBossRegisterPort, type AgentsDeps, type AgentsEnqueue } from "@linkaffipro/agents";
+import { portSiteOps, setBossRegisterPort, type AgentsDeps, type AgentsEnqueue } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
 import { createAgentsEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "./admin-messenger";
@@ -43,6 +43,8 @@ export function createBotAgentsDeps(): AgentsDeps {
     prisma: prisma as unknown as AgentsDeps["prisma"],
     enqueue: lazyEnqueue(),
     admin: createAdminMessenger(),
+    // Phase 34 : opérations du site en processus (registre posé par le site dans son webhook ; ailleurs : indisponible).
+    siteOps: portSiteOps,
     logger: {
       info: (o, m) => console.info(m ?? "[agents]", o),
       warn: (o, m) => console.warn(m ?? "[agents]", o),
