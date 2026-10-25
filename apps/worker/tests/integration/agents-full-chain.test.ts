@@ -469,7 +469,8 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
     expect(o.health.stuckMissions).toBe(0);
     expect(o.ads.lastReportAt).not.toBeNull();
     expect(overviewLines(o).length).toBeLessThanOrEqual(8);
-    expect((await admin("agents")).reply).toContain("Rencontres : ▶️ active · simulation · niveau 0");
+    // Voix de Kevin (phase 33) : « pour de faux » plutôt que « simulation ».
+    expect((await admin("agents")).reply).toContain("Rencontres : active, pour de faux, niveau 0.");
     expect((await admin("rapport")).reply).toContain(`Rapport des agents</b> (${addDays(DAY1, 2)})`);
 
     // Durées des étapes mesurées (performance) ; 3 jours de missions distincts.

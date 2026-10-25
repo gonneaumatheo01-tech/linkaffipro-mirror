@@ -216,8 +216,9 @@ describe("équipe Casino : une semaine simulée sur le canal Test (base réelle)
     expect(reqs[0]!.question).toContain("#casino #bonus");
     const sent = adminSent.filter((h) => h.includes("Il manque des vidéos casino"));
     // Envoyée une fois ; le balayage des demandes y ajoute au plus son rappel unique.
-    expect(sent.filter((h) => !h.includes("Rappel"))).toHaveLength(1);
-    expect(sent.filter((h) => h.includes("Rappel")).length).toBeLessThanOrEqual(1);
+    // Le rappel commence par « ⏰ Petit rappel » (voix de Kevin, phase 33).
+    expect(sent.filter((h) => !/rappel/i.test(h))).toHaveLength(1);
+    expect(sent.filter((h) => /rappel/i.test(h)).length).toBeLessThanOrEqual(1);
     expect(reqs[0]!.expected).toMatchObject({ channelIds: [casinoId] });
     const alert = await prisma.alert.findMany({ where: { kind: "agents_media_low", resolvedAt: null } });
     expect(alert).toHaveLength(1);
