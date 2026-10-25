@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-25T07:16:13.312Z",
+  "updatedAt": "2026-10-25T11:33:48.633Z",
   "entries": [
     {
       "route": "/",
@@ -1171,6 +1171,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T19:26:55.626Z"
+    },
+    {
+      "route": "/agents/bookmakers",
+      "path": "/agents/bookmakers",
+      "title": "Bookmakers",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-bookmakers-390.webp",
+        "1440": "agents-bookmakers-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-25T11:32:36.881Z"
     },
     {
       "route": "/agents/boss",

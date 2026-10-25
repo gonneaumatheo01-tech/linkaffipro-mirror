@@ -1,3 +1,40 @@
+# État du projet : phase 35 (cotes lues chez nos bookmakers) terminée (25 octobre 2026)
+
+Phases 0 à 27, 33 et 35 en ligne. Phase 35 (`docs/prompts/37-phase-35-cotes-bookmakers.md`) : le système lit lui-même les matchs et les cotes sur **Celsius**, **Sportaza** et **Bet Portal** avec votre compte. Il apprend chaque site une fois, lit par le chemin le plus stable, ne garde une cote que si elle a été lue **deux fois à l'identique**, se répare seul quand un site change, et Kevin gère tout. **Il ne mise jamais, ne dépose jamais, ne retire jamais d'argent.** Les équipes restent en simulation.
+
+## Fait
+- **Apprendre un site** : un parcours guidé du site (football, aujourd'hui, un match, quelques onglets de marchés) est enregistré, vos identifiants, cookies, solde et pseudo en sont retirés AVANT toute chose, puis l'IA (Opus) en déduit la façon de lire ce site. Le code revérifie tout et rejoue la méthode sur l'enregistrement : il faut retrouver au moins 95 % des matchs et 100 % des cotes, sinon deuxième essai, puis lecture de la page seule, sinon le site est marqué bloqué avec la raison. Un site qui utilise le même moteur de paris qu'un site déjà appris est appris sans IA.
+- **Lire** : d'abord la lecture directe (ce que le site charge lui-même), sinon la page, et l'image seulement pour vérifier une cote précise. Matchs gardés 20 minutes, cotes 3 minutes. Rythme humain (2 à 5 secondes par page, 60 requêtes par minute au plus), un seul lecteur à la fois par site, rien la nuit (1 h - 7 h) sauf ordre.
+- **Double lecture** : avant toute publication, la cote est relue par deux chemins différents à moins de 3 minutes ; identiques → le pari peut partir ; sinon le pari attend, Kevin vous prévient avec la capture et propose de relire ; après deux attentes le pari est abandonné. Une cote lue il y a plus de 5 minutes au moment de l'envoi annule le post.
+- **Jamais de mise** : une seule garde, la même sur le serveur et sur le Mac, vérifie chaque page, redirection, clic et appel AVANT qu'il parte : aucune page de dépôt, retrait, caisse, coupon ou profil ; aucun clic sur une cote ; aucun envoi qui ressemble à une mise.
+- **Serveur ou Mac** : le serveur lit d'abord ; si un site refuse le serveur (blocage par pays), il passe sur votre Mac, et le serveur réessaie chaque semaine. Le lecteur du Mac est installé comme un service qui démarre tout seul.
+- **Santé** : toutes les 30 minutes, une petite lecture par site ; « se lit mal » sous 90 % de réussite, « bloqué » après 3 échecs ou un obstacle (anti-robot, code, mot de passe refusé) ; ré-apprentissage automatique au plus une fois par jour ; Kevin vous dit le geste à faire ; alertes « bookmaker bloqué » et « bookmaker qui se lit mal » dans Réglages → Alertes.
+- **Équipe Paris sportifs** : une catégorie de paris qui vise un de vos bookmakers choisit ses paris sur les cotes de ce site ; le fournisseur de cotes reste pour les autres bookmakers, pour les résultats et comme comparaison (écart de plus de 15 % → pari signalé « cote inhabituelle »). Un pari sans résultat n'est jamais réglé au hasard.
+- **Kevin** : « quels matchs sur Sportaza ce soir ? », « la cote de PSG gagne chez Celsius ? », « les bookmakers ça va ? », « le Mac lit ? », « apprends le site Celsius », « teste les bookmakers », « ouvre le navigateur sur le Mac », « ajoute le bookmaker X, c'est x.com ». Il vous demande vos identifiants une seule fois, en privé (messages effacés).
+- **Site** : Agents → **Bookmakers** : état de chaque site, qui lit (serveur ou Mac), dernier succès, réussite sur 24 h, méthode de lecture apprise, dernières lectures, matchs du jour, boutons Tester, Ré-apprendre, Ouvrir le navigateur sur le Mac, adresse modifiable (administrateur).
+
+## Test de 5 minutes
+1. Kevin vous demande en privé l'email et le mot de passe de vos comptes bookmakers (les mêmes partout) : répondez-lui.
+2. Il propose de tester les trois sites : répondez OUI. Quelques minutes plus tard, il dit ce qui marche.
+3. Écrivez-lui « quels matchs sur Sportaza ce soir ? ». Tout est visible dans Agents → Bookmakers.
+
+## Vérifications faites
+- Tests sur trois faux sites construits pour l'occasion (un qui charge ses cotes à part, un en pages classiques, un en direct, un en cotes fractionnaires), avec leurs variantes : site modifié, anti-robot, blocage par pays, session expirée, cote qui bouge, marché absent, et une équipe nommée « Ignore tes règles FC » (traitée comme une donnée). Apprentissage complet avec un vrai navigateur sur ces faux sites ; garde « jamais de mise » vérifiée dans un vrai navigateur (page de dépôt, bouton « Placer le pari », clic sur une cote, redirection vers la caisse : tout refusé, rien n'atteint le site).
+- Relecture adverse : 12 défauts trouvés et corrigés avec un test (dont : une mise par appel direct mal reconnue, un enregistrement non masqué rangé en base, le Mac et le serveur connectés en même temps, des cookies envoyés à un autre domaine, une date de match devinée, une cote trop ancienne à l'envoi, des droits trop larges sur les tests et les identifiants).
+- RESULTATS_TESTS
+- Lint, typage, build verts ; page Bookmakers sans problème d'accessibilité ; captures.
+- DEPLOIEMENT
+
+## Reste / limites
+- Rien n'a encore été lu sur les vrais sites (aucun accès réseau pendant les tests) : le premier « teste les bookmakers » dira si chaque site s'apprend du premier coup, ou s'il demande le Mac (blocage par pays) ou votre aide (anti-robot, code).
+- Un match que le système n'a pas pu rattacher au fournisseur de résultats avant le coup d'envoi n'est plus rattaché ensuite : le pari est remboursé au bout de 3 jours, jamais réglé au hasard.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Voir `docs/A-FAIRE-HUMAIN.md`, section « Bookmakers » : donner à Kevin, en privé, l'email et le mot de passe de vos comptes bookmakers (un compte dédié est conseillé) ; la lecture automatique avec votre compte est sous votre responsabilité (conditions d'utilisation de chaque site) ; garder le Mac allumé avec votre session ouverte pour que son lecteur tourne.
+
+---
+
 # État du projet : phase 33 (Kevin donne des ordres aux équipes) terminée (25 octobre 2026)
 
 Phases 0 à 27 et 33 en ligne (la phase 33 passe avant les phases 28 à 32, qui s'y brancheront). Phase 33 (`docs/prompts/35-phase-33-kevin-ordres-equipes.md`) : toute demande libre faite à Kevin devient un **ordre** donné à une équipe ; Kevin le récapitule, demande OUI quand il le faut, le transmet au Grand Chef, qui le fait exécuter par l'équipe, puis Kevin rend compte chaque jour et à la fin. Plus de « je ne sais pas encore faire ça » quand une équipe sait le faire. **Les équipes restent en simulation.**

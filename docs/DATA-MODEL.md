@@ -520,3 +520,12 @@ Migration additive `20261025034001_phase33_ordres_equipes`.
 | `AgentMission.orderId` | Ordre qui a fait créer la mission (toujours par le Grand Chef). |
 | `BetCategory.createdByOrderId`, `BetCategory.expiresAt` | Catégorie de paris créée pour un ordre : jamais active hors de l'ordre, jamais supprimée. |
 | `BossUnmet.suggestedCapability`, `teamKey`, `lastOrderId` | Demandes impossibles enrichies (bilan du lundi, page Kevin « Pas encore possible »). |
+
+## Phase 35 : cotes lues chez nos bookmakers
+Migration additive `*_phase35_bookmakers`.
+- `BookmakerSite` (clé `celsius` / `sportaza` / `betportal` / ajoutés par Kevin) : adresse, `readTarget` (auto / server / mac), `status` NEW / LEARNING / READY / DEGRADED / BLOCKED + `statusReason`, `providerHint` (moteur de paris détecté), derniers essais et succès.
+- `BookmakerRecipe` : méthode de lecture apprise, versionnée (`@@unique([siteKey, version])`, une seule active), `level` api / dom, `api`, `dom`, `mapping` (marchés du site → clés de `sports/themes.json`, format des cotes, fuseau), `validation` (dont `domains`), `createdBy` learn / reuse / manual.
+- `BookmakerReadJob` : travaux de lecture (learn, events, markets, verify, capture, test, visible, fetch-api, page, record) pour le serveur ou le Mac ; jamais de secret dans `params` ni `result` (enregistrements masqués à la source) ; ménage après 15 min puis purge.
+- `BookmakerEvent` (cache des matchs, 20 min, `oddsEventId` = correspondance SportsGameOdds) et `BookmakerOdds` (une ligne par lecture avec son niveau api / dom / image ; cache 3 min).
+- `BettingPick.siteKey`, `siteEventId`, `oddsReadIds` (les deux lectures), `oddsLevel` (« api+dom », « dom+image »).
+- Settings : `providers.bookmakers.default.credentials` (secret commun chiffré), `bookmakers.lock.<site>`, `bookmakers.mac.heartbeat`, `bookmakers.learn.<site>`, santé par site.

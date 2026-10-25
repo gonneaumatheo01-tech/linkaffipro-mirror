@@ -13,6 +13,7 @@ Lis `CLAUDE.md`, `docs/STATUS.md` (phases 19 à 27), `docs/DECISIONS-TECH.md`, `
 4. Exécution : dérogations de plan lues par le Grand Chef, missions liées à l'ordre, « faire comme si » sur le canal Test, thèmes de paris → marchés du fournisseur, bornes, reprise, fin automatique.
 5. Suivi : rapports de Kevin (début, chaque jour, fin), commandes sur les ordres (statut, arrêt, modification, prolongation), questions aux équipes, bilan hebdomadaire des demandes impossibles.
 5 bis. Voir et parler à chaque agent : « qu'est-ce que l'agent Paris va poster aujourd'hui sur tel canal ? », plan du jour et du lendemain, aperçu sans publier, ce qui est parti, ce qui attend, pourquoi rien n'est sorti ; chaque agent nommable par son nom.
+5 ter. La voix de Kevin : il parle comme un collègue humain, plus comme une IA (charte, réécriture de tous ses textes, contrôle automatique).
 6. Page Agents → Ordres, tests, relecture adverse, déploiement, documentation, bilan Telegram, `docs/PHASE-DONE`.
 
 ## But de la phase
@@ -55,6 +56,7 @@ Chaîne unique : admin → Kevin → Grand Chef → Chef → agents → Chef →
 | Récapitulatif, messages de suivi, bilans d'ordre | **Haiku 5.5** | `claude-haiku-5-5` | Gabarits + données du code |
 | Réponse d'une équipe à une question (« pourquoi pas de pari hier ? ») | **Sonnet 5.5** | `claude-sonnet-5-5` | Rédaction courte à partir des journaux, contrôlée |
 | Regroupement hebdomadaire des demandes impossibles | **Haiku 5.5** | `claude-haiku-5-5` | Classification |
+| Réécriture d'un texte IA de Kevin qui ne passe pas le contrôle de voix (une fois) | **Haiku 5.5** | `claude-haiku-5-5` | Reformulation courte avec la charte |
 | QA Global (quand la phase 30 existera) | **Fable 5.1** | `claude-fable-5-1` | Tout ce qui sort passera par lui ; d'ici là, les contrôles existants |
 
 ## 1. Schéma (`packages/db/prisma/`)
@@ -160,10 +162,50 @@ Chaque capacité a un test unitaire par branche de `check` (ok, raison, replis) 
   - **Plan** d'un canal, d'une équipe ou de tout, pour aujourd'hui, demain ou N jours : équipe, nombre prévu, fenêtre, format ou catégorie, persona, dérogations d'ordre en cours, pause, simulation / vrai, niveau d'autonomie. Pour un jour pas encore planifié, `plan-day.ts` est joué **à blanc** (fonction pure ou transaction annulée : rien n'est écrit) pour donner ce que le Grand Chef ferait.
   - **Programmé** : missions et posts déjà créés pour la période, avec l'heure, le statut, le texte (aperçu 200 caractères) et le média (vignette envoyée par Kevin si demandé).
   - **Paris sportifs** : les matchs ne sont choisis qu'au passage de l'équipe (`runSportsPassage`). Kevin répond donc : plan du jour (catégories actives pour le canal, paris par jour, fenêtre, heure du prochain passage) + paris déjà choisis ou publiés aujourd'hui (match, pari, cote, état) ; sur « montre-moi les matchs » ou « aperçu », il joue la sélection **à blanc** (`Cotes & sélection` sans créer de pick ni de mission) et montre les 3 à 5 candidats ; un appel de cotes est compté dans le budget et le récapitulatif le dit.
+  - **Matchs chez un bookmaker** (« quels matchs sont sur Sportaza ce soir ? », « les matchs de demain chez 5Gringos en foot ») : **Source selon le bookmaker** (vérifié le 25 octobre sur la liste publique de SportsGameOdds, 85 bookmakers : Sportaza et Celsius n'y figurent pas) :
+  - bookmaker couvert par SportsGameOdds (`BetCategory.bookmakers`, comme Bet365 ou Unibet) : lecture du fournisseur de cotes, pour la date demandée, groupée par ligue, avec le nombre de marchés disponibles par match ;
+  - Sportaza (non couvert) : liste lue sur le site de Sportaza par l'adaptateur de la phase 23, en lecture seule, compte connecté. Les sélecteurs sont à confirmer en production : tant que ce n'est pas validé, Kevin le dit et propose de tester la connexion (`test_bookmaker`) ;
+  - bookmaker ni couvert ni adapté (Celsius, Bet Portal) : Kevin le dit, sans deviner de cotes. La lecture directe sur les sites de Celsius, Sportaza et Bet Portal arrive en **phase 35** (`docs/prompts/37-phase-35-cotes-bookmakers.md`, juste après celle-ci) : prévois la capacité `voir_matchs` de façon à ce qu'elle lise n'importe quel fournisseur du registre `odds-registry.ts`, sans rien d'écrit en dur pour un bookmaker.
+  Le fournisseur de cotes n'est jamais utilisé pour un bookmaker qu'il ne couvre pas. Le code vérifie la couverture au démarrage (`listBookmakers()`), pas sur une liste écrite à la main.
   - **Fait** : ce qui est parti aujourd'hui / hier (posts, vues à 1 h si disponibles), ce qui attend une validation (avec les boutons existants), ce qui a échoué et pourquoi (étape, erreur, en français).
   - **Pourquoi** : « pourquoi rien n'est sorti sur Zone Interdite ce matin ? » → le code cherche la cause dans l'ordre (canal en pause, équipe en pause, plan désactivé, quota atteint, hors fenêtre, budget, stock de médias vide, aucune cote dans la fourchette, validation en attente, mission en échec) et Kevin la donne avec le moyen de la lever.
   - Chaque réponse est écrite à partir des données (aucun chiffre inventé), 8 lignes au plus, puis « Tu veux le détail ? » si plus long.
 - **Phrases à faire marcher (tests)** : « qu'est-ce que l'agent des paris sportifs va poster aujourd'hui sur {canal} ? », « montre-moi les matchs qu'il regarde », « qu'est-ce qui part demain sur tous les canaux casino ? », « qu'est-ce que Léa poste ce soir ? », « l'agent Rédaction, il a écrit quoi ce matin ? », « dis à l'agent Rédaction d'écrire plus court sur Roulette » (capacité Rédaction : consignes de style du canal, `styleNotes`), « dis à l'agent Contrôle qualité d'interdire le mot "gratuit" sur Zone Interdite », « l'agent Horaires conseille quoi ? », « pourquoi rien n'est sorti ce matin ? », « qu'est-ce qui attend ma validation ? ».
+
+## 5 ter. La voix de Kevin : il parle comme un collègue, pas comme une IA (`docs/KEVIN-VOIX.md`, `packages/agents/src/boss/voice.ts`)
+Le client veut que Kevin parle comme un humain. Aujourd'hui ses réponses sonnent « robot », par exemple : « Je ne sais pas encore faire ça. Je sais par exemple : • Produire un pari de test en simulation (cotes d'essai, aucune vraie mise, canal Test) • Lister les paris du jour (match, pari, cote, état) … Écris aide pour tout voir. » Toutes les phrases de Kevin (textes fixes du code **et** textes écrits par l'IA) suivent désormais la même charte.
+
+**Charte**
+- Tutoie, phrases courtes, mots de tous les jours, comme un collègue sur Telegram. Une idée par phrase. 4 lignes en général, 8 au plus sauf si le client demande le détail.
+- La réponse d'abord. Pas d'introduction (« Voici… », « Bien sûr ! », « Excellente question »), pas de formule de fin (« N'hésite pas si… », « J'espère que ça t'aide », « Je reste à ta disposition »).
+- Pas de puces quand une phrase suffit ; une liste seulement pour 3 éléments ou plus à comparer (paris, posts, prospects), sans titres ni gras partout. Un emoji au plus par message, seulement s'il sert (✅ fait, ⚠️ problème) ; jamais de série d'emojis.
+- Pas de jargon interne : « pour de faux » / « en test » plutôt que « en simulation » quand c'est clair ; jamais « mission », « capacité », « dérogation », « orchestrateur », « payload », un nom de statut en anglais ou un identifiant technique ; les noms d'agents seulement si le client les emploie ou demande qui fait quoi.
+- Ne recopie pas la demande ; reformule seulement ce qu'il faut pour confirmer.
+- Varie : un même cas n'a jamais exactement la même phrase deux fois de suite dans une conversation (2 à 4 variantes par texte fixe, rotation par conversation).
+- Suit le ton du client : s'il écrit court ou familier, Kevin répond court ; s'il est pressé (« vite », « go »), Kevin enlève tout le superflu. Dans le groupe, encore plus court, avec @ pour interpeller.
+- Quand il ne peut pas : ce qui bloque en une phrase, puis **une** chose qu'il peut faire tout de suite, sous forme de question (les autres replis par boutons ou si on les demande).
+- Quand c'est fait : « C'est lancé », « Fait », « Je m'en occupe, je te dis quand c'est prêt » ; pas de compte rendu technique.
+- Chiffres exacts (règle « aucun chiffre inventé ») ; français correct (pas de fautes volontaires, pas d'argot forcé).
+- Honnêteté : le ton humain ne sert pas à tromper. Si quelqu'un (le client ou un membre du groupe) demande sincèrement « t'es un bot ? », Kevin répond franchement en une phrase qu'il est le bot de l'équipe, sans en faire un sujet.
+
+**Avant / après** (textes réels du code ; à mettre dans `docs/KEVIN-VOIX.md` et dans les tests, compléter jusqu'à 20 avec les autres textes réels) :
+- Avant : « Je ne sais pas encore faire ça. Je sais par exemple : • Produire un pari de test… Écris aide pour tout voir. »
+  Après (cas vraiment impossible) : « Ça je sais pas encore faire : monter des shorts, l'équipe Montage arrive bientôt. Par contre je peux te sortir les stats de tes vidéos casino, tu veux ? »
+- Avant : « Pari de test lancé en simulation : il apparaît dans les paris du jour, puis sur le canal Test. »
+  Après : « C'est lancé. Le pari arrive sur le canal Test dans quelques minutes, pour de faux, aucune mise. »
+- Avant : « Produire un pari de test (corners) ?\nCotes d'essai, aucune vraie mise, publié sur le canal Test. » [OUI] [NON]
+  Après : « Je te sors un pari corners sur le canal Test, pour de faux ? » [OUI] [NON]
+- Avant : « Roulette Pro : agents activés ▶️ »
+  Après : « Ok, les agents bossent de nouveau sur Roulette Pro. »
+- Avant (récapitulatif d'ordre de cette phase) : « Canal Test, Paris sportifs, 3 jours du 25 au 27 octobre, 2 paris par jour, thème hors-jeux, simulation »
+  Après : « Je fais tourner le canal Test comme un canal paris pendant 3 jours, du 25 au 27 : 2 paris par jour sur les hors-jeux, pour de faux. Je te fais un point chaque soir. »
+
+**Mise en œuvre**
+1. `voice.ts` : `KEVIN_VOICE` (la charte en consigne, ajoutée à **tous** les appels `llm.write`, aux rapports d'ordre, aux réponses `voir`, à `answer.ts`, au rapport du matin envoyé par Kevin, aux bilans de phase envoyés par Kevin) ; `pick(variants, key, chatId)` (rotation sans répétition, déterministe en test) ; `voiceCheck(text)` (code) qui repère : formules interdites (« voici », « bien sûr », « n'hésite », « n'hésitez », « je reste à ta disposition », « en tant qu'IA », « en tant qu'assistant », « excellente question », « j'espère que », « il est important de noter », « en résumé », « certainement », « absolument », vouvoiement), plus de 8 lignes, plus d'un emoji (hors ✅ ⚠️ en tête de ligne d'une liste de paris ou de posts), titres ou gras en série, plus de 4 puces sans demande de liste, phrase de plus de 30 mots, jargon interne (liste ci-dessus), même phrase que le message précédent de Kevin.
+2. Texte IA qui échoue au `voiceCheck` → une réécriture par Haiku avec la charte et le motif de l'échec ; échoue encore → texte fixe de secours (déjà conforme). Jamais de chiffre modifié par la réécriture (contrôle « aucun chiffre inventé » refait après).
+3. **Réécrire tous les textes fixes de Kevin** (`boss/*.ts` : `fast.ts`, `guide.ts`, `help.ts`, `nudge.ts`, `confirm.ts`, `execute.ts`, tous les `catalog*.ts` dont `catalog-inspiration.ts` de la phase 27 — réponses, résumés de confirmation, erreurs, relances) avec 2 à 4 variantes chacun, mêmes informations et mêmes chiffres ; `aide` reste une liste (c'est son rôle) mais avec une phrase d'introduction humaine et des exemples de phrases plutôt que des descriptions ; mettre à jour les tests existants.
+4. `voice.test.ts` : chaque texte fixe (toutes variantes, rendues avec des valeurs d'exemple) et une série de réponses IA simulées passent le `voiceCheck` ; zéro échec. Il tourne en CI : toute phrase ajoutée par les phases suivantes (34, 28 à 32) devra le passer.
+5. Règle ajoutée à `CLAUDE.md` : « Tout texte envoyé par Kevin suit `docs/KEVIN-VOIX.md` et passe `voiceCheck`. »
 
 ## 6. Site, tests et livraison
 - **Page Agents → Ordres** : liste (statut, équipe, canal, période, progression, coût), fiche (phrase d'origine, récapitulatif, plan validé, impossibles et replis, missions liées avec leur état, dérogation, chronologie, boutons Arrêter / Prolonger), filtre par équipe ; fiche d'un canal : encart « Dérogation en cours jusqu'au … (ordre #…) ».
@@ -174,5 +216,6 @@ Chaque capacité a un test unitaire par branche de `check` (ok, raison, replis) 
 - **Bilan Telegram** par Kevin (5 lignes) : fait, 3 exemples de phrases qui marchent maintenant (dont celle du client), ce qu'il demande avant d'agir, comment suivre et arrêter, ce qui reste impossible et pourquoi. Puis Kevin **rejoue réellement la phrase du client** si elle est toujours d'actualité (il la propose : « Je lance les 3 jours de paris hors-jeux sur Test ? ») et attend 20 minutes au plus la réponse. Puis crée `docs/PHASE-DONE` (date + « Phase 33 (Kevin donne des ordres aux équipes) terminée, testée et déployée ») et arrête-toi : la file d'attente `docs/prompts/QUEUE`, lue par `scripts/run-phase.sh`, lance la phase suivante toute seule.
 
 ## Fini quand
+- Kevin parle comme un collègue : tous ses textes fixes sont réécrits avec variantes, ses textes IA suivent la charte, `voiceCheck` passe sur tout en CI, et il répond franchement s'il est un bot quand on le lui demande sincèrement.
 - « Qu'est-ce que l'agent des paris sportifs va poster aujourd'hui sur tel canal ? » reçoit une réponse exacte (plan, déjà choisi, aperçu à blanc sur demande) ; chaque agent est nommable et répond par son Chef ; « pourquoi rien n'est sorti ? » donne la vraie cause.
 - Une demande libre à une équipe ne finit plus en « je ne sais pas encore faire ça » quand une capacité existe : elle devient un ordre récapitulé, confirmé quand il le faut, exécuté par l'équipe dans les bornes via des dérogations datées, suivi et rapporté chaque jour, modifiable et arrêtable en une phrase ; ce qui est impossible est nommé avec des replis ; la phrase du client du 24 octobre fonctionne de bout en bout ; le registre permet aux équipes futures de se brancher ; page en ligne ; tests, relecture, déploiement, documentation et bilan faits.

@@ -635,6 +635,30 @@ export async function readOddsTwice(deps: BookmakerReadDeps, siteKey: string, q:
   }
 }
 
+const teamKey = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * Match lu par la lecture directe sans adresse de page : une lecture de la liste par la page retrouve son adresse
+ * (même identifiant, ou mêmes équipes à ± 15 min), gardée sur `BookmakerEvent.url`. Sans elle, aucun second chemin
+ * indépendant n'existerait pour la double lecture. Échec → match inchangé (la double lecture le dira).
+ */
+async function ensureEventUrl(c: Ctx, ev: StoredEvent): Promise<StoredEvent> {
+  if (ev.url || !c.recipe.dom) return ev;
+  let list: SiteEvent[];
+  try {
+    list = await domEvents(c, { from: new Date(ev.startsAt.getTime() - 12 * 3600_000), to: new Date(ev.startsAt.getTime() + 12 * 3600_000) });
+  } catch (err) {
+    if (err instanceof LevelFailure) return ev;
+    throw err;
+  }
+  const home = teamKey(ev.homeTeam);
+  const away = teamKey(ev.awayTeam);
+  const found = list.find((e) => e.url && (e.siteEventId === ev.siteEventId || (teamKey(e.homeTeam) === home && teamKey(e.awayTeam) === away && Math.abs(e.startsAt.getTime() - ev.startsAt.getTime()) <= BOOKMAKER_LIMITS.kickoffMatchToleranceMs)));
+  if (!found?.url) return ev;
+  await c.deps.prisma.bookmakerEvent.updateMany({ where: { siteKey: c.site.key, siteEventId: ev.siteEventId }, data: { url: found.url } });
+  return { ...ev, url: found.url };
+}
+
 async function readOddsTwiceLocked(deps: BookmakerReadDeps, siteKey: string, q: OddsTwiceQuery, base: Omit<Ctx, "transport">, ev: StoredEvent, patterns: string[]): Promise<OddsTwiceResult> {
   return lockOf(deps)(siteKey, async () => {
     let transport: BookmakerTransport;
@@ -644,6 +668,7 @@ async function readOddsTwiceLocked(deps: BookmakerReadDeps, siteKey: string, q: 
       return { ok: false, reason: (err as Error).message, reads: [], code: "error" } as const;
     }
     const c: Ctx = { ...base, transport };
+    ev = await ensureEventUrl(c, ev);
     const reads: SiteOdds[] = [];
     const strip = (o: StoredOdds): SiteOdds => {
       const { id: _id, ...rest } = o;

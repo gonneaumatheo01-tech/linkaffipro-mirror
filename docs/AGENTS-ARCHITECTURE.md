@@ -492,6 +492,12 @@ Rien n'est bloquant pour le développement : tout se construit et se teste en si
 
 - Tableau de bord complet (toutes les équipes, coûts, résultats, réglages en cours), guide utilisateur, conversation Casino et Paris (questions courantes, lien VIP, passage à un humain), relecture générale et tests d'intégration de toute la chaîne, y compris les réglages de l'équipe Algorithme appliqués aux trois autres.
 
+### Phase 35 — Cotes lues chez nos bookmakers (Celsius, Sportaza, Bet Portal)
+
+- `packages/agents/src/bookmakers/` : `transport/` (serveur Playwright ou Mac par `BookmakerReadJob`, verrou par site, rythme, nuit), `guard.ts` (jamais de mise), `learn/` (enregistrement, masquage, Opus, validation, réutilisation par moteur), `read/` (API → page → image, double lecture, diagnostic), `health.ts` (toutes les 30 min, DEGRADED / BLOCKED, ré-apprentissage), `credentials.ts`, `sites.ts` ; fournisseur `providers/bookmaker-direct.ts` choisi par le registre pour une catégorie dont un site est prêt ; vérification avant publication `sports/direct-odds.ts`.
+- Kevin : `voir_matchs`, `cote_de`, `etat_bookmakers`, `apprendre_site`, `tester_site`, `ouvrir_navigateur`, ajout d'un bookmaker (`boss/catalog-bookmakers.ts`, `orders/capabilities/bookmakers.ts`). Site : Agents → Bookmakers.
+- Worker : file `agents-bookmakers` (travaux du serveur, ménage), tâche `bookmakers-health` 30 min. Mac : `pnpm agents:runner:install | status | uninstall`.
+
 ### Durée
 
 Environ 3 semaines de travail autonome (1 à 3 jours par phase, comme les phases précédentes), le Mac restant allumé. Chaque phase est déployée et vérifiée avant la suivante ; tu peux basculer une équipe sur les vrais canaux dès que sa phase est livrée, sans attendre la fin.
