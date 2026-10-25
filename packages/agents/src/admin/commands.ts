@@ -155,7 +155,12 @@ const BOSS_TOKEN_COMMAND = /^\s*(?:jeton|token)\s+(?:du\s+)?(?:boss|kevin)\s*:?\
  * (`sk-ant-…`), ou `xxx:yyy` (jeton de bot Telegram `123456:AAE…`, clé fal `uuid:hex`). Les adresses web, mots-dièse et
  * mentions n'en sont pas.
  */
+/** Paramètre d'adresse qui porte une clé (« ?key=… », « &token=… », « apikey=… ») suivi d'une valeur de 8 caractères ou plus. */
+const URL_SECRET_PARAM = /[?&#;](?:api[_-]?key|apikey|key|token|access[_-]?token|auth[_-]?token|secret|client[_-]?secret|password|pwd|sig|signature)=([^&#\s]{8,})/i;
+
 export function hasKeyLikeToken(text: string): boolean {
+  // Une clé dans une adresse web, même sans le mot « clé » (« https://api.x.com/v1?key=AbC123… »).
+  if (URL_SECRET_PARAM.test(text)) return true;
   return text.split(/\s+/).some((raw) => {
     const w = raw.replace(/^[<>"'«»()[\]{},;.!?]+|[<>"'«»()[\]{},;.!?]+$/gu, "");
     if (!w || /^https?:\/\//i.test(w) || /^www\./i.test(w) || /^[#@]/.test(w)) return false;

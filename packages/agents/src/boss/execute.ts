@@ -6,27 +6,29 @@
  * phase 33 : ce qui bloque, puis UNE chose faisable tout de suite, en question) ; écrit les `BossTurn` ; ne lève JAMAIS.
  * Textes : voix de Kevin (`voice.ts`), 2 à 4 variantes par texte fixe.
  */
-import { adminTelegramId, agentAudit, esc, telegramActorUserId } from "../admin/journal";
+import { adminTelegramId, agentAudit, esc, nowOf, telegramActorUserId } from "../admin/journal";
 import { isSecretAdminText, type SecretTextContext } from "../admin/commands";
 import { askedMessageIdsOf } from "../human/requests";
 import { normalizeText } from "../human/answer";
 import type { BossAction, BossActionClass, BossActor, BossChat, BossDeps, BossPending, BossReply, BossSpeaker, BossTeamInput } from "./contract";
 import type { MentionRef } from "./team/addressed";
-import { adminFirstName, adminMention, findTeamMember, responsibilitiesOf } from "./team/members";
+import { adminFirstName, adminMention, claimMemberPlanTurn, findTeamMember, responsibilitiesOf, BOSS_MEMBER_PLAN_DAILY_LIMIT } from "./team/members";
+import { BOSS_READ_KEYS } from "./team/rights";
 import { findPerson, isNoteOnlyEdit } from "./catalog-team";
 import { bossRequestScope, type BossRequestScope } from "./team/request-scope";
 import { BOSS_CATALOG, bossAction, bossActionAllowed } from "./catalog";
 import type { BossExecDeps } from "./catalog-read";
-import { createBossPending, deferBossPending, readBossPending, rememberBossPendingMessage } from "./confirm";
+import { createBossPending, deferBossPending, readBossPending, rememberBossPendingMessage, shadowBossPending } from "./confirm";
 import { checkAction } from "./catalog-kit";
 import { answerQuestion } from "./answer";
 import { interpretBossText, type BossDecision } from "./interpret";
 import { BossBudgetError } from "./llm";
 import { bossTurnForMessage, updateBossTurn, writeBossTurn, type BossTurnStatus } from "./memory";
-import { readClarify, resolveTeam } from "./resolve";
+import { askToChoose, channelRefs, matchNames, normName, readClarify, resolveTeam } from "./resolve";
 import { recordBossUnmet } from "./unmet";
-import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import { pick, varyAgainst, voiceTemplate, type VoiceTable } from "./voice";
 import { handleOrderRequest } from "../orders/request";
+import { planCacheKeyOf } from "../orders/planner";
 import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
 
 /** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
@@ -46,10 +48,8 @@ export const EXECUTE_VARIANTS = {
   ],
   /** Une seule variante : texte attendu tel quel par le groupe de l'équipe (tests d'intégration). */
   notYours: voiceTemplate<{ name: string }>([{ name: "Mathéo" }, { name: "l'admin" }], (p) => [`Ça, c'est ${p.name} qui décide.`]),
-  oops: voiceTemplate<{ reason: string }>([{ reason: "erreur interne" }, { reason: "l'IA ne répond pas" }], (p) => [
-    `Oups, je n'ai pas réussi : ${p.reason}. Réessaie ou écris aide.`,
-    `Oups, raté : ${p.reason}. Tu peux réessayer, ou écrire aide.`,
-  ]),
+  /** Jamais le message d'erreur brut : le détail va au journal seulement. */
+  oops: ["Oups, ça a raté de mon côté. Réessaie dans une minute.", "Oups, raté de mon côté. Tu réessaies dans une minute ?"],
   escalateDeferred: voiceTemplate<{ name: string }>([{ name: "Mathéo" }], (p) => [
     `${p.name} a déjà une décision en attente : je lui transmets ta demande juste après.`,
     `${p.name} a déjà une décision en attente, je lui passe ta demande juste après.`,
@@ -70,6 +70,23 @@ export const EXECUTE_VARIANTS = {
   unmetNoted: ["Je l'ai noté.", "C'est noté pour la suite."],
   unmetNoOffer: ["Écris aide pour voir ce que je sais faire.", "Tu peux écrire aide pour voir ce que je sais faire."],
   unmetOffer: voiceTemplate<{ what: string }>([{ what: "te dire où en sont les agents" }], (p) => [`Par contre je peux ${p.what}, tu veux ?`, `À la place, je peux ${p.what}. Ça te va ?`]),
+  /** Une confirmation attend déjà : la proposition se prend par le numéro, jamais par OUI (le OUI reste à l'autre). */
+  unmetOfferNumber: voiceTemplate<{ what: string }>([{ what: "te dire où en sont les agents" }], (p) => [
+    `Par contre je peux ${p.what} : réponds 1 si tu veux. Ta demande d'avant attend toujours ton OUI.`,
+    `À la place, je peux ${p.what}. Pour ça réponds 1 ; le OUI reste pour ta demande d'avant.`,
+  ]),
+  /** Membre sans droit de lancer cet ordre : Kevin transmet sa demande à l'admin, en une ligne, sans la préparer. */
+  orderToAdmin: voiceTemplate<{ admin: string; who: string; ask: string }>(
+    [
+      { admin: "@matheo", who: "Léa", ask: "programme 2 posts par jour sur Roulette Pro en vrai" },
+      { admin: "Mathéo,", who: "Marc", ask: "mets 3 paris corners sur le canal Test" },
+    ],
+    (p) => [`${p.admin} ${p.who} demande : « ${p.ask} ». Si tu es d'accord, redis-le-moi et je le prépare.`, `${p.admin} ${p.who} voudrait : « ${p.ask} ». Tu me le redis si tu valides, je m'en occupe.`],
+  ),
+  orderQuota: voiceTemplate<{ max: number; name: string }>([{ max: 5, name: "Mathéo" }], (p) => [
+    `Tu as déjà fait ${p.max} demandes de ce genre aujourd'hui : je passe celle-ci à ${p.name}.`,
+    `${p.max} demandes de ce genre aujourd'hui, c'est le maximum : je transmets celle-ci à ${p.name}.`,
+  ]),
   empty: [
     "Je n'ai rien lu dans ce message. Tu me dis ce que tu veux en quelques mots ?",
     "Message vide de mon côté. Écris-moi ce que tu veux, en deux mots.",
@@ -78,12 +95,12 @@ export const EXECUTE_VARIANTS = {
 
 const V = EXECUTE_VARIANTS;
 
-export const NO_AI_REPLY = V.noAi[0];
+export const NO_AI_REPLY = V.noAi[0]!;
 export const NO_AI_REPLIES = V.noAi;
 /** Début d'une réponse « vraiment impossible » (variantes : `UNMET_HEADS`). */
-export const UNMET_HEAD = V.unmetHead[0];
+export const UNMET_HEAD = V.unmetHead[0]!;
 export const UNMET_HEADS = V.unmetHead;
-export const SECRET_REMOVED_REPLY = V.secretRemoved[0];
+export const SECRET_REMOVED_REPLY = V.secretRemoved[0]!;
 export const FORWARDED_REPLIES = V.forwarded;
 /** Texte d'un message transféré gardé dans la mémoire (jamais son contenu, qui partirait à l'IA). */
 export function forwardedMemoryText(text: string): string {
@@ -102,9 +119,23 @@ export function looksLikeBotToken(text: string): boolean {
   return bossTokenCommand(text) !== null || /(?<![\w])\d{6,12}:[A-Za-z0-9_-]{30,}/.test(text);
 }
 
-export function oopsReply(reason: string): string {
-  const r = esc(reason.slice(0, 120));
-  return pick(V.oops({ reason: r }), "execute.oops");
+/** Réponse simple après une panne (jamais le détail de l'erreur, qui reste au journal de l'appelant). */
+export function oopsReply(_reason?: string, chatId?: bigint | string | null): string {
+  return pick(V.oops, "execute.oops", chatId ?? null);
+}
+
+/** Dernier message de Kevin dans cette conversation (`BossTurn`), pour le contrôle de répétition ; null sinon. */
+export async function lastBossText(deps: BossDeps, chatId: bigint | null, excludeId?: string | null): Promise<string | null> {
+  try {
+    const row = (await deps.prisma.bossTurn.findFirst({
+      where: { role: "BOSS", chatId, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+      orderBy: { createdAt: "desc" },
+      select: { text: true },
+    })) as { text: string } | null;
+    return row?.text && row.text !== "…" ? row.text : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -314,9 +345,15 @@ export async function runBossAction(
 /** Action confirmée par OUI : revalidée par le code, puis exécutée (bornes revérifiées par l'entrée). */
 export async function runConfirmedAction(deps: BossDeps, pending: BossPending, actor: BossActor): Promise<BossReply> {
   const action = bossAction(pending.actionKey, { includeHidden: true });
-  if (!action) return { reply: oopsReply("action inconnue") };
+  if (!action) {
+    deps.logger?.error({ action: pending.actionKey }, "[boss] action confirmée inconnue");
+    return { reply: oopsReply() };
+  }
   const parsed = action.parse(pending.params);
-  if (!parsed.ok) return { reply: oopsReply(parsed.error) };
+  if (!parsed.ok) {
+    deps.logger?.error({ err: parsed.error, action: action.key }, "[boss] paramètres de l'action confirmée illisibles");
+    return { reply: oopsReply() };
+  }
   try {
     const r = await action.execute(deps, parsed.params as Record<string, unknown>, actor);
     await audit(deps, action.key, actor, { status: "done", confirmed: true, params: safeParams(parsed.params as Record<string, unknown>) });
@@ -324,7 +361,7 @@ export async function runConfirmedAction(deps: BossDeps, pending: BossPending, a
     return r;
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message, action: action.key }, "[boss] action confirmée en échec");
-    return { reply: oopsReply((err as Error).message || "erreur interne") };
+    return { reply: oopsReply() };
   }
 }
 
@@ -361,11 +398,16 @@ export function nearestActions(text: string, catalog: readonly BossAction[] = BO
   return out.slice(0, n);
 }
 
-/** Une action proposée en question : sans paramètre requis (rejouable telle quelle par OUI). */
-function suggestable(a: BossAction): boolean {
-  return a.parse({}).ok && !ORDER_INTERNAL.has(a.key) && a.key !== "aide";
+/**
+ * Une action proposée quand Kevin ne peut pas : une LECTURE seulement (`BOSS_READ_KEYS`), immédiate, sans paramètre
+ * requis (rejouable telle quelle par OUI). Jamais une action qui change, défait ou dépense quelque chose
+ * (`annuler_reglage`, `arreter_ordre`, `plus_tard`, `test_bookmaker`…) : un OUI ne défait jamais rien.
+ */
+export function suggestable(a: BossAction): boolean {
+  return BOSS_READ_KEYS.has(a.key) && !NOT_SUGGESTED.has(a.key) && a.cls === "immediate" && !a.classify && a.parse({}).ok;
 }
-const ORDER_INTERNAL = new Set(["confirmer_ordre", "ordre_repli", "ordre_choix", "annule", "commencer"]);
+/** Lectures jamais proposées : l'aide (déjà citée), et celles qui lancent un travail ou des appels payants. */
+const NOT_SUGGESTED = new Set(["aide", "analyser_canal", "apercu_matchs", "voir_matchs_bookmaker", "demander_equipe"]);
 
 /** Fragment d'une description (« Dire où en sont… » → « te dire où en sont… »), pur. */
 function offerFragment(description: string): string {
@@ -378,19 +420,91 @@ function offerFragment(description: string): string {
  * Demande vraiment impossible (règle 3) : ce qui bloque en une phrase, puis UNE chose faisable tout de suite en
  * question (OUI / NON quand aucune autre confirmation n'attend) ; la demande est notée. Plus jamais de refus sec.
  */
-export async function unmetReply(deps: BossDeps, text: string, secretContext?: SecretTextContext | null, chat?: BossChat | null): Promise<BossReply> {
+export async function unmetReply(
+  deps: BossDeps,
+  text: string,
+  secretContext?: SecretTextContext | null,
+  chat?: BossChat | null,
+  speaker?: BossSpeaker | null,
+): Promise<BossReply> {
   await recordBossUnmet(deps, text, secretContext ?? null);
   const chatId = chat?.chatId ?? null;
   const near = nearestActions(text).filter(suggestable);
-  const offer = near[0] ?? BOSS_CATALOG.find((a) => a.key === "etat_general") ?? null;
+  const fallback = BOSS_CATALOG.find((a) => a.key === "etat_general") ?? null;
+  const offer = near[0] ?? (fallback && suggestable(fallback) ? fallback : null);
   const head = pick(UNMET_HEADS, "execute.unmet.head", chatId);
   const noted = pick(V.unmetNoted, "execute.unmet.noted", chatId);
   if (!offer) return { reply: `${head} ${noted} ${pick(V.unmetNoOffer, "execute.unmet.nooffer", chatId)}` };
-  const question = pick(V.unmetOffer({ what: esc(offerFragment(offer.description)) }), "execute.unmet.offer", chatId);
+  const what = esc(offerFragment(offer.description));
   const pending = await readBossPending(deps);
-  if (pending && !pending.expired) return { reply: `${head} ${noted}\n${question}` };
+  if (pending && !pending.expired) {
+    // Une confirmation attend déjà : JAMAIS une seconde question en OUI (un OUI confirmerait l'ancienne). La
+    // proposition se prend par le numéro « 1 », et le prochain OUI sans « Répondre » fera d'abord redemander.
+    await askToChoose({ ...deps, speaker: speaker ?? null, chat: chat ?? null } as BossDeps, {
+      actionKey: offer.key,
+      params: {},
+      field: "",
+      question: "",
+      options: [{ label: offerFragment(offer.description), value: "" }],
+    });
+    await shadowBossPending(deps, pending.id);
+    return { reply: `${head} ${noted}\n${pick(V.unmetOfferNumber({ what }), "execute.unmet.offer.number", chatId)}` };
+  }
+  const question = pick(V.unmetOffer({ what }), "execute.unmet.offer", chatId);
   const r = await createBossPending(deps, { actionKey: offer.key, params: {}, summary: question.replace(/<[^>]+>/g, ""), chatId });
   return { reply: `${head} ${noted}\n${question}`, buttons: r.buttons, pendingId: r.pendingId };
+}
+
+// ------------------------------------------------------------------------------------------- ordres d'un membre
+
+const LIVE_WORDS = /\b(en vrai|pour de vrai|vrai canal|vrais canaux|en reel|pour de bon)\b/;
+
+/** L'ordre demandé vise-t-il clairement un vrai canal, le mode réel ou plus de 7 jours (avant tout plan) ? */
+async function obviouslyNeedsAdmin(deps: BossDeps, text: string, canal: string | null | undefined): Promise<boolean> {
+  const n = normalizeText(text);
+  if (LIVE_WORDS.test(n)) return true;
+  const days = [...n.matchAll(/(\d{1,3})\s*(?:jours|jour|j)\b/g)].map((m) => Number(m[1]));
+  if (days.some((d) => d > 7) || /\b(semaines|mois)\b/.test(n)) return true;
+  const refs = await channelRefs(deps).catch(() => []);
+  if (canal) {
+    const hits = matchNames(canal, refs);
+    if (hits.some((c) => !c.isTest)) return true;
+  }
+  const folded = normName(text);
+  return refs.some((c) => !c.isTest && normName(c.name).length >= 4 && folded.includes(normName(c.name)));
+}
+
+/**
+ * Coût (règle des membres) : un membre qui n'a pas le droit de lancer cet ordre (simple membre, ou vrai canal, mode
+ * réel, plus de 7 jours) ne déclenche PAS le planificateur : Kevin transmet sa demande à l'admin en une ligne. Un
+ * responsable a au plus `BOSS_MEMBER_PLAN_DAILY_LIMIT` planifications par jour (un plan en cache ne compte pas).
+ * L'admin n'est limité que par le plafond. Rend la réponse, ou null (le planificateur peut tourner).
+ */
+async function memberOrderGate(deps: BossDeps, input: BossTeamInput, canal: string | null | undefined, actor: BossActor): Promise<RunResult | null> {
+  const speaker = input.speaker;
+  if (!speaker || speaker.kind !== "member") return null;
+  const text = input.spokenText ?? input.text;
+  const mayLaunch = (speaker.role === "MANAGER" || speaker.role === "ADMIN") && !(await obviouslyNeedsAdmin(deps, text, canal));
+  if (mayLaunch) {
+    const cached = await deps.prisma.teamOrder
+      .findFirst({ where: { planCacheKey: planCacheKeyOf(text), createdAt: { gte: new Date(nowOf(deps).getTime() - 24 * 3600_000) } } })
+      .catch(() => null);
+    if (cached || (await claimMemberPlanTurn(deps, speaker.telegramUserId))) return null;
+  }
+  const group = input.chat?.type === "group";
+  const chatId = input.chat?.chatId ?? null;
+  const ask = esc(text.replace(/\s+/g, " ").trim().slice(0, 200));
+  const adminName = esc(await adminFirstName(deps).catch(() => "l'admin"));
+  const line = pick(V.orderToAdmin({ admin: group ? await adminMention(deps) : `${adminName},`, who: esc(speaker.firstName), ask }), "execute.order.toadmin", chatId);
+  await audit(deps, "ordre_equipe", actor, { status: mayLaunch ? "quota" : "transmitted", params: safeParams({ demande: text }) }, speaker);
+  const quota = mayLaunch ? `${pick(V.orderQuota({ max: BOSS_MEMBER_PLAN_DAILY_LIMIT, name: adminName }), "execute.order.quota", chatId)}\n` : "";
+  if (group) return { reply: `${quota}${line}`, status: "confirm" };
+  try {
+    await deps.admin?.send(line);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[boss] demande d'ordre transmise non envoyée");
+  }
+  return { reply: quota ? quota.trim() : pick(V.escalated({ name: adminName }), "execute.escalate.done", chatId), status: "confirm" };
 }
 
 // ------------------------------------------------------------------------------------------- tour avec l'IA
@@ -401,6 +515,7 @@ async function handleDecision(
   input: BossTeamInput,
   actor: BossActor,
   secretContext: SecretTextContext,
+  runningTurnId: string | null = null,
 ): Promise<RunResult & { costCents?: number; actionKey: string }> {
   switch (decision.type) {
     case "action": {
@@ -423,10 +538,15 @@ async function handleDecision(
         const t = resolveTeam(decision.team, { allowAll: true });
         team = t.ok && t.value !== "all" ? t.value : null;
       }
-      const a = await answerQuestion(deps, { topic: decision.topic, question: decision.question, team, period: decision.period });
+      // Dernier message de Kevin : contrôle de répétition de la réponse rédigée (`kevinText`).
+      const previous = await lastBossText(deps, input.chat?.chatId ?? null, runningTurnId);
+      const a = await answerQuestion({ ...deps, voicePrevious: previous } as BossDeps, { topic: decision.topic, question: decision.question, team, period: decision.period });
       return { reply: a.reply, status: "answered", costCents: a.costCents, actionKey: "repondre_question" };
     }
     case "ordre": {
+      // Membre : droits et limite du jour AVANT le planificateur (Opus, le plus cher).
+      const gated = await memberOrderGate(deps, input, decision.canal ?? null, actor);
+      if (gated) return { ...gated, actionKey: "ordre_equipe" };
       // Temps 2 : le planificateur reçoit le message de l'admin tel quel (jamais la reformulation de l'IA seule).
       const memory = input.chat
         ? await turnsForSpeaker(deps, { chatId: input.chat.chatId, fromTelegramId: input.speaker?.telegramUserId ?? null }).catch(() => [])
@@ -443,7 +563,7 @@ async function handleDecision(
       return { ...reply, status, costCents, actionKey: "ordre_equipe" };
     }
     case "pas_prevu":
-      return { ...(await unmetReply(deps, input.text, secretContext, input.chat)), status: "unmet", actionKey: "pas_prevu" };
+      return { ...(await unmetReply(deps, input.text, secretContext, input.chat, input.speaker)), status: "unmet", actionKey: "pas_prevu" };
   }
 }
 
@@ -474,6 +594,8 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     await writeBossTurn(deps, { role: "ADMIN", text, source: input.source, telegramMessageId: input.messageId, chatId, fromTelegramId: fromId });
     const turnId = await writeBossTurn(deps, { role: "BOSS", text: "…", status: "running", telegramMessageId: input.messageId, chatId });
     const finish = async (r: BossReply, status: BossTurnStatus, actionKey: string, costCents = 0): Promise<BossReply> => {
+      // Contrôle de répétition branché à l'envoi (texte fixe répété → une autre de ses variantes).
+      if (r.reply) r = { ...r, reply: varyAgainst(r.reply, await lastBossText(deps, chatId, turnId)) };
       await updateBossTurn(deps, turnId, { text: r.reply ?? "", status, actionKey, costCents });
       return r;
     };
@@ -489,13 +611,13 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
     } catch (err) {
       if (err instanceof BossBudgetError) return finish({ reply: pick(NO_AI_REPLIES, "execute.noai", chatId) }, "error", "plafond");
       deps.logger?.warn({ err: (err as Error).message }, "[boss] interprète en échec");
-      return finish({ reply: oopsReply("l'IA ne répond pas") }, "error", "erreur");
+      return finish({ reply: oopsReply(undefined, chatId) }, "error", "erreur");
     }
-    const r = await handleDecision(deps, interpreted.decision, input, actor, secretContext);
+    const r = await handleDecision(deps, interpreted.decision, input, actor, secretContext, turnId);
     const { status, actionKey, costCents, ...reply } = r;
     return finish(reply, status, actionKey, interpreted.costCents + (costCents ?? 0));
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message }, "[boss] tour en échec");
-    return { reply: oopsReply((err as Error).message || "erreur interne") };
+    return { reply: oopsReply(undefined, input.chat?.chatId ?? null) };
   }
 }

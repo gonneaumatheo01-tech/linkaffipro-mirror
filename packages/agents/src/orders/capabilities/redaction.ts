@@ -8,7 +8,7 @@ import { STYLE_NOTES_MAX } from "../../agents/synthese/bounds";
 import { proposeRecommendation } from "../../agents/synthese/proposals";
 import { channelRefs, matchNames } from "../../boss/resolve";
 import type { AgentsDeps } from "../../types";
-import { alt, defineCapability, done, failed, ok, orderActor, refuse } from "./kit";
+import { alt, defineCapability, done, failed, ok, orderActor, refuse, settingTouches } from "./kit";
 
 const T = "transverse" as const;
 export const KEVIN_NOTE_TAG = "[Consigne de l'admin]";
@@ -53,18 +53,31 @@ export const consignesCanal = defineCapability<NoteP>({
   async plan(deps, p) {
     const { c, plan } = await target(deps, p.canal);
     if (!c || !plan) return [];
-    const after = notesWith(plan.styleNotes, p.retirer ? null : (p.consigne ?? null));
-    return [{ stepKey: `consignes_canal:${c.id}`, capability: "consignes_canal", teamKey: T, summary: p.retirer ? `retirer tes consignes d'écriture sur ${c.name}` : `consigne d'écriture sur ${c.name} : « ${p.consigne} »`, params: { channelId: c.id, teamKey: plan.teamKey, before: plan.styleNotes, after } }];
+    return [
+      {
+        stepKey: `consignes_canal:${c.id}`,
+        capability: "consignes_canal",
+        teamKey: T,
+        summary: p.retirer ? `retirer tes consignes d'écriture sur ${c.name}` : `consigne d'écriture sur ${c.name} : « ${p.consigne} »`,
+        touches: settingTouches([c.id], false),
+        // Seulement la consigne : les consignes du canal sont relues au moment d'écrire (rien de figé à la préparation).
+        params: { channelId: c.id, teamKey: plan.teamKey, consigne: p.retirer ? null : (p.consigne ?? null), retirer: p.retirer === true },
+      },
+    ];
   },
   async run(deps, order, step) {
     const channelId = String(step.params.channelId);
+    const plan = (await deps.prisma.channelAgentPlan.findUnique({ where: { channelId } })) as { teamKey: string; styleNotes: string | null } | null;
+    if (!plan) return failed("Ce canal n'a plus de plan d'agents.");
+    const consigne = step.params.retirer === true ? null : typeof step.params.consigne === "string" ? step.params.consigne : null;
+    const after = notesWith(plan.styleNotes, consigne);
     const rec = await proposeRecommendation(deps, {
-      teamKey: String(step.params.teamKey),
+      teamKey: plan.teamKey,
       target: "CHANNEL_PLAN",
       targetId: channelId,
       field: "styleNotes",
-      before: step.params.before ?? null,
-      after: step.params.after ?? "",
+      before: plan.styleNotes ?? null,
+      after: after ?? "",
       evidence: { source: "admin", orderId: order.id },
       expectedGain: "Consigne donnée par l'admin à Kevin.",
       size: "SMALL",

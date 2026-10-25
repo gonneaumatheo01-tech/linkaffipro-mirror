@@ -83,10 +83,19 @@ export async function bossBudgetState(
   return { allowed: spend.cents < capCents, spentCents: spend.cents, capCents };
 }
 
+/** Délai du planificateur (Opus) : 120 s, SANS relance automatique (un appel long et cher ne part jamais deux fois). */
+export const BOSS_PLAN_TIMEOUT_MS = 120_000;
+/** Délai des appels courts (interprète, rédaction) : 30 s, une relance. */
+export const BOSS_CALL_TIMEOUT_MS = 30_000;
+
 export type BossLlmOptions = {
   /** Client IA (tests) ; sinon le client Anthropic avec la clé de Réglages → IA. */
   client?: AiClient;
+  /** Client du planificateur (Opus : 120 s, sans relance) ; absent = `client`. */
+  planClient?: AiClient;
   factory?: (apiKey: string) => AiClient;
+  /** Fabrique du client du planificateur (tests) ; sinon le client Anthropic à 120 s sans relance. */
+  planFactory?: (apiKey: string) => AiClient;
   model?: string;
   now?: () => Date;
   /** Messager admin pour les alertes 80 % / 100 %. */
@@ -184,13 +193,20 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
     },
     async plan(req) {
       await guard();
-      const res = await client.createMessage({
-        model: PLANNER_MODEL,
-        maxTokens: BOSS_PLAN_MAX_TOKENS,
-        effort: "medium",
-        system: [{ text: req.system, cache: true }],
-        user: req.user,
-      });
+      let res: Awaited<ReturnType<AiClient["createMessage"]>>;
+      try {
+        res = await (opts.planClient ?? client).createMessage({
+          model: PLANNER_MODEL,
+          maxTokens: BOSS_PLAN_MAX_TOKENS,
+          effort: "medium",
+          system: [{ text: req.system, cache: true }],
+          user: req.user,
+        });
+      } catch (err) {
+        // Un appel qui échoue (délai dépassé, coupure) est peut-être facturé : compté à l'estimation.
+        await count(estimatedFailedPlanCents(req));
+        throw err;
+      }
       const costCents = costCentsOf(PLANNER_MODEL, res.usage);
       await count(costCents);
       return { text: res.text, costCents };
@@ -211,6 +227,16 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
 }
 
 /**
+ * Estimation du coût d'un appel du planificateur en échec (pur) : la demande entière en entrée (4 caractères par
+ * jeton), et la moitié du plafond de sortie (réflexion comprise) ; au moins 1 centime.
+ */
+export function estimatedFailedPlanCents(req: { system: string; user: string }): number {
+  const inputTokens = Math.ceil((req.system.length + req.user.length) / 4);
+  const cents = costCentsOf(PLANNER_MODEL, { inputTokens, outputTokens: Math.round(BOSS_PLAN_MAX_TOKENS / 2), cachedTokens: 0, cacheWriteTokens: 0 });
+  return Math.max(1, cents);
+}
+
+/**
  * IA du Boss si une clé est réglée et le plafond du mois pas atteint ; sinon null (le Boss ne garde que les
  * commandes exactes et le dit).
  */
@@ -220,8 +246,9 @@ export async function loadBossLlm(prisma: PrismaClient, opts: BossLlmOptions = {
   if (opts.client) return bossLlmFromClient(prisma, opts.client, opts);
   const key = await readAiApiKey(prisma);
   if (!key) return null;
-  const client = (opts.factory ?? ((k: string) => createAnthropicClient(k, { timeoutMs: 30_000 })))(key);
-  return bossLlmFromClient(prisma, client, opts);
+  const client = (opts.factory ?? ((k: string) => createAnthropicClient(k, { timeoutMs: BOSS_CALL_TIMEOUT_MS })))(key);
+  const planClient = (opts.planFactory ?? ((k: string) => createAnthropicClient(k, { timeoutMs: BOSS_PLAN_TIMEOUT_MS, maxRetries: 0 })))(key);
+  return bossLlmFromClient(prisma, client, { ...opts, planClient });
 }
 
 // ---------------------------------------------------------------------------------------------------------------

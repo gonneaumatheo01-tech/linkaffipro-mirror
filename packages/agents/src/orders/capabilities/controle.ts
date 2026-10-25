@@ -7,7 +7,7 @@
 import { agentAudit } from "../../admin/journal";
 import { channelRefs, matchNames, teamOf } from "../../boss/resolve";
 import { TEAM_LABELS, isTeamKey, type AgentsDeps, type TeamKey } from "../../types";
-import { alt, defineCapability, done, ok, orderActor, refuse } from "./kit";
+import { alt, defineCapability, done, failed, ok, orderActor, refuse, settingTouches } from "./kit";
 
 type WordP = { mot: string; canal?: string; equipe?: string; retirer?: boolean };
 
@@ -46,9 +46,7 @@ export const motInterdit = defineCapability<WordP>({
   async plan(deps, p) {
     const { team, channel } = await teamOfTarget(deps, p);
     if (!team || !isTeamKey(team)) return [];
-    const before = await wordsOf(deps, team);
     const w = p.mot.trim().toLowerCase();
-    const after = p.retirer ? before.filter((x) => x.toLowerCase() !== w) : before.some((x) => x.toLowerCase() === w) ? before : [...before, w];
     return [
       {
         stepKey: `mot_interdit:${team}:${w}:${p.retirer ? "retirer" : "ajouter"}`,
@@ -56,15 +54,22 @@ export const motInterdit = defineCapability<WordP>({
         teamKey: "transverse",
         summary: `${p.retirer ? "réautoriser" : "interdire"} « ${w} »${channel ? ` (${channel})` : ""}`,
         clamped: channel ? [`il n'y a pas de liste par canal : le mot vaut pour tous les canaux ${TEAM_LABELS[team]}`] : [],
-        params: { team, before, after },
+        // Réglage de toute l'équipe (ajout comme retrait) : toujours confirmé, réservé à l'admin.
+        touches: settingTouches([], true),
+        // Seulement le mot et le sens : la liste est relue au moment d'écrire (rien de figé à la préparation).
+        params: { team, word: w, remove: p.retirer === true },
       },
     ];
   },
   async run(deps, order, step) {
     const team = step.params.team as TeamKey;
-    const after = (step.params.after as string[]) ?? [];
+    const w = String(step.params.word ?? "").trim().toLowerCase();
+    if (!w || !isTeamKey(team)) return failed("Mot manquant.");
+    const before = await wordsOf(deps, team);
+    const after = step.params.remove === true ? before.filter((x) => x.toLowerCase() !== w) : before.some((x) => x.toLowerCase() === w) ? before : [...before, w];
+    if (after.length === before.length && after.every((x, i) => x === before[i])) return done(step.params.remove ? `« ${w} » n'était pas interdit.` : `« ${w} » est déjà interdit.`);
     await deps.prisma.agentTeamConfig.upsert({ where: { teamKey: team }, create: { teamKey: team, forbiddenWords: after }, update: { forbiddenWords: after, updatedById: order.createdById } });
-    await agentAudit(deps, { userId: order.createdById, action: "agents.team.forbidden_words", entityType: "AgentTeamConfig", entityId: team, metadata: { before: step.params.before, after, orderId: order.id, via: orderActor(order).via } });
+    await agentAudit(deps, { userId: order.createdById, action: "agents.team.forbidden_words", entityType: "AgentTeamConfig", entityId: team, metadata: { before, after, word: w, removed: step.params.remove === true, orderId: order.id, via: orderActor(order).via } });
     return done(`Mots interdits de l'équipe ${TEAM_LABELS[team]} : ${after.join(", ") || "aucun"}.`);
   },
   async report(_deps, order) {

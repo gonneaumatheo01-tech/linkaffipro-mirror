@@ -15,7 +15,7 @@ import { loadCasinoSettings, themeKey } from "../../casino/settings";
 import { readCasinoThemes } from "../../casino/themes";
 import { askHuman } from "../../human/requests";
 import type { AgentsDeps } from "../../types";
-import { alt, defineCapability, done, list, ok, refuse, type Mix } from "./kit";
+import { alt, defineCapability, done, list, ok, readOnly, refuse, type Mix } from "./kit";
 import { changePlan, postUnique, programPosts, questionCapability, teamDayFacts, wantedMix, type PostsTeam, type ProgramPostsP } from "./posts";
 
 const T = "casino" as const;
@@ -107,7 +107,7 @@ export const demanderMedias = defineCapability<AskMediaP>({
   async plan(deps, p) {
     const r = p.themes?.length ? await resolveCasinoThemes(deps, p.themes) : { ok: true as const, themes: await readCasinoThemes(deps) };
     const themes = r.ok ? r.themes.slice(0, 5) : [];
-    return [{ stepKey: "demander_medias", capability: "demander_medias", teamKey: T, summary: `demander ${p.nombre ?? 5} vidéos casino (${themes.join(", ")})`, params: { themes, nombre: p.nombre ?? 5 } }];
+    return [{ stepKey: "demander_medias", capability: "demander_medias", teamKey: T, summary: `demander ${p.nombre ?? 5} vidéos casino (${themes.join(", ")})`, touches: readOnly(), params: { themes, nombre: p.nombre ?? 5 } }];
   },
   async run(deps, order, step) {
     const themes = (step.params.themes as string[]) ?? [];

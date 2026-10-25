@@ -68,7 +68,8 @@ export async function answerQuestion(
     const ok = checkedAnswer(r.text, collected.facts);
     if (!ok) return { reply: fallback, costCents: r.costCents, checked: "code" };
     // Charte de Kevin : contrôle de la voix, une réécriture au plus (chiffres recontrôlés), sinon les lignes du code.
-    const voiced = await kevinText({ llm: deps.llm, draft: ok.join("\n"), facts: collected.facts, fallback: "" });
+    // Dernier message de Kevin dans la conversation (posé par `bossAiTurn`) : contrôle de répétition.
+    const voiced = await kevinText({ llm: deps.llm, draft: ok.join("\n"), facts: collected.facts, fallback: "", previous: (deps as { voicePrevious?: string | null }).voicePrevious ?? null });
     const final = voiced.source === "fallback" ? null : checkedAnswer(voiced.text, collected.facts);
     const cost = r.costCents + voiced.costCents;
     if (!final) return { reply: fallback, costCents: cost, checked: "code" };

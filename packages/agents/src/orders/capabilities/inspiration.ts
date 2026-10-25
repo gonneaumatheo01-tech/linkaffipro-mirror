@@ -9,7 +9,7 @@ import { activeReferences, referenceLabel, targetIdsOf, type ReferenceRow } from
 import { inspirationProposals } from "../../inspiration/proposals";
 import { channelRefs, matchNames } from "../../boss/resolve";
 import type { AgentsDeps } from "../../types";
-import { alt, defineCapability, done, failed, ok, orderActor, refuse } from "./kit";
+import { alt, defineCapability, done, failed, ok, orderActor, readOnly, refuse, settingTouches } from "./kit";
 
 const T = "inspiration" as const;
 const AGENTS = ["posts", "synthese", "redaction"];
@@ -25,6 +25,12 @@ async function findRef(deps: AgentsDeps, raw: string | undefined): Promise<{ ref
 
 type AnalyseP = { canal: string; canal_cible: string };
 
+/** Lien d'invitation Telegram (canal privé) : `t.me/+…`, `t.me/joinchat/…`, `tg://join?invite=…` (pur). */
+export function isInviteLink(raw: string): boolean {
+  const v = raw.trim().toLowerCase();
+  return /(^|\/\/|\b)(t\.me|telegram\.me|telegram\.dog)\/(\+|joinchat\b)/.test(v) || /^\+[a-z0-9_-]{8,}$/i.test(v) || /tg:\/\/join\?invite=/.test(v) || /\bjoinchat\//.test(v);
+}
+
 export const analyserCanal = defineCapability<AnalyseP>({
   teamKey: T,
   key: "analyser_canal",
@@ -36,6 +42,10 @@ export const analyserCanal = defineCapability<AnalyseP>({
   },
   limits: { modes: ["simulation", "real"] },
   async check(deps, p) {
+    // Lien d'invitation (canal privé) : entrer dans le canal avec le compte réel demande le OUI de l'admin, que seule la
+    // phrase dite directement à Kevin pose (catalogue `analyser_canal`). Un ordre ne le fait jamais (relecture du 25 oct).
+    if (isInviteLink(p.canal))
+      return refuse("C'est un lien d'invitation vers un canal privé : pour y entrer avec le compte, dis-le-moi directement (« analyse ce canal pour … ») et je te demanderai ton OUI.", []);
     const refs = (await channelRefs(deps)).filter((c) => !c.isTest);
     const found = matchNames(p.canal_cible, refs);
     if (found.length !== 1)
@@ -43,9 +53,11 @@ export const analyserCanal = defineCapability<AnalyseP>({
     return ok();
   },
   async plan(_deps, p) {
-    return [{ stepKey: `analyser_canal:${p.canal}`, capability: "analyser_canal", teamKey: T, summary: `analyser ${p.canal} pour ${p.canal_cible}`, params: { canal: p.canal, canal_cible: p.canal_cible } }];
+    return [{ stepKey: `analyser_canal:${p.canal}`, capability: "analyser_canal", teamKey: T, summary: `analyser ${p.canal} pour ${p.canal_cible}`, touches: readOnly(), params: { canal: p.canal, canal_cible: p.canal_cible } }];
   },
   async run(deps, order, step) {
+    // Revérifié au moment d'agir : jamais d'entrée par un lien d'invitation depuis un ordre.
+    if (isInviteLink(String(step.params.canal ?? ""))) return failed("Lien d'invitation : à me dire directement, je demande ton OUI avant d'entrer.");
     // Même entrée que la phrase dite à Kevin (import différé : pas de cycle entre le registre et le catalogue).
     const { analyserCanal: action } = await import("../../boss/catalog-inspiration");
     const params = { canal: String(step.params.canal), canal_cible: String(step.params.canal_cible) };
@@ -106,7 +118,7 @@ export const appliquerInspiration = defineCapability<ApplyP>({
     if (!x.ok || !x.r.ok) return [];
     const nums = parseNumbers(p.numeros, x.r.proposals.length);
     const chosen = x.r.proposals.filter((q) => nums.includes(q.number));
-    return [{ stepKey: `appliquer_inspiration:${x.ref.id}:${nums.join(",")}`, capability: "appliquer_inspiration", teamKey: T, summary: `appliquer ${chosen.map((q) => q.label).join(" ; ")}`, params: { ids: chosen.flatMap((q) => q.recommendationIds) } }];
+    return [{ stepKey: `appliquer_inspiration:${x.ref.id}:${nums.join(",")}`, capability: "appliquer_inspiration", teamKey: T, summary: `appliquer ${chosen.map((q) => q.label).join(" ; ")}`, touches: settingTouches([x.channelId], false), params: { ids: chosen.flatMap((q) => q.recommendationIds) } }];
   },
   async run(deps, order, step) {
     const r = await applyInspiration(deps, (step.params.ids as string[]) ?? [], orderActor(order));
@@ -133,7 +145,7 @@ export const annulerInspiration = defineCapability<{ reference?: string }>({
   async plan(deps, p) {
     let refId: string | null = p.reference ? ((await findRef(deps, p.reference)).ref?.id ?? null) : null;
     if (!refId) refId = ((await deps.prisma.recommendation.findFirst({ where: { source: "inspiration", status: "APPLIED" }, orderBy: { appliedAt: "desc" } })) as { referenceChannelId: string | null } | null)?.referenceChannelId ?? null;
-    return refId ? [{ stepKey: `annuler_inspiration:${refId}`, capability: "annuler_inspiration", teamKey: T, summary: "remettre les réglages d'avant l'inspiration", params: { referenceChannelId: refId } }] : [];
+    return refId ? [{ stepKey: `annuler_inspiration:${refId}`, capability: "annuler_inspiration", teamKey: T, summary: "remettre les réglages d'avant l'inspiration", touches: settingTouches([], true), params: { referenceChannelId: refId } }] : [];
   },
   async run(deps, order, step) {
     const r = await undoInspiration(deps, String(step.params.referenceChannelId), orderActor(order));
@@ -163,7 +175,7 @@ export const questionInspiration = defineCapability<{ sujet?: string }>({
     return ok();
   },
   async plan(_deps, p) {
-    return [{ stepKey: "question", capability: "question", teamKey: T, summary: "question à l'équipe Inspiration", params: { sujet: p.sujet ?? null } }];
+    return [{ stepKey: "question", capability: "question", teamKey: T, summary: "question à l'équipe Inspiration", touches: readOnly(), params: { sujet: p.sujet ?? null } }];
   },
   async run(deps) {
     return done((await inspirationFacts(deps)).lines.join("\n"));

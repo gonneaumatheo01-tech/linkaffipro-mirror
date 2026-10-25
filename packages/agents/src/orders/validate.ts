@@ -18,6 +18,7 @@ import {
   type OrderStepPlan,
 } from "./contract";
 import { FUTURE_TEAMS, LIVE_ORDER_STATUSES, interpretationOf, orderTeamLabel, periodEnd, type TeamOrderRow } from "./current";
+import { addDaysToDay, parisDay } from "../rules/time";
 import { capability, listCapabilities, type AnyCapability } from "./ports";
 import { defaultStartDay, type PlannedOrder } from "./planner";
 import type { BossDeps } from "../boss/contract";
@@ -25,7 +26,13 @@ import type { BossDeps } from "../boss/contract";
 export type ValidatedStep = { step: OrderStepPlan; capability: AnyCapability; params: Record<string, unknown>; planned: OrderStep[] };
 
 /** Partie impossible, avec la capacité qui manque (bilan hebdomadaire) et l'équipe concernée. */
-export type ImpossibleOut = ImpossiblePart & { suggestedCapability?: string | null; teamKey?: string | null; refused?: boolean };
+export type ImpossibleOut = ImpossiblePart & {
+  suggestedCapability?: string | null;
+  teamKey?: string | null;
+  refused?: boolean;
+  /** Écrit par le planificateur (IA) : contrôlé (voix, aucun chiffre inventé) avant d'être montré. */
+  fromAi?: boolean;
+};
 
 export type OverlapInfo = { orderId: string; number: number; recap: string; channelId: string };
 
@@ -93,13 +100,81 @@ function teamAlternatives(teamKey: string, except: string | null): Alternative[]
     .map((c) => ({ label: c.description.charAt(0).toLowerCase() + c.description.slice(1) }));
 }
 
-/** Canaux touchés : dérogations prévues, sinon la portée. */
+/** Canaux touchés : dérogations prévues et canaux déclarés par les étapes (`touches`), sinon la portée. */
 function channelsOf(plan: OrderPlan, planned: OrderStep[]): string[] {
   const ids = new Set<string>();
-  for (const st of planned) for (const o of st.overrides ?? []) ids.add(o.channelId);
+  for (const st of planned) {
+    for (const o of st.overrides ?? []) ids.add(o.channelId);
+    for (const id of st.touches?.channelIds ?? []) ids.add(id);
+  }
   const scope = plan.scope as { channelIds?: string[] };
   if (!ids.size && Array.isArray(scope.channelIds)) for (const id of scope.channelIds) ids.add(id);
   return [...ids];
+}
+
+/** Quantité par jour retenue par les étapes (bornée), ou null (pur). */
+export function stepsPerDay(planned: readonly OrderStep[]): number | null {
+  for (const p of planned)
+    for (const o of p.overrides ?? []) {
+      const n = o.picksPerDay ?? o.postsPerDay;
+      if (typeof n === "number" && n > 0) return n;
+    }
+  for (const p of planned) if (typeof p.params.perDay === "number" && p.params.perDay > 0) return p.params.perDay;
+  return null;
+}
+
+/** Thème retenu par les étapes (libellé de la capacité, sinon thème de la dérogation), ou null (pur). */
+export function stepsTheme(planned: readonly OrderStep[]): string | null {
+  for (const p of planned) if (typeof p.params.themeLabel === "string" && p.params.themeLabel.trim() && p.params.themeLabel !== "paris") return p.params.themeLabel;
+  for (const p of planned) for (const o of p.overrides ?? []) if (o.themes?.length) return o.themes.slice(0, 2).join(", ");
+  for (const p of planned) {
+    const t = p.params.theme ?? p.params.themes;
+    if (typeof t === "string" && t.trim()) return t;
+    if (Array.isArray(t) && typeof t[0] === "string") return t.slice(0, 2).join(", ");
+  }
+  return null;
+}
+
+/** Période d'origine d'un ordre en cours (modification) : premier jour, dernier jour, et borne des 30 jours. */
+async function livePeriodOf(deps: BossDeps, orderId: string | null | undefined): Promise<{ fromDay: string; toDay: string; maxTo: string; days: number | null } | null> {
+  if (!orderId) return null;
+  const row = (await deps.prisma.teamOrder.findUnique({ where: { id: orderId } })) as unknown as TeamOrderRow | null;
+  if (!row || !["RUNNING", "BLOCKED"].includes(row.status)) return null;
+  const interp = interpretationOf(row);
+  let fromDay = interp?.fromDay ?? null;
+  let toDay = interp?.toDay ?? null;
+  if (!fromDay || !toDay) {
+    const ovs = ((row.progress as { plannedSteps?: OrderStep[] } | null)?.plannedSteps ?? []).flatMap((s) => s.overrides ?? []);
+    if (ovs.length) {
+      fromDay = ovs.map((o) => o.fromDay).sort()[0]!;
+      toDay = ovs.map((o) => o.toDay).sort().reverse()[0]!;
+    }
+  }
+  if (!fromDay || !toDay) return null;
+  const startDay = row.startsAt ? parisDay(row.startsAt) : fromDay;
+  const first = startDay < fromDay ? startDay : fromDay;
+  return { fromDay, toDay, maxTo: addDaysToDay(first, ORDER_LIMITS.maxDays - 1), days: interp?.period?.days ?? null };
+}
+
+/**
+ * Modification d'un ordre en cours : la période d'origine est gardée (premier jour et dernier jour), jamais « début
+ * passé → aujourd'hui, même durée » (ce qui rallongerait l'ordre à chaque changement). Une nouvelle durée se compte
+ * depuis le premier jour d'origine, 30 jours au plus depuis le début de l'ordre (pur).
+ */
+export function pinStepsPeriod(
+  steps: readonly OrderStep[],
+  live: { fromDay: string; toDay: string; maxTo: string; days: number | null },
+  newDays: number | null | undefined,
+): { steps: OrderStep[]; fromDay: string; toDay: string } {
+  let toDay = live.toDay;
+  if (typeof newDays === "number" && newDays >= 1 && live.days !== null && newDays !== live.days) toDay = addDaysToDay(live.fromDay, newDays - 1);
+  if (toDay > live.maxTo) toDay = live.maxTo;
+  const out = steps.map((s) => ({
+    ...s,
+    overrides: s.overrides?.map((o) => ({ ...o, fromDay: live.fromDay, toDay })),
+    clamped: (s.clamped ?? []).filter((c) => !/déjà passé/.test(c)),
+  }));
+  return { steps: out, fromDay: live.fromDay, toDay };
 }
 
 /** Période couverte (dérogations prévues, sinon la période du plan). */
@@ -118,7 +193,10 @@ function periodOf(plan: OrderPlan, planned: OrderStep[]): { fromDay: string | nu
   return { fromDay: from, toDay: to };
 }
 
-/** Ordre vivant qui se recoupe (même canal, même équipe, période commune), sauf `excludeOrderId`. */
+/**
+ * Ordre vivant qui se recoupe (même canal, période commune, QUELLE QUE SOIT l'équipe : le Grand Chef refuse deux
+ * dérogations sur un même canal), sauf `excludeOrderId`. `teamKey` est gardé pour la compatibilité, il ne filtre plus.
+ */
 export async function findOverlap(
   deps: BossDeps,
   input: { teamKey: string; channelIds: string[]; fromDay: string | null; toDay: string | null; excludeOrderId?: string | null },
@@ -133,8 +211,6 @@ export async function findOverlap(
     if (r.id === input.excludeOrderId) continue;
     const interp = interpretationOf(r);
     if (!interp?.fromDay || !interp.toDay) continue;
-    const team = interp.asIfTeamKey ?? r.teamKey;
-    if (team !== input.teamKey) continue;
     if (interp.toDay < input.fromDay || interp.fromDay > input.toDay) continue;
     const common = (interp.channelIds ?? []).find((c) => input.channelIds.includes(c));
     if (common) return { orderId: r.id, number: r.number, recap: r.recap, channelId: common };
@@ -151,7 +227,8 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
   const plan: OrderPlan = JSON.parse(JSON.stringify({ ...input, requestedTeam: undefined })) as OrderPlan;
   const requested = (input as PlannedOrder).requestedTeam ?? null;
   const clamped: string[] = [];
-  const impossible: ImpossibleOut[] = (plan.impossible ?? []).map((p) => ({ ...p, teamKey: (p as ImpossibleOut).teamKey ?? requested ?? plan.teamKey }));
+  // Parties impossibles écrites par le planificateur : marquées (texte de l'IA, contrôlé avant d'être montré).
+  const impossible: ImpossibleOut[] = (plan.impossible ?? []).map((p) => ({ ...p, teamKey: (p as ImpossibleOut).teamKey ?? requested ?? plan.teamKey, fromAi: true }));
   const team = plan.asIfTeamKey ?? plan.teamKey;
   const unit = team === "sports" ? "paris" : "posts";
 
@@ -166,7 +243,9 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
   }
   // « Faire comme si » : le canal Test seulement (un vrai canal garde son univers).
   const scope = plan.scope as { test?: boolean; channelIds?: string[] };
-  if (plan.asIfTeamKey && !scope.test) {
+  // Portée donnée par l'IA : seulement un refus anticipé (un vrai canal nommé) ; la capacité revérifie le canal visé.
+  const namedReal = (scope as { teamWide?: boolean }).teamWide === true || (scope.channelIds?.length ?? 0) > 0;
+  if (plan.asIfTeamKey && !scope.test && namedReal) {
     impossible.push({
       part: "faire comme si sur un vrai canal",
       reason: "un vrai canal garde son univers : je ne peux faire « comme si » que sur le canal Test",
@@ -254,9 +333,25 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
 
   plan.steps = steps.map((s) => s.step);
   plan.impossible = impossible.map(({ part, reason, alternatives }) => ({ part, reason, alternatives }));
-  const plannedSteps = steps.flatMap((s) => s.planned);
+  let plannedSteps = steps.flatMap((s) => s.planned);
+  // Modification d'un ordre en cours : période d'origine gardée (classe de confirmation sur la durée TOTALE).
+  const live = await livePeriodOf(deps, opts.excludeOrderId).catch(() => null);
+  let pinned: { fromDay: string; toDay: string } | null = null;
+  if (live && plannedSteps.some((s) => s.overrides?.length)) {
+    const p = pinStepsPeriod(plannedSteps, live, plan.period?.days ?? null);
+    plannedSteps = p.steps;
+    pinned = { fromDay: p.fromDay, toDay: p.toDay };
+    for (const st of steps) st.planned = pinStepsPeriod(st.planned, live, plan.period?.days ?? null).steps;
+    for (let i = clamped.length - 1; i >= 0; i--) if (/déjà passé/.test(clamped[i]!)) clamped.splice(i, 1);
+  }
+  // Récapitulatif et mémoire : les valeurs BORNÉES des étapes, jamais celles proposées par le planificateur.
+  if (plannedSteps.length) {
+    plan.perDay = stepsPerDay(plannedSteps);
+    plan.theme = stepsTheme(plannedSteps);
+  }
+  if (pinned) plan.period = { start: pinned.fromDay, days: Math.round((Date.parse(`${pinned.toDay}T12:00:00Z`) - Date.parse(`${pinned.fromDay}T12:00:00Z`)) / 86_400_000) + 1 };
   const channelIds = channelsOf(plan, plannedSteps);
-  const { fromDay, toDay } = periodOf(plan, plannedSteps);
+  const { fromDay, toDay } = pinned ?? periodOf(plan, plannedSteps);
   const costCents = plannedSteps.reduce((sum, p) => sum + Math.max(0, Math.round(p.costCents ?? 0)), 0);
   const overlap = steps.length
     ? await findOverlap(deps, { teamKey: team, channelIds, fromDay, toDay, excludeOrderId: opts.excludeOrderId ?? null }).catch(() => null)

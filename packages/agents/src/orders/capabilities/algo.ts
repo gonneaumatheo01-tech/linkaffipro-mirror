@@ -10,7 +10,12 @@ import { algoApplied, algoProposed, recommendationLabel, targetNames } from "../
 import { channelRefs, matchNames } from "../../boss/resolve";
 import { currentChannelPlan } from "../../control/channel-plan";
 import type { AgentsDeps } from "../../types";
-import { alt, defineCapability, done, failed, ok, orderActor, readAlgoBounds, refuse } from "./kit";
+import { alt, defineCapability, done, failed, ok, orderActor, readAlgoBounds, readOnly, refuse, settingTouches } from "./kit";
+
+/** Ce que touche un réglage de l'Algorithme : le canal visé, sinon toute l'équipe (persona, consignes d'équipe). */
+function recTouches(r: { target?: string; targetId?: string | null }) {
+  return r.target === "CHANNEL_PLAN" && r.targetId ? settingTouches([r.targetId], false) : settingTouches([], true);
+}
 
 const T = "algo" as const;
 const AGENTS = ["posts", "horaires", "conversations", "experimentation", "synthese"];
@@ -35,7 +40,7 @@ export const appliquerReglage = defineCapability<NumP>({
     const r = list[(p.numero ?? 1) - 1];
     if (!r) return [];
     const names = await targetNames(deps, list);
-    return [{ stepKey: `appliquer_reglage:${r.id}`, capability: "appliquer_reglage", teamKey: T, summary: `appliquer : ${recommendationLabel(r, names, r.targetId)}`, params: { recommendationId: r.id } }];
+    return [{ stepKey: `appliquer_reglage:${r.id}`, capability: "appliquer_reglage", teamKey: T, summary: `appliquer : ${recommendationLabel(r, names, r.targetId)}`, touches: recTouches(r), params: { recommendationId: r.id } }];
   },
   async run(deps, order, step) {
     const r = await applyRecommendation(deps, String(step.params.recommendationId), orderActor(order));
@@ -64,7 +69,7 @@ export const annulerReglage = defineCapability<NumP>({
     const r = list[(p.numero ?? 1) - 1];
     if (!r) return [];
     const names = await targetNames(deps, list);
-    return [{ stepKey: `annuler_reglage:${r.id}`, capability: "annuler_reglage", teamKey: T, summary: `annuler : ${recommendationLabel(r, names, r.targetId)}`, params: { recommendationId: r.id } }];
+    return [{ stepKey: `annuler_reglage:${r.id}`, capability: "annuler_reglage", teamKey: T, summary: `annuler : ${recommendationLabel(r, names, r.targetId)}`, touches: recTouches(r), params: { recommendationId: r.id } }];
   },
   async run(deps, order, step) {
     const r = await undoRecommendation(deps, String(step.params.recommendationId), orderActor(order));
@@ -109,7 +114,8 @@ export const lancerTestAb = defineCapability<AbP>({
     if (!c) return [];
     const days = Math.min(30, Math.max(7, p.jours ?? 14));
     const clamped = p.jours && p.jours !== days ? [`${p.jours} jours → ${days} (un test dure de 7 à 30 jours)`] : [];
-    return [{ stepKey: `lancer_test_ab:${c.id}:${p.type ?? "legende"}`, capability: "lancer_test_ab", teamKey: T, summary: `test A/B ${p.type ?? "legende"} sur ${c.name} pendant ${days} jours`, clamped, params: { channelId: c.id, kind: KINDS[p.type ?? "legende"], days } }];
+    // Durée réelle du test (7 à 30 jours) : comptée pour la confirmation (au-delà de 7 jours, OUI).
+    return [{ stepKey: `lancer_test_ab:${c.id}:${p.type ?? "legende"}`, capability: "lancer_test_ab", teamKey: T, summary: `test A/B ${p.type ?? "legende"} sur ${c.name} pendant ${days} jours`, clamped, touches: { ...settingTouches([c.id], false), days }, params: { channelId: c.id, kind: KINDS[p.type ?? "legende"], days } }];
   },
   async run(deps, _order, step) {
     const channelId = String(step.params.channelId);
@@ -170,7 +176,7 @@ function askCap(key: "rapport" | "question", description: string) {
       return ok();
     },
     async plan(_deps, p) {
-      return [{ stepKey: key, capability: key, teamKey: T, summary: key === "rapport" ? "rapport de l'équipe Algorithme" : "question à l'équipe Algorithme", params: { sujet: p.sujet ?? null } }];
+      return [{ stepKey: key, capability: key, teamKey: T, summary: key === "rapport" ? "rapport de l'équipe Algorithme" : "question à l'équipe Algorithme", touches: readOnly(), params: { sujet: p.sujet ?? null } }];
     },
     async run(deps) {
       return done((await algoFacts(deps)).lines.join("\n"));

@@ -65,12 +65,13 @@ export function userContent(req: AiMessageRequest) {
  */
 export function createAnthropicClient(
   apiKey: string,
-  opts: { timeoutMs?: number; fetch?: typeof fetch } = {},
+  opts: { timeoutMs?: number; fetch?: typeof fetch; maxRetries?: number } = {},
 ): AiClient {
   const client = new Anthropic({
     apiKey,
     timeout: opts.timeoutMs ?? 90_000,
-    maxRetries: 1,
+    // Une relance par défaut ; 0 pour un appel long et cher (planificateur des ordres de Kevin).
+    maxRetries: opts.maxRetries ?? 1,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
   return {

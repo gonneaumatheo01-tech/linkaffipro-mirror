@@ -7,7 +7,9 @@
 import { agentAudit, nowOf } from "../../admin/journal";
 import { matchNames, personaRefs, type PersonaRef } from "../../boss/resolve";
 import { currentChannelPlan, saveChannelPlanFor, type ChannelPlanData } from "../../control/channel-plan";
-import { effectiveMix } from "../../algo/mix";
+import { effectiveMix, MAX_MIX_POINTS_PER_PROPOSAL } from "../../algo/mix";
+import { applyRecommendation } from "../../algo/contracts";
+import { proposeRecommendation } from "../../agents/synthese/proposals";
 import { createTestPostMission } from "../../missions/test-post";
 import { loadTeamSettings } from "../../missions/settings";
 import { checkBudgets } from "../../orchestrator/budgets";
@@ -27,13 +29,16 @@ import {
   frRange,
   isHhmm,
   missionsReport,
-  modeOf,
   ok,
   orderActor,
+  orderModeOf,
   readAlgoBounds,
+  readOnly,
   refuse,
   resolvePeriod,
   resolveScope,
+  settingTouches,
+  touchesOf,
   windowAllowedFor,
   type Mix,
   type ScopeChannel,
@@ -242,12 +247,17 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
   }
   const c = await resolveCampaign(deps, p.campagne);
   const campaignId = c.ok ? c.id : null;
-  const mode = modeOf(p, ctx);
+  // Mode qui s'appliquera : « pour de faux » sur un vrai canal = dérogation de test (publication sur le canal Test avec
+  // l'en-tête habituel, le plan de base du canal continue).
+  const mode = orderModeOf(p, ctx);
+  const simulated = mode !== "real";
+  const realChannels = scope.channels.filter((c) => !c.isTest);
   // Lecture seule (`loadTeamSettings` créerait la ligne de l'équipe si elle manquait).
   const row = (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: T } })) as { simulation?: boolean; autonomyLevel?: number } | null;
   const settings = { simulation: row?.simulation !== false, autonomyLevel: Number(row?.autonomyLevel ?? 0) };
-  if (!scope.test && mode === "real" && settings.simulation) clamped.push(`l'équipe ${TEAM_LABELS[T]} est en simulation : les posts iront sur le canal Test tant qu'elle n'est pas passée en vrai`);
-  if (!scope.test && settings.autonomyLevel === 0) clamped.push("niveau 0 : chaque post attend ta validation avant de partir");
+  if (realChannels.length && !simulated && settings.simulation) clamped.push(`l'équipe ${TEAM_LABELS[T]} est en simulation : les posts iront sur le canal Test tant qu'elle n'est pas passée en vrai`);
+  if (realChannels.length && simulated) clamped.push(`pour de faux : les posts partent sur le canal Test, ${channelsLabel(realChannels)} garde son plan habituel`);
+  if (realChannels.length && !simulated && settings.autonomyLevel === 0) clamped.push("niveau 0 : chaque post attend ta validation avant de partir");
   const overrides: NonNullable<OrderStep["overrides"]> = [];
   let videos = 0;
   let photos = 0;
@@ -285,7 +295,7 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
       windowStart,
       windowEnd,
       personaId,
-      isTest: ch.isTest,
+      isTest: ch.isTest || simulated,
     });
   }
   // Rencontres : vidéos et photos générées (estimation) ; Casino : médias du client, aucune dépense.
@@ -296,8 +306,9 @@ async function planPosts(deps: AgentsDeps, team: PostsTeam, p: ProgramPostsP, ct
       stepKey: `programmer_posts:${scope.channels.map((x) => x.id).join(",")}`,
       capability: "programmer_posts",
       teamKey: T,
-      summary: `${per.value} ${what} par jour sur ${channelsLabel(scope.channels)}, ${frRange(period.start, period.toDay)}${themes.length ? ` (thèmes : ${themes.join(", ")})` : ""}${scope.test ? ", pour de faux" : ""}`,
+      summary: `${per.value} ${what} par jour sur ${channelsLabel(scope.channels)}, ${frRange(period.start, period.toDay)}${themes.length ? ` (thèmes : ${themes.join(", ")})` : ""}${simulated ? ", pour de faux" : ", en vrai"}`,
       overrides,
+      touches: touchesOf(scope.channels),
       clamped,
       costCents,
       params: { campaignId, personaId, perDay: per.value, fromDay: period.start, toDay: period.toDay, mode, themes },
@@ -337,7 +348,7 @@ export function postUnique(team: PostsTeam): Capability<OnePostP> {
       return ok();
     },
     async plan(_deps, p) {
-      return [{ stepKey: "post_unique", capability: "post_unique", teamKey: T, summary: `un post de test${p.format ? ` (${p.format})` : ""} sur le canal Test, pour de faux`, params: { format: p.format ?? null, persona: p.persona ?? null }, costCents: T === "dating" && p.format === "video" ? VIDEO_ESTIMATE_CENTS : T === "dating" && p.format === "photo" ? PHOTO_ESTIMATE_CENTS : 0 }];
+      return [{ stepKey: "post_unique", capability: "post_unique", teamKey: T, summary: `un post de test${p.format ? ` (${p.format})` : ""} sur le canal Test, pour de faux`, touches: { channelIds: [], testOnly: true }, params: { format: p.format ?? null, persona: p.persona ?? null }, costCents: T === "dating" && p.format === "video" ? VIDEO_ESTIMATE_CENTS : T === "dating" && p.format === "photo" ? PHOTO_ESTIMATE_CENTS : 0 }];
     },
     async run(deps, order, step) {
       const already = await stepMission(deps, order.id, step.stepKey);
@@ -360,6 +371,17 @@ export function postUnique(team: PostsTeam): Capability<OnePostP> {
 }
 
 // ------------------------------------------------------------------------------------------------ changer_plan
+
+/** Changements demandés pour le plan d'un canal (seules les valeurs dites ; le reste est relu au moment d'écrire). */
+type PlanChanges = {
+  enabled?: boolean;
+  postsPerDay?: number;
+  mix?: Mix;
+  window?: { start: string; end: string };
+  personaId?: string;
+  campaignId?: string | null;
+  themes?: ChannelPlanData["themes"];
+};
 
 type PlanChangeP = {
   canal: string;
@@ -427,22 +449,27 @@ export function changePlan(team: PostsTeam): Capability<PlanChangeP> {
       const scope = await channelOf(deps, p);
       if (!scope.ok) return [];
       const ch = scope.channels[0]!;
+      // Aperçu seulement (récapitulatif) : les valeurs écrites sont recalculées au moment de `run`, à partir du plan
+      // tel qu'il est alors (rien de figé à la préparation : relecture du 25 octobre).
       const { plan } = await currentChannelPlan(deps, ch.id);
       const bounds = await readAlgoBounds(deps);
       const clamped: string[] = [];
+      const changes: PlanChanges = {};
       const after: ChannelPlanData = { ...plan };
-      if (p.actif !== undefined) after.enabled = p.actif;
+      if (p.actif !== undefined) after.enabled = changes.enabled = p.actif;
       if (p.posts_par_jour !== undefined) {
-        after.postsPerDay = Math.min(p.posts_par_jour, bounds.maxPostsPerDay);
+        after.postsPerDay = changes.postsPerDay = Math.min(p.posts_par_jour, bounds.maxPostsPerDay);
         if (after.postsPerDay !== p.posts_par_jour) clamped.push(`${p.posts_par_jour} posts par jour → ${after.postsPerDay}, le maximum du canal`);
       }
       const w = wantedMix(p);
       if (w) {
-        const m = clampMix(w, effectiveMix(T, plan.mix), bounds.maxMixShiftPoints);
-        if (m.note) clamped.push(m.note);
+        changes.mix = w;
+        const m = clampMix(w, effectiveMix(T, plan.mix), Math.min(bounds.maxMixShiftPoints, MAX_MIX_POINTS_PER_PROPOSAL));
+        if (m.note) clamped.push(m.note.replace(/\(\d+ points au plus par semaine\)/, `(${MAX_MIX_POINTS_PER_PROPOSAL} points au plus d'un coup, ${bounds.maxMixShiftPoints} par semaine)`));
         after.mix = m.mix;
       }
       if (p.fenetre_debut && p.fenetre_fin) {
+        changes.window = { start: p.fenetre_debut, end: p.fenetre_fin };
         const win = clampWindow(p.fenetre_debut, p.fenetre_fin, windowAllowedFor(bounds, ch.id));
         if (win.note) clamped.push(win.note);
         after.windowStart = win.start;
@@ -450,25 +477,92 @@ export function changePlan(team: PostsTeam): Capability<PlanChangeP> {
       }
       if (team.usesPersona && p.persona) {
         const r = await resolvePersonaParam(deps, p.persona);
-        if (r.ok && r.persona) after.personaId = r.persona.id;
+        if (r.ok && r.persona) after.personaId = changes.personaId = r.persona.id;
       }
       if (p.campagne) {
         const c = await resolveCampaign(deps, p.campagne);
-        if (c.ok) after.campaignId = c.id;
+        if (c.ok) after.campaignId = changes.campaignId = c.id;
       }
       if (p.themes?.length) {
         const th = await team.themes(deps, { themes: p.themes });
-        if (th.ok) after.themes = T === "casino" ? th.themes.map((theme) => ({ theme, weight: 1 })) : th.themes;
+        if (th.ok) after.themes = changes.themes = T === "casino" ? th.themes.map((theme) => ({ theme, weight: 1 })) : th.themes;
       }
-      return [{ stepKey: `changer_plan:${ch.id}`, capability: "changer_plan", teamKey: T, summary: `plan de ${ch.title} : ${after.postsPerDay} posts par jour, ${after.windowStart}-${after.windowEnd}${after.enabled ? "" : ", agents désactivés"}`, clamped, params: { channelId: ch.id, after: JSON.parse(JSON.stringify(after)) } }];
+      return [
+        {
+          stepKey: `changer_plan:${ch.id}`,
+          capability: "changer_plan",
+          teamKey: T,
+          summary: `plan de ${ch.title} : ${after.postsPerDay} posts par jour, ${after.windowStart}-${after.windowEnd}${after.enabled ? "" : ", agents désactivés"}`,
+          clamped,
+          touches: settingTouches([ch.id], false),
+          params: { channelId: ch.id, changes: JSON.parse(JSON.stringify(changes)) },
+        },
+      ];
     },
     async run(deps, order, step) {
-      const after = step.params.after as ChannelPlanData | undefined;
-      if (!after) return failed("Plan manquant.");
-      const r = await saveChannelPlanFor(deps, T, after, orderActor(order));
-      if (!r.ok) return failed(r.error);
-      await agentAudit(deps, { userId: order.createdById, action: "agents.order.plan_changed", entityType: "ChannelAgentPlan", entityId: after.channelId, metadata: { orderId: order.id } });
-      return done(`Plan du canal mis à jour.`);
+      const channelId = String(step.params.channelId ?? "");
+      const changes = (step.params.changes ?? null) as PlanChanges | null;
+      if (!channelId || !changes) return failed("Plan manquant.");
+      const actor = orderActor(order);
+      const messages: string[] = [];
+      let applied = 0;
+      let refused = 0;
+      // 1. Réglages directs (agents activés, persona, campagne, thèmes, arrêt à 0 post) sur le plan tel qu'il est maintenant.
+      const direct: Partial<ChannelPlanData> = {};
+      if (changes.enabled !== undefined) direct.enabled = changes.enabled;
+      if (changes.personaId) direct.personaId = changes.personaId;
+      if (changes.campaignId) direct.campaignId = changes.campaignId;
+      if (changes.themes) direct.themes = changes.themes;
+      if (changes.postsPerDay === 0) direct.postsPerDay = 0;
+      const current = await currentChannelPlan(deps, channelId);
+      if (Object.keys(direct).length || !current.exists) {
+        const before = current.plan;
+        const r = await saveChannelPlanFor(deps, T, { ...before, ...direct }, actor);
+        if (!r.ok) return failed(r.error);
+        await agentAudit(deps, {
+          userId: order.createdById,
+          action: "agents.order.plan_changed",
+          entityType: "ChannelAgentPlan",
+          entityId: channelId,
+          metadata: { orderId: order.id, before: JSON.parse(JSON.stringify(Object.fromEntries(Object.keys(direct).map((k) => [k, (before as Record<string, unknown>)[k] ?? null])))), after: JSON.parse(JSON.stringify(direct)) },
+        });
+        messages.push("Plan du canal mis à jour.");
+        applied++;
+      }
+      // 2. Quota, mélange, fenêtre : recommandations appliquées (bornes revérifiées, mélange suivi sur la semaine toutes
+      //    sources confondues, annulables en un clic ou par « annule le réglage »).
+      const { plan } = await currentChannelPlan(deps, channelId);
+      const bounds = await readAlgoBounds(deps);
+      const recs: Array<{ field: string; before: unknown; after: unknown }> = [];
+      if (typeof changes.postsPerDay === "number" && changes.postsPerDay >= 1) recs.push({ field: "postsPerDay", before: plan.postsPerDay, after: Math.min(changes.postsPerDay, bounds.maxPostsPerDay) });
+      if (changes.mix) {
+        const base = effectiveMix(T, plan.mix);
+        recs.push({ field: "mix", before: plan.mix, after: clampMix(changes.mix, base, Math.min(bounds.maxMixShiftPoints, MAX_MIX_POINTS_PER_PROPOSAL)).mix });
+      }
+      if (changes.window) {
+        const win = clampWindow(changes.window.start, changes.window.end, windowAllowedFor(bounds, channelId));
+        recs.push({ field: "window", before: { windowStart: plan.windowStart, windowEnd: plan.windowEnd }, after: { windowStart: win.start, windowEnd: win.end } });
+      }
+      for (const r of recs) {
+        const rec = await proposeRecommendation(deps, {
+          teamKey: T,
+          target: "CHANNEL_PLAN",
+          targetId: channelId,
+          field: r.field,
+          before: r.before,
+          after: r.after,
+          evidence: { source: "admin", orderId: order.id },
+          expectedGain: "Réglage demandé par l'admin à Kevin.",
+          size: "SMALL",
+        });
+        if (rec.skipped) continue;
+        const a = await applyRecommendation(deps, rec.id, actor);
+        if (a.ok) applied++;
+        else if (!/déjà en place/i.test(a.message)) refused++;
+        messages.push(a.message);
+      }
+      if (!applied && refused) return failed(messages.join(" "));
+      return done(messages.join(" ") || "Ce réglage est déjà en place.");
     },
     async report(_deps, order) {
       return { ordre: order.number };
@@ -494,7 +588,7 @@ export function questionCapability(
       return ok();
     },
     async plan(_deps, p) {
-      return [{ stepKey: "question", capability: "question", teamKey, summary: `question à l'équipe ${TEAM_LABELS[teamKey]}`, params: { sujet: p.sujet ?? null } }];
+      return [{ stepKey: "question", capability: "question", teamKey, summary: `question à l'équipe ${TEAM_LABELS[teamKey]}`, touches: readOnly(), params: { sujet: p.sujet ?? null } }];
     },
     async run(deps) {
       return done((await facts(deps)).lines.join("\n"));

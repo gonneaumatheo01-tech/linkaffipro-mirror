@@ -6,10 +6,13 @@
  * et la liste des capacités du registre (description + schéma). Sortie : JSON strict `OrderPlan`, revalidé ensuite
  * par le code (`validate.ts`). Opus 5.5 (`PLANNER_MODEL`) : pas d'outil imposé, pas de température, effort « medium ».
  *
- * Coût tenu (règle 8) : demande identique (texte normalisé) dans les 24 h → plan réutilisé (`TeamOrder.planCacheKey`) ;
+ * Coût tenu (règle 8) : demande identique (texte normalisé, même conversation, même dernier tour, 6 mots au moins) dans
+ * les 24 h → plan réutilisé (`TeamOrder.planCacheKey`) ; sortie inexploitable ou panne → pas de relance du même texte
+ * pendant 10 min ;
  * dépense comptée dans `boss.budget` (30 € par défaut, alerte à 80 %) ; au plafond, aucun appel et Kevin le dit.
  * Jamais de secret dans le contexte : aucun `Setting` `agents.secret.*`, la mémoire garde « [secret] ».
  */
+import { createHash } from "node:crypto";
 import { extractJson } from "@linkaffipro/ai";
 import { nowOf } from "../admin/journal";
 import { normalizeUnmetKey } from "../boss/unmet";
@@ -45,9 +48,54 @@ export function defaultStartDay(now: Date): string {
   return parisMinutes(now) >= ORDER_LATE_HOUR * 60 ? addDaysToDay(today, 1) : today;
 }
 
-/** Clé de cache d'une demande (texte normalisé, pur). */
-export function planCacheKeyOf(text: string): string {
-  return normalizeUnmetKey(text);
+/** Pas de plan réutilisé pour une demande de moins de 6 mots (« 3 jours », « sur test », « fais pareil »). */
+export const PLAN_CACHE_MIN_WORDS = 6;
+/** Une sortie inexploitable ou une panne du planificateur n'est pas relancée pour le même texte pendant 10 min. */
+export const PLAN_FAIL_CACHE_MS = 10 * 60_000;
+export const PLAN_FAIL_SETTING = "boss.orders.planFail";
+
+const shortHash = (s: string) => createHash("sha1").update(s).digest("hex").slice(0, 12);
+
+/**
+ * Clé de cache d'une demande (pur) : texte normalisé + conversation + dernier tour (une demande courte ou qui renvoie
+ * à ce qui précède ne réutilise jamais le plan d'une autre conversation). Vide (= pas de cache) sous 6 mots.
+ */
+export function planCacheKeyOf(text: string, ctx: { chatId?: bigint | string | number | null; lastTurn?: string | null } = {}): string {
+  const norm = normalizeUnmetKey(text);
+  if (!norm || norm.split(" ").filter(Boolean).length < PLAN_CACHE_MIN_WORDS) return "";
+  const chat = ctx.chatId != null ? String(ctx.chatId) : "-";
+  const last = ctx.lastTurn ? shortHash(normalizeUnmetKey(ctx.lastTurn)) : "-";
+  return `${norm}|c:${chat}|t:${last}`;
+}
+
+/** Dernier tour de la mémoire (hors la demande elle-même), pour la clé de cache. */
+function lastTurnOf(memory: readonly BossTurnRow[] | null | undefined, text: string): string | null {
+  const norm = normalizeUnmetKey(text);
+  const list = (memory ?? []).filter((t) => normalizeUnmetKey(t.text) !== norm);
+  return list.length ? list[list.length - 1]!.text : null;
+}
+
+type FailCache = Record<string, string>;
+
+async function recentFailure(deps: BossDeps, text: string): Promise<boolean> {
+  const v = (await deps.prisma.setting.findUnique({ where: { key: PLAN_FAIL_SETTING } }).catch(() => null)) as { value?: unknown } | null;
+  const map = (v?.value && typeof v.value === "object" ? v.value : {}) as FailCache;
+  const at = map[shortHash(normalizeUnmetKey(text))];
+  return !!at && nowOf(deps).getTime() - Date.parse(at) < PLAN_FAIL_CACHE_MS;
+}
+
+async function rememberFailure(deps: BossDeps, text: string): Promise<void> {
+  try {
+    const now = nowOf(deps).getTime();
+    const v = (await deps.prisma.setting.findUnique({ where: { key: PLAN_FAIL_SETTING } })) as { value?: unknown } | null;
+    const map = (v?.value && typeof v.value === "object" ? { ...(v.value as FailCache) } : {}) as FailCache;
+    for (const [k, at] of Object.entries(map)) if (now - Date.parse(at) >= PLAN_FAIL_CACHE_MS) delete map[k];
+    map[shortHash(normalizeUnmetKey(text))] = new Date(now).toISOString();
+    const value = Object.fromEntries(Object.entries(map).slice(-20));
+    await deps.prisma.setting.upsert({ where: { key: PLAN_FAIL_SETTING }, create: { key: PLAN_FAIL_SETTING, value }, update: { value } });
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[orders] échec du planificateur non mémorisé");
+  }
 }
 
 export const PLANNER_SYSTEM = [
@@ -112,7 +160,8 @@ function scopeOf(v: unknown): OrderScope {
     if (Array.isArray(v.channelIds)) return { channelIds: v.channelIds.filter((x): x is string => typeof x === "string").slice(0, 20) };
     if (v.teamWide === true) return { teamWide: true };
   }
-  return { test: true };
+  // Portée absente : rien de supposé (jamais « canal Test » par défaut) ; ce que l'ordre touche vient des étapes.
+  return { channelIds: [] };
 }
 
 function alternativesOf(v: unknown): ImpossiblePart["alternatives"] {
@@ -323,14 +372,17 @@ export function plannerOf(deps: BossDeps): BossLlmExt["plan"] | null {
  * jamais : `ok: false` avec la raison (pas d'IA, plafond, sortie inexploitable, erreur).
  */
 export async function planOrder(deps: BossDeps, input: PlannerInput): Promise<PlanResult> {
-  const cacheKey = input.basePlan ? "" : planCacheKeyOf(input.text);
+  const cacheKey = input.basePlan ? "" : planCacheKeyOf(input.text, { chatId: input.chat?.chatId ?? null, lastTurn: lastTurnOf(input.memory, input.text) });
+  // Cache « négatif » : la même demande vient d'échouer (sortie inexploitable, panne) → pas de nouvel appel payant.
+  const failKey = input.basePlan ? `${input.text}|${JSON.stringify(input.basePlan).slice(0, 500)}` : input.text;
   try {
-    if (!input.basePlan) {
+    if (!input.basePlan && cacheKey) {
       const hit = await cachedPlan(deps, cacheKey);
       if (hit) return { ok: true, plan: hit.plan, costCents: 0, cached: true, cacheKey, cachedFrom: hit.orderId };
     }
     const plan = plannerOf(deps);
     if (!plan) return { ok: false, reason: "no_ai", costCents: 0, cacheKey };
+    if (await recentFailure(deps, failKey)) return { ok: false, reason: "invalid", costCents: 0, cacheKey };
     const state = await bossBudgetState(deps.prisma, nowOf(deps));
     if (!state.allowed) return { ok: false, reason: "budget", costCents: 0, cacheKey };
     const r = await plan({ system: PLANNER_SYSTEM, user: await plannerUser(deps, input) });
@@ -338,14 +390,19 @@ export async function planOrder(deps: BossDeps, input: PlannerInput): Promise<Pl
     try {
       json = extractJson(r.text);
     } catch {
+      await rememberFailure(deps, failKey);
       return { ok: false, reason: "invalid", costCents: r.costCents, cacheKey };
     }
     const normalized = normalizePlannerOutput(json, { startDay: defaultStartDay(nowOf(deps)) });
-    if (!normalized) return { ok: false, reason: "invalid", costCents: r.costCents, cacheKey };
+    if (!normalized) {
+      await rememberFailure(deps, failKey);
+      return { ok: false, reason: "invalid", costCents: r.costCents, cacheKey };
+    }
     return { ok: true, plan: normalized, costCents: r.costCents, cached: false, cacheKey };
   } catch (err) {
     if (err instanceof BossBudgetError) return { ok: false, reason: "budget", costCents: 0, cacheKey };
     deps.logger?.warn({ err: (err as Error).message }, "[orders] planificateur en échec");
+    await rememberFailure(deps, failKey);
     return { ok: false, reason: "error", costCents: 0, cacheKey };
   }
 }

@@ -102,6 +102,14 @@ export type OrderStep = {
   clamped?: string[];
   /** Dépense chez un fournisseur (vidéo, photo, cotes) estimée en centimes, si connue. */
   costCents?: number;
+  /**
+   * Ce que l'étape TOUCHE (relecture du 25 octobre) : seule base de la classe de confirmation (`classifyOrder`), jamais
+   * la portée donnée par l'IA. `channelIds` = canaux écrits (canal Test compris), `teamWide` = toute une équipe (mots
+   * interdits, réglage de l'Algorithme, mode, reprise), `testOnly` = rien hors du canal Test, `days` = durée réelle de
+   * ce qui est lancé (test A/B), `setting` = réglage durable (réservé à l'admin). `{ channelIds: [] }` = lecture seule.
+   * Absent (et sans dérogation) = inconnu → confirmation.
+   */
+  touches?: { channelIds: string[]; teamWide?: boolean; testOnly?: boolean; days?: number; setting?: boolean };
   params: Record<string, unknown>;
 };
 

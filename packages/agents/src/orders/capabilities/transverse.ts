@@ -12,7 +12,7 @@ import { TEAM_LABELS, type TeamKey } from "../../types";
 import type { Capability } from "../contract";
 import { CASINO_CAPABILITIES } from "./casino";
 import { DATING_CAPABILITIES } from "./dating";
-import { alt, defineCapability, done, failed, ok, orderActor, refuse } from "./kit";
+import { alt, defineCapability, done, failed, ok, orderActor, refuse, settingTouches } from "./kit";
 import { programmerParis } from "./sports";
 
 const T = "transverse" as const;
@@ -115,6 +115,7 @@ export const faireCommeSi = defineCapability<AsIfP>({
     return steps.map((s) => ({
       ...s,
       overrides: s.overrides?.map((o) => ({ ...o, teamKey: team as TeamKey, isTest: true })),
+      touches: { channelIds: (s.overrides ?? []).map((o) => o.channelId), testOnly: true },
       clamped: [...(s.clamped ?? []), `le canal Test fait comme un canal ${TEAM_LABELS[team]}, pour de faux`],
       params: { ...s.params, asIfTeamKey: team },
     }));
@@ -143,7 +144,7 @@ export const pauseReprise = defineCapability<TeamP>({
   async plan(_deps, p) {
     const t = teamOf(p.equipe, { allowAll: true });
     if (!t) return [];
-    return [{ stepKey: `pause_reprise:${t}:${p.pause}`, capability: "pause_reprise", teamKey: T, summary: `${p.pause ? "pause" : "reprise"} : ${t === "all" ? "toutes les équipes" : `équipe ${TEAM_LABELS[t]}`}`, params: { team: t, pause: p.pause } }];
+    return [{ stepKey: `pause_reprise:${t}:${p.pause}`, capability: "pause_reprise", teamKey: T, summary: `${p.pause ? "pause" : "reprise"} : ${t === "all" ? "toutes les équipes" : `équipe ${TEAM_LABELS[t]}`}`, touches: p.pause ? { channelIds: [] } : settingTouches([], true), params: { team: t, pause: p.pause } }];
   },
   async run(deps, order, step) {
     const r = await setTeamPaused(deps, step.params.team as TeamKey | "all", step.params.pause === true, orderActor(order), step.params.pause ? `ordre n°${order.number}` : undefined);
@@ -169,7 +170,7 @@ export const modeEquipe = defineCapability<ModeP>({
   },
   async plan(_deps, p) {
     const t = teamOf(p.equipe) as TeamKey;
-    return [{ stepKey: `mode:${t}:${p.mode}`, capability: "mode", teamKey: T, summary: `équipe ${TEAM_LABELS[t]} ${p.mode === "vrai" ? "en vrai" : "en simulation"}`, params: { team: t, simulation: p.mode !== "vrai" } }];
+    return [{ stepKey: `mode:${t}:${p.mode}`, capability: "mode", teamKey: T, summary: `équipe ${TEAM_LABELS[t]} ${p.mode === "vrai" ? "en vrai" : "en simulation"}`, touches: settingTouches([], true), params: { team: t, simulation: p.mode !== "vrai" } }];
   },
   async run(deps, order, step) {
     const r = await setSimulation(deps, step.params.team as TeamKey, step.params.simulation === true, orderActor(order));

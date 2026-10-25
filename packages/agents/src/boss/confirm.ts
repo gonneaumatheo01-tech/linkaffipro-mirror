@@ -58,6 +58,18 @@ export const CONFIRM_VARIANTS = {
     "Cette confirmation est dans une autre conversation. Appuie sur son bouton OUI, ou réponds « OUI » à ce message-là.",
     "Je t'ai demandé ça ailleurs : réponds « OUI » au message de là-bas, ou appuie sur son bouton.",
   ],
+  ambiguousYes: voiceTemplate([{ what: "Passer l'équipe Casino en vrai ?" }], (p: { what: string }) => [
+    `Ton OUI, c'est bien pour « ${p.what} » ? Redis OUI pour confirmer, ou NON. Pour ma proposition, réponds 1.`,
+    `Je préfère vérifier : ce OUI vaut pour « ${p.what} » ? Réponds encore OUI, ou NON. Ma proposition, c'est 1.`,
+  ]),
+  staleOrderMember: voiceTemplate([{ n: 12 }], (p: { n: number }) => [
+    `Ta demande (ordre n°${p.n}) n'a pas eu de OUI à temps, je l'ai annulée. Redemande-moi si tu en as toujours besoin.`,
+    `Pas de OUI à temps pour ta demande (ordre n°${p.n}) : elle est annulée. Tu me la redemandes si besoin.`,
+  ]),
+  staleOrderAdmin: voiceTemplate([{ who: "Léa", n: 12 }], (p: { who: string; n: number }) => [
+    `La demande de ${p.who} (ordre n°${p.n}) est annulée : pas de OUI à temps. Je l'ai prévenue.`,
+    `J'ai annulé la demande de ${p.who} (ordre n°${p.n}), faute de OUI à temps. ${p.who} est au courant.`,
+  ]),
   toastYes: ["C'est parti", "C'est lancé"],
   toastNo: ["Annulé", "Laissé tomber"],
   unknownButton: ["Bouton inconnu.", "Ce bouton ne sert plus."],
@@ -73,7 +85,7 @@ export const PENDING_EXPIRED = CONFIRM_VARIANTS.expired[0]!;
 export const PENDING_CANCELLED = CONFIRM_VARIANTS.cancelled[0]!;
 
 /** Variante d'un texte des confirmations pour une conversation (rotation sans répétition). */
-export function confirmText(key: Exclude<keyof typeof CONFIRM_VARIANTS, "replaced">, chatId?: bigint | string | null): string {
+export function confirmText(key: Exclude<keyof typeof CONFIRM_VARIANTS, "replaced" | "ambiguousYes" | "staleOrderMember" | "staleOrderAdmin">, chatId?: bigint | string | null): string {
   return pick(CONFIRM_VARIANTS[key], `confirm.${key}`, chatId ?? null);
 }
 
@@ -211,6 +223,37 @@ export function voiceStrictRefusal(pending: Pick<BossPending, "actionKey">, word
 
 export const PENDING_OTHER_CHAT = CONFIRM_VARIANTS.otherChat[0]!;
 
+// ------------------------------------------------------------------------------- OUI ambigu (proposition entre-temps)
+
+/** La confirmation en attente a-t-elle été « recouverte » par une proposition de Kevin envoyée après elle ? */
+export function isShadowed(pending: BossPending | null | undefined): boolean {
+  return !!pending && typeof (pending as BossPending & { shadowedAt?: unknown }).shadowedAt === "string";
+}
+
+/**
+ * Kevin vient d'envoyer une autre proposition (par numéro) alors qu'une confirmation attend : le prochain « OUI »
+ * sans « Répondre » serait ambigu. Il ne confirme plus rien : Kevin redemande d'abord clairement (`ambiguousYes`).
+ */
+export async function shadowBossPending(deps: BossDeps, pendingId: string): Promise<void> {
+  const cur = await readBossPending(deps);
+  if (!cur || cur.id !== pendingId) return;
+  const { expired: _e, ...rest } = cur;
+  await writeSetting(deps, BOSS_PENDING_SETTING, { ...rest, shadowedAt: nowOf(deps).toISOString() });
+}
+
+/** Kevin a redemandé clairement : le prochain « OUI » confirme de nouveau. */
+export async function unshadowBossPending(deps: BossDeps, pendingId: string): Promise<void> {
+  const cur = await readBossPending(deps);
+  if (!cur || cur.id !== pendingId) return;
+  const { expired: _e, shadowedAt: _s, ...rest } = cur as typeof cur & { shadowedAt?: string };
+  await writeSetting(deps, BOSS_PENDING_SETTING, rest);
+}
+
+/** Question claire après un « OUI » ambigu (résumé de la confirmation en attente). */
+export function ambiguousYesText(pending: Pick<BossPending, "summary" | "chatId">): string {
+  return pick(CONFIRM_VARIANTS.ambiguousYes({ what: esc(firstLine(pending.summary)) }), "confirm.ambiguousYes", pending.chatId ?? null);
+}
+
 // ------------------------------------------------------------------------------------- demandes de membres en attente
 
 /** `Setting` : demandes de membres mises de côté pendant qu'une confirmation de l'admin attend (10 au plus). */
@@ -259,6 +302,9 @@ export async function sendNextDeferredBossPending(deps: BossDeps): Promise<boole
   const admin = await adminTelegramId(deps);
   const chatId = next.chatId ?? (admin ? admin.toString() : null);
   const r = await createBossPending(deps, { actionKey: next.actionKey, params: next.params, summary: next.summary, chatId, requestedBy: next.requestedBy });
+  // Ordre d'un membre mis de côté : il attend maintenant CE OUI (le balayage des ordres sans confirmation l'épargne).
+  if (next.actionKey === ORDER_CONFIRM_ACTION_KEY && typeof next.params.ordre === "string" && r.pendingId)
+    await deps.prisma.teamOrder.updateMany({ where: { id: next.params.ordre, status: "WAITING_CONFIRM" }, data: { pendingId: r.pendingId } }).catch(() => undefined);
   const text = `${next.text}\n${confirmTail(chatId)}`;
   try {
     const sent = next.chatId ? ((await deps.admin?.sendTo?.(BigInt(next.chatId), text, { buttons: r.buttons })) ?? null) : ((await deps.admin?.send(text, { buttons: r.buttons })) ?? null);
@@ -267,6 +313,41 @@ export async function sendNextDeferredBossPending(deps: BossDeps): Promise<boole
     deps.logger?.warn({ err: (err as Error).message }, "[boss] demande mise de côté non envoyée");
   }
   return true;
+}
+
+/** Clé de l'entrée interne qui confirme un ordre (`orders/recap.ts` `ORDER_CONFIRM_ACTION`, sans import : cycle). */
+const ORDER_CONFIRM_ACTION_KEY = "confirmer_ordre";
+
+/**
+ * Ordres de membres mis de côté (une confirmation de l'admin attendait) : ils n'ont pas encore de `pendingId` et ne
+ * doivent pas être annulés par `sweepStaleOrderConfirmations` avant que l'admin les ait vus.
+ */
+export async function deferredOrderIds(deps: BossDeps): Promise<Set<string>> {
+  const now = nowOf(deps).getTime();
+  const ids = new Set<string>();
+  for (const d of await readDeferred(deps).catch(() => [] as BossDeferred[]))
+    if (d.actionKey === ORDER_CONFIRM_ACTION_KEY && typeof d.params.ordre === "string" && now - new Date(d.createdAt).getTime() < DEFERRED_TTL_MS) ids.add(d.params.ordre);
+  return ids;
+}
+
+/**
+ * Ordre transmis par un membre et annulé faute de OUI (NON, expiré, remplacé) : Kevin prévient le membre (dans le
+ * groupe si l'ordre y a été demandé, sinon en privé) et l'admin, une ligne chacun. Ne lève jamais.
+ */
+export async function noticeStaleMemberOrder(
+  deps: BossDeps,
+  order: { number: number; chatId: string | null },
+  requestedBy: { telegramUserId: string; firstName: string },
+): Promise<void> {
+  const memberLine = pick(CONFIRM_VARIANTS.staleOrderMember({ n: order.number }), "confirm.staleOrder.member", order.chatId);
+  const adminLine = pick(CONFIRM_VARIANTS.staleOrderAdmin({ who: esc(requestedBy.firstName), n: order.number }), "confirm.staleOrder.admin");
+  try {
+    const group = order.chatId && order.chatId.startsWith("-") ? BigInt(order.chatId) : null;
+    if (deps.admin?.sendTo) await deps.admin.sendTo(group ?? BigInt(requestedBy.telegramUserId), memberLine);
+    await deps.admin?.send(adminLine);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[boss] ordre annulé : message non envoyé");
+  }
 }
 
 /** Suite à donner après une confirmation réglée : la demande de membre mise de côté, s'il y en a une. */

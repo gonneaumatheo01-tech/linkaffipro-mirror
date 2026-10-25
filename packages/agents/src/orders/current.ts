@@ -222,14 +222,27 @@ function norm(s: string): string {
 }
 
 /**
+ * Un ordre appartient-il à cette conversation (pur) ? Groupe (identifiant négatif) : ses ordres seulement. Privé :
+ * ses ordres et les anciens sans conversation. Conversation inconnue (privé de l'admin, ancien chemin) : tout sauf
+ * les ordres des groupes.
+ */
+export function orderInConversation(orderChatId: string | null, chat: string | null): boolean {
+  if (chat === null) return orderChatId === null || !orderChatId.startsWith("-");
+  if (chat.startsWith("-")) return orderChatId === chat;
+  return orderChatId === chat || orderChatId === null;
+}
+
+/**
  * Lignes de mémoire pour l'interprète (règle 5) : les ordres vivants, le plus récent d'abord, pour que « passe à 3
  * par jour », « arrête », « prolonge de 2 jours » se rattachent au bon ordre. Données seulement.
  */
 export async function ordersMemoryLines(deps: Pick<AgentsDeps, "prisma" | "now">, chatId?: bigint | string | null): Promise<string[]> {
   try {
-    const rows = await openOrders(deps, { take: 5 });
-    if (!rows.length) return ["Aucun ordre en cours."];
+    const all = await openOrders(deps, { take: 30 });
     const chat = chatId != null ? String(chatId) : null;
+    // Mémoire de CETTE conversation seulement : le groupe ne voit jamais les ordres donnés en privé (ni l'inverse).
+    const rows = all.filter((r) => orderInConversation(r.chatId, chat));
+    if (!rows.length) return ["Aucun ordre en cours."];
     const sorted = [...rows.filter((r) => chat && r.chatId === chat), ...rows.filter((r) => !chat || r.chatId !== chat)];
     const now = nowOf(deps);
     const out: string[] = [];

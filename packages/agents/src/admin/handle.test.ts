@@ -39,9 +39,9 @@ describe("commandes du dialogue admin", () => {
     const r = await handleAdminText(kit.deps, { text: "agents", messageId: 1 });
     const lines = r.reply!.split("\n");
     expect(lines.length).toBeLessThanOrEqual(8);
-    expect(lines[0]).toContain("à valider : 0");
-    expect(lines[1]).toContain("Rencontres : ▶️ active · simulation · niveau 0");
-    expect(lines.at(-1)).toContain("Santé : Grand Chef jamais");
+    expect(lines[0]).toContain("À valider : 0");
+    expect(lines[1]).toContain("Rencontres : active, pour de faux, niveau 0.");
+    expect(lines.at(-1)).toContain("Santé : aucun tour des équipes encore");
     // Lecture seule : aucune équipe créée par la commande.
     expect(kit.tables("agentTeamConfig")).toHaveLength(0);
   });

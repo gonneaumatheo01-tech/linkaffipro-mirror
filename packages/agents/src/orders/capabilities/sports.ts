@@ -32,10 +32,14 @@ import {
   modeOf,
   ok,
   orderActor,
+  orderModeOf,
   readAlgoBounds,
+  readOnly,
   refuse,
   resolvePeriod,
   resolveScope,
+  settingTouches,
+  touchesOf,
 } from "./kit";
 
 const T = "sports" as const;
@@ -131,6 +135,26 @@ async function bookmakerCovered(deps: AgentsDeps, bookmaker: string): Promise<{ 
   }
 }
 
+/** Appels aux cotes estimés pour un ordre : par jour et par canal, la liste des matchs, les marchés et une relecture par pari (pur). */
+export function estimatedOddsCalls(o: { days: number; channels: number; perDay: number }): number {
+  return Math.max(1, o.days) * Math.max(1, o.channels) * (2 + Math.max(1, o.perDay));
+}
+
+/**
+ * Appels aux cotes de l'ordre comparés à ce qui reste du forfait du mois (`maxApiCallsPerMonth`) : au-delà, le récapitulatif
+ * le dit (les appels au-delà du plafond sont refusés, l'ordre s'arrêterait avant la fin). Sans clé de cotes : rien.
+ */
+async function oddsCallsNote(deps: AgentsDeps, o: { days: number; channels: number; perDay: number }): Promise<string | null> {
+  const live = !!(deps as { providers?: { odds?: unknown } }).providers?.odds || (await hasOddsKey(deps.prisma).catch(() => false));
+  if (!live) return null;
+  const s = await loadSportsSettings(deps.prisma);
+  const used = await oddsCallsThisMonth(deps.prisma, nowOf(deps)).catch(() => 0);
+  const left = Math.max(0, s.maxApiCallsPerMonth - used);
+  const need = estimatedOddsCalls(o);
+  if (need <= left) return null;
+  return `l'ordre demande environ ${need} appels aux cotes et il en reste ${left} ce mois-ci sur ${s.maxApiCallsPerMonth} : il s'arrêtera avant la fin si le plafond n'est pas relevé`;
+}
+
 export const programmerParis = defineCapability<ProgramP>({
   teamKey: T,
   key: "programmer_paris",
@@ -183,7 +207,9 @@ export const programmerParis = defineCapability<ProgramP>({
     const bounds = await readAlgoBounds(deps);
     const clamped = [...period.clamped];
     const cats = (await clientCategories(deps)).map((c) => toCategory(c));
-    // Catégorie existante reprise telle quelle si rien n'est personnalisé ; sinon une catégorie créée pour l'ordre.
+    // Catégorie du client qui sert de base (marchés, ligues, bookmaker, fourchette). L'ordre travaille TOUJOURS avec une
+    // catégorie à lui (copie, jamais active hors de l'ordre) : ses paris ne comptent jamais dans le quota du jour de
+    // la catégorie du client, qui garde ses paris pour ses autres canaux (relecture du 25 octobre).
     const custom = !!(p.bookmaker || p.cote_min || p.cote_max);
     const existing =
       value.category && !custom
@@ -202,42 +228,53 @@ export const programmerParis = defineCapability<ProgramP>({
       minOdds = base?.minOdds ?? 1.5;
       maxOdds = base?.maxOdds ?? 3.5;
     }
-    const mode = modeOf(p, ctx);
-    if (mode === "real" && !scope.test && (await teamSimulation(deps))) clamped.push("l'équipe Paris sportifs est en simulation : les paris iront sur le canal Test tant qu'elle n'est pas passée en vrai");
+    // Mode qui s'appliquera : « pour de faux » sur un vrai canal = dérogation de test (publication sur le canal Test).
+    const mode = orderModeOf(p, ctx);
+    const simulated = mode !== "real";
+    const real = scope.channels.filter((c) => !c.isTest);
+    if (modeOf(p, ctx) === "real" && !simulated && real.length && (await teamSimulation(deps)))
+      clamped.push("l'équipe Paris sportifs est en simulation : les paris iront sur le canal Test tant qu'elle n'est pas passée en vrai");
+    if (simulated && real.length) clamped.push(`pour de faux : les paris partent sur le canal Test, ${channelsLabel(real)} garde ses paris habituels`);
+    // En vrai : les paris de l'ordre REMPLACENT ceux des catégories du client sur ce canal pendant la période.
+    if (!simulated && real.length) {
+      const replaced = (await clientCategories(deps)).filter((c) => c.active && Array.isArray(c.channelIds) && real.some((r) => (c.channelIds as unknown[]).includes(r.id)));
+      if (replaced.length) clamped.push(`pendant l'ordre, les paris habituels de ${channelsLabel(real)} (${replaced.map((c) => c.name).slice(0, 3).join(", ")}) sont remplacés par ceux de l'ordre`);
+    }
+    const oddsNote = await oddsCallsNote(deps, { days: period.days, channels: Math.max(1, scope.channels.length), perDay: per.value });
+    if (oddsNote) clamped.push(oddsNote);
     const themeLabel = value.theme?.label ?? existing?.name ?? "paris";
-    const newCategory = existing
-      ? null
-      : {
-          themeKey: value.theme?.key ?? "paris",
-          label: value.theme?.label ?? themeLabel,
-          marketTypes: value.theme?.marketTypes ?? base?.marketTypes ?? [],
-          leagues: base?.leagues ?? [],
-          bookmakers: p.bookmaker ? [p.bookmaker.toLowerCase().replace(/\s+/g, "")] : (base?.bookmakers ?? []),
-          minOdds,
-          maxOdds,
-          campaignId: base?.campaignId ?? null,
-          minMinutesBeforeKickoff: base?.minMinutesBeforeKickoff ?? 30,
-          maxOddsDriftPct: base?.maxOddsDriftPct ?? 5,
-        };
+    const newCategory = {
+      themeKey: value.theme?.key ?? (existing ? existing.key.replace(/[^a-z0-9-]+/gi, "-").toLowerCase() : "paris"),
+      label: value.theme?.label ?? themeLabel,
+      marketTypes: value.theme?.marketTypes ?? base?.marketTypes ?? [],
+      leagues: base?.leagues ?? [],
+      bookmakers: p.bookmaker ? [p.bookmaker.toLowerCase().replace(/\s+/g, "")] : (base?.bookmakers ?? []),
+      minOdds,
+      maxOdds,
+      campaignId: base?.campaignId ?? null,
+      minMinutesBeforeKickoff: base?.minMinutesBeforeKickoff ?? 30,
+      maxOddsDriftPct: base?.maxOddsDriftPct ?? 5,
+    };
     const ids = scope.channels.map((c) => c.id);
     const step: OrderStep = {
       stepKey: `programmer_paris:${ids.join(",")}:${value.theme?.key ?? existing?.id ?? "paris"}`,
       capability: "programmer_paris",
       teamKey: T,
-      summary: `${per.value} pari${per.value > 1 ? "s" : ""} par jour (${themeLabel}) sur ${channelsLabel(scope.channels)}, ${frRange(period.start, period.toDay)}${scope.test ? ", pour de faux" : ""}`,
+      summary: `${per.value} pari${per.value > 1 ? "s" : ""} par jour (${themeLabel}) sur ${channelsLabel(scope.channels)}, ${frRange(period.start, period.toDay)}${simulated ? ", pour de faux" : ", en vrai"}`,
       overrides: scope.channels.map((c) => ({
         channelId: c.id,
         teamKey: T,
         fromDay: period.start,
         toDay: period.toDay,
         picksPerDay: per.value,
-        betCategoryId: existing?.id ?? null,
+        betCategoryId: null,
         themes: value.theme ? [value.theme.key] : null,
-        isTest: c.isTest,
+        isTest: c.isTest || simulated,
       })),
+      touches: touchesOf(scope.channels),
       clamped,
       costCents: 0,
-      params: { channelIds: ids, categoryId: existing?.id ?? null, newCategory, perDay: per.value, fromDay: period.start, toDay: period.toDay, mode, themeLabel },
+      params: { channelIds: ids, categoryId: null, baseCategoryId: existing?.id ?? null, newCategory, perDay: per.value, fromDay: period.start, toDay: period.toDay, mode, themeLabel },
     };
     return [step];
   },
@@ -390,7 +427,7 @@ export const pariUnique = defineCapability<OneP>({
   },
   async plan(deps, p) {
     const c = await oneCategory(deps, p);
-    return [{ stepKey: "pari_unique", capability: "pari_unique", teamKey: T, summary: `un pari de test${c ? ` (${c.name})` : ""} sur le canal Test, pour de faux`, params: { categoryId: c?.id ?? null } }];
+    return [{ stepKey: "pari_unique", capability: "pari_unique", teamKey: T, summary: `un pari de test${c ? ` (${c.name})` : ""} sur le canal Test, pour de faux`, touches: { channelIds: [], testOnly: true }, params: { categoryId: c?.id ?? null } }];
   },
   async run(deps, order, step) {
     const already = await stepMission(deps, order.id, step.stepKey);
@@ -465,7 +502,9 @@ export const changerCategorie = defineCapability<ChangeP>({
       if (scope.ok) changes.channelIds = scope.channels.filter((x) => !x.isTest).map((x) => x.id);
     }
     const parts = Object.keys(changes).map((k) => ({ active: changes.active ? "activée" : "désactivée", picksPerDay: `${String(changes.picksPerDay)} paris par jour`, minOdds: `cotes ${min} à ${max}`, maxOdds: "", leagues: "ligues changées", channelIds: "canaux changés" })[k]).filter(Boolean);
-    return [{ stepKey: `changer_categorie:${c.id}`, capability: "changer_categorie", teamKey: T, summary: `catégorie ${c.name} : ${parts.join(", ") || "rien à changer"}`, clamped, params: { categoryId: c.id, changes } }];
+    // Réglage durable de la catégorie : il touche ses canaux de destination (avant et après), sinon toute l'équipe.
+    const dest = new Set<string>([...(Array.isArray(c.channelIds) ? (c.channelIds as string[]) : []), ...((changes.channelIds as string[] | undefined) ?? [])]);
+    return [{ stepKey: `changer_categorie:${c.id}`, capability: "changer_categorie", teamKey: T, summary: `catégorie ${c.name} : ${parts.join(", ") || "rien à changer"}`, clamped, touches: settingTouches([...dest], true), params: { categoryId: c.id, changes } }];
   },
   async run(deps, order, step) {
     const id = String(step.params.categoryId ?? "");
@@ -512,7 +551,7 @@ export const bilan = defineCapability<BilanP>({
     return ok();
   },
   async plan(_deps, p) {
-    return [{ stepKey: "bilan", capability: "bilan", teamKey: T, summary: `bilan des paris (${p.periode ?? "7j"})`, params: { periode: p.periode ?? "7j" } }];
+    return [{ stepKey: "bilan", capability: "bilan", teamKey: T, summary: `bilan des paris (${p.periode ?? "7j"})`, touches: readOnly(), params: { periode: p.periode ?? "7j" } }];
   },
   async run(deps, _order, step) {
     return done((await betSummaryFacts(deps, step.params.periode === "28j" ? "28j" : "7j")).lines.join("\n"));
@@ -575,7 +614,7 @@ export const questionSports = defineCapability<QuestionP>({
     return ok();
   },
   async plan(_deps, p) {
-    return [{ stepKey: "question", capability: "question", teamKey: T, summary: "question à l'équipe Paris sportifs", params: { sujet: p.sujet ?? null } }];
+    return [{ stepKey: "question", capability: "question", teamKey: T, summary: "question à l'équipe Paris sportifs", touches: readOnly(), params: { sujet: p.sujet ?? null } }];
   },
   async run(deps) {
     return done((await sportsFacts(deps)).lines.join("\n"));

@@ -312,6 +312,29 @@ export function modeOf(p: { mode?: string }, ctx?: { mode?: OrderMode }): OrderM
   return ctx?.mode ?? "simulation";
 }
 
+/**
+ * Mode qui s'appliquera vraiment (pur) : « en vrai » seulement si l'étape ET l'ordre le disent (le récapitulatif suit
+ * le mode de l'ordre : jamais « pour de faux » annoncé et une publication réelle).
+ */
+export function orderModeOf(p: { mode?: string }, ctx?: { mode?: OrderMode }): OrderMode {
+  return modeOf(p, ctx) === "real" && (ctx?.mode ?? "simulation") === "real" ? "real" : "simulation";
+}
+
+/** Ce que touche une étape qui publie sur ces canaux (canal Test compris). */
+export function touchesOf(channels: readonly ScopeChannel[]): NonNullable<OrderStep["touches"]> {
+  return { channelIds: channels.map((c) => c.id), testOnly: channels.length > 0 && channels.every((c) => c.isTest) };
+}
+
+/** Étape de lecture seule : ne touche rien. */
+export const readOnly = (): NonNullable<OrderStep["touches"]> => ({ channelIds: [] });
+
+/** Réglage durable (réservé à l'admin, toujours confirmé hors canal Test). */
+export const settingTouches = (channelIds: readonly string[], teamWide = channelIds.length === 0): NonNullable<OrderStep["touches"]> => ({
+  channelIds: [...channelIds],
+  ...(teamWide ? { teamWide: true } : {}),
+  setting: true,
+});
+
 export function channelsLabel(channels: readonly ScopeChannel[]): string {
   if (!channels.length) return "aucun canal";
   return channels.map((c) => (c.isTest ? "le canal Test" : c.title)).join(", ");
@@ -384,7 +407,7 @@ export async function missionsReport(deps: AgentsDeps, order: OrderRow, extra: O
 
 /** Capacité de lecture : rien à poser, `run` rend les lignes des faits. */
 export function askStep(capability: string, teamKey: OrderTeamKey, summary: string, params: Record<string, unknown>): OrderStep {
-  return { stepKey: `${capability}`, capability, teamKey, summary, params };
+  return { stepKey: `${capability}`, capability, teamKey, summary, params, touches: readOnly() };
 }
 
 export function nowFor(deps: AgentsDeps): Date {

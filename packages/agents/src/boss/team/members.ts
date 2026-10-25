@@ -310,21 +310,35 @@ export async function claimMemberAiTurn(
   deps: Pick<AgentsDeps, "prisma" | "now" | "logger">,
   id: bigint,
   limit = BOSS_MEMBER_AI_DAILY_LIMIT,
+  setting = BOSS_MEMBER_AI_SETTING,
 ): Promise<boolean> {
   try {
     const day = parisDay(nowOf(deps));
-    const v = (await readSetting(deps, BOSS_MEMBER_AI_SETTING)) as { day?: unknown; counts?: unknown } | undefined;
+    const v = (await readSetting(deps, setting)) as { day?: unknown; counts?: unknown } | undefined;
     const counts: Record<string, number> = v?.day === day && v.counts && typeof v.counts === "object" ? { ...(v.counts as Record<string, number>) } : {};
     const sid = id.toString();
     const n = Number(counts[sid] ?? 0) || 0;
     if (n >= limit) return false;
     counts[sid] = n + 1;
-    await writeSetting(deps, BOSS_MEMBER_AI_SETTING, { day, counts });
+    await writeSetting(deps, setting, { day, counts });
     return true;
   } catch (err) {
     deps.logger?.warn({ err: (err as Error).message }, "[boss] limite du jour d'un membre non lue");
     return true;
   }
+}
+
+/**
+ * Phase 33 (relecture) : demandes d'un membre envoyées au planificateur des ordres (Opus, le plus cher) par jour au
+ * plus ; un plan déjà en cache ne compte pas. L'admin n'est limité que par le plafond mensuel.
+ */
+export const BOSS_MEMBER_PLAN_DAILY_LIMIT = 5;
+/** `Setting` : `{ day, counts: { <telegramUserId>: n } }` (jour de Paris). */
+export const BOSS_MEMBER_PLAN_SETTING = "boss.team.planTurns";
+
+/** Compte une planification d'un membre ; faux si ses 5 du jour sont faites (rien n'est compté). */
+export async function claimMemberPlanTurn(deps: Pick<AgentsDeps, "prisma" | "now" | "logger">, id: bigint): Promise<boolean> {
+  return claimMemberAiTurn(deps, id, BOSS_MEMBER_PLAN_DAILY_LIMIT, BOSS_MEMBER_PLAN_SETTING);
 }
 
 // ------------------------------------------------------------------------------------------- présentations en attente

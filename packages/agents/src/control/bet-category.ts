@@ -12,14 +12,20 @@ export async function setBetCategoryActive(
   categoryId: string,
   active: boolean,
   actor: ActorRef,
+  opts: { orderId?: string | null } = {},
 ): Promise<{ ok: boolean; message: string; changed: boolean }> {
   const before = (await deps.prisma.betCategory.findUnique({ where: { id: categoryId } })) as {
     id: string;
     key: string;
     name: string;
     active: boolean;
+    createdByOrderId?: string | null;
   } | null;
   if (!before) return { ok: false, message: "Catégorie de paris introuvable.", changed: false };
+  // Catégorie créée pour un ordre de Kevin (phase 33) : elle ne sert que par la dérogation de son ordre, jamais activée
+  // à part (sinon le passage habituel l'utiliserait hors de l'ordre et après sa fin).
+  if (active && before.createdByOrderId && before.createdByOrderId !== (opts.orderId ?? null))
+    return { ok: false, message: `La catégorie « ${before.name} » appartient à un ordre : elle ne s'active pas à part.`, changed: false };
   if (before.active === active)
     return { ok: true, message: `La catégorie « ${before.name} » est déjà ${active ? "active" : "désactivée"}.`, changed: false };
   await deps.prisma.betCategory.update({ where: { id: before.id }, data: { active, updatedById: actor.userId ?? null } });

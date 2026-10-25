@@ -7,7 +7,8 @@
  * Droits : ceux de la phase 26 ; un membre lit les ordres, mais ne lance, ne modifie ni n'arrête jamais un ordre d'un
  * vrai canal sans l'admin (`classify` → « confirm » : transmis à l'admin).
  */
-import { esc, nowOf } from "../admin/journal";
+import { esc, nowOf, readSetting, writeSetting } from "../admin/journal";
+import { claimMemberPlanTurn } from "./team/members";
 import { TEAM_LABELS, type TeamKey } from "../types";
 import { ORDER_LIMITS, type OrderPlan, type OrderRow } from "../orders/contract";
 import {
@@ -24,7 +25,8 @@ import {
   type TeamOrderRow,
 } from "../orders/current";
 import { capability, extendOrder, listCapabilities, modifyOrder, stopOrder } from "../orders/ports";
-import { planOrder } from "../orders/planner";
+import { askTeam } from "../orders/ask";
+import { planCacheKeyOf, planOrder } from "../orders/planner";
 import {
   classifyOrder,
   confirmOrderLaunch,
@@ -85,6 +87,10 @@ export const CATALOG_ORDERS_VARIANTS = {
   modifyAsk: voiceTemplate<{ n: number }>([{ n: 12 }], (p) => [`Je modifie l'ordre n°${p.n} ?`, `Je change l'ordre n°${p.n} ?`]),
   modifyAskCurrent: ["Je modifie l'ordre en cours ?", "Je change l'ordre en cours ?"],
   modifyLost: ["Je ne retrouve pas le détail de cet ordre.", "Le détail de cet ordre m'échappe, je ne peux pas le changer."],
+  modifyQuota: [
+    "Tu as déjà fait 5 demandes de ce genre aujourd'hui. Dis-le en chiffres (« 3 par jour »), ou demande à l'admin.",
+    "Plus de changement libre pour toi aujourd'hui (5 au plus). Donne-moi un chiffre précis, ou passe par l'admin.",
+  ],
   modifyFail: ["Je n'ai pas réussi à préparer ce changement. Tu me le redis plus simplement ?", "Je n'arrive pas à monter ce changement, reformule-le ?"],
   modifyWhat: ["Qu'est-ce que je change ? Par exemple « passe à 3 par jour ».", "Tu veux changer quoi ? La quantité, le thème, la fenêtre ?"],
   modifyRefused: voiceTemplate<{ why: string }>([{ why: "corners : pas de cotes demain" }, { why: "ça ne passe pas les vérifications" }], (p) => [
@@ -373,6 +379,27 @@ async function applyChangeNow(deps: BossDeps, order: TeamOrderRow, v: ValidatedP
   return { reply: [pick(V.modifyDone({ n: order.number }), "orders.modify.done", chat), recap].map(esc).join("\n") };
 }
 
+/** `Setting` : plans des modifications libres (« modifier_ordre » avec `demande`), 24 h, 30 au plus. */
+export const ORDER_MODIFY_CACHE_SETTING = "orders.modifyPlanCache";
+const MODIFY_CACHE_TTL_MS = 24 * 3600_000;
+type ModifyCacheEntry = { key: string; plan: OrderPlan; at: string };
+
+async function readModifyCache(deps: BossDeps): Promise<ModifyCacheEntry[]> {
+  const v = (await readSetting(deps, ORDER_MODIFY_CACHE_SETTING).catch(() => null)) as { entries?: unknown } | null;
+  const now = nowOf(deps).getTime();
+  return (Array.isArray(v?.entries) ? (v!.entries as ModifyCacheEntry[]) : []).filter((e) => e && typeof e.key === "string" && now - new Date(e.at).getTime() < MODIFY_CACHE_TTL_MS);
+}
+
+async function cachedModification(deps: BossDeps, key: string): Promise<OrderPlan | null> {
+  return (await readModifyCache(deps)).find((e) => e.key === key)?.plan ?? null;
+}
+
+async function rememberModification(deps: BossDeps, key: string, plan: OrderPlan): Promise<void> {
+  const list = (await readModifyCache(deps)).filter((e) => e.key !== key);
+  list.push({ key, plan: JSON.parse(JSON.stringify(plan)) as OrderPlan, at: nowOf(deps).toISOString() });
+  await writeSetting(deps, ORDER_MODIFY_CACHE_SETTING, { entries: list.slice(-30) }).catch(() => undefined);
+}
+
 export const modifierOrdre = defineAction<ModParams>({
   key: "modifier_ordre",
   description: "Changer un ordre en cours (« passe à 3 par jour », « change le thème en corners », « mets la fenêtre 18 h - 23 h »)",
@@ -402,10 +429,20 @@ export const modifierOrdre = defineAction<ModParams>({
     let plan: OrderPlan;
     if (p.par_jour !== undefined || p.theme || p.fenetre_debut || p.fenetre_fin) plan = applyModification(base, p);
     else if (p.demande) {
-      const planned = await planOrder(deps, { text: p.demande, basePlan: base, chat: (deps as BossExecDeps).chat ?? null, speaker: (deps as BossExecDeps).speaker ?? null });
-      if (!planned.ok) return { reply: pick(V.modifyFail, "orders.modify.fail", chatOf(deps)) };
-      plan = planned.plan;
-      await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { costCents: order.costCents + planned.costCents } });
+      // Même modification du même ordre dans les 24 h : plan réutilisé (aucun appel au planificateur). Un membre a
+      // au plus 5 planifications par jour ; l'admin n'est limité que par le plafond.
+      const cacheKey = `${order.id}|${planCacheKeyOf(p.demande)}`;
+      const cached = await cachedModification(deps, cacheKey);
+      if (cached) plan = cached;
+      else {
+        const speaker = (deps as BossExecDeps).speaker ?? null;
+        if (speaker && speaker.kind === "member" && !(await claimMemberPlanTurn(deps, speaker.telegramUserId))) return { reply: pick(V.modifyQuota, "orders.modify.quota", chatOf(deps)) };
+        const planned = await planOrder(deps, { text: p.demande, basePlan: base, chat: (deps as BossExecDeps).chat ?? null, speaker });
+        if (!planned.ok) return { reply: pick(V.modifyFail, "orders.modify.fail", chatOf(deps)) };
+        plan = planned.plan;
+        await rememberModification(deps, cacheKey, plan);
+        await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { costCents: order.costCents + planned.costCents } });
+      }
     } else return { reply: pick(V.modifyWhat, "orders.modify.what", chatOf(deps)) };
     const v = await validatePlan(deps, plan, { excludeOrderId: order.id });
     if (!v.steps.length) {
@@ -530,39 +567,12 @@ export const demanderEquipe = defineAction<AskParams>({
       return { reply: esc(pick(V.askUnknownTeam({ team: p.equipe, teams: Object.values(TEAM_LABELS).join(", ") }), "orders.ask.unknown", chat)) };
     if (FUTURE_TEAMS[team])
       return { reply: esc(pick(V.askFuture({ team: FUTURE_TEAMS[team] }), "orders.ask.future", chat)) };
-    const cap = capability(team, "question");
-    if (!cap)
-      return { reply: esc(pick(V.askNoCap({ team: orderTeamLabel(team) }), "orders.ask.nocap", chat)) };
-    const props = Object.keys(((cap.params as { properties?: Record<string, unknown> }).properties ?? {}) as Record<string, unknown>);
-    // Clé du schéma de la capacité (`sujet` dans le registre).
-    const qKey = props.find((k) => /sujet|question|demande|texte/i.test(k)) ?? "sujet";
-    const parsed = cap.parse({ [qKey]: p.question });
-    if (!parsed.ok) return { reply: esc(pick(V.askBadParams({ error: parsed.error }), "orders.ask.params", chat)) };
-    const now = nowOf(deps);
-    const steps = await cap.plan(deps, parsed.params, { now, mode: "simulation", period: null });
-    const order = (await deps.prisma.teamOrder.create({
-      data: {
-        requestText: p.question.slice(0, 2000),
-        interpretation: JSON.parse(JSON.stringify({ teamKey: team, scope: { teamWide: true }, kind: "ASK", mode: "simulation", steps: [{ teamKey: team, capability: "question", params: parsed.params }], resolved: {}, questions: [], impossible: [], plannedSteps: steps })) as never,
-        recap: `Question à l'équipe ${orderTeamLabel(team)}`,
-        kind: "ASK",
-        teamKey: team,
-        status: "RUNNING",
-        createdById: actor.userId,
-        chatId: chat != null ? chat.toString() : null,
-      },
-    })) as unknown as TeamOrderRow;
-    const row: OrderRow = { ...order, kind: "ASK" };
-    let lines: string[] = [];
-    let facts: Record<string, unknown> = {};
-    try {
-      const results = await Promise.all(steps.map((s) => cap.run(deps, row, s)));
-      lines = results.flatMap((r) => r.message.split("\n")).map((l) => l.trim()).filter(Boolean);
-      facts = (await cap.report(deps, row)) as Record<string, unknown>;
-    } catch (err) {
-      deps.logger?.warn({ err: (err as Error).message }, "[orders] question à l'équipe en échec");
-    }
-    await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { status: "DONE" } });
+    // Kevin pose la question ; le Grand Chef la lit et la confie au Chef de l'équipe (`orders/ask.ts`, lecture seule).
+    const asked = await askTeam(deps, team, p.question, { actor, chatId: chat, teamLabel: orderTeamLabel(team) });
+    if (!asked.ok && asked.reason === "no_capability") return { reply: esc(pick(V.askNoCap({ team: orderTeamLabel(team) }), "orders.ask.nocap", chat)) };
+    if (!asked.ok) return { reply: esc(pick(V.askBadParams({ error: asked.error ?? "question illisible" }), "orders.ask.params", chat)) };
+    const order = { id: asked.orderId };
+    const { lines, facts } = asked;
     const fallback = lines.slice(0, 6).join("\n") || pick(V.askEmpty, "orders.ask.empty", chat);
     const llm = deps.llm as BossLlmExt | null | undefined;
     const writer = llm?.writeQuality ?? llm?.write;

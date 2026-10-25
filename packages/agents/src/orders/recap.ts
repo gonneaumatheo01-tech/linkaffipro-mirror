@@ -32,7 +32,7 @@ import {
 import { runOrder, stopOrder } from "./ports";
 import type { PlannedOrder } from "./planner";
 import { recordOrderUnmet } from "./unmet";
-import { validatePlan, workingTeam, type ImpossibleOut, type ValidatedPlan } from "./validate";
+import { stepsPerDay, stepsTheme, validatePlan, workingTeam, type ImpossibleOut, type OverlapInfo, type ValidatedPlan } from "./validate";
 
 /** Clés des entrées internes du catalogue (`boss/catalog-orders.ts`) visées par les confirmations et les numéros. */
 export const ORDER_CONFIRM_ACTION = "confirmer_ordre";
@@ -70,6 +70,8 @@ export const ORDER_RECAP_VARIANTS = {
   reasonCost: voiceTemplate<{ amount: string }>([{ amount: "3,50 €" }], (p) => [`ça coûte environ ${p.amount} chez un fournisseur`, `ça coûte à peu près ${p.amount} chez un fournisseur`]),
   reasonMedia: ["ça fait produire des photos ou des vidéos payantes", "ça fait produire des photos ou des vidéos qui coûtent"],
   reasonDays: voiceTemplate<{ days: number }>([{ days: 10 }], (p) => [`ça dure ${p.days} jours`, `ça court sur ${p.days} jours`]),
+  reasonUnknown: ["ça peut toucher un vrai canal", "ça pourrait toucher un vrai canal"],
+  reasonSetting: ["ça change un réglage", "ça change un réglage durable"],
   whatGeneric: voiceTemplate<{ body: string; mode: string }>(
     [
       { body: "l'équipe Casino teste 2 posts sur le canal Test", mode: "pour de faux" },
@@ -101,6 +103,14 @@ export const ORDER_RECAP_VARIANTS = {
   altPartial: ["Je lance le reste quand même ?", "Je fais déjà ce qui est possible ?", "On part sur le reste en attendant ?"],
   altOne: voiceTemplate<{ label: string }>([{ label: "les corners" }], (p) => [`Je te le fais avec ${p.label} à la place ?`, `On part sur ${p.label} à la place ?`, `Je te propose ${p.label}, ça te va ?`]),
   altHow: ["Réponds par le numéro, ou OUI pour le premier.", "Dis-moi le numéro (OUI = le premier)."],
+  altHowNumbers: ["Réponds par le numéro.", "Dis-moi le numéro."],
+  aiPart: ["une partie de la demande", "une partie de ce que tu demandes"],
+  aiReason: ["ce n'est pas faisable avec ce que les équipes savent faire aujourd'hui", "les équipes ne savent pas encore faire ça"],
+  aiAlt: ["une autre façon de faire", "une solution de rechange"],
+  aiQuestion: [
+    "Il me manque une précision : tu me redis ta demande avec le canal et la durée ?",
+    "Je n'ai pas tout : tu me redonnes le canal et la durée ?",
+  ],
   waitYes: voiceTemplate<{ reasons: string }>([{ reasons: "ça touche un vrai canal" }, { reasons: "ça touche un vrai canal et ça dure 10 jours" }], (p) => [
     `${capFirst(p.reasons)}, j'attends ton OUI.`,
     `${capFirst(p.reasons)} : il me faut ton OUI.`,
@@ -118,10 +128,9 @@ export const ORDER_RECAP_VARIANTS = {
   tailConfirmed: ["Je te fais un point chaque soir.", "Je te tiens au courant chaque soir."],
   tailImmediate: ["Je te fais un point chaque soir. Tu changes d'avis ? Écris « annule » dans la minute.", "Point chaque soir. « annule » dans la minute si tu changes d'avis."],
   tailFirst: voiceTemplate<{ at: string }>([{ at: "10 h" }, { at: "18 h 30" }], (p) => [`Première production vers ${p.at}.`, `Ça démarre vers ${p.at}.`]),
-  startFailed: voiceTemplate<{ reason: string }>([{ reason: "erreur interne" }], (p) => [
-    `Ça n'a pas pu démarrer : ${p.reason}. Je réessaie si tu me le redemandes.`,
-    `Raté au démarrage (${p.reason}). Redemande-moi et je relance.`,
-  ]),
+  startFailed: ["Ça n'a pas pu démarrer, rien n'est parti. Redemande-moi et je relance.", "Raté au démarrage, rien n'est sorti. Redemande-moi et je relance."],
+  startBlocked: ["C'est prêt, mais l'équipe est arrêtée ou au plafond : rien ne part tant que ce n'est pas réglé. Je te préviens dès que ça repart.", "Ordre posé, mais l'équipe ne peut pas produire pour l'instant (pause ou plafond). Je te dis quand ça repart."],
+  overlapAdmin: voiceTemplate<{ admin: string }>([{ admin: "Mathéo" }], (p) => [`Ça touche un vrai canal : c'est ${p.admin} qui choisit lequel garder.`, `Sur un vrai canal, c'est ${p.admin} qui tranche.`]),
   overlap: voiceTemplate<{ n: number; where: string }>([{ n: 12, where: "le canal Test" }], (p) => [
     `Il y a déjà l'ordre n°${p.n} sur ${p.where} pour la même période. Lequel je garde ?`,
     `${capFirst(p.where)} a déjà l'ordre n°${p.n} sur ces jours-là. On garde lequel ?`,
@@ -145,6 +154,10 @@ export const ORDER_RECAP_VARIANTS = {
     "Le premier est déjà sorti. Écris « arrête l'ordre » et je coupe le reste.",
   ],
   quickDone: ["C'est annulé, rien n'est parti.", "Annulé avant le départ, rien n'a été publié.", "Ok, j'annule : rien n'est sorti."],
+  quickOnTheWay: [
+    "C'est déjà en route : l'équipe a commencé. Dis-moi « arrête l'ordre » et je coupe tout ce qui n'a pas commencé.",
+    "Trop tard pour l'annuler d'un mot, l'équipe a déjà commencé. Écris « arrête l'ordre » et je stoppe le reste.",
+  ],
 } satisfies VoiceTable;
 
 const RV = ORDER_RECAP_VARIANTS;
@@ -160,16 +173,49 @@ function daysBetween(from: string | null, to: string | null): number {
   return n;
 }
 
+/** Ce que touche une étape : sa déclaration, sinon ses dérogations ; null = inconnu (pur). */
+export function stepTouches(step: OrderStep): NonNullable<OrderStep["touches"]> | null {
+  if (step.touches) return step.touches;
+  if (step.overrides?.length) return { channelIds: step.overrides.map((o) => o.channelId) };
+  return null;
+}
+
+/** Réglages réservés à l'admin (un membre les transmet, jamais il ne les lance). */
+export const ADMIN_ONLY_CAPABILITIES = new Set([
+  "changer_plan",
+  "changer_categorie",
+  "consignes_canal",
+  "mot_interdit_canal",
+  "appliquer_reglage",
+  "annuler_reglage",
+  "lancer_test_ab",
+  "pause_reprise",
+  "mode",
+  "appliquer_inspiration",
+  "annuler_inspiration",
+]);
+
+/** Un des réglages de l'ordre est réservé à l'admin (pur). */
+export function adminOnlyOrder(v: Pick<ValidatedPlan, "plannedSteps">): boolean {
+  return v.plannedSteps.some((s) => s.touches?.setting === true || ADMIN_ONLY_CAPABILITIES.has(s.capability));
+}
+
 /**
- * Classe d'un ordre validé (règle 4) : OUI dès qu'un vrai canal est touché, qu'une équipe passe en vrai, qu'il y a une
- * dépense chez un fournisseur (vidéo, photo, cotes payantes), ou au-delà de 7 jours ; sinon immédiat.
+ * Classe d'un ordre validé (règle 4), décidée sur ce que les étapes déclarent TOUCHER (jamais sur la portée donnée par
+ * l'IA) : OUI dès qu'un vrai canal ou toute une équipe est touché (tout réglage hors canal Test), qu'on ne sait pas ce
+ * qui est touché, qu'une équipe passe en vrai, qu'il y a une dépense chez un fournisseur, ou au-delà de 7 jours (durée
+ * réelle : période de l'ordre ou durée de ce qui est lancé, test A/B compris) ; sinon immédiat.
  */
 export async function classifyOrder(deps: BossDeps, v: Pick<ValidatedPlan, "plan" | "steps" | "plannedSteps" | "channelIds" | "fromDay" | "toDay" | "costCents">): Promise<OrderClass> {
   const reasons: string[] = [];
-  const names = await channelNames(deps, v.channelIds);
-  const scope = v.plan.scope as { test?: boolean; teamWide?: boolean; channelIds?: string[] };
-  const realChannel = scope.teamWide === true || v.channelIds.some((id) => !names.get(id)?.isTest) || (!scope.test && !v.channelIds.length && v.steps.length > 0);
+  const touches = v.plannedSteps.map(stepTouches);
+  const unknown = touches.some((t) => !t) || (v.steps.length > 0 && v.plannedSteps.length === 0);
+  const ids = [...new Set(touches.flatMap((t) => t?.channelIds ?? []))];
+  const names = await channelNames(deps, ids);
+  // Un canal introuvable compte comme un vrai canal.
+  const realChannel = touches.some((t) => t?.teamWide === true) || ids.some((id) => names.get(id)?.isTest !== true);
   if (realChannel) reasons.push(RV.reasonReal[0]!);
+  else if (unknown) reasons.push(RV.reasonUnknown[0]!);
   const goesReal = v.plan.mode === "real" || v.steps.some((s) => s.capability.key === "mode");
   if (goesReal) reasons.push(RV.reasonGoesReal[0]!);
   const team = workingTeam(v.plan);
@@ -179,7 +225,8 @@ export async function classifyOrder(deps: BossDeps, v: Pick<ValidatedPlan, "plan
       v.plan.format === "photo" ||
       v.plannedSteps.some((p) => (p.overrides ?? []).some((o) => o.format === "video" || o.format === "photo" || (o.mix && ((o.mix.video ?? 0) > 0 || (o.mix.photo ?? 0) > 0)))));
   if (v.costCents > 0 || mediaSpend) reasons.push(v.costCents > 0 ? RV.reasonCost({ amount: eur(v.costCents) })[0]! : RV.reasonMedia[0]!);
-  const days = daysBetween(v.fromDay, v.toDay);
+  const ranDays = touches.reduce((m, t) => Math.max(m, typeof t?.days === "number" ? t.days : 0), 0);
+  const days = Math.max(daysBetween(v.fromDay, v.toDay), ranDays);
   if (days > ORDER_LIMITS.confirmOverDays) reasons.push(RV.reasonDays({ days })[0]!);
   return { cls: reasons.length ? "confirm" : "immediate", reasons, days };
 }
@@ -193,17 +240,35 @@ const AS_IF_LABEL: Record<string, string> = { sports: "un canal paris", casino: 
 function themeWord(theme: string | null | undefined): string | null {
   if (!theme) return null;
   const t = theme.trim();
-  return /^(les|le|la|l')\b/i.test(t) ? t : `les ${t}`;
+  const low = `${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+  return /^(les|le|la|l')\b/i.test(low) ? low : `les ${low}`;
 }
 
+/** Quantité par jour BORNÉE (celle des étapes validées), jamais celle proposée par le planificateur. */
 function perDayOf(v: Pick<ValidatedPlan, "plan" | "plannedSteps">): number | null {
-  if (typeof v.plan.perDay === "number" && v.plan.perDay > 0) return v.plan.perDay;
-  for (const p of v.plannedSteps)
-    for (const o of p.overrides ?? []) {
-      const n = o.picksPerDay ?? o.postsPerDay;
-      if (typeof n === "number" && n > 0) return n;
+  return stepsPerDay(v.plannedSteps);
+}
+
+/** Mode RÉEL qui s'appliquera : « en vrai » seulement si une dérogation part sur un vrai canal, l'ordre en vrai et
+ * l'équipe en vrai ; un réglage écrit sur un vrai canal est toujours « en vrai ». */
+export async function effectiveOrderMode(deps: BossDeps, v: Pick<ValidatedPlan, "plan" | "plannedSteps">): Promise<"real" | "simulation"> {
+  const overrides = v.plannedSteps.flatMap((s) => s.overrides ?? []);
+  if (overrides.length) {
+    if (v.plan.mode !== "real") return "simulation";
+    const live = overrides.filter((o) => !o.isTest);
+    if (!live.length) return "simulation";
+    for (const team of new Set(live.map((o) => o.teamKey))) {
+      const row = (await deps.prisma.agentTeamConfig.findUnique({ where: { teamKey: team } }).catch(() => null)) as { simulation?: boolean } | null;
+      if (row?.simulation === false) return "real";
     }
-  return null;
+    return "simulation";
+  }
+  const settings = v.plannedSteps.filter((s) => s.touches?.setting);
+  if (!settings.length) return v.plan.mode === "real" ? "real" : "simulation";
+  if (settings.some((s) => s.touches?.teamWide)) return "real";
+  const ids = [...new Set(settings.flatMap((s) => s.touches?.channelIds ?? []))];
+  const names = await channelNames(deps, ids);
+  return ids.some((id) => names.get(id)?.isTest !== true) ? "real" : "simulation";
 }
 
 /** Première ligne (ce qui va se passer), écrite par le code (pur, données déjà lues). */
@@ -211,6 +276,7 @@ export function recapWhatLine(
   v: Pick<ValidatedPlan, "plan" | "plannedSteps" | "fromDay" | "toDay">,
   where: string,
   chatId?: bigint | string | null,
+  realMode?: "real" | "simulation",
 ): string {
   const team = workingTeam(v.plan);
   const unitMany = team === "sports" ? "paris" : "posts";
@@ -218,11 +284,11 @@ export function recapWhatLine(
   const perDay = perDayOf(v as ValidatedPlan);
   const days = daysBetween(v.fromDay, v.toDay);
   const period = v.fromDay && v.toDay ? periodLabel(v.fromDay, v.toDay) : null;
-  const theme = themeWord(v.plan.theme);
-  const mode = v.plan.mode === "real" ? "en vrai" : "pour de faux";
+  const theme = themeWord(stepsTheme(v.plannedSteps));
+  const mode = (realMode ?? (v.plan.mode === "real" ? "real" : "simulation")) === "real" ? "en vrai" : "pour de faux";
   const qty = perDay ? `${perDay} ${perDay > 1 ? unitMany : unitOne} par jour` : null;
   if (!period || !qty) {
-    const summaries = v.plannedSteps.map((p) => p.summary.trim().replace(/[.;\s]+$/, "")).filter(Boolean);
+    const summaries = v.plannedSteps.map((p) => p.summary.trim().replace(/[.;\s]+$/, "").replace(/, (pour de faux|en vrai)$/, "")).filter(Boolean);
     const body = summaries.length ? summaries.join(" ; ") : `${orderTeamLabel(team)} s'en occupe`;
     return pick(RV.whatGeneric({ body, mode }), "order.what.generic", chatId);
   }
@@ -285,13 +351,10 @@ export async function orderRecap(
   opts: { chatId?: bigint | string | null; cls?: OrderClass | null; tail?: string | null } = {},
 ): Promise<{ lines: string[]; costCents: number }> {
   const names = await channelNames(deps, v.channelIds);
-  const scope = v.plan.scope as { test?: boolean; teamWide?: boolean };
   const where = v.channelIds.length
     ? v.channelIds.map((id) => names.get(id)?.name ?? "un canal").slice(0, 2).join(" et ")
-    : scope.test
-      ? "le canal Test"
-      : `tous les canaux ${orderTeamLabel(workingTeam(v.plan))}`;
-  const draft = recapWhatLine(v, where, opts.chatId);
+    : `tous les canaux ${orderTeamLabel(workingTeam(v.plan))}`;
+  const draft = recapWhatLine(v, where, opts.chatId, await effectiveOrderMode(deps, v));
   const smooth = await smoothLine(deps, draft, recapFacts(v, draft));
   const lines = [smooth.text];
   const adjust = recapAdjustLine(v);

@@ -11,6 +11,11 @@
  * - `kevinText({ llm, draft, facts, fallback })` : brouillon → contrôle → une réécriture → texte de secours ;
  * - `voiceTemplate(samples, render, rules)` et les tables `*_VARIANTS` exportées par chaque module de Kevin : le test
  *   `voice.test.ts` les rassemble et vérifie chaque variante (CI : toute phrase ajoutée doit passer le contrôle).
+ *
+ * Relecture (correcteur 2) : `voiceFidelityProblems(original, candidate)` (mêmes nombres au format français, mêmes
+ * signes, mêmes noms, même mode) refuse toute réécriture infidèle ; `pick(…, previous)` et `varyAgainst(text,
+ * previous)` branchent le contrôle de répétition sur le dernier message de Kevin lu en base (`BossTurn`) ; emojis
+ * comptés par graphème (drapeaux, emojis composés) ; « Avec plaisir » permis seulement en réponse à « merci ».
  */
 import type { BossLlm } from "./contract";
 import { allowedNumbers, inventedNumbers } from "../rules/report-numbers";
@@ -48,11 +53,16 @@ function hash(s: string): number {
   return h;
 }
 
+/** Variantes d'où vient un texte fixe déjà choisi (`varyAgainst` : une autre variante si le texte se répète). */
+const variantsOfText = new Map<string, readonly string[]>();
+
 /**
  * Une variante d'un texte fixe : jamais deux fois de suite la même pour une même clé dans une même conversation.
- * Sans conversation : première variante à la rotation déterministe.
+ * Sans conversation : première variante à la rotation déterministe. `previous` (dernier message de Kevin dans la
+ * conversation, lu en base : la rotation en mémoire ne voit pas l'autre processus, site ou worker) : une variante
+ * qui le répéterait est sautée.
  */
-export function pick(variants: readonly string[], key: string, chatId?: bigint | string | number | null): string {
+export function pick(variants: readonly string[], key: string, chatId?: bigint | string | number | null, previous?: string | null): string {
   if (variants.length === 0) return "";
   if (variants.length === 1) return variants[0]!;
   const conv = chatId === null || chatId === undefined ? "-" : String(chatId);
@@ -60,25 +70,60 @@ export function pick(variants: readonly string[], key: string, chatId?: bigint |
   const prev = lastPicked.get(k);
   let i = prev === undefined ? hash(k) % variants.length : (prev + 1) % variants.length;
   if (i === prev) i = (i + 1) % variants.length;
+  if (previous && voiceCheck(variants[i]!, { previous, allowList: true, allowLong: true, allowThanks: true }).problems.some((p) => p.code === "repetition"))
+    i = (i + 1) % variants.length;
   if (prev === undefined && lastPicked.size >= MAX_ROTATION_KEYS) {
     const oldest = lastPicked.keys().next().value;
     if (oldest !== undefined) lastPicked.delete(oldest);
   }
   lastPicked.set(k, i);
+  if (variantsOfText.size >= MAX_ROTATION_KEYS) {
+    const oldest = variantsOfText.keys().next().value;
+    if (oldest !== undefined) variantsOfText.delete(oldest);
+  }
+  variantsOfText.set(variants[i]!, variants);
   return variants[i]!;
+}
+
+/**
+ * Contrôle de répétition branché à l'envoi : si `text` répète `previous` (dernier message de Kevin dans la
+ * conversation, même texte ou même première phrase) et qu'il contient un texte fixe choisi par `pick`, ce texte est
+ * remplacé par une autre de ses variantes. Sinon le texte est rendu tel quel (une réponse chiffrée identique à la
+ * même question reste juste).
+ */
+export function varyAgainst(text: string, previous: string | null | undefined): string {
+  if (!text || !previous || !previous.trim()) return text;
+  const repeats = (t: string) => voiceCheck(t, { previous, allowList: true, allowLong: true, allowThanks: true }).problems.some((p) => p.code === "repetition");
+  if (!repeats(text)) return text;
+  const known = [...variantsOfText].filter(([fixed]) => text.includes(fixed)).sort((a, b) => b[0].length - a[0].length);
+  for (const [fixed, variants] of known) {
+    for (const other of variants) {
+      if (other === fixed) continue;
+      const next = text.replace(fixed, other);
+      if (!repeats(next)) return next;
+    }
+  }
+  return text;
 }
 
 /** Remet la rotation à zéro (tests). */
 export function resetVoiceRotation(): void {
   lastPicked.clear();
+  variantsOfText.clear();
 }
 
 export const FORBIDDEN_PHRASES = [
   "voici",
-  "voilà ce que",
+  "voilà",
+  "voila",
   "bien sûr",
+  "bien sur",
   "n'hésite",
   "n'hésitez",
+  "n'hesite",
+  "n'hesitez",
+  // Formule de fin : permise seulement en réponse à « merci » (`allowThanks`, réponse de politesse du chemin rapide).
+  "avec plaisir",
   "je reste à ta disposition",
   "je reste à votre disposition",
   "en tant qu'ia",
@@ -117,11 +162,30 @@ export const ENGLISH_STATUS_WORDS = [
   "BLOCKED",
   "SENT",
   "DRAFT",
+  "PROPOSED",
+  "APPLIED",
+  "REVERTED",
+  "DISMISSED",
+  "WON",
+  "LOST",
+  "VOID",
+  "EDITED",
+  "WAITING",
+  "CONFIRMED",
 ];
+
+/** « avec plaisir » : seule formule de fin permise, et seulement en réponse à un « merci » (`allowThanks`). */
+const THANKS_PHRASES = new Set(["avec plaisir"]);
 
 export type VoiceProblem = { code: string; detail: string };
 
-export type VoiceCheckOptions = { previous?: string | null; allowList?: boolean; allowLong?: boolean };
+export type VoiceCheckOptions = {
+  previous?: string | null;
+  allowList?: boolean;
+  allowLong?: boolean;
+  /** Réponse à un « merci » : « Avec plaisir » est permis (et seulement là). */
+  allowThanks?: boolean;
+};
 
 const L = "\\p{L}";
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -158,7 +222,26 @@ function sentencesOf(plain: string): string[] {
     .filter(Boolean);
 }
 
-const emojiCount = (s: string) => (s.match(/\p{Extended_Pictographic}/gu) ?? []).length;
+const SEGMENTER = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter("fr", { granularity: "grapheme" }) : null;
+/** Graphèmes d'un texte (un emoji composé 👨‍👩‍👧 ou un drapeau 🇫🇷 = un seul). */
+function graphemes(s: string): string[] {
+  return SEGMENTER ? [...SEGMENTER.segment(s)].map((g) => g.segment) : Array.from(s);
+}
+/** Un graphème est-il un emoji (pictogramme, drapeau, touche 1️⃣) ? */
+const isEmojiGrapheme = (g: string) => /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u.test(g);
+/** Nombre d'emojis (un emoji composé ou un drapeau compte pour un). */
+export const emojiCount = (s: string) => graphemes(s).filter(isEmojiGrapheme).length;
+/** Deux emojis ou plus de suite (espaces permis entre eux). */
+function hasEmojiSeries(s: string): boolean {
+  let run = 0;
+  for (const g of graphemes(s)) {
+    if (isEmojiGrapheme(g)) {
+      run++;
+      if (run >= 2) return true;
+    } else if (!/^\s+$/u.test(g)) run = 0;
+  }
+  return false;
+}
 /** Repères permis en tête de ligne d'une liste (paris, posts) : ✅ ⚠️ (et ❌ ⏳ pour l'état d'un pari). */
 const LIST_MARK = /^\s*(✅|⚠️?|❌|⏳)/u;
 
@@ -180,6 +263,7 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
 
   // Formules interdites et vouvoiement.
   for (const f of FORBIDDEN_PHRASES) {
+    if (opts.allowThanks && THANKS_PHRASES.has(f)) continue;
     const re = new RegExp(`(^|[^${L}])${escapeRe(f)}([^${L}]|$)`, "iu");
     if (re.test(prose)) problems.push({ code: "formule", detail: f });
   }
@@ -200,7 +284,7 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
   // Longueur, puces, titres, gras.
   const lines = plain.split("\n").filter((l) => l.trim());
   if (!opts.allowLong && lines.length > 8) problems.push({ code: "longueur", detail: `${lines.length} lignes` });
-  const bullets = lines.filter((l) => /^\s*([•\-*–·]|\d+[.)])\s/u.test(l)).length;
+  const bullets = lines.filter((l) => /^\s*([•\-*–—·➤►▸▪→]|\d+[.)])\s/u.test(l)).length;
   if (!opts.allowList && bullets > 4) problems.push({ code: "puces", detail: `${bullets} puces` });
   const bolds = (text.match(/<b>|<strong>|\*\*[^*\n]+\*\*/g) ?? []).length;
   if (bolds > 2) problems.push({ code: "gras", detail: `${bolds} passages en gras` });
@@ -212,7 +296,7 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
   const listMarks = markedLines.length >= 2 ? markedLines.length : 0;
   const emojis = emojiCount(plain) - listMarks;
   if (emojis > 1) problems.push({ code: "emojis", detail: `${emojis} emojis` });
-  if (/(\p{Extended_Pictographic}️?\s*){2,}/u.test(plain)) problems.push({ code: "emojis", detail: "série d'emojis" });
+  if (hasEmojiSeries(plain)) problems.push({ code: "emojis", detail: "série d'emojis" });
 
   // Phrases trop longues.
   for (const sentence of sentencesOf(plain)) {
@@ -234,6 +318,9 @@ export function voiceCheck(text: string, opts: VoiceCheckOptions = {}): { ok: bo
 export function voiceProblemsText(problems: readonly VoiceProblem[]): string {
   const label: Record<string, string> = {
     formule: "formule interdite",
+    format: "nombre mal écrit (virgule décimale)",
+    nom: "nom de canal, d'équipe ou @nom perdu",
+    mode: "mode changé (pour de faux / en vrai)",
     vouvoiement: "vouvoiement (il faut tutoyer)",
     jargon: "mot de jargon interne",
     identifiant: "identifiant technique",
@@ -273,9 +360,96 @@ export function voiceNumberProblems(text: string, sources: { facts?: unknown; or
   return out;
 }
 
+// ---------------------------------------------------------------------------------- fidélité d'une réécriture
+
+/** Libellés des équipes cités tels quels (une réécriture ne les perd jamais). */
+const TEAM_NAME_WORDS = ["Rencontres", "Casino", "Paris sportifs", "Algorithme", "Ads", "Pubs", "Inspiration", "Montage"];
+
+const foldText = (s: string) =>
+  voicePlainText(s)
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+/** Nombres d'un texte : valeur absolue normalisée (« 1 234,50 » → « 1234.5 ») et signe écrit (pur). */
+function writtenNumbers(text: string): { abs: string; sign: "+" | "-" | null }[] {
+  const joined = voicePlainText(text).replace(/(\d)[\s\u00a0\u202f](?=\d{3}(?!\d))/g, "$1");
+  const out: { abs: string; sign: "+" | "-" | null }[] = [];
+  const re = /\d+(?:[.,]\d+)?/g;
+  for (let m = re.exec(joined); m; m = re.exec(joined)) {
+    const before = joined.slice(0, m.index);
+    let sign: "+" | "-" | null = null;
+    const sm = /([+\-\u2212\u2013])\s?$/.exec(before);
+    if (sm) {
+      const prev = before.slice(0, before.length - sm[0].length).slice(-1);
+      if (!prev || /[\s(:;«"'/]/.test(prev)) sign = sm[1] === "+" ? "+" : "-";
+    }
+    out.push({ abs: String(Number(m[0].replace(",", "."))), sign });
+  }
+  return out;
+}
+
+/** Mode d'un texte : « pour de faux » (test, simulation) et / ou « en vrai ». */
+function modesOf(text: string): { fake: boolean; real: boolean } {
+  const n = foldText(text);
+  return {
+    fake: /\b(pour de faux|en test|simulation|simule|aucune (vraie )?mise)\b/.test(n),
+    real: /\b(en vrai|pour de vrai|vrai canal|vrais canaux|vraies mises?)\b/.test(n),
+  };
+}
+
+/** Noms à garder : @noms, textes entre « », équipes, et mots à majuscule hors début de phrase (canaux, personas). */
+function namesOf(text: string, extra: readonly string[] = []): string[] {
+  const plain = voicePlainText(text);
+  const out = new Set<string>();
+  for (const m of plain.matchAll(/@[\p{L}\p{N}_]{3,}/gu)) out.add(m[0]);
+  for (const m of plain.matchAll(/«\s*([^»]{2,60}?)\s*»/gu)) out.add(m[1]!);
+  for (const t of TEAM_NAME_WORDS) if (new RegExp(`(^|[^\\p{L}])${t}([^\\p{L}]|$)`, "u").test(plain)) out.add(t);
+  for (const m of plain.matchAll(/(?<=[\p{L}\p{N},;:)]\s)(\p{Lu}[\p{L}'-]{2,})/gu)) if (!["OUI", "NON"].includes(m[1]!)) out.add(m[1]!);
+  for (const e of extra) if (e.trim()) out.add(e.trim());
+  return [...out];
+}
+
+/**
+ * Une réécriture dit-elle exactement la même chose que l'original (code, pur) ? Mêmes nombres (format français :
+ * « 1,94 » et jamais « 1.94 », aucun arrondi, aucun nombre perdu ni ajouté), mêmes signes écrits, mêmes noms de
+ * canaux, d'équipes et @noms, mêmes mots de mode (« pour de faux » / « en vrai »). Vide = fidèle. Sert à
+ * `rewriteForVoice`, `kevinText` et au lissage des récapitulatifs (`orders/recap.ts`).
+ */
+export function voiceFidelityProblems(original: string, candidate: string, opts: { names?: readonly string[] } = {}): VoiceProblem[] {
+  const problems: VoiceProblem[] = [];
+  const a = writtenNumbers(original);
+  const b = writtenNumbers(candidate);
+  const setA = new Set(a.map((x) => x.abs));
+  const setB = new Set(b.map((x) => x.abs));
+  for (const v of setA) if (!setB.has(v)) problems.push({ code: "chiffres", detail: `${v.replace(".", ",")} disparu ou arrondi` });
+  for (const v of setB) if (!setA.has(v)) problems.push({ code: "chiffres", detail: `${v.replace(".", ",")} ajouté` });
+  for (const x of b) {
+    if (!x.sign) continue;
+    const same = a.filter((y) => y.abs === x.abs);
+    if (same.length && !same.some((y) => y.sign === x.sign || (y.sign === null && x.sign === "+"))) problems.push({ code: "chiffres", detail: `signe de ${x.abs.replace(".", ",")} changé` });
+  }
+  for (const x of a) {
+    if (x.sign !== "-") continue;
+    if (!b.some((y) => y.abs === x.abs && y.sign === "-") && !/baisse|moins|recul|perte/i.test(candidate)) problems.push({ code: "chiffres", detail: `signe de ${x.abs.replace(".", ",")} perdu` });
+  }
+  const plainA = voicePlainText(original);
+  const plainB = voicePlainText(candidate);
+  for (const m of plainB.matchAll(/\d+\.\d+/g)) if (!plainA.includes(m[0])) problems.push({ code: "format", detail: `${m[0]} (virgule attendue)` });
+  const foldedB = foldText(candidate);
+  for (const name of namesOf(original, opts.names)) if (!foldedB.includes(foldText(name))) problems.push({ code: "nom", detail: name });
+  const ma = modesOf(original);
+  const mb = modesOf(candidate);
+  if (ma.fake !== mb.fake || ma.real !== mb.real) problems.push({ code: "mode", detail: ma.real ? "en vrai" : ma.fake ? "pour de faux" : "mode ajouté" });
+  return problems;
+}
+
 export type RewriteOptions = VoiceCheckOptions & {
   /** Chiffres permis en plus de ceux du texte d'origine (faits JSON de l'appelant). */
   facts?: unknown;
+  /** Noms à garder tels quels (canaux, personas) en plus de ceux repérés dans le texte. */
+  names?: readonly string[];
 };
 
 export const VOICE_REWRITE_MAX_CHARS = 4000;
@@ -308,7 +482,9 @@ export async function rewriteForVoice(
   if (!candidate) return { text: null, costCents: out.costCents, problems: [...problems] };
   const check = voiceCheck(candidate, opts);
   const numbers = voiceNumberProblems(candidate, { facts: opts.facts, original: text });
-  const after = [...check.problems, ...numbers.map((n) => ({ code: "chiffres", detail: n }))];
+  // Même contenu que l'original : aucun nombre perdu, arrondi ou mal écrit, mêmes noms, même mode.
+  const fidelity = voiceFidelityProblems(text, candidate, { names: opts.names });
+  const after = [...check.problems, ...numbers.map((n) => ({ code: "chiffres", detail: n })), ...fidelity];
   return after.length ? { text: null, costCents: out.costCents, problems: after } : { text: candidate, costCents: out.costCents, problems: [] };
 }
 
@@ -320,6 +496,8 @@ export type KevinTextInput = VoiceCheckOptions & {
   facts?: unknown;
   /** Texte fixe de secours, déjà conforme à la charte. */
   fallback: string;
+  /** Noms à garder tels quels par une réécriture (canaux, personas). */
+  names?: readonly string[];
 };
 
 export type KevinTextResult = { text: string; source: "draft" | "rewrite" | "fallback"; costCents: number; problems: VoiceProblem[] };
@@ -330,13 +508,13 @@ export type KevinTextResult = { text: string; source: "draft" | "rewrite" | "fal
  */
 export async function kevinText(input: KevinTextInput): Promise<KevinTextResult> {
   const draft = (input.draft ?? "").trim();
-  const opts: VoiceCheckOptions = { previous: input.previous, allowList: input.allowList, allowLong: input.allowLong };
+  const opts: VoiceCheckOptions = { previous: input.previous, allowList: input.allowList, allowLong: input.allowLong, allowThanks: input.allowThanks };
   if (!draft) return { text: input.fallback, source: "fallback", costCents: 0, problems: [] };
   const check = voiceCheck(draft, opts);
   const numbers = input.facts !== undefined ? voiceNumberProblems(draft, { facts: input.facts }) : [];
   if (numbers.length) return { text: input.fallback, source: "fallback", costCents: 0, problems: numbers.map((n) => ({ code: "chiffres", detail: n })) };
   if (check.ok) return { text: draft, source: "draft", costCents: 0, problems: [] };
-  const r = await rewriteForVoice(input.llm, draft, check.problems, { ...opts, facts: input.facts });
+  const r = await rewriteForVoice(input.llm, draft, check.problems, { ...opts, facts: input.facts, names: input.names });
   if (r.text) return { text: r.text, source: "rewrite", costCents: r.costCents, problems: [] };
   return { text: input.fallback, source: "fallback", costCents: r.costCents, problems: r.problems };
 }
@@ -344,7 +522,7 @@ export async function kevinText(input: KevinTextInput): Promise<KevinTextResult>
 // ----------------------------------------------------------------------------------- tables de variantes (tests)
 
 /** Règles d'un texte : liste demandée (aide), détail demandé (rapport complet). */
-export type VoiceRules = { allowList?: boolean; allowLong?: boolean };
+export type VoiceRules = { allowList?: boolean; allowLong?: boolean; allowThanks?: boolean };
 
 /** Texte fixe à paramètres : rend ses variantes ; `samples` = valeurs d'exemple vérifiées par `voice.test.ts`. */
 export type VoiceTemplate<P> = ((p: P) => readonly string[]) & { readonly samples: readonly P[]; readonly rules?: VoiceRules };

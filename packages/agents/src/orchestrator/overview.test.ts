@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { voiceCheck } from "../boss/voice";
 import { createFakePrisma } from "../testing/fake-prisma";
 import { agentsOverview, overviewLines } from "./overview-contract";
 import { projectMonthEnd, todayCounts } from "./overview";
@@ -135,13 +136,16 @@ describe("supervision des agents", () => {
 
     const lines = overviewLines(o);
     expect(lines.length).toBeLessThanOrEqual(8);
-    expect(lines[0]).toBe("🤖 Agents · à valider : 1 · demandes : 1 · alertes : 2");
-    expect(lines[1]).toContain("Rencontres : ▶️ active · en vrai · niveau 1 · aujourd'hui 2 créés, 1 publié, 0 en attente, 1 repli");
-    expect(lines[1]).toContain("7 j : 1 post, 2 inscriptions, 50 €");
-    expect(lines[2]).toContain("Casino : ⏸ pause");
-    expect(lines[5]).toContain("Ads : ▶️ active · 1 recommandation ouverte · dernier rapport il y a 1 h");
-    expect(lines[6]).toBe("Algorithme cette semaine : 1 réglage appliqué · 1 test A/B en cours");
-    expect(lines[7]).toContain("Santé : Grand Chef il y a 12 min · 1 mission bloquée · 1 erreur fournisseurs (24 h) · sans clé : IA texte");
+    expect(lines[0]).toBe("À valider : 1, demandes : 1, alertes : 2.");
+    expect(lines[1]).toContain("Rencontres : active, en vrai, niveau 1. Aujourd'hui 2 créés, 1 publié, 0 en attente, 1 repli.");
+    expect(lines[1]).toContain("Sur 7 jours : 1 post, 2 inscriptions, 50 €.");
+    expect(lines[2]).toContain("Casino : en pause");
+    expect(lines[5]).toContain("Ads : active, 1 recommandation ouverte, dernier rapport il y a 1 h.");
+    expect(lines[6]).toBe("Algorithme cette semaine : 1 réglage appliqué, 1 test A/B en cours.");
+    expect(lines[7]).toContain("Santé : dernier tour des équipes il y a 12 min, 1 post bloqué, 1 erreur chez les fournisseurs (24 h), sans clé : IA texte.");
+    // Texte envoyé par Kevin : voix contrôlée (un emoji au plus, ni « mission », ni « simulation », ni « Grand Chef »).
+    expect(voiceCheck(lines.join("\n")).problems).toEqual([]);
+    expect(lines.join("\n")).not.toMatch(/mission|simulation|Grand Chef/i);
   });
 
   it("pause générale : visible en tête, Ads en pause aussi", async () => {
@@ -149,7 +153,7 @@ describe("supervision des agents", () => {
     const o = await agentsOverview(prisma, { now: NOW });
     expect(o.pausedAll).toBe(true);
     expect(o.ads.paused).toBe(true);
-    expect(overviewLines(o)[0]).toContain("pause générale ⏸");
+    expect(overviewLines(o)[0]).toContain("Pause générale en cours.");
   });
 
   it("libellés de durée", () => {

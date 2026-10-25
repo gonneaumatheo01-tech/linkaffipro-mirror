@@ -26,17 +26,21 @@ import { BOSS_TOKEN_SECRET_KEY } from "./register-port";
 import type { BossDeps, BossFastResult, BossReply, BossTeamInput } from "./contract";
 import { bossAction } from "./catalog";
 import {
+  ambiguousYesText,
   confirmText,
   confirmWordOf,
   createBossPending,
+  isShadowed,
   pendingTargeted,
   readBossPending,
   resolveBossPending,
+  unshadowBossPending,
   voiceStrictRefusal,
 } from "./confirm";
 import {
   bossActorOf,
   bossSecretContext,
+  lastBossText,
   bossTokenCommand,
   forwardedMemoryText,
   looksLikeBotToken,
@@ -52,7 +56,7 @@ import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
 import { orderQuickCancel } from "../orders/recap";
-import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
 
 /** Textes fixes du chemin rapide (charte `docs/KEVIN-VOIX.md`). */
 export const FAST_VARIANTS = {
@@ -97,7 +101,8 @@ export const FAST_VARIANTS = {
     "Ça va bien, merci. Tu veux l'état des équipes ? Écris « agents ».",
     "Tranquille, les équipes tournent. Écris « agents » si tu veux voir où elles en sont.",
   ],
-  thanks: ["Avec plaisir 👍", "De rien !", "Avec plaisir, je suis là si besoin."],
+  // Réponse à « merci » : seul endroit où « Avec plaisir » est permis (`allowThanks`).
+  thanks: voiceVariants(["Avec plaisir 👍", "De rien !", "Avec plaisir, je suis là si besoin."], { allowThanks: true }), // voix-hors-charte (réponse à « merci »)
   areYouABot: [
     "Je suis le bot de l'équipe, pas une personne. Je pilote les agents avec toi.",
     "Je suis un bot, celui de l'équipe, qui fait tourner les agents.",
@@ -129,6 +134,9 @@ async function remember(
   opts: { secret?: boolean; actionKey: string; status: BossTurnStatus },
 ): Promise<void> {
   const chatId = input.chat?.chatId ?? null;
+  // Contrôle de répétition branché à l'envoi : jamais deux fois de suite le même texte fixe dans la conversation
+  // (dernier message de Kevin lu en base, la rotation en mémoire ne voit pas l'autre processus).
+  if (r.reply) r.reply = varyAgainst(r.reply, await lastBossText(deps, chatId));
   await writeBossTurn(deps, {
     role: "ADMIN",
     text: opts.secret ? "" : input.forwarded ? forwardedMemoryText(input.text) : input.text,
@@ -266,6 +274,14 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       }
       const strict = pending.expired ? null : voiceStrictRefusal(pending, word, voice, input.spokenText ?? text);
       if (strict) return { handled: true, reply: strict };
+      // Kevin a proposé autre chose après cette confirmation (demande impossible + proposition) : un « OUI » sans
+      // « Répondre » est ambigu, il ne confirme rien ; Kevin redemande clairement (le OUI suivant confirmera).
+      if (word === "yes" && replyTo === null && !pending.expired && isShadowed(pending)) {
+        await unshadowBossPending(deps, pending.id);
+        const r = { reply: ambiguousYesText(pending) };
+        await remember(deps, input, r, { actionKey: "confirmation", status: "clarify" });
+        return { handled: true, ...r };
+      }
       const r = await resolveBossPending(deps, word);
       if (r.handled) {
         const { handled: _h, ...reply } = r;
@@ -313,15 +329,26 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         return { handled: true, ...r };
       }
       await clearClarify(deps);
-      const params = { ...clarify.params, [clarify.field]: opt.value };
+      // Champ vide : proposition sans paramètre (demande impossible → « réponds 1 »), l'action se rejoue telle quelle.
+      const params = clarify.field ? { ...clarify.params, [clarify.field]: opt.value } : { ...clarify.params };
       const parsed = action.parse(params);
-      if (!parsed.ok) return { handled: true, reply: oopsReply(parsed.error) };
+      if (!parsed.ok) {
+        deps.logger?.warn({ err: parsed.error, action: action.key }, "[boss] choix numéroté illisible");
+        return { handled: true, reply: oopsReply() };
+      }
       const actor = await bossActorOf(deps, input.speaker);
       const r = await runBossAction(deps, action, parsed.params as Record<string, unknown>, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
       const { status, ...reply } = r;
       await remember(deps, input, reply, { actionKey: action.key, status });
       return { handled: true, ...reply };
     }
+  }
+
+  // « t'es un bot ? » : réponse franche, sans IA, pour TOUT le monde (admin et membres).
+  if (isAreYouABotQuestion(text)) {
+    const r: BossReply = { reply: smallTalkReply(text, input.chat?.chatId ?? null) ?? FAST_VARIANTS.areYouABot[0]! };
+    await remember(deps, input, r, { actionKey: "politesse", status: "done" });
+    return { handled: true, ...r };
   }
 
   // 5. Aide, commencer, annule, commandes exactes et réponses aux questions ouvertes.
@@ -354,6 +381,13 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
         await remember(deps, input, reply, { actionKey: action.key, status });
         return { handled: true, ...reply };
       }
+    }
+    // Politesse d'un membre (« salut », « merci ») : réponse simple et gratuite, jamais l'IA.
+    const small = smallTalkReply(text, input.chat?.chatId ?? null);
+    if (small) {
+      const r: BossReply = { reply: small };
+      await remember(deps, input, r, { actionKey: "politesse", status: "done" });
+      return { handled: true, ...r };
     }
     return { handled: false, needsAi: true };
   }
@@ -524,8 +558,9 @@ export async function bossFastPath(deps: BossDeps, input: BossTeamInput): Promis
   try {
     return await fastPathInner(deps, input);
   } catch (err) {
+    // Le détail reste au journal ; l'admin ne reçoit jamais un message d'erreur brut.
     deps.logger?.error({ err: (err as Error).message }, "[boss] chemin rapide en échec");
-    return { handled: true, reply: oopsReply((err as Error).message || "erreur interne") };
+    return { handled: true, reply: oopsReply() };
   }
 }
 

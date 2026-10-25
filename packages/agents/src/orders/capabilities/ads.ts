@@ -6,7 +6,7 @@ import { nowOf } from "../../admin/journal";
 import { loadAdsThresholdsView } from "../../agents/ads/analysis";
 import { adsProposed, recommendationLabel } from "../../boss/facts";
 import type { AgentsDeps } from "../../types";
-import { defineCapability, done, ok } from "./kit";
+import { defineCapability, done, ok, readOnly } from "./kit";
 
 const T = "ads" as const;
 
@@ -54,7 +54,7 @@ function readCap(key: string, description: string, facts: (deps: AgentsDeps) => 
       return ok();
     },
     async plan(_deps, p) {
-      return [{ stepKey: key, capability: key, teamKey: T, summary: description.split(" :")[0]!.toLowerCase(), params: { sujet: p.sujet ?? null } }];
+      return [{ stepKey: key, capability: key, teamKey: T, summary: description.split(" :")[0]!.toLowerCase(), touches: readOnly(), params: { sujet: p.sujet ?? null } }];
     },
     async run(deps) {
       return done((await facts(deps)).lines.join("\n"));

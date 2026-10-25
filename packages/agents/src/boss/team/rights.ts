@@ -43,6 +43,17 @@ export const BOSS_READ_KEYS = new Set([
   "mes_ordres",
   "ordre_statut",
   "impossibles",
+  // Phase 33, chantier C : voir ce que font et vont faire les équipes (écrites ici aussi : la liste ne dépend pas du
+  // chargement de `catalog-view.ts`, qui les ajoute de son côté).
+  "voir_plan",
+  "voir_programme",
+  "voir_paris_du_canal",
+  "apercu_matchs",
+  "voir_matchs_bookmaker",
+  "voir_fait",
+  "pourquoi_rien",
+  "fiche_agent",
+  "qu_attend_ma_validation",
 ]);
 
 /** Gestion de l'équipe : admin et responsables seulement. */
