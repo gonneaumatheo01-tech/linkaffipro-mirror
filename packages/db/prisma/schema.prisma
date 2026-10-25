@@ -3322,3 +3322,162 @@ enum ShortClipStatus {
   REDO
   CANCELLED
 }
+
+/// Phase 29 — équipe Analystes : source surveillée (forum, Reddit, Telegram public, X, actualités). Débit et réglages de
+/// lecture dans `scrapeConfig` ; désactivée après 5 échecs de suite ; une source découverte par l'IA naît inactive.
+model TrendSource {
+  id            String          @id @default(cuid())
+  name          String
+  url           String          @unique
+  sourceType    TrendSourceType
+  market        Vertical
+  /// Codes pays ISO 3166-1 alpha-2 ; langues ISO 639-1.
+  countries     Json            @default("[]")
+  languages     Json            @default("[]")
+  /// { rateLimitMs, maxPages, selectors?, pagination?, query?, robots? } (aucun identifiant).
+  scrapeConfig  Json            @default("{}")
+  isActive      Boolean         @default(true)
+  /// « seed » (liste de départ), « discovered » (trouvée par l'IA), « client » (ajoutée par l'admin).
+  origin        String          @default("seed")
+  lastScrapedAt DateTime?
+  nextScrapeAt  DateTime?
+  errorCount    Int             @default(0)
+  lastError     String?
+  entries       TrendEntry[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([isActive, nextScrapeAt])
+}
+
+enum TrendSourceType {
+  FORUM
+  REDDIT
+  TELEGRAM
+  TWITTER
+  NEWS
+  OTHER
+}
+
+/// Une entrée de veille : résumé en français (500 caractères), lien, date, classement. Le texte brut est effacé à 7 jours ;
+/// aucun profil d'utilisateur de forum n'est gardé (pseudonyme seulement, jamais de vrai nom).
+model TrendEntry {
+  id              String           @id @default(cuid())
+  sourceId        String
+  source          TrendSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  market          Vertical
+  countries       Json             @default("[]")
+  language        String
+  title           String?
+  summary         String
+  summaryOriginal String?
+  url             String
+  /// Empreinte de l'adresse normalisée (une entrée par contenu).
+  urlHash         String           @unique
+  author          String?
+  publishedAt     DateTime?
+  category        TrendCategory
+  tags            Json             @default("[]")
+  sentiment       TrendSentiment
+  relevanceScore  Int
+  /// Vérifiée par une deuxième lecture ; sinon présentée comme « non vérifiée ».
+  verified        Boolean          @default(false)
+  rawText         String?
+  rawTextPurgeAt  DateTime?
+  complianceRules ComplianceRule[]
+  createdAt       DateTime         @default(now())
+
+  @@index([market, createdAt])
+  @@index([category, createdAt])
+  @@index([rawTextPurgeAt])
+}
+
+enum TrendCategory {
+  AD_STRATEGY
+  AD_BAN
+  AD_CREATIVE
+  PLATFORM_CHANGE
+  MARKET_TREND
+  REGULATION
+  OFFER
+  TOOL
+  DISCUSSION
+  OTHER
+}
+
+enum TrendSentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+/// Règle de publicité observée sur une plateforme (pas un avis juridique) ; preuves sourcées ; une seule source =
+/// non vérifiée ; revérifiée tous les 30 jours.
+model ComplianceRule {
+  id             String             @id @default(cuid())
+  platform       CompliancePlatform
+  market         Vertical
+  /// ISO 3166-1 alpha-2, ou « ALL ».
+  country        String
+  rule           String
+  riskLevel      RiskLevel
+  /// [{ url, date, description }]
+  evidence       Json               @default("[]")
+  verified       Boolean            @default(false)
+  workaround     String?
+  isActive       Boolean            @default(true)
+  lastVerifiedAt DateTime
+  sourceEntryId  String?
+  sourceEntry    TrendEntry?        @relation(fields: [sourceEntryId], references: [id], onDelete: SetNull)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([platform, market, country])
+  @@index([riskLevel, isActive])
+}
+
+/// Plateformes des règles publicitaires (distinct de `AdPlatform` des connecteurs Meta / TikTok).
+enum CompliancePlatform {
+  META
+  TIKTOK
+  GOOGLE
+  SNAP
+  X
+  TELEGRAM
+  OTHER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  BAN
+}
+
+/// Rapport de l'équipe Analystes (hebdomadaire, mensuel, ou briefing à la demande).
+model StrategyReport {
+  id              String             @id @default(cuid())
+  /// Null = tous les marchés (rapport hebdomadaire).
+  market          Vertical?
+  countries       Json               @default("[]")
+  period          String
+  reportType      StrategyReportType
+  title           String
+  summary         String
+  /// Sections structurées : tendances, règles, recommandations, sources.
+  content         Json
+  recommendations Json               @default("[]")
+  requestedBy     String?
+  requestText     String?
+  /// Envoyé par Kevin (message Telegram).
+  sentAt          DateTime?
+  createdAt       DateTime           @default(now())
+
+  @@index([reportType, createdAt])
+}
+
+enum StrategyReportType {
+  WEEKLY
+  MONTHLY
+  ON_DEMAND
+}
