@@ -3078,6 +3078,12 @@ model BettingPick {
   postId            String?
   status            BettingPickStatus @default(PROPOSED)
   skipReason        String?
+  /// Phase 35 : bookmaker du client lu directement (clé `BookmakerSite`), identifiant du match sur ce site, les deux
+  /// lectures (`BookmakerOdds.id`) qui ont validé la cote, niveau de lecture retenu (api | dom | image).
+  siteKey           String?
+  siteEventId       String?
+  oddsReadIds       Json?
+  oddsLevel         String?
   /// Statistiques du match après coup (score, tirs cadrés, corners…).
   result            Json?
   settledAt         DateTime?
@@ -3087,4 +3093,112 @@ model BettingPick {
   @@index([status, kickoffAt])
   @@index([categoryId, createdAt])
   @@index([eventId, marketId])
+}
+
+/// Phase 35 : bookmaker du client lu directement par le système (Celsius, Sportaza, Bet Portal…). Lecture seule, jamais
+/// de mise ; identifiants communs chiffrés (`Setting agents.secret.providers.bookmakers.default.credentials`).
+model BookmakerSite {
+  /// « celsius », « sportaza », « betportal »
+  key          String            @id
+  label        String
+  /// Adresse de la section paris sportifs.
+  baseUrl      String?
+  sportsPath   String?
+  /// Moteur de paris détecté (iframes, scripts) : betby, altenar, digitain, betconstruct, kambi, sportradar, softswiss,
+  /// inconnu.
+  providerHint String?
+  /// auto | server | mac (auto : serveur si joignable, sinon Mac).
+  readTarget   String            @default("auto")
+  isActive     Boolean           @default(true)
+  /// NEW, LEARNING, READY, DEGRADED, BLOCKED
+  status       String            @default("NEW")
+  statusReason String?
+  lastReadAt   DateTime?
+  lastOkAt     DateTime?
+  recipes      BookmakerRecipe[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+/// Phase 35 : recette d'un site (comment lire ses matchs, marchés et cotes), apprise sur un enregistrement réel,
+/// validée par le code, versionnée ; une seule active par site.
+model BookmakerRecipe {
+  id         String        @id @default(cuid())
+  siteKey    String
+  site       BookmakerSite @relation(fields: [siteKey], references: [key], onDelete: Cascade)
+  version    Int
+  /// api | dom
+  level      String
+  api        Json?
+  dom        Json?
+  mapping    Json          @default("{}")
+  validation Json          @default("{}")
+  isActive   Boolean       @default(false)
+  /// learn | repair | manual | reuse
+  createdBy  String
+  createdAt  DateTime      @default(now())
+
+  @@unique([siteKey, version])
+  @@index([siteKey, isActive])
+}
+
+/// Phase 35 : travail de lecture d'un site, fait par le serveur ou par le Mac du client (runner).
+model BookmakerReadJob {
+  id         String    @id @default(cuid())
+  siteKey    String
+  /// learn | events | markets | verify | capture | test | visible
+  kind       String
+  /// server | mac
+  target     String
+  /// PENDING, CLAIMED, DONE, FAILED, NEEDS_HUMAN
+  status     String    @default("PENDING")
+  params     Json      @default("{}")
+  /// Compteurs, erreurs classées, niveau utilisé, durée ; jamais de secret.
+  result     Json?
+  attempts   Int       @default(0)
+  claimedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([siteKey, status, createdAt])
+  @@index([target, status, createdAt])
+}
+
+/// Phase 35 : cache des matchs lus sur un site (20 minutes).
+model BookmakerEvent {
+  id           String   @id @default(cuid())
+  siteKey      String
+  siteEventId  String
+  league       String
+  leagueKey    String?
+  homeTeam     String
+  awayTeam     String
+  startsAt     DateTime
+  url          String?
+  marketsCount Int?
+  fetchedAt    DateTime
+  /// Correspondance avec le match du fournisseur de cotes (résultats).
+  oddsEventId  String?
+
+  @@unique([siteKey, siteEventId])
+  @@index([siteKey, startsAt])
+}
+
+/// Phase 35 : une lecture d'une cote par un chemin (api | dom | image) ; cache 3 minutes, double lecture avant publication.
+model BookmakerOdds {
+  id            String   @id @default(cuid())
+  siteKey       String
+  siteEventId   String
+  marketSite    String
+  marketKey     String?
+  selectionSite String
+  selectionKey  String?
+  line          Float?
+  odds          Float
+  /// api | dom | image
+  level         String
+  readAt        DateTime
+  jobId         String?
+
+  @@index([siteKey, siteEventId, readAt])
 }
