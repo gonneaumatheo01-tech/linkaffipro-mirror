@@ -36,3 +36,11 @@ describe("prochaine occurrence d'un créneau (Paris)", () => {
     expect(nextOccurrence(1, 9, f).toISOString()).toBe("2026-10-26T08:00:00.000Z"); // lundi 26 oct. 9 h hiver = 08:00 UTC
   });
 });
+
+describe("fromParisLocal : heure avec fuseau explicite (phase 34, Kevin)", () => {
+  it("« …Z » et « …+02:00 » gardent l'instant exact ; l'heure du champ du site reste lue en heure de Paris", () => {
+    expect(fromParisLocal("2026-10-26T19:00:00Z")?.toISOString()).toBe("2026-10-26T19:00:00.000Z");
+    expect(fromParisLocal("2026-10-26T20:00+01:00")?.toISOString()).toBe("2026-10-26T19:00:00.000Z");
+    expect(fromParisLocal("2026-10-26T20:00")?.toISOString()).toBe("2026-10-26T19:00:00.000Z");
+  });
+});

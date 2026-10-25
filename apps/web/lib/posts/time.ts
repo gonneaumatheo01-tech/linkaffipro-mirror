@@ -10,6 +10,12 @@ function parisOffsetMinutes(at: Date): number {
 
 /** "2026-10-09T14:30" (heure de Paris) → Date UTC. */
 export function fromParisLocal(input: string): Date | null {
+  // Heure avec fuseau explicite (« …Z », « …+02:00 », donnée par Kevin) : c'est un instant précis, jamais relu comme
+  // une heure de Paris (sinon un envoi partirait une à deux heures trop tôt). Le champ du site n'en porte jamais.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(input.trim())) {
+    const d = new Date(input.trim());
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(input);
   if (!m) return null;
   const naive = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
