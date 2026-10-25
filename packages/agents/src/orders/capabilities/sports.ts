@@ -537,11 +537,15 @@ export async function sportsFacts(deps: AgentsDeps): Promise<{ facts: Record<str
     oddsCallsThisMonth(deps.prisma, now),
     readSetting(deps, SPORTS_PASSAGES_SETTING),
   ]);
+  // Hier (question la plus fréquente : « pourquoi pas de pari hier ? ») : paris retenus et publiés, jour de Paris.
+  const yesterdayPicks = (await deps.prisma.bettingPick.findMany({ where: { createdAt: { gte: yesterday, lt: since } }, select: { status: true } })) as Array<{ status: string }>;
+  const yesterdayPublished = yesterdayPicks.filter((p) => ["PUBLISHED", "WON", "LOST", "VOID"].includes(p.status)).length;
   const noPick = (await deps.prisma.agentMission.findMany({ where: { teamKey: T, kind: "BET", updatedAt: { gte: yesterday } }, select: { payload: true }, take: 50 })) as Array<{ payload: unknown }>;
   const noPickReasons = noPick.map((m) => (m.payload as { noPickReason?: string } | null)?.noPickReason).filter((x): x is string => !!x);
   const facts = {
     ...today.facts,
     depuisHier: { ecartes: skipped.length, motifsEcartes: [...new Set(skipped.map((s) => s.skipReason).filter(Boolean))].slice(0, 5), sansPari: [...new Set(noPickReasons)].slice(0, 5) },
+    hier: { parisRetenus: yesterdayPicks.length, parisPublies: yesterdayPublished },
     missionsEnEchec: failedMissions.length,
     erreurs: [...new Set(failedMissions.map((m) => m.lastError).filter(Boolean))].slice(0, 5),
     appelsCotesCeMois: calls,
@@ -550,9 +554,12 @@ export async function sportsFacts(deps: AgentsDeps): Promise<{ facts: Record<str
   };
   const lines = [
     ...today.lines,
+    yesterdayPicks.length
+      ? `Hier : ${yesterdayPicks.length} pari${yesterdayPicks.length > 1 ? "s" : ""} retenu${yesterdayPicks.length > 1 ? "s" : ""}, ${yesterdayPublished} publié${yesterdayPublished > 1 ? "s" : ""}.`
+      : "Hier : 0 pari retenu.",
     skipped.length ? `Écartés depuis hier : ${skipped.length} (${facts.depuisHier.motifsEcartes.join(" ; ")})` : "Aucun pari écarté depuis hier.",
     noPickReasons.length ? `Passages sans pari : ${facts.depuisHier.sansPari.join(" ; ")}` : null,
-    failedMissions.length ? `Missions en échec : ${failedMissions.length} (${facts.erreurs.join(" ; ")})` : null,
+    failedMissions.length ? `Paris ratés en route depuis hier : ${failedMissions.length} (${facts.erreurs.join(" ; ")})` : null,
   ].filter((l): l is string => !!l);
   return { facts, lines };
 }

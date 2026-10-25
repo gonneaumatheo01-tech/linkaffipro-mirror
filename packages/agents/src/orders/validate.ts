@@ -242,14 +242,14 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
     steps.push({ step: { ...step, params: parsed.params }, capability: cap, params: parsed.params, planned });
   }
 
-  if (missingTeam && !impossible.some((i) => i.teamKey === missingTeam)) {
-    impossible.push({
-      part: "cette demande",
-      reason: `${FUTURE_TEAMS[missingTeam] ?? `l'équipe ${missingTeam}`} n'existe pas encore : pas d'ordres possibles pour le moment`,
-      alternatives: [],
-      teamKey: missingTeam,
-      suggestedCapability: null,
-    });
+  if (missingTeam) {
+    // Ce qui manque vraiment, c'est l'équipe : sa raison passe avant celle de l'IA (« pas encore d'équipe Montage »).
+    const reason = FUTURE_TEAMS[missingTeam]
+      ? `pas encore d'équipe ${FUTURE_TEAMS[missingTeam]!.replace(/^l'équipe /, "")}, elle arrive bientôt`
+      : `l'équipe ${missingTeam} n'existe pas encore : pas d'ordres possibles pour le moment`;
+    const own = impossible.filter((i) => i.teamKey === missingTeam);
+    if (own.length) for (const i of own) i.reason = reason;
+    else impossible.push({ part: "cette demande", reason, alternatives: [], teamKey: missingTeam, suggestedCapability: null });
   }
 
   plan.steps = steps.map((s) => s.step);

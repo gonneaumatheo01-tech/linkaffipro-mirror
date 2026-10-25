@@ -526,7 +526,8 @@ describe("validation par le code (plans simulés)", () => {
       impossible: [{ part: "programmer des shorts", reason: "l'équipe Montage arrive bientôt, pas encore d'ordres possibles", suggestedCapability: "programmer des shorts", alternatives: [] }],
     }));
     const r = await bossAiTurn(kit.deps, kit.input("programme des shorts tous les jours"));
-    expect(reply(r)).toContain("Montage arrive bientôt");
+    // La raison du code (équipe absente du registre) passe avant celle de l'IA.
+    expect(reply(r)).toContain("pas encore d'équipe Montage, elle arrive bientôt");
     expectVoice(r);
     const u = kit.tables("bossUnmet")[0]!;
     expect(u.teamKey).toBe("montage");

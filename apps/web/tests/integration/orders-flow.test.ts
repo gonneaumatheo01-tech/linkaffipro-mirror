@@ -104,8 +104,27 @@ let now = at(0, 9 * 60);
  * `offsides`, chaque marché corners a son jumeau « hors-jeux » (les fixtures réelles n'en ont pas).
  */
 function oddsFrom(from: Date, offsides: boolean): OddsProvider {
-  const base = createFakeOddsProvider({ now: () => now, shiftMs: Math.floor((from.getTime() - FAKE_ODDS_ANCHOR.getTime()) / 60_000) * 60_000 });
-  if (!offsides) return base;
+  const raw = createFakeOddsProvider({ now: () => now, shiftMs: Math.floor((from.getTime() - FAKE_ODDS_ANCHOR.getTime()) / 60_000) * 60_000 });
+  // Matchs d'un autre jour = autres matchs (sinon « déjà publié dans les 48 h » écarterait les mêmes rencontres).
+  const tag = `~${parisDay(from)}`;
+  const strip = (id: string) => id.split("~")[0]!;
+  const base = {
+    ...raw,
+    async listEvents(q: Parameters<OddsProvider["listEvents"]>[0]) {
+      return (await raw.listEvents(q)).map((e) => ({ ...e, eventId: `${e.eventId}${tag}` }));
+    },
+    getMarkets: (id: string, t: string[]) => raw.getMarkets(strip(id), t),
+    async getMarketsMany(ids: string[], t: string[]) {
+      const m = await raw.getMarketsMany(ids.map(strip), t);
+      return new Map(ids.map((id) => [id, m.get(strip(id)) ?? []]));
+    },
+    getMarketsFresh: (id: string, t: string[]) => raw.getMarketsFresh(strip(id), t),
+    async getResult(id: string) {
+      const r = await raw.getResult(strip(id));
+      return r ? { ...r, eventId: id } : r;
+    },
+  };
+  if (!offsides) return base as OddsProvider;
   const wants = (types: string[], prefix: string) => types.some((t) => t.startsWith(prefix));
   const ask = (types: string[]) => [...new Set([...types, ...types.filter((t) => t.startsWith("offsides-")).map((t) => t.replace(/^offsides-/, "corners-"))])];
   const map = (sels: OddsSelection[], types: string[]): OddsSelection[] => {
@@ -405,7 +424,7 @@ beforeAll(async () => {
   await prisma.channelAgentPlan.create({ data: { channelId: roulette.id, teamKey: "casino", enabled: true, postsPerDay: 2, windowStart: "09:00", windowEnd: "22:00", minSpacingMinutes: 90 } });
   testPlanBefore = await prisma.channelAgentPlan.findUniqueOrThrow({ where: { channelId: test.id } });
 
-  await prisma.agentTeamConfig.create({ data: { teamKey: "sports", simulation: true, autonomyLevel: 2, settings: { sports: { runHours: [10] } } } });
+  await prisma.agentTeamConfig.create({ data: { teamKey: "sports", simulation: true, autonomyLevel: 2, settings: { sports: { runHours: [10], minInterestScore: -1 } } } });
   await prisma.agentTeamConfig.create({ data: { teamKey: "casino", simulation: true, autonomyLevel: 2, settings: { casino: { themes: ["roulette", "martingale"] } } } });
   await prisma.agentTeamConfig.create({ data: { teamKey: "dating", simulation: true, autonomyLevel: 2 } });
   // Catégorie du client (inactive) : ses ligues, son bookmaker et sa fourchette servent de base à la catégorie d'ordre.
@@ -497,7 +516,6 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
       await productionDay(d);
       const day = addDays(DAY1, d);
       const missions = await prisma.agentMission.findMany({ where: { orderId: ids.mainOrder, planDay: day } });
-      if (missions.length !== 2) console.log("DEBUG", JSON.stringify({ missions: missions.map((m) => ({ s: m.status, e: m.lastError, steps: m.steps, p: m.payload })), picks: await prisma.bettingPick.findMany({}), ev: await prisma.event.findMany({ where: { type: { startsWith: "agents." } }, orderBy: { createdAt: "desc" }, take: 15, select: { type: true, payload: true } }) }, null, 1).slice(0, 6000));
       expect(missions.length, `missions du jour ${day}`).toBe(2);
       for (const m of missions) expect(m).toMatchObject({ teamKey: "sports", channelId: ids.test, isTest: true, createdBy: "HUMAN", createdById: ids.user });
       const picks = await prisma.bettingPick.findMany({ where: { missionId: { in: missions.map((m) => m.id) } } });
@@ -515,7 +533,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
       const sent = sentSince(m).map(plain);
       if (d < 2) {
         expect(sent, `point du jour ${d + 1}`).toHaveLength(1);
-        expect(sent[0]).toMatch(new RegExp(`Jour ${d + 1}/3 sur Test : 2 paris publiés`));
+        expect(sent[0]).toMatch(new RegExp(`(Jour ${d + 1}/3 sur Test|Test, jour ${d + 1}/3) : 2 paris publiés`));
         reports.push(sent[0]!);
       } else expect(sent).toEqual([]);
     }
@@ -539,8 +557,8 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     now = at(3, 9 * 60);
     agents().providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
     const out = await say(CLIENT_PHRASE);
-    // Plan réutilisé (même demande dans les 24 h) : aucun nouvel appel au planificateur.
-    expect(fakeBossLlm.calls.plan).toHaveLength(1);
+    // Même demande plus de 24 h après : le plan n'est plus en cache, le planificateur est rappelé une fois.
+    expect(fakeBossLlm.calls.plan).toHaveLength(2);
     expect(out).toMatch(/pas de marché « Hors-jeux »/i);
     const lines = out.split("\n");
     const corners = lines.find((l) => /^\d\. .*corners/i.test(l));

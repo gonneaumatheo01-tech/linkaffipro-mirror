@@ -309,3 +309,19 @@ describe("transverse", () => {
     if (!check.ok) expect(check.alternatives.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("question à l'équipe Paris : « pourquoi pas de pari hier ? » (intégration phase 33)", () => {
+  it("les faits et les lignes donnent les chiffres d'hier (retenus, publiés), sans jargon", async () => {
+    const kit = await setup();
+    const y = new Date(START.getTime() - 20 * 3600_000); // hier, 14 h à Paris
+    const picks = kit.prisma._model("bettingPick");
+    picks.rows.push({ id: "b1", status: "PUBLISHED", createdAt: y, updatedAt: y }, { id: "b2", status: "SKIPPED", skipReason: "odds_moved", createdAt: y, updatedAt: y });
+    const cap = capability("sports", "question")!;
+    const order = { id: "o1", number: 1, teamKey: "sports", kind: "ASK" as const, status: "RUNNING", interpretation: {}, startsAt: null, endsAt: null, chatId: null, createdById: null, progress: {} };
+    const [step] = await cap.plan(kit.deps, {}, { now: START, mode: "simulation" });
+    const r = await cap.run(kit.deps, order, step!);
+    expect(r.message).toContain("Hier : 2 paris retenus, 1 publié.");
+    expect(r.message).not.toMatch(/mission/i);
+    expect(await cap.report(kit.deps, order)).toMatchObject({ hier: { parisRetenus: 2, parisPublies: 1 } });
+  });
+});
