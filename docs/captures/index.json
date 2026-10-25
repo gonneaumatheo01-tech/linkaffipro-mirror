@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-24T16:34:08.709Z",
+  "updatedAt": "2026-10-25T03:24:31.827Z",
   "entries": [
     {
       "route": "/",
@@ -1216,6 +1216,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T17:37:46.237Z"
+    },
+    {
+      "route": "/agents/inspiration",
+      "path": "/agents/inspiration",
+      "title": "Inspiration",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-inspiration-390.webp",
+        "1440": "agents-inspiration-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-25T03:24:24.570Z"
     },
     {
       "route": "/agents/journal",

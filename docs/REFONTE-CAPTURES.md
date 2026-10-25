@@ -4,7 +4,7 @@ Index généré par `pnpm captures` (ne pas modifier à la main) : une ligne par
 largeur, en webp. Procédure complète (base de démonstration locale, serveur de développement, contrôle axe) :
 voir l'en-tête de `apps/web/scripts/captures.ts`.
 
-Dernière mise à jour : 2026-10-24 16:34 UTC.
+Dernière mise à jour : 2026-10-25 03:24 UTC.
 
 | Page | Adresse | 1440 px | 390 px |
 | --- | --- | --- | --- |
@@ -89,6 +89,7 @@ Dernière mise à jour : 2026-10-24 16:34 UTC.
 | Kevin | `/agents/boss` | <a href="captures/agents-boss-1440.webp"><img src="captures/agents-boss-1440.webp" alt="Kevin, 1440 px" width="360"></a> | <a href="captures/agents-boss-390.webp"><img src="captures/agents-boss-390.webp" alt="Kevin, 390 px" width="120"></a> |
 | Équipe Casino | `/agents/casino` | <a href="captures/agents-casino-1440.webp"><img src="captures/agents-casino-1440.webp" alt="Équipe Casino, 1440 px" width="360"></a> | <a href="captures/agents-casino-390.webp"><img src="captures/agents-casino-390.webp" alt="Équipe Casino, 390 px" width="120"></a> |
 | Équipe Rencontres | `/agents/dating` | <a href="captures/agents-dating-1440.webp"><img src="captures/agents-dating-1440.webp" alt="Équipe Rencontres, 1440 px" width="360"></a> | <a href="captures/agents-dating-390.webp"><img src="captures/agents-dating-390.webp" alt="Équipe Rencontres, 390 px" width="120"></a> |
+| Inspiration | `/agents/inspiration` | <a href="captures/agents-inspiration-1440.webp"><img src="captures/agents-inspiration-1440.webp" alt="Inspiration, 1440 px" width="360"></a> | <a href="captures/agents-inspiration-390.webp"><img src="captures/agents-inspiration-390.webp" alt="Inspiration, 390 px" width="120"></a> |
 | Journal des agents | `/agents/journal` | <a href="captures/agents-journal-1440.webp"><img src="captures/agents-journal-1440.webp" alt="Journal des agents, 1440 px" width="360"></a> | <a href="captures/agents-journal-390.webp"><img src="captures/agents-journal-390.webp" alt="Journal des agents, 390 px" width="120"></a> |
 | Réglages des agents | `/agents/settings` | <a href="captures/agents-settings-1440.webp"><img src="captures/agents-settings-1440.webp" alt="Réglages des agents, 1440 px" width="360"></a> | <a href="captures/agents-settings-390.webp"><img src="captures/agents-settings-390.webp" alt="Réglages des agents, 390 px" width="120"></a> |
 | Équipe Paris sportifs | `/agents/sports` : déborde à droite à 390 px (contenu de 454 px de large) | <a href="captures/agents-sports-1440.webp"><img src="captures/agents-sports-1440.webp" alt="Équipe Paris sportifs, 1440 px" width="360"></a> | <a href="captures/agents-sports-390.webp"><img src="captures/agents-sports-390.webp" alt="Équipe Paris sportifs, 390 px" width="120"></a> |
