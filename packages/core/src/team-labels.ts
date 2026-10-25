@@ -86,6 +86,7 @@ export const QUEUE_LABELS: Record<string, string> = {
   "agents-algo": "Équipe Algorithme",
   "agents-ads": "Agent Ads",
   "agents-bookmakers": "Lecture des bookmakers",
+  "agents-montage": "Montage vidéo",
 };
 
 export function queueLabel(name: string): string {

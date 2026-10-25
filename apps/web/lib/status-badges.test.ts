@@ -30,6 +30,7 @@ import {
   InviteLinkKind,
   LandingEventType,
   MembershipStatus,
+  MontageJobStatus,
   OutboundKind,
   OutboundStatus,
   PlayerEventType,
@@ -41,6 +42,7 @@ import {
   ReferenceVia,
   Role,
   SequenceTrigger,
+  ShortClipStatus,
   TeamOrderKind,
   TeamOrderStatus,
   TrackingLinkKind,
@@ -107,6 +109,8 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["referenceVia", ReferenceVia],
   ["teamOrder", TeamOrderStatus],
   ["teamOrderKind", TeamOrderKind],
+  ["montageJob", MontageJobStatus],
+  ["shortClip", ShortClipStatus],
 ];
 
 describe("badges de statut", () => {

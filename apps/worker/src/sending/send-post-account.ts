@@ -48,6 +48,7 @@ import {
 import { logger } from "../logger";
 import { loadActiveSession } from "../views/credentials";
 import { mediaKindOf } from "./media";
+import { sendableBytes } from "../montage/media-bytes";
 import { RateLimiter } from "./rate-limit";
 
 /** Message et son canal tels que lus par le client partagé (petite photo du canal omise, voir `@linkaffipro/db`). */
@@ -194,7 +195,8 @@ async function loadMedias(post: AccountPost): Promise<AccountMedia[]> {
     if (!a) continue;
     out.push({
       kind: mediaKindOf(a.mimeType),
-      bytes: new Uint8Array(a.bytes),
+      // Phase 28 : un short gardé dans Telegram est retrouvé (et refusé s'il n'est pas validé).
+      bytes: a.storage === "telegram" || a.kind === "SHORT" ? await sendableBytes(a) : new Uint8Array(a.bytes),
       filename: a.filename,
       mimeType: a.mimeType,
       width: a.width,

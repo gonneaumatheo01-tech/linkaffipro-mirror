@@ -232,16 +232,60 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     role: "Lit un canal qui marche, en tire un profil de style et des idées, sans jamais copier.",
     synonyms: ["inspiration", "agent inspiration", "canal d'inspiration", "veille", "celui qui lit les autres canaux", "concurrents", "espion"],
   }),
+  // Phase 28 : équipe Montage (vidéo longue du client → shorts, chaque short validé par le client avant tout envoi).
   e({
-    key: "montage",
-    label: "Montage",
+    key: "chef-montage",
+    label: "Chef Montage",
+    kind: "chef",
+    teams: ["montage"],
+    chief: "grand-chef",
+    role: "Fait passer chaque vidéo que tu m'envoies par la découpe, le montage, l'habillage et le contrôle, puis t'envoie chaque short à valider.",
+    synonyms: ["chef montage", "chef du montage", "montage", "equipe montage", "l'equipe montage", "shorts", "reels", "montage video"],
+  }),
+  e({
+    key: "montage-reception",
+    label: "Réception",
     kind: "agent",
-    teams: [],
-    chief: null,
-    role: "Montera les vidéos courtes (shorts, reels).",
-    synonyms: ["montage", "monteur", "monteuse", "celui qui monte les videos", "shorts", "reels"],
-    available: false,
-    arrives: "phase 28",
+    teams: ["montage"],
+    chief: "chef-montage",
+    role: "Reçoit la vidéo que tu m'envoies, note sa durée et sa qualité, et lit tes consignes (durée, format, cam, sous-titres).",
+    synonyms: ["reception", "reception video", "reception des videos", "celui qui recoit les videos", "celui qui lit les consignes"],
+  }),
+  e({
+    key: "montage-decoupe",
+    label: "Découpe",
+    kind: "agent",
+    teams: ["montage"],
+    chief: "chef-montage",
+    role: "Regarde la vidéo image par image et propose le plan de coupe : les moments les plus forts, avec une note sur 10.",
+    synonyms: ["decoupe", "decoupe ia", "decoupeur", "plan de coupe", "celui qui choisit les moments", "celui qui decoupe"],
+  }),
+  e({
+    key: "montage-monteur",
+    label: "Monteur",
+    kind: "agent",
+    teams: ["montage"],
+    chief: "chef-montage",
+    role: "Monte chaque short en un seul passage : coupe, cam incrustée, format vertical ou carré, vitesse, sans perte de qualité.",
+    synonyms: ["monteur", "monteuse", "celui qui monte les videos", "celui qui monte les shorts", "montage des shorts"],
+  }),
+  e({
+    key: "montage-habillage",
+    label: "Habillage",
+    kind: "agent",
+    teams: ["montage"],
+    chief: "chef-montage",
+    role: "Écrit les sous-titres d'après le son, les fait relire mot à mot, te demande en cas de doute, et ajoute le texte demandé.",
+    synonyms: ["habillage", "habilleur", "sous-titres", "sous titres", "celui des sous-titres", "celui qui met les sous-titres", "texte incruste"],
+  }),
+  e({
+    key: "montage-controle",
+    label: "Contrôle qualité montage",
+    kind: "agent",
+    teams: ["montage"],
+    chief: "chef-montage",
+    role: "Vérifie chaque short avant de te l'envoyer : durée, qualité 1080p, écrans noirs, son, lisibilité des sous-titres, poids.",
+    synonyms: ["controle qualite montage", "controle montage", "qc montage", "controle des shorts", "celui qui verifie les shorts"],
   }),
   e({
     key: "analystes",
@@ -374,6 +418,7 @@ export function findAgent(text: string): FindAgentResult {
 /** Libellé de l'équipe (« Rencontres », « Ads », « transverse »). */
 export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "ads") return "Ads";
+  if (t === "montage") return "Montage";
   if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
@@ -411,6 +456,17 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
       facts: { agent: agent.label, disponible: false, arrive: agent.arrives ?? null },
       lines: [`${agent.label} n'est pas encore là : il arrive avec la ${agent.arrives ?? "prochaine phase"}.`, `Il ${agent.role.charAt(0).toLowerCase()}${agent.role.slice(1)}`],
     };
+  }
+  // Phase 28 : l'équipe Montage travaille sur des montages (pas des posts) : sa fiche vient de ses montages et shorts.
+  if (agent.teams.includes("montage")) {
+    const { isMontageAgentKey, montageAgentCard } = await import("../montage/kevin-view");
+    if (isMontageAgentKey(agent.key)) {
+      const card = await montageAgentCard(deps, agent.key, opts.day ?? null);
+      const abilities = agentAbilities(agent.key).map((c) => c.description);
+      const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
+      if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
+      return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
+    }
   }
   const now = nowOf(deps);
   const day = opts.day ?? parisDay(now);

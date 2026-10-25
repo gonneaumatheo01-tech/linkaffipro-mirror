@@ -4,7 +4,7 @@
  */
 import { bookmakerKevinHook, bookmakerTransportHooks, type AgentsDeps, type BookmakerReadDeps, type EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
-import { createAgentsEnqueue } from "@linkaffipro/queue";
+import { createAgentsEnqueue, createMontageEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger, createBossMediaIngest } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { createFrameExtractor } from "./frames";
@@ -38,6 +38,12 @@ export function workerAgentsDeps(): EngineDeps {
   // Bookmakers lus directement (phase 35) : transport choisi par site, verrou, rythme et messages de Kevin, pour
   // l'équipe Paris (double lecture au Contrôle) comme pour Kevin (« la cote de … chez Sportaza ? »).
   (deps as BookmakerReadDeps).bookmakers = { ...bookmakerTransportHooks(deps), onBookmakerEvent: bookmakerKevinHook(deps) };
+  // Phase 28 : Kevin lance un montage, valide un plan ou fait refaire un short depuis le worker (vocal, interprète,
+  // ordres) : la chaîne met ses tâches dans la file `agents-montage`.
+  (deps as EngineDeps & { montage?: { enqueue: ReturnType<typeof createMontageEnqueue> } }).montage = { enqueue: createMontageEnqueue() };
+  // Phase 28 : Kevin (tâche `boss-text`) lance et retouche les montages : mise en file `agents-montage` (la chaîne
+  // elle-même tourne avec `workerMontageDeps`).
+  (deps as EngineDeps & { montage?: { enqueue: ReturnType<typeof createMontageEnqueue> } }).montage = { enqueue: createMontageEnqueue() };
   cached = deps;
   return deps;
 }

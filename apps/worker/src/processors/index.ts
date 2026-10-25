@@ -20,6 +20,7 @@ import { processAgentsSports, repeatableAgentsSports } from "./agents-sports";
 import { processAgentsAlgo, repeatableAgentsAlgo } from "./agents-algo";
 import { processAgentsAds, repeatableAgentsAds } from "./agents-ads";
 import { processAgentsBookmakers, repeatableAgentsBookmakers } from "./agents-bookmakers";
+import { processAgentsMontage, repeatableAgentsMontage } from "./agents-montage";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -54,4 +55,6 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   "agents-ads": { process: (job: Job) => processAgentsAds(job), repeatable: repeatableAgentsAds, concurrency: 1 },
   // Lecture des bookmakers (phase 35) : plusieurs sites à la fois, un seul lecteur par site (verrou en base).
   "agents-bookmakers": { process: (job: Job) => processAgentsBookmakers(job), repeatable: repeatableAgentsBookmakers, concurrency: 2 },
+  // Montage vidéo (phase 28) : une tâche à la fois (ffmpeg occupe le processeur ; 10 min au plus par short).
+  "agents-montage": { process: (job: Job) => processAgentsMontage(job), repeatable: repeatableAgentsMontage, concurrency: 1 },
 };

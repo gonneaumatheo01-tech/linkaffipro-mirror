@@ -4,7 +4,7 @@
  */
 import { portSiteOps, setBossRegisterPort, type AgentsDeps, type AgentsEnqueue } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
-import { createAgentsEnqueue } from "@linkaffipro/queue";
+import { createAgentsEnqueue, createMontageEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "./admin-messenger";
 import { createBossMediaIngest } from "../boss/media-ingest";
 
@@ -52,6 +52,13 @@ export function createBotAgentsDeps(): AgentsDeps {
       error: (o, m) => console.error(m ?? "[agents]", o),
     },
   } satisfies AgentsDeps;
+  // Phase 28 : réponses au montage traitées dans le webhook (plan validé, short à refaire, sous-titre corrigé) : la
+  // chaîne met ses tâches dans la file `agents-montage` (créée à la première utilisation).
+  const withMontage = cached as AgentsDeps & { montage?: { enqueue?: ReturnType<typeof createMontageEnqueue> } };
+  if (!withMontage.montage) {
+    let impl: ReturnType<typeof createMontageEnqueue> | null = null;
+    withMontage.montage = { enqueue: (job, opts) => (impl ??= createMontageEnqueue())(job, opts) };
+  }
   // Phase 34 : médias d'un message transféré à Kevin rangés avant l'essai à blanc (bot du dialogue admin).
   if (!cached.ingestForwardedMedia) {
     const deps = cached;

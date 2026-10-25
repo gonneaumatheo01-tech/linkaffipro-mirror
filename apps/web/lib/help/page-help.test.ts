@@ -53,6 +53,11 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/agents/inspiration").help.label).toBe("Inspiration");
     expect(pageHelpFor("/agents/inspiration/r1").help.label).toBe("Canal d'inspiration");
     expect(pageHelpFor("/agents/inspiration/r1").help.sections[0]).toBe("S'inspirer d'un canal");
+    // Phase 28 : équipe Montage (la fiche d'un montage n'est pas une fiche d'équipe).
+    expect(pageHelpFor("/agents/montage").help.label).toBe("Montage");
+    expect(pageHelpFor("/agents/montage?vue=mediatheque").help.sections).toContain("Où retrouver les shorts");
+    expect(pageHelpFor("/agents/montage/j1").help.label).toBe("Fiche d'un montage");
+    expect(pageHelpFor("/agents/montage/j1").help.sections[0]).toBe("Le plan de coupe");
     // Phase 33 : ordres de Kevin (la fiche d'un ordre n'est pas une fiche d'équipe).
     expect(pageHelpFor("/agents/orders").help.label).toBe("Ordres");
     expect(pageHelpFor("/agents/orders/o1?ok=x").help.label).toBe("Fiche d'un ordre");

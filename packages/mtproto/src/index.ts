@@ -66,3 +66,13 @@ export {
   type InstalledPacksOptions,
   type InstalledPacksResult,
 } from "./account";
+export {
+  downloadAccountMedia,
+  downloadMessageMediaTo,
+  findMediaMessage,
+  mediaSizeOf,
+  DOWNLOAD_CHUNK_BYTES,
+  DOWNLOAD_SEARCH_LIMIT,
+  type AccountDownloadInput,
+  type DownloadClient,
+} from "./download";

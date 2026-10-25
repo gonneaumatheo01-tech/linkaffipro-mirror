@@ -498,3 +498,9 @@ export { scanServerActions, checkParity, parityMarkdown, parityTable, parityOk, 
 // Phase 34, chantier F : entrées Telegram (message transféré, fichier, liens d'autorisation, reprise après OAuth).
 export * from "./boss/inputs";
 export * from "./montage/contract";
+
+// Phase 28, chantier B : moteur ffmpeg du montage (exécuteurs, rendu en un passage, contrôle qualité, fixtures de test).
+export * from "./montage/ffmpeg";
+
+// Phase 28, chantier C : IA du montage (instructions, plan de coupe, sous-titres, lisibilité) ; les autres chantiers ajoutent leurs lignes dans `montage/index.ts`.
+export * from "./montage/index";

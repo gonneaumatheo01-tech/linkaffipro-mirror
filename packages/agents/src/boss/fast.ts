@@ -56,6 +56,7 @@ import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinLis
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
+import { montageFastPath } from "./catalog-montage";
 import { orderQuickCancel } from "../orders/recap";
 import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
 import { siteDeleteWordReply } from "../site/flow";
@@ -318,16 +319,16 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       listNow ? new Date(listNow.createdAt).getTime() : 0,
     );
     // Phase 33 : « annule » dans la minute qui suit un ordre lancé sans confirmation (chantier B, `orders/recap.ts`).
-    const insp = (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ?? await inspirationFastPath(deps, input, {
-      word,
-      pendingOpen: !!pending && !pending.expired,
-      otherQuestionAt,
-      run: async (action, params) => {
-        const actor = await bossActorOf(deps, input.speaker);
-        const { status: _s, ...reply } = await runBossAction(deps, action, params, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
-        return reply;
-      },
-    });
+    const run = async (action: Parameters<typeof runBossAction>[1], params: Record<string, unknown>) => {
+      const actor = await bossActorOf(deps, input.speaker);
+      const { status: _s, ...reply } = await runBossAction(deps, action, params, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
+      return reply;
+    };
+    const insp =
+      (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
+      (await inspirationFastPath(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt, run })) ??
+      // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
+      (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);
     if (insp) {
       await remember(deps, input, insp.reply, { actionKey: insp.actionKey, status: "done" });
       return { handled: true, ...insp.reply };

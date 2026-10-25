@@ -339,6 +339,17 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Bookmakers",
     sections: ["Bookmakers", "Équipe Paris sportifs : catégories, bookmaker et bilan"],
   },
+  // Phase 28 : équipe Montage (travaux, fiche d'un travail, médiathèque des shorts).
+  {
+    path: "/agents/montage",
+    label: "Montage",
+    sections: [intro("Montage vidéo"), "Envoyer une vidéo à Kevin", "Les consignes possibles", "Où retrouver les shorts"],
+  },
+  {
+    path: "/agents/montage/:id",
+    label: "Fiche d'un montage",
+    sections: ["Le plan de coupe", "Les aperçus et les boutons", "Modifier un short"],
+  },
   {
     path: "/agents/validations",
     label: "Validations des agents",

@@ -162,6 +162,11 @@ export interface TelegramDeps {
   agentsAdminState?(telegramUserId: bigint): Promise<AgentsAdminState>;
   /** Phase 19 : téléchargement d'un fichier Telegram (`getFile`) ; absent : `fetch`. */
   downloadTelegramFile?(url: string): Promise<Uint8Array>;
+  /**
+   * Phase 28 : attente avant la question « je la monte ou je la garde ? » d'une vidéo envoyée seule à Kevin (une phrase
+   * juste après la rend inutile ; tests : quelques ms ; défaut 4 s).
+   */
+  montageQuestionDelayMs?: number;
   /** Attente avant la confirmation unique d'un album déposé en médiathèque (tests : quelques ms ; défaut 2 s). */
   mediaAlbumReplyDelayMs?: number;
   /**

@@ -100,6 +100,9 @@ describe("vocabulaire de la rubrique Agents", () => {
     // Phase 35 : bookmakers lus directement.
     expect(w(`<p>Recette active du site, lue par scraping du DOM</p>`)).toEqual(["recette", "scraping", "DOM"]);
     expect(w(`<p>Méthode de lecture apprise : lecture directe des données du site</p>`)).toEqual([]);
+    // Phase 28 : équipe Montage.
+    expect(w(`<p>Encodage ffmpeg en CRF 18, codec H.264, fichier SRT en burn-in</p>`)).toEqual(["ffmpeg", "CRF", "codec", "SRT", "burn-in"]);
+    expect(w(`<p>Qualité haute, format vertical, sous-titres incrustés</p>`)).toEqual([]);
   });
 });
 

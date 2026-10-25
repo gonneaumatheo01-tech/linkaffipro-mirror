@@ -12,6 +12,7 @@ import { CASINO_CAPABILITIES } from "./capabilities/casino";
 import { CONTROLE_CAPABILITIES } from "./capabilities/controle";
 import { DATING_CAPABILITIES } from "./capabilities/dating";
 import { INSPIRATION_CAPABILITIES } from "./capabilities/inspiration";
+import { MONTAGE_CAPABILITIES } from "./capabilities/montage";
 import { REDACTION_CAPABILITIES } from "./capabilities/redaction";
 import { SPORTS_CAPABILITIES } from "./capabilities/sports";
 import { TRANSVERSE_CAPABILITIES } from "./capabilities/transverse";
@@ -71,6 +72,8 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...TRANSVERSE_CAPABILITIES,
   ...REDACTION_CAPABILITIES,
   ...CONTROLE_CAPABILITIES,
+  // Phase 28 : équipe Montage (découpe d'une vidéo longue en shorts, état du montage).
+  ...MONTAGE_CAPABILITIES,
 ];
 
 registerCapabilities(BUILTIN_CAPABILITIES);

@@ -186,6 +186,12 @@ export const AGENTS_JARGON: JargonRule[] = [
   { word: "recette", re: word("recettes?"), instead: "méthode de lecture apprise" },
   { word: "scraping", re: word("scrap(?:ing|er|é|ée|és|ées)?"), instead: "lecture du site" },
   { word: "DOM", re: word("DOM", "u"), instead: "page affichée" },
+  // Équipe Montage (phase 28) : « qualité », « format », « sous-titres » en surface, jamais les mots de l'outil.
+  { word: "ffmpeg", re: word("ff(?:mpeg|probe)"), instead: "montage" },
+  { word: "CRF", re: word("CRF", "u"), instead: "qualité" },
+  { word: "codec", re: word("codecs?"), instead: "format" },
+  { word: "SRT", re: word("SRT", "u"), instead: "sous-titres" },
+  { word: "burn-in", re: word("burn[- ]?in"), instead: "sous-titres incrustés" },
 ];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */

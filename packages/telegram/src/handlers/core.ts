@@ -15,6 +15,7 @@ import { registerCustomEmojiHandlers } from "./custom-emoji";
 import { RecentKeys, registerForwardHandlers } from "./forward";
 import { registerAdminDialogFallback, registerAgentsAdminHandlers } from "./agents-admin";
 import { registerBossGroupHandlers } from "./boss-group";
+import { registerBossMontageHandlers } from "./boss-montage";
 import { registerMediaInboxHandlers } from "./media-inbox";
 import { redactAdminSecretUpdate, redactBossUpdate } from "../agents/redact";
 
@@ -198,6 +199,9 @@ function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): 
     await next();
   });
   registerBossGroupHandlers(bot, identity, deps);
+  // Phase 28 : vidéos de l'admin pour le montage et boutons des aperçus (avant le dialogue : une vidéo transférée sans
+  // demande de montage y continue).
+  registerBossMontageHandlers(bot, identity, deps);
   registerAgentsAdminHandlers(bot, identity, deps);
   registerMediaInboxHandlers(bot, identity, deps);
   // Emojis animés de l'admin (transférés, ou envoyés seuls) : bibliothèque d'emojis, comme sur les autres bots

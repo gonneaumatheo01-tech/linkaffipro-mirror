@@ -27,6 +27,8 @@ export const QUEUE_NAMES = [
   "agents-ads",
   // Phase 35 : lectures des bookmakers faites par le serveur (un seul lecteur à la fois par site).
   "agents-bookmakers",
+  // Phase 28 : équipe Montage (ffmpeg, une tâche à la fois).
+  "agents-montage",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -146,6 +148,9 @@ export const JOB_RETRY_OPTIONS: Record<
   "agents-ads": { attempts: 1 },
   // Phase 35 : la ligne `BookmakerReadJob` fait foi (reprise par le balayage de 15 s, abandon après deux prises).
   "agents-bookmakers": { attempts: 1 },
+  // Phase 28 : 3 essais (2 reprises : 1 min puis 2 min) ; l'étape repart de la base (un short rangé n'est jamais
+  // refait) ; au 3e échec, la chaîne marque l'échec et Kevin prévient (la tâche se termine alors sans erreur).
+  "agents-montage": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -308,6 +313,20 @@ export type AgentsBookmakersJob = { type: "tick" } | { type: "run"; jobId: strin
 /** Phase 35, chantier D : santé des bookmakers toutes les 30 min (`bookmakersHealth`) ; `force` : même la nuit. */
 export type AgentsBookmakersHealthJob = { type: "bookmakers-health"; force?: boolean };
 
+/**
+ * File `agents-montage` (phase 28) : étapes de la chaîne (copie structurelle de `MontageQueueJob` de
+ * `@linkaffipro/agents`, ce paquet ne dépend pas des agents), `sweep` toutes les 15 min (tâches perdues remises en
+ * file), `cleanup` chaque jour (dossiers de travail orphelins de plus de 24 h).
+ */
+export type AgentsMontageJob =
+  | { type: "montage.analyze"; montageJobId: string }
+  | { type: "montage.cut"; montageJobId: string; shortClipId: string }
+  | { type: "montage.dress"; montageJobId: string; shortClipId: string }
+  | { type: "montage.qc"; montageJobId: string; shortClipId: string }
+  | { type: "montage.preview"; montageJobId: string; shortClipId: string }
+  | { type: "montage.sweep" }
+  | { type: "montage.cleanup" };
+
 export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
@@ -346,4 +365,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                               ? AgentsAdsJob
                               : Q extends "agents-bookmakers"
                                 ? AgentsBookmakersJob
-                                : StatsJob;
+                                : Q extends "agents-montage"
+                                  ? AgentsMontageJob
+                                  : StatsJob;

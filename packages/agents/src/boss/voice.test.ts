@@ -215,6 +215,13 @@ const KEVIN_SHARED_FILES = [
   "human/requests.ts",
   "inspiration/proposals.ts",
   "inspiration/apply.ts",
+  // Phase 28 : Kevin et le montage vidéo (réception, plan, aperçus, retours, crochets, vues).
+  "montage/reception.ts",
+  "montage/plan-message.ts",
+  "montage/preview.ts",
+  "montage/feedback.ts",
+  "montage/hooks.ts",
+  "montage/kevin-view.ts",
 ].map((f) => join(SRC_DIR, f));
 
 /** Modules de Kevin : tout `boss/`, les textes de Kevin de l'inspiration, ses ordres et ses textes partagés. */

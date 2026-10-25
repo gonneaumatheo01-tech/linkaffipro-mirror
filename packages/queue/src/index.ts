@@ -50,4 +50,5 @@ export {
 } from "./redis-lock";
 export type { LockRedis, RedisLockOptions } from "./redis-lock";
 export { createAgentsEnqueue, addIdempotent, agentStepJobId, TEAM_QUEUE_NAMES } from "./agents";
+export { createMontageEnqueue, type MontageEnqueue } from "./montage";
 export type { AgentsEnqueueImpl, AgentsQueueLike } from "./agents";

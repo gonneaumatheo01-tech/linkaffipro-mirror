@@ -7,6 +7,7 @@ export type AgentsSection =
   | "orders"
   | "inspiration"
   | "bookmakers"
+  | "montage"
   | "validations"
   | "journal"
   | "settings";
@@ -18,6 +19,7 @@ export type AgentsSection =
  * Phase 27 : « Inspiration » (`/agents/inspiration`), les canaux exemples que Kevin lit.
  * Phase 33 : « Ordres » (`/agents/orders`), les ordres donnés aux équipes par Kevin.
  * Phase 35 : « Bookmakers » (`/agents/bookmakers`), les sites des bookmakers que le système lit lui-même.
+ * Phase 28 : « Montage » (`/agents/montage`), les vidéos longues découpées en shorts et leur médiathèque.
  * `pending` : validations à faire + demandes ouvertes (pastille).
  */
 export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
@@ -28,6 +30,7 @@ export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
     { key: "orders", href: "/agents/orders", label: "Ordres" },
     { key: "inspiration", href: "/agents/inspiration", label: "Inspiration" },
     { key: "bookmakers", href: "/agents/bookmakers", label: "Bookmakers" },
+    { key: "montage", href: "/agents/montage", label: "Montage" },
     {
       key: "validations",
       href: "/agents/validations",

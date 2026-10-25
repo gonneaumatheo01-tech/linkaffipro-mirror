@@ -54,6 +54,9 @@ export const BOSS_READ_KEYS = new Set([
   "pourquoi_rien",
   "fiche_agent",
   "qu_attend_ma_validation",
+  // Phase 28 : voir le montage et son état (jamais le lancer, le modifier, l'annuler ni envoyer les shorts).
+  "voir_montage",
+  "montage_status",
 ]);
 
 /** Gestion de l'équipe : admin et responsables seulement. */
@@ -68,6 +71,11 @@ export const BOSS_ADMIN_ONLY_KEYS = new Set([
   "appliquer_inspiration",
   "annuler_inspiration",
   "retirer_reference",
+  // Phase 28 : le montage vidéo se lance, se modifie, s'annule et s'envoie par l'admin seul.
+  "montage_video",
+  "modifier_short",
+  "annuler_montage",
+  "envoyer_shorts",
 ]);
 
 /** Réponses aux demandes et décisions sur les validations : permises au membre à qui elles sont adressées. */

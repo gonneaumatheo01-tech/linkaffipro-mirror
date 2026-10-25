@@ -250,6 +250,15 @@ export type AdminMessenger = {
   ): Promise<{ messageId: number } | null>;
   /** Phase 26 : suppression d'un message dans une autre conversation (secret collé dans le groupe). */
   deleteIn?(chatId: bigint, messageId: number): Promise<boolean>;
+  /**
+   * Phase 28 : vidéo déjà gardée dans Telegram (short du montage) envoyée par le même bot par son identifiant de fichier
+   * (`MediaAssetTelegramFile` de ce bot, sinon `fileId` s'il vient de lui), sans ré-envoyer le fichier. Null si le bot
+   * n'a pas d'identifiant pour ce média.
+   */
+  sendStoredVideo?(
+    chatId: bigint,
+    req: { assetId: string; fileId?: string | null; caption: string; buttons?: AdminButton[][] },
+  ): Promise<{ messageId: number } | null>;
 };
 
 export type Logger = {

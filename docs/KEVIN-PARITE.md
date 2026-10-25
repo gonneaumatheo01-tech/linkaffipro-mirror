@@ -2,7 +2,7 @@
 
 Généré par `pnpm kevin:parity -- --write` (ne pas modifier à la main). Chaque action du site se fait aussi en parlant à Kevin sur Telegram, sauf les exclusions listées avec leur remplacement.
 
-État du 25 octobre 2026 : 225 actions du site, 215 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
+État du 25 octobre 2026 : 229 actions du site, 219 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
 
 ## /
 
@@ -103,6 +103,15 @@ Exclusions (impossible dans Telegram) :
 |---|---|---|
 | Retirer un canal d'inspiration (ses posts lus et son profil de style sont effacés) | « retire la référence @roulette_pro » | `removeReferenceAction` |
 | Annuler une inspiration appliquée (toutes les propositions d'une référence, ou une seule) : réglages d'avant remis | « annule l'inspiration de @roulette_pro » | `undoInspirationAction` |
+
+## /agents/montage/[id]
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Valider un short du montage (il est prêt dans la médiathèque ; rien n'est publié sans un ordre) | « valide le short 3 » | `approveShortAction` |
+| Annuler un montage en cours (shorts pas encore faits abandonnés, shorts validés gardés) | « annule le montage en cours » | `cancelMontageAction` |
+| Faire refaire un short avec une modification (durée, caméra, texte, sous-titres) ; un nouvel aperçu suit | « le short 5, raccourcis de 2 secondes » | `modifyShortAction` |
+| Refuser un short (archivé, pas supprimé) | « refuse le short 4 » | `rejectShortAction` |
 
 ## /agents/orders/[id]
 

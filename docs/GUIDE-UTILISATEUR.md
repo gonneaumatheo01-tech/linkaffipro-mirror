@@ -18,7 +18,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
-- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
@@ -1043,6 +1043,70 @@ Le système va lui-même sur le site de vos bookmakers (**Celsius**, **Sportaza*
 
 **Parler à Kevin** : « quels matchs sur Sportaza ce soir ? », « demain chez Celsius en Ligue 1 », « il y a des corners sur le PSG ? », « la cote de PSG gagne chez Sportaza ? » (lue deux fois, avec l'heure), « les bookmakers ça va ? », « le Mac lit ? », « teste Celsius », « apprends le site Bet Portal », « Bet Portal c'est betportal.com, apprends-le », « ajoute le bookmaker X, c'est x.com ».
 
+### Montage vidéo
+
+L'équipe Montage découpe vos vidéos longues (une partie de casino filmée de 30 minutes à 1 heure, par exemple) en shorts de quelques secondes, prêts pour TikTok, Instagram ou vos canaux. Elle coupe, recadre, place votre caméra et ajoute des sous-titres tirés de ce qui est vraiment dit : elle n'invente aucune image. **Rien n'est publié sans votre ✅** : chaque short vous est d'abord envoyé par Kevin en aperçu. Ouvrez **Agents**, puis l'onglet **Montage**, pour suivre les travaux.
+
+#### Envoyer une vidéo à Kevin
+
+1. Dans Telegram, ouvrez votre conversation **privée** avec Kevin, depuis votre propre compte (pas dans le groupe de l'équipe).
+2. Envoyez la vidéo comme une vidéo ou comme un fichier : **2 Go au plus** et 3 heures au plus. La qualité d'origine est gardée (1080p ou plus de préférence).
+3. Écrivez vos consignes dans la légende de la vidéo, ou dans le message suivant (à l'écrit ou par message vocal).
+4. Kevin répond : « J'ai reçu la vidéo (47 min, 1080p). Je l'analyse et je vous propose un plan de coupe. »
+
+La vidéo reste dans votre conversation Telegram : elle n'est jamais copiée sur le site.
+
+#### Les consignes possibles
+
+Une phrase suffit, en français courant. Ce que vous ne dites pas prend la valeur habituelle (vertical, 15 secondes, sous-titres, sans caméra incrustée, nombre de shorts choisi par l'équipe, 20 au plus).
+
+- **Durée** : « des shorts de 15 secondes », « 30 secondes chacun » (5 à 90 secondes).
+- **Nombre** : « fais-moi 10 clips ».
+- **Format** : « vertical pour TikTok », « en carré », « horizontal ».
+- **Caméra** : « cam en haut à droite », « cam en bas à gauche » : votre caméra est recadrée et placée dans ce coin.
+- **Sous-titres** : « mets des sous-titres » (oui par défaut), « sans sous-titres ».
+- **Texte incrusté** : « écris « Jackpot ! » en bas ».
+- **Thème** : « thème roulette », « blackjack », « machines à sous » : il sert au classement dans la médiathèque.
+- **Vitesse** : « accélère un peu », « au ralenti » (de 0,5 à 2 fois).
+
+Exemples complets : « découpe ça en shorts de 15 secondes, cam en haut à droite, thème roulette » ; « fais des shorts pour TikTok avec sous-titres ».
+
+#### Le plan de coupe
+
+L'équipe regarde la vidéo et choisit les meilleurs moments (gains, réactions, suspense ; jamais les pauses ni les chargements). Kevin vous envoie le plan : « 1. 2:30 à 2:45 — Gros gain à la roulette (9/10) ». Répondez-lui :
+
+- « ok » ou « lance » : le montage commence ;
+- « enlève le 3 » : le moment 3 est retiré ;
+- « le 2, commence 2 secondes plus tôt » : le moment est ajusté.
+
+Sur le site, la fiche du montage montre ce plan **en frise** : chaque moment est placé sur la durée de la vidéo, avec son numéro, son score d'intérêt et sa description.
+
+#### Les aperçus et les boutons
+
+Chaque short est contrôlé avant de vous être montré : durée, qualité (1080 pixels au moins sur le grand côté), pas d'écran noir, son présent et sans saturation, sous-titres lisibles. Un passage de sous-titre douteux vous est soumis (« « martingale » ou « martindale » ? ») : répondez à Kevin, rien n'est incrusté avant. Un short trop lourd pour Telegram (plus de 50 Mo) est compressé une fois, et Kevin vous le dit.
+
+Kevin vous envoie ensuite chaque short (vidéo, durée, format, poids) avec trois boutons :
+
+- **✅ Valider** : le short est prêt et rangé dans la médiathèque. Il n'est pas publié.
+- **✏️ Modifier** : Kevin vous demande quoi changer, puis refait le short et vous renvoie un nouvel aperçu.
+- **❌ Refuser** : le short est archivé (il n'est pas supprimé).
+
+Vous pouvez aussi répondre en une phrase : « ok », « ok sauf le 3 », « refuse le 4 ».
+
+Les mêmes boutons **Valider**, **Modifier** et **Refuser** sont sur la fiche du montage, sous chaque short, avec la lecture du short dans le navigateur, son statut, votre retour, la mention **Compressé pour Telegram** s'il l'a été, et le résultat du contrôle en clair. Un short de plus de 20 Mo ne se lit pas sur le site : ouvrez-le dans Telegram (lien **Ouvrir dans Telegram**). **Annuler le montage** (avec confirmation) arrête le travail : les shorts pas encore faits sont abandonnés, les shorts validés restent. Ces boutons sont réservés aux administrateurs ; les autres membres de l'équipe voient tout en lecture. Chaque geste est noté dans le journal.
+
+#### Modifier un short
+
+Écrivez à Kevin, ou dans le champ **Modifier** de la fiche : « le 5, raccourcis de 2 secondes », « refais le 2 avec la cam en bas à gauche », « le 3, 10 secondes au lieu de 15 », « ajoute le texte « Bonus » ». Le short est refait depuis la vidéo d'origine, sans perte de qualité, puis un nouvel aperçu vous arrive.
+
+#### Où retrouver les shorts
+
+- **Agents → Montage**, vue **Travaux** : un montage par vidéo, avec son état et le nombre de shorts validés sur le total.
+- **Agents → Montage**, vue **Médiathèque** : les **Shorts** et les **Vidéos longues**, filtrés par **Thème**. Les fichiers sont gardés dans Telegram (canal Médiathèque) ; le lien **Ouvrir dans Telegram** y mène.
+- Pour publier : dites à Kevin « envoie les 10 validés dans le canal Roulette » (il vous montre ce qui partira et demande votre OUI), ou « garde-les, je les prendrai ».
+
+Pour savoir où en est un montage : « où en est le montage ? ». Pour l'arrêter : « annule le montage en cours ».
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.
@@ -1552,6 +1616,7 @@ Une phrase type par page :
 - **Relances automatiques** : « active la relance de bienvenue ».
 - **Conversations et personas** : « crée la persona Inès, 24 ans, Lyon, étudiante », puis envoyez ses photos.
 - **Agents** : « passe le casino en vrai », « monte le budget vidéo à 80 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
+- **Montage** : envoyez une vidéo à Kevin avec « découpe ça en shorts de 15 secondes, cam en haut à droite », puis « valide le short 3 », « le 5, raccourcis de 2 secondes », « refuse le 4 » ou « annule le montage en cours ».
 - **Réglages** : « crée l'étiquette VIP en vert », « envoie-moi le rapport à 8 h au lieu de 9 h », « ajoute Léa à l'équipe comme responsable ».
 - **Connexions** : « connecte mon compte TikTok » (Kevin envoie un lien d'autorisation, puis vous choisissez les comptes par boutons).
 - **Statistiques** : « combien de premiers dépôts hier ? », « ajoute 150 € de dépense TikTok hier ».

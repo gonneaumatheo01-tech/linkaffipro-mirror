@@ -94,11 +94,13 @@ describe("registre des capacités", () => {
   });
 
   it("équipe absente → null ; une équipe future se branche par registerCapabilities", () => {
-    expect(capability("montage", "programmer_shorts")).toBeNull();
-    expect(isOrderableTeam("montage")).toBe(false);
-    const fake = { ...capability("ads", "rapport")!, teamKey: "montage" as never, key: "programmer_shorts" };
+    // Phase 28 : l'équipe Montage est branchée ; Prospection (phase 31) ne l'est pas encore.
+    expect(isOrderableTeam("montage")).toBe(true);
+    expect(capability("prospection", "chercher_affilies")).toBeNull();
+    expect(isOrderableTeam("prospection")).toBe(false);
+    const fake = { ...capability("ads", "rapport")!, teamKey: "prospection" as never, key: "chercher_affilies" };
     registerCapabilities([fake]);
-    expect(capability("montage", "programmer_shorts")).not.toBeNull();
+    expect(capability("prospection", "chercher_affilies")).not.toBeNull();
     expect(capabilitiesForAgent("redaction").some((c) => c.key === "consignes_canal")).toBe(true);
   });
 });
