@@ -36,7 +36,7 @@ Le client a donné ses identifiants communs à Kevin (rangés chiffrés) puis a 
 Corrigé : une page coupée par notre garde dit maintenant pourquoi (redirection vers un autre domaine → Kevin demande la bonne adresse) au lieu d'un « injoignable » muet. **Aucun contournement de blocage par pays** (règle de la phase) : Kevin demande au client comment il ouvre ces sites. En attendant, l'équipe Paris garde les cotes du fournisseur habituel (comportement de la phase 23).
 
 ## Reste / limites
-- Les trois sites refusent la France et notre serveur : la lecture directe ne marchera que depuis un endroit où ils sont ouverts (réponse du client attendue).
+- Les trois sites refusent la France et notre serveur ; le client y accède par un VPN en Norvège. La plateforme ne contourne pas un blocage par pays : lecture directe en pause, paris sur le fournisseur habituel, jusqu’à une décision écrite du client (Kevin le lui a dit).
 - Un match que le système n'a pas pu rattacher au fournisseur de résultats avant le coup d'envoi n'est plus rattaché ensuite : le pari est remboursé au bout de 3 jours, jamais réglé au hasard.
 - Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
 
