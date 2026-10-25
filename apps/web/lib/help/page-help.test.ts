@@ -58,6 +58,10 @@ describe("aide de la page courante : table adresse → sections du guide", () =>
     expect(pageHelpFor("/agents/montage?vue=mediatheque").help.sections).toContain("Où retrouver les shorts");
     expect(pageHelpFor("/agents/montage/j1").help.label).toBe("Fiche d'un montage");
     expect(pageHelpFor("/agents/montage/j1").help.sections[0]).toBe("Le plan de coupe");
+    // Phase 29 : équipe Analystes (la lecture d'un rapport n'est pas une fiche d'équipe).
+    expect(pageHelpFor("/agents/analyses?vue=regles").help.label).toBe("Analyses");
+    expect(pageHelpFor("/agents/analyses").help.sections).toContain("Les règles publicitaires");
+    expect(pageHelpFor("/agents/analyses/rapports/r1").help.label).toBe("Rapport d'analyse");
     // Phase 33 : ordres de Kevin (la fiche d'un ordre n'est pas une fiche d'équipe).
     expect(pageHelpFor("/agents/orders").help.label).toBe("Ordres");
     expect(pageHelpFor("/agents/orders/o1?ok=x").help.label).toBe("Fiche d'un ordre");

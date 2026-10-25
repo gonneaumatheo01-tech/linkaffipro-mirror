@@ -104,7 +104,9 @@ describe("Réglages → Alertes", () => {
     const text = visibleText(html);
     expect(text).toContain("Alertes sur vos chiffres");
     expect(text).toContain("Une alerte désactivée n'est plus envoyée");
-    expect(text.match(/Alerte activée/g)).toHaveLength(12);
+    expect(text.match(/Alerte activée/g)).toHaveLength(13);
+    // Analyse du marché (phase 29) : veille en panne.
+    expect(text).toContain("Veille du marché en panne");
     // Bookmakers (phase 35) : ne se lit plus, se lit mal.
     expect(text).toContain("Bookmaker qui ne se lit plus");
     // Équipe Casino (phase 22) : vidéos en manque.

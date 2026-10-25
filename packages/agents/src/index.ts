@@ -505,3 +505,6 @@ export * from "./montage/ffmpeg";
 // Phase 28, chantier C : IA du montage (instructions, plan de coupe, sous-titres, lisibilité) ; les autres chantiers ajoutent leurs lignes dans `montage/index.ts`.
 export * from "./montage/index";
 export * from "./analysts/contract";
+
+// Phase 29 : équipe Analystes (chantier A : veille ; B et C ajoutent leurs lignes dans `analysts/index.ts`).
+export * from "./analysts/index";

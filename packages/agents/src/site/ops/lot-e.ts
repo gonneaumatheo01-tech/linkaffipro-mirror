@@ -500,7 +500,7 @@ export const LOT_E_OPS: SiteOpMeta[] = [
       enabled: {
         type: "object",
         description:
-          "Alertes à activer (true) ou couper (false), par clé : registrations_drop, spend_no_conversion, channel_leak, agents_channel_drop, agents_persona_drop, agents_media_low, ads_spend_spike, ads_conversion_drop, ads_cost_over_threshold, ads_budget_exhausted, bookmaker_blocked, bookmaker_degraded",
+          "Alertes à activer (true) ou couper (false), par clé : registrations_drop, spend_no_conversion, channel_leak, agents_channel_drop, agents_persona_drop, agents_media_low, ads_spend_spike, ads_conversion_drop, ads_cost_over_threshold, ads_budget_exhausted, bookmaker_blocked, bookmaker_degraded, analysts_failing",
         additionalProperties: { type: "boolean" },
       },
     }),

@@ -103,6 +103,9 @@ describe("vocabulaire de la rubrique Agents", () => {
     // Phase 28 : équipe Montage.
     expect(w(`<p>Encodage ffmpeg en CRF 18, codec H.264, fichier SRT en burn-in</p>`)).toEqual(["ffmpeg", "CRF", "codec", "SRT", "burn-in"]);
     expect(w(`<p>Qualité haute, format vertical, sous-titres incrustés</p>`)).toEqual([]);
+    // Phase 29 : équipe Analystes.
+    expect(w(`<p>Base de compliance remplie par scraping</p>`)).toEqual(["scraping", "compliance"]);
+    expect(w(`<p>Règles publicitaires remplies par la veille de vos sources</p>`)).toEqual([]);
   });
 });
 

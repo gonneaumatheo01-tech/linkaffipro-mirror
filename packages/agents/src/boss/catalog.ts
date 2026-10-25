@@ -19,6 +19,7 @@ import { VIEW_ACTIONS } from "./catalog-view";
 import { ORDER_ACTIONS } from "./catalog-orders";
 import { BOOKMAKER_ACTIONS } from "./catalog-bookmakers";
 import { MONTAGE_ACTIONS } from "./catalog-montage";
+import { ANALYSTS_ACTIONS } from "./catalog-analysts";
 import { bossHelpText } from "./help";
 import { bossStartReply } from "./guide";
 import { bossDeferredFollowUp, clearBossPending, NOTHING_TO_CANCEL, PENDING_CANCELLED, readBossPending } from "./confirm";
@@ -71,7 +72,7 @@ export const annule = defineAction<Empty>({
 
 export const GUIDE_ACTIONS: BossAction[] = [aide, commencer, annule] as unknown as BossAction[];
 
-export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...VIEW_ACTIONS, ...BOOKMAKER_ACTIONS, ...MONTAGE_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
+export const BOSS_CATALOG: BossAction[] = [...READ_ACTIONS, ...TEAM_ACTIONS, ...UNIVERSE_ACTIONS, ...INSPIRATION_ACTIONS, ...VIEW_ACTIONS, ...BOOKMAKER_ACTIONS, ...MONTAGE_ACTIONS, ...ANALYSTS_ACTIONS, ...ORDER_ACTIONS, ...TEAM_MEMBER_ACTIONS, ...GUIDE_ACTIONS];
 
 const BY_KEY = new Map(BOSS_CATALOG.map((a) => [a.key, a]));
 // Phase 34 : opérations du site confirmées (OUI ; SUPPRIMER passe par le chemin rapide), jamais vues par l'IA.

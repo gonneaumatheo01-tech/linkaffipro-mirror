@@ -40,7 +40,9 @@ export type AlertKind =
   | "webhook_repaired"
   // Phase 35 : bookmakers lus directement (créées et résolues site par site par la santé des bookmakers).
   | "bookmaker_blocked"
-  | "bookmaker_degraded";
+  | "bookmaker_degraded"
+  // Phase 29 : veille du marché (file `agents-analystes`) qui échoue en boucle.
+  | "analysts_failing";
 export type AlertSeverityKey = "INFO" | "WARNING" | "CRITICAL";
 export type Detected = {
   kind: AlertKind;
@@ -287,6 +289,23 @@ export function detectJobFailures(failuresByQueue: Record<string, number>): Dete
     severity: "WARNING",
     message: `Erreurs répétées sur les tâches du service d'arrière-plan en 15 min : ${list}. Voir Réglages → État du système.`,
     payload: { queues: Object.fromEntries(hot) },
+  };
+}
+
+/** Phase 29 : tâches de la veille du marché échouées en 15 minutes à partir desquelles l'admin est prévenu. */
+export const ANALYSTS_FAILING_THRESHOLD = 5;
+
+/**
+ * Veille du marché en panne (phase 29) : au moins 5 tâches de la file `agents-analystes` échouées en 15 minutes
+ * (compteur glissant des échecs, comme « Erreurs répétées »). Rien n'est perdu : la veille reprend au passage suivant.
+ */
+export function detectAnalystsFailing(failures: number): Detected | null {
+  if (!Number.isFinite(failures) || failures < ANALYSTS_FAILING_THRESHOLD) return null;
+  return {
+    kind: "analysts_failing",
+    severity: "WARNING",
+    message: `La veille du marché échoue en boucle : ${failures} tâches en échec en 15 minutes. Les rapports et alertes du marché peuvent manquer ; voir Réglages → État du système.`,
+    payload: { failures },
   };
 }
 

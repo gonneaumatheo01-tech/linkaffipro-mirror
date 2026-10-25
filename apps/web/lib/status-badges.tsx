@@ -13,6 +13,7 @@ import type {
   BroadcastStatus,
   CampaignStatus,
   ChatType,
+  CompliancePlatform,
   ConnectionStatus,
   ConversationAuthor,
   ConversationStage,
@@ -37,14 +38,19 @@ import type {
   PostPublisher,
   PostStatus,
   RecommendationStatus,
+  RiskLevel,
   ReferenceStatus,
   ReferenceVia,
   Role,
   SequenceTrigger,
   ShortClipStatus,
+  StrategyReportType,
   TeamOrderKind,
   TeamOrderStatus,
   TrackingLinkKind,
+  TrendCategory,
+  TrendSentiment,
+  TrendSourceType,
   Vertical,
 } from "@linkaffipro/db";
 import { StatusPill, type PillTone } from "@/components/admin/status-pill";
@@ -92,6 +98,8 @@ export type TelegramSessionStatus =
 export type AgentRunStatus = "RUNNING" | "OK" | "ERROR" | "SKIPPED";
 /** Action conseillée par l'Agent Ads (`Recommendation.action`, chaîne libre en base, phase 24). */
 export type AdsActionKind = "STOP" | "SCALE" | "TEST" | "WATCH";
+/** État d'une source de la veille (phase 29), déduit par `sourceState` (lib/agents/analyses.ts). */
+export type TrendSourceState = "ACTIVE" | "INACTIVE" | "ERROR" | "PROPOSED";
 
 export const STATUS_DICT = {
   membership: {
@@ -469,6 +477,67 @@ export const STATUS_DICT = {
     REDO: main("À refaire"),
     CANCELLED: muted("Annulé"),
   } satisfies Record<ShortClipStatus, StatusEntry>,
+  // Équipe Analystes (phase 29) : veille, règles publicitaires, rapports, sources, recommandations du marché.
+  trendCategory: {
+    AD_STRATEGY: plain("Stratégie de pub qui marche"),
+    AD_BAN: bad("Ce qui fait bannir"),
+    AD_CREATIVE: plain("Format de pub qui marche"),
+    PLATFORM_CHANGE: warn("Changement de règle d'une plateforme"),
+    MARKET_TREND: plain("Tendance du marché"),
+    REGULATION: plain("Réglementation (information)"),
+    OFFER: plain("Offre d'un opérateur"),
+    TOOL: plain("Outil d'affiliés"),
+    DISCUSSION: plain("Discussion"),
+    OTHER: plain("Autre"),
+  } satisfies Record<TrendCategory, StatusEntry>,
+  trendSentiment: {
+    POSITIVE: ok("Positif"),
+    NEGATIVE: bad("Négatif"),
+    NEUTRAL: plain("Neutre"),
+  } satisfies Record<TrendSentiment, StatusEntry>,
+  trendSourceType: {
+    FORUM: plain("Forum"),
+    REDDIT: plain("Reddit"),
+    TELEGRAM: plain("Canal Telegram public"),
+    TWITTER: plain("X (Twitter)"),
+    NEWS: plain("Site d'actualité"),
+    OTHER: plain("Autre site"),
+  } satisfies Record<TrendSourceType, StatusEntry>,
+  trendSource: {
+    ACTIVE: ok("Active"),
+    INACTIVE: muted("Inactive"),
+    ERROR: bad("En erreur"),
+    PROPOSED: warn("À valider"),
+  } satisfies Record<TrendSourceState, StatusEntry>,
+  compliancePlatform: {
+    META: plain("Meta (Facebook, Instagram)"),
+    TIKTOK: plain("TikTok"),
+    GOOGLE: plain("Google"),
+    SNAP: plain("Snapchat"),
+    X: plain("X (Twitter)"),
+    TELEGRAM: plain("Telegram"),
+    OTHER: plain("Autre plateforme"),
+  } satisfies Record<CompliancePlatform, StatusEntry>,
+  riskLevel: {
+    LOW: ok("Risque faible"),
+    MEDIUM: warn("Risque moyen"),
+    HIGH: bad("Risque élevé"),
+    BAN: bad("Fait bannir"),
+  } satisfies Record<RiskLevel, StatusEntry>,
+  strategyReport: {
+    WEEKLY: plain("Rapport du lundi"),
+    MONTHLY: plain("Rapport du mois"),
+    ON_DEMAND: plain("À la demande"),
+  } satisfies Record<StrategyReportType, StatusEntry>,
+  // Recommandation du marché : « Accepter » = le client la retient et la met en place lui-même (rien n'est changé
+  // chez Meta ni TikTok) ; état écrit `APPLIED` par un humain (site ou « garder » chez Kevin).
+  marketRecommendation: {
+    PROPOSED: warn("À décider"),
+    APPLIED: ok("Acceptée"),
+    UNDONE: muted("Annulée"),
+    REJECTED: muted("Refusée"),
+    DONE: ok("Acceptée"),
+  } satisfies Record<RecommendationStatus, StatusEntry>,
   teamOrderKind: {
     PROGRAM: plain("Programme sur plusieurs jours"),
     ONE_SHOT: plain("Une seule fois"),

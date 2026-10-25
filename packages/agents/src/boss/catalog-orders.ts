@@ -551,7 +551,8 @@ export const demanderEquipe = defineAction<AskParams>({
     const team = orderTeamOf(p.equipe);
     if (!team)
       return { reply: esc(pick(V.askUnknownTeam({ team: p.equipe, teams: Object.values(TEAM_LABELS).join(", ") }), "orders.ask.unknown", chat)) };
-    if (FUTURE_TEAMS[team])
+    // Équipe annoncée mais déjà branchée au registre (Montage, Analystes) : on lui pose la question.
+    if (FUTURE_TEAMS[team] && !listCapabilities().some((c) => c.teamKey === team))
       return { reply: esc(pick(V.askFuture({ team: FUTURE_TEAMS[team] }), "orders.ask.future", chat)) };
     // Kevin pose la question ; le Grand Chef la lit et la confie au Chef de l'équipe (`orders/ask.ts`, lecture seule).
     const asked = await askTeam(deps, team, p.question, { actor, chatId: chat, teamLabel: orderTeamLabel(team) });

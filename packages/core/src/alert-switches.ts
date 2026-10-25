@@ -28,6 +28,8 @@ export const SWITCHABLE_ALERT_KINDS = [
   // Phase 35 : bookmaker qui ne se lit plus, ou mal (santé toutes les 30 min).
   "bookmaker_blocked",
   "bookmaker_degraded",
+  // Phase 29 : veille du marché (équipe Analystes) qui échoue en boucle.
+  "analysts_failing",
 ] as const;
 
 export type SwitchableAlertKind = (typeof SWITCHABLE_ALERT_KINDS)[number];
@@ -49,6 +51,7 @@ export const DEFAULT_ALERT_SWITCHES: Readonly<AlertSwitches> = Object.freeze({
   ads_budget_exhausted: true,
   bookmaker_blocked: true,
   bookmaker_degraded: true,
+  analysts_failing: true,
 });
 
 /** Ce type d'alerte a-t-il un interrupteur ? */

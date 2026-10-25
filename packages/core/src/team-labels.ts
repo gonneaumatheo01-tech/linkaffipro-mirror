@@ -39,6 +39,7 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   webhook_repaired: "Connexion Telegram d'un bot réparée plusieurs fois",
   bookmaker_blocked: "Bookmaker qui ne se lit plus",
   bookmaker_degraded: "Bookmaker qui se lit mal",
+  analysts_failing: "Veille du marché en panne",
 };
 
 export function alertKindLabel(kind: string): string {
@@ -87,6 +88,7 @@ export const QUEUE_LABELS: Record<string, string> = {
   "agents-ads": "Agent Ads",
   "agents-bookmakers": "Lecture des bookmakers",
   "agents-montage": "Montage vidéo",
+  "agents-analystes": "Analyse du marché",
 };
 
 export function queueLabel(name: string): string {

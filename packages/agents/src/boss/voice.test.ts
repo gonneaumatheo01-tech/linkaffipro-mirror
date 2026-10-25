@@ -228,6 +228,9 @@ const KEVIN_SHARED_FILES = [
 const KEVIN_FILES = [
   ...tsFiles(BOSS_DIR),
   ...tsFiles(join(SRC_DIR, "inspiration"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
+  // Phase 29 : textes de Kevin pour l'équipe Analystes (réponses, alertes, sources, rapport, fiches des agents).
+  ...tsFiles(join(SRC_DIR, "analysts"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
+  join(SRC_DIR, "orders", "capabilities", "analystes.ts"),
   ...KEVIN_ORDER_FILES,
   ...tsFiles(join(SRC_DIR, "orders", "view")),
   ...KEVIN_SHARED_FILES,

@@ -66,6 +66,7 @@ export const ALERT_SWITCH_FIELDS: Record<SwitchableAlertKind, string> = {
   ads_budget_exhausted: "adsBudgetExhaustedEnabled",
   bookmaker_blocked: "bookmakerBlockedEnabled",
   bookmaker_degraded: "bookmakerDegradedEnabled",
+  analysts_failing: "analystsFailingEnabled",
 };
 
 /** Interrupteurs envoyés par le formulaire : une case décochée n'est pas envoyée, donc désactivée. */

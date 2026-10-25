@@ -14,6 +14,7 @@ import {
   BroadcastStatus,
   CampaignStatus,
   ChatType,
+  CompliancePlatform,
   ConnectionStatus,
   ConversationAuthor,
   ConversationStage,
@@ -38,14 +39,19 @@ import {
   PostPublisher,
   PostStatus,
   RecommendationStatus,
+  RiskLevel,
   ReferenceStatus,
   ReferenceVia,
   Role,
   SequenceTrigger,
   ShortClipStatus,
+  StrategyReportType,
   TeamOrderKind,
   TeamOrderStatus,
   TrackingLinkKind,
+  TrendCategory,
+  TrendSentiment,
+  TrendSourceType,
   Vertical,
 } from "@linkaffipro/db";
 import { PILL_TONES, pillShowsDot, pillToneClasses } from "@/components/admin/status-pill";
@@ -111,6 +117,13 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["teamOrderKind", TeamOrderKind],
   ["montageJob", MontageJobStatus],
   ["shortClip", ShortClipStatus],
+  ["trendCategory", TrendCategory],
+  ["trendSentiment", TrendSentiment],
+  ["trendSourceType", TrendSourceType],
+  ["compliancePlatform", CompliancePlatform],
+  ["riskLevel", RiskLevel],
+  ["strategyReport", StrategyReportType],
+  ["marketRecommendation", RecommendationStatus],
 ];
 
 describe("badges de statut", () => {

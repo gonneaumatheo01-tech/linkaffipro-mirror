@@ -13,6 +13,7 @@ import { CONTROLE_CAPABILITIES } from "./capabilities/controle";
 import { DATING_CAPABILITIES } from "./capabilities/dating";
 import { INSPIRATION_CAPABILITIES } from "./capabilities/inspiration";
 import { MONTAGE_CAPABILITIES } from "./capabilities/montage";
+import { ANALYSTES_CAPABILITIES } from "./capabilities/analystes";
 import { REDACTION_CAPABILITIES } from "./capabilities/redaction";
 import { SPORTS_CAPABILITIES } from "./capabilities/sports";
 import { TRANSVERSE_CAPABILITIES } from "./capabilities/transverse";
@@ -74,6 +75,8 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...CONTROLE_CAPABILITIES,
   // Phase 28 : équipe Montage (découpe d'une vidéo longue en shorts, état du montage).
   ...MONTAGE_CAPABILITIES,
+  // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, stratégie, rapports ; lecture seule).
+  ...ANALYSTES_CAPABILITIES,
 ];
 
 registerCapabilities(BUILTIN_CAPABILITIES);

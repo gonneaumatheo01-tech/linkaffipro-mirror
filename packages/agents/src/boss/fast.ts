@@ -57,6 +57,7 @@ import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { inspirationFastPath } from "./catalog-inspiration";
 import { montageFastPath } from "./catalog-montage";
+import { analystsFastPath } from "./catalog-analysts";
 import { orderQuickCancel } from "../orders/recap";
 import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
 import { siteDeleteWordReply } from "../site/flow";
@@ -326,6 +327,8 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     };
     const insp =
       (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
+      // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché (plus récent que celui de l'inspiration).
+      (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null) ??
       (await inspirationFastPath(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt, run })) ??
       // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
       (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);

@@ -290,6 +290,18 @@ export default async function AlertsPage({ searchParams }: PageProps<"/settings/
                 ))}
               </div>
             </div>
+            <div className="space-y-3 border-t border-border pt-5 md:col-span-3">
+              <p className="text-body font-medium text-foreground">Analyse du marché</p>
+              <p className="text-note text-muted-foreground">
+                Veille des forums, réseaux et actualités par l&apos;équipe Analystes. Détail dans Agents → Analyses.
+              </p>
+              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-body text-foreground">Veille du marché en panne : ses tâches échouent en boucle</p>
+                  <AlertSwitch kind="analysts_failing" checked={switches.analysts_failing} />
+                </div>
+              </div>
+            </div>
             <div className="md:col-span-3">
               <Button type="submit" className="max-md:h-10">
                 Enregistrer

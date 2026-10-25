@@ -158,7 +158,7 @@ export async function agentsOverviewImpl(prismaIn: unknown, opts: { now?: Date; 
         select: { type: true },
       }),
       prisma.recommendation.findMany({
-        where: { status: "APPLIED", teamKey: { not: ADS_TEAM_KEY }, appliedAt: { gte: weekStart } },
+        where: { status: "APPLIED", teamKey: { notIn: [ADS_TEAM_KEY, "analystes"] }, appliedAt: { gte: weekStart } },
         orderBy: { appliedAt: "desc" },
         take: 20,
         select: { id: true, teamKey: true, target: true, targetId: true, field: true, appliedAt: true },

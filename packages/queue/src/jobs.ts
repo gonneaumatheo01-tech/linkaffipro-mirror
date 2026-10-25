@@ -29,6 +29,8 @@ export const QUEUE_NAMES = [
   "agents-bookmakers",
   // Phase 28 : équipe Montage (ffmpeg, une tâche à la fois).
   "agents-montage",
+  // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, rapports ; lecture réseau, 2 à la fois).
+  "agents-analystes",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -151,6 +153,9 @@ export const JOB_RETRY_OPTIONS: Record<
   // Phase 28 : 3 essais (2 reprises : 1 min puis 2 min) ; l'étape repart de la base (un short rangé n'est jamais
   // refait) ; au 3e échec, la chaîne marque l'échec et Kevin prévient (la tâche se termine alors sans erreur).
   "agents-montage": { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
+  // Phase 29 : 2 essais (reprise après 1 min) ; la base fait foi (une source lue repart de `nextScrapeAt`, une entrée déjà
+  // vérifiée ou une alerte déjà envoyée ne l'est jamais deux fois).
+  "agents-analystes": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -327,6 +332,21 @@ export type AgentsMontageJob =
   | { type: "montage.sweep" }
   | { type: "montage.cleanup" };
 
+/**
+ * File `agents-analystes` (phase 29) : copie structurelle de `AnalystsQueueJob` de `@linkaffipro/agents`
+ * (`analysts/contract.ts`, ce paquet ne dépend pas des agents). `analysts.schedule` toutes les heures (sources dues,
+ * rapport de la semaine, découverte, revérification, purge) ; le reste est déposé par la planification et par Kevin.
+ */
+export type AgentsAnalystesJob =
+  | { type: "analysts.schedule" }
+  | { type: "analysts.scrape"; sourceId: string }
+  | { type: "analysts.compliance_check"; entryId: string }
+  | { type: "analysts.strategy"; kind: "weekly" | "on_demand"; requestId?: string | null }
+  | { type: "analysts.report"; kind: "weekly" | "briefing"; reportId?: string | null }
+  | { type: "analysts.discover" }
+  | { type: "analysts.reverify" }
+  | { type: "analysts.purge" };
+
 export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
@@ -367,4 +387,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                                 ? AgentsBookmakersJob
                                 : Q extends "agents-montage"
                                   ? AgentsMontageJob
-                                  : StatsJob;
+                                  : Q extends "agents-analystes"
+                                    ? AgentsAnalystesJob
+                                    : StatsJob;

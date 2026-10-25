@@ -88,6 +88,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       adsBudgetExhaustedEnabled: "on",
       bookmakerBlockedEnabled: "on",
       bookmakerDegradedEnabled: "on",
+      analystsFailingEnabled: "on",
     });
     expect(m.requireAdmin).toHaveBeenCalledTimes(1);
     expect(m.upserts).toHaveLength(1);
@@ -96,7 +97,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true },
+      enabled: { registrations_drop: true, spend_no_conversion: true, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true, analysts_failing: true },
     });
     expect(m.upserts[0]?.create.value).toEqual(m.upserts[0]?.update.value);
     expect(params.get("ok")).toContain("Toutes les alertes sont activées.");
@@ -112,7 +113,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       registrationsDropPct: 40,
       spendNoConversionEur: 75.5,
       channelLeakPct: 12,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false, bookmaker_blocked: false, bookmaker_degraded: false },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false, bookmaker_blocked: false, bookmaker_degraded: false, analysts_failing: false },
     });
     // Même lecture que le worker et la page.
     expect(parseAlertSwitches(value)).toEqual({
@@ -128,10 +129,11 @@ describe("enregistrer les alertes sur les chiffres", () => {
       ads_budget_exhausted: false,
       bookmaker_blocked: false,
       bookmaker_degraded: false,
+      analysts_failing: false,
     });
     expect(parseThresholds(value).channelLeakPct).toBe(12);
     expect(params.get("ok")).toContain(
-      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », « Dépense pub anormale », « Chute des inscriptions d'une campagne », « Pub trop chère par inscription », « Budget du jour d'une campagne atteint », « Bookmaker qui ne se lit plus », « Bookmaker qui se lit mal », elles ne vous seront plus envoyées.",
+      "Alertes désactivées : « Dépense sans inscription », « Canal qui perd ses membres », « Canal qui décroche (vues ou clics) », « Profil de conversation qui ne convertit plus », « Vidéos casino en manque », « Dépense pub anormale », « Chute des inscriptions d'une campagne », « Pub trop chère par inscription », « Budget du jour d'une campagne atteint », « Bookmaker qui ne se lit plus », « Bookmaker qui se lit mal », « Veille du marché en panne », elles ne vous seront plus envoyées.",
     );
     // Journal : seuils et interrupteurs.
     expect(m.audits).toEqual([
@@ -142,7 +144,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
           registrationsDropPct: 40,
           spendNoConversionEur: 75.5,
           channelLeakPct: 12,
-          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false, bookmaker_blocked: false, bookmaker_degraded: false },
+          enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: false, agents_channel_drop: false, agents_persona_drop: false, agents_media_low: false, ads_spend_spike: false, ads_conversion_drop: false, ads_cost_over_threshold: false, ads_budget_exhausted: false, bookmaker_blocked: false, bookmaker_degraded: false, analysts_failing: false },
           // Phase 34 : même cœur que Kevin, journal avec la provenance (`via`).
           via: "WEB",
         },
@@ -153,7 +155,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
   it("réactiver une alerte désactivée", async () => {
     m.stored = {
       registrationsDropPct: 40,
-      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true },
+      enabled: { registrations_drop: true, spend_no_conversion: false, channel_leak: true, agents_channel_drop: true, agents_persona_drop: true, agents_media_low: true, ads_spend_spike: true, ads_conversion_drop: true, ads_cost_over_threshold: true, ads_budget_exhausted: true, bookmaker_blocked: true, bookmaker_degraded: true, analysts_failing: true },
     };
     await save({
       ...SEUILS,
@@ -169,6 +171,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       adsBudgetExhaustedEnabled: "on",
       bookmakerBlockedEnabled: "on",
       bookmakerDegradedEnabled: "on",
+      analystsFailingEnabled: "on",
     });
     expect(parseAlertSwitches(m.stored)).toEqual({
       registrations_drop: true,
@@ -183,6 +186,7 @@ describe("enregistrer les alertes sur les chiffres", () => {
       ads_budget_exhausted: true,
       bookmaker_blocked: true,
       bookmaker_degraded: true,
+      analysts_failing: true,
     });
   });
 
@@ -211,6 +215,7 @@ describe("message de retour", () => {
         ads_budget_exhausted: true,
         bookmaker_blocked: true,
         bookmaker_degraded: true,
+        analysts_failing: true,
       }),
     ).toContain(
       "Alerte désactivée : « Dépense sans inscription », elle ne vous sera plus envoyée.",
@@ -229,6 +234,7 @@ describe("message de retour", () => {
         ads_budget_exhausted: false,
         bookmaker_blocked: false,
         bookmaker_degraded: false,
+        analysts_failing: false,
       }),
     ).toContain("Toutes les alertes sont désactivées");
   });

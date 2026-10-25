@@ -1,0 +1,10 @@
+# robots.txt du faux forum (fixture inventée)
+User-agent: *
+Disallow: /members/
+Disallow: /search/
+Disallow: /private-lounge/
+Allow: /forums/
+Crawl-delay: 20
+
+User-agent: BadBot
+Disallow: /

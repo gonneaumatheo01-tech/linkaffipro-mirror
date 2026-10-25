@@ -230,7 +230,7 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     teams: ["inspiration"],
     chief: "chef-algo",
     role: "Lit un canal qui marche, en tire un profil de style et des idées, sans jamais copier.",
-    synonyms: ["inspiration", "agent inspiration", "canal d'inspiration", "veille", "celui qui lit les autres canaux", "concurrents", "espion"],
+    synonyms: ["inspiration", "agent inspiration", "canal d'inspiration", "celui qui lit les autres canaux", "concurrents", "espion"],
   }),
   // Phase 28 : équipe Montage (vidéo longue du client → shorts, chaque short validé par le client avant tout envoi).
   e({
@@ -287,16 +287,52 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     role: "Vérifie chaque short avant de te l'envoyer : durée, qualité 1080p, écrans noirs, son, lisibilité des sous-titres, poids.",
     synonyms: ["controle qualite montage", "controle montage", "qc montage", "controle des shorts", "celui qui verifie les shorts"],
   }),
+  // Phase 29 : équipe Analystes (marché externe : veille, règles des plateformes pub, stratégie, rapports). Elle
+  // recommande seulement ; l'Agent Ads, lui, lit les chiffres des pubs du client.
   e({
-    key: "analystes",
-    label: "Analystes",
+    key: "chef-analystes",
+    label: "Chef Analystes",
+    kind: "chef",
+    teams: ["analystes"],
+    chief: "grand-chef",
+    role: "Organise la veille du marché, les règles des plateformes pub et le rapport du lundi. Ne touche jamais aux pubs.",
+    synonyms: ["chef analystes", "chef des analystes", "analystes", "analyste", "analyste marche", "analystes marche", "equipe analystes", "l'equipe analystes", "etude de marche", "analyse du marche"],
+  }),
+  e({
+    key: "veille",
+    label: "Veille",
     kind: "agent",
-    teams: [],
-    chief: null,
-    role: "Étudieront le marché et la concurrence.",
-    synonyms: ["analystes", "analyste", "analyste marche", "analystes marche", "etude de marche"],
-    available: false,
-    arrives: "phase 29",
+    teams: ["analystes"],
+    chief: "chef-analystes",
+    role: "Lit les forums, Reddit, Telegram public, X et l'actualité de chaque pays, dans la langue locale. Elle en garde un résumé sourcé.",
+    synonyms: ["veille", "veille web", "veille du marche", "agent de veille", "celui qui lit les forums", "celui qui surveille les forums", "forums", "sources de veille"],
+  }),
+  e({
+    key: "compliance",
+    label: "Compliance",
+    kind: "agent",
+    teams: ["analystes"],
+    chief: "chef-analystes",
+    role: "Tient les règles de Meta, TikTok et des autres plateformes par pays, preuves à l'appui. Elle prévient tout de suite d'un risque de bannissement.",
+    synonyms: ["compliance", "agent compliance", "conformite", "regles pub", "regles des plateformes", "celui des regles", "celui qui dit ce qui fait bannir", "bannissements"],
+  }),
+  e({
+    key: "stratege",
+    label: "Stratège",
+    kind: "agent",
+    teams: ["analystes"],
+    chief: "chef-analystes",
+    role: "Croise la veille, les règles et tes chiffres de pubs. Il conseille le type de pub, l'angle, le format et le pays.",
+    synonyms: ["stratege", "strategiste", "agent strategie", "strategie", "strategie ads", "strategie pub", "celui qui conseille les pubs", "conseiller pub"],
+  }),
+  e({
+    key: "rapporteur",
+    label: "Rapporteur",
+    kind: "agent",
+    teams: ["analystes"],
+    chief: "chef-analystes",
+    role: "Écrit le rapport du marché du lundi, les briefings à la demande et les alertes envoyées par Kevin.",
+    synonyms: ["rapporteur", "rapporteuse", "rapport du marche", "rapport hebdo du marche", "briefing", "briefings", "celui qui fait le rapport du marche"],
   }),
   e({
     key: "qa",
@@ -419,6 +455,7 @@ export function findAgent(text: string): FindAgentResult {
 export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "ads") return "Ads";
   if (t === "montage") return "Montage";
+  if (t === "analystes") return "Analystes";
   if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
@@ -456,6 +493,15 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
       facts: { agent: agent.label, disponible: false, arrive: agent.arrives ?? null },
       lines: [`${agent.label} n'est pas encore là : il arrive avec la ${agent.arrives ?? "prochaine phase"}.`, `Il ${agent.role.charAt(0).toLowerCase()}${agent.role.slice(1)}`],
     };
+  }
+  // Phase 29 : l'équipe Analystes travaille sur la veille, les règles et les rapports (pas des posts).
+  if (agent.teams.includes("analystes")) {
+    const { analystsAgentCard } = await import("../analysts/kevin-view");
+    const card = await analystsAgentCard(deps, agent.key);
+    const abilities = agentAbilities(agent.key).map((c) => c.description);
+    const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
+    if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
+    return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
   }
   // Phase 28 : l'équipe Montage travaille sur des montages (pas des posts) : sa fiche vient de ses montages et shorts.
   if (agent.teams.includes("montage")) {

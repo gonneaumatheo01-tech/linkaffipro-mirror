@@ -5,5 +5,6 @@ import { LOT_C_IMPL } from "./lot-c";
 import { LOT_D_IMPL } from "./lot-d";
 import { LOT_E_IMPL } from "./lot-e";
 import { LOT_MONTAGE_IMPL } from "./lot-montage";
+import { LOT_ANALYSTES_IMPL } from "./lot-analystes";
 
-export const SITE_OP_IMPLS: SiteOpImpl[] = [...LOT_B_IMPL, ...LOT_C_IMPL, ...LOT_D_IMPL, ...LOT_E_IMPL, ...LOT_MONTAGE_IMPL];
+export const SITE_OP_IMPLS: SiteOpImpl[] = [...LOT_B_IMPL, ...LOT_C_IMPL, ...LOT_D_IMPL, ...LOT_E_IMPL, ...LOT_MONTAGE_IMPL, ...LOT_ANALYSTES_IMPL];

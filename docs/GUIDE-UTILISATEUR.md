@@ -18,7 +18,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
-- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Analyse de marché](#analyse-de-marche), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
@@ -1107,6 +1107,60 @@ Les mêmes boutons **Valider**, **Modifier** et **Refuser** sont sur la fiche du
 
 Pour savoir où en est un montage : « où en est le montage ? ». Pour l'arrêter : « annule le montage en cours ».
 
+### Analyse de marché
+
+L'équipe Analystes fait la veille du marché pour vous : ce que font les autres affiliés en casino, paris sportifs et rencontres, pays par pays en Europe, ce qui marche en pub et ce qui fait bannir chez Meta et TikTok. Elle lit des forums d'affiliés, Reddit, des canaux Telegram publics, X et des sites d'actualité, dans la langue de chaque pays, puis vous résume tout en français. **Chaque information porte sa source** (lien et date) ; une information qu'une seule source donne est marquée **Non vérifiée**. L'équipe ne fait rien à votre place : elle ne touche ni à vos pubs, ni à vos canaux, ni à vos budgets. Elle recommande, vous décidez. Ouvrez **Agents**, puis l'onglet **Analyses**.
+
+La page a cinq vues :
+
+- **Tendances** : les contenus utiles relevés par la veille, rangés par marché, avec leur résumé, leur source (cliquez sur le nom pour l'ouvrir), leur date et leur pertinence sur 10. Filtres : **Marché**, **Pays**, **Catégorie** (stratégie qui marche, ce qui fait bannir, format qui marche, changement de règle, offre…), **Ton** (positif, négatif, neutre) et pertinence minimale. La courbe montre combien d'entrées arrivent chaque semaine.
+- **Règles publicitaires** : voir plus bas.
+- **Rapports** : le rapport du lundi et les briefings demandés à Kevin, à lire en ligne.
+- **Sources** : ce que la veille lit (voir plus bas).
+- **Recommandations** : ce que l'équipe conseille (type de pub, angle, format, pays à viser), avec ses preuves. **Accepter** note seulement votre décision : c'est vous qui la mettez en place chez Meta ou TikTok. **Refuser** la range avec les autres. Un commentaire est possible. Les responsables peuvent aussi décider.
+
+#### Poser une question sur le marché
+
+Écrivez à Kevin en une phrase, comme à un collègue :
+
+- « qu'est-ce qui marche en casino en France ? »
+- « comment faire des pubs rencontres sans se faire bannir sur TikTok ? »
+- « quelles tendances cette semaine ? »
+- « c'est risqué de faire des pubs casino avec un bonus sur TikTok en France ? »
+- « quel type de pub je devrais faire pour les rencontres en Espagne ? »
+- « briefing paris sportifs Allemagne » : un rapport complet, rangé dans la vue **Rapports**.
+
+Kevin répond en quelques lignes, toujours avec les sources. Dès que la réponse touche aux règles, il ajoute : « C'est ce que j'observe sur les plateformes, pas un avis juridique. » **Ce n'est pas un avis juridique** : pour savoir si une pub est légale dans un pays, demandez à un avocat.
+
+#### Le rapport du lundi et les alertes
+
+Chaque lundi vers 8 h, Kevin vous envoie le rapport de la semaine : les tendances de chaque marché avec leurs sources, les nouvelles règles publicitaires, puis une recommandation par marché. Le détail complet est dans la vue **Rapports**.
+
+Sans attendre le lundi, Kevin vous prévient tout de suite :
+
+- quand une plateforme commence à bannir une pratique (risque élevé ou bannissement) : « Meta a commencé à bannir … en France. Source : … Vérifiez vos campagnes en cours. » ;
+- quand une tendance prend très fort (pertinence 9 sur 10 ou plus).
+
+Pour revoir les alertes en cours : « y a des alertes en ce moment ? ».
+
+#### Les règles publicitaires
+
+La vue **Règles publicitaires** liste ce qui est observé chez chaque plateforme (Meta, TikTok, puis Google, Snapchat, X quand vous les utiliserez), par pays et par marché : la règle en clair, le risque (**Risque faible**, **Risque moyen**, **Risque élevé**, **Fait bannir**), les preuves avec leurs liens, **Vérifiée par plusieurs sources** ou **Non vérifiée**, et la date de la dernière vérification (chaque règle est revérifiée au moins tous les 30 jours). Filtrez par plateforme, pays, marché et risque ; une règle valable pour tous les pays apparaît pour chaque pays.
+
+C'est ce qui est observé sur les plateformes, **pas un avis juridique** : la page le rappelle en haut de la liste.
+
+#### Les sources de la veille
+
+La vue **Sources** montre chaque source lue : son genre (forum, Reddit, canal Telegram public, X, site d'actualité), son marché, ses pays, son état (**Active**, **Inactive**, **En erreur** avec la dernière erreur, **À valider**), la date de la dernière collecte et le nombre d'entrées. Chaque source est lue doucement (quelques secondes entre deux pages, un passage par jour par défaut) ; une source en échec 5 fois de suite est arrêtée et Kevin vous le dit.
+
+- **Activer** : la source est lue au prochain passage. Une source **À valider** a été trouvée par la veille elle-même : rien n'est lu tant que vous ne l'activez pas.
+- **Désactiver** : la source n'est plus lue, ses entrées restent.
+- **Supprimer** : tapez SUPPRIMER pour confirmer ; ses entrées de veille sont effacées, les règles et les rapports restent.
+
+Ces trois boutons sont réservés aux administrateurs ; les responsables voient la liste. Par Kevin : « montre-moi les sources », « ajoute ce forum : » suivi de l'adresse (il demande votre OUI avant de l'activer), « désactive la source Reddit r/gambling », « supprime la source STM Forum » (il demande le mot SUPPRIMER).
+
+Ce qui est gardé : un résumé, le lien, la date et le classement de chaque contenu. Le texte lu est effacé au bout de 7 jours, et aucun profil des personnes des forums n'est gardé (le pseudonyme au plus).
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.
@@ -1617,6 +1671,7 @@ Une phrase type par page :
 - **Conversations et personas** : « crée la persona Inès, 24 ans, Lyon, étudiante », puis envoyez ses photos.
 - **Agents** : « passe le casino en vrai », « monte le budget vidéo à 80 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
 - **Montage** : envoyez une vidéo à Kevin avec « découpe ça en shorts de 15 secondes, cam en haut à droite », puis « valide le short 3 », « le 5, raccourcis de 2 secondes », « refuse le 4 » ou « annule le montage en cours ».
+- **Analyses** : « qu'est-ce qui marche en casino en France ? », « briefing paris sportifs Allemagne », « désactive la source Reddit r/gambling » ou « j'accepte la recommandation 2 de l'analyse de marché ».
 - **Réglages** : « crée l'étiquette VIP en vert », « envoie-moi le rapport à 8 h au lieu de 9 h », « ajoute Léa à l'équipe comme responsable ».
 - **Connexions** : « connecte mon compte TikTok » (Kevin envoie un lien d'autorisation, puis vous choisissez les comptes par boutons).
 - **Statistiques** : « combien de premiers dépôts hier ? », « ajoute 150 € de dépense TikTok hier ».

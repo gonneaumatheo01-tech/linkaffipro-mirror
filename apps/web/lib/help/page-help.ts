@@ -350,6 +350,23 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Fiche d'un montage",
     sections: ["Le plan de coupe", "Les aperçus et les boutons", "Modifier un short"],
   },
+  // Phase 29 : équipe Analystes (veille du marché, règles publicitaires, rapports, sources, recommandations).
+  {
+    path: "/agents/analyses",
+    label: "Analyses",
+    sections: [
+      intro("Analyse de marché"),
+      "Poser une question sur le marché",
+      "Le rapport du lundi et les alertes",
+      "Les règles publicitaires",
+      "Les sources de la veille",
+    ],
+  },
+  {
+    path: "/agents/analyses/rapports/:id",
+    label: "Rapport d'analyse",
+    sections: ["Le rapport du lundi et les alertes", "Poser une question sur le marché"],
+  },
   {
     path: "/agents/validations",
     label: "Validations des agents",

@@ -2,7 +2,7 @@
 
 Généré par `pnpm kevin:parity -- --write` (ne pas modifier à la main). Chaque action du site se fait aussi en parlant à Kevin sur Telegram, sauf les exclusions listées avec leur remplacement.
 
-État du 25 octobre 2026 : 229 actions du site, 219 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
+État du 25 octobre 2026 : 233 actions du site, 223 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
 
 ## /
 
@@ -80,6 +80,15 @@ Exclusions (impossible dans Telegram) :
 | Noter une recommandation pubs comme faite (par toi chez Meta / TikTok) ou la refuser, avec un commentaire | « la recommandation de couper la pub 3, c'est fait » | `markAdsRecommendationAction` |
 | Régler les alertes de l'Agent Ads : hausse de dépense, dépense minimale par jour, baisse des inscriptions, inscriptions minimales | « préviens-moi si la dépense d'une campagne monte de 80 % » | `saveAdsAlertSettingsAction` |
 | Régler les seuils de l'Agent Ads d'un univers : coût par inscription visé, retour sur dépense minimal, jours d'observation, dépense minimale | « vise 8 € par inscription sur le casino » | `saveAdsThresholdsAction` |
+
+## /agents/analyses
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Activer une source de la veille (forum, site d'actualité, canal public) : elle est lue au prochain passage | « active la source BlackHatWorld » | `activateSourceAction` |
+| Désactiver une source de la veille (elle n'est plus lue, ses entrées restent) | « arrête de lire Reddit r/gambling » | `deactivateSourceAction` |
+| Accepter ou refuser une recommandation de l'analyse de marché (rien n'est changé chez Meta, TikTok, sur les canaux ni les budgets) | « j'accepte la recommandation 2 de l'analyse de marché » | `decideMarketRecommendationAction` |
+| Supprimer une source de la veille et ses entrées (les règles publicitaires et les rapports restent) | « supprime la source STM Forum » | `deleteSourceAction` |
 
 ## /agents/bookmakers
 

@@ -192,6 +192,8 @@ export const AGENTS_JARGON: JargonRule[] = [
   { word: "codec", re: word("codecs?"), instead: "format" },
   { word: "SRT", re: word("SRT", "u"), instead: "sous-titres" },
   { word: "burn-in", re: word("burn[- ]?in"), instead: "sous-titres incrustés" },
+  // Équipe Analystes (phase 29) : « règles publicitaires » et « veille » en surface, jamais le mot du moteur.
+  { word: "compliance", re: word("compliances?"), instead: "règles publicitaires" },
 ];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */

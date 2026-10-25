@@ -37,6 +37,7 @@ import {
   detectDmBlocked,
   detectGateLinksMissing,
   detectJobFailures,
+  detectAnalystsFailing,
   detectLinkaffiEventsStuck,
   detectOfferLinkInactive,
   detectPostFailed,
@@ -522,6 +523,11 @@ export async function detectAlerts(now = new Date()): Promise<Detected[]> {
             })
           ).map((t) => ({ ...t, label: TEAM_LABELS[t.teamKey as TeamKey] ?? t.teamKey })),
         ),
+    ],
+    // Phase 29 : veille du marché (équipe Analystes) qui échoue en boucle (compteur glissant des échecs de sa file).
+    [
+      "analysts_failing",
+      async () => detectAnalystsFailing((await countRecentFailures(getRedis(), ["agents-analystes"], now))["agents-analystes"] ?? 0),
     ],
     [
       "connector_reconnect",

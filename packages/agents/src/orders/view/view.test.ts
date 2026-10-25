@@ -85,11 +85,13 @@ describe("annuaire des agents", () => {
     const unk = findAgent("le boulanger");
     expect(unk.status).toBe("unknown");
     if (unk.status === "unknown") expect(unk.known).toContain("Rédaction");
-    // Phase 28 : le Monteur est là ; les Analystes arrivent avec la phase 29.
+    // Phase 28 : le Monteur est là ; phase 29 : les Analystes aussi ; le QA global arrive avec la phase 30.
     const m = findAgent("le monteur");
     expect(m.status === "found" && m.agent.available && m.agent.key === "montage-monteur").toBe(true);
     const a = findAgent("les analystes");
-    expect(a.status === "found" && a.agent.available === false && a.agent.arrives === "phase 29").toBe(true);
+    expect(a.status === "found" && a.agent.available && a.agent.key === "chef-analystes").toBe(true);
+    const q = findAgent("le qa global");
+    expect(q.status === "found" && q.agent.available === false && q.agent.arrives === "phase 30").toBe(true);
   });
 
   it("fiche : ce qu'il a écrit ce matin, ce qu'il conseille, ce qu'on peut lui demander", async () => {
@@ -105,7 +107,7 @@ describe("annuaire des agents", () => {
     const h = await agentCard(kit.deps, "horaires", {});
     expect(h.lines.join("\n")).toContain("Léa en privé : plutôt le mardi entre 19:00 et 22:00.");
     expectGoodLines(h);
-    const later = await agentCard(kit.deps, "analystes");
+    const later = await agentCard(kit.deps, "qa");
     expect(later.lines[0]).toContain("pas encore là");
   });
 });

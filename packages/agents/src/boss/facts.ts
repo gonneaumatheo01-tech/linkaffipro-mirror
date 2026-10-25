@@ -362,7 +362,7 @@ export async function algoProposed(deps: BossDeps): Promise<RecoRow[]> {
 /** Réglages Algorithme appliqués (le plus récent d'abord). */
 export async function algoApplied(deps: BossDeps): Promise<RecoRow[]> {
   return (await deps.prisma.recommendation.findMany({
-    where: { status: "APPLIED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }] },
+    where: { status: "APPLIED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }, { source: "market_analysis" }] },
     orderBy: [{ appliedAt: "desc" }],
     take: 9,
   })) as RecoRow[];
