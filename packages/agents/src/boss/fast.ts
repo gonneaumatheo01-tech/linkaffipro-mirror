@@ -408,6 +408,19 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       return { handled: true, ...r };
     }
   }
+  // Identifiants des bookmakers proposés (« je peux te donner les identifiants de Sportaza », « bookmaker ») : la demande
+  // privée part tout de suite, sans IA (essai réel du 25 octobre : ces phrases tombaient dans « pas encore possible »).
+  const creds = credentialsOffer(text);
+  if (creds) {
+    const action = bossAction("identifiants_bookmakers");
+    if (action) {
+      if (!bossActionAllowed(action, input.speaker)) return { handled: true, reply: await notYoursReply(deps) };
+      const actor = await bossActorOf(deps, input.speaker);
+      const r = await action.execute(deps, { change: creds === "change" }, actor);
+      await remember(deps, input, r, { actionKey: action.key, status: "done" });
+      return { handled: true, ...r };
+    }
+  }
   if (input.speaker && input.speaker.kind !== "admin") {
     // Membre de l'équipe : les commandes exactes passent par le catalogue (droits vérifiés), sans IA.
     const cmd = parseAdminCommand(text);
@@ -524,6 +537,23 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   return { handled: false, needsAi: true };
 }
 
+const BOOKMAKER_WORD = /\b(bookmakers?|bookmaker|sportaza|celsius|bet ?portal|bookies?)\b/;
+const CREDENTIAL_WORD = /\b(identifiants?|logins?|mots? de passe|mdp|acces|codes? d acces)\b/;
+
+/**
+ * Offre d'identifiants des bookmakers (pur) : « bookmaker » ou « identifiants » seuls, ou une phrase courte qui parle à
+ * la fois d'identifiants et d'un bookmaker. « nouveaux identifiants … » → `change`. Sinon null (une question sur les
+ * matchs ou les cotes n'est jamais prise ici).
+ */
+export function credentialsOffer(text: string): "give" | "change" | null {
+  const n = normalizeText(text).replace(/['’]/g, " ").replace(/[!.,?…:]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!n || n.split(" ").length > 14) return null;
+  if (/^(bookmakers?|identifiants?|identifiants? bookmakers?)$/.test(n)) return "give";
+  if (!BOOKMAKER_WORD.test(n) || !CREDENTIAL_WORD.test(n)) return null;
+  if (/\b(cote|cotes|match|matchs|pari|paris|ce soir|demain|teste|tester|test|essaie|essayer|connecte|connecter)\b/.test(n)) return null;
+  return /\b(nouveaux?|nouvelles?|change|changer|chang[ée]s?|modifi)/.test(n) ? "change" : "give";
+}
+
 const GREETINGS = new Set(["salut", "bonjour", "bonsoir", "coucou", "hello", "hey", "yo", "slt", "cc", "wesh"]);
 const HOW_ARE_YOU = new Set(["ca va", "ca va ?", "comment ca va", "ca va bien", "tu vas bien", "comment tu vas", "quoi de neuf", "la forme"]);
 const THANKS = new Set(["merci", "merci beaucoup", "merci bien", "top merci", "super merci", "parfait merci", "thanks", "merci kevin"]);
@@ -549,7 +579,7 @@ export function isAreYouABotQuestion(text: string): boolean {
 export function smallTalkReply(text: string, chatId?: bigint | string | number | null): string | null {
   const n = normalizeText(text)
     .replace(/[\p{Extended_Pictographic}\uFE0F!.,…]+/gu, " ")
-    .replace(/\bkevin\b/g, " ")
+    .replace(/\b(kevin|boss|chef)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!n) return null;

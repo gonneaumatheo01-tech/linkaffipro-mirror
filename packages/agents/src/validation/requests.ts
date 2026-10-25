@@ -219,7 +219,7 @@ export async function decideValidation(
       await lifecycle.cancelMission(deps, v.missionId, {
         reason: `refusé par l'admin${input.rejectReason?.trim() ? ` : ${input.rejectReason.trim()}` : ""}`,
       });
-      return { ok: true, message: `Post ${label} refusé ❌, il ne partira pas. Tu peux ajouter un motif : « non ${v.number} <motif> ».` };
+      return { ok: true, message: `Post ${label} refusé ❌, il ne partira pas. Tu peux ajouter un motif : « non ${v.number} » suivi du motif.` };
     }
     const mission = await deps.prisma.agentMission.findUnique({ where: { id: v.missionId } });
     const payload = (mission?.payload && typeof mission.payload === "object" ? mission.payload : {}) as Record<string, unknown>;

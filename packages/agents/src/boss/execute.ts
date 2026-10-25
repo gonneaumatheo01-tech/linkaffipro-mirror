@@ -41,7 +41,7 @@ export const EXECUTE_VARIANTS = {
   unmetHead: ["Ça, je ne sais pas encore le faire.", "Là je ne sais pas encore faire.", "Ça, pas encore possible de mon côté."],
   /** Une seule variante : le fil de confiance du chemin rapide et du worker compare ce texte. */
   secretRemoved: [
-    "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour l'enregistrer, écris « clé <fournisseur> <la clé> » ou « bookmaker <nom> <identifiant> <mot de passe> ». Tu peux aussi répondre à ma question quand je te la pose.",
+    "🔒 J'ai retiré ce message : ça ressemblait à une clé ou à un mot de passe, je ne l'ai ni lu ni gardé. Pour me donner tes identifiants bookmakers, écris « identifiants bookmakers » : je te les demande en privé, un par un. Pour une clé, écris « clé », le nom du fournisseur, puis la clé.",
   ],
   forwarded: [
     "J'ai bien reçu ce message transféré : je ne fais rien de ce qu'il contient. Dis-moi ce que tu veux en faire.",
