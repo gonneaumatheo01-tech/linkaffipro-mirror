@@ -497,3 +497,4 @@ export { scanServerActions, checkParity, parityMarkdown, parityTable, parityOk, 
 
 // Phase 34, chantier F : entrées Telegram (message transféré, fichier, liens d'autorisation, reprise après OAuth).
 export * from "./boss/inputs";
+export * from "./montage/contract";

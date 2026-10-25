@@ -883,6 +883,12 @@ model MediaAsset {
   broadcasts       Broadcast[]
   outboundMessages OutboundMessage[]
   personas         Persona[]
+  /// Phase 28 : où vivent les octets. "db" (défaut, colonne `bytes`) ou "telegram" (vidéo longue et shorts : `bytes`
+  /// vide, fichier gardé dans Telegram ; `telegramRef` = { chatId, messageId, botId?, fileId?, fileUniqueId?, via }).
+  storage          String                   @default("db")
+  telegramRef      Json?
+  montageSources   MontageJob[]             @relation("MontageSource")
+  shortClips       ShortClip[]
 
   @@index([teamKey, theme])
   @@index([personaId, kind])
@@ -2458,29 +2464,29 @@ enum AgentDecisionVia {
 
 /// Élément en attente d'une décision humaine (aperçu envoyé sur Telegram, file du site).
 model AgentValidation {
-  id                String                @id @default(cuid())
+  id                 String                @id @default(cuid())
   /// Numéro court (« ok 12 » sur Telegram).
-  number            Int                   @unique @default(autoincrement())
-  missionId         String
-  mission           AgentMission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  teamKey           String
-  previewText       String
-  mediaAssetId      String?
-  reason            String
-  status            AgentValidationStatus @default(PENDING)
-  decidedById       String?
-  decidedVia        AgentDecisionVia?
-  decidedAt         DateTime?
-  rejectReason      String?
-  telegramMessageId Int?
+  number             Int                   @unique @default(autoincrement())
+  missionId          String
+  mission            AgentMission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  teamKey            String
+  previewText        String
+  mediaAssetId       String?
+  reason             String
+  status             AgentValidationStatus @default(PENDING)
+  decidedById        String?
+  decidedVia         AgentDecisionVia?
+  decidedAt          DateTime?
+  rejectReason       String?
+  telegramMessageId  Int?
   /// L'admin a appuyé sur « Corriger » : son prochain message texte remplace le texte.
-  awaitingEditAt    DateTime?
-  editedText        String?
-  remindedAt        DateTime?
+  awaitingEditAt     DateTime?
+  editedText         String?
+  remindedAt         DateTime?
   /// Phase 26 : membre de l'équipe (identifiant Telegram) à qui la validation est adressée ; null = l'admin.
   assigneeTelegramId BigInt?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([status, createdAt])
   @@index([teamKey, status])
@@ -2524,36 +2530,36 @@ enum TeamMemberRole {
 
 /// Phase 26 : personne de l'équipe présentée à Kevin (le Boss) par l'admin ou un manager.
 model TeamMember {
-  id             String         @id @default(cuid())
-  telegramUserId BigInt         @unique
-  username       String?
-  firstName      String
-  role           TeamMemberRole @default(MEMBER)
+  id                     String         @id @default(cuid())
+  telegramUserId         BigInt         @unique
+  username               String?
+  firstName              String
+  role                   TeamMemberRole @default(MEMBER)
   /// Une ligne : « vidéos casino et posts roulette ».
-  roleLabel      String?
+  roleLabel              String?
   /// `{ teams: ("dating"|"casino"|"sports"|"algo"|"ads")[], kinds: ("media"|"secret"|"choice"|"validation")[] }`
-  responsibilities Json         @default("{}")
-  available      Boolean        @default(true)
-  awayUntil      DateTime?
+  responsibilities       Json           @default("{}")
+  available              Boolean        @default(true)
+  awayUntil              DateTime?
   /// Notes datées `[{ at, text, by }]` (ce qu'elle a dit d'elle-même ou ce que l'admin a dit d'elle).
-  notes          Json           @default("[]")
+  notes                  Json           @default("[]")
   /// A fait /start en privé avec Kevin (peut recevoir un message privé, y envoyer un secret).
-  startedPrivateAt DateTime?
+  startedPrivateAt       DateTime?
   introducedByTelegramId BigInt?
-  removedAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  removedAt              DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 }
 
 /// Phase 26 : besoin de l'admin que le Boss ne sait pas encore couvrir (carnet de la phase suivante).
 model BossUnmet {
-  id      String   @id @default(cuid())
+  id                  String   @id @default(cuid())
   /// Texte normalisé (minuscules, sans accents ni ponctuation) : un même besoin compte une fois.
-  key     String   @unique
-  text    String
-  count   Int      @default(1)
-  firstAt DateTime @default(now())
-  lastAt  DateTime @default(now())
+  key                 String   @unique
+  text                String
+  count               Int      @default(1)
+  firstAt             DateTime @default(now())
+  lastAt              DateTime @default(now())
   /// Phase 33 : capacité qui manque (« programmer des shorts »), équipe concernée, dernier ordre lié.
   suggestedCapability String?
   teamKey             String?
@@ -2678,30 +2684,30 @@ enum HumanRequestStatus {
 
 /// Demande faite au client par le bot du dialogue admin (une seule question à la fois : QUEUED attend son tour).
 model HumanRequest {
-  id                String             @id @default(cuid())
-  teamKey           String?
-  kind              HumanRequestKind
+  id                 String             @id @default(cuid())
+  teamKey            String?
+  kind               HumanRequestKind
   /// Ce qui est demandé (`providers.fal.apiKey`, `agents.dailyReport`…).
-  key               String
-  question          String
-  options           Json               @default("[]")
-  expected          Json               @default("{}")
-  status            HumanRequestStatus @default(QUEUED)
+  key                String
+  question           String
+  options            Json               @default("[]")
+  expected           Json               @default("{}")
+  status             HumanRequestStatus @default(QUEUED)
   /// Jamais un secret (pour une clé : « …ab12 »).
-  answerSummary     String?
-  askedAt           DateTime?
-  telegramMessageId Int?
-  remindedAt        DateTime?
-  answeredAt        DateTime?
-  missionId         String?
-  onAnswer          Json               @default("{}")
+  answerSummary      String?
+  askedAt            DateTime?
+  telegramMessageId  Int?
+  remindedAt         DateTime?
+  answeredAt         DateTime?
+  missionId          String?
+  onAnswer           Json               @default("{}")
   /// Phase 26 : membre de l'équipe à qui la question est adressée (null = l'admin) et conversation où elle a été
   /// posée (null = conversation privée avec l'admin ; sinon le groupe de l'équipe). Le message posé reste
   /// `telegramMessageId`.
   assigneeTelegramId BigInt?
-  chatId            BigInt?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  chatId             BigInt?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@index([status, createdAt])
   @@index([key, status])
@@ -2714,6 +2720,10 @@ enum MediaAssetKind {
   REFERENCE
   /// Capture d'écran d'un site de bookmaker (phase 23).
   SCREENSHOT
+  /// Vidéo longue envoyée par le client pour le montage (phase 28).
+  LONG_VIDEO
+  /// Short produit par l'équipe Montage (phase 28).
+  SHORT
 }
 
 enum MediaAssetOrigin {
@@ -2849,36 +2859,36 @@ enum RecommendationAppliedBy {
 
 /// Réglage proposé par l'équipe Algorithme ; « avant » garde de quoi annuler en un clic.
 model Recommendation {
-  id           String                   @id @default(cuid())
-  teamKey      String
+  id                 String                   @id @default(cuid())
+  teamKey            String
   /// CHANNEL_PLAN | TEAM_CONFIG | PERSONA
-  target       String
-  targetId     String
-  field        String
-  before       Json?
-  after        Json
-  evidence     Json                     @default("{}")
-  expectedGain String?
+  target             String
+  targetId           String
+  field              String
+  before             Json?
+  after              Json
+  evidence           Json                     @default("{}")
+  expectedGain       String?
   /// SMALL (horaires, mélange) | BIG (persona, quota) : décide de l'application seule au niveau 1.
-  size         String                   @default("SMALL")
-  status       RecommendationStatus     @default(PROPOSED)
-  appliedAt    DateTime?
-  appliedBy    RecommendationAppliedBy?
-  appliedById  String?
-  undoneAt     DateTime?
-  undoneById   String?
-  rejectedAt   DateTime?
+  size               String                   @default("SMALL")
+  status             RecommendationStatus     @default(PROPOSED)
+  appliedAt          DateTime?
+  appliedBy          RecommendationAppliedBy?
+  appliedById        String?
+  undoneAt           DateTime?
+  undoneById         String?
+  rejectedAt         DateTime?
   /// Phase 24 : action conseillée par l'Agent Ads (STOP | SCALE | TEST | WATCH), commentaire du client, fait le.
-  action       String?
-  comment      String?
-  doneAt       DateTime?
-  doneById     String?
-  weekStart    String?
+  action             String?
+  comment            String?
+  doneAt             DateTime?
+  doneById           String?
+  weekStart          String?
   /// Phase 27 : origine de la proposition (`algo` par défaut, `inspiration` = canal de référence).
-  source       String                   @default("algo")
+  source             String                   @default("algo")
   referenceChannelId String?
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@index([status, teamKey])
   @@index([target, targetId])
@@ -2988,7 +2998,6 @@ model StyleProfile {
   @@unique([referenceChannelId, version])
 }
 
-
 /// Rapport « Ce qui marche » (par équipe et par semaine).
 model InsightReport {
   id        String    @id @default(cuid())
@@ -3009,33 +3018,33 @@ model InsightReport {
 
 /// Catégorie de paris (« tirs cadrés », « corners »…) : marchés chez le fournisseur de cotes, critères, destination.
 model BetCategory {
-  id                      String   @id @default(cuid())
-  key                     String   @unique
+  id                      String    @id @default(cuid())
+  key                     String    @unique
   name                    String
-  sport                   String   @default("SOCCER")
+  sport                   String    @default("SOCCER")
   /// Identifiants de marchés chez le fournisseur (`oddID` SportsGameOdds, avec PLAYER_ID / statEntityID génériques).
-  marketTypes             Json     @default("[]")
+  marketTypes             Json      @default("[]")
   /// Ligues (`leagueID` du fournisseur).
-  leagues                 Json     @default("[]")
+  leagues                 Json      @default("[]")
   /// Bookmakers cibles (clés : `sportaza`, `5gringos`…).
-  bookmakers              Json     @default("[]")
-  minOdds                 Float    @default(1.5)
-  maxOdds                 Float    @default(3.5)
-  picksPerDay             Int      @default(2)
+  bookmakers              Json      @default("[]")
+  minOdds                 Float     @default(1.5)
+  maxOdds                 Float     @default(3.5)
+  picksPerDay             Int       @default(2)
   /// Canaux de destination (JSON string[] d'identifiants `Channel`).
-  channelIds              Json     @default("[]")
+  channelIds              Json      @default("[]")
   campaignId              String?
-  minMinutesBeforeKickoff Int      @default(30)
+  minMinutesBeforeKickoff Int       @default(30)
   /// Écart de cote toléré entre la sélection et l'envoi (5 % par défaut).
-  maxOddsDriftPct         Float    @default(5)
-  active                  Boolean  @default(false)
+  maxOddsDriftPct         Float     @default(5)
+  active                  Boolean   @default(false)
   /// Phase 33 : catégorie créée pour un ordre de Kevin (inactive après `expiresAt`, jamais supprimée).
   createdByOrderId        String?
   expiresAt               DateTime?
-  sortOrder               Int      @default(0)
+  sortOrder               Int       @default(0)
   updatedById             String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   picks BettingPick[]
 }
@@ -3201,4 +3210,115 @@ model BookmakerOdds {
   jobId         String?
 
   @@index([siteKey, siteEventId, readAt])
+}
+
+/// Phase 28 — montage d'une vidéo longue en shorts (équipe Montage). Reprenable par `currentStep` ; aucun fichier
+/// temporaire gardé ; la source reste dans Telegram (`MediaAsset.telegramRef`).
+model MontageJob {
+  id                String           @id @default(cuid())
+  /// Équipe (« montage ») et univers des shorts (« casino » d'abord).
+  teamKey           String           @default("montage")
+  universe          String           @default("casino")
+  sourceAssetId     String
+  sourceAsset       MediaAsset       @relation("MontageSource", fields: [sourceAssetId], references: [id])
+  /// { theme, format, durationTarget, pipPosition, subtitles, overlayText, count, speed, rawText }
+  instructions      Json
+  instructionsMsgId BigInt?
+  /// Conversation Telegram d'origine (chaîne d'un BigInt) : plan, questions et aperçus y partent.
+  chatId            String?
+  status            MontageJobStatus @default(PENDING)
+  currentStep       String?
+  error             String?
+  attempts          Int              @default(0)
+  /// Métadonnées de la source (ffprobe) : durée ms, largeur, hauteur, codec, images/s, poids.
+  sourceMeta        Json?
+  /// Plan de coupe envoyé au client (message Telegram) et accord du client.
+  planMsgId         BigInt?
+  planApprovedAt    DateTime?
+  shortCount        Int              @default(0)
+  shorts            ShortClip[]
+  createdById       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  completedAt       DateTime?
+
+  @@index([status, updatedAt])
+}
+
+enum MontageJobStatus {
+  PENDING
+  ANALYZING
+  PLAN_SENT
+  CUTTING
+  DRESSING
+  QC
+  PREVIEW
+  APPROVED
+  DONE
+  FAILED
+  CANCELLED
+}
+
+/// Un short d'un montage. `assetId` posé quand le short final existe (MediaAsset SHORT gardé dans Telegram).
+model ShortClip {
+  id               String          @id @default(cuid())
+  montageJobId     String
+  montageJob       MontageJob      @relation(fields: [montageJobId], references: [id], onDelete: Cascade)
+  assetId          String?
+  asset            MediaAsset?     @relation(fields: [assetId], references: [id])
+  index            Int
+  startMs          Int
+  endMs            Int
+  durationMs       Int
+  /// Pourquoi ce moment (plan de l'IA) et score d'intérêt (1 à 10).
+  description      String?
+  score            Int?
+  format           ShortFormat     @default(VERTICAL_9_16)
+  pipPosition      PipPosition     @default(NONE)
+  speed            Float?
+  subtitles        Boolean         @default(false)
+  /// SRT vérifié (seul utilisé pour le burn-in) ; segments incertains en attente de la réponse du client.
+  subtitlesSrt     String?
+  subtitlesPending Json?
+  overlayText      String?
+  status           ShortClipStatus @default(PLANNED)
+  /// Résultat du contrôle qualité (durée, résolution, noir, son, poids, lisibilité).
+  qc               Json?
+  /// Short compressé pour passer sous 50 Mo (Kevin le dit).
+  compressed       Boolean         @default(false)
+  previewMsgId     BigInt?
+  clientFeedback   String?
+  /// Nombre de refabrications (« le 5, raccourcis de 2 secondes »).
+  redoCount        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([montageJobId, index])
+}
+
+enum ShortFormat {
+  VERTICAL_9_16
+  HORIZONTAL_16_9
+  SQUARE_1_1
+}
+
+enum PipPosition {
+  TOP_RIGHT
+  TOP_LEFT
+  BOTTOM_RIGHT
+  BOTTOM_LEFT
+  NONE
+}
+
+enum ShortClipStatus {
+  PLANNED
+  CUTTING
+  DRESSING
+  QC
+  QC_FAILED
+  PREVIEW_SENT
+  APPROVED
+  REJECTED
+  REDO
+  CANCELLED
 }
