@@ -254,6 +254,50 @@ export async function sendPreview(
   };
 }
 
+/**
+ * Destinataires EXACTS de l'envoi « au reste » d'un test A/B : même règle que le service d'envoi
+ * (`apps/worker/src/broadcasts/expand.ts` + `ab.ts`) : membres joignables du segment (niveaux de dépense compris), moins
+ * tous ceux qui ont déjà reçu un message d'un envoi du groupe — et non « joignables − envois du test », qui retire deux
+ * fois un membre servi puis devenu injoignable.
+ */
+async function countRestTargets(segment: Segment, botId: string, groupId: string): Promise<number> {
+  const { aggregatePlayers, buildMemberWhere, computeSpendLevel, matchesSpendLevels, parseSpendThresholds, withReachableBy } =
+    await import("@linkaffipro/core");
+  const where: Prisma.MemberWhereInput = {
+    AND: [
+      withReachableBy(buildMemberWhere(segment), botId) as Prisma.MemberWhereInput,
+      { outboundMessages: { none: { broadcast: { abGroupId: groupId } } } },
+    ],
+  };
+  if (!segment.spendLevels) return prisma.member.count({ where });
+  const thresholds = parseSpendThresholds(
+    (await prisma.setting.findUnique({ where: { key: "spend.thresholds" } }).catch(() => null))?.value,
+  );
+  let cursor: string | undefined;
+  let n = 0;
+  for (;;) {
+    const rows = await prisma.member.findMany({
+      where,
+      orderBy: { id: "asc" },
+      take: 1000,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true, players: { select: { registeredAt: true, depositCount: true, depositTotal: true } } },
+    });
+    if (rows.length === 0) break;
+    cursor = rows[rows.length - 1]!.id;
+    for (const m of rows) {
+      const players = m.players.map((p) => ({
+        registeredAt: p.registeredAt,
+        depositCount: p.depositCount,
+        depositTotal: Number(p.depositTotal),
+      }));
+      if (matchesSpendLevels(computeSpendLevel(aggregatePlayers(players), thresholds), segment)) n++;
+    }
+    if (rows.length < 1000) break;
+  }
+  return n;
+}
+
 function buttonsLine(rows: PostButtonRow[]): string {
   const labels = rows.flat().map((b) => `« ${b.text} »`);
   return labels.length ? ` Boutons : ${labels.join(", ")}.` : "";
@@ -666,11 +710,14 @@ export const sendWinnerToRest: Core = async (input, actor, opts = {}) => {
   if (refused) return failTo(AB(groupId), refused);
   if (opts.dryRun) {
     // Le reste du groupe : membres du segment pas encore touchés par le test (même règle que le worker).
-    const p = await sendPreview(parseSegment(b.segment), b.botId, b.text);
-    const served = cmp.variants.reduce((n, x) => n + (x.targeted ?? 0), 0);
+    const segment = parseSegment(b.segment);
+    const [p, recipients] = await Promise.all([
+      sendPreview(segment, b.botId, b.text),
+      countRestTargets(segment, b.botId, groupId),
+    ]);
     return preview(
-      `Version ${winner.variant} (gagnante) envoyée au reste du groupe : environ ${Math.max(0, p.recipients - served)} membre(s).`,
-      { exactText: p.exactText, recipients: Math.max(0, p.recipients - served) },
+      `Version ${winner.variant} (gagnante) envoyée au reste du groupe : ${recipients} membre(s).`,
+      { exactText: p.exactText, recipients },
     );
   }
   const rest = await prisma.broadcast.create({

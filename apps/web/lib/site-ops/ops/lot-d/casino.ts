@@ -158,7 +158,8 @@ export async function kevinThemeForm(input: In, needKey: boolean): Promise<Prepa
  * (photos et vidéos envoyées à Kevin avec #casino sans thème connu) ; `themes` = noms ou mots-clés.
  */
 export async function kevinClassifyForm(input: In): Promise<Prepared> {
-  let assetId = str(input.assetId ?? input.media).trim();
+  // `mediaAssetId` : média transféré à Kevin, rangé par son déroulé avant l'essai à blanc.
+  let assetId = str(input.assetId ?? input.media ?? input.mediaAssetId).trim();
   if (!assetId || /^(dernier|derniere|dernière|suivant|le dernier)$/i.test(assetId)) {
     const { loadToClassify } = await import("@/lib/agents/casino-queries");
     const { rows } = await loadToClassify();

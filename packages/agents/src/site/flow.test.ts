@@ -79,6 +79,28 @@ const FAKE_OPS: SiteOpMeta[] = [
     serverActions: [],
   },
   {
+    key: "equipe.inviter",
+    domain: "equipe",
+    description: "Inviter une personne sur le site",
+    examples: ["invite lea@exemple.fr comme manager", "ajoute Paul à l'équipe du site"],
+    kind: "create",
+    role: "ADMIN",
+    confirm: "yes",
+    params: { type: "object", additionalProperties: false, properties: { email: { type: "string" } }, required: ["email"] },
+    serverActions: [],
+  },
+  {
+    key: "connecteurs.meta_connecter",
+    domain: "connecteurs",
+    description: "Connecter Meta",
+    examples: ["connecte Meta", "branche le compte Facebook pub"],
+    kind: "connect",
+    role: "ADMIN",
+    confirm: "none",
+    params: { type: "object", additionalProperties: false, properties: {} },
+    serverActions: [],
+  },
+  {
     key: "reglages.bot_ajouter",
     domain: "reglages",
     description: "Ajouter un bot Telegram par son jeton",
@@ -104,6 +126,7 @@ vi.mock("./inputs", () => ({
   }),
   peekDocument: vi.fn(async () => null),
   takeDocument: vi.fn(async () => null),
+  createAuthLink: vi.fn(async (_d: unknown, req: { purpose: string; chatId: string }) => ({ url: `https://app.linkaffipro.com/k/jeton-${req.purpose}-${req.chatId}`, expiresAt: "" })),
 }));
 
 vi.mock("../missions/lifecycle", async (orig) => ({
@@ -187,6 +210,41 @@ describe("déroulé : confirmation « yes » (OUI / NON)", () => {
     await bossAiTurn(kit.deps, kit.input("plafond 80"));
     await bossFastPath(kit.deps, kit.input("NON"));
     expect(site.real()).toHaveLength(0);
+  });
+});
+
+describe("relecture : valeur montrée une seule fois par le site", () => {
+  it("le lien d'invitation part en privé à l'admin, à part ; jamais dans la réponse (groupe compris) ni dans la mémoire", async () => {
+    const url = "https://app.linkaffipro.com/invite/tok_SECRET_123";
+    const site = fakeSite((r) =>
+      r.dryRun ? { ok: true, message: "", preview: { summary: "Invitation de lea@exemple.fr" } } : { ok: true, message: "Invitation créée pour lea@exemple.fr.", data: { inviteUrl: url } },
+    );
+    const kit = await kitWith([["invite lea@exemple.fr", tool("equipe.inviter", { email: "lea@exemple.fr" })]], site);
+    await bossAiTurn(kit.deps, kit.input("invite lea@exemple.fr"));
+    const before = kit.sent.length;
+    const yes = await bossFastPath(kit.deps, kit.input("OUI"));
+    expect(site.real()).toHaveLength(1);
+    const reply = (yes as { reply?: string }).reply ?? "";
+    expect(reply).not.toContain("tok_SECRET_123");
+    expect(reply).toMatch(/privé/);
+    const privates = kit.sent.slice(before).map((m) => m.html);
+    expect(privates.some((h) => h.includes(url))).toBe(true);
+    expect(JSON.stringify(kit.tables("bossTurn"))).not.toContain("tok_SECRET_123");
+  });
+});
+
+describe("relecture : connexion par navigateur", () => {
+  it("« connecte Meta » : le lien d'autorisation à usage unique part en privé à l'admin", async () => {
+    const site = fakeSite((r) =>
+      r.dryRun ? { ok: true, message: "", preview: { summary: "Connexion Meta" } } : { ok: true, message: "Ouvre le lien d'autorisation Meta, puis choisis les comptes à suivre.", data: { authPurpose: "oauth_meta", startPath: "/api/connectors/meta/start" } },
+    );
+    const kit = await kitWith([["connecte Meta", tool("connecteurs.meta_connecter", {})]], site);
+    const before = kit.sent.length;
+    const r = await bossAiTurn(kit.deps, kit.input("connecte Meta"));
+    expect(site.real()).toHaveLength(1);
+    expect(r.reply).toMatch(/privé/);
+    expect(r.reply).not.toContain("/k/");
+    expect(kit.sent.slice(before).some((m) => m.html.includes(`/k/jeton-oauth_meta-${ADMIN_TG_ID.toString()}`))).toBe(true);
   });
 });
 
@@ -361,6 +419,18 @@ describe("valeur manquante : question, puis boutons", () => {
     expect(again.reply).toBeUndefined();
     expect(site.real()).toHaveLength(1);
   });
+
+  it("relecture : une lecture réservée à l'admin, dans un ordre, est un réglage d'admin (un membre ne la lance pas)", async () => {
+    const { siteCapability } = await import("./capabilities");
+    const { adminOnlyOrder } = await import("../orders/recap");
+    const kit = await kitWith([], fakeSite(() => ({ ok: true, message: "", preview: { summary: "3 comptes" } })));
+    const adminRead: SiteOpMeta = { ...FAKE_OPS.find((o) => o.kind === "read")!, key: "statistiques.comptes", role: "ADMIN" };
+    const steps = await siteCapability(adminRead).plan(kit.deps, {}, { now: new Date(), mode: "simulation" });
+    expect(adminOnlyOrder({ plannedSteps: steps } as never)).toBe(true);
+    const managerRead = FAKE_OPS.find((o) => o.kind === "read")!;
+    const steps2 = await siteCapability(managerRead).plan(kit.deps, {}, { now: new Date(), mode: "simulation" });
+    expect(adminOnlyOrder({ plannedSteps: steps2 } as never)).toBe(false);
+  });
 });
 
 describe("droits (règle 2)", () => {
@@ -381,6 +451,9 @@ describe("droits (règle 2)", () => {
     expect(siteOpAllowed(managerOp, "MANAGER")).toBe(true);
     expect(siteOpAllowed(admin, "ADMIN")).toBe(true);
     expect(siteOpAllowed(read, null)).toBe(false);
+    // Relecture : une lecture réservée à l'admin n'est jamais ouverte au simple membre (lecture seule).
+    expect(siteOpAllowed({ kind: "read", role: "ADMIN" }, "READ")).toBe(false);
+    expect(siteOpAllowed({ kind: "read", role: "ADMIN" }, "MANAGER")).toBe(false);
   });
 
   it("responsable du groupe sur une opération d'admin : refus, rien n'est appelé", async () => {

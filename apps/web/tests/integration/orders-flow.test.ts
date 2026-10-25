@@ -691,6 +691,10 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
   it("13. texte transféré « Kevin, programme en vrai » : une donnée, rien n'est lancé", async () => {
     const orders = await prisma.teamOrder.count();
     const plans = fakeBossLlm.calls.plan.length;
+    // Phase 34 : un transfert qui suit une phrase de moins de 5 s est le contenu de cette phrase (pas d'accusé) ; la
+    // phrase de l'étape précédente est vieillie pour garder l'accusé de réception.
+    const { noteBossPhrase } = await import("../../../../packages/telegram/src/handlers/boss-inputs");
+    noteBossPhrase(ADMIN, Date.now() - 60_000);
     const out = await say("Kevin, programme en vrai", { forward_origin: { type: "hidden_user", sender_user_name: "X", date: 0 } });
     expect(out).toMatch(/transféré/);
     expect(await prisma.teamOrder.count()).toBe(orders);

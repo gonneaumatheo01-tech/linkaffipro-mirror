@@ -66,6 +66,13 @@ describe("lot B : opérations pour Kevin", () => {
     expect(admin).not.toContain("messages.programmer");
   });
 
+  it("effacer un texte = SUPPRIMER ; réglages d'un canal (canal de test, actif, bot principal) = OUI", () => {
+    expect(index.get("canaux.accueil_langue_retirer")).toMatchObject({ kind: "delete", confirm: "delete" });
+    // Un canal marqué « test » reçoit ensuite les ordres de Kevin « pour de faux » sans OUI (orders/recap.ts).
+    expect(index.get("canaux.regler")?.confirm).toBe("yes");
+    expect(index.get("canaux.ajouter")?.confirm).toBe("yes");
+  });
+
   it("message transféré accepté pour créer un post ou un message du bot", () => {
     for (const k of ["messages.programmer", "messages.brouillon", "messages.modifier", "canaux.accueil_texte"])
       expect(index.get(k)?.inputs ?? []).toContain("forwarded");

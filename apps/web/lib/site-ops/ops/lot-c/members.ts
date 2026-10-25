@@ -77,12 +77,20 @@ async function noteOf(input: Record<string, unknown>) {
   });
 }
 
+/**
+ * Auteur d'une note : un compte du site précis. Un responsable sans compte lié (membre de l'équipe Telegram,
+ * `userId` null) n'est l'auteur d'aucune note, pas même de celles sans auteur (compte supprimé, note de Kevin).
+ */
+function isAuthor(authorId: string | null, userId: string | null): boolean {
+  return !!userId && authorId === userId;
+}
+
 /** Modifier une note : son auteur, ou un administrateur. */
 export const editNote: Core = async (raw, actor, opts = {}) => {
   const input = { ...raw };
   const note = await noteOf(input);
   if (!note) return fail("Note introuvable.", { path: "/members" }, { code: "not_found" });
-  if (actor.role !== "ADMIN" && note.authorId !== actor.userId)
+  if (actor.role !== "ADMIN" && !isAuthor(note.authorId, actor.userId))
     return forbidden("Vous ne pouvez modifier que vos propres notes.", {
       path: PAGE(note.memberId),
       params: { error: "Vous ne pouvez modifier que vos propres notes." },
@@ -106,7 +114,7 @@ export const deleteNote: Core = async (raw, actor, opts = {}) => {
   const input = { ...raw };
   const note = await noteOf(input);
   if (!note) return fail("Note introuvable.", { path: "/members" }, { code: "not_found" });
-  if (actor.role !== "ADMIN" && note.authorId !== actor.userId)
+  if (actor.role !== "ADMIN" && !isAuthor(note.authorId, actor.userId))
     return forbidden("Vous ne pouvez supprimer que vos propres notes.", {
       path: PAGE(note.memberId),
       params: { error: "Vous ne pouvez supprimer que vos propres notes." },

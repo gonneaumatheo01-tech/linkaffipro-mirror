@@ -2,7 +2,7 @@
  * Phase 34, chantier A — client du worker pour les opérations du site (Kevin) : `POST <SITE_OPS_URL ?? APP_BASE_URL>
  * /api/internal/site-ops`, corps `{ op, input, actor, dryRun }` signé (HMAC-SHA256 de `${horodatage}.${corps}`, clé
  * dérivée de `APP_ENCRYPTION_KEY` : même code que la vérification du site, `@linkaffipro/agents`). Délai 30 s ; UNE
- * reprise sur erreur réseau, seulement pour un essai à blanc ou une lecture (jamais une écriture : elle a pu passer).
+ * reprise sur erreur réseau, seulement pour un essai à blanc (jamais une exécution : elle a pu passer).
  * Ne lève jamais : erreur → `{ ok: false, code: "unavailable" }`.
  */
 import {
@@ -10,7 +10,6 @@ import {
   SITE_OPS_SIGNATURE_HEADER,
   SITE_OPS_TIMESTAMP_HEADER,
   signSiteOpsBody,
-  siteOp,
   siteOpsKeyFrom,
   type SiteOpResult,
   type SiteOpsClient,
@@ -71,7 +70,9 @@ export function createSiteOpsClient(opts: SiteOpsClientOptions): SiteOpsClient {
 
   return async (req) => {
     const payload = JSON.stringify({ op: req.op, input: req.input ?? {}, actor: req.actor, dryRun: req.dryRun === true }, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-    const retryable = req.dryRun === true || siteOp(req.op)?.kind === "read";
+    // Essai à blanc seulement : certaines « lectures » agissent (test d'un bookmaker, vérification d'une clé qui
+    // dépense) et ne doivent jamais partir deux fois.
+    const retryable = req.dryRun === true;
     for (let attempt = 0; attempt < (retryable ? 2 : 1); attempt++) {
       try {
         return await once(payload);

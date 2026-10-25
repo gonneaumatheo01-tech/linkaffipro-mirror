@@ -30,11 +30,12 @@ import { colleagueError, colleagueMessage } from "./errors";
 import { choicesFor } from "./choices";
 
 export { choicesFor } from "./choices";
-import { peekDocument, peekForwarded, takeDocument, takeForwarded } from "./inputs";
+import { createAuthLink, peekDocument, peekForwarded, takeDocument, takeForwarded } from "./inputs";
 import {
   SITE_CHOICE_PREFIX,
   SITE_FLOW_SETTING_PREFIX,
   SITE_FLOW_TTL_MS,
+  SITE_ONE_TIME_DATA,
   SITE_OP_ACTION,
   SITE_OP_DELETE_ACTION,
   SITE_SECRET_ANSWER_ACTION,
@@ -87,6 +88,19 @@ export const SITE_FLOW_VARIANTS = {
     "Le fichier du message fait plus de 20 Mo, je ne peux pas le récupérer. Tu m'en transfères une version plus légère ?",
     "Trop lourd pour moi : plus de 20 Mo. Envoie-moi une version plus légère et je reprends.",
   ],
+  oneTimeHead: [
+    "À copier maintenant, il ne sera plus montré nulle part :",
+    "À copier tout de suite, je ne pourrai plus te le redonner :",
+  ],
+  oneTimeSent: ["Je te l'ai envoyé en privé, dans un message à part.", "Ce qu'il faut copier est parti en privé, dans un message à part."],
+  oneTimeLost: [
+    "Je n'ai pas réussi à te l'envoyer en privé. Tu me le redemandes dans une minute ?",
+    "Le message privé n'est pas parti. On réessaie dans une minute ?",
+  ],
+  authLinkHead: [
+    "Ton lien d'autorisation, à ouvrir sur ton navigateur (une seule fois, 15 minutes) :",
+    "Ouvre ce lien sur ton navigateur, il marche une fois pendant 15 minutes :",
+  ],
   mediaFailed: [
     "Je n'arrive pas à récupérer la photo ou la vidéo du message, je n'ai rien fait. Tu me le retransfères ?",
     "Le média du message ne se télécharge pas, rien n'est parti. Tu me le renvoies ?",
@@ -127,7 +141,7 @@ export async function siteRightsOf(deps: BossDeps, speaker?: BossSpeaker | null)
 export function siteOpAllowed(meta: Pick<SiteOpMeta, "role" | "kind">, level: SiteRightsLevel | null): boolean {
   if (!level) return false;
   if (level === "ADMIN") return true;
-  if (level === "READ") return meta.kind === "read";
+  if (level === "READ") return meta.kind === "read" && meta.role === "MANAGER";
   return meta.role === "MANAGER";
 }
 
@@ -287,7 +301,23 @@ export async function executeSiteFlow(deps: BossDeps, s: SiteFlowState): Promise
   const conv = await inputsChatId(deps, s);
   if (conv && s.used?.forwarded) await takeForwarded(deps, conv).catch(() => null);
   if (conv && s.used?.document) await takeDocument(deps, conv).catch(() => null);
-  return { reply: await colleagueMessage(r.message, { llm: deps.llm, chatId: chatOf(s) }), status: "done" };
+  const reply = await colleagueMessage(r.message, { llm: deps.llm, chatId: chatOf(s) });
+  // Valeur montrée une seule fois (clé, secret, lien) : en privé à l'admin, à part, jamais dans la réponse.
+  const field = SITE_ONE_TIME_DATA[s.op];
+  const once = field ? r.data?.[field] : undefined;
+  if (typeof once === "string" && once) {
+    const sent = await deps.admin?.send(`${pick(V.oneTimeHead, "site.flow.onetime.head", null)}\n<code>${esc(once)}</code>`).catch(() => null);
+    return { reply: `${reply}\n${pick(sent ? V.oneTimeSent : V.oneTimeLost, sent ? "site.flow.onetime.sent" : "site.flow.onetime.lost", chatOf(s))}`, status: "done" };
+  }
+  // Connexion par navigateur (Meta / TikTok) : le lien d'autorisation à usage unique, en privé à l'admin.
+  const purpose = r.data?.authPurpose;
+  if (purpose === "oauth_meta" || purpose === "oauth_tiktok") {
+    const admin = await adminTelegramId(deps).catch(() => null);
+    const link = admin != null ? await createAuthLink(deps, { purpose, userId: s.actor.userId, chatId: admin.toString() }).catch(() => null) : null;
+    const sent = link ? await deps.admin?.send(`${pick(V.authLinkHead, "site.flow.authlink.head", null)}\n${esc(link.url)}`).catch(() => null) : null;
+    return { reply: `${reply}\n${pick(sent ? V.oneTimeSent : V.oneTimeLost, sent ? "site.flow.onetime.sent" : "site.flow.onetime.lost", chatOf(s))}`, status: "done" };
+  }
+  return { reply, status: "done" };
 }
 
 /** Message de confirmation d'une suppression (récapitulatif + ce qui disparaît + SUPPRIMER ; bouton NON seulement). */
@@ -368,11 +398,22 @@ export async function proceedSiteFlow(deps: BossDeps, s: SiteFlowState): Promise
       used.document = true;
     }
   }
+  // Entrée `media` (photos / vidéos transférées à Kevin pour une persona, un message du bot, un thème casino) : les
+  // médias du message gardé, sans en faire le contenu. Sans ce passage, « voici les photos d'Inès » ne recevait rien.
+  let mediaSource: unknown = params.content;
+  const noMediaGiven = params.media == null && params.mediaAssetId == null && params.mediaAssetIds == null && params.assetId == null;
+  if (conv && meta.inputs?.includes("media") && params.content == null && noMediaGiven) {
+    const fw = await peekForwarded(deps, conv).catch(() => null);
+    if (fw && forwardedMediaOf(fw).length) {
+      mediaSource = fw;
+      used.forwarded = true;
+    }
+  }
   // Médias du contenu (règle 6 : médias compris) : rangés dans la médiathèque AVANT l'essai à blanc ; l'opération
   // reçoit `mediaAssetId` (le premier) et `mediaAssetIds` (tous, dans l'ordre). Erreur : rien n'est envoyé.
-  const media = forwardedMediaOf(params.content);
+  const media = forwardedMediaOf(mediaSource);
   if (media.length && params.mediaAssetId == null && params.mediaAssetIds == null && deps.ingestForwardedMedia) {
-    const got = await deps.ingestForwardedMedia(params.content as ForwardedContent).catch((err: unknown) => ({ error: String((err as Error)?.message ?? err), code: "failed" as const }));
+    const got = await deps.ingestForwardedMedia(mediaSource as ForwardedContent).catch((err: unknown) => ({ error: String((err as Error)?.message ?? err), code: "failed" as const }));
     if ("error" in got) {
       deps.logger?.warn({ op: s.op, code: got.code, err: got.error }, "[boss] médias du message transféré non rangés");
       return { reply: pick(got.code === "too_big" ? V.mediaTooBig : V.mediaFailed, "site.flow.media", chatId), status: "error" };

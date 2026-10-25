@@ -8,7 +8,7 @@ import { z } from "zod";
 import { validateTelegramHtml } from "@linkaffipro/core";
 import { prisma, audit, type Prisma } from "@linkaffipro/db";
 import { enqueueDm } from "@linkaffipro/queue";
-import { ensureDefaultSequences, previewText, type SequenceTriggerKey } from "@linkaffipro/telegram";
+import { defaultSequenceText, ensureDefaultSequences, previewText, type SequenceTriggerKey } from "@linkaffipro/telegram";
 import { actingStandardBotFor } from "@/lib/channels/acting-bot";
 import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
 import { existingAssets, forwardedMediaList, mediaSentence, providedAssetIds } from "@/lib/site-ops/forwarded-media";
@@ -89,6 +89,29 @@ async function stepFor(channelId: string, trigger: SequenceTriggerKey) {
     seq,
     step,
     texts: (step.texts && typeof step.texts === "object" ? (step.texts as Record<string, string>) : {}) as Record<string, string>,
+  };
+}
+
+/**
+ * Même lecture que `stepFor`, sans rien créer (essai à blanc) : séquence absente → texte par défaut que
+ * `ensureDefaultSequences` lui donnerait ; étape absente → aucun texte.
+ */
+async function peekStep(
+  channelId: string,
+  trigger: SequenceTriggerKey,
+): Promise<{ step: { mediaAssetId: string | null }; texts: Record<string, string> }> {
+  const seq = await prisma.sequence.findFirst({
+    where: { channelId, trigger },
+    include: { steps: { orderBy: { order: "asc" }, take: 1 } },
+  });
+  if (!seq) {
+    const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { vertical: true } });
+    return { step: { mediaAssetId: null }, texts: { fr: defaultSequenceText(channel?.vertical ?? null, trigger) } };
+  }
+  const step = seq.steps[0];
+  return {
+    step: { mediaAssetId: step?.mediaAssetId ?? null },
+    texts: (step?.texts && typeof step.texts === "object" ? (step.texts as Record<string, string>) : {}) as Record<string, string>,
   };
 }
 
@@ -244,7 +267,11 @@ export const sequenceLangRemove: CoreRun = async (input, actor, opts = {}) => {
   if (!parsed.success) return unreadable();
   const { channelId, trigger, lang } = parsed.data;
   if (lang === "fr") return fail("Le français ne peut pas être retiré.", "invalid", "lang");
-  if (opts.dryRun) return preview({ summary: `Retirer la langue ${lang.toUpperCase()} du ${TRIGGER_LABELS[trigger]}.` });
+  if (opts.dryRun)
+    return preview({
+      summary: `Retirer la langue ${lang.toUpperCase()} du ${TRIGGER_LABELS[trigger]}.`,
+      impact: `Le texte ${lang.toUpperCase()} est effacé ; ces membres recevront le texte en français.`,
+    });
   const { seq, step, texts } = await stepFor(channelId, trigger);
   delete texts[lang];
   await prisma.sequenceStep.update({ where: { id: step.id }, data: { texts: texts as unknown as Prisma.InputJsonValue } });
@@ -354,7 +381,8 @@ export const sequenceTestSend: CoreRun = async (input, actor, opts = {}) => {
   if (!member) return fail("Envoyez d'abord /start au bot de ce canal depuis votre Telegram.", "unavailable");
   if (member.botStates[0] && !member.botStates[0].canDm)
     return fail("Le bot ne peut pas vous écrire : envoyez-lui /start.", "unavailable");
-  const { step, texts } = await stepFor(channelId, trigger);
+  // Essai à blanc : lecture seule (jamais `stepFor`, qui crée les séquences par défaut et l'étape manquantes).
+  const { step, texts } = opts.dryRun ? await peekStep(channelId, trigger) : await stepFor(channelId, trigger);
   const template = texts[lang] ?? texts.fr;
   if (!template) return fail("Aucun texte à envoyer.", "invalid", "text");
   // Prénom d'exemple : celui du compte du site (donné par le site, sinon relu).

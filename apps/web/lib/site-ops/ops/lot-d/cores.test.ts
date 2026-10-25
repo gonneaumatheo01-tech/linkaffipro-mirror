@@ -455,6 +455,26 @@ describe("secrets : jamais dans un message, un aperçu ni le journal", () => {
     expect(r).toMatchObject({ ok: false, code: "forbidden" });
     expect(m.engine.answerHumanRequestFromSite).not.toHaveBeenCalled();
   });
+
+  it("passage en vrai, autonomie totale, plafond vidéo : jamais une réponse rédigée par Kevin (le site reste permis)", async () => {
+    for (const onAnswer of [
+      { action: "set-simulation", simulation: false },
+      { action: "set-autonomy", level: 2 },
+      { action: "dating-video-budget", skipAnswer: "100 €" },
+    ]) {
+      m.answers.set("humanRequest.findUnique", { kind: "CONFIRM", onAnswer });
+      for (const dryRun of [true, false])
+        expect(await runAnswerHumanRequest(fd({ requestId: "req1", answer: "oui" }), KEVIN, { dryRun })).toMatchObject({ ok: false, code: "conflict" });
+      if (onAnswer.skipAnswer)
+        expect(await runSkipHumanRequest(fd({ requestId: "req1" }), KEVIN)).toMatchObject({ ok: false, code: "conflict" });
+      expect(m.engine.answerHumanRequestFromSite).not.toHaveBeenCalled();
+      expect(m.engine.skipHumanRequest).not.toHaveBeenCalled();
+      expect(await runAnswerHumanRequest(fd({ requestId: "req1", answer: "oui" }), ADMIN)).toMatchObject({ ok: true });
+      m.engine.answerHumanRequestFromSite.mockClear();
+    }
+    m.answers.set("humanRequest.findUnique", { kind: "CONFIRM", onAnswer: { action: "set-simulation", simulation: true } });
+    expect(await runAnswerHumanRequest(fd({ requestId: "req1", answer: "oui" }), KEVIN)).toMatchObject({ ok: true });
+  });
 });
 
 describe("opérations de Kevin (LOT_D_IMPL)", () => {

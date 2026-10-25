@@ -87,6 +87,7 @@ const tg = vi.hoisted(() => ({
   recheckAllChannelRights: vi.fn(),
   recheckChannelRights: vi.fn(),
   ensureDefaultSequences: vi.fn(async () => undefined),
+  defaultSequenceText: vi.fn(() => "Bienvenue {prenom}"),
   previewText: (t: string) => t,
   listGateLinksMissing: vi.fn(async () => [{ membershipId: "ms1" }, { membershipId: "ms2" }]),
   resendGateWelcomeWithDb: vi.fn(),
@@ -340,6 +341,21 @@ describe("règles d'acceptation et exceptions", () => {
 
 describe("messages du bot (séquences)", () => {
   const EMOJI = '<tg-emoji emoji-id="5368324170671202286">🎉</tg-emoji>';
+  it("test sur soi-même à blanc, canal sans séquence : texte par défaut annoncé, rien n'est créé", async () => {
+    db.answers.set("channel.findUnique", { id: "ch1", title: "Zone", vertical: null });
+    db.answers.set("member.findUnique", { id: "m1", botStates: [{ canDm: true }] });
+    // `sequence.findFirst` : null (aucune séquence encore créée pour ce canal).
+    const r = await seq.sequenceTestSend({ channelId: "ch1", trigger: "APPROVED", prenom: "Léa" }, MANAGER, { dryRun: true });
+    expect(r.ok && r.preview?.exactText).toContain("🧪 Test (APPROVED, FR)");
+    expect(tg.ensureDefaultSequences).not.toHaveBeenCalled();
+    expect(tg.defaultSequenceText).toHaveBeenCalledWith(null, "APPROVED");
+    nothingDone();
+  });
+  it("retirer une langue à blanc : ce qui est effacé est annoncé (confirmation SUPPRIMER)", async () => {
+    const r = await seq.sequenceLangRemove({ channelId: "ch1", trigger: "APPROVED", lang: "en" }, MANAGER, { dryRun: true });
+    expect(r.ok && r.preview?.impact).toContain("Le texte EN est effacé");
+    nothingDone();
+  });
   it("français obligatoire, même texte que le site", async () => {
     expect(err(await seq.sequenceTextSave({ channelId: "ch1", trigger: "APPROVED", lang: "fr", text: "  " }, MANAGER))).toBe(
       "Le texte en français est obligatoire : c'est celui que reçoivent les membres dont la langue n'est pas traduite.",
@@ -377,6 +393,8 @@ describe("messages du bot (séquences)", () => {
     const r = await seq.sequenceTestSend({ channelId: "ch1", trigger: "APPROVED", prenom: "Léa" }, MANAGER, { dryRun: true });
     expect(r.ok && r.preview).toMatchObject({ recipients: 1, exactText: "🧪 Test (APPROVED, FR)\n\nSalut {canal}" });
     nothingDone();
+    // Séquences par défaut jamais créées par l'essai à blanc.
+    expect(tg.ensureDefaultSequences).not.toHaveBeenCalled();
     expect(err(await seq.sequenceTestSend({ channelId: "ch1", trigger: "APPROVED", lang: "fr" }, { ...MANAGER, telegramUserId: null }))).toBe(
       "Liez votre Telegram dans Mon compte (menu en haut à droite) pour recevoir un test.",
     );

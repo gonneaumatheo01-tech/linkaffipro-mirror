@@ -55,8 +55,11 @@ export function siteCapability(op: SiteOpMeta): Capability<Record<string, unknow
     teamKey: SITE_CAPABILITY_TEAM,
     summary,
     params: p,
-    // Lecture : rien de touché. Réglage ou création : réglage durable, réservé à l'admin et toujours confirmé.
-    touches: op.kind === "read" ? { channelIds: [] } : { channelIds: [], teamWide: true, setting: true },
+    // Lecture du niveau équipe : rien de touché. Réglage ou création : réglage durable, réservé à l'admin et toujours
+    // confirmé. Une lecture réservée à l'admin (liste des comptes, test d'un bookmaker…) est marquée `setting` : un
+    // membre ne la lance jamais lui-même par un ordre (`adminOnlyOrder`), elle passe par l'admin.
+    touches:
+      op.kind === "read" ? (op.role === "ADMIN" ? { channelIds: [], setting: true } : { channelIds: [] }) : { channelIds: [], teamWide: true, setting: true },
   });
   return {
     teamKey: SITE_CAPABILITY_TEAM,

@@ -18,7 +18,9 @@ function describe(err: unknown): string {
 async function findAccount(input: Record<string, unknown>): Promise<{ ok: true; id: string; name: string } | { ok: false; result: Fail }> {
   const id = str(input.accountId).trim();
   const raw = str(input.account).trim();
-  if (id || !raw) return { ok: true, id, name: id };
+  // Aucun compte désigné (Kevin) : jamais un essai à blanc qui passe sans compte.
+  if (!id && !raw) return { ok: false, result: fail("Quel compte Telegram ? Donne son nom ou son numéro.", "invalid", "account") };
+  if (id) return { ok: true, id, name: id };
   const rows = await prisma.telegramUserAccount.findMany({ select: { id: true, label: true, phone: true, telegramUsername: true } });
   const ref = await resolveNamed(
     { plural: "comptes Telegram", one: "le compte Telegram" },

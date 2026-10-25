@@ -18,3 +18,17 @@ export const SITE_FLOW_TTL_MS = 30 * 60_000;
 export const SITE_SECRET_ANSWER_ACTION = "site-op-secret";
 /** Préfixe des clés des demandes SECRET : `site.<opération>.<champ>` (rangées puis effacées après usage). */
 export const SITE_SECRET_KEY_PREFIX = "site.";
+/**
+ * Valeurs montrées UNE seule fois par le site (clé et secret des affiliés, adresse d'un postback qui porte son jeton,
+ * lien d'invitation ou de réinitialisation) : champ de `data` par opération. Kevin les envoie à l'admin EN PRIVÉ,
+ * dans un message à part (jamais dans le groupe, jamais à l'IA, jamais dans sa mémoire) ; sans cela elles seraient
+ * perdues (l'ancienne clé ne marche déjà plus).
+ */
+export const SITE_ONE_TIME_DATA: Readonly<Record<string, string>> = {
+  "connecteurs.affilies_cle": "value",
+  "connecteurs.affilies_secret": "value",
+  "reglages.postback_creer": "url",
+  "reglages.postback_nouvelle_adresse": "url",
+  "equipe.inviter": "inviteUrl",
+  "equipe.mot_de_passe_lien": "inviteUrl",
+};

@@ -5,7 +5,7 @@
  */
 import type { BossDeps } from "../boss/contract";
 import type { ForwardedContent, ReceivedDocument } from "./contract";
-import { peekDocument as fPeekDocument, peekForwarded as fPeekForwarded, takeDocument as fTakeDocument, takeForwarded as fTakeForwarded } from "../boss/inputs";
+import { createAuthLink as fCreateAuthLink, peekDocument as fPeekDocument, peekForwarded as fPeekForwarded, takeDocument as fTakeDocument, takeForwarded as fTakeForwarded } from "../boss/inputs";
 
 export function peekForwarded(deps: BossDeps, chatId: string): Promise<ForwardedContent | null> {
   return fPeekForwarded(deps, chatId);
@@ -18,4 +18,7 @@ export function peekDocument(deps: BossDeps, chatId: string): Promise<ReceivedDo
 }
 export function takeDocument(deps: BossDeps, chatId: string): Promise<ReceivedDocument | null> {
   return fTakeDocument(deps, chatId);
+}
+export function createAuthLink(deps: BossDeps, req: Parameters<typeof fCreateAuthLink>[1]): Promise<{ url: string; expiresAt: string }> {
+  return fCreateAuthLink(deps, req);
 }

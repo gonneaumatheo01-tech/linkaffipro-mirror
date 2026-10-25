@@ -149,7 +149,8 @@ export const LOT_C_OPS: SiteOpMeta[] = [
     examples: ["mets la campagne Celsius en pause", "passe le budget de Celsius FR à 50 € par jour"],
     kind: "setting",
     role: "MANAGER",
-    confirm: "none",
+    // Budget par jour, statut ACTIVE, compte pub : dépense possible → OUI / NON (règle de la phase 33).
+    confirm: "yes",
     params: obj(
       {
         ...CAMPAIGN,
@@ -693,7 +694,8 @@ export const LOT_C_OPS: SiteOpMeta[] = [
     ],
     kind: "setting",
     role: "MANAGER",
-    confirm: "none",
+    // Relance déjà active : les prochains membres reçoivent le nouveau texte → aperçu exact + OUI.
+    confirm: "send",
     params: obj(CARD, ["templateKey"]),
     serverActions: sa("automations", "saveCardAction"),
   },
@@ -705,7 +707,8 @@ export const LOT_C_OPS: SiteOpMeta[] = [
     examples: ["crée une relance pour ceux qui cliquent l'offre sans s'inscrire", "renomme la relance Cliqueurs en Cliqueurs octobre"],
     kind: "setting",
     role: "MANAGER",
-    confirm: "none",
+    // Modifier une relance active change ce que reçoivent les membres → OUI / NON.
+    confirm: "yes",
     params: obj(
       {
         rule: str("Relance à modifier (nom), absente pour une création."),

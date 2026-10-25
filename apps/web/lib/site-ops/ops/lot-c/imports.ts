@@ -231,10 +231,12 @@ async function buildPreview(
 }
 
 /** Étape 1 : lecture du fichier, détection de la plateforme et des colonnes, aperçu et correspondances (journalisé). */
-export const previewImport: Core = async (input, actor) => {
+export const previewImport: Core = async (input, actor, opts = {}) => {
   const b = await buildPreview(input);
   if (!("read" in b)) return b;
   const { preview: p, read } = b;
+  // Essai à blanc (Kevin le fait avant chaque lecture) : rien n'est écrit, pas même le journal.
+  if (opts.dryRun) return done(previewSummary(p), null, { preview: p });
   await audit({
     userId: actor.userId,
     action: "import.costs_previewed",

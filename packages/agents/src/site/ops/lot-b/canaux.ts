@@ -67,7 +67,9 @@ export const LOT_B_CANAUX: SiteOpMeta[] = [
     examples: ["ajoute le canal t.me/xxx et mets-le en paris sportifs", "ajoute @zone_interdite comme canal de test"],
     kind: "create",
     role: "MANAGER",
-    confirm: "none",
+    // OUI : les réglages donnés dans la phrase peuvent faire du canal un « canal de test », où les ordres de Kevin
+    // partent ensuite tout de suite « pour de faux », sans OUI (orders/recap.ts).
+    confirm: "yes",
     params: obj({ link: s.str("Lien public du canal (t.me/nom, @nom)."), ...SETTINGS }, ["link"]),
     serverActions: [`${A}#addChannelByLinkAction`],
   },
@@ -78,7 +80,9 @@ export const LOT_B_CANAUX: SiteOpMeta[] = [
     examples: ["mets Zone Interdite en paris sportifs", "passe le canal Tir Cadré en anglais", "désactive le canal Corner"],
     kind: "setting",
     role: "MANAGER",
-    confirm: "none",
+    // OUI : passer un vrai canal en « canal de test » (ou l'inverse) change ce que les ordres de Kevin publient sans
+    // OUI (orders/recap.ts) ; désactiver un canal ou changer son bot principal touche ses membres.
+    confirm: "yes",
     params: obj({ ...CHANNEL, ...SETTINGS }),
     serverActions: [`${A}#updateChannelAction`],
   },
@@ -325,9 +329,10 @@ export const LOT_B_CANAUX: SiteOpMeta[] = [
     domain: "canaux",
     description: "Retirer une langue d'un message du bot (jamais le français).",
     examples: ["retire l'anglais du message d'accueil de Zone Interdite", "enlève l'espagnol du rappel"],
-    kind: "setting",
+    // Le texte de la langue est effacé (irréversible) : SUPPRIMER. Rôle du site gardé (responsable autorisé).
+    kind: "delete",
     role: "MANAGER",
-    confirm: "none",
+    confirm: "delete",
     params: obj({ ...CHANNEL, trigger: TRIGGER, lang: LANG }, ["trigger", "lang"]),
     serverActions: [`${Q}#removeSequenceLangAction`],
   },

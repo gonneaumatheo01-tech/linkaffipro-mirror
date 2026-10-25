@@ -408,6 +408,16 @@ describe("import des dépenses par fichier CSV (document envoyé à Kevin)", () 
     expect(err(await previewImport({ file: { text: "" } }, KEVIN))).toBe("Choisissez d'abord un fichier CSV.");
   });
 
+  it("aperçu en essai à blanc (Kevin le fait avant chaque lecture) : rien n'est journalisé ; vrai : journalisé une fois", async () => {
+    const dry = await previewImport({ file: { fileName: "tt.csv", text: CSV }, platform: "OTHER" }, KEVIN, { dryRun: true });
+    expect(dry.ok).toBe(true);
+    expect(db.audit).not.toHaveBeenCalled();
+    expect(db.writes).toEqual([]);
+    await previewImport({ file: { fileName: "tt.csv", text: CSV }, platform: "OTHER" }, KEVIN);
+    expect(db.audit).toHaveBeenCalledTimes(1);
+    expect(db.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "import.costs_previewed" }));
+  });
+
   it("import en essai à blanc : aperçu, aucune écriture ; vrai : lot d'import journalisé", async () => {
     const dry = await confirmImport({ file: { fileName: "tt.csv", text: CSV }, platform: "OTHER" }, KEVIN, { dryRun: true });
     expect(dry.ok && dry.preview?.summary).toMatch(/2 ligne\(s\) importable\(s\)/);

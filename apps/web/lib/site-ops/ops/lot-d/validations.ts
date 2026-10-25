@@ -5,7 +5,7 @@
  * Publier / Corriger / Refuser un post (`decideValidationAction`) : `decideValidation`, déjà la fonction des commandes
  * « valider », « corriger », « refuser » de Kevin (correspondance de catalogue).
  */
-import { answerHumanRequestFromSite, relaunchHumanRequest, skipHumanRequest } from "@linkaffipro/agents";
+import { answerHumanRequestFromSite, onAnswerOf, relaunchHumanRequest, skipHumanRequest } from "@linkaffipro/agents";
 import { buildAgentsDeps } from "@/lib/agents/deps";
 import { engineActor, errorText, fail, formOf, ok, preview, str, type CoreRun, type Fail } from "./kit";
 
@@ -18,20 +18,39 @@ function field(fd: FormData, key: string): string {
 
 const done = (r: { ok: boolean; message: string }) => (r.ok ? ok(r.message) : fail(r.message, "conflict"));
 
-/** Une clé ne passe jamais par une réponse de groupe ni par l'IA : elle se donne à Kevin en privé, seule. */
-async function secretRequest(id: string): Promise<boolean> {
+type RequestRow = { kind: string; onAnswer: unknown } | null;
+
+async function requestRow(id: string): Promise<RequestRow> {
   const { prisma } = await import("@linkaffipro/db");
-  const row = await prisma.humanRequest.findUnique({ where: { id }, select: { kind: true } });
-  return row?.kind === "SECRET";
+  return (await prisma.humanRequest.findUnique({ where: { id }, select: { kind: true, onAnswer: true } })) as RequestRow;
 }
+
+/**
+ * Demandes dont la réponse fait passer en vrai, donne l'autonomie totale ou engage une dépense (plafond vidéo, banc
+ * d'essai) : par Kevin, jamais une réponse rédigée par l'IA (qui contournerait le « oui » exact et la confirmation
+ * OUI). L'admin répond directement à la question, comme d'habitude.
+ */
+export function strictRequest(row: RequestRow): boolean {
+  if (!row) return false;
+  const a = onAnswerOf(row.onAnswer);
+  const action = typeof a.action === "string" ? a.action : "";
+  if (action === "set-simulation") return a.simulation !== true;
+  if (action === "set-autonomy") return a.level === 2;
+  return action === "dating-video-budget" || action === "dating-bench";
+}
+
+const STRICT_BY_KEVIN = "Pour celle-là, réponds directement à ma question (« oui » ou « non ») : je ne réponds pas à ta place.";
 
 export const runAnswerHumanRequest: CoreRun = async (fd, actor, opts = {}) => {
   const id = field(fd, "requestId");
   const answer = field(fd, "answer");
   if (!id) return fail(UNKNOWN, "invalid", "requestId");
   if (!answer) return fail("Écrivez ou choisissez une réponse.", "invalid", "answer");
-  if (actor.via === "TELEGRAM" && (await secretRequest(id)))
-    return fail("Cette demande attend une clé : envoie-la-moi en privé, seule dans le message.", "forbidden");
+  if (actor.via === "TELEGRAM") {
+    const row = await requestRow(id);
+    if (row?.kind === "SECRET") return fail("Cette demande attend une clé : envoie-la-moi en privé, seule dans le message.", "forbidden");
+    if (strictRequest(row)) return fail(STRICT_BY_KEVIN, "conflict");
+  }
   if (opts.dryRun) return preview(`Réponse à la demande : « ${answer.slice(0, 120)} ».`);
   try {
     // Le rôle est passé au moteur : un MANAGER ne répond jamais à une demande réservée (clé, passage en vrai…).
@@ -44,6 +63,11 @@ export const runAnswerHumanRequest: CoreRun = async (fd, actor, opts = {}) => {
 export const runSkipHumanRequest: CoreRun = async (fd, actor, opts = {}) => {
   const id = field(fd, "requestId");
   if (!id) return fail(UNKNOWN, "invalid", "requestId");
+  // « Plus tard » peut valoir réponse (`onAnswer.skipAnswer`, ex. plafond vidéo à 100 €) : même règle que la réponse.
+  if (actor.via === "TELEGRAM") {
+    const row = await requestRow(id);
+    if (strictRequest(row) && onAnswerOf(row?.onAnswer).skipAnswer) return fail(STRICT_BY_KEVIN, "conflict");
+  }
   if (opts.dryRun) return preview("La demande passe : la suivante arrive.");
   try {
     return done(await skipHumanRequest(buildAgentsDeps(), id, engineActor(actor), actor.role));

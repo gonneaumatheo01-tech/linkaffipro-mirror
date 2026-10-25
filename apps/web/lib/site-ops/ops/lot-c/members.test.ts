@@ -113,8 +113,9 @@ vi.mock("@/lib/personas/queries", () => ({
   profileTemplates: () => ({}),
 }));
 
-import { addNote, anonymizeMember, ANONYMIZE_CONFIRM_ERROR, changeAffiliate, editNote, setMemberTags } from "./members";
-import { ASSISTANT_BOT_ERROR, cancelBroadcast, createBroadcast, deleteDraft, sendNow, testToMe } from "./broadcasts";
+import { addNote, anonymizeMember, ANONYMIZE_CONFIRM_ERROR, changeAffiliate, deleteNote, editNote, setMemberTags } from "./members";
+import { ASSISTANT_BOT_ERROR, cancelBroadcast, createBroadcast, deleteDraft, sendNow, sendWinnerToRest, testToMe } from "./broadcasts";
+import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { deleteRule, saveCard, saveRuleCore, testRuleOnMe, toggleRule } from "./automations";
 import {
   block,
@@ -167,6 +168,14 @@ describe("fiche membre", () => {
   it("un responsable ne modifie pas la note d'un autre", async () => {
     db.data.memberNote = { findUnique: () => ({ id: "n1", memberId: "m1", authorId: "u1", text: "x" }) };
     expect(err(await editNote({ noteId: "n1", text: "y" }, MANAGER))).toBe("Vous ne pouvez modifier que vos propres notes.");
+  });
+
+  it("responsable de l'équipe sans compte du site : n'est l'auteur d'aucune note, pas même d'une note sans auteur", async () => {
+    db.data.memberNote = { findUnique: () => ({ id: "n1", memberId: "m1", authorId: null, text: "x" }) };
+    const noAccount: SiteOpActor = { ...MANAGER, userId: null };
+    expect(err(await editNote({ noteId: "n1", text: "y" }, noAccount))).toBe("Vous ne pouvez modifier que vos propres notes.");
+    expect(err(await deleteNote({ noteId: "n1" }, noAccount))).toBe("Vous ne pouvez supprimer que vos propres notes.");
+    expect(db.writes).toEqual([]);
   });
 
   it("étiquettes : inconnue refusée ; ajout gardant les autres ; essai à blanc sans écriture", async () => {
@@ -293,6 +302,30 @@ describe("écrire à un groupe (« envoie ce message à tous les membres de Zone
     db.data.broadcast.findUniqueOrThrow = () => ({ id: "b1", name: "Bonus", status: "SENT", botId: "bot1", text: "x", segment: {} });
     expect(err(await sendNow({ broadcastId: "b1" }, KEVIN))).toBe("Cet envoi est déjà parti ou annulé : il ne peut plus être lancé.");
     expect(err(await cancelBroadcast({ broadcastId: "b1" }, KEVIN, { dryRun: true }))).toBe("Cet envoi est déjà terminé.");
+  });
+
+  it("gagnante au reste : destinataires EXACTS comme le service d'envoi (joignables jamais servis par le groupe)", async () => {
+    vi.mocked(loadAbComparison).mockResolvedValueOnce({
+      groupId: "g1",
+      name: "Bonus",
+      botUsername: "zone_bot",
+      segment: {},
+      rest: null,
+      variants: [
+        { id: "bA", variant: "A", sent: 40, targeted: 40, uniqueClicks: 10 },
+        { id: "bB", variant: "B", sent: 40, targeted: 40, uniqueClicks: 2 },
+      ],
+    } as unknown as Awaited<ReturnType<typeof loadAbComparison>>);
+    db.data.broadcast = {
+      findUniqueOrThrow: () => ({ id: "bA", name: "Bonus — A", botId: "bot1", text: "Salut {prenom}", segment: { channelIds: ["ch1"] }, buttons: [] }),
+    };
+    let where: unknown = null;
+    db.data.member!.count = (a) => ((where = (a as { where: unknown }).where), 12);
+    const dry = await sendWinnerToRest({ groupId: "g1" }, KEVIN, { dryRun: true });
+    expect(dry.ok && dry.preview).toMatchObject({ exactText: "Salut Léa", recipients: 12 });
+    expect(JSON.stringify(where)).toContain('"outboundMessages":{"none":{"broadcast":{"abGroupId":"g1"}}}');
+    expect(db.writes).toEqual([]);
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it("supprimer : ADMIN seulement ; test à moi sans compte Telegram : même raison que le site", async () => {

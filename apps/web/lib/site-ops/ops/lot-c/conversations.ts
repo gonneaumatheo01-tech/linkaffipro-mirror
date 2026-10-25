@@ -272,7 +272,9 @@ export const savePersonaMediaCore: Core = async (raw, actor, opts = {}) => {
     const { loadPersonaMedia } = await import("@/lib/personas/media-save");
     const cur = await loadPersonaMedia(id);
     if (!cur) return fail("Persona introuvable : rechargez la page.", null, { code: "not_found" });
-    const added = (Array.isArray(input.media) ? input.media : input.media ? [input.media] : [])
+    // Photos transférées à Kevin : rangées par son déroulé dans la médiathèque (`mediaAssetIds`), ou citées (`media`).
+    const given = input.media ?? input.mediaAssetIds ?? input.mediaAssetId;
+    const added = (Array.isArray(given) ? given : given ? [given] : [])
       .map((m) => (typeof m === "string" ? m : str((m as { mediaAssetId?: unknown })?.mediaAssetId)))
       .filter(Boolean);
     const refs =
