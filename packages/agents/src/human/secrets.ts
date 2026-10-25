@@ -45,6 +45,10 @@ export function secretLabel(key: string): string {
   if (key === "providers.fal.apiKey") return "clé fal.ai";
   if (key === "providers.magichour.apiKey") return "clé Magic Hour";
   if (key === "providers.odds.apiKey") return "clé des cotes";
+  // Phase 35 : identifiants communs à tous les bookmakers (e-mail puis mot de passe, rangés ensemble).
+  if (key === "providers.bookmakers.default.login") return "e-mail des comptes bookmakers";
+  if (key === "providers.bookmakers.default.password") return "mot de passe des comptes bookmakers";
+  if (key === "providers.bookmakers.default.credentials") return "identifiants des comptes bookmakers";
   const bk = /^providers\.bookmakers\.([^.]+)\.login$/.exec(key);
   if (bk) return `identifiant ${bk[1]}`;
   const pw = /^providers\.bookmakers\.([^.]+)\.password$/.exec(key);

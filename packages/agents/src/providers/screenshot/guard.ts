@@ -218,6 +218,20 @@ async function fieldOf(target: Locator): Promise<TargetDescription> {
 
 export type GuardLog = (action: string, detail: string) => void;
 
+/**
+ * Contrôles supplémentaires (phase 35, lecture des bookmakers) : appliqués EN PLUS des règles de base, avant chaque
+ * navigation, après chaque redirection et avant chaque clic. Ils ne peuvent que refuser, jamais permettre.
+ */
+export type GuardExtraChecks = {
+  url?: (url: string) => string | null;
+  click?: (d: TargetDescription, purpose: ClickPurpose) => string | null;
+};
+
+/** Description d'un élément visé, côté page (même collecte que la garde) : sert aux contrôles de lecture. */
+export async function describeGuardTarget(target: ReadonlyLocator): Promise<TargetDescription> {
+  return describe(rawOf(target).first());
+}
+
 // Le Locator Playwright reste privé au module : un adaptateur ne peut ni cliquer ni écrire sans passer par la garde.
 const RAW = new WeakMap<ReadonlyLocator, Locator>();
 function rawOf(l: ReadonlyLocator): Locator {
@@ -262,12 +276,19 @@ export class GuardedPage {
   // Cadre du site de paris quand le bookmaker l'affiche dans une iframe (sélecteur réglable).
   #root: Page | FrameLocator;
   readonly #marks = new Map<string, Locator>();
+  readonly #extra: GuardExtraChecks;
 
-  constructor(page: Page, allowedHosts: readonly string[], log: GuardLog = () => undefined) {
+  constructor(page: Page, allowedHosts: readonly string[], log: GuardLog = () => undefined, extra: GuardExtraChecks = {}) {
     this.#page = page;
     this.#hosts = allowedHosts.map((h) => h.toLowerCase());
     this.#log = log;
     this.#root = page;
+    this.#extra = extra;
+  }
+
+  /** Règles de base, puis contrôles supplémentaires (lecture). */
+  #urlReason(url: string): string | null {
+    return forbiddenUrlReason(url, this.#hosts) ?? this.#extra.url?.(url) ?? null;
   }
 
   /** Cherche désormais dans l'iframe donnée (site de paris intégré), ou de nouveau dans la page (`null`). */
@@ -284,7 +305,7 @@ export class GuardedPage {
   }
 
   async goto(url: string, timeoutMs = 30_000): Promise<void> {
-    const why = forbiddenUrlReason(url, this.#hosts);
+    const why = this.#urlReason(url);
     if (why) throw new CaptureError("forbidden_action", `adresse refusée : ${why}`);
     this.#log("goto", new URL(url).pathname);
     const res = await this.#page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
@@ -296,7 +317,7 @@ export class GuardedPage {
   async #checkUrl(): Promise<void> {
     const current = this.#page.url();
     if (current === "about:blank") return;
-    const why = forbiddenUrlReason(current, this.#hosts);
+    const why = this.#urlReason(current);
     if (why) {
       await this.#page.goto("about:blank").catch(() => undefined);
       throw new CaptureError("forbidden_action", `page refusée après navigation : ${why}`);
@@ -309,7 +330,8 @@ export class GuardedPage {
 
   async click(target: ReadonlyLocator, purpose: ClickPurpose, timeoutMs = 10_000): Promise<void> {
     const loc = rawOf(target).first();
-    const why = forbiddenClickReason(await describe(loc), purpose);
+    const desc = await describe(loc);
+    const why = forbiddenClickReason(desc, purpose) ?? this.#extra.click?.(desc, purpose) ?? null;
     if (why) {
       this.#log("refused", `${purpose} : ${why}`);
       throw new CaptureError("forbidden_action", `clic refusé (${purpose}) : ${why}`);
@@ -320,7 +342,7 @@ export class GuardedPage {
       return a ? (a.href ?? null) : null;
     });
     if (href && /^https?:/i.test(href)) {
-      const bad = forbiddenUrlReason(href, this.#hosts);
+      const bad = this.#urlReason(href);
       if (bad) throw new CaptureError("forbidden_action", `lien refusé : ${bad}`);
     }
     this.#log("click", purpose);
@@ -341,7 +363,7 @@ export class GuardedPage {
       return a ? (a.href ?? null) : null;
     });
     if (!href || !/^https?:/i.test(href)) return false;
-    const bad = forbiddenUrlReason(href, this.#hosts);
+    const bad = this.#urlReason(href);
     if (bad) throw new CaptureError("forbidden_action", `lien refusé : ${bad}`);
     this.#log("follow", purpose);
     await this.goto(href, timeoutMs);
@@ -379,6 +401,11 @@ export class GuardedPage {
       .catch(() => false);
   }
 
+  /** Attend que la page ait fini de charger (réseau calme), sans jamais lever (phase 35, lecture). */
+  async settle(timeoutMs = 10_000): Promise<void> {
+    await this.#page.waitForLoadState("networkidle", { timeout: timeoutMs }).catch(() => undefined);
+  }
+
   async pause(ms: number): Promise<void> {
     await this.#page.waitForTimeout(ms);
   }
@@ -401,6 +428,28 @@ export class GuardedPage {
       })
       .catch(() => ({ text: "", title: "", frames: [] as string[], attributes: [] as string[] }));
     return { ...data, url: this.#page.url(), status: this.#lastStatus };
+  }
+
+  /**
+   * Lecture seule (phase 35) : HTML de la page sans scripts, styles ni valeurs de champs (un champ peut contenir
+   * l'identifiant), tronqué ; texte visible tronqué. Rien n'est envoyé au site.
+   */
+  async readContent(maxHtml = 600_000, maxText = 200_000): Promise<{ html: string; text: string }> {
+    return this.#page
+      .evaluate(
+        ([mh, mt]) => {
+          const doc = (globalThis as unknown as { document: DomDoc & { documentElement: { cloneNode(deep: boolean): DomEl & { querySelectorAll(s: string): ArrayLike<DomEl & { remove(): void; removeAttribute(n: string): void }> } } } }).document;
+          const clone = doc.documentElement.cloneNode(true);
+          for (const el of Array.from(clone.querySelectorAll("script,style,noscript,template,link[rel=stylesheet],svg"))) el.remove();
+          for (const el of Array.from(clone.querySelectorAll("input,textarea,select"))) {
+            el.removeAttribute("value");
+            if ("textContent" in el) el.textContent = "";
+          }
+          return { html: clone.outerHTML.slice(0, mh), text: (doc.body?.innerText ?? "").slice(0, mt) };
+        },
+        [maxHtml, maxText] as const,
+      )
+      .catch(() => ({ html: "", text: "" }));
   }
 
   /** Retient l'élément visé (sélection, marché) pour le cadre et la capture ; rien n'est envoyé au site. */
