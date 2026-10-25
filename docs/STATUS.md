@@ -18,10 +18,10 @@ Phases 0 à 28, 33, 34 et 35 en ligne. Phase 28 (`docs/prompts/30-phase-28-monta
 3. Validez ou refusez les aperçus qui arrivent. Tout est visible dans Agents → Montage.
 
 ## Vérifications faites
-- RESULTATS
+- Tests unitaires : environ 7 300 réussis (agents 1 561, site 3 558, Telegram 600, worker 489) ; tests d'intégration sur base réelle : 430 site, 250 worker (dont 13 avec le vrai ffmpeg par Docker) ; lint, typage et build verts ; `pnpm kevin:parity` : 229 actions, 0 manquante.
 - Test de bout en bout sur base réelle, faux Telegram et fausse IA, avec le VRAI ffmpeg (image Docker identique au serveur) : vidéo + consignes → plan → « ok lance » → shorts fabriqués en un passage (1080x1920, H.264, AAC) → sous-titres (doute posé puis tranché) → contrôle → rangement → aperçu → ✅ ; modification, refus, annulation, reprise après plantage, aucun fichier temporaire restant, aucun octet de vidéo en base, seuls les shorts validés partent sur le canal Test.
 - Relecture adverse : 9 défauts corrigés avec un test, dont : un short refait pendant son rendu pouvait recevoir l'ancienne version ; un passage sans parole faisait tourner la file en boucle ; un message privé partait sans son short non validé ; le compte connecté pouvait télécharger le fichier d'un autre message ; un bouton d'un ancien aperçu décidait pour la nouvelle version ; la deuxième écoute des sous-titres était identique à la première (elle ne prouvait rien).
-- DEPLOIEMENT
+- Sauvegarde de la production avant déploiement ; migration appliquée ; site puis service d'arrière-plan déployés ; santé OK ; `pnpm montage:diag` en production : tout est prêt (ffmpeg 8.1.3, codecs, filtres, 1 To libre) ; un vrai short rendu dans le serveur sur la vidéo d'essai : 1080x1920, H.264, AAC, 30 images/s, contrôle qualité passé.
 
 ## Reste / limites
 - Rien n'a encore été essayé sur une vraie vidéo du client ni avec la vraie IA : le premier envoi dira si le plan de coupe choisit les bons moments.
