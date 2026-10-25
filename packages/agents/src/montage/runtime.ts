@@ -74,8 +74,11 @@ export type MontageEngine = {
   planCuts(input: { frames: FrameRef[]; probe: MediaProbe; instructions: MontageInstructions; maxShorts: number }): Promise<PlannedClip[]>;
   /** Son d'un passage de la SOURCE (WAV 16 kHz mono). */
   extractAudioSegment(input: { source: string; startMs: number; endMs: number; output: string }): Promise<void>;
-  /** Transcription horodatée depuis le début du passage (vitesse normale). */
-  transcribeClip(input: { wavPath: string; durationMs: number; language: string | null }): Promise<SubtitleSegment[]>;
+  /**
+   * Transcription horodatée depuis le début du passage (vitesse normale). `independent` : deuxième écoute, SANS biais
+   * de vocabulaire et à une autre température (sinon les deux écoutes sont identiques et la comparaison ne prouve rien).
+   */
+  transcribeClip(input: { wavPath: string; durationMs: number; language: string | null; independent?: boolean }): Promise<SubtitleSegment[]>;
   /** Deux transcriptions comparées et relues : segments sûrs et passages incertains (confiance < seuil). */
   verifySubtitles(input: {
     transcripts: [SubtitleSegment[], SubtitleSegment[]];

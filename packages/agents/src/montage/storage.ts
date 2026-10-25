@@ -72,7 +72,8 @@ export async function storeShort(deps: MontagePipelineDeps, input: StoreShortInp
   });
   const existingRef = existing ? parseTelegramRef(existing.telegramRef) : null;
   if (existing && existingRef?.fileId) {
-    await deps.prisma.shortClip.update({ where: { id: clip.id }, data: { assetId: existing.id } });
+    // Version du short comprise : un short refait pendant l'envoi ne reçoit jamais l'ancien rendu.
+    await deps.prisma.shortClip.updateMany({ where: { id: clip.id, redoCount: clip.redoCount ?? 0 }, data: { assetId: existing.id } });
     return {
       assetId: existing.id,
       created: false,
@@ -129,7 +130,7 @@ export async function storeShort(deps: MontagePipelineDeps, input: StoreShortInp
       create: { assetId: asset.id, botId, telegramFileId: sent.fileId, fileUniqueId: sent.fileUniqueId },
       update: { telegramFileId: sent.fileId, fileUniqueId: sent.fileUniqueId },
     });
-  await deps.prisma.shortClip.update({ where: { id: clip.id }, data: { assetId: asset.id } });
+  await deps.prisma.shortClip.updateMany({ where: { id: clip.id, redoCount: clip.redoCount ?? 0 }, data: { assetId: asset.id } });
 
   // Privé de l'admin (pas de canal « Médiathèque ») : le message ne sert plus si le bot peut relire le fichier.
   if (via === "admin" && sizeBytes <= MONTAGE_LIMITS.botDownloadMaxBytes && deps.admin?.deleteMessage) {

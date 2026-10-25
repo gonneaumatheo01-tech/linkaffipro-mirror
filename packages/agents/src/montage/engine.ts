@@ -59,7 +59,9 @@ export function createMontageEngine(opts: { runner: FfmpegRunner; deps: MontageP
       await extractAudioSegment(runner, input.source, input.startMs, input.endMs, input.output);
     },
     async transcribeClip(input) {
-      return transcribeClip(await ai(), input.wavPath, { language: input.language ?? "fr", durationMs: input.durationMs });
+      // Deuxième écoute indépendante : sans biais casino et à 0,4 (mêmes réglages que `verifySubtitles` quand il la fait).
+      const second = input.independent ? { prompt: null, temperature: 0.4 } : {};
+      return transcribeClip(await ai(), input.wavPath, { language: input.language ?? "fr", durationMs: input.durationMs, ...second });
     },
     async verifySubtitles(input) {
       const [first, second] = input.transcripts;

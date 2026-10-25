@@ -344,6 +344,17 @@ const withSummary = async (deps: KevinMontageDeps, jobId: string | undefined, te
   return s ? `${text}\n${s}` : text;
 };
 
+/** Journal d'une refabrication demandée par le client (toute action d'un utilisateur est dans `AuditLog`). */
+async function auditRedo(deps: KevinMontageDeps, who: ActorRef, clip: Pick<ClipRow, "id" | "montageJobId" | "index">, change: string): Promise<void> {
+  await agentAudit(deps, {
+    userId: who.userId ?? null,
+    action: "montage.short.modified",
+    entityType: "ShortClip",
+    entityId: clip.id,
+    metadata: { via: who.via, jobId: clip.montageJobId, index: clip.index, change: change.slice(0, 200) },
+  });
+}
+
 /** Modification d'un short : la chaîne le refait (`redoClip`). */
 export async function changeShort(deps: KevinMontageDeps, clipId: string, change: ClipChange, actor?: ActorRef | null): Promise<string> {
   const clip = await clipOf(deps, clipId);
@@ -352,8 +363,10 @@ export async function changeShort(deps: KevinMontageDeps, clipId: string, change
   if (!clip || !job) return pick(FEEDBACK_VARIANTS.failed, "montage.feedback.failed", chatId);
   if (!["PREVIEW_SENT", "QC_FAILED", "APPROVED", "REJECTED"].includes(clip.status))
     return pick(FEEDBACK_VARIANTS.notWaiting({ index: clip.index }), "montage.feedback.notWaiting", chatId);
-  const r = await montagePort(deps).redoClip(deps, clipId, change, await actorOf(deps, actor));
+  const who = await actorOf(deps, actor);
+  const r = await montagePort(deps).redoClip(deps, clipId, change, who);
   if (!r.ok) return esc(r.reason);
+  await auditRedo(deps, who, clip, describeChange(change));
   if (chatId) await clearMontageAwait(deps, chatId, (a) => a.kind === "edit" && a.clipId === clipId);
   if (chatId) await setMontageAwait(deps, chatId, { kind: "previews", jobId: job.id, at: nowOf(deps).toISOString() });
   return pick(FEEDBACK_VARIANTS.redoing({ index: clip.index, change: esc(describeChange(change)) }), "montage.feedback.redo", chatId);
@@ -498,7 +511,7 @@ const TOAST = { ok: "Validé ✅", no: "Refusé", edit: "Je t'écoute", done: "C
 /** Bouton du montage : seul l'admin est écouté. Ne lève jamais. */
 export async function handleMontageCallback(
   deps: KevinMontageDeps,
-  input: { data: string; fromTelegramId: bigint | number | string; chatId?: string | null },
+  input: { data: string; fromTelegramId: bigint | number | string; chatId?: string | null; messageId?: number | null },
 ): Promise<MontageCallbackResult> {
   if (!isMontageCallbackData(input.data)) return { handled: false };
   const admin = await adminTelegramId(deps);
@@ -524,6 +537,10 @@ export async function handleMontageCallback(
         if (chatId) await setMontageAwait(deps, chatId, { kind: "edit", clipId, jobId: clip.montageJobId, at: nowOf(deps).toISOString() });
         return { handled: true, toast: TOAST.edit, reply: pick(FEEDBACK_VARIANTS.askChange({ index: clip.index }), "montage.feedback.ask", chatId) };
       }
+      // ✅ / ❌ sous l'aperçu d'une ANCIENNE version (short refait depuis) : jamais une décision sur une version que ce
+      // message ne montre pas.
+      if (typeof input.messageId === "number" && clip.previewMsgId != null && Number(clip.previewMsgId) !== input.messageId)
+        return { handled: true, removeButtons: true, reply: pick(FEEDBACK_VARIANTS.buttonGone, "montage.feedback.gone", chatId) };
       const r = await decideShort(deps, clipId, m[2] === "ok" ? "ok" : "no");
       if (!r.ok) return { handled: true, removeButtons: true, reply: r.message };
       return { handled: true, toast: m[2] === "ok" ? TOAST.ok : TOAST.no, removeButtons: true, reply: await withSummary(deps, r.jobId, r.message) };
@@ -553,8 +570,10 @@ export async function handleMontageCallback(
     if (!clip || clip.status !== "QC_FAILED") return { handled: true, removeButtons: true, reply: pick(FEEDBACK_VARIANTS.buttonGone, "montage.feedback.gone", fallbackChat) };
     const chatId = (await jobOf(deps, clip.montageJobId))?.chatId ?? fallbackChat;
     if (m[2] === "redo") {
-      const r = await montagePort(deps).redoClip(deps, clip.id, { note: "refaire après le contrôle qualité" }, await actorOf(deps));
+      const who = await actorOf(deps);
+      const r = await montagePort(deps).redoClip(deps, clip.id, { note: "refaire après le contrôle qualité" }, who);
       if (!r.ok) return { handled: true, removeButtons: true, reply: esc(r.reason) };
+      await auditRedo(deps, who, clip, "refaire après le contrôle qualité");
       return { handled: true, toast: TOAST.done, removeButtons: true, reply: pick(FEEDBACK_VARIANTS.qcRedo({ index: clip.index }), "montage.feedback.qcRedo", chatId) };
     }
     if (m[2] === "drop") {
@@ -625,9 +644,17 @@ export async function answerSubtitle(
   const clip = await clipOf(deps, clipId);
   const chatId = clip ? ((await jobOf(deps, clip.montageJobId))?.chatId ?? null) : null;
   if (!clip) return { reply: pick(FEEDBACK_VARIANTS.failed, "montage.feedback.failed", chatId) };
-  const r = await montagePort(deps).resolveSubtitleDoubt(deps, clipId, { index: passage, text: text.replace(/\s+/g, " ").trim().slice(0, 300) }, await actorOf(deps, actor));
+  const who = await actorOf(deps, actor);
+  const r = await montagePort(deps).resolveSubtitleDoubt(deps, clipId, { index: passage, text: text.replace(/\s+/g, " ").trim().slice(0, 300) }, who);
   if (chatId) await clearMontageAwait(deps, chatId, (a) => a.kind === "subtitle" && a.clipId === clipId);
   if (!r.ok) return { reply: esc(r.reason) };
+  await agentAudit(deps, {
+    userId: who.userId ?? null,
+    action: "montage.subtitle.answered",
+    entityType: "ShortClip",
+    entityId: clipId,
+    metadata: { via: who.via, jobId: clip.montageJobId, index: clip.index, passage, done: r.done },
+  });
   const next = r.done ? undefined : r.remaining[0];
   if (next) {
     const options = doubtOptions(next);

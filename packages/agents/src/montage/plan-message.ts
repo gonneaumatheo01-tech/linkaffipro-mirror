@@ -9,7 +9,7 @@
  * Textes : `PLAN_VARIANTS` (charte `docs/KEVIN-VOIX.md`, contrôlés par `voiceCheck`).
  */
 import type { AiToolDef } from "@linkaffipro/ai";
-import { esc } from "../admin/journal";
+import { agentAudit, esc, telegramActorUserId } from "../admin/journal";
 import { normalizeText } from "../human/answer";
 import { BOSS_MESSAGE_MARK } from "../boss/llm";
 import { pick, voiceTemplate, type VoiceTable } from "../boss/voice";
@@ -460,6 +460,14 @@ export async function answerPlan(deps: KevinMontageDeps, jobId: string, text: st
   if (left === 0) return { handled: true, reply: pick(PLAN_VARIANTS.nothingLeft, "montage.plan.nothing", chatId), launched: false };
   const r = await montagePort(deps).approvePlan(deps, jobId, parsed.edits, opts.actor);
   if (!r.ok) return { handled: true, reply: esc(r.reason), launched: false };
+  // Accord du client sur le plan (toute action d'un utilisateur est dans `AuditLog`).
+  await agentAudit(deps, {
+    userId: opts.actor?.userId ?? (await telegramActorUserId(deps).catch(() => null)),
+    action: "montage.plan.approved",
+    entityType: "MontageJob",
+    entityId: jobId,
+    metadata: { via: opts.actor?.via ?? "TELEGRAM", shorts: r.kept, removed: r.removed, changes: parsed.edits.length },
+  });
   if (opts.chatId) await clearMontageAwait(deps, opts.chatId, (a) => a.kind === "plan" && a.jobId === jobId);
   const reply = parsed.edits.length
     ? pick(PLAN_VARIANTS.adjusted({ changes: esc(describeEdits(parsed.edits)), count: left }), "montage.plan.adjusted", chatId)

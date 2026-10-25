@@ -40,11 +40,13 @@ export function mediaSizeOf(msg: Api.Message | undefined | null): number | null 
 export async function findMediaMessage(
   client: DownloadClient,
   peer: unknown,
-  input: { messageId: number; sizeBytes?: number | null; searchLimit?: number },
+  input: { messageId: number; sizeBytes?: number | null; searchLimit?: number; idsReliable?: boolean },
 ): Promise<Api.Message | null> {
   const byId = Array.from(await client.getMessages(peer, { ids: [input.messageId] }))[0];
   const size = mediaSizeOf(byId);
-  if (byId && size !== null && (!input.sizeBytes || size === input.sizeBytes)) return byId;
+  // Hors canal, le numéro vient du bot (il ne vaut pas pour le compte, et `messages.getMessages` lit TOUTES les
+  // conversations du compte) : sans poids connu, on ne prend jamais le fichier d'un autre message.
+  if (byId && size !== null && (input.sizeBytes ? size === input.sizeBytes : input.idsReliable === true)) return byId;
   if (!input.sizeBytes) return null;
   const recent = Array.from(await client.getMessages(peer, { limit: input.searchLimit ?? DOWNLOAD_SEARCH_LIMIT }));
   return recent.find((m) => m && mediaSizeOf(m) === input.sizeBytes) ?? null;
@@ -114,7 +116,7 @@ export async function downloadAccountMedia(input: AccountDownloadInput, creds: M
         ? await client.getInputEntity(Number(input.peer))
         : await client.getInputEntity(input.peer.replace(/^@/, ""));
     const dl = client as unknown as DownloadClient;
-    const msg = await findMediaMessage(dl, peer, { messageId: input.messageId, sizeBytes: input.sizeBytes ?? null });
+    const msg = await findMediaMessage(dl, peer, { messageId: input.messageId, sizeBytes: input.sizeBytes ?? null, idsReliable: /^-100\d+$/.test(input.peer) });
     if (!msg) throw new Error("vidéo introuvable dans la conversation du compte connecté (message supprimé ?)");
     return await downloadMessageMediaTo(dl, msg, input.dest);
   } catch (err) {

@@ -133,7 +133,7 @@ export function registerBossMontageHandlers(bot: Bot, identity: BotIdentity, dep
     const agents = deps.agentsDeps();
     const chatId = ctx.callbackQuery.message?.chat.id ?? ctx.from.id;
     try {
-      const r = await handleMontageCallback(agents, { data, fromTelegramId: BigInt(ctx.from.id), chatId: String(chatId) });
+      const r = await handleMontageCallback(agents, { data, fromTelegramId: BigInt(ctx.from.id), chatId: String(chatId), messageId: ctx.callbackQuery.message?.message_id ?? null });
       await ctx.answerCallbackQuery(r.toast ? { text: r.toast } : undefined).catch(() => undefined);
       if (r.removeButtons) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
       const api = replyApiOf(ctx);

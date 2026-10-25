@@ -300,6 +300,69 @@ describe("chaîne du montage", () => {
     expect(await redoClip(k.deps, String(after.id), "euh")).toMatchObject({ ok: false });
   });
 
+  it("short refait pendant son rendu : l'ancien rendu n'est jamais rangé ni montré pour la nouvelle version", async () => {
+    const k = await kitOf({ plan: [{ startMs: 0, endMs: 15_000, description: "a", score: 9, why: "" }] });
+    const { jobId } = await startJob(k);
+    await k.drain();
+    await approvePlan(k.deps, jobId);
+    const clipId = String(k.clips(jobId)[0]!.id);
+    const render = k.fake.engine.renderShort.bind(k.fake.engine);
+    let redone = false;
+    k.fake.engine.renderShort = async (spec, o) => {
+      // Le client demande une retouche pendant que l'ancienne version se fabrique.
+      if (!redone) {
+        redone = true;
+        expect((await redoClip(k.deps, clipId, { pipPosition: "BOTTOM_LEFT", note: "cam en bas à gauche" })).ok).toBe(true);
+      }
+      return render(spec, o);
+    };
+    await k.drain();
+    expect(k.fake.renders.map((r) => r.pipPosition)).toEqual(["TOP_RIGHT", "BOTTOM_LEFT"]);
+    expect(k.sentVideos).toHaveLength(1);
+    expect(k.clips(jobId)[0]).toMatchObject({ status: "PREVIEW_SENT", redoCount: 1, pipPosition: "BOTTOM_LEFT" });
+    expect(k.hookCalls.preview).toBe(1);
+    expect(await k.filesIn()).toEqual([`${jobId}/source.mp4`]);
+  });
+
+  it("sous-titres demandés sur un passage sans parole : short fait sans sous-titres, jamais une boucle de transcriptions", async () => {
+    const k = await kitOf({ plan: [{ startMs: 0, endMs: 15_000, description: "a", score: 9, why: "" }] });
+    k.fake.engine.transcribeClip = async () => [];
+    const { jobId } = await startJob(k, { ...INSTRUCTIONS, subtitles: true });
+    await k.drain();
+    await approvePlan(k.deps, jobId);
+    await k.drain(50);
+    expect(k.queue).toHaveLength(0);
+    expect(k.clips(jobId)[0]).toMatchObject({ status: "PREVIEW_SENT", subtitlesSrt: "" });
+    expect(k.fake.renders).toHaveLength(1);
+    expect(k.fake.renders[0]!.srtPath).toBeNull();
+    expect(k.fake.calls.checkSubtitleReadability ?? 0).toBe(0);
+  });
+
+  it("annulé pendant l'analyse ou pendant un rendu : rien ne reste sur le disque", async () => {
+    const k = await kitOf({ plan: [{ startMs: 0, endMs: 15_000, description: "a", score: 9, why: "" }] });
+    const plan = k.fake.engine.planCuts.bind(k.fake.engine);
+    const { jobId } = await startJob(k);
+    k.fake.engine.planCuts = async (input) => {
+      await cancelJob(k.deps, jobId);
+      return plan(input);
+    };
+    await k.drain();
+    expect(k.job(jobId).status).toBe("CANCELLED");
+    expect(await k.filesIn()).toEqual([]);
+
+    const k2 = await kitOf({ plan: [{ startMs: 0, endMs: 15_000, description: "a", score: 9, why: "" }] });
+    const second = await startJob(k2);
+    await k2.drain();
+    await approvePlan(k2.deps, second.jobId);
+    const render = k2.fake.engine.renderShort.bind(k2.fake.engine);
+    k2.fake.engine.renderShort = async (spec, o) => {
+      await cancelJob(k2.deps, second.jobId);
+      return render(spec, o);
+    };
+    await k2.drain();
+    expect(await k2.filesIn()).toEqual([]);
+  });
+
   it("annulation : plus rien ne se fabrique, fichiers effacés", async () => {
     const k = await kitOf();
     const { jobId } = await startJob(k);

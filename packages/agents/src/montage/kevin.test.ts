@@ -435,6 +435,18 @@ describe("aperçu, ✅ / ✏️ / ❌ et réponses écrites", () => {
     expect(job.id).toBeTruthy();
   });
 
+  it("✅ sous l'aperçu d'une ancienne version (short refait depuis) : rien n'est validé", async () => {
+    const t = await setup();
+    const { clips } = await seedJob(t, { status: "PREVIEW", clipStatus: "PREVIEW_SENT", withAsset: true });
+    await t.kit.prisma.shortClip.updateMany({ where: { id: clips[0]!.id }, data: { previewMsgId: 802n } });
+    const old = await handleMontageCallback(t.deps, { data: `msh:${clips[0]!.id}:ok`, fromTelegramId: ADMIN_TG_ID, chatId: CHAT, messageId: 801 });
+    expect(old.removeButtons).toBe(true);
+    expect(t.kit.tables("shortClip").find((c) => c.id === clips[0]!.id)!.status).toBe("PREVIEW_SENT");
+    const current = await handleMontageCallback(t.deps, { data: `msh:${clips[0]!.id}:ok`, fromTelegramId: ADMIN_TG_ID, chatId: CHAT, messageId: 802 });
+    expect(current.toast).toBeTruthy();
+    expect(t.kit.tables("shortClip").find((c) => c.id === clips[0]!.id)!.status).toBe("APPROVED");
+  });
+
   it("bouton appuyé par quelqu'un d'autre que l'admin : rien ne change", async () => {
     const t = await setup();
     const { clips } = await seedJob(t, { status: "PREVIEW", clipStatus: "PREVIEW_SENT", withAsset: true });

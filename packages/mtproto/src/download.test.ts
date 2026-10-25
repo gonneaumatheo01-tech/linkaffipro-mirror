@@ -69,6 +69,13 @@ describe("téléchargement par le compte connecté", () => {
     expect(mediaSizeOf(msgs[1])).toBe(size);
   });
 
+  it("poids inconnu : jamais le fichier d'un autre message pris par son seul numéro, sauf dans un canal", async () => {
+    const msgs = [videoMessage(77, 999)];
+    const { client } = fakeClient(msgs, Buffer.alloc(0));
+    expect(await findMediaMessage(client, "kevbot", { messageId: 77, sizeBytes: null })).toBeNull();
+    expect((await findMediaMessage(client, "-1001234", { messageId: 77, sizeBytes: null, idsReliable: true }))?.id).toBe(77);
+  });
+
   it("écrit le fichier en continu et reprend après une coupure au dernier bloc complet", async () => {
     const total = DOWNLOAD_CHUNK_BYTES * 2 + 1000;
     const data = content(total);

@@ -172,6 +172,18 @@ async function ensureSourceCopy(deps: MontagePipelineDeps, job: MontageJobRow): 
   return dest;
 }
 
+/** Fichiers d'une VERSION d'un short (un short refait ne reprend jamais le rendu de la version d'avant). */
+function renderName(clip: Pick<ShortClipRow, "redoCount">, kind: "render" | "compressed"): string {
+  return `${kind}-v${clip.redoCount ?? 0}.mp4`;
+}
+
+/** Le short est toujours dans la version de cette tâche (pas refait entre-temps) : sa ligne fraîche, sinon null. */
+async function sameVersion(deps: MontagePipelineDeps, clip: Pick<ShortClipRow, "id" | "redoCount">): Promise<ShortClipRow | null> {
+  const fresh = await loadClip(deps, clip.id);
+  if (!fresh || (fresh.redoCount ?? 0) !== (clip.redoCount ?? 0) || fresh.status === "CANCELLED" || fresh.status === "REJECTED") return null;
+  return fresh;
+}
+
 async function stillActive(deps: MontagePipelineDeps, jobId: string, clipId?: string): Promise<boolean> {
   const job = await deps.prisma.montageJob.findUnique({ where: { id: jobId }, select: { status: true } });
   if (!job || isTerminalJob(job.status)) return false;
@@ -246,7 +258,11 @@ async function runAnalyze(deps: MontagePipelineDeps, jobId: string): Promise<Mon
     const planned = await engine.planCuts({ frames, probe, instructions, maxShorts });
     const kept = keepPlanned(planned, probe.durationMs, instructions, maxShorts);
     if (kept.length === 0) throw new MontageRefused("Je n'ai trouvé aucun moment à couper dans ta vidéo.");
-    if (!(await stillActive(deps, jobId))) return { ok: false, step: "montage.analyze", outcome: "skipped", reason: "montage annulé" };
+    if (!(await stillActive(deps, jobId))) {
+      // Annulé pendant l'analyse : la copie de la source et les images faites entre-temps partent tout de suite.
+      await cleanupJob(deps, jobId, { final: true });
+      return { ok: false, step: "montage.analyze", outcome: "skipped", reason: "montage annulé" };
+    }
     // Une ligne par moment (index unique par travail : une reprise ne double rien).
     for (const [i, p] of kept.entries()) {
       await deps.prisma.shortClip.create({
@@ -396,10 +412,17 @@ type ClipCtx = { job: MontageJobRow; clip: ShortClipRow };
 async function loadClipCtx(deps: MontagePipelineDeps, jobId: string, clipId: string): Promise<ClipCtx | string> {
   const job = await loadJob(deps, jobId);
   if (!job) return "travail introuvable";
-  if (isTerminalJob(job.status)) return `montage ${job.status}`;
+  // Tâche restée en file après la fin du montage (annulé pendant un rendu) : ce qu'elle a laissé sur le disque part.
+  if (isTerminalJob(job.status)) {
+    await cleanupJob(deps, jobId, { final: true });
+    return `montage ${job.status}`;
+  }
   const clip = await loadClip(deps, clipId);
   if (!clip || clip.montageJobId !== jobId) return "short introuvable";
-  if ((SETTLED_CLIP_STATUSES as readonly string[]).includes(clip.status)) return `short ${clip.status}`;
+  if ((SETTLED_CLIP_STATUSES as readonly string[]).includes(clip.status)) {
+    await cleanupClip(deps, jobId, clipId);
+    return `short ${clip.status}`;
+  }
   if (clip.status === "PREVIEW_SENT") return "aperçu déjà envoyé";
   return { job, clip };
 }
@@ -450,7 +473,8 @@ async function runCut(deps: MontagePipelineDeps, jobId: string, clipId: string):
   }
   await deps.prisma.shortClip.update({ where: { id: clip.id }, data: { status: "CUTTING" } });
   await markJobWorking(deps, job, "CUTTING", "cut");
-  if (clip.subtitles && !clip.subtitlesSrt) {
+  // SRT vérifié = texte écrit, même vide (passage sans parole : rien à sous-titrer, jamais une boucle cut ↔ dress).
+  if (clip.subtitles && clip.subtitlesSrt === null) {
     if (pendingOf(clip.subtitlesPending)) return { ok: true, step: "montage.cut", outcome: "attend la réponse du client sur les sous-titres" };
     const engine = engineOf(deps);
     const source = await ensureSourceCopy(deps, job);
@@ -461,7 +485,8 @@ async function runCut(deps: MontagePipelineDeps, jobId: string, clipId: string):
     const durationMs = clip.endMs - clip.startMs;
     const language = (await readSetting(deps, "montage.language").catch(() => null)) as string | null;
     const first = await engine.transcribeClip({ wavPath: wav, durationMs, language: typeof language === "string" ? language : null });
-    const second = await engine.transcribeClip({ wavPath: wav, durationMs, language: typeof language === "string" ? language : null });
+    // Deux écoutes INDÉPENDANTES (la seconde sans biais) : un mot deviné par le biais est contredit, jamais confirmé.
+    const second = await engine.transcribeClip({ wavPath: wav, durationMs, language: typeof language === "string" ? language : null, independent: true });
     const threshold = await settingNumber(deps, MONTAGE_SETTINGS.subtitleConfidence.key, MONTAGE_SETTINGS.subtitleConfidence.value);
     const verified = await engine.verifySubtitles({ transcripts: [first, second], wavPath: wav, threshold });
     await rm(wav, { force: true }).catch(() => undefined);
@@ -527,8 +552,8 @@ async function runDress(deps: MontagePipelineDeps, jobId: string, clipId: string
     await enqueueClipStep(deps, "montage.preview", clip);
     return { ok: true, step: "montage.dress", outcome: "déjà fabriqué" };
   }
-  // Jamais de sous-titre approximatif : sans SRT vérifié, retour aux sous-titres.
-  if (clip.subtitles && !clip.subtitlesSrt) {
+  // Jamais de sous-titre approximatif : sans SRT vérifié, retour aux sous-titres (SRT vide = aucune parole, vérifié).
+  if (clip.subtitles && clip.subtitlesSrt === null) {
     if (!pendingOf(clip.subtitlesPending)) await enqueueClipStep(deps, "montage.cut", clip);
     return { ok: true, step: "montage.dress", outcome: "sous-titres pas encore vérifiés" };
   }
@@ -542,7 +567,7 @@ async function runDress(deps: MontagePipelineDeps, jobId: string, clipId: string
     srtPath = join(dir, "subs.srt");
     await writeFile(srtPath, clip.subtitlesSrt, "utf8");
   }
-  const output = join(dir, "render.mp4");
+  const output = join(dir, renderName(clip, "render"));
   await rm(output, { force: true }).catch(() => undefined);
   await engineOf(deps).renderShort(await renderSpec(deps, ctx, source, output, srtPath), { timeoutMs: MONTAGE_LIMITS.shortTimeoutMs });
   if (srtPath) await rm(srtPath, { force: true }).catch(() => undefined);
@@ -593,8 +618,8 @@ async function runQc(deps: MontagePipelineDeps, jobId: string, clipId: string): 
   }
   const engine = engineOf(deps);
   const dir = clipDir(deps, jobId, clip.id);
-  const render = join(dir, "render.mp4");
-  const compressedPath = join(dir, "compressed.mp4");
+  const render = join(dir, renderName(clip, "render"));
+  const compressedPath = join(dir, renderName(clip, "compressed"));
   // Compression déjà faite (reprise) : le fichier compressé fait foi.
   let final = clip.compressed && (await exists(compressedPath)) ? compressedPath : render;
   if (!(await exists(final))) {
@@ -610,7 +635,7 @@ async function runQc(deps: MontagePipelineDeps, jobId: string, clipId: string): 
   // Le poids n'est pas un échec : il déclenche la compression (une seule fois).
   const weightOnly = (r: QcReport) => r.problems.filter((p) => !/\bmo\b|poids|lourd/i.test(p));
   const problems = weightOnly(report);
-  if (problems.length === 0 && clip.subtitles) {
+  if (problems.length === 0 && clip.subtitles && clip.subtitlesSrt) {
     const read = await engine.checkSubtitleReadability({ path: final, dir, segments: segmentsFromSrt(clip.subtitlesSrt), durationMs: expectedDurationMs });
     if (!read.ok) problems.push(...(read.problems.length ? read.problems : ["sous-titres difficiles à lire"]));
   }
@@ -633,6 +658,8 @@ async function runQc(deps: MontagePipelineDeps, jobId: string, clipId: string): 
     }
     await engine.compressShort(await renderSpec(deps, ctx, source, compressedPath, srtPath), MONTAGE_LIMITS.compressCrfStep, { timeoutMs: MONTAGE_LIMITS.shortTimeoutMs });
     if (srtPath) await rm(srtPath, { force: true }).catch(() => undefined);
+    // Short refait pendant la compression : rien n'est écrit sur la nouvelle version.
+    if (!(await sameVersion(deps, clip))) return { ok: false, step: "montage.qc", outcome: "skipped", reason: "short refait entre-temps" };
     await deps.prisma.shortClip.update({ where: { id: clip.id }, data: { compressed: true } });
     compressed = true;
     await rm(render, { force: true }).catch(() => undefined);
@@ -650,11 +677,13 @@ async function runQc(deps: MontagePipelineDeps, jobId: string, clipId: string): 
   }
   if (!(await stillActive(deps, jobId, clip.id))) return { ok: false, step: "montage.qc", outcome: "skipped", reason: "short abandonné" };
   const probe = await engine.probeMedia(final);
-  const fresh = (await loadClip(deps, clip.id))!;
+  // Short refait pendant le contrôle : l'ancien rendu n'est jamais rangé pour la nouvelle version.
+  const fresh = await sameVersion(deps, clip);
+  if (!fresh) return { ok: false, step: "montage.qc", outcome: "skipped", reason: "short refait entre-temps" };
   await setStep(deps, jobId, "preview");
   await storeShort(deps, { path: final, clip: fresh, probe, job, compressed });
-  await deps.prisma.shortClip.update({
-    where: { id: clip.id },
+  await deps.prisma.shortClip.updateMany({
+    where: { id: clip.id, redoCount: clip.redoCount ?? 0 },
     data: { qc: JSON.parse(JSON.stringify({ ...report, ok: true, problems: [] })), durationMs: probe.durationMs },
   });
   await cleanupClip(deps, jobId, clip.id);
@@ -687,10 +716,12 @@ async function runPreview(deps: MontagePipelineDeps, jobId: string, clipId: stri
     height: asset?.height ?? 0,
     compressed: clip.compressed,
   });
-  await deps.prisma.shortClip.update({
-    where: { id: clip.id },
+  // Short refait pendant l'envoi de l'aperçu : la nouvelle version ne passe pas pour « aperçu envoyé ».
+  const marked = await deps.prisma.shortClip.updateMany({
+    where: { id: clip.id, redoCount: clip.redoCount ?? 0, assetId: clip.assetId },
     data: { status: "PREVIEW_SENT", previewMsgId: sent && typeof sent.messageId === "number" ? BigInt(sent.messageId) : null },
   });
+  if (marked.count === 0) return { ok: false, step: "montage.preview", outcome: "skipped", reason: "short refait entre-temps" };
   await agentEvent(deps, "agents.montage.preview_sent", { jobId, clipId: clip.id, assetId: clip.assetId });
   await refreshJobStatus(deps, jobId);
   return { ok: true, step: "montage.preview", outcome: "aperçu envoyé" };
@@ -721,10 +752,24 @@ export async function refreshJobStatus(deps: MontagePipelineDeps, jobId: string)
     data: { status, shortCount, ...(settled ? { completedAt: nowOf(deps), currentStep: "done" } : {}) },
   });
   if (settled) {
-    await cleanupJob(deps, jobId, { final: true });
+    await finishJobFiles(deps, jobId);
     await agentEvent(deps, "agents.montage.job_done", { jobId, shorts: shortCount, approved: live.filter((c) => c.status === "APPROVED").length });
   }
   return status;
+}
+
+/**
+ * Travail fini : ses fichiers de travail partent. Hors du worker (webhook de Kevin, site : dernier ✅, « annule ») le
+ * disque n'est pas le bon (autre service) : le ménage est confié au worker par une tâche `montage.cleanup` (qui efface
+ * tout de suite les dossiers des travaux finis), sinon la copie de la source (jusqu'à 2 Go) resterait jusqu'au ménage
+ * quotidien.
+ */
+async function finishJobFiles(deps: MontagePipelineDeps, jobId: string): Promise<void> {
+  await cleanupJob(deps, jobId, { final: true });
+  if (deps.montage?.workDir || !deps.montage?.enqueue) return;
+  await deps.montage
+    .enqueue({ type: "montage.cleanup" } as unknown as MontageQueueJob, { jobId: `montage-${jobId}-cleanup` })
+    .catch((err: unknown) => deps.logger?.warn({ err: (err as Error)?.message, jobId }, "[montage] ménage du travail non mis en file"));
 }
 
 /** Décision du client sur un aperçu (Valider / Refuser) ; « Modifier » passe par `redoClip`. */
@@ -856,7 +901,7 @@ export async function cancelJob(deps: MontagePipelineDeps, jobId: string, _actor
     where: { montageJobId: jobId, status: { notIn: ["APPROVED", "REJECTED", "CANCELLED"] } },
     data: { status: "CANCELLED" },
   });
-  await cleanupJob(deps, jobId, { final: true });
+  await finishJobFiles(deps, jobId);
   await agentEvent(deps, "agents.montage.job_cancelled", { jobId, clips: r.count });
   return { ok: true, cancelledClips: r.count };
 }
