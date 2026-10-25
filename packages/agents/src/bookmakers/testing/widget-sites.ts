@@ -29,9 +29,9 @@ const slug = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-const html = (res: ServerResponse, body: string, status = 200) => res.writeHead(status, { "content-type": "text/html; charset=utf-8" }).end(body);
-const json = (res: ServerResponse, body: unknown, status = 200) => res.writeHead(status, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify(body));
-const js = (res: ServerResponse, body: string) => res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" }).end(body);
+const html = (res: ServerResponse, body: string, status = 200): void => void res.writeHead(status, { "content-type": "text/html; charset=utf-8" }).end(body);
+const json = (res: ServerResponse, body: unknown, status = 200): void => void res.writeHead(status, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify(body));
+const js = (res: ServerResponse, body: string): void => void res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" }).end(body);
 
 /** « 25/10 • 21:00 » (Altenar). */
 const altenarTime = (m: FixtureMatch) => `${m.day.slice(8, 10)}/${m.day.slice(5, 7)} • ${parisHHMM(m.kickoff)}`;

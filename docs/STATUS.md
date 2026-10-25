@@ -1,3 +1,37 @@
+# État du projet : phase 35 (suite) — lecture des « widgets » de paris (25 octobre 2026, soir)
+
+Suite de la phase 35. En regardant les trois vrais sites depuis le navigateur du Mac, le constat était net : **aucun des trois n'est une page classique**, et l'ancien lecteur ne pouvait rien y lire même avec l'accès. Sportaza et Bet Portal affichent leurs matchs dans un « widget » fermé (sans aucun lien à suivre), Celsius met son site de paris dans un cadre d'un autre domaine, et les trois changent d'adresse en cours de route. Tout cela est maintenant lu. **Toujours aucune mise, aucun dépôt, aucun retrait, et aucun contournement de blocage par pays.**
+
+## Fait
+- **Les widgets se lisent** : le navigateur « aplatit » la page avant de la lire (contenu caché dans le widget, cadres, identifiant de chaque match), comme si c'était une page normale.
+- **Changement d'adresse suivi** : `sportaza.com` → `sportaza-5178.com`, `celsius.games` → `celsiuscasino.com` sont reconnus comme la même marque ; tout autre domaine reste refusé, et les pages d'argent restent interdites, même sur la nouvelle adresse.
+- **Navigation sans lien** : le lecteur sait aller au football, au programme du jour et de demain et à la fiche d'un match sur chaque moteur (adresses connues, puis clics sur « Football », « Par Heure », « À venir »…), chaque clic passant par la garde « jamais de mise » : un bouton qui affiche une cote n'est jamais cliqué.
+- **Trois « fiches » prêtes, sans IA** : pour le moteur de Sportaza (Altenar), celui de Bet Portal (Betby) et le site de paris de Celsius, le système connaît déjà la façon de lire ; il la vérifie sur l'enregistrement puis en vrai, comme toute méthode apprise ; si ça ne passe pas, l'IA prend le relais comme avant.
+- **Lectures plus riches** : flux de données de Bet Portal (par morceaux), matchs de Celsius par son API (cotes en millièmes), marchés en grille (« plus de 2.5 / moins de 2.5 »), dates « Après-demain », « 28 oct., 18:30 »…
+
+## Test de 5 minutes
+1. Sur le Mac, dans le Terminal, collez la commande donnée dans le message de Claude (mise à jour, puis déploiement du site et du service d'arrière-plan).
+2. Écrivez à Kevin « teste les bookmakers » : il dit pour chaque site s'il s'ouvre et se lit (l'accès aux sites reste celui de votre Mac ou du serveur, voir « Reste »).
+3. Puis « quels matchs sur Bet Portal ce soir ? ».
+
+## Vérifications faites
+- Trois faux sites reproduisant exactement ce qui a été vu sur les vrais (widget fermé avec routeur mémoire et données React ; widget fermé avec flux par manifeste et grille ; cadre vers un second serveur avec API en millièmes) : appris par leur fiche **sans aucun appel à l'IA**, 14 matchs d'aujourd'hui et de demain lus, cotes lues (résultat, buts avec la ligne, corners, cartons, double chance), aucune mise ni page d'argent demandée.
+- Tous les tests des bookmakers repassent (environ 250, dont ceux avec un vrai navigateur : apprentissage des trois anciens faux sites, garde « jamais de mise », capture).
+- Les structures réelles (noms des équipes dans les cartes de Bet Portal, adresse des fiches, flux de données, pages de Sportaza et de Celsius) ont été relevées à la main dans le navigateur du Mac le 25 octobre ; aucun test automatique ne touche un vrai site.
+
+## Reste / limites
+- **Accès aux sites** : rien ne change sur le blocage par pays. Le serveur en Europe est refusé par les trois sites ; le Mac lit avec sa propre connexion. Une méthode apprise sur un site est faite pour ce site : si un site change son widget, la fiche est revalidée et, au besoin, l'IA réapprend (une fois par jour au plus).
+- Bet Portal : les cotes complètes d'une fiche viennent de la page (le flux public ne donne que les marchés principaux) ; la liste des matchs vient du flux.
+- Le lecteur du Mac doit être autorisé par macOS (action humaine déjà notée) ; d'ici là, seul le serveur lit.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+- Coller la commande de mise à jour et de déploiement (donnée par Claude), une seule fois.
+- Supprimer le dossier `_to_delete/` à la racine du projet (restes d'un essai, sans valeur).
+- Toujours valable : autoriser « node » pour le dossier Bureau sur le Mac (`docs/A-FAIRE-HUMAIN.md`, section 3 bis).
+
+---
+
 # État du projet : phase 35 (cotes lues chez nos bookmakers) terminée (25 octobre 2026)
 
 Phases 0 à 27, 33 et 35 en ligne. Phase 35 (`docs/prompts/37-phase-35-cotes-bookmakers.md`) : le système lit lui-même les matchs et les cotes sur **Celsius**, **Sportaza** et **Bet Portal** avec votre compte. Il apprend chaque site une fois, lit par le chemin le plus stable, ne garde une cote que si elle a été lue **deux fois à l'identique**, se répare seul quand un site change, et Kevin gère tout. **Il ne mise jamais, ne dépose jamais, ne retire jamais d'argent.** Les équipes restent en simulation.

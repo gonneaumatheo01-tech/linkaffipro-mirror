@@ -249,7 +249,7 @@ type DomDoc = {
 export const PAGE_HELPERS_INIT_SCRIPT = "(() => { const g = globalThis; if (typeof g.__name !== 'function') g.__name = (f) => f; })();";
 
 /** À appeler sur chaque contexte de navigateur qui recevra une `GuardedPage` (avant d'ouvrir une page). */
-export async function installPageHelpers(context: { addInitScript(script: string): Promise<void> }): Promise<void> {
+export async function installPageHelpers(context: { addInitScript(script: string): Promise<unknown> }): Promise<void> {
   await context.addInitScript(PAGE_HELPERS_INIT_SCRIPT);
 }
 

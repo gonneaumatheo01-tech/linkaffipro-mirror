@@ -20,9 +20,9 @@ export function parsePath(path: string): Seg[] {
   const clean = path
     .trim()
     .replace(/^\$\.?/, "")
-    .replace(/\[@([^\]]+)\]/g, (_m, inner: string) => `\u0000${lookups.push(inner) - 1}\u0000`);
+    .replace(/\[@([^\]]+)\]/g, (_m, inner: string) => `\uE000${lookups.push(inner) - 1}\uE000`);
   for (const raw of clean.split(".").filter((x) => x !== "")) {
-    const lk = /^([^\u0000]*)\u0000(\d+)\u0000(.*)$/.exec(raw);
+    const lk = /^([^\uE000]*)\uE000(\d+)\uE000(.*)$/.exec(raw);
     if (lk) {
       if (lk[1]) out.push({ key: lk[1], iter: null, lookup: parsePath(lookups[Number(lk[2])]!) });
       for (const it of (lk[3] ?? "").match(/\[\]|\{\}/g) ?? []) out.push({ key: null, iter: it === "[]" ? "array" : "object" });
