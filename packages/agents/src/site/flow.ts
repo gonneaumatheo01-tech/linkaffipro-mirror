@@ -25,7 +25,7 @@ import { askHuman } from "../human/requests";
 import { registerAnswerAction } from "../human/respond";
 import { readSecret, secretLabel, secretSettingKey } from "../human/secrets";
 import type { AdminButton } from "../types";
-import { DELETE_CONFIRM_WORD, type SiteOpActor, type SiteOpConfirm, type SiteOpMeta, type SiteOpPreview, type SiteOpResult } from "./contract";
+import { DELETE_CONFIRM_WORD, type ForwardedContent, type SiteOpActor, type SiteOpConfirm, type SiteOpMeta, type SiteOpPreview, type SiteOpResult } from "./contract";
 import { colleagueError, colleagueMessage } from "./errors";
 import { choicesFor } from "./choices";
 
@@ -83,6 +83,14 @@ export const SITE_FLOW_VARIANTS = {
   adminConfirms: voiceTemplate<{ name: string }>([{ name: "@matheo" }], (p) => [`${p.name}, c'est toi qui confirmes.`, `${p.name} confirme ou pas.`]),
   choiceFor: voiceTemplate<{ what: string }>([{ what: "Il me manque le pays." }], (p) => [`${p.what} Choisis ci-dessous.`, `${p.what} Appuie sur le bon bouton.`]),
   choiceLost: ["Ce choix n'est plus valable, rien n'a changé.", "Trop tard pour ce bouton, rien n'a bougé."],
+  mediaTooBig: [
+    "Le fichier du message fait plus de 20 Mo, je ne peux pas le récupérer. Tu m'en transfères une version plus légère ?",
+    "Trop lourd pour moi : plus de 20 Mo. Envoie-moi une version plus légère et je reprends.",
+  ],
+  mediaFailed: [
+    "Je n'arrive pas à récupérer la photo ou la vidéo du message, je n'ai rien fait. Tu me le retransfères ?",
+    "Le média du message ne se télécharge pas, rien n'est parti. Tu me le renvoies ?",
+  ],
 } satisfies VoiceTable;
 
 const V = SITE_FLOW_VARIANTS;
@@ -201,6 +209,12 @@ const chatOf = (s: Pick<SiteFlowState, "chatId">) => s.chatId;
 async function notAllowedReply(deps: BossDeps, level: SiteRightsLevel | null, chatId: string | null): Promise<string> {
   const name = esc(await adminFirstName(deps).catch(() => "l'admin"));
   return level === "READ" ? pick(V.readOnly({ name }), "site.flow.readonly", chatId) : pick(V.notAllowed({ name }), "site.flow.notallowed", chatId);
+}
+
+/** Médias d'un contenu transféré (`params.content`), ou aucun (pur). */
+function forwardedMediaOf(content: unknown): ForwardedContent["media"] {
+  const m = content && typeof content === "object" ? (content as { media?: unknown }).media : null;
+  return Array.isArray(m) ? (m as ForwardedContent["media"]).filter((x) => x && typeof x.fileId === "string" && x.fileId) : [];
 }
 
 /** Conversation où vivent les entrées Telegram (privé : l'admin ; groupe : le groupe). */
@@ -352,6 +366,20 @@ export async function proceedSiteFlow(deps: BossDeps, s: SiteFlowState): Promise
     if (doc) {
       params.file = doc;
       used.document = true;
+    }
+  }
+  // Médias du contenu (règle 6 : médias compris) : rangés dans la médiathèque AVANT l'essai à blanc ; l'opération
+  // reçoit `mediaAssetId` (le premier) et `mediaAssetIds` (tous, dans l'ordre). Erreur : rien n'est envoyé.
+  const media = forwardedMediaOf(params.content);
+  if (media.length && params.mediaAssetId == null && params.mediaAssetIds == null && deps.ingestForwardedMedia) {
+    const got = await deps.ingestForwardedMedia(params.content as ForwardedContent).catch((err: unknown) => ({ error: String((err as Error)?.message ?? err), code: "failed" as const }));
+    if ("error" in got) {
+      deps.logger?.warn({ op: s.op, code: got.code, err: got.error }, "[boss] médias du message transféré non rangés");
+      return { reply: pick(got.code === "too_big" ? V.mediaTooBig : V.mediaFailed, "site.flow.media", chatId), status: "error" };
+    }
+    if (got.assetIds.length) {
+      params.mediaAssetId = got.assetIds[0]!;
+      params.mediaAssetIds = got.assetIds;
     }
   }
   const state: SiteFlowState = { ...s, params, used };

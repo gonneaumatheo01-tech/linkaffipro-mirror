@@ -6,6 +6,7 @@ import { portSiteOps, setBossRegisterPort, type AgentsDeps, type AgentsEnqueue }
 import { prisma } from "@linkaffipro/db";
 import { createAgentsEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "./admin-messenger";
+import { createBossMediaIngest } from "../boss/media-ingest";
 
 let cached: AgentsDeps | null = null;
 
@@ -51,5 +52,11 @@ export function createBotAgentsDeps(): AgentsDeps {
       error: (o, m) => console.error(m ?? "[agents]", o),
     },
   } satisfies AgentsDeps;
+  // Phase 34 : médias d'un message transféré à Kevin rangés avant l'essai à blanc (bot du dialogue admin).
+  if (!cached.ingestForwardedMedia) {
+    const deps = cached;
+    const ingest = createBossMediaIngest();
+    deps.ingestForwardedMedia = (content) => ingest(deps, content);
+  }
   return cached;
 }

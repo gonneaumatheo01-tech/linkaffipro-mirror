@@ -14,7 +14,7 @@ describe("registre des opérations du site", () => {
   });
 
   // Comme le test réel de `site-parity.test.ts` : obligatoire dès que les lots B à E sont remplis.
-  it.skipIf(process.env.KEVIN_PARITY_PENDING === "1")("chaque opération de Kevin a un cœur, chaque cœur une opération", () => {
+  it("chaque opération de Kevin a un cœur, chaque cœur une opération", () => {
     const meta = new Set(SITE_OPS.map((o) => o.key));
     const impls = new Set(SITE_OP_IMPLS.map((i) => i.key));
     expect([...meta].filter((k) => !impls.has(k)), "opérations sans cœur").toEqual([]);

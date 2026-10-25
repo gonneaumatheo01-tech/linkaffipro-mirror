@@ -33,6 +33,7 @@ import {
 import { loadChatTypes, loadPublishStatus, requestAccountCheck } from "@/lib/posts/account-publish";
 import { attachTextOfferLinks, createTextOfferLink } from "@/lib/posts/offer-link-db";
 import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
+import { existingAssets, forwardedMediaList, mediaSentence, providedAssetIds } from "@/lib/site-ops/forwarded-media";
 import { momentLabel, toLocal } from "@/lib/posts/calendar";
 import { checkMove, siblingMoves } from "@/lib/posts/move";
 import {
@@ -196,6 +197,9 @@ export function parisLocalOf(raw: unknown): string {
   return s.replace(" ", "T");
 }
 
+/** Un album Telegram compte 10 médias au plus (le service d'envoi n'en publie pas davantage). */
+const POST_MEDIA_MAX = 10;
+
 type ForwardedLike = { html?: unknown; media?: Array<{ kind?: unknown; fileId?: unknown }> };
 
 /**
@@ -245,12 +249,19 @@ async function rawPostInput(input: Record<string, unknown>, forceIntent?: "draft
   const content = input.content as ForwardedLike | undefined;
   if (content && typeof content === "object") {
     if (raw.text === undefined) raw.text = str(content.html);
-    if (raw.mediaAssetIds === undefined) {
+    // Médias rangés par le déroulé de Kevin avant l'essai à blanc (`mediaAssetIds`, dans l'ordre) : revérifiés ici ;
+    // un album en garde 10 au plus (limite de Telegram), l'aperçu le dit.
+    const given = forwardedMediaList(input).length ? providedAssetIds(raw) : [];
+    if (given.length) {
+      if (!(await existingAssets(given))) return { ok: false, result: fail("Média introuvable dans la médiathèque.", "not_found", "mediaAssetIds") };
+      raw.mediaAssetIds = given.slice(0, POST_MEDIA_MAX);
+    } else if (raw.mediaAssetIds === undefined) {
       const m = await mediaOfForwarded(content);
       if (!m.ok) return m;
       raw.mediaAssetIds = m.ids;
     }
   }
+  delete raw.mediaAssetId;
   if (raw.scheduledAt !== undefined) raw.scheduledAt = parisLocalOf(raw.scheduledAt);
   if (raw.categoryId === undefined && raw.category !== undefined) {
     const c = await categoryIdOf(raw.category);
@@ -361,11 +372,17 @@ async function createPost(input: Record<string, unknown>, actor: SiteOpActor, op
       const titles = await prisma.channel.findMany({ where: { id: { in: form.channelIds } }, select: { id: true, title: true } });
       const names = form.channelIds.map((id) => `« ${titles.find((c) => c.id === id)?.title ?? id} »`).join(", ");
       const what = isTemplate ? "Modèle" : scheduled ? "Message programmé" : "Brouillon";
+      const mimes = (await existingAssets(form.mediaAssetIds))?.map((a) => a.mimeType) ?? [];
+      const mediaLine = mimes.length
+        ? mediaSentence(mimes, Math.max(mimes.length, forwardedMediaList(input).length), `un album en garde ${POST_MEDIA_MAX} au plus`)
+        : form.mediaAssetIds.length
+          ? ` Avec ${form.mediaAssetIds.length} média${form.mediaAssetIds.length > 1 ? "s" : ""}.`
+          : "";
       return {
         ok: true,
         message: `${what} sur ${names} ${whenText(schedule.scheduledAt)}.`,
         preview: {
-          summary: `${what} sur ${names} ${whenText(schedule.scheduledAt)}${abEnabled ? " (test A/B)" : ""}${form.mediaAssetIds.length ? `, ${form.mediaAssetIds.length} média${form.mediaAssetIds.length > 1 ? "s" : ""}` : ""}.${refusal ? ` ${refusal}` : ""}`,
+          summary: `${what} sur ${names} ${whenText(schedule.scheduledAt)}${abEnabled ? " (test A/B)" : ""}.${mediaLine}${refusal ? ` ${refusal}` : ""}`,
           exactText: perChannel[0]?.[0]?.text ?? html,
         },
       };
@@ -530,6 +547,8 @@ export const postUpdate: CoreRun = async (input, actor, opts = {}) => {
     const p = await loadPost(postId);
     if (p) base = formOfPost(p);
   }
+  // Message transféré avec médias : ses médias remplacent ceux du message enregistré (jamais un mélange).
+  if (forwardedMediaList(input).length) delete base.mediaAssetIds;
   const prepared = await rawPostInput({ ...base, ...input });
   if (!prepared.ok) return prepared.result;
   const parsed = postFormSchema.safeParse(prepared.raw);
@@ -558,7 +577,14 @@ export const postUpdate: CoreRun = async (input, actor, opts = {}) => {
       return {
         ok: true,
         message: `Message modifié, ${whenText(schedule.scheduledAt)}.`,
-        preview: { summary: `Message ${post.code} modifié : ${schedule.status === "SCHEDULED" ? "programmé" : "brouillon"} ${whenText(schedule.scheduledAt)}.`, exactText: plan.text },
+        preview: {
+          summary: `Message ${post.code} modifié : ${schedule.status === "SCHEDULED" ? "programmé" : "brouillon"} ${whenText(schedule.scheduledAt)}.${
+            forwardedMediaList(input).length
+              ? mediaSentence((await existingAssets(form.mediaAssetIds))?.map((a) => a.mimeType) ?? [], forwardedMediaList(input).length, `un album en garde ${POST_MEDIA_MAX} au plus`)
+              : ""
+          }`,
+          exactText: plan.text,
+        },
       };
     const { buttons, relinked } = await materializeButtons(plan.buttons, { id: post.id, channelId, isTemplate: post.isTemplate }, actor.userId);
     // Offre ajoutée comme lien dans le texte : rattachée à ce message (copiée si elle appartient à un autre).

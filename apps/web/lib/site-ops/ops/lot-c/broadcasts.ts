@@ -27,6 +27,7 @@ import { parseBroadcastForm } from "@/lib/broadcasts/schema";
 import { loadAbComparison } from "@/lib/broadcasts/ab-queries";
 import { parseAbForm, pickWinner } from "@/lib/broadcasts/ab";
 import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
+import { existingAssets, forwardedMediaList, mediaSentence, providedAssetIds } from "@/lib/site-ops/forwarded-media";
 import {
   ADMIN_ONLY,
   doneTo,
@@ -265,17 +266,25 @@ function buttonsLine(rows: PostButtonRow[]): string {
  */
 async function formFromWords(raw: Record<string, unknown>): Promise<Record<string, unknown> | CoreResult> {
   const input: Record<string, unknown> = { ...raw };
-  const fwd = input.forwarded as ForwardedContent | undefined;
+  // Déroulé de Kevin : le message transféré arrive dans `content` (contrat de la phase 34) ; `forwarded` reste accepté.
+  const fwd = (input.content ?? input.forwarded) as ForwardedContent | undefined;
   if (fwd && typeof fwd === "object" && typeof fwd.html === "string") {
     if (!str(input.text)) input.text = fwd.html;
-    if (Array.isArray(fwd.media) && fwd.media.length > 0 && !str(input.mediaAssetId))
-      return fail(
-        "Le message transféré contient une photo ou une vidéo : ajoutez-la d'abord à la médiathèque, puis redemandez l'envoi avec ce média.",
-        null,
-        { field: "mediaAssetId" },
-      );
+    if (Array.isArray(fwd.media) && fwd.media.length > 0) {
+      // Médias rangés par le déroulé de Kevin avant l'essai à blanc : un envoi n'en joint qu'un, le premier.
+      const ids = providedAssetIds(input);
+      if (ids.length === 0)
+        return fail(
+          "Le message transféré contient une photo ou une vidéo : ajoutez-la d'abord à la médiathèque, puis redemandez l'envoi avec ce média.",
+          null,
+          { field: "mediaAssetId" },
+        );
+      input.mediaAssetId = ids[0];
+    }
   }
   delete input.forwarded;
+  delete input.content;
+  delete input.mediaAssetIds;
   for (const [idKey, nameKey, what, cands] of [
     ["channelIds", "channels", "le canal", channelCandidates],
     ["campaignIds", "campaigns", "la campagne", campaignCandidates],
@@ -325,6 +334,8 @@ async function createBroadcasts(
   opts: { dryRun?: boolean; forceDraft?: boolean },
 ): Promise<{ ok: true; created: Created } | CoreResult> {
   let input = raw;
+  // Médias du message transféré (Kevin) : combien il en portait, pour dire « 1 photo sur 3 gardée » dans l'aperçu.
+  const forwardedMediaCount = isPartial(actor) ? forwardedMediaList(raw).length : 0;
   if (isPartial(actor)) {
     const r = await formFromWords(raw);
     if ("ok" in r && typeof r.ok === "boolean") return r as CoreResult;
@@ -400,6 +411,11 @@ async function createBroadcasts(
           split: null,
         },
       ];
+  // Média joint : il doit exister (un identifiant donné par Kevin est revérifié ici).
+  const joined = [...new Set(variants.map((x) => x.mediaAssetId).filter((x): x is string => !!x))];
+  const assets = await existingAssets(joined);
+  if (!assets) return failTo(NEW, "Média introuvable dans la médiathèque.", {}, { code: "not_found", field: "mediaAssetId" });
+  const firstMedia = assets.find((a) => a.id === variants[0]!.mediaAssetId) ?? null;
   if (opts.dryRun) {
     try {
       for (const variant of variants) await assertButtonRows(variant.buttons);
@@ -424,7 +440,7 @@ async function createBroadcasts(
       ok: true,
       message: `${when} par ${p.botName || "le bot"} à ${p.recipients} membre(s) joignable(s) : ${describeSegment(d.segment)}.`,
       preview: {
-        summary: `${when}, « ${d.name} », par ${p.botName || "le bot"} : ${describeSegment(d.segment)}.${ab.enabled ? ` Test A/B ${ab.split} % / ${100 - ab.split} %.` : ""}${variants[0]!.mediaAssetId ? " Avec un média." : ""}${buttonsLine(variants[0]!.buttons)}`,
+        summary: `${when}, « ${d.name} », par ${p.botName || "le bot"} : ${describeSegment(d.segment)}.${ab.enabled ? ` Test A/B ${ab.split} % / ${100 - ab.split} %.` : ""}${firstMedia ? mediaSentence([firstMedia.mimeType], Math.max(1, forwardedMediaCount), "un envoi ne joint qu'un média") : ""}${buttonsLine(variants[0]!.buttons)}`,
         exactText: p.exactText,
         recipients: p.recipients,
       },

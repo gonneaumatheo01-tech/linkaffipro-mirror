@@ -11,6 +11,7 @@ import { enqueueDm } from "@linkaffipro/queue";
 import { ensureDefaultSequences, previewText, type SequenceTriggerKey } from "@linkaffipro/telegram";
 import { actingStandardBotFor } from "@/lib/channels/acting-bot";
 import { markCustomEmojisUsed } from "@/lib/custom-emoji/usage";
+import { existingAssets, forwardedMediaList, mediaSentence, providedAssetIds } from "@/lib/site-ops/forwarded-media";
 import { SEQUENCE_LANGS } from "@/app/(admin)/channels/[id]/sequences/langs";
 import { fail, ok, preview, resolveChannelRef, str, viaMeta, type CoreRun, type SiteOpResult } from "./common";
 
@@ -108,6 +109,24 @@ export const sequenceTextSave: CoreRun = async (input, actor, opts = {}) => {
   const content = input.content as { html?: unknown } | undefined;
   const fields: Record<string, unknown> = { ...c.fields };
   if (input.text === undefined && content?.html !== undefined) fields.text = str(content.html);
+  // Médias du message transféré (règle 6) : rangés par le déroulé de Kevin avant l'essai à blanc. Un message du bot
+  // joint un seul média (le premier ; l'aperçu dit combien sont gardés) ; sans média fourni, refus (jamais perdu en
+  // silence).
+  const forwardedCount = forwardedMediaList(input).length;
+  let media: { id: string; mimeType: string } | null = null;
+  if (forwardedCount > 0) {
+    const ids = providedAssetIds(input);
+    if (ids.length === 0)
+      return fail(
+        "Le message transféré contient une photo ou une vidéo : ajoutez-la d'abord à la médiathèque, puis redemandez ce message avec ce média.",
+        "invalid",
+        "mediaAssetId",
+      );
+    const found = await existingAssets(ids.slice(0, 1));
+    if (!found) return fail("Média introuvable.", "not_found", "mediaAssetId");
+    media = found[0]!;
+  }
+  const mediaLine = media ? `,${mediaSentence([media.mimeType], forwardedCount, "un message du bot ne joint qu'un média").replace(/^ Avec/, " avec").replace(/\.$/, "")}` : "";
   const parsed = saveSchema.safeParse({ channelId: fields.channelId, trigger: fields.trigger, lang: fields.lang, text: fields.text });
   if (!parsed.success) return unreadable();
   const { channelId, trigger, lang, text } = parsed.data;
@@ -120,10 +139,13 @@ export const sequenceTextSave: CoreRun = async (input, actor, opts = {}) => {
   const v = validateTelegramHtml(text.trim());
   if (!v.ok) return fail(v.error, "invalid", "text");
   if (opts.dryRun)
-    return preview({ summary: `Texte ${lang.toUpperCase()} du ${TRIGGER_LABELS[trigger]} de « ${c.channelName || channelId} » :`, exactText: v.html });
+    return preview({ summary: `Texte ${lang.toUpperCase()} du ${TRIGGER_LABELS[trigger]} de « ${c.channelName || channelId} »${mediaLine} :`, exactText: v.html });
   const { seq, step, texts } = await stepFor(channelId, trigger);
   texts[lang] = v.html;
-  await prisma.sequenceStep.update({ where: { id: step.id }, data: { texts: texts as unknown as Prisma.InputJsonValue } });
+  await prisma.sequenceStep.update({
+    where: { id: step.id },
+    data: { texts: texts as unknown as Prisma.InputJsonValue, ...(media ? { mediaAssetId: media.id } : {}) },
+  });
   // Emojis animés du texte : « Récents de l'équipe » dans le sélecteur (phase 12).
   await markCustomEmojisUsed(v.html);
   await audit({
@@ -131,9 +153,9 @@ export const sequenceTextSave: CoreRun = async (input, actor, opts = {}) => {
     action: "sequence.text_saved",
     entityType: "Sequence",
     entityId: seq.id,
-    metadata: { trigger, lang, ...viaMeta(actor) },
+    metadata: { trigger, lang, ...(media ? { mediaAssetId: media.id } : {}), ...viaMeta(actor) },
   });
-  return ok(`Texte ${lang.toUpperCase()} enregistré.`, { channelId, trigger, lang });
+  return ok(`Texte ${lang.toUpperCase()} enregistré${media ? ", avec son média" : ""}.`, { channelId, trigger, lang });
 };
 
 const translationsSchema = z.object({

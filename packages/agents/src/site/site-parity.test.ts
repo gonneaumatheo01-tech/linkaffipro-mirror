@@ -1,8 +1,8 @@
 /**
  * Phase 34, chantier A — garde-fou « tout par Kevin » (règle 5) : inventaire des actions serveur du site et
  * correspondance avec Kevin. 1. Fixture de 5 fichiers d'actions (`fixtures/site-parity/`). 2. Le VRAI site
- * (`apps/web`) : zéro manquant, zéro correspondance fausse (désactivable pendant la phase 34 par
- * `KEVIN_PARITY_PENDING=1`, le temps que les lots des chantiers B à E soient remplis).
+ * (`apps/web`) : zéro manquant, zéro correspondance fausse.
+ * Garde permanent : toute action serveur du site doit avoir un équivalent Kevin ou une exclusion documentée.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -160,7 +160,7 @@ describe("registre des opérations", () => {
 
 describe("le vrai site : chaque action serveur est faisable par Kevin", () => {
   // Le coordinateur de la phase 34 rend ce test obligatoire quand les lots B à E sont remplis (sans la variable).
-  it.skipIf(process.env.KEVIN_PARITY_PENDING === "1")("zéro manquant, zéro correspondance fausse (pnpm kevin:parity)", async () => {
+  it("zéro manquant, zéro correspondance fausse (pnpm kevin:parity)", async () => {
     const { realParity } = await import("./parity-real");
     const { report } = realParity(WEB);
     expect(report.covered.length + report.excluded.length + report.missing.length).toBeGreaterThan(100);

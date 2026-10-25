@@ -355,6 +355,21 @@ describe("messages du bot (séquences)", () => {
     expect(r.ok && r.preview?.exactText).toBe(`Bienvenue <b>{prenom}</b> ${EMOJI}`);
     nothingDone();
   });
+  it("accueil transféré avec photo : refusé sans média rangé ; avec le média de Kevin, aperçu « avec une photo » et média joint", async () => {
+    const content = { html: "Bienvenue", media: [{ kind: "photo", fileId: "f1" }, { kind: "photo", fileId: "f2" }], receivedAt: new Date().toISOString() };
+    expect(err(await seq.sequenceTextSave({ channelId: "ch1", trigger: "accueil", content }, MANAGER, { dryRun: true }))).toContain("médiathèque");
+    nothingDone();
+    db.answers.set("mediaAsset.findMany", [{ id: "a1", mimeType: "image/jpeg" }]);
+    const dry = await seq.sequenceTextSave({ channelId: "ch1", trigger: "accueil", content, mediaAssetId: "a1", mediaAssetIds: ["a1", "a2"] }, MANAGER, { dryRun: true });
+    expect(dry.ok && dry.preview?.summary).toContain(", avec une photo (1 photo sur 2 gardée : un message du bot ne joint qu'un média) :");
+    nothingDone();
+    const updates: Row[] = [];
+    db.answers.set("sequence.findFirst", { id: "s1", steps: [{ id: "st1", texts: {}, mediaAssetId: null }] });
+    db.answers.set("sequenceStep.update", (a: Row) => (updates.push(a), { id: "st1" }));
+    const real = await seq.sequenceTextSave({ channelId: "ch1", trigger: "accueil", content, mediaAssetId: "a1", mediaAssetIds: ["a1", "a2"] }, MANAGER);
+    expect(real).toMatchObject({ ok: true, message: "Texte FR enregistré, avec son média." });
+    expect(updates[0]).toMatchObject({ where: { id: "st1" }, data: { mediaAssetId: "a1" } });
+  });
   it("test sur soi-même : aperçu exact, un seul destinataire, rien en file à blanc", async () => {
     db.answers.set("channel.findUnique", { id: "ch1", title: "Zone" });
     db.answers.set("member.findUnique", { id: "m1", botStates: [{ canDm: true }] });
@@ -399,6 +414,34 @@ describe("messages de canal", () => {
     expect(err(await posts.postSchedule({ channelIds: ["ch1"], content, scheduledAt: soon() }, MANAGER, { dryRun: true }))).toContain(
       "médiathèque",
     );
+    nothingDone();
+  });
+  it("médias rangés par Kevin avant l'essai à blanc : acceptés dans l'ordre, l'aperçu dit « avec 2 photos et 1 vidéo »", async () => {
+    const content = {
+      html: "Album",
+      media: [{ kind: "photo", fileId: "f1" }, { kind: "photo", fileId: "f2" }, { kind: "video", fileId: "f3" }],
+      receivedAt: new Date().toISOString(),
+    };
+    db.answers.set("mediaAsset.findMany", [
+      { id: "a3", mimeType: "video/mp4" },
+      { id: "a1", mimeType: "image/jpeg" },
+      { id: "a2", mimeType: "image/jpeg" },
+    ]);
+    const r = await posts.postSchedule(
+      { channelIds: ["ch1"], content, mediaAssetId: "a1", mediaAssetIds: ["a1", "a2", "a3"], scheduledAt: soon() },
+      MANAGER,
+      { dryRun: true },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.preview?.summary).toContain("Avec 2 photos et 1 vidéo.");
+    // Aucun média cherché par identifiant de fichier Telegram : ceux du déroulé suffisent.
+    expect(db.calls).not.toContain("mediaAssetTelegramFile.findMany");
+    nothingDone();
+  });
+  it("média donné par Kevin mais introuvable : refusé", async () => {
+    const content = { html: "Photo", media: [{ kind: "photo", fileId: "AgAD" }], receivedAt: new Date().toISOString() };
+    const r = await posts.postSchedule({ channelIds: ["ch1"], content, mediaAssetIds: ["zz"], scheduledAt: soon() }, MANAGER, { dryRun: true });
+    expect(r).toMatchObject({ ok: false, code: "not_found" });
     nothingDone();
   });
   it("retirer ou supprimer sur Telegram : administrateurs seulement ; statut vérifié comme sur le site", async () => {

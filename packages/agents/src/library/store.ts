@@ -273,3 +273,58 @@ export async function libraryAlbumLine(
   if (failed > 0) lines.push(`${failed} média${failed > 1 ? "s" : ""} n'${failed > 1 ? "ont" : "a"} pas pu être rangé${failed > 1 ? "s" : ""} : renvoie-le${failed > 1 ? "s" : ""}.`);
   return lines.join("\n");
 }
+
+/** Mot-clé posé sur un média repris d'un message transféré à Kevin (phase 34) : retrouvable, jamais classé d'office. */
+export const FORWARDED_MEDIA_TAG = "transfert-kevin";
+
+export type StoreForwardedMediaInput = {
+  bytes: Uint8Array;
+  mimeType: string;
+  filename: string;
+  /** Bot qui a reçu le message transféré (le bot du dialogue admin : l'identifiant de fichier lui est propre). */
+  botId: string;
+  telegramFileId: string;
+  /** Pas connu sans le message d'origine : l'identifiant de fichier à défaut. */
+  fileUniqueId?: string | null;
+};
+
+/**
+ * Phase 34 — média d'un message transféré à Kevin, repris pour un post, un envoi ou un message du bot (règle 6 : le
+ * contenu reste fidèle, médias compris). Sans légende ni mot-clé : ni équipe, ni thème, ni persona ; jamais compté pour
+ * une demande de médias ; pas de copie dans le canal « Médiathèque » (le message d'origine n'est plus là). Dédoublonné
+ * par empreinte (un média déjà rangé garde son classement) ; l'identifiant de fichier du bot est mémorisé (une seconde
+ * reprise du même fichier ne télécharge plus rien).
+ */
+export async function storeForwardedMedia(
+  deps: AgentsDeps,
+  input: StoreForwardedMediaInput,
+): Promise<{ assetId: string; created: boolean }> {
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const existing = await deps.prisma.mediaAsset.findUnique({ where: { sha256 }, select: { id: true } });
+  let assetId: string;
+  if (existing) assetId = existing.id;
+  else {
+    const created = await deps.prisma.mediaAsset.create({
+      data: {
+        filename: input.filename,
+        mimeType: input.mimeType,
+        size: input.bytes.byteLength,
+        sha256,
+        bytes: Buffer.from(input.bytes),
+        tags: [FORWARDED_MEDIA_TAG],
+        kind: defaultKindFor(input.mimeType),
+        origin: "HUMAN",
+      },
+      select: { id: true },
+    });
+    assetId = created.id;
+  }
+  const fileUniqueId = input.fileUniqueId || input.telegramFileId;
+  await deps.prisma.mediaAssetTelegramFile.upsert({
+    where: { assetId_botId: { assetId, botId: input.botId } },
+    create: { assetId, botId: input.botId, telegramFileId: input.telegramFileId, fileUniqueId },
+    update: { telegramFileId: input.telegramFileId, fileUniqueId },
+  });
+  await agentEvent(deps, "agents.library.forwarded_stored", { assetId, created: !existing });
+  return { assetId, created: !existing };
+}

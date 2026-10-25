@@ -252,6 +252,35 @@ describe("écrire à un groupe (« envoie ce message à tous les membres de Zone
     expect(db.writes).toEqual([]);
   });
 
+  it("médias rangés par Kevin avant l'essai à blanc : le premier est joint, l'aperçu dit « 1 photo sur 3 gardée »", async () => {
+    const album = { ...forwarded, media: [{ kind: "photo" as const, fileId: "f1" }, { kind: "photo" as const, fileId: "f2" }, { kind: "photo" as const, fileId: "f3" }] };
+    db.data.mediaAsset = { findMany: () => [{ id: "a1", mimeType: "image/jpeg" }] };
+    const dry = await createBroadcast(
+      { content: album, mediaAssetId: "a1", mediaAssetIds: ["a1", "a2", "a3"], channels: ["Zone Interdite"], scheduledAt: `${tomorrow}T20:00` },
+      KEVIN,
+      { dryRun: true },
+    );
+    expect(dry.ok).toBe(true);
+    if (dry.ok) expect(dry.preview?.summary).toContain("Avec une photo (1 photo sur 3 gardée : un envoi ne joint qu'un média).");
+    expect(db.writes).toEqual([]);
+    let created: { data: { mediaAssetId: string | null } } | null = null;
+    db.data.broadcast = { create: (a) => ((created = a as typeof created), { id: "b1" }) };
+    const r = await createBroadcast({ content: album, mediaAssetId: "a1", mediaAssetIds: ["a1", "a2", "a3"], channels: ["Zone Interdite"], scheduledAt: `${tomorrow}T20:00` }, KEVIN);
+    expect(r.ok).toBe(true);
+    expect(created!.data.mediaAssetId).toBe("a1");
+  });
+
+  it("une seule photo : « Avec une photo. » ; média donné mais introuvable : refusé, rien d'écrit", async () => {
+    const one = { ...forwarded, media: [{ kind: "photo" as const, fileId: "f1" }] };
+    db.data.mediaAsset = { findMany: () => [{ id: "a1", mimeType: "image/jpeg" }] };
+    const dry = await createBroadcast({ content: one, mediaAssetId: "a1", channels: ["Zone Interdite"], scheduledAt: `${tomorrow}T20:00` }, KEVIN, { dryRun: true });
+    expect(dry.ok && dry.preview?.summary).toMatch(/Avec une photo\.$/);
+    db.data.mediaAsset = { findMany: () => [] };
+    const missing = await createBroadcast({ content: one, mediaAssetId: "zz", channels: ["Zone Interdite"], scheduledAt: `${tomorrow}T20:00` }, KEVIN);
+    expect(missing).toMatchObject({ ok: false, code: "not_found" });
+    expect(db.writes).toEqual([]);
+  });
+
   it("envoyer maintenant : aperçu exact et destinataires ; déjà parti refusé ; annuler à blanc sans écriture", async () => {
     db.data.broadcast = {
       findUniqueOrThrow: () => ({ id: "b1", name: "Bonus", status: "DRAFT", botId: "bot1", text: "Salut {prenom} !", segment: { channelIds: ["ch1"] }, buttons: [] }),

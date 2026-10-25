@@ -5,7 +5,7 @@
 import { bookmakerKevinHook, bookmakerTransportHooks, type AgentsDeps, type BookmakerReadDeps, type EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
 import { createAgentsEnqueue } from "@linkaffipro/queue";
-import { createAdminMessenger } from "@linkaffipro/telegram";
+import { createAdminMessenger, createBossMediaIngest } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { createFrameExtractor } from "./frames";
 import { createRedisOddsCache } from "./odds-cache";
@@ -32,6 +32,9 @@ export function workerAgentsDeps(): EngineDeps {
   // Phase 34 : opérations du site pour Kevin (entrée interne signée du site ; absente sans APP_BASE_URL ou sans clé).
   const siteOps = siteOpsClientFromEnv(process.env, { warn: (o, m) => logger.warn(o, m) });
   if (siteOps) deps.siteOps = siteOps;
+  // Phase 34 : médias d'un message transféré à Kevin rangés dans la médiathèque avant l'essai à blanc.
+  const ingest = createBossMediaIngest();
+  deps.ingestForwardedMedia = (content) => ingest(deps, content);
   // Bookmakers lus directement (phase 35) : transport choisi par site, verrou, rythme et messages de Kevin, pour
   // l'équipe Paris (double lecture au Contrôle) comme pour Kevin (« la cote de … chez Sportaza ? »).
   (deps as BookmakerReadDeps).bookmakers = { ...bookmakerTransportHooks(deps), onBookmakerEvent: bookmakerKevinHook(deps) };

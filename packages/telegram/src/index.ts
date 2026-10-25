@@ -267,6 +267,8 @@ export {
   BOSS_OTHER_MESSAGE_REPLY,
 } from "./boss/reply";
 export type { BossReplyApi, DeliverBossReplyInput } from "./boss/reply";
+export { createBossMediaIngest, forwardedMimeOf, BOSS_MEDIA_MAX_BYTES, BOSS_MEDIA_MAX_COUNT } from "./boss/media-ingest";
+export type { BossMediaIngest, BossMediaIngestOptions, BotFileApi } from "./boss/media-ingest";
 export { adminRouteFor, bossRedirectText, bossWelcomeText, bossNameOf, commandAsText, registerAdminDialogFallback } from "./handlers/agents-admin";
 export type { AdminRoute } from "./handlers/agents-admin";
 export { handleBossGroupUpdate, isBossGroupChat } from "./handlers/boss-group";

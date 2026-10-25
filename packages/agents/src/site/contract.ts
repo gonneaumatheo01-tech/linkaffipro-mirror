@@ -160,6 +160,14 @@ export type ForwardedContent = {
   receivedAt: string;
 };
 
+/**
+ * Médias d'un message transféré rangés dans la médiathèque avant l'essai à blanc (règle 6 : médias compris). Rend les
+ * `MediaAsset` dans l'ordre du message (10 au plus, la limite d'un album Telegram), ou une erreur : `too_big` (plus de
+ * 20 Mo, limite de l'API Bot), `no_bot` (aucun bot du dialogue admin), `failed` (Telegram ou le téléchargement).
+ */
+export type ForwardedMediaIngestResult = { assetIds: string[] } | { error: string; code: "too_big" | "no_bot" | "failed" };
+export type ForwardedMediaIngest = (content: ForwardedContent) => Promise<ForwardedMediaIngestResult>;
+
 export type ReceivedDocument = { fileName: string; mimeType: string | null; sizeBytes: number; text: string; receivedAt: string };
 
 /** Signatures attendues du chantier F (le chantier A les importe par ces noms). */

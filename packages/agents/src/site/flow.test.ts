@@ -253,6 +253,78 @@ describe("déroulé : envoi (aperçu exact + destinataires + OUI)", () => {
   });
 });
 
+describe("déroulé : message transféré avec médias (règle 6)", () => {
+  const withPhoto = (n = 1) => ({
+    html: "<b>Ce soir</b> on joue",
+    media: Array.from({ length: n }, (_, i) => ({ kind: "photo" as const, fileId: `AgAD${i}` })),
+    from: "@source",
+    receivedAt: "2026-10-23T08:00:00Z",
+  });
+  const siteWithMedia = () =>
+    fakeSite((r) => {
+      const media = typeof r.input.mediaAssetId === "string" ? " Avec une photo." : "";
+      return r.dryRun
+        ? { ok: true, message: "", preview: { summary: `Envoi aux membres de Zone Interdite, demain 20 h.${media}`, exactText: "<b>Ce soir</b> on joue", recipients: 12 } }
+        : { ok: true, message: "Envoi programmé pour demain 20 h." };
+    });
+
+  it("photo rangée AVANT l'essai à blanc : l'essai reçoit mediaAssetId, l'aperçu dit « avec une photo », l'envoi garde le même média", async () => {
+    const site = siteWithMedia();
+    const kit = await kitWith([["envoie ça à zone interdite demain 20h", tool("envois.creer", { canal: "Zone Interdite", quand: "demain 20:00" })]], site);
+    const ingest = vi.fn(async (c: { media: unknown[] }) => ({ assetIds: c.media.map((_, i) => `asset${i + 1}`) }));
+    kit.deps.ingestForwardedMedia = ingest;
+    forwardedStore.set(ADMIN_TG_ID.toString(), withPhoto(3));
+    const ask = await bossAiTurn(kit.deps, kit.input("envoie ça à zone interdite demain 20h"));
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(site.calls[0]!.dryRun).toBe(true);
+    expect(site.calls[0]!.input).toMatchObject({ mediaAssetId: "asset1", mediaAssetIds: ["asset1", "asset2", "asset3"] });
+    expect(ask.reply).toContain("Avec une photo.");
+    await bossFastPath(kit.deps, kit.input("OUI"));
+    expect(site.real()).toHaveLength(1);
+    // Même média à l'exécution, sans nouvelle ingestion.
+    expect(site.real()[0]!.input).toMatchObject({ mediaAssetId: "asset1" });
+    expect(ingest).toHaveBeenCalledTimes(1);
+  });
+
+  it("média trop lourd : phrase de Kevin, rien n'est appelé sur le site", async () => {
+    const site = siteWithMedia();
+    const kit = await kitWith([["envoie ça à zone interdite", tool("envois.creer", { canal: "Zone Interdite" })]], site);
+    kit.deps.ingestForwardedMedia = async () => ({ error: "vidéo de plus de 20 Mo", code: "too_big" as const });
+    forwardedStore.set(ADMIN_TG_ID.toString(), withPhoto());
+    const r = await bossAiTurn(kit.deps, kit.input("envoie ça à zone interdite"));
+    expect(site.calls).toHaveLength(0);
+    expect(r.reply).toMatch(/20 Mo/);
+    okVoice(r.reply);
+    // Le contenu reste disponible (rien n'est consommé) : l'admin peut renvoyer une version plus légère.
+    expect(forwardedStore.has(ADMIN_TG_ID.toString())).toBe(true);
+  });
+
+  it("téléchargement en échec : phrase de Kevin, rien n'est envoyé", async () => {
+    const site = siteWithMedia();
+    const kit = await kitWith([["envoie ça à zone interdite", tool("envois.creer", { canal: "Zone Interdite" })]], site);
+    kit.deps.ingestForwardedMedia = async () => {
+      throw new Error("réseau");
+    };
+    forwardedStore.set(ADMIN_TG_ID.toString(), withPhoto());
+    const r = await bossAiTurn(kit.deps, kit.input("envoie ça à zone interdite"));
+    expect(site.calls).toHaveLength(0);
+    okVoice(r.reply);
+  });
+
+  it("sans média, ou sans ingestion branchée : rien ne change (le site décide)", async () => {
+    const site = siteWithMedia();
+    const kit = await kitWith([["envoie ça à zone interdite", tool("envois.creer", { canal: "Zone Interdite" })]], site);
+    forwardedStore.set(ADMIN_TG_ID.toString(), withPhoto());
+    await bossAiTurn(kit.deps, kit.input("envoie ça à zone interdite"));
+    expect(site.calls[0]!.input.mediaAssetId).toBeUndefined();
+  });
+
+  it("textes des erreurs de médias : voix de Kevin", async () => {
+    const { SITE_FLOW_VARIANTS } = await import("./flow");
+    for (const t of [...SITE_FLOW_VARIANTS.mediaTooBig, ...SITE_FLOW_VARIANTS.mediaFailed]) okVoice(t);
+  });
+});
+
 describe("valeur manquante : question, puis boutons", () => {
   it("champ sans liste : une question de collègue", async () => {
     const site = fakeSite(() => ({ ok: false, code: "invalid", field: "pays", error: "Le champ pays est obligatoire." }));
