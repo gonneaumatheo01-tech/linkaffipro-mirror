@@ -35,6 +35,39 @@ function wallDate(at: Date, tz: string): { y: number; m: number; d: number } {
 
 const TODAY = /\b(aujourd['’ ]?hui|auj|today|hoy|heute|oggi|hoje)\b/gi;
 const TOMORROW = /\b(demain|tomorrow|manana|mañana|morgen|domani|amanha|amanhã)\b/i;
+const AFTER_TOMORROW = /\b(apr[eè]s[- ]demain|day after tomorrow|[uü]bermorgen|pasado ma[nñ]ana|dopodomani|depois de amanh[aã])\b/i;
+// Mois en lettres (fr, en, es, de, it, pt ; abrégés ou complets) : « 28 oct., 18:30 », « Oct 28, 18:30 », « 28 octobre 2026 ».
+const MONTHS: Array<[RegExp, number]> = [
+  [/\b(janv?|jan|january|janvier|enero|ene|januar|gennaio|gen|janeiro)\b/i, 1],
+  [/\b(f[ée]vr?|feb|february|f[ée]vrier|febrero|februar|febbraio|fevereiro|fev)\b/i, 2],
+  [/\b(mars|mar|march|marzo|m[äa]rz|mar[çc]o)\b/i, 3],
+  [/\b(avr|apr|april|avril|abril|abr|aprile)\b/i, 4],
+  [/\b(mai|may|mayo|maggio|mag|maio)\b/i, 5],
+  [/\b(juin|jun|june|junio|juni|giugno|giu|junho)\b/i, 6],
+  [/\b(juil|jul|july|juillet|julio|juli|luglio|lug|julho)\b/i, 7],
+  [/\b(ao[uû]t?|aug|august|agosto|ago)\b/i, 8],
+  [/\b(sept?|sep|september|septembre|septiembre|settembre|set|setembro)\b/i, 9],
+  [/\b(oct|october|octobre|octubre|okt|oktober|ottobre|ott|outubro|out)\b/i, 10],
+  [/\b(nov|november|novembre|noviembre|novembro)\b/i, 11],
+  [/\b(d[ée]c|dec|december|d[ée]cembre|diciembre|dic|dezember|dez|dicembre|dezembro)\b/i, 12],
+];
+
+/** « 28 oct. », « 28 octobre 2026 », « Oct 28 » → jour, mois, année facultative ; null sinon. Pur. */
+function dayMonthName(t: string): { d: number; mo: number; y: number | null } | null {
+  for (const [re, mo] of MONTHS) {
+    const m = re.exec(t);
+    if (!m) continue;
+    const before = t.slice(0, m.index);
+    const after = t.slice(m.index + m[0].length);
+    const dBefore = /(\d{1,2})\.?\s*$/.exec(before);
+    const dAfter = /^\.?,?\s*(\d{1,2})(?!\d|:)/.exec(after);
+    const d = dBefore ? Number(dBefore[1]) : dAfter ? Number(dAfter[1]) : null;
+    if (d === null || d < 1 || d > 31) continue;
+    const y = /\b(20\d{2})\b/.exec(after.replace(/\d{1,2}[:h]\d{2}/, " "))?.[1];
+    return { d, mo, y: y ? Number(y) : null };
+  }
+  return null;
+}
 
 export function parseSiteDate(raw: string | null | undefined, tz: string, now: Date): Date | null {
   if (!raw) return null;
@@ -55,7 +88,9 @@ export function parseSiteDate(raw: string | null | undefined, tz: string, now: D
   let mo: number | null = null;
   let d: number | null = null;
   const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  const dmy = /(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?/.exec(t.replace(time![0], " "));
+  const sansHeure = t.replace(time![0], " ");
+  const dmy = /(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?/.exec(sansHeure);
+  const named = iso || dmy ? null : dayMonthName(sansHeure);
   const today = wallDate(now, tz);
   if (iso) [y, mo, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
   else if (dmy) {
@@ -64,7 +99,13 @@ export function parseSiteDate(raw: string | null | undefined, tz: string, now: D
     y = dmy[3] ? (dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3])) : today.y;
     // « 02/01 » vu le 30 décembre : l'an prochain.
     if (!dmy[3] && mo < today.m - 6) y = today.y + 1;
-  } else if (TOMORROW.test(t)) {
+  } else if (named) {
+    ({ d, mo } = named);
+    y = named.y ?? (named.mo < today.m - 6 ? today.y + 1 : today.y);
+  } else if (AFTER_TOMORROW.test(sansHeure)) {
+    const w = wallDate(new Date(now.getTime() + 2 * 86_400_000), tz);
+    [y, mo, d] = [w.y, w.m, w.d];
+  } else if (TOMORROW.test(sansHeure)) {
     const w = wallDate(new Date(now.getTime() + 86_400_000), tz);
     [y, mo, d] = [w.y, w.m, w.d];
   } else {

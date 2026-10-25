@@ -55,6 +55,15 @@ export function forbiddenReadUrlReason(url: string, allowedHosts: readonly strin
   return readUrlExtraReason(url);
 }
 
+/**
+ * Pur : la page « coupon » du moteur Altenar (`?page=coupon&sportId=66&couponType=1`) est le PROGRAMME du jour (liste
+ * des matchs d'un sport), pas un ticket de paris : seule cette forme exacte (sport et type numériques) est tolérée ;
+ * tout autre « coupon » dans une adresse reste interdit.
+ */
+export function isAltenarProgrammeUrl(u: URL): boolean {
+  return u.searchParams.get("page") === "coupon" && /^\d{1,6}$/.test(u.searchParams.get("sportId") ?? "") && /^\d{1,3}$/.test(u.searchParams.get("couponType") ?? "");
+}
+
 /** Pur : mots de lecture interdits seulement (le domaine est contrôlé par la garde de base). */
 export function readUrlExtraReason(url: string): string | null {
   let u: URL;
@@ -63,8 +72,12 @@ export function readUrlExtraReason(url: string): string | null {
   } catch {
     return "adresse invalide";
   }
+  const programme = isAltenarProgrammeUrl(u);
   const parts = [u.pathname, u.hash.slice(1)];
-  for (const [k, v] of u.searchParams) parts.push(k, v);
+  for (const [k, v] of u.searchParams) {
+    if (programme && k === "page" && v === "coupon") continue;
+    parts.push(k, v);
+  }
   for (const raw of parts) {
     let t = raw;
     for (let i = 0; i < 4; i++) {

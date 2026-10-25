@@ -40,6 +40,8 @@ const FORBIDDEN_ATTR: RegExp[] = [
 
 /** Texte d'une cote (« 2,10 », « 1.85 ») : un élément cliquable qui n'affiche que ça ajoute la cote au ticket. */
 export const ODDS_LIKE_TEXT = /^\s*\d{1,3}[.,]\d{1,3}\s*$/;
+/** Une cote quelque part dans un texte (« FC Pacific 6.00 », « Plus de 2.5 1.95 »). */
+export const ODDS_IN_TEXT = /(^|[^\d])\d{1,3}[.,]\d{2}([^\d]|$)/;
 
 // Adresses refusées même sur le domaine du bookmaker.
 const FORBIDDEN_PATH = /\/(deposit|withdraw|cashier|payment|checkout|wallet|account|profile|settings|preferences|limits|kyc|documents|register|signup|logout|bonus|promotions?)(\/|\?|#|$)/i;
@@ -70,7 +72,8 @@ const FORBIDDEN_FIELD = /stake|amount|montant|\bmise\b|einsatz|importe|valor|dep
 // Pour l'identifiant de connexion : seulement l'argent (un identifiant peut s'appeler « account » ou « phone »).
 const FORBIDDEN_LOGIN_FIELD = /stake|amount|montant|\bmise\b|einsatz|deposit|withdraw|card|carte|iban|cvv|cvc/;
 
-export type ClickPurpose = "open_login" | "login_submit" | "cookie_accept" | "open_search" | "search_result" | "market_tab" | "show_more";
+/** `navigate` (phase 35, suite) : un élément de navigation d'un widget (sport, jour, nom d'un match) ; mêmes règles que `market_tab`, aucune tolérance de plus. */
+export type ClickPurpose = "open_login" | "login_submit" | "cookie_accept" | "open_search" | "search_result" | "market_tab" | "show_more" | "navigate";
 export type FillPurpose = "login" | "password" | "search";
 
 /** Description d'un élément visé (texte et attributs de l'élément, de son bouton ou lien et de ses descendants). */
@@ -105,6 +108,10 @@ export function forbiddenClickReason(d: TargetDescription, purpose: ClickPurpose
   }
   // Un élément (ou un bouton qu'il contient) qui n'affiche qu'une cote : un clic l'ajouterait au ticket.
   if (ODDS_LIKE_TEXT.test(d.ownText ?? d.text)) return "texte d'une cote";
+  // Un BOUTON qui affiche une cote à côté d'un libellé (« FC Pacific 6.00 », widgets Altenar / Betby) : même chose.
+  const clickableTag = d.tag ?? "";
+  const isButton = clickableTag === "button" || /(^|\s)role=button(\s|$)/.test(attrs);
+  if (isButton && ODDS_IN_TEXT.test(d.ownText ?? d.text)) return "bouton affichant une cote";
   const nested = d.nestedTexts ?? [];
   if (nested.some((t) => ODDS_LIKE_TEXT.test(t))) return "contient une cote cliquable";
   // Un résultat de recherche se suit par son adresse (`GuardedPage.follow`), jamais par un clic sur un bloc à boutons.
@@ -128,6 +135,52 @@ export function forbiddenFillReason(d: TargetDescription, purpose: FillPurpose):
   return null;
 }
 
+// Suffixes publics de second niveau courants (« co.uk ») : l'étiquette de marque est celle qui les précède.
+const SECOND_LEVEL_SUFFIX = new Set(["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go"]);
+
+/** Pur : étiquette de marque d'un domaine (« sportaza » pour www.sportaza-5178.com, « celsiuscasino » pour celsiuscasino.com). */
+export function brandLabel(host: string): string {
+  const parts = host.toLowerCase().split(".").filter(Boolean);
+  if (parts.length < 2) return parts[0] ?? "";
+  const i = parts.length >= 3 && SECOND_LEVEL_SUFFIX.has(parts[parts.length - 2]!) ? parts.length - 3 : parts.length - 2;
+  return parts[i] ?? "";
+}
+
+/** Pur : domaine enregistrable (« sportaza-5178.com », « sportaza.co.uk »). */
+export function registrableDomain(host: string): string {
+  const parts = host.toLowerCase().split(".").filter(Boolean);
+  if (parts.length < 2) return host.toLowerCase();
+  const n = parts.length >= 3 && SECOND_LEVEL_SUFFIX.has(parts[parts.length - 2]!) ? 3 : 2;
+  return parts.slice(-n).join(".");
+}
+
+// Un miroir de la marque : même étiquette suivie d'un numéro (« sportaza-5178 ») ou d'un mot du métier (« celsiuscasino »).
+const MIRROR_SUFFIX = /^(-?\d{1,6}|-?(casino|bet|bets|betting|game|games|sport|sports|play|online|official|live|app))$/;
+
+/**
+ * Pur : `host` est-il un MIROIR d'un des domaines permis ? Les bookmakers changent d'adresse (miroirs numérotés
+ * « sportaza-5178.com », marque longue « celsiuscasino.com » pour « celsius.games ») et y renvoient eux-mêmes ; la
+ * marque doit rester reconnaissable (étiquette d'au moins 5 lettres). Toutes les autres règles (sous-domaines d'argent,
+ * pages interdites) s'appliquent au miroir comme à l'original.
+ */
+export function brandMirrorOf(host: string, allowedHosts: readonly string[]): string | null {
+  const label = brandLabel(host);
+  if (!label) return null;
+  for (const a of allowedHosts) {
+    const la = brandLabel(a);
+    if (la.length < 5 || !label.startsWith(la)) continue;
+    const rest = label.slice(la.length);
+    if (rest === "" || MIRROR_SUFFIX.test(rest)) return registrableDomain(host);
+  }
+  return null;
+}
+
+/** Pur : domaine permis (ou miroir de marque) qui couvre `host`, sinon null. */
+export function allowedBaseOf(host: string, allowedHosts: readonly string[]): string | null {
+  const h = host.toLowerCase();
+  return allowedHosts.map((x) => x.toLowerCase()).find((x) => h === x || h.endsWith(`.${x}`)) ?? brandMirrorOf(h, allowedHosts);
+}
+
 /** Pur : une adresse est-elle permise (domaine du bookmaker, jamais une page d'argent ou de compte) ? */
 export function forbiddenUrlReason(url: string, allowedHosts: readonly string[]): string | null {
   let u: URL;
@@ -138,9 +191,9 @@ export function forbiddenUrlReason(url: string, allowedHosts: readonly string[])
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return `protocole ${u.protocol}`;
   const host = u.hostname.toLowerCase();
-  const base = allowedHosts.map((h) => h.toLowerCase()).find((h) => host === h || host.endsWith(`.${h}`));
+  const base = allowedBaseOf(host, allowedHosts);
   if (!base) return `domaine ${host} hors du bookmaker`;
-  const sub = host === base ? "" : host.slice(0, -(base.length + 1));
+  const sub = host === base ? "" : host.endsWith(`.${base}`) ? host.slice(0, -(base.length + 1)) : "";
   const badSub = sub.split(".").find((label) => FORBIDDEN_SUBDOMAIN.test(label));
   if (badSub) return `sous-domaine ${badSub}`;
   // Règle appliquée à l'adresse DÉCODÉE : chemin, paramètres (noms et valeurs) et fragment.
@@ -187,9 +240,207 @@ type DomDoc = {
   createElement(tag: string): { textContent: string };
 };
 
+/**
+ * Les fonctions ci-dessous s'exécutent DANS la page (Playwright envoie leur code source). Lancé par `tsx` (runner du
+ * Mac, scripts), le code est transformé avec `keepNames` : les fonctions internes nommées y appellent un aide `__name`
+ * absent de la page (« __name is not defined »). Ce petit script d'initialisation, posé sur chaque contexte de
+ * navigateur AVANT toute page (`installPageHelpers`), le définit s'il manque ; il ne touche à rien d'autre.
+ */
+export const PAGE_HELPERS_INIT_SCRIPT = "(() => { const g = globalThis; if (typeof g.__name !== 'function') g.__name = (f) => f; })();";
+
+/** À appeler sur chaque contexte de navigateur qui recevra une `GuardedPage` (avant d'ouvrir une page). */
+export async function installPageHelpers(context: { addInitScript(script: string): Promise<unknown> }): Promise<void> {
+  await context.addInitScript(PAGE_HELPERS_INIT_SCRIPT);
+}
+
+type Evaluable = { evaluate(fn: unknown, arg?: unknown): Promise<unknown> };
+
+/**
+ * Évalue dans la page en tolérant l'absence de l'aide `__name` (contexte ouvert sans `installPageHelpers`, tests,
+ * scripts) : au premier « __name is not defined », l'aide est posée dans tous les cadres de la page, puis on réessaie
+ * une fois. Toute autre erreur remonte telle quelle.
+ */
+async function evaluateSafe<T>(page: Page, target: Evaluable, fn: unknown, arg?: unknown): Promise<T> {
+  try {
+    return (await target.evaluate(fn, arg)) as T;
+  } catch (err) {
+    if (!/__name is not defined/.test(String((err as Error)?.message ?? err))) throw err;
+    for (const f of page.frames()) await f.evaluate(PAGE_HELPERS_INIT_SCRIPT).catch(() => undefined);
+    return (await target.evaluate(fn, arg)) as T;
+  }
+}
+
+/** Côté page : nombre d'éléments feuilles qui n'affichent qu'une cote (« 1,85 », « 2.10 »), shadow DOM compris ; 60 au plus. */
+function countOddsLike(): number {
+  type N = { nodeType: number; nodeName: string; nodeValue: string | null; childNodes: ArrayLike<N>; shadowRoot?: { childNodes: ArrayLike<N> } | null };
+  const g = globalThis as unknown as { document: { body: N | null } };
+  let n = 0;
+  const walk = (node: N) => {
+    if (n >= 60) return;
+    if (node.nodeType === 3) {
+      if (/^\s*\d{1,3}[.,]\d{2,3}\s*$/.test(node.nodeValue ?? "")) n++;
+      return;
+    }
+    if (node.nodeType !== 1 || /^(script|style|noscript|template)$/i.test(node.nodeName)) return;
+    if (node.shadowRoot) for (let i = 0; i < node.shadowRoot.childNodes.length; i++) walk(node.shadowRoot.childNodes[i]!);
+    for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]!);
+  };
+  if (g.document.body) walk(g.document.body);
+  return n;
+}
+
+/**
+ * Côté page (sérialisé par Playwright, aucune dépendance) : HTML rendu « aplati » et texte visible d'un document.
+ * - balises ignorées : script, style, noscript, template, link, svg, canvas, video, audio ;
+ * - champs vidés (jamais une valeur saisie) ; attributs très longs (images en base64) ou `srcdoc` omis ;
+ * - un hôte de shadow DOM ouvert reçoit `data-lap-shadow="1"` et son arbre fantôme est écrit à l'intérieur ;
+ * - une iframe reçoit un repère `data-lap-frame-id` et un marqueur `<!--lap-frame:ID-->` que le transport remplace par
+ *   le contenu du cadre (`<lap-frame url>`) ;
+ * - identifiant d'un match gardé seulement dans les données React de l'élément (`eventId`, `event.id`, `match.id`…) :
+ *   posé sur l'élément (`data-lap-event-id`), une fois par match (pas sur ses descendants).
+ * Éléments cachés (`hidden`, `aria-hidden`, `display:none`) : écrits (la lecture les reconnaît), sans leur texte.
+ */
+function flattenDocument([maxHtml, maxText]: readonly [number, number]): { html: string; text: string } {
+  type N = {
+    nodeType: number;
+    nodeName: string;
+    nodeValue: string | null;
+    childNodes: ArrayLike<N>;
+    attributes?: ArrayLike<{ name: string; value: string }>;
+    shadowRoot?: { childNodes: ArrayLike<N> } | null;
+    getAttribute?(n: string): string | null;
+    setAttribute?(n: string, v: string): void;
+  };
+  const g = globalThis as unknown as { document: { documentElement: N | null } };
+  const SKIP = new Set(["script", "style", "noscript", "template", "link", "svg", "canvas", "video", "audio", "object", "embed"]);
+  const FIELD = new Set(["input", "textarea", "select", "option"]);
+  const BLOCK = new Set(["div", "p", "li", "tr", "td", "th", "br", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "header", "footer", "nav", "ul", "ol", "table", "button", "a", "span"]);
+  const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "source", "track", "wbr", "meta"]);
+  const escText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  const out: string[] = [];
+  const txt: string[] = [];
+  let htmlLen = 0;
+  let textLen = 0;
+  let frames = 0;
+  let stop = false;
+  const push = (s: string) => {
+    if (stop) return;
+    out.push(s);
+    htmlLen += s.length;
+    if (htmlLen >= maxHtml) stop = true;
+  };
+  const pushText = (s: string) => {
+    if (textLen >= maxText) return;
+    txt.push(s);
+    textLen += s.length;
+  };
+  const ID_KEYS = ["eventId", "event_id", "matchId", "match_id", "fixtureId", "fixture_id"];
+  const ID_OBJS = ["event", "match", "fixture", "game"];
+  const idOf = (v: unknown): string | null => {
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) return String(v);
+    if (typeof v === "string" && /^[A-Za-z0-9:_-]{3,48}$/.test(v) && /\d/.test(v)) return v;
+    return null;
+  };
+  // Identifiant de match dans les données React (« fibre ») de l'élément : props de l'élément et de ses 6 parents.
+  const reactEventId = (el: N): string | null => {
+    try {
+      const keys = Object.keys(el as unknown as Record<string, unknown>);
+      const fk = keys.find((k) => k.startsWith("__reactFiber$"));
+      if (!fk) return null;
+      let f = (el as unknown as Record<string, unknown>)[fk] as { memoizedProps?: Record<string, unknown>; return?: unknown } | null;
+      for (let hop = 0; f && hop < 6; hop++) {
+        const p = f.memoizedProps;
+        if (p && typeof p === "object") {
+          for (const k of ID_KEYS) {
+            const id = idOf(p[k]);
+            if (id) return id;
+          }
+          for (const k of ID_OBJS) {
+            const o = p[k] as Record<string, unknown> | null | undefined;
+            if (o && typeof o === "object") {
+              const id = idOf(o.id) ?? idOf(o.eventId) ?? idOf(o.event_id);
+              if (id) return id;
+            }
+          }
+        }
+        f = f.return as typeof f;
+      }
+    } catch {
+      /* données illisibles : aucun identifiant */
+    }
+    return null;
+  };
+  const hiddenOf = (el: N): boolean => {
+    const get = el.getAttribute?.bind(el);
+    if (!get) return false;
+    if (get("hidden") !== null || get("aria-hidden") === "true") return true;
+    const style = get("style") ?? "";
+    return /display\s*:\s*none|visibility\s*:\s*hidden/i.test(style);
+  };
+  const walkChildren = (nodes: ArrayLike<N>, hidden: boolean, inheritedId: string | null) => {
+    for (let i = 0; i < nodes.length && !stop; i++) walk(nodes[i]!, hidden, inheritedId);
+  };
+  const walk = (n: N, hidden: boolean, inheritedId: string | null) => {
+    if (stop) return;
+    if (n.nodeType === 3) {
+      const v = n.nodeValue ?? "";
+      if (!v.trim()) {
+        if (v) push(" ");
+        return;
+      }
+      push(escText(v));
+      if (!hidden) pushText(v.replace(/\s+/g, " "));
+      return;
+    }
+    if (n.nodeType !== 1) return;
+    const tag = n.nodeName.toLowerCase();
+    if (SKIP.has(tag)) return;
+    const attrs = n.attributes ? Array.from(n.attributes) : [];
+    const isHidden = hidden || hiddenOf(n);
+    let open = `<${tag}`;
+    for (const a of attrs) {
+      if (FIELD.has(tag) && a.name === "value") continue;
+      if (a.name === "srcdoc" || a.name === "data-lap-event-id" || a.value.length > 800) continue;
+      open += ` ${a.name}="${escAttr(a.value)}"`;
+    }
+    const shadow = n.shadowRoot;
+    if (shadow) open += ' data-lap-shadow="1"';
+    let eventId: string | null = null;
+    const found = reactEventId(n);
+    if (found && found !== inheritedId) {
+      eventId = found;
+      open += ` data-lap-event-id="${escAttr(found)}"`;
+      // Posé aussi sur l'élément vivant : un clic de navigation gardé peut viser « la ligne de ce match ».
+      if (n.getAttribute?.("data-lap-event-id") !== found) n.setAttribute?.("data-lap-event-id", found);
+    }
+    if (tag === "iframe") {
+      let id = n.getAttribute?.("data-lap-frame-id") ?? null;
+      if (!id) {
+        id = `f${frames++}`;
+        n.setAttribute?.("data-lap-frame-id", id);
+      }
+      push(`${open} data-lap-frame-id="${escAttr(id)}"><!--lap-frame:${id}--></iframe>`);
+      return;
+    }
+    push(`${open}>`);
+    if (VOID.has(tag)) return;
+    if (BLOCK.has(tag) && !isHidden) pushText("\n");
+    if (!FIELD.has(tag)) {
+      if (shadow) walkChildren(shadow.childNodes, isHidden, eventId ?? inheritedId);
+      walkChildren(n.childNodes, isHidden, eventId ?? inheritedId);
+    }
+    push(`</${tag}>`);
+    if (BLOCK.has(tag) && !isHidden) pushText("\n");
+  };
+  const root = g.document.documentElement;
+  if (root) walk(root, false, null);
+  return { html: out.join(""), text: txt.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() };
+}
+
 /** Collecte texte et attributs d'un élément, de son bouton / lien englobant et de ses descendants (côté page). */
 async function describe(target: Locator): Promise<TargetDescription> {
-  return target.evaluate((node) => {
+  return evaluateSafe<TargetDescription>(target.page(), target, (node: unknown) => {
     const el = node as unknown as DomEl;
     const attrsOf = (e: DomEl): string[] => {
       const out: string[] = [];
@@ -210,7 +461,7 @@ async function describe(target: Locator): Promise<TargetDescription> {
 }
 
 async function fieldOf(target: Locator): Promise<TargetDescription> {
-  return target.evaluate((node) => {
+  return evaluateSafe<TargetDescription>(target.page(), target, (node: unknown) => {
     const el = node as unknown as DomEl;
     return { text: "", attributes: Array.from(el.attributes).map((a) => `${a.name}=${a.value}`), tag: el.tagName.toLowerCase(), type: el.getAttribute("type") };
   });
@@ -294,6 +545,55 @@ export class GuardedPage {
   /** Cherche désormais dans l'iframe donnée (site de paris intégré), ou de nouveau dans la page (`null`). */
   useFrame(selector: string | null): void {
     this.#root = selector ? this.#page.frameLocator(selector) : this.#page;
+    this.#rootFrameUrl = null;
+  }
+
+  // Adresse du cadre principal quand le site de paris vit dans une iframe (phase 35, suite) ; null : la page elle-même.
+  #rootFrameUrl: string | null = null;
+
+  /**
+   * Cadre principal automatique (phase 35, suite) : un bookmaker qui affiche son site de paris dans une grande iframe
+   * (Celsius : `sports.celsiuscasino.com` dans `celsiuscasino.com`) se cherche DANS ce cadre. Candidats : les cadres
+   * visibles qui couvrent au moins un quart de la fenêtre ; retenu : celui qui affiche le plus de cotes (nombres à
+   * virgule), s'il en affiche plus que la page elle-même (widget dans la page : la page garde la main). Aucune action
+   * sur le site : lecture des dimensions et des textes seulement (un repère `data-lap-frame-id` est posé sur chaque
+   * iframe pour la retrouver). Jamais une erreur : au doute, la page.
+   */
+  async focusMainFrame(): Promise<string | null> {
+    const candidates = await evaluateSafe<Array<{ id: string; area: number }>>(this.#page, this.#page, () => {
+        const g = globalThis as unknown as { document: DomDoc; innerWidth: number; innerHeight: number };
+        const frames = Array.from(g.document.querySelectorAll("iframe")) as unknown as Array<
+          DomEl & { getBoundingClientRect(): { width: number; height: number } }
+        >;
+        const out: Array<{ id: string; area: number }> = [];
+        frames.forEach((f, i) => {
+          if (!f.getAttribute("data-lap-frame-id")) f.setAttribute("data-lap-frame-id", String(i));
+          const r = f.getBoundingClientRect();
+          const area = r.width * r.height;
+          if (area >= 0.25 * g.innerWidth * g.innerHeight) out.push({ id: f.getAttribute("data-lap-frame-id")!, area });
+        });
+        return out.sort((a, b) => b.area - a.area).slice(0, 4);
+      }).catch(() => [] as Array<{ id: string; area: number }>);
+    const reset = () => {
+      this.#root = this.#page;
+      this.#rootFrameUrl = null;
+      return null;
+    };
+    if (!candidates.length) return reset();
+    const mainOdds = await evaluateSafe<number>(this.#page, this.#page, countOddsLike).catch(() => 0);
+    let best: { sel: string; url: string; odds: number } | null = null;
+    for (const c of candidates) {
+      const sel = `iframe[data-lap-frame-id="${c.id}"]`;
+      const handle = await this.#page.locator(sel).first().elementHandle({ timeout: 2_000 }).catch(() => null);
+      const frame = handle ? await handle.contentFrame().catch(() => null) : null;
+      if (!frame) continue;
+      const odds = await evaluateSafe<number>(this.#page, frame, countOddsLike).catch(() => 0);
+      if (odds > mainOdds && (!best || odds > best.odds)) best = { sel, url: frame.url(), odds };
+    }
+    if (!best) return reset();
+    this.#root = this.#page.frameLocator(best.sel);
+    this.#rootFrameUrl = best.url;
+    return best.url;
   }
 
   get lastStatus(): number | null {
@@ -302,6 +602,11 @@ export class GuardedPage {
 
   url(): string {
     return this.#page.url();
+  }
+
+  /** Adresse du contenu lu : celle du cadre principal s'il y en a un, sinon celle de la page. */
+  contentUrl(): string {
+    return this.#rootFrameUrl ?? this.#page.url();
   }
 
   async goto(url: string, timeoutMs = 30_000): Promise<void> {
@@ -401,9 +706,13 @@ export class GuardedPage {
       .catch(() => false);
   }
 
-  /** Attend que la page ait fini de charger (réseau calme), sans jamais lever (phase 35, lecture). */
+  /**
+   * Attend que la page ait fini de charger (réseau calme), sans jamais lever (phase 35, lecture), puis repère le cadre
+   * principal (site de paris dans une iframe) pour les recherches qui suivent.
+   */
   async settle(timeoutMs = 10_000): Promise<void> {
     await this.#page.waitForLoadState("networkidle", { timeout: timeoutMs }).catch(() => undefined);
+    await this.focusMainFrame();
   }
 
   async pause(ms: number): Promise<void> {
@@ -431,27 +740,36 @@ export class GuardedPage {
   }
 
   /**
-   * Lecture seule (phase 35) : HTML de la page sans scripts, styles ni valeurs de champs (un champ peut contenir
-   * l'identifiant), tronqué ; texte visible tronqué. Rien n'est envoyé au site.
+   * Lecture seule (phase 35) : HTML de la page COMME À L'ÉCRAN, sans scripts, styles ni valeurs de champs (un champ
+   * peut contenir l'identifiant), tronqué ; texte visible tronqué. Rien n'est envoyé au site.
+   * Phase 35, suite : les widgets de paris (Altenar, Betby) vivent dans un « shadow DOM » et certains sites de paris
+   * dans une iframe : les deux sont aplatis dans le HTML rendu (`data-lap-shadow` sur l'hôte, `<lap-frame url>` autour
+   * du contenu d'un cadre), et l'identifiant d'un match que le widget ne garde que dans ses données React est posé
+   * sur sa ligne (`data-lap-event-id`). La page reste une DONNÉE : rien de ce qu'elle contient n'est exécuté.
    */
   async readContent(maxHtml = 600_000, maxText = 200_000): Promise<{ html: string; text: string }> {
-    return this.#page
-      .evaluate(
-        ([mh, mt]) => {
-          type CleanEl = { outerHTML: string; textContent: string | null; remove(): void; removeAttribute(n: string): void; querySelectorAll(s: string): ArrayLike<CleanEl> };
-          const g = globalThis as unknown as { document: DomDoc & { documentElement: { cloneNode(deep: boolean): CleanEl } } };
-          const doc = g.document;
-          const clone = doc.documentElement.cloneNode(true);
-          for (const el of Array.from(clone.querySelectorAll("script,style,noscript,template,link[rel=stylesheet],svg"))) el.remove();
-          for (const el of Array.from(clone.querySelectorAll("input,textarea,select"))) {
-            el.removeAttribute("value");
-            el.textContent = "";
-          }
-          return { html: clone.outerHTML.slice(0, mh), text: (doc.body?.innerText ?? "").slice(0, mt) };
-        },
-        [maxHtml, maxText] as const,
-      )
-      .catch(() => ({ html: "", text: "" }));
+    const main = await evaluateSafe<{ html: string; text: string }>(this.#page, this.#page, flattenDocument, [maxHtml, maxText] as const).catch(() => ({ html: "", text: "" }));
+    let html = main.html;
+    let text = main.text;
+    if (!html.includes("<!--lap-frame:")) return { html, text };
+    const mainFrame = this.#page.mainFrame();
+    for (const frame of this.#page.frames()) {
+      if (frame === mainFrame) continue;
+      const id = await frame
+        .frameElement()
+        .then((el) => el.getAttribute("data-lap-frame-id"))
+        .catch(() => null);
+      const marker = id ? `<!--lap-frame:${id}-->` : null;
+      if (!marker || !html.includes(marker)) continue;
+      const room = maxHtml - html.length;
+      if (room < 2_000) break;
+      const inner = await evaluateSafe<{ html: string; text: string }>(this.#page, frame, flattenDocument, [room, Math.max(0, maxText - text.length)] as const).catch(() => null);
+      if (!inner || !inner.html) continue;
+      const url = frame.url().replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+      html = html.replace(marker, `<lap-frame url="${url}">${inner.html}</lap-frame>`);
+      if (inner.text) text = `${text}\n${inner.text}`;
+    }
+    return { html: html.slice(0, maxHtml), text: text.slice(0, maxText) };
   }
 
   /** Retient l'élément visé (sélection, marché) pour le cadre et la capture ; rien n'est envoyé au site. */

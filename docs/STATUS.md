@@ -1,3 +1,72 @@
+# État du projet : phase 34 (tout par Kevin) terminée (25 octobre 2026)
+
+Phases 0 à 27, 33, 34 et 35 en ligne. Phase 34 (`docs/prompts/36-phase-34-tout-par-kevin.md`) : tout ce qui se règle ou se lance sur le site se fait aussi en parlant à Kevin sur Telegram, avec **les mêmes fonctions, les mêmes droits et le même journal** que le site. Le site reste là pour regarder en grand. Les équipes d'agents restent en simulation.
+
+## Fait
+- **225 actions du site** : 215 faisables par Kevin (219 opérations), 10 laissées au site avec un remplacement (Kevin envoie le lien direct, 15 minutes, une seule fois) : connexion, mot de passe, acceptation d'invitation, liaison du Telegram au compte, code de connexion d'un compte Telegram réel, visite guidée. Liste page par page : `docs/KEVIN-PARITE.md`.
+- **Une seule fonction par action** : le bouton du site et Kevin appellent la même (mêmes vérifications, mêmes messages, même journal avec « via Telegram »). Kevin passe par une entrée interne signée du site ; le rôle est toujours relu en base.
+- **Confirmations** : OUI pour un vrai canal, un passage en vrai, une dépense, une hausse de plafond ou de niveau ; le mot exact **SUPPRIMER** pour supprimer, effacer, anonymiser, purger, déconnecter ou révoquer (« oui » ne suffit pas) ; **l'aperçu exact** du message et le nombre de destinataires avant tout envoi à des membres.
+- **Secrets** : clés, jetons, mots de passe et identifiants de bookmaker seulement en privé, effacés aussitôt, rangés chiffrés, jamais envoyés à l'IA ; dans le groupe, Kevin répond « envoie-le-moi en privé ». Une clé ou un lien montré une seule fois (clé d'affiliés, invitation) part à l'admin en privé, à part.
+- **Entrées Telegram** : un message transféré devient le contenu d'un post ou d'un envoi (mise en forme et emojis animés gardés, photos et vidéos rangées dans la médiathèque) ; un fichier CSV s'importe avec le même aperçu que le site ; les choix se font par boutons ; Meta et TikTok se connectent par un lien d'autorisation, puis Kevin propose les comptes par boutons.
+- **Aide** : « aide », « aide campagnes », « comment je fais pour … ? » donnent la phrase à dire.
+- **Garde-fou permanent** : un test fait échouer la vérification si une nouvelle fonction du site n'est pas faisable par Kevin (règle ajoutée à `CLAUDE.md`).
+
+## Test de 5 minutes
+1. Écrivez à Kevin : « crée l'étiquette VIP en vert », puis « supprime l'étiquette VIP » : il demande SUPPRIMER ; répondez « oui » (refusé), puis « SUPPRIMER ».
+2. Transférez-lui un message, puis : « programme ça sur le canal Test demain 20 h » : il montre l'aperçu, répondez OUI.
+3. Écrivez « aide » pour voir tout ce qu'il sait faire.
+
+## Vérifications faites
+- Tests sur base réelle, faux Telegram et fausse IA : les 12 exemples du client de bout en bout, au moins 2 phrases par sujet (14 sujets), même état et même journal par le site et par Kevin sur 6 actions, un responsable du groupe refusé sur une action d'administrateur, « oui » refusé et SUPPRIMER accepté, secret dans le groupe refusé, requête interne trafiquée, rejouée ou trop vieille refusée.
+- Relecture adverse (droits, signature, confirmations, secrets, injection, comportement du site inchangé, Link Affi en lecture seule) : défauts corrigés avec un test, dont : Kevin aurait pu répondre « oui » à la place de l'admin à une demande de passage en vrai ; une clé d'affiliés régénérée par Kevin aurait été perdue ; un vrai canal passé en « canal de test » sans OUI ; un essai à blanc qui écrivait ; une date avec fuseau lue comme heure de Paris ; les bots proposés pour un envoi incluaient Kevin.
+- Tests unitaires : environ 6 800 réussis (site 3 499, agents 1 346, Telegram 588, worker 482) ; tests d'intégration sur base réelle : 654 réussis (430 site, 224 worker) ; `pnpm kevin:parity` : 225 actions, 0 manquante ; lint, typage et build verts.
+- Sauvegarde de la production avant déploiement ; site puis service d'arrière-plan déployés ; santé OK ; `pnpm tg:diag` vert.
+
+## Reste / limites
+- Rien n'a encore été essayé avec la vraie IA : le premier vrai usage dira si Kevin choisit toujours la bonne opération (sinon il pose une question ; rien ne part sans les confirmations ci-dessus).
+- « Préviens-moi si les dépenses pub dépassent 200 € par jour » : ce réglage n'existe pas sur le site ; Kevin le dit et note le besoin.
+- Les fichiers envoyés dans le groupe ne sont pas lus (seulement en privé).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Aucune obligatoire. Essayer le test de 5 minutes.
+
+---
+
+# État du projet : phase 35 (suite) — lecture des « widgets » de paris (25 octobre 2026, soir)
+
+Suite de la phase 35. En regardant les trois vrais sites depuis le navigateur du Mac, le constat était net : **aucun des trois n'est une page classique**, et l'ancien lecteur ne pouvait rien y lire même avec l'accès. Sportaza et Bet Portal affichent leurs matchs dans un « widget » fermé (sans aucun lien à suivre), Celsius met son site de paris dans un cadre d'un autre domaine, et les trois changent d'adresse en cours de route. Tout cela est maintenant lu. **Toujours aucune mise, aucun dépôt, aucun retrait, et aucun contournement de blocage par pays.**
+
+## Fait
+- **Les widgets se lisent** : le navigateur « aplatit » la page avant de la lire (contenu caché dans le widget, cadres, identifiant de chaque match), comme si c'était une page normale.
+- **Changement d'adresse suivi** : `sportaza.com` → `sportaza-5178.com`, `celsius.games` → `celsiuscasino.com` sont reconnus comme la même marque ; tout autre domaine reste refusé, et les pages d'argent restent interdites, même sur la nouvelle adresse.
+- **Navigation sans lien** : le lecteur sait aller au football, au programme du jour et de demain et à la fiche d'un match sur chaque moteur (adresses connues, puis clics sur « Football », « Par Heure », « À venir »…), chaque clic passant par la garde « jamais de mise » : un bouton qui affiche une cote n'est jamais cliqué.
+- **Trois « fiches » prêtes, sans IA** : pour le moteur de Sportaza (Altenar), celui de Bet Portal (Betby) et le site de paris de Celsius, le système connaît déjà la façon de lire ; il la vérifie sur l'enregistrement puis en vrai, comme toute méthode apprise ; si ça ne passe pas, l'IA prend le relais comme avant.
+- **Lectures plus riches** : flux de données de Bet Portal (par morceaux), matchs de Celsius par son API (cotes en millièmes), marchés en grille (« plus de 2.5 / moins de 2.5 »), dates « Après-demain », « 28 oct., 18:30 »…
+
+## Test de 5 minutes
+1. Sur le Mac, dans le Terminal, collez la commande donnée dans le message de Claude (mise à jour, puis déploiement du site et du service d'arrière-plan).
+2. Écrivez à Kevin « teste les bookmakers » : il dit pour chaque site s'il s'ouvre et se lit (l'accès aux sites reste celui de votre Mac ou du serveur, voir « Reste »).
+3. Puis « quels matchs sur Bet Portal ce soir ? ».
+
+## Vérifications faites
+- Trois faux sites reproduisant exactement ce qui a été vu sur les vrais (widget fermé avec routeur mémoire et données React ; widget fermé avec flux par manifeste et grille ; cadre vers un second serveur avec API en millièmes) : appris par leur fiche **sans aucun appel à l'IA**, 14 matchs d'aujourd'hui et de demain lus, cotes lues (résultat, buts avec la ligne, corners, cartons, double chance), aucune mise ni page d'argent demandée.
+- Tous les tests des bookmakers repassent (environ 250, dont ceux avec un vrai navigateur : apprentissage des trois anciens faux sites, garde « jamais de mise », capture).
+- Les structures réelles (noms des équipes dans les cartes de Bet Portal, adresse des fiches, flux de données, pages de Sportaza et de Celsius) ont été relevées à la main dans le navigateur du Mac le 25 octobre ; aucun test automatique ne touche un vrai site.
+
+## Reste / limites
+- **Accès aux sites** : rien ne change sur le blocage par pays. Le serveur en Europe est refusé par les trois sites ; le Mac lit avec sa propre connexion. Une méthode apprise sur un site est faite pour ce site : si un site change son widget, la fiche est revalidée et, au besoin, l'IA réapprend (une fois par jour au plus).
+- Bet Portal : les cotes complètes d'une fiche viennent de la page (le flux public ne donne que les marchés principaux) ; la liste des matchs vient du flux.
+- Le lecteur du Mac doit être autorisé par macOS (action humaine déjà notée) ; d'ici là, seul le serveur lit.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+- Coller la commande de mise à jour et de déploiement (donnée par Claude), une seule fois.
+- Supprimer le dossier `_to_delete/` à la racine du projet (restes d'un essai, sans valeur).
+- Toujours valable : autoriser « node » pour le dossier Bureau sur le Mac (`docs/A-FAIRE-HUMAIN.md`, section 3 bis).
+
+---
+
 # État du projet : phase 35 (cotes lues chez nos bookmakers) terminée (25 octobre 2026)
 
 Phases 0 à 27, 33 et 35 en ligne. Phase 35 (`docs/prompts/37-phase-35-cotes-bookmakers.md`) : le système lit lui-même les matchs et les cotes sur **Celsius**, **Sportaza** et **Bet Portal** avec votre compte. Il apprend chaque site une fois, lit par le chemin le plus stable, ne garde une cote que si elle a été lue **deux fois à l'identique**, se répare seul quand un site change, et Kevin gère tout. **Il ne mise jamais, ne dépose jamais, ne retire jamais d'argent.** Les équipes restent en simulation.

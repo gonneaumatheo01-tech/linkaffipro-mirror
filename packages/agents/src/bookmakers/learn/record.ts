@@ -18,10 +18,11 @@ import {
   type RecordedResponse,
   type SiteRecording,
 } from "../contract";
-import { descendants, foldText, parseHtml, roleOf, textOf, type HtmlNode } from "../read/html";
+import { descendants, foldText, frameBaseOf, parseHtml, roleOf, textOf, type HtmlNode } from "../read/html";
 import type { ObservedResponse, RecordIo } from "../transport/hooks";
 import { isHiddenNode, ODDS_ONLY, pageOddsFromHtml, type PageOdd } from "./page-odds";
 import { detectProviderHint } from "./provider";
+import { NAV_LABELS, navSelectorsFor, providerClicksAfter, providerUrlsFor, UPCOMING_LABELS, type NavTarget } from "./widget-nav";
 
 export type RecordOptions = {
   /** Réponses gardées au plus (trames WebSocket comprises). */
@@ -55,18 +56,37 @@ const SECRET_HEADER =
 const NOISE_HOST =
   /google-analytics|googletagmanager|doubleclick|facebook\.(com|net)|hotjar|segment\.(io|com)|sentry|datadog|newrelic|clarity\.ms|tiktok|criteo|optimizely|intercom|zendesk|livechat|onesignal|cookiebot|onetrust/i;
 
-const EVENT_HREF = /\/(events?|match(es)?|games?|evenements?|fixtures?|rencontres?)\/[^/?#]+\/?$/i;
+/**
+ * Adresse d'une fiche de match : dossier « match / event / … », ou, sur les moteurs modernes, un dernier segment
+ * « slug-identifiant » (`fc-barcelona-real-madrid-2721054223063191561`, `psg-om-m-184447982` : lettres puis un nombre
+ * d'au moins 6 chiffres). Un segment purement numérique (tournoi Betby `/sports/1/<id>/<id>`) n'en est pas une. Pur.
+ */
+export const EVENT_HREF = /\/(events?|match(es)?|games?|evenements?|fixtures?|rencontres?)\/[^/?#]+\/?$|\/[^/?#]*\p{L}[^/?#]*-(?:m-)?\d{6,}\/?$/iu;
+/** Adresse d'une fiche de match par paramètre (`?page=event&eventId=18080871`, Altenar). Pur. */
+export const EVENT_QUERY = /^(eventid|event_id|event|matchid|match_id|fixtureid)$/i;
 const FOOTBALL_TEXT = /^(football|foot|soccer|fussball|futbol|calcio|futebol)$/;
 const TODAY_TEXT = /^(aujourd'?hui|today|heute|hoy|oggi|hoje)$/;
 const TOMORROW_TEXT = /^(demain|tomorrow|morgen|manana|domani|amanha)$/;
+
+/** Une adresse désigne-t-elle une fiche de match (chemin ou paramètre) ? Pur. */
+export function isEventUrl(href: string): boolean {
+  try {
+    const u = new URL(href);
+    if (EVENT_HREF.test(u.pathname)) return true;
+    for (const [k, v] of u.searchParams) if (EVENT_QUERY.test(k) && /^[A-Za-z0-9:_-]{3,48}$/.test(v) && /\d/.test(v)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 const COOKIE_SELECTOR =
   'button:text-matches("^\\\\s*(tout accepter|accepter( tout| les cookies)?|j\'accepte|accept( all)?( cookies)?|i agree|agree|ok|allow all|autoriser)\\\\s*$", "i")';
 const SEARCH_SELECTOR =
   'input[type=search], input[name=q], input[name=query], input[name=search], input[placeholder*="echerch" i], input[placeholder*="earch" i]';
 const TAB_PRIORITY: RegExp[] = [
-  /\b(buts?|goals?|total)\b/,
-  /\bcorners?\b|\bcrn\b/,
-  /\b(cartons?|cards?|bookings?|bkg|tirs?|shots?|speciaux|specials?|joueurs?|players?)\b/,
+  /\b(buts?|goals?|total|totaux|totals?)\b/,
+  /\bcorners?\b|\bcrn\b|\bstatisti\w*\b|\bstats?\b/,
+  /\b(cartons?|cards?|bookings?|bkg|tirs?|shots?|speciaux|specials?|joueurs?|players?|extras?)\b/,
 ];
 
 function truncateBytes(s: string, max: number): string {
@@ -126,15 +146,34 @@ export function responseKind(
 
 type Link = { text: string; href: string; node: HtmlNode };
 
-function linksOf(html: string, base: string): Link[] {
+/** Liens visibles d'une page rendue (cadres et widgets aplatis compris), adresses absolues. Pur. */
+export function linksOf(html: string, base: string): Link[] {
   const out: Link[] = [];
   for (const n of descendants(parseHtml(html))) {
     if (n.tag !== "a" || !n.attrs.href || isHiddenNode(n)) continue;
     try {
-      out.push({ text: textOf(n), href: new URL(n.attrs.href, base).toString(), node: n });
+      out.push({ text: textOf(n), href: new URL(n.attrs.href, frameBaseOf(n, base) ?? base).toString(), node: n });
     } catch {
       /* adresse illisible */
     }
+  }
+  return out;
+}
+
+/**
+ * Lignes de match sans lien (widget) : éléments qui portent l'identifiant du match (`data-lap-event-id`, posé par le
+ * transport depuis les données du widget) et affichent deux noms d'équipes. Pur.
+ */
+export function eventRowsOf(html: string): Array<{ id: string; node: HtmlNode; label: string }> {
+  const out: Array<{ id: string; node: HtmlNode; label: string }> = [];
+  const seen = new Set<string>();
+  for (const n of descendants(parseHtml(html))) {
+    const id = n.attrs["data-lap-event-id"];
+    if (!id || seen.has(id) || isHiddenNode(n)) continue;
+    const label = textOf(n);
+    if (!/\p{L}/u.test(label)) continue;
+    seen.add(id);
+    out.push({ id, node: n, label });
   }
   return out;
 }
@@ -144,6 +183,11 @@ function selectorFor(n: HtmlNode): string {
   if (n.attrs.id && /^[A-Za-z][\w-]*$/.test(n.attrs.id)) return `#${n.attrs.id}`;
   return `${n.tag}:text-is(${JSON.stringify(textOf(n))})`;
 }
+
+// Repère de test ou de maquette d'un onglet (Betby : `data-editor-id="eventMarketTab"`).
+const TAB_TEST_ID = /(^|[-_ ])tab([-_ ]|$)|[a-z]Tab$|[a-z]Tab[A-Z]/;
+// Classe d'un onglet rendu en `div` (Altenar : `TabWrapper-sc-…`), jamais son conteneur (`TabsContainer`, `Tabs…`).
+const TAB_CLASS = /(^|\s)(?!tabs)[a-z]*tab(wrapper|item|label|button)?(-sc-|[-_ ]|$)/i;
 
 /** Onglets de marchés d'une fiche de match, les plus utiles d'abord (buts, corners, cartons / tirs). Pur. */
 export function marketTabsOf(html: string, max = 3): HtmlNode[] {
@@ -159,6 +203,15 @@ export function marketTabsOf(html: string, max = 3): HtmlNode[] {
     const bars = all.filter((n) => /tab/i.test(n.attrs.class ?? "") || roleOf(n) === "tablist");
     tabs = all.filter((n) => n.tag === "button" && bars.some((b) => isInside(n, b)));
   }
+  // Widgets (Betby, Altenar) : onglets en `div` repérés par un identifiant de test ou leur classe, dans une barre.
+  if (!tabs.length)
+    tabs = all.filter((n) => {
+      const testId = n.attrs["data-editor-id"] ?? n.attrs["data-testid"] ?? n.attrs["data-test"] ?? n.attrs["data-cy"] ?? "";
+      if (testId && TAB_TEST_ID.test(testId) && !/tabs|tablist|container|wrapper$/i.test(testId)) return true;
+      return (n.tag === "div" || n.tag === "span" || n.tag === "li") && TAB_CLASS.test(n.attrs.class ?? "") && !/tabs(container|wrapper|list)|tablist/i.test(n.attrs.class ?? "");
+    });
+  // Un onglet qui en contient un autre (enveloppe) ne compte pas : le plus profond est cliqué.
+  tabs = tabs.filter((n) => !tabs.some((o) => o !== n && isInside(o, n)));
   const usable = tabs.filter((n) => {
     const t = textOf(n);
     return t && t.length <= 40 && !ODDS_ONLY.test(t) && n.attrs["aria-selected"] !== "true";
@@ -171,7 +224,8 @@ export function marketTabsOf(html: string, max = 3): HtmlNode[] {
     return true;
   });
   const rank = (n: HtmlNode) => {
-    const t = foldText(textOf(n));
+    // « Totaux32 » (Betby affiche le nombre de marchés dans l'onglet) : le compte final ne fait pas partie du nom.
+    const t = foldText(textOf(n)).replace(/\s*\d+$/, "");
     const i = TAB_PRIORITY.findIndex((r) => r.test(t));
     return i < 0 ? TAB_PRIORITY.length : i;
   };
@@ -230,7 +284,7 @@ export async function recordSite(
             status: r.status,
             contentType: r.contentType,
             kind,
-            body: truncateBytes(body, BOOKMAKER_LIMITS.recordBodyMaxBytes),
+            body: truncateBytes(body, kind === "json" ? BOOKMAKER_LIMITS.recordJsonBodyMaxBytes : BOOKMAKER_LIMITS.recordBodyMaxBytes),
             at,
           });
         })
@@ -309,7 +363,7 @@ export async function recordSite(
 
   const tryClick = async (
     loc: ReadonlyLocator,
-    purpose: "cookie_accept" | "market_tab",
+    purpose: "cookie_accept" | "market_tab" | "navigate",
   ): Promise<boolean> => {
     try {
       if ((await loc.count()) === 0 || !(await loc.isVisible().catch(() => false))) return false;
@@ -325,6 +379,74 @@ export async function recordSite(
       );
       return false;
     }
+  };
+
+  /** Moteur de paris reconnu jusqu'ici (scripts, cadres et réponses déjà vus). */
+  const providerNow = () => detectProviderHint([...seenUrls, ...io.frameUrls()]);
+
+  /** Clic de navigation GARDÉ sur un élément qui affiche un de ces textes (widget sans lien). */
+  const clickNavText = async (labels: readonly string[]): Promise<boolean> => {
+    for (const label of labels)
+      for (const sel of navSelectorsFor(label)) {
+        const loc = gp.find(sel);
+        const n = Math.min(await loc.count().catch(() => 0), 5);
+        for (let k = 0; k < n; k++) if (await tryClick(loc.nth(k), "navigate")) return true;
+      }
+    return false;
+  };
+
+  /**
+   * Étape de navigation d'un widget (phase 35, suite) : adresse connue du moteur (passée par la garde comme toute
+   * adresse), sinon clic de navigation gardé sur le texte attendu. Obstacle rencontré : rendu ; rien trouvé : null.
+   */
+  const navigateTo = async (target: NavTarget): Promise<"done" | null | { obstacle: string }> => {
+    const provider = providerNow();
+    for (const url of providerUrlsFor(provider, gp.url(), target)) {
+      if (url !== gp.url()) {
+        try {
+          const o = await visit(url);
+          if (o) return { obstacle: o };
+        } catch (err) {
+          io.logger?.warn({ err: (err as Error).message, url: url.slice(0, 120) }, "[bookmakers] adresse connue du moteur refusée");
+          continue;
+        }
+      }
+      for (const step of providerClicksAfter(provider, target)) await clickNavText(NAV_LABELS[step]);
+      return "done";
+    }
+    if (await clickNavText(NAV_LABELS[target])) {
+      for (const step of providerClicksAfter(provider, target)) await clickNavText(NAV_LABELS[step]);
+      return "done";
+    }
+    return null;
+  };
+
+  /**
+   * Ouvre la fiche d'un match sans lien (widget) : clic de navigation gardé sur un nom d'équipe de la ligne (jamais
+   * une cote : la garde refuse tout élément qui en affiche une). Rend l'identifiant du match ouvert, ou null.
+   */
+  const openEventRow = async (rows: ReturnType<typeof eventRowsOf>): Promise<{ id: string; label: string } | null> => {
+    for (const row of rows.slice(0, 4)) {
+      // Nom d'équipe = premier texte « lettres » de la ligne sans nombre à virgule.
+      const names = descendants(row.node)
+        .filter((n) => n.tag !== "#text" && n.children.every((c) => c.tag === "#text"))
+        .map((n) => textOf(n))
+        .filter((t) => /\p{L}{3,}/u.test(t) && !/\d+[.,]\d+/.test(t) && t.length <= 60);
+      const before = gp.url();
+      for (const name of names.slice(0, 3)) {
+        const loc = gp.find(`[data-lap-event-id=${JSON.stringify(row.id)}] :text-is(${JSON.stringify(name)})`);
+        const alt = gp.find(`:text-is(${JSON.stringify(name)})`);
+        if ((await tryClick(loc, "navigate")) || (await tryClick(alt, "navigate"))) {
+          const o = await obstacle();
+          if (o) return null;
+          // Fiche ouverte : l'adresse a changé (routeur du widget), ou la liste a laissé place à un seul match.
+          if (gp.url() !== before) return { id: row.id, label: row.label };
+          const { html } = await gp.readContent(maxHtml, 2_000);
+          if (eventRowsOf(html).length <= 2 && pageOddsFromHtml(html).length > 0) return { id: row.id, label: row.label };
+        }
+      }
+    }
+    return null;
   };
 
   const done = async (): Promise<SiteRecording> => {
@@ -355,7 +477,8 @@ export async function recordSite(
   await tryClick(gp.find(COOKIE_SELECTOR), "cookie_accept");
   const home = await snapshot("home", false);
 
-  // 2. Football (lien suivi par son adresse, jamais cliqué).
+  // 2. Football : lien suivi par son adresse (jamais cliqué) ; widget sans lien : adresse connue du moteur, sinon
+  //    clic de navigation gardé.
   let current = home;
   const football = linksOf(home.html, home.url).find(
     (l) =>
@@ -366,6 +489,10 @@ export async function recordSite(
     const o = await visit(football.href);
     if (o) return { obstacle: o };
     current = await snapshot("football", false);
+  } else if (!football) {
+    const r = await navigateTo("football");
+    if (r && r !== "done") return r;
+    if (r === "done") current = await snapshot("football", false);
   }
 
   // 3. Aujourd'hui (si le site a un sélecteur de jour), puis la liste.
@@ -373,21 +500,30 @@ export async function recordSite(
   if (today && today.href !== current.url) {
     const o = await visit(today.href);
     if (o) return { obstacle: o };
+  } else if (!today) {
+    const r = await navigateTo("today");
+    if (r && r !== "done") return r;
+    if (r === null) await clickNavText(UPCOMING_LABELS);
   }
   const list = await snapshot("list-today", false);
   const listLinks = linksOf(list.html, list.url);
 
-  // 4. Un match, puis 3 onglets de marchés.
-  const eventLink = listLinks.find(
-    (l) => EVENT_HREF.test(new URL(l.href).pathname) && /\p{L}/u.test(l.text),
-  );
+  // 4. Un match (lien, sinon ligne du widget), puis 3 onglets de marchés.
+  const eventLink = listLinks.find((l) => isEventUrl(l.href) && /\p{L}/u.test(l.text));
   let searchTerm: string | null = null;
+  let opened: { label: string } | null = null;
   if (eventLink) {
     const o = await visit(eventLink.href);
     if (o) return { obstacle: o };
+    opened = { label: eventLink.text };
+  } else {
+    const row = await openEventRow(eventRowsOf(list.html));
+    if (row) opened = { label: row.label };
+  }
+  if (opened) {
     const ev = await snapshot("event", true);
     searchTerm =
-      homeTeamOf(pageOddsFromHtml(ev.html)[0]?.eventLabel ?? "") ?? homeTeamOf(eventLink.text);
+      homeTeamOf(pageOddsFromHtml(ev.html)[0]?.eventLabel ?? "") ?? homeTeamOf(opened.label);
     let n = 0;
     for (const tab of marketTabsOf(ev.html, 3)) {
       if (await tryClick(gp.find(selectorFor(tab)), "market_tab"))
@@ -395,11 +531,17 @@ export async function recordSite(
     }
   }
 
-  // 5. Demain.
+  // 5. Demain (lien, sinon adresse connue ou clic de navigation gardé).
   const tomorrow = listLinks.find((l) => TOMORROW_TEXT.test(foldText(l.text)));
   if (tomorrow) {
     const o = await visit(tomorrow.href);
     if (!o) await snapshot("list-tomorrow", false);
+  } else {
+    const back = list.url !== gp.url() ? await visit(list.url).catch(() => "unreachable") : null;
+    if (!back) {
+      const r = await navigateTo("tomorrow");
+      if (r === "done") await snapshot("list-tomorrow", false);
+    }
   }
 
   // 6. Recherche d'une équipe (champ de recherche seulement ; jamais un montant).

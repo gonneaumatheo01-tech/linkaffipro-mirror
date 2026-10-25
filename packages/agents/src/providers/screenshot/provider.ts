@@ -11,7 +11,7 @@ import type { CaptureRequest, CaptureResult, ScreenshotProvider } from "../scree
 import { createSelectorAdapter, type BookmakerAdapter, type BookmakerConfig, type BookmakerCredentials } from "./adapter";
 import { adapterFor } from "./adapters";
 import { CaptureError, classifyCaptureError } from "./errors";
-import { GuardedPage } from "./guard";
+import { GuardedPage, installPageHelpers } from "./guard";
 import { loadCaptureSettings } from "./settings";
 import {
   readBookmakerCredentials,
@@ -104,6 +104,7 @@ export function createBrowserScreenshotProvider(opts: BrowserProviderOptions): B
         timezoneId: "Europe/Paris",
         ...(state ? { storageState: state as never } : {}),
       });
+      await installPageHelpers(context);
       const page = await context.newPage();
       // Aucune fenêtre surgissante : un clic imprévu n'ouvre rien d'autre.
       context.on("page", (p) => {
