@@ -13,7 +13,7 @@
  *   paris réglés ; supervision (`agentsOverview`) cohérente ; AUCUN `Post` hors canal Test.
  */
 import { randomBytes } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@linkaffipro/db";
 import {
   agentsOverview,
@@ -167,6 +167,16 @@ async function sendScheduled(): Promise<number> {
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGN4VmFDEmIY1TCqYfhqAACh3JoQLIL4OAAAAABJRU5ErkJggg==", "base64");
 
 describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { timeout: 600_000 }, () => {
+  // Heure réelle figée sur le jour des matchs fictifs (l'envoi compare le coup d'envoi à l'heure réelle) : sans
+  // cela, le scénario échoue dès que la vraie date dépasse les matchs du jeu d'essai.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(FAKE_ODDS_ANCHOR);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   let testChannelId = "";
   let datingId = "";
   let casinoId = "";

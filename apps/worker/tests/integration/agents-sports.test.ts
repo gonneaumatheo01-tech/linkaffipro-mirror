@@ -6,7 +6,7 @@
  * capture ; 1 écarté au Contrôle pour cote bougée (journalisé, jamais publié) ; 1 image de repli soumise à
  * validation ; puis, après les matchs, résultats réglés (`settle`) et bilan calculé.
  */
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@linkaffipro/db";
 import {
   betSummary,
@@ -78,6 +78,16 @@ async function drain(): Promise<string[]> {
 }
 
 describe("équipe Paris sportifs : une journée simulée (base réelle)", () => {
+  // Heure réelle figée sur le jour des matchs fictifs (l'envoi compare le coup d'envoi à l'heure réelle) : sans
+  // cela, le scénario échoue dès que la vraie date dépasse les matchs du jeu d'essai.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(FAKE_ODDS_ANCHOR);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   let testChannelId = "";
   let sportsId = "";
   let categoryId = "";
