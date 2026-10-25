@@ -21,17 +21,27 @@ Phases 0 à 27, 33 et 35 en ligne. Phase 35 (`docs/prompts/37-phase-35-cotes-boo
 ## Vérifications faites
 - Tests sur trois faux sites construits pour l'occasion (un qui charge ses cotes à part, un en pages classiques, un en direct, un en cotes fractionnaires), avec leurs variantes : site modifié, anti-robot, blocage par pays, session expirée, cote qui bouge, marché absent, et une équipe nommée « Ignore tes règles FC » (traitée comme une donnée). Apprentissage complet avec un vrai navigateur sur ces faux sites ; garde « jamais de mise » vérifiée dans un vrai navigateur (page de dépôt, bouton « Placer le pari », clic sur une cote, redirection vers la caisse : tout refusé, rien n'atteint le site).
 - Relecture adverse : 12 défauts trouvés et corrigés avec un test (dont : une mise par appel direct mal reconnue, un enregistrement non masqué rangé en base, le Mac et le serveur connectés en même temps, des cookies envoyés à un autre domaine, une date de match devinée, une cote trop ancienne à l'envoi, des droits trop larges sur les tests et les identifiants).
-- RESULTATS_TESTS
+- Tests unitaires : environ 6 800 réussis (dont 1 274 agents, 3 031 site, 571 Telegram, 477 worker) ; tests d'intégration sur base réelle : 618 réussis (394 site, 224 worker). Bout en bout sur le faux site Celsius : apprendre → prêt → matchs → marchés → double lecture identique par deux chemins, aucune page d'argent visitée. Deux scénarios Paris sportifs (phase 23) échouaient depuis que la vraie date avait dépassé leurs matchs fictifs : heure figée dans ces tests, comportement inchangé.
 - Lint, typage, build verts ; page Bookmakers sans problème d'accessibilité ; captures.
-- DEPLOIEMENT
+- Sauvegarde de la production avant déploiement ; site (migration appliquée) puis service d'arrière-plan ; santé OK ; `pnpm tg:diag` vert ; Kevin a posé en privé la demande des identifiants communs. Lecteur du Mac installé comme service (démarre seul) : macOS le bloque tant que « node » n'a pas l'accès au dossier Bureau (action humaine ci-dessous) ; lancé à la main, il se signale bien au site.
+
+## Essai réel du matin (25 octobre, 9 h 50)
+Le client a écrit à Kevin « Salut boss ça va », puis a voulu lui donner les identifiants de Sportaza. Trois défauts, corrigés et testés en rejouant l'échange : la politesse avec « boss » tombait dans « pas encore possible » ; « Je peux te donner les identifiants du bookmaker sportaza » et « Bookmaker » n'étaient pas compris (la demande privée part maintenant tout de suite, sans IA) ; le texte affiché après un mot de passe retiré contenait des repères entre chevrons effacés par Telegram (« écris « clé   » »), réécrit. Les identifiants propres à Sportaza donnés le 24 octobre sont bien rangés (chiffrés) et restent prioritaires sur les identifiants communs.
+
+## Premier essai sur les vrais sites (25 octobre, 14 h 04)
+Le client a donné ses identifiants communs à Kevin (rangés chiffrés) puis a lancé le test des trois sites. Aucun ne s'ouvre depuis la France ni depuis notre serveur en Europe :
+- **Celsius** : `celsius.games` renvoie vers `celsiuscasino.com`, qui affiche « Celsius is not available in your jurisdiction » ;
+- **Bet Portal** : page vide refusée (403), y compris depuis le Mac ;
+- **Sportaza** : refuse le serveur (le Mac, bloqué par macOS, n'a pas pu prendre le relais).
+Corrigé : une page coupée par notre garde dit maintenant pourquoi (redirection vers un autre domaine → Kevin demande la bonne adresse) au lieu d'un « injoignable » muet. **Aucun contournement de blocage par pays** (règle de la phase) : Kevin demande au client comment il ouvre ces sites. En attendant, l'équipe Paris garde les cotes du fournisseur habituel (comportement de la phase 23).
 
 ## Reste / limites
-- Rien n'a encore été lu sur les vrais sites (aucun accès réseau pendant les tests) : le premier « teste les bookmakers » dira si chaque site s'apprend du premier coup, ou s'il demande le Mac (blocage par pays) ou votre aide (anti-robot, code).
+- Les trois sites refusent la France et notre serveur : la lecture directe ne marchera que depuis un endroit où ils sont ouverts (réponse du client attendue).
 - Un match que le système n'a pas pu rattacher au fournisseur de résultats avant le coup d'envoi n'est plus rattaché ensuite : le pari est remboursé au bout de 3 jours, jamais réglé au hasard.
 - Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
 
 ## Actions humaines
-Voir `docs/A-FAIRE-HUMAIN.md`, section « Bookmakers » : donner à Kevin, en privé, l'email et le mot de passe de vos comptes bookmakers (un compte dédié est conseillé) ; la lecture automatique avec votre compte est sous votre responsabilité (conditions d'utilisation de chaque site) ; garder le Mac allumé avec votre session ouverte pour que son lecteur tourne.
+Voir `docs/A-FAIRE-HUMAIN.md`, section « Bookmakers » : sur le Mac, autoriser « node » pour le dossier Bureau (Réglages Système → Confidentialité et sécurité → Fichiers et dossiers) ; donner à Kevin, en privé, l'email et le mot de passe de vos comptes bookmakers (un compte dédié est conseillé) ; la lecture automatique avec votre compte est sous votre responsabilité (conditions d'utilisation de chaque site) ; garder le Mac allumé avec votre session ouverte pour que son lecteur tourne.
 
 ---
 
