@@ -159,11 +159,18 @@ export function boundedAnswer(body: string, opts: { sources?: readonly SourceRef
   const tail: string[] = [];
   const srcLines = opts.sources?.length && !/https?:\/\//.test(body) ? sourcesLines(opts.sources) : [];
   tail.push(...srcLines);
-  if (opts.rules && !body.includes(LEGAL_DISCLAIMER)) tail.push(esc(LEGAL_DISCLAIMER));
+  // La phrase fixe déjà dans le texte part en fin de réponse (jamais coupée avec la fin d'une réponse trop longue).
+  const hadDisclaimer = body.includes(LEGAL_DISCLAIMER);
+  if (opts.rules || hadDisclaimer) tail.push(esc(LEGAL_DISCLAIMER));
   const lines = body
     .split("\n")
-    .map((l) => l.trimEnd())
+    .flatMap((l) => {
+      if (!hadDisclaimer || !l.includes(LEGAL_DISCLAIMER)) return [l.trimEnd()];
+      const rest = l.split(LEGAL_DISCLAIMER).join("").trimEnd();
+      return rest.trim() ? [rest] : [];
+    })
     .filter((l, i, all) => l.trim() || (i > 0 && all[i - 1]!.trim()));
+  if (hadDisclaimer) while (lines.length && !lines[lines.length - 1]!.trim()) lines.pop();
   const room = Math.max(1, Math.min(ANALYSTS_LIMITS.answerMaxLines, opts.maxLines ?? ANALYSTS_LIMITS.answerMaxLines) - tail.length);
   const kept = lines.length > room ? [...lines.slice(0, room - 1), pick(ANALYSTS_KEVIN_VARIANTS.cut, "analysts.cut")] : lines;
   return [...kept, ...tail].join("\n").trim();

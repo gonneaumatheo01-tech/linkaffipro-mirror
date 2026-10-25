@@ -80,8 +80,13 @@ export function canActOnRecommendation(
 /** Proposition venue d'un canal d'inspiration (phase 27) : jamais par la voie générique (réservée à l'admin, sur la page Inspiration). */
 export const INSPIRATION_ONLY_MESSAGE = "Cette proposition vient d'un canal d'inspiration : elle se gère dans Agents → Inspiration (administrateurs).";
 
+/** Proposition de l'analyse du marché (phase 29) : notée « acceptée » ou « refusée » dans Agents → Analyses, jamais appliquée. */
+export const MARKET_ONLY_MESSAGE = "Cette proposition vient de l'analyse du marché : elle se décide dans Agents → Analyses (rien n'est changé automatiquement).";
+
 export function genericRecommendationRefusal(r: { source?: string | null }): string | null {
-  return r.source === "inspiration" ? INSPIRATION_ONLY_MESSAGE : null;
+  if (r.source === "inspiration") return INSPIRATION_ONLY_MESSAGE;
+  if (r.source === "market_analysis") return MARKET_ONLY_MESSAGE;
+  return null;
 }
 
 /** Gestes possibles selon l'état : proposé → appliquer ou refuser ; appliqué → annuler. */

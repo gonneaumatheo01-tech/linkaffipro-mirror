@@ -125,6 +125,9 @@ export function memoryHostThrottle(): HostThrottle {
 /** Débit partagé par défaut du processus (worker : file `agents-analystes`, concurrence 2). */
 export const processHostThrottle: HostThrottle = memoryHostThrottle();
 
+/** File d'attente par hôte de chaque mémoire de débit (une requête à la fois entre l'attente et la marque). */
+const HOST_LOCKS = new WeakMap<HostThrottle, Map<string, Promise<void>>>();
+
 /** Cache des robots.txt du processus (24 h par origine). */
 const processRobotsCache = new Map<string, { policy: RobotsPolicy; until: number }>();
 
@@ -172,13 +175,32 @@ export function createAnalystsWeb(deps: PoliteWebDeps): PoliteWeb {
   const throttle = deps.throttle ?? processHostThrottle;
   const robotsCache = deps.robotsCache ?? processRobotsCache;
 
+  // Tour de chaque hôte : les lectures simultanées d'un même site (file à 2 tâches, deux sous-forums Reddit…) passent
+  // l'une après l'autre ; sans ça, les deux lisent la même « dernière requête » et partent ensemble.
+  let locks = HOST_LOCKS.get(throttle);
+  if (!locks) {
+    locks = new Map();
+    HOST_LOCKS.set(throttle, locks);
+  }
+  const hostLocks = locks;
   const waitTurn = async (host: string, rateMs: number) => {
-    const last = await throttle.lastRequestAt(host).catch(() => null);
-    if (last !== null) {
-      const wait = last + rateMs - clock();
-      if (wait > 0) await sleep(wait);
+    const prev = hostLocks.get(host) ?? Promise.resolve();
+    let release!: () => void;
+    const mine = new Promise<void>((r) => (release = r));
+    const tail = prev.then(() => mine);
+    hostLocks.set(host, tail);
+    await prev;
+    try {
+      const last = await throttle.lastRequestAt(host).catch(() => null);
+      if (last !== null) {
+        const wait = last + rateMs - clock();
+        if (wait > 0) await sleep(wait);
+      }
+      await throttle.markRequest(host, clock()).catch(() => undefined);
+    } finally {
+      release();
+      if (hostLocks.get(host) === tail) hostLocks.delete(host);
     }
-    await throttle.markRequest(host, clock()).catch(() => undefined);
   };
 
   const rawGet = async (url: string, accept: string, timeoutMs: number) => {

@@ -207,10 +207,25 @@ export async function fetchForum(web: AnalystsWeb, url: string, config: WatchScr
     const fresh = parsed.items.filter((it) => !items.some((x) => x.url === it.url));
     if (!fresh.length) break;
     items.push(...fresh.slice(0, maxItems - items.length));
-    pageUrl = parsed.next ?? nextPageUrl(url, page + 1, config);
+    const next = parsed.next ?? nextPageUrl(url, page + 1, config);
+    // Pages suivantes sur le même site seulement : un lien « suivant » écrit dans la page (donnée) n'emmène jamais
+    // la lecture ailleurs (autre site, adresse interne).
+    pageUrl = next && sameSite(next, url) ? next : null;
   }
   return items;
 }
+
+const siteOf = (u: string): string | null => {
+  try {
+    return new URL(u).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+};
+const sameSite = (a: string, b: string) => {
+  const x = siteOf(a);
+  return x !== null && x === siteOf(b);
+};
 
 export function httpMessage(status: number, host: string): string {
   if (status === 404) return `Page introuvable sur ${host} (code 404) : l'adresse a peut-être changé.`;

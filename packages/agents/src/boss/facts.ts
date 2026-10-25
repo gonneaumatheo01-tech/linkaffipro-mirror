@@ -353,7 +353,8 @@ export function recommendationLabel(r: Pick<RecoRow, "teamKey" | "field" | "afte
 /** Recommandations Algorithme proposées (ordre stable : la plus ancienne d'abord) — numéros de la liste affichée. */
 export async function algoProposed(deps: BossDeps): Promise<RecoRow[]> {
   return (await deps.prisma.recommendation.findMany({
-    where: { status: "PROPOSED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }] },
+    // Phase 29 : les propositions de l'analyse du marché ont leur propre liste (« applique 2 ») et ne s'appliquent jamais.
+    where: { status: "PROPOSED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }, { source: "market_analysis" }] },
     orderBy: [{ createdAt: "asc" }],
     take: 9,
   })) as RecoRow[];

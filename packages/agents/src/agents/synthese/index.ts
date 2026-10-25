@@ -36,7 +36,7 @@ export async function autoApplyPending(deps: AgentsDeps, level: 0 | 1 | 2): Prom
   const applied: string[] = [];
   const refused: string[] = [];
   if (level === 0) return { applied, refused };
-  const pending = (await deps.prisma.recommendation.findMany({ where: { status: "PROPOSED", teamKey: { not: "ads" }, NOT: { source: "inspiration" } }, orderBy: { createdAt: "asc" } })) as Array<{ id: string; size: string }>;
+  const pending = (await deps.prisma.recommendation.findMany({ where: { status: "PROPOSED", teamKey: { notIn: ["ads", "analystes"] }, NOT: [{ source: "inspiration" }, { source: "market_analysis" }] }, orderBy: { createdAt: "asc" } })) as Array<{ id: string; size: string }>;
   for (const r of pending) {
     if (!shouldAutoApply(level, r.size)) continue;
     const res = await applyRecommendationImpl(deps, r.id, { by: "GRAND_CHEF" });

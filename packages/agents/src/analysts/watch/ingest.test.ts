@@ -171,13 +171,14 @@ describe("erreurs d'une source", () => {
     expect(await scrapeSource(k.deps, "src1", ANALYSTS_FIXTURE_NOW)).toEqual({ ok: false, sourceId: "src1", skipped: "inactive" });
   });
 
-  it("une réussite remet le compteur à zéro ; IA en panne sur tout le lot = échec de la source", async () => {
+  it("une réussite remet le compteur à zéro ; IA en panne sur tout le lot : pas un échec de la source (jamais coupée pour ça)", async () => {
     const broken = scriptedLlm(() => {
       throw new Error("surcharge");
     });
-    const k = kit({ llm: broken, source: { errorCount: 2 } });
+    const k = kit({ llm: broken, source: { errorCount: 4 } });
     const res = await scrapeSource(k.deps, "src1", ANALYSTS_FIXTURE_NOW);
-    expect(res).toMatchObject({ ok: false, errorCount: 3, disabled: false });
+    expect(res).toMatchObject({ ok: false, errorCount: 4, disabled: false, event: null });
+    expect(k.source()).toMatchObject({ isActive: true, errorCount: 4, nextScrapeAt: new Date(ANALYSTS_FIXTURE_NOW.getTime() + 3600_000) });
     expect(k.source().lastError).toMatch(/^L'IA n'a pas répondu/);
     const ok = kit({ source: { errorCount: 4 } });
     await scrapeSource(ok.deps, "src1", ANALYSTS_FIXTURE_NOW);

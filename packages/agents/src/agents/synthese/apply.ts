@@ -26,7 +26,12 @@ export type RecommendationRow = {
   size: string;
   status: string;
   appliedAt: Date | null;
+  source?: string | null;
 };
+
+/** Refus d'appliquer une proposition de l'analyse du marché par la mécanique des réglages (rien n'est changé). */
+export const MARKET_NEVER_APPLIED =
+  "Les propositions de l'analyse du marché ne s'appliquent jamais depuis la plateforme : acceptez-la ou refusez-la dans Agents → Analyses, puis agissez vous-même.";
 
 type Actor = ActorRef | { by: "GRAND_CHEF" };
 const isHuman = (a: Actor): a is ActorRef => !("by" in a);
@@ -104,6 +109,8 @@ export async function applyRecommendationImpl(deps: AgentsDeps, id: string, acto
   if (!rec) return { ok: false, message: "Recommandation introuvable." };
   // Agent Ads (phase 24) : il recommande, il n'agit jamais chez Meta / TikTok ; rien n'est écrit.
   if (rec.teamKey === ADS_TEAM_KEY) return { ok: false, message: ADS_NEVER_APPLIED };
+  // Analyse du marché (phase 29) : elle recommande, le client agit ; rien n'est écrit ici (« applique 2 » chez Kevin).
+  if (rec.teamKey === "analystes" || rec.source === "market_analysis") return { ok: false, message: MARKET_NEVER_APPLIED };
   if (rec.status !== "PROPOSED") return { ok: false, message: rec.status === "APPLIED" ? "Déjà appliquée." : "Cette recommandation n'est plus proposée." };
   const cur = await currentValue(deps, rec.target, rec.targetId, rec.field);
   if (cur === undefined) return { ok: false, message: "La cible de ce réglage n'existe plus." };

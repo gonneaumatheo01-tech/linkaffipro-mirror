@@ -18,6 +18,7 @@ import {
   type TrendCategory,
   type TrendSentiment,
 } from "../contract";
+import { hasLegalAdvice, sanitizeLegal } from "../citations";
 import { AnalystsAiError, callAnalystsLlm, CLASSIFY_MODEL, cleanLine, clip, parseAiObject, SUMMARY_MODEL, type WatchDeps } from "./ai";
 
 export const TREND_CATEGORIES: readonly TrendCategory[] = [
@@ -120,7 +121,11 @@ export const SUMMARY_SYSTEM = [
 
 export type EntrySummary = { summary: string; summaryOriginal: string | null; language: string | null };
 
-const cleanSummary = (v: unknown) => clip(cleanLine(v, 2000), ANALYSTS_LIMITS.summaryMaxChars);
+/** Résumé nettoyé : une phrase d'avis juridique (« c'est illégal… ») n'est jamais gardée (règle 2), 500 caractères. */
+const cleanSummary = (v: unknown) => {
+  const line = cleanLine(v, 2000);
+  return clip(hasLegalAdvice(line) ? sanitizeLegal(line, { replacement: null }).text.trim() : line, ANALYSTS_LIMITS.summaryMaxChars);
+};
 
 /** Résume en français (Sonnet 5.5) ; 500 caractères au plus, coupés par le code si l'IA dépasse. */
 export async function summarizeEntry(deps: WatchDeps, item: RawItem): Promise<EntrySummary> {

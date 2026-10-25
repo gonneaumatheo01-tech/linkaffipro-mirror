@@ -101,6 +101,9 @@ function countriesMatch(rowCountries: unknown, wanted: readonly string[]): boole
   return !list.length || list.includes("ALL") || wanted.some((w) => list.includes(w));
 }
 
+/** Entrée qui parle des règles des plateformes ou de la réglementation : la phrase fixe l'accompagne (règle 2). */
+const talksRules = (e: Pick<TrendRow, "category">) => e.category === "AD_BAN" || e.category === "PLATFORM_CHANGE" || e.category === "REGULATION";
+
 export type TrendsFilter = { market?: Market | null; countries?: string[]; days?: number };
 
 /** Tendances récentes (7 jours par défaut), au-dessus du seuil de pertinence, les plus fortes d'abord. */
@@ -120,7 +123,9 @@ export async function trendsReply(deps: AgentsDeps, f: TrendsFilter, chatId: str
   const rows = await recentTrends(deps, f, 8);
   const what = scopeText(f);
   if (!rows.length) return pick(V.noData({ what }), "analysts.noData", chatId);
-  return boundedAnswer([pick(V.trendsHead({ what, days: Math.min(30, Math.max(1, f.days ?? 7)) }), "analysts.trendsHead", chatId), ...rows.map((e) => trendLine(e, chatId))].join("\n"));
+  return boundedAnswer([pick(V.trendsHead({ what, days: Math.min(30, Math.max(1, f.days ?? 7)) }), "analysts.trendsHead", chatId), ...rows.map((e) => trendLine(e, chatId))].join("\n"), {
+    rules: rows.some(talksRules),
+  });
 }
 
 export type RulesFilter = { market?: Market | null; countries?: string[]; platform?: CompliancePlatform | null };
@@ -175,7 +180,7 @@ export async function alertsReply(deps: AgentsDeps, f: { market?: Market | null 
   const { rules, viral } = await currentAlerts(deps, f);
   if (!rules.length && !viral.length) return pick(V.noAlerts, "analysts.noAlerts", chatId);
   const lines = [pick(V.alertsHead, "analysts.alertsHead", chatId), ...rules.slice(0, 6).map((r) => `⚠️ ${ruleLine(r, chatId).replace(/^- /, "")}`), ...viral.slice(0, 3).map((e) => `🔥 ${trendLine(e, chatId).replace(/^- /, "")}`)];
-  return boundedAnswer(lines.join("\n"), { rules: rules.length > 0 });
+  return boundedAnswer(lines.join("\n"), { rules: rules.length > 0 || viral.slice(0, 3).some(talksRules) });
 }
 
 /** Sources de la veille : actives d'abord, puis en attente ou coupées. */

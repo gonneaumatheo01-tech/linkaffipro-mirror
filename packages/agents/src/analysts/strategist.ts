@@ -21,6 +21,7 @@ import {
   hasLegalAdvice,
   isKnownUrl,
   isRiskLevel,
+  LEGAL_REWRITE_SENTENCE,
   maxRisk,
   normalizeUrl,
   riskRank,
@@ -183,6 +184,10 @@ export type MarketAnswer = {
   countries: string[];
 };
 
+/** Phrase qui dit ce qui manque (seule forme gardée sans adresse dans une réponse du Stratège). */
+const NO_DATA_LINE =
+  /\b(je n'ai|je n’ai|j'ai rien|je ne (sais|vois|trouve)|rien de|rien sur|aucune? |pas (de|d'|d’|encore|assez)|ne permet pas|ne dit pas|ne parle pas|pas trouvé|impossible de dire)\b/iu;
+
 const RULES_WORDS = /\b(ban|bann|r[èe]gle|risqu|interdi|autoris|compliance|politique|refus|bloqu|sans se faire)/iu;
 
 function scopeLabel(market: Market | null, countries: readonly string[]): string {
@@ -230,6 +235,9 @@ export function finalizeAnswer(
     const urls = urlsIn(line).filter((u) => isKnownUrl(u, known));
     const isClaim = /^\s*([-•*–]|\d+[.)])\s/u.test(line);
     if (isClaim && !urls.length) continue; // affirmation sans source : retirée
+    // Hors liste, une phrase sans adresse ne reste que si elle dit ce qui manque (« je n'ai rien sur… ») ou si c'est la
+    // phrase fixe qui remplace un avis juridique : une affirmation écrite sans tiret n'échappe pas au contrôle.
+    if (!isClaim && !urls.length && !line.includes(LEGAL_DISCLAIMER) && !line.includes(LEGAL_REWRITE_SENTENCE) && !NO_DATA_LINE.test(line)) continue;
     if (!isClaim && !urls.length && voiceCheck(line, { allowList: true, allowLong: true }).problems.some((p) => p.code === "formule")) continue;
     if (line.includes(LEGAL_DISCLAIMER)) continue; // remis une seule fois, à la fin
     if (urls.length) {
@@ -383,8 +391,10 @@ export function groupEntries(entries: readonly EntryRow[]): Array<{ market: Mark
       map.set(k, g);
     }
   }
+  // Le client travaille d'abord en France : les groupes France (un par marché) passent toujours, puis les plus fournis.
+  const fr = (g: { country: string }) => (g.country === "FR" ? 1 : 0);
   return [...map.values()]
-    .sort((a, b) => b.entries.length - a.entries.length)
+    .sort((a, b) => fr(b) - fr(a) || b.entries.length - a.entries.length)
     .slice(0, STRATEGY_LIMITS.maxGroups)
     .map((g) => ({ ...g, entries: [...g.entries].sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, STRATEGY_LIMITS.entriesPerGroup) }));
 }

@@ -261,7 +261,9 @@ export function defaultSourceRateMs(type: TrendSourceType): number {
 
 function webFor(deps: WatchDeps, source: WatchSource) {
   const base = deps.web ?? createAnalystsWeb(deps);
-  const rate = configOf(source).rateLimitMs ?? defaultSourceRateMs(source.sourceType);
+  // Le réglage d'une source peut ralentir la lecture, jamais l'accélérer sous le débit de son type (forums 15 s…).
+  const asked = Number(configOf(source).rateLimitMs);
+  const rate = Math.max(Number.isFinite(asked) ? asked : 0, defaultSourceRateMs(source.sourceType));
   const polite = base as Partial<PoliteWeb>;
   return typeof polite.withRate === "function" ? polite.withRate(rate) : base;
 }
@@ -348,9 +350,15 @@ export async function scrapeSource(deps: WatchDeps, sourceId: string, now: Date 
   try {
     const items = await readSource(d, source, maxEntries);
     const res = await ingestEntries(d, source, items);
-    // Rien de rangé parce que l'IA a échoué sur tout : compté comme un échec de la source.
-    if (res.created === 0 && res.failed > 0 && res.failed + res.duplicates + res.belowThreshold + res.overLimit >= res.read && !res.stoppedReason)
-      throw new AnalystsAiError("ai_failed", res.firstError ?? "L'IA n'a pu ranger aucun contenu.");
+    // Rien de rangé parce que l'IA a échoué sur tout : la source a bien été lue, ce n'est PAS un échec de la source
+    // (une panne de l'IA ne coupe jamais des sources saines) ; nouvel essai dans une heure, compteur inchangé.
+    if (res.created === 0 && res.failed > 0 && res.failed + res.duplicates + res.belowThreshold + res.overLimit >= res.read && !res.stoppedReason) {
+      const message = errorMessageOf(new AnalystsAiError("ai_failed", res.firstError ?? "L'IA n'a pu ranger aucun contenu."));
+      const retryAt = new Date(now.getTime() + retryDelayMs(1));
+      await d.prisma.trendSource.update({ where: { id: source.id }, data: { lastError: message, nextScrapeAt: retryAt } });
+      d.logger?.warn({ sourceId }, "[analystes] source lue mais IA en échec sur tout le lot");
+      return { ok: false, sourceId, error: message, errorCount: source.errorCount ?? 0, disabled: false, nextScrapeAt: retryAt, event: null };
+    }
     const hours = cfg.intervalHours ?? (await readSetting(d, ANALYSTS_SETTINGS.scrapeIntervalHours.key, ANALYSTS_SETTINGS.scrapeIntervalHours.value));
     const nextScrapeAt = new Date(now.getTime() + Math.max(1, hours) * 3600_000);
     await d.prisma.trendSource.update({ where: { id: source.id }, data: { lastScrapedAt: now, nextScrapeAt, errorCount: 0, lastError: null } });

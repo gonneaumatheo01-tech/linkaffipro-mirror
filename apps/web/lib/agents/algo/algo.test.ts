@@ -230,4 +230,9 @@ describe("phase 27 : propositions d'inspiration hors de la voie générique", ()
     expect(genericRecommendationRefusal({ source: "algo" })).toBeNull();
     expect(genericRecommendationRefusal({})).toBeNull();
   });
+
+  it("phase 29 : une proposition de l'analyse du marché n'est jamais appliquée par la voie générique", async () => {
+    const { genericRecommendationRefusal, MARKET_ONLY_MESSAGE } = await import("./recommendations");
+    expect(genericRecommendationRefusal({ source: "market_analysis" })).toBe(MARKET_ONLY_MESSAGE);
+  });
 });
