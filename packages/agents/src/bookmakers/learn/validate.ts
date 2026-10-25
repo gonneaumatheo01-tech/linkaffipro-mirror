@@ -18,9 +18,9 @@ import {
   type SiteEvent,
   type SiteRecording,
 } from "../contract";
-import { readEventsFromHtml, readMarketsFromHtml, splitTeams } from "../read/dom-read";
+import { eventIdFromUrl, readEventsFromHtml, readMarketsFromHtml, splitTeams } from "../read/dom-read";
 import { parseSiteDate } from "../read/dates";
-import { descendants, parseHtml, textOf } from "../read/html";
+import { descendants, frameBaseOf, parseHtml, textOf } from "../read/html";
 import { asText, extractRows } from "../read/json-shape";
 import { sameLine, sameOddsExact, toDecimalOdds } from "../read/odds-format";
 import {
@@ -31,15 +31,18 @@ import {
   selectionKey,
   type PageOdd,
 } from "./page-odds";
-import { isListStep, isMarketStep } from "./record";
+import { EVENT_HREF, eventRowsOf, isEventUrl, isListStep, isMarketStep } from "./record";
 
 /** Lien de match sur une page de liste (même règle que le parcours guidé). */
-export const EVENT_LINK =
-  /\/(events?|match(es)?|games?|evenements?|fixtures?|rencontres?)\/[^/?#]+\/?$/i;
+export const EVENT_LINK = EVENT_HREF;
 
 export type ReferenceEvent = { id: string; label: string; url: string };
 
-/** Matchs visibles sur les pages de liste de l'enregistrement (référence indépendante de la recette). Pur. */
+/**
+ * Matchs visibles sur les pages de liste de l'enregistrement (référence indépendante de la recette) : liens de match
+ * (dossier « match », fin « slug-identifiant », paramètre `eventId`), et lignes d'un widget sans lien repérées par
+ * le transport (`data-lap-event-id`). L'identifiant est celui de l'adresse (même règle que la lecture). Pur.
+ */
 export function referenceEvents(rec: Pick<SiteRecording, "pages">): ReferenceEvent[] {
   const out = new Map<string, ReferenceEvent>();
   for (const p of rec.pages) {
@@ -48,15 +51,16 @@ export function referenceEvents(rec: Pick<SiteRecording, "pages">): ReferenceEve
       if (n.tag !== "a" || !n.attrs.href || isHiddenNode(n)) continue;
       let u: URL;
       try {
-        u = new URL(n.attrs.href, p.url);
+        u = new URL(n.attrs.href, frameBaseOf(n, p.url) ?? p.url);
       } catch {
         continue;
       }
       const label = textOf(n);
-      if (!EVENT_LINK.test(u.pathname) || !/\p{L}/u.test(label)) continue;
-      const id = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
+      if (!isEventUrl(u.toString()) || !/\p{L}/u.test(label)) continue;
+      const id = eventIdFromUrl(u.toString()) ?? decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
       if (id && !out.has(id)) out.set(id, { id, label, url: u.toString() });
     }
+    for (const row of eventRowsOf(p.html)) if (!out.has(row.id)) out.set(row.id, { id: row.id, label: row.label, url: "" });
   }
   return [...out.values()];
 }
@@ -190,17 +194,18 @@ function rowLine(lineRaw: unknown, selection: string, market: string): number | 
   return lineInText(selection) ?? lineInText(market);
 }
 
-/** Identifiant du match ouvert pendant l'enregistrement (fin de l'adresse de la fiche). */
+/**
+ * Identifiant du match ouvert pendant l'enregistrement : d'après l'adresse de la fiche (paramètre `eventId`, fin
+ * « slug-identifiant », dernier segment), sinon le repère du widget sur la fiche (`data-lap-event-id`, le premier).
+ */
 export function recordedEventId(rec: Pick<SiteRecording, "pages">): string | null {
   const p = rec.pages.find((x) => x.step === "event");
   if (!p) return null;
-  try {
-    return (
-      decodeURIComponent(new URL(p.url).pathname.split("/").filter(Boolean).pop() ?? "") || null
-    );
-  } catch {
-    return null;
-  }
+  const fromUrl = eventIdFromUrl(p.url);
+  if (fromUrl && isEventUrl(p.url)) return fromUrl;
+  const row = eventRowsOf(p.html)[0];
+  if (row) return row.id;
+  return fromUrl;
 }
 
 /** Cotes d'une réponse du point d'entrée « markets » / « odds » (lignes d'un autre match écartées). Pur. */

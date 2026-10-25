@@ -5,8 +5,9 @@
  * transport, qui applique la garde « jamais de mise »). Règles pures, sur le HTML rendu.
  */
 import type { DomStep, RecipeData, SiteEvent } from "../contract";
-import { foldText, parseHtml, querySelectorAll, descendants, roleOf, textOf, type HtmlNode } from "./html";
+import { foldText, frameBaseOf, parseHtml, querySelectorAll, descendants, roleOf, textOf, type HtmlNode } from "./html";
 import { parseSiteDate } from "./dates";
+import { gridLabelFor } from "./market-grid";
 
 export type DomRecipe = NonNullable<RecipeData["dom"]>;
 export type Candidate = DomStep["candidates"][number];
@@ -70,22 +71,48 @@ function absolute(href: string | null, base: string | null): string | null {
   }
 }
 
-/** Identifiant stable d'un match lu sur la page : attribut du site, sinon fin de l'adresse du match. */
-export function eventIdOf(row: HtmlNode, url: string | null): string | null {
-  const own = attrValue(row, ["data-event-id", "data-eventid", "data-match-id", "data-match", "data-id", "data-event"]);
-  if (own) return own;
-  for (const d of descendants(row)) {
-    const v = attrValue(d, ["data-event-id", "data-eventid", "data-match-id"]);
-    if (v) return v;
-  }
+/** Identifiant d'un match dans une adresse : paramètre (`eventId=…`), fin numérique d'un segment « slug-id », sinon le segment numérique ou le dernier. Pur. */
+export function eventIdFromUrl(url: string | null): string | null {
   if (!url) return null;
   try {
     const u = new URL(url);
-    const id = u.searchParams.get("eventId") ?? u.searchParams.get("event") ?? u.searchParams.get("id");
-    if (id) return id;
+    for (const k of ["eventId", "event_id", "matchId", "match_id", "fixtureId", "event", "id"]) {
+      const v = u.searchParams.get(k);
+      if (v && /\d/.test(v)) return v;
+    }
     const seg = u.pathname.split("/").filter(Boolean);
+    const last = seg[seg.length - 1] ?? "";
+    // « fc-barcelona-real-madrid-2721054223063191561 », « psg-om-m-184447982 » : l'identifiant est le nombre final.
+    const tail = /(?:^|[-_])(?:m-)?(\d{6,})$/.exec(last);
+    if (tail) return tail[1]!;
     const numeric = [...seg].reverse().find((s) => /\d{3,}/.test(s));
-    return numeric ?? seg[seg.length - 1] ?? null;
+    return numeric ?? last ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Identifiant stable d'un match lu sur la page : attribut du site, repère du widget posé par le transport
+ * (`data-lap-event-id`), sinon fin de l'adresse du match.
+ */
+export function eventIdOf(row: HtmlNode, url: string | null): string | null {
+  const own = attrValue(row, ["data-event-id", "data-eventid", "data-match-id", "data-match", "data-id", "data-event", "data-lap-event-id"]);
+  if (own) return own;
+  for (const d of descendants(row)) {
+    const v = attrValue(d, ["data-event-id", "data-eventid", "data-match-id", "data-lap-event-id"]);
+    if (v) return v;
+  }
+  return eventIdFromUrl(url);
+}
+
+/** Adresse d'une fiche de match d'après le modèle de la recette (`{eventId}`), ou null. Pur. */
+export function eventUrlFromTemplate(template: string | null | undefined, vars: Record<string, string>): string | null {
+  if (!template) return null;
+  const url = template.replace(/\{([a-zA-Z]+)\}/g, (m, k: string) => (k in vars ? encodeURIComponent(vars[k]!) : m));
+  if (/\{[a-zA-Z]+\}/.test(url)) return null;
+  try {
+    return new URL(url).toString();
   } catch {
     return null;
   }
@@ -134,8 +161,11 @@ export function readEventsFromHtml(html: string, dom: DomRecipe, o: { pageUrl: s
     const startsAt = startNode ? parseSiteDate(attrValue(startNode, ["datetime", "data-start", "data-starts-at", "data-time", "data-timestamp"]) ?? textOf(startNode), o.timezone, o.now) : null;
     if (!startsAt) continue;
     const linkNode = first("link");
-    const url = absolute(linkNode ? hrefOf(linkNode) : hrefOf(row), o.pageUrl);
+    const base = frameBaseOf(row, o.pageUrl);
+    let url = absolute(linkNode ? hrefOf(linkNode) : hrefOf(row), base);
     const siteEventId = eventIdOf(row, url) ?? `${home}|${away}|${startsAt.toISOString()}`;
+    // Widget sans lien : adresse de la fiche reconstruite d'après le modèle de la recette.
+    if (!url && dom.eventUrlTemplate && eventIdOf(row, null)) url = eventUrlFromTemplate(dom.eventUrlTemplate, { eventId: siteEventId });
     if (seen.has(siteEventId)) continue;
     seen.add(siteEventId);
     const leagueNode = first("league");
@@ -178,7 +208,9 @@ export function readMarketsFromHtml(html: string, dom: DomRecipe): DomMarketsRes
     const lineNode = linePick?.nodes(sel)[0] ?? null;
     const full = textOf(sel);
     const idx = full.lastIndexOf(oddsRaw);
-    const label = (idx >= 0 ? full.slice(0, idx) + full.slice(idx + oddsRaw.length) : full).replace(/\s+/g, " ").trim();
+    let label = (idx >= 0 ? full.slice(0, idx) + full.slice(idx + oddsRaw.length) : full).replace(/\s+/g, " ").trim();
+    // Marché en grille (« plus de » / « moins de » en en-tête, « 3.5 » dans la case) : libellé complet.
+    label = gridLabelFor(sel, label, sels, names) ?? label;
     if (!label) continue;
     rows.push({ marketSite: textOf(name), selectionSite: label, lineRaw: lineNode ? textOf(lineNode) : null, oddsRaw });
   }

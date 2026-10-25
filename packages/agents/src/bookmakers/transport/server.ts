@@ -17,7 +17,7 @@ import type { AgentsPrisma, Logger } from "../../types";
 import type { BookmakerCredentials } from "../../providers/screenshot/adapter";
 import { adapterFor } from "../../providers/screenshot/adapters";
 import { CaptureError } from "../../providers/screenshot/errors";
-import { GuardedPage, type ReadonlyLocator } from "../../providers/screenshot/guard";
+import { brandMirrorOf, GuardedPage, installPageHelpers, registrableDomain, type ReadonlyLocator } from "../../providers/screenshot/guard";
 import type { BrowserStorageState, ProxyConfig } from "../../providers/screenshot/session";
 import type { BookmakerTransport, DomStep, ReadTarget, SiteRecording } from "../contract";
 import { forbiddenApiCallReason, forbiddenFrameUrlReason, forbiddenReadUrlReason, READ_GUARD_CHECKS } from "../guard";
@@ -100,9 +100,10 @@ export function sessionHeaders(names: readonly string[], state: BrowserStorageSt
       return origin;
     }
   })();
-  // Jetons et cookies du site : seulement vers un domaine de la même marque que le site (`api.x.com` pour `x.com`).
-  // Un moteur tiers (autre domaine vu pendant l'enregistrement) ne reçoit jamais la session du client.
-  const brand = (h: string) => (/^\d+(\.\d+){3}$/.test(h) ? h : h.split(".").slice(-2).join("."));
+  // Jetons et cookies du site : seulement vers un domaine de la même marque que le site (`api.x.com` pour `x.com`,
+  // miroir numéroté `x-5178.com`). Un moteur tiers (autre domaine vu pendant l'enregistrement) ne reçoit jamais la
+  // session du client.
+  const brand = (h: string) => (/^\d+(\.\d+){3}$/.test(h) ? h : registrableDomain(h));
   const hostOfUrl = (u: string) => {
     try {
       return new URL(u).hostname.toLowerCase();
@@ -111,7 +112,8 @@ export function sessionHeaders(names: readonly string[], state: BrowserStorageSt
     }
   };
   const reqHost = hostOfUrl(url);
-  const sameBrand = !!reqHost && brand(reqHost) === brand(hostOfUrl(site.baseUrl));
+  const siteHost = hostOfUrl(site.baseUrl);
+  const sameBrand = !!reqHost && (brand(reqHost) === brand(siteHost) || (!!siteHost && !!brandMirrorOf(reqHost, [siteHost])));
   for (const raw of names) {
     const name = raw.toLowerCase().trim();
     if (!/^[a-z0-9-]{1,60}$/.test(name) || name === "cookie" || name === "host" || name === "content-length") continue;
@@ -352,6 +354,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
         userAgent: ua,
         ...(state ? { storageState: state as never } : {}),
       });
+      await installPageHelpers(context);
       // Toute navigation vers une adresse interdite est coupée AVANT d'atteindre le site : page principale (domaines du
       // site + mots de lecture), cadres (mots interdits : un moteur de paris tiers reste permis, sa caisse non), et
       // chaque redirection de la page principale vérifiée avant d'être suivie (le navigateur ne suit pas seul).

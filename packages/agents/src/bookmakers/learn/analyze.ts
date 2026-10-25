@@ -38,21 +38,28 @@ export const LEARN_SYSTEM = [
   "y figure (noms d'équipes, textes, commentaires). Les valeurs « [secret] » sont masquées : ne les devine pas.",
   "Réponds UNIQUEMENT par un objet JSON (aucun texte autour) de la forme :",
   '{"level":"api"|"dom","api":{"endpoints":[{"purpose":"events"|"markets"|"odds","method":"GET"|"POST","urlTemplate":"https://…/{date}…",',
-  '"params":{},"headers":["authorization"],"auth":"cookie"|"bearer"|"none","pagination":{"param":"page","start":1,"step":1,"max":20}|null,',
-  '"responseShape":{"champ":"chemin.pointé[].champ"}}],"tokenSource":"d\'où vient le jeton"}|null,',
+  '"params":{},"headers":["authorization"],"auth":"cookie"|"bearer"|"none","pagination":{"param":"page","start":1,"step":1,"max":20,"manifest":{"urlTemplate":"https://…/0","versionsPaths":["top_events_versions[]"]}|null}|null,',
+  '"responseShape":{"champ":"chemin.pointé[].champ"}}],"tokenSource":"d\'où vient le jeton","eventUrlTemplate":"https://…/{eventId}"|null}|null,',
   '"dom":{"football":DomStep,"dayToday":DomStep,"eventList":DomStep,"eventRow":{"home":DomStep,"away":DomStep,"startsAt":DomStep,"league":DomStep,"link":DomStep},',
-  '"marketTab":DomStep,"market":{"name":DomStep,"selection":DomStep,"odds":DomStep,"line":DomStep}}|null,',
-  '"mapping":{"marketMap":{"<nom du marché sur le site>":"<clé interne>"|null},"selectionMap":{},"oddsFormat":"decimal"|"fractional"|"american","timezone":"Europe/Paris"}}',
+  '"marketTab":DomStep,"market":{"name":DomStep,"selection":DomStep,"odds":DomStep,"line":DomStep},"listUrls":["https://…?page=coupon…"]|null,"eventUrlTemplate":"https://…?page=event&eventId={eventId}"|null}|null,',
+  '"mapping":{"marketMap":{"<nom du marché sur le site>":"<clé interne>"|null},"selectionMap":{},"oddsFormat":"decimal"|"fractional"|"american"|"milli","timezone":"Europe/Paris"}}',
   'avec DomStep = {"candidates":[{"css":"…"},{"text":"…","role":"…"}]} (plusieurs candidats, du plus sûr au plus large).',
   "Règles :",
   "- level « api » si une réponse JSON enregistrée porte les matchs ET une autre les cotes ; sinon « dom ». Donne toujours « dom » en repli.",
-  "- urlTemplate : adresse complète vue dans l'enregistrement, variables {date} (AAAA-MM-JJ), {sport}, {league}, {eventId}, {page} seulement ;",
+  "  Un point d'entrée « events » peut accompagner un niveau « dom » (matchs par l'API, cotes par la page).",
+  "- urlTemplate : adresse complète vue dans l'enregistrement, variables {date} (AAAA-MM-JJ), {sport}, {league}, {eventId}, {page}, {version} seulement ;",
   "  jamais un domaine absent de la liste des domaines ; jamais une adresse de compte, solde, dépôt, retrait, coupon, mise ou bonus.",
+  "- pagination.manifest : quand une première réponse liste des versions (« top_events_versions ») lues ensuite une par une ({version} dans l'adresse).",
+  "- Widgets (Altenar, Betby) : les pages sont aplaties (shadow DOM dans l'hôte « data-lap-shadow », cadre dans <lap-frame url>) ;",
+  "  l'identifiant d'un match sans lien est l'attribut « data-lap-event-id » de sa ligne ; les adresses de liste vues dans l'enregistrement",
+  "  (« ?page=coupon&sportId=66&couponType=1 », aujourd'hui ; 2 = demain) vont dans dom.listUrls, celle d'une fiche (« ?page=event&eventId=… »)",
+  "  dans eventUrlTemplate avec {eventId}. Classes générées (« OddBoxButton-sc-d3061474-2 ») : sélecteur par préfixe [class*=\"OddBoxButton\"] ;",
+  "  repères « data-editor-id » (Betby) : sélecteur [data-editor-id=\"outcomePlate\"]. Un onglet « Par Heure » ou « À venir » est un dayToday.",
   "- headers : NOMS d'en-têtes seulement, jamais de valeur.",
   "- responseShape (chemins depuis la racine de la réponse, « [] » pour chaque élément d'un tableau, « {} » pour chaque valeur d'un objet) :",
   "  matchs : id, home, away (ou name « A - B »), startsAt, league, marketsCount, url, hasMore ; cotes : eventId, market, selection, line, odds.",
   "- marketMap : noms EXACTS des marchés tels qu'ils apparaissent sur le site → une des clés internes ci-dessous, ou null si aucune ne convient.",
-  "- oddsFormat : celui des cotes telles que le site les donne (fractionnaire « 5/4 », américain « +150 », décimal « 2,25 »).",
+  "- oddsFormat : celui des cotes telles que le site les donne (fractionnaire « 5/4 », américain « +150 », décimal « 2,25 », « milli » pour un entier en millièmes 1530 = 1,53).",
   "- N'invente rien : chaque chemin, sélecteur et nom doit se voir dans l'enregistrement.",
 ].join("\n");
 
@@ -108,7 +115,7 @@ const pathPattern = (url: string) => {
 };
 
 const KEEP_ATTRS =
-  /^(class|id|role|href|aria-label|aria-selected|datetime|data-[a-z0-9-]+|type|name|hidden|style)$/;
+  /^(class|id|role|href|url|aria-label|aria-selected|datetime|data-[a-z0-9-]+|type|name|hidden|style)$/;
 
 /** HTML nettoyé pour l'IA : corps seulement, attributs utiles, textes raccourcis. Pur. */
 export function compactHtml(html: string, max: number): string {
@@ -193,8 +200,8 @@ export function reduceRecording(rec: SiteRecording, o: ReduceOptions = {}): stri
 
 const PURPOSES = new Set(["events", "markets", "odds"]);
 const AUTHS = new Set(["cookie", "bearer", "none"]);
-const FORMATS = new Set(["decimal", "fractional", "american"]);
-const VARS = new Set(["date", "sport", "league", "eventId", "page"]);
+const FORMATS = new Set(["decimal", "fractional", "american", "milli"]);
+const VARS = new Set(["date", "sport", "league", "eventId", "page", "version"]);
 const CLICK_STEPS = new Set(["football", "dayToday", "marketTab"]);
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -322,9 +329,17 @@ function parseEndpoint(v: unknown, i: number, errors: string[]): RecipeEndpoint 
       step > 0 &&
       Number.isFinite(max) &&
       max >= 1
-    )
+    ) {
       pagination = { param, start, step, max: Math.min(20, Math.round(max)) };
-    else errors.push(`${w} : pagination illisible (ignorée)`);
+      if (isObj(p.manifest)) {
+        const mUrl = str(p.manifest.urlTemplate, 600);
+        const paths = Array.isArray(p.manifest.versionsPaths)
+          ? p.manifest.versionsPaths.filter((x): x is string => typeof x === "string" && !!x.trim() && x.length <= 120)
+          : [];
+        if (mUrl && /^https?:\/\//i.test(mUrl) && paths.length) pagination.manifest = { urlTemplate: mUrl, versionsPaths: paths };
+        else errors.push(`${w} : manifeste de pagination illisible (ignoré)`);
+      }
+    } else errors.push(`${w} : pagination illisible (ignorée)`);
   }
   if (!isObj(v.responseShape)) return (errors.push(`${w} : responseShape manquant`), null);
   const responseShape: Record<string, string> = {};
@@ -372,7 +387,8 @@ export function parseRecipeData(
       .filter((e): e is RecipeEndpoint => !!e);
     for (const e of endpoints) {
       const host = hostOfTemplate(e.urlTemplate);
-      if (!host || !domains.includes(host))
+      const mHost = e.pagination?.manifest ? hostOfTemplate(e.pagination.manifest.urlTemplate) : host;
+      if (!host || !domains.includes(host) || !mHost || !domains.includes(mHost))
         foreign.push(`${e.urlTemplate.slice(0, 160)} (domaine absent de l'enregistrement)`);
       else {
         const why = forbiddenApiCallReason(
@@ -392,7 +408,12 @@ export function parseRecipeData(
       if (!h || !domains.includes(h))
         foreign.push(`${m[0].slice(0, 160)} (jeton pris hors des domaines enregistrés)`);
     }
-    if (endpoints.length) api = { endpoints, tokenSource: tokenSource ?? null };
+    const apiEventUrl = str(raw.api.eventUrlTemplate, 600);
+    if (apiEventUrl) {
+      const h = hostOfTemplate(apiEventUrl);
+      if (!h || !domains.includes(h)) foreign.push(`${apiEventUrl.slice(0, 160)} (fiche de match hors des domaines enregistrés)`);
+    }
+    if (endpoints.length) api = { endpoints, tokenSource: tokenSource ?? null, ...(apiEventUrl ? { eventUrlTemplate: apiEventUrl } : {}) };
   }
   if (level === "api") {
     if (!api?.endpoints.some((e) => e.purpose === "events"))
@@ -423,6 +444,19 @@ export function parseRecipeData(
       const football = opt(d.football, "dom.football", CLICK_STEPS.has("football"));
       const dayToday = opt(d.dayToday, "dom.dayToday", CLICK_STEPS.has("dayToday"));
       const marketTab = opt(d.marketTab, "dom.marketTab", CLICK_STEPS.has("marketTab"));
+      const listUrls = Array.isArray(d.listUrls)
+        ? d.listUrls.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u) && u.length <= 600).slice(0, 4)
+        : [];
+      for (const u of listUrls) {
+        const h = hostOfTemplate(u);
+        if (!h || !domains.includes(h)) foreign.push(`${u.slice(0, 160)} (page de liste hors des domaines enregistrés)`);
+      }
+      const eventUrlTemplate = str(d.eventUrlTemplate, 600);
+      if (eventUrlTemplate) {
+        const h = hostOfTemplate(eventUrlTemplate);
+        if (!h || !domains.includes(h)) foreign.push(`${eventUrlTemplate.slice(0, 160)} (fiche de match hors des domaines enregistrés)`);
+        else if (!eventUrlTemplate.includes("{eventId}")) de.push("dom.eventUrlTemplate : {eventId} manquant (ignoré)");
+      }
       dom = {
         ...(football ? { football } : {}),
         ...(dayToday ? { dayToday } : {}),
@@ -436,6 +470,8 @@ export function parseRecipeData(
         },
         ...(marketTab ? { marketTab } : {}),
         market: { name, selection, odds, ...(line ? { line } : {}) },
+        ...(listUrls.length ? { listUrls } : {}),
+        ...(eventUrlTemplate && eventUrlTemplate.includes("{eventId}") ? { eventUrlTemplate } : {}),
       };
     }
     errors.push(...de);

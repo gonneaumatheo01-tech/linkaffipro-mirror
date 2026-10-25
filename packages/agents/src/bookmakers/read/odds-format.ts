@@ -1,11 +1,12 @@
 /**
  * Phase 35 : cote affichée par un site → cote décimale EXACTE (règle 4 : aucune cote inventée, interpolée ou
  * rapprochée). Format donné par la recette (`mapping.oddsFormat`) : décimal (« 2,10 », « 2.1 », 2.1), fractionnaire
- * (« 11/10 » → 2,1 ; « EVS » / « evens » → 2), américain (« +110 » → 2,1 ; « -125 » → 1,8). Arrondi à 4 décimales
+ * (« 11/10 » → 2,1 ; « EVS » / « evens » → 2), américain (« +110 » → 2,1 ; « -125 » → 1,8), millièmes (« 1530 » → 1,53, API
+ * internes qui donnent la cote en entier). Arrondi à 4 décimales
  * seulement pour effacer le bruit des nombres à virgule (5/6 → 1,8333) : deux lectures d'une même cote donnent
  * toujours le même nombre. Illisible, hors bornes (≤ 1 ou > 1000) ou suspendue (« - », « SUSP ») : null.
  */
-export type OddsFormat = "decimal" | "fractional" | "american";
+export type OddsFormat = "decimal" | "fractional" | "american" | "milli";
 
 const round4 = (v: number) => Math.round(v * 10_000) / 10_000;
 const ok = (v: number): number | null => (Number.isFinite(v) && v > 1 && v <= 1000 ? round4(v) : null);
@@ -22,6 +23,7 @@ export function toDecimalOdds(raw: unknown, format: OddsFormat): number | null {
   if (typeof raw === "number") {
     if (!Number.isFinite(raw)) return null;
     if (format === "american") return americanOf(raw);
+    if (format === "milli") return ok(raw / 1000);
     return format === "decimal" ? ok(raw) : null;
   }
   if (typeof raw !== "string") return null;
@@ -36,6 +38,11 @@ export function toDecimalOdds(raw: unknown, format: OddsFormat): number | null {
   if (format === "american") {
     const n = numberOf(t);
     return n === null ? null : americanOf(n);
+  }
+  if (format === "milli") {
+    // Cote en millièmes (« 1530 » = 1,53), telle que la donnent certaines API internes (Celsius).
+    const n = numberOf(t);
+    return n === null ? null : ok(n / 1000);
   }
   const n = numberOf(t);
   return n === null ? null : ok(n);

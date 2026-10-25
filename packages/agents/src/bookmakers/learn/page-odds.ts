@@ -11,7 +11,8 @@
  * La page est une DONNÉE : rien de ce qu'elle dit n'est exécuté.
  */
 import { toDecimalOdds } from "../read/odds-format";
-import { descendants, foldText, parseHtml, textOf, type HtmlNode } from "../read/html";
+import { descendants, foldText, parseHtml, testIdOf, textOf, type HtmlNode } from "../read/html";
+import { gridLabelFor } from "../read/market-grid";
 import type { SiteRecording } from "../contract";
 
 export type PageOdd = SiteRecording["pageOdds"][number];
@@ -57,11 +58,15 @@ export function isHiddenNode(n: HtmlNode): boolean {
 const HEADING_TAG = /^h[2-6]$/;
 const TITLE_CLASS =
   /(market|mkt|group|grp).*(title|name|head|label|h\b)|(^|[\s_-])(title|heading|header)([\s_-]|$)/i;
+// En-tête de colonne, case ou issue d'un marché en grille : pas un titre de marché (« marketCardOutcomeCellHeader »).
+const NOT_TITLE = /cell|column|outcome|selection|choice|option|odd|price|row(?!s)/i;
 
 function isTitleNode(n: HtmlNode): boolean {
   if (n.tag === "h1" || n.tag === "title" || n.tag === "header") return false;
   if (HEADING_TAG.test(n.tag) || n.attrs.role === "heading") return true;
-  return TITLE_CLASS.test(n.attrs.class ?? "");
+  // Classe ou repère de test (`data-editor-id="marketCardHeader"`, Betby) qui dit « titre / nom de marché ».
+  const hint = `${n.attrs.class ?? ""} ${testIdOf(n)}`;
+  return TITLE_CLASS.test(hint) && !NOT_TITLE.test(hint);
 }
 
 function isAncestorOf(a: HtmlNode, b: HtmlNode): boolean {
@@ -96,14 +101,16 @@ export function pageOddsFromHtml(html: string): PageOdd[] {
     // La plus profonde : aucun enfant élément qui porte le même texte.
     return !n.children.some((c) => c.tag !== "#text" && textOf(c) === t);
   });
-  // Ligne de sélection de chaque cote.
+  // Ligne de sélection de chaque cote : le premier ancêtre qui affiche autre chose que SA cote (la dernière cote qu'il
+  // contient) : « Plus de 2.5 | 1.95 » (classique), « FC Pacific | 6.00 » (widget), « 3.5 | 1.49 » (case d'une grille :
+  // la ligne « 3.5 » ressemble à une cote mais n'est pas la dernière).
   const rowOf = new Map<HtmlNode, HtmlNode>();
   for (const leaf of leaves) {
     let row: HtmlNode | null = leaf.parent;
     for (let depth = 0; row && depth < 6; depth++, row = row.parent) {
       const inside = leaves.filter((l) => l === row || isAncestorOf(row!, l));
-      let rest = textOf(row);
-      for (const l of inside) rest = strip(rest, textOf(l));
+      const lastInside = inside[inside.length - 1];
+      const rest = lastInside ? strip(textOf(row), textOf(lastInside)) : textOf(row);
       if (/[\p{L}\p{N}]/u.test(rest)) break;
     }
     if (row && row.tag !== "#root" && row.tag !== "body" && row.tag !== "html")
@@ -127,12 +134,14 @@ export function pageOddsFromHtml(html: string): PageOdd[] {
     const oddsText = textOf(oddsNode);
     const odds = parseDisplayedOdds(oddsText);
     if (odds === null) continue;
-    const selection = strip(textOf(row), oddsText);
-    if (!selection) continue;
+    let selection = strip(textOf(row), oddsText);
     const title = [...titles]
       .reverse()
       .find((t) => t.order < row.order && !isAncestorOf(t, row) && !isAncestorOf(row, t));
     if (!title) continue;
+    // Marché en grille : « 3.5 » dans la case, « plus de » en en-tête de colonne → « plus de 3.5 ».
+    selection = gridLabelFor(row, selection, [...rowNodes], titles) ?? selection;
+    if (!selection) continue;
     const market = textOf(title);
     out.push({
       eventLabel,

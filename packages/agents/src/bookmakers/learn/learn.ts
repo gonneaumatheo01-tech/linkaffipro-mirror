@@ -29,8 +29,8 @@ import { forbiddenApiCallReason, forbiddenReadUrlReason } from "../guard";
 import { daysOf } from "../read/core";
 import { loadSite, lockOf, paceOf, type BookmakerReadDeps, type ReadSite } from "../read/deps";
 import { gestureOf } from "../read/diagnose";
-import { readEventsFromHtml } from "../read/dom-read";
-import { extractRows } from "../read/json-shape";
+import { eventUrlFromTemplate, readEventsFromHtml } from "../read/dom-read";
+import { extractRows, manifestVersions } from "../read/json-shape";
 import { loadActiveRecipe, type ActiveRecipe } from "../read/recipe";
 import { pickTransport } from "../transport/pick";
 import { analyzeRecording, type AnalyzeResult } from "./analyze";
@@ -329,9 +329,14 @@ export async function liveCheckRecipe(
   // 1. Liste du jour : page (référence) et recette.
   const listPage =
     rec.pages.find((p) => p.step === "list-today") ?? rec.pages.find((p) => p.step === "football");
-  const listUrl = listPage ? urlForToday(listPage.url, rec.startedAt, today) : site.baseUrl;
+  // Widget sans lien : la page de liste de la recette (ouverte directement) et son onglet (« Par Heure »).
+  const knownList = recipe.dom?.listUrls?.[0] ? recipe.dom.listUrls[0].split("{date}").join(today) : null;
+  const listUrl = knownList ?? (listPage ? urlForToday(listPage.url, rec.startedAt, today) : site.baseUrl);
   if (!listUrl) return out({ reason: "adresse de la liste des matchs inconnue" });
-  const lp = await page(listUrl, recipe.dom ? [{ waitFor: recipe.dom.eventList }] : []);
+  const listSteps: Array<{ click?: DomStep; waitFor?: DomStep }> = recipe.dom
+    ? [...(knownList && recipe.dom.dayToday ? [{ click: recipe.dom.dayToday }] : []), { waitFor: recipe.dom.eventList }]
+    : [];
+  const lp = await page(listUrl, listSteps);
   if (isObstacle(lp)) return out({ obstacle: lp.obstacle, reason: obstacleText(lp.obstacle) });
   const ref: ReferenceEvent[] = referenceEvents({
     pages: [{ step: "list-today", url: lp.url, html: lp.html, text: lp.text }],
@@ -339,7 +344,19 @@ export async function liveCheckRecipe(
   let events: SiteEvent[];
   const evEp =
     recipe.level === "api" ? recipe.api?.endpoints.find((e) => e.purpose === "events") : null;
-  if (evEp) {
+  if (evEp?.pagination?.manifest) {
+    // Pagination par manifeste (Betby) : versions listées par une première réponse, une lecture par version.
+    const m = evEp.pagination.manifest;
+    const manifest = await api({ ...evEp, urlTemplate: m.urlTemplate, pagination: null }, { date: today, sport: "football", league: "", page: "1" });
+    if (isObstacle(manifest)) return out({ obstacle: manifest.obstacle, reason: obstacleText(manifest.obstacle) });
+    const byId = new Map<string, SiteEvent>();
+    for (const version of manifestVersions(manifest, m.versionsPaths).slice(0, Math.min(evEp.pagination.max, 8))) {
+      const body = await api({ ...evEp, pagination: null }, { date: today, sport: "football", league: "", page: "1", version });
+      if (isObstacle(body)) return out({ obstacle: body.obstacle, reason: obstacleText(body.obstacle) });
+      for (const e of eventsFromApiBody(body, evEp, recipe.mapping.timezone, now)) if (!byId.has(e.siteEventId)) byId.set(e.siteEventId, e);
+    }
+    events = [...byId.values()];
+  } else if (evEp) {
     const byId = new Map<string, SiteEvent>();
     const pg = evEp.pagination;
     let prevSig = "";
@@ -380,6 +397,9 @@ export async function liveCheckRecipe(
       now,
     }).events;
   } else return out({ reason: "recette sans méthode de lecture" });
+  // Fiche d'un match lu par l'API sans adresse : modèle de la recette (`{eventId}`).
+  const tpl = recipe.api?.eventUrlTemplate ?? recipe.dom?.eventUrlTemplate ?? null;
+  if (tpl) events = events.map((e) => (e.url ? e : { ...e, url: eventUrlFromTemplate(tpl, { eventId: e.siteEventId }) }));
   const ev = compareEvents(ref, events, add);
   if (!events.length)
     return out({ reason: "aucun match lu par la méthode apprise", eventsSeen: ev.seen });

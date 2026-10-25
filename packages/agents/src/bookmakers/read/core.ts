@@ -14,7 +14,7 @@ import { BOOKMAKER_LIMITS, type BookmakerTransport, type DomStep, type ReadLevel
 import { forbiddenApiCallReason, forbiddenReadClickReason, forbiddenReadUrlReason } from "../guard";
 import { SiteLockBusy } from "../transport/lock";
 import { agentEvent } from "../../admin/journal";
-import { readEventsFromHtml, readMarketsFromHtml, splitTeams, type DomOddsRow, type LastGood } from "./dom-read";
+import { eventUrlFromTemplate, readEventsFromHtml, readMarketsFromHtml, splitTeams, type DomOddsRow, type LastGood } from "./dom-read";
 import { parseSiteDate, tzOffsetMinutes } from "./dates";
 import {
   assertDaytime,
@@ -30,7 +30,7 @@ import {
 } from "./deps";
 import { diagnoseByRules, diagnosePage, gestureOf, type DiagnosedPage, type PageInput } from "./diagnose";
 import { readOddsOnImage, selectionZone } from "./image";
-import { asText, extractRows } from "./json-shape";
+import { asText, extractRows, manifestVersions } from "./json-shape";
 import { expandMarketKeys, translateRow, wantedSelection } from "./mapping";
 import { sameLine, sameOddsExact, toDecimalOdds } from "./odds-format";
 import { endpointFor, loadActiveRecipe, rememberLastGood, type ActiveRecipe } from "./recipe";
@@ -169,6 +169,13 @@ export function daysOf(from: Date, to: Date, tz: string): string[] {
 async function callPaged(c: Ctx, ep: RecipeEndpoint, vars: Record<string, string>, rowFields: string[]): Promise<Array<Record<string, unknown>>> {
   const out: Array<Record<string, unknown>> = [];
   const pg = ep.pagination;
+  // Pagination par manifeste (Betby) : la première réponse liste les versions à lire, une adresse par version.
+  if (pg?.manifest) {
+    const manifest = await callApi(c, buildRequest({ ...ep, urlTemplate: pg.manifest.urlTemplate, pagination: null }, vars));
+    for (const version of manifestVersions(manifest, pg.manifest.versionsPaths).slice(0, Math.max(1, Math.min(20, pg.max))))
+      out.push(...extractRows(await callApi(c, buildRequest({ ...ep, pagination: null }, { ...vars, version })), ep.responseShape, rowFields));
+    return out;
+  }
   const pages = pg ? Math.max(1, Math.min(20, pg.max)) : 1;
   let prevSig = "";
   for (let i = 0; i < pages; i++) {
@@ -222,6 +229,12 @@ async function apiEvents(c: Ctx, q: { from: Date; to: Date }): Promise<SiteEvent
         } catch {
           url = null;
         }
+      // Sans adresse dans la réponse : modèle de la recette (`{eventId}` et les autres champs de la ligne).
+      if (!url && c.recipe.api?.eventUrlTemplate) {
+        const vars: Record<string, string> = { eventId: id };
+        for (const [k, v] of Object.entries(r)) if (typeof v === "string" || typeof v === "number") vars[k] = String(v);
+        url = eventUrlFromTemplate(c.recipe.api.eventUrlTemplate, vars);
+      }
       const mc = Number(r.marketsCount);
       events.set(id, { siteEventId: id, league: asText(r.league), homeTeam: home, awayTeam: away, startsAt, url, marketsCount: Number.isFinite(mc) && r.marketsCount !== undefined ? mc : null });
     }
@@ -263,21 +276,34 @@ function pageUrlOf(site: ReadSite): string | null {
 
 async function domEvents(c: Ctx, q: { from: Date; to: Date }): Promise<SiteEvent[]> {
   const dom = c.recipe.dom;
-  const url = pageUrlOf(c.site);
-  if (!dom || !url) throw new LevelFailure("dom", "aucune méthode de lecture de la page dans la recette");
-  const steps: Array<{ click?: DomStep; waitFor?: DomStep }> = [];
-  const football = guardedClick(dom.football);
-  const today = guardedClick(dom.dayToday);
-  if (football) steps.push({ click: football });
-  if (today) steps.push({ click: today });
-  steps.push({ waitFor: dom.eventList });
-  const p = await openPage(c, url, steps);
-  const r = readEventsFromHtml(p.html, dom, { pageUrl: p.url, timezone: c.recipe.mapping.timezone, now: nowOfDeps(c.deps) });
-  if (!r.rows) throw new LevelFailure("dom", "aucune ligne de match trouvée sur la page", { url: p.url, html: p.html, text: p.text });
-  if (!r.events.length) throw new LevelFailure("dom", "lignes de match illisibles (structure changée ?)", { url: p.url, html: p.html, text: p.text }, "site_changed");
-  await rememberLastGood(c.deps, c.recipe, r.lastGood);
+  const base = pageUrlOf(c.site);
+  if (!dom || (!base && !dom.listUrls?.length)) throw new LevelFailure("dom", "aucune méthode de lecture de la page dans la recette");
+  const now = nowOfDeps(c.deps);
+  // Widget sans lien (phase 35, suite) : pages de liste connues (aujourd'hui, demain), chacune ouverte directement ;
+  // sinon l'adresse du site puis les clics « football » et « aujourd'hui » de la recette.
+  const today = daysOf(now, now, c.recipe.mapping.timezone)[0] ?? now.toISOString().slice(0, 10);
+  const targets: Array<{ url: string; clicks: DomStep[] }> = dom.listUrls?.length
+    ? dom.listUrls.map((u) => ({ url: u.split("{date}").join(today), clicks: [guardedClick(dom.dayToday)].filter((x): x is DomStep => !!x) }))
+    : [{ url: base!, clicks: [guardedClick(dom.football), guardedClick(dom.dayToday)].filter((x): x is DomStep => !!x) }];
+  const events = new Map<string, SiteEvent>();
+  let rows = 0;
+  let last: { url: string; html: string; text: string } | null = null;
+  const good: LastGood = {};
+  for (const t of targets) {
+    const steps: Array<{ click?: DomStep; waitFor?: DomStep }> = t.clicks.map((click) => ({ click }));
+    steps.push({ waitFor: dom.eventList });
+    const p = await openPage(c, t.url, steps);
+    last = { url: p.url, html: p.html, text: p.text };
+    const r = readEventsFromHtml(p.html, dom, { pageUrl: p.url, timezone: c.recipe.mapping.timezone, now });
+    rows += r.rows;
+    Object.assign(good, r.lastGood);
+    for (const e of r.events) if (!events.has(e.siteEventId)) events.set(e.siteEventId, e);
+  }
+  if (!rows) throw new LevelFailure("dom", "aucune ligne de match trouvée sur la page", last);
+  if (!events.size) throw new LevelFailure("dom", "lignes de match illisibles (structure changée ?)", last, "site_changed");
+  await rememberLastGood(c.deps, c.recipe, good);
   void q;
-  return r.events;
+  return [...events.values()];
 }
 
 async function domOddsRows(c: Ctx, event: StoredEvent): Promise<{ rows: DomOddsRow[]; good: LastGood }> {

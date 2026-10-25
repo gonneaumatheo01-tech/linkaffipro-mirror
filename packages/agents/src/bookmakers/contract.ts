@@ -108,18 +108,25 @@ export type SiteRecording = {
   pageOdds: Array<{ eventLabel: string; market: string; selection: string; line: number | null; odds: number }>;
 };
 
+/**
+ * Pagination par manifeste (phase 35, suite ; moteur Betby) : une première réponse (`urlTemplate` du manifeste) donne
+ * la liste des « versions » à lire (`versionsPaths`, chemins vers des tableaux) ; chaque version remplit `{version}`
+ * dans l'adresse du point d'entrée.
+ */
+export type ManifestPagination = { urlTemplate: string; versionsPaths: string[] };
+
 /** Point d'entrée d'une API interne du site. */
 export type RecipeEndpoint = {
   purpose: "events" | "markets" | "odds";
   method: "GET" | "POST";
-  /** Modèle d'URL : `{date}`, `{sport}`, `{league}`, `{eventId}`, `{page}` ; domaine parmi ceux de l'enregistrement. */
+  /** Modèle d'URL : `{date}`, `{sport}`, `{league}`, `{eventId}`, `{page}`, `{version}` ; domaine parmi ceux de l'enregistrement. */
   urlTemplate: string;
   params?: Record<string, string>;
   /** Noms des en-têtes à envoyer (valeurs prises dans la session, jamais stockées). */
   headers?: string[];
   auth: "cookie" | "bearer" | "none";
-  pagination?: { param: string; start: number; step: number; max: number } | null;
-  /** Chemins vers les champs dans la réponse (notation pointée, `[]` pour les tableaux). */
+  pagination?: { param: string; start: number; step: number; max: number; manifest?: ManifestPagination | null } | null;
+  /** Chemins vers les champs dans la réponse (notation pointée, `[]` pour les tableaux, `{}` pour les valeurs d'un objet). */
   responseShape: Record<string, string>;
 };
 
@@ -128,7 +135,12 @@ export type DomStep = { candidates: Array<{ css?: string; text?: string; role?: 
 
 export type RecipeData = {
   level: "api" | "dom";
-  api?: { endpoints: RecipeEndpoint[]; tokenSource?: string | null } | null;
+  api?: {
+    endpoints: RecipeEndpoint[];
+    tokenSource?: string | null;
+    /** Adresse de la fiche d'un match lu par l'API (`{eventId}` ; autres champs de la ligne : `{slug}`…), pour la page. */
+    eventUrlTemplate?: string | null;
+  } | null;
   dom?: {
     football?: DomStep;
     dayToday?: DomStep;
@@ -136,12 +148,20 @@ export type RecipeData = {
     eventRow: { home: DomStep; away: DomStep; startsAt: DomStep; league?: DomStep; link?: DomStep };
     marketTab?: DomStep;
     market: { name: DomStep; selection: DomStep; odds: DomStep; line?: DomStep };
+    /**
+     * Phase 35, suite (widgets sans lien) : pages de liste à ouvrir directement (aujourd'hui, demain…) au lieu de
+     * l'adresse du site puis des clics `football` / `dayToday` ; `{date}` permis.
+     */
+    listUrls?: string[] | null;
+    /** Adresse de la fiche d'un match dont la ligne n'a pas de lien (`{eventId}` = identifiant lu sur la ligne). */
+    eventUrlTemplate?: string | null;
   } | null;
   mapping: {
     /** Nom du marché sur le site → clé interne de `sports/themes.json` (null = pas de correspondance). */
     marketMap: Record<string, string | null>;
     selectionMap?: Record<string, string>;
-    oddsFormat: "decimal" | "fractional" | "american";
+    /** `milli` : cote donnée en millièmes (1530 = 1,53). */
+    oddsFormat: "decimal" | "fractional" | "american" | "milli";
     timezone: string;
   };
 };

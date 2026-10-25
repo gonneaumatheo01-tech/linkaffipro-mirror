@@ -19,12 +19,14 @@ export function parseRecipeRow(r: Record<string, unknown>): ActiveRecipe | null 
   const dom = r.dom && typeof r.dom === "object" ? (r.dom as RecipeData["dom"]) : null;
   const validation = rec(r.validation);
   const domains = Array.isArray(validation.domains) ? validation.domains.filter((d): d is string => typeof d === "string") : [];
-  const format = mapping.oddsFormat === "fractional" || mapping.oddsFormat === "american" ? mapping.oddsFormat : "decimal";
+  const format = mapping.oddsFormat === "fractional" || mapping.oddsFormat === "american" || mapping.oddsFormat === "milli" ? mapping.oddsFormat : "decimal";
   return {
     id: String(r.id),
     version: Number(r.version ?? 0),
     level,
-    api: endpoints.length ? { endpoints, tokenSource: typeof api.tokenSource === "string" ? api.tokenSource : null } : null,
+    api: endpoints.length
+      ? { endpoints, tokenSource: typeof api.tokenSource === "string" ? api.tokenSource : null, eventUrlTemplate: typeof api.eventUrlTemplate === "string" ? api.eventUrlTemplate : null }
+      : null,
     dom: dom && dom.eventList && dom.market ? dom : null,
     mapping: {
       marketMap: rec(mapping.marketMap) as Record<string, string | null>,

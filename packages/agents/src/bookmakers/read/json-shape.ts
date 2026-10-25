@@ -102,3 +102,19 @@ export function asText(v: unknown): string {
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return "";
 }
+
+/** Versions listées par un manifeste (chemins vers des tableaux ou des valeurs), dans l'ordre, sans doublon. Pur. */
+export function manifestVersions(body: unknown, paths: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const path of paths) {
+    const p = path.trim().replace(/\[\]$/, "");
+    for (const row of extractRows(body, { v: p }, ["v"])) {
+      const values = Array.isArray(row.v) ? row.v : [row.v];
+      for (const v of values) {
+        const t = asText(v);
+        if (t && !out.includes(t)) out.push(t);
+      }
+    }
+  }
+  return out;
+}

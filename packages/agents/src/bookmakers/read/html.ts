@@ -358,6 +358,20 @@ export function roleOf(n: HtmlNode): string | null {
   return n.attrs.role ?? (n.tag === "a" && n.attrs.href === undefined ? null : (IMPLICIT_ROLE[n.tag] ?? null));
 }
 
+/**
+ * Base d'une adresse relative dans une page APLATIE par le transport : l'adresse du cadre `<lap-frame url>` qui
+ * contient le nœud (site de paris dans une iframe), sinon celle de la page. Pur.
+ */
+export function frameBaseOf(n: HtmlNode, pageUrl: string | null): string | null {
+  for (let p = n.parent; p; p = p.parent) if (p.tag === "lap-frame" && p.attrs.url) return p.attrs.url;
+  return pageUrl;
+}
+
+/** Repère de test ou de maquette d'un élément (`data-editor-id`, `data-testid`…), ou vide. Pur. */
+export function testIdOf(n: HtmlNode): string {
+  return n.attrs["data-editor-id"] ?? n.attrs["data-testid"] ?? n.attrs["data-test"] ?? n.attrs["data-cy"] ?? n.attrs["data-qa"] ?? "";
+}
+
 export function foldText(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
