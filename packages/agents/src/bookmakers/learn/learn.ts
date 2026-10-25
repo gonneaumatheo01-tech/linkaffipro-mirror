@@ -2,7 +2,8 @@
  * Phase 35 (chantier B, règles 5 et 6) — APPRENDRE UN SITE, de bout en bout :
  *   LEARNING → enregistrement guidé (`pickTransport` + `transport.record` : serveur, ou Mac si le serveur est refusé)
  *   → masquage (`maskRecording`, aucun secret ne survit) → recette d'un site du même moteur de paris
- *   (`reuseRecipeByProvider`, essayée AVANT l'IA) → Opus (`analyzeRecording`) → validation sur l'enregistrement
+ *   (`reuseRecipeByProvider`, essayée AVANT l'IA) → fiche fournisseur (`builtinRecipes` : Altenar, Betby, API
+ *   « matches », phase 35 suite) → Opus (`analyzeRecording`) → validation sur l'enregistrement
  *   (`validateRecipe`) → deuxième passe d'Opus avec les écarts → repli « page seule » (`dom`) → sinon BLOCKED avec la
  *   raison. Recette validée → contrôle RÉEL (une lecture des matchs et d'un match, comparée à la page) → READY, recette
  *   version + 1 active, l'ancienne gardée inactive (consultable).
@@ -36,6 +37,7 @@ import { pickTransport } from "../transport/pick";
 import { analyzeRecording, type AnalyzeResult } from "./analyze";
 import { maskRecording } from "./mask";
 import { pageOddsFromHtml } from "./page-odds";
+import { builtinRecipes } from "./profiles";
 import { UNKNOWN_PROVIDER } from "./provider";
 import { rebaseRecipe, recipeOrigins } from "./rebase";
 import {
@@ -359,34 +361,40 @@ export async function liveCheckRecipe(
   } else if (evEp) {
     const byId = new Map<string, SiteEvent>();
     const pg = evEp.pagination;
-    let prevSig = "";
-    for (let i = 0; i < (pg ? Math.min(pg.max, 5) : 1); i++) {
-      const n = String((pg?.start ?? 1) + i * (pg?.step ?? 1));
-      const body = await api(evEp, {
-        date: today,
-        sport: "football",
-        league: "",
-        page: n,
-        ...(pg ? { [pg.param]: n } : {}),
-      });
-      if (isObstacle(body)) {
-        if (i > 0 && /^http_4\d\d$/.test(body.obstacle)) break; // page au-delà de la dernière
-        return out({ obstacle: body.obstacle, reason: obstacleText(body.obstacle) });
-      }
-      const got = eventsFromApiBody(body, evEp, recipe.mapping.timezone, now);
-      const sig = got.map((e) => e.siteEventId).join(",");
-      if (!got.length || sig === prevSig) break;
-      prevSig = sig;
-      for (const e of got) if (!byId.has(e.siteEventId)) byId.set(e.siteEventId, e);
-      // Indicateur « encore des pages » de la forme (`hasMore`, `next`) : faux ou vide = fini.
-      const moreKey = evEp.responseShape.hasMore
-        ? "hasMore"
-        : evEp.responseShape.next
-          ? "next"
-          : null;
-      if (moreKey) {
-        const more = extractRows(body, { more: evEp.responseShape[moreKey]! }, ["more"])[0]?.more;
-        if (more === false || more === null || more === undefined || more === 0) break;
+    // Point d'entrée « par jour » (`{date}`) : aujourd'hui ET demain, comme la lecture (la page de liste du site
+    // montre souvent les deux ; un seul jour laisserait des matchs « absents »).
+    const dated = /\{date\}/.test(evEp.urlTemplate) || Object.values(evEp.params ?? {}).some((v) => v.includes("{date}"));
+    const days = dated ? daysOf(now, new Date(now.getTime() + 86_400_000), recipe.mapping.timezone).slice(0, 2) : [today];
+    for (const date of days) {
+      let prevSig = "";
+      for (let i = 0; i < (pg ? Math.min(pg.max, 5) : 1); i++) {
+        const n = String((pg?.start ?? 1) + i * (pg?.step ?? 1));
+        const body = await api(evEp, {
+          date,
+          sport: "football",
+          league: "",
+          page: n,
+          ...(pg ? { [pg.param]: n } : {}),
+        });
+        if (isObstacle(body)) {
+          if (i > 0 && /^http_4\d\d$/.test(body.obstacle)) break; // page au-delà de la dernière
+          return out({ obstacle: body.obstacle, reason: obstacleText(body.obstacle) });
+        }
+        const got = eventsFromApiBody(body, evEp, recipe.mapping.timezone, now);
+        const sig = got.map((e) => e.siteEventId).join(",");
+        if (!got.length || sig === prevSig) break;
+        prevSig = sig;
+        for (const e of got) if (!byId.has(e.siteEventId)) byId.set(e.siteEventId, e);
+        // Indicateur « encore des pages » de la forme (`hasMore`, `next`) : faux ou vide = fini.
+        const moreKey = evEp.responseShape.hasMore
+          ? "hasMore"
+          : evEp.responseShape.next
+            ? "next"
+            : null;
+        if (moreKey) {
+          const more = extractRows(body, { more: evEp.responseShape[moreKey]! }, ["more"])[0]?.more;
+          if (more === false || more === null || more === undefined || more === 0) break;
+        }
       }
     }
     events = [...byId.values()];
@@ -480,9 +488,11 @@ export async function liveCheckRecipe(
 type Chosen = {
   recipe: RecipeData;
   validation: RecipeValidation;
-  source: "provider" | "opus" | "opus-2" | "dom";
+  /** `builtin` : fiche fournisseur (recette prête du moteur, phase 35 suite), sans IA. */
+  source: "provider" | "builtin" | "opus" | "opus-2" | "dom";
   costCents: number;
   fromSiteKey?: string;
+  profile?: string;
 };
 
 async function transportFor(
@@ -671,6 +681,27 @@ async function learnLocked(
       costCents: 0,
       fromSiteKey: reused.fromSiteKey,
     };
+  // 3 bis. Fiche fournisseur (moteur reconnu : Altenar, Betby, API « matches ») : recette prête, validée comme les
+  // autres sur l'enregistrement ; refusée → l'IA.
+  if (!chosen)
+    for (const b of builtinRecipes(rec)) {
+      const v = validateRecipe(b.recipe, rec);
+      validations.push(v);
+      if (v.passed) {
+        chosen = { recipe: b.recipe, validation: v, source: "builtin", costCents: 0, profile: b.name };
+        break;
+      }
+      if (b.recipe.level === "api" && b.recipe.dom) {
+        const dom: RecipeData = { ...b.recipe, level: "dom", api: null };
+        const dv = validateRecipe(dom, rec, { level: "dom" });
+        validations.push(dv);
+        if (dv.passed) {
+          chosen = { recipe: dom, validation: dv, source: "builtin", costCents: 0, profile: b.name };
+          break;
+        }
+      }
+      deps.logger?.info({ site: site.key, profile: b.name, summary: validationSummary(v) }, "[bookmakers] fiche fournisseur refusée sur l'enregistrement");
+    }
   const llm = chosen ? null : await llmFor(deps);
   if (!chosen && llm) {
     let previous: {
@@ -769,6 +800,7 @@ async function learnLocked(
     providerHint: rec.providerHint,
     source: chosen.source,
     ...(chosen.fromSiteKey ? { fromSiteKey: chosen.fromSiteKey } : {}),
+    ...(chosen.profile ? { profile: chosen.profile } : {}),
     costCents: chosen.costCents,
     live: {
       at: nowOf(deps).toISOString(),
@@ -798,8 +830,9 @@ async function learnLocked(
     data: { isActive: false },
   });
   const how =
-    chosen.recipe.level === "api" ? "lecture directe des données du site" : "lecture de la page";
-  const message = `${site.label} appris (${how}, version ${version}) : ${chosen.validation.eventsMatched} matchs et ${chosen.validation.oddsMatched} cotes vérifiés, contrôle sur le site réussi`;
+    chosen.recipe.level === "api" ? "lecture directe des données du site" : chosen.recipe.api ? "matchs par les données du site, cotes sur la page" : "lecture de la page";
+  const by = chosen.source === "builtin" ? `, fiche ${chosen.profile ?? "fournisseur"} sans IA` : chosen.source === "provider" ? ", même moteur qu'un site déjà appris" : "";
+  const message = `${site.label} appris (${how}${by}, version ${version}) : ${chosen.validation.eventsMatched} matchs et ${chosen.validation.oddsMatched} cotes vérifiés, contrôle sur le site réussi`;
   await writeLearnState(deps, site.key, {
     lastAttemptAt: startedAt.toISOString(),
     reason,

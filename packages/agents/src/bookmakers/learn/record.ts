@@ -284,7 +284,7 @@ export async function recordSite(
             status: r.status,
             contentType: r.contentType,
             kind,
-            body: truncateBytes(body, BOOKMAKER_LIMITS.recordBodyMaxBytes),
+            body: truncateBytes(body, kind === "json" ? BOOKMAKER_LIMITS.recordJsonBodyMaxBytes : BOOKMAKER_LIMITS.recordBodyMaxBytes),
             at,
           });
         })

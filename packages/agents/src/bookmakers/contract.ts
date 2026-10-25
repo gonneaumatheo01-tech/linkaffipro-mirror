@@ -46,6 +46,11 @@ export const BOOKMAKER_LIMITS = {
   doubleReadWindowMs: 3 * 60_000,
   /** Corps de réponse gardé dans un enregistrement : 200 Ko au plus. */
   recordBodyMaxBytes: 200_000,
+  /**
+   * Sauf les corps JSON, gardés entiers jusqu'à 3 Mo : un flux de matchs coupé à 200 Ko n'est plus lisible et la
+   * validation hors ligne échouerait (Betby : 300 à 600 Ko par morceau). L'IA, elle, n'en voit qu'un résumé.
+   */
+  recordJsonBodyMaxBytes: 3_000_000,
   /** Validation d'une recette : ≥ 95 % des matchs visibles, 100 % des cotes lues. */
   recipeEventsMatchRatio: 0.95,
   recipeOddsMatchRatio: 1,
@@ -76,7 +81,7 @@ export type RecordedResponse = {
   contentType: string | null;
   /** json | graphql | websocket | html | other */
   kind: "json" | "graphql" | "websocket" | "html" | "other";
-  /** Corps tronqué à `recordBodyMaxBytes`. */
+  /** Corps tronqué à `recordBodyMaxBytes` (`recordJsonBodyMaxBytes` pour du JSON). */
   body: string;
   at: string;
 };
@@ -128,6 +133,8 @@ export type RecipeEndpoint = {
   pagination?: { param: string; start: number; step: number; max: number; manifest?: ManifestPagination | null } | null;
   /** Chemins vers les champs dans la réponse (notation pointée, `[]` pour les tableaux, `{}` pour les valeurs d'un objet). */
   responseShape: Record<string, string>;
+  /** Lignes gardées : champ de la forme → valeur exigée (`{ sport: "1", type: "match" }` : football, matchs seulement). */
+  filter?: Record<string, string> | null;
 };
 
 /** Sélecteurs d'une étape de page (plusieurs candidats : le premier qui marche est retenu). */

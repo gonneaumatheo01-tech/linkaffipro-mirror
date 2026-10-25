@@ -21,7 +21,7 @@ import {
 import { eventIdFromUrl, readEventsFromHtml, readMarketsFromHtml, splitTeams } from "../read/dom-read";
 import { parseSiteDate } from "../read/dates";
 import { descendants, frameBaseOf, parseHtml, textOf } from "../read/html";
-import { asText, extractRows } from "../read/json-shape";
+import { asText, extractRows, keepRows } from "../read/json-shape";
 import { sameLine, sameOddsExact, toDecimalOdds } from "../read/odds-format";
 import {
   isHiddenNode,
@@ -114,13 +114,7 @@ export function eventsFromApiBody(
   now: Date,
 ): SiteEvent[] {
   const out: SiteEvent[] = [];
-  for (const row of extractRows(body, ep.responseShape, [
-    "id",
-    "home",
-    "away",
-    "startsAt",
-    "name",
-  ])) {
+  for (const row of keepRows(extractRows(body, ep.responseShape, ["id", "home", "away", "startsAt", "name"]), ep.filter)) {
     const id = asText(row.id);
     let home = asText(row.home);
     let away = asText(row.away);
@@ -216,7 +210,7 @@ export function oddsFromApiBody(
   eventId: string | null,
 ): RecipeOdd[] {
   const out: RecipeOdd[] = [];
-  for (const row of extractRows(body, ep.responseShape, ["market", "selection", "odds"])) {
+  for (const row of keepRows(extractRows(body, ep.responseShape, ["market", "selection", "odds"]), ep.filter)) {
     if (
       eventId &&
       row.eventId !== undefined &&

@@ -30,7 +30,7 @@ import {
 } from "./deps";
 import { diagnoseByRules, diagnosePage, gestureOf, type DiagnosedPage, type PageInput } from "./diagnose";
 import { readOddsOnImage, selectionZone } from "./image";
-import { asText, extractRows, manifestVersions } from "./json-shape";
+import { asText, extractRows, keepRows, manifestVersions } from "./json-shape";
 import { expandMarketKeys, translateRow, wantedSelection } from "./mapping";
 import { sameLine, sameOddsExact, toDecimalOdds } from "./odds-format";
 import { endpointFor, loadActiveRecipe, rememberLastGood, type ActiveRecipe } from "./recipe";
@@ -173,7 +173,7 @@ async function callPaged(c: Ctx, ep: RecipeEndpoint, vars: Record<string, string
   if (pg?.manifest) {
     const manifest = await callApi(c, buildRequest({ ...ep, urlTemplate: pg.manifest.urlTemplate, pagination: null }, vars));
     for (const version of manifestVersions(manifest, pg.manifest.versionsPaths).slice(0, Math.max(1, Math.min(20, pg.max))))
-      out.push(...extractRows(await callApi(c, buildRequest({ ...ep, pagination: null }, { ...vars, version })), ep.responseShape, rowFields));
+      out.push(...keepRows(extractRows(await callApi(c, buildRequest({ ...ep, pagination: null }, { ...vars, version })), ep.responseShape, rowFields), ep.filter));
     return out;
   }
   const pages = pg ? Math.max(1, Math.min(20, pg.max)) : 1;
@@ -187,7 +187,7 @@ async function callPaged(c: Ctx, ep: RecipeEndpoint, vars: Record<string, string
       req.url = u.toString();
       if (ep.method === "POST") req.body = JSON.stringify({ ...(req.body ? (JSON.parse(req.body) as object) : {}), [pg.param]: pg.start + i * pg.step });
     }
-    const rows = extractRows(await callApi(c, req), ep.responseShape, rowFields);
+    const rows = keepRows(extractRows(await callApi(c, req), ep.responseShape, rowFields), ep.filter);
     if (!rows.length) break;
     // Même page rendue deux fois (le site ignore la pagination) : arrêt.
     const sig = JSON.stringify(rows[0]);

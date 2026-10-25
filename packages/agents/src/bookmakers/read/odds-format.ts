@@ -2,7 +2,8 @@
  * Phase 35 : cote affichée par un site → cote décimale EXACTE (règle 4 : aucune cote inventée, interpolée ou
  * rapprochée). Format donné par la recette (`mapping.oddsFormat`) : décimal (« 2,10 », « 2.1 », 2.1), fractionnaire
  * (« 11/10 » → 2,1 ; « EVS » / « evens » → 2), américain (« +110 » → 2,1 ; « -125 » → 1,8), millièmes (« 1530 » → 1,53, API
- * internes qui donnent la cote en entier). Arrondi à 4 décimales
+ * internes qui donnent la cote en entier ; une cote écrite AVEC une virgule ou un point, « 1.60 », n'est jamais en
+ * millièmes : c'est la page du même site, lue en décimal). Arrondi à 4 décimales
  * seulement pour effacer le bruit des nombres à virgule (5/6 → 1,8333) : deux lectures d'une même cote donnent
  * toujours le même nombre. Illisible, hors bornes (≤ 1 ou > 1000) ou suspendue (« - », « SUSP ») : null.
  */
@@ -23,7 +24,7 @@ export function toDecimalOdds(raw: unknown, format: OddsFormat): number | null {
   if (typeof raw === "number") {
     if (!Number.isFinite(raw)) return null;
     if (format === "american") return americanOf(raw);
-    if (format === "milli") return ok(raw / 1000);
+    if (format === "milli") return Number.isInteger(raw) ? ok(raw / 1000) : ok(raw);
     return format === "decimal" ? ok(raw) : null;
   }
   if (typeof raw !== "string") return null;
@@ -40,9 +41,11 @@ export function toDecimalOdds(raw: unknown, format: OddsFormat): number | null {
     return n === null ? null : americanOf(n);
   }
   if (format === "milli") {
-    // Cote en millièmes (« 1530 » = 1,53), telle que la donnent certaines API internes (Celsius).
+    // Cote en millièmes (« 1530 » = 1,53), telle que la donnent certaines API internes (Celsius) ; « 1.60 » ou « 1,60 »
+    // (séparateur décimal) vient de la page du site : déjà décimale.
     const n = numberOf(t);
-    return n === null ? null : ok(n / 1000);
+    if (n === null) return null;
+    return /[.,]/.test(t) ? ok(n) : ok(n / 1000);
   }
   const n = numberOf(t);
   return n === null ? null : ok(n);

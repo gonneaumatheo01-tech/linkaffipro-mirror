@@ -39,7 +39,7 @@ export const LEARN_SYSTEM = [
   "Réponds UNIQUEMENT par un objet JSON (aucun texte autour) de la forme :",
   '{"level":"api"|"dom","api":{"endpoints":[{"purpose":"events"|"markets"|"odds","method":"GET"|"POST","urlTemplate":"https://…/{date}…",',
   '"params":{},"headers":["authorization"],"auth":"cookie"|"bearer"|"none","pagination":{"param":"page","start":1,"step":1,"max":20,"manifest":{"urlTemplate":"https://…/0","versionsPaths":["top_events_versions[]"]}|null}|null,',
-  '"responseShape":{"champ":"chemin.pointé[].champ"}}],"tokenSource":"d\'où vient le jeton","eventUrlTemplate":"https://…/{eventId}"|null}|null,',
+  '"responseShape":{"champ":"chemin.pointé[].champ"},"filter":{"sport":"1"}|null}],"tokenSource":"d\'où vient le jeton","eventUrlTemplate":"https://…/{eventId}"|null}|null,',
   '"dom":{"football":DomStep,"dayToday":DomStep,"eventList":DomStep,"eventRow":{"home":DomStep,"away":DomStep,"startsAt":DomStep,"league":DomStep,"link":DomStep},',
   '"marketTab":DomStep,"market":{"name":DomStep,"selection":DomStep,"odds":DomStep,"line":DomStep},"listUrls":["https://…?page=coupon…"]|null,"eventUrlTemplate":"https://…?page=event&eventId={eventId}"|null}|null,',
   '"mapping":{"marketMap":{"<nom du marché sur le site>":"<clé interne>"|null},"selectionMap":{},"oddsFormat":"decimal"|"fractional"|"american"|"milli","timezone":"Europe/Paris"}}',
@@ -56,7 +56,9 @@ export const LEARN_SYSTEM = [
   "  dans eventUrlTemplate avec {eventId}. Classes générées (« OddBoxButton-sc-d3061474-2 ») : sélecteur par préfixe [class*=\"OddBoxButton\"] ;",
   "  repères « data-editor-id » (Betby) : sélecteur [data-editor-id=\"outcomePlate\"]. Un onglet « Par Heure » ou « À venir » est un dayToday.",
   "- headers : NOMS d'en-têtes seulement, jamais de valeur.",
-  "- responseShape (chemins depuis la racine de la réponse, « [] » pour chaque élément d'un tableau, « {} » pour chaque valeur d'un objet) :",
+  "- responseShape (chemins depuis la racine de la réponse, « [] » pour chaque élément d'un tableau, « {} » pour chaque valeur d'un objet,",
+  "  « {}.$key » pour la clé de l'entrée, « [0] » pour un rang fixe, « tournois[@events{}.desc.tournament].name » pour une jointure par clé) ;",
+  "  filter : champ de la forme → valeur exigée pour garder la ligne (le football seulement : {\"sport\":\"1\"}).",
   "  matchs : id, home, away (ou name « A - B »), startsAt, league, marketsCount, url, hasMore ; cotes : eventId, market, selection, line, odds.",
   "- marketMap : noms EXACTS des marchés tels qu'ils apparaissent sur le site → une des clés internes ci-dessous, ou null si aucune ne convient.",
   "- oddsFormat : celui des cotes telles que le site les donne (fractionnaire « 5/4 », américain « +150 », décimal « 2,25 », « milli » pour un entier en millièmes 1530 = 1,53).",
@@ -350,6 +352,9 @@ function parseEndpoint(v: unknown, i: number, errors: string[]): RecipeEndpoint 
   if (purpose === "events" && !(responseShape.home && responseShape.away) && !responseShape.name)
     missing.push("home/away");
   if (missing.length) return (errors.push(`${w} : champs manquants ${missing.join(", ")}`), null);
+  const filter: Record<string, string> = {};
+  if (isObj(v.filter))
+    for (const [k, x] of Object.entries(v.filter)) if ((typeof x === "string" || typeof x === "number") && responseShape[k]) filter[k] = String(x).slice(0, 80);
   return {
     purpose,
     method,
@@ -359,6 +364,7 @@ function parseEndpoint(v: unknown, i: number, errors: string[]): RecipeEndpoint 
     auth,
     pagination,
     responseShape,
+    ...(Object.keys(filter).length ? { filter } : {}),
   };
 }
 

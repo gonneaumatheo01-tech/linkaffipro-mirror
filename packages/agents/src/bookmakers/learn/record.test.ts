@@ -128,7 +128,9 @@ describe.skipIf(!chromiumAvailable())(
         expect(new Set(rec.pageOdds.map((o) => o.market)).size).toBeGreaterThanOrEqual(4);
         expect(
           rec.responses.every(
-            (r) => Buffer.byteLength(r.body) <= BOOKMAKER_LIMITS.recordBodyMaxBytes,
+            (r) =>
+              Buffer.byteLength(r.body) <=
+              (r.kind === "json" ? BOOKMAKER_LIMITS.recordJsonBodyMaxBytes : BOOKMAKER_LIMITS.recordBodyMaxBytes),
           ),
         ).toBe(true);
         if (site === "celsius")
