@@ -1,0 +1,83 @@
+{
+  "level": "dom",
+  "api": null,
+  "dom": {
+    "eventList": {
+      "candidates": [
+        {
+          "css": "article.event-card"
+        }
+      ]
+    },
+    "eventRow": {
+      "home": {
+        "candidates": [
+          {
+            "css": ".participant--1"
+          }
+        ]
+      },
+      "away": {
+        "candidates": [
+          {
+            "css": ".participant--2"
+          }
+        ]
+      },
+      "startsAt": {
+        "candidates": [
+          {
+            "css": ".event-card__kickoff"
+          }
+        ]
+      },
+      "link": {
+        "candidates": [
+          {
+            "css": "a.event-card__teams"
+          }
+        ]
+      }
+    },
+    "marketTab": {
+      "candidates": [
+        {
+          "css": "button.market-nav__item"
+        }
+      ]
+    },
+    "market": {
+      "name": {
+        "candidates": [
+          {
+            "css": ".market-block__title"
+          }
+        ]
+      },
+      "selection": {
+        "candidates": [
+          {
+            "css": ".market-block__choice"
+          }
+        ]
+      },
+      "odds": {
+        "candidates": [
+          {
+            "css": ".market-block__choice-coef"
+          }
+        ]
+      }
+    }
+  },
+  "mapping": {
+    "marketMap": {
+      "Résultat du match": "resultat",
+      "Plus/Moins de buts": "buts",
+      "Corners - total": "corners",
+      "Cartons - total": "cartons"
+    },
+    "oddsFormat": "decimal",
+    "timezone": "Europe/Paris"
+  }
+}

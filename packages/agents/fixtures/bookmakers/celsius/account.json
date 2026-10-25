@@ -1,0 +1,7 @@
+{
+  "balance": 123.45,
+  "accountNumber": "CEL-00012345",
+  "email": "joueur.test@example.com",
+  "currency": "EUR",
+  "bonusBalance": 10
+}

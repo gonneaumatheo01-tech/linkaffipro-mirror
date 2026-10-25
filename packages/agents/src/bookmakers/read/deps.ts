@@ -7,6 +7,8 @@
  */
 import { BOOKMAKER_LIMITS, type BookmakerTransport, type BookmakersApi, type PageDiagnosis, type ReadLevel, type SiteOdds } from "../contract";
 import { parisParts } from "../../rules/time";
+import { withSiteLock } from "../transport/lock";
+import { paceSite } from "../transport/pace";
 import type { AgentsDeps, LlmProvider } from "../../types";
 
 /** Ligne `BookmakerSite` (lecture tolérante). */
@@ -143,13 +145,19 @@ export function createMemoryPace(o: { now: () => Date; sleep: (ms: number) => Pr
 
 let processPace: SitePace | null = null;
 
+/** Verrou : imposé, sinon celui du chantier A (en base, réentrant), sinon en mémoire. */
 export function lockOf(deps: BookmakerReadDeps): SiteLock {
-  return deps.bookmakers?.withSiteLock ?? memorySiteLock;
+  if (deps.bookmakers?.withSiteLock) return deps.bookmakers.withSiteLock;
+  if (deps.prisma) return (siteKey, fn) => withSiteLock(deps, siteKey, fn);
+  return memorySiteLock;
 }
 
 export function paceOf(deps: BookmakerReadDeps): SitePace {
   if (deps.bookmakers?.paceSite) return deps.bookmakers.paceSite;
-  if (deps.bookmakers?.sleep || deps.now) return createMemoryPaceFor(deps);
+  // Attente injectée (tests) : rythme en mémoire sur l'horloge des dépendances, sans vraie attente.
+  if (deps.bookmakers?.sleep) return createMemoryPaceFor(deps);
+  // Sinon le rythme du chantier A (état en base, partagé entre processus).
+  if (deps.prisma) return async (siteKey, kind) => void (await paceSite(deps, siteKey, { kind: kind === "api" ? "request" : "page" }));
   return (processPace ??= createMemoryPace({ now: () => new Date(), sleep: realSleep }));
 }
 

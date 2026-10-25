@@ -1,0 +1,70 @@
+{
+  "event": {
+    "id": "70107",
+    "home": "Real Amanecer",
+    "away": "Deportivo Brisa",
+    "kickoff": "2026-10-25T17:30:00Z",
+    "league": "Liga Solar"
+  },
+  "markets": [
+    {
+      "id": "70107-1",
+      "name": "Match Result",
+      "group": "main",
+      "line": null,
+      "outcomes": [
+        {
+          "id": "70107-1-1",
+          "label": "Real Amanecer",
+          "price": 3.5
+        },
+        {
+          "id": "70107-1-2",
+          "label": "Draw",
+          "price": 2.75
+        },
+        {
+          "id": "70107-1-3",
+          "label": "Deportivo Brisa",
+          "price": 2.25
+        }
+      ]
+    },
+    {
+      "id": "70107-2",
+      "name": "Total Goals",
+      "group": "goals",
+      "line": 2.5,
+      "outcomes": [
+        {
+          "id": "70107-2-1",
+          "label": "Over",
+          "price": 2.2
+        },
+        {
+          "id": "70107-2-2",
+          "label": "Under",
+          "price": 2.2
+        }
+      ]
+    },
+    {
+      "id": "70107-3",
+      "name": "Shots on Target",
+      "group": "specials",
+      "line": 8.5,
+      "outcomes": [
+        {
+          "id": "70107-3-1",
+          "label": "Over",
+          "price": 1.85
+        },
+        {
+          "id": "70107-3-2",
+          "label": "Under",
+          "price": 1.85
+        }
+      ]
+    }
+  ]
+}

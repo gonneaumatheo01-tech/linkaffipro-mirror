@@ -104,7 +104,9 @@ describe("Réglages → Alertes", () => {
     const text = visibleText(html);
     expect(text).toContain("Alertes sur vos chiffres");
     expect(text).toContain("Une alerte désactivée n'est plus envoyée");
-    expect(text.match(/Alerte activée/g)).toHaveLength(10);
+    expect(text.match(/Alerte activée/g)).toHaveLength(12);
+    // Bookmakers (phase 35) : ne se lit plus, se lit mal.
+    expect(text).toContain("Bookmaker qui ne se lit plus");
     // Équipe Casino (phase 22) : vidéos en manque.
     expect(text).toContain("Médiathèque Casino : moins de 3 vidéos non utilisées pour un thème");
     // Équipe Algorithme (phase 21) : canal en baisse, profil de conversation en baisse.

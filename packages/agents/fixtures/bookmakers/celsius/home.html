@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Celsius — Paris sportifs (site de test)</title><script src="https://sb2frontend-altenar2.biahosted.com/altenarWSDK.js" async></script>
+<style>body{font-family:sans-serif;margin:0;padding:12px}a{color:#036}[hidden]{display:none!important}section,article{margin:8px 0}</style></head>
+<body>
+<header class="cs-top"><a href="/" class="cs-logo">Celsius</a> <span id="cs-balance"></span> <a href="/cashier/deposit" class="cs-deposit">Dépôt</a></header>
+<div id="cookie-banner" class="cs-cookies">Ce site utilise des cookies. <button id="cookie-ok" type="button">Tout accepter</button></div>
+<nav class="cs-sports"><a href="/sports/football">Football</a> <a href="/sports/tennis">Tennis</a> <a href="/sports/basketball">Basket</a></nav>
+<main><h1>Paris sportifs</h1><p>Site de test inventé (aucun vrai bookmaker).</p></main>
+<script>(async function(){try{var r=await fetch('/api/v2/auth/token',{headers:{accept:'application/json'}});if(r.status===401){document.body.setAttribute('data-expired','1');return;}var t=(await r.json()).token;try{localStorage.setItem('token',t);}catch(e){}var b=await (await fetch('/api/v2/account/balance',{headers:{authorization:'Bearer '+t,accept:'application/json'}})).json();document.getElementById('cs-balance').textContent='Solde : '+b.balance.toFixed(2).replace('.',',')+' € · Compte '+b.accountNumber;if(window.__ready)await window.__ready(t);}catch(e){document.body.setAttribute('data-error',String(e));}})();</script>
+<script>(function(){var b=document.getElementById('cookie-banner');if(!b)return;if(document.cookie.indexOf('consent=1')>=0){b.remove();return;}var o=document.getElementById('cookie-ok');if(o)o.addEventListener('click',function(){document.cookie='consent=1; path=/';b.remove();});})();</script>
+</body></html>

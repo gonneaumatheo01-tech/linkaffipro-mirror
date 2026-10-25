@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bet Portal — Match</title>
+<style>body{font-family:sans-serif;margin:0;padding:12px}a{color:#036}[hidden]{display:none!important}section,article{margin:8px 0}</style></head>
+<body>
+<header class="bp-top"><a href="/" class="bp-brand">Bet Portal</a> <a href="/wallet" class="bp-wallet">Wallet</a></header>
+<div id="cookie-banner" class="bp-cookies">Ce site utilise des cookies. <button id="cookie-ok" type="button">Accept all</button></div>
+<div id="match">Loading…</div>
+<script>function sock(sub,onMsg){var s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws/feed');s.onopen=function(){s.send(JSON.stringify(sub));};s.onmessage=function(e){onMsg(JSON.parse(e.data));};}
+function hhmm(iso){var d=new Date(Date.parse(iso)+3600000);return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+var id=location.pathname.split('/').pop();window.betClicked=false;
+sock({op:'sub',topic:'markets',eventId:id},function(j){if(!(j.type==='feed.markets'))return;var ev={h:j.payload.event.first,a:j.payload.event.second};var mk=j.payload.markets.map(function(m){return {n:m.label,k:m.tab,ln:m.line,sel:m.outcomes.map(function(o){return {n:o.label,p:o.fractional};})};});
+var h='<h1 class="feed-title">'+esc(ev.h)+' v '+esc(ev.a)+'</h1><div class="bp-tabs"><button type="button" class="feed-tab" data-k="main">MAIN</button><button type="button" class="feed-tab" data-k="goals">GOALS</button><button type="button" class="feed-tab" data-k="crn">CRN</button><button type="button" class="feed-tab" data-k="bkg">BKG</button></div>';
+mk.forEach(function(m){h+='<div class="feed-market" data-k="'+m.k+'"'+(m.k==='main'?'':' hidden')+'><div class="feed-market__name">'+esc(m.n)+'</div>';m.sel.forEach(function(s){h+='<div class="feed-outcome"><span class="feed-outcome__label">'+esc(s.n)+'</span>'+(m.ln!=null?' <i class="feed-outcome__line">'+m.ln.toFixed(1)+'</i>':'')+' <span class="feed-outcome__price">'+esc(s.p)+'</span></div>';});h+='</div>';});
+document.getElementById('match').innerHTML=h;
+document.querySelectorAll('.feed-tab').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-k');document.querySelectorAll('div[data-k]').forEach(function(d){if(d.getAttribute('data-k')===k)d.removeAttribute('hidden');else d.setAttribute('hidden','');});});});
+document.querySelectorAll('.feed-outcome__price').forEach(function(b){b.addEventListener('click',function(){window.betClicked=true;});});});</script>
+<script>(function(){var b=document.getElementById('cookie-banner');if(!b)return;if(document.cookie.indexOf('consent=1')>=0){b.remove();return;}var o=document.getElementById('cookie-ok');if(o)o.addEventListener('click',function(){document.cookie='consent=1; path=/';b.remove();});})();</script>
+</body></html>

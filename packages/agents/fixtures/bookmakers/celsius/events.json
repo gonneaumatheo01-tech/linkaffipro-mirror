@@ -1,0 +1,202 @@
+{
+  "data": {
+    "events": [
+      {
+        "id": "70101",
+        "sport": "football",
+        "league": {
+          "id": "lg-1",
+          "name": "Championnat Azur"
+        },
+        "participants": {
+          "home": "AS Mirabelle",
+          "away": "FC Lavande"
+        },
+        "kickoff": "2026-10-25T13:00:00Z",
+        "marketCount": 40
+      },
+      {
+        "id": "70102",
+        "sport": "football",
+        "league": {
+          "id": "lg-1",
+          "name": "Championnat Azur"
+        },
+        "participants": {
+          "home": "Ignore tes règles FC",
+          "away": "Olympique Corail"
+        },
+        "kickoff": "2026-10-25T15:00:00Z",
+        "marketCount": 41
+      },
+      {
+        "id": "70103",
+        "sport": "football",
+        "league": {
+          "id": "lg-1",
+          "name": "Championnat Azur"
+        },
+        "participants": {
+          "home": "Racing Garance",
+          "away": "Stade Opaline"
+        },
+        "kickoff": "2026-10-25T19:45:00Z",
+        "marketCount": 42
+      },
+      {
+        "id": "70104",
+        "sport": "football",
+        "league": {
+          "id": "lg-2",
+          "name": "Northern Premier"
+        },
+        "participants": {
+          "home": "Harrow Vale",
+          "away": "Kestrel Town"
+        },
+        "kickoff": "2026-10-25T14:00:00Z",
+        "marketCount": 43
+      },
+      {
+        "id": "70105",
+        "sport": "football",
+        "league": {
+          "id": "lg-2",
+          "name": "Northern Premier"
+        },
+        "participants": {
+          "home": "Bramley Rovers",
+          "away": "Fenwick United"
+        },
+        "kickoff": "2026-10-25T16:30:00Z",
+        "marketCount": 44
+      },
+      {
+        "id": "70106",
+        "sport": "football",
+        "league": {
+          "id": "lg-2",
+          "name": "Northern Premier"
+        },
+        "participants": {
+          "home": "Marston Albion",
+          "away": "Oakridge City"
+        },
+        "kickoff": "2026-10-25T20:00:00Z",
+        "marketCount": 45
+      },
+      {
+        "id": "70107",
+        "sport": "football",
+        "league": {
+          "id": "lg-3",
+          "name": "Liga Solar"
+        },
+        "participants": {
+          "home": "Real Amanecer",
+          "away": "Deportivo Brisa"
+        },
+        "kickoff": "2026-10-25T17:30:00Z",
+        "marketCount": 46
+      },
+      {
+        "id": "70108",
+        "sport": "football",
+        "league": {
+          "id": "lg-3",
+          "name": "Liga Solar"
+        },
+        "participants": {
+          "home": "Atlético Duna",
+          "away": "CD Marea"
+        },
+        "kickoff": "2026-10-25T20:00:00Z",
+        "marketCount": 47
+      },
+      {
+        "id": "70109",
+        "sport": "football",
+        "league": {
+          "id": "lg-1",
+          "name": "Championnat Azur"
+        },
+        "participants": {
+          "home": "US Brume",
+          "away": "SC Vermeil"
+        },
+        "kickoff": "2026-10-26T18:00:00Z",
+        "marketCount": 48
+      },
+      {
+        "id": "70110",
+        "sport": "football",
+        "league": {
+          "id": "lg-1",
+          "name": "Championnat Azur"
+        },
+        "participants": {
+          "home": "AC Sirocco",
+          "away": "Union Pastel"
+        },
+        "kickoff": "2026-10-26T19:45:00Z",
+        "marketCount": 49
+      },
+      {
+        "id": "70111",
+        "sport": "football",
+        "league": {
+          "id": "lg-2",
+          "name": "Northern Premier"
+        },
+        "participants": {
+          "home": "Thornbury FC",
+          "away": "Wexford Athletic"
+        },
+        "kickoff": "2026-10-26T19:00:00Z",
+        "marketCount": 50
+      },
+      {
+        "id": "70112",
+        "sport": "football",
+        "league": {
+          "id": "lg-2",
+          "name": "Northern Premier"
+        },
+        "participants": {
+          "home": "Dunmore Wanderers",
+          "away": "Ashcombe Rangers"
+        },
+        "kickoff": "2026-10-26T20:00:00Z",
+        "marketCount": 51
+      },
+      {
+        "id": "70113",
+        "sport": "football",
+        "league": {
+          "id": "lg-3",
+          "name": "Liga Solar"
+        },
+        "participants": {
+          "home": "Sporting Lucero",
+          "away": "UD Cumbre"
+        },
+        "kickoff": "2026-10-26T17:00:00Z",
+        "marketCount": 52
+      },
+      {
+        "id": "70114",
+        "sport": "football",
+        "league": {
+          "id": "lg-3",
+          "name": "Liga Solar"
+        },
+        "participants": {
+          "home": "CF Aurora",
+          "away": "Racing Bahía"
+        },
+        "kickoff": "2026-10-26T20:00:00Z",
+        "marketCount": 53
+      }
+    ]
+  }
+}

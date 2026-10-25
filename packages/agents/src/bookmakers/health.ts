@@ -334,7 +334,8 @@ async function checkSite(deps: BookmakerReadDeps, site: SiteRow, now: Date, told
   let cause: string | null = null;
   try {
     const w = lightReadWindow(now);
-    await readEvents(deps, site.key, { from: w.from, to: w.to });
+    // Lecture réelle (pas le cache) : c'est la santé du site qu'on mesure.
+    await readEvents(deps, site.key, { from: w.from, to: w.to, fresh: true });
     ok = true;
   } catch (err) {
     cause = failureCause(err);

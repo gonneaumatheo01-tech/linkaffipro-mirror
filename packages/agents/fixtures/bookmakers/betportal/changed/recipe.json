@@ -1,0 +1,91 @@
+{
+  "level": "dom",
+  "api": null,
+  "dom": {
+    "eventList": {
+      "candidates": [
+        {
+          "css": "li.feed-item"
+        }
+      ]
+    },
+    "eventRow": {
+      "home": {
+        "candidates": [
+          {
+            "css": ".feed-item__first"
+          }
+        ]
+      },
+      "away": {
+        "candidates": [
+          {
+            "css": ".feed-item__second"
+          }
+        ]
+      },
+      "startsAt": {
+        "candidates": [
+          {
+            "css": ".feed-item__time"
+          }
+        ]
+      },
+      "link": {
+        "candidates": [
+          {
+            "css": "a"
+          }
+        ]
+      }
+    },
+    "marketTab": {
+      "candidates": [
+        {
+          "css": "button.feed-tab"
+        }
+      ]
+    },
+    "market": {
+      "name": {
+        "candidates": [
+          {
+            "css": ".feed-market__name"
+          }
+        ]
+      },
+      "selection": {
+        "candidates": [
+          {
+            "css": ".feed-outcome"
+          }
+        ]
+      },
+      "odds": {
+        "candidates": [
+          {
+            "css": ".feed-outcome__price"
+          }
+        ]
+      },
+      "line": {
+        "candidates": [
+          {
+            "css": ".feed-outcome__line"
+          }
+        ]
+      }
+    }
+  },
+  "mapping": {
+    "marketMap": {
+      "1X2": "resultat",
+      "O/U Goals": "buts",
+      "TOT Corners": "corners",
+      "Bookings": "cartons",
+      "DC": "double-chance"
+    },
+    "oddsFormat": "fractional",
+    "timezone": "Europe/Paris"
+  }
+}

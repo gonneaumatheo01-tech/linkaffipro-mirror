@@ -1,0 +1,81 @@
+{
+  "ev": {
+    "eventId": "70106",
+    "homeTeam": {
+      "name": "Marston Albion"
+    },
+    "awayTeam": {
+      "name": "Oakridge City"
+    },
+    "startTime": "2026-10-25T20:00:00Z",
+    "competition": {
+      "title": "Northern Premier"
+    }
+  },
+  "groups": [
+    {
+      "title": "Match Result",
+      "tab": "main",
+      "handicap": null,
+      "choices": [
+        {
+          "name": "Marston Albion",
+          "decimal": 2.1
+        },
+        {
+          "name": "Draw",
+          "decimal": 3.4
+        },
+        {
+          "name": "Oakridge City",
+          "decimal": 1.8
+        }
+      ]
+    },
+    {
+      "title": "Total Goals",
+      "tab": "goals",
+      "handicap": 2.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.85
+        },
+        {
+          "name": "Under",
+          "decimal": 1.85
+        }
+      ]
+    },
+    {
+      "title": "Corners O/U",
+      "tab": "corners",
+      "handicap": 9.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.95
+        },
+        {
+          "name": "Under",
+          "decimal": 1.85
+        }
+      ]
+    },
+    {
+      "title": "Shots on Target",
+      "tab": "specials",
+      "handicap": 8.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.9
+        },
+        {
+          "name": "Under",
+          "decimal": 1.9
+        }
+      ]
+    }
+  ]
+}

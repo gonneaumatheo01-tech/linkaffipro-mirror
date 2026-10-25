@@ -7,6 +7,7 @@
 import type { Capability } from "./contract";
 import { ADS_CAPABILITIES } from "./capabilities/ads";
 import { ALGO_CAPABILITIES } from "./capabilities/algo";
+import { BOOKMAKER_CAPABILITIES } from "./capabilities/bookmakers";
 import { CASINO_CAPABILITIES } from "./capabilities/casino";
 import { CONTROLE_CAPABILITIES } from "./capabilities/controle";
 import { DATING_CAPABILITIES } from "./capabilities/dating";
@@ -59,6 +60,8 @@ export function capabilitiesOf(teamKey: string): AnyCapability[] {
 
 export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...SPORTS_CAPABILITIES,
+  // Phase 35 : bookmakers lus directement (équipe Paris sportifs, agent Cotes & sélection).
+  ...BOOKMAKER_CAPABILITIES,
   ...DATING_CAPABILITIES,
   ...CASINO_CAPABILITIES,
   ...ALGO_CAPABILITIES,

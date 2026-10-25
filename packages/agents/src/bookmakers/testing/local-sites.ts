@@ -186,7 +186,7 @@ function wsParse(buf: Buffer): { messages: Array<{ opcode: number; text: string 
     messages.push({ opcode: b0 & 0x0f, text: data.toString("utf8") });
     off = p + len;
   }
-  return { messages, rest: buf.subarray(off) };
+  return { messages, rest: Buffer.from(buf.subarray(off)) };
 }
 
 function betportalWs(state: { variant: FixtureVariant | null }, log: (path: string) => void) {
@@ -200,7 +200,7 @@ function betportalWs(state: { variant: FixtureVariant | null }, log: (path: stri
     log(path);
     const accept = createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
-    let pending = Buffer.alloc(0);
+    let pending: Buffer = Buffer.alloc(0);
     socket.on("data", (chunk: Buffer) => {
       const parsed = wsParse(Buffer.concat([pending, chunk]));
       pending = parsed.rest;

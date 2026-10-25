@@ -1,0 +1,81 @@
+{
+  "ev": {
+    "eventId": "70104",
+    "homeTeam": {
+      "name": "Harrow Vale"
+    },
+    "awayTeam": {
+      "name": "Kestrel Town"
+    },
+    "startTime": "2026-10-25T14:00:00Z",
+    "competition": {
+      "title": "Northern Premier"
+    }
+  },
+  "groups": [
+    {
+      "title": "Match Result",
+      "tab": "main",
+      "handicap": null,
+      "choices": [
+        {
+          "name": "Harrow Vale",
+          "decimal": 1.7
+        },
+        {
+          "name": "Draw",
+          "decimal": 3.75
+        },
+        {
+          "name": "Kestrel Town",
+          "decimal": 5
+        }
+      ]
+    },
+    {
+      "title": "Total Goals",
+      "tab": "goals",
+      "handicap": 2.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2.1
+        },
+        {
+          "name": "Under",
+          "decimal": 1.7
+        }
+      ]
+    },
+    {
+      "title": "Corners O/U",
+      "tab": "corners",
+      "handicap": 9.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.7
+        },
+        {
+          "name": "Under",
+          "decimal": 1.85
+        }
+      ]
+    },
+    {
+      "title": "Shots on Target",
+      "tab": "specials",
+      "handicap": 8.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2.2
+        },
+        {
+          "name": "Under",
+          "decimal": 2
+        }
+      ]
+    }
+  ]
+}

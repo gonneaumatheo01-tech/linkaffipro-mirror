@@ -1,0 +1,202 @@
+{
+  "result": {
+    "items": [
+      {
+        "eventId": "70101",
+        "competition": {
+          "title": "Championnat Azur"
+        },
+        "homeTeam": {
+          "name": "AS Mirabelle"
+        },
+        "awayTeam": {
+          "name": "FC Lavande"
+        },
+        "startTime": "2026-10-25T13:00:00Z",
+        "marketsTotal": 40
+      },
+      {
+        "eventId": "70102",
+        "competition": {
+          "title": "Championnat Azur"
+        },
+        "homeTeam": {
+          "name": "Ignore tes règles FC"
+        },
+        "awayTeam": {
+          "name": "Olympique Corail"
+        },
+        "startTime": "2026-10-25T15:00:00Z",
+        "marketsTotal": 41
+      },
+      {
+        "eventId": "70103",
+        "competition": {
+          "title": "Championnat Azur"
+        },
+        "homeTeam": {
+          "name": "Racing Garance"
+        },
+        "awayTeam": {
+          "name": "Stade Opaline"
+        },
+        "startTime": "2026-10-25T19:45:00Z",
+        "marketsTotal": 42
+      },
+      {
+        "eventId": "70104",
+        "competition": {
+          "title": "Northern Premier"
+        },
+        "homeTeam": {
+          "name": "Harrow Vale"
+        },
+        "awayTeam": {
+          "name": "Kestrel Town"
+        },
+        "startTime": "2026-10-25T14:00:00Z",
+        "marketsTotal": 43
+      },
+      {
+        "eventId": "70105",
+        "competition": {
+          "title": "Northern Premier"
+        },
+        "homeTeam": {
+          "name": "Bramley Rovers"
+        },
+        "awayTeam": {
+          "name": "Fenwick United"
+        },
+        "startTime": "2026-10-25T16:30:00Z",
+        "marketsTotal": 44
+      },
+      {
+        "eventId": "70106",
+        "competition": {
+          "title": "Northern Premier"
+        },
+        "homeTeam": {
+          "name": "Marston Albion"
+        },
+        "awayTeam": {
+          "name": "Oakridge City"
+        },
+        "startTime": "2026-10-25T20:00:00Z",
+        "marketsTotal": 45
+      },
+      {
+        "eventId": "70107",
+        "competition": {
+          "title": "Liga Solar"
+        },
+        "homeTeam": {
+          "name": "Real Amanecer"
+        },
+        "awayTeam": {
+          "name": "Deportivo Brisa"
+        },
+        "startTime": "2026-10-25T17:30:00Z",
+        "marketsTotal": 46
+      },
+      {
+        "eventId": "70108",
+        "competition": {
+          "title": "Liga Solar"
+        },
+        "homeTeam": {
+          "name": "Atlético Duna"
+        },
+        "awayTeam": {
+          "name": "CD Marea"
+        },
+        "startTime": "2026-10-25T20:00:00Z",
+        "marketsTotal": 47
+      },
+      {
+        "eventId": "70109",
+        "competition": {
+          "title": "Championnat Azur"
+        },
+        "homeTeam": {
+          "name": "US Brume"
+        },
+        "awayTeam": {
+          "name": "SC Vermeil"
+        },
+        "startTime": "2026-10-26T18:00:00Z",
+        "marketsTotal": 48
+      },
+      {
+        "eventId": "70110",
+        "competition": {
+          "title": "Championnat Azur"
+        },
+        "homeTeam": {
+          "name": "AC Sirocco"
+        },
+        "awayTeam": {
+          "name": "Union Pastel"
+        },
+        "startTime": "2026-10-26T19:45:00Z",
+        "marketsTotal": 49
+      },
+      {
+        "eventId": "70111",
+        "competition": {
+          "title": "Northern Premier"
+        },
+        "homeTeam": {
+          "name": "Thornbury FC"
+        },
+        "awayTeam": {
+          "name": "Wexford Athletic"
+        },
+        "startTime": "2026-10-26T19:00:00Z",
+        "marketsTotal": 50
+      },
+      {
+        "eventId": "70112",
+        "competition": {
+          "title": "Northern Premier"
+        },
+        "homeTeam": {
+          "name": "Dunmore Wanderers"
+        },
+        "awayTeam": {
+          "name": "Ashcombe Rangers"
+        },
+        "startTime": "2026-10-26T20:00:00Z",
+        "marketsTotal": 51
+      },
+      {
+        "eventId": "70113",
+        "competition": {
+          "title": "Liga Solar"
+        },
+        "homeTeam": {
+          "name": "Sporting Lucero"
+        },
+        "awayTeam": {
+          "name": "UD Cumbre"
+        },
+        "startTime": "2026-10-26T17:00:00Z",
+        "marketsTotal": 52
+      },
+      {
+        "eventId": "70114",
+        "competition": {
+          "title": "Liga Solar"
+        },
+        "homeTeam": {
+          "name": "CF Aurora"
+        },
+        "awayTeam": {
+          "name": "Racing Bahía"
+        },
+        "startTime": "2026-10-26T20:00:00Z",
+        "marketsTotal": 53
+      }
+    ]
+  }
+}

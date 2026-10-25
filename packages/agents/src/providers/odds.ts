@@ -22,6 +22,11 @@ export type OddsSelection = {
   byBookmaker: Record<string, number>;
   /** Cote « juste » de consensus (sans marge) si le fournisseur la donne. */
   fairOdds: number | null;
+  /**
+   * Phase 35 (`bookmaker-direct`) : cotes des AUTRES bookmakers chez le fournisseur de consensus, pour la comparaison
+   * seulement (jamais une cote jouable ni une cible) ; `byBookmaker` ne porte alors que la cote lue sur le site.
+   */
+  referenceBookmakers?: Record<string, number>;
 };
 
 export type OddsResult = {
@@ -36,7 +41,7 @@ export type OddsResult = {
 };
 
 export type OddsProvider = {
-  name: "sportsgameodds" | "fake";
+  name: "sportsgameodds" | "fake" | "bookmaker-direct";
   listEvents(q: { sport: string; leagues: string[]; from: Date; to: Date }): Promise<OddsEvent[]>;
   getMarkets(eventId: string, marketTypes: string[]): Promise<OddsSelection[]>;
   getResult(eventId: string): Promise<OddsResult | null>;

@@ -25,6 +25,8 @@ export const QUEUE_NAMES = [
   "agents-sports",
   "agents-algo",
   "agents-ads",
+  // Phase 35 : lectures des bookmakers faites par le serveur (un seul lecteur à la fois par site).
+  "agents-bookmakers",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -142,6 +144,8 @@ export const JOB_RETRY_OPTIONS: Record<
   "agents-sports": { attempts: 1 },
   "agents-algo": { attempts: 1 },
   "agents-ads": { attempts: 1 },
+  // Phase 35 : la ligne `BookmakerReadJob` fait foi (reprise par le balayage de 15 s, abandon après deux prises).
+  "agents-bookmakers": { attempts: 1 },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -295,6 +299,15 @@ export type AgentsSportsJob = { type: "sports"; task: "settle" };
  */
 export type AgentsAdsJob = { type: "tick" } | { type: "report-now"; kind?: "daily" | "weekly"; send?: boolean };
 
+/**
+ * File `agents-bookmakers` (phase 35) : `tick` toutes les 15 s (travaux de lecture « serveur » en attente, ménage des
+ * travaux abandonnés) ; `run` : un travail précis tout de suite (déposé par `enqueueReadJob`). La base fait foi.
+ */
+export type AgentsBookmakersJob = { type: "tick" } | { type: "run"; jobId: string } | AgentsBookmakersHealthJob;
+
+/** Phase 35, chantier D : santé des bookmakers toutes les 30 min (`bookmakersHealth`) ; `force` : même la nuit. */
+export type AgentsBookmakersHealthJob = { type: "bookmakers-health"; force?: boolean };
+
 export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
@@ -331,4 +344,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                             ? AgentStepJob
                             : Q extends "agents-ads"
                               ? AgentsAdsJob
-                              : StatsJob;
+                              : Q extends "agents-bookmakers"
+                                ? AgentsBookmakersJob
+                                : StatsJob;

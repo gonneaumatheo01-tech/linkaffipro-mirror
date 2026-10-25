@@ -49,7 +49,11 @@
     "boss:unmet": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/boss-unmet.ts",
     "agents:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/agents-status.ts",
     "agents:capture-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-runner.ts",
-    "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts"
+    "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts",
+    "agents:bookmaker-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/bookmaker-runner.ts",
+    "agents:runner:install": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts install",
+    "agents:runner:uninstall": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts uninstall",
+    "agents:runner:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts status"
   },
   "devDependencies": {
     "@linkaffipro/config": "workspace:*",

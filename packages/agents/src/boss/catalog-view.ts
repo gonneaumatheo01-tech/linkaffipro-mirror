@@ -235,6 +235,16 @@ export const apercuMatchs = defineAction<BetsP>({
 
 type BookP = DayP & { bookmaker: string; sport?: string };
 
+/**
+ * Phase 35 : un bookmaker que le système lit lui-même sur son site (`BookmakerSite` prêt) passe d'abord par cette
+ * lecture (`boss/catalog-bookmakers.ts` l'enregistre) ; sinon la vue de la phase 33 (fournisseur de cotes).
+ */
+export type BookmakerSiteView = (deps: BossDeps, q: { bookmaker: string; day: string; slot: DaySlot | null; sport: string | null }) => Promise<ViewResult | null>;
+let bookmakerSiteView: BookmakerSiteView | null = null;
+export function registerBookmakerSiteView(fn: BookmakerSiteView | null): void {
+  bookmakerSiteView = fn;
+}
+
 export const voirMatchsBookmaker = defineAction<BookP>({
   key: "voir_matchs_bookmaker",
   description: "Lister les matchs proposés par un bookmaker pour un jour (par ligue, avec le nombre de marchés), quand je peux le lire sans deviner",
@@ -249,6 +259,8 @@ export const voirMatchsBookmaker = defineAction<BookP>({
     detail: detailField,
   },
   async execute(deps, p) {
+    const site = bookmakerSiteView ? await bookmakerSiteView(deps, { bookmaker: p.bookmaker, day: dayOf(deps, p), slot: slotOf(p), sport: p.sport ?? null }) : null;
+    if (site) return viewReply(deps, "voir_matchs_bookmaker", site, p.detail);
     const r = await viewMatches(deps, { bookmaker: p.bookmaker, day: dayOf(deps, p), slot: slotOf(p), sport: p.sport ?? null });
     return viewReply(deps, "voir_matchs_bookmaker", r, p.detail);
   },

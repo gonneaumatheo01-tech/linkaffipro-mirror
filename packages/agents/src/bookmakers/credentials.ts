@@ -20,6 +20,7 @@ import type { AgentsDeps } from "../types";
 import { BOOKMAKERS_VARIANTS as V } from "../boss/bookmakers-texts";
 import { pick } from "../boss/voice";
 import { BOOKMAKER_DEFAULT_CREDENTIALS_KEY } from "./contract";
+import { parseDefaultCredentials, setBookmakerCredentialsReader } from "./transport/env";
 
 /** Demandes SECRET (clés temporaires, effacées dès que le secret commun est rangé). */
 export const DEFAULT_LOGIN_REQUEST_KEY = "providers.bookmakers.default.login";
@@ -31,18 +32,8 @@ export const CREDENTIALS_ASKED_SETTING = "bookmakers.credentialsAsked";
 
 export type SiteCredentials = BookmakerCredentials & { source: "site" | "default" };
 
-/** Pur : secret commun rangé (`{ email, password }` en JSON) → identifiants ; null si illisible ou incomplet. */
-export function parseDefaultCredentials(raw: string | null): BookmakerCredentials | null {
-  if (!raw) return null;
-  try {
-    const v = JSON.parse(raw) as { email?: unknown; login?: unknown; password?: unknown };
-    const login = typeof v.email === "string" ? v.email.trim() : typeof v.login === "string" ? v.login.trim() : "";
-    const password = typeof v.password === "string" ? v.password : "";
-    return login && password ? { login, password } : null;
-  } catch {
-    return null;
-  }
-}
+/** Pur : secret commun rangé (`{ email, password }` en JSON) → identifiants (même lecture que le transport). */
+export { parseDefaultCredentials };
 
 /** Identifiants d'un site : les siens d'abord (phase 23), sinon les communs. Côté serveur seulement. */
 export async function readBookmakerCredentialsFor(deps: Pick<AgentsDeps, "prisma">, siteKey: string): Promise<SiteCredentials | null> {
@@ -51,6 +42,9 @@ export async function readBookmakerCredentialsFor(deps: Pick<AgentsDeps, "prisma
   const common = parseDefaultCredentials(await readSecret(deps.prisma, BOOKMAKER_DEFAULT_CREDENTIALS_KEY));
   return common ? { ...common, source: "default" } : null;
 }
+
+// Le transport (chantier A) lit les identifiants par cette même règle (propres d'abord, sinon communs).
+setBookmakerCredentialsReader((deps, siteKey) => readBookmakerCredentialsFor(deps as Pick<AgentsDeps, "prisma">, siteKey));
 
 /** Des identifiants communs sont-ils rangés ? (sans jamais lire la valeur hors du serveur) */
 export async function hasDefaultCredentials(deps: Pick<AgentsDeps, "prisma">): Promise<boolean> {

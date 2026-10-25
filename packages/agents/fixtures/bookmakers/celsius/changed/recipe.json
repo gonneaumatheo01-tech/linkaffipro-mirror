@@ -1,0 +1,139 @@
+{
+  "level": "api",
+  "api": {
+    "tokenSource": "GET https://celsius.test/api/v2/auth/token → champ « token » (aussi rangé dans le stockage local « token »), envoyé en « Authorization: Bearer »",
+    "endpoints": [
+      {
+        "purpose": "events",
+        "method": "GET",
+        "urlTemplate": "https://celsius.test/api/v2/events?sport={sport}&date={date}&page={page}",
+        "params": {
+          "sport": "football"
+        },
+        "headers": [
+          "authorization",
+          "accept"
+        ],
+        "auth": "bearer",
+        "pagination": {
+          "param": "page",
+          "start": 1,
+          "step": 1,
+          "max": 20
+        },
+        "responseShape": {
+          "id": "result.items[].eventId",
+          "home": "result.items[].homeTeam.name",
+          "away": "result.items[].awayTeam.name",
+          "startsAt": "result.items[].startTime",
+          "league": "result.items[].competition.title",
+          "marketsCount": "result.items[].marketsTotal",
+          "hasMore": "paging.next"
+        }
+      },
+      {
+        "purpose": "markets",
+        "method": "GET",
+        "urlTemplate": "https://celsius.test/api/v2/event/{eventId}/markets",
+        "headers": [
+          "authorization",
+          "accept"
+        ],
+        "auth": "bearer",
+        "pagination": null,
+        "responseShape": {
+          "eventId": "ev.eventId",
+          "home": "ev.homeTeam.name",
+          "away": "ev.awayTeam.name",
+          "market": "groups[].title",
+          "line": "groups[].handicap",
+          "selection": "groups[].choices[].name",
+          "odds": "groups[].choices[].decimal"
+        }
+      }
+    ]
+  },
+  "dom": {
+    "football": {
+      "candidates": [
+        {
+          "text": "Football",
+          "role": "link"
+        },
+        {
+          "css": "a[href*='/sports/football']"
+        }
+      ]
+    },
+    "eventList": {
+      "candidates": [
+        {
+          "css": "a.ev-line"
+        }
+      ]
+    },
+    "eventRow": {
+      "home": {
+        "candidates": [
+          {
+            "css": ".ev-line__p1"
+          }
+        ]
+      },
+      "away": {
+        "candidates": [
+          {
+            "css": ".ev-line__p2"
+          }
+        ]
+      },
+      "startsAt": {
+        "candidates": [
+          {
+            "css": "time"
+          }
+        ]
+      }
+    },
+    "marketTab": {
+      "candidates": [
+        {
+          "role": "tab"
+        }
+      ]
+    },
+    "market": {
+      "name": {
+        "candidates": [
+          {
+            "css": ".ev-group__label"
+          }
+        ]
+      },
+      "selection": {
+        "candidates": [
+          {
+            "css": ".ev-choice"
+          }
+        ]
+      },
+      "odds": {
+        "candidates": [
+          {
+            "css": ".ev-choice__value"
+          }
+        ]
+      }
+    }
+  },
+  "mapping": {
+    "marketMap": {
+      "Match Result": "resultat",
+      "Total Goals": "buts",
+      "Corners O/U": "corners",
+      "Shots on Target": "tirs-cadres"
+    },
+    "oddsFormat": "decimal",
+    "timezone": "Europe/Paris"
+  }
+}

@@ -37,6 +37,8 @@ export const ALERT_KIND_LABELS: Record<string, string> = {
   ads_cost_over_threshold: "Pub trop chère par inscription",
   ads_budget_exhausted: "Budget du jour d'une campagne atteint",
   webhook_repaired: "Connexion Telegram d'un bot réparée plusieurs fois",
+  bookmaker_blocked: "Bookmaker qui ne se lit plus",
+  bookmaker_degraded: "Bookmaker qui se lit mal",
 };
 
 export function alertKindLabel(kind: string): string {
@@ -83,6 +85,7 @@ export const QUEUE_LABELS: Record<string, string> = {
   "agents-sports": "Équipe Paris sportifs",
   "agents-algo": "Équipe Algorithme",
   "agents-ads": "Agent Ads",
+  "agents-bookmakers": "Lecture des bookmakers",
 };
 
 export function queueLabel(name: string): string {

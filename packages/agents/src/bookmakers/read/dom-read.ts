@@ -72,7 +72,7 @@ function absolute(href: string | null, base: string | null): string | null {
 
 /** Identifiant stable d'un match lu sur la page : attribut du site, sinon fin de l'adresse du match. */
 export function eventIdOf(row: HtmlNode, url: string | null): string | null {
-  const own = attrValue(row, ["data-event-id", "data-eventid", "data-match-id", "data-id", "data-event"]);
+  const own = attrValue(row, ["data-event-id", "data-eventid", "data-match-id", "data-match", "data-id", "data-event"]);
   if (own) return own;
   for (const d of descendants(row)) {
     const v = attrValue(d, ["data-event-id", "data-eventid", "data-match-id"]);
@@ -84,8 +84,8 @@ export function eventIdOf(row: HtmlNode, url: string | null): string | null {
     const id = u.searchParams.get("eventId") ?? u.searchParams.get("event") ?? u.searchParams.get("id");
     if (id) return id;
     const seg = u.pathname.split("/").filter(Boolean);
-    const numeric = [...seg].reverse().find((s) => /\d{4,}/.test(s));
-    return (numeric ? /\d{4,}/.exec(numeric)![0] : seg[seg.length - 1]) ?? null;
+    const numeric = [...seg].reverse().find((s) => /\d{3,}/.test(s));
+    return numeric ?? seg[seg.length - 1] ?? null;
   } catch {
     return null;
   }

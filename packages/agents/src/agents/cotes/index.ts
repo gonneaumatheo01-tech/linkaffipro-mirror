@@ -18,9 +18,12 @@ import { addKickoffTriggers } from "../../sports/passage-state";
 import { parseSportsSettings, withTeamBounds } from "../../sports/settings";
 import { rankCandidates, type Candidate } from "./select";
 import { reasoningSentences } from "../../sports/format";
+import { BOOKMAKER_DIRECT, parseDirectEventId } from "../../providers/bookmaker-direct";
 
 /** Matchs examinés au plus par passage (un appel groupé couvre 25 matchs). */
 const MAX_EVENTS = 40;
+/** Phase 35 : matchs examinés au plus quand les cotes sont lues sur le site du client (une page par match). */
+export const MAX_DIRECT_EVENTS = 15;
 
 const noPick = (summary: string, extra: Record<string, unknown> = {}): AgentResult => ({ ok: true, output: { noPick: true, noPickReason: summary, ...extra }, summary });
 
@@ -41,7 +44,8 @@ export const agent: AgentDefinition = {
 
     // Pari de test : faux fournisseur ; un ordre sur le canal Test lit les vraies cotes si la clé existe (`oddsSource: live`).
     const source = mission.payload.oddsSource === "fake" || (mission.isTest && !(orderId && mission.payload.oddsSource === "live")) ? "fake" : "live";
-    const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth });
+    // Phase 35 : bookmaker du client appris (site READY) parmi ceux de la catégorie → ses propres cotes.
+    const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth, bookmakers: category.bookmakers });
     if (!resolved) return noPick("aucune clé de cotes : rien à chercher");
     // Faux fournisseur : décalage des fixtures gardé dans le pari (mêmes heures de match aux étapes suivantes).
     const shift = (resolved.provider as { shiftMs?: unknown }).shiftMs;
@@ -51,7 +55,8 @@ export const agent: AgentDefinition = {
       const to = new Date(now.getTime() + s.lookaheadHours * 3_600_000);
       const events = (await resolved.provider.listEvents({ sport: category.sport, leagues: category.leagues, from, to }))
         .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-        .slice(0, MAX_EVENTS);
+        // Lecture directe d'un site : une fiche de match par lecture, au rythme humain (moins de matchs examinés).
+        .slice(0, resolved.provider.name === BOOKMAKER_DIRECT ? MAX_DIRECT_EVENTS : MAX_EVENTS);
       if (!events.length) return noPick("aucun match à venir dans les ligues de la catégorie");
       const markets = await marketsForEvents(resolved.provider, events.map((e) => e.eventId), category.marketTypes);
       const [recent, samples] = await Promise.all([recentPickKeys(ctx.prisma, now), settledSamples(ctx.prisma, now)]);
@@ -112,8 +117,11 @@ async function missionPlanDay(ctx: Parameters<AgentDefinition["run"]>[1], missio
 }
 
 async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: Mission, categoryId: string, c: Candidate, fakeShiftMs: number | null) {
+  // Phase 35 : pari choisi sur les cotes du site du client (match du site, bookmaker = le site).
+  const direct = parseDirectEventId(c.event.eventId);
   return ctx.prisma.bettingPick.create({
     data: {
+      ...(direct ? { siteKey: direct.siteKey, siteEventId: direct.siteEventId } : {}),
       missionId: mission.id,
       categoryId,
       eventId: c.event.eventId,
@@ -140,6 +148,7 @@ async function createPick(ctx: Parameters<AgentDefinition["run"]>[1], mission: M
         summary: reasoningSentences({ bookmaker: c.bookmaker, odds: c.odds, marketId: c.selection.marketId, reasoning: c.reasoning }).join(" "),
         fakeShiftMs,
         eventUrl: c.event.bookmakerLinks?.[c.bookmaker] ?? null,
+        ...(direct ? { oddsProvider: BOOKMAKER_DIRECT, siteKey: direct.siteKey, flags: c.reasoning.unusualOdds ? ["cote inhabituelle"] : [] } : {}),
       }) as never,
       status: "PROPOSED",
     },

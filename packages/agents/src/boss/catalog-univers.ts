@@ -635,7 +635,7 @@ export const UNIVERSE_ACTIONS: BossAction[] = [
   offreCanal,
   categoriesParis,
   categorieParis,
-  testBookmaker,
+  // Phase 35 : « test_bookmaker » est désormais l'ancien nom de `tester_site` (`catalog-bookmakers.ts`).
   connexionBookmaker,
   modeCapture,
   parisDuJour,

@@ -37,6 +37,11 @@ export type PickReasoning = {
   recentAverage: number | null;
   recentSamples: number;
   line: number | null;
+  /**
+   * Phase 35 : cote lue sur le site du client trop loin du consensus des autres bookmakers (écart > 15 %) : signalée
+   * « cote inhabituelle » (le pari n'est pas bloqué).
+   */
+  unusualOdds?: { gapPct: number; consensusOdds: number; note: string } | null;
   /** Faux fournisseur : décalage des fixtures, pour relire les mêmes heures de match ensuite. */
   fakeShiftMs?: number | null;
 };
@@ -63,6 +68,21 @@ export type RankInput = {
   source: "fake" | "live";
 };
 
+/** Écart (%) entre la cote du site et le consensus au-delà duquel la cote est signalée. */
+export const UNUSUAL_ODDS_GAP_PCT = 15;
+
+/** Pur : cote du site trop loin du consensus ? */
+export function unusualOddsOf(odds: number, consensusOdds: number | null): PickReasoning["unusualOdds"] {
+  if (!consensusOdds || !(consensusOdds > 1)) return null;
+  const gapPct = Math.round((Math.abs(odds - consensusOdds) / consensusOdds) * 10_000) / 100;
+  return gapPct > UNUSUAL_ODDS_GAP_PCT ? { gapPct, consensusOdds, note: `cote inhabituelle : ${gapPct} % d'écart avec le consensus (${consensusOdds})` } : null;
+}
+
+/** Sélection avec les cotes de comparaison (phase 35) ajoutées à celles du site, pour la référence seulement. */
+function withReference(sel: OddsSelection): OddsSelection {
+  return sel.referenceBookmakers ? { ...sel, byBookmaker: { ...sel.referenceBookmakers, ...sel.byBookmaker } } : sel;
+}
+
 export type RankResult = { candidates: Candidate[]; considered: number; rejected: Record<string, number> };
 
 export function rankCandidates(i: RankInput): RankResult {
@@ -76,6 +96,7 @@ export function rankCandidates(i: RankInput): RankResult {
       continue;
     }
     const group = i.markets.get(event.eventId) ?? [];
+    const refGroup = group.map(withReference);
     for (const sel of group) {
       considered++;
       const key: PickKey = { eventId: event.eventId, marketId: sel.marketId, selectionLabel: sel.selectionLabel, line: sel.line };
@@ -87,7 +108,9 @@ export function rankCandidates(i: RankInput): RankResult {
         reject("déjà publié dans les 48 h");
         continue;
       }
-      const targets = i.criteria.bookmakers.length ? i.criteria.bookmakers : Object.keys(sel.byBookmaker);
+      // Cibles : les cotes jouables seulement (jamais une cote de comparaison).
+      const targets = (i.criteria.bookmakers.length ? i.criteria.bookmakers : Object.keys(sel.byBookmaker)).filter((b) => !sel.referenceBookmakers || b in sel.byBookmaker);
+      const ref = withReference(sel);
       for (const bookmaker of targets) {
         const odds = sel.byBookmaker[bookmaker];
         const ok = checkCriteria(i.criteria, { leagueId: event.leagueId, marketId: sel.marketId, bookmaker, odds });
@@ -95,11 +118,11 @@ export function rankCandidates(i: RankInput): RankResult {
           reject(ok.reason.startsWith("cote ") ? "cote hors fourchette" : ok.reason.startsWith("pas de cote") ? "bookmaker sans cote" : ok.reason);
           continue;
         }
-        if (Object.keys(sel.byBookmaker).length < i.minBookmakers) {
+        if (Object.keys(ref.byBookmaker).length < i.minBookmakers) {
           reject("trop peu de bookmakers");
           continue;
         }
-        const c = consensusOf(sel, group, bookmaker);
+        const c = consensusOf(ref, refGroup, bookmaker);
         if (c.probability === null || c.method === null) {
           reject("aucune référence");
           continue;
@@ -136,6 +159,7 @@ export function rankCandidates(i: RankInput): RankResult {
             recentAverage: avg?.average ?? null,
             recentSamples: avg?.samples ?? 0,
             line: sel.line,
+            ...(sel.referenceBookmakers ? { unusualOdds: unusualOddsOf(odds!, c.consensusOdds) } : {}),
           },
         };
         // Un seul pari par match : le meilleur.

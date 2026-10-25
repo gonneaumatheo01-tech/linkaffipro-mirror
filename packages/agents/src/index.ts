@@ -384,3 +384,15 @@ export { parseOrderPlan, type OrderProgress } from "./orders/store";
 export { orderMissionFacts, resolvePeriod, frRange, type OrderMissionFacts } from "./orders/capabilities/kit";
 export { SPORTS_THEMES, resolveTheme, themeByKey, themeOfMarkets, marketsAvailable, themeOddsCounts, themesWithOdds, listBetThemes, DEFAULT_THEME_LEAGUES, type SportsTheme, type ThemeAvailability } from "./sports/themes";
 export * from "./bookmakers/contract";
+// Phase 35, chantier A : transport des bookmakers (serveur, Mac, choix de la cible, verrou par site, rythme, nuit),
+// file des travaux de lecture et garde « jamais de mise » étendue à la lecture.
+export * from "./bookmakers/jobs";
+export * from "./bookmakers/guard";
+export * from "./bookmakers/transport/index";
+// Phase 35, chantier D : sites, identifiants communs, santé, gestes (tester, apprendre, navigateur du Mac), vues de Kevin.
+export * from "./bookmakers/sites";
+export { readBookmakerCredentialsFor, hasDefaultCredentials, credentialsSummary, askBookmakerCredentials, combineDefaultCredentials, DEFAULT_LOGIN_REQUEST_KEY, DEFAULT_PASSWORD_REQUEST_KEY, TEST_ALL_REQUEST_KEY, CREDENTIALS_ASKED_SETTING, type SiteCredentials } from "./bookmakers/credentials";
+export * from "./bookmakers/health";
+export * from "./bookmakers/actions";
+export { siteMatchesView, bookmakersStatusView, oddsOfView, resolveSiteView, agoLabel, frOdds, pickSelection, type MatchesQuery, type OddsQuery } from "./bookmakers/views";
+export { BOOKMAKERS_VARIANTS } from "./boss/bookmakers-texts";

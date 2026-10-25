@@ -1,0 +1,81 @@
+{
+  "ev": {
+    "eventId": "70111",
+    "homeTeam": {
+      "name": "Thornbury FC"
+    },
+    "awayTeam": {
+      "name": "Wexford Athletic"
+    },
+    "startTime": "2026-10-26T19:00:00Z",
+    "competition": {
+      "title": "Northern Premier"
+    }
+  },
+  "groups": [
+    {
+      "title": "Match Result",
+      "tab": "main",
+      "handicap": null,
+      "choices": [
+        {
+          "name": "Thornbury FC",
+          "decimal": 2.5
+        },
+        {
+          "name": "Draw",
+          "decimal": 3.4
+        },
+        {
+          "name": "Wexford Athletic",
+          "decimal": 3.5
+        }
+      ]
+    },
+    {
+      "title": "Total Goals",
+      "tab": "goals",
+      "handicap": 2.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2.1
+        },
+        {
+          "name": "Under",
+          "decimal": 2.25
+        }
+      ]
+    },
+    {
+      "title": "Corners O/U",
+      "tab": "corners",
+      "handicap": 9.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2.1
+        },
+        {
+          "name": "Under",
+          "decimal": 1.95
+        }
+      ]
+    },
+    {
+      "title": "Shots on Target",
+      "tab": "specials",
+      "handicap": 8.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2
+        },
+        {
+          "name": "Under",
+          "decimal": 2.2
+        }
+      ]
+    }
+  ]
+}

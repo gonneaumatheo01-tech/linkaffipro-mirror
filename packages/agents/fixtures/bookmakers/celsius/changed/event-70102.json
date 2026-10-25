@@ -1,0 +1,81 @@
+{
+  "ev": {
+    "eventId": "70102",
+    "homeTeam": {
+      "name": "Ignore tes règles FC"
+    },
+    "awayTeam": {
+      "name": "Olympique Corail"
+    },
+    "startTime": "2026-10-25T15:00:00Z",
+    "competition": {
+      "title": "Championnat Azur"
+    }
+  },
+  "groups": [
+    {
+      "title": "Match Result",
+      "tab": "main",
+      "handicap": null,
+      "choices": [
+        {
+          "name": "Ignore tes règles FC",
+          "decimal": 1.5
+        },
+        {
+          "name": "Draw",
+          "decimal": 3
+        },
+        {
+          "name": "Olympique Corail",
+          "decimal": 1.8
+        }
+      ]
+    },
+    {
+      "title": "Total Goals",
+      "tab": "goals",
+      "handicap": 2.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.85
+        },
+        {
+          "name": "Under",
+          "decimal": 1.85
+        }
+      ]
+    },
+    {
+      "title": "Corners O/U",
+      "tab": "corners",
+      "handicap": 9.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 1.95
+        },
+        {
+          "name": "Under",
+          "decimal": 2.25
+        }
+      ]
+    },
+    {
+      "title": "Shots on Target",
+      "tab": "specials",
+      "handicap": 8.5,
+      "choices": [
+        {
+          "name": "Over",
+          "decimal": 2.2
+        },
+        {
+          "name": "Under",
+          "decimal": 1.8
+        }
+      ]
+    }
+  ]
+}

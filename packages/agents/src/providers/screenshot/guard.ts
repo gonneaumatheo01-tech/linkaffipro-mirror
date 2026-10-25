@@ -438,12 +438,14 @@ export class GuardedPage {
     return this.#page
       .evaluate(
         ([mh, mt]) => {
-          const doc = (globalThis as unknown as { document: DomDoc & { documentElement: { cloneNode(deep: boolean): DomEl & { querySelectorAll(s: string): ArrayLike<DomEl & { remove(): void; removeAttribute(n: string): void }> } } } }).document;
+          type CleanEl = { outerHTML: string; textContent: string | null; remove(): void; removeAttribute(n: string): void; querySelectorAll(s: string): ArrayLike<CleanEl> };
+          const g = globalThis as unknown as { document: DomDoc & { documentElement: { cloneNode(deep: boolean): CleanEl } } };
+          const doc = g.document;
           const clone = doc.documentElement.cloneNode(true);
           for (const el of Array.from(clone.querySelectorAll("script,style,noscript,template,link[rel=stylesheet],svg"))) el.remove();
           for (const el of Array.from(clone.querySelectorAll("input,textarea,select"))) {
             el.removeAttribute("value");
-            if ("textContent" in el) el.textContent = "";
+            el.textContent = "";
           }
           return { html: clone.outerHTML.slice(0, mh), text: (doc.body?.innerText ?? "").slice(0, mt) };
         },

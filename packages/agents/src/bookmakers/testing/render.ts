@@ -144,7 +144,7 @@ const CELSIUS_HEAD = `<script src="https://sb2frontend-altenar2.biahosted.com/al
 const CELSIUS_TOP = `<header class="cs-top"><a href="/" class="cs-logo">Celsius</a> <span id="cs-balance"></span> <a href="/cashier/deposit" class="cs-deposit">Dépôt</a></header>
 ${cookieBanner("Tout accepter", "cs-cookies")}`;
 // Jeton puis solde (affiché : à masquer), puis `__ready(jeton)` de la page.
-const CELSIUS_BOOT = `(async function(){try{var r=await fetch('/api/v2/auth/token',{headers:{accept:'application/json'}});if(r.status===401){document.body.setAttribute('data-expired','1');return;}var t=(await r.json()).token;var b=await (await fetch('/api/v2/account/balance',{headers:{authorization:'Bearer '+t,accept:'application/json'}})).json();document.getElementById('cs-balance').textContent='Solde : '+b.balance.toFixed(2).replace('.',',')+' € · Compte '+b.accountNumber;if(window.__ready)await window.__ready(t);}catch(e){document.body.setAttribute('data-error',String(e));}})();`;
+const CELSIUS_BOOT = `(async function(){try{var r=await fetch('/api/v2/auth/token',{headers:{accept:'application/json'}});if(r.status===401){document.body.setAttribute('data-expired','1');return;}var t=(await r.json()).token;try{localStorage.setItem('token',t);}catch(e){}var b=await (await fetch('/api/v2/account/balance',{headers:{authorization:'Bearer '+t,accept:'application/json'}})).json();document.getElementById('cs-balance').textContent='Solde : '+b.balance.toFixed(2).replace('.',',')+' € · Compte '+b.accountNumber;if(window.__ready)await window.__ready(t);}catch(e){document.body.setAttribute('data-error',String(e));}})();`;
 
 function celsiusFiles(variant: "base" | "changed"): FixtureFiles {
   const changed = variant === "changed";
@@ -336,7 +336,7 @@ const BETPORTAL_NAMES: Record<WorldMarket, string> = {
 };
 const BETPORTAL_TAB: Record<WorldMarket, string> = { result: "main", double: "main", goals: "goals", corners: "crn", cards: "bkg", shots: "bkg" };
 const bpSel = (key: string) => (key === "home" ? "1" : key === "draw" ? "X" : key === "away" ? "2" : key === "over" ? "Over" : key === "under" ? "Under" : key);
-const bpName = (x: WorldMarketOdds) => `${BETPORTAL_NAMES[x.market]}${x.line != null ? ` ${x.line.toFixed(1)}` : ""}`;
+const bpName = (x: WorldMarketOdds) => BETPORTAL_NAMES[x.market];
 
 function betportalMessages(opts: { changed?: boolean; moved?: boolean; withoutCorners?: boolean }): string {
   const lines: string[] = [];
@@ -358,7 +358,7 @@ function betportalMessages(opts: { changed?: boolean; moved?: boolean; withoutCo
       lines.push(
         JSON.stringify({
           type: "feed.markets",
-          payload: { eventId: id, event: { first: m.home, second: m.away, startsAt: m.kickoff }, markets: mk.map((x) => ({ label: bpName(x), tab: BETPORTAL_TAB[x.market], outcomes: x.selections.map((s) => ({ label: bpSel(s.key), fractional: s.fraction })) })) },
+          payload: { eventId: id, event: { first: m.home, second: m.away, startsAt: m.kickoff }, markets: mk.map((x) => ({ label: bpName(x), tab: BETPORTAL_TAB[x.market], line: x.line, outcomes: x.selections.map((s) => ({ label: bpSel(s.key), fractional: s.fraction })) })) },
         }),
       );
     else
@@ -379,13 +379,13 @@ function betportalFiles(variant: "base" | "changed" | "odds-moved" | "market-mis
   };
   if (variant === "odds-moved" || variant === "market-missing") return files;
   const c = changed
-    ? { comp: "feed-comp", row: "feed-item", home: "feed-item__first", away: "feed-item__second", ko: "feed-item__time", title: "feed-title", tab: "feed-tab", mkt: "feed-market", mh: "feed-market__name", r: "feed-outcome", s: "feed-outcome__label", p: "feed-outcome__price" }
-    : { comp: "bp-comp", row: "bp-ev", home: "bp-h", away: "bp-a", ko: "bp-ko", title: "bp-title", tab: "bp-tab", mkt: "bp-mkt", mh: "bp-mkt-h", r: "bp-row", s: "bp-sel", p: "bp-pr" };
+    ? { comp: "feed-comp", row: "feed-item", home: "feed-item__first", away: "feed-item__second", ko: "feed-item__time", title: "feed-title", tab: "feed-tab", mkt: "feed-market", mh: "feed-market__name", r: "feed-outcome", s: "feed-outcome__label", ln: "feed-outcome__line", p: "feed-outcome__price" }
+    : { comp: "bp-comp", row: "bp-ev", home: "bp-h", away: "bp-a", ko: "bp-ko", title: "bp-title", tab: "bp-tab", mkt: "bp-mkt", mh: "bp-mkt-h", r: "bp-row", s: "bp-sel", ln: "bp-ln", p: "bp-pr" };
   const evShape = changed
     ? `var items=j.payload.events.map(function(e){return {id:e.eventId,c:e.competitionName,h:e.participants.first,a:e.participants.second,ko:e.startsAt};});`
     : `var items=j.items;`;
   const mkShape = changed
-    ? `var ev={h:j.payload.event.first,a:j.payload.event.second};var mk=j.payload.markets.map(function(m){return {n:m.label,k:m.tab,sel:m.outcomes.map(function(o){return {n:o.label,p:o.fractional};})};});`
+    ? `var ev={h:j.payload.event.first,a:j.payload.event.second};var mk=j.payload.markets.map(function(m){return {n:m.label,k:m.tab,ln:m.line,sel:m.outcomes.map(function(o){return {n:o.label,p:o.fractional};})};});`
     : `var ev=j.ev;var mk=j.mk;`;
   const isEvents = changed ? `j.type==='feed.events'` : `j.t==='events'`;
   const isMarkets = changed ? `j.type==='feed.markets'` : `j.t==='markets'`;
@@ -402,7 +402,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}`;
     [
       `${ws}
 var day=new URLSearchParams(location.search).get('day')||'${FIXTURE_TODAY}';
-sock({op:'sub',topic:'events',day:day},function(j){if(j.t==='error'||j.type==='error'){document.getElementById('list').textContent='Session expired';return;}if(!(${isEvents}))return;${evShape}var by={};items.forEach(function(e){(by[e.c]=by[e.c]||[]).push(e);});var h='';Object.keys(by).forEach(function(c){h+='<h3 class="${c.comp}">'+esc(c)+'</h3><ul>';by[c].forEach(function(e){h+='<li class="${c.row}"><a href="/football/match/'+e.id+'"><b class="${c.home}">'+esc(e.h)+'</b> v <b class="${c.away}">'+esc(e.a)+'</b></a> <em class="${c.ko}" data-ko="'+e.ko+'">'+hhmm(e.ko)+'</em></li>';});h+='</ul>';});document.getElementById('list').innerHTML=h;});`,
+sock({op:'sub',topic:'events',day:day},function(j){if(j.t==='error'||j.type==='error'){document.getElementById('list').textContent='Session expired';return;}if(!(${isEvents}))return;${evShape}var by={};items.forEach(function(e){(by[e.c]=by[e.c]||[]).push(e);});var h='';Object.keys(by).forEach(function(c){h+='<h3 class="${c.comp}">'+esc(c)+'</h3><ul>';by[c].forEach(function(e){h+='<li class="${c.row}"><a href="/football/match/'+e.id+'"><b class="${c.home}">'+esc(e.h)+'</b> v <b class="${c.away}">'+esc(e.a)+'</b></a> <em class="${c.ko}" data-time="'+e.ko+'">'+hhmm(e.ko)+'</em></li>';});h+='</ul>';});document.getElementById('list').innerHTML=h;});`,
     ],
   );
   files["match.html"] = page(
@@ -415,7 +415,7 @@ sock({op:'sub',topic:'events',day:day},function(j){if(j.t==='error'||j.type==='e
 var id=location.pathname.split('/').pop();window.betClicked=false;
 sock({op:'sub',topic:'markets',eventId:id},function(j){if(!(${isMarkets}))return;${mkShape}
 var h='<h1 class="${c.title}">'+esc(ev.h)+' v '+esc(ev.a)+'</h1><div class="bp-tabs"><button type="button" class="${c.tab}" data-k="main">MAIN</button><button type="button" class="${c.tab}" data-k="goals">GOALS</button><button type="button" class="${c.tab}" data-k="crn">CRN</button><button type="button" class="${c.tab}" data-k="bkg">BKG</button></div>';
-mk.forEach(function(m){h+='<div class="${c.mkt}" data-k="'+m.k+'"'+(m.k==='main'?'':' hidden')+'><div class="${c.mh}">'+esc(m.n)+'</div>';m.sel.forEach(function(s){h+='<div class="${c.r}"><span class="${c.s}">'+esc(s.n)+'</span> <span class="${c.p}">'+esc(s.p)+'</span></div>';});h+='</div>';});
+mk.forEach(function(m){h+='<div class="${c.mkt}" data-k="'+m.k+'"'+(m.k==='main'?'':' hidden')+'><div class="${c.mh}">'+esc(m.n)+'</div>';m.sel.forEach(function(s){h+='<div class="${c.r}"><span class="${c.s}">'+esc(s.n)+'</span>'+(m.ln!=null?' <i class="${c.ln}">'+m.ln.toFixed(1)+'</i>':'')+' <span class="${c.p}">'+esc(s.p)+'</span></div>';});h+='</div>';});
 document.getElementById('match').innerHTML=h;
 document.querySelectorAll('.${c.tab}').forEach(function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-k');document.querySelectorAll('div[data-k]').forEach(function(d){if(d.getAttribute('data-k')===k)d.removeAttribute('hidden');else d.setAttribute('hidden','');});});});
 document.querySelectorAll('.${c.p}').forEach(function(b){b.addEventListener('click',function(){window.betClicked=true;});});});`,
