@@ -463,3 +463,5 @@ export { verifyDirectOdds, isDirectPick, MAX_RESELECTIONS, MAX_RECAPTURES, type 
 export { expandCategoryMarkets } from "./sports/data";
 export { unusualOddsOf, UNUSUAL_ODDS_GAP_PCT } from "./agents/cotes/select";
 export * from "./site/contract";
+export { SITE_OPS } from "./site/ops";
+export { SITE_PARITY } from "./site/parity";

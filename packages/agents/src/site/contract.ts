@@ -180,3 +180,9 @@ export const BOSS_INPUT_SETTING_PREFIX = "boss.input.";
 export const BOSS_INPUT_TTL_MS = 30 * 60_000;
 /** Route publique des liens d'autorisation (`apps/web/app/k/[token]/route.ts`). */
 export const AUTH_LINK_PATH = "/k/";
+
+/** Implémentation d'une opération côté site (`apps/web/lib/site-ops/ops/lot-<x>.ts`) : le cœur unique. */
+export type SiteOpImpl = {
+  key: string;
+  run(input: Record<string, unknown>, actor: SiteOpActor, opts: SiteOpRunOptions): Promise<SiteOpResult>;
+};
