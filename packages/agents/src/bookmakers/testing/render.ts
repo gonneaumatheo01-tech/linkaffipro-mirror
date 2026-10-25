@@ -23,9 +23,9 @@ import {
 
 export type FixtureFiles = Record<string, string>;
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const fr = (n: number) => n.toFixed(2).replace(".", ",");
-const en = (n: number) => n.toFixed(2);
 const day = (m: FixtureMatch) => m.day;
 const leaguesOf = (ms: readonly FixtureMatch[]) => [...new Set(ms.map((m) => m.league))];
 
@@ -52,16 +52,36 @@ ${scripts.map((s) => `<script>${s}</script>`).join("\n")}
 // ---------------------------------------------------------------------------------------------------------------
 
 function captchaPage(site: string): string {
-  return page(`${site} — vérification`, "", `<h1>Vérification de sécurité</h1><p>Vérifiez que vous êtes humain pour continuer.</p><div class="g-recaptcha" data-sitekey="test-sitekey"></div>`);
+  return page(
+    `${site} — vérification`,
+    "",
+    `<h1>Vérification de sécurité</h1><p>Vérifiez que vous êtes humain pour continuer.</p><div class="g-recaptcha" data-sitekey="test-sitekey"></div>`,
+  );
 }
 function geoPage(site: string): string {
-  return page(`${site} — indisponible`, "", `<h1>Accès restreint</h1><p>Ce site n'est pas disponible dans votre pays.</p>`);
+  return page(
+    `${site} — indisponible`,
+    "",
+    `<h1>Accès restreint</h1><p>Ce site n'est pas disponible dans votre pays.</p>`,
+  );
 }
 function loginPage(site: string, action: string, lang: "fr" | "en"): string {
   const t =
     lang === "fr"
-      ? { h: "Votre session a expiré", p: "Connectez-vous pour continuer.", l: "Email", pw: "Mot de passe", b: "Se connecter" }
-      : { h: "Your session has expired", p: "Please log in to continue.", l: "Email", pw: "Password", b: "Log in" };
+      ? {
+          h: "Votre session a expiré",
+          p: "Connectez-vous pour continuer.",
+          l: "Email",
+          pw: "Mot de passe",
+          b: "Se connecter",
+        }
+      : {
+          h: "Your session has expired",
+          p: "Please log in to continue.",
+          l: "Email",
+          pw: "Password",
+          b: "Log in",
+        };
   return page(
     `${site} — ${t.b}`,
     "",
@@ -81,17 +101,40 @@ const CELSIUS_NAMES: Record<WorldMarket, string> = {
   cards: "Cards O/U",
   double: "Double Chance",
 };
-const CELSIUS_GROUP: Record<WorldMarket, string> = { result: "main", goals: "goals", corners: "corners", shots: "specials", cards: "specials", double: "main" };
+const CELSIUS_GROUP: Record<WorldMarket, string> = {
+  result: "main",
+  goals: "goals",
+  corners: "corners",
+  shots: "specials",
+  cards: "specials",
+  double: "main",
+};
 
 function celsiusSelLabel(m: FixtureMatch, key: string): string {
-  return key === "home" ? m.home : key === "away" ? m.away : key === "draw" ? "Draw" : key === "over" ? "Over" : key === "under" ? "Under" : key;
+  return key === "home"
+    ? m.home
+    : key === "away"
+      ? m.away
+      : key === "draw"
+        ? "Draw"
+        : key === "over"
+          ? "Over"
+          : key === "under"
+            ? "Under"
+            : key;
 }
 
 function celsiusMarketsJson(m: FixtureMatch, mk: WorldMarketOdds[], changed: boolean): unknown {
   const id = siteEventId("celsius", m);
   if (changed)
     return {
-      ev: { eventId: id, homeTeam: { name: m.home }, awayTeam: { name: m.away }, startTime: m.kickoff, competition: { title: m.league } },
+      ev: {
+        eventId: id,
+        homeTeam: { name: m.home },
+        awayTeam: { name: m.away },
+        startTime: m.kickoff,
+        competition: { title: m.league },
+      },
       groups: mk.map((x) => ({
         title: CELSIUS_NAMES[x.market],
         tab: CELSIUS_GROUP[x.market],
@@ -106,7 +149,11 @@ function celsiusMarketsJson(m: FixtureMatch, mk: WorldMarketOdds[], changed: boo
       name: CELSIUS_NAMES[x.market],
       group: CELSIUS_GROUP[x.market],
       line: x.line,
-      outcomes: x.selections.map((s, j) => ({ id: `${id}-${i + 1}-${j + 1}`, label: celsiusSelLabel(m, s.key), price: s.decimal })),
+      outcomes: x.selections.map((s, j) => ({
+        id: `${id}-${i + 1}-${j + 1}`,
+        label: celsiusSelLabel(m, s.key),
+        price: s.decimal,
+      })),
     })),
   };
 }
@@ -149,8 +196,36 @@ const CELSIUS_BOOT = `(async function(){try{var r=await fetch('/api/v2/auth/toke
 function celsiusFiles(variant: "base" | "changed"): FixtureFiles {
   const changed = variant === "changed";
   const c = changed
-    ? { league: "ev-comp", leagueName: "ev-comp__label", row: "ev-line", home: "ev-line__p1", away: "ev-line__p2", time: "ev-line__start", title: "ev-head__name", tabs: "ev-nav", market: "ev-group", mname: "ev-group__label", sel: "ev-choice", sname: "ev-choice__name", price: "ev-choice__value" }
-    : { league: "cs-league", leagueName: "cs-league-name", row: "cs-event", home: "cs-home", away: "cs-away", time: "cs-time", title: "cs-title", tabs: "cs-tabs", market: "cs-market", mname: "cs-market-name", sel: "cs-sel", sname: "cs-sel-name", price: "cs-price" };
+    ? {
+        league: "ev-comp",
+        leagueName: "ev-comp__label",
+        row: "ev-line",
+        home: "ev-line__p1",
+        away: "ev-line__p2",
+        time: "ev-line__start",
+        title: "ev-head__name",
+        tabs: "ev-nav",
+        market: "ev-group",
+        mname: "ev-group__label",
+        sel: "ev-choice",
+        sname: "ev-choice__name",
+        price: "ev-choice__value",
+      }
+    : {
+        league: "cs-league",
+        leagueName: "cs-league-name",
+        row: "cs-event",
+        home: "cs-home",
+        away: "cs-away",
+        time: "cs-time",
+        title: "cs-title",
+        tabs: "cs-tabs",
+        market: "cs-market",
+        mname: "cs-market-name",
+        sel: "cs-sel",
+        sname: "cs-sel-name",
+        price: "cs-price",
+      };
   const listShape = changed
     ? `var j=await r.json();var items=j.result.items.map(function(e){return {id:e.eventId,league:e.competition.title,home:e.homeTeam.name,away:e.awayTeam.name,kickoff:e.startTime,n:e.marketsTotal};});all=all.concat(items);if(!j.paging||!j.paging.next)break;`
     : `var j=await r.json();var items=j.data.events.map(function(e){return {id:e.id,league:e.league.name,home:e.participants.home,away:e.participants.away,kickoff:e.kickoff,n:e.marketCount};});all=all.concat(items);if(!j.meta.hasMore)break;`;
@@ -204,8 +279,18 @@ window.__ready=async function(t){var q=new URLSearchParams(location.search).get(
       CELSIUS_BOOT,
     ],
   );
-  const files: FixtureFiles = { "football.html": football, "event.html": event, "search.html": search, "events.json": JSON.stringify(celsiusEventsJson(changed), null, 2) };
-  for (const m of FIXTURE_MATCHES) files[`event-${siteEventId("celsius", m)}.json`] = JSON.stringify(celsiusMarketsJson(m, worldOdds("celsius", m), changed), null, 2);
+  const files: FixtureFiles = {
+    "football.html": football,
+    "event.html": event,
+    "search.html": search,
+    "events.json": JSON.stringify(celsiusEventsJson(changed), null, 2),
+  };
+  for (const m of FIXTURE_MATCHES)
+    files[`event-${siteEventId("celsius", m)}.json`] = JSON.stringify(
+      celsiusMarketsJson(m, worldOdds("celsius", m), changed),
+      null,
+      2,
+    );
   if (!changed) {
     files["home.html"] = page(
       "Celsius — Paris sportifs (site de test)",
@@ -216,7 +301,11 @@ window.__ready=async function(t){var q=new URLSearchParams(location.search).get(
       [CELSIUS_BOOT],
     );
     files["login.html"] = loginPage("Celsius", "/login", "fr");
-    files["account.json"] = JSON.stringify({ ...CELSIUS_TEST_ACCOUNT, currency: "EUR", bonusBalance: 10 }, null, 2);
+    files["account.json"] = JSON.stringify(
+      { ...CELSIUS_TEST_ACCOUNT, currency: "EUR", bonusBalance: 10 },
+      null,
+      2,
+    );
   }
   return files;
 }
@@ -233,7 +322,14 @@ const SPORTAZA_NAMES: Record<WorldMarket, string> = {
   shots: "Tirs cadrés - total",
   double: "Double chance",
 };
-const SPORTAZA_TAB: Record<WorldMarket, string> = { result: "principaux", goals: "buts", corners: "corners", cards: "cartons", shots: "cartons", double: "principaux" };
+const SPORTAZA_TAB: Record<WorldMarket, string> = {
+  result: "principaux",
+  goals: "buts",
+  corners: "corners",
+  cards: "cartons",
+  shots: "cartons",
+  double: "principaux",
+};
 
 function sportazaSel(m: FixtureMatch, key: string, line: number | null): string {
   if (key === "home") return m.home;
@@ -247,11 +343,43 @@ const SPORTAZA_HEAD = `<script src="https://ui.invisiblesport.com/bt-renderer.mi
 const SPORTAZA_TOP = `<header class="sz-header"><a href="/fr/sports" class="sz-logo">Sportaza</a> <a href="/fr/cashier" class="sz-cashier">Caisse</a></header>
 ${cookieBanner("J'accepte", "sz-cookies")}`;
 
-function sportazaFiles(variant: "base" | "changed" | "odds-moved" | "market-missing"): FixtureFiles {
+function sportazaFiles(
+  variant: "base" | "changed" | "odds-moved" | "market-missing",
+): FixtureFiles {
   const changed = variant === "changed";
   const c = changed
-    ? { comp: "event-group", compTitle: "event-group__heading", row: "event-card", link: "event-card__teams", home: "participant--1", away: "participant--2", time: "event-card__kickoff", title: "match-header__teams", tab: "market-nav__item", market: "market-block", mname: "market-block__title", out: "market-block__choice", olabel: "market-block__choice-name", oval: "market-block__choice-coef" }
-    : { comp: "sz-competition", compTitle: "sz-competition__title", row: "sz-match", link: "sz-match__link", home: "sz-team--home", away: "sz-team--away", time: "sz-match__time", title: "sz-event-title", tab: "sz-tab", market: "sz-market", mname: "sz-market__name", out: "sz-outcome", olabel: "sz-outcome__label", oval: "sz-outcome__odd" };
+    ? {
+        comp: "event-group",
+        compTitle: "event-group__heading",
+        row: "event-card",
+        link: "event-card__teams",
+        home: "participant--1",
+        away: "participant--2",
+        time: "event-card__kickoff",
+        title: "match-header__teams",
+        tab: "market-nav__item",
+        market: "market-block",
+        mname: "market-block__title",
+        out: "market-block__choice",
+        olabel: "market-block__choice-name",
+        oval: "market-block__choice-coef",
+      }
+    : {
+        comp: "sz-competition",
+        compTitle: "sz-competition__title",
+        row: "sz-match",
+        link: "sz-match__link",
+        home: "sz-team--home",
+        away: "sz-team--away",
+        time: "sz-match__time",
+        title: "sz-event-title",
+        tab: "sz-tab",
+        market: "sz-market",
+        mname: "sz-market__name",
+        out: "sz-outcome",
+        olabel: "sz-outcome__label",
+        oval: "sz-outcome__odd",
+      };
   const files: FixtureFiles = {};
   const dayLinks = (d: string) =>
     `<div class="sz-dayswitch"><a href="/fr/sports/football?jour=${FIXTURE_TODAY}" class="sz-day${d === FIXTURE_TODAY ? " sz-day--on" : ""}">Aujourd'hui</a> <a href="/fr/sports/football?jour=${FIXTURE_TOMORROW}" class="sz-day${d === FIXTURE_TOMORROW ? " sz-day--on" : ""}">Demain</a></div>
@@ -273,19 +401,34 @@ function sportazaFiles(variant: "base" | "changed" | "odds-moved" | "market-miss
   if (variant === "base" || changed) {
     for (const d of [FIXTURE_TODAY, FIXTURE_TOMORROW]) {
       const ms = FIXTURE_MATCHES.filter((m) => day(m) === d);
-      files[`football-${d}.html`] = page("Sportaza — Football", SPORTAZA_HEAD, `${SPORTAZA_TOP}\n<h1>Football</h1>\n${dayLinks(d)}\n${rowsHtml(ms)}`);
+      files[`football-${d}.html`] = page(
+        "Sportaza — Football",
+        SPORTAZA_HEAD,
+        `${SPORTAZA_TOP}\n<h1>Football</h1>\n${dayLinks(d)}\n${rowsHtml(ms)}`,
+      );
     }
   }
   for (const m of FIXTURE_MATCHES) {
     if (variant === "odds-moved" && m.index !== 0) continue;
-    const mk = worldOdds("sportaza", m, { moved: variant === "odds-moved", withoutCorners: variant === "market-missing" });
+    const mk = worldOdds("sportaza", m, {
+      moved: variant === "odds-moved",
+      withoutCorners: variant === "market-missing",
+    });
     const tabs = [...new Set(mk.map((x) => SPORTAZA_TAB[x.market]))];
-    const tabLabel: Record<string, string> = { principaux: "Principaux", buts: "Buts", corners: "Corners", cartons: "Cartons" };
+    const tabLabel: Record<string, string> = {
+      principaux: "Principaux",
+      buts: "Buts",
+      corners: "Corners",
+      cartons: "Cartons",
+    };
     const sections = mk
       .map((x) => {
         const tab = SPORTAZA_TAB[x.market];
         const outs = x.selections
-          .map((s) => `<div class="${c.out}"><span class="${c.olabel}">${esc(sportazaSel(m, s.key, x.line))}</span> <span class="${c.oval}">${fr(s.decimal)}</span></div>`)
+          .map(
+            (s) =>
+              `<div class="${c.out}"><span class="${c.olabel}">${esc(sportazaSel(m, s.key, x.line))}</span> <span class="${c.oval}">${fr(s.decimal)}</span></div>`,
+          )
           .join("");
         return `<section class="${c.market}" data-tab="${tab}"${tab === "principaux" ? "" : ' style="display:none"'}><h4 class="${c.mname}">${esc(SPORTAZA_NAMES[x.market])}</h4>${outs}</section>`;
       })
@@ -315,7 +458,14 @@ ${sections}`,
   }
   if (variant === "base" || changed)
     files["search-index.json"] = JSON.stringify(
-      FIXTURE_MATCHES.map((m) => ({ id: siteEventId("sportaza", m), league: m.league, home: m.home, away: m.away, kickoff: m.kickoff, url: `/fr/sports/match/${siteEventId("sportaza", m)}` })),
+      FIXTURE_MATCHES.map((m) => ({
+        id: siteEventId("sportaza", m),
+        league: m.league,
+        home: m.home,
+        away: m.away,
+        kickoff: m.kickoff,
+        url: `/fr/sports/match/${siteEventId("sportaza", m)}`,
+      })),
       null,
       2,
     );
@@ -334,11 +484,33 @@ const BETPORTAL_NAMES: Record<WorldMarket, string> = {
   shots: "SOT",
   double: "DC",
 };
-const BETPORTAL_TAB: Record<WorldMarket, string> = { result: "main", double: "main", goals: "goals", corners: "crn", cards: "bkg", shots: "bkg" };
-const bpSel = (key: string) => (key === "home" ? "1" : key === "draw" ? "X" : key === "away" ? "2" : key === "over" ? "Over" : key === "under" ? "Under" : key);
+const BETPORTAL_TAB: Record<WorldMarket, string> = {
+  result: "main",
+  double: "main",
+  goals: "goals",
+  corners: "crn",
+  cards: "bkg",
+  shots: "bkg",
+};
+const bpSel = (key: string) =>
+  key === "home"
+    ? "1"
+    : key === "draw"
+      ? "X"
+      : key === "away"
+        ? "2"
+        : key === "over"
+          ? "Over"
+          : key === "under"
+            ? "Under"
+            : key;
 const bpName = (x: WorldMarketOdds) => BETPORTAL_NAMES[x.market];
 
-function betportalMessages(opts: { changed?: boolean; moved?: boolean; withoutCorners?: boolean }): string {
+function betportalMessages(opts: {
+  changed?: boolean;
+  moved?: boolean;
+  withoutCorners?: boolean;
+}): string {
   const lines: string[] = [];
   for (const d of [FIXTURE_TODAY, FIXTURE_TOMORROW]) {
     const ms = FIXTURE_MATCHES.filter((m) => day(m) === d);
@@ -346,24 +518,68 @@ function betportalMessages(opts: { changed?: boolean; moved?: boolean; withoutCo
       lines.push(
         JSON.stringify({
           type: "feed.events",
-          payload: { day: d, events: ms.map((m) => ({ eventId: siteEventId("betportal", m), competitionName: m.league, participants: { first: m.home, second: m.away }, startsAt: m.kickoff })) },
+          payload: {
+            day: d,
+            events: ms.map((m) => ({
+              eventId: siteEventId("betportal", m),
+              competitionName: m.league,
+              participants: { first: m.home, second: m.away },
+              startsAt: m.kickoff,
+            })),
+          },
         }),
       );
-    else lines.push(JSON.stringify({ t: "events", day: d, items: ms.map((m) => ({ id: siteEventId("betportal", m), c: m.league, h: m.home, a: m.away, ko: m.kickoff, n: 30 + m.index })) }));
+    else
+      lines.push(
+        JSON.stringify({
+          t: "events",
+          day: d,
+          items: ms.map((m) => ({
+            id: siteEventId("betportal", m),
+            c: m.league,
+            h: m.home,
+            a: m.away,
+            ko: m.kickoff,
+            n: 30 + m.index,
+          })),
+        }),
+      );
   }
   for (const m of FIXTURE_MATCHES) {
-    const mk = worldOdds("betportal", m, { moved: opts.moved, withoutCorners: opts.withoutCorners });
+    const mk = worldOdds("betportal", m, {
+      moved: opts.moved,
+      withoutCorners: opts.withoutCorners,
+    });
     const id = siteEventId("betportal", m);
     if (opts.changed)
       lines.push(
         JSON.stringify({
           type: "feed.markets",
-          payload: { eventId: id, event: { first: m.home, second: m.away, startsAt: m.kickoff }, markets: mk.map((x) => ({ label: bpName(x), tab: BETPORTAL_TAB[x.market], line: x.line, outcomes: x.selections.map((s) => ({ label: bpSel(s.key), fractional: s.fraction })) })) },
+          payload: {
+            eventId: id,
+            event: { first: m.home, second: m.away, startsAt: m.kickoff },
+            markets: mk.map((x) => ({
+              label: bpName(x),
+              tab: BETPORTAL_TAB[x.market],
+              line: x.line,
+              outcomes: x.selections.map((s) => ({ label: bpSel(s.key), fractional: s.fraction })),
+            })),
+          },
         }),
       );
     else
       lines.push(
-        JSON.stringify({ t: "markets", eid: id, ev: { h: m.home, a: m.away, ko: m.kickoff, c: m.league }, mk: mk.map((x) => ({ n: bpName(x), k: BETPORTAL_TAB[x.market], ln: x.line, sel: x.selections.map((s) => ({ n: bpSel(s.key), p: s.fraction })) })) }),
+        JSON.stringify({
+          t: "markets",
+          eid: id,
+          ev: { h: m.home, a: m.away, ko: m.kickoff, c: m.league },
+          mk: mk.map((x) => ({
+            n: bpName(x),
+            k: BETPORTAL_TAB[x.market],
+            ln: x.line,
+            sel: x.selections.map((s) => ({ n: bpSel(s.key), p: s.fraction })),
+          })),
+        }),
       );
   }
   return lines.join("\n") + "\n";
@@ -372,15 +588,49 @@ function betportalMessages(opts: { changed?: boolean; moved?: boolean; withoutCo
 const BETPORTAL_TOP = `<header class="bp-top"><a href="/" class="bp-brand">Bet Portal</a> <a href="/wallet" class="bp-wallet">Wallet</a></header>
 ${cookieBanner("Accept all", "bp-cookies")}`;
 
-function betportalFiles(variant: "base" | "changed" | "odds-moved" | "market-missing"): FixtureFiles {
+function betportalFiles(
+  variant: "base" | "changed" | "odds-moved" | "market-missing",
+): FixtureFiles {
   const changed = variant === "changed";
   const files: FixtureFiles = {
-    "ws-messages.jsonl": betportalMessages({ changed, moved: variant === "odds-moved", withoutCorners: variant === "market-missing" }),
+    "ws-messages.jsonl": betportalMessages({
+      changed,
+      moved: variant === "odds-moved",
+      withoutCorners: variant === "market-missing",
+    }),
   };
   if (variant === "odds-moved" || variant === "market-missing") return files;
   const c = changed
-    ? { comp: "feed-comp", row: "feed-item", home: "feed-item__first", away: "feed-item__second", ko: "feed-item__time", title: "feed-title", tab: "feed-tab", mkt: "feed-market", mh: "feed-market__name", r: "feed-outcome", s: "feed-outcome__label", ln: "feed-outcome__line", p: "feed-outcome__price" }
-    : { comp: "bp-comp", row: "bp-ev", home: "bp-h", away: "bp-a", ko: "bp-ko", title: "bp-title", tab: "bp-tab", mkt: "bp-mkt", mh: "bp-mkt-h", r: "bp-row", s: "bp-sel", ln: "bp-ln", p: "bp-pr" };
+    ? {
+        comp: "feed-comp",
+        row: "feed-item",
+        home: "feed-item__first",
+        away: "feed-item__second",
+        ko: "feed-item__time",
+        title: "feed-title",
+        tab: "feed-tab",
+        mkt: "feed-market",
+        mh: "feed-market__name",
+        r: "feed-outcome",
+        s: "feed-outcome__label",
+        ln: "feed-outcome__line",
+        p: "feed-outcome__price",
+      }
+    : {
+        comp: "bp-comp",
+        row: "bp-ev",
+        home: "bp-h",
+        away: "bp-a",
+        ko: "bp-ko",
+        title: "bp-title",
+        tab: "bp-tab",
+        mkt: "bp-mkt",
+        mh: "bp-mkt-h",
+        r: "bp-row",
+        s: "bp-sel",
+        ln: "bp-ln",
+        p: "bp-pr",
+      };
   const evShape = changed
     ? `var items=j.payload.events.map(function(e){return {id:e.eventId,c:e.competitionName,h:e.participants.first,a:e.participants.second,ko:e.startsAt};});`
     : `var items=j.items;`;
@@ -431,7 +681,14 @@ document.querySelectorAll('.${c.p}').forEach(function(b){b.addEventListener('cli
     );
     files["login.html"] = loginPage("Bet Portal", "/login", "en");
     files["search-index.json"] = JSON.stringify(
-      FIXTURE_MATCHES.map((m) => ({ id: siteEventId("betportal", m), league: m.league, home: m.home, away: m.away, kickoff: m.kickoff, url: `/football/match/${siteEventId("betportal", m)}` })),
+      FIXTURE_MATCHES.map((m) => ({
+        id: siteEventId("betportal", m),
+        league: m.league,
+        home: m.home,
+        away: m.away,
+        kickoff: m.kickoff,
+        url: `/football/match/${siteEventId("betportal", m)}`,
+      })),
       null,
       2,
     );
@@ -450,9 +707,20 @@ export function renderSiteFixtures(site: FixtureSiteKey): FixtureFiles {
     add("", celsiusFiles("base"));
     add("changed", celsiusFiles("changed"));
     const m0 = FIXTURE_MATCHES[0]!;
-    add("odds-moved", { [`event-${siteEventId("celsius", m0)}.json`]: JSON.stringify(celsiusMarketsJson(m0, worldOdds("celsius", m0, { moved: true }), false), null, 2) });
+    add("odds-moved", {
+      [`event-${siteEventId("celsius", m0)}.json`]: JSON.stringify(
+        celsiusMarketsJson(m0, worldOdds("celsius", m0, { moved: true }), false),
+        null,
+        2,
+      ),
+    });
     const missing: FixtureFiles = {};
-    for (const m of FIXTURE_MATCHES) missing[`event-${siteEventId("celsius", m)}.json`] = JSON.stringify(celsiusMarketsJson(m, worldOdds("celsius", m, { withoutCorners: true }), false), null, 2);
+    for (const m of FIXTURE_MATCHES)
+      missing[`event-${siteEventId("celsius", m)}.json`] = JSON.stringify(
+        celsiusMarketsJson(m, worldOdds("celsius", m, { withoutCorners: true }), false),
+        null,
+        2,
+      );
     add("market-missing", missing);
   } else if (site === "sportaza") {
     add("", sportazaFiles("base"));
@@ -467,6 +735,12 @@ export function renderSiteFixtures(site: FixtureSiteKey): FixtureFiles {
   }
   add("captcha", { "index.html": captchaPage(label) });
   add("geo", { "index.html": geoPage(label) });
-  add("expired", { "index.html": loginPage(label, site === "sportaza" ? "/fr/login" : "/login", site === "betportal" ? "en" : "fr") });
+  add("expired", {
+    "index.html": loginPage(
+      label,
+      site === "sportaza" ? "/fr/login" : "/login",
+      site === "betportal" ? "en" : "fr",
+    ),
+  });
   return out;
 }

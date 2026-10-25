@@ -7,18 +7,41 @@
 import type { ActorRef } from "../../admin/team";
 import { openVisibleBrowser, relearnSite, testAllSites, testSite } from "../../bookmakers/actions";
 import { addSite, findSite, listSites, setSiteUrl } from "../../bookmakers/sites";
-import { bookmakersStatusView, oddsOfView, siteMatchesView, type View } from "../../bookmakers/views";
+import {
+  bookmakersStatusView,
+  oddsOfView,
+  siteMatchesView,
+  type View,
+} from "../../bookmakers/views";
 import { isDaySlot, resolveDay } from "../view/common";
 import type { AgentsDeps } from "../../types";
 import type { OrderRow, OrderStep } from "../contract";
-import { defineCapability, done, failed, nowFor, ok, readOnly, refuse, settingTouches, type CapSpec } from "./kit";
+import {
+  defineCapability,
+  done,
+  failed,
+  nowFor,
+  ok,
+  readOnly,
+  refuse,
+  settingTouches,
+  type CapSpec,
+} from "./kit";
 
 const T = "sports" as const;
 const AGENTS = ["cotes"];
 
-const actorOf = (order: Pick<OrderRow, "createdById">): ActorRef => ({ userId: order.createdById, via: "TELEGRAM" });
+const actorOf = (order: Pick<OrderRow, "createdById">): ActorRef => ({
+  userId: order.createdById,
+  via: "TELEGRAM",
+});
 
-const site = { kind: "string", description: "Bookmaker tel que dit (Celsius, Sportaza, Bet Portal…)", optional: true, maxLength: 60 } as const;
+const site = {
+  kind: "string",
+  description: "Bookmaker tel que dit (Celsius, Sportaza, Bet Portal…)",
+  optional: true,
+  maxLength: 60,
+} as const;
 
 /** Faits d'une vue pour les rapports (lignes = message de Kevin). */
 function viewFacts(v: View) {
@@ -30,7 +53,10 @@ async function siteKnown(deps: AgentsDeps, raw: string | undefined) {
   const s = await findSite(deps, raw);
   if (s) return ok();
   const list = (await listSites(deps, { activeOnly: true })).map((x) => x.label);
-  return refuse(`je ne lis pas « ${raw} » moi-même (bookmakers lus : ${list.join(", ") || "aucun"})`, []);
+  return refuse(
+    `je ne lis pas « ${raw} » moi-même (bookmakers lus : ${list.join(", ") || "aucun"})`,
+    [],
+  );
 }
 
 function readStep(key: string, summary: string, params: Record<string, unknown>): OrderStep {
@@ -39,14 +65,36 @@ function readStep(key: string, summary: string, params: Record<string, unknown>)
 
 // ---------------------------------------------------------------------------------------------- voir_matchs
 
-type MatchesP = { bookmaker?: string; jour?: string; moment?: string; ligue?: string; equipe?: string; marche?: string };
+type MatchesP = {
+  bookmaker?: string;
+  jour?: string;
+  moment?: string;
+  ligue?: string;
+  equipe?: string;
+  marche?: string;
+};
 const matchesSpec: CapSpec = {
   bookmaker: site,
-  jour: { kind: "string", description: "aujourdhui, demain, apres_demain ou AAAA-MM-JJ", optional: true, maxLength: 12 },
-  moment: { kind: "enum", description: "matin, midi, apres-midi, soir, nuit", values: ["matin", "midi", "apres-midi", "soir", "nuit"], optional: true },
+  jour: {
+    kind: "string",
+    description: "aujourdhui, demain, apres_demain ou AAAA-MM-JJ",
+    optional: true,
+    maxLength: 12,
+  },
+  moment: {
+    kind: "enum",
+    description: "matin, midi, apres-midi, soir, nuit",
+    values: ["matin", "midi", "apres-midi", "soir", "nuit"],
+    optional: true,
+  },
   ligue: { kind: "string", description: "Ligue (Ligue 1…)", optional: true, maxLength: 60 },
   equipe: { kind: "string", description: "Équipe (PSG…)", optional: true, maxLength: 60 },
-  marche: { kind: "string", description: "Marché (corners, cartons…)", optional: true, maxLength: 60 },
+  marche: {
+    kind: "string",
+    description: "Marché (corners, cartons…)",
+    optional: true,
+    maxLength: 60,
+  },
 };
 
 async function matchesView(deps: AgentsDeps, p: MatchesP): Promise<View> {
@@ -63,7 +111,8 @@ async function matchesView(deps: AgentsDeps, p: MatchesP): Promise<View> {
 export const voirMatchs = defineCapability<MatchesP>({
   teamKey: T,
   key: "voir_matchs",
-  description: "Matchs lus sur le site d'un de nos bookmakers (par ligue, heure, nombre de marchés, cotes principales ; filtre ligue, équipe ou marché)",
+  description:
+    "Matchs lus sur le site d'un de nos bookmakers (par ligue, heure, nombre de marchés, cotes principales ; filtre ligue, équipe ou marché)",
   agents: AGENTS,
   spec: matchesSpec,
   limits: { modes: ["simulation", "real"] },
@@ -77,7 +126,8 @@ export const voirMatchs = defineCapability<MatchesP>({
     return done((await matchesView(deps, step.params as MatchesP)).lines.join("\n"));
   },
   async report(deps, order) {
-    const p = ((order.interpretation as { steps?: Array<{ params?: MatchesP }> } | null)?.steps?.[0]?.params ?? {}) as MatchesP;
+    const p = ((order.interpretation as { steps?: Array<{ params?: MatchesP }> } | null)?.steps?.[0]
+      ?.params ?? {}) as MatchesP;
     return viewFacts(await matchesView(deps, p));
   },
 });
@@ -87,7 +137,8 @@ export const voirMatchs = defineCapability<MatchesP>({
 export const etatBookmakers = defineCapability<{ mac?: boolean }>({
   teamKey: T,
   key: "etat_bookmakers",
-  description: "État de nos bookmakers lus directement (se lisent bien ou non, dernier succès, réussite sur 24 h) et du Mac qui lit",
+  description:
+    "État de nos bookmakers lus directement (se lisent bien ou non, dernier succès, réussite sur 24 h) et du Mac qui lit",
   agents: AGENTS,
   spec: { mac: { kind: "bool", description: "true = seulement le Mac", optional: true } },
   limits: { modes: ["simulation", "real"] },
@@ -98,7 +149,9 @@ export const etatBookmakers = defineCapability<{ mac?: boolean }>({
     return [readStep("etat_bookmakers", "état des bookmakers", { mac: p.mac === true })];
   },
   async run(deps, _order, step) {
-    return done((await bookmakersStatusView(deps, { macOnly: step.params.mac === true })).lines.join("\n"));
+    return done(
+      (await bookmakersStatusView(deps, { macOnly: step.params.mac === true })).lines.join("\n"),
+    );
   },
   async report(deps) {
     return viewFacts(await bookmakersStatusView(deps));
@@ -112,13 +165,24 @@ type OddsP = { bookmaker?: string; match: string; marche?: string; selection?: s
 export const coteDe = defineCapability<OddsP>({
   teamKey: T,
   key: "cote_de",
-  description: "Cote d'un pari précis chez un de nos bookmakers, lue deux fois sur son site (identiques), avec l'heure de lecture",
+  description:
+    "Cote d'un pari précis chez un de nos bookmakers, lue deux fois sur son site (identiques), avec l'heure de lecture",
   agents: AGENTS,
   spec: {
     bookmaker: site,
     match: { kind: "string", description: "Match ou équipe", maxLength: 80 },
-    marche: { kind: "string", description: "Marché (résultat, corners…)", optional: true, maxLength: 60 },
-    selection: { kind: "string", description: "Pari tel que dit (« PSG gagne »)", optional: true, maxLength: 80 },
+    marche: {
+      kind: "string",
+      description: "Marché (résultat, corners…)",
+      optional: true,
+      maxLength: 60,
+    },
+    selection: {
+      kind: "string",
+      description: "Pari tel que dit (« PSG gagne »)",
+      optional: true,
+      maxLength: 80,
+    },
   },
   limits: { modes: ["simulation", "real"] },
   async check(deps, p) {
@@ -129,7 +193,16 @@ export const coteDe = defineCapability<OddsP>({
   },
   async run(deps, _order, step) {
     const p = step.params as OddsP;
-    return done((await oddsOfView(deps, { site: p.bookmaker ?? null, match: p.match, market: p.marche ?? null, selection: p.selection ?? null })).lines.join("\n"));
+    return done(
+      (
+        await oddsOfView(deps, {
+          site: p.bookmaker ?? null,
+          match: p.match,
+          market: p.marche ?? null,
+          selection: p.selection ?? null,
+        })
+      ).lines.join("\n"),
+    );
   },
   async report() {
     // Une cote se relit au moment où on la demande (jamais un chiffre gardé dans un rapport).
@@ -144,21 +217,33 @@ type TestP = { bookmaker?: string; tous?: boolean };
 export const testerSite = defineCapability<TestP>({
   teamKey: T,
   key: "tester_site",
-  description: "Tester un de nos bookmakers (ou tous) : connexion au compte et une lecture des matchs, aucune mise",
+  description:
+    "Tester un de nos bookmakers (ou tous) : connexion au compte et une lecture des matchs, aucune mise",
   agents: AGENTS,
-  spec: { bookmaker: site, tous: { kind: "bool", description: "true = tous les bookmakers", optional: true } },
+  spec: {
+    bookmaker: site,
+    tous: { kind: "bool", description: "true = tous les bookmakers", optional: true },
+  },
   limits: { modes: ["simulation", "real"] },
   async check(deps, p) {
     return p.tous ? ok() : siteKnown(deps, p.bookmaker);
   },
   async plan(_deps, p) {
-    return [readStep("tester_site", p.tous ? "test de tous les bookmakers" : `test de ${p.bookmaker ?? "notre bookmaker"}`, { ...p })];
+    return [
+      readStep(
+        "tester_site",
+        p.tous ? "test de tous les bookmakers" : `test de ${p.bookmaker ?? "notre bookmaker"}`,
+        { ...p },
+      ),
+    ];
   },
   async run(deps, order, step) {
     const p = step.params as TestP;
     if (p.tous) {
       const r = await testAllSites(deps, actorOf(order));
-      return r.queued.length ? done(`Test lancé sur ${r.queued.length} site${r.queued.length > 1 ? "s" : ""}.`) : failed("Aucun bookmaker à tester.");
+      return r.queued.length
+        ? done(`Test lancé sur ${r.queued.length} site${r.queued.length > 1 ? "s" : ""}.`)
+        : failed("Aucun bookmaker à tester.");
     }
     const s = await findSite(deps, p.bookmaker ?? null);
     if (!s) return failed("Bookmaker introuvable.");
@@ -177,15 +262,33 @@ type LearnP = { bookmaker: string; adresse?: string };
 export const apprendreSite = defineCapability<LearnP>({
   teamKey: T,
   key: "apprendre_site",
-  description: "Apprendre (ou réapprendre) à lire le site d'un de nos bookmakers, avec sa nouvelle adresse si elle est donnée",
+  description:
+    "Apprendre (ou réapprendre) à lire le site d'un de nos bookmakers, avec sa nouvelle adresse si elle est donnée",
   agents: AGENTS,
-  spec: { bookmaker: { ...site, optional: false }, adresse: { kind: "string", description: "Nouvelle adresse du site", optional: true, maxLength: 200 } },
+  spec: {
+    bookmaker: { ...site, optional: false },
+    adresse: {
+      kind: "string",
+      description: "Nouvelle adresse du site",
+      optional: true,
+      maxLength: 200,
+    },
+  },
   limits: { modes: ["simulation", "real"] },
   async check(deps, p) {
     return siteKnown(deps, p.bookmaker);
   },
   async plan(_deps, p) {
-    return [{ stepKey: "apprendre_site", capability: "apprendre_site", teamKey: T, summary: `apprendre à lire ${p.bookmaker}${p.adresse ? ` (${p.adresse})` : ""}`, touches: settingTouches([]), params: { ...p } }];
+    return [
+      {
+        stepKey: "apprendre_site",
+        capability: "apprendre_site",
+        teamKey: T,
+        summary: `apprendre à lire ${p.bookmaker}${p.adresse ? ` (${p.adresse})` : ""}`,
+        touches: settingTouches([]),
+        params: { ...p },
+      },
+    ];
   },
   async run(deps, order, step) {
     const p = step.params as LearnP;
@@ -210,15 +313,28 @@ type AddP = { nom: string; adresse: string };
 export const ajouterBookmaker = defineCapability<AddP>({
   teamKey: T,
   key: "ajouter_bookmaker",
-  description: "Ajouter un bookmaker à lire (nom et adresse), avec les identifiants communs, puis l'apprendre",
+  description:
+    "Ajouter un bookmaker à lire (nom et adresse), avec les identifiants communs, puis l'apprendre",
   agents: AGENTS,
-  spec: { nom: { kind: "string", description: "Nom du bookmaker", maxLength: 60 }, adresse: { kind: "string", description: "Adresse du site", maxLength: 200 } },
+  spec: {
+    nom: { kind: "string", description: "Nom du bookmaker", maxLength: 60 },
+    adresse: { kind: "string", description: "Adresse du site", maxLength: 200 },
+  },
   limits: { modes: ["simulation", "real"] },
   async check() {
     return ok();
   },
   async plan(_deps, p) {
-    return [{ stepKey: "ajouter_bookmaker", capability: "ajouter_bookmaker", teamKey: T, summary: `ajouter le bookmaker ${p.nom} (${p.adresse})`, touches: settingTouches([]), params: { ...p } }];
+    return [
+      {
+        stepKey: "ajouter_bookmaker",
+        capability: "ajouter_bookmaker",
+        teamKey: T,
+        summary: `ajouter le bookmaker ${p.nom} (${p.adresse})`,
+        touches: settingTouches([]),
+        params: { ...p },
+      },
+    ];
   },
   async run(deps, order, step) {
     const p = step.params as AddP;
@@ -237,7 +353,8 @@ export const ajouterBookmaker = defineCapability<AddP>({
 export const ouvrirNavigateur = defineCapability<{ bookmaker?: string }>({
   teamKey: T,
   key: "ouvrir_navigateur",
-  description: "Ouvrir le navigateur visible sur le Mac, sur le site d'un bookmaker (contrôle anti-robot, code de connexion)",
+  description:
+    "Ouvrir le navigateur visible sur le Mac, sur le site d'un bookmaker (contrôle anti-robot, code de connexion)",
   agents: AGENTS,
   spec: { bookmaker: site },
   limits: { modes: ["simulation", "real"] },
@@ -245,7 +362,16 @@ export const ouvrirNavigateur = defineCapability<{ bookmaker?: string }>({
     return siteKnown(deps, p.bookmaker);
   },
   async plan(_deps, p) {
-    return [{ stepKey: "ouvrir_navigateur", capability: "ouvrir_navigateur", teamKey: T, summary: `ouvrir le navigateur sur le Mac (${p.bookmaker ?? "site bloqué"})`, touches: settingTouches([]), params: { ...p } }];
+    return [
+      {
+        stepKey: "ouvrir_navigateur",
+        capability: "ouvrir_navigateur",
+        teamKey: T,
+        summary: `ouvrir le navigateur sur le Mac (${p.bookmaker ?? "site bloqué"})`,
+        touches: settingTouches([]),
+        params: { ...p },
+      },
+    ];
   },
   async run(deps, order, step) {
     const s = await findSite(deps, (step.params.bookmaker as string | undefined) ?? null);
@@ -258,4 +384,12 @@ export const ouvrirNavigateur = defineCapability<{ bookmaker?: string }>({
   },
 });
 
-export const BOOKMAKER_CAPABILITIES = [voirMatchs, etatBookmakers, coteDe, testerSite, apprendreSite, ajouterBookmaker, ouvrirNavigateur];
+export const BOOKMAKER_CAPABILITIES = [
+  voirMatchs,
+  etatBookmakers,
+  coteDe,
+  testerSite,
+  apprendreSite,
+  ajouterBookmaker,
+  ouvrirNavigateur,
+];

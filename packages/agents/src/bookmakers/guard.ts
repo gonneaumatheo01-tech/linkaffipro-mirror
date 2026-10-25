@@ -110,6 +110,22 @@ export function readClickExtraReason(d: TargetDescription, purpose: ClickPurpose
   return null;
 }
 
+/**
+ * Pur : navigation d'un CADRE (iframe) : le moteur de paris vit souvent sur un autre domaine (permis), mais jamais une
+ * caisse, un dépôt, un coupon ou un compte (mêmes mots et sous-domaines interdits que la page principale).
+ */
+export function forbiddenFrameUrlReason(url: string): string | null {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return "adresse invalide";
+  }
+  // Domaine « de base » = deux derniers éléments : le reste passe par la règle des sous-domaines interdits.
+  const base = host.split(".").slice(-2).join(".");
+  return forbiddenReadUrlReason(url, [base]);
+}
+
 /** Pur : un appel d'API interne est-il permis (méthode, adresse, corps) ? */
 export function forbiddenApiCallReason(req: { method: string; url: string; body?: string | null }, allowedHosts: readonly string[]): string | null {
   const method = req.method.toUpperCase();

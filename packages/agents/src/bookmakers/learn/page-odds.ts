@@ -17,19 +17,25 @@ import type { SiteRecording } from "../contract";
 export type PageOdd = SiteRecording["pageOdds"][number];
 
 /** Texte qui n'est qu'une cote. */
-export const ODDS_ONLY = /^\s*(\d{1,3}[.,]\d{1,3}|\d{1,4}\s*\/\s*\d{1,4}|[+-]\d{3,4}|evs|evens)\s*$/i;
+export const ODDS_ONLY =
+  /^\s*(\d{1,3}[.,]\d{1,3}|\d{1,4}\s*\/\s*\d{1,4}|[+-]\d{3,4}|evs|evens)\s*$/i;
 
 /** Cote affichée → décimale exacte (format reconnu à sa forme). */
 export function parseDisplayedOdds(raw: string): number | null {
   const t = raw.trim();
-  if (/^\d{1,4}\s*\/\s*\d{1,4}$/.test(t) || /^(evs|evens)$/i.test(t)) return toDecimalOdds(t, "fractional");
+  if (/^\d{1,4}\s*\/\s*\d{1,4}$/.test(t) || /^(evs|evens)$/i.test(t))
+    return toDecimalOdds(t, "fractional");
   if (/^[+-]\d{3,4}$/.test(t)) return toDecimalOdds(t, "american");
   return toDecimalOdds(t, "decimal");
 }
 
 /** Ligne d'un libellé : nombre à virgule (« 2,5 ») ou signé (« -1 »), le dernier ; sinon null. */
 export function lineInText(s: string): number | null {
-  const all = [...s.replace(/\s+/g, " ").matchAll(/(?:^|[\s(])([+-]?\d{1,3}[.,]\d{1,2}|[+-]\d{1,2})(?=$|[\s)])/g)];
+  const all = [
+    ...s
+      .replace(/\s+/g, " ")
+      .matchAll(/(?:^|[\s(])([+-]?\d{1,3}[.,]\d{1,2}|[+-]\d{1,2})(?=$|[\s)])/g),
+  ];
   const last = all[all.length - 1];
   if (!last) return null;
   const n = Number(last[1]!.replace(",", "."));
@@ -38,13 +44,19 @@ export function lineInText(s: string): number | null {
 
 export function isHiddenNode(n: HtmlNode): boolean {
   for (let p: HtmlNode | null = n; p; p = p.parent) {
-    if (p.attrs.hidden !== undefined || p.attrs["aria-hidden"] === "true" || /display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attrs.style ?? "")) return true;
+    if (
+      p.attrs.hidden !== undefined ||
+      p.attrs["aria-hidden"] === "true" ||
+      /display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attrs.style ?? "")
+    )
+      return true;
   }
   return false;
 }
 
 const HEADING_TAG = /^h[2-6]$/;
-const TITLE_CLASS = /(market|mkt|group|grp).*(title|name|head|label|h\b)|(^|[\s_-])(title|heading|header)([\s_-]|$)/i;
+const TITLE_CLASS =
+  /(market|mkt|group|grp).*(title|name|head|label|h\b)|(^|[\s_-])(title|heading|header)([\s_-]|$)/i;
 
 function isTitleNode(n: HtmlNode): boolean {
   if (n.tag === "h1" || n.tag === "title" || n.tag === "header") return false;
@@ -68,7 +80,9 @@ export function eventLabelOf(root: HtmlNode): string {
 
 const strip = (full: string, part: string) => {
   const i = full.lastIndexOf(part);
-  return (i >= 0 ? full.slice(0, i) + full.slice(i + part.length) : full).replace(/\s+/g, " ").trim();
+  return (i >= 0 ? full.slice(0, i) + full.slice(i + part.length) : full)
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 /** Cotes visibles d'une page de marchés (HTML affiché), dans l'ordre de la page. */
@@ -92,9 +106,16 @@ export function pageOddsFromHtml(html: string): PageOdd[] {
       for (const l of inside) rest = strip(rest, textOf(l));
       if (/[\p{L}\p{N}]/u.test(rest)) break;
     }
-    if (row && row.tag !== "#root" && row.tag !== "body" && row.tag !== "html") rowOf.set(leaf, row);
+    if (row && row.tag !== "#root" && row.tag !== "body" && row.tag !== "html")
+      rowOf.set(leaf, row);
   }
-  const titles = all.filter((n) => isTitleNode(n) && !isHiddenNode(n) && textOf(n) && !ODDS_ONLY.test(textOf(n)));
+  // Un titre n'est jamais dans une ligne de sélection (« market-block__choice-name » est un libellé, pas un marché).
+  const rowNodes = new Set(rowOf.values());
+  const inRowOf = (n: HtmlNode) => [...rowNodes].some((r) => r === n || isAncestorOf(r, n));
+  const titles = all.filter(
+    (n) =>
+      isTitleNode(n) && !isHiddenNode(n) && textOf(n) && !ODDS_ONLY.test(textOf(n)) && !inRowOf(n),
+  );
   const out: PageOdd[] = [];
   const seenRows = new Set<HtmlNode>();
   for (const leaf of leaves) {
@@ -108,10 +129,18 @@ export function pageOddsFromHtml(html: string): PageOdd[] {
     if (odds === null) continue;
     const selection = strip(textOf(row), oddsText);
     if (!selection) continue;
-    const title = [...titles].reverse().find((t) => t.order < row.order && !isAncestorOf(t, row) && !isAncestorOf(row, t));
+    const title = [...titles]
+      .reverse()
+      .find((t) => t.order < row.order && !isAncestorOf(t, row) && !isAncestorOf(row, t));
     if (!title) continue;
     const market = textOf(title);
-    out.push({ eventLabel, market, selection, line: lineInText(selection) ?? lineInText(market), odds });
+    out.push({
+      eventLabel,
+      market,
+      selection,
+      line: lineInText(selection) ?? lineInText(market),
+      odds,
+    });
   }
   return out;
 }
@@ -125,12 +154,18 @@ export function selectionKey(selection: string, line: number | null): string {
       s = s.split(v).join(" ").split(v.replace(".", ",")).join(" ");
     }
   }
-  return foldText(s.replace(/[()[\]+]/g, " ")).replace(/[^a-z0-9/ ]/g, " ").replace(/\s+/g, " ").trim();
+  return foldText(s.replace(/[()[\]+]/g, " "))
+    .replace(/[^a-z0-9/ ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Nom de marché sans ligne (« Total Goals 2.5 » ≡ « Total Goals »). */
 export function marketKey(market: string): string {
-  return foldText(market.replace(/[+-]?\d+[.,]\d+/g, " ")).replace(/[^a-z0-9/ ]/g, " ").replace(/\s+/g, " ").trim();
+  return foldText(market.replace(/[+-]?\d+[.,]\d+/g, " "))
+    .replace(/[^a-z0-9/ ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Un libellé de match (« A - B », « A v B ») désigne-t-il ces deux équipes ? */

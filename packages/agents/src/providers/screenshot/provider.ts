@@ -8,7 +8,7 @@ import type { Browser, BrowserContext } from "playwright-core";
 import type { Db as PrismaClient } from "@linkaffipro/db";
 import type { Logger } from "../../types";
 import type { CaptureRequest, CaptureResult, ScreenshotProvider } from "../screenshot";
-import type { BookmakerAdapter, BookmakerCredentials } from "./adapter";
+import { createSelectorAdapter, type BookmakerAdapter, type BookmakerConfig, type BookmakerCredentials } from "./adapter";
 import { adapterFor } from "./adapters";
 import { CaptureError, classifyCaptureError } from "./errors";
 import { GuardedPage } from "./guard";
@@ -87,9 +87,11 @@ export function createBrowserScreenshotProvider(opts: BrowserProviderOptions): B
   async function session(
     bookmaker: string,
     work: (adapter: BookmakerAdapter, page: GuardedPage, creds: BookmakerCredentials | null) => Promise<CaptureResult>,
+    config?: BookmakerConfig | null,
   ): Promise<CaptureResult> {
-    const sites = await opts.env.sites().catch(() => null);
-    const adapter = pickAdapter(bookmaker, sites);
+    const sites = config ? null : await opts.env.sites().catch(() => null);
+    // Phase 35 : recette apprise du site (sélecteurs et domaines validés) avant l'adaptateur figé de la phase 23.
+    const adapter = config ? createSelectorAdapter(config) : pickAdapter(bookmaker, sites);
     if (!adapter) return { ok: false, kind: "not_found", message: `bookmaker « ${bookmaker} » sans adaptateur de capture` };
     let browser: Browser | null = null;
     let context: BrowserContext | null = null;
@@ -151,7 +153,7 @@ export function createBrowserScreenshotProvider(opts: BrowserProviderOptions): B
         } catch (err) {
           return classifyCaptureError(err);
         }
-      });
+      }, req.config ?? null);
     },
 
     testConnection(bookmaker: string) {

@@ -80,7 +80,7 @@ describe("vocabulaire de la rubrique Agents", () => {
     expect(files.filter((f) => AGENTS_ROOTS.some((r) => f.rel.startsWith(r))).length).toBeGreaterThan(10);
   });
 
-  it("ni « BullMQ », ni « worker », ni « API », ni « JSON », ni « prompt », ni « Playwright », ni « proxy » en surface", () => {
+  it("ni « BullMQ », ni « worker », ni « API », ni « JSON », ni « prompt », ni « Playwright », ni « proxy », ni « recette », ni « scraping », ni « DOM » en surface", () => {
     const out: string[] = [];
     for (const f of files.filter((x) => AGENTS_ROOTS.some((r) => x.rel.startsWith(r))))
       for (const h of scanSource(readFileSync(f.path, "utf8"), f.rel, { extraRules: AGENTS_JARGON }))
@@ -97,6 +97,9 @@ describe("vocabulaire de la rubrique Agents", () => {
     expect(w(`<p>Captures par Playwright via un proxy</p>`)).toEqual(["Playwright", "proxy"]);
     expect(w(`<Term term="proxy : adresse résidentielle">Adresse internet de secours</Term>`)).toEqual([]);
     expect(w(`<p>La cote du pari chez le bookmaker</p>`)).toEqual([]);
+    // Phase 35 : bookmakers lus directement.
+    expect(w(`<p>Recette active du site, lue par scraping du DOM</p>`)).toEqual(["recette", "scraping", "DOM"]);
+    expect(w(`<p>Méthode de lecture apprise : lecture directe des données du site</p>`)).toEqual([]);
   });
 });
 

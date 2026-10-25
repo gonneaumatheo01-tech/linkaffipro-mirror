@@ -55,7 +55,9 @@ const celsiusBase: RecipeData = {
     ],
   },
   dom: {
-    football: { candidates: [{ text: "Football", role: "link" }, { css: "a[href*='/sports/football']" }] },
+    football: {
+      candidates: [{ text: "Football", role: "link" }, { css: "a[href*='/sports/football']" }],
+    },
     dayToday: { candidates: [{ text: "Aujourd'hui" }, { css: "a.cs-day" }] },
     eventList: { candidates: [{ css: "a.cs-event" }, { css: "section.cs-league a" }] },
     eventRow: {
@@ -71,7 +73,12 @@ const celsiusBase: RecipeData = {
     },
   },
   mapping: {
-    marketMap: { "Match Result": "resultat", "Total Goals": "buts", "Corners O/U": "corners", "Shots on Target": "tirs-cadres" },
+    marketMap: {
+      "Match Result": "resultat",
+      "Total Goals": "buts",
+      "Corners O/U": "corners",
+      "Shots on Target": "tirs-cadres",
+    },
     oddsFormat: "decimal",
     timezone: "Europe/Paris",
   },
@@ -111,7 +118,11 @@ const celsiusChanged: RecipeData = {
   dom: {
     football: celsiusBase.dom!.football!,
     eventList: { candidates: [{ css: "a.ev-line" }] },
-    eventRow: { home: { candidates: [{ css: ".ev-line__p1" }] }, away: { candidates: [{ css: ".ev-line__p2" }] }, startsAt: { candidates: [{ css: "time" }] } },
+    eventRow: {
+      home: { candidates: [{ css: ".ev-line__p1" }] },
+      away: { candidates: [{ css: ".ev-line__p2" }] },
+      startsAt: { candidates: [{ css: "time" }] },
+    },
     marketTab: { candidates: [{ role: "tab" }] },
     market: {
       name: { candidates: [{ css: ".ev-group__label" }] },
@@ -125,7 +136,9 @@ const sportazaBase: RecipeData = {
   level: "dom",
   api: null,
   dom: {
-    football: { candidates: [{ text: "Football", role: "link" }, { css: "a[href$='/fr/sports/football']" }] },
+    football: {
+      candidates: [{ text: "Football", role: "link" }, { css: "a[href$='/fr/sports/football']" }],
+    },
     dayToday: { candidates: [{ text: "Aujourd'hui" }, { css: "a.sz-day" }] },
     eventList: { candidates: [{ css: "article.sz-match" }, { css: "[data-match]" }] },
     eventRow: {
@@ -142,7 +155,12 @@ const sportazaBase: RecipeData = {
     },
   },
   mapping: {
-    marketMap: { "Résultat du match": "resultat", "Plus/Moins de buts": "buts", "Corners - total": "corners", "Cartons - total": "cartons" },
+    marketMap: {
+      "Résultat du match": "resultat",
+      "Plus/Moins de buts": "buts",
+      "Corners - total": "corners",
+      "Cartons - total": "cartons",
+    },
     oddsFormat: "decimal",
     timezone: "Europe/Paris",
   },
@@ -190,7 +208,13 @@ const betportalBase: RecipeData = {
     },
   },
   mapping: {
-    marketMap: { "1X2": "resultat", "O/U Goals": "buts", "TOT Corners": "corners", Bookings: "cartons", DC: "double-chance" },
+    marketMap: {
+      "1X2": "resultat",
+      "O/U Goals": "buts",
+      "TOT Corners": "corners",
+      Bookings: "cartons",
+      DC: "double-chance",
+    },
     oddsFormat: "fractional",
     timezone: "Europe/Paris",
   },

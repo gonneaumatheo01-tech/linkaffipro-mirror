@@ -5,8 +5,8 @@
  *   proxy s'il est réglé ; 401 / 403 → `{ authExpired: true }` ; redirections vérifiées une à une par la garde ;
  * - `page` : ouvre une page (garde « jamais de mise » étendue à la lecture), suit des étapes `DomStep` (candidats css /
  *   texte / rôle, le premier visible gagne), lit HTML et texte, capture une zone si demandé ;
- * - `record` : parcours guidé du chantier B (`setRecordSite`) avec la page GARDÉE et l'écoute du réseau ; sans lui
- *   `{ obstacle: "apprentissage indisponible" }` ;
+ * - `record` : parcours guidé du chantier B (`recordSite` de `learn/record.ts`, ou celui branché par `setRecordSite`)
+ *   avec la page GARDÉE et l'écoute du réseau ; `recordSite: null` : `{ obstacle: "apprentissage indisponible" }` ;
  * - `visible` (en plus, Mac seulement) : navigateur affiché pour qu'un humain règle un captcha ou un code (10 min au plus).
  * Rien n'est écrit sur disque : la session arrive de l'environnement et y repart (chiffrée en base, ou rendue au site).
  * Aucun navigateur dans les tests unitaires : lanceur et contexte d'API injectés.
@@ -20,9 +20,10 @@ import { CaptureError } from "../../providers/screenshot/errors";
 import { GuardedPage, type ReadonlyLocator } from "../../providers/screenshot/guard";
 import type { BrowserStorageState, ProxyConfig } from "../../providers/screenshot/session";
 import type { BookmakerTransport, DomStep, ReadTarget, SiteRecording } from "../contract";
-import { forbiddenApiCallReason, forbiddenReadUrlReason, READ_GUARD_CHECKS } from "../guard";
+import { forbiddenApiCallReason, forbiddenFrameUrlReason, forbiddenReadUrlReason, READ_GUARD_CHECKS } from "../guard";
 import { dbTransportEnv, type SiteAccess, type TransportEnv } from "./env";
 import { registeredBrowserLauncher, registeredRecordSite, type BookmakerBrowserLauncher, type ObservedFrame, type ObservedResponse, type RecordIo, type RecordSiteFn } from "./hooks";
+import { recordSite as learnRecordSite } from "../learn/record";
 import { detectReadObstacle } from "./obstacles";
 import { paceSite, type PaceKind } from "./pace";
 
@@ -148,6 +149,19 @@ export function candidateSelector(c: { css?: string; text?: string; role?: strin
   return null;
 }
 
+/**
+ * Pur : sélecteurs à essayer pour un candidat, du plus précis au plus large. Un texte seul est d'abord cherché à
+ * l'identique (`text="Football"`), puis comme sous-chaîne (sinon un paragraphe qui cite « football » passerait avant
+ * l'onglet, et la garde refuserait un bloc entier).
+ */
+export function candidateSelectors(c: { css?: string; text?: string; role?: string }): string[] {
+  const loose = candidateSelector(c);
+  if (!loose) return [];
+  const text = c.text?.trim();
+  if (text && !c.css && !c.role) return [`text=${JSON.stringify(text)}`, loose];
+  return [loose];
+}
+
 /** Ordre d'essai des candidats : le dernier qui a marché d'abord. */
 export function candidateOrder(step: DomStep): number[] {
   const idx = step.candidates.map((_, i) => i);
@@ -162,11 +176,11 @@ export async function resolveStep(gp: GuardedPage, step: DomStep, timeoutMs: num
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     for (const i of order) {
-      const sel = candidateSelector(step.candidates[i]!);
-      if (!sel) continue;
-      const loc = gp.find(sel);
-      const n = Math.min(await loc.count().catch(() => 0), 10);
-      for (let k = 0; k < n; k++) if (await loc.nth(k).isVisible().catch(() => false)) return { el: loc.nth(k), index: i };
+      for (const sel of candidateSelectors(step.candidates[i]!)) {
+        const loc = gp.find(sel);
+        const n = Math.min(await loc.count().catch(() => 0), 10);
+        for (let k = 0; k < n; k++) if (await loc.nth(k).isVisible().catch(() => false)) return { el: loc.nth(k), index: i };
+      }
     }
     if (Date.now() >= deadline) return null;
     await gp.pause(pause);
@@ -243,6 +257,52 @@ export function obstacleOf(err: unknown): Obstacle {
   return { obstacle: "unknown", message: msg.slice(0, 200) };
 }
 
+/**
+ * Garde des navigations du navigateur (exportée pour les tests) : refuse avant l'envoi ; pour la page principale, la
+ * réponse est d'abord lue SANS suivre les redirections, et une redirection vers une adresse interdite est coupée.
+ * En cas de doute (requête illisible, lecture impossible), la navigation est coupée.
+ */
+export async function guardNavigation(route: Route, req: PwRequest, site: SiteAccess, onBlocked: (why: string) => void): Promise<void> {
+  if (!req.isNavigationRequest()) return route.continue();
+  const url = req.url();
+  if (/^(about|data|blob):/i.test(url)) return route.continue();
+  let main = true;
+  try {
+    main = req.frame().parentFrame() === null;
+  } catch {
+    main = true; // cadre inconnu : règles les plus strictes
+  }
+  const why = main ? forbiddenReadUrlReason(url, site.allowedHosts) : forbiddenFrameUrlReason(url);
+  if (why) {
+    onBlocked(why);
+    return route.abort("blockedbyclient");
+  }
+  if (!main) return route.continue();
+  let res: Awaited<ReturnType<Route["fetch"]>>;
+  try {
+    res = await route.fetch({ maxRedirects: 0 });
+  } catch {
+    return route.abort("failed");
+  }
+  const status = res.status();
+  const loc = status >= 300 && status < 400 ? res.headers()["location"] : undefined;
+  if (loc) {
+    let next: string;
+    try {
+      next = new URL(loc, url).toString();
+    } catch {
+      onBlocked("redirection illisible");
+      return route.abort("blockedbyclient");
+    }
+    const bad = forbiddenReadUrlReason(next, site.allowedHosts);
+    if (bad) {
+      onBlocked(`redirection : ${bad}`);
+      return route.abort("blockedbyclient");
+    }
+  }
+  return route.fulfill({ response: res });
+}
+
 export function createServerTransport(deps: ServerTransportDeps | null, opts: ServerTransportOptions = {}): ServerTransport {
   const env = opts.env ?? (deps?.prisma ? dbTransportEnv({ prisma: deps.prisma }) : null);
   const logger = deps?.logger;
@@ -278,17 +338,10 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
         userAgent: ua,
         ...(state ? { storageState: state as never } : {}),
       });
-      // Toute navigation de la page principale vers une adresse interdite est coupée avant d'atteindre le site.
-      await context.route("**/*", (route: Route, req: PwRequest) => {
-        if (req.isNavigationRequest() && req.frame().parentFrame() === null) {
-          const why = forbiddenReadUrlReason(req.url(), site.allowedHosts);
-          if (why && !req.url().startsWith("about:")) {
-            log(site.key, "blocked", why);
-            return route.abort("blockedbyclient");
-          }
-        }
-        return route.continue();
-      });
+      // Toute navigation vers une adresse interdite est coupée AVANT d'atteindre le site : page principale (domaines du
+      // site + mots de lecture), cadres (mots interdits : un moteur de paris tiers reste permis, sa caisse non), et
+      // chaque redirection de la page principale vérifiée avant d'être suivie (le navigateur ne suit pas seul).
+      await context.route("**/*", (route: Route, req: PwRequest) => guardNavigation(route, req, site, (why) => log(site.key, "blocked", why)));
       const page = await context.newPage();
       // Aucune fenêtre surgissante : un clic imprévu n'ouvre rien d'autre.
       context.on("page", (p) => {
@@ -451,7 +504,7 @@ export function createServerTransport(deps: ServerTransportDeps | null, opts: Se
     },
 
     async record(siteKey, baseUrl) {
-      const fn = opts.recordSite === undefined ? registeredRecordSite() : opts.recordSite;
+      const fn = opts.recordSite === undefined ? (registeredRecordSite() ?? ((io: RecordIo) => learnRecordSite(io))) : opts.recordSite;
       if (!fn) return { obstacle: "apprentissage indisponible" };
       const site = await siteOf(siteKey);
       if ("obstacle" in site) return site;

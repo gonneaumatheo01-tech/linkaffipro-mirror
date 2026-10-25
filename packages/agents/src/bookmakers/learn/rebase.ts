@@ -9,7 +9,12 @@ import type { RecipeData, SiteRecording } from "../contract";
 function originParts(origin: string): { http: string; ws: string; host: string; hostname: string } {
   const u = new URL(origin);
   const secure = u.protocol === "https:";
-  return { http: `${u.protocol}//${u.host}`, ws: `${secure ? "wss" : "ws"}://${u.host}`, host: u.host, hostname: u.hostname };
+  return {
+    http: `${u.protocol}//${u.host}`,
+    ws: `${secure ? "wss" : "ws"}://${u.host}`,
+    host: u.host,
+    hostname: u.hostname,
+  };
 }
 
 /** Remplace une origine par une autre dans une chaîne (http(s), ws(s), et l'hôte nu dans les adresses). Pur. */
@@ -18,13 +23,24 @@ export function replaceOrigin(s: string, fromOrigin: string, toOrigin: string): 
   const t = originParts(toOrigin);
   const other = f.http.startsWith("https") ? `http://${f.host}` : `https://${f.host}`;
   const otherWs = f.ws.startsWith("wss") ? `ws://${f.host}` : `wss://${f.host}`;
-  return s.split(f.http).join(t.http).split(other).join(t.http).split(f.ws).join(t.ws).split(otherWs).join(t.ws);
+  return s
+    .split(f.http)
+    .join(t.http)
+    .split(other)
+    .join(t.http)
+    .split(f.ws)
+    .join(t.ws)
+    .split(otherWs)
+    .join(t.ws);
 }
 
 function mapStrings<T>(v: T, fn: (s: string) => string): T {
   if (typeof v === "string") return fn(v) as T;
   if (Array.isArray(v)) return v.map((x) => mapStrings(x, fn)) as T;
-  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, mapStrings(x, fn)])) as T;
+  if (v && typeof v === "object")
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, mapStrings(x, fn)]),
+    ) as T;
   return v;
 }
 
@@ -46,8 +62,13 @@ export function rebaseRecipe(recipe: RecipeData, fromOrigin: string, toOrigin: s
     ...recipe,
     api: {
       ...recipe.api,
-      tokenSource: recipe.api.tokenSource ? replaceOrigin(recipe.api.tokenSource, fromOrigin, toOrigin) : (recipe.api.tokenSource ?? null),
-      endpoints: recipe.api.endpoints.map((e) => ({ ...e, urlTemplate: replaceOrigin(e.urlTemplate, fromOrigin, toOrigin) })),
+      tokenSource: recipe.api.tokenSource
+        ? replaceOrigin(recipe.api.tokenSource, fromOrigin, toOrigin)
+        : (recipe.api.tokenSource ?? null),
+      endpoints: recipe.api.endpoints.map((e) => ({
+        ...e,
+        urlTemplate: replaceOrigin(e.urlTemplate, fromOrigin, toOrigin),
+      })),
     },
   };
 }

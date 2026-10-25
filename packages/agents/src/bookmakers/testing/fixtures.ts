@@ -17,14 +17,24 @@ import { FIXTURE_ORIGINS, type FixtureSiteKey } from "./world";
 const read = (path: string) => JSON.parse(readFileSync(path, "utf8")) as unknown;
 
 /** Enregistrement de référence d'un site (ou de sa variante `changed`), rebasé si une origine est donnée. */
-export function loadFixtureRecording(site: FixtureSiteKey, opts: { variant?: "changed" | null; origin?: string | null } = {}): SiteRecording {
-  const rec = read(`${FIXTURES_DIR}${site}/${opts.variant ? `${opts.variant}/` : ""}recording.json`) as SiteRecording;
+export function loadFixtureRecording(
+  site: FixtureSiteKey,
+  opts: { variant?: "changed" | null; origin?: string | null } = {},
+): SiteRecording {
+  const rec = read(
+    `${FIXTURES_DIR}${site}/${opts.variant ? `${opts.variant}/` : ""}recording.json`,
+  ) as SiteRecording;
   return opts.origin ? rebaseRecording(rec, opts.origin) : rec;
 }
 
 /** Recette correcte d'un site (ou de sa variante `changed`), rebasée si une origine est donnée. */
-export function loadFixtureRecipe(site: FixtureSiteKey, opts: { variant?: "changed" | null; origin?: string | null } = {}): RecipeData {
-  const r = read(`${FIXTURES_DIR}${site}/${opts.variant ? `${opts.variant}/` : ""}recipe.json`) as RecipeData;
+export function loadFixtureRecipe(
+  site: FixtureSiteKey,
+  opts: { variant?: "changed" | null; origin?: string | null } = {},
+): RecipeData {
+  const r = read(
+    `${FIXTURES_DIR}${site}/${opts.variant ? `${opts.variant}/` : ""}recipe.json`,
+  ) as RecipeData;
   return opts.origin ? rebaseRecipe(r, FIXTURE_ORIGINS[site], opts.origin) : r;
 }
 
@@ -55,7 +65,11 @@ export async function recordLocalSite(
   sites: LocalSites,
   site: FixtureSiteKey,
   opts: { guardLog?: (action: string, detail: string) => void; paceMs?: number } = {},
-): Promise<{ result: SiteRecording | { obstacle: string }; betClicked: boolean; external: string[] }> {
+): Promise<{
+  result: SiteRecording | { obstacle: string };
+  betClicked: boolean;
+  external: string[];
+}> {
   const ctx = await browser.newContext();
   const external: string[] = [];
   await ctx.route(
@@ -76,7 +90,9 @@ export async function recordLocalSite(
       ...(opts.guardLog ? { guardLog: opts.guardLog } : {}),
     });
     const result = await recordSite(io, { afterLoadMs: 300 });
-    const betClicked = await page.evaluate(() => (globalThis as unknown as { betClicked?: boolean }).betClicked === true).catch(() => false);
+    const betClicked = await page
+      .evaluate(() => (globalThis as unknown as { betClicked?: boolean }).betClicked === true)
+      .catch(() => false);
     return { result, betClicked, external };
   } finally {
     await ctx.close();

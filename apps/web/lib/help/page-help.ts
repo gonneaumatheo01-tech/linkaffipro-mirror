@@ -333,6 +333,12 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Canal d'inspiration",
     sections: ["S'inspirer d'un canal", "Annuler un réglage de l'équipe Algorithme"],
   },
+  // Phase 35 : sites des bookmakers lus directement (état, lectures, gestes).
+  {
+    path: "/agents/bookmakers",
+    label: "Bookmakers",
+    sections: ["Bookmakers", "Équipe Paris sportifs : catégories, bookmaker et bilan"],
+  },
   {
     path: "/agents/validations",
     label: "Validations des agents",

@@ -49,7 +49,7 @@ export function parseHtml(html: string): HtmlNode {
   const root: HtmlNode = { tag: "#root", attrs: {}, children: [], parent: null, order: order++ };
   const stack: HtmlNode[] = [root];
   const top = () => stack[stack.length - 1]!;
-  const re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\/\s*([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:\s+[^\s"'>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>/g;
+  const re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\/\s*([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>/g;
   let last = 0;
   let m: RegExpExecArray | null;
   const pushText = (t: string) => {
@@ -82,7 +82,7 @@ export function parseHtml(html: string): HtmlNode {
         if (BOUNDARY.has(t)) break;
       }
     const attrs: Record<string, string> = {};
-    const attrRe = /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+    const attrRe = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
     let a: RegExpExecArray | null;
     while ((a = attrRe.exec(m[3] ?? ""))) attrs[a[1]!.toLowerCase()] = decodeEntities(a[2] ?? a[3] ?? a[4] ?? "");
     const parent = top();

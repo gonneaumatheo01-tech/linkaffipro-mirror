@@ -12,7 +12,12 @@
  */
 import { detectPageObstacle } from "../../providers/screenshot/errors";
 import type { ReadonlyLocator } from "../../providers/screenshot/guard";
-import { BOOKMAKER_LIMITS, type RecordedPage, type RecordedResponse, type SiteRecording } from "../contract";
+import {
+  BOOKMAKER_LIMITS,
+  type RecordedPage,
+  type RecordedResponse,
+  type SiteRecording,
+} from "../contract";
 import { descendants, foldText, parseHtml, roleOf, textOf, type HtmlNode } from "../read/html";
 import type { ObservedResponse, RecordIo } from "../transport/hooks";
 import { isHiddenNode, ODDS_ONLY, pageOddsFromHtml, type PageOdd } from "./page-odds";
@@ -29,13 +34,26 @@ export type RecordOptions = {
 };
 
 /** Étapes nommées de l'enregistrement (la validation s'y repère). */
-export const RECORD_STEPS = ["home", "football", "list-today", "event", "market-1", "market-2", "market-3", "list-tomorrow", "search"] as const;
+export const RECORD_STEPS = [
+  "home",
+  "football",
+  "list-today",
+  "event",
+  "market-1",
+  "market-2",
+  "market-3",
+  "list-tomorrow",
+  "search",
+] as const;
 export const isListStep = (s: string) => s.startsWith("list-");
 export const isMarketStep = (s: string) => s === "event" || s.startsWith("market-");
 
-const USEFUL_HEADER = /^(authorization|cookie|content-type|accept|accept-language|origin|x-[a-z0-9-]+)$/i;
-const SECRET_HEADER = /^(authorization|cookie|proxy-authorization)$|token|auth|session|csrf|xsrf|secret|key|sign|jwt|sid/i;
-const NOISE_HOST = /google-analytics|googletagmanager|doubleclick|facebook\.(com|net)|hotjar|segment\.(io|com)|sentry|datadog|newrelic|clarity\.ms|tiktok|criteo|optimizely|intercom|zendesk|livechat|onesignal|cookiebot|onetrust/i;
+const USEFUL_HEADER =
+  /^(authorization|cookie|content-type|accept|accept-language|origin|x-[a-z0-9-]+)$/i;
+const SECRET_HEADER =
+  /^(authorization|cookie|proxy-authorization)$|token|auth|session|csrf|xsrf|secret|key|sign|jwt|sid/i;
+const NOISE_HOST =
+  /google-analytics|googletagmanager|doubleclick|facebook\.(com|net)|hotjar|segment\.(io|com)|sentry|datadog|newrelic|clarity\.ms|tiktok|criteo|optimizely|intercom|zendesk|livechat|onesignal|cookiebot|onetrust/i;
 
 const EVENT_HREF = /\/(events?|match(es)?|games?|evenements?|fixtures?|rencontres?)\/[^/?#]+\/?$/i;
 const FOOTBALL_TEXT = /^(football|foot|soccer|fussball|futbol|calcio|futebol)$/;
@@ -43,8 +61,13 @@ const TODAY_TEXT = /^(aujourd'?hui|today|heute|hoy|oggi|hoje)$/;
 const TOMORROW_TEXT = /^(demain|tomorrow|morgen|manana|domani|amanha)$/;
 const COOKIE_SELECTOR =
   'button:text-matches("^\\\\s*(tout accepter|accepter( tout| les cookies)?|j\'accepte|accept( all)?( cookies)?|i agree|agree|ok|allow all|autoriser)\\\\s*$", "i")';
-const SEARCH_SELECTOR = 'input[type=search], input[name=q], input[name=query], input[name=search], input[placeholder*="echerch" i], input[placeholder*="earch" i]';
-const TAB_PRIORITY: RegExp[] = [/\b(buts?|goals?|total)\b/, /\bcorners?\b|\bcrn\b/, /\b(cartons?|cards?|bookings?|bkg|tirs?|shots?|speciaux|specials?|joueurs?|players?)\b/];
+const SEARCH_SELECTOR =
+  'input[type=search], input[name=q], input[name=query], input[name=search], input[placeholder*="echerch" i], input[placeholder*="earch" i]';
+const TAB_PRIORITY: RegExp[] = [
+  /\b(buts?|goals?|total)\b/,
+  /\bcorners?\b|\bcrn\b/,
+  /\b(cartons?|cards?|bookings?|bkg|tirs?|shots?|speciaux|specials?|joueurs?|players?)\b/,
+];
 
 function truncateBytes(s: string, max: number): string {
   const b = Buffer.from(s, "utf8");
@@ -54,7 +77,12 @@ function truncateBytes(s: string, max: number): string {
 function hostOf(u: string): string | null {
   try {
     const x = new URL(u);
-    return x.protocol === "http:" || x.protocol === "https:" || x.protocol === "ws:" || x.protocol === "wss:" ? x.hostname.toLowerCase() : null;
+    return x.protocol === "http:" ||
+      x.protocol === "https:" ||
+      x.protocol === "ws:" ||
+      x.protocol === "wss:"
+      ? x.hostname.toLowerCase()
+      : null;
   } catch {
     return null;
   }
@@ -82,11 +110,16 @@ export function usefulHeaders(h: Record<string, string>): Record<string, string>
 }
 
 /** Genre d'une réponse vue (null = pas gardée). Pur. */
-export function responseKind(r: Pick<ObservedResponse, "url" | "contentType" | "resourceType" | "requestBody">): RecordedResponse["kind"] | null {
+export function responseKind(
+  r: Pick<ObservedResponse, "url" | "contentType" | "resourceType" | "requestBody">,
+): RecordedResponse["kind"] | null {
   const host = hostOf(r.url);
   if (!host || NOISE_HOST.test(host)) return null;
   const ct = (r.contentType ?? "").toLowerCase();
-  if (/json|graphql/.test(ct)) return /graphql/i.test(r.url) || /^\s*\{\s*"(query|operationName)"/.test(r.requestBody ?? "") ? "graphql" : "json";
+  if (/json|graphql/.test(ct))
+    return /graphql/i.test(r.url) || /^\s*\{\s*"(query|operationName)"/.test(r.requestBody ?? "")
+      ? "graphql"
+      : "json";
   if (r.resourceType === "document" && /html/.test(ct)) return "html";
   return null;
 }
@@ -116,7 +149,12 @@ function selectorFor(n: HtmlNode): string {
 export function marketTabsOf(html: string, max = 3): HtmlNode[] {
   const all = descendants(parseHtml(html)).filter((n) => !isHiddenNode(n));
   let tabs = all.filter((n) => n.attrs.role === "tab");
-  if (!tabs.length) tabs = all.filter((n) => (n.tag === "button" || (n.tag === "a" && !n.attrs.href)) && /tab/i.test(n.attrs.class ?? ""));
+  if (!tabs.length)
+    tabs = all.filter(
+      (n) =>
+        (n.tag === "button" || (n.tag === "a" && !n.attrs.href)) &&
+        /tab/i.test(n.attrs.class ?? ""),
+    );
   if (!tabs.length) {
     const bars = all.filter((n) => /tab/i.test(n.attrs.class ?? "") || roleOf(n) === "tablist");
     tabs = all.filter((n) => n.tag === "button" && bars.some((b) => isInside(n, b)));
@@ -138,7 +176,11 @@ export function marketTabsOf(html: string, max = 3): HtmlNode[] {
     return i < 0 ? TAB_PRIORITY.length : i;
   };
   // Le premier onglet (déjà ouvert, « principal ») passe après les autres.
-  const ordered = unique.map((n, i) => ({ n, r: i === 0 && rank(n) === TAB_PRIORITY.length ? TAB_PRIORITY.length + 1 : rank(n), i }));
+  const ordered = unique.map((n, i) => ({
+    n,
+    r: i === 0 && rank(n) === TAB_PRIORITY.length ? TAB_PRIORITY.length + 1 : rank(n),
+    i,
+  }));
   ordered.sort((a, b) => a.r - b.r || a.i - b.i);
   return ordered.slice(0, max).map((x) => x.n);
 }
@@ -155,7 +197,10 @@ function homeTeamOf(label: string): string | null {
 }
 
 /** Parcours guidé complet. Obstacle (captcha, blocage géographique, déconnecté…) : `{ obstacle }`. */
-export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promise<SiteRecording | { obstacle: string }> {
+export async function recordSite(
+  io: RecordIo,
+  opts: RecordOptions = {},
+): Promise<SiteRecording | { obstacle: string }> {
   const now = opts.now ?? (() => new Date());
   const gp = io.page;
   const maxResponses = opts.maxResponses ?? 600;
@@ -248,13 +293,24 @@ export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promis
 
   const snapshot = async (step: string, withOdds: boolean): Promise<RecordedPage> => {
     const { html, text } = await gp.readContent();
-    const p: RecordedPage = { step, url: gp.url(), html: html.slice(0, maxHtml), text: text.slice(0, 100_000), screenshot: null };
+    const p: RecordedPage = {
+      step,
+      url: gp.url(),
+      html: html.slice(0, maxHtml),
+      text: text.slice(0, 100_000),
+      screenshot: null,
+    };
     pages.push(p);
-    if (withOdds) for (const o of pageOddsFromHtml(html)) if (!pageOdds.some((x) => sameOdd(x, o))) pageOdds.push(o);
+    if (withOdds)
+      for (const o of pageOddsFromHtml(html))
+        if (!pageOdds.some((x) => sameOdd(x, o))) pageOdds.push(o);
     return p;
   };
 
-  const tryClick = async (loc: ReadonlyLocator, purpose: "cookie_accept" | "market_tab"): Promise<boolean> => {
+  const tryClick = async (
+    loc: ReadonlyLocator,
+    purpose: "cookie_accept" | "market_tab",
+  ): Promise<boolean> => {
     try {
       if ((await loc.count()) === 0 || !(await loc.isVisible().catch(() => false))) return false;
       await io.pace("page");
@@ -263,7 +319,10 @@ export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promis
       await gp.pause(Math.min(afterLoad, 500));
       return true;
     } catch (err) {
-      io.logger?.warn({ err: (err as Error).message, purpose }, "[bookmakers] clic refusé ou impossible pendant l'enregistrement");
+      io.logger?.warn(
+        { err: (err as Error).message, purpose },
+        "[bookmakers] clic refusé ou impossible pendant l'enregistrement",
+      );
       return false;
     }
   };
@@ -298,7 +357,11 @@ export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promis
 
   // 2. Football (lien suivi par son adresse, jamais cliqué).
   let current = home;
-  const football = linksOf(home.html, home.url).find((l) => FOOTBALL_TEXT.test(foldText(l.text)) || /\/(football|soccer)\/?$/i.test(new URL(l.href).pathname));
+  const football = linksOf(home.html, home.url).find(
+    (l) =>
+      FOOTBALL_TEXT.test(foldText(l.text)) ||
+      /\/(football|soccer)\/?$/i.test(new URL(l.href).pathname),
+  );
   if (football && football.href !== home.url) {
     const o = await visit(football.href);
     if (o) return { obstacle: o };
@@ -315,16 +378,20 @@ export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promis
   const listLinks = linksOf(list.html, list.url);
 
   // 4. Un match, puis 3 onglets de marchés.
-  const eventLink = listLinks.find((l) => EVENT_HREF.test(new URL(l.href).pathname) && /\p{L}/u.test(l.text));
+  const eventLink = listLinks.find(
+    (l) => EVENT_HREF.test(new URL(l.href).pathname) && /\p{L}/u.test(l.text),
+  );
   let searchTerm: string | null = null;
   if (eventLink) {
     const o = await visit(eventLink.href);
     if (o) return { obstacle: o };
     const ev = await snapshot("event", true);
-    searchTerm = homeTeamOf(pageOddsFromHtml(ev.html)[0]?.eventLabel ?? "") ?? homeTeamOf(eventLink.text);
+    searchTerm =
+      homeTeamOf(pageOddsFromHtml(ev.html)[0]?.eventLabel ?? "") ?? homeTeamOf(eventLink.text);
     let n = 0;
     for (const tab of marketTabsOf(ev.html, 3)) {
-      if (await tryClick(gp.find(selectorFor(tab)), "market_tab")) await snapshot(`market-${++n}`, true);
+      if (await tryClick(gp.find(selectorFor(tab)), "market_tab"))
+        await snapshot(`market-${++n}`, true);
     }
   }
 
@@ -348,12 +415,21 @@ export async function recordSite(io: RecordIo, opts: RecordOptions = {}): Promis
         if (!(await obstacle())) await snapshot("search", false);
       }
     } catch (err) {
-      io.logger?.warn({ err: (err as Error).message }, "[bookmakers] recherche impossible pendant l'enregistrement");
+      io.logger?.warn(
+        { err: (err as Error).message },
+        "[bookmakers] recherche impossible pendant l'enregistrement",
+      );
     }
   }
   return done();
 }
 
 function sameOdd(a: PageOdd, b: PageOdd): boolean {
-  return a.eventLabel === b.eventLabel && a.market === b.market && a.selection === b.selection && a.line === b.line && a.odds === b.odds;
+  return (
+    a.eventLabel === b.eventLabel &&
+    a.market === b.market &&
+    a.selection === b.selection &&
+    a.line === b.line &&
+    a.odds === b.odds
+  );
 }

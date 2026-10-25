@@ -12,6 +12,7 @@
  */
 import { BOOKMAKER_LIMITS, type BookmakerTransport, type DomStep, type ReadLevel, type RecipeEndpoint, type SiteEvent, type SiteOdds } from "../contract";
 import { forbiddenApiCallReason, forbiddenReadClickReason, forbiddenReadUrlReason } from "../guard";
+import { SiteLockBusy } from "../transport/lock";
 import { agentEvent } from "../../admin/journal";
 import { readEventsFromHtml, readMarketsFromHtml, splitTeams, type DomOddsRow, type LastGood } from "./dom-read";
 import { parseSiteDate, tzOffsetMinutes } from "./dates";
@@ -27,7 +28,7 @@ import {
   type BookmakerReadDeps,
   type ReadSite,
 } from "./deps";
-import { diagnosePage, gestureOf, type DiagnosedPage, type PageInput } from "./diagnose";
+import { diagnoseByRules, diagnosePage, gestureOf, type DiagnosedPage, type PageInput } from "./diagnose";
 import { readOddsOnImage, selectionZone } from "./image";
 import { asText, extractRows } from "./json-shape";
 import { expandMarketKeys, translateRow, wantedSelection } from "./mapping";
@@ -69,7 +70,16 @@ function hostOf(url: string | null | undefined): string | null {
   }
 }
 
-/** Domaines permis : celui du site, ceux de la recette validée (enregistrement). */
+/** Domaine « de marque » (deux derniers libellés ; une adresse IP reste entière). Pur. */
+function brandOf(host: string): string {
+  return /^\d+(\.\d+){3}$/.test(host) ? host : host.split(".").slice(-2).join(".");
+}
+
+/**
+ * Domaines permis : celui du site, ceux vus dans l'enregistrement qui a validé la recette (`validation.domains`).
+ * Un point d'entrée de la recette n'ajoute son domaine que s'il est de la même marque que le site (`api.x.com` pour
+ * `x.com`) : une recette qui viserait un domaine étranger est refusée par la garde, même enregistrée en base.
+ */
 export function allowedHostsOf(site: Pick<ReadSite, "baseUrl">, recipe: ActiveRecipe | null): string[] {
   const out = new Set<string>();
   const base = hostOf(site.baseUrl);
@@ -80,7 +90,7 @@ export function allowedHostsOf(site: Pick<ReadSite, "baseUrl">, recipe: ActiveRe
   }
   for (const e of recipe?.api?.endpoints ?? []) {
     const h = hostOf(e.urlTemplate);
-    if (h) out.add(h);
+    if (h && base && brandOf(h) === brandOf(base)) out.add(h);
   }
   return [...out];
 }
@@ -125,8 +135,11 @@ async function callApi(c: Ctx, req: { method: string; url: string; headers?: str
     const r = await c.transport.fetchApi(c.site.key, req);
     if ("authExpired" in r) {
       if (c.refreshed) {
-        // Jeton refusé après rafraîchissement : la page de connexion dit pourquoi (sinon « déconnecté » à l'humain).
-        throw new LevelFailure("api", "le site refuse encore la session après rafraîchissement", c.refreshPage, c.refreshPage ? null : "logged_out");
+        // Jeton refusé après rafraîchissement : la page dit pourquoi si elle montre un obstacle humain (captcha, code,
+        // mot de passe refusé) ; sinon c'est une session que le site refuse (« déconnecté », à l'humain).
+        const shown = c.refreshPage ? diagnoseByRules(c.refreshPage) : null;
+        const human = shown === "captcha" || shown === "two_factor" || shown === "password_refused" || shown === "geo_blocked";
+        throw new LevelFailure("api", "le site refuse encore la session après rafraîchissement", human ? c.refreshPage : null, human ? null : "logged_out");
       }
       await refreshSession(c);
       continue;
@@ -339,18 +352,25 @@ async function handleFailure(c: Ctx, f: LevelFailure, what: "events" | "markets"
   return { retry, error: new BookmakerReadError(d?.diagnosis ?? "read_failed", msg, d?.diagnosis ?? null) };
 }
 
+/** Obstacles reconnus par les règles (blocage, captcha, code, mot de passe, maintenance) : ils priment. */
+const OBSTACLE_DIAGNOSES: ReadonlySet<string> = new Set(["geo_blocked", "captcha", "two_factor", "password_refused", "maintenance"]);
+
 /** Essaie les niveaux dans l'ordre ; tous en échec : diagnostic du dernier, action, une reprise après ré-apprentissage. */
 async function withLevels<T>(c: Ctx, what: "events" | "markets" | "odds", levels: Array<{ level: ReadLevel; run: () => Promise<T> }>): Promise<{ value: T; level: ReadLevel }> {
   for (let round = 0; round < 2; round++) {
-    let last: LevelFailure | null = null;
+    const failures: LevelFailure[] = [];
     for (const l of levels) {
       try {
         return { value: await l.run(), level: l.level };
       } catch (err) {
         if (!(err instanceof LevelFailure)) throw err;
-        last = err;
+        failures.push(err);
       }
     }
+    // L'échec le plus parlant décide : une cause déjà établie (session refusée, structure changée) passe avant la page
+    // d'un niveau suivant (une page vide ne doit pas cacher une session refusée).
+    const obstacle = failures.find((f) => f.page && !f.forced && OBSTACLE_DIAGNOSES.has(diagnoseByRules(f.page) ?? "ok"));
+    const last = obstacle ?? failures.find((f) => f.forced) ?? failures[failures.length - 1] ?? null;
     if (!last) throw new BookmakerReadError("no_level", `${c.site.label} : aucune façon de lire ce site dans sa méthode apprise`);
     // Page vide (aucun match pour l'instant) : pas une panne.
     if (last.page && !last.forced) {
@@ -522,14 +542,13 @@ async function storeOdds(deps: BookmakerReadDeps, siteKey: string, odds: SiteOdd
 
 /** Lecture d'un niveau précis (api ou dom) des cotes d'un match, écrite en base. */
 async function readOddsAt(c: Ctx, event: StoredEvent, patterns: string[], level: "api" | "dom", jobKind: "markets" | "verify", marketKeys: string[]): Promise<StoredOdds[]> {
-  const at = nowOfDeps(c.deps);
   let rows: DomOddsRow[];
+  let good: LastGood = {};
   if (level === "api") rows = await apiOddsRows(c, event);
-  else {
-    const r = await domOddsRows(c, event);
-    rows = r.rows;
-    await rememberLastGood(c.deps, c.recipe, r.good);
-  }
+  else ({ rows, good } = await domOddsRows(c, event));
+  // Heure de lecture = quand la réponse est arrivée (fenêtre de 3 min de la double lecture).
+  const at = nowOfDeps(c.deps);
+  await rememberLastGood(c.deps, c.recipe, good);
   const odds = translateAll(rows, c, event, patterns, level, at);
   const jobId = await recordJob(c.deps, { siteKey: c.site.key, kind: jobKind, target: c.transport.target, params: { siteEventId: event.siteEventId, marketKeys, level }, result: { rows: rows.length, kept: odds.length, level }, at, ok: true });
   return storeOdds(c.deps, c.site.key, odds, jobId);
@@ -582,7 +601,7 @@ export type OddsTwiceQuery = { siteEventId: string; marketKey: string; selection
 
 export type OddsTwiceResult =
   | { ok: true; odds: number; readIds: [string, string]; levels: [ReadLevel, ReadLevel]; readAt: [Date, Date]; marketSite: string; selectionSite: string }
-  | { ok: false; reason: string; reads: SiteOdds[]; code: "missing" | "single" | "mismatch" | "too_far" | "night" | "no_paths" | "error" };
+  | { ok: false; reason: string; reads: SiteOdds[]; code: "missing" | "single" | "mismatch" | "too_far" | "night" | "no_paths" | "busy" | "error" };
 
 const matchOf = (list: readonly StoredOdds[], q: OddsTwiceQuery) => list.find((o) => o.selectionKey === q.selectionKey && sameLine(o.line, q.line)) ?? null;
 
@@ -607,8 +626,24 @@ export async function readOddsTwice(deps: BookmakerReadDeps, siteKey: string, q:
   if (!event) return { ok: false, reason: `match ${q.siteEventId} inconnu chez ${base.site.label}`, reads: [], code: "error" };
   const ev = event;
   const patterns = [q.selectionKey];
+  try {
+    return await readOddsTwiceLocked(deps, siteKey, q, base, ev, patterns);
+  } catch (err) {
+    // Un autre lecteur tient le site (verrou du chantier A) : on réessaiera, ce n'est ni une panne ni à l'humain.
+    if (err instanceof SiteLockBusy) return { ok: false, reason: `${base.site.label} est en cours de lecture par un autre travail`, reads: [], code: "busy" };
+    throw err;
+  }
+}
+
+async function readOddsTwiceLocked(deps: BookmakerReadDeps, siteKey: string, q: OddsTwiceQuery, base: Omit<Ctx, "transport">, ev: StoredEvent, patterns: string[]): Promise<OddsTwiceResult> {
   return lockOf(deps)(siteKey, async () => {
-    const c: Ctx = { ...base, transport: await transportOf(deps, base.site) };
+    let transport: BookmakerTransport;
+    try {
+      transport = await transportOf(deps, base.site);
+    } catch (err) {
+      return { ok: false, reason: (err as Error).message, reads: [], code: "error" } as const;
+    }
+    const c: Ctx = { ...base, transport };
     const reads: SiteOdds[] = [];
     const strip = (o: StoredOdds): SiteOdds => {
       const { id: _id, ...rest } = o;

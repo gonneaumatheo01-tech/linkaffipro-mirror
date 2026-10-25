@@ -7,6 +7,7 @@ import { parisDay, parisDayStart } from "../rules/time";
 import type { CategoryCriteria, PickKey, TeamStatSample } from "../rules/bets";
 import { DUPLICATE_WINDOW_MS } from "../rules/bets";
 import type { Mission } from "../types";
+import themesData from "./themes.json";
 
 export type BetCategoryInfo = CategoryCriteria & {
   id: string;
@@ -21,6 +22,19 @@ export type BetCategoryInfo = CategoryCriteria & {
   active: boolean;
 };
 
+const THEME_MARKETS: ReadonlyMap<string, readonly string[]> = new Map((themesData as { themes: Array<{ key: string; marketTypes: string[] }> }).themes.map((t) => [t.key, t.marketTypes]));
+
+/**
+ * Phase 35 : `BetCategory.marketTypes` accepte les clés internes de `themes.json` (« corners », « tirs-cadres ») à côté
+ * des identifiants du fournisseur ; une clé interne devient les marchés de son thème (la recette d'un site les traduit
+ * vers ses propres marchés). Ordre gardé, doublons retirés. Pur.
+ */
+export function expandCategoryMarkets(keys: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const k of keys) for (const m of THEME_MARKETS.get(k) ?? [k]) if (!out.includes(m)) out.push(m);
+  return out;
+}
+
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : []);
 
 export function toCategory(r: Record<string, unknown>): BetCategoryInfo {
@@ -29,7 +43,7 @@ export function toCategory(r: Record<string, unknown>): BetCategoryInfo {
     key: String(r.key),
     name: String(r.name),
     sport: typeof r.sport === "string" && r.sport ? r.sport : "SOCCER",
-    marketTypes: strings(r.marketTypes),
+    marketTypes: expandCategoryMarkets(strings(r.marketTypes)),
     leagues: strings(r.leagues),
     bookmakers: strings(r.bookmakers).map((b) => b.toLowerCase()),
     minOdds: Number(r.minOdds ?? 1.5),
@@ -79,6 +93,12 @@ export type PickRow = {
   skipReason: string | null;
   result: unknown;
   createdAt: Date;
+  /** Phase 35 : bookmaker du client lu directement (clé `BookmakerSite`) et identifiant du match sur ce site. */
+  siteKey?: string | null;
+  siteEventId?: string | null;
+  /** Phase 35 : les deux lectures (`BookmakerOdds`) qui ont validé la cote, et leurs niveaux (« api+dom »). */
+  oddsReadIds?: unknown;
+  oddsLevel?: string | null;
 };
 
 export async function loadMissionPick(prisma: PrismaClient, mission: Pick<Mission, "id" | "payload">): Promise<PickRow | null> {

@@ -47,6 +47,8 @@ async function holdForHuman(ctx: AgentContext, mission: Mission, pick: PickRow &
 }
 
 /** Cote changée au-delà de la tolérance : pari écarté et sélection refaite dans la même mission. */
+export const reselectPick = (ctx: AgentContext, mission: Mission, pick: PickRow, reason: string, current: number) => reselect(ctx, mission, pick, reason, current);
+
 async function reselect(ctx: AgentContext, mission: Mission, pick: PickRow, reason: string, current: number): Promise<AgentResult> {
   const n = num(mission.payload.reselections);
   if (n >= MAX_RESELECTIONS) return skipPick(ctx, mission, pick, `${reason} (sélection déjà refaite ${n} fois)`, { code: "drift", oddsAtSend: current });
@@ -102,6 +104,7 @@ export async function verifyDirectOdds(
   const r = await readOddsTwice(ctx as BookmakerReadDeps, pick.siteKey, { siteEventId: pick.siteEventId ?? "", marketKey: pick.marketId, selectionKey: pick.marketId, line: pick.line });
   if (!r.ok) {
     if (r.code === "missing") return { result: await skipPick(ctx, mission, pick, `${step === "publication" ? "au moment de publier : " : ""}sélection disparue chez le bookmaker (${r.reason.slice(0, 120)})`, { code: "market_missing" }) };
+    if (r.code === "busy") return { result: { ok: true, wait: { delayMs: 60_000 }, summary: `cote à relire dans une minute (${r.reason.slice(0, 120)})` } };
     if (r.code === "night") return { result: await skipPick(ctx, mission, pick, `lecture de la cote impossible la nuit (${r.reason.slice(0, 80)})`) };
     return { result: await holdForHuman(ctx, mission, pick, r, step) };
   }

@@ -59,29 +59,43 @@ export function normalizeSiteUrl(raw: string): UrlCheck {
   const v = (raw ?? "").trim();
   if (!v) return { ok: false, reason: "adresse vide" };
   if (v.length > 300) return { ok: false, reason: "adresse trop longue" };
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) && !/^https:\/\//i.test(v)) return { ok: false, reason: "seules les adresses https:// sont acceptées" };
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) && !/^https:\/\//i.test(v))
+    return { ok: false, reason: "seules les adresses https:// sont acceptées" };
   let u: URL;
   try {
     u = new URL(/^https:\/\//i.test(v) ? v : `https://${v}`);
   } catch {
     return { ok: false, reason: "adresse illisible" };
   }
-  if (u.protocol !== "https:") return { ok: false, reason: "seules les adresses https:// sont acceptées" };
-  if (u.username || u.password) return { ok: false, reason: "pas d'identifiant ni de mot de passe dans l'adresse" };
+  if (u.protocol !== "https:")
+    return { ok: false, reason: "seules les adresses https:// sont acceptées" };
+  if (u.username || u.password)
+    return { ok: false, reason: "pas d'identifiant ni de mot de passe dans l'adresse" };
   if (u.port) return { ok: false, reason: "pas de port dans l'adresse" };
   const host = u.hostname.toLowerCase();
-  if (host === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":")) return { ok: false, reason: "il faut le nom du site, pas une adresse de machine" };
-  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || !/\.[a-z]{2,}$/.test(host)) return { ok: false, reason: "nom de domaine invalide" };
+  if (host === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":"))
+    return { ok: false, reason: "il faut le nom du site, pas une adresse de machine" };
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || !/\.[a-z]{2,}$/.test(host))
+    return { ok: false, reason: "nom de domaine invalide" };
   u.hash = "";
   u.search = "";
   return { ok: true, url: u.toString() };
 }
 
-export async function listSites(deps: Pick<AgentsDeps, "prisma">, opts: { activeOnly?: boolean } = {}): Promise<SiteRow[]> {
-  return (await deps.prisma.bookmakerSite.findMany({ where: opts.activeOnly ? { isActive: true } : {}, orderBy: { createdAt: "asc" } })) as SiteRow[];
+export async function listSites(
+  deps: Pick<AgentsDeps, "prisma">,
+  opts: { activeOnly?: boolean } = {},
+): Promise<SiteRow[]> {
+  return (await deps.prisma.bookmakerSite.findMany({
+    where: opts.activeOnly ? { isActive: true } : {},
+    orderBy: { createdAt: "asc" },
+  })) as SiteRow[];
 }
 
-export async function getSite(deps: Pick<AgentsDeps, "prisma">, key: string): Promise<SiteRow | null> {
+export async function getSite(
+  deps: Pick<AgentsDeps, "prisma">,
+  key: string,
+): Promise<SiteRow | null> {
   return (await deps.prisma.bookmakerSite.findUnique({ where: { key } })) as SiteRow | null;
 }
 
@@ -89,9 +103,17 @@ export async function getSite(deps: Pick<AgentsDeps, "prisma">, key: string): Pr
  * Site désigné par un nom tel que dit (« Sportaza », « celsius », « bet portal », « betportal.com ») ; null si aucun
  * ou plusieurs (pur sur la liste fournie).
  */
-export function matchSite(sites: readonly SiteRow[], raw: string | null | undefined): SiteRow | null {
+export function matchSite(
+  sites: readonly SiteRow[],
+  raw: string | null | undefined,
+): SiteRow | null {
   if (!raw) return sites.length === 1 ? sites[0]! : null;
-  const host = /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.exec(raw.trim().replace(/^https?:\/\//i, "").replace(/^www\./i, ""))?.[0];
+  const host = /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.exec(
+    raw
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, ""),
+  )?.[0];
   const k = siteKeyFromLabel(host ? host.split(".")[0]! : raw);
   if (!k) return null;
   const exact = sites.filter((s) => s.key === k || siteKeyFromLabel(s.label) === k);
@@ -100,18 +122,30 @@ export function matchSite(sites: readonly SiteRow[], raw: string | null | undefi
   return loose.length === 1 ? loose[0]! : null;
 }
 
-export async function findSite(deps: Pick<AgentsDeps, "prisma">, raw: string | null | undefined): Promise<SiteRow | null> {
+export async function findSite(
+  deps: Pick<AgentsDeps, "prisma">,
+  raw: string | null | undefined,
+): Promise<SiteRow | null> {
   return matchSite(await listSites(deps), raw);
 }
 
 /** Crée les sites du client absents ; un site existant n'est jamais modifié (adresse changée gardée). */
-export async function ensureDefaultSites(deps: Pick<AgentsDeps, "prisma">): Promise<{ created: string[] }> {
+export async function ensureDefaultSites(
+  deps: Pick<AgentsDeps, "prisma">,
+): Promise<{ created: string[] }> {
   const created: string[] = [];
   for (const s of DEFAULT_BOOKMAKER_SITES) {
     if (await deps.prisma.bookmakerSite.findUnique({ where: { key: s.key } })) continue;
     try {
       await deps.prisma.bookmakerSite.create({
-        data: { key: s.key, label: s.label, baseUrl: s.baseUrl, readTarget: "auto", isActive: true, status: "NEW" },
+        data: {
+          key: s.key,
+          label: s.label,
+          baseUrl: s.baseUrl,
+          readTarget: "auto",
+          isActive: true,
+          status: "NEW",
+        },
       });
       created.push(s.key);
     } catch (err) {
@@ -125,12 +159,18 @@ export async function ensureDefaultSites(deps: Pick<AgentsDeps, "prisma">): Prom
 export type SiteResult = { ok: boolean; message: string; site?: SiteRow; learning?: boolean };
 
 /** Nouvelle adresse d'un site (journalisée). L'état repasse à NEW : la méthode apprise visait l'ancienne adresse. */
-export async function setSiteUrl(deps: AgentsDeps, key: string, url: string, actor: ActorRef | null = null): Promise<SiteResult> {
+export async function setSiteUrl(
+  deps: AgentsDeps,
+  key: string,
+  url: string,
+  actor: ActorRef | null = null,
+): Promise<SiteResult> {
   const site = await getSite(deps, key);
   if (!site) return { ok: false, message: `Je ne connais pas le bookmaker « ${key} ».` };
   const u = normalizeSiteUrl(url);
   if (!u.ok) return { ok: false, message: `Adresse refusée : ${u.reason}.`, site };
-  if (site.baseUrl === u.url) return { ok: true, message: `${site.label} a déjà cette adresse.`, site };
+  if (site.baseUrl === u.url)
+    return { ok: true, message: `${site.label} a déjà cette adresse.`, site };
   const updated = (await deps.prisma.bookmakerSite.update({
     where: { key },
     data: { baseUrl: u.url, status: "NEW", statusReason: "nouvelle adresse : à réapprendre" },
@@ -152,11 +192,22 @@ const learning = new Set<string>();
 /** Un site en LEARNING depuis moins de 15 minutes est considéré en cours d'apprentissage (autre processus). */
 export const LEARNING_STALE_MS = 15 * 60_000;
 
-export type Learner = (deps: AgentsDeps, siteKey: string, opts: { reason: "first" | "repair" | "manual" }) => Promise<{ ok: boolean; status: SiteStatus; message: string }>;
+export type Learner = (
+  deps: AgentsDeps,
+  siteKey: string,
+  opts: { reason: "first" | "repair" | "manual" },
+) => Promise<{ ok: boolean; status: SiteStatus; message: string }>;
 
-export function isLearning(site: Pick<SiteRow, "key" | "status" | "updatedAt">, now: Date): boolean {
+export function isLearning(
+  site: Pick<SiteRow, "key" | "status" | "updatedAt">,
+  now: Date,
+): boolean {
   if (learning.has(site.key)) return true;
-  return site.status === "LEARNING" && !!site.updatedAt && now.getTime() - site.updatedAt.getTime() < LEARNING_STALE_MS;
+  return (
+    site.status === "LEARNING" &&
+    !!site.updatedAt &&
+    now.getTime() - site.updatedAt.getTime() < LEARNING_STALE_MS
+  );
 }
 
 /**
@@ -177,8 +228,15 @@ export function startLearning(
       const r = await learner(deps, site.key, { reason });
       await onDone?.(r);
     } catch (err) {
-      deps.logger?.warn({ site: site.key, err: (err as Error).message }, "[bookmakers] apprentissage en échec");
-      await onDone?.({ ok: false, status: "BLOCKED", message: (err as Error).message.slice(0, 200) });
+      deps.logger?.warn(
+        { site: site.key, err: (err as Error).message },
+        "[bookmakers] apprentissage en échec",
+      );
+      await onDone?.({
+        ok: false,
+        status: "BLOCKED",
+        message: (err as Error).message.slice(0, 200),
+      });
     } finally {
       learning.delete(site.key);
     }
@@ -198,7 +256,11 @@ export function resetLearning(): void {
 export async function addSite(
   deps: AgentsDeps,
   input: { label: string; url: string },
-  opts: { actor?: ActorRef | null; learner?: Learner | null; onLearned?: (r: { ok: boolean; status: SiteStatus; message: string }) => Promise<void> | void } = {},
+  opts: {
+    actor?: ActorRef | null;
+    learner?: Learner | null;
+    onLearned?: (r: { ok: boolean; status: SiteStatus; message: string }) => Promise<void> | void;
+  } = {},
 ): Promise<SiteResult> {
   const label = cleanSiteLabel(input.label);
   const key = siteKeyFromLabel(label);
@@ -213,7 +275,11 @@ export async function addSite(
       if (!r.ok || !r.site) return r;
       site = r.site;
     } else site = existing;
-    if (!existing.isActive) site = (await deps.prisma.bookmakerSite.update({ where: { key }, data: { isActive: true } })) as SiteRow;
+    if (!existing.isActive)
+      site = (await deps.prisma.bookmakerSite.update({
+        where: { key },
+        data: { isActive: true },
+      })) as SiteRow;
   } else {
     site = (await deps.prisma.bookmakerSite.create({
       data: { key, label, baseUrl: u.url, readTarget: "auto", isActive: true, status: "NEW" },
@@ -226,6 +292,13 @@ export async function addSite(
       metadata: { label, url: u.url, via: opts.actor?.via ?? "SYSTEM" },
     });
   }
-  const started = opts.learner ? startLearning(deps, site, opts.learner, "first", opts.onLearned) : false;
-  return { ok: true, message: existing ? `${site.label} était déjà connu.` : `${site.label} ajouté.`, site, learning: started };
+  const started = opts.learner
+    ? startLearning(deps, site, opts.learner, "first", opts.onLearned)
+    : false;
+  return {
+    ok: true,
+    message: existing ? `${site.label} était déjà connu.` : `${site.label} ajouté.`,
+    site,
+    learning: started,
+  };
 }

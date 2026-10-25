@@ -143,7 +143,7 @@ export { americanToDecimal, mapEvent, mapSelections, mapResult } from "./provide
 export { createFakeOddsProvider, FAKE_ODDS_ANCHOR, type FakeOddsProvider } from "./providers/fake-odds";
 export { createMemoryOddsCache, withOddsCache, ODDS_TTL, type OddsCache } from "./providers/odds-cache";
 export { createOddsQuota, oddsCallsThisMonth, OddsQuotaError } from "./providers/odds-quota";
-export { resolveOddsProvider, hasOddsKey, ODDS_SECRET_KEY } from "./providers/odds-registry";
+export { resolveOddsProvider, resolveSgoProvider, hasOddsKey, ODDS_SECRET_KEY, migrateCategoryMarketTypes, type CategoryMarketsMigration, type OddsResolveDeps } from "./providers/odds-registry";
 export * from "./rules/bets";
 export * from "./rules/bet-settle";
 export * from "./rules/bet-summary";
@@ -396,3 +396,69 @@ export * from "./bookmakers/health";
 export * from "./bookmakers/actions";
 export { siteMatchesView, bookmakersStatusView, oddsOfView, resolveSiteView, agoLabel, frOdds, pickSelection, type MatchesQuery, type OddsQuery } from "./bookmakers/views";
 export { BOOKMAKERS_VARIANTS } from "./boss/bookmakers-texts";
+// Phase 35, chantier B : apprendre un site (enregistrement guidé, masquage, analyse par Opus, validation, recette).
+export * from "./bookmakers/learn/index";
+// Phase 35, chantier C : lecteur à trois niveaux (cache, double lecture, diagnostic), fournisseur `bookmaker-direct`,
+// vérification des paris lus sur un site du client, capture par la recette apprise.
+export {
+  readEvents,
+  readEventsStored,
+  readMarkets,
+  readMarketsStored,
+  readOddsTwice,
+  storedEvent,
+  storedEvents,
+  allowedHostsOf,
+  diagnosePage,
+  diagnoseByRules,
+  parseAiDiagnosis,
+  maskForAi,
+  actionFor,
+  gestureOf,
+  PAGE_DIAGNOSES,
+  BookmakerReadError,
+  createMemoryPace,
+  memorySiteLock,
+  isNightInParis,
+  toDecimalOdds,
+  sameOddsExact,
+  expandMarketKeys,
+  translateRow,
+  loadActiveRecipe,
+  parseRecipeRow,
+  readOddsOnImage,
+  parseImageOdds,
+  type ReadEventsQuery,
+  type ReadMarketsOptions,
+  type OddsTwiceQuery,
+  type OddsTwiceResult,
+  type StoredEvent,
+  type StoredOdds,
+  type DiagnosedPage,
+  type DiagnosisAction,
+  type PageInput,
+  type BookmakerReadDeps,
+  type BookmakerHooks,
+  type BookmakerHookEvent,
+  type ReadSite,
+  type SiteLock,
+  type SitePace,
+  type ActiveRecipe,
+} from "./bookmakers/read/index";
+export { recipeCaptureConfig, stepSelector, marketBlockSelector } from "./bookmakers/read/capture-config";
+export {
+  createBookmakerDirectProvider,
+  cachedDirectEvents,
+  directEventId,
+  parseDirectEventId,
+  readySites,
+  matchOddsEvent,
+  leagueKeyOf,
+  BOOKMAKER_DIRECT,
+  DIRECT_EVENT_PREFIX,
+  type BookmakerDirectDeps,
+  type BookmakerDirectProvider,
+} from "./providers/bookmaker-direct";
+export { verifyDirectOdds, isDirectPick, MAX_RESELECTIONS, MAX_RECAPTURES, type DirectOddsOk } from "./sports/direct-odds";
+export { expandCategoryMarkets } from "./sports/data";
+export { unusualOddsOf, UNUSUAL_ODDS_GAP_PCT } from "./agents/cotes/select";

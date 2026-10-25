@@ -12,12 +12,16 @@ import { readJobHandler } from "./hooks";
 import { SiteLockBusy, withSiteLock } from "./lock";
 import { HUMAN_OBSTACLES } from "./obstacles";
 import { readAllowedAt } from "./pace";
+import type { BookmakerTransport } from "../contract";
 import type { ServerTransport } from "./server";
+
+/** Transport local capable aussi d'ouvrir un navigateur visible (serveur : `ServerTransport`, Mac : `MacTransport`). */
+export type JobTransport = BookmakerTransport & Pick<ServerTransport, "visible">;
 
 export type JobParams = Record<string, unknown>;
 
 /** Primitive ou test avec un transport local ; rend la valeur à ranger (obstacles compris). */
-export async function runTransportKind(t: ServerTransport, siteKey: string, kind: string, params: JobParams, baseUrl: string): Promise<unknown> {
+export async function runTransportKind(t: JobTransport, siteKey: string, kind: string, params: JobParams, baseUrl: string): Promise<unknown> {
   const req = (params.req ?? {}) as Record<string, unknown>;
   switch (kind) {
     case "fetch-api":
@@ -55,6 +59,11 @@ export function statusOfValue(value: unknown): "DONE" | "NEEDS_HUMAN" {
 export type ExecuteOptions = {
   /** Transport serveur (navigateur du worker). */
   server: ServerTransport;
+  /**
+   * Transport Mac (file `BookmakerReadJob`) : primitive ou test d'un travail `target: "mac"` que le worker orchestre
+   * (Mac muet : `mac_absent` tout de suite, jamais une lecture par le serveur à la place du Mac).
+   */
+  mac?: JobTransport;
   baseUrlOf?: (siteKey: string) => Promise<string | null>;
 };
 
@@ -79,12 +88,13 @@ export async function executeReadJob(deps: AgentsDeps, job: ReadJobRow, o: Execu
         let value: unknown;
         const handler = readJobHandler(job.kind);
         if (handler) value = await handler(deps, job);
-        else if (job.kind === "visible") value = { obstacle: "mac_only", message: "le navigateur visible ne s'ouvre que sur le Mac" };
-        else if (["fetch-api", "page", "record", "test"].includes(job.kind)) {
+        else if (job.kind === "visible" && !(job.target === "mac" && o.mac)) value = { obstacle: "mac_only", message: "le navigateur visible ne s'ouvre que sur le Mac" };
+        else if (["fetch-api", "page", "record", "test", "visible"].includes(job.kind)) {
           const site = await o.baseUrlOf?.(job.siteKey);
-          value = await runTransportKind(o.server, job.siteKey, job.kind, params, site ?? "");
+          const t = job.target === "mac" && o.mac ? o.mac : o.server;
+          value = await runTransportKind(t, job.siteKey, job.kind, params, site ?? "");
         } else value = { obstacle: "not_available", message: `lecture « ${job.kind} » pas encore branchée` };
-        await finishReadJob(deps, job.id, statusOfValue(value), { value, durationMs: Date.now() - started, target: "server" });
+        await finishReadJob(deps, job.id, statusOfValue(value), { value, durationMs: Date.now() - started, target: job.target === "mac" && o.mac ? "mac" : "server" });
         return "done" as const;
       },
       { waitMs: 0, owner: `worker:${job.kind}` },

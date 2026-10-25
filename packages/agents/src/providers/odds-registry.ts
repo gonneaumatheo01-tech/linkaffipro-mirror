@@ -81,3 +81,35 @@ async function resolveSgo(deps: OddsResolveDeps, maxCalls: number): Promise<{ pr
   const cache = deps.oddsCache ?? (processCache ??= createMemoryOddsCache());
   return { provider: withOddsCache(client, cache), source: "live" };
 }
+
+// --- Phase 35 : catégories en clés internes (`sports/themes.json`) ------------------------------------------------
+
+export type CategoryMarketsMigration = {
+  /** Nouvelle liste : clés internes des thèmes entièrement couverts, puis identifiants du fournisseur restants. */
+  marketTypes: string[];
+  converted: Array<{ theme: string; markets: string[] }>;
+  /** Identifiants du fournisseur sans thème interne qui les couvre tous : gardés tels quels (toujours acceptés). */
+  unmatched: string[];
+  changed: boolean;
+};
+
+/**
+ * Clés du fournisseur (SportsGameOdds) → clés internes : un thème est retenu quand TOUS ses marchés sont dans la
+ * catégorie (le sens de la catégorie ne change donc pas : la clé interne redonne exactement ces marchés), les plus
+ * grands thèmes d'abord, chaque marché une seule fois. Idempotent : une clé interne déjà présente reste. Pur.
+ */
+export function migrateCategoryMarketTypes(marketTypes: readonly string[], themes: ReadonlyArray<{ key: string; marketTypes: readonly string[] }>): CategoryMarketsMigration {
+  const themeKeys = new Set(themes.map((t) => t.key));
+  const keep = marketTypes.filter((m) => themeKeys.has(m));
+  let rest = marketTypes.filter((m) => !themeKeys.has(m));
+  const converted: CategoryMarketsMigration["converted"] = [];
+  for (const t of [...themes].sort((a, b) => b.marketTypes.length - a.marketTypes.length || a.key.localeCompare(b.key))) {
+    if (keep.includes(t.key) || !t.marketTypes.length) continue;
+    if (!t.marketTypes.every((m) => rest.includes(m))) continue;
+    converted.push({ theme: t.key, markets: [...t.marketTypes] });
+    keep.push(t.key);
+    rest = rest.filter((m) => !t.marketTypes.includes(m));
+  }
+  const out = [...new Set([...keep, ...rest])];
+  return { marketTypes: out, converted, unmatched: rest, changed: out.length !== marketTypes.length || out.some((m, i) => m !== marketTypes[i]) };
+}

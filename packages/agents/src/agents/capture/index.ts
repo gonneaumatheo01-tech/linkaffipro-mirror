@@ -18,6 +18,12 @@ import { createCaptureRequest, readCaptureRequest, type CaptureRequestResult } f
 import { parseCaptureSettings } from "../../providers/screenshot/settings";
 import { storeCapturePng } from "../../providers/screenshot/store";
 import { parseSportsSettings } from "../../sports/settings";
+import { recipeCaptureConfig } from "../../bookmakers/read/capture-config";
+import { loadSite } from "../../bookmakers/read/deps";
+import { loadActiveRecipe } from "../../bookmakers/read/recipe";
+import { storedEvent } from "../../bookmakers/read/core";
+import { reselectPick } from "../../sports/direct-odds";
+import type { PickRow as FullPickRow } from "../../sports/data";
 
 /** Relecture d'une capture demandée au worker ou au Mac. */
 export const CAPTURE_POLL_MS = 30_000;
@@ -60,12 +66,37 @@ type PickRow = {
   screenshotAssetId: string | null;
   oddsAtSend: number | null;
   status: string;
+  /** Phase 35 : pari lu sur un site du client (recette apprise, fiche du match lue par le lecteur). */
+  siteKey?: string | null;
+  siteEventId?: string | null;
 };
 
 async function loadPick(mission: Mission, ctx: AgentContext): Promise<PickRow | null> {
   const id = typeof mission.payload.pickId === "string" ? mission.payload.pickId : null;
   if (id) return (await ctx.prisma.bettingPick.findUnique({ where: { id } })) as PickRow | null;
   return (await ctx.prisma.bettingPick.findFirst({ where: { missionId: mission.id }, orderBy: { createdAt: "desc" } })) as PickRow | null;
+}
+
+const isDirect = (pick: PickRow) => typeof pick.siteKey === "string" && pick.siteKey !== "" && (pick.reasoning as { source?: string } | null)?.source !== "fake";
+
+/**
+ * Phase 35 : pari lu sur un site du client → la capture suit la recette `dom` apprise du site (plus les sélecteurs
+ * figés) et ouvre la fiche du match lue par le lecteur. Recette sans méthode de page : demande inchangée (phase 23).
+ */
+export async function directCaptureRequest(ctx: AgentContext, pick: PickRow, req: CaptureRequest): Promise<CaptureRequest> {
+  if (!isDirect(pick)) return req;
+  try {
+    const [site, recipe, event] = await Promise.all([
+      loadSite(ctx, pick.siteKey!),
+      loadActiveRecipe(ctx, pick.siteKey!),
+      pick.siteEventId ? storedEvent(ctx, pick.siteKey!, pick.siteEventId) : Promise.resolve(null),
+    ]);
+    const config = site && recipe ? recipeCaptureConfig(site, recipe) : null;
+    return { ...req, eventUrl: event?.url ?? req.eventUrl ?? null, ...(config ? { config } : {}) };
+  } catch (err) {
+    ctx.logger?.warn({ err: (err as Error).message, pickId: pick.id }, "[agents] recette du site non lue pour la capture");
+    return req;
+  }
 }
 
 export function captureRequestOf(pick: PickRow): CaptureRequest {
@@ -116,6 +147,9 @@ async function accept(
   const tol = await tolerancePct(ctx, pick.categoryId);
   const drift = oddsDriftPct(pick.odds, r.readOdds);
   if (!oddsWithinTolerance(pick.odds, r.readOdds, tol)) {
+    // Phase 35 : cote du site du client qui a bougé au-delà de la tolérance → sélection refaite (pas écartée d'office).
+    if (isDirect(pick))
+      return reselectPick(ctx, mission, pick as unknown as FullPickRow, `cote bougée chez ${pick.bookmaker} au moment de la capture : ${formatOddsFr(pick.odds)} → ${formatOddsFr(r.readOdds)} (${drift.toFixed(1).replace(".", ",")} %)`, r.readOdds);
     const reason = `cote bougée chez ${pick.bookmaker} : ${formatOddsFr(pick.odds)} → ${formatOddsFr(r.readOdds)} (${drift.toFixed(1).replace(".", ",")} %, écart toléré ${tol} %)`;
     return skipPick(mission, ctx, pick, reason, { status: "skipped", kind: "odds_moved", reason, readOdds: r.readOdds, expectedOdds: pick.odds, driftPct: drift, assetId: r.assetId, via });
   }
@@ -201,7 +235,7 @@ export const agent: AgentDefinition = {
       return { ok: true, wait: { delayMs: CAPTURE_POLL_MS }, summary: via === "mac" ? "capture demandée au Mac, en attente" : "capture en file, en attente" };
     }
 
-    const req = captureRequestOf(pick);
+    const req = await directCaptureRequest(ctx, pick, captureRequestOf(pick));
     const forced = ctx.providers.screenshot as ScreenshotProvider | null | undefined;
     const local = settings.mode === "mac" ? null : providerOf(ctx);
     const provider = forced ?? local;

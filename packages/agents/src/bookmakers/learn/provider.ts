@@ -22,7 +22,9 @@ export const UNKNOWN_PROVIDER = "inconnu";
 /** Moteur le plus cité dans ces adresses (ou « inconnu »). */
 export function detectProviderHint(urls: readonly string[]): string {
   const score = new Map<string, number>();
-  for (const u of urls) for (const [name, re] of PROVIDER_PATTERNS) if (re.test(u)) score.set(name, (score.get(name) ?? 0) + 1);
+  for (const u of urls)
+    for (const [name, re] of PROVIDER_PATTERNS)
+      if (re.test(u)) score.set(name, (score.get(name) ?? 0) + 1);
   let best: string = UNKNOWN_PROVIDER;
   let n = 0;
   for (const [name, c] of score) if (c > n) [best, n] = [name, c];

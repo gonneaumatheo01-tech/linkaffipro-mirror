@@ -70,6 +70,9 @@ export function resolveTheme(text: string | null | undefined): SportsTheme | nul
 
 /** Thème dont les marchés sont ceux d'une catégorie (au moins un marché commun), pour relier une catégorie existante. */
 export function themeOfMarkets(marketTypes: readonly string[]): SportsTheme | null {
+  // Phase 35 : une catégorie peut porter directement la clé interne du thème (« corners »).
+  const byKey = SPORTS_THEMES.find((t) => marketTypes.includes(t.key));
+  if (byKey) return byKey;
   return SPORTS_THEMES.find((t) => t.marketTypes.some((m) => marketTypes.some((x) => marketMatches(m, x) || marketMatches(x, m)))) ?? null;
 }
 

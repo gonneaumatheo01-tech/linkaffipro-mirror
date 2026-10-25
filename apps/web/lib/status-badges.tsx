@@ -77,6 +77,10 @@ const plain = (label: string): StatusEntry => ({ label, variant: "outline" });
 export type SyncStatus = "ok" | "late" | "error" | "running" | "never";
 /** Statut de la connexion Telegram (webhook) d'un bot. */
 export type WebhookStatus = "ok" | "check" | "off";
+/** État d'un site de bookmaker lu directement (phase 35, `BookmakerSite.status` en texte libre). */
+export type BookmakerSiteStatus = "NEW" | "LEARNING" | "READY" | "DEGRADED" | "BLOCKED";
+/** État d'une lecture d'un site de bookmaker (phase 35, `BookmakerReadJob.status`). */
+export type BookmakerJobStatus = "PENDING" | "CLAIMED" | "DONE" | "FAILED" | "NEEDS_HUMAN";
 /** Actif / inactif (bots, liens, utilisateurs, catégories, règles). */
 export type ActiveStatus = "active" | "inactive";
 /** Statut du compte Telegram connecté pour les vues (TelegramUserSession.status, chaîne libre en base). */
@@ -422,6 +426,21 @@ export const STATUS_DICT = {
     BLOCKED: bad("Bloqué"),
     FAILED: bad("En échec"),
   } satisfies Record<TeamOrderStatus, StatusEntry>,
+  // Bookmakers lus directement (phase 35) : état d'un site et d'une lecture.
+  bookmakerSite: {
+    NEW: muted("Pas encore appris"),
+    LEARNING: main("En apprentissage"),
+    READY: ok("Se lit bien"),
+    DEGRADED: warn("Se lit mal"),
+    BLOCKED: bad("Ne se lit plus"),
+  } satisfies Record<BookmakerSiteStatus, StatusEntry>,
+  bookmakerJob: {
+    PENDING: muted("En attente"),
+    CLAIMED: main("En cours"),
+    DONE: ok("Fait"),
+    FAILED: bad("En échec"),
+    NEEDS_HUMAN: warn("Attend votre aide"),
+  } satisfies Record<BookmakerJobStatus, StatusEntry>,
   teamOrderKind: {
     PROGRAM: plain("Programme sur plusieurs jours"),
     ONE_SHOT: plain("Une seule fois"),

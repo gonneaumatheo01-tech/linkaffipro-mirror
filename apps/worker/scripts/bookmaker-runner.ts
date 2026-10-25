@@ -5,7 +5,8 @@
  * avec Chromium (même code et même garde « jamais de mise » que le serveur) et rend le résultat. Rien n'est gardé sur le
  * Mac : identifiants et session arrivent du site et repartent (jamais écrits sur disque).
  * Installé comme service de session macOS par `pnpm agents:runner:install` (redémarre s'il tombe).
- * Options : `--once` (un passage puis sortie), `--visible` (fenêtre du navigateur toujours affichée), `--url <site>`.
+ * Options : `--once` (un passage puis sortie), `--visible` (fenêtre du navigateur affichée, 10 min au plus puis
+ * sortie : le service habituel reprend sans fenêtre), `--url <site>`.
  * Jeton : `CAPTURE_RUNNER_TOKEN` (`.env.local`) ; absent, il est demandé au site par `railway ssh` puis rangé.
  */
 import { execFileSync } from "node:child_process";
@@ -24,6 +25,8 @@ const ENDPOINT = `${BASE.replace(/\/$/, "")}/api/integrations/capture-runner`;
 const ROOT = resolve(import.meta.dirname, "../../..");
 const ENV_FILE = resolve(ROOT, ".env.local");
 const RETRY_MS = 15_000;
+/** `--visible` : 10 min au plus (le temps qu'un humain règle un captcha ou saisisse un code). */
+const VISIBLE_MAX_MS = 10 * 60_000;
 
 function log(msg: string): void {
   console.log(`[${new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}] ${msg}`);
@@ -64,7 +67,12 @@ async function main(): Promise<void> {
     },
   };
   log(`Lecture depuis ce Mac : en attente des demandes de ${BASE} (Ctrl+C pour arrêter)`);
+  const visibleUntil = visible ? Date.now() + VISIBLE_MAX_MS : Infinity;
   for (;;) {
+    if (Date.now() >= visibleUntil) {
+      log("Navigateur visible : 10 minutes écoulées, je m'arrête (le service sans fenêtre reprend).");
+      return;
+    }
     const started = Date.now();
     try {
       const r = await runnerPass(io, { waitSec: once ? 0 : 20 });

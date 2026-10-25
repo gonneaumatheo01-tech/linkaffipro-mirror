@@ -177,6 +177,15 @@ describe("badges de statut", () => {
     expect(statusTone("agentRun", "OK")).toBe("success");
   });
 
+  it("bookmakers lus directement (phase 35) : chaque état d'un site et d'une lecture a son libellé", () => {
+    expect(Object.keys(STATUS_DICT.bookmakerSite).sort()).toEqual(["BLOCKED", "DEGRADED", "LEARNING", "NEW", "READY"]);
+    expect(Object.keys(STATUS_DICT.bookmakerJob).sort()).toEqual(["CLAIMED", "DONE", "FAILED", "NEEDS_HUMAN", "PENDING"]);
+    expect(statusLabel("bookmakerSite", "BLOCKED")).toBe("Ne se lit plus");
+    expect(statusTone("bookmakerSite", "READY")).toBe("success");
+    expect(statusTone("bookmakerSite", "DEGRADED")).toBe("warning");
+    expect(statusLabel("bookmakerJob", "NEEDS_HUMAN")).toBe("Attend votre aide");
+  });
+
   it("agents (phase 19) : une mission bloquée ou en attente se voit, sans jargon", () => {
     expect(statusLabel("agentMission", "WAITING_VALIDATION")).toBe("Attend votre validation");
     expect(statusTone("agentMission", "WAITING_VALIDATION")).toBe("warning");

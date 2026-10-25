@@ -28,8 +28,16 @@ export function humanDelayMs(random: number): number {
   return Math.round(lo + Math.min(Math.max(random, 0), 0.999999) * (hi - lo));
 }
 
-export function createPlaywrightRecordIo(page: Page, o: PlaywrightIoOptions): RecordIo & { guarded: GuardedPage } {
-  const gp = new GuardedPage(page, o.allowedHosts, o.guardLog ?? (() => undefined), READ_GUARD_CHECKS);
+export function createPlaywrightRecordIo(
+  page: Page,
+  o: PlaywrightIoOptions,
+): RecordIo & { guarded: GuardedPage } {
+  const gp = new GuardedPage(
+    page,
+    o.allowedHosts,
+    o.guardLog ?? (() => undefined),
+    READ_GUARD_CHECKS,
+  );
   const responseCbs: Array<(r: ObservedResponse) => void> = [];
   const frameCbs: Array<(f: ObservedFrame) => void> = [];
   page.on("response", (res) => {
@@ -69,7 +77,9 @@ export function createPlaywrightRecordIo(page: Page, o: PlaywrightIoOptions): Re
     screenshot: async () => Buffer.from(await gp.capture()).toString("base64"),
     async login() {
       if (!creds) return "skipped";
-      const user = gp.find("input[type=email], input[autocomplete=username], input[name=email], input[name=login], input[name=username]");
+      const user = gp.find(
+        "input[type=email], input[autocomplete=username], input[name=email], input[name=login], input[name=username]",
+      );
       const pw = gp.find("input[type=password]");
       if ((await pw.count()) === 0) return "already";
       if ((await user.count()) > 0) await gp.fill(user, creds.login, "login");

@@ -176,14 +176,14 @@
     },
     {
       "eventLabel": "AS Mirabelle - FC Lavande",
-      "market": "AS Mirabelle",
+      "market": "Résultat du match",
       "selection": "Match nul",
       "line": null,
       "odds": 2.75
     },
     {
       "eventLabel": "AS Mirabelle - FC Lavande",
-      "market": "Match nul",
+      "market": "Résultat du match",
       "selection": "FC Lavande",
       "line": null,
       "odds": 1.95
@@ -197,7 +197,7 @@
     },
     {
       "eventLabel": "AS Mirabelle - FC Lavande",
-      "market": "Plus de 2,5",
+      "market": "Plus/Moins de buts",
       "selection": "Moins de 2,5",
       "line": 2.5,
       "odds": 1.8
@@ -211,7 +211,7 @@
     },
     {
       "eventLabel": "AS Mirabelle - FC Lavande",
-      "market": "Plus de 9,5",
+      "market": "Corners - total",
       "selection": "Moins de 9,5",
       "line": 9.5,
       "odds": 2.2
@@ -225,7 +225,7 @@
     },
     {
       "eventLabel": "AS Mirabelle - FC Lavande",
-      "market": "Plus de 4,5",
+      "market": "Cartons - total",
       "selection": "Moins de 4,5",
       "line": 4.5,
       "odds": 2.1

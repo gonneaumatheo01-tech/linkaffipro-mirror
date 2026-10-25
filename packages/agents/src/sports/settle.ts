@@ -3,7 +3,9 @@
  * - paris publiés dont le match est sans doute fini (coup d'envoi + 105 min) : résultat lu chez le fournisseur (celui
  *   du pari : faux pour un pari de test), gagné / perdu / remboursé (`rules/bet-settle.ts`), statistiques du match
  *   gardées, `PostInsight.betResult` et la charge utile de la mission mis à jour (équipe Algorithme) ;
- *   résultat introuvable 3 jours après le match : remboursé (motif noté) ;
+ *   résultat introuvable 3 jours après le match : remboursé (motif noté) ; sans résultat, jamais gagné ni perdu ;
+ * - phase 35 : pari lu sur un site du client (`siteKey`) → résultat chez SportsGameOdds par la correspondance du match
+ *   (`BookmakerEvent.oddsEventId`) ; aucune correspondance = aucun résultat, le règlement attend ;
  * - missions en attente de validation dont le coup d'envoi approche : annulées, pari écarté ;
  * - paris proposés d'une mission terminée sans publication : écartés.
  */
@@ -44,9 +46,11 @@ export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunR
   for (const pick of picks) {
     out.checked++;
     const source = (pick.reasoning as { source?: string } | null)?.source === "fake" ? "fake" : "live";
-    const cacheKey = `${source}:${pick.eventId}`;
+    // Phase 35 : pari lu sur un site du client → résultat par la correspondance avec SportsGameOdds (jamais deviné).
+    const siteKey = source === "live" && typeof pick.siteKey === "string" && pick.siteKey ? pick.siteKey : null;
+    const cacheKey = `${source}:${siteKey ?? ""}:${pick.eventId}`;
     if (!results.has(cacheKey)) {
-      const resolved = await resolveOddsProvider(deps, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null });
+      const resolved = await resolveOddsProvider(deps, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null, siteKey });
       try {
         results.set(cacheKey, resolved ? await resolved.provider.getResult(pick.eventId) : null);
       } catch (err) {

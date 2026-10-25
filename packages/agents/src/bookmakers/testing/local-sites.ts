@@ -9,12 +9,32 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { fileURLToPath } from "node:url";
-import { CELSIUS_TEST_TOKEN, FIXTURE_SITE_KEYS, FIXTURE_TODAY, type FixtureSiteKey, type FixtureVariant } from "./world";
+import {
+  CELSIUS_TEST_TOKEN,
+  FIXTURE_SITE_KEYS,
+  FIXTURE_TODAY,
+  type FixtureSiteKey,
+  type FixtureVariant,
+} from "./world";
 
-export const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/bookmakers/", import.meta.url));
+export const FIXTURES_DIR = fileURLToPath(
+  new URL("../../../fixtures/bookmakers/", import.meta.url),
+);
 
-export type LocalSite = { key: FixtureSiteKey; origin: string; baseUrl: string; host: string; port: number };
-export type LocalRequest = { site: FixtureSiteKey; method: string; path: string; at: number; variant: FixtureVariant | null };
+export type LocalSite = {
+  key: FixtureSiteKey;
+  origin: string;
+  baseUrl: string;
+  host: string;
+  port: number;
+};
+export type LocalRequest = {
+  site: FixtureSiteKey;
+  method: string;
+  path: string;
+  at: number;
+  variant: FixtureVariant | null;
+};
 
 export type LocalSites = {
   sites: Record<FixtureSiteKey, LocalSite>;
@@ -24,9 +44,17 @@ export type LocalSites = {
   stop(): Promise<void>;
 };
 
-const BASE_PATH: Record<FixtureSiteKey, string> = { celsius: "/", sportaza: "/fr/sports", betportal: "/" };
+const BASE_PATH: Record<FixtureSiteKey, string> = {
+  celsius: "/",
+  sportaza: "/fr/sports",
+  betportal: "/",
+};
 
-function readFixture(site: FixtureSiteKey, variant: FixtureVariant | null, name: string): string | null {
+function readFixture(
+  site: FixtureSiteKey,
+  variant: FixtureVariant | null,
+  name: string,
+): string | null {
   if (variant) {
     const v = `${FIXTURES_DIR}${site}/${variant}/${name}`;
     if (existsSync(v)) return readFileSync(v, "utf8");
@@ -35,18 +63,34 @@ function readFixture(site: FixtureSiteKey, variant: FixtureVariant | null, name:
   return existsSync(b) ? readFileSync(b, "utf8") : null;
 }
 
-const html = (res: ServerResponse, body: string, status = 200) => res.writeHead(status, { "content-type": "text/html; charset=utf-8" }).end(body);
+const html = (res: ServerResponse, body: string, status = 200) =>
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8" }).end(body);
 const json = (res: ServerResponse, body: unknown, status = 200) =>
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" }).end(typeof body === "string" ? body : JSON.stringify(body));
+  res
+    .writeHead(status, { "content-type": "application/json; charset=utf-8" })
+    .end(typeof body === "string" ? body : JSON.stringify(body));
 
-function searchPage(title: string, results: Array<{ home: string; away: string; url: string; league: string }>): string {
+function searchPage(
+  title: string,
+  results: Array<{ home: string; away: string; url: string; league: string }>,
+): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title></head><body><h1>${esc(title)}</h1><ul class="search-results">${results
-    .map((r) => `<li class="search-result"><a href="${r.url}">${esc(r.home)} - ${esc(r.away)}</a> <small>${esc(r.league)}</small></li>`)
+    .map(
+      (r) =>
+        `<li class="search-result"><a href="${r.url}">${esc(r.home)} - ${esc(r.away)}</a> <small>${esc(r.league)}</small></li>`,
+    )
     .join("")}</ul></body></html>`;
 }
 
-type IndexRow = { id: string; league: string; home: string; away: string; kickoff: string; url: string };
+type IndexRow = {
+  id: string;
+  league: string;
+  home: string;
+  away: string;
+  kickoff: string;
+  url: string;
+};
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function siteHandler(site: FixtureSiteKey, state: { variant: FixtureVariant | null }) {
@@ -56,13 +100,19 @@ function siteHandler(site: FixtureSiteKey, state: { variant: FixtureVariant | nu
     const v = state.variant;
     const isApi = path.startsWith("/api/");
     const money = /\/(cashier|deposit|withdraw|wallet)(\/|$)/.test(path);
-    if (money) return html(res, `<!doctype html><html><body><h1>Caisse</h1><button id="deposit">Déposer</button></body></html>`);
+    if (money)
+      return html(
+        res,
+        `<!doctype html><html><body><h1>Caisse</h1><button id="deposit">Déposer</button></body></html>`,
+      );
     if (v === "captcha" || v === "geo") {
       if (isApi) return json(res, { error: v }, 403);
       return html(res, readFixture(site, v, "index.html") ?? "", v === "geo" ? 403 : 200);
     }
     if (req.method === "POST" && /\/login$/.test(path)) {
-      res.writeHead(302, { location: BASE_PATH[site], "set-cookie": "sess=ok; Path=/; HttpOnly" }).end();
+      res
+        .writeHead(302, { location: BASE_PATH[site], "set-cookie": "sess=ok; Path=/; HttpOnly" })
+        .end();
       return;
     }
     const expired = v === "expired";
@@ -73,32 +123,75 @@ function siteHandler(site: FixtureSiteKey, state: { variant: FixtureVariant | nu
     };
     if (site === "celsius") {
       if (isApi) {
-        if (path === "/api/v2/auth/token") return expired ? json(res, { error: "session_expired" }, 401) : json(res, { token: CELSIUS_TEST_TOKEN, expiresIn: 3600 });
+        if (path === "/api/v2/auth/token")
+          return expired
+            ? json(res, { error: "session_expired" }, 401)
+            : json(res, { token: CELSIUS_TEST_TOKEN, expiresIn: 3600 });
         const auth = req.headers.authorization ?? "";
-        if (expired || auth !== `Bearer ${CELSIUS_TEST_TOKEN}`) return json(res, { error: "unauthorized" }, 401);
+        if (expired || auth !== `Bearer ${CELSIUS_TEST_TOKEN}`)
+          return json(res, { error: "unauthorized" }, 401);
         if (path === "/api/v2/account/balance") return send("account.json");
         if (path === "/api/v2/events") {
-          const raw = JSON.parse(readFixture(site, v, "events.json") ?? "{}") as Record<string, unknown>;
+          const raw = JSON.parse(readFixture(site, v, "events.json") ?? "{}") as Record<
+            string,
+            unknown
+          >;
           const date = url.searchParams.get("date") ?? FIXTURE_TODAY;
           const pageNo = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
           const size = 5;
           if (v === "changed") {
-            const items = ((raw.result as { items: Array<{ startTime: string }> }).items ?? []).filter((e) => e.startTime.slice(0, 10) === date);
+            const items = (
+              (raw.result as { items: Array<{ startTime: string }> }).items ?? []
+            ).filter((e) => e.startTime.slice(0, 10) === date);
             const slice = items.slice((pageNo - 1) * size, pageNo * size);
-            return json(res, { result: { items: slice }, paging: { page: pageNo, next: pageNo * size < items.length ? pageNo + 1 : null } });
+            return json(res, {
+              result: { items: slice },
+              paging: { page: pageNo, next: pageNo * size < items.length ? pageNo + 1 : null },
+            });
           }
-          const all = ((raw.data as { events: Array<{ kickoff: string }> }).events ?? []).filter((e) => e.kickoff.slice(0, 10) === date);
+          const all = ((raw.data as { events: Array<{ kickoff: string }> }).events ?? []).filter(
+            (e) => e.kickoff.slice(0, 10) === date,
+          );
           const slice = all.slice((pageNo - 1) * size, pageNo * size);
-          return json(res, { data: { events: slice }, meta: { page: pageNo, pageSize: size, total: all.length, hasMore: pageNo * size < all.length } });
+          return json(res, {
+            data: { events: slice },
+            meta: {
+              page: pageNo,
+              pageSize: size,
+              total: all.length,
+              hasMore: pageNo * size < all.length,
+            },
+          });
         }
         const m = /^\/api\/v2\/event\/([^/]+)\/markets$/.exec(path);
         if (m) return send(`event-${m[1]}.json`);
         if (path === "/api/v2/search") {
           const q = fold(url.searchParams.get("q") ?? "");
-          const raw = JSON.parse(readFixture(site, null, "events.json") ?? "{}") as { data: { events: Array<{ id: string; league: { name: string }; participants: { home: string; away: string }; kickoff: string; marketCount: number }> } };
+          const raw = JSON.parse(readFixture(site, null, "events.json") ?? "{}") as {
+            data: {
+              events: Array<{
+                id: string;
+                league: { name: string };
+                participants: { home: string; away: string };
+                kickoff: string;
+                marketCount: number;
+              }>;
+            };
+          };
           const results = raw.data.events
-            .filter((e) => q && (fold(e.participants.home).includes(q) || fold(e.participants.away).includes(q)))
-            .map((e) => ({ id: e.id, league: e.league.name, home: e.participants.home, away: e.participants.away, kickoff: e.kickoff, n: e.marketCount }));
+            .filter(
+              (e) =>
+                q &&
+                (fold(e.participants.home).includes(q) || fold(e.participants.away).includes(q)),
+            )
+            .map((e) => ({
+              id: e.id,
+              league: e.league.name,
+              home: e.participants.home,
+              away: e.participants.away,
+              kickoff: e.kickoff,
+              n: e.marketCount,
+            }));
           return json(res, { results });
         }
         return json(res, { error: "not_found" }, 404);
@@ -114,13 +207,20 @@ function siteHandler(site: FixtureSiteKey, state: { variant: FixtureVariant | nu
     if (site === "sportaza") {
       if (path === "/fr/sports" || path === "/fr/sports/") return send("home.html");
       if (expired) return html(res, readFixture(site, "expired", "index.html") ?? "");
-      if (path === "/fr/sports/football") return send(`football-${url.searchParams.get("jour") ?? FIXTURE_TODAY}.html`);
+      if (path === "/fr/sports/football")
+        return send(`football-${url.searchParams.get("jour") ?? FIXTURE_TODAY}.html`);
       const mm = /^\/fr\/sports\/match\/([^/]+)$/.exec(path);
       if (mm) return send(`match-${mm[1]}.html`);
       if (path === "/fr/sports/recherche") {
         const q = fold(url.searchParams.get("q") ?? "");
         const rows = JSON.parse(readFixture(site, v, "search-index.json") ?? "[]") as IndexRow[];
-        return html(res, searchPage("Résultats de recherche", rows.filter((r) => q && (fold(r.home).includes(q) || fold(r.away).includes(q)))));
+        return html(
+          res,
+          searchPage(
+            "Résultats de recherche",
+            rows.filter((r) => q && (fold(r.home).includes(q) || fold(r.away).includes(q))),
+          ),
+        );
       }
       return html(res, "<h1>Introuvable</h1>", 404);
     }
@@ -132,7 +232,13 @@ function siteHandler(site: FixtureSiteKey, state: { variant: FixtureVariant | nu
     if (path === "/search") {
       const q = fold(url.searchParams.get("q") ?? "");
       const rows = JSON.parse(readFixture(site, null, "search-index.json") ?? "[]") as IndexRow[];
-      return html(res, searchPage("Search results", rows.filter((r) => q && (fold(r.home).includes(q) || fold(r.away).includes(q)))));
+      return html(
+        res,
+        searchPage(
+          "Search results",
+          rows.filter((r) => q && (fold(r.home).includes(q) || fold(r.away).includes(q))),
+        ),
+      );
     }
     return html(res, "<h1>Not found</h1>", 404);
   };
@@ -198,8 +304,12 @@ function betportalWs(state: { variant: FixtureVariant | null }, log: (path: stri
       return;
     }
     log(path);
-    const accept = createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
-    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    const accept = createHash("sha1")
+      .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest("base64");
+    socket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+    );
     let pending: Buffer = Buffer.alloc(0);
     socket.on("data", (chunk: Buffer) => {
       const parsed = wsParse(Buffer.concat([pending, chunk]));
@@ -218,17 +328,35 @@ function betportalWs(state: { variant: FixtureVariant | null }, log: (path: stri
         }
         const v = state.variant;
         if (v === "expired" || v === "captcha" || v === "geo") {
-          socket.write(wsFrame(JSON.stringify({ t: "error", code: v === "expired" ? 401 : 403, msg: v === "expired" ? "session expired" : v })));
+          socket.write(
+            wsFrame(
+              JSON.stringify({
+                t: "error",
+                code: v === "expired" ? 401 : 403,
+                msg: v === "expired" ? "session expired" : v,
+              }),
+            ),
+          );
           continue;
         }
-        const lines = (readFixture("betportal", v, "ws-messages.jsonl") ?? "").split("\n").filter(Boolean);
+        const lines = (readFixture("betportal", v, "ws-messages.jsonl") ?? "")
+          .split("\n")
+          .filter(Boolean);
         for (const line of lines) {
-          const j = JSON.parse(line) as { t?: string; type?: string; day?: string; eid?: string; payload?: { day?: string; eventId?: string } };
+          const j = JSON.parse(line) as {
+            t?: string;
+            type?: string;
+            day?: string;
+            eid?: string;
+            payload?: { day?: string; eventId?: string };
+          };
           const d = j.day ?? j.payload?.day;
           const e = j.eid ?? j.payload?.eventId;
           const kind = (j.t ?? j.type ?? "").includes("event") ? "events" : "markets";
-          if (sub.topic === "events" && kind === "events" && d === (sub.day ?? FIXTURE_TODAY)) socket.write(wsFrame(line));
-          if (sub.topic === "markets" && kind === "markets" && e === sub.eventId) socket.write(wsFrame(line));
+          if (sub.topic === "events" && kind === "events" && d === (sub.day ?? FIXTURE_TODAY))
+            socket.write(wsFrame(line));
+          if (sub.topic === "markets" && kind === "markets" && e === sub.eventId)
+            socket.write(wsFrame(line));
         }
       }
     });
@@ -237,8 +365,15 @@ function betportalWs(state: { variant: FixtureVariant | null }, log: (path: stri
 }
 
 /** Démarre les trois sites (ou ceux demandés) sur 127.0.0.1, ports libres. */
-export async function startLocalSites(opts: { variants?: Partial<Record<FixtureSiteKey, FixtureVariant | null>>; only?: FixtureSiteKey[] } = {}): Promise<LocalSites> {
-  const states = Object.fromEntries(FIXTURE_SITE_KEYS.map((k) => [k, { variant: opts.variants?.[k] ?? null }])) as Record<FixtureSiteKey, { variant: FixtureVariant | null }>;
+export async function startLocalSites(
+  opts: {
+    variants?: Partial<Record<FixtureSiteKey, FixtureVariant | null>>;
+    only?: FixtureSiteKey[];
+  } = {},
+): Promise<LocalSites> {
+  const states = Object.fromEntries(
+    FIXTURE_SITE_KEYS.map((k) => [k, { variant: opts.variants?.[k] ?? null }]),
+  ) as Record<FixtureSiteKey, { variant: FixtureVariant | null }>;
   const requests: LocalRequest[] = [];
   const servers: Server[] = [];
   const sockets = new Set<Socket>();
@@ -246,7 +381,13 @@ export async function startLocalSites(opts: { variants?: Partial<Record<FixtureS
   for (const key of opts.only ?? FIXTURE_SITE_KEYS) {
     const handler = siteHandler(key, states[key]);
     const server = createServer((req, res) => {
-      requests.push({ site: key, method: req.method ?? "GET", path: req.url ?? "/", at: Date.now(), variant: states[key].variant });
+      requests.push({
+        site: key,
+        method: req.method ?? "GET",
+        path: req.url ?? "/",
+        at: Date.now(),
+        variant: states[key].variant,
+      });
       try {
         handler(req, res);
       } catch (err) {
@@ -260,7 +401,15 @@ export async function startLocalSites(opts: { variants?: Partial<Record<FixtureS
     if (key === "betportal")
       server.on(
         "upgrade",
-        betportalWs(states[key], (path) => requests.push({ site: key, method: "WS", path, at: Date.now(), variant: states[key].variant })),
+        betportalWs(states[key], (path) =>
+          requests.push({
+            site: key,
+            method: "WS",
+            path,
+            at: Date.now(),
+            variant: states[key].variant,
+          }),
+        ),
       );
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const port = (server.address() as AddressInfo).port;

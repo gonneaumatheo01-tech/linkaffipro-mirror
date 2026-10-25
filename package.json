@@ -50,6 +50,7 @@
     "agents:status": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/agents-status.ts",
     "agents:capture-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-runner.ts",
     "agents:capture-token": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/capture-token.ts",
+    "agents:migrate-bet-categories": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/migrate-bet-categories.ts",
     "agents:bookmaker-runner": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/bookmaker-runner.ts",
     "agents:runner:install": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts install",
     "agents:runner:uninstall": "node --env-file-if-exists=.env.local --import tsx apps/worker/scripts/runner-install.ts uninstall",

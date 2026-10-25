@@ -182,6 +182,10 @@ export const AGENTS_JARGON: JargonRule[] = [
   // Équipe Paris sportifs (phase 23) : « adresse internet de secours » en surface, le terme au survol (`Term`).
   { word: "Playwright", re: word("playwright"), instead: "capture d'écran" },
   { word: "proxy", re: word("prox(?:y|ies)"), instead: "adresse internet de secours" },
+  // Bookmakers lus directement (phase 35) : « méthode de lecture apprise » en surface, jamais le mot du moteur.
+  { word: "recette", re: word("recettes?"), instead: "méthode de lecture apprise" },
+  { word: "scraping", re: word("scrap(?:ing|er|é|ée|és|ées)?"), instead: "lecture du site" },
+  { word: "DOM", re: word("DOM", "u"), instead: "page affichée" },
 ];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */

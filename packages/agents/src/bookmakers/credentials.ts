@@ -36,15 +36,22 @@ export type SiteCredentials = BookmakerCredentials & { source: "site" | "default
 export { parseDefaultCredentials };
 
 /** Identifiants d'un site : les siens d'abord (phase 23), sinon les communs. Côté serveur seulement. */
-export async function readBookmakerCredentialsFor(deps: Pick<AgentsDeps, "prisma">, siteKey: string): Promise<SiteCredentials | null> {
+export async function readBookmakerCredentialsFor(
+  deps: Pick<AgentsDeps, "prisma">,
+  siteKey: string,
+): Promise<SiteCredentials | null> {
   const own = await readBookmakerCredentials(deps.prisma, siteKey);
   if (own) return { ...own, source: "site" };
-  const common = parseDefaultCredentials(await readSecret(deps.prisma, BOOKMAKER_DEFAULT_CREDENTIALS_KEY));
+  const common = parseDefaultCredentials(
+    await readSecret(deps.prisma, BOOKMAKER_DEFAULT_CREDENTIALS_KEY),
+  );
   return common ? { ...common, source: "default" } : null;
 }
 
 // Le transport (chantier A) lit les identifiants par cette même règle (propres d'abord, sinon communs).
-setBookmakerCredentialsReader((deps, siteKey) => readBookmakerCredentialsFor(deps as Pick<AgentsDeps, "prisma">, siteKey));
+setBookmakerCredentialsReader((deps, siteKey) =>
+  readBookmakerCredentialsFor(deps as Pick<AgentsDeps, "prisma">, siteKey),
+);
 
 /** Des identifiants communs sont-ils rangés ? (sans jamais lire la valeur hors du serveur) */
 export async function hasDefaultCredentials(deps: Pick<AgentsDeps, "prisma">): Promise<boolean> {
@@ -55,7 +62,10 @@ export async function hasDefaultCredentials(deps: Pick<AgentsDeps, "prisma">): P
 export async function credentialsSummary(
   deps: Pick<AgentsDeps, "prisma">,
   siteKeys: readonly string[],
-): Promise<{ common: { set: boolean; updatedAt: Date | null }; sites: Record<string, "site" | "default" | null> }> {
+): Promise<{
+  common: { set: boolean; updatedAt: Date | null };
+  sites: Record<string, "site" | "default" | null>;
+}> {
   const common = await secretSummary(deps.prisma, BOOKMAKER_DEFAULT_CREDENTIALS_KEY);
   const sites: Record<string, "site" | "default" | null> = {};
   for (const k of siteKeys) {
@@ -65,21 +75,39 @@ export async function credentialsSummary(
   return { common: { set: common.set, updatedAt: common.updatedAt }, sites };
 }
 
-export type AskCredentialsResult = { asked: boolean; reason: "asked" | "already_saved" | "already_asked" };
+export type AskCredentialsResult = {
+  asked: boolean;
+  reason: "asked" | "already_saved" | "already_asked";
+};
 
 /**
- * Kevin demande les identifiants communs en privé (une seule fois) : e-mail puis mot de passe. `force` (l'admin dit
- * « mes identifiants bookmakers ont changé ») : redemande même s'ils existent.
+ * Kevin demande les identifiants communs en privé (une seule fois) : e-mail puis mot de passe. `auto` (santé des
+ * bookmakers) : jamais une deuxième fois ; demande de l'admin (« identifiants bookmakers ») : redemande si aucune
+ * question n'est ouverte ; `force` (« nouveaux identifiants bookmakers ») : redemande même s'ils existent.
  */
-export async function askBookmakerCredentials(deps: AgentsDeps, opts: { force?: boolean } = {}): Promise<AskCredentialsResult> {
+export async function askBookmakerCredentials(
+  deps: AgentsDeps,
+  opts: { force?: boolean; auto?: boolean } = {},
+): Promise<AskCredentialsResult> {
   if (!opts.force) {
     if (await hasDefaultCredentials(deps)) return { asked: false, reason: "already_saved" };
-    if ((await readSetting(deps, CREDENTIALS_ASKED_SETTING)) !== undefined) {
-      const open = await deps.prisma.humanRequest.findFirst({ where: { key: { in: [DEFAULT_LOGIN_REQUEST_KEY, DEFAULT_PASSWORD_REQUEST_KEY] }, status: { in: ["QUEUED", "PENDING"] } } });
+    const asked = (await readSetting(deps, CREDENTIALS_ASKED_SETTING)) !== undefined;
+    // Demande automatique (santé, mise en route) : une seule fois pour toujours, même après un « plus tard ».
+    if (opts.auto && asked) return { asked: false, reason: "already_asked" };
+    if (asked) {
+      const open = await deps.prisma.humanRequest.findFirst({
+        where: {
+          key: { in: [DEFAULT_LOGIN_REQUEST_KEY, DEFAULT_PASSWORD_REQUEST_KEY] },
+          status: { in: ["QUEUED", "PENDING"] },
+        },
+      });
       if (open) return { asked: false, reason: "already_asked" };
     }
   }
-  await writeSetting(deps, CREDENTIALS_ASKED_SETTING, { askedAt: nowOf(deps).toISOString(), force: opts.force === true });
+  await writeSetting(deps, CREDENTIALS_ASKED_SETTING, {
+    askedAt: nowOf(deps).toISOString(),
+    force: opts.force === true,
+  });
   await askHuman(deps, {
     teamKey: "sports",
     kind: "SECRET",
@@ -101,23 +129,47 @@ export async function askBookmakerCredentials(deps: AgentsDeps, opts: { force?: 
  * Range le secret commun depuis les deux réponses (e-mail et mot de passe), efface les deux clés temporaires. Rend
  * `false` s'il manque l'une des deux. Aucune valeur n'est journalisée (le journal de `saveSecret` n'a que la clé).
  */
-export async function combineDefaultCredentials(deps: AgentsDeps, actor: ActorRef): Promise<boolean> {
-  const [login, password] = await Promise.all([readSecret(deps.prisma, DEFAULT_LOGIN_REQUEST_KEY), readSecret(deps.prisma, DEFAULT_PASSWORD_REQUEST_KEY)]);
+export async function combineDefaultCredentials(
+  deps: AgentsDeps,
+  actor: ActorRef,
+): Promise<boolean> {
+  const [login, password] = await Promise.all([
+    readSecret(deps.prisma, DEFAULT_LOGIN_REQUEST_KEY),
+    readSecret(deps.prisma, DEFAULT_PASSWORD_REQUEST_KEY),
+  ]);
   if (!login || !password) return false;
-  await saveSecret(deps, BOOKMAKER_DEFAULT_CREDENTIALS_KEY, JSON.stringify({ email: login.trim(), password }), actor);
-  await deps.prisma.setting.deleteMany({ where: { key: { in: [secretSettingKey(DEFAULT_LOGIN_REQUEST_KEY), secretSettingKey(DEFAULT_PASSWORD_REQUEST_KEY)] } } });
+  await saveSecret(
+    deps,
+    BOOKMAKER_DEFAULT_CREDENTIALS_KEY,
+    JSON.stringify({ email: login.trim(), password }),
+    actor,
+  );
+  await deps.prisma.setting.deleteMany({
+    where: {
+      key: {
+        in: [
+          secretSettingKey(DEFAULT_LOGIN_REQUEST_KEY),
+          secretSettingKey(DEFAULT_PASSWORD_REQUEST_KEY),
+        ],
+      },
+    },
+  });
   return true;
 }
 
 /** Testeur des sites (connexion + une lecture), fourni par `actions.ts` (évite une dépendance circulaire). */
-type TestAll = (deps: AgentsDeps, actor: ActorRef) => Promise<{ queued: string[]; skipped: string[] }>;
+type TestAll = (
+  deps: AgentsDeps,
+  actor: ActorRef,
+) => Promise<{ queued: string[]; skipped: string[] }>;
 let testAllSites: TestAll | null = null;
 export function registerTestAllSites(fn: TestAll | null): void {
   testAllSites = fn;
 }
 
 registerAnswerAction("bookmakers-default-credentials", async (deps, { actor }) => {
-  if (!(await combineDefaultCredentials(deps, actor))) return pick(V.credentialsIncomplete, "bookmakers.credentialsIncomplete");
+  if (!(await combineDefaultCredentials(deps, actor)))
+    return pick(V.credentialsIncomplete, "bookmakers.credentialsIncomplete");
   await askHuman(deps, {
     teamKey: "sports",
     kind: "CONFIRM",

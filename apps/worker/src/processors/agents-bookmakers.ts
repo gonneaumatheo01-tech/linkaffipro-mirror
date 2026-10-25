@@ -3,6 +3,7 @@ import {
   bookmakerKevinHook,
   bookmakerTransportHooks,
   claimReadJob,
+  createMacTransport,
   createServerTransport,
   executeReadJob,
   HIGH_LEVEL_JOB_KINDS,
@@ -35,9 +36,11 @@ export function bookmakersDeps(base: AgentsDeps = workerAgentsDeps()): AgentsDep
 
 async function runJobs(deps: AgentsDeps, jobs: ReadJobRow[]): Promise<Record<string, number>> {
   const server = createServerTransport(deps);
+  // Travail « mac » orchestré ici (Mac muet ou sorte non annoncée) : lu par le Mac, jamais par le serveur à sa place.
+  const mac = createMacTransport(deps);
   const out: Record<string, number> = {};
   const results = await Promise.all(
-    jobs.map((j) => executeReadJob(deps, j, { server, baseUrlOf: async (k) => (await loadSiteAccess(deps, k))?.baseUrl ?? null })),
+    jobs.map((j) => executeReadJob(deps, j, { server, mac, baseUrlOf: async (k) => (await loadSiteAccess(deps, k))?.baseUrl ?? null })),
   );
   for (const r of results) out[r] = (out[r] ?? 0) + 1;
   return out;

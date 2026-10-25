@@ -25,6 +25,8 @@ import { ensurePickImage } from "./pick-image";
 import { parseSportsSettings, withTeamBounds, type SportsSettings } from "./settings";
 import { skipPick } from "./skip";
 import type { PickReasoning } from "../agents/cotes/select";
+import { isDirectPick, verifyDirectOdds } from "./direct-odds";
+import { BOOKMAKER_LIMITS } from "../bookmakers/contract";
 
 type Loaded = { pick: PickRow; category: BetCategoryInfo; s: SportsSettings };
 
@@ -95,7 +97,11 @@ function contentProblems(ctx: AgentContext, s: SportsSettings, text: string): st
   }).problems.map((x) => x.message);
 }
 
-/** Cote actuelle chez le bookmaker du pari (relue sans cache). */
+/** Pari de test (faux fournisseur) : jamais lu sur un vrai site. */
+function isFakePick(mission: Mission, pick: PickRow): boolean {
+  return (pick.reasoning as { source?: string } | null)?.source === "fake" || mission.payload.oddsSource === "fake";
+}
+
 /**
  * Cote actuelle chez le bookmaker du pari (relue sans cache). Clé absente ou plafond d'appels atteint : `skip` (le pari
  * est écarté, la mission annulée SANS compter d'échec : ce n'est pas une panne, l'équipe ne se met pas en pause).
@@ -122,11 +128,20 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
   const ko = kickoffCheck(pick.kickoffAt, now, category.minMinutesBeforeKickoff);
   if (!ko.ok) return skipPick(ctx, mission, pick, ko.reason);
   if (isDuplicatePick(pick, await recentPickKeys(ctx.prisma, now, pick.id), now)) return skipPick(ctx, mission, pick, "pari identique publié dans les 48 h");
-  const cur = await currentOdds(mission, ctx, pick, s);
-  if ("skip" in cur) return skipPick(ctx, mission, pick, cur.skip);
-  const drift = checkOddsDrift(pick.odds, cur.odds, category.maxOddsDriftPct);
-  if (!drift.ok) return skipPick(ctx, mission, pick, drift.reason, { code: drift.code, oddsAtSend: drift.current });
-  await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { oddsAtSend: drift.current } });
+  let drift: { current: number; driftPct: number };
+  if (isDirectPick(pick) && !isFakePick(mission, pick)) {
+    // Phase 35 : cote lue sur le site du client → double lecture (deux chemins, identiques, à moins de 3 min).
+    const v = await verifyDirectOdds(mission, ctx, pick, category, "controle");
+    if (!("ok" in v)) return v.result;
+    drift = { current: v.odds, driftPct: v.driftPct };
+  } else {
+    const cur = await currentOdds(mission, ctx, pick, s);
+    if ("skip" in cur) return skipPick(ctx, mission, pick, cur.skip);
+    const d = checkOddsDrift(pick.odds, cur.odds, category.maxOddsDriftPct);
+    if (!d.ok) return skipPick(ctx, mission, pick, d.reason, { code: d.code, oddsAtSend: d.current });
+    drift = d;
+    await ctx.prisma.bettingPick.update({ where: { id: pick.id }, data: { oddsAtSend: drift.current } });
+  }
   // Cote relue différente de celle du texte : texte remis à la cote vérifiée, puis contrôlé (jamais une vieille cote).
   const fresh = textWithOdds(p, pick, s, drift.current);
   const rewritten = fresh.changed ? { text: fresh.text, textOdds: drift.current } : {};
@@ -176,8 +191,16 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
   if (!ko.ok) return skipPick(ctx, mission, pick, `au moment de publier : ${ko.reason}`);
   let oddsAtSend = typeof p.oddsAtControl === "number" ? p.oddsAtControl : pick.oddsAtSend;
   const checkedAt = typeof p.controlCheckedAt === "string" ? new Date(p.controlCheckedAt).getTime() : 0;
-  // Validation longue : la cote est relue avant l'envoi (jamais une vieille cote).
-  if (!oddsAtSend || now.getTime() - checkedAt > s.recheckAfterMinutes * 60_000) {
+  if (isDirectPick(pick) && !isFakePick(mission, pick)) {
+    // Phase 35 : la double lecture du Contrôle doit avoir moins de 3 minutes au moment de publier, sinon elle est
+    // refaite (jamais une cote publiée sur une seule lecture ni sur une lecture trop ancienne).
+    if (!oddsAtSend || now.getTime() - checkedAt > BOOKMAKER_LIMITS.doubleReadWindowMs) {
+      const v = await verifyDirectOdds(mission, ctx, pick, category, "publication");
+      if (!("ok" in v)) return v.result;
+      oddsAtSend = v.odds;
+    }
+  } else if (!oddsAtSend || now.getTime() - checkedAt > s.recheckAfterMinutes * 60_000) {
+    // Validation longue : la cote est relue avant l'envoi (jamais une vieille cote).
     const cur = await currentOdds(mission, ctx, pick, s);
     if ("skip" in cur) return skipPick(ctx, mission, pick, `au moment de publier : ${cur.skip}`);
     const drift = checkOddsDrift(pick.odds, cur.odds, category.maxOddsDriftPct);

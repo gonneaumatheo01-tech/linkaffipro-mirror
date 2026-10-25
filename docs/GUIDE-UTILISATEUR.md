@@ -1018,6 +1018,30 @@ Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Paris sportifs. La fic
 
 **Si la capture échoue** (le test de connexion dit « bloqué », par exemple à cause d'une vérification « je ne suis pas un robot » ou d'un blocage par pays), deux solutions, dans cet ordre : (1) une **adresse internet de secours** résidentielle, achetée chez un service d'adresses résidentielles, à envoyer au bot (ou à coller dans **Bookmakers → Adresse internet de secours des captures**), puis refaites **Tester la connexion** ; (2) la **capture depuis votre Mac** : l'équipe vous donne la marche à suivre exacte, une seule commande à lancer, qui fait les captures depuis votre connexion. En attendant, l'équipe fabrique une image de repli (match, marché, cote, bookmaker, mention « capture indisponible ») et vous la fait toujours valider.
 
+### Bookmakers
+
+Le système va lui-même sur le site de vos bookmakers (**Celsius**, **Sportaza** et **Bet Portal** au départ), avec votre compte, et lit les matchs du jour et des jours suivants, les marchés (résultat, buts, corners, cartons…) et les cotes. L'équipe Paris sportifs choisit ensuite ses paris **sur ces cotes-là**, les cotes exactes de votre bookmaker. Ouvrez **Agents**, puis l'onglet **Bookmakers**.
+
+**Ce qui est lu** : la liste des matchs (ligue, équipes, heure), les marchés proposés et leurs cotes, telles que le site les affiche (noms du site gardés tels quels). Une cote n'est publiée que si elle a été lue **deux fois, par deux chemins différents, à moins de 3 minutes d'écart, à l'identique** ; sinon le pari attend et Kevin vous envoie la capture. Aucune cote n'est inventée ou arrondie : un marché que le site ne propose pas n'existe pas pour l'équipe.
+
+**Ce qui n'est JAMAIS fait** : miser, déposer, retirer de l'argent, ouvrir le panier ou un bonus. Ces pages sont interdites au lecteur, et aucun bouton de mise ne peut être cliqué. Le compte ne sert qu'à voir. Le site est lu lentement (une page toutes les 2 à 5 secondes, jamais plus de 60 par minute), jamais la nuit (1 h - 7 h), et aucune donnée d'autres joueurs n'est lue.
+
+**La page, site par site** :
+
+- **État** : **Se lit bien**, **Se lit mal** (moins de 90 % de lectures réussies sur 24 h), **Ne se lit plus** (avec la raison et le geste à faire), **En apprentissage** ou **Pas encore appris**. Le contrôle tourne toutes les 30 minutes.
+- **Lu par** : le **serveur**, ou votre **Mac** quand le site refuse le serveur. **Dernier succès** et **Réussite sur 24 h**.
+- **Méthode de lecture apprise** : le système apprend chaque site une fois (comment il charge ses cotes), puis lit par le chemin le plus stable : **lecture directe des données du site**, **lecture de la page** ou, en secours pour vérifier une seule cote, **lecture de l'image**. La version, la date et les marchés reconnus sont affichés. Quand un site change, il le réapprend tout seul (au plus une fois par jour).
+- **Dernières lectures** : chaque lecture (test, matchs, cotes, apprentissage, navigateur) avec son heure, où elle a été faite et son résultat.
+- **Matchs du jour** : les matchs lus dans les 20 dernières minutes, avec le nombre de marchés.
+- **Écart avec les autres bookmakers** : pour les paris retenus, la cote du site comparée à la cote moyenne des autres bookmakers ; au-delà de 15 %, le pari est signalé « cote inhabituelle » (il n'est pas bloqué).
+- **Boutons** (administrateurs) : **Tester** (connexion et une lecture des matchs ; Kevin vous donne le résultat), **Ré-apprendre** (quelques minutes ; Kevin prévient à la fin), **Ouvrir le navigateur sur le Mac** et **Changer l'adresse** du site. Chaque geste est noté dans le journal. Les autres membres de l'équipe voient tout en lecture.
+
+**Identifiants** : un seul e-mail et un seul mot de passe pour tous les bookmakers. Kevin vous les demande une seule fois, en privé, et efface vos messages aussitôt ; ils sont rangés chiffrés et ne sont jamais montrés, ni à l'IA, ni dans le journal. S'ils changent : écrivez à Kevin « nouveaux identifiants bookmakers ».
+
+**Quand Kevin vous demande d'ouvrir le navigateur sur le Mac** (le site demande un contrôle « je ne suis pas un robot » ou un code de connexion) : répondez-lui « ouvre le navigateur sur le Mac » (ou cliquez sur **Ouvrir le navigateur sur le Mac** ici). Une fenêtre s'ouvre sur le Mac, sur le site : passez le contrôle ou tapez le code reçu, puis laissez la fenêtre. Le système reprend la lecture tout seul et Kevin vous le confirme. Le Mac doit être allumé, session ouverte.
+
+**Parler à Kevin** : « quels matchs sur Sportaza ce soir ? », « demain chez Celsius en Ligue 1 », « il y a des corners sur le PSG ? », « la cote de PSG gagne chez Sportaza ? » (lue deux fois, avec l'heure), « les bookmakers ça va ? », « le Mac lit ? », « teste Celsius », « apprends le site Bet Portal », « Bet Portal c'est betportal.com, apprends-le », « ajoute le bookmaker X, c'est x.com ».
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.
