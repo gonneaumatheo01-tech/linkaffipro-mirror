@@ -226,7 +226,7 @@ afterAll(async () => {
 describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (base réelle, faux Telegram)", () => {
   it("1. « Kevin, inspire-toi de t.me/… pour Roulette » : accusé, lecture en file, aucune autre réponse", async () => {
     const out = await say(`Kevin, inspire-toi de t.me/${REF_PUBLIC} pour Roulette`);
-    expect(out).toContain(`Je lis @${REF_PUBLIC}, je reviens dans quelques minutes.`);
+    expect(out).toMatch(new RegExp(`je lis @${REF_PUBLIC}`, "i"));
     const ref = await prisma.referenceChannel.findFirstOrThrow({ where: { username: REF_PUBLIC } });
     expect(ref).toMatchObject({ universe: "casino", targetChannelIds: [ids.roulette] });
     expect(enqueued.some((e) => e.job.type === "inspiration-read" && (e.job as { referenceChannelId: string }).referenceChannelId === ref.id)).toBe(true);
@@ -243,7 +243,7 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
     const sent = sentSince(m);
     expect(sent).toHaveLength(1);
     const lines = sent[0]!.split("\n");
-    expect(lines.at(-1)).toBe("Tu veux voir le détail ou mes propositions ?");
+    expect(lines.at(-1)).toMatch(/détail.*propositions/i);
     expect(lines.length - 2).toBeLessThanOrEqual(6);
     const a = await analyzeReference(agents(), ref.id);
     if ("tooFew" in a) throw new Error("trop peu de posts lus");
@@ -332,14 +332,15 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
 
   it("8. canal privé sans compte membre : Kevin demande 10 à 30 posts transférés", async () => {
     const out = await say(`Kevin, inspire-toi de t.me/${REF_PRIVATE} pour Roulette`);
-    expect(out).toContain(`Je lis @${REF_PRIVATE}`);
+    expect(out).toMatch(new RegExp(`je lis @${REF_PRIVATE}`, "i"));
     const ref = await prisma.referenceChannel.findFirstOrThrow({ where: { username: REF_PRIVATE } });
     const m = mark();
     const r = await runReferenceRead(readDeps(), ref.id, io);
     expect(r.status).toBe("UNAVAILABLE");
     const sent = sentSince(m).join("\n");
     expect(sent).toContain(`Je ne peux pas lire @${REF_PRIVATE}`);
-    expect(sent).toContain("Transfère-moi 10 à 30 de ses posts");
+    expect(sent).toMatch(/10 à 30 de ses posts/);
+    expect(sent).not.toMatch(/\.\)\./);
   });
 
   it("9. 25 posts transférés (forward_origin canal, une injection comprise) : une réponse, puis le résumé ; rien à l'IA", async () => {
@@ -365,8 +366,9 @@ describe("canal d'inspiration : Kevin lit, résume, propose, applique, annule (b
     expect(await prisma.referencePost.count({ where: { referenceChannelId: ref.id } })).toBe(25);
     await inspirationForwardAck(agents(), acks[0]!.job as { chatKey: string });
     const sent = sentSince(m);
-    expect(sent[0]).toContain(`25 posts de @${REF_PRIVATE} rangés`);
-    expect(sent.at(-1)).toContain("Tu veux voir le détail ou mes propositions ?");
+    expect(sent[0]).toContain(`@${REF_PRIVATE}`);
+    expect(sent[0]).toMatch(/25 posts/);
+    expect(sent.at(-1)).toMatch(/détail.*propositions/i);
     expect(fakeBossLlm.calls.interpret.length).toBe(interpretBefore);
     expect((await prisma.agentTeamConfig.findUnique({ where: { teamKey: "casino" } }))?.simulation).not.toBe(false);
     expect(await prisma.referenceChannel.findUniqueOrThrow({ where: { id: ref.id } })).toMatchObject({ status: "READY", telegramChatId: -1005550001n });

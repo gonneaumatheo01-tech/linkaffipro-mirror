@@ -268,7 +268,7 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     canDelete = false;
     m = mark();
     await toBoss(groupMsg(MARC, `la clé : ${KEY}`));
-    expect(sentSince(m).find((s) => s.chat === GROUP)!.text).toContain("efface vite ton message");
+    expect(sentSince(m).find((s) => s.chat === GROUP)!.text).toMatch(/efface/i);
     canDelete = true;
     expect(await prisma.setting.findUnique({ where: { key: "agents.secret.providers.odds.apiKey" } })).toBeNull();
     // Léa (pas sa demande) en privé : retirée, jamais rangée.
@@ -291,7 +291,10 @@ describe("Kevin dans le groupe de l'équipe : scénario complet (base réelle, f
     let m = mark();
     await say(groupMsg(LEA, "Kevin, passe le casino en vrai"));
     const ask = sentSince(m).find((s) => s.chat === GROUP)!;
-    expect(ask.text).toMatch(/^@matheo Léa demande : passer l'équipe Casino en vrai\. OUI \?/);
+    expect(ask.text).toMatch(/^@matheo Léa demande/);
+    expect(ask.text).toMatch(/casino/i);
+    expect(ask.text).toMatch(/vrai/i);
+    expect(ask.text).toMatch(/OUI/);
     const yes = (ask.payload.reply_markup as { inline_keyboard: Array<Array<{ callback_data: string }>> }).inline_keyboard.flat().find((b) => /:yes$/.test(b.callback_data))!;
     // Léa répond OUI à Kevin : refusé.
     m = mark();

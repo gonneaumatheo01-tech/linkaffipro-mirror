@@ -238,7 +238,7 @@ describe("analyser un canal par Kevin", () => {
     const ref = await readyReference();
     await kit.prisma.referenceChannel.update({ where: { id: ref.id }, data: { status: "UNAVAILABLE", unavailableReason: "canal privé" } } as never);
     await afterReferenceRead(kit.deps, ref.id);
-    expect(kit.sent[0]!.html).toMatch(/@roulette_pro.*\(canal privé\)/);
+    expect(kit.sent[0]!.html).toMatch(/@roulette_pro.*canal privé/);
     expect(kit.sent[0]!.html).toMatch(/10 à 30 de ses posts/);
   });
 
@@ -526,7 +526,7 @@ describe("relecture adverse : défauts corrigés", () => {
     fakeReader(joins);
     await kit.prisma.telegramUserAccount.create({ data: { label: "Lea", phone: "+33600000001", sessionEncrypted: "x", status: "ACTIVE", isActive: true, personaId: null, botId: null } } as never);
     const byMember = await say("entre dans t.me/+AbCdEf123 pour Casino VIP", memberCtx);
-    expect(byMember).toContain("je lui ai transmis");
+    expect(byMember).toMatch(/je lui ai transmis/i);
     expect(joins).toHaveLength(0);
     // Canal cible sans univers : refus avant toute tentative.
     expect(await say("entre dans t.me/+AbCdEf123 pour le canal test")).toMatch(/univers/);
@@ -556,7 +556,7 @@ describe("relecture adverse : défauts corrigés", () => {
     await readyReference();
     await say("tes propositions ?");
     const r = await say("applique 1", memberCtx);
-    expect(r).toContain("je lui ai transmis");
+    expect(r).toMatch(/je lui ai transmis/i);
     expect(kit.tables("recommendation").some((x) => x.status === "APPLIED")).toBe(false);
     const a = INSPIRATION_ACTIONS.find((x) => x.key === "appliquer_inspiration")!;
     expect(await a.classify!({ ...kit.deps, speaker: member, chat: memberCtx.chat } as never, { numeros: "1" })).toBe("confirm");

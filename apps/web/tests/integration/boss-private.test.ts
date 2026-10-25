@@ -217,7 +217,9 @@ describe("Kevin en privé : scénario complet (base réelle, faux Telegram, faus
     const casinoCalls = hooked.slice(m.h).filter((c) => c.bot === "casino");
     expect(casinoCalls.some((c) => c.method === "deleteMessage" && c.payload.message_id === u.message!.message_id)).toBe(true);
     const replies = casinoCalls.filter((c) => c.method === "sendMessage").map((c) => String(c.payload.text));
-    expect(replies.join("\n")).toContain("Envoie /start à @kevin_boss_bot");
+    // Voix de Kevin (phase 33) : la phrase varie, l'information reste (bot enregistré, /start à envoyer).
+    expect(replies.join("\n")).toContain("@kevin_boss_bot");
+    expect(replies.join("\n")).toMatch(/\/start/);
     // Jamais le jeton en clair : ni dans les réponses, ni dans le journal, ni dans la mémoire du Boss.
     expect(replies.join("\n")).not.toContain("BOSS-TOKEN");
     const logged = JSON.stringify(await prisma.event.findMany({ where: { type: "telegram.message" }, select: { payload: true } }));
@@ -335,7 +337,8 @@ describe("Kevin en privé : scénario complet (base réelle, faux Telegram, faus
     await toCasino(text(ADMIN, "agents"));
     await toCasino(text(ADMIN, "pause casino"));
     const sent = hooked.slice(m.h).filter((c) => c.bot === "casino" && c.method === "sendMessage").map((c) => String(c.payload.text));
-    expect(sent).toEqual(["Parle-moi sur @kevin_boss_bot (Kevin) 👉"]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toContain("@kevin_boss_bot");
     expect((await teamCasino())?.paused).toBe(false);
   });
 

@@ -452,7 +452,12 @@ export const INSPIRATION_KEVIN_VARIANTS = {
       { label: "@roulette_pro", reason: "", fMin: 10, fMax: 30 },
     ],
     (p) => {
-      const why = p.reason ? ` (${p.reason})` : "";
+      // La raison vient de la lecture (« @x n'a pas d'aperçu public… ») : sans le nom répété ni le point final.
+      const reason = p.reason
+        .trim()
+        .replace(new RegExp(`^${p.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "")
+        .replace(/[.\s]+$/, "");
+      const why = reason ? ` : ${reason}` : "";
       return [
         `Je ne peux pas lire ${p.label}${why}. Tu me transfères ${p.fMin} à ${p.fMax} de ses posts ici ? Je les range et je l'analyse.`,
         `${p.label}, je n'arrive pas à le lire${why}. Transfère-moi ${p.fMin} à ${p.fMax} de ses posts ici, je les range et je l'analyse.`,
