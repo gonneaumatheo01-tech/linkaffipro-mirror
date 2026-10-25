@@ -424,6 +424,7 @@ const VERTICAL_UNIVERSE: Record<string, string> = { CASINO: "casino", SPORTS: "s
 export function referenceLabelForPrompt(ref: { username: string | null; title: string | null }): string {
   if (ref.username && /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(ref.username)) return `@${ref.username}`;
   const title = (ref.title ?? "")
+    // eslint-disable-next-line no-control-regex -- caractères de contrôle retirés d'un titre choisi par un tiers
     .replace(/[\u0000-\u001F\u007F<>"«»“”`]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

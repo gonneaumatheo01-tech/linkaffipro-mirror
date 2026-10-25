@@ -61,7 +61,8 @@ export function stripCopyHtml(s: string): string {
 
 /** Caractères invisibles ou de mise en forme (supprimés, jamais des séparateurs). */
 const INVISIBLE =
-  /[­͏؜ᅟᅠ឴឵᠋-᠏​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ\u{1D173}-\u{1D17A}\u{E0000}-\u{E007F}]/gu;
+  // eslint-disable-next-line no-misleading-character-class -- liste voulue de caractères invisibles à retirer (sélecteurs de variante compris)
+  /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\u{1D173}-\u{1D17A}\u{E0000}-\u{E007F}]/gu;
 
 /** Petites capitales et sosies cyrilliques / grecs que NFKD ne ramène pas aux lettres latines. */
 const LOOKALIKES: Record<string, string> = {
