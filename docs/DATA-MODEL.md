@@ -490,3 +490,20 @@ Migrations additives `20261024114623_phase26_boss` et `20261024121802_phase26_ke
 attente, 10 min), `boss.clarify` (liste numérotée d'une précision), `boss.groupChatId`, `boss.group.morning`,
 `boss.group.requests`, `boss.redirected.<botId>`, `boss.nudge.lastDay`, `telegram.webhookCheck`. `AgentUsage` équipe
 `boss`, poste `llm`.
+
+## Phase 27 : canal d'inspiration
+
+Migration additive `20261024172011_phase27_inspiration`.
+
+| Table / colonne | Rôle |
+| --- | --- |
+| `enum ReferenceVia` (`WEB`, `ACCOUNT`, `FORWARDED`), `enum ReferenceStatus` (`READING`, `READY`, `UNAVAILABLE`) | Voie de lecture et état d'un canal de référence. |
+| `ReferenceChannel` (`username`, `telegramChatId`, `title`, `via`, `universe`, `targetChannelIds`, `status`, `unavailableReason`, `accountId`, `addedByTelegramId`, `postCount`, `lastReadAt`, `nextReadAt`, `removedAt`) | Canal dont Kevin s'inspire ; jamais rejoint de force ; même univers que ses canaux cibles. |
+| `ReferencePost` (`externalId`, `postedAt`, `via`, `text` (30 jours) / `textPurgedAt`, `textHash`, `shingles` (suites de 8 mots hachées), mesures : longueur, lignes, emojis, média, vues, lien, bouton, prix, cote, appel VIP, `keywords`, `features`) | Caractéristiques d'un post lu ; aucun média téléchargé, aucun membre lu ; contrôle « jamais de copie » encore possible après l'effacement du texte. |
+| `StyleProfile` (`version`, `universe`, `stats`, `rules`, `description`, `examples` écrits à neuf, `flagged`, `costCents`) | Profil de style lu par la Rédaction. |
+| `ChannelAgentPlan.styleProfileId` | Profil de style appliqué au canal. |
+| `Recommendation.source` (`algo` par défaut, `inspiration`), `Recommendation.referenceChannelId` | Propositions issues d'un canal de référence (jamais appliquées seules par l'équipe Algorithme). |
+
+`Setting` : `inspiration.readLock`, `inspiration.readsToday`, `inspiration.choice.<chatId>`, `inspiration.thresholds`,
+`inspiration.shinglesV2`, `inspiration.eventsRedacted`, `userbot.request.<id>` et `userbot.mailbox.heartbeat` (boîte aux
+lettres de la lecture par compte réel). Bilans : `InsightReport` `teamKey = "inspiration"`.

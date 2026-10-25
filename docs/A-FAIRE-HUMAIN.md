@@ -55,7 +55,7 @@ Kevin est le bot à qui vous parlez de tout, en français ordinaire (texte ou vo
 
 ### 7. Canal d'inspiration privé : ajouter un compte réel (3 minutes, seulement pour un canal privé)
 Un canal public se lit tout seul : écrivez simplement à Kevin « inspire-toi de t.me/nomducanal pour Roulette ». Pour un canal **privé**, Kevin ne rejoint jamais rien de lui-même :
-1. Prenez le téléphone d'un de vos comptes réels (Réglages → Comptes Telegram, état **Connecté**), de préférence un compte qui ne discute avec personne.
+1. Prenez le téléphone d'un de vos comptes réels (Réglages → Comptes Telegram, état **Connecté**), **sans persona** (Kevin n'utilise jamais un compte qui discute avec des membres : dans Réglages → Comptes Telegram, la colonne persona doit être vide).
 2. Ouvrez Telegram sur ce téléphone → touchez le lien d'invitation du canal (`t.me/+…`) → **Rejoindre** (ou **Demander à rejoindre**, puis attendez d'être accepté).
 3. Écrivez à Kevin : « inspire-toi de <nom du canal> pour <votre canal> ». Il lit le canal avec ce compte, lentement, et vous répond.
 
