@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-25T03:24:31.827Z",
+  "updatedAt": "2026-10-25T07:16:13.312Z",
   "entries": [
     {
       "route": "/",
@@ -1185,7 +1185,7 @@
         "1440": "agents-boss-1440.webp"
       },
       "jsErrors": 0,
-      "capturedAt": "2026-10-24T16:33:58.540Z"
+      "capturedAt": "2026-10-25T07:16:07.991Z"
     },
     {
       "route": "/agents/casino",
@@ -1246,6 +1246,21 @@
       },
       "jsErrors": 0,
       "capturedAt": "2026-10-23T15:58:53.740Z"
+    },
+    {
+      "route": "/agents/orders",
+      "path": "/agents/orders",
+      "title": "Ordres",
+      "status": "ok",
+      "httpStatus": 200,
+      "redirectedTo": null,
+      "note": null,
+      "files": {
+        "390": "agents-orders-390.webp",
+        "1440": "agents-orders-1440.webp"
+      },
+      "jsErrors": 0,
+      "capturedAt": "2026-10-25T07:16:00.225Z"
     },
     {
       "route": "/agents/settings",
