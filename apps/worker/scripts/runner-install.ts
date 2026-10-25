@@ -97,7 +97,17 @@ function ensureToken(envFile: string, dry: boolean): void {
     return;
   }
   say("Clé d'accès du runner : je la demande au site (Railway)…");
-  const out = execFileSync("railway", ["ssh", "--service", "web", "--", "pnpm", "--silent", "agents:capture-token"], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  const ask = (env: NodeJS.ProcessEnv) =>
+    execFileSync("railway", ["ssh", "--service", "web", "--", "pnpm", "--silent", "agents:capture-token"], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], env });
+  let out: string;
+  try {
+    out = ask(process.env);
+  } catch (err) {
+    // Jeton Railway de `.env.local` refusé : nouvel essai avec la session du Mac (`railway login`), comme `env -u RAILWAY_API_TOKEN`.
+    if (!process.env.RAILWAY_API_TOKEN) throw err;
+    const { RAILWAY_API_TOKEN: _t, ...rest } = process.env;
+    out = ask(rest);
+  }
   const m = /CAPTURE_RUNNER_TOKEN=(\S+)/.exec(out);
   if (!m) throw new Error("clé d'accès introuvable dans la réponse de Railway (railway login ?)");
   appendFileSync(envFile, `\nCAPTURE_RUNNER_TOKEN=${m[1]}\n`);
