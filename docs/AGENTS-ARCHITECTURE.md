@@ -510,6 +510,12 @@ Rien n'est bloquant pour le développement : tout se construit et se teste en si
 - Kevin : `voir_matchs`, `cote_de`, `etat_bookmakers`, `apprendre_site`, `tester_site`, `ouvrir_navigateur`, ajout d'un bookmaker (`boss/catalog-bookmakers.ts`, `orders/capabilities/bookmakers.ts`). Site : Agents → Bookmakers.
 - Worker : file `agents-bookmakers` (travaux du serveur, ménage), tâche `bookmakers-health` 30 min. Mac : `pnpm agents:runner:install | status | uninstall`.
 
+### Phase 28 — Équipe Montage (vidéos longues → shorts casino)
+
+- Le client envoie une vidéo à Kevin en privé avec ses consignes ; agents nommables : Chef Montage, Réception, Découpe (Opus vision, plan de coupe), Monteur (ffmpeg, un seul passage), Habillage (sous-titres vérifiés, texte), Contrôle qualité montage. Aucun contenu inventé (ni fal.ai ni Magic Hour).
+- `packages/agents/src/montage/` : `ffmpeg/*` (moteur), `instructions`, `analyze`, `subtitles`, `qc-vision` (IA), `pipeline`, `storage`, `source`, `cleanup`, `diag` (chaîne reprenable, stockage dans Telegram), `reception`, `plan-message`, `preview`, `feedback`, `hooks` (Kevin) ; file `agents-montage` (une tâche à la fois) ; `boss/catalog-montage.ts`, `orders/capabilities/montage.ts`.
+- Chaque short part en aperçu chez le client (✅ / ✏️ / ❌) ; rien n'est publié sans ✅. Site : Agents → Montage.
+
 ### Durée
 
 Environ 3 semaines de travail autonome (1 à 3 jours par phase, comme les phases précédentes), le Mac restant allumé. Chaque phase est déployée et vérifiée avant la suivante ; tu peux basculer une équipe sur les vrais canaux dès que sa phase est livrée, sans attendre la fin.

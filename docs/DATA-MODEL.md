@@ -529,3 +529,10 @@ Migration additive `*_phase35_bookmakers`.
 - `BookmakerEvent` (cache des matchs, 20 min, `oddsEventId` = correspondance SportsGameOdds) et `BookmakerOdds` (une ligne par lecture avec son niveau api / dom / image ; cache 3 min).
 - `BettingPick.siteKey`, `siteEventId`, `oddsReadIds` (les deux lectures), `oddsLevel` (« api+dom », « dom+image »).
 - Settings : `providers.bookmakers.default.credentials` (secret commun chiffré), `bookmakers.lock.<site>`, `bookmakers.mac.heartbeat`, `bookmakers.learn.<site>`, santé par site.
+
+## Phase 28 : équipe Montage
+Migration additive `*_phase28_montage`.
+- `MediaAssetKind` + `LONG_VIDEO` (vidéo source du client) et `SHORT` (short produit) ; `MediaAsset.storage` (« db » / « telegram ») et `telegramRef` (conversation, message, bot, fichier) : vidéos longues et shorts gardés dans Telegram, `bytes` vide.
+- `MontageJob` : source, consignes comprises (`instructions`), conversation d'origine, statut PENDING → ANALYZING → PLAN_SENT → CUTTING → DRESSING → QC → PREVIEW → DONE / FAILED / CANCELLED, `currentStep` (reprise), `attempts`, métadonnées de la source, plan envoyé et accepté.
+- `ShortClip` : moment (début, fin, durée, description, note), format, caméra, vitesse, sous-titres (`subtitlesSrt` vérifié, `subtitlesPending` = doutes en attente du client), texte incrusté, statut PLANNED → CUTTING → DRESSING → QC → PREVIEW_SENT → APPROVED / REJECTED / QC_FAILED / REDO / CANCELLED, contrôle qualité, `compressed`, `previewMsgId`, retour du client, `redoCount` (version).
+- Réglages `montage.*` : format et durée par défaut, nombre de shorts maximum, seuil de confiance des sous-titres, qualité, style des sous-titres, plafond IA mensuel.

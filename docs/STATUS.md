@@ -1,3 +1,39 @@
+# État du projet : phase 28 (équipe Montage) terminée (26 octobre 2026)
+
+Phases 0 à 28, 33, 34 et 35 en ligne. Phase 28 (`docs/prompts/30-phase-28-montage-video.md`) : vous envoyez une vidéo longue à Kevin avec vos consignes en français courant ; l'équipe Montage propose un plan de coupe, fabrique les shorts (1080p, sous-titres vérifiés, caméra incrustée, texte), et chaque short vous est montré avant toute publication. **Rien ne part sans votre ✅.**
+
+## Fait
+- **Envoyer une vidéo** : en privé à Kevin, depuis votre compte Telegram (jusqu'à 2 Go, 3 heures), avec une phrase : « découpe ça en shorts de 15 secondes, cam en haut à droite, thème roulette », « fais des shorts pour TikTok avec sous-titres », « fais-moi 10 clips ». Kevin répond « J'ai reçu ta vidéo (47 min, 1080p) ». La vidéo n'entre jamais dans la base : elle reste dans votre conversation avec Kevin.
+- **Plan de coupe** : l'IA regarde une image toutes les 5 secondes et propose les meilleurs moments (début, fin, ce qui se passe, note sur 10). Vous répondez « ok », « enlève le 3 », « le 2, commence 2 secondes plus tôt », « garde que les 5 meilleurs ».
+- **Fabrication** : un seul passage par short, depuis la vidéo d'origine (qualité haute, 1080p, images par seconde gardées) : coupe, caméra en incrustation, format vertical / carré / horizontal, vitesse, sous-titres, texte. Un short de plus de 50 Mo est compressé une fois, et Kevin le dit.
+- **Sous-titres sans erreur** : deux écoutes indépendantes, comparées mot à mot, puis relues par l'IA ; au moindre doute, Kevin vous demande (« "martingale" ou "martindale" ? ») avant de les incruster.
+- **Contrôle qualité** : durée, taille d'image, image noire, son muet ou saturé, lisibilité des sous-titres.
+- **Aperçus** : chaque short arrive chez vous avec ✅ Valider / ✏️ Modifier / ❌ Refuser ; « le 5, raccourcis de 2 secondes », « cam en bas à gauche », « ajoute le texte "Gros gain" » ; à la fin : « envoie les validés dans le canal Roulette » (OUI pour un vrai canal).
+- **Reprise** : un montage interrompu (redémarrage, panne) reprend là où il en était ; un short déjà fait n'est pas refait. Fichiers temporaires effacés au fur et à mesure.
+- **Site** : Agents → **Montage** (travaux, plan en frise, shorts avec lecture, Valider / Modifier / Refuser, Annuler ; médiathèque des shorts et vidéos longues). Tout se fait aussi par Kevin (phase 34 : 229 actions du site, 0 manquante).
+
+## Test de 5 minutes
+1. Envoyez à Kevin, en privé, une vidéo courte (1 à 2 minutes) avec la légende « découpe ça en shorts de 15 secondes avec sous-titres ».
+2. Répondez « ok » au plan de coupe.
+3. Validez ou refusez les aperçus qui arrivent. Tout est visible dans Agents → Montage.
+
+## Vérifications faites
+- RESULTATS
+- Test de bout en bout sur base réelle, faux Telegram et fausse IA, avec le VRAI ffmpeg (image Docker identique au serveur) : vidéo + consignes → plan → « ok lance » → shorts fabriqués en un passage (1080x1920, H.264, AAC) → sous-titres (doute posé puis tranché) → contrôle → rangement → aperçu → ✅ ; modification, refus, annulation, reprise après plantage, aucun fichier temporaire restant, aucun octet de vidéo en base, seuls les shorts validés partent sur le canal Test.
+- Relecture adverse : 9 défauts corrigés avec un test, dont : un short refait pendant son rendu pouvait recevoir l'ancienne version ; un passage sans parole faisait tourner la file en boucle ; un message privé partait sans son short non validé ; le compte connecté pouvait télécharger le fichier d'un autre message ; un bouton d'un ancien aperçu décidait pour la nouvelle version ; la deuxième écoute des sous-titres était identique à la première (elle ne prouvait rien).
+- DEPLOIEMENT
+
+## Reste / limites
+- Rien n'a encore été essayé sur une vraie vidéo du client ni avec la vraie IA : le premier envoi dira si le plan de coupe choisit les bons moments.
+- Le compte Telegram connecté n'est pas Premium : une vidéo envoyée fait au plus 2 Go (limite de Telegram).
+- Coût de l'IA : environ 2 à 5 € par vidéo d'une heure (analyse des images et vérification des sous-titres) ; plafond mensuel de l'équipe 30 € (réglable).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Aucune obligatoire. Essayer le test de 5 minutes.
+
+---
+
 # État du projet : phase 34 (tout par Kevin) terminée (25 octobre 2026)
 
 Phases 0 à 27, 33, 34 et 35 en ligne. Phase 34 (`docs/prompts/36-phase-34-tout-par-kevin.md`) : tout ce qui se règle ou se lance sur le site se fait aussi en parlant à Kevin sur Telegram, avec **les mêmes fonctions, les mêmes droits et le même journal** que le site. Le site reste là pour regarder en grand. Les équipes d'agents restent en simulation.
