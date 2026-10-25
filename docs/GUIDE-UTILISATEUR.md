@@ -26,6 +26,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Aide « ? » et visite guidée](#aide-et-visite-guidee)
 - [Mon compte](#mon-compte)
 - [Où sont passées les anciennes pages ?](#ou-sont-passees-les-anciennes-pages)
+- [Tout faire par Kevin](#tout-faire-par-kevin)
 - [Règles à respecter](#regles-a-respecter)
 - [Petit lexique](#petit-lexique)
 
@@ -1537,6 +1538,31 @@ Le menu est passé de 12 entrées à 6 (plus Réglages). Rien n'a disparu : tout
 | Campagne → onglet Offres | Fiche de la campagne → **Vue d'ensemble** → **Offres Link Affi** |
 | Recalculer les statistiques (Tableau de bord → Campagnes) | **Statistiques** → **Pubs** → **Recalculer les statistiques** |
 | Aide (menu) | Bouton **?** en haut à droite, et la page **Aide** |
+
+## Tout faire par Kevin
+Tout ce qui se règle ou se lance sur le site peut aussi se faire en écrivant à Kevin sur Telegram, en une phrase. Kevin passe par exactement les mêmes vérifications que le site, avec les mêmes droits : un responsable de l'équipe ne peut faire par Kevin que ce qu'il peut faire sur le site. La liste complète, page par page, est dans `docs/KEVIN-PARITE.md`. Écrivez « aide » à Kevin pour les exemples par sujet, « aide campagnes » pour un sujet, ou « comment je fais pour … ? ».
+
+Une phrase type par page :
+- **Canaux** : « ajoute le canal t.me/xxx et mets-le en paris sportifs ».
+- **Messages** : transférez un message à Kevin puis « programme ça sur Zone Interdite demain 20 h ».
+- **Pages** : « crée une page pour Zone Interdite avec le titre « Rejoins-nous » et le bouton « Entrer » ».
+- **Campagnes et liens** : « crée une campagne pour Celsius en France à 120 € par joueur », « donne-moi un lien de suivi pour TikTok sur Zone Interdite ».
+- **Membres** : « mets l'étiquette VIP à Paul Martin ».
+- **Écrire à un groupe** : transférez le message puis « envoie ce message à tous les membres de Zone Interdite demain 20 h ».
+- **Relances automatiques** : « active la relance de bienvenue ».
+- **Conversations et personas** : « crée la persona Inès, 24 ans, Lyon, étudiante », puis envoyez ses photos.
+- **Agents** : « passe le casino en vrai », « monte le budget vidéo à 80 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
+- **Réglages** : « crée l'étiquette VIP en vert », « envoie-moi le rapport à 8 h au lieu de 9 h », « ajoute Léa à l'équipe comme responsable ».
+- **Connexions** : « connecte mon compte TikTok » (Kevin envoie un lien d'autorisation, puis vous choisissez les comptes par boutons).
+- **Statistiques** : « combien de premiers dépôts hier ? », « ajoute 150 € de dépense TikTok hier ».
+
+Ce que Kevin demande avant d'agir :
+- **OUI** pour ce qui touche un vrai canal, passe une équipe en vrai, dépense ou monte un plafond.
+- **SUPPRIMER** (le mot exact) pour ce qui supprime, efface, anonymise, purge, déconnecte ou révoque : un « oui » ne suffit pas.
+- **L'aperçu exact** du message et le nombre de destinataires, puis OUI, pour tout envoi à des membres.
+- Les clés, jetons et mots de passe se donnent **seulement en privé** : Kevin efface aussitôt votre message et les range chiffrés. Dans le groupe, il répond « envoie-le-moi en privé ».
+
+Ce qui reste sur le site (Kevin envoie le lien direct, valable 15 minutes et une seule fois) : se connecter, changer son mot de passe, accepter une invitation, relier son compte Telegram à son compte du site, taper le code de connexion d'un compte Telegram réel, et la visite guidée.
 
 ## Règles à respecter
 
