@@ -14,6 +14,7 @@ import { agentEvent } from "../admin/journal";
 import { readOddsTwice, type OddsTwiceResult } from "../bookmakers/read";
 import { emitHook, type BookmakerReadDeps } from "../bookmakers/read/deps";
 import { sameOddsExact } from "../bookmakers/read/odds-format";
+import { askHuman } from "../human/requests";
 import { checkOddsDrift } from "../rules/bets";
 import type { AgentContext, AgentResult, Mission } from "../types";
 import type { BetCategoryInfo, PickRow } from "./data";
@@ -22,6 +23,8 @@ import { skipPick } from "./skip";
 /** Sélections refaites au plus pour une même mission (cote qui bouge sans cesse : pari écarté). */
 export const MAX_RESELECTIONS = 2;
 export const MAX_RECAPTURES = 2;
+/** Attentes humaines au plus pour une même mission (cote jamais vérifiée deux fois : pari écarté ensuite). */
+export const MAX_ODDS_HOLDS = 2;
 
 export type DirectOddsOk = { ok: true; odds: number; driftPct: number; readIds: [string, string]; levels: string };
 
@@ -34,14 +37,27 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 /** Mission en attente de l'humain : la double lecture n'a pas pu valider la cote. Reprise : nouveau contrôle. */
 async function holdForHuman(ctx: AgentContext, mission: Mission, pick: PickRow & { siteKey: string }, r: Extract<OddsTwiceResult, { ok: false }>, step: "controle" | "publication"): Promise<AgentResult> {
   const now = ctx.now();
+  const holds = num(mission.payload.oddsHolds);
+  // Déjà attendu deux fois : on n'insiste pas, le pari est écarté (jamais publié sur une cote non vérifiée).
+  if (holds >= MAX_ODDS_HOLDS) return skipPick(ctx, mission, pick, `cote non vérifiée deux fois (${r.reason.slice(0, 120)})`, { code: "odds_unverified" });
   await ctx.prisma.agentMission.updateMany({ where: { id: mission.id, status: { in: ["RUNNING", "PENDING"] } }, data: { status: "WAITING_HUMAN", lastActivityAt: now } });
   const captureAssetId = typeof mission.payload.mediaAssetId === "string" ? mission.payload.mediaAssetId : null;
   await agentEvent(ctx, "agents.sports.odds_unverified", { missionId: mission.id, pickId: pick.id, siteKey: pick.siteKey, code: r.code, reason: r.reason.slice(0, 200), reads: r.reads.length, step }, { channelId: mission.channelId });
   await emitHook(ctx as BookmakerReadDeps, { type: "double_read_failed", siteKey: pick.siteKey, missionId: mission.id, pickId: pick.id, reason: r.reason, captureAssetId, reads: r.reads });
+  // Porte de sortie : une question (une à la fois, par la file des demandes) ; la réponse, « plus tard » ou
+  // l'expiration reprennent la mission au Contrôle, qui relit la cote. Le pari trop tard est annulé (`bet-kickoff`).
+  await askHuman(ctx, {
+    teamKey: "sports",
+    kind: "CONFIRM",
+    key: `bookmakers.odds.${pick.id}`,
+    question: `Je relis la cote de ce pari dans quelques minutes et je ne le publie que si elle est identique deux fois.\nRéponds OUI pour relire (ou « plus tard »).`,
+    missionId: mission.id,
+    onAnswer: { action: "resume-mission" },
+  }).catch((err: unknown) => ctx.logger?.warn({ err: (err as Error).message, missionId: mission.id }, "[agents] demande de relecture de la cote impossible"));
   return {
     ok: true,
     goTo: "controle",
-    output: { oddsCheck: { ok: false, code: r.code, reason: r.reason.slice(0, 300), at: now.toISOString() } as never, controlCheckedAt: null, oddsAtControl: null },
+    output: { oddsCheck: { ok: false, code: r.code, reason: r.reason.slice(0, 300), at: now.toISOString() } as never, controlCheckedAt: null, oddsAtControl: null, oddsHolds: holds + 1 } as never,
     summary: `cote non vérifiée deux fois (${r.reason.slice(0, 120)}) : en attente d'un humain`,
   };
 }

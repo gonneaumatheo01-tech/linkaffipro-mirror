@@ -2,7 +2,7 @@
  * Dépendances des agents dans le worker (phase 19) : base partagée, mise en file BullMQ (`createAgentsEnqueue`),
  * messager du dialogue admin (`createAdminMessenger`, seul identifiant admin), journal pino. Créées une fois.
  */
-import type { AgentsDeps, EngineDeps } from "@linkaffipro/agents";
+import { bookmakerKevinHook, bookmakerTransportHooks, type AgentsDeps, type BookmakerReadDeps, type EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
 import { createAgentsEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "@linkaffipro/telegram";
@@ -28,6 +28,9 @@ export function workerAgentsDeps(): EngineDeps {
     // Cotes (phase 23) : cache partagé dans Redis.
     oddsCache: createRedisOddsCache(),
   };
+  // Bookmakers lus directement (phase 35) : transport choisi par site, verrou, rythme et messages de Kevin, pour
+  // l'équipe Paris (double lecture au Contrôle) comme pour Kevin (« la cote de … chez Sportaza ? »).
+  (deps as BookmakerReadDeps).bookmakers = { ...bookmakerTransportHooks(deps), onBookmakerEvent: bookmakerKevinHook(deps) };
   cached = deps;
   return deps;
 }

@@ -128,6 +128,18 @@ describe("double lecture avant publication", () => {
     expect(s.pickRow().status).toBe("PROPOSED");
   });
 
+  it("attente humaine : une question de relecture part (reprise au Contrôle) ; après 2 attentes, pari écarté", async () => {
+    const s = await setup({ api: () => 2.1, page: () => 2.2 });
+    const r = await verifyDirectOdds(await s.mission(), s.ctx, s.pickRow(), s.category, "controle");
+    expect("result" in r && r.result.output).toMatchObject({ oddsHolds: 1 });
+    const req = s.kit.tables("humanRequest").find((x) => x.key === `bookmakers.odds.${s.pickRow().id}`);
+    expect(req).toMatchObject({ kind: "CONFIRM", missionId: (await s.mission()).id });
+    const again = await setup({ api: () => 2.1, page: () => 2.2, payload: { oddsHolds: 2 } });
+    await verifyDirectOdds(await again.mission(), again.ctx, again.pickRow(), again.category, "controle");
+    expect(again.pickRow().status).toBe("SKIPPED");
+    expect(again.kit.tables("humanRequest")).toHaveLength(0);
+  });
+
   it("cote changée au-delà de la tolérance → sélection refaite (puis pari écarté après 2 essais)", async () => {
     const s = await setup({ api: () => 2.5, page: () => 2.5 });
     const r = await verifyDirectOdds(await s.mission(), s.ctx, s.pickRow(), s.category, "controle");
