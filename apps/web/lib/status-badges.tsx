@@ -37,6 +37,8 @@ import type {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  QaContentType,
+  QaVerdict,
   RecommendationStatus,
   RiskLevel,
   ReferenceStatus,
@@ -538,6 +540,23 @@ export const STATUS_DICT = {
     REJECTED: muted("Refusée"),
     DONE: ok("Acceptée"),
   } satisfies Record<RecommendationStatus, StatusEntry>,
+  // Contrôle qualité global (phase 30) : résultat d'une vérification (un délai dépassé ou un modèle indisponible =
+  // contenu bloqué, jamais accepté) et type du contenu vérifié.
+  qaVerdict: {
+    APPROVED: ok("Accepté"),
+    REJECTED: bad("Refusé"),
+    TIMEOUT: warn("Bloqué : contrôle trop long"),
+    ERROR: bad("Bloqué : contrôle indisponible"),
+  } satisfies Record<QaVerdict, StatusEntry>,
+  qaContentType: {
+    POST: plain("Post"),
+    SHORT: plain("Short"),
+    REPORT: plain("Rapport du marché"),
+    KEVIN_RESPONSE: plain("Réponse de Kevin"),
+    RECOMMENDATION: plain("Recommandation"),
+    ALERT: plain("Alerte"),
+    COMPLIANCE_RULE: plain("Règle publicitaire"),
+  } satisfies Record<QaContentType, StatusEntry>,
   teamOrderKind: {
     PROGRAM: plain("Programme sur plusieurs jours"),
     ONE_SHOT: plain("Une seule fois"),

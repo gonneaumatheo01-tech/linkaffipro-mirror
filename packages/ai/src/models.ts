@@ -17,8 +17,14 @@ export const QUALITY_MODEL: AiModelId = "claude-sonnet-5-5";
  * Réglages → IA (réservé à cette tâche), mais connu du calcul de coût.
  */
 export const PLANNER_MODEL = "claude-opus-5-5";
+/**
+ * Phase 30 : QA Global, dernier verrou avant toute sortie (`packages/agents/src/qa`). Modèle UNIQUE, sans repli, hors de
+ * la liste proposée dans Réglages → IA. Prix publics de Fable 5.1 : 10 $ / 50 $ par million de jetons.
+ */
+export const QA_GLOBAL_MODEL = "claude-fable-5-1";
 const INTERNAL_MODEL_PRICES: Record<string, { inputUsdPerM: number; outputUsdPerM: number }> = {
   [PLANNER_MODEL]: { inputUsdPerM: 4, outputUsdPerM: 20 },
+  [QA_GLOBAL_MODEL]: { inputUsdPerM: 10, outputUsdPerM: 50 },
 };
 
 /** Taux USD → EUR constant (estimation ; la facture réelle est en dollars chez Anthropic). */
@@ -28,7 +34,7 @@ export function isAiModelId(v: unknown): v is AiModelId {
   return typeof v === "string" && v in AI_MODELS;
 }
 
-/** Coût estimé en euros, arrondi à 4 décimales. Modèle inconnu : tarif le plus élevé connu, Opus (prudence). */
+/** Coût estimé en euros, arrondi à 4 décimales. Modèle inconnu : tarif d'Opus (prudence). */
 export function estimateCostEur(model: string, usage: AiUsage): number {
   const price = isAiModelId(model) ? AI_MODELS[model] : (INTERNAL_MODEL_PRICES[model] ?? INTERNAL_MODEL_PRICES[PLANNER_MODEL]!);
   const usd =

@@ -6,6 +6,7 @@
 import { prisma, type Prisma } from "@linkaffipro/db";
 import { ANALYSTS_AD_ANGLE_LABELS, ANALYSTS_AD_TYPE_LABELS, MARKET_ANALYSIS_SOURCE } from "@linkaffipro/agents";
 import { TREND_WEEKS, marketRecView, stringList, weekStartUtc, type MarketRecView, type RuleFilters, type TrendFilters } from "./analyses";
+import { hideUnapprovedProposals } from "@/lib/agents/qa-recommendations";
 
 /** Entrées montrées au plus par vue (les plus récentes). */
 export const TRENDS_LIMIT = 100;
@@ -212,7 +213,9 @@ export async function loadMarketRecommendations(): Promise<MarketRecView[]> {
     take: 100,
     select: { id: true, field: true, targetId: true, after: true, evidence: true, status: true, comment: true, createdAt: true, appliedAt: true, doneAt: true, rejectedAt: true },
   });
-  return rows.map((r) => marketRecView({ ...r, status: String(r.status) }, { adType: ANALYSTS_AD_TYPE_LABELS, angle: ANALYSTS_AD_ANGLE_LABELS }));
+  // Phase 30 : propositions montrées seulement si le QA Global les a approuvées.
+  const shown = (await hideUnapprovedProposals(rows)).rows;
+  return shown.map((r) => marketRecView({ ...r, status: String(r.status) }, { adType: ANALYSTS_AD_TYPE_LABELS, angle: ANALYSTS_AD_ANGLE_LABELS }));
 }
 
 /** Pastilles : nombres par vue (sources en erreur, recommandations à décider). */

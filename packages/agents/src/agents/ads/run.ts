@@ -29,6 +29,8 @@ import { ADS_VERTICALS, ADS_VERTICAL_LABELS } from "./thresholds";
 import { addRaw, EMPTY_RAW, toMetrics, sumRaw, type AdsRaw } from "./metrics";
 import { verticalUnionDimension, type AdsDataset } from "./dataset";
 import { daysBetween } from "./periods";
+import { checkRecommendations, type RecLike } from "../../qa-gates/recommendations";
+import { qaGate } from "../../qa-gates/gate";
 
 export const ADS_REPORT_HOUR = 9;
 /** Sans rapport du Grand Chef, le rapport Ads part quand même dès 10 h. */
@@ -193,7 +195,16 @@ export type AdsReportResult = { reportId: string; sent: boolean; writtenBy: "ai"
 async function writeArchiveSend(deps: AgentsDeps, facts: AdsFacts, key: string, extra: Record<string, unknown>, send: boolean): Promise<AdsReportResult> {
   const now = nowOf(deps);
   const { llm, model } = await reportLlm(deps);
-  const written = await writeAdsReport(facts, { llm, model, pageUrl: adsPageUrl() });
+  let written = await writeAdsReport(facts, { llm, model, pageUrl: adsPageUrl() });
+  // Phase 30 : rapport rédigé par l'IA → QA Global avant l'envoi ; refusé ou QA indisponible → les lignes du code.
+  if (written.writtenBy === "ai" && send) {
+    const gate = await qaGate(deps, { contentType: "REPORT", contentId: `ads:${key}`, teamKey: ADS_TEAM_KEY, content: { title: `Rapport pubs ${key}`, text: written.html, facts: JSON.parse(JSON.stringify(facts)) } });
+    if (gate.kind !== "approved") {
+      const cost = written.costCents;
+      written = { ...(await writeAdsReport(facts, { llm: null, model, pageUrl: adsPageUrl() })), costCents: cost };
+      await agentEvent(deps, "qa.report.code_fallback", { team: ADS_TEAM_KEY, key, verdict: gate.kind });
+    }
+  }
   if (written.costCents > 0) await recordUsage(deps.prisma, ADS_TEAM_KEY as TeamKey, "llm", written.costCents, now);
   // `content` = lignes en texte simple (sans HTML) ; le message Telegram complet reste dans `stats.html`.
   const value = {
@@ -236,7 +247,9 @@ export async function runAdsDaily(deps: AgentsDeps, opts: { send?: boolean; ctx?
 export async function runAdsWeekly(deps: AgentsDeps, opts: { send?: boolean; ctx?: AdsContext } = {}): Promise<AdsReportResult> {
   const now = nowOf(deps);
   const ctx = opts.ctx ?? (await loadAdsContext(deps.prisma, now));
-  const open = (await deps.prisma.recommendation.findMany({ where: { teamKey: ADS_TEAM_KEY, status: "PROPOSED" } })) as Array<{ action: string | null; evidence: unknown }>;
+  const open0 = (await deps.prisma.recommendation.findMany({ where: { teamKey: ADS_TEAM_KEY, status: "PROPOSED" } })) as RecLike[];
+  // Phase 30 : propositions vérifiées par le QA Global avant d'entrer dans le rapport ; seules les approuvées y figurent.
+  const open = (await checkRecommendations(deps, open0, 10)).approved as unknown as Array<{ action: string | null; evidence: unknown }>;
   const facts = weeklyFacts(ctx, open);
   const r = await writeArchiveSend(deps, facts, adsReportKey("weekly", facts.weekStart), { cohorts: ctx.cohorts.slice(0, 20) }, opts.send !== false);
   await writeSetting(deps, ADS_LAST_WEEKLY_KEY, parisWeekStart(now));

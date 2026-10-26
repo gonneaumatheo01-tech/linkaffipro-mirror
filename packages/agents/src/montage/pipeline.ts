@@ -36,6 +36,7 @@ import {
   type UncertainSegment,
 } from "./contract";
 import { cleanupClip, cleanupJob } from "./cleanup";
+import { gateShortPreview } from "../qa-gates/shorts";
 import {
   clipDir,
   framesDir,
@@ -703,6 +704,26 @@ async function runPreview(deps: MontagePipelineDeps, jobId: string, clipId: stri
   const ref = (asset?.telegramRef ?? {}) as { fileId?: string; fileUniqueId?: string; messageId?: number; chatId?: string };
   const hook = deps.montage?.hooks?.onPreviewReady;
   if (!hook) return { ok: false, step: "montage.preview", outcome: "skipped", reason: "aperçu non branché" };
+  // Phase 30 : dernier verrou du QA Global avant tout aperçu (jamais montré ni publié sans approbation).
+  const qa = await gateShortPreview(deps, { clip, asset, theme: instructionsOf(job).theme }, {
+    redo: async (note, resetSubtitles) => {
+      const r = await redoClip(deps, clip.id, { note });
+      if (r.ok && resetSubtitles) await deps.prisma.shortClip.updateMany({ where: { id: clip.id, redoCount: r.clip.redoCount }, data: { subtitlesSrt: null, subtitlesPending: Prisma.DbNull } as never });
+    },
+    retryLater: async (delayMs) => {
+      const task = { type: "montage.preview", montageJobId: clip.montageJobId, shortClipId: clip.id } as MontageQueueJob;
+      await enqueue(deps, task, { jobId: `${montageTaskId(task, clip.redoCount)}-qa${nowOf(deps).getTime()}`, delayMs });
+    },
+    markFailed: async (problems, qaInfo) => {
+      const base = (clip.qc && typeof clip.qc === "object" ? clip.qc : {}) as Record<string, unknown>;
+      await deps.prisma.shortClip.updateMany({
+        where: { id: clip.id, redoCount: clip.redoCount ?? 0 },
+        data: { status: "QC_FAILED", qc: JSON.parse(JSON.stringify({ ...base, ok: false, problems, qa: qaInfo })) },
+      });
+      await refreshJobStatus(deps, jobId);
+    },
+  });
+  if (!qa.go) return { ok: true, step: "montage.preview", outcome: qa.outcome };
   const sent = await hook(deps, job, clip, {
     assetId: clip.assetId,
     created: false,

@@ -18,6 +18,8 @@ import { applyRecommendationImpl } from "./apply";
 import { shouldAutoApply } from "./bounds";
 import { generateWeeklyRecommendations } from "./proposals";
 import { REPORT_TEAMS, writeReport, type ReportTeam, type TeamFacts } from "./report";
+import { checkRecommendations, type RecLike } from "../../qa-gates/recommendations";
+import { qaGate } from "../../qa-gates/gate";
 
 const DAYS = ["", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 const VERTICAL_OF: Record<ReportTeam, "DATING" | "CASINO" | "SPORTS"> = { dating: "DATING", casino: "CASINO", sports: "SPORTS" };
@@ -105,6 +107,11 @@ export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: 
   const cells: Record<string, ChannelWindows["cells"]> = {};
   for (const [id, w] of Object.entries(input.windows)) cells[id] = w.cells;
   const recommendations = await generateWeeklyRecommendations(deps, { channels: input.channels, verticals: input.verticals, cells, settings });
+  // Phase 30 : propositions vérifiées par le QA Global avant tout (application automatique, rapport) ; refusées → closes.
+  if (recommendations.length) {
+    const rows = (await deps.prisma.recommendation.findMany({ where: { id: { in: recommendations }, status: "PROPOSED" } })) as RecLike[];
+    await checkRecommendations(deps, rows, 20);
+  }
   const { applied, refused } = opts.reportOnly ? { applied: [] as string[], refused: [] as string[] } : await autoApplyPending(deps, team.level);
 
   const weekStart = parisWeekStart(now);
@@ -116,11 +123,22 @@ export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: 
   // Plafond IA de l'équipe Algorithme vérifié avant l'appel (atteint ou 0 € : rapport assemblé par le code),
   // dépense comptée et alerte 80 / 100 % après.
   const budget = await checkBudgets(deps, algoSettings, ["llm"], now);
-  const written = await writeReport(facts, {
-    weekLabel: new Date(`${weekStart}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" }),
+  const weekLabel = new Date(`${weekStart}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
+  let written = await writeReport(facts, {
+    weekLabel,
     llm: budget ? null : (providers.llm as (LlmProvider & { fake?: boolean }) | null),
     model: algoSettings.models.fast,
   });
+  // Phase 30 : rapport rédigé par l'IA → QA Global avant l'envoi ; refusé ou QA indisponible → le rapport écrit par le
+  // code (texte fixe, mêmes faits), jamais la rédaction non vérifiée.
+  if (written.writtenBy === "ai" && opts.send !== false) {
+    const gate = await qaGate(deps, { contentType: "REPORT", contentId: `algo:${weekStart}`, teamKey: "algo", content: { title: `Ce qui marche ${weekLabel}`, text: written.html, facts: JSON.parse(JSON.stringify(facts)) } });
+    if (gate.kind !== "approved") {
+      const cost = written.costCents;
+      written = { ...(await writeReport(facts, { weekLabel, llm: null, model: algoSettings.models.fast })), costCents: cost };
+      await agentEvent(deps, "qa.report.code_fallback", { team: "algo", weekStart, verdict: gate.kind });
+    }
+  }
   if (written.costCents > 0) {
     await recordUsage(deps.prisma, "algo", "llm", written.costCents, now);
     await maybeAlertBudget(deps, algoSettings, "llm", now);

@@ -555,7 +555,7 @@ async function handleDecision(
       }
       // Dernier message de Kevin : contrôle de répétition de la réponse rédigée (`kevinText`).
       const previous = await lastBossText(deps, input.chat?.chatId ?? null, runningTurnId);
-      const a = await answerQuestion({ ...deps, voicePrevious: previous } as BossDeps, { topic: decision.topic, question: decision.question, team, period: decision.period });
+      const a = await answerQuestion({ ...deps, voicePrevious: previous, qaTurnId: runningTurnId } as BossDeps, { topic: decision.topic, question: decision.question, team, period: decision.period });
       return { reply: a.reply, status: "answered", costCents: a.costCents, actionKey: "repondre_question" };
     }
     case "ordre": {

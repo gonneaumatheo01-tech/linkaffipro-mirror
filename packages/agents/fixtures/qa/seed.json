@@ -1,0 +1,107 @@
+{
+  "note": "Lignes de départ du faux prisma des tests du QA Global (phase 30). Les posts de référence sont donnés en texte : le test calcule leurs empreintes de 8 mots.",
+  "channel": [
+    {
+      "id": "ch-casino",
+      "title": "Casino Club",
+      "vertical": "CASINO",
+      "isTest": false,
+      "language": "fr",
+      "settings": {
+        "country": "FR"
+      }
+    },
+    {
+      "id": "ch-dating",
+      "title": "Rencontres du soir",
+      "vertical": "DATING",
+      "isTest": false,
+      "language": "fr",
+      "settings": {}
+    }
+  ],
+  "agentTeamConfig": [
+    {
+      "teamKey": "casino",
+      "forbiddenWords": [
+        "jackpot assuré"
+      ]
+    }
+  ],
+  "post": [
+    {
+      "id": "old-1",
+      "channelId": "ch-casino",
+      "status": "SENT",
+      "sentAt": "2026-10-24T18:00:00.000Z",
+      "text": "Le tournoi du vendredi aura bien lieu à 21 h, inscriptions ouvertes."
+    },
+    {
+      "id": "old-2",
+      "channelId": "ch-casino",
+      "status": "SENT",
+      "sentAt": "2026-10-25T18:00:00.000Z",
+      "text": "Rappel : tournoi vendredi 21 h, places limitées."
+    }
+  ],
+  "trendEntry": [
+    {
+      "id": "te-1",
+      "sourceId": "src-1",
+      "market": "CASINO",
+      "countries": [
+        "FR"
+      ],
+      "language": "fr",
+      "title": "Meta refuse des pubs casino en France",
+      "summary": "Plusieurs affiliés signalent des refus de pubs casino sur Meta en France depuis octobre.",
+      "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+      "urlHash": "h1",
+      "category": "AD_BAN",
+      "sentiment": "NEGATIVE",
+      "relevanceScore": 80,
+      "verified": true,
+      "publishedAt": "2026-10-20T10:00:00.000Z"
+    }
+  ],
+  "complianceRule": [
+    {
+      "id": "cr-1",
+      "platform": "META",
+      "market": "CASINO",
+      "country": "FR",
+      "rule": "Pubs de jeux d'argent : autorisation écrite de Meta exigée en France.",
+      "riskLevel": "HIGH",
+      "evidence": [
+        {
+          "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+          "date": "2026-10-20",
+          "description": "refus signalés"
+        }
+      ],
+      "verified": true,
+      "isActive": true,
+      "lastVerifiedAt": "2026-10-21T00:00:00.000Z",
+      "updatedAt": "2026-10-21T00:00:00.000Z"
+    }
+  ],
+  "recommendation": [
+    {
+      "id": "rec-old",
+      "teamKey": "algo",
+      "target": "CHANNEL_PLAN",
+      "targetId": "ch-casino",
+      "field": "postsPerDay",
+      "before": 3,
+      "after": 4,
+      "status": "APPLIED",
+      "source": "algo",
+      "evidence": {
+        "posts": 42
+      }
+    }
+  ],
+  "referenceTexts": [
+    "ce soir le grand tirage spécial commence à vingt et une heures précises sur notre canal préféré"
+  ]
+}

@@ -33,3 +33,15 @@ export {
   type ServerWebSearchTool,
   type ServerWebFetchTool,
 } from "./server-tools";
+export {
+  createQaClient,
+  qaCostCents,
+  toQaUnavailable,
+  isQaModelUnavailable,
+  QaModelUnavailableError,
+  QA_GLOBAL_PROFILE,
+  QA_GLOBAL_MAX_TOKENS,
+  type QaLlmClient,
+  type QaEffort,
+  type QaUnavailableKind,
+} from "./qa";

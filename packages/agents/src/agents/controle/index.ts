@@ -23,6 +23,7 @@ import { agentEvent } from "../../admin/journal";
 import { sportsControl } from "../../sports/steps";
 import { referenceShinglesForChannel } from "../../inspiration/style";
 import { COPY_PROBLEM, copiedSequence } from "../../inspiration/copy-check";
+import { heldTeamControl, withGlobalQa } from "../../qa-gates/posts";
 import { decideVerdict, JUDGE_SYSTEM, mediaProblem, parseJudgement, type Judgement } from "./verdict";
 
 async function autonomyFacts(mission: Mission, ctx: AgentContext) {
@@ -57,6 +58,15 @@ async function autonomyFacts(mission: Mission, ctx: AgentContext) {
 export const agent: AgentDefinition = {
   key: "controle",
   async run(mission, ctx) {
+    // Phase 30 : le QA Global passe juste APRÈS le Contrôle de l'équipe (dernier verrou, `qa-gates/posts.ts`). Pendant
+    // une panne du QA, le verdict de l'équipe est gardé : la relecture ne refait que la vérification globale.
+    return withGlobalQa(mission, ctx, heldTeamControl(mission) ?? (await teamControl(mission, ctx)));
+  },
+};
+
+/** Contrôle qualité de l'équipe (phases 19 à 27), avant le QA Global. */
+async function teamControl(mission: Mission, ctx: AgentContext): Promise<AgentResult> {
+  {
     // Équipe Paris sportifs (phase 23) : cote re-vérifiée, coup d'envoi, doublons, image, validations imposées ; puis
     // contrôle « jamais de copie » (phase 27) sur le texte qui partira (texte remis à la cote, ou corrigé par l'admin).
     if (mission.teamKey === "sports") return withSportsCopyCheck(mission, ctx, await sportsControl(mission, ctx));
@@ -187,8 +197,8 @@ export const agent: AgentDefinition = {
         summary: `validation demandée : ${v.reason}${judged}`,
       };
     return { ok: true, output: { verdict: "publish", reasons: [] }, costCents, summary: `bon pour publication${judged}` };
-  },
-};
+  }
+}
 
 /** Motif de refus d'un texte qui reprend 8 mots d'un post de référence (sans les mots). */
 export const COPY_REFUSAL = `${COPY_PROBLEM} : inspire-toi de la méthode, ne recopie jamais`;

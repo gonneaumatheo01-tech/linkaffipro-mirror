@@ -50,6 +50,7 @@ import { askToChoose, teamOf } from "./resolve";
 import { listBossUnmet } from "./unmet";
 import { KEVIN_VOICE, pick, voiceCheck, voiceTemplate, type VoiceTable } from "./voice";
 import type { BossLlmExt } from "./llm";
+import { qaKevinLine } from "../qa-gates/kevin";
 
 // ------------------------------------------------------------------------------------------- textes de Kevin
 
@@ -571,7 +572,10 @@ export const demanderEquipe = defineAction<AskParams>({
       const allowed = allowedNumbers({ facts, lignes: lines.flatMap((l) => (l.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => Number(x.replace(",", ".")))) });
       const ok = ls.length > 0 && ls.length <= 3 && ls.every((l) => !inventedNumbers(l, allowed).length) && voiceCheck(text).ok;
       await deps.prisma.teamOrder.update({ where: { id: order.id }, data: { costCents: r.costCents } });
-      return { reply: esc(ok ? ls.join("\n") : fallback) };
+      if (!ok) return { reply: esc(fallback) };
+      // Phase 30 : réponse rédigée par l'IA → QA Global ; refusée ou QA indisponible → les lignes du code.
+      const checked = await qaKevinLine(deps, { contentId: `order-ask:${order.id}`, question: p.question, dataConsulted: { facts, lines }, aiText: ls.join("\n"), codeText: fallback, teamKey: team });
+      return { reply: esc(checked) };
     } catch {
       return { reply: esc(fallback) };
     }

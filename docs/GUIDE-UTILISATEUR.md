@@ -18,7 +18,7 @@ Adresse du site : https://app.linkaffipro.com. Adresse des liens de vos pubs et 
 - [Messages](#messages)
 - [Membres](#membres) : liste, [Écrire à un groupe](#ecrire-a-un-groupe), [Relances automatiques](#relances-automatiques)
 - [Conversations](#conversations) : [Boîte de réception](#boite-de-reception), [Personas](#personas), [Chiffres](#chiffres)
-- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Analyse de marché](#analyse-de-marche), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
+- [Agents](#agents) : [Tableau de bord du Grand Chef](#tableau-de-bord-du-grand-chef), [Lancer une équipe pour de vrai en 3 clics](#lancer-une-equipe-pour-de-vrai-en-3-clics), [Fiche d'une équipe](#fiche-d-une-equipe), [Montage vidéo](#montage-video), [Analyse de marché](#analyse-de-marche), [Contrôle qualité global](#controle-qualite-global), [Validations et demandes](#validations-et-demandes), [Journal des agents](#journal-des-agents), [Réglages des agents](#reglages-des-agents)
 - [Statistiques](#statistiques)
 - [Réglages](#reglages)
 - [Comptes Telegram](#comptes-telegram)
@@ -1161,6 +1161,40 @@ Ces trois boutons sont réservés aux administrateurs ; les responsables voient 
 
 Ce qui est gardé : un résumé, le lien, la date et le classement de chaque contenu. Le texte lu est effacé au bout de 7 jours, et aucun profil des personnes des forums n'est gardé (le pseudonyme au plus).
 
+### Contrôle qualité global
+
+Le contrôle qualité global est le dernier verrou avant que quoi que ce soit sorte du système. Chaque équipe garde son propre contrôle ; lui passe **après**, voit tout ce que produisent les agents et croise les équipes entre elles. Il **accepte** ou il **refuse**, avec ses motifs et les corrections demandées : il ne modifie jamais rien lui-même, c'est l'équipe qui corrige et renvoie. Il tourne sur le modèle d'IA le plus capable (Fable 5.1), sans aucun modèle de secours. Ouvrez **Agents**, puis l'onglet **Qualité**. Toute l'équipe peut lire la page ; il n'y a aucun bouton pour accepter un contenu à la place du contrôle.
+
+#### Ce que le contrôle vérifie
+
+- **Les posts** des équipes Rencontres, Casino et Paris sportifs : règles du canal (mots interdits, aucune mention de l'IA, aucune promesse de gain, aucun lien hors plateforme, jamais de média non fourni en casino), règles publicitaires relevées par l'équipe Analystes, aucune copie d'un canal d'inspiration (8 mots à la suite au plus), aucune donnée sensible, pas de contradiction avec les posts d'avant, un français correct.
+- **Les shorts** du montage : durée, format et image cohérents, sous-titres et texte à l'écran sans faute ni contenu interdit.
+- **Les rapports et alertes** de l'équipe Analystes : chaque affirmation a sa source, les chiffres tiennent entre eux, aucun conseil juridique, une alerte repose sur un fait réel.
+- **Les recommandations** (Algorithme, Inspiration, Analystes) et **les règles publicitaires** : cohérentes entre elles, avec les règles publicitaires et dans les limites de l'équipe Algorithme.
+- **Les réponses de Kevin écrites par l'IA** : elles répondent à la question, avec les vrais chiffres, sans rien inventer.
+
+Ce qui **n'est pas** vérifié : vos propres posts et messages (écrits par vous sur le site ou envoyés à Kevin), les messages fixes de Kevin (confirmations OUI et SUPPRIMER, boutons, accusés de réception) et les alertes techniques (service arrêté, sauvegarde). Les bloquer arrêterait tout sans rien protéger.
+
+#### Voir les refus
+
+La page a trois vues :
+
+- **Tableau de bord** : la part des contenus acceptés aujourd'hui et sur 7 jours, la courbe **par jour** ou **par heure**, le temps moyen d'une vérification (30 secondes au plus), le nombre de contenus bloqués faute de contrôle, puis les chiffres **par équipe** et **par type de contenu**.
+- **Historique** : chaque vérification, filtrable par **Résultat** (accepté, refusé, bloqué), **Type**, **Équipe** et dates. **Voir le détail** montre les motifs, les corrections demandées, la tentative (1, 2 ou 3), la durée, le modèle et le contenu vérifié **masqué** (clés, mots de passe, courriels, téléphones et identifiants sont cachés).
+- **Tendances** : les motifs de refus les plus fréquents, les équipes les plus refusées et les refus jour par jour sur 4 semaines, comparés à la semaine d'avant.
+
+Par Kevin : « comment va le contrôle qualité ? », « montre-moi les refus de cette semaine », « combien de refus cette semaine ? », « pourquoi le post 42 a été refusé ? », « pourquoi le short 3 a été bloqué ? », ou « pourquoi le 2 ? » juste après la liste.
+
+#### Un contenu est bloqué
+
+- **Refusé** : le contenu retourne à son équipe avec les corrections ; elle corrige et le renvoie au contrôle. Rien à faire de votre côté.
+- **Après 3 refus du même contenu**, Kevin vous demande de trancher : corriger vous-même, le laisser tomber, ou le faire refaire. Répondez-lui comme d'habitude ; le contenu ne sort pas sans un nouveau passage au contrôle.
+- **Bloqué : contrôle trop long** (plus de 30 secondes) ou **Bloqué : contrôle indisponible** : le contenu attend et repasse au contrôle tout seul. Il n'est jamais accepté par défaut.
+
+#### Le contrôle qualité est en pause
+
+Quand le modèle du contrôle ne répond plus (panne, quota, plafond du mois atteint), plus rien ne sort : Kevin vous prévient par « Le contrôle qualité est en pause, je reprends dès que possible. », et la page affiche **En pause**. Les contenus attendent et repassent au contrôle dès son retour. Vous n'avez rien à faire. Kevin vous prévient aussi quand beaucoup de contenus sont refusés en une heure (plus de 30 %).
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.
@@ -1672,6 +1706,7 @@ Une phrase type par page :
 - **Agents** : « passe le casino en vrai », « monte le budget vidéo à 80 € ce mois-ci », « active la catégorie corners avec des cotes entre 1,6 et 2,5 ».
 - **Montage** : envoyez une vidéo à Kevin avec « découpe ça en shorts de 15 secondes, cam en haut à droite », puis « valide le short 3 », « le 5, raccourcis de 2 secondes », « refuse le 4 » ou « annule le montage en cours ».
 - **Analyses** : « qu'est-ce qui marche en casino en France ? », « briefing paris sportifs Allemagne », « désactive la source Reddit r/gambling » ou « j'accepte la recommandation 2 de l'analyse de marché ».
+- **Qualité** : « comment va le contrôle qualité ? », « montre-moi les refus de cette semaine » ou « pourquoi le post 42 a été refusé ? » (lecture seule : personne ne peut accepter un contenu à la place du contrôle).
 - **Réglages** : « crée l'étiquette VIP en vert », « envoie-moi le rapport à 8 h au lieu de 9 h », « ajoute Léa à l'équipe comme responsable ».
 - **Connexions** : « connecte mon compte TikTok » (Kevin envoie un lien d'autorisation, puis vous choisissez les comptes par boutons).
 - **Statistiques** : « combien de premiers dépôts hier ? », « ajoute 150 € de dépense TikTok hier ».

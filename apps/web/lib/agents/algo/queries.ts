@@ -12,6 +12,7 @@ import type { InsightRow } from "./insights";
 import type { RecommendationView } from "./recommendations";
 import { parseProfiles, parseReview, type ReviewNotes } from "./reports";
 import { parseAlgoSettings, type AlgoSettings } from "./settings";
+import { hideUnapprovedProposals } from "@/lib/agents/qa-recommendations";
 
 export type AlgoChannel = { id: string; title: string; isTest: boolean };
 
@@ -147,7 +148,8 @@ export async function loadRecommendations(team: TeamKey, channelIds: string[]): 
     take: 100,
     select: REC_SELECT,
   });
-  return withLabels(rows);
+  // Phase 30 : propositions montrées seulement si le QA Global les a approuvées.
+  return withLabels((await hideUnapprovedProposals(rows)).rows);
 }
 
 /** Recommandations PERSONA d'une persona (encart de sa fiche). */
@@ -158,7 +160,7 @@ export async function loadPersonaRecommendations(personaId: string): Promise<Rec
     take: 20,
     select: REC_SELECT,
   });
-  return withLabels(rows);
+  return withLabels((await hideUnapprovedProposals(rows)).rows);
 }
 
 /** Tests A/B d'un univers (de l'équipe ou sur un de ses canaux). */

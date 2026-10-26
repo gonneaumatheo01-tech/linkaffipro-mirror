@@ -1,0 +1,226 @@
+{
+  "contentType": "SHORT",
+  "teamKey": "montage",
+  "cases": [
+    {
+      "id": "short-ok-1",
+      "valid": true,
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "La roulette en direct"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-ok-2",
+      "valid": true,
+      "content": {
+        "durationMs": 45000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "Les temps forts du tournoi"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-ok-3",
+      "valid": true,
+      "content": {
+        "durationMs": 20000,
+        "format": "SQUARE",
+        "resolution": "1080x1080",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": ""
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-ok-4",
+      "valid": true,
+      "content": {
+        "durationMs": 59000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "18+ jouez avec modération"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-ok-5",
+      "valid": true,
+      "content": {
+        "durationMs": 15000,
+        "format": "VERTICAL",
+        "resolution": "2160x3840",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "Coulisses du direct"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-copy",
+      "valid": false,
+      "error": "copie",
+      "expectedCode": "COPY",
+      "detectedBy": "code",
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:04,000\nCe soir le grand tirage spécial commence à vingt et une heures précises sur notre canal préféré\n",
+        "overlayText": ""
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-email",
+      "valid": false,
+      "error": "donnée sensible",
+      "expectedCode": "SENSITIVE_DATA",
+      "detectedBy": "code",
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "Écris à jean.dupont@gmail.com"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "short-gain",
+      "valid": false,
+      "error": "promesse de gain",
+      "expectedCode": "GAIN_PROMISE",
+      "detectedBy": "model",
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nRegarde bien cette table.\n\n2\n00:00:02,500 --> 00:00:05,000\nLe croupier lance la bille.\n",
+        "overlayText": "Double ta mise à coup sûr"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "GAIN_PROMISE",
+            "message": "Erreur attendue : promesse de gain.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "short-subtitle",
+      "valid": false,
+      "error": "sous-titre erroné",
+      "expectedCode": "SUBTITLE_ERROR",
+      "detectedBy": "model",
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:00,000 --> 00:00:02,500\nle croupier lances la bil\n",
+        "overlayText": ""
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "SUBTITLE_ERROR",
+            "message": "Erreur attendue : sous-titre erroné.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "short-metadata",
+      "valid": false,
+      "error": "chiffre inventé (durée)",
+      "expectedCode": "METADATA",
+      "detectedBy": "model",
+      "content": {
+        "durationMs": 30000,
+        "format": "VERTICAL",
+        "resolution": "1080x1920",
+        "subtitlesSrt": "1\n00:00:40,000 --> 00:00:45,000\nFin du direct.\n",
+        "overlayText": ""
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "METADATA",
+            "message": "Erreur attendue : chiffre inventé (durée).",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createFakePrisma } from "../../testing/fake-prisma";
+import { createFakeQaLlm } from "../../qa/testing";
 import type { AgentsDeps } from "../../types";
 import { applyRecommendation } from "../../algo/contracts";
 import { autoApplyPending } from "../synthese/index";
@@ -13,7 +14,8 @@ const NOW = new Date("2026-10-24T10:00:00Z");
 
 function depsWith(seed: Record<string, Record<string, unknown>[]> = {}) {
   const prisma = createFakePrisma(seed);
-  const deps: AgentsDeps = { prisma, now: () => NOW, enqueue: { async orchestrator() {}, async step() {} } };
+  // Phase 30 : QA Global simulé qui approuve (« Fait » seulement sur une recommandation approuvée).
+  const deps = { prisma, now: () => NOW, enqueue: { async orchestrator() {}, async step() {} }, qaLlm: createFakeQaLlm() } as AgentsDeps;
   return { prisma, deps };
 }
 

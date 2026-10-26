@@ -26,6 +26,7 @@ import { INSPIRATION_LIMITS, type ChannelComparison, type InspirationAnalysis, t
 import { fr, mediaShares, numberOf } from "./kevin";
 import { analyzeReference, compareWithChannel } from "./kevin-ports";
 import { loadReferenceRow, referenceLabel } from "./kevin-refs";
+import { checkRecommendations, type RecLike } from "../qa-gates/recommendations";
 
 export const INSPIRATION_SOURCE = "inspiration";
 export const MAX_PROPOSALS = 6;
@@ -340,7 +341,16 @@ export async function inspirationProposals(deps: AgentsDeps, referenceChannelId:
     }
     proposals.push({ number: i + 1, kind: d.kind, label: d.label, proof: d.proof, change: d.change, recommendationIds: ids });
   }
-  return { ok: true, referenceChannelId: ref.id, channelId, channelTitle: channel.title, proposals, notes };
+  // Phase 30 : vérifiées par le QA Global avant d'être montrées ; seules les propositions approuvées sont listées.
+  const created = (await deps.prisma.recommendation.findMany({ where: { id: { in: proposals.flatMap((p) => p.recommendationIds) } } })) as RecLike[];
+  const qa = await checkRecommendations(deps, created, 20);
+  const okIds = new Set(qa.approved.map((r) => r.id));
+  const shown = proposals.filter((p) => p.recommendationIds.every((id) => okIds.has(id)));
+  const inReview = proposals.filter((p) => !shown.includes(p) && !p.recommendationIds.some((id) => qa.rejected.includes(id))).length;
+  const refused = proposals.length - shown.length - inReview;
+  if (inReview) notes.push(`${inReview} proposition${inReview > 1 ? "s" : ""} encore en vérification par le contrôle qualité.`);
+  if (refused) notes.push(`${refused} proposition${refused > 1 ? "s" : ""} écartée${refused > 1 ? "s" : ""} par le contrôle qualité.`);
+  return { ok: true, referenceChannelId: ref.id, channelId, channelTitle: channel.title, proposals: shown, notes };
 }
 
 /** Texte des propositions numérotées, prêt pour Kevin (HTML échappé). */

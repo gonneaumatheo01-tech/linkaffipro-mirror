@@ -194,6 +194,10 @@ export const AGENTS_JARGON: JargonRule[] = [
   { word: "burn-in", re: word("burn[- ]?in"), instead: "sous-titres incrustés" },
   // Équipe Analystes (phase 29) : « règles publicitaires » et « veille » en surface, jamais le mot du moteur.
   { word: "compliance", re: word("compliances?"), instead: "règles publicitaires" },
+  // Contrôle qualité global (phase 30) : « contrôle qualité », « résultat », « accepté / refusé » en surface.
+  { word: "QA", re: word("QA", "u"), instead: "contrôle qualité" },
+  { word: "verdict", re: word("verdicts?"), instead: "résultat" },
+  { word: "hash", re: word("hash(?:es)?"), instead: "empreinte" },
 ];
 
 /** Retire les parenthèses qui ne contiennent qu'un rappel du terme technique (« (FTD) », « (NGR, €) »). */

@@ -106,6 +106,9 @@ describe("vocabulaire de la rubrique Agents", () => {
     // Phase 29 : équipe Analystes.
     expect(w(`<p>Base de compliance remplie par scraping</p>`)).toEqual(["scraping", "compliance"]);
     expect(w(`<p>Règles publicitaires remplies par la veille de vos sources</p>`)).toEqual([]);
+    // Phase 30 : contrôle qualité global.
+    expect(w(`<p>Verdict du QA, hash du contenu</p>`)).toEqual(["QA", "verdict", "hash"]);
+    expect(w(`<p>Résultat du contrôle qualité : refusé</p>`)).toEqual([]);
   });
 });
 

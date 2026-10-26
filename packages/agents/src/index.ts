@@ -509,3 +509,10 @@ export * from "./analysts/contract";
 // Phase 29 : équipe Analystes (chantier A : veille ; B et C ajoutent leurs lignes dans `analysts/index.ts`).
 export * from "./analysts/index";
 export * from "./qa/contract";
+
+// Phase 30 : QA Global (chantier A : moteur ; B et C ajoutent leurs lignes dans `qa/index.ts`).
+export * from "./qa/index";
+
+// Phase 30, chantier B : branchements du QA Global dans les sorties des équipes (posts, shorts, rapports, alertes,
+// recommandations, réponses de Kevin, rattrapage).
+export * from "./qa-gates/index";

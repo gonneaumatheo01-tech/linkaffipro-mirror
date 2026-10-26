@@ -7,11 +7,13 @@ import type { EngineDeps } from "../missions/context";
 import { createFakeLlm, type FakeLlmOptions } from "../providers/fake";
 import type { AgentStepJob, AgentsOrchestratorJob, FrameExtractor, LlmProvider, Providers, TeamKey } from "../types";
 import { createFakePrisma, type FakePrisma } from "./fake-prisma";
+import type { QaDeps, QaLlm } from "../qa/contract";
+import { createFakeQaLlm } from "../qa/testing";
 
 export type QueuedStep = { teamKey: TeamKey; agent: string; job: AgentStepJob; delayMs?: number };
 
 export function createEngineKit(
-  opts: { start?: Date; llm?: LlmProvider | null; fake?: FakeLlmOptions; providers?: Partial<Providers>; frames?: FrameExtractor } = {},
+  opts: { start?: Date; llm?: LlmProvider | null; fake?: FakeLlmOptions; providers?: Partial<Providers>; frames?: FrameExtractor; qaLlm?: QaLlm | null } = {},
 ) {
   let now = opts.start ?? new Date("2026-10-23T08:07:00Z");
   const prisma: FakePrisma = createFakePrisma({
@@ -47,6 +49,8 @@ export function createEngineKit(
     providers: { llm, ...(opts.providers ?? {}) },
     ...(opts.frames ? { frames: opts.frames } : {}),
   };
+  // Phase 30 : QA Global simulé (approuve tout par défaut ; `qaLlm` impose un autre comportement, null = absent).
+  (deps as EngineDeps & QaDeps).qaLlm = opts.qaLlm !== undefined ? opts.qaLlm : createFakeQaLlm();
   /** Exécute les étapes en file jusqu'à épuisement (ou `max`). */
   async function drain(max = 50): Promise<StepOutcome[]> {
     const out: StepOutcome[] = [];

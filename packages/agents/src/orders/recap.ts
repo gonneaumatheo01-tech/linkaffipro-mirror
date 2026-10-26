@@ -33,6 +33,7 @@ import { capability, runOrder, stopOrder } from "./ports";
 import type { PlannedOrder } from "./planner";
 import { recordOrderUnmet } from "./unmet";
 import { stepsPerDay, stepsTheme, validatePlan, workingTeam, type ImpossibleOut, type OverlapInfo, type ValidatedPlan } from "./validate";
+import { kevinReplyId, qaKevinLine } from "../qa-gates/kevin";
 
 /** Clés des entrées internes du catalogue (`boss/catalog-orders.ts`) visées par les confirmations et les numéros. */
 export const ORDER_CONFIRM_ACTION = "confirmer_ordre";
@@ -342,7 +343,9 @@ export async function smoothLine(deps: BossDeps, draft: string, facts: Record<st
     if (!voiceCheck(text).ok) return { text: draft, costCents: r.costCents };
     // Même sens que le brouillon (rien d'ajouté, rien d'enlevé : canal, quantité, mode…).
     if (voiceFidelityProblems(draft, text).length) return { text: draft, costCents: r.costCents };
-    return { text, costCents: r.costCents };
+    // Phase 30 : la ligne lissée par l'IA passe le QA Global ; refusée ou QA indisponible → le brouillon du code.
+    const checked = await qaKevinLine(deps, { contentId: kevinReplyId("order-line", { draft }), question: "récapitulatif d'un ordre", dataConsulted: facts, aiText: text, codeText: draft });
+    return { text: checked, costCents: r.costCents };
   } catch {
     return { text: draft, costCents: 0 };
   }

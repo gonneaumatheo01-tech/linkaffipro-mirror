@@ -51,6 +51,8 @@ vi.mock("./rate-limit", () => ({
     forChannel = async () => undefined;
   },
 }));
+// Phase 30 : verrou du QA Global testé à part (`qa-gate.test.ts`) ; ici les posts passent.
+vi.mock("./qa-gate", () => ({ passesQaGate: vi.fn(async () => true) }));
 vi.mock("./send-post-account", () => ({
   sendPostAccount: vi.fn(async () => undefined),
   deletePostAccount: vi.fn(async () => undefined),

@@ -1,0 +1,188 @@
+{
+  "contentType": "POST",
+  "teamKey": "casino",
+  "cases": [
+    {
+      "id": "post-ok-1",
+      "valid": true,
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Ce soir 21 h : tournoi du vendredi, inscriptions ouvertes. <a href=\"https://go.goolink.eu/o/ab12cd\">Jouer</a>",
+        "media": "text"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-ok-2",
+      "valid": true,
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Nouvelle salle de roulette en direct, venez la découvrir. Jouez avec modération, 18+.",
+        "media": "photo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-ok-3",
+      "valid": true,
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Rappel : le tournoi de vendredi commence à 21 h, il reste des places.",
+        "media": "text"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-ok-4",
+      "valid": true,
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Le classement de la semaine est en ligne. <a href=\"https://go.goolink.eu/o/ab12cd\">Jouer</a>",
+        "media": "text"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-ok-5",
+      "valid": true,
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Bon week-end à tous, rendez-vous lundi pour le prochain tirage.",
+        "media": "text"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-copy",
+      "valid": false,
+      "error": "copie",
+      "expectedCode": "COPY",
+      "detectedBy": "code",
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Ce soir le grand tirage spécial commence à vingt et une heures précises sur notre canal préféré !"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-secret",
+      "valid": false,
+      "error": "donnée sensible",
+      "expectedCode": "SENSITIVE_DATA",
+      "detectedBy": "code",
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Accès admin : 7234567891:AAHk3j2l4k5j6h7g8f9d0s1a2q3w4e5r6t7y8"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "post-gain",
+      "valid": false,
+      "error": "promesse de gain",
+      "expectedCode": "GAIN_PROMISE",
+      "detectedBy": "model",
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Gagne 500 € garantis ce soir, c'est sûr à 100 %."
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "GAIN_PROMISE",
+            "message": "Erreur attendue : promesse de gain.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-contradiction",
+      "valid": false,
+      "error": "contradiction",
+      "expectedCode": "CONTRADICTION",
+      "detectedBy": "model",
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Le tournoi de vendredi est annulé, aucune inscription n'a jamais été ouverte."
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "CONTRADICTION",
+            "message": "Erreur attendue : contradiction.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-ai",
+      "valid": false,
+      "error": "mention d'IA",
+      "expectedCode": "AI_MENTION",
+      "detectedBy": "code",
+      "content": {
+        "channelId": "ch-casino",
+        "text": "Notre intelligence artificielle a choisi les meilleures tables pour toi."
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    }
+  ]
+}

@@ -32,6 +32,7 @@ import { INSPIRATION_SOURCE, mergeTaggedLine } from "./proposals";
 import { INSPIRATION_LIMITS } from "./contract";
 import { mixShiftPoints, parseMixValue } from "../agents/synthese/bounds";
 import { effectiveMix } from "../algo/mix";
+import { recommendationNotApproved } from "../qa-gates/recommendations";
 
 const DAY = 86_400_000;
 /** « Annuler » reste possible 30 jours après l'application. */
@@ -103,6 +104,11 @@ async function applyStyleProfile(deps: AgentsDeps, rec: RecRow, actor: ActorRef)
 /** Une recommandation : recalcul des consignes marquées sur la valeur actuelle, puis application bornée. */
 async function applyOne(deps: AgentsDeps, rec: RecRow, actor: ActorRef): Promise<{ ok: boolean; message: string }> {
   if (rec.source !== INSPIRATION_SOURCE) return { ok: false, message: "Ce n'est pas une proposition d'inspiration." };
+  // Phase 30 : jamais appliquée sans l'approbation du QA Global (vérifiée avant le recalcul des consignes marquées).
+  if (rec.status === "PROPOSED") {
+    const notApproved = await recommendationNotApproved(deps, rec as never);
+    if (notApproved) return { ok: false, message: notApproved };
+  }
   if (rec.field === "styleProfileId") return applyStyleProfile(deps, rec, actor);
   if (rec.field === "styleNotes" && rec.status === "PROPOSED") {
     const ev = record(rec.evidence);

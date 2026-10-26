@@ -35,6 +35,8 @@ import { createBossPending } from "./confirm";
 import { int, oneOf, str } from "./params";
 import { pick } from "./voice";
 import { BOSS_ADMIN_ONLY_KEYS, BOSS_READ_KEYS } from "./team/rights";
+import { recommendationNotApproved } from "../qa-gates/recommendations";
+import { QA_REC_PENDING_TEXT } from "./qa-gate-texts";
 
 /** Conversation de la demande (privé de l'admin par défaut ; un membre sans conversation : null). */
 async function chatKeyOf(deps: BossDeps): Promise<string | null> {
@@ -390,7 +392,12 @@ export const appliquerRecoMarche = defineAction<ApplyP>({
     const chosen = nums.map((n) => c.items.find((i) => i.n === n)).filter((i): i is NonNullable<typeof i> => !!i);
     const now = nowOf(deps);
     // Seul le statut de la proposition change (gardée par le client) : aucune action chez Meta, TikTok, ni sur les canaux.
+    const kept: typeof chosen = [];
     for (const item of chosen) {
+      // Phase 30 : une proposition sans approbation du QA Global n'est jamais gardée.
+      const rec = (await deps.prisma.recommendation.findUnique({ where: { id: item.recommendationId } })) as never;
+      if (!rec || (await recommendationNotApproved(deps, rec))) continue;
+      kept.push(item);
       await deps.prisma.recommendation.updateMany({
         where: { id: item.recommendationId, status: "PROPOSED" },
         data: { status: "APPLIED", appliedAt: now, appliedBy: "HUMAN", appliedById: actor.userId, comment: "Gardée par le client (Kevin) ; à faire par lui chez la plateforme." },
@@ -398,7 +405,8 @@ export const appliquerRecoMarche = defineAction<ApplyP>({
       await agentAudit(deps, { userId: actor.userId, action: "analysts.recommendation.accepted", entityType: "Recommendation", entityId: item.recommendationId, metadata: { via: "TELEGRAM", number: item.n } });
     }
     await writeSetting(deps, choiceKeyOf(c.chatId), { ...c, answeredAt: now.toISOString() });
-    const list = chosen.map((i) => `${i.n} (${esc(i.label)})`).join(", ");
+    if (!kept.length) return { reply: QA_REC_PENDING_TEXT };
+    const list = kept.map((i) => `${i.n} (${esc(i.label)})`).join(", ");
     return { reply: pick(AV.accepted({ list }), "analysts.accepted", chatId) };
   },
 });

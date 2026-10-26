@@ -9,6 +9,7 @@ export type AgentsSection =
   | "bookmakers"
   | "montage"
   | "analyses"
+  | "qualite"
   | "validations"
   | "journal"
   | "settings";
@@ -22,6 +23,7 @@ export type AgentsSection =
  * Phase 35 : « Bookmakers » (`/agents/bookmakers`), les sites des bookmakers que le système lit lui-même.
  * Phase 28 : « Montage » (`/agents/montage`), les vidéos longues découpées en shorts et leur médiathèque.
  * Phase 29 : « Analyses » (`/agents/analyses`), la veille du marché, les règles publicitaires, les rapports et sources.
+ * Phase 30 : « Qualité » (`/agents/qualite`), le contrôle qualité global : ce qui a été vérifié, accepté ou refusé.
  * `pending` : validations à faire + demandes ouvertes (pastille).
  */
 export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
@@ -34,6 +36,7 @@ export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
     { key: "bookmakers", href: "/agents/bookmakers", label: "Bookmakers" },
     { key: "montage", href: "/agents/montage", label: "Montage" },
     { key: "analyses", href: "/agents/analyses", label: "Analyses" },
+    { key: "qualite", href: "/agents/qualite", label: "Qualité" },
     {
       key: "validations",
       href: "/agents/validations",

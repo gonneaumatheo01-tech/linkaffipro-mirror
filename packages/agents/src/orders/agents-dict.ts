@@ -334,16 +334,15 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     role: "Écrit le rapport du marché du lundi, les briefings à la demande et les alertes envoyées par Kevin.",
     synonyms: ["rapporteur", "rapporteuse", "rapport du marche", "rapport hebdo du marche", "briefing", "briefings", "celui qui fait le rapport du marche"],
   }),
+  // Phase 30 : contrôle qualité global, le dernier verrou avant toute sortie (toutes équipes). Rattaché au Grand Chef.
   e({
     key: "qa",
-    label: "QA global",
+    label: "QA Global",
     kind: "agent",
-    teams: [],
-    chief: null,
-    role: "Relira tout ce qui sort, toutes équipes confondues.",
-    synonyms: ["qa", "qa global", "controle global", "assurance qualite"],
-    available: false,
-    arrives: "phase 30",
+    teams: ["qa"],
+    chief: "grand-chef",
+    role: "Relit tout ce qui sort, toutes équipes confondues, après leur propre contrôle : il accepte ou il bloque, sans jamais rien modifier.",
+    synonyms: ["qa", "qa global", "controle global", "controle qualite global", "assurance qualite", "dernier verrou", "celui qui verifie tout", "celui qui bloque"],
   }),
   e({
     key: "prospection",
@@ -456,6 +455,7 @@ export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "ads") return "Ads";
   if (t === "montage") return "Montage";
   if (t === "analystes") return "Analystes";
+  if (t === "qa") return "Contrôle qualité";
   if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
@@ -501,6 +501,15 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
     const abilities = agentAbilities(agent.key).map((c) => c.description);
     const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
     if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
+    return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
+  }
+  // Phase 30 : le contrôle qualité global vérifie des contenus (pas des posts) : sa fiche vient de ses vérifications.
+  if (agent.key === "qa") {
+    const { qaAgentCard } = await import("../qa/kevin-view");
+    const card = await qaAgentCard(deps);
+    const abilities = agentAbilities(agent.key).map((c) => c.description);
+    const lines = [`${agent.label}${chief ? ` (sous le ${chief.label})` : ""} : ${agent.role}`, ...card.lines];
+    lines.push("Tu peux par exemple me demander « montre-moi les refus de cette semaine » ou « pourquoi ce post a été refusé ? ».");
     return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
   }
   // Phase 28 : l'équipe Montage travaille sur des montages (pas des posts) : sa fiche vient de ses montages et shorts.

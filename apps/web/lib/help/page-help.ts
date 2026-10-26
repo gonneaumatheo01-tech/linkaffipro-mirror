@@ -367,6 +367,18 @@ export const PAGE_HELP: readonly PageHelp[] = [
     label: "Rapport d'analyse",
     sections: ["Le rapport du lundi et les alertes", "Poser une question sur le marché"],
   },
+  // Phase 30 : contrôle qualité global (tableau de bord, historique des vérifications, tendances des refus).
+  {
+    path: "/agents/qualite",
+    label: "Qualité",
+    sections: [
+      intro("Contrôle qualité global"),
+      "Ce que le contrôle vérifie",
+      "Voir les refus",
+      "Un contenu est bloqué",
+      "Le contrôle qualité est en pause",
+    ],
+  },
   {
     path: "/agents/validations",
     label: "Validations des agents",

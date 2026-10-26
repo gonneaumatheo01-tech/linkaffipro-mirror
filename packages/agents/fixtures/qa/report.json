@@ -1,0 +1,327 @@
+{
+  "contentType": "REPORT",
+  "teamKey": "analystes",
+  "cases": [
+    {
+      "id": "report-ok-1",
+      "valid": true,
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Meta refuse plus de pubs casino en France depuis octobre (source : Reddit, 20 octobre).",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-ok-2",
+      "valid": true,
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Une seule tendance forte cette semaine : refus Meta en France.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-ok-3",
+      "valid": true,
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Refus Meta signalés en France ; à surveiller.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ],
+          "remarque": "Observation de plateforme, pas un avis juridique."
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-ok-4",
+      "valid": true,
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Semaine calme hors refus Meta en France.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-ok-5",
+      "valid": true,
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Refus Meta en France : une source vérifiée.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-number",
+      "valid": false,
+      "error": "chiffre inventé",
+      "expectedCode": "INVENTED_NUMBER",
+      "detectedBy": "model",
+      "content": {
+        "title": "Veille casino France",
+        "summary": "87 % des pubs casino sont refusées en France cette semaine.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "INVENTED_NUMBER",
+            "message": "Erreur attendue : chiffre inventé.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "report-dead-source",
+      "valid": false,
+      "error": "source morte",
+      "expectedCode": "DEAD_SOURCE",
+      "detectedBy": "code",
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Refus Meta en France.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-introuvable"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "report-legal",
+      "valid": false,
+      "error": "conseil juridique",
+      "expectedCode": "LEGAL_ADVICE",
+      "detectedBy": "model",
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Vous êtes en règle avec la loi ANJ si vous ajoutez « 18+ » : aucun risque juridique.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "LEGAL_ADVICE",
+            "message": "Erreur attendue : conseil juridique.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "report-unsourced",
+      "valid": false,
+      "error": "affirmation sans source",
+      "expectedCode": "UNSOURCED",
+      "detectedBy": "model",
+      "content": {
+        "title": "Veille casino France",
+        "summary": "TikTok va interdire toutes les pubs casino en 2027.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "UNSOURCED",
+            "message": "Erreur attendue : affirmation sans source.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "report-copy",
+      "valid": false,
+      "error": "copie",
+      "expectedCode": "COPY",
+      "detectedBy": "code",
+      "content": {
+        "title": "Veille casino France",
+        "summary": "Ce soir le grand tirage spécial commence à vingt et une heures précises sur notre canal préféré.",
+        "content": {
+          "tendances": [
+            {
+              "texte": "Refus de pubs casino sur Meta en France.",
+              "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+              "date": "2026-10-20"
+            }
+          ]
+        },
+        "sourceEntryIds": [
+          "te-1"
+        ],
+        "recommendations": []
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    }
+  ]
+}

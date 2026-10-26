@@ -14,6 +14,7 @@ import { DATING_CAPABILITIES } from "./capabilities/dating";
 import { INSPIRATION_CAPABILITIES } from "./capabilities/inspiration";
 import { MONTAGE_CAPABILITIES } from "./capabilities/montage";
 import { ANALYSTES_CAPABILITIES } from "./capabilities/analystes";
+import { QA_CAPABILITIES } from "./capabilities/qa";
 import { REDACTION_CAPABILITIES } from "./capabilities/redaction";
 import { SPORTS_CAPABILITIES } from "./capabilities/sports";
 import { TRANSVERSE_CAPABILITIES } from "./capabilities/transverse";
@@ -77,6 +78,8 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...MONTAGE_CAPABILITIES,
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, stratégie, rapports ; lecture seule).
   ...ANALYSTES_CAPABILITIES,
+  // Phase 30 : contrôle qualité global (lecture seule : état, refus, motifs ; jamais « accepter à sa place »).
+  ...QA_CAPABILITIES,
 ];
 
 registerCapabilities(BUILTIN_CAPABILITIES);

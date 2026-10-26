@@ -17,6 +17,7 @@ import type { BossDeps } from "./contract";
 import { bossMonthSpend, bossMonthlyCapCents } from "./llm";
 import { eur, plural } from "./catalog-kit";
 import { pick, voiceTemplate, type VoiceTable } from "./voice";
+import { checkRecommendations, splitApproved } from "../qa-gates/recommendations";
 
 /** Textes fixes des réponses chiffrées écrites par le code (charte `docs/KEVIN-VOIX.md`). */
 export const FACTS_VARIANTS = {
@@ -352,12 +353,20 @@ export function recommendationLabel(r: Pick<RecoRow, "teamKey" | "field" | "afte
 
 /** Recommandations Algorithme proposées (ordre stable : la plus ancienne d'abord) — numéros de la liste affichée. */
 export async function algoProposed(deps: BossDeps): Promise<RecoRow[]> {
-  return (await deps.prisma.recommendation.findMany({
+  const rows = (await deps.prisma.recommendation.findMany({
     // Phase 29 : les propositions de l'analyse du marché ont leur propre liste (« applique 2 ») et ne s'appliquent jamais.
     where: { status: "PROPOSED", NOT: [{ teamKey: "ads" }, { source: "inspiration" }, { source: "market_analysis" }] },
     orderBy: [{ createdAt: "asc" }],
-    take: 9,
+    take: 50,
   })) as RecoRow[];
+  // Phase 30 : seules les propositions approuvées par le QA Global sont montrées (et numérotées pour « applique N »).
+  return approvedOrdered(deps, rows);
+}
+
+/** Phase 30 : propositions encore en vérification par le QA Global (jamais montrées, jamais appliquées). */
+export async function proposalsInReview(deps: BossDeps): Promise<number> {
+  const rows = (await deps.prisma.recommendation.findMany({ where: { status: "PROPOSED" }, take: 200 })) as never[];
+  return (await splitApproved(deps, rows)).pending.length;
 }
 
 /** Réglages Algorithme appliqués (le plus récent d'abord). */
@@ -370,11 +379,23 @@ export async function algoApplied(deps: BossDeps): Promise<RecoRow[]> {
 }
 
 export async function adsProposed(deps: BossDeps): Promise<RecoRow[]> {
-  return (await deps.prisma.recommendation.findMany({
+  const rows = (await deps.prisma.recommendation.findMany({
     where: { status: "PROPOSED", teamKey: "ads" },
     orderBy: [{ createdAt: "asc" }],
-    take: 9,
+    take: 50,
   })) as RecoRow[];
+  return approvedOrdered(deps, rows);
+}
+
+/**
+ * Phase 30 : propositions approuvées par le QA Global, dans l'ordre de la liste (numéros stables pour « applique N ») ;
+ * celles qui n'ont pas encore été vérifiées le sont maintenant (3 au plus, en parallèle : la file de rattrapage fait le
+ * reste toutes les 5 minutes). Les autres restent « en vérification ».
+ */
+async function approvedOrdered(deps: BossDeps, rows: readonly RecoRow[]): Promise<RecoRow[]> {
+  const checked = await checkRecommendations(deps, rows as never[], 3);
+  const ok = new Set((checked.approved as Array<{ id: string }>).map((r) => r.id));
+  return rows.filter((r) => ok.has((r as { id: string }).id)).slice(0, 9);
 }
 
 /** Noms des cibles (canaux, personas) d'une liste de recommandations. */
@@ -393,12 +414,13 @@ export async function targetNames(deps: BossDeps, rows: readonly RecoRow[]): Pro
 }
 
 export async function recommendationsFacts(deps: BossDeps): Promise<Facts> {
-  const [proposed, applied, ads] = await Promise.all([algoProposed(deps), algoApplied(deps), adsProposed(deps)]);
+  const [proposed, applied, ads, inReview] = await Promise.all([algoProposed(deps), algoApplied(deps), adsProposed(deps), proposalsInReview(deps)]);
   const names = await targetNames(deps, [...proposed, ...applied]);
   const facts = {
     algorithmePropose: proposed.map((r) => recommendationLabel(r, names, r.targetId)),
     algorithmeApplique: applied.slice(0, 5).map((r) => recommendationLabel(r, names, r.targetId)),
     pubs: ads.map((r) => recommendationLabel(r)),
+    enVerification: inReview,
   };
   const ls = [
     proposed.length
@@ -406,6 +428,7 @@ export async function recommendationsFacts(deps: BossDeps): Promise<Facts> {
       : "Aucun réglage proposé par l'équipe Algorithme.",
     applied.length ? `Derniers appliqués : ${applied.slice(0, 3).map((r) => recommendationLabel(r, names, r.targetId)).join(" · ")}` : null,
     ads.length ? `Pubs : ${ads.map((r, i) => `${i + 1}. ${recommendationLabel(r)}`).join(" · ")}` : "Aucun conseil pubs en attente.",
+    inReview ? `${inReview} proposition${inReview > 1 ? "s" : ""} encore en vérification par le contrôle qualité.` : null,
   ].filter((l): l is string => !!l);
   return { facts, lines: ls };
 }

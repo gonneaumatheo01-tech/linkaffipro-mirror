@@ -13,6 +13,7 @@ import type { RecommendationActionResult } from "../../algo/contracts";
 import { checkBounds } from "./bounds";
 import { effectiveMix } from "../../algo/mix";
 import { ADS_NEVER_APPLIED, ADS_TEAM_KEY } from "../ads/recommendations";
+import { recommendationNotApproved } from "../../qa-gates/recommendations";
 
 export type RecommendationRow = {
   id: string;
@@ -112,6 +113,9 @@ export async function applyRecommendationImpl(deps: AgentsDeps, id: string, acto
   // Analyse du marché (phase 29) : elle recommande, le client agit ; rien n'est écrit ici (« applique 2 » chez Kevin).
   if (rec.teamKey === "analystes" || rec.source === "market_analysis") return { ok: false, message: MARKET_NEVER_APPLIED };
   if (rec.status !== "PROPOSED") return { ok: false, message: rec.status === "APPLIED" ? "Déjà appliquée." : "Cette recommandation n'est plus proposée." };
+  // Phase 30 : jamais appliquée sans l'approbation du QA Global pour son contenu actuel (humain comme Grand Chef).
+  const notApproved = await recommendationNotApproved(deps, rec as never);
+  if (notApproved) return { ok: false, message: notApproved };
   const cur = await currentValue(deps, rec.target, rec.targetId, rec.field);
   if (cur === undefined) return { ok: false, message: "La cible de ce réglage n'existe plus." };
   const { settings } = await loadAlgoTeam(deps.prisma);

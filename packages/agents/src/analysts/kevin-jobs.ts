@@ -41,7 +41,10 @@ import {
 } from "./kevin-state";
 import { ANALYSTS_KEVIN_VARIANTS as V, boundedAnswer, riskAtLeast } from "./kevin-texts";
 import { AnalystsAiError } from "./reasoning";
-import { weekPeriod } from "./reporter";
+import { rewriteWeeklyReport, weekPeriod } from "./reporter";
+import { clearPendingAlert, gateAlert, gateComplianceRule, gateReport, QA_PENDING_ALERT_PREFIX, type AlertRef } from "../qa-gates/analysts";
+import { qaKevinReply } from "../qa-gates/kevin";
+import { QA_RESPONSE_HELD_TEXT } from "../boss/qa-gate-texts";
 
 /** Catégories d'entrée lues par la Compliance. */
 export const ANALYSTS_COMPLIANCE_CATEGORIES = ["AD_BAN", "PLATFORM_CHANGE", "REGULATION"] as const;
@@ -243,6 +246,15 @@ async function sendEntryAlert(deps: AnalystsKevinDeps, entryId: string, kind: "t
     kind === "trend"
       ? analystsPort(deps).alertFor({ id: e.id, summary: e.summary, url: e.url, verified: e.verified, title: e.title }).text
       : `${pick(V.entryAlert({ summary: esc(e.summary.replace(/[.\s]+$/u, "").slice(0, 240)), url: esc(e.url) }), "analysts.alert.entry")}\n${esc(LEGAL_DISCLAIMER)}`;
+  // Phase 30 : alerte immédiate vérifiée par le QA Global (refus = faux positif annulé ; QA absent = retentée plus tard).
+  const qa = await gateAlert(deps, { kind: "entry", id: entryId, text, riskLevel: kind === "risk" ? "HIGH" : null, source: { url: e.url, entryId: e.id } });
+  if (qa !== "send") {
+    if (qa === "later") {
+      await releaseAlert(deps, "entry", entryId);
+      await writeSetting(deps, `${QA_PENDING_ALERT_PREFIX}entry.${entryId}`, { at: nowOf(deps).toISOString(), mode: kind });
+    }
+    return false;
+  }
   const sent = await sendKevin(deps, null, text);
   if (sent === null) {
     await releaseAlert(deps, "entry", entryId);
@@ -303,6 +315,21 @@ async function complianceCheck(deps: AnalystsKevinDeps, entryId: string): Promis
 async function sendRuleAlert(deps: AnalystsKevinDeps, ruleId: string, text: string): Promise<boolean> {
   if (!(await claimAlert(deps, "rule", ruleId))) return false;
   const html = text.includes(esc(LEGAL_DISCLAIMER)) || text.includes(LEGAL_DISCLAIMER) ? text : `${text}\n${esc(LEGAL_DISCLAIMER)}`;
+  // Phase 30 : la règle à risque passe le QA Global avant toute alerte (refusée → désactivée avec le motif), puis
+  // l'alerte elle-même (refusée → faux positif annulé). QA absent : rien n'est envoyé, nouvel essai par le rattrapage.
+  const rule = (await deps.prisma.complianceRule.findUnique({ where: { id: ruleId } })) as RuleRow | null;
+  if (!rule || !rule.isActive) return false;
+  const later = async () => {
+    await releaseAlert(deps, "rule", ruleId);
+    await writeSetting(deps, `${QA_PENDING_ALERT_PREFIX}rule.${ruleId}`, { at: nowOf(deps).toISOString() });
+    return false;
+  };
+  const ruleQa = await gateComplianceRule(deps, rule);
+  if (ruleQa === "later") return later();
+  if (ruleQa === "deactivated") return false;
+  const alertQa = await gateAlert(deps, { kind: "rule", id: ruleId, text: html, riskLevel: rule.riskLevel, source: { url: ruleSources(rule)[0]?.url ?? null, entryId: rule.sourceEntryId } });
+  if (alertQa === "later") return later();
+  if (alertQa === "cancelled") return false;
   const sent = await sendKevin(deps, null, html);
   if (sent === null) {
     await releaseAlert(deps, "rule", ruleId);
@@ -343,7 +370,14 @@ async function sendWeeklyReport(deps: AnalystsKevinDeps, reportId: string | null
   // Une seule fois par semaine, même si deux rapports existent pour la même semaine.
   const twin = (await deps.prisma.strategyReport.findFirst({ where: { reportType: "WEEKLY", period: row.period, sentAt: { not: null } } })) as ReportRow | null;
   if (twin) return { skipped: "already_sent" };
-  const content = (row.content ?? {}) as { text?: unknown };
+  // Phase 30 : le rapport passe le QA Global avant l'envoi (refus → nouvelle rédaction, puis rapport écrit par le code).
+  const qa = await gateReport(deps, row.id, {
+    rewrite: async (mode, corrections) => (await rewriteWeeklyReport(deps, row.id, corrections, mode)).ok,
+    retry: (delayMs) => retryReport(deps, { type: "analysts.report", kind: "weekly", reportId: row.id }, delayMs),
+  });
+  if (qa !== "send") return { ok: true, sent: false, qa };
+  const checked = ((await deps.prisma.strategyReport.findUnique({ where: { id: row.id } })) as ReportRow | null) ?? row;
+  const content = (checked.content ?? {}) as { text?: unknown };
   const body = typeof content.text === "string" && content.text.trim() ? esc(content.text) : pick(V.weeklyNone, "analysts.weeklyNone");
   const recIds = (Array.isArray(row.recommendations) ? (row.recommendations as Array<{ id?: unknown }>) : []).map((r) => r.id).filter((x): x is string => typeof x === "string");
   // Choix rangé sous la conversation privée de l'admin (celle où il répondra « applique 2 »).
@@ -365,7 +399,8 @@ async function choiceBlock(
   askedBy: string,
   f: { market?: Market | null; countries?: string[]; ids?: string[] },
 ): Promise<{ lines: string[]; choice: AnalystsChoice | null }> {
-  let recs = await openMarketRecommendations(deps, f.ids?.length ? {} : { market: f.market ?? null, countries: f.countries ?? [] }, 20);
+  // Phase 30 : propositions vérifiées par le QA Global avant d'être montrées (les autres restent « en vérification »).
+  let recs = await openMarketRecommendations(deps, f.ids?.length ? {} : { market: f.market ?? null, countries: f.countries ?? [] }, 20, { check: true });
   if (f.ids?.length) recs = recs.filter((r) => f.ids!.includes(r.id));
   recs = recs.slice(0, 3);
   if (!recs.length) return { lines: [], choice: null };
@@ -414,12 +449,25 @@ async function onDemand(deps: AnalystsKevinDeps, requestId: string | null): Prom
   const req = await readAnalystsRequest(deps, requestId);
   if (!req) return { skipped: "not_found" };
   if (req.answeredAt) return { skipped: "already_answered" };
-  const r = await composeAnalystsAnswer(deps, req);
+  const r0 = await composeAnalystsAnswer(deps, req);
+  // Phase 30 : réponse rédigée par le Stratège → QA Global (nouvelle rédaction avec les corrections, 3 au plus).
+  const qa = await qaKevinReply(deps, {
+    contentId: `analysts-request:${requestId}`,
+    question: req.question,
+    dataConsulted: { market: req.market, countries: req.countries, platform: req.platform ?? null },
+    draft: r0.text,
+    teamKey: "analystes",
+    regenerate:
+      req.kind === "briefing"
+        ? undefined
+        : async (corrections) => (await composeAnalystsAnswer(deps, { ...req, question: `${req.question}\n(À corriger d'après le contrôle qualité : ${corrections.join(" ; ").slice(0, 600)})` })).text,
+  });
+  const r = { ...r0, text: qa.text };
   const sent = await sendKevin(deps, req.chatId, r.text);
   if (sent === null) throw new Error("réponse de Kevin non envoyée");
   await markAnalystsRequestAnswered(deps, req);
   if (r.reportId) await deps.prisma.strategyReport.update({ where: { id: r.reportId }, data: { sentAt: nowOf(deps) } }).catch(() => undefined);
-  return { ok: true, sent: true };
+  return { ok: true, sent: true, qa: qa.status };
 }
 
 /** Briefing déjà rangé (StrategyReport ON_DEMAND) envoyé à l'admin, une fois. */
@@ -428,6 +476,13 @@ async function sendBriefing(deps: AnalystsKevinDeps, reportId: string | null): P
   const row = (await deps.prisma.strategyReport.findUnique({ where: { id: reportId } })) as ReportRow | null;
   if (!row) return { skipped: "not_found" };
   if (row.sentAt) return { skipped: "already_sent" };
+  // Phase 30 : briefing vérifié par le QA Global ; refusé → retenu (Kevin le dit), QA absent → envoi reporté.
+  const qa = await gateReport(deps, row.id, { retry: (delayMs) => retryReport(deps, { type: "analysts.report", kind: "briefing", reportId: row.id }, delayMs) });
+  if (qa === "held") {
+    await sendKevin(deps, null, QA_RESPONSE_HELD_TEXT);
+    await deps.prisma.strategyReport.update({ where: { id: row.id }, data: { sentAt: nowOf(deps) } });
+  }
+  if (qa !== "send") return { ok: true, sent: false, qa };
   const content = (row.content ?? {}) as { text?: unknown; sources?: unknown };
   const text = typeof content.text === "string" ? content.text : esc(row.title);
   const sources = Array.isArray(content.sources) ? (content.sources as Array<{ url?: unknown; date?: unknown }>).filter((s) => typeof s?.url === "string").map((s) => ({ url: s.url as string, date: typeof s.date === "string" ? s.date : null })) : [];
@@ -487,4 +542,37 @@ async function purge(deps: AnalystsKevinDeps): Promise<Record<string, unknown>> 
     where: { OR: [{ key: { startsWith: ANALYSTS_REQUEST_PREFIX } }, { key: { startsWith: `${ANALYSTS_ALERTED_PREFIX}entry.` } }, { key: { startsWith: ANALYSTS_ENTRY_FLAG_PREFIX } }], updatedAt: { lt: before } },
   });
   return { ok: true, purged: r.purged, settings: old.count };
+}
+
+// ------------------------------------------------------------------------------------------------ QA Global (phase 30)
+
+/** Envoi d'un rapport reporté (QA indisponible) : même tâche, plus tard, identifiant distinct. */
+async function retryReport(deps: AnalystsKevinDeps, job: Extract<AnalystsQueueJob, { type: "analysts.report" }>, delayMs: number): Promise<void> {
+  const enqueue = deps.analysts?.enqueue;
+  if (!enqueue) return;
+  await enqueue(job, { jobId: `analysts-report-${job.reportId ?? "x"}-qa${nowOf(deps).getTime()}`, delayMs });
+}
+
+/**
+ * File de rattrapage (`qa-sweep`) : alerte retenue faute de QA, relancée (nouvelle vérification, puis envoi si
+ * approuvée). Rend vrai si l'alerte est partie.
+ */
+export async function retryAnalystsAlert(deps: AnalystsKevinDeps, a: AlertRef): Promise<boolean> {
+  const key = `${QA_PENDING_ALERT_PREFIX}${a.kind}.${a.id}`;
+  const pending = (await readSetting(deps, key)) as { mode?: unknown } | undefined;
+  await clearPendingAlert(deps, a);
+  if (a.kind === "entry") return sendEntryAlert(deps, a.id, pending?.mode === "trend" ? "trend" : "risk");
+  const r = (await deps.prisma.complianceRule.findUnique({ where: { id: a.id } })) as RuleRow | null;
+  if (!r || !r.isActive) return false;
+  const text = analystsPort(deps).alertFor({
+    id: r.id,
+    platform: r.platform as never,
+    market: r.market as Market,
+    country: r.country,
+    rule: r.rule,
+    riskLevel: r.riskLevel as never,
+    verified: r.verified,
+    evidence: ruleSources(r).map((s) => ({ url: s.url })),
+  }).text;
+  return sendRuleAlert(deps, r.id, text);
 }

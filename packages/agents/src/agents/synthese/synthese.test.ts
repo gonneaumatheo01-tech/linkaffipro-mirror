@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createFakePrisma } from "../../testing/fake-prisma";
+import { createFakeQaLlm } from "../../qa/testing";
 import type { AgentsDeps, LlmProvider } from "../../types";
 import { DEFAULT_ALGO_SETTINGS, parseAlgoSettings } from "../../algo/settings";
 import { applyRecommendation, rejectRecommendation, undoRecommendation } from "../../algo/contracts";
@@ -54,7 +55,8 @@ function setup(level = 0) {
     channelAgentPlan: [{ channelId: "c1", teamKey: "dating", mix: { video: 1, photo: 2, text: 1 }, windowStart: "09:00", windowEnd: "22:00", postsPerDay: 3 }],
     persona: [{ id: "pe1", name: "Léa", identityKind: "GIRL", followUpsMax: 2, styleExamples: "lui: salut\nmoi: coucou" }],
   });
-  const deps = { prisma, now: () => new Date("2026-10-26T08:00:00Z"), enqueue: { async orchestrator() {}, async step() {} } } as unknown as AgentsDeps;
+  // Phase 30 : QA Global simulé qui approuve (une recommandation ne s'applique qu'approuvée).
+  const deps = { prisma, now: () => new Date("2026-10-26T08:00:00Z"), enqueue: { async orchestrator() {}, async step() {} }, qaLlm: createFakeQaLlm() } as unknown as AgentsDeps;
   const rec = (o: Record<string, unknown>) =>
     prisma._model("recommendation").create({ data: { teamKey: "dating", status: "PROPOSED", size: "SMALL", evidence: {}, ...o } }) as Promise<{ id: string }>;
   return { prisma, deps, rec, plan: () => prisma._tables.channelAgentPlan![0]! };

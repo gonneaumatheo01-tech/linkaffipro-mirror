@@ -9,6 +9,7 @@ import { errorText } from "../redirect";
 import type { AdsRecommendationView } from "./display";
 import { ADS_THRESHOLDS_KEY, parseAdsThresholds } from "./thresholds";
 import { ADS_ALERTS_KEY, parseAdsAlertSettingsValue, type AdsAlertSettingsValues } from "./alert-settings";
+import { hideUnapprovedProposals } from "@/lib/agents/qa-recommendations";
 
 export const ADS_TEAM_KEY = "ads";
 
@@ -43,12 +44,14 @@ const REC_SELECT = {
 
 /** Recommandations de l'agent (à décider d'abord, puis l'historique), avec le nom de la campagne, du groupe ou de la pub. */
 export async function loadAdsRecommendations(take = 200): Promise<AdsRecommendationView[]> {
-  const rows = await prisma.recommendation.findMany({
+  const rows0 = await prisma.recommendation.findMany({
     where: { teamKey: ADS_TEAM_KEY },
     orderBy: [{ createdAt: "desc" }],
     take,
     select: REC_SELECT,
   });
+  // Phase 30 : propositions montrées seulement si le QA Global les a approuvées.
+  const rows = (await hideUnapprovedProposals(rows0)).rows;
   const ids = (t: string) => [...new Set(rows.filter((r) => r.target === t).map((r) => r.targetId))];
   const [campaigns, adSets, ads] = await Promise.all([
     prisma.campaign.findMany({ where: { id: { in: ids("CAMPAIGN") } }, select: { id: true, name: true, vertical: true } }),

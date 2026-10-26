@@ -1,0 +1,217 @@
+{
+  "contentType": "ALERT",
+  "teamKey": "analystes",
+  "cases": [
+    {
+      "id": "alert-ok-1",
+      "valid": true,
+      "content": {
+        "message": "Meta refuse des pubs casino en France depuis octobre : vérifie tes pubs en cours.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-ok-2",
+      "valid": true,
+      "content": {
+        "message": "Refus Meta signalés en France, risque élevé pour les pubs casino.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-ok-3",
+      "valid": true,
+      "content": {
+        "message": "Plusieurs refus Meta en France cette semaine.",
+        "riskLevel": "MEDIUM",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-ok-4",
+      "valid": true,
+      "content": {
+        "message": "Nouvelle règle Meta casino en France observée.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1",
+        "ruleId": "cr-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-ok-5",
+      "valid": true,
+      "content": {
+        "message": "Meta : refus de pubs casino en France, source vérifiée.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-false",
+      "valid": false,
+      "error": "faux positif d'alerte",
+      "expectedCode": "FALSE_ALERT",
+      "detectedBy": "model",
+      "content": {
+        "message": "Interdiction totale de la pub casino partout dans le monde dès demain.",
+        "riskLevel": "BAN",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "FALSE_ALERT",
+            "message": "Erreur attendue : faux positif d'alerte.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "alert-dead-source",
+      "valid": false,
+      "error": "source morte",
+      "expectedCode": "DEAD_SOURCE",
+      "detectedBy": "code",
+      "content": {
+        "message": "Meta bannit les pubs casino en France.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-disparue"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-phone",
+      "valid": false,
+      "error": "donnée sensible",
+      "expectedCode": "SENSITIVE_DATA",
+      "detectedBy": "code",
+      "content": {
+        "message": "Le modérateur Meta joignable au 06 12 34 56 78 confirme les refus.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "alert-hallucination",
+      "valid": false,
+      "error": "hallucination",
+      "expectedCode": "HALLUCINATION",
+      "detectedBy": "model",
+      "content": {
+        "message": "Meta a officiellement annoncé la fin des pubs casino en France.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "HALLUCINATION",
+            "message": "Erreur attendue : hallucination.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "alert-number",
+      "valid": false,
+      "error": "chiffre inventé",
+      "expectedCode": "INVENTED_NUMBER",
+      "detectedBy": "model",
+      "content": {
+        "message": "95 % des comptes casino ont été bannis par Meta en France.",
+        "riskLevel": "HIGH",
+        "source": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "INVENTED_NUMBER",
+            "message": "Erreur attendue : chiffre inventé.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    }
+  ]
+}

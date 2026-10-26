@@ -289,3 +289,56 @@ export async function buildBriefing(deps: AnalystsBrainDeps, req: BriefingReques
   await agentEvent(deps, "analysts.report.briefing", { reportId: row.id, market, countries, noData: answer.noData });
   return { reportId: row.id, text, noData: answer.noData, suggestSearch: answer.suggestSearch, sources: answer.sources, costCents: answer.costCents };
 }
+
+// ---------------------------------------------------------------------------------------------- QA Global (phase 30)
+
+/**
+ * Phase 30 : rapport de la semaine refusé par le QA Global → nouvelle rédaction de la même ligne (`StrategyReport`,
+ * même identifiant : les refus se cumulent). `mode = "ai"` : une rédaction avec les corrections demandées (contrôlée
+ * comme la première, sinon le texte du code) ; `mode = "code"` : le rapport écrit par le code. Le texte repasse
+ * ensuite au QA (jamais envoyé sans approbation).
+ */
+export async function rewriteWeeklyReport(
+  deps: AnalystsBrainDeps,
+  reportId: string,
+  corrections: readonly string[],
+  mode: "ai" | "code",
+): Promise<{ ok: boolean; writtenBy: "ai" | "code"; costCents: number }> {
+  const row = (await deps.prisma.strategyReport.findUnique({ where: { id: reportId } })) as { id: string; period: string; content: unknown } | null;
+  if (!row) return { ok: false, writtenBy: "code", costCents: 0 };
+  const content = (row.content && typeof row.content === "object" ? row.content : {}) as Record<string, unknown>;
+  const m = /^(\d{4})-W(\d{2})$/.exec(row.period);
+  const facts: WeeklyReportFacts = {
+    week: m ? Number(m[2]) : 0,
+    year: m ? Number(m[1]) : 0,
+    period: row.period,
+    markets: Array.isArray(content.markets) ? (content.markets as ReportMarketFacts[]) : [],
+    newRules: typeof content.newRules === "number" ? content.newRules : 0,
+    siteUrl: analystsPageUrl(),
+  };
+  let text = codeWeeklyReport(facts);
+  let writtenBy: "ai" | "code" = "code";
+  let costCents = 0;
+  if (mode === "ai") {
+    try {
+      const res = await callAnalystsTask(deps, "weekly_report", {
+        system: REPORTER_WEEKLY_SYSTEM,
+        user: JSON.stringify({ FAITS: { ...facts, avertissementJuridique: LEGAL_DISCLAIMER }, modele: text, correctionsDemandees: corrections.slice(0, 8) }),
+      });
+      costCents = res.costCents;
+      const draft = res.text.replace(/\r/g, "").replace(/\*\*([^*]+)\*\*/g, "$1").trim();
+      if (!weeklyReportProblems(draft, facts).length) {
+        text = draft;
+        writtenBy = "ai";
+      }
+    } catch {
+      // IA indisponible : le rapport écrit par le code.
+    }
+  }
+  await deps.prisma.strategyReport.update({
+    where: { id: row.id },
+    data: { summary: shorten(text, 1000), content: JSON.parse(JSON.stringify({ ...content, text, writtenBy, sources: collectSources(facts) })) },
+  });
+  await agentEvent(deps, "analysts.report.rewritten", { reportId: row.id, writtenBy, mode });
+  return { ok: true, writtenBy, costCents };
+}

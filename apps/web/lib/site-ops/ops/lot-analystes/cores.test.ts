@@ -54,6 +54,13 @@ vi.mock("@linkaffipro/db", () => {
   };
 });
 
+// Phase 30 : garde du QA Global simulée (approuvée par défaut ; un test la refuse).
+const qa = vi.hoisted(() => ({ notApproved: null as string | null }));
+vi.mock("@linkaffipro/agents", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@linkaffipro/agents")>()),
+  recommendationNotApproved: vi.fn(async () => qa.notApproved),
+}));
+
 import { LOT_ANALYSTES_IMPL } from "../lot-analystes";
 import { DELETE_WORD_ERROR, runActivateSource, runDeactivateSource, runDecideMarketRecommendation, runDeleteSource } from "./cores";
 
@@ -158,6 +165,17 @@ describe("recommandations du marché", () => {
     expect(await runDecideMarketRecommendation(fd({ id: "a1", status: "APPLIED" }), ADMIN)).toMatchObject({ ok: false, code: "not_found" });
     expect(await runDecideMarketRecommendation(fd({ id: "r1", status: "DONE" }), ADMIN)).toMatchObject({ ok: false, error: "Recommandation inconnue." });
     expect(m.writes).toHaveLength(1);
+  });
+
+  it("phase 30 : pas encore approuvée par le QA Global → jamais acceptée (refuser reste possible)", async () => {
+    qa.notApproved = "Cette proposition est encore en vérification : je te la montre dès qu'elle est validée.";
+    try {
+      expect(await runDecideMarketRecommendation(fd({ id: "r1", status: "APPLIED" }), ADMIN)).toMatchObject({ ok: false, code: "conflict", error: expect.stringContaining("en vérification") });
+      expect(m.writes).toEqual([]);
+      expect(await runDecideMarketRecommendation(fd({ id: "r1", status: "REJECTED" }), ADMIN)).toMatchObject({ ok: true });
+    } finally {
+      qa.notApproved = null;
+    }
   });
 
   it("essai à blanc : rien n'est écrit", async () => {

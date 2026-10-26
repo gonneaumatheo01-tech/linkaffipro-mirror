@@ -292,6 +292,13 @@ export type AgentStepJob = { type: "step"; missionId: string; index: number; pol
 export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: boolean };
 
 /**
+ * File `agents-algo` (phase 30, QA Global) : `qa-sweep` (5 min : recommandations sans approbation vérifiées, alertes
+ * des Analystes retenues faute de QA) et `qa-alerts` (5 min : alertes internes du QA envoyées par Kevin). Sur cette
+ * file plutôt que sur `agents-orchestrator` (une tâche à la fois) : une vérification de 30 s ne retarde jamais Kevin.
+ */
+export type AgentsQaJob = { type: "qa-sweep" } | { type: "qa-alerts" };
+
+/**
  * File `agents-algo` (phase 27, canal d'inspiration) : `inspiration-read` lit un canal de référence (identifiant
  * `inspiration-read:<id>`, `attempt` pour les nouveaux essais différés) ; `inspiration-reread` (chaque jour) relit les
  * références vivantes dont la relecture hebdomadaire est due.
@@ -376,7 +383,7 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                         : Q extends "agents-orchestrator"
                           ? AgentsOrchestratorJob
                           : Q extends "agents-algo"
-                            ? AgentStepJob | AgentsAlgoJob | AgentsInspirationJob
+                            ? AgentStepJob | AgentsAlgoJob | AgentsInspirationJob | AgentsQaJob
                             : Q extends "agents-sports"
                             ? AgentStepJob | AgentsSportsJob
                             : Q extends AgentTeamQueue

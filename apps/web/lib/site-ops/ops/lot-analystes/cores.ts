@@ -9,7 +9,7 @@
  * Mêmes validations et mêmes textes pour le site et Kevin ; essai à blanc (`dryRun`) qui ne fait que lire ; journal
  * (`AuditLog`, métadonnée `via`) à chaque geste réussi. Module SANS « use server » et sans `next/*`.
  */
-import { MARKET_ANALYSIS_SOURCE } from "@linkaffipro/agents";
+import { MARKET_ANALYSIS_SOURCE, recommendationNotApproved } from "@linkaffipro/agents";
 import { audit, prisma } from "@linkaffipro/db";
 import { canDecideRecommendation, canManageSources, cleanRecComment, REC_DECISIONS, safeAnalysesId } from "@/lib/agents/analyses";
 import { errorText, fail, forbidden, formOf, ok, preview, str, type CoreRun, type Fail } from "../lot-d/kit";
@@ -116,6 +116,12 @@ export const runDecideMarketRecommendation: CoreRun = async (fd, actor, opts = {
   if (!rec || rec.source !== MARKET_ANALYSIS_SOURCE) return fail("Recommandation introuvable.", "not_found");
   if (!canDecideRecommendation(String(rec.status))) return fail("Cette recommandation a déjà été décidée : rechargez la page.", "conflict");
   const comment = cleanRecComment(fd.get("comment"));
+  // Phase 30 : « Accepter » seulement une recommandation approuvée par le QA Global (refuser reste toujours possible).
+  if (status === "APPLIED") {
+    const full = await prisma.recommendation.findUnique({ where: { id: rec.id } });
+    const notApproved = full ? await recommendationNotApproved({ prisma } as never, full as never) : "Recommandation introuvable.";
+    if (notApproved) return fail(notApproved, "conflict");
+  }
   if (opts.dryRun)
     return preview(
       status === "APPLIED"

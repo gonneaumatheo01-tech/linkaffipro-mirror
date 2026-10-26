@@ -1,0 +1,301 @@
+{
+  "contentType": "COMPLIANCE_RULE",
+  "teamKey": "analystes",
+  "cases": [
+    {
+      "id": "cr-ok-1",
+      "valid": true,
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Pubs casino : refus fréquents sans autorisation écrite de Meta en France.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-ok-2",
+      "valid": true,
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Les visuels montrant de l'argent liquide sont souvent refusés.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-ok-3",
+      "valid": true,
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Mention 18+ attendue sur les pubs de jeux d'argent.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1",
+        "workaround": "Ajouter 18+ au visuel."
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-ok-4",
+      "valid": true,
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Ciblage des moins de 18 ans refusé pour les jeux d'argent.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-ok-5",
+      "valid": true,
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Délai de relecture plus long pour les pubs casino.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-legal",
+      "valid": false,
+      "error": "conseil juridique",
+      "expectedCode": "LEGAL_ADVICE",
+      "detectedBy": "model",
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Avec la mention 18+, la pub casino est légale en France et sans risque pénal.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "LEGAL_ADVICE",
+            "message": "Erreur attendue : conseil juridique.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cr-dead-source",
+      "valid": false,
+      "error": "source morte",
+      "expectedCode": "DEAD_SOURCE",
+      "detectedBy": "code",
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Meta exige un logo ANJ.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "http://regles-meta.invalid/casino",
+            "date": "2026-10-20",
+            "description": "page disparue"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "cr-contradiction",
+      "valid": false,
+      "error": "contradiction",
+      "expectedCode": "CONTRADICTION",
+      "detectedBy": "model",
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Aucune autorisation n'est exigée par Meta pour les pubs casino en France.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "CONTRADICTION",
+            "message": "Erreur attendue : contradiction.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cr-unsourced",
+      "valid": false,
+      "error": "affirmation sans source",
+      "expectedCode": "UNSOURCED",
+      "detectedBy": "model",
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Meta bannit tout compte qui parle de casino.",
+        "riskLevel": "HIGH",
+        "evidence": [],
+        "sourceEntryId": null
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "UNSOURCED",
+            "message": "Erreur attendue : affirmation sans source.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cr-email",
+      "valid": false,
+      "error": "donnée sensible",
+      "expectedCode": "SENSITIVE_DATA",
+      "detectedBy": "code",
+      "content": {
+        "platform": "META",
+        "market": "CASINO",
+        "country": "FR",
+        "rule": "Règle confirmée par le modérateur marc.leroy@fb-support.com.",
+        "riskLevel": "HIGH",
+        "evidence": [
+          {
+            "url": "https://www.reddit.com/r/Affiliatemarketing/comments/q1x2y3/meta_casino_ads_france/",
+            "date": "2026-10-20",
+            "description": "refus signalés par des affiliés"
+          }
+        ],
+        "sourceEntryId": "te-1"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    }
+  ]
+}

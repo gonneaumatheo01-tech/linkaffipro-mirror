@@ -231,6 +231,9 @@ const KEVIN_FILES = [
   // Phase 29 : textes de Kevin pour l'équipe Analystes (réponses, alertes, sources, rapport, fiches des agents).
   ...tsFiles(join(SRC_DIR, "analysts"), (f) => /\/kevin[^/]*\.ts$/.test(f)),
   join(SRC_DIR, "orders", "capabilities", "analystes.ts"),
+  // Phase 30 : textes de Kevin pour le contrôle qualité global (état, refus, motifs, fiche de l'agent).
+  join(SRC_DIR, "qa", "kevin-view.ts"),
+  join(SRC_DIR, "orders", "capabilities", "qa.ts"),
   ...KEVIN_ORDER_FILES,
   ...tsFiles(join(SRC_DIR, "orders", "view")),
   ...KEVIN_SHARED_FILES,

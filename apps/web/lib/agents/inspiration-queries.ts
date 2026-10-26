@@ -22,6 +22,7 @@ import {
   type StyleProfileView,
 } from "./inspiration";
 import type { InspirationEngine } from "./inspiration-engine";
+import { hideUnapprovedProposals } from "@/lib/agents/qa-recommendations";
 
 export type ChannelRef = { id: string; title: string };
 
@@ -140,7 +141,7 @@ const REC_SELECT = {
 export async function loadInspirationDetail(id: string): Promise<ReferenceDetail | null> {
   const ref = await prisma.referenceChannel.findFirst({ where: { id, removedAt: null }, select: REF_SELECT });
   if (!ref) return null;
-  const [profiles, recRows, posts, account] = await Promise.all([
+  const [profiles, recRows0, posts, account] = await Promise.all([
     prisma.styleProfile.findMany({
       where: { referenceChannelId: id },
       orderBy: { version: "desc" },
@@ -163,6 +164,8 @@ export async function loadInspirationDetail(id: string): Promise<ReferenceDetail
       ? prisma.telegramUserAccount.findUnique({ where: { id: ref.accountId }, select: { label: true } })
       : Promise.resolve(null),
   ]);
+  // Phase 30 : propositions montrées seulement si le QA Global les a approuvées.
+  const recRows = (await hideUnapprovedProposals(recRows0)).rows;
   const profileIds = profiles.map((p) => p.id);
   const recIds = recRows.map((r) => r.id);
   const [plans, expRows] = await Promise.all([

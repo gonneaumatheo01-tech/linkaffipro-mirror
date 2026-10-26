@@ -25,6 +25,8 @@ import { clearMontageAwait, readMontageState, setMontageAwait } from "./kevin-st
 import { durationIn, indexesIn, montageNorm, shiftIn } from "./plan-message";
 import { doubtOptions, previewButtons, previewCaption, QC_CALLBACK_PREFIX, SUBTITLE_CALLBACK_PREFIX, subtitleDoubtButtons, subtitleDoubtText } from "./preview";
 import { handleVideoChoice, MONTAGE_VIDEO_CHOICE_PREFIX } from "./reception";
+import { requestShortCheck, shortPreviewApproved } from "../qa-gates/shorts";
+import { QA_GATE_VARIANTS } from "../boss/qa-gate-texts";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
 
@@ -582,9 +584,14 @@ export async function handleMontageCallback(
     }
     // « Me le montrer » : l'aperçu part avec ses boutons ; le short reste à valider (✅), jamais publié sans.
     if (!clip.assetId) return { handled: true, removeButtons: true, reply: pick(FEEDBACK_VARIANTS.failed, "montage.feedback.failed", chatId) };
+    const asset = (await deps.prisma.mediaAsset.findUnique({ where: { id: clip.assetId } })) as { size: number; width?: number | null; height?: number | null } | null;
+    // Phase 30 : jamais d'aperçu sans l'approbation du QA Global pour ce short exact ; sinon il passe d'abord au contrôle.
+    if (!(await shortPreviewApproved(deps, clip as never, asset))) {
+      await requestShortCheck(deps, clip as never);
+      return { handled: true, toast: TOAST.done, removeButtons: true, reply: pick(QA_GATE_VARIANTS.shortChecking, "qa.short.checking", chatId) };
+    }
     await deps.prisma.shortClip.updateMany({ where: { id: clip.id, status: "QC_FAILED" }, data: { status: "PREVIEW_SENT" } });
     const total = (await clipsOf(deps, clip.montageJobId)).filter((c) => c.status !== "CANCELLED").length;
-    const asset = (await deps.prisma.mediaAsset.findUnique({ where: { id: clip.assetId } })) as { size: number } | null;
     const caption = previewCaption(
       { index: clip.index, total, durationMs: clip.durationMs, format: clip.format, sizeBytes: asset?.size ?? 0, description: clip.description, compressed: clip.compressed },
       chatId,

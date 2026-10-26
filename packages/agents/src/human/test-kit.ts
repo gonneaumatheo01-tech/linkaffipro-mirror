@@ -5,6 +5,8 @@
 import { vi } from "vitest";
 import { createFakePrisma, type FakePrisma } from "../testing/fake-prisma";
 import type { AdminButton, AgentsDeps } from "../types";
+import type { QaDeps } from "../qa/contract";
+import { createFakeQaLlm } from "../qa/testing";
 
 export const ADMIN_TG_ID = 4242n;
 /** Clé AES-256 de test (32 octets en base64). */
@@ -35,7 +37,9 @@ export function createTestKit(start = new Date("2026-10-23T08:00:00Z")) {
     deleteMessage: vi.fn(async () => undefined),
   };
   const enqueue = { orchestrator: vi.fn(async () => undefined), step: vi.fn(async () => undefined) };
-  const deps: AgentsDeps = { prisma, now: () => now, enqueue, admin };
+  // Phase 30 : QA Global simulé qui approuve tout (les tests des chaînes ne dépendent pas du réseau) ; un test peut
+  // imposer un autre comportement (`kit.deps.qaLlm = createFakeQaLlm({ … })`, null = QA absent).
+  const deps: AgentsDeps & QaDeps = { prisma, now: () => now, enqueue, admin, qaLlm: createFakeQaLlm() };
   return {
     prisma,
     deps,

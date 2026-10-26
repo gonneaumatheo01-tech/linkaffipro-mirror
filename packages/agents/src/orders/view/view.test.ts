@@ -85,13 +85,17 @@ describe("annuaire des agents", () => {
     const unk = findAgent("le boulanger");
     expect(unk.status).toBe("unknown");
     if (unk.status === "unknown") expect(unk.known).toContain("Rédaction");
-    // Phase 28 : le Monteur est là ; phase 29 : les Analystes aussi ; le QA global arrive avec la phase 30.
+    // Phase 28 : le Monteur est là ; phase 29 : les Analystes aussi ; phase 30 : le QA Global aussi.
     const m = findAgent("le monteur");
     expect(m.status === "found" && m.agent.available && m.agent.key === "montage-monteur").toBe(true);
     const a = findAgent("les analystes");
     expect(a.status === "found" && a.agent.available && a.agent.key === "chef-analystes").toBe(true);
     const q = findAgent("le qa global");
-    expect(q.status === "found" && q.agent.available === false && q.agent.arrives === "phase 30").toBe(true);
+    expect(q.status === "found" && q.agent.available && q.agent.key === "qa").toBe(true);
+    const c = findAgent("le contrôle qualité global");
+    expect(c.status === "found" && c.agent.key === "qa").toBe(true);
+    const local = findAgent("le contrôle qualité");
+    expect(local.status === "found" && local.agent.key === "controle").toBe(true);
   });
 
   it("fiche : ce qu'il a écrit ce matin, ce qu'il conseille, ce qu'on peut lui demander", async () => {
@@ -107,8 +111,11 @@ describe("annuaire des agents", () => {
     const h = await agentCard(kit.deps, "horaires", {});
     expect(h.lines.join("\n")).toContain("Léa en privé : plutôt le mardi entre 19:00 et 22:00.");
     expectGoodLines(h);
-    const later = await agentCard(kit.deps, "qa");
+    const later = await agentCard(kit.deps, "prospection");
     expect(later.lines[0]).toContain("pas encore là");
+    const qa = await agentCard(kit.deps, "qa");
+    expect(qa.lines.join("\n")).toMatch(/Sur 7 jours : 0 contenu vérifié/);
+    expectGoodLines(qa);
   });
 });
 

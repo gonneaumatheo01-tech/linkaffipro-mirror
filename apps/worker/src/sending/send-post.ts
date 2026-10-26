@@ -17,6 +17,7 @@ import {
 import { logger } from "../logger";
 import { apiForBot } from "./api";
 import { cancelLateBetPost } from "./bet-kickoff";
+import { passesQaGate } from "./qa-gate";
 import { describeTelegramError, withTelegramRetry } from "./errors";
 import { buildInlineKeyboard, parseButtons } from "./keyboard";
 import { loadMedia, rememberTelegramFile, toInputMedia, type LoadedMedia } from "./media";
@@ -102,6 +103,11 @@ export async function sendPost(postId: string): Promise<void> {
   // Pari de l'équipe Paris sportifs : jamais envoyé à moins de N minutes du coup d'envoi, ni après.
   if (await cancelLateBetPost(post)) {
     logger.warn({ postId }, "pari trop tard : message annulé, rien n'est publié");
+    return;
+  }
+  // Phase 30 : dernier verrou du QA Global (posts d'agents seulement), avant le bot comme avant le compte connecté.
+  if (!(await passesQaGate(post))) {
+    logger.warn({ postId }, "post d'agent retenu par le contrôle qualité global : rien n'est publié");
     return;
   }
   if (post.publisher === "ACCOUNT") {

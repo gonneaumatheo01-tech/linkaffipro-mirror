@@ -38,6 +38,8 @@ import {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  QaContentType,
+  QaVerdict,
   RecommendationStatus,
   RiskLevel,
   ReferenceStatus,
@@ -124,6 +126,8 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["riskLevel", RiskLevel],
   ["strategyReport", StrategyReportType],
   ["marketRecommendation", RecommendationStatus],
+  ["qaVerdict", QaVerdict],
+  ["qaContentType", QaContentType],
 ];
 
 describe("badges de statut", () => {

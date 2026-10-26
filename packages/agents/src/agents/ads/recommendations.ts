@@ -10,6 +10,7 @@ import { agentAudit, agentEvent, nowOf } from "../../admin/journal";
 import { ADS_ACTION_LABELS, ADS_TARGETS, type AdsAction, type AdsProposal } from "../../rules/ads";
 import { parisDay } from "../../rules/time";
 import type { AgentsDeps } from "../../types";
+import { recommendationNotApproved } from "../../qa-gates/recommendations";
 
 export const ADS_TEAM_KEY = "ads";
 export const ADS_RECENT_DECISION_DAYS = 7;
@@ -86,6 +87,11 @@ export async function markAdsRecommendationImpl(
   if (!rec || rec.teamKey !== ADS_TEAM_KEY) return { ok: false, message: "Recommandation introuvable." };
   if (rec.status !== "PROPOSED") return { ok: false, message: "Cette recommandation n'est plus proposée." };
   if (input.status !== "DONE" && input.status !== "REJECTED") return { ok: false, message: "État inconnu." };
+  // Phase 30 : « Fait » seulement sur une recommandation approuvée par le QA Global (refuser reste toujours possible).
+  if (input.status === "DONE") {
+    const notApproved = await recommendationNotApproved(deps, rec as never);
+    if (notApproved) return { ok: false, message: notApproved };
+  }
   const now = nowOf(deps);
   const comment = (input.comment ?? "").trim().slice(0, 1000) || null;
   await deps.prisma.recommendation.update({

@@ -12,6 +12,7 @@ import { analystsScheduleSettings } from "./kevin-state";
 import { countryLabel, MARKET_LABELS, PLATFORM_LABELS } from "./analysis-labels";
 import { RISK_ORDER } from "./citations";
 import { ANALYSTS_KEVIN_VARIANTS as V, boundedAnswer, RISK_WORDS, riskAtLeast, shortDate } from "./kevin-texts";
+import { checkRecommendations, splitApproved } from "../qa-gates/recommendations";
 
 export type TrendRow = {
   id: string;
@@ -230,19 +231,21 @@ export async function findSources(deps: AgentsDeps, raw: string): Promise<Source
 export type MarketRecommendationRow = { id: string; after: unknown; evidence: unknown; expectedGain: string | null; targetId: string; status: string; createdAt: Date };
 
 /** Recommandations du marché encore ouvertes (les plus récentes d'abord), filtrées par marché et pays. */
-export async function openMarketRecommendations(deps: AgentsDeps, f: { market?: Market | null; countries?: string[] } = {}, take = 5): Promise<MarketRecommendationRow[]> {
+export async function openMarketRecommendations(deps: AgentsDeps, f: { market?: Market | null; countries?: string[] } = {}, take = 5, opts: { check?: boolean } = {}): Promise<MarketRecommendationRow[]> {
   const rows = (await deps.prisma.recommendation.findMany({
     where: { teamKey: ANALYSTS_TEAM_KEY, source: MARKET_ANALYSIS_SOURCE, status: "PROPOSED" },
     orderBy: { createdAt: "desc" },
     take: 100,
   })) as MarketRecommendationRow[];
-  return rows
-    .filter((r) => {
-      const a = (r.after ?? {}) as { market?: unknown; countries?: unknown };
-      if (f.market && a.market && a.market !== f.market) return false;
-      return countriesMatch(a.countries, f.countries ?? []);
-    })
-    .slice(0, take);
+  const matching = rows.filter((r) => {
+    const a = (r.after ?? {}) as { market?: unknown; countries?: unknown };
+    if (f.market && a.market && a.market !== f.market) return false;
+    return countriesMatch(a.countries, f.countries ?? []);
+  });
+  // Phase 30 : seules les recommandations approuvées par le QA Global sont montrées (et proposées à « applique N »).
+  // `check` (worker : rapport, réponse différée) : celles qui n'ont pas encore été vérifiées le sont maintenant.
+  if (opts.check) return (await checkRecommendations(deps, matching.slice(0, Math.max(take, 6)) as never[], 6)).approved.slice(0, take) as MarketRecommendationRow[];
+  return (await splitApproved(deps, matching as never[])).approved.slice(0, take) as MarketRecommendationRow[];
 }
 
 /** Libellé court d'une recommandation (titre, sinon gain attendu). */

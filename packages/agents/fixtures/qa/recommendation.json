@@ -1,0 +1,344 @@
+{
+  "contentType": "RECOMMENDATION",
+  "teamKey": "algo",
+  "cases": [
+    {
+      "id": "rec-ok-1",
+      "valid": true,
+      "content": {
+        "title": "Changer windowStart",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "windowStart",
+          "before": "09:00",
+          "after": "10:00"
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "rec-ok-2",
+      "valid": true,
+      "content": {
+        "title": "Changer minSpacingMinutes",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "minSpacingMinutes",
+          "before": 90,
+          "after": 120
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "rec-ok-3",
+      "valid": true,
+      "content": {
+        "title": "Changer mix",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "mix",
+          "before": {
+            "video": 0,
+            "photo": 1,
+            "text": 2
+          },
+          "after": {
+            "video": 0,
+            "photo": 2,
+            "text": 2
+          }
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [
+          {
+            "code": "LANGUAGE",
+            "message": "Une virgule manque après « Ce soir ».",
+            "severity": "warning"
+          }
+        ],
+        "corrections": []
+      }
+    },
+    {
+      "id": "rec-ok-4",
+      "valid": true,
+      "content": {
+        "title": "Changer windowEnd",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "windowEnd",
+          "before": "22:00",
+          "after": "23:00"
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "rec-ok-5",
+      "valid": true,
+      "content": {
+        "title": "Changer themes",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "themes",
+          "before": [
+            "roulette"
+          ],
+          "after": [
+            "roulette",
+            "blackjack"
+          ]
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "APPROVED",
+        "reasons": [],
+        "corrections": []
+      }
+    },
+    {
+      "id": "rec-compliance",
+      "valid": false,
+      "error": "contradiction avec une règle publicitaire",
+      "expectedCode": "COMPLIANCE",
+      "detectedBy": "model",
+      "content": {
+        "title": "Changer campagne",
+        "target": "TEAM_CONFIG",
+        "targetId": "casino",
+        "changes": {
+          "field": "campagne",
+          "before": null,
+          "after": "Lancer des pubs casino Meta en France sans autorisation"
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "COMPLIANCE",
+            "message": "Erreur attendue : contradiction avec une règle publicitaire.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "rec-contradiction",
+      "valid": false,
+      "error": "contradiction",
+      "expectedCode": "CONTRADICTION",
+      "detectedBy": "model",
+      "content": {
+        "title": "Changer postsPerDay",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "postsPerDay",
+          "before": 4,
+          "after": 2
+        },
+        "evidence": {
+          "posts": 40
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "CONTRADICTION",
+            "message": "Erreur attendue : contradiction.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "rec-bounds",
+      "valid": false,
+      "error": "hors des bornes",
+      "expectedCode": "OUT_OF_BOUNDS",
+      "detectedBy": "model",
+      "content": {
+        "title": "Changer postsPerDay",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "postsPerDay",
+          "before": 4,
+          "after": 12
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "OUT_OF_BOUNDS",
+            "message": "Erreur attendue : hors des bornes.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "rec-gain",
+      "valid": false,
+      "error": "promesse de gain",
+      "expectedCode": "GAIN_PROMISE",
+      "detectedBy": "model",
+      "content": {
+        "title": "Changer windowStart",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "windowStart",
+          "before": "09:00",
+          "after": "08:00"
+        },
+        "evidence": {
+          "posts": 40,
+          "vues_moyennes": 1200
+        },
+        "source": "algo",
+        "expectedGain": "+300 % de revenus garantis"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "GAIN_PROMISE",
+            "message": "Erreur attendue : promesse de gain.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    },
+    {
+      "id": "rec-hallucination",
+      "valid": false,
+      "error": "preuve inventée",
+      "expectedCode": "HALLUCINATION",
+      "detectedBy": "model",
+      "content": {
+        "title": "Changer windowStart",
+        "target": "CHANNEL_PLAN",
+        "targetId": "ch-casino",
+        "changes": {
+          "field": "windowStart",
+          "before": "09:00",
+          "after": "07:00"
+        },
+        "evidence": {
+          "etude": "Selon Telegram, 7 h est la meilleure heure pour tous les canaux."
+        },
+        "source": "algo"
+      },
+      "model": {
+        "verdict": "REJECTED",
+        "reasons": [
+          {
+            "code": "HALLUCINATION",
+            "message": "Erreur attendue : preuve inventée.",
+            "severity": "critical"
+          }
+        ],
+        "corrections": [
+          {
+            "field": "text",
+            "expected": "contenu corrigé",
+            "got": "contenu fautif",
+            "suggestion": "Corrige ce point."
+          }
+        ]
+      }
+    }
+  ]
+}
