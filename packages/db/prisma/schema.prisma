@@ -3527,3 +3527,243 @@ enum QaVerdict {
   TIMEOUT
   ERROR
 }
+
+/// Phase 31 — équipe Prospection : un canal ou groupe Telegram PUBLIC de casino / paris sportifs repéré comme futur
+/// affilié. Données publiques et minimales seulement (aucun texte de post, aucun membre). L'équipe ne contacte personne.
+/// Champs nullables prévus pour la phase 32 (`telegramId`, `linkAffiAffiliateId`, `networkId`).
+model Prospect {
+  id                  String                @id @default(cuid())
+  /// Sans @, minuscules ; null si lien d'invitation privé.
+  username            String?               @unique
+  telegramId          String?               @unique
+  /// https://t.me/<username> ou https://t.me/+<hash>.
+  channelUrl          String                @unique
+  kind                ProspectKind          @default(CHANNEL)
+  title               String                @default("")
+  /// Description publique du canal (texte public court, gardé pour relire les contacts).
+  descriptionRaw      String?
+  /// Résumé IA en français, 200 caractères.
+  summaryFr           String?
+  vertical            ProspectVertical      @default(OTHER)
+  verticalDetails     Json?
+  contentType         String?
+  language            String?
+  languageConfidence  Float?
+  countries           Json?
+  geoSignals          Json?
+  geoConfidence       Float?
+  region              ProspectRegion        @default(UNKNOWN)
+  regulatoryFlag      String?
+  subscribers         Int?
+  postsPerDay         Float?
+  medianViews         Int?
+  avgViews            Int?
+  viewRate            Float?
+  viewVarianceCv      Float?
+  forwardRatio        Float?
+  reactionRate        Float?
+  commentRate         Float?
+  linkDensity         Float?
+  postingHours        Json?
+  firstSeenPostAt     DateTime?
+  lastPostAt          DateTime?
+  authenticity        ProspectAuthenticity?
+  authenticityReason  String?
+  fakeFlags           Json?
+  riskFlags           Json?
+  monetization        Json?
+  brands              Json?
+  hasCompetitor       Boolean               @default(false)
+  /// FREE, ROTATING, EXCLUSIVE, OURS.
+  competitiveState    String?
+  contactConfidence   ContactConfidence     @default(NONE)
+  bestContact         String?
+  score               Int?
+  scoreBreakdown      Json?
+  tier                ProspectTier?
+  tierReason          String?
+  dossier             String?
+  dossierAt           DateTime?
+  matchedOfferId      String?
+  matchedOffer        AffiliateOffer?       @relation(fields: [matchedOfferId], references: [id], onDelete: SetNull)
+  status              ProspectStatus        @default(DISCOVERED)
+  statusChangedAt     DateTime?
+  presentedAt         DateTime?
+  snoozedUntil        DateTime?
+  contactedAt         DateTime?
+  respondedAt         DateTime?
+  signedAt            DateTime?
+  /// CPA, REVSHARE, HYBRID.
+  dealType            String?
+  dealTerms           Json?
+  linkAffiAffiliateId String?
+  networkId           String?
+  /// DIRECTORY, WEB_SEARCH, SOCIAL, GRAPH_FORWARD, GRAPH_MENTION, FOLDER, ANALYSTS, MANUAL, ACCOUNT_SEARCH (phase 32).
+  sourceType          String
+  sourceDetail        String?
+  discoveredFromId    String?
+  /// Profondeur dans le graphe depuis une source directe (0 = trouvé directement).
+  graphDepth          Int                   @default(0)
+  cocitationCount     Int                   @default(0)
+  /// Priorité d'enrichissement (MANUAL : 10 ; graphe : cocitations).
+  priority            Int                   @default(0)
+  discoveredAt        DateTime              @default(now())
+  enrichedAt          DateTime?
+  lastEnrichedAt      DateTime?
+  enrichError         String?
+  enrichAttempts      Int                   @default(0)
+  nextEnrichAt        DateTime?
+  contacts            ProspectContact[]
+  notes               ProspectNote[]
+  events              ProspectEvent[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([status, tier, score])
+  @@index([region, status])
+  @@index([status, priority, discoveredAt])
+  @@index([presentedAt])
+}
+
+enum ProspectKind {
+  CHANNEL
+  GROUP
+}
+
+enum ProspectVertical {
+  SPORTS
+  CASINO
+  BOTH
+  OTHER
+}
+
+enum ProspectRegion {
+  EU
+  NON_EU
+  UNKNOWN
+}
+
+enum ProspectAuthenticity {
+  REAL
+  SUSPECT_GENERIC
+  SUSPECT_BOT
+  REPOST
+}
+
+enum ContactConfidence {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ProspectTier {
+  A
+  B
+  C
+  D
+}
+
+enum ProspectStatus {
+  DISCOVERED
+  ENRICHING
+  UNREADABLE
+  ENRICH_FAILED
+  QUALIFIED
+  DISQUALIFIED
+  CONTACTED
+  RESPONDED
+  NEGOTIATING
+  SIGNED
+  ACTIVE
+  CHURNED
+  SKIPPED
+  BLACKLISTED
+}
+
+/// Phase 31 — contact PUBLIC de prospection (username ou courriel affichés pour être contactés), avec sa preuve.
+model ProspectContact {
+  id         String              @id @default(cuid())
+  prospectId String
+  prospect   Prospect            @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  type       ProspectContactType
+  value      String
+  label      String?
+  source     String
+  confidence ContactConfidence
+  /// Extrait de 15 mots au plus.
+  evidence   String?
+  createdAt  DateTime            @default(now())
+
+  @@unique([prospectId, type, value])
+}
+
+enum ProspectContactType {
+  TELEGRAM_USERNAME
+  EMAIL
+  WEBSITE
+  BOT
+  SOCIAL
+  MARKETPLACE
+  LINKED_GROUP
+  OTHER
+}
+
+model ProspectNote {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  note       String
+  authorType String   @default("client")
+  createdAt  DateTime @default(now())
+
+  @@index([prospectId, createdAt])
+}
+
+/// Phase 31 — chronologie d'un prospect (DISCOVERED, ENRICHED, SCORED, PRESENTED, STATUS_CHANGED, NOTE, REMINDER, ALERT).
+model ProspectEvent {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  type       String
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([prospectId, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Phase 31 — offre du client aux affiliés (CPA et / ou revshare), sert à mesurer l'adéquation d'un canal.
+model AffiliateOffer {
+  id           String           @id @default(cuid())
+  brand        String
+  vertical     ProspectVertical
+  /// Pays acceptés ["FR","BE"].
+  countries    Json             @default("[]")
+  /// { cpa?: 100, revshare?: 30, hybrid?: { cpa, revshare } } en EUR.
+  dealTypes    Json             @default("{}")
+  trackingHint String?
+  notes        String?
+  isActive     Boolean          @default(true)
+  prospects    Prospect[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+/// Phase 31 — journal d'une session de découverte (une source × un lot de langues × une verticale).
+model ProspectSourceRun {
+  id           String    @id @default(cuid())
+  sourceType   String
+  sourceDetail String?
+  languages    Json      @default("[]")
+  vertical     String?
+  started      DateTime  @default(now())
+  finished     DateTime?
+  found        Int       @default(0)
+  newCount     Int       @default(0)
+  duplicates   Int       @default(0)
+  errors       Json?
+  pausedUntil  DateTime?
+
+  @@index([sourceType, started])
+}

@@ -516,3 +516,6 @@ export * from "./qa/index";
 // Phase 30, chantier B : branchements du QA Global dans les sorties des équipes (posts, shorts, rapports, alertes,
 // recommandations, réponses de Kevin, rattrapage).
 export * from "./qa-gates/index";
+
+// Phase 31 : équipe Prospection (contrat ; les chantiers ajoutent leurs lignes dans `prospection/index.ts`).
+export * from "./prospection/index";
