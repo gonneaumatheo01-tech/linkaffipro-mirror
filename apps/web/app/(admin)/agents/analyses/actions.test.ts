@@ -12,6 +12,11 @@ const m = vi.hoisted(() => ({
   revalidated: [] as string[],
 }));
 
+// Phase 30 : la recommandation est approuvée par le QA Global (le refus est testé dans lot-analystes/cores.test.ts).
+vi.mock("@linkaffipro/agents", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@linkaffipro/agents")>()),
+  recommendationNotApproved: vi.fn(async () => null),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn((p: string) => m.revalidated.push(p)) }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
