@@ -197,7 +197,8 @@ async function writeArchiveSend(deps: AgentsDeps, facts: AdsFacts, key: string, 
   const { llm, model } = await reportLlm(deps);
   let written = await writeAdsReport(facts, { llm, model, pageUrl: adsPageUrl() });
   // Phase 30 : rapport rédigé par l'IA → QA Global avant l'envoi ; refusé ou QA indisponible → les lignes du code.
-  if (written.writtenBy === "ai" && send) {
+  // Vérifié même sans envoi : le rapport archivé ressort plus tard (commande « rapport », Kevin), jamais non vérifié.
+  if (written.writtenBy === "ai") {
     const gate = await qaGate(deps, { contentType: "REPORT", contentId: `ads:${key}`, teamKey: ADS_TEAM_KEY, content: { title: `Rapport pubs ${key}`, text: written.html, facts: JSON.parse(JSON.stringify(facts)) } });
     if (gate.kind !== "approved") {
       const cost = written.costCents;

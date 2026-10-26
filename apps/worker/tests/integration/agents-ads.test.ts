@@ -17,7 +17,7 @@ import {
   runAdsWeekly,
   type EngineDeps,
 } from "@linkaffipro/agents";
-import { resetDb } from "./helpers";
+import { approveAllQa, resetDb } from "./helpers";
 
 // Samedi 24 octobre 2026, 12 h à Paris.
 const NOW = new Date("2026-10-24T10:00:00Z");
@@ -52,6 +52,8 @@ describe("Agent Ads : recommandations, rapport, « Fait », alertes (base réell
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await cleanAds();
     const c = await prisma.campaign.create({ data: { name: "Casino test pubs", vertical: "CASINO", status: "ACTIVE", budgetDaily: 1000 } });
     const s = await prisma.adSet.create({ data: { campaignId: c.id, name: "Hommes 25-45" } });

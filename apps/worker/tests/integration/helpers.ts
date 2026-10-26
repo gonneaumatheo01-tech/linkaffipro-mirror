@@ -7,6 +7,8 @@ import type { Api } from "grammy";
 export async function resetDb(): Promise<void> {
   if (!/linkaffipro_test/.test(process.env.DATABASE_URL ?? "")) throw new Error("resetDb refuse de tourner hors de la base de test");
   await prisma.$transaction([
+    // QA Global (phase 30) : vérifications (aucun lien vers les autres tables).
+    prisma.qaCheck.deleteMany(),
     // Équipe Algorithme (phase 21) : tests A/B, recommandations, rapports (les fiches suivent les posts).
     prisma.experiment.deleteMany(),
     prisma.recommendation.deleteMany(),
@@ -53,6 +55,22 @@ export async function resetDb(): Promise<void> {
   ]);
   // Vidé en place : le mock de la file garde une référence sur ce tableau (voir setup.ts).
   (globalThis.__jobs ??= []).length = 0;
+}
+
+/**
+ * Phase 30 : fausse IA du QA Global qui approuve tout (aucun réseau) pour les scénarios des phases précédentes, posée sur
+ * les dépendances du test (`deps.qaLlm`) ET sur celles des processeurs du worker (verrou d'envoi des posts, files des
+ * agents). Les verrous restent actifs : rien ne sort sans une approbation enregistrée (`QaCheck`), et les contrôles du
+ * code (copie, donnée sensible, adresse cassée…) refusent toujours. Import à la demande : les autres tests n'en paient
+ * pas le chargement.
+ */
+export async function approveAllQa(deps?: object) {
+  const { createFakeQaLlm } = await import("@linkaffipro/agents");
+  const { setWorkerAgentsDeps, workerAgentsDeps } = await import("../../src/agents/deps");
+  const qaLlm = createFakeQaLlm();
+  if (deps) Object.assign(deps, { qaLlm });
+  setWorkerAgentsDeps({ ...workerAgentsDeps(), qaLlm } as ReturnType<typeof workerAgentsDeps>);
+  return qaLlm;
 }
 
 /** Tâches BullMQ capturées par le mock de `@linkaffipro/queue` (voir setup.ts). */

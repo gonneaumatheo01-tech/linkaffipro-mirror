@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Update } from "grammy/types";
 import { prisma } from "@linkaffipro/db";
 import {
+  createFakeQaLlm,
   analyzeReference,
   createFakeBossLlm,
   createFakeLlm,
@@ -192,6 +193,8 @@ let analysis: InspirationAnalysis;
 
 beforeAll(async () => {
   await resetDb();
+  // Phase 30 : QA Global simulé qui approuve (dépendances des agents partagées par le webhook ; verrous actifs).
+  Object.assign(agents(), { qaLlm: createFakeQaLlm() });
   await cleanInspiration();
   await prisma.channelAgentPlan.deleteMany();
   await prisma.agentTeamConfig.deleteMany();

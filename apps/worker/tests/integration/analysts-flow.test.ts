@@ -43,7 +43,7 @@ import { createAdminMessengerWith, createBot, prismaTelegramDeps, realBossEngine
 import type { AgentsAnalystesJob } from "@linkaffipro/queue";
 import { processAgentsAnalystes } from "../../src/processors/agents-analystes";
 import { prismaBossTurnFor, processBossText, type BossTextDeps } from "../../src/agents/boss-text";
-import { installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 import { fakeServerTools } from "../../../../packages/agents/src/analysts/watch/testing";
 
 const ADMIN = 79_291;
@@ -393,6 +393,8 @@ beforeAll(async () => {
     // Messager du worker : le bot de Kevin (faux Telegram), au seul admin.
     admin: createAdminMessengerWith({ adminId: async () => BigInt(ADMIN), api: async () => kevin.api as unknown as MessengerApi, media: async () => null }),
   } as unknown as AnalystsKevinDeps;
+  // Phase 30 : QA Global simulé qui approuve (rapports, alertes, réponses et propositions ; les verrous restent actifs).
+  await approveAllQa(deps);
 
   const tgDeps: TelegramDeps = {
     ...prismaTelegramDeps,

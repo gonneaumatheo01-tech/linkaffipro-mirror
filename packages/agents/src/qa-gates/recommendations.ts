@@ -37,6 +37,9 @@ export const QA_REC_REJECTED_PREFIX = "Refusée par le contrôle qualité : ";
 export const QA_SWEEP_MAX_RECS = 10;
 
 /** Contenu vérifié d'une recommandation (ce qui est proposé, jamais son statut ni le commentaire du client). */
+/** Champ réglé qui est un identifiant de fiche (même règle de nom que les champs techniques du masquage). */
+const ID_FIELD = /(?:Id|Ids)$/;
+
 export function recQaContent(r: RecLike): QaContent {
   // Consigne marquée de l'inspiration : la ligne proposée (`evidence.line`) fait foi ; `after` est recalculé sur la
   // valeur actuelle au moment d'appliquer (même proposition, même empreinte).
@@ -47,7 +50,9 @@ export function recQaContent(r: RecLike): QaContent {
     target: r.target,
     targetId: r.targetId,
     field: r.field,
-    after: tagged ? null : (r.after ?? null),
+    // Réglage qui désigne une fiche (`styleProfileId` de l'inspiration) : l'identifiant est rangé sous son nom de champ,
+    // donc lu comme un champ technique par le masquage (jamais pris pour une fuite d'identifiant interne).
+    after: tagged ? null : ID_FIELD.test(r.field) ? { [r.field]: r.after ?? null } : (r.after ?? null),
     evidence: r.evidence ?? null,
     expectedGain: r.expectedGain ?? null,
     size: r.size ?? null,

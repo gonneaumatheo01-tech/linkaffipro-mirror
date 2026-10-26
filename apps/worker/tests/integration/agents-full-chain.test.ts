@@ -48,7 +48,7 @@ import {
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb } from "./helpers";
 
 const MIN = 60_000;
 // Samedi 24 octobre 2026, 10 h à Paris (heure de passage du Chef Paris et des fixtures de cotes).
@@ -201,6 +201,8 @@ describe("toute la chaîne des agents sur 3 jours simulés (base réelle)", { ti
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.bettingPick.deleteMany();
     await prisma.setting.deleteMany({ where: { OR: [{ key: { startsWith: "agents." } }, { key: { startsWith: "besthours." } }] } });
     await prisma.alert.deleteMany({ where: { OR: [{ kind: { startsWith: "agents_" } }, { kind: { startsWith: "ads_" } }] } });

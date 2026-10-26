@@ -176,6 +176,8 @@ export function parseQaOutput(text: string): ParsedQaOutput | null {
 // ————— Découpage —————
 
 const PART_KEY = "_partie";
+/** Sous-vérifications parallèles au plus pour un contenu (au-delà : sortie bloquée, jamais une rafale d'appels). */
+export const QA_MAX_PARTS = 8;
 
 /**
  * Contenu masqué → parties de `maxChars` caractères JSON au plus : les champs courts sont répétés dans chaque partie,
@@ -462,6 +464,14 @@ export async function qaCheck(deps: QaDeps, req: QaRequest): Promise<QaResult> {
   }
   const context = redactDetailed(cross.context).value;
   const parts = splitQaContent(redacted);
+  if (parts.length > QA_MAX_PARTS) {
+    verdict = codeCritical ? "REJECTED" : "ERROR";
+    reasons = [
+      ...codeFindings,
+      { code: QA_ENGINE_CODES.tooLong, message: `Contenu trop long pour le contrôle qualité (${parts.length} parties, ${QA_MAX_PARTS} au plus) : sortie bloquée.`, severity: "critical" },
+    ];
+    return finish();
+  }
   const deadline = Date.now() + settings.timeoutMs;
   const outcomes = await Promise.all(
     parts.map((part, i) =>

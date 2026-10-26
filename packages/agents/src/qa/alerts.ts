@@ -105,7 +105,14 @@ export async function checkQaAlerts(deps: QaDeps, now: Date = deps.now ? deps.no
   }
   if (streak.length && now.getTime() - streak[0]!.createdAt.getTime() <= HOUR) {
     const since = streak[streak.length - 1]!.createdAt;
-    if (now.getTime() - since.getTime() > QA_LIMITS.unavailableAlertMs && state.unavailableSince !== since.toISOString()) {
+    // Même panne : au-delà de 50 vérifications, le début apparent de la série avance à chaque passage ; la panne déjà
+    // annoncée n'est finie que si le modèle a répondu entre-temps (une fois par panne, jamais toutes les 5 minutes).
+    const known = state.unavailableSince ? new Date(state.unavailableSince) : null;
+    const sameOutage =
+      !!known &&
+      known.getTime() <= since.getTime() &&
+      (await deps.prisma.qaCheck.count({ where: { createdAt: { gt: known, lte: now }, verdict: { in: ["APPROVED", "REJECTED"] }, modelUsed: { not: QA_NO_MODEL } } })) === 0;
+    if (now.getTime() - since.getTime() > QA_LIMITS.unavailableAlertMs && !sameOutage) {
       alerts.push({ key: "qa_unavailable", audience: "client", text: QA_ALERT_TEXTS.unavailable, data: { since: since.toISOString(), blocked: streak.length } });
       next.unavailableSince = since.toISOString();
     }

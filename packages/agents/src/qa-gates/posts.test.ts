@@ -220,3 +220,37 @@ describe("posts : empreinte", () => {
     expect(a).toEqual(b);
   });
 });
+
+describe("relecture adverse : texte de l'admin (« humanEdited ») et nouvelle rédaction par l'IA", () => {
+  it("le repère resté dans la charge utile ne fait jamais passer un texte RÉÉCRIT par l'IA sans le QA Global", async () => {
+    const { kit, qaLlm } = setup([REJECT, REJECT, APPROVE]);
+    await level2(kit);
+    const id = await newMission(kit);
+    // Mission rouverte après une correction de l'admin (repère resté) : la Rédaction écrit un NOUVEAU texte.
+    const m = kit.mission(id);
+    await kit.prisma.agentMission.update({ where: { id }, data: { payload: { ...(m.payload as Record<string, unknown>), humanEdited: true, text: "Texte de l'admin" } } });
+    await kit.prisma.agentValidation.create({ data: { missionId: id, teamKey: "casino", number: 1, status: "EDITED", previewText: "aperçu", reason: "test", editedText: "Texte de l'admin", decidedAt: new Date() } });
+    await kit.drain();
+    // Le texte de l'IA est passé par le QA Global (aucun accord du client rangé pour lui).
+    expect(qaLlm.calls.length).toBeGreaterThan(0);
+    expect(kit.t("event").some((e) => e.type === "qa.post.client_text")).toBe(false);
+  });
+
+  it("texte réellement écrit par l'admin dans la validation : contenu du client, publié sans nouvel appel au QA", async () => {
+    const { kit, qaLlm } = setup([APPROVE]);
+    await kit.prisma.agentTeamConfig.upsert({ where: { teamKey: "casino" }, create: { teamKey: "casino", autonomyLevel: 0 }, update: { autonomyLevel: 0 } });
+    const id = await newMission(kit);
+    expect((await kit.drain()).at(-1)).toBe("validation");
+    const before = qaLlm.calls.length;
+    const v = kit.t("agentValidation")[0]!;
+    const { decideValidation } = await import("../validation/requests");
+    await decideValidation(kit.deps, { validationId: String(v.id), decision: "edit", editedText: "Ce soir, on se retrouve ici 🔥", via: "SITE" });
+    await kit.drain();
+    expect(qaLlm.calls.length).toBe(before);
+    expect(kit.t("event").some((e) => e.type === "qa.post.client_text")).toBe(true);
+    const post = kit.t("post").find((p) => p.agentMissionId === id)!;
+    expect(String(post.text)).toContain("Ce soir, on se retrouve ici");
+    expect(await agentPostSendGate(kit.deps as never, post as never)).toEqual({ decision: "send" });
+    expect(qaLlm.calls.length).toBe(before);
+  });
+});

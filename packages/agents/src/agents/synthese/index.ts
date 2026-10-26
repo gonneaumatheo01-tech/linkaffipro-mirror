@@ -131,7 +131,8 @@ export async function runSynthese(deps: AgentsDeps, input: SyntheseInput, opts: 
   });
   // Phase 30 : rapport rédigé par l'IA → QA Global avant l'envoi ; refusé ou QA indisponible → le rapport écrit par le
   // code (texte fixe, mêmes faits), jamais la rédaction non vérifiée.
-  if (written.writtenBy === "ai" && opts.send !== false) {
+  // Vérifié même sans envoi : le rapport archivé (`InsightReport`) ressort plus tard, jamais non vérifié.
+  if (written.writtenBy === "ai") {
     const gate = await qaGate(deps, { contentType: "REPORT", contentId: `algo:${weekStart}`, teamKey: "algo", content: { title: `Ce qui marche ${weekLabel}`, text: written.html, facts: JSON.parse(JSON.stringify(facts)) } });
     if (gate.kind !== "approved") {
       const cost = written.costCents;

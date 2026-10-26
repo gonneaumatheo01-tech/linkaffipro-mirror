@@ -452,6 +452,26 @@ describe("alertes internes", () => {
     const fresh = depsOf(createFakePrisma({ qaCheck: [unav(1), unav(3), row(20, "APPROVED")] }), null, now);
     expect(await checkQaAlerts(fresh, now())).toEqual([]);
   });
+
+  it("longue panne (plus de 50 vérifications retenues) : une seule alerte, pas une toutes les 5 minutes ; nouvelle panne après une reprise : nouvelle alerte", async () => {
+    const unav = (m: number) => row(m, "ERROR", { reasons: [{ code: "QA_MODEL_UNAVAILABLE", message: "panne", severity: "critical" }] });
+    let t = base;
+    const clock = () => new Date(t);
+    // 60 vérifications retenues sur la dernière demi-heure (rattrapage + posts en attente).
+    const prisma = createFakePrisma({ qaCheck: Array.from({ length: 60 }, (_, i) => unav(i * 0.5)) });
+    const deps = depsOf(prisma, null, clock);
+    expect((await checkQaAlerts(deps, clock())).map((a) => a.key)).toEqual(["qa_unavailable"]);
+    // 5 minutes plus tard, 10 nouvelles vérifications retenues : le début apparent de la série a avancé.
+    t = base + 5 * 60_000;
+    const later = (m: number) => ({ ...unav(0), contentId: `n${m}`, createdAt: new Date(t - m * 60_000) });
+    for (let i = 0; i < 10; i++) prisma._tables.qaCheck!.push(later(i * 0.4) as never);
+    expect(await checkQaAlerts(deps, clock())).toEqual([]);
+    // Reprise (le modèle répond), puis nouvelle panne de plus de 5 minutes : nouvelle alerte.
+    prisma._tables.qaCheck!.push({ ...row(0, "APPROVED"), contentId: "ok", createdAt: new Date(t + 60_000) } as never);
+    t = base + 20 * 60_000;
+    for (let i = 0; i < 8; i++) prisma._tables.qaCheck!.push({ ...unav(0), contentId: `p${i}`, createdAt: new Date(t - i * 60_000) } as never);
+    expect((await checkQaAlerts(deps, clock())).map((a) => a.key)).toEqual(["qa_unavailable"]);
+  });
 });
 
 describe("diagnostic (pnpm qa:diag)", () => {

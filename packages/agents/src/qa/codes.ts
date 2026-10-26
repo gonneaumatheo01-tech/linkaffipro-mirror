@@ -8,6 +8,7 @@ export const QA_ENGINE_CODES = {
   invalidOutput: "QA_INVALID_OUTPUT",
   wrongModel: "QA_WRONG_MODEL",
   context: "QA_CONTEXT",
+  tooLong: "QA_TOO_LONG",
 } as const;
 
 /** Modèle écrit dans `QaCheck.modelUsed` quand aucun appel n'a été fait (réglage coupé, plafond, clé absente). */

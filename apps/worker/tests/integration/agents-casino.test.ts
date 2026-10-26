@@ -24,7 +24,7 @@ import {
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 const DAY = 86_400_000;
 // Lundi 2 novembre 2026, 8 h 30 à Paris (heure d'hiver).
@@ -81,6 +81,8 @@ describe("équipe Casino : une semaine simulée sur le canal Test (base réelle)
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.setting.deleteMany({ where: { key: { startsWith: "agents." } } });
     await prisma.alert.deleteMany({ where: { kind: "agents_media_low" } });
     const old = await prisma.mediaAsset.findMany({ where: { OR: [{ teamKey: "casino" }, { filename: { startsWith: "it-casino-" } }] }, select: { id: true } });

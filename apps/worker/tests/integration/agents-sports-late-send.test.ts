@@ -8,7 +8,7 @@ import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
 import { BET_TOO_LATE_REASON } from "../../src/sending/bet-kickoff";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 let calls: TelegramCall[] = [];
 let channelId = "";
@@ -17,6 +17,8 @@ let categoryId = "";
 
 beforeEach(async () => {
   await resetDb();
+  // Phase 30 : QA Global simulé qui approuve au point d'envoi (le verrou reste actif).
+  await approveAllQa();
   await prisma.bettingPick.deleteMany();
   const { bot, channel } = await createBotAndChannel();
   channelId = channel.id;

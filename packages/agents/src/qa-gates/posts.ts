@@ -142,8 +142,10 @@ export async function withGlobalQa(mission: Mission, ctx: AgentContext & QaDeps,
   if (!shapes.length) return res;
   const contents = shapes.map(postQaContent);
 
-  // Texte écrit par l'admin dans la validation : contenu du client, accord rangé pour ces empreintes exactes.
-  if (payload.humanEdited === true) {
+  // Texte écrit par l'admin dans la validation : contenu du client, accord rangé pour ces empreintes exactes. Le repère
+  // `humanEdited` reste dans la charge utile après une nouvelle rédaction (retour à la Rédaction après un refus) : il
+  // ne vaut que si le texte est ENCORE celui que l'admin a écrit (jamais un texte de l'IA rangé comme texte du client).
+  if (payload.humanEdited === true && (await isClientEditedText(ctx, mission.id, payload.text))) {
     for (const c of contents) await recordClientOverride(ctx, "POST", mission.id, contentHash(c), "client-edit", nowOf(ctx));
     await agentEvent(ctx, "qa.post.client_text", { missionId: mission.id, teamKey: mission.teamKey }, { channelId: mission.channelId });
     return res;
@@ -205,6 +207,20 @@ export async function withGlobalQa(mission: Mission, ctx: AgentContext & QaDeps,
     };
   }
   return { ...res, output: { ...out, qaWaitingSince: null, qaHeld: null } as never };
+}
+
+/** Le texte est-il exactement celui que l'admin a écrit dans la dernière validation corrigée de la mission ? */
+async function isClientEditedText(deps: Pick<AgentsDeps, "prisma">, missionId: string, text: string): Promise<boolean> {
+  try {
+    const v = (await deps.prisma.agentValidation.findFirst({
+      where: { missionId, status: "EDITED" },
+      orderBy: { decidedAt: "desc" },
+      select: { editedText: true },
+    })) as { editedText: string | null } | null;
+    return typeof v?.editedText === "string" && v.editedText.trim() !== "" && v.editedText.trim() === text.trim();
+  } catch {
+    return false;
+  }
 }
 
 /** Repère du verdict gardé : texte, média et décision de l'admin (un changement relance le Contrôle de l'équipe). */

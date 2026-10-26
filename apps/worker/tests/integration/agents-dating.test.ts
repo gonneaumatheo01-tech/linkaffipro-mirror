@@ -21,7 +21,7 @@ import {
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 const steps: AgentStepJob[] = [];
 const adminSent: string[] = [];
@@ -68,6 +68,8 @@ describe("agents Dating : vidéo, photo et texte en simulation (base réelle)", 
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.setting.deleteMany({ where: { key: { startsWith: "agents." } } });
     const old = await prisma.mediaAsset.findMany({ where: { OR: [{ teamKey: "dating" }, { filename: { startsWith: "it-dating-" } }] }, select: { id: true } });
     await prisma.mediaAssetTelegramFile.deleteMany({ where: { assetId: { in: old.map((a) => a.id) } } });

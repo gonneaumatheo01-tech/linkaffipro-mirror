@@ -18,7 +18,7 @@ import {
   undoRecommendation,
   type EngineDeps,
 } from "@linkaffipro/agents";
-import { createBotAndChannel, resetDb } from "./helpers";
+import { approveAllQa, createBotAndChannel, resetDb } from "./helpers";
 
 const adminSent: string[] = [];
 const deps: EngineDeps = {
@@ -43,6 +43,8 @@ describe("équipe Algorithme : fiches, horaires, test A/B, réglage, rapport (ba
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.setting.deleteMany({ where: { OR: [{ key: { startsWith: "agents." } }, { key: { startsWith: "besthours." } }] } });
     await prisma.alert.deleteMany({ where: { kind: { startsWith: "agents_" } } });
     const { bot, channel } = await createBotAndChannel({ title: "Canal Test Algo" });

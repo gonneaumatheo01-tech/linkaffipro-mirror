@@ -91,6 +91,33 @@ function allStrings(value: unknown, out: string[] = []): string[] {
   return out;
 }
 
+/** Nos adresses de production (site, liens suivis). */
+const OWN_HOSTS = ["app.linkaffipro.com", "go.goolink.eu"];
+
+/**
+ * Notre propre adresse (lien « Détail complet sur le site » ajouté par le code, lien suivi) : jamais une source à
+ * vérifier, ni « cassée » (site local en développement), ni « absente de la veille ». Même origine que `APP_BASE_URL`
+ * ou `TRACKING_BASE_URL`, ou nos domaines de production en https.
+ */
+export function ownUrl(url: string, env: Record<string, string | undefined> = process.env): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol === "https:" && OWN_HOSTS.includes(u.hostname.toLowerCase())) return true;
+  for (const base of [env.APP_BASE_URL, env.TRACKING_BASE_URL]) {
+    if (!base) continue;
+    try {
+      if (new URL(base).origin === u.origin) return true;
+    } catch {
+      // adresse de base illisible : ignorée
+    }
+  }
+  return false;
+}
+
 /** Adresse manifestement cassée (illisible, autre protocole, hôte local ou de démonstration). */
 export function brokenUrl(url: string): boolean {
   let u: URL;
@@ -344,7 +371,8 @@ export async function loadQaContext(deps: AgentsDeps, input: QaCrossCheckInput):
   // 4. Sources des rapports, alertes et règles : existence vérifiée par le code.
   if (contentType === "REPORT" || contentType === "ALERT" || contentType === "COMPLIANCE_RULE") {
     const ids = sourceEntryIdsOf(content, given);
-    const urls = urlsIn(content);
+    // Nos propres liens (site, liens suivis) ne sont pas des sources : ni cassés, ni « absents de la veille ».
+    const urls = urlsIn(content).filter((u) => !ownUrl(u));
     const broken = urls.filter(brokenUrl);
     if (broken.length) findings.push(critical("DEAD_SOURCE", `Adresse cassée : ${broken.slice(0, 3).join(", ")} (contrôle du code).`));
     const byId = ids.length

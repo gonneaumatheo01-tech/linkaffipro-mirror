@@ -26,7 +26,7 @@ import {
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 // 24 octobre 2026, 10 h à Paris : heure de passage du Chef Paris.
 let now = new Date(FAKE_ODDS_ANCHOR);
@@ -95,6 +95,8 @@ describe("équipe Paris sportifs : une journée simulée (base réelle)", () => 
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.bettingPick.deleteMany();
     await prisma.setting.deleteMany({ where: { key: { startsWith: "agents." } } });
     for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked", "agents.casinoSetupAsked", "agents.sportsSetupAsked"])

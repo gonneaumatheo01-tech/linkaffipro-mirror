@@ -49,7 +49,7 @@ import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
 import { setSendableBytesDeps } from "../../src/montage/media-bytes";
-import { createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 const ADMIN = 78_484;
 const KEVIN_TG = 5550;
@@ -370,6 +370,8 @@ function montageScenario(mode: "scripted" | "docker") {
     await prisma.mediaAssetTelegramFile.deleteMany({ where: { assetId: { in: old.map((a) => a.id) } } });
     await prisma.mediaAsset.deleteMany({ where: { id: { in: old.map((a) => a.id) } } });
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve les aperçus (le verrou reste actif).
+    Object.assign(pdeps, { qaLlm: await approveAllQa(agents) });
     await prisma.bossTurn.deleteMany();
     await prisma.setting.deleteMany({ where: { OR: [{ key: { startsWith: "montage." } }, { key: { startsWith: "boss." } }, { key: { startsWith: "agents." } }] } });
     await prisma.user.deleteMany({ where: { email: "montage-flow@linkaffipro.internal" } });

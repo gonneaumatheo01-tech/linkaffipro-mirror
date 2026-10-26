@@ -6,7 +6,8 @@
 import { onAnswerOf } from "./requests";
 
 /** Actions `onAnswer` réservées aux ADMIN, quelle que soit la réponse. */
-const ADMIN_ONLY_ACTIONS = new Set(["algo-level", "dating-video-budget", "dating-bench", "inspiration-keep"]);
+// Phase 30 : « Publier quand même » après 3 refus du QA Global (accord du client lié à une empreinte exacte) : admin seulement.
+const ADMIN_ONLY_ACTIONS = new Set(["algo-level", "dating-video-budget", "dating-bench", "inspiration-keep", "qa-decision"]);
 /** Préfixes d'actions réservées (seuils de l'Agent Ads : `ads-cpr`, `ads-roas`…). */
 const ADMIN_ONLY_PREFIXES = ["ads-"];
 

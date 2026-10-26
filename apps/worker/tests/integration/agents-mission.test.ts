@@ -18,7 +18,7 @@ import {
 import { processScheduler } from "../../src/processors/scheduler";
 import { processTelegramSend } from "../../src/processors/telegram-send";
 import { apiForBot } from "../../src/sending/api";
-import { capturedJobs, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
+import { approveAllQa, capturedJobs, createBotAndChannel, fakeJob, installFakeTelegram, resetDb, type TelegramCall } from "./helpers";
 
 const steps: AgentStepJob[] = [];
 const adminSent: string[] = [];
@@ -57,6 +57,8 @@ describe("agents : mission texte de bout en bout sur le canal Test (base réelle
 
   beforeAll(async () => {
     await resetDb();
+    // Phase 30 : QA Global simulé qui approuve (les verrous restent actifs).
+    await approveAllQa(deps);
     await prisma.setting.deleteMany({ where: { key: { startsWith: "agents." } } });
     const { bot, channel } = await createBotAndChannel({ title: "Canal test" });
     channelId = channel.id;
