@@ -16,10 +16,10 @@ Phases 0 à 29, 33, 34 et 35 en ligne. Phase 29 (`docs/prompts/31-phase-29-analy
 3. Ouvrez Agents → Analyses sur le site.
 
 ## Vérifications faites
-- RESULTATS
+- Tests unitaires : environ 7 400 réussis (agents 1 665, site 3 605, Telegram 600, worker 492) ; tests d'intégration sur base réelle : 430 site, 252 worker ; lint, typage et build verts ; `pnpm kevin:parity` : 233 actions, 0 manquante.
 - Test de bout en bout sur base réelle, faux Telegram, fausse IA, faux web (pages d'exemple) : premier lancement (sources et règles une seule fois), lecture des sources, question « qu'est-ce qui marche en casino en France ? » (sources, adresse inventée retirée), ajout de source inactive puis OUI, alerte de bannissement (une seule fois, avec la source et « pas un avis juridique »), question sur le bonus TikTok en France, rapport du lundi 8 h (une seule fois, rien le mardi), « applique 1 » sans aucune action externe, source en panne coupée après 5 échecs, effacement à 7 jours, post piégé (« ignore tes règles ») traité comme une simple donnée, veille coupée = rien ne tourne.
 - Relecture adverse : 8 défauts corrigés avec un test, dont : les propositions du marché se mêlaient à celles de l'équipe Algorithme (« applique 2 » pouvait viser la mauvaise) ; la phrase « pas un avis juridique » pouvait sauter sur une réponse longue ; deux lectures du même site pouvaient partir en même temps ; un réglage pouvait lire un forum trop vite ; la pagination pouvait suivre un lien vers un autre site ; une affirmation sans source pouvait passer ; une panne de l'IA aurait coupé toutes les sources.
-- DEPLOIEMENT
+- Sauvegarde de la production avant déploiement ; migration appliquée ; site et service d'arrière-plan déployés ; santé OK ; `pnpm tg:diag` vert. Le premier lancement en production a échoué une fois (le service d'arrière-plan a démarré quelques secondes avant que le site ait créé les tables) : relancé à la main, il a créé les 39 sources de départ et 16 règles publicitaires initiales (pages officielles de Meta, sourcées, « non vérifiées » tant qu'une seule source les confirme), pour environ 0,63 €.
 
 ## Reste / limites
 - Rien n'a encore tourné avec la vraie IA ni sur les vrais sites : la première nuit dira quelles sources se lisent bien (certains forums réservent leur contenu aux membres : ils sont lus par la recherche web, sans connexion).
