@@ -17,10 +17,10 @@ Phases 0 à 30, 33, 34 et 35 en ligne. Phase 30 (`docs/prompts/32-phase-30-qa-gl
 3. Écrivez : « montre-moi les refus de cette semaine ».
 
 ## Vérifications faites
-- RESULTATS
+- Tests unitaires : environ 7 600 réussis (agents 1 867, site 3 625, Telegram 600, worker 496) ; tests d'intégration sur base réelle : 430 site, 267 worker ; lint, typage et build verts ; `pnpm kevin:parity` à 0 manquant.
 - Test de bout en bout sur base réelle (faux modèle de contrôle, fausse IA des équipes, faux Telegram) : post accepté puis publié ; post avec mot interdit refusé, corrigé, accepté, publié ; post modifié après accord revérifié ; short avec sous-titre faux refusé, refait, accepté ; rapport avec chiffre inventé refusé, réécrit, accepté ; réponse de Kevin inventée refusée, réécrite, acceptée ; recommandation contraire à une règle publicitaire jamais montrée ; fausse alerte annulée ; 3 refus → vous tranchez ; contrôle en panne ou trop lent → rien ne sort ; vos posts et les messages fixes de Kevin jamais retenus.
 - Relecture adverse : 5 défauts corrigés avec un test, dont : l'accord « Publier quand même » n'était pas réservé à l'administrateur ; un texte réécrit par l'IA après votre correction pouvait passer pour le vôtre ; des rapports rédigés par l'IA étaient archivés sans contrôle ; un très gros contenu lançait trop d'appels ; l'alerte « en pause » se répétait toutes les 5 minutes.
-- DEPLOIEMENT
+- Sauvegarde de la production avant déploiement ; migration appliquée ; site et service d'arrière-plan déployés ; santé OK ; `pnpm tg:diag` vert ; `pnpm qa:diag` en production : tout est prêt (accès à Claude Fable 5.1, 4,5 s, 0,03 € l'appel test). Au démarrage, le service d'arrière-plan a précédé d'une seconde la création de la table : une vérification a été bloquée (« rien ne sort »), comme prévu, puis tout est reparti seul.
 
 ## Reste / limites
 - Coût : environ 1 à 5 centimes par vérification ; plafond 150 € par mois (réglable) — plafond atteint = tout est retenu et Kevin prévient.
