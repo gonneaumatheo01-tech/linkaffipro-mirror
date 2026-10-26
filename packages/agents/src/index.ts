@@ -508,3 +508,4 @@ export * from "./analysts/contract";
 
 // Phase 29 : équipe Analystes (chantier A : veille ; B et C ajoutent leurs lignes dans `analysts/index.ts`).
 export * from "./analysts/index";
+export * from "./qa/contract";

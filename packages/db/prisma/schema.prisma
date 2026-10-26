@@ -3481,3 +3481,49 @@ enum StrategyReportType {
   MONTHLY
   ON_DEMAND
 }
+
+/// Phase 30 — vérification du QA Global (dernier verrou, Claude Fable 5.1). Une approbation vaut pour un contenu EXACT
+/// (`contentHash`) ; le contenu gardé est masqué (aucun secret, aucune donnée personnelle).
+model QaCheck {
+  id          String        @id @default(cuid())
+  contentType QaContentType
+  contentId   String
+  teamKey     String
+  /// Empreinte SHA-256 du contenu vérifié (une modification annule l'approbation).
+  contentHash String
+  verdict     QaVerdict
+  /// [{ code, message, severity }] ; vide si APPROVED sans remarque.
+  reasons     Json          @default("[]")
+  /// [{ field, expected, got, suggestion }] si REJECTED.
+  corrections Json?
+  /// Contenu vérifié, masqué et tronqué.
+  content     Json?
+  modelUsed   String
+  durationMs  Int
+  attempt     Int           @default(1)
+  checkedBy   String        @default("qa-global")
+  costCents   Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  @@index([contentType, contentId, createdAt])
+  @@index([contentHash])
+  @@index([verdict, createdAt])
+  @@index([teamKey, createdAt])
+}
+
+enum QaContentType {
+  POST
+  SHORT
+  REPORT
+  KEVIN_RESPONSE
+  RECOMMENDATION
+  ALERT
+  COMPLIANCE_RULE
+}
+
+enum QaVerdict {
+  APPROVED
+  REJECTED
+  TIMEOUT
+  ERROR
+}
