@@ -385,7 +385,14 @@ export type ProspectionDeps = AgentsDeps & {
   /** Attente (tests : instantanée) et horloge en millisecondes (tests : simulée). */
   sleep?: (ms: number) => Promise<void>;
   clock?: () => number;
+  /**
+   * Mise en file `agents-prospection` (worker, site, bot : `packages/queue/src/prospection.ts`). Absente (tests, outils) :
+   * rien n'est enfilé, l'appelant enchaîne lui-même les étapes (`runProspectionJob`).
+   */
+  prospection?: { enqueue?: ProspectionEnqueue };
 };
+
+export type ProspectionEnqueue = (job: ProspectionQueueJob, opts?: { jobId?: string; delayMs?: number; priority?: number }) => Promise<void>;
 
 /** Tâches de la file `agents-prospection` (concurrence 2, 5 minutes par tâche, reprenables). */
 export type ProspectionQueueJob =
