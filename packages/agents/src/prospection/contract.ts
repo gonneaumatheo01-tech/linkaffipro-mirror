@@ -242,7 +242,7 @@ export type DiscoveryLot = {
   prospectId?: string | null;
 };
 
-export type DiscoveryResult = { runId: string; found: number; newCount: number; duplicates: number; errors: string[]; paused: boolean };
+export type ProspectDiscoveryResult = { runId: string; found: number; newCount: number; duplicates: number; errors: string[]; paused: boolean };
 
 /** Un post lu dans l'aperçu (en mémoire seulement ; le texte n'est jamais écrit en base). */
 export type ProspectPost = {
