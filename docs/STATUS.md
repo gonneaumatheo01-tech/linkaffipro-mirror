@@ -1,3 +1,37 @@
+# État du projet : phase 30 (QA Global) terminée (26 octobre 2026)
+
+Phases 0 à 30, 33, 34 et 35 en ligne. Phase 30 (`docs/prompts/32-phase-30-qa-global.md`) : un **dernier contrôle qualité**, sur le modèle d'IA le plus capable (Claude Fable 5.1), vérifie tout ce que les agents et l'IA produisent avant que ça sorte. Il passe après les contrôles de chaque équipe, voit tout, et peut tout bloquer. **Il ne modifie jamais rien : il accepte ou refuse avec ses raisons, et l'équipe corrige.**
+
+## Fait
+- **Ce qui est vérifié** : les posts des équipes (Rencontres, Casino, Paris), les shorts du Montage, les rapports et alertes des Analystes, les règles publicitaires à risque, les recommandations (Algorithme, Inspiration, Analystes, Pubs), les rapports rédigés par l'IA et les réponses de Kevin rédigées par l'IA.
+- **Ce qu'il cherche** : règles du canal et mots interdits, règles publicitaires des Analystes, copie d'un autre canal (8 mots à la suite), données sensibles (clés, identifiants, données personnelles), inventions (chiffres, sources, fonctions), promesses de gain, avis juridique, contradictions entre équipes, fausses alertes. Une partie est bloquée directement par le code, même si l'IA dit oui.
+- **Rien ne sort sans son accord**, pour le contenu exact : un post modifié après l'accord est revérifié avant l'envoi. S'il est indisponible (panne, délai, plafond), **tout est retenu, jamais accepté par défaut**, et Kevin vous le dit (« Le contrôle qualité est en pause, je reprends dès que possible »).
+- **Refusé** : le contenu retourne à l'équipe avec les corrections demandées ; après 3 refus du même contenu, Kevin vous demande de trancher (« Publier quand même » / « Non »).
+- **Ce qui n'est pas vérifié** (volontairement) : vos propres posts et textes, les messages fixes de Kevin (confirmations, boutons), les alertes techniques.
+- **Kevin** : « comment va le contrôle qualité ? », « combien de refus cette semaine ? », « pourquoi le post 42 a été refusé ? ».
+- **Site** : Agents → **Qualité** (taux d'acceptation, historique filtrable avec raisons et corrections, raisons les plus fréquentes).
+
+## Test de 5 minutes
+1. Écrivez à Kevin : « comment va le contrôle qualité ? ».
+2. Ouvrez Agents → Qualité sur le site.
+3. Écrivez : « montre-moi les refus de cette semaine ».
+
+## Vérifications faites
+- RESULTATS
+- Test de bout en bout sur base réelle (faux modèle de contrôle, fausse IA des équipes, faux Telegram) : post accepté puis publié ; post avec mot interdit refusé, corrigé, accepté, publié ; post modifié après accord revérifié ; short avec sous-titre faux refusé, refait, accepté ; rapport avec chiffre inventé refusé, réécrit, accepté ; réponse de Kevin inventée refusée, réécrite, acceptée ; recommandation contraire à une règle publicitaire jamais montrée ; fausse alerte annulée ; 3 refus → vous tranchez ; contrôle en panne ou trop lent → rien ne sort ; vos posts et les messages fixes de Kevin jamais retenus.
+- Relecture adverse : 5 défauts corrigés avec un test, dont : l'accord « Publier quand même » n'était pas réservé à l'administrateur ; un texte réécrit par l'IA après votre correction pouvait passer pour le vôtre ; des rapports rédigés par l'IA étaient archivés sans contrôle ; un très gros contenu lançait trop d'appels ; l'alerte « en pause » se répétait toutes les 5 minutes.
+- DEPLOIEMENT
+
+## Reste / limites
+- Coût : environ 1 à 5 centimes par vérification ; plafond 150 € par mois (réglable) — plafond atteint = tout est retenu et Kevin prévient.
+- Rien n'a encore été vérifié par le vrai modèle sur de vrais contenus : les premiers jours diront si le contrôle est trop sévère (vous verrez les raisons dans Agents → Qualité).
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+Aucune obligatoire.
+
+---
+
 # État du projet : phase 29 (équipe Analystes) terminée (26 octobre 2026)
 
 Phases 0 à 29, 33, 34 et 35 en ligne. Phase 29 (`docs/prompts/31-phase-29-analystes-marche.md`) : une équipe d'analystes surveille le marché (casino, paris sportifs, rencontres) dans toute l'Europe, dans la langue de chaque pays, tient à jour les règles publicitaires de Meta et TikTok par pays, et vous conseille. **Tout est sourcé, rien n'est un avis juridique, et l'équipe ne touche à rien : elle recommande, vous décidez.**

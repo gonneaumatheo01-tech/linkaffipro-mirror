@@ -544,3 +544,8 @@ Migration additive `*_phase29_analystes`.
 - `ComplianceRule` (plateforme `CompliancePlatform` META / TIKTOK / GOOGLE / SNAP / X / TELEGRAM / OTHER — distincte de `AdPlatform` des connecteurs —, marché, pays ou « ALL », règle, risque `RiskLevel` LOW / MEDIUM / HIGH / BAN, preuves, vérifiée, contournement, active, dernière vérification, entrée d'origine).
 - `StrategyReport` (marché ou tous, pays, période, type `StrategyReportType` WEEKLY / MONTHLY / ON_DEMAND, titre, résumé, contenu, recommandations, demandeur, question, envoyé le).
 - Réglages `analysts.*` : actif, jour et heure du rapport, intervalle de lecture, entrées par lecture, seuil de pertinence, niveau d'alerte, plafond mensuel ; `analysts.bootstrapped`.
+
+## Phase 30 : QA Global
+Migration additive `*_phase30_qa_global`.
+- `QaCheck` : type de contenu `QaContentType` (POST, SHORT, REPORT, KEVIN_RESPONSE, RECOMMENDATION, ALERT, COMPLIANCE_RULE), identifiant du contenu, équipe, empreinte du contenu exact, résultat `QaVerdict` (APPROVED, REJECTED, TIMEOUT, ERROR), motifs, corrections, contenu masqué et tronqué, modèle réellement utilisé, durée, tentative, vérificateur, coût.
+- Réglages `qa.*` : actif, modèle, délai, tentatives, blocage si indisponible, plafond mensuel ; `qa.override.<type>.<id>` (accord du client après 3 refus, par empreinte) ; `qa.alerts.state`.

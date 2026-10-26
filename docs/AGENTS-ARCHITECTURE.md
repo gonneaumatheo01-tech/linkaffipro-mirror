@@ -521,6 +521,11 @@ Rien n'est bloquant pour le développement : tout se construit et se teste en si
 - Agents nommables : Chef Analystes, Veille (forums, Reddit, Telegram public, X, actualités, dans la langue locale ; Haiku classe, Sonnet résume), Compliance (règles par plateforme × pays × marché, preuves, alertes HIGH / BAN ; Opus), Stratège (réponses aux questions et synthèse hebdomadaire, croisée avec les chiffres internes de l'Agent Ads ; Opus), Rapporteur (rapport du lundi 8 h, briefings, alertes).
 - `packages/agents/src/analysts/` : `watch/*`, `compliance`, `strategist`, `reporter`, `kevin-*` ; file `agents-analystes` (2 tâches à la fois, planification horaire) ; `boss/catalog-analysts.ts`, `orders/capabilities/analystes.ts`. L'équipe recommande, ne touche à rien ; tout est sourcé ; jamais d'avis juridique. Distincte de l'Agent Ads (performances internes). Site : Agents → Analyses.
 
+### Phase 30 — QA Global (dernier verrou, Claude Fable 5.1)
+
+- Passe APRÈS les contrôles de chaque équipe, voit tout et peut tout bloquer ; ne modifie jamais rien. Schéma : équipe → son Contrôle → QA Global (`qaCheck`, contexte croisé : règles du canal, règles publicitaires des Analystes, posts récents, profil de style, recommandations actives et bornes, sources de veille) → point de sortie qui vérifie l'approbation pour l'empreinte exacte (`requireApproval`) → sortie.
+- `packages/agents/src/qa/*` (moteur, consigne, masquage, contexte croisé, métriques, alertes, diagnostic), `packages/agents/src/qa-gates/*` (posts, shorts, Analystes, recommandations, Kevin, rattrapage), verrou d'envoi `apps/worker/src/sending/qa-gate.ts` ; Kevin `qa_status`, `qa_history`, `qa_detail` ; agent nommable « QA Global ». Site : Agents → Qualité.
+
 ### Durée
 
 Environ 3 semaines de travail autonome (1 à 3 jours par phase, comme les phases précédentes), le Mac restant allumé. Chaque phase est déployée et vérifiée avant la suivante ; tu peux basculer une équipe sur les vrais canaux dès que sa phase est livrée, sans attendre la fin.
