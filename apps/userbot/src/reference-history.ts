@@ -17,6 +17,7 @@
 import { floodWaitSecondsOf } from "@linkaffipro/mtproto";
 import { Api, helpers, type TelegramClient } from "telegram";
 import { logger } from "./logger";
+import { handleProspectSearch, newProspectSearchState, PROSPECT_SEARCH_KIND, type ProspectSearchOps, type ProspectSearchRequest, type ProspectSearchResponse, type ProspectSearchState } from "./prospect-search";
 
 export const USERBOT_REQUEST_PREFIX = "userbot.request.";
 export const USERBOT_HEARTBEAT_KEY = "userbot.mailbox.heartbeat";
@@ -34,11 +35,14 @@ export type WirePost = { externalId: number; postedAt: string; text: string | nu
 export type UserbotRequest =
   | { kind: "is-member"; accountId: string; channel: WireChannel }
   | { kind: "history"; accountId: string; channel: WireChannel; limit: number; beforeId?: number }
-  | { kind: "join-invite"; accountId: string; inviteLink: string };
+  | { kind: "join-invite"; accountId: string; inviteLink: string }
+  // Phase 32 : recherche de canaux pour la prospection, lecture seule (`./prospect-search`).
+  | ProspectSearchRequest;
 export type UserbotResponse =
   | { ok: true; member?: boolean; posts?: WirePost[]; title?: string | null; chatId?: string | null }
   | { ok: false; error: string }
-  | { ok: false; floodWaitSeconds: number };
+  | { ok: false; floodWaitSeconds: number }
+  | ProspectSearchResponse;
 type Row = UserbotRequest & { status: "PENDING" | "WORKING" | "DONE"; createdAt: string; response?: UserbotResponse };
 
 // ——— Conversion d'un message GramJS (règle pure, sur `className`) ———
@@ -249,13 +253,20 @@ export type MailboxDeps = {
   /** Comptes connectés ici (relus à chaque tour). */
   accounts: () => Map<string, { client: TelegramClient }>;
   ops?: ReaderOps;
+  /** Phase 32 : appels de la recherche de prospection (faux en test). */
+  searchOps?: ProspectSearchOps;
   now?: () => Date;
 };
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 200);
 
 /** Traite une demande (fonction testée sur faux Telegram). */
-export async function handleRequest(deps: MailboxDeps, req: UserbotRequest, lastHistoryAt: Map<string, number>): Promise<UserbotResponse | "later"> {
+export async function handleRequest(
+  deps: MailboxDeps,
+  req: UserbotRequest,
+  lastHistoryAt: Map<string, number>,
+  searchState: ProspectSearchState = newProspectSearchState(),
+): Promise<UserbotResponse | "later"> {
   const ops = deps.ops ?? gramjsReaderOps;
   const now = (deps.now ?? (() => new Date()))().getTime();
   const live = deps.accounts().get(req.accountId);
@@ -264,6 +275,8 @@ export async function handleRequest(deps: MailboxDeps, req: UserbotRequest, last
   if (!acc || !acc.isActive || acc.status !== "ACTIVE") return { ok: false, error: "compte inactif" };
   // Règle de la phase 18 : un compte qui porte une persona ou un bot fantôme converse, il ne lit jamais.
   if (acc.personaId || acc.botId) return { ok: false, error: "compte occupé par des conversations" };
+  // Phase 32 : recherche de prospection, lecture seule (aucune adhésion, aucun message), chemin à part.
+  if (req.kind === PROSPECT_SEARCH_KIND) return handleProspectSearch(live.client, req, searchState, { ...(deps.searchOps ? { ops: deps.searchOps } : {}), now });
   try {
     if (req.kind === "is-member") {
       const r = await ops.isMember(live.client, req.channel);
@@ -288,7 +301,10 @@ export async function handleRequest(deps: MailboxDeps, req: UserbotRequest, last
 }
 
 /** Un tour de boucle : signal de vie, demandes abandonnées effacées, puis UNE demande traitée (la plus ancienne). */
-export async function mailboxTick(deps: MailboxDeps, state: { lastHistoryAt: Map<string, number>; lastBeatAt: number }): Promise<"none" | "done" | "later"> {
+export async function mailboxTick(
+  deps: MailboxDeps,
+  state: { lastHistoryAt: Map<string, number>; lastBeatAt: number; search?: ProspectSearchState },
+): Promise<"none" | "done" | "later"> {
   const now = (deps.now ?? (() => new Date()))();
   if (now.getTime() - state.lastBeatAt >= HEARTBEAT_EVERY_MS) {
     const value = { at: now.toISOString() };
@@ -308,7 +324,7 @@ export async function mailboxTick(deps: MailboxDeps, state: { lastHistoryAt: Map
   }
   pending.sort((a, b) => a.row.createdAt.localeCompare(b.row.createdAt));
   for (const { key, row } of pending) {
-    const res = await handleRequest(deps, row, state.lastHistoryAt);
+    const res = await handleRequest(deps, row, state.lastHistoryAt, (state.search ??= newProspectSearchState()));
     if (res === "later") continue;
     await deps.db.setting.updateMany({ where: { key }, data: { value: { ...row, status: "DONE", response: res } } });
     logger.info({ demande: row.kind, ok: res.ok }, "lecture de canal de reference");
@@ -319,7 +335,7 @@ export async function mailboxTick(deps: MailboxDeps, state: { lastHistoryAt: Map
 
 /** Démarre la boucle ; rend une fonction d'arrêt. */
 export function startReferenceHistoryLoop(deps: MailboxDeps): () => void {
-  const state = { lastHistoryAt: new Map<string, number>(), lastBeatAt: 0 };
+  const state = { lastHistoryAt: new Map<string, number>(), lastBeatAt: 0, search: newProspectSearchState() };
   let busy = false;
   const tick = async () => {
     if (busy) return;
