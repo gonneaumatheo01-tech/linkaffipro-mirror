@@ -20,6 +20,14 @@ export function costCentsOf(model: string, usage: Parameters<typeof estimateCost
   return eur > 0 ? Math.ceil(eur * 100) : 0;
 }
 
+/**
+ * Texte sans moitié d'emoji : une troncature au milieu d'une paire de substitution laisse un caractère seul, qu'Anthropic
+ * refuse (« The request body is not valid JSON: unexpected end of hex escape »). Remplacé par « � ».
+ */
+export function wellFormedText(text: string): string {
+  return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD");
+}
+
 export function llmFromClient(client: AiClient): AgentLlmProvider {
   return {
     name: "anthropic",
@@ -27,8 +35,8 @@ export function llmFromClient(client: AiClient): AgentLlmProvider {
       const res = await client.createMessage({
         model: req.model,
         maxTokens: req.maxTokens,
-        system: [{ text: req.system, cache: true }],
-        user: req.user,
+        system: [{ text: wellFormedText(req.system), cache: true }],
+        user: wellFormedText(req.user),
         ...(req.images?.length ? { images: req.images } : {}),
       });
       return { text: res.text, costCents: costCentsOf(req.model, res.usage) };
