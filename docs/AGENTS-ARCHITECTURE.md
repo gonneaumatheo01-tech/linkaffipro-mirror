@@ -526,6 +526,12 @@ Rien n'est bloquant pour le développement : tout se construit et se teste en si
 - Passe APRÈS les contrôles de chaque équipe, voit tout et peut tout bloquer ; ne modifie jamais rien. Schéma : équipe → son Contrôle → QA Global (`qaCheck`, contexte croisé : règles du canal, règles publicitaires des Analystes, posts récents, profil de style, recommandations actives et bornes, sources de veille) → point de sortie qui vérifie l'approbation pour l'empreinte exacte (`requireApproval`) → sortie.
 - `packages/agents/src/qa/*` (moteur, consigne, masquage, contexte croisé, métriques, alertes, diagnostic), `packages/agents/src/qa-gates/*` (posts, shorts, Analystes, recommandations, Kevin, rattrapage), verrou d'envoi `apps/worker/src/sending/qa-gate.ts` ; Kevin `qa_status`, `qa_history`, `qa_detail` ; agent nommable « QA Global ». Site : Agents → Qualité.
 
+### Phase 31 — Équipe Prospection (trouver des affiliés, ne contacte personne)
+
+- Quatre agents : **Sourceur** (annuaires, recherche web multilingue, réseaux sociaux, graphe Telegram : transferts, mentions, dossiers ; Équipe Analystes ; ajout manuel ; dédoublonnage et cocitations) → **Enrichisseur** (page `t.me/<nom>`, aperçu `t.me/s/<nom>`, mesures et filtres du code, signaux de faux, langue, pays par signaux, lecture Sonnet, contacts, marques, signal réglementaire ; texte des posts jamais gardé) → **Évaluateur** (note 0-100 transparente par le code, niveaux A/B/C/D, dossier Opus contrôlé puis QA Global) → **Pipeline** (Top 10 du matin avec boutons `prospect:`, rappels, rapport du lundi, statistiques).
+- Modèles : Haiku 5.5 (langue, routage), Sonnet 5.5 (lecture des canaux, recherche web), Opus 5.5 (dossiers, questions complexes), Fable 5.1 (QA). File `agents-prospection` (concurrence 2, planification `prospection.schedule` toutes les 10 min). Kevin : `boss/catalog-prospection.ts`, capacités `orders/capabilities/prospection.ts`. Site : Agents → Prospection.
+- Garde-fous : aucun contact (test adverse `prospection/no-contact.test.ts`), données publiques seulement, débits polis, Europe seulement par défaut, rien ne sort sans le QA Global.
+
 ### Durée
 
 Environ 3 semaines de travail autonome (1 à 3 jours par phase, comme les phases précédentes), le Mac restant allumé. Chaque phase est déployée et vérifiée avant la suivante ; tu peux basculer une équipe sur les vrais canaux dès que sa phase est livrée, sans attendre la fin.

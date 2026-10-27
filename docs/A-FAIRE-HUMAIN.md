@@ -161,3 +161,7 @@ L'assistante est **désactivée** : elle ne répond à personne tant que vous ne
 11. **Modèles de messages** : 63 modèles installés (Messages → Modèles, filtre par univers et par thème) ; relire ceux de votre univers avant de les utiliser, et ne pas retirer la mention des risques (casino, paris).
 12. **Traductions du bot** : les textes en, es, pt, de, it ont été écrits par Claude ; faire relire par un locuteur si une langue devient importante.
 13. **Équipe** : créer le compte de l'associé dans Réglages → Équipe (copier le lien d'invitation et le lui envoyer).
+
+## Phase 31 — Prospection d'affiliés
+- **Vos offres** (recommandé) : Kevin vous posera 3 questions courtes (marque, pays acceptés, CPA et/ou revshare). Vous pouvez aussi les saisir dans Agents → Prospection → Vos offres. Sans offre, la note d'adéquation se limite à « Europe et verticale ».
+- **API payantes des annuaires** (option, pas obligatoire) : tgstat, telemetr ou telega proposent des API payantes plus complètes. L'équipe fonctionne sans, à partir des pages publiques. Si vous souhaitez en prendre une, dites-le à Kevin.
