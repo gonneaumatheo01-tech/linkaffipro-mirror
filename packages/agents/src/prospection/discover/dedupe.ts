@@ -20,7 +20,7 @@ import { readSetting } from "../../admin/journal";
 import { parisDay, parisDayStart } from "../../rules/time";
 import { PROSPECTION_SETTINGS, type Candidate, type ProspectDiscoveryResult, type ProspectionDeps } from "../contract";
 import { normalizeProspectUrl } from "./normalize";
-import { clockOf } from "./polite";
+import { prospectionClockOf } from "./polite";
 
 export type DiscoveryRunInfo = { sourceType: string; sourceDetail: string | null; languages: string[]; vertical: string | null };
 
@@ -68,7 +68,7 @@ export async function upsertCandidates(
   run: DiscoveryRunInfo,
   opts: UpsertOptions = {},
 ): Promise<ProspectDiscoveryResult> {
-  const now = new Date(clockOf(deps));
+  const now = new Date(prospectionClockOf(deps));
   const by = opts.by ?? "system";
   const errors: string[] = [...(opts.errors ?? [])];
   const runRow = await deps.prisma.prospectSourceRun.create({
@@ -196,7 +196,7 @@ export async function upsertCandidates(
   const found = batch.size + inBatchDuplicates;
   await deps.prisma.prospectSourceRun.update({
     where: { id: runRow.id },
-    data: { finished: new Date(clockOf(deps)), found, newCount, duplicates, errors: errors.length ? errors.slice(0, 50) : undefined },
+    data: { finished: new Date(prospectionClockOf(deps)), found, newCount, duplicates, errors: errors.length ? errors.slice(0, 50) : undefined },
   });
   return { runId: runRow.id, found, newCount, duplicates, errors, paused: Boolean(opts.pausedUntil) };
 }

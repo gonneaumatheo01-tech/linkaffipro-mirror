@@ -13,7 +13,7 @@
 import { isBrandUsername, queriesFor, geoSignals } from "../../dict";
 import type { Candidate, DiscoveryLot, ProspectSourceType, ProspectionDeps } from "../../contract";
 import { extractTmeLinks, normalizeProspectUrl } from "../normalize";
-import { ProspectFetchError, clockOf, politeProspectFetch, type PoliteProspectDeps } from "../polite";
+import { ProspectFetchError, prospectionClockOf, politeProspectFetch, type PoliteProspectDeps } from "../polite";
 import { dayNumber, emptyFind, errorText, rotate, type SourceFindResult } from "./common";
 
 export { extractMentions, extractTmeLinks } from "../normalize";
@@ -114,6 +114,6 @@ export async function searchAndDig(
 
 /** Source B : recherche web multilingue. */
 export async function findWebSearchCandidates(deps: ProspectionDeps & PoliteProspectDeps, lot: DiscoveryLot): Promise<SourceFindResult> {
-  const queries = buildQueries(lot, WEB_FORMS, new Date(clockOf(deps)));
+  const queries = buildQueries(lot, WEB_FORMS, new Date(prospectionClockOf(deps)));
   return searchAndDig(deps, lot, { sourceType: "WEB_SEARCH", queries });
 }

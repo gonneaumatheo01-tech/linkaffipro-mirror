@@ -7,7 +7,7 @@
 import type { Candidate, DiscoveryLot, ProspectionDeps } from "../../contract";
 import { isBrandUsername } from "../../dict";
 import { extractTmeLinks, normalizeProspectUrl } from "../normalize";
-import { clockOf } from "../polite";
+import { prospectionClockOf } from "../polite";
 import { emptyFind, type SourceFindResult } from "./common";
 
 /** Fenêtre lue au premier passage (ensuite : depuis le passage précédent). */
@@ -29,7 +29,7 @@ export function candidatesFromTrendEntry(e: EntryLike, vertical: DiscoveryLot["v
 
 export async function findAnalystsCandidates(deps: ProspectionDeps, lot: DiscoveryLot): Promise<SourceFindResult> {
   const res = emptyFind(`veille des Analystes ${lot.vertical}`);
-  const now = clockOf(deps);
+  const now = prospectionClockOf(deps);
   const last = await deps.prisma.prospectSourceRun.findFirst({
     where: { sourceType: "ANALYSTS", vertical: lot.vertical, finished: { not: null } },
     orderBy: { started: "desc" },

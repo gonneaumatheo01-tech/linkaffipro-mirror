@@ -15,7 +15,7 @@ import { parisDay } from "../../rules/time";
 import { QUERY_LANGUAGES, countryLanguages } from "../dict";
 import { PROSPECTION_SETTINGS, type DiscoveryLot, type DiscoverySource, type ProspectDiscoveryResult, type ProspectionDeps } from "../contract";
 import { upsertCandidates } from "./dedupe";
-import { clockOf, sourcePause, type PoliteProspectDeps } from "./polite";
+import { prospectionClockOf, sourcePause, type PoliteProspectDeps } from "./polite";
 import { findAnalystsCandidates } from "./sources/analysts";
 import type { SourceFindResult } from "./sources/common";
 import { findDirectoryCandidates } from "./sources/directories";
@@ -56,7 +56,7 @@ export async function runDiscovery(deps: ProspectionDeps & PoliteProspectDeps, l
   const run = { sourceType: RUN_SOURCE_TYPE[lot.source] ?? lot.source, sourceDetail: lot.requestId ? `demande ${lot.requestId}` : null, languages: lot.languages, vertical: lot.vertical };
   const stop = (reason: string, pausedUntil: Date) => upsertCandidates(deps, [], run, { pausedUntil, errors: [reason] });
 
-  if (!(await isEnabled(deps))) return stop("Prospection en pause (réglage) : rien n'est lu.", new Date(clockOf(deps)));
+  if (!(await isEnabled(deps))) return stop("Prospection en pause (réglage) : rien n'est lu.", new Date(prospectionClockOf(deps)));
   const pauseKey = SOURCE_PAUSE_KEYS[lot.source];
   if (pauseKey) {
     const p = await sourcePause(deps, pauseKey);

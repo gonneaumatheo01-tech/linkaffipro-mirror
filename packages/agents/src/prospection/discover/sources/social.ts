@@ -5,7 +5,7 @@
  * compte social n'est utilisé ; une page inaccessible (connexion demandée, blocage) est passée.
  */
 import type { DiscoveryLot, ProspectionDeps } from "../../contract";
-import { clockOf, type PoliteProspectDeps } from "../polite";
+import { prospectionClockOf, type PoliteProspectDeps } from "../polite";
 import type { SourceFindResult } from "./common";
 import { buildQueries, searchAndDig } from "./web-search";
 
@@ -15,6 +15,6 @@ export const SOCIAL_FORMS = ["site:tiktok.com {q} telegram", "site:instagram.com
 export const SOCIAL_TEMPLATES_PER_LANGUAGE = 1;
 
 export async function findSocialCandidates(deps: ProspectionDeps & PoliteProspectDeps, lot: DiscoveryLot): Promise<SourceFindResult> {
-  const queries = buildQueries(lot, SOCIAL_FORMS, new Date(clockOf(deps)), SOCIAL_TEMPLATES_PER_LANGUAGE);
+  const queries = buildQueries(lot, SOCIAL_FORMS, new Date(prospectionClockOf(deps)), SOCIAL_TEMPLATES_PER_LANGUAGE);
   return searchAndDig(deps, lot, { sourceType: "SOCIAL", queries, maxPages: 16 });
 }

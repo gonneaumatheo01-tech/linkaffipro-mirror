@@ -45,7 +45,7 @@ const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const processRobotsCache = new Map<string, { policy: RobotsPolicy; until: number }>();
 const HOST_LOCKS = new WeakMap<HostThrottle, Map<string, Promise<void>>>();
 
-export function clockOf(deps: ProspectionDeps): number {
+export function prospectionClockOf(deps: ProspectionDeps): number {
   return deps.clock ? deps.clock() : (deps.now?.() ?? new Date()).getTime();
 }
 
@@ -69,7 +69,7 @@ async function readPauses(deps: ProspectionDeps): Promise<SourcePauses> {
 /** Met une source en pause 24 h (ou `ms`) avec la raison ; la page Sources et Kevin la lisent. */
 export async function pauseSource(deps: ProspectionDeps, source: string, reason: string, ms: number = PROSPECTION_LIMITS.sourcePauseMs): Promise<{ until: string }> {
   const pauses = await readPauses(deps);
-  const until = new Date(clockOf(deps) + ms).toISOString();
+  const until = new Date(prospectionClockOf(deps) + ms).toISOString();
   pauses[source] = { until, reason: reason.slice(0, 200) };
   await writeSetting(deps, PROSPECTION_SETTINGS.sourcePauses.key, pauses);
   deps.logger?.warn({ source, until, reason: reason.slice(0, 80) }, "prospection : source en pause 24 h");
@@ -80,12 +80,12 @@ export async function pauseSource(deps: ProspectionDeps, source: string, reason:
 export async function sourcePause(deps: ProspectionDeps, source: string): Promise<{ until: string; reason: string } | null> {
   const p = (await readPauses(deps))[source];
   if (!p) return null;
-  return Date.parse(p.until) > clockOf(deps) ? p : null;
+  return Date.parse(p.until) > prospectionClockOf(deps) ? p : null;
 }
 
 /** Toutes les pauses en cours (page Sources, rapport hebdo). */
 export async function activeSourcePauses(deps: ProspectionDeps): Promise<SourcePauses> {
-  const now = clockOf(deps);
+  const now = prospectionClockOf(deps);
   return Object.fromEntries(Object.entries(await readPauses(deps)).filter(([, p]) => Date.parse(p.until) > now));
 }
 
@@ -172,10 +172,10 @@ export async function politeProspectFetch(deps: PoliteProspectDeps, url: string,
     try {
       const last = await throttle.lastRequestAt(host).catch(() => null);
       if (last !== null) {
-        const wait = last + rateMs - clockOf(deps);
+        const wait = last + rateMs - prospectionClockOf(deps);
         if (wait > 0) await sleep(wait);
       }
-      await throttle.markRequest(host, clockOf(deps)).catch(() => undefined);
+      await throttle.markRequest(host, prospectionClockOf(deps)).catch(() => undefined);
     } finally {
       release();
       if (hostLocks.get(host) === tail) hostLocks.delete(host);
@@ -194,7 +194,7 @@ export async function politeProspectFetch(deps: PoliteProspectDeps, url: string,
   if (opts.kind !== "tme") {
     let policy: RobotsPolicy;
     const hit = robotsCache.get(u.origin);
-    if (hit && hit.until > clockOf(deps)) policy = hit.policy;
+    if (hit && hit.until > prospectionClockOf(deps)) policy = hit.policy;
     else {
       let ttl = ROBOTS_CACHE_MS;
       try {
@@ -210,7 +210,7 @@ export async function politeProspectFetch(deps: PoliteProspectDeps, url: string,
         policy = { rules: [], crawlDelayMs: null, disallowAll: true };
         ttl = ROBOTS_ERROR_CACHE_MS;
       }
-      robotsCache.set(u.origin, { policy, until: clockOf(deps) + ttl });
+      robotsCache.set(u.origin, { policy, until: prospectionClockOf(deps) + ttl });
     }
     if (!robotsAllows(policy, `${u.pathname}${u.search}`))
       throw new ProspectFetchError("robots", `Le site ${u.hostname} demande aux robots de ne pas lire ${u.pathname} (robots.txt) : je respecte.`, source);
