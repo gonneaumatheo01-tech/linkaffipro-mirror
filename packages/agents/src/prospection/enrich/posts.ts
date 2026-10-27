@@ -169,7 +169,12 @@ export type ProspectPostsResult =
  * Lit les posts d'un canal public : lecteur de la phase 27 (pages, rythme, 90 jours) branché sur la lecture polie,
  * puis relecture des pages reçues par `parseProspectPreview`. Posts rendus du plus récent au plus ancien.
  */
-export async function readProspectPosts(deps: ProspectionDeps, username: string): Promise<ProspectPostsResult> {
+export async function readProspectPosts(
+  deps: ProspectionDeps,
+  username: string,
+  /** Phase 32 (Veilleur, relecture allégée) : 1 page et 20 posts au lieu de 5 pages et 100 posts. */
+  limits: { maxPosts?: number; maxPages?: number } = {},
+): Promise<ProspectPostsResult> {
   const pages = new Map<string, string>();
   const fetchPage = async (url: string) => {
     const res = await enrichFetch(deps, url, "tme");
@@ -182,9 +187,9 @@ export async function readProspectPosts(deps: ProspectionDeps, username: string)
     now: enrichNow(deps),
     sleep: deps.sleep,
     clock: deps.clock,
-    maxPosts: PROSPECTION_LIMITS.maxPostsPerChannel,
+    maxPosts: Math.min(limits.maxPosts ?? PROSPECTION_LIMITS.maxPostsPerChannel, PROSPECTION_LIMITS.maxPostsPerChannel),
     maxAgeDays: PROSPECTION_LIMITS.maxAgeDays,
-    maxPages: PROSPECTION_LIMITS.maxPreviewPages,
+    maxPages: Math.min(limits.maxPages ?? PROSPECTION_LIMITS.maxPreviewPages, PROSPECTION_LIMITS.maxPreviewPages),
   });
   if (!read.ok) {
     const reason = read.reason === "not_found" || read.reason === "private" || read.reason === "restricted" ? read.reason : "error";
