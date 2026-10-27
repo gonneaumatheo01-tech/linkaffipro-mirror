@@ -19,11 +19,18 @@ import { parisDay } from "../../rules/time";
 import type { AdminButton } from "../../types";
 import { PROSPECTION_LIMITS, PROSPECTION_SETTINGS, PROSPECTION_TEAM_KEY, type ProspectionDeps, type ProspectTier, type ProspectVertical } from "../contract";
 import { DAY_MS, loadCountriesScope, numberSetting, prospectionNow, regionVisible, stringArray } from "../score/settings";
+import { maskPublicContactsForQa } from "../score/format";
 import { activeOffers, contactsOf, type OfferRow, type ProspectRow } from "../score/store";
 import { prospectCardButtons, renderProspectCard } from "./cards";
 
 export type DailyTopScope = "morning" | "on_demand";
-export type DailyTopItem = { prospectId: string; html: string; buttons: AdminButton[][] };
+export type DailyTopItem = {
+  prospectId: string;
+  html: string;
+  buttons: AdminButton[][];
+  /** Contacts publics de la carte (masqués dans la copie vérifiée par le QA Global, voir `maskPublicContactsForQa`). */
+  contacts?: Array<{ type: string; value: string }>;
+};
 export type DailyTop = { header: string; items: DailyTopItem[] };
 
 const TIER_RANK: Record<ProspectTier, number> = { A: 0, B: 1, C: 2, D: 3 };
@@ -141,7 +148,12 @@ export async function buildDailyTop(deps: ProspectionDeps, opts: { count: number
   const items: DailyTopItem[] = [];
   for (const p of chosen) {
     const contacts = await contactsOf(deps, p.id);
-    items.push({ prospectId: p.id, html: renderProspectCard(p, contacts, p.matchedOfferId ? (offerById.get(p.matchedOfferId) ?? null) : null, now), buttons: prospectCardButtons(p.id) });
+    items.push({
+      prospectId: p.id,
+      html: renderProspectCard(p, contacts, p.matchedOfferId ? (offerById.get(p.matchedOfferId) ?? null) : null, now),
+      buttons: prospectCardButtons(p.id),
+      contacts: contacts.map((c) => ({ type: c.type, value: c.value })),
+    });
   }
 
   let header: string;
@@ -173,7 +185,8 @@ export async function sendDailyTop(
     contentType: "KEVIN_RESPONSE",
     contentId: `prospection-top:${parisDay(now)}:${scope}:${top.items.length}`,
     teamKey: PROSPECTION_TEAM_KEY,
-    content: { text, prospects: top.items.map((i) => i.prospectId) },
+    // `prospectIds` : identifiants masqués par le QA sans compter comme une fuite ; e-mails de contact publics masqués.
+    content: maskPublicContactsForQa({ text, prospectIds: top.items.map((i) => i.prospectId) }, top.items.flatMap((i) => i.contacts ?? [])),
   });
   if (gate.kind !== "approved") {
     await deps.admin.send(pick(gate.kind === "unavailable" ? DAILY_TOP_VARIANTS.qaUnavailable : DAILY_TOP_VARIANTS.qaRejected, `prospection.top.qa.${gate.kind}`));

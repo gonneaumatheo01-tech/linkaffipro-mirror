@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetVoiceRotation } from "../../boss/voice";
 import { createFakeQaLlm } from "../../qa/testing";
 import { createProspectKit } from "../score/prospect-test-kit";
+import { maskPublicContactsForQa } from "../score/format";
 import { DAY_MS } from "../score/settings";
 import { buildDailyTop, sendDailyTop } from "./daily-top";
 import { addProspectNote, canTransition, returnSkippedProspects, transitionProspect } from "./status";
@@ -110,6 +111,20 @@ describe("Top du jour", () => {
     expect(more.items).toHaveLength(2);
     for (const i of more.items) expect(shown.has(i.prospectId)).toBe(false);
     expect(more.header).toMatch(/Encore|de plus/);
+  });
+
+  it("QA : identifiants réels et e-mail de contact public ne bloquent pas la liste (copie masquée pour le QA)", async () => {
+    const k = createProspectKit();
+    // Identifiant au format cuid, comme en base : vu comme « identifiant interne » s'il n'est pas sous une clé d'identifiants.
+    const p = await k.prospect({ id: "cmvqyfhh9001ef4cstq8ug9j7", score: 80, bestContact: "contact@canal-public.fr", contactConfidence: "HIGH" });
+    await k.prisma.prospectContact.create({ data: { prospectId: p.id, type: "EMAIL", value: "contact@canal-public.fr", label: "contact", source: "description", confidence: "HIGH" } as never });
+    expect(await sendDailyTop(k.deps, { count: 10 })).toEqual({ sent: 1, qaBlocked: false });
+    expect(k.sent.map((m) => m.html).join("\n")).toContain("contact@canal-public.fr");
+    const check = k.tables("qaCheck").at(-1)!;
+    expect(check.verdict).toBe("APPROVED");
+    expect(JSON.stringify(check.content)).not.toContain("canal-public.fr");
+    // Une autre adresse que le contact connu reste visible du QA (et bloque).
+    expect(maskPublicContactsForQa({ text: "a@b.fr et contact@canal-public.fr" }, [{ type: "EMAIL", value: "contact@canal-public.fr" }])).toEqual({ text: "a@b.fr et [contact public]" });
   });
 
   it("représenté une seule fois après 7 jours sans action ; revient après «\u00a0Plus tard\u00a0»", async () => {

@@ -41,6 +41,7 @@ import {
   formatCount,
   formatPct,
   handleOf,
+  maskPublicContactsForQa,
 } from "./format";
 import { boolSetting, DAY_MS, numberSetting, objectOf, prospectionNow, rawProspectionSetting, stringArray } from "./settings";
 import { contactsOf, type ContactRow, type OfferRow, type ProspectRow } from "./store";
@@ -321,7 +322,7 @@ async function buildDossierInner(deps: DossierDeps, prospectId: string, now: Dat
   }
   const dossier = lines.join("\n");
 
-  const gate = await qaGate(deps, { contentType: "RECOMMENDATION", contentId: `prospect-dossier:${prospectId}`, teamKey: PROSPECTION_TEAM_KEY, content: { text: dossier, data: facts } });
+  const gate = await qaGate(deps, { contentType: "RECOMMENDATION", contentId: `prospect-dossier:${prospectId}`, teamKey: PROSPECTION_TEAM_KEY, content: maskPublicContactsForQa({ text: dossier, data: facts }, contacts) });
   if (gate.kind !== "approved") {
     const why = gate.kind === "unavailable" ? "vérification indisponible" : `vérification refusée : ${gate.result.reasons[0]?.message?.slice(0, 160) ?? "contenu non conforme"}`;
     await deps.prisma.prospectEvent.create({ data: { prospectId, type: "DOSSIER", payload: { ok: false, reason: gate.kind, by: "system" }, createdAt: now } });

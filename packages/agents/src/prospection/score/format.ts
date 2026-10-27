@@ -152,3 +152,21 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
 export function handleOf(p: { username?: string | null; title?: string | null }): string {
   return p.username ? `@${p.username}` : (p.title || "canal sans nom").slice(0, 60);
 }
+
+/** Repère qui remplace un e-mail de contact public dans la copie vérifiée par le QA Global. */
+export const QA_PUBLIC_CONTACT = "[contact public]";
+
+/**
+ * Copie d'un contenu pour le QA Global où les e-mails de contact PUBLICS des canaux (affichés par le canal pour être
+ * contacté, gardés par la règle 3 du prompt) sont remplacés par un repère : le QA bloque toute adresse e-mail comme
+ * donnée sensible, ce qui refuserait chaque Top du jour ou dossier d'un canal joignable par e-mail. Seules les adresses
+ * des contacts connus (`ProspectContact` de type EMAIL) sont remplacées ; toute autre adresse reste visible du QA.
+ * Le texte envoyé au client garde le contact. Pur.
+ */
+export function maskPublicContactsForQa<T>(value: T, contacts: ReadonlyArray<{ type: string; value: string }>): T {
+  const emails = [...new Set(contacts.filter((c) => c.type === "EMAIL" && c.value.includes("@")).map((c) => c.value))].sort((a, b) => b.length - a.length);
+  if (!emails.length) return value;
+  let json = JSON.stringify(value);
+  for (const e of emails) json = json.split(JSON.stringify(e).slice(1, -1)).join(QA_PUBLIC_CONTACT);
+  return JSON.parse(json) as T;
+}
