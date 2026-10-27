@@ -4,7 +4,7 @@
  */
 import { bookmakerKevinHook, bookmakerTransportHooks, type AgentsDeps, type BookmakerReadDeps, type EngineDeps } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
-import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue } from "@linkaffipro/queue";
+import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue, createProspectionEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger, createBossMediaIngest } from "@linkaffipro/telegram";
 import { logger } from "../logger";
 import { createFrameExtractor } from "./frames";
@@ -47,6 +47,9 @@ export function workerAgentsDeps(): EngineDeps {
   // Phase 29 : Kevin (tâche `boss-text`, ordres) range les questions longues sur le marché dans la file
   // `agents-analystes` (réponse envoyée par le worker dans la minute).
   (deps as EngineDeps & { analysts?: { enqueue: ReturnType<typeof createAnalystsEnqueue> } }).analysts = { enqueue: createAnalystsEnqueue() };
+  // Phase 31 : Kevin (tâche `boss-text`, ordres) range les listes, recherches et canaux ajoutés dans la file
+  // `agents-prospection`.
+  (deps as EngineDeps & { prospection?: { enqueue: ReturnType<typeof createProspectionEnqueue> } }).prospection = { enqueue: createProspectionEnqueue() };
   cached = deps;
   return deps;
 }

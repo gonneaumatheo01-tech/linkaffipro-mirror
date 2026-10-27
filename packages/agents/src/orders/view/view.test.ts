@@ -111,8 +111,10 @@ describe("annuaire des agents", () => {
     const h = await agentCard(kit.deps, "horaires", {});
     expect(h.lines.join("\n")).toContain("Léa en privé : plutôt le mardi entre 19:00 et 22:00.");
     expectGoodLines(h);
-    const later = await agentCard(kit.deps, "prospection");
-    expect(later.lines[0]).toContain("pas encore là");
+    // Phase 31 : l'équipe Prospection est là (fiche lue en base, sans rien changer).
+    const prosp = await agentCard(kit.deps, "sourceur");
+    expect(prosp.lines.join("\n")).toContain("Prochaine recherche");
+    expectGoodLines(prosp);
     const qa = await agentCard(kit.deps, "qa");
     expect(qa.lines.join("\n")).toMatch(/Sur 7 jours : 0 contenu vérifié/);
     expectGoodLines(qa);

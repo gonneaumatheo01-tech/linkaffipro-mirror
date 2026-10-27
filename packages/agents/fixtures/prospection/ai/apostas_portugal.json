@@ -1,0 +1,48 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "futebol"
+    ],
+    "casino": []
+  },
+  "content_type": "tips_free",
+  "summary_fr": "Prognósticos de la Primeira Liga (Benfica, FC Porto, Sporting), pousse Betano et Placard.",
+  "quality": 7,
+  "monetization": {
+    "sells_vip": false,
+    "vip_price": null,
+    "sells_ads": true,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "Betano",
+      "links": 7,
+      "promo_code": null,
+      "first_seen": "2026-09-30",
+      "last_seen": "2026-10-25",
+      "intensity": "MEDIUM",
+      "evidence": "Odd 1.80 na Betano"
+    },
+    {
+      "brand": "Placard",
+      "links": 6,
+      "promo_code": null,
+      "first_seen": "2026-09-27",
+      "last_seen": "2026-10-22",
+      "intensity": "MEDIUM",
+      "evidence": "Bónus de boas-vindas Placard e Betano"
+    }
+  ],
+  "authenticity": "REAL",
+  "authenticity_reason": "Avis personnel et échanges avec l'audience.",
+  "contacts": [],
+  "risk_flags": [],
+  "geo_hints": [
+    "Primeira Liga",
+    "Benfica",
+    "€"
+  ]
+}

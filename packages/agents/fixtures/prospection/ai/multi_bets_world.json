@@ -1,0 +1,35 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "foot"
+    ],
+    "casino": []
+  },
+  "content_type": "bonus_pushing",
+  "summary_fr": "Mêmes pronos traduits en cinq langues pour pousser 22bet avec le code WORLD22.",
+  "quality": 3,
+  "monetization": {
+    "sells_vip": false,
+    "vip_price": null,
+    "sells_ads": false,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "22bet",
+      "links": 20,
+      "promo_code": "WORLD22",
+      "first_seen": "2026-09-30",
+      "last_seen": "2026-10-25",
+      "intensity": "HEAVY",
+      "evidence": "cote 1.75 sur 22bet code WORLD22"
+    }
+  ],
+  "authenticity": "REAL",
+  "authenticity_reason": "Contenu traduit mais régulier.",
+  "contacts": [],
+  "risk_flags": [],
+  "geo_hints": []
+}

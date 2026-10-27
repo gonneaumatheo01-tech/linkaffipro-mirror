@@ -16,6 +16,7 @@ import { RecentKeys, registerForwardHandlers } from "./forward";
 import { registerAdminDialogFallback, registerAgentsAdminHandlers } from "./agents-admin";
 import { registerBossGroupHandlers } from "./boss-group";
 import { registerBossMontageHandlers } from "./boss-montage";
+import { registerBossProspectionHandlers } from "./boss-prospection";
 import { registerMediaInboxHandlers } from "./media-inbox";
 import { redactAdminSecretUpdate, redactBossUpdate } from "../agents/redact";
 
@@ -202,6 +203,8 @@ function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): 
   // Phase 28 : vidéos de l'admin pour le montage et boutons des aperçus (avant le dialogue : une vidéo transférée sans
   // demande de montage y continue).
   registerBossMontageHandlers(bot, identity, deps);
+  // Phase 31 : boutons sous les prospects (`prospect:<id>:<action>`), avant le dialogue admin.
+  registerBossProspectionHandlers(bot, identity, deps);
   registerAgentsAdminHandlers(bot, identity, deps);
   registerMediaInboxHandlers(bot, identity, deps);
   // Emojis animés de l'admin (transférés, ou envoyés seuls) : bibliothèque d'emojis, comme sur les autres bots

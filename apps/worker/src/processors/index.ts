@@ -22,6 +22,7 @@ import { processAgentsAds, repeatableAgentsAds } from "./agents-ads";
 import { processAgentsBookmakers, repeatableAgentsBookmakers } from "./agents-bookmakers";
 import { processAgentsMontage, repeatableAgentsMontage } from "./agents-montage";
 import { processAgentsAnalystes, repeatableAgentsAnalystes } from "./agents-analystes";
+import { processAgentsProspection, repeatableAgentsProspection } from "./agents-prospection";
 
 export type Repeatable = { data: Record<string, unknown>; everyMs: number; jobId: string };
 
@@ -60,4 +61,6 @@ export const PROCESSORS: Record<QueueName, { process: Processor; repeatable: Rep
   "agents-montage": { process: (job: Job) => processAgentsMontage(job), repeatable: repeatableAgentsMontage, concurrency: 1 },
   // Analystes du marché (phase 29) : deux tâches à la fois (lecture réseau, peu de calcul).
   "agents-analystes": { process: (job: Job) => processAgentsAnalystes(job), repeatable: repeatableAgentsAnalystes, concurrency: 2 },
+  // Prospection d'affiliés (phase 31) : deux tâches à la fois (lecture réseau polie), 5 minutes au plus chacune.
+  "agents-prospection": { process: (job: Job) => processAgentsProspection(job), repeatable: repeatableAgentsProspection, concurrency: 2 },
 };

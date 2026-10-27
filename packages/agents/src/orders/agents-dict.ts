@@ -344,16 +344,52 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     role: "Relit tout ce qui sort, toutes équipes confondues, après leur propre contrôle : il accepte ou il bloque, sans jamais rien modifier.",
     synonyms: ["qa", "qa global", "controle global", "controle qualite global", "assurance qualite", "dernier verrou", "celui qui verifie tout", "celui qui bloque"],
   }),
+  // Phase 31 : équipe Prospection (canaux Telegram publics d'affiliés casino et paris en Europe). Elle trouve, lit,
+  // note et classe ; elle ne contacte jamais personne, c'est le client qui fait le commercial.
   e({
-    key: "prospection",
-    label: "Prospection",
+    key: "chef-prospection",
+    label: "Chef Prospection",
+    kind: "chef",
+    teams: ["prospection"],
+    chief: "grand-chef",
+    role: "Organise la recherche d'affiliés : la découverte de nuit, la lecture des canaux, la note et la liste du matin. Elle ne contacte jamais personne.",
+    synonyms: ["chef prospection", "prospection", "equipe prospection", "l'equipe prospection", "prospecteur", "prospectrice", "chercheur d'affilies", "recrutement d'affilies", "recrutement", "affilies"],
+  }),
+  e({
+    key: "sourceur",
+    label: "Sourceur",
     kind: "agent",
-    teams: [],
-    chief: null,
-    role: "Cherchera de nouveaux affiliés.",
-    synonyms: ["prospection", "prospecteur", "prospectrice", "chercheur d'affilies", "recrutement d'affilies"],
-    available: false,
-    arrives: "phase 31",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "Trouve les canaux casino et paris d'Europe dans les annuaires, la recherche web, les réseaux sociaux et les canaux qui se citent entre eux.",
+    synonyms: ["sourceur", "sourceuse", "celui qui trouve les canaux", "celui qui cherche les canaux", "chercheur de canaux", "decouverte", "annuaires"],
+  }),
+  e({
+    key: "enrichisseur",
+    label: "Enrichisseur",
+    kind: "agent",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "Lit la page publique de chaque canal : vraie audience, langue, pays, marques poussées, contacts publics, faux abonnés.",
+    synonyms: ["enrichisseur", "enrichisseuse", "lecteur de canaux", "celui qui lit les canaux", "celui qui mesure l'audience", "enrichissement"],
+  }),
+  e({
+    key: "evaluateur",
+    label: "Évaluateur",
+    kind: "agent",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "Note chaque canal sur 100 avec le détail du calcul, le classe de A à D et écrit le dossier des meilleurs.",
+    synonyms: ["evaluateur", "evaluatrice", "celui qui note les canaux", "notation", "score des prospects", "dossiers des prospects"],
+  }),
+  e({
+    key: "pipeline-prospection",
+    label: "Pipeline",
+    kind: "agent",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "T'envoie la liste du matin avec les boutons, suit qui est contacté ou signé, te rappelle les relances et fait le point du lundi.",
+    synonyms: ["pipeline", "agent pipeline", "suivi des prospects", "liste du matin", "top du jour", "relances des affilies", "celui qui suit les contacts"],
   }),
 ];
 
@@ -456,6 +492,7 @@ export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "montage") return "Montage";
   if (t === "analystes") return "Analystes";
   if (t === "qa") return "Contrôle qualité";
+  if (t === "prospection") return "Prospection";
   if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
@@ -498,6 +535,15 @@ export async function agentCard(deps: AgentsDeps, agentKey: string, opts: AgentC
   if (agent.teams.includes("analystes")) {
     const { analystsAgentCard } = await import("../analysts/kevin-view");
     const card = await analystsAgentCard(deps, agent.key);
+    const abilities = agentAbilities(agent.key).map((c) => c.description);
+    const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
+    if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);
+    return { agent, facts: { agent: agent.label, equipes: teamText, chef: chief?.label ?? null, ...card.facts, peutFaire: abilities }, lines };
+  }
+  // Phase 31 : l'équipe Prospection travaille sur des canaux d'affiliés (pas des posts).
+  if (agent.teams.includes("prospection")) {
+    const { prospectionAgentCard } = await import("../prospection/kevin-view");
+    const card = await prospectionAgentCard(deps, agent.key);
     const abilities = agentAbilities(agent.key).map((c) => c.description);
     const lines = [`${agent.label}${teamText ? ` (${teamText}${chief ? `, sous le ${chief.label}` : ""})` : ""} : ${agent.role}`, ...card.lines];
     if (abilities.length) lines.push(`Tu peux par exemple lui demander de ${lowerFirst(shortAbility(abilities[0]!))}.`);

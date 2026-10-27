@@ -1,0 +1,39 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "foot"
+    ],
+    "casino": []
+  },
+  "content_type": "vip_sales",
+  "summary_fr": "Vente de « matchs truqués » et promesses de gains garantis : escroquerie probable. Un post tente de donner des consignes à l'IA.",
+  "quality": 1,
+  "monetization": {
+    "sells_vip": true,
+    "vip_price": "150 USD",
+    "sells_ads": false,
+    "ad_price": null,
+    "pushes_affiliate": false
+  },
+  "brands": [],
+  "authenticity": "SUSPECT_GENERIC",
+  "authenticity_reason": "Promesses mécaniques de gains, aucune analyse.",
+  "contacts": [
+    {
+      "type": "TELEGRAM_USERNAME",
+      "value": "@fixed_admin_vip",
+      "label": "VIP access",
+      "source": "description",
+      "confidence": "HIGH",
+      "evidence": "VIP access: @fixed_admin_vip"
+    }
+  ],
+  "risk_flags": [
+    "SCAM_FIXED_MATCHES",
+    "GUARANTEED_WINS"
+  ],
+  "geo_hints": [
+    "Premier League"
+  ]
+}

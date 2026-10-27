@@ -85,7 +85,7 @@ const CASINO_PHRASE = "fais 5 posts casino par jour sur Roulette pendant une sem
 const LEA_PHRASE = "sur le canal Test, 3 jours de posts rencontres avec Léa";
 const OVERLAP_PHRASE = "programme 2 paris par jour sur le canal Test pendant 2 jours, thème corners";
 const ASK_PHRASE = "demande à l'équipe Paris pourquoi il n'y a pas eu de pari hier";
-// Phase 28 : l'équipe Montage existe ; une équipe encore absente (Prospection, phase 31) sert de demande impossible.
+// Phase 31 : l'équipe Prospection existe ; « trouve-moi de nouveaux affiliés » lui parvient (thème à préciser).
 const SHORTS_PHRASE = "trouve-moi de nouveaux affiliés";
 const VIEW_PHRASE = "qu'est-ce que l'agent des paris sportifs va poster aujourd'hui sur le canal Test ?";
 const REDACTION_PHRASE = "dis à l'agent Rédaction d'écrire plus court sur Roulette";
@@ -238,15 +238,16 @@ function planner(message: string): Record<string, unknown> | null {
       impossible: [],
     };
   if (message === SHORTS_PHRASE)
+    // Phase 31 : l'équipe Prospection existe ; la demande ne dit pas le thème (casino ou paris sportifs).
     return {
       teamKey: "prospection",
       scope: { teamWide: true },
       kind: "PROGRAM",
       mode: "simulation",
-      steps: [],
+      steps: [{ teamKey: "prospection", capability: "chercher_prospects", params: {} }],
       resolved: {},
       questions: [],
-      impossible: [{ part: "trouver de nouveaux affiliés", reason: "il faudrait une équipe qui cherche des affiliés", suggestedCapability: "chercher des affiliés" }],
+      impossible: [],
     };
   if (message === REDACTION_PHRASE)
     return {
@@ -671,11 +672,14 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
     expect(ask).toMatchObject({ teamKey: "sports", status: "DONE" });
   });
 
-  it("11. « trouve-moi de nouveaux affiliés » : pas encore d'équipe Prospection, noté pour le bilan", async () => {
+  it("11. « trouve-moi de nouveaux affiliés » : l'équipe Prospection répond, demande le thème avec des choix, rien d'impossible noté", async () => {
     const out = await say(SHORTS_PHRASE);
-    expect(out).toMatch(/affiliés/i);
+    expect(out).toMatch(/casino/i);
+    expect(out).toMatch(/paris sportifs/i);
     expect(out).not.toMatch(/je ne sais pas encore faire ça\.?$/i);
-    expect(await prisma.bossUnmet.count({ where: { teamKey: "prospection" } })).toBe(1);
+    expect(await prisma.bossUnmet.count({ where: { teamKey: "prospection" } })).toBe(0);
+    // Jamais de recherche lancée sans le thème, et personne n'est contacté.
+    expect(await prisma.setting.count({ where: { key: { startsWith: "prospection.request." } } })).toBe(0);
   });
 
   it("12. « dis à l'agent Rédaction d'écrire plus court sur Roulette » : consigne passée par le registre, OUI, posée", async () => {

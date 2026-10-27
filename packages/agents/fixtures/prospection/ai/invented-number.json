@@ -1,0 +1,59 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "foot",
+      "tennis"
+    ],
+    "casino": []
+  },
+  "content_type": "tips_free",
+  "summary_fr": "Canal de pronostics suivi par 48 000 abonnés actifs, pousse 1xbet.",
+  "quality": 8,
+  "monetization": {
+    "sells_vip": false,
+    "vip_price": null,
+    "sells_ads": true,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "1xbet",
+      "links": 20,
+      "promo_code": "MAXPRONO",
+      "first_seen": "2026-09-24",
+      "last_seen": "2026-10-25",
+      "intensity": "HEAVY",
+      "evidence": "Code promo MAXPRONO cote 1.85 chez 1xbet"
+    },
+    {
+      "brand": "Winamax",
+      "links": 0,
+      "promo_code": null,
+      "first_seen": null,
+      "last_seen": null,
+      "intensity": "LIGHT",
+      "evidence": "Aussi dispo sur Winamax"
+    }
+  ],
+  "authenticity": "REAL",
+  "authenticity_reason": "Voix personnelle, analyses et erreurs assumées, réponses à l'audience.",
+  "contacts": [
+    {
+      "type": "TELEGRAM_USERNAME",
+      "value": "@maxime_pub",
+      "label": "pub",
+      "source": "description",
+      "confidence": "HIGH",
+      "evidence": "Pub : @maxime_pub"
+    }
+  ],
+  "risk_flags": [],
+  "geo_hints": [
+    "Ligue 1",
+    "PSG",
+    "OM",
+    "Winamax"
+  ]
+}

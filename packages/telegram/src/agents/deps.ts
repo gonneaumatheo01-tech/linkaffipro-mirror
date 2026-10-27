@@ -4,7 +4,7 @@
  */
 import { portSiteOps, setBossRegisterPort, type AgentsDeps, type AgentsEnqueue } from "@linkaffipro/agents";
 import { prisma } from "@linkaffipro/db";
-import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue } from "@linkaffipro/queue";
+import { createAgentsEnqueue, createAnalystsEnqueue, createMontageEnqueue, createProspectionEnqueue } from "@linkaffipro/queue";
 import { createAdminMessenger } from "./admin-messenger";
 import { createBossMediaIngest } from "../boss/media-ingest";
 
@@ -64,6 +64,13 @@ export function createBotAgentsDeps(): AgentsDeps {
   if (!withAnalysts.analysts) {
     let impl: ReturnType<typeof createAnalystsEnqueue> | null = null;
     withAnalysts.analysts = { enqueue: (job, opts) => (impl ??= createAnalystsEnqueue())(job, opts) };
+  }
+  // Phase 31 : Kevin dans le webhook (liste à la demande, canal ajouté, recherche) range ses tâches dans la file
+  // `agents-prospection` (créée à la première utilisation).
+  const withProspection = cached as AgentsDeps & { prospection?: { enqueue?: ReturnType<typeof createProspectionEnqueue> } };
+  if (!withProspection.prospection) {
+    let impl: ReturnType<typeof createProspectionEnqueue> | null = null;
+    withProspection.prospection = { enqueue: (job, opts) => (impl ??= createProspectionEnqueue())(job, opts) };
   }
   // Phase 34 : médias d'un message transféré à Kevin rangés avant l'essai à blanc (bot du dialogue admin).
   if (!cached.ingestForwardedMedia) {

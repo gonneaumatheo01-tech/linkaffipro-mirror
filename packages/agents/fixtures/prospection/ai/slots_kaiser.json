@@ -1,0 +1,50 @@
+{
+  "vertical": "CASINO",
+  "vertical_details": {
+    "sports": [],
+    "casino": [
+      "slots",
+      "bonus",
+      "streams"
+    ]
+  },
+  "content_type": "bonus_pushing",
+  "summary_fr": "Slots et bonus casino en allemand, streams de bonus-jagd, pousse bet-at-home (free spins, bonus).",
+  "quality": 7,
+  "monetization": {
+    "sells_vip": false,
+    "vip_price": null,
+    "sells_ads": true,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "bet-at-home",
+      "links": 25,
+      "promo_code": null,
+      "first_seen": "2026-09-29",
+      "last_seen": "2026-10-25",
+      "intensity": "HEAVY",
+      "evidence": "Neuer Casino-Bonus bei bet-at-home"
+    }
+  ],
+  "authenticity": "REAL",
+  "authenticity_reason": "Tests personnels et streams en direct.",
+  "contacts": [
+    {
+      "type": "TELEGRAM_USERNAME",
+      "value": "@kaiser_werbung",
+      "label": "Werbung",
+      "source": "description",
+      "confidence": "HIGH",
+      "evidence": "Werbung: @kaiser_werbung"
+    }
+  ],
+  "risk_flags": [],
+  "geo_hints": [
+    "Berlin",
+    "Bundesliga",
+    "€"
+  ]
+}

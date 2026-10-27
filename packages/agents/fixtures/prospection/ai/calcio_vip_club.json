@@ -1,0 +1,39 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "calcio"
+    ],
+    "casino": []
+  },
+  "content_type": "vip_sales",
+  "summary_fr": "Pronostici Serie A et vente d'un VIP à 49€/mese, pousse Goldbet avec le code CALCIO10.",
+  "quality": 6,
+  "monetization": {
+    "sells_vip": true,
+    "vip_price": "49€/mese",
+    "sells_ads": false,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "Goldbet",
+      "links": 12,
+      "promo_code": "CALCIO10",
+      "first_seen": "2026-08-30",
+      "last_seen": "2026-10-25",
+      "intensity": "HEAVY",
+      "evidence": "Codice promo Goldbet: CALCIO10"
+    }
+  ],
+  "authenticity": "REAL",
+  "authenticity_reason": "Analyses personnelles et ton direct.",
+  "contacts": [],
+  "risk_flags": [],
+  "geo_hints": [
+    "Serie A",
+    "Inter",
+    "Goldbet"
+  ]
+}

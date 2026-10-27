@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "_note": "Gabarits de recherche par langue (24 langues officielles de l'UE + norvégien + islandais) et par verticale. Écrits à la main et versionnés : aucune IA à l'exécution. Le Sourceur les combine avec « telegram », site:t.me, site:linktr.ee, site:beacons.ai (web) ou site:tiktok.com / instagram.com / youtube.com / x.com (réseaux).",
+  "languages": {
+    "bg": {
+      "SPORTS": ["спортни прогнози", "прогнози за футбол", "залози прогнози", "типстър прогнози", "сигурни прогнози футбол"],
+      "CASINO": ["онлайн казино бонус", "казино бонус без депозит", "слот игри", "ротативки онлайн", "казино стрийм"]
+    },
+    "hr": {
+      "SPORTS": ["sportske prognoze", "nogometne prognoze", "tipovi za klađenje", "kladionica tipovi", "tipster savjeti"],
+      "CASINO": ["online casino bonus", "casino bonus bez depozita", "slot igre", "online kasino", "casino stream"]
+    },
+    "cs": {
+      "SPORTS": ["sázkové tipy", "tipy na sázení", "fotbalové tipy", "sázení tipy dne", "tipster tipy"],
+      "CASINO": ["online casino bonus", "casino bonus bez vkladu", "automaty online", "online kasino", "casino stream"]
+    },
+    "da": {
+      "SPORTS": ["spilletips", "betting tips", "fodbold tips", "odds tips", "dagens spil"],
+      "CASINO": ["online casino bonus", "casino bonus uden indbetaling", "spilleautomater", "free spins", "casino stream"]
+    },
+    "nl": {
+      "SPORTS": ["voetbal voorspellingen", "wedtips", "sportweddenschappen tips", "gokken tips voetbal", "tipster"],
+      "CASINO": ["online casino bonus", "casino bonus zonder storting", "gokkasten", "free spins", "casino stream"]
+    },
+    "en": {
+      "SPORTS": ["betting tips", "football tips", "free betting tips", "tipster", "accumulator tips", "acca tips today"],
+      "CASINO": ["online casino bonus", "no deposit bonus", "slots", "free spins", "aviator", "crash game", "live casino", "casino streamer"]
+    },
+    "et": {
+      "SPORTS": ["spordiennustused", "panustamise nõuanded", "jalgpalli ennustused", "kihlveo tipid"],
+      "CASINO": ["online kasiino boonus", "kasiino boonus ilma sissemakseta", "slotid", "tasuta keerutused"]
+    },
+    "fi": {
+      "SPORTS": ["vedonlyöntivinkit", "jalkapallovinkit", "vetovinkit", "päivän vihjeet", "tipster"],
+      "CASINO": ["nettikasino bonus", "kasino bonus ilman talletusta", "kolikkopelit", "ilmaiskierrokset", "kasino stream"]
+    },
+    "fr": {
+      "SPORTS": ["pronostics", "pronostic foot", "paris sportifs", "prono du jour", "tipster", "pronostics gratuits"],
+      "CASINO": ["casino en ligne", "bonus sans dépôt", "machines à sous", "slots", "crash", "aviator", "roulette", "live casino", "free spins"]
+    },
+    "de": {
+      "SPORTS": ["Sportwetten Tipps", "Fußball Tipps", "Wett Tipps heute", "Tipster", "Kombiwetten Tipps"],
+      "CASINO": ["Online Casino Bonus", "Casino Bonus ohne Einzahlung", "Spielautomaten", "Freispiele", "Slots", "Casino Stream"]
+    },
+    "el": {
+      "SPORTS": ["προγνωστικά", "στοιχηματικά προγνωστικά", "προγνωστικά ποδοσφαίρου", "στοίχημα tips", "σημερινά προγνωστικά"],
+      "CASINO": ["online καζίνο", "καζίνο μπόνους", "μπόνους χωρίς κατάθεση", "κουλοχέρηδες", "δωρεάν περιστροφές"]
+    },
+    "hu": {
+      "SPORTS": ["sportfogadási tippek", "foci tippek", "fogadási tippek", "napi tipp", "tippmix tippek"],
+      "CASINO": ["online kaszinó bónusz", "kaszinó bónusz befizetés nélkül", "nyerőgépek", "ingyenes pörgetések", "kaszinó stream"]
+    },
+    "ga": {
+      "SPORTS": ["leideanna geallchur", "tuar peile", "betting tips ireland", "horse racing tips ireland"],
+      "CASINO": ["casino ar líne", "online casino ireland", "casino bonus ireland", "free spins ireland"]
+    },
+    "it": {
+      "SPORTS": ["pronostici", "pronostici calcio", "scommesse sportive", "pronostici oggi", "tipster", "schedine"],
+      "CASINO": ["casinò online", "bonus senza deposito", "slot online", "giri gratis", "casino live", "slot streamer"]
+    },
+    "lv": {
+      "SPORTS": ["sporta prognozes", "likmju padomi", "futbola prognozes", "derību padomi"],
+      "CASINO": ["online kazino bonuss", "kazino bonuss bez depozīta", "spēļu automāti", "bezmaksas griezieni"]
+    },
+    "lt": {
+      "SPORTS": ["sporto prognozės", "lažybų patarimai", "futbolo prognozės", "lažybos prognozės"],
+      "CASINO": ["online kazino bonusas", "kazino bonusas be įmokos", "lošimo automatai", "nemokami sukimai"]
+    },
+    "mt": {
+      "SPORTS": ["tbassir tal-futbol", "imħatri sportivi", "betting tips malta", "football tips malta"],
+      "CASINO": ["każinò online", "online casino malta", "casino bonus malta", "free spins malta"]
+    },
+    "pl": {
+      "SPORTS": ["typy bukmacherskie", "typy na dziś", "zakłady bukmacherskie", "typy piłkarskie", "typer"],
+      "CASINO": ["kasyno online", "bonus bez depozytu", "automaty online", "darmowe spiny", "sloty", "kasyno stream"]
+    },
+    "pt": {
+      "SPORTS": ["apostas desportivas", "prognósticos futebol", "dicas de apostas", "tipster", "apostas de futebol", "palpites futebol"],
+      "CASINO": ["casino online", "bónus sem depósito", "slots online", "rodadas grátis", "jogos de casino", "aviator"]
+    },
+    "ro": {
+      "SPORTS": ["ponturi pariuri", "ponturi fotbal", "pariuri sportive", "biletul zilei", "pronosticuri"],
+      "CASINO": ["cazino online", "bonus fără depunere", "păcănele", "rotiri gratuite", "sloturi"]
+    },
+    "sk": {
+      "SPORTS": ["stávkové tipy", "tipy na stávkovanie", "futbalové tipy", "tipy dňa", "tipster"],
+      "CASINO": ["online kasíno bonus", "bonus bez vkladu", "automaty online", "free spiny", "kasíno stream"]
+    },
+    "sl": {
+      "SPORTS": ["športne napovedi", "stavni nasveti", "nogometne napovedi", "nasveti za stave"],
+      "CASINO": ["spletna igralnica bonus", "casino bonus brez depozita", "igralni avtomati", "brezplačni vrtljaji"]
+    },
+    "es": {
+      "SPORTS": ["pronósticos deportivos", "apuestas deportivas", "pronósticos fútbol", "tipster", "apuestas hoy", "combinada del día"],
+      "CASINO": ["casino online", "bono sin depósito", "tragaperras", "giros gratis", "casino en vivo", "slots"]
+    },
+    "sv": {
+      "SPORTS": ["speltips", "fotbollstips", "betting tips", "oddstips", "dagens spel"],
+      "CASINO": ["online casino bonus", "casino bonus utan insättning", "spelautomater", "free spins", "casino stream"]
+    },
+    "no": {
+      "SPORTS": ["spilltips", "tippetips", "fotballtips", "oddstips", "dagens spill"],
+      "CASINO": ["online casino bonus", "casino bonus uten innskudd", "spilleautomater", "gratisspinn", "casino stream"]
+    },
+    "is": {
+      "SPORTS": ["veðmálaráð", "fótboltaspár", "getraunir ráð", "veðmál ráðleggingar"],
+      "CASINO": ["netspilavíti", "spilavíti bónus", "spilakassar", "ókeypis snúningar"]
+    }
+  }
+}

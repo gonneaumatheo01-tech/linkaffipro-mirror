@@ -13,7 +13,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 /** Adresse par défaut de la fonction Link Affi qui reçoit les événements (modifiable dans la plateforme). */
 export const LINKAFFI_EVENTS_URL_DEFAULT =
-  "https://igqzbemzzxvuehwnyotn.supabase.co/functions/v1/telegram-events";
+  "https://api.linkaffi.me/functions/v1/telegram-events";
 
 /** Types d'événements du contrat (§ 2). */
 export const LINKAFFI_EVENT_TYPES = [

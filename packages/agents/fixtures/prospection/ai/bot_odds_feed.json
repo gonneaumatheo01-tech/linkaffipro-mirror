@@ -1,0 +1,35 @@
+{
+  "vertical": "SPORTS",
+  "vertical_details": {
+    "sports": [
+      "foot"
+    ],
+    "casino": []
+  },
+  "content_type": "news",
+  "summary_fr": "Flux automatique de cotes sans aucun commentaire, textes identiques d'un post à l'autre.",
+  "quality": 1,
+  "monetization": {
+    "sells_vip": false,
+    "vip_price": null,
+    "sells_ads": false,
+    "ad_price": null,
+    "pushes_affiliate": true
+  },
+  "brands": [
+    {
+      "brand": "1xbet",
+      "links": 40,
+      "promo_code": null,
+      "first_seen": "2026-10-16",
+      "last_seen": "2026-10-26",
+      "intensity": "HEAVY",
+      "evidence": "BET"
+    }
+  ],
+  "authenticity": "SUSPECT_BOT",
+  "authenticity_reason": "Textes mécaniques générés, vues constantes.",
+  "contacts": [],
+  "risk_flags": [],
+  "geo_hints": []
+}

@@ -31,6 +31,8 @@ export const QUEUE_NAMES = [
   "agents-montage",
   // Phase 29 : équipe Analystes (veille du marché, règles des plateformes pub, rapports ; lecture réseau, 2 à la fois).
   "agents-analystes",
+  // Phase 31 : équipe Prospection (canaux Telegram publics d'affiliés ; lecture réseau, 2 à la fois).
+  "agents-prospection",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -156,6 +158,8 @@ export const JOB_RETRY_OPTIONS: Record<
   // Phase 29 : 2 essais (reprise après 1 min) ; la base fait foi (une source lue repart de `nextScrapeAt`, une entrée déjà
   // vérifiée ou une alerte déjà envoyée ne l'est jamais deux fois).
   "agents-analystes": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // Phase 31 : 2 essais (reprise après 1 min) ; la base fait foi (statut du prospect, repères des passages du jour).
+  "agents-prospection": { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
 };
 
 /** File `sync-ads` (phase 7) : dépenses des comptes publicitaires connectés (Meta, TikTok). */
@@ -354,6 +358,32 @@ export type AgentsAnalystesJob =
   | { type: "analysts.reverify" }
   | { type: "analysts.purge" };
 
+/**
+ * File `agents-prospection` (phase 31) : copie structurelle de `ProspectionQueueJob` de `@linkaffipro/agents`
+ * (`prospection/contract.ts`, ce paquet ne dépend pas des agents). `prospection.schedule` toutes les 10 minutes
+ * (découverte de nuit, enrichissement continu, Top du jour, rappels, rapport du lundi) ; le reste est déposé par la
+ * planification et par Kevin. L'équipe n'écrit jamais à un tiers.
+ */
+export type ProspectionDiscoveryLotJob = {
+  source: "directories" | "web_search" | "social" | "graph" | "analysts" | "manual";
+  languages: string[];
+  vertical: "SPORTS" | "CASINO";
+  countries?: string[];
+  requestId?: string | null;
+  prospectId?: string | null;
+};
+
+export type AgentsProspectionJob =
+  | { type: "prospection.schedule" }
+  | { type: "prospection.discover"; lot: ProspectionDiscoveryLotJob }
+  | { type: "prospection.enrich"; prospectId: string }
+  | { type: "prospection.score"; prospectId: string }
+  | { type: "prospection.dossier"; prospectId: string }
+  | { type: "prospection.daily-top"; requested?: { chatId?: string | null; count?: number } | null }
+  | { type: "prospection.reminders" }
+  | { type: "prospection.weekly-report" }
+  | { type: "prospection.requalify" };
+
 export type AgentTeamQueue = "agents-dating" | "agents-casino" | "agents-sports" | "agents-algo";
 
 export type JobOf<Q extends QueueName> = Q extends "telegram-send"
@@ -396,4 +426,6 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                                   ? AgentsMontageJob
                                   : Q extends "agents-analystes"
                                     ? AgentsAnalystesJob
-                                    : StatsJob;
+                                    : Q extends "agents-prospection"
+                                      ? AgentsProspectionJob
+                                      : StatsJob;

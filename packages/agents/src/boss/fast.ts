@@ -15,6 +15,7 @@
  *    message de Kevin et date de plus de 6 heures, Kevin demande d'abord « C'est ta réponse à : … ? » (OUI / NON) ;
  * 7. sinon : `{ handled: false, needsAi: true }` (tâche `boss-text` du worker).
  */
+import { prospectionFastPath } from "../prospection/kevin-buttons";
 import { handleAdminText, type AdminTextResult } from "../admin/handle";
 import { isSecretAdminText, parseAdminCommand } from "../admin/commands";
 import { currentHumanRequest, sendNextHumanRequest } from "../human/requests";
@@ -257,6 +258,16 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     const r = { reply: pick(FAST_VARIANTS.forwarded, "fast.forwarded", input.chat?.chatId ?? null) };
     await remember(deps, input, r, { actionKey: "transfere", status: "refused" });
     return { handled: true, ...r };
+  }
+
+  // Phase 31 : montant d'un deal après « 🤝 Signé » → « CPA » (« 100 »), puis « @nom » seul d'un prospect connu.
+  // Avant les questions ouvertes et l'IA : la question du montant vient d'être posée par un bouton.
+  {
+    const pr = await prospectionFastPath(deps, input);
+    if (pr) {
+      await remember(deps, input, pr.reply, { actionKey: pr.actionKey, status: "done" });
+      return { handled: true, ...pr.reply };
+    }
   }
 
   const current = (await currentHumanRequest(deps)) as (HumanRequestRow & { askedAt: Date | null; telegramMessageId?: number | null }) | null;
