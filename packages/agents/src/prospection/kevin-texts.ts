@@ -238,10 +238,10 @@ const P2 = { name: "@slots_it", count: 1, what: "paris sportifs en Grèce" };
 
 export const PROSPECTION_KEVIN_VARIANTS = {
   disabled: [
-    "La prospection est en pause pour le moment. Écris « reprends la prospection » pour la relancer.",
-    "La recherche d'affiliés est coupée en ce moment. Tu me dis « reprends la prospection » quand tu veux ?",
+    "La prospection est en pause pour le moment. Écris «\u00a0reprends la prospection\u00a0» pour la relancer.",
+    "La recherche d'affiliés est coupée en ce moment. Tu me dis «\u00a0reprends la prospection\u00a0» quand tu veux ?",
   ],
-  paused: ["Ok, la prospection est en pause. Plus de recherche ni de liste du matin jusqu'à ce que tu me dises « reprends ».", "C'est en pause. Je ne cherche plus rien et je ne t'envoie plus de liste tant que tu ne dis pas « reprends »."],
+  paused: ["Ok, la prospection est en pause. Plus de recherche ni de liste du matin jusqu'à ce que tu me dises «\u00a0reprends\u00a0».", "C'est en pause. Je ne cherche plus rien et je ne t'envoie plus de liste tant que tu ne dis pas «\u00a0reprends\u00a0»."],
   resumed: ["C'est reparti, je recommence à chercher des canaux. La prochaine liste arrive demain matin.", "Ok, la prospection tourne de nouveau. Tu auras la liste demain matin."],
   alreadyPaused: ["La prospection est déjà en pause.", "C'est déjà en pause de mon côté."],
   alreadyRunning: ["La prospection tourne déjà.", "C'est déjà en route de mon côté."],
@@ -251,16 +251,16 @@ export const PROSPECTION_KEVIN_VARIANTS = {
     "Je n'ai pas d'autre canal prêt pour le moment. La recherche continue, la prochaine liste arrive demain matin.",
   ],
   topMore: voiceTemplate([{ count: 1 }, { count: 10 }], (p) => [
-    `${plural(p.count, "canal de plus", "canaux de plus")}. Tu me dis « encore 10 » pour la suite ?`,
-    `Ça fait ${plural(p.count, "canal de plus", "canaux de plus")}. Écris « encore 10 » si tu en veux d'autres.`,
+    `${plural(p.count, "canal de plus", "canaux de plus")}. Tu me dis «\u00a0encore 10\u00a0» pour la suite ?`,
+    `Ça fait ${plural(p.count, "canal de plus", "canaux de plus")}. Écris «\u00a0encore 10\u00a0» si tu en veux d'autres.`,
   ]),
   noOffer: [
-    "Je n'ai pas encore ton offre, alors j'ai classé sur l'Europe et le thème seulement. Écris « ajoute une offre : Winamax, FR BE, CPA 120 » pour l'affiner.",
-    "Pas encore d'offre enregistrée : le classement tient compte de l'Europe et du thème seulement. Tu me donnes ton offre ? Par exemple « ajoute une offre : Winamax, FR BE, CPA 120 ».",
+    "Je n'ai pas encore ton offre, alors j'ai classé sur l'Europe et le thème seulement. Écris «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0» pour l'affiner.",
+    "Pas encore d'offre enregistrée : le classement tient compte de l'Europe et du thème seulement. Tu me donnes ton offre ? Par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0».",
   ],
   unknownChannel: voiceTemplate([{ name: "@pronos_fr" }], (p) => [
-    `Je ne connais pas ${p.name} dans mes prospects. Tu veux que je l'ajoute ? Écris « ajoute t.me/${p.name.replace(/^@/, "")} ».`,
-    `${p.name} n'est pas dans ma liste. Écris « ajoute t.me/${p.name.replace(/^@/, "")} » et je le regarde.`,
+    `Je ne connais pas ${p.name} dans mes prospects. Tu veux que je l'ajoute ? Écris «\u00a0ajoute t.me/${p.name.replace(/^@/, "")}\u00a0».`,
+    `${p.name} n'est pas dans ma liste. Écris «\u00a0ajoute t.me/${p.name.replace(/^@/, "")}\u00a0» et je le regarde.`,
   ]),
   askChannel: ["De quel canal tu parles ? Donne-moi son @nom ou son lien t.me.", "Il me manque le canal : tu me donnes son @nom ou son lien t.me ?"],
   statusDone: voiceTemplate(
@@ -272,14 +272,14 @@ export const PROSPECTION_KEVIN_VARIANTS = {
   ),
   snoozed: voiceTemplate([{ name: "@pronos_fr", days: 7 }], (p) => [`Ok, je te reparle de ${p.name} dans ${plural(p.days, "jour")}.`, `C'est noté, ${p.name} revient dans ${plural(p.days, "jour")}.`]),
   statusRefused: voiceTemplate([{ name: "@pronos_fr", from: "à contacter", to: "signé" }], (p) => [
-    `Je ne peux pas passer ${p.name} de « ${p.from} » à « ${p.to} » directement. Tu me dis d'abord où ça en est ?`,
-    `${p.name} est « ${p.from} », je ne peux pas le mettre « ${p.to} » d'un coup. Tu me dis l'étape d'avant ?`,
+    `Je ne peux pas passer ${p.name} de «\u00a0${p.from}\u00a0» à «\u00a0${p.to}\u00a0» directement. Tu me dis d'abord où ça en est ?`,
+    `${p.name} est «\u00a0${p.from}\u00a0», je ne peux pas le mettre «\u00a0${p.to}\u00a0» d'un coup. Tu me dis l'étape d'avant ?`,
   ]),
   confirmBlacklist: voiceTemplate([{ name: "@pronos_fr" }], (p) => [`J'écarte ${p.name} pour de bon, je ne te le montre plus jamais ?`, `${p.name} ne revient plus jamais dans tes listes, c'est bien ça ?`]),
   noteDone: voiceTemplate([{ name: "@pronos_fr" }], (p) => [`Note ajoutée sur ${p.name}.`, `C'est noté sur la fiche de ${p.name}.`]),
   noteEmpty: ["Ta note est vide. Tu me redis ce que je dois noter ?", "Je n'ai rien à noter. Tu me réécris la note ?"],
   addQueued: voiceTemplate([{ name: "@pronos_fr" }], (p) => [`Je regarde ${p.name} en premier, je te dis ce que j'en pense dès que c'est lu.`, `C'est parti pour ${p.name}. Je le lis tout de suite et je te dis quand c'est prêt.`]),
-  addKnown: voiceTemplate([{ name: "@pronos_fr", status: "à contacter" }], (p) => [`${p.name} est déjà dans ma liste (${p.status}). Écris « détail ${p.name} » pour sa fiche.`, `Je connais déjà ${p.name}, il est ${p.status}. Tu veux sa fiche ? Écris « détail ${p.name} ».`]),
+  addKnown: voiceTemplate([{ name: "@pronos_fr", status: "à contacter" }], (p) => [`${p.name} est déjà dans ma liste (${p.status}). Écris «\u00a0détail ${p.name}\u00a0» pour sa fiche.`, `Je connais déjà ${p.name}, il est ${p.status}. Tu veux sa fiche ? Écris «\u00a0détail ${p.name}\u00a0».`]),
   addPrivate: [
     "C'est un lien d'invitation privé : je ne l'ouvre jamais, il faudrait rejoindre le canal. Tu as son @nom public ?",
     "Ce lien est privé, je ne peux pas le lire sans rejoindre, et je ne rejoins rien. Tu me donnes plutôt son @nom ?",
@@ -291,8 +291,8 @@ export const PROSPECTION_KEVIN_VARIANTS = {
       { name: "@slots_it", tier: "C", score: 38, reason: "audience faible" },
     ],
     (p) => [
-      `${p.name} est lu : niveau ${p.tier}, ${p.score}/100. ${p.reason}. Écris « détail ${p.name} » pour la fiche.`,
-      `C'est prêt pour ${p.name} : ${p.score}/100, niveau ${p.tier}. ${p.reason}. Sa fiche avec « détail ${p.name} ».`,
+      `${p.name} est lu : niveau ${p.tier}, ${p.score}/100. ${p.reason}. Écris «\u00a0détail ${p.name}\u00a0» pour la fiche.`,
+      `C'est prêt pour ${p.name} : ${p.score}/100, niveau ${p.tier}. ${p.reason}. Sa fiche avec «\u00a0détail ${p.name}\u00a0».`,
     ],
   ),
   readyOut: voiceTemplate([{ name: "@pronos_fr", reason: "audience hors d'Europe" }], (p) => [`J'ai lu ${p.name}, je l'écarte : ${p.reason}.`, `${p.name} est lu, mais il ne passe pas : ${p.reason}.`]),
@@ -304,8 +304,8 @@ export const PROSPECTION_KEVIN_VARIANTS = {
   ]),
   searchNeedVertical: ["Tu cherches du casino ou des paris sportifs ?", "Plutôt casino ou paris sportifs ?"],
   searchFirst: voiceTemplate([P1, P2], (p) => [
-    `Premiers résultats pour ${p.what} : ${plural(p.count, "canal bon à contacter", "canaux bons à contacter")}. Écris « prospects ${p.what} » pour les voir.`,
-    `J'ai ${plural(p.count, "premier canal", "premiers canaux")} à contacter pour ${p.what}. Tu les vois avec « prospects ${p.what} ».`,
+    `Premiers résultats pour ${p.what} : ${plural(p.count, "canal bon à contacter", "canaux bons à contacter")}. Écris «\u00a0prospects ${p.what}\u00a0» pour les voir.`,
+    `J'ai ${plural(p.count, "premier canal", "premiers canaux")} à contacter pour ${p.what}. Tu les vois avec «\u00a0prospects ${p.what}\u00a0».`,
   ]),
   searchNothing: voiceTemplate([P1], (p) => [
     `Rien de bon trouvé pour ${p.what} en une semaine. Tu veux que je cherche ailleurs ?`,
@@ -323,16 +323,16 @@ export const PROSPECTION_KEVIN_VARIANTS = {
   relancesNone: ["Personne à relancer aujourd'hui ✅", "Aucune relance à faire pour l'instant ✅"],
   relancesHead: voiceTemplate([{ count: 2 }], (p) => [`${plural(p.count, "canal", "canaux")} à relancer :`, `À relancer, ${p.count} :`]),
   offersNone: [
-    "Tu n'as pas encore d'offre. Écris par exemple « ajoute une offre : Winamax, FR BE, CPA 120 ».",
-    "Aucune offre enregistrée. Tu m'en donnes une ? Par exemple « ajoute une offre : Winamax, FR BE, CPA 120 ».",
+    "Tu n'as pas encore d'offre. Écris par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0».",
+    "Aucune offre enregistrée. Tu m'en donnes une ? Par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0».",
   ],
   offersHead: voiceTemplate([{ count: 2 }], (p) => [`Tes offres (${p.count}) :`, `${plural(p.count, "offre active", "offres actives")} :`]),
   offerAdded: voiceTemplate([{ brand: "Winamax", countries: "France et Belgique", deal: "CPA 120 €" }], (p) => [
     `Offre ${p.brand} ajoutée : ${p.countries}, ${p.deal}. Je m'en sers dès le prochain classement.`,
     `C'est noté, ${p.brand} pour ${p.countries}, ${p.deal}. Le classement en tient compte dès maintenant.`,
   ]),
-  offerNeedBrand: ["Il me manque la marque. Par exemple « ajoute une offre : Winamax, FR BE, CPA 120 ».", "Quelle marque ? Écris par exemple « ajoute une offre : Winamax, FR BE, CPA 120 »."],
-  offerNeedCountries: voiceTemplate([{ brand: "Winamax" }], (p) => [`Pour ${p.brand}, quels pays tu acceptes ? Par exemple « FR BE ».`, `Il me manque les pays de ${p.brand}, par exemple « FR BE ».`]),
+  offerNeedBrand: ["Il me manque la marque. Par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0».", "Quelle marque ? Écris par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0»."],
+  offerNeedCountries: voiceTemplate([{ brand: "Winamax" }], (p) => [`Pour ${p.brand}, quels pays tu acceptes ? Par exemple «\u00a0FR BE\u00a0».`, `Il me manque les pays de ${p.brand}, par exemple «\u00a0FR BE\u00a0».`]),
   offerDisabled: voiceTemplate([{ brand: "Winamax" }], (p) => [`Offre ${p.brand} désactivée, je ne m'en sers plus pour classer.`, `${p.brand} est retirée de tes offres actives.`]),
   offerUnknown: voiceTemplate([{ brand: "Winamax" }], (p) => [`Je ne trouve pas d'offre ${p.brand} active.`, `Aucune offre active au nom de ${p.brand}.`]),
   exportLink: voiceTemplate([{ url: "https://app.linkaffipro.com/agents/prospection?export=csv", count: 120 }], (p) => [
@@ -344,10 +344,10 @@ export const PROSPECTION_KEVIN_VARIANTS = {
   complexNoData: ["Je n'ai pas encore assez de canaux notés pour comparer. Je te redis ça quand la recherche aura tourné.", "Pas assez de prospects notés pour répondre. Je reviens vers toi quand j'en aurai plus."],
   complexHeld: ["Je préfère vérifier avant de te répondre, je reviens vers toi.", "Je revérifie mes chiffres avant de te répondre, je reviens vers toi."],
   avocat: ["Le casino en ligne est encadré dans ce pays : vérifie avec un avocat avant de signer.", "Ce pays a des règles strictes sur le casino en ligne, vérifie avec un avocat avant de t'engager."],
-  offerQuestionBrand: ["Pour bien classer les canaux, il me faut ton offre. Quelle marque tu proposes aux affiliés ? Réponds « plus tard » pour passer."],
-  offerQuestionCountries: ["Quels pays tu acceptes pour cette offre ? Par exemple « FR BE CH ». Réponds « plus tard » pour passer."],
-  offerQuestionDeal: ["Tu proposes du CPA, du revshare, ou les deux ? Par exemple « CPA 100 » ou « revshare 30 % ». Réponds « plus tard » pour passer."],
-  offerSetupSkipped: ["Sans marque, je ne crée pas d'offre. Tu pourras me la donner plus tard : « ajoute une offre : Winamax, FR BE, CPA 120 »."],
+  offerQuestionBrand: ["Pour bien classer les canaux, il me faut ton offre. Quelle marque tu proposes aux affiliés ? Réponds «\u00a0plus tard\u00a0» pour passer."],
+  offerQuestionCountries: ["Quels pays tu acceptes pour cette offre ? Par exemple «\u00a0FR BE CH\u00a0». Réponds «\u00a0plus tard\u00a0» pour passer."],
+  offerQuestionDeal: ["Tu proposes du CPA, du revshare, ou les deux ? Par exemple «\u00a0CPA 100\u00a0» ou «\u00a0revshare 30 %\u00a0». Réponds «\u00a0plus tard\u00a0» pour passer."],
+  offerSetupSkipped: ["Sans marque, je ne crée pas d'offre. Tu pourras me la donner plus tard : «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0»."],
 } satisfies VoiceTable;
 
 /** Listes demandées par le client (prospects, relances, offres) : puces et longueur permises. */
