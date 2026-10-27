@@ -6,6 +6,8 @@
  * - Le modèle est celui de la tâche (`PROSPECTION_MODELS`) ; un échec remonte en `EnrichAiError`, jamais d'essai
  *   silencieux sur un autre modèle (règle « jamais de repli d'Opus / Sonnet vers un modèle inférieur »).
  */
+import { createAnthropicClient } from "@linkaffipro/ai";
+import { loadLlmProvider } from "../../providers/llm";
 import { parisMonth } from "../../rules/time";
 import type { LlmProvider, LlmRequest } from "../../types";
 import { PROSPECTION_SETTINGS, PROSPECTION_TEAM_KEY, type ProspectionDeps } from "../contract";
@@ -37,6 +39,19 @@ export function enrichLlmOf(deps: EnrichDeps): LlmProvider | null {
   if (deps.prospectionLlm !== undefined) return deps.prospectionLlm;
   const ctx = deps.providers?.llm as (LlmProvider & { fake?: boolean }) | null | undefined;
   return ctx && !ctx.fake ? ctx : null;
+}
+
+/** Délai d'un appel de lecture (Haiku / Sonnet sur un aperçu de canal). */
+const ENRICH_AI_TIMEOUT_MS = 90_000;
+
+/** IA réelle du worker : clé de Réglages → IA, comme le dossier et les réponses de Kevin. Sans clé : null. */
+async function loadEnrichLlm(deps: EnrichDeps): Promise<LlmProvider | null> {
+  if (deps.prospectionLlm !== undefined) return deps.prospectionLlm;
+  try {
+    return await loadLlmProvider(deps.prisma, (key) => createAnthropicClient(key, { timeoutMs: ENRICH_AI_TIMEOUT_MS, maxRetries: 1 }));
+  } catch {
+    return null;
+  }
 }
 
 /** Valeur numérique d'un réglage `Setting`, sinon la valeur par défaut. */
@@ -86,7 +101,7 @@ async function recordUsage(deps: ProspectionDeps, cents: number): Promise<void> 
 
 /** Un appel d'IA compté : plafond avant, dépense après, échec → `EnrichAiError("ai_failed")`. */
 export async function callEnrichLlm(deps: EnrichDeps, req: LlmRequest, what: string): Promise<string> {
-  const llm = enrichLlmOf(deps);
+  const llm = enrichLlmOf(deps) ?? (await loadEnrichLlm(deps));
   if (!llm) throw new EnrichAiError("no_ai", `IA indisponible pour ${what} (clé Anthropic absente dans Réglages → IA).`);
   await assertBudget(deps);
   let res;
