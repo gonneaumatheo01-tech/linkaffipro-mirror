@@ -104,7 +104,8 @@ export function bestOffer(input: Pick<ScoreInput, "offers" | "vertical" | "count
   let best: { id: string; points: number; countryMatch: boolean; verticalMatch: boolean } | null = null;
   for (const o of input.offers) {
     const verticalMatch = verticalCompatible(input.vertical, o.vertical);
-    const countryMatch = input.region === "EU" && !!first && o.countries.map((c) => c.toUpperCase()).includes(first);
+    // Offre sans pays = toute l'Europe.
+    const countryMatch = input.region === "EU" && !!first && (o.countries.length === 0 || o.countries.map((c) => c.toUpperCase()).includes(first));
     const points = (countryMatch ? 12 : 0) + (verticalMatch ? 5 : 0);
     if (!verticalMatch) continue;
     if (!best || points > best.points) best = { id: o.id, points, countryMatch, verticalMatch };

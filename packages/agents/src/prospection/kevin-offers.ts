@@ -14,12 +14,12 @@ import { pick } from "../boss/voice";
 import type { AgentsDeps } from "../types";
 import { PROSPECTION_SETTINGS } from "./contract";
 import { activeOffers, type OfferRow } from "./kevin-read";
-import { countriesOf, countriesText, dealText, parseDeal, parseOfferText, PROSPECTION_KEVIN_VARIANTS as V, verticalOf, type ParsedOffer } from "./kevin-texts";
+import { brandsOfAnswer, countriesOf, countriesText, dealText, parseDeal, parseOfferText, PROSPECTION_KEVIN_VARIANTS as V, verticalOf, type ParsedOffer } from "./kevin-texts";
 
 export const PROSPECTION_OFFER_DRAFT_SETTING = "prospection.offer_draft";
 export const PROSPECTION_OFFER_KEYS = { brand: "prospection.offer.brand", countries: "prospection.offer.countries", deal: "prospection.offer.deal" } as const;
 
-type Draft = { brand?: string | null; countries?: string[]; vertical?: "CASINO" | "SPORTS" | "BOTH" | null };
+type Draft = { brand?: string | null; brands?: string[]; countries?: string[]; vertical?: "CASINO" | "SPORTS" | "BOTH" | null };
 
 /**
  * Questions des offres, une seule fois et seulement si aucune offre n'existe. Rend le nombre de questions rangées.
@@ -78,8 +78,8 @@ export function countriesOfAnswer(value: string): string[] {
 }
 
 registerAnswerAction("prospection-offer-brand", async (deps, { value }) => {
-  const brand = value.trim().replace(/^["«“'\s]+|["»”'\s]+$/g, "").slice(0, 60);
-  await writeSetting(deps, PROSPECTION_OFFER_DRAFT_SETTING, { ...(await readDraft(deps)), brand: brand || null, vertical: verticalOf(value) });
+  const brands = brandsOfAnswer(value);
+  await writeSetting(deps, PROSPECTION_OFFER_DRAFT_SETTING, { ...(await readDraft(deps)), brand: brands[0] ?? null, brands, vertical: verticalOf(value) });
   return undefined;
 });
 
@@ -93,9 +93,19 @@ registerAnswerAction("prospection-offer-deal", async (deps, { value, actor }) =>
   if (!draft.brand) return V.offerSetupSkipped[0];
   const deal = parseDeal(value);
   const parsed = parseOfferText(`${draft.brand}, ${value}`);
-  const dealTypes: ParsedOffer["dealTypes"] =
+  const amounts: ParsedOffer["dealTypes"] =
     deal.dealType === "HYBRID" && deal.cpa !== null && deal.revshare !== null ? { hybrid: { cpa: deal.cpa, revshare: deal.revshare } } : { ...(deal.cpa !== null ? { cpa: deal.cpa } : {}), ...(deal.revshare !== null ? { revshare: deal.revshare } : {}) };
-  const r = await createOffer(deps, { brand: draft.brand, countries: draft.countries ?? [], vertical: draft.vertical ?? parsed.vertical, dealTypes }, { userId: actor.userId ?? null, via: actor.via });
-  await writeSetting(deps, PROSPECTION_OFFER_DRAFT_SETTING, { ...draft, createdOfferId: r.offerId });
-  return r.reply;
+  // « Hybride » sans montant : le type est gardé, les montants viendront plus tard.
+  const dealTypes: ParsedOffer["dealTypes"] = Object.keys(amounts).length || !deal.dealType ? amounts : { pending: deal.dealType };
+  // Plusieurs marques dans la réponse : une offre par marque, mêmes pays et mêmes conditions.
+  const brands = draft.brands?.length ? draft.brands : [draft.brand];
+  const replies: string[] = [];
+  const ids: string[] = [];
+  for (const brand of brands) {
+    const r = await createOffer(deps, { brand, countries: draft.countries ?? [], vertical: draft.vertical ?? parsed.vertical, dealTypes }, { userId: actor.userId ?? null, via: actor.via });
+    ids.push(r.offerId);
+    replies.push(r.reply);
+  }
+  await writeSetting(deps, PROSPECTION_OFFER_DRAFT_SETTING, { ...draft, createdOfferId: ids[0], createdOfferIds: ids });
+  return brands.length === 1 ? replies[0] : pick(V.offersAdded({ brands: brands.join(", "), countries: countriesText(draft.countries ?? []), deal: dealText(dealTypes) }), "prospection.offersAdded", null);
 });

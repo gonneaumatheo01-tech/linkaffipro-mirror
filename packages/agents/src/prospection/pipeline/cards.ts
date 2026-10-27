@@ -82,6 +82,7 @@ export function dealText(dealTypes: unknown): string | null {
   const hc = num(h.cpa);
   const hr = num(h.revshare);
   if (hc !== null && hr !== null) parts.push(`hybride ${formatEur(hc)} + ${hr}${NBSP}%`);
+  if (!parts.length && typeof d.pending === "string") return `${d.pending === "HYBRID" ? "hybride" : d.pending === "REVSHARE" ? "revshare" : "CPA"}, montant à préciser`;
   return parts.length ? parts.join(" ou ") : null;
 }
 

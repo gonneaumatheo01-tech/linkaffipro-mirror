@@ -195,8 +195,22 @@ export type ParsedOffer = {
   brand: string | null;
   countries: string[];
   vertical: "CASINO" | "SPORTS" | "BOTH";
-  dealTypes: { cpa?: number; revshare?: number; hybrid?: { cpa: number; revshare: number } };
+  /** `pending` : type choisi sans montant (« Hybride ») ; les montants viendront plus tard. */
+  dealTypes: { cpa?: number; revshare?: number; hybrid?: { cpa: number; revshare: number }; pending?: "CPA" | "REVSHARE" | "HYBRID" };
 };
+
+/** Une ou plusieurs marques dans une réponse (« Sportaza, 5gringos et Celsius ») : liste sans doublon (pur). */
+export function brandsOfAnswer(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/\s*(?:[,;\n/]|\bet\b|\band\b)\s*/i)) {
+    const b = part.trim().replace(/^["«“'\s]+|["»”'\s.]+$/g, "").slice(0, 60);
+    if (!b || seen.has(b.toLowerCase())) continue;
+    seen.add(b.toLowerCase());
+    out.push(b);
+  }
+  return out.slice(0, 10);
+}
 
 /** « ajoute une offre : Winamax, FR BE, CPA 120 » → marque, pays, thème, montants (pur). */
 export function parseOfferText(raw: string): ParsedOffer {
@@ -221,13 +235,16 @@ export function parseOfferText(raw: string): ParsedOffer {
   return { brand, countries: countriesOf(body), vertical: verticalOf(body) ?? "BOTH", dealTypes };
 }
 
+const PENDING_DEAL_WORDS: Record<string, string> = { CPA: "CPA", REVSHARE: "revshare", HYBRID: "hybride" };
+
 /** « CPA 120 € », « revshare 30 % », « hybride 50 € + 15 % ». */
 export function dealText(dealTypes: unknown): string {
-  const d = (dealTypes && typeof dealTypes === "object" ? dealTypes : {}) as { cpa?: unknown; revshare?: unknown; hybrid?: { cpa?: unknown; revshare?: unknown } };
+  const d = (dealTypes && typeof dealTypes === "object" ? dealTypes : {}) as { cpa?: unknown; revshare?: unknown; hybrid?: { cpa?: unknown; revshare?: unknown }; pending?: unknown };
   const parts: string[] = [];
   if (typeof d.cpa === "number") parts.push(`CPA ${d.cpa} €`);
   if (typeof d.revshare === "number") parts.push(`revshare ${d.revshare} %`);
   if (d.hybrid && typeof d.hybrid.cpa === "number" && typeof d.hybrid.revshare === "number") parts.push(`hybride ${d.hybrid.cpa} € + ${d.hybrid.revshare} %`);
+  if (!parts.length && typeof d.pending === "string") return `${PENDING_DEAL_WORDS[d.pending] ?? "offre"}, montant à préciser`;
   return parts.join(", ") || "montant à préciser";
 }
 
@@ -327,6 +344,10 @@ export const PROSPECTION_KEVIN_VARIANTS = {
     "Aucune offre enregistrée. Tu m'en donnes une ? Par exemple «\u00a0ajoute une offre : Winamax, FR BE, CPA 120\u00a0».",
   ],
   offersHead: voiceTemplate([{ count: 2 }], (p) => [`Tes offres (${p.count}) :`, `${plural(p.count, "offre active", "offres actives")} :`]),
+  offersAdded: voiceTemplate([{ brands: "Sportaza, Celsius", countries: "toute l'Europe", deal: "hybride, montant à préciser" }], (p) => [
+    `Offres ajoutées : ${p.brands}, pour ${p.countries}, ${p.deal}. Je m'en sers dès le prochain classement.`,
+    `C'est noté : ${p.brands}, pour ${p.countries}, ${p.deal}. Le classement en tient compte dès maintenant.`,
+  ]),
   offerAdded: voiceTemplate([{ brand: "Winamax", countries: "France et Belgique", deal: "CPA 120 €" }], (p) => [
     `Offre ${p.brand} ajoutée : ${p.countries}, ${p.deal}. Je m'en sers dès le prochain classement.`,
     `C'est noté, ${p.brand} pour ${p.countries}, ${p.deal}. Le classement en tient compte dès maintenant.`,

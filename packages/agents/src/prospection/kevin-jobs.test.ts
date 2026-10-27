@@ -19,6 +19,9 @@ import { prospectButton } from "./kevin-buttons";
 import type { ProspectionKevinDeps, ProspectionKevinPort } from "./kevin-port";
 import { PROSPECTION_KEVIN_VARIANTS, channelRefIn, parseDeal, parseOfferText, statusWordOf, usernameOf } from "./kevin-texts";
 import { ensureProspectionOfferQuestions, PROSPECTION_OFFER_KEYS } from "./kevin-offers";
+import { respondToRequest, type HumanRequestRow } from "../human/respond";
+import { brandsOfAnswer, dealText } from "./kevin-texts";
+import { bestOffer } from "./score/score";
 
 const call = (name: string, input: Record<string, unknown> = {}) => ({ name, input });
 const MEMBER = { kind: "member", telegramUserId: 7n, memberId: "m", role: "MEMBER", firstName: "Zoé" } as const;
@@ -124,6 +127,29 @@ describe("planification de la prospection (heure de Paris)", () => {
     setNow("2026-10-28T06:10:00Z");
     await prospectionSchedule(deps);
     expect(calls.planDiscoveryLots).toHaveLength(1);
+  });
+
+  it("réponses réelles du client : une offre par marque, toute l'Europe, hybride sans montant gardé", async () => {
+    const { deps, kit } = await kitWith();
+    await ensureProspectionOfferQuestions(deps);
+    const answers: Record<string, string> = {
+      [PROSPECTION_OFFER_KEYS.brand]: "Sportaza, 5gringos, Celsius, betportal",
+      [PROSPECTION_OFFER_KEYS.countries]: "tout l’Europe",
+      [PROSPECTION_OFFER_KEYS.deal]: "Hybride",
+    };
+    let last = "";
+    for (const key of [PROSPECTION_OFFER_KEYS.brand, PROSPECTION_OFFER_KEYS.countries, PROSPECTION_OFFER_KEYS.deal]) {
+      const req = kit.tables("humanRequest").find((r) => r.key === key) as unknown as HumanRequestRow;
+      const r = await respondToRequest(deps, req, answers[key]!, { telegramUserId: "1" } as never);
+      expect(r.ok, r.message).toBe(true);
+      last = r.message ?? "";
+    }
+    const offers = kit.tables("affiliateOffer") as Array<{ brand: string; countries: unknown; dealTypes: unknown }>;
+    expect(offers.map((o) => o.brand)).toEqual(["Sportaza", "5gringos", "Celsius", "betportal"]);
+    expect(offers.every((o) => Array.isArray(o.countries) && (o.countries as string[]).length === 0)).toBe(true);
+    expect(offers[0]!.dealTypes).toEqual({ pending: "HYBRID" });
+    expect(last).toContain("Sportaza, 5gringos, Celsius, betportal");
+    expect(last).toContain("hybride, montant à préciser");
   });
 
   it("une offre existe déjà : aucune question", async () => {
@@ -386,6 +412,13 @@ describe("lectures pures", () => {
     expect(statusWordOf("ignore @x")).toBe("ignore");
     expect(parseDeal("revshare 30 %")).toEqual({ dealType: "REVSHARE", cpa: null, revshare: 30 });
     expect(parseDeal("hybride 50 + 15 %")).toMatchObject({ dealType: "HYBRID", cpa: 50, revshare: 15 });
+    expect(brandsOfAnswer("Sportaza, 5gringos et Celsius / betportal")).toEqual(["Sportaza", "5gringos", "Celsius", "betportal"]);
+    expect(brandsOfAnswer("« Winamax »")).toEqual(["Winamax"]);
+    expect(dealText({ pending: "HYBRID" })).toBe("hybride, montant à préciser");
+    expect(dealText({ cpa: 100 })).toBe("CPA 100 €");
+    const offer = { id: "o", brand: "Celsius", vertical: "BOTH" as const, countries: [], dealTypes: {} };
+    expect(bestOffer({ offers: [offer], vertical: "CASINO", countries: ["PL"], region: "EU" } as never)).toMatchObject({ countryMatch: true });
+    expect(bestOffer({ offers: [offer], vertical: "CASINO", countries: ["BR"], region: "NON_EU" } as never)).toMatchObject({ countryMatch: false });
     expect(parseOfferText("ajoute une offre : Winamax, FR BE, CPA 120")).toEqual({ brand: "Winamax", countries: ["FR", "BE"], vertical: "BOTH", dealTypes: { cpa: 120 } });
     const f = filterFrom({}, "ceux qui vendent de la pub en Espagne");
     expect(f).toMatchObject({ countries: ["ES"], openness: ["ads"] });
