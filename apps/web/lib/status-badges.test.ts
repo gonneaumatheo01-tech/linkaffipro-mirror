@@ -16,6 +16,7 @@ import {
   ChatType,
   CompliancePlatform,
   ConnectionStatus,
+  ContactConfidence,
   ConversationAuthor,
   ConversationStage,
   ConversationStatus,
@@ -38,6 +39,8 @@ import {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  ProspectStatus,
+  ProspectTier,
   QaContentType,
   QaVerdict,
   RecommendationStatus,
@@ -128,6 +131,9 @@ const ENUMS: Array<[StatusKind, Record<string, string>]> = [
   ["marketRecommendation", RecommendationStatus],
   ["qaVerdict", QaVerdict],
   ["qaContentType", QaContentType],
+  ["prospectStatus", ProspectStatus],
+  ["prospectTier", ProspectTier],
+  ["contactConfidence", ContactConfidence],
 ];
 
 describe("badges de statut", () => {

@@ -379,6 +379,24 @@ export const PAGE_HELP: readonly PageHelp[] = [
       "Le contrôle qualité est en pause",
     ],
   },
+  // Phase 31 : équipe Prospection (canaux casino et paris sportifs à recruter comme affiliés ; aucun contact).
+  {
+    path: "/agents/prospection",
+    label: "Prospection",
+    sections: [
+      intro("Prospection d'affiliés"),
+      "Ce que Kevin vous envoie chaque matin",
+      "Les boutons sous chaque canal",
+      "La page Prospection",
+      "Vos offres aux affiliés",
+      "Ce que l'équipe ne fait jamais",
+    ],
+  },
+  {
+    path: "/agents/prospection/:id",
+    label: "Fiche d'un canal à recruter",
+    sections: ["La page Prospection", "Les boutons sous chaque canal", "Ce que l'équipe ne fait jamais"],
+  },
   {
     path: "/agents/validations",
     label: "Validations des agents",

@@ -15,6 +15,7 @@ import type {
   ChatType,
   CompliancePlatform,
   ConnectionStatus,
+  ContactConfidence,
   ConversationAuthor,
   ConversationStage,
   ConversationStatus,
@@ -37,6 +38,8 @@ import type {
   PostbackStatus,
   PostPublisher,
   PostStatus,
+  ProspectStatus,
+  ProspectTier,
   QaContentType,
   QaVerdict,
   RecommendationStatus,
@@ -102,6 +105,10 @@ export type AgentRunStatus = "RUNNING" | "OK" | "ERROR" | "SKIPPED";
 export type AdsActionKind = "STOP" | "SCALE" | "TEST" | "WATCH";
 /** État d'une source de la veille (phase 29), déduit par `sourceState` (lib/agents/analyses.ts). */
 export type TrendSourceState = "ACTIVE" | "INACTIVE" | "ERROR" | "PROPOSED";
+/** État d'une source de l'équipe Prospection (phase 31), déduit par `sourceStatus` (lib/agents/prospection/sources.ts). */
+export type ProspectSourceState = "ACTIVE" | "PAUSED" | "ERROR" | "OFF";
+/** Proposition d'ajout aux dictionnaires de la Prospection (phase 31, `Setting prospection.dict_proposals`). */
+export type DictProposalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export const STATUS_DICT = {
   membership: {
@@ -557,6 +564,46 @@ export const STATUS_DICT = {
     ALERT: plain("Alerte"),
     COMPLIANCE_RULE: plain("Règle publicitaire"),
   } satisfies Record<QaContentType, StatusEntry>,
+  // Prospection d'affiliés (phase 31) : où en est un canal trouvé, son niveau, la fiabilité de son contact public.
+  prospectStatus: {
+    DISCOVERED: muted("Trouvé, pas encore lu"),
+    ENRICHING: main("Lecture en cours"),
+    UNREADABLE: muted("Illisible (privé ou introuvable)"),
+    ENRICH_FAILED: bad("Lecture en échec"),
+    QUALIFIED: warn("À contacter"),
+    DISQUALIFIED: muted("Écarté"),
+    CONTACTED: main("Contacté"),
+    RESPONDED: main("A répondu"),
+    NEGOTIATING: warn("En discussion"),
+    SIGNED: ok("Signé"),
+    ACTIVE: ok("Actif"),
+    CHURNED: muted("A arrêté"),
+    SKIPPED: muted("Pas intéressé"),
+    BLACKLISTED: bad("Ne plus montrer"),
+  } satisfies Record<ProspectStatus, StatusEntry>,
+  prospectTier: {
+    A: ok("Niveau A"),
+    B: main("Niveau B"),
+    C: plain("Niveau C"),
+    D: muted("Niveau D"),
+  } satisfies Record<ProspectTier, StatusEntry>,
+  contactConfidence: {
+    HIGH: ok("Contact direct"),
+    MEDIUM: plain("Contact probable"),
+    LOW: warn("Contact peu sûr"),
+    NONE: muted("Aucun contact"),
+  } satisfies Record<ContactConfidence, StatusEntry>,
+  prospectSource: {
+    ACTIVE: ok("Active"),
+    PAUSED: warn("En pause"),
+    ERROR: bad("En erreur"),
+    OFF: muted("Prospection arrêtée"),
+  } satisfies Record<ProspectSourceState, StatusEntry>,
+  dictProposal: {
+    PENDING: warn("À valider"),
+    APPROVED: ok("Validée"),
+    REJECTED: muted("Refusée"),
+  } satisfies Record<DictProposalStatus, StatusEntry>,
   teamOrderKind: {
     PROGRAM: plain("Programme sur plusieurs jours"),
     ONE_SHOT: plain("Une seule fois"),

@@ -2,7 +2,7 @@
 
 Généré par `pnpm kevin:parity -- --write` (ne pas modifier à la main). Chaque action du site se fait aussi en parlant à Kevin sur Telegram, sauf les exclusions listées avec leur remplacement.
 
-État du 25 octobre 2026 : 233 actions du site, 223 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
+État du 27 octobre 2026 : 243 actions du site, 233 faisables par Kevin, 10 exclues (avec remplacement), 0 manquantes.
 
 ## /
 
@@ -128,6 +128,36 @@ Exclusions (impossible dans Telegram) :
 |---|---|---|
 | Prolonger un ordre en cours de 1 à 30 jours | « prolonge l'ordre 3 de 2 jours » | `extendOrderAction` |
 | Arrêter un ordre donné aux équipes (missions pas commencées annulées, le canal reprend son plan) | « arrête l'ordre 3 » | `stopOrderAction` |
+
+## /agents/prospection
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Ajouter à la main un canal Telegram public à la prospection (il est lu en priorité, jamais rejoint ni contacté) | « ajoute t.me/pronosfoot à la prospection » | `addManualProspectAction` |
+| Ajouter une note sur un canal de la prospection | « note @parisfoot : veut des visuels mardi » | `addProspectNoteAction` |
+| Marquer plusieurs canaux de la prospection d'un coup comme contactés, ou les ignorer (pas intéressé) | « marque @a, @b et @c comme contactés » | `bulkProspectStatusAction` |
+| Valider ou refuser une proposition d'ajout aux repères de la prospection | « valide la proposition 1 des repères » | `decideDictAction` |
+| Proposer d'ajouter une marque, un repère de lien d'affiliation, un raccourcisseur ou un mot de code promo / de contact aux repères de la prospection (validé ensuite par un administrateur) | « ajoute la marque Celsius (FR) aux repères de la prospection » | `proposeDictAction` |
+| Créer ou modifier une offre aux affiliés (marque, marché, pays acceptés, prime par joueur, part du revenu, mixte) | « ajoute une offre : Celsius, FR BE, prime par joueur 120 » | `saveOfferAction` |
+| Changer les réglages de la prospection : activée, pays et marchés cherchés, nombre et heure de la liste du matin, notes des niveaux, poids de la note, rappels, plafonds par jour et dépense mensuelle de l'IA | « envoie-moi 15 canaux le matin au lieu de 10 » | `saveProspectionSettingsAction` |
+| Noter où en est un canal de la prospection (contacté, a répondu, en discussion, signé avec ses conditions, actif, a arrêté, pas intéressé, reprendre, plus tard, ne plus montrer) ; rien n'est envoyé au canal | « j'ai contacté @parisfoot » | `setProspectStatusAction` |
+| Activer ou désactiver une offre aux affiliés (désactivée : elle ne sert plus à noter les canaux, rien n'est effacé) | « désactive l'offre Celsius » | `toggleOfferAction` |
+| Mettre en pause (1, 7 ou 30 jours) ou reprendre une source de découverte de la prospection (annuaires, recherche internet, réseaux sociaux, canaux cités, Analystes) | « mets les annuaires en pause une semaine » | `toggleSourcePauseAction` |
+
+## /agents/prospection/[id]
+
+| Ce qu'on y fait | La phrase à dire à Kevin | Action du site |
+|---|---|---|
+| Ajouter à la main un canal Telegram public à la prospection (il est lu en priorité, jamais rejoint ni contacté) | « ajoute t.me/pronosfoot à la prospection » | `addManualProspectAction` |
+| Ajouter une note sur un canal de la prospection | « note @parisfoot : veut des visuels mardi » | `addProspectNoteAction` |
+| Marquer plusieurs canaux de la prospection d'un coup comme contactés, ou les ignorer (pas intéressé) | « marque @a, @b et @c comme contactés » | `bulkProspectStatusAction` |
+| Valider ou refuser une proposition d'ajout aux repères de la prospection | « valide la proposition 1 des repères » | `decideDictAction` |
+| Proposer d'ajouter une marque, un repère de lien d'affiliation, un raccourcisseur ou un mot de code promo / de contact aux repères de la prospection (validé ensuite par un administrateur) | « ajoute la marque Celsius (FR) aux repères de la prospection » | `proposeDictAction` |
+| Créer ou modifier une offre aux affiliés (marque, marché, pays acceptés, prime par joueur, part du revenu, mixte) | « ajoute une offre : Celsius, FR BE, prime par joueur 120 » | `saveOfferAction` |
+| Changer les réglages de la prospection : activée, pays et marchés cherchés, nombre et heure de la liste du matin, notes des niveaux, poids de la note, rappels, plafonds par jour et dépense mensuelle de l'IA | « envoie-moi 15 canaux le matin au lieu de 10 » | `saveProspectionSettingsAction` |
+| Noter où en est un canal de la prospection (contacté, a répondu, en discussion, signé avec ses conditions, actif, a arrêté, pas intéressé, reprendre, plus tard, ne plus montrer) ; rien n'est envoyé au canal | « j'ai contacté @parisfoot » | `setProspectStatusAction` |
+| Activer ou désactiver une offre aux affiliés (désactivée : elle ne sert plus à noter les canaux, rien n'est effacé) | « désactive l'offre Celsius » | `toggleOfferAction` |
+| Mettre en pause (1, 7 ou 30 jours) ou reprendre une source de découverte de la prospection (annuaires, recherche internet, réseaux sociaux, canaux cités, Analystes) | « mets les annuaires en pause une semaine » | `toggleSourcePauseAction` |
 
 ## /agents/settings
 

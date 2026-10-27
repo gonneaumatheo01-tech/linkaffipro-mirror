@@ -1195,6 +1195,63 @@ Par Kevin : « comment va le contrôle qualité ? », « montre-moi les refus de
 
 Quand le modèle du contrôle ne répond plus (panne, quota, plafond du mois atteint), plus rien ne sort : Kevin vous prévient par « Le contrôle qualité est en pause, je reprends dès que possible. », et la page affiche **En pause**. Les contenus attendent et repassent au contrôle dès son retour. Vous n'avez rien à faire. Kevin vous prévient aussi quand beaucoup de contenus sont refusés en une heure (plus de 30 %).
 
+### Prospection d'affiliés
+
+L'équipe Prospection cherche pour vous des canaux et groupes Telegram **publics** de casino et de paris sportifs, partout en Europe, pour que vous recrutiez leurs propriétaires comme affiliés. Elle les trouve (annuaires de canaux, recherche sur internet dans toutes les langues d'Europe, réseaux sociaux, canaux cités ou repris par d'autres, équipe Analystes), lit leur page publique, mesure leur vraie audience, écarte les faux canaux et ceux dont l'audience est hors d'Europe, repère les marques qu'ils poussent déjà et les contacts qu'ils affichent, puis donne à chacun une note sur 100 et un niveau (**A**, **B**, **C**, **D**). **C'est vous qui contactez** : l'équipe vous donne la liste et un dossier, rien de plus. Ouvrez **Agents**, puis l'onglet **Prospection**.
+
+#### Ce que Kevin vous envoie chaque matin
+
+Vers 9 h, Kevin vous envoie les **10 meilleurs canaux à contacter** (le nombre et l'heure se changent dans les réglages) : un message d'en-tête (combien de niveaux A et B, quels pays), puis un message par canal avec son lien, son marché et son pays, ses vues par post et ses abonnés, les marques qu'il pousse, ce qu'il vend (pub, accès payant), son meilleur contact public, la raison de sa note et l'offre à laquelle il correspond. Un point d'attention est ajouté s'il y a un signal de faux canal, un pays à vérifier ou une règle du pays. Le lundi, Kevin envoie aussi le **bilan de la semaine** (nouveaux canaux, avancement, sources qui marchent le mieux). Kevin vous rappelle aussi les canaux contactés sans réponse depuis 5 jours, et les discussions qui durent depuis 10 jours (5 rappels par jour au plus, pas le week-end par défaut).
+
+#### Les boutons sous chaque canal
+
+- **✅ Contacté** : vous lui avez écrit.
+- **🤝 Signé** : il a signé ; Kevin vous demande le type d'accord (**prime par joueur**, **part du revenu** ou **mixte**) puis le montant.
+- **🔎 Dossier** : le dossier détaillé du canal.
+- **⏰ Plus tard** : il revient dans quelques jours.
+- **❌ Pas intéressé** : il sort de la liste (il peut revenir au bout de 60 jours).
+
+Sous un rappel : **✅ Relancé**, **⏰ 3 jours**, **❌ Abandon**.
+
+Vous pouvez aussi écrire à Kevin, en une phrase :
+
+- « qui contacter ? », « top du jour », « encore 10 » ;
+- « prospects FR casino libres », « les A sans concurrent », « ceux qui vendent de la pub en Espagne » ;
+- « détail @nom », « pourquoi @nom est A ? » ;
+- « j'ai contacté @nom », « @nom a répondu », « on négocie avec @nom », « @nom a signé prime par joueur 100 », « ignore @nom », « plus tard @nom » ;
+- « note @nom : veut des visuels mardi » ;
+- « ajoute t.me/nom » (ou transférez-lui un message du canal) ;
+- « qui relancer ? », « stats prospection », « combien de signés ce mois ? » ;
+- « cherche des canaux casino en Pologne » : une recherche dédiée, Kevin revient quand les premiers canaux sont notés ;
+- « pause la prospection », « reprends » ;
+- « export prospects » : Kevin vous donne le lien du tableur.
+
+#### La page Prospection
+
+La page a six vues (les **Réglages** sont réservés aux administrateurs) :
+
+- **Canaux trouvés** : le tableau des canaux, avec leur lien public (t.me), niveau et note, marché, pays et langue, abonnés, vues par post et part des abonnés qui lisent, concurrence, marques, ouverture (vend de la pub, pousse des marques, vend un accès payant), contact, statut, d'où il vient et sa dernière action. Filtres combinables (pays, marché, niveau, statut, concurrence, ouverture, contact, source), recherche, tri, et **vues toutes prêtes** (« À contacter », « Niveau A sans concurrent », « Vendent de la pub »…). Les filtres sont mémorisés sur cet appareil ; **Effacer les filtres** les vide. Cochez des canaux puis **Marquer contactés** ou **Ignorer**. **Exporter ces canaux (tableur)** télécharge les lignes filtrées.
+- **Avancement** : une colonne par étape (à contacter, contacté, a répondu, en discussion, signé, actif, a arrêté, pas intéressé), avec le nombre de canaux, le temps passé dans l'étape, la part des contactés qui ont répondu ou signé et les délais entre les étapes.
+- **Vos offres** : voir plus bas.
+- **Sources** : chaque source (active, en pause, en erreur), son prochain passage (chaque nuit de 2 h à 6 h), ce qu'elle a trouvé sur 30 jours (trouvés, nouveaux, déjà connus) et les niveaux obtenus, le journal des derniers passages. Un site qui refuse l'accès ou demande une vérification « robot » est mis en pause 24 heures, jamais contourné. **Mettre en pause** et **Reprendre** : administrateurs. **Ajouter un canal** : collez son lien public t.me ; il est lu en priorité.
+- **Marques et repères** : les marques reconnues par pays, les repères des liens d'affiliation, les raccourcisseurs et les mots qui annoncent un code promo ou un contact. Tout le monde peut **proposer** un ajout ; il ne sert qu'après **Valider** par un administrateur.
+- **Réglages** : prospection activée, marchés et pays cherchés, nombre et heure de la liste du matin, ce qui compte comme un canal actif, notes des niveaux, poids de la note (100 au total), rappels, plafonds par jour et dépense mensuelle de l'IA.
+
+La **fiche d'un canal** montre tout ce qui a été mesuré, le détail de la note en barres (audience, réactions, adéquation avec vos offres, ouverture, concurrence, facilité à joindre, pénalités), le dossier, les contacts publics avec l'endroit où ils ont été vus et leur fiabilité, les marques avec leurs dates, les signaux de faux canal et les risques, la ligne sur les règles du pays (**ce n'est pas un avis juridique** : vérifiez avec un avocat), la chronologie et vos notes. Les boutons de statut notent ce que vous avez fait ; **Ne plus montrer** (administrateurs) retire le canal pour toujours.
+
+Les canaux dont l'audience est hors d'Europe ne sont jamais montrés ni comptés, sauf pour un pays que vous ajoutez aux pays cherchés.
+
+#### Vos offres aux affiliés
+
+Une offre = une marque, son marché (paris sportifs, casino ou les deux), les pays acceptés et vos conditions : **prime par joueur** (en euros), **part du revenu** (en %) ou **mixte** (les deux). Les offres servent à noter les canaux qui y correspondent ; sans offre, les canaux sont notés sur l'Europe et le marché seulement. **Désactiver** une offre la met de côté sans rien effacer. Par Kevin : « ajoute une offre : Celsius, FR BE, prime par joueur 120 », « mes offres », « désactive l'offre Celsius ».
+
+#### Ce que l'équipe ne fait jamais
+
+- Elle ne contacte **personne** : aucun message, aucun commentaire, aucune demande pour rejoindre un canal. Aucun bouton du site n'envoie quoi que ce soit à un canal.
+- Elle ne lit que des **données publiques** : la page publique du canal, son aperçu public, des pages d'annuaires et de recherche, et une page liée dans sa description. Jamais un canal privé, jamais un lien d'invitation, jamais la liste des membres.
+- Elle ne garde que le nécessaire : les chiffres, les classements, un résumé de 200 caractères, les marques, les contacts publics et au plus 3 courts extraits. Le texte des posts n'est jamais enregistré.
+- Elle ne dit jamais qu'une chose est légale ou illégale.
+
 ### Ce qui marche (équipe Algorithme)
 
 L'équipe Algorithme ne publie rien : elle regarde ce qui a marché dans vos posts et vos conversations, puis propose (ou applique) des réglages aux trois autres équipes. Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Algorithme : la page s'appelle **Ce qui marche**.

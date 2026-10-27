@@ -6,5 +6,6 @@ import { LOT_D_PARITY } from "./lot-d";
 import { LOT_E_PARITY } from "./lot-e";
 import { LOT_MONTAGE_PARITY } from "./lot-montage";
 import { LOT_ANALYSTES_PARITY } from "./lot-analystes";
+import { LOT_PROSPECTION_PARITY } from "./lot-prospection";
 
-export const SITE_PARITY: Record<string, SiteParityEntry> = { ...LOT_B_PARITY, ...LOT_C_PARITY, ...LOT_D_PARITY, ...LOT_E_PARITY, ...LOT_MONTAGE_PARITY, ...LOT_ANALYSTES_PARITY };
+export const SITE_PARITY: Record<string, SiteParityEntry> = { ...LOT_B_PARITY, ...LOT_C_PARITY, ...LOT_D_PARITY, ...LOT_E_PARITY, ...LOT_MONTAGE_PARITY, ...LOT_ANALYSTES_PARITY, ...LOT_PROSPECTION_PARITY };

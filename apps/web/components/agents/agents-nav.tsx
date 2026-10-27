@@ -10,6 +10,7 @@ export type AgentsSection =
   | "montage"
   | "analyses"
   | "qualite"
+  | "prospection"
   | "validations"
   | "journal"
   | "settings";
@@ -24,6 +25,7 @@ export type AgentsSection =
  * Phase 28 : « Montage » (`/agents/montage`), les vidéos longues découpées en shorts et leur médiathèque.
  * Phase 29 : « Analyses » (`/agents/analyses`), la veille du marché, les règles publicitaires, les rapports et sources.
  * Phase 30 : « Qualité » (`/agents/qualite`), le contrôle qualité global : ce qui a été vérifié, accepté ou refusé.
+ * Phase 31 : « Prospection » (`/agents/prospection`), les canaux casino et paris à proposer comme affiliés.
  * `pending` : validations à faire + demandes ouvertes (pastille).
  */
 export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
@@ -37,6 +39,7 @@ export function agentsSections(isAdmin: boolean, pending = 0): TabNavItem[] {
     { key: "montage", href: "/agents/montage", label: "Montage" },
     { key: "analyses", href: "/agents/analyses", label: "Analyses" },
     { key: "qualite", href: "/agents/qualite", label: "Qualité" },
+    { key: "prospection", href: "/agents/prospection", label: "Prospection" },
     {
       key: "validations",
       href: "/agents/validations",
