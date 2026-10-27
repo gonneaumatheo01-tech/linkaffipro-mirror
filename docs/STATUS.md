@@ -1,3 +1,40 @@
+# État du projet : phase 31 (Prospection d'affiliés, cœur) terminée (27 octobre 2026)
+
+Phases 0 à 31, 33, 34 et 35 en ligne. Phase 31 (`docs/prompts/33-phase-31-prospection-affilies.md`) : une équipe de 4 agents (Sourceur, Enrichisseur, Évaluateur, Pipeline) trouve toute seule des canaux Telegram **casino et paris sportifs** en Europe, les lit, mesure leur vraie audience, écarte les faux et les hors-Europe, note chaque canal de 0 à 100 avec l'explication, et Kevin vous livre chaque matin les meilleurs à contacter. **L'équipe ne contacte jamais personne : c'est vous qui faites le commercial.**
+
+## Fait
+- **Recherche** (la nuit, 2 h - 6 h) : annuaires de canaux, recherche web dans les langues européennes, réseaux sociaux, et le « graphe » Telegram (canaux cités ou transférés par un canal déjà trouvé, dossiers de canaux). Pages publiques seulement, lentement (1 page / 3 s sur Telegram, 1 / 10 s sur les annuaires, robots.txt respecté, blocage = source en pause 24 h, jamais de contournement), aucun lien privé suivi, aucun canal rejoint.
+- **Lecture de chaque canal** : abonnés, vues réelles, régularité, langue, pays (déduit des marques, compétitions, monnaie, pas de la langue), marques déjà poussées, codes promo, ventes de pub ou de VIP, contacts publics, signaux de faux (vues achetées, transferts, bot), vendeurs de « matchs truqués » exclus. Le texte des posts n'est jamais gardé (3 extraits de 15 mots au plus comme preuves).
+- **Note sur 100** en composantes visibles (audience, engagement, adéquation à vos offres, ouverture, concurrence, joignabilité, pénalités) → niveaux A, B, C, D. Un faux canal n'est jamais A ou B ; hors Europe = gardé mais jamais montré.
+- **Chaque matin à 9 h** : Kevin envoie le Top 10 du jour, un message par canal avec les boutons ✅ Contacté, 🤝 Signé (CPA / Revshare / Hybride puis montant), 🔎 Dossier, ⏰ Plus tard, ❌ Pas intéressé. Dossier complet rédigé pour les A et les meilleurs B. Rappels à 9 h 05 (« Ça fait 6 jours pour @x, tu relances ? »), rapport chaque lundi.
+- **Kevin comprend** : « qui contacter ? », « encore 10 », « prospects FR casino libres », « détail @x », « j'ai contacté @x », « @x a signé CPA 100 », « note @x : … », « ajoute t.me/xxx », « qui relancer ? », « stats prospection », « cherche des canaux casino en Pologne », « mes offres », « pause la prospection », « export prospects ».
+- **Site** : Agents → **Prospection** (tableau filtrable avec export, pipeline par statut, fiche avec note détaillée et chronologie, offres, sources, dictionnaires).
+- Tout ce que Kevin envoie passe par le contrôle qualité (phase 30) ; s'il est en panne, rien ne part et Kevin le dit.
+
+## Test de 5 minutes
+1. Demain à 9 h, regardez le message de Kevin « canaux à contacter » et appuyez sur 🔎 Dossier sous l'un d'eux.
+2. Écrivez à Kevin : « stats prospection ».
+3. Ouvrez Agents → Prospection sur le site.
+
+## Vérifications faites
+- Tests unitaires : agents ~2 060, site 3 667, Telegram 600, worker 499 ; lint, typage et build verts ; `pnpm kevin:parity` : 243 actions, 0 manquante.
+- Test d'intégration sur base réelle (faux réseau, fausse IA, faux Telegram) : découverte (annuaire + recherche + graphe, doublons écartés, lien privé et pages interdites par robots.txt jamais ouverts) → lecture → niveaux justes (A, B, C ; D pour Amérique latine, Brésil, bot, transferts, mort, faible audience, matchs truqués ; illisible) → dossiers → Top à 9 h avec boutons, jamais deux fois → Contacté, Plus tard (7 jours), Signé CPA 100 → rappel à 6 jours → rapport du lundi → recherche « Pologne » → contrôle qualité en panne = rien n'est envoyé. Aucun texte de post dans la base.
+- Défaut trouvé et corrigé par ce test : le Top du jour était toujours refusé par le contrôle qualité (identifiants internes et e-mails de contact publics pris pour des données sensibles).
+- Premier passage réel en production (3 lots lancés à la main, sans attendre la nuit) : 96 canaux trouvés (annuaire 49, recherche web 55 dont 15 doublons écartés, liens entre canaux 4) ; 3 retenus (1 A, 2 C), 60 écartés (crypto, inactifs, hors Europe), 10 illisibles, 23 relus automatiquement dans la nuit ; 3 défauts trouvés et corrigés : la lecture des canaux ne trouvait pas la clé Claude de Réglages → IA (lectures relancées), un emoji coupé en deux dans un extrait faisait refuser l'appel par Claude (corrigé pour toutes les équipes), et vos réponses à Kevin sur les offres avaient créé une seule offre « Sportaza, 5gringos, Celsius, betportal » sans garder « Hybride » (corrigé : 4 offres, une par marque, toute l'Europe, hybride avec montants à préciser ; l'offre déjà créée a été scindée).
+- Relecture adverse : aucun fichier de l'équipe ne peut écrire à un tiers ni rejoindre un canal (test automatique).
+- Sauvegarde de la production avant déploiement ; migration appliquée ; site et service d'arrière-plan déployés ; santé OK ; `pnpm tg:diag` vert ; file `agents-prospection` active.
+
+## Reste / limites
+- Phase 32 (lancée automatiquement) : veille des canaux, réseaux de canaux, valeur estimée en euros, apprentissage à partir des vrais résultats Link Affi.
+- Annuaires au premier passage : TGStat et TelegramChannels.me refusent les lectures automatiques (mis en pause 24 h, jamais contournés), la page de Telemetr a changé, la rubrique sport de tlgrm.eu n'existe plus ; l'annuaire qui répond renvoie surtout des canaux crypto, que l'équipe écarte bien (morts, hors Europe). La recherche web et le graphe Telegram fournissent l'essentiel. Rendement par source : Agents → Prospection → Sources.
+- Avertissement de sécurité de Next.js 16.4.0 : mise à jour toujours à faire.
+
+## Actions humaines
+- Vos offres sont enregistrées d'après vos réponses à Kevin : Sportaza, 5gringos, Celsius, betportal ; toute l'Europe ; hybride. Il manque les montants (CPA en euros et % de revshare) : à compléter dans Agents → Prospection → Offres.
+- Facultatif : clés d'API payantes d'annuaires (voir `docs/A-FAIRE-HUMAIN.md`).
+
+---
+
 # État du projet : phase 30 (QA Global) terminée (26 octobre 2026)
 
 Phases 0 à 30, 33, 34 et 35 en ligne. Phase 30 (`docs/prompts/32-phase-30-qa-global.md`) : un **dernier contrôle qualité**, sur le modèle d'IA le plus capable (Claude Fable 5.1), vérifie tout ce que les agents et l'IA produisent avant que ça sorte. Il passe après les contrôles de chaque équipe, voit tout, et peut tout bloquer. **Il ne modifie jamais rien : il accepte ou refuse avec ses raisons, et l'équipe corrige.**

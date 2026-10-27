@@ -163,5 +163,5 @@ L'assistante est **désactivée** : elle ne répond à personne tant que vous ne
 13. **Équipe** : créer le compte de l'associé dans Réglages → Équipe (copier le lien d'invitation et le lui envoyer).
 
 ## Phase 31 — Prospection d'affiliés
-- **Vos offres** (recommandé) : Kevin vous posera 3 questions courtes (marque, pays acceptés, CPA et/ou revshare). Vous pouvez aussi les saisir dans Agents → Prospection → Vos offres. Sans offre, la note d'adéquation se limite à « Europe et verticale ».
+- **Vos offres** (recommandé) : réponses données à Kevin le 27 octobre (Sportaza, 5gringos, Celsius, betportal ; toute l'Europe ; hybride). Reste à donner les montants (CPA en euros, % de revshare) dans Agents → Prospection → Vos offres → Modifier.
 - **API payantes des annuaires** (option, pas obligatoire) : tgstat, telemetr ou telega proposent des API payantes plus complètes. L'équipe fonctionne sans, à partir des pages publiques. Si vous souhaitez en prendre une, dites-le à Kevin.
