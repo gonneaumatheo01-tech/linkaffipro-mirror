@@ -3598,6 +3598,20 @@ model Prospect {
   dealTerms           Json?
   linkAffiAffiliateId String?
   networkId           String?
+  network             ProspectNetwork?      @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  /// Phase 32 — valeur estimée mensuelle `{ low, base, high, currency, assumptions, calibratedBy, confidence, computedAt, offerId }`.
+  valueEstimate       Json?
+  /// Phase 32 — relecture du Veilleur (dernière, prochaine) ; alertes coupées pour ce canal (« Plus pour ce canal »).
+  lastRequalifiedAt   DateTime?
+  nextRequalifyAt     DateTime?
+  watchMuted          Boolean               @default(false)
+  /// Phase 32 — rattachement Link Affi : posé le, rappels faits (3 au plus, un par semaine).
+  linkAffiLinkedAt    DateTime?
+  linkAffiAskCount    Int                   @default(0)
+  linkAffiAskedAt     DateTime?
+  snapshots           ProspectSnapshot[]
+  alerts              ProspectAlert[]
+  results             AffiliateResult[]
   /// DIRECTORY, WEB_SEARCH, SOCIAL, GRAPH_FORWARD, GRAPH_MENTION, FOLDER, ANALYSTS, MANUAL, ACCOUNT_SEARCH (phase 32).
   sourceType          String
   sourceDetail        String?
@@ -3623,6 +3637,8 @@ model Prospect {
   @@index([region, status])
   @@index([status, priority, discoveredAt])
   @@index([presentedAt])
+  @@index([nextRequalifyAt])
+  @@index([networkId])
 }
 
 enum ProspectKind {
@@ -3748,6 +3764,120 @@ model AffiliateOffer {
   prospects    Prospect[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+}
+
+/// Phase 32 — historique des mesures d'un prospect (26 points au plus, les plus anciens fusionnés).
+model ProspectSnapshot {
+  id                String            @id @default(cuid())
+  prospectId        String
+  prospect          Prospect          @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  takenAt           DateTime          @default(now())
+  subscribers       Int?
+  medianViews       Int?
+  viewRate          Float?
+  postsPerDay       Float?
+  /// Marques vues `[{ brand, intensity, lastSeenAt }]` (pas de texte de post).
+  brands            Json?
+  competitiveState  String?
+  bestContact       String?
+  contactConfidence ContactConfidence @default(NONE)
+  sellsAds          Boolean           @default(false)
+  marketplace       Boolean           @default(false)
+  lastPostAt        DateTime?
+  tier              ProspectTier?
+  score             Int?
+  /// Nombre de relectures fusionnées dans ce point (1 = point simple).
+  merged            Int               @default(1)
+
+  @@index([prospectId, takenAt])
+}
+
+/// Phase 32 — alerte du Veilleur (changement détecté chez un prospect ou un affilié signé).
+model ProspectAlert {
+  id         String    @id @default(cuid())
+  prospectId String
+  prospect   Prospect  @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  /// AFFILIATE_DROPPED, NEW_AFFILIATE, AFFILIATE_SWITCHED, GROWTH_SPIKE, DECLINE, WENT_SILENT, STARTED_SELLING_ADS,
+  /// MARKETPLACE_LISTED, CONTACT_CHANGED, TIER_UP, TIER_DOWN, AFFILIATE_NOT_POSTING, AFFILIATE_PUSHES_COMPETITOR,
+  /// AFFILIATE_RISKY_CLAIM, AFFILIATE_SILENT.
+  kind       String
+  /// Empreinte anti-répétition (type + objet : `AFFILIATE_DROPPED:1xbet`) : pas deux fois en 14 jours.
+  dedupeKey  String
+  /// opportunity | affiliate | pipeline | info (ordre du message du matin).
+  family     String
+  strength   Int       @default(0)
+  /// Données mesurées par le code (avant / après, chiffres) et preuve ≤ 15 mots.
+  data       Json      @default("{}")
+  evidence   String?
+  /// NEW → SENT (message du matin) → SEEN (« Vu ») ; MUTED (canal ou type coupé).
+  status     String    @default("NEW")
+  sentAt     DateTime?
+  seenAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([prospectId, dedupeKey, createdAt])
+  @@index([kind, createdAt])
+}
+
+/// Phase 32 — réseau de canaux tenus par la même personne (preuves notées, ≥ 4 points, ou décision du client).
+model ProspectNetwork {
+  id          String     @id @default(cuid())
+  name        String
+  mainContact String?
+  /// Somme des vues médianes des membres.
+  totalReach  Int        @default(0)
+  countries   Json       @default("[]")
+  verticals   Json       @default("[]")
+  /// Statut du pipeline au niveau du réseau (propagé aux membres).
+  status      String?
+  /// Preuves `[{ a, b, kind, points, detail }]`.
+  evidence    Json       @default("[]")
+  score       Int        @default(0)
+  /// MANUAL si le client a fusionné ; paires séparées par le client `[["idA","idB"]]` (jamais refusionnées).
+  origin      String     @default("AUTO")
+  splitPairs  Json       @default("[]")
+  dossier     String?
+  dossierAt   DateTime?
+  notes       String?
+  members     Prospect[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+/// Phase 32 — coefficients de calibrage par segment (verticale|pays|type de contenu|niveau).
+model ProspectCalibration {
+  id               String    @id @default(cuid())
+  segment          String    @unique
+  ctrFactor        Float     @default(1)
+  ftdFactor        Float     @default(1)
+  sample           Int       @default(0)
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  /// default | calibrated
+  source           String    @default("default")
+  recommendationId String?
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+}
+
+/// Phase 32 — résultats réels d'un affilié signé, lus dans Link Affi (lecture seule, agrégats seulement).
+model AffiliateResult {
+  id           String   @id @default(cuid())
+  prospectId   String
+  prospect     Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  /// AAAA-MM (mois de Paris).
+  month        String
+  clicks       Int?
+  regs         Int?
+  ftd          Int?
+  revenueCents Int?
+  /// Champs absents de l'API pour ce mois (notés, jamais estimés).
+  missing      Json     @default("[]")
+  source       String   @default("linkaffi")
+  pulledAt     DateTime @default(now())
+
+  @@unique([prospectId, month])
 }
 
 /// Phase 31 — journal d'une session de découverte (une source × un lot de langues × une verticale).

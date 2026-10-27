@@ -245,7 +245,7 @@ describe("planification de la prospection (heure de Paris)", () => {
     expect(kit.sent.filter((s) => s.html.includes("74/100"))).toHaveLength(1);
     await runProspectionJob(deps, { type: "prospection.dossier", prospectId: p.id });
     expect(calls.buildDossier).toHaveLength(1);
-    expect(await runProspectionJob(deps, { type: "prospection.requalify" })).toEqual({ skipped: "phase 32" });
+    expect(await runProspectionJob(deps, { type: "prospection.requalify" })).toEqual({ skipped: "remplacée par prospection.requalify-one" });
   });
 });
 

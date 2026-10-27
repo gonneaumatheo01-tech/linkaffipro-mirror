@@ -8,6 +8,7 @@
  * La production prend les vraies fonctions ; les tests remplacent celles qu'ils veulent.
  */
 import type { BossDeps } from "../boss/contract";
+import type { ProspectionAdvancedPort } from "./advanced-port";
 import type { AdminButton, LlmProvider } from "../types";
 import type { DiscoveryLot, ProspectionDeps, ProspectStatus } from "./contract";
 import { addManualProspect, planDiscoveryLots, requestDiscovery, runDiscovery } from "./discover/index";
@@ -60,6 +61,8 @@ export type ProspectionKevinDeps = BossDeps &
     prospectionLlm?: LlmProvider | null;
     /** Fonctions des autres chantiers remplacées (tests). */
     prospectionKevin?: Partial<ProspectionKevinPort>;
+    /** Phase 32 : fonctions des chantiers avancés remplacées (tests). */
+    prospectionAdvanced?: Partial<ProspectionAdvancedPort>;
   };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

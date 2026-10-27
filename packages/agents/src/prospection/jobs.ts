@@ -18,6 +18,7 @@ import { pick } from "../boss/voice";
 import { addDaysToDay, fromParis, parisDay, parisMinutes, parisWeekday } from "../rules/time";
 import { PROSPECTION_LIMITS, PROSPECTION_SETTINGS, type DiscoveryLot, type ProspectionQueueJob } from "./contract";
 import { ensureProspectionOfferQuestions } from "./kevin-offers";
+import { prospectionAdvancedSchedule, runProspectionAdvancedJob } from "./jobs-advanced";
 import { prospectionPort, type ProspectionKevinDeps } from "./kevin-port";
 import { activeOffers, handle, prospectionEnabled, type ProspectRow } from "./kevin-read";
 import { countriesText, PROSPECTION_KEVIN_VARIANTS as V, VERTICAL_WORDS } from "./kevin-texts";
@@ -132,10 +133,10 @@ export async function runProspectionJob(deps: ProspectionKevinDeps, job: Prospec
     case "prospection.weekly-report":
       return { weekly: await ensureWeeklyReport(deps) };
     case "prospection.requalify":
-      // Phase 32 : requalification des canaux (veille, vrais résultats Link Affi). Rien à faire dans cette phase.
-      return { skipped: "phase 32" };
+      // Ancienne tâche de la phase 31 : la relecture passe par `prospection.requalify-one` (phase 32).
+      return { skipped: "remplacée par prospection.requalify-one" };
     default:
-      return { skipped: "unknown" };
+      return runProspectionAdvancedJob(deps, job);
   }
 }
 
@@ -198,6 +199,12 @@ export async function prospectionSchedule(deps: ProspectionKevinDeps): Promise<R
   }
   out.queued = queued;
   out.requests = await checkRequestWatches(deps, now);
+  // Phase 32 : Veilleur, réseaux, valeurs, alertes du matin, boucle Link Affi, compte réel.
+  try {
+    out.advanced = await prospectionAdvancedSchedule(deps, queueProspection);
+  } catch (err) {
+    deps.logger?.warn({ err: (err as Error).message }, "[prospection] planification avancée en échec");
+  }
   return out;
 }
 

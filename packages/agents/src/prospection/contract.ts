@@ -39,6 +39,7 @@
  * - Chantier E, SITE ET DOCS (page Agents → Prospection, opérations du site pour Kevin (phase 34), export CSV, guide).
  */
 import type { AgentsDeps } from "../types";
+import type { LinkAffiReader, ProspectionAdvancedJob } from "./contract-advanced";
 
 export const PROSPECTION_TEAM_KEY = "prospection";
 export const PROSPECTION_QUEUE = "agents-prospection";
@@ -390,6 +391,8 @@ export type ProspectionDeps = AgentsDeps & {
    * rien n'est enfilé, l'appelant enchaîne lui-même les étapes (`runProspectionJob`).
    */
   prospection?: { enqueue?: ProspectionEnqueue };
+  /** Phase 32 : lecteur Link Affi en lecture seule (worker : réel ; tests : faux ; absent : pas de boucle Link Affi). */
+  linkAffiReader?: LinkAffiReader | null;
 };
 
 export type ProspectionEnqueue = (job: ProspectionQueueJob, opts?: { jobId?: string; delayMs?: number; priority?: number }) => Promise<void>;
@@ -404,4 +407,5 @@ export type ProspectionQueueJob =
   | { type: "prospection.daily-top"; requested?: { chatId?: string | null; count?: number } | null }
   | { type: "prospection.reminders" }
   | { type: "prospection.weekly-report" }
-  | { type: "prospection.requalify" };
+  | { type: "prospection.requalify" }
+  | ProspectionAdvancedJob;

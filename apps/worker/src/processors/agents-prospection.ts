@@ -15,10 +15,20 @@ const KNOWN = new Set([
   "prospection.reminders",
   "prospection.weekly-report",
   "prospection.requalify",
+  // Phase 32.
+  "prospection.requalify-one",
+  "prospection.alerts-digest",
+  "prospection.networks",
+  "prospection.values",
+  "prospection.learn-pull",
+  "prospection.calibrate",
+  "prospection.monthly-report",
+  "prospection.link-reminders",
+  "prospection.account-search",
 ]);
 
 /** Tâches qui lisent le réseau (pages publiques t.me, annuaires, recherche web). */
-const NETWORK_JOBS = new Set(["prospection.discover", "prospection.enrich"]);
+const NETWORK_JOBS = new Set(["prospection.discover", "prospection.enrich", "prospection.requalify-one"]);
 
 let enqueue: ReturnType<typeof createProspectionEnqueue> | null = null;
 
