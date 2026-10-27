@@ -72,7 +72,7 @@ function OfferForm({ v, idp, submit }: { v: OfferFormValues; idp: string; submit
 }
 
 /**
- * Vue « Vos offres » : les offres que vous proposez aux affiliés (marque, marché, pays acceptés, prime par joueur, part
+ * Vue « Vos offres » : les offres que vous proposez aux affiliés (marque, marché, pays acceptés, prime par joueur, part
  * du revenu, mixte). Elles servent à noter les canaux qui y correspondent ; rien n'est envoyé à personne.
  */
 export function OffersView({ offers }: { offers: OfferRow[] }) {
@@ -89,7 +89,7 @@ export function OffersView({ offers }: { offers: OfferRow[] }) {
           <EmptyState
             icon={<HandCoins />}
             title="Aucune offre pour l'instant"
-            description="Sans offre, les canaux sont notés sur l'Europe et le marché seulement. Ajoutez-en une ici, ou écrivez à Kevin « ajoute une offre : Celsius, FR BE, prime par joueur 120 »."
+            description="Sans offre, les canaux sont notés sur l'Europe et le marché seulement. Ajoutez-en une ici, ou écrivez à Kevin « ajoute une offre : Celsius, FR BE, prime par joueur 120 »."
           />
         ) : (
           <ul className="space-y-3">

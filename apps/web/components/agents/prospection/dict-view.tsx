@@ -39,7 +39,7 @@ function ByLanguage({ title, map }: { title: string; map: Record<string, string[
 }
 
 /**
- * Vue « Marques et repères » : ce que l'équipe reconnaît dans un canal (marques par pays, repères de liens
+ * Vue « Marques et repères » : ce que l'équipe reconnaît dans un canal (marques par pays, repères de liens
  * d'affiliation, raccourcisseurs, mots qui annoncent un code promo ou un contact). Tout le monde peut proposer un
  * ajout ; il ne sert qu'après validation d'un administrateur (jamais d'ajout silencieux).
  */
@@ -139,7 +139,7 @@ export function DictionariesView({ view, proposals, isAdmin }: { view: DictView;
         {!isAdmin && pending.length ? <p className="mt-2 text-note text-muted-foreground">Seuls les administrateurs valident ou refusent une proposition.</p> : null}
       </FormSection>
 
-      <FormSection title="Marques reconnues" description={`${fmtNum(view.brands.length)} marques. « Hors licence locale » : souvent le signe d'une audience hors Europe.`}>
+      <FormSection title="Marques reconnues" description={`${fmtNum(view.brands.length)} marques. « Hors licence locale » : souvent le signe d'une audience hors Europe.`}>
         <div className="space-y-2">
           {[...byCountry.entries()].map(([country, list]) => (
             <AdvancedSection key={country} title={country === "GLOBAL" ? "Marques internationales" : countryName(country)} description={`${list.length} marques`}>
@@ -162,7 +162,7 @@ export function DictionariesView({ view, proposals, isAdmin }: { view: DictView;
 
       <FormSection title="Repères des liens d'affiliation" description="Ce qui fait reconnaître un lien d'affiliation dans un post (avec une marque connue ou un raccourcisseur).">
         <div className="space-y-3">
-          <Words title="Après « ? » dans l'adresse" list={view.queryParams} />
+          <Words title="Après « ? » dans l'adresse" list={view.queryParams} />
           <Words title="Dans le chemin de l'adresse" list={view.pathMarkers} />
           <Words title="Raccourcisseurs de liens" list={view.shorteners} />
           <ByLanguage title="Mots qui annoncent un code promo" map={view.promoCodeLabels} />

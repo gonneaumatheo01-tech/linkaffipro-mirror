@@ -41,7 +41,7 @@ export const metadata: Metadata = { title: "Agents · Prospection" };
 export const dynamic = "force-dynamic";
 
 const ASK_HINT =
-  "Écrivez à Kevin : « qui contacter ? », « prospects FR casino libres », « j'ai contacté @nom », « @nom a signé prime par joueur 100 », « cherche des canaux casino en Pologne », « export prospects ».";
+  "Écrivez à Kevin : « qui contacter ? », « prospects FR casino libres », « j'ai contacté @nom », « @nom a signé prime par joueur 100 », « cherche des canaux casino en Pologne », « export prospects ».";
 
 /**
  * Agents → Prospection (phase 31) : les canaux Telegram publics casino et paris sportifs d'Europe que l'équipe trouve,

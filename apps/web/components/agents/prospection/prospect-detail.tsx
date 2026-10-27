@@ -252,7 +252,7 @@ export function ProspectDetailView({ p, weights, isAdmin, now }: { p: ProspectDe
                   </div>
                   <p className="text-muted-foreground">
                     Vu dans : {c.source.replace(/^linked_page:/, "page liée ").replace(/^directory:/, "annuaire ")}
-                    {c.evidence ? ` · « ${c.evidence} »` : ""}
+                    {c.evidence ? ` · « ${c.evidence} »` : ""}
                   </p>
                 </li>
               ))}

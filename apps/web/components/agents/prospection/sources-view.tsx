@@ -12,8 +12,8 @@ import { fmtDate, fmtNum } from "@/lib/format";
 import { StatusBadge } from "@/lib/status-badges";
 
 /**
- * Vue « Sources » : où l'équipe trouve les canaux (état, prochain passage, trouvés / nouveaux / déjà connus sur
- * 30 jours, niveaux obtenus), pause et reprise (administrateurs), journal des derniers passages, et « Ajouter un canal »
+ * Vue « Sources » : où l'équipe trouve les canaux (état, prochain passage, trouvés / nouveaux / déjà connus sur
+ * 30 jours, niveaux obtenus), pause et reprise (administrateurs), journal des derniers passages, et « Ajouter un canal »
  * à la main (lien public t.me : le canal est lu, jamais rejoint ni contacté).
  */
 export function SourcesView({ data, isAdmin }: { data: SourcesData; isAdmin: boolean }) {
@@ -90,7 +90,7 @@ export function SourcesView({ data, isAdmin }: { data: SourcesData; isAdmin: boo
         </ul>
         {data.otherPauses.length ? (
           <div className="mt-4 space-y-1">
-            <p className="text-note font-medium">Sites mis en pause automatiquement (refus d&apos;accès ou vérification « robot ») :</p>
+            <p className="text-note font-medium">Sites mis en pause automatiquement (refus d&apos;accès ou vérification « robot ») :</p>
             <ul className="space-y-1">
               {data.otherPauses.map((p) => (
                 <li key={p.key} className="text-note text-muted-foreground">

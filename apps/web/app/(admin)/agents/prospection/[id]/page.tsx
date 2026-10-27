@@ -30,7 +30,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
         description={p.username ? `@${p.username}` : undefined}
         backHref={PROSPECTION_PATH}
         backLabel="Prospection"
-        help="Écrivez à Kevin « détail @nom » ou « pourquoi @nom est A ? » pour la même fiche dans Telegram."
+        help="Écrivez à Kevin « détail @nom » ou « pourquoi @nom est A ? » pour la même fiche dans Telegram."
       />
       <Flash ok={sp.ok} error={sp.error} />
       <ProspectDetailView p={p} weights={settings.weights} isAdmin={isAdmin} now={new Date()} />

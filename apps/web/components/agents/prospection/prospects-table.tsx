@@ -21,7 +21,7 @@ import { StatusBadge } from "@/lib/status-badges";
 
 /**
  * Tableau des canaux trouvés : chaque ligne renvoie à la fiche et donne le lien public du canal (t.me). Sélection
- * multiple : « Marquer contactés » ou « Ignorer » (aucun message n'est envoyé : vous notez ce que vous avez fait).
+ * multiple : « Marquer contactés » ou « Ignorer » (aucun message n'est envoyé : vous notez ce que vous avez fait).
  * Composant serveur ; le tri et les filtres sont faits côté serveur (adresse).
  */
 export function ProspectsTable({ rows, total, back, now }: { rows: ProspectTableRow[]; total: number; back: string; now: Date }) {

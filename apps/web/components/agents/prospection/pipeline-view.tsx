@@ -8,7 +8,7 @@ import { fmtNum, fmtPct } from "@/lib/format";
 import { StatusBadge, statusLabel } from "@/lib/status-badges";
 
 /**
- * Vue « Avancement » : une colonne par étape (à contacter → contacté → a répondu → en discussion → signé → actif,
+ * Vue « Avancement » : une colonne par étape (à contacter → contacté → a répondu → en discussion → signé → actif,
  * puis a arrêté et pas intéressé), avec le nombre de canaux, le temps passé dans l'étape (médiane) et les meilleurs
  * canaux de chaque colonne. Pour changer l'étape d'un canal : sa fiche. Composant serveur.
  */

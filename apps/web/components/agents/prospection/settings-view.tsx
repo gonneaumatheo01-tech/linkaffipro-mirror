@@ -17,7 +17,7 @@ const GROUPS: Array<{ key: NumberField["group"]; title: string }> = [
 
 const CHECK = "size-4";
 
-/** Vue « Réglages » (administrateurs) : un seul formulaire, enregistré en une fois et noté dans le journal. */
+/** Vue « Réglages » (administrateurs) : un seul formulaire, enregistré en une fois et noté dans le journal. */
 export function ProspectionSettingsView({ settings, isAdmin }: { settings: ProspectionSettings; isAdmin: boolean }) {
   if (!isAdmin) return <p className="text-body text-muted-foreground">Les réglages de la prospection sont réservés aux administrateurs.</p>;
   const scope = new Set(settings.countriesScope);
