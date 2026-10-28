@@ -69,6 +69,9 @@ export const BOSS_ADMIN_ONLY_KEYS = new Set([
   "modifier_short",
   "annuler_montage",
   "envoyer_shorts",
+  // Personne remplacée par une persona dans une vidéo : lancer et arrêter = l'admin seul (dépense).
+  "remplacer_personne",
+  "annuler_remplacement",
 ]);
 
 /** Réponses aux demandes et décisions sur les validations : permises au membre à qui elles sont adressées. */

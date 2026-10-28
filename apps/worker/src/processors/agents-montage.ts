@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { MONTAGE_LIMITS, resumeStalledMontage, runMontageStep, sweepMontageWorkDir, type MontagePipelineDeps, type MontageQueueJob } from "@linkaffipro/agents";
+import { MONTAGE_LIMITS, pollReplace, resumeStalledMontage, runMontageStep, submitReplace, sweepMontageWorkDir, type MontagePipelineDeps, type MontageQueueJob } from "@linkaffipro/agents";
 import { JOB_RETRY_OPTIONS, type AgentsMontageJob } from "@linkaffipro/queue";
 import type { Repeatable } from "./index";
 import { logger } from "../logger";
@@ -10,7 +10,8 @@ const STEP_TYPES = new Set(["montage.analyze", "montage.cut", "montage.dress", "
 /**
  * File `agents-montage` (phase 28) : une tâche à la fois (ffmpeg est lourd en calcul). Étapes de la chaîne
  * (`runMontageStep` : la base fait foi, un short rangé n'est jamais refait) avec 3 essais BullMQ (attente croissante) :
- * l'essai en cours est transmis à la chaîne, qui marque l'échec au dernier et laisse Kevin prévenir. `sweep` (15 min) :
+ * l'essai en cours est transmis à la chaîne, qui marque l'échec au dernier et laisse Kevin prévenir. `video-ia.*` :
+ * remplacement d'une personne par une persona dans une vidéo reçue par Kevin (`boss/video-ia-run.ts`). `sweep` (15 min) :
  * tâches perdues remises en file ; `cleanup` (chaque jour) : dossiers de travail orphelins de plus de 24 h.
  */
 export async function processAgentsMontage(job: Job<AgentsMontageJob>, deps: MontagePipelineDeps = workerMontageDeps()): Promise<unknown> {
@@ -21,6 +22,9 @@ export async function processAgentsMontage(job: Job<AgentsMontageJob>, deps: Mon
     // Dernier essai permis par BullMQ = dernier essai pour la chaîne (échec marqué, Kevin prévient).
     return runMontageStep(deps, data as MontageQueueJob, { attempt: attempt >= maxAttempts ? MONTAGE_LIMITS.maxAttempts : attempt });
   }
+  // Personne remplacée par une persona dans une vidéo envoyée à Kevin : soumission, puis relectures (même file).
+  if (data?.type === "video-ia.submit") return submitReplace(deps, data.chatId);
+  if (data?.type === "video-ia.poll") return pollReplace(deps, data.chatId);
   if (data?.type === "montage.sweep") return resumeStalledMontage(deps);
   if (data?.type === "montage.cleanup") {
     const r = await sweepMontageWorkDir(deps);

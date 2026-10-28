@@ -317,7 +317,10 @@ export type AgentsMontageJob =
   | { type: "montage.qc"; montageJobId: string; shortClipId: string }
   | { type: "montage.preview"; montageJobId: string; shortClipId: string }
   | { type: "montage.sweep" }
-  | { type: "montage.cleanup" };
+  | { type: "montage.cleanup" }
+  // Personne remplacée par une persona dans une vidéo envoyée à Kevin (`boss/video-ia-run.ts`) : soumission, relectures.
+  | { type: "video-ia.submit"; chatId: string }
+  | { type: "video-ia.poll"; chatId: string };
 
 /**
  * File `agents-analystes` (phase 29) : copie structurelle de `AnalystsQueueJob` de `@linkaffipro/agents`

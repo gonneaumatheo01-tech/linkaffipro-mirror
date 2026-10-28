@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const calls = vi.hoisted(() => ({ steps: [] as Array<{ job: unknown; attempt: number | undefined }>, sweep: 0, cleanup: 0 }));
+const calls = vi.hoisted(() => ({ steps: [] as Array<{ job: unknown; attempt: number | undefined }>, sweep: 0, cleanup: 0, videoIa: [] as string[] }));
 vi.mock("@linkaffipro/agents", () => ({
   MONTAGE_LIMITS: { maxAttempts: 3 },
   runMontageStep: vi.fn(async (_d: unknown, job: unknown, o: { attempt?: number }) => {
@@ -10,6 +10,14 @@ vi.mock("@linkaffipro/agents", () => ({
   resumeStalledMontage: vi.fn(async () => {
     calls.sweep++;
     return { requeued: 0 };
+  }),
+  submitReplace: vi.fn(async (_d: unknown, chatId: string) => {
+    calls.videoIa.push(`submit:${chatId}`);
+    return { ok: true, summary: "lancé" };
+  }),
+  pollReplace: vi.fn(async (_d: unknown, chatId: string) => {
+    calls.videoIa.push(`poll:${chatId}`);
+    return { ok: true, summary: "en cours" };
   }),
   sweepMontageWorkDir: vi.fn(async () => {
     calls.cleanup++;
@@ -42,5 +50,11 @@ describe("file agents-montage", () => {
     await processAgentsMontage(job({ type: "montage.sweep" }));
     expect(calls.sweep).toBe(1);
     expect(await processAgentsMontage(job({ type: "autre" }))).toMatchObject({ ok: false });
+  });
+
+  it("remplacement d'une personne par une persona : soumission et relecture dans la même file", async () => {
+    expect(await processAgentsMontage(job({ type: "video-ia.submit", chatId: "4242" }))).toMatchObject({ ok: true });
+    await processAgentsMontage(job({ type: "video-ia.poll", chatId: "4242" }));
+    expect(calls.videoIa).toEqual(["submit:4242", "poll:4242"]);
   });
 });

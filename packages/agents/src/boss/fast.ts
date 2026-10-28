@@ -59,6 +59,7 @@ import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinLis
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
 import { montageFastPath } from "./catalog-montage";
+import { videoIaFastPath } from "./catalog-video-ia";
 import { analystsFastPath } from "./catalog-analysts";
 import { orderQuickCancel } from "../orders/recap";
 import { pick, varyAgainst, voiceTemplate, voiceVariants, type VoiceTable } from "./voice";
@@ -366,6 +367,9 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
       // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché.
       (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null) ??
+      // Personne remplacée par une persona dans la vidéo reçue (« mets Léa à la place de la personne ») : avant le
+      // montage, dont les consignes (« 15 secondes ») prendraient la phrase.
+      (word === null ? await videoIaFastPath(deps, input, { run }) : null) ??
       // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
       (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);
     if (quick) {

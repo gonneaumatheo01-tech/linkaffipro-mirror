@@ -15,6 +15,7 @@
  * - vidéo TRANSFÉRÉE sans phrase de montage : gardée (une phrase après peut la monter), mais rien n'est lancé (elle
  *   sert peut-être au contenu d'un post, phase 34).
  */
+import { looksLikeReplaceRequest } from "../boss/video-ia-intent";
 import { esc, telegramActorUserId } from "../admin/journal";
 import type { AdminButton } from "../types";
 import { hasLibraryKeyword } from "../library/tags";
@@ -217,7 +218,12 @@ export type ReceiveVideoResult =
   /** Question « montage ou médiathèque ? » à poser dans quelques secondes (`montageVideoQuestion`). */
   | { action: "ask"; messageId: number }
   /** Pas pour le montage : le chemin d'avant continue (médiathèque à mots-clés, contenu transféré). */
-  | { action: "pass" };
+  | { action: "pass" }
+  /**
+   * Légende qui demande autre chose sur cette vidéo (« mets Léa à la place de la personne ») : vidéo gardée, la légende
+   * part comme un message de l'admin (chemin rapide de Kevin).
+   */
+  | { action: "text"; text: string };
 
 function receivedOf(input: ReceiveVideoInput, receivedAt: Date): ReceivedVideo {
   const v = input.video;
@@ -249,6 +255,11 @@ export async function receiveMontageVideo(deps: KevinMontageDeps, input: Receive
   try {
     const refusal = videoRefusalOf(input.video);
     const caption = input.forwarded ? null : (input.caption?.trim() || null);
+    // Personne à remplacer par une persona (`boss/video-ia-run.ts`) : la durée se juge là-bas (15 s au plus).
+    if (caption && looksLikeReplaceRequest(caption) && (!refusal || refusal === "tooShort")) {
+      await rememberVideo(deps, chatId, receivedOf(input, nowOf(deps)));
+      return { action: "text", text: caption };
+    }
     const phrase = await pendingPhrase(deps, chatId);
     const request = caption && looksLikeMontageInstructions(caption) ? caption : phrase && !caption ? phrase.text : null;
     // Transférée sans phrase de montage, ou légende à mots-clés de la médiathèque : le chemin d'avant (une vidéo
