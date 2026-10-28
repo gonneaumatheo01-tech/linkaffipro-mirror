@@ -134,6 +134,8 @@ describe("réseaux en base", () => {
     expect(net.memberIds!.sort()).toEqual([...ids].sort());
     expect(net.html.split("\n")[0]).toBe("Réseau @admin_pub : 3 canaux FR, 5,4k vues/post cumulées");
     expect(voiceCheck(net.html).problems).toEqual([]);
+    // L'en-tête compte les 4 canaux montrés (3 du réseau + 1), pas les 2 cartes.
+    expect(top.header).toMatch(/\b4 canaux\b/);
   });
 
   it("carte de réseau avec valeur cumulée : fourchette, « estimation non calibrée »", () => {

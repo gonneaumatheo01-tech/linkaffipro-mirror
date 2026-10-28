@@ -263,7 +263,9 @@ export async function buildDailyTop(deps: ProspectionDeps, opts: { count: number
   let header: string;
   if (!chosen.length) header = pick(scope === "morning" ? DAILY_TOP_VARIANTS.emptyMorning : DAILY_TOP_VARIANTS.emptyOnDemand, `prospection.top.empty.${scope}`);
   else {
-    const sample: HeaderSample = { n: chosen.length, tiers: countsText(chosen.map((p) => p.tier ?? "?"), ["A", "B", "C", "D", "?"]), countries: countsText(chosen.map(countryOf)) };
+    // Un réseau tient en une carte, mais l'en-tête compte chacun de ses canaux (« 7 canaux » quand 7 sont montrés).
+    const shown = chosen.flatMap((p) => [p, ...(collapsed.siblings.get(p.id) ?? [])]);
+    const sample: HeaderSample = { n: shown.length, tiers: countsText(shown.map((p) => p.tier ?? "?"), ["A", "B", "C", "D", "?"]), countries: countsText(shown.map(countryOf)) };
     header = pick((scope === "morning" ? DAILY_TOP_VARIANTS.headerMorning : DAILY_TOP_VARIANTS.headerOnDemand)(sample), `prospection.top.header.${scope}`);
   }
   return { header, items };
