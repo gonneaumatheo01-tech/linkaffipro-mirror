@@ -69,6 +69,18 @@ export const PROSPECTION_ADVANCED_KEVIN_VARIANTS = {
     "Pas encore de comparaison : il me faut des affiliés rattachés avec au moins un mois de résultats.",
     "Je ne peux pas encore comparer, aucun affilié rattaché n'a un mois complet de chiffres.",
   ],
+  arpuNeed: ["Il me manque le montant. Écris par exemple «\u00a0l'ARPU est de 80 €\u00a0».", "Combien rapporte un joueur déposant par mois ? Par exemple «\u00a080 € par mois\u00a0»."],
+  arpuSet: voiceTemplate([{ amount: 80 }], (p) => [
+    `C'est noté : un joueur déposant rapporte ${p.amount} € par mois. Les estimations en revshare en tiennent compte dès la prochaine mise à jour.`,
+    `Ok, ${p.amount} € par mois et par joueur déposant. Je recalcule les fourchettes revshare avec ça.`,
+  ]),
+  arpuCurrent: voiceTemplate(
+    [{ amount: 80 }, { amount: null }],
+    (p) =>
+      p.amount === null
+        ? ["Je n'ai pas encore l'ARPU mensuel : sans lui, les offres en revshare n'ont pas d'estimation.", "Pas d'ARPU enregistré pour l'instant, donc pas d'estimation revshare."]
+        : [`L'ARPU enregistré est de ${p.amount} € par mois et par joueur déposant.`, `Un joueur déposant compte pour ${p.amount} € par mois dans mes estimations.`],
+  ),
   // ------------------------------------------------------------------------------------------ calibrage
   calibrationNone: [
     "Aucun réglage proposé en ce moment. J'en propose quand j'ai au moins 3 affiliés sur 30 jours dans un même groupe.",

@@ -15,7 +15,7 @@ import { capability } from "../orders/registry";
 import { agentCard, findAgent } from "../orders/agents-dict";
 import { ACCOUNT_SEARCH } from "./contract-advanced";
 import type { ProspectionAdvancedPort } from "./advanced-port";
-import { alertKindsOf, offerAccountSearchOnce, parseAffiliateLink, parseChoices, prospectAlertButton } from "./kevin-advanced";
+import { alertKindsOf, offerAccountSearchOnce, parseAffiliateLink, parseArpu, parseChoices, prospectAlertButton } from "./kevin-advanced";
 import type { ProspectionAdvancedKevinDeps, ProspectionAdvancedKevinPort } from "./kevin-advanced-port";
 import { PROSPECTION_ADVANCED_KEVIN_VARIANTS as A } from "./kevin-advanced-texts";
 import { PROSPECTION_KEVIN_VARIANTS } from "./kevin-texts";
@@ -108,6 +108,8 @@ describe("catalogue de Kevin : prospection avancée", () => {
       ["applique 1 et 3", call("prospection_calibrage_appliquer", { choix: "1 et 3" })],
       ["annule le calibrage", call("prospection_calibrage_annuler")],
       ["coupe la recherche par compte", call("prospection_recherche_compte", { action: "couper" })],
+      ["l'ARPU est de 80 €", call("prospection_arpu", {})],
+      ["un joueur déposant rapporte 95 € par mois", call("prospection_arpu", { montant: 95 })],
     ]);
     const fr = await seed(kit, { username: "pronos_fr" });
     const be = await seed(kit, { username: "pronos_be" });
@@ -141,6 +143,10 @@ describe("catalogue de Kevin : prospection avancée", () => {
     expect(calls.applyCalibration![0]).toEqual([[1, 3], "client"]);
     expect(A.calibrationUndone).toContain(await say("annule le calibrage"));
     expect(A.accountAlreadyOff).toContain(await say("coupe la recherche par compte"));
+    expect(A.arpuSet({ amount: 80 })).toContain(await say("l'ARPU est de 80 €"));
+    expect((await kit.prisma.setting.findUnique({ where: { key: "prospection.value.arpu_month" } }))?.value).toBe(80);
+    await say("un joueur déposant rapporte 95 € par mois");
+    expect((await kit.prisma.setting.findUnique({ where: { key: "prospection.value.arpu_month" } }))?.value).toBe(95);
     void fr;
   });
 });
@@ -247,6 +253,10 @@ describe("lectures pures et voix", () => {
     expect(parseAffiliateLink("@Pronos_FR = affilié 1234")).toEqual({ username: "pronos_fr", affiliateId: "1234" });
     expect(parseAffiliateLink("@pronos_fr est l'affilié n° 77")).toEqual({ username: "pronos_fr", affiliateId: "77" });
     expect(parseAffiliateLink("@pronos_fr a signé")).toBeNull();
+    expect(parseArpu("l'ARPU est de 80 €")).toBe(80);
+    expect(parseArpu("un joueur déposant rapporte 72,5 euros par mois")).toBe(72.5);
+    expect(parseArpu("arpu 60")).toBe(60);
+    expect(parseArpu("l'ARPU ?")).toBeNull();
   });
 
   it("chaque variante passe voiceCheck ; aucune estimation présentée comme une certitude", () => {

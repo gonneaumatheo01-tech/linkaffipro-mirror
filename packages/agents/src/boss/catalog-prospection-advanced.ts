@@ -5,7 +5,8 @@
  *   `prospection_alertes_couper` (« plus d'alertes de ce type », « remets les alertes de hausse ») ;
  * - réseaux : `prospection_reseau` (« réseau de @x »), `prospection_fusion` (« @a et @b c'est la même personne »),
  *   `prospection_separer` (« sépare @x ») ;
- * - valeur : `prospection_valeur` (« combien vaut @x ? »), `prospection_valeur_pipeline` (« valeur du pipeline ») ;
+ * - valeur : `prospection_valeur` (« combien vaut @x ? »), `prospection_valeur_pipeline` (« valeur du pipeline »),
+ *   `prospection_arpu` (« l'ARPU est de 80 € » → `Setting prospection.value.arpu_month`, admin seul) ;
  * - affiliés : `prospection_affilies` (« mes affiliés »), `prospection_performance` (« performance de @x »),
  *   `prospection_rattacher` (« @x = affilié 1234 », aussi par le chemin rapide), `prospection_estime_reel` ;
  * - calibrage : `prospection_calibrage` (« calibrage »), `prospection_calibrage_appliquer` (« applique 1 et 3 »),
@@ -24,6 +25,8 @@ import {
   accountSearchStateReply,
   alertsReply,
   affiliatesReply,
+  arpuReply,
+  parseArpu,
   applyCalibrationReply,
   calibrationReply,
   disableAccountSearchReply,
@@ -50,7 +53,7 @@ import type { BossAction, BossDeps, BossReply } from "./contract";
 import { defineAction } from "./catalog-kit";
 import type { BossExecDeps } from "./catalog-read";
 import { prospectionPageUrl } from "./catalog-prospection";
-import { oneOf, str } from "./params";
+import { int, oneOf, str } from "./params";
 import { pick } from "./voice";
 import { BOSS_ADMIN_ONLY_KEYS, BOSS_READ_KEYS } from "./team/rights";
 
@@ -199,6 +202,18 @@ export const prospectionValeurPipeline = defineAction<Record<string, never>>({
   },
 });
 
+export const prospectionArpu = defineAction<{ montant?: number }>({
+  key: "prospection_arpu",
+  description: "Donner (ou relire) l'ARPU mensuel d'un joueur déposant pour estimer les offres en revshare (« l'ARPU est de 80 € », « un joueur déposant rapporte 80 € par mois »)",
+  theme: "equipes",
+  cls: "immediate",
+  spec: { montant: int("Montant en euros par mois et par joueur déposant ; absent = relire la valeur", 1, 10000, true) },
+  async execute(deps, p, actor) {
+    const amount = p.montant ?? parseArpu(inputOf(deps));
+    return arpuReply(ad(deps), amount, await chatKeyOf(deps), actor.userId ?? null);
+  },
+});
+
 // ------------------------------------------------------------------------------------------------ affiliés
 
 export const prospectionAffilies = defineAction<Record<string, never>>({
@@ -331,6 +346,7 @@ export const PROSPECTION_ADVANCED_ACTIONS: BossAction[] = [
   prospectionSeparer,
   prospectionValeur,
   prospectionValeurPipeline,
+  prospectionArpu,
   prospectionAffilies,
   prospectionPerformance,
   prospectionRattacher,
@@ -354,8 +370,8 @@ export const PROSPECTION_ADVANCED_READ_ACTION_KEYS = [
   "prospection_calibrage",
   "prospection_valeur_question",
 ] as const;
-/** Réservées à l'admin : calibrage (appliquer, annuler), recherche par compte réel. */
-export const PROSPECTION_ADVANCED_ADMIN_ACTION_KEYS = ["prospection_calibrage_appliquer", "prospection_calibrage_annuler", "prospection_recherche_compte"] as const;
+/** Réservées à l'admin : ARPU, calibrage (appliquer, annuler), recherche par compte réel. */
+export const PROSPECTION_ADVANCED_ADMIN_ACTION_KEYS = ["prospection_arpu", "prospection_calibrage_appliquer", "prospection_calibrage_annuler", "prospection_recherche_compte"] as const;
 
 for (const k of PROSPECTION_ADVANCED_READ_ACTION_KEYS) BOSS_READ_KEYS.add(k);
 for (const k of PROSPECTION_ADVANCED_ADMIN_ACTION_KEYS) BOSS_ADMIN_ONLY_KEYS.add(k);

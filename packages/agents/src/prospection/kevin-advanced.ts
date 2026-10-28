@@ -20,7 +20,7 @@ import { pick } from "../boss/voice";
 import { prospectionAdvancedPort } from "./advanced-port";
 import { answerPendingAlertNote } from "./watch/index";
 import { answerLinkChoice } from "./learn/index";
-import { ALERT_CALLBACK_PREFIX, ACCOUNT_SEARCH, type ProspectAlertKind, type ValueEstimate } from "./contract-advanced";
+import { ALERT_CALLBACK_PREFIX, ACCOUNT_SEARCH, VALUE_DEFAULTS, type ProspectAlertKind, type ValueEstimate } from "./contract-advanced";
 import { accountSearchEnabled, readAccountSearchCounters, requestsToday, setAccountSearchEnabled } from "./discover/sources/account-search";
 import { mayChangePipeline } from "./kevin-buttons";
 import { prospectionAdvancedKevinPort, estimateOf, type AlertRow, type ProspectionAdvancedKevinDeps } from "./kevin-advanced-port";
@@ -319,6 +319,29 @@ export async function undoCalibrationReply(deps: D, chatId: string | null): Prom
   if (!r) return { reply: pick(A.notReady, "prospection.notReady", chatId) };
   if (!r.ok) return { reply: esc(r.message ?? pick(A.notReady, "prospection.notReady", chatId)) };
   return { reply: pick(A.calibrationUndone, "prospection.calibration.undone", chatId) };
+}
+
+// ------------------------------------------------------------------------------------------------ ARPU (revshare)
+
+/** « l'ARPU est de 80 € », « un joueur déposant rapporte 80 € par mois » → 80 (pur) ; null sinon. */
+export function parseArpu(text: string): number | null {
+  const m = /(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|euros?\b)/i.exec(text) ?? /\barpu\b\D{0,20}(\d{1,5}(?:[.,]\d{1,2})?)/i.exec(text);
+  if (!m) return null;
+  const n = Number(m[1]!.replace(",", "."));
+  return Number.isFinite(n) && n > 0 && n <= 10_000 ? n : null;
+}
+
+/** ARPU mensuel d'un joueur déposant (revshare), donné par l'admin → `Setting prospection.value.arpu_month`. */
+export async function arpuReply(deps: D, amount: number | null, chatId: string | null, actorUserId: string | null): Promise<BossReply> {
+  if (amount === null) {
+    const cur = await readSetting(deps, VALUE_DEFAULTS.arpuMonth.key);
+    return typeof cur === "number" && cur > 0
+      ? { reply: esc(pick(A.arpuCurrent({ amount: cur }), "prospection.arpu.current", chatId)) }
+      : { reply: esc(pick(A.arpuNeed, "prospection.arpu.need", chatId)) };
+  }
+  await writeSetting(deps, VALUE_DEFAULTS.arpuMonth.key, amount);
+  await agentAudit(deps, { userId: actorUserId, action: "prospection.value.arpu_set", entityType: "Setting", entityId: VALUE_DEFAULTS.arpuMonth.key, metadata: { via: "TELEGRAM", amount } });
+  return { reply: esc(pick(A.arpuSet({ amount }), "prospection.arpu.set", chatId)) };
 }
 
 // ------------------------------------------------------------------------------------------------ rattachement Link Affi

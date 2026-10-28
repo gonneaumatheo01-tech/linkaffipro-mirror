@@ -13,7 +13,7 @@ import { NETWORK_CARD_VARIANTS } from "../network/card";
 
 beforeEach(() => resetVoiceRotation());
 
-const det = (kind: ProspectAlertKind, key = kind, strength = 50, data: Record<string, unknown> = {}, evidence: string | null = null): DetectedAlert => ({ kind, family: familyOf(kind, "QUALIFIED"), dedupeKey: key, strength, data, evidence });
+const det = (kind: ProspectAlertKind, key: string = kind, strength = 50, data: Record<string, unknown> = {}, evidence: string | null = null): DetectedAlert => ({ kind, family: familyOf(kind, "QUALIFIED"), dedupeKey: key, strength, data, evidence });
 
 describe("écriture des alertes", () => {
   it("ProspectAlert + ProspectEvent ALERT ; même empreinte pas avant 14 jours ; « une fois par objet » jamais", async () => {
