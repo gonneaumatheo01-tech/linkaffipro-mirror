@@ -21,10 +21,10 @@ import {
   APIFOOTBALL_SECRET_KEY,
   FINISHED_STATUSES,
   NOT_STARTED_STATUSES,
-  ApiFootballError,
   createApiFootballClient,
   settingStore,
   type AfFixture,
+  type ApiFootballError,
   type ApiFootballClient,
   type ApiFootballStore,
 } from "../providers/apifootball";

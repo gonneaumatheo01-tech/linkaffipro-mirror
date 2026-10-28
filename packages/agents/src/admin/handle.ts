@@ -208,7 +208,7 @@ async function runCommand(
       return storeSecretCommand(deps, cmd.key, cmd.value, actor);
     case "bookmaker":
       // Les sites des bookmakers ne sont plus lus (28 octobre 2026) : identifiants jamais gardés (message effacé).
-      return { handled: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL };
+      return { handled: true, reply: BOOKMAKER_CREDENTIALS_REFUSAL, secret: true, deleteMessage: true };
     case "budget":
       // Les vidéos IA sont produites par l'équipe Dating : hausse → confirmation du Boss, baisse → immédiate.
       return viaBossAction(deps, "plafond", { equipe: "dating", poste: "video", euros: cmd.euros }, actor, chat);

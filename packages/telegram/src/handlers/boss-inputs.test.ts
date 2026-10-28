@@ -154,14 +154,16 @@ describe("message transféré à Kevin (privé de l'admin)", () => {
     expect(t.enqueued[0]!.opts?.delayMs).toBeUndefined();
   });
 
-  it("post d'un canal tiers : gardé comme contenu, jamais rangé comme post de référence", async () => {
+  it("post d'un canal tiers : gardé comme contenu comme tout transfert (une réponse), jamais rangé comme post de référence", async () => {
     const t = setup();
     await t.bot.handleUpdate(
       msg({ text: "Corner ce soir : plus de 9,5", forward_origin: { type: "channel", date: 0, chat: { id: -100555, type: "channel", title: "Club Corner", username: "club_corner" }, message_id: 77 } }),
     );
     expect(t.kit.tables("referencePost")).toHaveLength(0);
     expect((await peekForwarded(t.kit.deps, CHAT))?.from).toBe("@club_corner");
-    expect(t.fastCalls).toHaveLength(0);
+    expect(t.fastCalls).toHaveLength(1);
+    expect(t.fastCalls[0]).toMatchObject({ forwarded: true });
+    expect(t.enqueued).toEqual([]);
   });
 
   it("un inconnu qui transfère à Kevin : rien n'est gardé, silence", async () => {

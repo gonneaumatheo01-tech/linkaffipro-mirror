@@ -377,7 +377,8 @@ describe("10. résumé d'une clé", () => {
   it("mot de passe : aucun caractère, même dans la confirmation", async () => {
     const kit = createTestKit();
     const r = await handleAdminText(kit.deps, { text: "bookmaker sportaza jean Azerty2024!", messageId: 2 });
-    expect(r.reply).toBe("Mot de passe sportaza enregistré ✅");
+    expect(r).toMatchObject({ deleteMessage: true });
+    expect(r.reply).not.toContain("024!");
     expect(journalText(kit)).not.toContain("024!");
   });
 });

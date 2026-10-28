@@ -486,13 +486,13 @@ describe("relecture adverse : corrections du correcteur 2", () => {
   it("3. simple membre : liste fermée ; responsable : pas les demandes réservées, adressées à un autre, ou posées ailleurs", () => {
     const lea = { kind: "member", telegramUserId: LEA, memberId: "m", role: "MEMBER", firstName: "Léa" } as const;
     const scope = { params: { equipe: "sports" }, teams: ["sports"] as const };
-    for (const k of ["mode_capture", "test_bookmaker", "annuler_reglage", "ads_fait", "ads_refuser", "plan_canal", "persona_canal", "melange_canal", "connexion_bookmaker"])
+    for (const k of ["annuler_reglage", "ads_fait", "ads_refuser", "plan_canal", "persona_canal", "melange_canal"])
       if (BOSS_CATALOG.some((a) => a.key === k)) expect(bossRightsAllow(by(k), lea, { ...scope, teams: [...scope.teams], cls: "immediate" }), k).toBe(false);
     for (const k of ["plafond", "quota_posts", "niveau"]) expect(bossRightsAllow(by(k), lea, { ...scope, teams: [...scope.teams], cls: "immediate" }), k).toBe(false);
     for (const k of ["paris_du_jour", "bilan_paris", "stock_medias", "rapport_du_jour", "etat_general", "qui_fait_quoi"]) expect(bossRightsAllow(by(k), lea), k).toBe(true);
     expect(bossRightsAllow(by("reprise"), lea, { params: { equipe: "sports" }, teams: ["sports"] })).toBe(true);
     const boss = { kind: "member", telegramUserId: MARC, memberId: "m2", role: "MANAGER", firstName: "Marc" } as const;
-    expect(bossRightsAllow(by("mode_capture"), boss, { cls: "immediate" })).toBe(true);
+    expect(bossRightsAllow(by("plan_canal"), boss, { cls: "immediate" })).toBe(true);
     expect(bossRightsAllow(by("plus_tard"), boss)).toBe(false);
     expect(bossRightsAllow(by("plus_tard"), boss, { request: { adminOnly: false, assignedToOther: false, otherChat: false } })).toBe(true);
     expect(bossRightsAllow(by("repondre_demande"), boss, { request: { adminOnly: true, assignedToOther: false, otherChat: false } })).toBe(false);

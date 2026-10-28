@@ -23,7 +23,6 @@ import {
   createFakeOddsProvider,
   decideValidation,
   FAKE_ODDS_ANCHOR,
-  fallbackPng,
   fromParis,
   parisDay,
   planDay,
@@ -33,8 +32,6 @@ import {
   type AgentsDeps,
   type AgentsOrchestratorJob,
   type AgentStepJob,
-  type CaptureRequest,
-  type CaptureResult,
   type OddsProvider,
   type OddsSelection,
 } from "@linkaffipro/agents";
@@ -159,19 +156,6 @@ function oddsFrom(from: Date, offsides: boolean): OddsProvider {
     },
   } as OddsProvider;
 }
-
-const screenshot = {
-  name: "fake",
-  async capture(req: CaptureRequest): Promise<CaptureResult> {
-    return { ok: true, png: fallbackPng(320, 200), readOdds: req.expectedOdds, pageUrl: "https://www.sportaza.example/match" };
-  },
-  async testConnection(): Promise<CaptureResult> {
-    return { ok: true, png: fallbackPng(10, 10), readOdds: 0, pageUrl: "https://www.sportaza.example" };
-  },
-  async renderTemplate(): Promise<Uint8Array> {
-    return fallbackPng(1080, 1080);
-  },
-};
 
 // ------------------------------------------------------------------------------------------------ fausse IA de Kevin
 
@@ -396,7 +380,7 @@ async function approveAll(): Promise<void> {
 /** Une journée de l'ordre : plan du jour du Grand Chef, passage de l'équipe Paris, chaîne des agents. */
 async function productionDay(offset: number, offsides = true): Promise<void> {
   now = at(offset, 10 * 60);
-  (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, offsides), screenshot } as never;
+  (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, offsides) } as never;
   await planDay(agents());
   await runSportsPassage(agents());
   await drain();
@@ -474,7 +458,7 @@ beforeAll(async () => {
   prismaTelegramDeps.workerDown = async () => false;
   const deps = agents();
   deps.now = () => now;
-  (deps as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
+  (deps as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true) } as never;
   deps.enqueue = {
     orchestrator: async (job, opts) => void enqueued.push({ job, jobId: opts?.jobId }),
     step: async (_team, _agent, job) => {
@@ -579,7 +563,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("4. variante : aucun marché hors-jeux chez le fournisseur → raison précise, replis numérotés, « N » → ordre sur corners", async () => {
     now = at(3, 9 * 60);
-    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false) } as never;
     const out = await say(CLIENT_PHRASE);
     // Même demande plus de 24 h après : le plan n'est plus en cache, le planificateur est rappelé une fois.
     expect(fakeBossLlm.calls.plan).toHaveLength(2);
@@ -625,7 +609,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("7. « arrête » : les missions pas encore commencées sont annulées, la dérogation se ferme", async () => {
     now = at(3, 10 * 60);
-    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, false) } as never;
     await planDay(agents());
     steps.length = 0; // la sélection n'a pas commencé
     const pending = await prisma.agentMission.findMany({ where: { orderId: ids.cornersOrder } });
@@ -735,7 +719,7 @@ describe("Kevin donne des ordres aux équipes (base réelle, vrai registre, faux
 
   it("16. relecture (cas 3) : équipe Paris en vrai + ordre « pour de faux » sur un vrai canal → rien ne part en vrai, le récap le dit", async () => {
     now = at(4, 11 * 60);
-    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true), screenshot } as never;
+    (agents() as AgentsDeps & { providers?: unknown }).providers = { llm: agentLlm, odds: oddsFrom(now, true) } as never;
     const channelBot = await prisma.bot.findFirstOrThrow({ where: { role: { not: "ADMIN" } } });
     ids.footReal = (await prisma.channel.create({ data: { telegramChatId: -1007770003n, title: "Foot Réel", type: "CHANNEL", language: "fr", vertical: "SPORTS", primaryBotId: channelBot.id } })).id;
     await prisma.agentTeamConfig.update({ where: { teamKey: "sports" }, data: { simulation: false } });

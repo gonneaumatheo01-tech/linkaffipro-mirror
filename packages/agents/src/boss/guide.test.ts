@@ -111,7 +111,7 @@ describe("Kevin : « commencer »", () => {
     await bossAndReport(kit);
     const r = await bossStartReply(kit.deps);
     expect(r.reply).toContain("Tout est encore en test");
-    expect(r.reply).toMatch(/2\/12/);
+    expect(r.reply).toMatch(/2\/11/);
     expect(r.reply).toMatch(/(On commence par|On s'attaque à) la clé fal\.ai \?/);
     expect(kit.sent).toHaveLength(0);
     await r.followUp!();
@@ -172,7 +172,7 @@ describe("Kevin : « commencer »", () => {
     const steps = await bossSetupSteps(kit.deps);
     expect(steps.filter((s) => !s.done).map((s) => s.key)).toEqual(["real"]);
     const r = await bossStartReply(kit.deps);
-    expect(r.reply).toMatch(/\(12\/12\) ✅/);
+    expect(r.reply).toMatch(/\(11\/11\) ✅/);
     expect(r.reply).toContain("passe le casino en vrai");
     expect(r.followUp).toBeUndefined();
   });

@@ -31,7 +31,15 @@ function fakeDb(o: { offersInCampaigns: string[]; players?: P[]; stats?: S[] }) 
         players.filter((p) => p.affiliateCampaignId === where.affiliateCampaignId && !isAggregate(p)).length,
       findMany: async ({ where }: { where: { affiliateCampaignId: string } }) =>
         players.filter((p) => p.affiliateCampaignId === where.affiliateCampaignId && isAggregate(p)),
-      upsert: async ({ where, create, update }: any) => {
+      upsert: async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { affiliateCampaignId_externalPlayerId: { affiliateCampaignId: string; externalPlayerId: string } };
+        create: Partial<P> & Pick<P, "affiliateCampaignId" | "externalPlayerId">;
+        update: Partial<P>;
+      }) => {
         const k = where.affiliateCampaignId_externalPlayerId;
         const cur = players.find((p) => p.affiliateCampaignId === k.affiliateCampaignId && p.externalPlayerId === k.externalPlayerId);
         if (cur) Object.assign(cur, update);
