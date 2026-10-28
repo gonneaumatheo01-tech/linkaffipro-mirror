@@ -28,7 +28,7 @@ export const NETWORK_CARD_VARIANTS = {
   why: voiceTemplate<{ proofs: string; n: number }>([{ proofs: "même contact @admin_pub, même code promo MAXPRONO", n: 3 }], (p) => [`Pourquoi ensemble : ${p.proofs}. Un seul deal pour ${p.n} canaux.`]),
 } satisfies VoiceTable;
 
-const eurInt = (n: number) => `${Math.round(n).toLocaleString("fr-FR").replace(/ /g, " ")} €`;
+const eurInt = (n: number) => `${Math.round(n).toLocaleString("fr-FR").replace(/\u202f/g, "\u00a0")}\u00a0€`;
 
 /** Pays du réseau : « FR », « FR / BE ». */
 function countriesText(members: NetworkCardInput["members"]): string {
