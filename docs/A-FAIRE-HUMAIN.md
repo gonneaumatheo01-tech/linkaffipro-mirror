@@ -1,5 +1,24 @@
 # À faire par un humain (rien d'urgent, regroupé)
 
+## URGENT — Le lecteur de bookmakers ne fonctionne pas (diagnostic du 28 octobre)
+
+**Problème** : les trois sites (Celsius, Sportaza, Bet Portal) sont « bloqués » dans le tableau de bord Agents → Bookmakers. Aucune lecture n'a réussi.
+
+**Cause** : le lecteur du Mac n'est pas installé comme service permanent. Il a été lancé à la main plusieurs fois (25-28 octobre) mais s'arrête dès que le Terminal se ferme ou que le Mac se met en veille. Sans lui, le serveur Railway ne peut rien lire (les trois sites refusent la France et l'Europe), donc toutes les lectures échouent et les sites passent « bloqués » après 3 échecs.
+
+**Ce qu'il faut faire (30 secondes, une seule fois)** :
+1. Sur le Mac, ouvrez le **Terminal** (Applications → Utilitaires → Terminal).
+2. Collez cette commande et appuyez sur Entrée :
+   ```
+   cd ~/Desktop/"Platefome de statistiques" && pnpm agents:runner:install
+   ```
+3. Si macOS demande d'autoriser « node » pour le dossier Bureau → cliquez **Autoriser**.
+4. Vérification : `pnpm agents:runner:status` doit dire « chargé et en marche ✅ » et « il y a moins de 2 min ✅ ».
+
+**Ce qui se passe ensuite** : le lecteur redémarre tout seul à chaque ouverture de session. Le système relit Celsius toutes les 30 minutes ; dès que ça passe, il repasse de « bloqué » à « prêt » automatiquement. Sportaza et Bet Portal restent inactifs (blocage par pays + VPN nécessaire, décision du 25 octobre).
+
+---
+
 ## Mettre les agents en route : la liste complète, dans l'ordre (mise à jour le 24 octobre, fin des phases 19 à 25)
 
 Rien ne part sur un vrai canal tant que vous ne l'avez pas décidé : toutes les équipes sont **en simulation** (tout va sur le canal Test) et **au niveau 0** (vous validez tout). Presque tout se fait **en répondant à Kevin sur Telegram** (voir 0 ; avant sa création, au bot @casinogamblingoobot), une question à la fois ; écrivez `demandes` pour voir celles qui attendent, `plus tard` pour en passer une. Les clés s'envoient **par écrit** (jamais en vocal) : le bot efface aussitôt votre message.
