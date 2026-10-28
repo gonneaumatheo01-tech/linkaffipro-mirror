@@ -23,9 +23,7 @@
  * réel refusée tant que non confirmée, puis lot de 20 demandes, FLOOD_WAIT → arrêt propre et source coupée ; QA en
  * panne → rien n'est envoyé. Aucun appel réseau.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { appendFileSync } from "node:fs";
-const dbg = (...a: unknown[]) => appendFileSync("/tmp/lapit/debug.txt", JSON.stringify(a, (_k, v) => (typeof v === "bigint" ? v.toString() : v)) + "\n");
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Job } from "bullmq";
 import type { Update } from "grammy/types";
 import type { Bot as GrammyBot } from "grammy";
@@ -94,9 +92,15 @@ const web = {
 // ------------------------------------------------------------------------------------------------ fausse IA
 
 const enrichLlm = fakeProspectionLlm();
+const affiliateWatchCalls: string[] = [];
 /** Faux Opus / Sonnet : dossiers (sans chiffre), suivi des affiliés (rien de plus que le code), le reste par l'Enrichisseur. */
 const prospectionLlm: LlmProvider = {
   async complete(req) {
+    // Suivi d'un affilié signé (Sonnet) : l'IA « voit » une marque absente des posts — elle doit être écartée.
+    if (req.system?.includes("affilié à notre marque")) {
+      affiliateWatchCalls.push(req.user);
+      return { text: JSON.stringify({ competitors: [{ brand: "Unibet", evidence: "Unibet le meilleur bonus du moment" }], risky: [], our_brand_without_link: false }), costCents: 3 };
+    }
     if (req.model === PROSPECTION_MODELS.dossier) return { text: ["Canal suivi de près, audience réelle et régulière.", "Contact public trouvé, à joindre en premier."].join("\n"), costCents: 30 };
     return enrichLlm.complete(req);
   },
@@ -142,6 +146,15 @@ async function serveUserbot() {
 }
 let offerButtons: string[] = [];
 
+// ------------------------------------------------------------------------------------------------ faux Link Affi (lecture seule)
+
+/** Résultats simulés des fixtures (septembre / octobre) décalés de deux mois : nos trois affiliés signés début novembre. */
+const shifted = (aff: string) =>
+  Object.values(learnFixtures().stats[aff] ?? {})
+    .flat()
+    .map((row) => ({ ...row, date: String(row.date).replace(/^2026-09/, "2026-11").replace(/^2026-10/, "2026-12") }));
+const reader = createFakeLinkAffiReader({ "1234": shifted("aff-a"), "1235": shifted("aff-b"), "1236": shifted("aff-c") });
+
 async function runJob(job: ProspectionQueueJob, jobId = "t") {
   ran.push(job);
   // La boucle du userbot bat en continu quand il tourne.
@@ -169,6 +182,11 @@ let kevinCalls: TelegramCall[] = [];
 
 const fakeBossLlm = createFakeBossLlm([
   [/réseau de @pronos_maxime/i, { name: "prospection_reseau", input: { canal: "@pronos_maxime" } }],
+  [/^Kevin, calibrage$/i, { name: "prospection_calibrage", input: {} }],
+  [/^applique 1$/i, { name: "prospection_calibrage_appliquer", input: { choix: "1" } }],
+  [/annule le calibrage/i, { name: "prospection_calibrage_annuler", input: {} }],
+  [/combien vaut @pronos_maxime/i, { name: "prospection_valeur", input: { canal: "@pronos_maxime" } }],
+  [/@pronos_maxime a signé/i, { name: "prospect_statut", input: { canal: "@pronos_maxime", statut: "signe" } }],
 ]);
 
 function bossTextDeps(): BossTextDeps {
@@ -237,9 +255,12 @@ async function cleanProspection() {
   await prisma.agentUsage.deleteMany({ where: { teamKey: { in: ["prospection", "boss"] } } });
   await prisma.setting.deleteMany({ where: { OR: [{ key: { startsWith: "prospection." } }, { key: { startsWith: "boss." } }, { key: { startsWith: "agents." } }, { key: { startsWith: "userbot." } }] } });
   await prisma.bossTurn.deleteMany();
+  await prisma.auditLog.deleteMany({ where: { action: { startsWith: "prospection." } } });
 }
 
 let qaLlm: Awaited<ReturnType<typeof approveAllQa>>;
+/** Aucun appel réseau : tout `fetch` réel échouerait et serait vu. */
+const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("appel réseau interdit dans ce test"));
 
 beforeAll(async () => {
   await resetDb();
@@ -313,7 +334,7 @@ describe("prospection avancée de bout en bout (base réelle, faux web, fausse I
     for (const n of ["maxime_tennis", "maxime_basket"]) {
       const { id: _id, username: _u, channelUrl: _c, telegramId: _t, createdAt: _ca, updatedAt: _ua, networkId: _n, ...copy } = maxime;
       const p = await prisma.prospect.create({
-        data: { ...(copy as never), username: n, channelUrl: `https://t.me/${n}`, title: n, tier: "B", score: 60, sourceType: "GRAPH_MENTION", dossier: null, presentedAt: null },
+        data: { ...(copy as Record<string, unknown>), username: n, channelUrl: `https://t.me/${n}`, title: n, tier: "B", score: 60, sourceType: "GRAPH_MENTION", dossier: null, presentedAt: null } as never,
       });
       await prisma.prospectContact.createMany({
         data: [
@@ -339,7 +360,7 @@ describe("prospection avancée de bout en bout (base réelle, faux web, fausse I
         medianViews: 750,
         viewRate: 0.125,
         postsPerDay: calcio.postsPerDay,
-        brands: (calcio.brands as Array<Record<string, unknown>>).map((b) => ({ brand: b.brand, intensity: b.intensity, lastSeenAt: b.lastSeenAt })),
+        brands: (calcio.brands as Array<Record<string, string>>).map((b) => ({ brand: b.brand, intensity: b.intensity, lastSeenAt: b.lastSeenAt })),
         competitiveState: calcio.competitiveState,
         bestContact: calcio.bestContact,
         contactConfidence: calcio.contactConfidence,
@@ -554,5 +575,229 @@ describe("prospection avancée de bout en bout (base réelle, faux web, fausse I
     expect((await runJob({ type: "prospection.account-search", lot: { vertical: "SPORTS", languages: [] } })).search).toMatchObject({ requests: 0, stopped: "désactivée" });
     expect(userbot.seen).toHaveLength(23);
     userbot.on = false;
+  });
+
+  it("« @pronos_maxime a signé » + CPA 100 → tout le réseau signé ; « @x = affilié 1234 » par le chemin rapide", async () => {
+    clock = paris("2026-11-04", "10:00");
+    deps.linkAffiReader = reader;
+    expect(await say("Kevin, @pronos_maxime a signé")).toMatch(/@pronos_maxime passe en signé/);
+    // Un réseau = un deal : les deux autres canaux du même admin passent signés avec lui.
+    const net = await prisma.prospect.findMany({ where: { username: { in: ["pronos_maxime", "maxime_tennis", "maxime_basket"] } } });
+    expect(net.map((p) => p.status)).toEqual(["SIGNED", "SIGNED", "SIGNED"]);
+    expect(await prisma.prospectEvent.count({ where: { type: "STATUS_CHANGED", payload: { path: ["via"], equals: "network" } } })).toBe(2);
+    const maxime = await prospectBy("pronos_maxime");
+    expect((await press(`prospect:${maxime.id}:signed`)).reply).toMatch(/Quel type de deal avec @pronos_maxime/);
+    expect((await press(`prospect:${maxime.id}:deal_cpa`)).reply).toMatch(/Combien par joueur pour @pronos_maxime/);
+    const orch = orchestratorJobs.length;
+    const done = await say("100");
+    expect(orchestratorJobs.length).toBe(orch);
+    expect(done).toMatch(/@pronos_maxime signé en CPA 100\s€/);
+    // Kevin demande le numéro d'affilié : derniers affiliés de Link Affi (lecture seule), numérotés.
+    expect(done).toMatch(/numéro d'affilié Link Affi/);
+    expect(done).toMatch(/^1\. delta_tips/m);
+    expect(done).not.toMatch(/secret@example|\+33600000000|FR76/);
+    for (const p of await prisma.prospect.findMany({ where: { networkId: maxime.networkId } })) expect(p, p.username!).toMatchObject({ dealType: "CPA", dealTerms: { cpa: 100, currency: "EUR" } });
+
+    // « @x = affilié 1234 » : chemin rapide (aucune IA), un identifiant par canal.
+    expect(await say("@pronos_maxime = affilié 1234")).toMatch(/@pronos_maxime = affilié 1234|rattaché/);
+    expect(orchestratorJobs.length).toBe(orch);
+    expect(await say("@maxime_tennis = affilié 1234")).toMatch(/1234/);
+    expect((await prospectBy("maxime_tennis")).linkAffiAffiliateId).toBeNull();
+    await say("@maxime_tennis = affilié 1235");
+    await say("@maxime_basket = affilié 1236");
+    expect(orchestratorJobs.length).toBe(orch);
+    const linked = await prisma.prospect.findMany({ where: { linkAffiAffiliateId: { not: null } }, orderBy: { linkAffiAffiliateId: "asc" } });
+    expect(linked.map((p) => [p.username, p.linkAffiAffiliateId])).toEqual([
+      ["pronos_maxime", "1234"],
+      ["maxime_tennis", "1235"],
+      ["maxime_basket", "1236"],
+    ]);
+    expect(await prisma.prospectEvent.count({ where: { type: "LINKAFFI_LINKED" } })).toBe(3);
+    expect(await prisma.setting.findUnique({ where: { key: "prospection.link_ask" } })).toBeNull();
+    // Lecture seule : le lecteur n'a fait que lister les affiliés récents.
+    expect(new Set(reader.calls.map((c) => c.method))).toEqual(new Set(["recentAffiliates"]));
+  });
+
+  it("affilié signé qui pousse un concurrent → alerte avec preuve ≤ 15 mots ; marque inventée par l'IA écartée", async () => {
+    clock = paris("2026-11-10", "02:00");
+    // Les 6 canaux relus il y a 7 jours (entre 2 h et 2 h 25) : dus cette nuit, pas la suivante.
+    expect((await runJob({ type: "prospection.schedule" })).advanced).toMatchObject({ requalify: 6 });
+    await drain(paris("2026-11-10", "06:00"));
+    const alerts = await prisma.prospectAlert.findMany({ where: { createdAt: { gte: new Date(paris("2026-11-10", "00:00")) } }, include: { prospect: { select: { username: true } } } });
+    // Une seule nouvelle alerte : la hausse de @calcio_vip_club n'est pas répétée (14 jours), rien d'inventé.
+    expect(alerts.map((a) => [a.prospect.username, a.kind, a.family])).toEqual([["pronos_maxime", "AFFILIATE_PUSHES_COMPETITOR", "affiliate"]]);
+    const alert = alerts[0]!;
+    expect(alert.data).toMatchObject({ brand: "1xBet", postsWithOurLink: 0 });
+    // Preuve : 15 mots au plus, recopiés d'un post réel du canal.
+    expect(alert.evidence!.split(/\s+/).length).toBeLessThanOrEqual(15);
+    expect(alert.evidence).toMatch(/1xbet/i);
+    const page = (await base.fetchText("https://t.me/s/pronos_maxime")).body.replace(/<[^>]+>/g, " ").replace(/&#39;|&#x27;/g, "'").replace(/\s+/g, " ");
+    expect(page).toContain("cote 1.85 chez 1xbet");
+    // L'IA a relu les posts (comme des données) ; la marque qu'elle a inventée est écartée.
+    expect(affiliateWatchCalls.length).toBeGreaterThanOrEqual(1);
+    expect(affiliateWatchCalls[0]).toMatch(/<donnees>/);
+    expect(await prisma.prospectAlert.count({ where: { dedupeKey: { contains: "unibet" } } })).toBe(0);
+
+    clock = paris("2026-11-10", "09:10");
+    const n = kevinCalls.length;
+    const qa = qaLlm.calls.length;
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    const texts = kevinTexts(n);
+    expect(texts.at(-1)).toMatch(/^@pronos_maxime pousse aussi 1xBet\.\nExtrait : «[\s\S]*1xbet[\s\S]*»$/);
+    expect(buttonsOf(sent(n).at(-1)!).map((b) => b.callback_data)).toEqual(["seen", "note", "mute"].map((a) => `pra:${alert.id}:${a}`));
+    expect(qaLlm.calls.length - qa).toBe(1);
+  });
+
+  it("1er décembre puis 1er janvier : résultats Link Affi (lecture seule) → ACTIVE → calibrage proposé en choix numérotés", async () => {
+    clock = paris("2026-12-01", "07:00");
+    let n = kevinCalls.length;
+    let qa = qaLlm.calls.length;
+    expect((await runJob({ type: "prospection.schedule" })).advanced).toMatchObject({ queued: ["monthly"] });
+    // Valeurs du matin d'abord, puis le mensuel (résultats → calibrage → bilan) en une tâche.
+    expect(queue.map((q) => q.job.type)).toEqual(["prospection.networks", "prospection.values", "prospection.learn-pull"]);
+    await drain();
+    // Novembre : un résultat par affilié rattaché, champ absent noté (jamais estimé) ; premier dépôt → ACTIVE.
+    const nov = await prisma.affiliateResult.findMany({ where: { month: "2026-11" }, include: { prospect: { select: { username: true } } } });
+    expect(Object.fromEntries(nov.map((r) => [r.prospect.username, [r.clicks, r.ftd, r.revenueCents, r.missing]]))).toEqual({
+      pronos_maxime: [900, 3, 13500, []],
+      maxime_tennis: [300, 3, 4500, []],
+      maxime_basket: [600, 3, null, ["revenue"]],
+    });
+    for (const p of await prisma.prospect.findMany({ where: { linkAffiAffiliateId: { not: null } } })) expect(p.status, p.username!).toBe("ACTIVE");
+    // 26 jours de données seulement : aucun coefficient proposé ; le bilan du mois passe le QA.
+    expect(await prisma.recommendation.count({ where: { source: "prospection_calibration", target: "PROSPECTION_CALIBRATION" } })).toBe(0);
+    const decTexts = kevinTexts(n);
+    expect(decTexts.at(-1)).toMatch(/novembre : 3 affiliés signés, dont 3 actifs/);
+    expect(decTexts.at(-1)).toMatch(/revenus non fournis/);
+    expect(decTexts.join("\n")).not.toMatch(/\b1 réglages\b/);
+    expect(await prisma.qaCheck.count({ where: { contentType: "REPORT", contentId: { contains: "2026-11" } } })).toBeGreaterThanOrEqual(1);
+    expect(qaLlm.calls.length - qa).toBeGreaterThanOrEqual(2);
+
+    // 1er janvier : deux mois de résultats → 3 réglages proposés en choix numérotés, dans les bornes.
+    clock = paris("2027-01-01", "07:00");
+    n = kevinCalls.length;
+    qa = qaLlm.calls.length;
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    const proposal = kevinTexts(n)[0]!;
+    expect(proposal).toMatch(/3 réglages/);
+    expect(proposal).toMatch(/^1\. Coefficient du taux de clic pour paris sportifs, FR : 1 → 1,5/m);
+    expect(proposal).toMatch(/^2\. Coefficient du taux de premiers dépôts pour paris sportifs, FR : 1 → 0,5/m);
+    expect(proposal).toMatch(/^3\. Recherche de canaux/m);
+    expect(proposal).toMatch(/Rien ne change sans toi|Rien ne bouge sans ton accord/);
+    const recs = await prisma.recommendation.findMany({ where: { source: "prospection_calibration", status: "PROPOSED" }, orderBy: { createdAt: "asc" } });
+    expect(recs.map((r) => [r.target, r.field, r.before, r.after])).toEqual([
+      ["PROSPECTION_CALIBRATION", "ctrFactor", 1, 1.5],
+      ["PROSPECTION_CALIBRATION", "ftdFactor", 1, 0.5],
+      ["PROSPECTION_DISCOVERY", "shares", expect.any(Object), expect.any(Object)],
+    ]);
+    // Bornes : ratio réel ÷ estimé écrêté, ± 50 % au plus par mois ; parts de la recherche ± 20 %, somme 1.
+    expect((recs[0]!.evidence as { median: number }).median).toBeGreaterThan(1.5);
+    expect((recs[1]!.evidence as { median: number }).median).toBeLessThan(0.5);
+    const after = recs[2]!.after as Record<string, number>;
+    expect(Object.values(after).reduce((x, y) => x + y, 0)).toBeCloseTo(1, 2);
+    for (const v of Object.values(after)) expect(Math.abs(v - 0.2)).toBeLessThanOrEqual(0.2 * 0.2 + 1e-9);
+    // La proposition de décembre (parts) est remplacée, jamais appliquée seule.
+    expect(await prisma.recommendation.findFirst({ where: { source: "prospection_calibration", status: "REJECTED" } })).toMatchObject({ comment: expect.stringMatching(/Remplacée/) });
+    expect(await prisma.prospectCalibration.count({ where: { source: "calibrated" } })).toBe(0);
+    // Lecture seule chez Link Affi : agrégats et liste des affiliés, rien d'autre.
+    expect(new Set(reader.calls.map((c) => c.method))).toEqual(new Set(["recentAffiliates", "affiliateStats"]));
+  });
+
+  it("« calibrage » → « applique 1 » → coefficient changé dans les bornes + Experiment → « annule le calibrage » → retour", async () => {
+    clock = paris("2027-01-01", "10:00");
+    const list = await say("Kevin, calibrage");
+    expect(list).toMatch(/3 réglages proposés/);
+    expect(list.split("\n").filter((l) => /^\d\. /.test(l))).toHaveLength(3);
+    expect(await say("Kevin, combien vaut @pronos_maxime ?")).toMatch(/estimation non calibrée|pas encore calibrée|non calibrée/i);
+
+    const qa = qaLlm.calls.length;
+    expect(await say("applique 1")).toMatch(/Fait pour 1.*30 jours.*annule le calibrage/s);
+    // Coefficient changé dans les bornes (1 → 1,5 : + 50 % au plus), un seul ; suivi par une expérience de 30 jours.
+    const cal = await prisma.prospectCalibration.findMany();
+    expect(cal).toEqual([expect.objectContaining({ segment: "SPORTS|FR|*|*", ctrFactor: 1.5, ftdFactor: 1, source: "calibrated", sample: 3 })]);
+    const recs = await prisma.recommendation.findMany({ where: { source: "prospection_calibration", createdAt: { gte: new Date(paris("2027-01-01", "00:00")) } }, orderBy: { createdAt: "asc" } });
+    expect(recs.map((r) => r.status)).toEqual(["APPLIED", "PROPOSED", "PROPOSED"]);
+    const exp = await prisma.experiment.findFirstOrThrow({ where: { teamKey: "prospection" } });
+    expect(exp).toMatchObject({ status: "RUNNING", metric: "prospection_calibration", recommendationId: recs[0]!.id });
+    expect(exp.endsAt!.getTime() - clock).toBe(30 * DAY);
+    // Les parts de la recherche (choix 3) n'ont pas bougé : rien n'est appliqué sans être choisi.
+    expect(await prisma.setting.findUnique({ where: { key: "prospection.discovery_shares" } })).toBeNull();
+    // L'estimation tient compte du coefficient dès la lecture suivante.
+    expect(await say("Kevin, combien vaut @pronos_maxime ?")).not.toMatch(/non calibrée/i);
+    expect((await prospectBy("pronos_maxime")).valueEstimate).toMatchObject({ calibratedBy: "SPORTS|FR|*|*" });
+    expect(qaLlm.calls.length - qa).toBe(0);
+
+    expect(await say("Kevin, annule le calibrage")).toMatch(/comme avant/);
+    expect(await prisma.prospectCalibration.findMany()).toEqual([expect.objectContaining({ ctrFactor: 1, ftdFactor: 1, source: "default" })]);
+    expect(await prisma.experiment.findUniqueOrThrow({ where: { id: exp.id } })).toMatchObject({ status: "CANCELLED" });
+    expect(await say("Kevin, combien vaut @pronos_maxime ?")).toMatch(/non calibrée/i);
+    expect(await say("Kevin, annule le calibrage")).not.toMatch(/comme avant/);
+    const audit = await prisma.auditLog.findMany({ where: { action: { startsWith: "prospection.calibration" } }, orderBy: { createdAt: "asc" } });
+    expect(audit.map((a) => a.action)).toEqual(["prospection.calibration.applied", "prospection.calibration.undone"]);
+  });
+
+  it("QA en panne → le message des alertes n'est pas envoyé, les alertes attendent, Kevin le dit", async () => {
+    Object.assign(deps, { qaLlm: createFakeQaLlm({ respond: () => new Error("QA en panne") }) });
+    clock = paris("2027-01-02", "02:00");
+    await runJob({ type: "prospection.schedule" });
+    await drain(paris("2027-01-02", "06:00"));
+    const fresh = await prisma.prospectAlert.findMany({ where: { createdAt: { gte: new Date(paris("2027-01-02", "00:00")) } }, include: { prospect: { select: { username: true } } } });
+    // Relecture du 2 janvier : les canaux des fixtures ne postent plus depuis deux mois → silences signalés ; le canal
+    // abandonné (aucun post lisible dans les 90 jours) reste écarté, jamais « remonté ».
+    expect(fresh.map((a) => `${a.prospect.username}:${a.kind}`)).toEqual(expect.arrayContaining(["pronos_maxime:AFFILIATE_SILENT", "pronos_maxime:AFFILIATE_NOT_POSTING", "calcio_vip_club:WENT_SILENT"]));
+    expect(fresh.some((a) => a.kind === "TIER_UP")).toBe(false);
+    expect(await prospectBy("dead_pronos_2025")).toMatchObject({ status: "DISQUALIFIED", tier: "D" });
+    // Le canal coupé (🔕) garde ses alertes, en MUTED : jamais envoyées.
+    expect(fresh.filter((a) => a.prospect.username === "slots_kaiser").every((a) => a.status === "MUTED")).toBe(true);
+
+    clock = paris("2027-01-02", "09:10");
+    const n = kevinCalls.length;
+    const qa = qaLlm.calls.length;
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    // Rien n'est envoyé : ni la liste du jour ni les alertes ; Kevin dit pourquoi (textes fixes, hors QA) ; le faux QA
+    // « qui approuve tout » n'a pas été appelé à la place.
+    expect(kevinTexts(n)).toEqual([expect.stringMatching(/vérification ne répond pas.*liste du jour/), expect.stringMatching(/vérification ne répond pas.*alertes du jour attendent/)]);
+    expect(sent(n).some((c) => buttonsOf(c).length)).toBe(false);
+    expect(qaLlm.calls.length).toBe(qa);
+    const after = await prisma.prospectAlert.findMany({ where: { createdAt: { gte: new Date(paris("2027-01-02", "00:00")) } } });
+    expect(after.every((a) => (a.status === "NEW" || a.status === "MUTED") && a.sentAt === null)).toBe(true);
+    const checks = await prisma.qaCheck.findMany({ where: { contentId: { startsWith: "prospection-alerts:2027-01-02" } } });
+    expect(checks.length).toBeGreaterThan(0);
+    expect(checks.every((c) => c.verdict !== "APPROVED")).toBe(true);
+    // Une seule tentative par jour (pas de « la vérification ne répond pas » toutes les 10 minutes)…
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    expect(kevinTexts(n)).toHaveLength(2);
+    // … et les alertes attendent le lendemain, quand la vérification répond : 8 au plus, toujours avec leurs boutons.
+    Object.assign(deps, { qaLlm });
+    clock = paris("2027-01-03", "09:10");
+    const n2 = kevinCalls.length;
+    await runJob({ type: "prospection.schedule" });
+    await drain();
+    const cards = sent(n2).filter((c) => buttonsOf(c).some((b) => b.callback_data.startsWith("pra:")));
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards.length).toBeLessThanOrEqual(8);
+    expect(cards.some((c) => /@slots_kaiser/.test(String(c.payload.text)))).toBe(false);
+  });
+
+  it("à la fin : tout envoi est passé par le QA, Kevin n'a parlé qu'à l'admin, aucun appel réseau", async () => {
+    // Chaque message d'alertes envoyé a son approbation ; chaque bilan et chaque réglage proposé aussi.
+    const sentDays = new Set((await prisma.prospectAlert.findMany({ where: { sentAt: { not: null } } })).map((a) => a.sentAt!.toISOString().slice(0, 10)));
+    const approved = await prisma.qaCheck.findMany({ where: { verdict: "APPROVED", teamKey: "prospection" } });
+    for (const d of sentDays) expect(approved.some((c) => c.contentType === "ALERT" && c.contentId.startsWith(`prospection-alerts:${d}`)), d).toBe(true);
+    expect(new Set(approved.map((c) => c.contentType))).toEqual(new Set(["KEVIN_RESPONSE", "ALERT", "REPORT", "RECOMMENDATION"]));
+    // Appels au QA Global sur tout le scénario (faux QA qui approuve) : un par contrôle approuvé, jamais d'approbation d'office.
+    expect(qaLlm.calls.length).toBeGreaterThanOrEqual(approved.length);
+    // Kevin n'écrit qu'à l'admin ; rien n'est jamais envoyé à un canal ni à un tiers.
+    expect(sent().length).toBeGreaterThan(20);
+    expect(sent().every((c) => Number(c.payload.chat_id) === ADMIN)).toBe(true);
+    // Link Affi : seulement les deux lectures du contrat.
+    expect(reader.calls.every((c) => c.method === "affiliateStats" || c.method === "recentAffiliates")).toBe(true);
+    // Le web n'a servi que les fixtures, et rien n'est sorti par le réseau.
+    expect(fetched.every((u) => /^https:\/\//.test(u))).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
