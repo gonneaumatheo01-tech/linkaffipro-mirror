@@ -4,8 +4,11 @@
   "base": { "subscribers": 10000, "medianViews": 2000, "viewRate": 0.2, "postsPerDay": 3, "brands": [], "competitiveState": "FREE", "bestContact": "@admin_pub", "sellsAds": false, "marketplace": false, "lastPostAt": "2026-10-25T18:00:00Z", "tier": "B", "score": 60 },
   "cases": [
     { "name": "marque lâchée depuis 14 jours", "status": "QUALIFIED", "postsRead": 20, "corpus": "pronos du jour psg om",
-      "history": [{ "takenAt": "2026-10-05T09:00:00Z", "brands": [{ "brand": "1xbet", "intensity": "HEAVY", "lastSeenAt": "2026-10-04" }] }, { "takenAt": "2026-10-19T09:00:00Z", "brands": [] }],
+      "history": [{ "takenAt": "2026-10-05T09:00:00Z", "brands": [{ "brand": "1xbet", "intensity": "HEAVY", "lastSeenAt": "2026-10-04" }] }, { "takenAt": "2026-10-12T09:00:00Z", "brands": [] }],
       "current": {}, "expect": { "kinds": ["AFFILIATE_DROPPED"], "fakeFlags": [] } },
+    { "name": "marque lâchée déjà signalée à la relecture précédente", "status": "QUALIFIED", "postsRead": 20, "corpus": "pronos",
+      "history": [{ "takenAt": "2026-10-05T09:00:00Z", "brands": [{ "brand": "1xbet", "intensity": "HEAVY", "lastSeenAt": "2026-10-04" }] }, { "takenAt": "2026-10-19T09:00:00Z", "brands": [] }],
+      "current": {}, "expect": { "kinds": [], "fakeFlags": [] } },
     { "name": "marque disparue depuis 6 jours seulement", "status": "QUALIFIED", "postsRead": 20, "corpus": "pronos",
       "history": [{ "takenAt": "2026-10-19T09:00:00Z", "brands": [{ "brand": "1xbet", "intensity": "HEAVY", "lastSeenAt": "2026-10-20" }] }],
       "current": {}, "expect": { "kinds": [], "fakeFlags": [] } },

@@ -158,8 +158,9 @@ export function diffSnapshots(input: DiffInput): DiffResult {
     const fresh = current.brands.filter((b) => strong(b.intensity) && !seen.has(brandKeyOf(b.brand)));
     const gone = prev.brands.filter((b) => strong(b.intensity) && !currentKeys.has(brandKeyOf(b.brand)) && !cited(b.brand));
     const switchedFrom = new Set<string>();
-    for (const b of fresh) {
-      const from = gone[0];
+    for (const [i, b] of fresh.entries()) {
+      // Une seule bascule par marque disparue : la première nouvelle marque ; les suivantes sont de nouvelles marques.
+      const from = i === 0 ? gone[0] : undefined;
       if (from) {
         switchedFrom.add(brandKeyOf(from.brand));
         push("AFFILIATE_SWITCHED", `AFFILIATE_SWITCHED:${brandKeyOf(from.brand)}>${brandKeyOf(b.brand)}`, 65 + (b.intensity === "HEAVY" ? 10 : 0), { from: from.brand, to: b.brand, intensity: b.intensity });
@@ -172,6 +173,10 @@ export function diffSnapshots(input: DiffInput): DiffResult {
         if (!s.strongEver || currentKeys.has(key) || switchedFrom.has(key) || cited(s.brand) || !s.lastSeen) continue;
         const days = Math.floor((now.getTime() - Date.parse(s.lastSeen)) / DAY);
         if (days < WATCH_LIMITS.droppedAfterDays || days > 120) continue;
+        // Seuil franchi depuis la relecture précédente (ou marque encore là au point précédent) : sinon déjà vu.
+        const inPrev = prev.brands.some((b) => brandKeyOf(b.brand) === key);
+        const daysAtPrev = Math.floor((prev.takenAt.getTime() - Date.parse(s.lastSeen)) / DAY);
+        if (!inPrev && daysAtPrev >= WATCH_LIMITS.droppedAfterDays) continue;
         push("AFFILIATE_DROPPED", `AFFILIATE_DROPPED:${key}:${s.lastSeen}`, 75 + (s.intensity === "HEAVY" ? 15 : 5) + Math.min(10, (days - WATCH_LIMITS.droppedAfterDays) / 3), {
           brand: s.brand,
           intensity: s.intensity,
