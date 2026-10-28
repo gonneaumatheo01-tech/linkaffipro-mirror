@@ -14,7 +14,7 @@
  * canaux d'origine des transferts, publics, sont gardés dans l'événement REQUALIFIED : ils servent aux réseaux.
  */
 import type { ContactConfidence, ProspectPost, ProspectStatus, ProspectTier, ProspectVertical } from "../contract";
-import { PROSPECTION_SETTINGS } from "../contract";
+import { PROSPECTION_LIMITS, PROSPECTION_SETTINGS } from "../contract";
 import { WATCH_LIMITS, type SnapshotPoint } from "../contract-advanced";
 import type { EnrichDeps } from "../enrich/ai";
 import { detectBrandLinks, mergeBrands } from "../enrich/brands";
@@ -273,7 +273,13 @@ export async function requalifyProspect(deps: EnrichDeps, prospectId: string): P
     // 9. Filtres durs puis nouveau score (un prospect du pipeline garde son statut : seul le score change).
     const minPosts30d = await numberSetting(deps, PROSPECTION_SETTINGS.minPosts30d.key, PROSPECTION_SETTINGS.minPosts30d.value);
     const minMedianViews = await numberSetting(deps, PROSPECTION_SETTINGS.minMedianViews.key, PROSPECTION_SETTINGS.minMedianViews.value);
-    const hits = posts.length ? hardFilters({ ...metrics, postsPerDay, medianViews }, { minPosts30d, minMedianViews, now }).filter((h) => h.code !== "REPOST") : [];
+    let hits = posts.length ? hardFilters({ ...metrics, postsPerDay, medianViews }, { minPosts30d, minMedianViews, now }).filter((h) => h.code !== "REPOST") : [];
+    // Aperçu ouvert mais aucun post dans la fenêtre de lecture (90 jours) : le dernier post connu juge seul. Sans ça, un
+    // canal abandonné depuis des mois, relu sans posts, repasserait « à contacter » sur ses anciennes mesures.
+    if (!posts.length && page.hasPreview && page.kind === "CHANNEL" && lastPostAt) {
+      const days = Math.floor((now.getTime() - lastPostAt.getTime()) / DAY_MS);
+      if (days > PROSPECTION_LIMITS.abandonedAfterDays) hits = [{ code: "ABANDONED", reason: `abandonné : aucun post depuis ${days} jours` }];
+    }
     if (hits.length && (p.status === "QUALIFIED" || p.status === "DISQUALIFIED")) {
       await deps.prisma.prospect.update({
         where: { id: p.id },

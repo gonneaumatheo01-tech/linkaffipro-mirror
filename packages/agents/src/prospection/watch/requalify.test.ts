@@ -103,6 +103,29 @@ describe("relecture d'un canal", () => {
     // Deuxième passage le même jour : même empreinte, aucune nouvelle alerte.
     expect((await requalifyProspect(k.deps as never, "p1")).alerts).toBe(0);
   });
+  it("canal abandonné relu sans aucun post dans les 90 jours : reste écarté, jamais remonté de niveau", async () => {
+    const k = kit([
+      {
+        ...base,
+        id: "d",
+        username: "dead_pronos_2025",
+        channelUrl: "https://t.me/dead_pronos_2025",
+        status: "DISQUALIFIED",
+        tier: "D",
+        score: null,
+        tierReason: "abandonné : aucun post depuis 40 jours ; quasi mort : 0 posts en 30 jours (minimum 15)",
+        lastPostAt: new Date("2026-09-16T08:00:00Z"),
+        lastEnrichedAt: new Date("2026-10-26T09:00:00Z"),
+        brands: [],
+      },
+    ]);
+    const c = fakeClock(new Date("2027-01-02T01:00:00Z"));
+    Object.assign(k.deps, { now: c.now, clock: c.clock, sleep: c.sleep });
+    expect((await requalifyProspect(k.deps as never, "d")).status).toBe("done");
+    expect(k.t("prospect")[0]).toMatchObject({ status: "DISQUALIFIED", tier: "D", tierReason: expect.stringMatching(/^abandonné : aucun post depuis 107 jours/) });
+    expect(k.t("prospectAlert").map((a) => a.kind)).not.toContain("TIER_UP");
+  });
+
   it("canal introuvable : rien ne casse, relecture reportée", async () => {
     const k = kit([{ ...base, id: "x", username: "canal_introuvable", channelUrl: "https://t.me/canal_introuvable", status: "QUALIFIED", tier: "B", lastEnrichedAt: new Date("2026-10-01") }]);
     expect((await requalifyProspect(k.deps as never, "x")).status).toBe("unreadable");
