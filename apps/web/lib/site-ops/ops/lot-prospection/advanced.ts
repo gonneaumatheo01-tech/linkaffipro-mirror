@@ -10,7 +10,22 @@
  * appelle `applyCalibration` / `undoCalibration` quand le paquet les exporte (sinon « pas encore disponible »).
  * Module SANS « use server » et sans `next/*`.
  */
-import { ACCOUNT_SEARCH, CALIBRATION_SOURCE, linkAffiliate, mergeProspects, splitProspect, type ProspectionKevinDeps } from "@linkaffipro/agents";
+import {
+  ACCOUNT_SEARCH,
+  CALIBRATION_SOURCE,
+  applyCalibration,
+  linkAffiliate,
+  listCalibrationChoices,
+  markAlertSeen,
+  mergeProspects,
+  muteAlertKind,
+  muteProspectAlerts,
+  splitProspect,
+  undoCalibration,
+  unmuteAlertKind,
+  unmuteProspectAlerts,
+  type ProspectionKevinDeps,
+} from "@linkaffipro/agents";
 import { audit, prisma } from "@linkaffipro/db";
 import {
   ALERT_KINDS,
@@ -50,10 +65,6 @@ async function visible(id: string | null): Promise<{ ok: true; p: Lite } | { ok:
   return p ? { ok: true, p } : { ok: false, result: fail(CANAL_NOT_FOUND, "not_found") };
 }
 
-async function event(prospectId: string, type: string, payload: Record<string, unknown>): Promise<void> {
-  await prisma.prospectEvent.create({ data: { prospectId, type, payload: payload as never } });
-}
-
 // ------------------------------------------------------------------------------------------------- alertes
 
 /** « Vu » sur une alerte (elle sort de la liste à voir ; rien n'est envoyé). */
@@ -69,7 +80,8 @@ export const runAlertSeen: CoreRun = async (fd, actor, opts = {}) => {
   const what = `« ${alertKindLabel(a.kind)} » sur ${named(a.prospect)}`;
   if (opts.dryRun) return preview(`Marquer vue l'alerte ${what}.`);
   try {
-    await prisma.prospectAlert.update({ where: { id: a.id }, data: { status: "SEEN", seenAt: new Date() } });
+    const r = await markAlertSeen(deps(), a.id, "client");
+    if (!r.ok) return fail(capital(r.message ?? "impossible") + ".", "conflict");
   } catch (err) {
     return fail(`Impossible pour l'instant : ${errorText(err)}.`, "unavailable");
   }
@@ -92,17 +104,13 @@ export const runAlertsChannel: CoreRun = async (fd, actor, opts = {}) => {
         ? `Ne plus recevoir d'alerte pour ${named(p)} (le canal reste suivi, ses chiffres restent à jour).`
         : `Recevoir de nouveau les alertes de ${named(p)}.`,
     );
-  let muted = 0;
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.prospect.update({ where: { id: p.id }, data: { watchMuted: action === "mute" } });
-      if (action === "mute") muted = (await tx.prospectAlert.updateMany({ where: { prospectId: p.id, status: { in: ["NEW", "SENT"] } }, data: { status: "MUTED" } })).count;
-    });
+    const r = action === "mute" ? await muteProspectAlerts(deps(), p.id, "client") : await unmuteProspectAlerts(deps(), p.id, "client");
+    if (!r.ok) return fail(capital(r.message ?? "impossible") + ".", "conflict");
   } catch (err) {
     return fail(`Impossible pour l'instant : ${errorText(err)}.`, "unavailable");
   }
-  await event(p.id, action === "mute" ? "ALERTS_MUTED" : "ALERTS_UNMUTED", { by: "client", via: actor.via, userId: actor.userId });
-  await audit({ userId: actor.userId, action: action === "mute" ? "agents.prospection_alerts_channel_muted" : "agents.prospection_alerts_channel_unmuted", entityType: "Prospect", entityId: p.id, metadata: { muted, via: actor.via } });
+  await audit({ userId: actor.userId, action: action === "mute" ? "agents.prospection_alerts_channel_muted" : "agents.prospection_alerts_channel_unmuted", entityType: "Prospect", entityId: p.id, metadata: { via: actor.via } });
   return ok(action === "mute" ? `Plus d'alerte pour ${named(p)}.` : `Les alertes de ${named(p)} reprennent.`);
 };
 
@@ -118,17 +126,13 @@ export const runAlertsKind: CoreRun = async (fd, actor, opts = {}) => {
   if (action === "mute" && current.includes(kind)) return fail(`Les alertes ${label} sont déjà coupées.`, "conflict");
   if (action === "unmute" && !current.includes(kind)) return fail(`Les alertes ${label} ne sont pas coupées.`, "conflict");
   if (opts.dryRun) return preview(action === "mute" ? `Ne plus recevoir les alertes ${label}, pour tous les canaux.` : `Recevoir de nouveau les alertes ${label}.`);
-  const next = action === "mute" ? [...current, kind] : current.filter((k) => k !== kind);
-  let muted = 0;
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.setting.upsert({ where: { key: MUTED_KINDS_KEY }, create: { key: MUTED_KINDS_KEY, value: next as never }, update: { value: next as never } });
-      if (action === "mute") muted = (await tx.prospectAlert.updateMany({ where: { kind, status: "NEW" }, data: { status: "MUTED" } })).count;
-    });
+    const r = action === "mute" ? await muteAlertKind(deps(), kind, "client") : await unmuteAlertKind(deps(), kind, "client");
+    if (!r.ok) return fail(capital(r.message ?? "impossible") + ".", "conflict");
   } catch (err) {
     return fail(`Impossible pour l'instant : ${errorText(err)}.`, "unavailable");
   }
-  await audit({ userId: actor.userId, action: action === "mute" ? "agents.prospection_alert_kind_muted" : "agents.prospection_alert_kind_unmuted", entityType: "Setting", entityId: MUTED_KINDS_KEY, metadata: { kind, muted, via: actor.via } });
+  await audit({ userId: actor.userId, action: action === "mute" ? "agents.prospection_alert_kind_muted" : "agents.prospection_alert_kind_unmuted", entityType: "Setting", entityId: MUTED_KINDS_KEY, metadata: { kind, via: actor.via } });
   return ok(action === "mute" ? `Alertes ${label} coupées.` : `Alertes ${label} rétablies.`);
 };
 
@@ -206,23 +210,9 @@ export const runAffiliateLink: CoreRun = async (fd, actor, opts = {}) => {
 
 // ------------------------------------------------------------------------------------------------- calibrage
 
-type CalibrationFns = {
-  applyCalibration?: (deps: ProspectionKevinDeps, choices: string[], by: "client" | "system") => Promise<{ ok: boolean; message?: string | null; applied?: number }>;
-  undoCalibration?: (deps: ProspectionKevinDeps, by: "client" | "system") => Promise<{ ok: boolean; message?: string | null; undone?: number }>;
-};
-
-/** Fonctions du chantier B, si le paquet les exporte déjà (sinon null : « pas encore disponible »). */
-async function calibrationFn<K extends keyof CalibrationFns>(name: K): Promise<NonNullable<CalibrationFns[K]> | null> {
-  const mod = (await import("@linkaffipro/agents")) as unknown as CalibrationFns;
-  const fn = mod[name];
-  return typeof fn === "function" ? (fn as NonNullable<CalibrationFns[K]>) : null;
-}
-
-const NOT_READY = "Le calibrage n'est pas encore branché : réessayez après la prochaine mise à jour.";
-
 async function openProposals() {
   const rows = await prisma.recommendation.findMany({
-    where: { teamKey: "prospection", source: CALIBRATION_SOURCE, status: "PROPOSED" },
+    where: { source: CALIBRATION_SOURCE, status: "PROPOSED" },
     select: { id: true, targetId: true, field: true, before: true, after: true, evidence: true, expectedGain: true, createdAt: true },
     take: 50,
   });
@@ -242,11 +232,13 @@ export const runCalibrationApply: CoreRun = async (fd, actor, opts = {}) => {
   if (!chosen.length) return fail("Cochez au moins une proposition.", "invalid", "ids");
   const summary = chosen.map((c) => `${c.number}. ${c.what} (${c.target}) : ${c.change}`).join(" ; ");
   if (opts.dryRun) return preview(`Appliquer ${chosen.length > 1 ? "les choix" : "le choix"} ${summary}. Annulable en un clic.`);
-  const fn = await calibrationFn("applyCalibration");
-  if (!fn) return fail(NOT_READY, "unavailable");
   let r;
   try {
-    r = await fn(deps(), chosen.map((c) => c.id), "client");
+    // Numéros de l'équipe : seules les propositions déjà passées au contrôle qualité sont numérotées.
+    const { choices } = await listCalibrationChoices(deps() as never);
+    const numbers = chosen.map((c) => choices.find((x) => x.id === c.id)?.n ?? null);
+    if (numbers.some((x) => x === null)) return fail("Une de ces propositions est encore en vérification : réessayez dans quelques minutes.", "conflict");
+    r = await applyCalibration(deps() as never, numbers as number[], { userId: actor.userId });
   } catch (err) {
     return fail(`Calibrage impossible pour l'instant : ${errorText(err)}.`, "unavailable");
   }
@@ -258,14 +250,12 @@ export const runCalibrationApply: CoreRun = async (fd, actor, opts = {}) => {
 /** Annuler le dernier calibrage appliqué (retour aux coefficients d'avant). Administrateurs. */
 export const runCalibrationUndo: CoreRun = async (_fd, actor, opts = {}) => {
   if (actor.role !== "ADMIN") return forbidden(ADMIN_ONLY_CALIBRATION);
-  const last = await prisma.recommendation.findFirst({ where: { teamKey: "prospection", source: CALIBRATION_SOURCE, status: "APPLIED" }, orderBy: { appliedAt: "desc" }, select: { id: true, appliedAt: true } });
+  const last = await prisma.recommendation.findFirst({ where: { source: CALIBRATION_SOURCE, status: "APPLIED" }, orderBy: { appliedAt: "desc" }, select: { id: true, appliedAt: true } });
   if (!last) return fail("Aucun calibrage appliqué à annuler.", "conflict");
   if (opts.dryRun) return preview(`Annuler le calibrage appliqué le ${last.appliedAt ? last.appliedAt.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "?"} : les estimations reprennent les coefficients d'avant.`);
-  const fn = await calibrationFn("undoCalibration");
-  if (!fn) return fail(NOT_READY, "unavailable");
   let r;
   try {
-    r = await fn(deps(), "client");
+    r = await undoCalibration(deps() as never, { userId: actor.userId });
   } catch (err) {
     return fail(`Annulation impossible pour l'instant : ${errorText(err)}.`, "unavailable");
   }

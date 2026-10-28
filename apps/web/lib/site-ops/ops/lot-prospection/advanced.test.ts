@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   events: [] as Row[],
   merged: [] as string[][],
   linked: [] as Array<[string, string]>,
+  applied: [] as number[][],
 }));
 
 vi.mock("@linkaffipro/db", () => {
@@ -94,6 +95,38 @@ vi.mock("@linkaffipro/agents", async (importOriginal) => ({
     m.linked.push([id, aff]);
     return { ok: true };
   }),
+  // Fonctions du Veilleur (chantier A) : mêmes écritures que la vraie, sur la base simulée.
+  markAlertSeen: vi.fn(async (_d: unknown, id: string) => {
+    m.writes.push({ op: "alert.update", args: id });
+    m.alerts.get(id)!.status = "SEEN";
+    return { ok: true };
+  }),
+  muteProspectAlerts: vi.fn(async (_d: unknown, id: string) => {
+    m.prospects.get(id)!.watchMuted = true;
+    m.writes.push({ op: "alert.updateMany", args: id });
+    m.events.push({ prospectId: id, type: "ALERTS_MUTED" });
+    return { ok: true };
+  }),
+  unmuteProspectAlerts: vi.fn(async (_d: unknown, id: string) => {
+    m.prospects.get(id)!.watchMuted = false;
+    return { ok: true };
+  }),
+  muteAlertKind: vi.fn(async (_d: unknown, kind: string) => {
+    const k = [...((m.settings.get("prospection.alerts.muted_kinds") as string[]) ?? []), kind];
+    m.settings.set("prospection.alerts.muted_kinds", k);
+    return { ok: true, kinds: k };
+  }),
+  unmuteAlertKind: vi.fn(async (_d: unknown, kind: string) => {
+    const k = ((m.settings.get("prospection.alerts.muted_kinds") as string[]) ?? []).filter((x) => x !== kind);
+    m.settings.set("prospection.alerts.muted_kinds", k);
+    return { ok: true, kinds: k };
+  }),
+  listCalibrationChoices: vi.fn(async () => ({ choices: m.recos.filter((r) => r.status === "PROPOSED").map((r, i) => ({ n: i + 1, id: r.id })), inReview: 0 })),
+  applyCalibration: vi.fn(async (_d: unknown, numbers: number[]) => {
+    m.applied.push(numbers);
+    return { ok: true, applied: numbers, refused: [], experimentId: "exp1", message: "ok" };
+  }),
+  undoCalibration: vi.fn(async () => ({ ok: true, undone: 1, skipped: 0, message: "ok" })),
 }));
 vi.mock("@/lib/agents/prospection/deps", () => ({ buildProspectionDeps: () => ({}) }));
 vi.mock("@/lib/agents/prospection/queries", async (importOriginal) => ({
@@ -131,6 +164,7 @@ beforeEach(() => {
   m.events = [];
   m.merged = [];
   m.linked = [];
+  m.applied = [];
   m.prospects.set("parisfoot01", prospect("parisfoot01"));
   m.prospects.set("tipsitalia1", prospect("tipsitalia1", { status: "SIGNED" }));
   m.prospects.set("horseurope1", prospect("horseurope1", { region: "NON_EU" }));
@@ -210,6 +244,9 @@ describe("calibrage et recherche par compte", () => {
     expect(await runCalibrationApply(formOf({ numbers: ["4"] }), ADMIN)).toMatchObject({ code: "not_found" });
     expect(await runCalibrationApply(formOf({ numbers: ["1"] }), ADMIN, { dryRun: true })).toMatchObject({ ok: true, preview: expect.anything() });
     expect(await runCalibrationUndo(new FormData(), ADMIN)).toMatchObject({ code: "conflict" });
+    expect(m.applied).toEqual([]);
+    expect((await runCalibrationApply(formOf({ ids: ["reco00000001"] }), ADMIN)).ok).toBe(true);
+    expect(m.applied).toEqual([[1]]);
   });
 
   it("recherche par compte : seulement coupée, jamais rallumée par le site", async () => {

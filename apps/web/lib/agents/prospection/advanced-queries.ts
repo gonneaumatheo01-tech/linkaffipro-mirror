@@ -83,12 +83,12 @@ export async function loadValues(scope: readonly string[]) {
     }),
     prisma.prospectCalibration.findMany({ orderBy: [{ source: "desc" }, { segment: "asc" }], take: 200 }),
     prisma.recommendation.findMany({
-      where: { teamKey: "prospection", source: CALIBRATION_SOURCE, status: "PROPOSED" },
+      where: { source: CALIBRATION_SOURCE, status: "PROPOSED" },
       select: { id: true, targetId: true, field: true, before: true, after: true, evidence: true, expectedGain: true, createdAt: true },
       take: 50,
     }),
     prisma.recommendation.findFirst({
-      where: { teamKey: "prospection", source: CALIBRATION_SOURCE, status: "APPLIED" },
+      where: { source: CALIBRATION_SOURCE, status: "APPLIED" },
       orderBy: { appliedAt: "desc" },
       select: { id: true, appliedAt: true, field: true, targetId: true },
     }),
