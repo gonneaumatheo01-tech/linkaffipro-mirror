@@ -37,9 +37,15 @@ export type NetworkView = {
   members: Array<{ id: string; username: string | null; title: string | null; medianViews: number | null; status: string }>;
   evidence: Array<{ a: string; b: string; kind: string; points: number; detail: string }>;
 };
-export type PipelineValue = { byStatus: Array<{ status: string; count: number; low: number; base: number; high: number }>; total: { low: number; base: number; high: number; count: number }; calibrated: boolean };
+export type PipelineValue = {
+  byStatus: Array<{ status: string; count: number; low: number; base: number; high: number }>;
+  total: { low: number; base: number; high: number; count: number };
+  calibrated: boolean;
+  /** Texte prêt du Valorisateur (chantier B), si fourni. */
+  text?: string | null;
+};
 export type AffiliateMonth = { month: string; clicks: number | null; regs: number | null; ftd: number | null; revenueCents: number | null; missing: string[] };
-export type AffiliatePerformance = { months: AffiliateMonth[]; estimate: ValueEstimate | null };
+export type AffiliatePerformance = { months: AffiliateMonth[]; estimate: ValueEstimate | null; text?: string | null };
 export type EstimatedVsRealRow = { prospectId: string; name: string; low: number | null; base: number | null; high: number | null; realCents: number | null; month: string | null };
 export type CalibrationChoice = { n: number; text: string; recommendationId?: string | null };
 
@@ -54,7 +60,8 @@ export type ProspectionAdvancedKevinPort = {
   /** Fourchette lisible ; reçoit une estimation complète ou une somme (pipeline). */
   formatValueRange(v: Pick<ValueEstimate, "low" | "base" | "high">): string;
   affiliatePerformance(deps: ProspectionKevinDeps, prospectId: string): Promise<AffiliatePerformance>;
-  estimatedVsReal(deps: ProspectionKevinDeps): Promise<EstimatedVsRealRow[]>;
+  /** Lignes (secours lu en base) ; `text` : texte prêt du chantier B quand il existe (clics et premiers dépôts). */
+  estimatedVsReal(deps: ProspectionKevinDeps): Promise<{ rows: EstimatedVsRealRow[]; text: string | null }>;
   listCalibrationChoices(deps: ProspectionKevinDeps): Promise<CalibrationChoice[]>;
   applyCalibration(deps: ProspectionKevinDeps, choices: number[], by: "client" | "system"): Promise<ActionResult | null>;
   undoCalibration(deps: ProspectionKevinDeps, by: "client" | "system"): Promise<ActionResult | null>;
@@ -207,36 +214,70 @@ const REAL: ProspectionAdvancedKevinPort = {
   async networkOf(deps, prospectId) {
     const f = fnOf(network, "networkOf");
     if (!f) return dbNetworkOf(deps, prospectId);
-    const r = await f(deps, prospectId);
-    if (!r) return null;
-    const o = obj(r);
-    // Forme libre du chantier A : on relit la base pour les membres et les preuves si elles manquent.
-    if (Array.isArray(o.members) && typeof o.name === "string") return { ...(await dbNetworkOf(deps, prospectId)), ...o } as NetworkView;
-    return dbNetworkOf(deps, prospectId);
+    const o = obj(await f(deps, prospectId));
+    const n = obj(o.network);
+    if (!n.id) return null;
+    // Forme du chantier A : `{ network, members, evidence }`.
+    return {
+      id: String(n.id),
+      name: String(n.name ?? ""),
+      mainContact: typeof n.mainContact === "string" ? n.mainContact : null,
+      totalReach: numOr(n.totalReach, 0)!,
+      countries: strArr(n.countries),
+      members: (Array.isArray(o.members) ? o.members : []).map((m: unknown) => {
+        const x = obj(m);
+        return { id: String(x.id ?? ""), username: typeof x.username === "string" ? x.username : null, title: typeof x.title === "string" ? x.title : null, medianViews: numOr(x.medianViews), status: String(x.status ?? "") };
+      }),
+      evidence: (Array.isArray(o.evidence) ? o.evidence : []).map((e: unknown) => {
+        const x = obj(e);
+        return { a: String(x.a ?? ""), b: String(x.b ?? ""), kind: String(x.kind ?? ""), points: numOr(x.points, 0)!, detail: String(x.detail ?? "") };
+      }),
+    };
   },
   async pipelineValue(deps) {
     const f = fnOf(value, "pipelineValue");
     if (!f) return dbPipelineValue(deps);
     const o = obj(await f(deps));
-    return Array.isArray(o.byStatus) && o.total ? (o as PipelineValue) : dbPipelineValue(deps);
+    if (!Array.isArray(o.byStatus) || !o.total) return dbPipelineValue(deps);
+    const t = obj(o.total);
+    return {
+      byStatus: o.byStatus.map((b: unknown) => {
+        const x = obj(b);
+        return { status: String(x.status ?? ""), count: numOr(x.estimated ?? x.count, 0)!, low: numOr(x.low, 0)!, base: numOr(x.base, 0)!, high: numOr(x.high, 0)! };
+      }),
+      total: { count: numOr(t.estimated ?? t.count, 0)!, low: numOr(t.low, 0)!, base: numOr(t.base, 0)!, high: numOr(t.high, 0)! },
+      calibrated: typeof t.calibration === "string" ? t.calibration !== "none" : t.calibrated === true,
+      text: typeof o.text === "string" ? o.text : null,
+    };
   },
   formatValueRange(v) {
     const f = fnOf(value, "formatValueRange");
-    const s = f ? f(v) : null;
+    // La forme du chantier B dit aussi « non calibrée » ; une somme (sans `calibratedBy`) garde la forme d'ici.
+    const s = f && "calibratedBy" in v ? f(v) : null;
     return typeof s === "string" && s.trim() ? s : defaultValueRange(v);
   },
   async affiliatePerformance(deps, prospectId) {
     const f = fnOf(learn, "affiliatePerformance");
     if (!f) return dbAffiliatePerformance(deps, prospectId);
-    const o = obj(await f(deps, prospectId));
-    return Array.isArray(o.months) ? ({ estimate: null, ...o } as AffiliatePerformance) : dbAffiliatePerformance(deps, prospectId);
+    const r = await f(deps, prospectId);
+    if (!r) return { months: [], estimate: null, text: null };
+    const o = obj(r);
+    if (!Array.isArray(o.months)) return dbAffiliatePerformance(deps, prospectId);
+    return {
+      months: o.months.map((m: unknown) => {
+        const x = obj(m);
+        return { month: String(x.month ?? ""), clicks: numOr(x.clicks), regs: numOr(x.regs), ftd: numOr(x.ftd), revenueCents: numOr(x.revenueCents), missing: strArr(x.missing) };
+      }),
+      estimate: estimateOf(o.estimate),
+      text: typeof o.text === "string" ? o.text : null,
+    };
   },
   async estimatedVsReal(deps) {
     const f = fnOf(learn, "estimatedVsReal");
-    if (!f) return dbEstimatedVsReal(deps);
-    const r = await f(deps);
-    const rows = Array.isArray(r) ? r : obj(r).rows;
-    return Array.isArray(rows) ? (rows as EstimatedVsRealRow[]) : dbEstimatedVsReal(deps);
+    if (!f) return { rows: await dbEstimatedVsReal(deps), text: null };
+    const o = obj(await f(deps));
+    if (o.hasResults === false) return { rows: [], text: null };
+    return { rows: await dbEstimatedVsReal(deps), text: typeof o.text === "string" && o.text.trim() ? o.text : null };
   },
   async listCalibrationChoices(deps) {
     const f = fnOf(learn, "listCalibrationChoices");

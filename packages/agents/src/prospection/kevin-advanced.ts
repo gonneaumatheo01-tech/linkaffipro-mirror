@@ -14,10 +14,12 @@
  * Kevin n'écrit qu'à l'admin ou au groupe de l'équipe ; personne d'autre n'est jamais contacté.
  */
 import { adminTelegramId, agentAudit, esc, nowOf, readSetting, writeSetting } from "../admin/journal";
-import { confirmWordOf, createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
+import { createBossPending, readBossPending, rememberBossPendingMessage } from "../boss/confirm";
 import type { BossDeps, BossReply, BossTeamInput } from "../boss/contract";
 import { pick } from "../boss/voice";
 import { prospectionAdvancedPort } from "./advanced-port";
+import { answerPendingAlertNote } from "./watch/index";
+import { answerLinkChoice } from "./learn/index";
 import { ALERT_CALLBACK_PREFIX, ACCOUNT_SEARCH, type ProspectAlertKind, type ValueEstimate } from "./contract-advanced";
 import { accountSearchEnabled, readAccountSearchCounters, requestsToday, setAccountSearchEnabled } from "./discover/sources/account-search";
 import { mayChangePipeline } from "./kevin-buttons";
@@ -226,6 +228,8 @@ export async function pipelineValueReply(deps: D, chatId: string | null): Promis
   const kport = prospectionAdvancedKevinPort(deps);
   const pv = await kport.pipelineValue(deps);
   if (!pv.total.count) return { reply: pick(A.pipelineNone, "prospection.value.pipelineNone", chatId) };
+  // Texte du Valorisateur (chantier B), déjà dans la charte et sûr pour le HTML.
+  if (pv.text) return { reply: pv.text };
   const lines = [
     esc(`Ton pipeline vaut ${kport.formatValueRange({ ...pv.total })} estimés, sur ${plural(pv.total.count, "canal", "canaux")}.`),
     ...pv.byStatus.map((s) => esc(`• ${PROSPECT_STATUS_WORDS[s.status as keyof typeof PROSPECT_STATUS_WORDS] ?? s.status} (${s.count}) : ${kport.formatValueRange(s)}`)),
@@ -259,6 +263,7 @@ export async function performanceReply(deps: D, p: SignedRow, chatId: string | n
   const kport = prospectionAdvancedKevinPort(deps);
   const perf = await kport.affiliatePerformance(deps, p.id);
   if (!perf.months.length) return { reply: esc(pick(A.perfNone({ name: handle(p) }), "prospection.affiliates.perfNone", chatId)) };
+  if (perf.text) return { reply: perf.text };
   const lines = [esc(`${handle(p)}, affilié ${p.linkAffiAffiliateId} :`)];
   for (const m of perf.months.slice(0, 6))
     lines.push(esc(`• ${m.month} : ${m.clicks ?? "?"} clics, ${m.regs ?? "?"} inscriptions, ${m.ftd ?? "?"} premiers dépôts, ${eurosOfCents(m.revenueCents)}${m.missing.length ? ` (manque ${m.missing.join(", ")})` : ""}`));
@@ -267,7 +272,9 @@ export async function performanceReply(deps: D, p: SignedRow, chatId: string | n
 }
 
 export async function estimatedVsRealReply(deps: D, chatId: string | null): Promise<BossReply> {
-  const rows = (await prospectionAdvancedKevinPort(deps).estimatedVsReal(deps)).filter((r) => r.realCents !== null || r.base !== null);
+  const evr = await prospectionAdvancedKevinPort(deps).estimatedVsReal(deps);
+  if (evr.text) return { reply: evr.text };
+  const rows = evr.rows.filter((r) => r.realCents !== null || r.base !== null);
   if (!rows.some((r) => r.realCents !== null)) return { reply: pick(A.evrNone, "prospection.evr.none", chatId) };
   const kport = prospectionAdvancedKevinPort(deps);
   const lines = rows.slice(0, 15).map((r) => {
@@ -331,11 +338,12 @@ export async function linkAffiliateReply(deps: D, ref: string, affiliateId: stri
   if (!p) return { reply: esc(pick(V.unknownChannel({ name }), "prospection.unknownChannel", chatId)) };
   const id = (affiliateId ?? "").trim();
   if (!id) return { reply: pick(A.linkNeedId, "prospection.link.needId", chatId) };
-  if (p.status !== "SIGNED" && p.status !== "ACTIVE") return { reply: esc(pick(A.linkNotSigned({ name }), "prospection.link.notSigned", chatId)) };
+  if (p.status !== "SIGNED" && p.status !== "ACTIVE" && p.status !== "CHURNED") return { reply: esc(pick(A.linkNotSigned({ name }), "prospection.link.notSigned", chatId)) };
   const r = await prospectionAdvancedPort(deps).linkAffiliate(deps, p.id, id, "client");
   if (!r.ok) return { reply: esc(r.message ?? pick(A.notReady, "prospection.notReady", chatId)) };
   await agentAudit(deps, { userId: actorUserId, action: "prospection.affiliate.linked", entityType: "Prospect", entityId: p.id, metadata: { via: "TELEGRAM" } });
-  return { reply: esc(pick(A.linkDone({ name, id }), "prospection.link.done", chatId)) };
+  // Le message du chantier B (déjà dans la charte) passe en premier ; sinon le nôtre.
+  return { reply: r.message ? r.message : esc(pick(A.linkDone({ name, id }), "prospection.link.done", chatId)) };
 }
 
 // ------------------------------------------------------------------------------------------------ recherche par compte réel
@@ -406,11 +414,6 @@ export function isProspectAlertCallbackData(data: string | null | undefined): bo
   return typeof data === "string" && data.startsWith(ALERT_CALLBACK_PREFIX);
 }
 
-export const ALERT_NOTE_PREFIX = "prospection.alert_note.";
-/** Une note doit arriver dans les 30 minutes qui suivent le bouton. */
-export const ALERT_NOTE_TTL_MS = 30 * 60_000;
-type PendingNote = { alertId: string; prospectId: string; name: string; at: string };
-
 /**
  * Bouton `pra:<alerte>:<action>` (✅ Vu, 📝 Note, 🔕 Plus pour ce canal) → `handleAlertCallback` du Veilleur (socle).
  * Seuls l'admin et les responsables agissent. « 📝 Note » : la note suivante de cette conversation va sur la fiche.
@@ -425,15 +428,6 @@ export async function prospectAlertButton(
   try {
     if (!(await mayChangePipeline(deps, input.fromTelegramId))) return { handled: true, toast: pick(V.buttonNotYours, "prospection.button.notYours", chatId) };
     const r = await prospectionAdvancedPort(deps).handleAlertCallback(deps, { data: input.data, chatId, actorTelegramId: String(input.fromTelegramId) });
-    const [, alertId = "", action = ""] = input.data.split(":");
-    if (action === "note" && alertId) {
-      const alert = (await deps.prisma.prospectAlert.findUnique({ where: { id: alertId } })) as { prospectId: string } | null;
-      if (alert) {
-        const name = (await namesOf(deps, [alert.prospectId])).get(alert.prospectId) ?? "ce canal";
-        await writeSetting(deps, `${ALERT_NOTE_PREFIX}${chatId}`, { alertId, prospectId: alert.prospectId, name, at: nowOf(deps).toISOString() } satisfies PendingNote);
-        return { ...(r ?? {}), handled: true, reply: r?.reply ?? esc(pick(A.noteAsk({ name }), "prospection.alert.noteAsk", chatId)) };
-      }
-    }
     return { ...(r ?? { toast: null }), handled: true };
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message }, "[prospection] bouton d'alerte en échec");
@@ -455,19 +449,14 @@ export async function prospectionAdvancedFastPath(
   const deps = deps0 as unknown as D;
   const text = (input.text ?? "").trim();
   if (!text || input.forwarded || !ctx.canChange) return null;
+  // Réponse au « 📝 Note » d'une alerte (question ouverte par le Veilleur, 30 minutes).
   if (ctx.chatKey) {
-    const key = `${ALERT_NOTE_PREFIX}${ctx.chatKey}`;
-    const note = (await readSetting(deps, key)) as PendingNote | undefined;
-    if (note && typeof note.prospectId === "string") {
-      await deps.prisma.setting.deleteMany({ where: { key } });
-      const fresh = nowOf(deps).getTime() - Date.parse(note.at) < ALERT_NOTE_TTL_MS;
-      const word = confirmWordOf(text);
-      if (fresh && word !== "no" && word !== "cancel") {
-        await prospectionPort(deps).addProspectNote(deps, note.prospectId, text.slice(0, 500), "client");
-        return { reply: { reply: esc(pick(V.noteDone({ name: note.name }), "prospection.noteDone", ctx.chatKey)) }, actionKey: "prospect_note" };
-      }
-    }
+    const note = await answerPendingAlertNote(deps, ctx.chatKey, text);
+    if (note) return { reply: { reply: note }, actionKey: "prospect_note" };
   }
+  // Réponse « 2 » aux correspondances Link Affi proposées par Kevin à la signature.
+  const choice = await answerLinkChoice(deps, text);
+  if (choice) return { reply: { reply: choice }, actionKey: "prospection_rattacher" };
   const link = parseAffiliateLink(text);
   if (link) {
     return { reply: await linkAffiliateReply(deps, `@${link.username}`, link.affiliateId, ctx.chatKey, null), actionKey: "prospection_rattacher" };
