@@ -145,7 +145,8 @@ async function loadNetProspects(deps: ProspectionDeps, where: Record<string, unk
 /** Recalcule les réseaux automatiques (jamais une paire séparée par le client). */
 export async function rebuildNetworks(deps: ProspectionDeps): Promise<{ networks: number; members: number }> {
   const now = prospectionNow(deps);
-  const prospects = await loadNetProspects(deps, { status: { in: [...CLUSTER_STATUSES] } });
+  // Hors thème et hors Europe : jamais à contacter, donc jamais en réseau (constat en production).
+  const prospects = await loadNetProspects(deps, { status: { in: [...CLUSTER_STATUSES] }, vertical: { not: "OTHER" }, region: { not: "NON_EU" } });
   const byId = new Map(prospects.map((p) => [p.id, p]));
   const networks = (await deps.prisma.prospectNetwork.findMany({})) as unknown as NetworkRow[];
   const netById = new Map(networks.map((n) => [n.id, n]));
@@ -191,6 +192,16 @@ export async function rebuildNetworks(deps: ProspectionDeps): Promise<{ networks
       await deps.prisma.prospect.update({ where: { id: p.id }, data: { networkId: null } });
       await event(deps, p.id, "NETWORK_LEFT", { networkId: p.networkId, by: "system" }, now);
     }
+  // Canaux d'un réseau automatique qui ne sont plus regroupés (écartés, hors Europe… donc absents de la lecture) :
+  // sortis aussi, sinon un réseau de canaux écartés ne serait jamais défait. Les réseaux du client restent.
+  const autoIds = [...netById.values()].filter((n) => n.origin !== "MANUAL").map((n) => n.id);
+  if (autoIds.length) {
+    const left = (await deps.prisma.prospect.findMany({ where: { networkId: { in: autoIds }, id: { notIn: [...assigned.keys()] } } as never, select: { id: true, networkId: true } as never })) as unknown as Array<{ id: string; networkId: string }>;
+    for (const p of left) {
+      await deps.prisma.prospect.update({ where: { id: p.id }, data: { networkId: null } });
+      await event(deps, p.id, "NETWORK_LEFT", { networkId: p.networkId, by: "system" }, now);
+    }
+  }
   for (const n of netById.values())
     if (!used.has(n.id)) {
       const stillMembers = await deps.prisma.prospect.count({ where: { networkId: n.id } });

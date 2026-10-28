@@ -108,6 +108,17 @@ describe("réseaux en base", () => {
     expect(manual.members.map((x) => x.id).sort()).toEqual([ids[2]!, lonely.id].sort());
   });
 
+  it("constat en production : des canaux devenus hors thème quittent leur réseau automatique, qui disparaît", async () => {
+    const k = createProspectKit();
+    const ids = await seedNetwork(k);
+    expect(await rebuildNetworks(k.deps)).toEqual({ networks: 1, members: 3 });
+    for (const id of ids) await k.prisma.prospect.update({ where: { id }, data: { status: "DISQUALIFIED", tier: "D", vertical: "OTHER" } as never });
+    expect(await rebuildNetworks(k.deps)).toEqual({ networks: 0, members: 0 });
+    for (const id of ids) expect((await k.row(id)) as unknown as { networkId: string | null }).toMatchObject({ networkId: null });
+    expect(await k.prisma.prospectNetwork.count()).toBe(0);
+    expect(k.events("NETWORK_LEFT")).toHaveLength(3);
+  });
+
   it("propagation : un statut posé par le client sur un membre passe aux autres, avec un événement chacun", async () => {
     const k = createProspectKit();
     const ids = await seedNetwork(k);
