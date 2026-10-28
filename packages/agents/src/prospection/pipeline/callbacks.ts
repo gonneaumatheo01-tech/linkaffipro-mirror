@@ -233,13 +233,22 @@ export async function answerPendingDeal(deps: ProspectionDeps, chatId: string, t
     if (!/\d/.test(text)) return null;
     return pick(PROSPECT_CALLBACK_VARIANTS.dealNotUnderstood, "prospect.deal.notUnderstood", chatId);
   }
-  const p = (await deps.prisma.prospect.findUnique({ where: { id: pending.prospectId } })) as { id: string; username: string | null; title: string; status: ProspectStatus } | null;
+  const p = (await deps.prisma.prospect.findUnique({ where: { id: pending.prospectId } })) as { id: string; username: string | null; title: string; status: ProspectStatus; networkId?: string | null } | null;
   await clearPendingDeal(deps, chatId);
   if (!p) return pick(PROSPECT_CALLBACK_VARIANTS.unknown, "prospect.cb.unknown", chatId);
   const handle = esc(handleOf(p));
   if (p.status === "SIGNED" || p.status === "ACTIVE") {
-    await deps.prisma.prospect.update({ where: { id: p.id }, data: { dealType: deal.dealType, dealTerms: deal.dealTerms } });
-    await deps.prisma.prospectEvent.create({ data: { prospectId: p.id, type: "STATUS_CHANGED", payload: { from: p.status, to: p.status, by: "client", dealType: deal.dealType, dealTerms: deal.dealTerms, via: "telegram" }, createdAt: now } });
+    // Déjà signé (« @x a signé », réseau compris) : les conditions vont au canal ET aux canaux signés de son réseau
+    // (un seul deal pour le réseau, comme lorsque le montant est donné avant la signature).
+    const members = p.networkId
+      ? ((await deps.prisma.prospect.findMany({ where: { networkId: p.networkId, status: { in: ["SIGNED", "ACTIVE"] } } })) as Array<{ id: string; status: ProspectStatus }>)
+      : [];
+    for (const m of [p, ...members.filter((x) => x.id !== p.id)]) {
+      await deps.prisma.prospect.update({ where: { id: m.id }, data: { dealType: deal.dealType, dealTerms: deal.dealTerms } });
+      await deps.prisma.prospectEvent.create({
+        data: { prospectId: m.id, type: "STATUS_CHANGED", payload: { from: m.status, to: m.status, by: "client", dealType: deal.dealType, dealTerms: deal.dealTerms, via: m.id === p.id ? "telegram" : "network", ...(m.id === p.id ? {} : { networkId: p.networkId, fromProspectId: p.id }) }, createdAt: now },
+      });
+    }
   } else {
     const r = await transitionProspect(deps, p.id, "SIGNED", { by: "client", dealType: deal.dealType, dealTerms: deal.dealTerms, payload: { via: "telegram" } });
     if (!r.ok) return pick(PROSPECT_CALLBACK_VARIANTS.refused({ reason: r.reason }), "prospect.cb.refused", chatId);

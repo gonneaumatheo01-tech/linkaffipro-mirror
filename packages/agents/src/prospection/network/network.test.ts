@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetVoiceRotation, voiceCheck } from "../../boss/voice";
 import { buildDailyTop, sortForTopByValue } from "../pipeline/daily-top";
 import { transitionProspect } from "../pipeline/status";
+import { answerPendingDeal } from "../pipeline/callbacks";
 import { createProspectKit } from "../score/prospect-test-kit";
 import { readWatchFixture } from "../watch/testing";
 import { buildClusters, linkedPairs, pairEvidence, siteKey, type ClusterProspect } from "./cluster";
@@ -118,6 +119,14 @@ describe("réseaux en base", () => {
     await rebuildNetworks(k2.deps);
     await transitionProspect(k2.deps, ids2[0]!, "DISQUALIFIED", { by: "system" });
     expect((await k2.row(ids2[1]!)).status).toBe("QUALIFIED");
+    // Montant donné après « @x a signé » (tout le réseau déjà signé) : les conditions vont aussi aux autres canaux.
+    const k3 = createProspectKit();
+    const ids3 = await seedNetwork(k3);
+    await rebuildNetworks(k3.deps);
+    await transitionProspect(k3.deps, ids3[0]!, "SIGNED", { by: "client" });
+    await k3.prisma.setting.create({ data: { key: "prospection.pending_deal.42", value: { prospectId: ids3[0], dealType: "CPA", at: k3.now().toISOString() } } as never });
+    expect(await answerPendingDeal(k3.deps, "42", "100")).toMatch(/CPA 100/);
+    for (const id of ids3) expect(await k3.row(id)).toMatchObject({ status: "SIGNED", dealType: "CPA", dealTerms: { cpa: 100, currency: "EUR" } });
     // Propagation directe (Kevin, site).
     const out = await propagateNetworkStatus(k2.deps, (await networkOf(k2.deps, ids2[1]!))!.network.id, "SKIPPED", { by: "client" });
     expect(out.updated.length).toBe(3);
