@@ -489,6 +489,28 @@ export const LOT_D_OPS: SiteOpMeta[] = [
     params: obj({ bookmaker: s("Bookmaker"), url: s("Nouvelle adresse") }, ["bookmaker", "url"]),
     serverActions: [WEB("agents/bookmakers/actions.ts", "setSiteUrlAction")],
   },
+  {
+    key: "agents.bookmaker_cible",
+    domain: "agents",
+    description: "Changer d'où un bookmaker est lu : serveur (par défaut avec proxy), Mac ou automatique",
+    examples: ["lis Celsius depuis le serveur", "mets Sportaza en lecture Mac", "remets Bet Portal en auto"],
+    kind: "setting",
+    role: "ADMIN",
+    confirm: "none",
+    params: obj({ bookmaker: s("Bookmaker"), target: oneOf("Cible de lecture", ["auto", "server", "mac"]) }, ["bookmaker", "target"]),
+    serverActions: [WEB("agents/bookmakers/actions.ts", "setSiteTargetAction")],
+  },
+  {
+    key: "agents.bookmaker_activer",
+    domain: "agents",
+    description: "Activer ou mettre en pause la lecture d'un bookmaker",
+    examples: ["active Sportaza", "mets Bet Portal en pause", "réactive la lecture de Celsius"],
+    kind: "setting",
+    role: "ADMIN",
+    confirm: "none",
+    params: obj({ bookmaker: s("Bookmaker"), activer: b("true pour activer, false pour mettre en pause") }, ["bookmaker", "activer"]),
+    serverActions: [WEB("agents/bookmakers/actions.ts", "toggleSiteActiveAction")],
+  },
   // ----------------------------------------------------------------------------------------------- Agent Ads
   {
     key: "agents.ads_recommandation",

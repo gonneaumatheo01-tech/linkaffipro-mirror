@@ -14,7 +14,7 @@ type Site = { key: string; label: string; baseUrl: string | null };
 
 const db = () =>
   prisma as unknown as {
-    bookmakerSite: { findUnique(a: unknown): Promise<Site | null> };
+    bookmakerSite: { findUnique(a: unknown): Promise<Site | null>; update(a: unknown): Promise<unknown> };
     setting: { findMany(a: unknown): Promise<Array<{ key: string }>> };
   };
 
@@ -116,6 +116,29 @@ export const runSetSiteUrl: Run = async (fd, actor, opts = {}) => {
   }
 };
 
+export const runSetSiteTarget: Run = async (fd, actor, opts = {}) => {
+  const g = await guard(fd, actor, "Changer la cible de lecture d'un bookmaker");
+  if (!g.ok) return g.result;
+  const { site } = g;
+  const target = str(fd.get("target")).trim();
+  if (!["auto", "server", "mac"].includes(target)) return fail("Cible invalide : « auto », « server » ou « mac ».", "invalid", "target");
+  if (opts.dryRun) return preview(`${site.label} lira depuis : ${target === "server" ? "le serveur" : target === "mac" ? "le Mac" : "le serveur puis le Mac"}.`);
+  await db().bookmakerSite.update({ where: { key: site.key }, data: { readTarget: target } });
+  return ok(`${site.label} lit maintenant depuis ${target === "server" ? "le serveur" : target === "mac" ? "le Mac" : "le serveur (Mac en secours)"}.`);
+};
+
+export const runToggleSiteActive: Run = async (fd, actor, opts = {}) => {
+  const g = await guard(fd, actor, "Activer ou mettre en pause un bookmaker");
+  if (!g.ok) return g.result;
+  const { site } = g;
+  const active = str(fd.get("active")).trim();
+  if (!["true", "false"].includes(active)) return fail("Valeur invalide : « true » ou « false ».", "invalid", "active");
+  const isActive = active === "true";
+  if (opts.dryRun) return preview(`${site.label} sera ${isActive ? "activé" : "mis en pause"}.`);
+  await db().bookmakerSite.update({ where: { key: site.key }, data: { isActive } });
+  return ok(`${site.label} est ${isActive ? "activé : la lecture reprend" : "en pause : la lecture s'arrête"}.`);
+};
+
 // ------------------------------------------------------------------------------------------- entrées de Kevin
 
 type In = Record<string, unknown>;
@@ -126,4 +149,20 @@ export async function kevinSiteForm(input: In): Promise<{ ok: true; fd: FormData
   const r = await resolveBookmakerSite(input.bookmaker ?? input.siteKey);
   if (!r.ok) return r;
   return { ok: true, fd: formOf({ siteKey: r.id, url: input.url ?? input.adresse }) };
+}
+
+/** Bookmaker + cible de lecture (« server », « mac », « auto »). */
+export async function kevinSiteTargetForm(input: In): Promise<{ ok: true; fd: FormData } | { ok: false; result: Fail }> {
+  const { resolveBookmakerSite } = await import("./resolve");
+  const r = await resolveBookmakerSite(input.bookmaker ?? input.siteKey);
+  if (!r.ok) return r;
+  return { ok: true, fd: formOf({ siteKey: r.id, target: input.target ?? input.cible }) };
+}
+
+/** Bookmaker + activation (true / false). */
+export async function kevinSiteActiveForm(input: In): Promise<{ ok: true; fd: FormData } | { ok: false; result: Fail }> {
+  const { resolveBookmakerSite } = await import("./resolve");
+  const r = await resolveBookmakerSite(input.bookmaker ?? input.siteKey);
+  if (!r.ok) return r;
+  return { ok: true, fd: formOf({ siteKey: r.id, active: String(input.activer ?? input.active ?? true) }) };
 }

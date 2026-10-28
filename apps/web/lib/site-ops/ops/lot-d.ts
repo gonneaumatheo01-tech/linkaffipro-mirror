@@ -180,6 +180,14 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
     const m = await bookmakers();
     return { prepare: m.kevinSiteForm, core: m.runSetSiteUrl };
   }),
+  op("agents.bookmaker_cible", async () => {
+    const m = await bookmakers();
+    return { prepare: m.kevinSiteTargetForm, core: m.runSetSiteTarget };
+  }),
+  op("agents.bookmaker_activer", async () => {
+    const m = await bookmakers();
+    return { prepare: m.kevinSiteActiveForm, core: m.runToggleSiteActive };
+  }),
   // ----------------------------------------------------------------------------------------------- Agent Ads
   op("agents.ads_recommandation", async () => {
     const m = await ads();
