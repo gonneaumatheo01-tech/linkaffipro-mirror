@@ -136,6 +136,7 @@ vi.mock("@/lib/agents/sports-queries", async () => {
     consensusOdds: 1.9,
     interestScore: 0.08,
     oddsAtSend: null,
+    oddsLevel: null,
     reasoning: { valueEdge: 0.09 },
     status,
     skipReason: null,

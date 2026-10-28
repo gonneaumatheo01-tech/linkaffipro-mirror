@@ -3,6 +3,8 @@
  * testé seul, partagé par Telegram et le site.
  */
 
+import { HUMAN_ODDS_DONE, HUMAN_ODDS_UNAVAILABLE, isHumanOddsKey, isUnavailableText } from "../sports/human-odds-text";
+
 export type HumanRequestKindName = "SECRET" | "TEXT" | "CHOICE" | "MEDIA" | "CONFIRM";
 
 export type AnswerTarget = {
@@ -254,6 +256,13 @@ export function interpretAnswer(target: AnswerTarget, raw: string): InterpretedA
       return { type: "answer", value: text, summary: "enregistrée" };
     }
     case "MEDIA": {
+      // Paris par capture (28 octobre 2026) : la demande se ferme seulement par le code (capture ET cote reçues, voir
+      // `sports/human-odds.ts`) ou par « pas dispo » ; une cote seule ou un autre texte n'y suffit pas.
+      if (isHumanOddsKey(target.key)) {
+        if (normalizeText(text) === normalizeText(HUMAN_ODDS_DONE)) return { type: "answer", value: HUMAN_ODDS_DONE, summary: HUMAN_ODDS_DONE };
+        if (isUnavailableText(text)) return { type: "answer", value: HUMAN_ODDS_UNAVAILABLE, summary: HUMAN_ODDS_UNAVAILABLE };
+        return { type: "invalid", message: "Envoie la capture du pari avec la cote en légende (ex. 1,85), ou réponds « pas dispo »." };
+      }
       const need = target.expected?.count ?? 1;
       const got = target.expected?.received ?? 0;
       const tags = (target.expected?.tags ?? []).map((t) => `#${t.replace(/^#/, "")}`).join(" ");

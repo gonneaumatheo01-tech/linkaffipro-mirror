@@ -27,6 +27,7 @@ export const OVERVIEW_PROVIDERS = [
   { key: "fal", label: "Vidéos et photos (fal.ai)", agents: ["media-ia"], setting: secretSettingKey("providers.fal.apiKey") },
   { key: "magichour", label: "Vidéos de secours (Magic Hour)", agents: ["media-ia"], setting: secretSettingKey("providers.magichour.apiKey") },
   { key: "odds", label: "Cotes (SportsGameOdds)", agents: ["cotes"], setting: secretSettingKey("providers.odds.apiKey") },
+  { key: "apifootball", label: "Statistiques des matchs", agents: ["cotes"], setting: secretSettingKey("providers.apifootball.apiKey") },
   { key: "screenshot", label: "Captures chez le bookmaker", agents: ["capture"], setting: secretSettingKey("providers.bookmakers.sportaza.password") },
 ] as const;
 

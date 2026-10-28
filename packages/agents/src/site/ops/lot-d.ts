@@ -492,12 +492,12 @@ export const LOT_D_OPS: SiteOpMeta[] = [
   {
     key: "agents.bookmaker_cible",
     domain: "agents",
-    description: "Changer d'où un bookmaker est lu : serveur (par défaut avec proxy), Mac ou automatique",
-    examples: ["lis Celsius depuis le serveur", "mets Sportaza en lecture Mac", "remets Bet Portal en auto"],
+    description: "Changer d'où un bookmaker est lu : serveur (par défaut avec proxy), Mac, automatique, ou « l'équipe envoie la capture et la cote » (human)",
+    examples: ["lis Celsius depuis le serveur", "mets Sportaza en lecture Mac", "remets Bet Portal en auto", "pour Celsius, c'est nous qui envoyons la capture et la cote"],
     kind: "setting",
     role: "ADMIN",
     confirm: "none",
-    params: obj({ bookmaker: s("Bookmaker"), target: oneOf("Cible de lecture", ["auto", "server", "mac"]) }, ["bookmaker", "target"]),
+    params: obj({ bookmaker: s("Bookmaker"), target: oneOf("Cible de lecture", ["auto", "server", "mac", "human"]) }, ["bookmaker", "target"]),
     serverActions: [WEB("agents/bookmakers/actions.ts", "setSiteTargetAction")],
   },
   {

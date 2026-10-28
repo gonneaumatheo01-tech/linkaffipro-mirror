@@ -5,7 +5,7 @@
 import type { AgentsDeps } from "../types";
 import type { ActorRef } from "../admin/team";
 import { agentAudit, agentEvent, nowOf, readSetting } from "../admin/journal";
-import { askHuman, confirmButtonsOf, formatQuestion, sendNextHumanRequest, withAskedMessageId } from "./requests";
+import { askHuman, confirmButtonsOf, formatQuestion, onAnswerOf, sendNextHumanRequest, withAskedMessageId } from "./requests";
 import { sendRequestFollowUp } from "./delivery";
 import { respondToRequest, resumeWaitingMissions, skipRequest, type HumanRequestRow } from "./respond";
 import { ADMIN_ONLY_REQUEST_MESSAGE, adminOnlyRequest } from "./access";
@@ -99,6 +99,14 @@ export async function relaunchHumanRequest(deps: AgentsDeps, requestId: string, 
   return { ok: true, message: "Demande relancée : elle partira sur Telegram à son tour." };
 }
 
+/** Échéance d'une demande (`onAnswer.deadline`, ISO), sinon null. Pur. */
+export function deadlineOf(onAnswer: unknown): Date | null {
+  const d = onAnswerOf(onAnswer).deadline;
+  if (typeof d !== "string") return null;
+  const at = new Date(d);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
 /** Balayage (file `agents-orchestrator`, tâche `human-requests`) : envoi de la suivante, rappel 24 h, expiration 7 jours. */
 export async function sweepHumanRequests(deps: AgentsDeps): Promise<{ sent: number; reminded: number; expired: number }> {
   const now = nowOf(deps);
@@ -115,6 +123,24 @@ export async function sweepHumanRequests(deps: AgentsDeps): Promise<{ sent: numb
     if (done.count === 0) continue;
     expired++;
     await agentEvent(deps, "agents.request.expired", { requestId: request.id, key: request.key });
+    await resumeWaitingMissions(deps, request, { answered: false, summary: null });
+  }
+
+  // 28 octobre 2026 : demande à échéance (`onAnswer.deadline`, ex. capture et cote d'un pari avant le match) : passée
+  // l'heure, elle expire (même en file) et la mission reprend sans réponse.
+  const open = (await deps.prisma.humanRequest.findMany({
+    where: { status: { in: ["QUEUED", "PENDING"] } },
+  })) as HumanRequestRow[];
+  for (const request of open) {
+    const deadline = deadlineOf(request.onAnswer);
+    if (!deadline || deadline.getTime() > now.getTime()) continue;
+    const done = await deps.prisma.humanRequest.updateMany({
+      where: { id: request.id, status: { in: ["QUEUED", "PENDING"] } },
+      data: { status: "EXPIRED", answeredAt: now },
+    });
+    if (done.count === 0) continue;
+    expired++;
+    await agentEvent(deps, "agents.request.expired", { requestId: request.id, key: request.key, via: "deadline" });
     await resumeWaitingMissions(deps, request, { answered: false, summary: null });
   }
 

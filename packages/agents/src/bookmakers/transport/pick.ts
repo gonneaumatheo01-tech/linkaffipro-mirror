@@ -100,6 +100,8 @@ export async function pickTransport(deps: Deps, site: SiteRef | string, opts: Pi
 
   async function call<T>(f: (t: BookmakerTransport) => Promise<T>): Promise<T | { obstacle: string }> {
     if (!readAllowedAt(nowOf(deps), opts.force)) return { obstacle: "night" };
+    // 28 octobre 2026 : l'équipe envoie elle-même la capture et la cote de ce site (`readTarget = human`) : jamais lu.
+    if (readTarget === "human") return { obstacle: "human" };
     const state = await readTargetState(deps, ref.key);
     const plan = firstTarget(readTarget, state, nowOf(deps));
     if (plan.first === "mac") {

@@ -121,7 +121,12 @@ export const runSetSiteTarget: Run = async (fd, actor, opts = {}) => {
   if (!g.ok) return g.result;
   const { site } = g;
   const target = str(fd.get("target")).trim();
-  if (!["auto", "server", "mac"].includes(target)) return fail("Cible invalide : « auto », « server » ou « mac ».", "invalid", "target");
+  if (!["auto", "server", "mac", "human"].includes(target)) return fail("Cible invalide : « auto », « server », « mac » ou « human ».", "invalid", "target");
+  if (target === "human") {
+    if (opts.dryRun) return preview(`${site.label} : l'équipe enverra la capture et la cote de chaque pari, le site ne sera plus lu.`);
+    await db().bookmakerSite.update({ where: { key: site.key }, data: { readTarget: target } });
+    return ok(`${site.label} n'est plus lu : pour chaque pari, je demanderai la capture et la cote à l'équipe.`);
+  }
   if (opts.dryRun) return preview(`${site.label} lira depuis : ${target === "server" ? "le serveur" : target === "mac" ? "le Mac" : "le serveur puis le Mac"}.`);
   await db().bookmakerSite.update({ where: { key: site.key }, data: { readTarget: target } });
   return ok(`${site.label} lit maintenant depuis ${target === "server" ? "le serveur" : target === "mac" ? "le Mac" : "le serveur (Mac en secours)"}.`);

@@ -437,7 +437,8 @@ export async function syncBookmakerAlerts(
     [BOOKMAKER_DEGRADED_ALERT, "DEGRADED"],
   ] as const) {
     const on = (switches as Record<string, boolean>)[kind] !== false;
-    const wanted = on ? sites.filter((s) => s.isActive && s.status === status) : [];
+    // Site en « capture et cote envoyées par l'équipe » : jamais lu, donc jamais d'alerte de lecture (les ouvertes se ferment).
+    const wanted = on ? sites.filter((s) => s.isActive && s.readTarget !== "human" && s.status === status) : [];
     const open = (await deps.prisma.alert.findMany({
       where: { kind, resolvedAt: null },
     })) as AlertRow[];
@@ -602,6 +603,11 @@ export async function bookmakersHealth(
   for (const site of sites) {
     if (!site.baseUrl) {
       results.push({ siteKey: site.key, skipped: "sans adresse" });
+      continue;
+    }
+    // 28 octobre 2026 : site dont l'équipe envoie elle-même la capture et la cote (`readTarget = human`) : jamais lu.
+    if (site.readTarget === "human") {
+      results.push({ siteKey: site.key, skipped: "capture et cote envoyées par l'équipe" });
       continue;
     }
     if (!CHECKED_STATUSES.includes(site.status)) {

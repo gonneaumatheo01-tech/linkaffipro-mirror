@@ -18,7 +18,9 @@
 import { prospectionFastPath } from "../prospection/kevin-buttons";
 import { handleAdminText, type AdminTextResult } from "../admin/handle";
 import { isSecretAdminText, parseAdminCommand } from "../admin/commands";
-import { currentHumanRequest, sendNextHumanRequest } from "../human/requests";
+import { askedMessageIdsOf, currentHumanRequest, sendNextHumanRequest } from "../human/requests";
+import { receiveHumanOddsInput } from "../sports/human-odds";
+import { isHumanOddsKey, isUnavailableText } from "../sports/human-odds-text";
 import { respondToRequest, type HumanRequestRow } from "../human/respond";
 import { encrypt } from "@linkaffipro/core";
 import { isAckText, isSkipText, looksLikeSecretValue, normalizeText, parseYesNo } from "../human/answer";
@@ -274,6 +276,31 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
   const current = (await currentHumanRequest(deps)) as (HumanRequestRow & { askedAt: Date | null; telegramMessageId?: number | null }) | null;
   const pending = await readBossPending(deps);
   const word = confirmWordOf(voice ? (input.spokenText ?? text) : text);
+
+  // 28 octobre 2026 : question « capture et cote » d'un pari posée en ce moment : une cote écrite (« 1,85 », « cote 2 »),
+  // « pas dispo » ou « plus tard » y répond (la photo arrive par le bot, `receiveHumanOddsInput`). Un nombre entier seul
+  // ne vaut cote qu'en réponse au message de la question (il peut viser une liste de Kevin).
+  const humanOddsConv = input.chat?.type === "group" ? input.chat.chatId : null;
+  if (current && isHumanOddsKey(current.key) && ((current as { chatId?: bigint | null }).chatId ?? null) === humanOddsConv) {
+    const replyToQuestion = replyTo !== null && askedMessageIdsOf(current).includes(replyTo);
+    const explicit = replyToQuestion || /[.,]\d|cote|@/i.test(text) || isUnavailableText(text) || isSkipText(text);
+    if (explicit) {
+      const actor = await bossActorOf(deps, input.speaker);
+      const res = await receiveHumanOddsInput(deps, { text, actor: { userId: actor.userId, via: "TELEGRAM" } });
+      if (res.handled) {
+        const r: BossReply = {
+          reply: esc(res.reply ?? ""),
+          followUp: res.closed
+            ? async () => {
+                await sendNextHumanRequest(deps);
+              }
+            : undefined,
+        };
+        await remember(deps, input, r, { actionKey: "repondre_demande", status: res.closed ? "done" : "clarify" });
+        return { handled: true, ...r };
+      }
+    }
+  }
 
   // 3 avant. Phase 34 : suppression du site en attente : seul le mot exact SUPPRIMER exécute, un « oui » ne suffit pas.
   if (pending && !pending.expired) {

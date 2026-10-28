@@ -43,7 +43,7 @@ describe("page Bookmakers : libellés et calculs", () => {
         "record",
         "zzz",
       ].map(jobKindLabel),
-      ...["auto", "server", "mac"].map(targetLabel),
+      ...["auto", "server", "mac", "human"].map(targetLabel),
       ...["captcha", "two_factor", "geo_blocked", "mac_absent", "inconnu"].map(
         (c) => causeLabel(c) ?? "",
       ),

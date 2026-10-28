@@ -49,6 +49,8 @@ export function leagueLabel(leagueId: string): string {
 
 const BOOKMAKER_LABELS: Record<string, string> = {
   sportaza: "Sportaza",
+  celsius: "Celsius",
+  betportal: "Bet Portal",
   "5gringos": "5Gringos",
   bet365: "bet365",
   unibet: "Unibet",

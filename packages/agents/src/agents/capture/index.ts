@@ -24,6 +24,8 @@ import { loadActiveRecipe } from "../../bookmakers/read/recipe";
 import { storedEvent } from "../../bookmakers/read/core";
 import { reselectPick } from "../../sports/direct-odds";
 import type { PickRow as FullPickRow } from "../../sports/data";
+import { humanOddsCaptureStep } from "../../sports/human-odds";
+import { isHumanOddsPick } from "../../sports/human-odds-text";
 
 /** Relecture d'une capture demandée au worker ou au Mac. */
 export const CAPTURE_POLL_MS = 30_000;
@@ -45,7 +47,7 @@ export type CapturePayload = {
   blocked?: boolean;
   /** Image de repli : toujours validée par le client. */
   mustValidate?: boolean;
-  via?: "direct" | "server" | "mac";
+  via?: "direct" | "server" | "mac" | "human";
 };
 
 type PickRow = {
@@ -219,6 +221,12 @@ export const agent: AgentDefinition = {
     if (pick.status !== "PROPOSED") return { ok: true, skipped: true, summary: `pari déjà ${pick.status.toLowerCase()}` };
     if (pick.screenshotAssetId)
       return { ok: true, output: { mediaAssetId: pick.screenshotAssetId }, summary: "capture déjà faite" };
+    // 28 octobre 2026 : pari choisi sur statistiques, site illisible → l'équipe envoie la capture et la cote (Kevin).
+    if (isHumanOddsPick(pick as { oddsLevel?: string | null })) {
+      const r = (pick.reasoning ?? {}) as { targetLabel?: unknown };
+      const site = typeof r.targetLabel === "string" && r.targetLabel ? r.targetLabel : pick.bookmaker;
+      return humanOddsCaptureStep(mission, ctx, pick as unknown as FullPickRow, site);
+    }
 
     const settings = parseCaptureSettings(ctx.settings.settings);
     const now = ctx.now();

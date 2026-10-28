@@ -5,6 +5,7 @@
  */
 import { escapeHtml } from "@linkaffipro/core";
 import type { PickReasoning } from "../agents/cotes/select";
+import type { StatsReasoning } from "./stats-select";
 import { bookmakerLabel, frNumber, frOdds, leagueLabel, parseMarketId, statLabel } from "./labels";
 
 export type BetPostInput = {
@@ -27,8 +28,34 @@ export function kickoffLabel(d: Date): string {
   return KICKOFF_FMT.format(d).replace(":", " h ").replace(/\s+/g, " ");
 }
 
+/**
+ * Phrases d'un pari choisi sur statistiques (28 octobre 2026, pur) : moyennes de tirs cadrés des derniers matchs, total
+ * attendu, ligne et fréquence observée. Aucun chiffre en dehors du raisonnement gardé.
+ */
+export function statsReasoningSentences(homeTeam: string, awayTeam: string, reasoning: unknown): string[] {
+  const r = (reasoning ?? {}) as Partial<StatsReasoning>;
+  const a = r.averages;
+  const e = r.expected;
+  if (!a || !e || typeof r.line !== "number") return [];
+  const n = (x: number) => frNumber(x, 1);
+  const hit = r.hitRate && r.hitRate.n > 0 ? ` (passée ${r.hitRate.hits} fois sur ${r.hitRate.n})` : "";
+  if (r.entity === "home" || r.entity === "away") {
+    const [team, opp, mine, theirs, expected] =
+      r.entity === "home" ? [homeTeam, awayTeam, a.home.for, a.away.against, e.home] : [awayTeam, homeTeam, a.away.for, a.home.against, e.away];
+    return [
+      `Sur ses derniers matchs, ${team} cadre ${n(mine)} tirs par match, et ${opp} en concède ${n(theirs)}.`,
+      `Attendu : ${n(expected)} tirs cadrés pour une ligne à ${frNumber(r.line)}${hit}.`,
+    ];
+  }
+  return [
+    `Sur leurs derniers matchs, ${homeTeam} cadre ${n(a.home.for)} tirs par match (${n(a.home.against)} concédés) et ${awayTeam} ${n(a.away.for)} (${n(a.away.against)} concédés).`,
+    `Total attendu : ${n(e.total)} tirs cadrés pour une ligne à ${frNumber(r.line)}${hit}.`,
+  ];
+}
+
 /** Phrases de raisonnement (pur, chiffres du raisonnement seulement). */
-export function reasoningSentences(i: Pick<BetPostInput, "bookmaker" | "odds" | "reasoning" | "marketId">): string[] {
+export function reasoningSentences(i: Pick<BetPostInput, "bookmaker" | "odds" | "reasoning" | "marketId"> & Partial<Pick<BetPostInput, "homeTeam" | "awayTeam">>): string[] {
+  if ((i.reasoning as { source?: unknown } | null)?.source === "stats") return statsReasoningSentences(i.homeTeam ?? "", i.awayTeam ?? "", i.reasoning);
   const r = i.reasoning ?? {};
   const out: string[] = [];
   const bk = bookmakerLabel(i.bookmaker);

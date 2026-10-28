@@ -152,6 +152,29 @@ export { parseSportsSettings, loadSportsSettings, DEFAULT_SPORTS_SETTINGS, DEFAU
 export { toCategory, loadCategory, activeCategories, type BetCategoryInfo, type PickRow } from "./sports/data";
 export { betPostText, reasoningSentences, kickoffLabel } from "./sports/format";
 export { createBetMission } from "./sports/missions";
+// 28 octobre 2026 : paris par capture (statistiques API-Football, capture et cote envoyées par l'équipe).
+export {
+  APIFOOTBALL_SECRET_KEY,
+  APIFOOTBALL_DAILY_MAX,
+  APIFOOTBALL_LEAGUES,
+  ApiFootballError,
+  apiFootballCallsToday,
+  createApiFootballClient,
+  settingStore as apiFootballSettingStore,
+  verifyApiFootballKey,
+  type ApiFootballClient,
+} from "./providers/apifootball";
+export { humanOddsTarget, apiFootballClientFor, type HumanTarget } from "./sports/stats-source";
+export { bestStatsPick, rankStatsPicks, statsEntitiesOf, type StatsCandidate, type StatsMatch, type StatsReasoning } from "./sports/stats-select";
+export { currentHumanOddsRequest, receiveHumanOddsInput, humanOddsQuestion, type HumanOddsInput, type HumanOddsReceive } from "./sports/human-odds";
+export {
+  HUMAN_ODDS_KEY_PREFIX,
+  ODDS_LEVEL_HUMAN,
+  ODDS_LEVEL_HUMAN_PENDING,
+  isHumanOddsKey,
+  isHumanOddsPick,
+  parseHumanOddsText,
+} from "./sports/human-odds-text";
 export { runSportsPassage, type SportsPassageResult } from "./sports/passage";
 export { duePassage, parsePassageState, SPORTS_PASSAGES_SETTING } from "./sports/passage-state";
 export { runSportsSettle, type SettleRunResult } from "./sports/settle";

@@ -27,6 +27,7 @@ import { skipPick } from "./skip";
 import type { PickReasoning } from "../agents/cotes/select";
 import { isDirectPick, verifyDirectOdds } from "./direct-odds";
 import { BOOKMAKER_LIMITS } from "../bookmakers/contract";
+import { isHumanOddsPick, ODDS_LEVEL_HUMAN } from "./human-odds-text";
 
 type Loaded = { pick: PickRow; category: BetCategoryInfo; s: SportsSettings };
 
@@ -129,7 +130,12 @@ export async function sportsControl(mission: Mission, ctx: AgentContext): Promis
   if (!ko.ok) return skipPick(ctx, mission, pick, ko.reason);
   if (isDuplicatePick(pick, await recentPickKeys(ctx.prisma, now, pick.id), now)) return skipPick(ctx, mission, pick, "pari identique publié dans les 48 h");
   let drift: { current: number; driftPct: number };
-  if (isDirectPick(pick) && !isFakePick(mission, pick)) {
+  if (isHumanOddsPick(pick)) {
+    // 28 octobre 2026 : cote donnée par l'équipe avec sa capture (site illisible) : jamais relue, jamais estimée.
+    const odds = pick.oddsLevel === ODDS_LEVEL_HUMAN ? (pick.oddsAtSend ?? pick.odds) : null;
+    if (odds === null) return skipPick(ctx, mission, pick, "cote de l'équipe absente : le pari ne part pas sans elle");
+    drift = { current: odds, driftPct: 0 };
+  } else if (isDirectPick(pick) && !isFakePick(mission, pick)) {
     // Phase 35 : cote lue sur le site du client → double lecture (deux chemins, identiques, à moins de 3 min).
     const v = await verifyDirectOdds(mission, ctx, pick, category, "controle");
     if (!("ok" in v)) return v.result;
@@ -191,7 +197,11 @@ export async function sportsPublication(mission: Mission, ctx: AgentContext): Pr
   if (!ko.ok) return skipPick(ctx, mission, pick, `au moment de publier : ${ko.reason}`);
   let oddsAtSend = typeof p.oddsAtControl === "number" ? p.oddsAtControl : pick.oddsAtSend;
   const checkedAt = typeof p.controlCheckedAt === "string" ? new Date(p.controlCheckedAt).getTime() : 0;
-  if (isDirectPick(pick) && !isFakePick(mission, pick)) {
+  if (isHumanOddsPick(pick)) {
+    // Cote de l'équipe (capture jointe) : publiée telle quelle, jamais remplacée par une estimation.
+    if (pick.oddsLevel !== ODDS_LEVEL_HUMAN) return skipPick(ctx, mission, pick, "au moment de publier : cote de l'équipe absente");
+    oddsAtSend = pick.oddsAtSend ?? pick.odds;
+  } else if (isDirectPick(pick) && !isFakePick(mission, pick)) {
     // Phase 35 : la double lecture du Contrôle doit avoir moins de 3 minutes au moment de publier, sinon elle est
     // refaite (jamais une cote publiée sur une seule lecture ni sur une lecture trop ancienne).
     if (!oddsAtSend || now.getTime() - checkedAt > BOOKMAKER_LIMITS.doubleReadWindowMs) {

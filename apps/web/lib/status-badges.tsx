@@ -428,6 +428,16 @@ export const STATUS_DICT = {
     LOST: bad("Perdu"),
     VOID: muted("Annulé"),
   } satisfies Record<BettingPickStatus, StatusEntry>,
+  // 28 octobre 2026 : état affiché d'un pari ; « attend la capture » = l'équipe doit envoyer la capture et la cote.
+  bettingPickState: {
+    PROPOSED: warn("Proposé"),
+    AWAITING_CAPTURE: warn("Attend la capture et la cote"),
+    PUBLISHED: main("Publié"),
+    SKIPPED: muted("Écarté"),
+    WON: ok("Gagné"),
+    LOST: bad("Perdu"),
+    VOID: muted("Annulé"),
+  } satisfies Record<BettingPickStatus | "AWAITING_CAPTURE", StatusEntry>,
   // Canal d'inspiration (phase 27) : état de la lecture et voie par laquelle Kevin lit le canal.
   referenceStatus: {
     READING: main("En lecture"),

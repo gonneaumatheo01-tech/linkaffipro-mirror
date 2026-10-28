@@ -1019,6 +1019,14 @@ Ouvrez **Agents**, puis **Ouvrir l'équipe** sur la carte Paris sportifs. La fic
 
 **Si la capture échoue** (le test de connexion dit « bloqué », par exemple à cause d'une vérification « je ne suis pas un robot » ou d'un blocage par pays), deux solutions, dans cet ordre : (1) une **adresse internet de secours** résidentielle, achetée chez un service d'adresses résidentielles, à envoyer au bot (ou à coller dans **Bookmakers → Adresse internet de secours des captures**), puis refaites **Tester la connexion** ; (2) la **capture depuis votre Mac** : l'équipe vous donne la marche à suivre exacte, une seule commande à lancer, qui fait les captures depuis votre connexion. En attendant, l'équipe fabrique une image de repli (match, marché, cote, bookmaker, mention « capture indisponible ») et vous la fait toujours valider.
 
+**Paris par capture (quand le site du bookmaker ne se lit pas)** : Celsius, Sportaza et Bet Portal demandent souvent au serveur de prouver qu'il n'est pas un robot. Le système ne contourne jamais ces contrôles. À la place :
+
+1. L'équipe choisit le pari sur les **statistiques des matchs** (service gratuit API-Football) : les 5 derniers matchs de chaque équipe, leurs tirs cadrés pour et contre, puis une ligne « Plus de X,5 tirs cadrés » dont la cote estimée tombe dans la fourchette de la catégorie. Kevin vous demande une seule fois la clé gratuite (compte sur dashboard.api-football.com) ; elle se colle aussi dans **Agents → Réglages → Statistiques des matchs (API-Football)**. L'offre gratuite donne 100 demandes par jour : l'équipe s'arrête à 90 et étudie 4 matchs par passage. Si l'offre gratuite refuse les matchs de la saison, Kevin vous le dit une fois par jour.
+2. **Kevin vous demande la capture et la cote** sur Telegram : le match, l'heure, le pari et le site. Ouvrez le site, trouvez le pari, faites une capture d'écran et envoyez-la à Kevin **avec la cote en légende** (par exemple `1,85`). Vous pouvez aussi envoyer la capture puis la cote dans un second message. Le pari n'existe pas sur le site : répondez **pas dispo**. Pour passer : **plus tard**.
+3. Le post part avec **votre capture et votre cote**, jamais une cote estimée. Une cote hors de la fourchette de la catégorie vous est redemandée une fois, puis le pari est écarté. Sans réponse avant l'heure indiquée (coup d'envoi moins le délai minimal et une douzaine de minutes), le pari est écarté.
+
+Dans **Paris du jour**, un tel pari affiche **Attend la capture et la cote**, avec la cote estimée et les chiffres des statistiques. Pour qu'un site passe toujours par vous, dites à Kevin « pour Celsius, c'est nous qui envoyons la capture et la cote » : la page **Bookmakers** affiche alors **Lu par : L'équipe envoie la capture et la cote**, et le site n'est plus lu ni contrôlé. Les paris par capture sont réglés après le match avec les tirs cadrés d'API-Football.
+
 ### Bookmakers
 
 Le système va lui-même sur le site de vos bookmakers (**Celsius**, **Sportaza** et **Bet Portal** au départ), avec votre compte, et lit les matchs du jour et des jours suivants, les marchés (résultat, buts, corners, cartons…) et les cotes. L'équipe Paris sportifs choisit ensuite ses paris **sur ces cotes-là**, les cotes exactes de votre bookmaker. Ouvrez **Agents**, puis l'onglet **Bookmakers**.
@@ -1030,7 +1038,7 @@ Le système va lui-même sur le site de vos bookmakers (**Celsius**, **Sportaza*
 **La page, site par site** :
 
 - **État** : **Se lit bien**, **Se lit mal** (moins de 90 % de lectures réussies sur 24 h), **Ne se lit plus** (avec la raison et le geste à faire), **En apprentissage** ou **Pas encore appris**. Le contrôle tourne toutes les 30 minutes.
-- **Lu par** : le **serveur**, ou votre **Mac** quand le site refuse le serveur. **Dernier succès** et **Réussite sur 24 h**.
+- **Lu par** : le **serveur**, ou votre **Mac** quand le site refuse le serveur, ou **L'équipe envoie la capture et la cote** (paris par capture, voir l'équipe Paris sportifs : le site n'est plus lu). **Dernier succès** et **Réussite sur 24 h**.
 - **Méthode de lecture apprise** : le système apprend chaque site une fois (comment il charge ses cotes), puis lit par le chemin le plus stable : **lecture directe des données du site**, **lecture de la page** ou, en secours pour vérifier une seule cote, **lecture de l'image**. La version, la date et les marchés reconnus sont affichés. Quand un site change, il le réapprend tout seul (au plus une fois par jour).
 - **Dernières lectures** : chaque lecture (test, matchs, cotes, apprentissage, navigateur) avec son heure, où elle a été faite et son résultat.
 - **Matchs du jour** : les matchs lus dans les 20 dernières minutes, avec le nombre de marchés.

@@ -47,6 +47,10 @@ const SECRET_PROVIDERS: Record<string, string> = {
   cotes: "providers.odds.apiKey",
   cote: "providers.odds.apiKey",
   odds: "providers.odds.apiKey",
+  football: "providers.apifootball.apiKey",
+  apifootball: "providers.apifootball.apiKey",
+  "api-football": "providers.apifootball.apiKey",
+  stats: "providers.apifootball.apiKey",
   magichour: "providers.magichour.apiKey",
   "magic-hour": "providers.magichour.apiKey",
 };

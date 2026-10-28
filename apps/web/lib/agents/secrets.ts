@@ -24,6 +24,11 @@ export const SECRET_INFO: Record<string, SecretInfo> = {
     usage: "Cotes des matchs pour l'équipe Paris sportifs.",
     createUrl: "https://sportsgameodds.com",
   },
+  "providers.apifootball.apiKey": {
+    label: "Statistiques des matchs (offre gratuite)",
+    usage: "Matchs et tirs cadrés pour choisir les paris quand les sites des bookmakers ne se lisent pas : vous envoyez ensuite la capture et la cote. Offre gratuite (100 demandes par jour).",
+    createUrl: "https://dashboard.api-football.com",
+  },
 };
 
 /**

@@ -18,6 +18,7 @@ import { registerBossGroupHandlers } from "./boss-group";
 import { registerBossMontageHandlers } from "./boss-montage";
 import { registerBossProspectionHandlers } from "./boss-prospection";
 import { registerMediaInboxHandlers } from "./media-inbox";
+import { registerHumanOddsHandlers } from "./human-odds";
 import { redactAdminSecretUpdate, redactBossUpdate } from "../agents/redact";
 
 const UPDATE_TYPES = [
@@ -149,6 +150,8 @@ function registerStandardHandlers(
   // Mémoire courte partagée : un album d'un canal tiers n'est pas ajouté par ses autres photos.
   // Phase 19 : dialogue admin des agents (boutons de validation, réponses, commandes) puis dépôt dans la médiathèque,
   // avant les emojis animés et le transfert de canal (un média sans mot-clé de médiathèque continue vers eux).
+  // 28 octobre 2026 : capture d'un pari envoyée pendant la question « capture et cote » (avant la médiathèque).
+  registerHumanOddsHandlers(bot, identity, deps);
   registerAgentsAdminHandlers(bot, identity, deps);
   registerMediaInboxHandlers(bot, identity, deps);
 
@@ -199,6 +202,8 @@ function registerBossCore(bot: Bot, identity: BotIdentity, deps: TelegramDeps): 
     await deps.recordUpdate(identity, type, logged, {});
     await next();
   });
+  // 28 octobre 2026 : capture d'un pari (question « capture et cote »), en privé comme dans le groupe de l'équipe.
+  registerHumanOddsHandlers(bot, identity, deps);
   registerBossGroupHandlers(bot, identity, deps);
   // Phase 28 : vidéos de l'admin pour le montage et boutons des aperçus (avant le dialogue : une vidéo transférée sans
   // demande de montage y continue).

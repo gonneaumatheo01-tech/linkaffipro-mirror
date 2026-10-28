@@ -14,6 +14,8 @@ import { askHuman } from "../human/requests";
 import { registerAnswerAction } from "../human/respond";
 import { setCaptureMode } from "../providers/screenshot/settings";
 import { ODDS_SECRET_KEY } from "../providers/odds-registry";
+import { APIFOOTBALL_SECRET_KEY } from "../providers/apifootball";
+import { APIFOOTBALL_KEY_ASKED_SETTING } from "./stats-source";
 
 export const SPORTS_SETUP_SETTING = "agents.sportsSetupAsked";
 export const SPORTS_CATEGORIES_REQUEST_KEY = "sports.categories";
@@ -67,6 +69,25 @@ export async function ensureSportsSetupQuestions(deps: AgentsDeps): Promise<{ qu
   await writeSetting(deps, SPORTS_SETUP_SETTING, { askedAt: nowOf(deps).toISOString(), queued });
   await agentEvent(deps, "agents.sports.setup_queued", { queued });
   return { queued };
+}
+
+/**
+ * 28 octobre 2026 : clé API-Football (statistiques des matchs, offre gratuite) demandée une seule fois, quand un pari doit
+ * être choisi sans lire le site du bookmaker (`Setting` `agents.sports.apifootballKeyAsked`, marqué avant).
+ */
+export async function askApiFootballKeyOnce(deps: AgentsDeps): Promise<boolean> {
+  if ((await readSetting(deps, APIFOOTBALL_KEY_ASKED_SETTING)) !== undefined) return false;
+  await writeSetting(deps, APIFOOTBALL_KEY_ASKED_SETTING, { askedAt: nowOf(deps).toISOString() });
+  await askHuman(deps, {
+    teamKey: "sports",
+    kind: "SECRET",
+    key: APIFOOTBALL_SECRET_KEY,
+    question:
+      "Paris sportifs : les sites des bookmakers bloquent le serveur, alors je choisis les paris sur les statistiques des matchs, puis je te demande la capture et la cote. Crée un compte gratuit sur https://dashboard.api-football.com, copie ta clé API et colle-la ici. Je la vérifie et j'efface ton message.",
+    onAnswer: { resume: false },
+  });
+  await agentEvent(deps, "agents.sports.apifootball_key_asked", {});
+  return true;
 }
 
 /** Le site du bookmaker bloque le serveur : choix de la parade (appelé par le test de connexion du chantier B). */

@@ -15,6 +15,8 @@ export const SECRET_KEYS = [
   "providers.fal.apiKey",
   "providers.magichour.apiKey",
   "providers.odds.apiKey",
+  // 28 octobre 2026 : statistiques des matchs (paris par capture).
+  "providers.apifootball.apiKey",
   // Phase 23 : compte bookmaker (identifiant puis mot de passe) et adresse IP résidentielle des captures.
   "providers.bookmakers.sportaza.login",
   "providers.bookmakers.sportaza.password",
@@ -45,6 +47,7 @@ export function secretLabel(key: string): string {
   if (key === "providers.fal.apiKey") return "clé fal.ai";
   if (key === "providers.magichour.apiKey") return "clé Magic Hour";
   if (key === "providers.odds.apiKey") return "clé des cotes";
+  if (key === "providers.apifootball.apiKey") return "clé API-Football";
   // Phase 35 : identifiants communs à tous les bookmakers (e-mail puis mot de passe, rangés ensemble).
   if (key === "providers.bookmakers.default.login") return "e-mail des comptes bookmakers";
   if (key === "providers.bookmakers.default.password") return "mot de passe des comptes bookmakers";

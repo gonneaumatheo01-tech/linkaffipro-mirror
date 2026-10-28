@@ -21,6 +21,9 @@ import { settleBet } from "../rules/bet-settle";
 import type { AgentsDeps } from "../types";
 import type { PickRow } from "./data";
 import { parseSportsSettings } from "./settings";
+import { apiFootballClientFor, apiFootballFixtureId, apiFootballResult } from "./stats-source";
+import { closeHumanOddsRequest } from "./human-odds";
+import { humanOddsKey } from "./human-odds-text";
 
 export const MATCH_DURATION_MS = 105 * 60_000;
 export const RESULT_GIVE_UP_MS = 3 * 86_400_000;
@@ -49,6 +52,16 @@ export async function runSportsSettle(deps: OddsResolveDeps): Promise<SettleRunR
     // Phase 35 : pari lu sur un site du client → résultat par la correspondance avec SportsGameOdds (jamais deviné).
     const siteKey = source === "live" && typeof pick.siteKey === "string" && pick.siteKey ? pick.siteKey : null;
     const cacheKey = `${source}:${siteKey ?? ""}:${pick.eventId}`;
+    // 28 octobre 2026 : pari choisi sur statistiques → résultat (tirs cadrés) chez API-Football.
+    if (!results.has(cacheKey) && apiFootballFixtureId(pick.eventId) !== null) {
+      try {
+        const client = await apiFootballClientFor(deps);
+        results.set(cacheKey, client ? await apiFootballResult(client, pick.eventId) : null);
+      } catch (err) {
+        deps.logger?.warn({ err: (err as Error).message, eventId: pick.eventId }, "[agents] résultat API-Football non lu");
+        results.set(cacheKey, null);
+      }
+    }
     if (!results.has(cacheKey)) {
       const resolved = await resolveOddsProvider(deps, { source, maxCalls: s.maxApiCallsPerMonth, fakeShiftMs: (pick.reasoning as { fakeShiftMs?: number } | null)?.fakeShiftMs ?? null, siteKey });
       try {
@@ -96,7 +109,8 @@ export async function pickPostIds(deps: AgentsDeps, pick: Pick<PickRow, "postId"
 
 /** Validation trop tardive : le coup d'envoi est trop proche, le pari n'est plus publiable. */
 async function expireLateValidations(deps: AgentsDeps, now: Date): Promise<number> {
-  const waiting = await deps.prisma.agentMission.findMany({ where: { teamKey: "sports", status: { in: ["WAITING_VALIDATION", "PENDING", "RUNNING"] } }, select: { id: true, payload: true } });
+  // 28 octobre 2026 : une mission qui attend la capture et la cote de l'équipe (WAITING_HUMAN) suit la même règle.
+  const waiting = await deps.prisma.agentMission.findMany({ where: { teamKey: "sports", status: { in: ["WAITING_VALIDATION", "WAITING_HUMAN", "PENDING", "RUNNING"] } }, select: { id: true, payload: true } });
   let n = 0;
   for (const m of waiting) {
     const pickId = parsePayload(m.payload).pickId;
@@ -106,6 +120,9 @@ async function expireLateValidations(deps: AgentsDeps, now: Date): Promise<numbe
     const cat = await deps.prisma.betCategory.findUnique({ where: { id: pick.categoryId }, select: { minMinutesBeforeKickoff: true } });
     if (pick.kickoffAt.getTime() - now.getTime() >= (cat?.minMinutesBeforeKickoff ?? 30) * 60_000) continue;
     await deps.prisma.bettingPick.update({ where: { id: pick.id }, data: { status: "SKIPPED", skipReason: "coup d'envoi trop proche avant la fin de la validation" } });
+    // Question « capture et cote » encore ouverte pour ce pari : close, la suivante part.
+    const open = await deps.prisma.humanRequest.findFirst({ where: { key: humanOddsKey(pick.id), status: { in: ["QUEUED", "PENDING"] } }, select: { id: true } });
+    if (open) await closeHumanOddsRequest(deps, open.id, "EXPIRED");
     await cancelMission(deps, m.id, { reason: "pari écarté : coup d'envoi trop proche" });
     await agentEvent(deps, "agents.sports.pick_skipped", { missionId: m.id, pickId: pick.id, reason: "coup d'envoi trop proche avant la fin de la validation" });
     n++;

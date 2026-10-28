@@ -147,6 +147,11 @@ const SECRET_ALIASES: Record<string, string> = {
   odds: "providers.odds.apiKey",
   sportsgameodds: "providers.odds.apiKey",
   "cotes sportives": "providers.odds.apiKey",
+  football: "providers.apifootball.apiKey",
+  apifootball: "providers.apifootball.apiKey",
+  "api-football": "providers.apifootball.apiKey",
+  "api football": "providers.apifootball.apiKey",
+  statistiques: "providers.apifootball.apiKey",
 };
 
 export function secretKeyOf(raw: unknown): string | null {

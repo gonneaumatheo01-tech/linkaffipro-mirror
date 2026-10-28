@@ -20,6 +20,7 @@ export function safeSiteKey(v: unknown): string | null {
 export function targetLabel(readTarget: string): string {
   if (readTarget === "mac") return "Le Mac";
   if (readTarget === "server") return "Le serveur";
+  if (readTarget === "human") return "L'équipe envoie la capture et la cote";
   return "Le serveur (le Mac en secours)";
 }
 
@@ -65,6 +66,7 @@ const CAUSES: Record<string, string> = {
   abandoned: "lecture abandonnée",
   night: "lecture reportée après 7 h",
   not_available: "pas encore disponible",
+  human: "l'équipe envoie la capture et la cote : le site n'est pas lu",
   error: "erreur pendant la lecture",
 };
 

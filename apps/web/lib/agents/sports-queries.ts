@@ -76,6 +76,8 @@ export type BettingPickView = {
   consensusOdds: number | null;
   interestScore: number | null;
   oddsAtSend: number | null;
+  /** 28 octobre 2026 : « human-pending » = l'équipe doit envoyer la capture et la cote ; « human » = reçues. */
+  oddsLevel: string | null;
   reasoning: unknown;
   status: string;
   skipReason: string | null;
@@ -118,6 +120,7 @@ export async function loadPicksSince(since: Date): Promise<BettingPickView[]> {
       consensusOdds: r.consensusOdds,
       interestScore: r.interestScore,
       oddsAtSend: r.oddsAtSend,
+      oddsLevel: r.oddsLevel ?? null,
       reasoning: r.reasoning,
       status: r.status,
       skipReason: r.skipReason,

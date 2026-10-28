@@ -505,6 +505,12 @@ export function reasoningSentences(
     const v = r[k];
     if (Array.isArray(v)) for (const s of v) if (typeof s === "string" && s.trim()) out.push(s.trim());
   }
+  // 28 octobre 2026 : pari choisi sur les statistiques des matchs : ses phrases, puis la cote estimée (jamais publiée).
+  if (r.source === "stats") {
+    const est = first(r, "estimatedOdds");
+    if (est !== null) out.push(`Cote estimée d'après ces chiffres : ${fmtOdds(est)} ; la cote publiée est celle de votre capture.`);
+    return out;
+  }
   const summary = typeof r.summary === "string" ? r.summary.trim() : typeof r.text === "string" ? r.text.trim() : "";
   if (summary) out.push(summary);
 

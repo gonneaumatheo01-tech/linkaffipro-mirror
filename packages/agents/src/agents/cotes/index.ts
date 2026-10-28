@@ -20,6 +20,8 @@ import { parseSportsSettings, withTeamBounds } from "../../sports/settings";
 import { rankCandidates, type Candidate } from "./select";
 import { reasoningSentences } from "../../sports/format";
 import { BOOKMAKER_DIRECT, parseDirectEventId, type BookmakerDirectProvider } from "../../providers/bookmaker-direct";
+import { apiFootballClientFor, humanOddsTarget } from "../../sports/stats-source";
+import { runStatsSelection } from "./stats";
 
 /** Matchs examinés au plus par passage (un appel groupé couvre 25 matchs). */
 const MAX_EVENTS = 40;
@@ -45,6 +47,18 @@ export const agent: AgentDefinition = {
 
     // Pari de test : faux fournisseur ; un ordre sur le canal Test lit les vraies cotes si la clé existe (`oddsSource: live`).
     const source = mission.payload.oddsSource === "fake" || (mission.isTest && !(orderId && mission.payload.oddsSource === "live")) ? "fake" : "live";
+    // 28 octobre 2026 : bookmaker de la catégorie illisible (anti-robot) → pari choisi sur statistiques (API-Football),
+    // capture et cote envoyées par l'équipe. Sans clé API-Football : question posée une fois, puis chemin habituel.
+    if (source === "live") {
+      const target = await humanOddsTarget(ctx, category);
+      if (target) {
+        const client = await apiFootballClientFor(ctx);
+        if (client) return runStatsSelection(mission, ctx, { category, s, remaining, orderId, target, client });
+        // Import différé : `setup` enregistre ses réponses auprès de `human/respond` (cycle d'imports, voir steps.ts).
+        const { askApiFootballKeyOnce } = await import("../../sports/setup");
+        await askApiFootballKeyOnce(ctx);
+      }
+    }
     // Phase 35 : bookmaker du client appris (site READY) parmi ceux de la catégorie → ses propres cotes.
     const resolved = await resolveOddsProvider(ctx, { source, maxCalls: s.maxApiCallsPerMonth, bookmakers: category.bookmakers });
     if (!resolved) return noPick("aucune clé de cotes : rien à chercher");

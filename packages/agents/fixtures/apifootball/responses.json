@@ -1,0 +1,1764 @@
+{
+ "_note": "Réponses au format d'API-Football v3 (offre gratuite), rejouées par les tests : aucun réseau. Clé : chemin + requête.",
+ "responses": {
+  "/fixtures?date=2026-10-28&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "date": "2026-10-28",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 4,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 9001,
+      "date": "2026-10-28T21:00:00+01:00",
+      "status": {
+       "short": "NS",
+       "long": "NS"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 49,
+       "name": "Chelsea"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 9002,
+      "date": "2026-10-28T20:45:00+01:00",
+      "status": {
+       "short": "NS",
+       "long": "NS"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 116,
+       "name": "Lens"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 9003,
+      "date": "2026-10-28T21:00:00+01:00",
+      "status": {
+       "short": "NS",
+       "long": "NS"
+      }
+     },
+     "league": {
+      "id": 140,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 529,
+       "name": "Barcelona"
+      },
+      "away": {
+       "id": 541,
+       "name": "Real Madrid"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 9004,
+      "date": "2026-10-28T13:30:00+01:00",
+      "status": {
+       "short": "1H",
+       "long": "1H"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 33,
+       "name": "Team 33"
+      },
+      "away": {
+       "id": 34,
+       "name": "Team 34"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures?date=2026-10-29&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "date": "2026-10-29",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 0,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": []
+  },
+  "/fixtures?team=42&last=5&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "team": "42",
+    "last": "5",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 5,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 8001,
+      "date": "2026-10-25T16:00:00+01:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 900,
+       "name": "Team 900"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8002,
+      "date": "2026-10-21T20:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 901,
+       "name": "Team 901"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8003,
+      "date": "2026-10-18T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 902,
+       "name": "Team 902"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8004,
+      "date": "2026-10-04T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 903,
+       "name": "Team 903"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8005,
+      "date": "2026-09-28T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 904,
+       "name": "Team 904"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures?team=49&last=5&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "team": "49",
+    "last": "5",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 5,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 8006,
+      "date": "2026-10-25T16:00:00+01:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 49,
+       "name": "Chelsea"
+      },
+      "away": {
+       "id": 900,
+       "name": "Team 900"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8007,
+      "date": "2026-10-21T20:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 49,
+       "name": "Chelsea"
+      },
+      "away": {
+       "id": 901,
+       "name": "Team 901"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8008,
+      "date": "2026-10-18T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 49,
+       "name": "Chelsea"
+      },
+      "away": {
+       "id": 902,
+       "name": "Team 902"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8009,
+      "date": "2026-10-04T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 49,
+       "name": "Chelsea"
+      },
+      "away": {
+       "id": 903,
+       "name": "Team 903"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8010,
+      "date": "2026-09-28T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 49,
+       "name": "Chelsea"
+      },
+      "away": {
+       "id": 904,
+       "name": "Team 904"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures?team=80&last=5&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "team": "80",
+    "last": "5",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 5,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 8011,
+      "date": "2026-10-25T16:00:00+01:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 900,
+       "name": "Team 900"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8012,
+      "date": "2026-10-21T20:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 901,
+       "name": "Team 901"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8013,
+      "date": "2026-10-18T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 902,
+       "name": "Team 902"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8014,
+      "date": "2026-10-04T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 903,
+       "name": "Team 903"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8015,
+      "date": "2026-09-28T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 80,
+       "name": "Lyon"
+      },
+      "away": {
+       "id": 904,
+       "name": "Team 904"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures?team=116&last=5&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "team": "116",
+    "last": "5",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 5,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 8016,
+      "date": "2026-10-25T16:00:00+01:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 116,
+       "name": "Lens"
+      },
+      "away": {
+       "id": 900,
+       "name": "Team 900"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8017,
+      "date": "2026-10-21T20:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 116,
+       "name": "Lens"
+      },
+      "away": {
+       "id": 901,
+       "name": "Team 901"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8018,
+      "date": "2026-10-18T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 116,
+       "name": "Lens"
+      },
+      "away": {
+       "id": 902,
+       "name": "Team 902"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8019,
+      "date": "2026-10-04T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 116,
+       "name": "Lens"
+      },
+      "away": {
+       "id": 903,
+       "name": "Team 903"
+      }
+     }
+    },
+    {
+     "fixture": {
+      "id": 8020,
+      "date": "2026-09-28T16:00:00+02:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 61,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 116,
+       "name": "Lens"
+      },
+      "away": {
+       "id": 904,
+       "name": "Team 904"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8001": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8001"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 7
+      },
+      {
+       "type": "Total Shots",
+       "value": 21
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 900,
+      "name": "Team 900"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 2
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8002": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8002"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 18
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 901,
+      "name": "Team 901"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8003": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8003"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 8
+      },
+      {
+       "type": "Total Shots",
+       "value": 24
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 902,
+      "name": "Team 902"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8004": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8004"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 903,
+      "name": "Team 903"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8005": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8005"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 7
+      },
+      {
+       "type": "Total Shots",
+       "value": 21
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 904,
+      "name": "Team 904"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 2
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8006": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8006"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 900,
+      "name": "Team 900"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8007": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8007"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 12
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 901,
+      "name": "Team 901"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8008": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8008"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 18
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 902,
+      "name": "Team 902"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8009": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8009"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 18
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 903,
+      "name": "Team 903"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8010": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8010"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 904,
+      "name": "Team 904"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8011": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8011"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 80,
+      "name": "Lyon"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 12
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 900,
+      "name": "Team 900"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8012": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8012"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 80,
+      "name": "Lyon"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 901,
+      "name": "Team 901"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8013": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8013"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 80,
+      "name": "Lyon"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 902,
+      "name": "Team 902"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8014": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8014"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 80,
+      "name": "Lyon"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 18
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 903,
+      "name": "Team 903"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8015": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8015"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 80,
+      "name": "Lyon"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 12
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 904,
+      "name": "Team 904"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8016": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8016"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 116,
+      "name": "Lens"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 900,
+      "name": "Team 900"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8017": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8017"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 116,
+      "name": "Lens"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 2
+      },
+      {
+       "type": "Total Shots",
+       "value": 6
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 901,
+      "name": "Team 901"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8018": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8018"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 116,
+      "name": "Lens"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 12
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 902,
+      "name": "Team 902"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 4
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8019": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8019"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 116,
+      "name": "Lens"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 3
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 903,
+      "name": "Team 903"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=8020": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "8020"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 116,
+      "name": "Lens"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 5
+      },
+      {
+       "type": "Total Shots",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 904,
+      "name": "Team 904"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      },
+      {
+       "type": "Total Shots",
+       "value": 9
+      }
+     ]
+    }
+   ]
+  },
+  "/fixtures?id=9001&timezone=Europe%2FParis": {
+   "get": "fixtures",
+   "parameters": {
+    "id": "9001",
+    "timezone": "Europe/Paris"
+   },
+   "errors": [],
+   "results": 1,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "fixture": {
+      "id": 9001,
+      "date": "2026-10-28T21:00:00+01:00",
+      "status": {
+       "short": "FT",
+       "long": "FT"
+      }
+     },
+     "league": {
+      "id": 39,
+      "season": 2026,
+      "name": ""
+     },
+     "teams": {
+      "home": {
+       "id": 42,
+       "name": "Arsenal"
+      },
+      "away": {
+       "id": 49,
+       "name": "Chelsea"
+      }
+     }
+    }
+   ]
+  },
+  "/fixtures/statistics?fixture=9001": {
+   "get": "fixtures/statistics",
+   "parameters": {
+    "fixture": "9001"
+   },
+   "errors": [],
+   "results": 2,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": [
+    {
+     "team": {
+      "id": 42,
+      "name": "Arsenal"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": 6
+      }
+     ]
+    },
+    {
+     "team": {
+      "id": 49,
+      "name": "Chelsea"
+     },
+     "statistics": [
+      {
+       "type": "Shots on Goal",
+       "value": null
+      }
+     ]
+    }
+   ]
+  },
+  "/status": {
+   "get": "status",
+   "parameters": [],
+   "errors": [],
+   "results": 1,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": {
+    "account": {
+     "firstname": "",
+     "lastname": ""
+    },
+    "subscription": {
+     "plan": "Free",
+     "end": "2027-10-28T00:00:00+00:00",
+     "active": true
+    },
+    "requests": {
+     "current": 3,
+     "limit_day": 100
+    }
+   }
+  }
+ },
+ "errors": {
+  "plan": {
+   "get": "fixtures",
+   "parameters": {
+    "date": "2026-10-28"
+   },
+   "errors": {
+    "plan": "Free plans do not have access to this season, try from 2022 to 2024."
+   },
+   "results": 0,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": []
+  },
+  "token": {
+   "get": "status",
+   "parameters": [],
+   "errors": {
+    "token": "Error/Missing application key. Go to https://www.api-football.com/documentation-v3 to learn how to get your API application key."
+   },
+   "results": 0,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": []
+  },
+  "requests": {
+   "get": "fixtures",
+   "parameters": {},
+   "errors": {
+    "requests": "You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan."
+   },
+   "results": 0,
+   "paging": {
+    "current": 1,
+    "total": 1
+   },
+   "response": []
+  }
+ }
+}

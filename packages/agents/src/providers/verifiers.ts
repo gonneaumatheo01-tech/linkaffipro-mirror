@@ -9,6 +9,7 @@ import { FAL_QUEUE_BASE, FAL_IMAGE_MODEL, falAppPath } from "./fal";
 import { FAL_SECRET_KEY, MAGICHOUR_SECRET_KEY } from "./registry";
 import { ODDS_SECRET_KEY } from "./odds-registry";
 import { verifySportsGameOddsKey } from "./sportsgameodds";
+import { APIFOOTBALL_SECRET_KEY, verifyApiFootballKey } from "./apifootball";
 
 const ZERO_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -44,4 +45,5 @@ export function registerMediaKeyVerifiers(fetchImpl?: typeof fetch): void {
   registerSecretVerifier(FAL_SECRET_KEY, falKeyVerifier(fetchImpl));
   registerSecretVerifier(MAGICHOUR_SECRET_KEY, magicHourKeyVerifier(fetchImpl));
   registerSecretVerifier(ODDS_SECRET_KEY, oddsKeyVerifier(fetchImpl));
+  registerSecretVerifier(APIFOOTBALL_SECRET_KEY, (key) => verifyApiFootballKey(key, fetchImpl));
 }

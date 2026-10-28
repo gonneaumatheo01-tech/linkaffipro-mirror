@@ -46,7 +46,7 @@ export function parseDirectEventId(eventId: string): { siteKey: string; siteEven
 }
 
 export async function readySites(deps: Pick<BookmakerReadDeps, "prisma">, among?: readonly string[] | null): Promise<string[]> {
-  const rows = (await deps.prisma.bookmakerSite.findMany({ where: { status: "READY", isActive: true, ...(among?.length ? { key: { in: [...among] } } : {}) } })) as Array<{ key: string }>;
+  const rows = (await deps.prisma.bookmakerSite.findMany({ where: { status: "READY", isActive: true, readTarget: { not: "human" }, ...(among?.length ? { key: { in: [...among] } } : {}) } })) as Array<{ key: string }>;
   return rows.map((r) => r.key).sort();
 }
 

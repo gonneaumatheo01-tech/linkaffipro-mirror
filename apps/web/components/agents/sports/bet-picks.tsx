@@ -26,11 +26,12 @@ function PickCard({ pick, now }: { pick: BettingPickView; now: Date }) {
   const score = resultScore(pick.result);
   const reason = skipReasonText(pick.skipReason);
   const fallback = pick.screenshot?.origin === "TEMPLATE";
+  const awaiting = pick.status === "PROPOSED" && pick.oddsLevel === "human-pending";
   return (
     <li className="grid gap-4 rounded-xl border border-border bg-card p-4 md:grid-cols-[minmax(0,1fr)_16rem]">
       <div className="min-w-0 space-y-2">
         <p className="flex flex-wrap items-center gap-2">
-          <StatusBadge kind="bettingPick" value={pick.status} />
+          <StatusBadge kind="bettingPickState" value={awaiting ? "AWAITING_CAPTURE" : pick.status} />
           <span className="font-medium text-foreground">
             {pick.homeTeam} – {pick.awayTeam}
           </span>
@@ -40,10 +41,15 @@ function PickCard({ pick, now }: { pick: BettingPickView; now: Date }) {
         </p>
         <p className="text-body text-foreground">
           {pick.categoryName} : {pick.marketLabel}, <span className="font-medium">{pick.selectionLabel}</span>
-          {pick.line !== null ? ` (${String(pick.line).replace(".", ",")})` : ""} · cote{" "}
+          {pick.line !== null ? ` (${String(pick.line).replace(".", ",")})` : ""} · {awaiting ? "cote estimée" : "cote"}{" "}
           <span className="font-semibold tabular-nums">{fmtOdds(pick.odds)}</span> chez {bookmakerLabel(pick.bookmaker)}
         </p>
-        {pick.oddsAtSend !== null ? (
+        {awaiting ? (
+          <p className="text-note text-muted-foreground">
+            Le site ne se lit pas : Kevin vous demande sur Telegram la capture de ce pari et la cote exacte. Le post part avec elles.
+          </p>
+        ) : null}
+        {pick.oddsAtSend !== null && pick.oddsLevel !== "human" ? (
           <p className="text-note text-muted-foreground">
             Cote revérifiée juste avant l&apos;envoi : {fmtOdds(pick.oddsAtSend)}
             {drift !== null ? ` (${fmtSignedPct(drift)})` : ""}.
