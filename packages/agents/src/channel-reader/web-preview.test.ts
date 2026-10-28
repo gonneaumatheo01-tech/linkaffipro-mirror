@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { INSPIRATION_LIMITS } from "../contract";
-import { fakeSleep, FIXTURE_CHANNELS, FIXTURE_NOW, fixtureFetch } from "../testing/fixtures";
+import { PREVIEW_LIMITS } from "./types";
+import { fakeSleep, FIXTURE_CHANNELS, FIXTURE_NOW, fixtureFetch } from "./testing";
 import {
-  createInspirationFetch,
+  createPreviewFetch,
   isInviteLink,
   memoryTmeThrottle,
   normalizeChannelUsername,
@@ -24,7 +24,7 @@ describe("aperçu web t.me/s : 3 canaux enregistrés", () => {
     if (!r.ok) return;
     expect(f.urls).toEqual(["https://t.me/s/casino_lumiere_exemple", "https://t.me/s/casino_lumiere_exemple?before=1013"]);
     // Une requête toutes les 3 secondes : une seule attente entre les deux pages.
-    expect(sleep.calls).toEqual([INSPIRATION_LIMITS.webDelayMs]);
+    expect(sleep.calls).toEqual([PREVIEW_LIMITS.webDelayMs]);
     expect(r.title).toBe("Casino Lumière 🎰 (exemple)");
     expect(r.username).toBe("casino_lumiere_exemple");
     expect(r.posts).toHaveLength(31);
@@ -197,8 +197,8 @@ describe("aperçu web : rythme partagé et taille lue", () => {
     expect(text.length).toBe(2_500);
     expect(pulled).toBeLessThan(10);
     const fetchImpl = (async () => new Response("<html>ok</html>", { status: 200 })) as typeof fetch;
-    expect(await createInspirationFetch(fetchImpl)("https://t.me/s/exemple")).toEqual({ status: 200, body: "<html>ok</html>" });
+    expect(await createPreviewFetch(fetchImpl)("https://t.me/s/exemple")).toEqual({ status: 200, body: "<html>ok</html>" });
     const redirect = (async () => new Response(null, { status: 302 })) as typeof fetch;
-    expect(await createInspirationFetch(redirect)("https://t.me/s/exemple")).toEqual({ status: 302, body: "" });
+    expect(await createPreviewFetch(redirect)("https://t.me/s/exemple")).toEqual({ status: 302, body: "" });
   });
 });

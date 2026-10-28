@@ -41,8 +41,6 @@ const m = vi.hoisted(() => {
       markAdsRecommendation: fn(async () => ({ ok: true, message: "Noté." })),
       stopOrder: fn(async () => ({ ok: true })),
       extendOrder: fn(async () => ({ ok: true })),
-      undoInspiration: fn(async () => ({ ok: true })),
-      removeReference: fn(async () => ({ ok: true })),
     },
     writers: {
       saveTeamSettings: fn(async () => undefined),
@@ -149,9 +147,6 @@ vi.mock("@/lib/agents/queries", () => ({
   }),
 }));
 vi.mock("@/lib/agents/orders-engine", () => ({ loadOrdersEngine: async () => ({ stopOrder: m.engine.stopOrder, extendOrder: m.engine.extendOrder }) }));
-vi.mock("@/lib/agents/inspiration-engine", () => ({
-  loadInspirationEngine: async () => ({ undoInspiration: m.engine.undoInspiration, removeReference: m.engine.removeReference }),
-}));
 vi.mock("@/lib/ai/config", () => ({
   loadAiConfig: async () => ({
     defaultModel: "claude-haiku-5-5",
@@ -194,7 +189,6 @@ import { runAnswerHumanRequest, runRelaunchHumanRequest, runSkipHumanRequest } f
 import { runOpenBrowser, runRelearnSite, runSetSiteUrl, runTestSite } from "./bookmakers";
 import { runMarkAdsRecommendation, runSaveAdsAlertSettings, runSaveAdsThresholds } from "./ads";
 import { runExtendOrder, runStopOrder } from "./orders";
-import { runRemoveReference, runUndoInspiration } from "./inspiration";
 import { runSaveBossBudget, runSaveBossName } from "./boss";
 import { runRemoveAiKey, runSaveAiSettings, runVerifyAiKey } from "./ai";
 import { runRemoveAssistantKey, runSaveAssistantSettings, runVerifyAssistantKey } from "./assistant";
@@ -293,8 +287,6 @@ const CASES: Array<{ name: string; core: Core; form: Record<string, string | str
   { name: "alertes Ads", core: runSaveAdsAlertSettings, form: ALERTS, admin: true },
   { name: "arrêter un ordre", core: runStopOrder, form: { orderId: "o1" }, admin: true },
   { name: "prolonger un ordre", core: runExtendOrder, form: { orderId: "o1", days: "2" }, admin: true },
-  { name: "annuler une inspiration", core: runUndoInspiration, form: { referenceId: "ref1" }, admin: true },
-  { name: "retirer une référence", core: runRemoveReference, form: { referenceId: "ref1" }, admin: true },
   { name: "plafond de Kevin", core: runSaveBossBudget, form: { euros: "50" }, admin: true },
   { name: "prénom de Kevin", core: runSaveBossName, form: { name: "Max" }, admin: true },
   { name: "réglages IA d'écriture", core: runSaveAiSettings, form: AI, admin: true },

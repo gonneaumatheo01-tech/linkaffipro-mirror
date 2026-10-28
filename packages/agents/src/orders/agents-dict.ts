@@ -83,7 +83,7 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     key: "chef-algo",
     label: "Chef Algorithme",
     kind: "chef",
-    teams: ["algo", "inspiration"],
+    teams: ["algo"],
     chief: "grand-chef",
     role: "Mesure ce qui marche et règle les autres équipes dans leurs bornes ; ne publie rien.",
     synonyms: ["chef algorithme", "chef algo", "chef de l'algo", "chef de l'equipe algorithme"],
@@ -222,15 +222,6 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     chief: "chef-algo",
     role: "Transforme les analyses en réglages concrets par canal, chiffres à l'appui, et écrit le rapport « Ce qui marche ».",
     synonyms: ["synthese", "synthese et reglages", "reglages", "celui qui regle", "celui des reglages", "rapport de la semaine"],
-  }),
-  e({
-    key: "inspiration",
-    label: "Inspiration",
-    kind: "agent",
-    teams: ["inspiration"],
-    chief: "chef-algo",
-    role: "Lit un canal qui marche, en tire un profil de style et des idées, sans jamais copier.",
-    synonyms: ["inspiration", "agent inspiration", "canal d'inspiration", "celui qui lit les autres canaux", "concurrents", "espion"],
   }),
   // Phase 28 : équipe Montage (vidéo longue du client → shorts, chaque short validé par le client avant tout envoi).
   e({
@@ -512,7 +503,6 @@ export function orderTeamLabel(t: OrderTeamKey): string {
   if (t === "analystes") return "Analystes";
   if (t === "qa") return "Contrôle qualité";
   if (t === "prospection") return "Prospection";
-  if (t === "inspiration") return "Inspiration";
   if (t === "transverse") return "toutes les équipes";
   return TEAM_LABELS[t as TeamKey] ?? t;
 }

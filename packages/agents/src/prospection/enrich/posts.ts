@@ -2,7 +2,7 @@
  * Phase 31, chantier B — posts de l'aperçu public `https://t.me/s/<nom>` (section 3.2).
  *
  * La lecture (pagination `?before=`, rythme de 3 s, arrêt à 90 jours, posts de service ignorés) est celle de la phase
- * 27 (`inspiration/sources/web-preview.ts`, `readWebPreview`) : on ne réécrit pas de second lecteur. Le lecteur
+ * 27 (`channel-reader/web-preview.ts`, `readWebPreview`) : on ne réécrit pas de second lecteur. Le lecteur
  * existant ne garde que le texte, la date, le média, les vues et le nombre de liens ; `parseProspectPreview` relit le
  * MÊME HTML (déjà reçu, aucune requête de plus) pour les champs utiles à la prospection : origine d'un transfert,
  * réactions, commentaires, boutons et leurs adresses, signature d'auteur, liens et mentions.
@@ -10,7 +10,7 @@
  * 100 posts, 5 pages, 90 jours au plus (`PROSPECTION_LIMITS`). Le texte reste en mémoire du job : il n'est jamais écrit
  * en base (règle 3). Aucun lien n'est suivi, aucun média n'est téléchargé.
  */
-import { readWebPreview } from "../../inspiration/sources/web-preview";
+import { readWebPreview } from "../../channel-reader/web-preview";
 import { PROSPECTION_LIMITS, type ProspectionDeps, type ProspectPost } from "../contract";
 import { allClassIndexes, attrOf, classIndexOf, innerByClass, innerElement, openTagAt, parsePreviewViews, previewHtmlToText } from "./html";
 import { enrichNow } from "./ai";

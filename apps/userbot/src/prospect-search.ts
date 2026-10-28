@@ -1,7 +1,7 @@
 /**
  * Phase 32 (chantier C) — recherche de canaux pour la prospection PAR la session déjà tenue ici, en LECTURE SEULE.
- * Même boîte aux lettres que la lecture des canaux de référence (`Setting userbot.request.<id>`, voir
- * `./reference-history`), demande `kind = "prospect-search"`. Protocole : copie structurelle de
+ * Boîte aux lettres du worker (`Setting userbot.request.<id>`, voir
+ * `./mailbox`), demande `kind = "prospect-search"`. Protocole : copie structurelle de
  * `packages/agents/src/prospection/discover/sources/account-search.ts` (le userbot ne dépend pas de ce paquet).
  *
  * Deux opérations, UN appel Telegram chacune :

@@ -14,7 +14,7 @@ const scope = [...DEFAULT_COUNTRIES_SCOPE];
 
 /** Posts d'une fixture d'aperçu (une page), avec le texte décodé par le lecteur de la phase 27. */
 async function fixturePosts(name: string): Promise<ProspectPost[]> {
-  const { parsePreviewPage } = await import("../../inspiration/sources/web-preview");
+  const { parsePreviewPage } = await import("../../channel-reader/web-preview");
   const html = readEnrichFixture(`tme-s/${name}.html`);
   const base = parsePreviewPage(html, name).posts;
   const extra = new Map(parseProspectPreview(html, name).posts.map((p) => [p.id, p]));

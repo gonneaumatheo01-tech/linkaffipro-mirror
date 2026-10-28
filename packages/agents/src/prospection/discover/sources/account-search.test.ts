@@ -12,7 +12,7 @@ import { createTestKit } from "../../../human/test-kit";
 import { ACCOUNT_SEARCH } from "../../contract-advanced";
 import type { ProspectionKevinDeps } from "../../kevin-port";
 import { PROSPECTION_ADVANCED_KEVIN_VARIANTS as A } from "../../kevin-advanced-texts";
-import { USERBOT_HEARTBEAT_KEY, USERBOT_REQUEST_PREFIX } from "../../../inspiration/sources/userbot-mailbox";
+import { USERBOT_HEARTBEAT_KEY, USERBOT_REQUEST_PREFIX } from "../../../channel-reader/userbot-mailbox";
 import {
   accountSearchQueries,
   createUserbotSearchTransport,

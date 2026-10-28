@@ -58,7 +58,6 @@ import { clarifyIsFor, clearClarify, readClarify } from "./resolve";
 import { explainAgainText, isBareNumber, isWhyFollowUp, pickOption, readKevinList } from "./choices";
 import { bossActionAllowed } from "./catalog";
 import { registerBossToken } from "./catalog-read";
-import { inspirationFastPath } from "./catalog-inspiration";
 import { montageFastPath } from "./catalog-montage";
 import { analystsFastPath } from "./catalog-analysts";
 import { orderQuickCancel } from "../orders/recap";
@@ -347,8 +346,7 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
     }
   }
 
-  // Phase 27 : numéros en réponse au choix d'inspiration (plus récent que toute autre question, jamais en « Répondre »
-  // à un autre message) ; « annule » juste après une application. Sans IA, admin seulement.
+  // Réponses rapides sans IA, admin seulement : « annule » d'un ordre, numéros de l'analyse du marché, montage.
   {
     const clarifyNow = await readClarify(deps);
     const listNow = await readKevinList(deps, { speaker: input.speaker ?? null, chatId: input.chat?.chatId ?? null });
@@ -364,16 +362,15 @@ async function fastPathInner(deps: BossDeps, input: BossTeamInput): Promise<Boss
       const { status: _s, ...reply } = await runBossAction(deps, action, params, { actor, inputText: text, speaker: input.speaker, chat: input.chat, mentions: input.mentions });
       return reply;
     };
-    const insp =
+    const quick =
       (await orderQuickCancel(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt })) ??
-      // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché (plus récent que celui de l'inspiration).
+      // Phase 29 : numéros en réponse au dernier choix de l'analyse du marché.
       (word === null ? await analystsFastPath(deps, input, { otherQuestionAt, run }) : null) ??
-      (await inspirationFastPath(deps, input, { word, pendingOpen: !!pending && !pending.expired, otherQuestionAt, run })) ??
       // Phase 28 : réponses au montage vidéo (plan, aperçus, modifications, destination) et demandes claires, sans IA.
       (word !== "cancel" ? await montageFastPath(deps, input, { otherQuestionAt, run }) : null);
-    if (insp) {
-      await remember(deps, input, insp.reply, { actionKey: insp.actionKey, status: "done" });
-      return { handled: true, ...insp.reply };
+    if (quick) {
+      await remember(deps, input, quick.reply, { actionKey: quick.actionKey, status: "done" });
+      return { handled: true, ...quick.reply };
     }
   }
 

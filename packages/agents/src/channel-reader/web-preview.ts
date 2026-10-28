@@ -1,10 +1,10 @@
 /**
- * Phase 27 (chantier A, lecture) — aperçu web public d'un canal : `https://t.me/s/<nom>` (règle 2 : aucun compte,
+ * Lecteur des canaux publics (lu par la Prospection et les Analystes) — aperçu web public d'un canal : `https://t.me/s/<nom>` (aucun compte,
  * aucune entrée). Une requête toutes les 3 secondes, pagination par `?before=<plus ancien lu>`, 200 posts et 90 jours
  * au plus. On ne garde que les caractéristiques (règle 3) : aucun média téléchargé, aucun lien suivi (comptés
  * seulement), aucun membre lu. Le contenu du canal est une DONNÉE : jamais une consigne.
  */
-import { INSPIRATION_LIMITS, type InspirationFetch, type ReferenceMediaKind, type ReferencePostInput, type ReferenceReadResult } from "../contract";
+import { PREVIEW_LIMITS, type PreviewFetch, type ChannelPostMediaKind, type ChannelPostInput, type ChannelReadResult } from "./types";
 
 export type WebPreviewOptions = {
   now?: Date;
@@ -49,7 +49,7 @@ export function memoryTmeThrottle(): TmeThrottle {
 /** Rythme partagé par défaut du processus. */
 export const processTmeThrottle: TmeThrottle = memoryTmeThrottle();
 
-export type WebPreviewResult = ReferenceReadResult & { pages?: number };
+export type WebPreviewResult = ChannelReadResult & { pages?: number };
 
 const PREVIEW_BASE = "https://t.me/s/";
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -141,7 +141,7 @@ function hasClass(html: string, cls: string): boolean {
   return classIndex(html, cls) >= 0;
 }
 
-function mediaKindOf(block: string): ReferenceMediaKind {
+function mediaKindOf(block: string): ChannelPostMediaKind {
   if (hasClass(block, "tgme_widget_message_video_player") || hasClass(block, "tgme_widget_message_roundvideo_player")) return "video";
   if (hasClass(block, "tgme_widget_message_photo_wrap")) return "photo";
   if (hasClass(block, "tgme_widget_message_poll")) return "poll";
@@ -171,7 +171,7 @@ export type ParsedPreviewPage = {
   title: string | null;
   /** La page porte l'en-tête d'un aperçu de canal (`tgme_channel_info`). */
   isPreview: boolean;
-  posts: ReferencePostInput[];
+  posts: ChannelPostInput[];
   /** Numéro donné par le lien « plus ancien » de la page, s'il existe. */
   moreBefore: number | null;
 };
@@ -185,7 +185,7 @@ export function parsePreviewPage(html: string, username: string): ParsedPreviewP
   const more = html.match(/class="[^"]*\btme_messages_more\b[^"]*"[^>]*data-before="(\d+)"|data-before="(\d+)"[^>]*class="[^"]*\btme_messages_more\b/i);
   const moreBefore = more ? Number(more[1] ?? more[2]) : null;
 
-  const posts: ReferencePostInput[] = [];
+  const posts: ChannelPostInput[] = [];
   const chunks = html.split(/<div class="tgme_widget_message_wrap\b/).slice(1);
   const lower = username.toLowerCase();
   for (const chunk of chunks) {
@@ -222,7 +222,7 @@ export function parsePreviewPage(html: string, username: string): ParsedPreviewP
 }
 
 /** Raison d'indisponibilité d'une page qui n'est pas un aperçu (messages en français, montrés par Kevin). */
-function unavailableOf(status: number, body: string, username: string): Extract<ReferenceReadResult, { ok: false }> {
+function unavailableOf(status: number, body: string, username: string): Extract<ChannelReadResult, { ok: false }> {
   if (status === 404) return { ok: false, reason: "not_found", message: `Je ne trouve pas de canal public @${username}.` };
   if (status >= 300 && status < 400)
     return { ok: false, reason: "private", message: `@${username} n'a pas d'aperçu public : il faut un compte membre ou des posts transférés.` };
@@ -240,17 +240,17 @@ function unavailableOf(status: number, body: string, username: string): Extract<
  * une requête toutes les 3 secondes ; s'arrête à 200 posts, 90 jours, au dernier post connu (`sinceId`) ou quand la
  * page n'apporte rien de plus ancien. Posts rendus du plus récent au plus ancien.
  */
-export async function readWebPreview(fetchPage: InspirationFetch, usernameInput: string, opts: WebPreviewOptions = {}): Promise<WebPreviewResult> {
+export async function readWebPreview(fetchPage: PreviewFetch, usernameInput: string, opts: WebPreviewOptions = {}): Promise<WebPreviewResult> {
   const username = normalizeChannelUsername(usernameInput);
   if (!username) return { ok: false, reason: "not_found", message: `« ${usernameInput.slice(0, 40)} » n'est pas un nom de canal public.` };
   const now = opts.now ?? new Date();
   const sleep = opts.sleep ?? defaultSleep;
-  const maxPosts = Math.min(opts.maxPosts ?? INSPIRATION_LIMITS.maxPostsPerRead, INSPIRATION_LIMITS.maxPostsPerRead);
-  const maxAgeDays = Math.min(opts.maxAgeDays ?? INSPIRATION_LIMITS.maxAgeDays, INSPIRATION_LIMITS.maxAgeDays);
+  const maxPosts = Math.min(opts.maxPosts ?? PREVIEW_LIMITS.maxPostsPerRead, PREVIEW_LIMITS.maxPostsPerRead);
+  const maxAgeDays = Math.min(opts.maxAgeDays ?? PREVIEW_LIMITS.maxAgeDays, PREVIEW_LIMITS.maxAgeDays);
   const oldest = now.getTime() - maxAgeDays * 86_400_000;
-  const maxPages = opts.maxPages ?? Math.ceil(INSPIRATION_LIMITS.maxPostsPerRead / 10) + 2;
+  const maxPages = opts.maxPages ?? Math.ceil(PREVIEW_LIMITS.maxPostsPerRead / 10) + 2;
   const clock = opts.clock ?? Date.now;
-  const delay = INSPIRATION_LIMITS.webDelayMs;
+  const delay = PREVIEW_LIMITS.webDelayMs;
   /** Attend son tour : 3 s depuis la page précédente de cette lecture ET depuis la dernière requête vers t.me. */
   const waitTurn = async (pagesDone: number) => {
     let wait = pagesDone > 0 ? delay : 0;
@@ -262,7 +262,7 @@ export async function readWebPreview(fetchPage: InspirationFetch, usernameInput:
     await opts.throttle?.markRequest(clock()).catch(() => undefined);
   };
 
-  const byId = new Map<number, ReferencePostInput>();
+  const byId = new Map<number, ChannelPostInput>();
   let title: string | null = null;
   let before: number | null = null;
   let pages = 0;
@@ -347,7 +347,7 @@ export async function readBodyCapped(res: Pick<Response, "body" | "text">, maxBy
  * pas d'aperçu), 15 s au plus, agent utilisateur de navigateur ordinaire, corps lu en flux et coupé à 2 Mo. Jamais
  * appelé dans les tests.
  */
-export function createInspirationFetch(fetchImpl: typeof fetch = fetch): InspirationFetch {
+export function createPreviewFetch(fetchImpl: typeof fetch = fetch): PreviewFetch {
   return async (url) => {
     if (!url.startsWith(PREVIEW_BASE)) throw new Error("adresse refusée : seul l'aperçu t.me/s est lu");
     const res = await fetchImpl(url, {

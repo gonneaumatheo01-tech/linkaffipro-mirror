@@ -253,10 +253,6 @@ export type ChatJob =
  */
 export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: "dating" | "casino" | "sports" | "algo" }
-  /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à `agents-algo` (`inspiration-read`, même identifiant). */
-  | { type: "inspiration-read"; referenceChannelId: string }
-  /** Phase 27 (Kevin) : réponse groupée aux posts transférés (une minute après le premier), puis analyse éventuelle. */
-  | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
   /** Phase 33 : suivi des ordres de Kevin (`tickOrders` : progression, fin, reprise après redémarrage), toutes les 10 min. */
   | { type: "orders-tick" }
@@ -301,13 +297,6 @@ export type AgentsAlgoJob = { type: "algo"; task: "tick" | "report-now"; send?: 
  * file plutôt que sur `agents-orchestrator` (une tâche à la fois) : une vérification de 30 s ne retarde jamais Kevin.
  */
 export type AgentsQaJob = { type: "qa-sweep" } | { type: "qa-alerts" };
-
-/**
- * File `agents-algo` (phase 27, canal d'inspiration) : `inspiration-read` lit un canal de référence (identifiant
- * `inspiration-read:<id>`, `attempt` pour les nouveaux essais différés) ; `inspiration-reread` (chaque jour) relit les
- * références vivantes dont la relecture hebdomadaire est due.
- */
-export type AgentsInspirationJob = { type: "inspiration-read"; referenceChannelId: string; attempt?: number } | { type: "inspiration-reread" };
 
 /**
  * File `agents-sports` (phase 23) : en plus des étapes, `settle` toutes les 2 h (résultats des paris publiés).
@@ -413,7 +402,7 @@ export type JobOf<Q extends QueueName> = Q extends "telegram-send"
                         : Q extends "agents-orchestrator"
                           ? AgentsOrchestratorJob
                           : Q extends "agents-algo"
-                            ? AgentStepJob | AgentsAlgoJob | AgentsInspirationJob | AgentsQaJob
+                            ? AgentStepJob | AgentsAlgoJob | AgentsQaJob
                             : Q extends "agents-sports"
                             ? AgentStepJob | AgentsSportsJob
                             : Q extends AgentTeamQueue

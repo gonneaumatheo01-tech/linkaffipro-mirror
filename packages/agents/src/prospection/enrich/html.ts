@@ -2,7 +2,7 @@
  * Phase 31, chantier B — petits outils de lecture du HTML public de Telegram (`t.me/<nom>`, `t.me/s/<nom>`), sans
  * dépendance. Le décodage du texte est celui du lecteur de la phase 27 (`previewHtmlToText`).
  */
-export { decodeHtmlEntities, parsePreviewViews, previewHtmlToText } from "../../inspiration/sources/web-preview";
+export { decodeHtmlEntities, parsePreviewViews, previewHtmlToText } from "../../channel-reader/web-preview";
 
 /** Position du `<` de l'élément dont l'attribut class contient exactement le jeton `cls` (−1 sinon). */
 export function classIndexOf(html: string, cls: string, from = 0): number {

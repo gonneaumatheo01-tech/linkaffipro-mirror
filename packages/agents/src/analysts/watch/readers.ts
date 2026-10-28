@@ -12,7 +12,7 @@
  * une adresse, un lien de profil) ; courriels, téléphones et liens de profil sont retirés du texte.
  */
 import { parseHtml, querySelectorAll, textOf, type HtmlNode } from "../../bookmakers/read/html";
-import { normalizeChannelUsername, readWebPreview } from "../../inspiration/sources/web-preview";
+import { normalizeChannelUsername, readWebPreview } from "../../channel-reader/web-preview";
 import { ANALYSTS_LIMITS, type AnalystsWeb, type Market, type RawItem } from "../contract";
 import { cleanLine } from "./ai";
 import { PoliteFetchError } from "./polite";

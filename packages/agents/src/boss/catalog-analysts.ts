@@ -30,7 +30,6 @@ import { ANALYSTS_KEVIN_VARIANTS as AV, boundedAnswer, countriesOf, hostLabel, m
 import type { BossAction, BossDeps, BossReply, BossTeamInput } from "./contract";
 import { defineAction } from "./catalog-kit";
 import type { BossExecDeps } from "./catalog-read";
-import { readInspirationChoice, parseProposalNumbers } from "./catalog-inspiration";
 import { createBossPending } from "./confirm";
 import { int, oneOf, str } from "./params";
 import { pick } from "./voice";
@@ -356,6 +355,21 @@ export function cleanNumbers(raw: string): string {
     .trim();
 }
 
+/** « 1 3 », « 1 et 3 », « 1,3 », « n°2 », « tout » → numéros (pur) ; null si illisible. */
+export function parseProposalNumbers(raw: string, max: number): number[] | null {
+  const t = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/^\s*(?:applique[rsz]?|appliquez|vas[- ]y pour|ok pour|go pour|les|la|le|propositions?|numeros?|n°|no)\s*/g, "")
+    .trim();
+  if (/^(?:tout|tous|toutes|tout appliquer|les \d+|toutes les propositions)$/.test(t)) return Array.from({ length: max }, (_, i) => i + 1);
+  if (!/^[\d\s,;et&+n°.-]+$/.test(t)) return null;
+  const nums = [...new Set((t.match(/\d{1,2}/g) ?? []).map(Number))].sort((a, b) => a - b);
+  if (!nums.length || nums.some((n) => n < 1 || n > max)) return null;
+  return nums;
+}
+
 const numbersOf = (raw: string, max: number) => parseProposalNumbers(cleanNumbers(raw), max);
 
 export const appliquerRecoMarche = defineAction<ApplyP>({
@@ -438,7 +452,7 @@ const NUMBERS_ONLY = /^\s*(?:(?:applique[rsz]?|garde[rsz]?|ok pour|go pour|je pr
 /**
  * Chemin rapide (sans IA) de l'analyse du marché, pour l'admin seulement : numéros (« 2 », « applique 1 et 3 ») en
  * réponse au dernier choix numéroté de l'équipe Analystes posé dans cette conversation, plus récent que toute autre
- * question ouverte et que le choix d'inspiration, jamais en « Répondre » à un autre message. Null : la suite décide.
+ * question ouverte, jamais en « Répondre » à un autre message. Null : la suite décide.
  */
 export async function analystsFastPath(
   deps: BossDeps,
@@ -455,8 +469,6 @@ export async function analystsFastPath(
   if (!analystsChoiceOpen(c, now)) return null;
   const at = new Date(c.createdAt).getTime();
   if (at <= ctx.otherQuestionAt) return null;
-  const insp = await readInspirationChoice(deps, chatKey);
-  if (insp && !insp.answeredAt && new Date(insp.createdAt).getTime() > at) return null;
   return { reply: await ctx.run(appliquerRecoMarche as unknown as BossAction, { numeros: text }), actionKey: "appliquer_reco_marche" };
 }
 

@@ -11,7 +11,6 @@ import { bossAiTurn } from "../execute";
 import { bossFastPath } from "../fast";
 import { writeBossTurn } from "../memory";
 import { voiceCheck } from "../voice";
-import { kevinForwardedPost } from "../../inspiration/kevin-forward";
 import {
   AUTH_LINK_SETTING_PREFIX,
   BOSS_INPUTS,
@@ -182,26 +181,6 @@ describe("message transféré = contenu fidèle (règle 6) et donnée (règle 7)
     // Le contenu reste disponible pour l'opération qui le demandera.
     expect((await peekForwarded(kit.deps, CHAT))?.html).toBe(evil);
     expect((await kit.prisma.agentTeamConfig.findMany({})).every((t: { simulation?: boolean }) => t.simulation !== false)).toBe(true);
-  });
-
-  it("chemin d'inspiration intact : un post d'un canal tiers est rangé comme référence ET gardé comme contenu", async () => {
-    const kit = createTestKit();
-    const message = {
-      message_id: mid++,
-      date: 1_792_000_000,
-      text: "Corner ce soir : plus de 9,5",
-      forward_origin: { type: "channel", date: 1_791_000_000, chat: { id: -100555, type: "channel", title: "Club Corner", username: "club_corner" }, message_id: 77 },
-    };
-    const kept = await rememberForwarded(kit.deps, { chatId: CHAT, message: message as unknown as TelegramForwardMessage });
-    const out = await kevinForwardedPost(kit.deps, {
-      message: message as never,
-      chat: { type: "private", chatId: ADMIN_TG_ID },
-      speaker: { kind: "admin", telegramUserId: ADMIN_TG_ID, firstName: null },
-    });
-    expect(out.handled).toBe(true);
-    expect(kit.tables("referencePost")).toHaveLength(1);
-    expect(kept.content.from).toBe("@club_corner");
-    expect((await peekForwarded(kit.deps, CHAT))?.html).toBe("Corner ce soir : plus de 9,5");
   });
 });
 

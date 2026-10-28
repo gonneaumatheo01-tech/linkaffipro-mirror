@@ -105,19 +105,6 @@ export async function resolveOrder(raw: unknown): Promise<Ref> {
   return { ok: true, id: row.id, name: `Ordre n° ${row.number}` };
 }
 
-/** Canal d'inspiration (référence) : identifiant, @nom ou titre ; les références retirées ne comptent pas. */
-export async function resolveReference(raw: unknown): Promise<Ref> {
-  const rows = await prisma.referenceChannel.findMany({
-    where: { removedAt: null },
-    select: { id: true, username: true, title: true },
-  });
-  return pickNamed(
-    { plural: "canaux d'inspiration", one: "le canal d'inspiration" },
-    str(raw).replace(/^(https?:\/\/)?(t\.me|telegram\.me)\/(s\/)?/i, "").replace(/^@/, ""),
-    rows.map((r) => ({ id: r.id, name: r.title ?? (r.username ? `@${r.username}` : r.id), extra: r.username ? [r.username] : [] })),
-  );
-}
-
 /** Demande au client : identifiant, sinon la demande en cours (« la question », « la demande »). */
 export async function resolveHumanRequest(raw: unknown, statuses: string[] = ["PENDING"]): Promise<Ref> {
   const s = str(raw).trim();

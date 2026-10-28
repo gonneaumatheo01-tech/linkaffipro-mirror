@@ -42,7 +42,7 @@ const ORDER_TOOL = (m: string) => ({ name: "ordre_equipe", input: { demande: m }
 describe("1. une proposition faite quand Kevin ne peut pas est TOUJOURS une lecture", () => {
   it("aucune entrée qui change, défait ou dépense n'est proposable", () => {
     for (const a of BOSS_CATALOG) if (suggestable(a)) expect(BOSS_READ_KEYS.has(a.key), a.key).toBe(true);
-    for (const k of ["annuler_reglage", "annuler_inspiration", "arreter_ordre", "modifier_ordre", "plus_tard", "test_bookmaker", "pause", "simulation"]) {
+    for (const k of ["annuler_reglage", "arreter_ordre", "modifier_ordre", "plus_tard", "test_bookmaker", "pause", "simulation"]) {
       const a = bossAction(k, { includeHidden: true });
       if (a) expect(suggestable(a), k).toBe(false);
     }

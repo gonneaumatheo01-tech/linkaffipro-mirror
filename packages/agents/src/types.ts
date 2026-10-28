@@ -182,10 +182,6 @@ export type Mission = {
 /** Tâches des files d'agents (définies aussi dans `@linkaffipro/queue`, copie structurelle ici pour rester sans Redis). */
 export type AgentsOrchestratorJob =
   | { type: "cycle"; teamKey?: TeamKey }
-  /** Phase 27 : lecture d'un canal de référence, transmise aussitôt à la file `agents-algo` (`inspiration-read`). */
-  | { type: "inspiration-read"; referenceChannelId: string }
-  /** Phase 27 (Kevin) : une réponse pour un lot de posts transférés, une minute après le premier ; `analyzeRefId` : analyse à lancer. */
-  | { type: "inspiration-forward-ack"; chatKey: string; analyzeRefId?: string }
   | { type: "resume" }
   /** Phase 33 : suivi des ordres de Kevin (progression, fin, reprise), toutes les 10 minutes. */
   | { type: "orders-tick" }

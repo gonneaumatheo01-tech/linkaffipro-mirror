@@ -67,11 +67,10 @@ export const FUTURE_TEAMS: Record<string, string> = {
   prospection: "l'équipe Prospection",
 };
 
-/** Libellé d'une équipe d'ordre (« Paris sportifs », « Pubs », « Inspiration »…). */
+/** Libellé d'une équipe d'ordre (« Paris sportifs », « Pubs »…). */
 export function orderTeamLabel(teamKey: string): string {
   if (isTeamKey(teamKey)) return TEAM_LABELS[teamKey];
   if (teamKey === "ads") return "Pubs";
-  if (teamKey === "inspiration") return "Inspiration";
   if (teamKey === "transverse") return "toutes les équipes";
   const future = FUTURE_TEAMS[teamKey];
   if (future) return future.replace(/^l'équipe /, "");

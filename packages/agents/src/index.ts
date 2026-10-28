@@ -250,100 +250,12 @@ export * from "./boss/team/incoming";
 export * from "./boss/team/morning";
 export * from "./boss/team/callbacks";
 export * from "./human/delivery";
-export * from "./inspiration/contract";
-export * from "./inspiration/copy-check";
-// Chantier B (phase 27) : analyse d'un canal d'inspiration, comparaison « eux / nous », profil de style.
-export { UNIVERSE_OF_VERTICAL as INSPIRATION_UNIVERSE_OF_VERTICAL, UNIVERSE_LABELS as INSPIRATION_UNIVERSE_LABELS, type AnalysisPost } from "./inspiration/analysis/types";
-export { textSignals, hasGainClaim, type TextSignals } from "./inspiration/analysis/patterns";
-export { fromReferencePost, fromClientPost, type ReferencePostRow } from "./inspiration/analysis/normalize";
-export { rhythmMeasures, peakSlotsOf, slotOf as inspirationSlotOf, PEAK_SLOT_COUNT, WEEKDAY_LABELS as INSPIRATION_WEEKDAY_LABELS } from "./inspiration/analysis/rhythm";
-export { formMeasures, MEDIA_LABELS as INSPIRATION_MEDIA_LABELS } from "./inspiration/analysis/form";
-export { contentMeasures, flaggedOf, betSeriesOf, BET_SERIES_MAX_HOURS, type BetSeries } from "./inspiration/analysis/content";
-export { resultsMeasures, describePost, MIN_CORRELATION_POSTS, MIN_GROUP_POSTS, DAY_PERIODS } from "./inspiration/analysis/results";
-export { analyzeReference, computeAnalysis, isInspirationUniverse, loadReference, loadReferencePosts, quotesOf, type ComputeOptions } from "./inspiration/analysis/analyze";
-export {
-  compareWithChannel,
-  compareAnalyses,
-  gapMatters,
-  parseGapThresholds,
-  loadGapThresholds,
-  loadClientPosts,
-  COMPARE_WINDOW_DAYS,
-  DEFAULT_GAP_THRESHOLDS,
-  INSPIRATION_THRESHOLDS_KEY,
-  type GapThresholds,
-} from "./inspiration/analysis/compare";
-export * from "./inspiration/style";
-// Chantier A (phase 27) : lecture d'un canal d'inspiration (aperçu web, compte réel membre, posts transférés).
-export * from "./inspiration/sources/web-preview";
-export * from "./inspiration/sources/account";
-export * from "./inspiration/sources/forwarded";
-export * from "./inspiration/features";
-export * from "./inspiration/store";
-export * from "./inspiration/read";
-// Chantier C (phase 27) : Kevin et le canal d'inspiration (résumé, propositions, application, posts transférés).
-export {
-  afterReferenceRead,
-  afterReferenceReread,
-  inspirationSummaryLines,
-  summaryFacts,
-  methodChanges,
-  snapshotOf,
-  askForForwards,
-  notifyReadPostponed,
-  notifyReadFailed,
-  shouldRebuildProfile,
-  REREAD_THRESHOLDS,
-  SUMMARY_MAX_LINES,
-  SUMMARY_QUESTION,
-} from "./inspiration/kevin";
-export {
-  inspirationProposals,
-  proposalsText,
-  mixSteps,
-  proposedWindow,
-  theirMixShares,
-  mergeTaggedLine,
-  INSPIRATION_SOURCE,
-  SPORTS_RESULT_POSTS_SUPPORTED,
-  type InspirationProposal,
-  type ProposalsResult,
-} from "./inspiration/proposals";
-export {
-  applyInspiration,
-  undoInspiration,
-  removeReference,
-  inspirationReviews,
-  enoughTrafficForAb,
-  changePct,
-  reviewSentence,
-  INSPIRATION_UNDO_DAYS,
-  INSPIRATION_TEST_DAYS,
-  INSPIRATION_REPORT_TEAM,
-  type ApplyInspirationResult,
-  type UndoInspirationResult,
-} from "./inspiration/apply";
-export {
-  kevinForwardedPost,
-  inspirationForwardAck,
-  isChannelForward,
-  forwardAckLine,
-  FORWARD_ACK_JOB,
-  FORWARD_BATCH_MS,
-  type ForwardInput,
-  type ForwardOutcome,
-} from "./inspiration/kevin-forward";
-export { referenceLabel, linkTarget, universeRefusal, type ReferenceRow } from "./inspiration/kevin-refs";
-export {
-  INSPIRATION_ACTIONS,
-  inspirationFastPath,
-  parseProposalNumbers,
-  choiceIsOpen,
-  choiceIsForAdmin,
-  INSPIRATION_CHOICE_SETTING,
-} from "./boss/catalog-inspiration";
-import "./inspiration/keep-action";
-export * from "./inspiration/sources/userbot-mailbox";
+// Lecteur des canaux publics (aperçu `t.me/s`) et boîte aux lettres du userbot, partagés par la Prospection et les
+// Analystes ; contrôle « jamais de copie » (empreintes des anciens posts de référence, Contrôle qualité).
+export * from "./channel-reader/types";
+export * from "./channel-reader/web-preview";
+export * from "./channel-reader/userbot-mailbox";
+export * from "./rules/copy-check";
 export * from "./orders/contract";
 export * from "./boss/voice";
 // Chantier C (phase 33) : annuaire des agents, vues en lecture seule de Kevin (plan, programmé, paris, matchs, fait, pourquoi).

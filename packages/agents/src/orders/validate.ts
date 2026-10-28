@@ -267,7 +267,7 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
         part: step.capability.replace(/_/g, " "),
         reason: future
           ? `${future} arrive bientôt, pas encore possible de lui donner des ordres`
-          : `ce n'est pas quelque chose que ${isTeamKey(step.teamKey) || ["ads", "inspiration"].includes(step.teamKey) ? `l'équipe ${orderTeamLabel(step.teamKey)}` : "les équipes"} sait faire`,
+          : `ce n'est pas quelque chose que ${isTeamKey(step.teamKey) || step.teamKey === "ads" ? `l'équipe ${orderTeamLabel(step.teamKey)}` : "les équipes"} sait faire`,
         alternatives: teamAlternatives(step.teamKey, null),
         suggestedCapability: step.capability.replace(/_/g, " "),
         teamKey: step.teamKey,

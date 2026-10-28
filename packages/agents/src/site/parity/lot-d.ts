@@ -65,11 +65,9 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   [A("agents/ads/actions.ts", "markAdsRecommendationAction")]: { op: "agents.ads_recommandation" },
   [A("agents/ads/actions.ts", "saveAdsThresholdsAction")]: { op: "agents.ads_seuils" },
   [A("agents/ads/actions.ts", "saveAdsAlertSettingsAction")]: { op: "agents.ads_alertes" },
-  // Ordres, inspiration, Kevin
+  // Ordres, Kevin
   [A("agents/orders/actions.ts", "stopOrderAction")]: { op: "agents.ordre_arreter" },
   [A("agents/orders/actions.ts", "extendOrderAction")]: { op: "agents.ordre_prolonger" },
-  [A("agents/inspiration/actions.ts", "undoInspirationAction")]: { op: "agents.inspiration_annuler" },
-  [A("agents/inspiration/actions.ts", "removeReferenceAction")]: { op: "agents.inspiration_retirer" },
   [A("agents/boss/actions.ts", "saveBossBudgetAction")]: { op: "agents.kevin_plafond" },
   [A("agents/boss/actions.ts", "saveBossNameAction")]: { op: "agents.kevin_prenom" },
   // Réglages → IA d'écriture et IA de conversation

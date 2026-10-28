@@ -39,7 +39,6 @@ const validations = () => import("./lot-d/validations");
 const bookmakers = () => import("./lot-d/bookmakers");
 const ads = () => import("./lot-d/ads");
 const orders = () => import("./lot-d/orders");
-const inspiration = () => import("./lot-d/inspiration");
 const boss = () => import("./lot-d/boss");
 const ai = () => import("./lot-d/ai");
 const assistant = () => import("./lot-d/assistant");
@@ -201,7 +200,7 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
     const m = await ads();
     return { prepare: m.kevinAdsAlertsForm, core: m.runSaveAdsAlertSettings };
   }),
-  // ------------------------------------------------------------------------------------------- ordres, inspiration
+  // ------------------------------------------------------------------------------------------------------ ordres
   op("agents.ordre_arreter", async () => {
     const m = await orders();
     return { prepare: m.kevinOrderForm, core: m.runStopOrder };
@@ -209,14 +208,6 @@ export const LOT_D_IMPL: SiteOpImpl[] = [
   op("agents.ordre_prolonger", async () => {
     const m = await orders();
     return { prepare: m.kevinOrderForm, core: m.runExtendOrder };
-  }),
-  op("agents.inspiration_annuler", async () => {
-    const m = await inspiration();
-    return { prepare: m.kevinReferenceForm, core: m.runUndoInspiration };
-  }),
-  op("agents.inspiration_retirer", async () => {
-    const m = await inspiration();
-    return { prepare: m.kevinReferenceForm, core: m.runRemoveReference };
   }),
   // --------------------------------------------------------------------------------------------------- Kevin
   op("agents.kevin_plafond", async () => {

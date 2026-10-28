@@ -1,6 +1,6 @@
 /**
  * Phase 34 — métadonnées des opérations du lot D pour Kevin (voir `../contract.ts`) : agents (équipes, réglages des
- * agents, plans, tests, demandes, Algorithme, Ads, bookmakers, ordres, inspiration, Kevin), univers (catégories de
+ * agents, plans, tests, demandes, Algorithme, Ads, bookmakers, ordres, Kevin), univers (catégories de
  * paris, identifiants bookmaker, capture, thèmes casino) et Réglages → IA d'écriture et IA de conversation.
  * Les cœurs : `apps/web/lib/site-ops/ops/lot-d.ts`. Pause, niveau, simulation, pause générale et validation d'un post
  * restent les entrées du catalogue de Kevin (même fonction métier : voir `../parity/lot-d.ts`).
@@ -562,7 +562,7 @@ export const LOT_D_OPS: SiteOpMeta[] = [
     }),
     serverActions: [WEB("agents/ads/actions.ts", "saveAdsAlertSettingsAction")],
   },
-  // ------------------------------------------------------------------------------------------- ordres, inspiration
+  // ------------------------------------------------------------------------------------------------------ ordres
   {
     key: "agents.ordre_arreter",
     domain: "agents",
@@ -584,28 +584,6 @@ export const LOT_D_OPS: SiteOpMeta[] = [
     confirm: "yes",
     params: obj({ ordre: s("Numéro de l'ordre"), jours: i("Jours de plus", 1, 30) }, ["ordre", "jours"]),
     serverActions: [WEB("agents/orders/actions.ts", "extendOrderAction")],
-  },
-  {
-    key: "agents.inspiration_annuler",
-    domain: "agents",
-    description: "Annuler une inspiration appliquée (toutes les propositions d'une référence, ou une seule) : réglages d'avant remis",
-    examples: ["annule l'inspiration de @roulette_pro", "remets comme avant le réglage venu de @paris_vip"],
-    kind: "setting",
-    role: "ADMIN",
-    confirm: "none",
-    params: obj({ reference: s("Canal d'inspiration (@nom, lien ou titre)"), proposition: s("Identifiant d'une proposition (facultatif)") }, ["reference"]),
-    serverActions: [WEB("agents/inspiration/actions.ts", "undoInspirationAction")],
-  },
-  {
-    key: "agents.inspiration_retirer",
-    domain: "agents",
-    description: "Retirer un canal d'inspiration (ses posts lus et son profil de style sont effacés)",
-    examples: ["retire la référence @roulette_pro", "oublie le canal d'inspiration Paris VIP"],
-    kind: "delete",
-    role: "ADMIN",
-    confirm: "delete",
-    params: obj({ reference: s("Canal d'inspiration (@nom, lien ou titre)") }, ["reference"]),
-    serverActions: [WEB("agents/inspiration/actions.ts", "removeReferenceAction")],
   },
   // --------------------------------------------------------------------------------------------------- Kevin
   {
