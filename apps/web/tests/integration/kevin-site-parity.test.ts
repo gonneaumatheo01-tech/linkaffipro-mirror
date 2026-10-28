@@ -165,6 +165,7 @@ const fakeLlm = createFakeBossLlm([
   ["active la catégorie corners avec des cotes entre 1,6 et 2,5", site("univers", "univers.categorie_paris_regler", { categorie: "Corners (Kevin)", active: true, minOdds: 1.6, maxOdds: 2.5 })],
   ["ajoute Léa à l'équipe comme responsable", site("equipe", "equipe.inviter", { role: "MANAGER" })],
   ["son adresse c'est lea@exemple.fr", site("equipe", "equipe.inviter", { email: "lea@exemple.fr", role: "MANAGER" })],
+  ["voici la clé fal", site("reglages", "reglages.agents_cle", { key: "fal" })],
   ["préviens-moi si les dépenses pub dépassent 200 € par jour", { name: "pas_prevu", input: {} }],
   ["envoie-moi le rapport à 8 h au lieu de 9 h", site("reglages", "reglages.rapports", { hour: 8 })],
   // ---- deux phrases (au moins) par domaine
@@ -915,7 +916,7 @@ describe("phase 34 : sécurité", () => {
   it("un secret demandé dans le groupe : « en privé », rien d'enregistré ; une clé collée dans le groupe est effacée", async () => {
     const before = await prisma.humanRequest.count({ where: { kind: "SECRET" } });
     const settings = await prisma.setting.count({ where: { key: { startsWith: "agents.secret." } } });
-    const r = await deliver(groupMsg(ADMIN, "Kevin, ajoute mon compte Sportaza"));
+    const r = await deliver(groupMsg(ADMIN, "Kevin, voici la clé fal"));
     expect(r.text).toMatch(/privé/);
     expect(r.sent.every((x) => x.chat === GROUP)).toBe(true);
     expect(await prisma.humanRequest.count({ where: { kind: "SECRET" } })).toBe(before);

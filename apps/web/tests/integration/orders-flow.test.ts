@@ -410,7 +410,7 @@ beforeAll(async () => {
   await prisma.user.deleteMany({ where: { email: "orders-flow@linkaffipro.internal" } });
   await prisma.setting.upsert({ where: { key: "admin.telegramUserId" }, create: { key: "admin.telegramUserId", value: String(ADMIN) }, update: { value: String(ADMIN) } });
   // Mises en route déjà faites et rapport du matin déjà parti : aucune question ne capte les messages de l'admin.
-  for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked", "agents.casinoSetupAsked", "agents.sportsSetupAsked", "boss.nudge.lastDay"])
+  for (const key of ["agents.dailyReportAsked", "agents.datingSetupAsked", "agents.algoSetupAsked", "agents.casinoSetupAsked", "agents.sportsSetupAsked", "agents.sports.apifootballKeyAsked", "boss.nudge.lastDay"])
     await prisma.setting.upsert({ where: { key }, create: { key, value: "2026-10-01T00:00:00.000Z" }, update: {} });
   for (let d = 0; d < 6; d++) await prisma.setting.upsert({ where: { key: "agents.report.lastDay" }, create: { key: "agents.report.lastDay", value: addDays(DAY1, 5) }, update: { value: addDays(DAY1, 5) } });
   ids.user = (await prisma.user.create({ data: { email: "orders-flow@linkaffipro.internal", name: "Mat", passwordHash: "x", role: "ADMIN", telegramUserId: BigInt(ADMIN) } })).id;
