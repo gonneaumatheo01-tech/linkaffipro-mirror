@@ -1,8 +1,8 @@
 /**
  * Phase 32 — métadonnées pour Kevin des opérations des pages avancées de la Prospection (alertes, réseaux, affiliés
  * signés, calibrage, recherche par compte réel ; règle de la phase 34, voir `../contract.ts`). Cœurs :
- * `apps/web/lib/site-ops/ops/lot-prospection/advanced.ts`. Les raccourcis du catalogue de l'équipe (« alertes du
- * jour », « réseau de @x », « combien vaut @x ? ») restent ceux de Kevin ; ces opérations sont celles des boutons du
+ * `apps/web/lib/site-ops/ops/lot-prospection/advanced.ts`. Les raccourcis du catalogue de l'équipe (« alertes du
+ * jour », « réseau de @x », « combien vaut @x ? ») restent ceux de Kevin ; ces opérations sont celles des boutons du
  * site, avec les mêmes refus. AUCUNE ne contacte un canal ou une personne, AUCUNE n'écrit dans Link Affi.
  * Calibrage : administrateurs, OUI (les estimations changent). Rallumer la recherche par compte réel n'est PAS une
  * opération du site (Kevin seul, avec confirmation) : le site peut seulement la couper.
