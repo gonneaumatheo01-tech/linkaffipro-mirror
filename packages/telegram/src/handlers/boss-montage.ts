@@ -21,7 +21,8 @@ import {
   type VideoMessage,
 } from "@linkaffipro/agents";
 import { isBossBot, type BotIdentity, type TelegramDeps } from "../ports";
-import { sendBossText, type BossReplyApi } from "../boss/reply";
+import { realBossEngine } from "../boss/engine";
+import { deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
 import { adminRouteFor } from "./agents-admin";
 
 /** Attente par défaut avant la question d'une vidéo envoyée seule. */
@@ -102,6 +103,35 @@ export function registerBossMontageHandlers(bot: Bot, identity: BotIdentity, dep
     });
     if (r.action === "pass") return next();
     const api = replyApiOf(ctx);
+    if (r.action === "text") {
+      // Légende qui demande autre chose sur la vidéo (« mets Léa à la place de la personne ») : traitée comme un
+      // message de l'admin par le chemin rapide de Kevin (la vidéo vient d'être gardée).
+      const engine = deps.bossEngine ?? realBossEngine;
+      const fast = await engine
+        .fastPath(agents, {
+          text: r.text,
+          messageId: msg.message_id,
+          replyToMessageId: null,
+          source: "text",
+          entities: msg.caption_entities ?? null,
+          speaker: { kind: "admin", telegramUserId: BigInt(ctx.from.id), firstName: ctx.from.first_name ?? null },
+          chat: { type: "private", chatId: BigInt(chatId) },
+        })
+        .catch((err) => {
+          console.error("[montage] légende de la vidéo non traitée", identity.username, (err as Error).message);
+          return null;
+        });
+      if (fast?.handled) {
+        await deliverBossReply({ api, chatId, messageId: msg.message_id, reply: fast, deps: agents, engine }).catch((err) =>
+          console.error("[montage] réponse à la légende non envoyée", identity.username, (err as Error).message),
+        );
+        return;
+      }
+      // Jamais de silence : la question habituelle sur la vidéo.
+      const q = await montageVideoQuestion(agents, String(chatId), video.messageId);
+      if (q) await sendBossText(api, chatId, q.reply, { replyToMessageId: msg.message_id, buttons: q.buttons }).catch(() => undefined);
+      return;
+    }
     if (r.action === "reply") {
       await sendBossText(api, chatId, r.reply, { replyToMessageId: msg.message_id, ...(r.buttons ? { buttons: r.buttons } : {}) }).catch((err) =>
         console.error("[montage] réponse à la vidéo non envoyée", identity.username, (err as Error).message),

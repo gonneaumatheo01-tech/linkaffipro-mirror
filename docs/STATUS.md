@@ -1,4 +1,28 @@
-# Statut — 28 octobre 2026
+# Statut — 28 octobre 2026 (soir) : Kevin met une persona à la place de la personne d'une vidéo
+
+## Fait
+- ✅ Kevin sait maintenant faire « mets Léa à la place de la personne dans cette vidéo » (phrase sous la vidéo ou juste après). Il vérifie tout avant de demander OUI : vidéo de 15 s au plus, photo de référence de la persona, clé du service de vidéo, plafond vidéo de l'équipe Rencontres. Il annonce le coût estimé, puis envoie la vidéo dans ta conversation privée seulement (rien n'est publié). « Où en est le remplacement ? » et « annule le remplacement » marchent aussi.
+- ✅ Même moteur que l'équipe Rencontres ; coût compté dans le plafond vidéo de l'équipe Rencontres (100 € par mois par défaut). Un seul remplacement à la fois.
+- ✅ 19 tests ajoutés (sans réseau), tous verts. Détails techniques : `docs/DECISIONS-TECH.md` (section du 28 octobre).
+
+## Reste
+- ⏳ Mettre en ligne (site, worker, puis userbot pour le correctif du problème 1). Attention : le dossier du Mac contient du travail non terminé d'une autre session (persona paris sportifs, migrations) ; il ne doit pas partir avec. Déployer depuis une copie propre de GitHub (bouton « Run workflow » de « Deploy to Railway », ou par Claude), pas par `railway up` depuis ce dossier.
+- ⚠️ Effet de bord du correctif du problème 1 : la recherche de prospects par compte réel (désactivée par défaut) peut maintenant utiliser un compte avec persona. Un test le signale (`account-search.test.ts`). Correction simple proposée : garder la persona autorisée pour l'inspiration seulement.
+- ⚠️ Un contrôle de code échoue déjà avant ce travail : `apps/worker/src/sync/aggregate-players.test.ts` ligne 34 (`any`).
+
+## Test de 5 minutes (après la mise en ligne)
+1. Vérifier dans Agents → Réglages que la clé « fal.ai » est enregistrée, et que Léa a une photo dans sa fiche (Conversations → Personas → Médias du personnage).
+2. Envoyer à Kevin une vidéo de 15 secondes au plus, avec la phrase « mets Léa à la place de la personne dans cette vidéo ».
+3. Répondre OUI quand Kevin annonce le coût.
+4. Attendre la vidéo (jusqu'à 15 minutes). « où en est le remplacement ? » donne l'avancement.
+
+## Problèmes et actions humaines
+- La mise en ligne (voir « Reste »).
+- Pour une vidéo de plus de 20 Mo, le compte Telegram connecté doit l'être encore (Réglages → Connexions → Telegram).
+
+---
+
+# Statut — 28 octobre 2026 (journée)
 
 ## Fait
 - ✅ Déploiement de 10 h 33 vérifié (site, worker, base, Redis : tout répond). Migration du proxy appliquée : Celsius lu par le serveur, Sportaza et Bet Portal réactivés.
