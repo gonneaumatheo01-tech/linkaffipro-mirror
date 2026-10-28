@@ -273,8 +273,8 @@ export async function handleRequest(
   if (!live) return { ok: false, error: "compte non connecté au service des comptes réels" };
   const acc = await deps.db.telegramUserAccount.findUnique({ where: { id: req.accountId }, select: { personaId: true, botId: true, isActive: true, status: true } });
   if (!acc || !acc.isActive || acc.status !== "ACTIVE") return { ok: false, error: "compte inactif" };
-  // Règle de la phase 18 : un compte qui porte une persona ou un bot fantôme converse, il ne lit jamais.
-  if (acc.personaId || acc.botId) return { ok: false, error: "compte occupé par des conversations" };
+  // Un bot fantôme ne lit jamais ; les comptes avec persona sont autorisés pour la lecture (risque accepté).
+  if (acc.botId) return { ok: false, error: "compte occupé par un bot fantôme" };
   // Phase 32 : recherche de prospection, lecture seule (aucune adhésion, aucun message), chemin à part.
   if (req.kind === PROSPECT_SEARCH_KIND) return handleProspectSearch(live.client, req, searchState, { ...(deps.searchOps ? { ops: deps.searchOps } : {}), now });
   try {

@@ -182,12 +182,13 @@ export type AccountHistoryTransport = {
 export const ACCOUNT_CONVERSING_DAYS = 7;
 
 /**
- * Comptes réels libres : actifs et connectés (`isActive`, `ACTIVE`), sans persona ni bot fantôme (un compte qui porte
- * une persona converse, règle de la phase 18), et sans DM envoyé ou prévu depuis 7 jours.
+ * Comptes réels libres : actifs et connectés (`isActive`, `ACTIVE`), sans bot fantôme,
+ * et sans DM envoyé ou prévu depuis 7 jours.
+ * Les comptes avec persona sont autorisés pour la lecture d'inspiration (risque de blocage accepté par le client).
  */
 export async function freeReaderAccounts(prisma: AgentsPrisma, now = new Date()): Promise<string[]> {
   const accounts = await prisma.telegramUserAccount.findMany({
-    where: { isActive: true, status: "ACTIVE", personaId: null, botId: null },
+    where: { isActive: true, status: "ACTIVE", botId: null },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });

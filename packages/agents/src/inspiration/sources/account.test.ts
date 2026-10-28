@@ -99,8 +99,8 @@ describe("lecteur réel", () => {
     ],
     accountDm: [{ accountId: "dm", status: "SENT", createdAt: new Date("2026-10-22T10:00:00Z") }],
   });
-  it("comptes libres : actifs, sans persona ni bot fantôme, sans DM depuis 7 jours", async () => {
-    expect(await freeReaderAccounts(prisma, now)).toEqual(["libre"]);
+  it("comptes libres : actifs, sans bot fantôme, sans DM depuis 7 jours (persona autorisé)", async () => {
+    expect(await freeReaderAccounts(prisma, now)).toEqual(["libre", "persona"]);
   });
   it("sans transport sûr (sessions tenues par le service userbot) : indisponible, aucun compte proposé", async () => {
     const reader = prismaAccountHistoryReader(prisma);
