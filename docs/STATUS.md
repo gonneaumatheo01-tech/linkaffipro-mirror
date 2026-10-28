@@ -6,7 +6,7 @@
 - ✅ 19 tests ajoutés (sans réseau), tous verts. Détails techniques : `docs/DECISIONS-TECH.md` (section du 28 octobre).
 
 ## Reste
-- ⏳ Mettre en ligne (site, worker, puis userbot pour le correctif du problème 1). Attention : le dossier du Mac contient du travail non terminé d'une autre session (persona paris sportifs, migrations) ; il ne doit pas partir avec. Déployer depuis une copie propre de GitHub (bouton « Run workflow » de « Deploy to Railway », ou par Claude), pas par `railway up` depuis ce dossier.
+- ✅ En ligne le 28 octobre à 20 h 14 (site, worker, userbot : problèmes 1 et 2), depuis une copie propre de GitHub (le dossier du Mac contient du travail non terminé d'une autre session). Santé vérifiée : site, base, Redis et worker répondent ; le worker a démarré toutes ses files. Déploiements Railway en pause de 19 h 45 à 20 h 06 (incident chez Railway), repris automatiquement. Message Telegram envoyé à l'admin.
 - ⚠️ Effet de bord du correctif du problème 1 : la recherche de prospects par compte réel (désactivée par défaut) peut maintenant utiliser un compte avec persona. Un test le signale (`account-search.test.ts`). Correction simple proposée : garder la persona autorisée pour l'inspiration seulement.
 - ⚠️ Un contrôle de code échoue déjà avant ce travail : `apps/worker/src/sync/aggregate-players.test.ts` ligne 34 (`any`).
 
@@ -17,7 +17,7 @@
 4. Attendre la vidéo (jusqu'à 15 minutes). « où en est le remplacement ? » donne l'avancement.
 
 ## Problèmes et actions humaines
-- La mise en ligne (voir « Reste »).
+- Le test de 5 minutes ci-dessus (envoyé par Telegram).
 - Pour une vidéo de plus de 20 Mo, le compte Telegram connecté doit l'être encore (Réglages → Connexions → Telegram).
 
 ---
