@@ -184,11 +184,12 @@ export const ACCOUNT_CONVERSING_DAYS = 7;
 /**
  * Comptes réels libres : actifs et connectés (`isActive`, `ACTIVE`), sans bot fantôme,
  * et sans DM envoyé ou prévu depuis 7 jours.
- * Les comptes avec persona sont autorisés pour la lecture d'inspiration (risque de blocage accepté par le client).
+ * Les comptes avec persona sont autorisés pour la lecture d'inspiration (risque de blocage accepté par le client) ;
+ * `allowPersona: false` les exclut (recherche de prospects, phase 32 : jamais un compte qui converse).
  */
-export async function freeReaderAccounts(prisma: AgentsPrisma, now = new Date()): Promise<string[]> {
+export async function freeReaderAccounts(prisma: AgentsPrisma, now = new Date(), opts: { allowPersona?: boolean } = {}): Promise<string[]> {
   const accounts = await prisma.telegramUserAccount.findMany({
-    where: { isActive: true, status: "ACTIVE", botId: null },
+    where: { isActive: true, status: "ACTIVE", botId: null, ...(opts.allowPersona === false ? { personaId: null } : {}) },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });

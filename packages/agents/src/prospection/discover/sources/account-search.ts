@@ -241,7 +241,7 @@ export async function runAccountSearch(deps0: ProspectionKevinDeps, lot: Lot): P
     const transport =
       deps.accountSearch && "transport" in deps.accountSearch ? (deps.accountSearch.transport ?? null) : await createUserbotSearchTransport(deps.prisma, { now: nowOf, ...(deps.sleep ? { sleep: deps.sleep } : {}) });
     if (!transport) return out("service des comptes réels indisponible");
-    const accounts = await (deps.accountSearch?.accounts ?? ((now: Date) => freeReaderAccounts(deps.prisma, now)))(nowOf());
+    const accounts = await (deps.accountSearch?.accounts ?? ((now: Date) => freeReaderAccounts(deps.prisma, now, { allowPersona: false })))(nowOf());
     if (!accounts.length) return out("aucun compte réel libre");
 
     const counters = await readAccountSearchCounters(deps, nowOf());

@@ -7,7 +7,7 @@
 
 ## Reste
 - ✅ En ligne le 28 octobre à 20 h 14 (site, worker, userbot : problèmes 1 et 2), depuis une copie propre de GitHub (le dossier du Mac contient du travail non terminé d'une autre session). Santé vérifiée : site, base, Redis et worker répondent ; le worker a démarré toutes ses files. Déploiements Railway en pause de 19 h 45 à 20 h 06 (incident chez Railway), repris automatiquement. Message Telegram envoyé à l'admin.
-- ⚠️ Effet de bord du correctif du problème 1 : la recherche de prospects par compte réel (désactivée par défaut) peut maintenant utiliser un compte avec persona. Un test le signale (`account-search.test.ts`). Correction simple proposée : garder la persona autorisée pour l'inspiration seulement.
+- ✅ Effet de bord du correctif du problème 1 corrigé : un compte avec persona lit les canaux d'inspiration (choix du client), mais ne sert jamais à la recherche de prospects (`freeReaderAccounts(…, { allowPersona: false })` et garde du userbot). Test du userbot resté à l'ancienne règle mis à jour.
 - ⚠️ Un contrôle de code échoue déjà avant ce travail : `apps/worker/src/sync/aggregate-players.test.ts` ligne 34 (`any`).
 
 ## Test de 5 minutes (après la mise en ligne)

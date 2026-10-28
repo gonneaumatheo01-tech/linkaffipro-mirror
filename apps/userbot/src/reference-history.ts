@@ -273,8 +273,10 @@ export async function handleRequest(
   if (!live) return { ok: false, error: "compte non connecté au service des comptes réels" };
   const acc = await deps.db.telegramUserAccount.findUnique({ where: { id: req.accountId }, select: { personaId: true, botId: true, isActive: true, status: true } });
   if (!acc || !acc.isActive || acc.status !== "ACTIVE") return { ok: false, error: "compte inactif" };
-  // Un bot fantôme ne lit jamais ; les comptes avec persona sont autorisés pour la lecture (risque accepté).
+  // Un bot fantôme ne lit jamais ; les comptes avec persona sont autorisés pour la lecture d'inspiration (risque
+  // accepté), jamais pour la recherche de prospects (phase 32 : un compte qui converse ne cherche pas).
   if (acc.botId) return { ok: false, error: "compte occupé par un bot fantôme" };
+  if (acc.personaId && req.kind === PROSPECT_SEARCH_KIND) return { ok: false, error: "compte occupé par des conversations" };
   // Phase 32 : recherche de prospection, lecture seule (aucune adhésion, aucun message), chemin à part.
   if (req.kind === PROSPECT_SEARCH_KIND) return handleProspectSearch(live.client, req, searchState, { ...(deps.searchOps ? { ops: deps.searchOps } : {}), now });
   try {

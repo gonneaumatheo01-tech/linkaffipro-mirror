@@ -56,12 +56,16 @@ function setup(account: Record<string, unknown> = {}) {
 
 describe("demandes du worker", () => {
   const ch = { username: "canal_exemple", chatId: null };
-  it("compte qui converse (persona ou bot fantôme), inactif ou non connecté : refusé, aucun appel Telegram", async () => {
-    for (const acc of [{ personaId: "p1" }, { botId: "b1" }, { isActive: false }]) {
+  it("bot fantôme, inactif ou non connecté : refusé, aucun appel Telegram ; un compte avec persona lit l'inspiration", async () => {
+    for (const acc of [{ botId: "b1" }, { isActive: false }]) {
       const k = setup(acc);
       expect(await handleRequest(k.deps, { kind: "is-member", accountId: "acc1", channel: ch }, new Map())).toMatchObject({ ok: false });
       expect(k.ops.isMember).not.toHaveBeenCalled();
     }
+    // Décision du client du 28 octobre : risque de blocage accepté pour la lecture des canaux d'inspiration.
+    const lea = setup({ personaId: "p1" });
+    await handleRequest(lea.deps, { kind: "is-member", accountId: "acc1", channel: ch }, new Map());
+    expect(lea.ops.isMember).toHaveBeenCalled();
     const k = setup();
     expect(await handleRequest(k.deps, { kind: "history", accountId: "autre", channel: ch, limit: 50 }, new Map())).toMatchObject({ ok: false, error: expect.stringMatching(/non connecté/) });
   });
