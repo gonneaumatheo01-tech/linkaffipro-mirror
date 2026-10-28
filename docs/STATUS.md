@@ -7,9 +7,11 @@
 - ✅ Corrigé au passage : la recherche de prospects par compte réel n'utilise plus un compte avec persona ; le contrôle de code `aggregate-players.test.ts` passe.
 - ✅ Vérifié : typage et lint verts partout ; tests unitaires verts (agents 1 792, site 3 602, Telegram 605, worker 503, cœur 420, files 42, userbot 27) ; parité de Kevin : 0 manquante.
 
+- ✅ En ligne le 28 octobre vers 20 h 40 : site, worker, userbot (santé vérifiée). Au démarrage, le worker a effacé 3 planifications retirées, vidé la file `agents-bookmakers` et clos 3 alertes bookmakers ouvertes. Service du Mac `com.linkaffipro.bookmaker-runner` retiré.
+- ✅ CI de la demande de fusion verte (tests d'intégration compris) ; build du site en CI avec plus de mémoire.
+
 ## Reste
-- ⏳ Mise en ligne après accord du client : site, worker, puis userbot ; retrait du service du Mac `com.linkaffipro.bookmaker-runner`.
-- ⏳ Tests d'intégration (base réelle) : lancés par la CI de la demande de fusion.
+- Rien pour ce retrait.
 
 ## Test de 5 minutes (après la mise en ligne)
 1. Ouvrir Agents : les onglets « Inspiration » et « Bookmakers » ont disparu.
