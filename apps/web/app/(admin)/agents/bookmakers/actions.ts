@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { BOOKMAKERS_PATH } from "@/lib/agents/bookmakers";
 import { backTo } from "@/lib/agents/redirect";
-import { runOpenBrowser, runRelearnSite, runSetSiteUrl, runTestSite } from "@/lib/site-ops/ops/lot-d/bookmakers";
+import { runOpenBrowser, runRelearnSite, runSetSiteTarget, runSetSiteUrl, runTestSite, runToggleSiteActive } from "@/lib/site-ops/ops/lot-d/bookmakers";
 import { siteActor } from "@/lib/site-ops/ops/lot-d/kit";
 import { requireUser } from "@/lib/session";
 
@@ -40,4 +40,14 @@ export async function openBrowserAction(formData: FormData): Promise<void> {
 export async function setSiteUrlAction(formData: FormData): Promise<void> {
   const user = await requireUser();
   finish(await runSetSiteUrl(formData, siteActor(user)));
+}
+
+export async function setSiteTargetAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  finish(await runSetSiteTarget(formData, siteActor(user)));
+}
+
+export async function toggleSiteActiveAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  finish(await runToggleSiteActive(formData, siteActor(user)));
 }

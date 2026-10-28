@@ -59,6 +59,8 @@ export const LOT_D_PARITY: Record<string, SiteParityEntry> = {
   [A("agents/bookmakers/actions.ts", "relearnSiteAction")]: { op: "agents.bookmaker_reapprendre" },
   [A("agents/bookmakers/actions.ts", "openBrowserAction")]: { op: "agents.bookmaker_navigateur" },
   [A("agents/bookmakers/actions.ts", "setSiteUrlAction")]: { op: "agents.bookmaker_adresse" },
+  [A("agents/bookmakers/actions.ts", "setSiteTargetAction")]: { op: "agents.bookmaker_cible" },
+  [A("agents/bookmakers/actions.ts", "toggleSiteActiveAction")]: { op: "agents.bookmaker_activer" },
   // Agent Ads
   [A("agents/ads/actions.ts", "markAdsRecommendationAction")]: { op: "agents.ads_recommandation" },
   [A("agents/ads/actions.ts", "saveAdsThresholdsAction")]: { op: "agents.ads_seuils" },
