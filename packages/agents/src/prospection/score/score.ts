@@ -203,6 +203,9 @@ export function scoreProspect(input: ScoreInput & ScoreInputExtras, settings: Sc
   else if (input.riskFlags.includes("SCAM_FIXED_MATCHES")) excluded = "vend des matchs truqués";
   else if (input.authenticity === "SUSPECT_BOT") excluded = "faux canal (contenu de robot)";
   else if (input.authenticity === "REPOST") excluded = "ne fait que transférer";
+  // Phase 32 (constat en production) : un canal ni casino ni paris sportifs (humour, cuisine, technologie…) n'est
+  // jamais à contacter, même s'il a de l'audience.
+  else if (input.vertical === "OTHER") excluded = "hors thème (ni casino ni paris sportifs)";
   if (excluded) caps.push(`${excluded} : niveau D`);
 
   if (input.region === "UNKNOWN") {

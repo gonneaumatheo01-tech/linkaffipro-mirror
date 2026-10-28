@@ -64,6 +64,12 @@ describe("composantes", () => {
     expect(r.matchedOfferId).toBe("o1");
     expect(r.tierReason).toBe("2,1k vues/post, FR, pousse 1xbet (rotatif), contact pub : @admin_pub — A");
   });
+  it("hors thème (ni casino ni paris sportifs) : jamais à contacter, même avec de l'audience", () => {
+    const r = scoreProspect(input({ vertical: "OTHER" }), S);
+    expect(r.tier).toBe("D");
+    expect(r.status).toBe("DISQUALIFIED");
+    expect(r.tierReason).toMatch(/hors thème/);
+  });
   it("engagement : paliers du taux de vue et bonus plafonné à 5", () => {
     expect([0.25, 0.1, 0.05, 0.03, 0.02].map(viewRatePoints)).toEqual([10, 7, 4, 2, 0]);
     expect(interactionPoints(0.05, 0.01)).toBe(5);

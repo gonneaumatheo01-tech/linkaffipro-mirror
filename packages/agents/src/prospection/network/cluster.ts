@@ -42,7 +42,14 @@ const CROSS_FORWARDS_MIN = 2;
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 const low = (s: string) => s.trim().toLowerCase();
 
-/** Site d'un contact (hôte ; page de liens : hôte + page). Marques, raccourcisseurs, Telegram : null. */
+/**
+ * Annuaires et places de marché de canaux : un lien vers eux ne prouve pas un même propriétaire (chaque canal y a sa
+ * fiche). Réseaux sociaux et plateformes : la page (hôte + premier segment), jamais le seul hôte.
+ */
+const DIRECTORY_HOSTS = new Set(["telega.io", "telega.in", "tgstat.com", "tgstat.ru", "uk.tgstat.com", "telemetr.io", "telemetr.me", "telegramchannels.me", "tlgrm.eu", "tlgrm.ru", "combot.org", "telegram-store.com", "tgram.io", "collaborator.pro", "epicstars.com", "telegate.io"]);
+const PLATFORM_HOSTS = new Set(["instagram.com", "tiktok.com", "x.com", "twitter.com", "facebook.com", "youtube.com", "m.youtube.com", "youtu.be", "twitch.tv", "kick.com", "discord.gg", "discord.com", "wa.me", "whatsapp.com", "snapchat.com", "threads.net", "linkedin.com", "reddit.com", "patreon.com", "onlyfans.com", "medium.com", "github.com", "google.com", "docs.google.com", "forms.gle", "play.google.com", "apps.apple.com"]);
+
+/** Site d'un contact (hôte ; page de liens ou de réseau social : hôte + page). Marques, raccourcisseurs, Telegram, annuaires : null. */
 export function siteKey(value: string): string | null {
   let u: URL;
   try {
@@ -52,8 +59,9 @@ export function siteKey(value: string): string | null {
   }
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
   if (!host.includes(".") || /(^|\.)(t\.me|telegram\.me|telegram\.org)$/.test(host)) return null;
+  if (DIRECTORY_HOSTS.has(host) || [...DIRECTORY_HOSTS].some((d) => host.endsWith(`.${d}`))) return null;
   const pat = affiliatePatterns();
-  if (pat.linkHubs.includes(host)) {
+  if (pat.linkHubs.includes(host) || PLATFORM_HOSTS.has(host)) {
     const page = u.pathname.split("/").filter(Boolean)[0];
     return page ? `${host}/${page.toLowerCase()}` : null;
   }

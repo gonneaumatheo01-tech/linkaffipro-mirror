@@ -43,6 +43,11 @@ describe("preuves de rapprochement", () => {
   it("site : page de liens gardée, marque et Telegram écartés", () => {
     expect(siteKey("https://linktr.ee/maxime")).toBe("linktr.ee/maxime");
     expect(siteKey("https://www.winamax.fr/promo")).toBeNull();
+    // Constat en production : une fiche de place de marché ou un réseau social ne prouve pas un même propriétaire.
+    expect(siteKey("https://telega.io/channels/free_netk/card")).toBeNull();
+    expect(siteKey("https://tgstat.com/channel/@x")).toBeNull();
+    expect(siteKey("https://www.instagram.com/pronos_max")).toBe("instagram.com/pronos_max");
+    expect(siteKey("https://youtube.com")).toBeNull();
     expect(siteKey("https://t.me/x")).toBeNull();
     expect(siteKey("pronos-maison.fr")).toBe("pronos-maison.fr");
   });
