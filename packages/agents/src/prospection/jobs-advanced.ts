@@ -73,8 +73,11 @@ export async function prospectionAdvancedSchedule(deps: ProspectionKevinDeps, qu
   if (inNight && runs.requalify !== day) {
     runs.requalify = day;
     await writeSetting(deps, PROSPECTION_ADVANCED_RUNS_SETTING, runs);
-    const ids = await port.dueForRequalify(deps, now, WATCH_LIMITS.perNight);
-    const windowLeft = fromParis(day, NIGHT.endHour * 60).getTime() - now.getTime();
+    // Dues avant la fin de la nuit (6 h) : un canal relu à 2 h 25 la semaine d'avant l'est encore ce soir, pas demain
+    // (un seul passage par nuit : sans cet horizon, chaque cadence glisserait d'un jour).
+    const nightEnd = fromParis(day, NIGHT.endHour * 60);
+    const ids = await port.dueForRequalify(deps, nightEnd, WATCH_LIMITS.perNight);
+    const windowLeft = nightEnd.getTime() - now.getTime();
     const spacing = ids.length > 1 ? Math.max(0, Math.min(5 * 60_000, Math.floor(windowLeft / ids.length))) : 0;
     for (const [i, prospectId] of ids.entries()) await queue(deps, { type: "prospection.requalify-one", prospectId }, { jobId: `prospection.requalify-one:${day}:${prospectId}`, delayMs: i * spacing });
     out.requalify = ids.length;

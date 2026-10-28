@@ -47,10 +47,12 @@ const types = (q: Queued[]) => q.map((x) => x.job.type);
 
 describe("planification avancée de la prospection", () => {
   it("nuit : relectures dues une seule fois, étalées ; compte réel seulement s'il est activé", async () => {
-    const { deps, queued, queue, setNow, k } = await kit();
+    const { deps, queued, queue, setNow, k, calls } = await kit();
     await prospectionAdvancedSchedule(deps, queue); // 02:30 Paris
     expect(types(queued)).toEqual(["prospection.requalify-one", "prospection.requalify-one", "prospection.requalify-one"]);
     expect(queued[2]!.opts!.delayMs).toBeGreaterThan(0);
+    // Horizon = fin de la nuit (6 h Paris) : une relecture due à 2 h 40 passe cette nuit, pas la suivante.
+    expect(calls.dueForRequalify![0]![0]).toEqual(new Date("2026-10-27T05:00:00Z"));
     await prospectionAdvancedSchedule(deps, queue);
     expect(queued).toHaveLength(3);
 
