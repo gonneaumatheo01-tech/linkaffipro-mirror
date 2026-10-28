@@ -44,6 +44,10 @@ export type TurnOutput = {
    * vérifié par le code : un motif inconnu avec `needed` vrai devient « question hors fiche ».
    */
   handoff?: TurnHandoff;
+  /** Phase 25 bis : clé du bookmaker choisi (paris sportifs VIP) ; chaîne vide si aucun. */
+  selected_book?: string;
+  /** Phase 25 bis : le modèle demande l'envoi du lien du canal VIP (après dépôt confirmé). */
+  send_vip_link?: boolean;
 };
 
 export type TurnHandoff = { needed: boolean; reason: NeedsHumanReason | "none" };
@@ -119,7 +123,7 @@ export const HANDOFF_REASON_VALUES = ["none", ...NEEDS_HUMAN_REASONS] as const;
  */
 export const UNIVERSE_TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
   ...TURN_OUTPUT_JSON_SCHEMA,
-  required: [...TURN_OUTPUT_FIELDS, "handoff"],
+  required: [...TURN_OUTPUT_FIELDS, "handoff", "selected_book", "send_vip_link"],
   properties: {
     ...(TURN_OUTPUT_JSON_SCHEMA.properties as Record<string, unknown>),
     handoff: {
@@ -128,6 +132,10 @@ export const UNIVERSE_TURN_OUTPUT_JSON_SCHEMA: Record<string, unknown> = {
       required: ["needed", "reason"],
       properties: { needed: { type: "boolean" }, reason: stringEnum(HANDOFF_REASON_VALUES) },
     },
+    /** Phase 25 bis : clé du bookmaker partenaire choisi (vide si aucun). */
+    selected_book: { type: "string" },
+    /** Phase 25 bis : true quand la personne a confirmé son dépôt et qu'on envoie le lien VIP. */
+    send_vip_link: { type: "boolean" },
   },
 };
 
@@ -242,6 +250,12 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
   const note = typeof value.note_interne === "string" ? value.note_interne : "";
   const handoff = handoffValue(value.handoff, errors);
 
+  // Phase 25 bis : selected_book (chaîne, vide si aucun) et send_vip_link (booléen).
+  const selectedBook =
+    typeof value.selected_book === "string" ? (value.selected_book as string).trim() : undefined;
+  const sendVipLink =
+    value.send_vip_link === true ? true : value.send_vip_link === false ? false : undefined;
+
   if (errors.length > 0 || !style || !stage) return { ok: false, errors };
   return {
     ok: true,
@@ -255,6 +269,8 @@ export function checkTurnOutput(value: unknown): TurnOutputCheck {
       app_refused: value.app_refused === true,
       note_interne: note,
       ...(handoff ? { handoff } : {}),
+      ...(selectedBook !== undefined ? { selected_book: selectedBook } : {}),
+      ...(sendVipLink !== undefined ? { send_vip_link: sendVipLink } : {}),
     },
   };
 }

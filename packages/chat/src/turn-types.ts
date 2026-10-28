@@ -1,6 +1,10 @@
 // Types d'un tour de l'assistant (contrat §3.10) : entrée, dépendances injectées, résultat. La persistance est faite
 // par l'appelant (worker, ou bouton « Tester » du site) : le moteur ne lit ni la base ni les réglages.
-import { effectiveIdentityKind, type NeedsHumanReason, type PersonaFaqEntry } from "@linkaffipro/core";
+import {
+  effectiveIdentityKind,
+  type NeedsHumanReason,
+  type PersonaFaqEntry,
+} from "@linkaffipro/core";
 import type { StyleProfile } from "./style";
 import type {
   ChatLang,
@@ -37,6 +41,18 @@ export function personaIllusion(p: {
 }): boolean {
   return personaIdentity(p) === "GIRL";
 }
+
+/** Bookmaker proposé par une persona VIP (paris sportifs, phase 25 bis). */
+export type PersonaBookmakerInput = {
+  /** Clé du BookmakerSite : "celsius", "betportal", "sportaza". */
+  bookmakerKey: string;
+  /** Nom lisible : "Celsius Casino", "Bet Portal", "Sportaza". */
+  label: string;
+  /** Ordre de proposition (1 = en premier). */
+  priority: number;
+  /** Le lien d'invitation VIP est configuré pour ce bookmaker. */
+  hasInviteLink: boolean;
+};
 
 /** Persona telle que le moteur la lit (champs utiles du modèle Prisma `Persona`, contrat §1). */
 export type PersonaInput = {
@@ -86,6 +102,11 @@ export type PersonaInput = {
   universe?: string | null;
   /** `Persona.faq` (phase 25) : questions courantes et réponses, seule source de ce que l'assistante peut affirmer. */
   faq?: readonly PersonaFaqEntry[] | null;
+  /**
+   * Bookmakers proposés par cette persona VIP (paris sportifs, phase 25 bis) : triés par `priority` croissante.
+   * Celsius (1) → Bet Portal (2) → Sportaza (3). Absent ou vide pour les personas dating / casino.
+   */
+  bookmakers?: readonly PersonaBookmakerInput[] | null;
 };
 
 /** Réglages utiles au tour (lus par l'appelant dans `Setting` `assistant.venice`). */
@@ -217,8 +238,16 @@ export type TurnDeps = {
   now(): Date;
   sleep(ms: number): Promise<void>;
   random(): number;
-  /** Crée le lien d'offre suivi (un sub-ID par envoi) : appelé seulement quand le lien part réellement. */
-  createOfferLink(): Promise<{ url: string; subId: string } | null>;
+  /**
+   * Crée le lien d'offre suivi (un sub-ID par envoi) : appelé seulement quand le lien part réellement.
+   * @param bookmakerKey — clé du bookmaker choisi par le modèle (phase 25 bis, sports) ; absent en dating / casino.
+   */
+  createOfferLink(bookmakerKey?: string): Promise<{ url: string; subId: string } | null>;
+  /**
+   * Résout le lien d'invitation VIP Telegram pour un bookmaker donné (phase 25 bis, sports). Appelé quand le modèle
+   * confirme le dépôt (`send_vip_link: true`). Retourne l'URL Telegram du canal VIP, ou null si aucun lien configuré.
+   */
+  resolveVipLink?(bookmakerKey: string): Promise<{ url: string; bookmakerKey: string } | null>;
   /** Relu juste avant le premier envoi : reprise par l'équipe (abort) ou messages arrivés pendant la préparation. */
   beforeSend(): Promise<{ abort: boolean; newInbound: TurnInbound[] }>;
   recordUsage(u: UsageRecord): Promise<void>;
@@ -246,6 +275,7 @@ export type SentPart = {
 export type TurnEventType =
   | "stage_changed"
   | "offer_sent"
+  | "vip_link_sent"
   | "minor"
   | "ai_failed"
   | "cap_reached"
@@ -265,7 +295,7 @@ export type TurnResult = {
   facts: string[];
   /** Nouveau résumé roulant (absent si aucun résumé n'a été fait). */
   summary?: string;
-  offerSent: { subId: string; url: string } | null;
+  offerSent: { subId: string; url: string; bookmakerKey?: string } | null;
   events: TurnEvent[];
   /**
    * Nouvel essai demandé (panne de l'IA) : les messages entrants du tour sont rendus au tour suivant. Absent après
@@ -306,6 +336,10 @@ export type TurnResult = {
    * contrôle : chiffre hors fiche refusé deux fois). L'appelant pose `Conversation.needsHumanAt` / `needsHumanReason`.
    */
   needsHuman?: NeedsHumanSignal | null;
+  /**
+   * Lien VIP envoyé après confirmation du dépôt (phase 25 bis, paris sportifs). L'appelant peut marquer la conversion.
+   */
+  vipLinkSent?: { url: string; bookmakerKey: string } | null;
 };
 
 export type NeedsHumanSignal = { reason: NeedsHumanReason; source: "code" | "model" | "check" };

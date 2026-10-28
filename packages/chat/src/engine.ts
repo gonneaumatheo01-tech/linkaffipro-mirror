@@ -13,7 +13,13 @@ import { asksForOfferAccess } from "./offer-request";
 import { mentionsStopRequest } from "./stop-request";
 import { parseTurnOutput } from "./parse";
 import { buildSummaryRequest, buildSystemPrompt, buildTurnMessages, cleanSummary } from "./prompt";
-import { LIVE_WINDOW_MS, openingDelayMs, pauseBetweenMs, typingDelayMs, withTyping } from "./rhythm";
+import {
+  LIVE_WINDOW_MS,
+  openingDelayMs,
+  pauseBetweenMs,
+  typingDelayMs,
+  withTyping,
+} from "./rhythm";
 import { turnOutputJsonSchema, type TurnOutput } from "./schema";
 import { mergeStyle, replyLanguage } from "./style";
 import { fixedText, type FixedTextKey } from "./texts";
@@ -21,6 +27,7 @@ import { personaIdentity, personaIllusion } from "./turn-types";
 import type {
   ChatButton,
   NeedsHumanSignal,
+  PersonaInput,
   SendResult,
   SentPart,
   StageChange,
@@ -58,6 +65,9 @@ export const RETRY_LATER_MS = 5 * 60_000;
 export const NEUTRAL_MESSAGE_INTERVAL_MS = 60 * 60_000;
 /** Passages d'un même tour en panne (le premier + 2 nouveaux essais) : ensuite échec définitif, sans nouvel essai. */
 export const MAX_TURN_ATTEMPTS = 3;
+
+/** Texte du bouton du canal VIP (Paris sportifs, phase 36), envoyé après un dépôt confirmé. */
+export const VIP_BUTTON_TEXT = "Accéder au canal VIP 🔑";
 /** Pannes qui arrêtent tout de suite, sans aucun message (clé refusée, solde vide, pas de clé). */
 const FATAL_CODES = new Set<string>(["auth", "balance", "no_key"]);
 /**
@@ -388,7 +398,9 @@ function isLive(input: TurnInput): boolean {
 }
 
 function isHot(input: TurnInput): boolean {
-  return (input.conversation.style.interest ?? 0) >= 7 || input.conversation.style.tone === "flirty";
+  return (
+    (input.conversation.style.interest ?? 0) >= 7 || input.conversation.style.tone === "flirty"
+  );
 }
 
 async function safeTyping(run: Run): Promise<void> {
@@ -582,12 +594,21 @@ async function retryLater(
 async function sendParts(
   run: Run,
   texts: string[],
-  opts: { withOffer: boolean; fixedKey: FixedTextKey | null },
+  opts: {
+    withOffer: boolean;
+    fixedKey: FixedTextKey | null;
+    /** Phase 36 : clé du bookmaker partenaire (Paris sportifs VIP). */
+    bookKey?: string | null;
+    /** Phase 36 : lien du canal VIP à envoyer en bouton (après dépôt confirmé). */
+    vipLink?: string | null;
+  },
 ): Promise<{
   sent: SentPart[];
   offerSent: { subId: string; url: string } | null;
   sendError: TurnResult["sendError"];
   unsentOfferSubId: string | null;
+  /** Phase 36 : lien VIP envoyé (canal Telegram du bookmaker). */
+  vipLinkSent?: string | null;
 }> {
   const { deps, input } = run;
   const persona = input.persona;
@@ -595,6 +616,7 @@ async function sendParts(
   let offerSent: { subId: string; url: string } | null = null;
   let sendError: TurnResult["sendError"] = null;
   let unsentOfferSubId: string | null = null;
+  let vipLinkSent: string | null = null;
 
   for (let i = 0; i < texts.length; i++) {
     const text = texts[i] ?? "";
@@ -630,17 +652,36 @@ async function sendParts(
     let link: { url: string; subId: string } | null = null;
     if (isLast && opts.withOffer) {
       try {
-        link = await deps.createOfferLink();
+        link = await deps.createOfferLink(opts.bookKey ?? undefined);
       } catch {
         link = null;
       }
     }
     const canButtons = deps.sender.capabilities.canSendButtons;
+
+    // Phase 25 bis : texte du bouton d'offre (toujours au niveau persona).
+    const offerBtnText = offerButtonTextFor(persona.universe, persona.offerButtonText);
+
+    // Phase 36 : lien du canal VIP du bookmaker (après dépôt confirmé), en bouton sous le dernier message.
+    const vipLink = isLast && opts.vipLink ? opts.vipLink : null;
+    const vipBtn = vipLink && canButtons ? { text: VIP_BUTTON_TEXT, url: vipLink } : null;
+
+    const offerBtn = link && canButtons ? { text: offerBtnText, url: link.url } : null;
+
     const buttons: ChatButton[][] | undefined =
-      link && canButtons
-        ? [[{ text: offerButtonTextFor(persona.universe, persona.offerButtonText), url: link.url }]]
-        : undefined;
-    const outgoing = link && !canButtons ? `${text}\n\n${link.url}` : text;
+      offerBtn && vipBtn
+        ? [[offerBtn], [vipBtn]]
+        : offerBtn
+          ? [[offerBtn]]
+          : vipBtn
+            ? [[vipBtn]]
+            : undefined;
+
+    // Sans boutons (aperçu « Tester ») : les adresses vont à la fin du texte.
+    const inlineUrls = canButtons
+      ? []
+      : [link?.url, vipLink].filter((u): u is string => Boolean(u));
+    const outgoing = inlineUrls.length > 0 ? `${text}\n\n${inlineUrls.join("\n")}` : text;
     const sendOpts = { buttons, fixedKey: opts.fixedKey, offerSubId: link?.subId ?? null };
     const mediaAssetId = link && persona.offerMediaAssetId ? persona.offerMediaAssetId : null;
     const r = await safeSend(() =>
@@ -662,9 +703,28 @@ async function sendParts(
       fixedKey: opts.fixedKey,
     });
     if (link) offerSent = { subId: link.subId, url: link.url };
+    // Compté seulement une fois le message parti (un échec d'envoi ne vaut pas conversion).
+    if (vipLink) vipLinkSent = vipLink;
     if (!isLast) await deps.sleep(pauseBetweenMs(deps.random, isLive(input)));
   }
-  return { sent, offerSent, sendError, unsentOfferSubId };
+  return { sent, offerSent, sendError, unsentOfferSubId, vipLinkSent };
+}
+
+/**
+ * Bookmaker du tour (Paris sportifs VIP) : la clé donnée par le modèle si la persona la connaît ; une clé inconnue ne
+ * vaut rien. Lien d'inscription demandé sans clé : le premier bookmaker de la liste (sinon le bouton manquerait).
+ */
+export function pickBook(
+  persona: PersonaInput,
+  selected: string | undefined,
+  withOffer: boolean,
+): string | null {
+  const books = persona.bookmakers ?? [];
+  if (books.length === 0) return null;
+  const key = selected?.trim();
+  if (key && books.some((b) => b.bookmakerKey === key)) return key;
+  if (!withOffer) return null;
+  return [...books].sort((a, b) => a.priority - b.priority)[0]?.bookmakerKey ?? null;
 }
 
 /** Résumé roulant après les envois (modèle de repli) : un échec est sans conséquence. */
@@ -857,7 +917,32 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   };
   const withOffer =
     output && !needsHuman ? canSendOffer(offerConv, input.persona, output, input.kind) : false;
-  const sending = await sendParts(run, texts, { withOffer, fixedKey });
+
+  // Phase 25 bis : bookmaker partenaire (Paris sportifs VIP) et lien VIP.
+  const selectedBook = pickBook(input.persona, output?.selected_book, withOffer);
+  let vipLink: string | null = null;
+  // Lien VIP : seulement après un lien d'inscription déjà envoyé, jamais pendant un passage à l'équipe.
+  if (
+    output?.send_vip_link &&
+    selectedBook &&
+    conv.offerSends > 0 &&
+    !needsHuman &&
+    deps.resolveVipLink
+  ) {
+    try {
+      const vip = await deps.resolveVipLink(selectedBook);
+      vipLink = vip?.url ?? null;
+    } catch {
+      vipLink = null;
+    }
+  }
+
+  const sending = await sendParts(run, texts, {
+    withOffer,
+    fixedKey,
+    bookKey: selectedBook,
+    vipLink,
+  });
   const anySent = sending.sent.length > 0;
 
   // 5. Étape, événements, style, faits, relance.
@@ -920,7 +1005,9 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     style: output ? mergeStyle(conv.style, output.style_update, now) : conv.style,
     facts: output ? mergeFacts(conv.facts, output.memory_facts) : conv.facts,
     ...(summary ? { summary } : {}),
-    offerSent: sending.offerSent,
+    offerSent: sending.offerSent
+      ? { ...sending.offerSent, ...(selectedBook ? { bookmakerKey: selectedBook } : {}) }
+      : null,
     events,
     model,
     note: output?.note_interne?.trim() || null,
@@ -932,6 +1019,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     sendError: sending.sendError,
     unsentOfferSubId: sending.unsentOfferSubId,
     needsHuman: needsHuman && anySent ? needsHuman : null,
+    vipLinkSent:
+      sending.vipLinkSent && selectedBook
+        ? { url: sending.vipLinkSent, bookmakerKey: selectedBook }
+        : null,
   };
 }
 
