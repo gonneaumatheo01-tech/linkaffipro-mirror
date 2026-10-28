@@ -1,0 +1,1789 @@
+{
+ "aff-a": {
+  "2026-09": [
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-01",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-02",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-03",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-04",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-05",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-06",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-07",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-08",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-09",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-10",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-11",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-12",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-13",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-14",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-15",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-16",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-17",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-18",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-19",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-20",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-21",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-22",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-23",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-24",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-25",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-26",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-27",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-28",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-29",
+    "clicks": 30,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 4.5
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-09-30",
+    "clicks": 30,
+    "signups": 3,
+    "qualified_ftds": 1,
+    "revenue": 4.5
+   }
+  ],
+  "2026-10": [
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-01",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-02",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-03",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-04",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-05",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-06",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-07",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-08",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-09",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-10",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 2,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-11",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-12",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-13",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-14",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-15",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-16",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-17",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-18",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-19",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-20",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 2,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-21",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-22",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-23",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-24",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-25",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-26",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-27",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-28",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-29",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-30",
+    "clicks": 40,
+    "signups": 3,
+    "qualified_ftds": 2,
+    "revenue": 6.0
+   },
+   {
+    "affiliate_id": "aff-a",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-a",
+    "date": "2026-10-31",
+    "clicks": 40,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 6.0
+   }
+  ]
+ },
+ "aff-b": {
+  "2026-09": [
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-01",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-02",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-03",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-04",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-05",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-06",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-07",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-08",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-09",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-10",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-11",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-12",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-13",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-14",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-15",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-16",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-17",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-18",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-19",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-20",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-21",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-22",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-23",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-24",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-25",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-26",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-27",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-28",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-29",
+    "clicks": 10,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 1.5
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-09-30",
+    "clicks": 10,
+    "signups": 1,
+    "qualified_ftds": 1,
+    "revenue": 1.5
+   }
+  ],
+  "2026-10": [
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-01",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-02",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-03",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-04",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-05",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-06",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-07",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-08",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-09",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-10",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-11",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-12",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-13",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-14",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-15",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-16",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-17",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-18",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-19",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-20",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 1,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-21",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-22",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-23",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-24",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-25",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-26",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-27",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-28",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-29",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-30",
+    "clicks": 12,
+    "signups": 1,
+    "qualified_ftds": 1,
+    "revenue": 2.0
+   },
+   {
+    "affiliate_id": "aff-b",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-b",
+    "date": "2026-10-31",
+    "clicks": 12,
+    "signups": 0,
+    "qualified_ftds": 0,
+    "revenue": 2.0
+   }
+  ]
+ },
+ "aff-c": {
+  "2026-09": [
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-01",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-02",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-03",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-04",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-05",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-06",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-07",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-08",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-09",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-10",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 1
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-11",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-12",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-13",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-14",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-15",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-16",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-17",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-18",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-19",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-20",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 1
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-21",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-22",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-23",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-24",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-25",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-26",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-27",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-28",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-29",
+    "clicks": 20,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-09-30",
+    "clicks": 20,
+    "signups": 3,
+    "qualified_ftds": 1
+   }
+  ],
+  "2026-10": [
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-01",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-02",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-03",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-04",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-05",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-06",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-07",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-08",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-09",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-10",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 1
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-11",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-12",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-13",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-14",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-15",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-16",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-17",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-18",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-19",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-20",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 1
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-21",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-22",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-23",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-24",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-25",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-26",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-27",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-28",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-29",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-30",
+    "clicks": 25,
+    "signups": 3,
+    "qualified_ftds": 1
+   },
+   {
+    "affiliate_id": "aff-c",
+    "casino_id": "cas-1",
+    "campaign_id": "camp-aff-c",
+    "date": "2026-10-31",
+    "clicks": 25,
+    "signups": 0,
+    "qualified_ftds": 0
+   }
+  ]
+ }
+}

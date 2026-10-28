@@ -1,0 +1,20 @@
+[
+ {
+  "id": "aff-a",
+  "display_name": "Pronos Alpha",
+  "email": "secret@example.invalid",
+  "phone": "+33600000000"
+ },
+ {
+  "id": "aff-b",
+  "full_name": "Bravo Paris",
+  "iban": "FR76XXXX"
+ },
+ {
+  "id": "aff-c"
+ },
+ {
+  "id": "aff-d",
+  "username": "delta_tips"
+ }
+]
