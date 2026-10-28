@@ -32,6 +32,11 @@ describe("voix de Kevin (Valorisateur, boucle Link Affi)", () => {
     expect(failures, failures.join("\n")).toEqual([]);
   });
 
+  it("singulier : « 1 réglage », jamais « 1 réglages »", () => {
+    expect(REPORT_VARIANTS.proposals({ n: 1 }).join(" ")).not.toMatch(/\b1 réglages\b/);
+    expect(REPORT_VARIANTS.proposals({ n: 2 }).join(" ")).toMatch(/\b2 réglages\b/);
+  });
+
   it("hypothèses lisibles", () => {
     const r = estimateValue(
       { postsPerDay: 2, medianViews: 2000, promoShareObserved: null, authenticity: "SUSPECT_GENERIC", fakeFlags: ["SUSPECT_FAKE_SUBS"], postsRead: 40, geoConfidence: 0.9, deal: { kind: "hybrid", cpa: 50, revsharePct: 15 }, offerId: null },

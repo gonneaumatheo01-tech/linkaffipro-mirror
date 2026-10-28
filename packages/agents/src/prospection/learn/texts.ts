@@ -66,7 +66,9 @@ export const REPORT_VARIANTS = {
   noReader: ["Link Affi n'est pas branché : pas de vrais résultats ce mois-ci.", "Pas d'accès à Link Affi, donc pas de vrais résultats ce mois-ci."],
   unlinked: voiceTemplate<{ n: number }>([{ n: 2 }], (p) => [`${p.n} signés n'ont pas encore leur numéro d'affilié, je ne peux pas les suivre.`, `Il manque le numéro d'affilié de ${p.n} signés.`]),
   churn: voiceTemplate<{ handles: string }>([{ handles: "@a" }], (p) => [`Aucun clic depuis 60 jours : ${p.handles}. Tu les passes en arrêtés ?`, `${p.handles} : plus aucun clic depuis 60 jours. Je les note arrêtés si tu veux.`]),
-  proposals: voiceTemplate<{ n: number }>([{ n: 3 }], (p) => [`${p.n} réglages proposés juste avant, à toi de choisir.`, `Je t'ai envoyé ${p.n} réglages à choisir.`]),
+  proposals: voiceTemplate<{ n: number }>([{ n: 3 }, { n: 1 }], (p) =>
+    p.n === 1 ? ["1 réglage proposé juste avant, à toi de choisir.", "Je t'ai envoyé 1 réglage à choisir."] : [`${p.n} réglages proposés juste avant, à toi de choisir.`, `Je t'ai envoyé ${p.n} réglages à choisir.`],
+  ),
   qaRejected: ["Le bilan du mois n'a pas passé la vérification, je ne l'envoie pas.", "Je garde le bilan du mois : la vérification l'a bloqué."],
   qaUnavailable: ["La vérification ne répond pas, le bilan du mois attend.", "Je ne peux pas faire vérifier le bilan du mois pour l'instant, il attend."],
 } satisfies VoiceTable;
