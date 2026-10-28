@@ -120,7 +120,8 @@ export type OrderFacts = Record<string, unknown>;
 
 export type CapabilityCheck =
   | { ok: true }
-  | { ok: false; reason: string; alternatives: Alternative[] };
+  /** `clarify` : il manque seulement une précision (le thème…) : une question au client, pas une demande impossible. */
+  | { ok: false; reason: string; alternatives: Alternative[]; clarify?: boolean };
 
 /** Contexte passé à `plan` (horloge, ordre en cours de préparation). */
 export type CapabilityPlanContext = { now: Date; orderId?: string | null; mode: OrderMode; period?: OrderPeriod | null };

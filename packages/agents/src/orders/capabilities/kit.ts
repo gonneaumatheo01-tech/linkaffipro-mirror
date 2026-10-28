@@ -120,7 +120,7 @@ export const F = {
 export const ok = (): CapabilityCheck => ({ ok: true });
 
 /** Refus avec la raison et 4 replis au plus (doublons retirés). */
-export function refuse(reason: string, alternatives: Alternative[]): CapabilityCheck {
+export function refuse(reason: string, alternatives: Alternative[], opts: { clarify?: boolean } = {}): CapabilityCheck {
   const seen = new Set<string>();
   const alts = alternatives.filter((a) => {
     const k = a.label;
@@ -128,7 +128,7 @@ export function refuse(reason: string, alternatives: Alternative[]): CapabilityC
     seen.add(k);
     return true;
   });
-  return { ok: false, reason, alternatives: alts.slice(0, 4) };
+  return { ok: false, reason, alternatives: alts.slice(0, 4), ...(opts.clarify ? { clarify: true } : {}) };
 }
 
 export function alt(label: string, teamKey: OrderTeamKey, key: string, params: Record<string, unknown>): Alternative {

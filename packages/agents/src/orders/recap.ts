@@ -727,6 +727,11 @@ export async function startOrder(deps: BossDeps, order: TeamOrderRow, v: Validat
   return { reply: lines.map(esc).join("\n"), status: "done", orderId: order.id };
 }
 
+/** Refus marqué « précision demandée » par la capacité (« casino ou paris sportifs ? ») : une question, pas un manque. */
+function isClarification(i: ValidatedPlan["impossible"][number]): boolean {
+  return i.clarify === true;
+}
+
 /** Heure de début de la première fenêtre prévue (« 10 h »), ou null. */
 function firstWindow(steps: readonly OrderStep[]): string | null {
   const starts = steps.flatMap((s) => (s.overrides ?? []).map((o) => o.windowStart)).filter((x): x is string => typeof x === "string" && /^\d{1,2}:\d{2}$/.test(x));
@@ -748,7 +753,8 @@ export async function submitOrder(deps: BossDeps, v: ValidatedPlan, ctx: OrderSu
   }
   const order = await writeOrder(deps, v, ctx, { status: "DRAFT", recap: "" });
   // Ce qui n'a pas pu être pris est noté une fois par demande (bilan hebdomadaire).
-  const firstImpossible = v.impossible[0];
+  // Une précision manquante (le thème…) avec des choix rejouables de la même équipe n'est pas une demande impossible.
+  const firstImpossible = v.impossible.find((i) => !isClarification(i));
   if (firstImpossible && !ctx.orderId)
     await recordOrderUnmet(deps, {
       text: ctx.requestText,

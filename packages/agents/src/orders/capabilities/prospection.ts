@@ -53,7 +53,7 @@ const chercher = defineCapability<SearchP>({
       return refuse("il me faut le thème : casino ou paris sportifs", [
         alt("Chercher des canaux casino", T, "chercher_prospects", { ...p, verticale: "casino" }),
         alt("Chercher des canaux de paris sportifs", T, "chercher_prospects", { ...p, verticale: "paris_sportifs" }),
-      ]);
+      ], { clarify: true });
     return ok();
   },
   async plan(_deps, p) {

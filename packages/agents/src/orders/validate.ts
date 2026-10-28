@@ -30,6 +30,8 @@ export type ImpossibleOut = ImpossiblePart & {
   suggestedCapability?: string | null;
   teamKey?: string | null;
   refused?: boolean;
+  /** Précision demandée seulement (capacité `refuse(..., { clarify: true })`). */
+  clarify?: boolean;
   /** Écrit par le planificateur (IA) : contrôlé (voix, aucun chiffre inventé) avant d'être montré. */
   fromAi?: boolean;
 };
@@ -306,7 +308,7 @@ export async function validatePlan(deps: BossDeps, input: PlannedOrder | OrderPl
       check = { ok: false as const, reason: "je n'ai pas pu vérifier (lecture impossible pour le moment)", alternatives: [] };
     }
     if (!check.ok) {
-      impossible.push({ part: cap.description, reason: check.reason, alternatives: check.alternatives.slice(0, 4), teamKey: cap.teamKey });
+      impossible.push({ part: cap.description, reason: check.reason, alternatives: check.alternatives.slice(0, 4), teamKey: cap.teamKey, ...(check.clarify ? { clarify: true } : {}) });
       continue;
     }
     let planned: OrderStep[];
