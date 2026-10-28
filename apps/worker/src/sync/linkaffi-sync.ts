@@ -58,6 +58,7 @@ import {
   telegramCampaignsDue,
 } from "./linkaffi-telegram";
 import { applyPlayerRow, diffCpaEvents, type ExistingPlayer } from "./player-apply";
+import { reconcileAggregatePlayers } from "./aggregate-players";
 
 type Db = typeof prisma;
 
@@ -970,6 +971,15 @@ export async function runSync(opts: SyncOptions = {}): Promise<TableResult[]> {
         ? await syncStatsTable(ctx, client, opts.full === true)
         : await syncTable(ctx, client, t.table, t.dateCol, opts.full === true),
     );
+  }
+  // Offres sans fiches joueurs (applis de rencontre…) : inscriptions et premiers dépôts tenus depuis la table `stats`
+  // (voir aggregate-players.ts) ; leurs jours changés sont recalculés comme les commissions.
+  if (!wanted || wanted.has("stats") || wanted.has("players")) {
+    try {
+      for (const day of await reconcileAggregatePlayers(db)) ctx.dirtyDays.add(day);
+    } catch (err) {
+      logger.error({ err: (err as Error).message }, "joueurs agrégés (offres sans fiches joueurs)");
+    }
   }
   // Commissions changées (CPA créditée ou annulée, revshare corrigé) : leurs jours seront repris au prochain recalcul
   // des statistiques journalières, même s'ils sortent de sa fenêtre habituelle de 3 jours.

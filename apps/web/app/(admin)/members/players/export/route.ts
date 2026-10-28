@@ -12,6 +12,7 @@ const SOURCE: Record<string, string> = {
   postback: "retour du casino (identifiant de suivi reçu)",
   time_match: "rapprochement horaire",
   linkaffi: "clic Link Affi",
+  aggregate: "total du jour Link Affi (offre sans fiche joueur)",
 };
 
 /**

@@ -67,6 +67,7 @@ const SUB_ID_SOURCE: Record<string, string> = {
   postback: "reçu par le retour du casino",
   time_match: "rapproché par l'heure du clic",
   linkaffi: "clic Link Affi",
+  aggregate: "total du jour Link Affi",
 };
 
 /** Bloc de la fiche : carte avec un titre de section (`<h2>`), une ligne d'aide et une action discrète. */

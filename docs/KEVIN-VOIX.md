@@ -45,6 +45,17 @@ Kevin est le bot de l'équipe (le « Boss ») qui parle à l'admin et au groupe 
    Un brouillon qui contient un chiffre absent des faits n'est jamais réécrit : c'est le secours directement.
 3. `rewriteForVoice` ne lève jamais (plafond de l'IA atteint, réseau) : elle rend `text: null` et l'appelant prend le secours.
 
+## Kevin parle comme un collègue (rédacteur de la conversation, 28 octobre 2026)
+
+Demande du client : « qu'il me réponde comme toi, pas avec des messages de bot ». Après la décision du code, le rédacteur `boss/converse.ts` (`writeKevinReply`, méthode `converse` de l'IA du Boss, Opus 5.5 `BOSS_CONVERSE_MODEL`, effort « low », même plafond `boss.budget`) écrit la réponse avec les 12 derniers tours de la conversation (`BossTurn`) :
+
+- **discussion** (outil `discuter` de l'interprète : salut, avis, explication, remarque, suite de la conversation) : réponse libre, sans rien noter ni proposer ;
+- **demande impossible** (`pas_prevu`) : le début (« ce qui bloque ») est écrit par le rédacteur ; « je l'ai noté » et la proposition avec ses boutons restent au code ;
+- **action du catalogue faite, refusée ou à préciser** : le texte prévu par le code est redit naturellement. Jamais pour une confirmation (boutons, OUI / NON / SUPPRIMER), une liste numérotée, un lien, un texte de plus de 6 lignes ou 700 caractères, ni pour `aide`, `commencer`, `qui_fait_quoi`, `repondre_demande`, `plus_tard`, `annule` ;
+- **réponses chiffrées** (`answer.ts`) : brouillon par le même rédacteur, contrôles inchangés.
+
+Garde-fous du code, dans l'ordre : aucun chiffre absent du message, de la mémoire ou du texte du code ; en mode « action », mêmes chiffres, signes, noms et mode que le texte du code (`voiceFidelityProblems`) ; jamais « c'est fait », « j'ai lancé… », ✅ quand le code ne l'a pas dit (`claimsDone`) ; rien qui ressemble à un secret ; `kevinText` (voix, une réécriture) ; QA Global (`qaKevinReply`, 3 tentatives). Le moindre échec (IA absente ou en panne, délai, plafond, contrôle, QA refusé ou indisponible) envoie le texte du code, comme avant. Les politesses du chemin rapide (« salut », « ça va », « merci », « t'es un bot ? »), les secrets, OUI / NON et les commandes exactes restent des textes fixes, gratuits et immédiats.
+
 ## Textes fixes : comment en ajouter un
 
 - Chaque module exporte une table `export const <NOM>_VARIANTS = { cle: ["…", "…"], autre: voiceTemplate([exemples], (p) => [`…${p.x}…`]) } satisfies VoiceTable;`. Les exemples de `voiceTemplate` couvrent les branches (singulier, pluriel, champ vide…). Pour une liste demandée, ajouter `{ allowList: true, allowLong: true }`.

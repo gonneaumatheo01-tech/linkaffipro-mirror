@@ -4,7 +4,8 @@
  * journalisée. Coût borné : plafond mensuel `Setting` `boss.budget` (10 € par défaut) vérifié AVANT chaque appel,
  * dépense comptée dans `AgentUsage` (équipe `boss`, poste `llm`), alertes à 80 % et 100 % une fois par mois (mêmes
  * drapeaux que les plafonds des équipes). Au plafond, l'IA est considérée absente : le Boss garde les commandes
- * exactes et le dit. `createFakeBossLlm` : table phrase → appel d'outil (aucun réseau, tests).
+ * exactes et le dit. `createFakeBossLlm` : table phrase → appel d'outil (aucun réseau, tests). 28 octobre 2026 :
+ * `converse`, rédacteur de la conversation au meilleur modèle (`BOSS_CONVERSE_MODEL`, voir `converse.ts`).
  */
 import { createAnthropicClient, DEFAULT_MODEL, PLANNER_MODEL, QUALITY_MODEL, type AiClient, type AiToolDef, type AiToolUse } from "@linkaffipro/ai";
 import type { Db as PrismaClient } from "@linkaffipro/db";
@@ -41,6 +42,12 @@ export const BOSS_INTERPRET_MAX_TOKENS = 1200;
 export const BOSS_WRITE_MAX_TOKENS = 700;
 /** Phase 33 : planificateur des ordres (Opus 5.5, réflexion comprise dans le plafond de sortie). */
 export const BOSS_PLAN_MAX_TOKENS = 8000;
+/**
+ * Rédacteur de la conversation (`converse.ts`, 28 octobre 2026 : « qu'il me réponde comme toi ») : le meilleur modèle
+ * disponible, Opus 5.5, effort « low » (réponse rapide), même client que l'interprète (30 s, une relance).
+ */
+export const BOSS_CONVERSE_MODEL = PLANNER_MODEL;
+export const BOSS_CONVERSE_MAX_TOKENS = 1500;
 
 /**
  * Phase 33 — IA du Boss étendue (le type `BossLlm` du contrat est figé) : planificateur des ordres (Opus 5.5, sortie
@@ -50,6 +57,8 @@ export const BOSS_PLAN_MAX_TOKENS = 8000;
 export type BossLlmExt = BossLlm & {
   plan?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
   writeQuality?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
+  /** Réponse de Kevin en conversation (`converse.ts`, meilleur modèle) ; absente : textes du code, comme avant. */
+  converse?(req: { system: string; user: string }): Promise<{ text: string; costCents: number }>;
 };
 
 const eur = (cents: number) => `${(cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -223,6 +232,19 @@ export function bossLlmFromClient(prisma: PrismaClient, client: AiClient, opts: 
       await count(costCents);
       return { text: res.text, costCents };
     },
+    async converse(req) {
+      await guard();
+      const res = await client.createMessage({
+        model: BOSS_CONVERSE_MODEL,
+        maxTokens: BOSS_CONVERSE_MAX_TOKENS,
+        effort: "low",
+        system: [{ text: req.system, cache: true }],
+        user: req.user,
+      });
+      const costCents = costCentsOf(BOSS_CONVERSE_MODEL, res.usage);
+      await count(costCents);
+      return { text: res.text, costCents };
+    },
   };
 }
 
@@ -272,6 +294,7 @@ export type FakeBossLlm = BossLlmExt & {
     write: { system: string; user: string }[];
     plan: { system: string; user: string }[];
     writeQuality: { system: string; user: string }[];
+    converse: { system: string; user: string }[];
   };
 };
 
@@ -281,13 +304,31 @@ export type FakePlanner = (message: string, user: string) => string | Record<str
 /**
  * Fausse IA : table phrase (exacte après normalisation, ou expression) → appel d'outil attendu. Phrase inconnue :
  * aucun outil. `writer` : texte rendu par `write` (par défaut : vide, le code met les chiffres en forme).
+ * `converser` : texte rendu par `converse` (rédacteur de la conversation) ; une erreur levée simule une panne.
+ * Sans `converser`, la fausse IA n'a PAS de `converse` : Kevin garde les textes du code (anciens tests inchangés).
  */
 export function createFakeBossLlm(
   table: FakeBossTable,
-  opts: { writer?: (user: string) => string; costCents?: number; planner?: FakePlanner; quality?: (user: string) => string; planCostCents?: number } = {},
+  opts: {
+    writer?: (user: string) => string;
+    costCents?: number;
+    planner?: FakePlanner;
+    quality?: (user: string) => string;
+    planCostCents?: number;
+    converser?: (user: string) => string;
+  } = {},
 ): FakeBossLlm {
-  const calls: FakeBossLlm["calls"] = { interpret: [], write: [], plan: [], writeQuality: [] };
+  const calls: FakeBossLlm["calls"] = { interpret: [], write: [], plan: [], writeQuality: [], converse: [] };
+  const converser = opts.converser;
   return {
+    ...(converser
+      ? {
+          async converse(req: { system: string; user: string }) {
+            calls.converse.push(req);
+            return { text: converser(req.user), costCents: opts.costCents ?? 0 };
+          },
+        }
+      : {}),
     calls,
     async interpret(req) {
       calls.interpret.push(req);

@@ -265,7 +265,13 @@ async function subIdHealth(now: Date) {
     ids.length === 0
       ? 0
       : await prisma.player.count({
-          where: { subId: null, registeredAt: { gte: since }, affiliateCampaignId: { in: ids } },
+          where: {
+            subId: null,
+            registeredAt: { gte: since },
+            affiliateCampaignId: { in: ids },
+            // Joueurs agrégés (offres sans fiches joueurs) : jamais d'identifiant de suivi, ce n'est pas une panne.
+            OR: [{ subIdSource: null }, { subIdSource: { not: "aggregate" } }],
+          },
         });
   return evaluateSubIdHealth({ postback, timeMatch, missingWithClicks, offerClicks });
 }

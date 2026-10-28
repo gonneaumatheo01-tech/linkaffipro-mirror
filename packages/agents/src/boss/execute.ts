@@ -33,6 +33,9 @@ import { bossTurnsForSpeaker as turnsForSpeaker } from "./memory";
 import { CHOICES_VARIANTS, clearKevinList, pickOption, readKevinList, rememberKevinList, replayText } from "./choices";
 import { SITE_SELF_AUDITED_ACTIONS } from "../site/keys";
 import { runSiteFlow } from "../site/flow";
+import { rewritableResult, writeKevinReply } from "./converse";
+// Appelé seulement pendant un tour (jamais au chargement) : le cycle d'import avec `fast.ts` est sans effet.
+import { smallTalkReply } from "./fast";
 
 /** Textes fixes de ce module (voix de Kevin, `docs/KEVIN-VOIX.md`), 2 à 4 variantes chacun. */
 export const EXECUTE_VARIANTS = {
@@ -431,13 +434,15 @@ export async function unmetReply(
   secretContext?: SecretTextContext | null,
   chat?: BossChat | null,
   speaker?: BossSpeaker | null,
+  /** Début écrit par le rédacteur (`converse.ts`, déjà contrôlé) ; absent : une variante fixe. */
+  writtenHead?: string | null,
 ): Promise<BossReply> {
   await recordBossUnmet(deps, text, secretContext ?? null);
   const chatId = chat?.chatId ?? null;
   const near = nearestActions(text).filter(suggestable);
   const fallback = BOSS_CATALOG.find((a) => a.key === "etat_general") ?? null;
   const offer = near[0] ?? (fallback && suggestable(fallback) ? fallback : null);
-  const head = pick(UNMET_HEADS, "execute.unmet.head", chatId);
+  const head = writtenHead?.trim() || pick(UNMET_HEADS, "execute.unmet.head", chatId);
   const noted = pick(V.unmetNoted, "execute.unmet.noted", chatId);
   if (!offer) return { reply: `${head} ${noted} ${pick(V.unmetNoOffer, "execute.unmet.nooffer", chatId)}` };
   const what = esc(offerFragment(offer.description));
@@ -582,10 +587,44 @@ async function handleDecision(
       const r = await runSiteFlow(deps, { op: decision.op, params: decision.params, input });
       return { ...r, actionKey: decision.op.key };
     }
-    case "pas_prevu":
-      return { ...(await unmetReply(deps, input.text, secretContext, input.chat, input.speaker)), status: "unmet", actionKey: "pas_prevu" };
+    case "discuter": {
+      // Discussion sans action : Kevin répond librement, comme un collègue (`converse.ts`, garde-fous du code).
+      const chatId = input.chat?.chatId ?? null;
+      const w = await writeKevinReply(deps, {
+        mode: "chat",
+        message: input.spokenText ?? input.text,
+        chat: input.chat,
+        speaker: input.speaker,
+        turnId: runningTurnId,
+        messageId: input.messageId,
+        previous: await lastBossText(deps, chatId, runningTurnId),
+      });
+      if (w.text) return { reply: w.text, status: "answered", costCents: w.costCents, actionKey: "discuter" };
+      // Sans rédacteur (IA absente, panne, contrôle, QA) : la politesse fixe, sinon la réponse d'avant.
+      const small = smallTalkReply(input.text, chatId);
+      if (small) return { reply: small, status: "done", costCents: w.costCents, actionKey: "politesse" };
+      return { ...(await unmetReply(deps, input.text, secretContext, input.chat, input.speaker)), status: "unmet", costCents: w.costCents, actionKey: "pas_prevu" };
+    }
+    case "pas_prevu": {
+      // Le début (« ce qui bloque ») est écrit par le rédacteur ; la proposition et ses boutons restent au code.
+      const w = await writeKevinReply(deps, {
+        mode: "unmet",
+        message: input.spokenText ?? input.text,
+        chat: input.chat,
+        speaker: input.speaker,
+        turnId: runningTurnId,
+        messageId: input.messageId,
+        previous: await lastBossText(deps, input.chat?.chatId ?? null, runningTurnId),
+      });
+      return { ...(await unmetReply(deps, input.text, secretContext, input.chat, input.speaker, w.text)), status: "unmet", costCents: w.costCents, actionKey: "pas_prevu" };
+    }
   }
 }
+
+/** Statuts d'une action du catalogue dont le texte peut être redit par le rédacteur (jamais une confirmation). */
+const REWRITE_STATUSES = new Set<BossTurnStatus>(["done", "refused", "clarify"]);
+/** Actions dont le texte part toujours tel quel : listes et guides, réponses aux questions ouvertes, annulation. */
+const NOT_REWRITTEN_ACTIONS = new Set(["aide", "commencer", "qui_fait_quoi", "repondre_demande", "plus_tard", "annule"]);
 
 /**
  * Tour complet avec l'IA (worker, tâche `boss-text`). Un message déjà traité (tour du Boss avec le même
@@ -649,12 +688,30 @@ export async function bossAiTurn(deps: BossDeps, input: BossTeamInput): Promise<
       deps.logger?.warn({ err: (err as Error).message }, "[boss] interprète en échec");
       return finish({ reply: oopsReply(undefined, chatId) }, "error", "erreur");
     }
-    if (replayed && interpreted.decision.type === "pas_prevu")
+    if (replayed && (interpreted.decision.type === "pas_prevu" || interpreted.decision.type === "discuter"))
       // Jamais « pas prévu » pour un choix valide : Kevin redemande la phrase.
       return finish({ reply: pick(CHOICES_VARIANTS.replayLost, "choices.replayLost", chatId) }, "clarify", "preciser", interpreted.costCents);
     const r = await handleDecision(deps, interpreted.decision, effective, actor, secretContext, turnId);
-    const { status, actionKey, costCents, ...reply } = r;
-    return finish(reply, status, actionKey, interpreted.costCents + (costCents ?? 0));
+    const { status, actionKey, costCents, ...codeReply } = r;
+    let reply: BossReply = codeReply;
+    let spent = interpreted.costCents + (costCents ?? 0);
+    // Kevin parle comme un collègue : le texte prévu par le code pour une action du catalogue est redit naturellement
+    // (mêmes chiffres, noms, sens et mode, sinon le texte du code part tel quel). Jamais une confirmation ni une liste.
+    if (interpreted.decision.type === "action" && REWRITE_STATUSES.has(status) && !NOT_REWRITTEN_ACTIONS.has(actionKey) && rewritableResult(codeReply)) {
+      const w = await writeKevinReply(deps, {
+        mode: "result",
+        message: aiText,
+        codeText: codeReply.reply ?? "",
+        chat: input.chat,
+        speaker: input.speaker,
+        turnId,
+        messageId: input.messageId,
+        previous: await lastBossText(deps, chatId, turnId),
+      });
+      spent += w.costCents;
+      if (w.text) reply = { ...codeReply, reply: w.text };
+    }
+    return finish(reply, status, actionKey, spent);
   } catch (err) {
     deps.logger?.error({ err: (err as Error).message }, "[boss] tour en échec");
     return { reply: oopsReply(undefined, input.chat?.chatId ?? null) };

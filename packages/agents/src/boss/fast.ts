@@ -99,15 +99,16 @@ export const FAST_VARIANTS = {
     `C'est ta réponse à « ${p.question} » ?\nTa réponse : « ${p.answer} »`,
     `Je prends ça comme réponse à « ${p.question} » ?\nTa réponse : « ${p.answer} »`,
   ]),
+  // Kevin parle comme un collègue (28 octobre) : plus de liste de commandes à taper dans une simple politesse.
   hello: [
-    "Salut ! Écris « commencer » pour la mise en route, ou demande-moi par exemple « combien j'ai dépensé ce mois ? ». « aide » te montre ce que je sais faire.",
-    "Salut 👋 Tu veux faire quoi ? Par exemple « combien j'ai dépensé ce mois ? », ou « commencer » pour la mise en route.",
-    "Hello ! Dis-moi ce qu'il te faut. Si tu débutes, écris « commencer ». Pour des idées, écris « aide ».",
+    "Salut ! Dis-moi ce qu'il te faut, je suis là. Si c'est ta première fois, écris « commencer » et je te guide.",
+    "Salut 👋 Qu'est-ce que je peux faire pour toi ?",
+    "Hello ! Je t'écoute. Parle-moi normalement, comme à un collègue.",
   ],
   howAreYou: [
-    "Ça roule de mon côté 👍 Écris « agents » pour l'état des équipes, ou « commencer » pour la mise en route.",
-    "Ça va bien, merci. Tu veux l'état des équipes ? Écris « agents ».",
-    "Tranquille, les équipes tournent. Écris « agents » si tu veux voir où elles en sont.",
+    "Ça roule de mon côté, les équipes tournent. Et toi ?",
+    "Ça va bien, merci. Et toi, ça se passe comment ?",
+    "Tranquille, rien d'urgent de mon côté. Tu avais besoin de quelque chose ?",
   ],
   // Réponse à « merci » : seul endroit où « Avec plaisir » est permis (`allowThanks`).
   thanks: voiceVariants(["Avec plaisir 👍", "De rien !", "Avec plaisir, je suis là si besoin."], { allowThanks: true }), // voix-hors-charte (réponse à « merci »)

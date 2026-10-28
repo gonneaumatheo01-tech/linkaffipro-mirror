@@ -36,6 +36,8 @@ export async function computeSubIdHealth(now = new Date()): Promise<SubIdHealth>
             subId: null,
             registeredAt: { gte: since },
             affiliateCampaignId: { in: campaignIds },
+            // Joueurs agrégés (offres sans fiches joueurs) : jamais d'identifiant de suivi, ce n'est pas une panne.
+            OR: [{ subIdSource: null }, { subIdSource: { not: "aggregate" } }],
           },
         });
   return evaluateSubIdHealth({ postback, timeMatch, missingWithClicks, offerClicks });
