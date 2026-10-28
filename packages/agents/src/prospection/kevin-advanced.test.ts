@@ -227,8 +227,8 @@ describe("ordres et annuaire", () => {
 
   it("Veilleur et Valorisateur nommables, avec leur fiche ; 6 agents dans l'équipe", async () => {
     const { deps } = await kitWith();
-    expect(findAgent("le veilleur")).toMatchObject({ kind: "found", agent: { key: "veilleur" } });
-    expect(findAgent("valorisateur")).toMatchObject({ kind: "found", agent: { key: "valorisateur" } });
+    expect(findAgent("le veilleur")).toMatchObject({ status: "found", agent: { key: "veilleur" } });
+    expect(findAgent("valorisateur")).toMatchObject({ status: "found", agent: { key: "valorisateur" } });
     const card = await agentCard(deps, "veilleur");
     expect(card?.lines.join("\n")).toMatch(/Prochain message d'alertes/);
     const { AGENT_DIRECTORY } = await import("../orders/agents-dict");
