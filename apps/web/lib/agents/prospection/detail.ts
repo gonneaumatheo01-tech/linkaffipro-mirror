@@ -4,6 +4,7 @@
  */
 import { STATUS_TRANSITIONS, type ProspectStatus } from "@linkaffipro/agents";
 import { statusLabel } from "@/lib/status-badges";
+import { alertKindLabel } from "./advanced";
 import { DEAL_TYPE_LABELS } from "./display";
 
 /** Ordre des boutons sur la fiche. */
@@ -64,7 +65,22 @@ export function eventText(type: string, payload: unknown): string {
     case "DOSSIER":
       return "Dossier rédigé";
     case "ALERT":
-      return "Alerte";
+      return typeof p.kind === "string" ? `Alerte : ${alertKindLabel(p.kind).toLowerCase()}` : "Alerte";
+    case "ALERTS_MUTED":
+      return `Alertes coupées pour ce canal${by}`;
+    case "ALERTS_UNMUTED":
+      return `Alertes rétablies pour ce canal${by}`;
+    case "SNAPSHOT":
+    case "REQUALIFIED":
+      return "Relu par la veille";
+    case "NETWORK_MERGED":
+      return `Regroupé dans un réseau${by}`;
+    case "NETWORK_SPLIT":
+      return `Sorti de son réseau${by}`;
+    case "AFFILIATE_LINKED":
+      return typeof p.affiliateId === "string" ? `Rattaché à l'affilié Link Affi ${p.affiliateId}${by}` : `Rattaché à Link Affi${by}`;
+    case "VALUE_ESTIMATED":
+      return "Valeur estimée recalculée";
     default:
       return type.toLowerCase().replace(/_/g, " ");
   }

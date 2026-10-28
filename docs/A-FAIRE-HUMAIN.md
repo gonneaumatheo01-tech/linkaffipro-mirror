@@ -165,3 +165,8 @@ L'assistante est **désactivée** : elle ne répond à personne tant que vous ne
 ## Phase 31 — Prospection d'affiliés
 - **Vos offres** (recommandé) : réponses données à Kevin le 27 octobre (Sportaza, 5gringos, Celsius, betportal ; toute l'Europe ; hybride). Reste à donner les montants (CPA en euros, % de revshare) dans Agents → Prospection → Vos offres → Modifier.
 - **API payantes des annuaires** (option, pas obligatoire) : tgstat, telemetr ou telega proposent des API payantes plus complètes. L'équipe fonctionne sans, à partir des pages publiques. Si vous souhaitez en prendre une, dites-le à Kevin.
+
+## Phase 32 — Prospection avancée (veille, réseaux, valeur, vrais résultats)
+1. **Donner le revenu moyen par joueur et par mois** (pour les offres en part du revenu, 1 minute) : écrivez à Kevin « le revenu moyen par joueur est de 40 € par mois » (votre chiffre). Sans lui, la valeur estimée ne compte que la prime par joueur ; la page Agents → Prospection → Valeur estimée le rappelle.
+2. **Rattacher chaque affilié signé à Link Affi** (30 secondes par affilié) : Agents → Prospection → Affiliés signés → champ « Identifiant d'affilié Link Affi » → Rattacher. Ou écrivez à Kevin « @nom = affilié 1234 ». Sans identifiant, ses vrais résultats ne sont pas lus et le calibrage ne peut pas se faire.
+3. **Choisir d'activer la recherche par compte réel** (facultatif, 1 minute) : coupée par défaut. Pour l'activer, écrivez à Kevin « active la recherche par compte » puis répondez OUI. Lecture seule, 100 recherches par jour et par compte au plus, jamais avec un compte qui converse. Pour l'arrêter : Agents → Prospection → Sources → « Couper la recherche par compte ».

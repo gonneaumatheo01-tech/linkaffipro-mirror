@@ -1,11 +1,11 @@
 /**
- * Phase 31, chantier D — boutons sous les prospects envoyés par Kevin (`prospect:<id>:<action>` : ✅ Contacté,
+ * Phase 31, chantier D (et phase 32 : alertes `pra:`) — boutons sous les prospects envoyés par Kevin (`prospect:<id>:<action>` : ✅ Contacté,
  * 🤝 Signé, 🔎 Dossier, ⏰ Plus tard, ❌ Pas intéressé, type de deal, rappels) → `prospectButton` (Pipeline). Réponse :
  * le petit message au doigt (`answerCallbackQuery`), puis la réponse de Kevin dans la même conversation. Seuls l'admin
  * et les responsables de l'équipe changent le pipeline (le moteur le vérifie). Rien n'est jamais envoyé à un tiers.
  */
 import type { Bot, Context } from "grammy";
-import { isProspectCallbackData, prospectButton, type AgentsDeps, type ProspectionKevinDeps } from "@linkaffipro/agents";
+import { isProspectAlertCallbackData, isProspectCallbackData, prospectAlertButton, prospectButton, type AgentsDeps, type ProspectionKevinDeps } from "@linkaffipro/agents";
 import { isBossBot, type BotIdentity, type TelegramDeps } from "../ports";
 import { sendBossText, type BossReplyApi } from "../boss/reply";
 
@@ -32,13 +32,34 @@ export async function onProspectCallback(ctx: Context, agents: AgentsDeps): Prom
   }
 }
 
+/**
+ * Phase 32 : bouton d'alerte `pra:<alerte>:<action>` (✅ Vu, 📝 Note, 🔕 Plus pour ce canal) → `prospectAlertButton`
+ * (Veilleur ; « 📝 Note » : la prochaine réponse va sur la fiche). Même mécanique que `prospect:`. Ne lève jamais.
+ */
+export async function onProspectAlertCallback(ctx: Context, agents: AgentsDeps): Promise<void> {
+  const cq = ctx.callbackQuery;
+  if (!cq?.data) return;
+  const chatId = cq.message?.chat.id ?? cq.from.id;
+  try {
+    const r = await prospectAlertButton(agents as unknown as ProspectionKevinDeps, { data: cq.data, chatId, fromTelegramId: BigInt(cq.from.id) });
+    await ctx.answerCallbackQuery(r.toast ? { text: r.toast } : undefined).catch(() => undefined);
+    if (r.removeButtons) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    if (r.reply) await sendBossText(replyApiOf(ctx), chatId, r.reply, r.buttons ? { buttons: r.buttons } : {});
+  } catch (err) {
+    console.error("[prospection] bouton d'alerte", (err as Error).message);
+    await ctx.answerCallbackQuery().catch(() => undefined);
+  }
+}
+
 /** Boutons des prospects sur Kevin, en privé (le groupe passe par `boss-group.ts`). À enregistrer avant le dialogue admin. */
 export function registerBossProspectionHandlers(bot: Bot, identity: BotIdentity, deps: TelegramDeps): void {
   if (!isBossBot(identity)) return;
   bot.on("callback_query:data", async (ctx, next) => {
-    if (!isProspectCallbackData(ctx.callbackQuery.data) || !deps.agentsDeps) return next();
+    const data = ctx.callbackQuery.data;
+    if (!deps.agentsDeps || (!isProspectCallbackData(data) && !isProspectAlertCallbackData(data))) return next();
+    if (isProspectAlertCallbackData(data)) return onProspectAlertCallback(ctx, deps.agentsDeps());
     await onProspectCallback(ctx, deps.agentsDeps());
   });
 }
 
-export { isProspectCallbackData };
+export { isProspectAlertCallbackData, isProspectCallbackData };

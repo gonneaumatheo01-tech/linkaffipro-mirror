@@ -1228,7 +1228,7 @@ Vous pouvez aussi écrire à Kevin, en une phrase :
 
 #### La page Prospection
 
-La page a six vues (les **Réglages** sont réservés aux administrateurs) :
+La page a cinq vues (les **Réglages** sont réservés aux administrateurs), plus la rubrique **Sources** dans la barre du haut :
 
 - **Canaux trouvés** : le tableau des canaux, avec leur lien public (t.me), niveau et note, marché, pays et langue, abonnés, vues par post et part des abonnés qui lisent, concurrence, marques, ouverture (vend de la pub, pousse des marques, vend un accès payant), contact, statut, d'où il vient et sa dernière action. Filtres combinables (pays, marché, niveau, statut, concurrence, ouverture, contact, source), recherche, tri, et **vues toutes prêtes** (« À contacter », « Niveau A sans concurrent », « Vendent de la pub »…). Les filtres sont mémorisés sur cet appareil ; **Effacer les filtres** les vide. Cochez des canaux puis **Marquer contactés** ou **Ignorer**. **Exporter ces canaux (tableur)** télécharge les lignes filtrées.
 - **Avancement** : une colonne par étape (à contacter, contacté, a répondu, en discussion, signé, actif, a arrêté, pas intéressé), avec le nombre de canaux, le temps passé dans l'étape, la part des contactés qui ont répondu ou signé et les délais entre les étapes.
@@ -1251,6 +1251,59 @@ Une offre = une marque, son marché (paris sportifs, casino ou les deux), les pa
 - Elle ne lit que des **données publiques** : la page publique du canal, son aperçu public, des pages d'annuaires et de recherche, et une page liée dans sa description. Jamais un canal privé, jamais un lien d'invitation, jamais la liste des membres.
 - Elle ne garde que le nécessaire : les chiffres, les classements, un résumé de 200 caractères, les marques, les contacts publics et au plus 3 courts extraits. Le texte des posts n'est jamais enregistré.
 - Elle ne dit jamais qu'une chose est légale ou illégale.
+
+### Prospection : veille, réseaux, valeur, résultats réels
+
+L'équipe Prospection ne se contente plus de trouver et de noter : elle **relit** régulièrement les canaux suivis, vous **prévient** quand quelque chose change, **regroupe** les canaux tenus par la même personne, **estime** ce que chaque canal pourrait rapporter, puis **compare** ses estimations aux vrais résultats de vos affiliés signés, lus dans Link Affi. Toujours sans contacter personne. Six rubriques en haut de la page Prospection : **Canaux**, **Alertes**, **Réseaux**, **Valeur estimée**, **Affiliés signés**, **Sources**.
+
+#### Les alertes de la veille
+
+Les canaux sont relus à leur rythme : les niveaux A et B à contacter chaque semaine, les canaux en cours avec vous chaque semaine, vos affiliés signés tous les 3 jours, les autres plus rarement. Une alerte apparaît quand la veille mesure un changement utile :
+
+- **A lâché une marque** : une marque qu'il poussait a disparu de ses posts depuis 14 jours ; il cherche peut-être une offre.
+- **Nouvelle marque** ou **A changé de marque** : il vient peut-être de signer ailleurs.
+- **En forte hausse** : abonnés ou vues en forte hausse sur 30 jours ; un accord coûte peut-être moins cher maintenant. Si les abonnés montent sans les vues, c'est signalé comme suspect, pas comme une bonne nouvelle.
+- **En baisse**, **Ne publie plus**, **Contact changé**, **Vend de la pub**, **Niveau en hausse** ou **en baisse**.
+- Pour un affilié signé : **ne poste pas nos liens**, **pousse un concurrent**, **phrase à risque** (avec l'extrait, 15 mots au plus), **ne publie plus**. C'est une information, jamais une sanction : l'équipe ne lui écrit pas et ne coupe rien.
+
+Chaque matin vers 9 h 10, après la liste des canaux à contacter, Kevin vous envoie **les 8 alertes les plus importantes** (les opportunités d'abord). Une même alerte ne revient pas avant 14 jours. Sous chaque alerte : **✅ Vu**, **📝 Note**, **🔕 Plus pour ce canal**. Si vous ignorez 5 fois de suite le même type d'alerte, Kevin vous propose de le couper.
+
+La page **Alertes** les montre toutes, avec leurs chiffres (avant, maintenant), filtrables par statut (à voir, vues, coupées), par genre et par type. **Vu** la sort de la liste à voir ; **Plus pour ce canal** coupe les alertes de ce canal (il reste suivi) ; **Couper ce type** coupe un type pour tous les canaux. **Rétablir** revient en arrière. Par Kevin : « alertes du jour », « qui a lâché son bookmaker ? », « canaux en hausse », « plus d'alertes de ce type ».
+
+#### Les réseaux de canaux
+
+Quand plusieurs canaux sont tenus par la même personne, l'équipe les regroupe en un **réseau** : même contact, même signature d'auteur, même groupe de discussion, même site, reprises croisées, même code promo. Chaque preuve vaut des points ; il en faut 4 pour former un réseau. Un réseau apparaît comme **une seule ligne** dans la liste du matin (« Réseau @admin : 3 canaux, 5 400 vues par post cumulées ») : un seul accord à négocier, une valeur cumulée, un seul dossier. Un statut donné au réseau vaut pour tous ses canaux.
+
+La page **Réseaux** montre chaque réseau, ses canaux et ses preuves. **Séparer** sort un canal de son réseau (l'équipe ne le regroupera plus avec eux) ; **Regrouper des canaux** réunit des canaux que vous savez tenus par la même personne. Par Kevin : « réseau de @nom », « @a et @b c'est la même personne », « sépare @nom ».
+
+#### La valeur estimée
+
+Pour chaque canal noté qui correspond à une de vos offres, l'équipe calcule ce qu'il **pourrait** rapporter par mois : ses vues sur les posts promotionnels, la part de lecteurs qui cliquent, qui s'inscrivent, puis qui font un premier dépôt, multipliés par votre prime par joueur (et par la part du revenu si vous avez donné le revenu moyen par joueur et par mois). Le résultat est **toujours une fourchette** : basse, probable, haute, avec sa confiance et ses hypothèses (ouvrez **Hypothèses**). Un canal suspect voit sa fourchette réduite. Tant que les vrais résultats de vos affiliés n'ont pas corrigé les taux, c'est écrit **Estimation non calibrée**. Ce n'est jamais une promesse.
+
+La page **Valeur estimée** montre la valeur du pipeline par étape (« en discussion : 2 100 € – 11 000 € par mois »), les canaux à la valeur probable la plus haute, et le calibrage. La liste du matin est triée par niveau puis par valeur probable. Par Kevin : « combien vaut @nom ? », « valeur du pipeline ».
+
+#### Vos affiliés signés et leurs vrais résultats
+
+Quand un canal signe, rattachez-le à son **identifiant d'affilié Link Affi** : sur la page **Affiliés signés** (champ **Identifiant d'affilié Link Affi** puis **Rattacher**), ou en écrivant à Kevin « @nom = affilié 1234 ». Sans identifiant, ses vrais résultats ne peuvent pas être lus ; Kevin vous le rappelle une fois par semaine, 3 fois au plus.
+
+Chaque mois, l'équipe lit dans Link Affi (en lecture seule, rien n'y est jamais écrit) les clics, inscriptions, premiers dépôts et revenus de chaque affilié rattaché. Ce que Link Affi ne fournit pas est écrit « non fourni », jamais estimé. Un affilié passe **Actif** à son premier dépôt ; après 60 jours sans clic, Kevin vous propose de le noter « a arrêté » (rien n'est changé sans vous). La page compare l'estimation au réel (« dans la fourchette », « en dessous », « au-dessus ») et montre les alertes de suivi de chaque affilié. Le 1er du mois, Kevin vous envoie le rapport « ce que rapporte la prospection ». Par Kevin : « mes affiliés », « performance de @nom », « estimé vs réel ».
+
+#### Le calibrage
+
+Chaque mois, l'équipe compare ses estimations aux vrais résultats, par type de canal (marché, pays, contenu, niveau), et vous **propose** de corriger ses taux, les poids de la note ou la répartition des recherches entre les sources. Jamais sur moins de 3 affiliés ou 30 jours de résultats ; un coefficient ne bouge pas de plus de 50 % par mois, un poids de la note pas de plus de 20 %. Rien ne change sans votre choix : Kevin vous envoie des choix numérotés, vous répondez « applique 1 et 3 ». Sur la page **Valeur estimée** (administrateurs) : cochez les propositions puis **Appliquer les choix cochés** ; **Annuler le dernier calibrage** revient en arrière en un clic. Par Kevin : « calibrage », « applique 1 et 3 », « annule le calibrage ».
+
+La page **Sources** montre aussi **ce que rapporte chaque source** et chaque pays : la part de canaux de niveau A, de signés et d'actifs parmi les canaux notés.
+
+### Activer la recherche par compte réel
+
+L'équipe peut aussi chercher des canaux **directement dans Telegram** avec un compte réel, ce qui trouve des canaux absents des annuaires. Cette recherche est **coupée par défaut**. Elle reste en lecture seule : aucune adhésion à un canal, aucun message, une recherche toutes les 5 secondes, 100 recherches par jour et par compte au plus, jamais avec un compte qui sert à converser.
+
+Pour l'activer :
+
+1. Écrivez à Kevin « active la recherche par compte ».
+2. Kevin vous explique ce qu'elle fait et vous demande de confirmer : répondez **OUI**.
+
+La page **Sources**, section **Recherche par compte réel**, montre si elle est activée et combien de recherches ont été faites aujourd'hui. Si Telegram demande de ralentir, la recherche s'arrête d'elle-même et Kevin vous prévient. Pour l'arrêter : bouton **Couper la recherche par compte** sur cette page, ou « coupe la recherche par compte » à Kevin.
 
 ### Ce qui marche (équipe Algorithme)
 

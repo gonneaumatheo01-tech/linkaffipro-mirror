@@ -11,7 +11,7 @@ import type { ProspectAlertKind } from "../contract-advanced";
 import { formatCount, formatPct } from "../score/format";
 import { objectOf } from "../score/settings";
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 /** Libellés des types d'alerte (Kevin, site). */
 export const ALERT_KIND_LABELS: Readonly<Record<ProspectAlertKind, string>> = {

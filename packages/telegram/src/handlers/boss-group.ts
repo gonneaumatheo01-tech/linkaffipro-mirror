@@ -24,7 +24,7 @@ import { workerLooksDown } from "./agents-admin";
 import { deliverBossReply, sendBossText, type BossReplyApi } from "../boss/reply";
 import { createAlbumCaptions, createLibraryDepositor, inboxMediaOf, type LibraryDepositor } from "./media-inbox";
 import { onBossInputCallback } from "./boss-inputs";
-import { isProspectCallbackData, onProspectCallback } from "./boss-prospection";
+import { isProspectAlertCallbackData, isProspectCallbackData, onProspectAlertCallback, onProspectCallback } from "./boss-prospection";
 
 /**
  * Phase 33 : textes de secours de Kevin dans le groupe de l'équipe et en privé d'un membre (charte
@@ -188,6 +188,8 @@ async function onGroupCallback(ctx: Context, deps: TelegramDeps, agents: AgentsD
   if (isBossInputCallbackData(data)) return onBossInputCallback(ctx, deps);
   // Phase 31 : boutons des prospects (le moteur ne laisse que l'admin et les responsables changer le pipeline).
   if (isProspectCallbackData(data)) return onProspectCallback(ctx, agents);
+  // Phase 32 : boutons des alertes de la prospection (même règle : admin et responsables).
+  if (isProspectAlertCallbackData(data)) return onProspectAlertCallback(ctx, agents);
   const engine = engineOf(deps);
   const r = engine.isCallbackData(data)
     ? await engine.callback(agents, { data, fromTelegramId: BigInt(cq.from.id), messageId: cq.message?.message_id ?? null })
@@ -248,6 +250,10 @@ async function handleMemberPrivate(ctx: Context, identity: BotIdentity, deps: Te
   const agents = deps.agentsDeps();
   const member = await findTeamMember(agents, BigInt(from.id)).catch(() => null);
   if (!member) return false;
+  if (ctx.callbackQuery && isProspectAlertCallbackData(ctx.callbackQuery.data)) {
+    await onProspectAlertCallback(ctx, agents);
+    return true;
+  }
   if (ctx.callbackQuery && isProspectCallbackData(ctx.callbackQuery.data)) {
     await onProspectCallback(ctx, agents);
     return true;

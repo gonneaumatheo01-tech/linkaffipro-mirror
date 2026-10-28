@@ -8,12 +8,14 @@ import { PipelineView } from "@/components/agents/prospection/pipeline-view";
 import { ProspectFiltersForm } from "@/components/agents/prospection/prospect-filters";
 import { ProspectsTable } from "@/components/agents/prospection/prospects-table";
 import { ProspectionSettingsView } from "@/components/agents/prospection/settings-view";
-import { SourcesView } from "@/components/agents/prospection/sources-view";
+import { ProspectionNav } from "@/components/agents/prospection/prospection-nav";
 import { FilterChips } from "@/components/admin/filter-chips";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { buttonVariants } from "@/components/ui/button";
+import { SOURCES_PATH } from "@/lib/agents/prospection/advanced";
+import { loadOpenAlertsCount } from "@/lib/agents/prospection/advanced-queries";
 import { exportRedirect } from "@/lib/agents/prospection/export-link";
 import {
   PROSPECTION_VIEWS,
@@ -30,7 +32,6 @@ import {
   loadProspectTable,
   loadProspectionCounts,
   loadProspectionSettings,
-  loadSources,
 } from "@/lib/agents/prospection/queries";
 import { loadPendingCounts } from "@/lib/agents/queries";
 import { fmtNum } from "@/lib/format";
@@ -55,21 +56,28 @@ export default async function AgentsProspectionPage({ searchParams }: { searchPa
   const toExport = exportRedirect(sp);
   if (toExport) redirect(toExport);
   const isAdmin = user.role === "ADMIN";
+  // Phase 32 : les sources ont leur page (attribution, recherche par compte réel) ; l'ancienne vue y renvoie.
+  if (sp.vue === "sources") {
+    const keep = Object.fromEntries((["ok", "error"] as const).flatMap((k) => (typeof sp[k] === "string" ? [[k, sp[k] as string]] : [])));
+    const q = new URLSearchParams(keep).toString();
+    redirect(q ? `${SOURCES_PATH}?${q}` : SOURCES_PATH);
+  }
   const view = parseProspectionView(sp.vue);
   const filters = parseProspectFilters(sp);
   const now = new Date();
   const settings = await loadProspectionSettings();
   const scope = settings.countriesScope;
-  const [pending, counts, table, pipeline, offers, sources, dicts] = await Promise.all([
+  const [pending, counts, table, pipeline, offers, dicts, openAlerts] = await Promise.all([
     loadPendingCounts(),
     loadProspectionCounts(scope),
     view === "tableau" ? loadProspectTable(filters, scope) : Promise.resolve(null),
     view === "avancement" ? loadPipeline(filters, scope, now) : Promise.resolve(null),
     view === "offres" ? loadOffers() : Promise.resolve(null),
-    view === "sources" ? loadSources(scope, now) : Promise.resolve(null),
     view === "dictionnaires" ? loadDictionaries() : Promise.resolve(null),
+    loadOpenAlertsCount(scope),
   ]);
-  const views = PROSPECTION_VIEWS.filter((v) => v !== "reglages" || isAdmin);
+  // Les sources ont leur rubrique dans la sous-navigation (phase 32).
+  const views = PROSPECTION_VIEWS.filter((v) => v !== "sources" && (v !== "reglages" || isAdmin));
   const chipCount: Partial<Record<(typeof PROSPECTION_VIEWS)[number], number>> = {
     tableau: counts.toContact || undefined,
     dictionnaires: counts.pendingProposals || undefined,
@@ -89,6 +97,7 @@ export default async function AgentsProspectionPage({ searchParams }: { searchPa
           </Link>
         }
       />
+      <ProspectionNav current="canaux" openAlerts={openAlerts} />
       <Flash ok={sp.ok} error={sp.error} />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -116,7 +125,6 @@ export default async function AgentsProspectionPage({ searchParams }: { searchPa
       {table ? <ProspectsTable rows={table.rows} total={table.total} back={back} now={now} /> : null}
       {pipeline ? <PipelineView summary={pipeline.summary} cards={pipeline.cards} /> : null}
       {offers ? <OffersView offers={offers} /> : null}
-      {sources ? <SourcesView data={sources} isAdmin={isAdmin} /> : null}
       {dicts ? <DictionariesView view={dicts.view} proposals={dicts.proposals} isAdmin={isAdmin} /> : null}
       {view === "reglages" ? <ProspectionSettingsView settings={settings} isAdmin={isAdmin} /> : null}
     </>

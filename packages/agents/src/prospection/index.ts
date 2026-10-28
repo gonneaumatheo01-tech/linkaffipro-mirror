@@ -12,3 +12,7 @@ export { ensureProspectionOfferQuestions, PROSPECTION_OFFER_KEYS } from "./kevin
 export { answerProspectionQuestion } from "./kevin-answer";
 export { createProspectionWeb, loadProspectionWeb, PROSPECTION_USER_AGENT } from "./web-runtime";
 export * from "./enrich";
+// Phase 32, chantier C : Kevin (boutons d'alerte `pra:`, chemin rapide, recherche par compte réel).
+export { isProspectAlertCallbackData, prospectAlertButton, prospectionAdvancedFastPath, offerAccountSearchOnce } from "./kevin-advanced";
+export { prospectionAdvancedKevinPort, type ProspectionAdvancedKevinPort, type ProspectionAdvancedKevinDeps } from "./kevin-advanced-port";
+export { accountSearchEnabled, createUserbotSearchTransport, runAccountSearch, type AccountSearchTransport } from "./discover/sources/account-search";

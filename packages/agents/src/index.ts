@@ -519,3 +519,9 @@ export * from "./qa-gates/index";
 
 // Phase 31 : équipe Prospection (contrat ; les chantiers ajoutent leurs lignes dans `prospection/index.ts`).
 export * from "./prospection/index";
+// Phase 32, chantier D (site) : contrat avancé de la Prospection et fonctions appelées par les cœurs du site
+// (fusion / séparation d'un réseau, rattachement Link Affi). Les autres chantiers peuvent aussi les exporter depuis
+// `prospection/index.ts` : même liaison, aucun conflit.
+export * from "./prospection/contract-advanced";
+export { mergeProspects, splitProspect } from "./prospection/network/index";
+export { linkAffiliate } from "./prospection/learn/index";

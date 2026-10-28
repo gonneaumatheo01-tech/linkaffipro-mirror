@@ -391,6 +391,25 @@ export const AGENT_DIRECTORY: readonly AgentEntry[] = [
     role: "T'envoie la liste du matin avec les boutons, suit qui est contacté ou signé, te rappelle les relances et fait le point du lundi.",
     synonyms: ["pipeline", "agent pipeline", "suivi des prospects", "liste du matin", "top du jour", "relances des affilies", "celui qui suit les contacts"],
   }),
+  // Phase 32 : la prospection avancée (veille dans le temps, valeur estimée, vrais résultats Link Affi).
+  e({
+    key: "veilleur",
+    label: "Veilleur",
+    kind: "agent",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "Relit les prospects et les affiliés signés à intervalles réguliers, repère ce qui change (marque lâchée, hausse, silence, concurrent) et t'envoie les alertes du matin. Il regroupe aussi les canaux tenus par la même personne.",
+    synonyms: ["veilleur", "veilleuse", "agent de veille", "veille des prospects", "celui qui surveille les canaux", "alertes de prospection", "reseaux de canaux"],
+  }),
+  e({
+    key: "valorisateur",
+    label: "Valorisateur",
+    kind: "agent",
+    teams: ["prospection"],
+    chief: "chef-prospection",
+    role: "Estime ce que chaque canal pourrait rapporter par mois avec ton offre, en fourchette, puis compare aux vrais résultats Link Affi des affiliés signés pour proposer des réglages.",
+    synonyms: ["valorisateur", "valorisatrice", "celui qui estime la valeur", "valeur des prospects", "estimation en euros", "calibrage", "resultats des affilies"],
+  }),
 ];
 
 const BY_KEY = new Map(AGENT_DIRECTORY.map((a) => [a.key, a]));

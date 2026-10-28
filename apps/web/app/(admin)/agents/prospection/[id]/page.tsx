@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AgentsNav } from "@/components/agents/agents-nav";
+import { ProspectAdvancedSections } from "@/components/agents/prospection/prospect-advanced";
 import { ProspectDetailView } from "@/components/agents/prospection/prospect-detail";
 import { Flash } from "@/components/admin/flash";
 import { PageHeader } from "@/components/admin/page-header";
-import { PROSPECTION_PATH, channelName, safeProspectId } from "@/lib/agents/prospection/display";
+import { loadProspectExtras } from "@/lib/agents/prospection/advanced-queries";
+import { PROSPECTION_PATH, channelName, prospectHref, safeProspectId } from "@/lib/agents/prospection/display";
 import { loadProspect, loadProspectionSettings } from "@/lib/agents/prospection/queries";
 import { loadPendingCounts } from "@/lib/agents/queries";
 import { requireUser } from "@/lib/session";
@@ -21,6 +23,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
   const settings = await loadProspectionSettings();
   const [p, pending] = await Promise.all([loadProspect(id, settings.countriesScope), loadPendingCounts()]);
   if (!p) notFound();
+  const extras = await loadProspectExtras(p.id, p.networkId, settings.countriesScope);
   const isAdmin = user.role === "ADMIN";
   return (
     <>
@@ -34,6 +37,7 @@ export default async function ProspectPage({ params, searchParams }: { params: P
       />
       <Flash ok={sp.ok} error={sp.error} />
       <ProspectDetailView p={p} weights={settings.weights} isAdmin={isAdmin} now={new Date()} />
+      <ProspectAdvancedSections p={p} extras={extras} back={prospectHref(p.id)} />
     </>
   );
 }

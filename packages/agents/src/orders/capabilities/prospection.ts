@@ -17,7 +17,7 @@ import type { OrderRow, OrderStep } from "../contract";
 import { alt, defineCapability, done, failed, ok, orderActor, readOnly, refuse } from "./kit";
 
 const T = "prospection" as const;
-const ALL = ["chef-prospection", "sourceur", "enrichisseur", "evaluateur", "pipeline-prospection"];
+const ALL = ["chef-prospection", "sourceur", "enrichisseur", "evaluateur", "pipeline-prospection", "veilleur", "valorisateur"];
 
 /** Repère d'une étape déjà faite (`Setting prospection.order.<ordre>.<étape>`) : jamais deux fois. */
 const stepKeyOf = (order: OrderRow, step: OrderStep) => `prospection.order.${order.id}.${step.stepKey}`;

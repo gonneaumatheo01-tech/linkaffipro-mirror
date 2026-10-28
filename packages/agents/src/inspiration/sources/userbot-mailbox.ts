@@ -61,22 +61,25 @@ export async function userbotMailboxAlive(prisma: AgentsPrisma, now = new Date()
   return Number.isFinite(at) && now.getTime() - at < USERBOT_HEARTBEAT_MAX_AGE_MS;
 }
 
-/** Dépose une demande, attend la réponse (relue chaque seconde), puis efface la ligne. */
-export async function askUserbot(
+/**
+ * Dépose une demande, attend la réponse (relue chaque seconde), puis efface la ligne. Générique : la phase 32 y passe
+ * aussi ses demandes `prospect-search` (protocole dans `prospection/discover/sources/account-search.ts`).
+ */
+export async function askUserbot<Req extends { kind: string; accountId?: string } = UserbotRequest, Res = UserbotResponse>(
   prisma: AgentsPrisma,
-  request: UserbotRequest,
+  request: Req,
   opts: { timeoutMs: number; sleep?: (ms: number) => Promise<void>; now?: () => Date },
-): Promise<UserbotResponse> {
+): Promise<Res> {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = opts.now ?? (() => new Date());
   const key = `${USERBOT_REQUEST_PREFIX}${randomUUID()}`;
-  const row: UserbotRow = { ...request, status: "PENDING", createdAt: now().toISOString() };
-  await prisma.setting.create({ data: { key, value: row } });
+  const row = { ...request, status: "PENDING" as const, createdAt: now().toISOString() };
+  await prisma.setting.create({ data: { key, value: row as never } });
   const start = now().getTime();
   try {
     for (;;) {
       const cur = await prisma.setting.findUnique({ where: { key } });
-      const v = cur?.value as UserbotRow | undefined;
+      const v = cur?.value as { status?: string; response?: Res } | undefined;
       if (v?.status === "DONE" && v.response) return v.response;
       if (now().getTime() - start >= opts.timeoutMs) throw new UserbotTimeout();
       await sleep(POLL_MS);

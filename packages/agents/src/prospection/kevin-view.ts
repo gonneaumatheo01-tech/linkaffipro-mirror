@@ -12,7 +12,7 @@ import { prospectionEnabled } from "./kevin-read";
 import { plural } from "./kevin-texts";
 import { numberSetting } from "./score/settings";
 
-export const PROSPECTION_AGENT_KEYS = ["chef-prospection", "sourceur", "enrichisseur", "evaluateur", "pipeline-prospection"] as const;
+export const PROSPECTION_AGENT_KEYS = ["chef-prospection", "sourceur", "enrichisseur", "evaluateur", "pipeline-prospection", "veilleur", "valorisateur"] as const;
 
 async function count(deps: AgentsDeps, type: string, since: Date): Promise<number> {
   return deps.prisma.prospectEvent.count({ where: { type, createdAt: { gte: since } } as never });
@@ -49,6 +49,15 @@ export async function prospectionAgentCard(deps: AgentsDeps, key: string): Promi
       lines.push(`Ces 7 jours : ${plural(presented, "canal présenté", "canaux présentés")} dans tes listes.`);
       lines.push(`Prochaine liste : ${topNext}${parisWeekday(now) === 7 || (parisWeekday(now) === 1 && parisMinutes(now) < topHour * 60) ? ", avec le point de la semaine juste avant" : ""}.`);
       break;
+    case "veilleur":
+    case "valorisateur": {
+      // Phase 32 : fiche des agents de la prospection avancée (`kevin-advanced-view.ts`).
+      const { advancedAgentCard } = await import("./kevin-advanced-view");
+      const card = await advancedAgentCard(deps, key, now);
+      Object.assign(facts, card.facts);
+      lines.push(...card.lines);
+      break;
+    }
     default:
       lines.push(`Ces 7 jours : ${plural(found, "nouveau canal trouvé", "nouveaux canaux trouvés")}, ${plural(enriched, "lu", "lus")}, ${plural(presented, "présenté", "présentés")}. ${plural(qualified, "canal à contacter", "canaux à contacter")}.`);
       lines.push(`Prochaine liste : ${topNext}.`);

@@ -16,6 +16,7 @@ import { MONTAGE_CAPABILITIES } from "./capabilities/montage";
 import { ANALYSTES_CAPABILITIES } from "./capabilities/analystes";
 import { QA_CAPABILITIES } from "./capabilities/qa";
 import { PROSPECTION_CAPABILITIES } from "./capabilities/prospection";
+import { PROSPECTION_ADVANCED_CAPABILITIES } from "./capabilities/prospection-advanced";
 import { REDACTION_CAPABILITIES } from "./capabilities/redaction";
 import { SPORTS_CAPABILITIES } from "./capabilities/sports";
 import { TRANSVERSE_CAPABILITIES } from "./capabilities/transverse";
@@ -83,6 +84,8 @@ export const BUILTIN_CAPABILITIES: readonly AnyCapability[] = [
   ...QA_CAPABILITIES,
   // Phase 31 : équipe Prospection (recherche, liste à contacter, pause, offres, chiffres ; ne contacte jamais personne).
   ...PROSPECTION_CAPABILITIES,
+  // Phase 32 : prospection avancée (alertes, réseaux, valeur, affiliés, calibrage, recherche par compte réel).
+  ...PROSPECTION_ADVANCED_CAPABILITIES,
 ];
 
 registerCapabilities(BUILTIN_CAPABILITIES);

@@ -395,7 +395,33 @@ export const PAGE_HELP: readonly PageHelp[] = [
   {
     path: "/agents/prospection/:id",
     label: "Fiche d'un canal à recruter",
-    sections: ["La page Prospection", "Les boutons sous chaque canal", "Ce que l'équipe ne fait jamais"],
+    sections: ["La page Prospection", "Les boutons sous chaque canal", "La valeur estimée", "Les réseaux de canaux", "Ce que l'équipe ne fait jamais"],
+  },
+  // Phase 32 : veille (alertes), réseaux de canaux, valeur estimée, affiliés signés, sources étendues.
+  {
+    path: "/agents/prospection/alertes",
+    label: "Alertes de la prospection",
+    sections: [intro("Prospection : veille, réseaux, valeur, résultats réels"), "Les alertes de la veille"],
+  },
+  {
+    path: "/agents/prospection/reseaux",
+    label: "Réseaux de canaux",
+    sections: ["Les réseaux de canaux"],
+  },
+  {
+    path: "/agents/prospection/valeur",
+    label: "Valeur estimée",
+    sections: ["La valeur estimée", "Le calibrage"],
+  },
+  {
+    path: "/agents/prospection/affilies",
+    label: "Affiliés signés",
+    sections: ["Vos affiliés signés et leurs vrais résultats", "Les alertes de la veille"],
+  },
+  {
+    path: "/agents/prospection/sources",
+    label: "Sources de la prospection",
+    sections: ["La page Prospection", "Le calibrage", "Activer la recherche par compte réel"],
   },
   {
     path: "/agents/validations",

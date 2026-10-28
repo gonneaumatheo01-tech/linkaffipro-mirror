@@ -12,6 +12,7 @@ import { findTeamMember } from "../boss/team/members";
 import { pick } from "../boss/voice";
 import { PROSPECT_CALLBACK_PREFIX } from "./contract";
 import { prospectionPort, type ProspectCallbackOutcome, type ProspectionKevinDeps } from "./kevin-port";
+import { prospectionAdvancedFastPath } from "./kevin-advanced";
 import { findProspect, prospectDetailLines } from "./kevin-read";
 import { PROSPECTION_KEVIN_VARIANTS as V } from "./kevin-texts";
 
@@ -57,6 +58,9 @@ export async function prospectionFastPath(deps: BossDeps, input: BossTeamInput):
   const speaker = input.speaker;
   const chatKey = input.chat ? input.chat.chatId.toString() : ((await adminTelegramId(deps))?.toString() ?? null);
   const canChange = !speaker || speaker.kind === "admin" || speaker.role === "ADMIN" || speaker.role === "MANAGER";
+  // Phase 32 : réponse au « 📝 Note » d'une alerte, « @x = affilié 1234 » (avant le montant : la note peut contenir un chiffre).
+  const adv = await prospectionAdvancedFastPath(deps, input, { chatKey, canChange });
+  if (adv) return adv;
   if (chatKey && canChange && /\d/.test(text) && text.length <= 80) {
     const deal = await prospectionPort(d).answerPendingDeal(d, chatKey, text);
     if (deal) return { reply: { reply: deal }, actionKey: "prospect_statut" };

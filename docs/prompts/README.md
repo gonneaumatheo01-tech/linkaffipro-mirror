@@ -35,7 +35,7 @@ Lis CLAUDE.md puis docs/prompts/<fichier de la phase> et exécute la phase en en
 | `31-phase-29-analystes-marche.md` | Fait le 26 octobre 2026 | Équipe Analystes : veille marché sourcée (forums, Reddit, Telegram public, X, actualités, toute l'Europe), règles publicitaires par plateforme et pays, réponses de Kevin, rapport du lundi, alertes ; page Agents → Analyses |
 | `32-phase-30-qa-global.md` | Fait le 26 octobre 2026 | QA Global sur Claude Fable 5.1 : dernier verrou avant toute sortie des agents et de l'IA (posts, shorts, rapports, alertes, recommandations, réponses de Kevin), approbation liée au contenu exact, aucun repli, page Agents → Qualité |
 | `33-phase-31-prospection-affilies.md` | Fait le 27 octobre 2026 | Équipe Prospection : trouve, lit, note et classe les canaux Telegram publics casino et paris d'Europe, Top 10 chaque matin par Kevin avec boutons, dossiers, rappels, rapport du lundi, offres ; ne contacte personne ; page Agents → Prospection |
-| `34-phase-32-…` et suivantes | En file (`QUEUE`) | Lancées automatiquement |
+| `34-phase-32-prospection-avancee.md` | Fait le 27 octobre 2026 | Prospection avancée : veille des canaux et des affiliés signés (alertes du matin), réseaux de canaux tenus par la même personne, valeur estimée en fourchette, vrais résultats Link Affi et calibrage proposé, recherche par compte réel (lecture seule, coupée par défaut) ; pages Alertes, Réseaux, Valeur estimée, Affiliés signés, Sources |
 | `90-nouvelle-machine.md` | Quand un second ordinateur ou un équipier arrive | Prépare la machine à partir de GitHub |
 
 Les phases 2, 3 et 4 seront ajoutées ici au fur et à mesure. À la fin de chaque phase, Claude Code écrit `docs/STATUS.md` : lisez-le, faites le test de 5 minutes, puis dites « phase X OK ».

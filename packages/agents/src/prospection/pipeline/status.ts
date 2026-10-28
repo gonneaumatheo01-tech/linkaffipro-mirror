@@ -18,6 +18,12 @@
  * - retour : SKIPPED → QUALIFIED (système après 60 jours ; client à tout moment), CONTACTED (client), BLACKLISTED ;
  * - BLACKLISTED est terminal (plus jamais montré).
  * Rester dans le même statut n'est pas une transition (« Plus tard » = `snoozeProspect`, le statut ne change pas).
+ *
+ * Phase 32 (réseaux) : un statut posé par le CLIENT sur un canal membre d'un réseau (`Prospect.networkId`) se propage
+ * aux autres membres (contacté, a répondu, en négo, signé, arrêté, pas intéressé, à ne plus montrer), chacun par sa
+ * propre transition (mêmes règles, `ProspectEvent` STATUS_CHANGED avec `via: "network"`), et se pose au niveau du
+ * réseau (`ProspectNetwork.status`). « Actif » ne se propage pas (il dépend des résultats de chaque canal), le système
+ * ne propage jamais. `propagate: false` coupe la propagation (appel depuis la propagation elle-même).
  */
 import { PROSPECTION_LIMITS, type DealType, type ProspectionDeps, type ProspectStatus } from "../contract";
 import { DAY_MS, prospectionNow } from "../score/settings";
@@ -64,15 +70,26 @@ export type TransitionOptions = {
   dealType?: DealType;
   dealTerms?: Record<string, unknown>;
   snoozeDays?: number;
+  /** Phase 32 : propager aux autres canaux du réseau (par défaut : oui pour le client). */
+  propagate?: boolean;
 };
 
-export type TransitionResult = { ok: true; from: ProspectStatus; to: ProspectStatus } | { ok: false; reason: string };
+/** Statuts propagés aux membres d'un réseau quand le client les pose sur l'un d'eux. */
+export const NETWORK_PROPAGATED_STATUSES: readonly ProspectStatus[] = ["CONTACTED", "RESPONDED", "NEGOTIATING", "SIGNED", "CHURNED", "SKIPPED", "BLACKLISTED"];
+
+export type TransitionResult = { ok: true; from: ProspectStatus; to: ProspectStatus; propagated?: string[] } | { ok: false; reason: string };
 
 const json = (v: unknown) => JSON.parse(JSON.stringify(v ?? null));
 
 export async function transitionProspect(deps: ProspectionDeps, prospectId: string, to: ProspectStatus, opts: TransitionOptions): Promise<TransitionResult> {
   const now = prospectionNow(deps);
-  const p = (await deps.prisma.prospect.findUnique({ where: { id: prospectId } })) as { id: string; status: ProspectStatus; statusChangedAt: Date | null; updatedAt?: Date | null } | null;
+  const p = (await deps.prisma.prospect.findUnique({ where: { id: prospectId } })) as {
+    id: string;
+    status: ProspectStatus;
+    statusChangedAt: Date | null;
+    updatedAt?: Date | null;
+    networkId?: string | null;
+  } | null;
   if (!p) return { ok: false, reason: "prospect introuvable" };
   const from = p.status;
   if (from === to) return { ok: false, reason: "déjà dans ce statut" };
@@ -103,7 +120,31 @@ export async function transitionProspect(deps: ProspectionDeps, prospectId: stri
       createdAt: now,
     },
   });
+
+  // Phase 32 : propagation aux autres canaux du réseau.
+  if (p.networkId && opts.by === "client" && opts.propagate !== false && NETWORK_PROPAGATED_STATUSES.includes(to)) {
+    const propagated = await propagateToNetwork(deps, p.networkId, prospectId, to, opts);
+    if (propagated.length) return { ok: true, from, to, propagated };
+  }
   return { ok: true, from, to };
+}
+
+async function propagateToNetwork(deps: ProspectionDeps, networkId: string, fromProspectId: string, to: ProspectStatus, opts: TransitionOptions): Promise<string[]> {
+  const members = (await deps.prisma.prospect.findMany({ where: { networkId } })) as Array<{ id: string; status: ProspectStatus }>;
+  const done: string[] = [];
+  for (const m of members) {
+    if (m.id === fromProspectId || m.status === to) continue;
+    const r = await transitionProspect(deps, m.id, to, {
+      by: opts.by,
+      payload: { ...(opts.payload ?? {}), via: "network", networkId, fromProspectId },
+      ...(opts.dealType ? { dealType: opts.dealType } : {}),
+      ...(opts.dealTerms ? { dealTerms: opts.dealTerms } : {}),
+      propagate: false,
+    });
+    if (r.ok) done.push(m.id);
+  }
+  await deps.prisma.prospectNetwork.update({ where: { id: networkId }, data: { status: to } }).catch(() => undefined);
+  return done;
 }
 
 /** « Plus tard » : le statut ne change pas, le prospect revient après `days` jours. */

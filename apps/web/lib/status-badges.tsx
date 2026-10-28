@@ -107,6 +107,10 @@ export type AdsActionKind = "STOP" | "SCALE" | "TEST" | "WATCH";
 export type TrendSourceState = "ACTIVE" | "INACTIVE" | "ERROR" | "PROPOSED";
 /** État d'une source de l'équipe Prospection (phase 31), déduit par `sourceStatus` (lib/agents/prospection/sources.ts). */
 export type ProspectSourceState = "ACTIVE" | "PAUSED" | "ERROR" | "OFF";
+/** Alerte de la veille de la Prospection (phase 32, `ProspectAlert.status`, chaîne libre en base). */
+export type ProspectAlertStatusKey = "NEW" | "SENT" | "SEEN" | "MUTED";
+/** Recherche par compte réel de la Prospection (phase 32) : activée, coupée, ou arrêtée après un avertissement. */
+export type ProspectAccountSearchState = "ON" | "OFF" | "STOPPED";
 /** Proposition d'ajout aux dictionnaires de la Prospection (phase 31, `Setting prospection.dict_proposals`). */
 export type DictProposalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -599,6 +603,17 @@ export const STATUS_DICT = {
     ERROR: bad("En erreur"),
     OFF: muted("Prospection arrêtée"),
   } satisfies Record<ProspectSourceState, StatusEntry>,
+  prospectAlert: {
+    NEW: warn("Nouvelle"),
+    SENT: main("Envoyée par Kevin"),
+    SEEN: ok("Vue"),
+    MUTED: muted("Coupée"),
+  } satisfies Record<ProspectAlertStatusKey, StatusEntry>,
+  prospectAccountSearch: {
+    ON: ok("Activée"),
+    OFF: muted("Coupée"),
+    STOPPED: bad("Arrêtée après un avertissement de Telegram"),
+  } satisfies Record<ProspectAccountSearchState, StatusEntry>,
   dictProposal: {
     PENDING: warn("À valider"),
     APPROVED: ok("Validée"),
