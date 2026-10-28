@@ -135,6 +135,15 @@ export function offerChoiceGroups(
 
 export type CampaignChoice = { id: string; name: string; affiliateCampaignIds: string[] };
 
+/** Lien d'invitation d'un de nos canaux, proposé comme lien du canal VIP d'un bookmaker (Paris sportifs). */
+export type VipLinkChoice = {
+  id: string;
+  /** « <canal> · <nom du lien> ». */
+  label: string;
+  url: string;
+  isActive: boolean;
+};
+
 /** Avertissement doux : l'offre choisie n'est pas une offre de la campagne choisie. */
 export function campaignOfferNote(
   campaign: CampaignChoice | null,

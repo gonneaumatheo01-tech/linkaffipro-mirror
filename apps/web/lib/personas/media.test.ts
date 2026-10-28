@@ -33,7 +33,13 @@ describe("médias du personnage : lecture du formulaire", () => {
   it("tout vide : aucune image, poids 0,8 par défaut", () => {
     expect(validatePersonaMediaForm(fd({}))).toEqual({
       ok: true,
-      data: { referenceImageIds: [], loraUrl: null, loraTrigger: null, loraScale: 0.8, mediaNotes: null },
+      data: {
+        referenceImageIds: [],
+        loraUrl: null,
+        loraTrigger: null,
+        loraScale: 0.8,
+        mediaNotes: null,
+      },
     });
   });
 
@@ -42,7 +48,9 @@ describe("médias du personnage : lecture du formulaire", () => {
     expect(four.ok).toBe(false);
     if (!four.ok) expect(four.errors.referenceImageIds).toContain("3 images au plus");
 
-    const http = validatePersonaMediaForm(fd({ loraUrl: "http://exemple.com/x", loraTrigger: "x" }));
+    const http = validatePersonaMediaForm(
+      fd({ loraUrl: "http://exemple.com/x", loraTrigger: "x" }),
+    );
     expect(http.ok).toBe(false);
     if (!http.ok) expect(http.errors.loraUrl).toContain("https://");
 
@@ -53,7 +61,9 @@ describe("médias du personnage : lecture du formulaire", () => {
     expect(validatePersonaMediaForm(fd({ loraScale: "0,1" })).ok).toBe(true);
     expect(validatePersonaMediaForm(fd({ loraScale: "1.5" })).ok).toBe(true);
 
-    const noTrigger = validatePersonaMediaForm(fd({ loraUrl: "https://exemple.com/x.safetensors" }));
+    const noTrigger = validatePersonaMediaForm(
+      fd({ loraUrl: "https://exemple.com/x.safetensors" }),
+    );
     expect(noTrigger.ok).toBe(false);
     if (!noTrigger.ok) expect(noTrigger.errors.loraTrigger).toContain("mot déclencheur");
 
@@ -70,12 +80,17 @@ describe("médias du personnage : relecture et journal", () => {
   });
 
   it("champs modifiés seulement, et le domaine de l'adresse (jamais l'adresse entière)", () => {
-    const base = { referenceImageIds: ["a", "b"], loraUrl: null, loraTrigger: null, loraScale: 0.8, mediaNotes: null };
+    const base = {
+      referenceImageIds: ["a", "b"],
+      loraUrl: null,
+      loraTrigger: null,
+      loraScale: 0.8,
+      mediaNotes: null,
+    };
     expect(changedMediaFields(base, { ...base })).toEqual([]);
-    expect(changedMediaFields(base, { ...base, referenceImageIds: ["b", "a"], loraScale: 1 })).toEqual([
-      "referenceImageIds",
-      "loraScale",
-    ]);
+    expect(
+      changedMediaFields(base, { ...base, referenceImageIds: ["b", "a"], loraScale: 1 }),
+    ).toEqual(["referenceImageIds", "loraScale"]);
     expect(urlHost("https://v3.fal.media/files/x?sig=secret")).toBe("v3.fal.media");
     expect(urlHost(null)).toBeNull();
   });

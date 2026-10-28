@@ -46,8 +46,8 @@ async function teamUserOf(actor: TeamActor): Promise<TeamUser> {
   let name = actor.name;
   if (!name && actor.userId)
     name =
-      (await prisma.user.findUnique({ where: { id: actor.userId }, select: { name: true } }))?.name ??
-      undefined;
+      (await prisma.user.findUnique({ where: { id: actor.userId }, select: { name: true } }))
+        ?.name ?? undefined;
   return { id: actor.userId, name: name ?? "Kevin", ...viaArg(actor) };
 }
 
@@ -61,7 +61,9 @@ function backOf(id: string | null, r: OperationResult): CoreResult {
 /**
  * Conversation : identifiant, ou la dernière conversation du membre nommé (Kevin : « reprends la main avec Paul »).
  */
-async function conversationIdOf(input: Record<string, unknown>): Promise<string | CoreResult | null> {
+async function conversationIdOf(
+  input: Record<string, unknown>,
+): Promise<string | CoreResult | null> {
   const id = str(input.id || input.conversationId);
   if (id) return ID_RE.test(id) ? id : null;
   if (!str(input.member)) return null;
@@ -135,7 +137,10 @@ const LIST = "/conversations/personas";
 /** Refus d'enregistrement d'une persona, avec les erreurs par champ du formulaire. */
 export type PersonaCoreError = Extract<CoreResult, { ok: false }> & { errors?: PersonaFormErrors };
 
-function withParams(path: string, params: Record<string, string | null>): { path: string; params: Record<string, string> } {
+function withParams(
+  path: string,
+  params: Record<string, string | null>,
+): { path: string; params: Record<string, string> } {
   const q: Record<string, string> = {};
   for (const [k, v] of Object.entries(params)) if (v) q[k] = v;
   return { path, params: q };
@@ -181,9 +186,13 @@ async function personaDraft(input: Record<string, unknown>): Promise<unknown | C
   if (id) {
     const p = await loadPersona(id);
     if (!p)
-      return fail("Cette persona n'existe plus (supprimée entre-temps) : revenez à la liste des personas.", null, {
-        code: "not_found",
-      });
+      return fail(
+        "Cette persona n'existe plus (supprimée entre-temps) : revenez à la liste des personas.",
+        null,
+        {
+          code: "not_found",
+        },
+      );
     before = personaToForm(p, templates);
   } else before = emptyPersonaForm(templates);
   const after: Record<string, unknown> = { ...before };
@@ -193,10 +202,22 @@ async function personaDraft(input: Record<string, unknown>): Promise<unknown | C
   for (const k of ["gender", "identityKind", "universe"] as const)
     if (typeof input[k] === "string") after[k] = input[k];
   if (Array.isArray(input.languages)) after.languages = input.languages.map(String);
-  else if (typeof input.languages === "string") after.languages = input.languages.split(/[,\s]+/).filter(Boolean);
+  else if (typeof input.languages === "string")
+    after.languages = input.languages.split(/[,\s]+/).filter(Boolean);
   for (const k of ["requireInterest", "isActive"] as const)
     if (typeof input[k] === "boolean") after[k] = input[k];
   if (Array.isArray(input.faq)) after.faq = input.faq;
+  // Bookmakers partenaires (Paris sportifs) : la liste dite remplace la liste entière, dans l'ordre de proposition.
+  if (Array.isArray(input.bookmakers))
+    after.bookmakers = input.bookmakers.map((b) => {
+      const row = (b && typeof b === "object" ? b : {}) as Record<string, unknown>;
+      return {
+        bookmakerKey: str(row.bookmakerKey),
+        label: str(row.label),
+        affiliateCampaignId: str(row.affiliateCampaignId),
+        inviteLinkId: str(row.inviteLinkId),
+      };
+    });
   return withProfileTexts(before, after as typeof before, templates);
 }
 
@@ -205,7 +226,8 @@ export const savePersonaCore: Core = async (input, actor, opts = {}) => {
   let raw: unknown;
   if (isPartial(actor) && input.payload === undefined) {
     const d = await personaDraft({ ...input });
-    if (d && typeof d === "object" && "ok" in d && (d as CoreResult).ok === false) return d as CoreResult;
+    if (d && typeof d === "object" && "ok" in d && (d as CoreResult).ok === false)
+      return d as CoreResult;
     raw = d;
   } else if (typeof input.payload === "string") {
     try {
@@ -215,7 +237,9 @@ export const savePersonaCore: Core = async (input, actor, opts = {}) => {
     }
   } else raw = input.payload ?? null;
   const user = { id: actor.userId, role: actor.role, ...viaArg(actor) };
-  const r = opts.dryRun ? await savePersona(raw, user, { dryRun: true }) : await savePersona(raw, user);
+  const r = opts.dryRun
+    ? await savePersona(raw, user, { dryRun: true })
+    : await savePersona(raw, user);
   if (!r.ok) {
     // Erreurs par champ : rendues au formulaire du site (et à Kevin, pour dire quoi corriger).
     const out: PersonaCoreError = {
@@ -231,10 +255,14 @@ export const savePersonaCore: Core = async (input, actor, opts = {}) => {
   revalidatePath(LIST);
   revalidatePath(`${LIST}/${r.id}`);
   revalidatePath("/settings/bots");
-  return done(r.problem ? `${r.message} ${r.problem}` : r.message, withParams(`${LIST}/${r.id}`, { ok: r.message, error: r.problem }), {
-    personaId: r.id,
-    created: r.created,
-  });
+  return done(
+    r.problem ? `${r.message} ${r.problem}` : r.message,
+    withParams(`${LIST}/${r.id}`, { ok: r.message, error: r.problem }),
+    {
+      personaId: r.id,
+      created: r.created,
+    },
+  );
 };
 
 /** « Supprimer la persona » (administrateurs, après confirmation ; refusé si un bot l'utilise). */
@@ -245,13 +273,17 @@ export const deletePersonaCore: Core = async (raw, actor, opts = {}) => {
   const id = str(input.personaId);
   if (!id) return fail("Persona introuvable.", { path: LIST }, { code: "not_found" });
   const user = { id: actor.userId, role: actor.role, ...viaArg(actor) };
-  const r = opts.dryRun ? await deletePersona(id, user, { dryRun: true }) : await deletePersona(id, user);
+  const r = opts.dryRun
+    ? await deletePersona(id, user, { dryRun: true })
+    : await deletePersona(id, user);
   if (!r.ok)
     return fail(r.error, withParams(`${LIST}/${id}`, { error: r.error }), {
       code: actor.role !== "ADMIN" ? "forbidden" : "invalid",
     });
   if (opts.dryRun)
-    return preview(r.message, { impact: "La persona disparaît ; ses conversations et leurs statistiques restent." });
+    return preview(r.message, {
+      impact: "La persona disparaît ; ses conversations et leurs statistiques restent.",
+    });
   revalidatePath(LIST);
   revalidatePath("/settings/bots");
   return done(r.message, withParams(LIST, { ok: r.message }));
@@ -266,7 +298,8 @@ export const savePersonaMediaCore: Core = async (raw, actor, opts = {}) => {
   const r0 = await resolveInto(input, "personaId", "persona", "la persona", personaCandidates);
   if (!r0.ok) return fail(r0.error, null, { code: r0.code });
   const id = str(input.personaId);
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return fail("Persona introuvable.", { path: LIST }, { code: "not_found" });
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id))
+    return fail("Persona introuvable.", { path: LIST }, { code: "not_found" });
   const path = `/conversations/personas/${id}`;
   if (isPartial(actor)) {
     const { loadPersonaMedia } = await import("@/lib/personas/media-save");
@@ -275,11 +308,15 @@ export const savePersonaMediaCore: Core = async (raw, actor, opts = {}) => {
     // Photos transférées à Kevin : rangées par son déroulé dans la médiathèque (`mediaAssetIds`), ou citées (`media`).
     const given = input.media ?? input.mediaAssetIds ?? input.mediaAssetId;
     const added = (Array.isArray(given) ? given : given ? [given] : [])
-      .map((m) => (typeof m === "string" ? m : str((m as { mediaAssetId?: unknown })?.mediaAssetId)))
+      .map((m) =>
+        typeof m === "string" ? m : str((m as { mediaAssetId?: unknown })?.mediaAssetId),
+      )
       .filter(Boolean);
     const refs =
       input.referenceImageIds !== undefined
-        ? (Array.isArray(input.referenceImageIds) ? input.referenceImageIds.map(String) : str(input.referenceImageIds).split(","))
+        ? Array.isArray(input.referenceImageIds)
+          ? input.referenceImageIds.map(String)
+          : str(input.referenceImageIds).split(",")
         : [...new Set([...cur.referenceImageIds, ...added])];
     input.referenceImageIds = refs.join(",");
     if (input.loraUrl === undefined) input.loraUrl = cur.loraUrl ?? "";

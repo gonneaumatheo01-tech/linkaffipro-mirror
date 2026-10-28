@@ -12,7 +12,7 @@ import { visibleOffers } from "@/lib/campaigns/wizard";
 import { OFFER_VISUAL_MIME_TYPES, type PersonaRecord, type ProfileTemplates } from "./form";
 import { cleanFaq } from "./faq";
 import { personaTurnInput } from "./test-turn";
-import type { CampaignChoice, OfferChoice, PersonaListItem } from "./view";
+import type { CampaignChoice, OfferChoice, PersonaListItem, VipLinkChoice } from "./view";
 
 /** Liste des personas : actives d'abord, puis par prénom. */
 export async function loadPersonaList(): Promise<PersonaListItem[]> {
@@ -74,6 +74,16 @@ export async function loadPersona(id: string): Promise<PersonaDetail | null> {
         select: { id: true, name: true, username: true, mode: true },
         orderBy: { username: "asc" },
       },
+      bookmakers: {
+        select: {
+          bookmakerKey: true,
+          label: true,
+          priority: true,
+          affiliateCampaignId: true,
+          inviteLinkId: true,
+        },
+        orderBy: { priority: "asc" },
+      },
       _count: { select: { conversations: true } },
     },
   });
@@ -89,7 +99,12 @@ export type PersonaFormChoices = {
   models: VeniceModelInfo[];
   defaultModel: string;
   templates: ProfileTemplates;
+  /** Liens d'invitation de nos canaux, pour le canal VIP de chaque bookmaker (Paris sportifs). */
+  vipLinks: VipLinkChoice[];
 };
+
+/** Types de liens proposés comme lien d'un canal VIP (jamais un lien de pub suivie, d'affilié ou de page). */
+const VIP_LINK_KINDS = ["MANUAL", "SHARE", "AD_ENTRY"] as const;
 
 /**
  * Choix du formulaire : nos offres actives (celles de l'univers Rencontres d'abord à l'affichage ; seules les offres
@@ -99,8 +114,13 @@ export type PersonaFormChoices = {
 export async function loadPersonaFormChoices(current?: {
   affiliateCampaignId: string | null;
   offerMediaAssetId: string | null;
+  /** Offres et liens VIP des bookmakers déjà enregistrés (proposés même s'ils ne sont plus dans les listes). */
+  bookmakers?: ReadonlyArray<{ affiliateCampaignId: string | null; inviteLinkId: string | null }>;
 }): Promise<PersonaFormChoices> {
-  const [candidates, campaigns, images, config] = await Promise.all([
+  const currentLinkIds = (current?.bookmakers ?? []).flatMap((b) =>
+    b.inviteLinkId ? [b.inviteLinkId] : [],
+  );
+  const [candidates, campaigns, images, config, links] = await Promise.all([
     listOfferCandidates(),
     prisma.campaign.findMany({
       orderBy: [{ status: "asc" }, { name: "asc" }],
@@ -113,6 +133,23 @@ export async function loadPersonaFormChoices(current?: {
       select: { id: true, filename: true, mimeType: true },
     }),
     loadAssistantConfig(),
+    prisma.inviteLink.findMany({
+      where: {
+        OR: [
+          { isActive: true, kind: { in: [...VIP_LINK_KINDS] }, channel: { isActive: true } },
+          ...(currentLinkIds.length ? [{ id: { in: currentLinkIds } }] : []),
+        ],
+      },
+      orderBy: [{ channel: { title: "asc" } }, { createdAt: "desc" }],
+      take: 300,
+      select: {
+        id: true,
+        name: true,
+        telegramInviteLink: true,
+        isActive: true,
+        channel: { select: { title: true } },
+      },
+    }),
   ]);
   const offers: OfferChoice[] = visibleOffers(candidates, false).map((o) => ({
     id: o.id,
@@ -121,10 +158,13 @@ export async function loadPersonaFormChoices(current?: {
     vertical: o.vertical,
     isActive: true,
   }));
-  const currentOfferId = current?.affiliateCampaignId;
-  if (currentOfferId && !offers.some((o) => o.id === currentOfferId)) {
-    const o = await prisma.affiliateCampaign.findUnique({
-      where: { id: currentOfferId },
+  const currentOfferIds = [
+    current?.affiliateCampaignId,
+    ...(current?.bookmakers ?? []).map((b) => b.affiliateCampaignId),
+  ].filter((id): id is string => Boolean(id) && !offers.some((o) => o.id === id));
+  if (currentOfferIds.length) {
+    const rows = await prisma.affiliateCampaign.findMany({
+      where: { id: { in: [...new Set(currentOfferIds)] } },
       select: {
         id: true,
         name: true,
@@ -133,7 +173,7 @@ export async function loadPersonaFormChoices(current?: {
         program: { select: { name: true } },
       },
     });
-    if (o)
+    for (const o of rows)
       offers.push({
         id: o.id,
         name: o.name,
@@ -161,6 +201,12 @@ export async function loadPersonaFormChoices(current?: {
     models: config.models,
     defaultModel: config.defaultModel,
     templates: profileTemplates(),
+    vipLinks: links.map((l) => ({
+      id: l.id,
+      label: `${l.channel.title.trim() || "Canal sans titre"} · ${l.name}`,
+      url: l.telegramInviteLink,
+      isActive: l.isActive,
+    })),
   };
 }
 
@@ -191,14 +237,26 @@ export function profileTemplates(): ProfileTemplates {
  * active et a son adresse de suivi ; titre du canal = premier canal de la campagne liée, sinon un canal où un bot
  * assistant de cette persona est administrateur ; nom du bot = premier bot assistant qui l'utilise.
  */
-export async function loadPersonaTurnInput(
-  id: string,
-): Promise<{ input: PersonaInput; offerLinked: boolean } | null> {
+export async function loadPersonaTurnInput(id: string): Promise<{
+  input: PersonaInput;
+  offerLinked: boolean;
+  /** Liens actifs des canaux VIP par clé de bookmaker (bouton « Tester »). */
+  vipLinks: Record<string, string>;
+} | null> {
   const p = await prisma.persona.findUnique({
     where: { id },
     include: {
       affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
       campaign: { select: { channelIds: true } },
+      bookmakers: {
+        select: {
+          bookmakerKey: true,
+          label: true,
+          priority: true,
+          affiliateCampaign: { select: { isActive: true, trackingUrlTemplate: true } },
+          inviteLink: { select: { telegramInviteLink: true, isActive: true } },
+        },
+      },
       bots: {
         where: { mode: "ASSISTANT" },
         select: { id: true, name: true },
@@ -220,7 +278,12 @@ export async function loadPersonaTurnInput(
       channelTitle,
       botName: p.bots[0]?.name ?? null,
     }),
-    offerLinked: Boolean(p.affiliateCampaignId),
+    offerLinked: Boolean(p.affiliateCampaignId) || p.bookmakers.length > 0,
+    vipLinks: Object.fromEntries(
+      p.bookmakers.flatMap((b) =>
+        b.inviteLink?.isActive ? [[b.bookmakerKey, b.inviteLink.telegramInviteLink]] : [],
+      ),
+    ),
   };
 }
 

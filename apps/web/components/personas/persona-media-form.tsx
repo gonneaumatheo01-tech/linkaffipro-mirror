@@ -87,7 +87,11 @@ export function PersonaMediaForm({
   }
 
   return (
-    <form action={savePersonaMediaAction} id="medias" className="scroll-mt-24 space-y-6 border-t border-border pt-6">
+    <form
+      action={savePersonaMediaAction}
+      id="medias"
+      className="scroll-mt-24 space-y-6 border-t border-border pt-6"
+    >
       <input type="hidden" name="personaId" value={personaId} />
       <input type="hidden" name="referenceImageIds" value={refs.map((r) => r.id).join(",")} />
       <FormSection
@@ -103,8 +107,8 @@ export function PersonaMediaForm({
             Images de référence ({refs.length} sur {max})
           </legend>
           <p className="text-note text-muted-foreground">
-            1 à 3 photos nettes du personnage, de face et en pied. La première sert à remplacer la personne dans les
-            vidéos : mettez la meilleure en premier.
+            1 à 3 photos nettes du personnage, de face et en pied. La première sert à remplacer la
+            personne dans les vidéos : mettez la meilleure en premier.
           </p>
           {refs.length ? (
             <ol className="grid gap-3 sm:grid-cols-3">
@@ -184,7 +188,8 @@ export function PersonaMediaForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="persona-lora-url">
-              Adresse du <Term term="LoRA : petit fichier qui apprend au générateur de photos le visage et le corps du personnage (souvent en .safetensors)">
+              Adresse du{" "}
+              <Term term="LoRA : petit fichier qui apprend au générateur de photos le visage et le corps du personnage (souvent en .safetensors)">
                 fichier du personnage
               </Term>
             </Label>
@@ -199,8 +204,8 @@ export function PersonaMediaForm({
               aria-describedby="persona-lora-url-aide"
             />
             <p id="persona-lora-url-aide" className="text-note text-muted-foreground">
-              Facultatif : sans lui, les photos produites restent celles de la persona. Collez l&apos;adresse complète
-              qui commence par https://
+              Facultatif : sans lui, les photos produites restent celles de la persona. Collez
+              l&apos;adresse complète qui commence par https://
             </p>
           </div>
           <div className="space-y-1.5">
@@ -240,7 +245,8 @@ export function PersonaMediaForm({
               aria-describedby="persona-media-notes-aide"
             />
             <p id="persona-media-notes-aide" className="text-note text-muted-foreground">
-              Lu pour chaque photo et chaque vidéo : ce qu&apos;elle porte, les lieux, ce qu&apos;il faut éviter.
+              Lu pour chaque photo et chaque vidéo : ce qu&apos;elle porte, les lieux, ce qu&apos;il
+              faut éviter.
             </p>
           </div>
         </div>

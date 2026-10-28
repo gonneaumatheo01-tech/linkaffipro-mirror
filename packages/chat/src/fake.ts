@@ -397,6 +397,8 @@ export type TestTurnDepsOptions = {
   startAt?: Date;
   /** Adresse des liens d'offre d'exemple (aucun lien réel n'est créé) ; null : aucun lien. */
   offerBaseUrl?: string | null;
+  /** Liens des canaux VIP par bookmaker (Paris sportifs) : les vrais liens de la persona, montés tels quels. */
+  vipLinks?: Record<string, string>;
   beforeSend?: FakeTurnDepsOptions["beforeSend"];
 };
 
@@ -410,6 +412,7 @@ export function createTestTurnDeps(opts: TestTurnDepsOptions): FakeTurnDeps {
     llm: opts.llm,
     ...(opts.startAt ? { startAt: opts.startAt } : {}),
     ...(opts.offerBaseUrl !== undefined ? { offerBaseUrl: opts.offerBaseUrl } : {}),
+    ...(opts.vipLinks ? { vipLinks: opts.vipLinks } : {}),
     ...(opts.beforeSend ? { beforeSend: opts.beforeSend } : {}),
   });
   let capChecks = 0;

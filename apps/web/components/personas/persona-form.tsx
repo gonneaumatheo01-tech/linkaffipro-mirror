@@ -34,8 +34,10 @@ import {
   personaModelOptions,
   type CampaignChoice,
   type OfferChoice,
+  type VipLinkChoice,
 } from "@/lib/personas/view";
 import { OfferVisualField, type VisualOption } from "./offer-visual-field";
+import { PersonaBookmakersField } from "./persona-bookmakers-field";
 import { PersonaFaqField } from "./persona-faq-field";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -66,6 +68,7 @@ export function PersonaForm({
   templates,
   action,
   canEditFaq,
+  vipLinks,
 }: {
   initial: PersonaFormState;
   offers: OfferChoice[];
@@ -77,6 +80,8 @@ export function PersonaForm({
   action: (prev: PersonaSaveState, formData: FormData) => Promise<PersonaSaveState>;
   /** Fiche d'informations modifiable (administrateurs) ; sinon lecture seule. */
   canEditFaq: boolean;
+  /** Liens d'invitation de nos canaux, pour le canal VIP des bookmakers (Paris sportifs). */
+  vipLinks: VipLinkChoice[];
 }) {
   const [state, setState] = useState<PersonaFormState>(initial);
   const [images, setImages] = useState<VisualOption[]>(initialImages);
@@ -128,6 +133,7 @@ export function PersonaForm({
     affiliateCampaignId: state.affiliateCampaignId || null,
     offerPitch: state.offerPitch,
     gender: state.gender,
+    bookmakerOffers: state.bookmakers.filter((b) => b.affiliateCampaignId).length,
   });
   const err = (k: PersonaFormField) => errors[k];
 
@@ -550,6 +556,17 @@ export function PersonaForm({
           </div>
         </div>
       </FormSection>
+
+      {state.universe === "sports" || state.bookmakers.length > 0 ? (
+        <PersonaBookmakersField
+          value={state.bookmakers}
+          onChange={(v) => set("bookmakers", v)}
+          offerGroups={offerGroups}
+          offers={offers}
+          vipLinks={vipLinks}
+          error={err("bookmakers")}
+        />
+      ) : null}
 
       <PersonaFaqField
         value={state.faq}

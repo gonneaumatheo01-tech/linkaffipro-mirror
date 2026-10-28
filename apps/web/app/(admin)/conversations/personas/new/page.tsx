@@ -37,6 +37,7 @@ export default async function NewPersonaPage() {
         templates={choices.templates}
         action={savePersonaAction}
         canEditFaq={me.role === "ADMIN"}
+        vipLinks={choices.vipLinks}
       />
       <p className="mt-6 max-w-3xl text-note text-muted-foreground">
         Photos et vidéos du personnage : elles s&apos;ajoutent sur sa fiche, une fois la persona

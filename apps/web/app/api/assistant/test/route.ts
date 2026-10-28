@@ -126,6 +126,7 @@ export async function POST(req: Request) {
     costEur: (model, usage, costUsd) => estimateCostEur(model, usage, costUsd, config.models),
     startAt: now,
     offerBaseUrl: TEST_OFFER_BASE_URL,
+    vipLinks: persona.vipLinks,
   });
   const input = buildTestTurnInput({
     persona: persona.input,

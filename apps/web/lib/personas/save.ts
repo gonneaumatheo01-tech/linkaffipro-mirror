@@ -14,7 +14,9 @@
  * - univers (phase 25) : hors Rencontres, toujours l'assistante (refus serveur dans `validatePersonaForm`), et le
  *   mode illusion n'est jamais posé pour une assistante ;
  * - fiche d'informations (phase 25) : ADMIN seulement ; un MANAGER qui l'envoie modifiée est refusé (la fiche reste
- *   inchangée) ; journal `persona.faq_updated` (nombres d'entrées, jamais les textes).
+ *   inchangée) ; journal `persona.faq_updated` (nombres d'entrées, jamais les textes) ;
+ * - bookmakers partenaires (Paris sportifs, bot VIP) : offres et liens du canal VIP vérifiés, liste réécrite d'un bloc
+ *   dans l'ordre de proposition ; journal `persona.bookmakers_updated` (clés dans l'ordre, jamais les liens).
  */
 import { deniesBeingAssistant } from "@linkaffipro/chat";
 import { audit, prisma } from "@linkaffipro/db";
@@ -29,6 +31,7 @@ import {
   type PersonaData,
   type PersonaFormErrors,
 } from "./form";
+import { sameBookmakers, type PersonaBookmakerData } from "./bookmakers";
 import { cleanFaq, sameFaq, type PersonaFaqEntry } from "./faq";
 import { profileErrorMessage } from "./profile-error";
 
@@ -97,6 +100,7 @@ export function changedFields(
 async function checkReferences(
   data: PersonaData,
   previousOfferId: string | null,
+  previousBooks: readonly PersonaBookmakerData[] = [],
 ): Promise<PersonaFormErrors> {
   const errors: PersonaFormErrors = {};
   const [offer, campaign, media] = await Promise.all([
@@ -129,7 +133,49 @@ async function checkReferences(
     else if (!(OFFER_VISUAL_MIME_TYPES as readonly string[]).includes(media.mimeType))
       errors.offerMediaAssetId = "Le visuel doit être une image (JPEG, PNG ou WebP).";
   }
+  const bookmakers = await checkBookmakers(data.bookmakers ?? [], previousBooks);
+  if (bookmakers) errors.bookmakers = bookmakers;
   return errors;
+}
+
+/**
+ * Offres et liens du canal VIP des bookmakers : une offre introuvable, ou devenue inactive et nouvellement choisie, est
+ * refusée ; un lien VIP doit exister et être actif (un lien révoqué ne ferait entrer personne).
+ */
+async function checkBookmakers(
+  books: readonly PersonaBookmakerData[],
+  previous: readonly PersonaBookmakerData[],
+): Promise<string | null> {
+  if (books.length === 0) return null;
+  const offerIds = [...new Set(books.map((b) => b.affiliateCampaignId))];
+  const linkIds = [...new Set(books.flatMap((b) => (b.inviteLinkId ? [b.inviteLinkId] : [])))];
+  const [offers, links] = await Promise.all([
+    prisma.affiliateCampaign.findMany({
+      where: { id: { in: offerIds } },
+      select: { id: true, isActive: true },
+    }),
+    linkIds.length
+      ? prisma.inviteLink.findMany({
+          where: { id: { in: linkIds } },
+          select: { id: true, isActive: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  for (const b of books) {
+    const offer = offers.find((o) => o.id === b.affiliateCampaignId);
+    const kept = previous.some(
+      (p) => p.bookmakerKey === b.bookmakerKey && p.affiliateCampaignId === b.affiliateCampaignId,
+    );
+    if (!offer) return `${b.label} : offre introuvable, choisissez-en une autre.`;
+    if (!offer.isActive && !kept)
+      return `${b.label} : cette offre n'est plus active chez Link Affi, choisissez-en une autre.`;
+    if (b.inviteLinkId) {
+      const link = links.find((l) => l.id === b.inviteLinkId);
+      if (!link || !link.isActive)
+        return `${b.label} : le lien du canal VIP n'existe plus ou a été révoqué, choisissez-en un autre.`;
+    }
+  }
+  return null;
 }
 
 /** Profil Telegram de chaque bot assistant qui utilise la persona : remarques et refus, en phrases simples. */
@@ -218,6 +264,16 @@ export async function savePersona(
           universe: true,
           faq: true,
           isActive: true,
+          bookmakers: {
+            select: {
+              bookmakerKey: true,
+              label: true,
+              priority: true,
+              affiliateCampaignId: true,
+              inviteLinkId: true,
+            },
+            orderBy: { priority: "asc" },
+          },
         },
       })
     : null;
@@ -236,9 +292,19 @@ export async function savePersona(
     profileErrors.faq =
       "Seul un administrateur peut modifier la fiche d'informations : elle reste inchangée.";
 
+  // Bookmakers : brouillon sans liste → liste enregistrée gardée telle quelle.
+  const beforeRows = before?.bookmakers ?? [];
+  const beforeBooks: PersonaBookmakerData[] = beforeRows.flatMap((b) =>
+    b.affiliateCampaignId ? [{ ...b, affiliateCampaignId: b.affiliateCampaignId }] : [],
+  );
+  // Une ligne dont l'offre a disparu (supprimée chez Link Affi) compte comme un changement.
+  const booksChanged =
+    data.bookmakers !== null &&
+    (beforeBooks.length !== beforeRows.length || !sameBookmakers(beforeBooks, data.bookmakers));
+
   const errors = {
     ...profileErrors,
-    ...(await checkReferences(data, before?.affiliateCampaignId ?? null)),
+    ...(await checkReferences(data, before?.affiliateCampaignId ?? null, beforeBooks)),
   };
   const count = Object.keys(errors).length;
   if (count > 0)
@@ -266,7 +332,8 @@ export async function savePersona(
     };
 
   // `illusion` jamais posé pour une assistante (ni donc hors Rencontres, où « une fille » est refusée).
-  const row = { ...data, faq, illusion: data.identityKind === "GIRL" };
+  const { bookmakers: _books, ...fields } = data;
+  const row = { ...fields, faq, illusion: data.identityKind === "GIRL" };
   const faqMeta = { universe: data.universe, faqEntries: faq.length };
   let id: string;
   let created: boolean;
@@ -277,21 +344,31 @@ export async function savePersona(
     await prisma.persona.update({ where: { id: before.id }, data: row });
     id = before.id;
     created = false;
-    const fields = changedFields(before, data);
-    if (fields.length > 0)
+    const changed = changedFields(before, data);
+    if (changed.length > 0)
       await audit({
         userId: user.id,
         action: "persona.updated",
         entityType: "Persona",
         entityId: id,
-        metadata: { ...viaOf(user), fields, ...faqMeta },
+        metadata: { ...viaOf(user), fields: changed, ...faqMeta },
       });
-    if (fields.includes("campaignId") || fields.includes("affiliateCampaignId")) {
+    if (changed.includes("campaignId") || changed.includes("affiliateCampaignId")) {
       // Même règle que le worker (apps/worker/src/assistant/offer-link.ts) : le lien de la persona pour son offre
-      // actuelle suit sa campagne ; les liens d'une offre précédente gardent la leur.
-      if (data.affiliateCampaignId)
+      // actuelle (et pour celles de ses bookmakers) suit sa campagne ; les liens d'une offre précédente gardent la leur.
+      const offerIds = [
+        ...new Set([
+          ...(data.affiliateCampaignId ? [data.affiliateCampaignId] : []),
+          ...(data.bookmakers ?? beforeBooks).map((b) => b.affiliateCampaignId),
+        ]),
+      ];
+      if (offerIds.length)
         await prisma.trackingLink.updateMany({
-          where: { personaId: id, kind: "OFFER", affiliateCampaignId: data.affiliateCampaignId },
+          where: {
+            personaId: id,
+            kind: "OFFER",
+            affiliateCampaignId: offerIds.length === 1 ? offerIds[0] : { in: offerIds },
+          },
           data: { campaignId: data.campaignId },
         });
       recompute = true;
@@ -311,6 +388,28 @@ export async function savePersona(
       metadata: { ...viaOf(user), name: data.name, isActive: data.isActive, ...faqMeta },
     });
   }
+  if (booksChanged && data.bookmakers) {
+    const books = data.bookmakers;
+    await prisma.$transaction([
+      prisma.personaBookmaker.deleteMany({ where: { personaId: id } }),
+      prisma.personaBookmaker.createMany({
+        data: books.map((b) => ({ ...b, personaId: id })),
+      }),
+    ]);
+    await audit({
+      userId: user.id,
+      action: "persona.bookmakers_updated",
+      entityType: "Persona",
+      entityId: id,
+      // Clés dans l'ordre de proposition, et combien ont un lien VIP : jamais les liens eux-mêmes.
+      metadata: {
+        ...viaOf(user),
+        before: beforeBooks.map((b) => b.bookmakerKey),
+        after: books.map((b) => b.bookmakerKey),
+        vipLinks: books.filter((b) => b.inviteLinkId).length,
+      },
+    });
+  }
   if (faqChanged)
     await audit({
       userId: user.id,
@@ -318,7 +417,12 @@ export async function savePersona(
       entityType: "Persona",
       entityId: id,
       // Nombres seulement : jamais le texte des questions ni des réponses dans le journal.
-      metadata: { ...viaOf(user), universe: data.universe, before: beforeFaq.length, after: faq.length },
+      metadata: {
+        ...viaOf(user),
+        universe: data.universe,
+        before: beforeFaq.length,
+        after: faq.length,
+      },
     });
   const wasActive = before?.isActive ?? false;
   if (data.isActive !== wasActive && (before || data.isActive))

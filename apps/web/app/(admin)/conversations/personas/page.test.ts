@@ -33,7 +33,9 @@ vi.mock("@/lib/assistant/config", () => ({ loadAssistantConfig: vi.fn(async () =
 vi.mock("@/lib/assistant/usage", () => ({ monthCostEur: vi.fn(async () => m.spent) }));
 vi.mock("./actions", () => ({ savePersonaAction: vi.fn(), deletePersonaAction: vi.fn() }));
 vi.mock("./[id]/media-actions", () => ({ savePersonaMediaAction: vi.fn() }));
-vi.mock("@/lib/agents/algo/queries", () => ({ loadPersonaRecommendations: vi.fn(async () => m.algoRecs) }));
+vi.mock("@/lib/agents/algo/queries", () => ({
+  loadPersonaRecommendations: vi.fn(async () => m.algoRecs),
+}));
 vi.mock("@/app/(admin)/agents/[equipe]/algo-actions", () => ({ recommendationAction: vi.fn() }));
 vi.mock("@/lib/personas/media-save", () => ({ loadPersonaMedia: vi.fn(async () => m.media) }));
 vi.mock("@/lib/personas/queries", () => ({
@@ -264,7 +266,10 @@ describe("fiche d'une persona", () => {
         field: "messagesBeforeLink",
         before: 4,
         after: 6,
-        evidence: { summary: "Les conversations qui attendent 6 échanges s'inscrivent deux fois plus.", conversations: 42 },
+        evidence: {
+          summary: "Les conversations qui attendent 6 échanges s'inscrivent deux fois plus.",
+          conversations: 42,
+        },
         expectedGain: "+30 % d'inscriptions",
         size: "BIG",
         status: "PROPOSED",
@@ -279,7 +284,14 @@ describe("fiche d'une persona", () => {
     ];
     const html = await renderFiche();
     const text = visibleText(html);
-    for (const t of ["Propositions de l'équipe Algorithme", "Échanges avant le lien", "Gain attendu : +30 % d'inscriptions", "42 conversations", "Appliquer", "Refuser"])
+    for (const t of [
+      "Propositions de l'équipe Algorithme",
+      "Échanges avant le lien",
+      "Gain attendu : +30 % d'inscriptions",
+      "42 conversations",
+      "Appliquer",
+      "Refuser",
+    ])
       expect(text, t).toContain(t);
     expect(html).toContain('id="propositions-algorithme"');
     expect(primaryButtonCount(html)).toBe(1);

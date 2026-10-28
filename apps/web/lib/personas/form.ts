@@ -36,6 +36,13 @@ import {
   type PersonaFaqEntry,
   type PersonaUniverse,
 } from "@linkaffipro/core";
+import {
+  bookmakersToDraft,
+  validateBookmakers,
+  type PersonaBookmakerData,
+  type PersonaBookmakerDraft,
+  type PersonaBookmakerRecord,
+} from "./bookmakers";
 import { cleanFaq, validateFaq } from "./faq";
 
 export { hidesAssistant, saysAssistant };
@@ -175,6 +182,8 @@ export type PersonaFormState = {
   extraPrompt: string;
   /** Fiche d'informations (questions / réponses, 40 au plus) : modifiable par un administrateur seulement. */
   faq: PersonaFaqEntry[];
+  /** Paris sportifs (bot VIP) : bookmakers partenaires dans l'ordre de proposition, chacun avec son offre et son lien VIP. */
+  bookmakers: PersonaBookmakerDraft[];
   isActive: boolean;
 };
 
@@ -266,6 +275,7 @@ export function emptyPersonaForm(templates: ProfileTemplates = {}): PersonaFormS
     temperature: "",
     extraPrompt: "",
     faq: [],
+    bookmakers: [],
     isActive: false,
   };
   const texts = proposedProfileTexts(templates, base);
@@ -303,6 +313,8 @@ export type PersonaRecord = {
   botDescription: string | null;
   botShortDescription: string | null;
   isActive: boolean;
+  /** Bookmakers partenaires (Paris sportifs) ; absent pour les lectures qui ne les chargent pas. */
+  bookmakers?: readonly PersonaBookmakerRecord[];
 };
 
 /** Langues d'une persona parmi les 6, dans l'ordre, sans doublon (français si aucune). */
@@ -351,6 +363,7 @@ export function personaToForm(
     temperature: p.temperature === null ? "" : String(p.temperature),
     extraPrompt: p.extraPrompt ?? "",
     faq: cleanFaq(p.faq),
+    bookmakers: bookmakersToDraft(p.bookmakers),
     isActive: p.isActive,
   };
   const texts = proposedProfileTexts(templates, state);
@@ -422,10 +435,12 @@ export function activationProblems(p: {
   affiliateCampaignId: string | null;
   offerPitch: string;
   gender?: string | null;
+  /** Bookmakers partenaires avec une offre (Paris sportifs) : une offre est alors liée aussi. */
+  bookmakerOffers?: number;
 }): string[] {
   const out: string[] = [];
   if (!p.name.trim()) out.push("Donnez-lui d'abord un prénom.");
-  if (p.affiliateCampaignId && !p.offerPitch.trim())
+  if ((p.affiliateCampaignId || (p.bookmakerOffers ?? 0) > 0) && !p.offerPitch.trim())
     out.push(
       `Une offre est liée : remplissez d'abord « Ce que ${personaRole(p.gender)} peut dire de l'app » (sans ce texte, ${p.gender === "M" ? "il" : "elle"} ne pourrait rien en dire d'honnête).`,
     );
@@ -468,6 +483,8 @@ export type PersonaData = {
    * enregistrée reste alors inchangée). Le droit de la modifier (ADMIN) est vérifié par l'enregistrement.
    */
   faq: PersonaFaqEntry[] | null;
+  /** Bookmakers partenaires vérifiés ; null si le brouillon n'en porte pas (liste enregistrée inchangée). */
+  bookmakers: PersonaBookmakerData[] | null;
   isActive: boolean;
 };
 
@@ -522,6 +539,19 @@ const payloadSchema = z.object({
     .array(z.object({ q: z.string().max(5000), a: z.string().max(10000) }))
     .max(200)
     .nullable()
+    .optional()
+    .catch(undefined),
+  // Bookmakers partenaires : absents → null (inchangés). Les règles fines sont dans validateBookmakers.
+  bookmakers: z
+    .array(
+      z.object({
+        bookmakerKey: z.string().max(40).catch(""),
+        label: z.string().max(400).catch(""),
+        affiliateCampaignId: id,
+        inviteLinkId: id,
+      }),
+    )
+    .max(50)
     .optional()
     .catch(undefined),
   isActive: z.boolean().catch(false),
@@ -685,6 +715,13 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
     }
   }
 
+  let bookmakers: PersonaBookmakerData[] | null = null;
+  if (Array.isArray(f.bookmakers)) {
+    const bv = validateBookmakers(f.bookmakers, universe);
+    if (bv.ok) bookmakers = bv.books;
+    else errors.bookmakers = bv.error;
+  }
+
   const affiliateCampaignId = f.affiliateCampaignId || null;
   const data: PersonaData = {
     name,
@@ -713,14 +750,16 @@ export function validatePersonaForm(raw: unknown): PersonaValidation {
     temperature,
     extraPrompt: extraPrompt || null,
     faq,
+    bookmakers,
     isActive: f.isActive,
   };
 
   if (f.isActive) {
-    const problems = activationProblems(data);
+    const bookmakerOffers = bookmakers?.length ?? 0;
+    const problems = activationProblems({ ...data, bookmakerOffers });
     if (problems.length > 0) {
       if (!name) errors.name ??= "Un prénom est nécessaire pour activer la persona.";
-      if (affiliateCampaignId && !offerPitch)
+      if ((affiliateCampaignId || bookmakerOffers > 0) && !offerPitch)
         errors.offerPitch ??= "Nécessaire pour activer la persona (une offre est liée).";
       errors.isActive = `Activation impossible : ${problems.join(" ")}`;
     }

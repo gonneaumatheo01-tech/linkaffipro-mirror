@@ -153,6 +153,14 @@ export type PersonaTurnRow = {
   faq?: unknown;
   identityKind?: string | null;
   illusion?: boolean | null;
+  /** Bookmakers partenaires (Paris sportifs) avec leur offre et leur lien VIP ; absent : aucun. */
+  bookmakers?: ReadonlyArray<{
+    bookmakerKey: string;
+    label: string;
+    priority: number;
+    affiliateCampaign: { isActive: boolean; trackingUrlTemplate: string } | null;
+    inviteLink: { telegramInviteLink: string; isActive: boolean } | null;
+  }>;
 };
 
 /**
@@ -167,6 +175,17 @@ export function personaTurnInput(
   // imposée, jamais d'illusion ; fiche d'informations relue et bornée ; texte du bouton par défaut selon l'univers.
   const universe = parsePersonaUniverse(p.universe);
   const identity = effectiveIdentityKind(universe, p.identityKind);
+  // Même règle que le worker (`usableBookmakers`) : seuls les bookmakers dont l'offre peut partir sont proposés.
+  const books = (p.bookmakers ?? [])
+    .filter((b) => b.affiliateCampaign?.isActive && b.affiliateCampaign.trackingUrlTemplate.trim())
+    .sort((a, b) => a.priority - b.priority)
+    .map((b) => ({
+      bookmakerKey: b.bookmakerKey,
+      label: b.label,
+      priority: b.priority,
+      hasInviteLink: Boolean(b.inviteLink?.isActive),
+    }));
+  const offerUsable = extras.offerUsable || books.length > 0;
   return {
     universe,
     faq: parsePersonaFaq(p.faq),
@@ -188,10 +207,11 @@ export function personaTurnInput(
     followUpsMax: p.followUpsMax,
     offerPitch: p.offerPitch,
     offerButtonText: offerButtonTextFor(universe, p.offerButtonText),
-    hasOffer: Boolean(p.affiliateCampaignId) && extras.offerUsable,
-    offerMediaAssetId: extras.offerUsable ? p.offerMediaAssetId : null,
+    hasOffer: (Boolean(p.affiliateCampaignId) || books.length > 0) && offerUsable,
+    offerMediaAssetId: offerUsable ? p.offerMediaAssetId : null,
     channelTitle: extras.channelTitle,
     botName: extras.botName,
+    ...(books.length ? { bookmakers: books } : {}),
   };
 }
 

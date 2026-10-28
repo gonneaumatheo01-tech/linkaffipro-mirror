@@ -1,45 +1,12 @@
--- Persona VIP paris sportifs « Mehdi » et ses trois bookmakers (Celsius → Bet Portal → Sportaza).
--- À exécuter APRÈS la migration 20261028170000_add_persona_bookmaker. Relançable : met à jour sans doublon.
+-- Persona VIP paris sportifs « Mehdi » (textes, ton, fiche d'informations). Relançable : met à jour sans doublon.
+-- À exécuter APRÈS la migration 20261028170000_add_persona_bookmaker.
 --
--- AVANT D'EXÉCUTER, remplacer les 6 repères :
---   __CAMPAIGN_CELSIUS__   → id de l'AffiliateCampaign Celsius
---   __CAMPAIGN_BETPORTAL__ → id de l'AffiliateCampaign Bet Portal
---   __CAMPAIGN_SPORTAZA__  → id de l'AffiliateCampaign Sportaza
---   __VIP_LINK_CELSIUS__   → lien d'invitation du canal VIP Celsius (https://t.me/+…)
---   __VIP_LINK_BETPORTAL__ → lien d'invitation du canal VIP Bet Portal
---   __VIP_LINK_SPORTAZA__  → lien d'invitation du canal VIP Sportaza
--- Chaque lien VIP doit déjà exister dans "InviteLink" (créé par un de nos bots sur le canal VIP) : le moteur lit
--- `InviteLink.telegramInviteLink` pour envoyer le bouton « Accéder au canal VIP ». Le script s'arrête sinon.
---
+-- Les bookmakers partenaires (Celsius → Bet Portal → Sportaza), leur offre Link Affi et le lien de leur canal VIP se
+-- règlent ensuite sur le site : Conversations → Personas → Mehdi → « Bookmakers partenaires ».
 -- La persona est créée inactive : la relier à un bot en mode Assistant (Réglages → Bots) puis l'activer.
 -- `offerBooks` reste vide : l'ancienne colonne de la phase 36 n'est plus lue, la table "PersonaBookmaker" la remplace.
 
 BEGIN;
-
-DO $$
-DECLARE
-  books  text[][] := ARRAY[
-    -- clé, libellé, priorité, id de l'AffiliateCampaign, lien VIP
-    ARRAY['celsius',   'Celsius Casino', '1', '__CAMPAIGN_CELSIUS__',   '__VIP_LINK_CELSIUS__'],
-    ARRAY['betportal', 'Bet Portal',     '2', '__CAMPAIGN_BETPORTAL__', '__VIP_LINK_BETPORTAL__'],
-    ARRAY['sportaza',  'Sportaza',       '3', '__CAMPAIGN_SPORTAZA__',  '__VIP_LINK_SPORTAZA__']
-  ];
-  i      int;
-  link   text;
-BEGIN
-  FOR i IN 1 .. array_length(books, 1) LOOP
-    IF books[i][4] LIKE '\_\_%' OR books[i][5] LIKE '\_\_%' THEN
-      RAISE EXCEPTION 'Repère non remplacé pour %', books[i][1];
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM "AffiliateCampaign" WHERE "id" = books[i][4]) THEN
-      RAISE EXCEPTION 'AffiliateCampaign introuvable pour % : %', books[i][1], books[i][4];
-    END IF;
-    SELECT "id" INTO link FROM "InviteLink" WHERE "telegramInviteLink" = books[i][5];
-    IF link IS NULL THEN
-      RAISE EXCEPTION 'Lien VIP inconnu de la plateforme pour % : %', books[i][1], books[i][5];
-    END IF;
-  END LOOP;
-END $$;
 
 INSERT INTO "Persona" (
   "id", "name", "gender", "personality", "tone", "languages", "interests",
@@ -104,19 +71,5 @@ ON CONFLICT ("id") DO UPDATE SET
   "styleExamples" = EXCLUDED."styleExamples",
   "faq" = EXCLUDED."faq",
   "updatedAt" = NOW();
-
-INSERT INTO "PersonaBookmaker" ("id", "personaId", "bookmakerKey", "label", "affiliateCampaignId", "inviteLinkId", "priority")
-SELECT 'pbk_vip_sports_' || b.key, 'persona_vip_sports_01', b.key, b.label, b.campaign,
-       (SELECT "id" FROM "InviteLink" WHERE "telegramInviteLink" = b.link), b.priority
-FROM (VALUES
-  ('celsius',   'Celsius Casino', 1, '__CAMPAIGN_CELSIUS__',   '__VIP_LINK_CELSIUS__'),
-  ('betportal', 'Bet Portal',     2, '__CAMPAIGN_BETPORTAL__', '__VIP_LINK_BETPORTAL__'),
-  ('sportaza',  'Sportaza',       3, '__CAMPAIGN_SPORTAZA__',  '__VIP_LINK_SPORTAZA__')
-) AS b(key, label, priority, campaign, link)
-ON CONFLICT ("personaId", "bookmakerKey") DO UPDATE SET
-  "label" = EXCLUDED."label",
-  "affiliateCampaignId" = EXCLUDED."affiliateCampaignId",
-  "inviteLinkId" = EXCLUDED."inviteLinkId",
-  "priority" = EXCLUDED."priority";
 
 COMMIT;
